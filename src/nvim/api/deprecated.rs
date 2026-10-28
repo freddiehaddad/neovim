@@ -296,7 +296,7 @@ pub fn nvim_buf_set_virtual_text(
         if !(0..MAXLNUM).contains(&line) {
             api_set_error!(
                 err,
-                ErrorType::kErrorTypeValidation,
+                ErrorType::ErrorTypeValidation,
                 c"Line number outside range",
             );
             return 0;
@@ -1006,10 +1006,10 @@ fn set_option_to(
 
         let valid = matches!(
             value.obj_type,
-            ObjectType::kObjectTypeNil
-                | ObjectType::kObjectTypeBoolean
-                | ObjectType::kObjectTypeInteger
-                | ObjectType::kObjectTypeString
+            ObjectType::ObjectTypeNil
+                | ObjectType::ObjectTypeBoolean
+                | ObjectType::ObjectTypeInteger
+                | ObjectType::ObjectTypeString
         );
         if !valid {
             api_err_exp(
@@ -1061,11 +1061,11 @@ pub fn nvim_call_atomic(
     'theend: {
         while i < calls.size {
             let item = calls[i];
-            if item.obj_type != ObjectType::kObjectTypeArray {
+            if item.obj_type != ObjectType::ObjectTypeArray {
                 api_err_exp(
                     err,
                     c"'calls' item",
-                    api_typename(ObjectType::kObjectTypeArray),
+                    api_typename(ObjectType::ObjectTypeArray),
                     api_typename(item.obj_type),
                 );
                 break 'theend;
@@ -1081,22 +1081,22 @@ pub fn nvim_call_atomic(
                     break 'theend;
                 }
                 let first = call[0];
-                if first.obj_type != ObjectType::kObjectTypeString {
+                if first.obj_type != ObjectType::ObjectTypeString {
                     api_err_exp(
                         err,
                         c"name",
-                        api_typename(ObjectType::kObjectTypeString),
+                        api_typename(ObjectType::ObjectTypeString),
                         api_typename(first.obj_type),
                     );
                     break 'theend;
                 }
                 let name = first.data.string();
                 let second = call[1];
-                if second.obj_type != ObjectType::kObjectTypeArray {
+                if second.obj_type != ObjectType::ObjectTypeArray {
                     api_err_exp(
                         err,
                         c"call args",
-                        api_typename(ObjectType::kObjectTypeArray),
+                        api_typename(ObjectType::ObjectTypeArray),
                         api_typename(second.obj_type),
                     );
                     break 'theend;

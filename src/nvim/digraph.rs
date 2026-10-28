@@ -1999,7 +1999,7 @@ fn digraph_set_common(argchars: &TypVal,argdigraph: &TypVal) -> bool {
 pub fn f_digraph_get(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData){
 
      {
-        rettv.v_type = VarType::VAR_STRING;
+        rettv.v_type = VarType::VarString;
         rettv.vval = crate::eval::typval::TypvalVval::String(ptr::null_mut());
         let digraphs = tv_get_string_chk(&argvars[0]);
 
@@ -2030,7 +2030,7 @@ pub fn f_digraph_getlist(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: Eval
             return;
         }
 
-        let flag_list_all = if argvars[0].v_type == VarType::VAR_UNKNOWN {
+        let flag_list_all = if argvars[0].v_type == VarType::VarUnknown {
             false
         } else {
             tv_get_bool(&argvars[0]) != 0
@@ -2042,7 +2042,7 @@ pub fn f_digraph_getlist(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: Eval
 
 /// `digraph_set()` function (`f_digraph_set`).
 pub fn f_digraph_set(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
-    rettv.v_type = VarType::VAR_BOOL;
+    rettv.v_type = VarType::VarBool;
     rettv.vval = crate::eval::typval::TypvalVval::Bool(kBoolVarFalse);
 
     if !digraph_set_common(&argvars[0], &argvars[1]) {
@@ -2056,10 +2056,10 @@ pub fn f_digraph_set(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFunc
 pub fn f_digraph_setlist(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData){
 
     unsafe {
-        rettv.v_type = VarType::VAR_BOOL;
+        rettv.v_type = VarType::VarBool;
         rettv.vval = crate::eval::typval::TypvalVval::Bool(kBoolVarFalse);
 
-        if argvars[0].v_type != VarType::VAR_LIST {
+        if argvars[0].v_type != VarType::VarList {
             emsg(gettext(
                 E_DIGRAPH_SETLIST_ARGUMENT_MUST_BE_LIST_OF_LISTS_WITH_TWO_ITEMS,
             ));
@@ -2075,7 +2075,7 @@ pub fn f_digraph_setlist(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: Eval
         let mut pli = tv_list_first(pl.as_ref());
         while !pli.is_null() {
             let tv = &(*pli).li_tv;
-            if tv.v_type != VarType::VAR_LIST {
+            if tv.v_type != VarType::VarList {
                 emsg(gettext(
                     E_DIGRAPH_SETLIST_ARGUMENT_MUST_BE_LIST_OF_LISTS_WITH_TWO_ITEMS,
                 ));

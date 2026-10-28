@@ -228,26 +228,26 @@ struct Pat {
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum Tagcmd {
-    TAGCMD_INVALID,
-    TAGCMD_ADDRESS,
-    TAGCMD_GENERIC,
+    TagcmdInvalid,
+    TagcmdAddress,
+    TagcmdGeneric,
 }
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 #[repr(i32)]
 enum TagsReadStatus {
-    TAGS_READ_SUCCESS = 1,
-    TAGS_READ_EOF = 2,
-    TAGS_READ_IGNORE = 3,
+    TagsReadSuccess = 1,
+    TagsReadEof = 2,
+    TagsReadIgnore = 3,
 }
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum TagsearchState {
-    TS_START,
-    TS_LINEAR,
-    TS_BINARY,
-    TS_SKIP_BACK,
-    TS_STEP_FORWARD,
+    TsStart,
+    TsLinear,
+    TsBinary,
+    TsSkipBack,
+    TsStepForward,
 }
 
 #[derive(Clone, Copy, Default)]
@@ -264,10 +264,10 @@ struct TagsearchInfo {
 #[derive(Clone, Copy, PartialEq, Eq)]
 #[repr(i32)]
 enum TagmatchStatus {
-    TAG_MATCH_SUCCESS = 1,
-    TAG_MATCH_FAIL = 2,
-    TAG_MATCH_STOP = 3,
-    TAG_MATCH_NEXT = 4,
+    TagMatchSuccess = 1,
+    TagMatchFail = 2,
+    TagMatchStop = 3,
+    TagMatchNext = 4,
 }
 
 #[derive(Clone, Copy, Default)]
@@ -307,7 +307,7 @@ struct FindtagsState {
 impl FindtagsState {
     fn new() -> Self {
         Self {
-            state: TagsearchState::TS_START,
+            state: TagsearchState::TsStart,
             stop_searching: false,
             orgpat: Pat {
                 pat: ptr::null_mut(),
@@ -920,7 +920,7 @@ fn select_tag_match(eap: Option<&Exarg>,
         let tagstackidx = curwin_mut().w_tagstackidx;
 
         let mut items_tv = TypVal {
-            v_type: VarType::VAR_UNKNOWN,
+            v_type: VarType::VarUnknown,
             v_lock: VAR_UNLOCKED,
             vval: TypvalVval::Number(0),
         };
@@ -967,7 +967,7 @@ fn select_tag_match(eap: Option<&Exarg>,
             );
 
             let mut item = TypVal {
-                v_type: VarType::VAR_DICT,
+                v_type: VarType::VarDict,
                 v_lock: VAR_UNLOCKED,
                 vval: TypvalVval::Dict(d),
             };
@@ -979,7 +979,7 @@ fn select_tag_match(eap: Option<&Exarg>,
         (*items_tv.vval.v_list()).lv_refcount += 1;
         tv_dict_add_str(&mut *extra_d, c"tagname", name);
         let mut extra_tv = TypVal {
-            v_type: VarType::VAR_DICT,
+            v_type: VarType::VarDict,
             v_lock: VAR_UNLOCKED,
             vval: TypvalVval::Dict(extra_d),
         };
@@ -1220,23 +1220,23 @@ fn tagfunc_cmd_kind(cmd: *mut c_char) -> Tagcmd {
     unsafe {
         if ascii_isdigit(*cmd) {
             return if *skipdigits(cmd) == NUL {
-                Tagcmd::TAGCMD_ADDRESS
+                Tagcmd::TagcmdAddress
             } else {
-                Tagcmd::TAGCMD_INVALID
+                Tagcmd::TagcmdInvalid
             };
         }
         if crate::memory::cstr_first_byte(cmd) == b'/' || crate::memory::cstr_first_byte(cmd) == b'?' {
             let end = skip_regexp(cmd.add(1), *cmd as c_int, 0);
             return if *end == *cmd && crate::memory::cstr_byte_at(end, 1) == 0 {
-                Tagcmd::TAGCMD_ADDRESS
+                Tagcmd::TagcmdAddress
             } else {
-                Tagcmd::TAGCMD_INVALID
+                Tagcmd::TagcmdInvalid
             };
         }
         if crate::memory::cstr_as_bytes(cmd).iter().any(|b| b"\t\r\n".contains(b)) {
-            return Tagcmd::TAGCMD_INVALID;
+            return Tagcmd::TagcmdInvalid;
         }
-        Tagcmd::TAGCMD_GENERIC
+        Tagcmd::TagcmdGeneric
     }
 }
 
@@ -1250,12 +1250,12 @@ fn find_tagfunc_tags(
     unsafe {
         let mut ntags: c_int = 0;
         let mut args = [TypVal {
-            v_type: VarType::VAR_UNKNOWN,
+            v_type: VarType::VarUnknown,
             v_lock: VAR_UNLOCKED,
             vval: TypvalVval::Number(0),
         }; 4];
         let mut rettv = TypVal {
-            v_type: VarType::VAR_UNKNOWN,
+            v_type: VarType::VarUnknown,
             v_lock: VAR_UNLOCKED,
             vval: TypvalVval::Number(0),
         };
@@ -1275,9 +1275,9 @@ fn find_tagfunc_tags(
             return FAIL;
         }
 
-        args[0].v_type = VarType::VAR_STRING;
+        args[0].v_type = VarType::VarString;
         args[0].vval = crate::eval::typval::TypvalVval::String(pat);
-        args[1].v_type = VarType::VAR_STRING;
+        args[1].v_type = VarType::VarString;
         args[1].vval = crate::eval::typval::TypvalVval::String(flagString.as_mut_ptr());
 
         let d = tv_dict_alloc_lock(VAR_FIXED);
@@ -1292,9 +1292,9 @@ fn find_tagfunc_tags(
         }
 
         (*d).dv_refcount += 1;
-        args[2].v_type = VarType::VAR_DICT;
+        args[2].v_type = VarType::VarDict;
         args[2].vval = crate::eval::typval::TypvalVval::Dict(d);
-        args[3].v_type = VarType::VAR_UNKNOWN;
+        args[3].v_type = VarType::VarUnknown;
 
         vim_snprintf!(
             flagString.as_mut_ptr(),
@@ -1335,11 +1335,11 @@ fn find_tagfunc_tags(
         if result == FAIL {
             return FAIL;
         }
-        if rettv.v_type == VarType::VAR_SPECIAL && rettv.vval.v_special() == kSpecialVarNull {
+        if rettv.v_type == VarType::VarSpecial && rettv.vval.v_special() == kSpecialVarNull {
             tv_clear(&mut rettv);
             return NOTDONE;
         }
-        if rettv.v_type != VarType::VAR_LIST || rettv.vval.v_list().is_null() {
+        if rettv.v_type != VarType::VarList || rettv.vval.v_list().is_null() {
             tv_clear(&mut rettv);
             emsg(gettext(E_INVALID_RETURN_VALUE_FROM_TAGFUNC));
             return FAIL;
@@ -1354,7 +1354,7 @@ fn find_tagfunc_tags(
             let mut has_extra = false;
             let name_only = (flags & TAG_NAMES) != 0;
 
-            if li.li_tv.v_type != VarType::VAR_DICT {
+            if li.li_tv.v_type != VarType::VarDict {
                 emsg(gettext(E_INVALID_RETURN_VALUE_FROM_TAGFUNC));
                 break;
             }
@@ -1371,7 +1371,7 @@ fn find_tagfunc_tags(
                         let dict_key = (&*hi).key_ptr();
                         let tv = &raw mut (*di).di_tv;
 
-                        if (*tv).v_type == VarType::VAR_STRING && !(*tv).vval.v_string().is_null() {
+                        if (*tv).v_type == VarType::VarString && !(*tv).vval.v_string().is_null() {
                             len += crate::memory::cstr_len((*tv).vval.v_string()) + 1;
                             if crate::memory::cstr_as_bytes(dict_key) == b"name" {
                                 res_name = (*tv).vval.v_string();
@@ -1403,11 +1403,11 @@ fn find_tagfunc_tags(
             }
 
             let cmdkind = tagfunc_cmd_kind(res_cmd);
-            if cmdkind == Tagcmd::TAGCMD_INVALID {
+            if cmdkind == Tagcmd::TagcmdInvalid {
                 emsg(gettext(E_INVALID_RETURN_VALUE_FROM_TAGFUNC));
                 break;
             }
-            if cmdkind == Tagcmd::TAGCMD_GENERIC {
+            if cmdkind == Tagcmd::TagcmdGeneric {
                 len += 3;
             }
             let mut mfp_vec: Vec<c_char> = if name_only {
@@ -1441,11 +1441,11 @@ fn find_tagfunc_tags(
                 crate::memory::cstr_cpy(p, res_cmd);
                 p = p.add(crate::memory::cstr_len(p));
 
-                if cmdkind == Tagcmd::TAGCMD_GENERIC {
+                if cmdkind == Tagcmd::TagcmdGeneric {
                     *p = b'|' as c_char;
                     p = p.add(1);
                 }
-                if cmdkind == Tagcmd::TAGCMD_GENERIC || has_extra {
+                if cmdkind == Tagcmd::TagcmdGeneric || has_extra {
                     { let s = c";\"".as_ptr(); std::ptr::copy_nonoverlapping(s, p, std::ffi::CStr::from_ptr(s).to_bytes_with_nul().len()); };
                     p = p.add(crate::memory::cstr_len(p));
 
@@ -1465,7 +1465,7 @@ fn find_tagfunc_tags(
                                 let di = crate::eval::typval::tv_dict_hi2di(hi);
                                 let dict_key = (&*hi).key_ptr();
                                 let tv = &mut (*di).di_tv;
-                                if tv.v_type == VarType::VAR_STRING
+                                if tv.v_type == VarType::VarString
                                     && !tv.vval.v_string().is_null()
                                     && crate::memory::cstr_as_bytes(dict_key) != b"name"
                                     && crate::memory::cstr_as_bytes(dict_key) != b"filename"
@@ -1658,29 +1658,29 @@ fn findtags_get_next_line(
     unsafe {
         let mut eof: bool;
 
-        if st.state == TagsearchState::TS_BINARY {
+        if st.state == TagsearchState::TsBinary {
             let offset =
                 sinfo_p.low_offset + ((sinfo_p.high_offset - sinfo_p.low_offset) / 2);
             if offset == sinfo_p.curr_offset {
-                return TagsReadStatus::TAGS_READ_EOF;
+                return TagsReadStatus::TagsReadEof;
             } else {
                 sinfo_p.curr_offset = offset;
             }
-        } else if st.state == TagsearchState::TS_SKIP_BACK {
+        } else if st.state == TagsearchState::TsSkipBack {
             let lbuf_size = st.lbuf.len() as c_int;
             sinfo_p.curr_offset -= (lbuf_size * 2) as Off;
             if sinfo_p.curr_offset < 0 {
                 sinfo_p.curr_offset = 0;
                 vim_fseek(st.fp_ptr(), 0, SEEK_SET);
-                st.state = TagsearchState::TS_STEP_FORWARD;
+                st.state = TagsearchState::TsStepForward;
             }
         }
 
         let lbuf_ptr = st.lbuf.as_mut_ptr();
         let lbuf_size = st.lbuf.len() as c_int;
         let fp = st.fp_ptr();
-        if st.state == TagsearchState::TS_BINARY
-            || st.state == TagsearchState::TS_SKIP_BACK
+        if st.state == TagsearchState::TsBinary
+            || st.state == TagsearchState::TsSkipBack
         {
             sinfo_p.curr_offset_used = sinfo_p.curr_offset;
             g_st().vim_ignored = vim_fseek(fp, sinfo_p.curr_offset, SEEK_SET);
@@ -1698,10 +1698,10 @@ fn findtags_get_next_line(
                 eof = vim_fgets(lbuf_ptr, lbuf_size, fp);
             }
             if eof {
-                st.state = TagsearchState::TS_SKIP_BACK;
+                st.state = TagsearchState::TsSkipBack;
                 sinfo_p.match_offset = vim_ftell(fp);
                 sinfo_p.curr_offset = sinfo_p.curr_offset_used;
-                return TagsReadStatus::TAGS_READ_IGNORE;
+                return TagsReadStatus::TagsReadIgnore;
             }
         } else {
             loop {
@@ -1711,11 +1711,11 @@ fn findtags_get_next_line(
                 }
             }
             if eof {
-                return TagsReadStatus::TAGS_READ_EOF;
+                return TagsReadStatus::TagsReadEof;
             }
         }
 
-        TagsReadStatus::TAGS_READ_SUCCESS
+        TagsReadStatus::TagsReadSuccess
     }
 }
 
@@ -1758,26 +1758,26 @@ fn findtags_start_state_handler(
         }
 
         if st.linear {
-            st.state = TagsearchState::TS_LINEAR;
+            st.state = TagsearchState::TsLinear;
         } else if st.tag_file_sorted == NUL as c_int || st.tag_file_sorted == b'1' as c_int {
-            st.state = TagsearchState::TS_BINARY;
+            st.state = TagsearchState::TsBinary;
         } else if st.tag_file_sorted == b'2' as c_int {
-            st.state = TagsearchState::TS_BINARY;
+            st.state = TagsearchState::TsBinary;
             *sortic = true;
             st.orgpat.regmatch.rm_ic = opt_vars().p_ic != 0 || !noic;
         } else {
-            st.state = TagsearchState::TS_LINEAR;
+            st.state = TagsearchState::TsLinear;
         }
 
-        if st.state == TagsearchState::TS_BINARY && st.orgpat.regmatch.rm_ic && !*sortic {
+        if st.state == TagsearchState::TsBinary && st.orgpat.regmatch.rm_ic && !*sortic {
             st.linear = true;
-            st.state = TagsearchState::TS_LINEAR;
+            st.state = TagsearchState::TsLinear;
         }
 
-        if st.state == TagsearchState::TS_BINARY {
+        if st.state == TagsearchState::TsBinary {
             let fp = st.fp_ptr();
             if vim_fseek(fp, 0, SEEK_END) != 0 {
-                st.state = TagsearchState::TS_LINEAR;
+                st.state = TagsearchState::TsLinear;
             } else {
                 let filesize = vim_ftell(fp);
                 g_st().vim_ignored = vim_fseek(fp, 0, SEEK_SET);
@@ -1810,7 +1810,7 @@ fn findtags_parse_line(
             tagpp.tagname = lbuf;
             tagpp.tagname_end = vim_strchr(lbuf, TAB as c_int);
             if tagpp.tagname_end.is_null() {
-                return TagmatchStatus::TAG_MATCH_FAIL;
+                return TagmatchStatus::TagMatchFail;
             }
 
             let mut cmplen = tagpp.tagname_end.offset_from(tagpp.tagname) as c_int;
@@ -1819,12 +1819,12 @@ fn findtags_parse_line(
             }
             if (st.flags & TAG_REGEXP) != 0 && st.orgpat.headlen < cmplen {
                 cmplen = st.orgpat.headlen;
-            } else if st.state == TagsearchState::TS_LINEAR && st.orgpat.headlen != cmplen
+            } else if st.state == TagsearchState::TsLinear && st.orgpat.headlen != cmplen
             {
-                return TagmatchStatus::TAG_MATCH_NEXT;
+                return TagmatchStatus::TagMatchNext;
             }
 
-            if st.state == TagsearchState::TS_BINARY {
+            if st.state == TagsearchState::TsBinary {
                 let mut i = crate::memory::cstr_first_byte(tagpp.tagname) as c_int;
                 if margs.sortic {
                     i = toupper_asc(c_int::from(crate::memory::cstr_first_byte(tagpp.tagname)));
@@ -1848,9 +1848,9 @@ fn findtags_parse_line(
                 }
 
                 if tagcmp == 0 {
-                    st.state = TagsearchState::TS_SKIP_BACK;
+                    st.state = TagsearchState::TsSkipBack;
                     sinfo_p.match_offset = sinfo_p.curr_offset;
-                    return TagmatchStatus::TAG_MATCH_NEXT;
+                    return TagmatchStatus::TagMatchNext;
                 }
                 if tagcmp < 0 {
                     sinfo_p.curr_offset = vim_ftell(st.fp_ptr());
@@ -1861,7 +1861,7 @@ fn findtags_parse_line(
                         } else {
                             sinfo_p.low_char = crate::memory::cstr_first_byte(tagpp.tagname) as c_int;
                         }
-                        return TagmatchStatus::TAG_MATCH_NEXT;
+                        return TagmatchStatus::TagMatchNext;
                     }
                 }
                 if tagcmp > 0 && sinfo_p.curr_offset != sinfo_p.high_offset {
@@ -1871,31 +1871,31 @@ fn findtags_parse_line(
                     } else {
                         sinfo_p.high_char = crate::memory::cstr_first_byte(tagpp.tagname) as c_int;
                     }
-                    return TagmatchStatus::TAG_MATCH_NEXT;
+                    return TagmatchStatus::TagMatchNext;
                 }
 
-                return TagmatchStatus::TAG_MATCH_STOP;
-            } else if st.state == TagsearchState::TS_SKIP_BACK {
+                return TagmatchStatus::TagMatchStop;
+            } else if st.state == TagsearchState::TsSkipBack {
                 assert!(cmplen >= 0);
                 if mb_strnicmp(tagpp.tagname, st.orgpat.head, cmplen as usize) != 0 {
-                    st.state = TagsearchState::TS_STEP_FORWARD;
+                    st.state = TagsearchState::TsStepForward;
                 } else {
                     sinfo_p.curr_offset = sinfo_p.curr_offset_used;
                 }
-                return TagmatchStatus::TAG_MATCH_NEXT;
-            } else if st.state == TagsearchState::TS_STEP_FORWARD {
+                return TagmatchStatus::TagMatchNext;
+            } else if st.state == TagsearchState::TsStepForward {
                 assert!(cmplen >= 0);
                 if mb_strnicmp(tagpp.tagname, st.orgpat.head, cmplen as usize) != 0 {
                     return if vim_ftell(st.fp_ptr()) > sinfo_p.match_offset {
-                        TagmatchStatus::TAG_MATCH_STOP
+                        TagmatchStatus::TagMatchStop
                     } else {
-                        TagmatchStatus::TAG_MATCH_NEXT
+                        TagmatchStatus::TagMatchNext
                     };
                 }
             } else {
                 assert!(cmplen >= 0);
                 if mb_strnicmp(tagpp.tagname, st.orgpat.head, cmplen as usize) != 0 {
-                    return TagmatchStatus::TAG_MATCH_NEXT;
+                    return TagmatchStatus::TagMatchNext;
                 }
             }
 
@@ -1912,9 +1912,9 @@ fn findtags_parse_line(
         }
 
         if !status {
-            TagmatchStatus::TAG_MATCH_FAIL
+            TagmatchStatus::TagMatchFail
         } else {
-            TagmatchStatus::TAG_MATCH_SUCCESS
+            TagmatchStatus::TagMatchSuccess
         }
     }
 }
@@ -2111,8 +2111,8 @@ fn findtags_get_all_tags(
         let mut search_info = TagsearchInfo::default();
 
         loop {
-            if st.state == TagsearchState::TS_BINARY
-                || st.state == TagsearchState::TS_SKIP_BACK
+            if st.state == TagsearchState::TsBinary
+                || st.state == TagsearchState::TsSkipBack
             {
                 line_breakcheck();
             } else {
@@ -2131,10 +2131,10 @@ fn findtags_get_all_tags(
             }
             if !st.get_searchpat {
                 let retval = findtags_get_next_line(st, &mut search_info);
-                if retval == TagsReadStatus::TAGS_READ_IGNORE {
+                if retval == TagsReadStatus::TagsReadIgnore {
                     continue;
                 }
-                if retval == TagsReadStatus::TAGS_READ_EOF {
+                if retval == TagsReadStatus::TagsReadEof {
                     break;
                 }
             }
@@ -2143,7 +2143,7 @@ fn findtags_get_all_tags(
                 findtags_string_convert(st);
             }
 
-            if st.state == TagsearchState::TS_START
+            if st.state == TagsearchState::TsStart
                 && !findtags_start_state_handler(st, &mut margs.sortic, &mut search_info)
             {
                 continue;
@@ -2154,8 +2154,8 @@ fn findtags_get_all_tags(
                 let new_size = st_ref.lbuf.len() * 2;
                 st_ref.lbuf = vec![0 as c_char; new_size];
 
-                if st_ref.state == TagsearchState::TS_STEP_FORWARD
-                    || st_ref.state == TagsearchState::TS_LINEAR
+                if st_ref.state == TagsearchState::TsStepForward
+                    || st_ref.state == TagsearchState::TsLinear
                 {
                     g_st().vim_ignored = vim_fseek(st_ref.fp_ptr(), search_info.curr_offset, SEEK_SET);
                 }
@@ -2164,13 +2164,13 @@ fn findtags_get_all_tags(
             }
 
             let retval = findtags_parse_line(st, &mut tagp, margs, &mut search_info);
-            if retval == TagmatchStatus::TAG_MATCH_NEXT {
+            if retval == TagmatchStatus::TagMatchNext {
                 continue;
             }
-            if retval == TagmatchStatus::TAG_MATCH_STOP {
+            if retval == TagmatchStatus::TagMatchStop {
                 break;
             }
-            if retval == TagmatchStatus::TAG_MATCH_FAIL {
+            if retval == TagmatchStatus::TagMatchFail {
                 semsg!(
                     gettext(c"E431: Format error in tags file \"%s\""),
                     st.tag_fname.as_ptr(),
@@ -2219,7 +2219,7 @@ fn findtags_in_file(st: &mut FindtagsState, _flags: c_int, buf_ffname: impl crat
             verbose_leave();
         }
         st.did_open = true;
-        st.state = TagsearchState::TS_START;
+        st.state = TagsearchState::TsStart;
 
         findtags_get_all_tags(st, &mut margs, buf_ffname);
 
@@ -3440,7 +3440,7 @@ fn tagstack_push_item(
 fn tagstack_push_items(wp: &mut WinInfoInfo, l: Option<&TvList>) {
     unsafe {
         for li in crate::eval::typval::list_iter_mut(l.map_or(ptr::null_mut(), |l| l.lv_first)) {
-            if li.li_tv.v_type == VarType::VAR_DICT && !li.li_tv.vval.v_dict().is_null() {
+            if li.li_tv.v_type == VarType::VarDict && !li.li_tv.vval.v_dict().is_null() {
                 let itemdict = li.li_tv.vval.v_dict();
                 let di = tv_dict_find(itemdict.as_ref(), c"from", -1);
                 if !di.is_null() {
@@ -3497,7 +3497,7 @@ pub fn set_tagstack(wp: &mut WinInfoInfo, d: Option<&TvDict>, action: c_int) -> 
 
         let di_items = tv_dict_find(d, c"items", -1);
         if !di_items.is_null() {
-            if (*di_items).di_tv.v_type != VarType::VAR_LIST {
+            if (*di_items).di_tv.v_type != VarType::VarList {
                 emsg(gettext(e_listreq));
                 return false;
             }

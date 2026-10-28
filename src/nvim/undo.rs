@@ -3014,7 +3014,7 @@ pub fn f_undotree(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDat
         tv_dict_alloc_ret(rettv);
 
         let tv = (&raw mut argvars[0]);
-        let buf = if (*tv).v_type == VarType::VAR_UNKNOWN {
+        let buf = if (*tv).v_type == VarType::VarUnknown {
             g_st().curbuf
         } else {
             get_buf_arg(&mut *tv)

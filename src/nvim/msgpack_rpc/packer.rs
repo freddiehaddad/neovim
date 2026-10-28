@@ -6,7 +6,7 @@ use crate::lua::executor::{api_free_luaref, nlua_funcref_str};
 use std::ffi::{c_char, c_int};
 
 pub const MPACK_ITEM_SIZE: usize = 9;
-pub(crate) const EXT_OBJECT_TYPE_SHIFT: c_int = ObjectType::kObjectTypeBuffer as c_int;
+pub(crate) const EXT_OBJECT_TYPE_SHIFT: c_int = ObjectType::ObjectTypeBuffer as c_int;
 
 pub type ObjHandle = c_int;
 pub type Integer = i64;
@@ -375,7 +375,7 @@ pub fn mpack_object_array(arr: Array, packer: &mut PackerBuffer) {
     mpack_array(&mut packer.ptr, arr.size as u32);
         if arr.size > 0 {
             let mut container = Object {
-                obj_type: ObjectType::kObjectTypeArray,
+                obj_type: ObjectType::ObjectTypeArray,
                 data: ObjectData::Array(arr),
             };
             let cont_ptr = if arr.size > 1 {
@@ -404,7 +404,7 @@ pub fn mpack_object_inner(
             mpack_check_buffer(packer);
             let cur = &mut *current;
             match cur.obj_type {
-                ObjectType::kObjectTypeLuaRef => {
+                ObjectType::ObjectTypeLuaRef => {
                     let cs = nlua_funcref_str(cur.data.luaref(), true);
                     api_free_luaref(cur.data.luaref());
                     cur.data = ObjectData::LuaRef(LUA_NOREF);
@@ -414,28 +414,28 @@ pub fn mpack_object_inner(
                     };
                     mpack_str(s, packer);
                 }
-                ObjectType::kObjectTypeUnset | ObjectType::kObjectTypeNil => {
+                ObjectType::ObjectTypeUnset | ObjectType::ObjectTypeNil => {
                     mpack_nil(&mut packer.ptr);
                 }
-                ObjectType::kObjectTypeBoolean => {
+                ObjectType::ObjectTypeBoolean => {
                     mpack_bool(&mut packer.ptr, cur.data.boolean());
                 }
-                ObjectType::kObjectTypeInteger => {
+                ObjectType::ObjectTypeInteger => {
                     mpack_integer(&mut packer.ptr, cur.data.integer());
                 }
-                ObjectType::kObjectTypeFloat => {
+                ObjectType::ObjectTypeFloat => {
                     mpack_float8(&mut packer.ptr, cur.data.floating());
                 }
-                ObjectType::kObjectTypeString => {
+                ObjectType::ObjectTypeString => {
                     mpack_str(cur.data.string(), packer);
                 }
-                ObjectType::kObjectTypeBuffer
-                | ObjectType::kObjectTypeWindow
-                | ObjectType::kObjectTypeTabpage => {
+                ObjectType::ObjectTypeBuffer
+                | ObjectType::ObjectTypeWindow
+                | ObjectType::ObjectTypeTabpage => {
                     mpack_handle(cur.obj_type, cur.data.integer() as ObjHandle, packer);
                 }
-                ObjectType::kObjectTypeDict | ObjectType::kObjectTypeArray => {
-                    let current_size = if cur.obj_type == ObjectType::kObjectTypeArray {
+                ObjectType::ObjectTypeDict | ObjectType::ObjectTypeArray => {
+                    let current_size = if cur.obj_type == ObjectType::ObjectTypeArray {
                         let sz = cur.data.array().size;
                         mpack_array(&mut packer.ptr, sz as u32);
                         sz
@@ -445,7 +445,7 @@ pub fn mpack_object_inner(
                         sz
                     };
                     if current_size > 0 {
-                        if cur.obj_type == ObjectType::kObjectTypeArray && current_size == 1 {
+                        if cur.obj_type == ObjectType::ObjectTypeArray && current_size == 1 {
                             current = cur.data.array().items;
                             continue;
                         }
@@ -471,7 +471,7 @@ pub fn mpack_object_inner(
             }
 
             let cont = &mut *container;
-            if cont.obj_type == ObjectType::kObjectTypeArray {
+            if cont.obj_type == ObjectType::ObjectTypeArray {
                 let arr = cont.data.array();
                 current = arr.items.add(container_idx);
                 container_idx += 1;

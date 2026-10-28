@@ -778,7 +778,7 @@ pub fn nvim_buf_set_extmark(
                 if has_key(mask, KEYSET_OPTIDX_set_extmark__end_row) {
                     api_set_error!(
                         err,
-                        ErrorType::kErrorTypeValidation,
+                        ErrorType::ErrorTypeValidation,
                         c"%s",
                         c"cannot use both 'end_row' and 'end_line'",
                     );
@@ -817,7 +817,7 @@ pub fn nvim_buf_set_extmark(
             }
 
             if has_key(mask, KEYSET_OPTIDX_set_extmark__hl_group) {
-                if opts.hl_group.obj_type == ObjectType::kObjectTypeArray {
+                if opts.hl_group.obj_type == ObjectType::ObjectTypeArray {
                     let arr = opts.hl_group.data.array();
                     if arr.size >= 1 {
                         hl.hl_id =
@@ -859,8 +859,8 @@ pub fn nvim_buf_set_extmark(
             }
 
             if has_key(mask, KEYSET_OPTIDX_set_extmark__conceal) {
-                if opts.conceal.obj_type != ObjectType::kObjectTypeBoolean
-                    && opts.conceal.obj_type != ObjectType::kObjectTypeString
+                if opts.conceal.obj_type != ObjectType::ObjectTypeBoolean
+                    && opts.conceal.obj_type != ObjectType::ObjectTypeString
                 {
                     api_err_exp(
                         err,
@@ -872,7 +872,7 @@ pub fn nvim_buf_set_extmark(
                 }
 
                 has_hl = true;
-                if opts.conceal.obj_type == ObjectType::kObjectTypeBoolean {
+                if opts.conceal.obj_type == ObjectType::ObjectTypeBoolean {
                     hl.flags |= if opts.conceal.data.boolean() {
                         kSHConceal
                     } else {
@@ -887,7 +887,7 @@ pub fn nvim_buf_set_extmark(
                         if ci.chr.value < 0x20 || cli.cells > 2 {
                             api_set_error!(
                                 err,
-                                ErrorType::kErrorTypeValidation,
+                                ErrorType::ErrorTypeValidation,
                                 c"%s",
                                 c"conceal char must be printable",
                             );
@@ -904,7 +904,7 @@ pub fn nvim_buf_set_extmark(
                 if opts.conceal_lines.size > 0 && !crate::memory::cstr_is_empty(opts.conceal_lines.data) {
                     api_set_error!(
                         err,
-                        ErrorType::kErrorTypeValidation,
+                        ErrorType::ErrorTypeValidation,
                         c"%s",
                         c"conceal_lines has to be an empty string",
                     );
@@ -965,7 +965,7 @@ pub fn nvim_buf_set_extmark(
                     if virt_text.pos == kVPosInline {
                         api_set_error!(
                             err,
-                            ErrorType::kErrorTypeValidation,
+                            ErrorType::ErrorTypeValidation,
                             c"%s",
                             c"cannot use 'blend' hl_mode with inline virtual text",
                         );
@@ -1002,11 +1002,11 @@ pub fn nvim_buf_set_extmark(
                 let a = opts.virt_lines;
                 for j in 0..a.size {
                     let item = a[j];
-                    if item.obj_type != ObjectType::kObjectTypeArray {
+                    if item.obj_type != ObjectType::ObjectTypeArray {
                         api_err_exp(
                             err,
                             c"virt_text_line",
-                            api_typename(ObjectType::kObjectTypeArray),
+                            api_typename(ObjectType::ObjectTypeArray),
                             api_typename(item.obj_type),
                         );
                         break 'error;
@@ -1068,7 +1068,7 @@ pub fn nvim_buf_set_extmark(
             {
                 api_set_error!(
                     err,
-                    ErrorType::kErrorTypeValidation,
+                    ErrorType::ErrorTypeValidation,
                     c"%s",
                     c"cannot set end_right_gravity without end_row or end_col",
                 );
@@ -1213,7 +1213,7 @@ pub fn nvim_buf_set_extmark(
                 if opts.ephemeral {
                     api_set_error!(
                         err,
-                        ErrorType::kErrorTypeException,
+                        ErrorType::ErrorTypeException,
                         c"cannot set emphemeral mark outside of a decoration provider",
                     );
                     break 'error;
@@ -1519,7 +1519,7 @@ fn extmark_get_index_from_obj(
     err: &mut Error,
 ) -> bool {
      {
-        if obj.obj_type == ObjectType::kObjectTypeInteger {
+        if obj.obj_type == ObjectType::ObjectTypeInteger {
             let id = obj.data.integer();
             if id == 0 {
                 *row = 0;
@@ -1542,11 +1542,11 @@ fn extmark_get_index_from_obj(
             *row = extmark.start.pos.row;
             *col = extmark.start.pos.col;
             true
-        } else if obj.obj_type == ObjectType::kObjectTypeArray {
+        } else if obj.obj_type == ObjectType::ObjectTypeArray {
             let pos = obj.data.array();
             if pos.size != 2
-                || pos[0].obj_type != ObjectType::kObjectTypeInteger
-                || pos[1].obj_type != ObjectType::kObjectTypeInteger
+                || pos[0].obj_type != ObjectType::ObjectTypeInteger
+                || pos[1].obj_type != ObjectType::ObjectTypeInteger
             {
                 api_err_exp(
                     err,
@@ -1588,11 +1588,11 @@ pub fn parse_virt_text(
         'free_exit: {
             for i in 0..chunks.size {
                 let item = chunks[i];
-                if item.obj_type != ObjectType::kObjectTypeArray {
+                if item.obj_type != ObjectType::ObjectTypeArray {
                     api_err_exp(
                         err,
                         c"chunk",
-                        api_typename(ObjectType::kObjectTypeArray),
+                        api_typename(ObjectType::ObjectTypeArray),
                         api_typename(item.obj_type),
                     );
                     break 'free_exit;
@@ -1600,11 +1600,11 @@ pub fn parse_virt_text(
                 let chunk = item.data.array();
                 if chunk.size == 0
                     || chunk.size > 2
-                    || chunk[0].obj_type != ObjectType::kObjectTypeString
+                    || chunk[0].obj_type != ObjectType::ObjectTypeString
                 {
                     api_set_error!(
                         err,
-                        ErrorType::kErrorTypeValidation,
+                        ErrorType::ErrorTypeValidation,
                         c"%s",
                         c"Invalid chunk: expected Array with 1 or 2 Strings",
                     );
@@ -1615,7 +1615,7 @@ pub fn parse_virt_text(
                 let mut hl_id: c_int = -1;
                 if chunk.size == 2 {
                     let hl = chunk[1];
-                    if hl.obj_type == ObjectType::kObjectTypeArray {
+                    if hl.obj_type == ObjectType::ObjectTypeArray {
                         let arr = hl.data.array();
                         for j in 0..arr.size {
                             hl_id = object_to_hl_id(

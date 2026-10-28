@@ -87,7 +87,7 @@ pub(crate) const BACKWARD: Direction = -1;
 use crate::api::ui::MAX_SCHAR_SIZE;
 use crate::api::vim::HLF_N;
 use crate::cmdexpand::{HLF_D, RE_LAST, SEARCH_NOOF, SEARCH_OPT, SEARCH_PEEK, SEARCH_START};
-use crate::eval::funcs::{RE_SEARCH, SEARCH_COL, SEARCH_END, SEARCH_KEEP, kMTLineWise};
+use crate::eval::funcs::{RE_SEARCH, SEARCH_COL, SEARCH_END, SEARCH_KEEP, MTLineWise};
 use crate::globals::IOSIZE;
 pub type AdditionalData = crate::msgpack_rpc::unpacker::AdditionalData;
 
@@ -2040,7 +2040,7 @@ pub fn findmatchlimit(
             }
             if hash_dir != 0 {
                 if let Some(oap) = oap {
-                    oap.motion_type = kMTLineWise;
+                    oap.motion_type = MTLineWise;
                 }
                 if initc != b'#' as c_int {
                     ptr_line = skipwhite(skipwhite(linep).add(1));
@@ -3043,7 +3043,7 @@ pub fn f_searchcount(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFunc
             recompute = true;
         }
 
-        if argvars[0].v_type != VarType::VAR_UNKNOWN {
+        if argvars[0].v_type != VarType::VarUnknown {
             let mut error = false;
 
             if !tv_check_for_nonnull_dict_arg(argvars, 0) {
@@ -3074,7 +3074,7 @@ pub fn f_searchcount(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFunc
             }
             di = tv_dict_find(dict.as_ref(), c"pos", -1);
             if !di.is_null() {
-                if (*di).di_tv.v_type != VarType::VAR_LIST {
+                if (*di).di_tv.v_type != VarType::VarList {
                     semsg!(tr(e_invarg2), c"pos");
                     return;
                 }

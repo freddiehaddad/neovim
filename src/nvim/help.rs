@@ -104,12 +104,12 @@ pub fn ex_help(eap: &mut Exarg) {
         let mut allocated_arg: Option<std::ffi::CString> = None;
         if helpbang {
             let mut no_args = [TypVal {
-                v_type: VarType::VAR_UNKNOWN,
+                v_type: VarType::VarUnknown,
                 v_lock: 0,
                 vval: TypvalVval::Number(0),
             }];
             let mut rettv = TypVal {
-                v_type: VarType::VAR_UNKNOWN,
+                v_type: VarType::VarUnknown,
                 v_lock: 0,
                 vval: TypvalVval::Number(0),
             };
@@ -119,7 +119,7 @@ pub fn ex_help(eap: &mut Exarg) {
                 no_args.as_mut_ptr(),
                 Some(&mut rettv),
             );
-            if rettv.v_type == VarType::VAR_STRING
+            if rettv.v_type == VarType::VarString
                 && !rettv.vval.v_string().is_null()
                 && !crate::memory::cstr_is_empty(rettv.vval.v_string())
             {
@@ -341,18 +341,18 @@ pub fn find_help_tags(
      {
         let mut tv_args = [
             TypVal {
-                v_type: VarType::VAR_STRING,
+                v_type: VarType::VarString,
                 v_lock: 0,
                 vval: TypvalVval::String(arg.cast_mut()),
             },
             TypVal {
-                v_type: VarType::VAR_UNKNOWN,
+                v_type: VarType::VarUnknown,
                 v_lock: 0,
                 vval: TypvalVval::Number(0),
             },
         ];
         let mut rettv = TypVal {
-            v_type: VarType::VAR_UNKNOWN,
+            v_type: VarType::VarUnknown,
             v_lock: 0,
             vval: TypvalVval::Number(0),
         };
@@ -362,7 +362,7 @@ pub fn find_help_tags(
             tv_args.as_mut_ptr(),
             Some(&mut rettv),
         );
-        if rettv.v_type != VarType::VAR_STRING || rettv.vval.v_string().is_null() {
+        if rettv.v_type != VarType::VarString || rettv.vval.v_string().is_null() {
             tv_clear(&mut rettv);
             return false;
         }
@@ -487,7 +487,7 @@ pub fn prepare_help_buffer() {
 /// Populate `*local-additions*` in `help.txt` (`get_local_additions`).
 pub fn get_local_additions() {
     let mut no_args = [TypVal {
-            v_type: VarType::VAR_UNKNOWN,
+            v_type: VarType::VarUnknown,
             v_lock: 0,
             vval: TypvalVval::Number(0),
         }];
@@ -523,19 +523,19 @@ pub fn ex_helptags(eap: &mut Exarg) {
         let mut tv_args = [
             if crate::memory::cstr_as_bytes(eap.arg) == b"ALL" {
                 TypVal {
-                    v_type: VarType::VAR_SPECIAL,
+                    v_type: VarType::VarSpecial,
                     v_lock: 0,
                     vval: TypvalVval::Special(kSpecialVarNull),
                 }
             } else {
                 TypVal {
-                    v_type: VarType::VAR_STRING,
+                    v_type: VarType::VarString,
                     v_lock: 0,
                     vval: TypvalVval::String(eap.arg),
                 }
             },
             TypVal {
-                v_type: VarType::VAR_BOOL,
+                v_type: VarType::VarBool,
                 v_lock: 0,
                 vval: TypvalVval::Number(if add_help_tags {
                     kBoolVarTrue
@@ -544,7 +544,7 @@ pub fn ex_helptags(eap: &mut Exarg) {
                 }),
             },
             TypVal {
-                v_type: VarType::VAR_UNKNOWN,
+                v_type: VarType::VarUnknown,
                 v_lock: 0,
                 vval: TypvalVval::Number(0),
             },

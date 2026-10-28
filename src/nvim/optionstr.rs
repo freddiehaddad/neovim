@@ -77,25 +77,25 @@ use crate::highlight::OptionalKeys;
 #[repr(i32)]
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub enum CharsOption {
-    kFillchars = 0,
-    kListchars = 1,
+    Fillchars = 0,
+    Listchars = 1,
 }
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum StlScopeType {
-    kTopLevel,
-    kItemGroup,
-    kHighlightScope,
+    TopLevel,
+    ItemGroup,
+    KHighlightScope,
 }
 
 #[repr(i32)]
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub enum OptSchemaKind {
-    kOptSchemaFlag = 0,
-    kOptSchemaNum = 1,
-    kOptSchemaSNum = 2,
-    kOptSchemaEnum = 3,
-    kOptSchemaStr = 4,
+    OptSchemaFlag = 0,
+    OptSchemaNum = 1,
+    OptSchemaSNum = 2,
+    OptSchemaEnum = 3,
+    OptSchemaStr = 4,
 }
 
 #[repr(C)]
@@ -188,11 +188,11 @@ impl Optset {
             os_idx: 0,
             os_flags: 0,
             os_oldval: Object {
-                obj_type: ObjectType::kObjectTypeNil,
+                obj_type: ObjectType::ObjectTypeNil,
                 data: ObjectData::Boolean(false),
             },
             os_newval: Object {
-                obj_type: ObjectType::kObjectTypeNil,
+                obj_type: ObjectType::ObjectTypeNil,
                 data: ObjectData::Boolean(false),
             },
             os_prep: OptSetPrep::None,
@@ -421,42 +421,42 @@ static BRIOPT_TABLE: [KeySetLink; 6] = [
     KeySetLink {
         str: Some(c"min"),
         ptr_off: std::mem::offset_of!(OptKeyDict_briopt, min),
-        key_type: ObjectType::kObjectTypeInteger as c_int,
+        key_type: ObjectType::ObjectTypeInteger as c_int,
         opt_index: 1,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"sbr"),
         ptr_off: std::mem::offset_of!(OptKeyDict_briopt, sbr),
-        key_type: ObjectType::kObjectTypeBoolean as c_int,
+        key_type: ObjectType::ObjectTypeBoolean as c_int,
         opt_index: 2,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"list"),
         ptr_off: std::mem::offset_of!(OptKeyDict_briopt, list),
-        key_type: ObjectType::kObjectTypeInteger as c_int,
+        key_type: ObjectType::ObjectTypeInteger as c_int,
         opt_index: 3,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"shift"),
         ptr_off: std::mem::offset_of!(OptKeyDict_briopt, shift),
-        key_type: ObjectType::kObjectTypeInteger as c_int,
+        key_type: ObjectType::ObjectTypeInteger as c_int,
         opt_index: 4,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"column"),
         ptr_off: std::mem::offset_of!(OptKeyDict_briopt, column),
-        key_type: ObjectType::kObjectTypeInteger as c_int,
+        key_type: ObjectType::ObjectTypeInteger as c_int,
         opt_index: 5,
         is_hlgroup: false,
     },
     KeySetLink {
         str: None,
         ptr_off: 0,
-        key_type: ObjectType::kObjectTypeNil as c_int,
+        key_type: ObjectType::ObjectTypeNil as c_int,
         opt_index: -1,
         is_hlgroup: false,
     },
@@ -466,140 +466,140 @@ static DIP_TABLE: [KeySetLink; 20] = [
     KeySetLink {
         str: Some(c"icase"),
         ptr_off: std::mem::offset_of!(OptKeyDict_dip, icase),
-        key_type: ObjectType::kObjectTypeBoolean as c_int,
+        key_type: ObjectType::ObjectTypeBoolean as c_int,
         opt_index: 1,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"iblank"),
         ptr_off: std::mem::offset_of!(OptKeyDict_dip, iblank),
-        key_type: ObjectType::kObjectTypeBoolean as c_int,
+        key_type: ObjectType::ObjectTypeBoolean as c_int,
         opt_index: 2,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"filler"),
         ptr_off: std::mem::offset_of!(OptKeyDict_dip, filler),
-        key_type: ObjectType::kObjectTypeBoolean as c_int,
+        key_type: ObjectType::ObjectTypeBoolean as c_int,
         opt_index: 3,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"anchor"),
         ptr_off: std::mem::offset_of!(OptKeyDict_dip, anchor),
-        key_type: ObjectType::kObjectTypeBoolean as c_int,
+        key_type: ObjectType::ObjectTypeBoolean as c_int,
         opt_index: 4,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"inline"),
         ptr_off: std::mem::offset_of!(OptKeyDict_dip, inline_),
-        key_type: ObjectType::kObjectTypeString as c_int,
+        key_type: ObjectType::ObjectTypeString as c_int,
         opt_index: 5,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"iwhite"),
         ptr_off: std::mem::offset_of!(OptKeyDict_dip, iwhite),
-        key_type: ObjectType::kObjectTypeBoolean as c_int,
+        key_type: ObjectType::ObjectTypeBoolean as c_int,
         opt_index: 6,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"context"),
         ptr_off: std::mem::offset_of!(OptKeyDict_dip, context),
-        key_type: ObjectType::kObjectTypeInteger as c_int,
+        key_type: ObjectType::ObjectTypeInteger as c_int,
         opt_index: 7,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"closeoff"),
         ptr_off: std::mem::offset_of!(OptKeyDict_dip, closeoff),
-        key_type: ObjectType::kObjectTypeBoolean as c_int,
+        key_type: ObjectType::ObjectTypeBoolean as c_int,
         opt_index: 8,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"internal"),
         ptr_off: std::mem::offset_of!(OptKeyDict_dip, internal),
-        key_type: ObjectType::kObjectTypeBoolean as c_int,
+        key_type: ObjectType::ObjectTypeBoolean as c_int,
         opt_index: 9,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"vertical"),
         ptr_off: std::mem::offset_of!(OptKeyDict_dip, vertical),
-        key_type: ObjectType::kObjectTypeBoolean as c_int,
+        key_type: ObjectType::ObjectTypeBoolean as c_int,
         opt_index: 10,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"linematch"),
         ptr_off: std::mem::offset_of!(OptKeyDict_dip, linematch),
-        key_type: ObjectType::kObjectTypeInteger as c_int,
+        key_type: ObjectType::ObjectTypeInteger as c_int,
         opt_index: 11,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"hiddenoff"),
         ptr_off: std::mem::offset_of!(OptKeyDict_dip, hiddenoff),
-        key_type: ObjectType::kObjectTypeBoolean as c_int,
+        key_type: ObjectType::ObjectTypeBoolean as c_int,
         opt_index: 12,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"algorithm"),
         ptr_off: std::mem::offset_of!(OptKeyDict_dip, algorithm),
-        key_type: ObjectType::kObjectTypeString as c_int,
+        key_type: ObjectType::ObjectTypeString as c_int,
         opt_index: 13,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"iwhiteall"),
         ptr_off: std::mem::offset_of!(OptKeyDict_dip, iwhiteall),
-        key_type: ObjectType::kObjectTypeBoolean as c_int,
+        key_type: ObjectType::ObjectTypeBoolean as c_int,
         opt_index: 14,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"iwhiteeol"),
         ptr_off: std::mem::offset_of!(OptKeyDict_dip, iwhiteeol),
-        key_type: ObjectType::kObjectTypeBoolean as c_int,
+        key_type: ObjectType::ObjectTypeBoolean as c_int,
         opt_index: 15,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"foldcolumn"),
         ptr_off: std::mem::offset_of!(OptKeyDict_dip, foldcolumn),
-        key_type: ObjectType::kObjectTypeInteger as c_int,
+        key_type: ObjectType::ObjectTypeInteger as c_int,
         opt_index: 16,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"horizontal"),
         ptr_off: std::mem::offset_of!(OptKeyDict_dip, horizontal),
-        key_type: ObjectType::kObjectTypeBoolean as c_int,
+        key_type: ObjectType::ObjectTypeBoolean as c_int,
         opt_index: 17,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"followwrap"),
         ptr_off: std::mem::offset_of!(OptKeyDict_dip, followwrap),
-        key_type: ObjectType::kObjectTypeBoolean as c_int,
+        key_type: ObjectType::ObjectTypeBoolean as c_int,
         opt_index: 18,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"indent-heuristic"),
         ptr_off: std::mem::offset_of!(OptKeyDict_dip, indent_heuristic),
-        key_type: ObjectType::kObjectTypeBoolean as c_int,
+        key_type: ObjectType::ObjectTypeBoolean as c_int,
         opt_index: 19,
         is_hlgroup: false,
     },
     KeySetLink {
         str: None,
         ptr_off: 0,
-        key_type: ObjectType::kObjectTypeNil as c_int,
+        key_type: ObjectType::ObjectTypeNil as c_int,
         opt_index: -1,
         is_hlgroup: false,
     },
@@ -609,56 +609,56 @@ static MOPT_TABLE: [KeySetLink; 8] = [
     KeySetLink {
         str: Some(c"wait"),
         ptr_off: std::mem::offset_of!(OptKeyDict_mopt, wait),
-        key_type: ObjectType::kObjectTypeInteger as c_int,
+        key_type: ObjectType::ObjectTypeInteger as c_int,
         opt_index: 1,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"pager"),
         ptr_off: std::mem::offset_of!(OptKeyDict_mopt, pager),
-        key_type: ObjectType::kObjectTypeString as c_int,
+        key_type: ObjectType::ObjectTypeString as c_int,
         opt_index: 2,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"history"),
         ptr_off: std::mem::offset_of!(OptKeyDict_mopt, history),
-        key_type: ObjectType::kObjectTypeInteger as c_int,
+        key_type: ObjectType::ObjectTypeInteger as c_int,
         opt_index: 3,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"timeout"),
         ptr_off: std::mem::offset_of!(OptKeyDict_mopt, timeout),
-        key_type: ObjectType::kObjectTypeInteger as c_int,
+        key_type: ObjectType::ObjectTypeInteger as c_int,
         opt_index: 4,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"progress"),
         ptr_off: std::mem::offset_of!(OptKeyDict_mopt, progress),
-        key_type: ObjectType::kObjectTypeString as c_int,
+        key_type: ObjectType::ObjectTypeString as c_int,
         opt_index: 5,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"hit-enter"),
         ptr_off: std::mem::offset_of!(OptKeyDict_mopt, hit_enter),
-        key_type: ObjectType::kObjectTypeBoolean as c_int,
+        key_type: ObjectType::ObjectTypeBoolean as c_int,
         opt_index: 6,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"maxheight"),
         ptr_off: std::mem::offset_of!(OptKeyDict_mopt, maxheight),
-        key_type: ObjectType::kObjectTypeInteger as c_int,
+        key_type: ObjectType::ObjectTypeInteger as c_int,
         opt_index: 7,
         is_hlgroup: false,
     },
     KeySetLink {
         str: None,
         ptr_off: 0,
-        key_type: ObjectType::kObjectTypeNil as c_int,
+        key_type: ObjectType::ObjectTypeNil as c_int,
         opt_index: -1,
         is_hlgroup: false,
     },
@@ -668,21 +668,21 @@ static MOUSESCROLL_TABLE: [KeySetLink; 3] = [
     KeySetLink {
         str: Some(c"hor"),
         ptr_off: std::mem::offset_of!(OptKeyDict_mousescroll, hor),
-        key_type: ObjectType::kObjectTypeInteger as c_int,
+        key_type: ObjectType::ObjectTypeInteger as c_int,
         opt_index: 1,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"ver"),
         ptr_off: std::mem::offset_of!(OptKeyDict_mousescroll, ver),
-        key_type: ObjectType::kObjectTypeInteger as c_int,
+        key_type: ObjectType::ObjectTypeInteger as c_int,
         opt_index: 2,
         is_hlgroup: false,
     },
     KeySetLink {
         str: None,
         ptr_off: 0,
-        key_type: ObjectType::kObjectTypeNil as c_int,
+        key_type: ObjectType::ObjectTypeNil as c_int,
         opt_index: -1,
         is_hlgroup: false,
     },
@@ -692,28 +692,28 @@ static PVP_TABLE: [KeySetLink; 4] = [
     KeySetLink {
         str: Some(c"width"),
         ptr_off: std::mem::offset_of!(OptKeyDict_pvp, width),
-        key_type: ObjectType::kObjectTypeInteger as c_int,
+        key_type: ObjectType::ObjectTypeInteger as c_int,
         opt_index: 1,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"border"),
         ptr_off: std::mem::offset_of!(OptKeyDict_pvp, border),
-        key_type: ObjectType::kObjectTypeString as c_int,
+        key_type: ObjectType::ObjectTypeString as c_int,
         opt_index: 2,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"height"),
         ptr_off: std::mem::offset_of!(OptKeyDict_pvp, height),
-        key_type: ObjectType::kObjectTypeInteger as c_int,
+        key_type: ObjectType::ObjectTypeInteger as c_int,
         opt_index: 3,
         is_hlgroup: false,
     },
     KeySetLink {
         str: None,
         ptr_off: 0,
-        key_type: ObjectType::kObjectTypeNil as c_int,
+        key_type: ObjectType::ObjectTypeNil as c_int,
         opt_index: -1,
         is_hlgroup: false,
     },
@@ -1124,7 +1124,7 @@ fn check_stl_str_adv_scope(
             }
             if **s == b')' as c_char {
                 *s = (*s).add(1);
-                return if scope_type == StlScopeType::kItemGroup {
+                return if scope_type == StlScopeType::ItemGroup {
                     ptr::null()
                 } else {
                     E_UNBALANCED_GROUPS.as_ptr()
@@ -1134,7 +1134,7 @@ fn check_stl_str_adv_scope(
                 *s = (*s).add(1);
                 if **s == b'(' as c_char {
                     *s = (*s).add(1);
-                    let err = check_stl_str_adv_scope(s, errbuf, StlScopeType::kHighlightScope);
+                    let err = check_stl_str_adv_scope(s, errbuf, StlScopeType::KHighlightScope);
                     if err.is_null() {
                         continue;
                     } else {
@@ -1142,7 +1142,7 @@ fn check_stl_str_adv_scope(
                     }
                 } else if **s == b')' as c_char {
                     *s = (*s).add(1);
-                    return if scope_type == StlScopeType::kHighlightScope {
+                    return if scope_type == StlScopeType::KHighlightScope {
                         ptr::null()
                     } else {
                         E_UNBALANCED_GROUPS.as_ptr()
@@ -1173,7 +1173,7 @@ fn check_stl_str_adv_scope(
             }
             if **s == b'(' as c_char {
                 *s = (*s).add(1);
-                let err = check_stl_str_adv_scope(s, errbuf, StlScopeType::kItemGroup);
+                let err = check_stl_str_adv_scope(s, errbuf, StlScopeType::ItemGroup);
                 if err.is_null() {
                     continue;
                 } else {
@@ -1203,7 +1203,7 @@ fn check_stl_str_adv_scope(
                 }
             }
         }
-        if scope_type == StlScopeType::kTopLevel {
+        if scope_type == StlScopeType::TopLevel {
             ptr::null()
         } else {
             E_UNBALANCED_GROUPS.as_ptr()
@@ -1213,7 +1213,7 @@ fn check_stl_str_adv_scope(
 
 /// Check validity of options with the 'statusline' format.
 pub fn check_stl_option(mut s: *mut c_char, errbuf: Option<CharBuf>) -> *const c_char {
-    check_stl_str_adv_scope(&raw mut s, errbuf, StlScopeType::kTopLevel)
+    check_stl_str_adv_scope(&raw mut s, errbuf, StlScopeType::TopLevel)
 }
 
 /// Check for a "normal" directory or file name in some options.
@@ -1650,7 +1650,7 @@ pub fn did_set_buftype(args: &mut Optset) -> *const c_char {
             set_option_direct(
                 kOptComments,
                 Object {
-                    obj_type: ObjectType::kObjectTypeString,
+                    obj_type: ObjectType::ObjectTypeString,
                     data: ObjectData::String(NvimString {
                             data: c"".as_ptr().cast_mut(),
                             size: 0,
@@ -1690,9 +1690,9 @@ pub fn validate_chars_option(args: &mut Optset) -> *const c_char {
             unsafe { &mut *args.os_win },
             args.os_newval.data.string().data,
             if args.os_idx == kOptListchars {
-                CharsOption::kListchars
+                CharsOption::Listchars
             } else {
-                CharsOption::kFillchars
+                CharsOption::Fillchars
             },
             false,
             args.os_errbuf,
@@ -1708,7 +1708,7 @@ fn did_set_global_chars_option(
     errbuf: Option<CharBuf>,
 ) -> *const c_char { let val = val.into_c_char_ptr();
     unsafe {
-        let local_ptr = if what == CharsOption::kListchars {
+        let local_ptr = if what == CharsOption::Listchars {
             &raw mut win.w_onebuf_opt.wo_lcs
         } else {
             &raw mut win.w_onebuf_opt.wo_fcs
@@ -1731,7 +1731,7 @@ fn did_set_global_chars_option(
 
         for tp in for_all_tabpages_ptr() {
             for wp in for_all_windows_in_tab_ptr( &*tp) {
-                let opt = if what == CharsOption::kListchars {
+                let opt = if what == CharsOption::Listchars {
                     (*wp).w_onebuf_opt.wo_lcs
                 } else {
                     (*wp).w_onebuf_opt.wo_fcs
@@ -1759,7 +1759,7 @@ pub fn did_set_chars_option(args: &mut Optset) -> *const c_char {
             errmsg = did_set_global_chars_option(
                 &mut *win,
                 *varp,
-                CharsOption::kListchars,
+                CharsOption::Listchars,
                 args.os_flags,
                 args.os_errbuf,
             );
@@ -1767,14 +1767,14 @@ pub fn did_set_chars_option(args: &mut Optset) -> *const c_char {
             errmsg = did_set_global_chars_option(
                 &mut *win,
                 *varp,
-                CharsOption::kFillchars,
+                CharsOption::Fillchars,
                 args.os_flags,
                 args.os_errbuf,
             );
         } else if ptr::eq(varp, &raw mut (*win).w_onebuf_opt.wo_lcs) {
-            errmsg = set_chars_option( &mut *win, *varp, CharsOption::kListchars, true, args.os_errbuf);
+            errmsg = set_chars_option( &mut *win, *varp, CharsOption::Listchars, true, args.os_errbuf);
         } else if ptr::eq(varp, &raw mut (*win).w_onebuf_opt.wo_fcs) {
-            errmsg = set_chars_option( &mut *win, *varp, CharsOption::kFillchars, true, args.os_errbuf);
+            errmsg = set_chars_option( &mut *win, *varp, CharsOption::Fillchars, true, args.os_errbuf);
         }
 
         errmsg
@@ -2871,7 +2871,7 @@ pub fn validate_spellcapcheck(args: &mut Optset) -> *const c_char {
         g_st().emsg_silent = save_emsg_silent;
         g_st().suppress_errthrow = save_suppress_errthrow;
         args.os_prep = OptSetPrep::SpellcapProg(prog);
-        if err.err_type != ErrorType::kErrorTypeNone {
+        if err.err_type != ErrorType::ErrorTypeNone {
             let msg = if crate::memory::cstr_prefix_bytes(err.msg_ptr(), 4) == &b"Vim:"[..4] {
                 err.msg_ptr().add(4)
             } else {
@@ -3432,7 +3432,7 @@ pub fn opt_strings_check(
                 return opt_schema_err(errbuf, c"E474: Unknown item '%s'", key, keylen);
             };
             match it.kind {
-                OptSchemaKind::kOptSchemaFlag => {
+                OptSchemaKind::OptSchemaFlag => {
                     if !v.is_null() {
                         return opt_schema_err(
                             errbuf,
@@ -3442,9 +3442,9 @@ pub fn opt_strings_check(
                         );
                     }
                 }
-                OptSchemaKind::kOptSchemaNum | OptSchemaKind::kOptSchemaSNum => {
+                OptSchemaKind::OptSchemaNum | OptSchemaKind::OptSchemaSNum => {
                     let mut i: usize = if !v.is_null()
-                        && it.kind == OptSchemaKind::kOptSchemaSNum
+                        && it.kind == OptSchemaKind::OptSchemaSNum
                         && crate::memory::cstr_first_byte(v) == b'-'
                     {
                         1
@@ -3478,7 +3478,7 @@ pub fn opt_strings_check(
                         );
                     }
                 }
-                OptSchemaKind::kOptSchemaEnum => {
+                OptSchemaKind::OptSchemaEnum => {
                     if !v.is_null()
                         && it
                             .enum_values
@@ -3495,7 +3495,7 @@ pub fn opt_strings_check(
                         it.enum_values,
                     );
                 }
-                OptSchemaKind::kOptSchemaStr => {
+                OptSchemaKind::OptSchemaStr => {
                     if v.is_null() {
                         return opt_schema_err(
                             errbuf,
@@ -3546,12 +3546,12 @@ pub fn opt_fill(value: impl crate::strings::IntoCCharPtr, get_field: FieldHashfn
                 continue;
             };
             let field = out.cast::<u8>().add(f.ptr_off);
-            if f.key_type == ObjectType::kObjectTypeBoolean as c_int {
+            if f.key_type == ObjectType::ObjectTypeBoolean as c_int {
                 *field.cast::<Boolean>() = true;
-            } else if f.key_type == ObjectType::kObjectTypeInteger as c_int {
+            } else if f.key_type == ObjectType::ObjectTypeInteger as c_int {
                 let mut end = v.cast_mut();
                 *field.cast::<Integer>() = Integer::from(getdigits_int(&raw mut end, false, 0));
-            } else if f.key_type == ObjectType::kObjectTypeString as c_int {
+            } else if f.key_type == ObjectType::ObjectTypeString as c_int {
                 ptr::copy_nonoverlapping(v.cast::<u8>(), field, vlen);
                 *field.add(vlen) = 0;
             }
@@ -3945,7 +3945,7 @@ pub fn set_chars_option(
         let mut fcs_chars = FcsChars::default();
         let mut lcs_chars = LcsChars::new();
 
-        let tab: &[CharsTabEntry] = if what == CharsOption::kListchars {
+        let tab: &[CharsTabEntry] = if what == CharsOption::Listchars {
             if apply && crate::memory::cstr_is_empty(wp.w_onebuf_opt.wo_lcs) {
                 value = opt_vars().p_lcs;
             }
@@ -3974,7 +3974,7 @@ pub fn set_chars_option(
                     }
                 }
 
-                if what == CharsOption::kListchars {
+                if what == CharsOption::Listchars {
                     lcs_chars.tab1 = 0;
                     lcs_chars.tab3 = 0;
                     lcs_chars.leadtab1 = 0;
@@ -4156,13 +4156,13 @@ pub fn set_chars_option(
                 }
             }
 
-            if what == CharsOption::kListchars && has_leadtab && !has_tab {
+            if what == CharsOption::Listchars && has_leadtab && !has_tab {
                 return e_leadtab_requires_tab.as_ptr();
             }
         }
 
         if apply {
-            if what == CharsOption::kListchars {
+            if what == CharsOption::Listchars {
                 wp.w_p_lcs_chars = lcs_chars;
             } else {
                 wp.w_p_fcs_chars = fcs_chars;
@@ -4192,10 +4192,10 @@ pub fn get_listchars_name(_xp: &mut ExpandCtx, idx: c_int) -> *mut c_char {
 /// Check all global and local values of 'listchars' and 'fillchars'.
 pub fn check_chars_options() -> *const c_char {
     unsafe {
-        if !set_chars_option(curwin_mut(), opt_vars().p_lcs, CharsOption::kListchars, false, None).is_null() {
+        if !set_chars_option(curwin_mut(), opt_vars().p_lcs, CharsOption::Listchars, false, None).is_null() {
             return E_CONFLICTS_WITH_VALUE_OF_LISTCHARS.as_ptr();
         }
-        if !set_chars_option(curwin_mut(), opt_vars().p_fcs, CharsOption::kFillchars, false, None).is_null() {
+        if !set_chars_option(curwin_mut(), opt_vars().p_fcs, CharsOption::Fillchars, false, None).is_null() {
             return E_CONFLICTS_WITH_VALUE_OF_FILLCHARS.as_ptr();
         }
         for tp in for_all_tabpages_ptr() {
@@ -4203,7 +4203,7 @@ pub fn check_chars_options() -> *const c_char {
                 if !set_chars_option(
                      &mut *wp,
                     (*wp).w_onebuf_opt.wo_lcs,
-                    CharsOption::kListchars,
+                    CharsOption::Listchars,
                     true,
                     None,
                 )
@@ -4214,7 +4214,7 @@ pub fn check_chars_options() -> *const c_char {
                 if !set_chars_option(
                      &mut *wp,
                     (*wp).w_onebuf_opt.wo_fcs,
-                    CharsOption::kFillchars,
+                    CharsOption::Fillchars,
                     true,
                     None,
                 )

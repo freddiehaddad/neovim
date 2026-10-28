@@ -1020,10 +1020,10 @@ pub fn set_hl_group(
         ];
 
         for (j, &(dest, val, name)) in cattrs.iter().enumerate() {
-            if name.obj_type != ObjectType::kObjectTypeNil {
+            if name.obj_type != ObjectType::ObjectTypeNil {
                 if val < 0 {
                     *dest = kColorIdxNone;
-                } else if name.obj_type == ObjectType::kObjectTypeString
+                } else if name.obj_type == ObjectType::ObjectTypeString
                     && name.data.string().size > 0
                 {
                     name_to_color(name.data.string().data, dest);
@@ -1858,7 +1858,7 @@ pub fn ns_get_hl_defs(
             if !(1 <= id && id <= hl_len()) {
                 api_set_error!(
                     err,
-                    ErrorType::kErrorTypeValidation,
+                    ErrorType::ErrorTypeValidation,
                     c"%s",
                     c"Highlight id out of bounds",
                 );
@@ -1869,7 +1869,7 @@ pub fn ns_get_hl_defs(
             hlgroup2dict(&mut attrs, ns_id, target_id, arena);
             return attrs;
         }
-        if err.err_type != ErrorType::kErrorTypeNone {
+        if err.err_type != ErrorType::ErrorTypeNone {
             return Dict::new();
         }
 

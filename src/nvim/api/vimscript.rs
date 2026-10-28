@@ -219,7 +219,7 @@ pub fn nvim_eval(expr: NvimString, arena: &mut Arena, err: &mut Error) -> Object
             if !ok {
                 api_set_error!(
                     err,
-                    ErrorType::kErrorTypeException,
+                    ErrorType::ErrorTypeException,
                     c"Failed to evaluate expression: '%.*s'",
                     256 as c_int,
                     expr.data,
@@ -250,7 +250,7 @@ fn call_function_impl(
         if args.size > MAX_FUNC_ARGS {
             api_set_error!(
                 err,
-                ErrorType::kErrorTypeValidation,
+                ErrorType::ErrorTypeValidation,
                 c"Function called with too many arguments",
             );
             return rv;
@@ -360,7 +360,7 @@ pub fn nvim_call_dict_function(
         let mut mustfree = false;
 
         match dict.obj_type {
-            ObjectType::kObjectTypeString => {
+            ObjectType::ObjectTypeString => {
                 let mut tstate = TryState::new();
                 try_enter(&mut tstate);
                 let eval_ret = eval0(
@@ -378,7 +378,7 @@ pub fn nvim_call_dict_function(
                 }
                 mustfree = true;
             }
-            ObjectType::kObjectTypeDict => {
+            ObjectType::ObjectTypeDict => {
                 object_to_vim(dict, &mut rettv, err);
             }
             _ => {
@@ -394,10 +394,10 @@ pub fn nvim_call_dict_function(
 
         'body: {
             let self_dict = rettv.vval.v_dict();
-            if rettv.v_type != VarType::VAR_DICT || self_dict.is_null() {
+            if rettv.v_type != VarType::VarDict || self_dict.is_null() {
                 api_set_error!(
                     err,
-                    ErrorType::kErrorTypeValidation,
+                    ErrorType::ErrorTypeValidation,
                     c"dict not found",
                 );
                 break 'body;
@@ -405,30 +405,30 @@ pub fn nvim_call_dict_function(
 
             if !fn_name.data.is_null()
                 && fn_name.size > 0
-                && dict.obj_type != ObjectType::kObjectTypeDict
+                && dict.obj_type != ObjectType::ObjectTypeDict
             {
                 let di = tv_dict_find(self_dict.as_ref(), fn_name.data, fn_name.size as isize);
                 if di.is_null() {
                     api_set_error!(
                         err,
-                        ErrorType::kErrorTypeValidation,
+                        ErrorType::ErrorTypeValidation,
                         c"Not found: %s",
                         fn_name.data,
                     );
                     break 'body;
                 }
-                if (*di).di_tv.v_type == VarType::VAR_PARTIAL {
+                if (*di).di_tv.v_type == VarType::VarPartial {
                     api_set_error!(
                         err,
-                        ErrorType::kErrorTypeValidation,
+                        ErrorType::ErrorTypeValidation,
                         c"partial function not supported",
                     );
                     break 'body;
                 }
-                if (*di).di_tv.v_type != VarType::VAR_FUNC {
+                if (*di).di_tv.v_type != VarType::VarFunc {
                     api_set_error!(
                         err,
-                        ErrorType::kErrorTypeValidation,
+                        ErrorType::ErrorTypeValidation,
                         c"Not a function: %s",
                         fn_name.data,
                     );
@@ -444,7 +444,7 @@ pub fn nvim_call_dict_function(
             if fn_name.data.is_null() || fn_name.size == 0 {
                 api_set_error!(
                     err,
-                    ErrorType::kErrorTypeValidation,
+                    ErrorType::ErrorTypeValidation,
                     c"Invalid function name: %s",
                     c"(empty)",
                 );
@@ -556,7 +556,7 @@ pub fn nvim_parse_expression(
                 0 => {
                     api_set_error!(
                         err,
-                        ErrorType::kErrorTypeValidation,
+                        ErrorType::ErrorTypeValidation,
                         c"Invalid flag: '\\0' (%u)",
                         c_uint::from(b),
                     );
@@ -565,7 +565,7 @@ pub fn nvim_parse_expression(
                 _ => {
                     api_set_error!(
                         err,
-                        ErrorType::kErrorTypeValidation,
+                        ErrorType::ErrorTypeValidation,
                         c"Invalid flag: '%c' (%u)",
                         c_int::from(b as c_char),
                         c_uint::from(b),

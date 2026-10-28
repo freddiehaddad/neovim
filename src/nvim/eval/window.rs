@@ -99,7 +99,7 @@ pub fn win_find_nr(mut nr: c_int, mut tp: *mut TabPageInfo) -> *mut WinInfoInfo 
 
 fn win_getid(argvars: &mut [TypVal]) -> c_int {
     unsafe {
-        if argvars[0].v_type == VarType::VAR_UNKNOWN {
+        if argvars[0].v_type == VarType::VarUnknown {
             return curwin_mut().handle;
         }
         let mut winnr = tv_get_number(&argvars[0]) as c_int;
@@ -109,7 +109,7 @@ fn win_getid(argvars: &mut [TypVal]) -> c_int {
 
         let mut tp: *mut TabPageInfo = ptr::null_mut();
         let mut wp: *mut WinInfoInfo;
-        if argvars[1].v_type == VarType::VAR_UNKNOWN {
+        if argvars[1].v_type == VarType::VarUnknown {
             tp = g_st().curtab;
             wp = g_st().firstwin;
         } else {
@@ -247,8 +247,8 @@ pub fn find_tabwin(wvp: &TypVal, tvp: &TypVal) -> *mut WinInfoInfo {
         let mut wp: *mut WinInfoInfo = ptr::null_mut();
         let mut tp: *mut TabPageInfo = ptr::null_mut();
 
-        if wvp.v_type != VarType::VAR_UNKNOWN {
-            if tvp.v_type != VarType::VAR_UNKNOWN {
+        if wvp.v_type != VarType::VarUnknown {
+            if tvp.v_type != VarType::VarUnknown {
                 let n = tv_get_number(tvp) as c_int;
                 if n >= 0 {
                     tp = find_tabpage(n);
@@ -314,7 +314,7 @@ fn get_winnr(tp: &mut TabPageInfo, argvar: &mut TypVal) -> c_int {
         } else {
             tp.tp_curwin
         };
-        if argvar.v_type != VarType::VAR_UNKNOWN {
+        if argvar.v_type != VarType::VarUnknown {
             let mut invalid_arg = false;
             let arg = tv_get_string_chk(&*argvar);
             if arg.is_null() {
@@ -491,14 +491,14 @@ pub fn f_gettabinfo(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncD
 
         tv_list_alloc_ret(
             rettv,
-            if argvars[0].v_type == VarType::VAR_UNKNOWN {
+            if argvars[0].v_type == VarType::VarUnknown {
                 1
             } else {
                 kListLenMayKnow
             },
         );
 
-        if argvars[0].v_type != VarType::VAR_UNKNOWN {
+        if argvars[0].v_type != VarType::VarUnknown {
             tparg = find_tabpage(tv_get_number_chk(&argvars[0], None) as c_int);
             if tparg.is_null() {
                 return;
@@ -528,7 +528,7 @@ pub fn f_getwininfo(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncD
 
         tv_list_alloc_ret(rettv, kListLenMayKnow);
 
-        if argvars[0].v_type != VarType::VAR_UNKNOWN {
+        if argvars[0].v_type != VarType::VarUnknown {
             wparg = win_id2wp(tv_get_number(&argvars[0]) as c_int);
             if wparg.is_null() {
                 return;
@@ -578,7 +578,7 @@ pub fn f_tabpagenr(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDa
      {
         let mut nr: c_int = 0;
 
-        if argvars[0].v_type != VarType::VAR_UNKNOWN {
+        if argvars[0].v_type != VarType::VarUnknown {
             let arg = tv_get_string_chk(&argvars[0]);
             if !arg.is_null() {
                 let bytes = crate::memory::cstr_as_bytes(arg);
@@ -618,7 +618,7 @@ pub fn f_tabpagewinnr(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFun
 /// `win_execute(win_id, command)` function (`f_win_execute`).
 pub fn f_win_execute(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData){
 
-    rettv.v_type = VarType::VAR_STRING;
+    rettv.v_type = VarType::VarString;
         rettv.vval = crate::eval::typval::TypvalVval::String(ptr::null_mut());
 
         let id = tv_get_number(&argvars[0]) as c_int;
@@ -783,7 +783,7 @@ pub fn f_win_splitmove(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFu
         let mut flags: c_int = 0;
         let mut size: c_int = 0;
 
-        if argvars[2].v_type != VarType::VAR_UNKNOWN {
+        if argvars[2].v_type != VarType::VarUnknown {
             if !tv_check_for_nonnull_dict_arg(argvars, 2) {
                 return;
             }
@@ -832,7 +832,7 @@ pub fn f_win_gettype(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFunc
         let mut wp = curwin_ptr();
 
         tv_set_string(rettv, ptr::null());
-        if argvars[0].v_type != VarType::VAR_UNKNOWN {
+        if argvars[0].v_type != VarType::VarUnknown {
             wp = find_win_by_nr_or_id(&argvars[0]);
             if wp.is_null() {
                 tv_set_string(rettv, c"unknown");
@@ -906,7 +906,7 @@ pub fn f_winlayout(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDa
     unsafe {
         tv_list_alloc_ret(rettv, 2);
 
-        let tp = if argvars[0].v_type == VarType::VAR_UNKNOWN {
+        let tp = if argvars[0].v_type == VarType::VarUnknown {
             g_st().curtab
         } else {
             let found = find_tabpage(tv_get_number(&argvars[0]) as c_int);

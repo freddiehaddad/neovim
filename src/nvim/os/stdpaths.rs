@@ -17,14 +17,14 @@ use std::ffi::{CStr, CString, c_char};
 #[repr(C)]
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum XDGVarType {
-    kXDGNone = -1,
-    kXDGConfigHome = 0,
-    kXDGDataHome = 1,
-    kXDGCacheHome = 2,
-    kXDGStateHome = 3,
-    kXDGRuntimeDir = 4,
-    kXDGConfigDirs = 5,
-    kXDGDataDirs = 6,
+    XDGNone = -1,
+    XDGConfigHome = 0,
+    XDGDataHome = 1,
+    XDGCacheHome = 2,
+    XDGStateHome = 3,
+    XDGRuntimeDir = 4,
+    XDGConfigDirs = 5,
+    XDGDataDirs = 6,
 }
 
 const XDG_ENV_VARS: [&CStr; 7] = [
@@ -159,7 +159,7 @@ pub fn stdpaths_get_xdg_var(idx: XDGVarType) -> Option<CString> {
                 env_val = os_getenv_cstr(def_env.as_ptr());
             }
             if let Some(ref ev) = env_val
-                && idx == XDGVarType::kXDGCacheHome
+                && idx == XDGVarType::XDGCacheHome
                 && let Some(real_path) = os_realpath_cstr(ev.as_ptr(), MAXPATHL)
             {
                 env_val = Some(real_path);
@@ -182,7 +182,7 @@ pub fn stdpaths_get_xdg_var(idx: XDGVarType) -> Option<CString> {
             env_val
         } else if let Some(fb) = fallback {
             Some(expand_env_save(fb.as_ptr().cast_mut()))
-        } else if idx == XDGVarType::kXDGRuntimeDir {
+        } else if idx == XDGVarType::XDGRuntimeDir {
             let tempdir = vim_gettempdir();
             let raw = if tempdir.is_null() {
                 b"/tmp/" as &[u8]
@@ -195,7 +195,7 @@ pub fn stdpaths_get_xdg_var(idx: XDGVarType) -> Option<CString> {
             None
         };
 
-        if matches!(idx, XDGVarType::kXDGDataDirs | XDGVarType::kXDGConfigDirs)
+        if matches!(idx, XDGVarType::XDGDataDirs | XDGVarType::XDGConfigDirs)
             && let Some(r) = ret
         {
             ret = xdg_remove_duplicate(r, ENV_SEPCHAR);
@@ -213,7 +213,7 @@ pub fn get_xdg_home(idx: XDGVarType) -> Option<CString> {
     let mut suffix = Vec::with_capacity(appname_bytes.len() + 6);
     suffix.extend_from_slice(appname_bytes);
     #[cfg(target_os = "windows")]
-    if matches!(idx, XDGVarType::kXDGDataHome | XDGVarType::kXDGStateHome) {
+    if matches!(idx, XDGVarType::XDGDataHome | XDGVarType::XDGStateHome) {
         suffix.extend_from_slice(b"-data");
     }
     let suffix_cstr = cstr_from_bytes(&suffix);
@@ -226,7 +226,7 @@ pub fn get_xdg_home(idx: XDGVarType) -> Option<CString> {
 /// # Safety
 /// `fname` must be a valid C string.
 pub fn stdpaths_user_conf_subpath(fname: &std::ffi::CStr) -> CString {
-    let home = get_xdg_home(XDGVarType::kXDGConfigHome).unwrap_or_default();
+    let home = get_xdg_home(XDGVarType::XDGConfigHome).unwrap_or_default();
     concat_fnames_cstr(home.as_ptr(), fname.as_ptr(), true)
 }
 
@@ -240,7 +240,7 @@ pub fn stdpaths_user_state_subpath(
     trailing_pathseps: usize,
     escape_commas: bool,
 ) -> CString {
-    let home = get_xdg_home(XDGVarType::kXDGStateHome).unwrap_or_default();
+    let home = get_xdg_home(XDGVarType::XDGStateHome).unwrap_or_default();
     let ret = concat_fnames_cstr(home.as_ptr(), fname.as_ptr(), true);
     let bytes = ret.as_bytes();
     let numcommas = if escape_commas {

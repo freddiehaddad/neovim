@@ -19,7 +19,7 @@ use crate::autocmd::{EVENT_CMDUNDEFINED, apply_autocmds, has_event};
 use crate::charset::{NUL, ascii_isupper, ascii_iswhite, getdigits_long, skiptowhite, skipwhite};
 use crate::ex_docmd::{
     ADDR_ARGUMENTS, ADDR_BUFFERS, ADDR_LINES, ADDR_LOADED_BUFFERS, ADDR_NONE, ADDR_OTHER,
-    ADDR_QUICKFIX, ADDR_TABS, ADDR_WINDOWS, CMD_SIZE, CMD_USER, CMD_USER_BUF, CMOD_BROWSE,
+    ADDR_QUICKFIX, ADDR_TABS, ADDR_WINDOWS, CmdSize, CmdUser, CmdUserBuf, CMOD_BROWSE,
     CMOD_CONFIRM, CMOD_ERRSILENT, CMOD_HIDE, CMOD_KEEPALT, CMOD_KEEPJUMPS, CMOD_KEEPMARKS,
     CMOD_KEEPPATTERNS, CMOD_LOCKMARKS, CMOD_NOAUTOCMD, CMOD_NOSWAPFILE, CMOD_SANDBOX, CMOD_SILENT,
     CMOD_UNSILENT, EX_ARGOPT, EX_ARGSPACE, EX_BANG, EX_CMDARG, EX_COUNT, EX_DFLALL, EX_EXTRA,
@@ -48,8 +48,8 @@ use std::ptr;
 use crate::cmdexpand::{EXPAND_NOTHING, EXPAND_USER_LUA, CmdAddr};
 use crate::cursor::Linenr;
 
-const CMD_iput: c_int = 200;
-const CMD_put: c_int = 350;
+const CmdIput: c_int = 200;
+const CmdPut: c_int = 350;
 
 const KEYSET_OPTIDX_cmd__cmd: u64 = 1;
 const KEYSET_OPTIDX_cmd__reg: u64 = 2;
@@ -315,14 +315,14 @@ pub fn nvim_parse_cmd(
             if !errormsg.is_null() {
                 api_set_error!(
                     err,
-                    ErrorType::kErrorTypeException,
+                    ErrorType::ErrorTypeException,
                     c"Parsing command-line: %s",
                     errormsg,
                 );
             } else {
                 api_set_error!(
                     err,
-                    ErrorType::kErrorTypeException,
+                    ErrorType::ErrorTypeException,
                     c"Parsing command-line",
                 );
             }
@@ -332,7 +332,7 @@ pub fn nvim_parse_cmd(
         let mut args = Array::new();
         let length = crate::memory::cstr_len(ea.arg);
 
-        if ea.cmdidx != CMD_SIZE
+        if ea.cmdidx != CmdSize
             && is_map_cmd(crate::cmdexpand::Cmdidx::from_raw(ea.cmdidx))
             && !crate::memory::cstr_is_empty(ea.arg)
         {
@@ -358,16 +358,16 @@ pub fn nvim_parse_cmd(
             }
         }
 
-        let cmd = if ea.cmdidx == CMD_USER {
+        let cmd = if ea.cmdidx == CmdUser {
             let u = ucmds_mut();
             Some(&(u)[ea.useridx as usize])
-        } else if ea.cmdidx == CMD_USER_BUF {
+        } else if ea.cmdidx == CmdUserBuf {
             Some(&(&curbuf_mut().b_ucmds)[ea.useridx as usize])
         } else {
             None
         };
 
-        let name = if ea.cmdidx == CMD_SIZE {
+        let name = if ea.cmdidx == CmdSize {
             c"".as_ptr()
         } else if let Some(cmd) = cmd {
             cmd.uc_name.as_ptr()
@@ -662,7 +662,7 @@ pub fn nvim_cmd(
             let mut p = find_ex_command(&mut ea, None);
 
             if !p.is_null()
-                && ea.cmdidx == CMD_SIZE
+                && ea.cmdidx == CmdSize
                 && ascii_isupper(crate::memory::cstr_first_char(ea.cmd))
                 && has_event(EVENT_CMDUNDEFINED)
             {
@@ -675,12 +675,12 @@ pub fn nvim_cmd(
                 };
             }
 
-            let range_only = ea.cmdidx == CMD_SIZE
+            let range_only = ea.cmdidx == CmdSize
                 && crate::memory::cstr_is_empty(cmd.cmd.data)
                 && has_key(mask, KEYSET_OPTIDX_cmd__range)
                 && cmd.range.size > 0;
 
-            if ea.cmdidx == CMD_SIZE
+            if ea.cmdidx == CmdSize
                 && crate::memory::cstr_is_empty(cmd.cmd.data)
                 && (!has_key(mask, KEYSET_OPTIDX_cmd__range) || cmd.range.size == 0)
                 && has_key(mask, KEYSET_OPTIDX_cmd__mods)
@@ -688,10 +688,10 @@ pub fn nvim_cmd(
                 break 'end;
             }
 
-            if !((!p.is_null() && ea.cmdidx != CMD_SIZE) || range_only) {
+            if !((!p.is_null() && ea.cmdidx != CmdSize) || range_only) {
                 api_set_error!(
                     err,
-                    ErrorType::kErrorTypeValidation,
+                    ErrorType::ErrorTypeValidation,
                     c"Command not found: %s",
                     cmdname,
                 );
@@ -701,7 +701,7 @@ pub fn nvim_cmd(
             if !(range_only || !is_cmd_ni(crate::cmdexpand::Cmdidx::from_raw(ea.cmdidx))) {
                 api_set_error!(
                     err,
-                    ErrorType::kErrorTypeValidation,
+                    ErrorType::ErrorTypeValidation,
                     c"Command not implemented: %s",
                     cmdname,
                 );
@@ -719,7 +719,7 @@ pub fn nvim_cmd(
                 if !fullname_bytes.starts_with(cmdname_bytes) {
                     api_set_error!(
                         err,
-                        ErrorType::kErrorTypeValidation,
+                        ErrorType::ErrorTypeValidation,
                         c"Invalid command: \"%s\"",
                         cmdname,
                     );
@@ -740,10 +740,10 @@ pub fn nvim_cmd(
                     let mut is_numeric = false;
                     let mut count_value: i64 = 0;
 
-                    if first_arg.obj_type == ObjectType::kObjectTypeInteger {
+                    if first_arg.obj_type == ObjectType::ObjectTypeInteger {
                         is_numeric = true;
                         count_value = first_arg.data.integer();
-                    } else if first_arg.obj_type == ObjectType::kObjectTypeString {
+                    } else if first_arg.obj_type == ObjectType::ObjectTypeString {
                         let mut endptr: *const c_char = first_arg.data.string().data;
                         let val = getdigits_long((&raw mut endptr).cast(), false, 0);
                         if *endptr == 0 && first_arg.data.string().size > 0 {
@@ -768,23 +768,23 @@ pub fn nvim_cmd(
                     for i in 0..cmd.args.size {
                         let elem = *cmd.args.items.add(i);
                         match elem.obj_type {
-                            ObjectType::kObjectTypeBoolean => {
+                            ObjectType::ObjectTypeBoolean => {
                                 let data_str = arena_alloc(arena, 2, false).cast::<c_char>();
                                 *data_str.add(0) =
                                     if elem.data.boolean() { b'1' } else { b'0' } as c_char;
                                 *data_str.add(1) = NUL;
                                 add_c(&mut args, string_obj(cstr_as_string(data_str)));
                             }
-                            ObjectType::kObjectTypeBuffer
-                            | ObjectType::kObjectTypeWindow
-                            | ObjectType::kObjectTypeTabpage
-                            | ObjectType::kObjectTypeInteger => {
+                            ObjectType::ObjectTypeBuffer
+                            | ObjectType::ObjectTypeWindow
+                            | ObjectType::ObjectTypeTabpage
+                            | ObjectType::ObjectTypeInteger => {
                                 let s = elem.data.integer().to_string();
                                 let data_str =
                                     arena_memdupz(arena, s.as_ptr().cast::<c_char>(), s.len());
                                 add_c(&mut args, string_obj(cstr_as_string(data_str)));
                             }
-                            ObjectType::kObjectTypeString => {
+                            ObjectType::ObjectTypeString => {
                                 if string_iswhite(elem.data.string()) {
                                     api_err_exp(
                                         err,
@@ -819,7 +819,7 @@ pub fn nvim_cmd(
                     if !argc_valid {
                         api_set_error!(
                             err,
-                            ErrorType::kErrorTypeValidation,
+                            ErrorType::ErrorTypeValidation,
                             c"%s",
                             c"Wrong number of arguments",
                         );
@@ -832,7 +832,7 @@ pub fn nvim_cmd(
                 if (ea.argt & EX_RANGE) == 0 {
                     api_set_error!(
                         err,
-                        ErrorType::kErrorTypeValidation,
+                        ErrorType::ErrorTypeValidation,
                         c"Command cannot accept %s: %s",
                         c"range",
                         cmd.cmd.data,
@@ -854,7 +854,7 @@ pub fn nvim_cmd(
 
                 for i in 0..range.size {
                     let elem = range[i];
-                    if elem.obj_type != ObjectType::kObjectTypeInteger || elem.data.integer() < 0 {
+                    if elem.obj_type != ObjectType::ObjectTypeInteger || elem.data.integer() < 0 {
                         api_err_exp(
                             err,
                             c"range element",
@@ -882,7 +882,7 @@ pub fn nvim_cmd(
             ) {
                 api_set_error!(
                     err,
-                    ErrorType::kErrorTypeException,
+                    ErrorType::ErrorTypeException,
                     c"%s",
                     if !errormsg.is_null() {
                         errormsg
@@ -924,7 +924,7 @@ pub fn nvim_cmd(
                 if count_from_first_arg {
                     api_set_error!(
                         err,
-                        ErrorType::kErrorTypeValidation,
+                        ErrorType::ErrorTypeValidation,
                         c"%s",
                         c"Cannot specify both 'count' and numeric argument",
                     );
@@ -933,7 +933,7 @@ pub fn nvim_cmd(
                 if (ea.argt & EX_COUNT) == 0 {
                     api_set_error!(
                         err,
-                        ErrorType::kErrorTypeValidation,
+                        ErrorType::ErrorTypeValidation,
                         c"Command cannot accept %s: %s",
                         c"count",
                         cmd.cmd.data,
@@ -956,7 +956,7 @@ pub fn nvim_cmd(
                 if (ea.argt & EX_REGSTR) == 0 {
                     api_set_error!(
                         err,
-                        ErrorType::kErrorTypeValidation,
+                        ErrorType::ErrorTypeValidation,
                         c"Command cannot accept %s: %s",
                         c"register",
                         cmd.cmd.data,
@@ -976,7 +976,7 @@ pub fn nvim_cmd(
                 if regname == b'=' as c_char {
                     api_set_error!(
                         err,
-                        ErrorType::kErrorTypeValidation,
+                        ErrorType::ErrorTypeValidation,
                         c"%s",
                         c"Cannot use register \"=",
                     );
@@ -984,11 +984,11 @@ pub fn nvim_cmd(
                 }
                 if !valid_yank_reg(
                     c_int::from(regname as u8),
-                    !is_user_cmdidx(ea.cmdidx) && ea.cmdidx != CMD_put && ea.cmdidx != CMD_iput,
+                    !is_user_cmdidx(ea.cmdidx) && ea.cmdidx != CmdPut && ea.cmdidx != CmdIput,
                 ) {
                     api_set_error!(
                         err,
-                        ErrorType::kErrorTypeValidation,
+                        ErrorType::ErrorTypeValidation,
                         c"Invalid register: \"%c",
                         c_int::from(regname),
                     );
@@ -1001,7 +1001,7 @@ pub fn nvim_cmd(
             if ea.forceit != 0 && (ea.argt & EX_BANG) == 0 {
                 api_set_error!(
                     err,
-                    ErrorType::kErrorTypeValidation,
+                    ErrorType::ErrorTypeValidation,
                     c"Command cannot accept %s: %s",
                     c"bang",
                     cmd.cmd.data,
@@ -1168,7 +1168,7 @@ pub fn nvim_cmd(
                 if (cmod.cmod_flags & CMOD_SANDBOX) != 0 && (ea.argt & EX_SBOXOK) == 0 {
                     api_set_error!(
                         err,
-                        ErrorType::kErrorTypeValidation,
+                        ErrorType::ErrorTypeValidation,
                         c"%s",
                         c"Command cannot be run in sandbox",
                     );
@@ -1427,7 +1427,7 @@ pub fn nvim_buf_del_user_command(buf: Buffer, name: NvimString, err: &mut Error)
 
         api_set_error!(
             err,
-            ErrorType::kErrorTypeException,
+            ErrorType::ErrorTypeException,
             c"Invalid command (not found): %s",
             name.data,
         );
@@ -1476,14 +1476,14 @@ pub fn create_user_command(
             {
                 api_set_error!(
                     err,
-                    ErrorType::kErrorTypeValidation,
+                    ErrorType::ErrorTypeValidation,
                     c"%s",
                     c"Cannot use both 'range' and 'count'",
                 );
                 break 'err;
             }
 
-            if opts.nargs.obj_type == ObjectType::kObjectTypeInteger {
+            if opts.nargs.obj_type == ObjectType::ObjectTypeInteger {
                 match opts.nargs.data.integer() {
                     0 => {}
                     1 => {
@@ -1494,7 +1494,7 @@ pub fn create_user_command(
                         break 'err;
                     }
                 }
-            } else if opts.nargs.obj_type == ObjectType::kObjectTypeString {
+            } else if opts.nargs.obj_type == ObjectType::ObjectTypeString {
                 if opts.nargs.data.string().size > 1 {
                     api_err_invalid(
                         err,
@@ -1529,19 +1529,19 @@ pub fn create_user_command(
             if has_key(mask, KEYSET_OPTIDX_user_command__complete) && argt == 0 {
                 api_set_error!(
                     err,
-                    ErrorType::kErrorTypeValidation,
+                    ErrorType::ErrorTypeValidation,
                     c"%s",
                     c"'complete' used without 'nargs'",
                 );
                 break 'err;
             }
 
-            if opts.range.obj_type == ObjectType::kObjectTypeBoolean {
+            if opts.range.obj_type == ObjectType::ObjectTypeBoolean {
                 if opts.range.data.boolean() {
                     argt |= EX_RANGE;
                     addr_type_arg = ADDR_LINES;
                 }
-            } else if opts.range.obj_type == ObjectType::kObjectTypeString {
+            } else if opts.range.obj_type == ObjectType::ObjectTypeString {
                 if !(crate::memory::cstr_first_byte(opts.range.data.string().data) == b'%'
                     && opts.range.data.string().size == 1)
                 {
@@ -1550,7 +1550,7 @@ pub fn create_user_command(
                 }
                 argt |= EX_RANGE | EX_DFLALL;
                 addr_type_arg = ADDR_LINES;
-            } else if opts.range.obj_type == ObjectType::kObjectTypeInteger {
+            } else if opts.range.obj_type == ObjectType::ObjectTypeInteger {
                 argt |= EX_RANGE | EX_ZEROR;
                 def = opts.range.data.integer();
                 addr_type_arg = ADDR_LINES;
@@ -1559,13 +1559,13 @@ pub fn create_user_command(
                 break 'err;
             }
 
-            if opts.count.obj_type == ObjectType::kObjectTypeBoolean {
+            if opts.count.obj_type == ObjectType::ObjectTypeBoolean {
                 if opts.count.data.boolean() {
                     argt |= EX_COUNT | EX_ZEROR | EX_RANGE;
                     addr_type_arg = ADDR_OTHER;
                     def = 0;
                 }
-            } else if opts.count.obj_type == ObjectType::kObjectTypeInteger {
+            } else if opts.count.obj_type == ObjectType::ObjectTypeInteger {
                 argt |= EX_COUNT | EX_ZEROR | EX_RANGE;
                 addr_type_arg = ADDR_OTHER;
                 def = opts.count.data.integer();
@@ -1575,11 +1575,11 @@ pub fn create_user_command(
             }
 
             if has_key(mask, KEYSET_OPTIDX_user_command__addr) {
-                if opts.addr.obj_type != ObjectType::kObjectTypeString {
+                if opts.addr.obj_type != ObjectType::ObjectTypeString {
                     api_err_exp(
                         err,
                         c"addr",
-                        api_typename(ObjectType::kObjectTypeString),
+                        api_typename(ObjectType::ObjectTypeString),
                         api_typename(opts.addr.obj_type),
                     );
                     break 'err;
@@ -1627,12 +1627,12 @@ pub fn create_user_command(
                 break 'err;
             }
 
-            if opts.complete.obj_type == ObjectType::kObjectTypeLuaRef {
+            if opts.complete.obj_type == ObjectType::ObjectTypeLuaRef {
                 context = EXPAND_USER_LUA;
                 compl_luaref = opts.complete.data.luaref();
                 opts.complete.data =
                     crate::api::private::validate::ObjectData::LuaRef(LUA_NOREF);
-            } else if opts.complete.obj_type == ObjectType::kObjectTypeString {
+            } else if opts.complete.obj_type == ObjectType::ObjectTypeString {
                 if !parse_compl_arg(
                     opts.complete.data.string().data,
                     opts.complete.data.string().size as c_int,
@@ -1661,11 +1661,11 @@ pub fn create_user_command(
             }
 
             if has_key(mask, KEYSET_OPTIDX_user_command__preview) {
-                if opts.preview.obj_type != ObjectType::kObjectTypeLuaRef {
+                if opts.preview.obj_type != ObjectType::ObjectTypeLuaRef {
                     api_err_exp(
                         err,
                         c"preview",
-                        api_typename(ObjectType::kObjectTypeLuaRef),
+                        api_typename(ObjectType::ObjectTypeLuaRef),
                         api_typename(opts.preview.obj_type),
                     );
                     break 'err;
@@ -1678,11 +1678,11 @@ pub fn create_user_command(
 
             let mut desc: *const c_char = ptr::null();
             if has_key(mask, KEYSET_OPTIDX_user_command__desc) {
-                if opts.desc.obj_type != ObjectType::kObjectTypeString {
+                if opts.desc.obj_type != ObjectType::ObjectTypeString {
                     api_err_exp(
                         err,
                         c"desc",
-                        api_typename(ObjectType::kObjectTypeString),
+                        api_typename(ObjectType::ObjectTypeString),
                         api_typename(opts.desc.obj_type),
                     );
                     break 'err;
@@ -1691,11 +1691,11 @@ pub fn create_user_command(
             }
 
             match cmd.obj_type {
-                ObjectType::kObjectTypeLuaRef => {
+                ObjectType::ObjectTypeLuaRef => {
                     luaref = api_new_luaref(cmd.data.luaref());
                     rep = c"".as_ptr();
                 }
-                ObjectType::kObjectTypeString => {
+                ObjectType::ObjectTypeString => {
                     rep = cmd.data.string().data;
                 }
                 _ => {
@@ -1729,7 +1729,7 @@ pub fn create_user_command(
                 {
                     api_set_error!(
                         err,
-                        ErrorType::kErrorTypeException,
+                        ErrorType::ErrorTypeException,
                         c"Failed to create user command",
                     );
                 }
@@ -1798,7 +1798,7 @@ pub fn nvim_buf_get_commands(
             if opts.builtin {
                 api_set_error!(
                     err,
-                    ErrorType::kErrorTypeValidation,
+                    ErrorType::ErrorTypeValidation,
                     c"builtin=true not implemented",
                 );
                 return Dict::new();
@@ -1820,9 +1820,9 @@ mod tests {
 
     #[test]
     fn ascii_and_user_cmdidx_predicates() {
-        assert!(is_user_cmdidx(CMD_USER));
-        assert!(is_user_cmdidx(CMD_USER_BUF));
-        assert!(!is_user_cmdidx(CMD_SIZE));
+        assert!(is_user_cmdidx(CmdUser));
+        assert!(is_user_cmdidx(CmdUserBuf));
+        assert!(!is_user_cmdidx(CmdSize));
         assert!(ascii_isupper(b'A' as c_char));
         assert!(!ascii_isupper(b'a' as c_char));
         assert!(ascii_iswhite(b' ' as c_char));

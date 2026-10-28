@@ -119,16 +119,16 @@ const STL_CLICK_FUNC: c_char = b'@' as c_char;
 #[repr(C)]
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum StlPadding {
-    kPaddingNone = 0,
-    kPaddingLeft = 1,
-    kPaddingRight = 2,
+    PaddingNone = 0,
+    PaddingLeft = 1,
+    PaddingRight = 2,
 }
 
 #[repr(C)]
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum NumberBase {
-    kNumBaseDecimal = 10,
-    kNumBaseHexadecimal = 16,
+    NumBaseDecimal = 10,
+    NumBaseHexadecimal = 16,
 }
 
 #[repr(C)]
@@ -700,22 +700,22 @@ fn win_redr_stl_expr(wp: *mut WinInfoInfo, draw_winbar: bool, draw_ruler: bool, 
                 } else {
                     let mut chunk = Array::new();
                     chunk.push(Object {
-                        obj_type: ObjectType::kObjectTypeInteger,
+                        obj_type: ObjectType::ObjectTypeInteger,
                         data: ObjectData::Integer(i64::from(curattr)),
                     });
                     chunk.push(Object {
-                        obj_type: ObjectType::kObjectTypeString,
+                        obj_type: ObjectType::ObjectTypeString,
                         data: ObjectData::String(crate::api::private::helpers::cbuf_to_string(
                                 transbuf.as_ptr(),
                                 tsize,
                             )),
                     });
                     chunk.push(Object {
-                        obj_type: ObjectType::kObjectTypeInteger,
+                        obj_type: ObjectType::ObjectTypeInteger,
                         data: ObjectData::Integer(i64::from(curgroup)),
                     });
                     content.push(Object {
-                        obj_type: ObjectType::kObjectTypeArray,
+                        obj_type: ObjectType::ObjectTypeArray,
                         data: ObjectData::Array(chunk),
                     });
                 }
@@ -867,7 +867,7 @@ fn ui_ext_tabline_update() {
                 &mut tab_info,
                 c"tab",
                 Object {
-                    obj_type: ObjectType::kObjectTypeTabpage,
+                    obj_type: ObjectType::ObjectTypeTabpage,
                     data: ObjectData::Integer(i64::from((*tp).handle)),
                 },
             );
@@ -882,7 +882,7 @@ fn ui_ext_tabline_update() {
                 &mut tab_info,
                 c"name",
                 Object {
-                    obj_type: ObjectType::kObjectTypeString,
+                    obj_type: ObjectType::ObjectTypeString,
                     data: ObjectData::String(arena_string(&mut arena, cstr_as_string(name_buff))),
                 },
             );
@@ -890,7 +890,7 @@ fn ui_ext_tabline_update() {
             add_c(
                 &mut tabs,
                 Object {
-                    obj_type: ObjectType::kObjectTypeDict,
+                    obj_type: ObjectType::ObjectTypeDict,
                     data: ObjectData::Dict(tab_info),
                 },
             );
@@ -915,7 +915,7 @@ fn ui_ext_tabline_update() {
                     &mut buffer_info,
                     c"buffer",
                     Object {
-                        obj_type: ObjectType::kObjectTypeBuffer,
+                        obj_type: ObjectType::ObjectTypeBuffer,
                         data: ObjectData::Integer(i64::from((*buf).b_fnum)),
                     },
                 );
@@ -925,7 +925,7 @@ fn ui_ext_tabline_update() {
                     &mut buffer_info,
                     c"name",
                     Object {
-                        obj_type: ObjectType::kObjectTypeString,
+                        obj_type: ObjectType::ObjectTypeString,
                         data: ObjectData::String(arena_string(&mut arena, cstr_as_string(name_buff))),
                     },
                 );
@@ -933,7 +933,7 @@ fn ui_ext_tabline_update() {
                 add_c(
                     &mut buffers,
                     Object {
-                        obj_type: ObjectType::kObjectTypeDict,
+                        obj_type: ObjectType::ObjectTypeDict,
                         data: ObjectData::Dict(buffer_info),
                     },
                 );
@@ -1334,13 +1334,13 @@ fn stl_expand(
 
             *width += added_cells;
             *out_p = (*out_p).add(added_bytes as usize);
-        } else if padding == StlPadding::kPaddingRight {
+        } else if padding == StlPadding::PaddingRight {
             while added_cells > 0 {
                 schar_get_adv(out_p, fillchar);
                 added_cells -= 1;
             }
             *width += added_bytes / fillchar_bytes;
-        } else if padding == StlPadding::kPaddingLeft {
+        } else if padding == StlPadding::PaddingLeft {
             ptr::copy(
                 start_p,
                 start_p.add(added_bytes as usize),
@@ -1433,7 +1433,7 @@ pub unsafe extern "C" fn build_stl_str_hl(
 
         if crate::memory::cstr_first_byte(fmt) == b'%' && crate::memory::cstr_byte_at(fmt, 1) == b'!' {
             let mut tv = TypVal {
-                v_type: VarType::VAR_NUMBER,
+                v_type: VarType::VarNumber,
                 v_lock: 0,
                 vval: TypvalVval::Number(Varnumber::from((*wp).handle)),
             };
@@ -1606,9 +1606,9 @@ pub unsafe extern "C" fn build_stl_str_hl(
                 let maxwid = stl_items!()[gidx as usize].maxwid;
                 let mut minwid = stl_items!()[gidx as usize].minwid;
                 let padding = if minwid < 0 {
-                    StlPadding::kPaddingRight
+                    StlPadding::PaddingRight
                 } else {
-                    StlPadding::kPaddingLeft
+                    StlPadding::PaddingLeft
                 };
                 minwid = minwid.abs();
 
@@ -1836,7 +1836,7 @@ pub unsafe extern "C" fn build_stl_str_hl(
             let opt = *fmt_p;
             fmt_p = fmt_p.add(1);
 
-            let mut base = NumberBase::kNumBaseDecimal;
+            let mut base = NumberBase::NumBaseDecimal;
             let mut itemisflag = false;
             let mut fillable = true;
             let mut num: c_int = -1;
@@ -2063,7 +2063,7 @@ pub unsafe extern "C" fn build_stl_str_hl(
                 }
                 STL_OFFSET_X | STL_OFFSET => {
                     if opt == STL_OFFSET_X {
-                        base = NumberBase::kNumBaseHexadecimal;
+                        base = NumberBase::NumBaseHexadecimal;
                     }
                     let l = ml_find_line_or_offset(
                         (*wp).buf_mut(),
@@ -2084,7 +2084,7 @@ pub unsafe extern "C" fn build_stl_str_hl(
                 }
                 STL_BYTEVAL_X | STL_BYTEVAL => {
                     if opt == STL_BYTEVAL_X {
-                        base = NumberBase::kNumBaseHexadecimal;
+                        base = NumberBase::NumBaseHexadecimal;
                     }
                     num = byteval;
                     if num == NL {
@@ -2375,7 +2375,7 @@ pub unsafe extern "C" fn build_stl_str_hl(
                 }
                 *t = b'*' as c_char;
                 t = t.add(1);
-                *t = if base == NumberBase::kNumBaseHexadecimal {
+                *t = if base == NumberBase::NumBaseHexadecimal {
                     b'X' as c_char
                 } else {
                     b'd' as c_char
@@ -2463,7 +2463,7 @@ pub unsafe extern "C" fn build_stl_str_hl(
             stl_expand(
                 &mut width,
                 maxwidth,
-                StlPadding::kPaddingNone,
+                StlPadding::PaddingNone,
                 out_end_p.offset_from(out_p) as c_int,
                 fillchar,
                 stl_items!(),

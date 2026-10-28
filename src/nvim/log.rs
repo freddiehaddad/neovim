@@ -193,7 +193,7 @@ fn log_path_init() {
             if user_set {
                 os_setenv(c"__NVIM_LOG_FILE_WANT", path_ptr, 1);
             }
-            let state_home = get_xdg_home(crate::os::stdpaths::XDGVarType::kXDGStateHome)
+            let state_home = get_xdg_home(crate::os::stdpaths::XDGVarType::XDGStateHome)
                 .unwrap_or_default();
             let loghome = concat_fnames_cstr(
                 state_home.as_ptr(),

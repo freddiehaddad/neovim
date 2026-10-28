@@ -215,17 +215,17 @@ impl Default for Callback {
 #[repr(C)]
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum VarType {
-    VAR_UNKNOWN = 0,
-    VAR_NUMBER = 1,
-    VAR_STRING = 2,
-    VAR_FUNC = 3,
-    VAR_LIST = 4,
-    VAR_DICT = 5,
-    VAR_FLOAT = 6,
-    VAR_BOOL = 7,
-    VAR_SPECIAL = 8,
-    VAR_PARTIAL = 9,
-    VAR_BLOB = 10,
+    VarUnknown = 0,
+    VarNumber = 1,
+    VarString = 2,
+    VarFunc = 3,
+    VarList = 4,
+    VarDict = 5,
+    VarFloat = 6,
+    VarBool = 7,
+    VarSpecial = 8,
+    VarPartial = 9,
+    VarBlob = 10,
 }
 
 #[repr(C)]
@@ -744,7 +744,7 @@ pub fn tv_take_string(p: *mut c_char) -> Option<std::ffi::CString> {
 #[inline]
 pub fn tv_set_string(tv: &mut TypVal, s: impl crate::strings::IntoCCharPtr) {
     let s = s.into_c_char_ptr();
-    tv.v_type = VarType::VAR_STRING;
+    tv.v_type = VarType::VarString;
         tv.vval = crate::eval::typval::TypvalVval::String(if s.is_null() {
             ptr::null_mut()
         } else {
@@ -755,7 +755,7 @@ pub fn tv_set_string(tv: &mut TypVal, s: impl crate::strings::IntoCCharPtr) {
 #[inline]
 pub fn tv_set_string_len(tv: &mut TypVal, s: impl crate::strings::IntoCCharPtr, len: usize) { let s = s.into_c_char_ptr();
      {
-        tv.v_type = VarType::VAR_STRING;
+        tv.v_type = VarType::VarString;
         tv.vval = crate::eval::typval::TypvalVval::String(if s.is_null() {
             ptr::null_mut()
         } else {
@@ -783,7 +783,7 @@ fn tv_list_ref_inline(l: Option<&mut TvList>) {
 
 #[inline]
 fn tv_list_set_ret_inline(tv: &mut TypVal, l: *mut TvList) {
-    tv.v_type = VarType::VAR_LIST;
+    tv.v_type = VarType::VarList;
     tv.vval = crate::eval::typval::TypvalVval::List(l);
     tv_list_ref_inline(unsafe { l.as_mut() });
 }
@@ -915,7 +915,7 @@ fn tv_list_last_inline(l: Option<&TvList>) -> *mut Listitem {
 
 #[inline]
 fn tv_dict_set_ret_inline(tv: &mut TypVal, d: *mut TvDict) {
-    tv.v_type = VarType::VAR_DICT;
+    tv.v_type = VarType::VarDict;
     tv.vval = crate::eval::typval::TypvalVval::Dict(d);
     if !d.is_null() {
         unsafe {
@@ -936,7 +936,7 @@ fn tv_dict_is_watched_inline(d: Option<&TvDict>) -> bool {
 
 #[inline]
 fn tv_blob_set_ret_inline(tv: &mut TypVal, b: *mut TvBlob) {
-    tv.v_type = VarType::VAR_BLOB;
+    tv.v_type = VarType::VarBlob;
     tv.vval = crate::eval::typval::TypvalVval::Blob(b);
     if !b.is_null() {
         unsafe {
@@ -962,13 +962,13 @@ fn tv_blob_set_inline(blob: &mut TvBlob, idx: c_int, c: u8) {
 
 #[inline]
 const fn tv_is_func_inline(tv: &TypVal) -> bool {
-    matches!(tv.v_type, VarType::VAR_FUNC | VarType::VAR_PARTIAL)
+    matches!(tv.v_type, VarType::VarFunc | VarType::VarPartial)
 }
 
 #[inline]
 pub const fn tv_initial_value() -> TypVal {
     TypVal {
-        v_type: VarType::VAR_UNKNOWN,
+        v_type: VarType::VarUnknown,
         v_lock: VAR_UNLOCKED,
         vval: TypvalVval::Number(0),
     }
@@ -980,7 +980,7 @@ fn tv_list_item_alloc() -> *mut Listitem {
         li_next: ptr::null_mut(),
         li_prev: ptr::null_mut(),
         li_tv: TypVal {
-            v_type: VarType::VAR_UNKNOWN,
+            v_type: VarType::VarUnknown,
             v_lock: VAR_UNLOCKED,
             vval: TypvalVval::Number(0),
         },
@@ -1253,7 +1253,7 @@ pub fn tv_list_append_list(l: &mut TvList, itemlist: *mut TvList) {
     tv_list_append_owned_tv(
             l,
             TypVal {
-                v_type: VarType::VAR_LIST,
+                v_type: VarType::VarList,
                 v_lock: VAR_UNLOCKED,
                 vval: TypvalVval::List(itemlist),
             },
@@ -1267,7 +1267,7 @@ pub fn tv_list_append_dict(l: &mut TvList, dict: *mut TvDict) {
         tv_list_append_owned_tv(
             l,
             TypVal {
-                v_type: VarType::VAR_DICT,
+                v_type: VarType::VarDict,
                 v_lock: VAR_UNLOCKED,
                 vval: TypvalVval::Dict(dict),
             },
@@ -1296,7 +1296,7 @@ pub fn tv_list_append_string<S: crate::strings::IntoCCharPtr>(
         tv_list_append_owned_tv(
             l,
             TypVal {
-                v_type: VarType::VAR_STRING,
+                v_type: VarType::VarString,
                 v_lock: VAR_UNLOCKED,
                 vval: TypvalVval::String(v_string),
             },
@@ -1309,7 +1309,7 @@ pub fn tv_list_append_number(l: &mut TvList, n: Varnumber) {
     tv_list_append_owned_tv(
             l,
             TypVal {
-                v_type: VarType::VAR_NUMBER,
+                v_type: VarType::VarNumber,
                 v_lock: VAR_UNLOCKED,
                 vval: TypvalVval::Number(n),
             },
@@ -1506,7 +1506,7 @@ pub fn tv_list_flatten(
             if g_st().got_int {
                 return;
             }
-            if (*item).li_tv.v_type == VarType::VAR_LIST {
+            if (*item).li_tv.v_type == VarType::VarList {
                 let itemlist = (*item).li_tv.vval.v_list();
 
                 tv_list_drop_items( list, item,  &mut *item);
@@ -1628,7 +1628,7 @@ pub fn tv_list_extend(l1: &mut TvList, l2: Option<&TvList>, bef: *mut Listitem) 
 
 /// Concatenate lists into a new list.
 pub fn tv_list_concat(mut l1: Option<&mut TvList>, mut l2: Option<&mut TvList>, tv: &mut TypVal) -> bool {
-    tv.v_type = VarType::VAR_LIST;
+    tv.v_type = VarType::VarList;
         tv.v_lock = VAR_UNLOCKED;
         let l = if l1.is_none() && l2.is_none() {
             ptr::null_mut()
@@ -1783,17 +1783,17 @@ pub fn tv_list_join(gap: &mut Vec<c_char>, l: Option<&mut TvList>, sep: impl cra
 pub fn f_join(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData){
 
      {
-        if argvars[0].v_type != VarType::VAR_LIST {
+        if argvars[0].v_type != VarType::VarList {
             emsg(tr(e_listreq));
             return;
         }
-        let sep = if argvars[1].v_type == VarType::VAR_UNKNOWN {
+        let sep = if argvars[1].v_type == VarType::VarUnknown {
             c" ".as_ptr()
         } else {
             tv_get_string_chk(&argvars[1])
         };
 
-        rettv.v_type = VarType::VAR_STRING;
+        rettv.v_type = VarType::VarString;
 
         if !sep.is_null() {
             let mut out: Vec<c_char> = Vec::with_capacity(80);
@@ -1809,9 +1809,9 @@ pub fn f_join(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData){
 pub fn f_list2str(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData){
 
     unsafe {
-        rettv.v_type = VarType::VAR_STRING;
+        rettv.v_type = VarType::VarString;
         rettv.vval = crate::eval::typval::TypvalVval::String(ptr::null_mut());
-        if argvars[0].v_type != VarType::VAR_LIST {
+        if argvars[0].v_type != VarType::VarList {
             emsg(tr(e_invarg));
             return;
         }
@@ -1854,7 +1854,7 @@ pub fn tv_list_remove(argvars: &mut [TypVal],rettv: &mut TypVal,
         let item = tv_list_find(l.as_mut(), idx as c_int);
         if item.is_null() {
             semsg!(tr(e_list_index_out_of_range_nr), idx);
-        } else if argvars[2].v_type == VarType::VAR_UNKNOWN {
+        } else if argvars[2].v_type == VarType::VarUnknown {
             tv_list_drop_items( &mut *l, item,  &mut *item);
             *rettv = std::mem::replace(&mut (*item).li_tv, tv_initial_value());
             drop(Box::from_raw(item));
@@ -1974,8 +1974,8 @@ fn item_compare(
         let mut p1: *mut c_char;
         let mut p2: *mut c_char;
 
-        if tv1.v_type == VarType::VAR_STRING {
-            if tv2.v_type != VarType::VAR_STRING || info.item_compare_numeric {
+        if tv1.v_type == VarType::VarString {
+            if tv2.v_type != VarType::VarString || info.item_compare_numeric {
                 p1 = c"'".as_ptr().cast_mut();
             } else {
                 p1 = tv1.vval.v_string();
@@ -1985,8 +1985,8 @@ fn item_compare(
             p1 = s1.as_ptr().cast_mut();
             tofree1 = Some(s1);
         }
-        if tv2.v_type == VarType::VAR_STRING {
-            if tv1.v_type != VarType::VAR_STRING || info.item_compare_numeric {
+        if tv2.v_type == VarType::VarString {
+            if tv1.v_type != VarType::VarString || info.item_compare_numeric {
                 p2 = c"'".as_ptr().cast_mut();
             } else {
                 p2 = tv2.vval.v_string();
@@ -2114,7 +2114,7 @@ fn sort_compute_keys(ptrs: &mut [ListSortItem], info: &mut Sortinfo) {
         } else {
             for si in ptrs.iter_mut() {
                 let tv = &mut (*si.item).li_tv;
-                if tv.v_type == VarType::VAR_STRING {
+                if tv.v_type == VarType::VarString {
                     si.key = ListSortKey::Float(0.0);
                 } else {
                     let p = encode_tv2string(tv, None);
@@ -2226,16 +2226,16 @@ fn parse_sort_uniq_args(argvars: &mut [TypVal], info: &mut Sortinfo) -> bool {
         info.item_compare_selfdict = ptr::null_mut();
         info.item_compare_keys_ready = false;
 
-        if argvars[1].v_type == VarType::VAR_UNKNOWN {
+        if argvars[1].v_type == VarType::VarUnknown {
             return true;
         }
 
-        if argvars[1].v_type == VarType::VAR_FUNC {
+        if argvars[1].v_type == VarType::VarFunc {
             let s = argvars[1].vval.v_string();
             if !s.is_null() {
                 info.item_compare_func = Some(crate::memory::cstr_to_cstring(s));
             }
-        } else if argvars[1].v_type == VarType::VAR_PARTIAL {
+        } else if argvars[1].v_type == VarType::VarPartial {
             info.item_compare_partial = argvars[1].vval.v_partial();
         } else {
             let mut error = false;
@@ -2245,7 +2245,7 @@ fn parse_sort_uniq_args(argvars: &mut [TypVal], info: &mut Sortinfo) -> bool {
             }
             if nr == 1 {
                 info.item_compare_ic = 1;
-            } else if argvars[1].v_type != VarType::VAR_NUMBER {
+            } else if argvars[1].v_type != VarType::VarNumber {
                 let s = tv_get_string(&argvars[1]);
                 if !s.is_null() {
                     info.item_compare_func = Some(crate::memory::cstr_to_cstring(s));
@@ -2282,7 +2282,7 @@ fn parse_sort_uniq_args(argvars: &mut [TypVal], info: &mut Sortinfo) -> bool {
             }
         }
 
-        if argvars[2].v_type != VarType::VAR_UNKNOWN {
+        if argvars[2].v_type != VarType::VarUnknown {
             if !tv_check_for_dict_arg(argvars, 2) {
                 return false;
             }
@@ -2295,7 +2295,7 @@ fn parse_sort_uniq_args(argvars: &mut [TypVal], info: &mut Sortinfo) -> bool {
 
 fn do_sort_uniq(argvars: &mut [TypVal], rettv: &mut TypVal, sort: bool) {
      {
-        if argvars[0].v_type != VarType::VAR_LIST {
+        if argvars[0].v_type != VarType::VarList {
             semsg!(
                 tr(e_listarg),
                 if sort {
@@ -2557,18 +2557,18 @@ pub fn callback_put(cb: &mut Callback, tv: &mut TypVal) {
         match cb.cb_type() {
             kCallbackPartial => {
                 let pt = cb.data.as_partial();
-                tv.v_type = VarType::VAR_PARTIAL;
+                tv.v_type = VarType::VarPartial;
                 tv.vval = crate::eval::typval::TypvalVval::Partial(pt);
                 (*pt).pt_refcount += 1;
             }
             kCallbackFuncref => {
                 let funcref = cb.data.as_funcref();
                 tv_set_string(&mut *tv, funcref);
-                tv.v_type = VarType::VAR_FUNC;
+                tv.v_type = VarType::VarFunc;
                 func_ref(tv.vval.v_string());
             }
             _ => {
-                tv.v_type = VarType::VAR_SPECIAL;
+                tv.v_type = VarType::VarSpecial;
                 tv.vval = crate::eval::typval::TypvalVval::Special(kSpecialVarNull);
             }
         }
@@ -2710,12 +2710,12 @@ pub fn tv_dict_watcher_notify(
     unsafe {
         let mut argv: [TypVal; 3] = [tv_initial_value(); 3];
 
-        argv[0].v_type = VarType::VAR_DICT;
+        argv[0].v_type = VarType::VarDict;
         argv[0].v_lock = VAR_UNLOCKED;
         argv[0].vval = crate::eval::typval::TypvalVval::Dict(dict);
         argv[1].v_lock = VAR_UNLOCKED;
         tv_set_string(&mut argv[1], key);
-        argv[2].v_type = VarType::VAR_DICT;
+        argv[2].v_type = VarType::VarDict;
         argv[2].v_lock = VAR_UNLOCKED;
         let changes_dict = tv_dict_alloc();
         argv[2].vval = crate::eval::typval::TypvalVval::Dict(changes_dict);
@@ -2728,7 +2728,7 @@ pub fn tv_dict_watcher_notify(
         }
 
         if let Some(oldtv) = oldtv
-            && oldtv.v_type != VarType::VAR_UNKNOWN
+            && oldtv.v_type != VarType::VarUnknown
         {
             let v = tv_dict_item_alloc_len(c"old", 3);
             tv_copy(oldtv, &mut (*v).di_tv);
@@ -2779,7 +2779,7 @@ pub fn tv_dict_item_alloc_len(key: impl crate::strings::IntoCCharPtr, key_len: u
         key_vec.push(NUL);
         Box::into_raw(Box::new(Dictitem {
             di_tv: TypVal {
-                v_type: VarType::VAR_UNKNOWN,
+                v_type: VarType::VarUnknown,
                 v_lock: VAR_UNLOCKED,
                 vval: TypvalVval::Number(0),
             },
@@ -3069,7 +3069,7 @@ pub fn tv_dict_get_callback(
             return true;
         }
 
-        if !tv_is_func_inline(&(*di).di_tv) && (*di).di_tv.v_type != VarType::VAR_STRING {
+        if !tv_is_func_inline(&(*di).di_tv) && (*di).di_tv.v_type != VarType::VarString {
             emsg(tr(
                 c"E6000: Argument is not a function or function name"));
             return false;
@@ -3118,7 +3118,7 @@ pub fn tv_dict_add_list<S: crate::strings::IntoCCharPtr>(
     let key = key.into_c_char_ptr();
     unsafe {
         let item = tv_dict_item_alloc_len(key, crate::memory::cstr_len(key));
-        (*item).di_tv.v_type = VarType::VAR_LIST;
+        (*item).di_tv.v_type = VarType::VarList;
         (*item).di_tv.vval = crate::eval::typval::TypvalVval::List(list);
         if !tv_dict_add(d, item) {
             (*item).di_tv.vval = crate::eval::typval::TypvalVval::List(ptr::null_mut());
@@ -3157,7 +3157,7 @@ pub fn tv_dict_add_dict<S: crate::strings::IntoCCharPtr>(
     let key = key.into_c_char_ptr();
     unsafe {
         let item = tv_dict_item_alloc_len(key, crate::memory::cstr_len(key));
-        (*item).di_tv.v_type = VarType::VAR_DICT;
+        (*item).di_tv.v_type = VarType::VarDict;
         (*item).di_tv.vval = crate::eval::typval::TypvalVval::Dict(dict);
         if !tv_dict_add(d, item) {
             (*item).di_tv.vval = crate::eval::typval::TypvalVval::Dict(ptr::null_mut());
@@ -3177,7 +3177,7 @@ pub fn tv_dict_add_nr(
 ) -> bool {
     unsafe {
         let item = tv_dict_item_alloc_len(key.as_ptr(), key.to_bytes().len());
-        (*item).di_tv.v_type = VarType::VAR_NUMBER;
+        (*item).di_tv.v_type = VarType::VarNumber;
         (*item).di_tv.vval = crate::eval::typval::TypvalVval::Number(nr);
         if !tv_dict_add(d, item) {
             tv_dict_item_free(item);
@@ -3195,7 +3195,7 @@ pub fn tv_dict_add_float(
 ) -> bool {
     unsafe {
         let item = tv_dict_item_alloc_len(key.as_ptr(), key.to_bytes().len());
-        (*item).di_tv.v_type = VarType::VAR_FLOAT;
+        (*item).di_tv.v_type = VarType::VarFloat;
         (*item).di_tv.vval = crate::eval::typval::TypvalVval::Float(nr);
         if !tv_dict_add(d, item) {
             tv_dict_item_free(item);
@@ -3213,7 +3213,7 @@ pub fn tv_dict_add_bool(
 ) -> bool {
     unsafe {
         let item = tv_dict_item_alloc_len(key.as_ptr(), key.to_bytes().len());
-        (*item).di_tv.v_type = VarType::VAR_BOOL;
+        (*item).di_tv.v_type = VarType::VarBool;
         (*item).di_tv.vval = crate::eval::typval::TypvalVval::Bool(val);
         if !tv_dict_add(d, item) {
             tv_dict_item_free(item);
@@ -3251,7 +3251,7 @@ pub fn tv_dict_add_str_len<S: crate::strings::IntoCCharPtr>(
             tv_alloc_string_bytes(crate::memory::cstr_slice(val, len as usize))
         };
         let item = tv_dict_item_alloc_len(key, crate::memory::cstr_len(key));
-        (*item).di_tv.v_type = VarType::VAR_STRING;
+        (*item).di_tv.v_type = VarType::VarString;
         (*item).di_tv.vval = crate::eval::typval::TypvalVval::String(s);
         if !tv_dict_add(d, item) {
             tv_dict_item_free(item);
@@ -3271,7 +3271,7 @@ pub fn tv_dict_add_func(
         let item = tv_dict_item_alloc_len(key.as_ptr(), key.to_bytes().len());
         let name_ptr = fp.uf_name.as_ptr();
         tv_set_string_len(&mut (*item).di_tv, name_ptr, fp.uf_namelen);
-        (*item).di_tv.v_type = VarType::VAR_FUNC;
+        (*item).di_tv.v_type = VarType::VarFunc;
         func_ref((*item).di_tv.vval.v_string());
         if !tv_dict_add(d, item) {
             tv_dict_item_free(item);
@@ -3577,7 +3577,7 @@ fn tv_blob_slice(
         }
         if n1 >= len64 || n2 < 0 || n1 > n2 {
             tv_clear(&mut *rettv);
-            rettv.v_type = VarType::VAR_BLOB;
+            rettv.v_type = VarType::VarBlob;
             rettv.vval = crate::eval::typval::TypvalVval::Blob(ptr::null_mut());
         } else {
             let new_blob = tv_blob_alloc();
@@ -3605,7 +3605,7 @@ fn tv_blob_index(
         if idx < len64 && idx >= 0 {
             let v = i64::from(tv_blob_get_inline(&*rettv.vval.v_blob(), idx as c_int));
             tv_clear(&mut *rettv);
-            rettv.v_type = VarType::VAR_NUMBER;
+            rettv.v_type = VarType::VarNumber;
             rettv.vval = crate::eval::typval::TypvalVval::Number(v);
         } else {
             semsg!(tr(e_blobidx), idx);
@@ -3713,7 +3713,7 @@ pub fn tv_blob_remove(argvars: &mut [TypVal],
                 semsg!(tr(e_blobidx), idx);
                 return;
             }
-            if argvars[2].v_type == VarType::VAR_UNKNOWN {
+            if argvars[2].v_type == VarType::VarUnknown {
                 let bv = &mut (*b).bv_ga;
                 let removed = bv.remove(idx as usize);
                 rettv.vval = crate::eval::typval::TypvalVval::Number(i64::from(removed));
@@ -3849,7 +3849,7 @@ fn tv_dict2list(argvars: &mut [TypVal], rettv: &mut TypVal, what: DictListType) 
                     }
                     DictListType::Items => {
                         let sub_l = tv_list_alloc(2);
-                        tv_item.v_type = VarType::VAR_LIST;
+                        tv_item.v_type = VarType::VarList;
                         tv_item.vval = crate::eval::typval::TypvalVval::List(sub_l);
                         tv_list_ref_inline(sub_l.as_mut());
                         tv_list_append_string( &mut *sub_l, key_ptr, -1);
@@ -3869,10 +3869,10 @@ pub fn f_items(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData){
 
      {
         match argvars[0].v_type {
-            VarType::VAR_STRING => tv_string2items(argvars, rettv),
-            VarType::VAR_LIST => tv_list2items(argvars, rettv),
-            VarType::VAR_BLOB => tv_blob2items(argvars, rettv),
-            VarType::VAR_DICT => tv_dict2items(argvars, rettv),
+            VarType::VarString => tv_string2items(argvars, rettv),
+            VarType::VarList => tv_list2items(argvars, rettv),
+            VarType::VarBlob => tv_blob2items(argvars, rettv),
+            VarType::VarDict => tv_dict2items(argvars, rettv),
             _ => {
                 semsg!(
                     tr(E_LIST_DICT_BLOB_OR_STRING_REQUIRED_FOR_ARGUMENT_NR),
@@ -3916,7 +3916,7 @@ pub fn tv_dict_remove(argvars: &mut [TypVal],rettv: &mut TypVal,
     arg_errmsg: impl crate::strings::IntoCCharPtr,
 ) { let arg_errmsg = arg_errmsg.into_c_char_ptr();
     unsafe {
-        if argvars[2].v_type != VarType::VAR_UNKNOWN {
+        if argvars[2].v_type != VarType::VarUnknown {
             semsg!(tr(e_toomanyarg), c"remove()");
         } else {
             let d = argvars[0].vval.v_dict();
@@ -3958,7 +3958,7 @@ pub fn tv_blob_alloc_ret(ret_tv: &mut TypVal) -> *mut TvBlob {
 /// Copy a blob typval to a different typval.
 pub fn tv_blob_copy(from: Option<&TvBlob>, to: &mut TypVal) {
     unsafe {
-        to.v_type = VarType::VAR_BLOB;
+        to.v_type = VarType::VarBlob;
         to.v_lock = VAR_UNLOCKED;
         if let Some(from) = from {
             let dst_blob = &mut *tv_blob_alloc_ret(to);
@@ -3973,7 +3973,7 @@ pub fn tv_blob_copy(from: Option<&TvBlob>, to: &mut TypVal) {
 fn nothing_conv_func_start(tv: &mut TypVal, fun: *mut c_char) -> c_int {
     unsafe {
         tv.v_lock = VAR_UNLOCKED;
-        if tv.v_type == VarType::VAR_PARTIAL {
+        if tv.v_type == VarType::VarPartial {
             let pt = tv.vval.v_partial();
             if !pt.is_null() && (*pt).pt_refcount > 1 {
                 (*pt).pt_refcount -= 1;
@@ -3994,7 +3994,7 @@ fn nothing_conv_func_start(tv: &mut TypVal, fun: *mut c_char) -> c_int {
 #[inline]
 fn nothing_conv_func_end(tv: &mut TypVal, copy_id: c_int) {
     unsafe {
-        if tv.v_type == VarType::VAR_PARTIAL {
+        if tv.v_type == VarType::VarPartial {
             let pt = tv.vval.v_partial();
             if pt.is_null() {
                 return;
@@ -4048,7 +4048,7 @@ fn nothing_conv_list_end(mut tv: Option<&mut TypVal>) {
         if tv.is_none() {
             return;
         }
-        debug_assert_eq!(tv.as_deref_mut().unwrap().v_type, VarType::VAR_LIST);
+        debug_assert_eq!(tv.as_deref_mut().unwrap().v_type, VarType::VarList);
         let list = tv.as_deref_mut().unwrap().vval.v_list();
         tv_list_unref(list);
         tv.unwrap().vval = crate::eval::typval::TypvalVval::List(ptr::null_mut());
@@ -4092,28 +4092,28 @@ fn nothing_convert_one_value(
 ) -> bool {
     unsafe {
         match tv.v_type {
-            VarType::VAR_STRING => {
+            VarType::VarString => {
                 tv_free_string(tv.vval.v_string());
                 tv.vval = crate::eval::typval::TypvalVval::String(ptr::null_mut());
                 tv.v_lock = VAR_UNLOCKED;
             }
-            VarType::VAR_NUMBER => {
+            VarType::VarNumber => {
                 tv.vval = crate::eval::typval::TypvalVval::Number(0);
                 tv.v_lock = VAR_UNLOCKED;
             }
-            VarType::VAR_FLOAT => {
+            VarType::VarFloat => {
                 tv.vval = crate::eval::typval::TypvalVval::Float(0.0);
                 tv.v_lock = VAR_UNLOCKED;
             }
-            VarType::VAR_BLOB => {
+            VarType::VarBlob => {
                 tv_blob_unref(tv.vval.v_blob());
                 tv.vval = crate::eval::typval::TypvalVval::Blob(ptr::null_mut());
                 tv.v_lock = VAR_UNLOCKED;
             }
-            VarType::VAR_FUNC => {
+            VarType::VarFunc => {
                 let _ = nothing_conv_func_start(tv, tv.vval.v_string());
             }
-            VarType::VAR_PARTIAL => {
+            VarType::VarPartial => {
                 let pt = tv.vval.v_partial();
                 let fun = if pt.is_null() {
                     ptr::null_mut()
@@ -4132,7 +4132,7 @@ fn nothing_convert_one_value(
                     },
                 });
             }
-            VarType::VAR_LIST => {
+            VarType::VarList => {
                 let list = tv.vval.v_list();
                 if list.is_null() || tv_list_len_inline(list.as_ref()) == 0 {
                     tv_list_unref(list);
@@ -4156,15 +4156,15 @@ fn nothing_convert_one_value(
                 let _ = nothing_conv_real_list_after_start(tv, &mut mpsv);
                 mpstack.push(mpsv);
             }
-            VarType::VAR_BOOL => {
+            VarType::VarBool => {
                 tv.vval = crate::eval::typval::TypvalVval::Bool(kBoolVarFalse);
                 tv.v_lock = VAR_UNLOCKED;
             }
-            VarType::VAR_SPECIAL => {
+            VarType::VarSpecial => {
                 tv.vval = crate::eval::typval::TypvalVval::Special(kSpecialVarNull);
                 tv.v_lock = VAR_UNLOCKED;
             }
-            VarType::VAR_DICT => {
+            VarType::VarDict => {
                 let tv_ptr = &raw mut *tv;
                 let dict = (*tv_ptr).vval.v_dict();
                 let dictp = (*tv_ptr).vval.v_dict_mut();
@@ -4190,7 +4190,7 @@ fn nothing_convert_one_value(
                 let _ = nothing_conv_real_dict_after_start(Some(&mut *tv_ptr), dictp, &mut mpsv);
                 mpstack.push(mpsv);
             }
-            VarType::VAR_UNKNOWN => {
+            VarType::VarUnknown => {
                 internal_error(c"_typval_encode_nothing_convert_one_value()");
                 return false;
             }
@@ -4343,7 +4343,7 @@ fn encode_vim_to_nothing(top_tv: &mut TypVal) -> bool {
 
 /// Free memory for a variable value and set the value to NULL or 0.
 pub fn tv_clear(tv: &mut TypVal) {
-    if tv.v_type == VarType::VAR_UNKNOWN {
+    if tv.v_type == VarType::VarUnknown {
         return;
     }
     let evn_ret = encode_vim_to_nothing(tv);
@@ -4357,37 +4357,37 @@ pub fn tv_copy(from: &TypVal, to: &mut TypVal) {
         to.v_lock = VAR_UNLOCKED;
         to.vval = from.vval;
         match from.v_type {
-            VarType::VAR_NUMBER | VarType::VAR_FLOAT | VarType::VAR_BOOL | VarType::VAR_SPECIAL => {
+            VarType::VarNumber | VarType::VarFloat | VarType::VarBool | VarType::VarSpecial => {
             }
-            VarType::VAR_STRING | VarType::VAR_FUNC => {
+            VarType::VarString | VarType::VarFunc => {
                 if !from.vval.v_string().is_null() {
                     to.vval =
                         crate::eval::typval::TypvalVval::String(tv_alloc_string(from.vval.v_string()));
-                    if from.v_type == VarType::VAR_FUNC {
+                    if from.v_type == VarType::VarFunc {
                         func_ref(to.vval.v_string());
                     }
                 }
             }
-            VarType::VAR_PARTIAL => {
+            VarType::VarPartial => {
                 let pt = to.vval.v_partial();
                 if !pt.is_null() {
                     (*pt).pt_refcount += 1;
                 }
             }
-            VarType::VAR_BLOB => {
+            VarType::VarBlob => {
                 if !from.vval.v_blob().is_null() {
                     (*from.vval.v_blob()).bv_refcount += 1;
                 }
             }
-            VarType::VAR_LIST => {
+            VarType::VarList => {
                 tv_list_ref_inline(to.vval.v_list().as_mut());
             }
-            VarType::VAR_DICT => {
+            VarType::VarDict => {
                 if !from.vval.v_dict().is_null() {
                     (*from.vval.v_dict()).dv_refcount += 1;
                 }
             }
-            VarType::VAR_UNKNOWN => {
+            VarType::VarUnknown => {
                 semsg!(tr(e_intern2), c"tv_copy(UNKNOWN)");
             }
         }
@@ -4422,13 +4422,13 @@ pub fn tv_item_lock(tv: &mut TypVal, deep: c_int, lock: bool, check_refcount: bo
         tv.v_lock = change_lock(lock, tv.v_lock);
 
         match tv.v_type {
-            VarType::VAR_BLOB => {
+            VarType::VarBlob => {
                 let b = tv.vval.v_blob();
                 if !b.is_null() && !(check_refcount && (*b).bv_refcount > 1) {
                     (*b).bv_lock = change_lock(lock, (*b).bv_lock);
                 }
             }
-            VarType::VAR_LIST => {
+            VarType::VarList => {
                 let l = tv.vval.v_list();
                 if !l.is_null() && !(check_refcount && (*l).lv_refcount > 1) {
                     (*l).lv_lock = change_lock(lock, (*l).lv_lock);
@@ -4439,7 +4439,7 @@ pub fn tv_item_lock(tv: &mut TypVal, deep: c_int, lock: bool, check_refcount: bo
                     }
                 }
             }
-            VarType::VAR_DICT => {
+            VarType::VarDict => {
                 let d = tv.vval.v_dict();
                 if !d.is_null() && !(check_refcount && (*d).dv_refcount > 1) {
                     (*d).dv_lock = change_lock(lock, (*d).dv_lock);
@@ -4457,14 +4457,14 @@ pub fn tv_item_lock(tv: &mut TypVal, deep: c_int, lock: bool, check_refcount: bo
                     }
                 }
             }
-            VarType::VAR_NUMBER
-            | VarType::VAR_FLOAT
-            | VarType::VAR_STRING
-            | VarType::VAR_FUNC
-            | VarType::VAR_PARTIAL
-            | VarType::VAR_BOOL
-            | VarType::VAR_SPECIAL => {}
-            VarType::VAR_UNKNOWN => std::process::abort(),
+            VarType::VarNumber
+            | VarType::VarFloat
+            | VarType::VarString
+            | VarType::VarFunc
+            | VarType::VarPartial
+            | VarType::VarBool
+            | VarType::VarSpecial => {}
+            VarType::VarUnknown => std::process::abort(),
         }
         RECURSE.fetch_sub(1, std::sync::atomic::Ordering::Relaxed);
     }
@@ -4474,9 +4474,9 @@ pub fn tv_item_lock(tv: &mut TypVal, deep: c_int, lock: bool, check_refcount: bo
 pub fn tv_islocked(tv: &TypVal) -> bool {
     unsafe {
         tv.v_lock == VAR_LOCKED
-            || (tv.v_type == VarType::VAR_LIST
+            || (tv.v_type == VarType::VarList
                 && tv_list_locked_inline(tv.vval.v_list().as_ref()) == VAR_LOCKED)
-            || (tv.v_type == VarType::VAR_DICT
+            || (tv.v_type == VarType::VarDict
                 && !tv.vval.v_dict().is_null()
                 && (*tv.vval.v_dict()).dv_lock == VAR_LOCKED)
     }
@@ -4489,13 +4489,13 @@ pub fn tv_check_lock(tv: &TypVal, name: impl crate::strings::IntoCCharPtr, name_
         let mut lock = VAR_UNLOCKED;
 
         match tv.v_type {
-            VarType::VAR_BLOB if !tv.vval.v_blob().is_null() => {
+            VarType::VarBlob if !tv.vval.v_blob().is_null() => {
                 lock = (*tv.vval.v_blob()).bv_lock;
             }
-            VarType::VAR_LIST if !tv.vval.v_list().is_null() => {
+            VarType::VarList if !tv.vval.v_list().is_null() => {
                 lock = (*tv.vval.v_list()).lv_lock;
             }
-            VarType::VAR_DICT if !tv.vval.v_dict().is_null() => {
+            VarType::VarDict if !tv.vval.v_dict().is_null() => {
                 lock = (*tv.vval.v_dict()).dv_lock;
             }
             _ => {}
@@ -4578,21 +4578,21 @@ pub fn tv_equal(tv1: &TypVal, tv2: &TypVal, ic: bool) -> bool {
         }
 
         match tv1.v_type {
-            VarType::VAR_LIST => {
+            VarType::VarList => {
                 RECURSIVE_CNT.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
                 let r = tv_list_equal(unsafe { tv1.vval.v_list().as_ref() }, unsafe { tv2.vval.v_list().as_ref() }, ic);
                 RECURSIVE_CNT.fetch_sub(1, std::sync::atomic::Ordering::Relaxed);
                 r
             }
-            VarType::VAR_DICT => {
+            VarType::VarDict => {
                 RECURSIVE_CNT.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
                 let r = tv_dict_equal(unsafe { tv1.vval.v_dict().as_ref() }, unsafe { tv2.vval.v_dict().as_ref() }, ic);
                 RECURSIVE_CNT.fetch_sub(1, std::sync::atomic::Ordering::Relaxed);
                 r
             }
-            VarType::VAR_PARTIAL | VarType::VAR_FUNC => {
-                if (tv1.v_type == VarType::VAR_PARTIAL && tv1.vval.v_partial().is_null())
-                    || (tv2.v_type == VarType::VAR_PARTIAL && tv2.vval.v_partial().is_null())
+            VarType::VarPartial | VarType::VarFunc => {
+                if (tv1.v_type == VarType::VarPartial && tv1.vval.v_partial().is_null())
+                    || (tv2.v_type == VarType::VarPartial && tv2.vval.v_partial().is_null())
                 {
                     return false;
                 }
@@ -4601,19 +4601,19 @@ pub fn tv_equal(tv1: &TypVal, tv2: &TypVal, ic: bool) -> bool {
                 RECURSIVE_CNT.fetch_sub(1, std::sync::atomic::Ordering::Relaxed);
                 r
             }
-            VarType::VAR_BLOB => tv_blob_equal(unsafe { tv1.vval.v_blob().as_ref() }, unsafe { tv2.vval.v_blob().as_ref() }),
-            VarType::VAR_NUMBER => tv1.vval.v_number() == tv2.vval.v_number(),
-            VarType::VAR_FLOAT => tv1.vval.v_float() == tv2.vval.v_float(),
-            VarType::VAR_STRING => {
+            VarType::VarBlob => tv_blob_equal(unsafe { tv1.vval.v_blob().as_ref() }, unsafe { tv2.vval.v_blob().as_ref() }),
+            VarType::VarNumber => tv1.vval.v_number() == tv2.vval.v_number(),
+            VarType::VarFloat => tv1.vval.v_float() == tv2.vval.v_float(),
+            VarType::VarString => {
                 let mut buf1: [c_char; NUMBUFLEN] = [0; NUMBUFLEN];
                 let mut buf2: [c_char; NUMBUFLEN] = [0; NUMBUFLEN];
                 let s1 = tv_get_string_buf(tv1, buf1.as_mut_ptr());
                 let s2 = tv_get_string_buf(tv2, buf2.as_mut_ptr());
                 mb_strcmp_ic(ic, s1, s2) == 0
             }
-            VarType::VAR_BOOL => tv1.vval.v_bool() == tv2.vval.v_bool(),
-            VarType::VAR_SPECIAL => tv1.vval.v_special() == tv2.vval.v_special(),
-            VarType::VAR_UNKNOWN => false,
+            VarType::VarBool => tv1.vval.v_bool() == tv2.vval.v_bool(),
+            VarType::VarSpecial => tv1.vval.v_special() == tv2.vval.v_special(),
+            VarType::VarUnknown => false,
         }
     }
 }
@@ -4621,42 +4621,42 @@ pub fn tv_equal(tv1: &TypVal, tv2: &TypVal, ic: bool) -> bool {
 /// Check that given value is a number or string.
 pub fn tv_check_str_or_nr(tv: &TypVal) -> bool {
     match tv.v_type {
-        VarType::VAR_NUMBER | VarType::VAR_STRING => true,
-        VarType::VAR_FLOAT => {
+        VarType::VarNumber | VarType::VarString => true,
+        VarType::VarFloat => {
             emsg(tr(
                 c"E805: Expected a Number or a String, Float found"));
             false
         }
-        VarType::VAR_PARTIAL | VarType::VAR_FUNC => {
+        VarType::VarPartial | VarType::VarFunc => {
             emsg(tr(
                 c"E703: Expected a Number or a String, Funcref found"));
             false
         }
-        VarType::VAR_LIST => {
+        VarType::VarList => {
             emsg(tr(
                 c"E745: Expected a Number or a String, List found"));
             false
         }
-        VarType::VAR_DICT => {
+        VarType::VarDict => {
             emsg(tr(
                 c"E728: Expected a Number or a String, Dictionary found"));
             false
         }
-        VarType::VAR_BLOB => {
+        VarType::VarBlob => {
             emsg(tr(
                 c"E974: Expected a Number or a String, Blob found"));
             false
         }
-        VarType::VAR_BOOL => {
+        VarType::VarBool => {
             emsg(tr(
                 c"E5299: Expected a Number or a String, Boolean found"));
             false
         }
-        VarType::VAR_SPECIAL => {
+        VarType::VarSpecial => {
             emsg(tr(c"E5300: Expected a Number or a String"));
             false
         }
-        VarType::VAR_UNKNOWN => {
+        VarType::VarUnknown => {
             semsg!(
                 tr(e_intern2),
                 c"tv_check_str_or_nr(&*UNKNOWN)",
@@ -4669,12 +4669,12 @@ pub fn tv_check_str_or_nr(tv: &TypVal) -> bool {
 #[inline]
 const fn num_error(vt: VarType) -> *const c_char {
     match vt {
-        VarType::VAR_PARTIAL | VarType::VAR_FUNC => c"E703: Using a Funcref as a Number".as_ptr(),
-        VarType::VAR_LIST => c"E745: Using a List as a Number".as_ptr(),
-        VarType::VAR_DICT => c"E728: Using a Dictionary as a Number".as_ptr(),
-        VarType::VAR_FLOAT => c"E805: Using a Float as a Number".as_ptr(),
-        VarType::VAR_BLOB => c"E974: Using a Blob as a Number".as_ptr(),
-        VarType::VAR_UNKNOWN => c"E685: using an invalid value as a Number".as_ptr(),
+        VarType::VarPartial | VarType::VarFunc => c"E703: Using a Funcref as a Number".as_ptr(),
+        VarType::VarList => c"E745: Using a List as a Number".as_ptr(),
+        VarType::VarDict => c"E728: Using a Dictionary as a Number".as_ptr(),
+        VarType::VarFloat => c"E805: Using a Float as a Number".as_ptr(),
+        VarType::VarBlob => c"E974: Using a Blob as a Number".as_ptr(),
+        VarType::VarUnknown => c"E685: using an invalid value as a Number".as_ptr(),
         _ => c"".as_ptr(),
     }
 }
@@ -4682,11 +4682,11 @@ const fn num_error(vt: VarType) -> *const c_char {
 #[inline]
 const fn str_error(vt: VarType) -> *const c_char {
     match vt {
-        VarType::VAR_PARTIAL | VarType::VAR_FUNC => c"E729: Using a Funcref as a String".as_ptr(),
-        VarType::VAR_LIST => c"E730: Using a List as a String".as_ptr(),
-        VarType::VAR_DICT => c"E731: Using a Dictionary as a String".as_ptr(),
-        VarType::VAR_BLOB => c"E976: Using a Blob as a String".as_ptr(),
-        VarType::VAR_UNKNOWN => E_USING_INVALID_VALUE_AS_STRING.as_ptr(),
+        VarType::VarPartial | VarType::VarFunc => c"E729: Using a Funcref as a String".as_ptr(),
+        VarType::VarList => c"E730: Using a List as a String".as_ptr(),
+        VarType::VarDict => c"E731: Using a Dictionary as a String".as_ptr(),
+        VarType::VarBlob => c"E976: Using a Blob as a String".as_ptr(),
+        VarType::VarUnknown => E_USING_INVALID_VALUE_AS_STRING.as_ptr(),
         _ => c"".as_ptr(),
     }
 }
@@ -4694,17 +4694,17 @@ const fn str_error(vt: VarType) -> *const c_char {
 /// Check that given value is a number or can be converted to it.
 pub fn tv_check_num(tv: &TypVal) -> bool {
     match tv.v_type {
-        VarType::VAR_NUMBER
-        | VarType::VAR_BOOL
-        | VarType::VAR_SPECIAL
-        | VarType::VAR_STRING => true,
-        VarType::VAR_FUNC
-        | VarType::VAR_PARTIAL
-        | VarType::VAR_LIST
-        | VarType::VAR_DICT
-        | VarType::VAR_FLOAT
-        | VarType::VAR_BLOB
-        | VarType::VAR_UNKNOWN => {
+        VarType::VarNumber
+        | VarType::VarBool
+        | VarType::VarSpecial
+        | VarType::VarString => true,
+        VarType::VarFunc
+        | VarType::VarPartial
+        | VarType::VarList
+        | VarType::VarDict
+        | VarType::VarFloat
+        | VarType::VarBlob
+        | VarType::VarUnknown => {
             emsg(tr(num_error(tv.v_type)));
             false
         }
@@ -4714,17 +4714,17 @@ pub fn tv_check_num(tv: &TypVal) -> bool {
 /// Check that given value is a Vimscript String or can be "cast" to it.
 pub fn tv_check_str(tv: &TypVal) -> bool {
     match tv.v_type {
-        VarType::VAR_NUMBER
-        | VarType::VAR_BOOL
-        | VarType::VAR_SPECIAL
-        | VarType::VAR_STRING
-        | VarType::VAR_FLOAT => true,
-        VarType::VAR_PARTIAL
-        | VarType::VAR_FUNC
-        | VarType::VAR_LIST
-        | VarType::VAR_DICT
-        | VarType::VAR_BLOB
-        | VarType::VAR_UNKNOWN => {
+        VarType::VarNumber
+        | VarType::VarBool
+        | VarType::VarSpecial
+        | VarType::VarString
+        | VarType::VarFloat => true,
+        VarType::VarPartial
+        | VarType::VarFunc
+        | VarType::VarList
+        | VarType::VarDict
+        | VarType::VarBlob
+        | VarType::VarUnknown => {
             emsg(tr(str_error(tv.v_type)));
             false
         }
@@ -4741,16 +4741,16 @@ pub fn tv_get_number(tv: &TypVal) -> Varnumber {
 pub fn tv_get_number_chk(tv: &TypVal,mut ret_error: Option<&mut bool>) -> Varnumber {
      {
         match tv.v_type {
-            VarType::VAR_FUNC
-            | VarType::VAR_PARTIAL
-            | VarType::VAR_LIST
-            | VarType::VAR_DICT
-            | VarType::VAR_BLOB
-            | VarType::VAR_FLOAT => {
+            VarType::VarFunc
+            | VarType::VarPartial
+            | VarType::VarList
+            | VarType::VarDict
+            | VarType::VarBlob
+            | VarType::VarFloat => {
                 emsg(tr(num_error(tv.v_type)));
             }
-            VarType::VAR_NUMBER => return tv.vval.v_number(),
-            VarType::VAR_STRING => {
+            VarType::VarNumber => return tv.vval.v_number(),
+            VarType::VarString => {
                 let mut n: Varnumber = 0;
                 if !tv.vval.v_string().is_null() {
                     vim_str2nr(
@@ -4767,9 +4767,9 @@ pub fn tv_get_number_chk(tv: &TypVal,mut ret_error: Option<&mut bool>) -> Varnum
                 }
                 return n;
             }
-            VarType::VAR_BOOL => return i64::from(tv.vval.v_bool() == kBoolVarTrue),
-            VarType::VAR_SPECIAL => return 0,
-            VarType::VAR_UNKNOWN => {
+            VarType::VarBool => return i64::from(tv.vval.v_bool() == kBoolVarTrue),
+            VarType::VarSpecial => return 0,
+            VarType::VarUnknown => {
                 semsg!(tr(e_intern2), c"tv_get_number(&*UNKNOWN)");
             }
         }
@@ -4794,7 +4794,7 @@ pub fn tv_get_lnum(tv: &TypVal) -> Linenr {
     unsafe {
         let did_emsg_before = g_st().did_emsg;
         let mut lnum = tv_get_number_chk(tv, None) as Linenr;
-        if lnum <= 0 && did_emsg_before == g_st().did_emsg && tv.v_type != VarType::VAR_NUMBER {
+        if lnum <= 0 && did_emsg_before == g_st().did_emsg && tv.v_type != VarType::VarNumber {
             let mut fnum: c_int = 0;
             let fp = var2fpos(tv, true, &mut fnum, false, curwin_mut());
             if !fp.is_null() {
@@ -4808,7 +4808,7 @@ pub fn tv_get_lnum(tv: &TypVal) -> Linenr {
 /// Get the line number from Vimscript object.
 pub fn tv_get_lnum_buf(tv: &TypVal, buf: Option<&FileBuf>) -> Linenr {
      {
-        if tv.v_type == VarType::VAR_STRING
+        if tv.v_type == VarType::VarString
             && !tv.vval.v_string().is_null()
             && crate::memory::cstr_first_byte(tv.vval.v_string()) == b'$'
             && crate::memory::cstr_byte_at(tv.vval.v_string(), 1) == 0
@@ -4823,37 +4823,37 @@ pub fn tv_get_lnum_buf(tv: &TypVal, buf: Option<&FileBuf>) -> Linenr {
 /// Get the floating-point value of a Vimscript object.
 pub fn tv_get_float(tv: &TypVal) -> TvFloat {
     match tv.v_type {
-        VarType::VAR_NUMBER => tv.vval.v_number() as TvFloat,
-        VarType::VAR_FLOAT => tv.vval.v_float(),
-        VarType::VAR_PARTIAL | VarType::VAR_FUNC => {
+        VarType::VarNumber => tv.vval.v_number() as TvFloat,
+        VarType::VarFloat => tv.vval.v_float(),
+        VarType::VarPartial | VarType::VarFunc => {
             emsg(tr(c"E891: Using a Funcref as a Float"));
             0.0
         }
-        VarType::VAR_STRING => {
+        VarType::VarString => {
             emsg(tr(c"E892: Using a String as a Float"));
             0.0
         }
-        VarType::VAR_LIST => {
+        VarType::VarList => {
             emsg(tr(c"E893: Using a List as a Float"));
             0.0
         }
-        VarType::VAR_DICT => {
+        VarType::VarDict => {
             emsg(tr(c"E894: Using a Dictionary as a Float"));
             0.0
         }
-        VarType::VAR_BOOL => {
+        VarType::VarBool => {
             emsg(tr(c"E362: Using a boolean value as a Float"));
             0.0
         }
-        VarType::VAR_SPECIAL => {
+        VarType::VarSpecial => {
             emsg(tr(c"E907: Using a special value as a Float"));
             0.0
         }
-        VarType::VAR_BLOB => {
+        VarType::VarBlob => {
             emsg(tr(c"E975: Using a Blob as a Float"));
             0.0
         }
-        VarType::VAR_UNKNOWN => {
+        VarType::VarUnknown => {
             semsg!(tr(e_intern2), c"tv_get_float(&*UNKNOWN)");
             0.0
         }
@@ -4862,7 +4862,7 @@ pub fn tv_get_float(tv: &TypVal) -> TvFloat {
 
 /// Give an error and return FAIL unless "args[idx]" is a string.
 pub fn tv_check_for_string_arg(args: &[TypVal], idx: c_int) -> bool {
-    if args[idx as usize].v_type != VarType::VAR_STRING {
+    if args[idx as usize].v_type != VarType::VarString {
         semsg!(tr(E_STRING_REQUIRED_FOR_ARGUMENT_NR), idx + 1);
         return false;
     }
@@ -4887,13 +4887,13 @@ pub fn tv_check_for_nonempty_string_arg(args: &[TypVal], idx: c_int) -> bool {
 
 /// Check for an optional string argument at "idx".
 pub fn tv_check_for_opt_string_arg(args: &[TypVal], idx: c_int) -> bool {
-    args[idx as usize].v_type == VarType::VAR_UNKNOWN
+    args[idx as usize].v_type == VarType::VarUnknown
         || tv_check_for_string_arg(args, idx)
 }
 
 /// Give an error and return FAIL unless "args[idx]" is a number.
 pub fn tv_check_for_number_arg(args: &[TypVal], idx: c_int) -> bool {
-    if args[idx as usize].v_type != VarType::VAR_NUMBER {
+    if args[idx as usize].v_type != VarType::VarNumber {
         semsg!(tr(E_NUMBER_REQUIRED_FOR_ARGUMENT_NR), idx + 1);
         return false;
     }
@@ -4902,14 +4902,14 @@ pub fn tv_check_for_number_arg(args: &[TypVal], idx: c_int) -> bool {
 
 /// Check for an optional number argument at "idx".
 pub fn tv_check_for_opt_number_arg(args: &[TypVal], idx: c_int) -> bool {
-    args[idx as usize].v_type == VarType::VAR_UNKNOWN
+    args[idx as usize].v_type == VarType::VarUnknown
         || tv_check_for_number_arg(args, idx)
 }
 
 /// Give an error and return FAIL unless "args[idx]" is a float or a number.
 pub fn tv_check_for_float_or_nr_arg(args: &[TypVal], idx: c_int) -> bool {
     let vt = args[idx as usize].v_type;
-    if vt != VarType::VAR_FLOAT && vt != VarType::VAR_NUMBER {
+    if vt != VarType::VarFloat && vt != VarType::VarNumber {
         semsg!(
             tr(E_FLOAT_OR_NUMBER_REQUIRED_FOR_ARGUMENT_NR),
             idx + 1,
@@ -4922,8 +4922,8 @@ pub fn tv_check_for_float_or_nr_arg(args: &[TypVal], idx: c_int) -> bool {
 /// Give an error and return FAIL unless "args[idx]" is a bool.
 pub fn tv_check_for_bool_arg(args: &[TypVal], idx: c_int) -> bool {
     let arg = &args[idx as usize];
-    if arg.v_type != VarType::VAR_BOOL
-        && !(arg.v_type == VarType::VAR_NUMBER
+    if arg.v_type != VarType::VarBool
+        && !(arg.v_type == VarType::VarNumber
             && (arg.vval.v_number() == 0 || arg.vval.v_number() == 1))
     {
         semsg!(tr(E_BOOL_REQUIRED_FOR_ARGUMENT_NR), idx + 1);
@@ -4934,7 +4934,7 @@ pub fn tv_check_for_bool_arg(args: &[TypVal], idx: c_int) -> bool {
 
 /// Check for an optional bool argument at "idx".
 pub fn tv_check_for_opt_bool_arg(args: &[TypVal], idx: c_int) -> bool {
-    if args[idx as usize].v_type == VarType::VAR_UNKNOWN {
+    if args[idx as usize].v_type == VarType::VarUnknown {
         return true;
     }
     tv_check_for_bool_arg(args, idx)
@@ -4942,7 +4942,7 @@ pub fn tv_check_for_opt_bool_arg(args: &[TypVal], idx: c_int) -> bool {
 
 /// Give an error and return FAIL unless "args[idx]" is a blob.
 pub fn tv_check_for_blob_arg(args: &[TypVal], idx: c_int) -> bool {
-    if args[idx as usize].v_type != VarType::VAR_BLOB {
+    if args[idx as usize].v_type != VarType::VarBlob {
         semsg!(tr(E_BLOB_REQUIRED_FOR_ARGUMENT_NR), idx + 1);
         return false;
     }
@@ -4951,7 +4951,7 @@ pub fn tv_check_for_blob_arg(args: &[TypVal], idx: c_int) -> bool {
 
 /// Give an error and return FAIL unless "args[idx]" is a list.
 pub fn tv_check_for_list_arg(args: &[TypVal], idx: c_int) -> bool {
-    if args[idx as usize].v_type != VarType::VAR_LIST {
+    if args[idx as usize].v_type != VarType::VarList {
         semsg!(tr(E_LIST_REQUIRED_FOR_ARGUMENT_NR), idx + 1);
         return false;
     }
@@ -4960,7 +4960,7 @@ pub fn tv_check_for_list_arg(args: &[TypVal], idx: c_int) -> bool {
 
 /// Give an error and return FAIL unless "args[idx]" is a dict.
 pub fn tv_check_for_dict_arg(args: &[TypVal], idx: c_int) -> bool {
-    if args[idx as usize].v_type != VarType::VAR_DICT {
+    if args[idx as usize].v_type != VarType::VarDict {
         semsg!(tr(E_DICT_REQUIRED_FOR_ARGUMENT_NR), idx + 1);
         return false;
     }
@@ -4984,14 +4984,14 @@ pub fn tv_check_for_nonnull_dict_arg(args: &[TypVal], idx: c_int) -> bool {
 
 /// Check for an optional dict argument at "idx".
 pub fn tv_check_for_opt_dict_arg(args: &[TypVal], idx: c_int) -> bool {
-    args[idx as usize].v_type == VarType::VAR_UNKNOWN
+    args[idx as usize].v_type == VarType::VarUnknown
         || tv_check_for_dict_arg(args, idx)
 }
 
 /// Give an error and return FAIL unless "args[idx]" is a string or a number.
 pub fn tv_check_for_string_or_number_arg(args: &[TypVal], idx: c_int) -> bool {
     let vt = args[idx as usize].v_type;
-    if vt != VarType::VAR_STRING && vt != VarType::VAR_NUMBER {
+    if vt != VarType::VarString && vt != VarType::VarNumber {
         semsg!(
             tr(E_STRING_OR_NUMBER_REQUIRED_FOR_ARGUMENT_NR),
             idx + 1,
@@ -5014,7 +5014,7 @@ pub fn tv_check_for_lnum_arg(args: &[TypVal], idx: c_int) -> bool {
 /// Give an error and return FAIL unless "args[idx]" is a string or a list.
 pub fn tv_check_for_string_or_list_arg(args: &[TypVal], idx: c_int) -> bool {
     let vt = args[idx as usize].v_type;
-    if vt != VarType::VAR_STRING && vt != VarType::VAR_LIST {
+    if vt != VarType::VarString && vt != VarType::VarList {
         semsg!(
             tr(E_STRING_OR_LIST_REQUIRED_FOR_ARGUMENT_NR),
             idx + 1,
@@ -5027,7 +5027,7 @@ pub fn tv_check_for_string_or_list_arg(args: &[TypVal], idx: c_int) -> bool {
 /// Give an error and return FAIL unless "args[idx]" is a string, a list or a blob.
 pub fn tv_check_for_string_or_list_or_blob_arg(args: &[TypVal], idx: c_int) -> bool {
     let vt = args[idx as usize].v_type;
-    if vt != VarType::VAR_STRING && vt != VarType::VAR_LIST && vt != VarType::VAR_BLOB {
+    if vt != VarType::VarString && vt != VarType::VarList && vt != VarType::VarBlob {
         semsg!(
             tr(E_STRING_LIST_OR_BLOB_REQUIRED_FOR_ARGUMENT_NR),
             idx + 1,
@@ -5039,14 +5039,14 @@ pub fn tv_check_for_string_or_list_or_blob_arg(args: &[TypVal], idx: c_int) -> b
 
 /// Check for an optional string or list argument at "idx".
 pub fn tv_check_for_opt_string_or_list_arg(args: &[TypVal], idx: c_int) -> bool {
-    args[idx as usize].v_type == VarType::VAR_UNKNOWN
+    args[idx as usize].v_type == VarType::VarUnknown
         || tv_check_for_string_or_list_arg(args, idx)
 }
 
 /// Give an error and return FAIL unless "args[idx]" is a string or a function reference.
 pub fn tv_check_for_string_or_func_arg(args: &[TypVal], idx: c_int) -> bool {
     let vt = args[idx as usize].v_type;
-    if vt != VarType::VAR_PARTIAL && vt != VarType::VAR_FUNC && vt != VarType::VAR_STRING {
+    if vt != VarType::VarPartial && vt != VarType::VarFunc && vt != VarType::VarString {
         semsg!(
             tr(E_STRING_OR_FUNCTION_REQUIRED_FOR_ARGUMENT_NR),
             idx + 1,
@@ -5059,7 +5059,7 @@ pub fn tv_check_for_string_or_func_arg(args: &[TypVal], idx: c_int) -> bool {
 /// Give an error and return FAIL unless "args[idx]" is a list or a blob.
 pub fn tv_check_for_list_or_blob_arg(args: &[TypVal], idx: c_int) -> bool {
     let vt = args[idx as usize].v_type;
-    if vt != VarType::VAR_LIST && vt != VarType::VAR_BLOB {
+    if vt != VarType::VarList && vt != VarType::VarBlob {
         semsg!(
             tr(E_LIST_OR_BLOB_REQUIRED_FOR_ARGUMENT_NR),
             idx + 1,
@@ -5073,24 +5073,24 @@ pub fn tv_check_for_list_or_blob_arg(args: &[TypVal], idx: c_int) -> bool {
 pub fn tv_get_string_buf_chk(tv: &TypVal, buf: *mut c_char) -> *const c_char {
     unsafe {
         match tv.v_type {
-            VarType::VAR_NUMBER => {
+            VarType::VarNumber => {
                 use std::io::Write;
                 let mut slice = std::slice::from_raw_parts_mut(buf.cast::<u8>(), NUMBUFLEN);
                 let _ = write!(slice, "{}\0", tv.vval.v_number());
                 buf
             }
-            VarType::VAR_FLOAT => {
+            VarType::VarFloat => {
                 vim_snprintf!(buf, NUMBUFLEN, c"%g", tv.vval.v_float());
                 buf
             }
-            VarType::VAR_STRING => {
+            VarType::VarString => {
                 if !tv.vval.v_string().is_null() {
                     tv.vval.v_string()
                 } else {
                     c"".as_ptr()
                 }
             }
-            VarType::VAR_BOOL => {
+            VarType::VarBool => {
                 xstrlcpy(
                     buf,
                     encode_bool_var_names[tv.vval.v_bool() as usize],
@@ -5098,7 +5098,7 @@ pub fn tv_get_string_buf_chk(tv: &TypVal, buf: *mut c_char) -> *const c_char {
                 );
                 buf
             }
-            VarType::VAR_SPECIAL => {
+            VarType::VarSpecial => {
                 xstrlcpy(
                     buf,
                     encode_special_var_names[tv.vval.v_special() as usize],
@@ -5106,12 +5106,12 @@ pub fn tv_get_string_buf_chk(tv: &TypVal, buf: *mut c_char) -> *const c_char {
                 );
                 buf
             }
-            VarType::VAR_PARTIAL
-            | VarType::VAR_FUNC
-            | VarType::VAR_LIST
-            | VarType::VAR_DICT
-            | VarType::VAR_BLOB
-            | VarType::VAR_UNKNOWN => {
+            VarType::VarPartial
+            | VarType::VarFunc
+            | VarType::VarList
+            | VarType::VarDict
+            | VarType::VarBlob
+            | VarType::VarUnknown => {
                 emsg(tr(str_error(tv.v_type)));
                 ptr::null()
             }
@@ -5139,22 +5139,22 @@ pub fn tv_get_string_buf(tv: &TypVal, buf: *mut c_char) -> *const c_char {
 pub fn tv2bool(tv: &TypVal) -> bool {
     unsafe {
         match tv.v_type {
-            VarType::VAR_NUMBER => tv.vval.v_number() != 0,
-            VarType::VAR_FLOAT => tv.vval.v_float() != 0.0,
-            VarType::VAR_PARTIAL => !tv.vval.v_partial().is_null(),
-            VarType::VAR_FUNC | VarType::VAR_STRING => {
+            VarType::VarNumber => tv.vval.v_number() != 0,
+            VarType::VarFloat => tv.vval.v_float() != 0.0,
+            VarType::VarPartial => !tv.vval.v_partial().is_null(),
+            VarType::VarFunc | VarType::VarString => {
                 !tv.vval.v_string().is_null() && !crate::memory::cstr_is_empty(tv.vval.v_string())
             }
-            VarType::VAR_LIST => !tv.vval.v_list().is_null() && (*tv.vval.v_list()).lv_len > 0,
-            VarType::VAR_DICT => {
+            VarType::VarList => !tv.vval.v_list().is_null() && (*tv.vval.v_list()).lv_len > 0,
+            VarType::VarDict => {
                 !tv.vval.v_dict().is_null() && (*tv.vval.v_dict()).dv_hashtab.ht_used > 0
             }
-            VarType::VAR_BOOL => tv.vval.v_bool() == kBoolVarTrue,
-            VarType::VAR_SPECIAL => tv.vval.v_special() != kSpecialVarNull,
-            VarType::VAR_BLOB => {
+            VarType::VarBool => tv.vval.v_bool() == kBoolVarTrue,
+            VarType::VarSpecial => tv.vval.v_special() != kSpecialVarNull,
+            VarType::VarBlob => {
                 !tv.vval.v_blob().is_null() && !(*tv.vval.v_blob()).bv_ga.is_empty()
             }
-            VarType::VAR_UNKNOWN => false,
+            VarType::VarUnknown => false,
         }
     }
 }
@@ -5237,7 +5237,7 @@ mod tests {
             tv_list_append_string( &mut *l2, c"hello", 5);
             tv_list_append_string( &mut *l2, c"world", -1);
             let mut tv_ins = TypVal {
-                v_type: VarType::VAR_NUMBER,
+                v_type: VarType::VarNumber,
                 v_lock: VAR_UNLOCKED,
                 vval: TypvalVval::Number(99),
             };
@@ -5359,7 +5359,7 @@ mod tests {
             crate::globals::g_st().emsg_skip += 1;
 
             let mut tv = tv_initial_value();
-            tv.v_type = VarType::VAR_NUMBER;
+            tv.v_type = VarType::VarNumber;
             tv.vval = crate::eval::typval::TypvalVval::Number(0);
             assert!(!tv2bool(&tv));
             tv.vval = crate::eval::typval::TypvalVval::Number(5);
@@ -5375,7 +5375,7 @@ mod tests {
             );
 
             let tv_flt = TypVal {
-                v_type: VarType::VAR_FLOAT,
+                v_type: VarType::VarFloat,
                 v_lock: VAR_UNLOCKED,
                 vval: TypvalVval::Float(5.0),
             };
@@ -5384,7 +5384,7 @@ mod tests {
             assert_eq!(tv_get_float(&tv_flt), 5.0);
 
             let mut tv_str = TypVal {
-                v_type: VarType::VAR_STRING,
+                v_type: VarType::VarString,
                 v_lock: VAR_UNLOCKED,
                 vval: TypvalVval::String(tv_alloc_string(c"hello")),
             };
@@ -5406,7 +5406,7 @@ mod tests {
 
             let mut tv_d = tv_initial_value();
             tv_dict_alloc_ret(&mut tv_d);
-            assert_eq!(tv_d.v_type, VarType::VAR_DICT);
+            assert_eq!(tv_d.v_type, VarType::VarDict);
 
             tv_clear(&mut tv_str);
             tv_clear(&mut tv_l);
@@ -5431,7 +5431,7 @@ mod tests {
             }
             assert_eq!((*inner).lv_refcount, 3);
             let mut tv = TypVal {
-                v_type: VarType::VAR_LIST,
+                v_type: VarType::VarList,
                 v_lock: VAR_UNLOCKED,
                 vval: TypvalVval::List(outer),
             };
@@ -5447,7 +5447,7 @@ mod tests {
             }
             assert_eq!((*empty_inner).lv_refcount, 3);
             let mut tv2 = TypVal {
-                v_type: VarType::VAR_LIST,
+                v_type: VarType::VarList,
                 v_lock: VAR_UNLOCKED,
                 vval: TypvalVval::List(outer2),
             };
@@ -5466,7 +5466,7 @@ mod tests {
                 tv_list_append_dict( &mut *outer_d, d_inner);
                 assert_eq!((*d_inner).dv_refcount, 2);
                 let mut tv_d = TypVal {
-                    v_type: VarType::VAR_LIST,
+                    v_type: VarType::VarList,
                     v_lock: VAR_UNLOCKED,
                     vval: TypvalVval::List(outer_d),
                 };

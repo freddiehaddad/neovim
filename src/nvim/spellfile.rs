@@ -66,9 +66,9 @@ pub const SPELL_ADD_GOOD: SpellAddType = 0;
 pub const SPELL_ADD_BAD: SpellAddType = 1;
 pub const SPELL_ADD_RARE: SpellAddType = 2;
 
-const CMD_spellrare: c_int = 431;
-const CMD_spellundo: c_int = 432;
-const CMD_spellwrong: c_int = 433;
+const CmdSpellrare: c_int = 431;
+const CmdSpellundo: c_int = 432;
+const CmdSpellwrong: c_int = 433;
 
 pub(crate) const MAXREGIONS: usize = 8;
 
@@ -5182,9 +5182,9 @@ fn spell_message(spin: &Spellinfo, str_: impl crate::strings::IntoCCharPtr) { le
 /// ":[count]spellrare  {word}"
 pub fn ex_spell(eap: &mut Exarg) {
      {
-        let what = if eap.cmdidx == CMD_spellwrong {
+        let what = if eap.cmdidx == CmdSpellwrong {
             SPELL_ADD_BAD
-        } else if eap.cmdidx == CMD_spellrare {
+        } else if eap.cmdidx == CmdSpellrare {
             SPELL_ADD_RARE
         } else {
             SPELL_ADD_GOOD
@@ -5198,7 +5198,7 @@ pub fn ex_spell(eap: &mut Exarg) {
             } else {
                 eap.line2 as c_int
             },
-            eap.cmdidx == CMD_spellundo,
+            eap.cmdidx == CmdSpellundo,
         );
     }
 }
@@ -5421,7 +5421,7 @@ fn init_spellfile() {
         let buf_len = MAXPATHL;
 
         if !aspath {
-            let xdg_path = get_xdg_home(XDGVarType::kXDGDataHome).unwrap_or_default();
+            let xdg_path = get_xdg_home(XDGVarType::XDGDataHome).unwrap_or_default();
             xstrlcpy(buf, xdg_path.as_ptr(), buf_len);
 
             { let _dst: *mut c_char = buf; let _dsize: usize = buf_len; let _dlen = crate::memory::cstr_len(_dst); crate::memory::xstrlcpy(_dst.add(_dlen), c"/site/spell", _dsize - _dlen); };

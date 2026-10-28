@@ -103,7 +103,7 @@ const PROGRESS_TARGET_CMD: c_int = 0x01;
 const VERBOSE_KIND: &CStr = c"verbose";
 
 pub(crate) const NIL_OBJ: Object = Object {
-    obj_type: ObjectType::kObjectTypeNil,
+    obj_type: ObjectType::ObjectTypeNil,
     data: ObjectData::Integer(0),
 };
 
@@ -127,10 +127,10 @@ struct Msgchunk {
 #[repr(C)]
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum SbClear {
-    SB_CLEAR_NONE = 0,
-    SB_CLEAR_ALL = 1,
-    SB_CLEAR_CMDLINE_BUSY = 2,
-    SB_CLEAR_CMDLINE_DONE = 3,
+    SbClearNone = 0,
+    SbClearAll = 1,
+    SbClearCmdlineBusy = 2,
+    SbClearCmdlineDone = 3,
 }
 
 struct MessageState {
@@ -189,7 +189,7 @@ impl MessageState {
             msg_ext_kind: ptr::null(),
             msg_ext_trigger: ptr::null(),
             msg_ext_id: Object {
-                obj_type: ObjectType::kObjectTypeInteger,
+                obj_type: ObjectType::ObjectTypeInteger,
                 data: ObjectData::Integer(1),
             },
             msg_ext_chunks: Array::new(),
@@ -210,7 +210,7 @@ impl MessageState {
             redir_col: 0,
             STR2SPECIAL_BUF: [0; 7],
             msgchunks: Vec::new(),
-            do_clear_sb_text: SbClear::SB_CLEAR_NONE,
+            do_clear_sb_text: SbClear::SbClearNone,
             DO_MORE_PROMPT_ENTERED: false,
             SHOWMODE_CLEAR: false,
             pre_verbose_kind: ptr::null(),
@@ -654,14 +654,14 @@ pub fn msg_multihl(
     raw_for_lua_print: bool,
 ) -> MsgID {
     let kind = kind.into_c_char_ptr();
-    if id.obj_type == ObjectType::kObjectTypeNil {
+    if id.obj_type == ObjectType::ObjectTypeNil {
             let next_id = msg_st().msg_id_next;
             msg_st().msg_id_next += 1;
             id = Object {
-                obj_type: ObjectType::kObjectTypeInteger,
+                obj_type: ObjectType::ObjectTypeInteger,
                 data: ObjectData::Integer(next_id),
             };
-        } else if id.obj_type == ObjectType::kObjectTypeInteger && !msg_id_exists(id.data.integer()) {
+        } else if id.obj_type == ObjectType::ObjectTypeInteger && !msg_id_exists(id.data.integer()) {
             std::process::abort();
         }
 
@@ -730,7 +730,7 @@ pub fn msg_multihl(
         // Release the id: it belongs to this message, and a String id only borrows the caller's storage
         // (often a stack buffer). Redundant unless nothing was emitted (e.g. 'msg_silent').
         msg_st().msg_ext_id = Object {
-            obj_type: ObjectType::kObjectTypeInteger,
+            obj_type: ObjectType::ObjectTypeInteger,
             data: ObjectData::Integer(msg_st().msg_id_next),
         };
         id
@@ -1373,7 +1373,7 @@ pub fn msg_with_id(
         }
         msg_ext_no_fast();
         let id_obj = Object {
-            obj_type: ObjectType::kObjectTypeString,
+            obj_type: ObjectType::ObjectTypeString,
             data: ObjectData::String(cstr_as_string(id)),
         };
         msg_multihl(
@@ -1427,7 +1427,7 @@ pub fn do_autocmd_progress(msg_id: MsgID, msg: &HlMessage,mut msg_data: Option<&
         let mut messages_vec: Vec<Object> = msg
             .iter()
             .map(|chunk| Object {
-                obj_type: ObjectType::kObjectTypeString,
+                obj_type: ObjectType::ObjectTypeString,
                 data: ObjectData::String(chunk.text),
             })
             .collect();
@@ -1461,7 +1461,7 @@ pub fn do_autocmd_progress(msg_id: MsgID, msg: &HlMessage,mut msg_data: Option<&
         put_c(
             c"text",
             Object {
-                obj_type: ObjectType::kObjectTypeArray,
+                obj_type: ObjectType::ObjectTypeArray,
                 data: ObjectData::Array(messages),
             },
         );
@@ -1470,7 +1470,7 @@ pub fn do_autocmd_progress(msg_id: MsgID, msg: &HlMessage,mut msg_data: Option<&
                 put_c(
                     c"percent",
                     Object {
-                        obj_type: ObjectType::kObjectTypeInteger,
+                        obj_type: ObjectType::ObjectTypeInteger,
                         data: ObjectData::Integer(msg_data.as_deref_mut().unwrap().percent),
                     },
                 );
@@ -1478,35 +1478,35 @@ pub fn do_autocmd_progress(msg_id: MsgID, msg: &HlMessage,mut msg_data: Option<&
             put_c(
                 c"source",
                 Object {
-                    obj_type: ObjectType::kObjectTypeString,
+                    obj_type: ObjectType::ObjectTypeString,
                     data: ObjectData::String(msg_data.as_deref_mut().unwrap().source),
                 },
             );
             put_c(
                 c"status",
                 Object {
-                    obj_type: ObjectType::kObjectTypeString,
+                    obj_type: ObjectType::ObjectTypeString,
                     data: ObjectData::String(msg_data.as_deref_mut().unwrap().status),
                 },
             );
             put_c(
                 c"title",
                 Object {
-                    obj_type: ObjectType::kObjectTypeString,
+                    obj_type: ObjectType::ObjectTypeString,
                     data: ObjectData::String(msg_data.as_deref_mut().unwrap().title),
                 },
             );
             put_c(
                 c"data",
                 Object {
-                    obj_type: ObjectType::kObjectTypeDict,
+                    obj_type: ObjectType::ObjectTypeDict,
                     data: ObjectData::Dict(msg_data.as_deref_mut().unwrap().data),
                 },
             );
         }
 
         let mut dict_obj = Object {
-            obj_type: ObjectType::kObjectTypeDict,
+            obj_type: ObjectType::ObjectTypeDict,
             data: ObjectData::Dict(Dict {
                     items: data_items.as_mut_ptr(),
                     size: data_size,
@@ -1679,7 +1679,7 @@ pub fn ex_messages(eap: &mut Exarg) {
             if ui_has(kUIMessages) && g_st().msg_silent == 0 {
                 let mut entry = Array::new();
                 entry.push(Object {
-                    obj_type: ObjectType::kObjectTypeString,
+                    obj_type: ObjectType::ObjectTypeString,
                     data: ObjectData::String(cstr_to_string(
                             p.kind.as_ref().map_or(ptr::null(), |k| k.as_ptr()),
                         )),
@@ -1688,7 +1688,7 @@ pub fn ex_messages(eap: &mut Exarg) {
                 for chunk in &p.msg {
                     let mut content_entry = Array::new();
                     content_entry.push(Object {
-                        obj_type: ObjectType::kObjectTypeInteger,
+                        obj_type: ObjectType::ObjectTypeInteger,
                         data: ObjectData::Integer(if chunk.hl_id != 0 {
                             syn_id2attr(chunk.hl_id) as Integer
                         } else {
@@ -1696,28 +1696,28 @@ pub fn ex_messages(eap: &mut Exarg) {
                         }),
                     });
                     content_entry.push(Object {
-                        obj_type: ObjectType::kObjectTypeString,
+                        obj_type: ObjectType::ObjectTypeString,
                         data: ObjectData::String(copy_string(chunk.text, None)),
                     });
                     content_entry.push(Object {
-                        obj_type: ObjectType::kObjectTypeInteger,
+                        obj_type: ObjectType::ObjectTypeInteger,
                         data: ObjectData::Integer(chunk.hl_id as Integer),
                     });
                     content.push(Object {
-                        obj_type: ObjectType::kObjectTypeArray,
+                        obj_type: ObjectType::ObjectTypeArray,
                         data: ObjectData::Array(content_entry),
                     });
                 }
                 entry.push(Object {
-                    obj_type: ObjectType::kObjectTypeArray,
+                    obj_type: ObjectType::ObjectTypeArray,
                     data: ObjectData::Array(content),
                 });
                 entry.push(Object {
-                    obj_type: ObjectType::kObjectTypeBoolean,
+                    obj_type: ObjectType::ObjectTypeBoolean,
                     data: ObjectData::Boolean(p.append),
                 });
                 entries.push(Object {
-                    obj_type: ObjectType::kObjectTypeArray,
+                    obj_type: ObjectType::ObjectTypeArray,
                     data: ObjectData::Array(entry),
                 });
             }
@@ -2732,7 +2732,7 @@ pub fn msg_puts_len(str_: impl crate::strings::IntoCCharPtr, len: isize, hl_id: 
                     false,
                     false,
                     Object {
-                        obj_type: ObjectType::kObjectTypeInteger,
+                        obj_type: ObjectType::ObjectTypeInteger,
                         data: ObjectData::Integer(-1),
                     },
                     NvimString {
@@ -2780,7 +2780,7 @@ fn msg_ext_emit_chunk() {
         }
         let mut chunk = Array::new();
         chunk.push(Object {
-            obj_type: ObjectType::kObjectTypeInteger,
+            obj_type: ObjectType::ObjectTypeInteger,
             data: ObjectData::Integer(msg_st().msg_ext_last_attr as Integer),
         });
         msg_st().msg_ext_last_attr = -1;
@@ -2790,15 +2790,15 @@ fn msg_ext_emit_chunk() {
         );
         msg_st().msg_ext_last_chunk = Vec::new();
         chunk.push(Object {
-            obj_type: ObjectType::kObjectTypeString,
+            obj_type: ObjectType::ObjectTypeString,
             data: ObjectData::String(text),
         });
         chunk.push(Object {
-            obj_type: ObjectType::kObjectTypeInteger,
+            obj_type: ObjectType::ObjectTypeInteger,
             data: ObjectData::Integer(msg_st().msg_ext_last_hl_id as Integer),
         });
         msg_st().msg_ext_chunks.push(Object {
-            obj_type: ObjectType::kObjectTypeArray,
+            obj_type: ObjectType::ObjectTypeArray,
             data: ObjectData::Array(chunk),
         });
     }
@@ -3179,18 +3179,18 @@ fn store_sb_text(
     finish: c_int,
 ) { let s = s.into_c_char_ptr();
     unsafe {
-        if msg_st().do_clear_sb_text == SbClear::SB_CLEAR_ALL
-            || msg_st().do_clear_sb_text == SbClear::SB_CLEAR_CMDLINE_DONE
+        if msg_st().do_clear_sb_text == SbClear::SbClearAll
+            || msg_st().do_clear_sb_text == SbClear::SbClearCmdlineDone
         {
-            clear_sb_text(msg_st().do_clear_sb_text == SbClear::SB_CLEAR_ALL);
+            clear_sb_text(msg_st().do_clear_sb_text == SbClear::SbClearAll);
             msg_sb_eol();
-            if msg_st().do_clear_sb_text == SbClear::SB_CLEAR_CMDLINE_DONE
+            if msg_st().do_clear_sb_text == SbClear::SbClearCmdlineDone
                 && s > *sb_str
                 && **sb_str == NL as c_char
             {
                 *sb_str = (*sb_str).add(1);
             }
-            msg_st().do_clear_sb_text = SbClear::SB_CLEAR_NONE;
+            msg_st().do_clear_sb_text = SbClear::SbClearNone;
         }
 
         if s > *sb_str {
@@ -3218,24 +3218,24 @@ fn store_sb_text(
 /// Finished showing messages, clear the scroll-back text on the next message.
 pub fn may_clear_sb_text() {
     msg_ext_ui_flush();
-        msg_st().do_clear_sb_text = SbClear::SB_CLEAR_ALL;
+        msg_st().do_clear_sb_text = SbClear::SbClearAll;
         msg_st().do_clear_hist_temp = true;
 }
 
 /// Starting to edit the command line: do not clear messages now.
 pub fn sb_text_start_cmdline() {
-    if msg_st().do_clear_sb_text == SbClear::SB_CLEAR_CMDLINE_BUSY {
+    if msg_st().do_clear_sb_text == SbClear::SbClearCmdlineBusy {
             sb_text_restart_cmdline();
         } else {
             msg_sb_eol();
-            msg_st().do_clear_sb_text = SbClear::SB_CLEAR_CMDLINE_BUSY;
+            msg_st().do_clear_sb_text = SbClear::SbClearCmdlineBusy;
         }
 }
 
 /// Redrawing the command line: clear the last unfinished line.
 pub fn sb_text_restart_cmdline() {
      {
-        msg_st().do_clear_sb_text = SbClear::SB_CLEAR_CMDLINE_BUSY;
+        msg_st().do_clear_sb_text = SbClear::SbClearCmdlineBusy;
 
         let Some(last) = msg_st().msgchunks.last() else {
             return;
@@ -3252,7 +3252,7 @@ pub fn sb_text_restart_cmdline() {
 
 /// Ending to edit the command line: clear old lines but the last one later.
 pub fn sb_text_end_cmdline() {
-    msg_st().do_clear_sb_text = SbClear::SB_CLEAR_CMDLINE_DONE;
+    msg_st().do_clear_sb_text = SbClear::SbClearCmdlineDone;
 }
 
 /// Clear any text remembered for scrolling back.
@@ -3346,12 +3346,12 @@ fn msg_puts_printf(str_: impl crate::strings::IntoCCharPtr, maxlen: isize) { let
 
         if crate::eval::typval::Callback::raw_cb_type(&g_st().on_print) != kCallbackNone {
             let mut argv = [TypVal {
-                v_type: VarType::VAR_STRING,
+                v_type: VarType::VarString,
                 v_lock: VAR_UNLOCKED,
                 vval: TypvalVval::String(str_.cast_mut()),
             }];
             let mut rettv = TypVal {
-                v_type: VarType::VAR_UNKNOWN,
+                v_type: VarType::VarUnknown,
                 v_lock: VAR_UNLOCKED,
                 vval: TypvalVval::Number(0),
             };
@@ -3811,13 +3811,13 @@ pub fn msg_ext_ui_flush() {
             msg_st().msg_ext_append = false;
             g_st().msg_ext_fast = true;
             msg_st().msg_ext_kind = ptr::null();
-            if msg_st().msg_ext_id.obj_type == ObjectType::kObjectTypeInteger
+            if msg_st().msg_ext_id.obj_type == ObjectType::ObjectTypeInteger
                 && msg_st().msg_ext_id.data.integer() == msg_st().msg_id_next
             {
                 msg_st().msg_id_next += 1;
             }
             msg_st().msg_ext_id = Object {
-                obj_type: ObjectType::kObjectTypeInteger,
+                obj_type: ObjectType::ObjectTypeInteger,
                 data: ObjectData::Integer(msg_st().msg_id_next),
             };
         }

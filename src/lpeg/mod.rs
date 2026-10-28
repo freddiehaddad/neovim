@@ -15,6 +15,7 @@ use crate::lua::converter::{lua_Integer, lua_Number, lua_State, luaL_Reg};
 pub type LpegByte = u8;
 pub type LpegUint = c_uint;
 pub type LpegIndex = LpegUint;
+#[allow(non_camel_case_types)]
 pub type lua_Unsigned = usize;
 
 pub const PATTERN_T: &CStr = c"lpeg-pattern";

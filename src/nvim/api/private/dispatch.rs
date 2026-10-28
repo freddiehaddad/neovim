@@ -162,14 +162,14 @@ fn extract_keydict<T: Default>(
     wrong_type_msg: &std::ffi::CStr,
     error: &mut Error,
 ) -> bool {
-    if item.obj_type == ObjectType::kObjectTypeDict {
+    if item.obj_type == ObjectType::ObjectTypeDict {
             *out = T::default();
             api_dict_to_keydict((out as *mut T).cast(), get_field, item.data.dict(), error)
-        } else if item.obj_type == ObjectType::kObjectTypeArray && item.data.array().size == 0 {
+        } else if item.obj_type == ObjectType::ObjectTypeArray && item.data.array().size == 0 {
             *out = T::default();
             true
         } else {
-            api_set_error_str(error, ErrorType::kErrorTypeException, wrong_type_msg.as_ptr());
+            api_set_error_str(error, ErrorType::ErrorTypeException, wrong_type_msg.as_ptr());
             false
         }
 }
@@ -182,13 +182,13 @@ fn extract_handle(
     wrong_type_msg: &std::ffi::CStr,
     error: &mut Error,
 ) -> bool {
-    if (item.obj_type == expected || item.obj_type == ObjectType::kObjectTypeInteger)
+    if (item.obj_type == expected || item.obj_type == ObjectType::ObjectTypeInteger)
             && item.data.integer() >= 0
         {
             *out = item.data.integer() as ObjHandle;
             true
         } else {
-            api_set_error_str(error, ErrorType::kErrorTypeException, wrong_type_msg.as_ptr());
+            api_set_error_str(error, ErrorType::ErrorTypeException, wrong_type_msg.as_ptr());
             false
         }
 }
@@ -200,14 +200,14 @@ fn extract_boolean(
     wrong_type_msg: &std::ffi::CStr,
     error: &mut Error,
 ) -> bool {
-    if item.obj_type == ObjectType::kObjectTypeBoolean {
+    if item.obj_type == ObjectType::ObjectTypeBoolean {
             *out = item.data.boolean();
             true
-        } else if item.obj_type == ObjectType::kObjectTypeInteger && item.data.integer() >= 0 {
+        } else if item.obj_type == ObjectType::ObjectTypeInteger && item.data.integer() >= 0 {
             *out = (item.data.integer() as ObjHandle) != 0;
             true
         } else {
-            api_set_error_str(error, ErrorType::kErrorTypeException, wrong_type_msg.as_ptr());
+            api_set_error_str(error, ErrorType::ErrorTypeException, wrong_type_msg.as_ptr());
             false
         }
 }
@@ -219,14 +219,14 @@ fn extract_float(
     wrong_type_msg: &std::ffi::CStr,
     error: &mut Error,
 ) -> bool {
-    if item.obj_type == ObjectType::kObjectTypeFloat {
+    if item.obj_type == ObjectType::ObjectTypeFloat {
             *out = item.data.floating();
             true
-        } else if item.obj_type == ObjectType::kObjectTypeInteger {
+        } else if item.obj_type == ObjectType::ObjectTypeInteger {
             *out = item.data.integer() as Float;
             true
         } else {
-            api_set_error_str(error, ErrorType::kErrorTypeException, wrong_type_msg.as_ptr());
+            api_set_error_str(error, ErrorType::ErrorTypeException, wrong_type_msg.as_ptr());
             false
         }
 }
@@ -238,10 +238,10 @@ fn extract_dict(
     wrong_type_msg: &std::ffi::CStr,
     error: &mut Error,
 ) -> bool {
-    if item.obj_type == ObjectType::kObjectTypeDict {
+    if item.obj_type == ObjectType::ObjectTypeDict {
             *out = item.data.dict();
             true
-        } else if item.obj_type == ObjectType::kObjectTypeArray && item.data.array().size == 0 {
+        } else if item.obj_type == ObjectType::ObjectTypeArray && item.data.array().size == 0 {
             *out = Dict {
                 items: ptr::null_mut(),
                 size: 0,
@@ -249,7 +249,7 @@ fn extract_dict(
             };
             true
         } else {
-            api_set_error_str(error, ErrorType::kErrorTypeException, wrong_type_msg.as_ptr());
+            api_set_error_str(error, ErrorType::ErrorTypeException, wrong_type_msg.as_ptr());
             false
         }
 }
@@ -261,11 +261,11 @@ fn extract_integer(
     wrong_type_msg: &std::ffi::CStr,
     error: &mut Error,
 ) -> bool {
-    if item.obj_type == ObjectType::kObjectTypeInteger {
+    if item.obj_type == ObjectType::ObjectTypeInteger {
             *out = item.data.integer();
             true
         } else {
-            api_set_error_str(error, ErrorType::kErrorTypeException, wrong_type_msg.as_ptr());
+            api_set_error_str(error, ErrorType::ErrorTypeException, wrong_type_msg.as_ptr());
             false
         }
 }
@@ -277,11 +277,11 @@ fn extract_string(
     wrong_type_msg: &std::ffi::CStr,
     error: &mut Error,
 ) -> bool {
-    if item.obj_type == ObjectType::kObjectTypeString {
+    if item.obj_type == ObjectType::ObjectTypeString {
             *out = item.data.string();
             true
         } else {
-            api_set_error_str(error, ErrorType::kErrorTypeException, wrong_type_msg.as_ptr());
+            api_set_error_str(error, ErrorType::ErrorTypeException, wrong_type_msg.as_ptr());
             false
         }
 }
@@ -293,11 +293,11 @@ fn extract_array(
     wrong_type_msg: &std::ffi::CStr,
     error: &mut Error,
 ) -> bool {
-    if item.obj_type == ObjectType::kObjectTypeArray {
+    if item.obj_type == ObjectType::ObjectTypeArray {
             *out = item.data.array();
             true
         } else {
-            api_set_error_str(error, ErrorType::kErrorTypeException, wrong_type_msg.as_ptr());
+            api_set_error_str(error, ErrorType::ErrorTypeException, wrong_type_msg.as_ptr());
             false
         }
 }
@@ -306,28 +306,28 @@ pub static _shada_buflist_item_table: [KeySetLink; 4] = [
     KeySetLink {
         str: Some(c"c"),
         ptr_off: offset_of!(KeyDict__shada_buflist_item, c),
-        key_type: ObjectType::kObjectTypeInteger as c_int,
+        key_type: ObjectType::ObjectTypeInteger as c_int,
         opt_index: 1,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"f"),
         ptr_off: offset_of!(KeyDict__shada_buflist_item, f),
-        key_type: ObjectType::kObjectTypeString as c_int,
+        key_type: ObjectType::ObjectTypeString as c_int,
         opt_index: 2,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"l"),
         ptr_off: offset_of!(KeyDict__shada_buflist_item, l),
-        key_type: ObjectType::kObjectTypeInteger as c_int,
+        key_type: ObjectType::ObjectTypeInteger as c_int,
         opt_index: 3,
         is_hlgroup: false,
     },
     KeySetLink {
         str: None,
         ptr_off: 0,
-        key_type: ObjectType::kObjectTypeNil as c_int,
+        key_type: ObjectType::ObjectTypeNil as c_int,
         opt_index: -1,
         is_hlgroup: false,
     },
@@ -351,35 +351,35 @@ pub static _shada_mark_table: [KeySetLink; 5] = [
     KeySetLink {
         str: Some(c"c"),
         ptr_off: offset_of!(KeyDict__shada_mark, c),
-        key_type: ObjectType::kObjectTypeInteger as c_int,
+        key_type: ObjectType::ObjectTypeInteger as c_int,
         opt_index: 1,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"f"),
         ptr_off: offset_of!(KeyDict__shada_mark, f),
-        key_type: ObjectType::kObjectTypeString as c_int,
+        key_type: ObjectType::ObjectTypeString as c_int,
         opt_index: 2,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"l"),
         ptr_off: offset_of!(KeyDict__shada_mark, l),
-        key_type: ObjectType::kObjectTypeInteger as c_int,
+        key_type: ObjectType::ObjectTypeInteger as c_int,
         opt_index: 3,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"n"),
         ptr_off: offset_of!(KeyDict__shada_mark, n),
-        key_type: ObjectType::kObjectTypeInteger as c_int,
+        key_type: ObjectType::ObjectTypeInteger as c_int,
         opt_index: 4,
         is_hlgroup: false,
     },
     KeySetLink {
         str: None,
         ptr_off: 0,
-        key_type: ObjectType::kObjectTypeNil as c_int,
+        key_type: ObjectType::ObjectTypeNil as c_int,
         opt_index: -1,
         is_hlgroup: false,
     },
@@ -404,7 +404,7 @@ pub static _shada_register_table: [KeySetLink; 6] = [
     KeySetLink {
         str: Some(c"n"),
         ptr_off: offset_of!(KeyDict__shada_register, n),
-        key_type: ObjectType::kObjectTypeInteger as c_int,
+        key_type: ObjectType::ObjectTypeInteger as c_int,
         opt_index: 1,
         is_hlgroup: false,
     },
@@ -418,28 +418,28 @@ pub static _shada_register_table: [KeySetLink; 6] = [
     KeySetLink {
         str: Some(c"rt"),
         ptr_off: offset_of!(KeyDict__shada_register, rt),
-        key_type: ObjectType::kObjectTypeInteger as c_int,
+        key_type: ObjectType::ObjectTypeInteger as c_int,
         opt_index: 3,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"ru"),
         ptr_off: offset_of!(KeyDict__shada_register, ru),
-        key_type: ObjectType::kObjectTypeBoolean as c_int,
+        key_type: ObjectType::ObjectTypeBoolean as c_int,
         opt_index: 4,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"rw"),
         ptr_off: offset_of!(KeyDict__shada_register, rw),
-        key_type: ObjectType::kObjectTypeInteger as c_int,
+        key_type: ObjectType::ObjectTypeInteger as c_int,
         opt_index: 5,
         is_hlgroup: false,
     },
     KeySetLink {
         str: None,
         ptr_off: 0,
-        key_type: ObjectType::kObjectTypeNil as c_int,
+        key_type: ObjectType::ObjectTypeNil as c_int,
         opt_index: -1,
         is_hlgroup: false,
     },
@@ -465,77 +465,77 @@ pub static _shada_search_pat_table: [KeySetLink; 11] = [
     KeySetLink {
         str: Some(c"sb"),
         ptr_off: offset_of!(KeyDict__shada_search_pat, search_backward),
-        key_type: ObjectType::kObjectTypeBoolean as c_int,
+        key_type: ObjectType::ObjectTypeBoolean as c_int,
         opt_index: 1,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"sc"),
         ptr_off: offset_of!(KeyDict__shada_search_pat, smartcase),
-        key_type: ObjectType::kObjectTypeBoolean as c_int,
+        key_type: ObjectType::ObjectTypeBoolean as c_int,
         opt_index: 2,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"se"),
         ptr_off: offset_of!(KeyDict__shada_search_pat, place_cursor_at_end),
-        key_type: ObjectType::kObjectTypeBoolean as c_int,
+        key_type: ObjectType::ObjectTypeBoolean as c_int,
         opt_index: 3,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"sh"),
         ptr_off: offset_of!(KeyDict__shada_search_pat, highlighted),
-        key_type: ObjectType::kObjectTypeBoolean as c_int,
+        key_type: ObjectType::ObjectTypeBoolean as c_int,
         opt_index: 4,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"sl"),
         ptr_off: offset_of!(KeyDict__shada_search_pat, has_line_offset),
-        key_type: ObjectType::kObjectTypeBoolean as c_int,
+        key_type: ObjectType::ObjectTypeBoolean as c_int,
         opt_index: 5,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"sm"),
         ptr_off: offset_of!(KeyDict__shada_search_pat, magic),
-        key_type: ObjectType::kObjectTypeBoolean as c_int,
+        key_type: ObjectType::ObjectTypeBoolean as c_int,
         opt_index: 6,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"so"),
         ptr_off: offset_of!(KeyDict__shada_search_pat, offset),
-        key_type: ObjectType::kObjectTypeInteger as c_int,
+        key_type: ObjectType::ObjectTypeInteger as c_int,
         opt_index: 7,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"sp"),
         ptr_off: offset_of!(KeyDict__shada_search_pat, pat),
-        key_type: ObjectType::kObjectTypeString as c_int,
+        key_type: ObjectType::ObjectTypeString as c_int,
         opt_index: 8,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"ss"),
         ptr_off: offset_of!(KeyDict__shada_search_pat, is_substitute_pattern),
-        key_type: ObjectType::kObjectTypeBoolean as c_int,
+        key_type: ObjectType::ObjectTypeBoolean as c_int,
         opt_index: 9,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"su"),
         ptr_off: offset_of!(KeyDict__shada_search_pat, is_last_used),
-        key_type: ObjectType::kObjectTypeBoolean as c_int,
+        key_type: ObjectType::ObjectTypeBoolean as c_int,
         opt_index: 10,
         is_hlgroup: false,
     },
     KeySetLink {
         str: None,
         ptr_off: 0,
-        key_type: ObjectType::kObjectTypeNil as c_int,
+        key_type: ObjectType::ObjectTypeNil as c_int,
         opt_index: -1,
         is_hlgroup: false,
     },
@@ -566,56 +566,56 @@ pub static buf_attach_table: [KeySetLink; 8] = [
     KeySetLink {
         str: Some(c"preview"),
         ptr_off: offset_of!(KeyDict_buf_attach, preview),
-        key_type: ObjectType::kObjectTypeBoolean as c_int,
+        key_type: ObjectType::ObjectTypeBoolean as c_int,
         opt_index: 1,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"on_bytes"),
         ptr_off: offset_of!(KeyDict_buf_attach, on_bytes),
-        key_type: ObjectType::kObjectTypeLuaRef as c_int,
+        key_type: ObjectType::ObjectTypeLuaRef as c_int,
         opt_index: 2,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"on_lines"),
         ptr_off: offset_of!(KeyDict_buf_attach, on_lines),
-        key_type: ObjectType::kObjectTypeLuaRef as c_int,
+        key_type: ObjectType::ObjectTypeLuaRef as c_int,
         opt_index: 3,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"utf_sizes"),
         ptr_off: offset_of!(KeyDict_buf_attach, utf_sizes),
-        key_type: ObjectType::kObjectTypeBoolean as c_int,
+        key_type: ObjectType::ObjectTypeBoolean as c_int,
         opt_index: 4,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"on_detach"),
         ptr_off: offset_of!(KeyDict_buf_attach, on_detach),
-        key_type: ObjectType::kObjectTypeLuaRef as c_int,
+        key_type: ObjectType::ObjectTypeLuaRef as c_int,
         opt_index: 5,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"on_reload"),
         ptr_off: offset_of!(KeyDict_buf_attach, on_reload),
-        key_type: ObjectType::kObjectTypeLuaRef as c_int,
+        key_type: ObjectType::ObjectTypeLuaRef as c_int,
         opt_index: 6,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"on_changedtick"),
         ptr_off: offset_of!(KeyDict_buf_attach, on_changedtick),
-        key_type: ObjectType::kObjectTypeLuaRef as c_int,
+        key_type: ObjectType::ObjectTypeLuaRef as c_int,
         opt_index: 7,
         is_hlgroup: false,
     },
     KeySetLink {
         str: None,
         ptr_off: 0,
-        key_type: ObjectType::kObjectTypeNil as c_int,
+        key_type: ObjectType::ObjectTypeNil as c_int,
         opt_index: -1,
         is_hlgroup: false,
     },
@@ -643,21 +643,21 @@ pub static buf_delete_table: [KeySetLink; 3] = [
     KeySetLink {
         str: Some(c"force"),
         ptr_off: offset_of!(KeyDict_buf_delete, force),
-        key_type: ObjectType::kObjectTypeBoolean as c_int,
+        key_type: ObjectType::ObjectTypeBoolean as c_int,
         opt_index: 1,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"unload"),
         ptr_off: offset_of!(KeyDict_buf_delete, unload),
-        key_type: ObjectType::kObjectTypeBoolean as c_int,
+        key_type: ObjectType::ObjectTypeBoolean as c_int,
         opt_index: 2,
         is_hlgroup: false,
     },
     KeySetLink {
         str: None,
         ptr_off: 0,
-        key_type: ObjectType::kObjectTypeNil as c_int,
+        key_type: ObjectType::ObjectTypeNil as c_int,
         opt_index: -1,
         is_hlgroup: false,
     },
@@ -680,14 +680,14 @@ pub static chan_set_table: [KeySetLink; 2] = [
     KeySetLink {
         str: Some(c"detach"),
         ptr_off: offset_of!(KeyDict_chan_set, detach),
-        key_type: ObjectType::kObjectTypeBoolean as c_int,
+        key_type: ObjectType::ObjectTypeBoolean as c_int,
         opt_index: 1,
         is_hlgroup: false,
     },
     KeySetLink {
         str: None,
         ptr_off: 0,
-        key_type: ObjectType::kObjectTypeNil as c_int,
+        key_type: ObjectType::ObjectTypeNil as c_int,
         opt_index: -1,
         is_hlgroup: false,
     },
@@ -709,42 +709,42 @@ pub static clear_autocmds_table: [KeySetLink; 6] = [
     KeySetLink {
         str: Some(c"buf"),
         ptr_off: offset_of!(KeyDict_clear_autocmds, buf),
-        key_type: ObjectType::kObjectTypeBuffer as c_int,
+        key_type: ObjectType::ObjectTypeBuffer as c_int,
         opt_index: 1,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"event"),
         ptr_off: offset_of!(KeyDict_clear_autocmds, event),
-        key_type: ObjectType::kObjectTypeNil as c_int,
+        key_type: ObjectType::ObjectTypeNil as c_int,
         opt_index: 2,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"group"),
         ptr_off: offset_of!(KeyDict_clear_autocmds, group),
-        key_type: ObjectType::kObjectTypeNil as c_int,
+        key_type: ObjectType::ObjectTypeNil as c_int,
         opt_index: 3,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"buffer"),
         ptr_off: offset_of!(KeyDict_clear_autocmds, buffer),
-        key_type: ObjectType::kObjectTypeBuffer as c_int,
+        key_type: ObjectType::ObjectTypeBuffer as c_int,
         opt_index: 4,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"pattern"),
         ptr_off: offset_of!(KeyDict_clear_autocmds, pattern),
-        key_type: ObjectType::kObjectTypeNil as c_int,
+        key_type: ObjectType::ObjectTypeNil as c_int,
         opt_index: 5,
         is_hlgroup: false,
     },
     KeySetLink {
         str: None,
         ptr_off: 0,
-        key_type: ObjectType::kObjectTypeNil as c_int,
+        key_type: ObjectType::ObjectTypeNil as c_int,
         opt_index: -1,
         is_hlgroup: false,
     },
@@ -770,84 +770,84 @@ pub static cmd_table: [KeySetLink; 12] = [
     KeySetLink {
         str: Some(c"cmd"),
         ptr_off: offset_of!(KeyDict_cmd, cmd),
-        key_type: ObjectType::kObjectTypeString as c_int,
+        key_type: ObjectType::ObjectTypeString as c_int,
         opt_index: 1,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"reg"),
         ptr_off: offset_of!(KeyDict_cmd, reg),
-        key_type: ObjectType::kObjectTypeString as c_int,
+        key_type: ObjectType::ObjectTypeString as c_int,
         opt_index: 2,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"bang"),
         ptr_off: offset_of!(KeyDict_cmd, bang),
-        key_type: ObjectType::kObjectTypeBoolean as c_int,
+        key_type: ObjectType::ObjectTypeBoolean as c_int,
         opt_index: 3,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"addr"),
         ptr_off: offset_of!(KeyDict_cmd, addr),
-        key_type: ObjectType::kObjectTypeString as c_int,
+        key_type: ObjectType::ObjectTypeString as c_int,
         opt_index: 4,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"mods"),
         ptr_off: offset_of!(KeyDict_cmd, mods),
-        key_type: ObjectType::kObjectTypeDict as c_int,
+        key_type: ObjectType::ObjectTypeDict as c_int,
         opt_index: 5,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"args"),
         ptr_off: offset_of!(KeyDict_cmd, args),
-        key_type: ObjectType::kObjectTypeArray as c_int,
+        key_type: ObjectType::ObjectTypeArray as c_int,
         opt_index: 6,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"count"),
         ptr_off: offset_of!(KeyDict_cmd, count),
-        key_type: ObjectType::kObjectTypeInteger as c_int,
+        key_type: ObjectType::ObjectTypeInteger as c_int,
         opt_index: 7,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"magic"),
         ptr_off: offset_of!(KeyDict_cmd, magic),
-        key_type: ObjectType::kObjectTypeDict as c_int,
+        key_type: ObjectType::ObjectTypeDict as c_int,
         opt_index: 8,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"nargs"),
         ptr_off: offset_of!(KeyDict_cmd, nargs),
-        key_type: ObjectType::kObjectTypeNil as c_int,
+        key_type: ObjectType::ObjectTypeNil as c_int,
         opt_index: 9,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"range"),
         ptr_off: offset_of!(KeyDict_cmd, range),
-        key_type: ObjectType::kObjectTypeArray as c_int,
+        key_type: ObjectType::ObjectTypeArray as c_int,
         opt_index: 10,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"nextcmd"),
         ptr_off: offset_of!(KeyDict_cmd, nextcmd),
-        key_type: ObjectType::kObjectTypeString as c_int,
+        key_type: ObjectType::ObjectTypeString as c_int,
         opt_index: 11,
         is_hlgroup: false,
     },
     KeySetLink {
         str: None,
         ptr_off: 0,
-        key_type: ObjectType::kObjectTypeNil as c_int,
+        key_type: ObjectType::ObjectTypeNil as c_int,
         opt_index: -1,
         is_hlgroup: false,
     },
@@ -879,21 +879,21 @@ pub static cmd_magic_table: [KeySetLink; 3] = [
     KeySetLink {
         str: Some(c"bar"),
         ptr_off: offset_of!(KeyDict_cmd_magic, bar),
-        key_type: ObjectType::kObjectTypeBoolean as c_int,
+        key_type: ObjectType::ObjectTypeBoolean as c_int,
         opt_index: 1,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"file"),
         ptr_off: offset_of!(KeyDict_cmd_magic, file),
-        key_type: ObjectType::kObjectTypeBoolean as c_int,
+        key_type: ObjectType::ObjectTypeBoolean as c_int,
         opt_index: 2,
         is_hlgroup: false,
     },
     KeySetLink {
         str: None,
         ptr_off: 0,
-        key_type: ObjectType::kObjectTypeNil as c_int,
+        key_type: ObjectType::ObjectTypeNil as c_int,
         opt_index: -1,
         is_hlgroup: false,
     },
@@ -916,147 +916,147 @@ pub static cmd_mods_table: [KeySetLink; 21] = [
     KeySetLink {
         str: Some(c"tab"),
         ptr_off: offset_of!(KeyDict_cmd_mods, tab),
-        key_type: ObjectType::kObjectTypeInteger as c_int,
+        key_type: ObjectType::ObjectTypeInteger as c_int,
         opt_index: 1,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"hide"),
         ptr_off: offset_of!(KeyDict_cmd_mods, hide),
-        key_type: ObjectType::kObjectTypeBoolean as c_int,
+        key_type: ObjectType::ObjectTypeBoolean as c_int,
         opt_index: 2,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"split"),
         ptr_off: offset_of!(KeyDict_cmd_mods, split),
-        key_type: ObjectType::kObjectTypeString as c_int,
+        key_type: ObjectType::ObjectTypeString as c_int,
         opt_index: 3,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"browse"),
         ptr_off: offset_of!(KeyDict_cmd_mods, browse),
-        key_type: ObjectType::kObjectTypeBoolean as c_int,
+        key_type: ObjectType::ObjectTypeBoolean as c_int,
         opt_index: 4,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"filter"),
         ptr_off: offset_of!(KeyDict_cmd_mods, filter),
-        key_type: ObjectType::kObjectTypeDict as c_int,
+        key_type: ObjectType::ObjectTypeDict as c_int,
         opt_index: 5,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"silent"),
         ptr_off: offset_of!(KeyDict_cmd_mods, silent),
-        key_type: ObjectType::kObjectTypeBoolean as c_int,
+        key_type: ObjectType::ObjectTypeBoolean as c_int,
         opt_index: 6,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"confirm"),
         ptr_off: offset_of!(KeyDict_cmd_mods, confirm),
-        key_type: ObjectType::kObjectTypeBoolean as c_int,
+        key_type: ObjectType::ObjectTypeBoolean as c_int,
         opt_index: 7,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"keepalt"),
         ptr_off: offset_of!(KeyDict_cmd_mods, keepalt),
-        key_type: ObjectType::kObjectTypeBoolean as c_int,
+        key_type: ObjectType::ObjectTypeBoolean as c_int,
         opt_index: 8,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"sandbox"),
         ptr_off: offset_of!(KeyDict_cmd_mods, sandbox),
-        key_type: ObjectType::kObjectTypeBoolean as c_int,
+        key_type: ObjectType::ObjectTypeBoolean as c_int,
         opt_index: 9,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"verbose"),
         ptr_off: offset_of!(KeyDict_cmd_mods, verbose),
-        key_type: ObjectType::kObjectTypeInteger as c_int,
+        key_type: ObjectType::ObjectTypeInteger as c_int,
         opt_index: 10,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"unsilent"),
         ptr_off: offset_of!(KeyDict_cmd_mods, unsilent),
-        key_type: ObjectType::kObjectTypeBoolean as c_int,
+        key_type: ObjectType::ObjectTypeBoolean as c_int,
         opt_index: 11,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"vertical"),
         ptr_off: offset_of!(KeyDict_cmd_mods, vertical),
-        key_type: ObjectType::kObjectTypeBoolean as c_int,
+        key_type: ObjectType::ObjectTypeBoolean as c_int,
         opt_index: 12,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"keepjumps"),
         ptr_off: offset_of!(KeyDict_cmd_mods, keepjumps),
-        key_type: ObjectType::kObjectTypeBoolean as c_int,
+        key_type: ObjectType::ObjectTypeBoolean as c_int,
         opt_index: 13,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"keepmarks"),
         ptr_off: offset_of!(KeyDict_cmd_mods, keepmarks),
-        key_type: ObjectType::kObjectTypeBoolean as c_int,
+        key_type: ObjectType::ObjectTypeBoolean as c_int,
         opt_index: 14,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"lockmarks"),
         ptr_off: offset_of!(KeyDict_cmd_mods, lockmarks),
-        key_type: ObjectType::kObjectTypeBoolean as c_int,
+        key_type: ObjectType::ObjectTypeBoolean as c_int,
         opt_index: 15,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"noautocmd"),
         ptr_off: offset_of!(KeyDict_cmd_mods, noautocmd),
-        key_type: ObjectType::kObjectTypeBoolean as c_int,
+        key_type: ObjectType::ObjectTypeBoolean as c_int,
         opt_index: 16,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"horizontal"),
         ptr_off: offset_of!(KeyDict_cmd_mods, horizontal),
-        key_type: ObjectType::kObjectTypeBoolean as c_int,
+        key_type: ObjectType::ObjectTypeBoolean as c_int,
         opt_index: 17,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"noswapfile"),
         ptr_off: offset_of!(KeyDict_cmd_mods, noswapfile),
-        key_type: ObjectType::kObjectTypeBoolean as c_int,
+        key_type: ObjectType::ObjectTypeBoolean as c_int,
         opt_index: 18,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"emsg_silent"),
         ptr_off: offset_of!(KeyDict_cmd_mods, emsg_silent),
-        key_type: ObjectType::kObjectTypeBoolean as c_int,
+        key_type: ObjectType::ObjectTypeBoolean as c_int,
         opt_index: 19,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"keeppatterns"),
         ptr_off: offset_of!(KeyDict_cmd_mods, keeppatterns),
-        key_type: ObjectType::kObjectTypeBoolean as c_int,
+        key_type: ObjectType::ObjectTypeBoolean as c_int,
         opt_index: 20,
         is_hlgroup: false,
     },
     KeySetLink {
         str: None,
         ptr_off: 0,
-        key_type: ObjectType::kObjectTypeNil as c_int,
+        key_type: ObjectType::ObjectTypeNil as c_int,
         opt_index: -1,
         is_hlgroup: false,
     },
@@ -1097,21 +1097,21 @@ pub static cmd_mods_filter_table: [KeySetLink; 3] = [
     KeySetLink {
         str: Some(c"force"),
         ptr_off: offset_of!(KeyDict_cmd_mods_filter, force),
-        key_type: ObjectType::kObjectTypeBoolean as c_int,
+        key_type: ObjectType::ObjectTypeBoolean as c_int,
         opt_index: 1,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"pattern"),
         ptr_off: offset_of!(KeyDict_cmd_mods_filter, pattern),
-        key_type: ObjectType::kObjectTypeString as c_int,
+        key_type: ObjectType::ObjectTypeString as c_int,
         opt_index: 2,
         is_hlgroup: false,
     },
     KeySetLink {
         str: None,
         ptr_off: 0,
-        key_type: ObjectType::kObjectTypeNil as c_int,
+        key_type: ObjectType::ObjectTypeNil as c_int,
         opt_index: -1,
         is_hlgroup: false,
     },
@@ -1134,14 +1134,14 @@ pub static cmd_opts_table: [KeySetLink; 2] = [
     KeySetLink {
         str: Some(c"output"),
         ptr_off: offset_of!(KeyDict_cmd_opts, output),
-        key_type: ObjectType::kObjectTypeBoolean as c_int,
+        key_type: ObjectType::ObjectTypeBoolean as c_int,
         opt_index: -1,
         is_hlgroup: false,
     },
     KeySetLink {
         str: None,
         ptr_off: 0,
-        key_type: ObjectType::kObjectTypeNil as c_int,
+        key_type: ObjectType::ObjectTypeNil as c_int,
         opt_index: -1,
         is_hlgroup: false,
     },
@@ -1163,14 +1163,14 @@ pub static complete_set_table: [KeySetLink; 2] = [
     KeySetLink {
         str: Some(c"info"),
         ptr_off: offset_of!(KeyDict_complete_set, info),
-        key_type: ObjectType::kObjectTypeString as c_int,
+        key_type: ObjectType::ObjectTypeString as c_int,
         opt_index: 1,
         is_hlgroup: false,
     },
     KeySetLink {
         str: None,
         ptr_off: 0,
-        key_type: ObjectType::kObjectTypeNil as c_int,
+        key_type: ObjectType::ObjectTypeNil as c_int,
         opt_index: -1,
         is_hlgroup: false,
     },
@@ -1192,14 +1192,14 @@ pub static context_table: [KeySetLink; 2] = [
     KeySetLink {
         str: Some(c"types"),
         ptr_off: offset_of!(KeyDict_context, types),
-        key_type: ObjectType::kObjectTypeArray as c_int,
+        key_type: ObjectType::ObjectTypeArray as c_int,
         opt_index: 1,
         is_hlgroup: false,
     },
     KeySetLink {
         str: None,
         ptr_off: 0,
-        key_type: ObjectType::kObjectTypeNil as c_int,
+        key_type: ObjectType::ObjectTypeNil as c_int,
         opt_index: -1,
         is_hlgroup: false,
     },
@@ -1221,14 +1221,14 @@ pub static create_augroup_table: [KeySetLink; 2] = [
     KeySetLink {
         str: Some(c"clear"),
         ptr_off: offset_of!(KeyDict_create_augroup, clear),
-        key_type: ObjectType::kObjectTypeBoolean as c_int,
+        key_type: ObjectType::ObjectTypeBoolean as c_int,
         opt_index: 1,
         is_hlgroup: false,
     },
     KeySetLink {
         str: None,
         ptr_off: 0,
-        key_type: ObjectType::kObjectTypeNil as c_int,
+        key_type: ObjectType::ObjectTypeNil as c_int,
         opt_index: -1,
         is_hlgroup: false,
     },
@@ -1250,70 +1250,70 @@ pub static create_autocmd_table: [KeySetLink; 10] = [
     KeySetLink {
         str: Some(c"buf"),
         ptr_off: offset_of!(KeyDict_create_autocmd, buf),
-        key_type: ObjectType::kObjectTypeBuffer as c_int,
+        key_type: ObjectType::ObjectTypeBuffer as c_int,
         opt_index: 1,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"desc"),
         ptr_off: offset_of!(KeyDict_create_autocmd, desc),
-        key_type: ObjectType::kObjectTypeString as c_int,
+        key_type: ObjectType::ObjectTypeString as c_int,
         opt_index: 2,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"once"),
         ptr_off: offset_of!(KeyDict_create_autocmd, once),
-        key_type: ObjectType::kObjectTypeBoolean as c_int,
+        key_type: ObjectType::ObjectTypeBoolean as c_int,
         opt_index: 3,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"group"),
         ptr_off: offset_of!(KeyDict_create_autocmd, group),
-        key_type: ObjectType::kObjectTypeNil as c_int,
+        key_type: ObjectType::ObjectTypeNil as c_int,
         opt_index: 4,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"buffer"),
         ptr_off: offset_of!(KeyDict_create_autocmd, buffer),
-        key_type: ObjectType::kObjectTypeBuffer as c_int,
+        key_type: ObjectType::ObjectTypeBuffer as c_int,
         opt_index: 5,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"nested"),
         ptr_off: offset_of!(KeyDict_create_autocmd, nested),
-        key_type: ObjectType::kObjectTypeBoolean as c_int,
+        key_type: ObjectType::ObjectTypeBoolean as c_int,
         opt_index: 6,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"command"),
         ptr_off: offset_of!(KeyDict_create_autocmd, command),
-        key_type: ObjectType::kObjectTypeString as c_int,
+        key_type: ObjectType::ObjectTypeString as c_int,
         opt_index: 7,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"pattern"),
         ptr_off: offset_of!(KeyDict_create_autocmd, pattern),
-        key_type: ObjectType::kObjectTypeNil as c_int,
+        key_type: ObjectType::ObjectTypeNil as c_int,
         opt_index: 8,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"callback"),
         ptr_off: offset_of!(KeyDict_create_autocmd, callback),
-        key_type: ObjectType::kObjectTypeNil as c_int,
+        key_type: ObjectType::ObjectTypeNil as c_int,
         opt_index: 9,
         is_hlgroup: false,
     },
     KeySetLink {
         str: None,
         ptr_off: 0,
-        key_type: ObjectType::kObjectTypeNil as c_int,
+        key_type: ObjectType::ObjectTypeNil as c_int,
         opt_index: -1,
         is_hlgroup: false,
     },
@@ -1343,77 +1343,77 @@ pub static echo_opts_table: [KeySetLink; 11] = [
     KeySetLink {
         str: Some(c"id"),
         ptr_off: offset_of!(KeyDict_echo_opts, id),
-        key_type: ObjectType::kObjectTypeNil as c_int,
+        key_type: ObjectType::ObjectTypeNil as c_int,
         opt_index: 1,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"err"),
         ptr_off: offset_of!(KeyDict_echo_opts, err),
-        key_type: ObjectType::kObjectTypeBoolean as c_int,
+        key_type: ObjectType::ObjectTypeBoolean as c_int,
         opt_index: 2,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"data"),
         ptr_off: offset_of!(KeyDict_echo_opts, data),
-        key_type: ObjectType::kObjectTypeDict as c_int,
+        key_type: ObjectType::ObjectTypeDict as c_int,
         opt_index: 3,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"kind"),
         ptr_off: offset_of!(KeyDict_echo_opts, kind),
-        key_type: ObjectType::kObjectTypeString as c_int,
+        key_type: ObjectType::ObjectTypeString as c_int,
         opt_index: 4,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"title"),
         ptr_off: offset_of!(KeyDict_echo_opts, title),
-        key_type: ObjectType::kObjectTypeString as c_int,
+        key_type: ObjectType::ObjectTypeString as c_int,
         opt_index: 5,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"source"),
         ptr_off: offset_of!(KeyDict_echo_opts, source),
-        key_type: ObjectType::kObjectTypeString as c_int,
+        key_type: ObjectType::ObjectTypeString as c_int,
         opt_index: 6,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"status"),
         ptr_off: offset_of!(KeyDict_echo_opts, status),
-        key_type: ObjectType::kObjectTypeString as c_int,
+        key_type: ObjectType::ObjectTypeString as c_int,
         opt_index: 7,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"percent"),
         ptr_off: offset_of!(KeyDict_echo_opts, percent),
-        key_type: ObjectType::kObjectTypeInteger as c_int,
+        key_type: ObjectType::ObjectTypeInteger as c_int,
         opt_index: 8,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"verbose"),
         ptr_off: offset_of!(KeyDict_echo_opts, verbose),
-        key_type: ObjectType::kObjectTypeBoolean as c_int,
+        key_type: ObjectType::ObjectTypeBoolean as c_int,
         opt_index: 9,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"_truncate"),
         ptr_off: offset_of!(KeyDict_echo_opts, _truncate),
-        key_type: ObjectType::kObjectTypeBoolean as c_int,
+        key_type: ObjectType::ObjectTypeBoolean as c_int,
         opt_index: 10,
         is_hlgroup: false,
     },
     KeySetLink {
         str: None,
         ptr_off: 0,
-        key_type: ObjectType::kObjectTypeNil as c_int,
+        key_type: ObjectType::ObjectTypeNil as c_int,
         opt_index: -1,
         is_hlgroup: false,
     },
@@ -1443,7 +1443,7 @@ pub fn KeyDict_echo_opts_get_field(key: &[u8]) -> Option<&'static KeySetLink> {
 pub static empty_table: [KeySetLink; 1] = [KeySetLink {
     str: None,
     ptr_off: 0,
-    key_type: ObjectType::kObjectTypeNil as c_int,
+    key_type: ObjectType::ObjectTypeNil as c_int,
     opt_index: -1,
     is_hlgroup: false,
 }];
@@ -1462,56 +1462,56 @@ pub static eval_statusline_table: [KeySetLink; 8] = [
     KeySetLink {
         str: Some(c"winid"),
         ptr_off: offset_of!(KeyDict_eval_statusline, winid),
-        key_type: ObjectType::kObjectTypeWindow as c_int,
+        key_type: ObjectType::ObjectTypeWindow as c_int,
         opt_index: 1,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"fillchar"),
         ptr_off: offset_of!(KeyDict_eval_statusline, fillchar),
-        key_type: ObjectType::kObjectTypeString as c_int,
+        key_type: ObjectType::ObjectTypeString as c_int,
         opt_index: 2,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"maxwidth"),
         ptr_off: offset_of!(KeyDict_eval_statusline, maxwidth),
-        key_type: ObjectType::kObjectTypeInteger as c_int,
+        key_type: ObjectType::ObjectTypeInteger as c_int,
         opt_index: 3,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"highlights"),
         ptr_off: offset_of!(KeyDict_eval_statusline, highlights),
-        key_type: ObjectType::kObjectTypeBoolean as c_int,
+        key_type: ObjectType::ObjectTypeBoolean as c_int,
         opt_index: 4,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"use_winbar"),
         ptr_off: offset_of!(KeyDict_eval_statusline, use_winbar),
-        key_type: ObjectType::kObjectTypeBoolean as c_int,
+        key_type: ObjectType::ObjectTypeBoolean as c_int,
         opt_index: 5,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"use_tabline"),
         ptr_off: offset_of!(KeyDict_eval_statusline, use_tabline),
-        key_type: ObjectType::kObjectTypeBoolean as c_int,
+        key_type: ObjectType::ObjectTypeBoolean as c_int,
         opt_index: 6,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"use_statuscol_lnum"),
         ptr_off: offset_of!(KeyDict_eval_statusline, use_statuscol_lnum),
-        key_type: ObjectType::kObjectTypeInteger as c_int,
+        key_type: ObjectType::ObjectTypeInteger as c_int,
         opt_index: 7,
         is_hlgroup: false,
     },
     KeySetLink {
         str: None,
         ptr_off: 0,
-        key_type: ObjectType::kObjectTypeNil as c_int,
+        key_type: ObjectType::ObjectTypeNil as c_int,
         opt_index: -1,
         is_hlgroup: false,
     },
@@ -1539,49 +1539,49 @@ pub static exec_autocmds_table: [KeySetLink; 7] = [
     KeySetLink {
         str: Some(c"buf"),
         ptr_off: offset_of!(KeyDict_exec_autocmds, buf),
-        key_type: ObjectType::kObjectTypeBuffer as c_int,
+        key_type: ObjectType::ObjectTypeBuffer as c_int,
         opt_index: 1,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"data"),
         ptr_off: offset_of!(KeyDict_exec_autocmds, data),
-        key_type: ObjectType::kObjectTypeNil as c_int,
+        key_type: ObjectType::ObjectTypeNil as c_int,
         opt_index: 2,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"group"),
         ptr_off: offset_of!(KeyDict_exec_autocmds, group),
-        key_type: ObjectType::kObjectTypeNil as c_int,
+        key_type: ObjectType::ObjectTypeNil as c_int,
         opt_index: 3,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"buffer"),
         ptr_off: offset_of!(KeyDict_exec_autocmds, buffer),
-        key_type: ObjectType::kObjectTypeBuffer as c_int,
+        key_type: ObjectType::ObjectTypeBuffer as c_int,
         opt_index: 4,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"pattern"),
         ptr_off: offset_of!(KeyDict_exec_autocmds, pattern),
-        key_type: ObjectType::kObjectTypeNil as c_int,
+        key_type: ObjectType::ObjectTypeNil as c_int,
         opt_index: 5,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"modeline"),
         ptr_off: offset_of!(KeyDict_exec_autocmds, modeline),
-        key_type: ObjectType::kObjectTypeBoolean as c_int,
+        key_type: ObjectType::ObjectTypeBoolean as c_int,
         opt_index: 6,
         is_hlgroup: false,
     },
     KeySetLink {
         str: None,
         ptr_off: 0,
-        key_type: ObjectType::kObjectTypeNil as c_int,
+        key_type: ObjectType::ObjectTypeNil as c_int,
         opt_index: -1,
         is_hlgroup: false,
     },
@@ -1608,14 +1608,14 @@ pub static exec_opts_table: [KeySetLink; 2] = [
     KeySetLink {
         str: Some(c"output"),
         ptr_off: offset_of!(KeyDict_exec_opts, output),
-        key_type: ObjectType::kObjectTypeBoolean as c_int,
+        key_type: ObjectType::ObjectTypeBoolean as c_int,
         opt_index: -1,
         is_hlgroup: false,
     },
     KeySetLink {
         str: None,
         ptr_off: 0,
-        key_type: ObjectType::kObjectTypeNil as c_int,
+        key_type: ObjectType::ObjectTypeNil as c_int,
         opt_index: -1,
         is_hlgroup: false,
     },
@@ -1637,49 +1637,49 @@ pub static get_autocmds_table: [KeySetLink; 7] = [
     KeySetLink {
         str: Some(c"id"),
         ptr_off: offset_of!(KeyDict_get_autocmds, id),
-        key_type: ObjectType::kObjectTypeInteger as c_int,
+        key_type: ObjectType::ObjectTypeInteger as c_int,
         opt_index: 1,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"buf"),
         ptr_off: offset_of!(KeyDict_get_autocmds, buf),
-        key_type: ObjectType::kObjectTypeNil as c_int,
+        key_type: ObjectType::ObjectTypeNil as c_int,
         opt_index: 2,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"event"),
         ptr_off: offset_of!(KeyDict_get_autocmds, event),
-        key_type: ObjectType::kObjectTypeNil as c_int,
+        key_type: ObjectType::ObjectTypeNil as c_int,
         opt_index: 3,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"group"),
         ptr_off: offset_of!(KeyDict_get_autocmds, group),
-        key_type: ObjectType::kObjectTypeNil as c_int,
+        key_type: ObjectType::ObjectTypeNil as c_int,
         opt_index: 4,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"buffer"),
         ptr_off: offset_of!(KeyDict_get_autocmds, buffer),
-        key_type: ObjectType::kObjectTypeNil as c_int,
+        key_type: ObjectType::ObjectTypeNil as c_int,
         opt_index: 5,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"pattern"),
         ptr_off: offset_of!(KeyDict_get_autocmds, pattern),
-        key_type: ObjectType::kObjectTypeNil as c_int,
+        key_type: ObjectType::ObjectTypeNil as c_int,
         opt_index: 6,
         is_hlgroup: false,
     },
     KeySetLink {
         str: None,
         ptr_off: 0,
-        key_type: ObjectType::kObjectTypeNil as c_int,
+        key_type: ObjectType::ObjectTypeNil as c_int,
         opt_index: -1,
         is_hlgroup: false,
     },
@@ -1706,14 +1706,14 @@ pub static get_commands_table: [KeySetLink; 2] = [
     KeySetLink {
         str: Some(c"builtin"),
         ptr_off: offset_of!(KeyDict_get_commands, builtin),
-        key_type: ObjectType::kObjectTypeBoolean as c_int,
+        key_type: ObjectType::ObjectTypeBoolean as c_int,
         opt_index: -1,
         is_hlgroup: false,
     },
     KeySetLink {
         str: None,
         ptr_off: 0,
-        key_type: ObjectType::kObjectTypeNil as c_int,
+        key_type: ObjectType::ObjectTypeNil as c_int,
         opt_index: -1,
         is_hlgroup: false,
     },
@@ -1735,21 +1735,21 @@ pub static get_extmark_table: [KeySetLink; 3] = [
     KeySetLink {
         str: Some(c"details"),
         ptr_off: offset_of!(KeyDict_get_extmark, details),
-        key_type: ObjectType::kObjectTypeBoolean as c_int,
+        key_type: ObjectType::ObjectTypeBoolean as c_int,
         opt_index: 1,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"hl_name"),
         ptr_off: offset_of!(KeyDict_get_extmark, hl_name),
-        key_type: ObjectType::kObjectTypeBoolean as c_int,
+        key_type: ObjectType::ObjectTypeBoolean as c_int,
         opt_index: 2,
         is_hlgroup: false,
     },
     KeySetLink {
         str: None,
         ptr_off: 0,
-        key_type: ObjectType::kObjectTypeNil as c_int,
+        key_type: ObjectType::ObjectTypeNil as c_int,
         opt_index: -1,
         is_hlgroup: false,
     },
@@ -1772,42 +1772,42 @@ pub static get_extmarks_table: [KeySetLink; 6] = [
     KeySetLink {
         str: Some(c"type"),
         ptr_off: offset_of!(KeyDict_get_extmarks, type_),
-        key_type: ObjectType::kObjectTypeString as c_int,
+        key_type: ObjectType::ObjectTypeString as c_int,
         opt_index: 1,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"limit"),
         ptr_off: offset_of!(KeyDict_get_extmarks, limit),
-        key_type: ObjectType::kObjectTypeInteger as c_int,
+        key_type: ObjectType::ObjectTypeInteger as c_int,
         opt_index: 2,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"details"),
         ptr_off: offset_of!(KeyDict_get_extmarks, details),
-        key_type: ObjectType::kObjectTypeBoolean as c_int,
+        key_type: ObjectType::ObjectTypeBoolean as c_int,
         opt_index: 3,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"hl_name"),
         ptr_off: offset_of!(KeyDict_get_extmarks, hl_name),
-        key_type: ObjectType::kObjectTypeBoolean as c_int,
+        key_type: ObjectType::ObjectTypeBoolean as c_int,
         opt_index: 4,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"overlap"),
         ptr_off: offset_of!(KeyDict_get_extmarks, overlap),
-        key_type: ObjectType::kObjectTypeBoolean as c_int,
+        key_type: ObjectType::ObjectTypeBoolean as c_int,
         opt_index: 5,
         is_hlgroup: false,
     },
     KeySetLink {
         str: None,
         ptr_off: 0,
-        key_type: ObjectType::kObjectTypeNil as c_int,
+        key_type: ObjectType::ObjectTypeNil as c_int,
         opt_index: -1,
         is_hlgroup: false,
     },
@@ -1833,35 +1833,35 @@ pub static get_highlight_table: [KeySetLink; 5] = [
     KeySetLink {
         str: Some(c"id"),
         ptr_off: offset_of!(KeyDict_get_highlight, id),
-        key_type: ObjectType::kObjectTypeInteger as c_int,
+        key_type: ObjectType::ObjectTypeInteger as c_int,
         opt_index: 1,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"link"),
         ptr_off: offset_of!(KeyDict_get_highlight, link),
-        key_type: ObjectType::kObjectTypeBoolean as c_int,
+        key_type: ObjectType::ObjectTypeBoolean as c_int,
         opt_index: 2,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"name"),
         ptr_off: offset_of!(KeyDict_get_highlight, name),
-        key_type: ObjectType::kObjectTypeString as c_int,
+        key_type: ObjectType::ObjectTypeString as c_int,
         opt_index: 3,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"create"),
         ptr_off: offset_of!(KeyDict_get_highlight, create),
-        key_type: ObjectType::kObjectTypeBoolean as c_int,
+        key_type: ObjectType::ObjectTypeBoolean as c_int,
         opt_index: 4,
         is_hlgroup: false,
     },
     KeySetLink {
         str: None,
         ptr_off: 0,
-        key_type: ObjectType::kObjectTypeNil as c_int,
+        key_type: ObjectType::ObjectTypeNil as c_int,
         opt_index: -1,
         is_hlgroup: false,
     },
@@ -1886,14 +1886,14 @@ pub static get_ns_table: [KeySetLink; 2] = [
     KeySetLink {
         str: Some(c"winid"),
         ptr_off: offset_of!(KeyDict_get_ns, winid),
-        key_type: ObjectType::kObjectTypeWindow as c_int,
+        key_type: ObjectType::ObjectTypeWindow as c_int,
         opt_index: 1,
         is_hlgroup: false,
     },
     KeySetLink {
         str: None,
         ptr_off: 0,
-        key_type: ObjectType::kObjectTypeNil as c_int,
+        key_type: ObjectType::ObjectTypeNil as c_int,
         opt_index: -1,
         is_hlgroup: false,
     },
@@ -1915,259 +1915,259 @@ pub static highlight_table: [KeySetLink; 37] = [
     KeySetLink {
         str: Some(c"bg"),
         ptr_off: offset_of!(KeyDict_highlight, bg),
-        key_type: ObjectType::kObjectTypeNil as c_int,
+        key_type: ObjectType::ObjectTypeNil as c_int,
         opt_index: 1,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"fg"),
         ptr_off: offset_of!(KeyDict_highlight, fg),
-        key_type: ObjectType::kObjectTypeNil as c_int,
+        key_type: ObjectType::ObjectTypeNil as c_int,
         opt_index: 2,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"sp"),
         ptr_off: offset_of!(KeyDict_highlight, sp),
-        key_type: ObjectType::kObjectTypeNil as c_int,
+        key_type: ObjectType::ObjectTypeNil as c_int,
         opt_index: 3,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"dim"),
         ptr_off: offset_of!(KeyDict_highlight, dim),
-        key_type: ObjectType::kObjectTypeBoolean as c_int,
+        key_type: ObjectType::ObjectTypeBoolean as c_int,
         opt_index: 4,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"url"),
         ptr_off: offset_of!(KeyDict_highlight, url),
-        key_type: ObjectType::kObjectTypeString as c_int,
+        key_type: ObjectType::ObjectTypeString as c_int,
         opt_index: 5,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"bold"),
         ptr_off: offset_of!(KeyDict_highlight, bold),
-        key_type: ObjectType::kObjectTypeBoolean as c_int,
+        key_type: ObjectType::ObjectTypeBoolean as c_int,
         opt_index: 6,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"font"),
         ptr_off: offset_of!(KeyDict_highlight, font),
-        key_type: ObjectType::kObjectTypeString as c_int,
+        key_type: ObjectType::ObjectTypeString as c_int,
         opt_index: 7,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"link"),
         ptr_off: offset_of!(KeyDict_highlight, link),
-        key_type: ObjectType::kObjectTypeInteger as c_int,
+        key_type: ObjectType::ObjectTypeInteger as c_int,
         opt_index: 8,
         is_hlgroup: true,
     },
     KeySetLink {
         str: Some(c"blend"),
         ptr_off: offset_of!(KeyDict_highlight, blend),
-        key_type: ObjectType::kObjectTypeInteger as c_int,
+        key_type: ObjectType::ObjectTypeInteger as c_int,
         opt_index: 9,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"force"),
         ptr_off: offset_of!(KeyDict_highlight, force),
-        key_type: ObjectType::kObjectTypeBoolean as c_int,
+        key_type: ObjectType::ObjectTypeBoolean as c_int,
         opt_index: 10,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"blink"),
         ptr_off: offset_of!(KeyDict_highlight, blink),
-        key_type: ObjectType::kObjectTypeBoolean as c_int,
+        key_type: ObjectType::ObjectTypeBoolean as c_int,
         opt_index: 11,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"cterm"),
         ptr_off: offset_of!(KeyDict_highlight, cterm),
-        key_type: ObjectType::kObjectTypeDict as c_int,
+        key_type: ObjectType::ObjectTypeDict as c_int,
         opt_index: 12,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"italic"),
         ptr_off: offset_of!(KeyDict_highlight, italic),
-        key_type: ObjectType::kObjectTypeBoolean as c_int,
+        key_type: ObjectType::ObjectTypeBoolean as c_int,
         opt_index: 13,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"update"),
         ptr_off: offset_of!(KeyDict_highlight, update),
-        key_type: ObjectType::kObjectTypeBoolean as c_int,
+        key_type: ObjectType::ObjectTypeBoolean as c_int,
         opt_index: 14,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"reverse"),
         ptr_off: offset_of!(KeyDict_highlight, reverse),
-        key_type: ObjectType::kObjectTypeBoolean as c_int,
+        key_type: ObjectType::ObjectTypeBoolean as c_int,
         opt_index: 15,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"default"),
         ptr_off: offset_of!(KeyDict_highlight, default_),
-        key_type: ObjectType::kObjectTypeBoolean as c_int,
+        key_type: ObjectType::ObjectTypeBoolean as c_int,
         opt_index: 16,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"altfont"),
         ptr_off: offset_of!(KeyDict_highlight, altfont),
-        key_type: ObjectType::kObjectTypeBoolean as c_int,
+        key_type: ObjectType::ObjectTypeBoolean as c_int,
         opt_index: 17,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"conceal"),
         ptr_off: offset_of!(KeyDict_highlight, conceal),
-        key_type: ObjectType::kObjectTypeBoolean as c_int,
+        key_type: ObjectType::ObjectTypeBoolean as c_int,
         opt_index: 18,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"special"),
         ptr_off: offset_of!(KeyDict_highlight, special),
-        key_type: ObjectType::kObjectTypeNil as c_int,
+        key_type: ObjectType::ObjectTypeNil as c_int,
         opt_index: 19,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"ctermfg"),
         ptr_off: offset_of!(KeyDict_highlight, ctermfg),
-        key_type: ObjectType::kObjectTypeNil as c_int,
+        key_type: ObjectType::ObjectTypeNil as c_int,
         opt_index: 20,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"ctermbg"),
         ptr_off: offset_of!(KeyDict_highlight, ctermbg),
-        key_type: ObjectType::kObjectTypeNil as c_int,
+        key_type: ObjectType::ObjectTypeNil as c_int,
         opt_index: 21,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"fallback"),
         ptr_off: offset_of!(KeyDict_highlight, fallback),
-        key_type: ObjectType::kObjectTypeBoolean as c_int,
+        key_type: ObjectType::ObjectTypeBoolean as c_int,
         opt_index: 22,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"overline"),
         ptr_off: offset_of!(KeyDict_highlight, overline),
-        key_type: ObjectType::kObjectTypeBoolean as c_int,
+        key_type: ObjectType::ObjectTypeBoolean as c_int,
         opt_index: 23,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"standout"),
         ptr_off: offset_of!(KeyDict_highlight, standout),
-        key_type: ObjectType::kObjectTypeBoolean as c_int,
+        key_type: ObjectType::ObjectTypeBoolean as c_int,
         opt_index: 24,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"nocombine"),
         ptr_off: offset_of!(KeyDict_highlight, nocombine),
-        key_type: ObjectType::kObjectTypeBoolean as c_int,
+        key_type: ObjectType::ObjectTypeBoolean as c_int,
         opt_index: 25,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"undercurl"),
         ptr_off: offset_of!(KeyDict_highlight, undercurl),
-        key_type: ObjectType::kObjectTypeBoolean as c_int,
+        key_type: ObjectType::ObjectTypeBoolean as c_int,
         opt_index: 26,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"underline"),
         ptr_off: offset_of!(KeyDict_highlight, underline),
-        key_type: ObjectType::kObjectTypeBoolean as c_int,
+        key_type: ObjectType::ObjectTypeBoolean as c_int,
         opt_index: 27,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"background"),
         ptr_off: offset_of!(KeyDict_highlight, background),
-        key_type: ObjectType::kObjectTypeNil as c_int,
+        key_type: ObjectType::ObjectTypeNil as c_int,
         opt_index: 28,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"bg_indexed"),
         ptr_off: offset_of!(KeyDict_highlight, bg_indexed),
-        key_type: ObjectType::kObjectTypeBoolean as c_int,
+        key_type: ObjectType::ObjectTypeBoolean as c_int,
         opt_index: 29,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"foreground"),
         ptr_off: offset_of!(KeyDict_highlight, foreground),
-        key_type: ObjectType::kObjectTypeNil as c_int,
+        key_type: ObjectType::ObjectTypeNil as c_int,
         opt_index: 30,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"fg_indexed"),
         ptr_off: offset_of!(KeyDict_highlight, fg_indexed),
-        key_type: ObjectType::kObjectTypeBoolean as c_int,
+        key_type: ObjectType::ObjectTypeBoolean as c_int,
         opt_index: 31,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"link_global"),
         ptr_off: offset_of!(KeyDict_highlight, link_global),
-        key_type: ObjectType::kObjectTypeInteger as c_int,
+        key_type: ObjectType::ObjectTypeInteger as c_int,
         opt_index: 32,
         is_hlgroup: true,
     },
     KeySetLink {
         str: Some(c"underdashed"),
         ptr_off: offset_of!(KeyDict_highlight, underdashed),
-        key_type: ObjectType::kObjectTypeBoolean as c_int,
+        key_type: ObjectType::ObjectTypeBoolean as c_int,
         opt_index: 33,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"underdotted"),
         ptr_off: offset_of!(KeyDict_highlight, underdotted),
-        key_type: ObjectType::kObjectTypeBoolean as c_int,
+        key_type: ObjectType::ObjectTypeBoolean as c_int,
         opt_index: 34,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"underdouble"),
         ptr_off: offset_of!(KeyDict_highlight, underdouble),
-        key_type: ObjectType::kObjectTypeBoolean as c_int,
+        key_type: ObjectType::ObjectTypeBoolean as c_int,
         opt_index: 35,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"strikethrough"),
         ptr_off: offset_of!(KeyDict_highlight, strikethrough),
-        key_type: ObjectType::kObjectTypeBoolean as c_int,
+        key_type: ObjectType::ObjectTypeBoolean as c_int,
         opt_index: 36,
         is_hlgroup: false,
     },
     KeySetLink {
         str: None,
         ptr_off: 0,
-        key_type: ObjectType::kObjectTypeNil as c_int,
+        key_type: ObjectType::ObjectTypeNil as c_int,
         opt_index: -1,
         is_hlgroup: false,
     },
@@ -2224,119 +2224,119 @@ pub static highlight_cterm_table: [KeySetLink; 17] = [
     KeySetLink {
         str: Some(c"dim"),
         ptr_off: offset_of!(KeyDict_highlight_cterm, dim),
-        key_type: ObjectType::kObjectTypeBoolean as c_int,
+        key_type: ObjectType::ObjectTypeBoolean as c_int,
         opt_index: -1,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"bold"),
         ptr_off: offset_of!(KeyDict_highlight_cterm, bold),
-        key_type: ObjectType::kObjectTypeBoolean as c_int,
+        key_type: ObjectType::ObjectTypeBoolean as c_int,
         opt_index: -1,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"blink"),
         ptr_off: offset_of!(KeyDict_highlight_cterm, blink),
-        key_type: ObjectType::kObjectTypeBoolean as c_int,
+        key_type: ObjectType::ObjectTypeBoolean as c_int,
         opt_index: -1,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"italic"),
         ptr_off: offset_of!(KeyDict_highlight_cterm, italic),
-        key_type: ObjectType::kObjectTypeBoolean as c_int,
+        key_type: ObjectType::ObjectTypeBoolean as c_int,
         opt_index: -1,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"altfont"),
         ptr_off: offset_of!(KeyDict_highlight_cterm, altfont),
-        key_type: ObjectType::kObjectTypeBoolean as c_int,
+        key_type: ObjectType::ObjectTypeBoolean as c_int,
         opt_index: -1,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"conceal"),
         ptr_off: offset_of!(KeyDict_highlight_cterm, conceal),
-        key_type: ObjectType::kObjectTypeBoolean as c_int,
+        key_type: ObjectType::ObjectTypeBoolean as c_int,
         opt_index: -1,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"reverse"),
         ptr_off: offset_of!(KeyDict_highlight_cterm, reverse),
-        key_type: ObjectType::kObjectTypeBoolean as c_int,
+        key_type: ObjectType::ObjectTypeBoolean as c_int,
         opt_index: -1,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"overline"),
         ptr_off: offset_of!(KeyDict_highlight_cterm, overline),
-        key_type: ObjectType::kObjectTypeBoolean as c_int,
+        key_type: ObjectType::ObjectTypeBoolean as c_int,
         opt_index: -1,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"standout"),
         ptr_off: offset_of!(KeyDict_highlight_cterm, standout),
-        key_type: ObjectType::kObjectTypeBoolean as c_int,
+        key_type: ObjectType::ObjectTypeBoolean as c_int,
         opt_index: -1,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"nocombine"),
         ptr_off: offset_of!(KeyDict_highlight_cterm, nocombine),
-        key_type: ObjectType::kObjectTypeBoolean as c_int,
+        key_type: ObjectType::ObjectTypeBoolean as c_int,
         opt_index: -1,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"undercurl"),
         ptr_off: offset_of!(KeyDict_highlight_cterm, undercurl),
-        key_type: ObjectType::kObjectTypeBoolean as c_int,
+        key_type: ObjectType::ObjectTypeBoolean as c_int,
         opt_index: -1,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"underline"),
         ptr_off: offset_of!(KeyDict_highlight_cterm, underline),
-        key_type: ObjectType::kObjectTypeBoolean as c_int,
+        key_type: ObjectType::ObjectTypeBoolean as c_int,
         opt_index: -1,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"underdashed"),
         ptr_off: offset_of!(KeyDict_highlight_cterm, underdashed),
-        key_type: ObjectType::kObjectTypeBoolean as c_int,
+        key_type: ObjectType::ObjectTypeBoolean as c_int,
         opt_index: -1,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"underdotted"),
         ptr_off: offset_of!(KeyDict_highlight_cterm, underdotted),
-        key_type: ObjectType::kObjectTypeBoolean as c_int,
+        key_type: ObjectType::ObjectTypeBoolean as c_int,
         opt_index: -1,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"underdouble"),
         ptr_off: offset_of!(KeyDict_highlight_cterm, underdouble),
-        key_type: ObjectType::kObjectTypeBoolean as c_int,
+        key_type: ObjectType::ObjectTypeBoolean as c_int,
         opt_index: -1,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"strikethrough"),
         ptr_off: offset_of!(KeyDict_highlight_cterm, strikethrough),
-        key_type: ObjectType::kObjectTypeBoolean as c_int,
+        key_type: ObjectType::ObjectTypeBoolean as c_int,
         opt_index: -1,
         is_hlgroup: false,
     },
     KeySetLink {
         str: None,
         ptr_off: 0,
-        key_type: ObjectType::kObjectTypeNil as c_int,
+        key_type: ObjectType::ObjectTypeNil as c_int,
         opt_index: -1,
         is_hlgroup: false,
     },
@@ -2373,70 +2373,70 @@ pub static keymap_table: [KeySetLink; 10] = [
     KeySetLink {
         str: Some(c"desc"),
         ptr_off: offset_of!(KeyDict_keymap, desc),
-        key_type: ObjectType::kObjectTypeString as c_int,
+        key_type: ObjectType::ObjectTypeString as c_int,
         opt_index: 1,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"expr"),
         ptr_off: offset_of!(KeyDict_keymap, expr),
-        key_type: ObjectType::kObjectTypeBoolean as c_int,
+        key_type: ObjectType::ObjectTypeBoolean as c_int,
         opt_index: 2,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"script"),
         ptr_off: offset_of!(KeyDict_keymap, script),
-        key_type: ObjectType::kObjectTypeBoolean as c_int,
+        key_type: ObjectType::ObjectTypeBoolean as c_int,
         opt_index: 3,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"silent"),
         ptr_off: offset_of!(KeyDict_keymap, silent),
-        key_type: ObjectType::kObjectTypeBoolean as c_int,
+        key_type: ObjectType::ObjectTypeBoolean as c_int,
         opt_index: 4,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"unique"),
         ptr_off: offset_of!(KeyDict_keymap, unique),
-        key_type: ObjectType::kObjectTypeBoolean as c_int,
+        key_type: ObjectType::ObjectTypeBoolean as c_int,
         opt_index: 5,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"nowait"),
         ptr_off: offset_of!(KeyDict_keymap, nowait),
-        key_type: ObjectType::kObjectTypeBoolean as c_int,
+        key_type: ObjectType::ObjectTypeBoolean as c_int,
         opt_index: 6,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"noremap"),
         ptr_off: offset_of!(KeyDict_keymap, noremap),
-        key_type: ObjectType::kObjectTypeBoolean as c_int,
+        key_type: ObjectType::ObjectTypeBoolean as c_int,
         opt_index: 7,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"callback"),
         ptr_off: offset_of!(KeyDict_keymap, callback),
-        key_type: ObjectType::kObjectTypeLuaRef as c_int,
+        key_type: ObjectType::ObjectTypeLuaRef as c_int,
         opt_index: 8,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"replace_keycodes"),
         ptr_off: offset_of!(KeyDict_keymap, replace_keycodes),
-        key_type: ObjectType::kObjectTypeBoolean as c_int,
+        key_type: ObjectType::ObjectTypeBoolean as c_int,
         opt_index: 9,
         is_hlgroup: false,
     },
     KeySetLink {
         str: None,
         ptr_off: 0,
-        key_type: ObjectType::kObjectTypeNil as c_int,
+        key_type: ObjectType::ObjectTypeNil as c_int,
         opt_index: -1,
         is_hlgroup: false,
     },
@@ -2466,14 +2466,14 @@ pub static keymap_del_table: [KeySetLink; 2] = [
     KeySetLink {
         str: Some(c"lhs"),
         ptr_off: offset_of!(KeyDict_keymap_del, lhs),
-        key_type: ObjectType::kObjectTypeBoolean as c_int,
+        key_type: ObjectType::ObjectTypeBoolean as c_int,
         opt_index: 1,
         is_hlgroup: false,
     },
     KeySetLink {
         str: None,
         ptr_off: 0,
-        key_type: ObjectType::kObjectTypeNil as c_int,
+        key_type: ObjectType::ObjectTypeNil as c_int,
         opt_index: -1,
         is_hlgroup: false,
     },
@@ -2495,14 +2495,14 @@ pub static ns_opts_table: [KeySetLink; 2] = [
     KeySetLink {
         str: Some(c"wins"),
         ptr_off: offset_of!(KeyDict_ns_opts, wins),
-        key_type: ObjectType::kObjectTypeArray as c_int,
+        key_type: ObjectType::ObjectTypeArray as c_int,
         opt_index: 1,
         is_hlgroup: false,
     },
     KeySetLink {
         str: None,
         ptr_off: 0,
-        key_type: ObjectType::kObjectTypeNil as c_int,
+        key_type: ObjectType::ObjectTypeNil as c_int,
         opt_index: -1,
         is_hlgroup: false,
     },
@@ -2524,21 +2524,21 @@ pub static open_term_table: [KeySetLink; 3] = [
     KeySetLink {
         str: Some(c"on_input"),
         ptr_off: offset_of!(KeyDict_open_term, on_input),
-        key_type: ObjectType::kObjectTypeLuaRef as c_int,
+        key_type: ObjectType::ObjectTypeLuaRef as c_int,
         opt_index: 1,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"force_crlf"),
         ptr_off: offset_of!(KeyDict_open_term, force_crlf),
-        key_type: ObjectType::kObjectTypeBoolean as c_int,
+        key_type: ObjectType::ObjectTypeBoolean as c_int,
         opt_index: 2,
         is_hlgroup: false,
     },
     KeySetLink {
         str: None,
         ptr_off: 0,
-        key_type: ObjectType::kObjectTypeNil as c_int,
+        key_type: ObjectType::ObjectTypeNil as c_int,
         opt_index: -1,
         is_hlgroup: false,
     },
@@ -2561,56 +2561,56 @@ pub static option_table: [KeySetLink; 8] = [
     KeySetLink {
         str: Some(c"buf"),
         ptr_off: offset_of!(KeyDict_option, buf),
-        key_type: ObjectType::kObjectTypeBuffer as c_int,
+        key_type: ObjectType::ObjectTypeBuffer as c_int,
         opt_index: 1,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"tab"),
         ptr_off: offset_of!(KeyDict_option, tab),
-        key_type: ObjectType::kObjectTypeTabpage as c_int,
+        key_type: ObjectType::ObjectTypeTabpage as c_int,
         opt_index: 2,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"win"),
         ptr_off: offset_of!(KeyDict_option, win),
-        key_type: ObjectType::kObjectTypeWindow as c_int,
+        key_type: ObjectType::ObjectTypeWindow as c_int,
         opt_index: 3,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"scope"),
         ptr_off: offset_of!(KeyDict_option, scope),
-        key_type: ObjectType::kObjectTypeString as c_int,
+        key_type: ObjectType::ObjectTypeString as c_int,
         opt_index: 4,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"dry_run"),
         ptr_off: offset_of!(KeyDict_option, dry_run),
-        key_type: ObjectType::kObjectTypeBoolean as c_int,
+        key_type: ObjectType::ObjectTypeBoolean as c_int,
         opt_index: 5,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"filetype"),
         ptr_off: offset_of!(KeyDict_option, filetype),
-        key_type: ObjectType::kObjectTypeString as c_int,
+        key_type: ObjectType::ObjectTypeString as c_int,
         opt_index: 6,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"operation"),
         ptr_off: offset_of!(KeyDict_option, operation),
-        key_type: ObjectType::kObjectTypeString as c_int,
+        key_type: ObjectType::ObjectTypeString as c_int,
         opt_index: 7,
         is_hlgroup: false,
     },
     KeySetLink {
         str: None,
         ptr_off: 0,
-        key_type: ObjectType::kObjectTypeNil as c_int,
+        key_type: ObjectType::ObjectTypeNil as c_int,
         opt_index: -1,
         is_hlgroup: false,
     },
@@ -2638,77 +2638,77 @@ pub static redraw_table: [KeySetLink; 11] = [
     KeySetLink {
         str: Some(c"buf"),
         ptr_off: offset_of!(KeyDict_redraw, buf),
-        key_type: ObjectType::kObjectTypeBuffer as c_int,
+        key_type: ObjectType::ObjectTypeBuffer as c_int,
         opt_index: 1,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"win"),
         ptr_off: offset_of!(KeyDict_redraw, win),
-        key_type: ObjectType::kObjectTypeWindow as c_int,
+        key_type: ObjectType::ObjectTypeWindow as c_int,
         opt_index: 2,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"flush"),
         ptr_off: offset_of!(KeyDict_redraw, flush),
-        key_type: ObjectType::kObjectTypeBoolean as c_int,
+        key_type: ObjectType::ObjectTypeBoolean as c_int,
         opt_index: 3,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"range"),
         ptr_off: offset_of!(KeyDict_redraw, range),
-        key_type: ObjectType::kObjectTypeArray as c_int,
+        key_type: ObjectType::ObjectTypeArray as c_int,
         opt_index: 4,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"valid"),
         ptr_off: offset_of!(KeyDict_redraw, valid),
-        key_type: ObjectType::kObjectTypeBoolean as c_int,
+        key_type: ObjectType::ObjectTypeBoolean as c_int,
         opt_index: 5,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"cursor"),
         ptr_off: offset_of!(KeyDict_redraw, cursor),
-        key_type: ObjectType::kObjectTypeBoolean as c_int,
+        key_type: ObjectType::ObjectTypeBoolean as c_int,
         opt_index: 6,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"winbar"),
         ptr_off: offset_of!(KeyDict_redraw, winbar),
-        key_type: ObjectType::kObjectTypeBoolean as c_int,
+        key_type: ObjectType::ObjectTypeBoolean as c_int,
         opt_index: 7,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"tabline"),
         ptr_off: offset_of!(KeyDict_redraw, tabline),
-        key_type: ObjectType::kObjectTypeBoolean as c_int,
+        key_type: ObjectType::ObjectTypeBoolean as c_int,
         opt_index: 8,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"statusline"),
         ptr_off: offset_of!(KeyDict_redraw, statusline),
-        key_type: ObjectType::kObjectTypeBoolean as c_int,
+        key_type: ObjectType::ObjectTypeBoolean as c_int,
         opt_index: 9,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"statuscolumn"),
         ptr_off: offset_of!(KeyDict_redraw, statuscolumn),
-        key_type: ObjectType::kObjectTypeBoolean as c_int,
+        key_type: ObjectType::ObjectTypeBoolean as c_int,
         opt_index: 10,
         is_hlgroup: false,
     },
     KeySetLink {
         str: None,
         ptr_off: 0,
-        key_type: ObjectType::kObjectTypeNil as c_int,
+        key_type: ObjectType::ObjectTypeNil as c_int,
         opt_index: -1,
         is_hlgroup: false,
     },
@@ -2739,21 +2739,21 @@ pub static runtime_table: [KeySetLink; 3] = [
     KeySetLink {
         str: Some(c"is_lua"),
         ptr_off: offset_of!(KeyDict_runtime, is_lua),
-        key_type: ObjectType::kObjectTypeBoolean as c_int,
+        key_type: ObjectType::ObjectTypeBoolean as c_int,
         opt_index: -1,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"do_source"),
         ptr_off: offset_of!(KeyDict_runtime, do_source),
-        key_type: ObjectType::kObjectTypeBoolean as c_int,
+        key_type: ObjectType::ObjectTypeBoolean as c_int,
         opt_index: -1,
         is_hlgroup: false,
     },
     KeySetLink {
         str: None,
         ptr_off: 0,
-        key_type: ObjectType::kObjectTypeNil as c_int,
+        key_type: ObjectType::ObjectTypeNil as c_int,
         opt_index: -1,
         is_hlgroup: false,
     },
@@ -2776,70 +2776,70 @@ pub static set_decoration_provider_table: [KeySetLink; 10] = [
     KeySetLink {
         str: Some(c"on_buf"),
         ptr_off: offset_of!(KeyDict_set_decoration_provider, on_buf),
-        key_type: ObjectType::kObjectTypeLuaRef as c_int,
+        key_type: ObjectType::ObjectTypeLuaRef as c_int,
         opt_index: 1,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"on_end"),
         ptr_off: offset_of!(KeyDict_set_decoration_provider, on_end),
-        key_type: ObjectType::kObjectTypeLuaRef as c_int,
+        key_type: ObjectType::ObjectTypeLuaRef as c_int,
         opt_index: 2,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"on_win"),
         ptr_off: offset_of!(KeyDict_set_decoration_provider, on_win),
-        key_type: ObjectType::kObjectTypeLuaRef as c_int,
+        key_type: ObjectType::ObjectTypeLuaRef as c_int,
         opt_index: 3,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"on_line"),
         ptr_off: offset_of!(KeyDict_set_decoration_provider, on_line),
-        key_type: ObjectType::kObjectTypeLuaRef as c_int,
+        key_type: ObjectType::ObjectTypeLuaRef as c_int,
         opt_index: 4,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"on_range"),
         ptr_off: offset_of!(KeyDict_set_decoration_provider, on_range),
-        key_type: ObjectType::kObjectTypeLuaRef as c_int,
+        key_type: ObjectType::ObjectTypeLuaRef as c_int,
         opt_index: 5,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"on_start"),
         ptr_off: offset_of!(KeyDict_set_decoration_provider, on_start),
-        key_type: ObjectType::kObjectTypeLuaRef as c_int,
+        key_type: ObjectType::ObjectTypeLuaRef as c_int,
         opt_index: 6,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"_on_hl_def"),
         ptr_off: offset_of!(KeyDict_set_decoration_provider, _on_hl_def),
-        key_type: ObjectType::kObjectTypeLuaRef as c_int,
+        key_type: ObjectType::ObjectTypeLuaRef as c_int,
         opt_index: 7,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"_on_spell_nav"),
         ptr_off: offset_of!(KeyDict_set_decoration_provider, _on_spell_nav),
-        key_type: ObjectType::kObjectTypeLuaRef as c_int,
+        key_type: ObjectType::ObjectTypeLuaRef as c_int,
         opt_index: 8,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"_on_conceal_line"),
         ptr_off: offset_of!(KeyDict_set_decoration_provider, _on_conceal_line),
-        key_type: ObjectType::kObjectTypeLuaRef as c_int,
+        key_type: ObjectType::ObjectTypeLuaRef as c_int,
         opt_index: 9,
         is_hlgroup: false,
     },
     KeySetLink {
         str: None,
         ptr_off: 0,
-        key_type: ObjectType::kObjectTypeNil as c_int,
+        key_type: ObjectType::ObjectTypeNil as c_int,
         opt_index: -1,
         is_hlgroup: false,
     },
@@ -2869,252 +2869,252 @@ pub static set_extmark_table: [KeySetLink; 36] = [
     KeySetLink {
         str: Some(c"id"),
         ptr_off: offset_of!(KeyDict_set_extmark, id),
-        key_type: ObjectType::kObjectTypeInteger as c_int,
+        key_type: ObjectType::ObjectTypeInteger as c_int,
         opt_index: 1,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"url"),
         ptr_off: offset_of!(KeyDict_set_extmark, url),
-        key_type: ObjectType::kObjectTypeString as c_int,
+        key_type: ObjectType::ObjectTypeString as c_int,
         opt_index: 2,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"spell"),
         ptr_off: offset_of!(KeyDict_set_extmark, spell),
-        key_type: ObjectType::kObjectTypeBoolean as c_int,
+        key_type: ObjectType::ObjectTypeBoolean as c_int,
         opt_index: 3,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"scoped"),
         ptr_off: offset_of!(KeyDict_set_extmark, scoped),
-        key_type: ObjectType::kObjectTypeBoolean as c_int,
+        key_type: ObjectType::ObjectTypeBoolean as c_int,
         opt_index: 4,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"hl_eol"),
         ptr_off: offset_of!(KeyDict_set_extmark, hl_eol),
-        key_type: ObjectType::kObjectTypeBoolean as c_int,
+        key_type: ObjectType::ObjectTypeBoolean as c_int,
         opt_index: 5,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"strict"),
         ptr_off: offset_of!(KeyDict_set_extmark, strict),
-        key_type: ObjectType::kObjectTypeBoolean as c_int,
+        key_type: ObjectType::ObjectTypeBoolean as c_int,
         opt_index: 6,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"end_col"),
         ptr_off: offset_of!(KeyDict_set_extmark, end_col),
-        key_type: ObjectType::kObjectTypeInteger as c_int,
+        key_type: ObjectType::ObjectTypeInteger as c_int,
         opt_index: 7,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"conceal"),
         ptr_off: offset_of!(KeyDict_set_extmark, conceal),
-        key_type: ObjectType::kObjectTypeNil as c_int,
+        key_type: ObjectType::ObjectTypeNil as c_int,
         opt_index: 8,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"hl_mode"),
         ptr_off: offset_of!(KeyDict_set_extmark, hl_mode),
-        key_type: ObjectType::kObjectTypeString as c_int,
+        key_type: ObjectType::ObjectTypeString as c_int,
         opt_index: 9,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"end_row"),
         ptr_off: offset_of!(KeyDict_set_extmark, end_row),
-        key_type: ObjectType::kObjectTypeInteger as c_int,
+        key_type: ObjectType::ObjectTypeInteger as c_int,
         opt_index: 10,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"end_line"),
         ptr_off: offset_of!(KeyDict_set_extmark, end_line),
-        key_type: ObjectType::kObjectTypeInteger as c_int,
+        key_type: ObjectType::ObjectTypeInteger as c_int,
         opt_index: 11,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"hl_group"),
         ptr_off: offset_of!(KeyDict_set_extmark, hl_group),
-        key_type: ObjectType::kObjectTypeNil as c_int,
+        key_type: ObjectType::ObjectTypeNil as c_int,
         opt_index: 12,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"priority"),
         ptr_off: offset_of!(KeyDict_set_extmark, priority),
-        key_type: ObjectType::kObjectTypeInteger as c_int,
+        key_type: ObjectType::ObjectTypeInteger as c_int,
         opt_index: 13,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"ephemeral"),
         ptr_off: offset_of!(KeyDict_set_extmark, ephemeral),
-        key_type: ObjectType::kObjectTypeBoolean as c_int,
+        key_type: ObjectType::ObjectTypeBoolean as c_int,
         opt_index: 14,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"sign_text"),
         ptr_off: offset_of!(KeyDict_set_extmark, sign_text),
-        key_type: ObjectType::kObjectTypeString as c_int,
+        key_type: ObjectType::ObjectTypeString as c_int,
         opt_index: 15,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"virt_text"),
         ptr_off: offset_of!(KeyDict_set_extmark, virt_text),
-        key_type: ObjectType::kObjectTypeArray as c_int,
+        key_type: ObjectType::ObjectTypeArray as c_int,
         opt_index: 16,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"invalidate"),
         ptr_off: offset_of!(KeyDict_set_extmark, invalidate),
-        key_type: ObjectType::kObjectTypeBoolean as c_int,
+        key_type: ObjectType::ObjectTypeBoolean as c_int,
         opt_index: 17,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"ui_watched"),
         ptr_off: offset_of!(KeyDict_set_extmark, ui_watched),
-        key_type: ObjectType::kObjectTypeBoolean as c_int,
+        key_type: ObjectType::ObjectTypeBoolean as c_int,
         opt_index: 18,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"virt_lines"),
         ptr_off: offset_of!(KeyDict_set_extmark, virt_lines),
-        key_type: ObjectType::kObjectTypeArray as c_int,
+        key_type: ObjectType::ObjectTypeArray as c_int,
         opt_index: 19,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"_subpriority"),
         ptr_off: offset_of!(KeyDict_set_extmark, _subpriority),
-        key_type: ObjectType::kObjectTypeInteger as c_int,
+        key_type: ObjectType::ObjectTypeInteger as c_int,
         opt_index: 20,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"undo_restore"),
         ptr_off: offset_of!(KeyDict_set_extmark, undo_restore),
-        key_type: ObjectType::kObjectTypeBoolean as c_int,
+        key_type: ObjectType::ObjectTypeBoolean as c_int,
         opt_index: 21,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"conceal_lines"),
         ptr_off: offset_of!(KeyDict_set_extmark, conceal_lines),
-        key_type: ObjectType::kObjectTypeString as c_int,
+        key_type: ObjectType::ObjectTypeString as c_int,
         opt_index: 22,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"line_hl_group"),
         ptr_off: offset_of!(KeyDict_set_extmark, line_hl_group),
-        key_type: ObjectType::kObjectTypeInteger as c_int,
+        key_type: ObjectType::ObjectTypeInteger as c_int,
         opt_index: 23,
         is_hlgroup: true,
     },
     KeySetLink {
         str: Some(c"right_gravity"),
         ptr_off: offset_of!(KeyDict_set_extmark, right_gravity),
-        key_type: ObjectType::kObjectTypeBoolean as c_int,
+        key_type: ObjectType::ObjectTypeBoolean as c_int,
         opt_index: 24,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"sign_hl_group"),
         ptr_off: offset_of!(KeyDict_set_extmark, sign_hl_group),
-        key_type: ObjectType::kObjectTypeInteger as c_int,
+        key_type: ObjectType::ObjectTypeInteger as c_int,
         opt_index: 25,
         is_hlgroup: true,
     },
     KeySetLink {
         str: Some(c"virt_text_pos"),
         ptr_off: offset_of!(KeyDict_set_extmark, virt_text_pos),
-        key_type: ObjectType::kObjectTypeString as c_int,
+        key_type: ObjectType::ObjectTypeString as c_int,
         opt_index: 26,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"virt_text_hide"),
         ptr_off: offset_of!(KeyDict_set_extmark, virt_text_hide),
-        key_type: ObjectType::kObjectTypeBoolean as c_int,
+        key_type: ObjectType::ObjectTypeBoolean as c_int,
         opt_index: 27,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"number_hl_group"),
         ptr_off: offset_of!(KeyDict_set_extmark, number_hl_group),
-        key_type: ObjectType::kObjectTypeInteger as c_int,
+        key_type: ObjectType::ObjectTypeInteger as c_int,
         opt_index: 28,
         is_hlgroup: true,
     },
     KeySetLink {
         str: Some(c"virt_lines_above"),
         ptr_off: offset_of!(KeyDict_set_extmark, virt_lines_above),
-        key_type: ObjectType::kObjectTypeBoolean as c_int,
+        key_type: ObjectType::ObjectTypeBoolean as c_int,
         opt_index: 29,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"end_right_gravity"),
         ptr_off: offset_of!(KeyDict_set_extmark, end_right_gravity),
-        key_type: ObjectType::kObjectTypeBoolean as c_int,
+        key_type: ObjectType::ObjectTypeBoolean as c_int,
         opt_index: 30,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"virt_text_win_col"),
         ptr_off: offset_of!(KeyDict_set_extmark, virt_text_win_col),
-        key_type: ObjectType::kObjectTypeInteger as c_int,
+        key_type: ObjectType::ObjectTypeInteger as c_int,
         opt_index: 31,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"virt_lines_leftcol"),
         ptr_off: offset_of!(KeyDict_set_extmark, virt_lines_leftcol),
-        key_type: ObjectType::kObjectTypeBoolean as c_int,
+        key_type: ObjectType::ObjectTypeBoolean as c_int,
         opt_index: 32,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"cursorline_hl_group"),
         ptr_off: offset_of!(KeyDict_set_extmark, cursorline_hl_group),
-        key_type: ObjectType::kObjectTypeInteger as c_int,
+        key_type: ObjectType::ObjectTypeInteger as c_int,
         opt_index: 33,
         is_hlgroup: true,
     },
     KeySetLink {
         str: Some(c"virt_lines_overflow"),
         ptr_off: offset_of!(KeyDict_set_extmark, virt_lines_overflow),
-        key_type: ObjectType::kObjectTypeString as c_int,
+        key_type: ObjectType::ObjectTypeString as c_int,
         opt_index: 34,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"virt_text_repeat_linebreak"),
         ptr_off: offset_of!(KeyDict_set_extmark, virt_text_repeat_linebreak),
-        key_type: ObjectType::kObjectTypeBoolean as c_int,
+        key_type: ObjectType::ObjectTypeBoolean as c_int,
         opt_index: 35,
         is_hlgroup: false,
     },
     KeySetLink {
         str: None,
         ptr_off: 0,
-        key_type: ObjectType::kObjectTypeNil as c_int,
+        key_type: ObjectType::ObjectTypeNil as c_int,
         opt_index: -1,
         is_hlgroup: false,
     },
@@ -3170,14 +3170,14 @@ pub static tabpage_config_table: [KeySetLink; 2] = [
     KeySetLink {
         str: Some(c"after"),
         ptr_off: offset_of!(KeyDict_tabpage_config, after),
-        key_type: ObjectType::kObjectTypeInteger as c_int,
+        key_type: ObjectType::ObjectTypeInteger as c_int,
         opt_index: 1,
         is_hlgroup: false,
     },
     KeySetLink {
         str: None,
         ptr_off: 0,
-        key_type: ObjectType::kObjectTypeNil as c_int,
+        key_type: ObjectType::ObjectTypeNil as c_int,
         opt_index: -1,
         is_hlgroup: false,
     },
@@ -3199,91 +3199,91 @@ pub static user_command_table: [KeySetLink; 13] = [
     KeySetLink {
         str: Some(c"bar"),
         ptr_off: offset_of!(KeyDict_user_command, bar),
-        key_type: ObjectType::kObjectTypeBoolean as c_int,
+        key_type: ObjectType::ObjectTypeBoolean as c_int,
         opt_index: 1,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"addr"),
         ptr_off: offset_of!(KeyDict_user_command, addr),
-        key_type: ObjectType::kObjectTypeNil as c_int,
+        key_type: ObjectType::ObjectTypeNil as c_int,
         opt_index: 2,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"bang"),
         ptr_off: offset_of!(KeyDict_user_command, bang),
-        key_type: ObjectType::kObjectTypeBoolean as c_int,
+        key_type: ObjectType::ObjectTypeBoolean as c_int,
         opt_index: 3,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"desc"),
         ptr_off: offset_of!(KeyDict_user_command, desc),
-        key_type: ObjectType::kObjectTypeNil as c_int,
+        key_type: ObjectType::ObjectTypeNil as c_int,
         opt_index: 4,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"count"),
         ptr_off: offset_of!(KeyDict_user_command, count),
-        key_type: ObjectType::kObjectTypeNil as c_int,
+        key_type: ObjectType::ObjectTypeNil as c_int,
         opt_index: 5,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"force"),
         ptr_off: offset_of!(KeyDict_user_command, force),
-        key_type: ObjectType::kObjectTypeBoolean as c_int,
+        key_type: ObjectType::ObjectTypeBoolean as c_int,
         opt_index: 6,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"nargs"),
         ptr_off: offset_of!(KeyDict_user_command, nargs),
-        key_type: ObjectType::kObjectTypeNil as c_int,
+        key_type: ObjectType::ObjectTypeNil as c_int,
         opt_index: 7,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"range"),
         ptr_off: offset_of!(KeyDict_user_command, range),
-        key_type: ObjectType::kObjectTypeNil as c_int,
+        key_type: ObjectType::ObjectTypeNil as c_int,
         opt_index: 8,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"preview"),
         ptr_off: offset_of!(KeyDict_user_command, preview),
-        key_type: ObjectType::kObjectTypeNil as c_int,
+        key_type: ObjectType::ObjectTypeNil as c_int,
         opt_index: 9,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"complete"),
         ptr_off: offset_of!(KeyDict_user_command, complete),
-        key_type: ObjectType::kObjectTypeNil as c_int,
+        key_type: ObjectType::ObjectTypeNil as c_int,
         opt_index: 10,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"register"),
         ptr_off: offset_of!(KeyDict_user_command, register_),
-        key_type: ObjectType::kObjectTypeBoolean as c_int,
+        key_type: ObjectType::ObjectTypeBoolean as c_int,
         opt_index: 11,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"keepscript"),
         ptr_off: offset_of!(KeyDict_user_command, keepscript),
-        key_type: ObjectType::kObjectTypeBoolean as c_int,
+        key_type: ObjectType::ObjectTypeBoolean as c_int,
         opt_index: 12,
         is_hlgroup: false,
     },
     KeySetLink {
         str: None,
         ptr_off: 0,
-        key_type: ObjectType::kObjectTypeNil as c_int,
+        key_type: ObjectType::ObjectTypeNil as c_int,
         opt_index: -1,
         is_hlgroup: false,
     },
@@ -3316,175 +3316,175 @@ pub static win_config_table: [KeySetLink; 25] = [
     KeySetLink {
         str: Some(c"col"),
         ptr_off: offset_of!(KeyDict_win_config, col),
-        key_type: ObjectType::kObjectTypeFloat as c_int,
+        key_type: ObjectType::ObjectTypeFloat as c_int,
         opt_index: 1,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"row"),
         ptr_off: offset_of!(KeyDict_win_config, row),
-        key_type: ObjectType::kObjectTypeFloat as c_int,
+        key_type: ObjectType::ObjectTypeFloat as c_int,
         opt_index: 2,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"win"),
         ptr_off: offset_of!(KeyDict_win_config, win),
-        key_type: ObjectType::kObjectTypeWindow as c_int,
+        key_type: ObjectType::ObjectTypeWindow as c_int,
         opt_index: 3,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"hide"),
         ptr_off: offset_of!(KeyDict_win_config, hide),
-        key_type: ObjectType::kObjectTypeBoolean as c_int,
+        key_type: ObjectType::ObjectTypeBoolean as c_int,
         opt_index: 4,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"width"),
         ptr_off: offset_of!(KeyDict_win_config, width),
-        key_type: ObjectType::kObjectTypeInteger as c_int,
+        key_type: ObjectType::ObjectTypeInteger as c_int,
         opt_index: 5,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"split"),
         ptr_off: offset_of!(KeyDict_win_config, split),
-        key_type: ObjectType::kObjectTypeString as c_int,
+        key_type: ObjectType::ObjectTypeString as c_int,
         opt_index: 6,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"title"),
         ptr_off: offset_of!(KeyDict_win_config, title),
-        key_type: ObjectType::kObjectTypeNil as c_int,
+        key_type: ObjectType::ObjectTypeNil as c_int,
         opt_index: 7,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"mouse"),
         ptr_off: offset_of!(KeyDict_win_config, mouse),
-        key_type: ObjectType::kObjectTypeBoolean as c_int,
+        key_type: ObjectType::ObjectTypeBoolean as c_int,
         opt_index: 8,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"fixed"),
         ptr_off: offset_of!(KeyDict_win_config, fixed),
-        key_type: ObjectType::kObjectTypeBoolean as c_int,
+        key_type: ObjectType::ObjectTypeBoolean as c_int,
         opt_index: 9,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"style"),
         ptr_off: offset_of!(KeyDict_win_config, style),
-        key_type: ObjectType::kObjectTypeString as c_int,
+        key_type: ObjectType::ObjectTypeString as c_int,
         opt_index: 10,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"anchor"),
         ptr_off: offset_of!(KeyDict_win_config, anchor),
-        key_type: ObjectType::kObjectTypeString as c_int,
+        key_type: ObjectType::ObjectTypeString as c_int,
         opt_index: 11,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"bufpos"),
         ptr_off: offset_of!(KeyDict_win_config, bufpos),
-        key_type: ObjectType::kObjectTypeArray as c_int,
+        key_type: ObjectType::ObjectTypeArray as c_int,
         opt_index: 12,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"height"),
         ptr_off: offset_of!(KeyDict_win_config, height),
-        key_type: ObjectType::kObjectTypeInteger as c_int,
+        key_type: ObjectType::ObjectTypeInteger as c_int,
         opt_index: 13,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"zindex"),
         ptr_off: offset_of!(KeyDict_win_config, zindex),
-        key_type: ObjectType::kObjectTypeInteger as c_int,
+        key_type: ObjectType::ObjectTypeInteger as c_int,
         opt_index: 14,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"footer"),
         ptr_off: offset_of!(KeyDict_win_config, footer),
-        key_type: ObjectType::kObjectTypeNil as c_int,
+        key_type: ObjectType::ObjectTypeNil as c_int,
         opt_index: 15,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"border"),
         ptr_off: offset_of!(KeyDict_win_config, border),
-        key_type: ObjectType::kObjectTypeNil as c_int,
+        key_type: ObjectType::ObjectTypeNil as c_int,
         opt_index: 16,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"external"),
         ptr_off: offset_of!(KeyDict_win_config, external),
-        key_type: ObjectType::kObjectTypeBoolean as c_int,
+        key_type: ObjectType::ObjectTypeBoolean as c_int,
         opt_index: 17,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"relative"),
         ptr_off: offset_of!(KeyDict_win_config, relative),
-        key_type: ObjectType::kObjectTypeString as c_int,
+        key_type: ObjectType::ObjectTypeString as c_int,
         opt_index: 18,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"vertical"),
         ptr_off: offset_of!(KeyDict_win_config, vertical),
-        key_type: ObjectType::kObjectTypeBoolean as c_int,
+        key_type: ObjectType::ObjectTypeBoolean as c_int,
         opt_index: 19,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"focusable"),
         ptr_off: offset_of!(KeyDict_win_config, focusable),
-        key_type: ObjectType::kObjectTypeBoolean as c_int,
+        key_type: ObjectType::ObjectTypeBoolean as c_int,
         opt_index: 20,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"noautocmd"),
         ptr_off: offset_of!(KeyDict_win_config, noautocmd),
-        key_type: ObjectType::kObjectTypeBoolean as c_int,
+        key_type: ObjectType::ObjectTypeBoolean as c_int,
         opt_index: 21,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"title_pos"),
         ptr_off: offset_of!(KeyDict_win_config, title_pos),
-        key_type: ObjectType::kObjectTypeString as c_int,
+        key_type: ObjectType::ObjectTypeString as c_int,
         opt_index: 22,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"footer_pos"),
         ptr_off: offset_of!(KeyDict_win_config, footer_pos),
-        key_type: ObjectType::kObjectTypeString as c_int,
+        key_type: ObjectType::ObjectTypeString as c_int,
         opt_index: 23,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"_cmdline_offset"),
         ptr_off: offset_of!(KeyDict_win_config, _cmdline_offset),
-        key_type: ObjectType::kObjectTypeInteger as c_int,
+        key_type: ObjectType::ObjectTypeInteger as c_int,
         opt_index: 24,
         is_hlgroup: false,
     },
     KeySetLink {
         str: None,
         ptr_off: 0,
-        key_type: ObjectType::kObjectTypeNil as c_int,
+        key_type: ObjectType::ObjectTypeNil as c_int,
         opt_index: -1,
         is_hlgroup: false,
     },
@@ -3529,14 +3529,14 @@ pub static win_resize_table: [KeySetLink; 2] = [
     KeySetLink {
         str: Some(c"anchor"),
         ptr_off: offset_of!(KeyDict_win_resize, anchor),
-        key_type: ObjectType::kObjectTypeString as c_int,
+        key_type: ObjectType::ObjectTypeString as c_int,
         opt_index: 1,
         is_hlgroup: false,
     },
     KeySetLink {
         str: None,
         ptr_off: 0,
-        key_type: ObjectType::kObjectTypeNil as c_int,
+        key_type: ObjectType::ObjectTypeNil as c_int,
         opt_index: -1,
         is_hlgroup: false,
     },
@@ -3558,42 +3558,42 @@ pub static win_text_height_table: [KeySetLink; 6] = [
     KeySetLink {
         str: Some(c"end_row"),
         ptr_off: offset_of!(KeyDict_win_text_height, end_row),
-        key_type: ObjectType::kObjectTypeInteger as c_int,
+        key_type: ObjectType::ObjectTypeInteger as c_int,
         opt_index: 1,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"end_vcol"),
         ptr_off: offset_of!(KeyDict_win_text_height, end_vcol),
-        key_type: ObjectType::kObjectTypeInteger as c_int,
+        key_type: ObjectType::ObjectTypeInteger as c_int,
         opt_index: 2,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"start_row"),
         ptr_off: offset_of!(KeyDict_win_text_height, start_row),
-        key_type: ObjectType::kObjectTypeInteger as c_int,
+        key_type: ObjectType::ObjectTypeInteger as c_int,
         opt_index: 3,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"max_height"),
         ptr_off: offset_of!(KeyDict_win_text_height, max_height),
-        key_type: ObjectType::kObjectTypeInteger as c_int,
+        key_type: ObjectType::ObjectTypeInteger as c_int,
         opt_index: 4,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"start_vcol"),
         ptr_off: offset_of!(KeyDict_win_text_height, start_vcol),
-        key_type: ObjectType::kObjectTypeInteger as c_int,
+        key_type: ObjectType::ObjectTypeInteger as c_int,
         opt_index: 5,
         is_hlgroup: false,
     },
     KeySetLink {
         str: None,
         ptr_off: 0,
-        key_type: ObjectType::kObjectTypeNil as c_int,
+        key_type: ObjectType::ObjectTypeNil as c_int,
         opt_index: -1,
         is_hlgroup: false,
     },
@@ -3619,91 +3619,91 @@ pub static xdl_diff_table: [KeySetLink; 13] = [
     KeySetLink {
         str: Some(c"ctxlen"),
         ptr_off: offset_of!(KeyDict_xdl_diff, ctxlen),
-        key_type: ObjectType::kObjectTypeInteger as c_int,
+        key_type: ObjectType::ObjectTypeInteger as c_int,
         opt_index: 1,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"on_hunk"),
         ptr_off: offset_of!(KeyDict_xdl_diff, on_hunk),
-        key_type: ObjectType::kObjectTypeLuaRef as c_int,
+        key_type: ObjectType::ObjectTypeLuaRef as c_int,
         opt_index: 2,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"algorithm"),
         ptr_off: offset_of!(KeyDict_xdl_diff, algorithm),
-        key_type: ObjectType::kObjectTypeString as c_int,
+        key_type: ObjectType::ObjectTypeString as c_int,
         opt_index: 3,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"linematch"),
         ptr_off: offset_of!(KeyDict_xdl_diff, linematch),
-        key_type: ObjectType::kObjectTypeNil as c_int,
+        key_type: ObjectType::ObjectTypeNil as c_int,
         opt_index: 4,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"result_type"),
         ptr_off: offset_of!(KeyDict_xdl_diff, result_type),
-        key_type: ObjectType::kObjectTypeString as c_int,
+        key_type: ObjectType::ObjectTypeString as c_int,
         opt_index: 5,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"interhunkctxlen"),
         ptr_off: offset_of!(KeyDict_xdl_diff, interhunkctxlen),
-        key_type: ObjectType::kObjectTypeInteger as c_int,
+        key_type: ObjectType::ObjectTypeInteger as c_int,
         opt_index: 6,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"ignore_cr_at_eol"),
         ptr_off: offset_of!(KeyDict_xdl_diff, ignore_cr_at_eol),
-        key_type: ObjectType::kObjectTypeBoolean as c_int,
+        key_type: ObjectType::ObjectTypeBoolean as c_int,
         opt_index: 7,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"indent_heuristic"),
         ptr_off: offset_of!(KeyDict_xdl_diff, indent_heuristic),
-        key_type: ObjectType::kObjectTypeBoolean as c_int,
+        key_type: ObjectType::ObjectTypeBoolean as c_int,
         opt_index: 8,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"ignore_whitespace"),
         ptr_off: offset_of!(KeyDict_xdl_diff, ignore_whitespace),
-        key_type: ObjectType::kObjectTypeBoolean as c_int,
+        key_type: ObjectType::ObjectTypeBoolean as c_int,
         opt_index: 9,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"ignore_blank_lines"),
         ptr_off: offset_of!(KeyDict_xdl_diff, ignore_blank_lines),
-        key_type: ObjectType::kObjectTypeBoolean as c_int,
+        key_type: ObjectType::ObjectTypeBoolean as c_int,
         opt_index: 10,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"ignore_whitespace_change"),
         ptr_off: offset_of!(KeyDict_xdl_diff, ignore_whitespace_change),
-        key_type: ObjectType::kObjectTypeBoolean as c_int,
+        key_type: ObjectType::ObjectTypeBoolean as c_int,
         opt_index: 11,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"ignore_whitespace_change_at_eol"),
         ptr_off: offset_of!(KeyDict_xdl_diff, ignore_whitespace_change_at_eol),
-        key_type: ObjectType::kObjectTypeBoolean as c_int,
+        key_type: ObjectType::ObjectTypeBoolean as c_int,
         opt_index: 12,
         is_hlgroup: false,
     },
     KeySetLink {
         str: None,
         ptr_off: 0,
-        key_type: ObjectType::kObjectTypeNil as c_int,
+        key_type: ObjectType::ObjectTypeNil as c_int,
         opt_index: -1,
         is_hlgroup: false,
     },
@@ -3749,7 +3749,7 @@ pub fn handle_nvim_get_autocmds(
         if args.size > 1 {
             api_set_error!(
                 error,
-                ErrorType::kErrorTypeException,
+                ErrorType::ErrorTypeException,
                 c"Wrong number of arguments: expecting at most 1 but got %zu",
                 args.size
             );
@@ -3760,7 +3760,7 @@ pub fn handle_nvim_get_autocmds(
                 return ret;
             }
         let rv = nvim_get_autocmds(&mut arg_1, arena, error);
-        if error.err_type != ErrorType::kErrorTypeNone {
+        if error.err_type != ErrorType::ErrorTypeNone {
             return ret;
         }
         ret = array_obj(rv);
@@ -3785,7 +3785,7 @@ pub fn handle_nvim_create_autocmd(
         if args.size < 1 || args.size > 2 {
             api_set_error!(
                 error,
-                ErrorType::kErrorTypeException,
+                ErrorType::ErrorTypeException,
                 c"Wrong number of arguments: expecting 1 to 2 but got %zu",
                 args.size
             );
@@ -3797,7 +3797,7 @@ pub fn handle_nvim_create_autocmd(
                 return ret;
             }
         let rv = nvim_create_autocmd(channel_id, arg_1, &mut arg_2, arena, error);
-        if error.err_type != ErrorType::kErrorTypeNone {
+        if error.err_type != ErrorType::ErrorTypeNone {
             return ret;
         }
         ret = integer_obj(rv);
@@ -3822,7 +3822,7 @@ pub fn handle_nvim_del_autocmd(
         if args.size != 1 {
             api_set_error!(
                 error,
-                ErrorType::kErrorTypeException,
+                ErrorType::ErrorTypeException,
                 c"Wrong number of arguments: expecting 1 but got %zu",
                 args.size
             );
@@ -3837,7 +3837,7 @@ pub fn handle_nvim_del_autocmd(
             return ret;
         }
         nvim_del_autocmd(arg_1, error);
-        if error.err_type != ErrorType::kErrorTypeNone {
+        if error.err_type != ErrorType::ErrorTypeNone {
             return ret;
         }
         ret
@@ -3861,7 +3861,7 @@ pub fn handle_nvim_clear_autocmds(
         if args.size > 1 {
             api_set_error!(
                 error,
-                ErrorType::kErrorTypeException,
+                ErrorType::ErrorTypeException,
                 c"Wrong number of arguments: expecting at most 1 but got %zu",
                 args.size
             );
@@ -3872,7 +3872,7 @@ pub fn handle_nvim_clear_autocmds(
                 return ret;
             }
         nvim_clear_autocmds(&mut arg_1, arena, error);
-        if error.err_type != ErrorType::kErrorTypeNone {
+        if error.err_type != ErrorType::ErrorTypeNone {
             return ret;
         }
         ret
@@ -3897,7 +3897,7 @@ pub fn handle_nvim_create_augroup(
         if args.size < 1 || args.size > 2 {
             api_set_error!(
                 error,
-                ErrorType::kErrorTypeException,
+                ErrorType::ErrorTypeException,
                 c"Wrong number of arguments: expecting 1 to 2 but got %zu",
                 args.size
             );
@@ -3916,7 +3916,7 @@ pub fn handle_nvim_create_augroup(
                 return ret;
             }
         let rv = nvim_create_augroup(channel_id, arg_1, &mut arg_2, error);
-        if error.err_type != ErrorType::kErrorTypeNone {
+        if error.err_type != ErrorType::ErrorTypeNone {
             return ret;
         }
         ret = integer_obj(rv);
@@ -3941,7 +3941,7 @@ pub fn handle_nvim_del_augroup_by_id(
         if args.size != 1 {
             api_set_error!(
                 error,
-                ErrorType::kErrorTypeException,
+                ErrorType::ErrorTypeException,
                 c"Wrong number of arguments: expecting 1 but got %zu",
                 args.size
             );
@@ -3956,7 +3956,7 @@ pub fn handle_nvim_del_augroup_by_id(
             return ret;
         }
         nvim_del_augroup_by_id(arg_1, error);
-        if error.err_type != ErrorType::kErrorTypeNone {
+        if error.err_type != ErrorType::ErrorTypeNone {
             return ret;
         }
         ret
@@ -3980,7 +3980,7 @@ pub fn handle_nvim_del_augroup_by_name(
         if args.size != 1 {
             api_set_error!(
                 error,
-                ErrorType::kErrorTypeException,
+                ErrorType::ErrorTypeException,
                 c"Wrong number of arguments: expecting 1 but got %zu",
                 args.size
             );
@@ -3995,7 +3995,7 @@ pub fn handle_nvim_del_augroup_by_name(
             return ret;
         }
         nvim_del_augroup_by_name(arg_1, error);
-        if error.err_type != ErrorType::kErrorTypeNone {
+        if error.err_type != ErrorType::ErrorTypeNone {
             return ret;
         }
         ret
@@ -4019,7 +4019,7 @@ pub fn handle_nvim_exec_autocmds(
         if args.size < 1 || args.size > 2 {
             api_set_error!(
                 error,
-                ErrorType::kErrorTypeException,
+                ErrorType::ErrorTypeException,
                 c"Wrong number of arguments: expecting 1 to 2 but got %zu",
                 args.size
             );
@@ -4031,7 +4031,7 @@ pub fn handle_nvim_exec_autocmds(
                 return ret;
             }
         nvim_exec_autocmds(arg_1, &mut arg_2, arena, error);
-        if error.err_type != ErrorType::kErrorTypeNone {
+        if error.err_type != ErrorType::ErrorTypeNone {
             return ret;
         }
         ret
@@ -4055,7 +4055,7 @@ pub fn handle_nvim_buf_line_count(
         if args.size != 1 {
             api_set_error!(
                 error,
-                ErrorType::kErrorTypeException,
+                ErrorType::ErrorTypeException,
                 c"Wrong number of arguments: expecting 1 but got %zu",
                 args.size
             );
@@ -4063,7 +4063,7 @@ pub fn handle_nvim_buf_line_count(
         }
         if !extract_handle(
             args[0],
-            ObjectType::kObjectTypeBuffer,
+            ObjectType::ObjectTypeBuffer,
             &mut arg_1,
             c"Wrong type for argument 1 when calling nvim_buf_line_count, expecting Buffer",
             error,
@@ -4071,7 +4071,7 @@ pub fn handle_nvim_buf_line_count(
             return ret;
         }
         let rv = nvim_buf_line_count(arg_1, error);
-        if error.err_type != ErrorType::kErrorTypeNone {
+        if error.err_type != ErrorType::ErrorTypeNone {
             return ret;
         }
         ret = integer_obj(rv);
@@ -4098,7 +4098,7 @@ pub fn handle_nvim_buf_attach(
         if args.size < 2 || args.size > 3 {
             api_set_error!(
                 error,
-                ErrorType::kErrorTypeException,
+                ErrorType::ErrorTypeException,
                 c"Wrong number of arguments: expecting 2 to 3 but got %zu",
                 args.size
             );
@@ -4106,7 +4106,7 @@ pub fn handle_nvim_buf_attach(
         }
         if !extract_handle(
             args[0],
-            ObjectType::kObjectTypeBuffer,
+            ObjectType::ObjectTypeBuffer,
             &mut arg_1,
             c"Wrong type for argument 1 when calling nvim_buf_attach, expecting Buffer",
             error,
@@ -4126,7 +4126,7 @@ pub fn handle_nvim_buf_attach(
                 return ret;
             }
         let rv = nvim_buf_attach(channel_id, arg_1, arg_2, &mut arg_3, error);
-        if error.err_type != ErrorType::kErrorTypeNone {
+        if error.err_type != ErrorType::ErrorTypeNone {
             return ret;
         }
         ret = boolean_obj(rv);
@@ -4151,7 +4151,7 @@ pub fn handle_nvim_buf_detach(
         if args.size != 1 {
             api_set_error!(
                 error,
-                ErrorType::kErrorTypeException,
+                ErrorType::ErrorTypeException,
                 c"Wrong number of arguments: expecting 1 but got %zu",
                 args.size
             );
@@ -4159,7 +4159,7 @@ pub fn handle_nvim_buf_detach(
         }
         if !extract_handle(
             args[0],
-            ObjectType::kObjectTypeBuffer,
+            ObjectType::ObjectTypeBuffer,
             &mut arg_1,
             c"Wrong type for argument 1 when calling nvim_buf_detach, expecting Buffer",
             error,
@@ -4167,7 +4167,7 @@ pub fn handle_nvim_buf_detach(
             return ret;
         }
         let rv = nvim_buf_detach(channel_id, arg_1, error);
-        if error.err_type != ErrorType::kErrorTypeNone {
+        if error.err_type != ErrorType::ErrorTypeNone {
             return ret;
         }
         ret = boolean_obj(rv);
@@ -4195,7 +4195,7 @@ pub fn handle_nvim_buf_get_lines(
         if args.size != 4 {
             api_set_error!(
                 error,
-                ErrorType::kErrorTypeException,
+                ErrorType::ErrorTypeException,
                 c"Wrong number of arguments: expecting 4 but got %zu",
                 args.size
             );
@@ -4203,7 +4203,7 @@ pub fn handle_nvim_buf_get_lines(
         }
         if !extract_handle(
             args[0],
-            ObjectType::kObjectTypeBuffer,
+            ObjectType::ObjectTypeBuffer,
             &mut arg_1,
             c"Wrong type for argument 1 when calling nvim_buf_get_lines, expecting Buffer",
             error,
@@ -4244,7 +4244,7 @@ pub fn handle_nvim_buf_get_lines(
             ptr::null_mut(),
             error,
         );
-        if error.err_type != ErrorType::kErrorTypeNone {
+        if error.err_type != ErrorType::ErrorTypeNone {
             return ret;
         }
         ret = array_obj(rv);
@@ -4273,7 +4273,7 @@ pub fn handle_nvim_buf_set_lines(
         if args.size != 5 {
             api_set_error!(
                 error,
-                ErrorType::kErrorTypeException,
+                ErrorType::ErrorTypeException,
                 c"Wrong number of arguments: expecting 5 but got %zu",
                 args.size
             );
@@ -4281,7 +4281,7 @@ pub fn handle_nvim_buf_set_lines(
         }
         if !extract_handle(
             args[0],
-            ObjectType::kObjectTypeBuffer,
+            ObjectType::ObjectTypeBuffer,
             &mut arg_1,
             c"Wrong type for argument 1 when calling nvim_buf_set_lines, expecting Buffer",
             error,
@@ -4321,11 +4321,11 @@ pub fn handle_nvim_buf_set_lines(
             return ret;
         }
         if text_locked() {
-            api_set_error_str(error, ErrorType::kErrorTypeException, get_text_locked_msg());
+            api_set_error_str(error, ErrorType::ErrorTypeException, get_text_locked_msg());
             return ret;
         }
         nvim_buf_set_lines(channel_id, arg_1, arg_2, arg_3, arg_4, arg_5, arena, error);
-        if error.err_type != ErrorType::kErrorTypeNone {
+        if error.err_type != ErrorType::ErrorTypeNone {
             return ret;
         }
         ret
@@ -4354,7 +4354,7 @@ pub fn handle_nvim_buf_set_text(
         if args.size != 6 {
             api_set_error!(
                 error,
-                ErrorType::kErrorTypeException,
+                ErrorType::ErrorTypeException,
                 c"Wrong number of arguments: expecting 6 but got %zu",
                 args.size
             );
@@ -4362,7 +4362,7 @@ pub fn handle_nvim_buf_set_text(
         }
         if !extract_handle(
             args[0],
-            ObjectType::kObjectTypeBuffer,
+            ObjectType::ObjectTypeBuffer,
             &mut arg_1,
             c"Wrong type for argument 1 when calling nvim_buf_set_text, expecting Buffer",
             error,
@@ -4410,13 +4410,13 @@ pub fn handle_nvim_buf_set_text(
             return ret;
         }
         if text_locked() {
-            api_set_error_str(error, ErrorType::kErrorTypeException, get_text_locked_msg());
+            api_set_error_str(error, ErrorType::ErrorTypeException, get_text_locked_msg());
             return ret;
         }
         nvim_buf_set_text(
             channel_id, arg_1, arg_2, arg_3, arg_4, arg_5, arg_6, arena, error,
         );
-        if error.err_type != ErrorType::kErrorTypeNone {
+        if error.err_type != ErrorType::ErrorTypeNone {
             return ret;
         }
         ret
@@ -4445,7 +4445,7 @@ pub fn handle_nvim_buf_get_text(
         if args.size < 5 || args.size > 6 {
             api_set_error!(
                 error,
-                ErrorType::kErrorTypeException,
+                ErrorType::ErrorTypeException,
                 c"Wrong number of arguments: expecting 5 to 6 but got %zu",
                 args.size
             );
@@ -4453,7 +4453,7 @@ pub fn handle_nvim_buf_get_text(
         }
         if !extract_handle(
             args[0],
-            ObjectType::kObjectTypeBuffer,
+            ObjectType::ObjectTypeBuffer,
             &mut arg_1,
             c"Wrong type for argument 1 when calling nvim_buf_get_text, expecting Buffer",
             error,
@@ -4508,7 +4508,7 @@ pub fn handle_nvim_buf_get_text(
             ptr::null_mut(),
             error,
         );
-        if error.err_type != ErrorType::kErrorTypeNone {
+        if error.err_type != ErrorType::ErrorTypeNone {
             return ret;
         }
         ret = array_obj(rv);
@@ -4534,7 +4534,7 @@ pub fn handle_nvim_buf_get_offset(
         if args.size != 2 {
             api_set_error!(
                 error,
-                ErrorType::kErrorTypeException,
+                ErrorType::ErrorTypeException,
                 c"Wrong number of arguments: expecting 2 but got %zu",
                 args.size
             );
@@ -4542,7 +4542,7 @@ pub fn handle_nvim_buf_get_offset(
         }
         if !extract_handle(
             args[0],
-            ObjectType::kObjectTypeBuffer,
+            ObjectType::ObjectTypeBuffer,
             &mut arg_1,
             c"Wrong type for argument 1 when calling nvim_buf_get_offset, expecting Buffer",
             error,
@@ -4558,7 +4558,7 @@ pub fn handle_nvim_buf_get_offset(
             return ret;
         }
         let rv = nvim_buf_get_offset(arg_1, arg_2, error);
-        if error.err_type != ErrorType::kErrorTypeNone {
+        if error.err_type != ErrorType::ErrorTypeNone {
             return ret;
         }
         ret = integer_obj(rv);
@@ -4584,7 +4584,7 @@ pub fn handle_nvim_buf_get_var(
         if args.size != 2 {
             api_set_error!(
                 error,
-                ErrorType::kErrorTypeException,
+                ErrorType::ErrorTypeException,
                 c"Wrong number of arguments: expecting 2 but got %zu",
                 args.size
             );
@@ -4592,7 +4592,7 @@ pub fn handle_nvim_buf_get_var(
         }
         if !extract_handle(
             args[0],
-            ObjectType::kObjectTypeBuffer,
+            ObjectType::ObjectTypeBuffer,
             &mut arg_1,
             c"Wrong type for argument 1 when calling nvim_buf_get_var, expecting Buffer",
             error,
@@ -4608,7 +4608,7 @@ pub fn handle_nvim_buf_get_var(
             return ret;
         }
         let rv = nvim_buf_get_var(arg_1, arg_2, arena, error);
-        if error.err_type != ErrorType::kErrorTypeNone {
+        if error.err_type != ErrorType::ErrorTypeNone {
             return ret;
         }
         ret = rv;
@@ -4633,7 +4633,7 @@ pub fn handle_nvim_buf_get_changedtick(
         if args.size != 1 {
             api_set_error!(
                 error,
-                ErrorType::kErrorTypeException,
+                ErrorType::ErrorTypeException,
                 c"Wrong number of arguments: expecting 1 but got %zu",
                 args.size
             );
@@ -4641,7 +4641,7 @@ pub fn handle_nvim_buf_get_changedtick(
         }
         if !extract_handle(
             args[0],
-            ObjectType::kObjectTypeBuffer,
+            ObjectType::ObjectTypeBuffer,
             &mut arg_1,
             c"Wrong type for argument 1 when calling nvim_buf_get_changedtick, expecting Buffer",
             error,
@@ -4649,7 +4649,7 @@ pub fn handle_nvim_buf_get_changedtick(
             return ret;
         }
         let rv = nvim_buf_get_changedtick(arg_1, error);
-        if error.err_type != ErrorType::kErrorTypeNone {
+        if error.err_type != ErrorType::ErrorTypeNone {
             return ret;
         }
         ret = integer_obj(rv);
@@ -4675,7 +4675,7 @@ pub fn handle_nvim_buf_get_keymap(
         if args.size != 2 {
             api_set_error!(
                 error,
-                ErrorType::kErrorTypeException,
+                ErrorType::ErrorTypeException,
                 c"Wrong number of arguments: expecting 2 but got %zu",
                 args.size
             );
@@ -4683,7 +4683,7 @@ pub fn handle_nvim_buf_get_keymap(
         }
         if !extract_handle(
             args[0],
-            ObjectType::kObjectTypeBuffer,
+            ObjectType::ObjectTypeBuffer,
             &mut arg_1,
             c"Wrong type for argument 1 when calling nvim_buf_get_keymap, expecting Buffer",
             error,
@@ -4699,7 +4699,7 @@ pub fn handle_nvim_buf_get_keymap(
             return ret;
         }
         let rv = nvim_buf_get_keymap(arg_1, arg_2, arena, error);
-        if error.err_type != ErrorType::kErrorTypeNone {
+        if error.err_type != ErrorType::ErrorTypeNone {
             return ret;
         }
         ret = array_obj(rv);
@@ -4728,7 +4728,7 @@ pub fn handle_nvim_buf_set_keymap(
         if args.size < 4 || args.size > 5 {
             api_set_error!(
                 error,
-                ErrorType::kErrorTypeException,
+                ErrorType::ErrorTypeException,
                 c"Wrong number of arguments: expecting 4 to 5 but got %zu",
                 args.size
             );
@@ -4736,7 +4736,7 @@ pub fn handle_nvim_buf_set_keymap(
         }
         if !extract_handle(
             args[0],
-            ObjectType::kObjectTypeBuffer,
+            ObjectType::ObjectTypeBuffer,
             &mut arg_1,
             c"Wrong type for argument 1 when calling nvim_buf_set_keymap, expecting Buffer",
             error,
@@ -4780,7 +4780,7 @@ pub fn handle_nvim_buf_set_keymap(
             &mut arg_5,
             error,
         );
-        if error.err_type != ErrorType::kErrorTypeNone {
+        if error.err_type != ErrorType::ErrorTypeNone {
             return ret;
         }
         ret
@@ -4807,7 +4807,7 @@ pub fn handle_nvim_buf_del_keymap(
         if args.size < 3 || args.size > 4 {
             api_set_error!(
                 error,
-                ErrorType::kErrorTypeException,
+                ErrorType::ErrorTypeException,
                 c"Wrong number of arguments: expecting 3 to 4 but got %zu",
                 args.size
             );
@@ -4815,7 +4815,7 @@ pub fn handle_nvim_buf_del_keymap(
         }
         if !extract_handle(
             args[0],
-            ObjectType::kObjectTypeBuffer,
+            ObjectType::ObjectTypeBuffer,
             &mut arg_1,
             c"Wrong type for argument 1 when calling nvim_buf_del_keymap, expecting Buffer",
             error,
@@ -4843,7 +4843,7 @@ pub fn handle_nvim_buf_del_keymap(
                 return ret;
             }
         nvim_buf_del_keymap(channel_id, arg_1, arg_2, arg_3, &mut arg_4, error);
-        if error.err_type != ErrorType::kErrorTypeNone {
+        if error.err_type != ErrorType::ErrorTypeNone {
             return ret;
         }
         ret
@@ -4868,7 +4868,7 @@ pub fn handle_nvim_buf_set_var(
         if args.size != 3 {
             api_set_error!(
                 error,
-                ErrorType::kErrorTypeException,
+                ErrorType::ErrorTypeException,
                 c"Wrong number of arguments: expecting 3 but got %zu",
                 args.size
             );
@@ -4876,7 +4876,7 @@ pub fn handle_nvim_buf_set_var(
         }
         if !extract_handle(
             args[0],
-            ObjectType::kObjectTypeBuffer,
+            ObjectType::ObjectTypeBuffer,
             &mut arg_1,
             c"Wrong type for argument 1 when calling nvim_buf_set_var, expecting Buffer",
             error,
@@ -4893,7 +4893,7 @@ pub fn handle_nvim_buf_set_var(
         }
         let arg_3: Object = args[2];
         nvim_buf_set_var(arg_1, arg_2, arg_3, error);
-        if error.err_type != ErrorType::kErrorTypeNone {
+        if error.err_type != ErrorType::ErrorTypeNone {
             return ret;
         }
         ret
@@ -4918,7 +4918,7 @@ pub fn handle_nvim_buf_del_var(
         if args.size != 2 {
             api_set_error!(
                 error,
-                ErrorType::kErrorTypeException,
+                ErrorType::ErrorTypeException,
                 c"Wrong number of arguments: expecting 2 but got %zu",
                 args.size
             );
@@ -4926,7 +4926,7 @@ pub fn handle_nvim_buf_del_var(
         }
         if !extract_handle(
             args[0],
-            ObjectType::kObjectTypeBuffer,
+            ObjectType::ObjectTypeBuffer,
             &mut arg_1,
             c"Wrong type for argument 1 when calling nvim_buf_del_var, expecting Buffer",
             error,
@@ -4942,7 +4942,7 @@ pub fn handle_nvim_buf_del_var(
             return ret;
         }
         nvim_buf_del_var(arg_1, arg_2, error);
-        if error.err_type != ErrorType::kErrorTypeNone {
+        if error.err_type != ErrorType::ErrorTypeNone {
             return ret;
         }
         ret
@@ -4966,7 +4966,7 @@ pub fn handle_nvim_buf_get_name(
         if args.size != 1 {
             api_set_error!(
                 error,
-                ErrorType::kErrorTypeException,
+                ErrorType::ErrorTypeException,
                 c"Wrong number of arguments: expecting 1 but got %zu",
                 args.size
             );
@@ -4974,7 +4974,7 @@ pub fn handle_nvim_buf_get_name(
         }
         if !extract_handle(
             args[0],
-            ObjectType::kObjectTypeBuffer,
+            ObjectType::ObjectTypeBuffer,
             &mut arg_1,
             c"Wrong type for argument 1 when calling nvim_buf_get_name, expecting Buffer",
             error,
@@ -4982,7 +4982,7 @@ pub fn handle_nvim_buf_get_name(
             return ret;
         }
         let rv = nvim_buf_get_name(arg_1, error);
-        if error.err_type != ErrorType::kErrorTypeNone {
+        if error.err_type != ErrorType::ErrorTypeNone {
             return ret;
         }
         ret = string_obj(rv);
@@ -5008,7 +5008,7 @@ pub fn handle_nvim_buf_set_name(
         if args.size != 2 {
             api_set_error!(
                 error,
-                ErrorType::kErrorTypeException,
+                ErrorType::ErrorTypeException,
                 c"Wrong number of arguments: expecting 2 but got %zu",
                 args.size
             );
@@ -5016,7 +5016,7 @@ pub fn handle_nvim_buf_set_name(
         }
         if !extract_handle(
             args[0],
-            ObjectType::kObjectTypeBuffer,
+            ObjectType::ObjectTypeBuffer,
             &mut arg_1,
             c"Wrong type for argument 1 when calling nvim_buf_set_name, expecting Buffer",
             error,
@@ -5032,7 +5032,7 @@ pub fn handle_nvim_buf_set_name(
             return ret;
         }
         nvim_buf_set_name(arg_1, arg_2, error);
-        if error.err_type != ErrorType::kErrorTypeNone {
+        if error.err_type != ErrorType::ErrorTypeNone {
             return ret;
         }
         ret
@@ -5056,7 +5056,7 @@ pub fn handle_nvim_buf_is_loaded(
         if args.size != 1 {
             api_set_error!(
                 error,
-                ErrorType::kErrorTypeException,
+                ErrorType::ErrorTypeException,
                 c"Wrong number of arguments: expecting 1 but got %zu",
                 args.size
             );
@@ -5064,7 +5064,7 @@ pub fn handle_nvim_buf_is_loaded(
         }
         if !extract_handle(
             args[0],
-            ObjectType::kObjectTypeBuffer,
+            ObjectType::ObjectTypeBuffer,
             &mut arg_1,
             c"Wrong type for argument 1 when calling nvim_buf_is_loaded, expecting Buffer",
             error,
@@ -5095,7 +5095,7 @@ pub fn handle_nvim_buf_delete(
         if args.size < 1 || args.size > 2 {
             api_set_error!(
                 error,
-                ErrorType::kErrorTypeException,
+                ErrorType::ErrorTypeException,
                 c"Wrong number of arguments: expecting 1 to 2 but got %zu",
                 args.size
             );
@@ -5103,7 +5103,7 @@ pub fn handle_nvim_buf_delete(
         }
         if !extract_handle(
             args[0],
-            ObjectType::kObjectTypeBuffer,
+            ObjectType::ObjectTypeBuffer,
             &mut arg_1,
             c"Wrong type for argument 1 when calling nvim_buf_delete, expecting Buffer",
             error,
@@ -5115,11 +5115,11 @@ pub fn handle_nvim_buf_delete(
                 return ret;
             }
         if text_locked() {
-            api_set_error_str(error, ErrorType::kErrorTypeException, get_text_locked_msg());
+            api_set_error_str(error, ErrorType::ErrorTypeException, get_text_locked_msg());
             return ret;
         }
         nvim_buf_delete(arg_1, &mut arg_2, error);
-        if error.err_type != ErrorType::kErrorTypeNone {
+        if error.err_type != ErrorType::ErrorTypeNone {
             return ret;
         }
         ret
@@ -5143,7 +5143,7 @@ pub fn handle_nvim_buf_is_valid(
         if args.size != 1 {
             api_set_error!(
                 error,
-                ErrorType::kErrorTypeException,
+                ErrorType::ErrorTypeException,
                 c"Wrong number of arguments: expecting 1 but got %zu",
                 args.size
             );
@@ -5151,7 +5151,7 @@ pub fn handle_nvim_buf_is_valid(
         }
         if !extract_handle(
             args[0],
-            ObjectType::kObjectTypeBuffer,
+            ObjectType::ObjectTypeBuffer,
             &mut arg_1,
             c"Wrong type for argument 1 when calling nvim_buf_is_valid, expecting Buffer",
             error,
@@ -5182,7 +5182,7 @@ pub fn handle_nvim_buf_del_mark(
         if args.size != 2 {
             api_set_error!(
                 error,
-                ErrorType::kErrorTypeException,
+                ErrorType::ErrorTypeException,
                 c"Wrong number of arguments: expecting 2 but got %zu",
                 args.size
             );
@@ -5190,7 +5190,7 @@ pub fn handle_nvim_buf_del_mark(
         }
         if !extract_handle(
             args[0],
-            ObjectType::kObjectTypeBuffer,
+            ObjectType::ObjectTypeBuffer,
             &mut arg_1,
             c"Wrong type for argument 1 when calling nvim_buf_del_mark, expecting Buffer",
             error,
@@ -5206,7 +5206,7 @@ pub fn handle_nvim_buf_del_mark(
             return ret;
         }
         let rv = nvim_buf_del_mark(arg_1, arg_2, error);
-        if error.err_type != ErrorType::kErrorTypeNone {
+        if error.err_type != ErrorType::ErrorTypeNone {
             return ret;
         }
         ret = boolean_obj(rv);
@@ -5235,7 +5235,7 @@ pub fn handle_nvim_buf_set_mark(
         if args.size < 4 || args.size > 5 {
             api_set_error!(
                 error,
-                ErrorType::kErrorTypeException,
+                ErrorType::ErrorTypeException,
                 c"Wrong number of arguments: expecting 4 to 5 but got %zu",
                 args.size
             );
@@ -5243,7 +5243,7 @@ pub fn handle_nvim_buf_set_mark(
         }
         if !extract_handle(
             args[0],
-            ObjectType::kObjectTypeBuffer,
+            ObjectType::ObjectTypeBuffer,
             &mut arg_1,
             c"Wrong type for argument 1 when calling nvim_buf_set_mark, expecting Buffer",
             error,
@@ -5279,7 +5279,7 @@ pub fn handle_nvim_buf_set_mark(
                 return ret;
             }
         let rv = nvim_buf_set_mark(arg_1, arg_2, arg_3, arg_4, &mut arg_5, error);
-        if error.err_type != ErrorType::kErrorTypeNone {
+        if error.err_type != ErrorType::ErrorTypeNone {
             return ret;
         }
         ret = boolean_obj(rv);
@@ -5305,7 +5305,7 @@ pub fn handle_nvim_buf_get_mark(
         if args.size != 2 {
             api_set_error!(
                 error,
-                ErrorType::kErrorTypeException,
+                ErrorType::ErrorTypeException,
                 c"Wrong number of arguments: expecting 2 but got %zu",
                 args.size
             );
@@ -5313,7 +5313,7 @@ pub fn handle_nvim_buf_get_mark(
         }
         if !extract_handle(
             args[0],
-            ObjectType::kObjectTypeBuffer,
+            ObjectType::ObjectTypeBuffer,
             &mut arg_1,
             c"Wrong type for argument 1 when calling nvim_buf_get_mark, expecting Buffer",
             error,
@@ -5329,7 +5329,7 @@ pub fn handle_nvim_buf_get_mark(
             return ret;
         }
         let rv = nvim_buf_get_mark(arg_1, arg_2, arena, error);
-        if error.err_type != ErrorType::kErrorTypeNone {
+        if error.err_type != ErrorType::ErrorTypeNone {
             return ret;
         }
         ret = array_obj(rv);
@@ -5354,7 +5354,7 @@ pub fn handle_nvim__buf_stats(
         if args.size != 1 {
             api_set_error!(
                 error,
-                ErrorType::kErrorTypeException,
+                ErrorType::ErrorTypeException,
                 c"Wrong number of arguments: expecting 1 but got %zu",
                 args.size
             );
@@ -5362,7 +5362,7 @@ pub fn handle_nvim__buf_stats(
         }
         if !extract_handle(
             args[0],
-            ObjectType::kObjectTypeBuffer,
+            ObjectType::ObjectTypeBuffer,
             &mut arg_1,
             c"Wrong type for argument 1 when calling nvim__buf_stats, expecting Buffer",
             error,
@@ -5370,7 +5370,7 @@ pub fn handle_nvim__buf_stats(
             return ret;
         }
         let rv = nvim__buf_stats(arg_1, arena, error);
-        if error.err_type != ErrorType::kErrorTypeNone {
+        if error.err_type != ErrorType::ErrorTypeNone {
             return ret;
         }
         ret = dict_obj(rv);
@@ -5396,7 +5396,7 @@ pub fn handle_nvim_parse_cmd(
         if args.size < 1 || args.size > 2 {
             api_set_error!(
                 error,
-                ErrorType::kErrorTypeException,
+                ErrorType::ErrorTypeException,
                 c"Wrong number of arguments: expecting 1 to 2 but got %zu",
                 args.size
             );
@@ -5422,7 +5422,7 @@ pub fn handle_nvim_parse_cmd(
             return ret;
         }
         let mut rv = nvim_parse_cmd(arg_1, &mut arg_2, arena, error);
-        if error.err_type != ErrorType::kErrorTypeNone {
+        if error.err_type != ErrorType::ErrorTypeNone {
             return ret;
         }
         ret = dict_obj(api_keydict_to_dict(
@@ -5453,7 +5453,7 @@ pub fn handle_nvim_cmd(
         if args.size < 1 || args.size > 2 {
             api_set_error!(
                 error,
-                ErrorType::kErrorTypeException,
+                ErrorType::ErrorTypeException,
                 c"Wrong number of arguments: expecting 1 to 2 but got %zu",
                 args.size
             );
@@ -5480,7 +5480,7 @@ pub fn handle_nvim_cmd(
             return ret;
         }
         let rv = nvim_cmd(channel_id, &mut arg_1, &mut arg_2, arena, error);
-        if error.err_type != ErrorType::kErrorTypeNone {
+        if error.err_type != ErrorType::ErrorTypeNone {
             return ret;
         }
         ret = string_obj(rv);
@@ -5506,7 +5506,7 @@ pub fn handle_nvim_create_user_command(
         if args.size < 2 || args.size > 3 {
             api_set_error!(
                 error,
-                ErrorType::kErrorTypeException,
+                ErrorType::ErrorTypeException,
                 c"Wrong number of arguments: expecting 2 to 3 but got %zu",
                 args.size
             );
@@ -5526,7 +5526,7 @@ pub fn handle_nvim_create_user_command(
                 return ret;
             }
         nvim_create_user_command(channel_id, arg_1, arg_2, &mut arg_3, error);
-        if error.err_type != ErrorType::kErrorTypeNone {
+        if error.err_type != ErrorType::ErrorTypeNone {
             return ret;
         }
         ret
@@ -5550,7 +5550,7 @@ pub fn handle_nvim_del_user_command(
         if args.size != 1 {
             api_set_error!(
                 error,
-                ErrorType::kErrorTypeException,
+                ErrorType::ErrorTypeException,
                 c"Wrong number of arguments: expecting 1 but got %zu",
                 args.size
             );
@@ -5565,7 +5565,7 @@ pub fn handle_nvim_del_user_command(
             return ret;
         }
         nvim_del_user_command(arg_1, error);
-        if error.err_type != ErrorType::kErrorTypeNone {
+        if error.err_type != ErrorType::ErrorTypeNone {
             return ret;
         }
         ret
@@ -5591,13 +5591,13 @@ pub fn handle_nvim_buf_create_user_command(
         if args.size < 3 || args.size > 4 {
             api_set_error!(
                 error,
-                ErrorType::kErrorTypeException,
+                ErrorType::ErrorTypeException,
                 c"Wrong number of arguments: expecting 3 to 4 but got %zu",
                 args.size
             );
             return ret;
         }
-        if !extract_handle(args[0], ObjectType::kObjectTypeBuffer, &mut arg_1, c"Wrong type for argument 1 when calling nvim_buf_create_user_command, expecting Buffer", error) {
+        if !extract_handle(args[0], ObjectType::ObjectTypeBuffer, &mut arg_1, c"Wrong type for argument 1 when calling nvim_buf_create_user_command, expecting Buffer", error) {
             return ret;
         }
         if !extract_string(args[1], &mut arg_2, c"Wrong type for argument 2 when calling nvim_buf_create_user_command, expecting String", error) {
@@ -5609,7 +5609,7 @@ pub fn handle_nvim_buf_create_user_command(
                 return ret;
             }
         nvim_buf_create_user_command(channel_id, arg_1, arg_2, arg_3, &mut arg_4, error);
-        if error.err_type != ErrorType::kErrorTypeNone {
+        if error.err_type != ErrorType::ErrorTypeNone {
             return ret;
         }
         ret
@@ -5634,7 +5634,7 @@ pub fn handle_nvim_buf_del_user_command(
         if args.size != 2 {
             api_set_error!(
                 error,
-                ErrorType::kErrorTypeException,
+                ErrorType::ErrorTypeException,
                 c"Wrong number of arguments: expecting 2 but got %zu",
                 args.size
             );
@@ -5642,7 +5642,7 @@ pub fn handle_nvim_buf_del_user_command(
         }
         if !extract_handle(
             args[0],
-            ObjectType::kObjectTypeBuffer,
+            ObjectType::ObjectTypeBuffer,
             &mut arg_1,
             c"Wrong type for argument 1 when calling nvim_buf_del_user_command, expecting Buffer",
             error,
@@ -5658,7 +5658,7 @@ pub fn handle_nvim_buf_del_user_command(
             return ret;
         }
         nvim_buf_del_user_command(arg_1, arg_2, error);
-        if error.err_type != ErrorType::kErrorTypeNone {
+        if error.err_type != ErrorType::ErrorTypeNone {
             return ret;
         }
         ret
@@ -5682,7 +5682,7 @@ pub fn handle_nvim_get_commands(
         if args.size > 1 {
             api_set_error!(
                 error,
-                ErrorType::kErrorTypeException,
+                ErrorType::ErrorTypeException,
                 c"Wrong number of arguments: expecting at most 1 but got %zu",
                 args.size
             );
@@ -5693,7 +5693,7 @@ pub fn handle_nvim_get_commands(
                 return ret;
             }
         let rv = nvim_get_commands(&mut arg_1, arena, error);
-        if error.err_type != ErrorType::kErrorTypeNone {
+        if error.err_type != ErrorType::ErrorTypeNone {
             return ret;
         }
         ret = dict_obj(rv);
@@ -5719,7 +5719,7 @@ pub fn handle_nvim_buf_get_commands(
         if args.size < 1 || args.size > 2 {
             api_set_error!(
                 error,
-                ErrorType::kErrorTypeException,
+                ErrorType::ErrorTypeException,
                 c"Wrong number of arguments: expecting 1 to 2 but got %zu",
                 args.size
             );
@@ -5727,7 +5727,7 @@ pub fn handle_nvim_buf_get_commands(
         }
         if !extract_handle(
             args[0],
-            ObjectType::kObjectTypeBuffer,
+            ObjectType::ObjectTypeBuffer,
             &mut arg_1,
             c"Wrong type for argument 1 when calling nvim_buf_get_commands, expecting Buffer",
             error,
@@ -5739,7 +5739,7 @@ pub fn handle_nvim_buf_get_commands(
                 return ret;
             }
         let rv = nvim_buf_get_commands(arg_1, &mut arg_2, arena, error);
-        if error.err_type != ErrorType::kErrorTypeNone {
+        if error.err_type != ErrorType::ErrorTypeNone {
             return ret;
         }
         ret = dict_obj(rv);
@@ -5765,7 +5765,7 @@ pub fn handle_nvim_exec(
         if args.size != 2 {
             api_set_error!(
                 error,
-                ErrorType::kErrorTypeException,
+                ErrorType::ErrorTypeException,
                 c"Wrong number of arguments: expecting 2 but got %zu",
                 args.size
             );
@@ -5788,7 +5788,7 @@ pub fn handle_nvim_exec(
             return ret;
         }
         let rv = nvim_exec(channel_id, arg_1, arg_2, error);
-        if error.err_type != ErrorType::kErrorTypeNone {
+        if error.err_type != ErrorType::ErrorTypeNone {
             return ret;
         }
         ret = string_obj(rv);
@@ -5813,7 +5813,7 @@ pub fn handle_nvim_command_output(
         if args.size != 1 {
             api_set_error!(
                 error,
-                ErrorType::kErrorTypeException,
+                ErrorType::ErrorTypeException,
                 c"Wrong number of arguments: expecting 1 but got %zu",
                 args.size
             );
@@ -5828,7 +5828,7 @@ pub fn handle_nvim_command_output(
             return ret;
         }
         let rv = nvim_command_output(channel_id, arg_1, error);
-        if error.err_type != ErrorType::kErrorTypeNone {
+        if error.err_type != ErrorType::ErrorTypeNone {
             return ret;
         }
         ret = string_obj(rv);
@@ -5854,7 +5854,7 @@ pub fn handle_nvim_execute_lua(
         if args.size != 2 {
             api_set_error!(
                 error,
-                ErrorType::kErrorTypeException,
+                ErrorType::ErrorTypeException,
                 c"Wrong number of arguments: expecting 2 but got %zu",
                 args.size
             );
@@ -5877,7 +5877,7 @@ pub fn handle_nvim_execute_lua(
             return ret;
         }
         let rv = nvim_execute_lua(arg_1, arg_2, arena, error);
-        if error.err_type != ErrorType::kErrorTypeNone {
+        if error.err_type != ErrorType::ErrorTypeNone {
             return ret;
         }
         ret = rv;
@@ -5902,7 +5902,7 @@ pub fn handle_nvim_buf_get_number(
         if args.size != 1 {
             api_set_error!(
                 error,
-                ErrorType::kErrorTypeException,
+                ErrorType::ErrorTypeException,
                 c"Wrong number of arguments: expecting 1 but got %zu",
                 args.size
             );
@@ -5910,7 +5910,7 @@ pub fn handle_nvim_buf_get_number(
         }
         if !extract_handle(
             args[0],
-            ObjectType::kObjectTypeBuffer,
+            ObjectType::ObjectTypeBuffer,
             &mut arg_1,
             c"Wrong type for argument 1 when calling nvim_buf_get_number, expecting Buffer",
             error,
@@ -5918,7 +5918,7 @@ pub fn handle_nvim_buf_get_number(
             return ret;
         }
         let rv = nvim_buf_get_number(arg_1, error);
-        if error.err_type != ErrorType::kErrorTypeNone {
+        if error.err_type != ErrorType::ErrorTypeNone {
             return ret;
         }
         ret = integer_obj(rv);
@@ -5946,7 +5946,7 @@ pub fn handle_nvim_buf_clear_highlight(
         if args.size != 4 {
             api_set_error!(
                 error,
-                ErrorType::kErrorTypeException,
+                ErrorType::ErrorTypeException,
                 c"Wrong number of arguments: expecting 4 but got %zu",
                 args.size
             );
@@ -5954,7 +5954,7 @@ pub fn handle_nvim_buf_clear_highlight(
         }
         if !extract_handle(
             args[0],
-            ObjectType::kObjectTypeBuffer,
+            ObjectType::ObjectTypeBuffer,
             &mut arg_1,
             c"Wrong type for argument 1 when calling nvim_buf_clear_highlight, expecting Buffer",
             error,
@@ -5986,7 +5986,7 @@ pub fn handle_nvim_buf_clear_highlight(
             return ret;
         }
         nvim_buf_clear_highlight(arg_1, arg_2, arg_3, arg_4, error);
-        if error.err_type != ErrorType::kErrorTypeNone {
+        if error.err_type != ErrorType::ErrorTypeNone {
             return ret;
         }
         ret
@@ -6015,7 +6015,7 @@ pub fn handle_nvim_buf_add_highlight(
         if args.size != 6 {
             api_set_error!(
                 error,
-                ErrorType::kErrorTypeException,
+                ErrorType::ErrorTypeException,
                 c"Wrong number of arguments: expecting 6 but got %zu",
                 args.size
             );
@@ -6023,7 +6023,7 @@ pub fn handle_nvim_buf_add_highlight(
         }
         if !extract_handle(
             args[0],
-            ObjectType::kObjectTypeBuffer,
+            ObjectType::ObjectTypeBuffer,
             &mut arg_1,
             c"Wrong type for argument 1 when calling nvim_buf_add_highlight, expecting Buffer",
             error,
@@ -6071,7 +6071,7 @@ pub fn handle_nvim_buf_add_highlight(
             return ret;
         }
         let rv = nvim_buf_add_highlight(arg_1, arg_2, arg_3, arg_4, arg_5, arg_6, error);
-        if error.err_type != ErrorType::kErrorTypeNone {
+        if error.err_type != ErrorType::ErrorTypeNone {
             return ret;
         }
         ret = integer_obj(rv);
@@ -6100,7 +6100,7 @@ pub fn handle_nvim_buf_set_virtual_text(
         if args.size < 4 || args.size > 5 {
             api_set_error!(
                 error,
-                ErrorType::kErrorTypeException,
+                ErrorType::ErrorTypeException,
                 c"Wrong number of arguments: expecting 4 to 5 but got %zu",
                 args.size
             );
@@ -6108,7 +6108,7 @@ pub fn handle_nvim_buf_set_virtual_text(
         }
         if !extract_handle(
             args[0],
-            ObjectType::kObjectTypeBuffer,
+            ObjectType::ObjectTypeBuffer,
             &mut arg_1,
             c"Wrong type for argument 1 when calling nvim_buf_set_virtual_text, expecting Buffer",
             error,
@@ -6144,7 +6144,7 @@ pub fn handle_nvim_buf_set_virtual_text(
                 return ret;
             }
         let rv = nvim_buf_set_virtual_text(arg_1, arg_2, arg_3, arg_4, &mut arg_5, error);
-        if error.err_type != ErrorType::kErrorTypeNone {
+        if error.err_type != ErrorType::ErrorTypeNone {
             return ret;
         }
         ret = integer_obj(rv);
@@ -6170,7 +6170,7 @@ pub fn handle_nvim_get_hl_by_id(
         if args.size != 2 {
             api_set_error!(
                 error,
-                ErrorType::kErrorTypeException,
+                ErrorType::ErrorTypeException,
                 c"Wrong number of arguments: expecting 2 but got %zu",
                 args.size
             );
@@ -6193,7 +6193,7 @@ pub fn handle_nvim_get_hl_by_id(
             return ret;
         }
         let rv = nvim_get_hl_by_id(arg_1, arg_2, arena, error);
-        if error.err_type != ErrorType::kErrorTypeNone {
+        if error.err_type != ErrorType::ErrorTypeNone {
             return ret;
         }
         ret = dict_obj(rv);
@@ -6219,7 +6219,7 @@ pub fn handle_nvim_get_hl_by_name(
         if args.size != 2 {
             api_set_error!(
                 error,
-                ErrorType::kErrorTypeException,
+                ErrorType::ErrorTypeException,
                 c"Wrong number of arguments: expecting 2 but got %zu",
                 args.size
             );
@@ -6242,7 +6242,7 @@ pub fn handle_nvim_get_hl_by_name(
             return ret;
         }
         let rv = nvim_get_hl_by_name(arg_1, arg_2, arena, error);
-        if error.err_type != ErrorType::kErrorTypeNone {
+        if error.err_type != ErrorType::ErrorTypeNone {
             return ret;
         }
         ret = dict_obj(rv);
@@ -6269,7 +6269,7 @@ pub fn handle_buffer_insert(
         if args.size != 3 {
             api_set_error!(
                 error,
-                ErrorType::kErrorTypeException,
+                ErrorType::ErrorTypeException,
                 c"Wrong number of arguments: expecting 3 but got %zu",
                 args.size
             );
@@ -6277,7 +6277,7 @@ pub fn handle_buffer_insert(
         }
         if !extract_handle(
             args[0],
-            ObjectType::kObjectTypeBuffer,
+            ObjectType::ObjectTypeBuffer,
             &mut arg_1,
             c"Wrong type for argument 1 when calling buffer_insert, expecting Buffer",
             error,
@@ -6301,7 +6301,7 @@ pub fn handle_buffer_insert(
             return ret;
         }
         buffer_insert(arg_1, arg_2, arg_3, arena, error);
-        if error.err_type != ErrorType::kErrorTypeNone {
+        if error.err_type != ErrorType::ErrorTypeNone {
             return ret;
         }
         ret
@@ -6326,7 +6326,7 @@ pub fn handle_buffer_get_line(
         if args.size != 2 {
             api_set_error!(
                 error,
-                ErrorType::kErrorTypeException,
+                ErrorType::ErrorTypeException,
                 c"Wrong number of arguments: expecting 2 but got %zu",
                 args.size
             );
@@ -6334,7 +6334,7 @@ pub fn handle_buffer_get_line(
         }
         if !extract_handle(
             args[0],
-            ObjectType::kObjectTypeBuffer,
+            ObjectType::ObjectTypeBuffer,
             &mut arg_1,
             c"Wrong type for argument 1 when calling buffer_get_line, expecting Buffer",
             error,
@@ -6350,7 +6350,7 @@ pub fn handle_buffer_get_line(
             return ret;
         }
         let rv = buffer_get_line(arg_1, arg_2, arena, error);
-        if error.err_type != ErrorType::kErrorTypeNone {
+        if error.err_type != ErrorType::ErrorTypeNone {
             return ret;
         }
         ret = string_obj(rv);
@@ -6377,7 +6377,7 @@ pub fn handle_buffer_set_line(
         if args.size != 3 {
             api_set_error!(
                 error,
-                ErrorType::kErrorTypeException,
+                ErrorType::ErrorTypeException,
                 c"Wrong number of arguments: expecting 3 but got %zu",
                 args.size
             );
@@ -6385,7 +6385,7 @@ pub fn handle_buffer_set_line(
         }
         if !extract_handle(
             args[0],
-            ObjectType::kObjectTypeBuffer,
+            ObjectType::ObjectTypeBuffer,
             &mut arg_1,
             c"Wrong type for argument 1 when calling buffer_set_line, expecting Buffer",
             error,
@@ -6409,7 +6409,7 @@ pub fn handle_buffer_set_line(
             return ret;
         }
         buffer_set_line(arg_1, arg_2, arg_3, arena, error);
-        if error.err_type != ErrorType::kErrorTypeNone {
+        if error.err_type != ErrorType::ErrorTypeNone {
             return ret;
         }
         ret
@@ -6434,7 +6434,7 @@ pub fn handle_buffer_del_line(
         if args.size != 2 {
             api_set_error!(
                 error,
-                ErrorType::kErrorTypeException,
+                ErrorType::ErrorTypeException,
                 c"Wrong number of arguments: expecting 2 but got %zu",
                 args.size
             );
@@ -6442,7 +6442,7 @@ pub fn handle_buffer_del_line(
         }
         if !extract_handle(
             args[0],
-            ObjectType::kObjectTypeBuffer,
+            ObjectType::ObjectTypeBuffer,
             &mut arg_1,
             c"Wrong type for argument 1 when calling buffer_del_line, expecting Buffer",
             error,
@@ -6458,7 +6458,7 @@ pub fn handle_buffer_del_line(
             return ret;
         }
         buffer_del_line(arg_1, arg_2, arena, error);
-        if error.err_type != ErrorType::kErrorTypeNone {
+        if error.err_type != ErrorType::ErrorTypeNone {
             return ret;
         }
         ret
@@ -6486,7 +6486,7 @@ pub fn handle_buffer_get_line_slice(
         if args.size != 5 {
             api_set_error!(
                 error,
-                ErrorType::kErrorTypeException,
+                ErrorType::ErrorTypeException,
                 c"Wrong number of arguments: expecting 5 but got %zu",
                 args.size
             );
@@ -6494,7 +6494,7 @@ pub fn handle_buffer_get_line_slice(
         }
         if !extract_handle(
             args[0],
-            ObjectType::kObjectTypeBuffer,
+            ObjectType::ObjectTypeBuffer,
             &mut arg_1,
             c"Wrong type for argument 1 when calling buffer_get_line_slice, expecting Buffer",
             error,
@@ -6534,7 +6534,7 @@ pub fn handle_buffer_get_line_slice(
             return ret;
         }
         let rv = buffer_get_line_slice(arg_1, arg_2, arg_3, arg_4, arg_5, arena, error);
-        if error.err_type != ErrorType::kErrorTypeNone {
+        if error.err_type != ErrorType::ErrorTypeNone {
             return ret;
         }
         ret = array_obj(rv);
@@ -6564,7 +6564,7 @@ pub fn handle_buffer_set_line_slice(
         if args.size != 6 {
             api_set_error!(
                 error,
-                ErrorType::kErrorTypeException,
+                ErrorType::ErrorTypeException,
                 c"Wrong number of arguments: expecting 6 but got %zu",
                 args.size
             );
@@ -6572,7 +6572,7 @@ pub fn handle_buffer_set_line_slice(
         }
         if !extract_handle(
             args[0],
-            ObjectType::kObjectTypeBuffer,
+            ObjectType::ObjectTypeBuffer,
             &mut arg_1,
             c"Wrong type for argument 1 when calling buffer_set_line_slice, expecting Buffer",
             error,
@@ -6615,7 +6615,7 @@ pub fn handle_buffer_set_line_slice(
             return ret;
         }
         buffer_set_line_slice(arg_1, arg_2, arg_3, arg_4, arg_5, arg_6, arena, error);
-        if error.err_type != ErrorType::kErrorTypeNone {
+        if error.err_type != ErrorType::ErrorTypeNone {
             return ret;
         }
         ret
@@ -6640,7 +6640,7 @@ pub fn handle_buffer_set_var(
         if args.size != 3 {
             api_set_error!(
                 error,
-                ErrorType::kErrorTypeException,
+                ErrorType::ErrorTypeException,
                 c"Wrong number of arguments: expecting 3 but got %zu",
                 args.size
             );
@@ -6648,7 +6648,7 @@ pub fn handle_buffer_set_var(
         }
         if !extract_handle(
             args[0],
-            ObjectType::kObjectTypeBuffer,
+            ObjectType::ObjectTypeBuffer,
             &mut arg_1,
             c"Wrong type for argument 1 when calling buffer_set_var, expecting Buffer",
             error,
@@ -6665,7 +6665,7 @@ pub fn handle_buffer_set_var(
         }
         let arg_3: Object = args[2];
         let rv = buffer_set_var(arg_1, arg_2, arg_3, arena, error);
-        if error.err_type != ErrorType::kErrorTypeNone {
+        if error.err_type != ErrorType::ErrorTypeNone {
             return ret;
         }
         ret = rv;
@@ -6691,7 +6691,7 @@ pub fn handle_buffer_del_var(
         if args.size != 2 {
             api_set_error!(
                 error,
-                ErrorType::kErrorTypeException,
+                ErrorType::ErrorTypeException,
                 c"Wrong number of arguments: expecting 2 but got %zu",
                 args.size
             );
@@ -6699,7 +6699,7 @@ pub fn handle_buffer_del_var(
         }
         if !extract_handle(
             args[0],
-            ObjectType::kObjectTypeBuffer,
+            ObjectType::ObjectTypeBuffer,
             &mut arg_1,
             c"Wrong type for argument 1 when calling buffer_del_var, expecting Buffer",
             error,
@@ -6715,7 +6715,7 @@ pub fn handle_buffer_del_var(
             return ret;
         }
         let rv = buffer_del_var(arg_1, arg_2, arena, error);
-        if error.err_type != ErrorType::kErrorTypeNone {
+        if error.err_type != ErrorType::ErrorTypeNone {
             return ret;
         }
         ret = rv;
@@ -6741,7 +6741,7 @@ pub fn handle_window_set_var(
         if args.size != 3 {
             api_set_error!(
                 error,
-                ErrorType::kErrorTypeException,
+                ErrorType::ErrorTypeException,
                 c"Wrong number of arguments: expecting 3 but got %zu",
                 args.size
             );
@@ -6749,7 +6749,7 @@ pub fn handle_window_set_var(
         }
         if !extract_handle(
             args[0],
-            ObjectType::kObjectTypeWindow,
+            ObjectType::ObjectTypeWindow,
             &mut arg_1,
             c"Wrong type for argument 1 when calling window_set_var, expecting Window",
             error,
@@ -6766,7 +6766,7 @@ pub fn handle_window_set_var(
         }
         let arg_3: Object = args[2];
         let rv = window_set_var(arg_1, arg_2, arg_3, arena, error);
-        if error.err_type != ErrorType::kErrorTypeNone {
+        if error.err_type != ErrorType::ErrorTypeNone {
             return ret;
         }
         ret = rv;
@@ -6792,7 +6792,7 @@ pub fn handle_window_del_var(
         if args.size != 2 {
             api_set_error!(
                 error,
-                ErrorType::kErrorTypeException,
+                ErrorType::ErrorTypeException,
                 c"Wrong number of arguments: expecting 2 but got %zu",
                 args.size
             );
@@ -6800,7 +6800,7 @@ pub fn handle_window_del_var(
         }
         if !extract_handle(
             args[0],
-            ObjectType::kObjectTypeWindow,
+            ObjectType::ObjectTypeWindow,
             &mut arg_1,
             c"Wrong type for argument 1 when calling window_del_var, expecting Window",
             error,
@@ -6816,7 +6816,7 @@ pub fn handle_window_del_var(
             return ret;
         }
         let rv = window_del_var(arg_1, arg_2, arena, error);
-        if error.err_type != ErrorType::kErrorTypeNone {
+        if error.err_type != ErrorType::ErrorTypeNone {
             return ret;
         }
         ret = rv;
@@ -6842,7 +6842,7 @@ pub fn handle_tabpage_set_var(
         if args.size != 3 {
             api_set_error!(
                 error,
-                ErrorType::kErrorTypeException,
+                ErrorType::ErrorTypeException,
                 c"Wrong number of arguments: expecting 3 but got %zu",
                 args.size
             );
@@ -6850,7 +6850,7 @@ pub fn handle_tabpage_set_var(
         }
         if !extract_handle(
             args[0],
-            ObjectType::kObjectTypeTabpage,
+            ObjectType::ObjectTypeTabpage,
             &mut arg_1,
             c"Wrong type for argument 1 when calling tabpage_set_var, expecting Tabpage",
             error,
@@ -6867,7 +6867,7 @@ pub fn handle_tabpage_set_var(
         }
         let arg_3: Object = args[2];
         let rv = tabpage_set_var(arg_1, arg_2, arg_3, arena, error);
-        if error.err_type != ErrorType::kErrorTypeNone {
+        if error.err_type != ErrorType::ErrorTypeNone {
             return ret;
         }
         ret = rv;
@@ -6893,7 +6893,7 @@ pub fn handle_tabpage_del_var(
         if args.size != 2 {
             api_set_error!(
                 error,
-                ErrorType::kErrorTypeException,
+                ErrorType::ErrorTypeException,
                 c"Wrong number of arguments: expecting 2 but got %zu",
                 args.size
             );
@@ -6901,7 +6901,7 @@ pub fn handle_tabpage_del_var(
         }
         if !extract_handle(
             args[0],
-            ObjectType::kObjectTypeTabpage,
+            ObjectType::ObjectTypeTabpage,
             &mut arg_1,
             c"Wrong type for argument 1 when calling tabpage_del_var, expecting Tabpage",
             error,
@@ -6917,7 +6917,7 @@ pub fn handle_tabpage_del_var(
             return ret;
         }
         let rv = tabpage_del_var(arg_1, arg_2, arena, error);
-        if error.err_type != ErrorType::kErrorTypeNone {
+        if error.err_type != ErrorType::ErrorTypeNone {
             return ret;
         }
         ret = rv;
@@ -6942,7 +6942,7 @@ pub fn handle_vim_set_var(
         if args.size != 2 {
             api_set_error!(
                 error,
-                ErrorType::kErrorTypeException,
+                ErrorType::ErrorTypeException,
                 c"Wrong number of arguments: expecting 2 but got %zu",
                 args.size
             );
@@ -6958,7 +6958,7 @@ pub fn handle_vim_set_var(
         }
         let arg_2: Object = args[1];
         let rv = vim_set_var(arg_1, arg_2, arena, error);
-        if error.err_type != ErrorType::kErrorTypeNone {
+        if error.err_type != ErrorType::ErrorTypeNone {
             return ret;
         }
         ret = rv;
@@ -6983,7 +6983,7 @@ pub fn handle_vim_del_var(
         if args.size != 1 {
             api_set_error!(
                 error,
-                ErrorType::kErrorTypeException,
+                ErrorType::ErrorTypeException,
                 c"Wrong number of arguments: expecting 1 but got %zu",
                 args.size
             );
@@ -6998,7 +6998,7 @@ pub fn handle_vim_del_var(
             return ret;
         }
         let rv = vim_del_var(arg_1, arena, error);
-        if error.err_type != ErrorType::kErrorTypeNone {
+        if error.err_type != ErrorType::ErrorTypeNone {
             return ret;
         }
         ret = rv;
@@ -7023,7 +7023,7 @@ pub fn handle_nvim_get_option_info(
         if args.size != 1 {
             api_set_error!(
                 error,
-                ErrorType::kErrorTypeException,
+                ErrorType::ErrorTypeException,
                 c"Wrong number of arguments: expecting 1 but got %zu",
                 args.size
             );
@@ -7038,7 +7038,7 @@ pub fn handle_nvim_get_option_info(
             return ret;
         }
         let rv = nvim_get_option_info(arg_1, arena, error);
-        if error.err_type != ErrorType::kErrorTypeNone {
+        if error.err_type != ErrorType::ErrorTypeNone {
             return ret;
         }
         ret = dict_obj(rv);
@@ -7063,7 +7063,7 @@ pub fn handle_nvim_set_option(
         if args.size != 2 {
             api_set_error!(
                 error,
-                ErrorType::kErrorTypeException,
+                ErrorType::ErrorTypeException,
                 c"Wrong number of arguments: expecting 2 but got %zu",
                 args.size
             );
@@ -7079,7 +7079,7 @@ pub fn handle_nvim_set_option(
         }
         let arg_2: Object = args[1];
         nvim_set_option(channel_id, arg_1, arg_2, error);
-        if error.err_type != ErrorType::kErrorTypeNone {
+        if error.err_type != ErrorType::ErrorTypeNone {
             return ret;
         }
         ret
@@ -7103,7 +7103,7 @@ pub fn handle_nvim_get_option(
         if args.size != 1 {
             api_set_error!(
                 error,
-                ErrorType::kErrorTypeException,
+                ErrorType::ErrorTypeException,
                 c"Wrong number of arguments: expecting 1 but got %zu",
                 args.size
             );
@@ -7118,7 +7118,7 @@ pub fn handle_nvim_get_option(
             return ret;
         }
         let rv = nvim_get_option(arg_1, error);
-        if error.err_type != ErrorType::kErrorTypeNone {
+        if error.err_type != ErrorType::ErrorTypeNone {
             return ret;
         }
         ret = rv;
@@ -7144,7 +7144,7 @@ pub fn handle_nvim_buf_get_option(
         if args.size != 2 {
             api_set_error!(
                 error,
-                ErrorType::kErrorTypeException,
+                ErrorType::ErrorTypeException,
                 c"Wrong number of arguments: expecting 2 but got %zu",
                 args.size
             );
@@ -7152,7 +7152,7 @@ pub fn handle_nvim_buf_get_option(
         }
         if !extract_handle(
             args[0],
-            ObjectType::kObjectTypeBuffer,
+            ObjectType::ObjectTypeBuffer,
             &mut arg_1,
             c"Wrong type for argument 1 when calling nvim_buf_get_option, expecting Buffer",
             error,
@@ -7168,7 +7168,7 @@ pub fn handle_nvim_buf_get_option(
             return ret;
         }
         let rv = nvim_buf_get_option(arg_1, arg_2, error);
-        if error.err_type != ErrorType::kErrorTypeNone {
+        if error.err_type != ErrorType::ErrorTypeNone {
             return ret;
         }
         ret = rv;
@@ -7194,7 +7194,7 @@ pub fn handle_nvim_buf_set_option(
         if args.size != 3 {
             api_set_error!(
                 error,
-                ErrorType::kErrorTypeException,
+                ErrorType::ErrorTypeException,
                 c"Wrong number of arguments: expecting 3 but got %zu",
                 args.size
             );
@@ -7202,7 +7202,7 @@ pub fn handle_nvim_buf_set_option(
         }
         if !extract_handle(
             args[0],
-            ObjectType::kObjectTypeBuffer,
+            ObjectType::ObjectTypeBuffer,
             &mut arg_1,
             c"Wrong type for argument 1 when calling nvim_buf_set_option, expecting Buffer",
             error,
@@ -7219,7 +7219,7 @@ pub fn handle_nvim_buf_set_option(
         }
         let arg_3: Object = args[2];
         nvim_buf_set_option(channel_id, arg_1, arg_2, arg_3, error);
-        if error.err_type != ErrorType::kErrorTypeNone {
+        if error.err_type != ErrorType::ErrorTypeNone {
             return ret;
         }
         ret
@@ -7244,7 +7244,7 @@ pub fn handle_nvim_win_get_option(
         if args.size != 2 {
             api_set_error!(
                 error,
-                ErrorType::kErrorTypeException,
+                ErrorType::ErrorTypeException,
                 c"Wrong number of arguments: expecting 2 but got %zu",
                 args.size
             );
@@ -7252,7 +7252,7 @@ pub fn handle_nvim_win_get_option(
         }
         if !extract_handle(
             args[0],
-            ObjectType::kObjectTypeWindow,
+            ObjectType::ObjectTypeWindow,
             &mut arg_1,
             c"Wrong type for argument 1 when calling nvim_win_get_option, expecting Window",
             error,
@@ -7268,7 +7268,7 @@ pub fn handle_nvim_win_get_option(
             return ret;
         }
         let rv = nvim_win_get_option(arg_1, arg_2, error);
-        if error.err_type != ErrorType::kErrorTypeNone {
+        if error.err_type != ErrorType::ErrorTypeNone {
             return ret;
         }
         ret = rv;
@@ -7294,7 +7294,7 @@ pub fn handle_nvim_win_set_option(
         if args.size != 3 {
             api_set_error!(
                 error,
-                ErrorType::kErrorTypeException,
+                ErrorType::ErrorTypeException,
                 c"Wrong number of arguments: expecting 3 but got %zu",
                 args.size
             );
@@ -7302,7 +7302,7 @@ pub fn handle_nvim_win_set_option(
         }
         if !extract_handle(
             args[0],
-            ObjectType::kObjectTypeWindow,
+            ObjectType::ObjectTypeWindow,
             &mut arg_1,
             c"Wrong type for argument 1 when calling nvim_win_set_option, expecting Window",
             error,
@@ -7319,7 +7319,7 @@ pub fn handle_nvim_win_set_option(
         }
         let arg_3: Object = args[2];
         nvim_win_set_option(channel_id, arg_1, arg_2, arg_3, error);
-        if error.err_type != ErrorType::kErrorTypeNone {
+        if error.err_type != ErrorType::ErrorTypeNone {
             return ret;
         }
         ret
@@ -7343,7 +7343,7 @@ pub fn handle_nvim_call_atomic(
         if args.size != 1 {
             api_set_error!(
                 error,
-                ErrorType::kErrorTypeException,
+                ErrorType::ErrorTypeException,
                 c"Wrong number of arguments: expecting 1 but got %zu",
                 args.size
             );
@@ -7358,7 +7358,7 @@ pub fn handle_nvim_call_atomic(
             return ret;
         }
         let rv = nvim_call_atomic(channel_id, arg_1, arena, error);
-        if error.err_type != ErrorType::kErrorTypeNone {
+        if error.err_type != ErrorType::ErrorTypeNone {
             return ret;
         }
         ret = array_obj(rv);
@@ -7383,7 +7383,7 @@ pub fn handle_nvim_subscribe(
         if args.size != 1 {
             api_set_error!(
                 error,
-                ErrorType::kErrorTypeException,
+                ErrorType::ErrorTypeException,
                 c"Wrong number of arguments: expecting 1 but got %zu",
                 args.size
             );
@@ -7419,7 +7419,7 @@ pub fn handle_nvim_unsubscribe(
         if args.size != 1 {
             api_set_error!(
                 error,
-                ErrorType::kErrorTypeException,
+                ErrorType::ErrorTypeException,
                 c"Wrong number of arguments: expecting 1 but got %zu",
                 args.size
             );
@@ -7455,7 +7455,7 @@ pub fn handle_nvim_out_write(
         if args.size != 1 {
             api_set_error!(
                 error,
-                ErrorType::kErrorTypeException,
+                ErrorType::ErrorTypeException,
                 c"Wrong number of arguments: expecting 1 but got %zu",
                 args.size
             );
@@ -7491,7 +7491,7 @@ pub fn handle_nvim_err_write(
         if args.size != 1 {
             api_set_error!(
                 error,
-                ErrorType::kErrorTypeException,
+                ErrorType::ErrorTypeException,
                 c"Wrong number of arguments: expecting 1 but got %zu",
                 args.size
             );
@@ -7527,7 +7527,7 @@ pub fn handle_nvim_err_writeln(
         if args.size != 1 {
             api_set_error!(
                 error,
-                ErrorType::kErrorTypeException,
+                ErrorType::ErrorTypeException,
                 c"Wrong number of arguments: expecting 1 but got %zu",
                 args.size
             );
@@ -7565,7 +7565,7 @@ pub fn handle_nvim_notify(
         if args.size != 3 {
             api_set_error!(
                 error,
-                ErrorType::kErrorTypeException,
+                ErrorType::ErrorTypeException,
                 c"Wrong number of arguments: expecting 3 but got %zu",
                 args.size
             );
@@ -7596,7 +7596,7 @@ pub fn handle_nvim_notify(
             return ret;
         }
         let rv = nvim_notify(arg_1, arg_2, arg_3, arena, error);
-        if error.err_type != ErrorType::kErrorTypeNone {
+        if error.err_type != ErrorType::ErrorTypeNone {
             return ret;
         }
         ret = rv;
@@ -7622,7 +7622,7 @@ pub fn handle_nvim_win_set_height(
         if args.size != 2 {
             api_set_error!(
                 error,
-                ErrorType::kErrorTypeException,
+                ErrorType::ErrorTypeException,
                 c"Wrong number of arguments: expecting 2 but got %zu",
                 args.size
             );
@@ -7630,7 +7630,7 @@ pub fn handle_nvim_win_set_height(
         }
         if !extract_handle(
             args[0],
-            ObjectType::kObjectTypeWindow,
+            ObjectType::ObjectTypeWindow,
             &mut arg_1,
             c"Wrong type for argument 1 when calling nvim_win_set_height, expecting Window",
             error,
@@ -7646,7 +7646,7 @@ pub fn handle_nvim_win_set_height(
             return ret;
         }
         nvim_win_set_height(arg_1, arg_2, error);
-        if error.err_type != ErrorType::kErrorTypeNone {
+        if error.err_type != ErrorType::ErrorTypeNone {
             return ret;
         }
         ret
@@ -7671,7 +7671,7 @@ pub fn handle_nvim_win_set_width(
         if args.size != 2 {
             api_set_error!(
                 error,
-                ErrorType::kErrorTypeException,
+                ErrorType::ErrorTypeException,
                 c"Wrong number of arguments: expecting 2 but got %zu",
                 args.size
             );
@@ -7679,7 +7679,7 @@ pub fn handle_nvim_win_set_width(
         }
         if !extract_handle(
             args[0],
-            ObjectType::kObjectTypeWindow,
+            ObjectType::ObjectTypeWindow,
             &mut arg_1,
             c"Wrong type for argument 1 when calling nvim_win_set_width, expecting Window",
             error,
@@ -7695,7 +7695,7 @@ pub fn handle_nvim_win_set_width(
             return ret;
         }
         nvim_win_set_width(arg_1, arg_2, error);
-        if error.err_type != ErrorType::kErrorTypeNone {
+        if error.err_type != ErrorType::ErrorTypeNone {
             return ret;
         }
         ret
@@ -7720,7 +7720,7 @@ pub fn handle_nvim_error_event(
         if args.size != 2 {
             api_set_error!(
                 error,
-                ErrorType::kErrorTypeException,
+                ErrorType::ErrorTypeException,
                 c"Wrong number of arguments: expecting 2 but got %zu",
                 args.size
             );
@@ -7764,7 +7764,7 @@ pub fn handle_nvim_ui_term_event(
         if args.size != 2 {
             api_set_error!(
                 error,
-                ErrorType::kErrorTypeException,
+                ErrorType::ErrorTypeException,
                 c"Wrong number of arguments: expecting 2 but got %zu",
                 args.size
             );
@@ -7780,7 +7780,7 @@ pub fn handle_nvim_ui_term_event(
         }
         let arg_2: Object = args[1];
         nvim_ui_term_event(channel_id, arg_1, arg_2, error);
-        if error.err_type != ErrorType::kErrorTypeNone {
+        if error.err_type != ErrorType::ErrorTypeNone {
             return ret;
         }
         ret
@@ -7804,7 +7804,7 @@ pub fn handle_nvim_create_namespace(
         if args.size != 1 {
             api_set_error!(
                 error,
-                ErrorType::kErrorTypeException,
+                ErrorType::ErrorTypeException,
                 c"Wrong number of arguments: expecting 1 but got %zu",
                 args.size
             );
@@ -7840,7 +7840,7 @@ pub fn handle_nvim_get_namespaces(
         if args.size != 0 {
             api_set_error!(
                 error,
-                ErrorType::kErrorTypeException,
+                ErrorType::ErrorTypeException,
                 c"Wrong number of arguments: expecting 0 but got %zu",
                 args.size
             );
@@ -7872,7 +7872,7 @@ pub fn handle_nvim_buf_get_extmark_by_id(
         if args.size < 3 || args.size > 4 {
             api_set_error!(
                 error,
-                ErrorType::kErrorTypeException,
+                ErrorType::ErrorTypeException,
                 c"Wrong number of arguments: expecting 3 to 4 but got %zu",
                 args.size
             );
@@ -7880,7 +7880,7 @@ pub fn handle_nvim_buf_get_extmark_by_id(
         }
         if !extract_handle(
             args[0],
-            ObjectType::kObjectTypeBuffer,
+            ObjectType::ObjectTypeBuffer,
             &mut arg_1,
             c"Wrong type for argument 1 when calling nvim_buf_get_extmark_by_id, expecting Buffer",
             error,
@@ -7908,7 +7908,7 @@ pub fn handle_nvim_buf_get_extmark_by_id(
                 return ret;
             }
         let rv = nvim_buf_get_extmark_by_id(arg_1, arg_2, arg_3, &mut arg_4, arena, error);
-        if error.err_type != ErrorType::kErrorTypeNone {
+        if error.err_type != ErrorType::ErrorTypeNone {
             return ret;
         }
         ret = array_obj(rv);
@@ -7935,7 +7935,7 @@ pub fn handle_nvim_buf_get_extmarks(
         if args.size < 4 || args.size > 5 {
             api_set_error!(
                 error,
-                ErrorType::kErrorTypeException,
+                ErrorType::ErrorTypeException,
                 c"Wrong number of arguments: expecting 4 to 5 but got %zu",
                 args.size
             );
@@ -7943,7 +7943,7 @@ pub fn handle_nvim_buf_get_extmarks(
         }
         if !extract_handle(
             args[0],
-            ObjectType::kObjectTypeBuffer,
+            ObjectType::ObjectTypeBuffer,
             &mut arg_1,
             c"Wrong type for argument 1 when calling nvim_buf_get_extmarks, expecting Buffer",
             error,
@@ -7965,7 +7965,7 @@ pub fn handle_nvim_buf_get_extmarks(
                 return ret;
             }
         let rv = nvim_buf_get_extmarks(arg_1, arg_2, arg_3, arg_4, &mut arg_5, arena, error);
-        if error.err_type != ErrorType::kErrorTypeNone {
+        if error.err_type != ErrorType::ErrorTypeNone {
             return ret;
         }
         ret = array_obj(rv);
@@ -7994,7 +7994,7 @@ pub fn handle_nvim_buf_set_extmark(
         if args.size < 4 || args.size > 5 {
             api_set_error!(
                 error,
-                ErrorType::kErrorTypeException,
+                ErrorType::ErrorTypeException,
                 c"Wrong number of arguments: expecting 4 to 5 but got %zu",
                 args.size
             );
@@ -8002,7 +8002,7 @@ pub fn handle_nvim_buf_set_extmark(
         }
         if !extract_handle(
             args[0],
-            ObjectType::kObjectTypeBuffer,
+            ObjectType::ObjectTypeBuffer,
             &mut arg_1,
             c"Wrong type for argument 1 when calling nvim_buf_set_extmark, expecting Buffer",
             error,
@@ -8038,7 +8038,7 @@ pub fn handle_nvim_buf_set_extmark(
                 return ret;
             }
         let rv = nvim_buf_set_extmark(arg_1, arg_2, arg_3, arg_4, &mut arg_5, error);
-        if error.err_type != ErrorType::kErrorTypeNone {
+        if error.err_type != ErrorType::ErrorTypeNone {
             return ret;
         }
         ret = integer_obj(rv);
@@ -8065,7 +8065,7 @@ pub fn handle_nvim_buf_del_extmark(
         if args.size != 3 {
             api_set_error!(
                 error,
-                ErrorType::kErrorTypeException,
+                ErrorType::ErrorTypeException,
                 c"Wrong number of arguments: expecting 3 but got %zu",
                 args.size
             );
@@ -8073,7 +8073,7 @@ pub fn handle_nvim_buf_del_extmark(
         }
         if !extract_handle(
             args[0],
-            ObjectType::kObjectTypeBuffer,
+            ObjectType::ObjectTypeBuffer,
             &mut arg_1,
             c"Wrong type for argument 1 when calling nvim_buf_del_extmark, expecting Buffer",
             error,
@@ -8097,7 +8097,7 @@ pub fn handle_nvim_buf_del_extmark(
             return ret;
         }
         let rv = nvim_buf_del_extmark(arg_1, arg_2, arg_3, error);
-        if error.err_type != ErrorType::kErrorTypeNone {
+        if error.err_type != ErrorType::ErrorTypeNone {
             return ret;
         }
         ret = boolean_obj(rv);
@@ -8125,7 +8125,7 @@ pub fn handle_nvim_buf_clear_namespace(
         if args.size != 4 {
             api_set_error!(
                 error,
-                ErrorType::kErrorTypeException,
+                ErrorType::ErrorTypeException,
                 c"Wrong number of arguments: expecting 4 but got %zu",
                 args.size
             );
@@ -8133,7 +8133,7 @@ pub fn handle_nvim_buf_clear_namespace(
         }
         if !extract_handle(
             args[0],
-            ObjectType::kObjectTypeBuffer,
+            ObjectType::ObjectTypeBuffer,
             &mut arg_1,
             c"Wrong type for argument 1 when calling nvim_buf_clear_namespace, expecting Buffer",
             error,
@@ -8165,7 +8165,7 @@ pub fn handle_nvim_buf_clear_namespace(
             return ret;
         }
         nvim_buf_clear_namespace(arg_1, arg_2, arg_3, arg_4, error);
-        if error.err_type != ErrorType::kErrorTypeNone {
+        if error.err_type != ErrorType::ErrorTypeNone {
             return ret;
         }
         ret
@@ -8191,7 +8191,7 @@ pub fn handle_nvim__buf_debug_extmarks(
         if args.size != 3 {
             api_set_error!(
                 error,
-                ErrorType::kErrorTypeException,
+                ErrorType::ErrorTypeException,
                 c"Wrong number of arguments: expecting 3 but got %zu",
                 args.size
             );
@@ -8199,7 +8199,7 @@ pub fn handle_nvim__buf_debug_extmarks(
         }
         if !extract_handle(
             args[0],
-            ObjectType::kObjectTypeBuffer,
+            ObjectType::ObjectTypeBuffer,
             &mut arg_1,
             c"Wrong type for argument 1 when calling nvim__buf_debug_extmarks, expecting Buffer",
             error,
@@ -8223,7 +8223,7 @@ pub fn handle_nvim__buf_debug_extmarks(
             return ret;
         }
         let rv = nvim__buf_debug_extmarks(arg_1, arg_2, arg_3, error);
-        if error.err_type != ErrorType::kErrorTypeNone {
+        if error.err_type != ErrorType::ErrorTypeNone {
             return ret;
         }
         ret = string_obj(rv);
@@ -8249,7 +8249,7 @@ pub fn handle_nvim__ns_set(
         if args.size < 1 || args.size > 2 {
             api_set_error!(
                 error,
-                ErrorType::kErrorTypeException,
+                ErrorType::ErrorTypeException,
                 c"Wrong number of arguments: expecting 1 to 2 but got %zu",
                 args.size
             );
@@ -8275,7 +8275,7 @@ pub fn handle_nvim__ns_set(
             return ret;
         }
         nvim__ns_set(arg_1, &mut arg_2, error);
-        if error.err_type != ErrorType::kErrorTypeNone {
+        if error.err_type != ErrorType::ErrorTypeNone {
             return ret;
         }
         ret
@@ -8299,7 +8299,7 @@ pub fn handle_nvim__ns_get(
         if args.size != 1 {
             api_set_error!(
                 error,
-                ErrorType::kErrorTypeException,
+                ErrorType::ErrorTypeException,
                 c"Wrong number of arguments: expecting 1 but got %zu",
                 args.size
             );
@@ -8314,7 +8314,7 @@ pub fn handle_nvim__ns_get(
             return ret;
         }
         let mut rv = nvim__ns_get(arg_1, arena, error);
-        if error.err_type != ErrorType::kErrorTypeNone {
+        if error.err_type != ErrorType::ErrorTypeNone {
             return ret;
         }
         ret = dict_obj(api_keydict_to_dict(
@@ -8345,7 +8345,7 @@ pub fn handle_nvim_get_option_value(
         if args.size < 1 || args.size > 2 {
             api_set_error!(
                 error,
-                ErrorType::kErrorTypeException,
+                ErrorType::ErrorTypeException,
                 c"Wrong number of arguments: expecting 1 to 2 but got %zu",
                 args.size
             );
@@ -8364,7 +8364,7 @@ pub fn handle_nvim_get_option_value(
                 return ret;
             }
         let rv = nvim_get_option_value(arg_1, &mut arg_2, error);
-        if error.err_type != ErrorType::kErrorTypeNone {
+        if error.err_type != ErrorType::ErrorTypeNone {
             return ret;
         }
         ret = rv;
@@ -8390,7 +8390,7 @@ pub fn handle_nvim_set_option_value(
         if args.size < 2 || args.size > 3 {
             api_set_error!(
                 error,
-                ErrorType::kErrorTypeException,
+                ErrorType::ErrorTypeException,
                 c"Wrong number of arguments: expecting 2 to 3 but got %zu",
                 args.size
             );
@@ -8410,7 +8410,7 @@ pub fn handle_nvim_set_option_value(
                 return ret;
             }
         let rv = nvim_set_option_value(channel_id, arg_1, arg_2, &mut arg_3, arena, error);
-        if error.err_type != ErrorType::kErrorTypeNone {
+        if error.err_type != ErrorType::ErrorTypeNone {
             return ret;
         }
         ret = rv;
@@ -8434,14 +8434,14 @@ pub fn handle_nvim_get_all_options_info(
         if args.size != 0 {
             api_set_error!(
                 error,
-                ErrorType::kErrorTypeException,
+                ErrorType::ErrorTypeException,
                 c"Wrong number of arguments: expecting 0 but got %zu",
                 args.size
             );
             return ret;
         }
         let rv = nvim_get_all_options_info(arena, error);
-        if error.err_type != ErrorType::kErrorTypeNone {
+        if error.err_type != ErrorType::ErrorTypeNone {
             return ret;
         }
         ret = dict_obj(rv);
@@ -8467,7 +8467,7 @@ pub fn handle_nvim_get_option_info2(
         if args.size < 1 || args.size > 2 {
             api_set_error!(
                 error,
-                ErrorType::kErrorTypeException,
+                ErrorType::ErrorTypeException,
                 c"Wrong number of arguments: expecting 1 to 2 but got %zu",
                 args.size
             );
@@ -8486,7 +8486,7 @@ pub fn handle_nvim_get_option_info2(
                 return ret;
             }
         let rv = nvim_get_option_info2(arg_1, &mut arg_2, arena, error);
-        if error.err_type != ErrorType::kErrorTypeNone {
+        if error.err_type != ErrorType::ErrorTypeNone {
             return ret;
         }
         ret = dict_obj(rv);
@@ -8511,7 +8511,7 @@ pub fn handle_nvim_tabpage_list_wins(
         if args.size != 1 {
             api_set_error!(
                 error,
-                ErrorType::kErrorTypeException,
+                ErrorType::ErrorTypeException,
                 c"Wrong number of arguments: expecting 1 but got %zu",
                 args.size
             );
@@ -8519,7 +8519,7 @@ pub fn handle_nvim_tabpage_list_wins(
         }
         if !extract_handle(
             args[0],
-            ObjectType::kObjectTypeTabpage,
+            ObjectType::ObjectTypeTabpage,
             &mut arg_1,
             c"Wrong type for argument 1 when calling nvim_tabpage_list_wins, expecting Tabpage",
             error,
@@ -8527,7 +8527,7 @@ pub fn handle_nvim_tabpage_list_wins(
             return ret;
         }
         let rv = nvim_tabpage_list_wins(arg_1, arena, error);
-        if error.err_type != ErrorType::kErrorTypeNone {
+        if error.err_type != ErrorType::ErrorTypeNone {
             return ret;
         }
         ret = array_obj(rv);
@@ -8553,7 +8553,7 @@ pub fn handle_nvim_tabpage_get_var(
         if args.size != 2 {
             api_set_error!(
                 error,
-                ErrorType::kErrorTypeException,
+                ErrorType::ErrorTypeException,
                 c"Wrong number of arguments: expecting 2 but got %zu",
                 args.size
             );
@@ -8561,7 +8561,7 @@ pub fn handle_nvim_tabpage_get_var(
         }
         if !extract_handle(
             args[0],
-            ObjectType::kObjectTypeTabpage,
+            ObjectType::ObjectTypeTabpage,
             &mut arg_1,
             c"Wrong type for argument 1 when calling nvim_tabpage_get_var, expecting Tabpage",
             error,
@@ -8577,7 +8577,7 @@ pub fn handle_nvim_tabpage_get_var(
             return ret;
         }
         let rv = nvim_tabpage_get_var(arg_1, arg_2, arena, error);
-        if error.err_type != ErrorType::kErrorTypeNone {
+        if error.err_type != ErrorType::ErrorTypeNone {
             return ret;
         }
         ret = rv;
@@ -8603,7 +8603,7 @@ pub fn handle_nvim_tabpage_set_var(
         if args.size != 3 {
             api_set_error!(
                 error,
-                ErrorType::kErrorTypeException,
+                ErrorType::ErrorTypeException,
                 c"Wrong number of arguments: expecting 3 but got %zu",
                 args.size
             );
@@ -8611,7 +8611,7 @@ pub fn handle_nvim_tabpage_set_var(
         }
         if !extract_handle(
             args[0],
-            ObjectType::kObjectTypeTabpage,
+            ObjectType::ObjectTypeTabpage,
             &mut arg_1,
             c"Wrong type for argument 1 when calling nvim_tabpage_set_var, expecting Tabpage",
             error,
@@ -8628,7 +8628,7 @@ pub fn handle_nvim_tabpage_set_var(
         }
         let arg_3: Object = args[2];
         nvim_tabpage_set_var(arg_1, arg_2, arg_3, error);
-        if error.err_type != ErrorType::kErrorTypeNone {
+        if error.err_type != ErrorType::ErrorTypeNone {
             return ret;
         }
         ret
@@ -8653,7 +8653,7 @@ pub fn handle_nvim_tabpage_del_var(
         if args.size != 2 {
             api_set_error!(
                 error,
-                ErrorType::kErrorTypeException,
+                ErrorType::ErrorTypeException,
                 c"Wrong number of arguments: expecting 2 but got %zu",
                 args.size
             );
@@ -8661,7 +8661,7 @@ pub fn handle_nvim_tabpage_del_var(
         }
         if !extract_handle(
             args[0],
-            ObjectType::kObjectTypeTabpage,
+            ObjectType::ObjectTypeTabpage,
             &mut arg_1,
             c"Wrong type for argument 1 when calling nvim_tabpage_del_var, expecting Tabpage",
             error,
@@ -8677,7 +8677,7 @@ pub fn handle_nvim_tabpage_del_var(
             return ret;
         }
         nvim_tabpage_del_var(arg_1, arg_2, error);
-        if error.err_type != ErrorType::kErrorTypeNone {
+        if error.err_type != ErrorType::ErrorTypeNone {
             return ret;
         }
         ret
@@ -8701,7 +8701,7 @@ pub fn handle_nvim_tabpage_get_win(
         if args.size != 1 {
             api_set_error!(
                 error,
-                ErrorType::kErrorTypeException,
+                ErrorType::ErrorTypeException,
                 c"Wrong number of arguments: expecting 1 but got %zu",
                 args.size
             );
@@ -8709,7 +8709,7 @@ pub fn handle_nvim_tabpage_get_win(
         }
         if !extract_handle(
             args[0],
-            ObjectType::kObjectTypeTabpage,
+            ObjectType::ObjectTypeTabpage,
             &mut arg_1,
             c"Wrong type for argument 1 when calling nvim_tabpage_get_win, expecting Tabpage",
             error,
@@ -8717,7 +8717,7 @@ pub fn handle_nvim_tabpage_get_win(
             return ret;
         }
         let rv = nvim_tabpage_get_win(arg_1, error);
-        if error.err_type != ErrorType::kErrorTypeNone {
+        if error.err_type != ErrorType::ErrorTypeNone {
             return ret;
         }
         ret = window_obj(rv);
@@ -8743,7 +8743,7 @@ pub fn handle_nvim_tabpage_set_win(
         if args.size != 2 {
             api_set_error!(
                 error,
-                ErrorType::kErrorTypeException,
+                ErrorType::ErrorTypeException,
                 c"Wrong number of arguments: expecting 2 but got %zu",
                 args.size
             );
@@ -8751,7 +8751,7 @@ pub fn handle_nvim_tabpage_set_win(
         }
         if !extract_handle(
             args[0],
-            ObjectType::kObjectTypeTabpage,
+            ObjectType::ObjectTypeTabpage,
             &mut arg_1,
             c"Wrong type for argument 1 when calling nvim_tabpage_set_win, expecting Tabpage",
             error,
@@ -8760,7 +8760,7 @@ pub fn handle_nvim_tabpage_set_win(
         }
         if !extract_handle(
             args[1],
-            ObjectType::kObjectTypeWindow,
+            ObjectType::ObjectTypeWindow,
             &mut arg_2,
             c"Wrong type for argument 2 when calling nvim_tabpage_set_win, expecting Window",
             error,
@@ -8768,7 +8768,7 @@ pub fn handle_nvim_tabpage_set_win(
             return ret;
         }
         nvim_tabpage_set_win(arg_1, arg_2, error);
-        if error.err_type != ErrorType::kErrorTypeNone {
+        if error.err_type != ErrorType::ErrorTypeNone {
             return ret;
         }
         ret
@@ -8792,7 +8792,7 @@ pub fn handle_nvim_tabpage_get_number(
         if args.size != 1 {
             api_set_error!(
                 error,
-                ErrorType::kErrorTypeException,
+                ErrorType::ErrorTypeException,
                 c"Wrong number of arguments: expecting 1 but got %zu",
                 args.size
             );
@@ -8800,7 +8800,7 @@ pub fn handle_nvim_tabpage_get_number(
         }
         if !extract_handle(
             args[0],
-            ObjectType::kObjectTypeTabpage,
+            ObjectType::ObjectTypeTabpage,
             &mut arg_1,
             c"Wrong type for argument 1 when calling nvim_tabpage_get_number, expecting Tabpage",
             error,
@@ -8808,7 +8808,7 @@ pub fn handle_nvim_tabpage_get_number(
             return ret;
         }
         let rv = nvim_tabpage_get_number(arg_1, error);
-        if error.err_type != ErrorType::kErrorTypeNone {
+        if error.err_type != ErrorType::ErrorTypeNone {
             return ret;
         }
         ret = integer_obj(rv);
@@ -8833,7 +8833,7 @@ pub fn handle_nvim_tabpage_is_valid(
         if args.size != 1 {
             api_set_error!(
                 error,
-                ErrorType::kErrorTypeException,
+                ErrorType::ErrorTypeException,
                 c"Wrong number of arguments: expecting 1 but got %zu",
                 args.size
             );
@@ -8841,7 +8841,7 @@ pub fn handle_nvim_tabpage_is_valid(
         }
         if !extract_handle(
             args[0],
-            ObjectType::kObjectTypeTabpage,
+            ObjectType::ObjectTypeTabpage,
             &mut arg_1,
             c"Wrong type for argument 1 when calling nvim_tabpage_is_valid, expecting Tabpage",
             error,
@@ -8873,7 +8873,7 @@ pub fn handle_nvim_open_tabpage(
         if args.size != 3 {
             api_set_error!(
                 error,
-                ErrorType::kErrorTypeException,
+                ErrorType::ErrorTypeException,
                 c"Wrong number of arguments: expecting 3 but got %zu",
                 args.size
             );
@@ -8881,7 +8881,7 @@ pub fn handle_nvim_open_tabpage(
         }
         if !extract_handle(
             args[0],
-            ObjectType::kObjectTypeBuffer,
+            ObjectType::ObjectTypeBuffer,
             &mut arg_1,
             c"Wrong type for argument 1 when calling nvim_open_tabpage, expecting Buffer",
             error,
@@ -8900,11 +8900,11 @@ pub fn handle_nvim_open_tabpage(
             return ret;
         }
         if text_locked() {
-            api_set_error_str(error, ErrorType::kErrorTypeException, get_text_locked_msg());
+            api_set_error_str(error, ErrorType::ErrorTypeException, get_text_locked_msg());
             return ret;
         }
         let rv = nvim_open_tabpage(arg_1, arg_2, &mut arg_3, error);
-        if error.err_type != ErrorType::kErrorTypeNone {
+        if error.err_type != ErrorType::ErrorTypeNone {
             return ret;
         }
         ret = tabpage_obj(rv);
@@ -8931,7 +8931,7 @@ pub fn handle_nvim_ui_attach(
         if args.size != 3 {
             api_set_error!(
                 error,
-                ErrorType::kErrorTypeException,
+                ErrorType::ErrorTypeException,
                 c"Wrong number of arguments: expecting 3 but got %zu",
                 args.size
             );
@@ -8962,7 +8962,7 @@ pub fn handle_nvim_ui_attach(
             return ret;
         }
         nvim_ui_attach(channel_id, arg_1, arg_2, arg_3, error);
-        if error.err_type != ErrorType::kErrorTypeNone {
+        if error.err_type != ErrorType::ErrorTypeNone {
             return ret;
         }
         ret
@@ -8988,7 +8988,7 @@ pub fn handle_ui_attach(
         if args.size != 3 {
             api_set_error!(
                 error,
-                ErrorType::kErrorTypeException,
+                ErrorType::ErrorTypeException,
                 c"Wrong number of arguments: expecting 3 but got %zu",
                 args.size
             );
@@ -9019,7 +9019,7 @@ pub fn handle_ui_attach(
             return ret;
         }
         ui_attach(channel_id, arg_1, arg_2, arg_3, error);
-        if error.err_type != ErrorType::kErrorTypeNone {
+        if error.err_type != ErrorType::ErrorTypeNone {
             return ret;
         }
         ret
@@ -9043,7 +9043,7 @@ pub fn handle_nvim_ui_set_focus(
         if args.size != 1 {
             api_set_error!(
                 error,
-                ErrorType::kErrorTypeException,
+                ErrorType::ErrorTypeException,
                 c"Wrong number of arguments: expecting 1 but got %zu",
                 args.size
             );
@@ -9058,7 +9058,7 @@ pub fn handle_nvim_ui_set_focus(
             return ret;
         }
         nvim_ui_set_focus(channel_id, arg_1, error);
-        if error.err_type != ErrorType::kErrorTypeNone {
+        if error.err_type != ErrorType::ErrorTypeNone {
             return ret;
         }
         ret
@@ -9081,14 +9081,14 @@ pub fn handle_nvim_ui_detach(
         if args.size != 0 {
             api_set_error!(
                 error,
-                ErrorType::kErrorTypeException,
+                ErrorType::ErrorTypeException,
                 c"Wrong number of arguments: expecting 0 but got %zu",
                 args.size
             );
             return ret;
         }
         nvim_ui_detach(channel_id, error);
-        if error.err_type != ErrorType::kErrorTypeNone {
+        if error.err_type != ErrorType::ErrorTypeNone {
             return ret;
         }
         ret
@@ -9113,7 +9113,7 @@ pub fn handle_nvim_ui_try_resize(
         if args.size != 2 {
             api_set_error!(
                 error,
-                ErrorType::kErrorTypeException,
+                ErrorType::ErrorTypeException,
                 c"Wrong number of arguments: expecting 2 but got %zu",
                 args.size
             );
@@ -9136,7 +9136,7 @@ pub fn handle_nvim_ui_try_resize(
             return ret;
         }
         nvim_ui_try_resize(channel_id, arg_1, arg_2, error);
-        if error.err_type != ErrorType::kErrorTypeNone {
+        if error.err_type != ErrorType::ErrorTypeNone {
             return ret;
         }
         ret
@@ -9160,7 +9160,7 @@ pub fn handle_nvim_ui_set_option(
         if args.size != 2 {
             api_set_error!(
                 error,
-                ErrorType::kErrorTypeException,
+                ErrorType::ErrorTypeException,
                 c"Wrong number of arguments: expecting 2 but got %zu",
                 args.size
             );
@@ -9176,7 +9176,7 @@ pub fn handle_nvim_ui_set_option(
         }
         let arg_2: Object = args[1];
         nvim_ui_set_option(channel_id, arg_1, arg_2, error);
-        if error.err_type != ErrorType::kErrorTypeNone {
+        if error.err_type != ErrorType::ErrorTypeNone {
             return ret;
         }
         ret
@@ -9202,7 +9202,7 @@ pub fn handle_nvim_ui_try_resize_grid(
         if args.size != 3 {
             api_set_error!(
                 error,
-                ErrorType::kErrorTypeException,
+                ErrorType::ErrorTypeException,
                 c"Wrong number of arguments: expecting 3 but got %zu",
                 args.size
             );
@@ -9233,7 +9233,7 @@ pub fn handle_nvim_ui_try_resize_grid(
             return ret;
         }
         nvim_ui_try_resize_grid(channel_id, arg_1, arg_2, arg_3, error);
-        if error.err_type != ErrorType::kErrorTypeNone {
+        if error.err_type != ErrorType::ErrorTypeNone {
             return ret;
         }
         ret
@@ -9257,7 +9257,7 @@ pub fn handle_nvim_ui_pum_set_height(
         if args.size != 1 {
             api_set_error!(
                 error,
-                ErrorType::kErrorTypeException,
+                ErrorType::ErrorTypeException,
                 c"Wrong number of arguments: expecting 1 but got %zu",
                 args.size
             );
@@ -9272,7 +9272,7 @@ pub fn handle_nvim_ui_pum_set_height(
             return ret;
         }
         nvim_ui_pum_set_height(channel_id, arg_1, error);
-        if error.err_type != ErrorType::kErrorTypeNone {
+        if error.err_type != ErrorType::ErrorTypeNone {
             return ret;
         }
         ret
@@ -9299,7 +9299,7 @@ pub fn handle_nvim_ui_pum_set_bounds(
         if args.size != 4 {
             api_set_error!(
                 error,
-                ErrorType::kErrorTypeException,
+                ErrorType::ErrorTypeException,
                 c"Wrong number of arguments: expecting 4 but got %zu",
                 args.size
             );
@@ -9338,7 +9338,7 @@ pub fn handle_nvim_ui_pum_set_bounds(
             return ret;
         }
         nvim_ui_pum_set_bounds(channel_id, arg_1, arg_2, arg_3, arg_4, error);
-        if error.err_type != ErrorType::kErrorTypeNone {
+        if error.err_type != ErrorType::ErrorTypeNone {
             return ret;
         }
         ret
@@ -9362,7 +9362,7 @@ pub fn handle_nvim_ui_send(
         if args.size != 1 {
             api_set_error!(
                 error,
-                ErrorType::kErrorTypeException,
+                ErrorType::ErrorTypeException,
                 c"Wrong number of arguments: expecting 1 but got %zu",
                 args.size
             );
@@ -9377,7 +9377,7 @@ pub fn handle_nvim_ui_send(
             return ret;
         }
         nvim_ui_send(channel_id, arg_1, error);
-        if error.err_type != ErrorType::kErrorTypeNone {
+        if error.err_type != ErrorType::ErrorTypeNone {
             return ret;
         }
         ret
@@ -9401,7 +9401,7 @@ pub fn handle_nvim_get_hl_id_by_name(
         if args.size != 1 {
             api_set_error!(
                 error,
-                ErrorType::kErrorTypeException,
+                ErrorType::ErrorTypeException,
                 c"Wrong number of arguments: expecting 1 but got %zu",
                 args.size
             );
@@ -9416,7 +9416,7 @@ pub fn handle_nvim_get_hl_id_by_name(
             return ret;
         }
         let rv = nvim_get_hl_id_by_name(arg_1, error);
-        if error.err_type != ErrorType::kErrorTypeNone {
+        if error.err_type != ErrorType::ErrorTypeNone {
             return ret;
         }
         ret = integer_obj(rv);
@@ -9442,7 +9442,7 @@ pub fn handle_nvim_get_hl(
         if args.size < 1 || args.size > 2 {
             api_set_error!(
                 error,
-                ErrorType::kErrorTypeException,
+                ErrorType::ErrorTypeException,
                 c"Wrong number of arguments: expecting 1 to 2 but got %zu",
                 args.size
             );
@@ -9461,7 +9461,7 @@ pub fn handle_nvim_get_hl(
                 return ret;
             }
         let rv = nvim_get_hl(arg_1, &mut arg_2, arena, error);
-        if error.err_type != ErrorType::kErrorTypeNone {
+        if error.err_type != ErrorType::ErrorTypeNone {
             return ret;
         }
         ret = dict_obj(rv);
@@ -9488,7 +9488,7 @@ pub fn handle_nvim_set_hl(
         if args.size != 3 {
             api_set_error!(
                 error,
-                ErrorType::kErrorTypeException,
+                ErrorType::ErrorTypeException,
                 c"Wrong number of arguments: expecting 3 but got %zu",
                 args.size
             );
@@ -9520,7 +9520,7 @@ pub fn handle_nvim_set_hl(
             return ret;
         }
         nvim_set_hl(channel_id, arg_1, arg_2, &mut arg_3, error);
-        if error.err_type != ErrorType::kErrorTypeNone {
+        if error.err_type != ErrorType::ErrorTypeNone {
             return ret;
         }
         ret
@@ -9544,7 +9544,7 @@ pub fn handle_nvim_get_hl_ns(
         if args.size > 1 {
             api_set_error!(
                 error,
-                ErrorType::kErrorTypeException,
+                ErrorType::ErrorTypeException,
                 c"Wrong number of arguments: expecting at most 1 but got %zu",
                 args.size
             );
@@ -9562,7 +9562,7 @@ pub fn handle_nvim_get_hl_ns(
             return ret;
         }
         let rv = nvim_get_hl_ns(&mut arg_1, error);
-        if error.err_type != ErrorType::kErrorTypeNone {
+        if error.err_type != ErrorType::ErrorTypeNone {
             return ret;
         }
         ret = integer_obj(rv);
@@ -9587,7 +9587,7 @@ pub fn handle_nvim_set_hl_ns(
         if args.size != 1 {
             api_set_error!(
                 error,
-                ErrorType::kErrorTypeException,
+                ErrorType::ErrorTypeException,
                 c"Wrong number of arguments: expecting 1 but got %zu",
                 args.size
             );
@@ -9602,7 +9602,7 @@ pub fn handle_nvim_set_hl_ns(
             return ret;
         }
         nvim_set_hl_ns(arg_1, error);
-        if error.err_type != ErrorType::kErrorTypeNone {
+        if error.err_type != ErrorType::ErrorTypeNone {
             return ret;
         }
         ret
@@ -9626,7 +9626,7 @@ pub fn handle_nvim_set_hl_ns_fast(
         if args.size != 1 {
             api_set_error!(
                 error,
-                ErrorType::kErrorTypeException,
+                ErrorType::ErrorTypeException,
                 c"Wrong number of arguments: expecting 1 but got %zu",
                 args.size
             );
@@ -9641,7 +9641,7 @@ pub fn handle_nvim_set_hl_ns_fast(
             return ret;
         }
         nvim_set_hl_ns_fast(arg_1, error);
-        if error.err_type != ErrorType::kErrorTypeNone {
+        if error.err_type != ErrorType::ErrorTypeNone {
             return ret;
         }
         ret
@@ -9667,7 +9667,7 @@ pub fn handle_nvim_feedkeys(
         if args.size != 3 {
             api_set_error!(
                 error,
-                ErrorType::kErrorTypeException,
+                ErrorType::ErrorTypeException,
                 c"Wrong number of arguments: expecting 3 but got %zu",
                 args.size
             );
@@ -9719,7 +9719,7 @@ pub fn handle_nvim_input(
         if args.size != 1 {
             api_set_error!(
                 error,
-                ErrorType::kErrorTypeException,
+                ErrorType::ErrorTypeException,
                 c"Wrong number of arguments: expecting 1 but got %zu",
                 args.size
             );
@@ -9761,7 +9761,7 @@ pub fn handle_nvim_input_mouse(
         if args.size != 6 {
             api_set_error!(
                 error,
-                ErrorType::kErrorTypeException,
+                ErrorType::ErrorTypeException,
                 c"Wrong number of arguments: expecting 6 but got %zu",
                 args.size
             );
@@ -9816,7 +9816,7 @@ pub fn handle_nvim_input_mouse(
             return ret;
         }
         nvim_input_mouse(arg_1, arg_2, arg_3, arg_4, arg_5, arg_6, error);
-        if error.err_type != ErrorType::kErrorTypeNone {
+        if error.err_type != ErrorType::ErrorTypeNone {
             return ret;
         }
         ret
@@ -9843,7 +9843,7 @@ pub fn handle_nvim_replace_termcodes(
         if args.size != 4 {
             api_set_error!(
                 error,
-                ErrorType::kErrorTypeException,
+                ErrorType::ErrorTypeException,
                 c"Wrong number of arguments: expecting 4 but got %zu",
                 args.size
             );
@@ -9905,7 +9905,7 @@ pub fn handle_nvim_exec_lua(
         if args.size != 2 {
             api_set_error!(
                 error,
-                ErrorType::kErrorTypeException,
+                ErrorType::ErrorTypeException,
                 c"Wrong number of arguments: expecting 2 but got %zu",
                 args.size
             );
@@ -9928,7 +9928,7 @@ pub fn handle_nvim_exec_lua(
             return ret;
         }
         let rv = nvim_exec_lua(arg_1, arg_2, arena, error);
-        if error.err_type != ErrorType::kErrorTypeNone {
+        if error.err_type != ErrorType::ErrorTypeNone {
             return ret;
         }
         ret = rv;
@@ -9954,7 +9954,7 @@ pub fn handle_nvim__exec_lua_fast(
         if args.size != 2 {
             api_set_error!(
                 error,
-                ErrorType::kErrorTypeException,
+                ErrorType::ErrorTypeException,
                 c"Wrong number of arguments: expecting 2 but got %zu",
                 args.size
             );
@@ -9977,7 +9977,7 @@ pub fn handle_nvim__exec_lua_fast(
             return ret;
         }
         let rv = nvim__exec_lua_fast(arg_1, arg_2, arena, error);
-        if error.err_type != ErrorType::kErrorTypeNone {
+        if error.err_type != ErrorType::ErrorTypeNone {
             return ret;
         }
         ret = rv;
@@ -10002,7 +10002,7 @@ pub fn handle_nvim_strwidth(
         if args.size != 1 {
             api_set_error!(
                 error,
-                ErrorType::kErrorTypeException,
+                ErrorType::ErrorTypeException,
                 c"Wrong number of arguments: expecting 1 but got %zu",
                 args.size
             );
@@ -10017,7 +10017,7 @@ pub fn handle_nvim_strwidth(
             return ret;
         }
         let rv = nvim_strwidth(arg_1, error);
-        if error.err_type != ErrorType::kErrorTypeNone {
+        if error.err_type != ErrorType::ErrorTypeNone {
             return ret;
         }
         ret = integer_obj(rv);
@@ -10041,14 +10041,14 @@ pub fn handle_nvim_list_runtime_paths(
         if args.size != 0 {
             api_set_error!(
                 error,
-                ErrorType::kErrorTypeException,
+                ErrorType::ErrorTypeException,
                 c"Wrong number of arguments: expecting 0 but got %zu",
                 args.size
             );
             return ret;
         }
         let rv = nvim_list_runtime_paths(arena, error);
-        if error.err_type != ErrorType::kErrorTypeNone {
+        if error.err_type != ErrorType::ErrorTypeNone {
             return ret;
         }
         ret = array_obj(rv);
@@ -10072,7 +10072,7 @@ pub fn handle_nvim__runtime_inspect(
         if args.size != 0 {
             api_set_error!(
                 error,
-                ErrorType::kErrorTypeException,
+                ErrorType::ErrorTypeException,
                 c"Wrong number of arguments: expecting 0 but got %zu",
                 args.size
             );
@@ -10102,7 +10102,7 @@ pub fn handle_nvim_get_runtime_file(
         if args.size != 2 {
             api_set_error!(
                 error,
-                ErrorType::kErrorTypeException,
+                ErrorType::ErrorTypeException,
                 c"Wrong number of arguments: expecting 2 but got %zu",
                 args.size
             );
@@ -10125,7 +10125,7 @@ pub fn handle_nvim_get_runtime_file(
             return ret;
         }
         let rv = nvim_get_runtime_file(arg_1, arg_2, arena, error);
-        if error.err_type != ErrorType::kErrorTypeNone {
+        if error.err_type != ErrorType::ErrorTypeNone {
             return ret;
         }
         ret = array_obj(rv);
@@ -10149,7 +10149,7 @@ pub fn handle_nvim__get_lib_dir(
         if args.size != 0 {
             api_set_error!(
                 error,
-                ErrorType::kErrorTypeException,
+                ErrorType::ErrorTypeException,
                 c"Wrong number of arguments: expecting 0 but got %zu",
                 args.size
             );
@@ -10180,7 +10180,7 @@ pub fn handle_nvim__get_runtime(
         if args.size < 2 || args.size > 3 {
             api_set_error!(
                 error,
-                ErrorType::kErrorTypeException,
+                ErrorType::ErrorTypeException,
                 c"Wrong number of arguments: expecting 2 to 3 but got %zu",
                 args.size
             );
@@ -10207,7 +10207,7 @@ pub fn handle_nvim__get_runtime(
                 return ret;
             }
         let rv = nvim__get_runtime(arg_1, arg_2, &mut arg_3, arena, error);
-        if error.err_type != ErrorType::kErrorTypeNone {
+        if error.err_type != ErrorType::ErrorTypeNone {
             return ret;
         }
         ret = array_obj(rv);
@@ -10232,7 +10232,7 @@ pub fn handle_nvim_set_current_dir(
         if args.size != 1 {
             api_set_error!(
                 error,
-                ErrorType::kErrorTypeException,
+                ErrorType::ErrorTypeException,
                 c"Wrong number of arguments: expecting 1 but got %zu",
                 args.size
             );
@@ -10247,7 +10247,7 @@ pub fn handle_nvim_set_current_dir(
             return ret;
         }
         nvim_set_current_dir(arg_1, error);
-        if error.err_type != ErrorType::kErrorTypeNone {
+        if error.err_type != ErrorType::ErrorTypeNone {
             return ret;
         }
         ret
@@ -10270,14 +10270,14 @@ pub fn handle_nvim_get_current_line(
         if args.size != 0 {
             api_set_error!(
                 error,
-                ErrorType::kErrorTypeException,
+                ErrorType::ErrorTypeException,
                 c"Wrong number of arguments: expecting 0 but got %zu",
                 args.size
             );
             return ret;
         }
         let rv = nvim_get_current_line(arena, error);
-        if error.err_type != ErrorType::kErrorTypeNone {
+        if error.err_type != ErrorType::ErrorTypeNone {
             return ret;
         }
         ret = string_obj(rv);
@@ -10302,7 +10302,7 @@ pub fn handle_nvim_set_current_line(
         if args.size != 1 {
             api_set_error!(
                 error,
-                ErrorType::kErrorTypeException,
+                ErrorType::ErrorTypeException,
                 c"Wrong number of arguments: expecting 1 but got %zu",
                 args.size
             );
@@ -10317,11 +10317,11 @@ pub fn handle_nvim_set_current_line(
             return ret;
         }
         if text_locked() {
-            api_set_error_str(error, ErrorType::kErrorTypeException, get_text_locked_msg());
+            api_set_error_str(error, ErrorType::ErrorTypeException, get_text_locked_msg());
             return ret;
         }
         nvim_set_current_line(arg_1, arena, error);
-        if error.err_type != ErrorType::kErrorTypeNone {
+        if error.err_type != ErrorType::ErrorTypeNone {
             return ret;
         }
         ret
@@ -10344,18 +10344,18 @@ pub fn handle_nvim_del_current_line(
         if args.size != 0 {
             api_set_error!(
                 error,
-                ErrorType::kErrorTypeException,
+                ErrorType::ErrorTypeException,
                 c"Wrong number of arguments: expecting 0 but got %zu",
                 args.size
             );
             return ret;
         }
         if text_locked() {
-            api_set_error_str(error, ErrorType::kErrorTypeException, get_text_locked_msg());
+            api_set_error_str(error, ErrorType::ErrorTypeException, get_text_locked_msg());
             return ret;
         }
         nvim_del_current_line(arena, error);
-        if error.err_type != ErrorType::kErrorTypeNone {
+        if error.err_type != ErrorType::ErrorTypeNone {
             return ret;
         }
         ret
@@ -10379,7 +10379,7 @@ pub fn handle_nvim_get_var(
         if args.size != 1 {
             api_set_error!(
                 error,
-                ErrorType::kErrorTypeException,
+                ErrorType::ErrorTypeException,
                 c"Wrong number of arguments: expecting 1 but got %zu",
                 args.size
             );
@@ -10394,7 +10394,7 @@ pub fn handle_nvim_get_var(
             return ret;
         }
         let rv = nvim_get_var(arg_1, arena, error);
-        if error.err_type != ErrorType::kErrorTypeNone {
+        if error.err_type != ErrorType::ErrorTypeNone {
             return ret;
         }
         ret = rv;
@@ -10419,7 +10419,7 @@ pub fn handle_nvim_set_var(
         if args.size != 2 {
             api_set_error!(
                 error,
-                ErrorType::kErrorTypeException,
+                ErrorType::ErrorTypeException,
                 c"Wrong number of arguments: expecting 2 but got %zu",
                 args.size
             );
@@ -10435,7 +10435,7 @@ pub fn handle_nvim_set_var(
         }
         let arg_2: Object = args[1];
         nvim_set_var(arg_1, arg_2, error);
-        if error.err_type != ErrorType::kErrorTypeNone {
+        if error.err_type != ErrorType::ErrorTypeNone {
             return ret;
         }
         ret
@@ -10459,7 +10459,7 @@ pub fn handle_nvim_del_var(
         if args.size != 1 {
             api_set_error!(
                 error,
-                ErrorType::kErrorTypeException,
+                ErrorType::ErrorTypeException,
                 c"Wrong number of arguments: expecting 1 but got %zu",
                 args.size
             );
@@ -10474,7 +10474,7 @@ pub fn handle_nvim_del_var(
             return ret;
         }
         nvim_del_var(arg_1, error);
-        if error.err_type != ErrorType::kErrorTypeNone {
+        if error.err_type != ErrorType::ErrorTypeNone {
             return ret;
         }
         ret
@@ -10498,7 +10498,7 @@ pub fn handle_nvim_get_vvar(
         if args.size != 1 {
             api_set_error!(
                 error,
-                ErrorType::kErrorTypeException,
+                ErrorType::ErrorTypeException,
                 c"Wrong number of arguments: expecting 1 but got %zu",
                 args.size
             );
@@ -10513,7 +10513,7 @@ pub fn handle_nvim_get_vvar(
             return ret;
         }
         let rv = nvim_get_vvar(arg_1, arena, error);
-        if error.err_type != ErrorType::kErrorTypeNone {
+        if error.err_type != ErrorType::ErrorTypeNone {
             return ret;
         }
         ret = rv;
@@ -10538,7 +10538,7 @@ pub fn handle_nvim_set_vvar(
         if args.size != 2 {
             api_set_error!(
                 error,
-                ErrorType::kErrorTypeException,
+                ErrorType::ErrorTypeException,
                 c"Wrong number of arguments: expecting 2 but got %zu",
                 args.size
             );
@@ -10554,7 +10554,7 @@ pub fn handle_nvim_set_vvar(
         }
         let arg_2: Object = args[1];
         nvim_set_vvar(arg_1, arg_2, error);
-        if error.err_type != ErrorType::kErrorTypeNone {
+        if error.err_type != ErrorType::ErrorTypeNone {
             return ret;
         }
         ret
@@ -10580,7 +10580,7 @@ pub fn handle_nvim_echo(
         if args.size < 2 || args.size > 3 {
             api_set_error!(
                 error,
-                ErrorType::kErrorTypeException,
+                ErrorType::ErrorTypeException,
                 c"Wrong number of arguments: expecting 2 to 3 but got %zu",
                 args.size
             );
@@ -10609,7 +10609,7 @@ pub fn handle_nvim_echo(
             return ret;
         }
         let rv = nvim_echo(arg_1, arg_2, &mut arg_3, error);
-        if error.err_type != ErrorType::kErrorTypeNone {
+        if error.err_type != ErrorType::ErrorTypeNone {
             return ret;
         }
         ret = rv;
@@ -10633,7 +10633,7 @@ pub fn handle_nvim_list_bufs(
         if args.size != 0 {
             api_set_error!(
                 error,
-                ErrorType::kErrorTypeException,
+                ErrorType::ErrorTypeException,
                 c"Wrong number of arguments: expecting 0 but got %zu",
                 args.size
             );
@@ -10661,7 +10661,7 @@ pub fn handle_nvim_get_current_buf(
         if args.size != 0 {
             api_set_error!(
                 error,
-                ErrorType::kErrorTypeException,
+                ErrorType::ErrorTypeException,
                 c"Wrong number of arguments: expecting 0 but got %zu",
                 args.size
             );
@@ -10690,7 +10690,7 @@ pub fn handle_nvim_set_current_buf(
         if args.size != 1 {
             api_set_error!(
                 error,
-                ErrorType::kErrorTypeException,
+                ErrorType::ErrorTypeException,
                 c"Wrong number of arguments: expecting 1 but got %zu",
                 args.size
             );
@@ -10698,7 +10698,7 @@ pub fn handle_nvim_set_current_buf(
         }
         if !extract_handle(
             args[0],
-            ObjectType::kObjectTypeBuffer,
+            ObjectType::ObjectTypeBuffer,
             &mut arg_1,
             c"Wrong type for argument 1 when calling nvim_set_current_buf, expecting Buffer",
             error,
@@ -10706,11 +10706,11 @@ pub fn handle_nvim_set_current_buf(
             return ret;
         }
         if text_locked() {
-            api_set_error_str(error, ErrorType::kErrorTypeException, get_text_locked_msg());
+            api_set_error_str(error, ErrorType::ErrorTypeException, get_text_locked_msg());
             return ret;
         }
         nvim_set_current_buf(arg_1, error);
-        if error.err_type != ErrorType::kErrorTypeNone {
+        if error.err_type != ErrorType::ErrorTypeNone {
             return ret;
         }
         ret
@@ -10733,7 +10733,7 @@ pub fn handle_nvim_list_wins(
         if args.size != 0 {
             api_set_error!(
                 error,
-                ErrorType::kErrorTypeException,
+                ErrorType::ErrorTypeException,
                 c"Wrong number of arguments: expecting 0 but got %zu",
                 args.size
             );
@@ -10761,7 +10761,7 @@ pub fn handle_nvim_get_current_win(
         if args.size != 0 {
             api_set_error!(
                 error,
-                ErrorType::kErrorTypeException,
+                ErrorType::ErrorTypeException,
                 c"Wrong number of arguments: expecting 0 but got %zu",
                 args.size
             );
@@ -10790,7 +10790,7 @@ pub fn handle_nvim_set_current_win(
         if args.size != 1 {
             api_set_error!(
                 error,
-                ErrorType::kErrorTypeException,
+                ErrorType::ErrorTypeException,
                 c"Wrong number of arguments: expecting 1 but got %zu",
                 args.size
             );
@@ -10798,7 +10798,7 @@ pub fn handle_nvim_set_current_win(
         }
         if !extract_handle(
             args[0],
-            ObjectType::kObjectTypeWindow,
+            ObjectType::ObjectTypeWindow,
             &mut arg_1,
             c"Wrong type for argument 1 when calling nvim_set_current_win, expecting Window",
             error,
@@ -10806,11 +10806,11 @@ pub fn handle_nvim_set_current_win(
             return ret;
         }
         if text_locked() {
-            api_set_error_str(error, ErrorType::kErrorTypeException, get_text_locked_msg());
+            api_set_error_str(error, ErrorType::ErrorTypeException, get_text_locked_msg());
             return ret;
         }
         nvim_set_current_win(arg_1, error);
-        if error.err_type != ErrorType::kErrorTypeNone {
+        if error.err_type != ErrorType::ErrorTypeNone {
             return ret;
         }
         ret
@@ -10835,7 +10835,7 @@ pub fn handle_nvim_create_buf(
         if args.size != 2 {
             api_set_error!(
                 error,
-                ErrorType::kErrorTypeException,
+                ErrorType::ErrorTypeException,
                 c"Wrong number of arguments: expecting 2 but got %zu",
                 args.size
             );
@@ -10858,7 +10858,7 @@ pub fn handle_nvim_create_buf(
             return ret;
         }
         let rv = nvim_create_buf(arg_1, arg_2, error);
-        if error.err_type != ErrorType::kErrorTypeNone {
+        if error.err_type != ErrorType::ErrorTypeNone {
             return ret;
         }
         ret = buffer_obj(rv);
@@ -10884,7 +10884,7 @@ pub fn handle_nvim_open_term(
         if args.size < 1 || args.size > 2 {
             api_set_error!(
                 error,
-                ErrorType::kErrorTypeException,
+                ErrorType::ErrorTypeException,
                 c"Wrong number of arguments: expecting 1 to 2 but got %zu",
                 args.size
             );
@@ -10892,7 +10892,7 @@ pub fn handle_nvim_open_term(
         }
         if !extract_handle(
             args[0],
-            ObjectType::kObjectTypeBuffer,
+            ObjectType::ObjectTypeBuffer,
             &mut arg_1,
             c"Wrong type for argument 1 when calling nvim_open_term, expecting Buffer",
             error,
@@ -10904,11 +10904,11 @@ pub fn handle_nvim_open_term(
                 return ret;
             }
         if text_locked() {
-            api_set_error_str(error, ErrorType::kErrorTypeException, get_text_locked_msg());
+            api_set_error_str(error, ErrorType::ErrorTypeException, get_text_locked_msg());
             return ret;
         }
         let rv = nvim_open_term(arg_1, &mut arg_2, error);
-        if error.err_type != ErrorType::kErrorTypeNone {
+        if error.err_type != ErrorType::ErrorTypeNone {
             return ret;
         }
         ret = integer_obj(rv);
@@ -10934,7 +10934,7 @@ pub fn handle_nvim_chan_send(
         if args.size != 2 {
             api_set_error!(
                 error,
-                ErrorType::kErrorTypeException,
+                ErrorType::ErrorTypeException,
                 c"Wrong number of arguments: expecting 2 but got %zu",
                 args.size
             );
@@ -10957,7 +10957,7 @@ pub fn handle_nvim_chan_send(
             return ret;
         }
         nvim_chan_send(arg_1, arg_2, error);
-        if error.err_type != ErrorType::kErrorTypeNone {
+        if error.err_type != ErrorType::ErrorTypeNone {
             return ret;
         }
         ret
@@ -10980,7 +10980,7 @@ pub fn handle_nvim_list_tabpages(
         if args.size != 0 {
             api_set_error!(
                 error,
-                ErrorType::kErrorTypeException,
+                ErrorType::ErrorTypeException,
                 c"Wrong number of arguments: expecting 0 but got %zu",
                 args.size
             );
@@ -11008,7 +11008,7 @@ pub fn handle_nvim_get_current_tabpage(
         if args.size != 0 {
             api_set_error!(
                 error,
-                ErrorType::kErrorTypeException,
+                ErrorType::ErrorTypeException,
                 c"Wrong number of arguments: expecting 0 but got %zu",
                 args.size
             );
@@ -11037,7 +11037,7 @@ pub fn handle_nvim_set_current_tabpage(
         if args.size != 1 {
             api_set_error!(
                 error,
-                ErrorType::kErrorTypeException,
+                ErrorType::ErrorTypeException,
                 c"Wrong number of arguments: expecting 1 but got %zu",
                 args.size
             );
@@ -11045,7 +11045,7 @@ pub fn handle_nvim_set_current_tabpage(
         }
         if !extract_handle(
             args[0],
-            ObjectType::kObjectTypeTabpage,
+            ObjectType::ObjectTypeTabpage,
             &mut arg_1,
             c"Wrong type for argument 1 when calling nvim_set_current_tabpage, expecting Tabpage",
             error,
@@ -11053,11 +11053,11 @@ pub fn handle_nvim_set_current_tabpage(
             return ret;
         }
         if text_locked() {
-            api_set_error_str(error, ErrorType::kErrorTypeException, get_text_locked_msg());
+            api_set_error_str(error, ErrorType::ErrorTypeException, get_text_locked_msg());
             return ret;
         }
         nvim_set_current_tabpage(arg_1, error);
-        if error.err_type != ErrorType::kErrorTypeNone {
+        if error.err_type != ErrorType::ErrorTypeNone {
             return ret;
         }
         ret
@@ -11083,7 +11083,7 @@ pub fn handle_nvim_paste(
         if args.size != 3 {
             api_set_error!(
                 error,
-                ErrorType::kErrorTypeException,
+                ErrorType::ErrorTypeException,
                 c"Wrong number of arguments: expecting 3 but got %zu",
                 args.size
             );
@@ -11114,11 +11114,11 @@ pub fn handle_nvim_paste(
             return ret;
         }
         if text_locked() {
-            api_set_error_str(error, ErrorType::kErrorTypeException, get_text_locked_msg());
+            api_set_error_str(error, ErrorType::ErrorTypeException, get_text_locked_msg());
             return ret;
         }
         let rv = nvim_paste(channel_id, arg_1, arg_2, arg_3, arena, error);
-        if error.err_type != ErrorType::kErrorTypeNone {
+        if error.err_type != ErrorType::ErrorTypeNone {
             return ret;
         }
         ret = boolean_obj(rv);
@@ -11146,7 +11146,7 @@ pub fn handle_nvim_put(
         if args.size != 4 {
             api_set_error!(
                 error,
-                ErrorType::kErrorTypeException,
+                ErrorType::ErrorTypeException,
                 c"Wrong number of arguments: expecting 4 but got %zu",
                 args.size
             );
@@ -11185,11 +11185,11 @@ pub fn handle_nvim_put(
             return ret;
         }
         if text_locked() {
-            api_set_error_str(error, ErrorType::kErrorTypeException, get_text_locked_msg());
+            api_set_error_str(error, ErrorType::ErrorTypeException, get_text_locked_msg());
             return ret;
         }
         nvim_put(arg_1, arg_2, arg_3, arg_4, arena, error);
-        if error.err_type != ErrorType::kErrorTypeNone {
+        if error.err_type != ErrorType::ErrorTypeNone {
             return ret;
         }
         ret
@@ -11213,7 +11213,7 @@ pub fn handle_nvim_get_color_by_name(
         if args.size != 1 {
             api_set_error!(
                 error,
-                ErrorType::kErrorTypeException,
+                ErrorType::ErrorTypeException,
                 c"Wrong number of arguments: expecting 1 but got %zu",
                 args.size
             );
@@ -11249,7 +11249,7 @@ pub fn handle_nvim_get_color_map(
         if args.size != 0 {
             api_set_error!(
                 error,
-                ErrorType::kErrorTypeException,
+                ErrorType::ErrorTypeException,
                 c"Wrong number of arguments: expecting 0 but got %zu",
                 args.size
             );
@@ -11278,7 +11278,7 @@ pub fn handle_nvim_get_context(
         if args.size > 1 {
             api_set_error!(
                 error,
-                ErrorType::kErrorTypeException,
+                ErrorType::ErrorTypeException,
                 c"Wrong number of arguments: expecting at most 1 but got %zu",
                 args.size
             );
@@ -11289,7 +11289,7 @@ pub fn handle_nvim_get_context(
                 return ret;
             }
         let rv = nvim_get_context(&mut arg_1, arena, error);
-        if error.err_type != ErrorType::kErrorTypeNone {
+        if error.err_type != ErrorType::ErrorTypeNone {
             return ret;
         }
         ret = dict_obj(rv);
@@ -11314,7 +11314,7 @@ pub fn handle_nvim_load_context(
         if args.size != 1 {
             api_set_error!(
                 error,
-                ErrorType::kErrorTypeException,
+                ErrorType::ErrorTypeException,
                 c"Wrong number of arguments: expecting 1 but got %zu",
                 args.size
             );
@@ -11329,7 +11329,7 @@ pub fn handle_nvim_load_context(
             return ret;
         }
         let rv = nvim_load_context(arg_1, error);
-        if error.err_type != ErrorType::kErrorTypeNone {
+        if error.err_type != ErrorType::ErrorTypeNone {
             return ret;
         }
         ret = rv;
@@ -11353,7 +11353,7 @@ pub fn handle_nvim_get_mode(
         if args.size != 0 {
             api_set_error!(
                 error,
-                ErrorType::kErrorTypeException,
+                ErrorType::ErrorTypeException,
                 c"Wrong number of arguments: expecting 0 but got %zu",
                 args.size
             );
@@ -11382,7 +11382,7 @@ pub fn handle_nvim_get_keymap(
         if args.size != 1 {
             api_set_error!(
                 error,
-                ErrorType::kErrorTypeException,
+                ErrorType::ErrorTypeException,
                 c"Wrong number of arguments: expecting 1 but got %zu",
                 args.size
             );
@@ -11422,7 +11422,7 @@ pub fn handle_nvim_set_keymap(
         if args.size < 3 || args.size > 4 {
             api_set_error!(
                 error,
-                ErrorType::kErrorTypeException,
+                ErrorType::ErrorTypeException,
                 c"Wrong number of arguments: expecting 3 to 4 but got %zu",
                 args.size
             );
@@ -11464,7 +11464,7 @@ pub fn handle_nvim_set_keymap(
             return ret;
         }
         nvim_set_keymap(channel_id, arg_1, arg_2, arg_3, &mut arg_4, error);
-        if error.err_type != ErrorType::kErrorTypeNone {
+        if error.err_type != ErrorType::ErrorTypeNone {
             return ret;
         }
         ret
@@ -11490,7 +11490,7 @@ pub fn handle_nvim_del_keymap(
         if args.size < 2 || args.size > 3 {
             api_set_error!(
                 error,
-                ErrorType::kErrorTypeException,
+                ErrorType::ErrorTypeException,
                 c"Wrong number of arguments: expecting 2 to 3 but got %zu",
                 args.size
             );
@@ -11517,7 +11517,7 @@ pub fn handle_nvim_del_keymap(
                 return ret;
             }
         nvim_del_keymap(channel_id, arg_1, arg_2, &mut arg_3, error);
-        if error.err_type != ErrorType::kErrorTypeNone {
+        if error.err_type != ErrorType::ErrorTypeNone {
             return ret;
         }
         ret
@@ -11540,7 +11540,7 @@ pub fn handle_nvim_get_api_info(
         if args.size != 0 {
             api_set_error!(
                 error,
-                ErrorType::kErrorTypeException,
+                ErrorType::ErrorTypeException,
                 c"Wrong number of arguments: expecting 0 but got %zu",
                 args.size
             );
@@ -11573,7 +11573,7 @@ pub fn handle_nvim_set_client_info(
         if args.size != 5 {
             api_set_error!(
                 error,
-                ErrorType::kErrorTypeException,
+                ErrorType::ErrorTypeException,
                 c"Wrong number of arguments: expecting 5 but got %zu",
                 args.size
             );
@@ -11620,7 +11620,7 @@ pub fn handle_nvim_set_client_info(
             return ret;
         }
         nvim_set_client_info(channel_id, arg_1, arg_2, arg_3, arg_4, arg_5, arena, error);
-        if error.err_type != ErrorType::kErrorTypeNone {
+        if error.err_type != ErrorType::ErrorTypeNone {
             return ret;
         }
         ret
@@ -11645,7 +11645,7 @@ pub fn handle_nvim_chan_set(
         if args.size != 2 {
             api_set_error!(
                 error,
-                ErrorType::kErrorTypeException,
+                ErrorType::ErrorTypeException,
                 c"Wrong number of arguments: expecting 2 but got %zu",
                 args.size
             );
@@ -11669,7 +11669,7 @@ pub fn handle_nvim_chan_set(
             return ret;
         }
         nvim_chan_set(channel_id, arg_1, &mut arg_2, error);
-        if error.err_type != ErrorType::kErrorTypeNone {
+        if error.err_type != ErrorType::ErrorTypeNone {
             return ret;
         }
         ret
@@ -11694,7 +11694,7 @@ pub fn handle_nvim__cmdwin_set(
         if args.size != 2 {
             api_set_error!(
                 error,
-                ErrorType::kErrorTypeException,
+                ErrorType::ErrorTypeException,
                 c"Wrong number of arguments: expecting 2 but got %zu",
                 args.size
             );
@@ -11710,7 +11710,7 @@ pub fn handle_nvim__cmdwin_set(
         }
         if !extract_handle(
             args[1],
-            ObjectType::kObjectTypeBuffer,
+            ObjectType::ObjectTypeBuffer,
             &mut arg_2,
             c"Wrong type for argument 2 when calling nvim__cmdwin_set, expecting Buffer",
             error,
@@ -11718,7 +11718,7 @@ pub fn handle_nvim__cmdwin_set(
             return ret;
         }
         nvim__cmdwin_set(arg_1, arg_2, error);
-        if error.err_type != ErrorType::kErrorTypeNone {
+        if error.err_type != ErrorType::ErrorTypeNone {
             return ret;
         }
         ret
@@ -11742,7 +11742,7 @@ pub fn handle_nvim_get_chan_info(
         if args.size != 1 {
             api_set_error!(
                 error,
-                ErrorType::kErrorTypeException,
+                ErrorType::ErrorTypeException,
                 c"Wrong number of arguments: expecting 1 but got %zu",
                 args.size
             );
@@ -11757,7 +11757,7 @@ pub fn handle_nvim_get_chan_info(
             return ret;
         }
         let rv = nvim_get_chan_info(channel_id, arg_1, arena, error);
-        if error.err_type != ErrorType::kErrorTypeNone {
+        if error.err_type != ErrorType::ErrorTypeNone {
             return ret;
         }
         ret = dict_obj(rv);
@@ -11781,7 +11781,7 @@ pub fn handle_nvim_list_chans(
         if args.size != 0 {
             api_set_error!(
                 error,
-                ErrorType::kErrorTypeException,
+                ErrorType::ErrorTypeException,
                 c"Wrong number of arguments: expecting 0 but got %zu",
                 args.size
             );
@@ -11809,7 +11809,7 @@ pub fn handle_nvim__id(
         if args.size != 1 {
             api_set_error!(
                 error,
-                ErrorType::kErrorTypeException,
+                ErrorType::ErrorTypeException,
                 c"Wrong number of arguments: expecting 1 but got %zu",
                 args.size
             );
@@ -11839,7 +11839,7 @@ pub fn handle_nvim__id_array(
         if args.size != 1 {
             api_set_error!(
                 error,
-                ErrorType::kErrorTypeException,
+                ErrorType::ErrorTypeException,
                 c"Wrong number of arguments: expecting 1 but got %zu",
                 args.size
             );
@@ -11876,7 +11876,7 @@ pub fn handle_nvim__id_dict(
         if args.size != 1 {
             api_set_error!(
                 error,
-                ErrorType::kErrorTypeException,
+                ErrorType::ErrorTypeException,
                 c"Wrong number of arguments: expecting 1 but got %zu",
                 args.size
             );
@@ -11913,7 +11913,7 @@ pub fn handle_nvim__id_float(
         if args.size != 1 {
             api_set_error!(
                 error,
-                ErrorType::kErrorTypeException,
+                ErrorType::ErrorTypeException,
                 c"Wrong number of arguments: expecting 1 but got %zu",
                 args.size
             );
@@ -11949,7 +11949,7 @@ pub fn handle_nvim__stats(
         if args.size != 0 {
             api_set_error!(
                 error,
-                ErrorType::kErrorTypeException,
+                ErrorType::ErrorTypeException,
                 c"Wrong number of arguments: expecting 0 but got %zu",
                 args.size
             );
@@ -11977,7 +11977,7 @@ pub fn handle_nvim_list_uis(
         if args.size != 0 {
             api_set_error!(
                 error,
-                ErrorType::kErrorTypeException,
+                ErrorType::ErrorTypeException,
                 c"Wrong number of arguments: expecting 0 but got %zu",
                 args.size
             );
@@ -12006,7 +12006,7 @@ pub fn handle_nvim_get_proc_children(
         if args.size != 1 {
             api_set_error!(
                 error,
-                ErrorType::kErrorTypeException,
+                ErrorType::ErrorTypeException,
                 c"Wrong number of arguments: expecting 1 but got %zu",
                 args.size
             );
@@ -12021,7 +12021,7 @@ pub fn handle_nvim_get_proc_children(
             return ret;
         }
         let rv = nvim_get_proc_children(arg_1, arena, error);
-        if error.err_type != ErrorType::kErrorTypeNone {
+        if error.err_type != ErrorType::ErrorTypeNone {
             return ret;
         }
         ret = array_obj(rv);
@@ -12046,7 +12046,7 @@ pub fn handle_nvim_get_proc(
         if args.size != 1 {
             api_set_error!(
                 error,
-                ErrorType::kErrorTypeException,
+                ErrorType::ErrorTypeException,
                 c"Wrong number of arguments: expecting 1 but got %zu",
                 args.size
             );
@@ -12061,7 +12061,7 @@ pub fn handle_nvim_get_proc(
             return ret;
         }
         let rv = nvim_get_proc(arg_1, arena, error);
-        if error.err_type != ErrorType::kErrorTypeNone {
+        if error.err_type != ErrorType::ErrorTypeNone {
             return ret;
         }
         ret = rv;
@@ -12089,7 +12089,7 @@ pub fn handle_nvim_select_popupmenu_item(
         if args.size < 3 || args.size > 4 {
             api_set_error!(
                 error,
-                ErrorType::kErrorTypeException,
+                ErrorType::ErrorTypeException,
                 c"Wrong number of arguments: expecting 3 to 4 but got %zu",
                 args.size
             );
@@ -12124,7 +12124,7 @@ pub fn handle_nvim_select_popupmenu_item(
                 return ret;
             }
         nvim_select_popupmenu_item(arg_1, arg_2, arg_3, &mut arg_4, error);
-        if error.err_type != ErrorType::kErrorTypeNone {
+        if error.err_type != ErrorType::ErrorTypeNone {
             return ret;
         }
         ret
@@ -12150,7 +12150,7 @@ pub fn handle_nvim__inspect_cell(
         if args.size != 3 {
             api_set_error!(
                 error,
-                ErrorType::kErrorTypeException,
+                ErrorType::ErrorTypeException,
                 c"Wrong number of arguments: expecting 3 but got %zu",
                 args.size
             );
@@ -12181,7 +12181,7 @@ pub fn handle_nvim__inspect_cell(
             return ret;
         }
         let rv = nvim__inspect_cell(arg_1, arg_2, arg_3, arena, error);
-        if error.err_type != ErrorType::kErrorTypeNone {
+        if error.err_type != ErrorType::ErrorTypeNone {
             return ret;
         }
         ret = array_obj(rv);
@@ -12206,7 +12206,7 @@ pub fn handle_nvim__screenshot(
         if args.size != 1 {
             api_set_error!(
                 error,
-                ErrorType::kErrorTypeException,
+                ErrorType::ErrorTypeException,
                 c"Wrong number of arguments: expecting 1 but got %zu",
                 args.size
             );
@@ -12241,7 +12241,7 @@ pub fn handle_nvim__invalidate_glyph_cache(
         if args.size != 0 {
             api_set_error!(
                 error,
-                ErrorType::kErrorTypeException,
+                ErrorType::ErrorTypeException,
                 c"Wrong number of arguments: expecting 0 but got %zu",
                 args.size
             );
@@ -12269,7 +12269,7 @@ pub fn handle_nvim__unpack(
         if args.size != 1 {
             api_set_error!(
                 error,
-                ErrorType::kErrorTypeException,
+                ErrorType::ErrorTypeException,
                 c"Wrong number of arguments: expecting 1 but got %zu",
                 args.size
             );
@@ -12284,7 +12284,7 @@ pub fn handle_nvim__unpack(
             return ret;
         }
         let rv = nvim__unpack(arg_1, arena, error);
-        if error.err_type != ErrorType::kErrorTypeNone {
+        if error.err_type != ErrorType::ErrorTypeNone {
             return ret;
         }
         ret = rv;
@@ -12309,7 +12309,7 @@ pub fn handle_nvim_del_mark(
         if args.size != 1 {
             api_set_error!(
                 error,
-                ErrorType::kErrorTypeException,
+                ErrorType::ErrorTypeException,
                 c"Wrong number of arguments: expecting 1 but got %zu",
                 args.size
             );
@@ -12324,7 +12324,7 @@ pub fn handle_nvim_del_mark(
             return ret;
         }
         let rv = nvim_del_mark(arg_1, error);
-        if error.err_type != ErrorType::kErrorTypeNone {
+        if error.err_type != ErrorType::ErrorTypeNone {
             return ret;
         }
         ret = boolean_obj(rv);
@@ -12350,7 +12350,7 @@ pub fn handle_nvim_get_mark(
         if args.size < 1 || args.size > 2 {
             api_set_error!(
                 error,
-                ErrorType::kErrorTypeException,
+                ErrorType::ErrorTypeException,
                 c"Wrong number of arguments: expecting 1 to 2 but got %zu",
                 args.size
             );
@@ -12376,7 +12376,7 @@ pub fn handle_nvim_get_mark(
             return ret;
         }
         let rv = nvim_get_mark(arg_1, &mut arg_2, arena, error);
-        if error.err_type != ErrorType::kErrorTypeNone {
+        if error.err_type != ErrorType::ErrorTypeNone {
             return ret;
         }
         ret = array_obj(rv);
@@ -12402,7 +12402,7 @@ pub fn handle_nvim_eval_statusline(
         if args.size < 1 || args.size > 2 {
             api_set_error!(
                 error,
-                ErrorType::kErrorTypeException,
+                ErrorType::ErrorTypeException,
                 c"Wrong number of arguments: expecting 1 to 2 but got %zu",
                 args.size
             );
@@ -12421,7 +12421,7 @@ pub fn handle_nvim_eval_statusline(
                 return ret;
             }
         let rv = nvim_eval_statusline(arg_1, &mut arg_2, arena, error);
-        if error.err_type != ErrorType::kErrorTypeNone {
+        if error.err_type != ErrorType::ErrorTypeNone {
             return ret;
         }
         ret = dict_obj(rv);
@@ -12447,7 +12447,7 @@ pub fn handle_nvim__complete_set(
         if args.size < 1 || args.size > 2 {
             api_set_error!(
                 error,
-                ErrorType::kErrorTypeException,
+                ErrorType::ErrorTypeException,
                 c"Wrong number of arguments: expecting 1 to 2 but got %zu",
                 args.size
             );
@@ -12466,7 +12466,7 @@ pub fn handle_nvim__complete_set(
                 return ret;
             }
         let rv = nvim__complete_set(arg_1, &mut arg_2, arena, error);
-        if error.err_type != ErrorType::kErrorTypeNone {
+        if error.err_type != ErrorType::ErrorTypeNone {
             return ret;
         }
         ret = dict_obj(rv);
@@ -12491,7 +12491,7 @@ pub fn handle_nvim__redraw(
         if args.size > 1 {
             api_set_error!(
                 error,
-                ErrorType::kErrorTypeException,
+                ErrorType::ErrorTypeException,
                 c"Wrong number of arguments: expecting at most 1 but got %zu",
                 args.size
             );
@@ -12509,7 +12509,7 @@ pub fn handle_nvim__redraw(
             return ret;
         }
         nvim__redraw(&mut arg_1, error);
-        if error.err_type != ErrorType::kErrorTypeNone {
+        if error.err_type != ErrorType::ErrorTypeNone {
             return ret;
         }
         ret
@@ -12534,7 +12534,7 @@ pub fn handle_nvim__set_restart_on_crash(
         if args.size != 2 {
             api_set_error!(
                 error,
-                ErrorType::kErrorTypeException,
+                ErrorType::ErrorTypeException,
                 c"Wrong number of arguments: expecting 2 but got %zu",
                 args.size
             );
@@ -12579,7 +12579,7 @@ pub fn handle_nvim_exec2(
         if args.size < 1 || args.size > 2 {
             api_set_error!(
                 error,
-                ErrorType::kErrorTypeException,
+                ErrorType::ErrorTypeException,
                 c"Wrong number of arguments: expecting 1 to 2 but got %zu",
                 args.size
             );
@@ -12605,7 +12605,7 @@ pub fn handle_nvim_exec2(
             return ret;
         }
         let rv = nvim_exec2(channel_id, arg_1, &mut arg_2, error);
-        if error.err_type != ErrorType::kErrorTypeNone {
+        if error.err_type != ErrorType::ErrorTypeNone {
             return ret;
         }
         ret = dict_obj(rv);
@@ -12630,7 +12630,7 @@ pub fn handle_nvim_command(
         if args.size != 1 {
             api_set_error!(
                 error,
-                ErrorType::kErrorTypeException,
+                ErrorType::ErrorTypeException,
                 c"Wrong number of arguments: expecting 1 but got %zu",
                 args.size
             );
@@ -12645,7 +12645,7 @@ pub fn handle_nvim_command(
             return ret;
         }
         nvim_command(arg_1, error);
-        if error.err_type != ErrorType::kErrorTypeNone {
+        if error.err_type != ErrorType::ErrorTypeNone {
             return ret;
         }
         ret
@@ -12669,7 +12669,7 @@ pub fn handle_nvim_eval(
         if args.size != 1 {
             api_set_error!(
                 error,
-                ErrorType::kErrorTypeException,
+                ErrorType::ErrorTypeException,
                 c"Wrong number of arguments: expecting 1 but got %zu",
                 args.size
             );
@@ -12684,7 +12684,7 @@ pub fn handle_nvim_eval(
             return ret;
         }
         let rv = nvim_eval(arg_1, arena, error);
-        if error.err_type != ErrorType::kErrorTypeNone {
+        if error.err_type != ErrorType::ErrorTypeNone {
             return ret;
         }
         ret = rv;
@@ -12710,7 +12710,7 @@ pub fn handle_nvim_call_function(
         if args.size != 2 {
             api_set_error!(
                 error,
-                ErrorType::kErrorTypeException,
+                ErrorType::ErrorTypeException,
                 c"Wrong number of arguments: expecting 2 but got %zu",
                 args.size
             );
@@ -12733,7 +12733,7 @@ pub fn handle_nvim_call_function(
             return ret;
         }
         let rv = nvim_call_function(channel_id, arg_1, arg_2, arena, error);
-        if error.err_type != ErrorType::kErrorTypeNone {
+        if error.err_type != ErrorType::ErrorTypeNone {
             return ret;
         }
         ret = rv;
@@ -12759,7 +12759,7 @@ pub fn handle_nvim_call_dict_function(
         if args.size != 3 {
             api_set_error!(
                 error,
-                ErrorType::kErrorTypeException,
+                ErrorType::ErrorTypeException,
                 c"Wrong number of arguments: expecting 3 but got %zu",
                 args.size
             );
@@ -12783,7 +12783,7 @@ pub fn handle_nvim_call_dict_function(
             return ret;
         }
         let rv = nvim_call_dict_function(channel_id, arg_1, arg_2, arg_3, arena, error);
-        if error.err_type != ErrorType::kErrorTypeNone {
+        if error.err_type != ErrorType::ErrorTypeNone {
             return ret;
         }
         ret = rv;
@@ -12810,7 +12810,7 @@ pub fn handle_nvim_parse_expression(
         if args.size != 3 {
             api_set_error!(
                 error,
-                ErrorType::kErrorTypeException,
+                ErrorType::ErrorTypeException,
                 c"Wrong number of arguments: expecting 3 but got %zu",
                 args.size
             );
@@ -12841,7 +12841,7 @@ pub fn handle_nvim_parse_expression(
             return ret;
         }
         let rv = nvim_parse_expression(arg_1, arg_2, arg_3, arena, error);
-        if error.err_type != ErrorType::kErrorTypeNone {
+        if error.err_type != ErrorType::ErrorTypeNone {
             return ret;
         }
         ret = dict_obj(rv);
@@ -12868,7 +12868,7 @@ pub fn handle_nvim_open_win(
         if args.size != 3 {
             api_set_error!(
                 error,
-                ErrorType::kErrorTypeException,
+                ErrorType::ErrorTypeException,
                 c"Wrong number of arguments: expecting 3 but got %zu",
                 args.size
             );
@@ -12876,7 +12876,7 @@ pub fn handle_nvim_open_win(
         }
         if !extract_handle(
             args[0],
-            ObjectType::kObjectTypeBuffer,
+            ObjectType::ObjectTypeBuffer,
             &mut arg_1,
             c"Wrong type for argument 1 when calling nvim_open_win, expecting Buffer",
             error,
@@ -12901,11 +12901,11 @@ pub fn handle_nvim_open_win(
             return ret;
         }
         if text_locked() {
-            api_set_error_str(error, ErrorType::kErrorTypeException, get_text_locked_msg());
+            api_set_error_str(error, ErrorType::ErrorTypeException, get_text_locked_msg());
             return ret;
         }
         let rv = nvim_open_win(arg_1, arg_2, &mut arg_3, error);
-        if error.err_type != ErrorType::kErrorTypeNone {
+        if error.err_type != ErrorType::ErrorTypeNone {
             return ret;
         }
         ret = window_obj(rv);
@@ -12931,7 +12931,7 @@ pub fn handle_nvim_win_set_config(
         if args.size != 2 {
             api_set_error!(
                 error,
-                ErrorType::kErrorTypeException,
+                ErrorType::ErrorTypeException,
                 c"Wrong number of arguments: expecting 2 but got %zu",
                 args.size
             );
@@ -12939,7 +12939,7 @@ pub fn handle_nvim_win_set_config(
         }
         if !extract_handle(
             args[0],
-            ObjectType::kObjectTypeWindow,
+            ObjectType::ObjectTypeWindow,
             &mut arg_1,
             c"Wrong type for argument 1 when calling nvim_win_set_config, expecting Window",
             error,
@@ -12950,7 +12950,7 @@ pub fn handle_nvim_win_set_config(
             return ret;
         }
         nvim_win_set_config(arg_1, &mut arg_2, error);
-        if error.err_type != ErrorType::kErrorTypeNone {
+        if error.err_type != ErrorType::ErrorTypeNone {
             return ret;
         }
         ret
@@ -12974,7 +12974,7 @@ pub fn handle_nvim_win_get_config(
         if args.size != 1 {
             api_set_error!(
                 error,
-                ErrorType::kErrorTypeException,
+                ErrorType::ErrorTypeException,
                 c"Wrong number of arguments: expecting 1 but got %zu",
                 args.size
             );
@@ -12982,7 +12982,7 @@ pub fn handle_nvim_win_get_config(
         }
         if !extract_handle(
             args[0],
-            ObjectType::kObjectTypeWindow,
+            ObjectType::ObjectTypeWindow,
             &mut arg_1,
             c"Wrong type for argument 1 when calling nvim_win_get_config, expecting Window",
             error,
@@ -12990,7 +12990,7 @@ pub fn handle_nvim_win_get_config(
             return ret;
         }
         let mut rv = nvim_win_get_config(arg_1, arena, error);
-        if error.err_type != ErrorType::kErrorTypeNone {
+        if error.err_type != ErrorType::ErrorTypeNone {
             return ret;
         }
         ret = dict_obj(api_keydict_to_dict(
@@ -13020,7 +13020,7 @@ pub fn handle_nvim_win_get_buf(
         if args.size != 1 {
             api_set_error!(
                 error,
-                ErrorType::kErrorTypeException,
+                ErrorType::ErrorTypeException,
                 c"Wrong number of arguments: expecting 1 but got %zu",
                 args.size
             );
@@ -13028,7 +13028,7 @@ pub fn handle_nvim_win_get_buf(
         }
         if !extract_handle(
             args[0],
-            ObjectType::kObjectTypeWindow,
+            ObjectType::ObjectTypeWindow,
             &mut arg_1,
             c"Wrong type for argument 1 when calling nvim_win_get_buf, expecting Window",
             error,
@@ -13036,7 +13036,7 @@ pub fn handle_nvim_win_get_buf(
             return ret;
         }
         let rv = nvim_win_get_buf(arg_1, error);
-        if error.err_type != ErrorType::kErrorTypeNone {
+        if error.err_type != ErrorType::ErrorTypeNone {
             return ret;
         }
         ret = buffer_obj(rv);
@@ -13062,7 +13062,7 @@ pub fn handle_nvim_win_set_buf(
         if args.size != 2 {
             api_set_error!(
                 error,
-                ErrorType::kErrorTypeException,
+                ErrorType::ErrorTypeException,
                 c"Wrong number of arguments: expecting 2 but got %zu",
                 args.size
             );
@@ -13070,7 +13070,7 @@ pub fn handle_nvim_win_set_buf(
         }
         if !extract_handle(
             args[0],
-            ObjectType::kObjectTypeWindow,
+            ObjectType::ObjectTypeWindow,
             &mut arg_1,
             c"Wrong type for argument 1 when calling nvim_win_set_buf, expecting Window",
             error,
@@ -13079,7 +13079,7 @@ pub fn handle_nvim_win_set_buf(
         }
         if !extract_handle(
             args[1],
-            ObjectType::kObjectTypeBuffer,
+            ObjectType::ObjectTypeBuffer,
             &mut arg_2,
             c"Wrong type for argument 2 when calling nvim_win_set_buf, expecting Buffer",
             error,
@@ -13087,11 +13087,11 @@ pub fn handle_nvim_win_set_buf(
             return ret;
         }
         if text_locked() {
-            api_set_error_str(error, ErrorType::kErrorTypeException, get_text_locked_msg());
+            api_set_error_str(error, ErrorType::ErrorTypeException, get_text_locked_msg());
             return ret;
         }
         nvim_win_set_buf(arg_1, arg_2, error);
-        if error.err_type != ErrorType::kErrorTypeNone {
+        if error.err_type != ErrorType::ErrorTypeNone {
             return ret;
         }
         ret
@@ -13115,7 +13115,7 @@ pub fn handle_nvim_win_get_cursor(
         if args.size != 1 {
             api_set_error!(
                 error,
-                ErrorType::kErrorTypeException,
+                ErrorType::ErrorTypeException,
                 c"Wrong number of arguments: expecting 1 but got %zu",
                 args.size
             );
@@ -13123,7 +13123,7 @@ pub fn handle_nvim_win_get_cursor(
         }
         if !extract_handle(
             args[0],
-            ObjectType::kObjectTypeWindow,
+            ObjectType::ObjectTypeWindow,
             &mut arg_1,
             c"Wrong type for argument 1 when calling nvim_win_get_cursor, expecting Window",
             error,
@@ -13131,7 +13131,7 @@ pub fn handle_nvim_win_get_cursor(
             return ret;
         }
         let rv = nvim_win_get_cursor(arg_1, arena, error);
-        if error.err_type != ErrorType::kErrorTypeNone {
+        if error.err_type != ErrorType::ErrorTypeNone {
             return ret;
         }
         ret = array_obj(rv);
@@ -13157,7 +13157,7 @@ pub fn handle_nvim_win_set_cursor(
         if args.size != 2 {
             api_set_error!(
                 error,
-                ErrorType::kErrorTypeException,
+                ErrorType::ErrorTypeException,
                 c"Wrong number of arguments: expecting 2 but got %zu",
                 args.size
             );
@@ -13165,7 +13165,7 @@ pub fn handle_nvim_win_set_cursor(
         }
         if !extract_handle(
             args[0],
-            ObjectType::kObjectTypeWindow,
+            ObjectType::ObjectTypeWindow,
             &mut arg_1,
             c"Wrong type for argument 1 when calling nvim_win_set_cursor, expecting Window",
             error,
@@ -13176,7 +13176,7 @@ pub fn handle_nvim_win_set_cursor(
             return ret;
         }
         nvim_win_set_cursor(arg_1, arg_2, error);
-        if error.err_type != ErrorType::kErrorTypeNone {
+        if error.err_type != ErrorType::ErrorTypeNone {
             return ret;
         }
         ret
@@ -13200,7 +13200,7 @@ pub fn handle_nvim_win_get_height(
         if args.size != 1 {
             api_set_error!(
                 error,
-                ErrorType::kErrorTypeException,
+                ErrorType::ErrorTypeException,
                 c"Wrong number of arguments: expecting 1 but got %zu",
                 args.size
             );
@@ -13208,7 +13208,7 @@ pub fn handle_nvim_win_get_height(
         }
         if !extract_handle(
             args[0],
-            ObjectType::kObjectTypeWindow,
+            ObjectType::ObjectTypeWindow,
             &mut arg_1,
             c"Wrong type for argument 1 when calling nvim_win_get_height, expecting Window",
             error,
@@ -13216,7 +13216,7 @@ pub fn handle_nvim_win_get_height(
             return ret;
         }
         let rv = nvim_win_get_height(arg_1, error);
-        if error.err_type != ErrorType::kErrorTypeNone {
+        if error.err_type != ErrorType::ErrorTypeNone {
             return ret;
         }
         ret = integer_obj(rv);
@@ -13241,7 +13241,7 @@ pub fn handle_nvim_win_get_width(
         if args.size != 1 {
             api_set_error!(
                 error,
-                ErrorType::kErrorTypeException,
+                ErrorType::ErrorTypeException,
                 c"Wrong number of arguments: expecting 1 but got %zu",
                 args.size
             );
@@ -13249,7 +13249,7 @@ pub fn handle_nvim_win_get_width(
         }
         if !extract_handle(
             args[0],
-            ObjectType::kObjectTypeWindow,
+            ObjectType::ObjectTypeWindow,
             &mut arg_1,
             c"Wrong type for argument 1 when calling nvim_win_get_width, expecting Window",
             error,
@@ -13257,7 +13257,7 @@ pub fn handle_nvim_win_get_width(
             return ret;
         }
         let rv = nvim_win_get_width(arg_1, error);
-        if error.err_type != ErrorType::kErrorTypeNone {
+        if error.err_type != ErrorType::ErrorTypeNone {
             return ret;
         }
         ret = integer_obj(rv);
@@ -13283,7 +13283,7 @@ pub fn handle_nvim_win_get_var(
         if args.size != 2 {
             api_set_error!(
                 error,
-                ErrorType::kErrorTypeException,
+                ErrorType::ErrorTypeException,
                 c"Wrong number of arguments: expecting 2 but got %zu",
                 args.size
             );
@@ -13291,7 +13291,7 @@ pub fn handle_nvim_win_get_var(
         }
         if !extract_handle(
             args[0],
-            ObjectType::kObjectTypeWindow,
+            ObjectType::ObjectTypeWindow,
             &mut arg_1,
             c"Wrong type for argument 1 when calling nvim_win_get_var, expecting Window",
             error,
@@ -13307,7 +13307,7 @@ pub fn handle_nvim_win_get_var(
             return ret;
         }
         let rv = nvim_win_get_var(arg_1, arg_2, arena, error);
-        if error.err_type != ErrorType::kErrorTypeNone {
+        if error.err_type != ErrorType::ErrorTypeNone {
             return ret;
         }
         ret = rv;
@@ -13333,7 +13333,7 @@ pub fn handle_nvim_win_set_var(
         if args.size != 3 {
             api_set_error!(
                 error,
-                ErrorType::kErrorTypeException,
+                ErrorType::ErrorTypeException,
                 c"Wrong number of arguments: expecting 3 but got %zu",
                 args.size
             );
@@ -13341,7 +13341,7 @@ pub fn handle_nvim_win_set_var(
         }
         if !extract_handle(
             args[0],
-            ObjectType::kObjectTypeWindow,
+            ObjectType::ObjectTypeWindow,
             &mut arg_1,
             c"Wrong type for argument 1 when calling nvim_win_set_var, expecting Window",
             error,
@@ -13358,7 +13358,7 @@ pub fn handle_nvim_win_set_var(
         }
         let arg_3: Object = args[2];
         nvim_win_set_var(arg_1, arg_2, arg_3, error);
-        if error.err_type != ErrorType::kErrorTypeNone {
+        if error.err_type != ErrorType::ErrorTypeNone {
             return ret;
         }
         ret
@@ -13383,7 +13383,7 @@ pub fn handle_nvim_win_del_var(
         if args.size != 2 {
             api_set_error!(
                 error,
-                ErrorType::kErrorTypeException,
+                ErrorType::ErrorTypeException,
                 c"Wrong number of arguments: expecting 2 but got %zu",
                 args.size
             );
@@ -13391,7 +13391,7 @@ pub fn handle_nvim_win_del_var(
         }
         if !extract_handle(
             args[0],
-            ObjectType::kObjectTypeWindow,
+            ObjectType::ObjectTypeWindow,
             &mut arg_1,
             c"Wrong type for argument 1 when calling nvim_win_del_var, expecting Window",
             error,
@@ -13407,7 +13407,7 @@ pub fn handle_nvim_win_del_var(
             return ret;
         }
         nvim_win_del_var(arg_1, arg_2, error);
-        if error.err_type != ErrorType::kErrorTypeNone {
+        if error.err_type != ErrorType::ErrorTypeNone {
             return ret;
         }
         ret
@@ -13431,7 +13431,7 @@ pub fn handle_nvim_win_get_position(
         if args.size != 1 {
             api_set_error!(
                 error,
-                ErrorType::kErrorTypeException,
+                ErrorType::ErrorTypeException,
                 c"Wrong number of arguments: expecting 1 but got %zu",
                 args.size
             );
@@ -13439,7 +13439,7 @@ pub fn handle_nvim_win_get_position(
         }
         if !extract_handle(
             args[0],
-            ObjectType::kObjectTypeWindow,
+            ObjectType::ObjectTypeWindow,
             &mut arg_1,
             c"Wrong type for argument 1 when calling nvim_win_get_position, expecting Window",
             error,
@@ -13447,7 +13447,7 @@ pub fn handle_nvim_win_get_position(
             return ret;
         }
         let rv = nvim_win_get_position(arg_1, arena, error);
-        if error.err_type != ErrorType::kErrorTypeNone {
+        if error.err_type != ErrorType::ErrorTypeNone {
             return ret;
         }
         ret = array_obj(rv);
@@ -13472,7 +13472,7 @@ pub fn handle_nvim_win_get_tabpage(
         if args.size != 1 {
             api_set_error!(
                 error,
-                ErrorType::kErrorTypeException,
+                ErrorType::ErrorTypeException,
                 c"Wrong number of arguments: expecting 1 but got %zu",
                 args.size
             );
@@ -13480,7 +13480,7 @@ pub fn handle_nvim_win_get_tabpage(
         }
         if !extract_handle(
             args[0],
-            ObjectType::kObjectTypeWindow,
+            ObjectType::ObjectTypeWindow,
             &mut arg_1,
             c"Wrong type for argument 1 when calling nvim_win_get_tabpage, expecting Window",
             error,
@@ -13488,7 +13488,7 @@ pub fn handle_nvim_win_get_tabpage(
             return ret;
         }
         let rv = nvim_win_get_tabpage(arg_1, error);
-        if error.err_type != ErrorType::kErrorTypeNone {
+        if error.err_type != ErrorType::ErrorTypeNone {
             return ret;
         }
         ret = tabpage_obj(rv);
@@ -13513,7 +13513,7 @@ pub fn handle_nvim_win_get_number(
         if args.size != 1 {
             api_set_error!(
                 error,
-                ErrorType::kErrorTypeException,
+                ErrorType::ErrorTypeException,
                 c"Wrong number of arguments: expecting 1 but got %zu",
                 args.size
             );
@@ -13521,7 +13521,7 @@ pub fn handle_nvim_win_get_number(
         }
         if !extract_handle(
             args[0],
-            ObjectType::kObjectTypeWindow,
+            ObjectType::ObjectTypeWindow,
             &mut arg_1,
             c"Wrong type for argument 1 when calling nvim_win_get_number, expecting Window",
             error,
@@ -13529,7 +13529,7 @@ pub fn handle_nvim_win_get_number(
             return ret;
         }
         let rv = nvim_win_get_number(arg_1, error);
-        if error.err_type != ErrorType::kErrorTypeNone {
+        if error.err_type != ErrorType::ErrorTypeNone {
             return ret;
         }
         ret = integer_obj(rv);
@@ -13554,7 +13554,7 @@ pub fn handle_nvim_win_is_valid(
         if args.size != 1 {
             api_set_error!(
                 error,
-                ErrorType::kErrorTypeException,
+                ErrorType::ErrorTypeException,
                 c"Wrong number of arguments: expecting 1 but got %zu",
                 args.size
             );
@@ -13562,7 +13562,7 @@ pub fn handle_nvim_win_is_valid(
         }
         if !extract_handle(
             args[0],
-            ObjectType::kObjectTypeWindow,
+            ObjectType::ObjectTypeWindow,
             &mut arg_1,
             c"Wrong type for argument 1 when calling nvim_win_is_valid, expecting Window",
             error,
@@ -13592,7 +13592,7 @@ pub fn handle_nvim_win_hide(
         if args.size != 1 {
             api_set_error!(
                 error,
-                ErrorType::kErrorTypeException,
+                ErrorType::ErrorTypeException,
                 c"Wrong number of arguments: expecting 1 but got %zu",
                 args.size
             );
@@ -13600,7 +13600,7 @@ pub fn handle_nvim_win_hide(
         }
         if !extract_handle(
             args[0],
-            ObjectType::kObjectTypeWindow,
+            ObjectType::ObjectTypeWindow,
             &mut arg_1,
             c"Wrong type for argument 1 when calling nvim_win_hide, expecting Window",
             error,
@@ -13608,11 +13608,11 @@ pub fn handle_nvim_win_hide(
             return ret;
         }
         if text_locked() {
-            api_set_error_str(error, ErrorType::kErrorTypeException, get_text_locked_msg());
+            api_set_error_str(error, ErrorType::ErrorTypeException, get_text_locked_msg());
             return ret;
         }
         nvim_win_hide(arg_1, error);
-        if error.err_type != ErrorType::kErrorTypeNone {
+        if error.err_type != ErrorType::ErrorTypeNone {
             return ret;
         }
         ret
@@ -13637,7 +13637,7 @@ pub fn handle_nvim_win_close(
         if args.size != 2 {
             api_set_error!(
                 error,
-                ErrorType::kErrorTypeException,
+                ErrorType::ErrorTypeException,
                 c"Wrong number of arguments: expecting 2 but got %zu",
                 args.size
             );
@@ -13645,7 +13645,7 @@ pub fn handle_nvim_win_close(
         }
         if !extract_handle(
             args[0],
-            ObjectType::kObjectTypeWindow,
+            ObjectType::ObjectTypeWindow,
             &mut arg_1,
             c"Wrong type for argument 1 when calling nvim_win_close, expecting Window",
             error,
@@ -13661,11 +13661,11 @@ pub fn handle_nvim_win_close(
             return ret;
         }
         if text_locked() {
-            api_set_error_str(error, ErrorType::kErrorTypeException, get_text_locked_msg());
+            api_set_error_str(error, ErrorType::ErrorTypeException, get_text_locked_msg());
             return ret;
         }
         nvim_win_close(arg_1, arg_2, error);
-        if error.err_type != ErrorType::kErrorTypeNone {
+        if error.err_type != ErrorType::ErrorTypeNone {
             return ret;
         }
         ret
@@ -13690,7 +13690,7 @@ pub fn handle_nvim_win_set_hl_ns(
         if args.size != 2 {
             api_set_error!(
                 error,
-                ErrorType::kErrorTypeException,
+                ErrorType::ErrorTypeException,
                 c"Wrong number of arguments: expecting 2 but got %zu",
                 args.size
             );
@@ -13698,7 +13698,7 @@ pub fn handle_nvim_win_set_hl_ns(
         }
         if !extract_handle(
             args[0],
-            ObjectType::kObjectTypeWindow,
+            ObjectType::ObjectTypeWindow,
             &mut arg_1,
             c"Wrong type for argument 1 when calling nvim_win_set_hl_ns, expecting Window",
             error,
@@ -13714,7 +13714,7 @@ pub fn handle_nvim_win_set_hl_ns(
             return ret;
         }
         nvim_win_set_hl_ns(arg_1, arg_2, error);
-        if error.err_type != ErrorType::kErrorTypeNone {
+        if error.err_type != ErrorType::ErrorTypeNone {
             return ret;
         }
         ret
@@ -13739,7 +13739,7 @@ pub fn handle_nvim_win_text_height(
         if args.size < 1 || args.size > 2 {
             api_set_error!(
                 error,
-                ErrorType::kErrorTypeException,
+                ErrorType::ErrorTypeException,
                 c"Wrong number of arguments: expecting 1 to 2 but got %zu",
                 args.size
             );
@@ -13747,7 +13747,7 @@ pub fn handle_nvim_win_text_height(
         }
         if !extract_handle(
             args[0],
-            ObjectType::kObjectTypeWindow,
+            ObjectType::ObjectTypeWindow,
             &mut arg_1,
             c"Wrong type for argument 1 when calling nvim_win_text_height, expecting Window",
             error,
@@ -13759,7 +13759,7 @@ pub fn handle_nvim_win_text_height(
                 return ret;
             }
         let rv = nvim_win_text_height(arg_1, &mut arg_2, arena, error);
-        if error.err_type != ErrorType::kErrorTypeNone {
+        if error.err_type != ErrorType::ErrorTypeNone {
             return ret;
         }
         ret = dict_obj(rv);
@@ -13787,7 +13787,7 @@ pub fn handle_nvim_win_resize(
         if args.size < 3 || args.size > 4 {
             api_set_error!(
                 error,
-                ErrorType::kErrorTypeException,
+                ErrorType::ErrorTypeException,
                 c"Wrong number of arguments: expecting 3 to 4 but got %zu",
                 args.size
             );
@@ -13795,7 +13795,7 @@ pub fn handle_nvim_win_resize(
         }
         if !extract_handle(
             args[0],
-            ObjectType::kObjectTypeWindow,
+            ObjectType::ObjectTypeWindow,
             &mut arg_1,
             c"Wrong type for argument 1 when calling nvim_win_resize, expecting Window",
             error,
@@ -13823,7 +13823,7 @@ pub fn handle_nvim_win_resize(
                 return ret;
             }
         nvim_win_resize(arg_1, arg_2, arg_3, &mut arg_4, error);
-        if error.err_type != ErrorType::kErrorTypeNone {
+        if error.err_type != ErrorType::ErrorTypeNone {
             return ret;
         }
         ret
@@ -15840,7 +15840,7 @@ pub fn msgpack_rpc_get_handler_for(
             let empty = c"<empty>";
             api_set_error!(
                 error,
-                ErrorType::kErrorTypeException,
+                ErrorType::ErrorTypeException,
                 c"Invalid method: %.*s",
                 if name_len > 0 {
                     name_len as c_int
@@ -15885,7 +15885,7 @@ fn nlua_finish_api_call(
 ) -> c_int {
     unsafe {
         arena_mem_free(arena_finish(arena));
-        if err.err_type != ErrorType::kErrorTypeNone {
+        if err.err_type != ErrorType::ErrorTypeNone {
             luaL_where(lstate, 1);
             if let Some(err_param) = err_param {
                 lua_pushstring(lstate, c"Invalid '");
@@ -15912,7 +15912,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_get_autocmds(lstate: *mut lua_State) -
                 if lua_gettop(lstate) > 1 {
                     api_set_error_str(
                         &mut err,
-                        ErrorType::kErrorTypeValidation,
+                        ErrorType::ErrorTypeValidation,
                         c"Expected at most 1 argument",
                     );
                     break 'exit_0;
@@ -15929,7 +15929,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_get_autocmds(lstate: *mut lua_State) -
                         &mut arena,
                         &mut err,
                     );
-                    if err.err_type != ErrorType::kErrorTypeNone {
+                    if err.err_type != ErrorType::ErrorTypeNone {
                         break 'exit_1;
                     }
                 }
@@ -15960,7 +15960,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_create_autocmd(lstate: *mut lua_State)
                 if lua_gettop(lstate) < 1 || lua_gettop(lstate) > 2 {
                     api_set_error_str(
                         &mut err,
-                        ErrorType::kErrorTypeValidation,
+                        ErrorType::ErrorTypeValidation,
                         c"Expected 1 to 2 arguments",
                     );
                     break 'exit_0;
@@ -15974,12 +15974,12 @@ unsafe extern "C-unwind" fn nlua_api_nvim_create_autocmd(lstate: *mut lua_State)
                         &mut arena,
                         &mut err,
                     );
-                    if err.err_type != ErrorType::kErrorTypeNone {
+                    if err.err_type != ErrorType::ErrorTypeNone {
                         break 'exit_1;
                     }
                 }
                 arg1 = nlua_pop_Object(lstate, true, &mut arena, &mut err);
-                if err.err_type != ErrorType::kErrorTypeNone {
+                if err.err_type != ErrorType::ErrorTypeNone {
                     err_param = Some(c"event");
                     break 'exit_1;
                 }
@@ -16015,7 +16015,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_del_autocmd(lstate: *mut lua_State) ->
             if lua_gettop(lstate) != 1 {
                 api_set_error_str(
                     &mut err,
-                    ErrorType::kErrorTypeValidation,
+                    ErrorType::ErrorTypeValidation,
                     c"Expected 1 argument",
                 );
                 break 'exit_0;
@@ -16024,7 +16024,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_del_autocmd(lstate: *mut lua_State) ->
                 return nlua_fast_api_disabled_error(lstate, c"nvim_del_autocmd");
             }
             arg1 = nlua_pop_Integer(lstate, &mut arena, &mut err);
-            if err.err_type != ErrorType::kErrorTypeNone {
+            if err.err_type != ErrorType::ErrorTypeNone {
                 err_param = Some(c"id");
                 break 'exit_0;
             }
@@ -16048,7 +16048,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_clear_autocmds(lstate: *mut lua_State)
                 if lua_gettop(lstate) > 1 {
                     api_set_error_str(
                         &mut err,
-                        ErrorType::kErrorTypeValidation,
+                        ErrorType::ErrorTypeValidation,
                         c"Expected at most 1 argument",
                     );
                     break 'exit_0;
@@ -16065,7 +16065,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_clear_autocmds(lstate: *mut lua_State)
                         &mut arena,
                         &mut err,
                     );
-                    if err.err_type != ErrorType::kErrorTypeNone {
+                    if err.err_type != ErrorType::ErrorTypeNone {
                         break 'exit_1;
                     }
                 }
@@ -16095,7 +16095,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_create_augroup(lstate: *mut lua_State)
                 if lua_gettop(lstate) < 1 || lua_gettop(lstate) > 2 {
                     api_set_error_str(
                         &mut err,
-                        ErrorType::kErrorTypeValidation,
+                        ErrorType::ErrorTypeValidation,
                         c"Expected 1 to 2 arguments",
                     );
                     break 'exit_0;
@@ -16112,12 +16112,12 @@ unsafe extern "C-unwind" fn nlua_api_nvim_create_augroup(lstate: *mut lua_State)
                         &mut arena,
                         &mut err,
                     );
-                    if err.err_type != ErrorType::kErrorTypeNone {
+                    if err.err_type != ErrorType::ErrorTypeNone {
                         break 'exit_1;
                     }
                 }
                 arg1 = nlua_pop_String(lstate, &mut arena, &mut err);
-                if err.err_type != ErrorType::kErrorTypeNone {
+                if err.err_type != ErrorType::ErrorTypeNone {
                     err_param = Some(c"name");
                     break 'exit_1;
                 }
@@ -16146,7 +16146,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_del_augroup_by_id(lstate: *mut lua_Sta
             if lua_gettop(lstate) != 1 {
                 api_set_error_str(
                     &mut err,
-                    ErrorType::kErrorTypeValidation,
+                    ErrorType::ErrorTypeValidation,
                     c"Expected 1 argument",
                 );
                 break 'exit_0;
@@ -16155,7 +16155,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_del_augroup_by_id(lstate: *mut lua_Sta
                 return nlua_fast_api_disabled_error(lstate, c"nvim_del_augroup_by_id");
             }
             arg1 = nlua_pop_Integer(lstate, &mut arena, &mut err);
-            if err.err_type != ErrorType::kErrorTypeNone {
+            if err.err_type != ErrorType::ErrorTypeNone {
                 err_param = Some(c"id");
                 break 'exit_0;
             }
@@ -16178,7 +16178,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_del_augroup_by_name(lstate: *mut lua_S
             if lua_gettop(lstate) != 1 {
                 api_set_error_str(
                     &mut err,
-                    ErrorType::kErrorTypeValidation,
+                    ErrorType::ErrorTypeValidation,
                     c"Expected 1 argument",
                 );
                 break 'exit_0;
@@ -16187,7 +16187,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_del_augroup_by_name(lstate: *mut lua_S
                 return nlua_fast_api_disabled_error(lstate, c"nvim_del_augroup_by_name");
             }
             arg1 = nlua_pop_String(lstate, &mut arena, &mut err);
-            if err.err_type != ErrorType::kErrorTypeNone {
+            if err.err_type != ErrorType::ErrorTypeNone {
                 err_param = Some(c"name");
                 break 'exit_0;
             }
@@ -16212,7 +16212,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_exec_autocmds(lstate: *mut lua_State) 
                 if lua_gettop(lstate) < 1 || lua_gettop(lstate) > 2 {
                     api_set_error_str(
                         &mut err,
-                        ErrorType::kErrorTypeValidation,
+                        ErrorType::ErrorTypeValidation,
                         c"Expected 1 to 2 arguments",
                     );
                     break 'exit_0;
@@ -16229,12 +16229,12 @@ unsafe extern "C-unwind" fn nlua_api_nvim_exec_autocmds(lstate: *mut lua_State) 
                         &mut arena,
                         &mut err,
                     );
-                    if err.err_type != ErrorType::kErrorTypeNone {
+                    if err.err_type != ErrorType::ErrorTypeNone {
                         break 'exit_1;
                     }
                 }
                 arg1 = nlua_pop_Object(lstate, true, &mut arena, &mut err);
-                if err.err_type != ErrorType::kErrorTypeNone {
+                if err.err_type != ErrorType::ErrorTypeNone {
                     err_param = Some(c"event");
                     break 'exit_1;
                 }
@@ -16263,7 +16263,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_buf_line_count(lstate: *mut lua_State)
             if lua_gettop(lstate) != 1 {
                 api_set_error_str(
                     &mut err,
-                    ErrorType::kErrorTypeValidation,
+                    ErrorType::ErrorTypeValidation,
                     c"Expected 1 argument",
                 );
                 break 'exit_0;
@@ -16272,7 +16272,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_buf_line_count(lstate: *mut lua_State)
                 return nlua_fast_api_disabled_error(lstate, c"nvim_buf_line_count");
             }
             arg1 = nlua_pop_Buffer(lstate, &mut arena, &mut err);
-            if err.err_type != ErrorType::kErrorTypeNone {
+            if err.err_type != ErrorType::ErrorTypeNone {
                 err_param = Some(c"buf");
                 break 'exit_0;
             }
@@ -16300,7 +16300,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_buf_attach(lstate: *mut lua_State) -> 
                     if lua_gettop(lstate) < 2 || lua_gettop(lstate) > 3 {
                         api_set_error_str(
                             &mut err,
-                            ErrorType::kErrorTypeValidation,
+                            ErrorType::ErrorTypeValidation,
                             c"Expected 2 to 3 arguments",
                         );
                         break 'exit_0;
@@ -16317,17 +16317,17 @@ unsafe extern "C-unwind" fn nlua_api_nvim_buf_attach(lstate: *mut lua_State) -> 
                             &mut arena,
                             &mut err,
                         );
-                        if err.err_type != ErrorType::kErrorTypeNone {
+                        if err.err_type != ErrorType::ErrorTypeNone {
                             break 'exit_1;
                         }
                     }
                     arg2 = nlua_pop_Boolean(lstate, &mut arena, &mut err);
-                    if err.err_type != ErrorType::kErrorTypeNone {
+                    if err.err_type != ErrorType::ErrorTypeNone {
                         err_param = Some(c"send_buffer");
                         break 'exit_1;
                     }
                     arg1 = nlua_pop_Buffer(lstate, &mut arena, &mut err);
-                    if err.err_type != ErrorType::kErrorTypeNone {
+                    if err.err_type != ErrorType::ErrorTypeNone {
                         err_param = Some(c"buf");
                         break 'exit_2;
                     }
@@ -16364,7 +16364,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_buf_get_lines(lstate: *mut lua_State) 
                         if lua_gettop(lstate) != 4 {
                             api_set_error_str(
                                 &mut err,
-                                ErrorType::kErrorTypeValidation,
+                                ErrorType::ErrorTypeValidation,
                                 c"Expected 4 arguments",
                             );
                             break 'exit_0;
@@ -16373,22 +16373,22 @@ unsafe extern "C-unwind" fn nlua_api_nvim_buf_get_lines(lstate: *mut lua_State) 
                             return nlua_fast_api_disabled_error(lstate, c"nvim_buf_get_lines");
                         }
                         arg4 = nlua_pop_Boolean(lstate, &mut arena, &mut err);
-                        if err.err_type != ErrorType::kErrorTypeNone {
+                        if err.err_type != ErrorType::ErrorTypeNone {
                             err_param = Some(c"strict_indexing");
                             break 'exit_0;
                         }
                         arg3 = nlua_pop_Integer(lstate, &mut arena, &mut err);
-                        if err.err_type != ErrorType::kErrorTypeNone {
+                        if err.err_type != ErrorType::ErrorTypeNone {
                             err_param = Some(c"end");
                             break 'exit_1;
                         }
                         arg2 = nlua_pop_Integer(lstate, &mut arena, &mut err);
-                        if err.err_type != ErrorType::kErrorTypeNone {
+                        if err.err_type != ErrorType::ErrorTypeNone {
                             err_param = Some(c"start");
                             break 'exit_2;
                         }
                         arg1 = nlua_pop_Buffer(lstate, &mut arena, &mut err);
-                        if err.err_type != ErrorType::kErrorTypeNone {
+                        if err.err_type != ErrorType::ErrorTypeNone {
                             err_param = Some(c"buf");
                             break 'exit_3;
                         }
@@ -16406,7 +16406,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_buf_get_lines(lstate: *mut lua_State) 
                             &mut err,
                         );
                         debug_assert!(
-                            err.err_type != ErrorType::kErrorTypeNone
+                            err.err_type != ErrorType::ErrorTypeNone
                                 || lua_gettop(lstate) == pretop + 1
                         );
                         let _ = ret;
@@ -16437,7 +16437,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_buf_set_lines(lstate: *mut lua_State) 
                             if lua_gettop(lstate) != 5 {
                                 api_set_error_str(
                                     &mut err,
-                                    ErrorType::kErrorTypeValidation,
+                                    ErrorType::ErrorTypeValidation,
                                     c"Expected 5 arguments",
                                 );
                                 break 'exit_0;
@@ -16448,33 +16448,33 @@ unsafe extern "C-unwind" fn nlua_api_nvim_buf_set_lines(lstate: *mut lua_State) 
                             if text_locked() {
                                 api_set_error_str(
                                     &mut err,
-                                    ErrorType::kErrorTypeException,
+                                    ErrorType::ErrorTypeException,
                                     get_text_locked_msg(),
                                 );
                                 break 'exit_0;
                             }
                             arg5 = nlua_pop_Array(lstate, &mut arena, &mut err);
-                            if err.err_type != ErrorType::kErrorTypeNone {
+                            if err.err_type != ErrorType::ErrorTypeNone {
                                 err_param = Some(c"replacement");
                                 break 'exit_0;
                             }
                             arg4 = nlua_pop_Boolean(lstate, &mut arena, &mut err);
-                            if err.err_type != ErrorType::kErrorTypeNone {
+                            if err.err_type != ErrorType::ErrorTypeNone {
                                 err_param = Some(c"strict_indexing");
                                 break 'exit_1;
                             }
                             arg3 = nlua_pop_Integer(lstate, &mut arena, &mut err);
-                            if err.err_type != ErrorType::kErrorTypeNone {
+                            if err.err_type != ErrorType::ErrorTypeNone {
                                 err_param = Some(c"end");
                                 break 'exit_2;
                             }
                             arg2 = nlua_pop_Integer(lstate, &mut arena, &mut err);
-                            if err.err_type != ErrorType::kErrorTypeNone {
+                            if err.err_type != ErrorType::ErrorTypeNone {
                                 err_param = Some(c"start");
                                 break 'exit_3;
                             }
                             arg1 = nlua_pop_Buffer(lstate, &mut arena, &mut err);
-                            if err.err_type != ErrorType::kErrorTypeNone {
+                            if err.err_type != ErrorType::ErrorTypeNone {
                                 err_param = Some(c"buf");
                                 break 'exit_4;
                             }
@@ -16520,7 +16520,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_buf_set_text(lstate: *mut lua_State) -
                                 if lua_gettop(lstate) != 6 {
                                     api_set_error_str(
                                         &mut err,
-                                        ErrorType::kErrorTypeValidation,
+                                        ErrorType::ErrorTypeValidation,
                                         c"Expected 6 arguments",
                                     );
                                     break 'exit_0;
@@ -16531,38 +16531,38 @@ unsafe extern "C-unwind" fn nlua_api_nvim_buf_set_text(lstate: *mut lua_State) -
                                 if text_locked() {
                                     api_set_error_str(
                                         &mut err,
-                                        ErrorType::kErrorTypeException,
+                                        ErrorType::ErrorTypeException,
                                         get_text_locked_msg(),
                                     );
                                     break 'exit_0;
                                 }
                                 arg6 = nlua_pop_Array(lstate, &mut arena, &mut err);
-                                if err.err_type != ErrorType::kErrorTypeNone {
+                                if err.err_type != ErrorType::ErrorTypeNone {
                                     err_param = Some(c"replacement");
                                     break 'exit_0;
                                 }
                                 arg5 = nlua_pop_Integer(lstate, &mut arena, &mut err);
-                                if err.err_type != ErrorType::kErrorTypeNone {
+                                if err.err_type != ErrorType::ErrorTypeNone {
                                     err_param = Some(c"end_col");
                                     break 'exit_1;
                                 }
                                 arg4 = nlua_pop_Integer(lstate, &mut arena, &mut err);
-                                if err.err_type != ErrorType::kErrorTypeNone {
+                                if err.err_type != ErrorType::ErrorTypeNone {
                                     err_param = Some(c"end_row");
                                     break 'exit_2;
                                 }
                                 arg3 = nlua_pop_Integer(lstate, &mut arena, &mut err);
-                                if err.err_type != ErrorType::kErrorTypeNone {
+                                if err.err_type != ErrorType::ErrorTypeNone {
                                     err_param = Some(c"start_col");
                                     break 'exit_3;
                                 }
                                 arg2 = nlua_pop_Integer(lstate, &mut arena, &mut err);
-                                if err.err_type != ErrorType::kErrorTypeNone {
+                                if err.err_type != ErrorType::ErrorTypeNone {
                                     err_param = Some(c"start_row");
                                     break 'exit_4;
                                 }
                                 arg1 = nlua_pop_Buffer(lstate, &mut arena, &mut err);
-                                if err.err_type != ErrorType::kErrorTypeNone {
+                                if err.err_type != ErrorType::ErrorTypeNone {
                                     err_param = Some(c"buf");
                                     break 'exit_5;
                                 }
@@ -16610,7 +16610,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_buf_get_text(lstate: *mut lua_State) -
                                 if lua_gettop(lstate) < 5 || lua_gettop(lstate) > 6 {
                                     api_set_error_str(
                                         &mut err,
-                                        ErrorType::kErrorTypeValidation,
+                                        ErrorType::ErrorTypeValidation,
                                         c"Expected 5 to 6 arguments",
                                     );
                                     break 'exit_0;
@@ -16627,32 +16627,32 @@ unsafe extern "C-unwind" fn nlua_api_nvim_buf_get_text(lstate: *mut lua_State) -
                                         &mut arena,
                                         &mut err,
                                     );
-                                    if err.err_type != ErrorType::kErrorTypeNone {
+                                    if err.err_type != ErrorType::ErrorTypeNone {
                                         break 'exit_1;
                                     }
                                 }
                                 arg5 = nlua_pop_Integer(lstate, &mut arena, &mut err);
-                                if err.err_type != ErrorType::kErrorTypeNone {
+                                if err.err_type != ErrorType::ErrorTypeNone {
                                     err_param = Some(c"end_col");
                                     break 'exit_1;
                                 }
                                 arg4 = nlua_pop_Integer(lstate, &mut arena, &mut err);
-                                if err.err_type != ErrorType::kErrorTypeNone {
+                                if err.err_type != ErrorType::ErrorTypeNone {
                                     err_param = Some(c"end_row");
                                     break 'exit_2;
                                 }
                                 arg3 = nlua_pop_Integer(lstate, &mut arena, &mut err);
-                                if err.err_type != ErrorType::kErrorTypeNone {
+                                if err.err_type != ErrorType::ErrorTypeNone {
                                     err_param = Some(c"start_col");
                                     break 'exit_3;
                                 }
                                 arg2 = nlua_pop_Integer(lstate, &mut arena, &mut err);
-                                if err.err_type != ErrorType::kErrorTypeNone {
+                                if err.err_type != ErrorType::ErrorTypeNone {
                                     err_param = Some(c"start_row");
                                     break 'exit_4;
                                 }
                                 arg1 = nlua_pop_Buffer(lstate, &mut arena, &mut err);
-                                if err.err_type != ErrorType::kErrorTypeNone {
+                                if err.err_type != ErrorType::ErrorTypeNone {
                                     err_param = Some(c"buf");
                                     break 'exit_5;
                                 }
@@ -16672,7 +16672,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_buf_get_text(lstate: *mut lua_State) -
                                     &mut err,
                                 );
                                 debug_assert!(
-                                    err.err_type != ErrorType::kErrorTypeNone
+                                    err.err_type != ErrorType::ErrorTypeNone
                                         || lua_gettop(lstate) == pretop + 1
                                 );
                                 let _ = ret;
@@ -16703,7 +16703,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_buf_get_offset(lstate: *mut lua_State)
                 if lua_gettop(lstate) != 2 {
                     api_set_error_str(
                         &mut err,
-                        ErrorType::kErrorTypeValidation,
+                        ErrorType::ErrorTypeValidation,
                         c"Expected 2 arguments",
                     );
                     break 'exit_0;
@@ -16712,12 +16712,12 @@ unsafe extern "C-unwind" fn nlua_api_nvim_buf_get_offset(lstate: *mut lua_State)
                     return nlua_fast_api_disabled_error(lstate, c"nvim_buf_get_offset");
                 }
                 arg2 = nlua_pop_Integer(lstate, &mut arena, &mut err);
-                if err.err_type != ErrorType::kErrorTypeNone {
+                if err.err_type != ErrorType::ErrorTypeNone {
                     err_param = Some(c"index");
                     break 'exit_0;
                 }
                 arg1 = nlua_pop_Buffer(lstate, &mut arena, &mut err);
-                if err.err_type != ErrorType::kErrorTypeNone {
+                if err.err_type != ErrorType::ErrorTypeNone {
                     err_param = Some(c"buf");
                     break 'exit_1;
                 }
@@ -16744,7 +16744,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_buf_get_var(lstate: *mut lua_State) ->
                 if lua_gettop(lstate) != 2 {
                     api_set_error_str(
                         &mut err,
-                        ErrorType::kErrorTypeValidation,
+                        ErrorType::ErrorTypeValidation,
                         c"Expected 2 arguments",
                     );
                     break 'exit_0;
@@ -16753,12 +16753,12 @@ unsafe extern "C-unwind" fn nlua_api_nvim_buf_get_var(lstate: *mut lua_State) ->
                     return nlua_fast_api_disabled_error(lstate, c"nvim_buf_get_var");
                 }
                 arg2 = nlua_pop_String(lstate, &mut arena, &mut err);
-                if err.err_type != ErrorType::kErrorTypeNone {
+                if err.err_type != ErrorType::ErrorTypeNone {
                     err_param = Some(c"name");
                     break 'exit_0;
                 }
                 arg1 = nlua_pop_Buffer(lstate, &mut arena, &mut err);
-                if err.err_type != ErrorType::kErrorTypeNone {
+                if err.err_type != ErrorType::ErrorTypeNone {
                     err_param = Some(c"buf");
                     break 'exit_1;
                 }
@@ -16783,7 +16783,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_buf_get_changedtick(lstate: *mut lua_S
             if lua_gettop(lstate) != 1 {
                 api_set_error_str(
                     &mut err,
-                    ErrorType::kErrorTypeValidation,
+                    ErrorType::ErrorTypeValidation,
                     c"Expected 1 argument",
                 );
                 break 'exit_0;
@@ -16792,7 +16792,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_buf_get_changedtick(lstate: *mut lua_S
                 return nlua_fast_api_disabled_error(lstate, c"nvim_buf_get_changedtick");
             }
             arg1 = nlua_pop_Buffer(lstate, &mut arena, &mut err);
-            if err.err_type != ErrorType::kErrorTypeNone {
+            if err.err_type != ErrorType::ErrorTypeNone {
                 err_param = Some(c"buf");
                 break 'exit_0;
             }
@@ -16818,7 +16818,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_buf_get_keymap(lstate: *mut lua_State)
                 if lua_gettop(lstate) != 2 {
                     api_set_error_str(
                         &mut err,
-                        ErrorType::kErrorTypeValidation,
+                        ErrorType::ErrorTypeValidation,
                         c"Expected 2 arguments",
                     );
                     break 'exit_0;
@@ -16827,12 +16827,12 @@ unsafe extern "C-unwind" fn nlua_api_nvim_buf_get_keymap(lstate: *mut lua_State)
                     return nlua_fast_api_disabled_error(lstate, c"nvim_buf_get_keymap");
                 }
                 arg2 = nlua_pop_String(lstate, &mut arena, &mut err);
-                if err.err_type != ErrorType::kErrorTypeNone {
+                if err.err_type != ErrorType::ErrorTypeNone {
                     err_param = Some(c"mode");
                     break 'exit_0;
                 }
                 arg1 = nlua_pop_Buffer(lstate, &mut arena, &mut err);
-                if err.err_type != ErrorType::kErrorTypeNone {
+                if err.err_type != ErrorType::ErrorTypeNone {
                     err_param = Some(c"buf");
                     break 'exit_1;
                 }
@@ -16865,7 +16865,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_buf_set_keymap(lstate: *mut lua_State)
                             if lua_gettop(lstate) < 4 || lua_gettop(lstate) > 5 {
                                 api_set_error_str(
                                     &mut err,
-                                    ErrorType::kErrorTypeValidation,
+                                    ErrorType::ErrorTypeValidation,
                                     c"Expected 4 to 5 arguments",
                                 );
                                 break 'exit_0;
@@ -16882,27 +16882,27 @@ unsafe extern "C-unwind" fn nlua_api_nvim_buf_set_keymap(lstate: *mut lua_State)
                                     &mut arena,
                                     &mut err,
                                 );
-                                if err.err_type != ErrorType::kErrorTypeNone {
+                                if err.err_type != ErrorType::ErrorTypeNone {
                                     break 'exit_1;
                                 }
                             }
                             arg4 = nlua_pop_String(lstate, &mut arena, &mut err);
-                            if err.err_type != ErrorType::kErrorTypeNone {
+                            if err.err_type != ErrorType::ErrorTypeNone {
                                 err_param = Some(c"rhs");
                                 break 'exit_1;
                             }
                             arg3 = nlua_pop_String(lstate, &mut arena, &mut err);
-                            if err.err_type != ErrorType::kErrorTypeNone {
+                            if err.err_type != ErrorType::ErrorTypeNone {
                                 err_param = Some(c"lhs");
                                 break 'exit_2;
                             }
                             arg2 = nlua_pop_String(lstate, &mut arena, &mut err);
-                            if err.err_type != ErrorType::kErrorTypeNone {
+                            if err.err_type != ErrorType::ErrorTypeNone {
                                 err_param = Some(c"mode");
                                 break 'exit_3;
                             }
                             arg1 = nlua_pop_Buffer(lstate, &mut arena, &mut err);
-                            if err.err_type != ErrorType::kErrorTypeNone {
+                            if err.err_type != ErrorType::ErrorTypeNone {
                                 err_param = Some(c"buf");
                                 break 'exit_4;
                             }
@@ -16947,7 +16947,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_buf_del_keymap(lstate: *mut lua_State)
                         if lua_gettop(lstate) < 3 || lua_gettop(lstate) > 4 {
                             api_set_error_str(
                                 &mut err,
-                                ErrorType::kErrorTypeValidation,
+                                ErrorType::ErrorTypeValidation,
                                 c"Expected 3 to 4 arguments",
                             );
                             break 'exit_0;
@@ -16964,22 +16964,22 @@ unsafe extern "C-unwind" fn nlua_api_nvim_buf_del_keymap(lstate: *mut lua_State)
                                 &mut arena,
                                 &mut err,
                             );
-                            if err.err_type != ErrorType::kErrorTypeNone {
+                            if err.err_type != ErrorType::ErrorTypeNone {
                                 break 'exit_1;
                             }
                         }
                         arg3 = nlua_pop_String(lstate, &mut arena, &mut err);
-                        if err.err_type != ErrorType::kErrorTypeNone {
+                        if err.err_type != ErrorType::ErrorTypeNone {
                             err_param = Some(c"lhs");
                             break 'exit_1;
                         }
                         arg2 = nlua_pop_String(lstate, &mut arena, &mut err);
-                        if err.err_type != ErrorType::kErrorTypeNone {
+                        if err.err_type != ErrorType::ErrorTypeNone {
                             err_param = Some(c"mode");
                             break 'exit_2;
                         }
                         arg1 = nlua_pop_Buffer(lstate, &mut arena, &mut err);
-                        if err.err_type != ErrorType::kErrorTypeNone {
+                        if err.err_type != ErrorType::ErrorTypeNone {
                             err_param = Some(c"buf");
                             break 'exit_3;
                         }
@@ -17020,7 +17020,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_buf_set_var(lstate: *mut lua_State) ->
                     if lua_gettop(lstate) != 3 {
                         api_set_error_str(
                             &mut err,
-                            ErrorType::kErrorTypeValidation,
+                            ErrorType::ErrorTypeValidation,
                             c"Expected 3 arguments",
                         );
                         break 'exit_0;
@@ -17029,17 +17029,17 @@ unsafe extern "C-unwind" fn nlua_api_nvim_buf_set_var(lstate: *mut lua_State) ->
                         return nlua_fast_api_disabled_error(lstate, c"nvim_buf_set_var");
                     }
                     arg3 = nlua_pop_Object(lstate, true, &mut arena, &mut err);
-                    if err.err_type != ErrorType::kErrorTypeNone {
+                    if err.err_type != ErrorType::ErrorTypeNone {
                         err_param = Some(c"value");
                         break 'exit_0;
                     }
                     arg2 = nlua_pop_String(lstate, &mut arena, &mut err);
-                    if err.err_type != ErrorType::kErrorTypeNone {
+                    if err.err_type != ErrorType::ErrorTypeNone {
                         err_param = Some(c"name");
                         break 'exit_1;
                     }
                     arg1 = nlua_pop_Buffer(lstate, &mut arena, &mut err);
-                    if err.err_type != ErrorType::kErrorTypeNone {
+                    if err.err_type != ErrorType::ErrorTypeNone {
                         err_param = Some(c"buf");
                         break 'exit_2;
                     }
@@ -17067,7 +17067,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_buf_del_var(lstate: *mut lua_State) ->
                 if lua_gettop(lstate) != 2 {
                     api_set_error_str(
                         &mut err,
-                        ErrorType::kErrorTypeValidation,
+                        ErrorType::ErrorTypeValidation,
                         c"Expected 2 arguments",
                     );
                     break 'exit_0;
@@ -17076,12 +17076,12 @@ unsafe extern "C-unwind" fn nlua_api_nvim_buf_del_var(lstate: *mut lua_State) ->
                     return nlua_fast_api_disabled_error(lstate, c"nvim_buf_del_var");
                 }
                 arg2 = nlua_pop_String(lstate, &mut arena, &mut err);
-                if err.err_type != ErrorType::kErrorTypeNone {
+                if err.err_type != ErrorType::ErrorTypeNone {
                     err_param = Some(c"name");
                     break 'exit_0;
                 }
                 arg1 = nlua_pop_Buffer(lstate, &mut arena, &mut err);
-                if err.err_type != ErrorType::kErrorTypeNone {
+                if err.err_type != ErrorType::ErrorTypeNone {
                     err_param = Some(c"buf");
                     break 'exit_1;
                 }
@@ -17105,7 +17105,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_buf_get_name(lstate: *mut lua_State) -
             if lua_gettop(lstate) != 1 {
                 api_set_error_str(
                     &mut err,
-                    ErrorType::kErrorTypeValidation,
+                    ErrorType::ErrorTypeValidation,
                     c"Expected 1 argument",
                 );
                 break 'exit_0;
@@ -17114,7 +17114,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_buf_get_name(lstate: *mut lua_State) -
                 return nlua_fast_api_disabled_error(lstate, c"nvim_buf_get_name");
             }
             arg1 = nlua_pop_Buffer(lstate, &mut arena, &mut err);
-            if err.err_type != ErrorType::kErrorTypeNone {
+            if err.err_type != ErrorType::ErrorTypeNone {
                 err_param = Some(c"buf");
                 break 'exit_0;
             }
@@ -17140,7 +17140,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_buf_set_name(lstate: *mut lua_State) -
                 if lua_gettop(lstate) != 2 {
                     api_set_error_str(
                         &mut err,
-                        ErrorType::kErrorTypeValidation,
+                        ErrorType::ErrorTypeValidation,
                         c"Expected 2 arguments",
                     );
                     break 'exit_0;
@@ -17149,12 +17149,12 @@ unsafe extern "C-unwind" fn nlua_api_nvim_buf_set_name(lstate: *mut lua_State) -
                     return nlua_fast_api_disabled_error(lstate, c"nvim_buf_set_name");
                 }
                 arg2 = nlua_pop_String(lstate, &mut arena, &mut err);
-                if err.err_type != ErrorType::kErrorTypeNone {
+                if err.err_type != ErrorType::ErrorTypeNone {
                     err_param = Some(c"name");
                     break 'exit_0;
                 }
                 arg1 = nlua_pop_Buffer(lstate, &mut arena, &mut err);
-                if err.err_type != ErrorType::kErrorTypeNone {
+                if err.err_type != ErrorType::ErrorTypeNone {
                     err_param = Some(c"buf");
                     break 'exit_1;
                 }
@@ -17178,7 +17178,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_buf_is_loaded(lstate: *mut lua_State) 
             if lua_gettop(lstate) != 1 {
                 api_set_error_str(
                     &mut err,
-                    ErrorType::kErrorTypeValidation,
+                    ErrorType::ErrorTypeValidation,
                     c"Expected 1 argument",
                 );
                 break 'exit_0;
@@ -17187,7 +17187,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_buf_is_loaded(lstate: *mut lua_State) 
                 return nlua_fast_api_disabled_error(lstate, c"nvim_buf_is_loaded");
             }
             arg1 = nlua_pop_Buffer(lstate, &mut arena, &mut err);
-            if err.err_type != ErrorType::kErrorTypeNone {
+            if err.err_type != ErrorType::ErrorTypeNone {
                 err_param = Some(c"buf");
                 break 'exit_0;
             }
@@ -17213,7 +17213,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_buf_delete(lstate: *mut lua_State) -> 
                 if lua_gettop(lstate) < 1 || lua_gettop(lstate) > 2 {
                     api_set_error_str(
                         &mut err,
-                        ErrorType::kErrorTypeValidation,
+                        ErrorType::ErrorTypeValidation,
                         c"Expected 1 to 2 arguments",
                     );
                     break 'exit_0;
@@ -17224,7 +17224,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_buf_delete(lstate: *mut lua_State) -> 
                 if text_locked() {
                     api_set_error_str(
                         &mut err,
-                        ErrorType::kErrorTypeException,
+                        ErrorType::ErrorTypeException,
                         get_text_locked_msg(),
                     );
                     break 'exit_0;
@@ -17238,12 +17238,12 @@ unsafe extern "C-unwind" fn nlua_api_nvim_buf_delete(lstate: *mut lua_State) -> 
                         &mut arena,
                         &mut err,
                     );
-                    if err.err_type != ErrorType::kErrorTypeNone {
+                    if err.err_type != ErrorType::ErrorTypeNone {
                         break 'exit_1;
                     }
                 }
                 arg1 = nlua_pop_Buffer(lstate, &mut arena, &mut err);
-                if err.err_type != ErrorType::kErrorTypeNone {
+                if err.err_type != ErrorType::ErrorTypeNone {
                     err_param = Some(c"buf");
                     break 'exit_1;
                 }
@@ -17271,7 +17271,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_buf_is_valid(lstate: *mut lua_State) -
             if lua_gettop(lstate) != 1 {
                 api_set_error_str(
                     &mut err,
-                    ErrorType::kErrorTypeValidation,
+                    ErrorType::ErrorTypeValidation,
                     c"Expected 1 argument",
                 );
                 break 'exit_0;
@@ -17280,7 +17280,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_buf_is_valid(lstate: *mut lua_State) -
                 return nlua_fast_api_disabled_error(lstate, c"nvim_buf_is_valid");
             }
             arg1 = nlua_pop_Buffer(lstate, &mut arena, &mut err);
-            if err.err_type != ErrorType::kErrorTypeNone {
+            if err.err_type != ErrorType::ErrorTypeNone {
                 err_param = Some(c"buf");
                 break 'exit_0;
             }
@@ -17306,7 +17306,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_buf_del_mark(lstate: *mut lua_State) -
                 if lua_gettop(lstate) != 2 {
                     api_set_error_str(
                         &mut err,
-                        ErrorType::kErrorTypeValidation,
+                        ErrorType::ErrorTypeValidation,
                         c"Expected 2 arguments",
                     );
                     break 'exit_0;
@@ -17315,12 +17315,12 @@ unsafe extern "C-unwind" fn nlua_api_nvim_buf_del_mark(lstate: *mut lua_State) -
                     return nlua_fast_api_disabled_error(lstate, c"nvim_buf_del_mark");
                 }
                 arg2 = nlua_pop_String(lstate, &mut arena, &mut err);
-                if err.err_type != ErrorType::kErrorTypeNone {
+                if err.err_type != ErrorType::ErrorTypeNone {
                     err_param = Some(c"name");
                     break 'exit_0;
                 }
                 arg1 = nlua_pop_Buffer(lstate, &mut arena, &mut err);
-                if err.err_type != ErrorType::kErrorTypeNone {
+                if err.err_type != ErrorType::ErrorTypeNone {
                     err_param = Some(c"buf");
                     break 'exit_1;
                 }
@@ -17353,7 +17353,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_buf_set_mark(lstate: *mut lua_State) -
                             if lua_gettop(lstate) < 4 || lua_gettop(lstate) > 5 {
                                 api_set_error_str(
                                     &mut err,
-                                    ErrorType::kErrorTypeValidation,
+                                    ErrorType::ErrorTypeValidation,
                                     c"Expected 4 to 5 arguments",
                                 );
                                 break 'exit_0;
@@ -17370,27 +17370,27 @@ unsafe extern "C-unwind" fn nlua_api_nvim_buf_set_mark(lstate: *mut lua_State) -
                                     &mut arena,
                                     &mut err,
                                 );
-                                if err.err_type != ErrorType::kErrorTypeNone {
+                                if err.err_type != ErrorType::ErrorTypeNone {
                                     break 'exit_1;
                                 }
                             }
                             arg4 = nlua_pop_Integer(lstate, &mut arena, &mut err);
-                            if err.err_type != ErrorType::kErrorTypeNone {
+                            if err.err_type != ErrorType::ErrorTypeNone {
                                 err_param = Some(c"col");
                                 break 'exit_1;
                             }
                             arg3 = nlua_pop_Integer(lstate, &mut arena, &mut err);
-                            if err.err_type != ErrorType::kErrorTypeNone {
+                            if err.err_type != ErrorType::ErrorTypeNone {
                                 err_param = Some(c"line");
                                 break 'exit_2;
                             }
                             arg2 = nlua_pop_String(lstate, &mut arena, &mut err);
-                            if err.err_type != ErrorType::kErrorTypeNone {
+                            if err.err_type != ErrorType::ErrorTypeNone {
                                 err_param = Some(c"name");
                                 break 'exit_3;
                             }
                             arg1 = nlua_pop_Buffer(lstate, &mut arena, &mut err);
-                            if err.err_type != ErrorType::kErrorTypeNone {
+                            if err.err_type != ErrorType::ErrorTypeNone {
                                 err_param = Some(c"buf");
                                 break 'exit_4;
                             }
@@ -17431,7 +17431,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_buf_get_mark(lstate: *mut lua_State) -
                 if lua_gettop(lstate) != 2 {
                     api_set_error_str(
                         &mut err,
-                        ErrorType::kErrorTypeValidation,
+                        ErrorType::ErrorTypeValidation,
                         c"Expected 2 arguments",
                     );
                     break 'exit_0;
@@ -17440,12 +17440,12 @@ unsafe extern "C-unwind" fn nlua_api_nvim_buf_get_mark(lstate: *mut lua_State) -
                     return nlua_fast_api_disabled_error(lstate, c"nvim_buf_get_mark");
                 }
                 arg2 = nlua_pop_String(lstate, &mut arena, &mut err);
-                if err.err_type != ErrorType::kErrorTypeNone {
+                if err.err_type != ErrorType::ErrorTypeNone {
                     err_param = Some(c"name");
                     break 'exit_0;
                 }
                 arg1 = nlua_pop_Buffer(lstate, &mut arena, &mut err);
-                if err.err_type != ErrorType::kErrorTypeNone {
+                if err.err_type != ErrorType::ErrorTypeNone {
                     err_param = Some(c"buf");
                     break 'exit_1;
                 }
@@ -17472,7 +17472,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_buf_call(lstate: *mut lua_State) -> c_
                 if lua_gettop(lstate) != 2 {
                     api_set_error_str(
                         &mut err,
-                        ErrorType::kErrorTypeValidation,
+                        ErrorType::ErrorTypeValidation,
                         c"Expected 2 arguments",
                     );
                     break 'exit_0;
@@ -17481,12 +17481,12 @@ unsafe extern "C-unwind" fn nlua_api_nvim_buf_call(lstate: *mut lua_State) -> c_
                     return nlua_fast_api_disabled_error(lstate, c"nvim_buf_call");
                 }
                 arg2 = nlua_pop_LuaRef(lstate, &mut arena, &mut err);
-                if err.err_type != ErrorType::kErrorTypeNone {
+                if err.err_type != ErrorType::ErrorTypeNone {
                     err_param = Some(c"fn");
                     break 'exit_0;
                 }
                 arg1 = nlua_pop_Buffer(lstate, &mut arena, &mut err);
-                if err.err_type != ErrorType::kErrorTypeNone {
+                if err.err_type != ErrorType::ErrorTypeNone {
                     err_param = Some(c"buf");
                     break 'exit_1;
                 }
@@ -17512,7 +17512,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim__buf_stats(lstate: *mut lua_State) -> 
             if lua_gettop(lstate) != 1 {
                 api_set_error_str(
                     &mut err,
-                    ErrorType::kErrorTypeValidation,
+                    ErrorType::ErrorTypeValidation,
                     c"Expected 1 argument",
                 );
                 break 'exit_0;
@@ -17521,7 +17521,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim__buf_stats(lstate: *mut lua_State) -> 
                 return nlua_fast_api_disabled_error(lstate, c"nvim__buf_stats");
             }
             arg1 = nlua_pop_Buffer(lstate, &mut arena, &mut err);
-            if err.err_type != ErrorType::kErrorTypeNone {
+            if err.err_type != ErrorType::ErrorTypeNone {
                 err_param = Some(c"buf");
                 break 'exit_0;
             }
@@ -17547,7 +17547,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_parse_cmd(lstate: *mut lua_State) -> c
                 if lua_gettop(lstate) < 1 || lua_gettop(lstate) > 2 {
                     api_set_error_str(
                         &mut err,
-                        ErrorType::kErrorTypeValidation,
+                        ErrorType::ErrorTypeValidation,
                         c"Expected 1 to 2 arguments",
                     );
                     break 'exit_0;
@@ -17561,12 +17561,12 @@ unsafe extern "C-unwind" fn nlua_api_nvim_parse_cmd(lstate: *mut lua_State) -> c
                         &mut arena,
                         &mut err,
                     );
-                    if err.err_type != ErrorType::kErrorTypeNone {
+                    if err.err_type != ErrorType::ErrorTypeNone {
                         break 'exit_1;
                     }
                 }
                 arg1 = nlua_pop_String(lstate, &mut arena, &mut err);
-                if err.err_type != ErrorType::kErrorTypeNone {
+                if err.err_type != ErrorType::ErrorTypeNone {
                     err_param = Some(c"str");
                     break 'exit_1;
                 }
@@ -17602,7 +17602,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_cmd(lstate: *mut lua_State) -> c_int {
                     if lua_gettop(lstate) < 1 || lua_gettop(lstate) > 2 {
                         api_set_error_str(
                             &mut err,
-                            ErrorType::kErrorTypeValidation,
+                            ErrorType::ErrorTypeValidation,
                             c"Expected 1 to 2 arguments",
                         );
                         break 'exit_0;
@@ -17619,7 +17619,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_cmd(lstate: *mut lua_State) -> c_int {
                             &mut arena,
                             &mut err,
                         );
-                        if err.err_type != ErrorType::kErrorTypeNone {
+                        if err.err_type != ErrorType::ErrorTypeNone {
                             break 'exit_1;
                         }
                     }
@@ -17631,7 +17631,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_cmd(lstate: *mut lua_State) -> c_int {
                         &mut arena,
                         &mut err,
                     );
-                    if err.err_type != ErrorType::kErrorTypeNone {
+                    if err.err_type != ErrorType::ErrorTypeNone {
                         break 'exit_2;
                     }
                     let save_active_lstate = nlua_st().active_lstate;
@@ -17674,7 +17674,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_create_user_command(lstate: *mut lua_S
                     if lua_gettop(lstate) < 2 || lua_gettop(lstate) > 3 {
                         api_set_error_str(
                             &mut err,
-                            ErrorType::kErrorTypeValidation,
+                            ErrorType::ErrorTypeValidation,
                             c"Expected 2 to 3 arguments",
                         );
                         break 'exit_0;
@@ -17691,17 +17691,17 @@ unsafe extern "C-unwind" fn nlua_api_nvim_create_user_command(lstate: *mut lua_S
                             &mut arena,
                             &mut err,
                         );
-                        if err.err_type != ErrorType::kErrorTypeNone {
+                        if err.err_type != ErrorType::ErrorTypeNone {
                             break 'exit_1;
                         }
                     }
                     arg2 = nlua_pop_Object(lstate, true, &mut arena, &mut err);
-                    if err.err_type != ErrorType::kErrorTypeNone {
+                    if err.err_type != ErrorType::ErrorTypeNone {
                         err_param = Some(c"cmd");
                         break 'exit_1;
                     }
                     arg1 = nlua_pop_String(lstate, &mut arena, &mut err);
-                    if err.err_type != ErrorType::kErrorTypeNone {
+                    if err.err_type != ErrorType::ErrorTypeNone {
                         err_param = Some(c"name");
                         break 'exit_2;
                     }
@@ -17737,7 +17737,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_del_user_command(lstate: *mut lua_Stat
             if lua_gettop(lstate) != 1 {
                 api_set_error_str(
                     &mut err,
-                    ErrorType::kErrorTypeValidation,
+                    ErrorType::ErrorTypeValidation,
                     c"Expected 1 argument",
                 );
                 break 'exit_0;
@@ -17746,7 +17746,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_del_user_command(lstate: *mut lua_Stat
                 return nlua_fast_api_disabled_error(lstate, c"nvim_del_user_command");
             }
             arg1 = nlua_pop_String(lstate, &mut arena, &mut err);
-            if err.err_type != ErrorType::kErrorTypeNone {
+            if err.err_type != ErrorType::ErrorTypeNone {
                 err_param = Some(c"name");
                 break 'exit_0;
             }
@@ -17775,7 +17775,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_buf_create_user_command(lstate: *mut l
                         if lua_gettop(lstate) < 3 || lua_gettop(lstate) > 4 {
                             api_set_error_str(
                                 &mut err,
-                                ErrorType::kErrorTypeValidation,
+                                ErrorType::ErrorTypeValidation,
                                 c"Expected 3 to 4 arguments",
                             );
                             break 'exit_0;
@@ -17792,22 +17792,22 @@ unsafe extern "C-unwind" fn nlua_api_nvim_buf_create_user_command(lstate: *mut l
                                 &mut arena,
                                 &mut err,
                             );
-                            if err.err_type != ErrorType::kErrorTypeNone {
+                            if err.err_type != ErrorType::ErrorTypeNone {
                                 break 'exit_1;
                             }
                         }
                         arg3 = nlua_pop_Object(lstate, true, &mut arena, &mut err);
-                        if err.err_type != ErrorType::kErrorTypeNone {
+                        if err.err_type != ErrorType::ErrorTypeNone {
                             err_param = Some(c"cmd");
                             break 'exit_1;
                         }
                         arg2 = nlua_pop_String(lstate, &mut arena, &mut err);
-                        if err.err_type != ErrorType::kErrorTypeNone {
+                        if err.err_type != ErrorType::ErrorTypeNone {
                             err_param = Some(c"name");
                             break 'exit_2;
                         }
                         arg1 = nlua_pop_Buffer(lstate, &mut arena, &mut err);
-                        if err.err_type != ErrorType::kErrorTypeNone {
+                        if err.err_type != ErrorType::ErrorTypeNone {
                             err_param = Some(c"buf");
                             break 'exit_3;
                         }
@@ -17847,7 +17847,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_buf_del_user_command(lstate: *mut lua_
                 if lua_gettop(lstate) != 2 {
                     api_set_error_str(
                         &mut err,
-                        ErrorType::kErrorTypeValidation,
+                        ErrorType::ErrorTypeValidation,
                         c"Expected 2 arguments",
                     );
                     break 'exit_0;
@@ -17856,12 +17856,12 @@ unsafe extern "C-unwind" fn nlua_api_nvim_buf_del_user_command(lstate: *mut lua_
                     return nlua_fast_api_disabled_error(lstate, c"nvim_buf_del_user_command");
                 }
                 arg2 = nlua_pop_String(lstate, &mut arena, &mut err);
-                if err.err_type != ErrorType::kErrorTypeNone {
+                if err.err_type != ErrorType::ErrorTypeNone {
                     err_param = Some(c"name");
                     break 'exit_0;
                 }
                 arg1 = nlua_pop_Buffer(lstate, &mut arena, &mut err);
-                if err.err_type != ErrorType::kErrorTypeNone {
+                if err.err_type != ErrorType::ErrorTypeNone {
                     err_param = Some(c"buf");
                     break 'exit_1;
                 }
@@ -17886,7 +17886,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_get_commands(lstate: *mut lua_State) -
                 if lua_gettop(lstate) > 1 {
                     api_set_error_str(
                         &mut err,
-                        ErrorType::kErrorTypeValidation,
+                        ErrorType::ErrorTypeValidation,
                         c"Expected at most 1 argument",
                     );
                     break 'exit_0;
@@ -17903,7 +17903,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_get_commands(lstate: *mut lua_State) -
                         &mut arena,
                         &mut err,
                     );
-                    if err.err_type != ErrorType::kErrorTypeNone {
+                    if err.err_type != ErrorType::ErrorTypeNone {
                         break 'exit_1;
                     }
                 }
@@ -17934,7 +17934,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_buf_get_commands(lstate: *mut lua_Stat
                 if lua_gettop(lstate) < 1 || lua_gettop(lstate) > 2 {
                     api_set_error_str(
                         &mut err,
-                        ErrorType::kErrorTypeValidation,
+                        ErrorType::ErrorTypeValidation,
                         c"Expected 1 to 2 arguments",
                     );
                     break 'exit_0;
@@ -17951,12 +17951,12 @@ unsafe extern "C-unwind" fn nlua_api_nvim_buf_get_commands(lstate: *mut lua_Stat
                         &mut arena,
                         &mut err,
                     );
-                    if err.err_type != ErrorType::kErrorTypeNone {
+                    if err.err_type != ErrorType::ErrorTypeNone {
                         break 'exit_1;
                     }
                 }
                 arg1 = nlua_pop_Buffer(lstate, &mut arena, &mut err);
-                if err.err_type != ErrorType::kErrorTypeNone {
+                if err.err_type != ErrorType::ErrorTypeNone {
                     err_param = Some(c"buf");
                     break 'exit_1;
                 }
@@ -17987,7 +17987,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_exec(lstate: *mut lua_State) -> c_int 
                 if lua_gettop(lstate) != 2 {
                     api_set_error_str(
                         &mut err,
-                        ErrorType::kErrorTypeValidation,
+                        ErrorType::ErrorTypeValidation,
                         c"Expected 2 arguments",
                     );
                     break 'exit_0;
@@ -17996,12 +17996,12 @@ unsafe extern "C-unwind" fn nlua_api_nvim_exec(lstate: *mut lua_State) -> c_int 
                     return nlua_fast_api_disabled_error(lstate, c"nvim_exec");
                 }
                 arg2 = nlua_pop_Boolean(lstate, &mut arena, &mut err);
-                if err.err_type != ErrorType::kErrorTypeNone {
+                if err.err_type != ErrorType::ErrorTypeNone {
                     err_param = Some(c"output");
                     break 'exit_0;
                 }
                 arg1 = nlua_pop_String(lstate, &mut arena, &mut err);
-                if err.err_type != ErrorType::kErrorTypeNone {
+                if err.err_type != ErrorType::ErrorTypeNone {
                     err_param = Some(c"src");
                     break 'exit_1;
                 }
@@ -18027,7 +18027,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_command_output(lstate: *mut lua_State)
             if lua_gettop(lstate) != 1 {
                 api_set_error_str(
                     &mut err,
-                    ErrorType::kErrorTypeValidation,
+                    ErrorType::ErrorTypeValidation,
                     c"Expected 1 argument",
                 );
                 break 'exit_0;
@@ -18036,7 +18036,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_command_output(lstate: *mut lua_State)
                 return nlua_fast_api_disabled_error(lstate, c"nvim_command_output");
             }
             arg1 = nlua_pop_String(lstate, &mut arena, &mut err);
-            if err.err_type != ErrorType::kErrorTypeNone {
+            if err.err_type != ErrorType::ErrorTypeNone {
                 err_param = Some(c"command");
                 break 'exit_0;
             }
@@ -18061,7 +18061,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_buf_get_number(lstate: *mut lua_State)
             if lua_gettop(lstate) != 1 {
                 api_set_error_str(
                     &mut err,
-                    ErrorType::kErrorTypeValidation,
+                    ErrorType::ErrorTypeValidation,
                     c"Expected 1 argument",
                 );
                 break 'exit_0;
@@ -18070,7 +18070,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_buf_get_number(lstate: *mut lua_State)
                 return nlua_fast_api_disabled_error(lstate, c"nvim_buf_get_number");
             }
             arg1 = nlua_pop_Buffer(lstate, &mut arena, &mut err);
-            if err.err_type != ErrorType::kErrorTypeNone {
+            if err.err_type != ErrorType::ErrorTypeNone {
                 err_param = Some(c"buffer");
                 break 'exit_0;
             }
@@ -18100,7 +18100,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_buf_clear_highlight(lstate: *mut lua_S
                         if lua_gettop(lstate) != 4 {
                             api_set_error_str(
                                 &mut err,
-                                ErrorType::kErrorTypeValidation,
+                                ErrorType::ErrorTypeValidation,
                                 c"Expected 4 arguments",
                             );
                             break 'exit_0;
@@ -18109,22 +18109,22 @@ unsafe extern "C-unwind" fn nlua_api_nvim_buf_clear_highlight(lstate: *mut lua_S
                             return nlua_fast_api_disabled_error(lstate, c"nvim_buf_clear_highlight");
                         }
                         arg4 = nlua_pop_Integer(lstate, &mut arena, &mut err);
-                        if err.err_type != ErrorType::kErrorTypeNone {
+                        if err.err_type != ErrorType::ErrorTypeNone {
                             err_param = Some(c"line_end");
                             break 'exit_0;
                         }
                         arg3 = nlua_pop_Integer(lstate, &mut arena, &mut err);
-                        if err.err_type != ErrorType::kErrorTypeNone {
+                        if err.err_type != ErrorType::ErrorTypeNone {
                             err_param = Some(c"line_start");
                             break 'exit_1;
                         }
                         arg2 = nlua_pop_Integer(lstate, &mut arena, &mut err);
-                        if err.err_type != ErrorType::kErrorTypeNone {
+                        if err.err_type != ErrorType::ErrorTypeNone {
                             err_param = Some(c"ns_id");
                             break 'exit_2;
                         }
                         arg1 = nlua_pop_Buffer(lstate, &mut arena, &mut err);
-                        if err.err_type != ErrorType::kErrorTypeNone {
+                        if err.err_type != ErrorType::ErrorTypeNone {
                             err_param = Some(c"buffer");
                             break 'exit_3;
                         }
@@ -18160,7 +18160,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_buf_add_highlight(lstate: *mut lua_Sta
                                 if lua_gettop(lstate) != 6 {
                                     api_set_error_str(
                                         &mut err,
-                                        ErrorType::kErrorTypeValidation,
+                                        ErrorType::ErrorTypeValidation,
                                         c"Expected 6 arguments",
                                     );
                                     break 'exit_0;
@@ -18169,32 +18169,32 @@ unsafe extern "C-unwind" fn nlua_api_nvim_buf_add_highlight(lstate: *mut lua_Sta
                                     return nlua_fast_api_disabled_error(lstate, c"nvim_buf_add_highlight");
                                 }
                                 arg6 = nlua_pop_Integer(lstate, &mut arena, &mut err);
-                                if err.err_type != ErrorType::kErrorTypeNone {
+                                if err.err_type != ErrorType::ErrorTypeNone {
                                     err_param = Some(c"col_end");
                                     break 'exit_0;
                                 }
                                 arg5 = nlua_pop_Integer(lstate, &mut arena, &mut err);
-                                if err.err_type != ErrorType::kErrorTypeNone {
+                                if err.err_type != ErrorType::ErrorTypeNone {
                                     err_param = Some(c"col_start");
                                     break 'exit_1;
                                 }
                                 arg4 = nlua_pop_Integer(lstate, &mut arena, &mut err);
-                                if err.err_type != ErrorType::kErrorTypeNone {
+                                if err.err_type != ErrorType::ErrorTypeNone {
                                     err_param = Some(c"line");
                                     break 'exit_2;
                                 }
                                 arg3 = nlua_pop_String(lstate, &mut arena, &mut err);
-                                if err.err_type != ErrorType::kErrorTypeNone {
+                                if err.err_type != ErrorType::ErrorTypeNone {
                                     err_param = Some(c"hl_group");
                                     break 'exit_3;
                                 }
                                 arg2 = nlua_pop_Integer(lstate, &mut arena, &mut err);
-                                if err.err_type != ErrorType::kErrorTypeNone {
+                                if err.err_type != ErrorType::ErrorTypeNone {
                                     err_param = Some(c"ns_id");
                                     break 'exit_4;
                                 }
                                 arg1 = nlua_pop_Buffer(lstate, &mut arena, &mut err);
-                                if err.err_type != ErrorType::kErrorTypeNone {
+                                if err.err_type != ErrorType::ErrorTypeNone {
                                     err_param = Some(c"buffer");
                                     break 'exit_5;
                                 }
@@ -18243,7 +18243,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_buf_set_virtual_text(lstate: *mut lua_
                             if lua_gettop(lstate) < 4 || lua_gettop(lstate) > 5 {
                                 api_set_error_str(
                                     &mut err,
-                                    ErrorType::kErrorTypeValidation,
+                                    ErrorType::ErrorTypeValidation,
                                     c"Expected 4 to 5 arguments",
                                 );
                                 break 'exit_0;
@@ -18260,27 +18260,27 @@ unsafe extern "C-unwind" fn nlua_api_nvim_buf_set_virtual_text(lstate: *mut lua_
                                     &mut arena,
                                     &mut err,
                                 );
-                                if err.err_type != ErrorType::kErrorTypeNone {
+                                if err.err_type != ErrorType::ErrorTypeNone {
                                     break 'exit_1;
                                 }
                             }
                             arg4 = nlua_pop_Array(lstate, &mut arena, &mut err);
-                            if err.err_type != ErrorType::kErrorTypeNone {
+                            if err.err_type != ErrorType::ErrorTypeNone {
                                 err_param = Some(c"chunks");
                                 break 'exit_1;
                             }
                             arg3 = nlua_pop_Integer(lstate, &mut arena, &mut err);
-                            if err.err_type != ErrorType::kErrorTypeNone {
+                            if err.err_type != ErrorType::ErrorTypeNone {
                                 err_param = Some(c"line");
                                 break 'exit_2;
                             }
                             arg2 = nlua_pop_Integer(lstate, &mut arena, &mut err);
-                            if err.err_type != ErrorType::kErrorTypeNone {
+                            if err.err_type != ErrorType::ErrorTypeNone {
                                 err_param = Some(c"src_id");
                                 break 'exit_3;
                             }
                             arg1 = nlua_pop_Buffer(lstate, &mut arena, &mut err);
-                            if err.err_type != ErrorType::kErrorTypeNone {
+                            if err.err_type != ErrorType::ErrorTypeNone {
                                 err_param = Some(c"buffer");
                                 break 'exit_4;
                             }
@@ -18321,7 +18321,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_get_hl_by_id(lstate: *mut lua_State) -
                 if lua_gettop(lstate) != 2 {
                     api_set_error_str(
                         &mut err,
-                        ErrorType::kErrorTypeValidation,
+                        ErrorType::ErrorTypeValidation,
                         c"Expected 2 arguments",
                     );
                     break 'exit_0;
@@ -18330,12 +18330,12 @@ unsafe extern "C-unwind" fn nlua_api_nvim_get_hl_by_id(lstate: *mut lua_State) -
                     return nlua_fast_api_disabled_error(lstate, c"nvim_get_hl_by_id");
                 }
                 arg2 = nlua_pop_Boolean(lstate, &mut arena, &mut err);
-                if err.err_type != ErrorType::kErrorTypeNone {
+                if err.err_type != ErrorType::ErrorTypeNone {
                     err_param = Some(c"rgb");
                     break 'exit_0;
                 }
                 arg1 = nlua_pop_Integer(lstate, &mut arena, &mut err);
-                if err.err_type != ErrorType::kErrorTypeNone {
+                if err.err_type != ErrorType::ErrorTypeNone {
                     err_param = Some(c"hl_id");
                     break 'exit_1;
                 }
@@ -18362,7 +18362,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_get_hl_by_name(lstate: *mut lua_State)
                 if lua_gettop(lstate) != 2 {
                     api_set_error_str(
                         &mut err,
-                        ErrorType::kErrorTypeValidation,
+                        ErrorType::ErrorTypeValidation,
                         c"Expected 2 arguments",
                     );
                     break 'exit_0;
@@ -18371,12 +18371,12 @@ unsafe extern "C-unwind" fn nlua_api_nvim_get_hl_by_name(lstate: *mut lua_State)
                     return nlua_fast_api_disabled_error(lstate, c"nvim_get_hl_by_name");
                 }
                 arg2 = nlua_pop_Boolean(lstate, &mut arena, &mut err);
-                if err.err_type != ErrorType::kErrorTypeNone {
+                if err.err_type != ErrorType::ErrorTypeNone {
                     err_param = Some(c"rgb");
                     break 'exit_0;
                 }
                 arg1 = nlua_pop_String(lstate, &mut arena, &mut err);
-                if err.err_type != ErrorType::kErrorTypeNone {
+                if err.err_type != ErrorType::ErrorTypeNone {
                     err_param = Some(c"name");
                     break 'exit_1;
                 }
@@ -18401,7 +18401,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_get_option_info(lstate: *mut lua_State
             if lua_gettop(lstate) != 1 {
                 api_set_error_str(
                     &mut err,
-                    ErrorType::kErrorTypeValidation,
+                    ErrorType::ErrorTypeValidation,
                     c"Expected 1 argument",
                 );
                 break 'exit_0;
@@ -18410,7 +18410,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_get_option_info(lstate: *mut lua_State
                 return nlua_fast_api_disabled_error(lstate, c"nvim_get_option_info");
             }
             arg1 = nlua_pop_String(lstate, &mut arena, &mut err);
-            if err.err_type != ErrorType::kErrorTypeNone {
+            if err.err_type != ErrorType::ErrorTypeNone {
                 err_param = Some(c"name");
                 break 'exit_0;
             }
@@ -18436,7 +18436,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_set_option(lstate: *mut lua_State) -> 
                 if lua_gettop(lstate) != 2 {
                     api_set_error_str(
                         &mut err,
-                        ErrorType::kErrorTypeValidation,
+                        ErrorType::ErrorTypeValidation,
                         c"Expected 2 arguments",
                     );
                     break 'exit_0;
@@ -18445,12 +18445,12 @@ unsafe extern "C-unwind" fn nlua_api_nvim_set_option(lstate: *mut lua_State) -> 
                     return nlua_fast_api_disabled_error(lstate, c"nvim_set_option");
                 }
                 arg2 = nlua_pop_Object(lstate, true, &mut arena, &mut err);
-                if err.err_type != ErrorType::kErrorTypeNone {
+                if err.err_type != ErrorType::ErrorTypeNone {
                     err_param = Some(c"value");
                     break 'exit_0;
                 }
                 arg1 = nlua_pop_String(lstate, &mut arena, &mut err);
-                if err.err_type != ErrorType::kErrorTypeNone {
+                if err.err_type != ErrorType::ErrorTypeNone {
                     err_param = Some(c"name");
                     break 'exit_1;
                 }
@@ -18475,7 +18475,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_get_option(lstate: *mut lua_State) -> 
             if lua_gettop(lstate) != 1 {
                 api_set_error_str(
                     &mut err,
-                    ErrorType::kErrorTypeValidation,
+                    ErrorType::ErrorTypeValidation,
                     c"Expected 1 argument",
                 );
                 break 'exit_0;
@@ -18484,7 +18484,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_get_option(lstate: *mut lua_State) -> 
                 return nlua_fast_api_disabled_error(lstate, c"nvim_get_option");
             }
             arg1 = nlua_pop_String(lstate, &mut arena, &mut err);
-            if err.err_type != ErrorType::kErrorTypeNone {
+            if err.err_type != ErrorType::ErrorTypeNone {
                 err_param = Some(c"name");
                 break 'exit_0;
             }
@@ -18511,7 +18511,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_buf_get_option(lstate: *mut lua_State)
                 if lua_gettop(lstate) != 2 {
                     api_set_error_str(
                         &mut err,
-                        ErrorType::kErrorTypeValidation,
+                        ErrorType::ErrorTypeValidation,
                         c"Expected 2 arguments",
                     );
                     break 'exit_0;
@@ -18520,12 +18520,12 @@ unsafe extern "C-unwind" fn nlua_api_nvim_buf_get_option(lstate: *mut lua_State)
                     return nlua_fast_api_disabled_error(lstate, c"nvim_buf_get_option");
                 }
                 arg2 = nlua_pop_String(lstate, &mut arena, &mut err);
-                if err.err_type != ErrorType::kErrorTypeNone {
+                if err.err_type != ErrorType::ErrorTypeNone {
                     err_param = Some(c"name");
                     break 'exit_0;
                 }
                 arg1 = nlua_pop_Buffer(lstate, &mut arena, &mut err);
-                if err.err_type != ErrorType::kErrorTypeNone {
+                if err.err_type != ErrorType::ErrorTypeNone {
                     err_param = Some(c"buffer");
                     break 'exit_1;
                 }
@@ -18555,7 +18555,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_buf_set_option(lstate: *mut lua_State)
                     if lua_gettop(lstate) != 3 {
                         api_set_error_str(
                             &mut err,
-                            ErrorType::kErrorTypeValidation,
+                            ErrorType::ErrorTypeValidation,
                             c"Expected 3 arguments",
                         );
                         break 'exit_0;
@@ -18564,17 +18564,17 @@ unsafe extern "C-unwind" fn nlua_api_nvim_buf_set_option(lstate: *mut lua_State)
                         return nlua_fast_api_disabled_error(lstate, c"nvim_buf_set_option");
                     }
                     arg3 = nlua_pop_Object(lstate, true, &mut arena, &mut err);
-                    if err.err_type != ErrorType::kErrorTypeNone {
+                    if err.err_type != ErrorType::ErrorTypeNone {
                         err_param = Some(c"value");
                         break 'exit_0;
                     }
                     arg2 = nlua_pop_String(lstate, &mut arena, &mut err);
-                    if err.err_type != ErrorType::kErrorTypeNone {
+                    if err.err_type != ErrorType::ErrorTypeNone {
                         err_param = Some(c"name");
                         break 'exit_1;
                     }
                     arg1 = nlua_pop_Buffer(lstate, &mut arena, &mut err);
-                    if err.err_type != ErrorType::kErrorTypeNone {
+                    if err.err_type != ErrorType::ErrorTypeNone {
                         err_param = Some(c"buffer");
                         break 'exit_2;
                     }
@@ -18602,7 +18602,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_win_get_option(lstate: *mut lua_State)
                 if lua_gettop(lstate) != 2 {
                     api_set_error_str(
                         &mut err,
-                        ErrorType::kErrorTypeValidation,
+                        ErrorType::ErrorTypeValidation,
                         c"Expected 2 arguments",
                     );
                     break 'exit_0;
@@ -18611,12 +18611,12 @@ unsafe extern "C-unwind" fn nlua_api_nvim_win_get_option(lstate: *mut lua_State)
                     return nlua_fast_api_disabled_error(lstate, c"nvim_win_get_option");
                 }
                 arg2 = nlua_pop_String(lstate, &mut arena, &mut err);
-                if err.err_type != ErrorType::kErrorTypeNone {
+                if err.err_type != ErrorType::ErrorTypeNone {
                     err_param = Some(c"name");
                     break 'exit_0;
                 }
                 arg1 = nlua_pop_Window(lstate, &mut arena, &mut err);
-                if err.err_type != ErrorType::kErrorTypeNone {
+                if err.err_type != ErrorType::ErrorTypeNone {
                     err_param = Some(c"window");
                     break 'exit_1;
                 }
@@ -18646,7 +18646,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_win_set_option(lstate: *mut lua_State)
                     if lua_gettop(lstate) != 3 {
                         api_set_error_str(
                             &mut err,
-                            ErrorType::kErrorTypeValidation,
+                            ErrorType::ErrorTypeValidation,
                             c"Expected 3 arguments",
                         );
                         break 'exit_0;
@@ -18655,17 +18655,17 @@ unsafe extern "C-unwind" fn nlua_api_nvim_win_set_option(lstate: *mut lua_State)
                         return nlua_fast_api_disabled_error(lstate, c"nvim_win_set_option");
                     }
                     arg3 = nlua_pop_Object(lstate, true, &mut arena, &mut err);
-                    if err.err_type != ErrorType::kErrorTypeNone {
+                    if err.err_type != ErrorType::ErrorTypeNone {
                         err_param = Some(c"value");
                         break 'exit_0;
                     }
                     arg2 = nlua_pop_String(lstate, &mut arena, &mut err);
-                    if err.err_type != ErrorType::kErrorTypeNone {
+                    if err.err_type != ErrorType::ErrorTypeNone {
                         err_param = Some(c"name");
                         break 'exit_1;
                     }
                     arg1 = nlua_pop_Window(lstate, &mut arena, &mut err);
-                    if err.err_type != ErrorType::kErrorTypeNone {
+                    if err.err_type != ErrorType::ErrorTypeNone {
                         err_param = Some(c"window");
                         break 'exit_2;
                     }
@@ -18691,7 +18691,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_out_write(lstate: *mut lua_State) -> c
             if lua_gettop(lstate) != 1 {
                 api_set_error_str(
                     &mut err,
-                    ErrorType::kErrorTypeValidation,
+                    ErrorType::ErrorTypeValidation,
                     c"Expected 1 argument",
                 );
                 break 'exit_0;
@@ -18700,7 +18700,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_out_write(lstate: *mut lua_State) -> c
                 return nlua_fast_api_disabled_error(lstate, c"nvim_out_write");
             }
             arg1 = nlua_pop_String(lstate, &mut arena, &mut err);
-            if err.err_type != ErrorType::kErrorTypeNone {
+            if err.err_type != ErrorType::ErrorTypeNone {
                 err_param = Some(c"str");
                 break 'exit_0;
             }
@@ -18723,7 +18723,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_err_write(lstate: *mut lua_State) -> c
             if lua_gettop(lstate) != 1 {
                 api_set_error_str(
                     &mut err,
-                    ErrorType::kErrorTypeValidation,
+                    ErrorType::ErrorTypeValidation,
                     c"Expected 1 argument",
                 );
                 break 'exit_0;
@@ -18732,7 +18732,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_err_write(lstate: *mut lua_State) -> c
                 return nlua_fast_api_disabled_error(lstate, c"nvim_err_write");
             }
             arg1 = nlua_pop_String(lstate, &mut arena, &mut err);
-            if err.err_type != ErrorType::kErrorTypeNone {
+            if err.err_type != ErrorType::ErrorTypeNone {
                 err_param = Some(c"str");
                 break 'exit_0;
             }
@@ -18755,7 +18755,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_err_writeln(lstate: *mut lua_State) ->
             if lua_gettop(lstate) != 1 {
                 api_set_error_str(
                     &mut err,
-                    ErrorType::kErrorTypeValidation,
+                    ErrorType::ErrorTypeValidation,
                     c"Expected 1 argument",
                 );
                 break 'exit_0;
@@ -18764,7 +18764,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_err_writeln(lstate: *mut lua_State) ->
                 return nlua_fast_api_disabled_error(lstate, c"nvim_err_writeln");
             }
             arg1 = nlua_pop_String(lstate, &mut arena, &mut err);
-            if err.err_type != ErrorType::kErrorTypeNone {
+            if err.err_type != ErrorType::ErrorTypeNone {
                 err_param = Some(c"str");
                 break 'exit_0;
             }
@@ -18791,7 +18791,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_notify(lstate: *mut lua_State) -> c_in
                     if lua_gettop(lstate) != 3 {
                         api_set_error_str(
                             &mut err,
-                            ErrorType::kErrorTypeValidation,
+                            ErrorType::ErrorTypeValidation,
                             c"Expected 3 arguments",
                         );
                         break 'exit_0;
@@ -18800,17 +18800,17 @@ unsafe extern "C-unwind" fn nlua_api_nvim_notify(lstate: *mut lua_State) -> c_in
                         return nlua_fast_api_disabled_error(lstate, c"nvim_notify");
                     }
                     arg3 = nlua_pop_Dict(lstate, false, &mut arena, &mut err);
-                    if err.err_type != ErrorType::kErrorTypeNone {
+                    if err.err_type != ErrorType::ErrorTypeNone {
                         err_param = Some(c"opts");
                         break 'exit_0;
                     }
                     arg2 = nlua_pop_Integer(lstate, &mut arena, &mut err);
-                    if err.err_type != ErrorType::kErrorTypeNone {
+                    if err.err_type != ErrorType::ErrorTypeNone {
                         err_param = Some(c"log_level");
                         break 'exit_1;
                     }
                     arg1 = nlua_pop_String(lstate, &mut arena, &mut err);
-                    if err.err_type != ErrorType::kErrorTypeNone {
+                    if err.err_type != ErrorType::ErrorTypeNone {
                         err_param = Some(c"msg");
                         break 'exit_2;
                     }
@@ -18838,7 +18838,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_win_set_height(lstate: *mut lua_State)
                 if lua_gettop(lstate) != 2 {
                     api_set_error_str(
                         &mut err,
-                        ErrorType::kErrorTypeValidation,
+                        ErrorType::ErrorTypeValidation,
                         c"Expected 2 arguments",
                     );
                     break 'exit_0;
@@ -18847,12 +18847,12 @@ unsafe extern "C-unwind" fn nlua_api_nvim_win_set_height(lstate: *mut lua_State)
                     return nlua_fast_api_disabled_error(lstate, c"nvim_win_set_height");
                 }
                 arg2 = nlua_pop_Integer(lstate, &mut arena, &mut err);
-                if err.err_type != ErrorType::kErrorTypeNone {
+                if err.err_type != ErrorType::ErrorTypeNone {
                     err_param = Some(c"height");
                     break 'exit_0;
                 }
                 arg1 = nlua_pop_Window(lstate, &mut arena, &mut err);
-                if err.err_type != ErrorType::kErrorTypeNone {
+                if err.err_type != ErrorType::ErrorTypeNone {
                     err_param = Some(c"win");
                     break 'exit_1;
                 }
@@ -18878,7 +18878,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_win_set_width(lstate: *mut lua_State) 
                 if lua_gettop(lstate) != 2 {
                     api_set_error_str(
                         &mut err,
-                        ErrorType::kErrorTypeValidation,
+                        ErrorType::ErrorTypeValidation,
                         c"Expected 2 arguments",
                     );
                     break 'exit_0;
@@ -18887,12 +18887,12 @@ unsafe extern "C-unwind" fn nlua_api_nvim_win_set_width(lstate: *mut lua_State) 
                     return nlua_fast_api_disabled_error(lstate, c"nvim_win_set_width");
                 }
                 arg2 = nlua_pop_Integer(lstate, &mut arena, &mut err);
-                if err.err_type != ErrorType::kErrorTypeNone {
+                if err.err_type != ErrorType::ErrorTypeNone {
                     err_param = Some(c"width");
                     break 'exit_0;
                 }
                 arg1 = nlua_pop_Window(lstate, &mut arena, &mut err);
-                if err.err_type != ErrorType::kErrorTypeNone {
+                if err.err_type != ErrorType::ErrorTypeNone {
                     err_param = Some(c"win");
                     break 'exit_1;
                 }
@@ -18916,7 +18916,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_create_namespace(lstate: *mut lua_Stat
             if lua_gettop(lstate) != 1 {
                 api_set_error_str(
                     &mut err,
-                    ErrorType::kErrorTypeValidation,
+                    ErrorType::ErrorTypeValidation,
                     c"Expected 1 argument",
                 );
                 break 'exit_0;
@@ -18925,7 +18925,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_create_namespace(lstate: *mut lua_Stat
                 return nlua_fast_api_disabled_error(lstate, c"nvim_create_namespace");
             }
             arg1 = nlua_pop_String(lstate, &mut arena, &mut err);
-            if err.err_type != ErrorType::kErrorTypeNone {
+            if err.err_type != ErrorType::ErrorTypeNone {
                 err_param = Some(c"name");
                 break 'exit_0;
             }
@@ -18948,7 +18948,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_get_namespaces(lstate: *mut lua_State)
             if lua_gettop(lstate) != 0 {
                 api_set_error_str(
                     &mut err,
-                    ErrorType::kErrorTypeValidation,
+                    ErrorType::ErrorTypeValidation,
                     c"Expected 0 arguments",
                 );
                 break 'exit_0;
@@ -18982,7 +18982,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_buf_get_extmark_by_id(lstate: *mut lua
                         if lua_gettop(lstate) < 3 || lua_gettop(lstate) > 4 {
                             api_set_error_str(
                                 &mut err,
-                                ErrorType::kErrorTypeValidation,
+                                ErrorType::ErrorTypeValidation,
                                 c"Expected 3 to 4 arguments",
                             );
                             break 'exit_0;
@@ -18999,22 +18999,22 @@ unsafe extern "C-unwind" fn nlua_api_nvim_buf_get_extmark_by_id(lstate: *mut lua
                                 &mut arena,
                                 &mut err,
                             );
-                            if err.err_type != ErrorType::kErrorTypeNone {
+                            if err.err_type != ErrorType::ErrorTypeNone {
                                 break 'exit_1;
                             }
                         }
                         arg3 = nlua_pop_Integer(lstate, &mut arena, &mut err);
-                        if err.err_type != ErrorType::kErrorTypeNone {
+                        if err.err_type != ErrorType::ErrorTypeNone {
                             err_param = Some(c"id");
                             break 'exit_1;
                         }
                         arg2 = nlua_pop_Integer(lstate, &mut arena, &mut err);
-                        if err.err_type != ErrorType::kErrorTypeNone {
+                        if err.err_type != ErrorType::ErrorTypeNone {
                             err_param = Some(c"ns_id");
                             break 'exit_2;
                         }
                         arg1 = nlua_pop_Buffer(lstate, &mut arena, &mut err);
-                        if err.err_type != ErrorType::kErrorTypeNone {
+                        if err.err_type != ErrorType::ErrorTypeNone {
                             err_param = Some(c"buf");
                             break 'exit_3;
                         }
@@ -19060,7 +19060,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_buf_get_extmarks(lstate: *mut lua_Stat
                             if lua_gettop(lstate) < 4 || lua_gettop(lstate) > 5 {
                                 api_set_error_str(
                                     &mut err,
-                                    ErrorType::kErrorTypeValidation,
+                                    ErrorType::ErrorTypeValidation,
                                     c"Expected 4 to 5 arguments",
                                 );
                                 break 'exit_0;
@@ -19077,27 +19077,27 @@ unsafe extern "C-unwind" fn nlua_api_nvim_buf_get_extmarks(lstate: *mut lua_Stat
                                     &mut arena,
                                     &mut err,
                                 );
-                                if err.err_type != ErrorType::kErrorTypeNone {
+                                if err.err_type != ErrorType::ErrorTypeNone {
                                     break 'exit_1;
                                 }
                             }
                             arg4 = nlua_pop_Object(lstate, true, &mut arena, &mut err);
-                            if err.err_type != ErrorType::kErrorTypeNone {
+                            if err.err_type != ErrorType::ErrorTypeNone {
                                 err_param = Some(c"end");
                                 break 'exit_1;
                             }
                             arg3 = nlua_pop_Object(lstate, true, &mut arena, &mut err);
-                            if err.err_type != ErrorType::kErrorTypeNone {
+                            if err.err_type != ErrorType::ErrorTypeNone {
                                 err_param = Some(c"start");
                                 break 'exit_2;
                             }
                             arg2 = nlua_pop_Integer(lstate, &mut arena, &mut err);
-                            if err.err_type != ErrorType::kErrorTypeNone {
+                            if err.err_type != ErrorType::ErrorTypeNone {
                                 err_param = Some(c"ns_id");
                                 break 'exit_3;
                             }
                             arg1 = nlua_pop_Buffer(lstate, &mut arena, &mut err);
-                            if err.err_type != ErrorType::kErrorTypeNone {
+                            if err.err_type != ErrorType::ErrorTypeNone {
                                 err_param = Some(c"buf");
                                 break 'exit_4;
                             }
@@ -19147,7 +19147,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_buf_set_extmark(lstate: *mut lua_State
                             if lua_gettop(lstate) < 4 || lua_gettop(lstate) > 5 {
                                 api_set_error_str(
                                     &mut err,
-                                    ErrorType::kErrorTypeValidation,
+                                    ErrorType::ErrorTypeValidation,
                                     c"Expected 4 to 5 arguments",
                                 );
                                 break 'exit_0;
@@ -19164,27 +19164,27 @@ unsafe extern "C-unwind" fn nlua_api_nvim_buf_set_extmark(lstate: *mut lua_State
                                     &mut arena,
                                     &mut err,
                                 );
-                                if err.err_type != ErrorType::kErrorTypeNone {
+                                if err.err_type != ErrorType::ErrorTypeNone {
                                     break 'exit_1;
                                 }
                             }
                             arg4 = nlua_pop_Integer(lstate, &mut arena, &mut err);
-                            if err.err_type != ErrorType::kErrorTypeNone {
+                            if err.err_type != ErrorType::ErrorTypeNone {
                                 err_param = Some(c"col");
                                 break 'exit_1;
                             }
                             arg3 = nlua_pop_Integer(lstate, &mut arena, &mut err);
-                            if err.err_type != ErrorType::kErrorTypeNone {
+                            if err.err_type != ErrorType::ErrorTypeNone {
                                 err_param = Some(c"line");
                                 break 'exit_2;
                             }
                             arg2 = nlua_pop_Integer(lstate, &mut arena, &mut err);
-                            if err.err_type != ErrorType::kErrorTypeNone {
+                            if err.err_type != ErrorType::ErrorTypeNone {
                                 err_param = Some(c"ns_id");
                                 break 'exit_3;
                             }
                             arg1 = nlua_pop_Buffer(lstate, &mut arena, &mut err);
-                            if err.err_type != ErrorType::kErrorTypeNone {
+                            if err.err_type != ErrorType::ErrorTypeNone {
                                 err_param = Some(c"buf");
                                 break 'exit_4;
                             }
@@ -19227,7 +19227,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_buf_del_extmark(lstate: *mut lua_State
                     if lua_gettop(lstate) != 3 {
                         api_set_error_str(
                             &mut err,
-                            ErrorType::kErrorTypeValidation,
+                            ErrorType::ErrorTypeValidation,
                             c"Expected 3 arguments",
                         );
                         break 'exit_0;
@@ -19236,17 +19236,17 @@ unsafe extern "C-unwind" fn nlua_api_nvim_buf_del_extmark(lstate: *mut lua_State
                         return nlua_fast_api_disabled_error(lstate, c"nvim_buf_del_extmark");
                     }
                     arg3 = nlua_pop_Integer(lstate, &mut arena, &mut err);
-                    if err.err_type != ErrorType::kErrorTypeNone {
+                    if err.err_type != ErrorType::ErrorTypeNone {
                         err_param = Some(c"id");
                         break 'exit_0;
                     }
                     arg2 = nlua_pop_Integer(lstate, &mut arena, &mut err);
-                    if err.err_type != ErrorType::kErrorTypeNone {
+                    if err.err_type != ErrorType::ErrorTypeNone {
                         err_param = Some(c"ns_id");
                         break 'exit_1;
                     }
                     arg1 = nlua_pop_Buffer(lstate, &mut arena, &mut err);
-                    if err.err_type != ErrorType::kErrorTypeNone {
+                    if err.err_type != ErrorType::ErrorTypeNone {
                         err_param = Some(c"buf");
                         break 'exit_2;
                     }
@@ -19278,7 +19278,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_buf_clear_namespace(lstate: *mut lua_S
                         if lua_gettop(lstate) != 4 {
                             api_set_error_str(
                                 &mut err,
-                                ErrorType::kErrorTypeValidation,
+                                ErrorType::ErrorTypeValidation,
                                 c"Expected 4 arguments",
                             );
                             break 'exit_0;
@@ -19287,22 +19287,22 @@ unsafe extern "C-unwind" fn nlua_api_nvim_buf_clear_namespace(lstate: *mut lua_S
                             return nlua_fast_api_disabled_error(lstate, c"nvim_buf_clear_namespace");
                         }
                         arg4 = nlua_pop_Integer(lstate, &mut arena, &mut err);
-                        if err.err_type != ErrorType::kErrorTypeNone {
+                        if err.err_type != ErrorType::ErrorTypeNone {
                             err_param = Some(c"line_end");
                             break 'exit_0;
                         }
                         arg3 = nlua_pop_Integer(lstate, &mut arena, &mut err);
-                        if err.err_type != ErrorType::kErrorTypeNone {
+                        if err.err_type != ErrorType::ErrorTypeNone {
                             err_param = Some(c"line_start");
                             break 'exit_1;
                         }
                         arg2 = nlua_pop_Integer(lstate, &mut arena, &mut err);
-                        if err.err_type != ErrorType::kErrorTypeNone {
+                        if err.err_type != ErrorType::ErrorTypeNone {
                             err_param = Some(c"ns_id");
                             break 'exit_2;
                         }
                         arg1 = nlua_pop_Buffer(lstate, &mut arena, &mut err);
-                        if err.err_type != ErrorType::kErrorTypeNone {
+                        if err.err_type != ErrorType::ErrorTypeNone {
                             err_param = Some(c"buf");
                             break 'exit_3;
                         }
@@ -19330,7 +19330,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_set_decoration_provider(lstate: *mut l
                 if lua_gettop(lstate) < 1 || lua_gettop(lstate) > 2 {
                     api_set_error_str(
                         &mut err,
-                        ErrorType::kErrorTypeValidation,
+                        ErrorType::ErrorTypeValidation,
                         c"Expected 1 to 2 arguments",
                     );
                     break 'exit_0;
@@ -19347,12 +19347,12 @@ unsafe extern "C-unwind" fn nlua_api_nvim_set_decoration_provider(lstate: *mut l
                         &mut arena,
                         &mut err,
                     );
-                    if err.err_type != ErrorType::kErrorTypeNone {
+                    if err.err_type != ErrorType::ErrorTypeNone {
                         break 'exit_1;
                     }
                 }
                 arg1 = nlua_pop_Integer(lstate, &mut arena, &mut err);
-                if err.err_type != ErrorType::kErrorTypeNone {
+                if err.err_type != ErrorType::ErrorTypeNone {
                     err_param = Some(c"ns_id");
                     break 'exit_1;
                 }
@@ -19384,7 +19384,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim__buf_debug_extmarks(lstate: *mut lua_S
                     if lua_gettop(lstate) != 3 {
                         api_set_error_str(
                             &mut err,
-                            ErrorType::kErrorTypeValidation,
+                            ErrorType::ErrorTypeValidation,
                             c"Expected 3 arguments",
                         );
                         break 'exit_0;
@@ -19393,17 +19393,17 @@ unsafe extern "C-unwind" fn nlua_api_nvim__buf_debug_extmarks(lstate: *mut lua_S
                         return nlua_fast_api_disabled_error(lstate, c"nvim__buf_debug_extmarks");
                     }
                     arg3 = nlua_pop_Boolean(lstate, &mut arena, &mut err);
-                    if err.err_type != ErrorType::kErrorTypeNone {
+                    if err.err_type != ErrorType::ErrorTypeNone {
                         err_param = Some(c"dot");
                         break 'exit_0;
                     }
                     arg2 = nlua_pop_Boolean(lstate, &mut arena, &mut err);
-                    if err.err_type != ErrorType::kErrorTypeNone {
+                    if err.err_type != ErrorType::ErrorTypeNone {
                         err_param = Some(c"keys");
                         break 'exit_1;
                     }
                     arg1 = nlua_pop_Buffer(lstate, &mut arena, &mut err);
-                    if err.err_type != ErrorType::kErrorTypeNone {
+                    if err.err_type != ErrorType::ErrorTypeNone {
                         err_param = Some(c"buf");
                         break 'exit_2;
                     }
@@ -19432,7 +19432,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim__ns_set(lstate: *mut lua_State) -> c_i
                 if lua_gettop(lstate) < 1 || lua_gettop(lstate) > 2 {
                     api_set_error_str(
                         &mut err,
-                        ErrorType::kErrorTypeValidation,
+                        ErrorType::ErrorTypeValidation,
                         c"Expected 1 to 2 arguments",
                     );
                     break 'exit_0;
@@ -19449,12 +19449,12 @@ unsafe extern "C-unwind" fn nlua_api_nvim__ns_set(lstate: *mut lua_State) -> c_i
                         &mut arena,
                         &mut err,
                     );
-                    if err.err_type != ErrorType::kErrorTypeNone {
+                    if err.err_type != ErrorType::ErrorTypeNone {
                         break 'exit_1;
                     }
                 }
                 arg1 = nlua_pop_Integer(lstate, &mut arena, &mut err);
-                if err.err_type != ErrorType::kErrorTypeNone {
+                if err.err_type != ErrorType::ErrorTypeNone {
                     err_param = Some(c"ns_id");
                     break 'exit_1;
                 }
@@ -19482,7 +19482,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim__ns_get(lstate: *mut lua_State) -> c_i
             if lua_gettop(lstate) != 1 {
                 api_set_error_str(
                     &mut err,
-                    ErrorType::kErrorTypeValidation,
+                    ErrorType::ErrorTypeValidation,
                     c"Expected 1 argument",
                 );
                 break 'exit_0;
@@ -19491,7 +19491,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim__ns_get(lstate: *mut lua_State) -> c_i
                 return nlua_fast_api_disabled_error(lstate, c"nvim__ns_get");
             }
             arg1 = nlua_pop_Integer(lstate, &mut arena, &mut err);
-            if err.err_type != ErrorType::kErrorTypeNone {
+            if err.err_type != ErrorType::ErrorTypeNone {
                 err_param = Some(c"ns_id");
                 break 'exit_0;
             }
@@ -19521,7 +19521,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim__option_to_object(lstate: *mut lua_Sta
                 if lua_gettop(lstate) != 2 {
                     api_set_error_str(
                         &mut err,
-                        ErrorType::kErrorTypeValidation,
+                        ErrorType::ErrorTypeValidation,
                         c"Expected 2 arguments",
                     );
                     break 'exit_0;
@@ -19530,12 +19530,12 @@ unsafe extern "C-unwind" fn nlua_api_nvim__option_to_object(lstate: *mut lua_Sta
                     return nlua_fast_api_disabled_error(lstate, c"nvim__option_to_object");
                 }
                 arg2 = nlua_pop_Object(lstate, true, &mut arena, &mut err);
-                if err.err_type != ErrorType::kErrorTypeNone {
+                if err.err_type != ErrorType::ErrorTypeNone {
                     err_param = Some(c"value");
                     break 'exit_0;
                 }
                 arg1 = nlua_pop_String(lstate, &mut arena, &mut err);
-                if err.err_type != ErrorType::kErrorTypeNone {
+                if err.err_type != ErrorType::ErrorTypeNone {
                     err_param = Some(c"name");
                     break 'exit_1;
                 }
@@ -19563,7 +19563,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_get_option_value(lstate: *mut lua_Stat
                 if lua_gettop(lstate) < 1 || lua_gettop(lstate) > 2 {
                     api_set_error_str(
                         &mut err,
-                        ErrorType::kErrorTypeValidation,
+                        ErrorType::ErrorTypeValidation,
                         c"Expected 1 to 2 arguments",
                     );
                     break 'exit_0;
@@ -19580,12 +19580,12 @@ unsafe extern "C-unwind" fn nlua_api_nvim_get_option_value(lstate: *mut lua_Stat
                         &mut arena,
                         &mut err,
                     );
-                    if err.err_type != ErrorType::kErrorTypeNone {
+                    if err.err_type != ErrorType::ErrorTypeNone {
                         break 'exit_1;
                     }
                 }
                 arg1 = nlua_pop_String(lstate, &mut arena, &mut err);
-                if err.err_type != ErrorType::kErrorTypeNone {
+                if err.err_type != ErrorType::ErrorTypeNone {
                     err_param = Some(c"name");
                     break 'exit_1;
                 }
@@ -19619,7 +19619,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_set_option_value(lstate: *mut lua_Stat
                     if lua_gettop(lstate) < 2 || lua_gettop(lstate) > 3 {
                         api_set_error_str(
                             &mut err,
-                            ErrorType::kErrorTypeValidation,
+                            ErrorType::ErrorTypeValidation,
                             c"Expected 2 to 3 arguments",
                         );
                         break 'exit_0;
@@ -19636,17 +19636,17 @@ unsafe extern "C-unwind" fn nlua_api_nvim_set_option_value(lstate: *mut lua_Stat
                             &mut arena,
                             &mut err,
                         );
-                        if err.err_type != ErrorType::kErrorTypeNone {
+                        if err.err_type != ErrorType::ErrorTypeNone {
                             break 'exit_1;
                         }
                     }
                     arg2 = nlua_pop_Object(lstate, true, &mut arena, &mut err);
-                    if err.err_type != ErrorType::kErrorTypeNone {
+                    if err.err_type != ErrorType::ErrorTypeNone {
                         err_param = Some(c"value");
                         break 'exit_1;
                     }
                     arg1 = nlua_pop_String(lstate, &mut arena, &mut err);
-                    if err.err_type != ErrorType::kErrorTypeNone {
+                    if err.err_type != ErrorType::ErrorTypeNone {
                         err_param = Some(c"name");
                         break 'exit_2;
                     }
@@ -19683,7 +19683,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_get_all_options_info(lstate: *mut lua_
             if lua_gettop(lstate) != 0 {
                 api_set_error_str(
                     &mut err,
-                    ErrorType::kErrorTypeValidation,
+                    ErrorType::ErrorTypeValidation,
                     c"Expected 0 arguments",
                 );
                 break 'exit_0;
@@ -19713,7 +19713,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_get_option_info2(lstate: *mut lua_Stat
                 if lua_gettop(lstate) < 1 || lua_gettop(lstate) > 2 {
                     api_set_error_str(
                         &mut err,
-                        ErrorType::kErrorTypeValidation,
+                        ErrorType::ErrorTypeValidation,
                         c"Expected 1 to 2 arguments",
                     );
                     break 'exit_0;
@@ -19730,12 +19730,12 @@ unsafe extern "C-unwind" fn nlua_api_nvim_get_option_info2(lstate: *mut lua_Stat
                         &mut arena,
                         &mut err,
                     );
-                    if err.err_type != ErrorType::kErrorTypeNone {
+                    if err.err_type != ErrorType::ErrorTypeNone {
                         break 'exit_1;
                     }
                 }
                 arg1 = nlua_pop_String(lstate, &mut arena, &mut err);
-                if err.err_type != ErrorType::kErrorTypeNone {
+                if err.err_type != ErrorType::ErrorTypeNone {
                     err_param = Some(c"name");
                     break 'exit_1;
                 }
@@ -19764,7 +19764,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_tabpage_list_wins(lstate: *mut lua_Sta
             if lua_gettop(lstate) != 1 {
                 api_set_error_str(
                     &mut err,
-                    ErrorType::kErrorTypeValidation,
+                    ErrorType::ErrorTypeValidation,
                     c"Expected 1 argument",
                 );
                 break 'exit_0;
@@ -19773,7 +19773,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_tabpage_list_wins(lstate: *mut lua_Sta
                 return nlua_fast_api_disabled_error(lstate, c"nvim_tabpage_list_wins");
             }
             arg1 = nlua_pop_Tabpage(lstate, &mut arena, &mut err);
-            if err.err_type != ErrorType::kErrorTypeNone {
+            if err.err_type != ErrorType::ErrorTypeNone {
                 err_param = Some(c"tabpage");
                 break 'exit_0;
             }
@@ -19799,7 +19799,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_tabpage_get_var(lstate: *mut lua_State
                 if lua_gettop(lstate) != 2 {
                     api_set_error_str(
                         &mut err,
-                        ErrorType::kErrorTypeValidation,
+                        ErrorType::ErrorTypeValidation,
                         c"Expected 2 arguments",
                     );
                     break 'exit_0;
@@ -19808,12 +19808,12 @@ unsafe extern "C-unwind" fn nlua_api_nvim_tabpage_get_var(lstate: *mut lua_State
                     return nlua_fast_api_disabled_error(lstate, c"nvim_tabpage_get_var");
                 }
                 arg2 = nlua_pop_String(lstate, &mut arena, &mut err);
-                if err.err_type != ErrorType::kErrorTypeNone {
+                if err.err_type != ErrorType::ErrorTypeNone {
                     err_param = Some(c"name");
                     break 'exit_0;
                 }
                 arg1 = nlua_pop_Tabpage(lstate, &mut arena, &mut err);
-                if err.err_type != ErrorType::kErrorTypeNone {
+                if err.err_type != ErrorType::ErrorTypeNone {
                     err_param = Some(c"tabpage");
                     break 'exit_1;
                 }
@@ -19842,7 +19842,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_tabpage_set_var(lstate: *mut lua_State
                     if lua_gettop(lstate) != 3 {
                         api_set_error_str(
                             &mut err,
-                            ErrorType::kErrorTypeValidation,
+                            ErrorType::ErrorTypeValidation,
                             c"Expected 3 arguments",
                         );
                         break 'exit_0;
@@ -19851,17 +19851,17 @@ unsafe extern "C-unwind" fn nlua_api_nvim_tabpage_set_var(lstate: *mut lua_State
                         return nlua_fast_api_disabled_error(lstate, c"nvim_tabpage_set_var");
                     }
                     arg3 = nlua_pop_Object(lstate, true, &mut arena, &mut err);
-                    if err.err_type != ErrorType::kErrorTypeNone {
+                    if err.err_type != ErrorType::ErrorTypeNone {
                         err_param = Some(c"value");
                         break 'exit_0;
                     }
                     arg2 = nlua_pop_String(lstate, &mut arena, &mut err);
-                    if err.err_type != ErrorType::kErrorTypeNone {
+                    if err.err_type != ErrorType::ErrorTypeNone {
                         err_param = Some(c"name");
                         break 'exit_1;
                     }
                     arg1 = nlua_pop_Tabpage(lstate, &mut arena, &mut err);
-                    if err.err_type != ErrorType::kErrorTypeNone {
+                    if err.err_type != ErrorType::ErrorTypeNone {
                         err_param = Some(c"tabpage");
                         break 'exit_2;
                     }
@@ -19889,7 +19889,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_tabpage_del_var(lstate: *mut lua_State
                 if lua_gettop(lstate) != 2 {
                     api_set_error_str(
                         &mut err,
-                        ErrorType::kErrorTypeValidation,
+                        ErrorType::ErrorTypeValidation,
                         c"Expected 2 arguments",
                     );
                     break 'exit_0;
@@ -19898,12 +19898,12 @@ unsafe extern "C-unwind" fn nlua_api_nvim_tabpage_del_var(lstate: *mut lua_State
                     return nlua_fast_api_disabled_error(lstate, c"nvim_tabpage_del_var");
                 }
                 arg2 = nlua_pop_String(lstate, &mut arena, &mut err);
-                if err.err_type != ErrorType::kErrorTypeNone {
+                if err.err_type != ErrorType::ErrorTypeNone {
                     err_param = Some(c"name");
                     break 'exit_0;
                 }
                 arg1 = nlua_pop_Tabpage(lstate, &mut arena, &mut err);
-                if err.err_type != ErrorType::kErrorTypeNone {
+                if err.err_type != ErrorType::ErrorTypeNone {
                     err_param = Some(c"tabpage");
                     break 'exit_1;
                 }
@@ -19927,7 +19927,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_tabpage_get_win(lstate: *mut lua_State
             if lua_gettop(lstate) != 1 {
                 api_set_error_str(
                     &mut err,
-                    ErrorType::kErrorTypeValidation,
+                    ErrorType::ErrorTypeValidation,
                     c"Expected 1 argument",
                 );
                 break 'exit_0;
@@ -19936,7 +19936,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_tabpage_get_win(lstate: *mut lua_State
                 return nlua_fast_api_disabled_error(lstate, c"nvim_tabpage_get_win");
             }
             arg1 = nlua_pop_Tabpage(lstate, &mut arena, &mut err);
-            if err.err_type != ErrorType::kErrorTypeNone {
+            if err.err_type != ErrorType::ErrorTypeNone {
                 err_param = Some(c"tabpage");
                 break 'exit_0;
             }
@@ -19962,7 +19962,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_tabpage_set_win(lstate: *mut lua_State
                 if lua_gettop(lstate) != 2 {
                     api_set_error_str(
                         &mut err,
-                        ErrorType::kErrorTypeValidation,
+                        ErrorType::ErrorTypeValidation,
                         c"Expected 2 arguments",
                     );
                     break 'exit_0;
@@ -19971,12 +19971,12 @@ unsafe extern "C-unwind" fn nlua_api_nvim_tabpage_set_win(lstate: *mut lua_State
                     return nlua_fast_api_disabled_error(lstate, c"nvim_tabpage_set_win");
                 }
                 arg2 = nlua_pop_Window(lstate, &mut arena, &mut err);
-                if err.err_type != ErrorType::kErrorTypeNone {
+                if err.err_type != ErrorType::ErrorTypeNone {
                     err_param = Some(c"win");
                     break 'exit_0;
                 }
                 arg1 = nlua_pop_Tabpage(lstate, &mut arena, &mut err);
-                if err.err_type != ErrorType::kErrorTypeNone {
+                if err.err_type != ErrorType::ErrorTypeNone {
                     err_param = Some(c"tabpage");
                     break 'exit_1;
                 }
@@ -20000,7 +20000,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_tabpage_get_number(lstate: *mut lua_St
             if lua_gettop(lstate) != 1 {
                 api_set_error_str(
                     &mut err,
-                    ErrorType::kErrorTypeValidation,
+                    ErrorType::ErrorTypeValidation,
                     c"Expected 1 argument",
                 );
                 break 'exit_0;
@@ -20009,7 +20009,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_tabpage_get_number(lstate: *mut lua_St
                 return nlua_fast_api_disabled_error(lstate, c"nvim_tabpage_get_number");
             }
             arg1 = nlua_pop_Tabpage(lstate, &mut arena, &mut err);
-            if err.err_type != ErrorType::kErrorTypeNone {
+            if err.err_type != ErrorType::ErrorTypeNone {
                 err_param = Some(c"tabpage");
                 break 'exit_0;
             }
@@ -20033,7 +20033,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_tabpage_is_valid(lstate: *mut lua_Stat
             if lua_gettop(lstate) != 1 {
                 api_set_error_str(
                     &mut err,
-                    ErrorType::kErrorTypeValidation,
+                    ErrorType::ErrorTypeValidation,
                     c"Expected 1 argument",
                 );
                 break 'exit_0;
@@ -20042,7 +20042,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_tabpage_is_valid(lstate: *mut lua_Stat
                 return nlua_fast_api_disabled_error(lstate, c"nvim_tabpage_is_valid");
             }
             arg1 = nlua_pop_Tabpage(lstate, &mut arena, &mut err);
-            if err.err_type != ErrorType::kErrorTypeNone {
+            if err.err_type != ErrorType::ErrorTypeNone {
                 err_param = Some(c"tabpage");
                 break 'exit_0;
             }
@@ -20070,7 +20070,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_open_tabpage(lstate: *mut lua_State) -
                     if lua_gettop(lstate) != 3 {
                         api_set_error_str(
                             &mut err,
-                            ErrorType::kErrorTypeValidation,
+                            ErrorType::ErrorTypeValidation,
                             c"Expected 3 arguments",
                         );
                         break 'exit_0;
@@ -20081,7 +20081,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_open_tabpage(lstate: *mut lua_State) -
                     if text_locked() {
                         api_set_error_str(
                             &mut err,
-                            ErrorType::kErrorTypeException,
+                            ErrorType::ErrorTypeException,
                             get_text_locked_msg(),
                         );
                         break 'exit_0;
@@ -20094,16 +20094,16 @@ unsafe extern "C-unwind" fn nlua_api_nvim_open_tabpage(lstate: *mut lua_State) -
                         &mut arena,
                         &mut err,
                     );
-                    if err.err_type != ErrorType::kErrorTypeNone {
+                    if err.err_type != ErrorType::ErrorTypeNone {
                         break 'exit_1;
                     }
                     arg2 = nlua_pop_Boolean(lstate, &mut arena, &mut err);
-                    if err.err_type != ErrorType::kErrorTypeNone {
+                    if err.err_type != ErrorType::ErrorTypeNone {
                         err_param = Some(c"enter");
                         break 'exit_1;
                     }
                     arg1 = nlua_pop_Buffer(lstate, &mut arena, &mut err);
-                    if err.err_type != ErrorType::kErrorTypeNone {
+                    if err.err_type != ErrorType::ErrorTypeNone {
                         err_param = Some(c"buf");
                         break 'exit_2;
                     }
@@ -20133,7 +20133,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_ui_send(lstate: *mut lua_State) -> c_i
             if lua_gettop(lstate) != 1 {
                 api_set_error_str(
                     &mut err,
-                    ErrorType::kErrorTypeValidation,
+                    ErrorType::ErrorTypeValidation,
                     c"Expected 1 argument",
                 );
                 break 'exit_0;
@@ -20142,7 +20142,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_ui_send(lstate: *mut lua_State) -> c_i
                 return nlua_fast_api_disabled_error(lstate, c"nvim_ui_send");
             }
             arg1 = nlua_pop_String(lstate, &mut arena, &mut err);
-            if err.err_type != ErrorType::kErrorTypeNone {
+            if err.err_type != ErrorType::ErrorTypeNone {
                 err_param = Some(c"content");
                 break 'exit_0;
             }
@@ -20165,7 +20165,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_get_hl_id_by_name(lstate: *mut lua_Sta
             if lua_gettop(lstate) != 1 {
                 api_set_error_str(
                     &mut err,
-                    ErrorType::kErrorTypeValidation,
+                    ErrorType::ErrorTypeValidation,
                     c"Expected 1 argument",
                 );
                 break 'exit_0;
@@ -20174,7 +20174,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_get_hl_id_by_name(lstate: *mut lua_Sta
                 return nlua_fast_api_disabled_error(lstate, c"nvim_get_hl_id_by_name");
             }
             arg1 = nlua_pop_String(lstate, &mut arena, &mut err);
-            if err.err_type != ErrorType::kErrorTypeNone {
+            if err.err_type != ErrorType::ErrorTypeNone {
                 err_param = Some(c"name");
                 break 'exit_0;
             }
@@ -20200,7 +20200,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_get_hl(lstate: *mut lua_State) -> c_in
                 if lua_gettop(lstate) < 1 || lua_gettop(lstate) > 2 {
                     api_set_error_str(
                         &mut err,
-                        ErrorType::kErrorTypeValidation,
+                        ErrorType::ErrorTypeValidation,
                         c"Expected 1 to 2 arguments",
                     );
                     break 'exit_0;
@@ -20217,12 +20217,12 @@ unsafe extern "C-unwind" fn nlua_api_nvim_get_hl(lstate: *mut lua_State) -> c_in
                         &mut arena,
                         &mut err,
                     );
-                    if err.err_type != ErrorType::kErrorTypeNone {
+                    if err.err_type != ErrorType::ErrorTypeNone {
                         break 'exit_1;
                     }
                 }
                 arg1 = nlua_pop_Integer(lstate, &mut arena, &mut err);
-                if err.err_type != ErrorType::kErrorTypeNone {
+                if err.err_type != ErrorType::ErrorTypeNone {
                     err_param = Some(c"ns_id");
                     break 'exit_1;
                 }
@@ -20255,7 +20255,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_set_hl(lstate: *mut lua_State) -> c_in
                     if lua_gettop(lstate) != 3 {
                         api_set_error_str(
                             &mut err,
-                            ErrorType::kErrorTypeValidation,
+                            ErrorType::ErrorTypeValidation,
                             c"Expected 3 arguments",
                         );
                         break 'exit_0;
@@ -20271,16 +20271,16 @@ unsafe extern "C-unwind" fn nlua_api_nvim_set_hl(lstate: *mut lua_State) -> c_in
                         &mut arena,
                         &mut err,
                     );
-                    if err.err_type != ErrorType::kErrorTypeNone {
+                    if err.err_type != ErrorType::ErrorTypeNone {
                         break 'exit_1;
                     }
                     arg2 = nlua_pop_String(lstate, &mut arena, &mut err);
-                    if err.err_type != ErrorType::kErrorTypeNone {
+                    if err.err_type != ErrorType::ErrorTypeNone {
                         err_param = Some(c"name");
                         break 'exit_1;
                     }
                     arg1 = nlua_pop_Integer(lstate, &mut arena, &mut err);
-                    if err.err_type != ErrorType::kErrorTypeNone {
+                    if err.err_type != ErrorType::ErrorTypeNone {
                         err_param = Some(c"ns_id");
                         break 'exit_2;
                     }
@@ -20310,7 +20310,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_get_hl_ns(lstate: *mut lua_State) -> c
                 if lua_gettop(lstate) > 1 {
                     api_set_error_str(
                         &mut err,
-                        ErrorType::kErrorTypeValidation,
+                        ErrorType::ErrorTypeValidation,
                         c"Expected at most 1 argument",
                     );
                     break 'exit_0;
@@ -20327,7 +20327,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_get_hl_ns(lstate: *mut lua_State) -> c
                         &mut arena,
                         &mut err,
                     );
-                    if err.err_type != ErrorType::kErrorTypeNone {
+                    if err.err_type != ErrorType::ErrorTypeNone {
                         break 'exit_1;
                     }
                 }
@@ -20356,7 +20356,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_set_hl_ns(lstate: *mut lua_State) -> c
             if lua_gettop(lstate) != 1 {
                 api_set_error_str(
                     &mut err,
-                    ErrorType::kErrorTypeValidation,
+                    ErrorType::ErrorTypeValidation,
                     c"Expected 1 argument",
                 );
                 break 'exit_0;
@@ -20365,7 +20365,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_set_hl_ns(lstate: *mut lua_State) -> c
                 return nlua_fast_api_disabled_error(lstate, c"nvim_set_hl_ns");
             }
             arg1 = nlua_pop_Integer(lstate, &mut arena, &mut err);
-            if err.err_type != ErrorType::kErrorTypeNone {
+            if err.err_type != ErrorType::ErrorTypeNone {
                 err_param = Some(c"ns_id");
                 break 'exit_0;
             }
@@ -20388,13 +20388,13 @@ unsafe extern "C-unwind" fn nlua_api_nvim_set_hl_ns_fast(lstate: *mut lua_State)
             if lua_gettop(lstate) != 1 {
                 api_set_error_str(
                     &mut err,
-                    ErrorType::kErrorTypeValidation,
+                    ErrorType::ErrorTypeValidation,
                     c"Expected 1 argument",
                 );
                 break 'exit_0;
             }
             arg1 = nlua_pop_Integer(lstate, &mut arena, &mut err);
-            if err.err_type != ErrorType::kErrorTypeNone {
+            if err.err_type != ErrorType::ErrorTypeNone {
                 err_param = Some(c"ns_id");
                 break 'exit_0;
             }
@@ -20421,7 +20421,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_feedkeys(lstate: *mut lua_State) -> c_
                     if lua_gettop(lstate) != 3 {
                         api_set_error_str(
                             &mut err,
-                            ErrorType::kErrorTypeValidation,
+                            ErrorType::ErrorTypeValidation,
                             c"Expected 3 arguments",
                         );
                         break 'exit_0;
@@ -20430,17 +20430,17 @@ unsafe extern "C-unwind" fn nlua_api_nvim_feedkeys(lstate: *mut lua_State) -> c_
                         return nlua_fast_api_disabled_error(lstate, c"nvim_feedkeys");
                     }
                     arg3 = nlua_pop_Boolean(lstate, &mut arena, &mut err);
-                    if err.err_type != ErrorType::kErrorTypeNone {
+                    if err.err_type != ErrorType::ErrorTypeNone {
                         err_param = Some(c"escape_ks");
                         break 'exit_0;
                     }
                     arg2 = nlua_pop_String(lstate, &mut arena, &mut err);
-                    if err.err_type != ErrorType::kErrorTypeNone {
+                    if err.err_type != ErrorType::ErrorTypeNone {
                         err_param = Some(c"mode");
                         break 'exit_1;
                     }
                     arg1 = nlua_pop_String(lstate, &mut arena, &mut err);
-                    if err.err_type != ErrorType::kErrorTypeNone {
+                    if err.err_type != ErrorType::ErrorTypeNone {
                         err_param = Some(c"keys");
                         break 'exit_2;
                     }
@@ -20465,13 +20465,13 @@ unsafe extern "C-unwind" fn nlua_api_nvim_input(lstate: *mut lua_State) -> c_int
             if lua_gettop(lstate) != 1 {
                 api_set_error_str(
                     &mut err,
-                    ErrorType::kErrorTypeValidation,
+                    ErrorType::ErrorTypeValidation,
                     c"Expected 1 argument",
                 );
                 break 'exit_0;
             }
             arg1 = nlua_pop_String(lstate, &mut arena, &mut err);
-            if err.err_type != ErrorType::kErrorTypeNone {
+            if err.err_type != ErrorType::ErrorTypeNone {
                 err_param = Some(c"keys");
                 break 'exit_0;
             }
@@ -20505,38 +20505,38 @@ unsafe extern "C-unwind" fn nlua_api_nvim_input_mouse(lstate: *mut lua_State) ->
                                 if lua_gettop(lstate) != 6 {
                                     api_set_error_str(
                                         &mut err,
-                                        ErrorType::kErrorTypeValidation,
+                                        ErrorType::ErrorTypeValidation,
                                         c"Expected 6 arguments",
                                     );
                                     break 'exit_0;
                                 }
                                 arg6 = nlua_pop_Integer(lstate, &mut arena, &mut err);
-                                if err.err_type != ErrorType::kErrorTypeNone {
+                                if err.err_type != ErrorType::ErrorTypeNone {
                                     err_param = Some(c"col");
                                     break 'exit_0;
                                 }
                                 arg5 = nlua_pop_Integer(lstate, &mut arena, &mut err);
-                                if err.err_type != ErrorType::kErrorTypeNone {
+                                if err.err_type != ErrorType::ErrorTypeNone {
                                     err_param = Some(c"row");
                                     break 'exit_1;
                                 }
                                 arg4 = nlua_pop_Integer(lstate, &mut arena, &mut err);
-                                if err.err_type != ErrorType::kErrorTypeNone {
+                                if err.err_type != ErrorType::ErrorTypeNone {
                                     err_param = Some(c"grid");
                                     break 'exit_2;
                                 }
                                 arg3 = nlua_pop_String(lstate, &mut arena, &mut err);
-                                if err.err_type != ErrorType::kErrorTypeNone {
+                                if err.err_type != ErrorType::ErrorTypeNone {
                                     err_param = Some(c"modifier");
                                     break 'exit_3;
                                 }
                                 arg2 = nlua_pop_String(lstate, &mut arena, &mut err);
-                                if err.err_type != ErrorType::kErrorTypeNone {
+                                if err.err_type != ErrorType::ErrorTypeNone {
                                     err_param = Some(c"action");
                                     break 'exit_4;
                                 }
                                 arg1 = nlua_pop_String(lstate, &mut arena, &mut err);
-                                if err.err_type != ErrorType::kErrorTypeNone {
+                                if err.err_type != ErrorType::ErrorTypeNone {
                                     err_param = Some(c"button");
                                     break 'exit_5;
                                 }
@@ -20570,28 +20570,28 @@ unsafe extern "C-unwind" fn nlua_api_nvim_replace_termcodes(lstate: *mut lua_Sta
                         if lua_gettop(lstate) != 4 {
                             api_set_error_str(
                                 &mut err,
-                                ErrorType::kErrorTypeValidation,
+                                ErrorType::ErrorTypeValidation,
                                 c"Expected 4 arguments",
                             );
                             break 'exit_0;
                         }
                         arg4 = nlua_pop_Boolean(lstate, &mut arena, &mut err);
-                        if err.err_type != ErrorType::kErrorTypeNone {
+                        if err.err_type != ErrorType::ErrorTypeNone {
                             err_param = Some(c"special");
                             break 'exit_0;
                         }
                         arg3 = nlua_pop_Boolean(lstate, &mut arena, &mut err);
-                        if err.err_type != ErrorType::kErrorTypeNone {
+                        if err.err_type != ErrorType::ErrorTypeNone {
                             err_param = Some(c"do_lt");
                             break 'exit_1;
                         }
                         arg2 = nlua_pop_Boolean(lstate, &mut arena, &mut err);
-                        if err.err_type != ErrorType::kErrorTypeNone {
+                        if err.err_type != ErrorType::ErrorTypeNone {
                             err_param = Some(c"from_part");
                             break 'exit_2;
                         }
                         arg1 = nlua_pop_String(lstate, &mut arena, &mut err);
-                        if err.err_type != ErrorType::kErrorTypeNone {
+                        if err.err_type != ErrorType::ErrorTypeNone {
                             err_param = Some(c"str");
                             break 'exit_3;
                         }
@@ -20619,7 +20619,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_strwidth(lstate: *mut lua_State) -> c_
             if lua_gettop(lstate) != 1 {
                 api_set_error_str(
                     &mut err,
-                    ErrorType::kErrorTypeValidation,
+                    ErrorType::ErrorTypeValidation,
                     c"Expected 1 argument",
                 );
                 break 'exit_0;
@@ -20628,7 +20628,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_strwidth(lstate: *mut lua_State) -> c_
                 return nlua_fast_api_disabled_error(lstate, c"nvim_strwidth");
             }
             arg1 = nlua_pop_String(lstate, &mut arena, &mut err);
-            if err.err_type != ErrorType::kErrorTypeNone {
+            if err.err_type != ErrorType::ErrorTypeNone {
                 err_param = Some(c"text");
                 break 'exit_0;
             }
@@ -20651,7 +20651,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_list_runtime_paths(lstate: *mut lua_St
             if lua_gettop(lstate) != 0 {
                 api_set_error_str(
                     &mut err,
-                    ErrorType::kErrorTypeValidation,
+                    ErrorType::ErrorTypeValidation,
                     c"Expected 0 arguments",
                 );
                 break 'exit_0;
@@ -20678,7 +20678,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim__runtime_inspect(lstate: *mut lua_Stat
             if lua_gettop(lstate) != 0 {
                 api_set_error_str(
                     &mut err,
-                    ErrorType::kErrorTypeValidation,
+                    ErrorType::ErrorTypeValidation,
                     c"Expected 0 arguments",
                 );
                 break 'exit_0;
@@ -20708,18 +20708,18 @@ unsafe extern "C-unwind" fn nlua_api_nvim_get_runtime_file(lstate: *mut lua_Stat
                 if lua_gettop(lstate) != 2 {
                     api_set_error_str(
                         &mut err,
-                        ErrorType::kErrorTypeValidation,
+                        ErrorType::ErrorTypeValidation,
                         c"Expected 2 arguments",
                     );
                     break 'exit_0;
                 }
                 arg2 = nlua_pop_Boolean(lstate, &mut arena, &mut err);
-                if err.err_type != ErrorType::kErrorTypeNone {
+                if err.err_type != ErrorType::ErrorTypeNone {
                     err_param = Some(c"all");
                     break 'exit_0;
                 }
                 arg1 = nlua_pop_String(lstate, &mut arena, &mut err);
-                if err.err_type != ErrorType::kErrorTypeNone {
+                if err.err_type != ErrorType::ErrorTypeNone {
                     err_param = Some(c"name");
                     break 'exit_1;
                 }
@@ -20743,7 +20743,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim__get_lib_dir(lstate: *mut lua_State) -
             if lua_gettop(lstate) != 0 {
                 api_set_error_str(
                     &mut err,
-                    ErrorType::kErrorTypeValidation,
+                    ErrorType::ErrorTypeValidation,
                     c"Expected 0 arguments",
                 );
                 break 'exit_0;
@@ -20776,7 +20776,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim__get_runtime(lstate: *mut lua_State) -
                     if lua_gettop(lstate) < 2 || lua_gettop(lstate) > 3 {
                         api_set_error_str(
                             &mut err,
-                            ErrorType::kErrorTypeValidation,
+                            ErrorType::ErrorTypeValidation,
                             c"Expected 2 to 3 arguments",
                         );
                         break 'exit_0;
@@ -20790,17 +20790,17 @@ unsafe extern "C-unwind" fn nlua_api_nvim__get_runtime(lstate: *mut lua_State) -
                             &mut arena,
                             &mut err,
                         );
-                        if err.err_type != ErrorType::kErrorTypeNone {
+                        if err.err_type != ErrorType::ErrorTypeNone {
                             break 'exit_1;
                         }
                     }
                     arg2 = nlua_pop_Boolean(lstate, &mut arena, &mut err);
-                    if err.err_type != ErrorType::kErrorTypeNone {
+                    if err.err_type != ErrorType::ErrorTypeNone {
                         err_param = Some(c"all");
                         break 'exit_1;
                     }
                     arg1 = nlua_pop_Array(lstate, &mut arena, &mut err);
-                    if err.err_type != ErrorType::kErrorTypeNone {
+                    if err.err_type != ErrorType::ErrorTypeNone {
                         err_param = Some(c"pat");
                         break 'exit_2;
                     }
@@ -20831,7 +20831,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_set_current_dir(lstate: *mut lua_State
             if lua_gettop(lstate) != 1 {
                 api_set_error_str(
                     &mut err,
-                    ErrorType::kErrorTypeValidation,
+                    ErrorType::ErrorTypeValidation,
                     c"Expected 1 argument",
                 );
                 break 'exit_0;
@@ -20840,7 +20840,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_set_current_dir(lstate: *mut lua_State
                 return nlua_fast_api_disabled_error(lstate, c"nvim_set_current_dir");
             }
             arg1 = nlua_pop_String(lstate, &mut arena, &mut err);
-            if err.err_type != ErrorType::kErrorTypeNone {
+            if err.err_type != ErrorType::ErrorTypeNone {
                 err_param = Some(c"dir");
                 break 'exit_0;
             }
@@ -20862,7 +20862,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_get_current_line(lstate: *mut lua_Stat
             if lua_gettop(lstate) != 0 {
                 api_set_error_str(
                     &mut err,
-                    ErrorType::kErrorTypeValidation,
+                    ErrorType::ErrorTypeValidation,
                     c"Expected 0 arguments",
                 );
                 break 'exit_0;
@@ -20890,7 +20890,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_set_current_line(lstate: *mut lua_Stat
             if lua_gettop(lstate) != 1 {
                 api_set_error_str(
                     &mut err,
-                    ErrorType::kErrorTypeValidation,
+                    ErrorType::ErrorTypeValidation,
                     c"Expected 1 argument",
                 );
                 break 'exit_0;
@@ -20901,13 +20901,13 @@ unsafe extern "C-unwind" fn nlua_api_nvim_set_current_line(lstate: *mut lua_Stat
             if text_locked() {
                 api_set_error_str(
                     &mut err,
-                    ErrorType::kErrorTypeException,
+                    ErrorType::ErrorTypeException,
                     get_text_locked_msg(),
                 );
                 break 'exit_0;
             }
             arg1 = nlua_pop_String(lstate, &mut arena, &mut err);
-            if err.err_type != ErrorType::kErrorTypeNone {
+            if err.err_type != ErrorType::ErrorTypeNone {
                 err_param = Some(c"line");
                 break 'exit_0;
             }
@@ -20929,7 +20929,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_del_current_line(lstate: *mut lua_Stat
             if lua_gettop(lstate) != 0 {
                 api_set_error_str(
                     &mut err,
-                    ErrorType::kErrorTypeValidation,
+                    ErrorType::ErrorTypeValidation,
                     c"Expected 0 arguments",
                 );
                 break 'exit_0;
@@ -20940,7 +20940,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_del_current_line(lstate: *mut lua_Stat
             if text_locked() {
                 api_set_error_str(
                     &mut err,
-                    ErrorType::kErrorTypeException,
+                    ErrorType::ErrorTypeException,
                     get_text_locked_msg(),
                 );
                 break 'exit_0;
@@ -20964,7 +20964,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_get_var(lstate: *mut lua_State) -> c_i
             if lua_gettop(lstate) != 1 {
                 api_set_error_str(
                     &mut err,
-                    ErrorType::kErrorTypeValidation,
+                    ErrorType::ErrorTypeValidation,
                     c"Expected 1 argument",
                 );
                 break 'exit_0;
@@ -20973,7 +20973,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_get_var(lstate: *mut lua_State) -> c_i
                 return nlua_fast_api_disabled_error(lstate, c"nvim_get_var");
             }
             arg1 = nlua_pop_String(lstate, &mut arena, &mut err);
-            if err.err_type != ErrorType::kErrorTypeNone {
+            if err.err_type != ErrorType::ErrorTypeNone {
                 err_param = Some(c"name");
                 break 'exit_0;
             }
@@ -20999,7 +20999,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_set_var(lstate: *mut lua_State) -> c_i
                 if lua_gettop(lstate) != 2 {
                     api_set_error_str(
                         &mut err,
-                        ErrorType::kErrorTypeValidation,
+                        ErrorType::ErrorTypeValidation,
                         c"Expected 2 arguments",
                     );
                     break 'exit_0;
@@ -21008,12 +21008,12 @@ unsafe extern "C-unwind" fn nlua_api_nvim_set_var(lstate: *mut lua_State) -> c_i
                     return nlua_fast_api_disabled_error(lstate, c"nvim_set_var");
                 }
                 arg2 = nlua_pop_Object(lstate, true, &mut arena, &mut err);
-                if err.err_type != ErrorType::kErrorTypeNone {
+                if err.err_type != ErrorType::ErrorTypeNone {
                     err_param = Some(c"value");
                     break 'exit_0;
                 }
                 arg1 = nlua_pop_String(lstate, &mut arena, &mut err);
-                if err.err_type != ErrorType::kErrorTypeNone {
+                if err.err_type != ErrorType::ErrorTypeNone {
                     err_param = Some(c"name");
                     break 'exit_1;
                 }
@@ -21038,7 +21038,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_del_var(lstate: *mut lua_State) -> c_i
             if lua_gettop(lstate) != 1 {
                 api_set_error_str(
                     &mut err,
-                    ErrorType::kErrorTypeValidation,
+                    ErrorType::ErrorTypeValidation,
                     c"Expected 1 argument",
                 );
                 break 'exit_0;
@@ -21047,7 +21047,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_del_var(lstate: *mut lua_State) -> c_i
                 return nlua_fast_api_disabled_error(lstate, c"nvim_del_var");
             }
             arg1 = nlua_pop_String(lstate, &mut arena, &mut err);
-            if err.err_type != ErrorType::kErrorTypeNone {
+            if err.err_type != ErrorType::ErrorTypeNone {
                 err_param = Some(c"name");
                 break 'exit_0;
             }
@@ -21070,7 +21070,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_get_vvar(lstate: *mut lua_State) -> c_
             if lua_gettop(lstate) != 1 {
                 api_set_error_str(
                     &mut err,
-                    ErrorType::kErrorTypeValidation,
+                    ErrorType::ErrorTypeValidation,
                     c"Expected 1 argument",
                 );
                 break 'exit_0;
@@ -21079,7 +21079,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_get_vvar(lstate: *mut lua_State) -> c_
                 return nlua_fast_api_disabled_error(lstate, c"nvim_get_vvar");
             }
             arg1 = nlua_pop_String(lstate, &mut arena, &mut err);
-            if err.err_type != ErrorType::kErrorTypeNone {
+            if err.err_type != ErrorType::ErrorTypeNone {
                 err_param = Some(c"name");
                 break 'exit_0;
             }
@@ -21105,7 +21105,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_set_vvar(lstate: *mut lua_State) -> c_
                 if lua_gettop(lstate) != 2 {
                     api_set_error_str(
                         &mut err,
-                        ErrorType::kErrorTypeValidation,
+                        ErrorType::ErrorTypeValidation,
                         c"Expected 2 arguments",
                     );
                     break 'exit_0;
@@ -21114,12 +21114,12 @@ unsafe extern "C-unwind" fn nlua_api_nvim_set_vvar(lstate: *mut lua_State) -> c_
                     return nlua_fast_api_disabled_error(lstate, c"nvim_set_vvar");
                 }
                 arg2 = nlua_pop_Object(lstate, true, &mut arena, &mut err);
-                if err.err_type != ErrorType::kErrorTypeNone {
+                if err.err_type != ErrorType::ErrorTypeNone {
                     err_param = Some(c"value");
                     break 'exit_0;
                 }
                 arg1 = nlua_pop_String(lstate, &mut arena, &mut err);
-                if err.err_type != ErrorType::kErrorTypeNone {
+                if err.err_type != ErrorType::ErrorTypeNone {
                     err_param = Some(c"name");
                     break 'exit_1;
                 }
@@ -21148,7 +21148,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_echo(lstate: *mut lua_State) -> c_int 
                     if lua_gettop(lstate) < 2 || lua_gettop(lstate) > 3 {
                         api_set_error_str(
                             &mut err,
-                            ErrorType::kErrorTypeValidation,
+                            ErrorType::ErrorTypeValidation,
                             c"Expected 2 to 3 arguments",
                         );
                         break 'exit_0;
@@ -21165,17 +21165,17 @@ unsafe extern "C-unwind" fn nlua_api_nvim_echo(lstate: *mut lua_State) -> c_int 
                             &mut arena,
                             &mut err,
                         );
-                        if err.err_type != ErrorType::kErrorTypeNone {
+                        if err.err_type != ErrorType::ErrorTypeNone {
                             break 'exit_1;
                         }
                     }
                     arg2 = nlua_pop_Boolean(lstate, &mut arena, &mut err);
-                    if err.err_type != ErrorType::kErrorTypeNone {
+                    if err.err_type != ErrorType::ErrorTypeNone {
                         err_param = Some(c"history");
                         break 'exit_1;
                     }
                     arg1 = nlua_pop_Array(lstate, &mut arena, &mut err);
-                    if err.err_type != ErrorType::kErrorTypeNone {
+                    if err.err_type != ErrorType::ErrorTypeNone {
                         err_param = Some(c"chunks");
                         break 'exit_2;
                     }
@@ -21204,7 +21204,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_list_bufs(lstate: *mut lua_State) -> c
             if lua_gettop(lstate) != 0 {
                 api_set_error_str(
                     &mut err,
-                    ErrorType::kErrorTypeValidation,
+                    ErrorType::ErrorTypeValidation,
                     c"Expected 0 arguments",
                 );
                 break 'exit_0;
@@ -21231,7 +21231,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_get_current_buf(lstate: *mut lua_State
             if lua_gettop(lstate) != 0 {
                 api_set_error_str(
                     &mut err,
-                    ErrorType::kErrorTypeValidation,
+                    ErrorType::ErrorTypeValidation,
                     c"Expected 0 arguments",
                 );
                 break 'exit_0;
@@ -21259,7 +21259,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_set_current_buf(lstate: *mut lua_State
             if lua_gettop(lstate) != 1 {
                 api_set_error_str(
                     &mut err,
-                    ErrorType::kErrorTypeValidation,
+                    ErrorType::ErrorTypeValidation,
                     c"Expected 1 argument",
                 );
                 break 'exit_0;
@@ -21270,13 +21270,13 @@ unsafe extern "C-unwind" fn nlua_api_nvim_set_current_buf(lstate: *mut lua_State
             if text_locked() {
                 api_set_error_str(
                     &mut err,
-                    ErrorType::kErrorTypeException,
+                    ErrorType::ErrorTypeException,
                     get_text_locked_msg(),
                 );
                 break 'exit_0;
             }
             arg1 = nlua_pop_Buffer(lstate, &mut arena, &mut err);
-            if err.err_type != ErrorType::kErrorTypeNone {
+            if err.err_type != ErrorType::ErrorTypeNone {
                 err_param = Some(c"buf");
                 break 'exit_0;
             }
@@ -21298,7 +21298,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_list_wins(lstate: *mut lua_State) -> c
             if lua_gettop(lstate) != 0 {
                 api_set_error_str(
                     &mut err,
-                    ErrorType::kErrorTypeValidation,
+                    ErrorType::ErrorTypeValidation,
                     c"Expected 0 arguments",
                 );
                 break 'exit_0;
@@ -21325,7 +21325,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_get_current_win(lstate: *mut lua_State
             if lua_gettop(lstate) != 0 {
                 api_set_error_str(
                     &mut err,
-                    ErrorType::kErrorTypeValidation,
+                    ErrorType::ErrorTypeValidation,
                     c"Expected 0 arguments",
                 );
                 break 'exit_0;
@@ -21353,7 +21353,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_set_current_win(lstate: *mut lua_State
             if lua_gettop(lstate) != 1 {
                 api_set_error_str(
                     &mut err,
-                    ErrorType::kErrorTypeValidation,
+                    ErrorType::ErrorTypeValidation,
                     c"Expected 1 argument",
                 );
                 break 'exit_0;
@@ -21364,13 +21364,13 @@ unsafe extern "C-unwind" fn nlua_api_nvim_set_current_win(lstate: *mut lua_State
             if text_locked() {
                 api_set_error_str(
                     &mut err,
-                    ErrorType::kErrorTypeException,
+                    ErrorType::ErrorTypeException,
                     get_text_locked_msg(),
                 );
                 break 'exit_0;
             }
             arg1 = nlua_pop_Window(lstate, &mut arena, &mut err);
-            if err.err_type != ErrorType::kErrorTypeNone {
+            if err.err_type != ErrorType::ErrorTypeNone {
                 err_param = Some(c"win");
                 break 'exit_0;
             }
@@ -21395,7 +21395,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_create_buf(lstate: *mut lua_State) -> 
                 if lua_gettop(lstate) != 2 {
                     api_set_error_str(
                         &mut err,
-                        ErrorType::kErrorTypeValidation,
+                        ErrorType::ErrorTypeValidation,
                         c"Expected 2 arguments",
                     );
                     break 'exit_0;
@@ -21404,12 +21404,12 @@ unsafe extern "C-unwind" fn nlua_api_nvim_create_buf(lstate: *mut lua_State) -> 
                     return nlua_fast_api_disabled_error(lstate, c"nvim_create_buf");
                 }
                 arg2 = nlua_pop_Boolean(lstate, &mut arena, &mut err);
-                if err.err_type != ErrorType::kErrorTypeNone {
+                if err.err_type != ErrorType::ErrorTypeNone {
                     err_param = Some(c"scratch");
                     break 'exit_0;
                 }
                 arg1 = nlua_pop_Boolean(lstate, &mut arena, &mut err);
-                if err.err_type != ErrorType::kErrorTypeNone {
+                if err.err_type != ErrorType::ErrorTypeNone {
                     err_param = Some(c"listed");
                     break 'exit_1;
                 }
@@ -21436,7 +21436,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_open_term(lstate: *mut lua_State) -> c
                 if lua_gettop(lstate) < 1 || lua_gettop(lstate) > 2 {
                     api_set_error_str(
                         &mut err,
-                        ErrorType::kErrorTypeValidation,
+                        ErrorType::ErrorTypeValidation,
                         c"Expected 1 to 2 arguments",
                     );
                     break 'exit_0;
@@ -21447,7 +21447,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_open_term(lstate: *mut lua_State) -> c
                 if text_locked() {
                     api_set_error_str(
                         &mut err,
-                        ErrorType::kErrorTypeException,
+                        ErrorType::ErrorTypeException,
                         get_text_locked_msg(),
                     );
                     break 'exit_0;
@@ -21461,12 +21461,12 @@ unsafe extern "C-unwind" fn nlua_api_nvim_open_term(lstate: *mut lua_State) -> c
                         &mut arena,
                         &mut err,
                     );
-                    if err.err_type != ErrorType::kErrorTypeNone {
+                    if err.err_type != ErrorType::ErrorTypeNone {
                         break 'exit_1;
                     }
                 }
                 arg1 = nlua_pop_Buffer(lstate, &mut arena, &mut err);
-                if err.err_type != ErrorType::kErrorTypeNone {
+                if err.err_type != ErrorType::ErrorTypeNone {
                     err_param = Some(c"buf");
                     break 'exit_1;
                 }
@@ -21497,7 +21497,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_chan_send(lstate: *mut lua_State) -> c
                 if lua_gettop(lstate) != 2 {
                     api_set_error_str(
                         &mut err,
-                        ErrorType::kErrorTypeValidation,
+                        ErrorType::ErrorTypeValidation,
                         c"Expected 2 arguments",
                     );
                     break 'exit_0;
@@ -21506,12 +21506,12 @@ unsafe extern "C-unwind" fn nlua_api_nvim_chan_send(lstate: *mut lua_State) -> c
                     return nlua_fast_api_disabled_error(lstate, c"nvim_chan_send");
                 }
                 arg2 = nlua_pop_String(lstate, &mut arena, &mut err);
-                if err.err_type != ErrorType::kErrorTypeNone {
+                if err.err_type != ErrorType::ErrorTypeNone {
                     err_param = Some(c"data");
                     break 'exit_0;
                 }
                 arg1 = nlua_pop_Integer(lstate, &mut arena, &mut err);
-                if err.err_type != ErrorType::kErrorTypeNone {
+                if err.err_type != ErrorType::ErrorTypeNone {
                     err_param = Some(c"chan");
                     break 'exit_1;
                 }
@@ -21534,7 +21534,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_list_tabpages(lstate: *mut lua_State) 
             if lua_gettop(lstate) != 0 {
                 api_set_error_str(
                     &mut err,
-                    ErrorType::kErrorTypeValidation,
+                    ErrorType::ErrorTypeValidation,
                     c"Expected 0 arguments",
                 );
                 break 'exit_0;
@@ -21561,7 +21561,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_get_current_tabpage(lstate: *mut lua_S
             if lua_gettop(lstate) != 0 {
                 api_set_error_str(
                     &mut err,
-                    ErrorType::kErrorTypeValidation,
+                    ErrorType::ErrorTypeValidation,
                     c"Expected 0 arguments",
                 );
                 break 'exit_0;
@@ -21589,7 +21589,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_set_current_tabpage(lstate: *mut lua_S
             if lua_gettop(lstate) != 1 {
                 api_set_error_str(
                     &mut err,
-                    ErrorType::kErrorTypeValidation,
+                    ErrorType::ErrorTypeValidation,
                     c"Expected 1 argument",
                 );
                 break 'exit_0;
@@ -21600,13 +21600,13 @@ unsafe extern "C-unwind" fn nlua_api_nvim_set_current_tabpage(lstate: *mut lua_S
             if text_locked() {
                 api_set_error_str(
                     &mut err,
-                    ErrorType::kErrorTypeException,
+                    ErrorType::ErrorTypeException,
                     get_text_locked_msg(),
                 );
                 break 'exit_0;
             }
             arg1 = nlua_pop_Tabpage(lstate, &mut arena, &mut err);
-            if err.err_type != ErrorType::kErrorTypeNone {
+            if err.err_type != ErrorType::ErrorTypeNone {
                 err_param = Some(c"tabpage");
                 break 'exit_0;
             }
@@ -21633,7 +21633,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_paste(lstate: *mut lua_State) -> c_int
                     if lua_gettop(lstate) != 3 {
                         api_set_error_str(
                             &mut err,
-                            ErrorType::kErrorTypeValidation,
+                            ErrorType::ErrorTypeValidation,
                             c"Expected 3 arguments",
                         );
                         break 'exit_0;
@@ -21644,23 +21644,23 @@ unsafe extern "C-unwind" fn nlua_api_nvim_paste(lstate: *mut lua_State) -> c_int
                     if text_locked() {
                         api_set_error_str(
                             &mut err,
-                            ErrorType::kErrorTypeException,
+                            ErrorType::ErrorTypeException,
                             get_text_locked_msg(),
                         );
                         break 'exit_0;
                     }
                     arg3 = nlua_pop_Integer(lstate, &mut arena, &mut err);
-                    if err.err_type != ErrorType::kErrorTypeNone {
+                    if err.err_type != ErrorType::ErrorTypeNone {
                         err_param = Some(c"phase");
                         break 'exit_0;
                     }
                     arg2 = nlua_pop_Boolean(lstate, &mut arena, &mut err);
-                    if err.err_type != ErrorType::kErrorTypeNone {
+                    if err.err_type != ErrorType::ErrorTypeNone {
                         err_param = Some(c"crlf");
                         break 'exit_1;
                     }
                     arg1 = nlua_pop_String(lstate, &mut arena, &mut err);
-                    if err.err_type != ErrorType::kErrorTypeNone {
+                    if err.err_type != ErrorType::ErrorTypeNone {
                         err_param = Some(c"data");
                         break 'exit_2;
                     }
@@ -21699,7 +21699,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_put(lstate: *mut lua_State) -> c_int {
                         if lua_gettop(lstate) != 4 {
                             api_set_error_str(
                                 &mut err,
-                                ErrorType::kErrorTypeValidation,
+                                ErrorType::ErrorTypeValidation,
                                 c"Expected 4 arguments",
                             );
                             break 'exit_0;
@@ -21710,28 +21710,28 @@ unsafe extern "C-unwind" fn nlua_api_nvim_put(lstate: *mut lua_State) -> c_int {
                         if text_locked() {
                             api_set_error_str(
                                 &mut err,
-                                ErrorType::kErrorTypeException,
+                                ErrorType::ErrorTypeException,
                                 get_text_locked_msg(),
                             );
                             break 'exit_0;
                         }
                         arg4 = nlua_pop_Boolean(lstate, &mut arena, &mut err);
-                        if err.err_type != ErrorType::kErrorTypeNone {
+                        if err.err_type != ErrorType::ErrorTypeNone {
                             err_param = Some(c"follow");
                             break 'exit_0;
                         }
                         arg3 = nlua_pop_Boolean(lstate, &mut arena, &mut err);
-                        if err.err_type != ErrorType::kErrorTypeNone {
+                        if err.err_type != ErrorType::ErrorTypeNone {
                             err_param = Some(c"after");
                             break 'exit_1;
                         }
                         arg2 = nlua_pop_String(lstate, &mut arena, &mut err);
-                        if err.err_type != ErrorType::kErrorTypeNone {
+                        if err.err_type != ErrorType::ErrorTypeNone {
                             err_param = Some(c"type");
                             break 'exit_2;
                         }
                         arg1 = nlua_pop_Array(lstate, &mut arena, &mut err);
-                        if err.err_type != ErrorType::kErrorTypeNone {
+                        if err.err_type != ErrorType::ErrorTypeNone {
                             err_param = Some(c"lines");
                             break 'exit_3;
                         }
@@ -21757,7 +21757,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_get_color_by_name(lstate: *mut lua_Sta
             if lua_gettop(lstate) != 1 {
                 api_set_error_str(
                     &mut err,
-                    ErrorType::kErrorTypeValidation,
+                    ErrorType::ErrorTypeValidation,
                     c"Expected 1 argument",
                 );
                 break 'exit_0;
@@ -21766,7 +21766,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_get_color_by_name(lstate: *mut lua_Sta
                 return nlua_fast_api_disabled_error(lstate, c"nvim_get_color_by_name");
             }
             arg1 = nlua_pop_String(lstate, &mut arena, &mut err);
-            if err.err_type != ErrorType::kErrorTypeNone {
+            if err.err_type != ErrorType::ErrorTypeNone {
                 err_param = Some(c"name");
                 break 'exit_0;
             }
@@ -21789,7 +21789,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_get_color_map(lstate: *mut lua_State) 
             if lua_gettop(lstate) != 0 {
                 api_set_error_str(
                     &mut err,
-                    ErrorType::kErrorTypeValidation,
+                    ErrorType::ErrorTypeValidation,
                     c"Expected 0 arguments",
                 );
                 break 'exit_0;
@@ -21818,7 +21818,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_get_context(lstate: *mut lua_State) ->
                 if lua_gettop(lstate) > 1 {
                     api_set_error_str(
                         &mut err,
-                        ErrorType::kErrorTypeValidation,
+                        ErrorType::ErrorTypeValidation,
                         c"Expected at most 1 argument",
                     );
                     break 'exit_0;
@@ -21835,7 +21835,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_get_context(lstate: *mut lua_State) ->
                         &mut arena,
                         &mut err,
                     );
-                    if err.err_type != ErrorType::kErrorTypeNone {
+                    if err.err_type != ErrorType::ErrorTypeNone {
                         break 'exit_1;
                     }
                 }
@@ -21864,7 +21864,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_load_context(lstate: *mut lua_State) -
             if lua_gettop(lstate) != 1 {
                 api_set_error_str(
                     &mut err,
-                    ErrorType::kErrorTypeValidation,
+                    ErrorType::ErrorTypeValidation,
                     c"Expected 1 argument",
                 );
                 break 'exit_0;
@@ -21873,7 +21873,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_load_context(lstate: *mut lua_State) -
                 return nlua_fast_api_disabled_error(lstate, c"nvim_load_context");
             }
             arg1 = nlua_pop_Dict(lstate, false, &mut arena, &mut err);
-            if err.err_type != ErrorType::kErrorTypeNone {
+            if err.err_type != ErrorType::ErrorTypeNone {
                 err_param = Some(c"dict");
                 break 'exit_0;
             }
@@ -21896,7 +21896,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_get_mode(lstate: *mut lua_State) -> c_
             if lua_gettop(lstate) != 0 {
                 api_set_error_str(
                     &mut err,
-                    ErrorType::kErrorTypeValidation,
+                    ErrorType::ErrorTypeValidation,
                     c"Expected 0 arguments",
                 );
                 break 'exit_0;
@@ -21921,7 +21921,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_get_keymap(lstate: *mut lua_State) -> 
             if lua_gettop(lstate) != 1 {
                 api_set_error_str(
                     &mut err,
-                    ErrorType::kErrorTypeValidation,
+                    ErrorType::ErrorTypeValidation,
                     c"Expected 1 argument",
                 );
                 break 'exit_0;
@@ -21930,7 +21930,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_get_keymap(lstate: *mut lua_State) -> 
                 return nlua_fast_api_disabled_error(lstate, c"nvim_get_keymap");
             }
             arg1 = nlua_pop_String(lstate, &mut arena, &mut err);
-            if err.err_type != ErrorType::kErrorTypeNone {
+            if err.err_type != ErrorType::ErrorTypeNone {
                 err_param = Some(c"mode");
                 break 'exit_0;
             }
@@ -21960,7 +21960,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_set_keymap(lstate: *mut lua_State) -> 
                         if lua_gettop(lstate) < 3 || lua_gettop(lstate) > 4 {
                             api_set_error_str(
                                 &mut err,
-                                ErrorType::kErrorTypeValidation,
+                                ErrorType::ErrorTypeValidation,
                                 c"Expected 3 to 4 arguments",
                             );
                             break 'exit_0;
@@ -21977,22 +21977,22 @@ unsafe extern "C-unwind" fn nlua_api_nvim_set_keymap(lstate: *mut lua_State) -> 
                                 &mut arena,
                                 &mut err,
                             );
-                            if err.err_type != ErrorType::kErrorTypeNone {
+                            if err.err_type != ErrorType::ErrorTypeNone {
                                 break 'exit_1;
                             }
                         }
                         arg3 = nlua_pop_String(lstate, &mut arena, &mut err);
-                        if err.err_type != ErrorType::kErrorTypeNone {
+                        if err.err_type != ErrorType::ErrorTypeNone {
                             err_param = Some(c"rhs");
                             break 'exit_1;
                         }
                         arg2 = nlua_pop_String(lstate, &mut arena, &mut err);
-                        if err.err_type != ErrorType::kErrorTypeNone {
+                        if err.err_type != ErrorType::ErrorTypeNone {
                             err_param = Some(c"lhs");
                             break 'exit_2;
                         }
                         arg1 = nlua_pop_String(lstate, &mut arena, &mut err);
-                        if err.err_type != ErrorType::kErrorTypeNone {
+                        if err.err_type != ErrorType::ErrorTypeNone {
                             err_param = Some(c"mode");
                             break 'exit_3;
                         }
@@ -22033,7 +22033,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_del_keymap(lstate: *mut lua_State) -> 
                     if lua_gettop(lstate) < 2 || lua_gettop(lstate) > 3 {
                         api_set_error_str(
                             &mut err,
-                            ErrorType::kErrorTypeValidation,
+                            ErrorType::ErrorTypeValidation,
                             c"Expected 2 to 3 arguments",
                         );
                         break 'exit_0;
@@ -22050,17 +22050,17 @@ unsafe extern "C-unwind" fn nlua_api_nvim_del_keymap(lstate: *mut lua_State) -> 
                             &mut arena,
                             &mut err,
                         );
-                        if err.err_type != ErrorType::kErrorTypeNone {
+                        if err.err_type != ErrorType::ErrorTypeNone {
                             break 'exit_1;
                         }
                     }
                     arg2 = nlua_pop_String(lstate, &mut arena, &mut err);
-                    if err.err_type != ErrorType::kErrorTypeNone {
+                    if err.err_type != ErrorType::ErrorTypeNone {
                         err_param = Some(c"lhs");
                         break 'exit_1;
                     }
                     arg1 = nlua_pop_String(lstate, &mut arena, &mut err);
-                    if err.err_type != ErrorType::kErrorTypeNone {
+                    if err.err_type != ErrorType::ErrorTypeNone {
                         err_param = Some(c"mode");
                         break 'exit_2;
                     }
@@ -22091,7 +22091,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_chan_set(lstate: *mut lua_State) -> c_
                 if lua_gettop(lstate) != 2 {
                     api_set_error_str(
                         &mut err,
-                        ErrorType::kErrorTypeValidation,
+                        ErrorType::ErrorTypeValidation,
                         c"Expected 2 arguments",
                     );
                     break 'exit_0;
@@ -22104,11 +22104,11 @@ unsafe extern "C-unwind" fn nlua_api_nvim_chan_set(lstate: *mut lua_State) -> c_
                     &mut arena,
                     &mut err,
                 );
-                if err.err_type != ErrorType::kErrorTypeNone {
+                if err.err_type != ErrorType::ErrorTypeNone {
                     break 'exit_1;
                 }
                 arg1 = nlua_pop_Integer(lstate, &mut arena, &mut err);
-                if err.err_type != ErrorType::kErrorTypeNone {
+                if err.err_type != ErrorType::ErrorTypeNone {
                     err_param = Some(c"chan");
                     break 'exit_1;
                 }
@@ -22138,7 +22138,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim__cmdwin_set(lstate: *mut lua_State) ->
                 if lua_gettop(lstate) != 2 {
                     api_set_error_str(
                         &mut err,
-                        ErrorType::kErrorTypeValidation,
+                        ErrorType::ErrorTypeValidation,
                         c"Expected 2 arguments",
                     );
                     break 'exit_0;
@@ -22147,12 +22147,12 @@ unsafe extern "C-unwind" fn nlua_api_nvim__cmdwin_set(lstate: *mut lua_State) ->
                     return nlua_fast_api_disabled_error(lstate, c"nvim__cmdwin_set");
                 }
                 arg2 = nlua_pop_Buffer(lstate, &mut arena, &mut err);
-                if err.err_type != ErrorType::kErrorTypeNone {
+                if err.err_type != ErrorType::ErrorTypeNone {
                     err_param = Some(c"buf");
                     break 'exit_0;
                 }
                 arg1 = nlua_pop_String(lstate, &mut arena, &mut err);
-                if err.err_type != ErrorType::kErrorTypeNone {
+                if err.err_type != ErrorType::ErrorTypeNone {
                     err_param = Some(c"type");
                     break 'exit_1;
                 }
@@ -22176,7 +22176,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_get_chan_info(lstate: *mut lua_State) 
             if lua_gettop(lstate) != 1 {
                 api_set_error_str(
                     &mut err,
-                    ErrorType::kErrorTypeValidation,
+                    ErrorType::ErrorTypeValidation,
                     c"Expected 1 argument",
                 );
                 break 'exit_0;
@@ -22185,7 +22185,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_get_chan_info(lstate: *mut lua_State) 
                 return nlua_fast_api_disabled_error(lstate, c"nvim_get_chan_info");
             }
             arg1 = nlua_pop_Integer(lstate, &mut arena, &mut err);
-            if err.err_type != ErrorType::kErrorTypeNone {
+            if err.err_type != ErrorType::ErrorTypeNone {
                 err_param = Some(c"chan");
                 break 'exit_0;
             }
@@ -22208,7 +22208,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_list_chans(lstate: *mut lua_State) -> 
             if lua_gettop(lstate) != 0 {
                 api_set_error_str(
                     &mut err,
-                    ErrorType::kErrorTypeValidation,
+                    ErrorType::ErrorTypeValidation,
                     c"Expected 0 arguments",
                 );
                 break 'exit_0;
@@ -22236,7 +22236,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim__id(lstate: *mut lua_State) -> c_int {
             if lua_gettop(lstate) != 1 {
                 api_set_error_str(
                     &mut err,
-                    ErrorType::kErrorTypeValidation,
+                    ErrorType::ErrorTypeValidation,
                     c"Expected 1 argument",
                 );
                 break 'exit_0;
@@ -22245,7 +22245,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim__id(lstate: *mut lua_State) -> c_int {
                 return nlua_fast_api_disabled_error(lstate, c"nvim__id");
             }
             arg1 = nlua_pop_Object(lstate, true, &mut arena, &mut err);
-            if err.err_type != ErrorType::kErrorTypeNone {
+            if err.err_type != ErrorType::ErrorTypeNone {
                 err_param = Some(c"obj");
                 break 'exit_0;
             }
@@ -22270,7 +22270,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim__id_array(lstate: *mut lua_State) -> c
             if lua_gettop(lstate) != 1 {
                 api_set_error_str(
                     &mut err,
-                    ErrorType::kErrorTypeValidation,
+                    ErrorType::ErrorTypeValidation,
                     c"Expected 1 argument",
                 );
                 break 'exit_0;
@@ -22279,7 +22279,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim__id_array(lstate: *mut lua_State) -> c
                 return nlua_fast_api_disabled_error(lstate, c"nvim__id_array");
             }
             arg1 = nlua_pop_Array(lstate, &mut arena, &mut err);
-            if err.err_type != ErrorType::kErrorTypeNone {
+            if err.err_type != ErrorType::ErrorTypeNone {
                 err_param = Some(c"arr");
                 break 'exit_0;
             }
@@ -22303,7 +22303,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim__id_dict(lstate: *mut lua_State) -> c_
             if lua_gettop(lstate) != 1 {
                 api_set_error_str(
                     &mut err,
-                    ErrorType::kErrorTypeValidation,
+                    ErrorType::ErrorTypeValidation,
                     c"Expected 1 argument",
                 );
                 break 'exit_0;
@@ -22312,7 +22312,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim__id_dict(lstate: *mut lua_State) -> c_
                 return nlua_fast_api_disabled_error(lstate, c"nvim__id_dict");
             }
             arg1 = nlua_pop_Dict(lstate, false, &mut arena, &mut err);
-            if err.err_type != ErrorType::kErrorTypeNone {
+            if err.err_type != ErrorType::ErrorTypeNone {
                 err_param = Some(c"dct");
                 break 'exit_0;
             }
@@ -22336,7 +22336,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim__id_float(lstate: *mut lua_State) -> c
             if lua_gettop(lstate) != 1 {
                 api_set_error_str(
                     &mut err,
-                    ErrorType::kErrorTypeValidation,
+                    ErrorType::ErrorTypeValidation,
                     c"Expected 1 argument",
                 );
                 break 'exit_0;
@@ -22345,7 +22345,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim__id_float(lstate: *mut lua_State) -> c
                 return nlua_fast_api_disabled_error(lstate, c"nvim__id_float");
             }
             arg1 = nlua_pop_Float(lstate, &mut arena, &mut err);
-            if err.err_type != ErrorType::kErrorTypeNone {
+            if err.err_type != ErrorType::ErrorTypeNone {
                 err_param = Some(c"flt");
                 break 'exit_0;
             }
@@ -22368,7 +22368,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim__stats(lstate: *mut lua_State) -> c_in
             if lua_gettop(lstate) != 0 {
                 api_set_error_str(
                     &mut err,
-                    ErrorType::kErrorTypeValidation,
+                    ErrorType::ErrorTypeValidation,
                     c"Expected 0 arguments",
                 );
                 break 'exit_0;
@@ -22395,7 +22395,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_list_uis(lstate: *mut lua_State) -> c_
             if lua_gettop(lstate) != 0 {
                 api_set_error_str(
                     &mut err,
-                    ErrorType::kErrorTypeValidation,
+                    ErrorType::ErrorTypeValidation,
                     c"Expected 0 arguments",
                 );
                 break 'exit_0;
@@ -22423,7 +22423,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_get_proc_children(lstate: *mut lua_Sta
             if lua_gettop(lstate) != 1 {
                 api_set_error_str(
                     &mut err,
-                    ErrorType::kErrorTypeValidation,
+                    ErrorType::ErrorTypeValidation,
                     c"Expected 1 argument",
                 );
                 break 'exit_0;
@@ -22432,7 +22432,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_get_proc_children(lstate: *mut lua_Sta
                 return nlua_fast_api_disabled_error(lstate, c"nvim_get_proc_children");
             }
             arg1 = nlua_pop_Integer(lstate, &mut arena, &mut err);
-            if err.err_type != ErrorType::kErrorTypeNone {
+            if err.err_type != ErrorType::ErrorTypeNone {
                 err_param = Some(c"pid");
                 break 'exit_0;
             }
@@ -22456,7 +22456,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_get_proc(lstate: *mut lua_State) -> c_
             if lua_gettop(lstate) != 1 {
                 api_set_error_str(
                     &mut err,
-                    ErrorType::kErrorTypeValidation,
+                    ErrorType::ErrorTypeValidation,
                     c"Expected 1 argument",
                 );
                 break 'exit_0;
@@ -22465,7 +22465,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_get_proc(lstate: *mut lua_State) -> c_
                 return nlua_fast_api_disabled_error(lstate, c"nvim_get_proc");
             }
             arg1 = nlua_pop_Integer(lstate, &mut arena, &mut err);
-            if err.err_type != ErrorType::kErrorTypeNone {
+            if err.err_type != ErrorType::ErrorTypeNone {
                 err_param = Some(c"pid");
                 break 'exit_0;
             }
@@ -22495,7 +22495,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_select_popupmenu_item(lstate: *mut lua
                         if lua_gettop(lstate) < 3 || lua_gettop(lstate) > 4 {
                             api_set_error_str(
                                 &mut err,
-                                ErrorType::kErrorTypeValidation,
+                                ErrorType::ErrorTypeValidation,
                                 c"Expected 3 to 4 arguments",
                             );
                             break 'exit_0;
@@ -22512,22 +22512,22 @@ unsafe extern "C-unwind" fn nlua_api_nvim_select_popupmenu_item(lstate: *mut lua
                                 &mut arena,
                                 &mut err,
                             );
-                            if err.err_type != ErrorType::kErrorTypeNone {
+                            if err.err_type != ErrorType::ErrorTypeNone {
                                 break 'exit_1;
                             }
                         }
                         arg3 = nlua_pop_Boolean(lstate, &mut arena, &mut err);
-                        if err.err_type != ErrorType::kErrorTypeNone {
+                        if err.err_type != ErrorType::ErrorTypeNone {
                             err_param = Some(c"finish");
                             break 'exit_1;
                         }
                         arg2 = nlua_pop_Boolean(lstate, &mut arena, &mut err);
-                        if err.err_type != ErrorType::kErrorTypeNone {
+                        if err.err_type != ErrorType::ErrorTypeNone {
                             err_param = Some(c"insert");
                             break 'exit_2;
                         }
                         arg1 = nlua_pop_Integer(lstate, &mut arena, &mut err);
-                        if err.err_type != ErrorType::kErrorTypeNone {
+                        if err.err_type != ErrorType::ErrorTypeNone {
                             err_param = Some(c"item");
                             break 'exit_3;
                         }
@@ -22561,7 +22561,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim__inspect_cell(lstate: *mut lua_State) 
                     if lua_gettop(lstate) != 3 {
                         api_set_error_str(
                             &mut err,
-                            ErrorType::kErrorTypeValidation,
+                            ErrorType::ErrorTypeValidation,
                             c"Expected 3 arguments",
                         );
                         break 'exit_0;
@@ -22570,17 +22570,17 @@ unsafe extern "C-unwind" fn nlua_api_nvim__inspect_cell(lstate: *mut lua_State) 
                         return nlua_fast_api_disabled_error(lstate, c"nvim__inspect_cell");
                     }
                     arg3 = nlua_pop_Integer(lstate, &mut arena, &mut err);
-                    if err.err_type != ErrorType::kErrorTypeNone {
+                    if err.err_type != ErrorType::ErrorTypeNone {
                         err_param = Some(c"col");
                         break 'exit_0;
                     }
                     arg2 = nlua_pop_Integer(lstate, &mut arena, &mut err);
-                    if err.err_type != ErrorType::kErrorTypeNone {
+                    if err.err_type != ErrorType::ErrorTypeNone {
                         err_param = Some(c"row");
                         break 'exit_1;
                     }
                     arg1 = nlua_pop_Integer(lstate, &mut arena, &mut err);
-                    if err.err_type != ErrorType::kErrorTypeNone {
+                    if err.err_type != ErrorType::ErrorTypeNone {
                         err_param = Some(c"grid");
                         break 'exit_2;
                     }
@@ -22606,13 +22606,13 @@ unsafe extern "C-unwind" fn nlua_api_nvim__screenshot(lstate: *mut lua_State) ->
             if lua_gettop(lstate) != 1 {
                 api_set_error_str(
                     &mut err,
-                    ErrorType::kErrorTypeValidation,
+                    ErrorType::ErrorTypeValidation,
                     c"Expected 1 argument",
                 );
                 break 'exit_0;
             }
             arg1 = nlua_pop_String(lstate, &mut arena, &mut err);
-            if err.err_type != ErrorType::kErrorTypeNone {
+            if err.err_type != ErrorType::ErrorTypeNone {
                 err_param = Some(c"path");
                 break 'exit_0;
             }
@@ -22634,7 +22634,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim__invalidate_glyph_cache(lstate: *mut l
             if lua_gettop(lstate) != 0 {
                 api_set_error_str(
                     &mut err,
-                    ErrorType::kErrorTypeValidation,
+                    ErrorType::ErrorTypeValidation,
                     c"Expected 0 arguments",
                 );
                 break 'exit_0;
@@ -22661,13 +22661,13 @@ unsafe extern "C-unwind" fn nlua_api_nvim__unpack(lstate: *mut lua_State) -> c_i
             if lua_gettop(lstate) != 1 {
                 api_set_error_str(
                     &mut err,
-                    ErrorType::kErrorTypeValidation,
+                    ErrorType::ErrorTypeValidation,
                     c"Expected 1 argument",
                 );
                 break 'exit_0;
             }
             arg1 = nlua_pop_String(lstate, &mut arena, &mut err);
-            if err.err_type != ErrorType::kErrorTypeNone {
+            if err.err_type != ErrorType::ErrorTypeNone {
                 err_param = Some(c"str");
                 break 'exit_0;
             }
@@ -22691,7 +22691,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_del_mark(lstate: *mut lua_State) -> c_
             if lua_gettop(lstate) != 1 {
                 api_set_error_str(
                     &mut err,
-                    ErrorType::kErrorTypeValidation,
+                    ErrorType::ErrorTypeValidation,
                     c"Expected 1 argument",
                 );
                 break 'exit_0;
@@ -22700,7 +22700,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_del_mark(lstate: *mut lua_State) -> c_
                 return nlua_fast_api_disabled_error(lstate, c"nvim_del_mark");
             }
             arg1 = nlua_pop_String(lstate, &mut arena, &mut err);
-            if err.err_type != ErrorType::kErrorTypeNone {
+            if err.err_type != ErrorType::ErrorTypeNone {
                 err_param = Some(c"name");
                 break 'exit_0;
             }
@@ -22726,7 +22726,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_get_mark(lstate: *mut lua_State) -> c_
                 if lua_gettop(lstate) < 1 || lua_gettop(lstate) > 2 {
                     api_set_error_str(
                         &mut err,
-                        ErrorType::kErrorTypeValidation,
+                        ErrorType::ErrorTypeValidation,
                         c"Expected 1 to 2 arguments",
                     );
                     break 'exit_0;
@@ -22743,12 +22743,12 @@ unsafe extern "C-unwind" fn nlua_api_nvim_get_mark(lstate: *mut lua_State) -> c_
                         &mut arena,
                         &mut err,
                     );
-                    if err.err_type != ErrorType::kErrorTypeNone {
+                    if err.err_type != ErrorType::ErrorTypeNone {
                         break 'exit_1;
                     }
                 }
                 arg1 = nlua_pop_String(lstate, &mut arena, &mut err);
-                if err.err_type != ErrorType::kErrorTypeNone {
+                if err.err_type != ErrorType::ErrorTypeNone {
                     err_param = Some(c"name");
                     break 'exit_1;
                 }
@@ -22779,7 +22779,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_eval_statusline(lstate: *mut lua_State
                 if lua_gettop(lstate) < 1 || lua_gettop(lstate) > 2 {
                     api_set_error_str(
                         &mut err,
-                        ErrorType::kErrorTypeValidation,
+                        ErrorType::ErrorTypeValidation,
                         c"Expected 1 to 2 arguments",
                     );
                     break 'exit_0;
@@ -22793,12 +22793,12 @@ unsafe extern "C-unwind" fn nlua_api_nvim_eval_statusline(lstate: *mut lua_State
                         &mut arena,
                         &mut err,
                     );
-                    if err.err_type != ErrorType::kErrorTypeNone {
+                    if err.err_type != ErrorType::ErrorTypeNone {
                         break 'exit_1;
                     }
                 }
                 arg1 = nlua_pop_String(lstate, &mut arena, &mut err);
-                if err.err_type != ErrorType::kErrorTypeNone {
+                if err.err_type != ErrorType::ErrorTypeNone {
                     err_param = Some(c"str");
                     break 'exit_1;
                 }
@@ -22829,7 +22829,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim__complete_set(lstate: *mut lua_State) 
                 if lua_gettop(lstate) < 1 || lua_gettop(lstate) > 2 {
                     api_set_error_str(
                         &mut err,
-                        ErrorType::kErrorTypeValidation,
+                        ErrorType::ErrorTypeValidation,
                         c"Expected 1 to 2 arguments",
                     );
                     break 'exit_0;
@@ -22846,12 +22846,12 @@ unsafe extern "C-unwind" fn nlua_api_nvim__complete_set(lstate: *mut lua_State) 
                         &mut arena,
                         &mut err,
                     );
-                    if err.err_type != ErrorType::kErrorTypeNone {
+                    if err.err_type != ErrorType::ErrorTypeNone {
                         break 'exit_1;
                     }
                 }
                 arg1 = nlua_pop_Integer(lstate, &mut arena, &mut err);
-                if err.err_type != ErrorType::kErrorTypeNone {
+                if err.err_type != ErrorType::ErrorTypeNone {
                     err_param = Some(c"index");
                     break 'exit_1;
                 }
@@ -22881,7 +22881,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim__redraw(lstate: *mut lua_State) -> c_i
                 if lua_gettop(lstate) > 1 {
                     api_set_error_str(
                         &mut err,
-                        ErrorType::kErrorTypeValidation,
+                        ErrorType::ErrorTypeValidation,
                         c"Expected at most 1 argument",
                     );
                     break 'exit_0;
@@ -22898,7 +22898,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim__redraw(lstate: *mut lua_State) -> c_i
                         &mut arena,
                         &mut err,
                     );
-                    if err.err_type != ErrorType::kErrorTypeNone {
+                    if err.err_type != ErrorType::ErrorTypeNone {
                         break 'exit_1;
                     }
                 }
@@ -22928,7 +22928,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim__set_restart_on_crash(lstate: *mut lua
                 if lua_gettop(lstate) != 2 {
                     api_set_error_str(
                         &mut err,
-                        ErrorType::kErrorTypeValidation,
+                        ErrorType::ErrorTypeValidation,
                         c"Expected 2 arguments",
                     );
                     break 'exit_0;
@@ -22937,12 +22937,12 @@ unsafe extern "C-unwind" fn nlua_api_nvim__set_restart_on_crash(lstate: *mut lua
                     return nlua_fast_api_disabled_error(lstate, c"nvim__set_restart_on_crash");
                 }
                 arg2 = nlua_pop_Array(lstate, &mut arena, &mut err);
-                if err.err_type != ErrorType::kErrorTypeNone {
+                if err.err_type != ErrorType::ErrorTypeNone {
                     err_param = Some(c"argv");
                     break 'exit_0;
                 }
                 arg1 = nlua_pop_String(lstate, &mut arena, &mut err);
-                if err.err_type != ErrorType::kErrorTypeNone {
+                if err.err_type != ErrorType::ErrorTypeNone {
                     err_param = Some(c"progpath");
                     break 'exit_1;
                 }
@@ -22968,7 +22968,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_exec2(lstate: *mut lua_State) -> c_int
                 if lua_gettop(lstate) < 1 || lua_gettop(lstate) > 2 {
                     api_set_error_str(
                         &mut err,
-                        ErrorType::kErrorTypeValidation,
+                        ErrorType::ErrorTypeValidation,
                         c"Expected 1 to 2 arguments",
                     );
                     break 'exit_0;
@@ -22985,12 +22985,12 @@ unsafe extern "C-unwind" fn nlua_api_nvim_exec2(lstate: *mut lua_State) -> c_int
                         &mut arena,
                         &mut err,
                     );
-                    if err.err_type != ErrorType::kErrorTypeNone {
+                    if err.err_type != ErrorType::ErrorTypeNone {
                         break 'exit_1;
                     }
                 }
                 arg1 = nlua_pop_String(lstate, &mut arena, &mut err);
-                if err.err_type != ErrorType::kErrorTypeNone {
+                if err.err_type != ErrorType::ErrorTypeNone {
                     err_param = Some(c"src");
                     break 'exit_1;
                 }
@@ -23020,7 +23020,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_command(lstate: *mut lua_State) -> c_i
             if lua_gettop(lstate) != 1 {
                 api_set_error_str(
                     &mut err,
-                    ErrorType::kErrorTypeValidation,
+                    ErrorType::ErrorTypeValidation,
                     c"Expected 1 argument",
                 );
                 break 'exit_0;
@@ -23029,7 +23029,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_command(lstate: *mut lua_State) -> c_i
                 return nlua_fast_api_disabled_error(lstate, c"nvim_command");
             }
             arg1 = nlua_pop_String(lstate, &mut arena, &mut err);
-            if err.err_type != ErrorType::kErrorTypeNone {
+            if err.err_type != ErrorType::ErrorTypeNone {
                 err_param = Some(c"cmd");
                 break 'exit_0;
             }
@@ -23052,7 +23052,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_eval(lstate: *mut lua_State) -> c_int 
             if lua_gettop(lstate) != 1 {
                 api_set_error_str(
                     &mut err,
-                    ErrorType::kErrorTypeValidation,
+                    ErrorType::ErrorTypeValidation,
                     c"Expected 1 argument",
                 );
                 break 'exit_0;
@@ -23061,7 +23061,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_eval(lstate: *mut lua_State) -> c_int 
                 return nlua_fast_api_disabled_error(lstate, c"nvim_eval");
             }
             arg1 = nlua_pop_String(lstate, &mut arena, &mut err);
-            if err.err_type != ErrorType::kErrorTypeNone {
+            if err.err_type != ErrorType::ErrorTypeNone {
                 err_param = Some(c"expr");
                 break 'exit_0;
             }
@@ -23087,7 +23087,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_call_function(lstate: *mut lua_State) 
                 if lua_gettop(lstate) != 2 {
                     api_set_error_str(
                         &mut err,
-                        ErrorType::kErrorTypeValidation,
+                        ErrorType::ErrorTypeValidation,
                         c"Expected 2 arguments",
                     );
                     break 'exit_0;
@@ -23096,12 +23096,12 @@ unsafe extern "C-unwind" fn nlua_api_nvim_call_function(lstate: *mut lua_State) 
                     return nlua_fast_api_disabled_error(lstate, c"nvim_call_function");
                 }
                 arg2 = nlua_pop_Array(lstate, &mut arena, &mut err);
-                if err.err_type != ErrorType::kErrorTypeNone {
+                if err.err_type != ErrorType::ErrorTypeNone {
                     err_param = Some(c"args");
                     break 'exit_0;
                 }
                 arg1 = nlua_pop_String(lstate, &mut arena, &mut err);
-                if err.err_type != ErrorType::kErrorTypeNone {
+                if err.err_type != ErrorType::ErrorTypeNone {
                     err_param = Some(c"fn");
                     break 'exit_1;
                 }
@@ -23131,7 +23131,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_call_dict_function(lstate: *mut lua_St
                     if lua_gettop(lstate) != 3 {
                         api_set_error_str(
                             &mut err,
-                            ErrorType::kErrorTypeValidation,
+                            ErrorType::ErrorTypeValidation,
                             c"Expected 3 arguments",
                         );
                         break 'exit_0;
@@ -23140,17 +23140,17 @@ unsafe extern "C-unwind" fn nlua_api_nvim_call_dict_function(lstate: *mut lua_St
                         return nlua_fast_api_disabled_error(lstate, c"nvim_call_dict_function");
                     }
                     arg3 = nlua_pop_Array(lstate, &mut arena, &mut err);
-                    if err.err_type != ErrorType::kErrorTypeNone {
+                    if err.err_type != ErrorType::ErrorTypeNone {
                         err_param = Some(c"args");
                         break 'exit_0;
                     }
                     arg2 = nlua_pop_String(lstate, &mut arena, &mut err);
-                    if err.err_type != ErrorType::kErrorTypeNone {
+                    if err.err_type != ErrorType::ErrorTypeNone {
                         err_param = Some(c"fn");
                         break 'exit_1;
                     }
                     arg1 = nlua_pop_Object(lstate, true, &mut arena, &mut err);
-                    if err.err_type != ErrorType::kErrorTypeNone {
+                    if err.err_type != ErrorType::ErrorTypeNone {
                         err_param = Some(c"dict");
                         break 'exit_2;
                     }
@@ -23188,23 +23188,23 @@ unsafe extern "C-unwind" fn nlua_api_nvim_parse_expression(lstate: *mut lua_Stat
                     if lua_gettop(lstate) != 3 {
                         api_set_error_str(
                             &mut err,
-                            ErrorType::kErrorTypeValidation,
+                            ErrorType::ErrorTypeValidation,
                             c"Expected 3 arguments",
                         );
                         break 'exit_0;
                     }
                     arg3 = nlua_pop_Boolean(lstate, &mut arena, &mut err);
-                    if err.err_type != ErrorType::kErrorTypeNone {
+                    if err.err_type != ErrorType::ErrorTypeNone {
                         err_param = Some(c"hl");
                         break 'exit_0;
                     }
                     arg2 = nlua_pop_String(lstate, &mut arena, &mut err);
-                    if err.err_type != ErrorType::kErrorTypeNone {
+                    if err.err_type != ErrorType::ErrorTypeNone {
                         err_param = Some(c"flags");
                         break 'exit_1;
                     }
                     arg1 = nlua_pop_String(lstate, &mut arena, &mut err);
-                    if err.err_type != ErrorType::kErrorTypeNone {
+                    if err.err_type != ErrorType::ErrorTypeNone {
                         err_param = Some(c"expr");
                         break 'exit_2;
                     }
@@ -23234,7 +23234,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_open_win(lstate: *mut lua_State) -> c_
                     if lua_gettop(lstate) != 3 {
                         api_set_error_str(
                             &mut err,
-                            ErrorType::kErrorTypeValidation,
+                            ErrorType::ErrorTypeValidation,
                             c"Expected 3 arguments",
                         );
                         break 'exit_0;
@@ -23245,7 +23245,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_open_win(lstate: *mut lua_State) -> c_
                     if text_locked() {
                         api_set_error_str(
                             &mut err,
-                            ErrorType::kErrorTypeException,
+                            ErrorType::ErrorTypeException,
                             get_text_locked_msg(),
                         );
                         break 'exit_0;
@@ -23258,16 +23258,16 @@ unsafe extern "C-unwind" fn nlua_api_nvim_open_win(lstate: *mut lua_State) -> c_
                         &mut arena,
                         &mut err,
                     );
-                    if err.err_type != ErrorType::kErrorTypeNone {
+                    if err.err_type != ErrorType::ErrorTypeNone {
                         break 'exit_1;
                     }
                     arg2 = nlua_pop_Boolean(lstate, &mut arena, &mut err);
-                    if err.err_type != ErrorType::kErrorTypeNone {
+                    if err.err_type != ErrorType::ErrorTypeNone {
                         err_param = Some(c"enter");
                         break 'exit_1;
                     }
                     arg1 = nlua_pop_Buffer(lstate, &mut arena, &mut err);
-                    if err.err_type != ErrorType::kErrorTypeNone {
+                    if err.err_type != ErrorType::ErrorTypeNone {
                         err_param = Some(c"buf");
                         break 'exit_2;
                     }
@@ -23299,7 +23299,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_win_set_config(lstate: *mut lua_State)
                 if lua_gettop(lstate) != 2 {
                     api_set_error_str(
                         &mut err,
-                        ErrorType::kErrorTypeValidation,
+                        ErrorType::ErrorTypeValidation,
                         c"Expected 2 arguments",
                     );
                     break 'exit_0;
@@ -23315,11 +23315,11 @@ unsafe extern "C-unwind" fn nlua_api_nvim_win_set_config(lstate: *mut lua_State)
                     &mut arena,
                     &mut err,
                 );
-                if err.err_type != ErrorType::kErrorTypeNone {
+                if err.err_type != ErrorType::ErrorTypeNone {
                     break 'exit_1;
                 }
                 arg1 = nlua_pop_Window(lstate, &mut arena, &mut err);
-                if err.err_type != ErrorType::kErrorTypeNone {
+                if err.err_type != ErrorType::ErrorTypeNone {
                     err_param = Some(c"win");
                     break 'exit_1;
                 }
@@ -23347,7 +23347,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_win_get_config(lstate: *mut lua_State)
             if lua_gettop(lstate) != 1 {
                 api_set_error_str(
                     &mut err,
-                    ErrorType::kErrorTypeValidation,
+                    ErrorType::ErrorTypeValidation,
                     c"Expected 1 argument",
                 );
                 break 'exit_0;
@@ -23356,7 +23356,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_win_get_config(lstate: *mut lua_State)
                 return nlua_fast_api_disabled_error(lstate, c"nvim_win_get_config");
             }
             arg1 = nlua_pop_Window(lstate, &mut arena, &mut err);
-            if err.err_type != ErrorType::kErrorTypeNone {
+            if err.err_type != ErrorType::ErrorTypeNone {
                 err_param = Some(c"win");
                 break 'exit_0;
             }
@@ -23384,7 +23384,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_win_get_buf(lstate: *mut lua_State) ->
             if lua_gettop(lstate) != 1 {
                 api_set_error_str(
                     &mut err,
-                    ErrorType::kErrorTypeValidation,
+                    ErrorType::ErrorTypeValidation,
                     c"Expected 1 argument",
                 );
                 break 'exit_0;
@@ -23393,7 +23393,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_win_get_buf(lstate: *mut lua_State) ->
                 return nlua_fast_api_disabled_error(lstate, c"nvim_win_get_buf");
             }
             arg1 = nlua_pop_Window(lstate, &mut arena, &mut err);
-            if err.err_type != ErrorType::kErrorTypeNone {
+            if err.err_type != ErrorType::ErrorTypeNone {
                 err_param = Some(c"win");
                 break 'exit_0;
             }
@@ -23419,7 +23419,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_win_set_buf(lstate: *mut lua_State) ->
                 if lua_gettop(lstate) != 2 {
                     api_set_error_str(
                         &mut err,
-                        ErrorType::kErrorTypeValidation,
+                        ErrorType::ErrorTypeValidation,
                         c"Expected 2 arguments",
                     );
                     break 'exit_0;
@@ -23430,18 +23430,18 @@ unsafe extern "C-unwind" fn nlua_api_nvim_win_set_buf(lstate: *mut lua_State) ->
                 if text_locked() {
                     api_set_error_str(
                         &mut err,
-                        ErrorType::kErrorTypeException,
+                        ErrorType::ErrorTypeException,
                         get_text_locked_msg(),
                     );
                     break 'exit_0;
                 }
                 arg2 = nlua_pop_Buffer(lstate, &mut arena, &mut err);
-                if err.err_type != ErrorType::kErrorTypeNone {
+                if err.err_type != ErrorType::ErrorTypeNone {
                     err_param = Some(c"buf");
                     break 'exit_0;
                 }
                 arg1 = nlua_pop_Window(lstate, &mut arena, &mut err);
-                if err.err_type != ErrorType::kErrorTypeNone {
+                if err.err_type != ErrorType::ErrorTypeNone {
                     err_param = Some(c"win");
                     break 'exit_1;
                 }
@@ -23465,7 +23465,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_win_get_cursor(lstate: *mut lua_State)
             if lua_gettop(lstate) != 1 {
                 api_set_error_str(
                     &mut err,
-                    ErrorType::kErrorTypeValidation,
+                    ErrorType::ErrorTypeValidation,
                     c"Expected 1 argument",
                 );
                 break 'exit_0;
@@ -23474,7 +23474,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_win_get_cursor(lstate: *mut lua_State)
                 return nlua_fast_api_disabled_error(lstate, c"nvim_win_get_cursor");
             }
             arg1 = nlua_pop_Window(lstate, &mut arena, &mut err);
-            if err.err_type != ErrorType::kErrorTypeNone {
+            if err.err_type != ErrorType::ErrorTypeNone {
                 err_param = Some(c"win");
                 break 'exit_0;
             }
@@ -23500,7 +23500,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_win_set_cursor(lstate: *mut lua_State)
                 if lua_gettop(lstate) != 2 {
                     api_set_error_str(
                         &mut err,
-                        ErrorType::kErrorTypeValidation,
+                        ErrorType::ErrorTypeValidation,
                         c"Expected 2 arguments",
                     );
                     break 'exit_0;
@@ -23509,12 +23509,12 @@ unsafe extern "C-unwind" fn nlua_api_nvim_win_set_cursor(lstate: *mut lua_State)
                     return nlua_fast_api_disabled_error(lstate, c"nvim_win_set_cursor");
                 }
                 arg2 = nlua_pop_Array(lstate, &mut arena, &mut err);
-                if err.err_type != ErrorType::kErrorTypeNone {
+                if err.err_type != ErrorType::ErrorTypeNone {
                     err_param = Some(c"pos");
                     break 'exit_0;
                 }
                 arg1 = nlua_pop_Window(lstate, &mut arena, &mut err);
-                if err.err_type != ErrorType::kErrorTypeNone {
+                if err.err_type != ErrorType::ErrorTypeNone {
                     err_param = Some(c"win");
                     break 'exit_1;
                 }
@@ -23538,7 +23538,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_win_get_height(lstate: *mut lua_State)
             if lua_gettop(lstate) != 1 {
                 api_set_error_str(
                     &mut err,
-                    ErrorType::kErrorTypeValidation,
+                    ErrorType::ErrorTypeValidation,
                     c"Expected 1 argument",
                 );
                 break 'exit_0;
@@ -23547,7 +23547,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_win_get_height(lstate: *mut lua_State)
                 return nlua_fast_api_disabled_error(lstate, c"nvim_win_get_height");
             }
             arg1 = nlua_pop_Window(lstate, &mut arena, &mut err);
-            if err.err_type != ErrorType::kErrorTypeNone {
+            if err.err_type != ErrorType::ErrorTypeNone {
                 err_param = Some(c"win");
                 break 'exit_0;
             }
@@ -23571,7 +23571,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_win_get_width(lstate: *mut lua_State) 
             if lua_gettop(lstate) != 1 {
                 api_set_error_str(
                     &mut err,
-                    ErrorType::kErrorTypeValidation,
+                    ErrorType::ErrorTypeValidation,
                     c"Expected 1 argument",
                 );
                 break 'exit_0;
@@ -23580,7 +23580,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_win_get_width(lstate: *mut lua_State) 
                 return nlua_fast_api_disabled_error(lstate, c"nvim_win_get_width");
             }
             arg1 = nlua_pop_Window(lstate, &mut arena, &mut err);
-            if err.err_type != ErrorType::kErrorTypeNone {
+            if err.err_type != ErrorType::ErrorTypeNone {
                 err_param = Some(c"win");
                 break 'exit_0;
             }
@@ -23606,7 +23606,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_win_get_var(lstate: *mut lua_State) ->
                 if lua_gettop(lstate) != 2 {
                     api_set_error_str(
                         &mut err,
-                        ErrorType::kErrorTypeValidation,
+                        ErrorType::ErrorTypeValidation,
                         c"Expected 2 arguments",
                     );
                     break 'exit_0;
@@ -23615,12 +23615,12 @@ unsafe extern "C-unwind" fn nlua_api_nvim_win_get_var(lstate: *mut lua_State) ->
                     return nlua_fast_api_disabled_error(lstate, c"nvim_win_get_var");
                 }
                 arg2 = nlua_pop_String(lstate, &mut arena, &mut err);
-                if err.err_type != ErrorType::kErrorTypeNone {
+                if err.err_type != ErrorType::ErrorTypeNone {
                     err_param = Some(c"name");
                     break 'exit_0;
                 }
                 arg1 = nlua_pop_Window(lstate, &mut arena, &mut err);
-                if err.err_type != ErrorType::kErrorTypeNone {
+                if err.err_type != ErrorType::ErrorTypeNone {
                     err_param = Some(c"win");
                     break 'exit_1;
                 }
@@ -23649,7 +23649,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_win_set_var(lstate: *mut lua_State) ->
                     if lua_gettop(lstate) != 3 {
                         api_set_error_str(
                             &mut err,
-                            ErrorType::kErrorTypeValidation,
+                            ErrorType::ErrorTypeValidation,
                             c"Expected 3 arguments",
                         );
                         break 'exit_0;
@@ -23658,17 +23658,17 @@ unsafe extern "C-unwind" fn nlua_api_nvim_win_set_var(lstate: *mut lua_State) ->
                         return nlua_fast_api_disabled_error(lstate, c"nvim_win_set_var");
                     }
                     arg3 = nlua_pop_Object(lstate, true, &mut arena, &mut err);
-                    if err.err_type != ErrorType::kErrorTypeNone {
+                    if err.err_type != ErrorType::ErrorTypeNone {
                         err_param = Some(c"value");
                         break 'exit_0;
                     }
                     arg2 = nlua_pop_String(lstate, &mut arena, &mut err);
-                    if err.err_type != ErrorType::kErrorTypeNone {
+                    if err.err_type != ErrorType::ErrorTypeNone {
                         err_param = Some(c"name");
                         break 'exit_1;
                     }
                     arg1 = nlua_pop_Window(lstate, &mut arena, &mut err);
-                    if err.err_type != ErrorType::kErrorTypeNone {
+                    if err.err_type != ErrorType::ErrorTypeNone {
                         err_param = Some(c"win");
                         break 'exit_2;
                     }
@@ -23696,7 +23696,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_win_del_var(lstate: *mut lua_State) ->
                 if lua_gettop(lstate) != 2 {
                     api_set_error_str(
                         &mut err,
-                        ErrorType::kErrorTypeValidation,
+                        ErrorType::ErrorTypeValidation,
                         c"Expected 2 arguments",
                     );
                     break 'exit_0;
@@ -23705,12 +23705,12 @@ unsafe extern "C-unwind" fn nlua_api_nvim_win_del_var(lstate: *mut lua_State) ->
                     return nlua_fast_api_disabled_error(lstate, c"nvim_win_del_var");
                 }
                 arg2 = nlua_pop_String(lstate, &mut arena, &mut err);
-                if err.err_type != ErrorType::kErrorTypeNone {
+                if err.err_type != ErrorType::ErrorTypeNone {
                     err_param = Some(c"name");
                     break 'exit_0;
                 }
                 arg1 = nlua_pop_Window(lstate, &mut arena, &mut err);
-                if err.err_type != ErrorType::kErrorTypeNone {
+                if err.err_type != ErrorType::ErrorTypeNone {
                     err_param = Some(c"win");
                     break 'exit_1;
                 }
@@ -23734,7 +23734,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_win_get_position(lstate: *mut lua_Stat
             if lua_gettop(lstate) != 1 {
                 api_set_error_str(
                     &mut err,
-                    ErrorType::kErrorTypeValidation,
+                    ErrorType::ErrorTypeValidation,
                     c"Expected 1 argument",
                 );
                 break 'exit_0;
@@ -23743,7 +23743,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_win_get_position(lstate: *mut lua_Stat
                 return nlua_fast_api_disabled_error(lstate, c"nvim_win_get_position");
             }
             arg1 = nlua_pop_Window(lstate, &mut arena, &mut err);
-            if err.err_type != ErrorType::kErrorTypeNone {
+            if err.err_type != ErrorType::ErrorTypeNone {
                 err_param = Some(c"win");
                 break 'exit_0;
             }
@@ -23767,7 +23767,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_win_get_tabpage(lstate: *mut lua_State
             if lua_gettop(lstate) != 1 {
                 api_set_error_str(
                     &mut err,
-                    ErrorType::kErrorTypeValidation,
+                    ErrorType::ErrorTypeValidation,
                     c"Expected 1 argument",
                 );
                 break 'exit_0;
@@ -23776,7 +23776,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_win_get_tabpage(lstate: *mut lua_State
                 return nlua_fast_api_disabled_error(lstate, c"nvim_win_get_tabpage");
             }
             arg1 = nlua_pop_Window(lstate, &mut arena, &mut err);
-            if err.err_type != ErrorType::kErrorTypeNone {
+            if err.err_type != ErrorType::ErrorTypeNone {
                 err_param = Some(c"win");
                 break 'exit_0;
             }
@@ -23800,7 +23800,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_win_get_number(lstate: *mut lua_State)
             if lua_gettop(lstate) != 1 {
                 api_set_error_str(
                     &mut err,
-                    ErrorType::kErrorTypeValidation,
+                    ErrorType::ErrorTypeValidation,
                     c"Expected 1 argument",
                 );
                 break 'exit_0;
@@ -23809,7 +23809,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_win_get_number(lstate: *mut lua_State)
                 return nlua_fast_api_disabled_error(lstate, c"nvim_win_get_number");
             }
             arg1 = nlua_pop_Window(lstate, &mut arena, &mut err);
-            if err.err_type != ErrorType::kErrorTypeNone {
+            if err.err_type != ErrorType::ErrorTypeNone {
                 err_param = Some(c"win");
                 break 'exit_0;
             }
@@ -23833,7 +23833,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_win_is_valid(lstate: *mut lua_State) -
             if lua_gettop(lstate) != 1 {
                 api_set_error_str(
                     &mut err,
-                    ErrorType::kErrorTypeValidation,
+                    ErrorType::ErrorTypeValidation,
                     c"Expected 1 argument",
                 );
                 break 'exit_0;
@@ -23842,7 +23842,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_win_is_valid(lstate: *mut lua_State) -
                 return nlua_fast_api_disabled_error(lstate, c"nvim_win_is_valid");
             }
             arg1 = nlua_pop_Window(lstate, &mut arena, &mut err);
-            if err.err_type != ErrorType::kErrorTypeNone {
+            if err.err_type != ErrorType::ErrorTypeNone {
                 err_param = Some(c"win");
                 break 'exit_0;
             }
@@ -23866,7 +23866,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_win_hide(lstate: *mut lua_State) -> c_
             if lua_gettop(lstate) != 1 {
                 api_set_error_str(
                     &mut err,
-                    ErrorType::kErrorTypeValidation,
+                    ErrorType::ErrorTypeValidation,
                     c"Expected 1 argument",
                 );
                 break 'exit_0;
@@ -23877,13 +23877,13 @@ unsafe extern "C-unwind" fn nlua_api_nvim_win_hide(lstate: *mut lua_State) -> c_
             if text_locked() {
                 api_set_error_str(
                     &mut err,
-                    ErrorType::kErrorTypeException,
+                    ErrorType::ErrorTypeException,
                     get_text_locked_msg(),
                 );
                 break 'exit_0;
             }
             arg1 = nlua_pop_Window(lstate, &mut arena, &mut err);
-            if err.err_type != ErrorType::kErrorTypeNone {
+            if err.err_type != ErrorType::ErrorTypeNone {
                 err_param = Some(c"win");
                 break 'exit_0;
             }
@@ -23908,7 +23908,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_win_close(lstate: *mut lua_State) -> c
                 if lua_gettop(lstate) != 2 {
                     api_set_error_str(
                         &mut err,
-                        ErrorType::kErrorTypeValidation,
+                        ErrorType::ErrorTypeValidation,
                         c"Expected 2 arguments",
                     );
                     break 'exit_0;
@@ -23919,18 +23919,18 @@ unsafe extern "C-unwind" fn nlua_api_nvim_win_close(lstate: *mut lua_State) -> c
                 if text_locked() {
                     api_set_error_str(
                         &mut err,
-                        ErrorType::kErrorTypeException,
+                        ErrorType::ErrorTypeException,
                         get_text_locked_msg(),
                     );
                     break 'exit_0;
                 }
                 arg2 = nlua_pop_Boolean(lstate, &mut arena, &mut err);
-                if err.err_type != ErrorType::kErrorTypeNone {
+                if err.err_type != ErrorType::ErrorTypeNone {
                     err_param = Some(c"force");
                     break 'exit_0;
                 }
                 arg1 = nlua_pop_Window(lstate, &mut arena, &mut err);
-                if err.err_type != ErrorType::kErrorTypeNone {
+                if err.err_type != ErrorType::ErrorTypeNone {
                     err_param = Some(c"win");
                     break 'exit_1;
                 }
@@ -23956,7 +23956,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_win_call(lstate: *mut lua_State) -> c_
                 if lua_gettop(lstate) != 2 {
                     api_set_error_str(
                         &mut err,
-                        ErrorType::kErrorTypeValidation,
+                        ErrorType::ErrorTypeValidation,
                         c"Expected 2 arguments",
                     );
                     break 'exit_0;
@@ -23965,12 +23965,12 @@ unsafe extern "C-unwind" fn nlua_api_nvim_win_call(lstate: *mut lua_State) -> c_
                     return nlua_fast_api_disabled_error(lstate, c"nvim_win_call");
                 }
                 arg2 = nlua_pop_LuaRef(lstate, &mut arena, &mut err);
-                if err.err_type != ErrorType::kErrorTypeNone {
+                if err.err_type != ErrorType::ErrorTypeNone {
                     err_param = Some(c"fn");
                     break 'exit_0;
                 }
                 arg1 = nlua_pop_Window(lstate, &mut arena, &mut err);
-                if err.err_type != ErrorType::kErrorTypeNone {
+                if err.err_type != ErrorType::ErrorTypeNone {
                     err_param = Some(c"win");
                     break 'exit_1;
                 }
@@ -23998,7 +23998,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_win_set_hl_ns(lstate: *mut lua_State) 
                 if lua_gettop(lstate) != 2 {
                     api_set_error_str(
                         &mut err,
-                        ErrorType::kErrorTypeValidation,
+                        ErrorType::ErrorTypeValidation,
                         c"Expected 2 arguments",
                     );
                     break 'exit_0;
@@ -24007,12 +24007,12 @@ unsafe extern "C-unwind" fn nlua_api_nvim_win_set_hl_ns(lstate: *mut lua_State) 
                     return nlua_fast_api_disabled_error(lstate, c"nvim_win_set_hl_ns");
                 }
                 arg2 = nlua_pop_Integer(lstate, &mut arena, &mut err);
-                if err.err_type != ErrorType::kErrorTypeNone {
+                if err.err_type != ErrorType::ErrorTypeNone {
                     err_param = Some(c"ns_id");
                     break 'exit_0;
                 }
                 arg1 = nlua_pop_Window(lstate, &mut arena, &mut err);
-                if err.err_type != ErrorType::kErrorTypeNone {
+                if err.err_type != ErrorType::ErrorTypeNone {
                     err_param = Some(c"win");
                     break 'exit_1;
                 }
@@ -24038,7 +24038,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_win_text_height(lstate: *mut lua_State
                 if lua_gettop(lstate) < 1 || lua_gettop(lstate) > 2 {
                     api_set_error_str(
                         &mut err,
-                        ErrorType::kErrorTypeValidation,
+                        ErrorType::ErrorTypeValidation,
                         c"Expected 1 to 2 arguments",
                     );
                     break 'exit_0;
@@ -24055,12 +24055,12 @@ unsafe extern "C-unwind" fn nlua_api_nvim_win_text_height(lstate: *mut lua_State
                         &mut arena,
                         &mut err,
                     );
-                    if err.err_type != ErrorType::kErrorTypeNone {
+                    if err.err_type != ErrorType::ErrorTypeNone {
                         break 'exit_1;
                     }
                 }
                 arg1 = nlua_pop_Window(lstate, &mut arena, &mut err);
-                if err.err_type != ErrorType::kErrorTypeNone {
+                if err.err_type != ErrorType::ErrorTypeNone {
                     err_param = Some(c"win");
                     break 'exit_1;
                 }
@@ -24095,7 +24095,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_win_resize(lstate: *mut lua_State) -> 
                         if lua_gettop(lstate) < 3 || lua_gettop(lstate) > 4 {
                             api_set_error_str(
                                 &mut err,
-                                ErrorType::kErrorTypeValidation,
+                                ErrorType::ErrorTypeValidation,
                                 c"Expected 3 to 4 arguments",
                             );
                             break 'exit_0;
@@ -24112,22 +24112,22 @@ unsafe extern "C-unwind" fn nlua_api_nvim_win_resize(lstate: *mut lua_State) -> 
                                 &mut arena,
                                 &mut err,
                             );
-                            if err.err_type != ErrorType::kErrorTypeNone {
+                            if err.err_type != ErrorType::ErrorTypeNone {
                                 break 'exit_1;
                             }
                         }
                         arg3 = nlua_pop_Integer(lstate, &mut arena, &mut err);
-                        if err.err_type != ErrorType::kErrorTypeNone {
+                        if err.err_type != ErrorType::ErrorTypeNone {
                             err_param = Some(c"height");
                             break 'exit_1;
                         }
                         arg2 = nlua_pop_Integer(lstate, &mut arena, &mut err);
-                        if err.err_type != ErrorType::kErrorTypeNone {
+                        if err.err_type != ErrorType::ErrorTypeNone {
                             err_param = Some(c"width");
                             break 'exit_2;
                         }
                         arg1 = nlua_pop_Window(lstate, &mut arena, &mut err);
-                        if err.err_type != ErrorType::kErrorTypeNone {
+                        if err.err_type != ErrorType::ErrorTypeNone {
                             err_param = Some(c"win");
                             break 'exit_3;
                         }

@@ -758,27 +758,27 @@ pub static opt_briopt_values: [&std::ffi::CStr; 5] = [
 pub static opt_briopt_schema: [OptSchemaItem; 5] = [
     OptSchemaItem {
         name: c"shift",
-        kind: OptSchemaKind::kOptSchemaSNum,
+        kind: OptSchemaKind::OptSchemaSNum,
         enum_values: &[],
     },
     OptSchemaItem {
         name: c"min",
-        kind: OptSchemaKind::kOptSchemaNum,
+        kind: OptSchemaKind::OptSchemaNum,
         enum_values: &[],
     },
     OptSchemaItem {
         name: c"sbr",
-        kind: OptSchemaKind::kOptSchemaFlag,
+        kind: OptSchemaKind::OptSchemaFlag,
         enum_values: &[],
     },
     OptSchemaItem {
         name: c"list",
-        kind: OptSchemaKind::kOptSchemaSNum,
+        kind: OptSchemaKind::OptSchemaSNum,
         enum_values: &[],
     },
     OptSchemaItem {
         name: c"column",
-        kind: OptSchemaKind::kOptSchemaSNum,
+        kind: OptSchemaKind::OptSchemaSNum,
         enum_values: &[],
     },
 ];
@@ -875,97 +875,97 @@ pub static opt_dip_inline_values: [&std::ffi::CStr; 4] = [
 pub static opt_dip_schema: [OptSchemaItem; 19] = [
     OptSchemaItem {
         name: c"filler",
-        kind: OptSchemaKind::kOptSchemaFlag,
+        kind: OptSchemaKind::OptSchemaFlag,
         enum_values: &[],
     },
     OptSchemaItem {
         name: c"anchor",
-        kind: OptSchemaKind::kOptSchemaFlag,
+        kind: OptSchemaKind::OptSchemaFlag,
         enum_values: &[],
     },
     OptSchemaItem {
         name: c"context",
-        kind: OptSchemaKind::kOptSchemaNum,
+        kind: OptSchemaKind::OptSchemaNum,
         enum_values: &[],
     },
     OptSchemaItem {
         name: c"iblank",
-        kind: OptSchemaKind::kOptSchemaFlag,
+        kind: OptSchemaKind::OptSchemaFlag,
         enum_values: &[],
     },
     OptSchemaItem {
         name: c"icase",
-        kind: OptSchemaKind::kOptSchemaFlag,
+        kind: OptSchemaKind::OptSchemaFlag,
         enum_values: &[],
     },
     OptSchemaItem {
         name: c"iwhite",
-        kind: OptSchemaKind::kOptSchemaFlag,
+        kind: OptSchemaKind::OptSchemaFlag,
         enum_values: &[],
     },
     OptSchemaItem {
         name: c"iwhiteall",
-        kind: OptSchemaKind::kOptSchemaFlag,
+        kind: OptSchemaKind::OptSchemaFlag,
         enum_values: &[],
     },
     OptSchemaItem {
         name: c"iwhiteeol",
-        kind: OptSchemaKind::kOptSchemaFlag,
+        kind: OptSchemaKind::OptSchemaFlag,
         enum_values: &[],
     },
     OptSchemaItem {
         name: c"horizontal",
-        kind: OptSchemaKind::kOptSchemaFlag,
+        kind: OptSchemaKind::OptSchemaFlag,
         enum_values: &[],
     },
     OptSchemaItem {
         name: c"vertical",
-        kind: OptSchemaKind::kOptSchemaFlag,
+        kind: OptSchemaKind::OptSchemaFlag,
         enum_values: &[],
     },
     OptSchemaItem {
         name: c"closeoff",
-        kind: OptSchemaKind::kOptSchemaFlag,
+        kind: OptSchemaKind::OptSchemaFlag,
         enum_values: &[],
     },
     OptSchemaItem {
         name: c"hiddenoff",
-        kind: OptSchemaKind::kOptSchemaFlag,
+        kind: OptSchemaKind::OptSchemaFlag,
         enum_values: &[],
     },
     OptSchemaItem {
         name: c"foldcolumn",
-        kind: OptSchemaKind::kOptSchemaNum,
+        kind: OptSchemaKind::OptSchemaNum,
         enum_values: &[],
     },
     OptSchemaItem {
         name: c"followwrap",
-        kind: OptSchemaKind::kOptSchemaFlag,
+        kind: OptSchemaKind::OptSchemaFlag,
         enum_values: &[],
     },
     OptSchemaItem {
         name: c"internal",
-        kind: OptSchemaKind::kOptSchemaFlag,
+        kind: OptSchemaKind::OptSchemaFlag,
         enum_values: &[],
     },
     OptSchemaItem {
         name: c"indent-heuristic",
-        kind: OptSchemaKind::kOptSchemaFlag,
+        kind: OptSchemaKind::OptSchemaFlag,
         enum_values: &[],
     },
     OptSchemaItem {
         name: c"algorithm",
-        kind: OptSchemaKind::kOptSchemaEnum,
+        kind: OptSchemaKind::OptSchemaEnum,
         enum_values: &opt_dip_algorithm_values,
     },
     OptSchemaItem {
         name: c"inline",
-        kind: OptSchemaKind::kOptSchemaEnum,
+        kind: OptSchemaKind::OptSchemaEnum,
         enum_values: &opt_dip_inline_values,
     },
     OptSchemaItem {
         name: c"linematch",
-        kind: OptSchemaKind::kOptSchemaNum,
+        kind: OptSchemaKind::OptSchemaNum,
         enum_values: &[],
     },
 ];
@@ -1045,37 +1045,37 @@ pub static opt_mopt_progress_values: [&std::ffi::CStr; 2] = [c"", c"c"];
 pub static opt_mopt_schema: [OptSchemaItem; 7] = [
     OptSchemaItem {
         name: c"hit-enter",
-        kind: OptSchemaKind::kOptSchemaFlag,
+        kind: OptSchemaKind::OptSchemaFlag,
         enum_values: &[],
     },
     OptSchemaItem {
         name: c"history",
-        kind: OptSchemaKind::kOptSchemaNum,
+        kind: OptSchemaKind::OptSchemaNum,
         enum_values: &[],
     },
     OptSchemaItem {
         name: c"maxheight",
-        kind: OptSchemaKind::kOptSchemaNum,
+        kind: OptSchemaKind::OptSchemaNum,
         enum_values: &[],
     },
     OptSchemaItem {
         name: c"pager",
-        kind: OptSchemaKind::kOptSchemaStr,
+        kind: OptSchemaKind::OptSchemaStr,
         enum_values: &[],
     },
     OptSchemaItem {
         name: c"progress",
-        kind: OptSchemaKind::kOptSchemaEnum,
+        kind: OptSchemaKind::OptSchemaEnum,
         enum_values: &opt_mopt_progress_values,
     },
     OptSchemaItem {
         name: c"timeout",
-        kind: OptSchemaKind::kOptSchemaNum,
+        kind: OptSchemaKind::OptSchemaNum,
         enum_values: &[],
     },
     OptSchemaItem {
         name: c"wait",
-        kind: OptSchemaKind::kOptSchemaNum,
+        kind: OptSchemaKind::OptSchemaNum,
         enum_values: &[],
     },
 ];
@@ -1087,12 +1087,12 @@ pub static opt_mousescroll_values: [&std::ffi::CStr; 2] = [c"hor:", c"ver:"];
 pub static opt_mousescroll_schema: [OptSchemaItem; 2] = [
     OptSchemaItem {
         name: c"hor",
-        kind: OptSchemaKind::kOptSchemaNum,
+        kind: OptSchemaKind::OptSchemaNum,
         enum_values: &[],
     },
     OptSchemaItem {
         name: c"ver",
-        kind: OptSchemaKind::kOptSchemaNum,
+        kind: OptSchemaKind::OptSchemaNum,
         enum_values: &[],
     },
 ];
@@ -1118,17 +1118,17 @@ pub static opt_pvp_border_values: [&std::ffi::CStr; 7] = [
 pub static opt_pvp_schema: [OptSchemaItem; 3] = [
     OptSchemaItem {
         name: c"height",
-        kind: OptSchemaKind::kOptSchemaNum,
+        kind: OptSchemaKind::OptSchemaNum,
         enum_values: &[],
     },
     OptSchemaItem {
         name: c"width",
-        kind: OptSchemaKind::kOptSchemaNum,
+        kind: OptSchemaKind::OptSchemaNum,
         enum_values: &[],
     },
     OptSchemaItem {
         name: c"border",
-        kind: OptSchemaKind::kOptSchemaEnum,
+        kind: OptSchemaKind::OptSchemaEnum,
         enum_values: &opt_pvp_border_values,
     },
 ];

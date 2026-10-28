@@ -138,11 +138,11 @@ pub(crate) const Ctrl_I: c_int = 9;
 
 pub(crate) const kWinInfo: WinKind = 1;
 
-const VAR_UNKNOWN: VarType = VarType::VAR_UNKNOWN;
-const VAR_NUMBER: VarType = VarType::VAR_NUMBER;
-pub(crate) const VAR_STRING: VarType = VarType::VAR_STRING;
-const VAR_LIST: VarType = VarType::VAR_LIST;
-const VAR_DICT: VarType = VarType::VAR_DICT;
+const VarUnknown: VarType = VarType::VarUnknown;
+const VarNumber: VarType = VarType::VarNumber;
+pub(crate) const VarString: VarType = VarType::VarString;
+const VarList: VarType = VarType::VarList;
+const VarDict: VarType = VarType::VarDict;
 
 pub(crate) const kOptComplete: OptIndex = 51;
 
@@ -3325,9 +3325,9 @@ fn expand_by_function(type_: c_int, base: *mut c_char, mut cb: *mut Callback) {
         }
 
         let mut args: [TypVal; 3] = [TypVal::new(); 3];
-        args[0].v_type = VAR_NUMBER;
-        args[1].v_type = VAR_STRING;
-        args[2].v_type = VAR_UNKNOWN;
+        args[0].v_type = VarNumber;
+        args[1].v_type = VarString;
+        args[2].v_type = VarUnknown;
         args[0].vval = crate::eval::typval::TypvalVval::Number(0);
         args[1].vval = crate::eval::typval::TypvalVval::String(if !base.is_null() {
             base
@@ -3347,10 +3347,10 @@ fn expand_by_function(type_: c_int, base: *mut c_char, mut cb: *mut Callback) {
         }
         if called {
             match rettv.v_type {
-                VAR_LIST => {
+                VarList => {
                     matchlist = rettv.vval.v_list();
                 }
-                VAR_DICT => {
+                VarDict => {
                     matchdict = rettv.vval.v_dict();
                 }
                 _ => {
@@ -3403,9 +3403,9 @@ fn ins_compl_add_tv(tv: &mut TypVal, dir: Direction, fast: bool) -> c_int {
         let mut commit_chars: Option<std::ffi::CString> = None;
         let mut user_hl: [c_int; 2] = [0, 0];
         let mut user_data: TypVal = TypVal::new();
-        user_data.v_type = VAR_UNKNOWN;
+        user_data.v_type = VarUnknown;
 
-        if tv.v_type == VAR_DICT && !tv.vval.v_dict().is_null() {
+        if tv.v_type == VarDict && !tv.vval.v_dict().is_null() {
             let d = tv.vval.v_dict();
             word = tv_dict_get_string(d.as_ref(), c"word");
             cptext[CPT_ABBR] = crate::eval::typval::tv_dict_get_cstring(d.as_ref(), c"abbr");
@@ -3482,7 +3482,7 @@ fn ins_compl_add_dict(dict: &mut TvDict) {
     unsafe {
         insexp().compl_opt_refresh_always = false;
         let di_refresh = tv_dict_find(Some(dict), c"refresh", 7);
-        if !di_refresh.is_null() && (*di_refresh).di_tv.v_type == VAR_STRING {
+        if !di_refresh.is_null() && (*di_refresh).di_tv.v_type == VarString {
             let v = (*di_refresh).di_tv.vval.v_string();
             if !v.is_null() && crate::memory::cstr_as_bytes(v) == b"always" {
                 insexp().compl_opt_refresh_always = true;
@@ -3490,7 +3490,7 @@ fn ins_compl_add_dict(dict: &mut TvDict) {
         }
 
         let di_words = tv_dict_find(Some(dict), c"words", 5);
-        if !di_words.is_null() && (*di_words).di_tv.v_type == VAR_LIST {
+        if !di_words.is_null() && (*di_words).di_tv.v_type == VarList {
             ins_compl_add_list(((*di_words).di_tv.vval.v_list()).as_ref());
         }
     }
@@ -3618,7 +3618,7 @@ pub fn f_complete(argvars: &mut [TypVal], _rettv: &mut TypVal, _fptr: EvalFuncDa
             return;
         }
 
-        if argvars[1].v_type != VAR_LIST {
+        if argvars[1].v_type != VarList {
             emsg(gettext(e_invarg));
         } else {
             let startcol = tv_get_number_chk(&argvars[0], None) as Colnr;
@@ -3783,7 +3783,7 @@ fn fill_complete_info_dict(di: &mut TvDict, match_: *mut Compl, add_match: bool)
         if let Some(ref commit_chars) = (*match_).cp_commit_chars {
             tv_dict_add_str(di, c"commit_chars", commit_chars.as_ptr());
         }
-        if (*match_).cp_user_data.v_type == VAR_UNKNOWN {
+        if (*match_).cp_user_data.v_type == VarUnknown {
             tv_dict_add_str_len(di, c"user_data", c"", 0);
         } else {
             tv_dict_add_tv(
@@ -3945,8 +3945,8 @@ pub fn f_complete_info(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFu
 
         let mut what_list: *mut TvList = ptr::null_mut();
 
-        if argvars[0].v_type != VAR_UNKNOWN {
-            if argvars[0].v_type != VAR_LIST {
+        if argvars[0].v_type != VarUnknown {
+            if argvars[0].v_type != VarList {
                 emsg(gettext(e_listreq));
                 return;
             }
@@ -6181,9 +6181,9 @@ fn get_userdefined_compl_info(
         }
 
         let mut args: [TypVal; 3] = [TypVal::new(); 3];
-        args[0].v_type = VAR_NUMBER;
-        args[1].v_type = VAR_STRING;
-        args[2].v_type = VAR_UNKNOWN;
+        args[0].v_type = VarNumber;
+        args[1].v_type = VarString;
+        args[2].v_type = VarUnknown;
         args[0].vval = crate::eval::typval::TypvalVval::Number(1);
         args[1].vval = crate::eval::typval::TypvalVval::String(c"".as_ptr().cast_mut());
 

@@ -36,7 +36,7 @@ use crate::drawscreen::{
 };
 use crate::errors::*;
 use crate::eval::buffer::prompt_invoke_callback;
-use crate::eval::funcs::{kMTCharWise, kMTLineWise, kMTUnknown};
+use crate::eval::funcs::{MTCharWise, MTLineWise, MTUnknown};
 use crate::eval::kMarkAll;
 use crate::eval::typval::{TypvalVval, VarType, tv_clear, TypVal, Varnumber};
 use crate::eval::vars::{VV_OP, set_reg_var, set_vcount, set_vim_var_string};
@@ -2759,7 +2759,7 @@ pub fn clearop(oap: &mut Oparg) {
 }
 
 pub fn clearopbeep(oap: &mut Oparg) {
-    if oap.op_type == OP_MCURSOR && oap.motion_type != kMTUnknown {
+    if oap.op_type == OP_MCURSOR && oap.motion_type != MTUnknown {
             return;
         }
         clearop(&mut *oap);
@@ -3473,7 +3473,7 @@ pub fn nv_screengo(
         let mut retval = true;
         let mut atend = false;
 
-        oap.motion_type = kMTCharWise;
+        oap.motion_type = MTCharWise;
         oap.inclusive = curwin_mut().w_curswant == MAXCOL;
 
         let col_off1 = win_col_off(curwin_ptr());
@@ -4146,7 +4146,7 @@ fn nv_colon(cap: &mut Cmdarg) {
         }
 
         if cap.oap_mut().op_type != OP_NOP {
-            cap.oap_mut().motion_type = kMTCharWise;
+            cap.oap_mut().motion_type = MTCharWise;
             cap.oap_mut().inclusive = false;
         } else if cap.count0 != 0 && !is_cmdkey && !is_lua {
             stuffcharReadbuff(b'.' as c_int);
@@ -4643,7 +4643,7 @@ fn nv_scroll(cap: &mut Cmdarg) {
         let mut n: c_int;
         let mut lnum: Linenr = 0;
 
-        cap.oap_mut().motion_type = kMTLineWise;
+        cap.oap_mut().motion_type = MTLineWise;
         setpcmark();
 
         if cap.cmdchar == b'L' as c_int {
@@ -4733,7 +4733,7 @@ fn nv_right(cap: &mut Cmdarg) {
             return;
         }
 
-        cap.oap_mut().motion_type = kMTCharWise;
+        cap.oap_mut().motion_type = MTCharWise;
         cap.oap_mut().inclusive = false;
         let mut past_line = g_st().Visual.active && crate::memory::cstr_first_byte(opt_vars().p_sel) != b'o';
 
@@ -4803,7 +4803,7 @@ fn nv_left(cap: &mut Cmdarg) {
             return;
         }
 
-        cap.oap_mut().motion_type = kMTCharWise;
+        cap.oap_mut().motion_type = MTCharWise;
         cap.oap_mut().inclusive = false;
         let mut n = cap.count1;
         while n > 0 {
@@ -4855,7 +4855,7 @@ fn nv_up(cap: &mut Cmdarg) {
             return;
         }
 
-        cap.oap_mut().motion_type = kMTLineWise;
+        cap.oap_mut().motion_type = MTLineWise;
         if !cursor_up(cap.count1, cap.oap_mut().op_type == OP_NOP) {
             clearopbeep(cap.oap_mut());
         } else if cap.arg != 0 {
@@ -4882,7 +4882,7 @@ fn nv_down(cap: &mut Cmdarg) {
                 g_st().restart_edit = b'a' as c_int;
             }
         } else {
-            cap.oap_mut().motion_type = kMTLineWise;
+            cap.oap_mut().motion_type = MTLineWise;
             if !cursor_down(cap.count1, cap.oap_mut().op_type == OP_NOP) {
                 clearopbeep(cap.oap_mut());
             } else if cap.arg != 0 {
@@ -4943,7 +4943,7 @@ fn nv_end(cap: &mut Cmdarg) {
 
 fn nv_dollar(cap: &mut Cmdarg) {
      {
-        cap.oap_mut().motion_type = kMTCharWise;
+        cap.oap_mut().motion_type = MTCharWise;
         cap.oap_mut().inclusive = true;
         if !virtual_active(curwin_mut())
             || gchar_cursor() != NUL as c_int
@@ -5043,7 +5043,7 @@ fn normal_search(
         let mut sia = SearchitArg::new();
         let prev_cursor = curwin_mut().w_cursor;
 
-        cap.oap_mut().motion_type = kMTCharWise;
+        cap.oap_mut().motion_type = MTCharWise;
         cap.oap_mut().inclusive = false;
         cap.oap_mut().use_reg_one = true;
         curwin_mut().w_set_curswant = true;
@@ -5066,7 +5066,7 @@ fn normal_search(
             clearop(cap.oap_mut());
         } else {
             if i == 2 {
-                cap.oap_mut().motion_type = kMTLineWise;
+                cap.oap_mut().motion_type = MTLineWise;
             }
             curwin_mut().w_cursor.coladd = 0;
             if cap.oap_mut().op_type == OP_NOP && (opt_vars().fdo_flags & kOptFdoFlagSearch) != 0 && g_st().KeyTyped {
@@ -5101,7 +5101,7 @@ fn nv_csearch(cap: &mut Cmdarg) {
 
         let t_cmd = cap.cmdchar == b't' as c_int || cap.cmdchar == b'T' as c_int;
 
-        cap.oap_mut().motion_type = kMTCharWise;
+        cap.oap_mut().motion_type = MTCharWise;
         if is_special(cap.nchar) || !searchc(cap, t_cmd) {
             clearopbeep(cap.oap_mut());
             if cursor_dec {
@@ -5271,7 +5271,7 @@ fn nv_bracket_block(cap: &mut Cmdarg, old_pos: &CursorPos) {
 
 fn nv_brackets(cap: &mut Cmdarg) {
     unsafe {
-        cap.oap_mut().motion_type = kMTCharWise;
+        cap.oap_mut().motion_type = MTCharWise;
         cap.oap_mut().inclusive = false;
         let old_pos = curwin_mut().w_cursor;
         curwin_mut().w_cursor.coladd = 0;
@@ -5425,7 +5425,7 @@ fn nv_brackets(cap: &mut Cmdarg) {
             } else {
                 let mut tv_args: [TypVal; 3] = [
                     TypVal {
-                        v_type: VarType::VAR_BOOL,
+                        v_type: VarType::VarBool,
                         v_lock: 0,
                         vval: TypvalVval::Bool(if cap.cmdchar == b']' as c_int {
                             kBoolVarTrue
@@ -5434,18 +5434,18 @@ fn nv_brackets(cap: &mut Cmdarg) {
                         }),
                     },
                     TypVal {
-                        v_type: VarType::VAR_NUMBER,
+                        v_type: VarType::VarNumber,
                         v_lock: 0,
                         vval: TypvalVval::Number(Varnumber::from(cap.count1)),
                     },
                     TypVal {
-                        v_type: VarType::VAR_UNKNOWN,
+                        v_type: VarType::VarUnknown,
                         v_lock: 0,
                         vval: TypvalVval::Number(0),
                     },
                 ];
                 let mut rettv = TypVal {
-                    v_type: VarType::VAR_UNKNOWN,
+                    v_type: VarType::VarUnknown,
                     v_lock: 0,
                     vval: TypvalVval::Number(0),
                 };
@@ -5455,7 +5455,7 @@ fn nv_brackets(cap: &mut Cmdarg) {
                     tv_args.as_mut_ptr(),
                     Some(&mut rettv),
                 );
-                if rettv.v_type != VarType::VAR_BOOL || rettv.vval.v_bool() != kBoolVarTrue {
+                if rettv.v_type != VarType::VarBool || rettv.vval.v_bool() != kBoolVarTrue {
                     clearopbeep(cap.oap_mut());
                 }
                 tv_clear(&mut rettv);
@@ -5530,7 +5530,7 @@ fn nv_percent(cap: &mut Cmdarg) {
             if cap.count0 > 100 {
                 clearopbeep(cap.oap_mut());
             } else {
-                cap.oap_mut().motion_type = kMTLineWise;
+                cap.oap_mut().motion_type = MTLineWise;
                 setpcmark();
                 if curbuf_mut().b_ml.ml_line_count >= 21_474_836 {
                     curwin_mut().w_cursor.lnum =
@@ -5555,7 +5555,7 @@ fn nv_percent(cap: &mut Cmdarg) {
                 }
             }
 
-            cap.oap_mut().motion_type = kMTCharWise;
+            cap.oap_mut().motion_type = MTCharWise;
             cap.oap_mut().use_reg_one = true;
             let pos = findmatchlimit(Some(cap.oap_mut()), NUL as c_int, flags, 0);
             if pos.is_null() {
@@ -5580,7 +5580,7 @@ fn nv_percent(cap: &mut Cmdarg) {
 
 fn nv_brace(cap: &mut Cmdarg) {
      {
-        cap.oap_mut().motion_type = kMTCharWise;
+        cap.oap_mut().motion_type = MTCharWise;
         cap.oap_mut().use_reg_one = true;
         cap.oap_mut().inclusive = false;
         curwin_mut().w_set_curswant = true;
@@ -5612,7 +5612,7 @@ fn nv_mark(cap: &mut Cmdarg) {
 
 fn nv_findpar(cap: &mut Cmdarg) {
      {
-        cap.oap_mut().motion_type = kMTCharWise;
+        cap.oap_mut().motion_type = MTCharWise;
         cap.oap_mut().inclusive = false;
         cap.oap_mut().use_reg_one = true;
         curwin_mut().w_set_curswant = true;
@@ -5978,9 +5978,9 @@ fn nv_mark_move_to(cap: &mut Cmdarg, flags: MarkMove, fm: &mut Fmark) -> MarkMov
             clearop(cap.oap_mut());
         }
         cap.oap_mut().motion_type = if (flags & kMarkBeginLine) != 0 {
-            kMTLineWise
+            MTLineWise
         } else {
-            kMTCharWise
+            MTCharWise
         };
         if cap.cmdchar == b'`' as c_int {
             cap.oap_mut().use_reg_one = true;
@@ -6368,7 +6368,7 @@ pub fn nv_g_home_m_cmd(cap: &mut Cmdarg) {
         let mut i: c_int;
         let flag = cap.nchar == b'^' as c_int;
 
-        cap.oap_mut().motion_type = kMTCharWise;
+        cap.oap_mut().motion_type = MTCharWise;
         cap.oap_mut().inclusive = false;
         if curwin_mut().w_onebuf_opt.wo_wrap != 0 && curwin_mut().w_view_width != 0 {
             let width1 = curwin_mut().w_view_width - win_col_off(curwin_ptr());
@@ -6422,7 +6422,7 @@ pub fn nv_g_home_m_cmd(cap: &mut Cmdarg) {
 
 fn nv_g_underscore_cmd(cap: &mut Cmdarg) {
     unsafe {
-        cap.oap_mut().motion_type = kMTCharWise;
+        cap.oap_mut().motion_type = MTCharWise;
         cap.oap_mut().inclusive = true;
         curwin_mut().w_curswant = MAXCOL;
         if !cursor_down(cap.count1 - 1, cap.oap_mut().op_type == OP_NOP) {
@@ -6453,7 +6453,7 @@ fn nv_g_dollar_cmd(cap: &mut Cmdarg) {
         let col_off = win_col_off(curwin_ptr());
         let flag = cap.nchar == K_END || cap.nchar == K_KEND;
 
-        (*oap).motion_type = kMTCharWise;
+        (*oap).motion_type = MTCharWise;
         (*oap).inclusive = true;
         if curwin_mut().w_onebuf_opt.wo_wrap != 0 && curwin_mut().w_view_width != 0 {
             curwin_mut().w_curswant = MAXCOL;
@@ -6573,7 +6573,7 @@ fn nv_g_cmd(cap: &mut Cmdarg) {
                     vim_beep(0);
                 } else {
                     let mut tv_args: [TypVal; 1] = [TypVal {
-                        v_type: VarType::VAR_UNKNOWN,
+                        v_type: VarType::VarUnknown,
                         v_lock: 0,
                         vval: TypvalVval::Number(0),
                     }];
@@ -6603,7 +6603,7 @@ fn nv_g_cmd(cap: &mut Cmdarg) {
             }
             c if c == b'j' as c_int || c == K_DOWN => {
                 let ok = if curwin_mut().w_onebuf_opt.wo_wrap == 0 {
-                    (*oap).motion_type = kMTLineWise;
+                    (*oap).motion_type = MTLineWise;
                     cursor_down(cap.count1, (*oap).op_type == OP_NOP)
                 } else {
                     nv_screengo(&mut *oap, FORWARD, cap.count1, false)
@@ -6614,7 +6614,7 @@ fn nv_g_cmd(cap: &mut Cmdarg) {
             }
             c if c == b'k' as c_int || c == K_UP => {
                 let ok = if curwin_mut().w_onebuf_opt.wo_wrap == 0 {
-                    (*oap).motion_type = kMTLineWise;
+                    (*oap).motion_type = MTLineWise;
                     cursor_up(cap.count1, (*oap).op_type == OP_NOP)
                 } else {
                     nv_screengo(&mut *oap, BACKWARD, cap.count1, false)
@@ -6635,7 +6635,7 @@ fn nv_g_cmd(cap: &mut Cmdarg) {
                 nv_g_home_m_cmd(cap);
             }
             c if c == b'M' as c_int => {
-                (*oap).motion_type = kMTCharWise;
+                (*oap).motion_type = MTCharWise;
                 (*oap).inclusive = false;
                 let i = linetabsize(curwin_mut(), curwin_mut().w_cursor.lnum);
                 if cap.count0 > 0 && cap.count0 <= 100 {
@@ -6660,7 +6660,7 @@ fn nv_g_cmd(cap: &mut Cmdarg) {
                 nv_ident(cap);
             }
             c if c == b'e' as c_int || c == b'E' as c_int => {
-                (*oap).motion_type = kMTCharWise;
+                (*oap).motion_type = MTCharWise;
                 curwin_mut().w_set_curswant = true;
                 (*oap).inclusive = true;
                 if !bckend_word(cap.count1, cap.nchar == b'E' as c_int, false) {
@@ -6941,7 +6941,7 @@ fn set_op_var(optype: c_int) {
 
 fn nv_lineop(cap: &mut Cmdarg) {
      {
-        cap.oap_mut().motion_type = kMTLineWise;
+        cap.oap_mut().motion_type = MTLineWise;
         if !cursor_down(cap.count1 - 1, cap.oap_mut().op_type == OP_NOP) {
             clearopbeep(cap.oap_mut());
         } else if (cap.oap_mut().op_type == OP_DELETE
@@ -6969,7 +6969,7 @@ fn nv_home(cap: &mut Cmdarg) {
 
 fn nv_pipe(cap: &mut Cmdarg) {
      {
-        cap.oap_mut().motion_type = kMTCharWise;
+        cap.oap_mut().motion_type = MTCharWise;
         cap.oap_mut().inclusive = false;
         curwin_mut().w_cursor.col = 0;
         curwin_mut().w_cursor.coladd = 0;
@@ -6986,7 +6986,7 @@ fn nv_pipe(cap: &mut Cmdarg) {
 
 fn nv_bck_word(cap: &mut Cmdarg) {
      {
-        cap.oap_mut().motion_type = kMTCharWise;
+        cap.oap_mut().motion_type = MTCharWise;
         cap.oap_mut().inclusive = false;
         curwin_mut().w_set_curswant = true;
         if !bck_word(cap.count1, cap.arg != 0, false) {
@@ -7016,7 +7016,7 @@ fn nv_wordcmd(cap: &mut Cmdarg) {
             }
         }
 
-        cap.oap_mut().motion_type = kMTCharWise;
+        cap.oap_mut().motion_type = MTCharWise;
         curwin_mut().w_set_curswant = true;
         let n = if word_end {
             end_word(cap.count1, cap.arg != 0, flag, false)
@@ -7060,7 +7060,7 @@ fn adjust_cursor(oap: &mut Oparg) {
 
 fn nv_beginline(cap: &mut Cmdarg) {
      {
-        cap.oap_mut().motion_type = kMTCharWise;
+        cap.oap_mut().motion_type = MTCharWise;
         cap.oap_mut().inclusive = false;
         beginline(cap.arg);
         if (opt_vars().fdo_flags & kOptFdoFlagHor) != 0 && g_st().KeyTyped && cap.oap_mut().op_type == OP_NOP {
@@ -7141,7 +7141,7 @@ fn nv_goto(cap: &mut Cmdarg) {
         } else {
             1
         };
-        cap.oap_mut().motion_type = kMTLineWise;
+        cap.oap_mut().motion_type = MTLineWise;
         setpcmark();
 
         if cap.count0 != 0 {
@@ -7417,12 +7417,12 @@ fn nv_q(cap: &mut Cmdarg) {
             let mut fc: [c_char; 2] = [cap.nchar as c_char, 0];
             let mut tv_args: [TypVal; 4] = [
                 TypVal {
-                    v_type: VarType::VAR_STRING,
+                    v_type: VarType::VarString,
                     v_lock: 0,
                     vval: TypvalVval::String(fc.as_mut_ptr()),
                 },
                 TypVal {
-                    v_type: VarType::VAR_STRING,
+                    v_type: VarType::VarString,
                     v_lock: 0,
                     vval: TypvalVval::String(if insert_range {
                         c"'<,'>".as_ptr().cast_mut()
@@ -7431,12 +7431,12 @@ fn nv_q(cap: &mut Cmdarg) {
                     }),
                 },
                 TypVal {
-                    v_type: VarType::VAR_NUMBER,
+                    v_type: VarType::VarNumber,
                     v_lock: 0,
                     vval: TypvalVval::Number(if insert_range { 5 } else { 1 }),
                 },
                 TypVal {
-                    v_type: VarType::VAR_UNKNOWN,
+                    v_type: VarType::VarUnknown,
                     v_lock: 0,
                     vval: TypvalVval::Number(0),
                 },

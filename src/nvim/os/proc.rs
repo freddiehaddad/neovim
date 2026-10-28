@@ -239,7 +239,7 @@ pub fn os_proc_info(pid: c_int, arena: &mut Arena) -> Dict {
                 &mut pinfo,
                 c"pid",
                 Object {
-                    obj_type: ObjectType::kObjectTypeInteger,
+                    obj_type: ObjectType::ObjectTypeInteger,
                     data: ObjectData::Integer(i64::from(pid)),
                 },
             );
@@ -247,7 +247,7 @@ pub fn os_proc_info(pid: c_int, arena: &mut Arena) -> Dict {
                 &mut pinfo,
                 c"ppid",
                 Object {
-                    obj_type: ObjectType::kObjectTypeInteger,
+                    obj_type: ObjectType::ObjectTypeInteger,
                     data: ObjectData::Integer(i64::from(pe.th32_parent_process_id as c_int)),
                 },
             );
@@ -264,7 +264,7 @@ pub fn os_proc_info(pid: c_int, arena: &mut Arena) -> Dict {
                 &mut pinfo,
                 c"name",
                 Object {
-                    obj_type: ObjectType::kObjectTypeString,
+                    obj_type: ObjectType::ObjectTypeString,
                     data: ObjectData::String(name_str),
                 },
             );

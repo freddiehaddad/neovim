@@ -48,12 +48,12 @@ const AL_SET: c_int = 1;
 const AL_ADD: c_int = 2;
 const AL_DEL: c_int = 3;
 
-const CMD_args: c_int = 7;
-pub(crate) const CMD_argdo: c_int = 10;
-const CMD_argglobal: c_int = 13;
-const CMD_arglocal: c_int = 14;
-const CMD_drop: c_int = 132;
-const CMD_snext: c_int = 420;
+const CmdArgs: c_int = 7;
+pub(crate) const CmdArgdo: c_int = 10;
+const CmdArgglobal: c_int = 13;
+const CmdArglocal: c_int = 14;
+const CmdDrop: c_int = 132;
+const CmdSnextVariant: c_int = 420;
 
 pub(crate) const CCGD_AW: c_int = 1;
 pub(crate) const CCGD_MULTWIN: c_int = 2;
@@ -527,11 +527,11 @@ pub fn check_arg_idx(win: &mut WinInfoInfo) {
 /// `:args`, `:arglocal` and `:argglobal` (`ex_args`).
 pub fn ex_args(eap: &mut Exarg) {
     unsafe {
-        if eap.cmdidx != CMD_args {
+        if eap.cmdidx != CmdArgs {
             if !check_arglist_locked() {
                 return;
             }
-            if eap.cmdidx == CMD_argglobal {
+            if eap.cmdidx == CmdArgglobal {
                 curwin_mut().w_alist = None;
             } else {
                 alist_new();
@@ -546,7 +546,7 @@ pub fn ex_args(eap: &mut Exarg) {
             return;
         }
 
-        if eap.cmdidx == CMD_args {
+        if eap.cmdidx == CmdArgs {
             let count = argcount();
             if count <= 0 {
                 return;
@@ -562,7 +562,7 @@ pub fn ex_args(eap: &mut Exarg) {
             return;
         }
 
-        if eap.cmdidx == CMD_arglocal {
+        if eap.cmdidx == CmdArglocal {
             let al = win_alist(curwin_mut());
             let gcount = gargcount() as usize;
             (*al).al_ga.reserve(gcount);
@@ -690,7 +690,7 @@ pub fn do_argfile(eap: &mut Exarg, argn: c_int) {
         )
         {
             curwin_mut().w_arg_idx = old_arg_idx;
-        } else if eap.cmdidx != CMD_argdo {
+        } else if eap.cmdidx != CmdArgdo {
             setmark(b'\'' as c_int);
         }
     }
@@ -700,7 +700,7 @@ pub fn do_argfile(eap: &mut Exarg, argn: c_int) {
 pub fn ex_next(eap: &mut Exarg) {
      {
         if buf_hide(curbuf_mut())
-            || eap.cmdidx == CMD_snext
+            || eap.cmdidx == CmdSnextVariant
             || !check_changed(
                 curbuf_mut(),
                 CCGD_AW | (if eap.forceit != 0 { CCGD_FORCEIT } else { 0 }) | CCGD_EXCMD,
@@ -1187,7 +1187,7 @@ pub fn ex_all(eap: &mut Exarg) {
     if eap.addr_count == 0 {
             eap.line2 = 9999;
         }
-        do_arg_all(eap.line2, eap.forceit, eap.cmdidx == CMD_drop);
+        do_arg_all(eap.line2, eap.forceit, eap.cmdidx == CmdDrop);
 }
 
 /// Concatenate all files in the argument list, separated by spaces (`arg_all`).
@@ -1220,9 +1220,9 @@ pub fn arg_all() -> CString {
 pub fn f_argc(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData){
 
      {
-        if argvars[0].v_type == VarType::VAR_UNKNOWN {
+        if argvars[0].v_type == VarType::VarUnknown {
             rettv.vval = crate::eval::typval::TypvalVval::Number(argcount() as Varnumber);
-        } else if argvars[0].v_type == VarType::VAR_NUMBER && tv_get_number(&argvars[0]) == -1 {
+        } else if argvars[0].v_type == VarType::VarNumber && tv_get_number(&argvars[0]) == -1 {
             rettv.vval = crate::eval::typval::TypvalVval::Number(gargcount() as Varnumber);
         } else {
             let wp = find_win_by_nr_or_id(&argvars[0]);
@@ -1272,15 +1272,15 @@ pub fn f_argv(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData){
         let mut al_ptr: *mut Aentry = ptr::null_mut();
         let mut count: c_int = -1;
 
-        if argvars[0].v_type == VarType::VAR_UNKNOWN {
+        if argvars[0].v_type == VarType::VarUnknown {
             get_arglist_as_rettv(arglist(), argcount(), rettv);
             return;
         }
 
-        if argvars[1].v_type == VarType::VAR_UNKNOWN {
+        if argvars[1].v_type == VarType::VarUnknown {
             al_ptr = arglist();
             count = argcount();
-        } else if argvars[1].v_type == VarType::VAR_NUMBER
+        } else if argvars[1].v_type == VarType::VarNumber
             && tv_get_number(&argvars[1]) == -1
         {
             al_ptr = garglist();

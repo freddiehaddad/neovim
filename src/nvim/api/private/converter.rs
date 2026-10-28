@@ -46,7 +46,7 @@ fn cbuf_to_string_obj(
         }
     };
     Object {
-        obj_type: ObjectType::kObjectTypeString,
+        obj_type: ObjectType::ObjectTypeString,
         data: ObjectData::String(s),
     }
 }
@@ -77,7 +77,7 @@ fn convert_one_value(
 ) {
     let tv = unsafe { &mut *tv };
     match tv.v_type {
-        VarType::VAR_STRING => {
+        VarType::VarString => {
             let s = tv.vval.v_string();
             let len = if s.is_null() {
                 0
@@ -86,21 +86,21 @@ fn convert_one_value(
             };
             stack.push(cbuf_to_string_obj(arena, reuse_strdata, s, len));
         }
-        VarType::VAR_NUMBER => {
+        VarType::VarNumber => {
             let n = tv.vval.v_number();
             stack.push(Object {
-                obj_type: ObjectType::kObjectTypeInteger,
+                obj_type: ObjectType::ObjectTypeInteger,
                 data: ObjectData::Integer(n),
             });
         }
-        VarType::VAR_FLOAT => {
+        VarType::VarFloat => {
             let f = tv.vval.v_float();
             stack.push(Object {
-                obj_type: ObjectType::kObjectTypeFloat,
+                obj_type: ObjectType::ObjectTypeFloat,
                 data: ObjectData::Floating(f),
             });
         }
-        VarType::VAR_BLOB => {
+        VarType::VarBlob => {
             let blob = tv.vval.v_blob();
             let (data, len) = if blob.is_null() || unsafe { (*blob).bv_ga.is_empty() } {
                 (c"".as_ptr(), 0usize)
@@ -109,14 +109,14 @@ fn convert_one_value(
             };
             stack.push(cbuf_to_string_obj(arena, reuse_strdata, data, len));
         }
-        VarType::VAR_FUNC => {
+        VarType::VarFunc => {
             let fun = tv.vval.v_string();
             let obj = unsafe {
                 if !fun.is_null() {
                     let fp = find_func(fun);
                     if !fp.is_null() && ((*fp).uf_flags & FC_LUAREF) != 0 {
                         Object {
-                            obj_type: ObjectType::kObjectTypeLuaRef,
+                            obj_type: ObjectType::ObjectTypeLuaRef,
                             data: ObjectData::LuaRef(api_new_luaref((*fp).uf_luaref)),
                         }
                     } else {
@@ -128,7 +128,7 @@ fn convert_one_value(
             };
             stack.push(obj);
         }
-        VarType::VAR_PARTIAL => {
+        VarType::VarPartial => {
             let pt = tv.vval.v_partial();
             let fun = if pt.is_null() {
                 std::ptr::null()
@@ -140,7 +140,7 @@ fn convert_one_value(
                     let fp = find_func(fun);
                     if !fp.is_null() && ((*fp).uf_flags & FC_LUAREF) != 0 {
                         Object {
-                            obj_type: ObjectType::kObjectTypeLuaRef,
+                            obj_type: ObjectType::ObjectTypeLuaRef,
                             data: ObjectData::LuaRef(api_new_luaref((*fp).uf_luaref)),
                         }
                     } else {
@@ -152,11 +152,11 @@ fn convert_one_value(
             };
             stack.push(obj);
         }
-        VarType::VAR_LIST => {
+        VarType::VarList => {
             let list = tv.vval.v_list();
             if list.is_null() || unsafe { (*list).lv_len == 0 } {
                 stack.push(Object {
-                    obj_type: ObjectType::kObjectTypeArray,
+                    obj_type: ObjectType::ObjectTypeArray,
                     data: ObjectData::Array(Array {
                             size: 0,
                             capacity: 0,
@@ -174,7 +174,7 @@ fn convert_one_value(
                 (*list).lv_copyID = copy_id;
                 let arr = arena_array_opt(arena, (*list).lv_len as usize);
                 stack.push(Object {
-                    obj_type: ObjectType::kObjectTypeArray,
+                    obj_type: ObjectType::ObjectTypeArray,
                     data: ObjectData::Array(arr),
                 });
                 mpstack.push(ConvStackEntry::List {
@@ -185,21 +185,21 @@ fn convert_one_value(
                 });
             }
         }
-        VarType::VAR_BOOL => {
+        VarType::VarBool => {
             let b = tv.vval.v_bool() == K_BOOL_VAR_TRUE as c_int;
             stack.push(Object {
-                obj_type: ObjectType::kObjectTypeBoolean,
+                obj_type: ObjectType::ObjectTypeBoolean,
                 data: ObjectData::Boolean(b),
             });
         }
-        VarType::VAR_SPECIAL => {
+        VarType::VarSpecial => {
             stack.push(nil_obj());
         }
-        VarType::VAR_DICT => {
+        VarType::VarDict => {
             let dict = tv.vval.v_dict();
             if dict.is_null() || unsafe { (*dict).dv_hashtab.ht_used == 0 } {
                 stack.push(Object {
-                    obj_type: ObjectType::kObjectTypeDict,
+                    obj_type: ObjectType::ObjectTypeDict,
                     data: ObjectData::Dict(Dict {
                             size: 0,
                             capacity: 0,
@@ -218,7 +218,7 @@ fn convert_one_value(
                 let used = (*dict).dv_hashtab.ht_used;
                 let d_obj = arena_dict_opt(arena, used);
                 stack.push(Object {
-                    obj_type: ObjectType::kObjectTypeDict,
+                    obj_type: ObjectType::ObjectTypeDict,
                     data: ObjectData::Dict(d_obj),
                 });
                 mpstack.push(ConvStackEntry::Dict {
@@ -230,7 +230,7 @@ fn convert_one_value(
                 });
             }
         }
-        VarType::VAR_UNKNOWN => {
+        VarType::VarUnknown => {
             stack.push(nil_obj());
         }
     }
@@ -240,7 +240,7 @@ fn convert_one_value(
 fn pop_into_parent_list(stack: &mut Vec<Object>) {
     let item = stack.pop().unwrap();
     let list_obj = stack.last_mut().unwrap();
-    debug_assert_eq!(list_obj.obj_type, ObjectType::kObjectTypeArray);
+    debug_assert_eq!(list_obj.obj_type, ObjectType::ObjectTypeArray);
     unsafe {
         let arr = list_obj.data.array_mut();
         debug_assert!(arr.size < arr.capacity);
@@ -253,7 +253,7 @@ fn pop_into_parent_list(stack: &mut Vec<Object>) {
 fn pop_into_parent_dict(stack: &mut Vec<Object>) {
     let val = stack.pop().unwrap();
     let dict_obj = stack.last_mut().unwrap();
-    debug_assert_eq!(dict_obj.obj_type, ObjectType::kObjectTypeDict);
+    debug_assert_eq!(dict_obj.obj_type, ObjectType::ObjectTypeDict);
     unsafe {
         let d = dict_obj.data.dict_mut();
         debug_assert!(d.size < d.capacity);
@@ -339,7 +339,7 @@ pub fn vim_to_object(
                         cbuf_to_string_obj(arena.as_deref_mut(), reuse_strdata, key_ptr, key_len);
 
                     let dict_obj = stack.last_mut().unwrap();
-                    debug_assert_eq!(dict_obj.obj_type, ObjectType::kObjectTypeDict);
+                    debug_assert_eq!(dict_obj.obj_type, ObjectType::ObjectTypeDict);
                     let d = dict_obj.data.dict_mut();
                     (*d.items.add(d.size)).key = key_obj.data.string();
 
@@ -375,42 +375,42 @@ pub fn object_to_vim_take_luaref(
     _err: &mut Error,
 ) {
     let tv_ref =  { tv };
-    tv_ref.v_type = VarType::VAR_UNKNOWN;
+    tv_ref.v_type = VarType::VarUnknown;
     tv_ref.v_lock = VAR_UNLOCKED;
 
     match obj.obj_type {
-        ObjectType::kObjectTypeUnset | ObjectType::kObjectTypeNil => {
-            tv_ref.v_type = VarType::VAR_SPECIAL;
+        ObjectType::ObjectTypeUnset | ObjectType::ObjectTypeNil => {
+            tv_ref.v_type = VarType::VarSpecial;
             tv_ref.vval = TypvalVval::Number(K_SPECIAL_VAR_NULL);
         }
-        ObjectType::kObjectTypeBoolean => {
+        ObjectType::ObjectTypeBoolean => {
             let b = obj.data.boolean();
-            tv_ref.v_type = VarType::VAR_BOOL;
+            tv_ref.v_type = VarType::VarBool;
             tv_ref.vval = TypvalVval::Number(if b { K_BOOL_VAR_TRUE } else { K_BOOL_VAR_FALSE });
         }
-        ObjectType::kObjectTypeBuffer
-        | ObjectType::kObjectTypeWindow
-        | ObjectType::kObjectTypeTabpage
-        | ObjectType::kObjectTypeInteger => {
+        ObjectType::ObjectTypeBuffer
+        | ObjectType::ObjectTypeWindow
+        | ObjectType::ObjectTypeTabpage
+        | ObjectType::ObjectTypeInteger => {
             let n = obj.data.integer();
-            tv_ref.v_type = VarType::VAR_NUMBER;
+            tv_ref.v_type = VarType::VarNumber;
             tv_ref.vval = TypvalVval::Number(n);
         }
-        ObjectType::kObjectTypeFloat => {
+        ObjectType::ObjectTypeFloat => {
             let f = obj.data.floating();
-            tv_ref.v_type = VarType::VAR_FLOAT;
+            tv_ref.v_type = VarType::VarFloat;
             tv_ref.vval = TypvalVval::Float(f);
         }
-        ObjectType::kObjectTypeString => {
+        ObjectType::ObjectTypeString => {
             let s = obj.data.string();
             *tv_ref = decode_string(s.data, s.size, false, false);
         }
-        ObjectType::kObjectTypeArray => unsafe {
+        ObjectType::ObjectTypeArray => unsafe {
             let arr = obj.data.array();
             let list = tv_list_alloc(arr.size as isize);
             for i in 0..arr.size {
                 let mut li_tv = TypVal {
-                    v_type: VarType::VAR_UNKNOWN,
+                    v_type: VarType::VarUnknown,
                     v_lock: VAR_UNLOCKED,
                     vval: TypvalVval::Number(0),
                 };
@@ -420,10 +420,10 @@ pub fn object_to_vim_take_luaref(
             if !list.is_null() {
                 (*list).lv_refcount += 1;
             }
-            tv_ref.v_type = VarType::VAR_LIST;
+            tv_ref.v_type = VarType::VarList;
             tv_ref.vval = TypvalVval::List(list);
         },
-        ObjectType::kObjectTypeDict => unsafe {
+        ObjectType::ObjectTypeDict => unsafe {
             let mut d = obj.data.dict();
             let dict = tv_dict_alloc();
             for item in d.as_mut_slice() {
@@ -432,10 +432,10 @@ pub fn object_to_vim_take_luaref(
                 tv_dict_add(&mut *dict, di);
             }
             (*dict).dv_refcount += 1;
-            tv_ref.v_type = VarType::VAR_DICT;
+            tv_ref.v_type = VarType::VarDict;
             tv_ref.vval = TypvalVval::Dict(dict);
         },
-        ObjectType::kObjectTypeLuaRef => {
+        ObjectType::ObjectTypeLuaRef => {
             let mut ref_id = obj.data.luaref();
             if take_luaref {
                 obj.data = ObjectData::LuaRef(LUA_NOREF);
@@ -444,7 +444,7 @@ pub fn object_to_vim_take_luaref(
             }
             let name = register_luafunc(ref_id);
             crate::eval::typval::tv_set_string(tv_ref, name);
-            tv_ref.v_type = VarType::VAR_FUNC;
+            tv_ref.v_type = VarType::VarFunc;
         }
     }
 }
@@ -459,63 +459,63 @@ mod tests {
             .lock()
             .unwrap_or_else(|e| e.into_inner());
         let mut tv = TypVal {
-            v_type: VarType::VAR_UNKNOWN,
+            v_type: VarType::VarUnknown,
             v_lock: 0,
             vval: TypvalVval::Number(0),
         };
         unsafe {
             object_to_vim(
                 Object {
-                    obj_type: ObjectType::kObjectTypeInteger,
+                    obj_type: ObjectType::ObjectTypeInteger,
                     data: ObjectData::Integer(99),
                 },
                 &mut tv,
                 &mut Error::new(),
             );
-            assert_eq!(tv.v_type, VarType::VAR_NUMBER);
+            assert_eq!(tv.v_type, VarType::VarNumber);
             assert_eq!(tv.vval.v_number(), 99);
 
             let obj = vim_to_object(&mut tv, None, false);
-            assert_eq!(obj.obj_type, ObjectType::kObjectTypeInteger);
+            assert_eq!(obj.obj_type, ObjectType::ObjectTypeInteger);
             assert_eq!(obj.data.integer(), 99);
 
             // NULL list -> empty Array, NULL dict -> empty Dict
             let mut null_list = TypVal {
-                v_type: VarType::VAR_LIST,
+                v_type: VarType::VarList,
                 v_lock: 0,
                 vval: TypvalVval::List(std::ptr::null_mut()),
             };
             let arr_obj = vim_to_object(&mut null_list, None, false);
-            assert_eq!(arr_obj.obj_type, ObjectType::kObjectTypeArray);
+            assert_eq!(arr_obj.obj_type, ObjectType::ObjectTypeArray);
             assert_eq!(arr_obj.data.array().size, 0);
 
             let mut null_dict = TypVal {
-                v_type: VarType::VAR_DICT,
+                v_type: VarType::VarDict,
                 v_lock: 0,
                 vval: TypvalVval::Dict(std::ptr::null_mut()),
             };
             let dict_obj = vim_to_object(&mut null_dict, None, false);
-            assert_eq!(dict_obj.obj_type, ObjectType::kObjectTypeDict);
+            assert_eq!(dict_obj.obj_type, ObjectType::ObjectTypeDict);
             assert_eq!(dict_obj.data.dict().size, 0);
 
             // Self-referencing list converts nested cycle to Nil
             let list = tv_list_alloc(1);
             (*list).lv_refcount += 1;
             let mut list_tv = TypVal {
-                v_type: VarType::VAR_LIST,
+                v_type: VarType::VarList,
                 v_lock: 0,
                 vval: TypvalVval::List(list),
             };
             tv_list_append_owned_tv( &mut *list, list_tv);
             let cyc_obj = vim_to_object(&mut list_tv, None, false);
-            assert_eq!(cyc_obj.obj_type, ObjectType::kObjectTypeArray);
+            assert_eq!(cyc_obj.obj_type, ObjectType::ObjectTypeArray);
             assert_eq!(cyc_obj.data.array().size, 1);
             assert_eq!(
                 (*cyc_obj.data.array().items).obj_type,
-                ObjectType::kObjectTypeNil
+                ObjectType::ObjectTypeNil
             );
             crate::api::private::helpers::api_free_object(cyc_obj);
-            (*(*list).lv_first).li_tv.v_type = VarType::VAR_UNKNOWN;
+            (*(*list).lv_first).li_tv.v_type = VarType::VarUnknown;
             crate::eval::typval::tv_list_free(list);
         }
     }

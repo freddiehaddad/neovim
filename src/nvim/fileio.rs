@@ -98,6 +98,7 @@ use std::ptr;
 use crate::os::os_win_console::os_open_conin_fd;
 
 pub type Off = i64;
+#[allow(non_camel_case_types)]
 pub type iconv_t = isize;
 pub type FILE = c_void;
 

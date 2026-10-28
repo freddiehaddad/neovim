@@ -23,32 +23,52 @@ const UV_EBUSY: c_int = -16;
 
 pub(crate) const NS_PER_SEC: u64 = 1_000_000_000;
 
+#[allow(non_camel_case_types)]
 pub type uv_loop_t = c_void;
+#[allow(non_camel_case_types)]
 pub type uv_handle_t = c_void;
+#[allow(non_camel_case_types)]
 pub type uv_signal_t = c_void;
+#[allow(non_camel_case_types)]
 pub type uv_timer_t = c_void;
+#[allow(non_camel_case_types)]
 pub type uv_async_t = c_void;
+#[allow(non_camel_case_types)]
 pub type uv_mutex_t = c_void;
+#[allow(non_camel_case_types)]
 pub type uv_connect_t = c_void;
+#[allow(non_camel_case_types)]
 pub type uv_fs_t = c_void;
 #[cfg(windows)]
+#[allow(non_camel_case_types)]
 pub type uv_uid_t = u8;
 #[cfg(not(windows))]
 pub type uv_uid_t = u32;
 #[cfg(windows)]
+#[allow(non_camel_case_types)]
 pub type uv_gid_t = u8;
 #[cfg(not(windows))]
 pub type uv_gid_t = u32;
+#[allow(non_camel_case_types)]
 pub type uv_thread_t = usize;
 
+#[allow(non_camel_case_types)]
 pub type uv_async_cb = Option<unsafe extern "C" fn(handle: *mut uv_async_t)>;
+#[allow(non_camel_case_types)]
 pub type uv_timer_cb = Option<unsafe extern "C" fn(handle: *mut uv_timer_t)>;
+#[allow(non_camel_case_types)]
 pub type uv_close_cb = Option<unsafe extern "C" fn(handle: *mut uv_handle_t)>;
+#[allow(non_camel_case_types)]
 pub type uv_walk_cb = Option<unsafe extern "C" fn(handle: *mut uv_handle_t, arg: *mut c_void)>;
+#[allow(non_camel_case_types)]
 pub type uv_signal_cb = Option<unsafe extern "C" fn(handle: *mut uv_signal_t, signum: c_int)>;
+#[allow(non_camel_case_types)]
 pub type uv_connect_cb = Option<unsafe extern "C" fn(req: *mut c_void, status: c_int)>;
+#[allow(non_camel_case_types)]
 pub type uv_write_cb = Option<unsafe extern "C" fn(req: *mut c_void, status: c_int)>;
+#[allow(non_camel_case_types)]
 pub type uv_fs_cb = Option<unsafe extern "C" fn(req: *mut uv_fs_t)>;
+#[allow(non_camel_case_types)]
 pub type uv_alloc_cb = Option<
     unsafe extern "C" fn(
         handle: *mut uv_handle_t,
@@ -56,6 +76,7 @@ pub type uv_alloc_cb = Option<
         buf: *mut crate::event::wstream::uv_buf_t,
     ),
 >;
+#[allow(non_camel_case_types)]
 pub type uv_read_cb = Option<
     unsafe extern "C" fn(
         stream: *mut crate::event::stream::uv_stream_t,
@@ -63,10 +84,13 @@ pub type uv_read_cb = Option<
         buf: *const crate::event::wstream::uv_buf_t,
     ),
 >;
+#[allow(non_camel_case_types)]
 pub type uv_idle_cb = Option<unsafe extern "C" fn(handle: *mut crate::event::stream::uv_idle_t)>;
+#[allow(non_camel_case_types)]
 pub type uv_connection_cb =
     Option<unsafe extern "C" fn(server: *mut crate::event::stream::uv_stream_t, status: c_int)>;
 #[cfg(windows)]
+#[allow(non_camel_case_types)]
 pub type uv_thread_cb = Option<unsafe extern "C" fn(arg: *mut c_void)>;
 
 #[repr(C)]

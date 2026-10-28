@@ -4,7 +4,7 @@ use std::ffi::{c_char, c_int};
 use std::ptr;
 
 use crate::mpack::mpack_core::{
-    MPACK_EOF, MPACK_ERROR, MPACK_OK, MPACK_TOKEN_CHUNK, MPACK_TOKEN_MAP, mpack_read,
+    MPACK_EOF, MPACK_ERROR, MPACK_OK, MpackTokenChunk, MpackTokenMap, mpack_read,
     MpackSintmax, mpack_tokbuf_init, MpackTokbuf, MpackToken, MpackUint32, mpack_write,
 };
 
@@ -431,15 +431,15 @@ fn mpack_parser_pop(parser: &mut MpackParser) -> *mut MpackNode {
         let top_idx = parser.size as usize;
         let top = &raw mut parser.items[top_idx];
 
-        if (*top).tok.r#type > MPACK_TOKEN_CHUNK && (*top).pos < ((*top).tok.length as usize) {
+        if (*top).tok.r#type > MpackTokenChunk && (*top).pos < ((*top).tok.length as usize) {
             return ptr::null_mut();
         }
 
         let parent = mpack_parent_node(top);
         if !parent.is_null() {
-            if (*top).tok.r#type == MPACK_TOKEN_CHUNK {
+            if (*top).tok.r#type == MpackTokenChunk {
                 (*parent).pos += (*top).tok.length as usize;
-            } else if (*parent).tok.r#type == MPACK_TOKEN_MAP {
+            } else if (*parent).tok.r#type == MpackTokenMap {
                 if (*parent).key_visited != 0 {
                     (*parent).pos += 1;
                 }

@@ -235,7 +235,7 @@ pub fn encode_read_from_list(
                 *p = NL as c_char;
                 p = p.add(1);
             }
-            if unsafe { (*state.li).li_tv.v_type } != VarType::VAR_STRING {
+            if unsafe { (*state.li).li_tv.v_type } != VarType::VarString {
                 *read_bytes = (p as usize) - (buf as usize);
                 return FAIL;
             }
@@ -261,7 +261,7 @@ pub fn encode_vim_list_to_buf(list: Option<&TvList>) -> Option<Vec<c_char>> {
     let mut len = 0usize;
     for li in crate::eval::typval::list_iter_mut(tv_list_first(list)) {
         let tv =  { &li.li_tv };
-        if tv.v_type != VarType::VAR_STRING {
+        if tv.v_type != VarType::VarString {
             return None;
         }
         len += 1;
@@ -288,10 +288,10 @@ pub fn encode_vim_list_to_buf(list: Option<&TvList>) -> Option<Vec<c_char>> {
 /// Check whether given key can be used in `json_encode()` (`encode_check_json_key`).
 pub fn encode_check_json_key(tv: &TypVal) -> bool {
     unsafe {
-        if tv.v_type == VarType::VAR_STRING {
+        if tv.v_type == VarType::VarString {
             return true;
         }
-        if tv.v_type != VarType::VAR_DICT {
+        if tv.v_type != VarType::VarDict {
             return false;
         }
         let spdict = tv.vval.v_dict();
@@ -300,13 +300,13 @@ pub fn encode_check_json_key(tv: &TypVal) -> bool {
         }
         let type_di = tv_dict_find(spdict.as_ref(), c"_TYPE", 5);
         if type_di.is_null()
-            || (*type_di).di_tv.v_type != VarType::VAR_LIST
+            || (*type_di).di_tv.v_type != VarType::VarList
             || (*type_di).di_tv.vval.v_list().cast_const() != (*eval_msgpack_type_lists_mut())[K_MP_STRING]
         {
             return false;
         }
         let val_di = tv_dict_find(spdict.as_ref(), c"_VAL", 4);
-        if val_di.is_null() || (*val_di).di_tv.v_type != VarType::VAR_LIST {
+        if val_di.is_null() || (*val_di).di_tv.v_type != VarType::VarList {
             return false;
         }
         let val_list = (*val_di).di_tv.vval.v_list();
@@ -314,7 +314,7 @@ pub fn encode_check_json_key(tv: &TypVal) -> bool {
             return true;
         }
         for li in crate::eval::typval::list_iter_mut(tv_list_first(val_list.as_ref())) {
-            if li.li_tv.v_type != VarType::VAR_STRING {
+            if li.li_tv.v_type != VarType::VarString {
                 return false;
             }
         }
@@ -361,7 +361,7 @@ fn conv_error(
                         hi.sub(1)
                     };
                     let mut key_tv = TypVal {
-                        v_type: VarType::VAR_STRING,
+                        v_type: VarType::VarString,
                         v_lock: VAR_UNLOCKED,
                         vval: TypvalVval::String((&*hi_ptr).key_ptr()),
                     };
@@ -391,7 +391,7 @@ fn conv_error(
                     };
                     if is_list
                         || prev_li.is_null()
-                        || ((*prev_li).li_tv.v_type != VarType::VAR_LIST
+                        || ((*prev_li).li_tv.v_type != VarType::VarList
                             && tv_list_len(((*prev_li).li_tv.vval.v_list()).as_ref()) <= 0)
                     {
                         vim_snprintf!(iobuf.as_mut_ptr(), iobuf.len(), c"index %i", idx);
@@ -1167,7 +1167,7 @@ fn convert_one_value(
         backend.check_before();
         let tv_ref = &mut *tv;
         match tv_ref.v_type {
-            VarType::VAR_STRING => {
+            VarType::VarString => {
                 let s = tv_ref.vval.v_string();
                 let len = if s.is_null() {
                     0
@@ -1178,19 +1178,19 @@ fn convert_one_value(
                     return FAIL;
                 }
             }
-            VarType::VAR_NUMBER => {
+            VarType::VarNumber => {
                 backend.conv_number(tv_ref.vval.v_number());
             }
-            VarType::VAR_FLOAT => {
+            VarType::VarFloat => {
                 if !backend.conv_float(tv_ref.vval.v_float()) {
                     return FAIL;
                 }
             }
-            VarType::VAR_BLOB => {
+            VarType::VarBlob => {
                 let blob = tv_ref.vval.v_blob();
                 backend.conv_blob(blob.as_ref(), tv_blob_len(blob.as_ref()));
             }
-            VarType::VAR_FUNC => {
+            VarType::VarFunc => {
                 if backend.conv_func_start(tv_ref.vval.v_string(), b"", mpstack, objname) == FAIL {
                     return FAIL;
                 }
@@ -1198,7 +1198,7 @@ fn convert_one_value(
                 backend.conv_func_before_self(-1);
                 backend.conv_func_end();
             }
-            VarType::VAR_PARTIAL => {
+            VarType::VarPartial => {
                 let pt = tv_ref.vval.v_partial();
                 let fun = if pt.is_null() {
                     std::ptr::null_mut()
@@ -1226,7 +1226,7 @@ fn convert_one_value(
                     },
                 });
             }
-            VarType::VAR_LIST => {
+            VarType::VarList => {
                 let list = tv_ref.vval.v_list();
                 if list.is_null() || tv_list_len(list.as_ref()) == 0 {
                     backend.conv_empty_list();
@@ -1253,15 +1253,15 @@ fn convert_one_value(
                     });
                 }
             }
-            VarType::VAR_BOOL => {
+            VarType::VarBool => {
                 backend.conv_bool(tv_ref.vval.v_bool() == K_BOOL_VAR_TRUE as c_int);
             }
-            VarType::VAR_SPECIAL => {
+            VarType::VarSpecial => {
                 if tv_ref.vval.v_special() == K_SPECIAL_VAR_NULL as c_int {
                     backend.conv_nil();
                 }
             }
-            VarType::VAR_DICT => {
+            VarType::VarDict => {
                 let dict = tv_ref.vval.v_dict();
                 if dict.is_null() || (*dict).dv_hashtab.ht_used == 0 {
                     backend.conv_empty_dict();
@@ -1270,7 +1270,7 @@ fn convert_one_value(
                 let mut handled_special = false;
                 if backend.allow_specials() && (*dict).dv_hashtab.ht_used == 2 {
                     let type_di = tv_dict_find(dict.as_ref(), c"_TYPE", 5);
-                    if !type_di.is_null() && (*type_di).di_tv.v_type == VarType::VAR_LIST {
+                    if !type_di.is_null() && (*type_di).di_tv.v_type == VarType::VarList {
                         let val_di = tv_dict_find(dict.as_ref(), c"_VAL", 4);
                         if !val_di.is_null() {
                             let mut mp_idx = NUM_MSGPACK_TYPES;
@@ -1288,28 +1288,28 @@ fn convert_one_value(
                                         handled_special = true;
                                     }
                                     K_MP_BOOLEAN => {
-                                        if (*val_di).di_tv.v_type == VarType::VAR_NUMBER {
+                                        if (*val_di).di_tv.v_type == VarType::VarNumber {
                                             backend.conv_bool((*val_di).di_tv.vval.v_number() != 0);
                                             handled_special = true;
                                         }
                                     }
                                     K_MP_INTEGER => {
-                                        if (*val_di).di_tv.v_type == VarType::VAR_LIST {
+                                        if (*val_di).di_tv.v_type == VarType::VarList {
                                             let val_list = (*val_di).di_tv.vval.v_list();
                                             if tv_list_len(val_list.as_ref()) == 4 {
                                                 let sign_li = tv_list_first(val_list.as_ref());
                                                 let highest_li = (*sign_li).li_next;
                                                 let high_li = (*highest_li).li_next;
                                                 let low_li = tv_list_last(val_list.as_ref());
-                                                if (*sign_li).li_tv.v_type == VarType::VAR_NUMBER
+                                                if (*sign_li).li_tv.v_type == VarType::VarNumber
                                                     && (*sign_li).li_tv.vval.v_number() != 0
                                                     && (*highest_li).li_tv.v_type
-                                                        == VarType::VAR_NUMBER
+                                                        == VarType::VarNumber
                                                     && (*highest_li).li_tv.vval.v_number() >= 0
                                                     && (*high_li).li_tv.v_type
-                                                        == VarType::VAR_NUMBER
+                                                        == VarType::VarNumber
                                                     && (*high_li).li_tv.vval.v_number() >= 0
-                                                    && (*low_li).li_tv.v_type == VarType::VAR_NUMBER
+                                                    && (*low_li).li_tv.v_type == VarType::VarNumber
                                                     && (*low_li).li_tv.vval.v_number() >= 0
                                                 {
                                                     let sign = (*sign_li).li_tv.vval.v_number();
@@ -1333,7 +1333,7 @@ fn convert_one_value(
                                         }
                                     }
                                     K_MP_FLOAT => {
-                                        if (*val_di).di_tv.v_type == VarType::VAR_FLOAT {
+                                        if (*val_di).di_tv.v_type == VarType::VarFloat {
                                             if !backend.conv_float((*val_di).di_tv.vval.v_float())
                                             {
                                                 return FAIL;
@@ -1342,7 +1342,7 @@ fn convert_one_value(
                                         }
                                     }
                                     K_MP_STRING => {
-                                        if (*val_di).di_tv.v_type == VarType::VAR_LIST
+                                        if (*val_di).di_tv.v_type == VarType::VarList
                                             && let Some(buf) =
                                                 encode_vim_list_to_buf(((*val_di).di_tv.vval.v_list()).as_ref())
                                         {
@@ -1353,7 +1353,7 @@ fn convert_one_value(
                                         }
                                     }
                                     K_MP_ARRAY => {
-                                        if (*val_di).di_tv.v_type == VarType::VAR_LIST {
+                                        if (*val_di).di_tv.v_type == VarType::VarList {
                                             let val_list = (*val_di).di_tv.vval.v_list();
                                             let saved_copy_id = (*val_list).lv_copyID;
                                             let csr = backend.check_self_reference(
@@ -1379,7 +1379,7 @@ fn convert_one_value(
                                         }
                                     }
                                     K_MP_MAP => {
-                                        if (*val_di).di_tv.v_type == VarType::VAR_LIST {
+                                        if (*val_di).di_tv.v_type == VarType::VarList {
                                             let val_list = (*val_di).di_tv.vval.v_list();
                                             if val_list.is_null() || tv_list_len(val_list.as_ref()) == 0 {
                                                 backend.conv_empty_dict();
@@ -1388,7 +1388,7 @@ fn convert_one_value(
                                                 let mut all_pairs = true;
                                                 let mut li = tv_list_first(val_list.as_ref());
                                                 while !li.is_null() {
-                                                    if (*li).li_tv.v_type != VarType::VAR_LIST
+                                                    if (*li).li_tv.v_type != VarType::VarList
                                                         || tv_list_len(((*li).li_tv.vval.v_list()).as_ref()) != 2
                                                     {
                                                         all_pairs = false;
@@ -1424,15 +1424,15 @@ fn convert_one_value(
                                             }
                                         }
                                     }
-                                    K_MP_EXT if (*val_di).di_tv.v_type == VarType::VAR_LIST => {
+                                    K_MP_EXT if (*val_di).di_tv.v_type == VarType::VarList => {
                                         let val_list = (*val_di).di_tv.vval.v_list();
                                         if tv_list_len(val_list.as_ref()) == 2 {
                                             let first = tv_list_first(val_list.as_ref());
                                             let last = tv_list_last(val_list.as_ref());
-                                            if (*first).li_tv.v_type == VarType::VAR_NUMBER
+                                            if (*first).li_tv.v_type == VarType::VarNumber
                                                 && (i8::MIN as i64..=i8::MAX as i64)
                                                     .contains(&(*first).li_tv.vval.v_number())
-                                                && (*last).li_tv.v_type == VarType::VAR_LIST
+                                                && (*last).li_tv.v_type == VarType::VarList
                                                 && let Some(mut buf) = encode_vim_list_to_buf(
                                                     ((*last).li_tv.vval.v_list()).as_ref(),
                                                 )
@@ -1480,7 +1480,7 @@ fn convert_one_value(
                     });
                 }
             }
-            VarType::VAR_UNKNOWN => {
+            VarType::VarUnknown => {
                 internal_error(backend.convert_one_value_err_name());
                 return FAIL;
             }
@@ -1744,7 +1744,7 @@ pub fn encode_tv2string(tv: &mut TypVal,mut len: Option<&mut usize>) -> std::ffi
 pub fn encode_tv2echo(tv: &mut TypVal, len: Option<&mut usize>) -> std::ffi::CString {
      {
         let mut ga: Vec<u8> = Vec::with_capacity(80);
-        if tv.v_type == VarType::VAR_STRING || tv.v_type == VarType::VAR_FUNC {
+        if tv.v_type == VarType::VarString || tv.v_type == VarType::VarFunc {
             if !tv.vval.v_string().is_null() {
                 buf_concat_cstr(&mut ga, tv.vval.v_string());
             }
@@ -1792,7 +1792,7 @@ mod tests {
             li_next: std::ptr::null_mut(),
             li_prev: std::ptr::null_mut(),
             li_tv: TypVal {
-                v_type: VarType::VAR_STRING,
+                v_type: VarType::VarString,
                 v_lock: VAR_UNLOCKED,
                 vval: TypvalVval::String(s2.as_mut_ptr().cast::<c_char>()),
             },
@@ -1801,7 +1801,7 @@ mod tests {
             li_next: &mut li2,
             li_prev: std::ptr::null_mut(),
             li_tv: TypVal {
-                v_type: VarType::VAR_STRING,
+                v_type: VarType::VarString,
                 v_lock: VAR_UNLOCKED,
                 vval: TypvalVval::String(s1.as_mut_ptr().cast::<c_char>()),
             },
@@ -1827,8 +1827,8 @@ mod tests {
             let slice = crate::memory::cstr_slice(buf.as_ptr(), buf.len());
             assert_eq!(slice, b"a\0b\nc");
         }
-        li1.li_tv.v_type = VarType::VAR_UNKNOWN;
-        li2.li_tv.v_type = VarType::VAR_UNKNOWN;
+        li1.li_tv.v_type = VarType::VarUnknown;
+        li2.li_tv.v_type = VarType::VarUnknown;
     }
 
     #[test]
@@ -1848,7 +1848,7 @@ mod tests {
                 let mut li = (*l).lv_first;
                 for &exp in expected {
                     assert!(!li.is_null());
-                    assert_eq!((*li).li_tv.v_type, VarType::VAR_STRING);
+                    assert_eq!((*li).li_tv.v_type, VarType::VarString);
                     let ptr = (*li).li_tv.vval.v_string();
                     match exp {
                         None => assert!(ptr.is_null()),

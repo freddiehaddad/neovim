@@ -478,7 +478,7 @@ pub fn emit_termrequest(mut req: Box<TermRequestEvent>) {
             KeyValuePair {
                 key: cstr_slice_as_string(b"cursor\0"),
                 value: Object {
-                    obj_type: ObjectType::kObjectTypeArray,
+                    obj_type: ObjectType::ObjectTypeArray,
                     data: ObjectData::Array(cursor),
                 },
             },
@@ -488,7 +488,7 @@ pub fn emit_termrequest(mut req: Box<TermRequestEvent>) {
             },
         ];
         let mut data_obj = Object {
-            obj_type: ObjectType::kObjectTypeDict,
+            obj_type: ObjectType::ObjectTypeDict,
             data: ObjectData::Dict(Dict {
                     items: data_items.as_mut_ptr(),
                     size: 3,
@@ -814,9 +814,9 @@ pub fn terminal_alloc(buf: &mut FileBuf, mut opts: TerminalOptions) -> *mut Term
         );
 
         let shape_num = match (*shape_table_mut())[SHAPE_IDX_TERM].shape {
-            CursorShape::SHAPE_BLOCK => VTERM_PROP_CURSORSHAPE_BLOCK,
-            CursorShape::SHAPE_HOR => VTERM_PROP_CURSORSHAPE_UNDERLINE,
-            CursorShape::SHAPE_VER => VTERM_PROP_CURSORSHAPE_BAR_LEFT,
+            CursorShape::ShapeBlock => VTERM_PROP_CURSORSHAPE_BLOCK,
+            CursorShape::ShapeHor => VTERM_PROP_CURSORSHAPE_UNDERLINE,
+            CursorShape::ShapeVer => VTERM_PROP_CURSORSHAPE_BAR_LEFT,
         };
         let mut cursor_shape = VTermValue::Number(shape_num);
         vterm_state_set_termprop(state, VTERM_PROP_CURSORSHAPE, &mut cursor_shape);
@@ -1001,7 +1001,7 @@ pub fn terminal_close(termpp: *mut *mut Terminal, status: c_int) {
                 value: integer_obj(i64::from(pos)),
             }];
             let mut data_obj = Object {
-                obj_type: ObjectType::kObjectTypeDict,
+                obj_type: ObjectType::ObjectTypeDict,
                 data: ObjectData::Dict(Dict {
                         items: data_items.as_mut_ptr(),
                         size: 1,
@@ -2459,14 +2459,14 @@ fn refresh_cursor(term: &mut Terminal, cursor_visible: &mut bool) {
 
         match term.cursor.shape {
             VTERM_PROP_CURSORSHAPE_BLOCK => {
-                (*shape_table_mut())[SHAPE_IDX_TERM].shape = CursorShape::SHAPE_BLOCK;
+                (*shape_table_mut())[SHAPE_IDX_TERM].shape = CursorShape::ShapeBlock;
             }
             VTERM_PROP_CURSORSHAPE_UNDERLINE => {
-                (*shape_table_mut())[SHAPE_IDX_TERM].shape = CursorShape::SHAPE_HOR;
+                (*shape_table_mut())[SHAPE_IDX_TERM].shape = CursorShape::ShapeHor;
                 (*shape_table_mut())[SHAPE_IDX_TERM].percentage = 20;
             }
             VTERM_PROP_CURSORSHAPE_BAR_LEFT => {
-                (*shape_table_mut())[SHAPE_IDX_TERM].shape = CursorShape::SHAPE_VER;
+                (*shape_table_mut())[SHAPE_IDX_TERM].shape = CursorShape::ShapeVer;
                 (*shape_table_mut())[SHAPE_IDX_TERM].percentage = 25;
             }
             _ => {}
@@ -2709,11 +2709,11 @@ fn get_config_string(buf: &mut FileBuf, key: *mut c_char) -> *mut c_char {
         };
         let mut obj = dict_get_value(unsafe { buf.b_vars().as_ref() }, key_str, None, &mut err);
         api_clear_error(&mut err);
-        if obj.obj_type == ObjectType::kObjectTypeNil {
+        if obj.obj_type == ObjectType::ObjectTypeNil {
             obj = dict_get_value(unsafe { get_globvar_dict().as_ref() }, key_str, None, &mut err);
             api_clear_error(&mut err);
         }
-        if obj.obj_type == ObjectType::kObjectTypeString {
+        if obj.obj_type == ObjectType::ObjectTypeString {
             return obj.data.string().data;
         }
         api_free_object(obj);

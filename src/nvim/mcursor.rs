@@ -91,7 +91,7 @@ pub(crate) const kOptFollow: c_int = 114;
 const MC_REGS: &[u8] = b"abcdefghijklmnopqrstuvwxyz0123456789\"-\0";
 
 use crate::digraph::{kBoolVarFalse, kBoolVarTrue};
-use crate::eval::funcs::{kMTBlockWise, kMTCharWise, kMTLineWise, kMTUnknown};
+use crate::eval::funcs::{MTBlockWise, MTCharWise, MTLineWise, MTUnknown};
 use crate::ex_getln::K_LUA;
 use crate::regexp::{Ctrl_V, MAXCOL};
 
@@ -821,7 +821,7 @@ fn mc_ins_preview_replace(start: CursorPos, end: CursorPos, text: &NvimString) {
             &mut arena,
             &mut err,
         );
-        if err.err_type != ErrorType::kErrorTypeNone {
+        if err.err_type != ErrorType::ErrorTypeNone {
             if log_st().g_min_log_level <= LOGLVL_DBG {
                 logmsg!(
                     LOGLVL_DBG,
@@ -1140,7 +1140,7 @@ fn mc_reg_gather() {
                     joined[idx].as_ptr(),
                     joined[idx].len() as isize,
                     false,
-                    crate::register::MotionType::kMTLineWise,
+                    crate::register::MotionType::MTLineWise,
                     0,
                 );
                 if r == b'"' as c_int {
@@ -1228,11 +1228,11 @@ pub fn mc_vsel_refresh() {
             let mut s = g_st().Visual.start;
             let mut e = curwin_mut().w_cursor;
             let r_type: c_int = if g_st().Visual.mode == b'V' as c_int {
-                kMTLineWise
+                MTLineWise
             } else if g_st().Visual.mode == Ctrl_V {
-                kMTBlockWise
+                MTBlockWise
             } else {
-                kMTCharWise
+                MTCharWise
             };
             let mut inclusive = true;
             let mut oa = Oparg::new();
@@ -1246,9 +1246,9 @@ pub fn mc_vsel_refresh() {
                 &mut inclusive,
                 &mut oa,
             );
-            if r_type == kMTLineWise {
+            if r_type == MTLineWise {
                 mc_vsel_mark(s.lnum, 0, e.lnum, ml_get_len(e.lnum));
-            } else if r_type == kMTBlockWise {
+            } else if r_type == MTBlockWise {
                 if curwin_mut().w_curswant == MAXCOL {
                     oa.end_vcol = MAXCOL;
                 }
@@ -1358,12 +1358,12 @@ fn mc_lua_enable(enable: bool) {
         }
         let mut tv_args = [
             TypVal {
-                v_type: VarType::VAR_BOOL,
+                v_type: VarType::VarBool,
                 v_lock: 0,
                 vval: TypvalVval::Bool(if enable { kBoolVarTrue } else { kBoolVarFalse }),
             },
             TypVal {
-                v_type: VarType::VAR_UNKNOWN,
+                v_type: VarType::VarUnknown,
                 v_lock: 0,
                 vval: TypvalVval::Number(0),
             },
@@ -1441,7 +1441,7 @@ fn mc_zq_target(
                 vi_start: step,
                 vi_end: step,
                 vi_curswant: step.col,
-                vi_mode: if motion_type == kMTLineWise {
+                vi_mode: if motion_type == MTLineWise {
                     b'V' as c_int
                 } else {
                     b'v' as c_int
@@ -1507,7 +1507,7 @@ fn mc_zq_first(
             return true;
         }
         let failed = s.lnum == 0;
-        if failed && motion_type != kMTLineWise && equalpos(from, start) {
+        if failed && motion_type != MTLineWise && equalpos(from, start) {
             return false;
         }
         if bof
@@ -1576,7 +1576,7 @@ fn mc_zq_run(
 pub fn mc_zq_start(cap: &mut Cmdarg) {
      {
         cap.oap_mut().from_visual = g_st().Visual.active;
-        cap.oap_mut().motion_type = kMTUnknown;
+        cap.oap_mut().motion_type = MTUnknown;
         if g_st().Visual.active {
             atom_visual_reset();
             end_visual_mode();
@@ -1589,7 +1589,7 @@ pub fn mc_zq(oap: &mut Oparg, cap: &mut Cmdarg, origin: CursorPos) {
     unsafe {
         atom_did_global_op();
         if mc_replaying()
-            || oap.motion_type == kMTUnknown
+            || oap.motion_type == MTUnknown
             || cap.cmdchar == b'i' as c_int
             || cap.cmdchar == b'a' as c_int
             || cap.cmdchar == K_LUA
@@ -1616,7 +1616,7 @@ pub fn mc_zq(oap: &mut Oparg, cap: &mut Cmdarg, origin: CursorPos) {
             bounds[1] = (*mark_get_visual(curbuf_mut(), b'>' as c_int)).mark;
         }
 
-        let lines = oap.motion_type == kMTLineWise;
+        let lines = oap.motion_type == MTLineWise;
         if lines {
             bounds[0].col = 0;
             bounds[1].col = MAXCOL;
@@ -1732,12 +1732,12 @@ pub fn mc_counter(count1: c_long) {
     atom_did_global_op();
         let mut tv_args = [
             TypVal {
-                v_type: VarType::VAR_NUMBER,
+                v_type: VarType::VarNumber,
                 v_lock: 0,
                 vval: TypvalVval::Number(count1 as Varnumber),
             },
             TypVal {
-                v_type: VarType::VAR_UNKNOWN,
+                v_type: VarType::VarUnknown,
                 v_lock: 0,
                 vval: TypvalVval::Number(0),
             },

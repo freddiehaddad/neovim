@@ -68,7 +68,7 @@ impl KeyDict_xdl_diff {
             ctxlen: 0,
             interhunkctxlen: 0,
             linematch: Object {
-                obj_type: ObjectType::kObjectTypeNil,
+                obj_type: ObjectType::ObjectTypeNil,
                 data: ObjectData::Integer(0),
             },
             ignore_whitespace: false,
@@ -260,7 +260,7 @@ pub(crate) fn call_on_hunk_cb(
             let msg_ptr = lua_tolstring(lstate, -1, std::ptr::null_mut());
             api_set_error!(
                 err,
-                ErrorType::kErrorTypeException,
+                ErrorType::ErrorTypeException,
                 c"on_hunk: %s",
                 msg_ptr,
             );
@@ -312,7 +312,7 @@ fn process_xdl_diff_opts(
             None,
             err,
         );
-        if err.err_type != ErrorType::kErrorTypeNone {
+        if err.err_type != ErrorType::ErrorTypeNone {
             api_free_string(opts.result_type);
             api_free_string(opts.algorithm);
             api_free_luaref(opts.on_hunk);
@@ -331,7 +331,7 @@ fn process_xdl_diff_opts(
                 } else {
                     api_set_error!(
                         err,
-                        ErrorType::kErrorTypeValidation,
+                        ErrorType::ErrorTypeValidation,
                         c"not a valid result_type",
                     );
                     break 'validate;
@@ -350,7 +350,7 @@ fn process_xdl_diff_opts(
                 } else {
                     api_set_error!(
                         err,
-                        ErrorType::kErrorTypeValidation,
+                        ErrorType::ErrorTypeValidation,
                         c"not a valid algorithm",
                     );
                     break 'validate;
@@ -365,18 +365,18 @@ fn process_xdl_diff_opts(
             }
 
             if opts.has_key(KEYSET_OPTIDX_LINEMATCH) {
-                if opts.linematch.obj_type == ObjectType::kObjectTypeBoolean {
+                if opts.linematch.obj_type == ObjectType::ObjectTypeBoolean {
                     *linematch = if opts.linematch.data.boolean() {
                         i64::MAX
                     } else {
                         0
                     };
-                } else if opts.linematch.obj_type == ObjectType::kObjectTypeInteger {
+                } else if opts.linematch.obj_type == ObjectType::ObjectTypeInteger {
                     *linematch = opts.linematch.data.integer();
                 } else {
                     api_set_error!(
                         err,
-                        ErrorType::kErrorTypeValidation,
+                        ErrorType::ErrorTypeValidation,
                         c"linematch must be a boolean or integer",
                     );
                     break 'validate;
@@ -408,7 +408,7 @@ fn process_xdl_diff_opts(
                 if lua_type(lstate, -1) != LUA_TFUNCTION {
                     api_set_error!(
                         err,
-                        ErrorType::kErrorTypeValidation,
+                        ErrorType::ErrorTypeValidation,
                         c"on_hunk is not a function",
                     );
                 }
@@ -457,7 +457,7 @@ pub unsafe extern "C-unwind" fn nlua_xdl_diff(lstate: *mut lua_State) -> c_int {
             iwhite: (params.flags & XDF_IGNORE_WHITESPACE) != 0,
         };
 
-        if priv_state.err.err_type == ErrorType::kErrorTypeNone {
+        if priv_state.err.err_type == ErrorType::ErrorTypeNone {
             let mut ecb = match mode {
                 NluaXdiffMode::Unified => Xdemitcb::Unified(&raw mut unified_buf),
                 NluaXdiffMode::OnHunkCb => Xdemitcb::OnHunk(&raw mut priv_state),
@@ -468,17 +468,17 @@ pub unsafe extern "C-unwind" fn nlua_xdl_diff(lstate: *mut lua_State) -> c_int {
             };
 
             if xdl_diff(&mut ma, &mut mb, &params, &cfg, &mut ecb) == -1
-                && priv_state.err.err_type == ErrorType::kErrorTypeNone
+                && priv_state.err.err_type == ErrorType::ErrorTypeNone
             {
                 api_set_error!(
                     &mut priv_state.err,
-                    ErrorType::kErrorTypeException,
+                    ErrorType::ErrorTypeException,
                     c"diff operation failed",
                 );
             }
         }
 
-        if priv_state.err.err_type != ErrorType::kErrorTypeNone {
+        if priv_state.err.err_type != ErrorType::ErrorTypeNone {
             luaL_where(lstate, 1);
             lua_pushstring(lstate, priv_state.err.msg_ptr());
             api_clear_error(&mut priv_state.err);

@@ -31,7 +31,7 @@ const fn callback_reader_init() -> CallbackReader {
 pub fn f_rpcstart(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData){
 
     unsafe {
-        rettv.v_type = VarType::VAR_NUMBER;
+        rettv.v_type = VarType::VarNumber;
         rettv.vval = crate::eval::typval::TypvalVval::Number(0);
 
         if check_secure() {
@@ -40,8 +40,8 @@ pub fn f_rpcstart(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDat
 
         let arg0 = &argvars[0];
         let arg1 = &argvars[1];
-        if arg0.v_type != VarType::VAR_STRING
-            || (arg1.v_type != VarType::VAR_LIST && arg1.v_type != VarType::VAR_UNKNOWN)
+        if arg0.v_type != VarType::VarString
+            || (arg1.v_type != VarType::VarList && arg1.v_type != VarType::VarUnknown)
         {
             emsg(e_invarg);
             return;
@@ -49,7 +49,7 @@ pub fn f_rpcstart(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDat
 
         let mut args: *mut TvList = std::ptr::null_mut();
         let mut argsl: c_int = 0;
-        if arg1.v_type == VarType::VAR_LIST {
+        if arg1.v_type == VarType::VarList {
             args = arg1.vval.v_list();
             argsl = if args.is_null() { 0 } else { (*args).lv_len };
             for (i, li) in (0 as c_int..).zip(crate::eval::typval::list_iter_mut(if args.is_null() {
@@ -57,7 +57,7 @@ pub fn f_rpcstart(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDat
             } else {
                 (*args).lv_first
             })) {
-                if li.li_tv.v_type != VarType::VAR_STRING {
+                if li.li_tv.v_type != VarType::VarString {
                     semsg!(
                         c"E5010: List item %d of the second argument is not a string",
                         i,
@@ -107,7 +107,7 @@ pub fn f_rpcstart(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDat
 
 /// `"rpcstop()"` function (`f_rpcstop`).
 pub fn f_rpcstop(argvars: &mut [TypVal], rettv: &mut TypVal, fptr: EvalFuncData){
-    rettv.v_type = VarType::VAR_NUMBER;
+    rettv.v_type = VarType::VarNumber;
         rettv.vval = crate::eval::typval::TypvalVval::Number(0);
 
         if check_secure() {
@@ -115,7 +115,7 @@ pub fn f_rpcstop(argvars: &mut [TypVal], rettv: &mut TypVal, fptr: EvalFuncData)
         }
 
         let arg0 = &argvars[0];
-        if arg0.v_type != VarType::VAR_NUMBER {
+        if arg0.v_type != VarType::VarNumber {
             emsg(e_invarg);
             return;
         }
@@ -154,13 +154,13 @@ pub fn f_termopen(argvars: &mut [TypVal], rettv: &mut TypVal, fptr: EvalFuncData
 
         let mut must_free = false;
         let arg1 = &mut argvars[1];
-        if arg1.v_type == VarType::VAR_UNKNOWN {
+        if arg1.v_type == VarType::VarUnknown {
             must_free = true;
-            arg1.v_type = VarType::VAR_DICT;
+            arg1.v_type = VarType::VarDict;
             arg1.vval = crate::eval::typval::TypvalVval::Dict(tv_dict_alloc());
         }
 
-        if arg1.v_type != VarType::VAR_DICT {
+        if arg1.v_type != VarType::VarDict {
             semsg!(e_invarg2, c"expected dictionary");
             return;
         }

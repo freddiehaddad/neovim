@@ -40,18 +40,18 @@ impl Default for NvimString {
 #[repr(C)]
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum ErrorType {
-    kErrorTypeNone = -1,
-    kErrorTypeException = 0,
-    kErrorTypeValidation = 1,
+    ErrorTypeNone = -1,
+    ErrorTypeException = 0,
+    ErrorTypeValidation = 1,
 }
 
 impl ErrorType {
     #[inline]
     pub const fn from_raw(v: c_int) -> Option<Self> {
         match v {
-            -1 => Some(Self::kErrorTypeNone),
-            0 => Some(Self::kErrorTypeException),
-            1 => Some(Self::kErrorTypeValidation),
+            -1 => Some(Self::ErrorTypeNone),
+            0 => Some(Self::ErrorTypeException),
+            1 => Some(Self::ErrorTypeValidation),
             _ => None,
         }
     }
@@ -68,7 +68,7 @@ impl Error {
     #[inline]
     pub const fn new() -> Self {
         Self {
-            err_type: ErrorType::kErrorTypeNone,
+            err_type: ErrorType::ErrorTypeNone,
             msg: None,
         }
     }
@@ -91,36 +91,36 @@ impl Default for Error {
 #[repr(C)]
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum ObjectType {
-    kObjectTypeNil = 0,
-    kObjectTypeBoolean = 1,
-    kObjectTypeInteger = 2,
-    kObjectTypeFloat = 3,
-    kObjectTypeString = 4,
-    kObjectTypeArray = 5,
-    kObjectTypeDict = 6,
-    kObjectTypeLuaRef = 7,
-    kObjectTypeUnset = 8,
-    kObjectTypeBuffer = 9,
-    kObjectTypeWindow = 10,
-    kObjectTypeTabpage = 11,
+    ObjectTypeNil = 0,
+    ObjectTypeBoolean = 1,
+    ObjectTypeInteger = 2,
+    ObjectTypeFloat = 3,
+    ObjectTypeString = 4,
+    ObjectTypeArray = 5,
+    ObjectTypeDict = 6,
+    ObjectTypeLuaRef = 7,
+    ObjectTypeUnset = 8,
+    ObjectTypeBuffer = 9,
+    ObjectTypeWindow = 10,
+    ObjectTypeTabpage = 11,
 }
 
 impl ObjectType {
     #[inline]
     pub const fn from_raw(v: c_int) -> Option<Self> {
         match v {
-            0 => Some(Self::kObjectTypeNil),
-            1 => Some(Self::kObjectTypeBoolean),
-            2 => Some(Self::kObjectTypeInteger),
-            3 => Some(Self::kObjectTypeFloat),
-            4 => Some(Self::kObjectTypeString),
-            5 => Some(Self::kObjectTypeArray),
-            6 => Some(Self::kObjectTypeDict),
-            7 => Some(Self::kObjectTypeLuaRef),
-            8 => Some(Self::kObjectTypeUnset),
-            9 => Some(Self::kObjectTypeBuffer),
-            10 => Some(Self::kObjectTypeWindow),
-            11 => Some(Self::kObjectTypeTabpage),
+            0 => Some(Self::ObjectTypeNil),
+            1 => Some(Self::ObjectTypeBoolean),
+            2 => Some(Self::ObjectTypeInteger),
+            3 => Some(Self::ObjectTypeFloat),
+            4 => Some(Self::ObjectTypeString),
+            5 => Some(Self::ObjectTypeArray),
+            6 => Some(Self::ObjectTypeDict),
+            7 => Some(Self::ObjectTypeLuaRef),
+            8 => Some(Self::ObjectTypeUnset),
+            9 => Some(Self::ObjectTypeBuffer),
+            10 => Some(Self::ObjectTypeWindow),
+            11 => Some(Self::ObjectTypeTabpage),
             _ => None,
         }
     }
@@ -390,7 +390,7 @@ impl Object {
     #[inline]
     pub const fn new() -> Self {
         Self {
-            obj_type: ObjectType::kObjectTypeNil,
+            obj_type: ObjectType::ObjectTypeNil,
             data: ObjectData::Nil,
         }
     }
@@ -422,18 +422,18 @@ impl KeyValuePair {
 
 pub const fn object_typename(t: ObjectType) -> &'static str {
     match t {
-        ObjectType::kObjectTypeUnset => "unset",
-        ObjectType::kObjectTypeNil => "nil",
-        ObjectType::kObjectTypeBoolean => "Boolean",
-        ObjectType::kObjectTypeInteger => "Integer",
-        ObjectType::kObjectTypeFloat => "Float",
-        ObjectType::kObjectTypeString => "String",
-        ObjectType::kObjectTypeArray => "Array",
-        ObjectType::kObjectTypeDict => "Dict",
-        ObjectType::kObjectTypeLuaRef => "Function",
-        ObjectType::kObjectTypeBuffer => "Buffer",
-        ObjectType::kObjectTypeWindow => "Window",
-        ObjectType::kObjectTypeTabpage => "Tabpage",
+        ObjectType::ObjectTypeUnset => "unset",
+        ObjectType::ObjectTypeNil => "nil",
+        ObjectType::ObjectTypeBoolean => "Boolean",
+        ObjectType::ObjectTypeInteger => "Integer",
+        ObjectType::ObjectTypeFloat => "Float",
+        ObjectType::ObjectTypeString => "String",
+        ObjectType::ObjectTypeArray => "Array",
+        ObjectType::ObjectTypeDict => "Dict",
+        ObjectType::ObjectTypeLuaRef => "Function",
+        ObjectType::ObjectTypeBuffer => "Buffer",
+        ObjectType::ObjectTypeWindow => "Window",
+        ObjectType::ObjectTypeTabpage => "Tabpage",
     }
 }
 
@@ -487,7 +487,7 @@ pub fn api_err_invalid<S1: crate::strings::IntoCCharPtr, S2: crate::strings::Int
         }
     };
 
-    set_error_str(err, ErrorType::kErrorTypeValidation, &msg);
+    set_error_str(err, ErrorType::ErrorTypeValidation, &msg);
 }
 
 /// Create `"Invalid …: expected …"` validation message on `err` (`api_err_exp`).
@@ -526,7 +526,7 @@ pub fn api_err_exp<
         }
     };
 
-    set_error_str(err, ErrorType::kErrorTypeValidation, &msg);
+    set_error_str(err, ErrorType::ErrorTypeValidation, &msg);
 }
 
 /// Create `"Required: …"` validation message on `err` (`api_err_required`).
@@ -541,7 +541,7 @@ pub fn api_err_required(err: &mut Error, name: &std::ffi::CStr) {
     } else {
         format!("Required: '{name_str}'")
     };
-    set_error_str(err, ErrorType::kErrorTypeValidation, &msg);
+    set_error_str(err, ErrorType::ErrorTypeValidation, &msg);
 }
 
 /// Create `"Conflict: … not allowed with …"` validation message on `err` (`api_err_conflict`).
@@ -563,7 +563,7 @@ pub fn api_err_conflict<S1: crate::strings::IntoCCharPtr, S2: crate::strings::In
     } else {
         format!("Conflict: '{name_str}' not allowed with '{name2_str}'")
     };
-    set_error_str(err, ErrorType::kErrorTypeValidation, &msg);
+    set_error_str(err, ErrorType::ErrorTypeValidation, &msg);
 }
 
 /// Validate that `arr` contains only `String` items (and optionally no embedded newlines)
@@ -581,19 +581,19 @@ pub fn check_string_array(
     let name_str = cstr_lossy(name);
     for i in 0..arr.size {
         let item = unsafe { &*arr.items.add(i) };
-        if item.obj_type != ObjectType::kObjectTypeString {
+        if item.obj_type != ObjectType::ObjectTypeString {
             let msg = format!(
                 "Invalid '{name_str}' item: expected String, got {}",
                 object_typename(item.obj_type)
             );
-            set_error_str(err, ErrorType::kErrorTypeValidation, &msg);
+            set_error_str(err, ErrorType::ErrorTypeValidation, &msg);
             return false;
         }
         if disallow_nl {
             let l = item.data.string();
             if l.as_bytes().contains(&b'\n') {
                 let msg = format!("'{name_str}' item contains newlines");
-                set_error_str(err, ErrorType::kErrorTypeValidation, &msg);
+                set_error_str(err, ErrorType::ErrorTypeValidation, &msg);
                 return false;
             }
         }
@@ -616,7 +616,7 @@ mod tests {
         let mut err = Error::new();
 
         api_err_invalid(&mut err, c"col", std::ptr::null(), -1, false);
-            assert_eq!(err.err_type, ErrorType::kErrorTypeValidation);
+            assert_eq!(err.err_type, ErrorType::ErrorTypeValidation);
             assert_eq!(err.msg.as_ref().unwrap().to_str().unwrap(), "Invalid 'col': -1");
             api_clear_error(&mut err);
 

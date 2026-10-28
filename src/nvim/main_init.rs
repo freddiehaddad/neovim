@@ -929,7 +929,7 @@ pub fn getout(mut exitval: c_int) -> ! {
             exitval += g_st().ex_exitval;
         }
 
-        set_vim_var_type(VV_EXITING, crate::eval::typval::VarType::VAR_NUMBER);
+        set_vim_var_type(VV_EXITING, crate::eval::typval::VarType::VarNumber);
         set_vim_var_nr(VV_EXITING, Varnumber::from(exitval));
 
         if *get_vim_var_str(VV_EXITREASON) == NUL {
@@ -1231,7 +1231,7 @@ fn remote_request(
             cstr_as_obj(server_addr),
             cstr_as_obj(connect_error),
             Object {
-                obj_type: ObjectType::kObjectTypeArray,
+                obj_type: ObjectType::ObjectTypeArray,
                 data: ObjectData::Array(args),
             },
         ];
@@ -1246,12 +1246,12 @@ fn remote_request(
         };
         let o = nlua_exec(s, ptr::null(), a, kRetObject, None, &mut err);
         drop(args_vec);
-        if err.err_type != ErrorType::kErrorTypeNone {
+        if err.err_type != ErrorType::ErrorTypeNone {
             fprintf!(stderr, c"%s\n", err.msg_ptr());
             os_exit(2);
         }
 
-        if o.obj_type != ObjectType::kObjectTypeDict {
+        if o.obj_type != ObjectType::ObjectTypeDict {
             fprintf!(
                 stderr,
                 c"vim._cs_remote returned unexpected value\n",
@@ -1266,7 +1266,7 @@ fn remote_request(
         for i in 0..dict.size {
             let item = &*dict.items.add(i);
             if crate::memory::cstr_as_opt_bytes(item.key.data) == Some(b"errmsg") {
-                if item.value.obj_type != ObjectType::kObjectTypeString {
+                if item.value.obj_type != ObjectType::ObjectTypeString {
                     fprintf!(
                         stderr,
                         c"vim._cs_remote returned an unexpected type for 'errmsg'\n",
@@ -1276,7 +1276,7 @@ fn remote_request(
                 fprintf!(stderr, c"%s\n", item.value.data.string().data);
                 os_exit(2);
             } else if crate::memory::cstr_as_opt_bytes(item.key.data) == Some(b"result") {
-                if item.value.obj_type != ObjectType::kObjectTypeString {
+                if item.value.obj_type != ObjectType::ObjectTypeString {
                     fprintf!(
                         stderr,
                         c"vim._cs_remote returned an unexpected type for 'result'\n",
@@ -1285,7 +1285,7 @@ fn remote_request(
                 }
                 printf!(c"%s", item.value.data.string().data);
             } else if crate::memory::cstr_as_opt_bytes(item.key.data) == Some(b"tabbed") {
-                if item.value.obj_type != ObjectType::kObjectTypeBoolean {
+                if item.value.obj_type != ObjectType::ObjectTypeBoolean {
                     fprintf!(
                         stderr,
                         c"vim._cs_remote returned an unexpected type for 'tabbed'\n",
@@ -1298,7 +1298,7 @@ fn remote_request(
                     kFalse
                 };
             } else if crate::memory::cstr_as_opt_bytes(item.key.data) == Some(b"should_exit") {
-                if item.value.obj_type != ObjectType::kObjectTypeBoolean {
+                if item.value.obj_type != ObjectType::ObjectTypeBoolean {
                     fprintf!(
                         stderr,
                         c"vim._cs_remote returned an unexpected type for 'should_exit'\n",
@@ -2281,7 +2281,7 @@ fn exe_commands(parmp: &mut Mparm) {
 
 fn do_system_initialization() {
      {
-        if let Some(config_dirs) = stdpaths_get_xdg_var(XDGVarType::kXDGConfigDirs) {
+        if let Some(config_dirs) = stdpaths_get_xdg_var(XDGVarType::XDGConfigDirs) {
             let mut iter: *const c_char = ptr::null();
             let appname = get_appname(false);
             let appname_bytes = crate::memory::cstr_as_bytes(appname);
@@ -2363,7 +2363,7 @@ fn do_user_initialization() -> bool {
         }
         drop(user_vimrc);
 
-        if let Some(config_dirs) = stdpaths_get_xdg_var(XDGVarType::kXDGConfigDirs) {
+        if let Some(config_dirs) = stdpaths_get_xdg_var(XDGVarType::XDGConfigDirs) {
             let appname = get_appname(false);
             let appname_bytes = crate::memory::cstr_as_bytes(appname);
             let init_lua_suffix: [u8; 10] =

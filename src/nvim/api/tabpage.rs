@@ -194,7 +194,7 @@ pub fn nvim_tabpage_set_win(tabpage: Tabpage, win: Window, err: &mut Error) {
         if !tabpage_win_valid((&raw mut *tp), wp) {
             api_set_error!(
                 err,
-                ErrorType::kErrorTypeException,
+                ErrorType::ErrorTypeException,
                 c"Window does not belong to tabpage %d",
                 tp.handle,
             );
@@ -280,7 +280,7 @@ pub fn nvim_open_tabpage(
             if !error_set(err) {
                 api_set_error!(
                     err,
-                    ErrorType::kErrorTypeException,
+                    ErrorType::ErrorTypeException,
                     c"Failed to create new tabpage",
                 );
             }
@@ -290,7 +290,7 @@ pub fn nvim_open_tabpage(
             api_clear_error(err);
             api_set_error!(
                 err,
-                ErrorType::kErrorTypeException,
+                ErrorType::ErrorTypeException,
                 c"Tabpage was closed immediately",
             );
             return 0;
@@ -311,7 +311,7 @@ pub fn nvim_open_tabpage(
                 api_clear_error(err);
                 api_set_error!(
                     err,
-                    ErrorType::kErrorTypeException,
+                    ErrorType::ErrorTypeException,
                     c"Tabpage was closed immediately",
                 );
                 return 0;
@@ -330,7 +330,7 @@ mod tests {
     #[test]
     fn window_obj_creates_window_object() {
         let o = window_obj(1002);
-        assert_eq!(o.obj_type, ObjectType::kObjectTypeWindow);
+        assert_eq!(o.obj_type, ObjectType::ObjectTypeWindow);
         assert_eq!(o.data.integer(), 1002);
     }
 }

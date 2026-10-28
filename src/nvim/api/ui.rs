@@ -104,7 +104,7 @@ fn get_ui_or_err(chan_id: u64, err: &mut Error) -> Option<&'static mut RemoteUI>
         if ui.is_none() {
             api_set_error!(
                 err,
-                ErrorType::kErrorTypeException,
+                ErrorType::ErrorTypeException,
                 c"UI not attached to channel: %lld",
                 chan_id as i64,
             );
@@ -175,7 +175,7 @@ pub fn ui_detach_channel(chan: u64, err: &mut Error) {
         if c.is_null() {
             api_set_error!(
                 err,
-                ErrorType::kErrorTypeValidation,
+                ErrorType::ErrorTypeValidation,
                 c"%s",
                 (&raw const e_invchan).cast::<c_char>(),
             );
@@ -276,7 +276,7 @@ pub fn nvim_ui_attach(
         if api_ui_st().connected_uis.contains_key(&channel_id) {
             api_set_error!(
                 err,
-                ErrorType::kErrorTypeException,
+                ErrorType::ErrorTypeException,
                 c"UI already attached to channel: %lld",
                 channel_id as i64,
             );
@@ -285,7 +285,7 @@ pub fn nvim_ui_attach(
         if !ui_can_attach_more() {
             api_set_error!(
                 err,
-                ErrorType::kErrorTypeException,
+                ErrorType::ErrorTypeException,
                 c"Maximum UI count reached",
             );
             return;
@@ -293,7 +293,7 @@ pub fn nvim_ui_attach(
         if width <= 0 || height <= 0 {
             api_set_error!(
                 err,
-                ErrorType::kErrorTypeValidation,
+                ErrorType::ErrorTypeValidation,
                 c"Expected width > 0 and height > 0",
             );
             return;
@@ -490,7 +490,7 @@ pub fn nvim_ui_try_resize(
         if width <= 0 || height <= 0 {
             api_set_error!(
                 err,
-                ErrorType::kErrorTypeValidation,
+                ErrorType::ErrorTypeValidation,
                 c"Expected width > 0 and height > 0",
             );
             return;
@@ -523,11 +523,11 @@ fn ui_set_option(
 ) {
     unsafe {
         if crate::memory::cstr_as_opt_bytes(name.data) == Some(b"override") {
-            if value.obj_type != ObjectType::kObjectTypeBoolean {
+            if value.obj_type != ObjectType::ObjectTypeBoolean {
                 api_err_exp(
                     err,
                     c"override",
-                    api_typename(ObjectType::kObjectTypeBoolean),
+                    api_typename(ObjectType::ObjectTypeBoolean),
                     api_typename(value.obj_type),
                 );
                 return;
@@ -537,11 +537,11 @@ fn ui_set_option(
         }
 
         if crate::memory::cstr_as_opt_bytes(name.data) == Some(b"rgb") {
-            if value.obj_type != ObjectType::kObjectTypeBoolean {
+            if value.obj_type != ObjectType::ObjectTypeBoolean {
                 api_err_exp(
                     err,
                     c"rgb",
-                    api_typename(ObjectType::kObjectTypeBoolean),
+                    api_typename(ObjectType::ObjectTypeBoolean),
                     api_typename(value.obj_type),
                 );
                 return;
@@ -554,11 +554,11 @@ fn ui_set_option(
         }
 
         if crate::memory::cstr_as_opt_bytes(name.data) == Some(b"term_name") {
-            if value.obj_type != ObjectType::kObjectTypeString {
+            if value.obj_type != ObjectType::ObjectTypeString {
                 api_err_exp(
                     err,
                     c"term_name",
-                    api_typename(ObjectType::kObjectTypeString),
+                    api_typename(ObjectType::ObjectTypeString),
                     api_typename(value.obj_type),
                 );
                 return;
@@ -576,11 +576,11 @@ fn ui_set_option(
         }
 
         if crate::memory::cstr_as_opt_bytes(name.data) == Some(b"term_colors") {
-            if value.obj_type != ObjectType::kObjectTypeInteger {
+            if value.obj_type != ObjectType::ObjectTypeInteger {
                 api_err_exp(
                     err,
                     c"term_colors",
-                    api_typename(ObjectType::kObjectTypeInteger),
+                    api_typename(ObjectType::ObjectTypeInteger),
                     api_typename(value.obj_type),
                 );
                 return;
@@ -591,11 +591,11 @@ fn ui_set_option(
         }
 
         if crate::memory::cstr_as_opt_bytes(name.data) == Some(b"stdin_fd") {
-            if value.obj_type != ObjectType::kObjectTypeInteger {
+            if value.obj_type != ObjectType::ObjectTypeInteger {
                 api_err_exp(
                     err,
                     c"stdin_fd",
-                    api_typename(ObjectType::kObjectTypeInteger),
+                    api_typename(ObjectType::ObjectTypeInteger),
                     api_typename(value.obj_type),
                 );
                 return;
@@ -603,7 +603,7 @@ fn ui_set_option(
             if value.data.integer() < 0 {
                 api_set_error!(
                     err,
-                    ErrorType::kErrorTypeValidation,
+                    ErrorType::ErrorTypeValidation,
                     c"Invalid stdin_fd: %lld",
                     value.data.integer(),
                 );
@@ -612,7 +612,7 @@ fn ui_set_option(
             if starting_val() != NO_SCREEN {
                 api_set_error!(
                     err,
-                    ErrorType::kErrorTypeValidation,
+                    ErrorType::ErrorTypeValidation,
                     c"%s",
                     c"stdin_fd can only be used with first attached UI",
                 );
@@ -623,11 +623,11 @@ fn ui_set_option(
         }
 
         if crate::memory::cstr_as_opt_bytes(name.data) == Some(b"stdin_tty") {
-            if value.obj_type != ObjectType::kObjectTypeBoolean {
+            if value.obj_type != ObjectType::ObjectTypeBoolean {
                 api_err_exp(
                     err,
                     c"stdin_tty",
-                    api_typename(ObjectType::kObjectTypeBoolean),
+                    api_typename(ObjectType::ObjectTypeBoolean),
                     api_typename(value.obj_type),
                 );
                 return;
@@ -640,11 +640,11 @@ fn ui_set_option(
         }
 
         if crate::memory::cstr_as_opt_bytes(name.data) == Some(b"stdout_tty") {
-            if value.obj_type != ObjectType::kObjectTypeBoolean {
+            if value.obj_type != ObjectType::ObjectTypeBoolean {
                 api_err_exp(
                     err,
                     c"stdout_tty",
-                    api_typename(ObjectType::kObjectTypeBoolean),
+                    api_typename(ObjectType::ObjectTypeBoolean),
                     api_typename(value.obj_type),
                 );
                 return;
@@ -659,7 +659,7 @@ fn ui_set_option(
         let is_popupmenu = crate::memory::cstr_as_opt_bytes(name.data) == Some(b"popupmenu_external");
         for (i, ext_name) in ui_ext_names.iter().enumerate().take(kUIExtCount) {
             if (crate::memory::cstr_as_opt_bytes(name.data) == crate::memory::cstr_as_opt_bytes(ext_name.as_ptr())) || (i == kUIPopupmenu && is_popupmenu) {
-                if value.obj_type != ObjectType::kObjectTypeBoolean {
+                if value.obj_type != ObjectType::ObjectTypeBoolean {
                     api_err_exp(
                         err,
                         name.data,
@@ -672,7 +672,7 @@ fn ui_set_option(
                 if !init && i == kUILinegrid && boolval != ui.ui_ext[i] {
                     api_set_error!(
                         err,
-                        ErrorType::kErrorTypeValidation,
+                        ErrorType::ErrorTypeValidation,
                         c"ext_linegrid option cannot be changed",
                     );
                 }
@@ -686,7 +686,7 @@ fn ui_set_option(
 
         api_set_error!(
             err,
-            ErrorType::kErrorTypeValidation,
+            ErrorType::ErrorTypeValidation,
             c"Invalid UI option: '%s'",
             name.data,
         );
@@ -740,7 +740,7 @@ pub fn nvim_ui_pum_set_height(channel_id: u64, height: Integer, err: &mut Error)
         if height <= 0 {
             api_set_error!(
                 err,
-                ErrorType::kErrorTypeValidation,
+                ErrorType::ErrorTypeValidation,
                 c"Expected pum height > 0",
             );
             return;
@@ -748,7 +748,7 @@ pub fn nvim_ui_pum_set_height(channel_id: u64, height: Integer, err: &mut Error)
         if !ui.ui_ext[kUIPopupmenu] {
             api_set_error!(
                 err,
-                ErrorType::kErrorTypeValidation,
+                ErrorType::ErrorTypeValidation,
                 c"UI must support the ext_popupmenu option",
             );
             return;
@@ -789,7 +789,7 @@ pub fn nvim_ui_pum_set_bounds(
         if !ui.ui_ext[kUIPopupmenu] {
             api_set_error!(
                 err,
-                ErrorType::kErrorTypeValidation,
+                ErrorType::ErrorTypeValidation,
                 c"UI must support the ext_popupmenu option",
             );
             return;
@@ -797,14 +797,14 @@ pub fn nvim_ui_pum_set_bounds(
         if width <= 0.0 {
             api_set_error!(
                 err,
-                ErrorType::kErrorTypeValidation,
+                ErrorType::ErrorTypeValidation,
                 c"Expected width > 0",
             );
             return;
         } else if height <= 0.0 {
             api_set_error!(
                 err,
-                ErrorType::kErrorTypeValidation,
+                ErrorType::ErrorTypeValidation,
                 c"Expected height > 0",
             );
             return;

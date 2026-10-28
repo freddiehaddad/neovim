@@ -443,15 +443,15 @@ fn fuzzy_match_in_list(
 
             let mut itemstr: *mut c_char = std::ptr::null_mut();
             let mut rettv = TypVal {
-                v_type: VarType::VAR_UNKNOWN,
+                v_type: VarType::VarUnknown,
                 v_lock: VAR_UNLOCKED,
                 vval: TypvalVval::Number(0),
             };
 
             let tv = &(*li).li_tv;
-            if tv.v_type == VarType::VAR_STRING {
+            if tv.v_type == VarType::VarString {
                 itemstr = tv.vval.v_string();
-            } else if tv.v_type == VarType::VAR_DICT
+            } else if tv.v_type == VarType::VarDict
                 && (!key.is_null() || item_cb.cb_type() != K_CALLBACK_NONE)
             {
                 let d = tv.vval.v_dict();
@@ -461,18 +461,18 @@ fn fuzzy_match_in_list(
                     (*d).dv_refcount += 1;
                     let mut argv = [
                         TypVal {
-                            v_type: VarType::VAR_DICT,
+                            v_type: VarType::VarDict,
                             v_lock: VAR_UNLOCKED,
                             vval: TypvalVval::Dict(d),
                         },
                         TypVal {
-                            v_type: VarType::VAR_UNKNOWN,
+                            v_type: VarType::VarUnknown,
                             v_lock: VAR_UNLOCKED,
                             vval: TypvalVval::Number(0),
                         },
                     ];
                     if callback_call(item_cb, 1, argv.as_mut_ptr(), &mut rettv)
-                        && rettv.v_type == VarType::VAR_STRING
+                        && rettv.v_type == VarType::VarString
                     {
                         itemstr = rettv.vval.v_string();
                     }
@@ -567,7 +567,7 @@ fn do_fuzzymatch(argvars: &[TypVal], rettv: &mut TypVal, retmatchpos: bool) {
         let arg1 = &argvars[1];
         let arg2 = &argvars[2];
 
-        if arg0.v_type != VarType::VAR_LIST || arg0.vval.v_list().is_null() {
+        if arg0.v_type != VarType::VarList || arg0.vval.v_list().is_null() {
             semsg!(
                 e_listarg,
                 if retmatchpos {
@@ -578,7 +578,7 @@ fn do_fuzzymatch(argvars: &[TypVal], rettv: &mut TypVal, retmatchpos: bool) {
             );
             return;
         }
-        if arg1.v_type != VarType::VAR_STRING || arg1.vval.v_string().is_null() {
+        if arg1.v_type != VarType::VarString || arg1.vval.v_string().is_null() {
             semsg!(e_invarg2, tv_get_string(arg1));
             return;
         }
@@ -588,7 +588,7 @@ fn do_fuzzymatch(argvars: &[TypVal], rettv: &mut TypVal, retmatchpos: bool) {
         let mut matchseq = false;
         let mut max_matches: c_int = 0;
 
-        if arg2.v_type != VarType::VAR_UNKNOWN {
+        if arg2.v_type != VarType::VarUnknown {
             if !tv_check_for_nonnull_dict_arg(argvars, 2) {
                 return;
             }
@@ -596,7 +596,7 @@ fn do_fuzzymatch(argvars: &[TypVal], rettv: &mut TypVal, retmatchpos: bool) {
             let d = arg2.vval.v_dict();
             let di_key = tv_dict_find(d.as_ref(), c"key", -1);
             if !di_key.is_null() {
-                if (*di_key).di_tv.v_type != VarType::VAR_STRING
+                if (*di_key).di_tv.v_type != VarType::VarString
                     || (*di_key).di_tv.vval.v_string().is_null()
                     || *(*di_key).di_tv.vval.v_string() == 0
                 {
@@ -615,7 +615,7 @@ fn do_fuzzymatch(argvars: &[TypVal], rettv: &mut TypVal, retmatchpos: bool) {
 
             let di_limit = tv_dict_find(d.as_ref(), c"limit", -1);
             if !di_limit.is_null() {
-                if (*di_limit).di_tv.v_type != VarType::VAR_NUMBER {
+                if (*di_limit).di_tv.v_type != VarType::VarNumber {
                     callback_free(&mut cb);
                     semsg!(e_invargval, c"limit");
                     return;

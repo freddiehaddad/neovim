@@ -306,7 +306,7 @@ pub fn rpc_send_call(
         if channel.is_null() {
             api_set_error!(
                 err,
-                ErrorType::kErrorTypeException,
+                ErrorType::ErrorTypeException,
                 c"Invalid channel: %llu",
                 id,
             );
@@ -342,7 +342,7 @@ pub fn rpc_send_call(
             {
                 api_set_error!(
                     err,
-                    ErrorType::kErrorTypeException,
+                    ErrorType::ErrorTypeException,
                     c"Invalid channel: %llu",
                     id,
                 );
@@ -353,23 +353,23 @@ pub fn rpc_send_call(
 
         if frame.errored.get() {
             let res = frame.result.get();
-            if res.obj_type == ObjectType::kObjectTypeString {
+            if res.obj_type == ObjectType::ObjectTypeString {
                 api_set_error!(
                     err,
-                    ErrorType::kErrorTypeException,
+                    ErrorType::ErrorTypeException,
                     c"%s",
                     res.data.string().data,
                 );
-            } else if res.obj_type == ObjectType::kObjectTypeArray {
+            } else if res.obj_type == ObjectType::ObjectTypeArray {
                 let array = res.data.array();
                 if array.size == 2
-                    && (*array.items).obj_type == ObjectType::kObjectTypeInteger
+                    && (*array.items).obj_type == ObjectType::ObjectTypeInteger
                     && let Some(et) = ErrorType::from_raw((*array.items).data.integer() as c_int)
                     && matches!(
                         et,
-                        ErrorType::kErrorTypeException | ErrorType::kErrorTypeValidation
+                        ErrorType::ErrorTypeException | ErrorType::ErrorTypeValidation
                     )
-                    && array[1].obj_type == ObjectType::kObjectTypeString
+                    && array[1].obj_type == ObjectType::ObjectTypeString
                 {
                     api_set_error!(
                         err,
@@ -380,7 +380,7 @@ pub fn rpc_send_call(
                 } else {
                     api_set_error!(
                         err,
-                        ErrorType::kErrorTypeException,
+                        ErrorType::ErrorTypeException,
                         c"%s",
                         c"unknown error",
                     );
@@ -388,7 +388,7 @@ pub fn rpc_send_call(
             } else {
                 api_set_error!(
                     err,
-                    ErrorType::kErrorTypeException,
+                    ErrorType::ErrorTypeException,
                     c"%s",
                     c"unknown error",
                 );
@@ -458,19 +458,19 @@ fn parse_msgpack(channel: &mut Channel) {
         let p: *mut Unpacker = channel.rpc.unpacker.as_deref_mut().unwrap();
 
         while unpacker_advance(&mut *p) {
-            if (*p).msg_type == MessageType::kMessageTypeRedrawEvent {
+            if (*p).msg_type == MessageType::MessageTypeRedrawEvent {
                 if g_st().ui_client_attached {
                     if (*p).has_grid_line_event {
                         ui_client_event_raw_line(&mut (*p).grid_line_event);
                         (*p).has_grid_line_event = false;
                     } else if let Some(ui_fn) = (*p).ui_handler.r#fn
-                        && (*p).result.obj_type == ObjectType::kObjectTypeArray
+                        && (*p).result.obj_type == ObjectType::ObjectTypeArray
                     {
                         ui_fn((*p).result.data.array());
                     }
                 }
                 arena_mem_free(arena_finish(&mut (*p).arena));
-            } else if (*p).msg_type == MessageType::kMessageTypeResponse {
+            } else if (*p).msg_type == MessageType::MessageTypeResponse {
                 let frame_opt = if channel.rpc.client_type == kClientTypeMsgpackRpc {
                     find_call_frame(&channel.rpc, (*p).request_id)
                 } else {
@@ -498,7 +498,7 @@ fn parse_msgpack(channel: &mut Channel) {
                     return;
                 }
 
-                let errored = (*p).error.obj_type != ObjectType::kObjectTypeNil;
+                let errored = (*p).error.obj_type != ObjectType::ObjectTypeNil;
                 frame.returned.set(true);
                 frame.errored.set(errored);
 
@@ -510,7 +510,7 @@ fn parse_msgpack(channel: &mut Channel) {
                 frame.result_mem.set(arena_finish(&mut (*p).arena));
             } else {
                 let res = (*p).result;
-                if (*p).result.obj_type != ObjectType::kObjectTypeArray {
+                if (*p).result.obj_type != ObjectType::ObjectTypeArray {
                     chan_close_on_err(
                         channel,
                         c"msgpack-rpc request args must be an array",
@@ -532,8 +532,8 @@ fn parse_msgpack(channel: &mut Channel) {
 fn handle_request(channel: &mut Channel, p: &mut Unpacker, args: Array) {
      {
         assert!(
-            p.msg_type == MessageType::kMessageTypeRequest
-                || p.msg_type == MessageType::kMessageTypeNotification
+            p.msg_type == MessageType::MessageTypeRequest
+                || p.msg_type == MessageType::MessageTypeNotification
         );
 
         if p.handler.r#fn.is_none() {
@@ -602,8 +602,8 @@ pub fn request_event(mut e: RequestEvent) {
         if !(*channel).rpc.closed {
             let fn_call = handler.r#fn.unwrap();
             let mut result = fn_call((*channel).id, e.args, &mut e.used_mem, &mut error);
-            if e.r#type == MessageType::kMessageTypeRequest
-                || error.err_type != ErrorType::kErrorTypeNone
+            if e.r#type == MessageType::MessageTypeRequest
+                || error.err_type != ErrorType::ErrorTypeNone
             {
                 serialize_response(
                     &mut *channel,
@@ -709,7 +709,7 @@ fn send_error(
         let mut e = Error::new();
         api_set_error!(
             &mut e,
-            ErrorType::kErrorTypeException,
+            ErrorType::ErrorTypeException,
             c"%s",
             err,
         );
@@ -820,7 +820,7 @@ fn chan_close_on_err(channel: &mut Channel, msg: impl crate::strings::IntoCCharP
             frame.errored.set(true);
             let s = arena_string(&mut (*p).arena, cstr_as_string(msg));
             frame.result.set(Object {
-                obj_type: ObjectType::kObjectTypeString,
+                obj_type: ObjectType::ObjectTypeString,
                 data: ObjectData::String(s),
             });
             frame.result_mem.set(arena_finish(&mut (*p).arena));
@@ -873,8 +873,8 @@ pub fn serialize_response(
     err: &mut Error,
     arg: &mut Object,
 ) {
-    if err.err_type != ErrorType::kErrorTypeNone
-            && r#type == MessageType::kMessageTypeNotification
+    if err.err_type != ErrorType::ErrorTypeNone
+            && r#type == MessageType::MessageTypeNotification
         {
             let is_paste = handler
                 .r#fn
@@ -888,11 +888,11 @@ pub fn serialize_response(
             } else {
                 let mut items = [
                     Object {
-                        obj_type: ObjectType::kObjectTypeInteger,
+                        obj_type: ObjectType::ObjectTypeInteger,
                         data: ObjectData::Integer(err.err_type as i64),
                     },
                     Object {
-                        obj_type: ObjectType::kObjectTypeString,
+                        obj_type: ObjectType::ObjectTypeString,
                         data: ObjectData::String(cstr_as_string(err.msg_ptr())),
                     },
                 ];
@@ -915,7 +915,7 @@ pub fn serialize_response(
         mpack_w(&raw mut packer.ptr, 1);
         mpack_uint(&raw mut packer.ptr, response_id);
 
-        if err.err_type != ErrorType::kErrorTypeNone {
+        if err.err_type != ErrorType::ErrorTypeNone {
             mpack_array(&raw mut packer.ptr, 2);
             mpack_integer(&raw mut packer.ptr, err.err_type as Integer);
             mpack_str(cstr_as_string(err.msg_ptr()), &mut packer);
@@ -1019,7 +1019,7 @@ pub fn get_client_info(chan: &mut Channel, key: &std::ffi::CStr) -> *const c_cha
             let item = &*info.items.add(i);
             if !item.key.data.is_null()
                 && crate::memory::cstr_as_bytes(item.key.data) == key_bytes
-                && item.value.obj_type == ObjectType::kObjectTypeString
+                && item.value.obj_type == ObjectType::ObjectTypeString
             {
                 return item.value.data.string().data;
             }

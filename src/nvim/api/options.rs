@@ -171,7 +171,7 @@ fn validate_option_value_args(
         if *opt_idxp == kOptInvalid {
             api_set_error!(
                 err,
-                ErrorType::kErrorTypeValidation,
+                ErrorType::ErrorTypeValidation,
                 c"Unknown option '%s'",
                 name,
             );
@@ -200,8 +200,8 @@ fn validate_option_value_args(
             }
 
             if !(*operation == OP_NONE
-                || option_has_type(*opt_idxp, ObjectType::kObjectTypeString)
-                || option_has_type(*opt_idxp, ObjectType::kObjectTypeInteger))
+                || option_has_type(*opt_idxp, ObjectType::ObjectTypeString)
+                || option_has_type(*opt_idxp, ObjectType::ObjectTypeInteger))
             {
                 api_err_conflict(err, opts.operation.data, c"boolean options");
                 return false;
@@ -242,7 +242,7 @@ fn validate_option_value_args(
 
             api_set_error!(
                 err,
-                ErrorType::kErrorTypeValidation,
+                ErrorType::ErrorTypeValidation,
                 c"'%s' cannot be passed for %s%soption '%s'",
                 tgt,
                 global,
@@ -266,7 +266,7 @@ fn do_ft_buf(filetype: impl crate::strings::IntoCCharPtr, aco: &mut CtxSwitch, e
         if ftbuf.is_null() {
             api_set_error!(
                 err,
-                ErrorType::kErrorTypeException,
+                ErrorType::ErrorTypeException,
                 c"Could not create internal buffer",
             );
             return ptr::null_mut();
@@ -275,7 +275,7 @@ fn do_ft_buf(filetype: impl crate::strings::IntoCCharPtr, aco: &mut CtxSwitch, e
         if !ml_open(&mut *ftbuf) {
             api_set_error!(
                 err,
-                ErrorType::kErrorTypeException,
+                ErrorType::ErrorTypeException,
                 c"Could not load internal buffer",
             );
             return ftbuf;
@@ -323,7 +323,7 @@ fn do_ft_buf(filetype: impl crate::strings::IntoCCharPtr, aco: &mut CtxSwitch, e
             if !error_set(err) {
                 api_set_error!(
                     err,
-                    ErrorType::kErrorTypeException,
+                    ErrorType::ErrorTypeException,
                     c"Internal buffer was deleted",
                 );
             }
@@ -333,7 +333,7 @@ fn do_ft_buf(filetype: impl crate::strings::IntoCCharPtr, aco: &mut CtxSwitch, e
         if !did_au_ft && !error_set(err) {
             api_set_error!(
                 err,
-                ErrorType::kErrorTypeException,
+                ErrorType::ErrorTypeException,
                 c"Could not execute FileType autocommands",
             );
         }
@@ -461,14 +461,14 @@ pub fn nvim__option_to_object(
         if opt_idx == kOptInvalid {
             api_set_error!(
                 err,
-                ErrorType::kErrorTypeValidation,
+                ErrorType::ErrorTypeValidation,
                 c"Unknown option '%s'",
                 name.data,
             );
             return OBJECT_NIL;
         }
 
-        if value.obj_type != ObjectType::kObjectTypeString {
+        if value.obj_type != ObjectType::ObjectTypeString {
             return copy_object(value, Some(arena));
         }
 
@@ -619,8 +619,8 @@ pub fn nvim_set_option_value(
         let mut merged_val = OBJECT_NIL;
         let mut errmsg: *const c_char = std::ptr::null();
         let option = get_option(opt_idx);
-        let is_array = value.obj_type == ObjectType::kObjectTypeArray;
-        let is_dict = value.obj_type == ObjectType::kObjectTypeDict;
+        let is_array = value.obj_type == ObjectType::ObjectTypeArray;
+        let is_dict = value.obj_type == ObjectType::ObjectTypeDict;
 
         let buf = if let (kOptScopeBuf, OptTarget::Buf(b)) = (scope, to) {
             b
@@ -648,7 +648,7 @@ pub fn nvim_set_option_value(
             let mut item = value;
             if per_item && is_array {
                 item = Object {
-                    obj_type: ObjectType::kObjectTypeArray,
+                    obj_type: ObjectType::ObjectTypeArray,
                     data: ObjectData::Array(Array {
                             items: value.data.array().items.add(i),
                             size: 1,
@@ -657,7 +657,7 @@ pub fn nvim_set_option_value(
                 };
             } else if per_item {
                 item = Object {
-                    obj_type: ObjectType::kObjectTypeDict,
+                    obj_type: ObjectType::ObjectTypeDict,
                     data: ObjectData::Dict(Dict {
                             items: value.data.dict().items.add(i),
                             size: 1,
@@ -683,8 +683,8 @@ pub fn nvim_set_option_value(
             let mut argp: *mut c_char = ptr::null_mut();
 
             match optval_right.obj_type {
-                ObjectType::kObjectTypeUnset | ObjectType::kObjectTypeNil => {}
-                ObjectType::kObjectTypeString => {
+                ObjectType::ObjectTypeUnset | ObjectType::ObjectTypeNil => {}
+                ObjectType::ObjectTypeString => {
                     let optval_escaped = escape_option_str_cmdline(optval_right.data.string().data);
                     let escaped_bytes = optval_escaped.as_bytes();
                     let mut buf_bytes = Vec::with_capacity(1 + escaped_bytes.len());
@@ -692,14 +692,14 @@ pub fn nvim_set_option_value(
                     buf_bytes.extend_from_slice(escaped_bytes);
                     argp = arena_memdupz(arena, buf_bytes.as_ptr().cast(), buf_bytes.len());
                 }
-                ObjectType::kObjectTypeInteger => {
+                ObjectType::ObjectTypeInteger => {
                     let s = format!("={}", optval_right.data.integer());
                     argp = arena_memdupz(arena, s.as_ptr().cast(), s.len());
                 }
-                ObjectType::kObjectTypeBoolean => {
+                ObjectType::ObjectTypeBoolean => {
                     merged_val = optval_right;
                 }
-                ObjectType::kObjectTypeLuaRef => {
+                ObjectType::ObjectTypeLuaRef => {
                     merged_val = copy_object(optval_right, None);
                 }
                 _ => {
@@ -709,8 +709,8 @@ pub fn nvim_set_option_value(
 
             optval_free(optval_right);
 
-            if optval_right.obj_type == ObjectType::kObjectTypeInteger
-                || optval_right.obj_type == ObjectType::kObjectTypeString
+            if optval_right.obj_type == ObjectType::ObjectTypeInteger
+                || optval_right.obj_type == ObjectType::ObjectTypeString
             {
                 let mut oldval = if i == 0 {
                     optval_own(opt_idx, opt_from_varp(opt_idx, varp))
@@ -730,7 +730,7 @@ pub fn nvim_set_option_value(
                 );
                 optval_free(oldval);
                 if !errmsg.is_null() {
-                    api_set_error!(err, ErrorType::kErrorTypeValidation, c"%s", errmsg);
+                    api_set_error!(err, ErrorType::ErrorTypeValidation, c"%s", errmsg);
                     optval_free(merged_val);
                     return OBJECT_NIL;
                 }
@@ -760,7 +760,7 @@ pub fn nvim_set_option_value(
             errmsg = validate_and_prepare_option_value(&mut args);
             merged_val = args.os_newval;
             if !errmsg.is_null() {
-                api_set_error!(err, ErrorType::kErrorTypeException, c"%s", errmsg);
+                api_set_error!(err, ErrorType::ErrorTypeException, c"%s", errmsg);
                 optval_free(merged_val);
                 return OBJECT_NIL;
             }

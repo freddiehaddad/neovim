@@ -49,7 +49,7 @@ pub(crate) const SID_API_CLIENT: Scid = -9;
 pub(crate) const SID_LUA: Scid = -8;
 
 pub const OBJECT_NIL: Object = Object {
-    obj_type: ObjectType::kObjectTypeNil,
+    obj_type: ObjectType::ObjectTypeNil,
     data: ObjectData::Integer(0),
 };
 
@@ -61,7 +61,7 @@ pub const fn nil_obj() -> Object {
 #[inline]
 pub const fn boolean_obj(b: Boolean) -> Object {
     Object {
-        obj_type: ObjectType::kObjectTypeBoolean,
+        obj_type: ObjectType::ObjectTypeBoolean,
         data: ObjectData::Boolean(b),
     }
 }
@@ -69,7 +69,7 @@ pub const fn boolean_obj(b: Boolean) -> Object {
 #[inline]
 pub const fn integer_obj(i: Integer) -> Object {
     Object {
-        obj_type: ObjectType::kObjectTypeInteger,
+        obj_type: ObjectType::ObjectTypeInteger,
         data: ObjectData::Integer(i),
     }
 }
@@ -77,7 +77,7 @@ pub const fn integer_obj(i: Integer) -> Object {
 #[inline]
 pub const fn float_obj(f: Float) -> Object {
     Object {
-        obj_type: ObjectType::kObjectTypeFloat,
+        obj_type: ObjectType::ObjectTypeFloat,
         data: ObjectData::Floating(f),
     }
 }
@@ -85,7 +85,7 @@ pub const fn float_obj(f: Float) -> Object {
 #[inline]
 pub const fn string_obj(s: NvimString) -> Object {
     Object {
-        obj_type: ObjectType::kObjectTypeString,
+        obj_type: ObjectType::ObjectTypeString,
         data: ObjectData::String(s),
     }
 }
@@ -93,7 +93,7 @@ pub const fn string_obj(s: NvimString) -> Object {
 #[inline]
 pub const fn buffer_obj(b: Buffer) -> Object {
     Object {
-        obj_type: ObjectType::kObjectTypeBuffer,
+        obj_type: ObjectType::ObjectTypeBuffer,
         data: ObjectData::Integer(b as Integer),
     }
 }
@@ -101,7 +101,7 @@ pub const fn buffer_obj(b: Buffer) -> Object {
 #[inline]
 pub const fn window_obj(w: Window) -> Object {
     Object {
-        obj_type: ObjectType::kObjectTypeWindow,
+        obj_type: ObjectType::ObjectTypeWindow,
         data: ObjectData::Integer(w as Integer),
     }
 }
@@ -109,7 +109,7 @@ pub const fn window_obj(w: Window) -> Object {
 #[inline]
 pub const fn tabpage_obj(t: Tabpage) -> Object {
     Object {
-        obj_type: ObjectType::kObjectTypeTabpage,
+        obj_type: ObjectType::ObjectTypeTabpage,
         data: ObjectData::Integer(t as Integer),
     }
 }
@@ -117,7 +117,7 @@ pub const fn tabpage_obj(t: Tabpage) -> Object {
 #[inline]
 pub const fn array_obj(a: Array) -> Object {
     Object {
-        obj_type: ObjectType::kObjectTypeArray,
+        obj_type: ObjectType::ObjectTypeArray,
         data: ObjectData::Array(a),
     }
 }
@@ -125,7 +125,7 @@ pub const fn array_obj(a: Array) -> Object {
 #[inline]
 pub const fn dict_obj(d: Dict) -> Object {
     Object {
-        obj_type: ObjectType::kObjectTypeDict,
+        obj_type: ObjectType::ObjectTypeDict,
         data: ObjectData::Dict(d),
     }
 }
@@ -133,7 +133,7 @@ pub const fn dict_obj(d: Dict) -> Object {
 #[inline]
 pub const fn luaref_obj(r: LuaRef) -> Object {
     Object {
-        obj_type: ObjectType::kObjectTypeLuaRef,
+        obj_type: ObjectType::ObjectTypeLuaRef,
         data: ObjectData::LuaRef(r),
     }
 }
@@ -214,7 +214,7 @@ pub fn api_set_error_str<S: crate::strings::IntoCCharPtr>(
     err_type: ErrorType,
     msg: S,
 ) {
-    debug_assert!(!matches!(err_type, ErrorType::kErrorTypeNone));
+    debug_assert!(!matches!(err_type, ErrorType::ErrorTypeNone));
     err.msg = Some(crate::memory::cstr_to_cstring(msg.into_c_char_ptr()));
     err.err_type = err_type;
 }
@@ -363,7 +363,7 @@ pub fn cbuf_to_arena_str_opt(
 
 #[inline]
 pub fn error_set(e: &Error) -> bool {
-    !matches!(e.err_type, ErrorType::kErrorTypeNone)
+    !matches!(e.err_type, ErrorType::ErrorTypeNone)
 }
 
 /// Start block that may cause Vimscript exceptions while evaluating another code (`try_enter`).
@@ -407,7 +407,7 @@ pub fn try_leave(tstate: &TryState, err: &mut Error) {
             }
             api_set_error!(
                 err,
-                ErrorType::kErrorTypeException,
+                ErrorType::ErrorTypeException,
                 c"Keyboard interrupt",
             );
             g_st().got_int = false;
@@ -418,7 +418,7 @@ pub fn try_leave(tstate: &TryState, err: &mut Error) {
             let msg = get_error_exception_string(throw_ptr, ptr::null_mut());
             api_set_error!(
                 err,
-                ErrorType::kErrorTypeException,
+                ErrorType::ErrorTypeException,
                 c"%s",
                 msg.as_ptr()
             );
@@ -429,7 +429,7 @@ pub fn try_leave(tstate: &TryState, err: &mut Error) {
                     if excp.throw_lnum != 0 {
                         api_set_error!(
                             err,
-                            ErrorType::kErrorTypeException,
+                            ErrorType::ErrorTypeException,
                             c"%s, line %d: %s",
                             excp.throw_name.as_ptr(),
                             excp.throw_lnum,
@@ -438,7 +438,7 @@ pub fn try_leave(tstate: &TryState, err: &mut Error) {
                     } else {
                         api_set_error!(
                             err,
-                            ErrorType::kErrorTypeException,
+                            ErrorType::ErrorTypeException,
                             c"%s: %s",
                             excp.throw_name.as_ptr(),
                             excp.value.as_ptr(),
@@ -447,7 +447,7 @@ pub fn try_leave(tstate: &TryState, err: &mut Error) {
                 } else {
                     api_set_error!(
                         err,
-                        ErrorType::kErrorTypeException,
+                        ErrorType::ErrorTypeException,
                         c"%s",
                         excp.value.as_ptr(),
                     );
@@ -477,7 +477,7 @@ pub fn dict_get_value(
         if di.is_null() {
             api_set_error!(
                 err,
-                ErrorType::kErrorTypeValidation,
+                ErrorType::ErrorTypeValidation,
                 c"Key not found: %s",
                 key.data,
             );
@@ -499,21 +499,21 @@ pub fn dict_check_writable(
             if ((*di).di_flags & DI_FLAGS_RO) != 0 {
                 api_set_error!(
                     err,
-                    ErrorType::kErrorTypeException,
+                    ErrorType::ErrorTypeException,
                     c"Key is read-only: %s",
                     key.data,
                 );
             } else if ((*di).di_flags & DI_FLAGS_LOCK) != 0 {
                 api_set_error!(
                     err,
-                    ErrorType::kErrorTypeException,
+                    ErrorType::ErrorTypeException,
                     c"Key is locked: %s",
                     key.data,
                 );
             } else if del && ((*di).di_flags & DI_FLAGS_FIX) != 0 {
                 api_set_error!(
                     err,
-                    ErrorType::kErrorTypeException,
+                    ErrorType::ErrorTypeException,
                     c"Key is fixed: %s",
                     key.data,
                 );
@@ -521,19 +521,19 @@ pub fn dict_check_writable(
         } else if dict.dv_lock != 0 {
             api_set_error!(
                 err,
-                ErrorType::kErrorTypeException,
+                ErrorType::ErrorTypeException,
                 c"Dict is locked",
             );
         } else if key.size == 0 {
             api_set_error!(
                 err,
-                ErrorType::kErrorTypeValidation,
+                ErrorType::ErrorTypeValidation,
                 c"Key name is empty",
             );
         } else if key.size > c_int::MAX as usize {
             api_set_error!(
                 err,
-                ErrorType::kErrorTypeValidation,
+                ErrorType::ErrorTypeValidation,
                 c"Key name is too long",
             );
         }
@@ -563,7 +563,7 @@ pub fn dict_set_var(
             if di.is_null() {
                 api_set_error!(
                     err,
-                    ErrorType::kErrorTypeValidation,
+                    ErrorType::ErrorTypeValidation,
                     c"Key not found: %s",
                     key.data,
                 );
@@ -603,7 +603,7 @@ pub fn dict_set_var(
                     if type_error {
                         api_set_error!(
                             err,
-                            ErrorType::kErrorTypeValidation,
+                            ErrorType::ErrorTypeValidation,
                             c"Setting v:%s to value with wrong type",
                             key.data,
                         );
@@ -637,7 +637,7 @@ pub fn find_buffer_by_handle(buffer: Buffer, err: &mut Error) -> *mut FileBuf {
         if rv.is_null() {
             api_set_error!(
                 err,
-                ErrorType::kErrorTypeValidation,
+                ErrorType::ErrorTypeValidation,
                 c"Invalid buffer id: %lld",
                 i64::from(buffer),
             );
@@ -658,7 +658,7 @@ pub extern "C" fn find_window_by_handle(window: Window, err: &mut Error) -> *mut
         if rv.is_null() {
             api_set_error!(
                 err,
-                ErrorType::kErrorTypeValidation,
+                ErrorType::ErrorTypeValidation,
                 c"Invalid window id: %lld",
                 i64::from(window),
             );
@@ -677,7 +677,7 @@ pub fn find_tab_by_handle(tabpage: Tabpage, err: &mut Error) -> *mut TabPageInfo
         if rv.is_null() {
             api_set_error!(
                 err,
-                ErrorType::kErrorTypeValidation,
+                ErrorType::ErrorTypeValidation,
                 c"Invalid tabpage id: %lld",
                 i64::from(tabpage),
             );
@@ -801,7 +801,7 @@ pub fn string_to_array(input: NvimString, crlf: bool, arena: &mut Arena) -> Arra
             );
             { let _d = (s.data).cast::<u8>(); let _sz = line_len; if _sz > 0 { let _c = (NUL) as u8; let _x = (NL) as u8; for _b in std::slice::from_raw_parts_mut(_d, _sz) { if *_b == _c { *_b = _x; } } } };
             ret.push(Object {
-                obj_type: ObjectType::kObjectTypeString,
+                obj_type: ObjectType::ObjectTypeString,
                 data: ObjectData::String(s),
             });
             if i + 1 == input.size && (*end == NL || (crlf && *end == CAR)) {
@@ -813,7 +813,7 @@ pub fn string_to_array(input: NvimString, crlf: bool, arena: &mut Arena) -> Arra
                     },
                 );
                 ret.push(Object {
-                    obj_type: ObjectType::kObjectTypeString,
+                    obj_type: ObjectType::ObjectTypeString,
                     data: ObjectData::String(empty_s),
                 });
             }
@@ -860,7 +860,7 @@ pub fn buf_get_text(
         if lnum >= MAXLNUM {
             api_set_error!(
                 err,
-                ErrorType::kErrorTypeValidation,
+                ErrorType::ErrorTypeValidation,
                 c"'line index' value out of range",
             );
             return rv;
@@ -882,7 +882,7 @@ pub fn buf_get_text(
         if start_col > end_col {
             api_set_error!(
                 err,
-                ErrorType::kErrorTypeValidation,
+                ErrorType::ErrorTypeValidation,
                 c"start_col must be less than or equal to end_col",
             );
             return rv;
@@ -982,18 +982,18 @@ pub fn arena_take_arraybuilder(arena: &mut Arena, arr: &mut ArrayBuilder) -> Arr
 
 pub fn api_free_object(value: Object) {
     match value.obj_type {
-        ObjectType::kObjectTypeUnset
-        | ObjectType::kObjectTypeNil
-        | ObjectType::kObjectTypeBoolean
-        | ObjectType::kObjectTypeInteger
-        | ObjectType::kObjectTypeFloat
-        | ObjectType::kObjectTypeBuffer
-        | ObjectType::kObjectTypeWindow
-        | ObjectType::kObjectTypeTabpage => {}
-        ObjectType::kObjectTypeString => api_free_string(value.data.string()),
-        ObjectType::kObjectTypeArray => api_free_array(value.data.array()),
-        ObjectType::kObjectTypeDict => api_free_dict(value.data.dict()),
-        ObjectType::kObjectTypeLuaRef => api_free_luaref(value.data.luaref()),
+        ObjectType::ObjectTypeUnset
+        | ObjectType::ObjectTypeNil
+        | ObjectType::ObjectTypeBoolean
+        | ObjectType::ObjectTypeInteger
+        | ObjectType::ObjectTypeFloat
+        | ObjectType::ObjectTypeBuffer
+        | ObjectType::ObjectTypeWindow
+        | ObjectType::ObjectTypeTabpage => {}
+        ObjectType::ObjectTypeString => api_free_string(value.data.string()),
+        ObjectType::ObjectTypeArray => api_free_array(value.data.array()),
+        ObjectType::ObjectTypeDict => api_free_dict(value.data.dict()),
+        ObjectType::ObjectTypeLuaRef => api_free_luaref(value.data.luaref()),
     }
 }
 
@@ -1017,7 +1017,7 @@ pub fn api_clear_error(value: &mut Error) {
         return;
     }
     value.msg = None;
-    value.err_type = ErrorType::kErrorTypeNone;
+    value.err_type = ErrorType::ErrorTypeNone;
 }
 
 pub fn copy_string(str_: NvimString, arena: Option<&mut Arena>) -> NvimString {
@@ -1063,28 +1063,28 @@ pub fn copy_dict(dict: Dict, mut arena: Option<&mut Arena>) -> Dict {
 
 pub fn copy_object(obj: Object, arena: Option<&mut Arena>) -> Object {
     match obj.obj_type {
-        ObjectType::kObjectTypeUnset
-        | ObjectType::kObjectTypeBuffer
-        | ObjectType::kObjectTypeTabpage
-        | ObjectType::kObjectTypeWindow
-        | ObjectType::kObjectTypeNil
-        | ObjectType::kObjectTypeBoolean
-        | ObjectType::kObjectTypeInteger
-        | ObjectType::kObjectTypeFloat => obj,
-        ObjectType::kObjectTypeString => Object {
-            obj_type: ObjectType::kObjectTypeString,
+        ObjectType::ObjectTypeUnset
+        | ObjectType::ObjectTypeBuffer
+        | ObjectType::ObjectTypeTabpage
+        | ObjectType::ObjectTypeWindow
+        | ObjectType::ObjectTypeNil
+        | ObjectType::ObjectTypeBoolean
+        | ObjectType::ObjectTypeInteger
+        | ObjectType::ObjectTypeFloat => obj,
+        ObjectType::ObjectTypeString => Object {
+            obj_type: ObjectType::ObjectTypeString,
             data: ObjectData::String(copy_string(obj.data.string(), arena)),
         },
-        ObjectType::kObjectTypeArray => Object {
-            obj_type: ObjectType::kObjectTypeArray,
+        ObjectType::ObjectTypeArray => Object {
+            obj_type: ObjectType::ObjectTypeArray,
             data: ObjectData::Array(copy_array(obj.data.array(), arena)),
         },
-        ObjectType::kObjectTypeDict => Object {
-            obj_type: ObjectType::kObjectTypeDict,
+        ObjectType::ObjectTypeDict => Object {
+            obj_type: ObjectType::ObjectTypeDict,
             data: ObjectData::Dict(copy_dict(obj.data.dict(), arena)),
         },
-        ObjectType::kObjectTypeLuaRef => Object {
-            obj_type: ObjectType::kObjectTypeLuaRef,
+        ObjectType::ObjectTypeLuaRef => Object {
+            obj_type: ObjectType::ObjectTypeLuaRef,
             data: ObjectData::LuaRef(api_new_luaref(obj.data.luaref())),
         },
     }
@@ -1098,9 +1098,9 @@ pub fn api_object_to_bool(
 ) -> bool {
     let what = what.into_c_char_ptr();
     match obj.obj_type {
-            ObjectType::kObjectTypeBoolean => obj.data.boolean(),
-            ObjectType::kObjectTypeInteger => obj.data.integer() != 0,
-            ObjectType::kObjectTypeNil => nil_value,
+            ObjectType::ObjectTypeBoolean => obj.data.boolean(),
+            ObjectType::ObjectTypeInteger => obj.data.integer() != 0,
+            ObjectType::ObjectTypeNil => nil_value,
             _ => {
                 api_err_exp(err, what, c"boolean", ptr::null());
                 false
@@ -1112,7 +1112,7 @@ pub fn object_to_hl_id(obj: Object, what: impl crate::strings::IntoCCharPtr, err
     let what = what.into_c_char_ptr();
     unsafe {
         match obj.obj_type {
-            ObjectType::kObjectTypeString => {
+            ObjectType::ObjectTypeString => {
                 let str_ = obj.data.string();
                 if str_.size != 0 {
                     syn_check_group(str_.data, str_.size)
@@ -1120,7 +1120,7 @@ pub fn object_to_hl_id(obj: Object, what: impl crate::strings::IntoCCharPtr, err
                     0
                 }
             }
-            ObjectType::kObjectTypeInteger => {
+            ObjectType::ObjectTypeInteger => {
                 let id = obj.data.integer() as c_int;
                 if (1..=highlight_num_groups()).contains(&id) {
                     id
@@ -1131,7 +1131,7 @@ pub fn object_to_hl_id(obj: Object, what: impl crate::strings::IntoCCharPtr, err
             _ => {
                 api_set_error!(
                     err,
-                    ErrorType::kErrorTypeValidation,
+                    ErrorType::ErrorTypeValidation,
                     c"Invalid 'hl_group': '%s'",
                     what,
                 );
@@ -1143,18 +1143,18 @@ pub fn object_to_hl_id(obj: Object, what: impl crate::strings::IntoCCharPtr, err
 
 pub fn api_typename(t: ObjectType) -> *const c_char {
     match t {
-        ObjectType::kObjectTypeUnset => c"unset".as_ptr(),
-        ObjectType::kObjectTypeNil => c"nil".as_ptr(),
-        ObjectType::kObjectTypeBoolean => c"Boolean".as_ptr(),
-        ObjectType::kObjectTypeInteger => c"Integer".as_ptr(),
-        ObjectType::kObjectTypeFloat => c"Float".as_ptr(),
-        ObjectType::kObjectTypeString => c"String".as_ptr(),
-        ObjectType::kObjectTypeArray => c"Array".as_ptr(),
-        ObjectType::kObjectTypeDict => c"Dict".as_ptr(),
-        ObjectType::kObjectTypeLuaRef => c"Function".as_ptr(),
-        ObjectType::kObjectTypeBuffer => c"Buffer".as_ptr(),
-        ObjectType::kObjectTypeWindow => c"Window".as_ptr(),
-        ObjectType::kObjectTypeTabpage => c"Tabpage".as_ptr(),
+        ObjectType::ObjectTypeUnset => c"unset".as_ptr(),
+        ObjectType::ObjectTypeNil => c"nil".as_ptr(),
+        ObjectType::ObjectTypeBoolean => c"Boolean".as_ptr(),
+        ObjectType::ObjectTypeInteger => c"Integer".as_ptr(),
+        ObjectType::ObjectTypeFloat => c"Float".as_ptr(),
+        ObjectType::ObjectTypeString => c"String".as_ptr(),
+        ObjectType::ObjectTypeArray => c"Array".as_ptr(),
+        ObjectType::ObjectTypeDict => c"Dict".as_ptr(),
+        ObjectType::ObjectTypeLuaRef => c"Function".as_ptr(),
+        ObjectType::ObjectTypeBuffer => c"Buffer".as_ptr(),
+        ObjectType::ObjectTypeWindow => c"Window".as_ptr(),
+        ObjectType::ObjectTypeTabpage => c"Tabpage".as_ptr(),
     }
 }
 
@@ -1163,11 +1163,11 @@ pub fn parse_hl_msg(chunks: Array, is_err: bool, err: &mut Error) -> HlMessage {
         let mut hl_msg = HlMessage::new();
         for i in 0..chunks.size {
             let item = chunks[i];
-            if item.obj_type != ObjectType::kObjectTypeArray {
+            if item.obj_type != ObjectType::ObjectTypeArray {
                 api_err_exp(
                     err,
                     c"chunk",
-                    api_typename(ObjectType::kObjectTypeArray),
+                    api_typename(ObjectType::ObjectTypeArray),
                     api_typename(item.obj_type),
                 );
                 return HlMessage::new();
@@ -1175,11 +1175,11 @@ pub fn parse_hl_msg(chunks: Array, is_err: bool, err: &mut Error) -> HlMessage {
             let chunk = item.data.array();
             if chunk.size == 0
                 || chunk.size > 2
-                || (*chunk.items).obj_type != ObjectType::kObjectTypeString
+                || (*chunk.items).obj_type != ObjectType::ObjectTypeString
             {
                 api_set_error!(
                     err,
-                    ErrorType::kErrorTypeValidation,
+                    ErrorType::ErrorTypeValidation,
                     c"%s",
                     c"Invalid chunk: expected Array with 1 or 2 Strings",
                 );
@@ -1216,7 +1216,7 @@ pub fn api_dict_to_keydict(
             let Some(field) = hashy_fn(key_bytes) else {
                 api_set_error!(
                     err,
-                    ErrorType::kErrorTypeValidation,
+                    ErrorType::ErrorTypeValidation,
                     c"Invalid key: '%.*s'",
                     k.size as c_int,
                     k.data,
@@ -1232,16 +1232,16 @@ pub fn api_dict_to_keydict(
             let mem = retval.cast::<u8>().add(field.ptr_off);
             let value = &raw mut dict[i].value;
             let field_type =
-                ObjectType::from_raw(field.key_type).unwrap_or(ObjectType::kObjectTypeUnset);
+                ObjectType::from_raw(field.key_type).unwrap_or(ObjectType::ObjectTypeUnset);
 
             match field_type {
-                ObjectType::kObjectTypeNil => {
+                ObjectType::ObjectTypeNil => {
                     *mem.cast::<Object>() = *value;
                 }
-                ObjectType::kObjectTypeInteger => {
+                ObjectType::ObjectTypeInteger => {
                     if field.is_hlgroup {
                         let mut hl_id: c_int = 0;
-                        if (*value).obj_type != ObjectType::kObjectTypeNil {
+                        if (*value).obj_type != ObjectType::ObjectTypeNil {
                             hl_id = object_to_hl_id(*value, k.data, err);
                             if error_set(err) {
                                 return false;
@@ -1249,11 +1249,11 @@ pub fn api_dict_to_keydict(
                         }
                         *mem.cast::<Integer>() = Integer::from(hl_id);
                     } else {
-                        if (*value).obj_type != ObjectType::kObjectTypeInteger {
+                        if (*value).obj_type != ObjectType::ObjectTypeInteger {
                             api_err_exp(
                                 err,
                                 field_name,
-                                api_typename(ObjectType::kObjectTypeInteger),
+                                api_typename(ObjectType::ObjectTypeInteger),
                                 api_typename((*value).obj_type),
                             );
                             return false;
@@ -1261,55 +1261,55 @@ pub fn api_dict_to_keydict(
                         *mem.cast::<Integer>() = (*value).data.integer();
                     }
                 }
-                ObjectType::kObjectTypeFloat => {
+                ObjectType::ObjectTypeFloat => {
                     let val = mem.cast::<Float>();
-                    if (*value).obj_type == ObjectType::kObjectTypeInteger {
+                    if (*value).obj_type == ObjectType::ObjectTypeInteger {
                         *val = (*value).data.integer() as Float;
-                    } else if (*value).obj_type == ObjectType::kObjectTypeFloat {
+                    } else if (*value).obj_type == ObjectType::ObjectTypeFloat {
                         *val = (*value).data.floating();
                     } else {
                         api_err_exp(
                             err,
                             field_name,
-                            api_typename(ObjectType::kObjectTypeFloat),
+                            api_typename(ObjectType::ObjectTypeFloat),
                             api_typename((*value).obj_type),
                         );
                         return false;
                     }
                 }
-                ObjectType::kObjectTypeBoolean => {
+                ObjectType::ObjectTypeBoolean => {
                     *mem.cast::<Boolean>() = api_object_to_bool(*value, field_name, false, err);
                     if error_set(err) {
                         return false;
                     }
                 }
-                ObjectType::kObjectTypeString => {
-                    if (*value).obj_type != ObjectType::kObjectTypeString {
+                ObjectType::ObjectTypeString => {
+                    if (*value).obj_type != ObjectType::ObjectTypeString {
                         api_err_exp(
                             err,
                             field_name,
-                            api_typename(ObjectType::kObjectTypeString),
+                            api_typename(ObjectType::ObjectTypeString),
                             api_typename((*value).obj_type),
                         );
                         return false;
                     }
                     *mem.cast::<NvimString>() = (*value).data.string();
                 }
-                ObjectType::kObjectTypeArray => {
-                    if (*value).obj_type != ObjectType::kObjectTypeArray {
+                ObjectType::ObjectTypeArray => {
+                    if (*value).obj_type != ObjectType::ObjectTypeArray {
                         api_err_exp(
                             err,
                             field_name,
-                            api_typename(ObjectType::kObjectTypeArray),
+                            api_typename(ObjectType::ObjectTypeArray),
                             api_typename((*value).obj_type),
                         );
                         return false;
                     }
                     *mem.cast::<Array>() = (*value).data.array();
                 }
-                ObjectType::kObjectTypeDict => {
+                ObjectType::ObjectTypeDict => {
                     let val = mem.cast::<Dict>();
-                    if (*value).obj_type == ObjectType::kObjectTypeArray
+                    if (*value).obj_type == ObjectType::ObjectTypeArray
                         && (*value).data.array().size == 0
                     {
                         *val = Dict {
@@ -1317,7 +1317,7 @@ pub fn api_dict_to_keydict(
                             size: 0,
                             capacity: 0,
                         };
-                    } else if (*value).obj_type == ObjectType::kObjectTypeDict {
+                    } else if (*value).obj_type == ObjectType::ObjectTypeDict {
                         *val = (*value).data.dict();
                     } else {
                         api_err_exp(
@@ -1329,10 +1329,10 @@ pub fn api_dict_to_keydict(
                         return false;
                     }
                 }
-                ObjectType::kObjectTypeBuffer
-                | ObjectType::kObjectTypeWindow
-                | ObjectType::kObjectTypeTabpage => {
-                    if (*value).obj_type == ObjectType::kObjectTypeInteger
+                ObjectType::ObjectTypeBuffer
+                | ObjectType::ObjectTypeWindow
+                | ObjectType::ObjectTypeTabpage => {
+                    if (*value).obj_type == ObjectType::ObjectTypeInteger
                         || (*value).obj_type == field_type
                     {
                         *mem.cast::<ObjHandle>() = (*value).data.integer() as ObjHandle;
@@ -1346,17 +1346,17 @@ pub fn api_dict_to_keydict(
                         return false;
                     }
                 }
-                ObjectType::kObjectTypeLuaRef => {
+                ObjectType::ObjectTypeLuaRef => {
                     api_set_error!(
                         err,
-                        ErrorType::kErrorTypeValidation,
+                        ErrorType::ErrorTypeValidation,
                         c"Invalid key: '%.*s' is only allowed from Lua",
                         k.size as c_int,
                         k.data,
                     );
                     return false;
                 }
-                ObjectType::kObjectTypeUnset => std::process::abort(),
+                ObjectType::ObjectTypeUnset => std::process::abort(),
             }
         }
         true
@@ -1385,41 +1385,41 @@ pub fn api_keydict_to_dict(
 
             let mem = value.cast::<u8>().add(field.ptr_off);
             let field_type =
-                ObjectType::from_raw(field.key_type).unwrap_or(ObjectType::kObjectTypeUnset);
+                ObjectType::from_raw(field.key_type).unwrap_or(ObjectType::ObjectTypeUnset);
             let val = match field_type {
-                ObjectType::kObjectTypeNil => *mem.cast::<Object>(),
-                ObjectType::kObjectTypeInteger => Object {
-                    obj_type: ObjectType::kObjectTypeInteger,
+                ObjectType::ObjectTypeNil => *mem.cast::<Object>(),
+                ObjectType::ObjectTypeInteger => Object {
+                    obj_type: ObjectType::ObjectTypeInteger,
                     data: ObjectData::Integer(*mem.cast::<Integer>()),
                 },
-                ObjectType::kObjectTypeFloat => Object {
-                    obj_type: ObjectType::kObjectTypeFloat,
+                ObjectType::ObjectTypeFloat => Object {
+                    obj_type: ObjectType::ObjectTypeFloat,
                     data: ObjectData::Floating(*mem.cast::<Float>()),
                 },
-                ObjectType::kObjectTypeBoolean => Object {
-                    obj_type: ObjectType::kObjectTypeBoolean,
+                ObjectType::ObjectTypeBoolean => Object {
+                    obj_type: ObjectType::ObjectTypeBoolean,
                     data: ObjectData::Boolean(*mem.cast::<Boolean>()),
                 },
-                ObjectType::kObjectTypeString => Object {
-                    obj_type: ObjectType::kObjectTypeString,
+                ObjectType::ObjectTypeString => Object {
+                    obj_type: ObjectType::ObjectTypeString,
                     data: ObjectData::String(*mem.cast::<NvimString>()),
                 },
-                ObjectType::kObjectTypeArray => Object {
-                    obj_type: ObjectType::kObjectTypeArray,
+                ObjectType::ObjectTypeArray => Object {
+                    obj_type: ObjectType::ObjectTypeArray,
                     data: ObjectData::Array(*mem.cast::<Array>()),
                 },
-                ObjectType::kObjectTypeDict => Object {
-                    obj_type: ObjectType::kObjectTypeDict,
+                ObjectType::ObjectTypeDict => Object {
+                    obj_type: ObjectType::ObjectTypeDict,
                     data: ObjectData::Dict(*mem.cast::<Dict>()),
                 },
-                ObjectType::kObjectTypeBuffer
-                | ObjectType::kObjectTypeWindow
-                | ObjectType::kObjectTypeTabpage => Object {
+                ObjectType::ObjectTypeBuffer
+                | ObjectType::ObjectTypeWindow
+                | ObjectType::ObjectTypeTabpage => Object {
                     obj_type: field_type,
                     data: ObjectData::Integer(Integer::from(*mem.cast::<ObjHandle>())),
                 },
-                ObjectType::kObjectTypeLuaRef => OBJECT_NIL,
-                ObjectType::kObjectTypeUnset => std::process::abort(),
+                ObjectType::ObjectTypeLuaRef => OBJECT_NIL,
+                ObjectType::ObjectTypeUnset => std::process::abort(),
             };
 
             *rv.items.add(rv.size) = KeyValuePair {
@@ -1435,9 +1435,9 @@ pub fn api_keydict_to_dict(
 
 pub fn api_luarefs_free_object(value: Object) {
     match value.obj_type {
-            ObjectType::kObjectTypeLuaRef => api_free_luaref(value.data.luaref()),
-            ObjectType::kObjectTypeArray => api_luarefs_free_array(value.data.array()),
-            ObjectType::kObjectTypeDict => api_luarefs_free_dict(value.data.dict()),
+            ObjectType::ObjectTypeLuaRef => api_free_luaref(value.data.luaref()),
+            ObjectType::ObjectTypeArray => api_luarefs_free_array(value.data.array()),
+            ObjectType::ObjectTypeDict => api_luarefs_free_dict(value.data.dict()),
             _ => {}
         }
 }
@@ -1449,11 +1449,11 @@ pub fn api_luarefs_free_keydict(dict: *mut OptKeySet, table: *mut KeySetLink) {
             let field = &*table.add(i);
             let mem = dict.cast::<u8>().add(field.ptr_off);
             let field_type =
-                ObjectType::from_raw(field.key_type).unwrap_or(ObjectType::kObjectTypeUnset);
+                ObjectType::from_raw(field.key_type).unwrap_or(ObjectType::ObjectTypeUnset);
             match field_type {
-                ObjectType::kObjectTypeNil => api_luarefs_free_object(*mem.cast::<Object>()),
-                ObjectType::kObjectTypeLuaRef => api_free_luaref(*mem.cast::<LuaRef>()),
-                ObjectType::kObjectTypeDict => api_luarefs_free_dict(*mem.cast::<Dict>()),
+                ObjectType::ObjectTypeNil => api_luarefs_free_object(*mem.cast::<Object>()),
+                ObjectType::ObjectTypeLuaRef => api_free_luaref(*mem.cast::<LuaRef>()),
+                ObjectType::ObjectTypeDict => api_luarefs_free_dict(*mem.cast::<Dict>()),
                 _ => {}
             }
             i += 1;
@@ -1492,7 +1492,7 @@ pub fn set_mark(
             if col > MAXCOL {
                 api_set_error!(
                     err,
-                    ErrorType::kErrorTypeValidation,
+                    ErrorType::ErrorTypeValidation,
                     c"'column' value out of range",
                 );
                 return false;
@@ -1500,7 +1500,7 @@ pub fn set_mark(
             if line < 1 || line > i64::from((*buf).b_ml.ml_line_count) {
                 api_set_error!(
                     err,
-                    ErrorType::kErrorTypeValidation,
+                    ErrorType::ErrorTypeValidation,
                     c"'line' value out of range",
                 );
                 return false;
@@ -1521,14 +1521,14 @@ pub fn set_mark(
             if deleting {
                 api_set_error!(
                     err,
-                    ErrorType::kErrorTypeException,
+                    ErrorType::ErrorTypeException,
                     c"Failed to delete named mark: %c",
                     crate::memory::cstr_first_char(name.data),
                 );
             } else {
                 api_set_error!(
                     err,
-                    ErrorType::kErrorTypeException,
+                    ErrorType::ErrorTypeException,
                     c"Failed to set named mark: %c",
                     crate::memory::cstr_first_char(name.data),
                 );
@@ -4356,7 +4356,7 @@ pub fn api_get_packed_metadata(len: &mut usize) -> *const u8 {
 }
 
 pub fn api_metadata() -> Object {
-    if api_meta_st().METADATA_OBJ.obj_type == ObjectType::kObjectTypeNil {
+    if api_meta_st().METADATA_OBJ.obj_type == ObjectType::ObjectTypeNil {
             let mut arena = Arena {
                 cur_blk: ptr::null_mut(),
                 pos: 0,
@@ -4366,7 +4366,7 @@ pub fn api_metadata() -> Object {
             let mut len: usize = 0;
             let ptr = api_get_packed_metadata(&mut len).cast::<c_char>();
             api_meta_st().METADATA_OBJ = unpack(ptr, len, &mut arena, &mut err);
-            if error_set(&err) || api_meta_st().METADATA_OBJ.obj_type != ObjectType::kObjectTypeDict {
+            if error_set(&err) || api_meta_st().METADATA_OBJ.obj_type != ObjectType::ObjectTypeDict {
                 std::process::abort();
             }
             api_meta_st().MEM_FOR_METADATA = arena_finish(&mut arena);
@@ -4393,13 +4393,13 @@ mod tests {
     fn api_typename_and_cstr_helpers_work() {
         unsafe {
             assert_eq!(
-                CStr::from_ptr(api_typename(ObjectType::kObjectTypeString))
+                CStr::from_ptr(api_typename(ObjectType::ObjectTypeString))
                     .to_str()
                     .unwrap(),
                 "String"
             );
             assert_eq!(
-                CStr::from_ptr(api_typename(ObjectType::kObjectTypeLuaRef))
+                CStr::from_ptr(api_typename(ObjectType::ObjectTypeLuaRef))
                     .to_str()
                     .unwrap(),
                 "Function"
@@ -4414,7 +4414,7 @@ mod tests {
             assert!(!raw.data.is_null());
             assert!(raw.size > 30_000);
             let meta = api_metadata();
-            assert_eq!(meta.obj_type, ObjectType::kObjectTypeDict);
+            assert_eq!(meta.obj_type, ObjectType::ObjectTypeDict);
             assert_eq!(meta.data.dict().size, 6);
         }
     }

@@ -1035,17 +1035,17 @@ pub fn window_layout_locked(cmd: Cmdidx) -> bool {
 pub fn window_layout_locked_err(cmd: Cmdidx, err: &mut Error) -> bool {
     unsafe {
         if win_st().split_disallowed > 0 || win_st().close_disallowed > 0 {
-            if win_st().close_disallowed == 0 && cmd == Cmdidx::CMD_tabnew {
+            if win_st().close_disallowed == 0 && cmd == Cmdidx::CmdTabnew {
                 api_set_error!(
                     err,
-                    ErrorType::kErrorTypeException,
+                    ErrorType::ErrorTypeException,
                     c"%s",
                     E_CANNOT_SPLIT_WINDOW_WHEN_CLOSING_BUFFER,
                 );
             } else {
                 api_set_error!(
                     err,
-                    ErrorType::kErrorTypeException,
+                    ErrorType::ErrorTypeException,
                     c"%s",
                     e_not_allowed_to_change_window_layout_in_this_autocmd,
                 );
@@ -1638,7 +1638,7 @@ pub fn win_set_buf(win: &mut WinInfoInfo, buf: &mut FileBuf, err: &mut Error) {
         if !win_ok && !error_set(err) {
             api_set_error!(
                 err,
-                ErrorType::kErrorTypeException,
+                ErrorType::ErrorTypeException,
                 c"Failed to switch to window %d",
                 win_handle,
             );
@@ -1941,7 +1941,7 @@ pub fn check_split_disallowed_err(wp: *const WinInfoInfo, err: &mut Error) -> bo
         if win_st().split_disallowed > 0 {
             api_set_error!(
                 err,
-                ErrorType::kErrorTypeException,
+                ErrorType::ErrorTypeException,
                 c"E242: Can't split a window while closing another",
             );
             return false;
@@ -1949,7 +1949,7 @@ pub fn check_split_disallowed_err(wp: *const WinInfoInfo, err: &mut Error) -> bo
         if (*wp).buf_mut().b_locked_split != 0 {
             api_set_error!(
                 err,
-                ErrorType::kErrorTypeException,
+                ErrorType::ErrorTypeException,
                 c"%s",
                 E_CANNOT_SPLIT_WINDOW_WHEN_CLOSING_BUFFER,
             );
@@ -3310,7 +3310,7 @@ pub fn close_windows(buf: *mut FileBuf, keep_curwin: bool) {
                 && (!keep_curwin || !ptr::eq(wp, curwin_ptr()))
                 && !(win_locked(&mut *wp) != 0 || (*wp).buf_mut().b_locked > 0)
             {
-                if window_layout_locked(Cmdidx::CMD_SIZE) {
+                if window_layout_locked(Cmdidx::CmdSize) {
                     g_st().RedrawingDisabled -= 1;
                     return;
                 }
@@ -3332,7 +3332,7 @@ pub fn close_windows(buf: *mut FileBuf, keep_curwin: bool) {
                     if ptr::eq((*wp2).w_buffer, buf)
                         && !(win_locked(&mut *wp2) != 0 || (*wp2).buf_mut().b_locked > 0)
                     {
-                        if window_layout_locked(Cmdidx::CMD_SIZE) {
+                        if window_layout_locked(Cmdidx::CmdSize) {
                             g_st().RedrawingDisabled -= 1;
                             return;
                         }
@@ -3511,7 +3511,7 @@ pub fn win_close(win: *mut WinInfoInfo, free_buf: bool, force: bool) -> bool {
             emsg(gettext(E_CANNOT_CLOSE_LAST_WINDOW));
             return false;
         }
-        if !(*win).w_floating && window_layout_locked(Cmdidx::CMD_close) {
+        if !(*win).w_floating && window_layout_locked(Cmdidx::CmdClose) {
             return false;
         }
 
@@ -3890,7 +3890,7 @@ pub fn win_close_othertab(
     unsafe {
         debug_assert!(!ptr::eq(tp, g_st().curtab));
 
-        if window_layout_locked(Cmdidx::CMD_SIZE) {
+        if window_layout_locked(Cmdidx::CmdSize) {
             return false;
         }
         if win_locked(&mut *win) != 0 || (!(*win).w_buffer.is_null() && (*win).buf_mut().b_locked > 0) {
@@ -5082,7 +5082,7 @@ pub fn win_new_tabpage(
     unsafe {
         let old_curtab = g_st().curtab;
 
-        if window_layout_locked(Cmdidx::CMD_tabnew) {
+        if window_layout_locked(Cmdidx::CmdTabnew) {
             return ptr::null_mut();
         }
 
@@ -6467,7 +6467,7 @@ fn make_win_info_dict(
 
         for (key, val) in entries {
             let mut tv = TypVal {
-                v_type: VarType::VAR_NUMBER,
+                v_type: VarType::VarNumber,
                 v_lock: VAR_UNLOCKED,
                 vval: TypvalVval::Number(i64::from(val)),
             };
@@ -6512,7 +6512,7 @@ fn check_window_scroll_resize(
             if size_changed {
                 if winlist.is_some() {
                     let tv = TypVal {
-                        v_type: VarType::VAR_NUMBER,
+                        v_type: VarType::VarNumber,
                         v_lock: VAR_UNLOCKED,
                         vval: TypvalVval::Number(i64::from((*wp).handle)),
                     };

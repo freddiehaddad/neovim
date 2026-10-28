@@ -494,7 +494,7 @@ pub fn ns_get_hl(ns_hl: &mut NS, hl_id: c_int, link: bool, nodefault: bool) -> c
 
         if !valid_item && (*p).hl_def != LUA_NOREF && hl_st().ns_get_hl_recursive == 0 {
             let mut args_storage = [Object {
-                obj_type: ObjectType::kObjectTypeNil,
+                obj_type: ObjectType::ObjectTypeNil,
                 data: ObjectData::Integer(0),
             }; 3];
             let mut args = Array {
@@ -521,7 +521,7 @@ pub fn ns_get_hl(ns_hl: &mut NS, hl_id: c_int, link: bool, nodefault: bool) -> c
             let mut fallback = true;
             let mut tmp = false;
             let mut attrs = HLATTRS_INIT;
-            if ret.obj_type == ObjectType::kObjectTypeDict {
+            if ret.obj_type == ObjectType::ObjectTypeDict {
                 fallback = false;
                 let mut dict = KeyDict_highlight::default();
                 if api_dict_to_keydict(
@@ -1236,7 +1236,7 @@ pub fn hl_get_attr_by_id(
         if attr_id < 0 || (attr_id as usize) >= hl_st().attr_entries.len() {
             api_set_error!(
                 err,
-                ErrorType::kErrorTypeException,
+                ErrorType::ErrorTypeException,
                 c"Invalid attribute id: %lld",
                 attr_id,
             );
@@ -1615,7 +1615,7 @@ pub fn dict2hlattrs(
                 err,
             );
         }
-        if err.err_type != ErrorType::kErrorTypeNone {
+        if err.err_type != ErrorType::ErrorTypeNone {
             return hlattrs;
         }
 
@@ -1629,7 +1629,7 @@ pub fn dict2hlattrs(
                 err,
             );
         }
-        if err.err_type != ErrorType::kErrorTypeNone {
+        if err.err_type != ErrorType::ErrorTypeNone {
             return hlattrs;
         }
 
@@ -1638,7 +1638,7 @@ pub fn dict2hlattrs(
         } else if has_key(is_set, KEYSET_OPTIDX_highlight__special) {
             sp = object_to_color(dict.special, c"special", true, err);
         }
-        if err.err_type != ErrorType::kErrorTypeNone {
+        if err.err_type != ErrorType::ErrorTypeNone {
             return hlattrs;
         }
 
@@ -1657,7 +1657,7 @@ pub fn dict2hlattrs(
             if link_id.is_none() {
                 api_set_error!(
                     err,
-                    ErrorType::kErrorTypeValidation,
+                    ErrorType::ErrorTypeValidation,
                     c"Invalid Key: '%s'",
                     if has_key(is_set, KEYSET_OPTIDX_highlight__link_global) {
                         c"link_global".as_ptr()
@@ -1674,7 +1674,7 @@ pub fn dict2hlattrs(
                 *link_id.unwrap() = dict.link as c_int;
             }
 
-            if err.err_type != ErrorType::kErrorTypeNone {
+            if err.err_type != ErrorType::ErrorTypeNone {
                 return hlattrs;
             }
         }
@@ -1712,14 +1712,14 @@ pub fn dict2hlattrs(
 
         if has_key(is_set, KEYSET_OPTIDX_highlight__ctermfg) {
             ctermfg = object_to_color(dict.ctermfg, c"ctermfg", false, err);
-            if err.err_type != ErrorType::kErrorTypeNone {
+            if err.err_type != ErrorType::ErrorTypeNone {
                 return hlattrs;
             }
         }
 
         if has_key(is_set, KEYSET_OPTIDX_highlight__ctermbg) {
             ctermbg = object_to_color(dict.ctermbg, c"ctermbg", false, err);
-            if err.err_type != ErrorType::kErrorTypeNone {
+            if err.err_type != ErrorType::ErrorTypeNone {
                 return hlattrs;
             }
         }
@@ -1765,9 +1765,9 @@ pub fn dict2hlattrs(
 }
 
 pub fn object_to_color(val: Object, key: &std::ffi::CStr, rgb: bool, err: &mut Error) -> c_int {
-    if val.obj_type == ObjectType::kObjectTypeInteger {
+    if val.obj_type == ObjectType::ObjectTypeInteger {
             val.data.integer() as c_int
-        } else if val.obj_type == ObjectType::kObjectTypeString {
+        } else if val.obj_type == ObjectType::ObjectTypeString {
             let str_ = val.data.string();
             if str_.size == 0 || is_none_str(str_.data) {
                 return -1;

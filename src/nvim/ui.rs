@@ -787,7 +787,7 @@ pub fn ui_array(arena: &mut Arena) -> Array {
             put_info(
                 c"term_name",
                 Object {
-                    obj_type: ObjectType::kObjectTypeString,
+                    obj_type: ObjectType::ObjectTypeString,
                     data: ObjectData::String(cstr_as_string(
                             ui.term_name.as_ref().map_or(ptr::null(), |s| s.as_ptr()),
                         )),
@@ -796,7 +796,7 @@ pub fn ui_array(arena: &mut Arena) -> Array {
             put_info(
                 c"term_background",
                 Object {
-                    obj_type: ObjectType::kObjectTypeString,
+                    obj_type: ObjectType::ObjectTypeString,
                     data: ObjectData::String(NvimString {
                             data: c"".as_ptr().cast_mut(),
                             size: 0,
@@ -818,7 +818,7 @@ pub fn ui_array(arena: &mut Arena) -> Array {
             put_info(c"chan", integer_obj(ui.channel_id as Integer));
 
             *all_uis.items.add(all_uis.size) = Object {
-                obj_type: ObjectType::kObjectTypeDict,
+                obj_type: ObjectType::ObjectTypeDict,
                 data: ObjectData::Dict(info),
             };
             all_uis.size += 1;
@@ -838,7 +838,7 @@ pub fn ui_grid_resize(grid_handle: ObjHandle, width: c_int, height: c_int, err: 
         if wp.is_null() {
             api_set_error!(
                 err,
-                ErrorType::kErrorTypeValidation,
+                ErrorType::ErrorTypeValidation,
                 c"Invalid window handle: %lld",
                 i64::from(grid_handle),
             );
@@ -907,10 +907,10 @@ pub fn ui_call_event(name: &'static std::ffi::CStr, args: Array) {
                 Some(&mut err),
             );
             g_st().ui_event_ns_id = 0;
-            if res.obj_type == ObjectType::kObjectTypeBoolean && res.data.boolean() {
+            if res.obj_type == ObjectType::ObjectTypeBoolean && res.data.boolean() {
                 handled = true;
             }
-            if !matches!(err.err_type, ErrorType::kErrorTypeNone) {
+            if !matches!(err.err_type, ErrorType::ErrorTypeNone) {
                 ui_attach_error(ns_id, name.as_ptr(), err.msg_ptr());
                 ui_remove_cb(ns_id, true);
             }
@@ -1041,7 +1041,7 @@ const NOARGS_ARRAY: Array = Array {
 #[inline]
 const fn buf_obj(b: ObjHandle) -> Object {
     Object {
-        obj_type: ObjectType::kObjectTypeBuffer,
+        obj_type: ObjectType::ObjectTypeBuffer,
         data: ObjectData::Integer(b as Integer),
     }
 }
@@ -1049,7 +1049,7 @@ const fn buf_obj(b: ObjHandle) -> Object {
 #[inline]
 const fn tab_obj(t: ObjHandle) -> Object {
     Object {
-        obj_type: ObjectType::kObjectTypeTabpage,
+        obj_type: ObjectType::ObjectTypeTabpage,
         data: ObjectData::Integer(t as Integer),
     }
 }

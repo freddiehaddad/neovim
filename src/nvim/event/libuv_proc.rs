@@ -33,7 +33,9 @@ const UV_PROCESS_WINDOWS_HIDE: c_uint = 1 << 4;
 
 use crate::ui_client::UI_CLIENT_STDIN_FD;
 
+#[allow(non_camel_case_types)]
 pub type uv_process_t = c_void;
+#[allow(non_camel_case_types)]
 type uv_exit_cb =
     Option<unsafe extern "C" fn(handle: *mut uv_process_t, exit_status: i64, term_signal: c_int)>;
 

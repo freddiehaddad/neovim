@@ -219,1149 +219,1149 @@ pub type CmdAddr = c_int;
 #[repr(i32)]
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub enum Cmdidx {
-    CMD_append = 0,
-    CMD_abbreviate,
-    CMD_abclear,
-    CMD_aboveleft,
-    CMD_all,
-    CMD_amenu,
-    CMD_anoremenu,
-    CMD_args,
-    CMD_argadd,
-    CMD_argdelete,
-    CMD_argdo,
-    CMD_argdedupe,
-    CMD_argedit,
-    CMD_argglobal,
-    CMD_arglocal,
-    CMD_argument,
-    CMD_ascii,
-    CMD_autocmd,
-    CMD_augroup,
-    CMD_aunmenu,
-    CMD_buffer,
-    CMD_bNext,
-    CMD_ball,
-    CMD_badd,
-    CMD_balt,
-    CMD_bcd,
-    CMD_bchdir,
-    CMD_bdelete,
-    CMD_belowright,
-    CMD_bfirst,
-    CMD_blast,
-    CMD_bmodified,
-    CMD_bnext,
-    CMD_botright,
-    CMD_bprevious,
-    CMD_brewind,
-    CMD_break,
-    CMD_breakadd,
-    CMD_breakdel,
-    CMD_breaklist,
-    CMD_browse,
-    CMD_buffers,
-    CMD_bufdo,
-    CMD_bunload,
-    CMD_bwipeout,
-    CMD_change,
-    CMD_cNext,
-    CMD_cNfile,
-    CMD_cabbrev,
-    CMD_cabclear,
-    CMD_cabove,
-    CMD_caddbuffer,
-    CMD_caddexpr,
-    CMD_caddfile,
-    CMD_cafter,
-    CMD_call,
-    CMD_catch,
-    CMD_cbuffer,
-    CMD_cbefore,
-    CMD_cbelow,
-    CMD_cbottom,
-    CMD_cc,
-    CMD_cclose,
-    CMD_cd,
-    CMD_cdo,
-    CMD_center,
-    CMD_cexpr,
-    CMD_cfile,
-    CMD_cfdo,
-    CMD_cfirst,
-    CMD_cgetfile,
-    CMD_cgetbuffer,
-    CMD_cgetexpr,
-    CMD_chdir,
-    CMD_changes,
-    CMD_checkhealth,
-    CMD_checkpath,
-    CMD_checktime,
-    CMD_chistory,
-    CMD_clist,
-    CMD_clast,
-    CMD_close,
-    CMD_clearjumps,
-    CMD_cmap,
-    CMD_cmapclear,
-    CMD_cmenu,
-    CMD_cnext,
-    CMD_cnewer,
-    CMD_cnfile,
-    CMD_cnoremap,
-    CMD_cnoreabbrev,
-    CMD_cnoremenu,
-    CMD_copy,
-    CMD_colder,
-    CMD_colorscheme,
-    CMD_command,
-    CMD_comclear,
-    CMD_compiler,
-    CMD_continue,
-    CMD_confirm,
-    CMD_connect,
-    CMD_const,
-    CMD_copen,
-    CMD_cprevious,
-    CMD_cpfile,
-    CMD_cquit,
-    CMD_crewind,
-    CMD_cunmap,
-    CMD_cunabbrev,
-    CMD_cunmenu,
-    CMD_cwindow,
-    CMD_delete,
-    CMD_delmarks,
-    CMD_debug,
-    CMD_debuggreedy,
-    CMD_defer,
-    CMD_delcommand,
-    CMD_delfunction,
-    CMD_detach,
-    CMD_display,
-    CMD_diffupdate,
-    CMD_diffget,
-    CMD_diffoff,
-    CMD_diffpatch,
-    CMD_diffput,
-    CMD_diffsplit,
-    CMD_diffthis,
-    CMD_digraphs,
-    CMD_djump,
-    CMD_dlist,
-    CMD_doautocmd,
-    CMD_doautoall,
-    CMD_drop,
-    CMD_dsearch,
-    CMD_dsplit,
-    CMD_edit,
-    CMD_earlier,
-    CMD_echo,
-    CMD_echoerr,
-    CMD_echohl,
-    CMD_echomsg,
-    CMD_echon,
-    CMD_else,
-    CMD_elseif,
-    CMD_emenu,
-    CMD_endif,
-    CMD_endfunction,
-    CMD_endfor,
-    CMD_endtry,
-    CMD_endwhile,
-    CMD_enew,
-    CMD_eval,
-    CMD_ex,
-    CMD_execute,
-    CMD_exit,
-    CMD_exmode,
-    CMD_exusage,
-    CMD_file,
-    CMD_files,
-    CMD_filetype,
-    CMD_filter,
-    CMD_find,
-    CMD_finally,
-    CMD_finish,
-    CMD_first,
-    CMD_fold,
-    CMD_foldclose,
-    CMD_folddoopen,
-    CMD_folddoclosed,
-    CMD_foldopen,
-    CMD_for,
-    CMD_function,
-    CMD_fclose,
-    CMD_global,
-    CMD_goto,
-    CMD_grep,
-    CMD_grepadd,
-    CMD_gui,
-    CMD_gvim,
-    CMD_help,
-    CMD_helpclose,
-    CMD_helpgrep,
-    CMD_helptags,
-    CMD_highlight,
-    CMD_hide,
-    CMD_history,
-    CMD_horizontal,
-    CMD_insert,
-    CMD_iabbrev,
-    CMD_iabclear,
-    CMD_if,
-    CMD_ijump,
-    CMD_ilist,
-    CMD_imap,
-    CMD_imapclear,
-    CMD_imenu,
-    CMD_inoremap,
-    CMD_inoreabbrev,
-    CMD_inoremenu,
-    CMD_intro,
-    CMD_iput,
-    CMD_isearch,
-    CMD_isplit,
-    CMD_iunmap,
-    CMD_iunabbrev,
-    CMD_iunmenu,
-    CMD_join,
-    CMD_jumps,
-    CMD_k,
-    CMD_keepmarks,
-    CMD_keepjumps,
-    CMD_keeppatterns,
-    CMD_keepalt,
-    CMD_list,
-    CMD_lNext,
-    CMD_lNfile,
-    CMD_last,
-    CMD_labove,
-    CMD_language,
-    CMD_laddexpr,
-    CMD_laddbuffer,
-    CMD_laddfile,
-    CMD_lafter,
-    CMD_later,
-    CMD_lbuffer,
-    CMD_lbefore,
-    CMD_lbelow,
-    CMD_lbottom,
-    CMD_lcd,
-    CMD_lchdir,
-    CMD_lclose,
-    CMD_ldo,
-    CMD_left,
-    CMD_leftabove,
-    CMD_let,
-    CMD_lexpr,
-    CMD_lfile,
-    CMD_lfdo,
-    CMD_lfirst,
-    CMD_lgetfile,
-    CMD_lgetbuffer,
-    CMD_lgetexpr,
-    CMD_lgrep,
-    CMD_lgrepadd,
-    CMD_lhelpgrep,
-    CMD_lhistory,
-    CMD_ll,
-    CMD_llast,
-    CMD_llist,
-    CMD_lmap,
-    CMD_lmapclear,
-    CMD_lmake,
-    CMD_lnoremap,
-    CMD_lnext,
-    CMD_lnewer,
-    CMD_lnfile,
-    CMD_loadview,
-    CMD_loadkeymap,
-    CMD_lockmarks,
-    CMD_lockvar,
-    CMD_log,
-    CMD_lolder,
-    CMD_lopen,
-    CMD_lprevious,
-    CMD_lpfile,
-    CMD_lrewind,
-    CMD_ltag,
-    CMD_lunmap,
-    CMD_lua,
-    CMD_luado,
-    CMD_luafile,
-    CMD_lvimgrep,
-    CMD_lvimgrepadd,
-    CMD_lwindow,
-    CMD_ls,
-    CMD_lsp,
-    CMD_move,
-    CMD_mark,
-    CMD_make,
-    CMD_map,
-    CMD_mapclear,
-    CMD_marks,
-    CMD_match,
-    CMD_menu,
-    CMD_menutranslate,
-    CMD_messages,
-    CMD_mkexrc,
-    CMD_mksession,
-    CMD_mkspell,
-    CMD_mkvimrc,
-    CMD_mkview,
-    CMD_mode,
-    CMD_mzscheme,
-    CMD_mzfile,
-    CMD_next,
-    CMD_new,
-    CMD_nmap,
-    CMD_nmapclear,
-    CMD_nmenu,
-    CMD_nnoremap,
-    CMD_nnoremenu,
-    CMD_noremap,
-    CMD_noautocmd,
-    CMD_nohlsearch,
-    CMD_noreabbrev,
-    CMD_noremenu,
-    CMD_noswapfile,
-    CMD_normal,
-    CMD_number,
-    CMD_nunmap,
-    CMD_nunmenu,
-    CMD_oldfiles,
-    CMD_omap,
-    CMD_omapclear,
-    CMD_omenu,
-    CMD_only,
-    CMD_onoremap,
-    CMD_onoremenu,
-    CMD_options,
-    CMD_ounmap,
-    CMD_ounmenu,
-    CMD_ownsyntax,
-    CMD_print,
-    CMD_packadd,
-    CMD_packdel,
-    CMD_packloadall,
-    CMD_packupdate,
-    CMD_pbuffer,
-    CMD_pclose,
-    CMD_perl,
-    CMD_perldo,
-    CMD_perlfile,
-    CMD_pedit,
-    CMD_pop,
-    CMD_popup,
-    CMD_ppop,
-    CMD_preserve,
-    CMD_previous,
-    CMD_profile,
-    CMD_profdel,
-    CMD_psearch,
-    CMD_ptag,
-    CMD_ptNext,
-    CMD_ptfirst,
-    CMD_ptjump,
-    CMD_ptlast,
-    CMD_ptnext,
-    CMD_ptprevious,
-    CMD_ptrewind,
-    CMD_ptselect,
-    CMD_put,
-    CMD_pwd,
-    CMD_python,
-    CMD_pydo,
-    CMD_pyfile,
-    CMD_py3,
-    CMD_py3do,
-    CMD_python3,
-    CMD_py3file,
-    CMD_pyx,
-    CMD_pyxdo,
-    CMD_pythonx,
-    CMD_pyxfile,
-    CMD_quit,
-    CMD_quitall,
-    CMD_qall,
-    CMD_read,
-    CMD_recover,
-    CMD_redo,
-    CMD_redir,
-    CMD_redraw,
-    CMD_redrawstatus,
-    CMD_redrawtabline,
-    CMD_registers,
-    CMD_resize,
-    CMD_restart,
-    CMD_retab,
-    CMD_return,
-    CMD_rewind,
-    CMD_right,
-    CMD_rightbelow,
-    CMD_rshada,
-    CMD_runtime,
-    CMD_rundo,
-    CMD_ruby,
-    CMD_rubydo,
-    CMD_rubyfile,
-    CMD_rviminfo,
-    CMD_substitute,
-    CMD_sNext,
-    CMD_sargument,
-    CMD_sall,
-    CMD_sandbox,
-    CMD_saveas,
-    CMD_sbuffer,
-    CMD_sbNext,
-    CMD_sball,
-    CMD_sbfirst,
-    CMD_sblast,
-    CMD_sbmodified,
-    CMD_sbnext,
-    CMD_sbprevious,
-    CMD_sbrewind,
-    CMD_scriptnames,
-    CMD_scriptencoding,
-    CMD_set,
-    CMD_setfiletype,
-    CMD_setglobal,
-    CMD_setlocal,
-    CMD_sfind,
-    CMD_sfirst,
-    CMD_simalt,
-    CMD_sign,
-    CMD_silent,
-    CMD_sleep,
-    CMD_slast,
-    CMD_smagic,
-    CMD_smap,
-    CMD_smapclear,
-    CMD_smenu,
-    CMD_snext,
-    CMD_snomagic,
-    CMD_snoremap,
-    CMD_snoremenu,
-    CMD_source,
-    CMD_sort,
-    CMD_split,
-    CMD_spellgood,
-    CMD_spelldump,
-    CMD_spellinfo,
-    CMD_spellrepall,
-    CMD_spellrare,
-    CMD_spellundo,
-    CMD_spellwrong,
-    CMD_sprevious,
-    CMD_srewind,
-    CMD_stop,
-    CMD_stag,
-    CMD_startinsert,
-    CMD_startgreplace,
-    CMD_startreplace,
-    CMD_stopinsert,
-    CMD_stjump,
-    CMD_stselect,
-    CMD_sunhide,
-    CMD_sunmap,
-    CMD_sunmenu,
-    CMD_suspend,
-    CMD_sview,
-    CMD_swapname,
-    CMD_syntax,
-    CMD_syntime,
-    CMD_syncbind,
-    CMD_t,
-    CMD_tcd,
-    CMD_tchdir,
-    CMD_tNext,
-    CMD_tag,
-    CMD_tags,
-    CMD_tab,
-    CMD_tabclose,
-    CMD_tabdo,
-    CMD_tabedit,
-    CMD_tabfind,
-    CMD_tabfirst,
-    CMD_tabmove,
-    CMD_tablast,
-    CMD_tabnext,
-    CMD_tabnew,
-    CMD_tabonly,
-    CMD_tabprevious,
-    CMD_tabNext,
-    CMD_tabrewind,
-    CMD_tabs,
-    CMD_tcl,
-    CMD_tcldo,
-    CMD_tclfile,
-    CMD_terminal,
-    CMD_tfirst,
-    CMD_throw,
-    CMD_tjump,
-    CMD_tlast,
-    CMD_tlmenu,
-    CMD_tlnoremenu,
-    CMD_tlunmenu,
-    CMD_tmenu,
-    CMD_tmap,
-    CMD_tmapclear,
-    CMD_tnext,
-    CMD_tnoremap,
-    CMD_topleft,
-    CMD_tprevious,
-    CMD_trewind,
-    CMD_trust,
-    CMD_try,
-    CMD_tselect,
-    CMD_tunmenu,
-    CMD_tunmap,
-    CMD_undo,
-    CMD_undojoin,
-    CMD_undolist,
-    CMD_unabbreviate,
-    CMD_unhide,
-    CMD_uniq,
-    CMD_unlet,
-    CMD_unlockvar,
-    CMD_unmap,
-    CMD_unmenu,
-    CMD_unsilent,
-    CMD_update,
-    CMD_uptime,
-    CMD_vglobal,
-    CMD_version,
-    CMD_verbose,
-    CMD_vertical,
-    CMD_visual,
-    CMD_view,
-    CMD_vimgrep,
-    CMD_vimgrepadd,
-    CMD_viusage,
-    CMD_vmap,
-    CMD_vmapclear,
-    CMD_vmenu,
-    CMD_vnoremap,
-    CMD_vnew,
-    CMD_vnoremenu,
-    CMD_vsplit,
-    CMD_vunmap,
-    CMD_vunmenu,
-    CMD_write,
-    CMD_wNext,
-    CMD_wall,
-    CMD_while,
-    CMD_winsize,
-    CMD_wincmd,
-    CMD_windo,
-    CMD_winpos,
-    CMD_wnext,
-    CMD_wprevious,
-    CMD_wq,
-    CMD_wqall,
-    CMD_wshada,
-    CMD_wundo,
-    CMD_wviminfo,
-    CMD_xit,
-    CMD_xall,
-    CMD_xmap,
-    CMD_xmapclear,
-    CMD_xmenu,
-    CMD_xnoremap,
-    CMD_xnoremenu,
-    CMD_xunmap,
-    CMD_xunmenu,
-    CMD_yank,
-    CMD_z,
-    CMD_bang,
-    CMD_pound,
-    CMD_and,
-    CMD_lshift,
-    CMD_equal,
-    CMD_rshift,
-    CMD_at,
-    CMD_tilde,
-    CMD_Next,
-    CMD_SIZE,
-    CMD_USER = -1,
-    CMD_USER_BUF = -2,
+    CmdAppend = 0,
+    CmdAbbreviate,
+    CmdAbclear,
+    CmdAboveleft,
+    CmdAll,
+    CmdAmenu,
+    CmdAnoremenu,
+    CmdArgs,
+    CmdArgadd,
+    CmdArgdelete,
+    CmdArgdo,
+    CmdArgdedupe,
+    CmdArgedit,
+    CmdArgglobal,
+    CmdArglocal,
+    CmdArgument,
+    CmdAscii,
+    CmdAutocmd,
+    CmdAugroup,
+    CmdAunmenu,
+    CmdBuffer,
+    CmdBnext,
+    CmdBall,
+    CmdBadd,
+    CmdBalt,
+    CmdBcd,
+    CmdBchdir,
+    CmdBdelete,
+    CmdBelowright,
+    CmdBfirst,
+    CmdBlast,
+    CmdBmodified,
+    CmdBnextVariant,
+    CmdBotright,
+    CmdBprevious,
+    CmdBrewind,
+    CmdBreak,
+    CmdBreakadd,
+    CmdBreakdel,
+    CmdBreaklist,
+    CmdBrowse,
+    CmdBuffers,
+    CmdBufdo,
+    CmdBunload,
+    CmdBwipeout,
+    CmdChange,
+    CmdCnext,
+    CmdCnfile,
+    CmdCabbrev,
+    CmdCabclear,
+    CmdCabove,
+    CmdCaddbuffer,
+    CmdCaddexpr,
+    CmdCaddfile,
+    CmdCafter,
+    CmdCall,
+    CmdCatch,
+    CmdCbuffer,
+    CmdCbefore,
+    CmdCbelow,
+    CmdCbottom,
+    CmdCc,
+    CmdCclose,
+    CmdCd,
+    CmdCdo,
+    CmdCenter,
+    CmdCexpr,
+    CmdCfile,
+    CmdCfdo,
+    CmdCfirst,
+    CmdCgetfile,
+    CmdCgetbuffer,
+    CmdCgetexpr,
+    CmdChdir,
+    CmdChanges,
+    CmdCheckhealth,
+    CmdCheckpath,
+    CmdChecktime,
+    CmdChistory,
+    CmdClist,
+    CmdClast,
+    CmdClose,
+    CmdClearjumps,
+    CmdCmap,
+    CmdCmapclear,
+    CmdCmenu,
+    CmdCnextVariant,
+    CmdCnewer,
+    CmdCnfileVariant,
+    CmdCnoremap,
+    CmdCnoreabbrev,
+    CmdCnoremenu,
+    CmdCopy,
+    CmdColder,
+    CmdColorscheme,
+    CmdCommand,
+    CmdComclear,
+    CmdCompiler,
+    CmdContinue,
+    CmdConfirm,
+    CmdConnect,
+    CmdConst,
+    CmdCopen,
+    CmdCprevious,
+    CmdCpfile,
+    CmdCquit,
+    CmdCrewind,
+    CmdCunmap,
+    CmdCunabbrev,
+    CmdCunmenu,
+    CmdCwindow,
+    CmdDelete,
+    CmdDelmarks,
+    CmdDebug,
+    CmdDebuggreedy,
+    CmdDefer,
+    CmdDelcommand,
+    CmdDelfunction,
+    CmdDetach,
+    CmdDisplay,
+    CmdDiffupdate,
+    CmdDiffget,
+    CmdDiffoff,
+    CmdDiffpatch,
+    CmdDiffput,
+    CmdDiffsplit,
+    CmdDiffthis,
+    CmdDigraphs,
+    CmdDjump,
+    CmdDlist,
+    CmdDoautocmd,
+    CmdDoautoall,
+    CmdDrop,
+    CmdDsearch,
+    CmdDsplit,
+    CmdEdit,
+    CmdEarlier,
+    CmdEcho,
+    CmdEchoerr,
+    CmdEchohl,
+    CmdEchomsg,
+    CmdEchon,
+    CmdElse,
+    CmdElseif,
+    CmdEmenu,
+    CmdEndif,
+    CmdEndfunction,
+    CmdEndfor,
+    CmdEndtry,
+    CmdEndwhile,
+    CmdEnew,
+    CmdEval,
+    CmdEx,
+    CmdExecute,
+    CmdExit,
+    CmdExmode,
+    CmdExusage,
+    CmdFile,
+    CmdFiles,
+    CmdFiletype,
+    CmdFilter,
+    CmdFind,
+    CmdFinally,
+    CmdFinish,
+    CmdFirst,
+    CmdFold,
+    CmdFoldclose,
+    CmdFolddoopen,
+    CmdFolddoclosed,
+    CmdFoldopen,
+    CmdFor,
+    CmdFunction,
+    CmdFclose,
+    CmdGlobal,
+    CmdGoto,
+    CmdGrep,
+    CmdGrepadd,
+    CmdGui,
+    CmdGvim,
+    CmdHelp,
+    CmdHelpclose,
+    CmdHelpgrep,
+    CmdHelptags,
+    CmdHighlight,
+    CmdHide,
+    CmdHistory,
+    CmdHorizontal,
+    CmdInsert,
+    CmdIabbrev,
+    CmdIabclear,
+    CmdIf,
+    CmdIjump,
+    CmdIlist,
+    CmdImap,
+    CmdImapclear,
+    CmdImenu,
+    CmdInoremap,
+    CmdInoreabbrev,
+    CmdInoremenu,
+    CmdIntro,
+    CmdIput,
+    CmdIsearch,
+    CmdIsplit,
+    CmdIunmap,
+    CmdIunabbrev,
+    CmdIunmenu,
+    CmdJoin,
+    CmdJumps,
+    CmdK,
+    CmdKeepmarks,
+    CmdKeepjumps,
+    CmdKeeppatterns,
+    CmdKeepalt,
+    CmdList,
+    CmdLnext,
+    CmdLnfile,
+    CmdLast,
+    CmdLabove,
+    CmdLanguage,
+    CmdLaddexpr,
+    CmdLaddbuffer,
+    CmdLaddfile,
+    CmdLafter,
+    CmdLater,
+    CmdLbuffer,
+    CmdLbefore,
+    CmdLbelow,
+    CmdLbottom,
+    CmdLcd,
+    CmdLchdir,
+    CmdLclose,
+    CmdLdo,
+    CmdLeft,
+    CmdLeftabove,
+    CmdLet,
+    CmdLexpr,
+    CmdLfile,
+    CmdLfdo,
+    CmdLfirst,
+    CmdLgetfile,
+    CmdLgetbuffer,
+    CmdLgetexpr,
+    CmdLgrep,
+    CmdLgrepadd,
+    CmdLhelpgrep,
+    CmdLhistory,
+    CmdLl,
+    CmdLlast,
+    CmdLlist,
+    CmdLmap,
+    CmdLmapclear,
+    CmdLmake,
+    CmdLnoremap,
+    CmdLnextVariant,
+    CmdLnewer,
+    CmdLnfileVariant,
+    CmdLoadview,
+    CmdLoadkeymap,
+    CmdLockmarks,
+    CmdLockvar,
+    CmdLog,
+    CmdLolder,
+    CmdLopen,
+    CmdLprevious,
+    CmdLpfile,
+    CmdLrewind,
+    CmdLtag,
+    CmdLunmap,
+    CmdLua,
+    CmdLuado,
+    CmdLuafile,
+    CmdLvimgrep,
+    CmdLvimgrepadd,
+    CmdLwindow,
+    CmdLs,
+    CmdLsp,
+    CmdMove,
+    CmdMark,
+    CmdMake,
+    CmdMap,
+    CmdMapclear,
+    CmdMarks,
+    CmdMatch,
+    CmdMenu,
+    CmdMenutranslate,
+    CmdMessages,
+    CmdMkexrc,
+    CmdMksession,
+    CmdMkspell,
+    CmdMkvimrc,
+    CmdMkview,
+    CmdMode,
+    CmdMzscheme,
+    CmdMzfile,
+    CmdNext,
+    CmdNew,
+    CmdNmap,
+    CmdNmapclear,
+    CmdNmenu,
+    CmdNnoremap,
+    CmdNnoremenu,
+    CmdNoremap,
+    CmdNoautocmd,
+    CmdNohlsearch,
+    CmdNoreabbrev,
+    CmdNoremenu,
+    CmdNoswapfile,
+    CmdNormal,
+    CmdNumber,
+    CmdNunmap,
+    CmdNunmenu,
+    CmdOldfiles,
+    CmdOmap,
+    CmdOmapclear,
+    CmdOmenu,
+    CmdOnly,
+    CmdOnoremap,
+    CmdOnoremenu,
+    CmdOptions,
+    CmdOunmap,
+    CmdOunmenu,
+    CmdOwnsyntax,
+    CmdPrint,
+    CmdPackadd,
+    CmdPackdel,
+    CmdPackloadall,
+    CmdPackupdate,
+    CmdPbuffer,
+    CmdPclose,
+    CmdPerl,
+    CmdPerldo,
+    CmdPerlfile,
+    CmdPedit,
+    CmdPop,
+    CmdPopup,
+    CmdPpop,
+    CmdPreserve,
+    CmdPrevious,
+    CmdProfile,
+    CmdProfdel,
+    CmdPsearch,
+    CmdPtag,
+    CmdPtnext,
+    CmdPtfirst,
+    CmdPtjump,
+    CmdPtlast,
+    CmdPtnextVariant,
+    CmdPtprevious,
+    CmdPtrewind,
+    CmdPtselect,
+    CmdPut,
+    CmdPwd,
+    CmdPython,
+    CmdPydo,
+    CmdPyfile,
+    CmdPy3,
+    CmdPy3do,
+    CmdPython3,
+    CmdPy3file,
+    CmdPyx,
+    CmdPyxdo,
+    CmdPythonx,
+    CmdPyxfile,
+    CmdQuit,
+    CmdQuitall,
+    CmdQall,
+    CmdRead,
+    CmdRecover,
+    CmdRedo,
+    CmdRedir,
+    CmdRedraw,
+    CmdRedrawstatus,
+    CmdRedrawtabline,
+    CmdRegisters,
+    CmdResize,
+    CmdRestart,
+    CmdRetab,
+    CmdReturn,
+    CmdRewind,
+    CmdRight,
+    CmdRightbelow,
+    CmdRshada,
+    CmdRuntime,
+    CmdRundo,
+    CmdRuby,
+    CmdRubydo,
+    CmdRubyfile,
+    CmdRviminfo,
+    CmdSubstitute,
+    CmdSnext,
+    CmdSargument,
+    CmdSall,
+    CmdSandbox,
+    CmdSaveas,
+    CmdSbuffer,
+    CmdSbnext,
+    CmdSball,
+    CmdSbfirst,
+    CmdSblast,
+    CmdSbmodified,
+    CmdSbnextVariant,
+    CmdSbprevious,
+    CmdSbrewind,
+    CmdScriptnames,
+    CmdScriptencoding,
+    CmdSet,
+    CmdSetfiletype,
+    CmdSetglobal,
+    CmdSetlocal,
+    CmdSfind,
+    CmdSfirst,
+    CmdSimalt,
+    CmdSign,
+    CmdSilent,
+    CmdSleep,
+    CmdSlast,
+    CmdSmagic,
+    CmdSmap,
+    CmdSmapclear,
+    CmdSmenu,
+    CmdSnextVariant,
+    CmdSnomagic,
+    CmdSnoremap,
+    CmdSnoremenu,
+    CmdSource,
+    CmdSort,
+    CmdSplit,
+    CmdSpellgood,
+    CmdSpelldump,
+    CmdSpellinfo,
+    CmdSpellrepall,
+    CmdSpellrare,
+    CmdSpellundo,
+    CmdSpellwrong,
+    CmdSprevious,
+    CmdSrewind,
+    CmdStop,
+    CmdStag,
+    CmdStartinsert,
+    CmdStartgreplace,
+    CmdStartreplace,
+    CmdStopinsert,
+    CmdStjump,
+    CmdStselect,
+    CmdSunhide,
+    CmdSunmap,
+    CmdSunmenu,
+    CmdSuspend,
+    CmdSview,
+    CmdSwapname,
+    CmdSyntax,
+    CmdSyntime,
+    CmdSyncbind,
+    CmdT,
+    CmdTcd,
+    CmdTchdir,
+    CmdTnext,
+    CmdTag,
+    CmdTags,
+    CmdTab,
+    CmdTabclose,
+    CmdTabdo,
+    CmdTabedit,
+    CmdTabfind,
+    CmdTabfirst,
+    CmdTabmove,
+    CmdTablast,
+    CmdTabnextVariant,
+    CmdTabnew,
+    CmdTabonly,
+    CmdTabprevious,
+    CmdTabnext,
+    CmdTabrewind,
+    CmdTabs,
+    CmdTcl,
+    CmdTcldo,
+    CmdTclfile,
+    CmdTerminal,
+    CmdTfirst,
+    CmdThrow,
+    CmdTjump,
+    CmdTlast,
+    CmdTlmenu,
+    CmdTlnoremenu,
+    CmdTlunmenu,
+    CmdTmenu,
+    CmdTmap,
+    CmdTmapclear,
+    CmdTnextVariant,
+    CmdTnoremap,
+    CmdTopleft,
+    CmdTprevious,
+    CmdTrewind,
+    CmdTrust,
+    CmdTry,
+    CmdTselect,
+    CmdTunmenu,
+    CmdTunmap,
+    CmdUndo,
+    CmdUndojoin,
+    CmdUndolist,
+    CmdUnabbreviate,
+    CmdUnhide,
+    CmdUniq,
+    CmdUnlet,
+    CmdUnlockvar,
+    CmdUnmap,
+    CmdUnmenu,
+    CmdUnsilent,
+    CmdUpdate,
+    CmdUptime,
+    CmdVglobal,
+    CmdVersion,
+    CmdVerbose,
+    CmdVertical,
+    CmdVisual,
+    CmdView,
+    CmdVimgrep,
+    CmdVimgrepadd,
+    CmdViusage,
+    CmdVmap,
+    CmdVmapclear,
+    CmdVmenu,
+    CmdVnoremap,
+    CmdVnew,
+    CmdVnoremenu,
+    CmdVsplit,
+    CmdVunmap,
+    CmdVunmenu,
+    CmdWrite,
+    CmdWnext,
+    CmdWall,
+    CmdWhile,
+    CmdWinsize,
+    CmdWincmd,
+    CmdWindo,
+    CmdWinpos,
+    CmdWnextVariant,
+    CmdWprevious,
+    CmdWq,
+    CmdWqall,
+    CmdWshada,
+    CmdWundo,
+    CmdWviminfo,
+    CmdXit,
+    CmdXall,
+    CmdXmap,
+    CmdXmapclear,
+    CmdXmenu,
+    CmdXnoremap,
+    CmdXnoremenu,
+    CmdXunmap,
+    CmdXunmenu,
+    CmdYank,
+    CmdZ,
+    CmdBang,
+    CmdPound,
+    CmdAnd,
+    CmdLshift,
+    CmdEqual,
+    CmdRshift,
+    CmdAt,
+    CmdTilde,
+    CmdCapNext,
+    CmdSize,
+    CmdUser = -1,
+    CmdUserBuf = -2,
 }
 impl Cmdidx {
     pub const ALL: [Self; 564] = [
-        Self::CMD_append,
-        Self::CMD_abbreviate,
-        Self::CMD_abclear,
-        Self::CMD_aboveleft,
-        Self::CMD_all,
-        Self::CMD_amenu,
-        Self::CMD_anoremenu,
-        Self::CMD_args,
-        Self::CMD_argadd,
-        Self::CMD_argdelete,
-        Self::CMD_argdo,
-        Self::CMD_argdedupe,
-        Self::CMD_argedit,
-        Self::CMD_argglobal,
-        Self::CMD_arglocal,
-        Self::CMD_argument,
-        Self::CMD_ascii,
-        Self::CMD_autocmd,
-        Self::CMD_augroup,
-        Self::CMD_aunmenu,
-        Self::CMD_buffer,
-        Self::CMD_bNext,
-        Self::CMD_ball,
-        Self::CMD_badd,
-        Self::CMD_balt,
-        Self::CMD_bcd,
-        Self::CMD_bchdir,
-        Self::CMD_bdelete,
-        Self::CMD_belowright,
-        Self::CMD_bfirst,
-        Self::CMD_blast,
-        Self::CMD_bmodified,
-        Self::CMD_bnext,
-        Self::CMD_botright,
-        Self::CMD_bprevious,
-        Self::CMD_brewind,
-        Self::CMD_break,
-        Self::CMD_breakadd,
-        Self::CMD_breakdel,
-        Self::CMD_breaklist,
-        Self::CMD_browse,
-        Self::CMD_buffers,
-        Self::CMD_bufdo,
-        Self::CMD_bunload,
-        Self::CMD_bwipeout,
-        Self::CMD_change,
-        Self::CMD_cNext,
-        Self::CMD_cNfile,
-        Self::CMD_cabbrev,
-        Self::CMD_cabclear,
-        Self::CMD_cabove,
-        Self::CMD_caddbuffer,
-        Self::CMD_caddexpr,
-        Self::CMD_caddfile,
-        Self::CMD_cafter,
-        Self::CMD_call,
-        Self::CMD_catch,
-        Self::CMD_cbuffer,
-        Self::CMD_cbefore,
-        Self::CMD_cbelow,
-        Self::CMD_cbottom,
-        Self::CMD_cc,
-        Self::CMD_cclose,
-        Self::CMD_cd,
-        Self::CMD_cdo,
-        Self::CMD_center,
-        Self::CMD_cexpr,
-        Self::CMD_cfile,
-        Self::CMD_cfdo,
-        Self::CMD_cfirst,
-        Self::CMD_cgetfile,
-        Self::CMD_cgetbuffer,
-        Self::CMD_cgetexpr,
-        Self::CMD_chdir,
-        Self::CMD_changes,
-        Self::CMD_checkhealth,
-        Self::CMD_checkpath,
-        Self::CMD_checktime,
-        Self::CMD_chistory,
-        Self::CMD_clist,
-        Self::CMD_clast,
-        Self::CMD_close,
-        Self::CMD_clearjumps,
-        Self::CMD_cmap,
-        Self::CMD_cmapclear,
-        Self::CMD_cmenu,
-        Self::CMD_cnext,
-        Self::CMD_cnewer,
-        Self::CMD_cnfile,
-        Self::CMD_cnoremap,
-        Self::CMD_cnoreabbrev,
-        Self::CMD_cnoremenu,
-        Self::CMD_copy,
-        Self::CMD_colder,
-        Self::CMD_colorscheme,
-        Self::CMD_command,
-        Self::CMD_comclear,
-        Self::CMD_compiler,
-        Self::CMD_continue,
-        Self::CMD_confirm,
-        Self::CMD_connect,
-        Self::CMD_const,
-        Self::CMD_copen,
-        Self::CMD_cprevious,
-        Self::CMD_cpfile,
-        Self::CMD_cquit,
-        Self::CMD_crewind,
-        Self::CMD_cunmap,
-        Self::CMD_cunabbrev,
-        Self::CMD_cunmenu,
-        Self::CMD_cwindow,
-        Self::CMD_delete,
-        Self::CMD_delmarks,
-        Self::CMD_debug,
-        Self::CMD_debuggreedy,
-        Self::CMD_defer,
-        Self::CMD_delcommand,
-        Self::CMD_delfunction,
-        Self::CMD_detach,
-        Self::CMD_display,
-        Self::CMD_diffupdate,
-        Self::CMD_diffget,
-        Self::CMD_diffoff,
-        Self::CMD_diffpatch,
-        Self::CMD_diffput,
-        Self::CMD_diffsplit,
-        Self::CMD_diffthis,
-        Self::CMD_digraphs,
-        Self::CMD_djump,
-        Self::CMD_dlist,
-        Self::CMD_doautocmd,
-        Self::CMD_doautoall,
-        Self::CMD_drop,
-        Self::CMD_dsearch,
-        Self::CMD_dsplit,
-        Self::CMD_edit,
-        Self::CMD_earlier,
-        Self::CMD_echo,
-        Self::CMD_echoerr,
-        Self::CMD_echohl,
-        Self::CMD_echomsg,
-        Self::CMD_echon,
-        Self::CMD_else,
-        Self::CMD_elseif,
-        Self::CMD_emenu,
-        Self::CMD_endif,
-        Self::CMD_endfunction,
-        Self::CMD_endfor,
-        Self::CMD_endtry,
-        Self::CMD_endwhile,
-        Self::CMD_enew,
-        Self::CMD_eval,
-        Self::CMD_ex,
-        Self::CMD_execute,
-        Self::CMD_exit,
-        Self::CMD_exmode,
-        Self::CMD_exusage,
-        Self::CMD_file,
-        Self::CMD_files,
-        Self::CMD_filetype,
-        Self::CMD_filter,
-        Self::CMD_find,
-        Self::CMD_finally,
-        Self::CMD_finish,
-        Self::CMD_first,
-        Self::CMD_fold,
-        Self::CMD_foldclose,
-        Self::CMD_folddoopen,
-        Self::CMD_folddoclosed,
-        Self::CMD_foldopen,
-        Self::CMD_for,
-        Self::CMD_function,
-        Self::CMD_fclose,
-        Self::CMD_global,
-        Self::CMD_goto,
-        Self::CMD_grep,
-        Self::CMD_grepadd,
-        Self::CMD_gui,
-        Self::CMD_gvim,
-        Self::CMD_help,
-        Self::CMD_helpclose,
-        Self::CMD_helpgrep,
-        Self::CMD_helptags,
-        Self::CMD_highlight,
-        Self::CMD_hide,
-        Self::CMD_history,
-        Self::CMD_horizontal,
-        Self::CMD_insert,
-        Self::CMD_iabbrev,
-        Self::CMD_iabclear,
-        Self::CMD_if,
-        Self::CMD_ijump,
-        Self::CMD_ilist,
-        Self::CMD_imap,
-        Self::CMD_imapclear,
-        Self::CMD_imenu,
-        Self::CMD_inoremap,
-        Self::CMD_inoreabbrev,
-        Self::CMD_inoremenu,
-        Self::CMD_intro,
-        Self::CMD_iput,
-        Self::CMD_isearch,
-        Self::CMD_isplit,
-        Self::CMD_iunmap,
-        Self::CMD_iunabbrev,
-        Self::CMD_iunmenu,
-        Self::CMD_join,
-        Self::CMD_jumps,
-        Self::CMD_k,
-        Self::CMD_keepmarks,
-        Self::CMD_keepjumps,
-        Self::CMD_keeppatterns,
-        Self::CMD_keepalt,
-        Self::CMD_list,
-        Self::CMD_lNext,
-        Self::CMD_lNfile,
-        Self::CMD_last,
-        Self::CMD_labove,
-        Self::CMD_language,
-        Self::CMD_laddexpr,
-        Self::CMD_laddbuffer,
-        Self::CMD_laddfile,
-        Self::CMD_lafter,
-        Self::CMD_later,
-        Self::CMD_lbuffer,
-        Self::CMD_lbefore,
-        Self::CMD_lbelow,
-        Self::CMD_lbottom,
-        Self::CMD_lcd,
-        Self::CMD_lchdir,
-        Self::CMD_lclose,
-        Self::CMD_ldo,
-        Self::CMD_left,
-        Self::CMD_leftabove,
-        Self::CMD_let,
-        Self::CMD_lexpr,
-        Self::CMD_lfile,
-        Self::CMD_lfdo,
-        Self::CMD_lfirst,
-        Self::CMD_lgetfile,
-        Self::CMD_lgetbuffer,
-        Self::CMD_lgetexpr,
-        Self::CMD_lgrep,
-        Self::CMD_lgrepadd,
-        Self::CMD_lhelpgrep,
-        Self::CMD_lhistory,
-        Self::CMD_ll,
-        Self::CMD_llast,
-        Self::CMD_llist,
-        Self::CMD_lmap,
-        Self::CMD_lmapclear,
-        Self::CMD_lmake,
-        Self::CMD_lnoremap,
-        Self::CMD_lnext,
-        Self::CMD_lnewer,
-        Self::CMD_lnfile,
-        Self::CMD_loadview,
-        Self::CMD_loadkeymap,
-        Self::CMD_lockmarks,
-        Self::CMD_lockvar,
-        Self::CMD_log,
-        Self::CMD_lolder,
-        Self::CMD_lopen,
-        Self::CMD_lprevious,
-        Self::CMD_lpfile,
-        Self::CMD_lrewind,
-        Self::CMD_ltag,
-        Self::CMD_lunmap,
-        Self::CMD_lua,
-        Self::CMD_luado,
-        Self::CMD_luafile,
-        Self::CMD_lvimgrep,
-        Self::CMD_lvimgrepadd,
-        Self::CMD_lwindow,
-        Self::CMD_ls,
-        Self::CMD_lsp,
-        Self::CMD_move,
-        Self::CMD_mark,
-        Self::CMD_make,
-        Self::CMD_map,
-        Self::CMD_mapclear,
-        Self::CMD_marks,
-        Self::CMD_match,
-        Self::CMD_menu,
-        Self::CMD_menutranslate,
-        Self::CMD_messages,
-        Self::CMD_mkexrc,
-        Self::CMD_mksession,
-        Self::CMD_mkspell,
-        Self::CMD_mkvimrc,
-        Self::CMD_mkview,
-        Self::CMD_mode,
-        Self::CMD_mzscheme,
-        Self::CMD_mzfile,
-        Self::CMD_next,
-        Self::CMD_new,
-        Self::CMD_nmap,
-        Self::CMD_nmapclear,
-        Self::CMD_nmenu,
-        Self::CMD_nnoremap,
-        Self::CMD_nnoremenu,
-        Self::CMD_noremap,
-        Self::CMD_noautocmd,
-        Self::CMD_nohlsearch,
-        Self::CMD_noreabbrev,
-        Self::CMD_noremenu,
-        Self::CMD_noswapfile,
-        Self::CMD_normal,
-        Self::CMD_number,
-        Self::CMD_nunmap,
-        Self::CMD_nunmenu,
-        Self::CMD_oldfiles,
-        Self::CMD_omap,
-        Self::CMD_omapclear,
-        Self::CMD_omenu,
-        Self::CMD_only,
-        Self::CMD_onoremap,
-        Self::CMD_onoremenu,
-        Self::CMD_options,
-        Self::CMD_ounmap,
-        Self::CMD_ounmenu,
-        Self::CMD_ownsyntax,
-        Self::CMD_print,
-        Self::CMD_packadd,
-        Self::CMD_packdel,
-        Self::CMD_packloadall,
-        Self::CMD_packupdate,
-        Self::CMD_pbuffer,
-        Self::CMD_pclose,
-        Self::CMD_perl,
-        Self::CMD_perldo,
-        Self::CMD_perlfile,
-        Self::CMD_pedit,
-        Self::CMD_pop,
-        Self::CMD_popup,
-        Self::CMD_ppop,
-        Self::CMD_preserve,
-        Self::CMD_previous,
-        Self::CMD_profile,
-        Self::CMD_profdel,
-        Self::CMD_psearch,
-        Self::CMD_ptag,
-        Self::CMD_ptNext,
-        Self::CMD_ptfirst,
-        Self::CMD_ptjump,
-        Self::CMD_ptlast,
-        Self::CMD_ptnext,
-        Self::CMD_ptprevious,
-        Self::CMD_ptrewind,
-        Self::CMD_ptselect,
-        Self::CMD_put,
-        Self::CMD_pwd,
-        Self::CMD_python,
-        Self::CMD_pydo,
-        Self::CMD_pyfile,
-        Self::CMD_py3,
-        Self::CMD_py3do,
-        Self::CMD_python3,
-        Self::CMD_py3file,
-        Self::CMD_pyx,
-        Self::CMD_pyxdo,
-        Self::CMD_pythonx,
-        Self::CMD_pyxfile,
-        Self::CMD_quit,
-        Self::CMD_quitall,
-        Self::CMD_qall,
-        Self::CMD_read,
-        Self::CMD_recover,
-        Self::CMD_redo,
-        Self::CMD_redir,
-        Self::CMD_redraw,
-        Self::CMD_redrawstatus,
-        Self::CMD_redrawtabline,
-        Self::CMD_registers,
-        Self::CMD_resize,
-        Self::CMD_restart,
-        Self::CMD_retab,
-        Self::CMD_return,
-        Self::CMD_rewind,
-        Self::CMD_right,
-        Self::CMD_rightbelow,
-        Self::CMD_rshada,
-        Self::CMD_runtime,
-        Self::CMD_rundo,
-        Self::CMD_ruby,
-        Self::CMD_rubydo,
-        Self::CMD_rubyfile,
-        Self::CMD_rviminfo,
-        Self::CMD_substitute,
-        Self::CMD_sNext,
-        Self::CMD_sargument,
-        Self::CMD_sall,
-        Self::CMD_sandbox,
-        Self::CMD_saveas,
-        Self::CMD_sbuffer,
-        Self::CMD_sbNext,
-        Self::CMD_sball,
-        Self::CMD_sbfirst,
-        Self::CMD_sblast,
-        Self::CMD_sbmodified,
-        Self::CMD_sbnext,
-        Self::CMD_sbprevious,
-        Self::CMD_sbrewind,
-        Self::CMD_scriptnames,
-        Self::CMD_scriptencoding,
-        Self::CMD_set,
-        Self::CMD_setfiletype,
-        Self::CMD_setglobal,
-        Self::CMD_setlocal,
-        Self::CMD_sfind,
-        Self::CMD_sfirst,
-        Self::CMD_simalt,
-        Self::CMD_sign,
-        Self::CMD_silent,
-        Self::CMD_sleep,
-        Self::CMD_slast,
-        Self::CMD_smagic,
-        Self::CMD_smap,
-        Self::CMD_smapclear,
-        Self::CMD_smenu,
-        Self::CMD_snext,
-        Self::CMD_snomagic,
-        Self::CMD_snoremap,
-        Self::CMD_snoremenu,
-        Self::CMD_source,
-        Self::CMD_sort,
-        Self::CMD_split,
-        Self::CMD_spellgood,
-        Self::CMD_spelldump,
-        Self::CMD_spellinfo,
-        Self::CMD_spellrepall,
-        Self::CMD_spellrare,
-        Self::CMD_spellundo,
-        Self::CMD_spellwrong,
-        Self::CMD_sprevious,
-        Self::CMD_srewind,
-        Self::CMD_stop,
-        Self::CMD_stag,
-        Self::CMD_startinsert,
-        Self::CMD_startgreplace,
-        Self::CMD_startreplace,
-        Self::CMD_stopinsert,
-        Self::CMD_stjump,
-        Self::CMD_stselect,
-        Self::CMD_sunhide,
-        Self::CMD_sunmap,
-        Self::CMD_sunmenu,
-        Self::CMD_suspend,
-        Self::CMD_sview,
-        Self::CMD_swapname,
-        Self::CMD_syntax,
-        Self::CMD_syntime,
-        Self::CMD_syncbind,
-        Self::CMD_t,
-        Self::CMD_tcd,
-        Self::CMD_tchdir,
-        Self::CMD_tNext,
-        Self::CMD_tag,
-        Self::CMD_tags,
-        Self::CMD_tab,
-        Self::CMD_tabclose,
-        Self::CMD_tabdo,
-        Self::CMD_tabedit,
-        Self::CMD_tabfind,
-        Self::CMD_tabfirst,
-        Self::CMD_tabmove,
-        Self::CMD_tablast,
-        Self::CMD_tabnext,
-        Self::CMD_tabnew,
-        Self::CMD_tabonly,
-        Self::CMD_tabprevious,
-        Self::CMD_tabNext,
-        Self::CMD_tabrewind,
-        Self::CMD_tabs,
-        Self::CMD_tcl,
-        Self::CMD_tcldo,
-        Self::CMD_tclfile,
-        Self::CMD_terminal,
-        Self::CMD_tfirst,
-        Self::CMD_throw,
-        Self::CMD_tjump,
-        Self::CMD_tlast,
-        Self::CMD_tlmenu,
-        Self::CMD_tlnoremenu,
-        Self::CMD_tlunmenu,
-        Self::CMD_tmenu,
-        Self::CMD_tmap,
-        Self::CMD_tmapclear,
-        Self::CMD_tnext,
-        Self::CMD_tnoremap,
-        Self::CMD_topleft,
-        Self::CMD_tprevious,
-        Self::CMD_trewind,
-        Self::CMD_trust,
-        Self::CMD_try,
-        Self::CMD_tselect,
-        Self::CMD_tunmenu,
-        Self::CMD_tunmap,
-        Self::CMD_undo,
-        Self::CMD_undojoin,
-        Self::CMD_undolist,
-        Self::CMD_unabbreviate,
-        Self::CMD_unhide,
-        Self::CMD_uniq,
-        Self::CMD_unlet,
-        Self::CMD_unlockvar,
-        Self::CMD_unmap,
-        Self::CMD_unmenu,
-        Self::CMD_unsilent,
-        Self::CMD_update,
-        Self::CMD_uptime,
-        Self::CMD_vglobal,
-        Self::CMD_version,
-        Self::CMD_verbose,
-        Self::CMD_vertical,
-        Self::CMD_visual,
-        Self::CMD_view,
-        Self::CMD_vimgrep,
-        Self::CMD_vimgrepadd,
-        Self::CMD_viusage,
-        Self::CMD_vmap,
-        Self::CMD_vmapclear,
-        Self::CMD_vmenu,
-        Self::CMD_vnoremap,
-        Self::CMD_vnew,
-        Self::CMD_vnoremenu,
-        Self::CMD_vsplit,
-        Self::CMD_vunmap,
-        Self::CMD_vunmenu,
-        Self::CMD_write,
-        Self::CMD_wNext,
-        Self::CMD_wall,
-        Self::CMD_while,
-        Self::CMD_winsize,
-        Self::CMD_wincmd,
-        Self::CMD_windo,
-        Self::CMD_winpos,
-        Self::CMD_wnext,
-        Self::CMD_wprevious,
-        Self::CMD_wq,
-        Self::CMD_wqall,
-        Self::CMD_wshada,
-        Self::CMD_wundo,
-        Self::CMD_wviminfo,
-        Self::CMD_xit,
-        Self::CMD_xall,
-        Self::CMD_xmap,
-        Self::CMD_xmapclear,
-        Self::CMD_xmenu,
-        Self::CMD_xnoremap,
-        Self::CMD_xnoremenu,
-        Self::CMD_xunmap,
-        Self::CMD_xunmenu,
-        Self::CMD_yank,
-        Self::CMD_z,
-        Self::CMD_bang,
-        Self::CMD_pound,
-        Self::CMD_and,
-        Self::CMD_lshift,
-        Self::CMD_equal,
-        Self::CMD_rshift,
-        Self::CMD_at,
-        Self::CMD_tilde,
-        Self::CMD_Next,
+        Self::CmdAppend,
+        Self::CmdAbbreviate,
+        Self::CmdAbclear,
+        Self::CmdAboveleft,
+        Self::CmdAll,
+        Self::CmdAmenu,
+        Self::CmdAnoremenu,
+        Self::CmdArgs,
+        Self::CmdArgadd,
+        Self::CmdArgdelete,
+        Self::CmdArgdo,
+        Self::CmdArgdedupe,
+        Self::CmdArgedit,
+        Self::CmdArgglobal,
+        Self::CmdArglocal,
+        Self::CmdArgument,
+        Self::CmdAscii,
+        Self::CmdAutocmd,
+        Self::CmdAugroup,
+        Self::CmdAunmenu,
+        Self::CmdBuffer,
+        Self::CmdBnext,
+        Self::CmdBall,
+        Self::CmdBadd,
+        Self::CmdBalt,
+        Self::CmdBcd,
+        Self::CmdBchdir,
+        Self::CmdBdelete,
+        Self::CmdBelowright,
+        Self::CmdBfirst,
+        Self::CmdBlast,
+        Self::CmdBmodified,
+        Self::CmdBnextVariant,
+        Self::CmdBotright,
+        Self::CmdBprevious,
+        Self::CmdBrewind,
+        Self::CmdBreak,
+        Self::CmdBreakadd,
+        Self::CmdBreakdel,
+        Self::CmdBreaklist,
+        Self::CmdBrowse,
+        Self::CmdBuffers,
+        Self::CmdBufdo,
+        Self::CmdBunload,
+        Self::CmdBwipeout,
+        Self::CmdChange,
+        Self::CmdCnext,
+        Self::CmdCnfile,
+        Self::CmdCabbrev,
+        Self::CmdCabclear,
+        Self::CmdCabove,
+        Self::CmdCaddbuffer,
+        Self::CmdCaddexpr,
+        Self::CmdCaddfile,
+        Self::CmdCafter,
+        Self::CmdCall,
+        Self::CmdCatch,
+        Self::CmdCbuffer,
+        Self::CmdCbefore,
+        Self::CmdCbelow,
+        Self::CmdCbottom,
+        Self::CmdCc,
+        Self::CmdCclose,
+        Self::CmdCd,
+        Self::CmdCdo,
+        Self::CmdCenter,
+        Self::CmdCexpr,
+        Self::CmdCfile,
+        Self::CmdCfdo,
+        Self::CmdCfirst,
+        Self::CmdCgetfile,
+        Self::CmdCgetbuffer,
+        Self::CmdCgetexpr,
+        Self::CmdChdir,
+        Self::CmdChanges,
+        Self::CmdCheckhealth,
+        Self::CmdCheckpath,
+        Self::CmdChecktime,
+        Self::CmdChistory,
+        Self::CmdClist,
+        Self::CmdClast,
+        Self::CmdClose,
+        Self::CmdClearjumps,
+        Self::CmdCmap,
+        Self::CmdCmapclear,
+        Self::CmdCmenu,
+        Self::CmdCnextVariant,
+        Self::CmdCnewer,
+        Self::CmdCnfileVariant,
+        Self::CmdCnoremap,
+        Self::CmdCnoreabbrev,
+        Self::CmdCnoremenu,
+        Self::CmdCopy,
+        Self::CmdColder,
+        Self::CmdColorscheme,
+        Self::CmdCommand,
+        Self::CmdComclear,
+        Self::CmdCompiler,
+        Self::CmdContinue,
+        Self::CmdConfirm,
+        Self::CmdConnect,
+        Self::CmdConst,
+        Self::CmdCopen,
+        Self::CmdCprevious,
+        Self::CmdCpfile,
+        Self::CmdCquit,
+        Self::CmdCrewind,
+        Self::CmdCunmap,
+        Self::CmdCunabbrev,
+        Self::CmdCunmenu,
+        Self::CmdCwindow,
+        Self::CmdDelete,
+        Self::CmdDelmarks,
+        Self::CmdDebug,
+        Self::CmdDebuggreedy,
+        Self::CmdDefer,
+        Self::CmdDelcommand,
+        Self::CmdDelfunction,
+        Self::CmdDetach,
+        Self::CmdDisplay,
+        Self::CmdDiffupdate,
+        Self::CmdDiffget,
+        Self::CmdDiffoff,
+        Self::CmdDiffpatch,
+        Self::CmdDiffput,
+        Self::CmdDiffsplit,
+        Self::CmdDiffthis,
+        Self::CmdDigraphs,
+        Self::CmdDjump,
+        Self::CmdDlist,
+        Self::CmdDoautocmd,
+        Self::CmdDoautoall,
+        Self::CmdDrop,
+        Self::CmdDsearch,
+        Self::CmdDsplit,
+        Self::CmdEdit,
+        Self::CmdEarlier,
+        Self::CmdEcho,
+        Self::CmdEchoerr,
+        Self::CmdEchohl,
+        Self::CmdEchomsg,
+        Self::CmdEchon,
+        Self::CmdElse,
+        Self::CmdElseif,
+        Self::CmdEmenu,
+        Self::CmdEndif,
+        Self::CmdEndfunction,
+        Self::CmdEndfor,
+        Self::CmdEndtry,
+        Self::CmdEndwhile,
+        Self::CmdEnew,
+        Self::CmdEval,
+        Self::CmdEx,
+        Self::CmdExecute,
+        Self::CmdExit,
+        Self::CmdExmode,
+        Self::CmdExusage,
+        Self::CmdFile,
+        Self::CmdFiles,
+        Self::CmdFiletype,
+        Self::CmdFilter,
+        Self::CmdFind,
+        Self::CmdFinally,
+        Self::CmdFinish,
+        Self::CmdFirst,
+        Self::CmdFold,
+        Self::CmdFoldclose,
+        Self::CmdFolddoopen,
+        Self::CmdFolddoclosed,
+        Self::CmdFoldopen,
+        Self::CmdFor,
+        Self::CmdFunction,
+        Self::CmdFclose,
+        Self::CmdGlobal,
+        Self::CmdGoto,
+        Self::CmdGrep,
+        Self::CmdGrepadd,
+        Self::CmdGui,
+        Self::CmdGvim,
+        Self::CmdHelp,
+        Self::CmdHelpclose,
+        Self::CmdHelpgrep,
+        Self::CmdHelptags,
+        Self::CmdHighlight,
+        Self::CmdHide,
+        Self::CmdHistory,
+        Self::CmdHorizontal,
+        Self::CmdInsert,
+        Self::CmdIabbrev,
+        Self::CmdIabclear,
+        Self::CmdIf,
+        Self::CmdIjump,
+        Self::CmdIlist,
+        Self::CmdImap,
+        Self::CmdImapclear,
+        Self::CmdImenu,
+        Self::CmdInoremap,
+        Self::CmdInoreabbrev,
+        Self::CmdInoremenu,
+        Self::CmdIntro,
+        Self::CmdIput,
+        Self::CmdIsearch,
+        Self::CmdIsplit,
+        Self::CmdIunmap,
+        Self::CmdIunabbrev,
+        Self::CmdIunmenu,
+        Self::CmdJoin,
+        Self::CmdJumps,
+        Self::CmdK,
+        Self::CmdKeepmarks,
+        Self::CmdKeepjumps,
+        Self::CmdKeeppatterns,
+        Self::CmdKeepalt,
+        Self::CmdList,
+        Self::CmdLnext,
+        Self::CmdLnfile,
+        Self::CmdLast,
+        Self::CmdLabove,
+        Self::CmdLanguage,
+        Self::CmdLaddexpr,
+        Self::CmdLaddbuffer,
+        Self::CmdLaddfile,
+        Self::CmdLafter,
+        Self::CmdLater,
+        Self::CmdLbuffer,
+        Self::CmdLbefore,
+        Self::CmdLbelow,
+        Self::CmdLbottom,
+        Self::CmdLcd,
+        Self::CmdLchdir,
+        Self::CmdLclose,
+        Self::CmdLdo,
+        Self::CmdLeft,
+        Self::CmdLeftabove,
+        Self::CmdLet,
+        Self::CmdLexpr,
+        Self::CmdLfile,
+        Self::CmdLfdo,
+        Self::CmdLfirst,
+        Self::CmdLgetfile,
+        Self::CmdLgetbuffer,
+        Self::CmdLgetexpr,
+        Self::CmdLgrep,
+        Self::CmdLgrepadd,
+        Self::CmdLhelpgrep,
+        Self::CmdLhistory,
+        Self::CmdLl,
+        Self::CmdLlast,
+        Self::CmdLlist,
+        Self::CmdLmap,
+        Self::CmdLmapclear,
+        Self::CmdLmake,
+        Self::CmdLnoremap,
+        Self::CmdLnextVariant,
+        Self::CmdLnewer,
+        Self::CmdLnfileVariant,
+        Self::CmdLoadview,
+        Self::CmdLoadkeymap,
+        Self::CmdLockmarks,
+        Self::CmdLockvar,
+        Self::CmdLog,
+        Self::CmdLolder,
+        Self::CmdLopen,
+        Self::CmdLprevious,
+        Self::CmdLpfile,
+        Self::CmdLrewind,
+        Self::CmdLtag,
+        Self::CmdLunmap,
+        Self::CmdLua,
+        Self::CmdLuado,
+        Self::CmdLuafile,
+        Self::CmdLvimgrep,
+        Self::CmdLvimgrepadd,
+        Self::CmdLwindow,
+        Self::CmdLs,
+        Self::CmdLsp,
+        Self::CmdMove,
+        Self::CmdMark,
+        Self::CmdMake,
+        Self::CmdMap,
+        Self::CmdMapclear,
+        Self::CmdMarks,
+        Self::CmdMatch,
+        Self::CmdMenu,
+        Self::CmdMenutranslate,
+        Self::CmdMessages,
+        Self::CmdMkexrc,
+        Self::CmdMksession,
+        Self::CmdMkspell,
+        Self::CmdMkvimrc,
+        Self::CmdMkview,
+        Self::CmdMode,
+        Self::CmdMzscheme,
+        Self::CmdMzfile,
+        Self::CmdNext,
+        Self::CmdNew,
+        Self::CmdNmap,
+        Self::CmdNmapclear,
+        Self::CmdNmenu,
+        Self::CmdNnoremap,
+        Self::CmdNnoremenu,
+        Self::CmdNoremap,
+        Self::CmdNoautocmd,
+        Self::CmdNohlsearch,
+        Self::CmdNoreabbrev,
+        Self::CmdNoremenu,
+        Self::CmdNoswapfile,
+        Self::CmdNormal,
+        Self::CmdNumber,
+        Self::CmdNunmap,
+        Self::CmdNunmenu,
+        Self::CmdOldfiles,
+        Self::CmdOmap,
+        Self::CmdOmapclear,
+        Self::CmdOmenu,
+        Self::CmdOnly,
+        Self::CmdOnoremap,
+        Self::CmdOnoremenu,
+        Self::CmdOptions,
+        Self::CmdOunmap,
+        Self::CmdOunmenu,
+        Self::CmdOwnsyntax,
+        Self::CmdPrint,
+        Self::CmdPackadd,
+        Self::CmdPackdel,
+        Self::CmdPackloadall,
+        Self::CmdPackupdate,
+        Self::CmdPbuffer,
+        Self::CmdPclose,
+        Self::CmdPerl,
+        Self::CmdPerldo,
+        Self::CmdPerlfile,
+        Self::CmdPedit,
+        Self::CmdPop,
+        Self::CmdPopup,
+        Self::CmdPpop,
+        Self::CmdPreserve,
+        Self::CmdPrevious,
+        Self::CmdProfile,
+        Self::CmdProfdel,
+        Self::CmdPsearch,
+        Self::CmdPtag,
+        Self::CmdPtnext,
+        Self::CmdPtfirst,
+        Self::CmdPtjump,
+        Self::CmdPtlast,
+        Self::CmdPtnextVariant,
+        Self::CmdPtprevious,
+        Self::CmdPtrewind,
+        Self::CmdPtselect,
+        Self::CmdPut,
+        Self::CmdPwd,
+        Self::CmdPython,
+        Self::CmdPydo,
+        Self::CmdPyfile,
+        Self::CmdPy3,
+        Self::CmdPy3do,
+        Self::CmdPython3,
+        Self::CmdPy3file,
+        Self::CmdPyx,
+        Self::CmdPyxdo,
+        Self::CmdPythonx,
+        Self::CmdPyxfile,
+        Self::CmdQuit,
+        Self::CmdQuitall,
+        Self::CmdQall,
+        Self::CmdRead,
+        Self::CmdRecover,
+        Self::CmdRedo,
+        Self::CmdRedir,
+        Self::CmdRedraw,
+        Self::CmdRedrawstatus,
+        Self::CmdRedrawtabline,
+        Self::CmdRegisters,
+        Self::CmdResize,
+        Self::CmdRestart,
+        Self::CmdRetab,
+        Self::CmdReturn,
+        Self::CmdRewind,
+        Self::CmdRight,
+        Self::CmdRightbelow,
+        Self::CmdRshada,
+        Self::CmdRuntime,
+        Self::CmdRundo,
+        Self::CmdRuby,
+        Self::CmdRubydo,
+        Self::CmdRubyfile,
+        Self::CmdRviminfo,
+        Self::CmdSubstitute,
+        Self::CmdSnext,
+        Self::CmdSargument,
+        Self::CmdSall,
+        Self::CmdSandbox,
+        Self::CmdSaveas,
+        Self::CmdSbuffer,
+        Self::CmdSbnext,
+        Self::CmdSball,
+        Self::CmdSbfirst,
+        Self::CmdSblast,
+        Self::CmdSbmodified,
+        Self::CmdSbnextVariant,
+        Self::CmdSbprevious,
+        Self::CmdSbrewind,
+        Self::CmdScriptnames,
+        Self::CmdScriptencoding,
+        Self::CmdSet,
+        Self::CmdSetfiletype,
+        Self::CmdSetglobal,
+        Self::CmdSetlocal,
+        Self::CmdSfind,
+        Self::CmdSfirst,
+        Self::CmdSimalt,
+        Self::CmdSign,
+        Self::CmdSilent,
+        Self::CmdSleep,
+        Self::CmdSlast,
+        Self::CmdSmagic,
+        Self::CmdSmap,
+        Self::CmdSmapclear,
+        Self::CmdSmenu,
+        Self::CmdSnextVariant,
+        Self::CmdSnomagic,
+        Self::CmdSnoremap,
+        Self::CmdSnoremenu,
+        Self::CmdSource,
+        Self::CmdSort,
+        Self::CmdSplit,
+        Self::CmdSpellgood,
+        Self::CmdSpelldump,
+        Self::CmdSpellinfo,
+        Self::CmdSpellrepall,
+        Self::CmdSpellrare,
+        Self::CmdSpellundo,
+        Self::CmdSpellwrong,
+        Self::CmdSprevious,
+        Self::CmdSrewind,
+        Self::CmdStop,
+        Self::CmdStag,
+        Self::CmdStartinsert,
+        Self::CmdStartgreplace,
+        Self::CmdStartreplace,
+        Self::CmdStopinsert,
+        Self::CmdStjump,
+        Self::CmdStselect,
+        Self::CmdSunhide,
+        Self::CmdSunmap,
+        Self::CmdSunmenu,
+        Self::CmdSuspend,
+        Self::CmdSview,
+        Self::CmdSwapname,
+        Self::CmdSyntax,
+        Self::CmdSyntime,
+        Self::CmdSyncbind,
+        Self::CmdT,
+        Self::CmdTcd,
+        Self::CmdTchdir,
+        Self::CmdTnext,
+        Self::CmdTag,
+        Self::CmdTags,
+        Self::CmdTab,
+        Self::CmdTabclose,
+        Self::CmdTabdo,
+        Self::CmdTabedit,
+        Self::CmdTabfind,
+        Self::CmdTabfirst,
+        Self::CmdTabmove,
+        Self::CmdTablast,
+        Self::CmdTabnextVariant,
+        Self::CmdTabnew,
+        Self::CmdTabonly,
+        Self::CmdTabprevious,
+        Self::CmdTabnext,
+        Self::CmdTabrewind,
+        Self::CmdTabs,
+        Self::CmdTcl,
+        Self::CmdTcldo,
+        Self::CmdTclfile,
+        Self::CmdTerminal,
+        Self::CmdTfirst,
+        Self::CmdThrow,
+        Self::CmdTjump,
+        Self::CmdTlast,
+        Self::CmdTlmenu,
+        Self::CmdTlnoremenu,
+        Self::CmdTlunmenu,
+        Self::CmdTmenu,
+        Self::CmdTmap,
+        Self::CmdTmapclear,
+        Self::CmdTnextVariant,
+        Self::CmdTnoremap,
+        Self::CmdTopleft,
+        Self::CmdTprevious,
+        Self::CmdTrewind,
+        Self::CmdTrust,
+        Self::CmdTry,
+        Self::CmdTselect,
+        Self::CmdTunmenu,
+        Self::CmdTunmap,
+        Self::CmdUndo,
+        Self::CmdUndojoin,
+        Self::CmdUndolist,
+        Self::CmdUnabbreviate,
+        Self::CmdUnhide,
+        Self::CmdUniq,
+        Self::CmdUnlet,
+        Self::CmdUnlockvar,
+        Self::CmdUnmap,
+        Self::CmdUnmenu,
+        Self::CmdUnsilent,
+        Self::CmdUpdate,
+        Self::CmdUptime,
+        Self::CmdVglobal,
+        Self::CmdVersion,
+        Self::CmdVerbose,
+        Self::CmdVertical,
+        Self::CmdVisual,
+        Self::CmdView,
+        Self::CmdVimgrep,
+        Self::CmdVimgrepadd,
+        Self::CmdViusage,
+        Self::CmdVmap,
+        Self::CmdVmapclear,
+        Self::CmdVmenu,
+        Self::CmdVnoremap,
+        Self::CmdVnew,
+        Self::CmdVnoremenu,
+        Self::CmdVsplit,
+        Self::CmdVunmap,
+        Self::CmdVunmenu,
+        Self::CmdWrite,
+        Self::CmdWnext,
+        Self::CmdWall,
+        Self::CmdWhile,
+        Self::CmdWinsize,
+        Self::CmdWincmd,
+        Self::CmdWindo,
+        Self::CmdWinpos,
+        Self::CmdWnextVariant,
+        Self::CmdWprevious,
+        Self::CmdWq,
+        Self::CmdWqall,
+        Self::CmdWshada,
+        Self::CmdWundo,
+        Self::CmdWviminfo,
+        Self::CmdXit,
+        Self::CmdXall,
+        Self::CmdXmap,
+        Self::CmdXmapclear,
+        Self::CmdXmenu,
+        Self::CmdXnoremap,
+        Self::CmdXnoremenu,
+        Self::CmdXunmap,
+        Self::CmdXunmenu,
+        Self::CmdYank,
+        Self::CmdZ,
+        Self::CmdBang,
+        Self::CmdPound,
+        Self::CmdAnd,
+        Self::CmdLshift,
+        Self::CmdEqual,
+        Self::CmdRshift,
+        Self::CmdAt,
+        Self::CmdTilde,
+        Self::CmdCapNext,
     ];
 
     #[inline]
     pub const fn from_raw(idx: c_int) -> Self {
         match idx {
-            -1 => Self::CMD_USER,
-            -2 => Self::CMD_USER_BUF,
+            -1 => Self::CmdUser,
+            -2 => Self::CmdUserBuf,
             i if i >= 0 && (i as usize) < Self::ALL.len() => Self::ALL[i as usize],
-            _ => Self::CMD_SIZE,
+            _ => Self::CmdSize,
         }
     }
 }
@@ -1677,12 +1677,12 @@ impl CmdexpandState {
             filetype_expand_what: FiletypeExpandWhat::All,
             breakpt_expand_what: BreakptExpandWhat::Add,
             HEALTHCHECK_NAMES: Object {
-                obj_type: ObjectType::kObjectTypeNil,
+                obj_type: ObjectType::ObjectTypeNil,
                 data: ObjectData::Integer(0),
             },
             HEALTHCHECK_LAST_GEN: 0,
             ARG1_LUA_NAMES: Object {
-                obj_type: ObjectType::kObjectTypeNil,
+                obj_type: ObjectType::ObjectTypeNil,
                 data: ObjectData::Integer(0),
             },
             ARG1_LUA_LAST_XP_LINE: None,
@@ -3135,7 +3135,7 @@ fn set_cmd_index(
         let fuzzy = cmdline_fuzzy_complete(cmd);
 
         if !fuzzy && opt_vars().p_ic == 0 && crate::memory::cstr_first_byte(cmd) == b'k' && crate::memory::cstr_byte_at(cmd, 1) != b'e' {
-            eap.cmdidx = Cmdidx::CMD_k as c_int;
+            eap.cmdidx = Cmdidx::CmdK as c_int;
             p = cmd.add(1);
         } else {
             p = cmd;
@@ -3170,7 +3170,7 @@ fn set_cmd_index(
             eap.cmdidx = excmd_get_cmdidx(cmd, len) as c_int;
 
             if (*cmd >= b'A' as c_char && *cmd <= b'Z' as c_char)
-                || (fuzzy && eap.cmdidx != Cmdidx::CMD_bang as c_int as c_int && !crate::memory::cstr_is_empty(p))
+                || (fuzzy && eap.cmdidx != Cmdidx::CmdBang as c_int as c_int && !crate::memory::cstr_is_empty(p))
             {
                 while ascii_isalnum(crate::memory::cstr_first_char(p)) || crate::memory::cstr_first_byte(p) == b'*' {
                     p = p.add(1);
@@ -3182,21 +3182,21 @@ fn set_cmd_index(
             return ptr::null();
         }
 
-        if eap.cmdidx == Cmdidx::CMD_SIZE as c_int as c_int {
+        if eap.cmdidx == Cmdidx::CmdSize as c_int as c_int {
             if crate::memory::cstr_first_byte(cmd) == b's'
                 && !vim_strchr(c"cgriI", crate::memory::cstr_byte_at(cmd, 1) as c_int).is_null()
             {
-                eap.cmdidx = Cmdidx::CMD_substitute as c_int;
+                eap.cmdidx = Cmdidx::CmdSubstitute as c_int;
                 p = cmd.add(1);
             } else if *cmd >= b'A' as c_char && *cmd <= b'Z' as c_char {
                 eap.cmd = cmd.cast_mut();
                 p = find_ucmd(eap, p.cast_mut(), None, Some(&mut *xp), Some(&mut *complp));
                 if p.is_null() {
-                    eap.cmdidx = Cmdidx::CMD_SIZE as c_int;
+                    eap.cmdidx = Cmdidx::CmdSize as c_int;
                 }
             }
         }
-        if eap.cmdidx == Cmdidx::CMD_SIZE as c_int as c_int {
+        if eap.cmdidx == Cmdidx::CmdSize as c_int as c_int {
             xp.xp_context = EXPAND_UNSUCCESSFUL;
             return ptr::null();
         }
@@ -3262,8 +3262,8 @@ fn set_context_for_wildcard_arg(
 
         if usefilter
             || eap.is_some_and(|eap| {
-                eap.cmdidx == Cmdidx::CMD_bang as c_int
-                    || eap.cmdidx == Cmdidx::CMD_terminal as c_int
+                eap.cmdidx == Cmdidx::CmdBang as c_int
+                    || eap.cmdidx == Cmdidx::CmdTerminal as c_int
             })
             || *complp == EXPAND_SHELLCMDLINE
         {
@@ -3488,9 +3488,9 @@ fn set_context_in_breakadd_cmd(
         xp.xp_context = EXPAND_BREAKPOINT;
         xp.xp_pattern = arg.cast_mut();
 
-        if cmdidx == Cmdidx::CMD_breakadd {
+        if cmdidx == Cmdidx::CmdBreakadd {
             cmdexp().breakpt_expand_what = BreakptExpandWhat::Add;
-        } else if cmdidx == Cmdidx::CMD_breakdel {
+        } else if cmdidx == Cmdidx::CmdBreakdel {
             cmdexp().breakpt_expand_what = BreakptExpandWhat::Del;
         } else {
             cmdexp().breakpt_expand_what = BreakptExpandWhat::Profdel;
@@ -3630,7 +3630,7 @@ fn set_context_by_cmdname(
 ) -> *const c_char { let cmd = cmd.into_c_char_ptr(); let mut arg = arg.into_c_char_ptr();
     unsafe {
         match cmdidx {
-            Cmdidx::CMD_find | Cmdidx::CMD_sfind | Cmdidx::CMD_tabfind => {
+            Cmdidx::CmdFind | Cmdidx::CmdSfind | Cmdidx::CmdTabfind => {
                 if xp.xp_context == EXPAND_FILES {
                     xp.xp_context = if (*get_findfunc()).cb_type() != 0 {
                         EXPAND_FINDFUNC
@@ -3639,122 +3639,122 @@ fn set_context_by_cmdname(
                     };
                 }
             }
-            Cmdidx::CMD_bcd
-            | Cmdidx::CMD_bchdir
-            | Cmdidx::CMD_cd
-            | Cmdidx::CMD_chdir
-            | Cmdidx::CMD_lcd
-            | Cmdidx::CMD_lchdir
-            | Cmdidx::CMD_tcd
-            | Cmdidx::CMD_tchdir => {
+            Cmdidx::CmdBcd
+            | Cmdidx::CmdBchdir
+            | Cmdidx::CmdCd
+            | Cmdidx::CmdChdir
+            | Cmdidx::CmdLcd
+            | Cmdidx::CmdLchdir
+            | Cmdidx::CmdTcd
+            | Cmdidx::CmdTchdir => {
                 if xp.xp_context == EXPAND_FILES {
                     xp.xp_context = EXPAND_DIRS_IN_CDPATH;
                 }
             }
-            Cmdidx::CMD_help => {
+            Cmdidx::CmdHelp => {
                 xp.xp_context = EXPAND_HELP;
                 xp.xp_pattern = arg.cast_mut();
             }
-            Cmdidx::CMD_aboveleft
-            | Cmdidx::CMD_argdo
-            | Cmdidx::CMD_belowright
-            | Cmdidx::CMD_botright
-            | Cmdidx::CMD_browse
-            | Cmdidx::CMD_bufdo
-            | Cmdidx::CMD_cdo
-            | Cmdidx::CMD_cfdo
-            | Cmdidx::CMD_confirm
-            | Cmdidx::CMD_debug
-            | Cmdidx::CMD_folddoclosed
-            | Cmdidx::CMD_folddoopen
-            | Cmdidx::CMD_hide
-            | Cmdidx::CMD_horizontal
-            | Cmdidx::CMD_keepalt
-            | Cmdidx::CMD_keepjumps
-            | Cmdidx::CMD_keepmarks
-            | Cmdidx::CMD_keeppatterns
-            | Cmdidx::CMD_ldo
-            | Cmdidx::CMD_leftabove
-            | Cmdidx::CMD_lfdo
-            | Cmdidx::CMD_lockmarks
-            | Cmdidx::CMD_noautocmd
-            | Cmdidx::CMD_noswapfile
-            | Cmdidx::CMD_restart
-            | Cmdidx::CMD_rightbelow
-            | Cmdidx::CMD_sandbox
-            | Cmdidx::CMD_silent
-            | Cmdidx::CMD_tab
-            | Cmdidx::CMD_tabdo
-            | Cmdidx::CMD_topleft
-            | Cmdidx::CMD_unsilent
-            | Cmdidx::CMD_verbose
-            | Cmdidx::CMD_vertical
-            | Cmdidx::CMD_windo => {
+            Cmdidx::CmdAboveleft
+            | Cmdidx::CmdArgdo
+            | Cmdidx::CmdBelowright
+            | Cmdidx::CmdBotright
+            | Cmdidx::CmdBrowse
+            | Cmdidx::CmdBufdo
+            | Cmdidx::CmdCdo
+            | Cmdidx::CmdCfdo
+            | Cmdidx::CmdConfirm
+            | Cmdidx::CmdDebug
+            | Cmdidx::CmdFolddoclosed
+            | Cmdidx::CmdFolddoopen
+            | Cmdidx::CmdHide
+            | Cmdidx::CmdHorizontal
+            | Cmdidx::CmdKeepalt
+            | Cmdidx::CmdKeepjumps
+            | Cmdidx::CmdKeepmarks
+            | Cmdidx::CmdKeeppatterns
+            | Cmdidx::CmdLdo
+            | Cmdidx::CmdLeftabove
+            | Cmdidx::CmdLfdo
+            | Cmdidx::CmdLockmarks
+            | Cmdidx::CmdNoautocmd
+            | Cmdidx::CmdNoswapfile
+            | Cmdidx::CmdRestart
+            | Cmdidx::CmdRightbelow
+            | Cmdidx::CmdSandbox
+            | Cmdidx::CmdSilent
+            | Cmdidx::CmdTab
+            | Cmdidx::CmdTabdo
+            | Cmdidx::CmdTopleft
+            | Cmdidx::CmdUnsilent
+            | Cmdidx::CmdVerbose
+            | Cmdidx::CmdVertical
+            | Cmdidx::CmdWindo => {
                 return arg;
             }
-            Cmdidx::CMD_filter => {
+            Cmdidx::CmdFilter => {
                 return set_context_in_filter_cmd(xp, arg);
             }
-            Cmdidx::CMD_match => {
+            Cmdidx::CmdMatch => {
                 return set_context_in_match_cmd(xp, arg);
             }
-            Cmdidx::CMD_command => {
+            Cmdidx::CmdCommand => {
                 return set_context_in_user_cmd(xp, arg);
             }
-            Cmdidx::CMD_delcommand => {
+            Cmdidx::CmdDelcommand => {
                 xp.xp_context = EXPAND_USER_COMMANDS;
                 xp.xp_pattern = arg.cast_mut();
             }
-            Cmdidx::CMD_global | Cmdidx::CMD_vglobal => {
+            Cmdidx::CmdGlobal | Cmdidx::CmdVglobal => {
                 let nextcmd = find_cmd_after_global_cmd(arg);
                 if nextcmd.is_null() && cmdexp().may_expand_pattern {
                     set_context_with_pattern(xp);
                 }
                 return nextcmd;
             }
-            Cmdidx::CMD_and | Cmdidx::CMD_substitute => {
+            Cmdidx::CmdAnd | Cmdidx::CmdSubstitute => {
                 let nextcmd = find_cmd_after_substitute_cmd(arg);
                 if nextcmd.is_null() && cmdexp().may_expand_pattern {
                     set_context_with_pattern(xp);
                 }
                 return nextcmd;
             }
-            Cmdidx::CMD_isearch
-            | Cmdidx::CMD_dsearch
-            | Cmdidx::CMD_ilist
-            | Cmdidx::CMD_dlist
-            | Cmdidx::CMD_ijump
-            | Cmdidx::CMD_psearch
-            | Cmdidx::CMD_djump
-            | Cmdidx::CMD_isplit
-            | Cmdidx::CMD_dsplit => {
+            Cmdidx::CmdIsearch
+            | Cmdidx::CmdDsearch
+            | Cmdidx::CmdIlist
+            | Cmdidx::CmdDlist
+            | Cmdidx::CmdIjump
+            | Cmdidx::CmdPsearch
+            | Cmdidx::CmdDjump
+            | Cmdidx::CmdIsplit
+            | Cmdidx::CmdDsplit => {
                 return find_cmd_after_isearch_cmd(xp, arg);
             }
-            Cmdidx::CMD_autocmd => {
+            Cmdidx::CmdAutocmd => {
                 return aucmd_set_expand_context(xp, arg.cast_mut(), false);
             }
-            Cmdidx::CMD_doautocmd | Cmdidx::CMD_doautoall => {
+            Cmdidx::CmdDoautocmd | Cmdidx::CmdDoautoall => {
                 return aucmd_set_expand_context(xp, arg.cast_mut(), true);
             }
-            Cmdidx::CMD_set => {
+            Cmdidx::CmdSet => {
                 set_context_in_set_cmd(xp, arg.cast_mut(), 0);
             }
-            Cmdidx::CMD_setglobal => {
+            Cmdidx::CmdSetglobal => {
                 set_context_in_set_cmd(xp, arg.cast_mut(), OPT_GLOBAL);
             }
-            Cmdidx::CMD_setlocal => {
+            Cmdidx::CmdSetlocal => {
                 set_context_in_set_cmd(xp, arg.cast_mut(), OPT_LOCAL);
             }
-            Cmdidx::CMD_tag
-            | Cmdidx::CMD_stag
-            | Cmdidx::CMD_ptag
-            | Cmdidx::CMD_ltag
-            | Cmdidx::CMD_tselect
-            | Cmdidx::CMD_stselect
-            | Cmdidx::CMD_ptselect
-            | Cmdidx::CMD_tjump
-            | Cmdidx::CMD_stjump
-            | Cmdidx::CMD_ptjump => {
+            Cmdidx::CmdTag
+            | Cmdidx::CmdStag
+            | Cmdidx::CmdPtag
+            | Cmdidx::CmdLtag
+            | Cmdidx::CmdTselect
+            | Cmdidx::CmdStselect
+            | Cmdidx::CmdPtselect
+            | Cmdidx::CmdTjump
+            | Cmdidx::CmdStjump
+            | Cmdidx::CmdPtjump => {
                 if (opt_vars().wop_flags & kOptWopFlagTagfile) != 0 {
                     xp.xp_context = EXPAND_TAGS_LISTFILES;
                 } else {
@@ -3762,51 +3762,51 @@ fn set_context_by_cmdname(
                 }
                 xp.xp_pattern = arg.cast_mut();
             }
-            Cmdidx::CMD_augroup => {
+            Cmdidx::CmdAugroup => {
                 xp.xp_context = EXPAND_AUGROUP;
                 xp.xp_pattern = arg.cast_mut();
             }
-            Cmdidx::CMD_syntax => {
+            Cmdidx::CmdSyntax => {
                 set_context_in_syntax_cmd(xp, arg);
             }
-            Cmdidx::CMD_const
-            | Cmdidx::CMD_let
-            | Cmdidx::CMD_if
-            | Cmdidx::CMD_elseif
-            | Cmdidx::CMD_while
-            | Cmdidx::CMD_for
-            | Cmdidx::CMD_echo
-            | Cmdidx::CMD_echon
-            | Cmdidx::CMD_execute
-            | Cmdidx::CMD_echomsg
-            | Cmdidx::CMD_echoerr
-            | Cmdidx::CMD_call
-            | Cmdidx::CMD_return
-            | Cmdidx::CMD_cexpr
-            | Cmdidx::CMD_caddexpr
-            | Cmdidx::CMD_cgetexpr
-            | Cmdidx::CMD_lexpr
-            | Cmdidx::CMD_laddexpr
-            | Cmdidx::CMD_lgetexpr => {
+            Cmdidx::CmdConst
+            | Cmdidx::CmdLet
+            | Cmdidx::CmdIf
+            | Cmdidx::CmdElseif
+            | Cmdidx::CmdWhile
+            | Cmdidx::CmdFor
+            | Cmdidx::CmdEcho
+            | Cmdidx::CmdEchon
+            | Cmdidx::CmdExecute
+            | Cmdidx::CmdEchomsg
+            | Cmdidx::CmdEchoerr
+            | Cmdidx::CmdCall
+            | Cmdidx::CmdReturn
+            | Cmdidx::CmdCexpr
+            | Cmdidx::CmdCaddexpr
+            | Cmdidx::CmdCgetexpr
+            | Cmdidx::CmdLexpr
+            | Cmdidx::CmdLaddexpr
+            | Cmdidx::CmdLgetexpr => {
                 set_context_for_expression(xp, arg.cast_mut(), cmdidx);
             }
-            Cmdidx::CMD_unlet => {
+            Cmdidx::CmdUnlet => {
                 return set_context_in_unlet_cmd(xp, arg);
             }
-            Cmdidx::CMD_function | Cmdidx::CMD_delfunction => {
+            Cmdidx::CmdFunction | Cmdidx::CmdDelfunction => {
                 xp.xp_context = EXPAND_USER_FUNC;
                 xp.xp_pattern = arg.cast_mut();
             }
-            Cmdidx::CMD_echohl => {
+            Cmdidx::CmdEchohl => {
                 set_context_in_echohl_cmd(xp, arg);
             }
-            Cmdidx::CMD_highlight => {
+            Cmdidx::CmdHighlight => {
                 set_context_in_highlight_cmd(xp, arg);
             }
-            Cmdidx::CMD_sign => {
+            Cmdidx::CmdSign => {
                 set_context_in_sign_cmd(xp, arg.cast_mut());
             }
-            Cmdidx::CMD_bdelete | Cmdidx::CMD_bwipeout | Cmdidx::CMD_bunload => {
+            Cmdidx::CmdBdelete | Cmdidx::CmdBwipeout | Cmdidx::CmdBunload => {
                 while {
                     xp.xp_pattern = c_strchr(arg, b' ' as c_char);
                     !xp.xp_pattern.is_null()
@@ -3816,38 +3816,38 @@ fn set_context_by_cmdname(
                 xp.xp_context = EXPAND_BUFFERS;
                 xp.xp_pattern = arg.cast_mut();
             }
-            Cmdidx::CMD_buffer
-            | Cmdidx::CMD_sbuffer
-            | Cmdidx::CMD_pbuffer
-            | Cmdidx::CMD_checktime => {
+            Cmdidx::CmdBuffer
+            | Cmdidx::CmdSbuffer
+            | Cmdidx::CmdPbuffer
+            | Cmdidx::CmdChecktime => {
                 xp.xp_context = EXPAND_BUFFERS;
                 xp.xp_pattern = arg.cast_mut();
             }
-            Cmdidx::CMD_diffget | Cmdidx::CMD_diffput => {
+            Cmdidx::CmdDiffget | Cmdidx::CmdDiffput => {
                 xp.xp_context = EXPAND_DIFF_BUFFERS;
                 xp.xp_pattern = arg.cast_mut();
             }
-            Cmdidx::CMD_USER | Cmdidx::CMD_USER_BUF => {
+            Cmdidx::CmdUser | Cmdidx::CmdUserBuf => {
                 return set_context_in_user_cmdarg(cmd, arg, argt, context, xp, forceit);
             }
-            Cmdidx::CMD_map
-            | Cmdidx::CMD_noremap
-            | Cmdidx::CMD_nmap
-            | Cmdidx::CMD_nnoremap
-            | Cmdidx::CMD_vmap
-            | Cmdidx::CMD_vnoremap
-            | Cmdidx::CMD_omap
-            | Cmdidx::CMD_onoremap
-            | Cmdidx::CMD_imap
-            | Cmdidx::CMD_inoremap
-            | Cmdidx::CMD_cmap
-            | Cmdidx::CMD_cnoremap
-            | Cmdidx::CMD_lmap
-            | Cmdidx::CMD_lnoremap
-            | Cmdidx::CMD_smap
-            | Cmdidx::CMD_snoremap
-            | Cmdidx::CMD_xmap
-            | Cmdidx::CMD_xnoremap => {
+            Cmdidx::CmdMap
+            | Cmdidx::CmdNoremap
+            | Cmdidx::CmdNmap
+            | Cmdidx::CmdNnoremap
+            | Cmdidx::CmdVmap
+            | Cmdidx::CmdVnoremap
+            | Cmdidx::CmdOmap
+            | Cmdidx::CmdOnoremap
+            | Cmdidx::CmdImap
+            | Cmdidx::CmdInoremap
+            | Cmdidx::CmdCmap
+            | Cmdidx::CmdCnoremap
+            | Cmdidx::CmdLmap
+            | Cmdidx::CmdLnoremap
+            | Cmdidx::CmdSmap
+            | Cmdidx::CmdSnoremap
+            | Cmdidx::CmdXmap
+            | Cmdidx::CmdXnoremap => {
                 return set_context_in_map_cmd(
                     xp,
                     cmd.cast_mut(),
@@ -3858,15 +3858,15 @@ fn set_context_by_cmdname(
                     cmdidx,
                 );
             }
-            Cmdidx::CMD_unmap
-            | Cmdidx::CMD_nunmap
-            | Cmdidx::CMD_vunmap
-            | Cmdidx::CMD_ounmap
-            | Cmdidx::CMD_iunmap
-            | Cmdidx::CMD_cunmap
-            | Cmdidx::CMD_lunmap
-            | Cmdidx::CMD_sunmap
-            | Cmdidx::CMD_xunmap => {
+            Cmdidx::CmdUnmap
+            | Cmdidx::CmdNunmap
+            | Cmdidx::CmdVunmap
+            | Cmdidx::CmdOunmap
+            | Cmdidx::CmdIunmap
+            | Cmdidx::CmdCunmap
+            | Cmdidx::CmdLunmap
+            | Cmdidx::CmdSunmap
+            | Cmdidx::CmdXunmap => {
                 return set_context_in_map_cmd(
                     xp,
                     cmd.cast_mut(),
@@ -3877,24 +3877,24 @@ fn set_context_by_cmdname(
                     cmdidx,
                 );
             }
-            Cmdidx::CMD_mapclear
-            | Cmdidx::CMD_nmapclear
-            | Cmdidx::CMD_vmapclear
-            | Cmdidx::CMD_omapclear
-            | Cmdidx::CMD_imapclear
-            | Cmdidx::CMD_cmapclear
-            | Cmdidx::CMD_lmapclear
-            | Cmdidx::CMD_smapclear
-            | Cmdidx::CMD_xmapclear => {
+            Cmdidx::CmdMapclear
+            | Cmdidx::CmdNmapclear
+            | Cmdidx::CmdVmapclear
+            | Cmdidx::CmdOmapclear
+            | Cmdidx::CmdImapclear
+            | Cmdidx::CmdCmapclear
+            | Cmdidx::CmdLmapclear
+            | Cmdidx::CmdSmapclear
+            | Cmdidx::CmdXmapclear => {
                 xp.xp_context = EXPAND_MAPCLEAR;
                 xp.xp_pattern = arg.cast_mut();
             }
-            Cmdidx::CMD_abbreviate
-            | Cmdidx::CMD_noreabbrev
-            | Cmdidx::CMD_cabbrev
-            | Cmdidx::CMD_cnoreabbrev
-            | Cmdidx::CMD_iabbrev
-            | Cmdidx::CMD_inoreabbrev => {
+            Cmdidx::CmdAbbreviate
+            | Cmdidx::CmdNoreabbrev
+            | Cmdidx::CmdCabbrev
+            | Cmdidx::CmdCnoreabbrev
+            | Cmdidx::CmdIabbrev
+            | Cmdidx::CmdInoreabbrev => {
                 return set_context_in_map_cmd(
                     xp,
                     cmd.cast_mut(),
@@ -3905,7 +3905,7 @@ fn set_context_by_cmdname(
                     cmdidx,
                 );
             }
-            Cmdidx::CMD_unabbreviate | Cmdidx::CMD_cunabbrev | Cmdidx::CMD_iunabbrev => {
+            Cmdidx::CmdUnabbreviate | Cmdidx::CmdCunabbrev | Cmdidx::CmdIunabbrev => {
                 return set_context_in_map_cmd(
                     xp,
                     cmd.cast_mut(),
@@ -3916,100 +3916,100 @@ fn set_context_by_cmdname(
                     cmdidx,
                 );
             }
-            Cmdidx::CMD_menu
-            | Cmdidx::CMD_noremenu
-            | Cmdidx::CMD_unmenu
-            | Cmdidx::CMD_amenu
-            | Cmdidx::CMD_anoremenu
-            | Cmdidx::CMD_aunmenu
-            | Cmdidx::CMD_nmenu
-            | Cmdidx::CMD_nnoremenu
-            | Cmdidx::CMD_nunmenu
-            | Cmdidx::CMD_vmenu
-            | Cmdidx::CMD_vnoremenu
-            | Cmdidx::CMD_vunmenu
-            | Cmdidx::CMD_omenu
-            | Cmdidx::CMD_onoremenu
-            | Cmdidx::CMD_ounmenu
-            | Cmdidx::CMD_imenu
-            | Cmdidx::CMD_inoremenu
-            | Cmdidx::CMD_iunmenu
-            | Cmdidx::CMD_cmenu
-            | Cmdidx::CMD_cnoremenu
-            | Cmdidx::CMD_cunmenu
-            | Cmdidx::CMD_tlmenu
-            | Cmdidx::CMD_tlnoremenu
-            | Cmdidx::CMD_tlunmenu
-            | Cmdidx::CMD_tmenu
-            | Cmdidx::CMD_tunmenu
-            | Cmdidx::CMD_popup
-            | Cmdidx::CMD_emenu => {
+            Cmdidx::CmdMenu
+            | Cmdidx::CmdNoremenu
+            | Cmdidx::CmdUnmenu
+            | Cmdidx::CmdAmenu
+            | Cmdidx::CmdAnoremenu
+            | Cmdidx::CmdAunmenu
+            | Cmdidx::CmdNmenu
+            | Cmdidx::CmdNnoremenu
+            | Cmdidx::CmdNunmenu
+            | Cmdidx::CmdVmenu
+            | Cmdidx::CmdVnoremenu
+            | Cmdidx::CmdVunmenu
+            | Cmdidx::CmdOmenu
+            | Cmdidx::CmdOnoremenu
+            | Cmdidx::CmdOunmenu
+            | Cmdidx::CmdImenu
+            | Cmdidx::CmdInoremenu
+            | Cmdidx::CmdIunmenu
+            | Cmdidx::CmdCmenu
+            | Cmdidx::CmdCnoremenu
+            | Cmdidx::CmdCunmenu
+            | Cmdidx::CmdTlmenu
+            | Cmdidx::CmdTlnoremenu
+            | Cmdidx::CmdTlunmenu
+            | Cmdidx::CmdTmenu
+            | Cmdidx::CmdTunmenu
+            | Cmdidx::CmdPopup
+            | Cmdidx::CmdEmenu => {
                 return set_context_in_menu_cmd(xp, cmd, arg.cast_mut(), forceit);
             }
-            Cmdidx::CMD_colorscheme => {
+            Cmdidx::CmdColorscheme => {
                 xp.xp_context = EXPAND_COLORS;
                 xp.xp_pattern = arg.cast_mut();
             }
-            Cmdidx::CMD_compiler => {
+            Cmdidx::CmdCompiler => {
                 xp.xp_context = EXPAND_COMPILER;
                 xp.xp_pattern = arg.cast_mut();
             }
-            Cmdidx::CMD_ownsyntax => {
+            Cmdidx::CmdOwnsyntax => {
                 xp.xp_context = EXPAND_OWNSYNTAX;
                 xp.xp_pattern = arg.cast_mut();
             }
-            Cmdidx::CMD_setfiletype => {
+            Cmdidx::CmdSetfiletype => {
                 xp.xp_context = EXPAND_FILETYPE;
                 xp.xp_pattern = arg.cast_mut();
             }
-            Cmdidx::CMD_packadd => {
+            Cmdidx::CmdPackadd => {
                 xp.xp_context = EXPAND_PACKADD;
                 xp.xp_pattern = arg.cast_mut();
             }
-            Cmdidx::CMD_runtime => {
+            Cmdidx::CmdRuntime => {
                 set_context_in_runtime_cmd(xp, arg);
             }
-            Cmdidx::CMD_language => {
+            Cmdidx::CmdLanguage => {
                 return set_context_in_lang_cmd(xp, arg);
             }
-            Cmdidx::CMD_profile => {
+            Cmdidx::CmdProfile => {
                 set_context_in_profile_cmd(xp, arg);
             }
-            Cmdidx::CMD_checkhealth => {
+            Cmdidx::CmdCheckhealth => {
                 xp.xp_context = EXPAND_CHECKHEALTH;
             }
-            Cmdidx::CMD_marks => {
+            Cmdidx::CmdMarks => {
                 xp.xp_context = EXPAND_MARKS;
             }
-            Cmdidx::CMD_log => {
+            Cmdidx::CmdLog => {
                 xp.xp_context = EXPAND_LOG;
             }
-            Cmdidx::CMD_lsp => {
+            Cmdidx::CmdLsp => {
                 xp.xp_context = EXPAND_LSP;
             }
-            Cmdidx::CMD_packdel => {
+            Cmdidx::CmdPackdel => {
                 xp.xp_context = EXPAND_PACKDEL;
             }
-            Cmdidx::CMD_packupdate => {
+            Cmdidx::CmdPackupdate => {
                 xp.xp_context = EXPAND_PACKUPDATE;
             }
-            Cmdidx::CMD_retab => {
+            Cmdidx::CmdRetab => {
                 xp.xp_context = EXPAND_RETAB;
                 xp.xp_pattern = arg.cast_mut();
             }
-            Cmdidx::CMD_messages => {
+            Cmdidx::CmdMessages => {
                 xp.xp_context = EXPAND_MESSAGES;
                 xp.xp_pattern = arg.cast_mut();
             }
-            Cmdidx::CMD_history => {
+            Cmdidx::CmdHistory => {
                 xp.xp_context = EXPAND_HISTORY;
                 xp.xp_pattern = arg.cast_mut();
             }
-            Cmdidx::CMD_syntime => {
+            Cmdidx::CmdSyntime => {
                 xp.xp_context = EXPAND_SYNTIME;
                 xp.xp_pattern = arg.cast_mut();
             }
-            Cmdidx::CMD_argdelete => {
+            Cmdidx::CmdArgdelete => {
                 while {
                     xp.xp_pattern = vim_strchr(arg, b' ' as c_int);
                     !xp.xp_pattern.is_null()
@@ -4019,16 +4019,16 @@ fn set_context_by_cmdname(
                 xp.xp_context = EXPAND_ARGLIST;
                 xp.xp_pattern = arg.cast_mut();
             }
-            Cmdidx::CMD_breakadd | Cmdidx::CMD_profdel | Cmdidx::CMD_breakdel => {
+            Cmdidx::CmdBreakadd | Cmdidx::CmdProfdel | Cmdidx::CmdBreakdel => {
                 return set_context_in_breakadd_cmd(xp, arg, cmdidx);
             }
-            Cmdidx::CMD_scriptnames => {
+            Cmdidx::CmdScriptnames => {
                 return set_context_in_scriptnames_cmd(xp, arg);
             }
-            Cmdidx::CMD_filetype => {
+            Cmdidx::CmdFiletype => {
                 return set_context_in_filetype_cmd(xp, arg);
             }
-            Cmdidx::CMD_lua | Cmdidx::CMD_equal => {
+            Cmdidx::CmdLua | Cmdidx::CmdEqual => {
                 xp.xp_context = EXPAND_LUA;
             }
             _ => {}
@@ -4112,20 +4112,20 @@ fn set_one_cmd_context(xp: &mut ExpandCtx, buff: impl crate::strings::IntoCCharP
             }
         }
 
-        if ea.cmdidx == Cmdidx::CMD_write as c_int || ea.cmdidx == Cmdidx::CMD_update as c_int {
+        if ea.cmdidx == Cmdidx::CmdWrite as c_int || ea.cmdidx == Cmdidx::CmdUpdate as c_int {
             if crate::memory::cstr_first_byte(arg) == b'>' {
                 arg = arg.add(1);
                 if crate::memory::cstr_first_byte(arg) == b'>' {
                     arg = arg.add(1);
                 }
                 arg = skipwhite(arg);
-            } else if crate::memory::cstr_first_byte(arg) == b'!' && ea.cmdidx == Cmdidx::CMD_write as c_int {
+            } else if crate::memory::cstr_first_byte(arg) == b'!' && ea.cmdidx == Cmdidx::CmdWrite as c_int {
                 arg = arg.add(1);
                 usefilter = true;
             }
         }
 
-        if ea.cmdidx == Cmdidx::CMD_read as c_int {
+        if ea.cmdidx == Cmdidx::CmdRead as c_int {
             usefilter = forceit;
             if crate::memory::cstr_first_byte(arg) == b'!' {
                 arg = arg.add(1);
@@ -4133,7 +4133,7 @@ fn set_one_cmd_context(xp: &mut ExpandCtx, buff: impl crate::strings::IntoCCharP
             }
         }
 
-        if ea.cmdidx == Cmdidx::CMD_lshift as c_int || ea.cmdidx == Cmdidx::CMD_rshift as c_int
+        if ea.cmdidx == Cmdidx::CmdLshift as c_int || ea.cmdidx == Cmdidx::CmdRshift as c_int
         {
             while *arg == *cmd {
                 arg = arg.add(1);
@@ -4154,7 +4154,7 @@ fn set_one_cmd_context(xp: &mut ExpandCtx, buff: impl crate::strings::IntoCCharP
 
         if (ea.argt & EX_TRLBAR) != 0 && !usefilter {
             p = arg;
-            if ea.cmdidx == Cmdidx::CMD_redir as c_int as c_int
+            if ea.cmdidx == Cmdidx::CmdRedir as c_int as c_int
                 && crate::memory::cstr_first_byte(p) == b'@'
                 && crate::memory::cstr_byte_at(p, 1) == b'"'
             {
@@ -4236,7 +4236,7 @@ pub fn set_cmd_context(
         cmdexp().breakpt_expand_what = BreakptExpandWhat::Add;
 
         if use_ccline != 0 && (*ccline).cmdfirstc == b'=' as c_int {
-            set_context_for_expression(xp, str_arg, Cmdidx::CMD_SIZE);
+            set_context_for_expression(xp, str_arg, Cmdidx::CmdSize);
         } else if use_ccline != 0 && (*ccline).input_fn != 0 {
             xp.xp_context = (*ccline).xp_context;
             xp.xp_pattern = (*ccline).cmdbuff;
@@ -4508,12 +4508,12 @@ fn get_healthcheck_names(_xp: &mut ExpandCtx, idx: c_int) -> *mut c_char {
             cmdexp().HEALTHCHECK_LAST_GEN = prompt_id;
         }
 
-        if cmdexp().HEALTHCHECK_NAMES.obj_type == ObjectType::kObjectTypeArray
+        if cmdexp().HEALTHCHECK_NAMES.obj_type == ObjectType::ObjectTypeArray
             && idx >= 0
             && (idx as usize) < cmdexp().HEALTHCHECK_NAMES.data.array().size
         {
             let item = *cmdexp().HEALTHCHECK_NAMES.data.array().items.add(idx as usize);
-            if item.obj_type == ObjectType::kObjectTypeString {
+            if item.obj_type == ObjectType::ObjectTypeString {
                 return item.data.string().data;
             }
         }
@@ -4534,11 +4534,11 @@ fn get_arg1_from_lua(lua: &std::ffi::CStr, xp: &mut ExpandCtx, idx: c_int) -> *m
             cmdexp().ARG1_LUA_LAST_XP_LINE = Some(cstr_to_cstring(xp.xp_line));
             let mut args_items = [
                 Object {
-                    obj_type: ObjectType::kObjectTypeString,
+                    obj_type: ObjectType::ObjectTypeString,
                     data: ObjectData::String(cstr_as_string(xp.xp_pattern)),
                 },
                 Object {
-                    obj_type: ObjectType::kObjectTypeString,
+                    obj_type: ObjectType::ObjectTypeString,
                     data: ObjectData::String(cstr_as_string(xp.xp_line)),
                 },
             ];
@@ -4562,12 +4562,12 @@ fn get_arg1_from_lua(lua: &std::ffi::CStr, xp: &mut ExpandCtx, idx: c_int) -> *m
             cmdexp().ARG1_LUA_LAST_GEN = prompt_id;
         }
 
-        if cmdexp().ARG1_LUA_NAMES.obj_type == ObjectType::kObjectTypeArray
+        if cmdexp().ARG1_LUA_NAMES.obj_type == ObjectType::ObjectTypeArray
             && idx >= 0
             && (idx as usize) < cmdexp().ARG1_LUA_NAMES.data.array().size
         {
             let item = *cmdexp().ARG1_LUA_NAMES.data.array().items.add(idx as usize);
-            if item.obj_type == ObjectType::kObjectTypeString {
+            if item.obj_type == ObjectType::ObjectTypeString {
                 return item.data.string().data;
             }
         }
@@ -5298,10 +5298,10 @@ fn call_user_expand_func<R>(
 
         let pat = cstr_from_bytes(crate::memory::cstr_slice((*xp).xp_pattern, (*xp).xp_pattern_len,
         ));
-        args[0].v_type = VarType::VAR_STRING;
-        args[1].v_type = VarType::VAR_STRING;
-        args[2].v_type = VarType::VAR_NUMBER;
-        args[3].v_type = VarType::VAR_UNKNOWN;
+        args[0].v_type = VarType::VarString;
+        args[1].v_type = VarType::VarString;
+        args[2].v_type = VarType::VarNumber;
+        args[3].v_type = VarType::VarUnknown;
         args[0].vval = crate::eval::typval::TypvalVval::String(pat.as_ptr().cast_mut());
         args[1].vval = crate::eval::typval::TypvalVval::String((*xp).xp_line);
         args[2].vval = crate::eval::typval::TypvalVval::Number(i64::from((*xp).xp_col));
@@ -5419,12 +5419,12 @@ pub fn expand_process_user_list(
                 let mut menu: Option<std::ffi::CString> = None;
                 let mut info: Option<std::ffi::CString> = None;
 
-                if tv.v_type == VarType::VAR_STRING {
+                if tv.v_type == VarType::VarString {
                     if tv.vval.v_string().is_null() {
                         continue;
                     }
                     p = cstr_to_cstring(tv.vval.v_string());
-                } else if tv.v_type == VarType::VAR_DICT && !tv.vval.v_dict().is_null() {
+                } else if tv.v_type == VarType::VarDict && !tv.vval.v_dict().is_null() {
                     let d = tv.vval.v_dict();
                     let word = tv_dict_get_string(d.as_ref(), c"word");
                     if word.is_null() {
@@ -5476,7 +5476,7 @@ fn ExpandUserList(xp: &mut ExpandCtx, matches: &mut Vec<CString>) -> bool {
 fn ExpandUserLua(xp: &mut ExpandCtx, matches: &mut Vec<CString>) -> bool {
     let mut rettv: TypVal = TypVal::new();
         nlua_call_user_expand_func(xp, &mut rettv);
-        if rettv.v_type != VarType::VAR_LIST {
+        if rettv.v_type != VarType::VarList {
             tv_clear(&mut rettv);
             return false;
         }
@@ -5802,7 +5802,7 @@ pub fn f_getcompletion(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFu
         }
         let type_str = tv_get_string(&argvars[1]);
 
-        if argvars[2].v_type != VarType::VAR_UNKNOWN {
+        if argvars[2].v_type != VarType::VarUnknown {
             filtered = tv_get_bool_chk(&argvars[2], None) != 0;
         }
 
@@ -5814,7 +5814,7 @@ pub fn f_getcompletion(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFu
             options |= WILD_KEEP_ALL;
         }
 
-        if argvars[0].v_type != VarType::VAR_STRING {
+        if argvars[0].v_type != VarType::VarString {
             if !tv_get_string_chk(&argvars[0]).is_null() {
                 emsg(gettext(e_invarg));
             }
@@ -5931,7 +5931,7 @@ pub fn f_getcompletiontype(argvars: &mut [TypVal], rettv: &mut TypVal,
     _fptr: EvalFuncData,){
 
      {
-        rettv.v_type = VarType::VAR_STRING;
+        rettv.v_type = VarType::VarString;
         rettv.vval = crate::eval::typval::TypvalVval::String(ptr::null_mut());
 
         if !tv_check_for_string_arg(argvars, 0) {
@@ -6317,8 +6317,8 @@ mod tests {
             assert_eq!(c as c_int, i as c_int);
             assert!(Cmdidx::from_raw(i as c_int) == c);
         }
-        assert!(Cmdidx::from_raw(-1) == Cmdidx::CMD_USER);
-        assert!(Cmdidx::from_raw(-2) == Cmdidx::CMD_USER_BUF);
-        assert!(Cmdidx::from_raw(Cmdidx::CMD_SIZE as c_int) == Cmdidx::CMD_SIZE);
+        assert!(Cmdidx::from_raw(-1) == Cmdidx::CmdUser);
+        assert!(Cmdidx::from_raw(-2) == Cmdidx::CmdUserBuf);
+        assert!(Cmdidx::from_raw(Cmdidx::CmdSize as c_int) == Cmdidx::CmdSize);
     }
 }

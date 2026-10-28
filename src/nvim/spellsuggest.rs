@@ -88,7 +88,7 @@ const SCORE_BIG: c_int = SCORE_INS * 3;
 const SCORE_MAXMAX: c_int = 999999;
 const SCORE_LIMITMAX: c_int = 350;
 const SCORE_EDIT_MIN: c_int = SCORE_SIMILAR;
-const DIFF_NONE: u8 = 0;
+const DiffNone: u8 = 0;
 const DIFF_YES: u8 = 1;
 const DIFF_INSERT: u8 = 2;
 const TSF_PREFIXOK: u8 = 1;
@@ -278,24 +278,24 @@ struct Suggest {
 #[repr(C)]
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum SugState {
-    STATE_START = 0,
-    STATE_NOPREFIX,
-    STATE_SPLITUNDO,
-    STATE_ENDNUL,
-    STATE_PLAIN,
-    STATE_DEL,
-    STATE_INS_PREP,
-    STATE_INS,
-    STATE_SWAP,
-    STATE_UNSWAP,
-    STATE_SWAP3,
-    STATE_UNSWAP3,
-    STATE_UNROT3L,
-    STATE_UNROT3R,
-    STATE_REP_INI,
-    STATE_REP,
-    STATE_REP_UNDO,
-    STATE_FINAL,
+    StateStart = 0,
+    StateNoprefix,
+    StateSplitundo,
+    StateEndnul,
+    StatePlain,
+    StateDel,
+    StateInsPrep,
+    StateIns,
+    StateSwap,
+    StateUnswap,
+    StateSwap3,
+    StateUnswap3,
+    StateUnrot3l,
+    StateUnrot3r,
+    StateRepIni,
+    StateRep,
+    StateRepUndo,
+    StateFinal,
 }
 #[repr(C)]
 #[derive(Clone, Copy)]
@@ -324,7 +324,7 @@ struct Trystate {
 impl Default for Trystate {
     fn default() -> Self {
         Self {
-            ts_state: SugState::STATE_START,
+            ts_state: SugState::StateStart,
             ts_score: 0,
             ts_arridx: 0,
             ts_curi: 0,
@@ -617,7 +617,7 @@ pub fn spell_apply_sps(flags: c_int, limit: c_int) {
 fn select_spell_suggestion(sug: &mut Suginfo) {
     unsafe {
         let mut items_tv = TypVal {
-            v_type: VarType::VAR_UNKNOWN,
+            v_type: VarType::VarUnknown,
             v_lock: 0,
             vval: TypvalVval::Number(0),
         };
@@ -655,7 +655,7 @@ fn select_spell_suggestion(sug: &mut Suginfo) {
                 );
             }
             let mut item = TypVal {
-                v_type: VarType::VAR_DICT,
+                v_type: VarType::VarDict,
                 v_lock: 0,
                 vval: TypvalVval::Dict(d),
             };
@@ -667,7 +667,7 @@ fn select_spell_suggestion(sug: &mut Suginfo) {
         ))
         .unwrap_or_default();
         let mut bad_tv = TypVal {
-            v_type: VarType::VAR_UNKNOWN,
+            v_type: VarType::VarUnknown,
             v_lock: 0,
             vval: TypvalVval::Number(0),
         };
@@ -676,7 +676,7 @@ fn select_spell_suggestion(sug: &mut Suginfo) {
             items_tv,
             bad_tv,
             TypVal {
-                v_type: VarType::VAR_UNKNOWN,
+                v_type: VarType::VarUnknown,
                 v_lock: 0,
                 vval: TypvalVval::Number(0),
             },
@@ -996,7 +996,7 @@ fn spell_suggest_expr(su: &mut Suginfo, expr: impl crate::strings::IntoCCharPtr)
         let list = eval_spell_expr((&raw mut su.su_badword).cast(), expr);
         if !list.is_null() {
             for li in crate::eval::typval::list_iter_mut((*list).lv_first) {
-                if li.li_tv.v_type == VarType::VAR_LIST {
+                if li.li_tv.v_type == VarType::VarList {
                     let score = get_spellword(&mut *li.li_tv.vval.v_list(), &raw mut p);
                     if score >= 0 && score <= su.su_maxscore {
                         add_suggestion(
@@ -1202,7 +1202,7 @@ fn suggest_trie_walk(su: &mut Suginfo, lp: &Langp, fword: *mut c_char, soundfold
             pbyts = ptr::null_mut();
             pidxs = ptr::null_mut();
             stack[0].ts_prefixdepth = PFD_NOPREFIX;
-            stack[0].ts_state = SugState::STATE_START;
+            stack[0].ts_state = SugState::StateStart;
         } else {
             fbyts = slang.sl_fbyts.as_mut_ptr();
             fidxs = slang.sl_fidxs.as_mut_ptr();
@@ -1212,14 +1212,14 @@ fn suggest_trie_walk(su: &mut Suginfo, lp: &Langp, fword: *mut c_char, soundfold
                 byts = pbyts;
                 idxs = pidxs;
                 stack[0].ts_prefixdepth = PFD_PREFIXTREE;
-                stack[0].ts_state = SugState::STATE_NOPREFIX;
+                stack[0].ts_state = SugState::StateNoprefix;
             } else {
                 pbyts = ptr::null_mut();
                 pidxs = ptr::null_mut();
                 byts = fbyts;
                 idxs = fidxs;
                 stack[0].ts_prefixdepth = PFD_NOPREFIX;
-                stack[0].ts_state = SugState::STATE_START;
+                stack[0].ts_state = SugState::StateStart;
             }
         }
         let mut time_limit: Proftime = 0;
@@ -1230,7 +1230,7 @@ fn suggest_trie_walk(su: &mut Suginfo, lp: &Langp, fword: *mut c_char, soundfold
             let mut udepth = depth as usize;
             let state = stack[udepth].ts_state;
             match state {
-                SugState::STATE_START | SugState::STATE_NOPREFIX => {
+                SugState::StateStart | SugState::StateNoprefix => {
                     arridx = stack[udepth].ts_arridx;
                     let mut len = *byts.add(arridx as usize) as c_int;
                     arridx += stack[udepth].ts_curi as Idx;
@@ -1240,8 +1240,8 @@ fn suggest_trie_walk(su: &mut Suginfo, lp: &Langp, fword: *mut c_char, soundfold
                             n += 1;
                         }
                         stack[udepth].ts_curi += n as i16;
-                        let was_noprefix = stack[udepth].ts_state == SugState::STATE_NOPREFIX;
-                        stack[udepth].ts_state = SugState::STATE_ENDNUL;
+                        let was_noprefix = stack[udepth].ts_state == SugState::StateNoprefix;
+                        stack[udepth].ts_state = SugState::StateEndnul;
                         stack[udepth].ts_save_badflags = su.su_badflags as u8;
                         if udepth < MAXWLEN - 1 && (*byts.add(arridx as usize) == 0 || was_noprefix)
                         {
@@ -1275,7 +1275,7 @@ fn suggest_trie_walk(su: &mut Suginfo, lp: &Langp, fword: *mut c_char, soundfold
                         continue;
                     }
                     if stack[udepth].ts_curi as c_int > len || *byts.add(arridx as usize) != 0 {
-                        stack[udepth].ts_state = SugState::STATE_ENDNUL;
+                        stack[udepth].ts_state = SugState::StateEndnul;
                         stack[udepth].ts_save_badflags = su.su_badflags as u8;
                         continue;
                     }
@@ -1656,7 +1656,7 @@ fn suggest_trie_walk(su: &mut Suginfo, lp: &Langp, fword: *mut c_char, soundfold
                             if try_deeper(su, &stack, udepth, newscore) {
                                 go_deeper(&mut stack, udepth, newscore);
                                 stack[udepth].ts_save_badflags = su.su_badflags as u8;
-                                stack[udepth].ts_state = SugState::STATE_SPLITUNDO;
+                                stack[udepth].ts_state = SugState::StateSplitundo;
                                 depth += 1;
                                 udepth = depth as usize;
                                 if !try_compound && !fword_ends {
@@ -1711,29 +1711,29 @@ fn suggest_trie_walk(su: &mut Suginfo, lp: &Langp, fword: *mut c_char, soundfold
                                     byts = pbyts;
                                     idxs = pidxs;
                                     stack[udepth].ts_prefixdepth = PFD_PREFIXTREE;
-                                    stack[udepth].ts_state = SugState::STATE_NOPREFIX;
+                                    stack[udepth].ts_state = SugState::StateNoprefix;
                                 }
                             }
                         }
                     }
                 }
-                SugState::STATE_SPLITUNDO => {
+                SugState::StateSplitundo => {
                     su.su_badflags = stack[udepth].ts_save_badflags as c_int;
-                    stack[udepth].ts_state = SugState::STATE_START;
+                    stack[udepth].ts_state = SugState::StateStart;
                     byts = fbyts;
                     idxs = fidxs;
                 }
-                SugState::STATE_ENDNUL | SugState::STATE_PLAIN => {
+                SugState::StateEndnul | SugState::StatePlain => {
                     let mut goto_del = false;
-                    if state == SugState::STATE_ENDNUL {
+                    if state == SugState::StateEndnul {
                         su.su_badflags = stack[udepth].ts_save_badflags as c_int;
                         if crate::memory::cstr_byte_at(fword, stack[udepth].ts_fidx as usize) == 0
                             && stack[udepth].ts_tcharlen == 0
                         {
-                            stack[udepth].ts_state = SugState::STATE_DEL;
+                            stack[udepth].ts_state = SugState::StateDel;
                             goto_del = true;
                         } else {
-                            stack[udepth].ts_state = SugState::STATE_PLAIN;
+                            stack[udepth].ts_state = SugState::StatePlain;
                         }
                     }
                     if !goto_del {
@@ -1741,9 +1741,9 @@ fn suggest_trie_walk(su: &mut Suginfo, lp: &Langp, fword: *mut c_char, soundfold
                         if stack[udepth].ts_curi as c_int > *byts.add(arridx as usize) as c_int {
                             stack[udepth].ts_state =
                                 if stack[udepth].ts_fidx >= stack[udepth].ts_fidxtry {
-                                    SugState::STATE_DEL
+                                    SugState::StateDel
                                 } else {
-                                    SugState::STATE_FINAL
+                                    SugState::StateFinal
                                 };
                         } else {
                             arridx += stack[udepth].ts_curi as Idx;
@@ -1752,7 +1752,7 @@ fn suggest_trie_walk(su: &mut Suginfo, lp: &Langp, fword: *mut c_char, soundfold
                             let newscore = if c
                                 == crate::memory::cstr_byte_at(fword, stack[udepth].ts_fidx as usize) as c_int
                                 || (stack[udepth].ts_tcharlen > 0
-                                    && stack[udepth].ts_isdiff != DIFF_NONE)
+                                    && stack[udepth].ts_isdiff != DiffNone)
                             {
                                 0
                             } else {
@@ -1783,7 +1783,7 @@ fn suggest_trie_walk(su: &mut Suginfo, lp: &Langp, fword: *mut c_char, soundfold
                                     stack[udepth].ts_tcharlen = utf_byte2len(c) as u8;
                                     stack[udepth].ts_fcharstart = stack[udepth].ts_fidx - 1;
                                     stack[udepth].ts_isdiff =
-                                        if newscore != 0 { DIFF_YES } else { DIFF_NONE };
+                                        if newscore != 0 { DIFF_YES } else { DiffNone };
                                 } else if stack[udepth].ts_isdiff == DIFF_INSERT
                                     && stack[udepth].ts_fidx > 0
                                 {
@@ -1839,14 +1839,14 @@ fn suggest_trie_walk(su: &mut Suginfo, lp: &Langp, fword: *mut c_char, soundfold
                         }
                     }
                 }
-                SugState::STATE_DEL | SugState::STATE_INS_PREP => {
+                SugState::StateDel | SugState::StateInsPrep => {
                     let mut do_ins_prep = true;
-                    if state == SugState::STATE_DEL {
+                    if state == SugState::StateDel {
                         if stack[udepth].ts_tcharlen > 0 {
-                            stack[udepth].ts_state = SugState::STATE_FINAL;
+                            stack[udepth].ts_state = SugState::StateFinal;
                             do_ins_prep = false;
                         } else {
-                            stack[udepth].ts_state = SugState::STATE_INS_PREP;
+                            stack[udepth].ts_state = SugState::StateInsPrep;
                             stack[udepth].ts_curi = 1;
                             let newscore = if soundfold
                                 && stack[udepth].ts_fidx == 0
@@ -1881,16 +1881,16 @@ fn suggest_trie_walk(su: &mut Suginfo, lp: &Langp, fword: *mut c_char, soundfold
                     }
                     if do_ins_prep {
                         if (stack[udepth].ts_flags & TSF_DIDDEL) != 0 {
-                            stack[udepth].ts_state = SugState::STATE_SWAP;
+                            stack[udepth].ts_state = SugState::StateSwap;
                         } else {
                             n = stack[udepth].ts_arridx;
                             loop {
                                 if stack[udepth].ts_curi as c_int > *byts.add(n as usize) as c_int {
-                                    stack[udepth].ts_state = SugState::STATE_SWAP;
+                                    stack[udepth].ts_state = SugState::StateSwap;
                                     break;
                                 }
                                 if *byts.add((n + stack[udepth].ts_curi as c_int) as usize) != 0 {
-                                    stack[udepth].ts_state = SugState::STATE_INS;
+                                    stack[udepth].ts_state = SugState::StateIns;
                                     break;
                                 }
                                 stack[udepth].ts_curi += 1;
@@ -1898,10 +1898,10 @@ fn suggest_trie_walk(su: &mut Suginfo, lp: &Langp, fword: *mut c_char, soundfold
                         }
                     }
                 }
-                SugState::STATE_INS => {
+                SugState::StateIns => {
                     n = stack[udepth].ts_arridx;
                     if stack[udepth].ts_curi as c_int > *byts.add(n as usize) as c_int {
-                        stack[udepth].ts_state = SugState::STATE_SWAP;
+                        stack[udepth].ts_state = SugState::StateSwap;
                         continue;
                     }
                     n += stack[udepth].ts_curi as c_int;
@@ -1943,15 +1943,15 @@ fn suggest_trie_walk(su: &mut Suginfo, lp: &Langp, fword: *mut c_char, soundfold
                         }
                     }
                 }
-                SugState::STATE_SWAP => {
+                SugState::StateSwap => {
                     let p = fword.add(stack[udepth].ts_fidx as usize);
                     c = crate::memory::cstr_first_byte(p) as c_int;
                     if c == NUL as c_int {
-                        stack[udepth].ts_state = SugState::STATE_FINAL;
+                        stack[udepth].ts_state = SugState::StateFinal;
                         continue;
                     }
                     if !soundfold && !spell_iswordp(p, curwin_mut()) {
-                        stack[udepth].ts_state = SugState::STATE_REP_INI;
+                        stack[udepth].ts_state = SugState::StateRepIni;
                         continue;
                     }
                     n = utf_ptr2len(p);
@@ -1964,16 +1964,16 @@ fn suggest_trie_walk(su: &mut Suginfo, lp: &Langp, fword: *mut c_char, soundfold
                         c2 = utf_ptr2char(p.add(n as usize));
                     }
                     if c2 == NUL as c_int {
-                        stack[udepth].ts_state = SugState::STATE_REP_INI;
+                        stack[udepth].ts_state = SugState::StateRepIni;
                         continue;
                     }
                     if c == c2 {
-                        stack[udepth].ts_state = SugState::STATE_SWAP3;
+                        stack[udepth].ts_state = SugState::StateSwap3;
                         continue;
                     }
                     if try_deeper(su, &stack, udepth, SCORE_SWAP) {
                         go_deeper(&mut stack, udepth, SCORE_SWAP);
-                        stack[udepth].ts_state = SugState::STATE_UNSWAP;
+                        stack[udepth].ts_state = SugState::StateUnswap;
                         let old_fidx = stack[udepth].ts_fidx;
                         depth += 1;
                         udepth = depth as usize;
@@ -1982,11 +1982,11 @@ fn suggest_trie_walk(su: &mut Suginfo, lp: &Langp, fword: *mut c_char, soundfold
                         utf_char2bytes(c, p.add(fl as usize));
                         stack[udepth].ts_fidxtry = old_fidx + (n + fl) as u8;
                     } else {
-                        stack[udepth].ts_state = SugState::STATE_REP_INI;
+                        stack[udepth].ts_state = SugState::StateRepIni;
                     }
                 }
-                SugState::STATE_UNSWAP | SugState::STATE_SWAP3 => {
-                    if state == SugState::STATE_UNSWAP {
+                SugState::StateUnswap | SugState::StateSwap3 => {
+                    if state == SugState::StateUnswap {
                         let p = fword.add(stack[udepth].ts_fidx as usize);
                         n = utfc_ptr2len(p);
                         c = utf_ptr2char(p.add(n as usize));
@@ -2008,12 +2008,12 @@ fn suggest_trie_walk(su: &mut Suginfo, lp: &Langp, fword: *mut c_char, soundfold
                         c3 = utf_ptr2char(p.add((n + fl) as usize));
                     }
                     if c == c3 || c3 == NUL as c_int {
-                        stack[udepth].ts_state = SugState::STATE_REP_INI;
+                        stack[udepth].ts_state = SugState::StateRepIni;
                         continue;
                     }
                     if try_deeper(su, &stack, udepth, SCORE_SWAP3) {
                         go_deeper(&mut stack, udepth, SCORE_SWAP3);
-                        stack[udepth].ts_state = SugState::STATE_UNSWAP3;
+                        stack[udepth].ts_state = SugState::StateUnswap3;
                         let old_fidx = stack[udepth].ts_fidx;
                         depth += 1;
                         udepth = depth as usize;
@@ -2023,10 +2023,10 @@ fn suggest_trie_walk(su: &mut Suginfo, lp: &Langp, fword: *mut c_char, soundfold
                         utf_char2bytes(c, p.add((fl + tl) as usize));
                         stack[udepth].ts_fidxtry = old_fidx + (n + fl + tl) as u8;
                     } else {
-                        stack[udepth].ts_state = SugState::STATE_REP_INI;
+                        stack[udepth].ts_state = SugState::StateRepIni;
                     }
                 }
-                SugState::STATE_UNSWAP3 => {
+                SugState::StateUnswap3 => {
                     let mut p = fword.add(stack[udepth].ts_fidx as usize);
                     n = utfc_ptr2len(p);
                     c2 = utf_ptr2char(p.add(n as usize));
@@ -2038,12 +2038,12 @@ fn suggest_trie_walk(su: &mut Suginfo, lp: &Langp, fword: *mut c_char, soundfold
                     utf_char2bytes(c2, p.add(tl as usize));
                     p = p.add(tl as usize);
                     if !soundfold && !spell_iswordp(p, curwin_mut()) {
-                        stack[udepth].ts_state = SugState::STATE_REP_INI;
+                        stack[udepth].ts_state = SugState::StateRepIni;
                         continue;
                     }
                     if try_deeper(su, &stack, udepth, SCORE_SWAP3) {
                         go_deeper(&mut stack, udepth, SCORE_SWAP3);
-                        stack[udepth].ts_state = SugState::STATE_UNROT3L;
+                        stack[udepth].ts_state = SugState::StateUnrot3l;
                         let old_fidx = stack[udepth].ts_fidx;
                         depth += 1;
                         udepth = depth as usize;
@@ -2056,10 +2056,10 @@ fn suggest_trie_walk(su: &mut Suginfo, lp: &Langp, fword: *mut c_char, soundfold
                         utf_char2bytes(c, p.add(fl as usize));
                         stack[udepth].ts_fidxtry = old_fidx + (n + fl) as u8;
                     } else {
-                        stack[udepth].ts_state = SugState::STATE_REP_INI;
+                        stack[udepth].ts_state = SugState::StateRepIni;
                     }
                 }
-                SugState::STATE_UNROT3L => {
+                SugState::StateUnrot3l => {
                     let mut p = fword.add(stack[udepth].ts_fidx as usize);
                     n = utfc_ptr2len(p);
                     n += utfc_ptr2len(p.add(n as usize));
@@ -2069,7 +2069,7 @@ fn suggest_trie_walk(su: &mut Suginfo, lp: &Langp, fword: *mut c_char, soundfold
                     utf_char2bytes(c, p);
                     if try_deeper(su, &stack, udepth, SCORE_SWAP3) {
                         go_deeper(&mut stack, udepth, SCORE_SWAP3);
-                        stack[udepth].ts_state = SugState::STATE_UNROT3R;
+                        stack[udepth].ts_state = SugState::StateUnrot3r;
                         let old_fidx = stack[udepth].ts_fidx;
                         depth += 1;
                         udepth = depth as usize;
@@ -2082,13 +2082,13 @@ fn suggest_trie_walk(su: &mut Suginfo, lp: &Langp, fword: *mut c_char, soundfold
                         utf_char2bytes(c, p);
                         stack[udepth].ts_fidxtry = old_fidx + (n + tl) as u8;
                     } else {
-                        stack[udepth].ts_state = SugState::STATE_REP_INI;
+                        stack[udepth].ts_state = SugState::StateRepIni;
                     }
                 }
-                SugState::STATE_UNROT3R | SugState::STATE_REP_INI | SugState::STATE_REP => {
+                SugState::StateUnrot3r | SugState::StateRepIni | SugState::StateRep => {
                     let mut do_rep = true;
-                    if state != SugState::STATE_REP {
-                        if state == SugState::STATE_UNROT3R {
+                    if state != SugState::StateRep {
+                        if state == SugState::StateUnrot3r {
                             let p = fword.add(stack[udepth].ts_fidx as usize);
                             c = utf_ptr2char(p);
                             tl = utfc_ptr2len(p);
@@ -2101,7 +2101,7 @@ fn suggest_trie_walk(su: &mut Suginfo, lp: &Langp, fword: *mut c_char, soundfold
                             || stack[udepth].ts_score + SCORE_REP >= su.su_maxscore
                             || stack[udepth].ts_fidx < stack[udepth].ts_fidxtry
                         {
-                            stack[udepth].ts_state = SugState::STATE_FINAL;
+                            stack[udepth].ts_state = SugState::StateFinal;
                             do_rep = false;
                         } else {
                             let first_byte =
@@ -2112,10 +2112,10 @@ fn suggest_trie_walk(su: &mut Suginfo, lp: &Langp, fword: *mut c_char, soundfold
                                 (*lp.lp_replang).sl_rep_first[first_byte]
                             };
                             if stack[udepth].ts_curi < 0 {
-                                stack[udepth].ts_state = SugState::STATE_FINAL;
+                                stack[udepth].ts_state = SugState::StateFinal;
                                 do_rep = false;
                             } else {
-                                stack[udepth].ts_state = SugState::STATE_REP;
+                                stack[udepth].ts_state = SugState::StateRep;
                             }
                         }
                     }
@@ -2138,7 +2138,7 @@ fn suggest_trie_walk(su: &mut Suginfo, lp: &Langp, fword: *mut c_char, soundfold
                                 && try_deeper(su, &stack, udepth, SCORE_REP)
                             {
                                 go_deeper(&mut stack, udepth, SCORE_REP);
-                                stack[udepth].ts_state = SugState::STATE_REP_UNDO;
+                                stack[udepth].ts_state = SugState::StateRepUndo;
                                 let old_fidx = stack[udepth].ts_fidx;
                                 depth += 1;
                                 udepth = depth as usize;
@@ -2155,13 +2155,13 @@ fn suggest_trie_walk(su: &mut Suginfo, lp: &Langp, fword: *mut c_char, soundfold
                             }
                         }
                         if (stack[udepth].ts_curi as usize) >= gap.len()
-                            && stack[udepth].ts_state == SugState::STATE_REP
+                            && stack[udepth].ts_state == SugState::StateRep
                         {
-                            stack[udepth].ts_state = SugState::STATE_FINAL;
+                            stack[udepth].ts_state = SugState::StateFinal;
                         }
                     }
                 }
-                SugState::STATE_REP_UNDO => {
+                SugState::StateRepUndo => {
                     let gap = if soundfold {
                         &slang.sl_repsal
                     } else {
@@ -2176,9 +2176,9 @@ fn suggest_trie_walk(su: &mut Suginfo, lp: &Langp, fword: *mut c_char, soundfold
                         repextra -= tl - fl;
                     }
                     ptr::copy(ftp.ft_from.as_ptr(), p, fl as usize);
-                    stack[udepth].ts_state = SugState::STATE_REP;
+                    stack[udepth].ts_state = SugState::StateRep;
                 }
-                SugState::STATE_FINAL => {
+                SugState::StateFinal => {
                     depth -= 1;
                     if depth >= 0 && stack[depth as usize].ts_prefixdepth == PFD_PREFIXTREE {
                         byts = pbyts;
@@ -2200,7 +2200,7 @@ fn suggest_trie_walk(su: &mut Suginfo, lp: &Langp, fword: *mut c_char, soundfold
 #[inline]
 fn go_deeper(stack: &mut [Trystate; MAXWLEN], depth: usize, score_add: c_int) {
     stack[depth + 1] = stack[depth];
-    stack[depth + 1].ts_state = SugState::STATE_START;
+    stack[depth + 1].ts_state = SugState::StateStart;
     stack[depth + 1].ts_score = stack[depth].ts_score + score_add;
     stack[depth + 1].ts_curi = 1;
     stack[depth + 1].ts_flags = 0;

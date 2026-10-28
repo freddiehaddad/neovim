@@ -384,7 +384,7 @@ fn vterm_state_new(vt: &mut VTerm) -> Box<VTermStateFull> {
 
         vterm_state_newpen(&mut state);
 
-        if let Some(utf8_enc) = vterm_lookup_encoding(VTermEncodingType::ENC_UTF8, b'u' as c_char) {
+        if let Some(utf8_enc) = vterm_lookup_encoding(VTermEncodingType::EncUtf8, b'u' as c_char) {
             state.encoding_utf8.init(utf8_enc);
         }
 
@@ -917,7 +917,7 @@ fn on_escape(bytes: *const c_char, len: usize, state: *mut VTermStateFull) -> c_
                 }
                 let setnum = ((crate::memory::cstr_first_byte(bytes)) - 0x28) as usize;
                 if let Some(newenc) =
-                    vterm_lookup_encoding(VTermEncodingType::ENC_SINGLE_94, *bytes.add(1))
+                    vterm_lookup_encoding(VTermEncodingType::EncSingle94, *bytes.add(1))
                 {
                     state.encoding[setnum].init(newenc);
                 }
@@ -2533,9 +2533,9 @@ pub fn vterm_state_reset(state: &mut VTermStateFull, hard: c_int) {
         vterm_state_resetpen(state);
 
         let default_enc = if ((&mut *state.vt).mode & VT_MODE_UTF8) != 0 {
-            vterm_lookup_encoding(VTermEncodingType::ENC_UTF8, b'u' as c_char)
+            vterm_lookup_encoding(VTermEncodingType::EncUtf8, b'u' as c_char)
         } else {
-            vterm_lookup_encoding(VTermEncodingType::ENC_SINGLE_94, b'B' as c_char)
+            vterm_lookup_encoding(VTermEncodingType::EncSingle94, b'B' as c_char)
         }
         .unwrap();
 

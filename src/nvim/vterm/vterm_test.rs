@@ -1317,7 +1317,7 @@ mod tests {
     }
 
     fn wantencoding() -> VTermEncodingInstance {
-        let enc = vterm_lookup_encoding(VTermEncodingType::ENC_UTF8, b'u' as c_char).unwrap();
+        let enc = vterm_lookup_encoding(VTermEncodingType::EncUtf8, b'u' as c_char).unwrap();
         let mut inst = VTermEncodingInstance::default();
         inst.init(enc);
         inst

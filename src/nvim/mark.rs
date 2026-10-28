@@ -311,7 +311,7 @@ fn do_markset_autocmd(c: c_char, pos: &CursorPos, buf: &mut FileBuf) {
                     size: 4,
                 },
                 value: Object {
-                    obj_type: ObjectType::kObjectTypeString,
+                    obj_type: ObjectType::ObjectTypeString,
                     data: ObjectData::String(NvimString {
                             data: mark_str.as_mut_ptr(),
                             size: 1,
@@ -324,7 +324,7 @@ fn do_markset_autocmd(c: c_char, pos: &CursorPos, buf: &mut FileBuf) {
                     size: 4,
                 },
                 value: Object {
-                    obj_type: ObjectType::kObjectTypeInteger,
+                    obj_type: ObjectType::ObjectTypeInteger,
                     data: ObjectData::Integer(i64::from(pos.lnum)),
                 },
             },
@@ -334,7 +334,7 @@ fn do_markset_autocmd(c: c_char, pos: &CursorPos, buf: &mut FileBuf) {
                     size: 3,
                 },
                 value: Object {
-                    obj_type: ObjectType::kObjectTypeInteger,
+                    obj_type: ObjectType::ObjectTypeInteger,
                     data: ObjectData::Integer(i64::from(pos.col)),
                 },
             },
@@ -345,7 +345,7 @@ fn do_markset_autocmd(c: c_char, pos: &CursorPos, buf: &mut FileBuf) {
             capacity: 3,
         };
         let mut dict_obj = Object {
-            obj_type: ObjectType::kObjectTypeDict,
+            obj_type: ObjectType::ObjectTypeDict,
             data: ObjectData::Dict(data),
         };
         aucmd_defer(

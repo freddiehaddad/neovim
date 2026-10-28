@@ -1961,7 +1961,7 @@ pub fn f_menu_info(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDa
             return;
         }
 
-        let which = if argvars[1].v_type != VarType::VAR_UNKNOWN {
+        let which = if argvars[1].v_type != VarType::VarUnknown {
             tv_get_string_chk(&argvars[1])
         } else {
             c"".as_ptr()

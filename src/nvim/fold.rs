@@ -1476,14 +1476,14 @@ pub fn get_foldtext(
                 g_st().emsg_off += 1;
 
                 let obj = eval_foldtext(wp);
-                if obj.obj_type == ObjectType::kObjectTypeArray {
+                if obj.obj_type == ObjectType::ObjectTypeArray {
                     let mut err = Error::new();
                     *vt = parse_virt_text(obj.data.array(), &mut err, ptr::null_mut(), false);
-                    if err.err_type == ErrorType::kErrorTypeNone {
+                    if err.err_type == ErrorType::ErrorTypeNone {
                         text = Some(std::ffi::CString::default());
                     }
                     api_clear_error(&mut err);
-                } else if obj.obj_type == ObjectType::kObjectTypeString {
+                } else if obj.obj_type == ObjectType::ObjectTypeString {
                     text = (!obj.data.string().data.is_null())
                         .then(|| crate::memory::cstr_to_cstring(obj.data.string().data));
                 }
@@ -2720,7 +2720,7 @@ pub fn f_foldlevel(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDa
 /// "foldtext()" function
 pub fn f_foldtext(_argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData){
     unsafe {
-        rettv.v_type = VarType::VAR_STRING;
+        rettv.v_type = VarType::VarString;
         rettv.vval = crate::eval::typval::TypvalVval::String(ptr::null_mut());
 
         let foldstart = get_vim_var_nr(VV_FOLDSTART) as Linenr;
@@ -2772,7 +2772,7 @@ pub fn f_foldtext(_argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDa
 pub fn f_foldtextresult(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData){
 
      {
-        rettv.v_type = VarType::VAR_STRING;
+        rettv.v_type = VarType::VarString;
         rettv.vval = crate::eval::typval::TypvalVval::String(ptr::null_mut());
         if fold_st().fdt_result_entered {
             return;

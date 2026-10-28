@@ -555,9 +555,9 @@ pub fn f_histdel(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData
         } else {
             let htype = get_histtype(str_ptr, crate::memory::cstr_len(str_ptr), false);
             let arg1 = &argvars[1];
-            if arg1.v_type == VarType::VAR_UNKNOWN {
+            if arg1.v_type == VarType::VarUnknown {
                 c_int::from(clr_history(htype))
-            } else if arg1.v_type == VarType::VAR_NUMBER {
+            } else if arg1.v_type == VarType::VarNumber {
                 del_history_idx(htype, tv_get_number(arg1) as c_int)
             } else {
                 let mut buf = [0 as c_char; NUMBUFLEN];
@@ -579,7 +579,7 @@ pub fn f_histget(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData
         } else {
             let htype = get_histtype(str_ptr, crate::memory::cstr_len(str_ptr), false);
             let arg1 = &argvars[1];
-            let req_idx = if arg1.v_type == VarType::VAR_UNKNOWN {
+            let req_idx = if arg1.v_type == VarType::VarUnknown {
                 get_history_idx(htype)
             } else {
                 tv_get_number_chk(arg1, None) as c_int

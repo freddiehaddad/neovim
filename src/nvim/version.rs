@@ -4057,8 +4057,8 @@ pub fn list_lua_version() {
             None,
             &mut err,
         );
-        debug_assert!(err.err_type == ErrorType::kErrorTypeNone);
-        debug_assert!(ret.obj_type == ObjectType::kObjectTypeString);
+        debug_assert!(err.err_type == ErrorType::ErrorTypeNone);
+        debug_assert!(ret.obj_type == ObjectType::ObjectTypeString);
         msg_puts(ret.data.string().data);
         api_free_object(ret);
 }

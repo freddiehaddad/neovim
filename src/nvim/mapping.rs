@@ -1357,8 +1357,8 @@ pub fn set_context_in_map_cmd(
     let mut cmd = cmd.into_c_char_ptr().cast_mut();
     unsafe {
         if forceit
-            && cmdidx != crate::cmdexpand::Cmdidx::CMD_map
-            && cmdidx != crate::cmdexpand::Cmdidx::CMD_unmap
+            && cmdidx != crate::cmdexpand::Cmdidx::CmdMap
+            && cmdidx != crate::cmdexpand::Cmdidx::CmdUnmap
         {
             xp.xp_context = EXPAND_NOTHING;
         } else {
@@ -1707,11 +1707,11 @@ pub fn eval_map_expr(mp: &Mapblock, c: c_int) -> Option<CString> {
                 None,
                 Some(&mut err),
             );
-            if ret.obj_type == ObjectType::kObjectTypeString {
+            if ret.obj_type == ObjectType::ObjectTypeString {
                 p = Some(string_to_cstr(ret.data.string()));
             }
             api_free_object(ret);
-            if err.err_type != ErrorType::kErrorTypeNone {
+            if err.err_type != ErrorType::ErrorTypeNone {
                 semsg_multiline!(c"emsg", c"E5108: %s", err.msg_ptr());
                 api_clear_error(&mut err);
             }
@@ -2080,11 +2080,11 @@ pub fn f_hasmapto(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDat
         let name = tv_get_string(&argvars[0]);
         let mut abbr = false;
         let mut buf = [0 as c_char; NUMBUFLEN];
-        let mode = if argvars[1].v_type == VarType::VAR_UNKNOWN {
+        let mode = if argvars[1].v_type == VarType::VarUnknown {
             c"nvo".as_ptr()
         } else {
             let m = tv_get_string_buf(&argvars[1], buf.as_mut_ptr());
-            if argvars[2].v_type != VarType::VAR_UNKNOWN {
+            if argvars[2].v_type != VarType::VarUnknown {
                 abbr = tv_get_bool(&argvars[2]) != 0;
             }
             m
@@ -2195,7 +2195,7 @@ fn mapblock_fill_dict(
 
 fn get_maparg(argvars: &mut [TypVal], rettv: &mut TypVal, exact: c_int) {
      {
-        rettv.v_type = VarType::VAR_STRING;
+        rettv.v_type = VarType::VarString;
         rettv.vval = crate::eval::typval::TypvalVval::String(ptr::null_mut());
 
         let keys = tv_get_string(&argvars[0]) as *mut c_char;
@@ -2207,11 +2207,11 @@ fn get_maparg(argvars: &mut [TypVal], rettv: &mut TypVal, exact: c_int) {
         let mut abbr = false;
         let mut get_dict = false;
 
-        let which = if argvars[1].v_type != VarType::VAR_UNKNOWN {
+        let which = if argvars[1].v_type != VarType::VarUnknown {
             let w = tv_get_string_buf_chk(&argvars[1], buf.as_mut_ptr());
-            if argvars[2].v_type != VarType::VAR_UNKNOWN {
+            if argvars[2].v_type != VarType::VarUnknown {
                 abbr = tv_get_bool(&argvars[2]) != 0;
-                if argvars[3].v_type != VarType::VAR_UNKNOWN {
+                if argvars[3].v_type != VarType::VarUnknown {
                     get_dict = tv_get_bool(&argvars[3]) != 0;
                 }
             }
@@ -2373,7 +2373,7 @@ pub fn f_mapset(argvars: &mut [TypVal], _rettv: &mut TypVal, _fptr: EvalFuncData
         }
 
         let mut buf = [0 as c_char; NUMBUFLEN];
-        let dict_only = argvars[0].v_type == VarType::VAR_DICT;
+        let dict_only = argvars[0].v_type == VarType::VarDict;
 
         let (which, is_abbr, d) = if dict_only {
             let d = argvars[0].vval.v_dict();
@@ -2408,7 +2408,7 @@ pub fn f_mapset(argvars: &mut [TypVal], _rettv: &mut TypVal, _fptr: EvalFuncData
         let mut orig_rhs = tv_dict_get_string(d.as_ref(), c"rhs") as *const c_char;
         let mut rhs_lua: LuaRef = LUA_NOREF;
         let callback_di = tv_dict_find(d.as_ref(), c"callback", 8);
-        if !callback_di.is_null() && (*callback_di).di_tv.v_type == VarType::VAR_FUNC {
+        if !callback_di.is_null() && (*callback_di).di_tv.v_type == VarType::VarFunc {
             let fp = find_func((*callback_di).di_tv.vval.v_string());
             if !fp.is_null() && ((*fp).uf_flags & FC_LUAREF) != 0 {
                 rhs_lua = api_new_luaref((*fp).uf_luaref);
@@ -2509,7 +2509,7 @@ pub fn f_maplist(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData
 
      {
         let flags = REPTERM_FROM_PART | REPTERM_DO_LT;
-        let abbr = argvars[0].v_type != VarType::VAR_UNKNOWN && tv_get_bool(&argvars[0]) != 0;
+        let abbr = argvars[0].v_type != VarType::VarUnknown && tv_get_bool(&argvars[0]) != 0;
 
         tv_list_alloc_ret(rettv, kListLenUnknown);
 
@@ -2557,13 +2557,13 @@ pub fn f_maplist(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData
                         &mut arena,
                     );
                     let mut d = TypVal {
-                        v_type: VarType::VAR_UNKNOWN,
+                        v_type: VarType::VarUnknown,
                         v_lock: VAR_UNLOCKED,
                         vval: TypvalVval::Number(0),
                     };
                     let mut dobj = dict_obj(dict);
                     object_to_vim_take_luaref(&mut dobj, &mut d, true, &mut crate::api::private::validate::Error::new());
-                    debug_assert!(d.v_type == VarType::VAR_DICT);
+                    debug_assert!(d.v_type == VarType::VarDict);
                     tv_list_append_dict(unsafe { &mut *rettv.vval.v_list() }, d.vval.v_dict());
                     arena_mem_free(arena_finish(&mut arena));
                 }
@@ -2860,7 +2860,7 @@ pub fn modify_keymap(
             if parsed_args.replace_keycodes && !parsed_args.expr {
                 api_set_error!(
                     err,
-                    ErrorType::kErrorTypeValidation,
+                    ErrorType::ErrorTypeValidation,
                     c"\"replace_keycodes\" requires \"expr\"",
                 );
                 break 'block;
@@ -2877,7 +2877,7 @@ pub fn modify_keymap(
             ) {
                 api_set_error!(
                     err,
-                    ErrorType::kErrorTypeValidation,
+                    ErrorType::ErrorTypeValidation,
                     c"LHS exceeds maximum map length: %s",
                     lhs.data,
                 );
@@ -2887,7 +2887,7 @@ pub fn modify_keymap(
             if parsed_args.lhs_len > MAXMAPLEN || parsed_args.alt_lhs_len > MAXMAPLEN {
                 api_set_error!(
                     err,
-                    ErrorType::kErrorTypeValidation,
+                    ErrorType::ErrorTypeValidation,
                     c"LHS exceeds maximum map length: %s",
                     lhs.data,
                 );
@@ -2912,7 +2912,7 @@ pub fn modify_keymap(
             if mode.size > 0 && ((p as usize) - (mode.data as usize)) != mode.size {
                 api_set_error!(
                     err,
-                    ErrorType::kErrorTypeValidation,
+                    ErrorType::ErrorTypeValidation,
                     c"Invalid mode shortname: \"%s\"",
                     mode.data,
                 );
@@ -2922,7 +2922,7 @@ pub fn modify_keymap(
             if parsed_args.lhs_len == 0 {
                 api_set_error!(
                     err,
-                    ErrorType::kErrorTypeValidation,
+                    ErrorType::ErrorTypeValidation,
                     c"Invalid (empty) LHS",
                 );
                 break 'block;
@@ -2945,7 +2945,7 @@ pub fn modify_keymap(
                 if parsed_args.rhs_len != 0 {
                     api_set_error!(
                         err,
-                        ErrorType::kErrorTypeValidation,
+                        ErrorType::ErrorTypeValidation,
                         c"Gave nonempty RHS in unmap command: %s",
                         parsed_args
                             .rhs
@@ -2955,7 +2955,7 @@ pub fn modify_keymap(
                 } else {
                     api_set_error!(
                         err,
-                        ErrorType::kErrorTypeValidation,
+                        ErrorType::ErrorTypeValidation,
                         c"Gave nonempty RHS for unmap",
                     );
                 }
@@ -2969,15 +2969,15 @@ pub fn modify_keymap(
             match buf_do_map(maptype, &mut parsed_args, mode_val, is_abbrev, target_buf) {
                 0 => {}
                 1 => {
-                    api_set_error!(err, ErrorType::kErrorTypeException, e_invarg, 0);
+                    api_set_error!(err, ErrorType::ErrorTypeException, e_invarg, 0);
                 }
                 2 => {
-                    api_set_error!(err, ErrorType::kErrorTypeException, e_nomap, 0);
+                    api_set_error!(err, ErrorType::ErrorTypeException, e_nomap, 0);
                 }
                 5 => {
                     api_set_error!(
                         err,
-                        ErrorType::kErrorTypeException,
+                        ErrorType::ErrorTypeException,
                         if is_abbrev {
                             E_ABBREVIATION_ALREADY_EXISTS_FOR_STR
                         } else {
@@ -2989,7 +2989,7 @@ pub fn modify_keymap(
                 6 => {
                     api_set_error!(
                         err,
-                        ErrorType::kErrorTypeException,
+                        ErrorType::ErrorTypeException,
                         if is_abbrev {
                             E_GLOBAL_ABBREVIATION_ALREADY_EXISTS_FOR_STR
                         } else {

@@ -61,6 +61,7 @@ const UTF8PROC_HANGUL_NCOUNT: i32 = 588;
 const UTF8PROC_HANGUL_SCOUNT: i32 = 11172;
 
 #[derive(Clone, Copy)]
+#[allow(non_camel_case_types)]
 pub struct utf8proc_property_t {
     pub category: i16,
     pub decomp_type: i16,

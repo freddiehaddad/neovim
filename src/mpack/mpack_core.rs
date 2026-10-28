@@ -24,18 +24,18 @@ pub const MPACK_MAX_TOKEN_LEN: usize = 9;
 #[derive(Copy, Clone, Default, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub enum MpackTokenType {
     #[default]
-    MPACK_TOKEN_NONE = 0,
-    MPACK_TOKEN_NIL = 1,
-    MPACK_TOKEN_BOOLEAN = 2,
-    MPACK_TOKEN_UINT = 3,
-    MPACK_TOKEN_SINT = 4,
-    MPACK_TOKEN_FLOAT = 5,
-    MPACK_TOKEN_CHUNK = 6,
-    MPACK_TOKEN_ARRAY = 7,
-    MPACK_TOKEN_MAP = 8,
-    MPACK_TOKEN_BIN = 9,
-    MPACK_TOKEN_STR = 10,
-    MPACK_TOKEN_EXT = 11,
+    MpackTokenNone = 0,
+    MpackTokenNil = 1,
+    MpackTokenBoolean = 2,
+    MpackTokenUint = 3,
+    MpackTokenSint = 4,
+    MpackTokenFloat = 5,
+    MpackTokenChunk = 6,
+    MpackTokenArray = 7,
+    MpackTokenMap = 8,
+    MpackTokenBin = 9,
+    MpackTokenStr = 10,
+    MpackTokenExt = 11,
 }
 
 pub use MpackTokenType::*;
@@ -105,7 +105,7 @@ pub struct MpackToken {
 impl MpackToken {
     pub const fn new() -> Self {
         Self {
-            r#type: MPACK_TOKEN_NONE,
+            r#type: MpackTokenNone,
             length: 0,
             data: MpackTokenData::new(),
         }
@@ -208,7 +208,7 @@ pub fn mpack_read(
         }
 
         if tokbuf.passthrough != 0 {
-            tok.r#type = MPACK_TOKEN_CHUNK;
+            tok.r#type = MpackTokenChunk;
             tok.data = MpackTokenData::ChunkPtr(*buf);
             let len = ((*buflen).min(tokbuf.passthrough as usize)) as MpackUint32;
             tok.length = len;
@@ -254,7 +254,7 @@ pub fn mpack_read(
         *buflen -= advanced;
         *buf = (*buf).add(advanced);
 
-        if tok.r#type > MPACK_TOKEN_MAP {
+        if tok.r#type > MpackTokenMap {
             tokbuf.passthrough = tok.length;
         }
 
@@ -276,7 +276,7 @@ pub fn mpack_write(
         };
         debug_assert!(!(*buf).is_null() && *buflen != 0);
 
-        if tok.r#type == MPACK_TOKEN_CHUNK {
+        if tok.r#type == MpackTokenChunk {
             if tokbuf.plen == 0 {
                 tokbuf.ppos = 0;
             }
@@ -351,40 +351,40 @@ pub fn mpack_rtoken(
     }
     let t = advance(buf, buflen);
     if t < 0x80 {
-        mpack_value(MPACK_TOKEN_UINT, 1, mpack_byte(t), tok)
+        mpack_value(MpackTokenUint, 1, mpack_byte(t), tok)
     } else if t < 0x90 {
-        mpack_blob(MPACK_TOKEN_MAP, u32::from(t & 0x0f), 0, tok)
+        mpack_blob(MpackTokenMap, u32::from(t & 0x0f), 0, tok)
     } else if t < 0xa0 {
-        mpack_blob(MPACK_TOKEN_ARRAY, u32::from(t & 0x0f), 0, tok)
+        mpack_blob(MpackTokenArray, u32::from(t & 0x0f), 0, tok)
     } else if t < 0xc0 {
-        mpack_blob(MPACK_TOKEN_STR, u32::from(t & 0x1f), 0, tok)
+        mpack_blob(MpackTokenStr, u32::from(t & 0x1f), 0, tok)
     } else if t < 0xe0 {
         match t {
-            0xc0 => mpack_value(MPACK_TOKEN_NIL, 0, mpack_byte(0), tok),
-            0xc2 => mpack_value(MPACK_TOKEN_BOOLEAN, 1, mpack_byte(0), tok),
-            0xc3 => mpack_value(MPACK_TOKEN_BOOLEAN, 1, mpack_byte(1), tok),
-            0xc4..=0xc6 => mpack_rblob(MPACK_TOKEN_BIN, tlen(t, 0xc4), buf, buflen, tok),
-            0xc7..=0xc9 => mpack_rblob(MPACK_TOKEN_EXT, tlen(t, 0xc7), buf, buflen, tok),
-            0xca | 0xcb => mpack_rvalue(MPACK_TOKEN_FLOAT, tlen(t, 0xc8), buf, buflen, tok),
-            0xcc..=0xcf => mpack_rvalue(MPACK_TOKEN_UINT, tlen(t, 0xcc), buf, buflen, tok),
-            0xd0..=0xd3 => mpack_rvalue(MPACK_TOKEN_SINT, tlen(t, 0xd0), buf, buflen, tok),
+            0xc0 => mpack_value(MpackTokenNil, 0, mpack_byte(0), tok),
+            0xc2 => mpack_value(MpackTokenBoolean, 1, mpack_byte(0), tok),
+            0xc3 => mpack_value(MpackTokenBoolean, 1, mpack_byte(1), tok),
+            0xc4..=0xc6 => mpack_rblob(MpackTokenBin, tlen(t, 0xc4), buf, buflen, tok),
+            0xc7..=0xc9 => mpack_rblob(MpackTokenExt, tlen(t, 0xc7), buf, buflen, tok),
+            0xca | 0xcb => mpack_rvalue(MpackTokenFloat, tlen(t, 0xc8), buf, buflen, tok),
+            0xcc..=0xcf => mpack_rvalue(MpackTokenUint, tlen(t, 0xcc), buf, buflen, tok),
+            0xd0..=0xd3 => mpack_rvalue(MpackTokenSint, tlen(t, 0xd0), buf, buflen, tok),
             0xd4..=0xd8 => {
                 if *buflen == 0 {
                     tok.length = 1;
                     return MPACK_EOF;
                 }
                 tok.length = tlen(t, 0xd4);
-                tok.r#type = MPACK_TOKEN_EXT;
+                tok.r#type = MpackTokenExt;
                 tok.data = MpackTokenData::ExtType(c_int::from(advance(buf, buflen)));
                 MPACK_OK
             }
-            0xd9..=0xdb => mpack_rblob(MPACK_TOKEN_STR, tlen(t, 0xd9), buf, buflen, tok),
-            0xdc | 0xdd => mpack_rblob(MPACK_TOKEN_ARRAY, tlen(t, 0xdb), buf, buflen, tok),
-            0xde | 0xdf => mpack_rblob(MPACK_TOKEN_MAP, tlen(t, 0xdd), buf, buflen, tok),
+            0xd9..=0xdb => mpack_rblob(MpackTokenStr, tlen(t, 0xd9), buf, buflen, tok),
+            0xdc | 0xdd => mpack_rblob(MpackTokenArray, tlen(t, 0xdb), buf, buflen, tok),
+            0xde | 0xdf => mpack_rblob(MpackTokenMap, tlen(t, 0xdd), buf, buflen, tok),
             _ => MPACK_ERROR,
         }
     } else {
-        mpack_value(MPACK_TOKEN_SINT, 1, mpack_byte(t), tok)
+        mpack_value(MpackTokenSint, 1, mpack_byte(t), tok)
     }
 }
 
@@ -438,7 +438,7 @@ fn mpack_rvalue(
         }
     }
 
-    if r#type == MPACK_TOKEN_SINT {
+    if r#type == MpackTokenSint {
         let v = tok.data.value();
         let hi = v.hi;
         let lo = v.lo;
@@ -447,7 +447,7 @@ fn mpack_rvalue(
             || (tok.length == 2 && (lo >> 15) != 0)
             || (tok.length == 1 && (lo >> 7) != 0);
         if !msb {
-            tok.r#type = MPACK_TOKEN_UINT;
+            tok.r#type = MpackTokenUint;
         }
     }
 
@@ -461,18 +461,18 @@ fn mpack_rblob(
     buflen: &mut usize,
     tok: &mut MpackToken,
 ) -> c_int {
-    let required = tlen + u32::from(r#type == MPACK_TOKEN_EXT);
+    let required = tlen + u32::from(r#type == MpackTokenExt);
     if *buflen < required as usize {
         tok.length = required;
         return MPACK_EOF;
     }
 
     let mut l = MpackToken::new();
-    mpack_rvalue(MPACK_TOKEN_UINT, tlen, buf, buflen, &mut l);
+    mpack_rvalue(MpackTokenUint, tlen, buf, buflen, &mut l);
     tok.r#type = r#type;
     tok.length = l.data.value().lo;
 
-    if r#type == MPACK_TOKEN_EXT {
+    if r#type == MpackTokenExt {
         tok.data = MpackTokenData::ExtType(c_int::from(advance(buf, buflen)));
     }
 
@@ -485,8 +485,8 @@ fn mpack_wtoken(
     buflen: &mut usize,
 ) -> c_int {
     match tok.r#type {
-        MPACK_TOKEN_NIL => mpack_w1(buf, buflen, 0xc0),
-        MPACK_TOKEN_BOOLEAN => mpack_w1(
+        MpackTokenNil => mpack_w1(buf, buflen, 0xc0),
+        MpackTokenBoolean => mpack_w1(
             buf,
             buflen,
             if tok.data.value().lo != 0 {
@@ -495,14 +495,14 @@ fn mpack_wtoken(
                 0xc2
             },
         ),
-        MPACK_TOKEN_UINT => mpack_wpint(buf, buflen, tok.data.value()),
-        MPACK_TOKEN_SINT => mpack_wnint(buf, buflen, tok.data.value()),
-        MPACK_TOKEN_FLOAT => mpack_wfloat(buf, buflen, tok),
-        MPACK_TOKEN_BIN => mpack_wbin(buf, buflen, tok.length),
-        MPACK_TOKEN_STR => mpack_wstr(buf, buflen, tok.length),
-        MPACK_TOKEN_EXT => mpack_wext(buf, buflen, tok.data.ext_type(), tok.length),
-        MPACK_TOKEN_ARRAY => mpack_warray(buf, buflen, tok.length),
-        MPACK_TOKEN_MAP => mpack_wmap(buf, buflen, tok.length),
+        MpackTokenUint => mpack_wpint(buf, buflen, tok.data.value()),
+        MpackTokenSint => mpack_wnint(buf, buflen, tok.data.value()),
+        MpackTokenFloat => mpack_wfloat(buf, buflen, tok),
+        MpackTokenBin => mpack_wbin(buf, buflen, tok.length),
+        MpackTokenStr => mpack_wstr(buf, buflen, tok.length),
+        MpackTokenExt => mpack_wext(buf, buflen, tok.data.ext_type(), tok.length),
+        MpackTokenArray => mpack_warray(buf, buflen, tok.length),
+        MpackTokenMap => mpack_wmap(buf, buflen, tok.length),
         _ => MPACK_ERROR,
     }
 }

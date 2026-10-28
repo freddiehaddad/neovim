@@ -461,7 +461,7 @@ pub fn nvim_set_hl(
         if (val.is_set__highlight_ & (1u64 << KEYSET_OPTIDX_highlight__url)) != 0 {
             api_set_error!(
                 err,
-                ErrorType::kErrorTypeValidation,
+                ErrorType::ErrorTypeValidation,
                 c"Invalid key: 'url'",
             );
             return;
@@ -734,7 +734,7 @@ pub fn nvim_input_mouse(
         let Some(code) = valid else {
             api_set_error!(
                 err,
-                ErrorType::kErrorTypeValidation,
+                ErrorType::ErrorTypeValidation,
                 c"invalid button or action",
             );
             return;
@@ -750,7 +750,7 @@ pub fn nvim_input_mouse(
             if m == 0 {
                 api_set_error!(
                     err,
-                    ErrorType::kErrorTypeValidation,
+                    ErrorType::ErrorTypeValidation,
                     c"Invalid modifier: %c",
                     c_int::from(byte),
                 );
@@ -997,7 +997,7 @@ pub fn nvim__get_runtime(
         if opts.do_source && !nlua_is_deferred_safe() {
             api_set_error!(
                 err,
-                ErrorType::kErrorTypeValidation,
+                ErrorType::ErrorTypeValidation,
                 c"%s",
                 c"'do_source' used in fast callback",
             );
@@ -1108,7 +1108,7 @@ pub fn nvim_get_var(
             if !found {
                 api_set_error!(
                     err,
-                    ErrorType::kErrorTypeValidation,
+                    ErrorType::ErrorTypeValidation,
                     c"Key not found: %s",
                     name.data,
                 );
@@ -1119,7 +1119,7 @@ pub fn nvim_get_var(
         if di.is_null() {
             api_set_error!(
                 err,
-                ErrorType::kErrorTypeValidation,
+                ErrorType::ErrorTypeValidation,
                 c"Key not found: %s",
                 name.data,
             );
@@ -1282,7 +1282,7 @@ pub fn nvim_echo(
             {
                 api_set_error!(
                     err,
-                    ErrorType::kErrorTypeValidation,
+                    ErrorType::ErrorTypeValidation,
                     c"Conflict: title/source/status/percent/data not allowed with kind='%s'",
                     kind,
                 );
@@ -1330,7 +1330,7 @@ pub fn nvim_echo(
             }
 
             if !validate_int(
-                opts.id.obj_type != ObjectType::kObjectTypeInteger
+                opts.id.obj_type != ObjectType::ObjectTypeInteger
                     || msg_id_exists(opts.id.data.integer()),
                 c"id",
                 opts.id.data.integer(),
@@ -1580,7 +1580,7 @@ pub fn nvim_create_buf(
         if ret == 0 && !error_set(err) {
             api_set_error!(
                 err,
-                ErrorType::kErrorTypeException,
+                ErrorType::ErrorTypeException,
                 c"Failed to create buffer",
             );
         }
@@ -1641,7 +1641,7 @@ pub fn nvim_open_term(
             if terminal_running(&*(*b).terminal) {
                 api_set_error!(
                     err,
-                    ErrorType::kErrorTypeException,
+                    ErrorType::ErrorTypeException,
                     c"Terminal already connected to buffer %d",
                     (*b).b_fnum,
                 );
@@ -1694,7 +1694,7 @@ pub fn nvim_open_term(
             let mut error: *const c_char = ptr::null();
             channel_send((*prefix).id, contents, &mut error);
             if !error.is_null() {
-                api_set_error!(err, ErrorType::kErrorTypeValidation, c"%s", error);
+                api_set_error!(err, ErrorType::ErrorTypeValidation, c"%s", error);
             }
         }
 
@@ -1726,7 +1726,7 @@ pub fn nvim_chan_send(chan: Integer, data: NvimString, err: &mut Error) {
         let buf = std::slice::from_raw_parts(data.data.cast_const(), data.size).to_vec();
         channel_send(chan as u64, buf, &mut error);
         if !error.is_null() {
-            api_set_error!(err, ErrorType::kErrorTypeValidation, c"%s", error);
+            api_set_error!(err, ErrorType::ErrorTypeValidation, c"%s", error);
         }
     }
 }
@@ -1856,7 +1856,7 @@ pub fn nvim_paste(
             Some(arena),
             err,
         );
-        if error_set(err) || (rv.obj_type == ObjectType::kObjectTypeBoolean && !rv.data.boolean()) {
+        if error_set(err) || (rv.obj_type == ObjectType::ObjectTypeBoolean && !rv.data.boolean()) {
             api_vim_st().PASTE_CANCELLED = true;
         }
         if (phase == -1 || phase == 3 || api_vim_st().PASTE_CANCELLED) && !curbuf_mut().terminal.is_null() {
@@ -1927,7 +1927,7 @@ pub fn nvim_put(
             let item = lines[i];
             if !validate_t(
                 c"line",
-                ObjectType::kObjectTypeString,
+                ObjectType::ObjectTypeString,
                 item.obj_type,
                 err,
             ) {
@@ -2026,7 +2026,7 @@ pub fn nvim_get_context(
         if types.size > 0 {
             for i in 0..types.size {
                 let item = types[i];
-                if item.obj_type == ObjectType::kObjectTypeString {
+                if item.obj_type == ObjectType::ObjectTypeString {
                     let s = item.data.string().data;
                     if crate::memory::cstr_as_opt_bytes(s) == Some(b"regs") {
                         int_types |= kCtxRegs;
@@ -2533,12 +2533,12 @@ pub fn nvim_get_proc_children(
                     Some(arena),
                     err,
                 );
-                if o.obj_type == ObjectType::kObjectTypeArray {
+                if o.obj_type == ObjectType::ObjectTypeArray {
                     rvobj = o.data.array();
                 } else if !error_set(err) {
                     api_set_error!(
                         err,
-                        ErrorType::kErrorTypeException,
+                        ErrorType::ErrorTypeException,
                         c"Failed to get process children. pid=%lld error=%d",
                         pid,
                         rv,
@@ -2597,14 +2597,14 @@ pub fn nvim_get_proc(pid: Integer, arena: &mut Arena, err: &mut Error) -> Object
                 Some(arena),
                 err,
             );
-            if o.obj_type == ObjectType::kObjectTypeArray && o.data.array().size == 0 {
+            if o.obj_type == ObjectType::ObjectTypeArray && o.data.array().size == 0 {
                 return nil_obj();
-            } else if o.obj_type == ObjectType::kObjectTypeDict {
+            } else if o.obj_type == ObjectType::ObjectTypeDict {
                 rvobj = o;
             } else if !error_set(err) {
                 api_set_error!(
                     err,
-                    ErrorType::kErrorTypeException,
+                    ErrorType::ErrorTypeException,
                     c"Failed to get process info. pid=%lld",
                     pid,
                 );
@@ -2881,7 +2881,7 @@ pub fn nvim_eval_statusline(
             };
             let errmsg = check_stl_option(str_.data, Some(errbuf));
             if !errmsg.is_null() {
-                api_set_error!(err, ErrorType::kErrorTypeValidation, c"%s", errmsg);
+                api_set_error!(err, ErrorType::ErrorTypeValidation, c"%s", errmsg);
                 return result;
             }
         }
@@ -2933,7 +2933,7 @@ pub fn nvim_eval_statusline(
         if use_bools > 1 {
             api_set_error!(
                 err,
-                ErrorType::kErrorTypeValidation,
+                ErrorType::ErrorTypeValidation,
                 c"%s",
                 c"Can only use one of 'use_winbar', 'use_tabline' and 'use_statuscol_lnum'",
             );
@@ -3144,7 +3144,7 @@ pub fn nvim__complete_set(
         if (get_cot_flags() & kOptCotFlagPopup) == 0 {
             api_set_error!(
                 err,
-                ErrorType::kErrorTypeException,
+                ErrorType::ErrorTypeException,
                 c"completeopt option does not include popup",
             );
             return rv;
@@ -3233,7 +3233,7 @@ pub fn nvim__redraw(opts: &mut KeyDict_redraw, err: &mut Error) {
             if !win.is_null() {
                 api_set_error!(
                     err,
-                    ErrorType::kErrorTypeValidation,
+                    ErrorType::ErrorTypeValidation,
                     c"%s",
                     c"cannot use both 'buf' and 'win'",
                 );
@@ -3249,7 +3249,7 @@ pub fn nvim__redraw(opts: &mut KeyDict_redraw, err: &mut Error) {
         if (xpopcount(opts.is_set__redraw_) as u32) <= count {
             api_set_error!(
                 err,
-                ErrorType::kErrorTypeValidation,
+                ErrorType::ErrorTypeValidation,
                 c"%s",
                 c"at least one action required",
             );
@@ -3278,14 +3278,14 @@ pub fn nvim__redraw(opts: &mut KeyDict_redraw, err: &mut Error) {
         if has_range {
             let r = opts.range;
             let ok = r.size == 2
-                && (*r.items).obj_type == ObjectType::kObjectTypeInteger
-                && r[1].obj_type == ObjectType::kObjectTypeInteger
+                && (*r.items).obj_type == ObjectType::ObjectTypeInteger
+                && r[1].obj_type == ObjectType::ObjectTypeInteger
                 && (*r.items).data.integer() >= 0
                 && r[1].data.integer() >= -1;
             if !ok {
                 api_set_error!(
                     err,
-                    ErrorType::kErrorTypeValidation,
+                    ErrorType::ErrorTypeValidation,
                     c"%s",
                     c"Invalid 'range': Expected 2-tuple of Integers",
                 );

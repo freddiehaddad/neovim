@@ -3,7 +3,7 @@
 use std::ffi::{c_char, c_int};
 
 use crate::mpack::mpack_core::{
-    MPACK_EOF, MPACK_OK, MPACK_TOKEN_ARRAY, MPACK_TOKEN_UINT, mpack_read, mpack_tokbuf_init,
+    MPACK_EOF, MPACK_OK, MpackTokenArray, MpackTokenUint, mpack_read, mpack_tokbuf_init,
     MpackTokbuf, MpackToken, MpackUint32, mpack_write,
 };
 use crate::mpack::object::{MPACK_NOMEM, MpackData};
@@ -119,7 +119,7 @@ pub fn mpack_rpc_receive_tok(
     msg: &mut MpackRpcMessage,
 ) -> c_int {
     if session.receive.index == 0 {
-        if tok.r#type != MPACK_TOKEN_ARRAY {
+        if tok.r#type != MpackTokenArray {
             return MPACK_RPC_EARRAY;
         }
         if tok.length < 3 || tok.length > 4 {
@@ -132,7 +132,7 @@ pub fn mpack_rpc_receive_tok(
 
     if session.receive.index == 1 {
         let v_lo = tok.data.value().lo;
-        if tok.r#type != MPACK_TOKEN_UINT || tok.length > 1 || v_lo > 2 {
+        if tok.r#type != MpackTokenUint || tok.length > 1 || v_lo > 2 {
             return MPACK_RPC_ETYPE;
         }
         if v_lo < 2 && session.receive.toks[0].length != 4 {
@@ -155,7 +155,7 @@ pub fn mpack_rpc_receive_tok(
 
     debug_assert_eq!(session.receive.index, 2);
 
-    if tok.r#type != MPACK_TOKEN_UINT || tok.length > 4 {
+    if tok.r#type != MpackTokenUint || tok.length > 4 {
         return MPACK_RPC_EMSGID;
     }
 
@@ -183,7 +183,7 @@ pub fn mpack_rpc_request_tok(
                 data: data.clone(),
             };
             session.send = mpack_rpc_request_hdr();
-            session.send.toks[2].r#type = MPACK_TOKEN_UINT;
+            session.send.toks[2].r#type = MpackTokenUint;
             session.send.toks[2].data.value_mut().lo = msg.id;
             session.send.toks[2].data.value_mut().hi = 0;
             *tok = session.send.toks[0];
@@ -219,7 +219,7 @@ pub fn mpack_rpc_reply_tok(
 ) -> c_int {
     if session.send.index == 0 {
         session.send = mpack_rpc_reply_hdr();
-        session.send.toks[2].r#type = MPACK_TOKEN_UINT;
+        session.send.toks[2].r#type = MpackTokenUint;
         session.send.toks[2].data.value_mut().lo = id;
         session.send.toks[2].data.value_mut().hi = 0;
         *tok = session.send.toks[0];
@@ -341,9 +341,9 @@ pub fn mpack_rpc_notify(
 
 fn mpack_rpc_request_hdr() -> MpackRpcHeader {
     let mut hdr = MpackRpcHeader::new();
-    hdr.toks[0].r#type = MPACK_TOKEN_ARRAY;
+    hdr.toks[0].r#type = MpackTokenArray;
     hdr.toks[0].length = 4;
-    hdr.toks[1].r#type = MPACK_TOKEN_UINT;
+    hdr.toks[1].r#type = MpackTokenUint;
     hdr.toks[1].data.value_mut().lo = 0;
     hdr.toks[1].data.value_mut().hi = 0;
     hdr

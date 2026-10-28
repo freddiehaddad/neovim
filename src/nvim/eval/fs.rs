@@ -460,14 +460,14 @@ pub fn modify_fname(
 pub fn f_chdir(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData){
 
      {
-        rettv.v_type = VarType::VAR_STRING;
+        rettv.v_type = VarType::VarString;
         rettv.vval = crate::eval::typval::TypvalVval::String(ptr::null_mut());
 
         if check_secure() {
             return;
         }
 
-        if argvars[0].v_type != VarType::VAR_STRING {
+        if argvars[0].v_type != VarType::VarString {
             // Returning an empty string means it failed.
             // No error message, for historic reasons.
             return;
@@ -482,7 +482,7 @@ pub fn f_chdir(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData){
         }
 
         let mut scope: c_int = kCdScopeGlobal;
-        if argvars[1].v_type != VarType::VAR_UNKNOWN {
+        if argvars[1].v_type != VarType::VarUnknown {
             let s = tv_get_string(&argvars[1]);
             let s_bytes = crate::memory::cstr_as_bytes(s);
             if s_bytes == b"global" {
@@ -508,7 +508,7 @@ pub fn f_chdir(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData){
         if !do_chdir(argvars[0].vval.v_string(), scope) {
             // Directory change failed
             tv_clear(rettv);
-            rettv.v_type = VarType::VAR_STRING;
+            rettv.v_type = VarType::VarString;
             rettv.vval = crate::eval::typval::TypvalVval::String(ptr::null_mut());
         }
     }
@@ -530,7 +530,7 @@ pub fn f_delete(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData)
         }
 
         let mut nbuf = [0 as c_char; NUMBUFLEN];
-        let flags = if argvars[1].v_type != VarType::VAR_UNKNOWN {
+        let flags = if argvars[1].v_type != VarType::VarUnknown {
             tv_get_string_buf(&argvars[1], nbuf.as_mut_ptr())
         } else {
             c"".as_ptr()
@@ -574,7 +574,7 @@ pub fn f_exepath(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData
 
     os_can_exe(tv_get_string(&argvars[0]), Some(&mut path), true);
 
-    rettv.v_type = VarType::VAR_STRING;
+    rettv.v_type = VarType::VarString;
     if let Some(p) = path {
         #[cfg(windows)]
         {
@@ -645,12 +645,12 @@ fn findfilendir(argvars: &mut [TypVal], rettv: &mut TypVal, find_what: c_int) {
         let mut error = false;
 
         rettv.vval = crate::eval::typval::TypvalVval::String(ptr::null_mut());
-        rettv.v_type = VarType::VAR_STRING;
+        rettv.v_type = VarType::VarString;
 
         let fname = tv_get_string(&argvars[0]);
 
         let mut pathbuf = [0 as c_char; NUMBUFLEN];
-        if argvars[1].v_type != VarType::VAR_UNKNOWN {
+        if argvars[1].v_type != VarType::VarUnknown {
             let p = tv_get_string_buf_chk(&argvars[1], pathbuf.as_mut_ptr());
             if p.is_null() {
                 error = true;
@@ -659,7 +659,7 @@ fn findfilendir(argvars: &mut [TypVal], rettv: &mut TypVal, find_what: c_int) {
                     path = p.cast_mut();
                 }
 
-                if argvars[2].v_type != VarType::VAR_UNKNOWN {
+                if argvars[2].v_type != VarType::VarUnknown {
                     count = tv_get_number_chk(&argvars[2], Some(&mut error)) as c_int;
                 }
             }
@@ -697,12 +697,12 @@ fn findfilendir(argvars: &mut [TypVal], rettv: &mut TypVal, find_what: c_int) {
                 first = false;
 
                 if let Some(ref res) = fresult
-                    && rettv.v_type == VarType::VAR_LIST
+                    && rettv.v_type == VarType::VarList
                 {
                     tv_list_append_string( &mut *rettv.vval.v_list(), res.as_ptr(), -1);
                 }
 
-                let keep_going = rettv.v_type == VarType::VAR_LIST || {
+                let keep_going = rettv.v_type == VarType::VarList || {
                     count -= 1;
                     count > 0
                 };
@@ -712,7 +712,7 @@ fn findfilendir(argvars: &mut [TypVal], rettv: &mut TypVal, find_what: c_int) {
             }
         }
 
-        if rettv.v_type == VarType::VAR_STRING {
+        if rettv.v_type == VarType::VarString {
             crate::eval::typval::tv_set_string(
                 &mut *rettv,
                 fresult.as_ref().map_or(ptr::null(), |s| s.as_ptr()),
@@ -764,7 +764,7 @@ pub fn f_fnamemodify(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFunc
         }
 
         if fname.is_null() {
-            rettv.v_type = VarType::VAR_STRING;
+            rettv.v_type = VarType::VarString;
             rettv.vval = crate::eval::typval::TypvalVval::String(ptr::null_mut());
         } else {
             crate::eval::typval::tv_set_string_len(rettv, fname, len);
@@ -796,10 +796,10 @@ fn getcwd_scope_args(argvars: &mut [TypVal],
 
         while argc < 3 {
             // If there is no argument there are no more scopes after it, break out.
-            if argvars[argc].v_type == VarType::VAR_UNKNOWN {
+            if argvars[argc].v_type == VarType::VarUnknown {
                 break;
             }
-            if argvars[argc].v_type != VarType::VAR_NUMBER {
+            if argvars[argc].v_type != VarType::VarNumber {
                 emsg(gettext(e_invarg));
                 return false;
             }
@@ -863,7 +863,7 @@ fn getcwd_scope_args(argvars: &mut [TypVal],
             if argv[kBufArg] > 0 {
                 let mut err = Error::new();
                 *buf = find_buffer_by_handle(argv[kBufArg], &mut err);
-                if err.err_type != ErrorType::kErrorTypeNone {
+                if err.err_type != ErrorType::ErrorTypeNone {
                     emsg(gettext(c"E5007: Cannot find buffer number."));
                     crate::api::private::helpers::api_clear_error(&mut err);
                     return false;
@@ -901,7 +901,7 @@ pub fn f_getcwd(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData)
         let mut tp: *mut TabPageInfo = ptr::null_mut();
         let mut buf: *mut FileBuf = ptr::null_mut();
 
-        rettv.v_type = VarType::VAR_STRING;
+        rettv.v_type = VarType::VarString;
         rettv.vval = crate::eval::typval::TypvalVval::String(ptr::null_mut());
 
         // Without arguments (kCdScopeInvalid), the effective working directory is returned.
@@ -990,7 +990,7 @@ pub fn f_getfperm(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDat
             }
             crate::eval::typval::tv_set_string_len(rettv, perm.as_ptr(), 9);
         } else {
-            rettv.v_type = VarType::VAR_STRING;
+            rettv.v_type = VarType::VarString;
             rettv.vval = crate::eval::typval::TypvalVval::String(ptr::null_mut());
         }
 }
@@ -1058,7 +1058,7 @@ pub fn f_getftype(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDat
             };
             crate::eval::typval::tv_set_string(rettv, t);
         } else {
-            rettv.v_type = VarType::VAR_STRING;
+            rettv.v_type = VarType::VarString;
             rettv.vval = crate::eval::typval::TypvalVval::String(ptr::null_mut());
         }
 }
@@ -1073,16 +1073,16 @@ pub fn f_glob(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData){
 
         // When the optional second argument is non-zero, don't remove matches
         // for 'wildignore' and don't put matches for 'suffixes' at the end.
-        rettv.v_type = VarType::VAR_STRING;
-        if argvars[1].v_type != VarType::VAR_UNKNOWN {
+        rettv.v_type = VarType::VarString;
+        if argvars[1].v_type != VarType::VarUnknown {
             if tv_get_bool_chk(&argvars[1], Some(&mut error)) != 0 {
                 options |= WILD_KEEP_ALL;
             }
-            if argvars[2].v_type != VarType::VAR_UNKNOWN {
+            if argvars[2].v_type != VarType::VarUnknown {
                 if tv_get_bool_chk(&argvars[2], Some(&mut error)) != 0 {
                     tv_list_set_ret(rettv, ptr::null_mut());
                 }
-                if argvars[3].v_type != VarType::VAR_UNKNOWN
+                if argvars[3].v_type != VarType::VarUnknown
                     && tv_get_bool_chk(&argvars[3], Some(&mut error)) != 0
                 {
                     options |= WILD_ALLLINKS;
@@ -1094,7 +1094,7 @@ pub fn f_glob(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData){
             if opt_vars().p_wic != 0 {
                 options += WILD_ICASE;
             }
-            if rettv.v_type == VarType::VAR_STRING {
+            if rettv.v_type == VarType::VarString {
                 if let Some(exp) = ExpandOne(
                     &mut xpc,
                     tv_get_string(&argvars[0]).cast_mut(),
@@ -1137,20 +1137,20 @@ pub fn f_globpath(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDat
         let mut error = false;
 
         // Return a string, or a list if the optional third argument is non-zero.
-        rettv.v_type = VarType::VAR_STRING;
+        rettv.v_type = VarType::VarString;
 
-        if argvars[2].v_type != VarType::VAR_UNKNOWN {
+        if argvars[2].v_type != VarType::VarUnknown {
             // When the optional second argument is non-zero, don't remove matches
             // for 'wildignore' and don't put matches for 'suffixes' at the end.
             if tv_get_bool_chk(&argvars[2], Some(&mut error)) != 0 {
                 flags |= WILD_KEEP_ALL;
             }
 
-            if argvars[3].v_type != VarType::VAR_UNKNOWN {
+            if argvars[3].v_type != VarType::VarUnknown {
                 if tv_get_bool_chk(&argvars[3], Some(&mut error)) != 0 {
                     tv_list_set_ret(rettv, ptr::null_mut());
                 }
-                if argvars[4].v_type != VarType::VAR_UNKNOWN
+                if argvars[4].v_type != VarType::VarUnknown
                     && tv_get_bool_chk(&argvars[4], Some(&mut error)) != 0
                 {
                     flags |= WILD_ALLLINKS;
@@ -1170,7 +1170,7 @@ pub fn f_globpath(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDat
                 false,
             );
 
-            if rettv.v_type == VarType::VAR_STRING {
+            if rettv.v_type == VarType::VarString {
                 let joined = crate::path::concat_cstrings(&ga, c"\n");
                 crate::eval::typval::tv_set_string(rettv, joined.as_ptr());
             } else {
@@ -1212,7 +1212,7 @@ pub fn f_haslocaldir(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFunc
         let mut tp: *mut TabPageInfo = ptr::null_mut();
         let mut buf: *mut FileBuf = ptr::null_mut();
 
-        rettv.v_type = VarType::VAR_NUMBER;
+        rettv.v_type = VarType::VarNumber;
         rettv.vval = crate::eval::typval::TypvalVval::Number(0);
 
         // Without arguments, default to window scope.
@@ -1282,8 +1282,8 @@ pub fn f_mkdir(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData){
         let mut defer = false;
         let mut defer_recurse = false;
         let mut created: Option<std::ffi::CString> = None;
-        if argvars[1].v_type != VarType::VAR_UNKNOWN {
-            if argvars[2].v_type != VarType::VAR_UNKNOWN {
+        if argvars[1].v_type != VarType::VarUnknown {
+            if argvars[2].v_type != VarType::VarUnknown {
                 prot = tv_get_number_chk(&argvars[2], None) as c_int;
                 if prot == -1 {
                     return;
@@ -1349,7 +1349,7 @@ pub fn f_pathshorten(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFunc
      {
         let mut trim_len: c_int = 1;
 
-        if argvars[1].v_type != VarType::VAR_UNKNOWN {
+        if argvars[1].v_type != VarType::VarUnknown {
             trim_len = tv_get_number(&argvars[1]) as c_int;
             if trim_len < 1 {
                 trim_len = 1;
@@ -1358,7 +1358,7 @@ pub fn f_pathshorten(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFunc
 
         let p = tv_get_string_chk(&argvars[0]);
         if p.is_null() {
-            rettv.v_type = VarType::VAR_STRING;
+            rettv.v_type = VarType::VarString;
             rettv.vval = crate::eval::typval::TypvalVval::String(ptr::null_mut());
         } else {
             let mut v = cstr_into_char_vec(cstr_to_cstring(p));
@@ -1371,7 +1371,7 @@ pub fn f_pathshorten(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFunc
 /// Evaluate "expr" (= "context") for readdir().
 pub(crate) fn readdir_checkitem(expr: &mut TypVal, name: impl crate::strings::IntoCCharPtr) -> Varnumber { let name = name.into_c_char_ptr();
     let tv_init = TypVal {
-            v_type: VarType::VAR_UNKNOWN,
+            v_type: VarType::VarUnknown,
             v_lock: VAR_UNLOCKED,
             vval: TypvalVval::Number(0),
         };
@@ -1379,14 +1379,14 @@ pub(crate) fn readdir_checkitem(expr: &mut TypVal, name: impl crate::strings::In
         let mut retval: Varnumber = 0;
         let mut error = false;
 
-        if expr.v_type == VarType::VAR_UNKNOWN {
+        if expr.v_type == VarType::VarUnknown {
             return 1;
         }
 
         let mut save_val = tv_init;
         prepare_vimvar(VV_VAL, &mut save_val);
         set_vim_var_string(VV_VAL, name, -1);
-        argv[0].v_type = VarType::VAR_STRING;
+        argv[0].v_type = VarType::VarString;
         argv[0].vval = crate::eval::typval::TypvalVval::String(name.cast_mut());
 
         let mut rettv = tv_init;
@@ -1492,10 +1492,10 @@ fn read_file_or_blob(argvars: &mut [TypVal], rettv: &mut TypVal, always_blob: bo
         let mut offset: Off = 0;
         let mut size: Off = -1;
 
-        if argvars[1].v_type != VarType::VAR_UNKNOWN {
+        if argvars[1].v_type != VarType::VarUnknown {
             if always_blob {
                 offset = tv_get_number(&argvars[1]);
-                if argvars[2].v_type != VarType::VAR_UNKNOWN {
+                if argvars[2].v_type != VarType::VarUnknown {
                     size = tv_get_number(&argvars[2]);
                 }
             } else {
@@ -1505,7 +1505,7 @@ fn read_file_or_blob(argvars: &mut [TypVal], rettv: &mut TypVal, always_blob: bo
                 } else if arg1 == b"B" {
                     blob = true;
                 }
-                if argvars[2].v_type != VarType::VAR_UNKNOWN {
+                if argvars[2].v_type != VarType::VarUnknown {
                     maxline = tv_get_number(&argvars[2]);
                 }
             }
@@ -1687,7 +1687,7 @@ pub fn f_rename(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData)
 /// "resolve()" function
 pub fn f_resolve(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData){
 
-    rettv.v_type = VarType::VAR_STRING;
+    rettv.v_type = VarType::VarString;
     let fname = tv_get_string(&argvars[0]);
     #[cfg(windows)]
     {
@@ -1891,7 +1891,7 @@ pub fn f_tempname(_argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDa
     if let Some(tn) = vim_tempname() {
             crate::eval::typval::tv_set_string(rettv, tn.as_ptr());
         } else {
-            rettv.v_type = VarType::VAR_STRING;
+            rettv.v_type = VarType::VarString;
             rettv.vval = crate::eval::typval::TypvalVval::String(ptr::null_mut());
         }
 }
@@ -2007,14 +2007,14 @@ pub fn f_writefile(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDa
             return;
         }
 
-        if argvars[0].v_type == VarType::VAR_LIST {
+        if argvars[0].v_type == VarType::VarList {
             for li in crate::eval::typval::list_iter_mut(tv_list_first(argvars[0].vval.v_list().as_ref())) {
                 if !tv_check_str_or_nr(&li.li_tv) {
                     return;
                 }
             }
-        } else if argvars[0].v_type != VarType::VAR_BLOB
-            && !(argvars[0].v_type == VarType::VAR_STRING
+        } else if argvars[0].v_type != VarType::VarBlob
+            && !(argvars[0].v_type == VarType::VarString
                 && (script_is_lua(g_st().current_sctx.sc_sid) || g_st().current_sctx.sc_sid == SID_API_CLIENT))
         {
             semsg!(
@@ -2029,7 +2029,7 @@ pub fn f_writefile(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDa
         let mut defer = false;
         let mut do_fsync = opt_vars().p_fs != 0;
         let mut mkdir_p = false;
-        if argvars[2].v_type != VarType::VAR_UNKNOWN {
+        if argvars[2].v_type != VarType::VarUnknown {
             let flags = tv_get_string_chk(&argvars[2]);
             if flags.is_null() {
                 return;
@@ -2090,15 +2090,15 @@ pub fn f_writefile(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDa
                     if let Some(full) = FullName_save(fname, false) {
                         crate::eval::typval::tv_set_string(&mut tv, full.as_ptr());
                     } else {
-                        tv.v_type = VarType::VAR_STRING;
+                        tv.v_type = VarType::VarString;
                     }
                     add_defer(c"delete", 1, &raw mut tv);
                 }
 
-                let write_ok = if argvars[0].v_type == VarType::VAR_BLOB {
+                let write_ok = if argvars[0].v_type == VarType::VarBlob {
                     argvars[0].vval.v_blob().is_null()
                         || write_blob(&mut fp, &*argvars[0].vval.v_blob())
-                } else if argvars[0].v_type == VarType::VAR_STRING {
+                } else if argvars[0].v_type == VarType::VarString {
                     write_string(&mut fp, argvars[0].vval.v_string())
                 } else {
                     write_list(&mut fp, argvars[0].vval.v_list().as_ref(), binary)
@@ -2122,7 +2122,7 @@ pub fn f_writefile(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDa
 /// "browse(save, title, initdir, default)" function
 pub fn f_browse(_argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData){
     rettv.vval = crate::eval::typval::TypvalVval::String(ptr::null_mut());
-    rettv.v_type = VarType::VAR_STRING;
+    rettv.v_type = VarType::VarString;
 }
 
 /// "browsedir(title, initdir)" function

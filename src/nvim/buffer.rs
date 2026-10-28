@@ -1811,12 +1811,12 @@ pub fn goto_buffer(eap: &mut Exarg, start: c_int, dir: c_int, count: c_int) {
         let save_sea = g_st().swap_exists_action;
         let skip_help_buf = matches!(
             Cmdidx::from_raw(eap.cmdidx),
-            Cmdidx::CMD_bnext
-                | Cmdidx::CMD_sbnext
-                | Cmdidx::CMD_bNext
-                | Cmdidx::CMD_bprevious
-                | Cmdidx::CMD_sbNext
-                | Cmdidx::CMD_sbprevious
+            Cmdidx::CmdBnextVariant
+                | Cmdidx::CmdSbnextVariant
+                | Cmdidx::CmdBnext
+                | Cmdidx::CmdBprevious
+                | Cmdidx::CmdSbnext
+                | Cmdidx::CmdSbprevious
         );
 
         let mut old_curbuf: Bufref = Bufref::new();
@@ -2709,7 +2709,7 @@ pub fn no_write_message_nobang(buf: &FileBuf) {
 #[inline]
 fn buf_init_changedtick(buf: &mut FileBuf) {
     buf.changedtick_di.di_tv = TypVal {
-            v_type: VarType::VAR_NUMBER,
+            v_type: VarType::VarNumber,
             v_lock: VAR_FIXED,
             vval: TypvalVval::Number(buf_get_changedtick(buf)),
         };
@@ -4438,8 +4438,8 @@ pub fn ex_buffer_all(eap: &mut Exarg) {
             eap.line2
         };
 
-        let all = eap.cmdidx != Cmdidx::CMD_unhide as c_int
-            && eap.cmdidx != Cmdidx::CMD_sunhide as c_int;
+        let all = eap.cmdidx != Cmdidx::CmdUnhide as c_int
+            && eap.cmdidx != Cmdidx::CmdSunhide as c_int;
 
         reset_VIsual_and_resel();
         setpcmark();
@@ -5002,7 +5002,7 @@ pub fn buf_set_changedtick(buf: &mut FileBuf, changedtick: Varnumber) {
 
         let changedtick_di = tv_dict_find(buf.b_vars().as_ref(), c"changedtick", 11);
         debug_assert!(!changedtick_di.is_null());
-        debug_assert!((*changedtick_di).di_tv.v_type == VarType::VAR_NUMBER);
+        debug_assert!((*changedtick_di).di_tv.v_type == VarType::VarNumber);
         debug_assert!((*changedtick_di).di_tv.v_lock == VAR_FIXED);
         debug_assert!((*changedtick_di).di_flags == (DI_FLAGS_RO | DI_FLAGS_FIX));
         debug_assert!(changedtick_di == (&raw mut buf.changedtick_di).cast());

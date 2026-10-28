@@ -46,6 +46,7 @@ use std::ptr;
 pub type GraphemeState = i32;
 
 #[cfg(windows)]
+#[allow(non_camel_case_types)]
 type wint_t = u16;
 #[cfg(not(windows))]
 type wint_t = u32;
@@ -155,9 +156,9 @@ struct CwInterval {
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum WorkingStatus {
-    kUnknown = 0,
-    kWorking = 1,
-    kBroken = 2,
+    KUnknown = 0,
+    Working = 1,
+    KBroken = 2,
 }
 
 #[repr(C)]
@@ -828,7 +829,7 @@ impl MbyteModuleState {
         Self {
             CW_TABLE: Vec::new(),
             mb_unescape_buf: [0; 6],
-            iconv_working: WorkingStatus::kUnknown,
+            iconv_working: WorkingStatus::KUnknown,
         }
     }
 }
@@ -3037,11 +3038,11 @@ pub fn my_iconv_open(to: impl crate::strings::IntoCCharPtr, from: impl crate::st
     let from = from.into_c_char_ptr().cast_mut();
     let to = to.into_c_char_ptr().cast_mut();
     const ICONV_TESTLEN: usize = 400;
-        if mbyte_st().iconv_working == WorkingStatus::kBroken {
+        if mbyte_st().iconv_working == WorkingStatus::KBroken {
             return None;
         }
         let mut fd = call_iconv_open(enc_skip(to), enc_skip(from));
-        if fd != usize::MAX as *mut c_void && mbyte_st().iconv_working == WorkingStatus::kUnknown {
+        if fd != usize::MAX as *mut c_void && mbyte_st().iconv_working == WorkingStatus::KUnknown {
             let mut tobuf = [0 as c_char; ICONV_TESTLEN];
             let mut p = tobuf.as_mut_ptr();
             let mut tolen = ICONV_TESTLEN;
@@ -3053,11 +3054,11 @@ pub fn my_iconv_open(to: impl crate::strings::IntoCCharPtr, from: impl crate::st
                 &raw mut tolen,
             );
             if p.is_null() {
-                mbyte_st().iconv_working = WorkingStatus::kBroken;
+                mbyte_st().iconv_working = WorkingStatus::KBroken;
                 call_iconv_close(fd);
                 fd = usize::MAX as *mut c_void;
             } else {
-                mbyte_st().iconv_working = WorkingStatus::kWorking;
+                mbyte_st().iconv_working = WorkingStatus::Working;
             }
         }
         (fd != usize::MAX as *mut c_void).then_some(fd as usize)
@@ -3131,7 +3132,7 @@ fn iconv_string(
 }
 
 pub fn f_iconv(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
-    rettv.v_type = VarType::VAR_STRING;
+    rettv.v_type = VarType::VarString;
     rettv.vval = crate::eval::typval::TypvalVval::String(ptr::null_mut());
 
     let str_ = tv_get_string(&argvars[0]);
@@ -3392,7 +3393,7 @@ fn first_list_number(l: &TvList) -> Varnumber {
 pub fn f_setcellwidths(argvars: &mut [TypVal], _rettv: &mut TypVal, _fptr: EvalFuncData){
 
     unsafe {
-        if argvars[0].v_type != VarType::VAR_LIST || argvars[0].vval.v_list().is_null() {
+        if argvars[0].v_type != VarType::VarList || argvars[0].vval.v_list().is_null() {
             emsg((&raw const e_listreq).cast::<c_char>());
             return;
         }
@@ -3404,7 +3405,7 @@ pub fn f_setcellwidths(argvars: &mut [TypVal], _rettv: &mut TypVal, _fptr: EvalF
             let mut ptrs: Vec<*const TvList> = Vec::with_capacity(table_size);
             for (item, li) in (0 as c_int..).zip(crate::eval::typval::list_iter_mut((*l).lv_first)) {
                 let li_tv = &li.li_tv;
-                if li_tv.v_type != VarType::VAR_LIST || li_tv.vval.v_list().is_null() {
+                if li_tv.v_type != VarType::VarList || li_tv.vval.v_list().is_null() {
                     semsg!(E_LIST_ITEM_NR_IS_NOT_LIST, item);
                     return;
                 }
@@ -3416,7 +3417,7 @@ pub fn f_setcellwidths(argvars: &mut [TypVal], _rettv: &mut TypVal, _fptr: EvalF
                 let mut n1: Varnumber = 0;
                 while !lili.is_null() {
                     let lili_tv = &(*lili).li_tv;
-                    if lili_tv.v_type != VarType::VAR_NUMBER {
+                    if lili_tv.v_type != VarType::VarNumber {
                         break;
                     }
                     if i == 0 {

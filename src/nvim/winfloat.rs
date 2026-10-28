@@ -96,7 +96,7 @@ pub fn win_new_float(
             {
                 api_set_error!(
                     err,
-                    ErrorType::kErrorTypeException,
+                    ErrorType::ErrorTypeException,
                     c"Cannot change last window into float",
                 );
                 return ptr::null_mut();

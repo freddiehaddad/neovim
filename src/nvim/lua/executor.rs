@@ -87,6 +87,7 @@ use std::ptr;
 use crate::api::vim::HlMessage;
 pub type LuaRetMode = c_int;
 
+#[allow(non_camel_case_types)]
 type luv_CFpcall = Option<
     unsafe extern "C-unwind" fn(
         lstate: *mut lua_State,
@@ -95,6 +96,7 @@ type luv_CFpcall = Option<
         flags: c_int,
     ) -> c_int,
 >;
+#[allow(non_camel_case_types)]
 type luv_CFcpcall = Option<
     unsafe extern "C-unwind" fn(
         lstate: *mut lua_State,
@@ -103,7 +105,9 @@ type luv_CFcpcall = Option<
         flags: c_int,
     ) -> c_int,
 >;
+#[allow(non_camel_case_types)]
 type luv_acquire_vm = Option<unsafe extern "C-unwind" fn() -> *mut lua_State>;
+#[allow(non_camel_case_types)]
 type luv_release_vm = Option<unsafe extern "C-unwind" fn(lstate: *mut lua_State)>;
 
 pub const kRetObject: LuaRetMode = 0;
@@ -122,7 +126,7 @@ const kCallback: isize = 0;
 const kThread: isize = 1;
 const kThreadCallback: isize = 2;
 
-const CMD_equal: c_int = 559;
+const CmdEqual: c_int = 559;
 
 #[derive(Clone, Copy)]
 struct BuiltinModule {
@@ -351,7 +355,7 @@ use crate::charset::NUL;
 use crate::cmdexpand::{MB_MAXBYTES, kUICmdline};
 use crate::eval::typval::kCallbackNone;
 use crate::ex_docmd::{
-    CMD_SIZE, CMOD_BROWSE, CMOD_CONFIRM, CMOD_ERRSILENT, CMOD_HIDE, CMOD_KEEPALT, CMOD_KEEPJUMPS,
+    CmdSize, CMOD_BROWSE, CMOD_CONFIRM, CMOD_ERRSILENT, CMOD_HIDE, CMOD_KEEPALT, CMOD_KEEPJUMPS,
     CMOD_KEEPMARKS, CMOD_KEEPPATTERNS, CMOD_LOCKMARKS, CMOD_NOAUTOCMD, CMOD_NOSWAPFILE,
     CMOD_SANDBOX, CMOD_SILENT, CMOD_UNSILENT, EX_ARGSPACE, EX_EXTRA, EX_NEEDARG, EX_NOSPC,
 };
@@ -394,7 +398,7 @@ fn push_all_typvals(
         let flags = if special { K_NLUA_PUSH_SPECIAL } else { 0 };
         for i in 0..(argcount as usize) {
             let arg = args.add(i);
-            if (*arg).v_type == VarType::VAR_UNKNOWN {
+            if (*arg).v_type == VarType::VarUnknown {
                 lua_pushnil(lstate);
             } else {
                 nlua_push_typval(lstate, arg, flags);
@@ -510,7 +514,7 @@ fn nlua_push_cmdmod(lstate: *mut lua_State, cmod: &Cmdmod) {
 
 fn nlua_push_eap(lstate: *mut lua_State, eap: &Exarg, cmod: &Cmdmod) {
     unsafe {
-        if !is_user_cmdidx(eap.cmdidx) && eap.cmdidx < CMD_SIZE {
+        if !is_user_cmdidx(eap.cmdidx) && eap.cmdidx < CmdSize {
             lua_pushstring(lstate, get_command_name(&mut crate::os::env::ExpandCtx::new(), eap.cmdidx));
             lua_setfield(lstate, -2, c"name");
         }
@@ -1545,12 +1549,12 @@ unsafe extern "C-unwind" fn nlua_debug(lstate: *mut lua_State) -> c_int {
     unsafe {
         let input_args: [TypVal; 2] = [
             TypVal {
-                v_type: VarType::VAR_STRING,
+                v_type: VarType::VarString,
                 v_lock: VAR_FIXED,
                 vval: TypvalVval::String(c"lua_debug> ".as_ptr().cast_mut()),
             },
             TypVal {
-                v_type: VarType::VAR_UNKNOWN,
+                v_type: VarType::VarUnknown,
                 v_lock: 0,
                 vval: TypvalVval::Number(0),
             },
@@ -1572,7 +1576,7 @@ unsafe extern "C-unwind" fn nlua_debug(lstate: *mut lua_State) -> c_int {
                 msg_putchar(b'\n' as c_int);
             }
 
-            if input.v_type != VarType::VAR_STRING
+            if input.v_type != VarType::VarString
                 || input.vval.v_string().is_null()
                 || crate::memory::cstr_is_empty(input.vval.v_string())
                 || crate::memory::cstr_as_bytes(input.vval.v_string()) == b"cont"
@@ -1673,7 +1677,7 @@ pub unsafe extern "C-unwind" fn nlua_call(lstate: *mut lua_State) -> c_int {
             if !nlua_pop_typval(lstate, &raw mut vim_args[i]) {
                 api_set_error!(
                     &mut err,
-                    ErrorType::kErrorTypeException,
+                    ErrorType::ErrorTypeException,
                     c"error converting argument %d",
                     (i + 1) as c_int,
                 );
@@ -1782,7 +1786,7 @@ fn nlua_rpc(lstate: *mut lua_State, request: bool) -> c_int {
                 let _ = write!(&mut mbuf[..], "Invalid channel: {chan_id}\0");
                 api_set_error!(
                     &mut err,
-                    ErrorType::kErrorTypeValidation,
+                    ErrorType::ErrorTypeValidation,
                     c"%s",
                     mbuf.as_ptr().cast::<c_char>(),
                 );
@@ -1976,7 +1980,7 @@ fn nlua_exec_typval(
     unsafe {
         if check_secure() {
             if ret_tv.is_some() {
-                ret_tv.as_deref_mut().unwrap().v_type = VarType::VAR_NUMBER;
+                ret_tv.as_deref_mut().unwrap().v_type = VarType::VarNumber;
                 ret_tv.as_deref_mut().unwrap().vval = crate::eval::typval::TypvalVval::Number(0);
             }
             return;
@@ -2063,7 +2067,7 @@ pub fn nlua_exec(
             let errstr = lua_tolstring(lstate, -1, &raw mut len);
             api_set_error!(
                 err,
-                ErrorType::kErrorTypeValidation,
+                ErrorType::ErrorTypeValidation,
                 c"Lua: %.*s",
                 len as c_int,
                 errstr,
@@ -2080,7 +2084,7 @@ pub fn nlua_exec(
             let errstr = lua_tolstring(lstate, -1, &raw mut len);
             api_set_error!(
                 err,
-                ErrorType::kErrorTypeException,
+                ErrorType::ErrorTypeException,
                 c"Lua: %.*s",
                 len as c_int,
                 errstr,
@@ -2101,7 +2105,7 @@ pub fn nlua_call_typval<S: crate::strings::IntoCCharPtr>(
     unsafe {
         let mut argcount: c_int = 0;
         let mut tv = argvars;
-        while (*tv).v_type != VarType::VAR_UNKNOWN {
+        while (*tv).v_type != VarType::VarUnknown {
             argcount += 1;
             tv = tv.add(1);
         }
@@ -2212,7 +2216,7 @@ pub fn nlua_call_ref_ctx(
                 if let Some(err) = err {
                     api_set_error!(
                         err,
-                        ErrorType::kErrorTypeException,
+                        ErrorType::ErrorTypeException,
                         c"fast context failure",
                     );
                 }
@@ -2224,7 +2228,7 @@ pub fn nlua_call_ref_ctx(
                 let errstr = lua_tolstring(lstate, -1, &raw mut len);
                 api_set_error!(
                     err,
-                    ErrorType::kErrorTypeException,
+                    ErrorType::ErrorTypeException,
                     c"Lua: %.*s",
                     len as c_int,
                     errstr,
@@ -2259,7 +2263,7 @@ fn nlua_call_pop_retval(
                 let bool_value = lua_toboolean(lstate, -1) != 0;
                 lua_pop(lstate, 1);
                 Object {
-                    obj_type: ObjectType::kObjectTypeBoolean,
+                    obj_type: ObjectType::ObjectTypeBoolean,
                     data: ObjectData::Boolean(bool_value),
                 }
             }
@@ -2267,7 +2271,7 @@ fn nlua_call_pop_retval(
                 let ref_ = nlua_ref_global(lstate, -1);
                 lua_pop(lstate, 1);
                 Object {
-                    obj_type: ObjectType::kObjectTypeLuaRef,
+                    obj_type: ObjectType::ObjectTypeLuaRef,
                     data: ObjectData::LuaRef(ref_),
                 }
             }
@@ -2287,7 +2291,7 @@ fn nlua_call_pop_retval(
                 }
                 res.size = nres.max(0) as usize;
                 Object {
-                    obj_type: ObjectType::kObjectTypeArray,
+                    obj_type: ObjectType::ObjectTypeArray,
                     data: ObjectData::Array(res),
                 }
             }
@@ -2321,8 +2325,8 @@ pub fn ex_lua(eap: &mut Exarg) {
             return;
         }
 
-        let code_cstr = if eap.cmdidx == CMD_equal || crate::memory::cstr_first_byte(raw_cstr.as_ptr()) == b'=' {
-            let off: usize = if eap.cmdidx == CMD_equal { 0 } else { 1 };
+        let code_cstr = if eap.cmdidx == CmdEqual || crate::memory::cstr_first_byte(raw_cstr.as_ptr()) == b'=' {
+            let off: usize = if eap.cmdidx == CmdEqual { 0 } else { 1 };
             let body =
                 std::slice::from_raw_parts(raw_cstr.as_ptr().add(off).cast::<u8>(), len - off);
             let mut buf = Vec::with_capacity(18 + body.len());
@@ -2544,7 +2548,7 @@ pub fn nlua_expand_pat(xp: &mut ExpandCtx) {
                 let mut all_strings = true;
                 for i in 0..completions.size {
                     let v = completions[i];
-                    if v.obj_type != ObjectType::kObjectTypeString {
+                    if v.obj_type != ObjectType::ObjectTypeString {
                         all_strings = false;
                         break;
                     }
@@ -2582,9 +2586,9 @@ unsafe extern "C-unwind" fn nlua_is_thread(lstate: *mut lua_State) -> c_int {
 
 pub fn nlua_is_table_from_lua(arg: &TypVal) -> bool {
     unsafe {
-        if arg.v_type == VarType::VAR_DICT {
+        if arg.v_type == VarType::VarDict {
             (*arg.vval.v_dict()).lua_table_ref != LUA_NOREF
-        } else if arg.v_type == VarType::VAR_LIST {
+        } else if arg.v_type == VarType::VarList {
             (*arg.vval.v_list()).lua_table_ref != LUA_NOREF
         } else {
             false
@@ -2594,9 +2598,9 @@ pub fn nlua_is_table_from_lua(arg: &TypVal) -> bool {
 
 pub fn nlua_register_table_as_callable(arg: &TypVal) -> *mut c_char {
     unsafe {
-        let table_ref = if arg.v_type == VarType::VAR_DICT {
+        let table_ref = if arg.v_type == VarType::VarDict {
             (*arg.vval.v_dict()).lua_table_ref
-        } else if arg.v_type == VarType::VAR_LIST {
+        } else if arg.v_type == VarType::VarList {
             (*arg.vval.v_list()).lua_table_ref
         } else {
             LUA_NOREF
@@ -2860,7 +2864,7 @@ pub fn nlua_func_exists(lua_funcname: impl crate::strings::IntoCCharPtr) -> bool
         str_bytes.extend_from_slice(fname_bytes);
         let str_cstr = std::ffi::CString::new(str_bytes).unwrap();
         let mut args_items: [Object; 1] = [Object {
-            obj_type: ObjectType::kObjectTypeString,
+            obj_type: ObjectType::ObjectTypeString,
             data: ObjectData::String(NvimString {
                     data: str_cstr.as_ptr().cast_mut(),
                     size: str_cstr.as_bytes().len(),
@@ -2889,7 +2893,7 @@ pub fn nlua_func_exists(lua_funcname: impl crate::strings::IntoCCharPtr) -> bool
         drop(str_cstr);
 
         api_clear_error(&mut err);
-        result.obj_type == ObjectType::kObjectTypeBoolean && result.data.boolean()
+        result.obj_type == ObjectType::ObjectTypeBoolean && result.data.boolean()
     }
 }
 
@@ -2897,15 +2901,15 @@ pub fn nlua_func_exists(lua_funcname: impl crate::strings::IntoCCharPtr) -> bool
 mod tests {
     use super::*;
     use crate::api::command::is_user_cmdidx;
-    use crate::ex_docmd::{CMD_USER, CMD_USER_BUF};
+    use crate::ex_docmd::{CmdUser, CmdUserBuf};
 
     #[test]
     fn mode_ret_and_user_cmdidx_helpers_work() {
         assert_eq!(mode_ret(kRetObject), 1);
         assert_eq!(mode_ret(kRetMulti), LUA_MULTRET);
         assert_eq!(mode_ret(kRetMultiStack), LUA_MULTRET);
-        assert!(is_user_cmdidx(CMD_USER));
-        assert!(is_user_cmdidx(CMD_USER_BUF));
+        assert!(is_user_cmdidx(CmdUser));
+        assert!(is_user_cmdidx(CmdUserBuf));
         assert!(!is_user_cmdidx(0));
         assert!(nlua_is_deferred_safe());
             assert_eq!(api_new_luaref(LUA_NOREF), LUA_NOREF);

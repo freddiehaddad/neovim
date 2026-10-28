@@ -155,6 +155,7 @@ impl Default for Directory {
     }
 }
 pub type VimAcl = *mut c_void;
+#[allow(non_camel_case_types)]
 pub type uv_fs_buf_t = [u64; 80];
 #[cfg(any(unix, test))]
 use crate::event::r#loop::{uv_fs_fchown, uv_gid_t, uv_uid_t};

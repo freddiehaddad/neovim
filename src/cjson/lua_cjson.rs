@@ -55,41 +55,41 @@ fn json_lightudata_mask(ludata: *const u8) -> *mut u8 {
 #[repr(C)]
 #[derive(Copy, Clone, PartialEq, Eq)]
 enum JsonTokenType {
-    T_OBJ_BEGIN = 0,
-    T_OBJ_END = 1,
-    T_ARR_BEGIN = 2,
-    T_ARR_END = 3,
-    T_STRING = 4,
-    T_NUMBER = 5,
-    T_INTEGER = 6,
-    T_BOOLEAN = 7,
-    T_NULL = 8,
-    T_COLON = 9,
-    T_COMMA = 10,
-    T_END = 11,
-    T_WHITESPACE = 12,
-    T_ERROR = 13,
-    T_UNKNOWN = 14,
+    TObjBegin = 0,
+    TObjEnd = 1,
+    TArrBegin = 2,
+    TArrEnd = 3,
+    TString = 4,
+    TNumber = 5,
+    TInteger = 6,
+    TBoolean = 7,
+    TNull = 8,
+    TColon = 9,
+    TComma = 10,
+    TEnd = 11,
+    TWhitespace = 12,
+    TError = 13,
+    TUnknown = 14,
 }
 
 use JsonTokenType::*;
 
 const JSON_TOKEN_TYPE_NAME: [&CStr; 15] = [
-    c"T_OBJ_BEGIN",
-    c"T_OBJ_END",
-    c"T_ARR_BEGIN",
-    c"T_ARR_END",
-    c"T_STRING",
-    c"T_NUMBER",
-    c"T_INTEGER",
-    c"T_BOOLEAN",
-    c"T_NULL",
-    c"T_COLON",
-    c"T_COMMA",
-    c"T_END",
-    c"T_WHITESPACE",
-    c"T_ERROR",
-    c"T_UNKNOWN",
+    c"TObjBegin",
+    c"TObjEnd",
+    c"TArrBegin",
+    c"TArrEnd",
+    c"TString",
+    c"TNumber",
+    c"TInteger",
+    c"TBoolean",
+    c"TNull",
+    c"TColon",
+    c"TComma",
+    c"TEnd",
+    c"TWhitespace",
+    c"TError",
+    c"TUnknown",
 ];
 
 #[derive(Copy, Clone)]
@@ -134,30 +134,30 @@ struct JsonConfig {
 }
 
 const CH2TOKEN: [JsonTokenType; 256] = {
-    let mut tbl = [T_ERROR; 256];
-    tbl[b'{' as usize] = T_OBJ_BEGIN;
-    tbl[b'}' as usize] = T_OBJ_END;
-    tbl[b'[' as usize] = T_ARR_BEGIN;
-    tbl[b']' as usize] = T_ARR_END;
-    tbl[b',' as usize] = T_COMMA;
-    tbl[b':' as usize] = T_COLON;
-    tbl[b'\0' as usize] = T_END;
-    tbl[b' ' as usize] = T_WHITESPACE;
-    tbl[b'\t' as usize] = T_WHITESPACE;
-    tbl[b'\n' as usize] = T_WHITESPACE;
-    tbl[b'\r' as usize] = T_WHITESPACE;
-    tbl[b'f' as usize] = T_UNKNOWN;
-    tbl[b'i' as usize] = T_UNKNOWN;
-    tbl[b'I' as usize] = T_UNKNOWN;
-    tbl[b'n' as usize] = T_UNKNOWN;
-    tbl[b'N' as usize] = T_UNKNOWN;
-    tbl[b't' as usize] = T_UNKNOWN;
-    tbl[b'"' as usize] = T_UNKNOWN;
-    tbl[b'+' as usize] = T_UNKNOWN;
-    tbl[b'-' as usize] = T_UNKNOWN;
+    let mut tbl = [TError; 256];
+    tbl[b'{' as usize] = TObjBegin;
+    tbl[b'}' as usize] = TObjEnd;
+    tbl[b'[' as usize] = TArrBegin;
+    tbl[b']' as usize] = TArrEnd;
+    tbl[b',' as usize] = TComma;
+    tbl[b':' as usize] = TColon;
+    tbl[b'\0' as usize] = TEnd;
+    tbl[b' ' as usize] = TWhitespace;
+    tbl[b'\t' as usize] = TWhitespace;
+    tbl[b'\n' as usize] = TWhitespace;
+    tbl[b'\r' as usize] = TWhitespace;
+    tbl[b'f' as usize] = TUnknown;
+    tbl[b'i' as usize] = TUnknown;
+    tbl[b'I' as usize] = TUnknown;
+    tbl[b'n' as usize] = TUnknown;
+    tbl[b'N' as usize] = TUnknown;
+    tbl[b't' as usize] = TUnknown;
+    tbl[b'"' as usize] = TUnknown;
+    tbl[b'+' as usize] = TUnknown;
+    tbl[b'-' as usize] = TUnknown;
     let mut i = 0usize;
     while i < 10 {
-        tbl[(b'0' as usize) + i] = T_UNKNOWN;
+        tbl[(b'0' as usize) + i] = TUnknown;
         i += 1;
     }
     tbl
@@ -259,7 +259,7 @@ struct JsonToken {
 impl JsonToken {
     const fn new() -> Self {
         Self {
-            r#type: T_OBJ_BEGIN,
+            r#type: TObjBegin,
             index: 0,
             value: JsonTokenValue::None,
             string_len: 0,
@@ -1005,7 +1005,7 @@ fn json_set_token_error(
     errtype: &std::ffi::CStr,
 ) {
     unsafe {
-        token.r#type = T_ERROR;
+        token.r#type = TError;
         token.index = json.ptr.offset_from(json.data) as usize;
         token.value = JsonTokenValue::String(errtype.as_ptr());
     }
@@ -1052,7 +1052,7 @@ fn json_next_string_token(json: &mut JsonParse, token: &mut JsonToken) {
 
         strbuf_ensure_null(&mut *json.tmp);
 
-        token.r#type = T_STRING;
+        token.r#type = TString;
         token.value =
             JsonTokenValue::String(strbuf_string(&mut *json.tmp, &mut token.string_len));
     }
@@ -1153,17 +1153,17 @@ fn json_next_number_token(json: &mut JsonParse, token: &mut JsonToken) {
             || end_ch == b'E'
             || end_ch == b'x'
         {
-            token.r#type = T_NUMBER;
+            token.r#type = TNumber;
             token.value = JsonTokenValue::Number(fpconv_strtod(json.ptr, &mut endptr));
             if json.ptr == endptr.cast_const() {
                 json_set_token_error(token, json, c"invalid number");
                 return;
             }
         } else if tmpval > (isize::MAX as c_longlong) || tmpval < (isize::MIN as c_longlong) {
-            token.r#type = T_NUMBER;
+            token.r#type = TNumber;
             token.value = JsonTokenValue::Number(tmpval as c_double);
         } else {
-            token.r#type = T_INTEGER;
+            token.r#type = TInteger;
             token.value = JsonTokenValue::Integer(tmpval as lua_Integer);
         }
         json.ptr = endptr;
@@ -1178,7 +1178,7 @@ fn json_next_token(json: &mut JsonParse, token: &mut JsonToken) {
             loop {
                 ch = (*json.ptr as u8) as usize;
                 token.r#type = CH2TOKEN[ch];
-                if token.r#type != T_WHITESPACE {
+                if token.r#type != TWhitespace {
                     break;
                 }
                 json.ptr = json.ptr.add(1);
@@ -1220,16 +1220,16 @@ fn json_next_token(json: &mut JsonParse, token: &mut JsonToken) {
 
         token.index = json.ptr.offset_from(json.data) as usize;
 
-        if token.r#type == T_ERROR {
+        if token.r#type == TError {
             json_set_token_error(token, json, c"invalid token");
             return;
         }
 
-        if token.r#type == T_END {
+        if token.r#type == TEnd {
             return;
         }
 
-        if token.r#type != T_UNKNOWN {
+        if token.r#type != TUnknown {
             json.ptr = json.ptr.add(1);
             return;
         }
@@ -1242,17 +1242,17 @@ fn json_next_token(json: &mut JsonParse, token: &mut JsonToken) {
             json_next_number_token(json, token);
             return;
         } else if crate::memory::cstr_prefix_bytes(json.ptr, 4) == &b"true"[..4] {
-            token.r#type = T_BOOLEAN;
+            token.r#type = TBoolean;
             token.value = JsonTokenValue::Boolean(1);
             json.ptr = json.ptr.add(4);
             return;
         } else if crate::memory::cstr_prefix_bytes(json.ptr, 5) == &b"false"[..5] {
-            token.r#type = T_BOOLEAN;
+            token.r#type = TBoolean;
             token.value = JsonTokenValue::Boolean(0);
             json.ptr = json.ptr.add(5);
             return;
         } else if crate::memory::cstr_prefix_bytes(json.ptr, 4) == &b"null"[..4] {
-            token.r#type = T_NULL;
+            token.r#type = TNull;
             json.ptr = json.ptr.add(4);
             return;
         } else if json_is_invalid_number(json) {
@@ -1272,7 +1272,7 @@ fn json_throw_parse_error(
 ) -> ! {
     unsafe {
         *json.tmp = Strbuf::new();
-        let found = if token.r#type == T_ERROR {
+        let found = if token.r#type == TError {
             token.value.as_string()
         } else {
             JSON_TOKEN_TYPE_NAME[token.r#type as usize].as_ptr()
@@ -1319,7 +1319,7 @@ fn json_parse_object_context(l: *mut lua_State, json: &mut JsonParse) {
         lua_newtable(l);
         json_next_token(json, &mut token);
 
-        if token.r#type == T_OBJ_END {
+        if token.r#type == TObjEnd {
             nlua_pushref(l, nlua_get_empty_dict_ref(l));
             lua_setmetatable(l, -2);
             json_decode_ascend(json);
@@ -1327,14 +1327,14 @@ fn json_parse_object_context(l: *mut lua_State, json: &mut JsonParse) {
         }
 
         loop {
-            if token.r#type != T_STRING {
+            if token.r#type != TString {
                 json_throw_parse_error(l, json, c"object key string", &token);
             }
 
             lua_pushlstring(l, token.value.as_string(), token.string_len);
 
             json_next_token(json, &mut token);
-            if token.r#type != T_COLON {
+            if token.r#type != TColon {
                 json_throw_parse_error(l, json, c"colon", &token);
             }
 
@@ -1344,11 +1344,11 @@ fn json_parse_object_context(l: *mut lua_State, json: &mut JsonParse) {
             lua_rawset(l, -3);
 
             json_next_token(json, &mut token);
-            if token.r#type == T_OBJ_END {
+            if token.r#type == TObjEnd {
                 json_decode_ascend(json);
                 return;
             }
-            if token.r#type != T_COMMA {
+            if token.r#type != TComma {
                 json_throw_parse_error(l, json, c"comma or object end", &token);
             }
 
@@ -1366,7 +1366,7 @@ fn json_parse_array_context(l: *mut lua_State, json: &mut JsonParse) {
 
         json_next_token(json, &mut token);
 
-        if token.r#type == T_ARR_END {
+        if token.r#type == TArrEnd {
             json_decode_ascend(json);
             return;
         }
@@ -1377,11 +1377,11 @@ fn json_parse_array_context(l: *mut lua_State, json: &mut JsonParse) {
             lua_rawseti(l, -2, i);
 
             json_next_token(json, &mut token);
-            if token.r#type == T_ARR_END {
+            if token.r#type == TArrEnd {
                 json_decode_ascend(json);
                 return;
             }
-            if token.r#type != T_COMMA {
+            if token.r#type != TComma {
                 json_throw_parse_error(l, json, c"comma or array end", &token);
             }
 
@@ -1399,25 +1399,25 @@ fn json_process_value(
 ) {
     unsafe {
         match token.r#type {
-            T_STRING => {
+            TString => {
                 lua_pushlstring(l, token.value.as_string(), token.string_len);
             }
-            T_NUMBER => {
+            TNumber => {
                 lua_pushnumber(l, token.value.as_number());
             }
-            T_INTEGER => {
+            TInteger => {
                 lua_pushinteger(l, token.value.as_integer());
             }
-            T_BOOLEAN => {
+            TBoolean => {
                 lua_pushboolean(l, token.value.as_boolean());
             }
-            T_OBJ_BEGIN => {
+            TObjBegin => {
                 json_parse_object_context(l, json);
             }
-            T_ARR_BEGIN => {
+            TArrBegin => {
                 json_parse_array_context(l, json);
             }
-            T_NULL => {
+            TNull => {
                 if use_luanil {
                     lua_pushnil(l);
                 } else {
@@ -1491,7 +1491,7 @@ unsafe extern "C-unwind" fn json_decode(l: *mut lua_State) -> c_int {
         json_process_value(l, &mut json, &token, luanil_object);
 
         json_next_token(&mut json, &mut token);
-        if token.r#type != T_END {
+        if token.r#type != TEnd {
             json_throw_parse_error(l, &mut json, c"the end", &token);
         }
 

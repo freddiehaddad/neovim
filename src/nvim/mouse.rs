@@ -73,7 +73,7 @@ use std::ptr;
 
 use crate::cmdexpand::Ctrl_P;
 use crate::drawline::{VALID_CROW, VALID_WROW};
-use crate::eval::funcs::{kMTCharWise, kMTLineWise};
+use crate::eval::funcs::{MTCharWise, MTLineWise};
 use crate::ex_getln::{Ctrl_G, Ctrl_O, Ctrl_R, Ctrl_RSB, Ctrl_T};
 use crate::extmark::kNone;
 use crate::insexpand::kWinInfo;
@@ -356,22 +356,22 @@ fn call_click_def_func(
 
         let mut argv: [TypVal; 4] = [
             TypVal {
-                v_type: VarType::VAR_NUMBER,
+                v_type: VarType::VarNumber,
                 v_lock: VAR_FIXED,
                 vval: TypvalVval::Number(Varnumber::from((*click_defs.add(col as usize)).tabnr)),
             },
             TypVal {
-                v_type: VarType::VAR_NUMBER,
+                v_type: VarType::VarNumber,
                 v_lock: VAR_FIXED,
                 vval: TypvalVval::Number(clicks),
             },
             TypVal {
-                v_type: VarType::VAR_STRING,
+                v_type: VarType::VarString,
                 v_lock: VAR_FIXED,
                 vval: TypvalVval::String(btn_str.cast_mut()),
             },
             TypVal {
-                v_type: VarType::VAR_STRING,
+                v_type: VarType::VarString,
                 v_lock: VAR_FIXED,
                 vval: TypvalVval::String(mod_str.as_mut_ptr()),
             },
@@ -790,7 +790,7 @@ pub fn do_mouse(
 
         if !is_drag && oap.is_some() && oap.as_deref_mut().unwrap().op_type != OP_NOP {
             mouse_st().got_click = false;
-            oap.as_deref_mut().unwrap().motion_type = kMTCharWise;
+            oap.as_deref_mut().unwrap().motion_type = MTCharWise;
         }
 
         if !is_click && !is_drag {
@@ -1123,7 +1123,7 @@ pub fn do_mouse(
                         inc(&mut end_visual);
                     }
                     if oap.is_some() {
-                        oap.as_deref_mut().unwrap().motion_type = kMTCharWise;
+                        oap.as_deref_mut().unwrap().motion_type = MTCharWise;
                     }
                     if oap.is_some()
                         && g_st().Visual.mode == b'v' as c_int
@@ -1133,7 +1133,7 @@ pub fn do_mouse(
                         pos = findmatch(oap.as_deref_mut(), 0);
                         if !pos.is_null() {
                             curwin_mut().w_cursor = *pos;
-                            if oap.unwrap().motion_type == kMTLineWise {
+                            if oap.unwrap().motion_type == MTLineWise {
                                 g_st().Visual.mode = b'V' as c_int;
                             } else if crate::memory::cstr_first_byte(opt_vars().p_sel) == b'e' {
                                 if lt(curwin_mut().w_cursor, g_st().Visual.start) {

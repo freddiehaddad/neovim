@@ -58,7 +58,7 @@ mod tests {
             let tok = mpack_pack_number(val);
             assert_eq!(
                 tok.r#type,
-                crate::mpack::mpack_core::MpackTokenType::MPACK_TOKEN_SINT
+                crate::mpack::mpack_core::MpackTokenType::MpackTokenSint
             );
             assert_eq!(tok.length, expected_len);
         }

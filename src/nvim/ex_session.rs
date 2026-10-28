@@ -37,9 +37,9 @@ use crate::regexp::MAXCOL;
 pub(crate) const OPT_SKIPRTP: c_int = 0x80;
 pub(crate) const kCdCauseOther: c_int = -1;
 
-const CMD_mksession: c_int = 287;
-const CMD_mkvimrc: c_int = 289;
-const CMD_mkview: c_int = 290;
+const CmdMksession: c_int = 287;
+const CmdMkvimrc: c_int = 289;
+const CmdMkview: c_int = 290;
 
 const kOptSsopFlagBuffers: c_uint = 0x01;
 const kOptSsopFlagResize: c_uint = 0x04;
@@ -541,8 +541,8 @@ fn store_session_globals(fd: *mut FILE) -> bool {
                 todo -= 1;
                 let this_var = crate::eval::typval::tv_dict_hi2di(hi);
                 let key_ptr = (*this_var).di_key.as_mut_ptr();
-                if ((*this_var).di_tv.v_type == VarType::VAR_NUMBER
-                    || (*this_var).di_tv.v_type == VarType::VAR_STRING)
+                if ((*this_var).di_tv.v_type == VarType::VarNumber
+                    || (*this_var).di_tv.v_type == VarType::VarString)
                     && var_flavour(key_ptr) == VAR_FLAVOUR_SESSION
                 {
                     let p = vim_strsave_escaped(
@@ -563,7 +563,7 @@ fn store_session_globals(fd: *mut FILE) -> bool {
                         }
                         t = t.add(1);
                     }
-                    let quote = if (*this_var).di_tv.v_type == VarType::VAR_STRING {
+                    let quote = if (*this_var).di_tv.v_type == VarType::VarString {
                         '"'
                     } else {
                         ' '
@@ -579,7 +579,7 @@ fn store_session_globals(fd: *mut FILE) -> bool {
                     {
                         return false;
                     }
-                } else if (*this_var).di_tv.v_type == VarType::VAR_FLOAT
+                } else if (*this_var).di_tv.v_type == VarType::VarFloat
                     && var_flavour(key_ptr) == VAR_FLAVOUR_SESSION
                 {
                     let mut f = (*this_var).di_tv.vval.v_float();
@@ -1025,14 +1025,14 @@ pub fn ex_mkrc(eap: &mut Exarg) {
         let mut using_vdir = false;
         let mut view_file: Option<CString> = None;
 
-        if eap.cmdidx == CMD_mksession || eap.cmdidx == CMD_mkview {
+        if eap.cmdidx == CmdMksession || eap.cmdidx == CmdMkview {
             view_session = true;
         }
 
         exses_st().did_lcd = false;
 
         let fname: *mut c_char;
-        if eap.cmdidx == CMD_mkview
+        if eap.cmdidx == CmdMkview
             && (crate::memory::cstr_is_empty(eap.arg)
                 || (ascii_isdigit(*eap.arg as c_int) && crate::memory::cstr_byte_at(eap.arg, 1) == 0))
         {
@@ -1045,9 +1045,9 @@ pub fn ex_mkrc(eap: &mut Exarg) {
             using_vdir = true;
         } else if !crate::memory::cstr_is_empty(eap.arg) {
             fname = eap.arg;
-        } else if eap.cmdidx == CMD_mkvimrc {
+        } else if eap.cmdidx == CmdMkvimrc {
             fname = c".nvimrc".as_ptr().cast_mut();
-        } else if eap.cmdidx == CMD_mksession {
+        } else if eap.cmdidx == CmdMksession {
             fname = c"Session.vim".as_ptr().cast_mut();
         } else {
             fname = c".exrc".as_ptr().cast_mut();
@@ -1060,13 +1060,13 @@ pub fn ex_mkrc(eap: &mut Exarg) {
         let fd = open_exfile(fname, eap.forceit, c"wb");
         if !fd.is_null() {
             let mut failed = false;
-            let flagp = if eap.cmdidx == CMD_mkview {
+            let flagp = if eap.cmdidx == CmdMkview {
                 &raw mut opt_vars().vop_flags
             } else {
                 &raw mut opt_vars().ssop_flags
             };
 
-            if eap.cmdidx == CMD_mksession {
+            if eap.cmdidx == CmdMksession {
                 apply_autocmds(
                     EVENT_SESSIONWRITEPRE,
                     ptr::null_mut(),
@@ -1076,21 +1076,21 @@ pub fn ex_mkrc(eap: &mut Exarg) {
                 );
             }
 
-            if eap.cmdidx == CMD_mkvimrc {
+            if eap.cmdidx == CmdMkvimrc {
                 put_line(fd, c"version 6.0");
             }
 
-            if eap.cmdidx == CMD_mksession
+            if eap.cmdidx == CmdMksession
                 && !put_line(fd, c"let SessionLoad = 1")
             {
                 failed = true;
             }
 
             if !view_session
-                || (eap.cmdidx == CMD_mksession && (*flagp & kOptSsopFlagOptions) != 0)
+                || (eap.cmdidx == CmdMksession && (*flagp & kOptSsopFlagOptions) != 0)
             {
                 let mut flags = OPT_GLOBAL;
-                if eap.cmdidx == CMD_mksession && (*flagp & kOptSsopFlagSkiprtp) != 0 {
+                if eap.cmdidx == CmdMksession && (*flagp & kOptSsopFlagSkiprtp) != 0 {
                     flags |= OPT_SKIPRTP;
                 }
                 failed |= !makemap(fd, ptr::null_mut()) || !makeset(fd, flags, 0);
@@ -1104,7 +1104,7 @@ pub fn ex_mkrc(eap: &mut Exarg) {
                 {
                     failed = true;
                 }
-                if eap.cmdidx == CMD_mksession {
+                if eap.cmdidx == CmdMksession {
                     let mut dirnow_vec: Vec<c_char> = vec![0; MAXPATHL];
                     let dirnow = dirnow_vec.as_mut_ptr();
 
@@ -1147,7 +1147,7 @@ pub fn ex_mkrc(eap: &mut Exarg) {
                 if g_st().Search.no_hlsearch && !write_bytes(fd, b"nohlsearch\n") {
                     failed = true;
                 }
-                if eap.cmdidx == CMD_mksession
+                if eap.cmdidx == CmdMksession
                     && !write_bytes(fd, b"doautoall SessionLoadPost\nunlet SessionLoad\n")
                 {
                     failed = true;
@@ -1161,7 +1161,7 @@ pub fn ex_mkrc(eap: &mut Exarg) {
 
             if failed {
                 emsg(gettext(e_write));
-            } else if eap.cmdidx == CMD_mksession {
+            } else if eap.cmdidx == CmdMksession {
                 let mut tbuf: Vec<c_char> = vec![0; MAXPATHL];
                 if vim_FullName(fname, tbuf.as_mut_ptr(), MAXPATHL, false) {
                     set_vim_var_string(VV_THIS_SESSION, tbuf.as_ptr(), -1);
@@ -1171,7 +1171,7 @@ pub fn ex_mkrc(eap: &mut Exarg) {
 
         drop(view_file);
 
-        if eap.cmdidx == CMD_mksession {
+        if eap.cmdidx == CmdMksession {
             apply_autocmds(
                 EVENT_SESSIONWRITEPOST,
                 ptr::null_mut(),

@@ -1424,7 +1424,7 @@ fn sign_define_multiple(l: Option<&TvList>, retlist: &mut TvList) {
         }
         for li in crate::eval::typval::list_iter_mut(l.unwrap().lv_first) {
             let mut retval: c_int = -1;
-            if li.li_tv.v_type == VarType::VAR_DICT {
+            if li.li_tv.v_type == VarType::VarDict {
                 retval = sign_define_from_dict(
                     ptr::null_mut(),
                     unsafe { li.li_tv.vval.v_dict().as_ref() },
@@ -1440,8 +1440,8 @@ fn sign_define_multiple(l: Option<&TvList>, retlist: &mut TvList) {
 pub fn f_sign_define(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData){
 
      {
-        if argvars[0].v_type == VarType::VAR_LIST
-            && argvars[1].v_type == VarType::VAR_UNKNOWN
+        if argvars[0].v_type == VarType::VarList
+            && argvars[1].v_type == VarType::VarUnknown
         {
             tv_list_alloc_ret(rettv, kListLenMayKnow);
             sign_define_multiple(unsafe { argvars[0].vval.v_list().as_ref() }, unsafe { &mut *rettv.vval.v_list() });
@@ -1459,7 +1459,7 @@ pub fn f_sign_define(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFunc
             return;
         }
 
-        let d = if argvars[1].v_type == VarType::VAR_DICT {
+        let d = if argvars[1].v_type == VarType::VarDict {
             argvars[1].vval.v_dict()
         } else {
             ptr::null_mut()
@@ -1473,7 +1473,7 @@ pub fn f_sign_getdefined(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: Eval
     unsafe {
         tv_list_alloc_ret(rettv, 0);
 
-        if argvars[0].v_type == VarType::VAR_UNKNOWN {
+        if argvars[0].v_type == VarType::VarUnknown {
             for sp in &mut sign_st().sign_map {
                 tv_list_append_dict( &mut *rettv.vval.v_list(), sign_get_info_dict(sp));
             }
@@ -1497,13 +1497,13 @@ pub fn f_sign_getplaced(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalF
 
         tv_list_alloc_ret(rettv, 0);
 
-        if argvars[0].v_type != VarType::VAR_UNKNOWN {
+        if argvars[0].v_type != VarType::VarUnknown {
             buf = get_buf_arg(&mut argvars[0]);
             if buf.is_null() {
                 return;
             }
 
-            if argvars[1].v_type != VarType::VAR_UNKNOWN {
+            if argvars[1].v_type != VarType::VarUnknown {
                 if !tv_check_for_nonnull_dict_arg(argvars, 1) {
                     return;
                 }
@@ -1677,7 +1677,7 @@ pub fn f_sign_place(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncD
 
     rettv.vval = crate::eval::typval::TypvalVval::Number(-1);
 
-    if argvars[4].v_type != VarType::VAR_UNKNOWN {
+    if argvars[4].v_type != VarType::VarUnknown {
         if !tv_check_for_nonnull_dict_arg(argvars, 4) {
             return;
         }
@@ -1700,7 +1700,7 @@ pub fn f_sign_placelist(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalF
     unsafe {
         tv_list_alloc_ret(rettv, kListLenMayKnow);
 
-        if argvars[0].v_type != VarType::VAR_LIST {
+        if argvars[0].v_type != VarType::VarList {
             emsg(gettext(e_listreq));
             return;
         }
@@ -1709,7 +1709,7 @@ pub fn f_sign_placelist(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalF
         if !l.is_null() {
             for li in crate::eval::typval::list_iter_mut((*l).lv_first) {
                 let mut sign_id: c_int = -1;
-                if li.li_tv.v_type == VarType::VAR_DICT {
+                if li.li_tv.v_type == VarType::VarDict {
                     sign_id = sign_place_from_dict(
                         None,
                         None,
@@ -1745,8 +1745,8 @@ fn sign_undefine_multiple(l: Option<&TvList>, retlist: &mut TvList) {
 pub fn f_sign_undefine(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData){
 
      {
-        if argvars[0].v_type == VarType::VAR_LIST
-            && argvars[1].v_type == VarType::VAR_UNKNOWN
+        if argvars[0].v_type == VarType::VarList
+            && argvars[1].v_type == VarType::VarUnknown
         {
             tv_list_alloc_ret(rettv, kListLenMayKnow);
             sign_undefine_multiple(unsafe { argvars[0].vval.v_list().as_ref() }, unsafe { &mut *rettv.vval.v_list() });
@@ -1755,7 +1755,7 @@ pub fn f_sign_undefine(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFu
 
         rettv.vval = crate::eval::typval::TypvalVval::Number(-1);
 
-        if argvars[0].v_type == VarType::VAR_UNKNOWN {
+        if argvars[0].v_type == VarType::VarUnknown {
             free_signs();
             rettv.vval = crate::eval::typval::TypvalVval::Number(0);
         } else {
@@ -1815,7 +1815,7 @@ pub fn f_sign_unplace(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFun
         return;
     }
 
-    if argvars[1].v_type != VarType::VAR_UNKNOWN {
+    if argvars[1].v_type != VarType::VarUnknown {
         dict = argvars[1].vval.v_dict();
     }
 
@@ -1831,7 +1831,7 @@ pub fn f_sign_unplacelist(argvars: &mut [TypVal], rettv: &mut TypVal,
     unsafe {
         tv_list_alloc_ret(rettv, kListLenMayKnow);
 
-        if argvars[0].v_type != VarType::VAR_LIST {
+        if argvars[0].v_type != VarType::VarList {
             emsg(gettext(e_listreq));
             return;
         }
@@ -1840,7 +1840,7 @@ pub fn f_sign_unplacelist(argvars: &mut [TypVal], rettv: &mut TypVal,
         if !l.is_null() {
             for li in crate::eval::typval::list_iter_mut((*l).lv_first) {
                 let mut retval: c_int = -1;
-                if li.li_tv.v_type == VarType::VAR_DICT {
+                if li.li_tv.v_type == VarType::VarDict {
                     retval = sign_unplace_from_dict(
                         None,
                         li.li_tv.vval.v_dict().as_ref(),

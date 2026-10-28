@@ -30,10 +30,10 @@ use std::ptr;
 
 const CSTACK_LEN: usize = 50;
 
-const CMD_else: c_int = 142;
-const CMD_elseif: c_int = 143;
-const CMD_endwhile: c_int = 149;
-const CMD_while: c_int = 532;
+const CmdElse: c_int = 142;
+const CmdElseif: c_int = 143;
+const CmdEndwhile: c_int = 149;
+const CmdWhile: c_int = 532;
 
 pub const CSF_TRUE: c_int = 0x0001;
 pub const CSF_ACTIVE: c_int = 0x0002;
@@ -889,14 +889,14 @@ pub fn ex_else(eap: &mut Exarg) {
             || ((*cstack).cs_flags[(*cstack).cs_idx as usize] & (CSF_WHILE | CSF_FOR | CSF_TRY))
                 != 0
         {
-            if eap.cmdidx == CMD_else {
+            if eap.cmdidx == CmdElse {
                 eap.errmsg = gettext(c"E581: :else without :if");
                 return;
             }
             eap.errmsg = gettext(c"E582: :elseif without :if");
             skip = true;
         } else if ((*cstack).cs_flags[(*cstack).cs_idx as usize] & CSF_ELSE) != 0 {
-            if eap.cmdidx == CMD_else {
+            if eap.cmdidx == CmdElse {
                 eap.errmsg = gettext(E_MULTIPLE_ELSE);
                 return;
             }
@@ -919,7 +919,7 @@ pub fn ex_else(eap: &mut Exarg) {
             skip = true;
         }
 
-        if eap.cmdidx == CMD_elseif {
+        if eap.cmdidx == CmdElseif {
             let mut result = false;
             let mut error = false;
             if skip
@@ -960,14 +960,14 @@ pub fn ex_while(eap: &mut Exarg) {
                 (*cstack).cs_line[(*cstack).cs_idx as usize] = -1;
             }
             let idx = (*cstack).cs_idx as usize;
-            (*cstack).cs_flags[idx] = if eap.cmdidx == CMD_while {
+            (*cstack).cs_flags[idx] = if eap.cmdidx == CmdWhile {
                 CSF_WHILE
             } else {
                 CSF_FOR
             };
 
             let skip = check_skip(&*cstack);
-            let result = if eap.cmdidx == CMD_while {
+            let result = if eap.cmdidx == CmdWhile {
                 eval_to_bool(eap.arg, &mut error, eap, skip, false)
             } else {
                 let mut evalarg = Evalarg::new();
@@ -1047,7 +1047,7 @@ pub fn ex_break(eap: &mut Exarg) {
 pub fn ex_endwhile(eap: &mut Exarg) {
     unsafe {
         let cstack = eap.cstack.cast::<Cstack>();
-        let (err, csf) = if eap.cmdidx == CMD_endwhile {
+        let (err, csf) = if eap.cmdidx == CmdEndwhile {
             (e_while.as_ptr(), CSF_WHILE)
         } else {
             (e_for.as_ptr(), CSF_FOR)

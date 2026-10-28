@@ -140,8 +140,8 @@ pub struct TerminfoExt {
 #[repr(C)]
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum FlushBufFinish {
-    kFlushBufPartial = 0,
-    kFlushBufFinal = 1,
+    FlushBufPartial = 0,
+    FlushBufFinal = 1,
 }
 
 #[repr(C)]
@@ -258,7 +258,7 @@ impl TUIData {
             screenshot: None,
             cursor_shapes: [Cursorentry {
                 full_name: c"",
-                shape: CursorShape::SHAPE_BLOCK,
+                shape: CursorShape::ShapeBlock,
                 mshape: 0,
                 percentage: 0,
                 blinkwait: 0,
@@ -544,7 +544,7 @@ fn tui_query_bg_color_noflush(tui: &mut TUIData) {
 
 pub fn tui_query_bg_color(tui: &mut TUIData) {
     tui_query_bg_color_noflush(tui);
-        flush_buf(tui, FlushBufFinish::kFlushBufFinal);
+        flush_buf(tui, FlushBufFinish::FlushBufFinal);
 }
 
 #[derive(Clone, Copy)]
@@ -566,13 +566,13 @@ impl TermdefFieldTarget {
     const fn expected_type(self) -> ObjectType {
         match self {
             Self::BoolBackColorErase | Self::BoolTc | Self::BoolRGB | Self::BoolSu => {
-                ObjectType::kObjectTypeBoolean
+                ObjectType::ObjectTypeBoolean
             }
             Self::IntMaxColors | Self::IntLines | Self::IntColumns => {
-                ObjectType::kObjectTypeInteger
+                ObjectType::ObjectTypeInteger
             }
-            Self::Def(_) | Self::KeyStr(_) | Self::FKey(_) => ObjectType::kObjectTypeString,
-            Self::KeyArr(_) => ObjectType::kObjectTypeArray,
+            Self::Def(_) | Self::KeyStr(_) | Self::FKey(_) => ObjectType::ObjectTypeString,
+            Self::KeyArr(_) => ObjectType::ObjectTypeArray,
         }
     }
 }
@@ -701,7 +701,7 @@ fn apply_termdefs(tui: &mut TUIData) {
             None,
             &mut lua_err,
         );
-        if rv.obj_type != ObjectType::kObjectTypeDict {
+        if rv.obj_type != ObjectType::ObjectTypeDict {
             api_free_object(rv);
             api_clear_error(&mut lua_err);
             return;
@@ -781,7 +781,7 @@ fn apply_termdefs(tui: &mut TUIData) {
                     tui.ti.keys[idx][1] = None;
                     for key_map_idx in 0..arr.size {
                         let key_mapping = arr[key_map_idx];
-                        if key_mapping.obj_type != ObjectType::kObjectTypeString {
+                        if key_mapping.obj_type != ObjectType::ObjectTypeString {
                             let msg = format!(
                                 "skipping invalid field definition in $NVIM_TERMDEFS for {key_str}[{key_map_idx}]: expected type 'string'\n"
                             );
@@ -1048,7 +1048,7 @@ fn terminfo_start(tui: &mut TUIData) {
                 );
             }
         }
-        flush_buf(tui, FlushBufFinish::kFlushBufFinal);
+        flush_buf(tui, FlushBufFinish::FlushBufFinal);
     }
 }
 
@@ -1084,7 +1084,7 @@ fn terminfo_disable(tui: &mut TUIData) {
         let da1 = b"\x1b[c";
         out(tui, da1.as_ptr().cast::<c_char>(), da1.len());
 
-        flush_buf(tui, FlushBufFinish::kFlushBufFinal);
+        flush_buf(tui, FlushBufFinish::FlushBufFinal);
 }
 
 fn terminfo_stop(tui: &mut TUIData) {
@@ -1098,7 +1098,7 @@ fn terminfo_stop(tui: &mut TUIData) {
             terminfo_out(tui, kTerm_exit_ca_mode);
         }
 
-        flush_buf(tui, FlushBufFinish::kFlushBufFinal);
+        flush_buf(tui, FlushBufFinish::FlushBufFinal);
         uv_tty_reset_mode();
         uv_close(tui_output_handle(tui), None);
         uv_run(tui_write_loop(tui), UV_RUN_DEFAULT);
@@ -1136,7 +1136,7 @@ unsafe extern "C" fn after_startup_cb(handle: *mut uv_timer_t) {
 
 fn tui_terminal_after_startup(tui: &mut TUIData) {
     out_len(tui, tui.terminfo_ext.enable_focus_reporting);
-        flush_buf(tui, FlushBufFinish::kFlushBufFinal);
+        flush_buf(tui, FlushBufFinish::FlushBufFinal);
 }
 
 pub fn tui_stop(tui: &mut TUIData) {
@@ -1633,7 +1633,7 @@ fn print_spaces(tui: &mut TUIData, width: c_int) {
             if left == 0 {
                 break;
             }
-            flush_buf(tui, FlushBufFinish::kFlushBufPartial);
+            flush_buf(tui, FlushBufFinish::FlushBufPartial);
         }
 
         tui.grid.col += width;
@@ -1770,11 +1770,11 @@ pub fn tui_grid_cursor_goto(tui: &mut TUIData, _grid: Integer, row: Integer, col
 
 fn tui_cursor_decode_shape(shape_str: impl crate::strings::IntoCCharPtr) -> CursorShape { let shape_str = shape_str.into_c_char_ptr();
     if crate::memory::cstr_as_opt_bytes(shape_str) == Some(b"block") {
-            CursorShape::SHAPE_BLOCK
+            CursorShape::ShapeBlock
         } else if crate::memory::cstr_as_opt_bytes(shape_str) == Some(b"vertical") {
-            CursorShape::SHAPE_VER
+            CursorShape::ShapeVer
         } else if crate::memory::cstr_as_opt_bytes(shape_str) == Some(b"horizontal") {
-            CursorShape::SHAPE_HOR
+            CursorShape::ShapeHor
         } else {
             if log_st().g_min_log_level <= LOGLVL_WRN {
                 logmsg!(
@@ -1787,7 +1787,7 @@ fn tui_cursor_decode_shape(shape_str: impl crate::strings::IntoCCharPtr) -> Curs
                     shape_str,
                 );
             }
-            CursorShape::SHAPE_BLOCK
+            CursorShape::ShapeBlock
         }
 }
 
@@ -1825,7 +1825,7 @@ pub fn tui_mode_info_set(tui: &mut TUIData, guicursor_enabled: bool, args: Array
 
         for i in 0..args.size {
             let item = args[i];
-            assert!(item.obj_type == ObjectType::kObjectTypeDict);
+            assert!(item.obj_type == ObjectType::ObjectTypeDict);
             let r = decode_cursor_entry(item.data.dict());
             tui.cursor_shapes[i] = r;
         }
@@ -1899,9 +1899,9 @@ fn tui_set_mode(tui: &mut TUIData, mode: ModeShape) {
         }
 
         let shape = match c.shape {
-            CursorShape::SHAPE_BLOCK => 1,
-            CursorShape::SHAPE_HOR => 3,
-            CursorShape::SHAPE_VER => 5,
+            CursorShape::ShapeBlock => 1,
+            CursorShape::ShapeHor => 3,
+            CursorShape::ShapeVer => 5,
         };
         let steady = c_int::from(c.blinkon == 0 || c.blinkoff == 0);
         terminfo_print_num1(tui, kTerm_set_cursor_style, shape + steady);
@@ -2058,13 +2058,13 @@ pub fn tui_visual_bell(tui: &mut TUIData) {
             let on = b"\x1b[?5h";
             out(tui, on.as_ptr().cast::<c_char>(), on.len());
 
-            flush_buf(tui, FlushBufFinish::kFlushBufFinal);
+            flush_buf(tui, FlushBufFinish::FlushBufFinal);
             uv_sleep(100);
 
             let off = b"\x1b[?5l";
             out(tui, off.as_ptr().cast::<c_char>(), off.len());
         }
-        flush_buf(tui, FlushBufFinish::kFlushBufFinal);
+        flush_buf(tui, FlushBufFinish::FlushBufFinal);
     }
 }
 
@@ -2174,7 +2174,7 @@ pub fn tui_flush(tui: &mut TUIData) {
         }
 
         cursor_goto(tui, tui.row, tui.col);
-        flush_buf(tui, FlushBufFinish::kFlushBufFinal);
+        flush_buf(tui, FlushBufFinish::FlushBufFinal);
     }
 }
 
@@ -2301,7 +2301,7 @@ pub fn tui_set_title(tui: &mut TUIData, title: NvimString) {
             }
 
             if (tui.buf.len() - tui.bufpos) < title.size + 2 * TERMINFO_SEQ_LIMIT {
-                flush_buf(tui, FlushBufFinish::kFlushBufFinal);
+                flush_buf(tui, FlushBufFinish::FlushBufFinal);
             }
             terminfo_out(tui, kTerm_to_status_line);
             out(tui, title.data, title.size);
@@ -2321,7 +2321,7 @@ pub fn tui_screenshot(tui: &mut TUIData, path: NvimString) {
             return;
         };
 
-        flush_buf(tui, FlushBufFinish::kFlushBufFinal);
+        flush_buf(tui, FlushBufFinish::FlushBufFinal);
         tui.grid.row = 0;
         tui.grid.col = 0;
 
@@ -2342,7 +2342,7 @@ pub fn tui_screenshot(tui: &mut TUIData, path: NvimString) {
                 print_cell(tui, buf.as_ptr(), cell.attr);
             }
         }
-        flush_buf(tui, FlushBufFinish::kFlushBufFinal);
+        flush_buf(tui, FlushBufFinish::FlushBufFinal);
         tui.screenshot = None;
     }
 }
@@ -2584,10 +2584,10 @@ fn out(tui: &mut TUIData, str_: *const c_char, len: usize) {
     unsafe {
         let available = tui.buf.len() - tui.bufpos;
         if len > available {
-            flush_buf(tui, FlushBufFinish::kFlushBufPartial);
+            flush_buf(tui, FlushBufFinish::FlushBufPartial);
             if len > tui.buf.len() {
                 tui.bufpos = len;
-                flush_buf_raw(tui, FlushBufFinish::kFlushBufPartial, str_.cast_mut());
+                flush_buf_raw(tui, FlushBufFinish::FlushBufPartial, str_.cast_mut());
                 return;
             }
         }
@@ -2608,7 +2608,7 @@ fn out_printf_str(tui: &mut TUIData, limit: usize, formatted: &str) {
         assert!(limit <= tui.buf.len());
         let available = tui.buf.len() - tui.bufpos;
         if available < limit {
-            flush_buf(tui, FlushBufFinish::kFlushBufPartial);
+            flush_buf(tui, FlushBufFinish::FlushBufPartial);
         }
         let bytes = formatted.as_bytes();
         let copy_len = bytes.len().min(limit.saturating_sub(1));
@@ -2682,7 +2682,7 @@ fn terminfo_print(tui: &mut TUIData, what: TerminfoDef, params: *mut TPVAR) {
             }
         }
 
-        flush_buf(tui, FlushBufFinish::kFlushBufPartial);
+        flush_buf(tui, FlushBufFinish::FlushBufPartial);
         let len = terminfo_fmt(buf_start.add(tui.bufpos), buf_end, str_, params);
         if len > 0 {
             tui.bufpos += len;
@@ -3032,7 +3032,7 @@ fn flush_buf_raw(tui: &mut TUIData, finish: FlushBufFinish, buf_to_flush: *mut c
 
         if tui.bufpos == 0
             && tui.is_invisible == should_be_invisible
-            && !(finish == FlushBufFinish::kFlushBufFinal && tui.sync_output_active)
+            && !(finish == FlushBufFinish::FlushBufFinal && tui.sync_output_active)
         {
             return;
         }
@@ -3065,7 +3065,7 @@ fn flush_buf_raw(tui: &mut TUIData, finish: FlushBufFinish, buf_to_flush: *mut c
             }
         }
 
-        if finish == FlushBufFinish::kFlushBufFinal && tui.sync_output_active {
+        if finish == FlushBufFinish::FlushBufFinal && tui.sync_output_active {
             let sync_end = b"\x1b[?2026l\0";
             ptr::copy_nonoverlapping(
                 sync_end.as_ptr().cast::<c_char>(),

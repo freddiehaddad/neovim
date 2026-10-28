@@ -2667,9 +2667,9 @@ fn vim_regsub_both(
                     let mut argv: [TypVal; 2] = [TypVal::new(); 2];
                     let mut rettv: TypVal = TypVal::new();
                     let mut matchList = StaticList10::new();
-                    rettv.v_type = VarType::VAR_STRING;
+                    rettv.v_type = VarType::VarString;
                     rettv.vval = crate::eval::typval::TypvalVval::String(ptr::null_mut());
-                    argv[0].v_type = VarType::VAR_LIST;
+                    argv[0].v_type = VarType::VarList;
                     argv[0].vval = crate::eval::typval::TypvalVval::List(&raw mut matchList.sl_list);
                     let mut funcexe = Funcexe {
                         fe_fill_submatch: true,
@@ -2682,7 +2682,7 @@ fn vim_regsub_both(
                         fe_basetv: ptr::null_mut(),
                         fe_found_var: false,
                     };
-                    if expr.v_type == VarType::VAR_FUNC {
+                    if expr.v_type == VarType::VarFunc {
                         let s = expr.vval.v_string();
                         call_func(
                             s,
@@ -2692,7 +2692,7 @@ fn vim_regsub_both(
                             argv.as_mut_ptr(),
                             &mut funcexe,
                         );
-                    } else if expr.v_type == VarType::VAR_PARTIAL {
+                    } else if expr.v_type == VarType::VarPartial {
                         let partial = expr.vval.v_partial();
                         let s = partial_name(partial.as_ref());
                         funcexe.fe_partial = partial;
@@ -2705,7 +2705,7 @@ fn vim_regsub_both(
                             &mut funcexe,
                         );
                     }
-                    if rettv.v_type == VarType::VAR_UNKNOWN {
+                    if rettv.v_type == VarType::VarUnknown {
                         *eval_slot = None;
                     } else {
                         let mut buf: [c_char; NUMBUFLEN] = [0; NUMBUFLEN];

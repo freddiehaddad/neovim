@@ -490,13 +490,13 @@ fn array_to_string(array: Array, err: &mut Error) -> Vec<u8> {
         let mut list_tv: TypVal = TypVal::new();
         object_to_vim(array_obj(array), &mut list_tv, err);
 
-        assert_eq!(list_tv.v_type, VarType::VAR_LIST);
+        assert_eq!(list_tv.v_type, VarType::VarList);
         if let Some(buf) = encode_vim_list_to_buf(list_tv.vval.v_list().as_ref()) {
             sbuf = buf.into_iter().map(|c| c as u8).collect();
         } else {
             api_set_error!(
                 err,
-                ErrorType::kErrorTypeException,
+                ErrorType::ErrorTypeException,
                 c"%s",
                 c"E474: Failed to convert list to msgpack string buffer",
             );
@@ -552,7 +552,7 @@ pub fn ctx_from_dict(dict: Dict, ctx: &mut Context, err: &mut Error) -> CtxState
         while i < dict.size && !error_set(err) {
             let item = dict[i];
             i += 1;
-            if item.value.obj_type != ObjectType::kObjectTypeArray {
+            if item.value.obj_type != ObjectType::ObjectTypeArray {
                 continue;
             }
             if crate::memory::cstr_as_opt_bytes(item.key.data) == Some(b"regs") {

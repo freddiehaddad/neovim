@@ -35,9 +35,9 @@ const SHAPE_BOTH: c_char = (SHAPE_CURSOR + SHAPE_MOUSE) as c_char;
 #[repr(C)]
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum CursorShape {
-    SHAPE_BLOCK = 0,
-    SHAPE_HOR = 1,
-    SHAPE_VER = 2,
+    ShapeBlock = 0,
+    ShapeHor = 1,
+    ShapeVer = 2,
 }
 
 #[repr(C)]
@@ -70,7 +70,7 @@ const fn entry(
 ) -> Cursorentry {
     Cursorentry {
         full_name,
-        shape: CursorShape::SHAPE_BLOCK,
+        shape: CursorShape::ShapeBlock,
         mshape: 0,
         percentage: 0,
         blinkwait,
@@ -129,7 +129,7 @@ fn dict_put_c(dic: &mut Dict, key: &'static CStr, value: Object) {
 fn clear_shape_table() {
     let tbl = unsafe { &mut *std::ptr::addr_of_mut!((*shape_table_mut())) };
     for entry in tbl.iter_mut() {
-        entry.shape = CursorShape::SHAPE_BLOCK;
+        entry.shape = CursorShape::ShapeBlock;
         entry.blinkwait = 0;
         entry.blinkon = 0;
         entry.blinkoff = 0;
@@ -151,7 +151,7 @@ pub fn mode_style_array(arena: &mut Arena) -> Array {
                 &mut dic,
                 c"name",
                 Object {
-                    obj_type: ObjectType::kObjectTypeString,
+                    obj_type: ObjectType::ObjectTypeString,
                     data: ObjectData::String(cstr_as_string(cur.full_name.as_ptr())),
                 },
             );
@@ -159,7 +159,7 @@ pub fn mode_style_array(arena: &mut Arena) -> Array {
                 &mut dic,
                 c"short_name",
                 Object {
-                    obj_type: ObjectType::kObjectTypeString,
+                    obj_type: ObjectType::ObjectTypeString,
                     data: ObjectData::String(cstr_as_string(cur.name.as_ptr())),
                 },
             );
@@ -168,22 +168,22 @@ pub fn mode_style_array(arena: &mut Arena) -> Array {
                     &mut dic,
                     c"mouse_shape",
                     Object {
-                        obj_type: ObjectType::kObjectTypeInteger,
+                        obj_type: ObjectType::ObjectTypeInteger,
                         data: ObjectData::Integer(cur.mshape as i64),
                     },
                 );
             }
             if is_cursor {
                 let shape_cstr = match cur.shape {
-                    CursorShape::SHAPE_BLOCK => c"block",
-                    CursorShape::SHAPE_VER => c"vertical",
-                    CursorShape::SHAPE_HOR => c"horizontal",
+                    CursorShape::ShapeBlock => c"block",
+                    CursorShape::ShapeVer => c"vertical",
+                    CursorShape::ShapeHor => c"horizontal",
                 };
                 dict_put_c(
                     &mut dic,
                     c"cursor_shape",
                     Object {
-                        obj_type: ObjectType::kObjectTypeString,
+                        obj_type: ObjectType::ObjectTypeString,
                         data: ObjectData::String(cstr_as_string(shape_cstr.as_ptr())),
                     },
                 );
@@ -191,7 +191,7 @@ pub fn mode_style_array(arena: &mut Arena) -> Array {
                     &mut dic,
                     c"cell_percentage",
                     Object {
-                        obj_type: ObjectType::kObjectTypeInteger,
+                        obj_type: ObjectType::ObjectTypeInteger,
                         data: ObjectData::Integer(cur.percentage as i64),
                     },
                 );
@@ -199,7 +199,7 @@ pub fn mode_style_array(arena: &mut Arena) -> Array {
                     &mut dic,
                     c"blinkwait",
                     Object {
-                        obj_type: ObjectType::kObjectTypeInteger,
+                        obj_type: ObjectType::ObjectTypeInteger,
                         data: ObjectData::Integer(cur.blinkwait as i64),
                     },
                 );
@@ -207,7 +207,7 @@ pub fn mode_style_array(arena: &mut Arena) -> Array {
                     &mut dic,
                     c"blinkon",
                     Object {
-                        obj_type: ObjectType::kObjectTypeInteger,
+                        obj_type: ObjectType::ObjectTypeInteger,
                         data: ObjectData::Integer(cur.blinkon as i64),
                     },
                 );
@@ -215,7 +215,7 @@ pub fn mode_style_array(arena: &mut Arena) -> Array {
                     &mut dic,
                     c"blinkoff",
                     Object {
-                        obj_type: ObjectType::kObjectTypeInteger,
+                        obj_type: ObjectType::ObjectTypeInteger,
                         data: ObjectData::Integer(cur.blinkoff as i64),
                     },
                 );
@@ -223,7 +223,7 @@ pub fn mode_style_array(arena: &mut Arena) -> Array {
                     &mut dic,
                     c"hl_id",
                     Object {
-                        obj_type: ObjectType::kObjectTypeInteger,
+                        obj_type: ObjectType::ObjectTypeInteger,
                         data: ObjectData::Integer(cur.id as i64),
                     },
                 );
@@ -231,7 +231,7 @@ pub fn mode_style_array(arena: &mut Arena) -> Array {
                     &mut dic,
                     c"id_lm",
                     Object {
-                        obj_type: ObjectType::kObjectTypeInteger,
+                        obj_type: ObjectType::ObjectTypeInteger,
                         data: ObjectData::Integer(cur.id_lm as i64),
                     },
                 );
@@ -239,7 +239,7 @@ pub fn mode_style_array(arena: &mut Arena) -> Array {
                     &mut dic,
                     c"attr_id",
                     Object {
-                        obj_type: ObjectType::kObjectTypeInteger,
+                        obj_type: ObjectType::ObjectTypeInteger,
                         data: ObjectData::Integer(if cur.id != 0 {
                             syn_id2attr(cur.id) as i64
                         } else {
@@ -251,7 +251,7 @@ pub fn mode_style_array(arena: &mut Arena) -> Array {
                     &mut dic,
                     c"attr_id_lm",
                     Object {
-                        obj_type: ObjectType::kObjectTypeInteger,
+                        obj_type: ObjectType::ObjectTypeInteger,
                         data: ObjectData::Integer(if cur.id_lm != 0 {
                             syn_id2attr(cur.id_lm) as i64
                         } else {
@@ -262,7 +262,7 @@ pub fn mode_style_array(arena: &mut Arena) -> Array {
             }
             assert!(all.size < all.capacity);
             *all.items.add(all.size) = Object {
-                obj_type: ObjectType::kObjectTypeDict,
+                obj_type: ObjectType::ObjectTypeDict,
                 data: ObjectData::Dict(dic),
             };
             all.size += 1;
@@ -364,9 +364,9 @@ pub fn parse_shape_opt(what: c_int) -> *const c_char {
                                 }
                                 if round == 2 {
                                     if first_byte.eq_ignore_ascii_case(&b'v') {
-                                        tbl[idx].shape = CursorShape::SHAPE_VER;
+                                        tbl[idx].shape = CursorShape::ShapeVer;
                                     } else {
-                                        tbl[idx].shape = CursorShape::SHAPE_HOR;
+                                        tbl[idx].shape = CursorShape::ShapeHor;
                                     }
                                     tbl[idx].percentage = n;
                                 }
@@ -381,7 +381,7 @@ pub fn parse_shape_opt(what: c_int) -> *const c_char {
                             }
                         } else if crate::memory::cstr_prefix_bytes(p, 5).eq_ignore_ascii_case(b"block") {
                             if round == 2 {
-                                tbl[idx].shape = CursorShape::SHAPE_BLOCK;
+                                tbl[idx].shape = CursorShape::ShapeBlock;
                             }
                             p = p.add(5);
                         } else {

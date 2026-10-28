@@ -535,7 +535,7 @@ fn stacktrace_push_item(
 ) { let event = event.into_c_char_ptr(); let filepath = filepath.into_c_char_ptr();
     let d = tv_dict_alloc_lock(VAR_FIXED);
         let mut tv = TypVal {
-            v_type: VarType::VAR_DICT,
+            v_type: VarType::VarDict,
             v_lock: VAR_LOCKED,
             vval: TypvalVval::Dict(d),
         };
@@ -597,7 +597,7 @@ pub fn stacktrace_create() -> *mut TvList {
 pub fn f_getstacktrace(_argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData){
     unsafe {
         let l = stacktrace_create();
-        rettv.v_type = VarType::VAR_LIST;
+        rettv.v_type = VarType::VarList;
         rettv.vval = crate::eval::typval::TypvalVval::List(l);
         if !l.is_null() {
             (*l).lv_refcount += 1;
@@ -1051,7 +1051,7 @@ fn runtime_get_named_common(
 
         for j in 0..pat.size {
             let pat_item = pat[j];
-            if pat_item.obj_type == ObjectType::kObjectTypeString {
+            if pat_item.obj_type == ObjectType::ObjectTypeString {
                 let size = vim_snprintf!(
                     buf,
                     buf_len,
@@ -2244,7 +2244,7 @@ fn add_dir(
             return dest;
         }
         dest = strcpy_comma_escaped(dest, dir, dir_len);
-        let append_nvim = matches!(type_, XDGVarType::kXDGDataHome | XDGVarType::kXDGConfigHome);
+        let append_nvim = matches!(type_, XDGVarType::XDGDataHome | XDGVarType::XDGConfigHome);
         if append_nvim {
             if after_pathsep(dest.sub(1), dest) == 0 {
                 *dest = PATHSEP;
@@ -2259,7 +2259,7 @@ fn add_dir(
             let iobuff = g_st().IObuff.as_mut_ptr();
             crate::memory::cstr_ncpy(iobuff, appname, appname_len);
             #[cfg(windows)]
-            if matches!(type_, XDGVarType::kXDGDataHome | XDGVarType::kXDGStateHome) {
+            if matches!(type_, XDGVarType::XDGDataHome | XDGVarType::XDGStateHome) {
                 { let _dst: *mut c_char = iobuff; let _dsize: usize = IOSIZE; let _dlen = crate::memory::cstr_len(_dst); crate::memory::xstrlcpy(_dst.add(_dlen), c"-data", _dsize - _dlen); };
                 appname_len += 5;
             }
@@ -2311,16 +2311,16 @@ pub fn runtimepath_default(clean_arg: bool) -> Option<std::ffi::CString> {
         let data_home_cstr = if clean_arg {
             None
         } else {
-            stdpaths_get_xdg_var(XDGVarType::kXDGDataHome)
+            stdpaths_get_xdg_var(XDGVarType::XDGDataHome)
         };
         let config_home_cstr = if clean_arg {
             None
         } else {
-            stdpaths_get_xdg_var(XDGVarType::kXDGConfigHome)
+            stdpaths_get_xdg_var(XDGVarType::XDGConfigHome)
         };
         let libdir_cstr = get_lib_dir();
-        let data_dirs_cstr = stdpaths_get_xdg_var(XDGVarType::kXDGDataDirs);
-        let config_dirs_cstr = stdpaths_get_xdg_var(XDGVarType::kXDGConfigDirs);
+        let data_dirs_cstr = stdpaths_get_xdg_var(XDGVarType::XDGDataDirs);
+        let config_dirs_cstr = stdpaths_get_xdg_var(XDGVarType::XDGConfigDirs);
         let vimruntime_cstr = vim_getenv(c"VIMRUNTIME");
 
         let data_home = data_home_cstr.as_ref().map_or(ptr::null(), |s| s.as_ptr());
@@ -2398,7 +2398,7 @@ pub fn runtimepath_default(clean_arg: bool) -> Option<std::ffi::CString> {
                 rtp_cur,
                 config_home,
                 config_len,
-                XDGVarType::kXDGConfigHome,
+                XDGVarType::XDGConfigHome,
                 ptr::null(),
                 0,
                 ptr::null(),
@@ -2409,7 +2409,7 @@ pub fn runtimepath_default(clean_arg: bool) -> Option<std::ffi::CString> {
                 rtp_cur,
                 data_home,
                 data_len,
-                XDGVarType::kXDGDataHome,
+                XDGVarType::XDGDataHome,
                 c"site",
                 SITE_SIZE,
                 ptr::null(),
@@ -2428,7 +2428,7 @@ pub fn runtimepath_default(clean_arg: bool) -> Option<std::ffi::CString> {
                 rtp_cur,
                 vimruntime,
                 vimruntime_len,
-                XDGVarType::kXDGNone,
+                XDGVarType::XDGNone,
                 ptr::null(),
                 0,
                 ptr::null(),
@@ -2438,7 +2438,7 @@ pub fn runtimepath_default(clean_arg: bool) -> Option<std::ffi::CString> {
                 rtp_cur,
                 libdir,
                 libdir_len,
-                XDGVarType::kXDGNone,
+                XDGVarType::XDGNone,
                 ptr::null(),
                 0,
                 ptr::null(),
@@ -2457,7 +2457,7 @@ pub fn runtimepath_default(clean_arg: bool) -> Option<std::ffi::CString> {
                 rtp_cur,
                 data_home,
                 data_len,
-                XDGVarType::kXDGDataHome,
+                XDGVarType::XDGDataHome,
                 c"site",
                 SITE_SIZE,
                 c"after",
@@ -2476,7 +2476,7 @@ pub fn runtimepath_default(clean_arg: bool) -> Option<std::ffi::CString> {
                 rtp_cur,
                 config_home,
                 config_len,
-                XDGVarType::kXDGConfigHome,
+                XDGVarType::XDGConfigHome,
                 c"after",
                 AFTER_SIZE,
                 ptr::null(),
@@ -2959,8 +2959,8 @@ fn do_source_ext(
                     None,
                     &mut err,
                 );
-                if err.err_type == ErrorType::kErrorTypeNone
-                    && result.obj_type == ObjectType::kObjectTypeBoolean
+                if err.err_type == ErrorType::ErrorTypeNone
+                    && result.obj_type == ObjectType::ObjectTypeBoolean
                     && result.data.boolean()
                 {
                     ts_lua = true;
@@ -3255,7 +3255,7 @@ pub fn f_getscriptinfo(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFu
         let mut sid: Varnumber = -1;
 
         let mut pat_owned: Option<std::ffi::CString> = None;
-        if argvars[0].v_type == VarType::VAR_DICT {
+        if argvars[0].v_type == VarType::VarDict {
             let arg_dict = argvars[0].vval.v_dict();
             let sid_di = tv_dict_find(arg_dict.as_ref(), c"sid", 3);
             if !sid_di.is_null() {

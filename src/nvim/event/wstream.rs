@@ -16,6 +16,7 @@ const UV_ENOMEM: c_int = -4057;
 #[cfg(not(windows))]
 const UV_ENOMEM: c_int = -12;
 
+#[allow(non_camel_case_types)]
 pub type uv_write_t = c_void;
 
 #[repr(C)]

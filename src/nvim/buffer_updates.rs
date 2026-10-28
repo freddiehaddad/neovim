@@ -30,7 +30,7 @@ const LOG_ERROR: c_int = 3;
 
 #[inline]
 pub fn luaret_truthy(res: Object) -> bool {
-    res.obj_type == ObjectType::kObjectTypeBoolean && res.data.boolean()
+    res.obj_type == ObjectType::ObjectTypeBoolean && res.data.boolean()
 }
 
 fn textlock_wrap<F: FnOnce()>(f: F) {

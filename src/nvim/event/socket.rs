@@ -50,7 +50,9 @@ const UV_EADDRINUSE: c_int = -98;
 const UV_EADDRINUSE: c_int = -48;
 
 use crate::event::rstream::RStream;
+#[allow(non_camel_case_types)]
 pub type uv_tcp_t = c_void;
+#[allow(non_camel_case_types)]
 pub type uv_getaddrinfo_t = c_void;
 
 #[repr(C)]

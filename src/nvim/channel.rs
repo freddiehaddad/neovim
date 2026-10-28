@@ -977,7 +977,7 @@ pub(crate) fn channel_proc_state_cb(_proc: &mut Proc, suspended: bool, chan: &mu
 
 fn channel_callback_call(chan: &mut Channel, is_stderr: Option<bool>) {
     let mut argv: [TypVal; 4] = [TypVal::new(); 4];
-    argv[0].v_type = VarType::VAR_NUMBER;
+    argv[0].v_type = VarType::VarNumber;
     argv[0].v_lock = VAR_UNLOCKED;
     argv[0].vval = TypvalVval::Number(chan.id as Varnumber);
 
@@ -988,7 +988,7 @@ fn channel_callback_call(chan: &mut Channel, is_stderr: Option<bool>) {
             &mut chan.on_data
         };
         let l = buffer_to_tv_list(reader.buffer.as_ptr(), reader.buffer.len());
-        argv[1].v_type = VarType::VAR_LIST;
+        argv[1].v_type = VarType::VarList;
         argv[1].v_lock = VAR_UNLOCKED;
         argv[1].vval = TypvalVval::List(l);
         tv_list_ref(unsafe { l.as_mut() });
@@ -1000,14 +1000,14 @@ fn channel_callback_call(chan: &mut Channel, is_stderr: Option<bool>) {
         );
         &raw mut reader.cb
     } else {
-        argv[1].v_type = VarType::VAR_NUMBER;
+        argv[1].v_type = VarType::VarNumber;
         argv[1].v_lock = VAR_UNLOCKED;
         argv[1].vval = TypvalVval::Number(Varnumber::from(chan.exit_status));
         argv[2].vval = TypvalVval::String(c"exit".as_ptr().cast_mut());
         &raw mut chan.on_exit
     };
 
-    argv[2].v_type = VarType::VAR_STRING;
+    argv[2].v_type = VarType::VarString;
     argv[2].v_lock = VAR_UNLOCKED;
 
     let mut rettv: TypVal = TypVal::new();
@@ -1169,13 +1169,13 @@ pub fn set_info_event(chan: &mut Channel, event: AuEvent) {
         let mut retval: TypVal = TypVal::new();
         object_to_vim(
             Object {
-                obj_type: ObjectType::kObjectTypeDict,
+                obj_type: ObjectType::ObjectTypeDict,
                 data: ObjectData::Dict(info),
             },
             &mut retval,
             &mut crate::api::private::validate::Error::new(),
         );
-        assert_eq!(retval.v_type, VarType::VAR_DICT);
+        assert_eq!(retval.v_type, VarType::VarDict);
         let _ = tv_dict_add_dict(&mut *dict, c"info", retval.vval.v_dict());
         tv_dict_set_keys_readonly(&mut *dict);
 
@@ -1218,7 +1218,7 @@ pub fn channel_info(id: u64, arena: &mut Arena) -> Dict {
             &mut info,
             c"id",
             Object {
-                obj_type: ObjectType::kObjectTypeInteger,
+                obj_type: ObjectType::ObjectTypeInteger,
                 data: ObjectData::Integer((*chan).id as Integer),
             },
         );
@@ -1245,7 +1245,7 @@ pub fn channel_info(id: u64, arena: &mut Arena) -> Dict {
                         &mut info,
                         c"pty",
                         Object {
-                            obj_type: ObjectType::kObjectTypeString,
+                            obj_type: ObjectType::ObjectTypeString,
                             data: ObjectData::String(s),
                         },
                     );
@@ -1264,7 +1264,7 @@ pub fn channel_info(id: u64, arena: &mut Arena) -> Dict {
                         add_c(
                             &mut argv,
                             Object {
-                                obj_type: ObjectType::kObjectTypeString,
+                                obj_type: ObjectType::ObjectTypeString,
                                 data: ObjectData::String(cstr_as_string(arg.as_ptr())),
                             },
                         );
@@ -1274,7 +1274,7 @@ pub fn channel_info(id: u64, arena: &mut Arena) -> Dict {
                     &mut info,
                     c"argv",
                     Object {
-                        obj_type: ObjectType::kObjectTypeArray,
+                        obj_type: ObjectType::ObjectTypeArray,
                         data: ObjectData::Array(argv),
                     },
                 );
@@ -1287,7 +1287,7 @@ pub fn channel_info(id: u64, arena: &mut Arena) -> Dict {
                     &mut info,
                     c"internal",
                     Object {
-                        obj_type: ObjectType::kObjectTypeBoolean,
+                        obj_type: ObjectType::ObjectTypeBoolean,
                         data: ObjectData::Boolean(true),
                     },
                 );
@@ -1300,7 +1300,7 @@ pub fn channel_info(id: u64, arena: &mut Arena) -> Dict {
             &mut info,
             c"stream",
             Object {
-                obj_type: ObjectType::kObjectTypeString,
+                obj_type: ObjectType::ObjectTypeString,
                 data: ObjectData::String(cstr_as_string(stream_desc.as_ptr())),
             },
         );
@@ -1310,7 +1310,7 @@ pub fn channel_info(id: u64, arena: &mut Arena) -> Dict {
                 &mut info,
                 c"client",
                 Object {
-                    obj_type: ObjectType::kObjectTypeDict,
+                    obj_type: ObjectType::ObjectTypeDict,
                     data: ObjectData::Dict((*chan).rpc.info),
                 },
             );
@@ -1318,7 +1318,7 @@ pub fn channel_info(id: u64, arena: &mut Arena) -> Dict {
                 &mut info,
                 c"detach",
                 Object {
-                    obj_type: ObjectType::kObjectTypeBoolean,
+                    obj_type: ObjectType::ObjectTypeBoolean,
                     data: ObjectData::Boolean((*chan).detach),
                 },
             );
@@ -1329,7 +1329,7 @@ pub fn channel_info(id: u64, arena: &mut Arena) -> Dict {
                 &mut info,
                 c"buf",
                 Object {
-                    obj_type: ObjectType::kObjectTypeBuffer,
+                    obj_type: ObjectType::ObjectTypeBuffer,
                     data: ObjectData::Integer(i64::from(tbuf)),
                 },
             );
@@ -1337,7 +1337,7 @@ pub fn channel_info(id: u64, arena: &mut Arena) -> Dict {
                 &mut info,
                 c"buffer",
                 Object {
-                    obj_type: ObjectType::kObjectTypeBuffer,
+                    obj_type: ObjectType::ObjectTypeBuffer,
                     data: ObjectData::Integer(i64::from(tbuf)),
                 },
             );
@@ -1345,7 +1345,7 @@ pub fn channel_info(id: u64, arena: &mut Arena) -> Dict {
                 &mut info,
                 c"exitcode",
                 Object {
-                    obj_type: ObjectType::kObjectTypeInteger,
+                    obj_type: ObjectType::ObjectTypeInteger,
                     data: ObjectData::Integer(i64::from((*chan).exit_status)),
                 },
             );
@@ -1358,7 +1358,7 @@ pub fn channel_info(id: u64, arena: &mut Arena) -> Dict {
             &mut info,
             c"mode",
             Object {
-                obj_type: ObjectType::kObjectTypeString,
+                obj_type: ObjectType::ObjectTypeString,
                 data: ObjectData::String(cstr_as_string(mode_desc.as_ptr())),
             },
         );
@@ -1376,7 +1376,7 @@ pub fn channel_all_info(arena: &mut Arena) -> Array {
             add_c(
                 &mut ret,
                 Object {
-                    obj_type: ObjectType::kObjectTypeDict,
+                    obj_type: ObjectType::ObjectTypeDict,
                     data: ObjectData::Dict(info),
                 },
             );

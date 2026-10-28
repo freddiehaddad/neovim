@@ -144,8 +144,8 @@ pub fn nvim_win_set_cursor(win: Window, pos: Array, err: &mut Error) {
         };
 
         if pos.size != 2
-            || pos[0].obj_type != ObjectType::kObjectTypeInteger
-            || pos[1].obj_type != ObjectType::kObjectTypeInteger
+            || pos[0].obj_type != ObjectType::ObjectTypeInteger
+            || pos[1].obj_type != ObjectType::ObjectTypeInteger
         {
             api_err_exp(
                 err,
@@ -586,7 +586,7 @@ pub fn nvim_win_text_height(
         if oob {
             api_set_error!(
                 err,
-                ErrorType::kErrorTypeValidation,
+                ErrorType::ErrorTypeValidation,
                 c"%s",
                 c"Line index out of bounds",
             );
@@ -595,7 +595,7 @@ pub fn nvim_win_text_height(
         if start_lnum > end_lnum {
             api_set_error!(
                 err,
-                ErrorType::kErrorTypeValidation,
+                ErrorType::ErrorTypeValidation,
                 c"%s",
                 c"'start_row' is higher than 'end_row'",
             );
@@ -606,7 +606,7 @@ pub fn nvim_win_text_height(
             if !has_key(mask, KEYSET_OPTIDX_win_text_height__start_row) {
                 api_set_error!(
                     err,
-                    ErrorType::kErrorTypeValidation,
+                    ErrorType::ErrorTypeValidation,
                     c"%s",
                     c"'start_vcol' specified without 'start_row'",
                 );
@@ -623,7 +623,7 @@ pub fn nvim_win_text_height(
             if !has_key(mask, KEYSET_OPTIDX_win_text_height__end_row) {
                 api_set_error!(
                     err,
-                    ErrorType::kErrorTypeValidation,
+                    ErrorType::ErrorTypeValidation,
                     c"%s",
                     c"'end_vcol' specified without 'end_row'",
                 );
@@ -648,7 +648,7 @@ pub fn nvim_win_text_height(
         if start_lnum == end_lnum && start_vcol >= 0 && end_vcol >= 0 && start_vcol > end_vcol {
             api_set_error!(
                 err,
-                ErrorType::kErrorTypeValidation,
+                ErrorType::ErrorTypeValidation,
                 c"%s",
                 c"'start_vcol' is higher than 'end_vcol'",
             );
@@ -792,7 +792,7 @@ mod tests {
     #[test]
     fn keyset_and_integer_obj_helpers() {
         let obj = integer_obj(42);
-        assert_eq!(obj.obj_type, ObjectType::kObjectTypeInteger);
+        assert_eq!(obj.obj_type, ObjectType::ObjectTypeInteger);
         assert_eq!(obj.data.integer(), 42);
         assert!(has_key(
             1u64 << KEYSET_OPTIDX_win_resize__anchor,

@@ -211,9 +211,9 @@ const E_NON_NUMERIC_ARGUMENT_TO_Z: &CStr = c"E144: Non-numeric argument to :z";
 #[repr(i32)]
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum SubIgnoreType {
-    kSubHonorOptions = 0,
-    kSubIgnoreCase = 1,
-    kSubMatchCase = 2,
+    SubHonorOptions = 0,
+    SubIgnoreCase = 1,
+    SubMatchCase = 2,
 }
 
 /// Flags kept between calls to `:substitute`.
@@ -308,7 +308,7 @@ impl ExCmdsState {
             append_indent: 0,
             old_sub: SubReplacementString { sub: None, timestamp: 0, additional_data: None },
             global_need_beginline: false,
-            subflags: Subflags { do_all: false, do_ask: false, do_count: false, do_error: true, do_print: false, do_list: false, do_number: false, do_ic: SubIgnoreType::kSubHonorOptions },
+            subflags: Subflags { do_all: false, do_ask: false, do_count: false, do_error: true, do_print: false, do_list: false, do_number: false, do_ic: SubIgnoreType::SubHonorOptions },
             pre_hl_id: 0,
         }
     }
@@ -474,16 +474,16 @@ pub fn ex_align(eap: &mut Exarg) {
         let mut new_indent: c_int;
 
         if curwin_mut().w_onebuf_opt.wo_rl != 0 {
-            if eap.cmdidx == Cmdidx::CMD_right as c_int {
-                eap.cmdidx = Cmdidx::CMD_left as c_int;
-            } else if eap.cmdidx == Cmdidx::CMD_left as c_int {
-                eap.cmdidx = Cmdidx::CMD_right as c_int;
+            if eap.cmdidx == Cmdidx::CmdRight as c_int {
+                eap.cmdidx = Cmdidx::CmdLeft as c_int;
+            } else if eap.cmdidx == Cmdidx::CmdLeft as c_int {
+                eap.cmdidx = Cmdidx::CmdRight as c_int;
             }
         }
 
         let mut width = crate::charset::parse_i64_prefix(crate::memory::cstr_as_bytes(eap.arg)) as c_int;
         let save_curpos = curwin_mut().w_cursor;
-        if eap.cmdidx == Cmdidx::CMD_left as c_int {
+        if eap.cmdidx == Cmdidx::CmdLeft as c_int {
             if width >= 0 {
                 indent = width;
             }
@@ -505,11 +505,11 @@ pub fn ex_align(eap: &mut Exarg) {
 
         curwin_mut().w_cursor.lnum = eap.line1;
         while curwin_mut().w_cursor.lnum <= eap.line2 {
-            if eap.cmdidx == Cmdidx::CMD_left as c_int {
+            if eap.cmdidx == Cmdidx::CmdLeft as c_int {
                 new_indent = indent;
             } else {
                 let mut has_tab: c_int = 0;
-                let len = linelen(if eap.cmdidx == Cmdidx::CMD_right as c_int {
+                let len = linelen(if eap.cmdidx == Cmdidx::CmdRight as c_int {
                     &raw mut has_tab
                 } else {
                     ptr::null_mut()
@@ -520,7 +520,7 @@ pub fn ex_align(eap: &mut Exarg) {
                     continue;
                 }
 
-                if eap.cmdidx == Cmdidx::CMD_center as c_int {
+                if eap.cmdidx == Cmdidx::CmdCenter as c_int {
                     new_indent = (width - len) / 2;
                 } else {
                     new_indent = width - len;
@@ -2132,7 +2132,7 @@ pub fn ex_update(eap: &mut Exarg) {
 /// `":write"` and `":saveas"`.
 pub fn ex_write(eap: &mut Exarg) {
      {
-        if eap.cmdidx == Cmdidx::CMD_saveas as c_int {
+        if eap.cmdidx == Cmdidx::CmdSaveas as c_int {
             eap.line1 = 1;
             eap.line2 = curbuf_mut().b_ml.ml_line_count;
         }
@@ -2181,7 +2181,7 @@ pub fn do_write(eap: &mut Exarg) -> bool {
 
         'theend: {
             if crate::memory::cstr_is_empty(ffname) {
-                if eap.cmdidx == Cmdidx::CMD_saveas as c_int {
+                if eap.cmdidx == Cmdidx::CmdSaveas as c_int {
                     emsg(gettext(e_argreq));
                     break 'theend;
                 }
@@ -2197,7 +2197,7 @@ pub fn do_write(eap: &mut Exarg) -> bool {
 
             if other {
                 if !vim_strchr(opt_vars().p_cpo, kCpoAltwrite).is_null()
-                    || eap.cmdidx == Cmdidx::CMD_saveas as c_int
+                    || eap.cmdidx == Cmdidx::CmdSaveas as c_int
                 {
                     alt_buf = setaltfname(ffname, fname, 1);
                 } else {
@@ -2249,7 +2249,7 @@ pub fn do_write(eap: &mut Exarg) -> bool {
             }
 
             if check_overwrite(eap, curbuf_mut(), fname, ffname, other) {
-                if eap.cmdidx == Cmdidx::CMD_saveas as c_int && !alt_buf.is_null() {
+                if eap.cmdidx == Cmdidx::CmdSaveas as c_int && !alt_buf.is_null() {
                     let was_curbuf = g_st().curbuf;
 
                     apply_autocmds(
@@ -2335,12 +2335,12 @@ pub fn do_write(eap: &mut Exarg) -> bool {
                     false,
                 ) == OK;
 
-                if eap.cmdidx == Cmdidx::CMD_saveas as c_int && retval {
+                if eap.cmdidx == Cmdidx::CmdSaveas as c_int && retval {
                     curbuf_mut().b_p_ro = 0;
                     g_st().redraw_tabline = true;
                 }
 
-                if eap.cmdidx == Cmdidx::CMD_saveas as c_int || name_was_missing {
+                if eap.cmdidx == Cmdidx::CmdSaveas as c_int || name_was_missing {
                     do_autochdir();
                 }
             }
@@ -2457,8 +2457,8 @@ pub fn do_wqall(eap: &mut Exarg) {
         let save_forceit = eap.forceit;
         let save_exiting = g_st().exiting;
 
-        if eap.cmdidx == Cmdidx::CMD_xall as c_int
-            || eap.cmdidx == Cmdidx::CMD_wqall as c_int
+        if eap.cmdidx == Cmdidx::CmdXall as c_int
+            || eap.cmdidx == Cmdidx::CmdWqall as c_int
         {
             if !before_quit_all(eap) {
                 return;
@@ -3338,11 +3338,11 @@ pub fn ex_append(eap: &mut Exarg) {
             curbuf_mut().b_p_ai = if curbuf_mut().b_p_ai != 0 { 0 } else { 1 };
         }
 
-        if eap.cmdidx != Cmdidx::CMD_change as c_int && curbuf_mut().b_p_ai != 0 && lnum > 0 {
+        if eap.cmdidx != Cmdidx::CmdChange as c_int && curbuf_mut().b_p_ai != 0 && lnum > 0 {
             excmds_st().append_indent = get_indent_lnum(lnum);
         }
 
-        if eap.cmdidx != Cmdidx::CMD_append as c_int {
+        if eap.cmdidx != Cmdidx::CmdAppend as c_int {
             lnum -= 1;
         }
 
@@ -3424,7 +3424,7 @@ pub fn ex_append(eap: &mut Exarg) {
             } else {
                 curbuf_mut().b_ml.ml_line_count
             };
-            if eap.cmdidx != Cmdidx::CMD_append as c_int {
+            if eap.cmdidx != Cmdidx::CmdAppend as c_int {
                 curbuf_mut().b_op_start.lnum -= 1;
             }
             curbuf_mut().b_op_end.lnum = if eap.line2 < lnum {
@@ -3784,7 +3784,7 @@ fn sub_parse_flags(
             subflags_arg.do_list = false;
             subflags_arg.do_count = false;
             subflags_arg.do_number = false;
-            subflags_arg.do_ic = SubIgnoreType::kSubHonorOptions;
+            subflags_arg.do_ic = SubIgnoreType::SubHonorOptions;
         }
         while !crate::memory::cstr_is_empty(cmd) {
             if crate::memory::cstr_first_byte(cmd) == b'g' {
@@ -3806,9 +3806,9 @@ fn sub_parse_flags(
                 subflags_arg.do_print = true;
                 subflags_arg.do_list = true;
             } else if crate::memory::cstr_first_byte(cmd) == b'i' {
-                subflags_arg.do_ic = SubIgnoreType::kSubIgnoreCase;
+                subflags_arg.do_ic = SubIgnoreType::SubIgnoreCase;
             } else if crate::memory::cstr_first_byte(cmd) == b'I' {
-                subflags_arg.do_ic = SubIgnoreType::kSubMatchCase;
+                subflags_arg.do_ic = SubIgnoreType::SubMatchCase;
             } else {
                 break;
             }
@@ -3914,7 +3914,7 @@ fn do_sub(
         }
         let start_nsubs = g_st().sub_nsubs;
 
-        if eap.cmdidx == Cmdidx::CMD_tilde as c_int {
+        if eap.cmdidx == Cmdidx::CmdTilde as c_int {
             which_pat = RE_LAST;
         } else {
             which_pat = RE_SUBST;
@@ -4043,9 +4043,9 @@ fn do_sub(
             return 0;
         }
 
-        let magic = if eap.cmdidx == Cmdidx::CMD_smagic as c_int {
+        let magic = if eap.cmdidx == Cmdidx::CmdSmagic as c_int {
             true
-        } else if eap.cmdidx == Cmdidx::CMD_snomagic as c_int {
+        } else if eap.cmdidx == Cmdidx::CmdSnomagic as c_int {
             false
         } else {
             opt_vars().p_magic != 0
@@ -4067,9 +4067,9 @@ fn do_sub(
             return 0;
         }
 
-        if excmds_st().subflags.do_ic == SubIgnoreType::kSubIgnoreCase {
+        if excmds_st().subflags.do_ic == SubIgnoreType::SubIgnoreCase {
             regmatch.rmm_ic = 1;
-        } else if excmds_st().subflags.do_ic == SubIgnoreType::kSubMatchCase {
+        } else if excmds_st().subflags.do_ic == SubIgnoreType::SubMatchCase {
             regmatch.rmm_ic = 0;
         }
 

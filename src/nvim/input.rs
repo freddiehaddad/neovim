@@ -232,10 +232,10 @@ impl GotcharsState {
 #[derive(Clone, Copy, PartialEq, Eq)]
 #[repr(i32)]
 enum MapResult {
-    map_result_fail = 0,
-    map_result_get = 1,
-    map_result_retry = 2,
-    map_result_nomatch = 3,
+    MapResultFail = 0,
+    MapResultGet = 1,
+    MapResultRetry = 2,
+    MapResultNomatch = 3,
 }
 
 struct InputModuleState {
@@ -1862,14 +1862,14 @@ fn getchar_common(argvars: &mut [TypVal], rettv: &mut TypVal, mut allow_number: 
         let mut simplify = true;
         let mut cursor_flag: c_char = NUL as c_char;
 
-        if argvars[0].v_type != VarType::VAR_UNKNOWN
+        if argvars[0].v_type != VarType::VarUnknown
             && !tv_check_for_opt_dict_arg(argvars, 1)
         {
             return;
         }
 
         let arg1 = (&raw mut argvars[1]);
-        if argvars[0].v_type != VarType::VAR_UNKNOWN && (*arg1).v_type == VarType::VAR_DICT {
+        if argvars[0].v_type != VarType::VarUnknown && (*arg1).v_type == VarType::VarDict {
             let d = (*arg1).vval.v_dict();
 
             if allow_number {
@@ -1917,8 +1917,8 @@ fn getchar_common(argvars: &mut [TypVal], rettv: &mut TypVal, mut allow_number: 
                 ui_cursor_goto(g_st().msg_row, g_st().msg_col);
             }
 
-            if argvars[0].v_type == VarType::VAR_UNKNOWN
-                || (argvars[0].v_type == VarType::VAR_NUMBER && argvars[0].vval.v_number() == -1)
+            if argvars[0].v_type == VarType::VarUnknown
+                || (argvars[0].v_type == VarType::VarNumber && argvars[0].vval.v_number() == -1)
             {
                 if !char_avail() {
                     ui_flush();
@@ -2010,7 +2010,7 @@ fn getchar_common(argvars: &mut [TypVal], rettv: &mut TypVal, mut allow_number: 
                 }
             }
         } else if !allow_number {
-            rettv.v_type = VarType::VAR_STRING;
+            rettv.v_type = VarType::VarString;
         } else {
             rettv.vval = crate::eval::typval::TypvalVval::Number(n);
         }
@@ -2233,10 +2233,10 @@ fn handle_mapping(
                 if tb_c1 == 0 {
                     if *timedout {
                         *keylenp = 0;
-                        return MapResult::map_result_get as c_int;
+                        return MapResult::MapResultGet as c_int;
                     }
                     *keylenp = KEYLEN_PART_KEY;
-                    return MapResult::map_result_nomatch as c_int;
+                    return MapResult::MapResultNomatch as c_int;
                 }
 
                 let orig_tb_c1 = tb_c1;
@@ -2367,7 +2367,7 @@ fn handle_mapping(
                 } else {
                     keylen = check_simplify_modifier(max_mlen + 1);
                     if keylen < 0 {
-                        return MapResult::map_result_fail as c_int;
+                        return MapResult::MapResultFail as c_int;
                     }
                 }
             } else {
@@ -2375,11 +2375,11 @@ fn handle_mapping(
             }
             if keylen == 0 && mp.is_none() {
                 *keylenp = keylen;
-                return MapResult::map_result_get as c_int;
+                return MapResult::MapResultGet as c_int;
             }
             if keylen > 0 {
                 *keylenp = keylen;
-                return MapResult::map_result_retry as c_int;
+                return MapResult::MapResultRetry as c_int;
             }
             if keylen < 0 {
                 assert_eq!(keylen, KEYLEN_PART_KEY);
@@ -2413,7 +2413,7 @@ fn handle_mapping(
                 flush_buffers(FLUSH_MINIMAL);
                 *mapdepth = 0;
                 *keylenp = keylen;
-                return MapResult::map_result_fail as c_int;
+                return MapResult::MapResultFail as c_int;
             }
 
             if g_st().Visual.active && g_st().Visual.select && (mp.m_mode & MODE_VISUAL) != 0 {
@@ -2498,13 +2498,13 @@ fn handle_mapping(
             drop(save_alt_m_keys);
             *keylenp = keylen;
             if !i {
-                return MapResult::map_result_fail as c_int;
+                return MapResult::MapResultFail as c_int;
             }
-            return MapResult::map_result_retry as c_int;
+            return MapResult::MapResultRetry as c_int;
         }
 
         *keylenp = keylen;
-        MapResult::map_result_nomatch as c_int
+        MapResult::MapResultNomatch as c_int
     }
 }
 
@@ -2608,17 +2608,17 @@ fn vgetorpeek(advance: bool) -> c_int {
                             advance,
                         );
 
-                        if result == MapResult::map_result_retry as c_int {
+                        if result == MapResult::MapResultRetry as c_int {
                             continue;
                         }
 
-                        if result == MapResult::map_result_fail as c_int {
+                        if result == MapResult::MapResultFail as c_int {
                             atom_composite_abort();
                             c = -1;
                             break;
                         }
 
-                        if result == MapResult::map_result_get as c_int {
+                        if result == MapResult::MapResultGet as c_int {
                             c = *tb_buf_ptr().add(g_st().typebuf.tb_off as usize) as c_int;
                             if advance {
                                 g_st().cmd_silent = g_st().typebuf.tb_silent > 0;
@@ -3223,7 +3223,7 @@ pub fn map_execute_lua(may_repeat: bool, discard: bool) -> bool {
             None,
             Some(&mut err),
         );
-        if err.err_type != ErrorType::kErrorTypeNone {
+        if err.err_type != ErrorType::ErrorTypeNone {
             semsg_multiline!(c"emsg", c"E5108: %s", err.msg_ptr());
             api_clear_error(&mut err);
         }
@@ -3361,7 +3361,7 @@ pub fn paste_repeat(count: c_int) {
                 &mut arena,
                 &mut err,
             );
-            aborted = err.err_type != ErrorType::kErrorTypeNone;
+            aborted = err.err_type != ErrorType::ErrorTypeNone;
             i += 1;
         }
         api_clear_error(&mut err);

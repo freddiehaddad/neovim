@@ -26,9 +26,13 @@ const UV_TTY_MODE_RAW: c_int = 1;
 #[cfg(windows)]
 pub(crate) const ENABLE_VIRTUAL_TERMINAL_INPUT: u32 = 0x0200;
 
+#[allow(non_camel_case_types)]
 pub type uv_stream_t = c_void;
+#[allow(non_camel_case_types)]
 pub type uv_pipe_t = c_void;
+#[allow(non_camel_case_types)]
 pub type uv_idle_t = c_void;
+#[allow(non_camel_case_types)]
 pub type uv_tty_t = c_void;
 
 #[derive(Clone, Copy)]

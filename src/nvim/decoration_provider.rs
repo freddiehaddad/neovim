@@ -158,7 +158,7 @@ fn decor_provider_invoke(
         if !error_set(&err) {
             (*provider).error_count = 0;
             if let Some(res) = res {
-                debug_assert!(matches!(ret.obj_type, ObjectType::kObjectTypeArray));
+                debug_assert!(matches!(ret.obj_type, ObjectType::ObjectTypeArray));
                 *res = ret.data.array();
                 return true;
             } else if api_object_to_bool(
@@ -432,16 +432,16 @@ pub fn decor_providers_invoke_range(
                     p.state = kDecorProviderWinDisabled;
                 } else if res.size >= 1 {
                     let first = *res.items;
-                    if matches!(first.obj_type, ObjectType::kObjectTypeBoolean) {
+                    if matches!(first.obj_type, ObjectType::ObjectTypeBoolean) {
                         if !first.data.boolean() {
                             p.state = kDecorProviderWinDisabled;
                         }
-                    } else if matches!(first.obj_type, ObjectType::kObjectTypeInteger) {
+                    } else if matches!(first.obj_type, ObjectType::ObjectTypeInteger) {
                         let row = first.data.integer();
                         let mut col: Integer = 0;
                         if res.size >= 2 {
                             let second = res[1];
-                            if matches!(second.obj_type, ObjectType::kObjectTypeInteger) {
+                            if matches!(second.obj_type, ObjectType::ObjectTypeInteger) {
                                 col = second.data.integer();
                             }
                         }

@@ -287,8 +287,8 @@ impl ZeroBlock {
 #[repr(C)]
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum UpdBlock0 {
-    UB_FNAME = 0,
-    UB_SAME_DIR = 1,
+    UbFname = 0,
+    UbSameDir = 1,
 }
 
 pub type SeaChoice = c_int;
@@ -553,7 +553,7 @@ pub fn ml_setname(buf: &mut FileBuf) {
                 success = true;
                 mf_free_fnames(&mut *mfp);
                 mf_set_fnames(&mut *mfp, fname);
-                ml_upd_block0(buf, UpdBlock0::UB_SAME_DIR);
+                ml_upd_block0(buf, UpdBlock0::UbSameDir);
                 break;
             }
         }
@@ -627,7 +627,7 @@ pub fn ml_open_file(buf: &mut FileBuf) {
             };
             if mf_open_file(&mut *mfp, fname) {
                 (*mfp).mf_dirty = MF_DIRTY_YES_NOSYNC;
-                ml_upd_block0(buf, UpdBlock0::UB_SAME_DIR);
+                ml_upd_block0(buf, UpdBlock0::UbSameDir);
 
                 if mf_sync(&mut *mfp, MFS_ZERO) {
                     mf_set_dirty(&mut *mfp);
@@ -706,7 +706,7 @@ pub fn ml_close_notmod() {
 /// Update the timestamp in the `.swp` file.
 pub fn ml_timestamp(buf: &mut FileBuf) {
      {
-        ml_upd_block0(buf, UpdBlock0::UB_FNAME);
+        ml_upd_block0(buf, UpdBlock0::UbFname);
     }
 }
 
@@ -739,7 +739,7 @@ fn ml_upd_block0(buf: &mut FileBuf, what: UpdBlock0) {
         let b0p = (*hp).data_ptr().cast::<ZeroBlock>();
         if !ml_check_b0_id(&*b0p) {
             iemsg(tr(c"E304: ml_upd_block0(): Didn't get block 0??"));
-        } else if what == UpdBlock0::UB_FNAME {
+        } else if what == UpdBlock0::UbFname {
             set_b0_fname(&mut *b0p, &mut *buf);
         } else {
             set_b0_dir_flag(&mut *b0p, buf);
@@ -1140,7 +1140,7 @@ pub fn ml_recover(checkext: bool) {
         }
         if let Some(ref fenc) = b0_fenc {
             let fenc_obj = Object {
-                obj_type: ObjectType::kObjectTypeString,
+                obj_type: ObjectType::ObjectTypeString,
                 data: ObjectData::String(cstr_as_string(fenc.as_ptr())),
             };
             set_option_value_give_err(kOptFileencoding, fenc_obj, OPT_LOCAL);

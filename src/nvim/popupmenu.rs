@@ -809,7 +809,7 @@ pub fn pum_redraw() {
         if border_width > 0 {
             let mut err = Error::new();
             if !parse_winborder(Some(&mut fconfig), opt_vars().p_pumborder, &mut err) {
-                if err.err_type != ErrorType::kErrorTypeNone {
+                if err.err_type != ErrorType::ErrorTypeNone {
                     emsg(err.msg_ptr());
                 }
                 api_clear_error(&mut err);
@@ -1237,7 +1237,7 @@ fn pum_preview_set_text(
             &mut err,
         );
         g_st().textlock = original_textlock;
-        if err.err_type != ErrorType::kErrorTypeNone {
+        if err.err_type != ErrorType::ErrorTypeNone {
             emsg(err.msg_ptr());
             api_clear_error(&mut err);
         }

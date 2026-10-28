@@ -40,9 +40,13 @@ pub type Boolean = bool;
 pub type Float = f64;
 pub type LuaRef = c_int;
 pub(crate) const LUA_NOREF: LuaRef = -2;
+#[allow(non_camel_case_types)]
 pub type lua_State = c_void;
+#[allow(non_camel_case_types)]
 pub type lua_CFunction = Option<unsafe extern "C-unwind" fn(lstate: *mut lua_State) -> c_int>;
+#[allow(non_camel_case_types)]
 pub type lua_Number = f64;
+#[allow(non_camel_case_types)]
 pub type lua_Integer = isize;
 
 #[repr(C)]
@@ -565,7 +569,7 @@ fn nlua_traverse_table(lstate: *mut lua_State) -> LuaTableProps {
             maxidx: 0,
             string_keys_num: 0,
             has_string_with_nul: false,
-            table_type: ObjectType::kObjectTypeNil,
+            table_type: ObjectType::ObjectTypeNil,
             val: 0.0,
             has_type_key: false,
         };
@@ -575,7 +579,7 @@ fn nlua_traverse_table(lstate: *mut lua_State) -> LuaTableProps {
                 c"E1502: Lua failed to grow stack to %i",
                 lua_gettop(lstate) + 2,
             );
-            ret.table_type = ObjectType::kObjectTypeNil;
+            ret.table_type = ObjectType::ObjectTypeNil;
             return ret;
         }
 
@@ -612,15 +616,15 @@ fn nlua_traverse_table(lstate: *mut lua_State) -> LuaTableProps {
                     if b == TYPE_IDX_VALUE {
                         if lua_type(lstate, -1) == LUA_TNUMBER {
                             let n = lua_tonumber(lstate, -1);
-                            if n == (ObjectType::kObjectTypeFloat as c_int as lua_Number) {
+                            if n == (ObjectType::ObjectTypeFloat as c_int as lua_Number) {
                                 ret.has_type_key = true;
-                                ret.table_type = ObjectType::kObjectTypeFloat;
-                            } else if n == (ObjectType::kObjectTypeArray as c_int as lua_Number) {
+                                ret.table_type = ObjectType::ObjectTypeFloat;
+                            } else if n == (ObjectType::ObjectTypeArray as c_int as lua_Number) {
                                 ret.has_type_key = true;
-                                ret.table_type = ObjectType::kObjectTypeArray;
-                            } else if n == (ObjectType::kObjectTypeDict as c_int as lua_Number) {
+                                ret.table_type = ObjectType::ObjectTypeArray;
+                            } else if n == (ObjectType::ObjectTypeDict as c_int as lua_Number) {
                                 ret.has_type_key = true;
-                                ret.table_type = ObjectType::kObjectTypeDict;
+                                ret.table_type = ObjectType::ObjectTypeDict;
                             } else {
                                 other_keys_num += 1;
                             }
@@ -645,11 +649,11 @@ fn nlua_traverse_table(lstate: *mut lua_State) -> LuaTableProps {
 
         if ret.has_type_key {
             assert!(tsize > 0);
-            if ret.table_type == ObjectType::kObjectTypeFloat
+            if ret.table_type == ObjectType::ObjectTypeFloat
                 && (!has_val_key || val_type != LUA_TNUMBER)
             {
-                ret.table_type = ObjectType::kObjectTypeNil;
-            } else if ret.table_type == ObjectType::kObjectTypeArray {
+                ret.table_type = ObjectType::ObjectTypeNil;
+            } else if ret.table_type == ObjectType::ObjectTypeArray {
                 let expected = tsize
                     - usize::from(ret.has_type_key)
                     - other_keys_num
@@ -671,18 +675,18 @@ fn nlua_traverse_table(lstate: *mut lua_State) -> LuaTableProps {
         } else if tsize == 0
             || (tsize <= ret.maxidx && other_keys_num == 0 && ret.string_keys_num == 0)
         {
-            ret.table_type = ObjectType::kObjectTypeArray;
+            ret.table_type = ObjectType::ObjectTypeArray;
             if tsize == 0 && lua_getmetatable(lstate, -1) != 0 {
                 nlua_pushref(lstate, (*g_st().nlua_global_refs).empty_dict_ref);
                 if lua_rawequal(lstate, -2, -1) != 0 {
-                    ret.table_type = ObjectType::kObjectTypeDict;
+                    ret.table_type = ObjectType::ObjectTypeDict;
                 }
                 lua_pop(lstate, 2);
             }
         } else if ret.string_keys_num == tsize {
-            ret.table_type = ObjectType::kObjectTypeDict;
+            ret.table_type = ObjectType::ObjectTypeDict;
         } else {
-            ret.table_type = ObjectType::kObjectTypeNil;
+            ret.table_type = ObjectType::ObjectTypeNil;
         }
         ret
     }
@@ -716,7 +720,7 @@ pub unsafe extern "C-unwind" fn nlua_pop_typval(
             }
             let mut cur = stack.pop().unwrap();
             if cur.container {
-                if cur.special || (*cur.tv).v_type == VarType::VAR_DICT {
+                if cur.special || (*cur.tv).v_type == VarType::VarDict {
                     let mut next_key_found = false;
                     while lua_next(lstate, -2) != 0 {
                         if lua_type(lstate, -2) == LUA_TSTRING {
@@ -735,7 +739,7 @@ pub unsafe extern "C-unwind" fn nlua_pop_typval(
                             tv_list_append_owned_tv(
                                  &mut *kv_pair,
                                 TypVal {
-                                    v_type: VarType::VAR_UNKNOWN,
+                                    v_type: VarType::VarUnknown,
                                     v_lock: VAR_UNLOCKED,
                                     vval: TypvalVval::Number(0),
                                 },
@@ -778,7 +782,7 @@ pub unsafe extern "C-unwind" fn nlua_pop_typval(
                     tv_list_append_owned_tv(
                          &mut *list,
                         TypVal {
-                            v_type: VarType::VAR_UNKNOWN,
+                            v_type: VarType::VarUnknown,
                             v_lock: VAR_UNLOCKED,
                             vval: TypvalVval::Number(0),
                         },
@@ -796,18 +800,18 @@ pub unsafe extern "C-unwind" fn nlua_pop_typval(
             }
 
             *cur.tv = TypVal {
-                v_type: VarType::VAR_NUMBER,
+                v_type: VarType::VarNumber,
                 v_lock: VAR_UNLOCKED,
                 vval: TypvalVval::Number(0),
             };
 
             match lua_type(lstate, -1) {
                 LUA_TNIL => {
-                    (*cur.tv).v_type = VarType::VAR_SPECIAL;
+                    (*cur.tv).v_type = VarType::VarSpecial;
                     (*cur.tv).vval = crate::eval::typval::TypvalVval::Number(K_SPECIAL_VAR_NULL);
                 }
                 LUA_TBOOLEAN => {
-                    (*cur.tv).v_type = VarType::VAR_BOOL;
+                    (*cur.tv).v_type = VarType::VarBool;
                     (*cur.tv).vval = crate::eval::typval::TypvalVval::Number(if lua_toboolean(lstate, -1) != 0 {
                         K_BOOL_VAR_TRUE
                     } else {
@@ -825,10 +829,10 @@ pub unsafe extern "C-unwind" fn nlua_pop_typval(
                         || n < (i64::MIN as lua_Number)
                         || ((n as i64) as lua_Number) != n
                     {
-                        (*cur.tv).v_type = VarType::VAR_FLOAT;
+                        (*cur.tv).v_type = VarType::VarFloat;
                         (*cur.tv).vval = crate::eval::typval::TypvalVval::Float(n);
                     } else {
-                        (*cur.tv).v_type = VarType::VAR_NUMBER;
+                        (*cur.tv).v_type = VarType::VarNumber;
                         (*cur.tv).vval = crate::eval::typval::TypvalVval::Number(n as i64);
                     }
                 }
@@ -853,11 +857,11 @@ pub unsafe extern "C-unwind" fn nlua_pop_typval(
 
                     if !found_self_ref {
                         match table_props.table_type {
-                            ObjectType::kObjectTypeArray => {
+                            ObjectType::ObjectTypeArray => {
                                 let l = tv_list_alloc(table_props.maxidx as isize);
                                 (*l).lua_table_ref = table_ref;
                                 tv_list_ref(l.as_mut());
-                                (*cur.tv).v_type = VarType::VAR_LIST;
+                                (*cur.tv).v_type = VarType::VarList;
                                 (*cur.tv).vval = crate::eval::typval::TypvalVval::List(l);
                                 cur.list_len = table_props.maxidx;
                                 if table_props.maxidx != 0 {
@@ -866,12 +870,12 @@ pub unsafe extern "C-unwind" fn nlua_pop_typval(
                                     stack.push(cur);
                                 }
                             }
-                            ObjectType::kObjectTypeDict => {
+                            ObjectType::ObjectTypeDict => {
                                 if table_props.string_keys_num == 0 {
                                     let d = tv_dict_alloc();
                                     (*d).dv_refcount += 1;
                                     (*d).lua_table_ref = table_ref;
-                                    (*cur.tv).v_type = VarType::VAR_DICT;
+                                    (*cur.tv).v_type = VarType::VarDict;
                                     (*cur.tv).vval = crate::eval::typval::TypvalVval::Dict(d);
                                 } else {
                                     cur.special = table_props.has_string_with_nul;
@@ -893,7 +897,7 @@ pub unsafe extern "C-unwind" fn nlua_pop_typval(
                                         let d = tv_dict_alloc();
                                         (*d).dv_refcount += 1;
                                         (*d).lua_table_ref = table_ref;
-                                        (*cur.tv).v_type = VarType::VAR_DICT;
+                                        (*cur.tv).v_type = VarType::VarDict;
                                         (*cur.tv).vval = crate::eval::typval::TypvalVval::Dict(d);
                                     }
                                     cur.container = true;
@@ -902,11 +906,11 @@ pub unsafe extern "C-unwind" fn nlua_pop_typval(
                                     lua_pushnil(lstate);
                                 }
                             }
-                            ObjectType::kObjectTypeFloat => {
-                                (*cur.tv).v_type = VarType::VAR_FLOAT;
+                            ObjectType::ObjectTypeFloat => {
+                                (*cur.tv).v_type = VarType::VarFloat;
                                 (*cur.tv).vval = crate::eval::typval::TypvalVval::Float(table_props.val);
                             }
-                            ObjectType::kObjectTypeNil => {
+                            ObjectType::ObjectTypeNil => {
                                 emsg(
                                     c"E5100: Cannot convert given Lua table: table should contain either only integer keys or only string keys",
                                 );
@@ -920,14 +924,14 @@ pub unsafe extern "C-unwind" fn nlua_pop_typval(
                     let func = nlua_ref_global(lstate, -1);
                     let name = register_luafunc(func);
                     crate::eval::typval::tv_set_string(&mut *cur.tv, name);
-                    (*cur.tv).v_type = VarType::VAR_FUNC;
+                    (*cur.tv).v_type = VarType::VarFunc;
                 }
                 LUA_TUSERDATA => {
                     nlua_pushref(lstate, (*g_st().nlua_global_refs).nil_ref);
                     let is_nil = lua_rawequal(lstate, -2, -1) != 0;
                     lua_pop(lstate, 1);
                     if is_nil {
-                        (*cur.tv).v_type = VarType::VAR_SPECIAL;
+                        (*cur.tv).v_type = VarType::VarSpecial;
                         (*cur.tv).vval = crate::eval::typval::TypvalVval::Number(K_SPECIAL_VAR_NULL);
                     } else {
                         emsg(c"E5101: Cannot convert given Lua type");
@@ -947,7 +951,7 @@ pub unsafe extern "C-unwind" fn nlua_pop_typval(
         if !ret {
             tv_clear(&mut *ret_tv);
             *ret_tv = TypVal {
-                v_type: VarType::VAR_NUMBER,
+                v_type: VarType::VarNumber,
                 v_lock: VAR_UNLOCKED,
                 vval: TypvalVval::Number(0),
             };
@@ -973,7 +977,7 @@ fn lua_conv_nil(lstate: *mut lua_State) {
 fn lua_conv_empty_dict(lstate: *mut lua_State) {
     unsafe {
         if luaconv_st().TYPVAL_CONV_SPECIAL {
-            nlua_create_typed_table(lstate, 0, 0, ObjectType::kObjectTypeDict);
+            nlua_create_typed_table(lstate, 0, 0, ObjectType::ObjectTypeDict);
         } else {
             lua_createtable(lstate, 0, 0);
             nlua_pushref(lstate, (*g_st().nlua_global_refs).empty_dict_ref);
@@ -1054,7 +1058,7 @@ fn lua_convert_one_value(
     unsafe {
         let tv_ref = tv;
         match tv_ref.v_type {
-            VarType::VAR_STRING => {
+            VarType::VarString => {
                 let s = tv_ref.vval.v_string();
                 let len = if s.is_null() {
                     0
@@ -1063,13 +1067,13 @@ fn lua_convert_one_value(
                 };
                 lua_pushlstring(lstate, s, len);
             }
-            VarType::VAR_NUMBER => {
+            VarType::VarNumber => {
                 lua_pushnumber(lstate, tv_ref.vval.v_number() as lua_Number);
             }
-            VarType::VAR_FLOAT => {
+            VarType::VarFloat => {
                 lua_pushnumber(lstate, tv_ref.vval.v_float());
             }
-            VarType::VAR_BLOB => {
+            VarType::VarBlob => {
                 let blob = tv_ref.vval.v_blob();
                 let len = tv_blob_len(blob.as_ref()) as usize;
                 let data = if !blob.is_null() && !(*blob).bv_ga.is_empty() {
@@ -1079,7 +1083,7 @@ fn lua_convert_one_value(
                 };
                 lua_pushlstring(lstate, data, len);
             }
-            VarType::VAR_FUNC => {
+            VarType::VarFunc => {
                 let fun = tv_ref.vval.v_string();
                 if !fun.is_null() {
                     let fp = find_func(fun);
@@ -1092,7 +1096,7 @@ fn lua_convert_one_value(
                     lua_conv_nil(lstate);
                 }
             }
-            VarType::VAR_PARTIAL => {
+            VarType::VarPartial => {
                 let pt = tv_ref.vval.v_partial();
                 let fun = if pt.is_null() {
                     std::ptr::null_mut()
@@ -1110,7 +1114,7 @@ fn lua_convert_one_value(
                     lua_conv_nil(lstate);
                 }
             }
-            VarType::VAR_LIST => {
+            VarType::VarList => {
                 let list = tv_ref.vval.v_list();
                 if list.is_null() || tv_list_len(list.as_ref()) == 0 {
                     lua_createtable(lstate, 0, 0);
@@ -1139,18 +1143,18 @@ fn lua_convert_one_value(
                     });
                 }
             }
-            VarType::VAR_BOOL => {
+            VarType::VarBool => {
                 lua_pushboolean(
                     lstate,
                     c_int::from(tv_ref.vval.v_bool() == K_BOOL_VAR_TRUE as c_int),
                 );
             }
-            VarType::VAR_SPECIAL => {
+            VarType::VarSpecial => {
                 if tv_ref.vval.v_special() == K_SPECIAL_VAR_NULL as c_int {
                     lua_conv_nil(lstate);
                 }
             }
-            VarType::VAR_DICT => {
+            VarType::VarDict => {
                 let dict = tv_ref.vval.v_dict();
                 if dict.is_null() || (*dict).dv_hashtab.ht_used == 0 {
                     lua_conv_empty_dict(lstate);
@@ -1159,7 +1163,7 @@ fn lua_convert_one_value(
                 let mut handled_special = false;
                 if (*dict).dv_hashtab.ht_used == 2 {
                     let type_di = tv_dict_find(dict.as_ref(), c"_TYPE", 5);
-                    if !type_di.is_null() && (*type_di).di_tv.v_type == VarType::VAR_LIST {
+                    if !type_di.is_null() && (*type_di).di_tv.v_type == VarType::VarList {
                         let val_di = tv_dict_find(dict.as_ref(), c"_VAL", 4);
                         if !val_di.is_null() {
                             let mut mp_idx = NUM_MSGPACK_TYPES;
@@ -1176,7 +1180,7 @@ fn lua_convert_one_value(
                                         handled_special = true;
                                     }
                                     K_MP_BOOLEAN => {
-                                        if (*val_di).di_tv.v_type == VarType::VAR_NUMBER {
+                                        if (*val_di).di_tv.v_type == VarType::VarNumber {
                                             lua_pushboolean(
                                                 lstate,
                                                 c_int::from((*val_di).di_tv.vval.v_number() != 0),
@@ -1185,22 +1189,22 @@ fn lua_convert_one_value(
                                         }
                                     }
                                     K_MP_INTEGER => {
-                                        if (*val_di).di_tv.v_type == VarType::VAR_LIST {
+                                        if (*val_di).di_tv.v_type == VarType::VarList {
                                             let val_list = (*val_di).di_tv.vval.v_list();
                                             if tv_list_len(val_list.as_ref()) == 4 {
                                                 let sign_li = tv_list_first(val_list.as_ref());
                                                 let highest_li = (*sign_li).li_next;
                                                 let high_li = (*highest_li).li_next;
                                                 let low_li = tv_list_last(val_list.as_ref());
-                                                if (*sign_li).li_tv.v_type == VarType::VAR_NUMBER
+                                                if (*sign_li).li_tv.v_type == VarType::VarNumber
                                                     && (*sign_li).li_tv.vval.v_number() != 0
                                                     && (*highest_li).li_tv.v_type
-                                                        == VarType::VAR_NUMBER
+                                                        == VarType::VarNumber
                                                     && (*highest_li).li_tv.vval.v_number() >= 0
                                                     && (*high_li).li_tv.v_type
-                                                        == VarType::VAR_NUMBER
+                                                        == VarType::VarNumber
                                                     && (*high_li).li_tv.vval.v_number() >= 0
-                                                    && (*low_li).li_tv.v_type == VarType::VAR_NUMBER
+                                                    && (*low_li).li_tv.v_type == VarType::VarNumber
                                                     && (*low_li).li_tv.vval.v_number() >= 0
                                                 {
                                                     let sign = (*sign_li).li_tv.vval.v_number();
@@ -1229,13 +1233,13 @@ fn lua_convert_one_value(
                                         }
                                     }
                                     K_MP_FLOAT => {
-                                        if (*val_di).di_tv.v_type == VarType::VAR_FLOAT {
+                                        if (*val_di).di_tv.v_type == VarType::VarFloat {
                                             lua_pushnumber(lstate, (*val_di).di_tv.vval.v_float());
                                             handled_special = true;
                                         }
                                     }
                                     K_MP_STRING => {
-                                        if (*val_di).di_tv.v_type == VarType::VAR_LIST
+                                        if (*val_di).di_tv.v_type == VarType::VarList
                                             && let Some(buf) =
                                                 encode_vim_list_to_buf(((*val_di).di_tv.vval.v_list()).as_ref())
                                         {
@@ -1244,7 +1248,7 @@ fn lua_convert_one_value(
                                         }
                                     }
                                     K_MP_ARRAY => {
-                                        if (*val_di).di_tv.v_type == VarType::VAR_LIST {
+                                        if (*val_di).di_tv.v_type == VarType::VarList {
                                             let val_list = (*val_di).di_tv.vval.v_list();
                                             let saved_copy_id = (*val_list).lv_copyID;
                                             let csr = lua_check_self_reference(
@@ -1273,7 +1277,7 @@ fn lua_convert_one_value(
                                         }
                                     }
                                     K_MP_MAP => {
-                                        if (*val_di).di_tv.v_type == VarType::VAR_LIST {
+                                        if (*val_di).di_tv.v_type == VarType::VarList {
                                             let val_list = (*val_di).di_tv.vval.v_list();
                                             if val_list.is_null() || tv_list_len(val_list.as_ref()) == 0 {
                                                 lua_conv_empty_dict(lstate);
@@ -1282,7 +1286,7 @@ fn lua_convert_one_value(
                                                 let mut all_pairs = true;
                                                 let mut li = tv_list_first(val_list.as_ref());
                                                 while !li.is_null() {
-                                                    if (*li).li_tv.v_type != VarType::VAR_LIST
+                                                    if (*li).li_tv.v_type != VarType::VarList
                                                         || tv_list_len(((*li).li_tv.vval.v_list()).as_ref()) != 2
                                                     {
                                                         all_pairs = false;
@@ -1322,15 +1326,15 @@ fn lua_convert_one_value(
                                             }
                                         }
                                     }
-                                    K_MP_EXT if (*val_di).di_tv.v_type == VarType::VAR_LIST => {
+                                    K_MP_EXT if (*val_di).di_tv.v_type == VarType::VarList => {
                                         let val_list = (*val_di).di_tv.vval.v_list();
                                         if tv_list_len(val_list.as_ref()) == 2 {
                                             let first = tv_list_first(val_list.as_ref());
                                             let last = tv_list_last(val_list.as_ref());
-                                            if (*first).li_tv.v_type == VarType::VAR_NUMBER
+                                            if (*first).li_tv.v_type == VarType::VarNumber
                                                 && (i8::MIN as i64..=i8::MAX as i64)
                                                     .contains(&(*first).li_tv.vval.v_number())
-                                                && (*last).li_tv.v_type == VarType::VAR_LIST
+                                                && (*last).li_tv.v_type == VarType::VarList
                                                 && encode_vim_list_to_buf(((*last).li_tv.vval.v_list()).as_ref())
                                                     .is_some()
                                             {
@@ -1372,7 +1376,7 @@ fn lua_convert_one_value(
                     });
                 }
             }
-            VarType::VAR_UNKNOWN => {
+            VarType::VarUnknown => {
                 internal_error(c"_typval_encode_lua_convert_one_value()");
                 return FAIL;
             }
@@ -1529,7 +1533,7 @@ pub unsafe extern "C-unwind" fn nlua_push_Integer(
 pub unsafe extern "C-unwind" fn nlua_push_Float(lstate: *mut lua_State, f: Float, flags: c_int) {
     unsafe {
         if (flags & K_NLUA_PUSH_SPECIAL) != 0 {
-            nlua_create_typed_table(lstate, 0, 1, ObjectType::kObjectTypeFloat);
+            nlua_create_typed_table(lstate, 0, 1, ObjectType::ObjectTypeFloat);
             nlua_push_val_idx(lstate);
             lua_pushnumber(lstate, f);
             lua_rawset(lstate, -3);
@@ -1605,29 +1609,29 @@ pub unsafe extern "C-unwind" fn nlua_push_Object(
     unsafe {
         let obj = &mut *obj;
         match obj.obj_type {
-            ObjectType::kObjectTypeUnset | ObjectType::kObjectTypeNil => {
+            ObjectType::ObjectTypeUnset | ObjectType::ObjectTypeNil => {
                 if (flags & K_NLUA_PUSH_SPECIAL) != 0 {
                     lua_pushnil(lstate);
                 } else {
                     nlua_pushref(lstate, (*g_st().nlua_global_refs).nil_ref);
                 }
             }
-            ObjectType::kObjectTypeLuaRef => {
+            ObjectType::ObjectTypeLuaRef => {
                 nlua_pushref(lstate, obj.data.luaref());
                 if (flags & K_NLUA_PUSH_FREE_REFS) != 0 {
                     api_free_luaref(obj.data.luaref());
                     obj.data = ObjectData::LuaRef(LUA_NOREF);
                 }
             }
-            ObjectType::kObjectTypeBoolean => nlua_push_Boolean(lstate, obj.data.boolean(), flags),
-            ObjectType::kObjectTypeInteger => nlua_push_Integer(lstate, obj.data.integer(), flags),
-            ObjectType::kObjectTypeFloat => nlua_push_Float(lstate, obj.data.floating(), flags),
-            ObjectType::kObjectTypeString => nlua_push_String(lstate, obj.data.string(), flags),
-            ObjectType::kObjectTypeArray => nlua_push_Array(lstate, obj.data.array(), flags),
-            ObjectType::kObjectTypeDict => nlua_push_Dict(lstate, obj.data.dict(), flags),
-            ObjectType::kObjectTypeBuffer
-            | ObjectType::kObjectTypeWindow
-            | ObjectType::kObjectTypeTabpage => {
+            ObjectType::ObjectTypeBoolean => nlua_push_Boolean(lstate, obj.data.boolean(), flags),
+            ObjectType::ObjectTypeInteger => nlua_push_Integer(lstate, obj.data.integer(), flags),
+            ObjectType::ObjectTypeFloat => nlua_push_Float(lstate, obj.data.floating(), flags),
+            ObjectType::ObjectTypeString => nlua_push_String(lstate, obj.data.string(), flags),
+            ObjectType::ObjectTypeArray => nlua_push_Array(lstate, obj.data.array(), flags),
+            ObjectType::ObjectTypeDict => nlua_push_Dict(lstate, obj.data.dict(), flags),
+            ObjectType::ObjectTypeBuffer
+            | ObjectType::ObjectTypeWindow
+            | ObjectType::ObjectTypeTabpage => {
                 nlua_push_handle(lstate, obj.data.integer() as ObjHandle, flags);
             }
         }
@@ -1653,7 +1657,7 @@ pub fn nlua_pop_String_opt(
             lua_pop(lstate, 1);
             api_set_error!(
                 err,
-                ErrorType::kErrorTypeValidation,
+                ErrorType::ErrorTypeValidation,
                 c"Expected Lua string",
             );
             return NvimString {
@@ -1681,7 +1685,7 @@ pub fn nlua_pop_Integer(
             lua_pop(lstate, 1);
             api_set_error!(
                 err,
-                ErrorType::kErrorTypeValidation,
+                ErrorType::ErrorTypeValidation,
                 c"Expected Lua number",
             );
             return 0;
@@ -1694,7 +1698,7 @@ pub fn nlua_pop_Integer(
         {
             api_set_error!(
                 err,
-                ErrorType::kErrorTypeException,
+                ErrorType::ErrorTypeException,
                 c"Number is not integral",
             );
             return 0;
@@ -1736,7 +1740,7 @@ pub fn nlua_pop_Boolean_strict(
             _ => {
                 api_set_error!(
                     err,
-                    ErrorType::kErrorTypeValidation,
+                    ErrorType::ErrorTypeValidation,
                     c"not a boolean",
                 );
             }
@@ -1753,14 +1757,14 @@ fn nlua_check_type(
 ) -> LuaTableProps {
     unsafe {
         if lua_type(lstate, -1) != LUA_TTABLE {
-            let name = if expected_type == ObjectType::kObjectTypeFloat {
+            let name = if expected_type == ObjectType::ObjectTypeFloat {
                 c"number".as_ptr()
             } else {
                 c"table".as_ptr()
             };
             api_set_error!(
                 err,
-                ErrorType::kErrorTypeValidation,
+                ErrorType::ErrorTypeValidation,
                 c"Expected Lua %s",
                 name,
             );
@@ -1768,25 +1772,25 @@ fn nlua_check_type(
                 maxidx: 0,
                 string_keys_num: 0,
                 has_string_with_nul: false,
-                table_type: ObjectType::kObjectTypeNil,
+                table_type: ObjectType::ObjectTypeNil,
                 val: 0.0,
                 has_type_key: false,
             };
         }
         let mut table_props = nlua_traverse_table(lstate);
 
-        if expected_type == ObjectType::kObjectTypeDict
-            && table_props.table_type == ObjectType::kObjectTypeArray
+        if expected_type == ObjectType::ObjectTypeDict
+            && table_props.table_type == ObjectType::ObjectTypeArray
             && table_props.maxidx == 0
             && !table_props.has_type_key
         {
-            table_props.table_type = ObjectType::kObjectTypeDict;
+            table_props.table_type = ObjectType::ObjectTypeDict;
         }
 
         if table_props.table_type != expected_type {
             api_set_error!(
                 err,
-                ErrorType::kErrorTypeValidation,
+                ErrorType::ErrorTypeValidation,
                 c"Expected %s-like Lua table",
                 api_typename(expected_type),
             );
@@ -1808,9 +1812,9 @@ pub fn nlua_pop_Float(
             return ret;
         }
     }
-    let table_props = nlua_check_type(lstate, err, ObjectType::kObjectTypeFloat);
+    let table_props = nlua_check_type(lstate, err, ObjectType::ObjectTypeFloat);
     lua_pop(lstate, 1);
-    if table_props.table_type != ObjectType::kObjectTypeFloat {
+    if table_props.table_type != ObjectType::ObjectTypeFloat {
         return 0.0;
     }
     table_props.val
@@ -1865,8 +1869,8 @@ pub fn nlua_pop_Array_opt(
     arena: Option<&mut Arena>,
     err: &mut Error,
 ) -> Array {
-    let table_props = nlua_check_type(lstate, err, ObjectType::kObjectTypeArray);
-    if table_props.table_type != ObjectType::kObjectTypeArray {
+    let table_props = nlua_check_type(lstate, err, ObjectType::ObjectTypeArray);
+    if table_props.table_type != ObjectType::ObjectTypeArray {
         return Array {
             size: 0,
             capacity: 0,
@@ -1942,8 +1946,8 @@ pub fn nlua_pop_Dict_opt(
     arena: Option<&mut Arena>,
     err: &mut Error,
 ) -> Dict {
-    let table_props = nlua_check_type(lstate, err, ObjectType::kObjectTypeDict);
-    if table_props.table_type != ObjectType::kObjectTypeDict {
+    let table_props = nlua_check_type(lstate, err, ObjectType::ObjectTypeDict);
+    if table_props.table_type != ObjectType::ObjectTypeDict {
         lua_pop(lstate, 1);
         return Dict {
             size: 0,
@@ -1985,12 +1989,12 @@ pub fn nlua_pop_Object_opt(
                 if lua_checkstack(lstate, lua_gettop(lstate) + 3) == 0 {
                     api_set_error!(
                         err,
-                        ErrorType::kErrorTypeException,
+                        ErrorType::ErrorTypeException,
                         c"Lua failed to grow stack",
                     );
                     break;
                 }
-                if (*cur.obj).obj_type == ObjectType::kObjectTypeDict {
+                if (*cur.obj).obj_type == ObjectType::ObjectTypeDict {
                     if (*cur.obj).data.dict().size == (*cur.obj).data.dict().capacity {
                         lua_pop(lstate, 2);
                         continue;
@@ -2041,7 +2045,7 @@ pub fn nlua_pop_Object_opt(
                 LUA_TNIL => {}
                 LUA_TBOOLEAN => {
                     *cur.obj = Object {
-                        obj_type: ObjectType::kObjectTypeBoolean,
+                        obj_type: ObjectType::ObjectTypeBoolean,
                         data: ObjectData::Boolean(lua_toboolean(lstate, -1) != 0),
                     };
                 }
@@ -2049,7 +2053,7 @@ pub fn nlua_pop_Object_opt(
                     let mut len = 0usize;
                     let s = lua_tolstring(lstate, -1, &mut len);
                     *cur.obj = Object {
-                        obj_type: ObjectType::kObjectTypeString,
+                        obj_type: ObjectType::ObjectTypeString,
                         data: ObjectData::String(cbuf_to_arena_str_opt(arena.as_deref_mut(), s, len)),
                     };
                 }
@@ -2060,12 +2064,12 @@ pub fn nlua_pop_Object_opt(
                         || ((n as Integer) as lua_Number) != n
                     {
                         *cur.obj = Object {
-                            obj_type: ObjectType::kObjectTypeFloat,
+                            obj_type: ObjectType::ObjectTypeFloat,
                             data: ObjectData::Floating(n),
                         };
                     } else {
                         *cur.obj = Object {
-                            obj_type: ObjectType::kObjectTypeInteger,
+                            obj_type: ObjectType::ObjectTypeInteger,
                             data: ObjectData::Integer(n as Integer),
                         };
                     }
@@ -2073,9 +2077,9 @@ pub fn nlua_pop_Object_opt(
                 LUA_TTABLE => {
                     let table_props = nlua_traverse_table(lstate);
                     match table_props.table_type {
-                        ObjectType::kObjectTypeArray => {
+                        ObjectType::ObjectTypeArray => {
                             *cur.obj = Object {
-                                obj_type: ObjectType::kObjectTypeArray,
+                                obj_type: ObjectType::ObjectTypeArray,
                                 data: ObjectData::Array(Array {
                                         size: 0,
                                         capacity: 0,
@@ -2088,9 +2092,9 @@ pub fn nlua_pop_Object_opt(
                                 stack.push(cur);
                             }
                         }
-                        ObjectType::kObjectTypeDict => {
+                        ObjectType::ObjectTypeDict => {
                             *cur.obj = Object {
-                                obj_type: ObjectType::kObjectTypeDict,
+                                obj_type: ObjectType::ObjectTypeDict,
                                 data: ObjectData::Dict(Dict {
                                         size: 0,
                                         capacity: 0,
@@ -2104,16 +2108,16 @@ pub fn nlua_pop_Object_opt(
                                 lua_pushnil(lstate);
                             }
                         }
-                        ObjectType::kObjectTypeFloat => {
+                        ObjectType::ObjectTypeFloat => {
                             *cur.obj = Object {
-                                obj_type: ObjectType::kObjectTypeFloat,
+                                obj_type: ObjectType::ObjectTypeFloat,
                                 data: ObjectData::Floating(table_props.val),
                             };
                         }
-                        ObjectType::kObjectTypeNil => {
+                        ObjectType::ObjectTypeNil => {
                             api_set_error!(
                                 err,
-                                ErrorType::kErrorTypeValidation,
+                                ErrorType::ErrorTypeValidation,
                                 c"Cannot convert given Lua table",
                             );
                         }
@@ -2123,13 +2127,13 @@ pub fn nlua_pop_Object_opt(
                 LUA_TFUNCTION => {
                     if ref_ {
                         *cur.obj = Object {
-                            obj_type: ObjectType::kObjectTypeLuaRef,
+                            obj_type: ObjectType::ObjectTypeLuaRef,
                             data: ObjectData::LuaRef(nlua_ref_global(lstate, -1)),
                         };
                     } else {
                         api_set_error!(
                             err,
-                            ErrorType::kErrorTypeValidation,
+                            ErrorType::ErrorTypeValidation,
                             c"Cannot convert given Lua type",
                         );
                     }
@@ -2143,7 +2147,7 @@ pub fn nlua_pop_Object_opt(
                     } else {
                         api_set_error!(
                             err,
-                            ErrorType::kErrorTypeValidation,
+                            ErrorType::ErrorTypeValidation,
                             c"Cannot convert userdata",
                         );
                     }
@@ -2151,7 +2155,7 @@ pub fn nlua_pop_Object_opt(
                 _ => {
                     api_set_error!(
                         err,
-                        ErrorType::kErrorTypeValidation,
+                        ErrorType::ErrorTypeValidation,
                         c"Cannot convert given Lua type",
                     );
                 }
@@ -2194,7 +2198,7 @@ pub fn nlua_pop_handle(
         let ret = if lua_type(lstate, -1) != LUA_TNUMBER {
             api_set_error!(
                 err,
-                ErrorType::kErrorTypeValidation,
+                ErrorType::ErrorTypeValidation,
                 c"Expected Lua number",
             );
             -1
@@ -2223,12 +2227,12 @@ pub unsafe extern "C-unwind" fn nlua_init_types(lstate: *mut lua_State) {
         lua_pushlstring(lstate, c"float".as_ptr(), 5);
         lua_pushnumber(
             lstate,
-            (ObjectType::kObjectTypeFloat as c_int) as lua_Number,
+            (ObjectType::ObjectTypeFloat as c_int) as lua_Number,
         );
         lua_rawset(lstate, -3);
         lua_pushnumber(
             lstate,
-            (ObjectType::kObjectTypeFloat as c_int) as lua_Number,
+            (ObjectType::ObjectTypeFloat as c_int) as lua_Number,
         );
         lua_pushlstring(lstate, c"float".as_ptr(), 5);
         lua_rawset(lstate, -3);
@@ -2236,20 +2240,20 @@ pub unsafe extern "C-unwind" fn nlua_init_types(lstate: *mut lua_State) {
         lua_pushlstring(lstate, c"array".as_ptr(), 5);
         lua_pushnumber(
             lstate,
-            (ObjectType::kObjectTypeArray as c_int) as lua_Number,
+            (ObjectType::ObjectTypeArray as c_int) as lua_Number,
         );
         lua_rawset(lstate, -3);
         lua_pushnumber(
             lstate,
-            (ObjectType::kObjectTypeArray as c_int) as lua_Number,
+            (ObjectType::ObjectTypeArray as c_int) as lua_Number,
         );
         lua_pushlstring(lstate, c"array".as_ptr(), 5);
         lua_rawset(lstate, -3);
 
         lua_pushlstring(lstate, c"dictionary".as_ptr(), 10);
-        lua_pushnumber(lstate, (ObjectType::kObjectTypeDict as c_int) as lua_Number);
+        lua_pushnumber(lstate, (ObjectType::ObjectTypeDict as c_int) as lua_Number);
         lua_rawset(lstate, -3);
-        lua_pushnumber(lstate, (ObjectType::kObjectTypeDict as c_int) as lua_Number);
+        lua_pushnumber(lstate, (ObjectType::ObjectTypeDict as c_int) as lua_Number);
         lua_pushlstring(lstate, c"dictionary".as_ptr(), 10);
         lua_rawset(lstate, -3);
 
@@ -2281,7 +2285,7 @@ pub fn nlua_pop_keydict_opt(
         if lua_type(L, -1) != LUA_TTABLE {
             api_set_error!(
                 err,
-                ErrorType::kErrorTypeValidation,
+                ErrorType::ErrorTypeValidation,
                 c"Expected Lua table",
             );
             lua_pop(L, 1);
@@ -2298,7 +2302,7 @@ pub fn nlua_pop_keydict_opt(
             let Some(field) = hashy_fn(key_bytes) else {
                 api_set_error!(
                     err,
-                    ErrorType::kErrorTypeValidation,
+                    ErrorType::ErrorTypeValidation,
                     c"invalid key: %.*s",
                     len as c_int,
                     s,
@@ -2311,9 +2315,9 @@ pub fn nlua_pop_keydict_opt(
             }
             let mem = retval.cast::<u8>().add(field.ptr_off);
 
-            if field.key_type == (ObjectType::kObjectTypeNil as c_int) {
+            if field.key_type == (ObjectType::ObjectTypeNil as c_int) {
                 *mem.cast::<Object>() = nlua_pop_Object_opt(L, true, arena.as_deref_mut(), err);
-            } else if field.key_type == (ObjectType::kObjectTypeInteger as c_int) {
+            } else if field.key_type == (ObjectType::ObjectTypeInteger as c_int) {
                 if field.is_hlgroup && lua_type(L, -1) == LUA_TSTRING {
                     let mut name_len = 0usize;
                     let name = lua_tolstring(L, -1, &mut name_len);
@@ -2326,22 +2330,22 @@ pub fn nlua_pop_keydict_opt(
                 } else {
                     *mem.cast::<Integer>() = nlua_pop_Integer(L, &mut dummy_arena, err);
                 }
-            } else if field.key_type == (ObjectType::kObjectTypeBoolean as c_int) {
+            } else if field.key_type == (ObjectType::ObjectTypeBoolean as c_int) {
                 *mem.cast::<Boolean>() = nlua_pop_Boolean_strict(L, err);
-            } else if field.key_type == (ObjectType::kObjectTypeString as c_int) {
+            } else if field.key_type == (ObjectType::ObjectTypeString as c_int) {
                 *mem.cast::<NvimString>() = nlua_pop_String_opt(L, arena.as_deref_mut(), err);
-            } else if field.key_type == (ObjectType::kObjectTypeFloat as c_int) {
+            } else if field.key_type == (ObjectType::ObjectTypeFloat as c_int) {
                 *mem.cast::<Float>() = nlua_pop_Float(L, &mut dummy_arena, err);
-            } else if field.key_type == (ObjectType::kObjectTypeBuffer as c_int)
-                || field.key_type == (ObjectType::kObjectTypeWindow as c_int)
-                || field.key_type == (ObjectType::kObjectTypeTabpage as c_int)
+            } else if field.key_type == (ObjectType::ObjectTypeBuffer as c_int)
+                || field.key_type == (ObjectType::ObjectTypeWindow as c_int)
+                || field.key_type == (ObjectType::ObjectTypeTabpage as c_int)
             {
                 *mem.cast::<ObjHandle>() = nlua_pop_handle(L, &mut dummy_arena, err);
-            } else if field.key_type == (ObjectType::kObjectTypeArray as c_int) {
+            } else if field.key_type == (ObjectType::ObjectTypeArray as c_int) {
                 *mem.cast::<Array>() = nlua_pop_Array_opt(L, arena.as_deref_mut(), err);
-            } else if field.key_type == (ObjectType::kObjectTypeDict as c_int) {
+            } else if field.key_type == (ObjectType::ObjectTypeDict as c_int) {
                 *mem.cast::<Dict>() = nlua_pop_Dict_opt(L, false, arena.as_deref_mut(), err);
-            } else if field.key_type == (ObjectType::kObjectTypeLuaRef as c_int) {
+            } else if field.key_type == (ObjectType::ObjectTypeLuaRef as c_int) {
                 *mem.cast::<LuaRef>() = nlua_pop_LuaRef(L, &mut dummy_arena, err);
             } else {
                 std::process::abort();
@@ -2378,26 +2382,26 @@ pub unsafe extern "C-unwind" fn nlua_push_keydict(
 
             let mem = value.cast::<u8>().add(field.ptr_off);
             lua_pushstring(L, field_str.as_ptr());
-            if field.key_type == (ObjectType::kObjectTypeNil as c_int) {
+            if field.key_type == (ObjectType::ObjectTypeNil as c_int) {
                 nlua_push_Object(L, mem.cast::<Object>(), 0);
-            } else if field.key_type == (ObjectType::kObjectTypeInteger as c_int) {
+            } else if field.key_type == (ObjectType::ObjectTypeInteger as c_int) {
                 lua_pushinteger(L, *mem.cast::<Integer>() as lua_Integer);
-            } else if field.key_type == (ObjectType::kObjectTypeBuffer as c_int)
-                || field.key_type == (ObjectType::kObjectTypeWindow as c_int)
-                || field.key_type == (ObjectType::kObjectTypeTabpage as c_int)
+            } else if field.key_type == (ObjectType::ObjectTypeBuffer as c_int)
+                || field.key_type == (ObjectType::ObjectTypeWindow as c_int)
+                || field.key_type == (ObjectType::ObjectTypeTabpage as c_int)
             {
                 lua_pushinteger(L, *mem.cast::<ObjHandle>() as lua_Integer);
-            } else if field.key_type == (ObjectType::kObjectTypeFloat as c_int) {
+            } else if field.key_type == (ObjectType::ObjectTypeFloat as c_int) {
                 lua_pushnumber(L, *mem.cast::<Float>());
-            } else if field.key_type == (ObjectType::kObjectTypeBoolean as c_int) {
+            } else if field.key_type == (ObjectType::ObjectTypeBoolean as c_int) {
                 lua_pushboolean(L, c_int::from(*mem.cast::<Boolean>()));
-            } else if field.key_type == (ObjectType::kObjectTypeString as c_int) {
+            } else if field.key_type == (ObjectType::ObjectTypeString as c_int) {
                 nlua_push_String(L, *mem.cast::<NvimString>(), 0);
-            } else if field.key_type == (ObjectType::kObjectTypeArray as c_int) {
+            } else if field.key_type == (ObjectType::ObjectTypeArray as c_int) {
                 nlua_push_Array(L, *mem.cast::<Array>(), 0);
-            } else if field.key_type == (ObjectType::kObjectTypeDict as c_int) {
+            } else if field.key_type == (ObjectType::ObjectTypeDict as c_int) {
                 nlua_push_Dict(L, *mem.cast::<Dict>(), 0);
-            } else if field.key_type == (ObjectType::kObjectTypeLuaRef as c_int) {
+            } else if field.key_type == (ObjectType::ObjectTypeLuaRef as c_int) {
                 nlua_pushref(L, *mem.cast::<LuaRef>());
             } else {
                 std::process::abort();
@@ -2416,7 +2420,7 @@ mod tests {
     #[test]
     fn keyset_link_and_nil_obj_defaults() {
         let obj = nil_obj();
-        assert_eq!(obj.obj_type, ObjectType::kObjectTypeNil);
+        assert_eq!(obj.obj_type, ObjectType::ObjectTypeNil);
         assert_eq!(obj.data.integer(), 0);
     }
 }

@@ -6,7 +6,7 @@ use crate::cursor::{
     get_cursor_pos_ptr, inc_cursor, Linenr, lt, ltoreq, CursorPos,
 };
 use crate::drawscreen::{UPD_INVERTED, redraw_curbuf_later, showmode};
-use crate::eval::funcs::{do_searchpair, kMTCharWise, kMTLineWise};
+use crate::eval::funcs::{do_searchpair, MTCharWise, MTLineWise};
 use crate::fold::hasFolding;
 use crate::globals::*;
 use crate::indent::inindent;
@@ -643,7 +643,7 @@ pub fn current_word(
                 redraw_curbuf_later(UPD_INVERTED);
             } else {
                 oap.start = start_pos;
-                oap.motion_type = kMTCharWise;
+                oap.motion_type = MTCharWise;
             }
             count -= 1;
         }
@@ -731,7 +731,7 @@ pub fn current_line(oap: &mut Oparg, include: bool) -> bool {
                 oap.start.lnum = 1;
                 oap.start.col = 0;
                 oap.start.coladd = 0;
-                oap.motion_type = kMTLineWise;
+                oap.motion_type = MTLineWise;
             }
             curwin_mut().w_cursor.lnum = curbuf_mut().b_ml.ml_line_count;
             curwin_mut().w_cursor.col = 0;
@@ -772,7 +772,7 @@ pub fn current_line(oap: &mut Oparg, include: bool) -> bool {
             showmode();
         } else {
             oap.start = start_pos;
-            oap.motion_type = kMTCharWise;
+            oap.motion_type = MTCharWise;
             oap.inclusive = true;
             curwin_mut().w_cursor = end_pos;
         }
@@ -843,7 +843,7 @@ pub fn current_sent(oap: &mut Oparg, mut count: c_int, include: bool) -> bool {
             } else {
                 oap.inclusive = incl(&mut curwin_mut().w_cursor) == -1;
                 oap.start = start_pos;
-                oap.motion_type = kMTCharWise;
+                oap.motion_type = MTCharWise;
                 return true;
             }
             let _ = &mut ncount;
@@ -1060,7 +1060,7 @@ pub fn current_block(
             showmode();
         } else {
             oap.start = start_pos;
-            oap.motion_type = kMTCharWise;
+            oap.motion_type = MTCharWise;
             oap.inclusive = false;
             if sol {
                 incl(&mut curwin_mut().w_cursor);
@@ -1288,7 +1288,7 @@ pub fn current_tagblock(oap: &mut Oparg, count_arg: c_int, include: bool) -> boo
                 showmode();
             } else {
                 oap.start = start_pos;
-                oap.motion_type = kMTCharWise;
+                oap.motion_type = MTCharWise;
                 if lt(end_pos, start_pos) {
                     curwin_mut().w_cursor = start_pos;
                     oap.inclusive = false;
@@ -1397,7 +1397,7 @@ pub fn current_par(oap: &mut Oparg, count: c_int, include: bool, type_: c_int) -
             } else {
                 oap.start.lnum = start_lnum;
                 oap.start.col = 0;
-                oap.motion_type = kMTLineWise;
+                oap.motion_type = MTLineWise;
                 curwin_mut().w_cursor.lnum = end_lnum;
                 curwin_mut().w_cursor.col = 0;
                 return true;
@@ -1715,7 +1715,7 @@ pub fn current_quote(
             }
         } else {
             oap.start = curwin_mut().w_cursor;
-            oap.motion_type = kMTCharWise;
+            oap.motion_type = MTCharWise;
         }
 
         curwin_mut().w_cursor.col = col_end;

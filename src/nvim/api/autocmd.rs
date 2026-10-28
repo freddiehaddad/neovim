@@ -174,11 +174,11 @@ fn unpack_string_or_array(
     arena: &mut Arena,
     err: &mut Error,
 ) -> Array {
-    if v.obj_type == ObjectType::kObjectTypeString {
+    if v.obj_type == ObjectType::ObjectTypeString {
             let mut arr = arena_array(arena, 1);
             add_c(&mut arr, v);
             arr
-        } else if v.obj_type == ObjectType::kObjectTypeArray {
+        } else if v.obj_type == ObjectType::ObjectTypeArray {
             if !check_string_array(v.data.array(), k.as_ptr().cast_mut(), true, err) {
                 return Array {
                     items: std::ptr::null_mut(),
@@ -188,7 +188,7 @@ fn unpack_string_or_array(
             }
             v.data.array()
         } else {
-            if !(!required && v.obj_type == ObjectType::kObjectTypeNil) {
+            if !(!required && v.obj_type == ObjectType::ObjectTypeNil) {
                 api_err_exp(
                     err,
                     k.as_ptr(),
@@ -206,8 +206,8 @@ fn unpack_string_or_array(
 
 fn get_augroup_from_object(group: Object, err: &mut Error) -> c_int {
     match group.obj_type {
-            ObjectType::kObjectTypeNil => AUGROUP_DEFAULT,
-            ObjectType::kObjectTypeString => {
+            ObjectType::ObjectTypeNil => AUGROUP_DEFAULT,
+            ObjectType::ObjectTypeString => {
                 let au_group = augroup_find(group.data.string().data);
                 if au_group == AUGROUP_ERROR {
                     api_err_inv(err, c"group", group.data.string().data);
@@ -215,7 +215,7 @@ fn get_augroup_from_object(group: Object, err: &mut Error) -> c_int {
                 }
                 au_group
             }
-            ObjectType::kObjectTypeInteger => {
+            ObjectType::ObjectTypeInteger => {
                 let au_group = group.data.integer() as c_int;
                 let name = if au_group == 0 {
                     std::ptr::null()
@@ -251,8 +251,8 @@ fn get_patterns_from_pattern_or_buf(
     unsafe {
         let mut patterns = ArrayBuilder::new();
 
-        if pattern.obj_type != ObjectType::kObjectTypeNil {
-            if pattern.obj_type == ObjectType::kObjectTypeString {
+        if pattern.obj_type != ObjectType::ObjectTypeNil {
+            if pattern.obj_type == ObjectType::ObjectTypeString {
                 let mut pat: *const c_char = pattern.data.string().data;
                 let mut patlen = aucmd_span_pattern(pat, &mut pat);
                 while patlen != 0 {
@@ -266,7 +266,7 @@ fn get_patterns_from_pattern_or_buf(
                     patterns.push(string_obj(s));
                     patlen = aucmd_span_pattern(pat.add(patlen), &mut pat);
                 }
-            } else if pattern.obj_type == ObjectType::kObjectTypeArray {
+            } else if pattern.obj_type == ObjectType::ObjectTypeArray {
                 if !check_string_array(
                     pattern.data.array(),
                     c"pattern",
@@ -335,7 +335,7 @@ fn clear_autocmd(
     if !do_autocmd_event(event, pat, false, 0, c"", true, au_group) {
             api_set_error!(
                 err,
-                ErrorType::kErrorTypeException,
+                ErrorType::ErrorTypeException,
                 c"Failed to clear autocmd",
             );
             return false;
@@ -405,15 +405,15 @@ pub fn nvim_get_autocmds(
 
         'body: {
             match opts.group.obj_type {
-                ObjectType::kObjectTypeNil => {}
-                ObjectType::kObjectTypeString => {
+                ObjectType::ObjectTypeNil => {}
+                ObjectType::ObjectTypeString => {
                     group = augroup_find(opts.group.data.string().data);
                     if group < 0 {
                         api_err_inv(err, c"group", opts.group.data.string().data);
                         break 'body;
                     }
                 }
-                ObjectType::kObjectTypeInteger => {
+                ObjectType::ObjectTypeInteger => {
                     group = opts.group.data.integer() as c_int;
                     let name = if group == 0 {
                         std::ptr::null()
@@ -446,21 +446,21 @@ pub fn nvim_get_autocmds(
             if has_key(mask, KEYSET_OPTIDX_get_autocmds__event) {
                 check_event = true;
                 let v = opts.event;
-                if v.obj_type == ObjectType::kObjectTypeString {
+                if v.obj_type == ObjectType::ObjectTypeString {
                     let event_nr = event_name2nr_str(v.data.string());
                     if (event_nr as usize) >= NUM_EVENTS {
                         api_err_inv(err, c"event", v.data.string().data);
                         break 'body;
                     }
                     event_set[event_nr as usize] = true;
-                } else if v.obj_type == ObjectType::kObjectTypeArray {
+                } else if v.obj_type == ObjectType::ObjectTypeArray {
                     for i in 0..v.data.array().size {
                         let event_v = *v.data.array().items.add(i);
-                        if event_v.obj_type != ObjectType::kObjectTypeString {
+                        if event_v.obj_type != ObjectType::ObjectTypeString {
                             api_err_exp(
                                 err,
                                 c"event item",
-                                api_typename(ObjectType::kObjectTypeString),
+                                api_typename(ObjectType::ObjectTypeString),
                                 api_typename(event_v.obj_type),
                             );
                             break 'body;
@@ -504,14 +504,14 @@ pub fn nvim_get_autocmds(
             let mut pattern_filter_count = 0usize;
             if has_key(mask, KEYSET_OPTIDX_get_autocmds__pattern) {
                 let v = opts.pattern;
-                if v.obj_type == ObjectType::kObjectTypeString {
+                if v.obj_type == ObjectType::ObjectTypeString {
                     pattern_filters[pattern_filter_count] = v.data.string().data;
                     pattern_filter_count += 1;
-                } else if v.obj_type == ObjectType::kObjectTypeArray {
+                } else if v.obj_type == ObjectType::ObjectTypeArray {
                     if v.data.array().size > AUCMD_MAX_PATTERNS {
                         api_set_error!(
                             err,
-                            ErrorType::kErrorTypeValidation,
+                            ErrorType::ErrorTypeValidation,
                             c"Too many patterns (maximum of %d)",
                             AUCMD_MAX_PATTERNS as c_int,
                         );
@@ -519,11 +519,11 @@ pub fn nvim_get_autocmds(
                     }
                     for i in 0..v.data.array().size {
                         let item = *v.data.array().items.add(i);
-                        if item.obj_type != ObjectType::kObjectTypeString {
+                        if item.obj_type != ObjectType::ObjectTypeString {
                             api_err_exp(
                                 err,
                                 c"pattern",
-                                api_typename(ObjectType::kObjectTypeString),
+                                api_typename(ObjectType::ObjectTypeString),
                                 api_typename(item.obj_type),
                             );
                             break 'body;
@@ -542,8 +542,8 @@ pub fn nvim_get_autocmds(
                 }
             }
 
-            if buf.obj_type == ObjectType::kObjectTypeInteger
-                || buf.obj_type == ObjectType::kObjectTypeBuffer
+            if buf.obj_type == ObjectType::ObjectTypeInteger
+                || buf.obj_type == ObjectType::ObjectTypeBuffer
             {
                 let Some(b) = crate::api::private::helpers::find_buffer_by_handle_mut(buf.data.integer() as Buffer, err) else {
                     break 'body;
@@ -551,11 +551,11 @@ pub fn nvim_get_autocmds(
                 let pat = format_buflocal_arena(arena, b.b_fnum);
                 buffers = arena_array(arena, 1);
                 add_c(&mut buffers, string_obj(pat));
-            } else if buf.obj_type == ObjectType::kObjectTypeArray {
+            } else if buf.obj_type == ObjectType::ObjectTypeArray {
                 if buf.data.array().size > AUCMD_MAX_PATTERNS {
                     api_set_error!(
                         err,
-                        ErrorType::kErrorTypeValidation,
+                        ErrorType::ErrorTypeValidation,
                         c"Too many buffers (maximum of %d)",
                         AUCMD_MAX_PATTERNS as c_int,
                     );
@@ -564,8 +564,8 @@ pub fn nvim_get_autocmds(
                 buffers = arena_array(arena, buf.data.array().size);
                 for i in 0..buf.data.array().size {
                     let bufnr = *buf.data.array().items.add(i);
-                    if bufnr.obj_type != ObjectType::kObjectTypeInteger
-                        && bufnr.obj_type != ObjectType::kObjectTypeBuffer
+                    if bufnr.obj_type != ObjectType::ObjectTypeInteger
+                        && bufnr.obj_type != ObjectType::ObjectTypeBuffer
                     {
                         api_err_exp(
                             err,
@@ -847,7 +847,7 @@ pub fn nvim_create_autocmd(
             if has_callback {
                 let callback = &mut opts.callback;
                 match callback.obj_type {
-                    ObjectType::kObjectTypeLuaRef => {
+                    ObjectType::ObjectTypeLuaRef => {
                         if callback.data.luaref() == LUA_NOREF {
                             api_err_inv(err, c"callback", c"<no value>");
                             break 'body;
@@ -860,7 +860,7 @@ pub fn nvim_create_autocmd(
                             crate::eval::typval::CallbackData::lua(callback.data.luaref());
                         callback.data = crate::api::private::validate::ObjectData::LuaRef(LUA_NOREF);
                     }
-                    ObjectType::kObjectTypeString => {
+                    ObjectType::ObjectTypeString => {
                         let s = cstr_from_bytes(callback.data.string().as_bytes());
                         handler_fn.data = crate::eval::typval::CallbackData::funcref(s);
                     }
@@ -918,7 +918,7 @@ pub fn nvim_create_autocmd(
             if patterns.size == 0 {
                 api_set_error!(
                     err,
-                    ErrorType::kErrorTypeValidation,
+                    ErrorType::ErrorTypeValidation,
                     c"%s",
                     c"No non-empty patterns specified",
                 );
@@ -967,7 +967,7 @@ pub fn nvim_create_autocmd(
                     if !retval {
                         api_set_error!(
                             err,
-                            ErrorType::kErrorTypeException,
+                            ErrorType::ErrorTypeException,
                             c"Failed to set autocmd",
                         );
                         break 'body;
@@ -996,7 +996,7 @@ pub fn nvim_del_autocmd(id: Integer, err: &mut Error) {
         if !autocmd_delete_id(id) {
             api_set_error!(
                 err,
-                ErrorType::kErrorTypeException,
+                ErrorType::ErrorTypeException,
                 c"Failed to delete autocmd",
             );
         }
@@ -1067,7 +1067,7 @@ pub fn nvim_clear_autocmds(
             return;
         }
 
-        if opts.event.obj_type == ObjectType::kObjectTypeNil {
+        if opts.event.obj_type == ObjectType::ObjectTypeNil {
             for event in 0..NUM_EVENTS {
                 for j in 0..patterns.size {
                     let pat_object = patterns[j];
@@ -1135,7 +1135,7 @@ pub fn nvim_create_augroup(
         if augroup == AUGROUP_ERROR {
             api_set_error!(
                 err,
-                ErrorType::kErrorTypeException,
+                ErrorType::ErrorTypeException,
                 c"Failed to set augroup",
             );
             g_st().current_sctx = save_current_sctx;
@@ -1214,15 +1214,15 @@ pub fn nvim_exec_autocmds(
         }
 
         match opts.group.obj_type {
-            ObjectType::kObjectTypeNil => {}
-            ObjectType::kObjectTypeString => {
+            ObjectType::ObjectTypeNil => {}
+            ObjectType::ObjectTypeString => {
                 au_group = augroup_find(opts.group.data.string().data);
                 if au_group == AUGROUP_ERROR {
                     api_err_inv(err, c"group", opts.group.data.string().data);
                     return;
                 }
             }
-            ObjectType::kObjectTypeInteger => {
+            ObjectType::ObjectTypeInteger => {
                 au_group = opts.group.data.integer() as c_int;
                 let name = if au_group == 0 {
                     std::ptr::null()

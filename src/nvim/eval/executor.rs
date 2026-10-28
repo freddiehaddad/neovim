@@ -13,7 +13,7 @@ use crate::strings::concat_str;
 use std::ffi::c_char;
 
 fn tv_op_blob(tv1: &mut TypVal, tv2: &TypVal, op: u8) -> bool {
-    if op != b'+' || tv2.v_type != VarType::VAR_BLOB {
+    if op != b'+' || tv2.v_type != VarType::VarBlob {
         return false;
     }
 
@@ -47,7 +47,7 @@ fn tv_op_blob(tv1: &mut TypVal, tv2: &TypVal, op: u8) -> bool {
 }
 
 fn tv_op_list(tv1: &mut TypVal, tv2: &TypVal, op: u8) -> bool {
-    if op != b'+' || tv2.v_type != VarType::VAR_LIST {
+    if op != b'+' || tv2.v_type != VarType::VarList {
         return false;
     }
 
@@ -72,7 +72,7 @@ fn tv_op_list(tv1: &mut TypVal, tv2: &TypVal, op: u8) -> bool {
 fn tv_op_number(tv1: &mut TypVal, tv2: &TypVal, op: u8) -> bool {
     let mut n = tv_get_number(&*tv1);
 
-    if tv2.v_type == VarType::VAR_FLOAT {
+    if tv2.v_type == VarType::VarFloat {
         let mut f = n as f64;
         if op == b'%' {
             return false;
@@ -86,7 +86,7 @@ fn tv_op_number(tv1: &mut TypVal, tv2: &TypVal, op: u8) -> bool {
             _ => {}
         }
         tv_clear(tv1);
-        tv1.v_type = VarType::VAR_FLOAT;
+        tv1.v_type = VarType::VarFloat;
         tv1.vval = TypvalVval::Float(f);
     } else {
         let rhs = tv_get_number(tv2);
@@ -104,7 +104,7 @@ fn tv_op_number(tv1: &mut TypVal, tv2: &TypVal, op: u8) -> bool {
             _ => {}
         }
         tv_clear(tv1);
-        tv1.v_type = VarType::VAR_NUMBER;
+        tv1.v_type = VarType::VarNumber;
         tv1.vval = TypvalVval::Number(n);
     }
 
@@ -112,7 +112,7 @@ fn tv_op_number(tv1: &mut TypVal, tv2: &TypVal, op: u8) -> bool {
 }
 
 fn tv_op_string(tv1: &mut TypVal, tv2: &TypVal) -> bool {
-    if tv2.v_type == VarType::VAR_FLOAT {
+    if tv2.v_type == VarType::VarFloat {
         return false;
     }
 
@@ -132,7 +132,7 @@ fn tv_op_string(tv1: &mut TypVal, tv2: &TypVal) -> bool {
 }
 
 fn tv_op_nr_or_string(tv1: &mut TypVal, tv2: &TypVal, op: u8) -> bool {
-    if tv2.v_type == VarType::VAR_LIST {
+    if tv2.v_type == VarType::VarList {
         return false;
     }
     if matches!(op, b'+' | b'-' | b'*' | b'/' | b'%') {
@@ -147,13 +147,13 @@ fn tv_op_float(tv1: &mut TypVal, tv2: &TypVal, op: u8) -> bool {
         || op == b'.'
         || !matches!(
             tv2.v_type,
-            VarType::VAR_FLOAT | VarType::VAR_NUMBER | VarType::VAR_STRING
+            VarType::VarFloat | VarType::VarNumber | VarType::VarString
         )
     {
         return false;
     }
 
-    let f = if tv2.v_type == VarType::VAR_FLOAT {
+    let f = if tv2.v_type == VarType::VarFloat {
         tv2.vval.v_float()
     } else {
         (tv_get_number(tv2)) as f64
@@ -177,25 +177,25 @@ pub fn eexe_mod_op(tv1: &mut TypVal,tv2: &TypVal, op: impl crate::strings::IntoC
     let tv2 =  { tv2 };
     let op_byte =  { crate::memory::cstr_first_byte(op) };
 
-    if tv2.v_type == VarType::VAR_FUNC
-        || tv2.v_type == VarType::VAR_DICT
-        || (matches!(tv2.v_type, VarType::VAR_BOOL | VarType::VAR_SPECIAL) && op_byte == b'.')
+    if tv2.v_type == VarType::VarFunc
+        || tv2.v_type == VarType::VarDict
+        || (matches!(tv2.v_type, VarType::VarBool | VarType::VarSpecial) && op_byte == b'.')
     {
         semsg!(e_letwrong, op);
         return false;
     }
 
     let retval = match tv1.v_type {
-        VarType::VAR_DICT
-        | VarType::VAR_FUNC
-        | VarType::VAR_PARTIAL
-        | VarType::VAR_BOOL
-        | VarType::VAR_SPECIAL => false,
-        VarType::VAR_BLOB => tv_op_blob(tv1, tv2, op_byte),
-        VarType::VAR_LIST => tv_op_list(tv1, tv2, op_byte),
-        VarType::VAR_NUMBER | VarType::VAR_STRING => tv_op_nr_or_string(tv1, tv2, op_byte),
-        VarType::VAR_FLOAT => tv_op_float(tv1, tv2, op_byte),
-        VarType::VAR_UNKNOWN => std::process::abort(),
+        VarType::VarDict
+        | VarType::VarFunc
+        | VarType::VarPartial
+        | VarType::VarBool
+        | VarType::VarSpecial => false,
+        VarType::VarBlob => tv_op_blob(tv1, tv2, op_byte),
+        VarType::VarList => tv_op_list(tv1, tv2, op_byte),
+        VarType::VarNumber | VarType::VarString => tv_op_nr_or_string(tv1, tv2, op_byte),
+        VarType::VarFloat => tv_op_float(tv1, tv2, op_byte),
+        VarType::VarUnknown => std::process::abort(),
     };
 
     if !retval {
@@ -212,12 +212,12 @@ mod tests {
     #[test]
     fn numeric_and_float_mod_ops() {
         let mut tv1 = TypVal {
-            v_type: VarType::VAR_NUMBER,
+            v_type: VarType::VarNumber,
             v_lock: 0,
             vval: TypvalVval::Number(10),
         };
         let tv2 = TypVal {
-            v_type: VarType::VAR_NUMBER,
+            v_type: VarType::VarNumber,
             v_lock: 0,
             vval: TypvalVval::Number(5),
         };

@@ -186,7 +186,7 @@ pub fn ui_client_attach(
             integer_obj(Integer::from(width)),
             integer_obj(Integer::from(height)),
             Object {
-                obj_type: ObjectType::kObjectTypeDict,
+                obj_type: ObjectType::ObjectTypeDict,
                 data: ObjectData::Dict(opts),
             },
         ];
@@ -243,16 +243,16 @@ pub fn ui_client_attach(
         let mut args2_items: [Object; 5] = [
             cstr_as_obj(c"nvim-tui"),
             Object {
-                obj_type: ObjectType::kObjectTypeDict,
+                obj_type: ObjectType::ObjectTypeDict,
                 data: ObjectData::Dict(version),
             },
             cstr_as_obj(c"ui"),
             Object {
-                obj_type: ObjectType::kObjectTypeArray,
+                obj_type: ObjectType::ObjectTypeArray,
                 data: ObjectData::Array(ARRAY_INIT),
             },
             Object {
-                obj_type: ObjectType::kObjectTypeDict,
+                obj_type: ObjectType::ObjectTypeDict,
                 data: ObjectData::Dict(info),
             },
         ];
@@ -353,7 +353,7 @@ pub fn handle_ui_client_redraw(
 ) -> Object {
     api_set_error!(
             error,
-            ErrorType::kErrorTypeValidation,
+            ErrorType::ErrorTypeValidation,
             c"'redraw' cannot be sent as a request",
         );
         OBJECT_NIL
@@ -387,9 +387,9 @@ pub fn ui_client_dict2hlattrs(d: Dict, rgb: bool) -> HlAttrs {
 pub fn ui_client_event_grid_resize(args: Array) {
     unsafe {
         if args.size < 3
-            || (*args.items).obj_type != ObjectType::kObjectTypeInteger
-            || args[1].obj_type != ObjectType::kObjectTypeInteger
-            || args[2].obj_type != ObjectType::kObjectTypeInteger
+            || (*args.items).obj_type != ObjectType::ObjectTypeInteger
+            || args[1].obj_type != ObjectType::ObjectTypeInteger
+            || args[2].obj_type != ObjectType::ObjectTypeInteger
         {
             logmsg!(
                 LOGLVL_ERR,
@@ -445,7 +445,7 @@ pub fn ui_client_event_raw_line(g: &mut GridLineEvent) {
 
 pub fn ui_client_event_connect(args: Array) {
     unsafe {
-        if args.size < 1 || (*args.items).obj_type != ObjectType::kObjectTypeString {
+        if args.size < 1 || (*args.items).obj_type != ObjectType::ObjectTypeString {
             logmsg!(
                 LOGLVL_ERR,
                 ptr::null(),
@@ -550,7 +550,7 @@ pub fn ui_client_attach_to_restarted_server(error_restart: bool) {
             uic_st().restart_args_after_crash_exit = ARRAY_INIT;
         };
 
-        if args.size < 1 || (*args.items).obj_type != ObjectType::kObjectTypeString {
+        if args.size < 1 || (*args.items).obj_type != ObjectType::ObjectTypeString {
             logmsg!(
                 LOGLVL_ERR,
                 ptr::null(),
@@ -565,7 +565,7 @@ pub fn ui_client_attach_to_restarted_server(error_restart: bool) {
 
         let first_arg = (*args.items).data.string().data;
         let chan_id = if start_server {
-            if args.size < 2 || args[1].obj_type != ObjectType::kObjectTypeArray {
+            if args.size < 2 || args[1].obj_type != ObjectType::ObjectTypeArray {
                 logmsg!(
                     LOGLVL_ERR,
                     ptr::null(),
@@ -581,7 +581,7 @@ pub fn ui_client_attach_to_restarted_server(error_restart: bool) {
             let mut argv: Vec<*mut c_char> = vec![ptr::null_mut(); cmdargs.size + 1];
             for (i, dst) in argv.iter_mut().enumerate().take(cmdargs.size) {
                 let item = cmdargs[i];
-                if item.obj_type == ObjectType::kObjectTypeString {
+                if item.obj_type == ObjectType::ObjectTypeString {
                     *dst = item.data.string().data;
                 }
                 if (*dst).is_null() {
@@ -610,7 +610,7 @@ pub fn ui_client_attach_to_restarted_server(error_restart: bool) {
                 cleanup();
                 return;
             }
-            if args.size > 1 && args[1].obj_type == ObjectType::kObjectTypeDict {
+            if args.size > 1 && args[1].obj_type == ObjectType::ObjectTypeDict {
                 let mut chan_args_items: [Object; 2] = [integer_obj(0), args[1]];
                 let chan_args = Array {
                     items: chan_args_items.as_mut_ptr(),
@@ -646,7 +646,7 @@ pub fn ui_client_attach_to_restarted_server(error_restart: bool) {
 
 pub fn ui_client_event_error_exit(args: Array) {
     unsafe {
-        if args.size < 1 || (*args.items).obj_type != ObjectType::kObjectTypeInteger {
+        if args.size < 1 || (*args.items).obj_type != ObjectType::ObjectTypeInteger {
             logmsg!(
                 LOGLVL_ERR,
                 ptr::null(),
@@ -691,8 +691,8 @@ fn log_ui_event_err(func_name: &std::ffi::CStr, ev_name: &std::ffi::CStr) {
 pub fn ui_client_event_mode_info_set(args: Array) {
     unsafe {
         if args.size < 2
-            || (*args.items).obj_type != ObjectType::kObjectTypeBoolean
-            || args[1].obj_type != ObjectType::kObjectTypeArray
+            || (*args.items).obj_type != ObjectType::ObjectTypeBoolean
+            || args[1].obj_type != ObjectType::ObjectTypeArray
         {
             log_ui_event_err(
                 c"ui_client_event_mode_info_set",
@@ -731,8 +731,8 @@ pub fn ui_client_event_mouse_off(_args: Array) {
 pub fn ui_client_event_mode_change(args: Array) {
     unsafe {
         if args.size < 2
-            || (*args.items).obj_type != ObjectType::kObjectTypeString
-            || args[1].obj_type != ObjectType::kObjectTypeInteger
+            || (*args.items).obj_type != ObjectType::ObjectTypeString
+            || args[1].obj_type != ObjectType::ObjectTypeInteger
         {
             log_ui_event_err(
                 c"ui_client_event_mode_change",
@@ -766,7 +766,7 @@ pub fn ui_client_event_suspend(_args: Array) {
 
 pub fn ui_client_event_set_title(args: Array) {
     unsafe {
-        if args.size < 1 || (*args.items).obj_type != ObjectType::kObjectTypeString {
+        if args.size < 1 || (*args.items).obj_type != ObjectType::ObjectTypeString {
             log_ui_event_err(c"ui_client_event_set_title", c"set_title");
             return;
         }
@@ -776,7 +776,7 @@ pub fn ui_client_event_set_title(args: Array) {
 
 pub fn ui_client_event_set_icon(args: Array) {
     unsafe {
-        if args.size < 1 || (*args.items).obj_type != ObjectType::kObjectTypeString {
+        if args.size < 1 || (*args.items).obj_type != ObjectType::ObjectTypeString {
             log_ui_event_err(c"ui_client_event_set_icon", c"set_icon");
             return;
         }
@@ -786,7 +786,7 @@ pub fn ui_client_event_set_icon(args: Array) {
 
 pub fn ui_client_event_screenshot(args: Array) {
     unsafe {
-        if args.size < 1 || (*args.items).obj_type != ObjectType::kObjectTypeString {
+        if args.size < 1 || (*args.items).obj_type != ObjectType::ObjectTypeString {
             log_ui_event_err(
                 c"ui_client_event_screenshot",
                 c"screenshot",
@@ -799,7 +799,7 @@ pub fn ui_client_event_screenshot(args: Array) {
 
 pub fn ui_client_event_option_set(args: Array) {
     unsafe {
-        if args.size < 2 || (*args.items).obj_type != ObjectType::kObjectTypeString {
+        if args.size < 2 || (*args.items).obj_type != ObjectType::ObjectTypeString {
             log_ui_event_err(
                 c"ui_client_event_option_set",
                 c"option_set",
@@ -812,7 +812,7 @@ pub fn ui_client_event_option_set(args: Array) {
 
 pub fn ui_client_event_chdir(args: Array) {
     unsafe {
-        if args.size < 1 || (*args.items).obj_type != ObjectType::kObjectTypeString {
+        if args.size < 1 || (*args.items).obj_type != ObjectType::ObjectTypeString {
             log_ui_event_err(c"ui_client_event_chdir", c"chdir");
             return;
         }
@@ -822,7 +822,7 @@ pub fn ui_client_event_chdir(args: Array) {
 
 pub fn ui_client_event_ui_send(args: Array) {
     unsafe {
-        if args.size < 1 || (*args.items).obj_type != ObjectType::kObjectTypeString {
+        if args.size < 1 || (*args.items).obj_type != ObjectType::ObjectTypeString {
             log_ui_event_err(c"ui_client_event_ui_send", c"ui_send");
             return;
         }
@@ -833,11 +833,11 @@ pub fn ui_client_event_ui_send(args: Array) {
 pub fn ui_client_event_default_colors_set(args: Array) {
     unsafe {
         if args.size < 5
-            || (*args.items).obj_type != ObjectType::kObjectTypeInteger
-            || args[1].obj_type != ObjectType::kObjectTypeInteger
-            || args[2].obj_type != ObjectType::kObjectTypeInteger
-            || args[3].obj_type != ObjectType::kObjectTypeInteger
-            || args[4].obj_type != ObjectType::kObjectTypeInteger
+            || (*args.items).obj_type != ObjectType::ObjectTypeInteger
+            || args[1].obj_type != ObjectType::ObjectTypeInteger
+            || args[2].obj_type != ObjectType::ObjectTypeInteger
+            || args[3].obj_type != ObjectType::ObjectTypeInteger
+            || args[4].obj_type != ObjectType::ObjectTypeInteger
         {
             log_ui_event_err(
                 c"ui_client_event_default_colors_set",
@@ -859,10 +859,10 @@ pub fn ui_client_event_default_colors_set(args: Array) {
 pub fn ui_client_event_hl_attr_define(args: Array) {
     unsafe {
         if args.size < 4
-            || (*args.items).obj_type != ObjectType::kObjectTypeInteger
-            || args[1].obj_type != ObjectType::kObjectTypeDict
-            || args[2].obj_type != ObjectType::kObjectTypeDict
-            || args[3].obj_type != ObjectType::kObjectTypeArray
+            || (*args.items).obj_type != ObjectType::ObjectTypeInteger
+            || args[1].obj_type != ObjectType::ObjectTypeDict
+            || args[2].obj_type != ObjectType::ObjectTypeDict
+            || args[3].obj_type != ObjectType::ObjectTypeArray
         {
             log_ui_event_err(
                 c"ui_client_event_hl_attr_define",
@@ -880,7 +880,7 @@ pub fn ui_client_event_hl_attr_define(args: Array) {
 
 pub fn ui_client_event_grid_clear(args: Array) {
     unsafe {
-        if args.size < 1 || (*args.items).obj_type != ObjectType::kObjectTypeInteger {
+        if args.size < 1 || (*args.items).obj_type != ObjectType::ObjectTypeInteger {
             log_ui_event_err(
                 c"ui_client_event_grid_clear",
                 c"grid_clear",
@@ -894,9 +894,9 @@ pub fn ui_client_event_grid_clear(args: Array) {
 pub fn ui_client_event_grid_cursor_goto(args: Array) {
     unsafe {
         if args.size < 3
-            || (*args.items).obj_type != ObjectType::kObjectTypeInteger
-            || args[1].obj_type != ObjectType::kObjectTypeInteger
-            || args[2].obj_type != ObjectType::kObjectTypeInteger
+            || (*args.items).obj_type != ObjectType::ObjectTypeInteger
+            || args[1].obj_type != ObjectType::ObjectTypeInteger
+            || args[2].obj_type != ObjectType::ObjectTypeInteger
         {
             log_ui_event_err(
                 c"ui_client_event_grid_cursor_goto",
@@ -916,13 +916,13 @@ pub fn ui_client_event_grid_cursor_goto(args: Array) {
 pub fn ui_client_event_grid_scroll(args: Array) {
     unsafe {
         if args.size < 7
-            || (*args.items).obj_type != ObjectType::kObjectTypeInteger
-            || args[1].obj_type != ObjectType::kObjectTypeInteger
-            || args[2].obj_type != ObjectType::kObjectTypeInteger
-            || args[3].obj_type != ObjectType::kObjectTypeInteger
-            || args[4].obj_type != ObjectType::kObjectTypeInteger
-            || args[5].obj_type != ObjectType::kObjectTypeInteger
-            || args[6].obj_type != ObjectType::kObjectTypeInteger
+            || (*args.items).obj_type != ObjectType::ObjectTypeInteger
+            || args[1].obj_type != ObjectType::ObjectTypeInteger
+            || args[2].obj_type != ObjectType::ObjectTypeInteger
+            || args[3].obj_type != ObjectType::ObjectTypeInteger
+            || args[4].obj_type != ObjectType::ObjectTypeInteger
+            || args[5].obj_type != ObjectType::ObjectTypeInteger
+            || args[6].obj_type != ObjectType::ObjectTypeInteger
         {
             log_ui_event_err(
                 c"ui_client_event_grid_scroll",

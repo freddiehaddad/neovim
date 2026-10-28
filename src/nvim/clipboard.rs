@@ -150,8 +150,8 @@ pub fn get_clipboard(mut name: c_int, target: *mut *mut Yankreg, quiet: bool) ->
                 false
             };
 
-        if result.v_type != VarType::VAR_LIST {
-            if result.v_type == VarType::VAR_NUMBER && result.vval.v_number() == 0 {
+        if result.v_type != VarType::VarList {
+            if result.v_type == VarType::VarNumber && result.vval.v_number() == 0 {
                 errmsg = false;
             }
             return fail_cleanup(reg, errmsg, target);
@@ -163,11 +163,11 @@ pub fn get_clipboard(mut name: c_int, target: *mut *mut Yankreg, quiet: bool) ->
 
         if res_len == 2
             && !(*res).lv_first.is_null()
-            && (*(*res).lv_first).li_tv.v_type == VarType::VAR_LIST
+            && (*(*res).lv_first).li_tv.v_type == VarType::VarList
         {
             lines = (*(*res).lv_first).li_tv.vval.v_list();
             let last_li = (*res).lv_last;
-            if last_li.is_null() || (*last_li).li_tv.v_type != VarType::VAR_STRING {
+            if last_li.is_null() || (*last_li).li_tv.v_type != VarType::VarString {
                 return fail_cleanup(reg, errmsg, target);
             }
             let regtype = (*last_li).li_tv.vval.v_string();
@@ -175,15 +175,15 @@ pub fn get_clipboard(mut name: c_int, target: *mut *mut Yankreg, quiet: bool) ->
                 return fail_cleanup(reg, errmsg, target);
             }
             reg.y_type = match crate::memory::cstr_first_byte(regtype) {
-                0 => MotionType::kMTUnknown,
-                b'v' | b'c' => MotionType::kMTCharWise,
-                b'V' | b'l' => MotionType::kMTLineWise,
-                b'b' | CTRL_V => MotionType::kMTBlockWise,
+                0 => MotionType::MTUnknown,
+                b'v' | b'c' => MotionType::MTCharWise,
+                b'V' | b'l' => MotionType::MTLineWise,
+                b'b' | CTRL_V => MotionType::MTBlockWise,
                 _ => return fail_cleanup(reg, errmsg, target),
             };
         } else {
             lines = res;
-            reg.y_type = MotionType::kMTUnknown;
+            reg.y_type = MotionType::MTUnknown;
         }
 
         let lines_len = if lines.is_null() {
@@ -202,7 +202,7 @@ pub fn get_clipboard(mut name: c_int, target: *mut *mut Yankreg, quiet: bool) ->
         } else {
             (*lines).lv_first
         }) {
-            if li.li_tv.v_type != VarType::VAR_STRING {
+            if li.li_tv.v_type != VarType::VarString {
                 return fail_cleanup(reg, errmsg, target);
             }
             let s = li.li_tv.vval.v_string();
@@ -211,16 +211,16 @@ pub fn get_clipboard(mut name: c_int, target: *mut *mut Yankreg, quiet: bool) ->
         }
 
         if reg.y_array.last().is_some_and(|last| last.size == 0) {
-            if reg.y_type != MotionType::kMTCharWise {
+            if reg.y_type != MotionType::MTCharWise {
                 if let Some(mut popped) = reg.y_array.pop() {
                     api_clear_string(&mut popped);
                 }
-                if reg.y_type == MotionType::kMTUnknown {
-                    reg.y_type = MotionType::kMTLineWise;
+                if reg.y_type == MotionType::MTUnknown {
+                    reg.y_type = MotionType::MTLineWise;
                 }
             }
-        } else if reg.y_type == MotionType::kMTUnknown {
-            reg.y_type = MotionType::kMTCharWise;
+        } else if reg.y_type == MotionType::MTUnknown {
+            reg.y_type = MotionType::MTCharWise;
         }
 
         update_yankreg_width(&mut *reg_ptr);
@@ -236,7 +236,7 @@ pub fn set_clipboard(mut name: c_int, reg: &Yankreg) {
             return;
         }
 
-                let extra = usize::from(reg.y_type != MotionType::kMTCharWise);
+                let extra = usize::from(reg.y_type != MotionType::MTCharWise);
         let lines = tv_list_alloc((reg.y_array.len() + extra) as isize);
 
         for &item in &reg.y_array {
@@ -244,16 +244,16 @@ pub fn set_clipboard(mut name: c_int, reg: &Yankreg) {
         }
 
         let regtype: c_char = match reg.y_type {
-            MotionType::kMTLineWise => {
+            MotionType::MTLineWise => {
                 tv_list_append_string( &mut *lines, std::ptr::null(), 0);
                 b'V' as c_char
             }
-            MotionType::kMTCharWise => b'v' as c_char,
-            MotionType::kMTBlockWise => {
+            MotionType::MTCharWise => b'v' as c_char,
+            MotionType::MTBlockWise => {
                 tv_list_append_string( &mut *lines, std::ptr::null(), 0);
                 b'b' as c_char
             }
-            MotionType::kMTUnknown => std::process::abort(),
+            MotionType::MTUnknown => std::process::abort(),
         };
 
         let args = tv_list_alloc(3);

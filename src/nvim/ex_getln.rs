@@ -3709,12 +3709,12 @@ fn color_cmdline(colored_ccline: &mut CmdlineInfo) -> bool {
 
         let mut arg_owned: Option<std::ffi::CString> = None;
         let mut arg = TypVal {
-            v_type: VarType::VAR_STRING,
+            v_type: VarType::VarString,
             v_lock: 0,
             vval: TypvalVval::String(colored_ccline.cmdbuff),
         };
         let mut tv = TypVal {
-            v_type: VarType::VAR_UNKNOWN,
+            v_type: VarType::VarUnknown,
             v_lock: 0,
             vval: TypvalVval::Number(0),
         };
@@ -3788,7 +3788,7 @@ fn color_cmdline(colored_ccline: &mut CmdlineInfo) -> bool {
                 if error_set(&err) || !cbcall_ret {
                     break 'color_cmdline_error;
                 }
-                if tv.v_type != VarType::VAR_LIST {
+                if tv.v_type != VarType::VarList {
                     g_st().msg_scroll = 1;
                     msg_putchar(b'\n' as c_int);
                     smsg!(
@@ -3806,7 +3806,7 @@ fn color_cmdline(colored_ccline: &mut CmdlineInfo) -> bool {
                 let mut prev_end: Varnumber = 0;
                 for (i, li) in (0 as c_int..).zip(crate::eval::typval::list_iter_ptr(tv_list_first(v_list.as_ref()))) {
                     let li_tv = &mut (*li).li_tv;
-                    if li_tv.v_type != VarType::VAR_LIST {
+                    if li_tv.v_type != VarType::VarList {
                         g_st().msg_scroll = 1;
                         msg_putchar(b'\n' as c_int);
                         smsg!(
@@ -4809,7 +4809,7 @@ pub fn f_getcmdline(_argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFunc
     if let Some(s) = get_cmdline_str() {
             crate::eval::typval::tv_set_string_len(rettv, s.as_ptr(), s.as_bytes().len());
         } else {
-            rettv.v_type = VarType::VAR_STRING;
+            rettv.v_type = VarType::VarString;
             rettv.vval = crate::eval::typval::TypvalVval::String(ptr::null_mut());
         }
 }
@@ -4917,7 +4917,7 @@ pub fn f_setcmdline(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncD
         }
 
         let mut pos: c_int = -1;
-        if argvars[1].v_type != VarType::VAR_UNKNOWN {
+        if argvars[1].v_type != VarType::VarUnknown {
             let mut error = false;
 
             pos = (tv_get_number_chk(&argvars[1], Some(&mut error)) - 1) as c_int;
@@ -5047,12 +5047,12 @@ fn cmdwin_invoke(action: impl crate::strings::IntoCCharPtr, firstc: c_int, conte
         let mut fc: [c_char; 2] = [firstc as c_char, 0];
         let mut tv_args = [
             TypVal {
-                v_type: VarType::VAR_STRING,
+                v_type: VarType::VarString,
                 v_lock: 0,
                 vval: TypvalVval::String(fc.as_mut_ptr()),
             },
             TypVal {
-                v_type: VarType::VAR_STRING,
+                v_type: VarType::VarString,
                 v_lock: 0,
                 vval: TypvalVval::String(if !content.is_null() {
                     content
@@ -5061,12 +5061,12 @@ fn cmdwin_invoke(action: impl crate::strings::IntoCCharPtr, firstc: c_int, conte
                 }),
             },
             TypVal {
-                v_type: VarType::VAR_NUMBER,
+                v_type: VarType::VarNumber,
                 v_lock: 0,
                 vval: TypvalVval::Number((pos + 1) as Varnumber),
             },
             TypVal {
-                v_type: VarType::VAR_UNKNOWN,
+                v_type: VarType::VarUnknown,
                 v_lock: 0,
                 vval: TypvalVval::Number(0),
             },
@@ -5193,7 +5193,7 @@ pub fn get_user_input(argvars: &[TypVal],
     secret: bool,
 ) {
     unsafe {
-        rettv.v_type = VarType::VAR_STRING;
+        rettv.v_type = VarType::VarString;
         rettv.vval = crate::eval::typval::TypvalVval::String(ptr::null_mut());
 
         if g_st().cmdpreview {
@@ -5204,7 +5204,7 @@ pub fn get_user_input(argvars: &[TypVal],
         let mut defstr: *const c_char = c"".as_ptr();
         let mut cancelreturn: *mut TypVal = ptr::null_mut();
         let mut cancelreturn_strarg2 = TypVal {
-            v_type: VarType::VAR_UNKNOWN,
+            v_type: VarType::VarUnknown,
             v_lock: 0,
             vval: TypvalVval::Number(0),
         };
@@ -5215,8 +5215,8 @@ pub fn get_user_input(argvars: &[TypVal],
         let mut cancelreturn_buf: [c_char; NUMBUFLEN] = [0; NUMBUFLEN];
         let mut xp_name_buf: [c_char; NUMBUFLEN] = [0; NUMBUFLEN];
         let def: [c_char; 1] = [0];
-        if argvars[0].v_type == VarType::VAR_DICT {
-            if argvars[1].v_type != VarType::VAR_UNKNOWN {
+        if argvars[0].v_type == VarType::VarDict {
+            if argvars[1].v_type != VarType::VarUnknown {
                 emsg(gettext(c"E5050: {opts} must be the only argument"));
                 return;
             }
@@ -5266,19 +5266,19 @@ pub fn get_user_input(argvars: &[TypVal],
             if prompt.is_null() {
                 return;
             }
-            if argvars[1].v_type != VarType::VAR_UNKNOWN {
+            if argvars[1].v_type != VarType::VarUnknown {
                 defstr = tv_get_string_buf_chk(&argvars[1], defstr_buf.as_mut_ptr());
                 if defstr.is_null() {
                     return;
                 }
-                if argvars[2].v_type != VarType::VAR_UNKNOWN {
+                if argvars[2].v_type != VarType::VarUnknown {
                     let strarg2 =
                         tv_get_string_buf_chk(&argvars[2], cancelreturn_buf.as_mut_ptr());
                     if strarg2.is_null() {
                         return;
                     }
                     if inputdialog {
-                        cancelreturn_strarg2.v_type = VarType::VAR_STRING;
+                        cancelreturn_strarg2.v_type = VarType::VarString;
                         cancelreturn_strarg2.vval = crate::eval::typval::TypvalVval::String(strarg2.cast_mut());
                         cancelreturn = &raw mut cancelreturn_strarg2;
                     } else {

@@ -90,7 +90,7 @@ use std::ptr;
 use crate::arglist::ML_EMPTY;
 use crate::diff::kOptBoFlagOperator;
 use crate::drawline::{VALID_WCOL, VALID_WROW};
-use crate::eval::funcs::{kMTBlockWise, kMTCharWise, kMTLineWise};
+use crate::eval::funcs::{MTBlockWise, MTCharWise, MTLineWise};
 use crate::ex_cmds::{BL_FIX, BL_SOL, BL_WHITE};
 use crate::fileio::EOL_DOS;
 use crate::globals::IOSIZE;
@@ -278,7 +278,7 @@ pub fn op_shift(oap: &mut Oparg, curs_top: bool, amount: c_int) {
             return;
         }
 
-        if oap.motion_type == kMTBlockWise {
+        if oap.motion_type == MTBlockWise {
             block_col = curwin_mut().w_cursor.col;
         }
 
@@ -287,7 +287,7 @@ pub fn op_shift(oap: &mut Oparg, curs_top: bool, amount: c_int) {
             let first_char = c_int::from(crate::memory::cstr_first_byte(get_cursor_line_ptr()));
             if first_char == 0 {
                 curwin_mut().w_cursor.col = 0;
-            } else if oap.motion_type == kMTBlockWise {
+            } else if oap.motion_type == MTBlockWise {
                 shift_block(oap, amount);
             } else if first_char != b'#' as c_int || !preprocs_left() {
                 shift_line(oap.op_type == OP_LSHIFT, opt_vars().p_sr != 0, amount, 0);
@@ -296,7 +296,7 @@ pub fn op_shift(oap: &mut Oparg, curs_top: bool, amount: c_int) {
             i -= 1;
         }
 
-        if oap.motion_type == kMTBlockWise {
+        if oap.motion_type == MTBlockWise {
             curwin_mut().w_cursor.lnum = oap.start.lnum;
             curwin_mut().w_cursor.col = block_col;
         } else if curs_top {
@@ -837,7 +837,7 @@ pub fn op_delete(oap: &mut Oparg) -> bool {
 
         mb_adjust_opend(oap);
 
-        if oap.motion_type == kMTCharWise
+        if oap.motion_type == MTCharWise
             && !oap.is_VIsual
             && oap.line_count > 1
             && oap.motion_force == c_int::from(NUL)
@@ -849,12 +849,12 @@ pub fn op_delete(oap: &mut Oparg) -> bool {
             }
             ptr_line = skipwhite(ptr_line);
             if crate::memory::cstr_is_empty(ptr_line) && inindent(0) {
-                oap.motion_type = kMTLineWise;
+                oap.motion_type = MTLineWise;
             }
         }
 
         let mut only_setmarks = false;
-        if oap.motion_type != kMTLineWise
+        if oap.motion_type != MTLineWise
             && oap.line_count == 1
             && oap.op_type == OP_DELETE
             && *ml_get(oap.start.lnum) == NUL
@@ -883,7 +883,7 @@ pub fn op_delete(oap: &mut Oparg) -> bool {
                     did_yank = true;
                 }
 
-                if oap.motion_type == kMTLineWise || oap.line_count > 1 || oap.use_reg_one
+                if oap.motion_type == MTLineWise || oap.line_count > 1 || oap.use_reg_one
                 {
                     shift_delete_registers(is_append_register(oap.regname));
                     reg = get_y_register(1);
@@ -892,7 +892,7 @@ pub fn op_delete(oap: &mut Oparg) -> bool {
                 }
 
                 if oap.regname == 0
-                    && oap.motion_type != kMTLineWise
+                    && oap.motion_type != MTLineWise
                     && oap.line_count == 1
                 {
                     reg = get_yank_register(b'-' as c_int, YREG_YANK);
@@ -909,7 +909,7 @@ pub fn op_delete(oap: &mut Oparg) -> bool {
                 }
             }
 
-            if oap.motion_type == kMTBlockWise {
+            if oap.motion_type == MTBlockWise {
                 if !u_save(oap.start.lnum - 1, oap.end.lnum + 1) {
                     return false;
                 }
@@ -959,7 +959,7 @@ pub fn op_delete(oap: &mut Oparg) -> bool {
                     true,
                 );
                 oap.line_count = 0;
-            } else if oap.motion_type == kMTLineWise {
+            } else if oap.motion_type == MTLineWise {
                 if oap.op_type == OP_CHANGE {
                     if oap.line_count > 1 {
                         let lnum = curwin_mut().w_cursor.lnum;
@@ -1117,7 +1117,7 @@ pub fn op_delete(oap: &mut Oparg) -> bool {
         }
 
         if (g_st().cmdmod.cmod_flags & CMOD_LOCKMARKS) == 0 {
-            if oap.motion_type == kMTBlockWise {
+            if oap.motion_type == MTBlockWise {
                 curbuf_mut().b_op_end.lnum = oap.end.lnum;
                 curbuf_mut().b_op_end.col = oap.start.col;
             } else {
@@ -1195,7 +1195,7 @@ fn op_replace(oap: &mut Oparg, mut c: c_int) -> bool {
             return false;
         }
 
-        if oap.motion_type == kMTBlockWise {
+        if oap.motion_type == MTBlockWise {
             bd.is_MAX = c_int::from(curwin_mut().w_curswant == MAXCOL);
             while curwin_mut().w_cursor.lnum <= oap.end.lnum {
                 curwin_mut().w_cursor.col = 0;
@@ -1313,7 +1313,7 @@ fn op_replace(oap: &mut Oparg, mut c: c_int) -> bool {
                 curwin_mut().w_cursor.lnum += 1;
             }
         } else {
-            if oap.motion_type == kMTLineWise {
+            if oap.motion_type == MTLineWise {
                 oap.start.col = 0;
                 curwin_mut().w_cursor.col = 0;
                 oap.end.col = ml_get_len(oap.end.lnum);
@@ -1418,7 +1418,7 @@ pub fn op_tilde(oap: &mut Oparg) {
         }
 
         let mut pos = oap.start;
-        if oap.motion_type == kMTBlockWise {
+        if oap.motion_type == MTBlockWise {
             while pos.lnum <= oap.end.lnum {
                 block_prep(oap, &mut bd, pos.lnum, false);
                 pos.col = bd.textcol;
@@ -1430,7 +1430,7 @@ pub fn op_tilde(oap: &mut Oparg) {
                 changed_lines(curbuf_mut(), oap.start.lnum, 0, oap.end.lnum + 1, 0, true);
             }
         } else {
-            if oap.motion_type == kMTLineWise {
+            if oap.motion_type == MTLineWise {
                 oap.start.col = 0;
                 pos.col = 0;
                 oap.end.col = ml_get_len(oap.end.lnum);
@@ -1563,7 +1563,7 @@ pub fn op_insert(oap: &mut Oparg, count1: c_int) {
         redraw_curbuf_later(UPD_INVERTED);
         update_screen();
 
-        if oap.motion_type == kMTBlockWise {
+        if oap.motion_type == MTBlockWise {
             if curwin_mut().w_cursor.coladd > 0 {
                 let old_ve_flags = curwin_mut().w_onebuf_opt.wo_ve_flags;
 
@@ -1591,7 +1591,7 @@ pub fn op_insert(oap: &mut Oparg, count1: c_int) {
         }
 
         if oap.op_type == OP_APPEND {
-            if oap.motion_type == kMTBlockWise && curwin_mut().w_cursor.coladd == 0 {
+            if oap.motion_type == MTBlockWise && curwin_mut().w_cursor.coladd == 0 {
                 curwin_mut().w_set_curswant = true;
                 while !crate::memory::cstr_is_empty(get_cursor_pos_ptr())
                     && curwin_mut().w_cursor.col < bd.textcol + bd.textlen
@@ -1629,7 +1629,7 @@ pub fn op_insert(oap: &mut Oparg, count1: c_int) {
             return;
         }
 
-        if oap.motion_type == kMTBlockWise {
+        if oap.motion_type == MTBlockWise {
             let mut ind_post_vcol: c_int = 0;
             let mut bd2 = BlockDef::new();
             let mut did_indent = false;
@@ -1745,7 +1745,7 @@ pub fn op_change(oap: &mut Oparg) -> c_int {
         let mut bd = BlockDef::new();
 
         let mut l = oap.start.col;
-        if oap.motion_type == kMTLineWise {
+        if oap.motion_type == MTLineWise {
             l = 0;
             g_st().Ins.can_si = may_do_si();
         }
@@ -1762,7 +1762,7 @@ pub fn op_change(oap: &mut Oparg) -> c_int {
             inc_cursor();
         }
 
-        if oap.motion_type == kMTBlockWise {
+        if oap.motion_type == MTBlockWise {
             if g_st().virtual_op != 0
                 && (curwin_mut().w_cursor.coladd > 0 || gchar_cursor() == c_int::from(NUL))
             {
@@ -1774,7 +1774,7 @@ pub fn op_change(oap: &mut Oparg) -> c_int {
             bd.textcol = curwin_mut().w_cursor.col;
         }
 
-        if oap.motion_type == kMTLineWise {
+        if oap.motion_type == MTLineWise {
             fix_indent();
         }
 
@@ -1785,7 +1785,7 @@ pub fn op_change(oap: &mut Oparg) -> c_int {
 
         g_st().finish_op = save_finish_op;
 
-        if oap.motion_type == kMTBlockWise && oap.start.lnum != oap.end.lnum && !g_st().got_int {
+        if oap.motion_type == MTBlockWise && oap.start.lnum != oap.end.lnum && !g_st().got_int {
             firstline = ml_get(oap.start.lnum);
             if bd.textcol > pre_indent {
                 let new_indent = getwhitecols(firstline) as c_int;
@@ -2316,14 +2316,14 @@ pub fn getregionpos_prep(
             ptr::swap(p1, p2);
         }
 
-        if region_type == kMTCharWise {
+        if region_type == MTCharWise {
             if exclusive && !equalpos(*p1, *p2) {
                 *inclusive = !unadjust_for_sel_inner(p2);
             }
             if *inclusive && g_st().virtual_op == 0 && *ml_get_pos(p2) == NUL {
                 *inclusive = false;
             }
-        } else if region_type == kMTBlockWise {
+        } else if region_type == MTBlockWise {
             let mut sc1: Colnr = 0;
             let mut ec1: Colnr = 0;
             let mut sc2: Colnr = 0;
@@ -2332,7 +2332,7 @@ pub fn getregionpos_prep(
             getvvcol(curwin_ptr(), p1, Some(&mut sc1), None, Some(&mut ec1), 0);
             getvvcol(curwin_ptr(), p2, Some(&mut sc2), None, Some(&mut ec2), 0);
             restore_lbr(lbr_saved);
-            oap.motion_type = kMTBlockWise;
+            oap.motion_type = MTBlockWise;
             oap.inclusive = true;
             oap.op_type = OP_NOP;
             oap.start = *p1;
@@ -2369,7 +2369,7 @@ pub fn getregionpos_line(
         let line = ml_get(lnum);
         let line_len = ml_get_len(lnum);
 
-        if region_type == kMTLineWise {
+        if region_type == MTLineWise {
             ret_p1.col = 1;
             ret_p1.coladd = 0;
             ret_p2.col = MAXCOL;
@@ -2377,14 +2377,14 @@ pub fn getregionpos_line(
         } else {
             let mut bd = BlockDef::new();
 
-            if region_type == kMTBlockWise {
+            if region_type == MTBlockWise {
                 block_prep(oap, &mut bd, lnum, false);
             } else {
                 charwise_block_prep(p1, p2, &mut bd, lnum, inclusive);
             }
 
             if bd.is_oneChar != 0 {
-                if region_type == kMTBlockWise {
+                if region_type == MTBlockWise {
                     ret_p1.col =
                         (mb_prevptr(line, bd.textstart).offset_from(line) as Colnr) + 1;
                     ret_p1.coladd = bd.start_char_vcols - (bd.start_vcol - oap.start_vcol);
@@ -2392,7 +2392,7 @@ pub fn getregionpos_line(
                     ret_p1.col = p1.col + 1;
                     ret_p1.coladd = p1.coladd;
                 }
-            } else if region_type == kMTBlockWise && oap.start_vcol > bd.start_vcol {
+            } else if region_type == MTBlockWise && oap.start_vcol > bd.start_vcol {
                 ret_p1.col = MAXCOL;
                 ret_p1.coladd = oap.start_vcol - bd.start_vcol;
                 bd.is_oneChar = 1;
@@ -2550,11 +2550,11 @@ pub fn op_addsub(oap: &mut Oparg, Prenum1: Linenr, g_cmd: bool) {
 
             let mut pos = oap.start;
             while pos.lnum <= oap.end.lnum {
-                if oap.motion_type == kMTBlockWise {
+                if oap.motion_type == MTBlockWise {
                     block_prep(oap, &mut bd, pos.lnum, false);
                     pos.col = bd.textcol;
                     length = bd.textlen;
-                } else if oap.motion_type == kMTLineWise {
+                } else if oap.motion_type == MTLineWise {
                     curwin_mut().w_cursor.col = 0;
                     pos.col = 0;
                     length = ml_get_len(pos.lnum);
@@ -3132,7 +3132,7 @@ pub fn cursor_pos_info(mut dict: Option<&mut TvDict>) {
                     opt_vars().p_sbr = empty_string_option.as_ptr().cast::<c_char>();
                     curwin_mut().w_onebuf_opt.wo_sbr = empty_string_option.as_ptr().cast::<c_char>();
                     oparg.is_VIsual = true;
-                    oparg.motion_type = kMTBlockWise;
+                    oparg.motion_type = MTBlockWise;
                     oparg.op_type = OP_NOP;
                     getvcols(
                         curwin_ptr(),
@@ -3476,23 +3476,23 @@ fn op_function(oap: &Oparg) {
         } else {
             curbuf_mut().b_op_start = oap.start;
             curbuf_mut().b_op_end = oap.end;
-            if oap.motion_type == kMTCharWise && !oap.inclusive {
+            if oap.motion_type == MTCharWise && !oap.inclusive {
                 decl(&mut curbuf_mut().b_op_end);
             }
 
             let mode_str = match oap.motion_type {
-                kMTBlockWise => c"block".as_ptr(),
-                kMTLineWise => c"line".as_ptr(),
+                MTBlockWise => c"block".as_ptr(),
+                MTLineWise => c"line".as_ptr(),
                 _ => c"char".as_ptr(),
             };
             let mut argv = [
                 TypVal {
-                    v_type: VarType::VAR_STRING,
+                    v_type: VarType::VarString,
                     v_lock: 0,
                     vval: TypvalVval::String(mode_str.cast_mut()),
                 },
                 TypVal {
-                    v_type: VarType::VAR_UNKNOWN,
+                    v_type: VarType::VarUnknown,
                     v_lock: 0,
                     vval: TypvalVval::String(ptr::null_mut()),
                 },
@@ -3642,14 +3642,14 @@ pub fn do_pending_operator(cap: &mut Cmdarg, old_col: c_int, gui_yank: bool) {
             reset_lbr();
             oap.is_VIsual = g_st().Visual.active;
             if oap.motion_force == b'V' as c_int {
-                oap.motion_type = kMTLineWise;
+                oap.motion_type = MTLineWise;
             } else if oap.motion_force == b'v' as c_int {
-                if oap.motion_type == kMTLineWise {
+                if oap.motion_type == MTLineWise {
                     oap.inclusive = false;
-                } else if oap.motion_type == kMTCharWise {
+                } else if oap.motion_type == MTCharWise {
                     oap.inclusive = !oap.inclusive;
                 }
-                oap.motion_type = kMTCharWise;
+                oap.motion_type = MTCharWise;
             } else if oap.motion_force == Ctrl_V {
                 if !g_st().Visual.active {
                     g_st().Visual.active = true;
@@ -3704,7 +3704,7 @@ pub fn do_pending_operator(cap: &mut Cmdarg, old_col: c_int, gui_yank: bool) {
                     }
                     if (curwin_mut().w_cursor.col > 0
                         || oap.inclusive
-                        || oap.motion_type == kMTLineWise)
+                        || oap.motion_type == MTLineWise)
                         && hasFolding(
                             curwin_ptr(),
                             curwin_mut().w_cursor.lnum,
@@ -3720,7 +3720,7 @@ pub fn do_pending_operator(cap: &mut Cmdarg, old_col: c_int, gui_yank: bool) {
 
                 curwin_mut().w_valid &= !VALID_VIRTCOL;
             } else {
-                if !g_st().Visual.active && oap.motion_type == kMTLineWise {
+                if !g_st().Visual.active && oap.motion_type == MTLineWise {
                     if hasFolding(
                         curwin_ptr(),
                         curwin_mut().w_cursor.lnum,
@@ -3784,13 +3784,13 @@ pub fn do_pending_operator(cap: &mut Cmdarg, old_col: c_int, gui_yank: bool) {
                     g_st().Visual.resel.line_count = oap.line_count;
                 }
 
-                if oap.motion_force == c_int::from(NUL) || oap.motion_type == kMTLineWise {
+                if oap.motion_force == c_int::from(NUL) || oap.motion_type == MTLineWise {
                     oap.inclusive = true;
                 }
                 if g_st().Visual.mode == b'V' as c_int {
-                    oap.motion_type = kMTLineWise;
+                    oap.motion_type = MTLineWise;
                 } else if g_st().Visual.mode == b'v' as c_int {
-                    oap.motion_type = kMTCharWise;
+                    oap.motion_type = MTCharWise;
                     if *ml_get_pos(&oap.end) == NUL
                         && (include_line_break || g_st().virtual_op == 0)
                     {
@@ -3806,7 +3806,7 @@ pub fn do_pending_operator(cap: &mut Cmdarg, old_col: c_int, gui_yank: bool) {
                         }
                     }
                 } else if g_st().Visual.mode == Ctrl_V {
-                    oap.motion_type = kMTBlockWise;
+                    oap.motion_type = MTBlockWise;
                 }
 
                 if !gui_yank {
@@ -3834,8 +3834,8 @@ pub fn do_pending_operator(cap: &mut Cmdarg, old_col: c_int, gui_yank: bool) {
             }
             curwin_mut().w_set_curswant = true;
 
-            oap.empty = oap.motion_type != kMTLineWise
-                && ((!oap.inclusive && oap.motion_type != kMTBlockWise)
+            oap.empty = oap.motion_type != MTLineWise
+                && ((!oap.inclusive && oap.motion_type != MTBlockWise)
                     || (oap.op_type == OP_YANK
                         && gchar_pos(&mut oap.end) == c_int::from(NUL)))
                 && equalpos(oap.start, oap.end)
@@ -3849,7 +3849,7 @@ pub fn do_pending_operator(cap: &mut Cmdarg, old_col: c_int, gui_yank: bool) {
                 redraw_curbuf_later(UPD_INVERTED);
             }
 
-            if oap.motion_type == kMTCharWise
+            if oap.motion_type == MTCharWise
                 && !oap.inclusive
                 && (cap.retval & CA_NO_ADJ_OP_END) == 0
                 && oap.end.col == 0
@@ -3860,7 +3860,7 @@ pub fn do_pending_operator(cap: &mut Cmdarg, old_col: c_int, gui_yank: bool) {
                 oap.line_count -= 1;
                 oap.end.lnum -= 1;
                 if inindent(0) {
-                    oap.motion_type = kMTLineWise;
+                    oap.motion_type = MTLineWise;
                 } else {
                     oap.end.col = ml_get_len(oap.end.lnum);
                     if oap.end.col != 0 {
@@ -3901,7 +3901,7 @@ pub fn do_pending_operator(cap: &mut Cmdarg, old_col: c_int, gui_yank: bool) {
                         redo_cancel();
                     } else {
                         op_delete(oap);
-                        if oap.motion_type == kMTLineWise
+                        if oap.motion_type == MTLineWise
                             && has_format_option(kFoAuto)
                             && u_save_cursor()
                         {
@@ -3942,7 +3942,7 @@ pub fn do_pending_operator(cap: &mut Cmdarg, old_col: c_int, gui_yank: bool) {
                             b'c' as c_int,
                             c_long::from(cap.count0),
                             op_ins_visual(oap, cap),
-                            oap.is_VIsual && oap.motion_type == kMTBlockWise,
+                            oap.is_VIsual && oap.motion_type == MTBlockWise,
                         );
                         let busy = op_change(oap) != 0;
                         if busy {
@@ -4026,7 +4026,7 @@ pub fn do_pending_operator(cap: &mut Cmdarg, old_col: c_int, gui_yank: bool) {
                             b'I' as c_int,
                             c_long::from(cap.count1),
                             op_ins_visual(oap, cap),
-                            oap.motion_type == kMTBlockWise,
+                            oap.motion_type == MTBlockWise,
                         );
                         op_insert(oap, cap.count1);
                         atom_ins_end(&mut session, false);
@@ -4102,7 +4102,7 @@ pub fn do_pending_operator(cap: &mut Cmdarg, old_col: c_int, gui_yank: bool) {
             g_st().virtual_op = kNone;
             if !gui_yank {
                 if opt_vars().p_sol == 0
-                    && oap.motion_type == kMTLineWise
+                    && oap.motion_type == MTLineWise
                     && !oap.end_adjusted
                     && (oap.op_type == OP_LSHIFT
                         || oap.op_type == OP_RSHIFT

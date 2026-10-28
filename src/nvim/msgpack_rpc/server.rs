@@ -164,7 +164,7 @@ pub fn server_address_new(name: impl crate::strings::IntoCCharPtr) -> std::ffi::
 
         #[cfg(not(windows))]
         let r = {
-            let dir = stdpaths_get_xdg_var(XDGVarType::kXDGRuntimeDir);
+            let dir = stdpaths_get_xdg_var(XDGVarType::XDGRuntimeDir);
             get_appname(true);
             let app = if !name.is_null() {
                 name

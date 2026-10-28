@@ -369,7 +369,7 @@ pub fn nvim_open_win(
                 } else if is_split && (*parent).w_floating {
                     api_set_error!(
                         err,
-                        ErrorType::kErrorTypeException,
+                        ErrorType::ErrorTypeException,
                         c"Cannot split a floating window",
                     );
                     break 'cleanup;
@@ -437,7 +437,7 @@ pub fn nvim_open_win(
                 if curwin_mut().buf_mut().b_locked_split != 0 {
                     api_set_error!(
                         err,
-                        ErrorType::kErrorTypeException,
+                        ErrorType::ErrorTypeException,
                         c"E1159: Cannot open a float when closing the buffer",
                     );
                     break 'cleanup;
@@ -448,7 +448,7 @@ pub fn nvim_open_win(
                 if !error_set(err) {
                     api_set_error!(
                         err,
-                        ErrorType::kErrorTypeException,
+                        ErrorType::ErrorTypeException,
                         c"Failed to create window",
                     );
                 }
@@ -504,7 +504,7 @@ pub fn nvim_open_win(
                 api_clear_error(err);
                 api_set_error!(
                     err,
-                    ErrorType::kErrorTypeException,
+                    ErrorType::ErrorTypeException,
                     c"Window was closed immediately",
                 );
                 break 'cleanup;
@@ -566,7 +566,7 @@ fn win_can_move_tp(wp: *mut WinInfoInfo, tp: &mut TabPageInfo, err: &mut Error) 
         if one_window( &mut *wp, if &raw mut *tp == g_st().curtab { ptr::null_mut() } else { &raw mut *tp }) {
             api_set_error!(
                 err,
-                ErrorType::kErrorTypeException,
+                ErrorType::ErrorTypeException,
                 c"Cannot move last non-floating window",
             );
             return false;
@@ -574,18 +574,18 @@ fn win_can_move_tp(wp: *mut WinInfoInfo, tp: &mut TabPageInfo, err: &mut Error) 
         if win_locked(&mut *wp) != 0 {
             api_set_error!(
                 err,
-                ErrorType::kErrorTypeException,
+                ErrorType::ErrorTypeException,
                 c"Cannot move window to another tabpage whilst in use",
             );
             return false;
         }
-        if window_layout_locked_err(crate::cmdexpand::Cmdidx::CMD_SIZE, err) {
+        if window_layout_locked_err(crate::cmdexpand::Cmdidx::CmdSize, err) {
             return false;
         }
         if g_st().textlock != 0 || expr_map_locked() {
             api_set_error!(
                 err,
-                ErrorType::kErrorTypeException,
+                ErrorType::ErrorTypeException,
                 c"%s",
                 e_textlock,
             );
@@ -594,7 +594,7 @@ fn win_can_move_tp(wp: *mut WinInfoInfo, tp: &mut TabPageInfo, err: &mut Error) 
         if is_ctx_win(wp) {
             api_set_error!(
                 err,
-                ErrorType::kErrorTypeException,
+                ErrorType::ErrorTypeException,
                 c"Cannot move autocmd window to another tabpage",
             );
             return false;
@@ -670,7 +670,7 @@ fn win_config_split(
                 if (*parent).w_floating {
                     api_set_error!(
                         err,
-                        ErrorType::kErrorTypeException,
+                        ErrorType::ErrorTypeException,
                         c"Cannot split a floating window",
                     );
                     return false;
@@ -696,7 +696,7 @@ fn win_config_split(
                     if curwin_ptr() == (&raw mut *win) {
                         api_set_error!(
                             err,
-                            ErrorType::kErrorTypeException,
+                            ErrorType::ErrorTypeException,
                             c"Failed to switch away from window %d",
                             win.handle,
                         );
@@ -706,7 +706,7 @@ fn win_config_split(
                     if win_tp.is_null() || !win_valid_any_tab(parent) {
                         api_set_error!(
                             err,
-                            ErrorType::kErrorTypeException,
+                            ErrorType::ErrorTypeException,
                             c"Windows to split were closed",
                         );
                         break 'restore_curwin;
@@ -714,7 +714,7 @@ fn win_config_split(
                     if was_split == win.w_floating || (*parent).w_floating {
                         api_set_error!(
                             err,
-                            ErrorType::kErrorTypeException,
+                            ErrorType::ErrorTypeException,
                             c"Floating state of windows to split changed",
                         );
                         break 'restore_curwin;
@@ -729,7 +729,7 @@ fn win_config_split(
                     if (*win.w_frame).fr_parent.is_null() {
                         api_set_error!(
                             err,
-                            ErrorType::kErrorTypeException,
+                            ErrorType::ErrorTypeException,
                             c"Cannot move last non-floating window",
                         );
                         break 'restore_curwin;
@@ -777,7 +777,7 @@ fn win_config_split(
                         } else {
                             api_set_error!(
                                 err,
-                                ErrorType::kErrorTypeException,
+                                ErrorType::ErrorTypeException,
                                 c"Cannot split window into itself",
                             );
                             break 'restore_curwin;
@@ -858,7 +858,7 @@ fn win_config_split(
                     if !error_set(err) {
                         api_set_error!(
                             err,
-                            ErrorType::kErrorTypeException,
+                            ErrorType::ErrorTypeException,
                             c"Failed to move window %d into split",
                             win.handle,
                         );
@@ -929,7 +929,7 @@ fn win_config_float_tp(
                     if curwin_ptr() == (&raw mut *win) {
                         api_set_error!(
                             err,
-                            ErrorType::kErrorTypeException,
+                            ErrorType::ErrorTypeException,
                             c"Failed to switch away from window %d",
                             win.handle,
                         );
@@ -941,7 +941,7 @@ fn win_config_float_tp(
                     if win_tp.is_null() || parent_tp.is_null() {
                         api_set_error!(
                             err,
-                            ErrorType::kErrorTypeException,
+                            ErrorType::ErrorTypeException,
                             c"Target windows were closed",
                         );
                         break 'restore_curwin;
@@ -1299,8 +1299,8 @@ fn parse_config_split(split: NvimString, out: &mut WinSplit) -> bool {
 
 fn parse_float_bufpos(bufpos: Array, out: &mut Lpos) -> bool {
     if bufpos.size != 2
-            || bufpos[0].obj_type != ObjectType::kObjectTypeInteger
-            || bufpos[1].obj_type != ObjectType::kObjectTypeInteger
+            || bufpos[0].obj_type != ObjectType::ObjectTypeInteger
+            || bufpos[1].obj_type != ObjectType::ObjectTypeInteger
         {
             return false;
         }
@@ -1317,8 +1317,8 @@ pub fn parse_bordertext(
     fconfig: &mut WinConfig,
     err: &mut Error,
 ) {
-    if bordertext.obj_type != ObjectType::kObjectTypeString
-            && bordertext.obj_type != ObjectType::kObjectTypeArray
+    if bordertext.obj_type != ObjectType::ObjectTypeString
+            && bordertext.obj_type != ObjectType::ObjectTypeArray
         {
             api_err_exp(
                 err,
@@ -1329,7 +1329,7 @@ pub fn parse_bordertext(
             return;
         }
 
-        if bordertext.obj_type == ObjectType::kObjectTypeArray && bordertext.data.array().size == 0 {
+        if bordertext.obj_type == ObjectType::ObjectTypeArray && bordertext.data.array().size == 0 {
             api_err_exp(
                 err,
                 c"title/footer",
@@ -1356,7 +1356,7 @@ pub fn parse_bordertext(
             &mut fconfig.footer_width
         };
 
-        if bordertext.obj_type == ObjectType::kObjectTypeString {
+        if bordertext.obj_type == ObjectType::ObjectTypeString {
             if bordertext.data.string().size == 0 {
                 *is_present = false;
                 return;
@@ -1440,7 +1440,7 @@ pub fn parse_border_style(style: Object,fconfig: Option<&mut WinConfig>, err: &m
         let chars = &mut fconfig.border_chars;
         let hl_ids = &mut fconfig.border_hl_ids;
 
-        if style.obj_type == ObjectType::kObjectTypeArray {
+        if style.obj_type == ObjectType::ObjectTypeArray {
             let arr = style.data.array();
             let mut size = arr.size;
             if size == 0 || size > 8 || (size & (size - 1)) != 0 {
@@ -1456,7 +1456,7 @@ pub fn parse_border_style(style: Object,fconfig: Option<&mut WinConfig>, err: &m
                 let iytem = arr[i];
                 let string: NvimString;
                 let mut hl_id: c_int = 0;
-                if iytem.obj_type == ObjectType::kObjectTypeArray {
+                if iytem.obj_type == ObjectType::ObjectTypeArray {
                     let iarr = iytem.data.array();
                     if iarr.size == 0 || iarr.size > 2 {
                         api_err_exp(
@@ -1468,7 +1468,7 @@ pub fn parse_border_style(style: Object,fconfig: Option<&mut WinConfig>, err: &m
                         return;
                     }
                     let first = iarr[0];
-                    if first.obj_type != ObjectType::kObjectTypeString {
+                    if first.obj_type != ObjectType::ObjectTypeString {
                         api_err_exp(
                             err,
                             c"border",
@@ -1488,7 +1488,7 @@ pub fn parse_border_style(style: Object,fconfig: Option<&mut WinConfig>, err: &m
                             return;
                         }
                     }
-                } else if iytem.obj_type == ObjectType::kObjectTypeString {
+                } else if iytem.obj_type == ObjectType::ObjectTypeString {
                     string = iytem.data.string();
                 } else {
                     api_err_exp(
@@ -1534,7 +1534,7 @@ pub fn parse_border_style(style: Object,fconfig: Option<&mut WinConfig>, err: &m
                     ptr::null(),
                 );
             }
-        } else if style.obj_type == ObjectType::kObjectTypeString {
+        } else if style.obj_type == ObjectType::ObjectTypeString {
             let str_val = style.data.string();
             if str_val.size == 0 || (crate::memory::cstr_as_opt_bytes(str_val.data) == Some(b"none")) {
                 fconfig.border = false;
@@ -1577,7 +1577,7 @@ fn generate_api_error(wp: Option<&WinInfoInfo>, attribute: &std::ffi::CStr, err:
         if let Some(wp) = wp && wp.w_floating {
             api_set_error!(
                 err,
-                ErrorType::kErrorTypeValidation,
+                ErrorType::ErrorTypeValidation,
                 c"Required: 'relative' when reconfiguring floating window %d",
                 wp.handle,
             );
@@ -1788,7 +1788,7 @@ fn parse_win_config(
                 if fconfig.external && !ui_has(kUIMultigrid) {
                     api_set_error!(
                         err,
-                        ErrorType::kErrorTypeValidation,
+                        ErrorType::ErrorTypeValidation,
                         c"UI doesn't support external windows",
                     );
                     break 'fail;
@@ -1813,7 +1813,7 @@ fn parse_win_config(
                 if (&raw mut *target_win) == wp {
                     api_set_error!(
                         err,
-                        ErrorType::kErrorTypeException,
+                        ErrorType::ErrorTypeException,
                         c"floating window cannot be relative to itself",
                     );
                     break 'fail;
@@ -1906,7 +1906,7 @@ fn parse_win_config(
                     break 'fail;
                 }
                 let border_style = config.border;
-                if border_style.obj_type != ObjectType::kObjectTypeNil {
+                if border_style.obj_type != ObjectType::ObjectTypeNil {
                     parse_border_style(border_style, Some(&mut *fconfig), err);
                     if error_set(err) {
                         break 'fail;
@@ -1934,7 +1934,7 @@ fn parse_win_config(
                 if !wp.is_null() && config.noautocmd != fconfig.noautocmd {
                     api_set_error!(
                         err,
-                        ErrorType::kErrorTypeValidation,
+                        ErrorType::ErrorTypeValidation,
                         c"'noautocmd' cannot be changed on existing window",
                     );
                     break 'fail;

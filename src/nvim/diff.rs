@@ -102,9 +102,9 @@ const XDF_INDENT_HEURISTIC: c_int = 1 << 23;
 pub(crate) const kOptDiff: OptIndex = 70;
 pub(crate) const kOptDiffopt: OptIndex = 73;
 pub(crate) const kOptFoldmethod: OptIndex = 109;
-const CMD_diffget: c_int = 121;
-const CMD_diffput: c_int = 124;
-const CMD_split: c_int = 426;
+const CmdDiffget: c_int = 121;
+const CmdDiffput: c_int = 124;
+const CmdSplit: c_int = 426;
 pub(crate) const kShellOptFilter: c_int = 1;
 pub(crate) const kShellOptDoOut: c_int = 4;
 pub(crate) const kShellOptSilent: c_int = 8;
@@ -171,9 +171,9 @@ struct Diffio {
 }
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum Diffstyle {
-    DIFF_ED,
-    DIFF_UNIFIED,
-    DIFF_NONE,
+    DiffEd,
+    DiffUnified,
+    DiffNone,
 }
 #[repr(C)]
 #[derive(Clone, Copy)]
@@ -1374,7 +1374,7 @@ pub fn ex_diffpatch(eap: &mut Exarg) {
                     },
                 )
                 {
-                    eap.cmdidx = CMD_split;
+                    eap.cmdidx = CmdSplit;
                     eap.arg = tmp_new;
                     do_exedit(eap, old_curwin);
                     if curwin_ptr() != old_curwin && win_valid(old_curwin) {
@@ -1422,7 +1422,7 @@ pub fn ex_diffsplit(eap: &mut Exarg) {
         {
             return;
         }
-        eap.cmdidx = CMD_split;
+        eap.cmdidx = CmdSplit;
         curwin_mut().w_onebuf_opt.wo_diff = 1;
         do_exedit(eap, old_curwin);
         if curwin_ptr() == old_curwin {
@@ -1611,9 +1611,9 @@ fn extract_hunk(fd: *mut FILE, hunk: &mut Diffhunk, diffstyle: &mut Diffstyle) -
             if vim_fgets((&raw mut line).cast(), LBUFLEN as c_int, fd) {
                 return true;
             }
-            if *diffstyle == Diffstyle::DIFF_NONE {
+            if *diffstyle == Diffstyle::DiffNone {
                 if ascii_isdigit(line[0]) {
-                    *diffstyle = Diffstyle::DIFF_ED;
+                    *diffstyle = Diffstyle::DiffEd;
                 } else if (crate::memory::cstr_prefix_bytes((&raw const line).cast(), 3) == &b"@@ "[..3])
                     || ((crate::memory::cstr_prefix_bytes((&raw const line).cast(), 4) == &b"--- "[..4])
                         && !vim_fgets((&raw mut line).cast(), LBUFLEN as c_int, fd)
@@ -1621,12 +1621,12 @@ fn extract_hunk(fd: *mut FILE, hunk: &mut Diffhunk, diffstyle: &mut Diffstyle) -
                         && !vim_fgets((&raw mut line).cast(), LBUFLEN as c_int, fd)
                         && (crate::memory::cstr_prefix_bytes((&raw const line).cast(), 3) == &b"@@ "[..3]))
                 {
-                    *diffstyle = Diffstyle::DIFF_UNIFIED;
+                    *diffstyle = Diffstyle::DiffUnified;
                 } else {
                     continue;
                 }
             }
-            if *diffstyle == Diffstyle::DIFF_ED {
+            if *diffstyle == Diffstyle::DiffEd {
                 if !ascii_isdigit(line[0]) {
                     continue;
                 }
@@ -1634,7 +1634,7 @@ fn extract_hunk(fd: *mut FILE, hunk: &mut Diffhunk, diffstyle: &mut Diffstyle) -
                     continue;
                 }
             } else {
-                debug_assert!(*diffstyle == Diffstyle::DIFF_UNIFIED);
+                debug_assert!(*diffstyle == Diffstyle::DiffUnified);
                 if !(crate::memory::cstr_prefix_bytes((&raw const line).cast(), 3) == &b"@@ "[..3]) {
                     continue;
                 }
@@ -1750,7 +1750,7 @@ fn diff_read(idx_orig: usize, idx_new: usize, dio: &mut Diffio) {
         let mut dp_idx: usize = 0;
         let dout = &mut dio.dio_diff;
         let mut notset = true;
-        let mut diffstyle = Diffstyle::DIFF_NONE;
+        let mut diffstyle = Diffstyle::DiffNone;
         if dio.dio_internal == 0 {
             fd = os_fopen(dout.dout_fname.as_ref().unwrap().as_ptr(), c"r");
             if fd.is_null() {
@@ -3206,7 +3206,7 @@ pub fn nv_diffgetput(put: bool, count: usize) {
             vim_snprintf!((&raw mut buf).cast(), buf.len(), c"%zu", count);
             ea.arg = (&raw mut buf).cast();
         }
-        ea.cmdidx = if put { CMD_diffput } else { CMD_diffget };
+        ea.cmdidx = if put { CmdDiffput } else { CmdDiffget };
         ea.addr_count = 0;
         ea.line1 = curwin_mut().w_cursor.lnum;
         ea.line2 = curwin_mut().w_cursor.lnum;
@@ -3233,7 +3233,7 @@ pub fn ex_diffgetput(eap: &mut Exarg) {
             let mut idx = 0;
             while idx < DB_COUNT {
                 if curtab_mut().tp_diffbuf[idx] != g_st().curbuf && !curtab_mut().tp_diffbuf[idx].is_null() {
-                    if eap.cmdidx != CMD_diffput || modifiable(&*curtab_mut().tp_diffbuf[idx]) {
+                    if eap.cmdidx != CmdDiffput || modifiable(&*curtab_mut().tp_diffbuf[idx]) {
                         break;
                     }
                     found_not_ma = true;
@@ -3254,7 +3254,7 @@ pub fn ex_diffgetput(eap: &mut Exarg) {
             for i in (idx_other + 1)..DB_COUNT {
                 if curtab_mut().tp_diffbuf[i] != g_st().curbuf
                     && !curtab_mut().tp_diffbuf[i].is_null()
-                    && (eap.cmdidx != CMD_diffput || modifiable(&*curtab_mut().tp_diffbuf[i]))
+                    && (eap.cmdidx != CmdDiffput || modifiable(&*curtab_mut().tp_diffbuf[i]))
                 {
                     emsg(gettext(
                         c"E101: More than two buffers in diff mode, don't know which one to use",
@@ -3318,7 +3318,7 @@ pub fn ex_diffgetput(eap: &mut Exarg) {
             }
         }
         let mut aco = CtxSwitch::new();
-        if eap.cmdidx != CMD_diffget {
+        if eap.cmdidx != CmdDiffget {
             ctx_switch(
                 &mut aco,
                 ptr::null_mut(),
@@ -3327,12 +3327,12 @@ pub fn ex_diffgetput(eap: &mut Exarg) {
                 0,
             );
         }
-        let idx_from = if eap.cmdidx == CMD_diffget {
+        let idx_from = if eap.cmdidx == CmdDiffget {
             idx_other
         } else {
             idx_cur
         };
-        let idx_to = if eap.cmdidx == CMD_diffget {
+        let idx_to = if eap.cmdidx == CmdDiffget {
             idx_cur
         } else {
             idx_other
@@ -3354,7 +3354,7 @@ pub fn ex_diffgetput(eap: &mut Exarg) {
                 eap.line1,
                 eap.line2,
             );
-            if eap.cmdidx != CMD_diffget {
+            if eap.cmdidx != CmdDiffget {
                 if g_st().KeyTyped {
                     u_sync(false);
                 }

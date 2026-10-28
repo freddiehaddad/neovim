@@ -52,11 +52,11 @@ pub fn nvim_ui_term_event(
 ) {
      {
         if !event.data.is_null() && crate::memory::cstr_as_bytes(event.data) == b"termresponse" {
-            if value.obj_type != ObjectType::kObjectTypeString {
+            if value.obj_type != ObjectType::ObjectTypeString {
                 api_err_exp(
                     err,
                     c"termresponse",
-                    api_typename(ObjectType::kObjectTypeString),
+                    api_typename(ObjectType::ObjectTypeString),
                     api_typename(value.obj_type),
                 );
                 return;

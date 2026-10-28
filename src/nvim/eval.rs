@@ -340,7 +340,7 @@ fn tv_set_partial(tv: &mut TypVal, pt: *mut TvPartial) {
 
 #[inline]
 pub fn tv_blob_set_ret(tv: &mut TypVal, b: *mut TvBlob) {
-    tv.v_type = VarType::VAR_BLOB;
+    tv.v_type = VarType::VarBlob;
     tv.vval = crate::eval::typval::TypvalVval::Blob(b);
     if !b.is_null() {
         unsafe {
@@ -351,7 +351,7 @@ pub fn tv_blob_set_ret(tv: &mut TypVal, b: *mut TvBlob) {
 
 #[inline]
 pub fn tv_dict_set_ret(tv: &mut TypVal, d: *mut TvDict) {
-    tv.v_type = VarType::VAR_DICT;
+    tv.v_type = VarType::VarDict;
     tv.vval = crate::eval::typval::TypvalVval::Dict(d);
     if !d.is_null() {
         unsafe {
@@ -513,8 +513,8 @@ fn eval1_emsg(arg: *mut *mut c_char,rettv: &mut TypVal,eap: Option<&mut Exarg>) 
 ///          or eval_expr_to_bool(). An empty string returns false.
 pub fn eval_expr_valid_arg(tv: &TypVal) -> bool {
      {
-        tv.v_type != VarType::VAR_UNKNOWN
-            && (tv.v_type != VarType::VAR_STRING
+        tv.v_type != VarType::VarUnknown
+            && (tv.v_type != VarType::VarString
                 || (!tv.vval.v_string().is_null() && !crate::memory::cstr_is_empty(tv.vval.v_string())))
     }
 }
@@ -561,7 +561,7 @@ fn eval_expr_func(expr: &TypVal,
 ) -> bool {
      {
         let mut buf = [0 as c_char; NUMBUFLEN];
-        let s = if expr.v_type == VarType::VAR_FUNC {
+        let s = if expr.v_type == VarType::VarFunc {
             expr.vval.v_string().cast_const()
         } else {
             tv_get_string_buf_chk(expr, buf.as_mut_ptr())
@@ -620,10 +620,10 @@ pub fn eval_expr_typval(expr: &TypVal,
     argc: c_int,rettv: &mut TypVal,
 ) -> bool {
      {
-        if expr.v_type == VarType::VAR_PARTIAL {
+        if expr.v_type == VarType::VarPartial {
             return eval_expr_partial(expr, argv, argc, rettv);
         }
-        if expr.v_type == VarType::VAR_FUNC || want_func {
+        if expr.v_type == VarType::VarFunc || want_func {
             return eval_expr_func(expr, argv, argc, rettv);
         }
 
@@ -700,7 +700,7 @@ pub fn skip_expr(pp: *mut *mut c_char,mut evalarg: Option<&mut Evalarg>) -> bool
 /// Convert "tv" to a string.
 fn typval2string(tv: &mut TypVal, join_list: bool) -> Option<std::ffi::CString> {
     unsafe {
-        if join_list && tv.v_type == VarType::VAR_LIST {
+        if join_list && tv.v_type == VarType::VarList {
             let mut out: Vec<c_char> = Vec::with_capacity(80);
             if !tv.vval.v_list().is_null() {
                 tv_list_join(&mut out, tv.vval.v_list().as_mut(), c"\n");
@@ -710,7 +710,7 @@ fn typval2string(tv: &mut TypVal, join_list: bool) -> Option<std::ffi::CString> 
             }
             let bytes = crate::memory::cstr_slice(out.as_ptr(), out.len());
             return Some(cstr_from_bytes(bytes));
-        } else if tv.v_type == VarType::VAR_LIST || tv.v_type == VarType::VAR_DICT {
+        } else if tv.v_type == VarType::VarList || tv.v_type == VarType::VarDict {
             return Some(encode_tv2string(&mut *tv, None));
         }
         Some(cstr_to_cstring(tv_get_string(&*tv)))
@@ -857,7 +857,7 @@ pub fn call_vim_function(
             pt = get_vim_var_partial(VV_LUA);
         }
 
-        rettv.v_type = VarType::VAR_UNKNOWN;
+        rettv.v_type = VarType::VarUnknown;
         let lnum = curwin_mut().w_cursor.lnum;
         let mut funcexe = Funcexe {
             fe_fill_submatch: false,
@@ -908,7 +908,7 @@ pub fn call_func_retlist(
             return ptr::null_mut();
         }
 
-        if rettv.v_type != VarType::VAR_LIST {
+        if rettv.v_type != VarType::VarList {
             tv_clear(&mut rettv);
             return ptr::null_mut();
         }
@@ -992,9 +992,9 @@ pub fn eval_foldexpr(wp: &mut WinInfoInfo, cp: &mut c_int) -> c_int {
         ) {
             retval = 0;
         } else {
-            if tv.v_type == VarType::VAR_NUMBER {
+            if tv.v_type == VarType::VarNumber {
                 retval = tv.vval.v_number();
-            } else if tv.v_type != VarType::VAR_STRING || tv.vval.v_string().is_null() {
+            } else if tv.v_type != VarType::VarString || tv.vval.v_string().is_null() {
                 retval = 0;
             } else {
                 let mut s = tv.vval.v_string();
@@ -1030,18 +1030,18 @@ pub fn eval_foldtext(wp: &mut WinInfoInfo) -> Object {
             &mut tv,
         ) {
             retval = Object {
-                obj_type: ObjectType::kObjectTypeString,
+                obj_type: ObjectType::ObjectTypeString,
                 data: ObjectData::String(NvimString {
                         data: ptr::null_mut(),
                         size: 0,
                     }),
             };
         } else {
-            if tv.v_type == VarType::VAR_LIST {
+            if tv.v_type == VarType::VarList {
                 retval = vim_to_object(&raw mut tv, None, false);
             } else {
                 retval = Object {
-                    obj_type: ObjectType::kObjectTypeString,
+                    obj_type: ObjectType::ObjectTypeString,
                     data: ObjectData::String(cstr_to_string(tv_get_string(&tv))),
                 };
             }
@@ -1269,7 +1269,7 @@ fn get_lval_subscript(lp: &mut Lval,
         while crate::memory::cstr_first_byte(p) == b'['
             || (crate::memory::cstr_first_byte(p) == b'.' && crate::memory::cstr_byte_at(p, 1) != b'=' && crate::memory::cstr_byte_at(p, 1) != b'.')
         {
-            if crate::memory::cstr_first_byte(p) == b'.' && (*lp.ll_tv).v_type != VarType::VAR_DICT {
+            if crate::memory::cstr_first_byte(p) == b'.' && (*lp.ll_tv).v_type != VarType::VarDict {
                 if !quiet {
                     semsg!(
                         gettext(E_DOT_CAN_ONLY_BE_USED_ON_DICTIONARY_STR),
@@ -1278,9 +1278,9 @@ fn get_lval_subscript(lp: &mut Lval,
                 }
                 return ptr::null_mut();
             }
-            if (*lp.ll_tv).v_type != VarType::VAR_LIST
-                && (*lp.ll_tv).v_type != VarType::VAR_DICT
-                && (*lp.ll_tv).v_type != VarType::VAR_BLOB
+            if (*lp.ll_tv).v_type != VarType::VarList
+                && (*lp.ll_tv).v_type != VarType::VarDict
+                && (*lp.ll_tv).v_type != VarType::VarBlob
             {
                 if !quiet {
                     emsg(gettext(
@@ -1290,9 +1290,9 @@ fn get_lval_subscript(lp: &mut Lval,
                 return ptr::null_mut();
             }
 
-            if (*lp.ll_tv).v_type == VarType::VAR_LIST && (*lp.ll_tv).vval.v_list().is_null() {
+            if (*lp.ll_tv).v_type == VarType::VarList && (*lp.ll_tv).vval.v_list().is_null() {
                 tv_list_alloc_ret(&mut *lp.ll_tv, kListLenUnknown);
-            } else if (*lp.ll_tv).v_type == VarType::VAR_BLOB
+            } else if (*lp.ll_tv).v_type == VarType::VarBlob
                 && (*lp.ll_tv).vval.v_blob().is_null()
             {
                 tv_blob_alloc_ret(&mut *lp.ll_tv);
@@ -1345,7 +1345,7 @@ fn get_lval_subscript(lp: &mut Lval,
                 }
 
                 if crate::memory::cstr_first_byte(p) == b':' {
-                    if (*lp.ll_tv).v_type == VarType::VAR_DICT {
+                    if (*lp.ll_tv).v_type == VarType::VarDict {
                         if !quiet {
                             emsg(gettext(E_CANNOT_SLICE_DICTIONARY));
                         }
@@ -1354,9 +1354,9 @@ fn get_lval_subscript(lp: &mut Lval,
                         return ptr::null_mut();
                     }
                     if rettv.is_some()
-                        && !(rettv.as_deref_mut().unwrap().v_type == VarType::VAR_LIST
+                        && !(rettv.as_deref_mut().unwrap().v_type == VarType::VarList
                             && !rettv.as_deref_mut().unwrap().vval.v_list().is_null())
-                        && !(rettv.as_deref_mut().unwrap().v_type == VarType::VAR_BLOB
+                        && !(rettv.as_deref_mut().unwrap().v_type == VarType::VarBlob
                             && !rettv.as_deref_mut().unwrap().vval.v_blob().is_null())
                     {
                         if !quiet {
@@ -1397,7 +1397,7 @@ fn get_lval_subscript(lp: &mut Lval,
                 p = p.add(1);
             }
 
-            if (*lp.ll_tv).v_type == VarType::VAR_DICT {
+            if (*lp.ll_tv).v_type == VarType::VarDict {
                 let glv_status = get_lval_dict_item(
                     &mut *lp,
                     name,
@@ -1417,7 +1417,7 @@ fn get_lval_subscript(lp: &mut Lval,
                 if glv_status == GLV_STOP {
                     break;
                 }
-            } else if (*lp.ll_tv).v_type == VarType::VAR_BLOB {
+            } else if (*lp.ll_tv).v_type == VarType::VarBlob {
                 if !get_lval_blob(&mut *lp, &mut var1, &mut var2, empty1, quiet) {
                     tv_clear(&mut var1);
                     tv_clear(&mut var2);
@@ -1433,8 +1433,8 @@ fn get_lval_subscript(lp: &mut Lval,
 
             tv_clear(&mut var1);
             tv_clear(&mut var2);
-            var1.v_type = VarType::VAR_UNKNOWN;
-            var2.v_type = VarType::VAR_UNKNOWN;
+            var1.v_type = VarType::VarUnknown;
+            var2.v_type = VarType::VarUnknown;
         }
 
         tv_clear(&mut var1);
@@ -1573,7 +1573,7 @@ pub fn set_var_lval(
                     return;
                 }
 
-                if lp.ll_range && rettv.v_type == VarType::VAR_BLOB {
+                if lp.ll_range && rettv.v_type == VarType::VarBlob {
                     if lp.ll_empty2 {
                         lp.ll_n2 = tv_blob_len(lp.ll_blob.as_ref()) - 1;
                     }
@@ -1710,7 +1710,7 @@ pub fn set_var_lval(
             }
 
             if watched {
-                if oldtv.v_type == VarType::VAR_UNKNOWN {
+                if oldtv.v_type == VarType::VarUnknown {
                     let newkey_ptr = lp.ll_newkey.as_ref().unwrap().as_ptr();
                     tv_dict_watcher_notify(&mut *dict, newkey_ptr, lp.ll_tv.as_ref(), None);
                 } else {
@@ -1768,7 +1768,7 @@ pub fn eval_for_line(
         if eval0(expr.cast_mut(), &mut tv, Some(&mut *eap), &mut *evalarg) {
             *errp = false;
             if !skip {
-                if tv.v_type == VarType::VAR_LIST {
+                if tv.v_type == VarType::VarList {
                     let l = tv.vval.v_list();
                     if l.is_null() {
                         tv_clear(&mut tv);
@@ -1779,7 +1779,7 @@ pub fn eval_for_line(
                         tv_list_watch_add(&mut *l, lw.clone());
                         fi.fi_source = ForSource::List { list: l, lw };
                     }
-                } else if tv.v_type == VarType::VAR_BLOB {
+                } else if tv.v_type == VarType::VarBlob {
                     let bytes = if tv.vval.v_blob().is_null() {
                         Vec::new()
                     } else {
@@ -1787,7 +1787,7 @@ pub fn eval_for_line(
                     };
                     fi.fi_source = ForSource::Blob { bytes, idx: 0 };
                     tv_clear(&mut tv);
-                } else if tv.v_type == VarType::VAR_STRING {
+                } else if tv.v_type == VarType::VarString {
                     let text = if tv.vval.v_string().is_null() {
                         std::ffi::CString::default()
                     } else {
@@ -1819,7 +1819,7 @@ pub fn next_for_item(fi: &mut Forinfo, arg: *mut c_char) -> bool {
                     return false;
                 }
                 let mut tv = TypVal {
-                    v_type: VarType::VAR_NUMBER,
+                    v_type: VarType::VarNumber,
                     v_lock: VAR_FIXED,
                     vval: TypvalVval::Number(Varnumber::from(bytes[*idx])),
                 };
@@ -1901,7 +1901,7 @@ pub fn set_context_for_expression(
     unsafe {
         let mut got_eq = false;
 
-        if cmdidx == Cmdidx::CMD_let || cmdidx == Cmdidx::CMD_const {
+        if cmdidx == Cmdidx::CmdLet || cmdidx == Cmdidx::CmdConst {
             xp.xp_context = EXPAND_USER_VARS;
             if !crate::memory::cstr_as_bytes(arg).iter().any(|b| b"\"'+-*/%.=!?~|&$([<>,#".contains(b)) {
                 let mut p = arg.add(crate::memory::cstr_len(arg));
@@ -1915,7 +1915,7 @@ pub fn set_context_for_expression(
                 return;
             }
         } else {
-            xp.xp_context = if cmdidx == Cmdidx::CMD_call {
+            xp.xp_context = if cmdidx == Cmdidx::CmdCall {
                 EXPAND_FUNCTIONS
             } else {
                 EXPAND_EXPRESSION
@@ -1930,7 +1930,7 @@ pub fn set_context_for_expression(
                 c = c_int::from(crate::memory::cstr_byte_at(xp.xp_pattern, 1));
                 if c == b'&' as c_int {
                     xp.xp_pattern = xp.xp_pattern.add(1);
-                    xp.xp_context = if cmdidx != Cmdidx::CMD_let || got_eq {
+                    xp.xp_context = if cmdidx != Cmdidx::CmdLet || got_eq {
                         EXPAND_EXPRESSION
                     } else {
                         EXPAND_NOTHING
@@ -1954,7 +1954,7 @@ pub fn set_context_for_expression(
                     && vim_strchr(xp.xp_pattern, b'(' as c_int).is_null())
             {
                 break;
-            } else if cmdidx != Cmdidx::CMD_let || got_eq {
+            } else if cmdidx != Cmdidx::CmdLet || got_eq {
                 if c == b'"' as c_int {
                     loop {
                         xp.xp_pattern = xp.xp_pattern.add(1);
@@ -2083,9 +2083,9 @@ fn eval_func(
 
         drop(s_vec);
 
-        if rettv.v_type == VarType::VAR_UNKNOWN && !evaluate && **arg == b'(' as c_char {
+        if rettv.v_type == VarType::VarUnknown && !evaluate && **arg == b'(' as c_char {
             rettv.vval = crate::eval::typval::TypvalVval::String(tv_empty_string.cast_mut());
-            rettv.v_type = VarType::VAR_FUNC;
+            rettv.v_type = VarType::VarFunc;
         }
 
         if evaluate && aborting() {
@@ -2326,7 +2326,7 @@ fn eval2(arg: *mut *mut c_char, rettv: &mut TypVal, mut evalarg: Option<&mut Eva
                     }
                 }
                 if evaluate {
-                    rettv.v_type = VarType::VAR_NUMBER;
+                    rettv.v_type = VarType::VarNumber;
                     rettv.vval = crate::eval::typval::TypvalVval::Number(Varnumber::from(result));
                 }
 
@@ -2390,7 +2390,7 @@ fn eval3(arg: *mut *mut c_char, rettv: &mut TypVal, mut evalarg: Option<&mut Eva
                     }
                 }
                 if evaluate {
-                    rettv.v_type = VarType::VAR_NUMBER;
+                    rettv.v_type = VarType::VarNumber;
                     rettv.vval = crate::eval::typval::TypvalVval::Number(Varnumber::from(result));
                 }
 
@@ -2537,7 +2537,7 @@ fn eval_addlist(tv1: &mut TypVal, tv2: &mut TypVal) -> bool {
 /// Append string "s2" to the string in "tv1".
 pub fn grow_string_tv(tv1: &mut TypVal, s2: impl crate::strings::IntoCCharPtr) -> bool { let s2 = s2.into_c_char_ptr();
      {
-        if tv1.v_type != VarType::VAR_STRING || tv1.vval.v_string().is_null() {
+        if tv1.v_type != VarType::VarString || tv1.vval.v_string().is_null() {
             return false;
         }
 
@@ -2580,7 +2580,7 @@ fn eval_addsub_number(tv1: &mut TypVal, tv2: &mut TypVal, op: c_int) -> bool {
         let mut f1: TvFloat = 0.0;
         let mut f2: TvFloat = 0.0;
 
-        if tv1.v_type == VarType::VAR_FLOAT {
+        if tv1.v_type == VarType::VarFloat {
             f1 = tv1.vval.v_float();
             n1 = 0;
         } else {
@@ -2590,11 +2590,11 @@ fn eval_addsub_number(tv1: &mut TypVal, tv2: &mut TypVal, op: c_int) -> bool {
                 tv_clear(tv2);
                 return false;
             }
-            if tv2.v_type == VarType::VAR_FLOAT {
+            if tv2.v_type == VarType::VarFloat {
                 f1 = n1 as TvFloat;
             }
         }
-        if tv2.v_type == VarType::VAR_FLOAT {
+        if tv2.v_type == VarType::VarFloat {
             f2 = tv2.vval.v_float();
             n2 = 0;
         } else {
@@ -2604,19 +2604,19 @@ fn eval_addsub_number(tv1: &mut TypVal, tv2: &mut TypVal, op: c_int) -> bool {
                 tv_clear(tv2);
                 return false;
             }
-            if tv1.v_type == VarType::VAR_FLOAT {
+            if tv1.v_type == VarType::VarFloat {
                 f2 = n2 as TvFloat;
             }
         }
         tv_clear(tv1);
 
-        if tv1.v_type == VarType::VAR_FLOAT || tv2.v_type == VarType::VAR_FLOAT {
+        if tv1.v_type == VarType::VarFloat || tv2.v_type == VarType::VarFloat {
             if op == b'+' as c_int {
                 f1 += f2;
             } else {
                 f1 -= f2;
             }
-            tv1.v_type = VarType::VAR_FLOAT;
+            tv1.v_type = VarType::VarFloat;
             tv1.vval = crate::eval::typval::TypvalVval::Float(f1);
         } else {
             if op == b'+' as c_int {
@@ -2624,7 +2624,7 @@ fn eval_addsub_number(tv1: &mut TypVal, tv2: &mut TypVal, op: c_int) -> bool {
             } else {
                 n1 = n1.wrapping_sub(n2);
             }
-            tv1.v_type = VarType::VAR_NUMBER;
+            tv1.v_type = VarType::VarNumber;
             tv1.vval = crate::eval::typval::TypvalVval::Number(n1);
         }
 
@@ -2648,8 +2648,8 @@ fn eval5(arg: *mut *mut c_char,rettv: &mut TypVal,mut evalarg: Option<&mut Evala
 
             let evaluate = evalarg.as_ref().is_some_and(|p| (p.eval_flags & EVAL_EVALUATE) != 0);
             if (op != b'+' as c_int
-                || (rettv.v_type != VarType::VAR_LIST && rettv.v_type != VarType::VAR_BLOB))
-                && (op == b'.' as c_int || rettv.v_type != VarType::VAR_FLOAT)
+                || (rettv.v_type != VarType::VarList && rettv.v_type != VarType::VarBlob))
+                && (op == b'.' as c_int || rettv.v_type != VarType::VarFloat)
                 && evaluate
                 && ((op == b'.' as c_int && !tv_check_str(&*rettv))
                     || (op != b'.' as c_int && !tv_check_num(&*rettv)))
@@ -2674,13 +2674,13 @@ fn eval5(arg: *mut *mut c_char,rettv: &mut TypVal,mut evalarg: Option<&mut Evala
                         return false;
                     }
                 } else if op == b'+' as c_int
-                    && rettv.v_type == VarType::VAR_BLOB
-                    && var2.v_type == VarType::VAR_BLOB
+                    && rettv.v_type == VarType::VarBlob
+                    && var2.v_type == VarType::VarBlob
                 {
                     eval_addblob(rettv, &mut var2);
                 } else if op == b'+' as c_int
-                    && rettv.v_type == VarType::VAR_LIST
-                    && var2.v_type == VarType::VAR_LIST
+                    && rettv.v_type == VarType::VarList
+                    && var2.v_type == VarType::VarList
                 {
                     if !eval_addlist(rettv, &mut var2) {
                         return false;
@@ -2705,7 +2705,7 @@ fn eval_multdiv_number(tv1: &mut TypVal, tv2: &mut TypVal, op: c_int) -> bool {
         let mut f1: TvFloat = 0.0;
         let mut f2: TvFloat = 0.0;
         let mut error = false;
-        if tv1.v_type == VarType::VAR_FLOAT {
+        if tv1.v_type == VarType::VarFloat {
             f1 = tv1.vval.v_float();
             use_float = true;
             n1 = 0;
@@ -2718,7 +2718,7 @@ fn eval_multdiv_number(tv1: &mut TypVal, tv2: &mut TypVal, op: c_int) -> bool {
             return false;
         }
 
-        if tv2.v_type == VarType::VAR_FLOAT {
+        if tv2.v_type == VarType::VarFloat {
             if !use_float {
                 f1 = n1 as TvFloat;
                 use_float = true;
@@ -2755,7 +2755,7 @@ fn eval_multdiv_number(tv1: &mut TypVal, tv2: &mut TypVal, op: c_int) -> bool {
                 emsg(gettext(c"E804: Cannot use '%' with Float"));
                 return false;
             }
-            tv1.v_type = VarType::VAR_FLOAT;
+            tv1.v_type = VarType::VarFloat;
             tv1.vval = crate::eval::typval::TypvalVval::Float(f1);
         } else {
             if op == b'*' as c_int {
@@ -2765,7 +2765,7 @@ fn eval_multdiv_number(tv1: &mut TypVal, tv2: &mut TypVal, op: c_int) -> bool {
             } else {
                 n1 = num_modulus(n1, n2);
             }
-            tv1.v_type = VarType::VAR_NUMBER;
+            tv1.v_type = VarType::VarNumber;
             tv1.vval = crate::eval::typval::TypvalVval::Number(n1);
         }
 
@@ -2816,7 +2816,7 @@ fn eval7(
         let evaluate = evalarg.as_ref().is_some_and(|p| (p.eval_flags & EVAL_EVALUATE) != 0);
         let mut ret: c_int;
 
-        rettv.v_type = VarType::VAR_UNKNOWN;
+        rettv.v_type = VarType::VarUnknown;
 
         let start_leader: *const c_char = *arg;
         while **arg == b'!' as c_char || **arg == b'-' as c_char || **arg == b'+' as c_char {
@@ -2924,11 +2924,11 @@ fn eval7(
                     eval_variable(s, len, Some(&mut *rettv), ptr::null_mut(), true, false)
                 } else {
                     check_vars(s, len as usize);
-                    if rettv.v_type == VarType::VAR_UNKNOWN
+                    if rettv.v_type == VarType::VarUnknown
                         && !evaluate
                         && crate::memory::cstr_as_bytes(s).starts_with(b"v:lua.")
                     {
-                        rettv.v_type = VarType::VAR_PARTIAL;
+                        rettv.v_type = VarType::VarPartial;
                         let lua_pt = get_vim_var_partial(VV_LUA);
                         tv_set_partial(rettv, lua_pt);
                         (*lua_pt).pt_refcount += 1;
@@ -2970,7 +2970,7 @@ fn eval7_leader(rettv: &mut TypVal,
         let mut val: Varnumber = 0;
         let mut f: TvFloat = 0.0;
 
-        if rettv.v_type == VarType::VAR_FLOAT {
+        if rettv.v_type == VarType::VarFloat {
             f = rettv.vval.v_float();
         } else {
             val = tv_get_number_chk(&*rettv, Some(&mut error));
@@ -2986,8 +2986,8 @@ fn eval7_leader(rettv: &mut TypVal,
                         end_leader = end_leader.add(1);
                         break;
                     }
-                    if rettv.v_type == VarType::VAR_FLOAT {
-                        rettv.v_type = VarType::VAR_BOOL;
+                    if rettv.v_type == VarType::VarFloat {
+                        rettv.v_type = VarType::VarBool;
                         val = if f == 0.0 {
                             kBoolVarTrue
                         } else {
@@ -2997,19 +2997,19 @@ fn eval7_leader(rettv: &mut TypVal,
                         val = Varnumber::from(val == 0);
                     }
                 } else if crate::memory::cstr_first_byte(end_leader) == b'-' {
-                    if rettv.v_type == VarType::VAR_FLOAT {
+                    if rettv.v_type == VarType::VarFloat {
                         f = -f;
                     } else {
                         val = val.wrapping_neg();
                     }
                 }
             }
-            if rettv.v_type == VarType::VAR_FLOAT {
+            if rettv.v_type == VarType::VarFloat {
                 tv_clear(rettv);
                 rettv.vval = crate::eval::typval::TypvalVval::Float(f);
             } else {
                 tv_clear(rettv);
-                rettv.v_type = VarType::VAR_NUMBER;
+                rettv.v_type = VarType::VarNumber;
                 rettv.vval = crate::eval::typval::TypvalVval::Number(val);
             }
         }
@@ -3034,9 +3034,9 @@ fn call_func_rettv(
 
         if evaluate {
             functv = *rettv;
-            rettv.v_type = VarType::VAR_UNKNOWN;
+            rettv.v_type = VarType::VarUnknown;
 
-            if functv.v_type == VarType::VAR_PARTIAL {
+            if functv.v_type == VarType::VarPartial {
                 pt = tv_partial(&functv);
                 is_lua = is_luafunc(pt);
                 funcname = if is_lua {
@@ -3099,7 +3099,7 @@ fn eval_lambda(
         let evaluate = evalarg.as_ref().is_some_and(|p| (p.eval_flags & EVAL_EVALUATE) != 0);
         *arg = (*arg).add(2);
         let mut base = *rettv;
-        rettv.v_type = VarType::VAR_UNKNOWN;
+        rettv.v_type = VarType::VarUnknown;
 
         let ret = if get_lambda_tv(arg, &mut *rettv, evalarg.as_deref_mut()) != OK {
             return false;
@@ -3147,7 +3147,7 @@ fn eval_method(
 
         *arg = (*arg).add(2);
         let mut base = *rettv;
-        rettv.v_type = VarType::VAR_UNKNOWN;
+        rettv.v_type = VarType::VarUnknown;
 
         let mut len: c_int;
         let mut name = *arg;
@@ -3197,13 +3197,13 @@ fn eval_method(
                         semsg!(gettext(e_trailing_arg), *arg);
                     }
                     ret = false;
-                } else if ref_tv.v_type == VarType::VAR_FUNC && !ref_tv.vval.v_string().is_null() {
+                } else if ref_tv.v_type == VarType::VarFunc && !ref_tv.vval.v_string().is_null() {
                     let tf = crate::eval::typval::tv_take_string(ref_tv.vval.v_string()).unwrap_or_default();
                     ref_tv.vval = crate::eval::typval::TypvalVval::String(ptr::null_mut());
                     len = tf.as_bytes().len() as c_int;
                     name = tf.as_ptr().cast_mut();
                     tofree = Some(tf);
-                } else if ref_tv.v_type == VarType::VAR_PARTIAL
+                } else if ref_tv.v_type == VarType::VarPartial
                     && !tv_partial(&ref_tv).is_null()
                 {
                     let ref_pt = tv_partial(&ref_tv);
@@ -3241,7 +3241,7 @@ fn eval_method(
                     ret = false;
                 } else if !lua_funcname.is_null() {
                     if evaluate {
-                        rettv.v_type = VarType::VAR_PARTIAL;
+                        rettv.v_type = VarType::VarPartial;
                         let lua_pt = get_vim_var_partial(VV_LUA);
                         tv_set_partial(rettv, lua_pt);
                         (*lua_pt).pt_refcount += 1;
@@ -3386,35 +3386,35 @@ fn eval_index(
 fn check_can_index(rettv: &mut TypVal, evaluate: bool, verbose: bool) -> bool {
      {
         match rettv.v_type {
-            VarType::VAR_FUNC | VarType::VAR_PARTIAL => {
+            VarType::VarFunc | VarType::VarPartial => {
                 if verbose {
                     emsg(gettext(E_CANNOT_INDEX_A_FUNCREF));
                 }
                 return false;
             }
-            VarType::VAR_FLOAT => {
+            VarType::VarFloat => {
                 if verbose {
                     emsg(gettext(e_using_float_as_string));
                 }
                 return false;
             }
-            VarType::VAR_BOOL | VarType::VAR_SPECIAL => {
+            VarType::VarBool | VarType::VarSpecial => {
                 if verbose {
                     emsg(gettext(E_CANNOT_INDEX_SPECIAL_VARIABLE));
                 }
                 return false;
             }
-            VarType::VAR_UNKNOWN => {
+            VarType::VarUnknown => {
                 if evaluate {
                     emsg(gettext(E_CANNOT_INDEX_SPECIAL_VARIABLE));
                     return false;
                 }
             }
-            VarType::VAR_STRING
-            | VarType::VAR_NUMBER
-            | VarType::VAR_LIST
-            | VarType::VAR_DICT
-            | VarType::VAR_BLOB => {}
+            VarType::VarString
+            | VarType::VarNumber
+            | VarType::VarList
+            | VarType::VarDict
+            | VarType::VarBlob => {}
         }
         true
     }
@@ -3436,7 +3436,7 @@ pub fn f_slice(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData){
             &mut *rettv,
             true,
             Some(arg1),
-            if arg2.v_type == VarType::VAR_UNKNOWN {
+            if arg2.v_type == VarType::VarUnknown {
                 None
             } else {
                 Some(&*arg2)
@@ -3462,12 +3462,12 @@ fn eval_index_inner(rettv: &mut TypVal,
     unsafe {
         let mut n1: Varnumber = 0;
         let mut n2: Varnumber = 0;
-        if let Some(var1) = var1 && rettv.v_type != VarType::VAR_DICT {
+        if let Some(var1) = var1 && rettv.v_type != VarType::VarDict {
             n1 = tv_get_number(var1);
         }
 
         if is_range {
-            if rettv.v_type == VarType::VAR_DICT {
+            if rettv.v_type == VarType::VarDict {
                 if verbose {
                     emsg(gettext(E_CANNOT_SLICE_DICTIONARY));
                 }
@@ -3481,13 +3481,13 @@ fn eval_index_inner(rettv: &mut TypVal,
         }
 
         match rettv.v_type {
-            VarType::VAR_BOOL
-            | VarType::VAR_SPECIAL
-            | VarType::VAR_FUNC
-            | VarType::VAR_FLOAT
-            | VarType::VAR_PARTIAL
-            | VarType::VAR_UNKNOWN => {}
-            VarType::VAR_NUMBER | VarType::VAR_STRING => {
+            VarType::VarBool
+            | VarType::VarSpecial
+            | VarType::VarFunc
+            | VarType::VarFloat
+            | VarType::VarPartial
+            | VarType::VarUnknown => {}
+            VarType::VarNumber | VarType::VarString => {
                 let s = tv_get_string(&*rettv);
                 let len = crate::memory::cstr_len(s) as Varnumber;
                 let v: Option<std::ffi::CString> = if exclusive {
@@ -3528,14 +3528,14 @@ fn eval_index_inner(rettv: &mut TypVal,
                 if let Some(ref c) = v {
                     crate::eval::typval::tv_set_string(rettv, c.as_ptr());
                 } else {
-                    rettv.v_type = VarType::VAR_STRING;
+                    rettv.v_type = VarType::VarString;
                     rettv.vval = crate::eval::typval::TypvalVval::String(ptr::null_mut());
                 }
             }
-            VarType::VAR_BLOB => {
+            VarType::VarBlob => {
                 tv_blob_slice_or_index(is_range, n1, n2, exclusive, rettv);
             }
-            VarType::VAR_LIST => {
+            VarType::VarList => {
                 if var1.is_none() {
                     n1 = 0;
                 }
@@ -3554,7 +3554,7 @@ fn eval_index_inner(rettv: &mut TypVal,
                     return false;
                 }
             }
-            VarType::VAR_DICT => {
+            VarType::VarDict => {
                 if key.is_null() {
                     key = tv_get_string_chk(var1.unwrap());
                     if key.is_null() {
@@ -3625,7 +3625,7 @@ pub fn eval_option(arg: *mut *const c_char,rettv: Option<&mut TypVal>, evaluate:
                 } else {
                     get_option_value(opt_idx, opt_flags)
                 };
-                debug_assert!(value.obj_type != ObjectType::kObjectTypeNil);
+                debug_assert!(value.obj_type != ObjectType::ObjectTypeNil);
 
                 *rettv = opt_to_tv(value, true);
                 optval_free(value);
@@ -3673,7 +3673,7 @@ fn eval_number(
             let mut f: TvFloat = 0.0;
             *arg = (*arg).add(string2float(*arg, &raw mut f));
             if evaluate {
-                rettv.v_type = VarType::VAR_FLOAT;
+                rettv.v_type = VarType::VarFloat;
                 rettv.vval = crate::eval::typval::TypvalVval::Float(f);
             }
         } else if **arg == b'0' as c_char
@@ -3729,7 +3729,7 @@ fn eval_number(
             }
             *arg = (*arg).add(len as usize);
             if evaluate {
-                rettv.v_type = VarType::VAR_NUMBER;
+                rettv.v_type = VarType::VarNumber;
                 rettv.vval = crate::eval::typval::TypvalVval::Number(n);
             }
         }
@@ -4061,7 +4061,7 @@ pub fn eval_interp_string(
         if ret && evaluate {
             crate::eval::typval::tv_set_string_len(rettv, buf.as_ptr(), buf.len());
         } else {
-            rettv.v_type = VarType::VAR_STRING;
+            rettv.v_type = VarType::VarString;
             rettv.vval = crate::eval::typval::TypvalVval::String(ptr::null_mut());
         }
         true
@@ -4160,7 +4160,7 @@ fn eval_list(arg: *mut *mut c_char,rettv: &mut TypVal,mut evalarg: Option<&mut E
 
 pub fn func_equal(tv1: &TypVal, tv2: &TypVal, ic: bool) -> bool {
     unsafe {
-        let mut s1 = if tv1.v_type == VarType::VAR_FUNC {
+        let mut s1 = if tv1.v_type == VarType::VarFunc {
             tv1.vval.v_string()
         } else {
             partial_name(tv_partial(tv1).as_ref())
@@ -4168,7 +4168,7 @@ pub fn func_equal(tv1: &TypVal, tv2: &TypVal, ic: bool) -> bool {
         if !s1.is_null() && crate::memory::cstr_is_empty(s1) {
             s1 = ptr::null_mut();
         }
-        let mut s2 = if tv2.v_type == VarType::VAR_FUNC {
+        let mut s2 = if tv2.v_type == VarType::VarFunc {
             tv2.vval.v_string()
         } else {
             partial_name(tv_partial(tv2).as_ref())
@@ -4184,12 +4184,12 @@ pub fn func_equal(tv1: &TypVal, tv2: &TypVal, ic: bool) -> bool {
             return false;
         }
 
-        let d1 = if tv1.v_type == VarType::VAR_FUNC {
+        let d1 = if tv1.v_type == VarType::VarFunc {
             ptr::null_mut()
         } else {
             (*tv_partial(tv1)).pt_dict
         };
-        let d2 = if tv2.v_type == VarType::VAR_FUNC {
+        let d2 = if tv2.v_type == VarType::VarFunc {
             ptr::null_mut()
         } else {
             (*tv_partial(tv2)).pt_dict
@@ -4202,12 +4202,12 @@ pub fn func_equal(tv1: &TypVal, tv2: &TypVal, ic: bool) -> bool {
             return false;
         }
 
-        let a1 = if tv1.v_type == VarType::VAR_FUNC {
+        let a1 = if tv1.v_type == VarType::VarFunc {
             0
         } else {
             (*tv_partial(tv1)).pt_argv.len() as c_int
         };
-        let a2 = if tv2.v_type == VarType::VAR_FUNC {
+        let a2 = if tv2.v_type == VarType::VarFunc {
             0
         } else {
             (*tv_partial(tv2)).pt_argv.len() as c_int
@@ -4615,7 +4615,7 @@ fn set_ref_in_item_partial(
 
         if !(*pt).pt_dict.is_null() {
             let mut dtv = TypVal {
-                v_type: VarType::VAR_DICT,
+                v_type: VarType::VarDict,
                 v_lock: VAR_UNLOCKED,
                 vval: TypvalVval::Dict((*pt).pt_dict),
             };
@@ -4638,23 +4638,23 @@ pub fn set_ref_in_item(
     list_stack: *mut ListStack,
 ) -> bool {
     match tv.v_type {
-            VarType::VAR_DICT => {
+            VarType::VarDict => {
                 set_ref_in_item_dict(unsafe { tv.vval.v_dict().as_mut() }, copyID, ht_stack, list_stack)
             }
-            VarType::VAR_LIST => {
+            VarType::VarList => {
                 set_ref_in_item_list(tv.vval.v_list(), copyID, ht_stack, unsafe { list_stack.as_mut() })
             }
-            VarType::VAR_FUNC => set_ref_in_func(tv.vval.v_string(), ptr::null_mut(), copyID),
-            VarType::VAR_PARTIAL => {
+            VarType::VarFunc => set_ref_in_func(tv.vval.v_string(), ptr::null_mut(), copyID),
+            VarType::VarPartial => {
                 set_ref_in_item_partial(tv_partial(&*tv), copyID, ht_stack, list_stack)
             }
-            VarType::VAR_UNKNOWN
-            | VarType::VAR_BOOL
-            | VarType::VAR_SPECIAL
-            | VarType::VAR_FLOAT
-            | VarType::VAR_NUMBER
-            | VarType::VAR_STRING
-            | VarType::VAR_BLOB => false,
+            VarType::VarUnknown
+            | VarType::VarBool
+            | VarType::VarSpecial
+            | VarType::VarFloat
+            | VarType::VarNumber
+            | VarType::VarString
+            | VarType::VarBlob => false,
         }
 }
 
@@ -4700,7 +4700,7 @@ fn eval_dict(
             d = tv_dict_alloc();
         }
         let mut tvkey = tv_initial_value();
-        tv.v_type = VarType::VAR_UNKNOWN;
+        tv.v_type = VarType::VarUnknown;
 
         *arg = skipwhite((*arg).add(1));
         while **arg != b'}' as c_char && **arg != NUL {
@@ -4883,7 +4883,7 @@ fn eval_env_var(arg: *mut *mut c_char,rettv: &mut TypVal, evaluate: c_int) -> bo
             if let Some(ref s) = string {
                 crate::eval::typval::tv_set_string(rettv, s.as_ptr());
             } else {
-                rettv.v_type = VarType::VAR_STRING;
+                rettv.v_type = VarType::VarString;
                 rettv.vval = crate::eval::typval::TypvalVval::String(ptr::null_mut());
             }
         }
@@ -4898,7 +4898,7 @@ pub fn tv_to_argv(
     cmd: Option<&mut std::ffi::CString>,executable: Option<&mut bool>,
 ) -> Vec<std::ffi::CString> {
     unsafe {
-        if cmd_tv.v_type == VarType::VAR_STRING {
+        if cmd_tv.v_type == VarType::VarString {
             let cmd_str = tv_get_string(&*cmd_tv);
             if let Some(cmd_out) = cmd {
                 *cmd_out = crate::memory::cstr_to_cstring(cmd_str);
@@ -4906,7 +4906,7 @@ pub fn tv_to_argv(
             return shell_build_argv(cmd_str, ptr::null());
         }
 
-        if cmd_tv.v_type != VarType::VAR_LIST {
+        if cmd_tv.v_type != VarType::VarList {
             semsg!(
                 gettext(e_invarg2),
                 c"expected String or List",
@@ -4987,7 +4987,7 @@ fn get_system_output_as_rettv(argvars: &mut [TypVal], rettv: &mut TypVal, retlis
         let mut wait_time: Proftime = 0;
         let profiling = g_st().do_profiling == PROF_YES;
 
-        rettv.v_type = VarType::VAR_STRING;
+        rettv.v_type = VarType::VarString;
         rettv.vval = crate::eval::typval::TypvalVval::String(ptr::null_mut());
 
         if check_secure() {
@@ -5054,14 +5054,14 @@ fn get_system_output_as_rettv(argvars: &mut [TypVal], rettv: &mut TypVal, retlis
 
         if retlist {
             let mut keepempty: c_int = 0;
-            if argvars[1].v_type != VarType::VAR_UNKNOWN
-                && argvars[2].v_type != VarType::VAR_UNKNOWN
+            if argvars[1].v_type != VarType::VarUnknown
+                && argvars[2].v_type != VarType::VarUnknown
             {
                 keepempty = tv_get_number(&argvars[2]) as c_int;
             }
             rettv.vval = crate::eval::typval::TypvalVval::List(string_to_list(res.as_ptr(), res.len(), keepempty != 0));
             tv_list_ref(rettv.vval.v_list().as_mut());
-            rettv.v_type = VarType::VAR_LIST;
+            rettv.v_type = VarType::VarList;
         } else {
             let nread = res.len();
             { let _d = (res.as_mut_ptr()).cast::<u8>(); let _sz = nread; if _sz > 0 { let _c = (NUL) as u8; let _x = 1_u8; for _b in std::slice::from_raw_parts_mut(_d, _sz) { if *_b == _c { *_b = _x; } } } };
@@ -5100,23 +5100,23 @@ pub fn callback_from_typval(callback: &mut Callback, arg: &TypVal) -> bool {
 
         let is_lua_tbl = nlua_is_table_from_lua(arg);
 
-        if arg.v_type == VarType::VAR_PARTIAL && !tv_partial(arg).is_null() {
+        if arg.v_type == VarType::VarPartial && !tv_partial(arg).is_null() {
             let pt = tv_partial(arg);
             callback.data = crate::eval::typval::CallbackData::partial(pt);
             (*pt).pt_refcount += 1;
-        } else if arg.v_type == VarType::VAR_STRING
+        } else if arg.v_type == VarType::VarString
             && !arg.vval.v_string().is_null()
             && ascii_isdigit(crate::memory::cstr_first_char(arg.vval.v_string()))
         {
             r = FAIL;
-        } else if arg.v_type == VarType::VAR_FUNC || arg.v_type == VarType::VAR_STRING {
+        } else if arg.v_type == VarType::VarFunc || arg.v_type == VarType::VarString {
             let name = arg.vval.v_string();
             if name.is_null() {
                 r = FAIL;
             } else if crate::memory::cstr_is_empty(name) {
                 *callback = Callback::NONE;
             } else {
-                let funcref = if arg.v_type == VarType::VAR_STRING
+                let funcref = if arg.v_type == VarType::VarString
                     && let Some(sl) = get_scriptlocal_funcname(name)
                 {
                     sl
@@ -5137,8 +5137,8 @@ pub fn callback_from_typval(callback: &mut Callback, arg: &TypVal) -> bool {
                     r = FAIL;
                 }
             }
-        } else if arg.v_type == VarType::VAR_SPECIAL
-            || (arg.v_type == VarType::VAR_NUMBER && arg.vval.v_number() == 0)
+        } else if arg.v_type == VarType::VarSpecial
+            || (arg.v_type == VarType::VarNumber && arg.vval.v_number() == 0)
         {
             *callback = Callback::NONE;
         } else {
@@ -5213,7 +5213,7 @@ pub fn callback_call(
                     Some(&mut err),
                 );
                 eval_st().callback_depth -= 1;
-                let ok = err.err_type == ErrorType::kErrorTypeNone;
+                let ok = err.err_type == ErrorType::ErrorTypeNone;
                 if !ok {
                     semsg_multiline!(c"emsg", c"E5108: %s", err.msg_ptr());
                     api_clear_error(&mut err);
@@ -5267,7 +5267,7 @@ pub fn set_ref_in_callback(
 ) -> bool {
     if callback.cb_type() == kCallbackPartial {
             let mut tv = TypVal {
-                v_type: VarType::VAR_PARTIAL,
+                v_type: VarType::VarPartial,
                 v_lock: VAR_UNLOCKED,
                 vval: TypvalVval::Partial(callback.data.as_partial()),
             };
@@ -5290,7 +5290,7 @@ fn set_ref_in_callback_reader(
 
     if !reader.self_dict.is_null() {
         let mut tv = TypVal {
-            v_type: VarType::VAR_DICT,
+            v_type: VarType::VarDict,
             v_lock: VAR_UNLOCKED,
             vval: TypvalVval::Dict(reader.self_dict),
         };
@@ -5373,7 +5373,7 @@ pub fn timer_due_cb(_tw: &mut TimeWatcher, timer: &mut VimTimer) {
         }
 
         let mut argv = [tv_initial_value(), tv_initial_value()];
-        argv[0].v_type = VarType::VAR_NUMBER;
+        argv[0].v_type = VarType::VarNumber;
         argv[0].vval = crate::eval::typval::TypvalVval::Number(Varnumber::from(timer.timer_id));
         let mut rettv = tv_initial_value();
 
@@ -5482,11 +5482,11 @@ pub fn timer_teardown() {
 /// Saves a TypVal as a string buffer (`None` on error, `Some(vec)` on success).
 pub fn save_tv_as_string(tv: &mut TypVal, endnl: bool, crlf: bool) -> Option<Vec<c_char>> {
     unsafe {
-        if tv.v_type == VarType::VAR_UNKNOWN {
+        if tv.v_type == VarType::VarUnknown {
             return Some(Vec::new());
         }
 
-        if tv.v_type != VarType::VAR_LIST && tv.v_type != VarType::VAR_NUMBER {
+        if tv.v_type != VarType::VarList && tv.v_type != VarType::VarNumber {
             let ret = tv_get_string_chk(&*tv);
             if !ret.is_null() {
                 let len = crate::memory::cstr_len(ret);
@@ -5500,7 +5500,7 @@ pub fn save_tv_as_string(tv: &mut TypVal, endnl: bool, crlf: bool) -> Option<Vec
             }
         }
 
-        if tv.v_type == VarType::VAR_NUMBER {
+        if tv.v_type == VarType::VarNumber {
             let buf = buflist_findnr(tv.vval.v_number() as c_int);
             let mut total_len: usize = 0;
             if !buf.is_null() {
@@ -5531,7 +5531,7 @@ pub fn save_tv_as_string(tv: &mut TypVal, endnl: bool, crlf: bool) -> Option<Vec
             return Some(ret);
         }
 
-        debug_assert!(tv.v_type == VarType::VAR_LIST);
+        debug_assert!(tv.v_type == VarType::VarList);
         let list = tv.vval.v_list();
         let sep_len = if crlf { 2usize } else { 1usize };
         let mut total_len: usize = 0;
@@ -5648,7 +5648,7 @@ pub fn var2fpos(
     unsafe {
         let bp = wp.w_buffer;
 
-        if tv.v_type == VarType::VAR_LIST {
+        if tv.v_type == VarType::VarList {
             let mut error = false;
 
             let l = tv.vval.v_list();
@@ -5673,7 +5673,7 @@ pub fn var2fpos(
 
             let li = tv_list_find(l.as_mut(), 1);
             if !li.is_null()
-                && (*tv_list_item_tv(&mut *li)).v_type == VarType::VAR_STRING
+                && (*tv_list_item_tv(&mut *li)).v_type == VarType::VarString
                 && !(*tv_list_item_tv(&mut *li)).vval.v_string().is_null()
                 && (crate::memory::cstr_as_bytes((*tv_list_item_tv(&mut *li)).vval.v_string()) == b"$")
             {
@@ -5785,7 +5785,7 @@ pub fn list2fpos(
     charcol: bool,
 ) -> bool {
     unsafe {
-        if arg.v_type != VarType::VAR_LIST {
+        if arg.v_type != VarType::VarList {
             return false;
         }
         let l = arg.vval.v_list();
@@ -6146,7 +6146,7 @@ pub fn is_luafunc(partial: *mut TvPartial) -> bool {
 }
 
 fn tv_is_luafunc(tv: &mut TypVal) -> bool {
-    tv.v_type == VarType::VAR_PARTIAL && is_luafunc(tv_partial(tv))
+    tv.v_type == VarType::VarPartial && is_luafunc(tv_partial(tv))
 }
 
 /// Skips one character past the end of the name of a v:lua function.
@@ -6313,7 +6313,7 @@ pub fn handle_subscript(
 
         while ret
             && (((**arg == b'[' as c_char
-                || (**arg == b'.' as c_char && rettv.v_type == VarType::VAR_DICT)
+                || (**arg == b'.' as c_char && rettv.v_type == VarType::VarDict)
                 || (**arg == b'(' as c_char && (!evaluate || tv_is_func(rettv))))
                 && !ascii_iswhite(*(*arg).sub(1)))
                 || (**arg == b'-' as c_char && crate::memory::cstr_byte_at(*arg, 1) == b'>'))
@@ -6345,7 +6345,7 @@ pub fn handle_subscript(
                 }
             } else {
                 tv_dict_unref(selfdict);
-                if rettv.v_type == VarType::VAR_DICT {
+                if rettv.v_type == VarType::VarDict {
                     selfdict = rettv.vval.v_dict();
                     if !selfdict.is_null() {
                         (*selfdict).dv_refcount += 1;
@@ -6371,7 +6371,7 @@ pub fn handle_subscript(
 
 pub fn set_selfdict(rettv: &mut TypVal, selfdict: &mut TvDict) {
     unsafe {
-        if rettv.v_type == VarType::VAR_PARTIAL
+        if rettv.v_type == VarType::VarPartial
             && !(*tv_partial(&*rettv)).pt_auto
             && !(*tv_partial(&*rettv)).pt_dict.is_null()
         {
@@ -6399,15 +6399,15 @@ pub fn var_item_copy(
         eval_st().VAR_ITEM_COPY_RECURSE += 1;
 
         match from.v_type {
-            VarType::VAR_NUMBER
-            | VarType::VAR_FLOAT
-            | VarType::VAR_FUNC
-            | VarType::VAR_PARTIAL
-            | VarType::VAR_BOOL
-            | VarType::VAR_SPECIAL => {
+            VarType::VarNumber
+            | VarType::VarFloat
+            | VarType::VarFunc
+            | VarType::VarPartial
+            | VarType::VarBool
+            | VarType::VarSpecial => {
                 tv_copy(&*from, &mut *to);
             }
-            VarType::VAR_STRING => {
+            VarType::VarString => {
                 let Some(conv) = conv.filter(|c| c.vc_type != CONV_NONE) else {
                     tv_copy(&*from, &mut *to);
                     eval_st().VAR_ITEM_COPY_RECURSE -= 1;
@@ -6426,8 +6426,8 @@ pub fn var_item_copy(
                     to.v_lock = VAR_UNLOCKED;
                 }
             }
-            VarType::VAR_LIST => {
-                to.v_type = VarType::VAR_LIST;
+            VarType::VarList => {
+                to.v_type = VarType::VarList;
                 to.v_lock = VAR_UNLOCKED;
                 if from.vval.v_list().is_null() {
                     to.vval = crate::eval::typval::TypvalVval::List(ptr::null_mut());
@@ -6441,11 +6441,11 @@ pub fn var_item_copy(
                     ret = false;
                 }
             }
-            VarType::VAR_BLOB => {
+            VarType::VarBlob => {
                 tv_blob_copy(from.vval.v_blob().as_ref(), to);
             }
-            VarType::VAR_DICT => {
-                to.v_type = VarType::VAR_DICT;
+            VarType::VarDict => {
+                to.v_type = VarType::VarDict;
                 to.v_lock = VAR_UNLOCKED;
                 if from.vval.v_dict().is_null() {
                     to.vval = crate::eval::typval::TypvalVval::Dict(ptr::null_mut());
@@ -6459,7 +6459,7 @@ pub fn var_item_copy(
                     ret = false;
                 }
             }
-            VarType::VAR_UNKNOWN => {
+            VarType::VarUnknown => {
                 internal_error(c"var_item_copy(UNKNOWN)");
                 ret = false;
             }
@@ -6506,16 +6506,16 @@ pub fn ex_echo(eap: &mut Exarg) {
             if eap.skip == 0 {
                 if atstart {
                     atstart = false;
-                    msg_ext_set_append(eap.cmdidx == Cmdidx::CMD_echon as c_int);
+                    msg_ext_set_append(eap.cmdidx == Cmdidx::CmdEchon as c_int);
                     msg_ext_no_fast();
                     msg_ext_set_kind(c"echo");
-                    if eap.cmdidx == Cmdidx::CMD_echo as c_int {
+                    if eap.cmdidx == Cmdidx::CmdEcho as c_int {
                         if !g_st().msg_didout {
                             msg_sb_eol();
                         }
                         msg_start();
                     }
-                } else if eap.cmdidx == Cmdidx::CMD_echo as c_int {
+                } else if eap.cmdidx == Cmdidx::CmdEcho as c_int {
                     msg_puts_hl(c" ", eval_st().echo_hl_id, false);
                 }
                 let tofree = encode_tv2echo(&mut rettv, None);
@@ -6545,7 +6545,7 @@ pub fn ex_echo(eap: &mut Exarg) {
             } else if need_clear {
                 msg_clr_eos();
             }
-            if eap.cmdidx == Cmdidx::CMD_echo as c_int {
+            if eap.cmdidx == Cmdidx::CmdEcho as c_int {
                 msg_end();
             }
         }
@@ -6582,10 +6582,10 @@ pub fn ex_execute(eap: &mut Exarg) {
 
             if eap.skip == 0 {
                 let mut argstr_owned: Option<std::ffi::CString> = None;
-                let argstr = if eap.cmdidx == Cmdidx::CMD_execute as c_int {
+                let argstr = if eap.cmdidx == Cmdidx::CmdExecute as c_int {
                     tv_get_string(&rettv)
                 } else {
-                    argstr_owned = Some(if rettv.v_type == VarType::VAR_STRING {
+                    argstr_owned = Some(if rettv.v_type == VarType::VarString {
                         encode_tv2echo(&mut rettv, None)
                     } else {
                         encode_tv2string(&mut rettv, None)
@@ -6609,18 +6609,18 @@ pub fn ex_execute(eap: &mut Exarg) {
 
         if ret && has_arg {
             buf.push(NUL);
-            if eap.cmdidx == Cmdidx::CMD_echomsg as c_int {
+            if eap.cmdidx == Cmdidx::CmdEchomsg as c_int {
                 msg_ext_no_fast();
                 msg_ext_set_kind(c"echomsg");
                 msg(buf.as_ptr(), eval_st().echo_hl_id);
-            } else if eap.cmdidx == Cmdidx::CMD_echoerr as c_int {
+            } else if eap.cmdidx == Cmdidx::CmdEchoerr as c_int {
                 let save_did_emsg = g_st().did_emsg;
                 msg_ext_no_fast();
                 emsg_multiline(buf.as_ptr(), c"echoerr", HLF_E, true);
                 if !g_st().force_abort {
                     g_st().did_emsg = save_did_emsg;
                 }
-            } else if eap.cmdidx == Cmdidx::CMD_execute as c_int {
+            } else if eap.cmdidx == Cmdidx::CmdExecute as c_int {
                 do_cmdline(
                     buf.as_mut_ptr(),
                     eap.ea_getline,
@@ -6804,7 +6804,7 @@ pub fn do_string_sub(
         } else {
             if crate::memory::cstr_is_empty(opt_vars().p_cpo) {
                 let obj = Object {
-                    obj_type: ObjectType::kObjectTypeString,
+                    obj_type: ObjectType::ObjectTypeString,
                     data: ObjectData::String(cstr_as_string(save_cpo)),
                 };
                 set_option_value_give_err(kOptCpoptions, obj, 0);
@@ -6876,7 +6876,7 @@ pub fn script_host_eval(name: &std::ffi::CStr,argvars: &mut [TypVal],rettv: &mut
             return;
         }
 
-        if argvars[0].v_type != VarType::VAR_STRING {
+        if argvars[0].v_type != VarType::VarString {
             emsg(gettext(e_invarg));
             return;
         }
@@ -6901,7 +6901,7 @@ pub fn eval_call_provider(
                 provider,
             );
             return TypVal {
-                v_type: VarType::VAR_NUMBER,
+                v_type: VarType::VarNumber,
                 v_lock: VAR_UNLOCKED,
                 vval: TypvalVval::Number(0),
             };
@@ -6932,12 +6932,12 @@ pub fn eval_call_provider(
 
         let mut argvars = [
             TypVal {
-                v_type: VarType::VAR_STRING,
+                v_type: VarType::VarString,
                 v_lock: VAR_UNLOCKED,
                 vval: TypvalVval::String(method.as_ptr().cast_mut()),
             },
             TypVal {
-                v_type: VarType::VAR_LIST,
+                v_type: VarType::VarList,
                 v_lock: VAR_UNLOCKED,
                 vval: TypvalVval::List(arguments),
             },
@@ -7051,7 +7051,7 @@ pub fn eval_has_provider(feat: impl crate::strings::IntoCCharPtr, throw_if_fast:
             }
         }
 
-        let mut ok = tv.v_type == VarType::VAR_NUMBER && tv.vval.v_number() == 2;
+        let mut ok = tv.v_type == VarType::VarNumber && tv.vval.v_number() == 2;
 
         if ok {
             vim_snprintf!(
@@ -7109,7 +7109,7 @@ pub fn typval_compare(typ1: &mut TypVal,typ2: &mut TypVal,
 
         if type_is && typ1.v_type != typ2.v_type {
             n1 = Varnumber::from(expr_type == EXPR_ISNOT);
-        } else if typ1.v_type == VarType::VAR_BLOB || typ2.v_type == VarType::VAR_BLOB {
+        } else if typ1.v_type == VarType::VarBlob || typ2.v_type == VarType::VarBlob {
             if type_is {
                 let mut eq =
                     typ1.v_type == typ2.v_type && typ1.vval.v_blob() == typ2.vval.v_blob();
@@ -7134,7 +7134,7 @@ pub fn typval_compare(typ1: &mut TypVal,typ2: &mut TypVal,
                 }
                 n1 = Varnumber::from(eq);
             }
-        } else if typ1.v_type == VarType::VAR_LIST || typ2.v_type == VarType::VAR_LIST {
+        } else if typ1.v_type == VarType::VarList || typ2.v_type == VarType::VarList {
             if type_is {
                 let mut eq =
                     typ1.v_type == typ2.v_type && typ1.vval.v_list() == typ2.vval.v_list();
@@ -7159,7 +7159,7 @@ pub fn typval_compare(typ1: &mut TypVal,typ2: &mut TypVal,
                 }
                 n1 = Varnumber::from(eq);
             }
-        } else if typ1.v_type == VarType::VAR_DICT || typ2.v_type == VarType::VAR_DICT {
+        } else if typ1.v_type == VarType::VarDict || typ2.v_type == VarType::VarDict {
             if type_is {
                 let mut eq =
                     typ1.v_type == typ2.v_type && typ1.vval.v_dict() == typ2.vval.v_dict();
@@ -7196,15 +7196,15 @@ pub fn typval_compare(typ1: &mut TypVal,typ2: &mut TypVal,
                 tv_clear(typ1);
                 return false;
             }
-            let mut eq = if (typ1.v_type == VarType::VAR_PARTIAL && tv_partial(&*typ1).is_null())
-                || (typ2.v_type == VarType::VAR_PARTIAL && tv_partial(&*typ2).is_null())
+            let mut eq = if (typ1.v_type == VarType::VarPartial && tv_partial(&*typ1).is_null())
+                || (typ2.v_type == VarType::VarPartial && tv_partial(&*typ2).is_null())
             {
                 tv_partial(&*typ1) == tv_partial(&*typ2)
             } else if type_is {
-                if typ1.v_type == VarType::VAR_FUNC && typ2.v_type == VarType::VAR_FUNC {
+                if typ1.v_type == VarType::VarFunc && typ2.v_type == VarType::VarFunc {
                     tv_equal(&*typ1, &*typ2, ic)
-                } else if typ1.v_type == VarType::VAR_PARTIAL
-                    && typ2.v_type == VarType::VAR_PARTIAL
+                } else if typ1.v_type == VarType::VarPartial
+                    && typ2.v_type == VarType::VarPartial
                 {
                     tv_partial(&*typ1) == tv_partial(&*typ2)
                 } else {
@@ -7217,7 +7217,7 @@ pub fn typval_compare(typ1: &mut TypVal,typ2: &mut TypVal,
                 eq = !eq;
             }
             n1 = Varnumber::from(eq);
-        } else if (typ1.v_type == VarType::VAR_FLOAT || typ2.v_type == VarType::VAR_FLOAT)
+        } else if (typ1.v_type == VarType::VarFloat || typ2.v_type == VarType::VarFloat)
             && expr_type != EXPR_MATCH
             && expr_type != EXPR_NOMATCH
         {
@@ -7233,7 +7233,7 @@ pub fn typval_compare(typ1: &mut TypVal,typ2: &mut TypVal,
                 _ => false,
             };
             n1 = Varnumber::from(cmp);
-        } else if (typ1.v_type == VarType::VAR_NUMBER || typ2.v_type == VarType::VAR_NUMBER)
+        } else if (typ1.v_type == VarType::VarNumber || typ2.v_type == VarType::VarNumber)
             && expr_type != EXPR_MATCH
             && expr_type != EXPR_NOMATCH
         {
@@ -7273,7 +7273,7 @@ pub fn typval_compare(typ1: &mut TypVal,typ2: &mut TypVal,
             n1 = Varnumber::from(cmp);
         }
         tv_clear(typ1);
-        typ1.v_type = VarType::VAR_NUMBER;
+        typ1.v_type = VarType::VarNumber;
         typ1.vval = crate::eval::typval::TypvalVval::Number(n1);
         true
     }
@@ -7284,7 +7284,7 @@ pub fn typval_tostring(arg: Option<&mut TypVal>, quotes: bool) -> std::ffi::CStr
     let Some(arg) = arg else {
             return c"(does not exist)".to_owned();
         };
-        if !quotes && arg.v_type == VarType::VAR_STRING {
+        if !quotes && arg.v_type == VarType::VarString {
             return cstr_to_cstring(arg.vval.v_string());
         }
         encode_tv2string(&mut *arg, None)
@@ -7368,7 +7368,7 @@ mod tests {
                     None,
                     &mut evalarg
                 ));
-            assert_eq!(rettv.v_type, VarType::VAR_STRING);
+            assert_eq!(rettv.v_type, VarType::VarString);
             assert!(rettv.vval.v_string().is_null());
             tv_clear(&mut rettv);
 
@@ -7379,7 +7379,7 @@ mod tests {
                     None,
                     &mut evalarg
                 ));
-            assert_eq!(rettv.v_type, VarType::VAR_LIST);
+            assert_eq!(rettv.v_type, VarType::VarList);
             assert!(rettv.vval.v_list().is_null());
             tv_clear(&mut rettv);
 
@@ -7390,7 +7390,7 @@ mod tests {
                     None,
                     &mut evalarg
                 ));
-            assert_eq!(rettv.v_type, VarType::VAR_DICT);
+            assert_eq!(rettv.v_type, VarType::VarDict);
             assert!(rettv.vval.v_dict().is_null());
             tv_clear(&mut rettv);
     }

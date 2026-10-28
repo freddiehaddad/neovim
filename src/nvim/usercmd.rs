@@ -29,7 +29,7 @@ use crate::eval::last_set_msg;
 use crate::eval::typval::nlua_clear_ref;
 use crate::ex_docmd::{
     ADDR_ARGUMENTS, ADDR_BUFFERS, ADDR_LINES, ADDR_LOADED_BUFFERS, ADDR_NONE, ADDR_OTHER,
-    ADDR_QUICKFIX, ADDR_TABS, ADDR_WINDOWS, CMD_SIZE, CMD_USER, CMD_USER_BUF, CMOD_BROWSE,
+    ADDR_QUICKFIX, ADDR_TABS, ADDR_WINDOWS, CmdSize, CmdUser, CmdUserBuf, CMOD_BROWSE,
     CMOD_CONFIRM, CMOD_ERRSILENT, CMOD_HIDE, CMOD_KEEPALT, CMOD_KEEPJUMPS, CMOD_KEEPMARKS,
     CMOD_KEEPPATTERNS, CMOD_LOCKMARKS, CMOD_NOAUTOCMD, CMOD_NOSWAPFILE, CMOD_SANDBOX, CMOD_SILENT,
     CMOD_UNSILENT, EX_ARGSPACE, EX_BANG, EX_BUFNAME, EX_COUNT, EX_DFLALL, EX_EXTRA, EX_KEEPSCRIPT,
@@ -280,9 +280,9 @@ pub fn find_ucmd(
                         }
 
                         if is_global {
-                            eap.cmdidx = CMD_USER;
+                            eap.cmdidx = CmdUser;
                         } else {
-                            eap.cmdidx = CMD_USER_BUF;
+                            eap.cmdidx = CmdUserBuf;
                         }
                         eap.argt = uc.uc_argt;
                         eap.useridx = j;
@@ -414,7 +414,7 @@ pub fn set_context_in_user_cmdarg(
                 forceit,
                 false,
                 false,
-                crate::cmdexpand::Cmdidx::CMD_map,
+                crate::cmdexpand::Cmdidx::CmdMap,
             );
         }
         if (argt & EX_ARGSPACE) == 0 {
@@ -436,7 +436,7 @@ pub fn set_context_in_user_cmdarg(
 }
 
 pub fn expand_user_command_name(idx: c_int) -> *mut c_char {
-    get_user_commands(&mut crate::os::env::ExpandCtx::new(), idx - CMD_SIZE)
+    get_user_commands(&mut crate::os::env::ExpandCtx::new(), idx - CmdSize)
 }
 
 /// Function given to `ExpandGeneric()` to obtain the list of user command names (`get_user_commands`).
@@ -471,10 +471,10 @@ pub fn get_user_command_name(idx: c_int, cmdidx: c_int) -> *mut c_char {
     unsafe {
         let u = ucmds_mut();
         let u_len = u.len() as c_int;
-        if cmdidx == CMD_USER && idx < u_len {
+        if cmdidx == CmdUser && idx < u_len {
             return (u)[idx as usize].uc_name.as_ptr().cast_mut();
         }
-        if cmdidx == CMD_USER_BUF {
+        if cmdidx == CmdUserBuf {
             let buf = (*prevwin_curwin()).w_buffer;
             if (idx as usize) < (*buf).b_ucmds.len() {
                 return (&(*buf).b_ucmds)[idx as usize].uc_name.as_ptr().cast_mut();
@@ -1869,7 +1869,7 @@ pub fn do_ucmd(eap: &mut Exarg, preview: bool) -> c_int {
         let mut split_len: usize = 0;
         let mut split_buf: Option<CString> = None;
 
-        let cmd = if eap.cmdidx == CMD_USER {
+        let cmd = if eap.cmdidx == CmdUser {
             let u = ucmds_mut();
             &raw mut (u)[eap.useridx as usize]
         } else {

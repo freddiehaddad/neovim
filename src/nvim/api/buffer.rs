@@ -133,7 +133,7 @@ pub fn api_buf_ensure_loaded(buf: Buffer, err: &mut Error) -> *mut FileBuf {
         if b.b_ml.ml_mfp.is_none() && !buf_ensure_loaded(b) {
             api_set_error!(
                 err,
-                ErrorType::kErrorTypeException,
+                ErrorType::ErrorTypeException,
                 c"Failed to load buffer",
             );
             return ptr::null_mut();
@@ -359,7 +359,7 @@ pub fn nvim_buf_get_lines(
         if strict_indexing && oob {
             api_set_error!(
                 err,
-                ErrorType::kErrorTypeValidation,
+                ErrorType::ErrorTypeValidation,
                 c"%s",
                 c"Index out of bounds",
             );
@@ -438,7 +438,7 @@ pub fn nvim_buf_set_lines(
         if strict_indexing && oob {
             api_set_error!(
                 err,
-                ErrorType::kErrorTypeValidation,
+                ErrorType::ErrorTypeValidation,
                 c"%s",
                 c"Index out of bounds",
             );
@@ -447,7 +447,7 @@ pub fn nvim_buf_set_lines(
         if start > end {
             api_set_error!(
                 err,
-                ErrorType::kErrorTypeValidation,
+                ErrorType::ErrorTypeValidation,
                 c"%s",
                 c"'start' is higher than 'end'",
             );
@@ -485,7 +485,7 @@ pub fn nvim_buf_set_lines(
             if (*b).b_p_ma == 0 {
                 api_set_error!(
                     err,
-                    ErrorType::kErrorTypeException,
+                    ErrorType::ErrorTypeException,
                     c"Buffer is not 'modifiable'",
                 );
                 break 'end;
@@ -494,7 +494,7 @@ pub fn nvim_buf_set_lines(
             if !u_save_buf(&mut *b, (start - 1) as Linenr, end as Linenr) {
                 api_set_error!(
                     err,
-                    ErrorType::kErrorTypeException,
+                    ErrorType::ErrorTypeException,
                     c"Failed to save undo information",
                 );
                 break 'end;
@@ -507,7 +507,7 @@ pub fn nvim_buf_set_lines(
                 if !ml_delete_buf(&mut *b, start as Linenr, false) {
                     api_set_error!(
                         err,
-                        ErrorType::kErrorTypeException,
+                        ErrorType::ErrorTypeException,
                         c"Failed to delete line",
                     );
                     break 'end;
@@ -525,7 +525,7 @@ pub fn nvim_buf_set_lines(
                 if lnum >= MAXLNUM {
                     api_set_error!(
                         err,
-                        ErrorType::kErrorTypeValidation,
+                        ErrorType::ErrorTypeValidation,
                         c"%s",
                         c"Index out of bounds",
                     );
@@ -536,7 +536,7 @@ pub fn nvim_buf_set_lines(
                 if !ml_replace_buf( &mut *b, lnum as Linenr, line_ptr, false, true) {
                     api_set_error!(
                         err,
-                        ErrorType::kErrorTypeException,
+                        ErrorType::ErrorTypeException,
                         c"Failed to replace line",
                     );
                     break 'end;
@@ -550,7 +550,7 @@ pub fn nvim_buf_set_lines(
                 if lnum >= MAXLNUM {
                     api_set_error!(
                         err,
-                        ErrorType::kErrorTypeValidation,
+                        ErrorType::ErrorTypeValidation,
                         c"%s",
                         c"Index out of bounds",
                     );
@@ -561,7 +561,7 @@ pub fn nvim_buf_set_lines(
                 if !ml_append_buf( &mut *b, lnum as Linenr, line_ptr, 0, false) {
                     api_set_error!(
                         err,
-                        ErrorType::kErrorTypeException,
+                        ErrorType::ErrorTypeException,
                         c"Failed to insert line",
                     );
                     break 'end;
@@ -716,7 +716,7 @@ pub fn nvim_buf_set_text(
         if start_row > end_row || (end_row == start_row && start_col > end_col) {
             api_set_error!(
                 err,
-                ErrorType::kErrorTypeValidation,
+                ErrorType::ErrorTypeValidation,
                 c"%s",
                 c"'start' is higher than 'end'",
             );
@@ -806,7 +806,7 @@ pub fn nvim_buf_set_text(
             if (*b).b_p_ma == 0 {
                 api_set_error!(
                     err,
-                    ErrorType::kErrorTypeException,
+                    ErrorType::ErrorTypeException,
                     c"Buffer is not 'modifiable'",
                 );
                 break 'end;
@@ -815,7 +815,7 @@ pub fn nvim_buf_set_text(
             if !u_save_buf(&mut *b, (start_row as Linenr) - 1, (end_row as Linenr) + 1) {
                 api_set_error!(
                     err,
-                    ErrorType::kErrorTypeException,
+                    ErrorType::ErrorTypeException,
                     c"Failed to save undo information",
                 );
                 break 'end;
@@ -829,7 +829,7 @@ pub fn nvim_buf_set_text(
                 if !ml_delete_buf(&mut *b, start_row as Linenr, false) {
                     api_set_error!(
                         err,
-                        ErrorType::kErrorTypeException,
+                        ErrorType::ErrorTypeException,
                         c"Failed to delete line",
                     );
                     break 'end;
@@ -846,7 +846,7 @@ pub fn nvim_buf_set_text(
                 if lnum >= MAXLNUM {
                     api_set_error!(
                         err,
-                        ErrorType::kErrorTypeValidation,
+                        ErrorType::ErrorTypeValidation,
                         c"%s",
                         c"Index out of bounds",
                     );
@@ -856,7 +856,7 @@ pub fn nvim_buf_set_text(
                 if !ml_replace_buf( &mut *b, lnum as Linenr, *lines.add(i), false, true) {
                     api_set_error!(
                         err,
-                        ErrorType::kErrorTypeException,
+                        ErrorType::ErrorTypeException,
                         c"Failed to replace line",
                     );
                     break 'end;
@@ -868,7 +868,7 @@ pub fn nvim_buf_set_text(
                 if lnum >= MAXLNUM {
                     api_set_error!(
                         err,
-                        ErrorType::kErrorTypeValidation,
+                        ErrorType::ErrorTypeValidation,
                         c"%s",
                         c"Index out of bounds",
                     );
@@ -878,7 +878,7 @@ pub fn nvim_buf_set_text(
                 if !ml_append_buf( &mut *b, lnum as Linenr, *lines.add(i), 0, false) {
                     api_set_error!(
                         err,
-                        ErrorType::kErrorTypeException,
+                        ErrorType::ErrorTypeException,
                         c"Failed to insert line",
                     );
                     break 'end;
@@ -1024,7 +1024,7 @@ pub fn nvim_buf_get_text(
         if oob {
             api_set_error!(
                 err,
-                ErrorType::kErrorTypeValidation,
+                ErrorType::ErrorTypeValidation,
                 c"%s",
                 c"Index out of bounds",
             );
@@ -1034,7 +1034,7 @@ pub fn nvim_buf_get_text(
         if start_row > end_row {
             api_set_error!(
                 err,
-                ErrorType::kErrorTypeValidation,
+                ErrorType::ErrorTypeValidation,
                 c"%s",
                 c"'start' is higher than 'end'",
             );
@@ -1139,7 +1139,7 @@ pub fn nvim_buf_get_offset(
         if index < 0 || index > i64::from(b.b_ml.ml_line_count) {
             api_set_error!(
                 err,
-                ErrorType::kErrorTypeValidation,
+                ErrorType::ErrorTypeValidation,
                 c"%s",
                 c"Index out of bounds",
             );
@@ -1387,7 +1387,7 @@ pub fn nvim_buf_set_name(buf: Buffer, name: NvimString, err: &mut Error) {
         if ren_ret == FAIL {
             api_set_error!(
                 err,
-                ErrorType::kErrorTypeException,
+                ErrorType::ErrorTypeException,
                 c"Failed to rename buffer",
             );
         }
@@ -1448,7 +1448,7 @@ pub fn nvim_buf_delete(
         if !result {
             api_set_error!(
                 err,
-                ErrorType::kErrorTypeException,
+                ErrorType::ErrorTypeException,
                 c"Failed to unload buffer.",
             );
         }
@@ -1931,7 +1931,7 @@ mod tests {
         assert_eq!(VIML_INTERNAL_CALL, 1u64 << 63);
         assert_eq!(LUA_INTERNAL_CALL, (1u64 << 63) + 1);
         let obj = boolean_obj(true);
-        assert_eq!(obj.obj_type, ObjectType::kObjectTypeBoolean);
+        assert_eq!(obj.obj_type, ObjectType::ObjectTypeBoolean);
         assert!(obj.data.boolean());
     }
 }
