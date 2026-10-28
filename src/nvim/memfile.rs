@@ -236,7 +236,7 @@ pub fn mf_new(mfp: &mut Memfile, negative: bool, page_count: c_uint) -> *mut Bhd
     let hp: *mut Bhdr = &raw mut *boxed;
     mfp.mf_dirty = MF_DIRTY_YES;
     mfp.mf_hash.insert(bnum, boxed);
-    hp
+    unsafe { &mut *hp }
 }
 
 /// Get existing block `nr` with `page_count` pages.

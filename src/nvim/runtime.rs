@@ -3579,10 +3579,10 @@ pub fn do_finish(eap: &mut Exarg, reanimate: bool) {
             (*sp).finished = false;
         }
 
-        let cstack = eap.cstack.cast::<Cstack>();
+        let cstack = &mut *eap.cstack.cast::<Cstack>();
         let idx = cleanup_conditionals(&mut *cstack, 0, 1);
         if idx >= 0 {
-            (*cstack).cs_pending[idx as usize] = CSTP_FINISH as c_char;
+            cstack.cs_pending[idx as usize] = CSTP_FINISH as c_char;
             report_make_pending(CSTP_FINISH, PendingVal::None);
         } else {
             (*sp).finished = true;

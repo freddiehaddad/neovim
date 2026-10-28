@@ -1401,6 +1401,7 @@ pub unsafe extern "C" fn build_stl_str_hl(
     stcp: *mut Statuscol,
 ) -> c_int {
     unsafe {
+        let wp = &mut *wp;
         let mut buf_tmp: [c_char; TMPLEN] = [0; TMPLEN];
         let mut owned_usefmt: Option<std::ffi::CString> = None;
         let mut usefmt = fmt;
@@ -1447,7 +1448,7 @@ pub unsafe extern "C" fn build_stl_str_hl(
         }
 
         let use_sandbox = if opt_idx != K_OPT_INVALID {
-            was_set_insecurely(wp.as_mut(), opt_idx, opt_scope) != 0
+            was_set_insecurely(Some(&mut *wp), opt_idx, opt_scope) != 0
         } else {
             false
         };
@@ -1458,7 +1459,7 @@ pub unsafe extern "C" fn build_stl_str_hl(
             let mut tv = TypVal {
                 v_type: VarType::VarNumber,
                 v_lock: 0,
-                vval: TypvalVval::Number(Varnumber::from((*wp).handle)),
+                vval: TypvalVval::Number(Varnumber::from(wp.handle)),
             };
             set_var(
                 c"g:statusline_winid",
@@ -1477,22 +1478,22 @@ pub unsafe extern "C" fn build_stl_str_hl(
             fillchar = schar_from_ascii(b' ');
         }
 
-        let mut lnum = (*wp).w_cursor.lnum;
+        let mut lnum = wp.w_cursor.lnum;
         if lnum > (*wp).buf_mut().b_ml.ml_line_count {
             lnum = (*wp).buf_mut().b_ml.ml_line_count;
-            (*wp).w_cursor.lnum = lnum;
+            wp.w_cursor.lnum = lnum;
         }
 
         let line_ptr = ml_get_buf((*wp).buf_mut(), lnum);
         let empty_line = crate::memory::cstr_is_empty(line_ptr);
 
         let len = ml_get_buf_len((*wp).buf_mut(), lnum);
-        let byteval = if (*wp).w_cursor.col > len {
-            (*wp).w_cursor.col = len;
-            (*wp).w_cursor.coladd = 0;
+        let byteval = if wp.w_cursor.col > len {
+            wp.w_cursor.col = len;
+            wp.w_cursor.coladd = 0;
             0
         } else {
-            utf_ptr2char(line_ptr.add((*wp).w_cursor.col as usize))
+            utf_ptr2char(line_ptr.add(wp.w_cursor.col as usize))
         };
 
         let mut groupdepth: usize = 0;
@@ -1872,7 +1873,7 @@ pub unsafe extern "C" fn build_stl_str_hl(
             match opt {
                 STL_FILEPATH | STL_FULLPATH | STL_FILENAME => {
                     fillable = false;
-                    let name = buf_spname((*wp).w_buffer);
+                    let name = buf_spname(wp.w_buffer);
                     if !name.is_null() {
                         xstrlcpy(name_buff, name, MAXPATHL);
                     } else {
@@ -1881,7 +1882,7 @@ pub unsafe extern "C" fn build_stl_str_hl(
                         } else {
                             (*wp).buf_mut().b_fname
                         };
-                        home_replace(((*wp).w_buffer).as_ref(), t, name_buff, MAXPATHL, true);
+                        home_replace((wp.w_buffer).as_ref(), t, name_buff, MAXPATHL, true);
                     }
                     trans_characters(name_buff, MAXPATHL as c_int);
                     if opt != STL_FILENAME {
@@ -1938,7 +1939,7 @@ pub unsafe extern "C" fn build_stl_str_hl(
                         #[allow(non_snake_case)]
                         let save_VIsual_active = g_st().visual_global.active;
                         set_curwin(wp);
-                        g_st().curbuf = (*wp).w_buffer;
+                        g_st().curbuf = wp.w_buffer;
                         if curwin_ptr() != save_curwin {
                             g_st().visual_global.active = false;
                         }
@@ -1997,22 +1998,22 @@ pub unsafe extern "C" fn build_stl_str_hl(
                 }
                 STL_LINE => {
                     if !stcp.is_null()
-                        && ((*wp).w_onebuf_opt.wo_nu != 0 || (*wp).w_onebuf_opt.wo_rnu != 0)
+                        && (wp.w_onebuf_opt.wo_nu != 0 || wp.w_onebuf_opt.wo_rnu != 0)
                         && get_vim_var_nr(VV_VIRTNUM) == 0
                     {
-                        if (*wp).w_maxscwidth == SCL_NUM && (*stcp).sattrs[0].text[0] != 0 {
+                        if wp.w_maxscwidth == SCL_NUM && (*stcp).sattrs[0].text[0] != 0 {
                             handle_stcsign = true;
                         } else {
                             let relnum = get_vim_var_nr(VV_RELNUM) as c_int;
-                            num = if (*wp).w_onebuf_opt.wo_rnu == 0
-                                || ((*wp).w_onebuf_opt.wo_nu != 0 && relnum == 0)
+                            num = if wp.w_onebuf_opt.wo_rnu == 0
+                                || (wp.w_onebuf_opt.wo_nu != 0 && relnum == 0)
                             {
                                 get_vim_var_nr(VV_LNUM) as c_int
                             } else {
                                 relnum
                             };
-                            left_align_num = (*wp).w_onebuf_opt.wo_rnu != 0
-                                && (*wp).w_onebuf_opt.wo_nu != 0
+                            left_align_num = wp.w_onebuf_opt.wo_rnu != 0
+                                && wp.w_onebuf_opt.wo_nu != 0
                                 && relnum == 0;
                             if !left_align_num {
                                 stl_items!()[stl_st().curitem as usize].type_ =
@@ -2026,7 +2027,7 @@ pub unsafe extern "C" fn build_stl_str_hl(
                         num = if ((*wp).buf_mut().b_ml.ml_flags & ML_EMPTY) != 0 {
                             0
                         } else {
-                            (*wp).w_cursor.lnum
+                            wp.w_cursor.lnum
                         };
                     }
                 }
@@ -2037,15 +2038,15 @@ pub unsafe extern "C" fn build_stl_str_hl(
                     num = if (g_st().state_global & MODE_INSERT) == 0 && empty_line {
                         0
                     } else {
-                        (*wp).w_cursor.col + 1
+                        wp.w_cursor.col + 1
                     };
                 }
                 STL_VIRTCOL | STL_VIRTCOL_ALT => {
-                    let virtcol = (*wp).w_virtcol + 1;
+                    let virtcol = wp.w_virtcol + 1;
                     let col_1 = if (g_st().state_global & MODE_INSERT) == 0 && empty_line {
                         0
                     } else {
-                        (*wp).w_cursor.col + 1
+                        wp.w_cursor.col + 1
                     };
                     if !(opt == STL_VIRTCOL_ALT && virtcol == col_1) {
                         num = virtcol;
@@ -2053,7 +2054,7 @@ pub unsafe extern "C" fn build_stl_str_hl(
                 }
                 STL_PERCENTAGE => {
                     num = calc_percentage(
-                        i64::from((*wp).w_cursor.lnum),
+                        i64::from(wp.w_cursor.lnum),
                         i64::from((*wp).buf_mut().b_ml.ml_line_count),
                     );
                 }
@@ -2092,8 +2093,7 @@ pub unsafe extern "C" fn build_stl_str_hl(
                     if opt == STL_OFFSET_X {
                         base = NumberBase::NumBaseHexadecimal;
                     }
-                    let l =
-                        ml_find_line_or_offset((*wp).buf_mut(), (*wp).w_cursor.lnum, None, false);
+                    let l = ml_find_line_or_offset((*wp).buf_mut(), wp.w_cursor.lnum, None, false);
                     num = if ((*wp).buf_mut().b_ml.ml_flags & ML_EMPTY) != 0 || l < 0 {
                         0
                     } else {
@@ -2101,7 +2101,7 @@ pub unsafe extern "C" fn build_stl_str_hl(
                             + if (g_st().state_global & MODE_INSERT) == 0 && empty_line {
                                 0
                             } else {
-                                (*wp).w_cursor.col
+                                wp.w_cursor.col
                             }
                     };
                 }
@@ -2163,7 +2163,7 @@ pub unsafe extern "C" fn build_stl_str_hl(
                 }
                 STL_PREVIEWFLAG | STL_PREVIEWFLAG_ALT => {
                     itemisflag = true;
-                    if (*wp).w_onebuf_opt.wo_pvw != 0 {
+                    if wp.w_onebuf_opt.wo_pvw != 0 {
                         str = if opt == STL_PREVIEWFLAG_ALT {
                             c",PRV".as_ptr().cast_mut()
                         } else {
@@ -2172,8 +2172,8 @@ pub unsafe extern "C" fn build_stl_str_hl(
                     }
                 }
                 STL_QUICKFIX => {
-                    if bt_quickfix(((*wp).w_buffer).as_ref()) {
-                        str = if !(*wp).w_llist_ref.is_null() {
+                    if bt_quickfix((wp.w_buffer).as_ref()) {
+                        str = if !wp.w_llist_ref.is_null() {
                             tr(MSG_LOCLIST)
                         } else {
                             tr(MSG_QFLIST)
@@ -2228,7 +2228,7 @@ pub unsafe extern "C" fn build_stl_str_hl(
                 let width = if opt == STL_FOLDCOL {
                     c_int::from(fdc > 0)
                 } else if opt == STL_SIGNCOL {
-                    (*wp).w_scwidth
+                    wp.w_scwidth
                 } else {
                     1
                 };

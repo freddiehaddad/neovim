@@ -1157,7 +1157,7 @@ fn do_window_gotofile(nchar: c_int, prenum1: c_int) {
         if let Some(fname_cstr) = grab_file_name(prenum1, &mut lnum) {
             let ptr = fname_cstr.as_ptr().cast_mut();
             let oldtab = g_st().curtab;
-            let oldwin = curwin_ptr();
+            let oldwin = curwin_mut();
             setpcmark();
 
             let mut wp: *mut WinInfoInfo = ptr::null_mut();

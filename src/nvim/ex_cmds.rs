@@ -3387,9 +3387,9 @@ fn get_append_line(eap: &mut Exarg, indent: c_int) -> Option<Vec<c_char>> {
         } else {
             let getline_state = g_st().state_global;
             g_st().state_global = MODE_CMDLINE;
-            let cstack = eap.cstack.cast::<Cstack>();
+            let cstack = &mut *eap.cstack.cast::<Cstack>();
             let raw_line = eap.ea_getline.call(
-                if (*cstack).cs_looplevel > 0 {
+                if cstack.cs_looplevel > 0 {
                     -1
                 } else {
                     NUL as c_int

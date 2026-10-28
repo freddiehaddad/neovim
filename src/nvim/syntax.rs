@@ -604,13 +604,15 @@ fn syn_block_mut() -> &'static mut Synblock {
 }
 
 #[inline]
-fn syn_items(block: &mut Synblock) -> *mut Synpat {
-    block.b_syn_patterns.as_mut_ptr()
+fn syn_items(block: &mut Synblock, idx: isize) -> &'static mut Synpat {
+    let ptr: *mut Synpat = &raw mut block.b_syn_patterns[idx as usize];
+    unsafe { &mut *ptr }
 }
 
 #[inline]
-fn syn_clstr(block: &mut Synblock) -> *mut SynCluster {
-    block.b_syn_clusters.as_mut_ptr()
+fn syn_clstr(block: &mut Synblock, idx: isize) -> &'static mut SynCluster {
+    let ptr: *mut SynCluster = &raw mut block.b_syn_clusters[idx as usize];
+    unsafe { &mut *ptr }
 }
 
 #[inline]
@@ -860,9 +862,8 @@ fn syn_sync(wp: &mut WinInfoInfo, mut start_lnum: Linenr, last_valid: *const Syn
             if !find_start_comment(syn_block_mut().b_syn_sync_maxlines).is_null() {
                 let mut idx = syn_block_mut().b_syn_patterns.len() as c_int - 1;
                 while idx >= 0 {
-                    let spp = syn_items(syn_block_mut()).offset(idx as isize);
-                    if (*spp).sp_syn.id == syn_block_mut().b_syn_sync_id
-                        && (*spp).sp_type == SPTYPE_START
+                    let spp = syn_items(syn_block_mut(), idx as isize);
+                    if spp.sp_syn.id == syn_block_mut().b_syn_sync_id && spp.sp_type == SPTYPE_START
                     {
                         validate_current_state();
                         push_current_state(idx);
@@ -924,9 +925,9 @@ fn syn_sync(wp: &mut WinInfoInfo, mut start_lnum: Linenr, last_valid: *const Syn
                                 found_flags = 0;
                                 found_match_idx = KEYWORD_IDX;
                             } else {
-                                let spp = syn_items(syn_block_mut()).offset(cur_si.si_idx as isize);
-                                found_flags = (*spp).sp_flags;
-                                found_match_idx = (*spp).sp_sync_idx;
+                                let spp = syn_items(syn_block_mut(), cur_si.si_idx as isize);
+                                found_flags = spp.sp_flags;
+                                found_match_idx = spp.sp_sync_idx;
                             }
                             found_current_lnum = syn_st().current_lnum;
                             found_current_col = syn_st().current_col;
@@ -1067,14 +1068,13 @@ fn syn_start_line() {
 }
 
 fn syn_update_ends(startofline: bool) {
-    unsafe {
+    {
         let len = cur_state_len();
         if startofline {
             for i in 0..len {
                 let cur_si = cur_state_at(i);
                 if cur_si.si_idx >= 0
-                    && (*syn_items(syn_block_mut()).offset(cur_si.si_idx as isize)).sp_type
-                        == SPTYPE_MATCH
+                    && syn_items(syn_block_mut(), cur_si.si_idx as isize).sp_type == SPTYPE_MATCH
                     && cur_si.si_m_endpos.lnum < syn_st().current_lnum
                 {
                     cur_si.si_flags |= HL_MATCHCONT;
@@ -1392,7 +1392,7 @@ fn load_current_state(from: *const Synstate) {
                 item.si_ends = 0;
                 item.si_m_lnum = 0;
                 if item.si_idx >= 0 {
-                    item.si_next_list = (*syn_items(syn_block_mut()).offset(item.si_idx as isize))
+                    item.si_next_list = syn_items(syn_block_mut(), item.si_idx as isize)
                         .sp_next_list
                         .clone();
                 } else {
@@ -1443,7 +1443,7 @@ fn syn_stack_equal(sp: &Synstate) -> bool {
                         break;
                     };
                     if mb_strcmp_ic(
-                        (*syn_items(syn_block_mut()).offset(cur_si.si_idx as isize)).sp_ic != 0,
+                        syn_items(syn_block_mut(), cur_si.si_idx as isize).sp_ic != 0,
                         bs_m.as_ptr(),
                         si_m.as_ptr(),
                     ) != 0
@@ -1525,7 +1525,7 @@ fn syn_finish_line(syncing: bool) -> bool {
             if syncing && !cur_state_empty() {
                 let cur_si = cur_state_at(cur_state_len() - 1);
                 if cur_si.si_idx >= 0
-                    && ((*syn_items(syn_block_mut()).offset(cur_si.si_idx as isize)).sp_flags
+                    && (syn_items(syn_block_mut(), cur_si.si_idx as isize).sp_flags
                         & (HL_SYNC_HERE | HL_SYNC_THERE))
                         != 0
                 {
@@ -1737,54 +1737,48 @@ fn syn_current_attr(
                         syn_st().next_match_col = MAXCOL;
                         let mut idx = syn_block_mut().b_syn_patterns.len() as c_int - 1;
                         while idx >= 0 {
-                            let spp = syn_items(syn_block_mut()).offset(idx as isize);
+                            let spp = syn_items(syn_block_mut(), idx as isize);
                             let cur_next_list = &syn_st().current_next_list;
-                            if (*spp).sp_syncing == syncing
-                                && (displaying || ((*spp).sp_flags & HL_DISPLAY) == 0)
-                                && ((*spp).sp_type == SPTYPE_MATCH
-                                    || (*spp).sp_type == SPTYPE_START)
+                            if spp.sp_syncing == syncing
+                                && (displaying || (spp.sp_flags & HL_DISPLAY) == 0)
+                                && (spp.sp_type == SPTYPE_MATCH || spp.sp_type == SPTYPE_START)
                                 && if cur_next_list.is_some() {
-                                    in_id_list(
-                                        ptr::null_mut(),
-                                        cur_next_list,
-                                        &mut (*spp).sp_syn,
-                                        0,
-                                    ) != 0
+                                    in_id_list(ptr::null_mut(), cur_next_list, &mut spp.sp_syn, 0)
+                                        != 0
                                 } else if cur_si.is_null() {
-                                    ((*spp).sp_flags & HL_CONTAINED) == 0
+                                    (spp.sp_flags & HL_CONTAINED) == 0
                                 } else {
                                     in_id_list(
                                         cur_si,
                                         &(*cur_si).si_cont_list,
-                                        &mut (*spp).sp_syn,
-                                        (*spp).sp_flags,
+                                        &mut spp.sp_syn,
+                                        spp.sp_flags,
                                     ) != 0
                                 }
                             {
-                                if (*spp).sp_line_id == syn_st().current_line_id
-                                    && (*spp).sp_startcol >= syn_st().next_match_col
+                                if spp.sp_line_id == syn_st().current_line_id
+                                    && spp.sp_startcol >= syn_st().next_match_col
                                 {
                                     idx -= 1;
                                     continue;
                                 }
-                                (*spp).sp_line_id = syn_st().current_line_id;
+                                spp.sp_line_id = syn_st().current_line_id;
 
-                                let mut lc_col =
-                                    syn_st().current_col - (*spp).sp_offsets[SPO_LC_OFF];
+                                let mut lc_col = syn_st().current_col - spp.sp_offsets[SPO_LC_OFF];
                                 if lc_col < 0 {
                                     lc_col = 0;
                                 }
 
-                                regmatch.rmm_ic = (*spp).sp_ic;
-                                regmatch.regprog = crate::regexp::regprog_as_ptr(&(*spp).sp_prog);
+                                regmatch.rmm_ic = spp.sp_ic;
+                                regmatch.regprog = crate::regexp::regprog_as_ptr(&spp.sp_prog);
                                 let r = syn_regexec(
                                     &mut regmatch,
                                     syn_st().current_lnum,
                                     lc_col,
-                                    &mut (*spp).sp_time,
+                                    &mut spp.sp_time,
                                 );
                                 if !r {
-                                    (*spp).sp_startcol = MAXCOL;
+                                    spp.sp_startcol = MAXCOL;
                                     idx -= 1;
                                     continue;
                                 }
@@ -1797,12 +1791,12 @@ fn syn_current_attr(
                                     -1,
                                 );
                                 if pos.lnum > syn_st().current_lnum {
-                                    (*spp).sp_startcol = MAXCOL;
+                                    spp.sp_startcol = MAXCOL;
                                     idx -= 1;
                                     continue;
                                 }
                                 startcol = pos.col;
-                                (*spp).sp_startcol = startcol;
+                                spp.sp_startcol = startcol;
 
                                 if startcol >= syn_st().next_match_col {
                                     idx -= 1;
@@ -1841,9 +1835,7 @@ fn syn_current_attr(
                                 end_idx = 0;
                                 hl_endpos.lnum = 0;
 
-                                if (*spp).sp_type == SPTYPE_START
-                                    && ((*spp).sp_flags & HL_ONELINE) != 0
-                                {
+                                if spp.sp_type == SPTYPE_START && (spp.sp_flags & HL_ONELINE) != 0 {
                                     let mut startpos = endpos;
                                     find_endpos(
                                         idx,
@@ -1859,7 +1851,7 @@ fn syn_current_attr(
                                         idx -= 1;
                                         continue;
                                     }
-                                } else if (*spp).sp_type == SPTYPE_MATCH {
+                                } else if spp.sp_type == SPTYPE_MATCH {
                                     syn_add_end_off(
                                         &mut hl_endpos,
                                         &mut regmatch,
@@ -1910,14 +1902,13 @@ fn syn_current_attr(
                     if syn_st().next_match_idx >= 0
                         && syn_st().next_match_col == syn_st().current_col
                     {
-                        let lspp =
-                            syn_items(syn_block_mut()).offset(syn_st().next_match_idx as isize);
+                        let lspp = syn_items(syn_block_mut(), syn_st().next_match_idx as isize);
                         if syn_st().next_match_m_endpos.lnum == syn_st().current_lnum
                             && syn_st().next_match_m_endpos.col == syn_st().current_col
-                            && (*lspp).sp_next_list.is_some()
+                            && lspp.sp_next_list.is_some()
                         {
-                            syn_st().current_next_list = (*lspp).sp_next_list.clone();
-                            syn_st().current_next_flags = (*lspp).sp_flags;
+                            syn_st().current_next_list = lspp.sp_next_list.clone();
+                            syn_st().current_next_flags = lspp.sp_flags;
                             keep_next_list = true;
                             zero_width_next_list = true;
 
@@ -2069,9 +2060,9 @@ fn did_match_already(idx: c_int, gap: &[c_int]) -> bool {
     }
 }
 
-fn push_next_match() -> *mut Stateitem {
-    unsafe {
-        let spp = syn_items(syn_block_mut()).offset(syn_st().next_match_idx as isize);
+fn push_next_match() -> &'static mut Stateitem {
+    {
+        let spp = syn_items(syn_block_mut(), syn_st().next_match_idx as isize);
 
         push_current_state(syn_st().next_match_idx);
         let len = cur_state_len();
@@ -2079,16 +2070,16 @@ fn push_next_match() -> *mut Stateitem {
         cur_si.si_h_startpos = syn_st().next_match_h_startpos;
         cur_si.si_m_startcol = syn_st().current_col;
         cur_si.si_m_lnum = syn_st().current_lnum;
-        cur_si.si_flags = (*spp).sp_flags;
+        cur_si.si_flags = spp.sp_flags;
         cur_si.si_seqnr = syn_st().next_seqnr;
         syn_st().next_seqnr += 1;
-        cur_si.si_cchar = (*spp).sp_cchar;
+        cur_si.si_cchar = spp.sp_cchar;
         if len > 1 {
             cur_si.si_flags |= cur_state_at(len - 2).si_flags & HL_CONCEAL;
         }
-        cur_si.si_next_list = (*spp).sp_next_list.clone();
+        cur_si.si_next_list = spp.sp_next_list.clone();
         cur_si.si_extmatch = syn_st().next_match_extmatch.clone();
-        if (*spp).sp_type == SPTYPE_START && ((*spp).sp_flags & HL_ONELINE) == 0 {
+        if spp.sp_type == SPTYPE_START && (spp.sp_flags & HL_ONELINE) == 0 {
             update_si_end(&mut *cur_si, syn_st().next_match_m_endpos.col, true);
             check_keepend();
         } else {
@@ -2106,7 +2097,7 @@ fn push_next_match() -> *mut Stateitem {
         update_si_attr(len - 1);
 
         let save_flags = cur_si.si_flags & (HL_CONCEAL | HL_CONCEALENDS);
-        if (*spp).sp_type == SPTYPE_START && (*spp).sp_syn_match_id != 0 {
+        if spp.sp_type == SPTYPE_START && spp.sp_syn_match_id != 0 {
             push_current_state(syn_st().next_match_idx);
             let len2 = cur_state_len();
             cur_si = cur_state_at(len2 - 1);
@@ -2192,8 +2183,7 @@ fn check_state_ends() {
                 cur_si = cur_state_at(cur_state_len() - 1);
 
                 if cur_si.si_idx >= 0
-                    && (*syn_items(syn_block_mut()).offset(cur_si.si_idx as isize)).sp_type
-                        == SPTYPE_START
+                    && syn_items(syn_block_mut(), cur_si.si_idx as isize).sp_type == SPTYPE_START
                     && (cur_si.si_flags & (HL_MATCH | HL_KEEPEND)) == 0
                 {
                     update_si_end(&mut *cur_si, syn_st().current_col, true);
@@ -2213,27 +2203,27 @@ fn check_state_ends() {
 }
 
 fn update_si_attr(idx: c_int) {
-    unsafe {
+    {
         let sip = cur_state_at(idx);
         if sip.si_idx < 0 {
             return;
         }
 
-        let spp = syn_items(syn_block_mut()).offset(sip.si_idx as isize);
+        let spp = syn_items(syn_block_mut(), sip.si_idx as isize);
         if (sip.si_flags & HL_MATCH) != 0 {
-            sip.si_id = (*spp).sp_syn_match_id as c_int;
+            sip.si_id = spp.sp_syn_match_id as c_int;
         } else {
-            sip.si_id = (*spp).sp_syn.id as c_int;
+            sip.si_id = spp.sp_syn.id as c_int;
         }
         sip.si_attr = syn_id2attr(sip.si_id);
         sip.si_trans_id = sip.si_id;
         if (sip.si_flags & HL_MATCH) != 0 {
             sip.si_cont_list = None;
         } else {
-            sip.si_cont_list = (*spp).sp_cont_list.clone();
+            sip.si_cont_list = spp.sp_cont_list.clone();
         }
 
-        if ((*spp).sp_flags & HL_TRANSP) != 0 && (sip.si_flags & HL_MATCH) == 0 {
+        if (spp.sp_flags & HL_TRANSP) != 0 && (sip.si_flags & HL_MATCH) == 0 {
             if idx == 0 {
                 sip.si_attr = 0;
                 sip.si_trans_id = 0;
@@ -2298,7 +2288,7 @@ fn check_keepend() {
 }
 
 fn update_si_end(sip: &mut Stateitem, startcol: c_int, force: bool) {
-    unsafe {
+    {
         if sip.si_idx < 0 {
             return;
         }
@@ -2328,9 +2318,7 @@ fn update_si_end(sip: &mut Stateitem, startcol: c_int, force: bool) {
         );
 
         if endpos.lnum == 0 {
-            if ((*syn_items(syn_block_mut()).offset(sip.si_idx as isize)).sp_flags & HL_ONELINE)
-                != 0
-            {
+            if (syn_items(syn_block_mut(), sip.si_idx as isize).sp_flags & HL_ONELINE) != 0 {
                 sip.si_ends = 1;
                 sip.si_m_endpos.lnum = syn_st().current_lnum;
                 sip.si_m_endpos.col = syn_getcurline_len();
@@ -2383,21 +2371,21 @@ fn find_endpos(
             return;
         }
 
-        let mut spp = syn_items(syn_block_mut()).offset(idx as isize);
-        if (*spp).sp_type != SPTYPE_START {
+        let mut spp = syn_items(syn_block_mut(), idx as isize);
+        if spp.sp_type != SPTYPE_START {
             *hl_endpos = *startpos;
             return;
         }
 
         loop {
-            spp = syn_items(syn_block_mut()).offset(idx as isize);
-            if (*spp).sp_type != SPTYPE_START {
+            spp = syn_items(syn_block_mut(), idx as isize);
+            if spp.sp_type != SPTYPE_START {
                 break;
             }
             idx += 1;
         }
 
-        let spp_skip = if (*spp).sp_type == SPTYPE_SKIP {
+        let spp_skip = if spp.sp_type == SPTYPE_SKIP {
             idx += 1;
             spp
         } else {
@@ -2421,18 +2409,18 @@ fn find_endpos(
             idx = start_idx;
             while (idx as usize) < syn_block_mut().b_syn_patterns.len() {
                 let mut lc_col = matchcol;
-                spp = syn_items(syn_block_mut()).offset(idx as isize);
-                if (*spp).sp_type != SPTYPE_END {
+                spp = syn_items(syn_block_mut(), idx as isize);
+                if spp.sp_type != SPTYPE_END {
                     break;
                 }
-                lc_col -= (*spp).sp_offsets[SPO_LC_OFF];
+                lc_col -= spp.sp_offsets[SPO_LC_OFF];
                 if lc_col < 0 {
                     lc_col = 0;
                 }
 
-                regmatch.rmm_ic = (*spp).sp_ic;
-                regmatch.regprog = crate::regexp::regprog_as_ptr(&(*spp).sp_prog);
-                let r = syn_regexec(&mut regmatch, startpos.lnum, lc_col, &mut (*spp).sp_time);
+                regmatch.rmm_ic = spp.sp_ic;
+                regmatch.regprog = crate::regexp::regprog_as_ptr(&spp.sp_prog);
+                let r = syn_regexec(&mut regmatch, startpos.lnum, lc_col, &mut spp.sp_time);
                 if r && (best_idx == -1 || regmatch.startpos[0].col < best_regmatch.startpos[0].col)
                 {
                     best_idx = idx;
@@ -2487,7 +2475,7 @@ fn find_endpos(
                 }
             }
 
-            spp = syn_items(syn_block_mut()).offset(best_idx as isize);
+            spp = syn_items(syn_block_mut(), best_idx as isize);
             syn_add_end_off(m_endpos, &mut best_regmatch, &mut *spp, SPO_ME_OFF, 1);
             if m_endpos.lnum == startpos.lnum && m_endpos.col < startpos.col {
                 m_endpos.col = startpos.col;
@@ -2499,16 +2487,16 @@ fn find_endpos(
             }
             limit_pos(end_endpos, m_endpos);
 
-            if (*spp).sp_syn_match_id != (*spp).sp_syn.id && (*spp).sp_syn_match_id != 0 {
+            if spp.sp_syn_match_id != spp.sp_syn.id && spp.sp_syn_match_id != 0 {
                 *end_idx = best_idx;
-                if ((*spp).sp_off_flags & (1 << (SPO_RE_OFF + SPO_COUNT))) != 0 {
+                if (spp.sp_off_flags & (1 << (SPO_RE_OFF + SPO_COUNT))) != 0 {
                     hl_endpos.lnum = best_regmatch.endpos[0].lnum;
                     hl_endpos.col = best_regmatch.endpos[0].col;
                 } else {
                     hl_endpos.lnum = best_regmatch.startpos[0].lnum;
                     hl_endpos.col = best_regmatch.startpos[0].col;
                 }
-                hl_endpos.col += (*spp).sp_offsets[SPO_RE_OFF];
+                hl_endpos.col += spp.sp_offsets[SPO_RE_OFF];
 
                 if hl_endpos.lnum == startpos.lnum && hl_endpos.col < startpos.col {
                     hl_endpos.col = startpos.col;
@@ -2521,7 +2509,7 @@ fn find_endpos(
                 *hl_endpos = *end_endpos;
             }
 
-            *flagsp = (*spp).sp_flags;
+            *flagsp = spp.sp_flags;
             had_match = true;
             break;
         }
@@ -2997,10 +2985,10 @@ pub fn reset_synblock(wp: &mut WinInfoInfo) {
 }
 
 fn syntax_sync_clear() {
-    unsafe {
+    {
         let mut i = win_s(curwin_mut()).b_syn_patterns.len() as c_int - 1;
         while i >= 0 {
-            if (*syn_items(&mut *win_s(curwin_mut())).offset(i as isize)).sp_syncing {
+            if syn_items(&mut *win_s(curwin_mut()), i as isize).sp_syncing {
                 syn_remove_pattern(&mut *win_s(curwin_mut()), i);
             }
             i -= 1;
@@ -3020,9 +3008,9 @@ fn syntax_sync_clear() {
 }
 
 fn syn_remove_pattern(block: &mut Synblock, idx: c_int) {
-    unsafe {
-        let spp = syn_items(block).offset(idx as isize);
-        if ((*spp).sp_flags & HL_FOLD) != 0 {
+    {
+        let spp = syn_items(block, idx as isize);
+        if (spp.sp_flags & HL_FOLD) != 0 {
             block.b_syn_folditems -= 1;
         }
         let pats = &mut block.b_syn_patterns;
@@ -3062,8 +3050,8 @@ fn syn_cmd_clear(eap: &mut Exarg, syncing: c_int) {
                         break;
                     }
                     let scl_id = id - SYNID_CLUSTER as c_int;
-                    let clp = syn_clstr(&mut *win_s(curwin_mut())).offset(scl_id as isize);
-                    (*clp).scl_list = None;
+                    let clp = syn_clstr(&mut *win_s(curwin_mut()), scl_id as isize);
+                    clp.scl_list = None;
                 } else {
                     let id = syn_name2id_len(arg, arg_end.offset_from(arg) as usize);
                     if id == 0 {
@@ -3081,7 +3069,7 @@ fn syn_cmd_clear(eap: &mut Exarg, syncing: c_int) {
 }
 
 fn syn_clear_one(id: c_int, syncing: bool) {
-    unsafe {
+    {
         if !syncing {
             syn_clear_keyword(id, &mut win_s(curwin_mut()).b_keywtab);
             syn_clear_keyword(id, &mut win_s(curwin_mut()).b_keywtab_ic);
@@ -3089,8 +3077,8 @@ fn syn_clear_one(id: c_int, syncing: bool) {
 
         let mut idx = win_s(curwin_mut()).b_syn_patterns.len() as c_int - 1;
         while idx >= 0 {
-            let spp = syn_items(&mut *win_s(curwin_mut())).offset(idx as isize);
-            if (*spp).sp_syn.id as c_int == id && (*spp).sp_syncing == syncing {
+            let spp = syn_items(&mut *win_s(curwin_mut()), idx as isize);
+            if spp.sp_syn.id as c_int == id && spp.sp_syncing == syncing {
                 syn_remove_pattern(&mut *win_s(curwin_mut()), idx);
             }
             idx -= 1;
@@ -3267,7 +3255,7 @@ fn syn_match_msg() {
 }
 
 fn syn_list_one(id: c_int, syncing: bool, link_only: bool) {
-    unsafe {
+    {
         let mut did_header = false;
         const NAMELIST1: [(c_int, *const c_char); 10] = [
             (HL_DISPLAY, c"display".as_ptr()),
@@ -3297,8 +3285,8 @@ fn syn_list_one(id: c_int, syncing: bool, link_only: bool) {
 
         let mut idx: c_int = 0;
         while (idx as usize) < win_s(curwin_mut()).b_syn_patterns.len() && !g_st().got_int {
-            let spp = syn_items(&mut *win_s(curwin_mut())).offset(idx as isize);
-            if (*spp).sp_syn.id as c_int != id || (*spp).sp_syncing != syncing {
+            let spp = syn_items(&mut *win_s(curwin_mut()), idx as isize);
+            if spp.sp_syn.id as c_int != id || spp.sp_syncing != syncing {
                 idx += 1;
                 continue;
             }
@@ -3306,40 +3294,35 @@ fn syn_list_one(id: c_int, syncing: bool, link_only: bool) {
             syn_list_header(did_header, 0, id, true);
             did_header = true;
             syn_st().last_matchgroup = 0;
-            if (*spp).sp_type == SPTYPE_MATCH {
+            if spp.sp_type == SPTYPE_MATCH {
                 put_pattern(c"match", b' ' as c_int, &*spp, hl_id);
                 msg_putchar(b' ' as c_int);
-            } else if (*spp).sp_type == SPTYPE_START {
-                while (*syn_items(&mut *win_s(curwin_mut())).offset(idx as isize)).sp_type
-                    == SPTYPE_START
-                {
+            } else if spp.sp_type == SPTYPE_START {
+                while syn_items(&mut *win_s(curwin_mut()), idx as isize).sp_type == SPTYPE_START {
                     put_pattern(
                         c"start",
                         b'=' as c_int,
-                        &*syn_items(&mut *win_s(curwin_mut())).offset(idx as isize),
+                        &*syn_items(&mut *win_s(curwin_mut()), idx as isize),
                         hl_id,
                     );
                     idx += 1;
                 }
-                if (*syn_items(&mut *win_s(curwin_mut())).offset(idx as isize)).sp_type
-                    == SPTYPE_SKIP
-                {
+                if syn_items(&mut *win_s(curwin_mut()), idx as isize).sp_type == SPTYPE_SKIP {
                     put_pattern(
                         c"skip",
                         b'=' as c_int,
-                        &*syn_items(&mut *win_s(curwin_mut())).offset(idx as isize),
+                        &*syn_items(&mut *win_s(curwin_mut()), idx as isize),
                         hl_id,
                     );
                     idx += 1;
                 }
                 while (idx as usize) < win_s(curwin_mut()).b_syn_patterns.len()
-                    && (*syn_items(&mut *win_s(curwin_mut())).offset(idx as isize)).sp_type
-                        == SPTYPE_END
+                    && syn_items(&mut *win_s(curwin_mut()), idx as isize).sp_type == SPTYPE_END
                 {
                     put_pattern(
                         c"end",
                         b'=' as c_int,
-                        &*syn_items(&mut *win_s(curwin_mut())).offset(idx as isize),
+                        &*syn_items(&mut *win_s(curwin_mut()), idx as isize),
                         hl_id,
                     );
                     idx += 1;
@@ -3347,32 +3330,31 @@ fn syn_list_one(id: c_int, syncing: bool, link_only: bool) {
                 idx -= 1;
                 msg_putchar(b' ' as c_int);
             }
-            syn_list_flags(&NAMELIST1, (*spp).sp_flags, hl_id);
+            syn_list_flags(&NAMELIST1, spp.sp_flags, hl_id);
 
-            if let Some(ref list) = (*spp).sp_cont_list {
+            if let Some(ref list) = spp.sp_cont_list {
                 put_id_list(c"contains", list.as_ptr(), hl_id);
             }
 
-            if let Some(ref list) = (*spp).sp_syn.cont_in_list {
+            if let Some(ref list) = spp.sp_syn.cont_in_list {
                 put_id_list(c"containedin", list.as_ptr(), hl_id);
             }
 
-            if let Some(ref list) = (*spp).sp_next_list {
+            if let Some(ref list) = spp.sp_next_list {
                 put_id_list(c"nextgroup", list.as_ptr(), hl_id);
-                syn_list_flags(&NAMELIST2, (*spp).sp_flags, hl_id);
+                syn_list_flags(&NAMELIST2, spp.sp_flags, hl_id);
             }
-            if ((*spp).sp_flags & (HL_SYNC_HERE | HL_SYNC_THERE)) != 0 {
-                if ((*spp).sp_flags & HL_SYNC_HERE) != 0 {
+            if (spp.sp_flags & (HL_SYNC_HERE | HL_SYNC_THERE)) != 0 {
+                if (spp.sp_flags & HL_SYNC_HERE) != 0 {
                     msg_puts_hl(c"grouphere", hl_id, false);
                 } else {
                     msg_puts_hl(c"groupthere", hl_id, false);
                 }
                 msg_putchar(b' ' as c_int);
-                if (*spp).sp_sync_idx >= 0 {
-                    let sync_id = (*syn_items(&mut *win_s(curwin_mut()))
-                        .offset((*spp).sp_sync_idx as isize))
-                    .sp_syn
-                    .id as c_int;
+                if spp.sp_sync_idx >= 0 {
+                    let sync_id = syn_items(&mut *win_s(curwin_mut()), spp.sp_sync_idx as isize)
+                        .sp_syn
+                        .id as c_int;
                     msg_outtrans(highlight_group_name(sync_id - 1), 0, false);
                 } else {
                     msg_puts(c"NONE");
@@ -3405,12 +3387,12 @@ fn syn_list_flags(nlist: &[(c_int, *const c_char)], flags: c_int, hl_id: c_int) 
 }
 
 fn syn_list_cluster(id: c_int) {
-    unsafe {
+    {
         let mut endcol: c_int = 15;
 
         msg_putchar(b'\n' as c_int);
-        let clp = syn_clstr(&mut *win_s(curwin_mut())).offset(id as isize);
-        msg_outtrans((*clp).scl_name.as_ptr(), 0, false);
+        let clp = syn_clstr(&mut *win_s(curwin_mut()), id as isize);
+        msg_outtrans(clp.scl_name.as_ptr(), 0, false);
 
         if g_st().msg_col >= endcol {
             endcol = g_st().msg_col + 1;
@@ -3420,7 +3402,7 @@ fn syn_list_cluster(id: c_int) {
         }
 
         msg_advance(endcol);
-        if let Some(ref list) = (*clp).scl_list {
+        if let Some(ref list) = clp.scl_list {
             put_id_list(c"cluster", list.as_ptr(), HLF_D);
         } else {
             msg_puts_hl(c"cluster", HLF_D, false);
@@ -3449,7 +3431,7 @@ fn put_id_list(name: &std::ffi::CStr, list: *const i16, hl_id: c_int) {
                 let scl_id = (*p - SYNID_CLUSTER) as isize;
                 msg_putchar(b'@' as c_int);
                 msg_outtrans(
-                    (*syn_clstr(&mut *win_s(curwin_mut())).offset(scl_id))
+                    syn_clstr(&mut *win_s(curwin_mut()), scl_id)
                         .scl_name
                         .as_ptr(),
                     0,
@@ -3829,9 +3811,8 @@ fn get_syn_options(
                         let syn_id = syn_name2id(gname.as_ptr());
                         let mut i = win_s(curwin_mut()).b_syn_patterns.len() as c_int - 1;
                         while i >= 0 {
-                            let spp = syn_items(&mut *win_s(curwin_mut())).offset(i as isize);
-                            if (*spp).sp_syn.id as c_int == syn_id && (*spp).sp_type == SPTYPE_START
-                            {
+                            let spp = syn_items(&mut *win_s(curwin_mut()), i as isize);
+                            if spp.sp_syn.id as c_int == syn_id && spp.sp_type == SPTYPE_START {
                                 opt.sync_idx = Some(i);
                                 break;
                             }
@@ -3858,7 +3839,7 @@ fn get_syn_options(
 }
 
 fn syn_incl_toplevel(id: c_int, flagsp: &mut c_int) {
-    unsafe {
+    {
         if (*flagsp & HL_CONTAINED) != 0 || win_s(curwin_mut()).b_syn_topgrp == 0 {
             return;
         }
@@ -3866,8 +3847,8 @@ fn syn_incl_toplevel(id: c_int, flagsp: &mut c_int) {
         if win_s(curwin_mut()).b_syn_topgrp >= SYNID_CLUSTER as c_int {
             let mut grp_list: SynIdList = Some(std::rc::Rc::from([id as i16, 0]));
             let tlg_id = win_s(curwin_mut()).b_syn_topgrp - SYNID_CLUSTER as c_int;
-            let clp = syn_clstr(&mut *win_s(curwin_mut())).offset(tlg_id as isize);
-            syn_combine_list(&mut (*clp).scl_list, &mut grp_list, CLUSTER_ADD);
+            let clp = syn_clstr(&mut *win_s(curwin_mut()), tlg_id as isize);
+            syn_combine_list(&mut clp.scl_list, &mut grp_list, CLUSTER_ADD);
         }
     }
 }
@@ -4364,15 +4345,15 @@ fn syn_combine_list(clstr1: &mut SynIdList, clstr2: &mut SynIdList, list_op: c_i
 
 fn syn_scl_name2id(name: impl crate::strings::IntoCCharPtr) -> c_int {
     let name = name.into_c_char_ptr();
-    unsafe {
+    {
         let name_u = crate::memory::cstr_from_bytes(
             &crate::memory::cstr_as_bytes(name).to_ascii_uppercase(),
         );
         let mut i = win_s(curwin_mut()).b_syn_clusters.len() as c_int - 1;
         while i >= 0 {
-            let clp = syn_clstr(&mut *win_s(curwin_mut())).offset(i as isize);
+            let clp = syn_clstr(&mut *win_s(curwin_mut()), i as isize);
             if crate::memory::cstr_as_bytes(name_u.as_ptr())
-                == crate::memory::cstr_as_bytes((*clp).scl_name_u.as_ptr())
+                == crate::memory::cstr_as_bytes(clp.scl_name_u.as_ptr())
             {
                 break;
             }
@@ -4487,8 +4468,8 @@ fn syn_cmd_cluster(eap: &mut Exarg, _syncing: c_int) {
                     break;
                 }
                 if scl_id >= 0 {
-                    let clp = syn_clstr(&mut *win_s(curwin_mut())).offset(scl_id as isize);
-                    syn_combine_list(&mut (*clp).scl_list, &mut clstr_list, list_op);
+                    let clp = syn_clstr(&mut *win_s(curwin_mut()), scl_id as isize);
+                    syn_combine_list(&mut clp.scl_list, &mut clstr_list, list_op);
                 }
                 got_clstr = true;
             }
@@ -4884,7 +4865,7 @@ fn get_id_list(arg: *mut *mut c_char, keylen: c_int, list: &mut SynIdList, skip:
 }
 
 fn idl_collect(list: &[i16], ga: &mut Vec<i16>, seen: &mut Vec<i16>) -> bool {
-    unsafe {
+    {
         if list.is_empty() {
             return false;
         }
@@ -4900,8 +4881,7 @@ fn idl_collect(list: &[i16], ga: &mut Vec<i16>, seen: &mut Vec<i16>) -> bool {
                     seen.push(item);
                     ga.push(item);
 
-                    let scl =
-                        &(*syn_clstr(syn_block_mut()).offset((item - SYNID_CLUSTER) as isize));
+                    let scl = &(*syn_clstr(syn_block_mut(), (item - SYNID_CLUSTER) as isize));
                     if !scl.scl_list.as_ref().is_some_and(|rc| !rc.is_empty())
                         || !idl_collect(scl.scl_list.as_deref().unwrap(), ga, seen)
                     {
@@ -4987,12 +4967,12 @@ fn in_id_list(
                 cur_si = cur_si.sub(1);
             }
             if (*cur_si).si_idx >= 0 {
-                let c_spp = syn_items(syn_block_mut()).offset((*cur_si).si_idx as isize);
+                let c_spp = syn_items(syn_block_mut(), (*cur_si).si_idx as isize);
                 if in_id_list(
                     ptr::null_mut(),
                     &ssp.cont_in_list,
-                    &mut (*c_spp).sp_syn,
-                    (*c_spp).sp_flags,
+                    &mut c_spp.sp_syn,
+                    c_spp.sp_flags,
                 ) != 0
                 {
                     return 1;
@@ -5065,7 +5045,7 @@ fn in_id_list(
             }
             if item >= SYNID_CLUSTER {
                 let scl_list =
-                    &(*syn_clstr(syn_block_mut()).offset((item - SYNID_CLUSTER) as isize)).scl_list;
+                    &syn_clstr(syn_block_mut(), (item - SYNID_CLUSTER) as isize).scl_list;
                 if scl_list.is_some() && syn_st().in_id_list_depth < 30 {
                     syn_st().in_id_list_depth += 1;
                     let r = in_id_list(ptr::null_mut(), scl_list, &mut *ssp, flags);
@@ -5266,7 +5246,7 @@ pub fn set_context_in_syntax_cmd(xp: &mut ExpandCtx, arg: impl crate::strings::I
 }
 
 pub fn get_syntax_name(xp: &mut ExpandCtx, idx: c_int) -> *mut c_char {
-    unsafe {
+    {
         if idx < 0 {
             return ptr::null_mut();
         }
@@ -5328,7 +5308,7 @@ pub fn get_syntax_name(xp: &mut ExpandCtx, idx: c_int) -> *mut c_char {
                         xp_buf,
                         EXPAND_BUF_LEN,
                         c"@%s",
-                        (*syn_clstr(&mut *win_s(curwin_mut())).offset(idx as isize))
+                        syn_clstr(&mut *win_s(curwin_mut()), idx as isize)
                             .scl_name
                             .as_ptr(),
                     );

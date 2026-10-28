@@ -1021,7 +1021,8 @@ fn tv_list_watch_fix(l: &mut TvList, item: &Listitem) {
 }
 
 /// Allocate an empty list.
-pub fn tv_list_alloc(_len: isize) -> &'static mut TvList {
+#[unsafe(no_mangle)]
+pub extern "C" fn tv_list_alloc(_len: isize) -> &'static mut TvList {
     let list = Box::leak(Box::new(TvList {
         lv_first: ptr::null_mut(),
         lv_last: ptr::null_mut(),

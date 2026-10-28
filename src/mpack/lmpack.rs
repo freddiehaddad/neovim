@@ -138,8 +138,8 @@ fn lmpack_check_unpacker(l: *mut lua_State, index: c_int) -> &'static mut Lmpack
     unsafe { &mut *luaL_checkudata(l, index, UNPACKER_META_NAME).cast::<LmpackUnpacker>() }
 }
 
-fn lmpack_check_packer(l: *mut lua_State, index: c_int) -> *mut Packer {
-    unsafe { luaL_checkudata(l, index, PACKER_META_NAME).cast::<Packer>() }
+fn lmpack_check_packer(l: *mut lua_State, index: c_int) -> &'static mut Packer {
+    unsafe { &mut *luaL_checkudata(l, index, PACKER_META_NAME).cast::<Packer>() }
 }
 
 fn lmpack_check_session(l: *mut lua_State, index: c_int) -> &'static mut Session {
@@ -544,10 +544,10 @@ unsafe extern "C-unwind" fn lmpack_packer_new(l: *mut lua_State) -> c_int {
 unsafe extern "C-unwind" fn lmpack_packer_delete(l: *mut lua_State) -> c_int {
     unsafe {
         let packer = lmpack_check_packer(l, 1);
-        if (*packer).ext != LUA_NOREF {
-            lmpack_unref(l, (*packer).reg, (*packer).ext);
+        if packer.ext != LUA_NOREF {
+            lmpack_unref(l, packer.reg, packer.ext);
         }
-        luaL_unref(l, LUA_REGISTRYINDEX, (*packer).reg);
+        luaL_unref(l, LUA_REGISTRYINDEX, packer.reg);
         ptr::drop_in_place(packer);
         0
     }
@@ -729,14 +729,14 @@ unsafe extern "C-unwind" fn lmpack_packer_pack(l: *mut lua_State) -> c_int {
         }
 
         let packer = lmpack_check_packer(l, 1);
-        (*packer).lstate = l;
-        (*packer).root = lmpack_ref(l, (*packer).reg);
+        packer.lstate = l;
+        packer.root = lmpack_ref(l, packer.reg);
         let mut buffer = luaL_Buffer::new();
         luaL_buffinit(l, &mut buffer);
         let mut b = luaL_prepbuffer(&mut buffer);
         let mut bl = LUAL_BUFFERSIZE;
 
-        if (*packer).packing != 0 {
+        if packer.packing != 0 {
             return luaL_error(
                 l,
                 c"Packer instance already working. Use another Packer or mpack.encode() if you need to encode from the ext handler".as_ptr(),
@@ -745,18 +745,18 @@ unsafe extern "C-unwind" fn lmpack_packer_pack(l: *mut lua_State) -> c_int {
 
         loop {
             let bl_init = bl;
-            (*packer).packing = 1;
+            packer.packing = 1;
             let result = mpack_unparse(
-                &mut (*packer).parser,
+                &mut packer.parser,
                 &mut b,
                 &mut bl,
                 Some(lmpack_unparse_enter),
                 Some(lmpack_unparse_exit),
             );
-            (*packer).packing = 0;
+            packer.packing = 0;
 
             if result == MPACK_NOMEM {
-                mpack_parser_grow(&mut (*packer).parser);
+                mpack_parser_grow(&mut packer.parser);
             }
 
             luaL_addsize(&mut buffer, bl_init - bl);
@@ -771,7 +771,7 @@ unsafe extern "C-unwind" fn lmpack_packer_pack(l: *mut lua_State) -> c_int {
             }
         }
 
-        lmpack_unref(l, (*packer).reg, (*packer).root);
+        lmpack_unref(l, packer.reg, packer.root);
         luaL_pushresult(&mut buffer);
         debug_assert_eq!(lua_gettop(l), argc);
         1

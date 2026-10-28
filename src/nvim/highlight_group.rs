@@ -342,6 +342,11 @@ fn hl_table() -> *mut HlGroup {
 }
 
 #[inline]
+fn hl_table_at(idx: usize) -> &'static mut HlGroup {
+    &mut hlg_st().highlight_ga[idx]
+}
+
+#[inline]
 fn hl_len() -> c_int {
     hlg_st().highlight_ga.len() as c_int
 }
@@ -844,11 +849,11 @@ pub fn highlight_num_groups() -> c_int {
 }
 
 pub fn highlight_group_name(id: c_int) -> *mut c_char {
-    unsafe { (*hl_table().add(id as usize)).sg_name.as_ptr().cast_mut() }
+    hl_table_at(id as usize).sg_name.as_ptr().cast_mut()
 }
 
 pub fn highlight_link_id(id: c_int) -> c_int {
-    unsafe { (*hl_table().add(id as usize)).sg_link }
+    hl_table_at(id as usize).sg_link
 }
 
 pub fn syn_init_cmdline_highlight(reset: bool, init: bool) {
@@ -965,7 +970,7 @@ pub fn set_hl_group(id: c_int, attrs: HlAttrs, dict: &KeyDict_highlight, link_id
             return;
         }
 
-        let g = &mut *hl_table().add(idx);
+        let g = &mut *hl_table_at(idx);
         g.sg_cleared = false;
         let old_link = g.sg_link;
 
@@ -1036,7 +1041,7 @@ pub fn set_hl_group(id: c_int, attrs: HlAttrs, dict: &KeyDict_highlight, link_id
             } else if !update {
                 *dest = K_COLOR_IDX_NONE;
             } else if old_link > 0 && val >= 0 {
-                let linked = &*hl_table().add((old_link - 1) as usize);
+                let linked = &*hl_table_at((old_link - 1) as usize);
                 let linked_idx = if j == 0 {
                     linked.sg_rgb_fg_idx
                 } else if j == 1 {
@@ -1108,12 +1113,12 @@ fn set_gui_color(
     color_idx: &mut c_int,
 ) -> bool {
     let arg = arg.into_c_char_ptr();
-    unsafe {
-        if init && ((*hl_table().add(idx as usize)).sg_set & SG_GUI) != 0 {
+    {
+        if init && (hl_table_at(idx as usize).sg_set & SG_GUI) != 0 {
             return false;
         }
         if !init {
-            (*hl_table().add(idx as usize)).sg_set |= SG_GUI;
+            hl_table_at(idx as usize).sg_set |= SG_GUI;
         }
         let old_color = *color;
         let old_idx = *color_idx;
@@ -1215,7 +1220,7 @@ pub fn do_highlight(line: impl crate::strings::IntoCCharPtr, forceit: bool, init
 
             let mut hlgroup: *mut HlGroup = ptr::null_mut();
             if from_id > 0 {
-                hlgroup = hl_table().add((from_id - 1) as usize);
+                hlgroup = hl_table_at((from_id - 1) as usize);
                 if dodefault && (forceit || (*hlgroup).sg_deflink == 0) {
                     (*hlgroup).sg_deflink = to_id;
                     (*hlgroup).sg_deflink_sctx = g_st().current_sctx;
@@ -1277,8 +1282,8 @@ pub fn do_highlight(line: impl crate::strings::IntoCCharPtr, forceit: bool, init
             return;
         }
 
-        let item_before = (*hl_table().add(idx as usize)).clone();
-        let is_normal_group = (*hl_table().add(idx as usize))
+        let item_before = (*hl_table_at(idx as usize)).clone();
+        let is_normal_group = hl_table_at(idx as usize)
             .sg_name
             .to_bytes()
             .eq_ignore_ascii_case(b"NORMAL");
@@ -1286,7 +1291,7 @@ pub fn do_highlight(line: impl crate::strings::IntoCCharPtr, forceit: bool, init
         if doclear || (forceit && init) {
             highlight_clear(idx);
             if !doclear {
-                (*hl_table().add(idx as usize)).sg_set = 0;
+                hl_table_at(idx as usize).sg_set = 0;
             }
         }
 
@@ -1325,9 +1330,9 @@ pub fn do_highlight(line: impl crate::strings::IntoCCharPtr, forceit: bool, init
 
                 let key_bytes = &crate::memory::cstr_slice(key.as_ptr(), key_len);
                 if *key_bytes == b"NONE" {
-                    if !init || (*hl_table().add(idx as usize)).sg_set == 0 {
+                    if !init || hl_table_at(idx as usize).sg_set == 0 {
                         if !init {
-                            (*hl_table().add(idx as usize)).sg_set |= SG_CTERM + SG_GUI;
+                            hl_table_at(idx as usize).sg_set |= SG_CTERM + SG_GUI;
                         }
                         highlight_clear(idx);
                     }
@@ -1408,41 +1413,41 @@ pub fn do_highlight(line: impl crate::strings::IntoCCharPtr, forceit: bool, init
                         break;
                     }
                     if key_bytes[0] == b'C' {
-                        if !init || ((*hl_table().add(idx as usize)).sg_set & SG_CTERM) == 0 {
+                        if !init || (hl_table_at(idx as usize).sg_set & SG_CTERM) == 0 {
                             if !init {
-                                (*hl_table().add(idx as usize)).sg_set |= SG_CTERM;
+                                hl_table_at(idx as usize).sg_set |= SG_CTERM;
                             }
-                            (*hl_table().add(idx as usize)).sg_cterm = attr;
-                            (*hl_table().add(idx as usize)).sg_cterm_bold = false;
+                            hl_table_at(idx as usize).sg_cterm = attr;
+                            hl_table_at(idx as usize).sg_cterm_bold = false;
                         }
                     } else if key_bytes[0] == b'G'
-                        && (!init || ((*hl_table().add(idx as usize)).sg_set & SG_GUI) == 0)
+                        && (!init || (hl_table_at(idx as usize).sg_set & SG_GUI) == 0)
                     {
                         if !init {
-                            (*hl_table().add(idx as usize)).sg_set |= SG_GUI;
+                            hl_table_at(idx as usize).sg_set |= SG_GUI;
                         }
-                        (*hl_table().add(idx as usize)).sg_gui = attr;
+                        hl_table_at(idx as usize).sg_gui = attr;
                     }
                 } else if *key_bytes == b"FONT"
-                    && (!init || ((*hl_table().add(idx as usize)).sg_set & SG_GUI) == 0)
+                    && (!init || (hl_table_at(idx as usize).sg_set & SG_GUI) == 0)
                 {
                     if !init {
-                        (*hl_table().add(idx as usize)).sg_set |= SG_GUI;
+                        hl_table_at(idx as usize).sg_set |= SG_GUI;
                     }
-                    (*hl_table().add(idx as usize)).sg_font = None;
+                    hl_table_at(idx as usize).sg_font = None;
                     if crate::memory::cstr_as_bytes(arg.as_ptr()) != b"NONE" {
-                        (*hl_table().add(idx as usize)).sg_font =
+                        hl_table_at(idx as usize).sg_font =
                             Some(crate::memory::cstr_to_cstring(arg.as_ptr()));
                     }
                 } else if *key_bytes == b"CTERMFG" || *key_bytes == b"CTERMBG" {
-                    if !init || ((*hl_table().add(idx as usize)).sg_set & SG_CTERM) == 0 {
+                    if !init || (hl_table_at(idx as usize).sg_set & SG_CTERM) == 0 {
                         if !init {
-                            (*hl_table().add(idx as usize)).sg_set |= SG_CTERM;
+                            hl_table_at(idx as usize).sg_set |= SG_CTERM;
                         }
 
-                        if key_bytes[5] == b'F' && (*hl_table().add(idx as usize)).sg_cterm_bold {
-                            (*hl_table().add(idx as usize)).sg_cterm &= !HL_BOLD;
-                            (*hl_table().add(idx as usize)).sg_cterm_bold = false;
+                        if key_bytes[5] == b'F' && hl_table_at(idx as usize).sg_cterm_bold {
+                            hl_table_at(idx as usize).sg_cterm &= !HL_BOLD;
+                            hl_table_at(idx as usize).sg_cterm_bold = false;
                         }
 
                         let color: c_int;
@@ -1491,20 +1496,20 @@ pub fn do_highlight(line: impl crate::strings::IntoCCharPtr, forceit: bool, init
                             color = lookup_color(i as c_int, key_bytes[5] == b'F', &mut bold);
 
                             if bold == K_TRUE {
-                                (*hl_table().add(idx as usize)).sg_cterm |= HL_BOLD;
-                                (*hl_table().add(idx as usize)).sg_cterm_bold = true;
+                                hl_table_at(idx as usize).sg_cterm |= HL_BOLD;
+                                hl_table_at(idx as usize).sg_cterm_bold = true;
                             } else if bold == K_FALSE {
-                                (*hl_table().add(idx as usize)).sg_cterm &= !HL_BOLD;
+                                hl_table_at(idx as usize).sg_cterm &= !HL_BOLD;
                             }
                         }
 
                         if key_bytes[5] == b'F' {
-                            (*hl_table().add(idx as usize)).sg_cterm_fg = color + 1;
+                            hl_table_at(idx as usize).sg_cterm_fg = color + 1;
                             if is_normal_group {
                                 g_st().cterm_normal_fg_color = color + 1;
                             }
                         } else {
-                            (*hl_table().add(idx as usize)).sg_cterm_bg = color + 1;
+                            hl_table_at(idx as usize).sg_cterm_bg = color + 1;
                             if is_normal_group {
                                 g_st().cterm_normal_bg_color = color + 1;
                                 if !ui_rgb_attached() && color >= 0 {
@@ -1537,60 +1542,60 @@ pub fn do_highlight(line: impl crate::strings::IntoCCharPtr, forceit: bool, init
                         }
                     }
                 } else if *key_bytes == b"GUIFG" {
-                    let g = hl_table().add(idx as usize);
+                    let g = hl_table_at(idx as usize);
                     did_change = set_gui_color(
                         idx,
                         init,
                         arg.as_ptr(),
-                        &mut (*g).sg_rgb_fg,
-                        &mut (*g).sg_rgb_fg_idx,
+                        &mut g.sg_rgb_fg,
+                        &mut g.sg_rgb_fg_idx,
                     );
                     if is_normal_group {
-                        g_st().normal_fg = (*hl_table().add(idx as usize)).sg_rgb_fg;
+                        g_st().normal_fg = hl_table_at(idx as usize).sg_rgb_fg;
                     }
                 } else if *key_bytes == b"GUIBG" {
-                    let g = hl_table().add(idx as usize);
+                    let g = hl_table_at(idx as usize);
                     did_change = set_gui_color(
                         idx,
                         init,
                         arg.as_ptr(),
-                        &mut (*g).sg_rgb_bg,
-                        &mut (*g).sg_rgb_bg_idx,
+                        &mut g.sg_rgb_bg,
+                        &mut g.sg_rgb_bg_idx,
                     );
                     if is_normal_group {
-                        g_st().normal_bg = (*hl_table().add(idx as usize)).sg_rgb_bg;
+                        g_st().normal_bg = hl_table_at(idx as usize).sg_rgb_bg;
                     }
                 } else if *key_bytes == b"GUISP" {
-                    let g = hl_table().add(idx as usize);
+                    let g = hl_table_at(idx as usize);
                     did_change = set_gui_color(
                         idx,
                         init,
                         arg.as_ptr(),
-                        &mut (*g).sg_rgb_sp,
-                        &mut (*g).sg_rgb_sp_idx,
+                        &mut g.sg_rgb_sp,
+                        &mut g.sg_rgb_sp_idx,
                     );
                     if is_normal_group {
-                        g_st().normal_sp = (*hl_table().add(idx as usize)).sg_rgb_sp;
+                        g_st().normal_sp = hl_table_at(idx as usize).sg_rgb_sp;
                     }
                 } else if *key_bytes == b"START" || *key_bytes == b"STOP" {
                     // Ignored for now
                 } else if *key_bytes == b"BLEND" {
                     if crate::memory::cstr_as_bytes(arg.as_ptr()) != b"NONE" {
                         let mut arg_end = arg.as_mut_ptr();
-                        (*hl_table().add(idx as usize)).sg_blend =
+                        hl_table_at(idx as usize).sg_blend =
                             getdigits_int(&raw mut arg_end, false, 0);
                     } else {
-                        (*hl_table().add(idx as usize)).sg_blend = -1;
+                        hl_table_at(idx as usize).sg_blend = -1;
                     }
                 } else {
                     semsg!(gettext(c"E423: Illegal argument: %s"), key_start);
                     error = true;
                     break;
                 }
-                (*hl_table().add(idx as usize)).sg_cleared = false;
+                hl_table_at(idx as usize).sg_cleared = false;
 
-                if !init || ((*hl_table().add(idx as usize)).sg_set & SG_LINK) == 0 {
-                    (*hl_table().add(idx as usize)).sg_link = 0;
+                if !init || (hl_table_at(idx as usize).sg_set & SG_LINK) == 0 {
+                    hl_table_at(idx as usize).sg_link = 0;
                 }
 
                 linep = skipwhite(linep);
@@ -1612,12 +1617,12 @@ pub fn do_highlight(line: impl crate::strings::IntoCCharPtr, forceit: bool, init
         } else {
             set_hl_attr(idx);
         }
-        let g = &mut *hl_table().add(idx as usize);
+        let g = &mut *hl_table_at(idx as usize);
         g.sg_script_ctx = g_st().current_sctx;
         g.sg_script_ctx.sc_lnum += sourcing_lnum();
         nlua_set_sctx(&mut g.sg_script_ctx);
 
-        if (did_change || *hl_table().add(idx as usize) != item_before) && !did_highlight_changed {
+        if (did_change || *hl_table_at(idx as usize) != item_before) && !did_highlight_changed {
             if !g_st().updating_screen {
                 redraw_all_later(UPD_NOT_VALID);
             }
@@ -1642,8 +1647,8 @@ pub fn restore_cterm_colors() {
 }
 
 fn hl_has_settings(idx: c_int, check_link: bool) -> bool {
-    unsafe {
-        let g = &*hl_table().add(idx as usize);
+    {
+        let g = &*hl_table_at(idx as usize);
         !g.sg_cleared
             && (g.sg_attr != 0
                 || g.sg_cterm_fg != 0
@@ -1656,8 +1661,8 @@ fn hl_has_settings(idx: c_int, check_link: bool) -> bool {
 }
 
 fn highlight_clear(idx: c_int) {
-    unsafe {
-        let g = &mut *hl_table().add(idx as usize);
+    {
+        let g = &mut *hl_table_at(idx as usize);
         g.sg_cleared = true;
         g.sg_attr = 0;
         g.sg_cterm = 0;
@@ -1679,8 +1684,8 @@ fn highlight_clear(idx: c_int) {
 }
 
 fn highlight_list_one(id: c_int) {
-    unsafe {
-        let sgp = &*hl_table().add((id - 1) as usize);
+    {
+        let sgp = &*hl_table_at((id - 1) as usize);
         let mut didh = false;
 
         if message_filtered(sgp.sg_name.as_ptr()) {
@@ -1738,9 +1743,9 @@ fn highlight_list_one(id: c_int) {
             didh = true;
             msg_puts_hl(c"links to", HLF_D, false);
             msg_putchar(c_int::from(b' '));
-            let link_id = (*hl_table().add((id - 1) as usize)).sg_link;
+            let link_id = hl_table_at((id - 1) as usize).sg_link;
             msg_outtrans(
-                (*hl_table().add((link_id - 1) as usize)).sg_name.as_ptr(),
+                hl_table_at((link_id - 1) as usize).sg_name.as_ptr(),
                 0,
                 false,
             );
@@ -1756,8 +1761,8 @@ fn highlight_list_one(id: c_int) {
 }
 
 fn hlgroup2dict(hl: &mut Dict, ns_id: NS, hl_id: c_int, arena: &mut Arena) -> bool {
-    unsafe {
-        let sgp = &*hl_table().add((hl_id - 1) as usize);
+    {
+        let sgp = &*hl_table_at((hl_id - 1) as usize);
         let mut ns = ns_id;
         let link = if ns_id == 0 {
             sgp.sg_link
@@ -1786,7 +1791,7 @@ fn hlgroup2dict(hl: &mut Dict, ns_id: NS, hl_id: c_int, arena: &mut Arena) -> bo
             put_c(
                 hl,
                 c"link",
-                cstr_as_obj((*hl_table().add((link - 1) as usize)).sg_name.as_ptr()),
+                cstr_as_obj(hl_table_at((link - 1) as usize).sg_name.as_ptr()),
             );
         }
         let mut hl_cterm = arena_dict(arena, HLATTRS_DICT_SIZE);
@@ -1862,7 +1867,7 @@ pub fn ns_get_hl_defs(
             let target_id = if link { i } else { syn_get_final_id(i) };
             put_c(
                 &mut rv,
-                (*hl_table().add((target_id - 1) as usize)).sg_name.as_ptr(),
+                hl_table_at((target_id - 1) as usize).sg_name.as_ptr(),
                 dict_obj(attrs),
             );
         }
@@ -1952,15 +1957,15 @@ fn highlight_list_arg(
 }
 
 pub fn highlight_has_attr(id: c_int, flag: c_int, modec: c_int) -> *const c_char {
-    unsafe {
+    {
         if id <= 0 || id > hl_len() {
             return ptr::null();
         }
 
         let attr = if modec == c_int::from(b'g') {
-            (*hl_table().add((id - 1) as usize)).sg_gui
+            hl_table_at((id - 1) as usize).sg_gui
         } else {
-            (*hl_table().add((id - 1) as usize)).sg_cterm
+            hl_table_at((id - 1) as usize).sg_cterm
         };
 
         if (flag & HL_UNDERLINE_MASK) != 0 {
@@ -1984,7 +1989,7 @@ pub fn highlight_color(
     modec: c_int,
 ) -> *const c_char {
     let what = what.into_c_char_ptr();
-    unsafe {
+    {
         let mut fg = false;
         let mut sp = false;
         let mut font = false;
@@ -2013,7 +2018,7 @@ pub fn highlight_color(
             return ptr::null();
         }
 
-        let g = &*hl_table().add((id - 1) as usize);
+        let g = &*hl_table_at((id - 1) as usize);
         let name_ptr = (&raw mut hlg_st().highlight_color_name).cast::<c_char>();
 
         if modec == c_int::from(b'g') {
@@ -2059,7 +2064,7 @@ pub fn highlight_color(
 }
 
 pub fn syn_list_header(did_header: bool, outlen: c_int, id: c_int, force_newline: bool) -> bool {
-    unsafe {
+    {
         let mut endcol: c_int = 19;
         let mut newline = true;
         let mut name_col: c_int = 0;
@@ -2072,11 +2077,7 @@ pub fn syn_list_header(did_header: bool, outlen: c_int, id: c_int, force_newline
             if g_st().got_int {
                 return true;
             }
-            name_col = msg_outtrans(
-                (*hl_table().add((id - 1) as usize)).sg_name.as_ptr(),
-                0,
-                false,
-            );
+            name_col = msg_outtrans(hl_table_at((id - 1) as usize).sg_name.as_ptr(), 0, false);
             g_st().msg_col = name_col;
             endcol = 15;
         } else if (ui_has(K_UIMESSAGES) || g_st().msg_silent != 0) && !force_newline {
@@ -2111,9 +2112,9 @@ pub fn syn_list_header(did_header: bool, outlen: c_int, id: c_int, force_newline
 }
 
 fn set_hl_attr(idx: c_int) {
-    unsafe {
+    {
         let mut at_en = HLATTRS_INIT;
-        let sgp = &mut *hl_table().add(idx as usize);
+        let sgp = &mut *hl_table_at(idx as usize);
 
         at_en.cterm_ae_attr = sgp.sg_cterm;
         at_en.cterm_fg_color = sgp.sg_cterm_fg as i16;
@@ -2193,14 +2194,11 @@ pub fn highlight_exists(name: impl crate::strings::IntoCCharPtr) -> c_int {
 }
 
 pub fn syn_id2name(id: c_int) -> *mut c_char {
-    unsafe {
+    {
         if id <= 0 || id > hl_len() {
             return c"".as_ptr().cast_mut();
         }
-        (*hl_table().add((id - 1) as usize))
-            .sg_name
-            .as_ptr()
-            .cast_mut()
+        hl_table_at((id - 1) as usize).sg_name.as_ptr().cast_mut()
     }
 }
 
@@ -2292,11 +2290,11 @@ pub fn syn_id2attr(hl_id: c_int) -> c_int {
 }
 
 pub fn syn_ns_id2attr(mut ns_id: c_int, mut hl_id: c_int, optional: &mut bool) -> c_int {
-    unsafe {
+    {
         if syn_ns_get_final_id(&mut ns_id, &mut hl_id) {
             *optional = false;
         }
-        let sgp = &*hl_table().add((hl_id - 1) as usize);
+        let sgp = &*hl_table_at((hl_id - 1) as usize);
 
         let attr = ns_get_hl(&mut ns_id, hl_id, false, sgp.sg_set != 0);
 
@@ -2316,7 +2314,7 @@ pub fn syn_get_final_id(mut hl_id: c_int) -> c_int {
 }
 
 pub fn syn_ns_get_final_id(ns_id: &mut c_int, hl_idp: &mut c_int) -> bool {
-    unsafe {
+    {
         let mut hl_id = *hl_idp;
         let mut used = false;
 
@@ -2328,7 +2326,7 @@ pub fn syn_ns_get_final_id(ns_id: &mut c_int, hl_idp: &mut c_int) -> bool {
         let mut count = 100;
         while count > 0 {
             count -= 1;
-            let sgp = &*hl_table().add((hl_id - 1) as usize);
+            let sgp = &*hl_table_at((hl_id - 1) as usize);
 
             let check = ns_get_hl(ns_id, hl_id, true, sgp.sg_set != 0);
             if check == 0 {
@@ -2355,9 +2353,9 @@ pub fn syn_ns_get_final_id(ns_id: &mut c_int, hl_idp: &mut c_int) -> bool {
 }
 
 pub fn highlight_attr_set_all() {
-    unsafe {
+    {
         for idx in 0..hl_len() {
-            let sgp = &mut *hl_table().add(idx as usize);
+            let sgp = &mut *hl_table_at(idx as usize);
             if sgp.sg_rgb_bg_idx == K_COLOR_IDX_FG {
                 sgp.sg_rgb_bg = g_st().normal_fg;
             } else if sgp.sg_rgb_bg_idx == K_COLOR_IDX_BG {
@@ -2425,7 +2423,7 @@ fn combine_stl_hlt(
 }
 
 pub fn highlight_changed() {
-    unsafe {
+    {
         let mut userhl = [0 as c_char; 30];
         let mut id_s: c_int = -1;
         let mut id_snc: c_int = 0;
@@ -2471,7 +2469,7 @@ pub fn highlight_changed() {
             .highlight_ga
             .resize((hlcnt + 10) as usize, HlGroup::new());
         if id_s == -1 {
-            *hl_table().add((hlcnt + 9) as usize) = HlGroup::new();
+            *hl_table_at((hlcnt + 9) as usize) = HlGroup::new();
             id_s = hlcnt + 10;
         }
         for i in 0..9 {
@@ -2590,13 +2588,13 @@ pub fn get_highlight_name_ext(
     idx: c_int,
     skip_cleared: bool,
 ) -> *const c_char {
-    unsafe {
+    {
         if idx < 0 {
             return ptr::null();
         }
 
         let len = hl_len();
-        if skip_cleared && idx < len && (*hl_table().add(idx as usize)).sg_cleared {
+        if skip_cleared && idx < len && hl_table_at(idx as usize).sg_cleared {
             return c"".as_ptr();
         }
 
@@ -2615,7 +2613,7 @@ pub fn get_highlight_name_ext(
         } else if idx >= len {
             return ptr::null();
         }
-        (*hl_table().add(idx as usize)).sg_name.as_ptr()
+        hl_table_at(idx as usize).sg_name.as_ptr()
     }
 }
 

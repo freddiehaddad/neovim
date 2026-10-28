@@ -1060,9 +1060,9 @@ fn command_line_enter(
         state.save_state = g_st().state_global;
         state.prev_cmdpos = -1;
         state.ignore_drag_release = true;
-        let s = &raw mut state;
-        (*s).save_p_icm = Some(crate::memory::cstr_to_cstring(opt_vars().p_icm));
-        init_incsearch_state(&mut (*s).is_state);
+        let s = &mut state;
+        s.save_p_icm = Some(crate::memory::cstr_to_cstring(opt_vars().p_icm));
+        init_incsearch_state(&mut s.is_state);
         let mut did_save_ccline = false;
 
         if !getln_st().ccline.cmdbuff.is_null() {
@@ -1073,25 +1073,25 @@ fn command_line_enter(
             getln_st().ccline = CmdlineInfo::new();
         }
 
-        if (*s).firstc == -1 {
-            (*s).firstc = NUL as c_int;
-            (*s).break_ctrl_c = true;
+        if s.firstc == -1 {
+            s.firstc = NUL as c_int;
+            s.break_ctrl_c = true;
         }
 
-        init_ccline((*s).firstc, (*s).indent);
+        init_ccline(s.firstc, s.indent);
         debug_assert!(!getln_st().ccline.cmdbuff.is_null());
         getln_st().ccline.prompt_id = getln_st().last_prompt_id;
         getln_st().last_prompt_id = getln_st().last_prompt_id.wrapping_add(1);
         getln_st().ccline.level = getln_st().cmdline_level;
 
         if getln_st().cmdline_level != 50 {
-            expand_init(&mut (*s).xpc);
-            getln_st().ccline.xpc = &mut (*s).xpc;
+            expand_init(&mut s.xpc);
+            getln_st().ccline.xpc = &mut s.xpc;
             clear_cmdline_orig();
 
             g_st().cmdmsg_rl = curwin_mut().w_onebuf_opt.wo_rl != 0
                 && crate::memory::cstr_first_byte(curwin_mut().w_onebuf_opt.wo_rlc) == b's'
-                && ((*s).firstc == b'/' as c_int || (*s).firstc == b'?' as c_int);
+                && (s.firstc == b'/' as c_int || s.firstc == b'?' as c_int);
 
             msg_grid_validate();
 
@@ -1101,17 +1101,17 @@ fn command_line_enter(
                 redrawcmdprompt(); // draw prompt or indent
                 getln_st().ccline.cmdspos = cmd_startcol();
             }
-            (*s).xpc.xp_context = EXPAND_NOTHING;
-            (*s).xpc.xp_backslash = XP_BS_NONE;
+            s.xpc.xp_context = EXPAND_NOTHING;
+            s.xpc.xp_backslash = XP_BS_NONE;
             #[cfg(not(windows))]
             {
                 (*s).xpc.xp_shell = false;
             }
 
             if getln_st().ccline.input_fn != 0 {
-                (*s).xpc.xp_context = getln_st().ccline.xp_context;
-                (*s).xpc.xp_pattern = getln_st().ccline.cmdbuff;
-                (*s).xpc.xp_arg = (&raw const getln_st().ccline.xp_arg)
+                s.xpc.xp_context = getln_st().ccline.xp_context;
+                s.xpc.xp_pattern = getln_st().ccline.cmdbuff;
+                s.xpc.xp_arg = (&raw const getln_st().ccline.xp_arg)
                     .as_ref()
                     .unwrap()
                     .as_ref()
@@ -1122,17 +1122,14 @@ fn command_line_enter(
 
             g_st().state_global = MODE_CMDLINE;
 
-            if (*s).firstc == b'/' as c_int
-                || (*s).firstc == b'?' as c_int
-                || (*s).firstc == b'@' as c_int
-            {
+            if s.firstc == b'/' as c_int || s.firstc == b'?' as c_int || s.firstc == b'@' as c_int {
                 let (use_insert, im_val) = if curbuf_mut().b_p_imsearch == B_IMODE_USE_INSERT {
                     (true, curbuf_mut().b_p_iminsert)
                 } else {
                     (false, curbuf_mut().b_p_imsearch)
                 };
-                (*s).b_im_use_insert = Some(use_insert);
-                (*s).b_im_ptr_buf = g_st().curbuf;
+                s.b_im_use_insert = Some(use_insert);
+                s.b_im_ptr_buf = g_st().curbuf;
                 if im_val == B_IMODE_LMAP {
                     g_st().state_global |= MODE_LANGMAP;
                 }
@@ -1140,9 +1137,9 @@ fn command_line_enter(
 
             setmouse();
 
-            (*s).cmdline_type = if firstc > 0 { firstc } else { b'-' as c_int };
+            s.cmdline_type = if firstc > 0 { firstc } else { b'-' as c_int };
             let mut err = error_init();
-            let mut firstcbuf: [c_char; 2] = [(*s).cmdline_type as c_char, 0];
+            let mut firstcbuf: [c_char; 2] = [s.cmdline_type as c_char, 0];
 
             if has_event(EVENT_CMDLINEENTER) {
                 let mut save_v_event: SaveVEvent = SaveVEvent::new();
@@ -1181,8 +1178,8 @@ fn command_line_enter(
             may_trigger_modechanged();
 
             init_history();
-            (*s).hiscnt = get_hislen(); // set hiscnt to impossible history value
-            (*s).histype = hist_char2type((*s).firstc);
+            s.hiscnt = get_hislen(); // set hiscnt to impossible history value
+            s.histype = hist_char2type(s.firstc);
             do_digraph(-1); // init digraph typeahead
 
             if g_st().did_emsg != 0 {
@@ -1222,9 +1219,9 @@ fn command_line_enter(
 
             state_enter(&mut *s);
 
-            if !(*s).event_cmdlineleavepre_triggered {
-                set_vim_var_char((*s).c);
-                trigger_cmd_autocmd((*s).cmdline_type, EVENT_CMDLINELEAVEPRE);
+            if !s.event_cmdlineleavepre_triggered {
+                set_vim_var_char(s.c);
+                trigger_cmd_autocmd(s.cmdline_type, EVENT_CMDLINELEAVEPRE);
             }
 
             if has_event(EVENT_CMDLINELEAVE) {
@@ -1241,13 +1238,13 @@ fn command_line_enter(
                 tv_dict_add_bool(
                     &mut *dict,
                     c"abort",
-                    if (*s).gotesc {
+                    if s.gotesc {
                         K_BOOL_VAR_TRUE_CONST
                     } else {
                         K_BOOL_VAR_FALSE_CONST
                     },
                 );
-                set_vim_var_char((*s).c);
+                set_vim_var_char(s.c);
                 let mut tstate = TryState::new();
                 try_enter(&mut tstate);
                 apply_autocmds(
@@ -1259,7 +1256,7 @@ fn command_line_enter(
                 );
                 try_leave(&tstate, &mut err);
                 if tv_dict_get_number(Some(&*dict), c"abort") != 0 {
-                    (*s).gotesc = true;
+                    s.gotesc = true;
                 }
                 restore_v_event(&mut *dict, &mut save_v_event);
             }
@@ -1272,33 +1269,33 @@ fn command_line_enter(
                 pum_check_clear();
             }
             wildmenu_cleanup(&mut getln_st().ccline);
-            (*s).did_wild_list = false;
-            (*s).wim_index = 0;
+            s.did_wild_list = false;
+            s.wim_index = 0;
 
-            expand_cleanup(&mut (*s).xpc);
+            expand_cleanup(&mut s.xpc);
             getln_st().ccline.xpc = ptr::null_mut();
             clear_cmdline_orig();
 
-            finish_incsearch_highlighting((*s).gotesc, &mut (*s).is_state, false);
+            finish_incsearch_highlighting(s.gotesc, &mut s.is_state, false);
 
             if !getln_st().ccline.cmdbuff.is_null() {
-                if (*s).histype != HIST_INVALID
+                if s.histype != HIST_INVALID
                     && getln_st().ccline.cmdlen != 0
-                    && (*s).firstc != NUL as c_int
-                    && ((*s).some_key_typed || (*s).histype == HIST_SEARCH)
+                    && s.firstc != NUL as c_int
+                    && (s.some_key_typed || s.histype == HIST_SEARCH)
                 {
                     add_to_history(
-                        (*s).histype,
+                        s.histype,
                         getln_st().ccline.cmdbuff,
                         getln_st().ccline.cmdlen as usize,
                         true,
-                        if (*s).histype == HIST_SEARCH {
-                            (*s).firstc
+                        if s.histype == HIST_SEARCH {
+                            s.firstc
                         } else {
                             NUL as c_int
                         },
                     );
-                    if (*s).firstc == b':' as c_int {
+                    if s.firstc == b':' as c_int {
                         g_st().new_last_cmdline =
                             Some(crate::memory::cstr_from_bytes(crate::memory::cstr_slice(
                                 getln_st().ccline.cmdbuff,
@@ -1307,15 +1304,15 @@ fn command_line_enter(
                     }
                 }
 
-                if !(*s).gotesc && getln_st().ccline.level == 1 {
+                if !s.gotesc && getln_st().ccline.level == 1 {
                     atom_cmdline_set(
-                        (*s).firstc,
+                        s.firstc,
                         getln_st().ccline.cmdbuff,
                         getln_st().ccline.cmdlen as usize,
                     );
                 }
 
-                if (*s).gotesc {
+                if s.gotesc {
                     abandon_cmdline();
                 }
             }
@@ -1324,7 +1321,7 @@ fn command_line_enter(
             if opt_vars().p_ch == 0 && !ui_has(K_UIMESSAGES) {
                 set_must_redraw(UPD_VALID);
             }
-            g_st().msg_scroll = (*s).save_msg_scroll;
+            g_st().msg_scroll = s.save_msg_scroll;
             g_st().redir_off = false;
 
             if error_set(&err) {
@@ -1336,21 +1333,17 @@ fn command_line_enter(
                 api_clear_error(&mut err);
             }
 
-            if (*s).some_key_typed && !error_set(&err) {
+            if s.some_key_typed && !error_set(&err) {
                 g_st().need_wait_return = false;
             }
 
             set_option_direct(
                 K_OPT_INCCOMMAND,
-                cstr_as_obj(
-                    (*s).save_p_icm
-                        .as_ref()
-                        .map_or(c"".as_ptr(), |s| s.as_ptr()),
-                ),
+                cstr_as_obj(s.save_p_icm.as_ref().map_or(c"".as_ptr(), |s| s.as_ptr())),
                 0,
                 SID_NONE,
             );
-            g_st().state_global = (*s).save_state;
+            g_st().state_global = s.save_state;
             if g_st().cmdpreview != save_cmdpreview {
                 g_st().cmdpreview = save_cmdpreview;
                 redraw_all_later(UPD_SOME_VALID);
@@ -1363,7 +1356,7 @@ fn command_line_enter(
         }
 
         // theend:
-        (*s).save_p_icm = None;
+        s.save_p_icm = None;
         getln_st().ccline.last_colors.cmdbuff = None;
         getln_st().ccline.last_colors.colors = Vec::new();
 
@@ -1374,7 +1367,7 @@ fn command_line_enter(
         };
 
         if ui_has(K_UICMDLINE) {
-            ui_ext_cmdline_hide((*s).gotesc);
+            ui_ext_cmdline_hide(s.gotesc);
         }
         if !g_st().cmd_silent {
             redraw_custom_title_later();
@@ -1389,7 +1382,7 @@ fn command_line_enter(
             dealloc_cmdbuff();
         }
 
-        (*s).prev_cmdbuff = None;
+        s.prev_cmdbuff = None;
         ret
     }
 }
@@ -2333,51 +2326,51 @@ fn command_line_left_right_mouse(s: &mut CommandLineState) {
     }
 }
 
-fn command_line_next_histidx(s: *mut CommandLineState, next_match: bool) {
-    unsafe {
-        let hisidx = get_hisidx((*s).histype);
-        let hist = get_histentry((*s).histype);
+fn command_line_next_histidx(s: &mut CommandLineState, next_match: bool) {
+    {
+        let hisidx = get_hisidx(s.histype);
+        let hist = get_histentry(s.histype);
         loop {
             if !next_match {
-                if (*s).hiscnt == get_hislen() {
-                    (*s).hiscnt = hisidx;
-                } else if (*s).hiscnt == 0 && hisidx != get_hislen() - 1 {
-                    (*s).hiscnt = get_hislen() - 1;
-                } else if (*s).hiscnt != hisidx + 1 {
-                    (*s).hiscnt -= 1;
+                if s.hiscnt == get_hislen() {
+                    s.hiscnt = hisidx;
+                } else if s.hiscnt == 0 && hisidx != get_hislen() - 1 {
+                    s.hiscnt = get_hislen() - 1;
+                } else if s.hiscnt != hisidx + 1 {
+                    s.hiscnt -= 1;
                 } else {
-                    (*s).hiscnt = (*s).save_hiscnt;
+                    s.hiscnt = s.save_hiscnt;
                     break;
                 }
             } else {
-                if (*s).hiscnt == hisidx {
-                    (*s).hiscnt = get_hislen();
+                if s.hiscnt == hisidx {
+                    s.hiscnt = get_hislen();
                     break;
                 }
 
-                if (*s).hiscnt == get_hislen() {
+                if s.hiscnt == get_hislen() {
                     break;
                 }
 
-                if (*s).hiscnt == get_hislen() - 1 {
-                    (*s).hiscnt = 0;
+                if s.hiscnt == get_hislen() - 1 {
+                    s.hiscnt = 0;
                 } else {
-                    (*s).hiscnt += 1;
+                    s.hiscnt += 1;
                 }
             }
 
-            if (*s).hiscnt < 0 || hist[(*s).hiscnt as usize].hisstr.is_none() {
-                (*s).hiscnt = (*s).save_hiscnt;
+            if s.hiscnt < 0 || hist[s.hiscnt as usize].hisstr.is_none() {
+                s.hiscnt = s.save_hiscnt;
                 break;
             }
 
-            let lookfor_ptr = (*s).lookfor.as_ref().map_or(c"".as_ptr(), |s| s.as_ptr());
-            if ((*s).c != K_UP && (*s).c != K_DOWN)
-                || (*s).hiscnt == (*s).save_hiscnt
+            let lookfor_ptr = s.lookfor.as_ref().map_or(c"".as_ptr(), |s| s.as_ptr());
+            if (s.c != K_UP && s.c != K_DOWN)
+                || s.hiscnt == s.save_hiscnt
                 || (crate::memory::cstr_prefix_bytes(
-                    hist[(*s).hiscnt as usize].hisstr_ptr(),
-                    (*s).lookforlen as usize,
-                ) == crate::memory::cstr_prefix_bytes(lookfor_ptr, (*s).lookforlen as usize))
+                    hist[s.hiscnt as usize].hisstr_ptr(),
+                    s.lookforlen as usize,
+                ) == crate::memory::cstr_prefix_bytes(lookfor_ptr, s.lookforlen as usize))
             {
                 break;
             }
@@ -2387,29 +2380,29 @@ fn command_line_next_histidx(s: *mut CommandLineState, next_match: bool) {
 
 /// Handle the Up, Down, Page Up, Page down, CTRL-N and CTRL-P key in the
 /// command-line mode.
-fn command_line_browse_history(s: *mut CommandLineState) -> c_int {
+fn command_line_browse_history(s: &mut CommandLineState) -> c_int {
     unsafe {
-        if (*s).histype == HIST_INVALID || get_hislen() == 0 || (*s).firstc == NUL as c_int {
+        if s.histype == HIST_INVALID || get_hislen() == 0 || s.firstc == NUL as c_int {
             return CMDLINE_NOT_CHANGED;
         }
 
-        (*s).save_hiscnt = (*s).hiscnt;
+        s.save_hiscnt = s.hiscnt;
 
-        if (*s).lookfor.is_none() {
+        if s.lookfor.is_none() {
             let prefix_len = getln_st().ccline.cmdpos as usize;
             let bytes = crate::memory::cstr_slice(getln_st().ccline.cmdbuff, prefix_len);
-            (*s).lookfor = Some(std::ffi::CString::new(bytes).unwrap_or_default());
-            (*s).lookforlen = getln_st().ccline.cmdpos;
+            s.lookfor = Some(std::ffi::CString::new(bytes).unwrap_or_default());
+            s.lookforlen = getln_st().ccline.cmdpos;
         }
 
-        let next_match = (*s).c == K_DOWN
-            || (*s).c == K_S_DOWN
-            || (*s).c == CTRL_N
-            || (*s).c == K_PAGEDOWN
-            || (*s).c == K_KPAGEDOWN;
+        let next_match = s.c == K_DOWN
+            || s.c == K_S_DOWN
+            || s.c == CTRL_N
+            || s.c == K_PAGEDOWN
+            || s.c == K_KPAGEDOWN;
         command_line_next_histidx(s, next_match);
 
-        if (*s).hiscnt != (*s).save_hiscnt {
+        if s.hiscnt != s.save_hiscnt {
             let p: *mut c_char;
             let plen: c_int;
             let old_firstc: c_int;
@@ -2417,24 +2410,24 @@ fn command_line_browse_history(s: *mut CommandLineState) -> c_int {
 
             dealloc_cmdbuff();
 
-            let lookfor_ptr = (*s)
+            let lookfor_ptr = s
                 .lookfor
                 .as_ref()
                 .map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut());
-            (*s).xpc.xp_context = EXPAND_NOTHING;
-            if (*s).hiscnt == get_hislen() {
+            s.xpc.xp_context = EXPAND_NOTHING;
+            if s.hiscnt == get_hislen() {
                 p = lookfor_ptr;
-                plen = (*s).lookforlen;
+                plen = s.lookforlen;
             } else {
-                let entry = &get_histentry((*s).histype)[(*s).hiscnt as usize];
+                let entry = &get_histentry(s.histype)[s.hiscnt as usize];
                 p = entry.hisstr_ptr();
                 plen = entry.hisstrlen() as c_int;
                 sep = entry.sep;
             }
 
-            if (*s).histype == HIST_SEARCH && p != lookfor_ptr && {
+            if s.histype == HIST_SEARCH && p != lookfor_ptr && {
                 old_firstc = (sep as u8) as c_int;
-                old_firstc != (*s).firstc
+                old_firstc != s.firstc
             } {
                 let mut len: c_int = 0;
                 for i in 0..=1 {
@@ -2445,11 +2438,10 @@ fn command_line_browse_history(s: *mut CommandLineState) -> c_int {
                             && (j == 0 || crate::memory::cstr_byte_at(p, j - 1) != b'\\')
                         {
                             if i > 0 {
-                                *getln_st().ccline.cmdbuff.add(len as usize) =
-                                    (*s).firstc as c_char;
+                                *getln_st().ccline.cmdbuff.add(len as usize) = s.firstc as c_char;
                             }
                         } else {
-                            if *p.add(j) as c_int == (*s).firstc
+                            if *p.add(j) as c_int == s.firstc
                                 && (j == 0 || crate::memory::cstr_byte_at(p, j - 1) != b'\\')
                             {
                                 if i > 0 {
@@ -2772,7 +2764,7 @@ fn command_line_handle_key(s: &mut CommandLineState) -> c_int {
                             }
                             return command_line_changed(s);
                         }
-                        match command_line_browse_history(&raw mut *s) {
+                        match command_line_browse_history(s) {
                             CMDLINE_CHANGED => {
                                 s.did_hist_navigate = true;
                                 return command_line_changed(s);
@@ -2800,7 +2792,7 @@ fn command_line_handle_key(s: &mut CommandLineState) -> c_int {
                             }
                             return command_line_changed(s);
                         } else {
-                            match command_line_browse_history(&raw mut *s) {
+                            match command_line_browse_history(s) {
                                 CMDLINE_CHANGED => {
                                     s.did_hist_navigate = true;
                                     return command_line_changed(s);

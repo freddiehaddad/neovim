@@ -1189,7 +1189,7 @@ fn func_clear_free(fp: *mut UserFunc, force: bool) {
 }
 
 /// Allocate a `Funccall`, link it in `uf_st().current_funccal` and fill in `fp` and `rettv`.
-pub fn create_funccal(fp: *mut UserFunc, rettv: &mut TypVal) -> *mut Funccall {
+pub fn create_funccal(fp: *mut UserFunc, rettv: &mut TypVal) -> &'static mut Funccall {
     unsafe {
         let fc = Box::into_raw(Box::new(Funccall::new()));
         (*fc).fc_caller = uf_st().current_funccal;
@@ -1197,7 +1197,7 @@ pub fn create_funccal(fp: *mut UserFunc, rettv: &mut TypVal) -> *mut Funccall {
         (*fc).fc_func = fp;
         func_ptr_ref(fp.as_mut());
         (*fc).fc_rettv = rettv;
-        fc
+        &mut *fc
     }
 }
 
@@ -1243,17 +1243,17 @@ pub fn call_user_func(
         line_breakcheck();
 
         let fc = create_funccal(fp, rettv);
-        (*fc).fc_level = g_st().ex_nesting_level;
-        (*fc).fc_breakpoint = dbg_find_breakpoint(false, uf2hikey(&*fp), 0);
-        (*fc).fc_dbg_tick = g_st().debug_tick;
+        fc.fc_level = g_st().ex_nesting_level;
+        fc.fc_breakpoint = dbg_find_breakpoint(false, uf2hikey(&*fp), 0);
+        fc.fc_dbg_tick = g_st().debug_tick;
 
         if crate::memory::cstr_prefix_bytes(uf2hikey(&*fp), 8) == &b"<lambda>"[..8] {
             islambda = true;
         }
 
         init_var_dict(
-            &mut (*fc).fc_l_vars,
-            &mut *(&raw mut (*fc).fc_l_vars_var).cast(),
+            &mut fc.fc_l_vars,
+            &mut *(&raw mut fc.fc_l_vars_var).cast(),
             VAR_DEF_SCOPE,
         );
         if !selfdict.is_null() {
@@ -1263,19 +1263,19 @@ pub fn call_user_func(
             v.di_tv.v_lock = VAR_UNLOCKED;
             v.di_tv.vval = crate::eval::typval::TypvalVval::Dict(selfdict);
             (*selfdict).dv_refcount += 1;
-            hash_add(&mut (*fc).fc_l_vars.dv_hashtab, &mut *v);
+            hash_add(&mut fc.fc_l_vars.dv_hashtab, &mut *v);
         }
 
         init_var_dict(
-            &mut (*fc).fc_l_avars,
-            &mut *(&raw mut (*fc).fc_l_avars_var).cast(),
+            &mut fc.fc_l_avars,
+            &mut *(&raw mut fc.fc_l_avars_var).cast(),
             VAR_SCOPE,
         );
         let uf_args_len = (*fp).uf_args.len() as c_int;
         let uf_def_args_len = (*fp).uf_def_args.len() as c_int;
         if ((*fp).uf_flags & FC_NOARGS) == 0 {
             add_nr_var(
-                &mut (*fc).fc_l_avars,
+                &mut fc.fc_l_avars,
                 c"0",
                 if argcount >= uf_args_len {
                     Varnumber::from(argcount - uf_args_len)
@@ -1284,34 +1284,26 @@ pub fn call_user_func(
                 },
             );
         }
-        (*fc).fc_l_avars.dv_lock = VAR_FIXED;
+        fc.fc_l_avars.dv_lock = VAR_FIXED;
         if ((*fp).uf_flags & FC_NOARGS) == 0 {
             let v = tv_dict_item_alloc_len(c"000", 3);
             v.di_flags |= DI_FLAGS_RO | DI_FLAGS_FIX;
             v.di_tv.v_type = VarType::VarList;
             v.di_tv.v_lock = VAR_FIXED;
-            v.di_tv.vval = crate::eval::typval::TypvalVval::List(&raw mut (*fc).fc_l_varlist);
-            hash_add(&mut (*fc).fc_l_avars.dv_hashtab, &mut *v);
+            v.di_tv.vval = crate::eval::typval::TypvalVval::List(&raw mut fc.fc_l_varlist);
+            hash_add(&mut fc.fc_l_avars.dv_hashtab, &mut *v);
         }
-        tv_list_init_static(&mut (*fc).fc_l_varlist);
-        tv_list_set_lock(Some(&mut (*fc).fc_l_varlist), VAR_FIXED);
+        tv_list_init_static(&mut fc.fc_l_varlist);
+        tv_list_set_lock(Some(&mut fc.fc_l_varlist), VAR_FIXED);
 
         if ((*fp).uf_flags & FC_NOARGS) == 0 {
-            add_nr_var(
-                &mut (*fc).fc_l_avars,
-                c"firstline",
-                Varnumber::from(firstline),
-            );
-            add_nr_var(
-                &mut (*fc).fc_l_avars,
-                c"lastline",
-                Varnumber::from(lastline),
-            );
+            add_nr_var(&mut fc.fc_l_avars, c"firstline", Varnumber::from(firstline));
+            add_nr_var(&mut fc.fc_l_avars, c"lastline", Varnumber::from(lastline));
         }
 
         let mut default_arg_err = false;
         let max_i = argcount.max(uf_args_len);
-        let listitems_ptr = (&raw mut (*fc).fc_l_listitems).cast::<Listitem>();
+        let listitems_ptr = (&raw mut fc.fc_l_listitems).cast::<Listitem>();
         for i in 0..max_i {
             let mut addlocal = false;
             let mut isdefault = false;
@@ -1369,16 +1361,16 @@ pub fn call_user_func(
             if addlocal {
                 let tv_val = v.di_tv;
                 tv_copy(&tv_val, &mut v.di_tv);
-                hash_add(&mut (*fc).fc_l_vars.dv_hashtab, &mut *v);
+                hash_add(&mut fc.fc_l_vars.dv_hashtab, &mut *v);
             } else {
-                hash_add(&mut (*fc).fc_l_avars.dv_hashtab, &mut *v);
+                hash_add(&mut fc.fc_l_avars.dv_hashtab, &mut *v);
             }
 
             if ai >= 0 && (ai as usize) < MAX_FUNC_ARGS {
                 let li = listitems_ptr.add(ai as usize);
                 (*li).li_tv = *argvars.add(i as usize);
                 (*li).li_tv.v_lock = VAR_FIXED;
-                tv_list_append(&mut (*fc).fc_l_varlist, &mut *li);
+                tv_list_append(&mut fc.fc_l_varlist, &mut *li);
             }
         }
 
@@ -1438,7 +1430,7 @@ pub fn call_user_func(
 
         let func_or_func_caller_profiling = do_profiling_yes
             && ((*fp).uf_profiling != 0
-                || (!(*fc).fc_caller.is_null() && (*(*(*fc).fc_caller).fc_func).uf_profiling != 0));
+                || (!fc.fc_caller.is_null() && (*(*fc.fc_caller).fc_func).uf_profiling != 0));
 
         if func_or_func_caller_profiling {
             (*fp).uf_tm_count += 1;
@@ -1492,8 +1484,8 @@ pub fn call_user_func(
             call_start = profile_sub_wait(wait_start, call_start);
             (*fp).uf_tm_total = profile_add((*fp).uf_tm_total, call_start);
             (*fp).uf_tm_self = profile_self((*fp).uf_tm_self, call_start, (*fp).uf_tm_children);
-            if !(*fc).fc_caller.is_null() && (*(*(*fc).fc_caller).fc_func).uf_profiling != 0 {
-                let caller_fp = (*(*fc).fc_caller).fc_func;
+            if !fc.fc_caller.is_null() && (*(*fc.fc_caller).fc_func).uf_profiling != 0 {
+                let caller_fp = (*fc.fc_caller).fc_func;
                 (*caller_fp).uf_tm_children = profile_add((*caller_fp).uf_tm_children, call_start);
                 (*caller_fp).uf_tml_children =
                     profile_add((*caller_fp).uf_tml_children, call_start);
@@ -1509,17 +1501,17 @@ pub fn call_user_func(
 
             if aborting() {
                 smsg!(0, gettext(c"%s aborted"), sourcing_name());
-            } else if (*(*fc).fc_rettv).v_type == VarType::VarNumber {
+            } else if (*fc.fc_rettv).v_type == VarType::VarNumber {
                 smsg!(
                     0,
                     gettext(c"%s returning #%lld"),
                     sourcing_name(),
-                    (*(*fc).fc_rettv).vval.v_number(),
+                    (*fc.fc_rettv).vval.v_number(),
                 );
             } else {
                 let mut buf = [0 as c_char; MSG_BUF_LEN];
                 g_st().emsg_off += 1;
-                let tf = encode_tv2string(&mut *(*fc).fc_rettv, None);
+                let tf = encode_tv2string(&mut *fc.fc_rettv, None);
                 g_st().emsg_off -= 1;
                 let mut s = tf.as_ptr().cast_mut();
                 if vim_strsize(s) > MSG_BUF_CLEN {
@@ -3957,7 +3949,7 @@ pub fn do_return(
     mut rettv: Option<TypVal>,
 ) -> bool {
     unsafe {
-        let cstack = eap.cstack.cast::<Cstack>();
+        let cstack = &mut *eap.cstack.cast::<Cstack>();
 
         if reanimate {
             (*uf_st().current_funccal).fc_returned = 0;
@@ -3965,7 +3957,7 @@ pub fn do_return(
 
         let idx = cleanup_conditionals(&mut *cstack, 0, 1);
         if idx >= 0 {
-            (*cstack).cs_pending[idx as usize] = CSTP_RETURN as c_char;
+            cstack.cs_pending[idx as usize] = CSTP_RETURN as c_char;
 
             if reanimate {
                 debug_assert!(!(*uf_st().current_funccal).fc_rettv.is_null());
@@ -3975,7 +3967,7 @@ pub fn do_return(
                     crate::eval::typval::TypvalVval::Number(0);
             }
 
-            (*cstack).cs_rettv[idx as usize] = rettv;
+            cstack.cs_rettv[idx as usize] = rettv;
             report_make_pending(CSTP_RETURN, PendingVal::Return(rettv));
         } else {
             (*uf_st().current_funccal).fc_returned = 1;
