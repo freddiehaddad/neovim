@@ -219,59 +219,63 @@ fn lmpack_objlen(l: *mut lua_State, is_array: Option<&mut i32>) -> MpackUint32 {
 
 unsafe extern "C-unwind" fn lmpack_unpacker_new(l: *mut lua_State) -> i32 {
     unsafe {
-        if lua_gettop(l) > 1 {
-            return luaL_error(l, c"expecting at most 1 table argument".as_ptr());
-        }
-
-        let rv = lua_newuserdata(l, size_of::<LmpackUnpacker>()).cast::<LmpackUnpacker>();
-        let rv = { &mut *rv };
-        ptr::write(
-            rv,
-            LmpackUnpacker {
-                lstate: l,
-                parser: MpackParser::new(0),
-                reg: LUA_NOREF,
-                ext: LUA_NOREF,
-                unpacking: 0,
-                mtdict: 0,
-                string_buffer: Vec::new(),
-            },
-        );
-        mpack_parser_init(&mut rv.parser, 0);
-        rv.parser.data = MpackData::LmpackUnpacker(rv);
-        luaL_getmetatable(l, UNPACKER_META_NAME);
-        lua_setmetatable(l, -2);
-
-        lua_newtable(l);
-        rv.reg = luaL_ref(l, LUA_REGISTRYINDEX);
-
-        lua_getfield(l, LUA_REGISTRYINDEX, EMPTY_DICT_NAME);
-        rv.mtdict = lmpack_ref(l, rv.reg);
-
-        if lua_istable(l, 1) {
-            lua_getfield(l, 1, c"ext");
-            if !lua_isnil(l, -1) {
-                if !lua_istable(l, -1) {
-                    return luaL_error(l, c"\"ext\" option must be a table".as_ptr());
-                }
-                lmpack_shallow_copy(l);
+        {
+            if lua_gettop(l) > 1 {
+                return luaL_error(l, c"expecting at most 1 table argument".as_ptr());
             }
-            rv.ext = lmpack_ref(l, rv.reg);
-        }
 
-        1
+            let rv = lua_newuserdata(l, size_of::<LmpackUnpacker>()).cast::<LmpackUnpacker>();
+            let rv = { &mut *rv };
+            ptr::write(
+                rv,
+                LmpackUnpacker {
+                    lstate: l,
+                    parser: MpackParser::new(0),
+                    reg: LUA_NOREF,
+                    ext: LUA_NOREF,
+                    unpacking: 0,
+                    mtdict: 0,
+                    string_buffer: Vec::new(),
+                },
+            );
+            mpack_parser_init(&mut rv.parser, 0);
+            rv.parser.data = MpackData::LmpackUnpacker(rv);
+            luaL_getmetatable(l, UNPACKER_META_NAME);
+            lua_setmetatable(l, -2);
+
+            lua_newtable(l);
+            rv.reg = luaL_ref(l, LUA_REGISTRYINDEX);
+
+            lua_getfield(l, LUA_REGISTRYINDEX, EMPTY_DICT_NAME);
+            rv.mtdict = lmpack_ref(l, rv.reg);
+
+            if lua_istable(l, 1) {
+                lua_getfield(l, 1, c"ext");
+                if !lua_isnil(l, -1) {
+                    if !lua_istable(l, -1) {
+                        return luaL_error(l, c"\"ext\" option must be a table".as_ptr());
+                    }
+                    lmpack_shallow_copy(l);
+                }
+                rv.ext = lmpack_ref(l, rv.reg);
+            }
+
+            1
+        }
     }
 }
 
 unsafe extern "C-unwind" fn lmpack_unpacker_delete(l: *mut lua_State) -> i32 {
     unsafe {
-        let unpacker = lmpack_check_unpacker(l, 1);
-        if unpacker.ext != LUA_NOREF {
-            lmpack_unref(l, unpacker.reg, unpacker.ext);
+        {
+            let unpacker = lmpack_check_unpacker(l, 1);
+            if unpacker.ext != LUA_NOREF {
+                lmpack_unref(l, unpacker.reg, unpacker.ext);
+            }
+            luaL_unref(l, LUA_REGISTRYINDEX, unpacker.reg);
+            ptr::drop_in_place(unpacker);
+            0
         }
-        luaL_unref(l, LUA_REGISTRYINDEX, unpacker.reg);
-        ptr::drop_in_place(unpacker);
-        0
     }
 }
 
@@ -422,132 +426,138 @@ fn lmpack_unpacker_unpack_str(
 
 unsafe extern "C-unwind" fn lmpack_unpacker_unpack(l: *mut lua_State) -> i32 {
     unsafe {
-        let argc = lua_gettop(l);
-        if !(2..=3).contains(&argc) {
-            return luaL_error(l, c"expecting between 2 and 3 arguments".as_ptr());
+        {
+            let argc = lua_gettop(l);
+            if !(2..=3).contains(&argc) {
+                return luaL_error(l, c"expecting between 2 and 3 arguments".as_ptr());
+            }
+
+            let unpacker = lmpack_check_unpacker(l, 1);
+            unpacker.lstate = l;
+
+            let mut len: usize = 0;
+            let str_init = luaL_checklstring(l, 2, &mut len);
+            let mut str_ptr = str_init;
+            let startpos = if argc == 3 {
+                luaL_checknumber(l, 3)
+            } else {
+                1.0
+            };
+
+            luaL_argcheck(
+                l,
+                startpos > 0.0,
+                3,
+                c"start position must be greater than zero",
+            );
+            luaL_argcheck(
+                l,
+                (startpos as usize as lua_Number) == startpos,
+                3,
+                c"start position must be an integer",
+            );
+            luaL_argcheck(
+                l,
+                (startpos as usize) <= len,
+                3,
+                c"start position must be less than or equal to the input string length",
+            );
+
+            let offset = (startpos as usize) - 1;
+            str_ptr = str_ptr.wrapping_add(offset);
+            len -= offset;
+            let result = lmpack_unpacker_unpack_str(l, &mut *unpacker, &mut str_ptr, &mut len);
+
+            if result == MPACK_EOF {
+                lua_pushnil(l);
+            }
+
+            lua_pushinteger(l, (str_ptr.offset_from(str_init) + 1) as lua_Integer);
+            debug_assert_eq!(lua_gettop(l), argc + 2);
+            2
         }
-
-        let unpacker = lmpack_check_unpacker(l, 1);
-        unpacker.lstate = l;
-
-        let mut len: usize = 0;
-        let str_init = luaL_checklstring(l, 2, &mut len);
-        let mut str_ptr = str_init;
-        let startpos = if argc == 3 {
-            luaL_checknumber(l, 3)
-        } else {
-            1.0
-        };
-
-        luaL_argcheck(
-            l,
-            startpos > 0.0,
-            3,
-            c"start position must be greater than zero",
-        );
-        luaL_argcheck(
-            l,
-            (startpos as usize as lua_Number) == startpos,
-            3,
-            c"start position must be an integer",
-        );
-        luaL_argcheck(
-            l,
-            (startpos as usize) <= len,
-            3,
-            c"start position must be less than or equal to the input string length",
-        );
-
-        let offset = (startpos as usize) - 1;
-        str_ptr = str_ptr.wrapping_add(offset);
-        len -= offset;
-        let result = lmpack_unpacker_unpack_str(l, &mut *unpacker, &mut str_ptr, &mut len);
-
-        if result == MPACK_EOF {
-            lua_pushnil(l);
-        }
-
-        lua_pushinteger(l, (str_ptr.offset_from(str_init) + 1) as lua_Integer);
-        debug_assert_eq!(lua_gettop(l), argc + 2);
-        2
     }
 }
 
 unsafe extern "C-unwind" fn lmpack_packer_new(l: *mut lua_State) -> i32 {
     unsafe {
-        if lua_gettop(l) > 1 {
-            return luaL_error(l, c"expecting at most 1 table argument".as_ptr());
-        }
-
-        let rv = &mut *lua_newuserdata(l, size_of::<Packer>()).cast::<Packer>();
-        ptr::write(
-            rv,
-            Packer {
-                lstate: l,
-                parser: MpackParser::new(0),
-                reg: LUA_NOREF,
-                ext: LUA_NOREF,
-                root: LUA_NOREF,
-                packing: 0,
-                mtdict: 0,
-                is_bin: 0,
-                is_bin_fn: LUA_NOREF,
-            },
-        );
-        mpack_parser_init(&mut rv.parser, 0);
-        rv.parser.data = MpackData::LmpackPacker(rv);
-        luaL_getmetatable(l, PACKER_META_NAME);
-        lua_setmetatable(l, -2);
-
-        lua_newtable(l);
-        rv.reg = luaL_ref(l, LUA_REGISTRYINDEX);
-        rv.ext = LUA_NOREF;
-
-        lua_getfield(l, LUA_REGISTRYINDEX, EMPTY_DICT_NAME);
-        rv.mtdict = lmpack_ref(l, rv.reg);
-
-        if lua_istable(l, 1) {
-            lua_getfield(l, 1, c"ext");
-            if !lua_isnil(l, -1) {
-                if !lua_istable(l, -1) {
-                    return luaL_error(l, c"\"ext\" option must be a table".as_ptr());
-                }
-                lmpack_shallow_copy(l);
+        {
+            if lua_gettop(l) > 1 {
+                return luaL_error(l, c"expecting at most 1 table argument".as_ptr());
             }
-            rv.ext = lmpack_ref(l, rv.reg);
 
-            lua_getfield(l, 1, c"is_bin");
-            if !lua_isnil(l, -1) {
-                if !lua_isboolean(l, -1) && !lua_isfunction(l, -1) {
-                    return luaL_error(
-                        l,
-                        c"\"is_bin\" option must be a boolean or function".as_ptr(),
-                    );
+            let rv = &mut *lua_newuserdata(l, size_of::<Packer>()).cast::<Packer>();
+            ptr::write(
+                rv,
+                Packer {
+                    lstate: l,
+                    parser: MpackParser::new(0),
+                    reg: LUA_NOREF,
+                    ext: LUA_NOREF,
+                    root: LUA_NOREF,
+                    packing: 0,
+                    mtdict: 0,
+                    is_bin: 0,
+                    is_bin_fn: LUA_NOREF,
+                },
+            );
+            mpack_parser_init(&mut rv.parser, 0);
+            rv.parser.data = MpackData::LmpackPacker(rv);
+            luaL_getmetatable(l, PACKER_META_NAME);
+            lua_setmetatable(l, -2);
+
+            lua_newtable(l);
+            rv.reg = luaL_ref(l, LUA_REGISTRYINDEX);
+            rv.ext = LUA_NOREF;
+
+            lua_getfield(l, LUA_REGISTRYINDEX, EMPTY_DICT_NAME);
+            rv.mtdict = lmpack_ref(l, rv.reg);
+
+            if lua_istable(l, 1) {
+                lua_getfield(l, 1, c"ext");
+                if !lua_isnil(l, -1) {
+                    if !lua_istable(l, -1) {
+                        return luaL_error(l, c"\"ext\" option must be a table".as_ptr());
+                    }
+                    lmpack_shallow_copy(l);
                 }
-                rv.is_bin = lua_toboolean(l, -1);
-                if lua_isfunction(l, -1) {
-                    rv.is_bin_fn = lmpack_ref(l, rv.reg);
+                rv.ext = lmpack_ref(l, rv.reg);
+
+                lua_getfield(l, 1, c"is_bin");
+                if !lua_isnil(l, -1) {
+                    if !lua_isboolean(l, -1) && !lua_isfunction(l, -1) {
+                        return luaL_error(
+                            l,
+                            c"\"is_bin\" option must be a boolean or function".as_ptr(),
+                        );
+                    }
+                    rv.is_bin = lua_toboolean(l, -1);
+                    if lua_isfunction(l, -1) {
+                        rv.is_bin_fn = lmpack_ref(l, rv.reg);
+                    } else {
+                        lua_pop(l, 1);
+                    }
                 } else {
                     lua_pop(l, 1);
                 }
-            } else {
-                lua_pop(l, 1);
             }
-        }
 
-        1
+            1
+        }
     }
 }
 
 unsafe extern "C-unwind" fn lmpack_packer_delete(l: *mut lua_State) -> i32 {
     unsafe {
-        let packer = lmpack_check_packer(l, 1);
-        if packer.ext != LUA_NOREF {
-            lmpack_unref(l, packer.reg, packer.ext);
+        {
+            let packer = lmpack_check_packer(l, 1);
+            if packer.ext != LUA_NOREF {
+                lmpack_unref(l, packer.reg, packer.ext);
+            }
+            luaL_unref(l, LUA_REGISTRYINDEX, packer.reg);
+            ptr::drop_in_place(packer);
+            0
         }
-        luaL_unref(l, LUA_REGISTRYINDEX, packer.reg);
-        ptr::drop_in_place(packer);
-        0
     }
 }
 
@@ -723,431 +733,451 @@ fn lmpack_unparse_exit(parser: &mut MpackParser, node: &mut MpackNode) {
 
 unsafe extern "C-unwind" fn lmpack_packer_pack(l: *mut lua_State) -> i32 {
     unsafe {
-        let argc = lua_gettop(l);
-        if argc != 2 {
-            return luaL_error(l, c"expecting exactly 2 arguments".as_ptr());
-        }
+        {
+            let argc = lua_gettop(l);
+            if argc != 2 {
+                return luaL_error(l, c"expecting exactly 2 arguments".as_ptr());
+            }
 
-        let packer = lmpack_check_packer(l, 1);
-        packer.lstate = l;
-        packer.root = lmpack_ref(l, packer.reg);
-        let mut buffer = luaL_Buffer::new();
-        luaL_buffinit(l, &mut buffer);
-        let mut b = luaL_prepbuffer(&mut buffer);
-        let mut bl = LUAL_BUFFERSIZE;
+            let packer = lmpack_check_packer(l, 1);
+            packer.lstate = l;
+            packer.root = lmpack_ref(l, packer.reg);
+            let mut buffer = luaL_Buffer::new();
+            luaL_buffinit(l, &mut buffer);
+            let mut b = luaL_prepbuffer(&mut buffer);
+            let mut bl = LUAL_BUFFERSIZE;
 
-        if packer.packing != 0 {
-            return luaL_error(
+            if packer.packing != 0 {
+                return luaL_error(
                 l,
                 c"Packer instance already working. Use another Packer or mpack.encode() if you need to encode from the ext handler".as_ptr(),
             );
+            }
+
+            loop {
+                let bl_init = bl;
+                packer.packing = 1;
+                let result = mpack_unparse(
+                    &mut packer.parser,
+                    &mut b,
+                    &mut bl,
+                    Some(lmpack_unparse_enter),
+                    Some(lmpack_unparse_exit),
+                );
+                packer.packing = 0;
+
+                if result == MPACK_NOMEM {
+                    mpack_parser_grow(&mut packer.parser);
+                }
+
+                luaL_addsize(&mut buffer, bl_init - bl);
+
+                if bl == 0 {
+                    b = luaL_prepbuffer(&mut buffer);
+                    bl = LUAL_BUFFERSIZE;
+                }
+
+                if result != MPACK_EOF && result != MPACK_NOMEM {
+                    break;
+                }
+            }
+
+            lmpack_unref(l, packer.reg, packer.root);
+            luaL_pushresult(&mut buffer);
+            debug_assert_eq!(lua_gettop(l), argc);
+            1
         }
-
-        loop {
-            let bl_init = bl;
-            packer.packing = 1;
-            let result = mpack_unparse(
-                &mut packer.parser,
-                &mut b,
-                &mut bl,
-                Some(lmpack_unparse_enter),
-                Some(lmpack_unparse_exit),
-            );
-            packer.packing = 0;
-
-            if result == MPACK_NOMEM {
-                mpack_parser_grow(&mut packer.parser);
-            }
-
-            luaL_addsize(&mut buffer, bl_init - bl);
-
-            if bl == 0 {
-                b = luaL_prepbuffer(&mut buffer);
-                bl = LUAL_BUFFERSIZE;
-            }
-
-            if result != MPACK_EOF && result != MPACK_NOMEM {
-                break;
-            }
-        }
-
-        lmpack_unref(l, packer.reg, packer.root);
-        luaL_pushresult(&mut buffer);
-        debug_assert_eq!(lua_gettop(l), argc);
-        1
     }
 }
 
 unsafe extern "C-unwind" fn lmpack_session_new(l: *mut lua_State) -> i32 {
     unsafe {
-        let rv = lua_newuserdata(l, size_of::<Session>()).cast::<Session>();
-        let rv = { &mut *rv };
-        ptr::write(
-            rv,
-            Session {
-                lstate: l,
-                reg: LUA_NOREF,
-                session: MpackRpcSession::new(0),
-                unpacked: UnpackedState {
-                    r#type: MPACK_EOF,
-                    msg: MpackRpcMessage {
-                        id: 0,
-                        data: MpackData::new(),
+        {
+            let rv = lua_newuserdata(l, size_of::<Session>()).cast::<Session>();
+            let rv = { &mut *rv };
+            ptr::write(
+                rv,
+                Session {
+                    lstate: l,
+                    reg: LUA_NOREF,
+                    session: MpackRpcSession::new(0),
+                    unpacked: UnpackedState {
+                        r#type: MPACK_EOF,
+                        msg: MpackRpcMessage {
+                            id: 0,
+                            data: MpackData::new(),
+                        },
+                        method_or_error: LUA_NOREF,
+                        args_or_result: LUA_NOREF,
                     },
-                    method_or_error: LUA_NOREF,
-                    args_or_result: LUA_NOREF,
+                    unpacker: LUA_REFNIL,
                 },
-                unpacker: LUA_REFNIL,
-            },
-        );
-        luaL_getmetatable(l, SESSION_META_NAME);
-        lua_setmetatable(l, -2);
+            );
+            luaL_getmetatable(l, SESSION_META_NAME);
+            lua_setmetatable(l, -2);
 
-        lua_newtable(l);
-        rv.reg = luaL_ref(l, LUA_REGISTRYINDEX);
+            lua_newtable(l);
+            rv.reg = luaL_ref(l, LUA_REGISTRYINDEX);
 
-        if lua_istable(l, 1) {
-            lua_getfield(l, 1, c"unpack");
-            if !lmpack_isunpacker(l, -1) {
-                return luaL_error(
-                    l,
-                    c"\"unpack\" option must be a mpack.Unpacker instance".as_ptr(),
-                );
+            if lua_istable(l, 1) {
+                lua_getfield(l, 1, c"unpack");
+                if !lmpack_isunpacker(l, -1) {
+                    return luaL_error(
+                        l,
+                        c"\"unpack\" option must be a mpack.Unpacker instance".as_ptr(),
+                    );
+                }
+                rv.unpacker = lmpack_ref(l, rv.reg);
             }
-            rv.unpacker = lmpack_ref(l, rv.reg);
-        }
 
-        1
+            1
+        }
     }
 }
 
 unsafe extern "C-unwind" fn lmpack_session_delete(l: *mut lua_State) -> i32 {
     unsafe {
-        let session = lmpack_check_session(l, 1);
-        lmpack_unref(l, session.reg, session.unpacker);
-        luaL_unref(l, LUA_REGISTRYINDEX, session.reg);
-        ptr::drop_in_place(session);
-        0
+        {
+            let session = lmpack_check_session(l, 1);
+            lmpack_unref(l, session.reg, session.unpacker);
+            luaL_unref(l, LUA_REGISTRYINDEX, session.reg);
+            ptr::drop_in_place(session);
+            0
+        }
     }
 }
 
 unsafe extern "C-unwind" fn lmpack_session_receive(l: *mut lua_State) -> i32 {
     unsafe {
-        let argc = lua_gettop(l);
-        if !(2..=3).contains(&argc) {
-            return luaL_error(l, c"expecting between 2 and 3 arguments".as_ptr());
-        }
+        {
+            let argc = lua_gettop(l);
+            if !(2..=3).contains(&argc) {
+                return luaL_error(l, c"expecting between 2 and 3 arguments".as_ptr());
+            }
 
-        let mut rcount: i32 = 3;
-        let session = lmpack_check_session(l, 1);
-        let mut len: usize = 0;
-        let str_init = luaL_checklstring(l, 2, &mut len);
-        let mut str_ptr = str_init;
-        let startpos = if argc == 3 {
-            luaL_checknumber(l, 3)
-        } else {
-            1.0
-        };
+            let mut rcount: i32 = 3;
+            let session = lmpack_check_session(l, 1);
+            let mut len: usize = 0;
+            let str_init = luaL_checklstring(l, 2, &mut len);
+            let mut str_ptr = str_init;
+            let startpos = if argc == 3 {
+                luaL_checknumber(l, 3)
+            } else {
+                1.0
+            };
 
-        luaL_argcheck(
-            l,
-            startpos > 0.0,
-            3,
-            c"start position must be greater than zero",
-        );
-        luaL_argcheck(
-            l,
-            (startpos as usize as lua_Number) == startpos,
-            3,
-            c"start position must be an integer",
-        );
-        luaL_argcheck(
-            l,
-            (startpos as usize) <= len,
-            3,
-            c"start position must be less than or equal to the input string length",
-        );
+            luaL_argcheck(
+                l,
+                startpos > 0.0,
+                3,
+                c"start position must be greater than zero",
+            );
+            luaL_argcheck(
+                l,
+                (startpos as usize as lua_Number) == startpos,
+                3,
+                c"start position must be an integer",
+            );
+            luaL_argcheck(
+                l,
+                (startpos as usize) <= len,
+                3,
+                c"start position must be less than or equal to the input string length",
+            );
 
-        let offset = (startpos as usize) - 1;
-        str_ptr = str_ptr.wrapping_add(offset);
-        len -= offset;
+            let offset = (startpos as usize) - 1;
+            str_ptr = str_ptr.wrapping_add(offset);
+            len -= offset;
 
-        let mut unpacker: *mut LmpackUnpacker = ptr::null_mut();
-        if session.unpacker != LUA_REFNIL {
-            lmpack_geti(l, session.reg, session.unpacker);
-            unpacker = lmpack_check_unpacker(l, -1);
-            (*unpacker).lstate = l;
-            rcount += 2;
-            lua_pop(l, 1);
-        }
+            let mut unpacker: *mut LmpackUnpacker = ptr::null_mut();
+            if session.unpacker != LUA_REFNIL {
+                lmpack_geti(l, session.reg, session.unpacker);
+                unpacker = lmpack_check_unpacker(l, -1);
+                (*unpacker).lstate = l;
+                rcount += 2;
+                lua_pop(l, 1);
+            }
 
-        loop {
-            if session.unpacked.r#type == MPACK_EOF {
-                session.unpacked.r#type = mpack_rpc_receive(
-                    &mut session.session,
-                    &mut str_ptr,
-                    &mut len,
-                    &mut session.unpacked.msg,
-                );
+            loop {
+                if session.unpacked.r#type == MPACK_EOF {
+                    session.unpacked.r#type = mpack_rpc_receive(
+                        &mut session.session,
+                        &mut str_ptr,
+                        &mut len,
+                        &mut session.unpacked.msg,
+                    );
 
-                if unpacker.is_null() || session.unpacked.r#type == MPACK_EOF {
+                    if unpacker.is_null() || session.unpacked.r#type == MPACK_EOF {
+                        break;
+                    }
+                }
+
+                let result = lmpack_unpacker_unpack_str(l, &mut *unpacker, &mut str_ptr, &mut len);
+                if result == MPACK_EOF {
+                    break;
+                }
+
+                if session.unpacked.method_or_error == LUA_NOREF {
+                    session.unpacked.method_or_error = lmpack_ref(l, session.reg);
+                } else {
+                    session.unpacked.args_or_result = lmpack_ref(l, session.reg);
                     break;
                 }
             }
 
-            let result = lmpack_unpacker_unpack_str(l, &mut *unpacker, &mut str_ptr, &mut len);
-            if result == MPACK_EOF {
-                break;
-            }
+            let done = session.unpacked.r#type != MPACK_EOF
+                && (session.unpacked.args_or_result != LUA_NOREF || unpacker.is_null());
 
-            if session.unpacked.method_or_error == LUA_NOREF {
-                session.unpacked.method_or_error = lmpack_ref(l, session.reg);
-            } else {
-                session.unpacked.args_or_result = lmpack_ref(l, session.reg);
-                break;
-            }
-        }
-
-        let done = session.unpacked.r#type != MPACK_EOF
-            && (session.unpacked.args_or_result != LUA_NOREF || unpacker.is_null());
-
-        if !done {
-            lua_pushnil(l);
-            lua_pushnil(l);
-            if !unpacker.is_null() {
+            if !done {
                 lua_pushnil(l);
                 lua_pushnil(l);
-            }
-        } else {
-            match session.unpacked.r#type {
-                MPACK_RPC_REQUEST => {
-                    lua_pushstring(l, c"request");
-                    lua_pushnumber(l, lua_Number::from(session.unpacked.msg.id));
-                }
-                MPACK_RPC_RESPONSE => {
-                    lua_pushstring(l, c"response");
-                    lmpack_geti(l, session.reg, session.unpacked.msg.data.i() as i32);
-                }
-                MPACK_RPC_NOTIFICATION => {
-                    lua_pushstring(l, c"notification");
+                if !unpacker.is_null() {
+                    lua_pushnil(l);
                     lua_pushnil(l);
                 }
-                _ => {
-                    return luaL_error(l, c"invalid msgpack-rpc string".as_ptr());
+            } else {
+                match session.unpacked.r#type {
+                    MPACK_RPC_REQUEST => {
+                        lua_pushstring(l, c"request");
+                        lua_pushnumber(l, lua_Number::from(session.unpacked.msg.id));
+                    }
+                    MPACK_RPC_RESPONSE => {
+                        lua_pushstring(l, c"response");
+                        lmpack_geti(l, session.reg, session.unpacked.msg.data.i() as i32);
+                    }
+                    MPACK_RPC_NOTIFICATION => {
+                        lua_pushstring(l, c"notification");
+                        lua_pushnil(l);
+                    }
+                    _ => {
+                        return luaL_error(l, c"invalid msgpack-rpc string".as_ptr());
+                    }
+                }
+
+                session.unpacked.r#type = MPACK_EOF;
+
+                if !unpacker.is_null() {
+                    lmpack_geti(l, session.reg, session.unpacked.method_or_error);
+                    lmpack_geti(l, session.reg, session.unpacked.args_or_result);
+                    lmpack_unref(l, session.reg, session.unpacked.method_or_error);
+                    lmpack_unref(l, session.reg, session.unpacked.args_or_result);
+                    session.unpacked.method_or_error = LUA_NOREF;
+                    session.unpacked.args_or_result = LUA_NOREF;
                 }
             }
 
-            session.unpacked.r#type = MPACK_EOF;
-
-            if !unpacker.is_null() {
-                lmpack_geti(l, session.reg, session.unpacked.method_or_error);
-                lmpack_geti(l, session.reg, session.unpacked.args_or_result);
-                lmpack_unref(l, session.reg, session.unpacked.method_or_error);
-                lmpack_unref(l, session.reg, session.unpacked.args_or_result);
-                session.unpacked.method_or_error = LUA_NOREF;
-                session.unpacked.args_or_result = LUA_NOREF;
-            }
+            lua_pushinteger(l, (str_ptr.offset_from(str_init) + 1) as lua_Integer);
+            rcount
         }
-
-        lua_pushinteger(l, (str_ptr.offset_from(str_init) + 1) as lua_Integer);
-        rcount
     }
 }
 
 unsafe extern "C-unwind" fn lmpack_session_request(l: *mut lua_State) -> i32 {
     unsafe {
-        if !(1..=2).contains(&lua_gettop(l)) {
-            return luaL_error(l, c"expecting 1 or 2 arguments".as_ptr());
-        }
-
-        let mut buf = [0 as c_char; 16];
-        let mut b = buf.as_mut_ptr();
-        let mut bl = buf.len();
-        let session = lmpack_check_session(l, 1);
-        let data = MpackData::Int(MpackSintmax::from(if lua_isnoneornil(l, 2) {
-            LUA_NOREF
-        } else {
-            lmpack_ref(l, session.reg)
-        }));
-
-        let mut result: i32;
-        loop {
-            result = mpack_rpc_request(&mut session.session, &mut b, &mut bl, data.clone());
-            if result == MPACK_NOMEM {
-                mpack_rpc_session_grow(&mut session.session);
-            } else {
-                break;
+        {
+            if !(1..=2).contains(&lua_gettop(l)) {
+                return luaL_error(l, c"expecting 1 or 2 arguments".as_ptr());
             }
-        }
 
-        debug_assert_eq!(result, MPACK_OK);
-        lua_pushlstring(l, buf.as_ptr(), buf.len() - bl);
-        1
+            let mut buf = [0 as c_char; 16];
+            let mut b = buf.as_mut_ptr();
+            let mut bl = buf.len();
+            let session = lmpack_check_session(l, 1);
+            let data = MpackData::Int(MpackSintmax::from(if lua_isnoneornil(l, 2) {
+                LUA_NOREF
+            } else {
+                lmpack_ref(l, session.reg)
+            }));
+
+            let mut result: i32;
+            loop {
+                result = mpack_rpc_request(&mut session.session, &mut b, &mut bl, data.clone());
+                if result == MPACK_NOMEM {
+                    mpack_rpc_session_grow(&mut session.session);
+                } else {
+                    break;
+                }
+            }
+
+            debug_assert_eq!(result, MPACK_OK);
+            lua_pushlstring(l, buf.as_ptr(), buf.len() - bl);
+            1
+        }
     }
 }
 
 unsafe extern "C-unwind" fn lmpack_session_reply(l: *mut lua_State) -> i32 {
     unsafe {
-        if lua_gettop(l) != 2 {
-            return luaL_error(l, c"expecting exactly 2 arguments".as_ptr());
-        }
+        {
+            if lua_gettop(l) != 2 {
+                return luaL_error(l, c"expecting exactly 2 arguments".as_ptr());
+            }
 
-        let mut buf = [0 as c_char; 16];
-        let mut b = buf.as_mut_ptr();
-        let mut bl = buf.len();
-        let session = lmpack_check_session(l, 1);
-        let id = lua_tonumber(l, 2);
-        luaL_argcheck(
-            l,
-            (id as usize as lua_Number) == id && (0.0..=4294967295.0).contains(&id),
-            2,
-            c"invalid request id",
-        );
-        let result = mpack_rpc_reply(&mut session.session, &mut b, &mut bl, id as MpackUint32);
-        debug_assert_eq!(result, MPACK_OK);
-        lua_pushlstring(l, buf.as_ptr(), buf.len() - bl);
-        1
+            let mut buf = [0 as c_char; 16];
+            let mut b = buf.as_mut_ptr();
+            let mut bl = buf.len();
+            let session = lmpack_check_session(l, 1);
+            let id = lua_tonumber(l, 2);
+            luaL_argcheck(
+                l,
+                (id as usize as lua_Number) == id && (0.0..=4294967295.0).contains(&id),
+                2,
+                c"invalid request id",
+            );
+            let result = mpack_rpc_reply(&mut session.session, &mut b, &mut bl, id as MpackUint32);
+            debug_assert_eq!(result, MPACK_OK);
+            lua_pushlstring(l, buf.as_ptr(), buf.len() - bl);
+            1
+        }
     }
 }
 
 unsafe extern "C-unwind" fn lmpack_session_notify(l: *mut lua_State) -> i32 {
     unsafe {
-        if lua_gettop(l) != 1 {
-            return luaL_error(l, c"expecting exactly 1 argument".as_ptr());
-        }
+        {
+            if lua_gettop(l) != 1 {
+                return luaL_error(l, c"expecting exactly 1 argument".as_ptr());
+            }
 
-        let mut buf = [0 as c_char; 16];
-        let mut b = buf.as_mut_ptr();
-        let mut bl = buf.len();
-        let session = lmpack_check_session(l, 1);
-        let result = mpack_rpc_notify(&mut session.session, &mut b, &mut bl);
-        debug_assert_eq!(result, MPACK_OK);
-        lua_pushlstring(l, buf.as_ptr(), buf.len() - bl);
-        1
+            let mut buf = [0 as c_char; 16];
+            let mut b = buf.as_mut_ptr();
+            let mut bl = buf.len();
+            let session = lmpack_check_session(l, 1);
+            let result = mpack_rpc_notify(&mut session.session, &mut b, &mut bl);
+            debug_assert_eq!(result, MPACK_OK);
+            lua_pushlstring(l, buf.as_ptr(), buf.len() - bl);
+            1
+        }
     }
 }
 
 unsafe extern "C-unwind" fn lmpack_nil_tostring(l: *mut lua_State) -> i32 {
     unsafe {
-        lua_pushfstring(l, NIL_NAME.as_ptr(), lua_topointer(l, 1));
+        {
+            lua_pushfstring(l, NIL_NAME.as_ptr(), lua_topointer(l, 1));
+        }
+        1
     }
-    1
 }
 
 unsafe extern "C-unwind" fn lmpack_unpack(l: *mut lua_State) -> i32 {
     unsafe {
-        if lua_gettop(l) != 1 {
-            return luaL_error(l, c"expecting exactly 1 argument".as_ptr());
+        {
+            if lua_gettop(l) != 1 {
+                return luaL_error(l, c"expecting exactly 1 argument".as_ptr());
+            }
+
+            let mut len: usize = 0;
+            let mut str_ptr = luaL_checklstring(l, 1, &mut len);
+
+            lua_newtable(l);
+            let reg = luaL_ref(l, LUA_REGISTRYINDEX);
+            let mut unpacker = LmpackUnpacker {
+                lstate: l,
+                parser: MpackParser::new(0),
+                reg,
+                ext: LUA_NOREF,
+                unpacking: 0,
+                mtdict: 0,
+                string_buffer: Vec::new(),
+            };
+            mpack_parser_init(&mut unpacker.parser, 0);
+            unpacker.parser.data = MpackData::LmpackUnpacker(&raw mut unpacker);
+
+            lua_getfield(l, LUA_REGISTRYINDEX, EMPTY_DICT_NAME);
+            unpacker.mtdict = lmpack_ref(l, unpacker.reg);
+
+            let result = mpack_parse(
+                &mut unpacker.parser,
+                &mut str_ptr,
+                &mut len,
+                Some(lmpack_parse_enter),
+                Some(lmpack_parse_exit),
+            );
+
+            luaL_unref(l, LUA_REGISTRYINDEX, unpacker.reg);
+
+            if result == MPACK_NOMEM {
+                return luaL_error(l, c"object was too deep to unpack".as_ptr());
+            } else if result == MPACK_EOF {
+                return luaL_error(l, c"incomplete msgpack string".as_ptr());
+            } else if result == MPACK_ERROR {
+                return luaL_error(l, c"invalid msgpack string".as_ptr());
+            } else if result == MPACK_OK && len != 0 {
+                return luaL_error(l, c"trailing data in msgpack string".as_ptr());
+            }
+
+            debug_assert_eq!(result, MPACK_OK);
+            1
         }
-
-        let mut len: usize = 0;
-        let mut str_ptr = luaL_checklstring(l, 1, &mut len);
-
-        lua_newtable(l);
-        let reg = luaL_ref(l, LUA_REGISTRYINDEX);
-        let mut unpacker = LmpackUnpacker {
-            lstate: l,
-            parser: MpackParser::new(0),
-            reg,
-            ext: LUA_NOREF,
-            unpacking: 0,
-            mtdict: 0,
-            string_buffer: Vec::new(),
-        };
-        mpack_parser_init(&mut unpacker.parser, 0);
-        unpacker.parser.data = MpackData::LmpackUnpacker(&raw mut unpacker);
-
-        lua_getfield(l, LUA_REGISTRYINDEX, EMPTY_DICT_NAME);
-        unpacker.mtdict = lmpack_ref(l, unpacker.reg);
-
-        let result = mpack_parse(
-            &mut unpacker.parser,
-            &mut str_ptr,
-            &mut len,
-            Some(lmpack_parse_enter),
-            Some(lmpack_parse_exit),
-        );
-
-        luaL_unref(l, LUA_REGISTRYINDEX, unpacker.reg);
-
-        if result == MPACK_NOMEM {
-            return luaL_error(l, c"object was too deep to unpack".as_ptr());
-        } else if result == MPACK_EOF {
-            return luaL_error(l, c"incomplete msgpack string".as_ptr());
-        } else if result == MPACK_ERROR {
-            return luaL_error(l, c"invalid msgpack string".as_ptr());
-        } else if result == MPACK_OK && len != 0 {
-            return luaL_error(l, c"trailing data in msgpack string".as_ptr());
-        }
-
-        debug_assert_eq!(result, MPACK_OK);
-        1
     }
 }
 
 unsafe extern "C-unwind" fn lmpack_pack(l: *mut lua_State) -> i32 {
     unsafe {
-        if lua_gettop(l) != 1 {
-            return luaL_error(l, c"expecting exactly 1 argument".as_ptr());
+        {
+            if lua_gettop(l) != 1 {
+                return luaL_error(l, c"expecting exactly 1 argument".as_ptr());
+            }
+
+            lua_newtable(l);
+            let reg = luaL_ref(l, LUA_REGISTRYINDEX);
+            let root = lmpack_ref(l, reg);
+            let mut packer = Packer {
+                lstate: l,
+                parser: MpackParser::new(0),
+                reg,
+                ext: LUA_NOREF,
+                root,
+                packing: 0,
+                mtdict: 0,
+                is_bin: 0,
+                is_bin_fn: LUA_NOREF,
+            };
+            mpack_parser_init(&mut packer.parser, 0);
+            packer.parser.data = MpackData::LmpackPacker(&raw mut packer);
+
+            lua_getfield(l, LUA_REGISTRYINDEX, EMPTY_DICT_NAME);
+            packer.mtdict = lmpack_ref(l, packer.reg);
+
+            let mut buffer = luaL_Buffer::new();
+            luaL_buffinit(l, &mut buffer);
+            let mut b = luaL_prepbuffer(&mut buffer);
+            let mut bl = LUAL_BUFFERSIZE;
+
+            loop {
+                let bl_init = bl;
+                let result = mpack_unparse(
+                    &mut packer.parser,
+                    &mut b,
+                    &mut bl,
+                    Some(lmpack_unparse_enter),
+                    Some(lmpack_unparse_exit),
+                );
+
+                if result == MPACK_NOMEM {
+                    lmpack_unref(l, packer.reg, packer.root);
+                    luaL_unref(l, LUA_REGISTRYINDEX, packer.reg);
+                    return luaL_error(l, c"object was too deep to pack".as_ptr());
+                }
+
+                luaL_addsize(&mut buffer, bl_init - bl);
+
+                if bl == 0 {
+                    b = luaL_prepbuffer(&mut buffer);
+                    bl = LUAL_BUFFERSIZE;
+                }
+
+                if result != MPACK_EOF {
+                    break;
+                }
+            }
+
+            lmpack_unref(l, packer.reg, packer.root);
+            luaL_unref(l, LUA_REGISTRYINDEX, packer.reg);
+            luaL_pushresult(&mut buffer);
+            1
         }
-
-        lua_newtable(l);
-        let reg = luaL_ref(l, LUA_REGISTRYINDEX);
-        let root = lmpack_ref(l, reg);
-        let mut packer = Packer {
-            lstate: l,
-            parser: MpackParser::new(0),
-            reg,
-            ext: LUA_NOREF,
-            root,
-            packing: 0,
-            mtdict: 0,
-            is_bin: 0,
-            is_bin_fn: LUA_NOREF,
-        };
-        mpack_parser_init(&mut packer.parser, 0);
-        packer.parser.data = MpackData::LmpackPacker(&raw mut packer);
-
-        lua_getfield(l, LUA_REGISTRYINDEX, EMPTY_DICT_NAME);
-        packer.mtdict = lmpack_ref(l, packer.reg);
-
-        let mut buffer = luaL_Buffer::new();
-        luaL_buffinit(l, &mut buffer);
-        let mut b = luaL_prepbuffer(&mut buffer);
-        let mut bl = LUAL_BUFFERSIZE;
-
-        loop {
-            let bl_init = bl;
-            let result = mpack_unparse(
-                &mut packer.parser,
-                &mut b,
-                &mut bl,
-                Some(lmpack_unparse_enter),
-                Some(lmpack_unparse_exit),
-            );
-
-            if result == MPACK_NOMEM {
-                lmpack_unref(l, packer.reg, packer.root);
-                luaL_unref(l, LUA_REGISTRYINDEX, packer.reg);
-                return luaL_error(l, c"object was too deep to pack".as_ptr());
-            }
-
-            luaL_addsize(&mut buffer, bl_init - bl);
-
-            if bl == 0 {
-                b = luaL_prepbuffer(&mut buffer);
-                bl = LUAL_BUFFERSIZE;
-            }
-
-            if result != MPACK_EOF {
-                break;
-            }
-        }
-
-        lmpack_unref(l, packer.reg, packer.root);
-        luaL_unref(l, LUA_REGISTRYINDEX, packer.reg);
-        luaL_pushresult(&mut buffer);
-        1
     }
 }
 

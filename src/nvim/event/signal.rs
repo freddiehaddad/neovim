@@ -83,13 +83,15 @@ pub fn signal_event(watcher: &mut SignalWatcher) {
 
 unsafe extern "C" fn signal_watcher_cb(handle: *mut uv_signal_t, signum: i32) {
     unsafe {
-        let watcher = *handle.cast::<*mut SignalWatcher>();
-        (*watcher).signum = signum;
-        let events = (*watcher).events;
-        if !events.is_null() {
-            multiqueue_put_event(&mut *events, Event::Signal(watcher));
-        } else {
-            signal_event(&mut *watcher);
+        {
+            let watcher = *handle.cast::<*mut SignalWatcher>();
+            (*watcher).signum = signum;
+            let events = (*watcher).events;
+            if !events.is_null() {
+                multiqueue_put_event(&mut *events, Event::Signal(watcher));
+            } else {
+                signal_event(&mut *watcher);
+            }
         }
     }
 }

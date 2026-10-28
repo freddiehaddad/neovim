@@ -629,7 +629,7 @@ mod unix_impl {
     }
 
     unsafe extern "C" fn chld_handler(handle: *mut uv_signal_t, _signum: i32) {
-        unsafe {
+        {
             let mut stat: i32 = 0;
             let uv_loop = uv_handle_get_loop(handle.cast());
             let loop_ = *uv_loop.cast::<*mut Loop>();

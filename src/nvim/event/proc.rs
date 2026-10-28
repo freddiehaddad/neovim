@@ -378,29 +378,31 @@ pub fn proc_stop(proc_: &mut Proc) {
 
 unsafe extern "C" fn children_kill_cb(handle: *mut uv_timer_t) {
     unsafe {
-        let uv_loop = uv_handle_get_loop(handle.cast());
-        let loop_ = *uv_loop.cast::<*mut Loop>();
-        let qc = loop_queues(&mut *loop_);
+        {
+            let uv_loop = uv_handle_get_loop(handle.cast());
+            let loop_ = *uv_loop.cast::<*mut Loop>();
+            let qc = loop_queues(&mut *loop_);
 
-        for &proc_ in &qc.children {
-            let exited = (*proc_).status >= 0;
-            if exited || (*proc_).stopped_time == 0 {
-                continue;
-            }
-            let term_sent = (*proc_).stopped_time == u64::MAX;
-            if (*proc_).r#type != K_PROC_TYPE_PTY || term_sent {
-                (*proc_).exit_signal = SIGKILL as u8;
-                os_proc_tree_kill((*proc_).pid, SIGKILL);
-            } else {
-                (*proc_).exit_signal = SIGTERM as u8;
-                os_proc_tree_kill((*proc_).pid, SIGTERM);
-                (*proc_).stopped_time = u64::MAX;
-                uv_timer_start(
-                    loop_children_kill_timer(&mut *(*proc_).loop_),
-                    Some(children_kill_cb),
-                    KILL_TIMEOUT_MS,
-                    0,
-                );
+            for &proc_ in &qc.children {
+                let exited = (*proc_).status >= 0;
+                if exited || (*proc_).stopped_time == 0 {
+                    continue;
+                }
+                let term_sent = (*proc_).stopped_time == u64::MAX;
+                if (*proc_).r#type != K_PROC_TYPE_PTY || term_sent {
+                    (*proc_).exit_signal = SIGKILL as u8;
+                    os_proc_tree_kill((*proc_).pid, SIGKILL);
+                } else {
+                    (*proc_).exit_signal = SIGTERM as u8;
+                    os_proc_tree_kill((*proc_).pid, SIGTERM);
+                    (*proc_).stopped_time = u64::MAX;
+                    uv_timer_start(
+                        loop_children_kill_timer(&mut *(*proc_).loop_),
+                        Some(children_kill_cb),
+                        KILL_TIMEOUT_MS,
+                        0,
+                    );
+                }
             }
         }
     }
@@ -521,12 +523,14 @@ pub fn proc_close_handles(proc_: &mut Proc) {
 
 unsafe extern "C" fn exit_delay_cb(_handle: *mut uv_timer_t) {
     unsafe {
-        let mloop = main_loop_ptr();
-        let exit_timer = loop_exit_delay_timer(&mut *mloop);
-        uv_timer_stop(exit_timer);
-        let qc = loop_queues(&mut *mloop);
-        let status = proc_st().exit_delay_status;
-        multiqueue_put_event(&mut *qc.fast_events, Event::ProcExit(status));
+        {
+            let mloop = main_loop_ptr();
+            let exit_timer = loop_exit_delay_timer(&mut *mloop);
+            uv_timer_stop(exit_timer);
+            let qc = loop_queues(&mut *mloop);
+            let status = proc_st().exit_delay_status;
+            multiqueue_put_event(&mut *qc.fast_events, Event::ProcExit(status));
+        }
     }
 }
 

@@ -323,27 +323,31 @@ pub fn libuv_proc_close(uvproc: &mut LibuvProc) {
 
 unsafe extern "C" fn close_cb(handle: *mut uv_handle_t) {
     unsafe {
-        let proc_ = *handle.cast::<*mut Proc>();
-        crate::event::proc::proc_decref(&mut *proc_);
-        let uvproc = proc_.cast::<LibuvProc>();
-        let uvproc = { &mut *uvproc };
-        uvproc.env_ptrs.clear();
-        uvproc.env_vec.clear();
-        uvproc.uvopts.env = ptr::null_mut();
+        {
+            let proc_ = *handle.cast::<*mut Proc>();
+            crate::event::proc::proc_decref(&mut *proc_);
+            let uvproc = proc_.cast::<LibuvProc>();
+            let uvproc = { &mut *uvproc };
+            uvproc.env_ptrs.clear();
+            uvproc.env_vec.clear();
+            uvproc.uvopts.env = ptr::null_mut();
+        }
     }
 }
 
 unsafe extern "C" fn exit_cb(handle: *mut uv_process_t, status: i64, term_signal: i32) {
     unsafe {
-        let proc_ = *handle.cast::<*mut Proc>();
-        #[cfg(windows)]
-        let sig = {
-            let _ = term_signal;
-            i32::from((*proc_).exit_signal)
-        };
-        #[cfg(not(windows))]
-        let sig = term_signal;
-        (*proc_).status = if sig != 0 { 128 + sig } else { status as i32 };
-        crate::event::proc::on_proc_exit(&mut *proc_);
+        {
+            let proc_ = *handle.cast::<*mut Proc>();
+            #[cfg(windows)]
+            let sig = {
+                let _ = term_signal;
+                i32::from((*proc_).exit_signal)
+            };
+            #[cfg(not(windows))]
+            let sig = term_signal;
+            (*proc_).status = if sig != 0 { 128 + sig } else { status as i32 };
+            crate::event::proc::on_proc_exit(&mut *proc_);
+        }
     }
 }
