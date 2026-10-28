@@ -1001,7 +1001,7 @@ pub fn time_init(fname: *const c_char, proc_name: *const c_char) {
         const BUFSIZE: usize = 8192;
         g_st().time_fd = crate::os::fs::CFile::from_raw(fopen(fname, c"a".as_ptr()));
         let Some(ref tf) = g_st().time_fd else {
-            let fname_str = CStr::from_ptr(fname).to_string_lossy();
+            let fname_str = crate::memory::cstr_lossy(fname);
             eprint!("E484: Can't open file {fname_str}");
             return;
         };
@@ -1016,7 +1016,7 @@ pub fn time_init(fname: *const c_char, proc_name: *const c_char) {
         if r != 0 {
             prof_st().STARTUPTIME_BUF = Vec::new();
             g_st().time_fd = None;
-            let err_str = CStr::from_ptr(uv_err_name(r)).to_string_lossy();
+            let err_str = crate::memory::cstr_lossy(uv_err_name(r));
             eprint!("time_init: setvbuf failed: {r} {err_str}");
             return;
         }

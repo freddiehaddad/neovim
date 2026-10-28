@@ -886,7 +886,7 @@ pub fn ex_sort(eap: &mut exarg_T) {
                 let bytelen: colnr_T = ml_get_len(get_lnum) + 1;
                 old_count += bytelen as bcount_t;
                 if !unique || i == 0 || string_compare(s, sortbuf1) != 0 {
-                    { std::ptr::copy_nonoverlapping(s, sortbuf1, std::ffi::CStr::from_ptr(s).to_bytes_with_nul().len()); };
+                    crate::memory::cstr_cpy(sortbuf1, s);
                     if !ml_append(lnum, sortbuf1, 0, false) {
                         break;
                     }
@@ -1507,7 +1507,7 @@ pub fn do_bang(
                     .as_ref()
                     .unwrap()
                     .as_ptr();
-                let cmd = vim_strsave_escaped(std::ffi::CStr::from_ptr(prev_ptr.cast_mut()), c"%#");
+                let cmd = vim_strsave_escaped(prev_ptr.cast_mut(), c"%#");
                 redo_append_lit(cmd.as_ptr().cast_mut(), -1);
                 redo_append_str(c"\n", 1);
                 g_st().bangredo = false;
@@ -4244,8 +4244,8 @@ fn do_sub(
                                     orig_line =
                                         SubBuf::from_cbuf(ml_get(lnum), ml_get_len(lnum) as usize);
                                     let new_line = concat_str(
-                                        std::ffi::CStr::from_ptr(new_start.data()),
-                                        std::ffi::CStr::from_ptr(sub_firstline.data().add(copycol as usize)),
+                                        new_start.data(),
+                                        sub_firstline.data().add(copycol as usize),
                                     );
                                     let new_line_size =
                                         new_start.size + (sub_firstline.size - copycol as usize);

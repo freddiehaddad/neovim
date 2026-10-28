@@ -4167,7 +4167,7 @@ pub fn intro_message(colon: bool) {
                 let formatted_cstr: Option<CString>;
 
                 let mesg: *const c_char = if crate::memory::cstr_as_bytes(p).windows(4).any(|w| w == b"news") {
-                    let fmt_str = CStr::from_ptr(gettext(p)).to_string_lossy();
+                    let fmt_str = crate::memory::cstr_lossy(gettext(p));
                     let major_s = nvim_version_major.to_string();
                     let minor_s = nvim_version_minor.to_string();
                     let formatted = if let Some((a, rest)) = fmt_str.split_once("%s") {

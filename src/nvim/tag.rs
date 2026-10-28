@@ -2094,7 +2094,7 @@ fn findtags_add_match(
             crate::memory::cstr_cpy(p.add(1), tag_fname_ptr);
             *p.add(tag_fname_len + 1) = TAG_SEP;
             let s = p.add(1 + tag_fname_len + 1);
-            { let _src_p = lbuf_ptr; std::ptr::copy_nonoverlapping(_src_p, s, std::ffi::CStr::from_ptr(_src_p).to_bytes_with_nul().len()); };
+            crate::memory::cstr_cpy(s, lbuf_ptr);
             mfp_vec = Some(v);
         }
 
@@ -3224,7 +3224,7 @@ fn add_tag_field(
             crate::memory::cstr_ncpy(buf, start, len as usize);
         }
         *buf.add(len as usize) = NUL;
-        tv_dict_add_str(dict, std::ffi::CStr::from_ptr(field_name), buf)
+        tv_dict_add_str(dict, field_name, buf)
     }
 }
 

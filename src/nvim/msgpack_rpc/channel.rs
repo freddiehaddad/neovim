@@ -35,7 +35,7 @@ use crate::os::input::input_blocking;
 #[cfg(windows)]
 use crate::os::os_win_console::os_detach_ui_console;
 use crate::ui_client::{ui_client_attach_to_restarted_server, ui_client_event_raw_line};
-use std::ffi::{CStr, c_char, c_int};
+use std::ffi::{c_char, c_int};
 use std::ptr;
 
 pub type ClientType = c_int;
@@ -658,7 +658,7 @@ fn channel_write(channel: &mut Channel, buffer: std::rc::Rc<WBuffer>) -> bool {
         }
 
         if err != 0 {
-            let err_str = CStr::from_ptr(uv_strerror(err)).to_string_lossy();
+            let err_str = crate::memory::cstr_lossy(uv_strerror(err));
             let msg = format!(
                 "ch {}: stream write failed: {err_str}. RPC canceled; closing channel\0",
                 channel.id

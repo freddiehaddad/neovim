@@ -2929,29 +2929,29 @@ pub fn enc_canonize(enc: *const c_char) -> std::ffi::CString {
 
         let p_bytes = crate::memory::cstr_as_bytes(p);
         if p_bytes.starts_with(b"microsoft-cp") {
-            ptr::copy(p.add(10), p, std::ffi::CStr::from_ptr(p.add(10)).to_bytes_with_nul().len());
+            crate::memory::cstr_move(p, p.add(10));
         }
 
         let p_bytes = crate::memory::cstr_as_bytes(p);
         if p_bytes.starts_with(b"iso8859") {
-            ptr::copy(p.add(3), p.add(4), std::ffi::CStr::from_ptr(p.add(3)).to_bytes_with_nul().len());
+            crate::memory::cstr_move(p.add(4), p.add(3));
             *p.add(3) = b'-' as c_char;
         }
 
         let p_bytes = crate::memory::cstr_as_bytes(p);
         if p_bytes.starts_with(b"iso-8859") && p_bytes.len() > 8 && p_bytes[8].is_ascii_digit() {
-            ptr::copy(p.add(8), p.add(9), std::ffi::CStr::from_ptr(p.add(8)).to_bytes_with_nul().len());
+            crate::memory::cstr_move(p.add(9), p.add(8));
             *p.add(8) = b'-' as c_char;
         }
 
         let p_bytes = crate::memory::cstr_as_bytes(p);
         if p_bytes.starts_with(b"latin-") {
-            ptr::copy(p.add(6), p.add(5), std::ffi::CStr::from_ptr(p.add(6)).to_bytes_with_nul().len());
+            crate::memory::cstr_move(p.add(5), p.add(6));
         }
 
         if enc_canon_search(p) >= 0 {
             if p != r {
-                ptr::copy(p, r, CStr::from_ptr(p).to_bytes_with_nul().len());
+                crate::memory::cstr_move(r, p);
             }
         } else {
             let i = enc_alias_search(p);

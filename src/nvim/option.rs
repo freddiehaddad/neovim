@@ -1344,7 +1344,7 @@ fn stropt_expand_envvar(
     newval: &mut Vec<c_char>,
     op: set_op_T,
 ) {
-    unsafe {
+     {
         let s = option_expand(opt_idx, newval.as_mut_ptr());
         if s.is_null() {
             return;
@@ -1355,7 +1355,7 @@ fn stropt_expand_envvar(
             newlen += (crate::memory::cstr_len(origval) as u32) + 1;
         }
         *newval = vec![0; newlen as usize];
-        { std::ptr::copy_nonoverlapping(s, newval.as_mut_ptr(), std::ffi::CStr::from_ptr(s).to_bytes_with_nul().len()); };
+        crate::memory::cstr_cpy(newval.as_mut_ptr(), s);
     }
 }
 
@@ -7980,7 +7980,7 @@ pub fn ExpandSettings(
 /// Escape an option value that can be used on the command-line with :set.
 pub fn escape_option_str_cmdline(var_arg: *mut c_char) -> std::ffi::CString {
     unsafe {
-        let buf_cstr = vim_strsave_escaped(std::ffi::CStr::from_ptr(var_arg), escape_chars);
+        let buf_cstr = vim_strsave_escaped(var_arg, escape_chars);
 
         #[cfg(windows)]
         {

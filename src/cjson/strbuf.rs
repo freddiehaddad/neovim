@@ -1,6 +1,6 @@
 //! String buffer routines (`src/cjson/strbuf.c`).
 
-use std::ffi::{CStr, c_char, c_int};
+use std::ffi::{c_char, c_int};
 
 pub const STRBUF_DEFAULT_SIZE: usize = 1023;
 
@@ -99,8 +99,8 @@ pub fn strbuf_init(s: &mut strbuf_t, len: usize) {
 
 pub fn strbuf_append_string(s: &mut strbuf_t, str_in: impl crate::strings::IntoCCharPtr) {
     let str_in = str_in.into_c_char_ptr();
-    unsafe {
-        let bytes = CStr::from_ptr(str_in).to_bytes();
+     {
+        let bytes = crate::memory::cstr_as_bytes(str_in);
         strbuf_append_mem(s, bytes.as_ptr().cast::<c_char>(), bytes.len());
     }
 }

@@ -6658,7 +6658,7 @@ fn check_window_scroll_resize(
                     (*wp).handle,
                 );
                 let _ = key_len;
-                if !tv_dict_add_dict(v_event, std::ffi::CStr::from_ptr(winid.as_ptr()), d) {
+                if !tv_dict_add_dict(v_event, winid.as_ptr(), d) {
                     tv_dict_unref(d);
                     break;
                 }

@@ -314,6 +314,37 @@ pub fn cstr_cpy<S: crate::strings::IntoCCharPtr>(dst: *mut c_char, src: S) {
     }
 }
 
+/// Move potentially overlapping NUL-terminated C string `src` (including trailing NUL) to `dst`.
+#[inline]
+pub fn cstr_move<S: crate::strings::IntoCCharPtr>(dst: *mut c_char, src: S) {
+    let src = src.into_c_char_ptr();
+    unsafe {
+        let len = CStr::from_ptr(src).to_bytes_with_nul().len();
+        std::ptr::copy(src, dst, len);
+    }
+}
+
+/// Convert a NUL-terminated C string (including trailing NUL) into a `Vec<c_char>`.
+#[inline]
+pub fn cstr_to_cchar_vec<S: crate::strings::IntoCCharPtr>(s: S) -> Vec<c_char> {
+    let s = s.into_c_char_ptr();
+    unsafe {
+        let slice = CStr::from_ptr(s).to_bytes_with_nul();
+        std::slice::from_raw_parts(slice.as_ptr().cast::<c_char>(), slice.len()).to_vec()
+    }
+}
+
+/// View a NUL-terminated C string as a lossy UTF-8 string (`Cow<str>`).
+#[inline]
+pub fn cstr_lossy<'a, S: crate::strings::IntoCCharPtr>(s: S) -> std::borrow::Cow<'a, str> {
+    let s = s.into_c_char_ptr();
+    if s.is_null() {
+        std::borrow::Cow::Borrowed("")
+    } else {
+        unsafe { CStr::from_ptr(s).to_string_lossy() }
+    }
+}
+
 /// Copy `len` bytes from `src` to `dst` and append a trailing NUL byte at `dst[len]`.
 #[inline]
 pub fn cstr_ncpy<S: crate::strings::IntoCCharPtr>(dst: *mut c_char, src: S, len: usize) {

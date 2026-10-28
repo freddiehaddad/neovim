@@ -90,6 +90,20 @@ impl IntoCCharPtr for &CStr {
     }
 }
 
+impl IntoCCharPtr for &&CStr {
+    #[inline]
+    fn into_c_char_ptr(self) -> *const c_char {
+        self.as_ptr()
+    }
+}
+
+impl IntoCCharPtr for &std::ffi::CString {
+    #[inline]
+    fn into_c_char_ptr(self) -> *const c_char {
+        self.as_ptr()
+    }
+}
+
 impl IntoCCharPtr for &c_char {
     #[inline]
     fn into_c_char_ptr(self) -> *const c_char {
@@ -345,22 +359,22 @@ fn write_fmt_to_c_buf(dst: &mut [c_char], args: std::fmt::Arguments<'_>) -> usiz
 }
 
 
-pub fn vim_strsave_escaped(
-    string: &CStr,
-    esc_chars: &CStr,
+pub fn vim_strsave_escaped<S1: IntoCCharPtr, S2: IntoCCharPtr>(
+    string: S1,
+    esc_chars: S2,
 ) -> std::ffi::CString {
     vim_strsave_escaped_ext(string, esc_chars, b'\\' as c_char, false)
 }
 
-pub fn vim_strsave_escaped_ext(
-    string: &CStr,
-    esc_chars: &CStr,
+pub fn vim_strsave_escaped_ext<S1: IntoCCharPtr, S2: IntoCCharPtr>(
+    string: S1,
+    esc_chars: S2,
     cc: c_char,
     bsl: bool,
 ) -> std::ffi::CString {
     unsafe {
-        let string = string.as_ptr();
-        let esc_chars = esc_chars.as_ptr();
+        let string = string.into_c_char_ptr();
+        let esc_chars = esc_chars.into_c_char_ptr();
         let mut length: usize = 0;
         let mut p = string;
         while *p != NUL {
@@ -420,13 +434,13 @@ pub fn vim_strnsave_unquoted(bytes: &[u8]) -> std::ffi::CString {
     crate::memory::cstr_from_bytes(&ret)
 }
 
-pub fn vim_strsave_shellescape(
-    string: &CStr,
+pub fn vim_strsave_shellescape<S: IntoCCharPtr>(
+    string: S,
     do_special: bool,
     do_newline: bool,
 ) -> std::ffi::CString {
     unsafe {
-        let string = string.as_ptr();
+        let string = string.into_c_char_ptr();
         let csh_like = csh_like_shell() != 0;
         let fish_like = fish_like_shell();
         #[cfg(windows)]
@@ -561,11 +575,11 @@ pub fn mb_strup_buf(src: *const c_char, dst: *mut c_char) -> usize {
     }
 }
 
-pub fn strcase_save(orig: &CStr, upper: bool) -> std::ffi::CString {
+pub fn strcase_save<S: IntoCCharPtr>(orig: S, upper: bool) -> std::ffi::CString {
     unsafe {
-        let orig_len = orig.to_bytes().len();
+        let mut p = orig.into_c_char_ptr();
+        let orig_len = crate::memory::cstr_len(p);
         let mut res = Vec::<c_char>::with_capacity(orig_len + 1);
-        let mut p = orig.as_ptr();
 
         while *p != NUL {
             let char_info = utf_ptr2StrCharInfo(p).chr;
@@ -640,9 +654,9 @@ pub fn sort_strings(files: &mut [std::ffi::CString]) {
     }
 }
 
-pub fn concat_str(str1: &CStr, str2: &CStr) -> std::ffi::CString {
-    let b1 = str1.to_bytes();
-    let b2 = str2.to_bytes();
+pub fn concat_str<S1: IntoCCharPtr, S2: IntoCCharPtr>(str1: S1, str2: S2) -> std::ffi::CString {
+    let b1 = crate::memory::cstr_as_bytes(str1.into_c_char_ptr());
+    let b2 = crate::memory::cstr_as_bytes(str2.into_c_char_ptr());
     let mut dest = Vec::with_capacity(b1.len() + b2.len());
     dest.extend_from_slice(b1);
     dest.extend_from_slice(b2);
@@ -2215,10 +2229,10 @@ pub fn vim_snprintf_typval_only(
     vim_vsnprintf_typval_inner(str_out, str_m, fmt, tvs, &[])
 }
 
-pub fn reverse_text(s: &CStr) -> std::ffi::CString {
+pub fn reverse_text<S: IntoCCharPtr>(s: S) -> std::ffi::CString {
     unsafe {
-        let len = s.to_bytes().len();
-        let s = s.as_ptr();
+        let s = s.into_c_char_ptr();
+        let len = crate::memory::cstr_len(s);
         let mut rev = vec![0u8; len];
         let mut s_i: usize = 0;
         let mut rev_i: usize = len;
@@ -2232,14 +2246,14 @@ pub fn reverse_text(s: &CStr) -> std::ffi::CString {
     }
 }
 
-pub fn strrep(
-    src: &CStr,
-    what: &CStr,
-    rep: &CStr,
+pub fn strrep<S1: IntoCCharPtr, S2: IntoCCharPtr, S3: IntoCCharPtr>(
+    src: S1,
+    what: S2,
+    rep: S3,
 ) -> Option<std::ffi::CString> {
-    let src_bytes = src.to_bytes();
-    let what_bytes = what.to_bytes();
-    let rep_bytes = rep.to_bytes();
+    let src_bytes = crate::memory::cstr_as_bytes(src.into_c_char_ptr());
+    let what_bytes = crate::memory::cstr_as_bytes(what.into_c_char_ptr());
+    let rep_bytes = crate::memory::cstr_as_bytes(rep.into_c_char_ptr());
 
     if what_bytes.is_empty() {
         return None;
@@ -2912,20 +2926,20 @@ pub fn f_utf16idx(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFun
 
 pub fn f_tolower(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData){
 
-    unsafe {
+     {
         crate::eval::typval::tv_set_string(
             rettv,
-            strcase_save(CStr::from_ptr(tv_get_string(&argvars[0])), false).as_ptr(),
+            strcase_save(tv_get_string(&argvars[0]), false).as_ptr(),
         );
     }
 }
 
 pub fn f_toupper(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData){
 
-    unsafe {
+     {
         crate::eval::typval::tv_set_string(
             rettv,
-            strcase_save(CStr::from_ptr(tv_get_string(&argvars[0])), true).as_ptr(),
+            strcase_save(tv_get_string(&argvars[0]), true).as_ptr(),
         );
     }
 }

@@ -3277,7 +3277,7 @@ fn aucmd_next(apc: &mut AutoPatCmd) {
                 }
 
                 let name = event_nr2name(apc.event);
-                let name_str = CStr::from_ptr(name).to_string_lossy();
+                let name_str = crate::memory::cstr_lossy(name);
                 let pat_str = ap.pat.to_string_lossy();
                 let formatted = format!("{name_str} Autocommands for \"{pat_str}\"");
                 let name_cstr = CString::new(formatted).unwrap_or_default();
@@ -3659,11 +3659,7 @@ pub fn au_exists(arg: *const c_char) -> bool {
         let mut buflocal_buf: *mut buf_T = ptr::null_mut();
         let mut retval = false;
 
-        let mut arg_save_vec: Vec<c_char> = CStr::from_ptr(arg)
-            .to_bytes_with_nul()
-            .iter()
-            .map(|&b| b as c_char)
-            .collect();
+        let mut arg_save_vec: Vec<c_char> = crate::memory::cstr_to_cchar_vec(arg);
         let arg_save = arg_save_vec.as_mut_ptr();
         let mut p = vim_strchr(arg_save, b'#' as c_int);
         if !p.is_null() {

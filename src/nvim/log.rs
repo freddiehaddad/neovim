@@ -187,7 +187,7 @@ fn log_path_init() {
             path_ptr,
             (size - 1) as c_int,
         );
-        let user_set = CStr::from_ptr(path_ptr) != c"$NVIM_LOG_FILE";
+        let user_set = crate::memory::cstr_as_bytes(path_ptr) != b"$NVIM_LOG_FILE";
 
         if !user_set || *path_ptr == NUL || os_isdir(path_ptr) || !log_try_create(path_ptr) {
             if user_set {

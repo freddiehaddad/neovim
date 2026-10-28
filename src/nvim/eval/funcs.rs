@@ -2130,11 +2130,11 @@ pub fn f_empty(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncDa
 /// "escape({string}, {chars})" function
 pub fn f_escape(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData){
 
-    unsafe {
+     {
         let mut buf = [0 as c_char; NUMBUFLEN];
         let escaped = vim_strsave_escaped(
-            std::ffi::CStr::from_ptr(tv_get_string(&argvars[0])),
-            std::ffi::CStr::from_ptr(tv_get_string_buf(&argvars[1], buf.as_mut_ptr())),
+            tv_get_string(&argvars[0]),
+            tv_get_string_buf(&argvars[1], buf.as_mut_ptr()),
         );
         crate::eval::typval::tv_set_string_len(
             rettv,
@@ -2452,11 +2452,7 @@ pub fn f_expandcmd(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFu
             crate::eval::typval::tv_set_string(rettv, arg_str);
             return;
         }
-        let mut cmdline_buf: Vec<c_char> = CStr::from_ptr(arg_str)
-            .to_bytes_with_nul()
-            .iter()
-            .map(|&b| b as c_char)
-            .collect();
+        let mut cmdline_buf: Vec<c_char> = crate::memory::cstr_to_cchar_vec(arg_str);
         let mut cmdstr = cmdline_buf.as_mut_ptr();
 
         let mut eap: exarg_T = exarg_T::new();
@@ -4506,7 +4502,7 @@ pub fn create_environment(
                         }
                     }
                     let _ = namelen;
-                    tv_dict_add_str(env, std::ffi::CStr::from_ptr(name), (*envitems.add(i)).value);
+                    tv_dict_add_str(env, name, (*envitems.add(i)).value);
                 }
                 uv_os_free_environ(envitems, envcount);
             }
@@ -4568,7 +4564,7 @@ pub fn create_environment(
                             }
                             tv_dict_add_str(
                                 env,
-                                std::ffi::CStr::from_ptr(name),
+                                name,
                                 tv_get_string(&(*var).di_tv),
                             );
                         }
@@ -8167,11 +8163,11 @@ pub fn f_sha256(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncD
 /// "shellescape({string})" function
 pub fn f_shellescape(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData){
 
-    unsafe {
+     {
         let do_special = non_zero_arg(&argvars[1]);
         crate::eval::typval::tv_set_string(
             rettv,
-            vim_strsave_shellescape(std::ffi::CStr::from_ptr(tv_get_string(&argvars[0])), do_special, do_special).as_ptr(),
+            vim_strsave_shellescape(tv_get_string(&argvars[0]), do_special, do_special).as_ptr(),
         );
         rettv.v_type = VarType::VAR_STRING;
     }

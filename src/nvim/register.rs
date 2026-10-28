@@ -763,7 +763,7 @@ pub fn do_execreg(mut regname: c_int, colon: c_int, addcr: c_int, silent: c_int)
             };
             g_st().new_last_cmdline = None;
             let p = vim_strsave_escaped_ext(
-                std::ffi::CStr::from_ptr(last_cmd.as_ptr()),
+                last_cmd.as_ptr(),
                 c"\x01\x02\x03\x04\x05\x06\x07\x08\x09\x0a\x0b\x0c\x0d\x0e\x0f\x10\x11\x12\x13\x14\x15\x16\x17\x18\x19\x1a\x1b\x1c\x1d\x1e\x1f",
                 Ctrl_V as u8 as c_char,
                 false,

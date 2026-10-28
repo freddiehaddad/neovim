@@ -256,7 +256,7 @@ pub fn ex_menu(eap: &mut exarg_T) {
             arg = arg.add(5);
             while *arg != NUL && *arg != b' ' as c_char {
                 if *arg == b'\\' as c_char {
-                    ptr::copy(arg.add(1), arg, std::ffi::CStr::from_ptr(arg.add(1)).to_bytes_with_nul().len());
+                    crate::memory::cstr_move(arg, arg.add(1));
                 }
                 arg = arg.add(utfc_ptr2len(arg) as usize);
             }
@@ -429,11 +429,7 @@ fn add_menu_path(
         let mut pri_idx: usize = 0;
         let mut old_modes: c_int = 0;
 
-        let mut path_name_vec: Vec<c_char> = CStr::from_ptr(menu_path)
-            .to_bytes_with_nul()
-            .iter()
-            .map(|&b| b as c_char)
-            .collect();
+        let mut path_name_vec: Vec<c_char> = crate::memory::cstr_to_cchar_vec(menu_path);
         let path_name = path_name_vec.as_mut_ptr();
         let root_menu_ptr = get_root_menu(menu_path);
         let mut menup: *mut Vec<vimmenu_T> = root_menu_ptr;
@@ -857,11 +853,7 @@ fn find_menu(
 ) -> *mut vimmenu_T {
     unsafe {
         debug_assert!(*path_name != NUL);
-        let mut saved_name_vec: Vec<c_char> = CStr::from_ptr(path_name)
-            .to_bytes_with_nul()
-            .iter()
-            .map(|&b| b as c_char)
-            .collect();
+        let mut saved_name_vec: Vec<c_char> = crate::memory::cstr_to_cchar_vec(path_name);
         let mut name = saved_name_vec.as_mut_ptr();
         let mut found: *mut vimmenu_T = ptr::null_mut();
 
@@ -1241,7 +1233,7 @@ fn menu_name_skip(name: *mut c_char) -> *mut c_char {
         let mut p = name;
         while *p != NUL && *p != b'.' as c_char {
             if *p == b'\\' as c_char || *p == Ctrl_V {
-                ptr::copy(p.add(1), p, std::ffi::CStr::from_ptr(p.add(1)).to_bytes_with_nul().len());
+                crate::memory::cstr_move(p, p.add(1));
                 if *p == NUL {
                     break;
                 }
@@ -1418,11 +1410,7 @@ fn menu_text(
             v.push(0);
             v
         } else {
-            CStr::from_ptr(str)
-                .to_bytes_with_nul()
-                .iter()
-                .map(|&b| b as c_char)
-                .collect()
+            crate::memory::cstr_to_cchar_vec(str)
         };
         let text = text_vec.as_mut_ptr();
 
@@ -1438,7 +1426,7 @@ fn menu_text(
                 {
                     **mnemonic = c_int::from(*p.add(1) as u8);
                 }
-                ptr::copy(p.add(1), p, std::ffi::CStr::from_ptr(p.add(1)).to_bytes_with_nul().len());
+                crate::memory::cstr_move(p, p.add(1));
                 p = p.add(1);
             }
         }
@@ -1645,11 +1633,7 @@ pub fn execute_menu(eap: &exarg_T, menu: &mut vimmenu_T, mode_idx: c_int) {
 /// Lookup a menu by the descriptor name e.g. `"File.New"` (`menu_getbyname`).
 fn menu_getbyname(name_arg: *mut c_char) -> *mut vimmenu_T {
     unsafe {
-        let mut saved_name_vec: Vec<c_char> = CStr::from_ptr(name_arg)
-            .to_bytes_with_nul()
-            .iter()
-            .map(|&b| b as c_char)
-            .collect();
+        let mut saved_name_vec: Vec<c_char> = crate::memory::cstr_to_cchar_vec(name_arg);
         let saved_name = saved_name_vec.as_mut_ptr();
         let mut menus = (&mut *get_root_menu(saved_name)).as_mut_slice();
         let mut name = saved_name;
@@ -1728,11 +1712,7 @@ pub fn ex_emenu(eap: &mut exarg_T) {
 pub fn menu_find(path_name: *const c_char) -> *mut vimmenu_T {
     unsafe {
         let mut menus = (&mut *get_root_menu(path_name)).as_mut_slice();
-        let mut saved_name_vec: Vec<c_char> = CStr::from_ptr(path_name)
-            .to_bytes_with_nul()
-            .iter()
-            .map(|&b| b as c_char)
-            .collect();
+        let mut saved_name_vec: Vec<c_char> = crate::memory::cstr_to_cchar_vec(path_name);
         let mut name = saved_name_vec.as_mut_ptr();
         let mut found: *mut vimmenu_T = ptr::null_mut();
         while *name != NUL {
@@ -1792,11 +1772,7 @@ pub fn ex_menutranslate(eap: &mut exarg_T) {
             if arg == to_arg {
                 emsg(gettext(e_invarg));
             } else {
-                let mut from_vec: Vec<c_char> = CStr::from_ptr(from_arg)
-                    .to_bytes_with_nul()
-                    .iter()
-                    .map(|&b| b as c_char)
-                    .collect();
+                let mut from_vec: Vec<c_char> = crate::memory::cstr_to_cchar_vec(from_arg);
                 let from = from_vec.as_mut_ptr();
                 let from_noamp_cstr = menu_text(from, None, None);
                 let to_len = arg.offset_from(to_arg) as usize;
@@ -1867,7 +1843,7 @@ fn menu_unescape_name(name: *mut c_char) {
         let mut p = name;
         while *p != NUL && *p != b'.' as c_char {
             if *p == b'\\' as c_char {
-                ptr::copy(p.add(1), p, std::ffi::CStr::from_ptr(p.add(1)).to_bytes_with_nul().len());
+                crate::memory::cstr_move(p, p.add(1));
             }
             p = p.add(utfc_ptr2len(p) as usize);
         }
@@ -1884,7 +1860,7 @@ fn menu_translate_tab_and_shift(arg_start: *mut c_char) -> *mut c_char {
                 arg = arg.add(1);
             } else if crate::memory::cstr_prefix_bytes(arg, 5).eq_ignore_ascii_case(b"<TAB>") {
                 *arg = TAB;
-                ptr::copy(arg.add(5), arg.add(1), std::ffi::CStr::from_ptr(arg.add(5)).to_bytes_with_nul().len());
+                crate::memory::cstr_move(arg.add(1), arg.add(5));
             }
             arg = arg.add(1);
         }
@@ -2027,11 +2003,7 @@ pub fn f_menu_info(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFu
             return;
         }
 
-        let mut saved_name_vec: Vec<c_char> = CStr::from_ptr(menu_name)
-            .to_bytes_with_nul()
-            .iter()
-            .map(|&b| b as c_char)
-            .collect();
+        let mut saved_name_vec: Vec<c_char> = crate::memory::cstr_to_cchar_vec(menu_name);
         let mut found: *const vimmenu_T = ptr::null();
         let mut name = saved_name_vec.as_mut_ptr();
         while *name != NUL {

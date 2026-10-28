@@ -2123,8 +2123,8 @@ pub fn keymap_init() -> *mut c_char {
             keymap_unload();
             do_cmdline_cmd(c"unlet! b:keymap_name");
         } else {
-            let kmap = CStr::from_ptr((*g_st().curbuf).b_p_keymap).to_string_lossy();
-            let enc = CStr::from_ptr(opt_vars().p_enc).to_string_lossy();
+            let kmap = crate::memory::cstr_lossy((*g_st().curbuf).b_p_keymap);
+            let enc = crate::memory::cstr_lossy(opt_vars().p_enc);
             let primary = CString::new(format!("keymap/{kmap}_{enc}.vim")).unwrap_or_default();
             if !source_runtime(primary.as_ptr().cast_mut(), 0) {
                 let fallback = CString::new(format!("keymap/{kmap}.vim")).unwrap_or_default();

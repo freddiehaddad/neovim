@@ -2147,7 +2147,7 @@ fn suggest_trie_walk(su: &mut suginfo_T, lp: &langp_T, fword: *mut c_char, sound
                                 fl = ftp.ft_from.as_bytes().len() as c_int;
                                 tl = ftp.ft_to.as_bytes().len() as c_int;
                                 if fl != tl {
-                                    ptr::copy(p.add(fl as usize), p.add(tl as usize), std::ffi::CStr::from_ptr(p.add(fl as usize)).to_bytes_with_nul().len());
+                                    crate::memory::cstr_move(p.add(tl as usize), p.add(fl as usize));
                                     repextra += tl - fl;
                                 }
                                 ptr::copy(ftp.ft_to.as_ptr(), p, tl as usize);
@@ -2174,7 +2174,7 @@ fn suggest_trie_walk(su: &mut suginfo_T, lp: &langp_T, fword: *mut c_char, sound
                     tl = ftp.ft_to.as_bytes().len() as c_int;
                     let p = fword.add(stack[udepth].ts_fidx as usize);
                     if fl != tl {
-                        ptr::copy(p.add(tl as usize), p.add(fl as usize), std::ffi::CStr::from_ptr(p.add(tl as usize)).to_bytes_with_nul().len());
+                        crate::memory::cstr_move(p.add(fl as usize), p.add(tl as usize));
                         repextra -= tl - fl;
                     }
                     ptr::copy(ftp.ft_from.as_ptr(), p, fl as usize);
@@ -2449,7 +2449,7 @@ fn stp_sal_score(
                     if *p == NUL {
                         break;
                     }
-                    ptr::copy(p.add(1), p, std::ffi::CStr::from_ptr(p.add(1)).to_bytes_with_nul().len());
+                    crate::memory::cstr_move(p, p.add(1));
                 }
             }
             spell_soundfold(

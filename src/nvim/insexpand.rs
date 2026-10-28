@@ -2129,7 +2129,7 @@ fn ins_compl_dictionaries(
         }
 
         if ctrl_x_mode_line_or_eval() {
-            let pat_esc = vim_strsave_escaped(std::ffi::CStr::from_ptr(pat), c"\\");
+            let pat_esc = vim_strsave_escaped(pat, c"\\");
             let len = pat_esc.as_bytes().len() + 10;
             let mut ptr_vec = vec![0 as c_char; len];
             let ptr = ptr_vec.as_mut_ptr();
@@ -5107,11 +5107,7 @@ fn ins_compl_get_exp(ini: &mut pos_T) -> c_int {
             } else {
                 (*g_st().curbuf).b_p_cpt
             };
-            let mut e_cpt_copy: Vec<c_char> = CStr::from_ptr(src)
-                .to_bytes_with_nul()
-                .iter()
-                .map(|&b| b as c_char)
-                .collect();
+            let mut e_cpt_copy: Vec<c_char> = crate::memory::cstr_to_cchar_vec(src);
             strip_caret_numbers_in_place(e_cpt_copy.as_mut_ptr());
             st.e_cpt_copy = e_cpt_copy;
             st.e_cpt_idx = 0;

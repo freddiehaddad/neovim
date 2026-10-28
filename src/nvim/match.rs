@@ -988,7 +988,7 @@ pub fn f_getmatches(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalF
                     let len =
                         vim_snprintf!(buf.as_mut_ptr(), 30, c"pos%d", (i + 1) as c_int);
                     let _ = len;
-                    tv_dict_add_list(dict, std::ffi::CStr::from_ptr(buf.as_ptr()), l);
+                    tv_dict_add_list(dict, buf.as_ptr(), l);
                 }
             } else {
                 tv_dict_add_str(

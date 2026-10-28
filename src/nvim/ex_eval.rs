@@ -727,7 +727,7 @@ pub fn exception_state_clear() {
 }
 
 fn report_pending(action: c_int, pending: c_int, value: PendingVal) {
-    unsafe {
+     {
         let mut mesg = match action {
             RP_MAKE => gettext(c"%s made pending"),
             RP_RESUME => gettext(c"%s resumed"),
@@ -763,7 +763,7 @@ fn report_pending(action: c_int, pending: c_int, value: PendingVal) {
                         mesg,
                         gettext(c"Exception"),
                     );
-                    mesg_owned = Some(concat_str(std::ffi::CStr::from_ptr(ptr::addr_of!(g_st().IObuff).cast()), c": %s"));
+                    mesg_owned = Some(concat_str(ptr::addr_of!(g_st().IObuff).cast(), c": %s"));
                     mesg = mesg_owned
                         .as_ref()
                         .map_or(ptr::null_mut(), |cs| cs.as_ptr().cast_mut());

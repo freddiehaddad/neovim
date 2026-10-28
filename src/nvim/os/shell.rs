@@ -1250,7 +1250,7 @@ fn shell_xescape_xquote(cmd: *const c_char) -> std::ffi::CString {
 
         let sxq_bytes = crate::memory::cstr_as_bytes(opt_vars().p_sxq);
         let owned_ecmd = if *opt_vars().p_sxe != NUL && sxq_bytes == b"(" {
-            Some(vim_strsave_escaped_ext(std::ffi::CStr::from_ptr(cmd), std::ffi::CStr::from_ptr(opt_vars().p_sxe), b'^' as c_char, false))
+            Some(vim_strsave_escaped_ext(cmd, opt_vars().p_sxe, b'^' as c_char, false))
         } else {
             None
         };

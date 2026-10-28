@@ -1757,11 +1757,7 @@ fn command_line_scan(parmp: &mut mparm_T) {
                 }
                 parmp.edit_type = EDIT_FILE;
 
-                let mut p_vec: Vec<c_char> = CStr::from_ptr(arg0)
-                    .to_bytes_with_nul()
-                    .iter()
-                    .map(|&b| b as c_char)
-                    .collect();
+                let mut p_vec: Vec<c_char> = crate::memory::cstr_to_cchar_vec(arg0);
 
                 #[cfg(windows)]
                 {

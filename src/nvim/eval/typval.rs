@@ -3023,18 +3023,19 @@ pub fn tv_dict_get_cstring(
 }
 
 /// Get a string item from a dictionary.
-pub fn tv_dict_get_string(d: *const dict_T, key: &std::ffi::CStr) -> *mut c_char {
+pub fn tv_dict_get_string<S: crate::strings::IntoCCharPtr>(d: *const dict_T, key: S) -> *mut c_char {
     tv_dict_get_string_buf(d, key, tv_st().dict_numbuf.as_mut_ptr()).cast_mut()
 }
 
 /// Get a string item from a dictionary.
-pub fn tv_dict_get_string_buf(
+pub fn tv_dict_get_string_buf<S: crate::strings::IntoCCharPtr>(
     d: *const dict_T,
-    key: &std::ffi::CStr,
+    key: S,
     numbuf: *mut c_char,
 ) -> *const c_char {
+    let key = key.into_c_char_ptr();
     unsafe {
-        let di = tv_dict_find(d, key.as_ptr(), -1);
+        let di = tv_dict_find(d, key, -1);
         if di.is_null() {
             return ptr::null();
         }
@@ -3116,13 +3117,14 @@ pub fn tv_dict_add(d: *mut dict_T, item: *mut dictitem_T) -> bool {
 }
 
 /// Add a list entry to dictionary.
-pub fn tv_dict_add_list(
+pub fn tv_dict_add_list<S: crate::strings::IntoCCharPtr>(
     d: *mut dict_T,
-    key: &std::ffi::CStr,
+    key: S,
     list: *mut list_T,
 ) -> bool {
+    let key = key.into_c_char_ptr();
     unsafe {
-        let item = tv_dict_item_alloc_len(key.as_ptr(), key.to_bytes().len());
+        let item = tv_dict_item_alloc_len(key, crate::memory::cstr_len(key));
         (*item).di_tv.v_type = VarType::VAR_LIST;
         (*item).di_tv.vval = crate::eval::typval::TypvalVval::List(list);
         if !tv_dict_add(d, item) {
@@ -3154,13 +3156,14 @@ pub fn tv_dict_add_tv(
 }
 
 /// Add a dictionary entry to dictionary.
-pub fn tv_dict_add_dict(
+pub fn tv_dict_add_dict<S: crate::strings::IntoCCharPtr>(
     d: *mut dict_T,
-    key: &std::ffi::CStr,
+    key: S,
     dict: *mut dict_T,
 ) -> bool {
+    let key = key.into_c_char_ptr();
     unsafe {
-        let item = tv_dict_item_alloc_len(key.as_ptr(), key.to_bytes().len());
+        let item = tv_dict_item_alloc_len(key, crate::memory::cstr_len(key));
         (*item).di_tv.v_type = VarType::VAR_DICT;
         (*item).di_tv.vval = crate::eval::typval::TypvalVval::Dict(dict);
         if !tv_dict_add(d, item) {
@@ -3228,9 +3231,9 @@ pub fn tv_dict_add_bool(
 }
 
 /// Add a string entry to dictionary.
-pub fn tv_dict_add_str(
+pub fn tv_dict_add_str<S: crate::strings::IntoCCharPtr>(
     d: *mut dict_T,
-    key: &std::ffi::CStr,
+    key: S,
     val: impl crate::strings::IntoCCharPtr,
 ) -> bool {
     let val = val.into_c_char_ptr();
@@ -3238,12 +3241,13 @@ pub fn tv_dict_add_str(
 }
 
 /// Add a string entry to dictionary.
-pub fn tv_dict_add_str_len(
+pub fn tv_dict_add_str_len<S: crate::strings::IntoCCharPtr>(
     d: *mut dict_T,
-    key: &std::ffi::CStr,
+    key: S,
     val: impl crate::strings::IntoCCharPtr,
     len: c_int,
 ) -> bool {
+    let key = key.into_c_char_ptr();
     let val = val.into_c_char_ptr();
     unsafe {
         let s = if val.is_null() {
@@ -3253,7 +3257,7 @@ pub fn tv_dict_add_str_len(
         } else {
             tv_alloc_string_bytes(std::slice::from_raw_parts(val.cast::<u8>(), len as usize))
         };
-        let item = tv_dict_item_alloc_len(key.as_ptr(), key.to_bytes().len());
+        let item = tv_dict_item_alloc_len(key, crate::memory::cstr_len(key));
         (*item).di_tv.v_type = VarType::VAR_STRING;
         (*item).di_tv.vval = crate::eval::typval::TypvalVval::String(s);
         if !tv_dict_add(d, item) {

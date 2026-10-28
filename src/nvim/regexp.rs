@@ -2740,7 +2740,7 @@ fn vim_regsub_both(
                         mb_ptr_adv(&raw mut s);
                     }
                     let final_cstr = if had_backslash && (flags & REGSUB_BACKSLASH) != 0 {
-                        vim_strsave_escaped(std::ffi::CStr::from_ptr(eval_bytes.as_ptr().cast()), c"\\")
+                        vim_strsave_escaped(eval_bytes.as_ptr().cast(), c"\\")
                     } else {
                         CStr::from_bytes_with_nul(&eval_bytes)
                             .unwrap_or_default()
@@ -3058,7 +3058,7 @@ pub fn reg_submatch(no: c_int) -> Option<std::ffi::CString> {
                     len = (reg_getline_submatch_len(lnum) - (*re_st().rsm.sm_mmatch).startpos[no].col)
                         as isize;
                     if round == 2 {
-                        { std::ptr::copy_nonoverlapping(s, retval, std::ffi::CStr::from_ptr(s).to_bytes_with_nul().len()); };
+                        crate::memory::cstr_cpy(retval, s);
                         *retval.add(len as usize) = b'\n' as c_char;
                     }
                     len += 1;
@@ -3066,7 +3066,7 @@ pub fn reg_submatch(no: c_int) -> Option<std::ffi::CString> {
                     while lnum < (*re_st().rsm.sm_mmatch).endpos[no].lnum {
                         s = reg_getline_submatch(lnum);
                         if round == 2 {
-                            { std::ptr::copy_nonoverlapping(s, retval.add(len as usize), std::ffi::CStr::from_ptr(s).to_bytes_with_nul().len()); };
+                            crate::memory::cstr_cpy(retval.add(len as usize), s);
                         }
                         len += reg_getline_submatch_len(lnum) as isize;
                         if round == 2 {

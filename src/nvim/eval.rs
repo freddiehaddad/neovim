@@ -2536,12 +2536,12 @@ fn eval_addlist(tv1: &mut typval_T, tv2: &mut typval_T) -> bool {
 
 /// Append string "s2" to the string in "tv1".
 pub fn grow_string_tv(tv1: &mut typval_T, s2: *const c_char) -> bool {
-    unsafe {
+     {
         if tv1.v_type != VarType::VAR_STRING || tv1.vval.v_string().is_null() {
             return false;
         }
 
-        let joined = concat_str(std::ffi::CStr::from_ptr(tv1.vval.v_string()), std::ffi::CStr::from_ptr(s2));
+        let joined = concat_str(tv1.vval.v_string(), s2);
         crate::eval::typval::tv_set_string(tv1, joined.as_ptr());
         true
     }
@@ -2549,7 +2549,7 @@ pub fn grow_string_tv(tv1: &mut typval_T, s2: *const c_char) -> bool {
 
 /// Concatenate strings "tv1" and "tv2" and store the result in "tv1".
 fn eval_concat_str(tv1: &mut typval_T, tv2: &mut typval_T) -> bool {
-    unsafe {
+     {
         let mut buf1 = [0 as c_char; NUMBUFLEN];
         let mut buf2 = [0 as c_char; NUMBUFLEN];
         let s1 = tv_get_string_buf(&*tv1, buf1.as_mut_ptr());
@@ -2564,7 +2564,7 @@ fn eval_concat_str(tv1: &mut typval_T, tv2: &mut typval_T) -> bool {
             return true;
         }
 
-        let p = concat_str(std::ffi::CStr::from_ptr(s1), std::ffi::CStr::from_ptr(s2));
+        let p = concat_str(s1, s2);
         crate::eval::typval::tv_set_string(tv1, p.as_ptr());
 
         true

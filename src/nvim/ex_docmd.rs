@@ -5229,7 +5229,7 @@ pub fn do_cmdline(cmdline: impl crate::strings::IntoCCharPtr, fgetline: LineGett
                     g_st().last_cmdline = Some(new_cmd);
                 }
             } else {
-                ptr::copy(next_cmdline, cmdline_copy, CStr::from_ptr(next_cmdline).to_bytes_with_nul().len());
+                crate::memory::cstr_move(cmdline_copy, next_cmdline);
                 next_cmdline = cmdline_copy;
             }
 
@@ -6719,7 +6719,7 @@ fn do_one_cmd(
                 let mut s = ea.arg;
                 while *s != NUL {
                     if *s == b'\\' as c_char && *s.add(1) == b'\n' as c_char {
-                        ptr::copy(s.add(1), s, std::ffi::CStr::from_ptr(s.add(1)).to_bytes_with_nul().len());
+                        crate::memory::cstr_move(s, s.add(1));
                     } else if *s == b'\n' as c_char {
                         ea.nextcmd = s.add(1);
                         *s = NUL;
@@ -8187,7 +8187,7 @@ pub fn replace_makeprg(
 
             arg = skipwhite(arg);
 
-            let new_buf: Vec<c_char> = if let Some(rep) = strrep(std::ffi::CStr::from_ptr(program), c"$*", std::ffi::CStr::from_ptr(arg)) {
+            let new_buf: Vec<c_char> = if let Some(rep) = strrep(program, c"$*", arg) {
                 rep.into_bytes_with_nul()
                     .into_iter()
                     .map(|b| b as c_char)
@@ -8280,7 +8280,7 @@ pub fn expand_filename(
                 let mut l = repl_cstr.as_ptr();
                 while *l != NUL {
                     if !vim_strchr(esc_chars, c_int::from(*l as u8)).is_null() {
-                        repl_cstr = vim_strsave_escaped(&repl_cstr, std::ffi::CStr::from_ptr(esc_chars));
+                        repl_cstr = vim_strsave_escaped(&repl_cstr, esc_chars);
                         break;
                     }
                     l = l.add(1);
@@ -8431,7 +8431,7 @@ pub fn separate_nextcmd(eap: &mut exarg_T) {
                 if (eap.argt & (EX_CTRLV | EX_XFILE)) != 0 {
                     p = p.add(1);
                 } else {
-                    ptr::copy(p.add(1), p, std::ffi::CStr::from_ptr(p.add(1)).to_bytes_with_nul().len());
+                    crate::memory::cstr_move(p, p.add(1));
                 }
                 if *p == NUL {
                     break;
@@ -8460,7 +8460,7 @@ pub fn separate_nextcmd(eap: &mut exarg_T) {
                 if (vim_strchr(opt_vars().p_cpo, kCpoBar).is_null() || (eap.argt & EX_CTRLV) == 0)
                     && *p.sub(1) == b'\\' as c_char
                 {
-                    ptr::copy(p, p.sub(1), CStr::from_ptr(p).to_bytes_with_nul().len());
+                    crate::memory::cstr_move(p.sub(1), p);
                     p = p.sub(1);
                 } else {
                     eap.nextcmd = check_nextcmd(p);
@@ -8506,7 +8506,7 @@ pub fn skip_cmd_arg(mut p: *mut c_char, rembs: bool) -> *mut c_char {
         while *p != NUL && !ascii_isspace(*p) {
             if *p == b'\\' as c_char && *p.add(1) != NUL {
                 if rembs {
-                    ptr::copy(p.add(1), p, std::ffi::CStr::from_ptr(p.add(1)).to_bytes_with_nul().len());
+                    crate::memory::cstr_move(p, p.add(1));
                 } else {
                     p = p.add(1);
                 }
@@ -12127,7 +12127,7 @@ pub fn eval_vars(
 
         if (src as usize) > (srcstart as usize) && *src.sub(1) == b'\\' as c_char {
             *usedlen = 0;
-            ptr::copy(src, src.sub(1), CStr::from_ptr(src).to_bytes_with_nul().len());
+            crate::memory::cstr_move(src.sub(1), src);
             return None;
         }
 

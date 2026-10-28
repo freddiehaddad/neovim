@@ -444,7 +444,7 @@ pub fn modify_fname(
                 if c != NUL as c_int {
                     *(*fnamep).add(*fnamelen) = NUL;
                 }
-                let esc = vim_strsave_shellescape(std::ffi::CStr::from_ptr(*fnamep), false, false);
+                let esc = vim_strsave_shellescape(*fnamep, false, false);
                 if c != NUL as c_int {
                     *(*fnamep).add(*fnamelen) = c as c_char;
                 }

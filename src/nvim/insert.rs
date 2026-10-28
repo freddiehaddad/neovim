@@ -154,7 +154,7 @@ use crate::textobject::{bck_word, fwd_word};
 use crate::ui::{ui_cursor_shape, ui_flush, ui_has, vim_beep};
 use crate::undo::{u_clearallandblockfree, u_save, u_save_cursor, u_sync};
 use crate::window::{goto_tabpage, may_trigger_win_scrolled_resized, win_T};
-use std::ffi::{CStr, c_char, c_int, c_long, c_uint};
+use std::ffi::{c_char, c_int, c_long, c_uint};
 use std::ptr;
 
 use crate::change::COM_MIDDLE;
@@ -4016,7 +4016,7 @@ pub fn get_nolist_virtcol() -> colnr_T {
 }
 
 fn do_insert_char_pre(c: c_int) -> Option<std::ffi::CString> {
-    unsafe {
+    {
         if c == Ctrl_RSB || g_st().KeyStuffed != 0 || !has_event(EVENT_INSERTCHARPRE) {
             return None;
         }
@@ -4032,7 +4032,7 @@ fn do_insert_char_pre(c: c_int) -> Option<std::ffi::CString> {
         let mut res: Option<std::ffi::CString> = None;
         if ins_apply_autocmds(EVENT_INSERTCHARPRE) != 0 {
             let vchar = get_vim_var_str(VV_CHAR);
-            if CStr::from_ptr((&raw const buf).cast()) != CStr::from_ptr(vchar) {
+            if crate::memory::cstr_as_bytes((&raw const buf).cast()) != crate::memory::cstr_as_bytes(vchar) {
                 res = Some(crate::memory::cstr_to_cstring(vchar));
             }
         }

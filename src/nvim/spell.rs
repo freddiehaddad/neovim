@@ -2214,7 +2214,7 @@ pub fn check_need_cap(wp: &mut win_T, lnum: linenr_T, col: colnr_T) -> bool {
                 if *skipwhite(line) == NUL {
                     need_cap = true;
                 } else {
-                    line_copy = Some(concat_str(std::ffi::CStr::from_ptr(line), c" "));
+                    line_copy = Some(concat_str(line, c" "));
                     line = line_copy
                         .as_ref()
                         .map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut());
@@ -3288,7 +3288,7 @@ pub fn compile_cap_prog(
     unsafe {
         let mut rp: Option<Box<regprog_T>> = None;
         if !value.is_null() && *value != NUL {
-            let re = concat_str(c"^", std::ffi::CStr::from_ptr(value));
+            let re = concat_str(c"^", value);
             rp = crate::regexp::vim_regcomp_box(re.as_ptr(), RE_MAGIC);
             if rp.is_none() {
                 return e_invarg.as_ptr();

@@ -2176,13 +2176,14 @@ pub fn mark_mb_adjustpos(buf: *mut buf_T, lp: &mut pos_T) {
 }
 
 /// Add information about mark `mname` to list `l` (`add_mark`).
-fn add_mark(
+fn add_mark<S: crate::strings::IntoCCharPtr>(
     l: *mut list_T,
-    mname: &std::ffi::CStr,
+    mname: S,
     pos: &pos_T,
     bufnr: c_int,
     fname: *const c_char,
 ) -> bool {
+    let mname = mname.into_c_char_ptr();
     unsafe {
         if pos.lnum <= 0 {
             return true;
@@ -2204,7 +2205,7 @@ fn add_mark(
         );
         tv_list_append_number(lpos, i64::from(pos.coladd));
 
-        if !tv_dict_add_str_len(d, c"mark", mname.as_ptr(), mname.to_bytes().len() as c_int)
+        if !tv_dict_add_str_len(d, c"mark", mname, crate::memory::cstr_len(mname) as c_int)
             || !tv_dict_add_list(d, c"pos", lpos)
             || (!fname.is_null() && !tv_dict_add_str(d, c"file", fname))
         {
@@ -2224,7 +2225,7 @@ pub fn get_buf_local_marks(buf: &buf_T, l: *mut list_T) {
             mname[1] = (b'a' + i as u8) as c_char;
             add_mark(
                 l,
-                std::ffi::CStr::from_ptr(mname.as_ptr()),
+                mname.as_ptr(),
                 &buf.b_namedm[i].mark,
                 buf.b_fnum,
                 ptr::null(),
@@ -2334,7 +2335,7 @@ pub fn get_global_marks(l: *mut list_T) {
 
                 add_mark(
                     l,
-                    std::ffi::CStr::from_ptr(mname.as_ptr()),
+                    mname.as_ptr(),
                     &fm.fmark.mark,
                     fm.fmark.fnum,
                     name,

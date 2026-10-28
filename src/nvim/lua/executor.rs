@@ -1575,7 +1575,7 @@ unsafe extern "C-unwind" fn nlua_debug(lstate: *mut lua_State) -> c_int {
             if input.v_type != VarType::VAR_STRING
                 || input.vval.v_string().is_null()
                 || *input.vval.v_string() == NUL
-                || CStr::from_ptr(input.vval.v_string()) == c"cont"
+                || crate::memory::cstr_as_bytes(input.vval.v_string()) == b"cont"
             {
                 tv_clear(&raw mut input);
                 if ui_has(kUICmdline) {

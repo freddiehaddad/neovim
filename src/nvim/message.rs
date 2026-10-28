@@ -773,7 +773,7 @@ pub fn msg_keep(mut s: *const c_char, hl_id: c_int, keep: bool, multiline: bool)
             && (s != keep_msg_ptr
                 || (*s != b'<' as c_char
                     && (*hist).back().is_some_and(|last| {
-                        CStr::from_ptr(s) != CStr::from_ptr(last.msg.as_slice()[0].text.data)
+                        crate::memory::cstr_as_bytes(s) != crate::memory::cstr_as_bytes(last.msg.as_slice()[0].text.data)
                     })))
         {
             msg_hist_add(s, -1, hl_id);
@@ -1647,7 +1647,7 @@ pub fn did_set_messagesopt(_args: &mut optset_T) -> *const c_char {
 /// :messages command implementation
 pub fn ex_messages(eap: &mut exarg_T) {
     unsafe {
-        if CStr::from_ptr(eap.arg) == c"clear" {
+        if crate::memory::cstr_as_bytes(eap.arg) == b"clear" {
             msg_hist_clear(if eap.addr_count != 0 {
                 eap.line2 as c_int
             } else {
@@ -2055,12 +2055,12 @@ pub fn msgmore(n: c_int) {
 
 pub fn msg_ext_set_kind<S: crate::strings::IntoCCharPtr>(msg_kind: S) {
     let msg_kind = msg_kind.into_c_char_ptr();
-    unsafe {
+    {
         msg_ext_ui_flush();
         msg_st().msg_ext_kind = msg_kind;
         msg_st().redir_col = if msg_st().msg_ext_append { msg_st().redir_col } else { 0 };
 
-        if !msg_kind.is_null() && CStr::from_ptr(msg_kind) == c"list_cmd" {
+        if !msg_kind.is_null() && crate::memory::cstr_as_bytes(msg_kind) == b"list_cmd" {
             msg_ext_no_fast();
         }
     }
@@ -2757,7 +2757,7 @@ pub fn msg_puts_len(str_: impl crate::strings::IntoCCharPtr, len: isize, hl_id: 
 
         let overflow = !ui_has(kUIMessages) && g_st().msg_scrolled > if opt_vars().p_ch == 0 { 1 } else { 0 };
 
-        if overflow && !g_st().msg_scrolled_ign && CStr::from_ptr(str_) != c"\r" {
+        if overflow && !g_st().msg_scrolled_ign && crate::memory::cstr_as_bytes(str_) != b"\r" {
             g_st().need_wait_return = true;
         }
         g_st().msg_didany = true;

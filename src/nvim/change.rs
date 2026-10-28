@@ -1613,7 +1613,7 @@ pub fn open_line(
                     ptr::copy(prompt_line.add(prompt_len), prompt_line, rem_len);
                     g_st().cmdmod.cmod_flags |= CMOD_LOCKMARKS;
                     ml_replace((**curwin.as_ptr()).w_cursor.lnum, prompt_line, true);
-                    prompt_moved = Some(concat_str(std::ffi::CStr::from_ptr(prompt), std::ffi::CStr::from_ptr(p_extra)));
+                    prompt_moved = Some(concat_str(prompt, p_extra));
                     p_extra = prompt_moved
                         .as_ref()
                         .map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut());

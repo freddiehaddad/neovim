@@ -155,7 +155,7 @@ pub fn win_set_minimal_style(wp: &mut win_T) {
             wp.w_onebuf_opt.wo_fcs = if *old == NUL {
                 alloc_string_option(c"eob: ")
             } else {
-                alloc_string_option(concat_str(std::ffi::CStr::from_ptr(old), c",eob: ").as_ptr())
+                alloc_string_option(concat_str(old, c",eob: ").as_ptr())
             };
             free_string_option(old);
         }
@@ -164,7 +164,7 @@ pub fn win_set_minimal_style(wp: &mut win_T) {
         wp.w_onebuf_opt.wo_winhl = if *old == NUL {
             alloc_string_option(c"EndOfBuffer:")
         } else {
-            alloc_string_option(concat_str(std::ffi::CStr::from_ptr(old), c",EndOfBuffer:").as_ptr())
+            alloc_string_option(concat_str(old, c",EndOfBuffer:").as_ptr())
         };
         free_string_option(old);
         parse_winhl_opt(ptr::null(), &raw mut *wp);
