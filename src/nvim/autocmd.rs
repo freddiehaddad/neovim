@@ -28,7 +28,7 @@ use crate::eval::vars::{
     set_vim_var_nr,
 };
 use crate::eval::{callback_call, get_v_event, last_set_msg, restore_v_event};
-use crate::event::r#loop::{Loop, loop_queues};
+use crate::event::r#loop::loop_queues;
 use crate::event::multiqueue::{
     Event, multiqueue_free, multiqueue_new_child, multiqueue_put_event,
 };
@@ -1327,30 +1327,27 @@ use crate::strings::{vim_strchr};
 fn map_put_name_to_id(name: *const c_char, val: c_int) {
     unsafe {
         let name_cstr = CStr::from_ptr(name);
-        let vec_ptr = &raw mut au_st().map_augroup_name_to_id;
-        for (existing_name, existing_val) in &mut *vec_ptr {
+        for (existing_name, existing_val) in &mut au_st().map_augroup_name_to_id {
             if existing_name.as_c_str() == name_cstr {
                 *existing_val = val;
                 return;
             }
         }
-        (*vec_ptr).push((name_cstr.to_owned(), val));
+        au_st().map_augroup_name_to_id.push((name_cstr.to_owned(), val));
     }
 }
 
 fn map_get_id_to_name(key: c_int) -> *mut c_char {
-    unsafe {
-        let map_ptr = &raw const au_st().map_augroup_id_to_name;
-        (*map_ptr)
+     {
+        au_st().map_augroup_id_to_name
             .get(&key)
             .map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut())
     }
 }
 
 fn map_put_id_to_name(key: c_int, name: *const c_char) {
-    unsafe {
-        let map_ptr = &raw mut au_st().map_augroup_id_to_name;
-        (*map_ptr).insert(key, crate::memory::cstr_to_cstring(name));
+     {
+        au_st().map_augroup_id_to_name.insert(key, crate::memory::cstr_to_cstring(name));
     }
 }
 
@@ -1500,7 +1497,7 @@ fn event_name2nr_hash(str_: *const c_char, len: usize) -> isize {
 
 pub fn autocmd_init() {
     unsafe {
-        let events = (*loop_queues(&mut *(&raw mut g_st().main_loop).cast::<Loop>())).events;
+        let events = (*loop_queues(&mut g_st().main_loop)).events;
         g_st().deferred_events = multiqueue_new_child(events);
     }
 }
@@ -1513,17 +1510,15 @@ fn augroup_map_del(id: c_int, name: *const c_char) {
     unsafe {
         if !name.is_null() {
             let name_cstr = CStr::from_ptr(name);
-            let vec_ptr = &raw mut au_st().map_augroup_name_to_id;
-            if let Some(pos) = (*vec_ptr)
+            if let Some(pos) = au_st().map_augroup_name_to_id
                 .iter()
                 .position(|(existing_name, _)| existing_name.as_c_str() == name_cstr)
             {
-                (*vec_ptr).swap_remove(pos);
+                au_st().map_augroup_name_to_id.swap_remove(pos);
             }
         }
         if id > 0 {
-            let map_ptr = &raw mut au_st().map_augroup_id_to_name;
-            (*map_ptr).remove(&id);
+            au_st().map_augroup_id_to_name.remove(&id);
         }
     }
 }
@@ -1696,13 +1691,12 @@ pub fn aucmd_del_for_event_and_group(event: event_T, group: c_int) {
 }
 
 fn au_cleanup() {
-    unsafe {
+     {
         if g_st().autocmd_busy || !au_st().au_need_clean {
             return;
         }
 
-        let all_autocmds = &raw mut au_st().autocmds;
-        for acs in &mut *all_autocmds {
+        for acs in &mut au_st().autocmds {
             acs.retain(|ac| ac.pat.is_some());
             if acs.is_empty() {
                 *acs = Vec::new();
@@ -1719,8 +1713,7 @@ pub fn au_get_autocmds_for_event(event: event_T) -> &'static mut AutoCmdVec {
 
 pub fn aubuflocal_remove(buf: &mut buf_T) {
     unsafe {
-        let apc_list = &raw const au_st().active_apc_list;
-        for arg_bufnr in (*apc_list).iter().rev() {
+        for arg_bufnr in au_st().active_apc_list.iter().rev() {
             if buf.b_fnum == arg_bufnr.get() {
                 arg_bufnr.set(0);
             }
@@ -1792,7 +1785,7 @@ pub fn augroup_del_by_id(id: c_int) {
 }
 
 pub fn augroup_del(name: *mut c_char, id_for_error: c_int, stupid_legacy_mode: bool) {
-    unsafe {
+     {
         let group = augroup_find(name);
         if group == AUGROUP_ERROR {
             if id_for_error > 0 {
@@ -1807,8 +1800,7 @@ pub fn augroup_del(name: *mut c_char, id_for_error: c_int, stupid_legacy_mode: b
         }
 
         if stupid_legacy_mode {
-            let all_autocmds = &raw const au_st().autocmds;
-            for acs in &*all_autocmds {
+            for acs in &au_st().autocmds {
                 for ac in acs {
                     if let Some(ref ap) = ac.pat
                         && ap.group == group
@@ -1825,8 +1817,7 @@ pub fn augroup_del(name: *mut c_char, id_for_error: c_int, stupid_legacy_mode: b
                 }
             }
         } else {
-            let all_autocmds = &raw mut au_st().autocmds;
-            for acs in &mut *all_autocmds {
+            for acs in &mut au_st().autocmds {
                 for ac in acs {
                     if ac.pat.as_ref().is_some_and(|ap| ap.group == group) {
                         aucmd_del(ac);
@@ -1847,8 +1838,7 @@ pub fn augroup_find(name: impl crate::strings::IntoCCharPtr) -> c_int {
             return AUGROUP_ERROR;
         }
         let name_cstr = CStr::from_ptr(name);
-        let vec_ptr = &raw const au_st().map_augroup_name_to_id;
-        let existing_id = (*vec_ptr)
+        let existing_id = au_st().map_augroup_name_to_id
             .iter()
             .find_map(|(k, v)| (k.as_c_str() == name_cstr).then_some(*v))
             .unwrap_or(0);
@@ -1893,7 +1883,7 @@ pub fn augroup_exists(name: impl crate::strings::IntoCCharPtr) -> bool {
 }
 
 pub fn do_augroup(arg: *mut c_char, del_group: bool) {
-    unsafe {
+     {
         if del_group {
             if crate::memory::cstr_is_empty(arg) {
                 emsg(tr(e_argreq));
@@ -1908,8 +1898,7 @@ pub fn do_augroup(arg: *mut c_char, del_group: bool) {
             msg_start();
             msg_ext_set_kind(c"list_cmd");
 
-            let vec_ptr = &raw const au_st().map_augroup_name_to_id;
-            for (name, value) in &*vec_ptr {
+            for (name, value) in &au_st().map_augroup_name_to_id {
                 if *value > 0 {
                     msg_puts(name.as_ptr());
                 } else {
@@ -1925,9 +1914,8 @@ pub fn do_augroup(arg: *mut c_char, del_group: bool) {
 }
 
 pub fn free_all_autocmds() {
-    unsafe {
-        let all_autocmds = &raw mut au_st().autocmds;
-        for acs in &mut *all_autocmds {
+     {
+        for acs in &mut au_st().autocmds {
             for ac in acs.iter_mut() {
                 aucmd_del(ac);
             }
@@ -1935,11 +1923,9 @@ pub fn free_all_autocmds() {
             au_st().au_need_clean = false;
         }
 
-        let vec_ptr = &raw mut au_st().map_augroup_name_to_id;
-        *vec_ptr = Vec::new();
+        au_st().map_augroup_name_to_id = Vec::new();
 
-        let map_ptr = &raw mut au_st().map_augroup_id_to_name;
-        *map_ptr = std::collections::BTreeMap::new();
+        au_st().map_augroup_id_to_name = std::collections::BTreeMap::new();
     }
 }
 
@@ -2402,8 +2388,7 @@ pub fn autocmd_register(
             ac.handler = AutoCmdHandler::Fn(cb);
         }
         ac.script_ctx = g_st().current_sctx;
-        let es = &raw const rt_st().exestack;
-        let sourcing_lnum = (*es).last().map_or(0, |top| top.es_lnum);
+        let sourcing_lnum = rt_st().exestack.last().map_or(0, |top| top.es_lnum);
         ac.script_ctx.sc_lnum += sourcing_lnum;
         nlua_set_sctx(&mut ac.script_ctx);
         ac.once = once;
@@ -3042,8 +3027,7 @@ pub fn apply_autocmds_group(
             aucmd_next(&mut patcmd);
 
             if patcmd.lastpat.is_some() {
-                let apc_list = &raw mut au_st().active_apc_list;
-                (*apc_list).push(patcmd.arg_bufnr.clone());
+                au_st().active_apc_list.push(patcmd.arg_bufnr.clone());
                 patcmd.data = (!data.is_null()).then(|| *data);
 
                 let save_cmdbang = get_vim_var_nr(VV_CMDBANG);
@@ -3080,12 +3064,11 @@ pub fn apply_autocmds_group(
                     set_cmdarg(None, save_cmdarg);
                     set_vim_var_nr(VV_CMDBANG, save_cmdbang);
                 }
-                let apc_list = &raw mut au_st().active_apc_list;
-                if (*apc_list)
+                if au_st().active_apc_list
                     .last()
                     .is_some_and(|last| std::rc::Rc::ptr_eq(last, &patcmd.arg_bufnr))
                 {
-                    (*apc_list).pop();
+                    au_st().active_apc_list.pop();
                 }
             }
 
@@ -3114,10 +3097,8 @@ pub fn apply_autocmds_group(
                     restore_redobuff(&mut save_redo);
                 }
                 curbuf_mut().b_did_filetype = false;
-                let pending_buf = &raw mut g_st().au_pending_free_buf;
-                (*pending_buf).clear();
-                let pending_win = &raw mut g_st().au_pending_free_win;
-                (*pending_win).clear();
+                g_st().au_pending_free_buf.clear();
+                g_st().au_pending_free_win.clear();
             }
 
             if g_st().curbuf == old_curbuf
@@ -3211,8 +3192,7 @@ pub fn is_autocmd_blocked() -> bool {
 
 fn aucmd_next(apc: &mut AutoPatCmd) {
     unsafe {
-        let es = &raw mut rt_st().exestack;
-        let entry = (*es).last_mut().unwrap();
+        let entry = rt_st().exestack.last_mut().unwrap();
 
         let acs = &raw mut au_st().autocmds[apc.event as usize];
         assert!(apc.ausize <= (*acs).len());
@@ -3755,12 +3735,11 @@ pub fn aupat_normalize_buflocal_pat(
 }
 
 pub fn autocmd_delete_id(id: i64) -> bool {
-    unsafe {
+     {
         assert!(id > 0);
         let mut success = false;
 
-        let all_autocmds = &raw mut au_st().autocmds;
-        for acs in &mut *all_autocmds {
+        for acs in &mut au_st().autocmds {
             for ac in acs {
                 if ac.id == id {
                     aucmd_del(ac);
@@ -3879,7 +3858,7 @@ pub fn may_trigger_vim_suspend_resume(suspend: bool) {
             au_st().pending_vimresume = kTrue;
         } else if !suspend && au_st().pending_vimresume == kTrue {
             au_st().pending_vimresume = kNone;
-            let events = (*loop_queues(&mut *(&raw mut g_st().main_loop).cast::<Loop>())).events;
+            let events = (*loop_queues(&mut g_st().main_loop)).events;
             multiqueue_put_event( &mut *events, Event::AutoCmdVimResume);
         }
     }

@@ -696,11 +696,10 @@ fn makeopens(fd: *mut FILE, dirnow: *mut c_char) -> bool {
             }
         }
 
-        let ga_ptr = &raw const g_st().global_alist;
         if !ses_arglist(
             fd,
             c"argglobal",
-            &(*ga_ptr).al_ga,
+            &g_st().global_alist.al_ga,
             (opt_vars().ssop_flags & kOptSsopFlagCurdir) == 0,
             &mut opt_vars().ssop_flags,
         )

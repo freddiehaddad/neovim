@@ -801,12 +801,11 @@ pub fn get_breakindent_win(wp: &mut win_T, line: *mut c_char) -> c_int {
         let no_ts = wp.w_onebuf_opt.wo_list != 0 && wp.w_p_lcs_chars.tab1 == 0;
 
         let buf = wp.w_buffer;
-        let prev_vts = &raw mut ind_st().PREV_VTS;
         let flp_val = CStr::from_ptr(get_flp_value(&mut *buf));
         let line_cstr = CStr::from_ptr(line);
         if ind_st().PREV_FNUM != (*buf).b_fnum
             || ind_st().PREV_TS != (*buf).b_p_ts
-            || (*prev_vts).as_slice() != (*buf).b_p_vts_array.as_slice()
+            || ind_st().PREV_VTS.as_slice() != (*buf).b_p_vts_array.as_slice()
             || ind_st().PREV_TICK != buf_get_changedtick(&*buf)
             || ind_st().PREV_LISTOPT != wp.w_briopt_list
             || ind_st().PREV_NO_TS != no_ts
@@ -817,7 +816,7 @@ pub fn get_breakindent_win(wp: &mut win_T, line: *mut c_char) -> c_int {
             ind_st().PREV_FNUM = (*buf).b_fnum;
             ind_st().PREV_LINE = Some(line_cstr.to_owned());
             ind_st().PREV_TS = (*buf).b_p_ts;
-            (*prev_vts).clone_from(&(*buf).b_p_vts_array);
+            ind_st().PREV_VTS.clone_from(&(*buf).b_p_vts_array);
             if wp.w_briopt_vcol == 0 {
                 if no_ts {
                     ind_st().PREV_INDENT = indent_size_no_ts(line);
@@ -942,7 +941,7 @@ pub fn op_reindent(oap: &mut oparg_T, how: Indenter) {
                     let copy_len = bytes.len().min(IOSIZE - 1);
                     ptr::copy_nonoverlapping(
                         bytes.as_ptr().cast::<c_char>(),
-                        &raw mut g_st().IObuff[0],
+                        g_st().IObuff.as_mut_ptr(),
                         copy_len,
                     );
                     g_st().IObuff[copy_len] = NUL;
@@ -950,7 +949,7 @@ pub fn op_reindent(oap: &mut oparg_T, how: Indenter) {
                     let save_lnum = curwin_mut().w_cursor.lnum;
                     curwin_mut().w_cursor.lnum = start_lnum;
                     msg_progress(
-                        &raw mut g_st().IObuff[0],
+                        g_st().IObuff.as_mut_ptr(),
                         c"nvim.indent",
                         c"running",
                         -1,
@@ -1014,12 +1013,12 @@ pub fn op_reindent(oap: &mut oparg_T, how: Indenter) {
             let copy_len = bytes.len().min(IOSIZE - 1);
             ptr::copy_nonoverlapping(
                 bytes.as_ptr().cast::<c_char>(),
-                &raw mut g_st().IObuff[0],
+                g_st().IObuff.as_mut_ptr(),
                 copy_len,
             );
             g_st().IObuff[copy_len] = NUL;
             msg_progress(
-                &raw mut g_st().IObuff[0],
+                g_st().IObuff.as_mut_ptr(),
                 c"nvim.indent",
                 c"success",
                 -1,

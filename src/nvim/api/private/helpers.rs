@@ -369,10 +369,8 @@ pub fn error_set(e: &Error) -> bool {
 /// Start block that may cause Vimscript exceptions while evaluating another code (`try_enter`).
 pub fn try_enter(tstate: &mut TryState) {
     unsafe {
-        let ml = &raw mut g_st().msg_list;
-        let saved_msg_list = (*ml).replace(Vec::new());
-        let ce = &raw mut g_st().current_exception;
-        let saved_excp = (*ce).take();
+        let saved_msg_list = g_st().msg_list.replace(Vec::new());
+        let saved_excp = g_st().current_exception.take();
         ptr::write(
             tstate,
             TryState {
@@ -635,8 +633,7 @@ pub fn find_buffer_by_handle(buffer: Buffer, err: &mut Error) -> *mut buf_T {
         if buffer == 0 {
             return g_st().curbuf;
         }
-        let map_ptr = &raw const g_st().buffer_handles;
-        let rv = (*map_ptr).get(&buffer).copied().unwrap_or(ptr::null_mut());
+        let rv = g_st().buffer_handles.get(&buffer).copied().unwrap_or(ptr::null_mut());
         if rv.is_null() {
             api_set_error!(
                 err,
@@ -676,8 +673,7 @@ pub fn find_tab_by_handle(tabpage: Tabpage, err: &mut Error) -> *mut tabpage_T {
         if tabpage == 0 {
             return g_st().curtab;
         }
-        let map_ptr = &raw const g_st().tabpage_handles;
-        let rv = (*map_ptr).get(&tabpage).copied().unwrap_or(ptr::null_mut());
+        let rv = g_st().tabpage_handles.get(&tabpage).copied().unwrap_or(ptr::null_mut());
         if rv.is_null() {
             api_set_error!(
                 err,

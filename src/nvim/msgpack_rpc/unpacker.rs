@@ -831,9 +831,8 @@ pub fn unpacker_parse_redraw(p: &mut Unpacker) -> bool {
                     p.grid_line_event.clear_width = repeat;
                 } else {
                     let sc = schar_from_buf(cellbuf, cellsize);
-                    let char_buf = &raw const g_st().grid_line_buf_char;
                     for _ in 0..repeat {
-                        if p.grid_line_event.coloff >= ((*char_buf).len() as c_int) {
+                        if p.grid_line_event.coloff >= (g_st().grid_line_buf_char.len() as c_int) {
                             p.state = -1;
                             return false;
                         }

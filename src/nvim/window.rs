@@ -4082,25 +4082,23 @@ pub fn win_free_all() {
             win_remove(lastwin_mut(), ptr::null_mut());
             let mut dummy: c_int = 0;
             win_free_mem(wp, &mut dummy, ptr::null_mut());
-            let vec = &raw mut g_st().ctx_win_vec;
-            for item in (*vec).iter_mut() {
+            for item in g_st().ctx_win_vec.iter_mut() {
                 if ptr::eq(item.cw_win, wp) {
                     item.cw_win = ptr::null_mut();
                 }
             }
         }
 
-        let vec = &raw mut g_st().ctx_win_vec;
-        for i in 0..(*vec).len() {
-            let cw = (*vec).as_slice()[i].cw_win;
+        for i in 0..g_st().ctx_win_vec.len() {
+            let cw = g_st().ctx_win_vec.as_slice()[i].cw_win;
             if !cw.is_null() {
                 let mut dummy: c_int = 0;
                 win_free_mem(cw, &mut dummy, ptr::null_mut());
-                (*vec).as_mut_slice()[i].cw_win = ptr::null_mut();
+                g_st().ctx_win_vec.as_mut_slice()[i].cw_win = ptr::null_mut();
             }
         }
 
-        *vec = Vec::new();
+        g_st().ctx_win_vec = Vec::new();
 
         while !g_st().firstwin.is_null() {
             let mut dummy: c_int = 0;
@@ -4977,8 +4975,7 @@ pub fn win_alloc_ctx_win(idx: c_int) {
         fconfig.mouse = false;
         fconfig.hide = true;
         let cw_win = win_new_float(ptr::null_mut(), true, fconfig, &mut err);
-        let vec = &raw mut g_st().ctx_win_vec;
-        (*vec).as_mut_slice()[idx as usize].cw_win = cw_win;
+        g_st().ctx_win_vec.as_mut_slice()[idx as usize].cw_win = cw_win;
         (*cw_win).buf_mut().b_nwindows -= 1;
         reset_binding(&mut *cw_win);
     }
@@ -5040,8 +5037,7 @@ fn alloc_tabpage() -> *mut tabpage_T {
         let tp = Box::into_raw(Box::new(tabpage_T::new()));
         win_st().last_tp_handle += 1;
         (*tp).handle = win_st().last_tp_handle;
-        let map_ptr = &raw mut g_st().tabpage_handles;
-        (*map_ptr).insert((*tp).handle, tp);
+        g_st().tabpage_handles.insert((*tp).handle, tp);
 
         init_var_dict(&mut *tv_dict_alloc(), &mut *(&raw mut (*tp).tp_winvar).cast(), VAR_SCOPE);
         (*tp).tp_ch_used = opt_vars().p_ch;
@@ -5053,8 +5049,7 @@ fn alloc_tabpage() -> *mut tabpage_T {
 impl Drop for tabpage_T {
     fn drop(&mut self) {
         unsafe {
-            let map_ptr = &raw mut g_st().tabpage_handles;
-            (*map_ptr).remove(&self.handle);
+            g_st().tabpage_handles.remove(&self.handle);
             diff_clear(self);
             for idx in 0..SNAP_COUNT {
                 clear_snapshot(self, idx as c_int);
@@ -6111,8 +6106,7 @@ pub fn win_alloc(after: *mut win_T, hidden: bool) -> *mut win_T {
 
         win_st().last_win_id += 1;
         (*new_wp).handle = win_st().last_win_id;
-        let map_ptr = &raw mut g_st().window_handles;
-        (*map_ptr).insert((*new_wp).handle, new_wp);
+        g_st().window_handles.insert((*new_wp).handle, new_wp);
 
         grid_assign_handle(&mut (*new_wp).w_grid_alloc);
 
@@ -6157,8 +6151,7 @@ pub fn win_alloc(after: *mut win_T, hidden: bool) -> *mut win_T {
 
 pub fn win_free(wp: *mut win_T, tp: *mut tabpage_T) {
     unsafe {
-        let map_ptr = &raw mut g_st().window_handles;
-        (*map_ptr).remove(&(*wp).handle);
+        g_st().window_handles.remove(&(*wp).handle);
         clearFolding(&mut *wp);
 
         (*wp).w_alist = None;
@@ -6245,8 +6238,7 @@ pub fn win_free(wp: *mut win_T, tp: *mut tabpage_T) {
             win_remove( &mut *wp, tp);
         }
         if g_st().autocmd_busy {
-            let pending_win = &raw mut g_st().au_pending_free_win;
-            (*pending_win).push(Box::from_raw(wp));
+            g_st().au_pending_free_win.push(Box::from_raw(wp));
         } else {
             drop(Box::from_raw(wp));
         }

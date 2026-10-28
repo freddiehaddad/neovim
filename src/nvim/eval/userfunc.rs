@@ -303,15 +303,14 @@ fn uf2hikey(fp: &ufunc_T) -> *mut c_char {
 }
 
 fn func_hashtab_add(fp: &mut ufunc_T) -> bool {
-    unsafe {
+     {
         let key_ptr = uf2hikey(fp);
         let key = crate::memory::cstr_as_bytes(key_ptr);
-        let ht = &raw mut uf_st().func_hashtab;
-        if (*ht).contains_key(key) {
+        if uf_st().func_hashtab.contains_key(key) {
             crate::siemsg!(c"Duplicate key in hash table: \"%s\"", key_ptr);
             return false;
         }
-        (*ht).insert(key.to_vec(), fp);
+        uf_st().func_hashtab.insert(key.to_vec(), fp);
         uf_st().func_hashtab_changed = uf_st().func_hashtab_changed.wrapping_add(1);
         true
     }
@@ -324,9 +323,8 @@ fn funcarg(fp: &ufunc_T, j: c_int) -> *mut c_char {
 
 /// Return the function hash table.
 pub fn func_tbl_get() -> &'static mut std::collections::BTreeMap<Vec<u8>, *mut ufunc_T> {
-    unsafe {
-        let tbl = &raw mut uf_st().func_hashtab;
-        &mut *tbl
+     {
+        &mut uf_st().func_hashtab
     }
 }
 
@@ -813,18 +811,16 @@ pub fn get_func_tv(
             let mut i = 0usize;
 
             if get_vim_var_nr(VV_TESTING) != 0 {
-                let fa = &raw mut uf_st().funcargs;
                 while (i as c_int) < argcount {
-                    (*fa).push(&raw mut argvars[i]);
+                    uf_st().funcargs.push(&raw mut argvars[i]);
                     i += 1;
                 }
             }
             ret = call_func(name, len, rettv, argcount, argvars.as_mut_ptr(), funcexe);
 
             if i > 0 {
-                let fa = &raw mut uf_st().funcargs;
-                let new_len = (*fa).len().saturating_sub(i);
-                (*fa).truncate(new_len);
+                let new_len = uf_st().funcargs.len().saturating_sub(i);
+                uf_st().funcargs.truncate(new_len);
             }
         } else if !aborting() && evaluate {
             if argcount == MAX_FUNC_ARGS as c_int {
@@ -952,9 +948,8 @@ pub fn find_func(name: *const c_char) -> *mut ufunc_T {
     if name.is_null() {
         return ptr::null_mut();
     }
-    unsafe {
-        let ht = &raw const uf_st().func_hashtab;
-        (*ht)
+     {
+        uf_st().func_hashtab
             .get(crate::memory::cstr_as_bytes(name))
             .copied()
             .unwrap_or(ptr::null_mut())
@@ -1068,8 +1063,7 @@ fn cleanup_function_call(fc: &mut funccall_T) {
             drop(Box::from_raw(fc));
         } else {
             fc.fc_caller = ptr::null_mut();
-            let pfc = &raw mut uf_st().previous_funccal;
-            (*pfc).push(RetainedFunccall(Box::from_raw(fc)));
+            uf_st().previous_funccal.push(RetainedFunccall(Box::from_raw(fc)));
 
             if g_st().want_garbage_collect {
                 uf_st().made_copy = 0;
@@ -1097,16 +1091,14 @@ fn funccal_unref(fc: *mut funccall_T, fp: &mut ufunc_T, force: bool) {
             (*fc).fc_refcount <= 0
         } else {
             !fc_referenced( &*fc)
-        } {
-            let pfc = &raw mut uf_st().previous_funccal;
-            if let Some(pos) = (*pfc)
+        }
+            && let Some(pos) = uf_st().previous_funccal
                 .iter()
                 .position(|item| ptr::eq(&raw const *item.0, fc))
             {
-                (*pfc).remove(pos);
+                uf_st().previous_funccal.remove(pos);
                 return;
             }
-        }
         for slot in &mut (*fc).fc_ufuncs {
             if std::ptr::eq(*slot, fp) {
                 *slot = ptr::null_mut();
@@ -1117,10 +1109,9 @@ fn funccal_unref(fc: *mut funccall_T, fp: &mut ufunc_T, force: bool) {
 
 /// Remove the function from the function hashtable.
 fn func_remove(fp: &mut ufunc_T) -> bool {
-    unsafe {
-        let ht = &raw mut uf_st().func_hashtab;
+     {
         let key = crate::memory::cstr_as_bytes(uf2hikey(fp));
-        if (*ht).remove(key).is_some() {
+        if uf_st().func_hashtab.remove(key).is_some() {
             uf_st().func_hashtab_changed = uf_st().func_hashtab_changed.wrapping_add(1);
             true
         } else {
@@ -1377,8 +1368,7 @@ pub fn call_user_func(
         }
 
         estack_push_ufunc(&mut *fp, 1);
-        let es = &raw const rt_st().exestack;
-        let estack_len_before = (*es).len() as c_int;
+        let estack_len_before = rt_st().exestack.len() as c_int;
         if opt_vars().p_verbose >= 12 {
             g_st().no_wait_return += 1;
             verbose_enter_scroll();
@@ -1628,17 +1618,15 @@ fn call_user_func_check(
 
 /// Save the current function call pointer, and set it to NULL.
 pub fn save_funccal() {
-    unsafe {
-        let stack = &raw mut uf_st().funccal_stack;
-        (*stack).push(uf_st().current_funccal);
+     {
+        uf_st().funccal_stack.push(uf_st().current_funccal);
         uf_st().current_funccal = ptr::null_mut();
     }
 }
 
 pub fn restore_funccal() {
-    unsafe {
-        let stack = &raw mut uf_st().funccal_stack;
-        if let Some(top) = (*stack).pop() {
+     {
+        if let Some(top) = uf_st().funccal_stack.pop() {
             uf_st().current_funccal = top;
         } else {
             iemsg(c"INTERNAL: restore_funccal()");
@@ -1659,8 +1647,7 @@ pub fn free_all_functions() {
         while !uf_st().current_funccal.is_null() {
             tv_clear(&mut *(*uf_st().current_funccal).fc_rettv);
             cleanup_function_call(&mut *uf_st().current_funccal);
-            let stack = &raw const uf_st().funccal_stack;
-            if uf_st().current_funccal.is_null() && !(*stack).is_empty() {
+            if uf_st().current_funccal.is_null() && !uf_st().funccal_stack.is_empty() {
                 restore_funccal();
             }
         }
@@ -1668,8 +1655,7 @@ pub fn free_all_functions() {
 
         loop {
             let mut restarted = false;
-            let ht = &raw const uf_st().func_hashtab;
-            let funcs: Vec<*mut ufunc_T> = (*ht).values().copied().collect();
+            let funcs: Vec<*mut ufunc_T> = uf_st().func_hashtab.values().copied().collect();
             for fp in funcs {
                 if !func_name_refcount(uf2hikey(&*fp)) {
                     let changed = uf_st().func_hashtab_changed;
@@ -1687,11 +1673,10 @@ pub fn free_all_functions() {
 
         let mut skipped = 0usize;
         loop {
-            let ht = &raw const uf_st().func_hashtab;
-            if (*ht).len() <= skipped {
+            if uf_st().func_hashtab.len() <= skipped {
                 break;
             }
-            let funcs: Vec<*mut ufunc_T> = (*ht).values().copied().collect();
+            let funcs: Vec<*mut ufunc_T> = uf_st().func_hashtab.values().copied().collect();
             for fp in funcs {
                 if func_name_refcount(uf2hikey(&*fp)) {
                     skipped += 1;
@@ -1703,11 +1688,9 @@ pub fn free_all_functions() {
             }
         }
         if skipped == 0 {
-            let ht = &raw mut uf_st().func_hashtab;
-            *ht = std::collections::BTreeMap::new();
+            uf_st().func_hashtab = std::collections::BTreeMap::new();
         }
-        let items_ptr = &raw mut uf_st().get_uf_items;
-        *items_ptr = Vec::new();
+        uf_st().get_uf_items = Vec::new();
     }
 }
 
@@ -2462,8 +2445,7 @@ pub fn save_function_name(
 fn list_functions(mut regmatch: Option<&mut regmatch_T>) {
     unsafe {
         let prev_ht_changed = uf_st().func_hashtab_changed;
-        let ht = &raw const uf_st().func_hashtab;
-        let funcs: Vec<*mut ufunc_T> = (*ht).values().copied().collect();
+        let funcs: Vec<*mut ufunc_T> = uf_st().func_hashtab.values().copied().collect();
 
         msg_ext_set_kind(c"list_cmd");
         for fp in funcs {
@@ -3223,8 +3205,7 @@ pub fn ex_function(eap: &mut exarg_T) {
             }
 
             if overwrite {
-                let ht = &raw mut uf_st().func_hashtab;
-                (*ht).insert(crate::memory::cstr_as_bytes(name).to_vec(), fp);
+                uf_st().func_hashtab.insert(crate::memory::cstr_as_bytes(name).to_vec(), fp);
             } else if !func_hashtab_add(&mut *fp) {
                 free_fp = true;
                 erret!();
@@ -3307,14 +3288,11 @@ pub fn get_user_func_name(xp: &mut expand_T, idx: c_int) -> *mut c_char {
     unsafe {
         if idx == 0 {
             uf_st().get_uf_done = 0;
-            let ht = &raw const uf_st().func_hashtab;
-            let items_ptr = &raw mut uf_st().get_uf_items;
-            *items_ptr = (*ht).values().copied().collect();
+            uf_st().get_uf_items = uf_st().func_hashtab.values().copied().collect();
             uf_st().get_uf_changed = uf_st().func_hashtab_changed;
         }
-        let items_ptr = &raw const uf_st().get_uf_items;
-        if uf_st().get_uf_changed == uf_st().func_hashtab_changed && uf_st().get_uf_done < (*items_ptr).len() {
-            let fp = (*items_ptr).as_slice()[uf_st().get_uf_done];
+        if uf_st().get_uf_changed == uf_st().func_hashtab_changed && uf_st().get_uf_done < uf_st().get_uf_items.len() {
+            let fp = uf_st().get_uf_items.as_slice()[uf_st().get_uf_done];
             uf_st().get_uf_done += 1;
 
             if ((*fp).uf_flags & FC_DICT) != 0
@@ -3327,7 +3305,7 @@ pub fn get_user_func_name(xp: &mut expand_T, idx: c_int) -> *mut c_char {
                 return uf2hikey(&*fp);
             }
 
-            let iobuff_ptr = (&raw mut g_st().IObuff).cast::<c_char>();
+            let iobuff_ptr = g_st().IObuff.as_mut_ptr();
             let mut len = cat_func_name(iobuff_ptr, IOSIZE, &*fp);
             if xp.xp_context != EXPAND_USER_FUNC {
                 xstrlcpy(
@@ -3801,8 +3779,7 @@ pub fn invoke_all_defer() {
         handle_defer_one(fc);
     }
 
-    let stack = &raw const uf_st().funccal_stack;
-    for &top in unsafe { (*stack).iter().rev() } {
+    for &top in  uf_st().funccal_stack.iter().rev() {
         for fc2 in FunccalCallerMutIter(top) {
             handle_defer_one(fc2);
         }
@@ -3961,7 +3938,7 @@ pub fn get_return_cmd(rettv: Option<typval_T>) -> std::ffi::CString {
             (c"".as_ptr(), 0)
         };
 
-        let iobuff_ptr = (&raw mut g_st().IObuff).cast::<c_char>();
+        let iobuff_ptr = g_st().IObuff.as_mut_ptr();
         xstrlcpy(iobuff_ptr, c":return ", IOSIZE);
         xstrlcpy(iobuff_ptr.add(8), s, IOSIZE - 8);
         let mut iobuff_len = 8 + slen;
@@ -4142,12 +4119,11 @@ pub fn free_unref_funccal(copyID: c_int, testing: c_int) -> bool {
         let mut did_free = false;
         let mut did_free_funccal = false;
 
-        let pfc = &raw mut uf_st().previous_funccal;
         let mut i = 0usize;
-        while i < (*pfc).len() {
-            let fc: *const funccall_T = &raw const *(*pfc).as_slice()[i].0;
+        while i < uf_st().previous_funccal.len() {
+            let fc: *const funccall_T = &raw const *uf_st().previous_funccal.as_slice()[i].0;
             if can_free_funccal(&*fc, copyID) {
-                (*pfc).remove(i);
+                uf_st().previous_funccal.remove(i);
                 did_free = true;
                 did_free_funccal = true;
             } else {
@@ -4357,8 +4333,7 @@ pub fn find_var_in_scoped_ht(
 
 pub fn set_ref_in_previous_funccal(copyID: c_int) -> bool {
     unsafe {
-        let pfc = &raw mut uf_st().previous_funccal;
-        for item in (*pfc).as_mut_slice() {
+        for item in uf_st().previous_funccal.as_mut_slice() {
             let fc: *mut funccall_T = &raw mut *item.0;
             (*fc).fc_copyID = copyID + 1;
             if set_ref_in_ht(
@@ -4403,8 +4378,7 @@ pub fn set_ref_in_call_stack(copyID: c_int) -> bool {
         }
     }
 
-    let stack = &raw const uf_st().funccal_stack;
-    for &top in unsafe { (*stack).iter().rev() } {
+    for &top in  uf_st().funccal_stack.iter().rev() {
         for fc2 in FunccalCallerMutIter(top) {
             if set_ref_in_funccal(fc2, copyID) {
                 return true;
@@ -4417,8 +4391,7 @@ pub fn set_ref_in_call_stack(copyID: c_int) -> bool {
 
 pub fn set_ref_in_functions(copyID: c_int) -> bool {
     unsafe {
-        let ht = &raw const uf_st().func_hashtab;
-        for &fp in (*ht).values() {
+        for &fp in uf_st().func_hashtab.values() {
             if g_st().got_int {
                 break;
             }
@@ -4432,8 +4405,7 @@ pub fn set_ref_in_functions(copyID: c_int) -> bool {
 
 pub fn set_ref_in_func_args(copyID: c_int) -> bool {
     unsafe {
-        let fa = &raw const uf_st().funcargs;
-        for &tv in &*fa {
+        for &tv in &uf_st().funcargs {
             if set_ref_in_item(&mut *tv, copyID, ptr::null_mut(), ptr::null_mut()) {
                 return true;
             }

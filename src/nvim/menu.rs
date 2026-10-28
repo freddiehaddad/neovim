@@ -1518,8 +1518,7 @@ pub fn show_popupmenu() {
         apply_autocmds(EVENT_MENUPOPUP, mode, ptr::null_mut(), false, g_st().curbuf);
 
         let mut menu: *mut vimmenu_T = ptr::null_mut();
-        let root_ptr = &raw mut g_st().root_menu;
-        for m in &mut *root_ptr {
+        for m in &mut g_st().root_menu {
             if (b"PopUp" == crate::memory::cstr_prefix_bytes(m.name.as_ptr(), 5))
                 && (crate::memory::cstr_prefix_bytes(m.name.as_ptr().add(5), mode_len) == crate::memory::cstr_prefix_bytes(mode, mode_len))
             {
@@ -1755,8 +1754,7 @@ pub fn menu_find(path_name: *const c_char) -> *mut vimmenu_T {
 pub fn ex_menutranslate(eap: &mut exarg_T) {
     unsafe {
         let mut arg = eap.arg;
-        let mt_ptr = &raw mut menu_st().MENUTRANS_GA;
-        let menutrans = &mut *mt_ptr;
+        let menutrans = &mut menu_st().MENUTRANS_GA;
 
         if (crate::memory::cstr_prefix_bytes(arg, 5) == &b"clear"[..5])
             && ends_excmd(c_int::from(*skipwhite(arg.add(5)) as u8)) != 0
@@ -1812,8 +1810,7 @@ fn menu_skip_part(mut p: *mut c_char) -> *mut c_char {
 /// Lookup part of a menu name in the translations (`menutrans_lookup`).
 fn menutrans_lookup(name: *mut c_char, len: c_int) -> *mut c_char {
     unsafe {
-        let mt_ptr = &raw const menu_st().MENUTRANS_GA;
-        let menutrans = &*mt_ptr;
+        let menutrans = &menu_st().MENUTRANS_GA;
         let u_len = len as usize;
 
         for entry in menutrans {

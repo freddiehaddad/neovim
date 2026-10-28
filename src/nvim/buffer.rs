@@ -1736,8 +1736,7 @@ impl Drop for buf_T {
 
 fn free_buffer(buf: *mut buf_T) {
     unsafe {
-        let map_ptr = &raw mut g_st().buffer_handles;
-        (*map_ptr).remove(&(*buf).b_fnum);
+        g_st().buffer_handles.remove(&(*buf).b_fnum);
         buf_st().buf_free_count += 1;
         free_buffer_stuff( &mut *buf, kBffClearWinInfo);
         if (*(*buf).b_vars()).dv_refcount > DO_NOT_FREE_CNT {
@@ -1760,8 +1759,7 @@ fn free_buffer(buf: *mut buf_T) {
             (*buf).b_changelistlen = 0;
             (*buf).b_namedm.fill(fmark_T::new());
             (*buf).b_changelist.fill(fmark_T::new());
-            let pending_buf = &raw mut g_st().au_pending_free_buf;
-            (*pending_buf).push(Box::from_raw(buf));
+            g_st().au_pending_free_buf.push(Box::from_raw(buf));
         } else {
             drop(Box::from_raw(buf));
             if g_st().curbuf == buf {
@@ -1967,7 +1965,7 @@ pub fn do_bufdel(
             }
 
             if deleted == 0 {
-                let iobuff_ptr = (&raw mut g_st().IObuff).cast::<c_char>();
+                let iobuff_ptr = g_st().IObuff.as_mut_ptr();
                 if command == DOBUF_UNLOAD {
                     xstrlcpy(
                         iobuff_ptr,
@@ -2829,8 +2827,7 @@ pub fn buflist_new(
 
             (*buf).b_fnum = buf_st().top_file_num;
             buf_st().top_file_num += 1;
-            let map_ptr = &raw mut g_st().buffer_handles;
-            (*map_ptr).insert((*buf).b_fnum, buf);
+            g_st().buffer_handles.insert((*buf).b_fnum, buf);
             if buf_st().top_file_num < 0 {
                 emsg(gettext(
                     c"W14: Warning: List of file names overflow",
@@ -3401,12 +3398,11 @@ fn fname_match(rmp: &mut regmatch_T, name: *mut c_char, ignore_case: bool) -> *m
 
 /// Find a file in the buffer list by buffer number.
 pub fn buflist_findnr(mut nr: c_int) -> *mut buf_T {
-    unsafe {
+     {
         if nr == 0 {
             nr = curwin_mut().w_alt_fnum;
         }
-        let map_ptr = &raw const g_st().buffer_handles;
-        (*map_ptr).get(&nr).copied().unwrap_or(ptr::null_mut())
+        g_st().buffer_handles.get(&nr).copied().unwrap_or(ptr::null_mut())
     }
 }
 
@@ -3655,7 +3651,7 @@ pub fn buflist_list(eap: &mut exarg_T) {
             }
 
             let name = buf_spname(buf);
-            let namebuff_ptr = (&raw mut g_st().NameBuff).cast::<c_char>();
+            let namebuff_ptr = g_st().NameBuff.as_mut_ptr();
             if !name.is_null() {
                 xstrlcpy(namebuff_ptr, name, MAXPATHL);
             } else {
@@ -3692,7 +3688,7 @@ pub fn buflist_list(eap: &mut exarg_T) {
             if !ui_has(kUIMessages) || g_st().msg_col > 0 {
                 msg_putchar(b'\n' as c_int);
             }
-            let iobuff_ptr = (&raw mut g_st().IObuff).cast::<c_char>();
+            let iobuff_ptr = g_st().IObuff.as_mut_ptr();
             let mut len = vim_snprintf_safelen!(
                 iobuff_ptr,
                 IOSIZE - 20,

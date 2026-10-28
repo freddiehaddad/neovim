@@ -390,7 +390,7 @@ pub fn tui_start(
         *timer.cast::<*mut TUIData>() = &raw mut *tui;
         uv_timer_start(timer, Some(after_startup_cb), 100, 0);
 
-        loop_poll_events(&mut *(&raw mut g_st().main_loop).cast::<Loop>(), 1);
+        loop_poll_events(&mut g_st().main_loop, 1);
         *width = tui.width;
         *height = tui.height;
         *term = tui.term.clone();
@@ -1224,9 +1224,8 @@ pub fn tui_is_stopped(tui: &TUIData) -> bool {
 }
 
 pub fn tui_free_all_mem(tui: Option<Box<TUIData>>) {
-    unsafe {
-        let urls_ptr = &raw mut tui_st().urls;
-        *urls_ptr = Vec::new();
+     {
+        tui_st().urls = Vec::new();
 
         drop(tui);
     }
@@ -1268,7 +1267,7 @@ fn attrs_differ(tui: &TUIData, id1: c_int, id2: c_int, rgb: bool) -> bool {
 }
 
 fn update_attrs(tui: &mut TUIData, attr_id: c_int) {
-    unsafe {
+     {
         if !attrs_differ(tui, attr_id, tui.print_attr_id, tui.rgb) {
             tui.print_attr_id = attr_id;
             return;
@@ -1451,8 +1450,7 @@ fn update_attrs(tui: &mut TUIData, attr_id: c_int) {
 
         if tui.url != attrs.url {
             if attrs.url >= 0 {
-                let urls_ptr = &raw const tui_st().urls;
-                let url_str = (*urls_ptr).as_slice()[attrs.url as usize].to_string_lossy();
+                let url_str = tui_st().urls.as_slice()[attrs.url as usize].to_string_lossy();
                 let id: u64 = 0xE1EA_0000u64 + u64::from(attrs.url as u32);
                 let formatted = format!("\x1b]8;id={id};{url_str}\x1b\\");
                 out(tui, formatted.as_ptr().cast::<c_char>(), formatted.len());
@@ -2018,12 +2016,11 @@ pub fn tui_add_url(_tui: &mut TUIData, url: *const c_char) -> i32 {
         }
 
         let url_cstr = CStr::from_ptr(url);
-        let urls_ptr = &raw mut tui_st().urls;
-        if let Some(pos) = (*urls_ptr).iter().position(|u| u.as_c_str() == url_cstr) {
+        if let Some(pos) = tui_st().urls.iter().position(|u| u.as_c_str() == url_cstr) {
             return pos as i32;
         }
-        let idx = (*urls_ptr).len() as i32;
-        (*urls_ptr).push(url_cstr.to_owned());
+        let idx = tui_st().urls.len() as i32;
+        tui_st().urls.push(url_cstr.to_owned());
         idx
     }
 }

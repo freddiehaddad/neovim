@@ -1631,9 +1631,8 @@ pub fn do_digraph(mut c: c_int) -> c_int {
 
 /// Find a digraph for `val` (`get_digraph_for_char`).
 pub fn get_digraph_for_char(val: c_int) -> *mut c_char {
-    unsafe {
-        let user_ptr = &raw const digr_st().USER_DIGRAPHS;
-        for dp in (*user_ptr).iter().chain(DIGRAPHDEFAULT.iter()) {
+     {
+        for dp in digr_st().USER_DIGRAPHS.iter().chain(DIGRAPHDEFAULT.iter()) {
             if dp.result == val {
                 digr_st().DIGRAPH_FOR_CHAR_BUF[0] = dp.char1 as c_char;
                 digr_st().DIGRAPH_FOR_CHAR_BUF[1] = dp.char2 as c_char;
@@ -1717,9 +1716,8 @@ pub fn digraph_get(char1: c_int, char2: c_int, meta_char: bool) -> c_int {
 
 /// Add a digraph to the digraph table (`registerdigraph`).
 fn registerdigraph(char1: c_int, char2: c_int, n: c_int) {
-    unsafe {
-        let user_ptr = &raw mut digr_st().USER_DIGRAPHS;
-        let user_vec = &mut *user_ptr;
+     {
+        let user_vec = &mut digr_st().USER_DIGRAPHS;
         for dp in user_vec.iter_mut() {
             if c_int::from(dp.char1) == char1 && c_int::from(dp.char2) == char2 {
                 dp.result = n;
@@ -1793,7 +1791,7 @@ fn digraph_header(msg: *const c_char) {
 }
 
 pub fn listdigraphs(use_headers: bool) {
-    unsafe {
+     {
         let mut previous: result_T = 0;
 
         msg_ext_set_kind(c"list_cmd");
@@ -1822,8 +1820,7 @@ pub fn listdigraphs(use_headers: bool) {
             fast_breakcheck();
         }
 
-        let user_ptr = &raw const digr_st().USER_DIGRAPHS;
-        for dp in (*user_ptr).as_slice() {
+        for dp in digr_st().USER_DIGRAPHS.as_slice() {
             if g_st().got_int {
                 break;
             }
@@ -1856,8 +1853,7 @@ fn digraph_getlist_appendpair(dp: &digr_T, l: &mut list_T) {
 
 pub fn digraph_getlist_common(list_all: bool, rettv: &mut typval_T) {
     unsafe {
-        let user_ptr = &raw const digr_st().USER_DIGRAPHS;
-        let user_slice = (*user_ptr).as_slice();
+        let user_slice = digr_st().USER_DIGRAPHS.as_slice();
         let cap = (DIGRAPHDEFAULT.len() + user_slice.len()) as isize;
         tv_list_alloc_ret(&mut *rettv, cap);
 

@@ -326,19 +326,18 @@ fn draw_virt_text(
     win_row: c_int,
 ) {
     unsafe {
-        let state = &raw mut g_st().decor_state;
         let max_col = wp.w_view_width;
         let mut right_pos = max_col;
-        let do_eol = (*state).eol_col > -1;
+        let do_eol = g_st().decor_state.eol_col > -1;
 
-        let end = (*state).current_end;
+        let end = g_st().decor_state.current_end;
 
         let mut totalWidthOfEolRightAlignedVirtText: c_int = 0;
 
         for i in 0..end {
-            let slot_idx = (&(*state).ranges_i)[i as usize] as usize;
-            let item: *mut DecorRange = (&mut (*state).slots)[slot_idx].range_mut();
-            if !((*item).start_row == (*state).row && decor_virt_pos(&*item)) {
+            let slot_idx = (&g_st().decor_state.ranges_i)[i as usize] as usize;
+            let item: *mut DecorRange = (&mut g_st().decor_state.slots)[slot_idx].range_mut();
+            if !((*item).start_row == g_st().decor_state.row && decor_virt_pos(&*item)) {
                 continue;
             }
 
@@ -355,11 +354,11 @@ fn draw_virt_text(
                     let mut eolOffset: c_int = 0;
                     if totalWidthOfEolRightAlignedVirtText == 0 {
                         for j in i..end {
-                            let lookahead_idx = (&(*state).ranges_i)[j as usize] as usize;
+                            let lookahead_idx = (&g_st().decor_state.ranges_i)[j as usize] as usize;
                             let lookaheadItem: *mut DecorRange =
-                                (&mut (*state).slots)[lookahead_idx].range_mut();
+                                (&mut g_st().decor_state.slots)[lookahead_idx].range_mut();
 
-                            if (*lookaheadItem).start_row != (*state).row
+                            if (*lookaheadItem).start_row != g_st().decor_state.row
                                 || !decor_virt_pos(&*lookaheadItem)
                                 || (*lookaheadItem).draw_col != -1
                             {
@@ -379,18 +378,18 @@ fn draw_virt_text(
 
                         totalWidthOfEolRightAlignedVirtText -= 1;
 
-                        if totalWidthOfEolRightAlignedVirtText <= (right_pos - (*state).eol_col) {
+                        if totalWidthOfEolRightAlignedVirtText <= (right_pos - g_st().decor_state.eol_col) {
                             eolOffset =
-                                right_pos - totalWidthOfEolRightAlignedVirtText - (*state).eol_col;
+                                right_pos - totalWidthOfEolRightAlignedVirtText - g_st().decor_state.eol_col;
                         }
                     }
 
-                    (*item).draw_col = (*state).eol_col + eolOffset;
+                    (*item).draw_col = g_st().decor_state.eol_col + eolOffset;
                 } else if pos == kVPosRightAlign {
                     right_pos -= (*vt).width;
                     (*item).draw_col = right_pos;
                 } else if pos == kVPosEndOfLine && do_eol {
-                    (*item).draw_col = (*state).eol_col;
+                    (*item).draw_col = g_st().decor_state.eol_col;
                 } else if pos == kVPosWinCol {
                     (*item).draw_col = (col_off + (*vt).col).max(0);
                 } else {
@@ -411,8 +410,7 @@ fn draw_virt_text(
                     win_row,
                     win_col: (*item).draw_col,
                 };
-                let arr_ptr = &raw mut g_st().win_extmark_arr;
-                (*arr_ptr).push(m);
+                g_st().win_extmark_arr.push(m);
             }
             if !vt.is_null() {
                 let vcol = (*item).draw_col - col_off;
@@ -428,7 +426,7 @@ fn draw_virt_text(
                 );
                 if do_eol && ((*vt).pos == kVPosEndOfLine || (*vt).pos == kVPosEndOfLineRightAlign)
                 {
-                    (*state).eol_col = col + 1;
+                    g_st().decor_state.eol_col = col + 1;
                 }
                 *end_col = (*end_col).max(col);
             }
@@ -1168,19 +1166,18 @@ fn has_more_inline_virt(wlv: &winlinevars_T, v: isize) -> bool {
             return true;
         }
 
-        let state = &raw mut g_st().decor_state;
-        let count = (*state).ranges_i.len() as c_int;
-        let cur_end = (*state).current_end;
-        let fut_beg = (*state).future_begin;
+        let count = g_st().decor_state.ranges_i.len() as c_int;
+        let cur_end = g_st().decor_state.current_end;
+        let fut_beg = g_st().decor_state.future_begin;
 
         let beg_pos = [0, fut_beg];
         let end_pos = [cur_end, count];
 
         for pos_i in 0..2 {
             for i in beg_pos[pos_i]..end_pos[pos_i] {
-                let slot_idx = (&(*state).ranges_i)[i as usize] as usize;
-                let item = (&(*state).slots)[slot_idx].range();
-                if item.start_row != (*state).row
+                let slot_idx = (&g_st().decor_state.ranges_i)[i as usize] as usize;
+                let item = (&g_st().decor_state.slots)[slot_idx].range();
+                if item.start_row != g_st().decor_state.row
                     || !item.data.is_vt()
                     || (*item.data.vt()).pos != kVPosInline
                     || (*item.data.vt()).width == 0
@@ -1206,16 +1203,15 @@ fn handle_inline_virtual_text(
             if wlv.virt_inline_i >= wlv.virt_inline.len() {
                 wlv.virt_inline = &[];
                 wlv.virt_inline_i = 0;
-                let state = &raw mut g_st().decor_state;
-                let end = (*state).current_end;
+                let end = g_st().decor_state.current_end;
 
                 for i in 0..end {
-                    let slot_idx = (&(*state).ranges_i)[i as usize] as usize;
-                    let item: *mut DecorRange = (&mut (*state).slots)[slot_idx].range_mut();
+                    let slot_idx = (&g_st().decor_state.ranges_i)[i as usize] as usize;
+                    let item: *mut DecorRange = (&mut g_st().decor_state.slots)[slot_idx].range_mut();
                     if (*item).draw_col == -3 {
                         decor_init_draw_col(wlv.off, selected, &mut *item);
                     }
-                    if (*item).start_row != (*state).row
+                    if (*item).start_row != g_st().decor_state.row
                         || !(*item).data.is_vt()
                         || (*(*item).data.vt()).pos != kVPosInline
                         || (*(*item).data.vt()).width == 0

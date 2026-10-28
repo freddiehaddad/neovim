@@ -126,9 +126,8 @@ fn pmap_get_sign(name: *const c_char) -> *mut sign_T {
     if name.is_null() {
         return ptr::null_mut();
     }
-    unsafe {
-        let sm_ptr = &raw mut sign_st().sign_map;
-        for sp in &mut *sm_ptr {
+     {
+        for sp in &mut sign_st().sign_map {
             if crate::memory::cstr_as_bytes(sp.sn_name.as_ptr()) == crate::memory::cstr_as_bytes(name) {
                 return sp;
             }
@@ -144,8 +143,7 @@ fn find_ns_by_name(group: *const c_char) -> c_int {
     }
     unsafe {
         let group_cstr = CStr::from_ptr(group);
-        let ns_ptr = &raw const g_st().namespace_ids;
-        (*ns_ptr)
+        g_st().namespace_ids
             .iter()
             .find_map(|(k, v)| (k.as_c_str() == group_cstr).then_some(*v))
             .unwrap_or(0)
@@ -183,10 +181,9 @@ fn buf_set_sign(
     lnum: linenr_T,
     sp: &mut sign_T,
 ) {
-    unsafe {
+     {
         if !group.is_null() && find_ns_by_name(group) == 0 {
-            let ns_vec_ptr = &raw mut sign_st().sign_ns;
-            let ns_vec = &mut *ns_vec_ptr;
+            let ns_vec = &mut sign_st().sign_ns;
             ns_vec.push(nvim_create_namespace(cstr_as_string(group)));
         }
 
@@ -541,8 +538,7 @@ fn sign_define_by_name(
         let existing = pmap_get_sign(name);
         let new_sign = existing.is_null();
         let sp = if new_sign {
-            let sm_ptr = &raw mut sign_st().sign_map;
-            (*sm_ptr).push(sign_T {
+            sign_st().sign_map.push(sign_T {
                 sn_name: crate::memory::cstr_to_cstring(name),
                 sn_icon: None,
                 sn_text: [0; SIGN_WIDTH],
@@ -552,7 +548,7 @@ fn sign_define_by_name(
                 sn_num_hl: 0,
                 sn_priority: 0,
             });
-            (*sm_ptr).last_mut().unwrap() as *mut sign_T
+            sign_st().sign_map.last_mut().unwrap() as *mut sign_T
         } else {
             existing
         };
@@ -593,8 +589,7 @@ fn sign_define_by_name(
 
         if !new_sign {
             let mut did_redraw = false;
-            let items = &raw mut g_st().decor_items;
-            for sh in (*items).iter_mut() {
+            for sh in g_st().decor_items.iter_mut() {
                 if sh
                     .sign_name
                     .as_ref()
@@ -621,16 +616,15 @@ fn sign_define_by_name(
 }
 
 fn sign_undefine_by_name(name: *const c_char) -> bool {
-    unsafe {
-        let sm_ptr = &raw mut sign_st().sign_map;
-        let Some(pos) = (*sm_ptr)
+     {
+        let Some(pos) = sign_st().sign_map
             .iter()
             .position(|sp| crate::memory::cstr_as_bytes(sp.sn_name.as_ptr()) == crate::memory::cstr_as_bytes(name))
         else {
             semsg!(gettext(c"E155: Unknown sign: %s"), name);
             return false;
         };
-        (*sm_ptr).swap_remove(pos);
+        sign_st().sign_map.swap_remove(pos);
         true
     }
 }
@@ -1040,8 +1034,7 @@ pub fn ex_sign(eap: &mut exarg_T) {
 
         if idx <= SIGNCMD_LIST {
             if idx == SIGNCMD_LIST && crate::memory::cstr_is_empty(arg) {
-                let sm_ptr = &raw mut sign_st().sign_map;
-                for sp in &mut *sm_ptr {
+                for sp in &mut sign_st().sign_map {
                     sign_list_defined(sp);
                 }
             } else if crate::memory::cstr_is_empty(arg) {
@@ -1245,10 +1238,9 @@ pub fn free_signs() {
 }
 
 fn get_nth_sign_name(idx: c_int) -> *mut c_char {
-    unsafe {
-        let sm_ptr = &raw const sign_st().sign_map;
+     {
         if let Ok(idx_usize) = usize::try_from(idx)
-            && let Some(sp) = (*sm_ptr).as_slice().get(idx_usize)
+            && let Some(sp) = sign_st().sign_map.as_slice().get(idx_usize)
         {
             return sp.sn_name.as_ptr().cast_mut();
         }
@@ -1260,9 +1252,8 @@ fn get_nth_sign_group_name(idx: c_int) -> *mut c_char {
     if idx < 0 {
         return ptr::null_mut();
     }
-    unsafe {
-        let ns_ptr = &raw const sign_st().sign_ns;
-        let ns_slice = (*ns_ptr).as_slice();
+     {
+        let ns_slice = sign_st().sign_ns.as_slice();
         ns_slice.get(idx as usize).map_or(ptr::null_mut(), |&ns| {
             describe_ns(ns as NS, c"").cast_mut()
         })
@@ -1483,8 +1474,7 @@ pub fn f_sign_getdefined(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: 
         tv_list_alloc_ret(rettv, 0);
 
         if argvars[0].v_type == VarType::VAR_UNKNOWN {
-            let sm_ptr = &raw mut sign_st().sign_map;
-            for sp in &mut *sm_ptr {
+            for sp in &mut sign_st().sign_map {
                 tv_list_append_dict( &mut *rettv.vval.v_list(), sign_get_info_dict(sp));
             }
         } else {

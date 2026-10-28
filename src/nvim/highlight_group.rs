@@ -338,17 +338,15 @@ fn write_dec(buf: *mut c_char, cap: usize, val: c_int) {
 
 #[inline]
 fn hl_table() -> *mut HlGroup {
-    unsafe {
-        let ga = &raw mut hlg_st().highlight_ga;
-        (*ga).as_mut_ptr()
+     {
+        hlg_st().highlight_ga.as_mut_ptr()
     }
 }
 
 #[inline]
 fn hl_len() -> c_int {
-    unsafe {
-        let ga = &raw const hlg_st().highlight_ga;
-        (*ga).len() as c_int
+     {
+        hlg_st().highlight_ga.len() as c_int
     }
 }
 
@@ -1606,11 +1604,9 @@ pub fn do_highlight(mut line: *const c_char, forceit: bool, init: bool) {
 }
 
 pub fn free_highlight() {
-    unsafe {
-        let ga = &raw mut hlg_st().highlight_ga;
-        *ga = Vec::new();
-        let unames_ptr = &raw mut hlg_st().highlight_unames;
-        *unames_ptr = std::collections::BTreeMap::new();
+     {
+        hlg_st().highlight_ga = Vec::new();
+        hlg_st().highlight_unames = std::collections::BTreeMap::new();
     }
 }
 
@@ -2171,7 +2167,7 @@ pub fn syn_name2id(name: impl crate::strings::IntoCCharPtr) -> c_int {
 }
 
 pub fn syn_name2id_len(name: *const c_char, len: usize) -> c_int {
-    unsafe {
+     {
         if len == 0 || len > MAX_SYN_NAME {
             return 0;
         }
@@ -2182,8 +2178,7 @@ pub fn syn_name2id_len(name: *const c_char, len: usize) -> c_int {
         }
         name_u[len] = NUL;
 
-        let unames_ptr = &raw const hlg_st().highlight_unames;
-        (*unames_ptr)
+        hlg_st().highlight_unames
             .get(crate::memory::cstr_as_bytes(name_u.as_ptr()))
             .copied()
             .unwrap_or(0)
@@ -2252,9 +2247,8 @@ fn syn_add_group(name: *const c_char, len: usize) -> c_int {
             }
         }
 
-        let ga = &raw mut hlg_st().highlight_ga;
-        if (*ga).capacity() == 0 {
-            (*ga).reserve(300);
+        if hlg_st().highlight_ga.capacity() == 0 {
+            hlg_st().highlight_ga.reserve(300);
         }
 
         if hl_len() >= MAX_HL_ID {
@@ -2277,11 +2271,10 @@ fn syn_add_group(name: *const c_char, len: usize) -> c_int {
         hlg.sg_blend = -1;
         hlg.sg_parent = scoped_parent;
         hlg.sg_cleared = true;
-        (*ga).push(hlg);
+        hlg_st().highlight_ga.push(hlg);
 
         let id = hl_len();
-        let unames_ptr = &raw mut hlg_st().highlight_unames;
-        (*unames_ptr).insert(name_u_bytes, id);
+        hlg_st().highlight_unames.insert(name_u_bytes, id);
 
         id
     }
@@ -2468,8 +2461,7 @@ pub fn highlight_changed() {
         }
 
         let hlcnt = hl_len();
-        let ga = &raw mut hlg_st().highlight_ga;
-        (*ga).resize((hlcnt + 10) as usize, HlGroup::new());
+        hlg_st().highlight_ga.resize((hlcnt + 10) as usize, HlGroup::new());
         if id_S == -1 {
             *hl_table().add((hlcnt + 9) as usize) = HlGroup::new();
             id_S = hlcnt + 10;
@@ -2498,7 +2490,7 @@ pub fn highlight_changed() {
                 );
             }
         }
-        (*ga).truncate(hlcnt as usize);
+        hlg_st().highlight_ga.truncate(hlcnt as usize);
 
         decor_provider_invalidate_hl();
     }

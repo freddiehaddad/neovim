@@ -560,8 +560,8 @@ pub fn init_homedir() {
                 var = os_uv_homedir();
             }
 
-            if !var.is_null() && !os_realpath(var, (&raw mut g_st().IObuff).cast(), IOSIZE).is_null() {
-                var = (&raw mut g_st().IObuff).cast();
+            if !var.is_null() && !os_realpath(var, g_st().IObuff.as_mut_ptr(), IOSIZE).is_null() {
+                var = g_st().IObuff.as_mut_ptr();
             }
 
             if (crate::memory::cstr_is_empty(var))

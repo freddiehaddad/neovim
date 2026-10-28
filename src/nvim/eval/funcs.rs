@@ -474,7 +474,7 @@ pub fn get_function_name(xp: &mut expand_T, idx: c_int) -> *mut c_char {
         };
         let key = key_cstr.as_ptr();
         let key_len = key_cstr.to_bytes().len();
-        let iobuff = (&raw mut g_st().IObuff).cast::<c_char>();
+        let iobuff = g_st().IObuff.as_mut_ptr();
         ptr::copy_nonoverlapping(key, iobuff, key_len);
         *iobuff.add(key_len) = b'(' as c_char;
         if (*fdef).max_argc == 0 {
@@ -3651,7 +3651,7 @@ pub fn f_gettagstack(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: Eval
 
 pub(crate) fn dummy_timer_due_cb(tw: &mut TimeWatcher) {
     unsafe {
-        if *loop_closing_ptr(&mut *(&raw mut g_st().main_loop).cast()) {
+        if *loop_closing_ptr(&mut g_st().main_loop) {
             time_watcher_stop(tw);
             time_watcher_close(tw);
         }
@@ -4277,9 +4277,8 @@ pub fn f_inputlist(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFu
 
 /// "inputrestore()" function
 pub fn f_inputrestore(_argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData){
-    unsafe {
-        let userinput = &raw mut funcs_st().GA_USERINPUT;
-        if let Some(mut saved) = (*userinput).pop() {
+     {
+        if let Some(mut saved) = funcs_st().GA_USERINPUT.pop() {
             restore_typeahead(&mut saved);
         } else if opt_vars().p_verbose > 1 {
             verb_msg(gettext(
@@ -4292,11 +4291,10 @@ pub fn f_inputrestore(_argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: Ev
 
 /// "inputsave()" function
 pub fn f_inputsave(_argvars: &mut [typval_T], _rettv: &mut typval_T, _fptr: EvalFuncData){
-    unsafe {
+     {
         let mut saved = tasave_T::new();
         save_typeahead(&mut saved);
-        let userinput = &raw mut funcs_st().GA_USERINPUT;
-        (*userinput).push(saved);
+        funcs_st().GA_USERINPUT.push(saved);
     }
 }
 
@@ -4488,7 +4486,7 @@ pub fn create_environment(
                     #[cfg(windows)]
                     {
                         if namelen < MAXPATHL / MB_MAXBYTES {
-                            let namebuff = (&raw mut g_st().NameBuff).cast::<c_char>();
+                            let namebuff = g_st().NameBuff.as_mut_ptr();
                             namelen = mb_strup_buf(name, namebuff);
                             name = namebuff;
                         }
@@ -4546,7 +4544,7 @@ pub fn create_environment(
                             let mut name = (*var).di_key.as_ptr();
                             let mut namelen = crate::memory::cstr_len(name);
                             if namelen < MAXPATHL / MB_MAXBYTES {
-                                let namebuff = (&raw mut g_st().NameBuff).cast::<c_char>();
+                                let namebuff = g_st().NameBuff.as_mut_ptr();
                                 namelen = mb_strup_buf(name, namebuff);
                                 name = namebuff;
                             }
@@ -4805,8 +4803,8 @@ pub fn f_jobstart(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFun
                     break 'term_done;
                 }
 
-                let namebuff = (&raw mut g_st().NameBuff).cast::<c_char>();
-                let iobuff = (&raw mut g_st().IObuff).cast::<c_char>();
+                let namebuff = g_st().NameBuff.as_mut_ptr();
+                let iobuff = g_st().IObuff.as_mut_ptr();
                 vim_FullName(cwd, namebuff, MAXPATHL, false);
                 let len = home_replace(None, namebuff, iobuff, IOSIZE, true);
                 if len != 1
@@ -7087,8 +7085,7 @@ pub fn f_rpcrequest(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalF
             save_funccal();
 
             g_st().current_sctx = g_st().provider_caller_scope.script_ctx;
-            let es = &raw mut rt_st().exestack;
-            (*es).push(
+            rt_st().exestack.push(
                 (&raw const g_st().provider_caller_scope.es_entry)
                     .as_ref()
                     .unwrap()
@@ -7117,8 +7114,7 @@ pub fn f_rpcrequest(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalF
 
         if l_provider_call_nesting != 0 {
             g_st().current_sctx = save_current_sctx;
-            let es = &raw mut rt_st().exestack;
-            (*es).pop();
+            rt_st().exestack.pop();
             g_st().autocmd_fname = save_autocmd_fname;
             g_st().autocmd_match = save_autocmd_match;
             g_st().autocmd_fname_full = save_autocmd_fname_full;

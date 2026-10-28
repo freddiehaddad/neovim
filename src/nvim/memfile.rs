@@ -348,7 +348,7 @@ pub fn mf_sync(mfp: &mut memfile_T, flags: c_int) -> bool {
                         break;
                     }
                 } else {
-                    if *loop_recursive_ptr(&mut *(&raw mut g_st().main_loop).cast()) == 0 {
+                    if *loop_recursive_ptr(&mut g_st().main_loop) == 0 {
                         os_breakcheck();
                     }
                 }

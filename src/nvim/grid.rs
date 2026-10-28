@@ -208,15 +208,13 @@ pub fn schar_from_buf(buf: *const c_char, len: usize) -> schar_T {
             sc
         } else {
             let bytes = crate::memory::cstr_slice(buf, len);
-            let keys_ptr = &raw mut grid_st().glyph_cache_keys;
-            let offsets_ptr = &raw mut grid_st().glyph_cache_offsets;
-            let idx = if let Some(&existing_idx) = (*offsets_ptr).get(bytes) {
+            let idx = if let Some(&existing_idx) = grid_st().glyph_cache_offsets.get(bytes) {
                 existing_idx
             } else {
-                let new_idx = (*keys_ptr).len() as u32;
-                (*keys_ptr).extend(bytes.iter().map(|&b| b as c_char));
-                (*keys_ptr).push(0);
-                (*offsets_ptr).insert(bytes.to_vec(), new_idx);
+                let new_idx = grid_st().glyph_cache_keys.len() as u32;
+                grid_st().glyph_cache_keys.extend(bytes.iter().map(|&b| b as c_char));
+                grid_st().glyph_cache_keys.push(0);
+                grid_st().glyph_cache_offsets.insert(bytes.to_vec(), new_idx);
                 new_idx
             };
             assert!(idx < 0xFF_FFFF);
@@ -233,9 +231,8 @@ pub fn schar_from_buf(buf: *const c_char, len: usize) -> schar_T {
 }
 
 pub fn schar_cache_clear_if_full() -> bool {
-    unsafe {
-        let keys_ptr = &raw const grid_st().glyph_cache_keys;
-        if (*keys_ptr).len() > (1 << 21) {
+     {
+        if grid_st().glyph_cache_keys.len() > (1 << 21) {
             schar_cache_clear();
             return true;
         }
@@ -244,12 +241,10 @@ pub fn schar_cache_clear_if_full() -> bool {
 }
 
 pub fn schar_cache_clear() {
-    unsafe {
+     {
         decor_check_invalid_glyphs();
-        let keys_ptr = &raw mut grid_st().glyph_cache_keys;
-        (*keys_ptr).clear();
-        let offsets_ptr = &raw mut grid_st().glyph_cache_offsets;
-        (*offsets_ptr).clear();
+        grid_st().glyph_cache_keys.clear();
+        grid_st().glyph_cache_offsets.clear();
 
         if !check_chars_options().is_null() {
             std::process::abort();
@@ -283,9 +278,8 @@ pub fn schar_get_adv(buf_out: *mut *mut c_char, sc: schar_T) -> usize {
         let len: usize;
         if schar_high(sc) {
             let idx = schar_idx(sc) as usize;
-            let keys_ptr = &raw const grid_st().glyph_cache_keys;
-            assert!(idx < (*keys_ptr).len());
-            let key_ptr = (*keys_ptr).as_ptr().add(idx);
+            assert!(idx < grid_st().glyph_cache_keys.len());
+            let key_ptr = grid_st().glyph_cache_keys.as_ptr().add(idx);
             len = crate::memory::cstr_len(key_ptr);
             ptr::copy_nonoverlapping(key_ptr, *buf_out, len);
         } else {
@@ -302,9 +296,8 @@ pub fn schar_len(sc: schar_T) -> usize {
     unsafe {
         if schar_high(sc) {
             let idx = schar_idx(sc) as usize;
-            let keys_ptr = &raw const grid_st().glyph_cache_keys;
-            assert!(idx < (*keys_ptr).len());
-            crate::memory::cstr_len((*keys_ptr).as_ptr().add(idx))
+            assert!(idx < grid_st().glyph_cache_keys.len());
+            crate::memory::cstr_len(grid_st().glyph_cache_keys.as_ptr().add(idx))
         } else {
             strnlen_4((&raw const sc).cast::<u8>())
         }
@@ -314,10 +307,9 @@ pub fn schar_len(sc: schar_T) -> usize {
 #[inline]
 fn schar_get_first_byte(sc: schar_T) -> c_char {
     unsafe {
-        let keys_ptr = &raw const grid_st().glyph_cache_keys;
-        assert!(!(schar_high(sc) && (schar_idx(sc) as usize) >= (*keys_ptr).len()));
+        assert!(!(schar_high(sc) && (schar_idx(sc) as usize) >= grid_st().glyph_cache_keys.len()));
         if schar_high(sc) {
-            (*keys_ptr).as_slice()[schar_idx(sc) as usize]
+            grid_st().glyph_cache_keys.as_slice()[schar_idx(sc) as usize]
         } else {
             *(&raw const sc).cast::<c_char>()
         }
@@ -494,10 +486,8 @@ pub fn grid_line_start(view: *mut GridView, mut row: c_int) {
 }
 
 pub fn screengrid_line_start(grid: &mut ScreenGrid, row: c_int, col: c_int) {
-    unsafe {
-        let lbuf_char_ptr = &raw mut g_st().linebuf_char;
-        let lbuf_attr_ptr = &raw mut g_st().linebuf_attr;
-        let linebuf_size = (*lbuf_char_ptr).len();
+     {
+        let linebuf_size = g_st().linebuf_char.len();
         grid_st().grid_line_maxcol = grid.cols;
         assert!(grid_st().grid_line_grid.is_null());
         grid_st().grid_line_row = row;
@@ -515,8 +505,8 @@ pub fn screengrid_line_start(grid: &mut ScreenGrid, row: c_int, col: c_int) {
 
         if g_st().full_screen && (opt_vars().rdb_flags & kOptRdbFlagInvalid) != 0 {
             assert!(linebuf_size > 0);
-            (&mut *lbuf_char_ptr).fill(u32::MAX);
-            (&mut *lbuf_attr_ptr).fill(-1);
+            g_st().linebuf_char.fill(u32::MAX);
+            g_st().linebuf_attr.fill(-1);
         }
     }
 }
@@ -679,8 +669,7 @@ pub fn linebuf_mirror(
 
         let n = (last - first) as usize;
         let mirror = width - 1;
-        let scratch = &raw mut grid_st().linebuf_scratch;
-        let scratch_ptr = (*scratch).as_mut_ptr();
+        let scratch_ptr = grid_st().linebuf_scratch.as_mut_ptr();
         let scratch_char = scratch_ptr.cast::<schar_T>();
         ptr::copy_nonoverlapping(
             &raw const g_st().linebuf_char[first as usize],
@@ -1008,7 +997,7 @@ pub fn grid_alloc(
     copy: bool,
     valid: bool,
 ) {
-    unsafe {
+     {
         
         assert!(rows >= 0 && columns >= 0);
         let ncells = rows as usize * columns as usize;
@@ -1055,8 +1044,7 @@ pub fn grid_alloc(
         *grid = ngrid;
 
         let cols = columns as usize;
-        let lbuf_char = &raw const g_st().linebuf_char;
-        if (*lbuf_char).len() < cols {
+        if g_st().linebuf_char.len() < cols {
             g_st().linebuf_char = vec![0; cols];
             g_st().linebuf_attr = vec![0; cols];
             g_st().linebuf_vcol = vec![0; cols];
@@ -1073,7 +1061,7 @@ pub fn grid_free(grid: &mut ScreenGrid) {
 }
 
 pub fn grid_free_all_mem() {
-    unsafe {
+     {
         grid_free(&mut g_st().default_grid);
         grid_free(&mut g_st().msg_grid);
         g_st().msg_grid.dirty_col = Vec::new();
@@ -1081,10 +1069,8 @@ pub fn grid_free_all_mem() {
         g_st().linebuf_attr = Vec::new();
         g_st().linebuf_vcol = Vec::new();
         grid_st().linebuf_scratch = Vec::new();
-        let keys_ptr = &raw mut grid_st().glyph_cache_keys;
-        *keys_ptr = Vec::new();
-        let offsets_ptr = &raw mut grid_st().glyph_cache_offsets;
-        *offsets_ptr = std::collections::BTreeMap::new();
+        grid_st().glyph_cache_keys = Vec::new();
+        grid_st().glyph_cache_offsets = std::collections::BTreeMap::new();
     }
 }
 

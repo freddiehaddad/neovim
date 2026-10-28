@@ -1721,7 +1721,7 @@ fn shada_filename(mut file: *const c_char) -> Option<std::ffi::CString> {
                 if crate::memory::cstr_is_empty(file) {
                     file = shada_get_default_file();
                 }
-                let name_buff_ptr = (&raw mut g_st().NameBuff).cast::<c_char>();
+                let name_buff_ptr = g_st().NameBuff.as_mut_ptr();
                 let len = expand_env(file.cast_mut(), name_buff_ptr, MAXPATHL as c_int);
                 return Some(
                     std::ffi::CString::new(std::slice::from_raw_parts(
@@ -4204,7 +4204,7 @@ fn shada_removable(name: *const c_char) -> bool {
         while *p != 0 {
             copy_option_part(&mut p, part.as_mut_ptr(), part.len(), c", ");
             if part[0] == (b'r' as c_char) {
-                let name_buff_ptr = (&raw mut g_st().NameBuff).cast::<c_char>();
+                let name_buff_ptr = g_st().NameBuff.as_mut_ptr();
                 let n = home_replace(
                     None,
                     part.as_ptr().add(1),

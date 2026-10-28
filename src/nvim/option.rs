@@ -2165,7 +2165,7 @@ pub fn do_set(mut arg: *mut c_char, opt_flags: c_int) -> bool {
                     }
 
                     if !errmsg.is_null() {
-                        let iobuf_ptr = (&raw mut g_st().IObuff).cast::<c_char>();
+                        let iobuf_ptr = g_st().IObuff.as_mut_ptr();
                         let i = (vim_snprintf!(iobuf_ptr, IOSIZE, c"%s", tr(errmsg)) + 2)
                             as isize;
                         let arg_len = arg.offset_from(startarg);
@@ -2326,7 +2326,7 @@ fn option_expand(opt_idx: OptIndex, mut val: *const c_char) -> *mut c_char {
 
         let var = (*opt).var.cast::<*mut c_char>();
         let esc = var == &raw mut opt_vars().p_tags || var == &raw mut opt_vars().p_path;
-        let namebuf_ptr = (&raw mut g_st().NameBuff).cast::<c_char>();
+        let namebuf_ptr = g_st().NameBuff.as_mut_ptr();
         expand_env_esc(
             val,
             namebuf_ptr,
@@ -3068,7 +3068,7 @@ pub fn did_set_numberwidth(args: &mut optset_T) -> *const c_char {
 
 /// Process the updated 'paste' option value.
 pub fn did_set_paste(_args: &mut optset_T) -> *const c_char {
-    unsafe {
+     {
         let empty_opt = empty_string_option.as_ptr().cast::<c_char>();
         if opt_vars().p_paste != 0 {
             if opt_st().OLD_P_PASTE == 0 {
@@ -3167,8 +3167,7 @@ pub fn did_set_paste(_args: &mut optset_T) -> *const c_char {
             if !opt_vars().p_vsts.is_null() {
                 free_string_option(opt_vars().p_vsts);
             }
-            let vsts_np_ptr = &raw const opt_st().P_VSTS_NOPASTE;
-            opt_vars().p_vsts = (*vsts_np_ptr)
+            opt_vars().p_vsts = opt_st().P_VSTS_NOPASTE
                 .as_ref()
                 .map_or(empty_opt, |s| alloc_string_option(s.as_ptr()));
         }
@@ -3811,7 +3810,7 @@ pub fn is_tty_option(name: *const c_char) -> bool {
 
 /// Get value of TTY option.
 pub fn get_tty_option(name: *const c_char) -> Object {
-    unsafe {
+     {
         if crate::memory::cstr_as_opt_bytes(name) == Some(b"t_Co") {
             if g_st().t_colors <= 1 {
                 cstr_to_obj(c"")
@@ -3821,16 +3820,14 @@ pub fn get_tty_option(name: *const c_char) -> Object {
                 cstr_to_obj(value.as_ptr())
             }
         } else if crate::memory::cstr_as_opt_bytes(name) == Some(b"term") {
-            let term_ptr = &raw const opt_st().P_TERM;
             cstr_to_obj(
-                (*term_ptr)
+                opt_st().P_TERM
                     .as_ref()
                     .map_or(c"nvim".as_ptr(), |s| s.as_ptr()),
             )
         } else if crate::memory::cstr_as_opt_bytes(name) == Some(b"ttytype") {
-            let tty_ptr = &raw const opt_st().P_TTYTYPE;
             cstr_to_obj(
-                (*tty_ptr)
+                opt_st().P_TTYTYPE
                     .as_ref()
                     .map_or(c"nvim".as_ptr(), |s| s.as_ptr()),
             )
@@ -6283,7 +6280,7 @@ fn showoptions(all: bool, opt_flags: c_int) {
                     } else {
                         optval_fmt(opt_idx, opt_flags);
                         ((*opt).fullname.to_bytes().len() as c_int)
-                            + vim_strsize((&raw const g_st().NameBuff).cast())
+                            + vim_strsize(g_st().NameBuff.as_ptr())
                             + 1
                     };
                     if (len <= INC - GAP && run == 1) || (len > INC - GAP && run == 2) {
@@ -6390,7 +6387,7 @@ fn showoneopt(opt: &mut vimoption_T, opt_flags: c_int) {
         if !option_has_type(opt_idx, ObjectType::kObjectTypeBoolean) {
             msg_putchar(b'=' as c_int);
             optval_fmt(opt_idx, opt_flags);
-            let namebuf_ptr = (&raw const g_st().NameBuff).cast::<c_char>();
+            let namebuf_ptr = g_st().NameBuff.as_ptr();
             if !crate::memory::cstr_is_empty(namebuf_ptr) {
                 msg_outtrans(namebuf_ptr, 0, false);
             }
@@ -7357,7 +7354,7 @@ fn copy_opt_insecure(bv: usize) -> u32 {
 
 /// Copy global option values to local options for one buffer.
 pub fn buf_copy_options(buf: &mut buf_T, flags: c_int) {
-    unsafe {
+     {
         let mut should_copy = true;
         let mut save_p_isk: *mut c_char = ptr::null_mut();
         let mut did_isk = false;
@@ -7463,8 +7460,7 @@ pub fn buf_copy_options(buf: &mut buf_T, flags: c_int) {
                 } else {
                     buf.b_p_vsts_array.clear();
                 }
-                let vsts_np_ptr = &raw const opt_st().P_VSTS_NOPASTE;
-                buf.b_p_vsts_nopaste = (*vsts_np_ptr).clone();
+                buf.b_p_vsts_nopaste = opt_st().P_VSTS_NOPASTE.clone();
                 buf.b_p_com = alloc_string_option(opt_vars().p_com);
                 copy_opt_sctx(buf, kBufOptComments);
                 buf.b_p_cms = alloc_string_option(opt_vars().p_cms);
@@ -7996,7 +7992,7 @@ pub fn ExpandOldSetting(matches: &mut Vec<std::ffi::CString>) -> bool {
                 return true;
             }
             optval_fmt(opt_st().EXPAND_OPTION_IDX, opt_st().EXPAND_OPTION_FLAGS);
-            (&raw mut g_st().NameBuff).cast::<c_char>()
+            g_st().NameBuff.as_mut_ptr()
         } else {
             c"".as_ptr().cast_mut()
         };
@@ -8033,7 +8029,7 @@ pub fn ExpandStringSetting(
         };
 
         optval_fmt(opt_st().EXPAND_OPTION_IDX, opt_st().EXPAND_OPTION_FLAGS);
-        let buf = escape_option_str_cmdline((&raw mut g_st().NameBuff).cast::<c_char>());
+        let buf = escape_option_str_cmdline(g_st().NameBuff.as_mut_ptr());
         args.oe_opt_value = buf.as_ptr().cast_mut();
 
         expand_cb(&mut args, matches)
@@ -8133,7 +8129,7 @@ fn optval_fmt(opt_idx: OptIndex, opt_flags: c_int) {
         let varp = get_varp_scope(opt, opt_flags);
         assert!(!varp.is_null());
 
-        let namebuf_ptr = (&raw mut g_st().NameBuff).cast::<c_char>();
+        let namebuf_ptr = g_st().NameBuff.as_mut_ptr();
         let mut wc: OptInt = 0;
         if wc_use_keyname(varp.cast::<OptInt>(), &mut wc) != 0 {
             xstrlcpy(namebuf_ptr, get_special_key_name(wc as c_int, 0), MAXPATHL);

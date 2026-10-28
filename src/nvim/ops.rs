@@ -324,7 +324,7 @@ pub fn op_shift(oap: &mut oparg_T, curs_top: bool, amount: c_int) {
                 c"%lld lines %sed %d times",
                 amount as c_ulong,
             );
-            let iobuff_ptr = (&raw mut g_st().IObuff).cast::<c_char>();
+            let iobuff_ptr = g_st().IObuff.as_mut_ptr();
             vim_snprintf!(
                 iobuff_ptr,
                 IOSIZE,
@@ -3228,7 +3228,7 @@ pub fn cursor_pos_info(mut dict: Option<&mut dict_T>) {
                 byte_count -= varnumber_T::from(eol_size);
             }
 
-            let iobuff_ptr = (&raw mut g_st().IObuff).cast::<c_char>();
+            let iobuff_ptr = g_st().IObuff.as_mut_ptr();
             if dict.is_none() {
                 if l_VIsual_active {
                     if l_VIsual_mode == Ctrl_V && curwin_mut().w_curswant < MAXCOL {

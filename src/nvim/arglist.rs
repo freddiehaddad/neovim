@@ -165,9 +165,8 @@ pub fn garglist() -> *mut aentry_T {
 
 #[inline]
 pub fn gargcount() -> c_int {
-    unsafe {
-        let ga = &raw const g_st().global_alist.al_ga;
-        (*ga).len() as c_int
+     {
+        g_st().global_alist.al_ga.len() as c_int
     }
 }
 

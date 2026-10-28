@@ -309,11 +309,11 @@ pub fn ui_client_run() -> ! {
         time_finish();
 
         loop {
-            let events = (*loop_queues(&mut *(&raw mut g_st().main_loop).cast())).events;
+            let events = (*loop_queues(&mut g_st().main_loop)).events;
             if !multiqueue_empty( &*events) {
                 multiqueue_process_events( &mut *events);
             } else {
-                loop_poll_events(&mut *(&raw mut g_st().main_loop).cast(), -1);
+                loop_poll_events(&mut g_st().main_loop, -1);
                 multiqueue_process_events( &mut *events);
             }
         }
@@ -408,8 +408,7 @@ pub fn ui_client_event_grid_resize(args: Array) {
         tui_grid_resize(tui_ptr(), grid, width, height);
 
         let cols = width as usize;
-        let char_buf = &raw const g_st().grid_line_buf_char;
-        if (*char_buf).len() < cols {
+        if g_st().grid_line_buf_char.len() < cols {
             g_st().grid_line_buf_char = vec![0; cols];
             g_st().grid_line_buf_attr = vec![0; cols];
         }
@@ -421,7 +420,7 @@ pub fn ui_client_event_grid_line(_args: Array) {
 }
 
 pub fn ui_client_event_raw_line(g: &mut GridLineEvent) {
-    unsafe {
+     {
         let grid = g.args[0];
         let row = g.args[1];
         let startcol = g.args[2];
@@ -429,8 +428,6 @@ pub fn ui_client_event_raw_line(g: &mut GridLineEvent) {
         let clearcol = endcol + Integer::from(g.clear_width);
         let lineflags = if g.wrap { kLineFlagWrap } else { 0 };
 
-        let char_buf = &raw mut g_st().grid_line_buf_char;
-        let attr_buf = &raw mut g_st().grid_line_buf_attr;
         tui_raw_line(
             tui_ptr(),
             Integer::from(grid),
@@ -440,8 +437,8 @@ pub fn ui_client_event_raw_line(g: &mut GridLineEvent) {
             clearcol,
             Integer::from(g.cur_attr),
             lineflags,
-            (*char_buf).as_mut_ptr(),
-            (*attr_buf).as_mut_ptr(),
+            g_st().grid_line_buf_char.as_mut_ptr(),
+            g_st().grid_line_buf_attr.as_mut_ptr(),
         );
     }
 }
@@ -469,7 +466,7 @@ pub fn ui_client_event_connect(args: Array) {
         let end = bytes.iter().position(|&b| b == 0).unwrap_or(bytes.len());
         let server_addr = std::ffi::CString::new(&bytes[..end]).unwrap();
         multiqueue_put_event(
-            &mut *(*loop_queues(&mut *(&raw mut g_st().main_loop).cast())).fast_events,
+            &mut *(*loop_queues(&mut g_st().main_loop)).fast_events,
             Event::UiClientConnect(server_addr),
         );
         g_st().ui_client_channel_id = u64::MAX;
@@ -665,9 +662,8 @@ pub fn ui_client_event_error_exit(args: Array) {
 }
 
 pub fn ui_client_free_all_mem() {
-    unsafe {
-        let tui_out = &raw mut uic_st().tui;
-        tui_free_all_mem((*tui_out).take());
+     {
+        tui_free_all_mem(uic_st().tui.take());
         g_st().grid_line_buf_char = Vec::new();
         g_st().grid_line_buf_attr = Vec::new();
     }

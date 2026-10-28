@@ -893,7 +893,7 @@ fn filemess(buf: *mut buf_T, name: *mut c_char, s: impl crate::strings::IntoCCha
             return;
         }
 
-        let iobuf_ptr = (&raw mut g_st().IObuff).cast::<c_char>();
+        let iobuf_ptr = g_st().IObuff.as_mut_ptr();
         add_quoted_fname(iobuf_ptr, IOSIZE - 100, buf, name);
 
         { let _dst: *mut c_char = iobuf_ptr; let _dsize: usize = IOSIZE; let _dlen = crate::memory::cstr_len(_dst); crate::memory::xstrlcpy(_dst.add(_dlen), s, _dsize - _dlen); };
@@ -2362,7 +2362,7 @@ pub fn readfile(
                         if !progress || pct != percent {
                             progress = true;
                             percent = pct;
-                            let iobuf_ptr = (&raw mut g_st().IObuff).cast::<c_char>();
+                            let iobuf_ptr = g_st().IObuff.as_mut_ptr();
                             add_quoted_fname(iobuf_ptr, IOSIZE, g_st().curbuf, sfname);
                             let _ = readfile_progress(
                                 iobuf_ptr,
@@ -2495,7 +2495,7 @@ pub fn readfile(
                 }
 
                 if !filtering && (flags & READ_DUMMY) == 0 && !silent {
-                    let iobuf_ptr = (&raw mut g_st().IObuff).cast::<c_char>();
+                    let iobuf_ptr = g_st().IObuff.as_mut_ptr();
                     add_quoted_fname(iobuf_ptr, IOSIZE, g_st().curbuf, sfname);
                     let mut c = false;
 
@@ -3066,7 +3066,7 @@ pub fn fname_msg_id(
 /// Append message for text mode to IObuff.
 pub fn msg_add_fileformat(eol_type: c_int) -> bool {
     unsafe {
-        let iobuf_ptr = (&raw mut g_st().IObuff).cast::<c_char>();
+        let iobuf_ptr = g_st().IObuff.as_mut_ptr();
         #[cfg(not(windows))]
         if eol_type == EOL_DOS {
             { let _dst: *mut c_char = iobuf_ptr; let _dsize: usize = IOSIZE; let _dlen = crate::memory::cstr_len(_dst); crate::memory::xstrlcpy(_dst.add(_dlen), tr(c"[dos]"), _dsize - _dlen); };
@@ -3088,7 +3088,7 @@ pub fn msg_add_fileformat(eol_type: c_int) -> bool {
 /// Append line and character count to IObuff.
 pub fn msg_add_lines(insert_space: c_int, lnum: linenr_T, nchars: off_T) {
     unsafe {
-        let iobuf_ptr = (&raw mut g_st().IObuff).cast::<c_char>();
+        let iobuf_ptr = g_st().IObuff.as_mut_ptr();
         let mut len = crate::memory::cstr_len(iobuf_ptr);
         let space = if insert_space != 0 {
             c" ".as_ptr()
@@ -4336,7 +4336,7 @@ pub fn delete_recursive(name: *const c_char) -> c_int {
             let exp = crate::memory::cstr_to_cstring(name);
             let mut entries: Vec<std::ffi::CString> = Vec::new();
             if readdir_core(&mut entries, exp.as_ptr(), None) {
-                let namebuff_ptr = (&raw mut g_st().NameBuff).cast::<c_char>();
+                let namebuff_ptr = g_st().NameBuff.as_mut_ptr();
                 let len = vim_snprintf!(namebuff_ptr, MAXPATHL, c"%s/", exp.as_ptr());
 
                 for entry in &entries {

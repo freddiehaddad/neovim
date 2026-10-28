@@ -170,9 +170,8 @@ pub struct KeyDict_ns_opts {
 
 #[inline]
 pub fn ns_in_win(ns_id: u32, wp: &mut win_T) -> bool {
-    unsafe {
-        let local_ptr = &raw const g_st().namespace_localscope;
-        if !(*local_ptr).contains(&ns_id) {
+     {
+        if !g_st().namespace_localscope.contains(&ns_id) {
             return true;
         }
         wp.w_ns_set.contains(&ns_id)
@@ -181,11 +180,9 @@ pub fn ns_in_win(ns_id: u32, wp: &mut win_T) -> bool {
 
 // DLLEXPORT void api_extmark_free_all_mem(void);
 pub fn api_extmark_free_all_mem() {
-    unsafe {
-        let ns_ptr = &raw mut g_st().namespace_ids;
-        *ns_ptr = Vec::new();
-        let local_ptr = &raw mut g_st().namespace_localscope;
-        *local_ptr = std::collections::BTreeSet::new();
+     {
+        g_st().namespace_ids = Vec::new();
+        g_st().namespace_localscope = std::collections::BTreeSet::new();
     }
 }
 
@@ -209,16 +206,15 @@ pub fn nvim_create_namespace(name: NvimString) -> Integer {
         } else {
             crate::memory::cstr_slice(name.data, name.size)
         };
-        let ns_ptr = &raw mut g_st().namespace_ids;
         if !name_bytes.is_empty()
-            && let Some((_, id)) = (*ns_ptr).iter().find(|(k, _)| k.as_bytes() == name_bytes)
+            && let Some((_, id)) = g_st().namespace_ids.iter().find(|(k, _)| k.as_bytes() == name_bytes)
         {
             return i64::from(*id);
         }
         let id = g_st().next_namespace_id;
         g_st().next_namespace_id += 1;
         if !name_bytes.is_empty() {
-            (*ns_ptr).push((
+            g_st().namespace_ids.push((
                 std::ffi::CString::from_vec_unchecked(name_bytes.to_vec()),
                 id,
             ));
@@ -234,9 +230,8 @@ pub fn nvim_create_namespace(name: NvimString) -> Integer {
 //   FUNC_API_SINCE(5);
 pub fn nvim_get_namespaces(arena: &mut Arena) -> Dict {
     unsafe {
-        let ns_ptr = &raw const g_st().namespace_ids;
-        let mut retval = arena_dict(arena, (*ns_ptr).len());
-        for (name, id) in &*ns_ptr {
+        let mut retval = arena_dict(arena, g_st().namespace_ids.len());
+        for (name, id) in &g_st().namespace_ids {
             *retval.items.add(retval.size) = KeyValuePair {
                 key: cstr_as_string(name.as_ptr()),
                 value: integer_obj(i64::from(*id)),
@@ -249,9 +244,8 @@ pub fn nvim_get_namespaces(arena: &mut Arena) -> Dict {
 
 // DLLEXPORT const char *describe_ns(NS ns_id, const char *unknown);
 pub fn describe_ns(ns_id: NS, unknown: &std::ffi::CStr) -> *const c_char {
-    unsafe {
-        let ns_ptr = &raw const g_st().namespace_ids;
-        for (name, id) in &*ns_ptr {
+     {
+        for (name, id) in &g_st().namespace_ids {
             if *id == ns_id && !name.as_bytes().is_empty() {
                 return name.as_ptr();
             }
@@ -1742,9 +1736,8 @@ pub fn nvim__ns_set(ns_id: Integer, opts: &mut KeyDict_ns_opts, err: &mut Error)
             }
         }
 
-        let local_ptr = &raw mut g_st().namespace_localscope;
-        if (set_scoped && (*local_ptr).insert(ns_id as u32))
-            || (!set_scoped && (*local_ptr).remove(&(ns_id as u32)))
+        if (set_scoped && g_st().namespace_localscope.insert(ns_id as u32))
+            || (!set_scoped && g_st().namespace_localscope.remove(&(ns_id as u32)))
         {
             for tp in for_all_tabpages_ptr() {
                 for wp in for_all_windows_in_tab_mut( &*tp) {
@@ -1778,8 +1771,7 @@ pub fn nvim__ns_get(
             return opts;
         }
 
-        let local_ptr = &raw const g_st().namespace_localscope;
-        if !(*local_ptr).contains(&(ns_id as u32)) {
+        if !g_st().namespace_localscope.contains(&(ns_id as u32)) {
             return opts;
         }
 

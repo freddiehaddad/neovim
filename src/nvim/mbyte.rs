@@ -2321,7 +2321,7 @@ pub fn show_utf8() {
         }
 
         let copy_len = out.len().min(IOSIZE - 1);
-        let io_ptr = (&raw mut g_st().IObuff).cast::<c_char>();
+        let io_ptr = g_st().IObuff.as_mut_ptr();
         ptr::copy_nonoverlapping(out.as_ptr().cast::<c_char>(), io_ptr, copy_len);
         *io_ptr.add(copy_len) = NUL;
         msg(io_ptr, 0);
@@ -3461,13 +3461,12 @@ pub fn f_setcellwidths(argvars: &mut [typval_T], _rettv: &mut typval_T, _fptr: E
             }
         }
 
-        let cw_ptr = &raw mut mbyte_st().CW_TABLE;
-        let cw_table_save = std::mem::replace(&mut *cw_ptr, table);
+        let cw_table_save = std::mem::replace(&mut mbyte_st().CW_TABLE, table);
 
         let error = check_chars_options();
         if !error.is_null() {
             emsg(error);
-            *cw_ptr = cw_table_save;
+            mbyte_st().CW_TABLE = cw_table_save;
             return;
         }
 
@@ -3478,8 +3477,7 @@ pub fn f_setcellwidths(argvars: &mut [typval_T], _rettv: &mut typval_T, _fptr: E
 
 pub fn f_getcellwidths(_argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData){
     unsafe {
-        let cw_ptr = &raw const mbyte_st().CW_TABLE;
-        let table = (*cw_ptr).as_slice();
+        let table = mbyte_st().CW_TABLE.as_slice();
         tv_list_alloc_ret(rettv, table.len() as isize);
         for &entry_data in table {
             let entry = tv_list_alloc(3);

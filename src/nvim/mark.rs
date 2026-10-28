@@ -897,22 +897,22 @@ fn fname2fnum(fm: &mut xfmark_T) {
         if crate::memory::cstr_first_byte(fname) == b'~' && vim_ispathsep_nocolon(c_int::from(crate::memory::cstr_byte_at(fname, 1))) {
             let len = expand_env(
                 c"~/",
-                &raw mut g_st().NameBuff[0],
+                g_st().NameBuff.as_mut_ptr(),
                 MAXPATHL as c_int,
             );
             xstrlcpy(
-                (&raw mut g_st().NameBuff[0]).add(len),
+                (g_st().NameBuff.as_mut_ptr()).add(len),
                 fname.add(2),
                 MAXPATHL - len,
             );
         } else {
-            xstrlcpy(&raw mut g_st().NameBuff[0], fname, MAXPATHL);
+            xstrlcpy(g_st().NameBuff.as_mut_ptr(), fname, MAXPATHL);
         }
 
-        os_dirname(&raw mut g_st().IObuff[0], IOSIZE);
-        let p = path_shorten_fname(&raw mut g_st().NameBuff[0], &raw mut g_st().IObuff[0]);
+        os_dirname(g_st().IObuff.as_mut_ptr(), IOSIZE);
+        let p = path_shorten_fname(g_st().NameBuff.as_mut_ptr(), g_st().IObuff.as_mut_ptr());
 
-        let _ = buflist_new(&raw mut g_st().NameBuff[0], p, 1, 0);
+        let _ = buflist_new(g_st().NameBuff.as_mut_ptr(), p, 1, 0);
     }
 }
 
@@ -1240,12 +1240,12 @@ pub fn ex_jumps(_eap: &mut exarg_T) {
                 let copy_len = bytes.len().min(IOSIZE - 1);
                 ptr::copy_nonoverlapping(
                     bytes.as_ptr().cast::<c_char>(),
-                    &raw mut g_st().IObuff[0],
+                    g_st().IObuff.as_mut_ptr(),
                     copy_len,
                 );
                 g_st().IObuff[copy_len] = NUL;
 
-                msg_outtrans(&raw const g_st().IObuff[0], 0, false);
+                msg_outtrans(g_st().IObuff.as_ptr(), 0, false);
                 msg_outtrans(
                     name_cstr.as_ptr(),
                     if curwin_mut().w_jumplist[idx].fmark.fnum == curbuf_mut().b_fnum {
@@ -1300,12 +1300,12 @@ pub fn ex_changes(_eap: &mut exarg_T) {
                 let copy_len = bytes.len().min(IOSIZE - 1);
                 ptr::copy_nonoverlapping(
                     bytes.as_ptr().cast::<c_char>(),
-                    &raw mut g_st().IObuff[0],
+                    g_st().IObuff.as_mut_ptr(),
                     copy_len,
                 );
                 g_st().IObuff[copy_len] = NUL;
 
-                msg_outtrans(&raw const g_st().IObuff[0], 0, false);
+                msg_outtrans(g_st().IObuff.as_ptr(), 0, false);
                 let name = mark_line(&mut curbuf_mut().b_changelist[idx].mark, 17);
                 msg_outtrans(name.as_ptr(), HLF_D, false);
                 os_breakcheck();

@@ -987,7 +987,7 @@ pub(crate) fn tinput_read_cb(
         tinput_flush(input);
 
         if eof {
-            loop_schedule_fast(&mut *(&raw mut g_st().main_loop).cast(), Event::TInputDone);
+            loop_schedule_fast(&mut g_st().main_loop, Event::TInputDone);
             return consumed;
         }
 

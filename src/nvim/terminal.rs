@@ -387,11 +387,10 @@ static VTERM_FALLBACKS: VTermStateFallbacks = VTermStateFallbacks {
 
 #[inline]
 fn invalidate_terminal_add(term: &mut Terminal) {
-    unsafe {
-        let inv_ptr = &raw mut term_st().INVALIDATED_TERMINALS;
+     {
         let term_ptr = &raw mut *term;
-        if !(*inv_ptr).contains(&term_ptr) {
-            (*inv_ptr).push(term_ptr);
+        if !term_st().INVALIDATED_TERMINALS.contains(&term_ptr) {
+            term_st().INVALIDATED_TERMINALS.push(term_ptr);
         }
     }
 }
@@ -551,7 +550,7 @@ fn schedule_termrequest(term: &mut Terminal) {
         });
 
         multiqueue_put_event(
-            &mut *(*loop_queues(&mut *(&raw mut g_st().main_loop).cast())).events,
+            &mut *(*loop_queues(&mut g_st().main_loop)).events,
             Event::TermRequest(req),
         );
     }
@@ -705,11 +704,11 @@ pub fn terminal_init() {
     unsafe {
         let timer = refresh_timer_ptr();
         time_watcher_init(
-            &mut *(&raw mut g_st().main_loop).cast(),
+            &mut g_st().main_loop,
             &mut *timer,
             TimeWatcherData::TerminalRefresh,
         );
-        (*timer).events = multiqueue_new_child((*loop_queues(&mut *(&raw mut g_st().main_loop).cast())).events);
+        (*timer).events = multiqueue_new_child((*loop_queues(&mut g_st().main_loop)).events);
     }
 }
 
@@ -719,8 +718,7 @@ pub fn terminal_teardown() {
         time_watcher_stop(&mut *timer);
         multiqueue_free((*timer).events);
         time_watcher_close(&mut *timer);
-        let inv_ptr = &raw mut term_st().INVALIDATED_TERMINALS;
-        *inv_ptr = Vec::new();
+        term_st().INVALIDATED_TERMINALS = Vec::new();
     }
 }
 
@@ -1466,12 +1464,11 @@ pub fn terminal_destroy(termpp: *mut *mut Terminal) {
         }
 
         if term.refcount == 0 {
-            let inv_ptr = &raw mut term_st().INVALIDATED_TERMINALS;
-            if let Some(pos) = (*inv_ptr).iter().position(|&t| std::ptr::eq(t, term)) {
+            if let Some(pos) = term_st().INVALIDATED_TERMINALS.iter().position(|&t| std::ptr::eq(t, term)) {
                 block_autocmds();
                 refresh_terminal(term);
                 unblock_autocmds();
-                (*inv_ptr).swap_remove(pos);
+                term_st().INVALIDATED_TERMINALS.swap_remove(pos);
             }
             drop(Box::from_raw(&raw mut *term));
             *termpp = ptr::null_mut();
@@ -1633,7 +1630,7 @@ pub fn terminal_receive(term: &mut Terminal, data: impl crate::strings::IntoCCha
             term.invalid_start = 0;
             term.invalid_end = height;
             multiqueue_put_event(
-                &mut *(*loop_queues(&mut *(&raw mut g_st().main_loop).cast())).events,
+                &mut *(*loop_queues(&mut g_st().main_loop)).events,
                 Event::TermSyncFlush(term.buf_handle),
             );
         }
@@ -2090,7 +2087,7 @@ fn term_selection_set(
             );
             let end = bytes.iter().position(|&b| b == 0).unwrap_or(bytes.len());
             let data = std::ffi::CString::new(&bytes[..end]).unwrap();
-            multiqueue_put_event(&mut *(*loop_queues(&mut *(&raw mut g_st().main_loop).cast())).events,
+            multiqueue_put_event(&mut *(*loop_queues(&mut g_st().main_loop)).events,
                 Event::TermClipboardSet { mask, data },
             );
         }
@@ -2427,7 +2424,7 @@ fn refresh_terminal(term: &mut Terminal) {
         }
 
         multiqueue_move_events(
-            &mut *(*loop_queues(&mut *(&raw mut g_st().main_loop).cast())).events,
+            &mut *(*loop_queues(&mut g_st().main_loop)).events,
             &mut *term.pending.events,
         );
     }
@@ -2487,8 +2484,7 @@ pub(crate) fn refresh_timer_cb() {
         }
 
         block_autocmds();
-        let inv_ptr = &raw mut term_st().INVALIDATED_TERMINALS;
-        let to_refresh = std::mem::take(&mut *inv_ptr);
+        let to_refresh = std::mem::take(&mut term_st().INVALIDATED_TERMINALS);
 
         for term_ptr in to_refresh {
             let term = &mut *term_ptr;

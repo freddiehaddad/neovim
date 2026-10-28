@@ -2170,8 +2170,7 @@ pub(super) fn bt_regcomp(expr: *mut u8, re_flags: c_int) -> Option<bt_regprog_T>
 
 fn reg_save(save: &mut regsave_T) {
     unsafe {
-        let bp = &raw const re_st().backpos;
-        let len = (*bp).len() as c_int;
+        let len = re_st().backpos.len() as c_int;
         if REG_MULTI() {
             save.rs_u = crate::regexp::RegPos::Pos(lpos_T {
                 col: re_st().rex.input.offset_from(re_st().rex.line) as colnr_T,
@@ -2196,8 +2195,7 @@ fn reg_restore(save: &mut regsave_T) {
         } else {
             re_st().rex.input = save.rs_u.ptr();
         }
-        let bp = &raw mut re_st().backpos;
-        (*bp).truncate(save.rs_len as usize);
+        re_st().backpos.truncate(save.rs_len as usize);
     }
 }
 
@@ -2570,15 +2568,14 @@ fn regstack_push(state: regstate_T, scan: *mut u8) -> *mut regitem_T {
         assert!(size_of::<regbehind_T>().is_multiple_of(8));
     }
     unsafe {
-        let rs = &raw mut re_st().regstack;
-        if i64::from((((*rs).len() * 8) as c_uint) >> 10) >= opt_vars().p_mmp {
+        if i64::from(((re_st().regstack.len() * 8) as c_uint) >> 10) >= opt_vars().p_mmp {
             emsg(tr(e_pattern_uses_more_memory_than_maxmempattern));
             return ptr::null_mut();
         }
-        let old_len = (*rs).len();
-        (*rs).resize(old_len + size_of::<regitem_T>() / 8, 0);
+        let old_len = re_st().regstack.len();
+        re_st().regstack.resize(old_len + size_of::<regitem_T>() / 8, 0);
 
-        let rp = (*rs).as_mut_ptr().add(old_len).cast::<regitem_T>();
+        let rp = re_st().regstack.as_mut_ptr().add(old_len).cast::<regitem_T>();
         (*rp).rs_state = state;
         (*rp).rs_scan = scan;
         rp
@@ -2587,14 +2584,13 @@ fn regstack_push(state: regstate_T, scan: *mut u8) -> *mut regitem_T {
 
 fn regstack_pop(scan: *mut *mut u8) {
     unsafe {
-        let rs = &raw mut re_st().regstack;
-        let rp = (*rs)
+        let rp = re_st().regstack
             .as_mut_ptr()
-            .add((*rs).len())
+            .add(re_st().regstack.len())
             .cast::<regitem_T>()
             .sub(1);
         *scan = (*rp).rs_scan;
-        (*rs).truncate((*rs).len() - size_of::<regitem_T>() / 8);
+        re_st().regstack.truncate(re_st().regstack.len() - size_of::<regitem_T>() / 8);
     }
 }
 
@@ -2639,8 +2635,7 @@ fn regmatch(mut scan: *mut u8, tm: Option<proftime_T>,mut timed_out: Option<&mut
         let mut status: c_int;
         let mut tm_count: c_int = 0;
 
-        let rs = &raw mut re_st().regstack;
-        (*rs).clear();
+        re_st().regstack.clear();
         let bp = &raw mut re_st().backpos;
         (*bp).clear();
 
@@ -3383,13 +3378,13 @@ fn regmatch(mut scan: *mut u8, tm: Option<proftime_T>,mut timed_out: Option<&mut
                             } else {
                                 rst.count >= rst.maxval
                             } {
-                                if i64::from((((*rs).len() * 8) as c_uint) >> 10) >= opt_vars().p_mmp {
+                                if i64::from(((re_st().regstack.len() * 8) as c_uint) >> 10) >= opt_vars().p_mmp {
                                     emsg(
                                         tr(e_pattern_uses_more_memory_than_maxmempattern),
                                     );
                                     status = RA_FAIL;
                                 } else {
-                                    (*rs).resize((*rs).len() + size_of::<regstar_T>() / 8, 0);
+                                    re_st().regstack.resize(re_st().regstack.len() + size_of::<regstar_T>() / 8, 0);
                                     let rp = regstack_push(
                                         if rst.minval <= rst.maxval {
                                             RS_STAR_LONG
@@ -3420,11 +3415,11 @@ fn regmatch(mut scan: *mut u8, tm: Option<proftime_T>,mut timed_out: Option<&mut
                             }
                         }
                         BEHIND | NOBEHIND => {
-                            if i64::from((((*rs).len() * 8) as c_uint) >> 10) >= opt_vars().p_mmp {
+                            if i64::from(((re_st().regstack.len() * 8) as c_uint) >> 10) >= opt_vars().p_mmp {
                                 emsg(tr(e_pattern_uses_more_memory_than_maxmempattern));
                                 status = RA_FAIL;
                             } else {
-                                (*rs).resize((*rs).len() + size_of::<regbehind_T>() / 8, 0);
+                                re_st().regstack.resize(re_st().regstack.len() + size_of::<regbehind_T>() / 8, 0);
                                 let rp = regstack_push(RS_BEHIND1, scan);
                                 if rp.is_null() {
                                     status = RA_FAIL;
@@ -3477,10 +3472,10 @@ fn regmatch(mut scan: *mut u8, tm: Option<proftime_T>,mut timed_out: Option<&mut
                 scan = next;
             }
 
-            while !(*rs).is_empty() && status != RA_FAIL {
-                let rp = (*rs)
+            while !re_st().regstack.is_empty() && status != RA_FAIL {
+                let rp = re_st().regstack
                     .as_mut_ptr()
-                    .add((*rs).len())
+                    .add(re_st().regstack.len())
                     .cast::<regitem_T>()
                     .sub(1);
                 match (*rp).rs_state {
@@ -3620,7 +3615,7 @@ fn regmatch(mut scan: *mut u8, tm: Option<proftime_T>,mut timed_out: Option<&mut
                     RS_BEHIND1 => {
                         if status == RA_NOMATCH {
                             regstack_pop(&raw mut scan);
-                            (*rs).truncate((*rs).len() - size_of::<regbehind_T>() / 8);
+                            re_st().regstack.truncate(re_st().regstack.len() - size_of::<regbehind_T>() / 8);
                         } else {
                             let bp = rp.cast::<regbehind_T>().sub(1);
                             reg_save(&mut (*bp).save_after);
@@ -3642,7 +3637,7 @@ fn regmatch(mut scan: *mut u8, tm: Option<proftime_T>,mut timed_out: Option<&mut
                                 restore_subexpr(&mut *bp);
                             }
                             regstack_pop(&raw mut scan);
-                            (*rs).truncate((*rs).len() - size_of::<regbehind_T>() / 8);
+                            re_st().regstack.truncate(re_st().regstack.len() - size_of::<regbehind_T>() / 8);
                         } else {
                             let mut no = OK;
                             let limit = OPERAND_MIN((*rp).rs_scan);
@@ -3705,7 +3700,7 @@ fn regmatch(mut scan: *mut u8, tm: Option<proftime_T>,mut timed_out: Option<&mut
                                     restore_subexpr(&mut *bp);
                                 }
                                 regstack_pop(&raw mut scan);
-                                (*rs).truncate((*rs).len() - size_of::<regbehind_T>() / 8);
+                                re_st().regstack.truncate(re_st().regstack.len() - size_of::<regbehind_T>() / 8);
                             }
                         }
                     }
@@ -3713,7 +3708,7 @@ fn regmatch(mut scan: *mut u8, tm: Option<proftime_T>,mut timed_out: Option<&mut
                         let rst = rp.cast::<regstar_T>().sub(1);
                         if status == RA_MATCH {
                             regstack_pop(&raw mut scan);
-                            (*rs).truncate((*rs).len() - size_of::<regstar_T>() / 8);
+                            re_st().regstack.truncate(re_st().regstack.len() - size_of::<regstar_T>() / 8);
                         } else {
                             if status != RA_BREAK {
                                 reg_restore((*rp).rs_un.regsave_mut());
@@ -3768,7 +3763,7 @@ fn regmatch(mut scan: *mut u8, tm: Option<proftime_T>,mut timed_out: Option<&mut
                             }
                             if status != RA_CONT {
                                 regstack_pop(&raw mut scan);
-                                (*rs).truncate((*rs).len() - size_of::<regstar_T>() / 8);
+                                re_st().regstack.truncate(re_st().regstack.len() - size_of::<regstar_T>() / 8);
                                 status = RA_NOMATCH;
                             }
                         }
@@ -3776,9 +3771,9 @@ fn regmatch(mut scan: *mut u8, tm: Option<proftime_T>,mut timed_out: Option<&mut
                     _ => {}
                 }
 
-                let top = (*rs)
+                let top = re_st().regstack
                     .as_mut_ptr()
-                    .add((*rs).len())
+                    .add(re_st().regstack.len())
                     .cast::<regitem_T>()
                     .sub(1);
                 if status == RA_CONT || rp == top {
@@ -3790,7 +3785,7 @@ fn regmatch(mut scan: *mut u8, tm: Option<proftime_T>,mut timed_out: Option<&mut
                 continue;
             }
 
-            if (*rs).is_empty() || status == RA_FAIL {
+            if re_st().regstack.is_empty() || status == RA_FAIL {
                 if scan.is_null() {
                     iemsg(tr(e_re_corr));
                 }
@@ -3874,14 +3869,12 @@ fn bt_regexec_both(
         let mut col = startcol;
         let mut retval: c_int = 0;
 
-        let rs = &raw mut re_st().regstack;
-        if (*rs).capacity() == 0 {
-            (*rs).reserve((REGSTACK_INITIAL as usize) / 8);
+        if re_st().regstack.capacity() == 0 {
+            re_st().regstack.reserve((REGSTACK_INITIAL as usize) / 8);
         }
 
-        let bp = &raw mut re_st().backpos;
-        if (*bp).capacity() == 0 {
-            (*bp).reserve(BACKPOS_INITIAL as usize);
+        if re_st().backpos.capacity() == 0 {
+            re_st().backpos.reserve(BACKPOS_INITIAL as usize);
         }
 
         let prog: *mut bt_regprog_T = if REG_MULTI() {
@@ -4023,17 +4016,14 @@ fn bt_regexec_both(
 
 fn finish_bt_regexec(retval: c_int, col: colnr_T) -> c_int {
     unsafe {
-        let tf = &raw mut re_st().reg_tofree;
-        if (*tf).capacity() > 400 {
-            *tf = Vec::new();
+        if re_st().reg_tofree.capacity() > 400 {
+            re_st().reg_tofree = Vec::new();
         }
-        let rs = &raw mut re_st().regstack;
-        if (*rs).capacity() * 8 > REGSTACK_INITIAL as usize {
-            *rs = Vec::new();
+        if re_st().regstack.capacity() * 8 > REGSTACK_INITIAL as usize {
+            re_st().regstack = Vec::new();
         }
-        let bp = &raw mut re_st().backpos;
-        if (*bp).capacity() > BACKPOS_INITIAL as usize {
-            *bp = Vec::new();
+        if re_st().backpos.capacity() > BACKPOS_INITIAL as usize {
+            re_st().backpos = Vec::new();
         }
 
         if retval > 0 {

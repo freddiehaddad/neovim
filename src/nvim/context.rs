@@ -234,17 +234,15 @@ fn ctx_st() -> &'static mut ContextModuleState {
 
 #[inline]
 pub fn handle_get_buffer(h: handle_T) -> *mut buf_T {
-    unsafe {
-        let map_ptr = &raw const g_st().buffer_handles;
-        (*map_ptr).get(&h).copied().unwrap_or(ptr::null_mut())
+     {
+        g_st().buffer_handles.get(&h).copied().unwrap_or(ptr::null_mut())
     }
 }
 
 #[inline]
 pub fn handle_get_window(h: handle_T) -> *mut win_T {
-    unsafe {
-        let map_ptr = &raw const g_st().window_handles;
-        (*map_ptr).get(&h).copied().unwrap_or(ptr::null_mut())
+     {
+        g_st().window_handles.get(&h).copied().unwrap_or(ptr::null_mut())
     }
 }
 
@@ -713,25 +711,23 @@ pub fn is_ctx_win(win: *const win_T) -> bool {
 fn ctx_win_prep(cs: &mut CtxSwitch, buf: &mut buf_T) -> *mut win_T {
     unsafe {
         let mut need_append = true;
-        let vec = &raw mut g_st().ctx_win_vec;
-
-        let idx = (*vec)
+        let idx = g_st().ctx_win_vec
             .iter()
             .position(|item| !item.cw_used)
             .unwrap_or_else(|| {
-                let idx = (*vec).len();
-                (*vec).push(CtxWin {
+                let idx = g_st().ctx_win_vec.len();
+                g_st().ctx_win_vec.push(CtxWin {
                     cw_win: ptr::null_mut(),
                     cw_used: false,
                 });
                 idx
             });
-        if (*vec).as_slice()[idx].cw_win.is_null() {
+        if g_st().ctx_win_vec.as_slice()[idx].cw_win.is_null() {
             win_alloc_ctx_win(idx as c_int);
             need_append = false;
         }
-        let cw_win = (*vec).as_slice()[idx].cw_win;
-        (*vec).as_mut_slice()[idx].cw_used = true;
+        let cw_win = g_st().ctx_win_vec.as_slice()[idx].cw_win;
+        g_st().ctx_win_vec.as_mut_slice()[idx].cw_used = true;
         cs.cs_ctxwin_idx = idx as c_int;
 
         (*cw_win).w_buffer = (&raw mut *buf);
@@ -742,8 +738,7 @@ fn ctx_win_prep(cs: &mut CtxSwitch, buf: &mut buf_T) -> *mut win_T {
 
         if need_append {
             win_append(g_st().lastwin, cw_win, ptr::null_mut());
-            let map_ptr = &raw mut g_st().window_handles;
-            (*map_ptr).insert((*cw_win).handle, cw_win);
+            g_st().window_handles.insert((*cw_win).handle, cw_win);
             win_config_float(&mut *cw_win, (*cw_win).w_config.clone());
         }
 
@@ -753,8 +748,7 @@ fn ctx_win_prep(cs: &mut CtxSwitch, buf: &mut buf_T) -> *mut win_T {
 
 fn ctx_win_rest(cs: &mut CtxSwitch) -> *mut win_T {
     unsafe {
-        let vec = &raw mut g_st().ctx_win_vec;
-        let cwp = (*vec).as_slice()[cs.cs_ctxwin_idx as usize].cw_win;
+        let cwp = g_st().ctx_win_vec.as_slice()[cs.cs_ctxwin_idx as usize].cw_win;
 
         block_autocmds();
         if curwin_ptr() != cwp {
@@ -775,10 +769,9 @@ fn ctx_win_rest(cs: &mut CtxSwitch) -> *mut win_T {
 
         curbuf_mut().b_nwindows -= 1;
         win_remove(curwin_mut(), ptr::null_mut());
-        let map_ptr = &raw mut g_st().window_handles;
-        (*map_ptr).remove(&curwin_mut().handle);
+        g_st().window_handles.remove(&curwin_mut().handle);
 
-        (*vec).as_mut_slice()[cs.cs_ctxwin_idx as usize].cw_used = false;
+        g_st().ctx_win_vec.as_mut_slice()[cs.cs_ctxwin_idx as usize].cw_used = false;
 
         if valid_tabpage_win(curtab_mut()) == 0 {
             close_tabpage(curtab_mut());

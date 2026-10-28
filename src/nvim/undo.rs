@@ -2458,7 +2458,7 @@ pub fn ex_undolist(_eap: &mut exarg_T) {
         let nomark = undo_st().lastmark;
         let mut lines: Vec<std::ffi::CString> = Vec::new();
 
-        let iobuf_ptr = (&raw mut g_st().IObuff).cast::<c_char>();
+        let iobuf_ptr = g_st().IObuff.as_mut_ptr();
         let mut uhp = curbuf_mut().b_u_oldhead;
         while let Some(uh) = uhp {
             let uh_prev = uhp_ref(curbuf_mut(), uh).uh_prev;

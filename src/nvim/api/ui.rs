@@ -100,8 +100,7 @@ fn buf_pos(ui: &RemoteUI) -> usize {
 
 fn get_ui_or_err(chan_id: u64, err: &mut Error) -> Option<&'static mut RemoteUI> {
     unsafe {
-        let uis_ptr = &raw mut api_ui_st().connected_uis;
-        let ui = (*uis_ptr).get_mut(&chan_id).map(|b| &mut **b);
+        let ui = api_ui_st().connected_uis.get_mut(&chan_id).map(|b| &mut **b);
         if ui.is_none() {
             api_set_error!(
                 err,
@@ -153,8 +152,7 @@ pub fn remote_ui_disconnect(channel_id: u64, err: &mut Error, send_error_exit: b
             push_call(ui, c"error_exit", args);
             ui_flush_buf(ui, false);
         }
-        let uis_ptr = &raw mut api_ui_st().connected_uis;
-        let mut ui_box = (*uis_ptr).remove(&channel_id);
+        let mut ui_box = api_ui_st().connected_uis.remove(&channel_id);
         let ui_detached = ui_box.as_deref_mut().unwrap_or(ui);
         ui_detach_impl(ui_detached, channel_id);
         let chan = find_channel(channel_id);
@@ -204,10 +202,9 @@ pub fn ui_detach_channel(chan: u64, err: &mut Error) {
 /// @return Number of UIs detached.
 // DLLEXPORT size_t ui_detach_others(uint64_t keep_chan);
 pub fn ui_detach_others(keep_chan: u64) -> usize {
-    unsafe {
+     {
         let mut chans = Vec::<u64>::new();
-        let uis_ptr = &raw const api_ui_st().connected_uis;
-        for &chan in (*uis_ptr).keys() {
+        for &chan in api_ui_st().connected_uis.keys() {
             if chan != keep_chan {
                 chans.push(chan);
             }
@@ -230,9 +227,8 @@ pub fn ui_detach_others(keep_chan: u64) -> usize {
 
 // DLLEXPORT void remote_ui_free_all_mem(void);
 pub fn remote_ui_free_all_mem() {
-    unsafe {
-        let uis_ptr = &raw mut api_ui_st().connected_uis;
-        (*uis_ptr).clear();
+     {
+        api_ui_st().connected_uis.clear();
     }
 }
 
@@ -241,11 +237,11 @@ pub fn remote_ui_free_all_mem() {
 pub fn remote_ui_wait_for_attach() {
     unsafe {
         while ui_active() == 0 {
-            let events = (*loop_queues(&mut *(&raw mut g_st().main_loop).cast())).events;
+            let events = (*loop_queues(&mut g_st().main_loop)).events;
             if !multiqueue_empty( &*events) {
                 multiqueue_process_events( &mut *events);
             } else {
-                loop_poll_events(&mut *(&raw mut g_st().main_loop).cast(), -1);
+                loop_poll_events(&mut g_st().main_loop, -1);
                 multiqueue_process_events( &mut *events);
             }
         }
@@ -277,8 +273,7 @@ pub fn nvim_ui_attach(
     err: &mut Error,
 ) {
     unsafe {
-        let uis_ptr = &raw const api_ui_st().connected_uis;
-        if (*uis_ptr).contains_key(&channel_id) {
+        if api_ui_st().connected_uis.contains_key(&channel_id) {
             api_set_error!(
                 err,
                 ErrorType::kErrorTypeException,
@@ -366,9 +361,8 @@ pub fn nvim_ui_attach(
         ui.ncalls_pos = None;
         ui.ncalls = 0;
         ui.ncells_pending = 0;
-        let uis_ptr = &raw mut api_ui_st().connected_uis;
-        (*uis_ptr).insert(channel_id, ui_box);
-        let ui: &mut RemoteUI = (*uis_ptr).get_mut(&channel_id).unwrap();
+        api_ui_st().connected_uis.insert(channel_id, ui_box);
+        let ui: &mut RemoteUI = api_ui_st().connected_uis.get_mut(&channel_id).unwrap();
         ui.packer = PackerBuffer {
             startptr: ptr::null_mut(),
             ptr: ptr::null_mut(),
@@ -459,8 +453,7 @@ pub fn remote_ui_connect(channel_id: u64, server_addr: *mut c_char, err: &mut Er
 // DLLEXPORT void remote_ui_restart(String listen_addr);
 pub fn remote_ui_restart(listen_addr: NvimString) {
     unsafe {
-        let uis_ptr = &raw mut api_ui_st().connected_uis;
-        for ui in (*uis_ptr).values_mut() {
+        for ui in api_ui_st().connected_uis.values_mut() {
             let chan = find_channel(ui.channel_id);
             let detach_val = !chan.is_null() && (*chan).detach;
             let mut cfg_items: [KeyValuePair; 1] = [KeyValuePair {

@@ -700,7 +700,7 @@ fn uc_list(name: *mut c_char, name_len: usize) {
                         let copy_len = bytes.len().min(IOSIZE - 1 - len);
                         ptr::copy_nonoverlapping(
                             bytes.as_ptr().cast::<c_char>(),
-                            (&raw mut g_st().IObuff[0]).add(len),
+                            (g_st().IObuff.as_mut_ptr()).add(len),
                             copy_len,
                         );
                         len += copy_len;
@@ -713,7 +713,7 @@ fn uc_list(name: *mut c_char, name_len: usize) {
                         let copy_len = bytes.len().min(IOSIZE - 1 - len);
                         ptr::copy_nonoverlapping(
                             bytes.as_ptr().cast::<c_char>(),
-                            (&raw mut g_st().IObuff[0]).add(len),
+                            (g_st().IObuff.as_mut_ptr()).add(len),
                             copy_len,
                         );
                         len += copy_len;
@@ -741,7 +741,7 @@ fn uc_list(name: *mut c_char, name_len: usize) {
                             let copy_len = bytes.len().min(IOSIZE - 1 - len);
                             ptr::copy_nonoverlapping(
                                 bytes.as_ptr().cast::<c_char>(),
-                                (&raw mut g_st().IObuff[0]).add(len),
+                                (g_st().IObuff.as_mut_ptr()).add(len),
                                 copy_len,
                             );
                             len += copy_len;
@@ -764,7 +764,7 @@ fn uc_list(name: *mut c_char, name_len: usize) {
                     let copy_len = bytes.len().min(IOSIZE - 1 - len);
                     ptr::copy_nonoverlapping(
                         bytes.as_ptr().cast::<c_char>(),
-                        (&raw mut g_st().IObuff[0]).add(len),
+                        (g_st().IObuff.as_mut_ptr()).add(len),
                         copy_len,
                     );
                     len += copy_len;
@@ -779,7 +779,7 @@ fn uc_list(name: *mut c_char, name_len: usize) {
                 }
 
                 g_st().IObuff[len] = NUL;
-                msg_outtrans(&raw const g_st().IObuff[0], 0, false);
+                msg_outtrans(g_st().IObuff.as_ptr(), 0, false);
 
                 if cmd.uc_luaref != LUA_NOREF {
                     let fn_str = nlua_funcref_str(cmd.uc_luaref, true);

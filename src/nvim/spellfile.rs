@@ -711,9 +711,8 @@ pub fn spell_load_file(
             if let Some(boxed_lp) = owned_lp.take()
                 && !lang.is_null()
             {
-                let langs = &raw mut spell_priv_st().first_lang;
-                (*langs).push(crate::spell::OwnedSlang(boxed_lp));
-                lp = &raw mut **(*langs).last_mut().unwrap();
+                spell_priv_st().first_lang.push(crate::spell::OwnedSlang(boxed_lp));
+                lp = &raw mut **spell_priv_st().first_lang.last_mut().unwrap();
             }
         } else {
             if !lang.is_null() {
@@ -1647,10 +1646,9 @@ fn spell_reload_one(fname: *mut c_char, added_word: bool) {
     unsafe {
         let mut didit = false;
 
-        let langs = &raw mut spell_priv_st().first_lang;
-        let len = (*langs).len();
+        let len = spell_priv_st().first_lang.len();
         for i in (0..len).rev() {
-            let slang: *mut slang_T = &raw mut *(*langs).as_mut_slice()[i];
+            let slang: *mut slang_T = &raw mut *spell_priv_st().first_lang.as_mut_slice()[i];
             if (*slang)
                 .sl_fname
                 .as_ref()
@@ -1743,12 +1741,12 @@ fn spell_read_aff(spin: &mut spellinfo_T, fname: *mut c_char) -> Option<afffile_
         }
 
         vim_snprintf!(
-            (&raw mut g_st().IObuff).cast(),
+            g_st().IObuff.as_mut_ptr(),
             IOSIZE,
             gettext(c"Reading affix file %s..."),
             fname,
         );
-        spell_message(&*spin, (&raw mut g_st().IObuff).cast());
+        spell_message(&*spin, g_st().IObuff.as_mut_ptr());
 
         let do_rep = spin.si_rep.is_empty();
         let do_repsal = spin.si_repsal.is_empty();
@@ -2950,12 +2948,12 @@ fn spell_read_dic(spin: &mut spellinfo_T, fname: *mut c_char, affile: &afffile_T
         }
 
         vim_snprintf!(
-            (&raw mut g_st().IObuff).cast(),
+            g_st().IObuff.as_mut_ptr(),
             IOSIZE,
             gettext(c"Reading dictionary file %s..."),
             fname,
         );
-        spell_message(&*spin, (&raw mut g_st().IObuff).cast());
+        spell_message(&*spin, g_st().IObuff.as_mut_ptr());
 
         spin.si_msg_count = 999999;
 
@@ -3570,12 +3568,12 @@ fn spell_read_wordfile(spin: &mut spellinfo_T, fname: *mut c_char) -> bool {
         }
 
         vim_snprintf!(
-            (&raw mut g_st().IObuff).cast(),
+            g_st().IObuff.as_mut_ptr(),
             IOSIZE,
             gettext(c"Reading word file %s..."),
             fname,
         );
-        spell_message(&*spin, (&raw mut g_st().IObuff).cast());
+        spell_message(&*spin, g_st().IObuff.as_mut_ptr());
 
         while !vim_fgets(rline.as_mut_ptr(), MAXLINELEN as c_int, fd) && !g_st().got_int {
             line_breakcheck();
@@ -3757,12 +3755,12 @@ fn spell_read_wordfile(spin: &mut spellinfo_T, fname: *mut c_char) -> bool {
 
         if spin.si_ascii != 0 && non_ascii > 0 {
             vim_snprintf!(
-                (&raw mut g_st().IObuff).cast(),
+                g_st().IObuff.as_mut_ptr(),
                 IOSIZE,
                 gettext(c"Ignored %d words with non-ASCII characters"),
                 non_ascii,
             );
-            spell_message(&*spin, (&raw mut g_st().IObuff).cast());
+            spell_message(&*spin, g_st().IObuff.as_mut_ptr());
         }
 
         retval
@@ -4067,7 +4065,7 @@ fn wordtree_compress(spin: &mut spellinfo_T, root: Option<usize>, name: &std::ff
                 ((tot - n) * 100 / tot) as c_long
             };
             vim_snprintf!(
-                (&raw mut g_st().IObuff).cast(),
+                g_st().IObuff.as_mut_ptr(),
                 IOSIZE,
                 gettext(c"Compressed %s: %d of %d nodes; %d (%ld%%) remaining"),
                 name.as_ptr(),
@@ -4076,7 +4074,7 @@ fn wordtree_compress(spin: &mut spellinfo_T, root: Option<usize>, name: &std::ff
                 tot - n,
                 perc,
             );
-            spell_message( &*spin, (&raw mut g_st().IObuff).cast());
+            spell_message( &*spin, g_st().IObuff.as_mut_ptr());
         }
     }
 }
@@ -4634,8 +4632,7 @@ pub fn ex_mkspell(eap: &mut exarg_T) {
 
 fn spell_make_sugfile(spin: &mut spellinfo_T, wfname: *mut c_char) {
     unsafe {
-        let langs = &raw mut spell_priv_st().first_lang;
-        let mut slang = (*langs)
+        let mut slang = spell_priv_st().first_lang
             .iter_mut()
             .rev()
             .find(|s| {
@@ -4898,12 +4895,12 @@ fn sug_write(spin: &mut spellinfo_T, fname: *mut c_char) {
         }
 
         vim_snprintf!(
-            (&raw mut g_st().IObuff).cast(),
+            g_st().IObuff.as_mut_ptr(),
             IOSIZE,
             gettext(c"Writing suggestion file %s..."),
             fname,
         );
-        spell_message(&*spin, (&raw mut g_st().IObuff).cast());
+        spell_message(&*spin, g_st().IObuff.as_mut_ptr());
 
         if fwrite(VIMSUGMAGIC.as_ptr().cast(), VIMSUGMAGICL, 1, fd) != 1 {
             emsg(gettext(e_write));
@@ -4950,12 +4947,12 @@ fn sug_write(spin: &mut spellinfo_T, fname: *mut c_char) {
             }
 
             vim_snprintf!(
-                (&raw mut g_st().IObuff).cast(),
+                g_st().IObuff.as_mut_ptr(),
                 IOSIZE,
                 gettext(c"Estimated runtime memory use: %d bytes"),
                 spin.si_memtot,
             );
-            spell_message(&*spin, (&raw mut g_st().IObuff).cast());
+            spell_message(&*spin, g_st().IObuff.as_mut_ptr());
         }
 
         fclose(fd);
@@ -5125,23 +5122,23 @@ fn mkspell(
 
                 if !error && !g_st().got_int {
                     vim_snprintf!(
-                        (&raw mut g_st().IObuff).cast(),
+                        g_st().IObuff.as_mut_ptr(),
                         IOSIZE,
                         gettext(c"Writing spell file %s..."),
                         wfname,
                     );
-                    spell_message(&spin, (&raw mut g_st().IObuff).cast());
+                    spell_message(&spin, g_st().IObuff.as_mut_ptr());
 
                     error = !write_vim_spell(&mut spin, wfname);
 
                     spell_message(&spin, gettext(c"Done!"));
                     vim_snprintf!(
-                        (&raw mut g_st().IObuff).cast(),
+                        g_st().IObuff.as_mut_ptr(),
                         IOSIZE,
                         gettext(c"Estimated runtime memory use: %d bytes"),
                         spin.si_memtot,
                     );
-                    spell_message(&spin, (&raw mut g_st().IObuff).cast());
+                    spell_message(&spin, g_st().IObuff.as_mut_ptr());
 
                     if !error {
                         spell_reload_one(wfname, added_word);
@@ -5308,7 +5305,7 @@ pub fn spell_add_word(
                                 home_replace(
                                     None,
                                     fname,
-                                    (&raw mut g_st().NameBuff).cast(),
+                                    g_st().NameBuff.as_mut_ptr(),
                                     MAXPATHL,
                                     true,
                                 );
@@ -5317,7 +5314,7 @@ pub fn spell_add_word(
                                     gettext(c"Word '%.*s' removed from %s"),
                                     len,
                                     word,
-                                    (&raw const g_st().NameBuff).cast::<c_char>(),
+                                    g_st().NameBuff.as_ptr(),
                                 );
                             }
                         }
@@ -5370,7 +5367,7 @@ pub fn spell_add_word(
                 home_replace(
                     None,
                     fname,
-                    (&raw mut g_st().NameBuff).cast(),
+                    g_st().NameBuff.as_mut_ptr(),
                     MAXPATHL,
                     true,
                 );
@@ -5379,7 +5376,7 @@ pub fn spell_add_word(
                     gettext(c"Word '%.*s' added to %s"),
                     len,
                     word,
-                    (&raw const g_st().NameBuff).cast::<c_char>(),
+                    g_st().NameBuff.as_ptr(),
                 );
             }
         }

@@ -346,17 +346,15 @@ use crate::viml::parser::parser::CONV_NONE;
 
 #[inline]
 pub fn script_item(id: scid_T) -> *mut scriptitem_T {
-    unsafe {
-        let items = &raw mut rt_st().script_items;
-        &raw mut (*items).as_mut_slice()[(id - 1) as usize]
+     {
+        &raw mut rt_st().script_items.as_mut_slice()[(id - 1) as usize]
     }
 }
 
 #[inline]
 pub fn script_items_len() -> scid_T {
-    unsafe {
-        let items = &raw const rt_st().script_items;
-        (*items).len() as scid_T
+     {
+        rt_st().script_items.len() as scid_T
     }
 }
 
@@ -367,34 +365,30 @@ pub fn script_id_valid(id: scid_T) -> bool {
 
 #[inline]
 pub fn sourcing_name() -> *mut c_char {
-    unsafe {
-        let es = &raw const rt_st().exestack;
-        (*es).last().unwrap().name_ptr()
+     {
+        rt_st().exestack.last().unwrap().name_ptr()
     }
 }
 
 #[inline]
 pub fn sourcing_lnum() -> linenr_T {
-    unsafe {
-        let es = &raw const rt_st().exestack;
-        (*es).last().unwrap().es_lnum
+     {
+        rt_st().exestack.last().unwrap().es_lnum
     }
 }
 
 #[inline]
 pub fn set_sourcing_lnum(lnum: linenr_T) {
-    unsafe {
-        let es = &raw mut rt_st().exestack;
-        (*es).last_mut().unwrap().es_lnum = lnum;
+     {
+        rt_st().exestack.last_mut().unwrap().es_lnum = lnum;
     }
 }
 
 /// Initialize the execution stack.
 pub fn estack_init() {
-    unsafe {
-        let es = &raw mut rt_st().exestack;
-        (*es).reserve(10);
-        (*es).push(estack_T {
+     {
+        rt_st().exestack.reserve(10);
+        rt_st().exestack.push(estack_T {
             es_type: ETYPE_TOP,
             es_name: None,
             es_lnum: 0,
@@ -406,9 +400,8 @@ pub fn estack_init() {
 /// Add an item to the execution stack.
 pub fn estack_push(type_: etype_T, name: impl crate::strings::IntoCCharPtr, lnum: linenr_T) -> *mut estack_T {
     let name = name.into_c_char_ptr();
-    unsafe {
-        let es = &raw mut rt_st().exestack;
-        (*es).push(estack_T {
+     {
+        rt_st().exestack.push(estack_T {
             es_type: type_,
             es_name: if name.is_null() {
                 None
@@ -418,7 +411,7 @@ pub fn estack_push(type_: etype_T, name: impl crate::strings::IntoCCharPtr, lnum
             es_lnum: lnum,
             es_info: crate::profile::EStackInfo::None,
         });
-        (*es).last_mut().map_or(ptr::null_mut(), ptr::from_mut)
+        rt_st().exestack.last_mut().map_or(ptr::null_mut(), ptr::from_mut)
     }
 }
 
@@ -439,10 +432,9 @@ pub fn estack_push_ufunc(ufunc: &mut ufunc_T, lnum: linenr_T) {
 
 /// Take an item off of the execution stack.
 pub fn estack_pop() {
-    unsafe {
-        let es = &raw mut rt_st().exestack;
-        if (*es).len() > 1 {
-            (*es).pop();
+     {
+        if rt_st().exestack.len() > 1 {
+            rt_st().exestack.pop();
         }
     }
 }
@@ -450,14 +442,13 @@ pub fn estack_pop() {
 /// Get the current value for <sfile> as an owned `CString`.
 pub fn estack_sfile(which: estack_arg_T) -> Option<std::ffi::CString> {
     unsafe {
-        let es = &raw const rt_st().exestack;
-        let last_entry = (*es).last().unwrap();
+        let last_entry = rt_st().exestack.last().unwrap();
         if which == ESTACK_SFILE && last_entry.es_type != ETYPE_UFUNC {
             return last_entry.es_name.clone();
         }
 
         if which == ESTACK_SCRIPT {
-            for entry in (*es).iter().rev() {
+            for entry in rt_st().exestack.iter().rev() {
                 if entry.es_type == ETYPE_UFUNC || entry.es_type == ETYPE_AUCMD {
                     let def_ctx = if entry.es_type == ETYPE_UFUNC {
                         (*entry.es_info.ufunc()).uf_script_ctx
@@ -478,8 +469,8 @@ pub fn estack_sfile(which: estack_arg_T) -> Option<std::ffi::CString> {
 
         let mut buf: Vec<c_char> = Vec::new();
         let mut last_type = ETYPE_SCRIPT;
-        let es_len = (*es).len();
-        for (idx, entry) in (*es).iter().enumerate() {
+        let es_len = rt_st().exestack.len();
+        for (idx, entry) in rt_st().exestack.iter().enumerate() {
             if let Some(ref entry_name) = entry.es_name {
                 let mut type_name = static_cstr_as_string(c"");
                 let es_name = cstr_as_string(entry_name.as_ptr());
@@ -564,10 +555,9 @@ fn stacktrace_push_item(
 /// Create the stacktrace from rt_st().exestack.
 pub fn stacktrace_create() -> *mut list_T {
     unsafe {
-        let es = &raw const rt_st().exestack;
-        let l = tv_list_alloc((*es).len() as isize);
+        let l = tv_list_alloc(rt_st().exestack.len() as isize);
 
-        for entry in &*es {
+        for entry in &rt_st().exestack {
             let mut lnum = entry.es_lnum;
 
             if entry.es_type == ETYPE_SCRIPT {
@@ -855,11 +845,10 @@ pub fn do_in_path(
 }
 
 fn runtime_search_path_get_cached() -> *mut [SearchPathItem] {
-    unsafe {
+     {
         runtime_search_path_validate();
         rt_st().runtime_search_path_refcount += 1;
-        let rsp_ptr = &raw mut rt_st().runtime_search_path;
-        let rsp = &mut *rsp_ptr;
+        let rsp = &mut rt_st().runtime_search_path;
         ptr::slice_from_raw_parts_mut(rsp.as_mut_ptr(), rsp.len())
     }
 }
@@ -869,11 +858,10 @@ fn copy_runtime_search_path(src: &[SearchPathItem]) -> RuntimeSearchPath {
 }
 
 fn runtime_search_path_unref() {
-    unsafe {
+     {
         rt_st().runtime_search_path_refcount -= 1;
         if rt_st().runtime_search_path_refcount == 0 {
-            let old_ptr = &raw mut rt_st().runtime_search_path_old;
-            (*old_ptr).clear();
+            rt_st().runtime_search_path_old.clear();
         }
     }
 }
@@ -976,9 +964,8 @@ fn do_in_cached_path(
 }
 
 pub fn runtime_inspect(arena: &mut Arena) -> Array {
-    unsafe {
-        let rsp_ptr = &raw const rt_st().runtime_search_path;
-        let rsp = &*rsp_ptr;
+     {
+        let rsp = &rt_st().runtime_search_path;
         let mut rv = arena_array(arena, rsp.len());
 
         for item in rsp {
@@ -1023,12 +1010,11 @@ pub fn runtime_get_named(lua: bool, pat: Array, all: bool, arena: &mut Arena) ->
 }
 
 pub fn runtime_get_named_thread(lua: bool, pat: Array, all: bool) -> Array {
-    unsafe {
+     {
         let _guard = RUNTIME_SEARCH_PATH_MUTEX
             .lock()
             .unwrap_or_else(|e| e.into_inner());
-        let path_ptr = &raw mut rt_st().runtime_search_path_thread;
-        let path = &mut *path_ptr;
+        let path = &mut rt_st().runtime_search_path_thread;
         runtime_get_named_common(
             lua,
             pat,
@@ -1326,20 +1312,18 @@ pub fn did_set_runtimepackpath(_args: &mut optset_T) -> *const c_char {
 }
 
 pub fn runtime_search_path_validate() {
-    unsafe {
+     {
         if !nlua_is_deferred_safe() {
             return;
         }
         if !rt_st().runtime_search_path_valid {
             let new_path = runtime_search_path_build();
-            let rsp_ptr = &raw mut rt_st().runtime_search_path;
-            let old_path = std::mem::replace(&mut *rsp_ptr, new_path);
+            let old_path = std::mem::replace(&mut rt_st().runtime_search_path, new_path);
             if rt_st().runtime_search_path_refcount == 0 {
                 msg_ext_ui_flush();
                 drop(old_path);
             } else {
-                let old_ptr = &raw mut rt_st().runtime_search_path_old;
-                (*old_ptr).push(old_path);
+                rt_st().runtime_search_path_old.push(old_path);
             }
             rt_st().runtime_search_path_valid = true;
             update_runtime_search_path_thread(true);
@@ -1348,7 +1332,7 @@ pub fn runtime_search_path_validate() {
 }
 
 pub fn update_runtime_search_path_thread(force: bool) {
-    unsafe {
+     {
         if !force && !(rt_st().runtime_search_path_valid && !rt_st().runtime_search_path_valid_thread) {
             return;
         }
@@ -1356,8 +1340,7 @@ pub fn update_runtime_search_path_thread(force: bool) {
         let _guard = RUNTIME_SEARCH_PATH_MUTEX
             .lock()
             .unwrap_or_else(|e| e.into_inner());
-        let rsp_ptr = &raw const rt_st().runtime_search_path;
-        rt_st().runtime_search_path_thread = copy_runtime_search_path(&*rsp_ptr);
+        rt_st().runtime_search_path_thread = copy_runtime_search_path(&rt_st().runtime_search_path);
         drop(_guard);
         rt_st().runtime_search_path_valid_thread = true;
     }
@@ -1599,8 +1582,7 @@ fn add_pack_dir_to_rtp(fname: *mut c_char, is_pack: bool) -> bool {
             if was_valid && !is_pack && rt_st().runtime_search_path_refcount == 0 {
                 rt_st().runtime_search_path_valid = true;
                 rt_st().runtime_search_path_valid_thread = false;
-                let rsp_ptr = &raw mut rt_st().runtime_search_path;
-                let rsp = &mut *rsp_ptr;
+                let rsp = &mut rt_st().runtime_search_path;
 
                 let idx1 = rsp
                     .iter()
@@ -2274,7 +2256,7 @@ fn add_dir(
             #[cfg(not(windows))]
             let appname_len = crate::memory::cstr_len(appname);
             debug_assert!(appname_len < IOSIZE - 6);
-            let iobuff = (&raw mut g_st().IObuff).cast::<c_char>();
+            let iobuff = g_st().IObuff.as_mut_ptr();
             crate::memory::cstr_ncpy(iobuff, appname, appname_len);
             #[cfg(windows)]
             if matches!(type_, XDGVarType::kXDGDataHome | XDGVarType::kXDGStateHome) {
@@ -2614,9 +2596,8 @@ pub fn new_script_item(
         {
             *sid_out = sid;
         }
-        let items = &raw mut rt_st().script_items;
-        while ((*items).len() as scid_T) < sid {
-            (*items).push(scriptitem_T {
+        while (rt_st().script_items.len() as scid_T) < sid {
+            rt_st().script_items.push(scriptitem_T {
                 sn_vars: new_script_vars(),
                 sn_name: None,
                 sn_lua: false,
@@ -2652,7 +2633,7 @@ fn do_source_buffer_init(
             return None;
         }
 
-        let iobuff = (&raw mut g_st().IObuff).cast::<c_char>();
+        let iobuff = g_st().IObuff.as_mut_ptr();
         let fname = if !curbuf_mut().b_ffname.is_null() {
             cstr_to_cstring(curbuf_mut().b_ffname)
         } else {
@@ -3047,7 +3028,7 @@ fn do_source_ext(
             }
 
             if l_has_time_fd {
-                let iobuff = (&raw mut g_st().IObuff).cast::<c_char>();
+                let iobuff = g_st().IObuff.as_mut_ptr();
                 vim_snprintf!(iobuff, IOSIZE, c"sourcing %s", fname);
                 time_msg(iobuff, Some(&start_time));
                 time_pop(rel_time);
@@ -3130,8 +3111,8 @@ pub fn find_script_by_name(name: *mut c_char) -> c_int {
 /// ":scriptnames"
 pub fn ex_scriptnames(eap: &mut exarg_T) {
     unsafe {
-        let namebuff = (&raw mut g_st().NameBuff).cast::<c_char>();
-        let iobuff = (&raw mut g_st().IObuff).cast::<c_char>();
+        let namebuff = g_st().NameBuff.as_mut_ptr();
+        let iobuff = g_st().IObuff.as_mut_ptr();
         if eap.addr_count > 0 || !crate::memory::cstr_is_empty(eap.arg) {
             if eap.addr_count > 0 && !script_id_valid(eap.line2) {
                 emsg(gettext(e_invarg));
@@ -3175,7 +3156,7 @@ pub fn get_scriptname(
 ) -> std::borrow::Cow<'static, CStr> {
     use std::borrow::Cow;
     unsafe {
-        let iobuff = (&raw mut g_st().IObuff).cast::<c_char>();
+        let iobuff = g_st().IObuff.as_mut_ptr();
         let ptr = match script_ctx.sc_sid {
             SID_MODELINE => gettext(c"modeline"),
             SID_CMDARG => gettext(c"--cmd argument"),
@@ -3221,9 +3202,8 @@ pub fn free_scriptnames() {
 }
 
 pub fn free_autoload_scriptnames() {
-    unsafe {
-        let loaded = &raw mut rt_st().ga_loaded;
-        *loaded = Vec::new();
+     {
+        rt_st().ga_loaded = Vec::new();
     }
 }
 
@@ -3639,7 +3619,7 @@ pub fn autoload_name(name: *const c_char, name_len: usize) -> std::ffi::CString 
 
 /// If name has a package name try autoloading the script for it.
 pub fn script_autoload(name: *const c_char, name_len: usize, reload: bool) -> bool {
-    unsafe {
+     {
         let slice = crate::memory::cstr_slice(name, name_len);
         let Some(pos) = slice.iter().position(|&b| b == AUTOLOAD_CHAR) else {
             return false;
@@ -3653,13 +3633,12 @@ pub fn script_autoload(name: *const c_char, name_len: usize, reload: bool) -> bo
         let scriptname = scriptname_cstr.as_ptr().cast_mut();
 
         let target_tail = &scriptname_cstr.as_bytes()[9..];
-        let loaded = &raw mut rt_st().ga_loaded;
-        let already_loaded = (*loaded)
+        let already_loaded = rt_st().ga_loaded
             .iter()
             .any(|entry| &entry.as_bytes()[9..] == target_tail);
         if reload || !already_loaded {
             if !already_loaded {
-                (*loaded).push(scriptname_cstr.clone());
+                rt_st().ga_loaded.push(scriptname_cstr.clone());
             }
 
             if do_in_runtimepath(

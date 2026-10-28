@@ -2257,15 +2257,14 @@ pub(super) fn match_with_backref(
 
         *bytelen = 0;
         loop {
-            let tf = &raw mut re_st().reg_tofree;
-            if (*tf).is_empty() || re_st().rex.line != (*tf).as_mut_ptr() {
+            if re_st().reg_tofree.is_empty() || re_st().rex.line != re_st().reg_tofree.as_mut_ptr() {
                 let len = crate::memory::cstr_len(re_st().rex.line.cast()) + 51;
                 let off = re_st().rex.input.offset_from(re_st().rex.line) as usize;
-                if (*tf).len() < len {
-                    (*tf).resize(len, 0);
+                if re_st().reg_tofree.len() < len {
+                    re_st().reg_tofree.resize(len, 0);
                 }
-                crate::memory::cstr_cpy((*tf).as_mut_ptr().cast(), re_st().rex.line.cast());
-                re_st().rex.line = (*tf).as_mut_ptr();
+                crate::memory::cstr_cpy(re_st().reg_tofree.as_mut_ptr().cast(), re_st().rex.line.cast());
+                re_st().rex.line = re_st().reg_tofree.as_mut_ptr();
                 re_st().rex.input = re_st().rex.line.add(off);
             }
 
@@ -3427,16 +3426,12 @@ pub fn vim_regfree(prog: *mut regprog_T) {
 }
 
 pub fn free_regexp_stuff() {
-    unsafe {
-        let rs = &raw mut re_st().regstack;
-        *rs = Vec::new();
-        let bp = &raw mut re_st().backpos;
-        *bp = Vec::new();
-        let tf = &raw mut re_st().reg_tofree;
-        *tf = Vec::new();
+     {
+        re_st().regstack = Vec::new();
+        re_st().backpos = Vec::new();
+        re_st().reg_tofree = Vec::new();
         re_st().reg_prev_sub = None;
-        let pv = &raw mut re_st().post_vec;
-        *pv = Vec::new();
+        re_st().post_vec = Vec::new();
     }
 }
 

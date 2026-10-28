@@ -803,17 +803,13 @@ pub fn free_all_mem() {
         atom_free_all();
         mc_free_all();
 
-        let bh_ptr = &raw mut g_st().buffer_handles;
-        *bh_ptr = std::collections::BTreeMap::new();
-        let wh_ptr = &raw mut g_st().window_handles;
-        *wh_ptr = std::collections::BTreeMap::new();
-        let th_ptr = &raw mut g_st().tabpage_handles;
-        *th_ptr = std::collections::BTreeMap::new();
+        g_st().buffer_handles = std::collections::BTreeMap::new();
+        g_st().window_handles = std::collections::BTreeMap::new();
+        g_st().tabpage_handles = std::collections::BTreeMap::new();
 
         grid_free_all_mem();
-        let tp_defs = &raw mut g_st().tab_page_click_defs;
-        stl_clear_click_defs(&mut *tp_defs);
-        *tp_defs = Vec::new();
+        stl_clear_click_defs(&mut g_st().tab_page_click_defs);
+        g_st().tab_page_click_defs = Vec::new();
 
         clear_hl_tables(false);
         check_quickfix_busy();

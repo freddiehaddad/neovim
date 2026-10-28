@@ -1127,8 +1127,7 @@ pub fn spell_move_to(
         let mut wrapped = false;
         let mut ret: usize = 0;
         let mut lnum = wp.w_cursor.lnum;
-        let ds = &raw mut g_st().decor_state;
-        let saved_decor_start = std::mem::replace(&mut *ds, crate::decoration::DecorState::new());
+        let saved_decor_start = std::mem::replace(&mut g_st().decor_state, crate::decoration::DecorState::new());
         let mut decor_lnum: linenr_T = -1;
         'theend: {
             while !g_st().got_int {
@@ -1280,7 +1279,7 @@ pub fn spell_move_to(
                 line_breakcheck();
             }
         }
-        *ds = saved_decor_start;
+        g_st().decor_state = saved_decor_start;
         ret
     }
 }
@@ -1697,8 +1696,7 @@ pub fn parse_spelllang(wp: &mut win_T) -> *mut c_char {
                     } else {
                         dont_use_region = true;
                     }
-                    let langs = &raw mut spell_priv_st().first_lang;
-                    let slang = (*langs)
+                    let slang = spell_priv_st().first_lang
                         .iter_mut()
                         .rev()
                         .find(|s| {
@@ -1715,8 +1713,7 @@ pub fn parse_spelllang(wp: &mut win_T) -> *mut c_char {
                     } else {
                         dont_use_region = true;
                     }
-                    let langs = &raw mut spell_priv_st().first_lang;
-                    let slang = (*langs)
+                    let slang = spell_priv_st().first_lang
                         .iter_mut()
                         .rev()
                         .find(|s| {
@@ -1746,8 +1743,7 @@ pub fn parse_spelllang(wp: &mut win_T) -> *mut c_char {
                         }
                     }
                 }
-                let langs = &raw mut spell_priv_st().first_lang;
-                for s in (*langs).iter_mut().rev() {
+                for s in spell_priv_st().first_lang.iter_mut().rev() {
                     let slang: &mut slang_T = s;
                     let matched = if filename {
                         slang.sl_fname.as_ref().is_some_and(|f| {
@@ -1822,8 +1818,7 @@ pub fn parse_spelllang(wp: &mut win_T) -> *mut c_char {
                         continue;
                     }
                 }
-                let langs = &raw mut spell_priv_st().first_lang;
-                let mut slang = (*langs)
+                let mut slang = spell_priv_st().first_lang
                     .iter_mut()
                     .rev()
                     .find(|s| {
@@ -2853,12 +2848,12 @@ pub fn spell_dump_compl(
         }
         if do_region && !region_names.is_null() && pat.is_null() {
             vim_snprintf!(
-                (&raw mut g_st().IObuff).cast(),
+                g_st().IObuff.as_mut_ptr(),
                 IOSIZE,
                 c"/regions=%s",
                 region_names,
             );
-            let _ = ml_append(lnum, (&raw mut g_st().IObuff).cast(), 0, false);
+            let _ = ml_append(lnum, g_st().IObuff.as_mut_ptr(), 0, false);
             lnum += 1;
         } else {
             do_region = false;
@@ -2870,7 +2865,7 @@ pub fn spell_dump_compl(
             }
             if pat.is_null() {
                 vim_snprintf!(
-                    (&raw mut g_st().IObuff).cast(),
+                    g_st().IObuff.as_mut_ptr(),
                     IOSIZE,
                     c"# file: %s",
                     slang
@@ -2878,7 +2873,7 @@ pub fn spell_dump_compl(
                         .as_ref()
                         .map_or(c"".as_ptr(), |s| s.as_ptr()),
                 );
-                let _ = ml_append(lnum, (&raw mut g_st().IObuff).cast(), 0, false);
+                let _ = ml_append(lnum, g_st().IObuff.as_mut_ptr(), 0, false);
                 lnum += 1;
             }
             let patlen: isize = if !pat.is_null() && slang.sl_pbyts.is_empty() {
@@ -3039,13 +3034,13 @@ fn dump_word(
                 let tw_bytes = crate::memory::cstr_as_bytes(tw);
                 if let Some(&wc_count) = slang.sl_wordcount.get(tw_bytes) {
                     vim_snprintf!(
-                        (&raw mut g_st().IObuff).cast(),
+                        g_st().IObuff.as_mut_ptr(),
                         IOSIZE,
                         c"%s\t%d",
                         tw,
                         wc_count as c_int,
                     );
-                    p = (&raw mut g_st().IObuff).cast();
+                    p = g_st().IObuff.as_mut_ptr();
                 }
             }
             let _ = ml_append(lnum, p, 0, false);

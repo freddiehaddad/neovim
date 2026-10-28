@@ -309,7 +309,7 @@ pub fn event_init() {
     unsafe {
         loop_init(&mut g_st().main_loop);
         env_init();
-        let queues = loop_queues(&mut *(&raw mut g_st().main_loop).cast());
+        let queues = loop_queues(&mut g_st().main_loop);
         g_st().resize_events = multiqueue_new_child((*queues).events);
 
         autocmd_init();
@@ -323,21 +323,21 @@ pub fn event_init() {
 
 fn event_teardown() -> bool {
     unsafe {
-        let queues = loop_queues(&mut *(&raw mut g_st().main_loop).cast());
+        let queues = loop_queues(&mut g_st().main_loop);
         if (*queues).events.is_null() {
             return true;
         }
 
         multiqueue_process_events( &mut *(*queues).events);
-        loop_poll_events(&mut *(&raw mut g_st().main_loop).cast(), 0);
+        loop_poll_events(&mut g_st().main_loop, 0);
         server_teardown();
         channel_teardown();
-        proc_teardown(&mut *(&raw mut g_st().main_loop).cast());
+        proc_teardown(&mut g_st().main_loop);
         timer_teardown();
         signal_teardown();
         terminal_teardown();
 
-        loop_close(&mut *(&raw mut g_st().main_loop).cast(), true)
+        loop_close(&mut g_st().main_loop, true)
     }
 }
 
@@ -543,7 +543,7 @@ fn nvim_main_inner(argc: c_int, argv: *mut *mut c_char) -> c_int {
                 dup2(startup_stderr_fd, STDERR_FILENO);
                 close(startup_stderr_fd);
             }
-            mainerr((&raw const g_st().IObuff).cast(), ptr::null(), ptr::null());
+            mainerr(g_st().IObuff.as_ptr(), ptr::null(), ptr::null());
         }
 
         #[cfg(windows)]
@@ -1680,7 +1680,7 @@ fn command_line_scan(parmp: &mut mparm_T) {
                         b's' => {
                             if parmp.scriptin.is_some() {
                                 vim_snprintf!(
-                                    (&raw mut g_st().IObuff).cast(),
+                                    g_st().IObuff.as_mut_ptr(),
                                     IOSIZE,
                                     gettext(
                                         c"Attempt to open script file again: \"%s %s\"\n",
@@ -1691,7 +1691,7 @@ fn command_line_scan(parmp: &mut mparm_T) {
                                 fprintf!(
                                     log_get_stderr(),
                                     c"%s",
-                                    (&raw const g_st().IObuff).cast::<c_char>(),
+                                    g_st().IObuff.as_ptr(),
                                 );
                                 os_exit(2);
                             }
@@ -1718,7 +1718,7 @@ fn command_line_scan(parmp: &mut mparm_T) {
                             } else {
                                 if parmp.scriptout.is_some() {
                                     vim_snprintf!(
-                                        (&raw mut g_st().IObuff).cast(),
+                                        g_st().IObuff.as_mut_ptr(),
                                         IOSIZE,
                                         gettext(
                                             c"Attempt to open script file again: \"%s %s\"\n",
@@ -1729,7 +1729,7 @@ fn command_line_scan(parmp: &mut mparm_T) {
                                     fprintf!(
                                         log_get_stderr(),
                                         c"%s",
-                                        (&raw const g_st().IObuff).cast::<c_char>(),
+                                        g_st().IObuff.as_ptr(),
                                     );
                                     os_exit(2);
                                 }
@@ -1829,8 +1829,8 @@ fn set_argf_var() {
         for i in 0..count {
             let fname = alist_name(&*garglist().add(i as usize));
             if !fname.is_null() {
-                let _ = vim_FullName(fname, (&raw mut g_st().NameBuff).cast(), MAXPATHL, false);
-                tv_list_append_string( &mut *list, (&raw const g_st().NameBuff).cast(), -1);
+                let _ = vim_FullName(fname, g_st().NameBuff.as_mut_ptr(), MAXPATHL, false);
+                tv_list_append_string( &mut *list, g_st().NameBuff.as_ptr(), -1);
             }
         }
         tv_list_set_lock(list.as_mut(), VAR_FIXED);
@@ -1919,13 +1919,13 @@ fn handle_quickfix(paramp: &mut mparm_T) {
             if let Some(ref use_ef) = paramp.use_ef {
                 set_option_direct(kOptErrorfile, cstr_as_obj(use_ef.as_ptr()), 0, SID_CARG);
             }
-            vim_snprintf!((&raw mut g_st().IObuff).cast(), IOSIZE, c"cfile %s", opt_vars().p_ef);
+            vim_snprintf!(g_st().IObuff.as_mut_ptr(), IOSIZE, c"cfile %s", opt_vars().p_ef);
             if qf_init(
                 None,
                 opt_vars().p_ef,
                 opt_vars().p_efm,
                 1,
-                (&raw const g_st().IObuff).cast(),
+                g_st().IObuff.as_ptr(),
                 opt_vars().p_menc,
             ) < 0
             {
@@ -1940,12 +1940,12 @@ fn handle_tag(tagname: Option<&CStr>) {
     if let Some(tagname) = tagname {
             g_st().swap_exists_did_quit = false;
             vim_snprintf!(
-                (&raw mut g_st().IObuff).cast(),
+                g_st().IObuff.as_mut_ptr(),
                 IOSIZE,
                 c"ta %s",
                 tagname.as_ptr(),
             );
-            do_cmdline_cmd((&raw const g_st().IObuff).cast());
+            do_cmdline_cmd(g_st().IObuff.as_ptr());
             time_msg_if_enabled(c"jumping to tag");
 
             if g_st().swap_exists_did_quit {

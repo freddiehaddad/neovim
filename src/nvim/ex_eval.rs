@@ -281,8 +281,7 @@ pub fn cause_errthrow(
         exeval_st().cause_abort = true;
 
         if g_st().did_throw {
-            let ce = &raw const g_st().current_exception;
-            if (*ce).as_ref().is_some_and(|e| e.r#type == ET_INTERRUPT) {
+            if g_st().current_exception.as_ref().is_some_and(|e| e.r#type == ET_INTERRUPT) {
                 g_st().got_int = false;
             }
             discard_current_exception();
@@ -362,14 +361,13 @@ pub fn do_errthrow(cstack: Option<&mut cstack_T>, cmdname: *mut c_char) {
 }
 
 pub fn do_intthrow(cstack: *mut cstack_T) -> bool {
-    unsafe {
+     {
         if !g_st().got_int || (g_st().trylevel == 0 && !g_st().did_throw) {
             return false;
         }
 
         if g_st().did_throw {
-            let ce = &raw const g_st().current_exception;
-            if (*ce).as_ref().is_some_and(|e| e.r#type == ET_INTERRUPT) {
+            if g_st().current_exception.as_ref().is_some_and(|e| e.r#type == ET_INTERRUPT) {
                 return false;
             }
             discard_current_exception();
@@ -522,13 +520,12 @@ fn throw_exception(value: ExceptionValue, cmdname: *mut c_char) -> bool {
 }
 
 fn discard_exception(excp: Option<std::rc::Rc<except_T>>, was_finished: bool) {
-    unsafe {
+     {
         let Some(excp) = excp else {
             internal_error(c"discard_exception()");
             return;
         };
-        let ce = &raw const g_st().current_exception;
-        if (*ce)
+        if g_st().current_exception
             .as_ref()
             .is_some_and(|cur| std::rc::Rc::ptr_eq(cur, &excp))
         {
@@ -574,9 +571,8 @@ fn discard_exception(excp: Option<std::rc::Rc<except_T>>, was_finished: bool) {
 }
 
 pub fn discard_current_exception() {
-    unsafe {
-        let ce = &raw mut g_st().current_exception;
-        if let Some(excp) = (*ce).take() {
+     {
+        if let Some(excp) = g_st().current_exception.take() {
             discard_exception(Some(excp), false);
         }
         g_st().did_throw = false;
@@ -585,9 +581,8 @@ pub fn discard_current_exception() {
 }
 
 fn catch_exception(excp: &std::rc::Rc<except_T>) {
-    unsafe {
-        let stack = &raw mut g_st().caught_stack;
-        (*stack).push(excp.clone());
+     {
+        g_st().caught_stack.push(excp.clone());
         set_vim_var_string(VV_EXCEPTION, excp.value.as_ptr(), -1);
         set_vim_var_list(VV_STACKTRACE, excp.stacktrace);
         if !excp.throw_name.as_bytes().is_empty() {
@@ -649,16 +644,15 @@ fn catch_exception(excp: &std::rc::Rc<except_T>) {
 }
 
 fn finish_exception(excp: Option<std::rc::Rc<except_T>>) {
-    unsafe {
-        let stack = &raw mut g_st().caught_stack;
-        if match ((*stack).last(), excp.as_ref()) {
+     {
+        if match (g_st().caught_stack.last(), excp.as_ref()) {
             (Some(last), Some(e)) => !std::rc::Rc::ptr_eq(last, e),
             _ => true,
         } {
             internal_error(c"finish_exception()");
         }
-        (*stack).pop();
-        if let Some(top) = (*stack).last() {
+        g_st().caught_stack.pop();
+        if let Some(top) = g_st().caught_stack.last() {
             set_vim_var_string(VV_EXCEPTION, top.value.as_ptr(), -1);
             set_vim_var_list(VV_STACKTRACE, top.stacktrace);
             if !top.throw_name.as_bytes().is_empty() {
@@ -697,9 +691,8 @@ fn finish_exception(excp: Option<std::rc::Rc<except_T>>) {
 }
 
 pub fn exception_state_save(estate: &mut exception_state_T) {
-    unsafe {
-        let ce = &raw const g_st().current_exception;
-        estate.estate_current_exception = (*ce).clone();
+     {
+        estate.estate_current_exception = g_st().current_exception.clone();
         estate.estate_did_throw = g_st().did_throw;
         estate.estate_need_rethrow = g_st().need_rethrow;
         estate.estate_trylevel = g_st().trylevel;
@@ -1135,8 +1128,7 @@ pub fn do_throw(cstack: *mut cstack_T) {
                 }
             }
             (*cstack).cs_flags[u_idx] &= !CSF_ACTIVE;
-            let ce = &raw const g_st().current_exception;
-            (&mut (*cstack).cs_exception)[u_idx] = (*ce).clone();
+            (&mut (*cstack).cs_exception)[u_idx] = g_st().current_exception.clone();
         }
 
         g_st().did_throw = true;
@@ -1258,8 +1250,7 @@ pub fn ex_catch(eap: &mut exarg_T) {
                     } else {
                         let prev_got_int = g_st().got_int;
                         g_st().got_int = false;
-                        let ce = &raw const g_st().current_exception;
-                        let val_ptr = (*ce).as_ref().unwrap().value.as_ptr().cast_mut();
+                        let val_ptr = g_st().current_exception.as_ref().unwrap().value.as_ptr().cast_mut();
                         caught = vim_regexec_nl(&mut regmatch, val_ptr, 0);
                         g_st().got_int |= prev_got_int;
                         vim_regfree(regmatch.regprog);
@@ -1277,10 +1268,9 @@ pub fn ex_catch(eap: &mut exarg_T) {
                 } else {
                     internal_error(c"catch_exception()");
                 }
-                let ce = &raw const g_st().current_exception;
                 if !match (
                     (*cstack).cs_exception[(*cstack).cs_idx as usize].as_ref(),
-                    (*ce).as_ref(),
+                    g_st().current_exception.as_ref(),
                 ) {
                     (Some(a), Some(b)) => std::rc::Rc::ptr_eq(a, b),
                     (None, None) => true,
@@ -1362,9 +1352,8 @@ pub fn ex_finally(eap: &mut exarg_T) {
                 }
                 (*cstack).cs_pending[cur_idx] = pending as c_char;
 
-                let ce = &raw const g_st().current_exception;
                 if g_st().did_throw
-                    && !match ((*cstack).cs_exception[cur_idx].as_ref(), (*ce).as_ref()) {
+                    && !match ((*cstack).cs_exception[cur_idx].as_ref(), g_st().current_exception.as_ref()) {
                         (Some(a), Some(b)) => std::rc::Rc::ptr_eq(a, b),
                         (None, None) => true,
                         _ => false,
@@ -1459,11 +1448,10 @@ pub fn ex_endtry(eap: &mut exarg_T) {
         (*cstack).cs_trylevel -= 1;
 
         if !skip {
-            let ce = &raw const g_st().current_exception;
             let report_val = if pending == CSTP_RETURN {
                 PendingVal::Return(rettv)
             } else if (pending & CSTP_THROW) != 0 {
-                PendingVal::Throw((*ce).clone())
+                PendingVal::Throw(g_st().current_exception.clone())
             } else {
                 PendingVal::None
             };
@@ -1497,7 +1485,7 @@ pub fn ex_endtry(eap: &mut exarg_T) {
 }
 
 pub fn enter_cleanup(csp: &mut cleanup_T) {
-    unsafe {
+     {
         let pending = CSTP_NONE;
 
         if g_st().did_emsg != 0 || g_st().got_int || g_st().did_throw || g_st().need_rethrow {
@@ -1510,8 +1498,7 @@ pub fn enter_cleanup(csp: &mut cleanup_T) {
                 });
 
             if g_st().did_throw || g_st().need_rethrow {
-                let ce = &raw mut g_st().current_exception;
-                csp.exception = (*ce).take();
+                csp.exception = g_st().current_exception.take();
             } else {
                 csp.exception = None;
                 if g_st().did_emsg != 0 {
@@ -1533,7 +1520,7 @@ pub fn enter_cleanup(csp: &mut cleanup_T) {
 }
 
 pub fn leave_cleanup(csp: &mut cleanup_T) {
-    unsafe {
+     {
         let pending = csp.pending;
         if pending == CSTP_NONE {
             return;
@@ -1567,11 +1554,10 @@ pub fn leave_cleanup(csp: &mut cleanup_T) {
                 g_st().need_rethrow = true;
             }
 
-            let ce = &raw const g_st().current_exception;
             report_resume_pending(
                 pending,
                 if (pending & CSTP_THROW) != 0 {
-                    PendingVal::Throw((*ce).clone())
+                    PendingVal::Throw(g_st().current_exception.clone())
                 } else {
                     PendingVal::None
                 },

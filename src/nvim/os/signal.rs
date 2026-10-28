@@ -16,7 +16,7 @@ use crate::option_vars::*;
 use crate::strings::vim_snprintf;
 #[cfg(unix)]
 use std::ffi::c_void;
-use std::ffi::{CStr, c_char, c_int};
+use std::ffi::{CStr, c_int};
 use std::ptr;
 
 #[cfg(windows)]
@@ -101,7 +101,7 @@ unsafe extern "C" {
 }
 
 pub fn signal_init() {
-    unsafe {
+     {
         #[cfg(unix)]
         {
             let mut mask = [0u64; 16];
@@ -118,18 +118,17 @@ pub fn signal_init() {
             }
         }
 
-        let loop_ptr = &raw mut g_st().main_loop;
-        signal_watcher_init(&mut *loop_ptr, &raw mut sig_st().spipe, ptr::null_mut());
-        signal_watcher_init(&mut *loop_ptr, &raw mut sig_st().shup, ptr::null_mut());
-        signal_watcher_init(&mut *loop_ptr, &raw mut sig_st().sint, ptr::null_mut());
-        signal_watcher_init(&mut *loop_ptr, &raw mut sig_st().squit, ptr::null_mut());
-        signal_watcher_init(&mut *loop_ptr, &raw mut sig_st().sterm, ptr::null_mut());
-        signal_watcher_init(&mut *loop_ptr, &raw mut sig_st().ststp, ptr::null_mut());
+        signal_watcher_init(&mut g_st().main_loop, &raw mut sig_st().spipe, ptr::null_mut());
+        signal_watcher_init(&mut g_st().main_loop, &raw mut sig_st().shup, ptr::null_mut());
+        signal_watcher_init(&mut g_st().main_loop, &raw mut sig_st().sint, ptr::null_mut());
+        signal_watcher_init(&mut g_st().main_loop, &raw mut sig_st().squit, ptr::null_mut());
+        signal_watcher_init(&mut g_st().main_loop, &raw mut sig_st().sterm, ptr::null_mut());
+        signal_watcher_init(&mut g_st().main_loop, &raw mut sig_st().ststp, ptr::null_mut());
         #[cfg(target_os = "linux")]
-        signal_watcher_init(&mut *loop_ptr, &raw mut sig_st().spwr, ptr::null_mut());
+        signal_watcher_init(&mut g_st().main_loop, &raw mut sig_st().spwr, ptr::null_mut());
         #[cfg(unix)]
-        signal_watcher_init(&mut *loop_ptr, &raw mut sig_st().susr1, ptr::null_mut());
-        signal_watcher_init(&mut *loop_ptr, &raw mut sig_st().swinch, ptr::null_mut());
+        signal_watcher_init(&mut g_st().main_loop, &raw mut sig_st().susr1, ptr::null_mut());
+        signal_watcher_init(&mut g_st().main_loop, &raw mut sig_st().swinch, ptr::null_mut());
         signal_start();
     }
 }
@@ -233,7 +232,7 @@ fn deadly_signal(signum: c_int) -> ! {
         set_vim_var_nr(VV_DYING, 1);
         g_st().v_dying = 1;
 
-        let io_buf = (&raw mut g_st().IObuff).cast::<c_char>();
+        let io_buf = g_st().IObuff.as_mut_ptr();
         vim_snprintf!(
             io_buf,
             IOSIZE,

@@ -1044,7 +1044,7 @@ pub fn ml_recover(checkext: bool) {
             b0p = (*hp).data_ptr().cast::<ZeroBlock>();
         }
 
-        let namebuff_ptr = (&raw mut g_st().NameBuff).cast::<c_char>();
+        let namebuff_ptr = g_st().NameBuff.as_mut_ptr();
         if directly {
             #[cfg(windows)]
             path_to_slash((&raw mut (*b0p).b0_fname).cast());
@@ -2128,7 +2128,7 @@ fn ml_get_buf_impl(buf: &mut buf_T, mut lnum: linenr_T, will_change: bool) -> *m
                 if ml_st().ml_get_recursive == 0 {
                     ml_st().ml_get_recursive += 1;
                     get_trans_bufname(buf);
-                    let namebuff_ptr = (&raw mut g_st().NameBuff).cast::<c_char>();
+                    let namebuff_ptr = g_st().NameBuff.as_mut_ptr();
                     shorten_dir(namebuff_ptr);
                     siemsg!(
                         tr(e_ml_get_cannot_find_line_nr_in_buffer_nr_str),
@@ -3583,7 +3583,7 @@ fn findswapname(
             {
                 let mut b0 = ZeroBlock::new();
                 let mut differ = false;
-                let namebuff_ptr = (&raw mut g_st().NameBuff).cast::<c_char>();
+                let namebuff_ptr = g_st().NameBuff.as_mut_ptr();
 
                 let fd = os_open(fname, O_RDONLY, 0);
                 if fd >= 0 {

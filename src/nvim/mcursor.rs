@@ -192,17 +192,15 @@ fn cursors_mut() -> &'static mut Vec<Context> {
 
 #[inline]
 fn ins_regions() -> &'static [u32] {
-    unsafe {
-        let ptr = &raw const mc_st().mc_ins_span.regions;
-        &*ptr
+     {
+        &mc_st().mc_ins_span.regions
     }
 }
 
 #[inline]
 fn ins_regions_mut() -> &'static mut Vec<u32> {
-    unsafe {
-        let ptr = &raw mut mc_st().mc_ins_span.regions;
-        &mut *ptr
+     {
+        &mut mc_st().mc_ins_span.regions
     }
 }
 
@@ -355,11 +353,10 @@ fn mc_sandbox_leave(sb: &mut McSandbox) {
 }
 
 fn mc_execute(cursoridx: usize, atomidx: usize) {
-    unsafe {
+     {
         let mut ctx = cursors()[cursoridx].clone();
         let (atom_keys, atom_type, atom_cmd, atom_cmd2, atom_remap) = {
-            let ga = &raw const atom_st().g_atoms;
-            let a = &(*ga).as_slice()[atomidx];
+            let a = &atom_st().g_atoms.as_slice()[atomidx];
             (
                 a.keys.as_ref().map_or(ptr::null(), |k| k.as_ptr()),
                 a.r#type,
@@ -484,10 +481,9 @@ fn mc_execute(cursoridx: usize, atomidx: usize) {
 }
 
 fn mc_cascade() {
-    unsafe {
-        let ga = &raw mut atom_st().g_atoms;
-        assert!(!(*ga).is_empty());
-        let origin = (*ga).as_slice()[0].origin;
+     {
+        assert!(!atom_st().g_atoms.is_empty());
+        let origin = atom_st().g_atoms.as_slice()[0].origin;
         let mcursor = if origin.buf.br_buf == g_st().curbuf {
             origin.mcursor
         } else {
@@ -499,13 +495,13 @@ fn mc_cascade() {
         g_st().got_int = false;
 
         let mut edits = false;
-        for i in 0..(*ga).len() {
-            edits |= (*ga).as_slice()[i].r#type != kAMotion;
+        for i in 0..atom_st().g_atoms.len() {
+            edits |= atom_st().g_atoms.as_slice()[i].r#type != kAMotion;
         }
         if edits {
             mc_cleanup(true, None, 0);
             if cursors().is_empty() {
-                (*ga).clear();
+                atom_st().g_atoms.clear();
                 return;
             }
         }
@@ -519,8 +515,8 @@ fn mc_cascade() {
         let mut sb = McSandbox::new();
         mc_sandbox_enter(&mut sb, edits);
 
-        'outer: for ai in 0..(*ga).len() {
-            let atom = &mut (&mut *ga)[ai];
+        'outer: for ai in 0..atom_st().g_atoms.len() {
+            let atom = &mut (&mut atom_st().g_atoms)[ai];
             if !atom.origin.buf.br_buf.is_null()
                 && (!bufref_valid(Some(&atom.origin.buf)) || atom.origin.buf.br_buf != g_st().curbuf)
             {
@@ -539,7 +535,7 @@ fn mc_cascade() {
             }
         }
 
-        (*ga).clear();
+        atom_st().g_atoms.clear();
         let bufnr = sb.primary.buf;
         mc_sandbox_leave(&mut sb);
 
@@ -554,27 +550,26 @@ fn mc_cascade() {
 }
 
 pub fn mc_clock_edge(map_edit: bool, map_moved: bool, follow: bool) {
-    unsafe {
-        let ga = &raw mut atom_st().g_atoms;
+     {
         if (map_edit || (follow && map_moved && !g_st().Visual.active))
             && !atom_composite_queued()
-            && (*ga).is_empty()
+            && atom_st().g_atoms.is_empty()
             && atom_composite_active()
             && mc_buf_has_cursors(curbuf_mut())
         {
             atom_lhs_replay_queue();
         }
-        if mc_buf_has_cursors(curbuf_mut()) && !(*ga).is_empty() {
+        if mc_buf_has_cursors(curbuf_mut()) && !atom_st().g_atoms.is_empty() {
             let mut has_edit = map_edit;
             let mut i = 0;
-            while !has_edit && i < (*ga).len() {
-                has_edit = (*ga).as_slice()[i].r#type != kAMotion;
+            while !has_edit && i < atom_st().g_atoms.len() {
+                has_edit = atom_st().g_atoms.as_slice()[i].r#type != kAMotion;
                 i += 1;
             }
             if has_edit || follow || g_st().Visual.active {
                 mc_cascade();
             } else {
-                (*ga).clear();
+                atom_st().g_atoms.clear();
             }
         }
     }
@@ -893,13 +888,12 @@ fn mc_ins_keys_nonliteral(keys: *const c_char, len: usize) -> bool {
 }
 
 pub fn mc_ins_cascade_restart() {
-    unsafe {
-        let ga = &raw const atom_st().g_atoms;
+     {
         if !mc_st().mc_ins_span.active
             || mc_replaying()
             || (g_st().State & MODE_INSERT) == 0
             || !mc_buf_has_cursors(curbuf_mut())
-            || !(*ga).is_empty()
+            || !atom_st().g_atoms.is_empty()
         {
             return;
         }

@@ -25,10 +25,9 @@ fn gc_st() -> &'static mut GcModuleState {
 
 #[inline]
 pub fn gc_register_dict(d: &mut dict_T) {
-    unsafe {
-        let dicts = &raw mut gc_st().GC_DICTS;
-        let idx = (*dicts).len();
-        (*dicts).push(d);
+     {
+        let idx = gc_st().GC_DICTS.len();
+        gc_st().GC_DICTS.push(d);
         d.dv_gc_idx = Some(idx);
     }
 }
@@ -36,10 +35,9 @@ pub fn gc_register_dict(d: &mut dict_T) {
 #[inline]
 pub fn gc_unregister_dict(idx: usize) {
     unsafe {
-        let dicts = &raw mut gc_st().GC_DICTS;
-        (*dicts).swap_remove(idx);
-        if idx < (*dicts).len() {
-            let moved = (*dicts).as_slice()[idx];
+        gc_st().GC_DICTS.swap_remove(idx);
+        if idx < gc_st().GC_DICTS.len() {
+            let moved = gc_st().GC_DICTS.as_slice()[idx];
             (*moved).dv_gc_idx = Some(idx);
         }
     }
@@ -47,10 +45,9 @@ pub fn gc_unregister_dict(idx: usize) {
 
 #[inline]
 pub fn gc_register_list(l: &mut list_T) {
-    unsafe {
-        let lists = &raw mut gc_st().GC_LISTS;
-        let idx = (*lists).len();
-        (*lists).push(l);
+     {
+        let idx = gc_st().GC_LISTS.len();
+        gc_st().GC_LISTS.push(l);
         l.lv_gc_idx = Some(idx);
     }
 }
@@ -58,10 +55,9 @@ pub fn gc_register_list(l: &mut list_T) {
 #[inline]
 pub fn gc_unregister_list(idx: usize) {
     unsafe {
-        let lists = &raw mut gc_st().GC_LISTS;
-        (*lists).swap_remove(idx);
-        if idx < (*lists).len() {
-            let moved = (*lists).as_slice()[idx];
+        gc_st().GC_LISTS.swap_remove(idx);
+        if idx < gc_st().GC_LISTS.len() {
+            let moved = gc_st().GC_LISTS.as_slice()[idx];
             (*moved).lv_gc_idx = Some(idx);
         }
     }
@@ -69,17 +65,15 @@ pub fn gc_unregister_list(idx: usize) {
 
 #[inline]
 pub fn gc_dicts_slice() -> &'static [*mut dict_T] {
-    unsafe {
-        let ptr = &raw const gc_st().GC_DICTS;
-        (*ptr).as_slice()
+     {
+        gc_st().GC_DICTS.as_slice()
     }
 }
 
 #[inline]
 pub fn gc_lists_slice() -> &'static [*mut list_T] {
-    unsafe {
-        let ptr = &raw const gc_st().GC_LISTS;
-        (*ptr).as_slice()
+     {
+        gc_st().GC_LISTS.as_slice()
     }
 }
 

@@ -756,8 +756,7 @@ pub fn do_execreg(mut regname: c_int, colon: c_int, addcr: c_int, silent: c_int)
         }
 
         if regname == c_int::from(b':') {
-            let last_cmd_ptr = &raw const g_st().last_cmdline;
-            let Some(last_cmd) = (*last_cmd_ptr).as_ref() else {
+            let Some(last_cmd) = g_st().last_cmdline.as_ref() else {
                 emsg(gettext(e_nolastcmd));
                 return false;
             };
@@ -954,8 +953,7 @@ pub fn get_spec_reg(
                 true
             }
             x if x == c_int::from(b':') => {
-                let last_cmd_ref_ptr = &raw const g_st().last_cmdline;
-                let last_cmd_ptr = (*last_cmd_ref_ptr)
+                let last_cmd_ptr = g_st().last_cmdline
                     .as_ref()
                     .map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut());
                 if last_cmd_ptr.is_null() && errmsg {
@@ -1454,9 +1452,8 @@ fn put_do_autocmd(
         let list = tv_list_alloc(reg.map_or(1, |reg| reg.y_array.len() as isize));
 
         if regname == c_int::from(b'.') {
-            let last_ins = &raw const g_st().last_insert_ga;
-            if !(*last_ins).is_empty() {
-                tv_list_append_string( &mut *list, (*last_ins).as_ptr(), (*last_ins).len() as isize);
+            if !g_st().last_insert_ga.is_empty() {
+                tv_list_append_string( &mut *list, g_st().last_insert_ga.as_ptr(), g_st().last_insert_ga.len() as isize);
             }
         } else if let Some(insert) = insert {
             tv_list_append_string( &mut *list, insert.data, insert.size as isize);
@@ -1621,8 +1618,7 @@ pub fn do_put(
             if has_textput_events {
                 g_st().add_last_insert -= 1;
                 if g_st().add_last_insert == 0 {
-                    let last_ins = &raw mut g_st().last_insert_ga;
-                    *last_ins = Vec::new();
+                    g_st().last_insert_ga = Vec::new();
                 }
             }
 
@@ -2604,8 +2600,7 @@ pub fn ex_display(eap: &mut exarg_T) {
             dis_msg(p, true);
         }
 
-        let last_cmd_ptr = &raw const g_st().last_cmdline;
-        if let Some(last_cmd) = (*last_cmd_ptr).as_ref()
+        if let Some(last_cmd) = g_st().last_cmdline.as_ref()
             && (arg.is_null() || !vim_strchr(arg, c_int::from(b':')).is_null())
             && !g_st().got_int
             && !message_filtered(last_cmd.as_ptr())

@@ -367,7 +367,7 @@ pub fn find_help_tags(
             tv_clear(&mut rettv);
             return false;
         }
-        xstrlcpy((&raw mut g_st().IObuff).cast(), rettv.vval.v_string(), IOSIZE);
+        xstrlcpy(g_st().IObuff.as_mut_ptr(), rettv.vval.v_string(), IOSIZE);
         tv_clear(&mut rettv);
 
         matches.clear();
@@ -377,7 +377,7 @@ pub fn find_help_tags(
         }
         let mut raw_matches: Vec<Vec<c_char>> = Vec::new();
         if find_tags(
-            (&raw mut g_st().IObuff).cast(),
+            g_st().IObuff.as_mut_ptr(),
             &mut raw_matches,
             flags,
             crate::regexp::MAXCOL,

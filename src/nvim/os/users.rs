@@ -267,10 +267,9 @@ pub fn get_users(_xp: &mut crate::os::env::expand_T, idx: c_int) -> *mut c_char 
     if idx < 0 {
         return std::ptr::null_mut();
     }
-    unsafe {
+     {
         init_users();
-        let users_ptr = &raw const users_st().USERS;
-        let users = &*users_ptr;
+        let users = &users_st().USERS;
         users
             .get(idx as usize)
             .map_or(std::ptr::null_mut(), |s| s.as_ptr().cast_mut())
@@ -282,11 +281,10 @@ pub fn get_users(_xp: &mut crate::os::env::expand_T, idx: c_int) -> *mut c_char 
 /// # Safety
 /// `name` must be a valid C string.
 pub fn match_user(name: *mut c_char) -> c_int {
-    unsafe {
+     {
         init_users();
         let target = crate::memory::cstr_as_bytes(name);
-        let users_ptr = &raw const users_st().USERS;
-        let users = &*users_ptr;
+        let users = &users_st().USERS;
         let mut result = 0;
 
         for entry_cstr in users {

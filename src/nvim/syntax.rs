@@ -613,25 +613,22 @@ fn syn_clstr(block: &mut synblock_T) -> *mut syn_cluster_T {
 
 #[inline]
 fn cur_state_len() -> c_int {
-    unsafe {
-        let cs_ptr = &raw const syn_st().current_state;
-        (*cs_ptr).len() as c_int
+     {
+        syn_st().current_state.len() as c_int
     }
 }
 
 #[inline]
 fn cur_state_empty() -> bool {
-    unsafe {
-        let cs_ptr = &raw const syn_st().current_state;
-        (*cs_ptr).is_empty()
+     {
+        syn_st().current_state.is_empty()
     }
 }
 
 #[inline]
 fn cur_state_at(idx: c_int) -> *mut stateitem_T {
     unsafe {
-        let cs_ptr = &raw mut syn_st().current_state;
-        (*cs_ptr).as_mut_ptr().offset(idx as isize)
+        syn_st().current_state.as_mut_ptr().offset(idx as isize)
     }
 }
 
@@ -797,9 +794,8 @@ pub fn syntax_start(wp: &mut win_T, lnum: linenr_T) {
 }
 
 fn clear_current_state() {
-    unsafe {
-        let cs_ptr = &raw mut syn_st().current_state;
-        *cs_ptr = Vec::new();
+     {
+        syn_st().current_state = Vec::new();
     }
 }
 
@@ -1373,8 +1369,7 @@ fn load_current_state(from: *const synstate_T) {
         syn_st().keepend_level = -1;
         let stacksize = (*from).sst_stack.len() as c_int;
         if stacksize != 0 {
-            let cs_ptr = &raw mut syn_st().current_state;
-            (*cs_ptr).reserve(stacksize as usize);
+            syn_st().current_state.reserve(stacksize as usize);
             for (i, b) in (*from).sst_stack.iter().enumerate() {
                 let i_c = i as c_int;
                 let mut item = stateitem_T::new();
@@ -1395,7 +1390,7 @@ fn load_current_state(from: *const synstate_T) {
                 } else {
                     item.si_next_list = None;
                 }
-                (*cs_ptr).push(item);
+                syn_st().current_state.push(item);
                 update_si_attr(i_c);
             }
         }
@@ -2075,8 +2070,7 @@ fn push_next_match() -> *mut stateitem_T {
             (*cur_si).si_flags |= (*cur_state_at(len - 2)).si_flags & HL_CONCEAL;
         }
         (*cur_si).si_next_list = (*spp).sp_next_list.clone();
-        let next_ext = &raw const syn_st().next_match_extmatch;
-        (*cur_si).si_extmatch = (*next_ext).clone();
+        (*cur_si).si_extmatch = syn_st().next_match_extmatch.clone();
         if (*spp).sp_type == SPTYPE_START && ((*spp).sp_flags & HL_ONELINE) == 0 {
             update_si_end(&mut *cur_si, syn_st().next_match_m_endpos.col, true);
             check_keepend();
@@ -2339,21 +2333,19 @@ fn update_si_end(sip: &mut stateitem_T, startcol: c_int, force: bool) {
 }
 
 fn push_current_state(idx: c_int) {
-    unsafe {
+     {
         let mut item = stateitem_T::new();
         item.si_idx = idx;
-        let cs_ptr = &raw mut syn_st().current_state;
-        (*cs_ptr).push(item);
+        syn_st().current_state.push(item);
     }
 }
 
 fn pop_current_state() {
-    unsafe {
-        let cs_ptr = &raw mut syn_st().current_state;
-        let _ = (*cs_ptr).pop();
+     {
+        let _ = syn_st().current_state.pop();
         syn_st().next_match_idx = -1;
 
-        if syn_st().keepend_level >= (*cs_ptr).len() as c_int {
+        if syn_st().keepend_level >= syn_st().current_state.len() as c_int {
             syn_st().keepend_level = -1;
         }
     }

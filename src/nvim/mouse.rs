@@ -272,9 +272,8 @@ fn find_end_of_word(pos: &mut pos_T) {
 /// Move the current tab to tab in same column as mouse or to end of the
 /// tabline if there is no tab there.
 fn move_tab_to_mouse() {
-    unsafe {
-        let defs = &raw const g_st().tab_page_click_defs;
-        let tabnr = (*defs).as_slice()[g_st().mouse_col as usize].tabnr;
+     {
+        let tabnr = g_st().tab_page_click_defs.as_slice()[g_st().mouse_col as usize].tabnr;
         if tabnr <= 0 {
             tabpage_move(9999);
         } else if tabnr < tabpage_index(g_st().curtab) {
@@ -674,8 +673,7 @@ pub fn do_mouse(
         };
         let old_curwin = curwin_ptr();
 
-        let defs = &raw mut g_st().tab_page_click_defs;
-        if !(*defs).is_empty() {
+        if !g_st().tab_page_click_defs.is_empty() {
             if g_st().mouse_grid <= 1 && g_st().mouse_row == 0 && firstwin_mut().w_winrow > 0 {
                 if is_drag {
                     if mouse_st().in_tab_line {
@@ -685,10 +683,10 @@ pub fn do_mouse(
                 }
 
                 if is_click && g_st().mouse_col < g_st().Columns {
-                    let tabnr = (*defs).as_slice()[g_st().mouse_col as usize].tabnr;
+                    let tabnr = g_st().tab_page_click_defs.as_slice()[g_st().mouse_col as usize].tabnr;
                     mouse_st().in_tab_line = true;
 
-                    match (*defs).as_slice()[g_st().mouse_col as usize].type_ {
+                    match g_st().tab_page_click_defs.as_slice()[g_st().mouse_col as usize].type_ {
                         kStlClickDisabled => {}
                         kStlClickTabSwitch => {
                             if which_button != MOUSE_MIDDLE {
@@ -710,7 +708,7 @@ pub fn do_mouse(
                             mouse_tab_close(tabnr);
                         }
                         kStlClickFuncRun => {
-                            call_click_def_func((*defs).as_mut_ptr(), g_st().mouse_col, which_button);
+                            call_click_def_func(g_st().tab_page_click_defs.as_mut_ptr(), g_st().mouse_col, which_button);
                         }
                         _ => {}
                     }

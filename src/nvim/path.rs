@@ -2328,7 +2328,7 @@ pub fn path_guess_exepath(argv0: impl crate::strings::IntoCCharPtr, buf: *mut c_
                 { let _dst: *mut c_char = buf; let _dsize: usize = bufsize; let _dlen = crate::memory::cstr_len(_dst); crate::memory::xstrlcpy(_dst.add(_dlen), argv0, _dsize - _dlen); };
             } else {
                 let path = path_cstr.as_ptr();
-                let namebuff = (&raw mut g_st().NameBuff).cast::<c_char>();
+                let namebuff = g_st().NameBuff.as_mut_ptr();
                 let mut iter: *const c_char = ptr::null();
                 loop {
                     let mut dir: *const c_char = ptr::null();

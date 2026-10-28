@@ -682,9 +682,8 @@ fn langs_has(lang_name: *const c_char) -> bool {
     if lang_name.is_null() {
         return false;
     }
-    unsafe {
-        let langs_ptr = &raw const ts_st().LANGS;
-        (*langs_ptr).contains_key(crate::memory::cstr_as_bytes(lang_name))
+     {
+        ts_st().LANGS.contains_key(crate::memory::cstr_as_bytes(lang_name))
     }
 }
 
@@ -693,9 +692,8 @@ fn langs_get(lang_name: *const c_char) -> *mut TSLanguage {
     if lang_name.is_null() {
         return ptr::null_mut();
     }
-    unsafe {
-        let langs_ptr = &raw const ts_st().LANGS;
-        (*langs_ptr)
+     {
+        ts_st().LANGS
             .get(crate::memory::cstr_as_bytes(lang_name))
             .copied()
             .unwrap_or(ptr::null_mut())
@@ -761,7 +759,7 @@ fn load_language_from_object(
             }
         }
 
-        let iobuff = (&raw mut g_st().IObuff).cast::<c_char>();
+        let iobuff = g_st().IObuff.as_mut_ptr();
         let mut lib = UvLib {
             _opaque: [ptr::null_mut(); 4],
         };
@@ -853,8 +851,7 @@ fn add_language(L: *mut lua_State, is_wasm: bool) -> c_int {
             );
         }
 
-        let langs_ptr = &raw mut ts_st().LANGS;
-        (*langs_ptr).insert(
+        ts_st().LANGS.insert(
             crate::memory::cstr_as_bytes(lang_name).to_vec(),
             lang.cast_mut(),
         );

@@ -3451,7 +3451,7 @@ pub fn find_pattern_in_path(
                         files[depth as usize].lnum = 0;
                         files[depth as usize].matched = 0;
                         if action == ACTION_EXPAND && !shortmess(kShmCompletionscan) && !silent {
-                            let iobuff_ptr = (&raw mut g_st().IObuff).cast::<c_char>();
+                            let iobuff_ptr = g_st().IObuff.as_mut_ptr();
                             g_st().msg_hist_off = true;
                             vim_snprintf!(
                                 iobuff_ptr,
@@ -3570,7 +3570,7 @@ pub fn find_pattern_in_path(
                                 i = p.offset_from(aux) as c_int;
 
                                 if compl_status_adding() && i == ins_compl_len() {
-                                    let iobuff_ptr = (&raw mut g_st().IObuff).cast::<c_char>();
+                                    let iobuff_ptr = g_st().IObuff.as_mut_ptr();
                                     ptr::copy_nonoverlapping(aux, iobuff_ptr, i as usize);
 
                                     if depth < 0 {
@@ -3926,7 +3926,7 @@ fn show_pat_in_path(
                 *p.add(1) = NUL;
             }
             if action == ACTION_SHOW_ALL {
-                let iobuff_ptr = (&raw mut g_st().IObuff).cast::<c_char>();
+                let iobuff_ptr = g_st().IObuff.as_mut_ptr();
                 vim_snprintf!(iobuff_ptr, IOSIZE, c"%3d: ", count);
                 msg_puts(iobuff_ptr);
                 vim_snprintf!(iobuff_ptr, IOSIZE, c"%4d", *lnum);

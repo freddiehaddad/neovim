@@ -4851,20 +4851,18 @@ const CMDIDXS2: [[u8; 26]; 26] = [
 
 #[inline]
 fn sourcing_lnum_ptr() -> *mut linenr_T {
-    unsafe {
-        let es = &raw mut rt_st().exestack;
-        &raw mut (*es).last_mut().unwrap().es_lnum
+     {
+        &raw mut rt_st().exestack.last_mut().unwrap().es_lnum
     }
 }
 
 fn save_dbg_stuff(dsp: &mut dbg_stuff) {
-    unsafe {
+     {
         dsp.trylevel = g_st().trylevel;
         g_st().trylevel = 0;
         dsp.force_abort = c_int::from(g_st().force_abort);
         g_st().force_abort = false;
-        let stack = &raw mut g_st().caught_stack;
-        dsp.caught_stack = std::mem::take(&mut *stack);
+        dsp.caught_stack = std::mem::take(&mut g_st().caught_stack);
         dsp.vv_exception = v_exception(None);
         dsp.vv_throwpoint = v_throwpoint(None);
 
@@ -4879,18 +4877,16 @@ fn save_dbg_stuff(dsp: &mut dbg_stuff) {
         g_st().need_rethrow = false;
         dsp.check_cstack = c_int::from(g_st().check_cstack);
         g_st().check_cstack = false;
-        let ce = &raw mut g_st().current_exception;
-        dsp.current_exception = (*ce).take();
+        dsp.current_exception = g_st().current_exception.take();
     }
 }
 
 fn restore_dbg_stuff(dsp: &mut dbg_stuff) {
-    unsafe {
+     {
         g_st().suppress_errthrow = false;
         g_st().trylevel = dsp.trylevel;
         g_st().force_abort = dsp.force_abort != 0;
-        let stack = &raw mut g_st().caught_stack;
-        *stack = std::mem::take(&mut dsp.caught_stack);
+        g_st().caught_stack = std::mem::take(&mut dsp.caught_stack);
         v_exception(dsp.vv_exception.take());
         v_throwpoint(dsp.vv_throwpoint.take());
         g_st().did_emsg = dsp.did_emsg;
@@ -4999,8 +4995,7 @@ pub fn do_cmdline(cmdline: impl crate::strings::IntoCCharPtr, fgetline: LineGett
         let mut cmd_getline: LineGetter;
         let mut cmd_loop_cookie = loop_cookie::new();
 
-        let ml = &raw mut g_st().msg_list;
-        let saved_msg_list = (*ml).replace(Vec::new());
+        let saved_msg_list = g_st().msg_list.replace(Vec::new());
 
         if !do_cmdline_start() {
             let _ = emsg(gettext(e_command_too_recursive));
@@ -5111,10 +5106,9 @@ pub fn do_cmdline(cmdline: impl crate::strings::IntoCCharPtr, fgetline: LineGett
 
                 if count == 1 && fgetline.is_exline() {
                     if ui_has(kUICmdline) {
-                        let last_cmd_ptr = &raw const g_st().last_cmdline;
                         ui_ext_cmdline_block_append(
                             0,
-                            (*last_cmd_ptr).as_ref().map_or(ptr::null(), |s| s.as_ptr()),
+                            g_st().last_cmdline.as_ref().map_or(ptr::null(), |s| s.as_ptr()),
                         );
                         did_block = true;
                     }
@@ -5217,9 +5211,8 @@ pub fn do_cmdline(cmdline: impl crate::strings::IntoCCharPtr, fgetline: LineGett
                 cmdline_buf.clear();
                 cmdline_copy = ptr::null_mut();
 
-                let new_last_ptr = &raw mut g_st().new_last_cmdline;
                 if fgetline.is_exline()
-                    && let Some(new_cmd) = (*new_last_ptr).take()
+                    && let Some(new_cmd) = g_st().new_last_cmdline.take()
                 {
                     g_st().last_cmdline = Some(new_cmd);
                 }
@@ -5290,12 +5283,11 @@ pub fn do_cmdline(cmdline: impl crate::strings::IntoCCharPtr, fgetline: LineGett
 
             if (cstack.cs_lflags & CSL_HAD_FINA) != 0 {
                 cstack.cs_lflags &= !CSL_HAD_FINA;
-                let ce = &raw const g_st().current_exception;
                 report_make_pending(
                     c_int::from(cstack.cs_pending[cstack.cs_idx as usize])
                         & (CSTP_ERROR | CSTP_INTERRUPT | CSTP_THROW),
                     if g_st().did_throw {
-                        PendingVal::Throw((*ce).clone())
+                        PendingVal::Throw(g_st().current_exception.clone())
                     } else {
                         PendingVal::None
                     },
@@ -5450,9 +5442,8 @@ pub fn do_cmdline(cmdline: impl crate::strings::IntoCCharPtr, fgetline: LineGett
 
 /// Handle when "did_throw" is set after executing commands.
 pub fn handle_did_throw() {
-    unsafe {
-        let ce = &raw const g_st().current_exception;
-        let cur_excp = (*ce).clone();
+     {
+        let cur_excp = g_st().current_exception.clone();
         debug_assert!(cur_excp.is_some());
         let excp = cur_excp.as_ref().unwrap();
         let mut p: Option<std::ffi::CString> = None;
@@ -5461,12 +5452,12 @@ pub fn handle_did_throw() {
         match excp.r#type {
             ET_USER => {
                 let _ = vim_snprintf!(
-                    (&raw mut g_st().IObuff).cast(),
+                    g_st().IObuff.as_mut_ptr(),
                     IOSIZE,
                     gettext(c"E605: Exception not caught: %s"),
                     excp.value.as_ptr(),
                 );
-                p = Some(cstr_to_cstring((&raw const g_st().IObuff).cast()));
+                p = Some(cstr_to_cstring(g_st().IObuff.as_ptr()));
             }
             ET_ERROR => {
                 messages = excp.messages.clone();
@@ -6015,7 +6006,7 @@ pub fn parse_cmdline(
 
             if eap.cmdidx == CMD_SIZE_I32 {
                 xstrlcpy(
-                    (&raw mut g_st().IObuff).cast(),
+                    g_st().IObuff.as_mut_ptr(),
                     gettext(e_not_an_editor_command),
                     IOSIZE,
                 );
@@ -6025,7 +6016,7 @@ pub fn parse_cmdline(
                     *cmdline
                 };
                 append_command(cmdname);
-                *errormsg = (&raw const g_st().IObuff).cast();
+                *errormsg = g_st().IObuff.as_ptr();
                 break 'end;
             }
 
@@ -6532,7 +6523,7 @@ fn do_one_cmd(
             if ea.cmdidx == CMD_SIZE_I32 {
                 if ea.skip == 0 {
                     xstrlcpy(
-                        (&raw mut g_st().IObuff).cast(),
+                        g_st().IObuff.as_mut_ptr(),
                         gettext(e_not_an_editor_command),
                         IOSIZE,
                     );
@@ -6544,7 +6535,7 @@ fn do_one_cmd(
                     if (flags & DOCMD_VERBOSE) == 0 {
                         append_command(cmdname);
                     }
-                    errormsg = (&raw const g_st().IObuff).cast();
+                    errormsg = g_st().IObuff.as_ptr();
                     g_st().did_emsg_syntax = true;
                     verify_command(cmdname);
                 }
@@ -6774,9 +6765,9 @@ fn do_one_cmd(
 
         if !crate::memory::cstr_is_empty(errormsg) && g_st().did_emsg == 0 {
             if (flags & DOCMD_VERBOSE) != 0 {
-                let iobuf_ptr: *const c_char = (&raw const g_st().IObuff).cast();
+                let iobuf_ptr: *const c_char = g_st().IObuff.as_ptr();
                 if errormsg != iobuf_ptr {
-                    xstrlcpy((&raw mut g_st().IObuff).cast(), errormsg, IOSIZE);
+                    xstrlcpy(g_st().IObuff.as_mut_ptr(), errormsg, IOSIZE);
                     errormsg = iobuf_ptr;
                 }
                 append_command(*ea.cmdlinep);
@@ -7347,7 +7338,7 @@ pub fn checkforcmd(pp: *mut *mut c_char, cmd: &std::ffi::CStr, len: c_int) -> bo
 
 fn append_command(cmd: *const c_char) {
     unsafe {
-        let iobuf_ptr: *mut c_char = (&raw mut g_st().IObuff).cast();
+        let iobuf_ptr: *mut c_char = g_st().IObuff.as_mut_ptr();
         let len = crate::memory::cstr_len(iobuf_ptr);
         let mut s = cmd;
         let mut d: *mut c_char;
@@ -8298,14 +8289,14 @@ pub fn expand_filename(
                     let esc_wildcards = c" \t*?[{".as_ptr().cast_mut();
                     expand_env_esc(
                         eap.arg,
-                        (&raw mut g_st().NameBuff).cast(),
+                        g_st().NameBuff.as_mut_ptr(),
                         MAXPATHL as c_int,
                         esc_wildcards,
                         true,
                         ptr::null_mut(),
                     );
-                    has_wildcards = path_has_wildcard((&raw const g_st().NameBuff).cast(), true);
-                    p = (&raw mut g_st().NameBuff).cast();
+                    has_wildcards = path_has_wildcard(g_st().NameBuff.as_ptr(), true);
+                    p = g_st().NameBuff.as_mut_ptr();
                 } else {
                     p = ptr::null_mut();
                 }
@@ -10246,13 +10237,13 @@ fn ex_tabs(_eap: &mut exarg_T) {
                 msg_putchar(b'\n' as c_int);
             }
             let _ = vim_snprintf!(
-                (&raw mut g_st().IObuff).cast(),
+                g_st().IObuff.as_mut_ptr(),
                 IOSIZE,
                 gettext(c"Tab page %d"),
                 tabcount,
             );
             tabcount += 1;
-            let _ = msg_outtrans((&raw const g_st().IObuff).cast(), HLF_T, false);
+            let _ = msg_outtrans(g_st().IObuff.as_ptr(), HLF_T, false);
             os_breakcheck();
 
             for wp in win_iter_ptr(if ptr::eq(tp, g_st().curtab) {
@@ -10284,17 +10275,17 @@ fn ex_tabs(_eap: &mut exarg_T) {
                 msg_putchar(b' ' as c_int);
                 let spname = buf_spname((*wp).w_buffer);
                 if !spname.is_null() {
-                    xstrlcpy((&raw mut g_st().IObuff).cast(), spname, IOSIZE);
+                    xstrlcpy(g_st().IObuff.as_mut_ptr(), spname, IOSIZE);
                 } else {
                     home_replace(
                         ((*wp).w_buffer).as_ref(),
                         (*wp).buf_mut().b_fname,
-                        (&raw mut g_st().IObuff).cast(),
+                        g_st().IObuff.as_mut_ptr(),
                         IOSIZE,
                         true,
                     );
                 }
-                let _ = msg_outtrans((&raw const g_st().IObuff).cast(), 0, false);
+                let _ = msg_outtrans(g_st().IObuff.as_ptr(), 0, false);
                 os_breakcheck();
 
             }
@@ -10836,8 +10827,8 @@ pub fn do_chdir(mut new_dir: *mut c_char, scope: CdScope) -> bool {
             new_dir = prev.as_ptr().cast_mut();
         }
 
-        let pdir = if os_dirname((&raw mut g_st().NameBuff).cast(), MAXPATHL) {
-            Some(crate::memory::cstr_to_cstring((&raw const g_st().NameBuff).cast()))
+        let pdir = if os_dirname(g_st().NameBuff.as_mut_ptr(), MAXPATHL) {
+            Some(crate::memory::cstr_to_cstring(g_st().NameBuff.as_ptr()))
         } else {
             None
         };
@@ -10845,10 +10836,10 @@ pub fn do_chdir(mut new_dir: *mut c_char, scope: CdScope) -> bool {
         if crate::memory::cstr_is_empty(new_dir) && opt_vars().p_cdh != 0 {
             expand_env(
                 c"$HOME",
-                (&raw mut g_st().NameBuff).cast(),
+                g_st().NameBuff.as_mut_ptr(),
                 MAXPATHL as c_int,
             );
-            new_dir = (&raw mut g_st().NameBuff).cast();
+            new_dir = g_st().NameBuff.as_mut_ptr();
         }
 
         let new_dir_owned = to_slash_save(new_dir).unwrap_or_default();
@@ -10943,9 +10934,9 @@ pub fn ex_cd(eap: &mut exarg_T) {
 
 fn ex_pwd(_eap: &mut exarg_T) {
      {
-        if os_dirname((&raw mut g_st().NameBuff).cast(), MAXPATHL) {
+        if os_dirname(g_st().NameBuff.as_mut_ptr(), MAXPATHL) {
             #[cfg(windows)]
-            slash_adjust((&raw mut g_st().NameBuff).cast());
+            slash_adjust(g_st().NameBuff.as_mut_ptr());
             if opt_vars().p_verbose > 0 {
                 let context = if let Some(reason) = g_st().last_chdir_reason {
                     reason.as_ptr()
@@ -10962,10 +10953,10 @@ fn ex_pwd(_eap: &mut exarg_T) {
                     0,
                     c"[%s] %s",
                     context,
-                    (&raw const g_st().NameBuff).cast::<c_char>(),
+                    g_st().NameBuff.as_ptr(),
                 );
             } else {
-                let _ = msg((&raw const g_st().NameBuff).cast(), 0);
+                let _ = msg(g_st().NameBuff.as_ptr(), 0);
             }
         } else {
             let _ = emsg(gettext(c"E187: Unknown"));

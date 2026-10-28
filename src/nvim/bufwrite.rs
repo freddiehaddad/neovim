@@ -643,7 +643,7 @@ fn emit_err(e: &mut Error_T, msg_id: *const c_char) {
                     IOSIZE,
                     c"%s: %s%s: %s",
                     num.as_ptr(),
-                    (&raw const g_st().IObuff).cast::<c_char>(),
+                    g_st().IObuff.as_ptr(),
                     msg_ptr,
                     uv_strerror(e.arg),
                 );
@@ -653,7 +653,7 @@ fn emit_err(e: &mut Error_T, msg_id: *const c_char) {
                     IOSIZE,
                     c"%s: %s%s",
                     num.as_ptr(),
-                    (&raw const g_st().IObuff).cast::<c_char>(),
+                    g_st().IObuff.as_ptr(),
                     msg_ptr,
                 );
             }
@@ -831,7 +831,7 @@ pub fn buf_get_backup_name(
 ) -> Option<std::ffi::CString> {
     unsafe {
         let mut backup: Option<std::ffi::CString> = None;
-        let iobuf = (&raw mut g_st().IObuff).cast::<c_char>();
+        let iobuf = g_st().IObuff.as_mut_ptr();
         let dir_len = copy_option_part(dirp, iobuf, IOSIZE, c",");
         let p = iobuf.add(dir_len);
         if **dirp == NUL && !os_isdir(iobuf) {
@@ -1660,7 +1660,7 @@ pub fn buf_write(
                                     && (progress >= 0 || os_hrtime() - write_start > slow_io_ns())
                                 {
                                     progress = percent;
-                                    let iobuf = (&raw mut g_st().IObuff).cast::<c_char>();
+                                    let iobuf = g_st().IObuff.as_mut_ptr();
                                     add_quoted_fname(iobuf, IOSIZE, buf, msgname);
                                     let _ = msg_progress(
                                         iobuf,
@@ -1836,7 +1836,7 @@ pub fn buf_write(
                         fname = sfname;
                     }
                     if !filtering {
-                        let iobuf = (&raw mut g_st().IObuff).cast::<c_char>();
+                        let iobuf = g_st().IObuff.as_mut_ptr();
                         add_quoted_fname(iobuf, IOSIZE, buf, fname);
                         let mut insert_space = false;
                         if write_info.bw_conv_error != 0 {
@@ -2031,7 +2031,7 @@ pub fn buf_write(
         os_free_acl(acl);
 
         if err.msg.is_some() {
-            add_quoted_fname((&raw mut g_st().IObuff).cast(), IOSIZE - 100, buf, msgname);
+            add_quoted_fname(g_st().IObuff.as_mut_ptr(), IOSIZE - 100, buf, msgname);
             emit_err(
                 &mut err,
                 if progress >= 0 {

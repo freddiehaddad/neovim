@@ -88,7 +88,7 @@ pub fn os_now() -> u64 {
 
 /// Sleep for `ms` milliseconds while polling the main event loop (`os_delay`).
 pub fn os_delay(ms: u64, ignoreinput: bool) {
-    unsafe {
+     {
         let clamped = ms.min(u64::from(c_int::MAX as u32)) as i64;
         let mut remaining = clamped;
         let mut before = if remaining > 0 { os_hrtime() } else { 0 };
@@ -102,7 +102,7 @@ pub fn os_delay(ms: u64, ignoreinput: bool) {
             if cond {
                 break;
             }
-            loop_poll_events(&mut *(&raw mut g_st().main_loop).cast(), remaining);
+            loop_poll_events(&mut g_st().main_loop, remaining);
             if remaining == 0 {
                 break;
             } else if remaining > 0 {
@@ -139,8 +139,7 @@ pub fn os_localtime_r(clock: &time_t, result: *mut Tm) -> *mut Tm {
         } else {
             crate::memory::cstr_as_bytes(tz_ptr)
         };
-        let cache_ptr = &raw mut ostime_st().TZ_CACHE;
-        let cache = &mut *cache_ptr;
+        let cache = &mut ostime_st().TZ_CACHE;
         let cache_len = cache.iter().position(|&b| b == 0).unwrap_or(cache.len());
         let cmp_len = tz_bytes.len().min(cache.len() - 1);
         if cache_len != cmp_len || cache[..cache_len] != tz_bytes[..cmp_len] {

@@ -381,7 +381,7 @@ pub fn win_redr_status(wp: &mut win_T) {
 
 pub fn get_trans_bufname(buf: &mut buf_T) {
      {
-        let name_buff = (&raw mut g_st().NameBuff).cast::<c_char>();
+        let name_buff = g_st().NameBuff.as_mut_ptr();
         let sp = buf_spname(&raw mut *buf);
         if !sp.is_null() {
             xstrlcpy(name_buff, sp, MAXPATHL);
@@ -532,8 +532,7 @@ fn win_redr_stl_expr(wp: *mut win_T, draw_winbar: bool, draw_ruler: bool, ui_eve
             attr = hl_attr(group);
             maxwidth = g_st().Columns;
             opt_idx = kOptTabline;
-            let defs = &raw mut g_st().tab_page_click_defs;
-            click_defs = (*defs).as_mut_ptr();
+            click_defs = g_st().tab_page_click_defs.as_mut_ptr();
         } else if draw_winbar {
             opt_idx = kOptWinbar;
             stl = if !crate::memory::cstr_is_empty((*wp).w_onebuf_opt.wo_wbr) {
@@ -851,7 +850,7 @@ fn ui_ext_tabline_update() {
             pos: 0,
             size: 0,
         };
-        let name_buff = (&raw mut g_st().NameBuff).cast::<c_char>();
+        let name_buff = g_st().NameBuff.as_mut_ptr();
 
         let mut n_tabs: usize = 0;
         let mut tp = g_st().first_tabpage;
@@ -953,7 +952,7 @@ pub fn draw_tabline() {
         let attr_fill = hl_attr(HLF_TPF);
         let attr_nosel = hl_combine_attr(attr_fill, hl_attr(HLF_TP));
         let use_sep_chars = g_st().t_colors < 8;
-        let name_buff = (&raw mut g_st().NameBuff).cast::<c_char>();
+        let name_buff = g_st().NameBuff.as_mut_ptr();
 
         if !crate::grid::grid_allocated(&g_st().default_grid) {
             return;
@@ -969,9 +968,8 @@ pub fn draw_tabline() {
             return;
         }
 
-        let defs = &raw mut g_st().tab_page_click_defs;
-        debug_assert!((*defs).len() >= g_st().Columns as usize);
-        stl_clear_click_defs(&mut *defs);
+        debug_assert!(g_st().tab_page_click_defs.len() >= g_st().Columns as usize);
+        stl_clear_click_defs(&mut g_st().tab_page_click_defs);
 
         if !crate::memory::cstr_is_empty(opt_vars().p_tal) {
             win_redr_stl_expr(ptr::null_mut(), false, false, false);
@@ -1078,7 +1076,7 @@ pub fn draw_tabline() {
 
                 tabcount += 1;
                 while scol < col {
-                    (*defs).as_mut_slice()[scol as usize] = StlClickDefinition {
+                    g_st().tab_page_click_defs.as_mut_slice()[scol as usize] = StlClickDefinition {
                         type_: kStlClickTabSwitch,
                         tabnr: tabcount,
                         func: None,
@@ -1090,7 +1088,7 @@ pub fn draw_tabline() {
             }
 
             for scol in col..g_st().Columns {
-                (*defs).as_mut_slice()[scol as usize] = StlClickDefinition {
+                g_st().tab_page_click_defs.as_mut_slice()[scol as usize] = StlClickDefinition {
                     type_: kStlClickTabSwitch,
                     tabnr: 0,
                     func: None,
@@ -1117,7 +1115,7 @@ pub fn draw_tabline() {
 
             if tabcount > 1 {
                 grid_line_put_schar(g_st().Columns - 1, schar_from_ascii(b'X'), attr_nosel);
-                (*defs).as_mut_slice()[(g_st().Columns - 1) as usize] = StlClickDefinition {
+                g_st().tab_page_click_defs.as_mut_slice()[(g_st().Columns - 1) as usize] = StlClickDefinition {
                     type_: kStlClickTabClose,
                     tabnr: 999,
                     func: None,
@@ -1389,7 +1387,7 @@ pub unsafe extern "C" fn build_stl_str_hl(
         let save_redraw_not_allowed = g_st().redraw_not_allowed;
         let save_KeyTyped = g_st().KeyTyped;
         let did_emsg_before = g_st().did_emsg;
-        let name_buff = (&raw mut g_st().NameBuff).cast::<c_char>();
+        let name_buff = g_st().NameBuff.as_mut_ptr();
 
         if g_st().updating_screen {
             g_st().redraw_not_allowed = true;

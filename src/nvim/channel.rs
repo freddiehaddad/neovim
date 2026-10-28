@@ -204,8 +204,7 @@ use crate::api::private::helpers::add_c;
 /// Teardown the module.
 pub fn channel_teardown() {
     unsafe {
-        let chans_ptr = &raw const g_st().channels;
-        let all_chans: Vec<*mut Channel> = (*chans_ptr).values().copied().collect();
+        let all_chans: Vec<*mut Channel> = g_st().channels.values().copied().collect();
         for chan in all_chans {
             channel_close((*chan).id, kChannelPartAll, ptr::null_mut());
         }
@@ -214,8 +213,7 @@ pub fn channel_teardown() {
 
 pub fn channel_free_all_mem() {
     unsafe {
-        let chans_ptr = &raw mut g_st().channels;
-        for (_, chan) in std::mem::take(&mut *chans_ptr) {
+        for (_, chan) in std::mem::take(&mut g_st().channels) {
             drop(Box::from_raw(chan));
         }
 
@@ -359,7 +357,7 @@ pub fn channel_alloc(r#type: ChannelStreamType) -> *mut Channel {
         };
         assert!(id <= (i64::MAX as u64));
 
-        let qc = loop_queues(&mut *(&raw mut g_st().main_loop).cast());
+        let qc = loop_queues(&mut g_st().main_loop);
         let chan = Box::into_raw(Box::new(Channel {
             id,
             refcount: 1,
@@ -388,8 +386,7 @@ pub fn channel_alloc(r#type: ChannelStreamType) -> *mut Channel {
         }));
 
         {
-            let chans_ptr = &raw mut g_st().channels;
-            (*chans_ptr).insert(id, chan);
+            g_st().channels.insert(id, chan);
         }
 
         chan
@@ -413,7 +410,7 @@ pub fn channel_decref(chan: &mut Channel) {
 
         chan.refcount -= 1;
         if chan.refcount == 0 {
-            let qc = loop_queues(&mut *(&raw mut g_st().main_loop).cast());
+            let qc = loop_queues(&mut g_st().main_loop);
             multiqueue_put_event( &mut *(*qc).events, Event::ChannelFree(&raw mut *chan));
         }
     }
@@ -425,8 +422,7 @@ pub fn callback_reader_start(reader: &mut CallbackReader, r#type: &'static CStr)
 
 pub fn free_channel_event(chan: &mut Channel) {
     unsafe {
-        let chans_ptr = &raw mut g_st().channels;
-        let _ = (*chans_ptr).remove(&chan.id);
+        let _ = g_st().channels.remove(&chan.id);
         drop(Box::from_raw(chan));
     }
 }
@@ -437,8 +433,7 @@ fn channel_destroy_early(chan: &mut Channel) {
         if chan.id != chan_st().NEXT_CHAN_ID {
             std::process::abort();
         }
-        let chans_ptr = &raw mut g_st().channels;
-        let _ = (*chans_ptr).remove(&chan.id);
+        let _ = g_st().channels.remove(&chan.id);
         chan.id = 0;
 
         chan.refcount -= 1;
@@ -446,7 +441,7 @@ fn channel_destroy_early(chan: &mut Channel) {
             std::process::abort();
         }
 
-        let qc = loop_queues(&mut *(&raw mut g_st().main_loop).cast());
+        let qc = loop_queues(&mut g_st().main_loop);
         multiqueue_put_event( &mut *(*qc).events, Event::ChannelFree(&raw mut *chan));
     }
 }
@@ -630,7 +625,7 @@ pub fn channel_connect(
         let channel = channel_alloc(kChannelStreamSocket);
         let socket_stream = &raw mut (*channel).socket;
         let connected = socket_connect(
-            &mut *(&raw mut g_st().main_loop).cast(),
+            &mut g_st().main_loop,
             &mut *socket_stream,
             tcp,
             address,
@@ -721,7 +716,7 @@ pub fn channel_from_stdio(
         let stdio_out = &raw mut (*channel).stdio_out;
         {
             rstream_init_fd((&raw mut g_st().main_loop).cast(),  &mut *stdio_in, stdin_dup_fd);
-            wstream_init_fd(&mut *(&raw mut g_st().main_loop).cast(), &mut *stdio_out, stdout_dup_fd, 0);
+            wstream_init_fd(&mut g_st().main_loop, &mut *stdio_out, stdout_dup_fd, 0);
         }
 
         if rpc {
@@ -1155,7 +1150,7 @@ pub fn channel_event(chan: &mut Channel, event: event_T) {
     unsafe {
         if has_event(event) {
             channel_incref(chan);
-            let qc = loop_queues(&mut *(&raw mut g_st().main_loop).cast());
+            let qc = loop_queues(&mut g_st().main_loop);
             multiqueue_put_event( &mut *(*qc).events, Event::ChannelSetInfo { chan: &raw mut *chan, event });
         }
     }
@@ -1373,11 +1368,10 @@ pub fn channel_info(id: u64, arena: &mut Arena) -> Dict {
 }
 
 pub fn channel_all_info(arena: &mut Arena) -> Array {
-    unsafe {
-        let chans_ptr = &raw const g_st().channels;
-        let mut ret = arena_array(arena, (*chans_ptr).len());
+     {
+        let mut ret = arena_array(arena, g_st().channels.len());
 
-        for &id in (*chans_ptr).keys() {
+        for &id in g_st().channels.keys() {
             let info = channel_info(id, arena);
             add_c(
                 &mut ret,

@@ -793,14 +793,14 @@ pub fn spell_suggest(count: c_int) {
                         .unwrap_or_default(),
                     );
                     vim_snprintf!(
-                        (&raw mut g_st().IObuff).cast(),
+                        g_st().IObuff.as_mut_ptr(),
                         IOSIZE,
                         c"%s%.*s",
                         stp.st_word.as_ptr(),
                         sug.su_badlen - stp.st_orglen,
                         sug.su_badptr.add(stp.st_orglen as usize),
                     );
-                    spell_priv_st().repl_to = Some(crate::memory::cstr_to_cstring((&raw const g_st().IObuff).cast()));
+                    spell_priv_st().repl_to = Some(crate::memory::cstr_to_cstring(g_st().IObuff.as_ptr()));
                 } else {
                     spell_priv_st().repl_from = Some(
                         CString::new(std::slice::from_raw_parts(

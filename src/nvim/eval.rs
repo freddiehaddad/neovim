@@ -4245,10 +4245,9 @@ pub fn garbage_collect(testing: bool) -> bool {
             g_st().garbage_collect_at_exit = false;
         }
 
-        let es = &raw mut rt_st().exestack;
-        if (*es).capacity() - (*es).len() > 500 {
-            let keep = (*es).len() + ((*es).len() / 2).max(50);
-            (*es).shrink_to(keep);
+        if rt_st().exestack.capacity() - rt_st().exestack.len() > 500 {
+            let keep = rt_st().exestack.len() + (rt_st().exestack.len() / 2).max(50);
+            rt_st().exestack.shrink_to(keep);
         }
 
         let copyID = get_copyID();
@@ -4340,8 +4339,7 @@ pub fn garbage_collect(testing: bool) -> bool {
                 }
             }
 
-            let vec = &raw const g_st().ctx_win_vec;
-            for cw in &*vec {
+            for cw in &g_st().ctx_win_vec {
                 let cw_win = cw.cw_win;
                 if !cw_win.is_null() {
                     abort = abort
@@ -4372,8 +4370,7 @@ pub fn garbage_collect(testing: bool) -> bool {
         abort = abort || set_ref_in_functions(copyID);
 
         {
-            let chans_ptr = &raw const g_st().channels;
-            for &data in (*chans_ptr).values() {
+            for &data in g_st().channels.values() {
                 let ct = data;
                 set_ref_in_callback_reader(
                     &mut (*ct).on_data,
@@ -4396,8 +4393,7 @@ pub fn garbage_collect(testing: bool) -> bool {
             }
         }
 
-        let timers_ptr = &raw const eval_st().timers;
-        for &timer in (*timers_ptr).values() {
+        for &timer in eval_st().timers.values() {
             set_ref_in_callback(
                 &mut (*timer).callback,
                 copyID,
@@ -5229,12 +5225,11 @@ pub fn callback_call(
             }
             kCallbackExpr => {
                 eval_st().callback_depth += 1;
-                let evalarg_ptr = &raw mut g_st().EVALARG_EVALUATE;
                 let r = eval0_simple_funccal(
                     skipwhite(callback.data.as_funcref()),
                     rettv,
                     None,
-                    &mut *evalarg_ptr,
+                    &mut g_st().EVALARG_EVALUATE,
                 );
                 eval_st().callback_depth -= 1;
                 return r;
@@ -5305,9 +5300,8 @@ fn set_ref_in_callback_reader(
 }
 
 pub fn find_timer_by_nr(xx: varnumber_T) -> *mut timer_T {
-    unsafe {
-        let timers_ptr = &raw const eval_st().timers;
-        (*timers_ptr)
+     {
+        eval_st().timers
             .get(&(xx as u64))
             .copied()
             .unwrap_or(ptr::null_mut())
@@ -5352,9 +5346,8 @@ pub fn add_timer_info(rettv: &mut typval_T, timer: &mut timer_T) {
 
 pub fn add_timer_info_all(rettv: &mut typval_T) {
     unsafe {
-        let timers_ptr = &raw const eval_st().timers;
-        tv_list_alloc_ret(rettv, (*timers_ptr).len() as isize);
-        for &timer in (*timers_ptr).values() {
+        tv_list_alloc_ret(rettv, eval_st().timers.len() as isize);
+        for &timer in eval_st().timers.values() {
             if !(*timer).stopped || (*timer).refcount > 1 {
                 add_timer_info(rettv, &mut *timer);
             }
@@ -5441,8 +5434,7 @@ pub fn timer_start(timeout: i64, repeat_count: c_int, callback: Callback) -> u64
             time_watcher_start(&mut (*timer).watcher, timeout as u64, timeout as u64);
         }
 
-        let timers_ptr = &raw mut eval_st().timers;
-        (*timers_ptr).insert((*timer).timer_id as u64, timer);
+        eval_st().timers.insert((*timer).timer_id as u64, timer);
         (*timer).timer_id as u64
     }
 }
@@ -5459,9 +5451,8 @@ pub fn timer_stop(timer: &mut timer_T) {
 }
 
 pub(crate) fn timer_close_cb(_tw: &mut TimeWatcher, timer: &mut timer_T) {
-    unsafe {
-        let timers_ptr = &raw mut eval_st().timers;
-        let _ = (*timers_ptr).remove(&(timer.timer_id as u64));
+     {
+        let _ = eval_st().timers.remove(&(timer.timer_id as u64));
         timer_decref(timer);
     }
 }
@@ -5477,8 +5468,7 @@ fn timer_decref(timer: &mut timer_T) {
 
 pub fn timer_stop_all() {
     unsafe {
-        let timers_ptr = &raw const eval_st().timers;
-        let all_timers: Vec<*mut timer_T> = (*timers_ptr).values().copied().collect();
+        let all_timers: Vec<*mut timer_T> = eval_st().timers.values().copied().collect();
         for timer in all_timers {
             timer_stop(&mut *timer);
         }
@@ -6907,7 +6897,7 @@ pub fn eval_call_provider(
     discard: bool,
 ) -> typval_T {
     let provider = provider.into_c_char_ptr().cast_mut();
-    unsafe {
+     {
         if !eval_has_provider(provider, false) {
             semsg!(
                 c"E319: No \"%s\" provider found. Run \":checkhealth vim.provider\"",
@@ -6928,18 +6918,16 @@ pub fn eval_call_provider(
             provider,
         );
 
-        let es = &raw const rt_st().exestack;
         let new_scope = caller_scope {
             script_ctx: g_st().current_sctx,
-            es_entry: (*es).last().unwrap().clone(),
+            es_entry: rt_st().exestack.last().unwrap().clone(),
             autocmd_fname: g_st().autocmd_fname.clone(),
             autocmd_match: g_st().autocmd_match.clone(),
             autocmd_fname_full: g_st().autocmd_fname_full,
             autocmd_bufnr: g_st().autocmd_bufnr,
             funccalp: get_current_funccal().cast(),
         };
-        let pcs = &raw mut g_st().provider_caller_scope;
-        let saved_provider_caller_scope = std::mem::replace(&mut *pcs, new_scope);
+        let saved_provider_caller_scope = std::mem::replace(&mut g_st().provider_caller_scope, new_scope);
         save_funccal();
         {
             g_st().provider_call_nesting += 1;

@@ -695,7 +695,7 @@ unsafe extern "C-unwind" fn nlua_fast_cfpcall(
 
             let mut len: usize = 0;
             let error = nlua_get_error(lstate, &mut len);
-            let queues = loop_queues(&mut *(&raw mut g_st().main_loop).cast());
+            let queues = loop_queues(&mut g_st().main_loop);
             put_event(
                 (*queues).events,
                 Event::NluaLuvError {
@@ -789,7 +789,7 @@ fn nlua_luv_thread_common_cfpcall(
                     kThread
                 },
             };
-            loop_schedule_deferred(&mut *(&raw mut g_st().main_loop).cast(), ev);
+            loop_schedule_deferred(&mut g_st().main_loop, ev);
             lua_pop(lstate, 1);
             -status
         } else {
@@ -892,13 +892,13 @@ unsafe extern "C-unwind" fn nlua_schedule(lstate: *mut lua_State) -> c_int {
         }
 
         lua_pushnil(lstate);
-        if *loop_closing_ptr(&mut *(&raw mut g_st().main_loop).cast()) {
+        if *loop_closing_ptr(&mut g_st().main_loop) {
             lua_pushlstring(lstate, c"main loop is closing".as_ptr(), 20);
             return 2;
         }
 
         let cb = nlua_ref_global(lstate, 1);
-        let queues = loop_queues(&mut *(&raw mut g_st().main_loop).cast());
+        let queues = loop_queues(&mut g_st().main_loop);
         put_event(
             (*queues).events,
             Event::NluaSchedule {
@@ -916,7 +916,7 @@ unsafe extern "C-unwind" fn nlua_loop_poll(lstate: *mut lua_State) -> c_int {
         let timeout = luaL_checkinteger(lstate, 1) as i64;
         let fast_only = lua_toboolean(lstate, 2) != 0;
 
-        let queues = loop_queues(&mut *(&raw mut g_st().main_loop).cast());
+        let queues = loop_queues(&mut g_st().main_loop);
         let loop_events = if fast_only {
             (*queues).fast_events
         } else {
@@ -925,7 +925,7 @@ unsafe extern "C-unwind" fn nlua_loop_poll(lstate: *mut lua_State) -> c_int {
         if !loop_events.is_null() && !multiqueue_empty( &*loop_events) {
             multiqueue_process_events( &mut *loop_events);
         } else {
-            loop_poll_events(&mut *(&raw mut g_st().main_loop).cast(), timeout);
+            loop_poll_events(&mut g_st().main_loop, timeout);
         }
 
         0
@@ -1476,11 +1476,11 @@ unsafe extern "C-unwind" fn nlua_print(lstate: *mut lua_State) -> c_int {
 
         if is_thread {
             loop_schedule_deferred(
-                &mut *(&raw mut g_st().main_loop).cast(),
+                &mut g_st().main_loop,
                 Event::NluaPrint(msg_str),
             );
         } else if nlua_st().IN_FAST_CALLBACK != 0 {
-            let queues = loop_queues(&mut *(&raw mut g_st().main_loop).cast());
+            let queues = loop_queues(&mut g_st().main_loop);
             put_event((*queues).events, Event::NluaPrint(msg_str));
         } else {
             nlua_print_event(msg_str);
@@ -1528,12 +1528,12 @@ unsafe extern "C-unwind" fn nlua_require(lstate: *mut lua_State) -> c_int {
         let status = lua_pcall(lstate, 1, 1, 0);
         if status == 0 {
             vim_snprintf!(
-                (&raw mut g_st().IObuff).cast(),
+                g_st().IObuff.as_mut_ptr(),
                 IOSIZE,
                 c"require('%s')",
                 name,
             );
-            time_msg((&raw const g_st().IObuff).cast(), Some(&start_time));
+            time_msg(g_st().IObuff.as_ptr(), Some(&start_time));
         }
         time_pop(rel_time);
 
@@ -1562,12 +1562,12 @@ unsafe extern "C-unwind" fn nlua_debug(lstate: *mut lua_State) -> c_int {
 
             if ui_has(kUICmdline) {
                 vim_snprintf!(
-                    (&raw mut g_st().IObuff).cast(),
+                    g_st().IObuff.as_mut_ptr(),
                     IOSIZE,
                     c"lua_debug> %s",
                     input.vval.v_string(),
                 );
-                ui_ext_cmdline_block_append(0, (&raw const g_st().IObuff).cast());
+                ui_ext_cmdline_block_append(0, g_st().IObuff.as_ptr());
             } else {
                 msg_putchar(b'\n' as c_int);
             }
@@ -1629,7 +1629,7 @@ pub unsafe extern "C-unwind" fn nlua_call(lstate: *mut lua_State) -> c_int {
         if !nlua_is_deferred_safe() && !viml_func_is_fast(name) {
             let length = name_len.min(100) + 22;
             vim_snprintf!(
-                (&raw mut g_st().IObuff).cast(),
+                g_st().IObuff.as_mut_ptr(),
                 length,
                 c"Vimscript function \"%s\"",
                 name,
@@ -1637,7 +1637,7 @@ pub unsafe extern "C-unwind" fn nlua_call(lstate: *mut lua_State) -> c_int {
             return luaL_error(
                 lstate,
                 e_fast_api_disabled.as_ptr(),
-                (&raw const g_st().IObuff).cast::<c_char>(),
+                g_st().IObuff.as_ptr(),
             );
         }
 
@@ -2462,14 +2462,14 @@ pub fn nlua_exec_file(path: *const c_char) -> bool {
                     file_close(&mut stdin_dup, false);
                     return false;
                 }
-                let read_size = file_read(&raw mut stdin_dup, (&raw mut g_st().IObuff).cast(), 64);
+                let read_size = file_read(&raw mut stdin_dup, g_st().IObuff.as_mut_ptr(), 64);
                 if read_size < 0 {
                     file_close(&mut stdin_dup, false);
                     return false;
                 }
                 if read_size > 0 {
-                    let slice = std::slice::from_raw_parts(
-                        (&raw const g_st().IObuff).cast::<u8>(),
+                    let slice = crate::memory::cstr_slice(
+                        g_st().IObuff.as_ptr(),
                         read_size as usize,
                     );
                     sb.extend_from_slice(slice);
@@ -2536,11 +2536,10 @@ pub fn nlua_expand_pat(xp: &mut expand_T) {
             size: 0,
         };
         let prefix_len = nlua_pop_Integer(lstate, &mut arena, &mut err) as isize;
-        let er = &raw mut nlua_st().EXPAND_RESULT_ARRAY;
         if !error_set(&err) && prefix_len <= patlen {
             let completions = nlua_pop_Array(lstate, &mut arena, &mut err);
             if !error_set(&err) {
-                *er = Vec::with_capacity(completions.size);
+                nlua_st().EXPAND_RESULT_ARRAY = Vec::with_capacity(completions.size);
 
                 let mut all_strings = true;
                 for i in 0..completions.size {
@@ -2549,7 +2548,7 @@ pub fn nlua_expand_pat(xp: &mut expand_T) {
                         all_strings = false;
                         break;
                     }
-                    (*er).push(crate::memory::cstr_from_bytes(crate::memory::cstr_slice(v.data.string().data, v.data.string().size,
+                    nlua_st().EXPAND_RESULT_ARRAY.push(crate::memory::cstr_from_bytes(crate::memory::cstr_slice(v.data.string().data, v.data.string().size,
                     )));
                 }
 
@@ -2562,15 +2561,14 @@ pub fn nlua_expand_pat(xp: &mut expand_T) {
         }
 
         if status == FAIL {
-            (*er).clear();
+            nlua_st().EXPAND_RESULT_ARRAY.clear();
         }
     }
 }
 
 pub fn nlua_expand_get_matches(results: &mut Vec<std::ffi::CString>) -> bool {
-    unsafe {
-        let er = &raw mut nlua_st().EXPAND_RESULT_ARRAY;
-        *results = std::mem::take(&mut *er);
+     {
+        *results = std::mem::take(&mut nlua_st().EXPAND_RESULT_ARRAY);
         !results.is_empty()
     }
 }

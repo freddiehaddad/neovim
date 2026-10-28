@@ -2238,20 +2238,19 @@ fn do_lock_var(
 /// Delete all "menutrans_" variables.
 pub fn del_menutrans_vars() {
     unsafe {
-        let ht = &raw mut vars_st().globvardict.dv_hashtab;
-        hash_lock(&mut *ht);
-        let mut todo = (*ht).ht_used;
-        let mut hi = (&*ht).array_ptr();
+        hash_lock(&mut vars_st().globvardict.dv_hashtab);
+        let mut todo = vars_st().globvardict.dv_hashtab.ht_used;
+        let mut hi = vars_st().globvardict.dv_hashtab.array_ptr();
         while todo > 0 {
             if !hashitem_empty(&*hi) {
                 todo -= 1;
                 if crate::memory::cstr_prefix_bytes((&*hi).key_ptr(), 10) == &b"menutrans_"[..10] {
-                    delete_var(&mut *ht,  &mut *hi);
+                    delete_var(&mut vars_st().globvardict.dv_hashtab,  &mut *hi);
                 }
             }
             hi = hi.add(1);
         }
-        hash_unlock(&mut *ht);
+        hash_unlock(&mut vars_st().globvardict.dv_hashtab);
     }
 }
 
@@ -2310,13 +2309,12 @@ pub fn get_vim_var_partial(idx: VimVarIndex) -> *mut partial_T {
 pub fn cat_prefix_varname(prefix: c_int, name: *const c_char) -> *mut c_char {
     unsafe {
         let name_len = crate::memory::cstr_len(name);
-        let buf = &raw mut vars_st().varnamebuf;
-        (*buf).clear();
-        (*buf).reserve(name_len + 3);
-        (*buf).push(prefix as u8 as c_char);
-        (*buf).push(b':' as c_char);
-        (*buf).extend_from_slice(std::slice::from_raw_parts(name, name_len + 1));
-        (*buf).as_mut_ptr()
+        vars_st().varnamebuf.clear();
+        vars_st().varnamebuf.reserve(name_len + 3);
+        vars_st().varnamebuf.push(prefix as u8 as c_char);
+        vars_st().varnamebuf.push(b':' as c_char);
+        vars_st().varnamebuf.extend_from_slice(std::slice::from_raw_parts(name, name_len + 1));
+        vars_st().varnamebuf.as_mut_ptr()
     }
 }
 
@@ -3660,12 +3658,10 @@ pub fn var_redir_start(name: *mut c_char, append: bool) -> bool {
         let name_cstr = cstr_to_cstring(name);
         let name_ptr = name_cstr.as_ptr().cast_mut();
         vars_st().redir_varname = Some(name_cstr);
-        let rl = &raw mut vars_st().redir_lval;
-        *rl = Some(lval_T::new());
-        let lval_ptr: *mut lval_T = (*rl).as_mut().unwrap();
+        vars_st().redir_lval = Some(lval_T::new());
+        let lval_ptr: *mut lval_T = vars_st().redir_lval.as_mut().unwrap();
 
-        let buf = &raw mut vars_st().redir_buf;
-        (*buf).clear();
+        vars_st().redir_buf.clear();
 
         vars_st().redir_endp = get_lval(
             name_ptr,
@@ -3728,8 +3724,7 @@ pub fn var_redir_start(name: *mut c_char, append: bool) -> bool {
 pub fn var_redir_str(value: impl crate::strings::IntoCCharPtr, value_len: c_int) {
     let value = value.into_c_char_ptr();
     unsafe {
-        let rl = &raw const vars_st().redir_lval;
-        if (*rl).is_none() {
+        if vars_st().redir_lval.is_none() {
             return;
         }
 
@@ -3741,8 +3736,7 @@ pub fn var_redir_str(value: impl crate::strings::IntoCCharPtr, value_len: c_int)
 
         if len > 0 {
             let slice = std::slice::from_raw_parts(value, len);
-            let buf = &raw mut vars_st().redir_buf;
-            (*buf).extend_from_slice(slice);
+            vars_st().redir_buf.extend_from_slice(slice);
         }
     }
 }
@@ -3753,13 +3747,12 @@ pub fn var_redir_stop() {
         let rl = &raw mut vars_st().redir_lval;
         if let Some(ref mut lval) = *rl {
             let lval_ptr: *mut lval_T = lval;
-            let buf = &raw mut vars_st().redir_buf;
             if !vars_st().redir_endp.is_null() {
-                (*buf).push(0);
+                vars_st().redir_buf.push(0);
                 let mut tv = typval_T {
                     v_type: VarType::VAR_STRING,
                     v_lock: 0,
-                    vval: TypvalVval::String((*buf).as_mut_ptr()),
+                    vval: TypvalVval::String(vars_st().redir_buf.as_mut_ptr()),
                 };
                 let vn_ptr = (&raw const vars_st().redir_varname)
                     .as_ref()
@@ -3787,7 +3780,7 @@ pub fn var_redir_stop() {
                 }
             }
 
-            *buf = Vec::new();
+            vars_st().redir_buf = Vec::new();
             *rl = None;
         }
         vars_st().redir_varname = None;

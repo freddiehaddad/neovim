@@ -558,7 +558,7 @@ pub fn decor_redraw(buf: &mut buf_T,
     col1: c_int,
     decor: DecorInline,
 ) {
-    unsafe {
+     {
         if decor.is_ext() {
             for vt in virt_text_iter_mut(decor.data.ext().vt) {
                 let below = (vt.flags & kVTIsLines) != 0 && (vt.flags & kVTLinesAbove) == 0;
@@ -574,10 +574,9 @@ pub fn decor_redraw(buf: &mut buf_T,
                 }
             }
 
-            let items = &raw const g_st().decor_items;
             let mut idx = decor.data.ext().sh_idx;
             while idx != DECOR_ID_INVALID {
-                let sh = &(*items).as_slice()[idx as usize];
+                let sh = &g_st().decor_items.as_slice()[idx as usize];
                 let next = sh.next;
                 decor_redraw_sh(buf, row1, row2, sh.clone());
                 idx = next;
@@ -612,16 +611,15 @@ pub fn decor_redraw_sh(buf: &mut buf_T, row1: c_int, row2: c_int, sh: DecorSignH
 }
 
 pub fn decor_put_sh(item: DecorSignHighlight) -> u32 {
-    unsafe {
-        let items = &raw mut g_st().decor_items;
+     {
         if decor_st().decor_freelist != u32::MAX {
             let pos = decor_st().decor_freelist;
-            decor_st().decor_freelist = (*items).as_slice()[decor_st().decor_freelist as usize].next;
-            (*items).as_mut_slice()[pos as usize] = item;
+            decor_st().decor_freelist = g_st().decor_items.as_slice()[decor_st().decor_freelist as usize].next;
+            g_st().decor_items.as_mut_slice()[pos as usize] = item;
             pos
         } else {
-            let pos = (*items).len() as u32;
-            (*items).push(item);
+            let pos = g_st().decor_items.len() as u32;
+            g_st().decor_items.push(item);
             pos
         }
     }
@@ -650,13 +648,12 @@ pub fn decor_sh_from_inline(item: DecorHighlightInline) -> DecorSignHighlight {
 }
 
 pub fn buf_put_decor(buf: &mut buf_T, decor: DecorInline, row: c_int, mut row2: c_int) {
-    unsafe {
+     {
         if decor.is_ext() && row < buf.b_ml.ml_line_count {
-            let items = &raw mut g_st().decor_items;
             let mut idx = decor.data.ext().sh_idx;
             row2 = row2.min(buf.b_ml.ml_line_count - 1);
             while idx != DECOR_ID_INVALID {
-                let sh = &mut (&mut *items)[idx as usize];
+                let sh = &mut (&mut g_st().decor_items)[idx as usize];
                 let next = sh.next;
                 buf_put_decor_sh(buf, sh, row, row2);
                 idx = next;
@@ -709,14 +706,13 @@ pub fn buf_decor_remove(
     decor: DecorInline,
     free: bool,
 ) {
-    unsafe {
+     {
         decor_redraw(&mut *buf, row1, row2, col1, decor);
         if decor.is_ext() && row1 < buf.b_ml.ml_line_count {
-            let items = &raw const g_st().decor_items;
             let mut idx = decor.data.ext().sh_idx;
             row2 = row2.min(buf.b_ml.ml_line_count - 1);
             while idx != DECOR_ID_INVALID {
-                let sh = &(&*items)[idx as usize];
+                let sh = &(&g_st().decor_items)[idx as usize];
                 let next = sh.next;
                 buf_remove_decor_sh(buf, row1, row2, sh);
                 idx = next;
@@ -758,12 +754,10 @@ pub fn decor_free(decor: DecorInline) {
 
         if g_st().decor_state.running_decor_provider {
             if !vt.is_null() {
-                let list = &raw mut decor_st().to_free_virt;
-                (*list).push(*Box::from_raw(vt));
+                decor_st().to_free_virt.push(*Box::from_raw(vt));
             }
-            let items = &raw mut g_st().decor_items;
             while idx != DECOR_ID_INVALID {
-                let sh = &mut (&mut *items)[idx as usize];
+                let sh = &mut (&mut g_st().decor_items)[idx as usize];
                 if sh.next == DECOR_ID_INVALID {
                     sh.next = decor_st().to_free_sh;
                     decor_st().to_free_sh = ext.sh_idx;
@@ -781,11 +775,10 @@ pub fn decor_free(decor: DecorInline) {
 }
 
 fn decor_free_sh(first_idx: u32) {
-    unsafe {
-        let items = &raw mut g_st().decor_items;
+     {
         let mut idx = first_idx;
         while idx != DECOR_ID_INVALID {
-            let sh = &mut (&mut *items)[idx as usize];
+            let sh = &mut (&mut g_st().decor_items)[idx as usize];
             sh.sign_name = None;
             sh.flags = 0;
             sh.url = None;
@@ -808,10 +801,9 @@ pub fn decor_state_invalidate(buf: &mut buf_T) {
 }
 
 pub fn decor_check_to_be_deleted() {
-    unsafe {
+     {
         assert!(!g_st().decor_state.running_decor_provider);
-        let list = &raw mut decor_st().to_free_virt;
-        (*list).clear();
+        decor_st().to_free_virt.clear();
         decor_free_sh(decor_st().to_free_sh);
         decor_st().to_free_sh = DECOR_ID_INVALID;
         g_st().decor_state.win = ptr::null_mut();
@@ -819,9 +811,8 @@ pub fn decor_check_to_be_deleted() {
 }
 
 pub fn decor_check_invalid_glyphs() {
-    unsafe {
-        let items = &raw mut g_st().decor_items;
-        for it in (*items).iter_mut() {
+     {
+        for it in g_st().decor_items.iter_mut() {
             let width = if (it.flags & kSHIsSign) != 0 {
                 SIGN_WIDTH
             } else if (it.flags & kSHConceal) != 0 {
@@ -1008,15 +999,14 @@ fn decor_range_add_from_inline(
     ns: u32,
     mark_id: u32,
 ) {
-    unsafe {
+     {
         if decor.is_ext() {
             for vt in virt_text_iter_ptr(decor.data.ext().vt) {
                 decor_range_add_virt(state, start_row, start_col, end_row, end_col, vt, owned);
             }
-            let items = &raw const g_st().decor_items;
             let mut idx = decor.data.ext().sh_idx;
             while idx != DECOR_ID_INVALID {
-                let sh = &(&*items)[idx as usize];
+                let sh = &(&g_st().decor_items)[idx as usize];
                 let next = sh.next;
                 decor_range_add_sh(
                     state, start_row, start_col, end_row, end_col, sh, owned, ns, mark_id, 0,
@@ -1555,17 +1545,16 @@ pub fn decor_redraw_signs(
 }
 
 pub fn decor_find_sign(decor: DecorInline) -> Option<&'static DecorSignHighlight> {
-    unsafe {
+     {
         if !decor.is_ext() {
             return None;
         }
-        let items = &raw const g_st().decor_items;
         let mut decor_id = decor.data.ext().sh_idx;
         loop {
             if decor_id == DECOR_ID_INVALID {
                 return None;
             }
-            let sh = &(&*items)[decor_id as usize];
+            let sh = &(&g_st().decor_items)[decor_id as usize];
             if (sh.flags & kSHIsSign) != 0 {
                 return Some(sh);
             }
@@ -1838,10 +1827,9 @@ pub fn decor_to_dict_legacy(dict: &mut Dict,
                 }
             }
 
-            let items = &raw const g_st().decor_items;
             let mut idx = decor.data.ext().sh_idx;
             while idx != DECOR_ID_INVALID {
-                let sh = &(*items).as_slice()[idx as usize];
+                let sh = &g_st().decor_items.as_slice()[idx as usize];
                 let next = sh.next;
                 if (sh.flags & kSHIsSign) != 0 {
                     sh_sign = sh;
@@ -2014,7 +2002,7 @@ pub fn decor_to_dict_legacy(dict: &mut Dict,
 }
 
 pub fn decor_type_flags(decor: DecorInline) -> u16 {
-    unsafe {
+     {
         if decor.is_ext() {
             let mut type_flags: u16 = kExtmarkNone;
             for vt in virt_text_iter_mut(decor.data.ext().vt) {
@@ -2024,10 +2012,9 @@ pub fn decor_type_flags(decor: DecorInline) -> u16 {
                     kExtmarkVirtText
                 };
             }
-            let items = &raw const g_st().decor_items;
             let mut idx = decor.data.ext().sh_idx;
             while idx != DECOR_ID_INVALID {
-                let sh = &(*items).as_slice()[idx as usize];
+                let sh = &g_st().decor_items.as_slice()[idx as usize];
                 type_flags |= if (sh.flags & kSHIsSign) != 0 {
                     kExtmarkSign
                 } else {

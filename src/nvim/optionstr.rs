@@ -2239,7 +2239,7 @@ fn get_eventignore_name(xp: &mut expand_T, idx: c_int) -> *mut c_char {
             return ptr::null_mut();
         }
 
-        let io_buff = (&raw mut g_st().IObuff).cast::<c_char>();
+        let io_buff = g_st().IObuff.as_mut_ptr();
         vim_snprintf!(
             io_buff,
             IOSIZE,

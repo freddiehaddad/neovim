@@ -1038,13 +1038,12 @@ fn command_line_enter(
         init_incsearch_state(&mut (*s).is_state);
         let mut did_save_ccline = false;
 
-        let cc = &raw mut getln_st().ccline;
-        if !(*cc).cmdbuff.is_null() {
+        if !getln_st().ccline.cmdbuff.is_null() {
             debug_assert!(clear_ccline);
             save_cmdline();
             did_save_ccline = true;
         } else if clear_ccline {
-            *cc = CmdlineInfo::new();
+            getln_st().ccline = CmdlineInfo::new();
         }
 
         if (*s).firstc == -1 {
@@ -1326,8 +1325,7 @@ fn command_line_enter(
         // theend:
         (*s).save_p_icm = None;
         getln_st().ccline.last_colors.cmdbuff = None;
-        let lc_colors = &raw mut getln_st().ccline.last_colors.colors;
-        *lc_colors = Vec::new();
+        getln_st().ccline.last_colors.colors = Vec::new();
 
         let ret = if !getln_st().ccline.cmdbuff.is_null() {
             Some(crate::memory::cstr_to_cstring(getln_st().ccline.cmdbuff))
@@ -2835,7 +2833,7 @@ fn command_line_handle_key(s: &mut CommandLineState) -> c_int {
         if is_special(s.c) || g_st().mod_mask != 0 {
             put_on_cmdline(get_special_key_name(s.c, g_st().mod_mask), -1, true);
         } else {
-            let iobuff_ptr = (&raw mut g_st().IObuff).cast::<c_char>();
+            let iobuff_ptr = g_st().IObuff.as_mut_ptr();
             let j = utf_char2bytes(s.c, iobuff_ptr);
             *iobuff_ptr.add(j as usize) = NUL;
             put_on_cmdline(iobuff_ptr, j, true);
@@ -3336,12 +3334,11 @@ pub fn getcmdline_prompt(
         let msg_col_save = g_st().msg_col;
 
         let mut did_save_ccline = false;
-        let cc = &raw mut getln_st().ccline;
-        if !(*cc).cmdbuff.is_null() {
+        if !getln_st().ccline.cmdbuff.is_null() {
             save_cmdline();
             did_save_ccline = true;
         } else {
-            *cc = CmdlineInfo::new();
+            getln_st().ccline = CmdlineInfo::new();
         }
         getln_st().ccline.prompt_id = getln_st().last_prompt_id;
         getln_st().last_prompt_id = getln_st().last_prompt_id.wrapping_add(1);
@@ -3576,9 +3573,8 @@ pub fn cmdline_at_end() -> bool {
 
 /// Deallocate a command line buffer, updating the buffer size and length.
 fn dealloc_cmdbuff() {
-    unsafe {
-        let cb = &raw mut getln_st().ccline.cmdbuff_vec;
-        *cb = Vec::new();
+     {
+        getln_st().ccline.cmdbuff_vec = Vec::new();
         getln_st().ccline.cmdbuff = ptr::null_mut();
         getln_st().ccline.cmdbufflen = 0;
         getln_st().ccline.cmdlen = 0;
@@ -3587,16 +3583,15 @@ fn dealloc_cmdbuff() {
 
 /// Allocate a new command line buffer.
 fn alloc_cmdbuff(mut len: c_int) {
-    unsafe {
+     {
         if len < 80 {
             len = 100;
         } else {
             len += 20;
         }
 
-        let cb = &raw mut getln_st().ccline.cmdbuff_vec;
-        *cb = vec![0; len as usize];
-        getln_st().ccline.cmdbuff = (*cb).as_mut_ptr();
+        getln_st().ccline.cmdbuff_vec = vec![0; len as usize];
+        getln_st().ccline.cmdbuff = getln_st().ccline.cmdbuff_vec.as_mut_ptr();
         getln_st().ccline.cmdbufflen = len;
     }
 }
@@ -3615,9 +3610,8 @@ pub fn realloc_cmdbuff(mut len: c_int) {
         }
 
         let p = getln_st().ccline.cmdbuff;
-        let cb = &raw mut getln_st().ccline.cmdbuff_vec;
-        (*cb).resize(len as usize, 0);
-        getln_st().ccline.cmdbuff = (*cb).as_mut_ptr();
+        getln_st().ccline.cmdbuff_vec.resize(len as usize, 0);
+        getln_st().ccline.cmdbuff = getln_st().ccline.cmdbuff_vec.as_mut_ptr();
         getln_st().ccline.cmdbufflen = len;
         *getln_st().ccline.cmdbuff.add(getln_st().ccline.cmdlen as usize) = NUL;
 
@@ -3987,7 +3981,6 @@ fn draw_cmdline(start: c_int, len: c_int) {
             return;
         }
 
-        let lc_colors = &raw const getln_st().ccline.last_colors.colors;
         if g_st().cmdline_star > 0 {
             let mut i: c_int = 0;
             while i < len {
@@ -3995,8 +3988,8 @@ fn draw_cmdline(start: c_int, len: c_int) {
                 i += utfc_ptr2len(getln_st().ccline.cmdbuff.add((start + i) as usize)) - 1;
                 i += 1;
             }
-        } else if !(*lc_colors).is_empty() {
-            for &chunk in &*lc_colors {
+        } else if !getln_st().ccline.last_colors.colors.is_empty() {
+            for &chunk in &getln_st().ccline.last_colors.colors {
                 if chunk.end <= start {
                     continue;
                 }
@@ -4127,12 +4120,11 @@ pub fn ui_ext_cmdline_block_append(indent: usize, line: *const c_char) {
             items: ptr::null_mut(),
         };
         array_add(&mut content, array_obj(item));
-        let block_ptr = &raw mut getln_st().cmdline_block;
-        array_add(&mut *block_ptr, array_obj(content));
-        if (*block_ptr).size > 1 {
+        array_add(&mut getln_st().cmdline_block, array_obj(content));
+        if getln_st().cmdline_block.size > 1 {
             ui_call_cmdline_block_append(content);
         } else {
-            ui_call_cmdline_block_show(*block_ptr);
+            ui_call_cmdline_block_show(getln_st().cmdline_block);
         }
     }
 }
@@ -4351,19 +4343,17 @@ pub fn put_on_cmdline(str: *const c_char, mut len: c_int, redraw: bool) {
 
 /// Save `getln_st().ccline`.
 fn save_cmdline() {
-    unsafe {
-        let cc = &raw mut getln_st().ccline;
-        let prev = std::mem::replace(&mut *cc, CmdlineInfo::new());
-        (*cc).prev_ccline = Some(Box::new(prev));
+     {
+        let prev = std::mem::replace(&mut getln_st().ccline, CmdlineInfo::new());
+        getln_st().ccline.prev_ccline = Some(Box::new(prev));
     }
 }
 
 /// Restore `getln_st().ccline` after it has been saved with `save_cmdline()`.
 fn restore_cmdline() {
-    unsafe {
-        let cc = &raw mut getln_st().ccline;
-        let prev = (*cc).prev_ccline.take();
-        *cc = prev.map_or_else(CmdlineInfo::new, |b| *b);
+     {
+        let prev = getln_st().ccline.prev_ccline.take();
+        getln_st().ccline = prev.map_or_else(CmdlineInfo::new, |b| *b);
     }
 }
 
@@ -5020,9 +5010,8 @@ pub fn get_list_range(str: *mut *mut c_char, num1: &mut c_int, num2: &mut c_int)
 }
 
 pub fn cmdline_init() {
-    unsafe {
-        let cc = &raw mut getln_st().ccline;
-        *cc = CmdlineInfo::new();
+     {
+        getln_st().ccline = CmdlineInfo::new();
     }
 }
 
@@ -5111,7 +5100,7 @@ pub fn open_cmdwin_event(firstc: c_int, content: Option<std::ffi::CString>, pos:
 
 /// Schedules cmdwin to open after the current cmdline-reader returns.
 fn open_cmdwin() -> c_int {
-    unsafe {
+     {
         if text_locked() || g_st().cmdline_star > 0 {
             beep_flush();
             return K_IGNORE;
@@ -5137,7 +5126,7 @@ fn open_cmdwin() -> c_int {
         getln_st().ccline.cmdpos = 0;
 
         loop_schedule_deferred(
-            &mut *(&raw mut g_st().main_loop).cast(),
+            &mut g_st().main_loop,
             Event::CmdwinOpen {
                 firstc: ft,
                 content,

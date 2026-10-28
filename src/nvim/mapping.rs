@@ -735,16 +735,14 @@ fn map_add(
             if local {
                 buf.b_first_abbr.insert(0, mp);
             } else {
-                let abbr = &raw mut map_st().first_abbr;
-                (*abbr).insert(0, mp);
+                map_st().first_abbr.insert(0, mp);
             }
         } else {
             let n = map_hash(mp.m_mode, crate::memory::cstr_first_byte(mp.m_keys.as_ptr()));
             if local {
                 (&mut buf.b_maphash)[n].insert(0, mp);
             } else {
-                let mh = &raw mut map_st().maphash;
-                (*mh)[n].insert(0, mp);
+                map_st().maphash[n].insert(0, mp);
             }
         }
     }
@@ -938,15 +936,13 @@ fn buf_do_map(
                             if local {
                                 &mut buf.b_first_abbr
                             } else {
-                                let abbr = &raw mut map_st().first_abbr;
-                                &mut *abbr
+                                &mut map_st().first_abbr
                             }
                         } else if local {
                             let bmh = &raw mut buf.b_maphash;
                             &mut (*bmh)[hash]
                         } else {
-                            let mh = &raw mut map_st().maphash;
-                            &mut (*mh)[hash]
+                            &mut map_st().maphash[hash]
                         };
                         let mut idx: usize = 0;
                         while idx < mpp.len() && !g_st().got_int {
@@ -1038,8 +1034,7 @@ fn buf_do_map(
                                             let bmh = &raw mut buf.b_maphash;
                                             (*bmh)[new_hash].insert(0, moved);
                                         } else {
-                                            let mh = &raw mut map_st().maphash;
-                                            (*mh)[new_hash].insert(0, moved);
+                                            map_st().maphash[new_hash].insert(0, moved);
                                         }
                                         continue;
                                     }
@@ -1194,15 +1189,13 @@ pub fn map_clear_mode(buf: &mut buf_T, mode: c_int, local: bool, abbr: bool) {
                 if local {
                     &mut buf.b_first_abbr
                 } else {
-                    let a = &raw mut map_st().first_abbr;
-                    &mut *a
+                    &mut map_st().first_abbr
                 }
             } else if local {
                 let mh = &raw mut buf.b_maphash;
                 &mut (*mh)[hash]
             } else {
-                let mh = &raw mut map_st().maphash;
-                &mut (*mh)[hash]
+                &mut map_st().maphash[hash]
             };
             let mut idx: usize = 0;
             while idx < mpp.len() {
@@ -1219,8 +1212,7 @@ pub fn map_clear_mode(buf: &mut buf_T, mode: c_int, local: bool, abbr: bool) {
                         if local {
                             (&mut buf.b_maphash)[new_hash].insert(0, moved);
                         } else {
-                            let mh = &raw mut map_st().maphash;
-                            (*mh)[new_hash].insert(0, moved);
+                            map_st().maphash[new_hash].insert(0, moved);
                         }
                         continue;
                     }
@@ -2611,9 +2603,8 @@ pub fn add_map(lhs: &std::ffi::CStr, rhs: &std::ffi::CStr, mode: c_int, buffer: 
 }
 
 fn langmap_set_entry(from: c_int, to: c_int) {
-    unsafe {
-        let ptr = &raw mut map_st().langmap_mapga;
-        let entries = &mut *ptr;
+     {
+        let entries = &mut map_st().langmap_mapga;
         match entries.binary_search_by_key(&from, |e| e.from) {
             Ok(idx) => entries[idx].to = to,
             Err(idx) => entries.insert(idx, langmap_entry_T { from, to }),

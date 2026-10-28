@@ -341,7 +341,7 @@ pub fn do_ascii(_eap: &mut exarg_T) {
 
         let mut c = utf_ptr2char(data);
         let mut off: usize = 0;
-        let iobuff_ptr = (&raw mut g_st().IObuff).cast::<c_char>();
+        let iobuff_ptr = g_st().IObuff.as_mut_ptr();
 
         if c < 0x80 {
             if c == NL {
@@ -4251,7 +4251,7 @@ fn do_sub(
 
                                 curwin_mut().w_onebuf_opt.wo_fen = save_p_fen;
 
-                                let iobuff_ptr = (&raw mut g_st().IObuff).cast::<c_char>();
+                                let iobuff_ptr = g_st().IObuff.as_mut_ptr();
                                 let p_fmt = gettext(
                                     c"replace with %s? (y)es/(n)o/(a)ll/(q)uit/(l)ast/scroll up(^E)/down(^Y)",
                                 );

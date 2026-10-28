@@ -204,9 +204,8 @@ fn nfa_st() -> &'static mut RegexpNfaState {
 
 #[inline]
 fn EMIT(c: c_int) {
-    unsafe {
-        let pv = &raw mut re_st().post_vec;
-        (*pv).push(c);
+     {
+        re_st().post_vec.push(c);
     }
 }
 
@@ -217,13 +216,12 @@ fn EMIT2(c: c_int) {
 }
 
 fn nfa_regcomp_start(expr: *mut u8, re_flags: c_int) {
-    unsafe {
+     {
         re_st().nstate = 0;
         re_st().istate = 0;
         let nstate_max = (crate::memory::cstr_len(expr.cast()) + 1) * 25 + 1000;
-        let pv = &raw mut re_st().post_vec;
-        (*pv).clear();
-        (*pv).reserve(nstate_max);
+        re_st().post_vec.clear();
+        re_st().post_vec.reserve(nstate_max);
         re_st().wants_nfa = false;
         re_st().rex.nfa_has_zend = 0;
         re_st().rex.nfa_has_backref = 0;
@@ -1470,8 +1468,7 @@ fn nfa_regatom_collection(
                         if *startc == 0 {
                             EMIT(1);
                         } else {
-                            let pv = &raw mut re_st().post_vec;
-                            (*pv).pop();
+                            re_st().post_vec.pop();
                         }
                         EMIT(endc);
                         EMIT(NFA_RANGE);
@@ -1554,12 +1551,11 @@ fn nfa_regatom_collection(
 }
 
 fn nfa_regpiece() -> bool {
-    unsafe {
+     {
         let mut old_state = parse_state_T::new();
 
         save_parse_state(&mut old_state);
-        let pv = &raw mut re_st().post_vec;
-        let my_post_start = (*pv).len();
+        let my_post_start = re_st().post_vec.len();
 
         if !nfa_regatom() {
             return false;
@@ -1579,12 +1575,10 @@ fn nfa_regpiece_multi(
     old_state: &mut parse_state_T,
     my_post_start: usize,
 ) -> bool {
-    unsafe {
+     {
         let mut minval: c_int = 0;
         let mut maxval: c_int = 0;
         let mut new_state = parse_state_T::new();
-        let pv = &raw mut re_st().post_vec;
-
         skipchr();
         if op == Magic(b'*' as c_int) {
             EMIT(NFA_STAR);
@@ -1645,7 +1639,7 @@ fn nfa_regpiece_multi(
                     EMIT(NFA_STAR_NONGREEDY);
                 }
             } else if maxval == 0 {
-                (*pv).truncate(my_post_start);
+                re_st().post_vec.truncate(my_post_start);
                 EMIT(NFA_EMPTY);
                 return true;
             } else {
@@ -1656,7 +1650,7 @@ fn nfa_regpiece_multi(
                 {
                     return false;
                 }
-                (*pv).truncate(my_post_start);
+                re_st().post_vec.truncate(my_post_start);
                 save_parse_state(&mut new_state);
 
                 let quest = if greedy {
@@ -1666,7 +1660,7 @@ fn nfa_regpiece_multi(
                 };
                 for i in 0..maxval {
                     restore_parse_state(&mut *old_state);
-                    let old_post_pos = (*pv).len();
+                    let old_post_pos = re_st().post_vec.len();
                     if !nfa_regatom() {
                         return false;
                     }
@@ -1757,29 +1751,28 @@ fn nfa_regconcat() -> bool {
 }
 
 fn nfa_regbranch() -> bool {
-    unsafe {
-        let pv = &raw const re_st().post_vec;
-        let mut old_post_pos = (*pv).len();
+     {
+        let mut old_post_pos = re_st().post_vec.len();
         if !nfa_regconcat() {
             return false;
         }
         while peekchr() == Magic(b'&' as c_int) {
             skipchr();
-            if old_post_pos == (*pv).len() {
+            if old_post_pos == re_st().post_vec.len() {
                 EMIT(NFA_EMPTY);
             }
             EMIT(NFA_NOPEN);
             EMIT(NFA_PREV_ATOM_NO_WIDTH);
-            old_post_pos = (*pv).len();
+            old_post_pos = re_st().post_vec.len();
             if !nfa_regconcat() {
                 return false;
             }
-            if old_post_pos == (*pv).len() {
+            if old_post_pos == re_st().post_vec.len() {
                 EMIT(NFA_EMPTY);
             }
             EMIT(NFA_CONCAT);
         }
-        if old_post_pos == (*pv).len() {
+        if old_post_pos == re_st().post_vec.len() {
             EMIT(NFA_EMPTY);
         }
         true
@@ -4856,13 +4849,12 @@ pub(super) fn nfa_regcomp(expr: *mut u8, re_flags: c_int) -> Option<nfa_regprog_
         init_class_tab();
         nfa_regcomp_start(expr, re_flags);
 
-        let pv = &raw const re_st().post_vec;
         if !re2post() {
             return cleanup_nfa_regcomp(None);
         }
 
-        let postfix = (*pv).as_ptr().cast_mut();
-        let post_end_ptr = postfix.add((*pv).len());
+        let postfix = re_st().post_vec.as_ptr().cast_mut();
+        let post_end_ptr = postfix.add(re_st().post_vec.len());
         post2nfa(&mut [], postfix, post_end_ptr, true);
 
         let mut prog = nfa_regprog_T {
@@ -4905,12 +4897,11 @@ pub(super) fn nfa_regcomp(expr: *mut u8, re_flags: c_int) -> Option<nfa_regprog_
 }
 
 fn cleanup_nfa_regcomp(prog: Option<nfa_regprog_T>) -> Option<nfa_regprog_T> {
-    unsafe {
-        let pv = &raw mut re_st().post_vec;
-        if (*pv).capacity() > NFA_POSTFIX_KEEP {
-            *pv = Vec::new();
+     {
+        if re_st().post_vec.capacity() > NFA_POSTFIX_KEEP {
+            re_st().post_vec = Vec::new();
         } else {
-            (*pv).clear();
+            re_st().post_vec.clear();
         }
         prog
     }

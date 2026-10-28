@@ -228,7 +228,7 @@ pub fn conceal_check_cursor_line() {
 }
 
 pub fn default_grid_alloc() -> bool {
-    unsafe {
+     {
         if ds_st().default_grid_resizing {
             return false;
         }
@@ -246,9 +246,8 @@ pub fn default_grid_alloc() -> bool {
 
         grid_alloc(&mut g_st().default_grid, g_st().Rows, g_st().Columns, true, true);
 
-        let tp_defs = &raw mut g_st().tab_page_click_defs;
-        stl_clear_click_defs(&mut *tp_defs);
-        stl_alloc_click_defs(&mut *tp_defs, g_st().Columns);
+        stl_clear_click_defs(&mut g_st().tab_page_click_defs);
+        stl_alloc_click_defs(&mut g_st().tab_page_click_defs, g_st().Columns);
 
         g_st().default_grid.comp_height = g_st().Rows;
         g_st().default_grid.comp_width = g_st().Columns;
@@ -986,11 +985,11 @@ pub fn showmode() -> c_int {
                         } else if get_keymap_str(
                             curwin_mut(),
                             c" (%s)",
-                            (&raw mut g_st().NameBuff).cast::<c_char>(),
+                            g_st().NameBuff.as_mut_ptr(),
                             MAXPATHL as c_int,
                         ) > 0
                         {
-                            msg_puts_hl((&raw const g_st().NameBuff).cast::<c_char>(), hl_id, false);
+                            msg_puts_hl(g_st().NameBuff.as_ptr(), hl_id, false);
                         }
                     }
                     if (g_st().State & MODE_INSERT) != 0 && opt_vars().p_paste != 0 {
@@ -1416,8 +1415,7 @@ fn win_update(wp: &mut win_T) {
         let syntax_tm = profile_setlimit(opt_vars().p_rdt);
         syn_set_timeout(Some(syntax_tm));
 
-        let extmarks = &raw mut g_st().win_extmark_arr;
-        (*extmarks).clear();
+        g_st().win_extmark_arr.clear();
 
         decor_redraw_reset(&mut *wp, &mut g_st().decor_state);
         decor_providers_invoke_win(wp);
@@ -2384,9 +2382,8 @@ fn win_update(wp: &mut win_T) {
             wp.w_old_topfill = wp.w_topfill;
             wp.w_old_botfill = wp.w_botfill;
 
-            let extmarks = &raw const g_st().win_extmark_arr;
-            for n in 0..(*extmarks).len() {
-                let item = (*extmarks).as_slice()[n];
+            for n in 0..g_st().win_extmark_arr.len() {
+                let item = g_st().win_extmark_arr.as_slice()[n];
                 ui_call_win_extmark(
                     Integer::from(wp.w_grid_alloc.handle),
                     wp.handle,

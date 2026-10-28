@@ -489,8 +489,7 @@ fn current_message_locale() -> Option<String> {
 
 fn ensure_catalog_loaded() -> Option<&'static MoCatalog> {
     unsafe {
-        let catalogs_ptr = &raw mut lang_st().CATALOGS;
-        let catalogs = &mut *catalogs_ptr;
+        let catalogs = &mut lang_st().CATALOGS;
         if !lang_st().CATALOG_VALID {
             lang_st().CATALOG_VALID = true;
             lang_st().ACTIVE_CATALOG = None;
@@ -826,10 +825,9 @@ pub fn get_locales(_xp: &mut expand_T, idx: c_int) -> *mut c_char {
     if idx < 0 {
         return ptr::null_mut();
     }
-    unsafe {
+     {
         init_locales();
-        let locales_ptr = &raw const lang_st().LOCALES;
-        let locales = &*locales_ptr;
+        let locales = &lang_st().LOCALES;
         locales
             .get(idx as usize)
             .map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut())

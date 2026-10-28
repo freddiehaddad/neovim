@@ -1066,7 +1066,7 @@ fn ins_compl_infercase_gettext(
         }
 
         // Generate encoding specific output from wide character array.
-        let iobuff_ptr = (&raw mut g_st().IObuff).cast::<c_char>();
+        let iobuff_ptr = g_st().IObuff.as_mut_ptr();
         let mut p = iobuff_ptr;
         let mut i: c_int = 0;
         let mut gap: Vec<c_char> = Vec::new();
@@ -2273,7 +2273,7 @@ fn ins_compl_files(
             }
             let fp = os_fopen(file, c"r");
             if flags != DICT_EXACT && !shortmess(kShmCompletionscan) && !insexp().compl_autocomplete {
-                let iobuff_ptr = (&raw mut g_st().IObuff).cast::<c_char>();
+                let iobuff_ptr = g_st().IObuff.as_mut_ptr();
                 vim_snprintf!(
                     iobuff_ptr,
                     IOSIZE,
@@ -4039,7 +4039,7 @@ fn process_next_cpt_value(
                 st.dict_f = DICT_EXACT;
             }
             if !shortmess(kShmCompletionscan) && !insexp().compl_autocomplete {
-                let iobuff_ptr = (&raw mut g_st().IObuff).cast::<c_char>();
+                let iobuff_ptr = g_st().IObuff.as_mut_ptr();
                 let name = if (*st.ins_buf).b_fname.is_null() {
                     buf_spname(st.ins_buf)
                 } else if (*st.ins_buf).b_sfname.is_null() {
@@ -4097,7 +4097,7 @@ fn process_next_cpt_value(
                 {
                     compl_type = CTRL_X_TAGS;
                     if !shortmess(kShmCompletionscan) && !insexp().compl_autocomplete {
-                        let iobuff_ptr = (&raw mut g_st().IObuff).cast::<c_char>();
+                        let iobuff_ptr = g_st().IObuff.as_mut_ptr();
                         vim_snprintf!(
                             iobuff_ptr,
                             IOSIZE,
@@ -4118,7 +4118,7 @@ fn process_next_cpt_value(
                 }
             }
 
-            let iobuff_ptr = (&raw mut g_st().IObuff).cast::<c_char>();
+            let iobuff_ptr = g_st().IObuff.as_mut_ptr();
             let mut cpt_ptr = st.e_cpt_ptr();
             copy_option_part(&raw mut cpt_ptr, iobuff_ptr, IOSIZE, c",");
             st.e_cpt_idx = cpt_ptr.offset_from(st.e_cpt_copy.as_ptr()) as usize;
@@ -4552,7 +4552,7 @@ fn ins_compl_get_next_word_or_line(
 
             if compl_status_adding() && len == insexp().compl_length {
                 if cur_match_pos.lnum < ins_buf.b_ml.ml_line_count {
-                    let iobuff_ptr = (&raw mut g_st().IObuff).cast::<c_char>();
+                    let iobuff_ptr = g_st().IObuff.as_mut_ptr();
                     { let n = crate::memory::xstrnlen(ptr, len as usize); ptr::copy_nonoverlapping(ptr, iobuff_ptr, n); ptr::write_bytes(iobuff_ptr.add(n), 0, len as usize - n); }
                     ptr = ml_get_buf(ins_buf, cur_match_pos.lnum + 1);
                     ptr = skipwhite(ptr);
@@ -5041,7 +5041,7 @@ fn prepare_cpt_compl_funcs() {
                 insexp().cpt_sources_array[idx as usize].cs_startcol = -3;
             }
 
-            let iobuff_ptr = (&raw mut g_st().IObuff).cast::<c_char>();
+            let iobuff_ptr = g_st().IObuff.as_mut_ptr();
             let _ = copy_option_part(&raw mut p, iobuff_ptr, IOSIZE, c",");
             idx += 1;
         }
@@ -5576,7 +5576,7 @@ fn ins_compl_show_filename() {
         }
         if !insexp().compl_autocomplete {
             g_st().msg_hist_off = true;
-            let iobuff_ptr = (&raw mut g_st().IObuff).cast::<c_char>();
+            let iobuff_ptr = g_st().IObuff.as_mut_ptr();
             vim_snprintf!(
                 iobuff_ptr,
                 IOSIZE,
@@ -6940,7 +6940,7 @@ fn cpt_compl_refresh() {
                 }
             }
 
-            let iobuff_ptr = (&raw mut g_st().IObuff).cast::<c_char>();
+            let iobuff_ptr = g_st().IObuff.as_mut_ptr();
             let _ = copy_option_part(&raw mut p, iobuff_ptr, IOSIZE, c",");
             if may_advance_cpt_index(p) {
                 let _ = advance_cpt_sources_index_safe();

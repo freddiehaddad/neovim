@@ -218,9 +218,8 @@ pub fn channel_outstream(chan: &mut Channel) -> *mut RStream {
 
 #[inline]
 pub fn find_channel(id: u64) -> *mut Channel {
-    unsafe {
-        let chans_ptr = &raw const g_st().channels;
-        (*chans_ptr).get(&id).copied().unwrap_or(ptr::null_mut())
+     {
+        g_st().channels.get(&id).copied().unwrap_or(ptr::null_mut())
     }
 }
 
@@ -231,7 +230,7 @@ fn unpacker_closed(p: &Unpacker) -> bool {
 
 pub fn rpc_init() {
     unsafe {
-        let qc = loop_queues(&mut *(&raw mut g_st().main_loop).cast());
+        let qc = loop_queues(&mut g_st().main_loop);
         g_st().ch_before_blocking_events = multiqueue_new_child((*qc).events);
     }
 }
@@ -334,7 +333,7 @@ pub fn rpc_send_call(
             if !(*channel).events.is_null() && !multiqueue_empty( &*(*channel).events) {
                 multiqueue_process_events( &mut *(*channel).events);
             } else {
-                loop_poll_events(&mut *(&raw mut g_st().main_loop).cast(), -1);
+                loop_poll_events(&mut g_st().main_loop, -1);
             }
         }
         (*rpc).call_stack.pop();
@@ -724,8 +723,7 @@ fn broadcast_event(name: *const c_char, args: Array) {
     unsafe {
         let mut chans = Vec::<*mut Channel>::new();
 
-        let chans_ptr = &raw const g_st().channels;
-        for &channel in (*chans_ptr).values() {
+        for &channel in g_st().channels.values() {
             if (*channel).is_rpc {
                 chans.push(channel);
             }
@@ -739,8 +737,7 @@ fn broadcast_event(name: *const c_char, args: Array) {
 
 fn has_undetached_rpc_chan() -> bool {
     unsafe {
-        let chans_ptr = &raw const g_st().channels;
-        for &chan in (*chans_ptr).values() {
+        for &chan in g_st().channels.values() {
             let ct = chan;
             if (*ct).is_rpc && !(*ct).rpc.closed && !(*ct).detach {
                 return true;
@@ -759,7 +756,7 @@ pub fn rpc_close(channel: &mut Channel) {
         channel.rpc.closed = true;
 
         {
-            let qc = loop_queues(&mut *(&raw mut g_st().main_loop).cast());
+            let qc = loop_queues(&mut g_st().main_loop);
             multiqueue_put_event( &mut *(*qc).fast_events, Event::RpcClose(&raw mut *channel));
         }
     }
