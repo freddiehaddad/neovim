@@ -1168,8 +1168,8 @@ pub fn tui_stop(tui: &mut TUIData) {
         while !(ptr::read_volatile(&raw const tui.stopped)
             || ptr::read_volatile(&raw const (*rs).did_eof))
         {
-            if !events.is_null() && !multiqueue_empty(events) {
-                multiqueue_process_events(events);
+            if !events.is_null() && !multiqueue_empty( &*events) {
+                multiqueue_process_events( &mut *events);
             } else {
                 loop_poll_events(&mut *tui.loop_, remaining);
             }

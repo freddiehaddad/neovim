@@ -1957,7 +1957,7 @@ fn getchar_common(argvars: &mut [typval_T], rettv: &mut typval_T, mut allow_numb
                     ui_flush();
                     let events = main_loop_events();
                     input_get(ptr::null_mut(), 0, -1, g_st().typebuf.tb_change_cnt, events);
-                    if input_available() == 0 && !multiqueue_empty(events) {
+                    if input_available() == 0 && !multiqueue_empty( &*events) {
                         state_handle_k_event();
                         continue;
                     }

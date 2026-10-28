@@ -2572,7 +2572,7 @@ pub fn aucmd_defer(
             data: (data.is_some()).then(|| copy_object(*data.unwrap(), None)),
         });
 
-        multiqueue_put_event(g_st().deferred_events, Event::AutoCmdDeferred(evdata));
+        multiqueue_put_event(unsafe { &mut *g_st().deferred_events }, Event::AutoCmdDeferred(evdata));
     }
 }
 
@@ -2654,8 +2654,7 @@ pub fn aucmd_defer_modified(buf: &mut buf_T, new_val: bool) {
         {
             return;
         }
-        multiqueue_put_event(
-            g_st().deferred_events,
+        multiqueue_put_event( &mut *g_st().deferred_events,
             Event::AutoCmdOptionSetModified {
                 bufnr: buf.b_fnum,
                 new_val,
@@ -3881,7 +3880,7 @@ pub fn may_trigger_vim_suspend_resume(suspend: bool) {
         } else if !suspend && au_st().pending_vimresume == kTrue {
             au_st().pending_vimresume = kNone;
             let events = (*loop_queues(&mut *(&raw mut g_st().main_loop).cast::<Loop>())).events;
-            multiqueue_put_event(events, Event::AutoCmdVimResume);
+            multiqueue_put_event( &mut *events, Event::AutoCmdVimResume);
         }
     }
 }

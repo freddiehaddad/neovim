@@ -242,11 +242,11 @@ pub fn remote_ui_wait_for_attach() {
     unsafe {
         while ui_active() == 0 {
             let events = (*loop_queues(&mut *(&raw mut g_st().main_loop).cast())).events;
-            if !multiqueue_empty(events) {
-                multiqueue_process_events(events);
+            if !multiqueue_empty( &*events) {
+                multiqueue_process_events( &mut *events);
             } else {
                 loop_poll_events(&mut *(&raw mut g_st().main_loop).cast(), -1);
-                multiqueue_process_events(events);
+                multiqueue_process_events( &mut *events);
             }
         }
     }

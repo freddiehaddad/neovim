@@ -310,11 +310,11 @@ pub fn ui_client_run() -> ! {
 
         loop {
             let events = (*loop_queues(&mut *(&raw mut g_st().main_loop).cast())).events;
-            if !multiqueue_empty(events) {
-                multiqueue_process_events(events);
+            if !multiqueue_empty( &*events) {
+                multiqueue_process_events( &mut *events);
             } else {
                 loop_poll_events(&mut *(&raw mut g_st().main_loop).cast(), -1);
-                multiqueue_process_events(events);
+                multiqueue_process_events( &mut *events);
             }
         }
     }
@@ -469,7 +469,7 @@ pub fn ui_client_event_connect(args: Array) {
         let end = bytes.iter().position(|&b| b == 0).unwrap_or(bytes.len());
         let server_addr = std::ffi::CString::new(&bytes[..end]).unwrap();
         multiqueue_put_event(
-            (*loop_queues(&mut *(&raw mut g_st().main_loop).cast())).fast_events,
+            &mut *(*loop_queues(&mut *(&raw mut g_st().main_loop).cast())).fast_events,
             Event::UiClientConnect(server_addr),
         );
         g_st().ui_client_channel_id = u64::MAX;

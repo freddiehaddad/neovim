@@ -328,7 +328,7 @@ fn event_teardown() -> bool {
             return true;
         }
 
-        multiqueue_process_events((*queues).events);
+        multiqueue_process_events( &mut *(*queues).events);
         loop_poll_events(&mut *(&raw mut g_st().main_loop).cast(), 0);
         server_teardown();
         channel_teardown();

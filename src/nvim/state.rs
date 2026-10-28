@@ -114,7 +114,7 @@ pub fn state_enter<S: EditorState>(s: &mut S) {
                     let events = main_loop_events();
                     if vpeekc() != 0 || g_st().typebuf.tb_len > 0 {
                         break safe_vgetc();
-                    } else if !multiqueue_empty(events) {
+                    } else if !multiqueue_empty(unsafe { &*events }) {
                         ui_flush();
                         break K_EVENT;
                     } else {
@@ -124,7 +124,7 @@ pub fn state_enter<S: EditorState>(s: &mut S) {
                         }
                         ui_flush();
                         input_get(ptr::null_mut(), 0, -1, g_st().typebuf.tb_change_cnt, events);
-                        if input_available() == 0 && !multiqueue_empty(main_loop_events()) {
+                        if input_available() == 0 && !multiqueue_empty(unsafe { &*main_loop_events() }) {
                             break K_EVENT;
                         }
                     }
@@ -169,7 +169,7 @@ pub fn state_handle_k_event() {
             let events = main_loop_events();
             multiqueue_get(&mut *events).dispatch();
 
-            if multiqueue_empty(main_loop_events()) {
+            if multiqueue_empty( &*main_loop_events()) {
                 return;
             }
 

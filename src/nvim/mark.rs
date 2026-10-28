@@ -2260,7 +2260,7 @@ pub fn get_buf_local_marks(buf: &buf_T, l: *mut list_T) {
             buf.b_fnum,
             ptr::null(),
         );
-        if bt_prompt((&raw const *buf).cast_mut()) {
+        if bt_prompt(buf) {
             add_mark(
                 l,
                 c"':",

@@ -3712,8 +3712,8 @@ pub fn f_wait(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncDat
             || g_st().got_int)
         {
             let events = (*loop_queues(&mut *main_loop_ptr)).events;
-            if !events.is_null() && !multiqueue_empty(events) {
-                multiqueue_process_events(events);
+            if !events.is_null() && !multiqueue_empty( &*events) {
+                multiqueue_process_events( &mut *events);
             } else {
                 loop_poll_events(&mut *main_loop_ptr, remaining);
             }
@@ -4964,7 +4964,7 @@ pub fn f_jobwait(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFunc
                     channel_incref(&mut *chan);
                     if (*proc_ptr).status < 0 {
                         let events = (*chan).events;
-                        multiqueue_process_events(events);
+                        multiqueue_process_events( &mut *events);
                         multiqueue_replace_parent(&mut *events, &mut *waiting_jobs);
                     }
                 }
@@ -5009,7 +5009,7 @@ pub fn f_jobwait(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFunc
                 continue;
             }
             let events = (*job).events;
-            multiqueue_process_events(events);
+            multiqueue_process_events( &mut *events);
             multiqueue_replace_parent(&mut *events, &mut *(*loop_queues(&mut *main_loop_ptr)).events);
 
             let status = (*job).uv.proc_.status;

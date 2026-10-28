@@ -86,7 +86,7 @@ unsafe extern "C" fn signal_watcher_cb(handle: *mut uv_signal_t, signum: c_int) 
         (*watcher).signum = signum;
         let events = (*watcher).events;
         if !events.is_null() {
-            multiqueue_put_event(events, Event::Signal(watcher));
+            multiqueue_put_event( &mut *events, Event::Signal(watcher));
         } else {
             signal_event(&mut *watcher);
         }

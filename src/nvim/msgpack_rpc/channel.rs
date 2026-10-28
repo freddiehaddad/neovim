@@ -331,8 +331,8 @@ pub fn rpc_send_call(
         (*rpc).call_stack.push(frame.clone());
 
         while !frame.returned.get() && !ptr::read_volatile(&raw const (*rpc).closed) {
-            if !(*channel).events.is_null() && !multiqueue_empty((*channel).events) {
-                multiqueue_process_events((*channel).events);
+            if !(*channel).events.is_null() && !multiqueue_empty( &*(*channel).events) {
+                multiqueue_process_events( &mut *(*channel).events);
             } else {
                 loop_poll_events(&mut *(&raw mut g_st().main_loop).cast(), -1);
             }
@@ -571,8 +571,7 @@ fn handle_request(channel: &mut Channel, p: &mut Unpacker, args: Array) {
                 .is_some_and(|f| f as *const () == handle_nvim_get_mode as *const ());
 
             if is_get_mode && !input_blocking() {
-                multiqueue_put_event(
-                    g_st().ch_before_blocking_events,
+                multiqueue_put_event(unsafe { &mut *g_st().ch_before_blocking_events },
                     Event::RpcRequest(Box::new(evdata)),
                 );
             } else {
@@ -586,10 +585,10 @@ fn handle_request(channel: &mut Channel, p: &mut Unpacker, args: Array) {
 
             if is_resize {
                 let oneshot = event_create_oneshot(Event::RpcRequest(Box::new(evdata)));
-                multiqueue_put_event(channel.events, Event::Oneshot(std::rc::Rc::clone(&oneshot)));
-                multiqueue_put_event(g_st().resize_events, Event::Oneshot(oneshot));
+                multiqueue_put_event(unsafe { &mut *channel.events }, Event::Oneshot(std::rc::Rc::clone(&oneshot)));
+                multiqueue_put_event(unsafe { &mut *g_st().resize_events }, Event::Oneshot(oneshot));
             } else {
-                multiqueue_put_event(channel.events, Event::RpcRequest(Box::new(evdata)));
+                multiqueue_put_event(unsafe { &mut *channel.events }, Event::RpcRequest(Box::new(evdata)));
             }
         }
     }
@@ -648,7 +647,7 @@ fn channel_write(channel: &mut Channel, buffer: std::rc::Rc<WBuffer>) -> bool {
         if channel.streamtype == kChannelStreamInternal {
             channel_incref(&mut *channel);
             if !channel.events.is_null() {
-                multiqueue_put_event(channel.events, Event::RpcInternalRead { channel: &raw mut *channel, buffer });
+                multiqueue_put_event( &mut *channel.events, Event::RpcInternalRead { channel: &raw mut *channel, buffer });
             } else {
                 internal_read_event(channel, buffer);
             }
@@ -761,7 +760,7 @@ pub fn rpc_close(channel: &mut Channel) {
 
         {
             let qc = loop_queues(&mut *(&raw mut g_st().main_loop).cast());
-            multiqueue_put_event((*qc).fast_events, Event::RpcClose(&raw mut *channel));
+            multiqueue_put_event( &mut *(*qc).fast_events, Event::RpcClose(&raw mut *channel));
         }
     }
 }

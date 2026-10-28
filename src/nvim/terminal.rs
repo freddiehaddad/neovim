@@ -435,7 +435,7 @@ pub fn emit_termrequest(mut req: Box<TermRequestEvent>) {
         let term = &mut *(*buf).terminal;
 
         if term.sb_pending > 0 {
-            multiqueue_put_event(term.pending.events, Event::TermRequest(req));
+            multiqueue_put_event( &mut *term.pending.events, Event::TermRequest(req));
             return;
         }
 
@@ -551,7 +551,7 @@ fn schedule_termrequest(term: &mut Terminal) {
         });
 
         multiqueue_put_event(
-            (*loop_queues(&mut *(&raw mut g_st().main_loop).cast())).events,
+            &mut *(*loop_queues(&mut *(&raw mut g_st().main_loop).cast())).events,
             Event::TermRequest(req),
         );
     }
@@ -1042,7 +1042,7 @@ pub fn terminal_set_state(term: &mut Terminal, suspended: bool) {
     unsafe {
         if term.suspended != suspended {
             multiqueue_put_event(
-                (*refresh_timer_ptr()).events,
+                &mut *(*refresh_timer_ptr()).events,
                 Event::TermStateChange(term.buf_handle),
             );
         }
@@ -1633,7 +1633,7 @@ pub fn terminal_receive(term: &mut Terminal, data: impl crate::strings::IntoCCha
             term.invalid_start = 0;
             term.invalid_end = height;
             multiqueue_put_event(
-                (*loop_queues(&mut *(&raw mut g_st().main_loop).cast())).events,
+                &mut *(*loop_queues(&mut *(&raw mut g_st().main_loop).cast())).events,
                 Event::TermSyncFlush(term.buf_handle),
             );
         }
@@ -2092,8 +2092,7 @@ fn term_selection_set(
             );
             let end = bytes.iter().position(|&b| b == 0).unwrap_or(bytes.len());
             let data = std::ffi::CString::new(&bytes[..end]).unwrap();
-            multiqueue_put_event(
-                (*loop_queues(&mut *(&raw mut g_st().main_loop).cast())).events,
+            multiqueue_put_event(&mut *(*loop_queues(&mut *(&raw mut g_st().main_loop).cast())).events,
                 Event::TermClipboardSet { mask, data },
             );
         }
@@ -2399,7 +2398,7 @@ fn invalidate_terminal(term: &mut Terminal, start_row: c_int, end_row: c_int) {
 
 pub fn terminal_check_refresh() {
     unsafe {
-        multiqueue_process_events((*refresh_timer_ptr()).events);
+        multiqueue_process_events(&mut *(*refresh_timer_ptr()).events);
     }
 }
 

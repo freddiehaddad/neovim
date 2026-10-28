@@ -3502,7 +3502,7 @@ fn do_more_prompt(typed_char: c_int) -> bool {
                     g_st().lines_left = g_st().Rows - 1;
                 }
                 K_EVENT => {
-                    multiqueue_process_events(g_st().resize_events);
+                    multiqueue_process_events( &mut *g_st().resize_events);
                     to_redraw = true;
                 }
                 _ => {

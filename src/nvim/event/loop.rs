@@ -605,7 +605,7 @@ fn loop_uv_run(loop_: &mut Loop, ms: i64) -> bool {
 /// Does NOT process `Loop.events`, that is an application-specific decision.
 pub fn loop_poll_events(loop_: &mut Loop, ms: i64) -> bool {
     let timeout_expired = loop_uv_run(loop_, ms);
-        multiqueue_process_events(loop_.fast_events);
+        multiqueue_process_events(unsafe { &mut *loop_.fast_events });
         timeout_expired
 }
 
@@ -614,7 +614,7 @@ pub fn loop_schedule_fast(loop_: &mut Loop, event: Event) {
     unsafe {
         let mutex = loop_mutex(loop_);
         uv_mutex_lock(mutex);
-        multiqueue_put_event(loop_.thread_events, event);
+        multiqueue_put_event( &mut *loop_.thread_events, event);
         uv_async_send(loop_async(loop_));
         uv_mutex_unlock(mutex);
     }
@@ -634,7 +634,7 @@ pub fn loop_schedule_deferred(loop_: &mut Loop, event: Event) {
 }
 
 pub fn loop_deferred_event(loop_: &mut Loop, event: Event) {
-    multiqueue_put_event(loop_.events, event);
+    multiqueue_put_event(unsafe { &mut *loop_.events }, event);
 }
 
 pub fn loop_on_put(loop_: &mut Loop) {
@@ -712,8 +712,8 @@ pub fn loop_purge(loop_: &mut Loop) {
         let mutex = loop_mutex(loop_);
         let qc = loop_queues(loop_);
         uv_mutex_lock(mutex);
-        multiqueue_purge_events((*qc).thread_events);
-        multiqueue_purge_events((*qc).fast_events);
+        multiqueue_purge_events( &mut *(*qc).thread_events);
+        multiqueue_purge_events( &mut *(*qc).fast_events);
         uv_mutex_unlock(mutex);
     }
 }
@@ -723,7 +723,7 @@ pub fn loop_size(loop_: &mut Loop) -> usize {
         let mutex = loop_mutex(loop_);
         let qc = loop_queues(loop_);
         uv_mutex_lock(mutex);
-        let rv = multiqueue_size(&mut *(*qc).thread_events);
+        let rv = multiqueue_size( &*(*qc).thread_events);
         uv_mutex_unlock(mutex);
         rv
     }

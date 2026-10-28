@@ -1284,12 +1284,12 @@ pub fn bufref_valid(bufref: Option<&bufref_T>) -> bool {
 }
 
 /// Check that `buf` points to a valid buffer in the buffer list.
-pub fn buf_valid(buf: *mut buf_T) -> bool {
+pub fn buf_valid(buf: *const buf_T) -> bool {
     if buf.is_null() {
         return false;
     }
     for bp in for_all_buffers_rev_ptr() {
-        if bp == buf {
+        if ptr::eq(bp, buf) {
             return true;
         }
     }
@@ -4420,7 +4420,7 @@ pub fn fname_expand(
 }
 
 /// Return true if `buf` is a prompt buffer.
-pub fn bt_prompt(buf: *mut buf_T) -> bool {
+pub fn bt_prompt(buf: *const buf_T) -> bool {
     unsafe { !buf.is_null() && *(*buf).b_p_bt == b'p' as c_char }
 }
 

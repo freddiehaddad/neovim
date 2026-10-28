@@ -227,7 +227,7 @@ pub fn multiqueue_free(this: *mut MultiQueue) {
 }
 
 fn multiqueue_remove(this: &mut MultiQueue) -> Event {
-    assert!(!multiqueue_empty(&raw mut *this));
+    assert!(!multiqueue_empty(this));
     unsafe {
         let q = this;
         let entry = q.items.pop_front().unwrap();
@@ -235,8 +235,8 @@ fn multiqueue_remove(this: &mut MultiQueue) -> Event {
         match entry {
             QueueEntry::Child(linked) => {
                 assert!(q.parent.is_null());
-                assert!(!multiqueue_empty(linked));
                 let linked_ref = &mut *linked;
+                assert!(!multiqueue_empty(linked_ref));
                 match linked_ref.items.pop_front().unwrap() {
                     QueueEntry::Event(ev) => ev,
                     QueueEntry::Child(_) => unreachable!(),
@@ -277,22 +277,18 @@ fn multiqueue_push(this: &mut MultiQueue, event: Event) {
 /// # Safety
 /// `this` must be a valid pointer to a `MultiQueue`.
 pub fn multiqueue_get(this: &mut MultiQueue) -> Event {
-    if multiqueue_empty(&raw mut *this) {
-            Event::nil()
-        } else {
-            multiqueue_remove(this)
-        }
+    if multiqueue_empty(this) {
+        Event::nil()
+    } else {
+        multiqueue_remove(this)
+    }
 }
 
 /// Enqueue `event` into `this` (`multiqueue_put_event`).
-///
-/// # Safety
-/// `this` must be a valid pointer to a `MultiQueue`.
-pub fn multiqueue_put_event(this: *mut MultiQueue, event: Event) {
-    assert!(!this.is_null());
+pub fn multiqueue_put_event(this: &mut MultiQueue, event: Event) {
     unsafe {
-        multiqueue_push( &mut *this, event);
-        let parent = (*this).parent;
+        multiqueue_push(this, event);
+        let parent = this.parent;
         if !parent.is_null() && !(*parent).notify_loop.is_null() {
             crate::event::r#loop::loop_on_put(&mut *(*parent).notify_loop);
         }
@@ -300,62 +296,41 @@ pub fn multiqueue_put_event(this: *mut MultiQueue, event: Event) {
 }
 
 /// Move all events from `src` to `dest` (`multiqueue_move_events`).
-///
-/// # Safety
-/// `dest` and `src` must be valid pointers to `MultiQueue`s.
 pub fn multiqueue_move_events(dest: &mut MultiQueue, src: &mut MultiQueue) {
-    while !multiqueue_empty(&raw mut *src) {
-            let event = multiqueue_get(src);
-            multiqueue_put_event(&raw mut *dest, event);
-        }
+    while !multiqueue_empty(src) {
+        let event = multiqueue_get(src);
+        multiqueue_put_event(dest, event);
+    }
 }
 
 /// Process all events in `this` (`multiqueue_process_events`).
-///
-/// # Safety
-/// `this` must be a valid pointer to a `MultiQueue`.
-pub fn multiqueue_process_events(this: *mut MultiQueue) {
-    assert!(!this.is_null());
+pub fn multiqueue_process_events(this: &mut MultiQueue) {
     while !multiqueue_empty(this) {
-            let event = multiqueue_remove(unsafe { &mut *this });
-            event.dispatch();
-        }
+        let event = multiqueue_remove(this);
+        event.dispatch();
+    }
 }
 
 /// Remove all events from `this` without invoking handlers (`multiqueue_purge_events`).
-///
-/// # Safety
-/// `this` must be a valid pointer to a `MultiQueue`.
-pub fn multiqueue_purge_events(this: *mut MultiQueue) {
-    assert!(!this.is_null());
+pub fn multiqueue_purge_events(this: &mut MultiQueue) {
     while !multiqueue_empty(this) {
-            let _ = multiqueue_remove(unsafe { &mut *this });
-        }
+        let _ = multiqueue_remove(this);
+    }
 }
 
 /// Return true if `this` has no queued items (`multiqueue_empty`).
-///
-/// # Safety
-/// `this` must be a valid pointer to a `MultiQueue`.
-pub fn multiqueue_empty(this: *mut MultiQueue) -> bool {
-    assert!(!this.is_null());
-    unsafe { (*this).items.is_empty() }
+pub fn multiqueue_empty(this: &MultiQueue) -> bool {
+    this.items.is_empty()
 }
 
 /// Replace the parent of an empty queue `this` (`multiqueue_replace_parent`).
-///
-/// # Safety
-/// `this` must be a valid pointer to an empty `MultiQueue`.
 pub fn multiqueue_replace_parent(this: &mut MultiQueue, new_parent: &mut MultiQueue) {
-    assert!(multiqueue_empty(&raw mut *this));
+    assert!(multiqueue_empty(this));
     this.parent = new_parent;
 }
 
 /// Return the size counter of `this` (`multiqueue_size`).
-///
-/// # Safety
-/// `this` must be a valid pointer to a `MultiQueue`.
-pub fn multiqueue_size(this: &mut MultiQueue) -> usize {
+pub fn multiqueue_size(this: &MultiQueue) -> usize {
     this.size
 }
 
@@ -381,30 +356,30 @@ mod tests {
                 _ => panic!("expected Event::Test"),
             };
 
-            multiqueue_put_event(c1, make_ev(11));
-            multiqueue_put_event(c2, make_ev(21));
-            multiqueue_put_event(c1, make_ev(12));
-            assert_eq!(multiqueue_size(&mut *c1), 2);
-            assert_eq!(multiqueue_size(&mut *c2), 1);
+            multiqueue_put_event(&mut *c1, make_ev(11));
+            multiqueue_put_event(&mut *c2, make_ev(21));
+            multiqueue_put_event(&mut *c1, make_ev(12));
+            assert_eq!(multiqueue_size(&*c1), 2);
+            assert_eq!(multiqueue_size(&*c2), 1);
 
             // Pop from c2 first; should also unlink from parent.
             assert_eq!(ev_val(multiqueue_get(&mut *c2)), 21);
-            assert_eq!(multiqueue_size(&mut *c2), 0);
+            assert_eq!(multiqueue_size(&*c2), 0);
 
             // Remaining in parent should be 11 then 12.
             assert_eq!(ev_val(multiqueue_get(&mut *parent)), 11);
             assert_eq!(ev_val(multiqueue_get(&mut *parent)), 12);
-            assert!(multiqueue_empty(parent));
+            assert!(multiqueue_empty(&*parent));
 
             // Child free unlinks remaining events from parent.
             let c3 = multiqueue_new_child(&mut *parent);
-            multiqueue_put_event(c1, make_ev(101));
-            multiqueue_put_event(c2, make_ev(201));
-            multiqueue_put_event(c3, make_ev(301));
+            multiqueue_put_event(&mut *c1, make_ev(101));
+            multiqueue_put_event(&mut *c2, make_ev(201));
+            multiqueue_put_event(&mut *c3, make_ev(301));
             multiqueue_free(c2);
             assert_eq!(ev_val(multiqueue_get(&mut *parent)), 101);
             assert_eq!(ev_val(multiqueue_get(&mut *c3)), 301);
-            assert!(multiqueue_empty(parent));
+            assert!(multiqueue_empty(&*parent));
 
             multiqueue_free(c1);
             multiqueue_free(c3);

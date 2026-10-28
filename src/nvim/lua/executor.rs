@@ -380,7 +380,7 @@ unsafe extern "C" {
 #[inline]
 fn put_event(mq: *mut MultiQueue, ev: Event) {
     if !mq.is_null() {
-            multiqueue_put_event(mq, ev);
+            multiqueue_put_event(unsafe { &mut *mq }, ev);
         }
 }
 
@@ -922,8 +922,8 @@ unsafe extern "C-unwind" fn nlua_loop_poll(lstate: *mut lua_State) -> c_int {
         } else {
             (*queues).events
         };
-        if !loop_events.is_null() && !multiqueue_empty(loop_events) {
-            multiqueue_process_events(loop_events);
+        if !loop_events.is_null() && !multiqueue_empty( &*loop_events) {
+            multiqueue_process_events( &mut *loop_events);
         } else {
             loop_poll_events(&mut *(&raw mut g_st().main_loop).cast(), timeout);
         }

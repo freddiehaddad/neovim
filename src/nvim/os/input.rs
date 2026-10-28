@@ -171,8 +171,8 @@ pub fn cursorhold_event() {
 
 fn create_cursorhold_event(events_enabled: bool) {
     let events = main_loop_events();
-        debug_assert!(!events_enabled || multiqueue_empty(events));
-        multiqueue_put_event(events, Event::CursorHold);
+        debug_assert!(!events_enabled || multiqueue_empty(unsafe { &*events }));
+        multiqueue_put_event(unsafe { &mut *events }, Event::CursorHold);
 }
 
 fn reset_cursorhold_wait(tb_change_cnt: c_int) {
@@ -629,7 +629,7 @@ fn inbuf_poll(ms: c_int, events: *mut MultiQueue) -> bool {
         if events != main_loop_events() {
             // The pending input provoked a osi_st().blocking wait. Do special events now. #6247
             osi_st().blocking = true;
-            multiqueue_process_events(g_st().ch_before_blocking_events);
+            multiqueue_process_events( &mut *g_st().ch_before_blocking_events);
         }
 
         // LOOP_PROCESS_EVENTS_UNTIL(&main_loop, NULL, ms, os_input_ready(events) || input_unanswerable());
@@ -738,7 +738,7 @@ pub fn os_input_ready(events: *mut MultiQueue) -> bool {
 }
 
 fn pending_events(events: *mut MultiQueue) -> bool {
-    !events.is_null() && !multiqueue_empty(events)
+    !events.is_null() && !multiqueue_empty(unsafe { &*events })
 }
 
 #[cfg(test)]

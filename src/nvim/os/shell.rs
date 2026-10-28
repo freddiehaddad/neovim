@@ -933,7 +933,7 @@ fn do_os_system(
                 *out = buf;
             }
 
-            debug_assert!(multiqueue_empty(events));
+            debug_assert!(multiqueue_empty( &*events));
         }
 
         multiqueue_free(events);
@@ -1099,7 +1099,7 @@ fn out_data_append_to_screen(
         let str_copy = std::slice::from_raw_parts(output, *count).to_vec();
         if ui_has(kUIMessages) {
             let qc = loop_queues(&mut *main_loop_ptr());
-            multiqueue_put_event((*qc).fast_events, Event::ShellOutData { str_copy, fd });
+            multiqueue_put_event( &mut *(*qc).fast_events, Event::ShellOutData { str_copy, fd });
         } else {
             out_data_event(str_copy, fd);
         }

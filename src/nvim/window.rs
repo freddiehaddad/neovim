@@ -2588,25 +2588,19 @@ pub fn win_find_by_handle(handle: handle_T) -> *mut win_T {
     }
 }
 
-pub fn win_valid_any_tab(win: *mut win_T) -> bool {
-    unsafe {
-        if win.is_null() {
-            return false;
-        }
+pub fn win_valid_any_tab(win: *const win_T) -> bool {
+    if win.is_null() {
+        return false;
+    }
 
-        for tp in for_all_tabpages_ptr() {
-            for wp in win_iter_ptr(if ptr::eq(tp, g_st().curtab) {
-                g_st().firstwin
-            } else {
-                (*tp).tp_firstwin
-            }) {
-                if ptr::eq(wp, win) {
-                    return true;
-                }
+    for tp in for_all_tabpages_mut() {
+        for wp in for_all_windows_in_tab_ptr(tp) {
+            if ptr::eq(wp, win) {
+                return true;
             }
         }
-        false
     }
+    false
 }
 
 pub fn win_count() -> c_int {
@@ -5261,15 +5255,13 @@ pub fn make_tabpages(maxcount: c_int) -> c_int {
     }
 }
 
-pub fn valid_tabpage(tpc: *mut tabpage_T) -> bool {
-     {
-        for tp in for_all_tabpages_ptr() {
-            if ptr::eq(tp, tpc) {
-                return true;
-            }
+pub fn valid_tabpage(tpc: *const tabpage_T) -> bool {
+    for tp in for_all_tabpages_ptr() {
+        if ptr::eq(tp, tpc) {
+            return true;
         }
-        false
     }
+    false
 }
 
 pub fn valid_tabpage_win(tpc: &mut tabpage_T) -> c_int {
@@ -5710,21 +5702,15 @@ pub fn win_goto(wp: *mut win_T) {
     }
 }
 
-pub fn win_find_tabpage(win: *mut win_T) -> *mut tabpage_T {
-    unsafe {
-        for tp in for_all_tabpages_ptr() {
-            for wp in win_iter_ptr(if ptr::eq(tp, g_st().curtab) {
-                g_st().firstwin
-            } else {
-                (*tp).tp_firstwin
-            }) {
-                if ptr::eq(wp, win) {
-                    return tp;
-                }
+pub fn win_find_tabpage(win: *const win_T) -> *mut tabpage_T {
+    for tp in for_all_tabpages_mut() {
+        for wp in for_all_windows_in_tab_ptr(tp) {
+            if ptr::eq(wp, win) {
+                return &raw mut *tp;
             }
         }
-        ptr::null_mut()
     }
+    ptr::null_mut()
 }
 
 pub fn win_vert_neighbor(

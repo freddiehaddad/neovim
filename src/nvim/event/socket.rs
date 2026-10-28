@@ -430,8 +430,7 @@ unsafe extern "C" fn connection_cb(handle: *mut uv_stream_t, status: c_int) {
     unsafe {
         let watcher = *handle.cast::<*mut SocketWatcher>();
         if !(*watcher).events.is_null() {
-            multiqueue_put_event(
-                (*watcher).events,
+            multiqueue_put_event( &mut *(*watcher).events,
                 Event::SocketConnection { watcher, status },
             );
         } else {

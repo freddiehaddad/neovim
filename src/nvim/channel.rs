@@ -414,7 +414,7 @@ pub fn channel_decref(chan: &mut Channel) {
         chan.refcount -= 1;
         if chan.refcount == 0 {
             let qc = loop_queues(&mut *(&raw mut g_st().main_loop).cast());
-            multiqueue_put_event((*qc).events, Event::ChannelFree(&raw mut *chan));
+            multiqueue_put_event( &mut *(*qc).events, Event::ChannelFree(&raw mut *chan));
         }
     }
 }
@@ -447,7 +447,7 @@ fn channel_destroy_early(chan: &mut Channel) {
         }
 
         let qc = loop_queues(&mut *(&raw mut g_st().main_loop).cast());
-        multiqueue_put_event((*qc).events, Event::ChannelFree(&raw mut *chan));
+        multiqueue_put_event( &mut *(*qc).events, Event::ChannelFree(&raw mut *chan));
     }
 }
 
@@ -866,7 +866,7 @@ fn on_channel_output(
 fn schedule_channel_event(chan: &mut Channel) {
     if !chan.callback_scheduled {
         if !chan.callback_busy {
-            multiqueue_put_event(chan.events, Event::ChannelCallback(&raw mut *chan));
+            multiqueue_put_event(unsafe { &mut *chan.events }, Event::ChannelCallback(&raw mut *chan));
             channel_incref(chan);
         }
         chan.callback_scheduled = true;
@@ -888,7 +888,7 @@ pub fn on_channel_event(chan: &mut Channel) {
 
         chan.callback_busy = false;
         if chan.callback_scheduled {
-            multiqueue_put_event(chan.events, Event::ChannelCallback(&raw mut *chan));
+            multiqueue_put_event(unsafe { &mut *chan.events }, Event::ChannelCallback(&raw mut *chan));
             channel_incref(chan);
         }
 
@@ -1125,7 +1125,7 @@ pub fn term_delayed_free(chan: &mut Channel) {
     unsafe {
         let proc_ptr = &raw mut chan.uv.proc_;
         if (*proc_ptr).r#in.pending_reqs != 0 || (*proc_ptr).out.s.pending_reqs != 0 {
-            multiqueue_put_event(chan.events, Event::ChannelTermDelayedFree(&raw mut *chan));
+            multiqueue_put_event( &mut *chan.events, Event::ChannelTermDelayedFree(&raw mut *chan));
             return;
         }
 
@@ -1147,7 +1147,7 @@ pub fn channel_term_close(chan: &mut Channel) {
             return;
         }
         proc_stop(&mut chan.uv.proc_);
-        multiqueue_put_event(chan.events, Event::ChannelTermDelayedFree(&raw mut *chan));
+        multiqueue_put_event( &mut *chan.events, Event::ChannelTermDelayedFree(&raw mut *chan));
     }
 }
 
@@ -1156,7 +1156,7 @@ pub fn channel_event(chan: *mut Channel, event: event_T) {
         if has_event(event) {
             channel_incref(&mut *chan);
             let qc = loop_queues(&mut *(&raw mut g_st().main_loop).cast());
-            multiqueue_put_event((*qc).events, Event::ChannelSetInfo { chan, event });
+            multiqueue_put_event( &mut *(*qc).events, Event::ChannelSetInfo { chan, event });
         }
     }
 }

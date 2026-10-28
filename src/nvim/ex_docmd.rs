@@ -11020,8 +11020,8 @@ pub fn do_sleep(msec: i64, hide_cursor: bool) {
         let mut remaining = msec;
         let mut before = if remaining > 0 { os_hrtime() } else { 0 };
         while !g_st().got_int {
-            if !events.is_null() && !multiqueue_empty(events) {
-                multiqueue_process_events(events);
+            if !events.is_null() && !multiqueue_empty( &*events) {
+                multiqueue_process_events( &mut *events);
             } else {
                 loop_poll_events(&mut *main_loop_ptr, remaining);
             }
