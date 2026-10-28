@@ -95,7 +95,7 @@ pub fn nvim_tabpage_get_var(
         let Some(tab) = crate::api::private::helpers::find_tab_by_handle_mut(tabpage, err) else {
             return nil_obj();
         };
-        dict_get_value(tab.tp_vars(), name, Some(arena), err)
+        dict_get_value(unsafe { tab.tp_vars().as_ref() }, name, Some(arena), err)
     }
 }
 

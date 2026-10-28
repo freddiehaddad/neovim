@@ -244,7 +244,7 @@ pub fn nvim_win_get_var(
         let Some(w) = crate::api::private::helpers::find_window_by_handle_mut(win, err) else {
             return OBJECT_NIL;
         };
-        dict_get_value(w.w_vars(), name, Some(arena), err)
+        dict_get_value(unsafe { w.w_vars().as_ref() }, name, Some(arena), err)
     }
 }
 

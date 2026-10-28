@@ -2253,7 +2253,7 @@ pub fn msg_outtrans_len(
                 len -= mb_l - 1;
                 str_ = str_.add(mb_l as usize);
             } else {
-                let s = transchar_byte_buf(ptr::null(), c_int::from(*str_ as u8));
+                let s = transchar_byte_buf(None, c_int::from(*str_ as u8));
                 if *s.add(1) != NUL {
                     if str_ > plain_start {
                         msg_puts_len(plain_start, str_.offset_from(plain_start), hl_id, hist);
@@ -2320,7 +2320,7 @@ pub fn msg_outtrans_special(strstart: *const c_char, from: bool, maxlen: c_int) 
                 str2special(&raw mut str_, from, kFalse, None)
             };
             if *text != NUL && *text.add(1) == NUL {
-                text = transchar_byte_buf(ptr::null(), c_int::from(*text as u8));
+                text = transchar_byte_buf(None, c_int::from(*text as u8));
             }
             let len = vim_strsize(text);
             if maxlen > 0 && retval + len >= maxlen {
@@ -2618,7 +2618,7 @@ pub fn msg_prt_line(mut s: *const c_char, mut list: bool) {
                         let n = ascii2cells(c);
                         if n > 1 {
                             n_extra = n - 1;
-                            p_extra = transchar_byte_buf(ptr::null(), c_int::from(c as u8));
+                            p_extra = transchar_byte_buf(None, c_int::from(c as u8));
                             sc = schar_from_ascii(*p_extra as u8);
                             p_extra = p_extra.add(1);
                             hl_id = HLF_0;

@@ -2439,7 +2439,7 @@ pub fn f_expandcmd(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFu
 
         if argvars[1].v_type == VarType::VAR_DICT
             && tv_dict_get_bool(
-                argvars[1].vval.v_dict(),
+                argvars[1].vval.v_dict().as_ref(),
                 c"errmsg",
                 kBoolVarFalse,
             ) != 0
@@ -3240,7 +3240,7 @@ fn getregionpos(argvars: &mut [typval_T],rettv: &mut typval_T,
         if argvars[2].v_type == VarType::VAR_DICT {
             let d = argvars[2].vval.v_dict();
             is_select_exclusive = tv_dict_get_bool(
-                d,
+                d.as_ref(),
                 c"exclusive",
                 c_int::from(crate::memory::cstr_first_byte(opt_vars().p_sel) == b'e'),
             ) != 0;
@@ -3466,8 +3466,8 @@ pub fn f_getregionpos(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: Eva
 
         if argvars[2].v_type == VarType::VAR_DICT {
             let d = argvars[2].vval.v_dict();
-            allow_eol = tv_dict_get_bool(d, c"eol", 0) != 0;
-            bounds_only = tv_dict_get_bool(d, c"bounds", 0) != 0;
+            allow_eol = tv_dict_get_bool(unsafe { d.as_ref() }, c"eol", 0) != 0;
+            bounds_only = tv_dict_get_bool(unsafe { d.as_ref() }, c"bounds", 0) != 0;
         }
 
         let tab_p1 = crate::cursor::pos_T {
@@ -4141,21 +4141,21 @@ fn indexof_blob(
         -1
 }
 
-fn indexof_list(l: *mut list_T, startidx: varnumber_T,expr: &mut typval_T) -> varnumber_T {
+fn indexof_list(l: Option<&mut list_T>, startidx: varnumber_T,expr: &mut typval_T) -> varnumber_T {
     unsafe {
-        if l.is_null() {
+        if l.is_none() {
             return -1;
         }
         let mut item: *mut listitem_T;
         let mut idx: varnumber_T = 0;
         if startidx == 0 {
-            item = tv_list_first(l.as_ref());
+            item = tv_list_first(l.as_deref());
         } else {
-            idx = varnumber_T::from(tv_list_uidx(l.as_ref(), startidx as c_int));
+            idx = varnumber_T::from(tv_list_uidx(l.as_deref(), startidx as c_int));
             if idx == -1 {
                 item = ptr::null_mut();
             } else {
-                item = tv_list_find(l.as_mut(), idx as c_int);
+                item = tv_list_find(l, idx as c_int);
                 debug_assert!(!item.is_null());
             }
         }
@@ -4208,7 +4208,7 @@ pub fn f_indexof(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFunc
         let mut startidx: varnumber_T = 0;
         if argvars[2].v_type == VarType::VAR_DICT {
             startidx = tv_dict_get_number_def(
-                argvars[2].vval.v_dict(),
+                argvars[2].vval.v_dict().as_ref(),
                 c"startidx",
                 0,
             );
@@ -4225,7 +4225,7 @@ pub fn f_indexof(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFunc
         if argvars[0].v_type == VarType::VAR_BLOB {
             rettv.vval = crate::eval::typval::TypvalVval::Number(indexof_blob(argvars[0].vval.v_blob().as_ref(), startidx, &mut argvars[1]));
         } else {
-            rettv.vval = crate::eval::typval::TypvalVval::Number(indexof_list(argvars[0].vval.v_list(), startidx, &mut argvars[1]));
+            rettv.vval = crate::eval::typval::TypvalVval::Number(indexof_list(argvars[0].vval.v_list().as_mut(), startidx, &mut argvars[1]));
         }
 
         restore_vimvar(VV_KEY, &mut save_key);
@@ -5034,7 +5034,7 @@ pub fn f_json_decode(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: Eval
         let mut owned_buf: Vec<c_char> = Vec::new();
         let len: usize;
         if argvars[0].v_type == VarType::VAR_LIST {
-            let Some(buf) = encode_vim_list_to_buf(argvars[0].vval.v_list()) else {
+            let Some(buf) = encode_vim_list_to_buf(unsafe { argvars[0].vval.v_list().as_ref() }) else {
                 emsg(gettext(c"E474: Failed to convert list to string"));
                 return;
             };
@@ -5875,7 +5875,7 @@ pub fn f_msgpackdump(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: Eval
             }
         } else {
             encode_list_write(
-                tv_list_alloc_ret(rettv, kListLenMayKnow),
+                (tv_list_alloc_ret(rettv, kListLenMayKnow)).as_mut(),
                 data.as_ptr().cast::<c_char>(),
                 data.len(),
             );
@@ -5907,19 +5907,19 @@ fn emsg_mpack_error(status: c_int) {
         }
 }
 
-fn msgpackparse_unpack_list(list: *const list_T, ret_list: &mut list_T) {
+fn msgpackparse_unpack_list(list: Option<&list_T>, ret_list: &mut list_T) {
     unsafe {
-        if tv_list_len(list.as_ref()) == 0 {
+        if tv_list_len(list) == 0 {
             return;
         }
-        if (*tv_list_first(list.as_ref())).li_tv.v_type != VarType::VAR_STRING {
+        if (*tv_list_first(list)).li_tv.v_type != VarType::VAR_STRING {
             semsg!(
                 gettext(e_invarg2),
                 c"List item is not a string",
             );
             return;
         }
-        let mut lrstate: ListReaderState = encode_init_lrstate(list.as_ref());
+        let mut lrstate: ListReaderState = encode_init_lrstate(list);
         let buf = alloc_block();
         let mut buf_size: usize = 0;
 
@@ -6012,7 +6012,7 @@ pub fn f_msgpackparse(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: Eva
         }
         let ret_list = tv_list_alloc_ret(rettv, kListLenMayKnow);
         if argvars[0].v_type == VarType::VAR_LIST {
-            msgpackparse_unpack_list(argvars[0].vval.v_list(), &mut *ret_list);
+            msgpackparse_unpack_list(argvars[0].vval.v_list().as_ref(), &mut *ret_list);
         } else {
             msgpackparse_unpack_blob(argvars[0].vval.v_blob().as_ref(), &mut *ret_list);
         }
@@ -6434,8 +6434,8 @@ fn list2proftime(arg: &mut typval_T, tm: &mut proftime_T) -> bool {
             return false;
         }
         let mut error = false;
-        let n1 = tv_list_find_nr(arg.vval.v_list(), 0, Some(&mut error));
-        let n2 = tv_list_find_nr(arg.vval.v_list(), 1, Some(&mut error));
+        let n1 = tv_list_find_nr(unsafe { arg.vval.v_list().as_mut() }, 0, Some(&mut error));
+        let n2 = tv_list_find_nr(unsafe { arg.vval.v_list().as_mut() }, 1, Some(&mut error));
         if error {
             return false;
         }
@@ -7978,7 +7978,7 @@ pub fn f_setreg(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncD
                     pointreg = *stropt;
                     regname = pointreg;
                 }
-            } else if tv_dict_get_bool(d, c"isunnamed", -1) > 0 {
+            } else if tv_dict_get_bool(d.as_ref(), c"isunnamed", -1) > 0 {
                 pointreg = regname;
             }
         } else {
@@ -8104,7 +8104,7 @@ pub fn f_settagstack(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: Eval
             }
         }
 
-        if set_tagstack(&mut *wp, d, c_int::from(action)) {
+        if set_tagstack(&mut *wp, d.as_ref(), c_int::from(action)) {
             rettv.vval = crate::eval::typval::TypvalVval::Number(0);
         }
     }
@@ -8202,7 +8202,7 @@ pub fn f_sockconnect(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: Eval
                 let opts = argvars[2].vval.v_dict();
                 rpc = tv_dict_get_number(opts, c"rpc") != 0;
 
-                if !tv_dict_get_callback(opts, c"on_data", 7, &mut on_data.cb) {
+                if !tv_dict_get_callback(unsafe { opts.as_mut() }, c"on_data", 7, &mut on_data.cb) {
                     break 'cleanup;
                 }
                 on_data.buffered = tv_dict_get_number(opts, c"data_buffered") != 0;
@@ -8238,10 +8238,10 @@ pub fn f_stdioopen(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFu
         let opts = argvars[0].vval.v_dict();
         let rpc = tv_dict_get_number(opts, c"rpc") != 0;
 
-        if !tv_dict_get_callback(opts, c"on_stdin", 8, &mut on_stdin.cb) {
+        if !tv_dict_get_callback(unsafe { opts.as_mut() }, c"on_stdin", 8, &mut on_stdin.cb) {
             return;
         }
-        if !tv_dict_get_callback(opts, c"on_print", 8, &mut g_st().on_print) {
+        if !tv_dict_get_callback(unsafe { opts.as_mut() }, c"on_print", 8, &mut g_st().on_print) {
             return;
         }
 
@@ -8721,7 +8721,7 @@ pub fn f_substitute(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalF
                 crate::memory::cstr_len(str_),
                 pat.cast_mut(),
                 sub.cast_mut(),
-                expr,
+                unsafe { expr.as_ref() },
                 flg.cast_mut(),
             );
             crate::eval::typval::tv_set_string_len(

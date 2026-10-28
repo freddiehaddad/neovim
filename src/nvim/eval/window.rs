@@ -789,7 +789,7 @@ pub fn f_win_splitmove(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: Ev
             }
 
             let d = argvars[2].vval.v_dict();
-            if tv_dict_get_bool(d, c"vertical", 0) != 0 {
+            if tv_dict_get_bool(d.as_ref(), c"vertical", 0) != 0 {
                 flags |= WSP_VERT;
             }
             let di = tv_dict_find(d.as_ref(), c"rightbelow", -1);

@@ -608,7 +608,7 @@ fn do_fuzzymatch(argvars: &[typval_T], rettv: &mut typval_T, retmatchpos: bool) 
                     return;
                 }
                 key = tv_get_string(&(*di_key).di_tv);
-            } else if !tv_dict_get_callback(d, c"text_cb", -1, &mut cb) {
+            } else if !tv_dict_get_callback(d.as_mut(), c"text_cb", -1, &mut cb) {
                 semsg!(e_invargval, c"text_cb");
                 return;
             }
@@ -623,7 +623,7 @@ fn do_fuzzymatch(argvars: &[typval_T], rettv: &mut typval_T, retmatchpos: bool) 
                 max_matches = tv_get_number_chk(&(*di_limit).di_tv, None) as c_int;
             }
 
-            if tv_dict_has_key(d, c"matchseq") {
+            if tv_dict_has_key(d.as_ref(), c"matchseq") {
                 matchseq = true;
             }
         }

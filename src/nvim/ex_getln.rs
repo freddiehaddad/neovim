@@ -3749,7 +3749,7 @@ fn color_cmdline(colored_ccline: &mut CmdlineInfo) -> bool {
                     try_enter(&mut tstate);
                     err_errmsg = c"E5408: Unable to get g:Nvim_color_cmdline callback: %s".as_ptr();
                     dgc_ret = tv_dict_get_callback(
-                        get_globvar_dict(),
+                        get_globvar_dict().as_mut(),
                         c"Nvim_color_cmdline",
                         18,
                         &mut color_cb,
@@ -5236,7 +5236,7 @@ pub fn get_user_input(argvars: &[typval_T],
             }
             let dict = argvars[0].vval.v_dict();
             prompt = tv_dict_get_string_buf_chk(
-                dict,
+                dict.as_ref(),
                 c"prompt",
                 6,
                 prompt_buf.as_mut_ptr(),
@@ -5246,7 +5246,7 @@ pub fn get_user_input(argvars: &[typval_T],
                 return;
             }
             defstr = tv_dict_get_string_buf_chk(
-                dict,
+                dict.as_ref(),
                 c"default",
                 7,
                 defstr_buf.as_mut_ptr(),
@@ -5260,7 +5260,7 @@ pub fn get_user_input(argvars: &[typval_T],
                 cancelreturn = &raw mut (*cancelreturn_di).di_tv;
             }
             xp_name = tv_dict_get_string_buf_chk(
-                dict,
+                dict.as_ref(),
                 c"completion",
                 10,
                 xp_name_buf.as_mut_ptr(),
@@ -5272,7 +5272,7 @@ pub fn get_user_input(argvars: &[typval_T],
             if xp_name == def.as_ptr() {
                 xp_name = ptr::null();
             }
-            if !tv_dict_get_callback(dict, c"highlight", 9, &mut input_callback) {
+            if !tv_dict_get_callback(dict.as_mut(), c"highlight", 9, &mut input_callback) {
                 return;
             }
         } else {

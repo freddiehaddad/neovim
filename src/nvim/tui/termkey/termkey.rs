@@ -409,7 +409,7 @@ pub fn termkey_start(
             return 1;
         }
 
-        if start_driver_ti(tk, term, input) == 0 {
+        if start_driver_ti(tk, term, unsafe { input.as_mut() }) == 0 {
             return 0;
         }
 

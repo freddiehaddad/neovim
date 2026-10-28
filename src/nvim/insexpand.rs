@@ -3420,7 +3420,7 @@ fn ins_compl_add_tv(tv: &mut typval_T, dir: Direction, fast: bool) -> c_int {
             let user_kind_hlname = tv_dict_get_string(d, c"kind_hlgroup");
             user_hl[1] = get_user_highlight_id(user_kind_hlname);
 
-            tv_dict_get_tv(d, c"user_data", &mut user_data);
+            tv_dict_get_tv(d.as_ref(), c"user_data", &mut user_data);
 
             if tv_dict_get_number(d, c"icase") != 0 {
                 flags |= CP_ICASE;

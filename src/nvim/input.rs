@@ -1906,12 +1906,12 @@ fn getchar_common(argvars: &mut [typval_T], rettv: &mut typval_T, mut allow_numb
             let d = (*arg1).vval.v_dict();
 
             if allow_number {
-                allow_number = tv_dict_get_bool(d, c"number", 1) != 0;
-            } else if tv_dict_has_key(d, c"number") {
+                allow_number = tv_dict_get_bool(d.as_ref(), c"number", 1) != 0;
+            } else if tv_dict_has_key(d.as_ref(), c"number") {
                 semsg!(gettext(e_invarg2), c"number");
             }
 
-            simplify = tv_dict_get_bool(d, c"simplify", 1) != 0;
+            simplify = tv_dict_get_bool(d.as_ref(), c"simplify", 1) != 0;
 
             let cursor_str = tv_dict_get_string(d, c"cursor");
             if !cursor_str.is_null() {

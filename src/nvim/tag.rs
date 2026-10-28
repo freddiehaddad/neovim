@@ -1091,7 +1091,7 @@ fn add_llist_tags(tag: *mut c_char, matches: &[Vec<c_char>]) -> bool {
 
         let iobuf_ptr = (&raw mut g_st().IObuff).cast::<c_char>();
         vim_snprintf!(iobuf_ptr, IOSIZE, c"ltag %s", tag);
-        set_errorlist(curwin_ptr(), list, b' ' as c_int, iobuf_ptr, None);
+        set_errorlist(curwin_ptr(), list.as_ref(), b' ' as c_int, iobuf_ptr, None);
 
         tv_list_free(list);
 
@@ -3191,14 +3191,14 @@ pub fn expand_tags(
 }
 
 fn add_tag_field(
-    dict: *mut dict_T,
+    dict: Option<&mut dict_T>,
     field_name: impl crate::strings::IntoCCharPtr,
     start: *const c_char,
     mut end: *const c_char,
 ) -> bool {
     let field_name = field_name.into_c_char_ptr();
     unsafe {
-        if !tv_dict_find(dict.as_ref(), field_name, -1).is_null() {
+        if !tv_dict_find(dict.as_deref(), field_name, -1).is_null() {
             if opt_vars().p_verbose > 0 {
                 verbose_enter();
                 smsg!(0, gettext(c"Duplicate field name: %s"), field_name);
@@ -3222,7 +3222,7 @@ fn add_tag_field(
             crate::memory::cstr_ncpy(buf, start, len as usize);
         }
         *buf.add(len as usize) = NUL;
-        tv_dict_add_str(&mut *dict, field_name, buf)
+        tv_dict_add_str(dict.unwrap(), field_name, buf)
     }
 }
 
@@ -3254,16 +3254,16 @@ pub fn get_tags(list: &mut list_T, pat: *mut c_char, buf_fname: *mut c_char) -> 
             tv_list_append_dict( &mut *list, dict);
 
             let full_fname = tag_full_fname(&mut tp);
-            if !add_tag_field(dict, c"name", tp.tagname, tp.tagname_end)
+            if !add_tag_field(dict.as_mut(), c"name", tp.tagname, tp.tagname_end)
                 || !add_tag_field(
-                    dict,
+                    dict.as_mut(),
                     c"filename",
                     full_fname.as_ptr().cast_mut(),
                     ptr::null(),
                 )
-                || !add_tag_field(dict, c"cmd", tp.command, tp.command_end)
+                || !add_tag_field(dict.as_mut(), c"cmd", tp.command, tp.command_end)
                 || !add_tag_field(
-                    dict,
+                    dict.as_mut(),
                     c"kind",
                     tp.tagkind,
                     if !tp.tagkind.is_null() {
@@ -3304,7 +3304,7 @@ pub fn get_tags(list: &mut list_T, pat: *mut c_char, buf_fname: *mut c_char) -> 
                                 p = p.add(1);
                             }
                             *n.add(len as usize) = NUL;
-                            if !add_tag_field(dict, n, s, p) {
+                            if !add_tag_field(dict.as_mut(), n, s, p) {
                                 ret = false;
                             }
                             *n.add(len as usize) = b':' as c_char;
@@ -3496,7 +3496,7 @@ fn tagstack_set_curidx(wp: &mut win_T, curidx: c_int) {
 }
 
 /// Set the tag stack entries of the specified window.
-pub fn set_tagstack(wp: &mut win_T, d: *const dict_T, action: c_int) -> bool {
+pub fn set_tagstack(wp: &mut win_T, d: Option<&dict_T>, action: c_int) -> bool {
     unsafe {
         if tag_st().tfu_in_use {
             emsg(gettext(E_CANNOT_MODIFY_TAG_STACK_WITHIN_TAGFUNC));
@@ -3505,7 +3505,7 @@ pub fn set_tagstack(wp: &mut win_T, d: *const dict_T, action: c_int) -> bool {
 
         let mut l: *mut list_T = ptr::null_mut();
 
-        let di_items = tv_dict_find(d.as_ref(), c"items", -1);
+        let di_items = tv_dict_find(d, c"items", -1);
         if !di_items.is_null() {
             if (*di_items).di_tv.v_type != VarType::VAR_LIST {
                 emsg(gettext(e_listreq));
@@ -3514,7 +3514,7 @@ pub fn set_tagstack(wp: &mut win_T, d: *const dict_T, action: c_int) -> bool {
             l = (*di_items).di_tv.vval.v_list();
         }
 
-        let di_curidx = tv_dict_find(d.as_ref(), c"curidx", -1);
+        let di_curidx = tv_dict_find(d, c"curidx", -1);
         if !di_curidx.is_null() {
             tagstack_set_curidx(
                 wp,

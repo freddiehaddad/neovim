@@ -795,7 +795,7 @@ fn buffer_to_tv_list(buf: *const c_char, len: usize) -> *mut list_T {
         let l = tv_list_alloc(kListLenMayKnow);
         tv_list_append_string( &mut *l, c"", 0);
         if len > 0 {
-            encode_list_write(l, buf, len);
+            encode_list_write(l.as_mut(), buf, len);
         }
         l
     }

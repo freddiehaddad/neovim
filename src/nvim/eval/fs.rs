@@ -420,7 +420,7 @@ pub fn modify_fname(
                                 *fnamelen,
                                 pat.as_ptr().cast_mut(),
                                 sub.as_ptr().cast_mut(),
-                                ptr::null_mut(),
+                                None,
                                 flags.cast_mut(),
                             );
                             *fnamelen = sub_res.as_bytes().len();

@@ -797,9 +797,9 @@ pub fn f_getbufinfo(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalF
             let sel_d = argvars[0].vval.v_dict();
             if !sel_d.is_null() {
                 filtered = true;
-                sel_buflisted = tv_dict_get_bool(sel_d, c"buflisted", 0) != 0;
-                sel_bufloaded = tv_dict_get_bool(sel_d, c"bufloaded", 0) != 0;
-                sel_bufmodified = tv_dict_get_bool(sel_d, c"bufmodified", 0) != 0;
+                sel_buflisted = tv_dict_get_bool(sel_d.as_ref(), c"buflisted", 0) != 0;
+                sel_bufloaded = tv_dict_get_bool(sel_d.as_ref(), c"bufloaded", 0) != 0;
+                sel_bufmodified = tv_dict_get_bool(sel_d.as_ref(), c"bufmodified", 0) != 0;
             }
         } else if argvars[0].v_type != VarType::VAR_UNKNOWN {
             argbuf = tv_get_buf_from_arg(&mut argvars[0]);

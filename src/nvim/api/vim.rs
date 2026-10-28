@@ -1179,7 +1179,7 @@ pub fn nvim_get_vvar(
     arena: &mut Arena,
     err: &mut Error,
 ) -> Object {
-    dict_get_value(get_vimvar_dict(), name, Some(arena), err)
+    dict_get_value(unsafe { get_vimvar_dict().as_ref() }, name, Some(arena), err)
 }
 
 /// Sets a v: variable, if it is not readonly.

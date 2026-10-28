@@ -311,7 +311,7 @@ fn filter_map_string(
 }
 
 fn filter_map_list(
-    l: *mut list_T,
+    mut l: Option<&mut list_T>,
     filtermap: FilterMap,
     arg_errmsg: *const c_char,
     expr: &mut typval_T,
@@ -322,9 +322,9 @@ fn filter_map_list(
             rettv.v_type = VarType::VAR_LIST;
             rettv.vval = crate::eval::typval::TypvalVval::List(std::ptr::null_mut());
         }
-        if l.is_null()
+        if l.is_none()
             || (filtermap == FilterMap::Filter
-                && value_check_lock(tv_list_locked(l.as_ref()), arg_errmsg, TV_TRANSLATE))
+                && value_check_lock(tv_list_locked(l.as_deref()), arg_errmsg, TV_TRANSLATE))
         {
             return;
         }
@@ -336,13 +336,13 @@ fn filter_map_list(
         }
         set_vim_var_type(VV_KEY, VarType::VAR_NUMBER);
 
-        let prev_lock = tv_list_locked(l.as_ref());
+        let prev_lock = tv_list_locked(l.as_deref());
         if prev_lock == VAR_UNLOCKED {
-            tv_list_set_lock(l.as_mut(), VAR_LOCKED);
+            tv_list_set_lock(l.as_deref_mut(), VAR_LOCKED);
         }
 
         let mut idx: i64 = 0;
-        let mut li = tv_list_first(l.as_ref());
+        let mut li = tv_list_first(l.as_deref());
         while !li.is_null() {
             if filtermap == FilterMap::Map
                 && value_check_lock((*li).li_tv.v_lock, arg_errmsg, TV_TRANSLATE)
@@ -371,14 +371,14 @@ fn filter_map_list(
                 tv_list_append_owned_tv( &mut *l_ret, newtv);
             }
             if filtermap == FilterMap::Filter && rem {
-                li = tv_list_item_remove(&mut *l, li);
+                li = tv_list_item_remove(l.as_deref_mut().unwrap(), li);
             } else {
                 li = (*li).li_next;
             }
             idx += 1;
         }
 
-        tv_list_set_lock(l.as_mut(), prev_lock);
+        tv_list_set_lock(l, prev_lock);
     }
 }
 
@@ -440,7 +440,7 @@ fn filter_map(argvars: &mut [typval_T],rettv: &mut typval_T, filtermap: FilterMa
                 filter_map_string(tv_get_string(arg0), filtermap, expr, rettv);
             }
             VarType::VAR_LIST => {
-                filter_map_list(arg0.vval.v_list(), filtermap, arg_errmsg, expr, rettv);
+                filter_map_list(unsafe { arg0.vval.v_list().as_mut() }, filtermap, arg_errmsg, expr, rettv);
             }
             _ => unreachable!(),
         }
@@ -541,12 +541,12 @@ fn count_string(haystack: *const c_char, needle: *const c_char, ic: bool) -> i64
     }
 }
 
-fn count_list(l: *mut list_T, needle: &typval_T, idx: i64, ic: bool) -> i64 {
+fn count_list(l: Option<&mut list_T>, needle: &typval_T, idx: i64, ic: bool) -> i64 {
     unsafe {
-        if tv_list_len(l.as_ref()) == 0 {
+        if tv_list_len(l.as_deref()) == 0 {
             return 0;
         }
-        let mut li = tv_list_find(l.as_mut(), idx as c_int);
+        let mut li = tv_list_find(l, idx as c_int);
         if li.is_null() {
             semsg!(e_list_index_out_of_range_nr, idx);
             return 0;
@@ -607,7 +607,7 @@ pub fn f_count(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncDa
             idx = tv_get_number_chk(arg3, Some(&mut error));
         }
         if !error {
-            n = count_list(arg0.vval.v_list(), arg1, idx, ic);
+            n = count_list(unsafe { arg0.vval.v_list().as_mut() }, arg1, idx, ic);
         }
     } else if !error && arg0.v_type == VarType::VAR_DICT {
         let d = arg0.vval.v_dict();

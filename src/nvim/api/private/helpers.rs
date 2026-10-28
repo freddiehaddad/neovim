@@ -469,13 +469,13 @@ pub fn try_leave(tstate: &TryState, err: &mut Error) {
 
 /// Recursively expands a vimscript value in a dict (`dict_get_value`).
 pub fn dict_get_value(
-    dict: *mut dict_T,
+    dict: Option<&dict_T>,
     key: NvimString,
     arena: Option<&mut Arena>,
     err: &mut Error,
 ) -> Object {
     unsafe {
-        let di = tv_dict_find(dict.as_ref(), key.data, key.size as isize);
+        let di = tv_dict_find(dict, key.data, key.size as isize);
         if di.is_null() {
             api_set_error!(
                 err,

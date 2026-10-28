@@ -12163,7 +12163,7 @@ pub fn eval_vars(
                                 return None;
                             }
                             result =
-                                tv_list_find_str(get_vim_var_list(VV_OLDFILES), i - 1).cast_mut();
+                                tv_list_find_str(get_vim_var_list(VV_OLDFILES).as_mut(), i - 1).cast_mut();
                             if result.is_null() {
                                 *errormsg = c"".as_ptr();
                                 return None;

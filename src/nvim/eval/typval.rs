@@ -1370,7 +1370,7 @@ pub fn tv_list_check_range_index_one(
     quiet: bool,
 ) -> *mut listitem_T {
      {
-        let li = tv_list_find_index(l, n1);
+        let li = tv_list_find_index(unsafe { l.as_mut() }, n1);
         if !li.is_null() {
             return li;
         }
@@ -1384,24 +1384,24 @@ pub fn tv_list_check_range_index_one(
 
 /// Check that "n2" can be used as the second index in a range of list "l".
 pub fn tv_list_check_range_index_two(
-    l: *mut list_T,n1: &mut c_int,
+    mut l: Option<&mut list_T>,n1: &mut c_int,
     li1: *const listitem_T,n2: &mut c_int,
     quiet: bool,
 ) -> bool {
      {
         if *n2 < 0 {
-            let ni = tv_list_find(unsafe { l.as_mut() }, *n2);
+            let ni = tv_list_find(l.as_deref_mut(), *n2);
             if ni.is_null() {
                 if !quiet {
                     semsg!(tr(e_list_index_out_of_range_nr), i64::from(*n2));
                 }
                 return false;
             }
-            *n2 = tv_list_idx_of_item(unsafe { l.as_ref() }, ni);
+            *n2 = tv_list_idx_of_item(l.as_deref(), ni);
         }
 
         if *n1 < 0 {
-            *n1 = tv_list_idx_of_item(unsafe { l.as_ref() }, li1);
+            *n1 = tv_list_idx_of_item(l.as_deref(), li1);
         }
         if *n2 < *n1 {
             if !quiet {
@@ -1425,7 +1425,7 @@ pub fn tv_list_assign_range(
 ) -> bool {
     unsafe {
         let mut idx1 = idx1_arg;
-        let first_li = tv_list_find_index((&raw mut *dest), &mut idx1);
+        let first_li = tv_list_find_index(Some(&mut *dest), &mut idx1);
         let mut src_li: *mut listitem_T;
 
         let mut idx = idx1;
@@ -1629,21 +1629,21 @@ pub fn tv_list_extend(l1: &mut list_T, l2: Option<&list_T>, bef: *mut listitem_T
 }
 
 /// Concatenate lists into a new list.
-pub fn tv_list_concat(mut l1: Option<&mut list_T>, l2: *mut list_T, tv: &mut typval_T) -> bool {
+pub fn tv_list_concat(mut l1: Option<&mut list_T>, mut l2: Option<&mut list_T>, tv: &mut typval_T) -> bool {
     tv.v_type = VarType::VAR_LIST;
         tv.v_lock = VAR_UNLOCKED;
-        let l = if l1.is_none() && l2.is_null() {
+        let l = if l1.is_none() && l2.is_none() {
             ptr::null_mut()
         } else if l1.is_none() {
-            tv_list_copy(None, unsafe { l2.as_mut() }, false, 0)
+            tv_list_copy(None, l2.as_deref_mut(), false, 0)
         } else {
             let copy = tv_list_copy(None, l1.as_deref_mut(), false, 0);
-            if !copy.is_null() && !l2.is_null() {
-                tv_list_extend(unsafe { &mut *copy }, unsafe { l2.as_ref() }, ptr::null_mut());
+            if !copy.is_null() && l2.is_some() {
+                tv_list_extend(unsafe { &mut *copy }, l2.as_deref(), ptr::null_mut());
             }
             copy
         };
-        if l.is_null() && !(l1.is_none() && l2.is_null()) {
+        if l.is_null() && !(l1.is_none() && l2.is_none()) {
             return false;
         }
 
@@ -1651,10 +1651,10 @@ pub fn tv_list_concat(mut l1: Option<&mut list_T>, l2: *mut list_T, tv: &mut typ
         true
 }
 
-fn tv_list_slice(ol: *mut list_T, mut n1: varnumber_T, n2: varnumber_T) -> *mut list_T {
+fn tv_list_slice(ol: Option<&mut list_T>, mut n1: varnumber_T, n2: varnumber_T) -> *mut list_T {
     unsafe {
         let l = tv_list_alloc((n2 - n1 + 1) as isize);
-        let mut item = tv_list_find(ol.as_mut(), n1 as c_int);
+        let mut item = tv_list_find(ol, n1 as c_int);
         while n1 <= n2 {
             tv_list_append_tv( &mut *l, &mut (*item).li_tv);
             item = (*item).li_next;
@@ -1701,7 +1701,7 @@ pub fn tv_list_slice_or_index(
             if n2 < 0 || n2 + 1 < n1 {
                 n2 = -1;
             }
-            let l = tv_list_slice(rettv.vval.v_list(), n1, n2);
+            let l = tv_list_slice(rettv.vval.v_list().as_mut(), n1, n2);
             tv_clear(&mut *rettv);
             tv_list_set_ret_inline(rettv, l);
         } else {
@@ -2441,9 +2441,9 @@ pub fn tv_list_find(mut l: Option<&mut list_T>, mut n: c_int) -> *mut listitem_T
 }
 
 /// Get list item l[n] as a number.
-pub fn tv_list_find_nr(l: *mut list_T, n: c_int,mut ret_error: Option<&mut bool>) -> varnumber_T {
+pub fn tv_list_find_nr(l: Option<&mut list_T>, n: c_int,mut ret_error: Option<&mut bool>) -> varnumber_T {
     unsafe {
-        let li = tv_list_find(l.as_mut(), n);
+        let li = tv_list_find(l, n);
         if li.is_null() {
             if let Some(ref mut p) = ret_error {
             **p = true;
@@ -2455,9 +2455,9 @@ pub fn tv_list_find_nr(l: *mut list_T, n: c_int,mut ret_error: Option<&mut bool>
 }
 
 /// Get list item l[n] as a string.
-pub fn tv_list_find_str(l: *mut list_T, n: c_int) -> *const c_char {
+pub fn tv_list_find_str(l: Option<&mut list_T>, n: c_int) -> *const c_char {
     unsafe {
-        let li = tv_list_find(l.as_mut(), n);
+        let li = tv_list_find(l, n);
         if li.is_null() {
             semsg!(tr(e_list_index_out_of_range_nr), i64::from(n));
             return ptr::null();
@@ -2466,16 +2466,16 @@ pub fn tv_list_find_str(l: *mut list_T, n: c_int) -> *const c_char {
     }
 }
 
-fn tv_list_find_index(l: *mut list_T, idx: &mut c_int) -> *mut listitem_T {
+fn tv_list_find_index(mut l: Option<&mut list_T>, idx: &mut c_int) -> *mut listitem_T {
     {
-        let mut li = tv_list_find(unsafe { l.as_mut() }, *idx);
+        let mut li = tv_list_find(l.as_deref_mut(), *idx);
         if !li.is_null() {
             return li;
         }
 
         if *idx < 0 {
             *idx = 0;
-            li = tv_list_find(unsafe { l.as_mut() }, *idx);
+            li = tv_list_find(l, *idx);
         }
         li
     }
@@ -2925,14 +2925,14 @@ pub fn tv_dict_find<S: crate::strings::IntoCCharPtr>(
 }
 
 /// Check if a key is present in a dictionary.
-pub fn tv_dict_has_key(d: *const dict_T, key: &std::ffi::CStr) -> bool {
-    !tv_dict_find(unsafe { d.as_ref() }, key.as_ptr(), -1).is_null()
+pub fn tv_dict_has_key(d: Option<&dict_T>, key: &std::ffi::CStr) -> bool {
+    !tv_dict_find(d, key.as_ptr(), -1).is_null()
 }
 
 /// Get a typval item from a dictionary and copy it into "rettv".
-pub fn tv_dict_get_tv(d: *mut dict_T, key: &std::ffi::CStr,rettv: &mut typval_T) -> bool {
+pub fn tv_dict_get_tv(d: Option<&dict_T>, key: &std::ffi::CStr,rettv: &mut typval_T) -> bool {
     unsafe {
-        let di = tv_dict_find(d.as_ref(), key.as_ptr(), -1);
+        let di = tv_dict_find(d, key.as_ptr(), -1);
         if di.is_null() {
             return false;
         }
@@ -2944,17 +2944,17 @@ pub fn tv_dict_get_tv(d: *mut dict_T, key: &std::ffi::CStr,rettv: &mut typval_T)
 
 /// Gets a number item from a dictionary.
 pub fn tv_dict_get_number(d: *const dict_T, key: &std::ffi::CStr) -> varnumber_T {
-    tv_dict_get_number_def(d, key, 0)
+    tv_dict_get_number_def(unsafe { d.as_ref() }, key, 0)
 }
 
 /// Gets a number item from a dictionary, or a given default value.
 pub fn tv_dict_get_number_def(
-    d: *const dict_T,
+    d: Option<&dict_T>,
     key: &std::ffi::CStr,
     def: c_int,
 ) -> varnumber_T {
     unsafe {
-        let di = tv_dict_find(d.as_ref(), key.as_ptr(), -1);
+        let di = tv_dict_find(d, key.as_ptr(), -1);
         if di.is_null() {
             return i64::from(def);
         }
@@ -2963,9 +2963,9 @@ pub fn tv_dict_get_number_def(
 }
 
 /// Gets a bool item from a dictionary, or a given default value.
-pub fn tv_dict_get_bool(d: *const dict_T, key: &std::ffi::CStr, def: c_int) -> varnumber_T {
+pub fn tv_dict_get_bool(d: Option<&dict_T>, key: &std::ffi::CStr, def: c_int) -> varnumber_T {
     unsafe {
-        let di = tv_dict_find(d.as_ref(), key.as_ptr(), -1);
+        let di = tv_dict_find(d, key.as_ptr(), -1);
         if di.is_null() {
             return i64::from(def);
         }
@@ -3010,7 +3010,7 @@ pub fn tv_dict_get_cstring(
     key: &std::ffi::CStr,
 ) -> Option<std::ffi::CString> {
     let mut numbuf: [c_char; NUMBUFLEN] = [0; NUMBUFLEN];
-    let s = tv_dict_get_string_buf(d, key, numbuf.as_mut_ptr());
+    let s = tv_dict_get_string_buf(unsafe { d.as_ref() }, key, numbuf.as_mut_ptr());
     if s.is_null() {
         None
     } else {
@@ -3020,18 +3020,18 @@ pub fn tv_dict_get_cstring(
 
 /// Get a string item from a dictionary.
 pub fn tv_dict_get_string<S: crate::strings::IntoCCharPtr>(d: *const dict_T, key: S) -> *mut c_char {
-    tv_dict_get_string_buf(d, key, tv_st().dict_numbuf.as_mut_ptr()).cast_mut()
+    tv_dict_get_string_buf(unsafe { d.as_ref() }, key, tv_st().dict_numbuf.as_mut_ptr()).cast_mut()
 }
 
 /// Get a string item from a dictionary.
 pub fn tv_dict_get_string_buf<S: crate::strings::IntoCCharPtr>(
-    d: *const dict_T,
+    d: Option<&dict_T>,
     key: S,
     numbuf: *mut c_char,
 ) -> *const c_char {
     let key = key.into_c_char_ptr();
     unsafe {
-        let di = tv_dict_find(d.as_ref(), key, -1);
+        let di = tv_dict_find(d, key, -1);
         if di.is_null() {
             return ptr::null();
         }
@@ -3041,7 +3041,7 @@ pub fn tv_dict_get_string_buf<S: crate::strings::IntoCCharPtr>(
 
 /// Get a string item from a dictionary.
 pub fn tv_dict_get_string_buf_chk(
-    d: *const dict_T,
+    d: Option<&dict_T>,
     key: &std::ffi::CStr,
     key_len: isize,
     numbuf: *mut c_char,
@@ -3049,7 +3049,7 @@ pub fn tv_dict_get_string_buf_chk(
 ) -> *const c_char {
     let def = def.into_c_char_ptr();
     unsafe {
-        let di = tv_dict_find(d.as_ref(), key.as_ptr(), key_len);
+        let di = tv_dict_find(d, key.as_ptr(), key_len);
         if di.is_null() {
             return def;
         }
@@ -3059,7 +3059,7 @@ pub fn tv_dict_get_string_buf_chk(
 
 /// Get a function from a dictionary.
 pub fn tv_dict_get_callback(
-    d: *mut dict_T,
+    d: Option<&mut dict_T>,
     key: &std::ffi::CStr,
     key_len: isize,
     result: &mut Callback,
@@ -3067,7 +3067,7 @@ pub fn tv_dict_get_callback(
     unsafe {
         *result = Callback::NONE;
 
-        let di = tv_dict_find(d.as_ref(), key.as_ptr(), key_len);
+        let di = tv_dict_find(d.as_deref(), key.as_ptr(), key_len);
         if di.is_null() {
             return true;
         }
@@ -3080,7 +3080,7 @@ pub fn tv_dict_get_callback(
 
         let mut tv = tv_initial_value();
         tv_copy(&(*di).di_tv, &mut tv);
-        set_selfdict(&mut tv,  &mut *d);
+        set_selfdict(&mut tv,  d.unwrap());
         let res = callback_from_typval(result, &tv);
         tv_clear(&mut tv);
         res
@@ -5209,11 +5209,11 @@ mod tests {
             assert_eq!(tv_list_idx_of_item(l.as_ref(), ptr::null()), -1);
 
             let mut err = false;
-            assert_eq!(tv_list_find_nr(l, 0, Some(&mut err)), 10);
+            assert_eq!(tv_list_find_nr(l.as_mut(), 0, Some(&mut err)), 10);
             assert!(!err);
-            assert_eq!(tv_list_find_nr(l, -1, Some(&mut err)), 30);
+            assert_eq!(tv_list_find_nr(l.as_mut(), -1, Some(&mut err)), 30);
             assert!(!err);
-            assert_eq!(tv_list_find_nr(l, 10, Some(&mut err)), -1);
+            assert_eq!(tv_list_find_nr(l.as_mut(), 10, Some(&mut err)), -1);
             assert!(err);
 
             tv_list_reverse( &mut *l);
@@ -5252,9 +5252,9 @@ mod tests {
             };
             tv_list_insert_tv(&mut *l2, &mut tv_ins, (*l2).lv_first);
             assert_eq!(tv_list_len_inline(l2.as_ref()), 3);
-            assert_eq!(tv_list_find_nr(l2, 0, None), 99);
-            assert_eq!(crate::memory::cstr_as_bytes(tv_list_find_str(l2, 1)), b"hello");
-            assert_eq!(crate::memory::cstr_as_bytes(tv_list_find_str(l2, 2)), b"world");
+            assert_eq!(tv_list_find_nr(l2.as_mut(), 0, None), 99);
+            assert_eq!(crate::memory::cstr_as_bytes(tv_list_find_str(l2.as_mut(), 1)), b"hello");
+            assert_eq!(crate::memory::cstr_as_bytes(tv_list_find_str(l2.as_mut(), 2)), b"world");
 
             // copy, extend, concat, join, equal
             let l2_copy = tv_list_copy(None, l2.as_mut(), true, 0);
@@ -5271,7 +5271,7 @@ mod tests {
             );
 
             let mut cat_tv = tv_initial_value();
-            assert!(tv_list_concat(l2.as_mut(), l2_copy, &mut cat_tv));
+            assert!(tv_list_concat(l2.as_mut(), l2_copy.as_mut(), &mut cat_tv));
             assert_eq!(tv_list_len_inline(cat_tv.vval.v_list().as_ref()), 6);
             tv_clear(&mut cat_tv);
 
@@ -5306,8 +5306,8 @@ mod tests {
             assert!(tv_dict_add_float(&mut *d, c"flt", 3.5));
             assert!(tv_dict_add_str(&mut *d, c"str", c"bar"));
             assert!(tv_dict_add_str_len(&mut *d, c"alloc", c"baz", -1));
-            assert!(tv_dict_has_key(d, c"foo"));
-            assert!(!tv_dict_has_key(d, c"missing"));
+            assert!(tv_dict_has_key(d.as_ref(), c"foo"));
+            assert!(!tv_dict_has_key(d.as_ref(), c"missing"));
 
             assert_eq!(tv_dict_get_number(d, c"foo"), 42);
             assert_eq!(tv_dict_get_number(d, c"missing"), 0);
@@ -5322,7 +5322,7 @@ mod tests {
 
             assert_eq!(
                 crate::memory::cstr_as_bytes(tv_dict_get_string_buf_chk(
-                    d,
+                    d.as_ref(),
                     c"missing",
                     7,
                     numbuf.as_mut_ptr(),

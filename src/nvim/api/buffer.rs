@@ -1173,7 +1173,7 @@ pub fn nvim_buf_get_var(
         let Some(b) = crate::api::private::helpers::find_buffer_by_handle_mut(buf, err) else {
             return OBJECT_NIL;
         };
-        dict_get_value(b.b_vars(), name, Some(arena), err)
+        dict_get_value(unsafe { b.b_vars().as_ref() }, name, Some(arena), err)
     }
 }
 

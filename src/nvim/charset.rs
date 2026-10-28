@@ -613,16 +613,16 @@ pub fn transchar_buf(buf: Option<&buf_T>, mut c: c_int) -> *mut c_char {
 }
 
 pub fn transchar_byte(c: c_int) -> *mut c_char {
-    transchar_byte_buf(g_st().curbuf, c)
+    transchar_byte_buf(Some(crate::globals::curbuf_mut()), c)
 }
 
-pub fn transchar_byte_buf(buf: *const buf_T, c: c_int) -> *mut c_char {
+pub fn transchar_byte_buf(buf: Option<&buf_T>, c: c_int) -> *mut c_char {
     if c >= 0x80 {
             let charbuf_ptr = (&raw mut charset_st().transchar_charbuf).cast::<c_char>();
-            transchar_nonprint(unsafe { buf.as_ref() }, charbuf_ptr, c);
+            transchar_nonprint(buf, charbuf_ptr, c);
             return charbuf_ptr;
         }
-        transchar_buf(unsafe { buf.as_ref() }, c)
+        transchar_buf(buf, c)
 }
 
 pub fn transchar_nonprint(buf: Option<&buf_T>, charbuf: *mut c_char, mut c: c_int) {

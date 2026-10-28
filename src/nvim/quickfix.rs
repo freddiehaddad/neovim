@@ -6613,7 +6613,7 @@ fn qf_add_entry_from_dict(
         let text = crate::eval::typval::tv_dict_get_cstring(d, c"text").unwrap_or_default();
         let mut user_data: typval_T = typval_T::new();
         user_data.v_type = VarType::VAR_UNKNOWN;
-        tv_dict_get_tv(d, c"user_data", &mut user_data);
+        tv_dict_get_tv(Some(d), c"user_data", &mut user_data);
 
         let mut valid = true;
         if (filename.is_none() && bufnum == 0) || (lnum == 0 && pattern.is_none()) {
@@ -6630,7 +6630,7 @@ fn qf_add_entry_from_dict(
         }
 
         if !tv_dict_find(Some(d), c"valid", -1).is_null() {
-            valid = tv_dict_get_bool(d, c"valid", 0) != 0;
+            valid = tv_dict_get_bool(Some(d), c"valid", 0) != 0;
         }
 
         let status = qf_add_entry(
@@ -7130,7 +7130,7 @@ fn qf_free_stack(mut wp: *mut win_T, qi: &mut qf_info_T) {
 
 pub fn set_errorlist(
     wp: *mut win_T,
-    list: *mut list_T,
+    list: Option<&list_T>,
     action: c_int,
     title: *mut c_char,
     what: Option<&dict_T>,
@@ -7148,7 +7148,7 @@ pub fn set_errorlist(
             return true;
         }
 
-        if !list.is_null() && tv_list_len(list.as_ref()) != 0 && what.is_some() {
+        if list.is_some() && tv_list_len(list) != 0 && what.is_some() {
             semsg!(
                 gettext(e_invarg2),
                 gettext(c"cannot have both a list and a \"what\" argument"),
@@ -7161,7 +7161,7 @@ pub fn set_errorlist(
         let retval = if let Some(what) = what {
             qf_set_properties(&mut *qi, what, action, title)
         } else {
-            let r = qf_add_entries(&mut *qi, (*qi).qf_curlist, list.as_ref(), title, action);
+            let r = qf_add_entries(&mut *qi, (*qi).qf_curlist, list, title, action);
             if r == QF_OK {
                 qf_list_changed(qf_get_curlist(&mut *qi));
             }
@@ -7733,23 +7733,23 @@ pub fn free_quickfix() {
 
 fn get_qf_loc_list(
     is_qf: bool,
-    wp: *mut win_T,
+    wp: Option<&win_T>,
     what_arg: &mut typval_T,
     rettv: &mut typval_T,
 ) {
     if what_arg.v_type == VarType::VAR_UNKNOWN {
             tv_list_alloc_ret(&mut *rettv, kListLenMayKnow);
-            if is_qf || !wp.is_null() {
-                get_errorlist(None, unsafe { wp.as_ref() }, -1, 0, unsafe { &mut *rettv.vval.v_list() });
+            if is_qf || wp.is_some() {
+                get_errorlist(None, wp, -1, 0, unsafe { &mut *rettv.vval.v_list() });
             }
         } else {
             tv_dict_alloc_ret(rettv);
-            if is_qf || !wp.is_null() {
+            if is_qf || wp.is_some() {
                 if what_arg.v_type == VarType::VAR_DICT {
                     let d = what_arg.vval.v_dict();
                     if !d.is_null() {
                         unsafe {
-                            qf_get_properties(wp.as_ref(), &mut *d, &mut *rettv.vval.v_dict());
+                            qf_get_properties(wp, &mut *d, &mut *rettv.vval.v_dict());
                         }
                     }
                 } else {
@@ -7761,11 +7761,11 @@ fn get_qf_loc_list(
 
 pub fn f_getloclist(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData) {
     let wp = find_win_by_nr_or_id(&argvars[0]);
-    get_qf_loc_list(false, wp, &mut argvars[1], rettv);
+    get_qf_loc_list(false, unsafe { wp.as_ref() }, &mut argvars[1], rettv);
 }
 
 pub fn f_getqflist(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData) {
-    get_qf_loc_list(true, ptr::null_mut(), &mut argvars[0], rettv);
+    get_qf_loc_list(true, None, &mut argvars[0], rettv);
 }
 
 fn set_qf_ll_list(wp: *mut win_T,args: &mut [typval_T], rettv: &mut typval_T) {
@@ -7833,7 +7833,7 @@ fn set_qf_ll_list(wp: *mut win_T,args: &mut [typval_T], rettv: &mut typval_T) {
 
         qf_st().set_qf_ll_recursive += 1;
         let l = (*list_arg).vval.v_list();
-        if set_errorlist(wp, l, c_int::from(action), title.cast_mut(), what.as_ref()) {
+        if set_errorlist(wp, l.as_ref(), c_int::from(action), title.cast_mut(), what.as_ref()) {
             rettv.vval = crate::eval::typval::TypvalVval::Number(0);
         }
         qf_st().set_qf_ll_recursive -= 1;

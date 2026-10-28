@@ -2713,10 +2713,10 @@ fn get_config_string(buf: &mut buf_T, key: *mut c_char) -> *mut c_char {
             data: key,
             size: crate::memory::cstr_len(key),
         };
-        let mut obj = dict_get_value(buf.b_vars(), key_str, None, &mut err);
+        let mut obj = dict_get_value(unsafe { buf.b_vars().as_ref() }, key_str, None, &mut err);
         api_clear_error(&mut err);
         if obj.obj_type == ObjectType::kObjectTypeNil {
-            obj = dict_get_value(get_globvar_dict(), key_str, None, &mut err);
+            obj = dict_get_value(unsafe { get_globvar_dict().as_ref() }, key_str, None, &mut err);
             api_clear_error(&mut err);
         }
         if obj.obj_type == ObjectType::kObjectTypeString {

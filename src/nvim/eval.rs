@@ -1237,7 +1237,7 @@ fn get_lval_list(
         if lp.ll_range && !lp.ll_empty2 {
             lp.ll_n2 = tv_get_number(&*var2) as c_int;
             if !tv_list_check_range_index_two(
-                lp.ll_list,
+                lp.ll_list.as_mut(),
                 &mut lp.ll_n1,
                 lp.ll_li,
                 &mut lp.ll_n2,
@@ -2523,7 +2523,7 @@ fn eval_addblob(tv1: &mut typval_T, tv2: &mut typval_T) {
 fn eval_addlist(tv1: &mut typval_T, tv2: &mut typval_T) -> bool {
      {
         let mut var3 = tv_initial_value();
-        if !tv_list_concat(unsafe { tv1.vval.v_list().as_mut() }, tv2.vval.v_list(), &mut var3) {
+        if !tv_list_concat(unsafe { tv1.vval.v_list().as_mut() }, unsafe { tv2.vval.v_list().as_mut() }, &mut var3) {
             tv_clear(tv1);
             tv_clear(tv2);
             return false;
@@ -4981,7 +4981,7 @@ fn string_to_list(str_: *const c_char, mut len: usize, keepempty: bool) -> *mut 
             len -= 1;
         }
         let list = tv_list_alloc(kListLenMayKnow);
-        encode_list_write(list, str_, len);
+        encode_list_write(list.as_mut(), str_, len);
         list
     }
 }
@@ -5669,12 +5669,12 @@ pub fn var2fpos(
                 return ptr::null_mut();
             }
 
-            eval_st().VAR2FPOS_POS.lnum = tv_list_find_nr(l, 0, Some(&mut error)) as linenr_T;
+            eval_st().VAR2FPOS_POS.lnum = tv_list_find_nr(l.as_mut(), 0, Some(&mut error)) as linenr_T;
             if error || eval_st().VAR2FPOS_POS.lnum <= 0 || eval_st().VAR2FPOS_POS.lnum > (*bp).b_ml.ml_line_count {
                 return ptr::null_mut();
             }
 
-            eval_st().VAR2FPOS_POS.col = tv_list_find_nr(l, 1, Some(&mut error)) as colnr_T;
+            eval_st().VAR2FPOS_POS.col = tv_list_find_nr(l.as_mut(), 1, Some(&mut error)) as colnr_T;
             if error {
                 return ptr::null_mut();
             }
@@ -5698,7 +5698,7 @@ pub fn var2fpos(
             }
             eval_st().VAR2FPOS_POS.col -= 1;
 
-            eval_st().VAR2FPOS_POS.coladd = tv_list_find_nr(l, 2, Some(&mut error)) as colnr_T;
+            eval_st().VAR2FPOS_POS.coladd = tv_list_find_nr(l.as_mut(), 2, Some(&mut error)) as colnr_T;
             if error {
                 eval_st().VAR2FPOS_POS.coladd = 0;
             }
@@ -5812,7 +5812,7 @@ pub fn list2fpos(
         let mut i: c_int = 0;
         let mut n: c_int;
         if fnump.is_some() {
-            n = tv_list_find_nr(l, i, None) as c_int;
+            n = tv_list_find_nr(l.as_mut(), i, None) as c_int;
             i += 1;
             if n < 0 {
                 return false;
@@ -5825,14 +5825,14 @@ pub fn list2fpos(
             *fnump.as_deref_mut().unwrap() = n;
         }
 
-        n = tv_list_find_nr(l, i, None) as c_int;
+        n = tv_list_find_nr(l.as_mut(), i, None) as c_int;
         i += 1;
         if n < 0 {
             return false;
         }
         posp.lnum = n;
 
-        n = tv_list_find_nr(l, i, None) as c_int;
+        n = tv_list_find_nr(l.as_mut(), i, None) as c_int;
         i += 1;
         if n < 0 {
             return false;
@@ -5859,7 +5859,7 @@ pub fn list2fpos(
         }
         posp.col = n;
 
-        n = tv_list_find_nr(l, i, None) as c_int;
+        n = tv_list_find_nr(l.as_mut(), i, None) as c_int;
         if n < 0 {
             posp.coladd = 0;
         } else {
@@ -5867,7 +5867,7 @@ pub fn list2fpos(
         }
 
         if let Some(ref mut p) = curswantp {
-            **p = tv_list_find_nr(l, i + 1, None) as colnr_T;
+            **p = tv_list_find_nr(l.as_mut(), i + 1, None) as colnr_T;
         }
 
         true
@@ -6729,7 +6729,7 @@ pub fn do_string_sub(
     len: usize,
     pat: *mut c_char,
     sub: *mut c_char,
-    expr: *mut typval_T,
+    expr: Option<&typval_T>,
     flags: *const c_char,
 ) -> std::ffi::CString {
     unsafe {
@@ -6764,7 +6764,7 @@ pub fn do_string_sub(
                     zero_width = regmatch.startp[0];
                 }
 
-                let sublen = vim_regsub(&mut regmatch, sub, expr.as_ref(), tail, 0, REGSUB_MAGIC);
+                let sublen = vim_regsub(&mut regmatch, sub, expr, tail, 0, REGSUB_MAGIC);
                 if sublen <= 0 {
                     out = None;
                     break;
@@ -6780,7 +6780,7 @@ pub fn do_string_sub(
                 vim_regsub(
                     &mut regmatch,
                     sub,
-                    expr.as_ref(),
+                    expr,
                     buf.as_mut_ptr().add(cur_len),
                     sublen,
                     REGSUB_COPY | REGSUB_MAGIC,
@@ -6837,9 +6837,9 @@ pub fn common_job_callbacks(
     on_exit: &mut Callback,
 ) -> bool {
      {
-        if tv_dict_get_callback((&raw mut *vopts), c"on_stdout", 9, &mut on_stdout.cb)
-            && tv_dict_get_callback((&raw mut *vopts), c"on_stderr", 9, &mut on_stderr.cb)
-            && tv_dict_get_callback((&raw mut *vopts), c"on_exit", 7, on_exit)
+        if tv_dict_get_callback(Some(&mut *vopts), c"on_stdout", 9, &mut on_stdout.cb)
+            && tv_dict_get_callback(Some(&mut *vopts), c"on_stderr", 9, &mut on_stderr.cb)
+            && tv_dict_get_callback(Some(&mut *vopts), c"on_exit", 7, on_exit)
         {
             on_stdout.buffered = tv_dict_get_number((&raw mut *vopts), c"stdout_buffered") != 0;
             on_stderr.buffered = tv_dict_get_number((&raw mut *vopts), c"stderr_buffered") != 0;

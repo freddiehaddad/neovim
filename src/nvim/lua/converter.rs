@@ -1237,7 +1237,7 @@ fn lua_convert_one_value(
                                     K_MP_STRING => {
                                         if (*val_di).di_tv.v_type == VarType::VAR_LIST
                                             && let Some(buf) =
-                                                encode_vim_list_to_buf((*val_di).di_tv.vval.v_list())
+                                                encode_vim_list_to_buf(((*val_di).di_tv.vval.v_list()).as_ref())
                                         {
                                             lua_pushlstring(lstate, buf.as_ptr(), buf.len());
                                             handled_special = true;
@@ -1331,7 +1331,7 @@ fn lua_convert_one_value(
                                                 && (i8::MIN as i64..=i8::MAX as i64)
                                                     .contains(&(*first).li_tv.vval.v_number())
                                                 && (*last).li_tv.v_type == VarType::VAR_LIST
-                                                && encode_vim_list_to_buf((*last).li_tv.vval.v_list())
+                                                && encode_vim_list_to_buf(((*last).li_tv.vval.v_list()).as_ref())
                                                     .is_some()
                                             {
                                                 lua_conv_nil(lstate);

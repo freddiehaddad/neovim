@@ -892,11 +892,11 @@ pub fn get_spellword(list: &mut list_T, ret_word: *mut *const c_char) -> c_int {
             ));
             return -1;
         }
-        *ret_word = tv_list_find_str(list, 0);
+        *ret_word = tv_list_find_str(Some(&mut *list), 0);
         if (*ret_word).is_null() {
             return -1;
         }
-        tv_list_find_nr(list, -1, None) as c_int
+        tv_list_find_nr(Some(&mut *list), -1, None) as c_int
     }
 }
 

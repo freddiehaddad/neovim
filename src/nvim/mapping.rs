@@ -2387,7 +2387,7 @@ pub fn f_mapset(argvars: &mut [typval_T], _rettv: &mut typval_T, _fptr: EvalFunc
         let (which, is_abbr, d) = if dict_only {
             let d = argvars[0].vval.v_dict();
             let which = tv_dict_get_string(d, c"mode");
-            let is_abbr = tv_dict_get_bool(d, c"abbr", -1) as c_int;
+            let is_abbr = tv_dict_get_bool(d.as_ref(), c"abbr", -1) as c_int;
             if which.is_null() || is_abbr < 0 {
                 emsg(gettext(E_ENTRIES_MISSING_IN_MAPSET_DICT_ARGUMENT));
                 return;

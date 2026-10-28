@@ -546,10 +546,10 @@ impl TermKeyTI {
 pub fn start_driver_ti(
     tk: &mut TermKey,
     ti: Option<&TerminfoEntry>,
-    input: *mut crate::tui::input::TermInput,
+    input: Option<&mut crate::tui::input::TermInput>,
 ) -> c_int {
     if tk.ti.root.is_none() {
-            load_terminfo(tk, ti, unsafe { input.as_mut() });
+            load_terminfo(tk, ti, input);
         }
         1
 }
@@ -644,6 +644,6 @@ mod tests {
         assert!(n2.lookup_next(b'Q').is_none());
 
         let mut tk = termkey_new_abstract(None, 0).unwrap();
-            assert_eq!(start_driver_ti(&mut tk, None, std::ptr::null_mut()), 1);
+            assert_eq!(start_driver_ti(&mut tk, None, None), 1);
     }
 }

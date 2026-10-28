@@ -3064,7 +3064,7 @@ pub fn f_searchcount(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: Eval
                     return;
                 }
             }
-            recompute = tv_dict_get_bool(dict, c"recompute", c_int::from(recompute)) != 0;
+            recompute = tv_dict_get_bool(dict.as_ref(), c"recompute", c_int::from(recompute)) != 0;
             di = tv_dict_find(dict.as_ref(), c"pattern", -1);
             if !di.is_null() {
                 pattern = tv_get_string_chk(&(*di).di_tv).cast_mut();

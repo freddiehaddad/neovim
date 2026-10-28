@@ -1219,7 +1219,7 @@ fn typval_parse_exit(_parser: &mut mpack_parser_t, node: &mut mpack_node_t) {
                     },
                 );
                 encode_list_write(
-                    ext_val_list,
+                    ext_val_list.as_mut(),
                     bytes.as_ptr().cast::<c_char>(),
                     node.tok.length as usize,
                 );
