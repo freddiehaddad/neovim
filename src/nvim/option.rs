@@ -749,9 +749,9 @@ fn set_init_default_backupskip() {
         #[cfg(unix)]
         let names: [*const c_char; 4] = [
             c"".as_ptr(),
-            c"TMPDIR",
-            c"TEMP",
-            c"TMP",
+            c"TMPDIR".as_ptr(),
+            c"TEMP".as_ptr(),
+            c"TMP".as_ptr(),
         ];
         #[cfg(not(unix))]
         let names: [*const c_char; 3] = [c"TMPDIR".as_ptr(), c"TEMP".as_ptr(), c"TMP".as_ptr()];
@@ -765,11 +765,11 @@ fn set_init_default_backupskip() {
                 if crate::memory::cstr_is_empty(name) {
                     #[cfg(target_os = "macos")]
                     {
-                        (None, c"/private/tmp", "/private/tmp".len())
+                        (None, c"/private/tmp".as_ptr(), "/private/tmp".len())
                     }
                     #[cfg(not(target_os = "macos"))]
                     {
-                        (None, c"/tmp", "/tmp".len())
+                        (None, c"/tmp".as_ptr(), "/tmp".len())
                     }
                 } else {
                     let env = vim_getenv(name);

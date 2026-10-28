@@ -103,7 +103,7 @@ unsafe extern "C" {
 pub fn signal_init() {
      {
         #[cfg(unix)]
-        {
+        unsafe {
             let mut mask = [0u64; 16];
             sigemptyset((&raw mut mask).cast());
             if pthread_sigmask(SIG_SETMASK, (&raw const mask).cast(), ptr::null_mut()) != 0 {

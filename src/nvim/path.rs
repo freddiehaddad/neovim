@@ -353,7 +353,7 @@ pub fn is_path_head(path: impl crate::strings::IntoCCharPtr) -> bool { let path 
         (crate::memory::cstr_first_byte(path)).is_ascii_alphabetic() && crate::memory::cstr_byte_at(path, 1) == b':'
     }
     #[cfg(not(windows))]
-    unsafe {
+    {
         vim_ispathsep(crate::memory::cstr_first_char(path))
     }
 }
@@ -2308,7 +2308,7 @@ pub fn path_is_absolute(fname: impl crate::strings::IntoCCharPtr) -> bool {
             || vim_ispathsep_nocolon(crate::memory::cstr_first_char(fname))
     }
     #[cfg(not(windows))]
-    unsafe {
+    {
         crate::memory::cstr_first_byte(fname) == b'/' || crate::memory::cstr_first_byte(fname) == b'~'
     }
 }

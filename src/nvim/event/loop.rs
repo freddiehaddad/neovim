@@ -43,11 +43,13 @@ pub type uv_fs_t = c_void;
 #[allow(non_camel_case_types)]
 pub type uv_uid_t = u8;
 #[cfg(not(windows))]
+#[allow(non_camel_case_types)]
 pub type uv_uid_t = u32;
 #[cfg(windows)]
 #[allow(non_camel_case_types)]
 pub type uv_gid_t = u8;
 #[cfg(not(windows))]
+#[allow(non_camel_case_types)]
 pub type uv_gid_t = u32;
 #[allow(non_camel_case_types)]
 pub type uv_thread_t = usize;

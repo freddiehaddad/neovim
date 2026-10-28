@@ -73,13 +73,17 @@ mod unix_impl {
     use crate::event::stream::uv_pipe_t;
 
     #[cfg(target_os = "linux")]
+    #[allow(non_camel_case_types)]
     type tcflag_t = u32;
     #[cfg(not(target_os = "linux"))]
+    #[allow(non_camel_case_types)]
     type tcflag_t = c_ulong;
 
     #[cfg(target_os = "linux")]
+    #[allow(non_camel_case_types)]
     type speed_t = u32;
     #[cfg(not(target_os = "linux"))]
+    #[allow(non_camel_case_types)]
     type speed_t = c_ulong;
 
     use crate::fileio::EINTR;

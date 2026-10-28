@@ -49,6 +49,7 @@ pub type GraphemeState = i32;
 #[allow(non_camel_case_types)]
 type wint_t = u16;
 #[cfg(not(windows))]
+#[allow(non_camel_case_types)]
 type wint_t = u32;
 
 const MAXCOL: usize = 0x7fff_ffff;

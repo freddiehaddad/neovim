@@ -232,7 +232,7 @@ pub fn os_expand_wildcards(
 
         if num_pat == 1 && **pat == b'`' as c_char {
             let pat0_len = crate::memory::cstr_len(*pat);
-            if pat0_len > 2 && crate::memory::cstr_byte_at((*pat), pat0_len - 1) == b'`' {
+            if pat0_len > 2 && crate::memory::cstr_byte_at(*pat, pat0_len - 1) == b'`' {
                 shell_style = STYLE_BT;
             }
         }
@@ -412,7 +412,7 @@ pub fn os_expand_wildcards(
             return false;
         }
 
-        let fd = fopen(tempname, c"rb");
+        let fd = fopen(tempname, c"rb".as_ptr());
         if fd.is_null() {
             if (flags & EW_SILENT) == 0 {
                 msg(gettext(E_WILDEXPAND), 0);

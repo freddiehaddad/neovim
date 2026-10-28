@@ -82,7 +82,7 @@ pub fn log_get_stdout() -> *mut FILE {
     }
     #[cfg(not(windows))]
     unsafe {
-        c_stdout
+        C_STDOUT
     }
 }
 
@@ -93,7 +93,7 @@ pub fn log_get_stderr() -> *mut FILE {
     }
     #[cfg(not(windows))]
     unsafe {
-        c_stderr
+        C_STDERR
     }
 }
 

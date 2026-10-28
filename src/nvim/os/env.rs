@@ -160,7 +160,8 @@ unsafe extern "C" {
     #[cfg(target_os = "macos")]
     fn _NSGetEnviron() -> *mut *mut *mut c_char;
     #[cfg(all(not(windows), not(target_os = "macos")))]
-    static ENVIRON: *mut *mut c_char;
+    #[allow(non_upper_case_globals)]
+    static environ: *mut *mut c_char;
 
     #[cfg(windows)]
     fn _putenv_s(varname: *const c_char, value_string: *const c_char) -> c_int;
@@ -500,19 +501,18 @@ fn os_uv_homedir() -> *mut c_char {
 
 /// Sets `homedir` to the "real", resolved user home directory.
 pub fn init_homedir() {
+    env_st().homedir = None;
+
+    let home_cstr = os_getenv_cstr(c"HOME");
+    let mut var: *mut c_char = home_cstr
+        .as_ref()
+        .map_or(ptr::null_mut(), |c| c.as_ptr().cast_mut());
+
+    #[cfg(windows)]
     unsafe {
-        env_st().homedir = None;
-
-        let home_cstr = os_getenv_cstr(c"HOME");
-        let mut var: *mut c_char = home_cstr
-            .as_ref()
-            .map_or(ptr::null_mut(), |c| c.as_ptr().cast_mut());
-
-        #[cfg(windows)]
-        {
-            if var.is_null() {
-                let homedrive = os_getenv_cstr(c"HOMEDRIVE");
-                let homepath = os_getenv_cstr(c"HOMEPATH");
+        if var.is_null() {
+            let homedrive = os_getenv_cstr(c"HOMEDRIVE");
+            let homepath = os_getenv_cstr(c"HOMEPATH");
                 let homepath_ptr = homepath
                     .as_ref()
                     .map_or(PATHSEPSTR.as_ptr(), |c| c.as_ptr());
@@ -571,9 +571,8 @@ pub fn init_homedir() {
             }
         }
 
-        if !var.is_null() {
-            env_st().homedir = to_slash_save(var);
-        }
+    if !var.is_null() {
+        env_st().homedir = to_slash_save(var);
     }
 }
 
