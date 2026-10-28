@@ -25,7 +25,7 @@ impl NvimString {
         if self.size == 0 || self.data.is_null() {
             &[]
         } else {
-             crate::memory::cstr_slice(self.data, self.size)
+            crate::memory::cstr_slice(self.data, self.size)
         }
     }
 }
@@ -616,34 +616,32 @@ mod tests {
         let mut err = Error::new();
 
         api_err_invalid(&mut err, c"col", std::ptr::null(), -1, false);
-            assert_eq!(err.err_type, ErrorType::ErrorTypeValidation);
-            assert_eq!(err.msg.as_ref().unwrap().to_str().unwrap(), "Invalid 'col': -1");
-            api_clear_error(&mut err);
+        assert_eq!(err.err_type, ErrorType::ErrorTypeValidation);
+        assert_eq!(
+            err.msg.as_ref().unwrap().to_str().unwrap(),
+            "Invalid 'col': -1"
+        );
+        api_clear_error(&mut err);
 
-            api_err_exp(
-                &mut err,
-                c"buffer id",
-                c"Integer",
-                c"String",
-            );
-            assert_eq!(
-                err.msg.as_ref().unwrap().to_str().unwrap(),
-                "Invalid buffer id: expected Integer, got String"
-            );
-            api_clear_error(&mut err);
+        api_err_exp(&mut err, c"buffer id", c"Integer", c"String");
+        assert_eq!(
+            err.msg.as_ref().unwrap().to_str().unwrap(),
+            "Invalid buffer id: expected Integer, got String"
+        );
+        api_clear_error(&mut err);
 
-            api_err_required(&mut err, c"width");
-            assert_eq!(
-                err.msg.as_ref().unwrap().to_str().unwrap(),
-                "Required: 'width'"
-            );
-            api_clear_error(&mut err);
+        api_err_required(&mut err, c"width");
+        assert_eq!(
+            err.msg.as_ref().unwrap().to_str().unwrap(),
+            "Required: 'width'"
+        );
+        api_clear_error(&mut err);
 
-            api_err_conflict(&mut err, c"row", c"win");
-            assert_eq!(
-                err.msg.as_ref().unwrap().to_str().unwrap(),
-                "Conflict: 'row' not allowed with 'win'"
-            );
-            api_clear_error(&mut err);
+        api_err_conflict(&mut err, c"row", c"win");
+        assert_eq!(
+            err.msg.as_ref().unwrap().to_str().unwrap(),
+            "Conflict: 'row' not allowed with 'win'"
+        );
+        api_clear_error(&mut err);
     }
 }

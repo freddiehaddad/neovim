@@ -72,12 +72,12 @@ impl PackerBuffer {
 
 pub fn packer_flush_buffer(packer: &mut PackerBuffer) {
     match packer.anydata {
-            PackerData::None => {}
-            PackerData::StringBuffer => flush_string_buffer(packer),
-            PackerData::Ui(_) => crate::api::ui::ui_flush_callback(packer),
-            PackerData::File(_) => crate::shada::flush_file_buffer(packer),
-            PackerData::Chans(_) => crate::msgpack_rpc::channel::channel_flush_callback(packer),
-        }
+        PackerData::None => {}
+        PackerData::StringBuffer => flush_string_buffer(packer),
+        PackerData::Ui(_) => crate::api::ui::ui_flush_callback(packer),
+        PackerData::File(_) => crate::shada::flush_file_buffer(packer),
+        PackerData::Chans(_) => crate::msgpack_rpc::channel::channel_flush_callback(packer),
+    }
 }
 
 impl Default for PackerBuffer {
@@ -131,17 +131,17 @@ fn mpack_w8(b: *mut *mut c_char, v: u64) {
 #[inline]
 pub(crate) fn mpack_uint(buf: *mut *mut c_char, val: u32) {
     if val > 0xffff {
-            mpack_w(buf, 0xce);
-            mpack_w4(buf, val);
-        } else if val > 0xff {
-            mpack_w(buf, 0xcd);
-            mpack_w2(buf, val);
-        } else if val > 0x7f {
-            mpack_w(buf, 0xcc);
-            mpack_w(buf, val as u8);
-        } else {
-            mpack_w(buf, val as u8);
-        }
+        mpack_w(buf, 0xce);
+        mpack_w4(buf, val);
+    } else if val > 0xff {
+        mpack_w(buf, 0xcd);
+        mpack_w2(buf, val);
+    } else if val > 0x7f {
+        mpack_w(buf, 0xcc);
+        mpack_w(buf, val as u8);
+    } else {
+        mpack_w(buf, val as u8);
+    }
 }
 
 #[inline]
@@ -157,27 +157,27 @@ pub(crate) fn mpack_bool(buf: *mut *mut c_char, val: bool) {
 #[inline]
 pub(crate) fn mpack_array(buf: *mut *mut c_char, len: u32) {
     if len < 0x10 {
-            mpack_w(buf, 0x90 | (len as u8));
-        } else if len < 0x10000 {
-            mpack_w(buf, 0xdc);
-            mpack_w2(buf, len);
-        } else {
-            mpack_w(buf, 0xdd);
-            mpack_w4(buf, len);
-        }
+        mpack_w(buf, 0x90 | (len as u8));
+    } else if len < 0x10000 {
+        mpack_w(buf, 0xdc);
+        mpack_w2(buf, len);
+    } else {
+        mpack_w(buf, 0xdd);
+        mpack_w4(buf, len);
+    }
 }
 
 #[inline]
 pub(crate) fn mpack_map(buf: *mut *mut c_char, len: u32) {
     if len < 0x10 {
-            mpack_w(buf, 0x80 | (len as u8));
-        } else if len < 0x10000 {
-            mpack_w(buf, 0xde);
-            mpack_w2(buf, len);
-        } else {
-            mpack_w(buf, 0xdf);
-            mpack_w4(buf, len);
-        }
+        mpack_w(buf, 0x80 | (len as u8));
+    } else if len < 0x10000 {
+        mpack_w(buf, 0xde);
+        mpack_w2(buf, len);
+    } else {
+        mpack_w(buf, 0xdf);
+        mpack_w4(buf, len);
+    }
 }
 
 #[inline]
@@ -201,11 +201,11 @@ pub fn mpack_check_buffer(packer: &mut PackerBuffer) {
 /// `ptr` and `*ptr` must be valid writable pointers with sufficient space.
 pub fn mpack_uint64(ptr: *mut *mut c_char, i: u64) {
     if i > 0x0fff_ffff {
-            mpack_w(ptr, 0xcf);
-            mpack_w8(ptr, i);
-        } else {
-            mpack_uint(ptr, i as u32);
-        }
+        mpack_w(ptr, 0xcf);
+        mpack_w8(ptr, i);
+    } else {
+        mpack_uint(ptr, i as u32);
+    }
 }
 
 /// Pack a signed 64-bit integer into `*ptr` (`mpack_integer`).
@@ -214,22 +214,22 @@ pub fn mpack_uint64(ptr: *mut *mut c_char, i: u64) {
 /// `ptr` and `*ptr` must be valid writable pointers with sufficient space.
 pub fn mpack_integer(ptr: *mut *mut c_char, i: Integer) {
     if i >= 0 {
-            mpack_uint64(ptr, i as u64);
-        } else if i < -0x8000_0000 {
-            mpack_w(ptr, 0xd3);
-            mpack_w8(ptr, i as u64);
-        } else if i < -0x8000 {
-            mpack_w(ptr, 0xd2);
-            mpack_w4(ptr, i as u32);
-        } else if i < -0x80 {
-            mpack_w(ptr, 0xd1);
-            mpack_w2(ptr, i as u32);
-        } else if i < -0x20 {
-            mpack_w(ptr, 0xd0);
-            mpack_w(ptr, i as u8);
-        } else {
-            mpack_w(ptr, i as u8);
-        }
+        mpack_uint64(ptr, i as u64);
+    } else if i < -0x8000_0000 {
+        mpack_w(ptr, 0xd3);
+        mpack_w8(ptr, i as u64);
+    } else if i < -0x8000 {
+        mpack_w(ptr, 0xd2);
+        mpack_w4(ptr, i as u32);
+    } else if i < -0x80 {
+        mpack_w(ptr, 0xd1);
+        mpack_w2(ptr, i as u32);
+    } else if i < -0x20 {
+        mpack_w(ptr, 0xd0);
+        mpack_w(ptr, i as u8);
+    } else {
+        mpack_w(ptr, i as u8);
+    }
 }
 
 /// Pack an IEEE 754 `f64` into `*ptr` (`mpack_float8`).
@@ -238,7 +238,7 @@ pub fn mpack_integer(ptr: *mut *mut c_char, i: Integer) {
 /// `ptr` and `*ptr` must be valid writable pointers with sufficient space.
 pub fn mpack_float8(ptr: *mut *mut c_char, i: f64) {
     mpack_w(ptr, 0xcb);
-        mpack_w8(ptr, i.to_bits());
+    mpack_w8(ptr, i.to_bits());
 }
 
 /// Pack a msgpack string into `packer` (`mpack_str`).
@@ -248,20 +248,20 @@ pub fn mpack_float8(ptr: *mut *mut c_char, i: f64) {
 pub fn mpack_str(str_val: NvimString, packer: &mut PackerBuffer) {
     let len = str_val.size;
     if len < 32 {
-            mpack_w(&mut packer.ptr, 0xa0 | (len as u8));
-        } else if len < 0xff {
-            mpack_w(&mut packer.ptr, 0xd9);
-            mpack_w(&mut packer.ptr, len as u8);
-        } else if len < 0xffff {
-            mpack_w(&mut packer.ptr, 0xda);
-            mpack_w2(&mut packer.ptr, len as u32);
-        } else if len < 0xffff_ffff {
-            mpack_w(&mut packer.ptr, 0xdb);
-            mpack_w4(&mut packer.ptr, len as u32);
-        } else {
-            std::process::abort();
-        }
-        mpack_raw(str_val.data, len, packer);
+        mpack_w(&mut packer.ptr, 0xa0 | (len as u8));
+    } else if len < 0xff {
+        mpack_w(&mut packer.ptr, 0xd9);
+        mpack_w(&mut packer.ptr, len as u8);
+    } else if len < 0xffff {
+        mpack_w(&mut packer.ptr, 0xda);
+        mpack_w2(&mut packer.ptr, len as u32);
+    } else if len < 0xffff_ffff {
+        mpack_w(&mut packer.ptr, 0xdb);
+        mpack_w4(&mut packer.ptr, len as u32);
+    } else {
+        std::process::abort();
+    }
+    mpack_raw(str_val.data, len, packer);
 }
 
 /// Pack a msgpack binary blob into `packer` (`mpack_bin`).
@@ -271,25 +271,26 @@ pub fn mpack_str(str_val: NvimString, packer: &mut PackerBuffer) {
 pub fn mpack_bin(str_val: NvimString, packer: &mut PackerBuffer) {
     let len = str_val.size;
     if len < 0xff {
-            mpack_w(&mut packer.ptr, 0xc4);
-            mpack_w(&mut packer.ptr, len as u8);
-        } else if len < 0xffff {
-            mpack_w(&mut packer.ptr, 0xc5);
-            mpack_w2(&mut packer.ptr, len as u32);
-        } else if len < 0xffff_ffff {
-            mpack_w(&mut packer.ptr, 0xc6);
-            mpack_w4(&mut packer.ptr, len as u32);
-        } else {
-            std::process::abort();
-        }
-        mpack_raw(str_val.data, len, packer);
+        mpack_w(&mut packer.ptr, 0xc4);
+        mpack_w(&mut packer.ptr, len as u8);
+    } else if len < 0xffff {
+        mpack_w(&mut packer.ptr, 0xc5);
+        mpack_w2(&mut packer.ptr, len as u32);
+    } else if len < 0xffff_ffff {
+        mpack_w(&mut packer.ptr, 0xc6);
+        mpack_w4(&mut packer.ptr, len as u32);
+    } else {
+        std::process::abort();
+    }
+    mpack_raw(str_val.data, len, packer);
 }
 
 /// Write raw bytes `data[..len]` into `packer`, flushing as needed (`mpack_raw`).
 ///
 /// # Safety
 /// `data` must be valid for `len` bytes when `len > 0`, and `packer` must be valid.
-pub fn mpack_raw(data: impl crate::strings::IntoCCharPtr, len: usize, packer: &mut PackerBuffer) { let data = data.into_c_char_ptr();
+pub fn mpack_raw(data: impl crate::strings::IntoCCharPtr, len: usize, packer: &mut PackerBuffer) {
+    let data = data.into_c_char_ptr();
     let mut pos = 0usize;
     while pos < len {
         let remaining = mpack_remaining(packer);
@@ -316,24 +317,30 @@ pub fn mpack_raw(data: impl crate::strings::IntoCCharPtr, len: usize, packer: &m
 ///
 /// # Safety
 /// `buf` must be valid for `len` bytes when `len > 0`, and `packer` must be valid.
-pub fn mpack_ext(buf: impl crate::strings::IntoCCharPtr, len: usize, ext_type: i8, packer: &mut PackerBuffer) { let buf = buf.into_c_char_ptr();
+pub fn mpack_ext(
+    buf: impl crate::strings::IntoCCharPtr,
+    len: usize,
+    ext_type: i8,
+    packer: &mut PackerBuffer,
+) {
+    let buf = buf.into_c_char_ptr();
     if len == 1 {
-            mpack_w(&mut packer.ptr, 0xd4);
-        } else if len == 2 {
-            mpack_w(&mut packer.ptr, 0xd5);
-        } else if len <= 0xff {
-            mpack_w(&mut packer.ptr, 0xc7);
-        } else if len < 0xffff {
-            mpack_w(&mut packer.ptr, 0xc8);
-            mpack_w2(&mut packer.ptr, len as u32);
-        } else if len < 0xffff_ffff {
-            mpack_w(&mut packer.ptr, 0xc9);
-            mpack_w4(&mut packer.ptr, len as u32);
-        } else {
-            std::process::abort();
-        }
-        mpack_w(&mut packer.ptr, ext_type as u8);
-        mpack_raw(buf, len, packer);
+        mpack_w(&mut packer.ptr, 0xd4);
+    } else if len == 2 {
+        mpack_w(&mut packer.ptr, 0xd5);
+    } else if len <= 0xff {
+        mpack_w(&mut packer.ptr, 0xc7);
+    } else if len < 0xffff {
+        mpack_w(&mut packer.ptr, 0xc8);
+        mpack_w2(&mut packer.ptr, len as u32);
+    } else if len < 0xffff_ffff {
+        mpack_w(&mut packer.ptr, 0xc9);
+        mpack_w4(&mut packer.ptr, len as u32);
+    } else {
+        std::process::abort();
+    }
+    mpack_w(&mut packer.ptr, ext_type as u8);
+    mpack_raw(buf, len, packer);
 }
 
 /// Pack a Neovim handle (Buffer/Window/Tabpage) as a msgpack ext object (`mpack_handle`).
@@ -356,7 +363,11 @@ pub fn mpack_handle(obj_type: ObjectType, handle: ObjHandle, packer: &mut Packer
             mpack_w(&mut packer.ptr, 0xc7);
             mpack_w(&mut packer.ptr, packsize as u8);
             mpack_w(&mut packer.ptr, exttype);
-            std::ptr::copy_nonoverlapping(buf.as_ptr().cast::<u8>(), packer.ptr.cast::<u8>(), packsize);
+            std::ptr::copy_nonoverlapping(
+                buf.as_ptr().cast::<u8>(),
+                packer.ptr.cast::<u8>(),
+                packsize,
+            );
             packer.ptr = packer.ptr.add(packsize);
         }
     }
@@ -373,18 +384,18 @@ pub fn mpack_object(obj: &mut Object, packer: &mut PackerBuffer) {
 /// `arr` and `packer` must be valid.
 pub fn mpack_object_array(arr: Array, packer: &mut PackerBuffer) {
     mpack_array(&mut packer.ptr, arr.size as u32);
-        if arr.size > 0 {
-            let mut container = Object {
-                obj_type: ObjectType::ObjectTypeArray,
-                data: ObjectData::Array(arr),
-            };
-            let cont_ptr = if arr.size > 1 {
-                &mut container
-            } else {
-                std::ptr::null_mut()
-            };
-            mpack_object_inner(arr.items, cont_ptr, 1, packer);
-        }
+    if arr.size > 0 {
+        let mut container = Object {
+            obj_type: ObjectType::ObjectTypeArray,
+            data: ObjectData::Array(arr),
+        };
+        let cont_ptr = if arr.size > 1 {
+            &mut container
+        } else {
+            std::ptr::null_mut()
+        };
+        mpack_object_inner(arr.items, cont_ptr, 1, packer);
+    }
 }
 
 /// Pack `current` and any remaining elements in `container` into `packer` (`mpack_object_inner`).
@@ -542,20 +553,20 @@ mod tests {
     fn packs_integers_floats_and_strings() {
         let mut pb = packer_string_buffer();
         mpack_integer(&mut pb.ptr, -32);
-            mpack_integer(&mut pb.ptr, -33);
-            mpack_integer(&mut pb.ptr, 42);
-            let s = c"hello";
-            mpack_str(
-                NvimString {
-                    data: s.as_ptr().cast_mut(),
-                    size: 5,
-                },
-                &mut pb,
-            );
-            let slice = packer_take_string(&mut pb);
-            assert_eq!(
-                slice,
-                &[0xe0, 0xd0, 0xdf, 42, 0xa5, b'h', b'e', b'l', b'l', b'o']
-            );
+        mpack_integer(&mut pb.ptr, -33);
+        mpack_integer(&mut pb.ptr, 42);
+        let s = c"hello";
+        mpack_str(
+            NvimString {
+                data: s.as_ptr().cast_mut(),
+                size: 5,
+            },
+            &mut pb,
+        );
+        let slice = packer_take_string(&mut pb);
+        assert_eq!(
+            slice,
+            &[0xe0, 0xd0, 0xdf, 42, 0xa5, b'h', b'e', b'l', b'l', b'o']
+        );
     }
 }

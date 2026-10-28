@@ -9,9 +9,9 @@ use crate::eval::decode::{
     SURROGATE_LO_END, SURROGATE_LO_START,
 };
 use crate::eval::typval::{
-    TypvalVval, VAR_UNLOCKED, VarType, TvBlob, TvDict, TvList, Listitem, TvPartial, tv_blob_get,
-    tv_blob_len, tv_dict_find, tv_list_append_string, tv_list_first, tv_list_idx_of_item,
-    tv_list_last, tv_list_len, TypVal,
+    Listitem, TvBlob, TvDict, TvList, TvPartial, TypVal, TypvalVval, VAR_UNLOCKED, VarType,
+    tv_blob_get, tv_blob_len, tv_dict_find, tv_list_append_string, tv_list_first,
+    tv_list_idx_of_item, tv_list_last, tv_list_len,
 };
 use crate::eval::vars::{NUM_MSGPACK_TYPES, eval_msgpack_type_lists_mut};
 use crate::eval::{get_copy_id, partial_name};
@@ -19,7 +19,7 @@ use crate::hashtab::{Hashitem, hashitem_empty};
 use crate::keycodes::{BS, CAR, NL, TAB};
 use crate::math::{FAIL, OK};
 use crate::mbyte::{utf_char2len, utf_printable, utf_ptr2char, utf_ptr2len};
-use crate::memory::{cstr_from_bytes};
+use crate::memory::cstr_from_bytes;
 use crate::message::{emsg, internal_error, semsg};
 use crate::msgpack_rpc::packer::{
     PackerBuffer, mpack_array, mpack_bin, mpack_bool, mpack_check_buffer, mpack_ext, mpack_float8,
@@ -53,7 +53,8 @@ impl EvalEncodeState {
     }
 }
 
-static ENCODE_STATE: crate::globals::GlobalState<EvalEncodeState> = crate::globals::GlobalState::new(EvalEncodeState::new());
+static ENCODE_STATE: crate::globals::GlobalState<EvalEncodeState> =
+    crate::globals::GlobalState::new(EvalEncodeState::new());
 
 #[inline]
 fn encode_st() -> &'static mut EvalEncodeState {
@@ -118,7 +119,12 @@ pub(crate) struct MPConvStackVal {
 }
 
 /// Msgpack callback for writing to `readfile()`-style list (`encode_list_write`).
-pub fn encode_list_write(mut list: Option<&mut TvList>, buf: impl crate::strings::IntoCCharPtr, len: usize) { let buf = buf.into_c_char_ptr();
+pub fn encode_list_write(
+    mut list: Option<&mut TvList>,
+    buf: impl crate::strings::IntoCCharPtr,
+    len: usize,
+) {
+    let buf = buf.into_c_char_ptr();
     unsafe {
         if len == 0 {
             return;
@@ -128,9 +134,21 @@ pub fn encode_list_write(mut list: Option<&mut TvList>, buf: impl crate::strings
         let li = tv_list_last(list.as_deref());
 
         if !li.is_null() {
-            line_end = { let _a = (buf).cast::<u8>(); let _sz = len; let _off = if _sz == 0 { 0 } else { std::slice::from_raw_parts(_a, _sz).iter().position(|&_b| _b == (NL as c_char) as u8).unwrap_or(_sz) }; _a.add(_off).cast_mut().cast::<std::ffi::c_void>() }
-                .cast_const()
-                .cast::<c_char>();
+            line_end = {
+                let _a = (buf).cast::<u8>();
+                let _sz = len;
+                let _off = if _sz == 0 {
+                    0
+                } else {
+                    std::slice::from_raw_parts(_a, _sz)
+                        .iter()
+                        .position(|&_b| _b == (NL as c_char) as u8)
+                        .unwrap_or(_sz)
+                };
+                _a.add(_off).cast_mut().cast::<std::ffi::c_void>()
+            }
+            .cast_const()
+            .cast::<c_char>();
             if line_end != buf {
                 let line_length = (line_end as usize) - (buf as usize);
                 let str_ptr = (*li).li_tv.vval.v_string();
@@ -145,7 +163,19 @@ pub fn encode_list_write(mut list: Option<&mut TvList>, buf: impl crate::strings
                 }
                 let dst = combined.as_mut_ptr().add(li_len);
                 std::ptr::copy_nonoverlapping(buf.cast::<u8>(), dst.cast::<u8>(), line_length);
-                { let _d = (dst).cast::<u8>(); let _sz = line_length; if _sz > 0 { let _c = 0_u8; let _x = (NL as c_char) as u8; for _b in std::slice::from_raw_parts_mut(_d, _sz) { if *_b == _c { *_b = _x; } } } };
+                {
+                    let _d = (dst).cast::<u8>();
+                    let _sz = line_length;
+                    if _sz > 0 {
+                        let _c = 0_u8;
+                        let _x = (NL as c_char) as u8;
+                        for _b in std::slice::from_raw_parts_mut(_d, _sz) {
+                            if *_b == _c {
+                                *_b = _x;
+                            }
+                        }
+                    }
+                };
                 crate::eval::typval::tv_set_string_len(
                     &mut (*li).li_tv,
                     combined.as_ptr(),
@@ -157,7 +187,19 @@ pub fn encode_list_write(mut list: Option<&mut TvList>, buf: impl crate::strings
 
         while (line_end as usize) < (end as usize) {
             let line_start = line_end;
-            line_end = { let _a = (line_start).cast::<u8>(); let _sz = (end as usize) - (line_start as usize); let _off = if _sz == 0 { 0 } else { std::slice::from_raw_parts(_a, _sz).iter().position(|&_b| _b == (NL as c_char) as u8).unwrap_or(_sz) }; _a.add(_off).cast_mut().cast::<std::ffi::c_void>() }
+            line_end = {
+                let _a = (line_start).cast::<u8>();
+                let _sz = (end as usize) - (line_start as usize);
+                let _off = if _sz == 0 {
+                    0
+                } else {
+                    std::slice::from_raw_parts(_a, _sz)
+                        .iter()
+                        .position(|&_b| _b == (NL as c_char) as u8)
+                        .unwrap_or(_sz)
+                };
+                _a.add(_off).cast_mut().cast::<std::ffi::c_void>()
+            }
             .cast_const()
             .cast::<c_char>();
             if line_end != line_start {
@@ -168,19 +210,31 @@ pub fn encode_list_write(mut list: Option<&mut TvList>, buf: impl crate::strings
                     line_buf.as_mut_ptr().cast::<u8>(),
                     line_length,
                 );
-                { let _d = (line_buf.as_mut_ptr()).cast::<u8>(); let _sz = line_length; if _sz > 0 { let _c = 0_u8; let _x = (NL as c_char) as u8; for _b in std::slice::from_raw_parts_mut(_d, _sz) { if *_b == _c { *_b = _x; } } } };
+                {
+                    let _d = (line_buf.as_mut_ptr()).cast::<u8>();
+                    let _sz = line_length;
+                    if _sz > 0 {
+                        let _c = 0_u8;
+                        let _x = (NL as c_char) as u8;
+                        for _b in std::slice::from_raw_parts_mut(_d, _sz) {
+                            if *_b == _c {
+                                *_b = _x;
+                            }
+                        }
+                    }
+                };
                 crate::eval::typval::tv_list_append_string(
-                     list.as_deref_mut().unwrap(),
+                    list.as_deref_mut().unwrap(),
                     line_buf.as_ptr(),
                     line_length as isize,
                 );
             } else {
-                tv_list_append_string( list.as_deref_mut().unwrap(), std::ptr::null(), 0);
+                tv_list_append_string(list.as_deref_mut().unwrap(), std::ptr::null(), 0);
             }
             line_end = line_end.add(1);
         }
         if line_end == end {
-            tv_list_append_string( list.unwrap(), std::ptr::null(), 0);
+            tv_list_append_string(list.unwrap(), std::ptr::null(), 0);
         }
     }
 }
@@ -195,7 +249,7 @@ pub fn encode_init_lrstate(list: Option<&TvList>) -> ListReaderState {
         if s.is_null() {
             0
         } else {
-             crate::memory::cstr_len(s)
+            crate::memory::cstr_len(s)
         }
     };
     ListReaderState {
@@ -244,7 +298,7 @@ pub fn encode_read_from_list(
             state.li_length = if s.is_null() {
                 0
             } else {
-                 crate::memory::cstr_len(s)
+                crate::memory::cstr_len(s)
             };
         }
     }
@@ -260,14 +314,14 @@ pub fn encode_read_from_list(
 pub fn encode_vim_list_to_buf(list: Option<&TvList>) -> Option<Vec<c_char>> {
     let mut len = 0usize;
     for li in crate::eval::typval::list_iter_mut(tv_list_first(list)) {
-        let tv =  { &li.li_tv };
+        let tv = { &li.li_tv };
         if tv.v_type != VarType::VarString {
             return None;
         }
         len += 1;
         let s = tv.vval.v_string();
         if !s.is_null() {
-            len +=  crate::memory::cstr_len(s);
+            len += crate::memory::cstr_len(s);
         }
     }
     len = len.saturating_sub(1);
@@ -277,8 +331,7 @@ pub fn encode_vim_list_to_buf(list: Option<&TvList>) -> Option<Vec<c_char>> {
     let mut lrstate = encode_init_lrstate(list);
     let mut buf = vec![0 as c_char; len];
     let mut read_bytes = 0usize;
-    if encode_read_from_list(&mut lrstate, buf.as_mut_ptr(), len, &mut read_bytes) == FAIL
-    {
+    if encode_read_from_list(&mut lrstate, buf.as_mut_ptr(), len, &mut read_bytes) == FAIL {
         std::process::abort();
     }
     assert_eq!(len, read_bytes);
@@ -301,7 +354,8 @@ pub fn encode_check_json_key(tv: &TypVal) -> bool {
         let type_di = tv_dict_find(spdict.as_ref(), c"_TYPE", 5);
         if type_di.is_null()
             || (*type_di).di_tv.v_type != VarType::VarList
-            || (*type_di).di_tv.vval.v_list().cast_const() != (*eval_msgpack_type_lists_mut())[K_MP_STRING]
+            || (*type_di).di_tv.vval.v_list().cast_const()
+                != (*eval_msgpack_type_lists_mut())[K_MP_STRING]
         {
             return false;
         }
@@ -324,7 +378,7 @@ pub fn encode_check_json_key(tv: &TypVal) -> bool {
 
 #[inline]
 fn buf_concat_cstr(gap: &mut Vec<u8>, s: *const c_char) {
-     {
+    {
         if !s.is_null() {
             gap.extend_from_slice(crate::memory::cstr_as_bytes(s));
         }
@@ -333,7 +387,7 @@ fn buf_concat_cstr(gap: &mut Vec<u8>, s: *const c_char) {
 
 #[inline]
 fn buf_concat_len(gap: &mut Vec<u8>, s: *const c_char, len: usize) {
-     {
+    {
         if !s.is_null() && len > 0 {
             gap.extend_from_slice(crate::memory::cstr_slice(s, len));
         }
@@ -344,7 +398,8 @@ fn conv_error(
     msg: &std::ffi::CStr,
     mpstack: &[MPConvStackVal],
     objname: impl crate::strings::IntoCCharPtr,
-) -> c_int { let objname = objname.into_c_char_ptr();
+) -> c_int {
+    let objname = objname.into_c_char_ptr();
     unsafe {
         let mut msg_ga: Vec<u8> = Vec::with_capacity(80);
         let mut iobuf = [0 as c_char; 1025];
@@ -366,12 +421,7 @@ fn conv_error(
                         vval: TypvalVval::String((&*hi_ptr).key_ptr()),
                     };
                     let key = encode_tv2string(&mut key_tv, None);
-                    vim_snprintf!(
-                        iobuf.as_mut_ptr(),
-                        iobuf.len(),
-                        c"key %s",
-                        key.as_ptr(),
-                    );
+                    vim_snprintf!(iobuf.as_mut_ptr(), iobuf.len(), c"key %s", key.as_ptr(),);
                     buf_concat_cstr(&mut msg_ga, iobuf.as_ptr());
                 }
                 MPConvStackData::List { list, li } | MPConvStackData::Pairs { list, li } => {
@@ -422,12 +472,7 @@ fn conv_error(
                 },
                 MPConvStackData::PartialList { arg, argv, .. } => {
                     let idx = (arg.offset_from(argv) as c_int) - 1;
-                    vim_snprintf!(
-                        iobuf.as_mut_ptr(),
-                        iobuf.len(),
-                        c"argument %i",
-                        idx,
-                    );
+                    vim_snprintf!(iobuf.as_mut_ptr(), iobuf.len(), c"argument %i", idx,);
                     buf_concat_cstr(&mut msg_ga, iobuf.as_ptr());
                 }
             }
@@ -443,12 +488,28 @@ fn conv_error(
     }
 }
 
-fn convert_to_single_quoted_string(gap: &mut Vec<u8>, buf: impl crate::strings::IntoCCharPtr, len: usize) { let buf = buf.into_c_char_ptr();
+fn convert_to_single_quoted_string(
+    gap: &mut Vec<u8>,
+    buf: impl crate::strings::IntoCCharPtr,
+    len: usize,
+) {
+    let buf = buf.into_c_char_ptr();
     unsafe {
         if buf.is_null() {
             ga_concat_literal(gap, b"''");
         } else {
-            let quotes = { let _d = (buf).cast::<u8>(); let _sz = len; if _sz == 0 { 0 } else { std::slice::from_raw_parts(_d, _sz).iter().filter(|&&_b| _b == (b'\'' as c_char) as u8).count() } };
+            let quotes = {
+                let _d = (buf).cast::<u8>();
+                let _sz = len;
+                if _sz == 0 {
+                    0
+                } else {
+                    std::slice::from_raw_parts(_d, _sz)
+                        .iter()
+                        .filter(|&&_b| _b == (b'\'' as c_char) as u8)
+                        .count()
+                }
+            };
             gap.reserve(2 + len + quotes);
             gap.push(b'\'');
             let bytes = crate::memory::cstr_slice(buf, len);
@@ -463,7 +524,12 @@ fn convert_to_single_quoted_string(gap: &mut Vec<u8>, buf: impl crate::strings::
     }
 }
 
-fn convert_to_json_string(gap: &mut Vec<u8>, buf: impl crate::strings::IntoCCharPtr, len: usize) -> bool { let buf = buf.into_c_char_ptr();
+fn convert_to_json_string(
+    gap: &mut Vec<u8>,
+    buf: impl crate::strings::IntoCCharPtr,
+    len: usize,
+) -> bool {
+    let buf = buf.into_c_char_ptr();
     const XDIGITS: &[u8; 16] = b"0123456789ABCDEF";
 
     unsafe {
@@ -730,12 +796,8 @@ impl EncodeBackend<'_> {
                         ga_concat_literal(gap, b"str2float('inf')");
                     } else {
                         let mut numbuf = [0 as c_char; NUMBUFLEN];
-                        let len = vim_snprintf_safelen!(
-                            numbuf.as_mut_ptr(),
-                            numbuf.len(),
-                            c"%g",
-                            flt,
-                        );
+                        let len =
+                            vim_snprintf_safelen!(numbuf.as_mut_ptr(), numbuf.len(), c"%g", flt,);
                         buf_concat_len(gap, numbuf.as_ptr(), len);
                     }
                     true
@@ -752,12 +814,8 @@ impl EncodeBackend<'_> {
                         return false;
                     } else {
                         let mut numbuf = [0 as c_char; NUMBUFLEN];
-                        let len = vim_snprintf_safelen!(
-                            numbuf.as_mut_ptr(),
-                            numbuf.len(),
-                            c"%g",
-                            flt,
-                        );
+                        let len =
+                            vim_snprintf_safelen!(numbuf.as_mut_ptr(), numbuf.len(), c"%g", flt,);
                         buf_concat_len(gap, numbuf.as_ptr(), len);
                     }
                     true
@@ -771,7 +829,8 @@ impl EncodeBackend<'_> {
     }
 
     #[inline]
-    fn conv_string(&mut self, buf: impl crate::strings::IntoCCharPtr, len: usize) -> bool { let buf = buf.into_c_char_ptr();
+    fn conv_string(&mut self, buf: impl crate::strings::IntoCCharPtr, len: usize) -> bool {
+        let buf = buf.into_c_char_ptr();
         unsafe {
             match self {
                 Self::Text {
@@ -800,7 +859,8 @@ impl EncodeBackend<'_> {
     }
 
     #[inline]
-    fn conv_str_string(&mut self, buf: impl crate::strings::IntoCCharPtr, len: usize) -> bool { let buf = buf.into_c_char_ptr();
+    fn conv_str_string(&mut self, buf: impl crate::strings::IntoCCharPtr, len: usize) -> bool {
+        let buf = buf.into_c_char_ptr();
         unsafe {
             match self {
                 Self::Text { .. } => self.conv_string(buf, len),
@@ -819,7 +879,13 @@ impl EncodeBackend<'_> {
     }
 
     #[inline]
-    fn conv_ext_string(&mut self, buf: impl crate::strings::IntoCCharPtr, len: usize, ext_type: i8) -> bool { let buf = buf.into_c_char_ptr();
+    fn conv_ext_string(
+        &mut self,
+        buf: impl crate::strings::IntoCCharPtr,
+        len: usize,
+        ext_type: i8,
+    ) -> bool {
+        let buf = buf.into_c_char_ptr();
         unsafe {
             match self {
                 Self::Text {
@@ -860,7 +926,7 @@ impl EncodeBackend<'_> {
                                 numbuf.as_mut_ptr(),
                                 numbuf.len(),
                                 c"%02X",
-                                tv_blob_get( blob.unwrap(), i) as c_int,
+                                tv_blob_get(blob.unwrap(), i) as c_int,
                             );
                             buf_concat_len(gap, numbuf.as_ptr(), nlen);
                         }
@@ -883,7 +949,7 @@ impl EncodeBackend<'_> {
                                 numbuf.as_mut_ptr(),
                                 numbuf.len(),
                                 c"%d",
-                                tv_blob_get( blob.unwrap(), i) as c_int,
+                                tv_blob_get(blob.unwrap(), i) as c_int,
                             );
                             buf_concat_len(gap, numbuf.as_ptr(), nlen);
                         }
@@ -892,7 +958,9 @@ impl EncodeBackend<'_> {
                 }
                 Self::Msgpack { packer } => {
                     let data = match blob {
-                        Some(b) if !b.bv_ga.is_empty() => b.bv_ga.as_ptr().cast_mut().cast::<c_char>(),
+                        Some(b) if !b.bv_ga.is_empty() => {
+                            b.bv_ga.as_ptr().cast_mut().cast::<c_char>()
+                        }
                         _ => std::ptr::null_mut(),
                     };
                     mpack_bin(
@@ -914,7 +982,9 @@ impl EncodeBackend<'_> {
         prefix: &[u8],
         mpstack: &[MPConvStackVal],
         objname: impl crate::strings::IntoCCharPtr,
-    ) -> c_int { let fun = fun.into_c_char_ptr(); let objname = objname.into_c_char_ptr();
+    ) -> c_int {
+        let fun = fun.into_c_char_ptr();
+        let objname = objname.into_c_char_ptr();
         unsafe {
             match self {
                 Self::Text {
@@ -1082,77 +1152,78 @@ impl EncodeBackend<'_> {
         mpstack: &[MPConvStackVal],
         copy_id: c_int,
         objname: impl crate::strings::IntoCCharPtr,
-    ) -> c_int { let objname = objname.into_c_char_ptr();
+    ) -> c_int {
+        let objname = objname.into_c_char_ptr();
         if *val_copy_id != copy_id {
-                *val_copy_id = copy_id;
-                return NOTDONE;
-            }
-            let find_backref = || -> usize {
-                for (idx, mpval) in mpstack.iter().enumerate() {
-                    match (container, mpval.data) {
-                        (MPContainerRef::Dict(d1), MPConvStackData::Dict { dict: d2, .. })
-                            if d1 == d2 =>
-                        {
-                            return idx;
-                        }
-                        (MPContainerRef::List(l1), MPConvStackData::List { list: l2, .. })
-                            if l1 == l2 =>
-                        {
-                            return idx;
-                        }
-                        _ => {}
+            *val_copy_id = copy_id;
+            return NOTDONE;
+        }
+        let find_backref = || -> usize {
+            for (idx, mpval) in mpstack.iter().enumerate() {
+                match (container, mpval.data) {
+                    (MPContainerRef::Dict(d1), MPConvStackData::Dict { dict: d2, .. })
+                        if d1 == d2 =>
+                    {
+                        return idx;
                     }
+                    (MPContainerRef::List(l1), MPConvStackData::List { list: l2, .. })
+                        if l1 == l2 =>
+                    {
+                        return idx;
+                    }
+                    _ => {}
                 }
-                mpstack.len()
-            };
+            }
+            mpstack.len()
+        };
 
-            match self {
-                Self::Text {
-                    gap,
-                    mode: TextEncodeMode::String,
-                } => {
-                    if !encode_st().did_echo_string_emsg {
-                        encode_st().did_echo_string_emsg = true;
-                        emsg(
-                            c"E724: unable to correctly dump variable with self-referencing container",
-                        );
-                    }
-                    let backref = find_backref();
-                    let s = format!("{{E724@{backref}}}");
-                    ga_concat_literal(gap, s.as_bytes());
-                    OK
+        match self {
+            Self::Text {
+                gap,
+                mode: TextEncodeMode::String,
+            } => {
+                if !encode_st().did_echo_string_emsg {
+                    encode_st().did_echo_string_emsg = true;
+                    emsg(
+                        c"E724: unable to correctly dump variable with self-referencing container",
+                    );
                 }
-                Self::Text {
-                    gap,
-                    mode: TextEncodeMode::Echo,
-                } => {
-                    let backref = find_backref();
-                    let s = if matches!(container, MPContainerRef::Dict(_)) {
-                        format!("{{...@{backref}}}")
-                    } else {
-                        format!("[...@{backref}]")
-                    };
-                    ga_concat_literal(gap, s.as_bytes());
-                    OK
-                }
-                Self::Text {
-                    mode: TextEncodeMode::Json,
-                    ..
-                } => {
-                    if !encode_st().did_echo_string_emsg {
-                        encode_st().did_echo_string_emsg = true;
-                        emsg(
-                            c"E724: unable to correctly dump variable with self-referencing container",
-                        );
-                    }
-                    OK
-                }
-                Self::Msgpack { .. } => conv_error(
-                    c"E5005: Unable to dump %s: container references itself in %s",
-                    mpstack,
-                    objname,
-                ),
+                let backref = find_backref();
+                let s = format!("{{E724@{backref}}}");
+                ga_concat_literal(gap, s.as_bytes());
+                OK
             }
+            Self::Text {
+                gap,
+                mode: TextEncodeMode::Echo,
+            } => {
+                let backref = find_backref();
+                let s = if matches!(container, MPContainerRef::Dict(_)) {
+                    format!("{{...@{backref}}}")
+                } else {
+                    format!("[...@{backref}]")
+                };
+                ga_concat_literal(gap, s.as_bytes());
+                OK
+            }
+            Self::Text {
+                mode: TextEncodeMode::Json,
+                ..
+            } => {
+                if !encode_st().did_echo_string_emsg {
+                    encode_st().did_echo_string_emsg = true;
+                    emsg(
+                        c"E724: unable to correctly dump variable with self-referencing container",
+                    );
+                }
+                OK
+            }
+            Self::Msgpack { .. } => conv_error(
+                c"E5005: Unable to dump %s: container references itself in %s",
+                mpstack,
+                objname,
+            ),
+        }
     }
 }
 
@@ -1274,7 +1345,9 @@ fn convert_one_value(
                         let val_di = tv_dict_find(dict.as_ref(), c"_VAL", 4);
                         if !val_di.is_null() {
                             let mut mp_idx = NUM_MSGPACK_TYPES;
-                            for (i, tl) in { *eval_msgpack_type_lists_mut() }.into_iter().enumerate() {
+                            for (i, tl) in
+                                { *eval_msgpack_type_lists_mut() }.into_iter().enumerate()
+                            {
                                 if (*type_di).di_tv.vval.v_list().cast_const() == tl {
                                     mp_idx = i;
                                     break;
@@ -1306,8 +1379,7 @@ fn convert_one_value(
                                                     && (*highest_li).li_tv.v_type
                                                         == VarType::VarNumber
                                                     && (*highest_li).li_tv.vval.v_number() >= 0
-                                                    && (*high_li).li_tv.v_type
-                                                        == VarType::VarNumber
+                                                    && (*high_li).li_tv.v_type == VarType::VarNumber
                                                     && (*high_li).li_tv.vval.v_number() >= 0
                                                     && (*low_li).li_tv.v_type == VarType::VarNumber
                                                     && (*low_li).li_tv.vval.v_number() >= 0
@@ -1317,7 +1389,8 @@ fn convert_one_value(
                                                         (*highest_li).li_tv.vval.v_number() as u64;
                                                     let high =
                                                         (*high_li).li_tv.vval.v_number() as u64;
-                                                    let low = (*low_li).li_tv.vval.v_number() as u64;
+                                                    let low =
+                                                        (*low_li).li_tv.vval.v_number() as u64;
                                                     let number =
                                                         (highest << 62) | (high << 31) | low;
                                                     if sign > 0 {
@@ -1334,8 +1407,7 @@ fn convert_one_value(
                                     }
                                     K_MP_FLOAT => {
                                         if (*val_di).di_tv.v_type == VarType::VarFloat {
-                                            if !backend.conv_float((*val_di).di_tv.vval.v_float())
-                                            {
+                                            if !backend.conv_float((*val_di).di_tv.vval.v_float()) {
                                                 return FAIL;
                                             }
                                             handled_special = true;
@@ -1343,8 +1415,9 @@ fn convert_one_value(
                                     }
                                     K_MP_STRING => {
                                         if (*val_di).di_tv.v_type == VarType::VarList
-                                            && let Some(buf) =
-                                                encode_vim_list_to_buf(((*val_di).di_tv.vval.v_list()).as_ref())
+                                            && let Some(buf) = encode_vim_list_to_buf(
+                                                ((*val_di).di_tv.vval.v_list()).as_ref(),
+                                            )
                                         {
                                             if !backend.conv_str_string(buf.as_ptr(), buf.len()) {
                                                 return FAIL;
@@ -1381,7 +1454,9 @@ fn convert_one_value(
                                     K_MP_MAP => {
                                         if (*val_di).di_tv.v_type == VarType::VarList {
                                             let val_list = (*val_di).di_tv.vval.v_list();
-                                            if val_list.is_null() || tv_list_len(val_list.as_ref()) == 0 {
+                                            if val_list.is_null()
+                                                || tv_list_len(val_list.as_ref()) == 0
+                                            {
                                                 backend.conv_empty_dict();
                                                 handled_special = true;
                                             } else {
@@ -1389,7 +1464,9 @@ fn convert_one_value(
                                                 let mut li = tv_list_first(val_list.as_ref());
                                                 while !li.is_null() {
                                                     if (*li).li_tv.v_type != VarType::VarList
-                                                        || tv_list_len(((*li).li_tv.vval.v_list()).as_ref()) != 2
+                                                        || tv_list_len(
+                                                            ((*li).li_tv.vval.v_list()).as_ref(),
+                                                        ) != 2
                                                     {
                                                         all_pairs = false;
                                                         break;
@@ -1408,9 +1485,10 @@ fn convert_one_value(
                                                     if csr != NOTDONE {
                                                         return csr;
                                                     }
-                                                    backend.conv_dict_start(
-                                                        tv_list_len(val_list.as_ref()) as usize
-                                                    );
+                                                    backend.conv_dict_start(tv_list_len(
+                                                        val_list.as_ref(),
+                                                    )
+                                                        as usize);
                                                     mpstack.push(MPConvStackVal {
                                                         tv,
                                                         saved_copy_id,
@@ -1490,7 +1568,8 @@ fn convert_one_value(
 }
 
 fn encode_vim_with_backend(
-    backend: &mut EncodeBackend,top_tv: &mut TypVal,
+    backend: &mut EncodeBackend,
+    top_tv: &mut TypVal,
     objname: impl crate::strings::IntoCCharPtr,
 ) -> bool {
     let objname = objname.into_c_char_ptr();
@@ -1701,36 +1780,34 @@ fn encode_vim_with_backend(
 }
 
 /// Convert Vimscript value to `:echo` output (`encode_vim_to_echo`).
-pub fn encode_vim_to_echo(
-    gap: &mut Vec<u8>,tv: &mut TypVal,
-    objname: &std::ffi::CStr,
-) -> bool {
+pub fn encode_vim_to_echo(gap: &mut Vec<u8>, tv: &mut TypVal, objname: &std::ffi::CStr) -> bool {
     let mut backend = EncodeBackend::Text {
-            gap,
-            mode: TextEncodeMode::Echo,
-        };
-        encode_vim_with_backend(&mut backend, tv, objname.as_ptr())
+        gap,
+        mode: TextEncodeMode::Echo,
+    };
+    encode_vim_with_backend(&mut backend, tv, objname.as_ptr())
 }
 
 /// Convert Vimscript value to msgpack string (`encode_vim_to_msgpack`).
 pub fn encode_vim_to_msgpack(
-    packer: &mut PackerBuffer,tv: &mut TypVal,
+    packer: &mut PackerBuffer,
+    tv: &mut TypVal,
     objname: impl crate::strings::IntoCCharPtr,
-) -> bool { let objname = objname.into_c_char_ptr();
+) -> bool {
+    let objname = objname.into_c_char_ptr();
     let mut backend = EncodeBackend::Msgpack { packer };
-        encode_vim_with_backend(&mut backend, tv, objname)
+    encode_vim_with_backend(&mut backend, tv, objname)
 }
 
 /// Return a string with the string representation of a variable (`encode_tv2string`).
-pub fn encode_tv2string(tv: &mut TypVal,mut len: Option<&mut usize>) -> std::ffi::CString {
-     {
+pub fn encode_tv2string(tv: &mut TypVal, mut len: Option<&mut usize>) -> std::ffi::CString {
+    {
         let mut ga: Vec<u8> = Vec::with_capacity(80);
         let mut backend = EncodeBackend::Text {
             gap: &mut ga,
             mode: TextEncodeMode::String,
         };
-        let evs_ret =
-            encode_vim_with_backend(&mut backend, tv, c"encode_tv2string() argument");
+        let evs_ret = encode_vim_with_backend(&mut backend, tv, c"encode_tv2string() argument");
         assert!(evs_ret);
         encode_st().did_echo_string_emsg = false;
         if let Some(ref mut p) = len {
@@ -1742,7 +1819,7 @@ pub fn encode_tv2string(tv: &mut TypVal,mut len: Option<&mut usize>) -> std::ffi
 
 /// Return a string with the `:echo` representation of a variable (`encode_tv2echo`).
 pub fn encode_tv2echo(tv: &mut TypVal, len: Option<&mut usize>) -> std::ffi::CString {
-     {
+    {
         let mut ga: Vec<u8> = Vec::with_capacity(80);
         if tv.v_type == VarType::VarString || tv.v_type == VarType::VarFunc {
             if !tv.vval.v_string().is_null() {
@@ -1760,15 +1837,14 @@ pub fn encode_tv2echo(tv: &mut TypVal, len: Option<&mut usize>) -> std::ffi::CSt
 }
 
 /// Return a JSON string representation of a variable (`encode_tv2json`).
-pub fn encode_tv2json(tv: &mut TypVal,mut len: Option<&mut usize>) -> std::ffi::CString {
-     {
+pub fn encode_tv2json(tv: &mut TypVal, mut len: Option<&mut usize>) -> std::ffi::CString {
+    {
         let mut ga: Vec<u8> = Vec::with_capacity(80);
         let mut backend = EncodeBackend::Text {
             gap: &mut ga,
             mode: TextEncodeMode::Json,
         };
-        let evj_ret =
-            encode_vim_with_backend(&mut backend, tv, c"encode_tv2json() argument");
+        let evj_ret = encode_vim_with_backend(&mut backend, tv, c"encode_tv2json() argument");
         encode_st().did_echo_string_emsg = false;
         if !evj_ret {
             ga.clear();
@@ -1821,7 +1897,7 @@ mod tests {
             lv_lock: 0,
             lua_table_ref: -2,
         };
-         {
+        {
             let buf = encode_vim_list_to_buf(Some(&list)).unwrap();
             assert_eq!(buf.len(), 5);
             let slice = crate::memory::cstr_slice(buf.as_ptr(), buf.len());

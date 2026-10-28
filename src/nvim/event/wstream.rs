@@ -83,7 +83,7 @@ use crate::event::r#loop::uv_fs_write;
 
 pub fn wstream_init_fd(loop_: &mut Loop, stream: &mut Stream, fd: c_int, maxmem: usize) {
     stream_init(&raw mut *loop_, stream, fd, false);
-        wstream_init(stream, maxmem);
+    wstream_init(stream, maxmem);
 }
 
 pub fn wstream_init(stream: &mut Stream, maxmem: usize) {
@@ -105,15 +105,7 @@ pub fn wstream_write(stream: &mut Stream, buffer: std::rc::Rc<WBuffer>) -> c_int
             let mut req_buf = [0u64; 128];
             let req_ptr = req_buf.as_mut_ptr().cast::<uv_fs_t>();
             let idle_loop = uv_handle_get_loop((&raw mut stream.uv).cast());
-            let err = uv_fs_write(
-                idle_loop,
-                req_ptr,
-                stream.fd,
-                &uvbuf,
-                1,
-                stream.fpos,
-                None,
-            );
+            let err = uv_fs_write(idle_loop, req_ptr, stream.fd, &uvbuf, 1, stream.fpos, None);
             let req_result = uv_fs_get_result(req_ptr);
             uv_fs_req_cleanup(req_ptr);
 

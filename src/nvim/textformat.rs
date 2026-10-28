@@ -9,9 +9,9 @@ use crate::charset::{
     NUL, ascii_isspace, ascii_iswhite, char2cells, getwhitecols_curline, skipwhite,
 };
 use crate::cursor::{
-    check_cursor, check_cursor_col, coladvance, Colnr, dec_cursor, gchar_cursor,
+    Colnr, CursorPos, Linenr, check_cursor, check_cursor_col, coladvance, dec_cursor, gchar_cursor,
     get_cursor_line_len, get_cursor_line_ptr, get_cursor_pos_len, get_cursor_pos_ptr, inc_cursor,
-    Linenr, pchar_cursor, CursorPos,
+    pchar_cursor,
 };
 use crate::drawscreen::{UPD_INVERTED, UPD_VALID, redraw_curbuf_later};
 use crate::eval::eval_expr_option_number;
@@ -21,14 +21,15 @@ use crate::eval::vars::{
 };
 use crate::globals::*;
 use crate::indent::{
-    INDENT_SET, SIN_CHANGED, change_indent, get_expr_indent, get_indent, get_indent_lnum,
-    get_lisp_indent, get_number_indent, K_FO_QCOMS, set_indent,
+    INDENT_SET, K_FO_QCOMS, SIN_CHANGED, change_indent, get_expr_indent, get_indent,
+    get_indent_lnum, get_lisp_indent, get_number_indent, set_indent,
 };
 use crate::indent_c::{check_linecomment, cindent_on, get_c_indent};
 use crate::input::beep_flush;
 use crate::insert::{
-    INSCHAR_FORMAT, INSCHAR_NO_FEX, backspace_until_column, beginline, get_nolist_virtcol,
-    insertchar, K_FO_AUTO, K_FO_INS_BLANK, K_FO_WHITE_PAR, set_can_cindent, undisplay_dollar,
+    INSCHAR_FORMAT, INSCHAR_NO_FEX, K_FO_AUTO, K_FO_INS_BLANK, K_FO_WHITE_PAR,
+    backspace_until_column, beginline, get_nolist_virtcol, insertchar, set_can_cindent,
+    undisplay_dollar,
 };
 use crate::mark::mark_col_adjust;
 use crate::mbyte::{utf_allow_break, utf_allow_break_before, utf_iscomposing_first, utf_ptr2char};
@@ -36,10 +37,10 @@ use crate::memline::{ml_get, ml_get_len, ml_replace};
 use crate::message::msgmore;
 use crate::r#move::update_topline;
 use crate::ops::do_join;
-use crate::option::{OPT_LOCAL, K_BUF_OPT_FORMATEXPR, K_OPT_FORMATEXPR, was_set_insecurely};
+use crate::option::{K_BUF_OPT_FORMATEXPR, K_OPT_FORMATEXPR, OPT_LOCAL, was_set_insecurely};
 use crate::option_vars::*;
 use crate::os::input::line_breakcheck;
-use crate::strings::{vim_strchr};
+use crate::strings::vim_strchr;
 use crate::textobject::start_ps;
 use crate::ui::ui_cursor_shape;
 use crate::undo::{u_save, u_save_cursor};
@@ -166,7 +167,8 @@ impl TextformatState {
     }
 }
 
-static TF_STATE: crate::globals::GlobalState<TextformatState> = crate::globals::GlobalState::new(TextformatState::new());
+static TF_STATE: crate::globals::GlobalState<TextformatState> =
+    crate::globals::GlobalState::new(TextformatState::new());
 
 #[inline]
 fn tf_st() -> &'static mut TextformatState {
@@ -182,7 +184,7 @@ fn whitechar(cc: c_int) -> bool {
 
 /// Return true if format option `x` is in effect (`has_format_option`).
 pub fn has_format_option(x: c_int) -> bool {
-     {
+    {
         if opt_vars().p_paste != 0 {
             return false;
         }
@@ -412,7 +414,11 @@ pub fn internal_format(
                             allow_break = utf_allow_break(cc, ncc);
 
                             if allow_break {
-                                foundcol = if ncc == 0 { 0 } else { curwin_mut().w_cursor.col };
+                                foundcol = if ncc == 0 {
+                                    0
+                                } else {
+                                    curwin_mut().w_cursor.col
+                                };
                                 end_foundcol = foundcol;
                                 break;
                             }
@@ -563,7 +569,10 @@ fn fmt_check_par(
 
         if *leader_len > 0 {
             flags = *leader_flags;
-            while !crate::memory::cstr_is_empty(flags) && crate::memory::cstr_first_byte(flags) != b':' && *flags != COM_END {
+            while !crate::memory::cstr_is_empty(flags)
+                && crate::memory::cstr_first_byte(flags) != b':'
+                && *flags != COM_END
+            {
                 flags = flags.add(1);
             }
         }
@@ -575,7 +584,7 @@ fn fmt_check_par(
 }
 
 fn ends_in_white(lnum: Linenr) -> bool {
-     {
+    {
         let s = ml_get(lnum);
         if crate::memory::cstr_is_empty(s) {
             return false;
@@ -591,7 +600,9 @@ fn same_leader(
     leader1_flags: impl crate::strings::IntoCCharPtr,
     leader2_len: c_int,
     leader2_flags: impl crate::strings::IntoCCharPtr,
-) -> bool { let leader1_flags = leader1_flags.into_c_char_ptr(); let leader2_flags = leader2_flags.into_c_char_ptr();
+) -> bool {
+    let leader1_flags = leader1_flags.into_c_char_ptr();
+    let leader2_flags = leader2_flags.into_c_char_ptr();
     unsafe {
         if leader1_len == 0 {
             return leader2_len == 0;
@@ -615,7 +626,9 @@ fn same_leader(
                         return false;
                     }
                     let mut p2 = leader2_flags;
-                    while !crate::memory::cstr_is_empty(p2) && crate::memory::cstr_first_byte(p2) != b':' {
+                    while !crate::memory::cstr_is_empty(p2)
+                        && crate::memory::cstr_first_byte(p2) != b':'
+                    {
                         if *p2 == COM_MIDDLE {
                             return true;
                         }
@@ -655,7 +668,7 @@ fn same_leader(
 }
 
 fn paragraph_start(lnum: Linenr) -> bool {
-     {
+    {
         let mut leader_len: c_int = 0;
         let mut leader_flags: *mut c_char = ptr::null_mut();
         let mut next_leader_len: c_int = 0;
@@ -722,7 +735,8 @@ pub fn auto_format(trailblank: bool, prev_line: bool) {
         if !crate::memory::cstr_is_empty(old) && !trailblank && wasatend {
             dec_cursor();
             let mut cc = gchar_cursor();
-            if !whitechar(cc) && curwin_mut().w_cursor.col > 0 && has_format_option(K_FO_ONE_LETTER) {
+            if !whitechar(cc) && curwin_mut().w_cursor.col > 0 && has_format_option(K_FO_ONE_LETTER)
+            {
                 dec_cursor();
             }
             cc = gchar_cursor();
@@ -733,7 +747,12 @@ pub fn auto_format(trailblank: bool, prev_line: bool) {
             curwin_mut().w_cursor = pos;
         }
 
-        if !crate::memory::cstr_is_empty(old) && !trailblank && !wasatend && pos.col > 0 && (g_st().state_global & MODE_INSERT) != 0 {
+        if !crate::memory::cstr_is_empty(old)
+            && !trailblank
+            && !wasatend
+            && pos.col > 0
+            && (g_st().state_global & MODE_INSERT) != 0
+        {
             let line = get_cursor_line_ptr();
             if whitechar(*line.add((pos.col - 1) as usize) as c_int) {
                 curwin_mut().w_cursor = pos;
@@ -789,29 +808,29 @@ pub fn auto_format(trailblank: bool, prev_line: bool) {
 /// Delete extra space added to continue a paragraph for auto-formatting (`check_auto_format`).
 pub fn check_auto_format(end_insert: bool) {
     if !tf_st().did_add_space {
-            return;
-        }
+        return;
+    }
 
-        let cc = gchar_cursor();
-        if !whitechar(cc) {
-            tf_st().did_add_space = false;
-        } else {
-            let mut c = b' ' as c_int;
-            if !end_insert {
-                inc_cursor();
-                c = gchar_cursor();
-                dec_cursor();
-            }
-            if c != 0 {
-                del_char(false);
-                tf_st().did_add_space = false;
-            }
+    let cc = gchar_cursor();
+    if !whitechar(cc) {
+        tf_st().did_add_space = false;
+    } else {
+        let mut c = b' ' as c_int;
+        if !end_insert {
+            inc_cursor();
+            c = gchar_cursor();
+            dec_cursor();
         }
+        if c != 0 {
+            del_char(false);
+            tf_st().did_add_space = false;
+        }
+    }
 }
 
 /// Find out textwidth to be used for formatting (`comp_textwidth`).
 pub fn comp_textwidth(ff: bool) -> c_int {
-     {
+    {
         let mut textwidth = curbuf_mut().b_p_tw as c_int;
         if textwidth == 0 && curbuf_mut().b_p_wm != 0 {
             textwidth = curwin_mut().w_view_width - curbuf_mut().b_p_wm as c_int;
@@ -832,7 +851,7 @@ pub fn comp_textwidth(ff: bool) -> c_int {
 
 /// Implementation of the format operator `gq` (`op_format`).
 pub fn op_format(oap: &mut Oparg, keep_cursor: bool) {
-     {
+    {
         let mut old_line_count = curbuf_mut().b_ml.ml_line_count;
 
         curwin_mut().w_cursor = oap.cursor_start;
@@ -890,18 +909,22 @@ pub fn op_format(oap: &mut Oparg, keep_cursor: bool) {
 /// Implementation of the format operator `gq` for when using `'formatexpr'` (`op_formatexpr`).
 pub fn op_formatexpr(oap: &mut Oparg) {
     if oap.is_visual {
-            redraw_curbuf_later(UPD_INVERTED);
-        }
+        redraw_curbuf_later(UPD_INVERTED);
+    }
 
-        if fex_format(oap.start.lnum, c_long::from(oap.line_count), 0) != 0 {
-            op_format(oap, false);
-        }
+    if fex_format(oap.start.lnum, c_long::from(oap.line_count), 0) != 0 {
+        op_format(oap, false);
+    }
 }
 
 /// Evaluate `'formatexpr'` (`fex_format`).
 pub fn fex_format(lnum: Linenr, count: c_long, c: c_int) -> c_int {
-     {
-        let use_sandbox = was_set_insecurely(Some(crate::globals::curwin_mut()), K_OPT_FORMATEXPR, OPT_LOCAL) != 0;
+    {
+        let use_sandbox = was_set_insecurely(
+            Some(crate::globals::curwin_mut()),
+            K_OPT_FORMATEXPR,
+            OPT_LOCAL,
+        ) != 0;
         let save_sctx = g_st().current_sctx;
 
         set_vim_var_nr(VV_LNUM, i64::from(lnum));
@@ -1038,7 +1061,8 @@ pub fn format_lines(line_count: Linenr, avoid_fex: bool) {
                         next_leader_flags,
                     ))
                     && (next_leader_flags.is_null()
-                        || !(crate::memory::cstr_prefix_bytes(next_leader_flags, 3) == &b"://"[..3])
+                        || !(crate::memory::cstr_prefix_bytes(next_leader_flags, 3)
+                            == &b"://"[..3])
                         || check_linecomment(get_cursor_line_ptr()) == MAXCOL)
                 {
                     is_end_par = true;

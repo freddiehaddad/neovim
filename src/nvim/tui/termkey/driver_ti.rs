@@ -416,7 +416,8 @@ fn try_load_terminfo_key(
     shift: bool,
     name: impl crate::strings::IntoCCharPtr,
     info: TiKeyInfo,
-) -> bool { let name = name.into_c_char_ptr();
+) -> bool {
+    let name = name.into_c_char_ptr();
     unsafe {
         let mut value: *const c_char = std::ptr::null();
 
@@ -549,9 +550,9 @@ pub fn start_driver_ti(
     input: Option<&mut crate::tui::input::TermInput>,
 ) -> c_int {
     if tk.ti.root.is_none() {
-            load_terminfo(tk, ti, input);
-        }
-        1
+        load_terminfo(tk, ti, input);
+    }
+    1
 }
 
 pub fn peekkey_ti(
@@ -644,6 +645,6 @@ mod tests {
         assert!(n2.lookup_next(b'Q').is_none());
 
         let mut tk = termkey_new_abstract(None, 0).unwrap();
-            assert_eq!(start_driver_ti(&mut tk, None, None), 1);
+        assert_eq!(start_driver_ti(&mut tk, None, None), 1);
     }
 }

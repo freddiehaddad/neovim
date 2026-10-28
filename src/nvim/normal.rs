@@ -5,12 +5,12 @@ use crate::api::private::validate::{Array, Object};
 use crate::arglist::ML_EMPTY;
 use crate::autocmd::{EVENT_CURSORMOVED, EVENT_TEXTCHANGED, apply_autocmds, has_event};
 use crate::buffer::{
-    GETF_ALT, GETF_SETMARK, MAXLNUM, FileBuf, buf_get_changedtick, buf_hide, buflist_getfile,
-    fileinfo, K_OPT_JOP_FLAG_VIEW, K_SHM_FILEINFO, K_UIMESSAGES, modifiable,
+    FileBuf, GETF_ALT, GETF_SETMARK, K_OPT_JOP_FLAG_VIEW, K_SHM_FILEINFO, K_UIMESSAGES, MAXLNUM,
+    buf_get_changedtick, buf_hide, buflist_getfile, fileinfo, modifiable,
 };
 use crate::change::{
-    COM_MAX_LEN, MB_MAXCHAR, ML_DEL_MESSAGE, OPENLINE_DO_COM, changed_lines, del_chars,
-    deleted_lines, get_leader_len, ins_char, ins_char_bytes, K_OPT_VE_FLAG_ONEMORE, open_line,
+    COM_MAX_LEN, K_OPT_VE_FLAG_ONEMORE, MB_MAXCHAR, ML_DEL_MESSAGE, OPENLINE_DO_COM, changed_lines,
+    del_chars, deleted_lines, get_leader_len, ins_char, ins_char_bytes, open_line,
 };
 use crate::charset::{
     NUL, ascii_isdigit, ascii_iswhite, ascii_iswhite_or_nul, is_special, skipwhite, transchar,
@@ -19,30 +19,30 @@ use crate::charset::{
 use crate::cmdexpand::{CTRL_N, CTRL_P, RE_LAST, SEARCH_OPT, SEARCH_START};
 use crate::cmdhist::{HIST_SEARCH, add_to_history, init_history};
 use crate::cursor::{
-    adjust_cursor_col, check_cursor, check_cursor_col, check_cursor_lnum, clearpos, coladvance,
-    coladvance_force, Colnr, dec_cursor, equalpos, gchar_cursor, get_cursor_line_len,
-    get_cursor_line_ptr, get_cursor_pos_len, get_cursor_pos_ptr, getviscol, inc_cursor,
-    K_OPT_VE_FLAG_ALL, Linenr, lt, CursorPos, set_leftcol,
+    Colnr, CursorPos, K_OPT_VE_FLAG_ALL, Linenr, adjust_cursor_col, check_cursor, check_cursor_col,
+    check_cursor_lnum, clearpos, coladvance, coladvance_force, dec_cursor, equalpos, gchar_cursor,
+    get_cursor_line_len, get_cursor_line_ptr, get_cursor_pos_len, get_cursor_pos_ptr, getviscol,
+    inc_cursor, lt, set_leftcol,
 };
 use crate::decoration::{decor_conceal_line, win_lines_concealed};
 use crate::diff::{diff_move_to, diff_set_topline, ex_diffupdate, nv_diffgetput};
-use crate::digraph::{get_digraph, K_BOOL_VAR_FALSE_CONST, K_BOOL_VAR_TRUE_CONST};
+use crate::digraph::{K_BOOL_VAR_FALSE_CONST, K_BOOL_VAR_TRUE_CONST, get_digraph};
 use crate::drawline::{SMT_ALL, VALID_CROW, VALID_WCOL};
 use crate::drawscreen::{
-    GETVCOL_END_EXCL_LBR, HLF_MSG, UPD_CLEAR, UPD_INVERTED, UPD_NOT_VALID, UPD_SOME_VALID,
-    UPD_VALID, conceal_check_cursor_line, K_OPT_VE_FLAG_BLOCK, redraw_curbuf_later, redraw_later,
+    GETVCOL_END_EXCL_LBR, HLF_MSG, K_OPT_VE_FLAG_BLOCK, UPD_CLEAR, UPD_INVERTED, UPD_NOT_VALID,
+    UPD_SOME_VALID, UPD_VALID, conceal_check_cursor_line, redraw_curbuf_later, redraw_later,
     redraw_statuslines, setcursor, show_cursor_info_later, showmode, update_screen,
     win_cursorline_standout,
 };
 use crate::errors::*;
+use crate::eval::K_MARK_ALL;
 use crate::eval::buffer::prompt_invoke_callback;
 use crate::eval::funcs::{MT_CHAR_WISE, MT_LINE_WISE, MT_UNKNOWN};
-use crate::eval::K_MARK_ALL;
-use crate::eval::typval::{TypvalVval, VarType, tv_clear, TypVal, Varnumber};
+use crate::eval::typval::{TypVal, TypvalVval, VarType, Varnumber, tv_clear};
 use crate::eval::vars::{VV_OP, set_reg_var, set_vcount, set_vim_var_string};
 use crate::ex_cmds::{
-    B_IMODE_LMAP, BL_FIX, BL_SOL, BL_WHITE, CTRL_C_CONST, CTRL_E, CTRL_Y, ECMD_HIDE, ECMD_LAST, do_ascii,
-    do_ecmd,
+    B_IMODE_LMAP, BL_FIX, BL_SOL, BL_WHITE, CTRL_C_CONST, CTRL_E, CTRL_Y, ECMD_HIDE, ECMD_LAST,
+    do_ascii, do_ecmd,
 };
 use crate::ex_cmds2::autowrite;
 use crate::ex_docmd::{
@@ -51,8 +51,9 @@ use crate::ex_docmd::{
 };
 use crate::ex_eval::discard_current_exception;
 use crate::ex_getln::{
-    CTRL_CONST_CONST, CTRL_A, CTRL_B_CONST, CTRL_BSL, CTRL_D_CONST, CTRL_F_CONST, CTRL_G, CTRL_HAT_CONST, CTRL_K_CONST, CTRL_L_CONST, CTRL_O,
-    CTRL_Q_CONST, CTRL_R_CONST, CTRL_RSB_CONST, CTRL_T_CONST, CTRL_U, CTRL_W_CONST, CTRL_Z_CONST, K_EVENT, K_LUA, K_SELECT, VSE_NONE,
+    CTRL_A, CTRL_B_CONST, CTRL_BSL, CTRL_CONST_CONST, CTRL_D_CONST, CTRL_F_CONST, CTRL_G,
+    CTRL_HAT_CONST, CTRL_K_CONST, CTRL_L_CONST, CTRL_O, CTRL_Q_CONST, CTRL_R_CONST, CTRL_RSB_CONST,
+    CTRL_T_CONST, CTRL_U, CTRL_W_CONST, CTRL_Z_CONST, K_EVENT, K_LUA, K_SELECT, VSE_NONE,
     cmdwin_do_action, compute_cmdrow, curbuf_locked, getcmdline, text_locked, text_locked_msg,
     vim_strsave_fnameescape,
 };
@@ -60,29 +61,30 @@ use crate::extmark::{K_FALSE, K_NONE, K_TRUE};
 use crate::file_search::grab_file_name;
 use crate::fileio::check_timestamps;
 use crate::fold::{
-    clear_folding, close_fold, close_fold_recurse, delete_fold, fold_adjust_visual, fold_check_close,
-    fold_manual_allowed, fold_move_to, fold_open_cursor, fold_update_after_insert, foldmethod_is_manual,
-    foldmethod_is_marker, get_deepest_nesting, has_any_folding, has_folding, open_fold, open_fold_recurse,
+    clear_folding, close_fold, close_fold_recurse, delete_fold, fold_adjust_visual,
+    fold_check_close, fold_manual_allowed, fold_move_to, fold_open_cursor,
+    fold_update_after_insert, foldmethod_is_manual, foldmethod_is_marker, get_deepest_nesting,
+    has_any_folding, has_folding, open_fold, open_fold_recurse,
 };
 use crate::globals::*;
 use crate::grid::{grid_line_flush, grid_line_puts, grid_line_start};
 use crate::help::ex_help;
 use crate::indent_c::{FM_BACKWARD, FM_SKIPCOMM, check_linecomment};
 use crate::input::{
-    K_PASTE_START, beep_flush, char_avail, gotchars_ignore, K_INS_NONE, langmap_adjust,
+    K_INS_NONE, K_PASTE_START, beep_flush, char_avail, gotchars_ignore, langmap_adjust,
     map_execute_lua, paste_repeat, plain_vgetc, prep_redo, readbuf1_empty, redo_append_char,
     redo_append_str, requeue_key, safe_vgetc, start_redo, stuff_empty, stuff_readbuff,
     stuffchar_readbuff, stuffnum_readbuff, typebuf_maplen, typebuf_typed, vgetc, vpeekc, vungetc,
 };
 use crate::input_cmdatom::{
-    CmdSpec, InsSession, atom_capture_op, atom_cmd_end, atom_cmd_spec, atom_cmd_start,
-    atom_ins_end, atom_ins_start, atom_macro_start, atom_stuff_start, atom_suppress,
-    atom_visual_end, Cmdarg, K_VINS_NONE,
+    CmdSpec, Cmdarg, InsSession, K_VINS_NONE, atom_capture_op, atom_cmd_end, atom_cmd_spec,
+    atom_cmd_start, atom_ins_end, atom_ins_start, atom_macro_start, atom_stuff_start,
+    atom_suppress, atom_visual_end,
 };
 use crate::insert::{
-    CTRL_S_CONST, CTRL_X_CONST, MOD_MASK_CTRL, beginline, cursor_down, cursor_down_inner, cursor_up,
-    cursor_up_inner, edit, get_literal, ins_copychar, K_OPT_FDO_FLAG_ALL, K_OPT_FDO_FLAG_HOR, oneleft,
-    oneright, prompt_curpos_editable, set_last_insert,
+    CTRL_S_CONST, CTRL_X_CONST, K_OPT_FDO_FLAG_ALL, K_OPT_FDO_FLAG_HOR, MOD_MASK_CTRL, beginline,
+    cursor_down, cursor_down_inner, cursor_up, cursor_up_inner, edit, get_literal, ins_copychar,
+    oneleft, oneright, prompt_curpos_editable, set_last_insert,
 };
 use crate::insexpand::CTRL_I_CONST;
 use crate::keycodes::{
@@ -98,10 +100,10 @@ use crate::keycodes::{
 use crate::lua::executor::nlua_call_typval;
 use crate::mapping::add_map;
 use crate::mark::{
-    MarkMove, MarkMoveRes, checkpcmark, Fmark, get_changelist, get_jumplist, getnextmark,
-    K_MARK_BEGIN_LINE, K_MARK_CHANGED_CURSOR, K_MARK_CHANGED_LINE, K_MARK_CONTEXT, K_MARK_JUMP_LIST,
-    K_MARK_MOVE_FAILED, K_MARK_MOVE_SUCCESS, K_MARK_SET_VIEW, K_MARK_SWITCHED_BUF, mark_get, mark_mb_adjustpos,
-    mark_move_to, pos_to_mark, setmark, setpcmark,
+    Fmark, K_MARK_BEGIN_LINE, K_MARK_CHANGED_CURSOR, K_MARK_CHANGED_LINE, K_MARK_CONTEXT,
+    K_MARK_JUMP_LIST, K_MARK_MOVE_FAILED, K_MARK_MOVE_SUCCESS, K_MARK_SET_VIEW,
+    K_MARK_SWITCHED_BUF, MarkMove, MarkMoveRes, checkpcmark, get_changelist, get_jumplist,
+    getnextmark, mark_get, mark_mb_adjustpos, mark_move_to, pos_to_mark, setmark, setpcmark,
 };
 use crate::r#match::{HLF_L, HLF_LC};
 use crate::math::vim_append_digit_int;
@@ -150,29 +152,27 @@ use crate::quickfix::qf_view_result;
 use crate::regexp::{CTRL_H_CONST, CTRL_V_CONST, MAXCOL};
 use crate::register::{
     PUT_BLOCK_INNER, PUT_CURSEND, PUT_FIXINDENT, PUT_LINE, PUT_LINE_FORWARD, PUT_LINE_SPLIT,
-    copy_register, do_execreg, do_put, do_record, get_default_register_name, get_expr_register,
-    valid_yank_reg, Yankreg,
+    Yankreg, copy_register, do_execreg, do_put, do_record, get_default_register_name,
+    get_expr_register, valid_yank_reg,
 };
 use crate::search::{
-    BACKWARD, FORWARD, current_search, do_search, find_pattern_in_path, findmatchlimit,
-    reset_search_dir, searchc, searchit, SearchitArg,
+    BACKWARD, FORWARD, SearchitArg, current_search, do_search, find_pattern_in_path,
+    findmatchlimit, reset_search_dir, searchc, searchit,
 };
 use crate::spell::spell_move_to;
 use crate::spellfile::{SPELL_ADD_BAD, SPELL_ADD_GOOD, spell_add_word};
 use crate::spellsuggest::spell_suggest;
 use crate::state::{
-    MODE_INSERT, MODE_LANGMAP, MODE_LREPLACE, MODE_NORMAL, MODE_NORMAL_BUSY, MODE_REPLACE,
-    EditorState, MODE_SELECT, MODE_TERMINAL, get_real_state, may_trigger_modechanged,
+    EditorState, MODE_INSERT, MODE_LANGMAP, MODE_LREPLACE, MODE_NORMAL, MODE_NORMAL_BUSY,
+    MODE_REPLACE, MODE_SELECT, MODE_TERMINAL, get_real_state, may_trigger_modechanged,
     may_trigger_safestate, state_enter, state_handle_k_event, state_no_longer_safe, virtual_active,
 };
 use crate::statusline::{draw_tabline, win_redr_status};
-use crate::strings::{
-    tr, vim_snprintf, vim_strchr, vim_strsave_shellescape,
-};
+use crate::strings::{tr, vim_snprintf, vim_strchr, vim_strsave_shellescape};
 use crate::syntax::syn_stack_free_all;
 use crate::tag::do_tag;
 use crate::terminal::terminal_check_refresh;
-use crate::textformat::{auto_format, has_format_option, Oparg};
+use crate::textformat::{Oparg, auto_format, has_format_option};
 use crate::textobject::{
     bck_word, bckend_word, current_block, current_line, current_par, current_quote, current_sent,
     current_tagblock, current_word, end_word, findpar, findsent, fwd_word,
@@ -182,12 +182,12 @@ use crate::ui::{
     vim_beep,
 };
 use crate::undo::{
-    any_buf_is_changed, curbuf_is_changed_fn, u_clearline, u_redo, u_save, u_save_cursor, u_savesub,
-    u_undo, u_undoline, undo_time,
+    any_buf_is_changed, curbuf_is_changed_fn, u_clearline, u_redo, u_save, u_save_cursor,
+    u_savesub, u_undo, u_undoline, undo_time,
 };
 use crate::window::{
-    check_can_set_curbuf_disabled, do_window, goto_tabpage, goto_tabpage_lastused,
-    may_make_initial_scroll_size_snapshot, may_trigger_win_scrolled_resized, set_fraction, WinInfoInfo,
+    WinInfoInfo, check_can_set_curbuf_disabled, do_window, goto_tabpage, goto_tabpage_lastused,
+    may_make_initial_scroll_size_snapshot, may_trigger_win_scrolled_resized, set_fraction,
     win_setheight,
 };
 use std::ffi::{CStr, c_char, c_int, c_long, c_longlong, c_uint};
@@ -1614,7 +1614,7 @@ pub fn init_normal_cmds() {
 /// True if command `cmdchar` has any of the given NV_XX `flags`.
 pub fn nv_is(cmdchar: c_int, flags: u16) -> bool {
     let idx = find_command(cmdchar);
-        idx >= 0 && (NV_CMDS[idx as usize].cmd_flags & flags) != 0
+    idx >= 0 && (NV_CMDS[idx as usize].cmd_flags & flags) != 0
 }
 
 fn find_command(mut cmdchar: c_int) -> c_int {
@@ -1655,7 +1655,7 @@ fn find_command(mut cmdchar: c_int) -> c_int {
 }
 
 fn check_text_locked(oap: Option<&mut Oparg>) -> bool {
-     {
+    {
         if !text_locked() {
             return false;
         }
@@ -1668,7 +1668,7 @@ fn check_text_locked(oap: Option<&mut Oparg>) -> bool {
 }
 
 pub fn check_text_or_curbuf_locked(mut oap: Option<&mut Oparg>) -> bool {
-     {
+    {
         if check_text_locked(oap.as_deref_mut()) {
             return true;
         }
@@ -1697,87 +1697,90 @@ pub fn op_pending() -> bool {
 /// Normal state entry point: the main loop. Never returns.
 pub fn normal_enter() {
     let mut state = NormalState::new();
-        normal_state_init(&mut state);
-        let prev_oap = norm_st().current_oap;
-        norm_st().current_oap = &raw mut state.oa;
-        state.toplevel = true;
-        state_enter(&mut state);
-        norm_st().current_oap = prev_oap;
+    normal_state_init(&mut state);
+    let prev_oap = norm_st().current_oap;
+    norm_st().current_oap = &raw mut state.oa;
+    state.toplevel = true;
+    state_enter(&mut state);
+    norm_st().current_oap = prev_oap;
 }
 
 fn normal_prepare(s: &mut NormalState) {
     s.ca = Cmdarg::new();
-        s.ca.oap = &mut s.oa;
+    s.ca.oap = &mut s.oa;
 
-        s.ca.opcount = g_st().opcount;
+    s.ca.opcount = g_st().opcount;
 
-        let c = g_st().finish_op;
-        g_st().finish_op = s.oa.op_type != OP_NOP;
-        if g_st().finish_op != c {
-            ui_cursor_shape();
-        }
-        may_trigger_modechanged();
+    let c = g_st().finish_op;
+    g_st().finish_op = s.oa.op_type != OP_NOP;
+    if g_st().finish_op != c {
+        ui_cursor_shape();
+    }
+    may_trigger_modechanged();
 
-        s.set_prevcount = false;
-        if !g_st().finish_op && s.oa.regname == 0 {
-            s.ca.opcount = 0;
-            s.set_prevcount = true;
-        }
+    s.set_prevcount = false;
+    if !g_st().finish_op && s.oa.regname == 0 {
+        s.ca.opcount = 0;
+        s.set_prevcount = true;
+    }
 
-        if s.oa.prev_opcount > 0 || s.oa.prev_count0 > 0 {
-            s.ca.opcount = s.oa.prev_opcount;
-            s.ca.count0 = s.oa.prev_count0;
-            s.oa.prev_opcount = 0;
-            s.oa.prev_count0 = 0;
-        }
+    if s.oa.prev_opcount > 0 || s.oa.prev_count0 > 0 {
+        s.ca.opcount = s.oa.prev_opcount;
+        s.ca.count0 = s.oa.prev_count0;
+        s.oa.prev_opcount = 0;
+        s.oa.prev_count0 = 0;
+    }
 
-        s.mapped_len = typebuf_maplen();
-        g_st().state_global = MODE_NORMAL_BUSY;
+    s.mapped_len = typebuf_maplen();
+    g_st().state_global = MODE_NORMAL_BUSY;
 
-        if s.toplevel && readbuf1_empty() {
-            set_vcount_ca(&mut s.ca, &mut s.set_prevcount);
-        }
+    if s.toplevel && readbuf1_empty() {
+        set_vcount_ca(&mut s.ca, &mut s.set_prevcount);
+    }
 }
 
 fn normal_handle_special_visual_command(s: &mut NormalState) -> bool {
     let flags = NV_CMDS[s.idx as usize].cmd_flags;
-        if g_st().km_stopsel && (flags & NV_STS) != 0 && (g_st().mod_mask & c_int::from(MOD_MASK_SHIFT)) == 0 {
-            end_visual_mode();
-            redraw_curbuf_later(UPD_INVERTED);
-        }
+    if g_st().km_stopsel
+        && (flags & NV_STS) != 0
+        && (g_st().mod_mask & c_int::from(MOD_MASK_SHIFT)) == 0
+    {
+        end_visual_mode();
+        redraw_curbuf_later(UPD_INVERTED);
+    }
 
-        if g_st().km_startsel {
-            if (flags & NV_SS) != 0 {
-                unshift_special(&mut s.ca);
-                s.idx = find_command(s.ca.cmdchar);
-                if s.idx < 0 {
-                    clearopbeep(&mut s.oa);
-                    return true;
-                }
-            } else if (flags & NV_SSS) != 0 && (g_st().mod_mask & c_int::from(MOD_MASK_SHIFT)) != 0 {
-                g_st().mod_mask &= !c_int::from(MOD_MASK_SHIFT);
+    if g_st().km_startsel {
+        if (flags & NV_SS) != 0 {
+            unshift_special(&mut s.ca);
+            s.idx = find_command(s.ca.cmdchar);
+            if s.idx < 0 {
+                clearopbeep(&mut s.oa);
+                return true;
             }
+        } else if (flags & NV_SSS) != 0 && (g_st().mod_mask & c_int::from(MOD_MASK_SHIFT)) != 0 {
+            g_st().mod_mask &= !c_int::from(MOD_MASK_SHIFT);
         }
-        false
+    }
+    false
 }
 
 fn normal_need_additional_char(s: &mut NormalState) -> bool {
     let flags = NV_CMDS[s.idx as usize].cmd_flags;
-        let pending_op = s.oa.op_type != OP_NOP;
-        let cmdchar = s.ca.cmdchar;
-        (flags & NV_NCH) != 0
-            && (((flags & NV_NCH_NOP) == NV_NCH_NOP && !pending_op)
-                || (flags & NV_NCH_ALW) == NV_NCH_ALW
-                || (cmdchar == b'q' as c_int
-                    && !pending_op
-                    && g_st().reg_recording == 0
-                    && g_st().reg_executing == 0)
-                || ((cmdchar == b'a' as c_int || cmdchar == b'i' as c_int)
-                    && (pending_op || g_st().visual_global.active)))
+    let pending_op = s.oa.op_type != OP_NOP;
+    let cmdchar = s.ca.cmdchar;
+    (flags & NV_NCH) != 0
+        && (((flags & NV_NCH_NOP) == NV_NCH_NOP && !pending_op)
+            || (flags & NV_NCH_ALW) == NV_NCH_ALW
+            || (cmdchar == b'q' as c_int
+                && !pending_op
+                && g_st().reg_recording == 0
+                && g_st().reg_executing == 0)
+            || ((cmdchar == b'a' as c_int || cmdchar == b'i' as c_int)
+                && (pending_op || g_st().visual_global.active)))
 }
 
 fn normal_need_redraw_mode_message(s: &mut NormalState) -> bool {
-     {
+    {
         ((opt_vars().p_smd != 0
             && g_st().msg_silent == 0
             && (g_st().restart_edit != 0
@@ -1788,7 +1791,10 @@ fn normal_need_redraw_mode_message(s: &mut NormalState) -> bool {
             && (g_st().msg_didout || (g_st().msg_didany && g_st().msg_scroll != 0))
             && !g_st().msg_nowait
             && g_st().key_typed)
-            || (g_st().restart_edit != 0 && !g_st().visual_global.active && g_st().msg_scroll != 0 && g_st().emsg_on_display))
+            || (g_st().restart_edit != 0
+                && !g_st().visual_global.active
+                && g_st().msg_scroll != 0
+                && g_st().emsg_on_display))
             && s.oa.regname == 0
             && (s.ca.retval & CA_COMMAND_BUSY) == 0
             && stuff_empty()
@@ -1803,34 +1809,31 @@ fn normal_need_redraw_mode_message(s: &mut NormalState) -> bool {
 fn normal_redraw_mode_message(_s: &mut NormalState) {
     let save_state = g_st().state_global;
 
-        if g_st().restart_edit != 0 {
-            g_st().state_global = MODE_INSERT;
-        }
+    if g_st().restart_edit != 0 {
+        g_st().state_global = MODE_INSERT;
+    }
 
-        if g_st().must_redraw != 0
-            && g_st().keep_msg.is_some()
-            && !g_st().emsg_on_display
-        {
-            let kmsg = g_st().keep_msg.take();
-            setcursor();
-            update_screen();
-            if let Some(kmsg_cstr) = kmsg {
-                let ptr = kmsg_cstr.as_ptr();
-                g_st().keep_msg = Some(kmsg_cstr.clone());
-                msg(ptr, g_st().keep_msg_hl_id);
-            }
-        }
+    if g_st().must_redraw != 0 && g_st().keep_msg.is_some() && !g_st().emsg_on_display {
+        let kmsg = g_st().keep_msg.take();
         setcursor();
-        ui_cursor_shape();
-        ui_flush();
-        if g_st().msg_scroll != 0 || g_st().emsg_on_display {
-            msg_delay(1003, true);
+        update_screen();
+        if let Some(kmsg_cstr) = kmsg {
+            let ptr = kmsg_cstr.as_ptr();
+            g_st().keep_msg = Some(kmsg_cstr.clone());
+            msg(ptr, g_st().keep_msg_hl_id);
         }
-        msg_delay(3003, false);
-        g_st().state_global = save_state;
+    }
+    setcursor();
+    ui_cursor_shape();
+    ui_flush();
+    if g_st().msg_scroll != 0 || g_st().emsg_on_display {
+        msg_delay(1003, true);
+    }
+    msg_delay(3003, false);
+    g_st().state_global = save_state;
 
-        g_st().msg_scroll = 0;
-        g_st().emsg_on_display = false;
+    g_st().msg_scroll = 0;
+    g_st().emsg_on_display = false;
 }
 
 fn normal_get_additional_char(s: &mut NormalState) {
@@ -1969,13 +1972,11 @@ fn normal_get_additional_char(s: &mut NormalState) {
                             utf_char2bytes(s.ca.nchar, s.ca.nchar_composing.as_mut_ptr());
                     }
 
-                    if ((s.ca.nchar_len + utf_char2len(s.c)) as usize)
-                        < s.ca.nchar_composing.len()
+                    if ((s.ca.nchar_len + utf_char2len(s.c)) as usize) < s.ca.nchar_composing.len()
                     {
                         s.ca.nchar_len += utf_char2bytes(
                             s.c,
-                            s.ca
-                                .nchar_composing
+                            s.ca.nchar_composing
                                 .as_mut_ptr()
                                 .add(s.ca.nchar_len as usize),
                         );
@@ -1996,77 +1997,76 @@ fn normal_get_additional_char(s: &mut NormalState) {
 
 fn normal_invert_horizontal(s: &mut NormalState) {
     s.ca.cmdchar = match s.ca.cmdchar {
-            c if c == b'l' as c_int => b'h' as c_int,
-            K_RIGHT => K_LEFT,
-            K_S_RIGHT => K_S_LEFT,
-            K_C_RIGHT => K_C_LEFT,
-            c if c == b'h' as c_int => b'l' as c_int,
-            K_LEFT => K_RIGHT,
-            K_S_LEFT => K_S_RIGHT,
-            K_C_LEFT => K_C_RIGHT,
-            c if c == b'>' as c_int => b'<' as c_int,
-            c if c == b'<' as c_int => b'>' as c_int,
-            c => c,
-        };
-        s.idx = find_command(s.ca.cmdchar);
+        c if c == b'l' as c_int => b'h' as c_int,
+        K_RIGHT => K_LEFT,
+        K_S_RIGHT => K_S_LEFT,
+        K_C_RIGHT => K_C_LEFT,
+        c if c == b'h' as c_int => b'l' as c_int,
+        K_LEFT => K_RIGHT,
+        K_S_LEFT => K_S_RIGHT,
+        K_C_LEFT => K_C_RIGHT,
+        c if c == b'>' as c_int => b'<' as c_int,
+        c if c == b'<' as c_int => b'>' as c_int,
+        c => c,
+    };
+    s.idx = find_command(s.ca.cmdchar);
 }
 
 fn normal_get_command_count(s: &mut NormalState) -> bool {
     if g_st().visual_global.active && g_st().visual_global.select {
-            return false;
-        }
-        while (s.c >= b'1' as c_int && s.c <= b'9' as c_int)
-            || (s.ca.count0 != 0
-                && (s.c == K_DEL || s.c == K_KDEL || s.c == b'0' as c_int))
-        {
-            if s.c == K_DEL || s.c == K_KDEL {
-                s.ca.count0 /= 10;
-                del_from_showcmd(4);
-            } else if s.ca.count0 > 99_999_999 {
-                s.ca.count0 = 999_999_999;
-            } else {
-                s.ca.count0 = s.ca.count0 * 10 + (s.c - b'0' as c_int);
-            }
-
-            if s.toplevel && readbuf1_empty() {
-                set_vcount_ca(&mut s.ca, &mut s.set_prevcount);
-            }
-
-            if s.ctrl_w {
-                g_st().no_mapping += 1;
-                g_st().allow_keys += 1;
-            }
-
-            g_st().no_zero_mapping += 1;
-            s.c = plain_vgetc();
-            langmap_adjust(&mut s.c, true);
-            g_st().no_zero_mapping -= 1;
-            if s.ctrl_w {
-                g_st().no_mapping -= 1;
-                g_st().allow_keys -= 1;
-            }
-            s.need_flushbuf |= add_to_showcmd(s.c);
+        return false;
+    }
+    while (s.c >= b'1' as c_int && s.c <= b'9' as c_int)
+        || (s.ca.count0 != 0 && (s.c == K_DEL || s.c == K_KDEL || s.c == b'0' as c_int))
+    {
+        if s.c == K_DEL || s.c == K_KDEL {
+            s.ca.count0 /= 10;
+            del_from_showcmd(4);
+        } else if s.ca.count0 > 99_999_999 {
+            s.ca.count0 = 999_999_999;
+        } else {
+            s.ca.count0 = s.ca.count0 * 10 + (s.c - b'0' as c_int);
         }
 
-        if s.c == CTRL_W_CONST && !s.ctrl_w && s.oa.op_type == OP_NOP {
-            s.ctrl_w = true;
-            s.ca.opcount = s.ca.count0;
-            s.ca.count0 = 0;
+        if s.toplevel && readbuf1_empty() {
+            set_vcount_ca(&mut s.ca, &mut s.set_prevcount);
+        }
+
+        if s.ctrl_w {
             g_st().no_mapping += 1;
             g_st().allow_keys += 1;
-            s.c = plain_vgetc();
-            langmap_adjust(&mut s.c, true);
-            g_st().no_mapping -= 1;
-            g_st().allow_keys -= 1;
-            s.need_flushbuf |= add_to_showcmd(s.c);
-            return true;
         }
 
-        false
+        g_st().no_zero_mapping += 1;
+        s.c = plain_vgetc();
+        langmap_adjust(&mut s.c, true);
+        g_st().no_zero_mapping -= 1;
+        if s.ctrl_w {
+            g_st().no_mapping -= 1;
+            g_st().allow_keys -= 1;
+        }
+        s.need_flushbuf |= add_to_showcmd(s.c);
+    }
+
+    if s.c == CTRL_W_CONST && !s.ctrl_w && s.oa.op_type == OP_NOP {
+        s.ctrl_w = true;
+        s.ca.opcount = s.ca.count0;
+        s.ca.count0 = 0;
+        g_st().no_mapping += 1;
+        g_st().allow_keys += 1;
+        s.c = plain_vgetc();
+        langmap_adjust(&mut s.c, true);
+        g_st().no_mapping -= 1;
+        g_st().allow_keys -= 1;
+        s.need_flushbuf |= add_to_showcmd(s.c);
+        return true;
+    }
+
+    false
 }
 
 fn normal_finish_command(s: &mut NormalState) {
-     {
+    {
         let mut did_visual_op = false;
 
         if !s.command_finished {
@@ -2083,8 +2083,9 @@ fn normal_finish_command(s: &mut NormalState) {
             }
 
             if s.ca.cmdchar != K_IGNORE && s.ca.cmdchar != K_MOUSEMOVE {
-                did_visual_op =
-                    g_st().visual_global.active && s.oa.op_type != OP_NOP && s.oa.op_type != OP_COLON;
+                did_visual_op = g_st().visual_global.active
+                    && s.oa.op_type != OP_NOP
+                    && s.oa.op_type != OP_COLON;
                 do_pending_operator(&mut s.ca, s.old_col, false);
             }
 
@@ -2163,7 +2164,7 @@ fn normal_finish_command(s: &mut NormalState) {
 }
 
 fn normal_execute(s: &mut NormalState, key: c_int) -> c_int {
-     {
+    {
         atom_cmd_start(key);
 
         s.command_finished = false;
@@ -2219,11 +2220,7 @@ fn normal_execute(s: &mut NormalState, key: c_int) -> c_int {
         }
 
         s.ca.opcount = s.ca.count0;
-        s.ca.count1 = if s.ca.count0 == 0 {
-            1
-        } else {
-            s.ca.count0
-        };
+        s.ca.count1 = if s.ca.count0 == 0 { 1 } else { s.ca.count0 };
 
         if s.toplevel && readbuf1_empty() {
             set_vcount(
@@ -2303,7 +2300,9 @@ fn normal_execute(s: &mut NormalState, key: c_int) -> c_int {
                     unshift_special(&mut s.ca);
                     s.idx = find_command(s.ca.cmdchar);
                     assert!(s.idx >= 0);
-                } else if (flags & NV_SSS) != 0 && (g_st().mod_mask & c_int::from(MOD_MASK_SHIFT)) != 0 {
+                } else if (flags & NV_SSS) != 0
+                    && (g_st().mod_mask & c_int::from(MOD_MASK_SHIFT)) != 0
+                {
                     start_selection();
                     g_st().mod_mask &= !c_int::from(MOD_MASK_SHIFT);
                 }
@@ -2321,38 +2320,38 @@ fn normal_execute(s: &mut NormalState, key: c_int) -> c_int {
 
 fn normal_check_stuff_buffer(_s: &mut NormalState) {
     if stuff_empty() {
-            g_st().did_check_timestamps = false;
+        g_st().did_check_timestamps = false;
 
-            if g_st().need_check_timestamps {
-                check_timestamps(0);
-            }
-
-            if g_st().need_wait_return {
-                wait_return(0);
-            }
+        if g_st().need_check_timestamps {
+            check_timestamps(0);
         }
+
+        if g_st().need_wait_return {
+            wait_return(0);
+        }
+    }
 }
 
 fn normal_check_interrupt(s: &mut NormalState) {
     if g_st().got_int {
-            if !g_st().quit_more {
-                vgetc();
-            }
-            g_st().got_int = false;
-            s.previous_got_int = true;
-        } else {
-            s.previous_got_int = false;
+        if !g_st().quit_more {
+            vgetc();
         }
+        g_st().got_int = false;
+        s.previous_got_int = true;
+    } else {
+        s.previous_got_int = false;
+    }
 }
 
 fn normal_check_window_scrolled(_s: &mut NormalState) {
     if !g_st().finish_op {
-            may_trigger_win_scrolled_resized();
-        }
+        may_trigger_win_scrolled_resized();
+    }
 }
 
 fn normal_check_cursor_moved(_s: &mut NormalState) {
-     {
+    {
         if !g_st().finish_op
             && has_event(EVENT_CURSORMOVED)
             && (!ptr::eq(g_st().last_cursormoved_win, curwin_ptr())
@@ -2372,7 +2371,7 @@ fn normal_check_cursor_moved(_s: &mut NormalState) {
 }
 
 fn normal_check_text_changed(_s: &mut NormalState) {
-     {
+    {
         if !g_st().finish_op
             && has_event(EVENT_TEXTCHANGED)
             && curbuf_mut().b_last_changedtick != buf_get_changedtick(curbuf_mut())
@@ -2394,7 +2393,7 @@ fn normal_check_safe_state(_s: &mut NormalState) {
 }
 
 fn normal_check_folds(_s: &mut NormalState) {
-     {
+    {
         fold_adjust_visual();
 
         if has_any_folding(curwin_mut()) != 0 && !char_avail() {
@@ -2408,7 +2407,7 @@ fn normal_check_folds(_s: &mut NormalState) {
 }
 
 fn normal_redraw(_s: &mut NormalState) {
-     {
+    {
         update_topline(curwin_mut());
         validate_cursor(curwin_mut());
 
@@ -2446,7 +2445,7 @@ fn normal_redraw(_s: &mut NormalState) {
 }
 
 fn normal_check(s: &mut NormalState) -> c_int {
-     {
+    {
         normal_check_stuff_buffer(s);
         normal_check_interrupt(s);
 
@@ -2504,15 +2503,15 @@ fn normal_check(s: &mut NormalState) -> c_int {
 
 fn set_vcount_ca(cap: &mut Cmdarg, set_prevcount: &mut bool) {
     let mut count = i64::from(cap.count0);
-        if cap.opcount != 0 {
-            count = i64::from(cap.opcount) * if count == 0 { 1 } else { count };
-        }
-        set_vcount(count, if count == 0 { 1 } else { count }, *set_prevcount);
-        *set_prevcount = false;
+    if cap.opcount != 0 {
+        count = i64::from(cap.opcount) * if count == 0 { 1 } else { count };
+    }
+    set_vcount(count, if count == 0 { 1 } else { count }, *set_prevcount);
+    *set_prevcount = false;
 }
 
 pub fn visualinfo() -> Visualinfo {
-     {
+    {
         Visualinfo {
             vi_start: g_st().visual_global.start,
             vi_end: curwin_mut().w_cursor,
@@ -2523,7 +2522,7 @@ pub fn visualinfo() -> Visualinfo {
 }
 
 pub fn end_visual_mode() {
-     {
+    {
         g_st().visual_global.select_exclu_adj = false;
         g_st().visual_global.active = false;
         setmouse();
@@ -2544,22 +2543,22 @@ pub fn end_visual_mode() {
 
 pub fn reset_visual_and_resel() {
     if g_st().visual_global.active {
-            end_visual_mode();
-            redraw_curbuf_later(UPD_INVERTED);
-        }
-        g_st().visual_global.reselect = 0;
+        end_visual_mode();
+        redraw_curbuf_later(UPD_INVERTED);
+    }
+    g_st().visual_global.reselect = 0;
 }
 
 pub fn reset_visual() {
     if g_st().visual_global.active {
-            end_visual_mode();
-            redraw_curbuf_later(UPD_INVERTED);
-            g_st().visual_global.reselect = 0;
-        }
+        end_visual_mode();
+        redraw_curbuf_later(UPD_INVERTED);
+        g_st().visual_global.reselect = 0;
+    }
 }
 
 pub fn restore_visual_mode() {
-     {
+    {
         if norm_st().visual_mode_orig != NUL as c_int {
             curbuf_mut().b_visual.vi_mode = norm_st().visual_mode_orig;
             norm_st().visual_mode_orig = NUL as c_int;
@@ -2572,9 +2571,11 @@ fn find_is_eval_item(
     colp: &mut c_int,
     bnp: &mut c_int,
     dir: c_int,
-) -> bool { let ptr = ptr.into_c_char_ptr();
+) -> bool {
+    let ptr = ptr.into_c_char_ptr();
     unsafe {
-        if (crate::memory::cstr_first_byte(ptr) == b']' && dir == BACKWARD) || (crate::memory::cstr_first_byte(ptr) == b'[' && dir == FORWARD)
+        if (crate::memory::cstr_first_byte(ptr) == b']' && dir == BACKWARD)
+            || (crate::memory::cstr_first_byte(ptr) == b'[' && dir == FORWARD)
         {
             *bnp += 1;
         }
@@ -2606,7 +2607,7 @@ pub fn find_ident_under_cursor(
     find_type: c_int,
     offset: Option<&mut c_int>,
 ) -> usize {
-     {
+    {
         let mut textcol: c_int = 0;
         let len = find_ident_at_pos(
             curwin_mut(),
@@ -2647,7 +2648,9 @@ pub fn find_ident_at_pos(
         while i < 2 {
             col = startcol;
             while crate::memory::cstr_byte_at(ptr, col as usize) != 0 {
-                if (find_type & FIND_EVAL) != 0 && crate::memory::cstr_byte_at(ptr, col as usize) == b']' {
+                if (find_type & FIND_EVAL) != 0
+                    && crate::memory::cstr_byte_at(ptr, col as usize) == b']'
+                {
                     break;
                 }
                 this_class = mb_get_class(ptr.add(col as usize));
@@ -2659,7 +2662,9 @@ pub fn find_ident_at_pos(
 
             bn = c_int::from(crate::memory::cstr_byte_at(ptr, col as usize) == b']');
 
-            if (find_type & FIND_EVAL) != 0 && crate::memory::cstr_byte_at(ptr, col as usize) == b']' {
+            if (find_type & FIND_EVAL) != 0
+                && crate::memory::cstr_byte_at(ptr, col as usize) == b']'
+            {
                 this_class = mb_get_class(c"a");
             } else {
                 this_class = mb_get_class(ptr.add(col as usize));
@@ -2727,64 +2732,64 @@ pub fn find_ident_at_pos(
 
 fn prep_redo_cmd(cap: &mut Cmdarg) {
     let composing = cap.nchar_len > 0;
-        prep_redo(true, composing, atom_cmd_spec(cap));
-        if composing {
-            redo_append_str(cap.nchar_composing.as_ptr(), -1);
-        }
+    prep_redo(true, composing, atom_cmd_spec(cap));
+    if composing {
+        redo_append_str(cap.nchar_composing.as_ptr(), -1);
+    }
 }
 
 fn checkclearop(oap: &mut Oparg) -> bool {
     if oap.op_type == OP_NOP {
-            return false;
-        }
-        clearopbeep(&mut *oap);
-        true
+        return false;
+    }
+    clearopbeep(&mut *oap);
+    true
 }
 
 fn checkclearopq(oap: &mut Oparg) -> bool {
     if oap.op_type == OP_NOP && !g_st().visual_global.active {
-            return false;
-        }
-        clearopbeep(&mut *oap);
-        true
+        return false;
+    }
+    clearopbeep(&mut *oap);
+    true
 }
 
 pub fn clearop(oap: &mut Oparg) {
     oap.op_type = OP_NOP;
-        oap.regname = 0;
-        oap.motion_force = NUL as c_int;
-        oap.use_reg_one = false;
-        oap.restore_cursor = false;
-        g_st().motion_force = NUL as c_int;
+    oap.regname = 0;
+    oap.motion_force = NUL as c_int;
+    oap.use_reg_one = false;
+    oap.restore_cursor = false;
+    g_st().motion_force = NUL as c_int;
 }
 
 pub fn clearopbeep(oap: &mut Oparg) {
     if oap.op_type == OP_MCURSOR && oap.motion_type != MT_UNKNOWN {
-            return;
-        }
-        clearop(&mut *oap);
-        beep_flush();
+        return;
+    }
+    clearop(&mut *oap);
+    beep_flush();
 }
 
 fn unshift_special(cap: &mut Cmdarg) {
     cap.cmdchar = match cap.cmdchar {
-            K_S_RIGHT => K_RIGHT,
-            K_S_LEFT => K_LEFT,
-            K_S_UP => K_UP,
-            K_S_DOWN => K_DOWN,
-            K_S_HOME => K_HOME,
-            K_S_END => K_END,
-            c => c,
-        };
-        cap.cmdchar = simplify_key(cap.cmdchar, &mut g_st().mod_mask);
+        K_S_RIGHT => K_RIGHT,
+        K_S_LEFT => K_LEFT,
+        K_S_UP => K_UP,
+        K_S_DOWN => K_DOWN,
+        K_S_HOME => K_HOME,
+        K_S_END => K_END,
+        c => c,
+    };
+    cap.cmdchar = simplify_key(cap.cmdchar, &mut g_st().mod_mask);
 }
 
 pub fn may_clear_cmdline() {
     if g_st().mode_displayed {
-            g_st().clear_cmdline = true;
-        } else {
-            clear_showcmd();
-        }
+        g_st().clear_cmdline = true;
+    } else {
+        clear_showcmd();
+    }
 }
 
 pub fn clear_showcmd() {
@@ -2836,13 +2841,10 @@ pub fn clear_showcmd() {
                     lines as c_longlong,
                     (i64::from(rightcol) - i64::from(leftcol) + 1) as c_longlong,
                 );
-            } else if g_st().visual_global.mode == b'V' as c_int || g_st().visual_global.start.lnum != curwin_mut().w_cursor.lnum {
-                vim_snprintf!(
-                    sc_buf,
-                    SHOWCMD_BUFLEN,
-                    c"%lld",
-                    lines as c_longlong,
-                );
+            } else if g_st().visual_global.mode == b'V' as c_int
+                || g_st().visual_global.start.lnum != curwin_mut().w_cursor.lnum
+            {
+                vim_snprintf!(sc_buf, SHOWCMD_BUFLEN, c"%lld", lines as c_longlong,);
             } else {
                 let mut s: *mut c_char;
                 let e: *mut c_char;
@@ -2926,7 +2928,11 @@ pub fn add_to_showcmd(c: c_int) -> bool {
             K_LUA,
         ];
 
-        if opt_vars().p_sc == 0 || g_st().msg_silent != 0 || g_st().ex_normal_busy != 0 || g_st().key_stuffed != 0 {
+        if opt_vars().p_sc == 0
+            || g_st().msg_silent != 0
+            || g_st().ex_normal_busy != 0
+            || g_st().key_stuffed != 0
+        {
             return false;
         }
 
@@ -2978,7 +2984,7 @@ pub fn add_to_showcmd(c: c_int) -> bool {
 
 pub fn add_to_showcmd_c(c: c_int) {
     add_to_showcmd(c);
-        setcursor();
+    setcursor();
 }
 
 fn del_from_showcmd(mut len: c_int) {
@@ -2998,19 +3004,25 @@ fn del_from_showcmd(mut len: c_int) {
 }
 
 pub fn push_showcmd() {
-     {
+    {
         if opt_vars().p_sc != 0 {
-            crate::memory::cstr_cpy((&raw mut norm_st().old_showcmd_buf).cast::<c_char>(), (&raw const g_st().showcmd_buf).cast::<c_char>());
+            crate::memory::cstr_cpy(
+                (&raw mut norm_st().old_showcmd_buf).cast::<c_char>(),
+                (&raw const g_st().showcmd_buf).cast::<c_char>(),
+            );
         }
     }
 }
 
 pub fn pop_showcmd() {
-     {
+    {
         if opt_vars().p_sc == 0 {
             return;
         }
-        crate::memory::cstr_cpy((&raw mut g_st().showcmd_buf).cast::<c_char>(), (&raw const norm_st().old_showcmd_buf).cast::<c_char>());
+        crate::memory::cstr_cpy(
+            (&raw mut g_st().showcmd_buf).cast::<c_char>(),
+            (&raw const norm_st().old_showcmd_buf).cast::<c_char>(),
+        );
         display_showcmd();
     }
 }
@@ -3119,7 +3131,7 @@ pub fn get_vtopline(wp: &mut WinInfoInfo) -> c_int {
 }
 
 pub fn do_check_scrollbind(check: bool) {
-     {
+    {
         let vtopline = get_vtopline(curwin_mut());
 
         if check && curwin_mut().w_onebuf_opt.wo_scb != 0 {
@@ -3217,13 +3229,13 @@ fn nv_ignore(cap: &mut Cmdarg) {
 fn nv_nop(_cap: &mut Cmdarg) {}
 
 fn nv_error(cap: &mut Cmdarg) {
-     {
+    {
         clearopbeep(cap.oap_mut());
     }
 }
 
 fn nv_help(cap: &mut Cmdarg) {
-     {
+    {
         if !checkclearopq(cap.oap_mut()) {
             ex_help(&mut crate::ex_docmd::Exarg::new());
         }
@@ -3231,7 +3243,7 @@ fn nv_help(cap: &mut Cmdarg) {
 }
 
 fn nv_addsub(cap: &mut Cmdarg) {
-     {
+    {
         if bt_prompt(Some(crate::globals::curbuf_mut())) && !prompt_curpos_editable() {
             clearopbeep(cap.oap_mut());
         } else if !g_st().visual_global.active && cap.oap_mut().op_type == OP_NOP {
@@ -3252,7 +3264,7 @@ fn nv_addsub(cap: &mut Cmdarg) {
 }
 
 fn nv_page(cap: &mut Cmdarg) {
-     {
+    {
         if checkclearop(cap.oap_mut()) {
             return;
         }
@@ -3271,30 +3283,34 @@ fn nv_page(cap: &mut Cmdarg) {
 
 fn nv_gd(oap: &mut Oparg, nchar: c_int, thisblock: c_int) {
     let mut ptr: *mut c_char = ptr::null_mut();
-        let len = find_ident_under_cursor(&raw mut ptr, FIND_IDENT, None);
-        if len == 0
-            || !find_decl(
-                ptr,
-                len,
-                nchar == b'd' as c_int,
-                thisblock != 0,
-                SEARCH_START,
-            )
-        {
-            clearopbeep(&mut *oap);
-            return;
-        }
+    let len = find_ident_under_cursor(&raw mut ptr, FIND_IDENT, None);
+    if len == 0
+        || !find_decl(
+            ptr,
+            len,
+            nchar == b'd' as c_int,
+            thisblock != 0,
+            SEARCH_START,
+        )
+    {
+        clearopbeep(&mut *oap);
+        return;
+    }
 
-        if (opt_vars().fdo_flags & K_OPT_FDO_FLAG_SEARCH) != 0 && g_st().key_typed && oap.op_type == OP_NOP {
-            fold_open_cursor();
-        }
-        if messaging() && g_st().msg_silent == 0 && !shortmess(K_SHM_SEARCHCOUNT) {
-            g_st().clear_cmdline = true;
-        }
+    if (opt_vars().fdo_flags & K_OPT_FDO_FLAG_SEARCH) != 0
+        && g_st().key_typed
+        && oap.op_type == OP_NOP
+    {
+        fold_open_cursor();
+    }
+    if messaging() && g_st().msg_silent == 0 && !shortmess(K_SHM_SEARCHCOUNT) {
+        g_st().clear_cmdline = true;
+    }
 }
 
-fn is_ident(line: impl crate::strings::IntoCCharPtr, offset: c_int) -> bool { let line = line.into_c_char_ptr();
-     {
+fn is_ident(line: impl crate::strings::IntoCCharPtr, offset: c_int) -> bool {
+    let line = line.into_c_char_ptr();
+    {
         let mut incomment = false;
         let mut instring: c_int = 0;
         let mut prev: c_int = 0;
@@ -3332,7 +3348,8 @@ pub fn find_decl(
     locally: bool,
     thisblock: bool,
     flags_arg: c_int,
-) -> bool { let ptr = ptr.into_c_char_ptr();
+) -> bool {
+    let ptr = ptr.into_c_char_ptr();
     unsafe {
         let par_pos: CursorPos;
         let mut found_pos: CursorPos = CursorPos {
@@ -3462,12 +3479,7 @@ pub fn find_decl(
     }
 }
 
-pub fn nv_screengo(
-    oap: &mut Oparg,
-    dir: c_int,
-    mut dist: c_int,
-    skip_conceal: bool,
-) -> bool {
+pub fn nv_screengo(oap: &mut Oparg, dir: c_int, mut dist: c_int, skip_conceal: bool) -> bool {
     unsafe {
         let mut linelen = linetabsize(curwin_mut(), curwin_mut().w_cursor.lnum);
         let mut retval = true;
@@ -3611,7 +3623,7 @@ pub fn nv_screengo(
 }
 
 pub fn nv_scroll_line(cap: &mut Cmdarg) {
-     {
+    {
         if !checkclearop(cap.oap_mut()) {
             scroll_redraw(cap.arg, cap.count1);
         }
@@ -3619,7 +3631,7 @@ pub fn nv_scroll_line(cap: &mut Cmdarg) {
 }
 
 fn nv_z_get_count(cap: &mut Cmdarg, nchar_arg: &mut c_int) -> bool {
-     {
+    {
         let mut nchar = *nchar_arg;
 
         if checkclearop(cap.oap_mut()) {
@@ -3651,11 +3663,7 @@ fn nv_z_get_count(cap: &mut Cmdarg, nchar_arg: &mut c_int) -> bool {
                 || nchar == K_LEFT
                 || nchar == K_RIGHT
             {
-                cap.count1 = if n != 0 {
-                    n * cap.count1
-                } else {
-                    cap.count1
-                };
+                cap.count1 = if n != 0 { n * cap.count1 } else { cap.count1 };
                 *nchar_arg = nchar;
                 return true;
             } else {
@@ -3669,7 +3677,7 @@ fn nv_z_get_count(cap: &mut Cmdarg, nchar_arg: &mut c_int) -> bool {
 }
 
 fn nv_zg_zw(cap: &mut Cmdarg, mut nchar: c_int) -> bool {
-     {
+    {
         let mut undo = false;
 
         if nchar == b'u' as c_int {
@@ -3780,7 +3788,8 @@ fn nv_zet(cap: &mut Cmdarg) {
             {
                 if nchar == b'+' as c_int && cap.count0 == 0 {
                     validate_botline_win(curwin_mut());
-                    curwin_mut().w_cursor.lnum = curwin_mut().w_botline.min(curbuf_mut().b_ml.ml_line_count);
+                    curwin_mut().w_cursor.lnum =
+                        curwin_mut().w_botline.min(curbuf_mut().b_ml.ml_line_count);
                 }
                 if nchar != b't' as c_int {
                     beginline(BL_WHITE | BL_FIX);
@@ -3943,8 +3952,7 @@ fn nv_zet(cap: &mut Cmdarg) {
                 } else if foldmethod_is_marker(curwin_mut()) {
                     delete_fold(curwin_mut(), 1, curbuf_mut().b_ml.ml_line_count, 1, false);
                 } else {
-                    emsg(tr(
-                        c"E352: Cannot erase folds with current 'foldmethod'"));
+                    emsg(tr(c"E352: Cannot erase folds with current 'foldmethod'"));
                 }
             }
             c if c == b'n' as c_int => {
@@ -4047,8 +4055,7 @@ fn nv_zet(cap: &mut Cmdarg) {
                         BACKWARD
                     },
                     cap.count1,
-                )
-                {
+                ) {
                     clearopbeep(cap.oap_mut());
                 }
             }
@@ -4110,8 +4117,11 @@ fn nv_zet(cap: &mut Cmdarg) {
 }
 
 fn nv_q_fn(cap: &mut Cmdarg) {
-     {
-        if g_st().reg_recording != 0 || g_st().reg_executing != 0 || (!g_st().visual_global.active && cap.count0 > 2) {
+    {
+        if g_st().reg_recording != 0
+            || g_st().reg_executing != 0
+            || (!g_st().visual_global.active && cap.count0 > 2)
+        {
             vim_beep(0);
         } else if !checkclearop(cap.oap_mut()) {
             if g_st().visual_global.active {
@@ -4136,7 +4146,7 @@ fn nv_q_fn(cap: &mut Cmdarg) {
 }
 
 fn nv_colon(cap: &mut Cmdarg) {
-     {
+    {
         let is_cmdkey = cap.cmdchar == K_COMMAND;
         let is_lua = cap.cmdchar == K_LUA;
 
@@ -4193,7 +4203,7 @@ fn nv_colon(cap: &mut Cmdarg) {
 }
 
 fn nv_ctrlg(cap: &mut Cmdarg) {
-     {
+    {
         if g_st().visual_global.active {
             g_st().visual_global.select = !g_st().visual_global.select;
             may_trigger_modechanged();
@@ -4206,22 +4216,22 @@ fn nv_ctrlg(cap: &mut Cmdarg) {
 
 fn nv_ctrlh(cap: &mut Cmdarg) {
     if g_st().visual_global.active && g_st().visual_global.select {
-            cap.cmdchar = b'x' as c_int;
-            v_visop(cap);
-        } else {
-            nv_left(cap);
-        }
+        cap.cmdchar = b'x' as c_int;
+        v_visop(cap);
+    } else {
+        nv_left(cap);
+    }
 }
 
 fn nv_clear(cap: &mut Cmdarg) {
-    unsafe {
+    {
         if checkclearop(cap.oap_mut()) {
             return;
         }
 
         syn_stack_free_all(curwin_mut().w_s_ptr());
         for wp in for_all_windows_mut() {
-            (*wp.w_s_ptr()).b_syn_slow = false;
+            wp.w_s_ptr().b_syn_slow = false;
         }
         redraw_later(Some(crate::globals::curwin_mut()), UPD_CLEAR);
     }
@@ -4229,18 +4239,18 @@ fn nv_clear(cap: &mut Cmdarg) {
 
 fn nv_ctrlo(cap: &mut Cmdarg) {
     if g_st().visual_global.active && g_st().visual_global.select {
-            g_st().visual_global.select = false;
-            may_trigger_modechanged();
-            showmode();
-            g_st().visual_global.restart_select = 2;
-        } else {
-            cap.count1 = -cap.count1;
-            nv_pcmark(cap);
-        }
+        g_st().visual_global.select = false;
+        may_trigger_modechanged();
+        showmode();
+        g_st().visual_global.restart_select = 2;
+    } else {
+        cap.count1 = -cap.count1;
+        nv_pcmark(cap);
+    }
 }
 
 fn nv_hat(cap: &mut Cmdarg) {
-     {
+    {
         if !checkclearopq(cap.oap_mut()) {
             buflist_getfile(cap.count0, 0, GETF_SETMARK | GETF_ALT, 0);
         }
@@ -4248,7 +4258,7 @@ fn nv_hat(cap: &mut Cmdarg) {
 }
 
 fn nv_zet_fn(cap: &mut Cmdarg) {
-     {
+    {
         if checkclearopq(cap.oap_mut()) {
             return;
         }
@@ -4278,12 +4288,12 @@ fn nv_zet_fn(cap: &mut Cmdarg) {
 
 pub fn do_nv_ident(c1: c_int, c2: c_int) {
     let mut oa = Oparg::new();
-        let mut ca = Cmdarg::new();
+    let mut ca = Cmdarg::new();
 
-        ca.oap = &raw mut oa;
-        ca.cmdchar = c1;
-        ca.nchar = c2;
-        nv_ident(&mut ca);
+    ca.oap = &raw mut oa;
+    ca.cmdchar = c1;
+    ca.nchar = c2;
+    nv_ident(&mut ca);
 }
 
 fn nv_k_getcmd(
@@ -4296,7 +4306,8 @@ fn nv_k_getcmd(
     buf: *mut c_char,
     bufsize: usize,
     buflen: &mut usize,
-) -> usize { let kp = kp.into_c_char_ptr();
+) -> usize {
+    let kp = kp.into_c_char_ptr();
     unsafe {
         if kp_help {
             crate::memory::cstr_cpy(buf, c"help! ");
@@ -4332,23 +4343,16 @@ fn nv_k_getcmd(
         let isman = crate::memory::cstr_as_opt_bytes(kp) == Some(b"man");
         let isman_s = crate::memory::cstr_as_opt_bytes(kp) == Some(b"man -s");
         if cap.count0 != 0 && !(isman || isman_s) {
-            *buflen = vim_snprintf!(
-                buf,
-                bufsize,
-                c".,.+%lld",
-                (cap.count0 - 1) as c_longlong,
-            ) as usize;
+            *buflen =
+                vim_snprintf!(buf, bufsize, c".,.+%lld", (cap.count0 - 1) as c_longlong,) as usize;
         }
 
         do_cmdline_cmd(c"tabnew");
-        *buflen +=
-            vim_snprintf!(buf.add(*buflen), bufsize - *buflen, c"terminal ") as usize;
+        *buflen += vim_snprintf!(buf.add(*buflen), bufsize - *buflen, c"terminal ") as usize;
         if cap.count0 == 0 && isman_s {
-            *buflen +=
-                vim_snprintf!(buf.add(*buflen), bufsize - *buflen, c"man ") as usize;
+            *buflen += vim_snprintf!(buf.add(*buflen), bufsize - *buflen, c"man ") as usize;
         } else {
-            *buflen +=
-                vim_snprintf!(buf.add(*buflen), bufsize - *buflen, c"%s ", kp) as usize;
+            *buflen += vim_snprintf!(buf.add(*buflen), bufsize - *buflen, c"%s ", kp) as usize;
         }
         if cap.count0 != 0 && (isman || isman_s) {
             *buflen += vim_snprintf!(
@@ -4489,8 +4493,8 @@ fn nv_ident(cap: &mut Cmdarg) {
             crate::memory::cstr_cpy(buf_vec.as_mut_ptr(), c"help!");
             buflen = 5;
         } else if cmdchar == b'K' as c_int && !kp_help {
-            let ptr_cstr = std::ffi::CString::new(crate::memory::cstr_slice(ptr, n))
-                .unwrap_or_default();
+            let ptr_cstr =
+                std::ffi::CString::new(crate::memory::cstr_slice(ptr, n)).unwrap_or_default();
             let p = if kp_ex {
                 vim_strsave_fnameescape(ptr_cstr.as_ptr(), VSE_NONE)
             } else {
@@ -4527,7 +4531,8 @@ fn nv_ident(cap: &mut Cmdarg) {
             let mut p = buf.add(buflen);
             while n > 0 {
                 n -= 1;
-                if !vim_strchr(aux_ptr, c_int::from(crate::memory::cstr_first_byte(ptr))).is_null() {
+                if !vim_strchr(aux_ptr, c_int::from(crate::memory::cstr_first_byte(ptr))).is_null()
+                {
                     *p = b'\\' as c_char;
                     p = p.add(1);
                 }
@@ -4577,12 +4582,7 @@ fn nv_ident(cap: &mut Cmdarg) {
 
             if cmdchar == b'K' as c_int && !kp_ex && !kp_help {
                 g_st().restart_edit = b'i' as c_int;
-                add_map(
-                    c"<esc>",
-                    c"<Cmd>bdelete!<CR>",
-                    MODE_TERMINAL,
-                    true,
-                );
+                add_map(c"<esc>", c"<Cmd>bdelete!<CR>", MODE_TERMINAL, true);
             }
         }
     }
@@ -4624,22 +4624,15 @@ pub fn get_visual_text(cap: Option<&mut Cmdarg>, pp: &mut *mut c_char, lenp: &mu
 }
 
 fn nv_tagpop(cap: &mut Cmdarg) {
-     {
+    {
         if !checkclearopq(cap.oap_mut()) {
-            do_tag(
-                None,
-                c"",
-                DT_POP,
-                cap.count1,
-                0,
-                true,
-            );
+            do_tag(None, c"", DT_POP, cap.count1, 0, true);
         }
     }
 }
 
 fn nv_scroll(cap: &mut Cmdarg) {
-     {
+    {
         let mut n: c_int;
         let mut lnum: Linenr = 0;
 
@@ -4660,7 +4653,11 @@ fn nv_scroll(cap: &mut Cmdarg) {
                         Some(&mut curwin_mut().w_cursor.lnum),
                         ptr::null_mut(),
                     );
-                    n += c_int::from(decor_conceal_line(curwin_ptr(), curwin_mut().w_cursor.lnum, true));
+                    n += c_int::from(decor_conceal_line(
+                        curwin_ptr(),
+                        curwin_mut().w_cursor.lnum,
+                        true,
+                    ));
                     if curwin_mut().w_cursor.lnum > curwin_mut().w_topline {
                         curwin_mut().w_cursor.lnum -= 1;
                     }
@@ -4671,12 +4668,19 @@ fn nv_scroll(cap: &mut Cmdarg) {
             }
         } else {
             if cap.cmdchar == b'M' as c_int {
-                let mut used = -(win_get_fill(crate::globals::curwin_mut(), curwin_mut().w_topline) - curwin_mut().w_topfill);
+                let mut used =
+                    -(win_get_fill(crate::globals::curwin_mut(), curwin_mut().w_topline)
+                        - curwin_mut().w_topfill);
                 validate_botline_win(curwin_mut());
                 let half = (curwin_mut().w_view_height - curwin_mut().w_empty_rows + 1) / 2;
                 n = 0;
                 while curwin_mut().w_topline + n < curbuf_mut().b_ml.ml_line_count {
-                    if n > 0 && used + win_get_fill(crate::globals::curwin_mut(), curwin_mut().w_topline + n) / 2 >= half {
+                    if n > 0
+                        && used
+                            + win_get_fill(crate::globals::curwin_mut(), curwin_mut().w_topline + n)
+                                / 2
+                            >= half
+                    {
                         n -= 1;
                         break;
                     }
@@ -4713,7 +4717,8 @@ fn nv_scroll(cap: &mut Cmdarg) {
                     n = lnum - curwin_mut().w_topline;
                 }
             }
-            curwin_mut().w_cursor.lnum = (curwin_mut().w_topline + n).min(curbuf_mut().b_ml.ml_line_count);
+            curwin_mut().w_cursor.lnum =
+                (curwin_mut().w_topline + n).min(curbuf_mut().b_ml.ml_line_count);
         }
 
         if cap.oap_mut().op_type == OP_NOP {
@@ -4724,7 +4729,7 @@ fn nv_scroll(cap: &mut Cmdarg) {
 }
 
 fn nv_right(cap: &mut Cmdarg) {
-     {
+    {
         if (g_st().mod_mask & (c_int::from(MOD_MASK_SHIFT) | MOD_MASK_CTRL)) != 0 {
             if (g_st().mod_mask & MOD_MASK_CTRL) != 0 {
                 cap.arg = 1;
@@ -4735,7 +4740,8 @@ fn nv_right(cap: &mut Cmdarg) {
 
         cap.oap_mut().motion_type = MT_CHAR_WISE;
         cap.oap_mut().inclusive = false;
-        let mut past_line = g_st().visual_global.active && crate::memory::cstr_first_byte(opt_vars().p_sel) != b'o';
+        let mut past_line =
+            g_st().visual_global.active && crate::memory::cstr_first_byte(opt_vars().p_sel) != b'o';
 
         if virtual_active(curwin_mut()) {
             past_line = false;
@@ -4743,11 +4749,15 @@ fn nv_right(cap: &mut Cmdarg) {
 
         let mut n = cap.count1;
         while n > 0 {
-            if (!past_line && !oneright()) || (past_line && crate::memory::cstr_is_empty(get_cursor_pos_ptr())) {
-                if ((cap.cmdchar == b' ' as c_int && !vim_strchr(opt_vars().p_ww, b's' as c_int).is_null())
+            if (!past_line && !oneright())
+                || (past_line && crate::memory::cstr_is_empty(get_cursor_pos_ptr()))
+            {
+                if ((cap.cmdchar == b' ' as c_int
+                    && !vim_strchr(opt_vars().p_ww, b's' as c_int).is_null())
                     || (cap.cmdchar == b'l' as c_int
                         && !vim_strchr(opt_vars().p_ww, b'l' as c_int).is_null())
-                    || (cap.cmdchar == K_RIGHT && !vim_strchr(opt_vars().p_ww, b'>' as c_int).is_null()))
+                    || (cap.cmdchar == K_RIGHT
+                        && !vim_strchr(opt_vars().p_ww, b'>' as c_int).is_null()))
                     && curwin_mut().w_cursor.lnum < curbuf_mut().b_ml.ml_line_count
                 {
                     if cap.oap_mut().op_type != OP_NOP
@@ -4794,7 +4804,7 @@ fn nv_right(cap: &mut Cmdarg) {
 }
 
 fn nv_left(cap: &mut Cmdarg) {
-     {
+    {
         if (g_st().mod_mask & (c_int::from(MOD_MASK_SHIFT) | MOD_MASK_CTRL)) != 0 {
             if (g_st().mod_mask & MOD_MASK_CTRL) != 0 {
                 cap.arg = 1;
@@ -4812,7 +4822,8 @@ fn nv_left(cap: &mut Cmdarg) {
                     && !vim_strchr(opt_vars().p_ww, b'b' as c_int).is_null())
                     || (cap.cmdchar == b'h' as c_int
                         && !vim_strchr(opt_vars().p_ww, b'h' as c_int).is_null())
-                    || (cap.cmdchar == K_LEFT && !vim_strchr(opt_vars().p_ww, b'<' as c_int).is_null()))
+                    || (cap.cmdchar == K_LEFT
+                        && !vim_strchr(opt_vars().p_ww, b'<' as c_int).is_null()))
                     && curwin_mut().w_cursor.lnum > 1
                 {
                     curwin_mut().w_cursor.lnum -= 1;
@@ -4848,7 +4859,7 @@ fn nv_left(cap: &mut Cmdarg) {
 }
 
 fn nv_up(cap: &mut Cmdarg) {
-     {
+    {
         if (g_st().mod_mask & c_int::from(MOD_MASK_SHIFT)) != 0 {
             cap.arg = BACKWARD;
             nv_page(cap);
@@ -4865,7 +4876,7 @@ fn nv_up(cap: &mut Cmdarg) {
 }
 
 fn nv_down(cap: &mut Cmdarg) {
-     {
+    {
         if (g_st().mod_mask & c_int::from(MOD_MASK_SHIFT)) != 0 {
             cap.arg = FORWARD;
             nv_page(cap);
@@ -4893,7 +4904,7 @@ fn nv_down(cap: &mut Cmdarg) {
 }
 
 fn nv_gotofile(cap: &mut Cmdarg) {
-     {
+    {
         let mut lnum: Linenr = -1;
 
         if check_text_or_curbuf_locked(Some(cap.oap_mut())) {
@@ -4918,8 +4929,7 @@ fn nv_gotofile(cap: &mut Cmdarg) {
                 ECMD_LAST,
                 if buf_hide(curbuf_mut()) { ECMD_HIDE } else { 0 },
                 curwin_ptr(),
-            )
-                && cap.nchar == b'F' as c_int
+            ) && cap.nchar == b'F' as c_int
                 && lnum >= 0
             {
                 curwin_mut().w_cursor.lnum = lnum;
@@ -4934,15 +4944,15 @@ fn nv_gotofile(cap: &mut Cmdarg) {
 
 fn nv_end(cap: &mut Cmdarg) {
     if cap.arg != 0 || (g_st().mod_mask & MOD_MASK_CTRL) != 0 {
-            cap.arg = 1;
-            nv_goto(cap);
-            cap.count1 = 1;
-        }
-        nv_dollar(cap);
+        cap.arg = 1;
+        nv_goto(cap);
+        cap.count1 = 1;
+    }
+    nv_dollar(cap);
 }
 
 fn nv_dollar(cap: &mut Cmdarg) {
-     {
+    {
         cap.oap_mut().motion_type = MT_CHAR_WISE;
         cap.oap_mut().inclusive = true;
         if !virtual_active(curwin_mut())
@@ -4953,7 +4963,10 @@ fn nv_dollar(cap: &mut Cmdarg) {
         }
         if !cursor_down(cap.count1 - 1, cap.oap_mut().op_type == OP_NOP) {
             clearopbeep(cap.oap_mut());
-        } else if (opt_vars().fdo_flags & K_OPT_FDO_FLAG_HOR) != 0 && g_st().key_typed && cap.oap_mut().op_type == OP_NOP {
+        } else if (opt_vars().fdo_flags & K_OPT_FDO_FLAG_HOR) != 0
+            && g_st().key_typed
+            && cap.oap_mut().op_type == OP_NOP
+        {
             fold_open_cursor();
         }
     }
@@ -4996,7 +5009,7 @@ fn nv_search(cap: &mut Cmdarg) {
 }
 
 fn nv_next(cap: &mut Cmdarg) {
-     {
+    {
         let old = curwin_mut().w_cursor;
         let mut wrapped: c_int = 0;
         let i = normal_search(
@@ -5010,21 +5023,15 @@ fn nv_next(cap: &mut Cmdarg) {
 
         if i == 1 && wrapped == 0 && equalpos(old, curwin_mut().w_cursor) {
             cap.count1 += 1;
-            normal_search(
-                cap,
-                0,
-                ptr::null_mut(),
-                0,
-                SEARCH_MARK | cap.arg,
-                None,
-            );
+            normal_search(cap, 0, ptr::null_mut(), 0, SEARCH_MARK | cap.arg, None);
             cap.count1 -= 1;
         }
 
         if i > 0
             && opt_vars().p_hls != 0
             && !g_st().search_global.no_hlsearch
-            && win_hl_attr(curwin_mut(), HLF_LC as c_int) != win_hl_attr(curwin_mut(), HLF_L as c_int)
+            && win_hl_attr(curwin_mut(), HLF_LC as c_int)
+                != win_hl_attr(curwin_mut(), HLF_L as c_int)
         {
             redraw_later(Some(crate::globals::curwin_mut()), UPD_SOME_VALID);
         }
@@ -5039,7 +5046,7 @@ fn normal_search(
     opt: c_int,
     wrapped: Option<&mut c_int>,
 ) -> c_int {
-     {
+    {
         let mut sia = SearchitArg::new();
         let prev_cursor = curwin_mut().w_cursor;
 
@@ -5069,14 +5076,18 @@ fn normal_search(
                 cap.oap_mut().motion_type = MT_LINE_WISE;
             }
             curwin_mut().w_cursor.coladd = 0;
-            if cap.oap_mut().op_type == OP_NOP && (opt_vars().fdo_flags & K_OPT_FDO_FLAG_SEARCH) != 0 && g_st().key_typed {
+            if cap.oap_mut().op_type == OP_NOP
+                && (opt_vars().fdo_flags & K_OPT_FDO_FLAG_SEARCH) != 0
+                && g_st().key_typed
+            {
                 fold_open_cursor();
             }
         }
         if !equalpos(curwin_mut().w_cursor, prev_cursor)
             && opt_vars().p_hls != 0
             && !g_st().search_global.no_hlsearch
-            && win_hl_attr(curwin_mut(), HLF_LC as c_int) != win_hl_attr(curwin_mut(), HLF_L as c_int)
+            && win_hl_attr(curwin_mut(), HLF_LC as c_int)
+                != win_hl_attr(curwin_mut(), HLF_L as c_int)
         {
             redraw_later(Some(crate::globals::curwin_mut()), UPD_SOME_VALID);
         }
@@ -5087,7 +5098,7 @@ fn normal_search(
 }
 
 fn nv_csearch(cap: &mut Cmdarg) {
-     {
+    {
         let mut cursor_dec = false;
 
         if crate::memory::cstr_first_byte(opt_vars().p_sel) == b'e'
@@ -5131,7 +5142,10 @@ fn nv_csearch(cap: &mut Cmdarg) {
             curwin_mut().w_cursor.coladd = 0;
         }
         adjust_for_sel(cap);
-        if (opt_vars().fdo_flags & K_OPT_FDO_FLAG_HOR) != 0 && g_st().key_typed && cap.oap_mut().op_type == OP_NOP {
+        if (opt_vars().fdo_flags & K_OPT_FDO_FLAG_HOR) != 0
+            && g_st().key_typed
+            && cap.oap_mut().op_type == OP_NOP
+        {
             fold_open_cursor();
         }
     }
@@ -5262,7 +5276,10 @@ fn nv_bracket_block(cap: &mut Cmdarg, old_pos: &CursorPos) {
             setpcmark();
             curwin_mut().w_cursor = *pos;
             curwin_mut().w_set_curswant = true;
-            if (opt_vars().fdo_flags & K_OPT_FDO_FLAG_BLOCK) != 0 && g_st().key_typed && cap.oap_mut().op_type == OP_NOP {
+            if (opt_vars().fdo_flags & K_OPT_FDO_FLAG_BLOCK) != 0
+                && g_st().key_typed
+                && cap.oap_mut().op_type == OP_NOP
+            {
                 fold_open_cursor();
             }
         }
@@ -5319,10 +5336,8 @@ fn nv_brackets(cap: &mut Cmdarg) {
                 );
                 curwin_mut().w_set_curswant = true;
             }
-        } else if (cap.cmdchar == b'[' as c_int
-            && !vim_strchr(c"{(*/#mM", cap.nchar).is_null())
-            || (cap.cmdchar == b']' as c_int
-                && !vim_strchr(c"})*/#mM", cap.nchar).is_null())
+        } else if (cap.cmdchar == b'[' as c_int && !vim_strchr(c"{(*/#mM", cap.nchar).is_null())
+            || (cap.cmdchar == b']' as c_int && !vim_strchr(c"})*/#mM", cap.nchar).is_null())
         {
             nv_bracket_block(cap, &old_pos);
         } else if cap.nchar == b'[' as c_int || cap.nchar == b']' as c_int {
@@ -5403,8 +5418,7 @@ fn nv_brackets(cap: &mut Cmdarg) {
                     BACKWARD
                 },
                 cap.count1,
-            )
-            {
+            ) {
                 clearopbeep(cap.oap_mut());
             }
         } else if cap.nchar == b'c' as c_int {
@@ -5415,8 +5429,7 @@ fn nv_brackets(cap: &mut Cmdarg) {
                     BACKWARD
                 },
                 cap.count1,
-            )
-            {
+            ) {
                 clearopbeep(cap.oap_mut());
             }
         } else if cap.nchar == b'C' as c_int {
@@ -5455,7 +5468,8 @@ fn nv_brackets(cap: &mut Cmdarg) {
                     tv_args.as_mut_ptr(),
                     Some(&mut rettv),
                 );
-                if rettv.v_type != VarType::VarBool || rettv.vval.v_bool() != K_BOOL_VAR_TRUE_CONST {
+                if rettv.v_type != VarType::VarBool || rettv.vval.v_bool() != K_BOOL_VAR_TRUE_CONST
+                {
                     clearopbeep(cap.oap_mut());
                 }
                 tv_clear(&mut rettv);
@@ -5489,7 +5503,10 @@ fn nv_brackets(cap: &mut Cmdarg) {
                 }
                 curwin_mut().w_set_curswant = true;
             }
-            if cap.oap_mut().op_type == OP_NOP && (opt_vars().fdo_flags & K_OPT_FDO_FLAG_SEARCH) != 0 && g_st().key_typed {
+            if cap.oap_mut().op_type == OP_NOP
+                && (opt_vars().fdo_flags & K_OPT_FDO_FLAG_SEARCH) != 0
+                && g_st().key_typed
+            {
                 fold_open_cursor();
             }
         } else {
@@ -5499,20 +5516,16 @@ fn nv_brackets(cap: &mut Cmdarg) {
 }
 
 fn buf_has_cstyle_comments() -> bool {
-     {
+    {
         let mut part_buf: [c_char; COM_MAX_LEN] = [0; COM_MAX_LEN];
         let mut list = curbuf_mut().b_p_com;
         while !crate::memory::cstr_is_empty(list) {
-            copy_option_part(
-                &raw mut list,
-                part_buf.as_mut_ptr(),
-                COM_MAX_LEN,
-                c",",
-            );
+            copy_option_part(&raw mut list, part_buf.as_mut_ptr(), COM_MAX_LEN, c",");
             let string = vim_strchr(part_buf.as_ptr(), b':' as c_int);
             if !string.is_null()
                 && crate::memory::cstr_byte_at(string, 1) == b'/'
-                && (crate::memory::cstr_byte_at(string, 2) == b'/' || crate::memory::cstr_byte_at(string, 2) == b'*')
+                && (crate::memory::cstr_byte_at(string, 2) == b'/'
+                    || crate::memory::cstr_byte_at(string, 2) == b'*')
             {
                 return true;
             }
@@ -5579,7 +5592,7 @@ fn nv_percent(cap: &mut Cmdarg) {
 }
 
 fn nv_brace(cap: &mut Cmdarg) {
-     {
+    {
         cap.oap_mut().motion_type = MT_CHAR_WISE;
         cap.oap_mut().use_reg_one = true;
         cap.oap_mut().inclusive = false;
@@ -5592,14 +5605,17 @@ fn nv_brace(cap: &mut Cmdarg) {
 
         adjust_cursor(cap.oap_mut());
         curwin_mut().w_cursor.coladd = 0;
-        if (opt_vars().fdo_flags & K_OPT_FDO_FLAG_BLOCK) != 0 && g_st().key_typed && cap.oap_mut().op_type == OP_NOP {
+        if (opt_vars().fdo_flags & K_OPT_FDO_FLAG_BLOCK) != 0
+            && g_st().key_typed
+            && cap.oap_mut().op_type == OP_NOP
+        {
             fold_open_cursor();
         }
     }
 }
 
 fn nv_mark(cap: &mut Cmdarg) {
-     {
+    {
         if checkclearop(cap.oap_mut()) {
             return;
         }
@@ -5611,7 +5627,7 @@ fn nv_mark(cap: &mut Cmdarg) {
 }
 
 fn nv_findpar(cap: &mut Cmdarg) {
-     {
+    {
         cap.oap_mut().motion_type = MT_CHAR_WISE;
         cap.oap_mut().inclusive = false;
         cap.oap_mut().use_reg_one = true;
@@ -5628,14 +5644,17 @@ fn nv_findpar(cap: &mut Cmdarg) {
         }
 
         curwin_mut().w_cursor.coladd = 0;
-        if (opt_vars().fdo_flags & K_OPT_FDO_FLAG_BLOCK) != 0 && g_st().key_typed && cap.oap_mut().op_type == OP_NOP {
+        if (opt_vars().fdo_flags & K_OPT_FDO_FLAG_BLOCK) != 0
+            && g_st().key_typed
+            && cap.oap_mut().op_type == OP_NOP
+        {
             fold_open_cursor();
         }
     }
 }
 
 fn nv_undo(cap: &mut Cmdarg) {
-     {
+    {
         if cap.oap_mut().op_type == OP_LOWER || g_st().visual_global.active {
             cap.cmdchar = b'g' as c_int;
             cap.nchar = b'u' as c_int;
@@ -5647,7 +5666,7 @@ fn nv_undo(cap: &mut Cmdarg) {
 }
 
 fn nv_kundo(cap: &mut Cmdarg) {
-     {
+    {
         if checkclearopq(cap.oap_mut()) {
             return;
         }
@@ -5658,7 +5677,7 @@ fn nv_kundo(cap: &mut Cmdarg) {
 }
 
 fn nv_replace(cap: &mut Cmdarg) {
-     {
+    {
         let mut had_ctrl_v: c_int;
 
         if checkclearop(cap.oap_mut()) {
@@ -5775,10 +5794,7 @@ fn nv_replace(cap: &mut Cmdarg) {
                         curwin_mut().w_cursor.col += 1;
                     }
                 } else if cap.nchar_len != 0 {
-                    ins_char_bytes(
-                        cap.nchar_composing.as_mut_ptr(),
-                        cap.nchar_len as usize,
-                    );
+                    ins_char_bytes(cap.nchar_composing.as_mut_ptr(), cap.nchar_len as usize);
                 } else {
                     ins_char(cap.nchar);
                 }
@@ -5816,15 +5832,20 @@ fn v_swap_corners(cmdchar: c_int) {
 
             curwin_mut().w_cursor.lnum = old_cursor.lnum;
             curwin_mut().w_curswant = right;
-            if old_cursor.lnum >= g_st().visual_global.start.lnum && crate::memory::cstr_first_byte(opt_vars().p_sel) == b'e' {
+            if old_cursor.lnum >= g_st().visual_global.start.lnum
+                && crate::memory::cstr_first_byte(opt_vars().p_sel) == b'e'
+            {
                 curwin_mut().w_curswant += 1;
             }
             coladvance(curwin_mut(), curwin_mut().w_curswant);
             if curwin_mut().w_cursor.col == old_cursor.col
-                && (!virtual_active(curwin_mut()) || curwin_mut().w_cursor.coladd == old_cursor.coladd)
+                && (!virtual_active(curwin_mut())
+                    || curwin_mut().w_cursor.coladd == old_cursor.coladd)
             {
                 curwin_mut().w_cursor.lnum = g_st().visual_global.start.lnum;
-                if old_cursor.lnum <= g_st().visual_global.start.lnum && crate::memory::cstr_first_byte(opt_vars().p_sel) == b'e' {
+                if old_cursor.lnum <= g_st().visual_global.start.lnum
+                    && crate::memory::cstr_first_byte(opt_vars().p_sel) == b'e'
+                {
                     right += 1;
                 }
                 coladvance(curwin_mut(), right);
@@ -5835,14 +5856,17 @@ fn v_swap_corners(cmdchar: c_int) {
                 curwin_mut().w_curswant = left;
             }
         } else {
-            ptr::swap(&raw mut (*curwin_ptr()).w_cursor, &raw mut g_st().visual_global.start);
+            ptr::swap(
+                &raw mut (*curwin_ptr()).w_cursor,
+                &raw mut g_st().visual_global.start,
+            );
             curwin_mut().w_set_curswant = true;
         }
     }
 }
 
 fn nv_replace_fn(cap: &mut Cmdarg) {
-     {
+    {
         if g_st().visual_global.active {
             cap.cmdchar = b'c' as c_int;
             cap.nchar = NUL as c_int;
@@ -5877,7 +5901,7 @@ fn nv_replace_fn(cap: &mut Cmdarg) {
 }
 
 fn nv_vreplace(cap: &mut Cmdarg) {
-     {
+    {
         if g_st().visual_global.active {
             cap.cmdchar = b'r' as c_int;
             cap.nchar = cap.extra_char;
@@ -5909,14 +5933,16 @@ fn nv_vreplace(cap: &mut Cmdarg) {
 }
 
 fn n_swapchar(cap: &mut Cmdarg) {
-     {
+    {
         let mut did_change = false;
 
         if checkclearopq(cap.oap_mut()) {
             return;
         }
 
-        if lineempty(curwin_mut().w_cursor.lnum) && vim_strchr(opt_vars().p_ww, b'~' as c_int).is_null() {
+        if lineempty(curwin_mut().w_cursor.lnum)
+            && vim_strchr(opt_vars().p_ww, b'~' as c_int).is_null()
+        {
             clearopbeep(cap.oap_mut());
             return;
         }
@@ -5972,7 +5998,7 @@ fn n_swapchar(cap: &mut Cmdarg) {
 }
 
 fn nv_mark_move_to(cap: &mut Cmdarg, flags: MarkMove, fm: &mut Fmark) -> MarkMoveRes {
-     {
+    {
         let res = mark_move_to(&raw mut *fm, flags);
         if (res & K_MARK_MOVE_FAILED) != 0 {
             clearop(cap.oap_mut());
@@ -6009,7 +6035,7 @@ fn v_visop(cap: &mut Cmdarg) {
 }
 
 fn nv_subst(cap: &mut Cmdarg) {
-     {
+    {
         if bt_prompt(Some(crate::globals::curbuf_mut())) && !prompt_curpos_editable() {
             clearopbeep(cap.oap_mut());
             return;
@@ -6029,17 +6055,17 @@ fn nv_subst(cap: &mut Cmdarg) {
 
 fn nv_abbrev(cap: &mut Cmdarg) {
     if cap.cmdchar == K_DEL || cap.cmdchar == K_KDEL {
-            cap.cmdchar = b'x' as c_int;
-        }
-        if g_st().visual_global.active {
-            v_visop(cap);
-        } else {
-            nv_optrans(cap);
-        }
+        cap.cmdchar = b'x' as c_int;
+    }
+    if g_st().visual_global.active {
+        v_visop(cap);
+    } else {
+        nv_optrans(cap);
+    }
 }
 
 fn nv_optrans(cap: &mut Cmdarg) {
-     {
+    {
         const AR: [&CStr; 8] = [c"dl", c"dh", c"d$", c"c$", c"cl", c"cc", c"yy", c":s\r"];
         let str_p = c"xXDCsSY&".as_ptr();
 
@@ -6047,7 +6073,10 @@ fn nv_optrans(cap: &mut Cmdarg) {
             if cap.count0 != 0 {
                 stuffnum_readbuff(cap.count0);
             }
-            let idx = crate::memory::cstr_as_bytes(str_p).iter().position(|&b| b == cap.cmdchar as u8).unwrap();
+            let idx = crate::memory::cstr_as_bytes(str_p)
+                .iter()
+                .position(|&b| b == cap.cmdchar as u8)
+                .unwrap();
             stuff_readbuff(AR[idx].as_ptr());
             exec_stuffed(Some(cap));
         }
@@ -6152,7 +6181,7 @@ fn nv_pcmark(cap: &mut Cmdarg) {
 }
 
 fn nv_regname(cap: &mut Cmdarg) {
-     {
+    {
         if checkclearop(cap.oap_mut()) {
             return;
         }
@@ -6170,7 +6199,7 @@ fn nv_regname(cap: &mut Cmdarg) {
 }
 
 fn nv_visual(cap: &mut Cmdarg) {
-     {
+    {
         if cap.cmdchar == CTRL_Q_CONST {
             cap.cmdchar = CTRL_V_CONST;
         }
@@ -6204,8 +6233,11 @@ fn nv_visual(cap: &mut Cmdarg) {
             if opt_vars().p_smd != 0 && g_st().msg_silent == 0 {
                 g_st().redraw_cmdline = true;
             }
-            if g_st().visual_global.resel.mode != b'v' as c_int || g_st().visual_global.resel.line_count > 1 {
-                curwin_mut().w_cursor.lnum += g_st().visual_global.resel.line_count * cap.count0 - 1;
+            if g_st().visual_global.resel.mode != b'v' as c_int
+                || g_st().visual_global.resel.line_count > 1
+            {
+                curwin_mut().w_cursor.lnum +=
+                    g_st().visual_global.resel.line_count * cap.count0 - 1;
                 check_cursor(curwin_mut());
             }
             g_st().visual_global.mode = g_st().visual_global.resel.mode;
@@ -6243,7 +6275,9 @@ fn nv_visual(cap: &mut Cmdarg) {
                 may_start_select(b'c' as c_int);
             }
             n_start_visual_mode(cap.cmdchar);
-            if g_st().visual_global.mode != b'V' as c_int && crate::memory::cstr_first_byte(opt_vars().p_sel) == b'e' {
+            if g_st().visual_global.mode != b'V' as c_int
+                && crate::memory::cstr_first_byte(opt_vars().p_sel) == b'e'
+            {
                 cap.count1 += 1;
             } else {
                 g_st().visual_global.select_exclu_adj = false;
@@ -6251,7 +6285,9 @@ fn nv_visual(cap: &mut Cmdarg) {
             if cap.count0 > 0 {
                 cap.count1 -= 1;
                 if cap.count1 > 0 {
-                    if g_st().visual_global.mode == b'v' as c_int || g_st().visual_global.mode == CTRL_V_CONST {
+                    if g_st().visual_global.mode == b'v' as c_int
+                        || g_st().visual_global.mode == CTRL_V_CONST
+                    {
                         nv_right(cap);
                     } else if g_st().visual_global.mode == b'V' as c_int {
                         nv_down(cap);
@@ -6264,20 +6300,23 @@ fn nv_visual(cap: &mut Cmdarg) {
 
 pub fn start_selection() {
     may_start_select(b'k' as c_int);
-        n_start_visual_mode(b'v' as c_int);
+    n_start_visual_mode(b'v' as c_int);
 }
 
 pub fn may_start_select(c: c_int) {
     g_st().visual_global.select = (c == b'o' as c_int || (stuff_empty() && typebuf_typed() != 0))
-            && !vim_strchr(opt_vars().p_slm, c).is_null();
+        && !vim_strchr(opt_vars().p_slm, c).is_null();
 }
 
 fn n_start_visual_mode(c: c_int) {
-     {
+    {
         g_st().visual_global.mode = c;
         g_st().visual_global.active = true;
         g_st().visual_global.reselect = 1;
-        if c == CTRL_V_CONST && (get_ve_flags(curwin_mut()) & K_OPT_VE_FLAG_BLOCK) != 0 && gchar_cursor() == TAB {
+        if c == CTRL_V_CONST
+            && (get_ve_flags(curwin_mut()) & K_OPT_VE_FLAG_BLOCK) != 0
+            && gchar_cursor() == TAB
+        {
             validate_virtcol(curwin_mut());
             coladvance(curwin_mut(), curwin_mut().w_virtcol);
         }
@@ -6301,7 +6340,7 @@ fn n_start_visual_mode(c: c_int) {
 }
 
 fn nv_window(cap: &mut Cmdarg) {
-     {
+    {
         if cap.nchar == b':' as c_int {
             cap.cmdchar = b':' as c_int;
             cap.nchar = NUL as c_int;
@@ -6313,7 +6352,7 @@ fn nv_window(cap: &mut Cmdarg) {
 }
 
 fn nv_suspend(cap: &mut Cmdarg) {
-     {
+    {
         clearop(cap.oap_mut());
         if g_st().visual_global.active {
             end_visual_mode();
@@ -6323,7 +6362,7 @@ fn nv_suspend(cap: &mut Cmdarg) {
 }
 
 fn nv_gv_cmd(cap: &mut Cmdarg) {
-     {
+    {
         if curbuf_mut().b_visual.vi_start.lnum == 0
             || curbuf_mut().b_visual.vi_start.lnum > curbuf_mut().b_ml.ml_line_count
             || curbuf_mut().b_visual.vi_end.lnum == 0
@@ -6381,8 +6420,10 @@ pub fn nv_g_home_m_cmd(cap: &mut Cmdarg) {
             }
 
             if curwin_mut().w_skipcol > 0 && curwin_mut().w_cursor.lnum == curwin_mut().w_topline {
-                let overlap =
-                    crate::r#move::sms_marker_overlap(curwin_ptr(), curwin_mut().w_view_width - width2);
+                let overlap = crate::r#move::sms_marker_overlap(
+                    curwin_ptr(),
+                    curwin_mut().w_view_width - width2,
+                );
                 if overlap > 0 && i == curwin_mut().w_skipcol {
                     i += overlap;
                 }
@@ -6437,7 +6478,9 @@ fn nv_g_underscore_cmd(cap: &mut Cmdarg) {
         }
 
         while curwin_mut().w_cursor.col > 0
-            && ascii_iswhite(c_int::from(*ptr.add(curwin_mut().w_cursor.col as usize) as u8))
+            && ascii_iswhite(c_int::from(
+                *ptr.add(curwin_mut().w_cursor.col as usize) as u8
+            ))
         {
             curwin_mut().w_cursor.col -= 1;
         }
@@ -6515,7 +6558,7 @@ fn nv_g_dollar_cmd(cap: &mut Cmdarg) {
 }
 
 fn nv_gi_cmd(cap: &mut Cmdarg) {
-     {
+    {
         if curbuf_mut().b_last_insert.mark.lnum != 0 {
             curwin_mut().w_cursor = curbuf_mut().b_last_insert.mark;
             check_cursor_lnum(curwin_mut());
@@ -6577,12 +6620,7 @@ fn nv_g_cmd(cap: &mut Cmdarg) {
                         v_lock: 0,
                         vval: TypvalVval::Number(0),
                     }];
-                    nlua_call_typval(
-                        c"vim._core.mcursor",
-                        c"restore",
-                        tv_args.as_mut_ptr(),
-                        None,
-                    );
+                    nlua_call_typval(c"vim._core.mcursor", c"restore", tv_args.as_mut_ptr(), None);
                 }
             }
             K_BS => {
@@ -6812,22 +6850,20 @@ fn n_opencmd(cap: &mut Cmdarg) {
         if u_save(
             curwin_mut().w_cursor.lnum - c_int::from(cap.cmdchar == b'O' as c_int),
             curwin_mut().w_cursor.lnum + c_int::from(cap.cmdchar == b'o' as c_int),
-        )
-            && open_line(
-                if cap.cmdchar == b'O' as c_int {
-                    BACKWARD
-                } else {
-                    FORWARD
-                },
-                if has_format_option(K_FO_OPEN_COMS) {
-                    OPENLINE_DO_COM
-                } else {
-                    0
-                },
-                0,
-                None,
-            )
-        {
+        ) && open_line(
+            if cap.cmdchar == b'O' as c_int {
+                BACKWARD
+            } else {
+                FORWARD
+            },
+            if has_format_option(K_FO_OPEN_COMS) {
+                OPENLINE_DO_COM
+            } else {
+                0
+            },
+            0,
+            None,
+        ) {
             if win_cursorline_standout(curwin_mut()) {
                 curwin_mut().w_valid &= !VALID_CROW;
             }
@@ -6837,12 +6873,15 @@ fn n_opencmd(cap: &mut Cmdarg) {
 }
 
 fn nv_dot(cap: &mut Cmdarg) {
-     {
+    {
         if checkclearopq(cap.oap_mut()) {
             return;
         }
 
-        if !start_redo(cap.count0, g_st().restart_edit != 0 && g_st().ins_global.moved == K_INS_NONE) {
+        if !start_redo(
+            cap.count0,
+            g_st().restart_edit != 0 && g_st().ins_global.moved == K_INS_NONE,
+        ) {
             clearopbeep(cap.oap_mut());
             return;
         }
@@ -6851,7 +6890,7 @@ fn nv_dot(cap: &mut Cmdarg) {
 }
 
 fn nv_redo_or_register(cap: &mut Cmdarg) {
-     {
+    {
         if g_st().visual_global.select && g_st().visual_global.active {
             g_st().no_mapping += 1;
             let mut reg = plain_vgetc();
@@ -6876,7 +6915,7 @@ fn nv_redo_or_register(cap: &mut Cmdarg) {
 }
 
 fn nv_undo_fn(cap: &mut Cmdarg) {
-     {
+    {
         if cap.oap_mut().op_type == OP_UPPER || g_st().visual_global.active {
             cap.cmdchar = b'g' as c_int;
             cap.nchar = b'U' as c_int;
@@ -6894,8 +6933,9 @@ fn nv_undo_fn(cap: &mut Cmdarg) {
 }
 
 fn nv_tilde(cap: &mut Cmdarg) {
-     {
-        if opt_vars().p_to == 0 && !g_st().visual_global.active && cap.oap_mut().op_type != OP_TILDE {
+    {
+        if opt_vars().p_to == 0 && !g_st().visual_global.active && cap.oap_mut().op_type != OP_TILDE
+        {
             if bt_prompt(Some(crate::globals::curbuf_mut())) && !prompt_curpos_editable() {
                 clearopbeep(cap.oap_mut());
                 return;
@@ -6908,10 +6948,13 @@ fn nv_tilde(cap: &mut Cmdarg) {
 }
 
 fn nv_operator(cap: &mut Cmdarg) {
-     {
+    {
         let op_type = get_op_type(cap.cmdchar, cap.nchar);
 
-        if bt_prompt(Some(crate::globals::curbuf_mut())) && op_is_change(op_type) != 0 && !prompt_curpos_editable() {
+        if bt_prompt(Some(crate::globals::curbuf_mut()))
+            && op_is_change(op_type) != 0
+            && !prompt_curpos_editable()
+        {
             clearopbeep(cap.oap_mut());
             return;
         }
@@ -6928,19 +6971,19 @@ fn nv_operator(cap: &mut Cmdarg) {
 
 fn set_op_var(optype: c_int) {
     if optype == OP_NOP {
-            set_vim_var_string(VV_OP, ptr::null(), 0);
-        } else {
-            let opchar0 = get_op_char(optype);
-            assert!((0..=u8::MAX as c_int).contains(&opchar0));
-            let opchar1 = get_extra_op_char(optype);
-            assert!((0..=u8::MAX as c_int).contains(&opchar1));
-            let opchars: [c_char; 3] = [opchar0 as c_char, opchar1 as c_char, NUL];
-            set_vim_var_string(VV_OP, opchars.as_ptr(), 2);
-        }
+        set_vim_var_string(VV_OP, ptr::null(), 0);
+    } else {
+        let opchar0 = get_op_char(optype);
+        assert!((0..=u8::MAX as c_int).contains(&opchar0));
+        let opchar1 = get_extra_op_char(optype);
+        assert!((0..=u8::MAX as c_int).contains(&opchar1));
+        let opchars: [c_char; 3] = [opchar0 as c_char, opchar1 as c_char, NUL];
+        set_vim_var_string(VV_OP, opchars.as_ptr(), 2);
+    }
 }
 
 fn nv_lineop(cap: &mut Cmdarg) {
-     {
+    {
         cap.oap_mut().motion_type = MT_LINE_WISE;
         if !cursor_down(cap.count1 - 1, cap.oap_mut().op_type == OP_NOP) {
             clearopbeep(cap.oap_mut());
@@ -6959,16 +7002,16 @@ fn nv_lineop(cap: &mut Cmdarg) {
 
 fn nv_home(cap: &mut Cmdarg) {
     if (g_st().mod_mask & MOD_MASK_CTRL) != 0 {
-            nv_goto(cap);
-        } else {
-            cap.count0 = 1;
-            nv_pipe(cap);
-        }
-        g_st().ins_at_eol = false;
+        nv_goto(cap);
+    } else {
+        cap.count0 = 1;
+        nv_pipe(cap);
+    }
+    g_st().ins_at_eol = false;
 }
 
 fn nv_pipe(cap: &mut Cmdarg) {
-     {
+    {
         cap.oap_mut().motion_type = MT_CHAR_WISE;
         cap.oap_mut().inclusive = false;
         curwin_mut().w_cursor.col = 0;
@@ -6985,20 +7028,23 @@ fn nv_pipe(cap: &mut Cmdarg) {
 }
 
 fn nv_bck_word(cap: &mut Cmdarg) {
-     {
+    {
         cap.oap_mut().motion_type = MT_CHAR_WISE;
         cap.oap_mut().inclusive = false;
         curwin_mut().w_set_curswant = true;
         if !bck_word(cap.count1, cap.arg != 0, false) {
             clearopbeep(cap.oap_mut());
-        } else if (opt_vars().fdo_flags & K_OPT_FDO_FLAG_HOR) != 0 && g_st().key_typed && cap.oap_mut().op_type == OP_NOP {
+        } else if (opt_vars().fdo_flags & K_OPT_FDO_FLAG_HOR) != 0
+            && g_st().key_typed
+            && cap.oap_mut().op_type == OP_NOP
+        {
             fold_open_cursor();
         }
     }
 }
 
 fn nv_wordcmd(cap: &mut Cmdarg) {
-     {
+    {
         let mut word_end = cap.cmdchar == b'e' as c_int || cap.cmdchar == b'E' as c_int;
         let mut flag = false;
         let startpos = curwin_mut().w_cursor;
@@ -7021,11 +7067,7 @@ fn nv_wordcmd(cap: &mut Cmdarg) {
         let n = if word_end {
             end_word(cap.count1, cap.arg != 0, flag, false)
         } else {
-            fwd_word(
-                cap.count1,
-                cap.arg != 0,
-                cap.oap_mut().op_type != OP_NOP,
-            )
+            fwd_word(cap.count1, cap.arg != 0, cap.oap_mut().op_type != OP_NOP)
         };
 
         if lt(startpos, curwin_mut().w_cursor) {
@@ -7036,7 +7078,10 @@ fn nv_wordcmd(cap: &mut Cmdarg) {
             clearopbeep(cap.oap_mut());
         } else {
             adjust_for_sel(cap);
-            if (opt_vars().fdo_flags & K_OPT_FDO_FLAG_HOR) != 0 && g_st().key_typed && cap.oap_mut().op_type == OP_NOP {
+            if (opt_vars().fdo_flags & K_OPT_FDO_FLAG_HOR) != 0
+                && g_st().key_typed
+                && cap.oap_mut().op_type == OP_NOP
+            {
                 fold_open_cursor();
             }
         }
@@ -7044,10 +7089,11 @@ fn nv_wordcmd(cap: &mut Cmdarg) {
 }
 
 fn adjust_cursor(oap: &mut Oparg) {
-     {
+    {
         if curwin_mut().w_cursor.col > 0
             && gchar_cursor() == NUL as c_int
-            && (!g_st().visual_global.active || crate::memory::cstr_first_byte(opt_vars().p_sel) == b'o')
+            && (!g_st().visual_global.active
+                || crate::memory::cstr_first_byte(opt_vars().p_sel) == b'o')
             && !virtual_active(curwin_mut())
             && (get_ve_flags(curwin_mut()) & K_OPT_VE_FLAG_ONEMORE) == 0
         {
@@ -7059,11 +7105,14 @@ fn adjust_cursor(oap: &mut Oparg) {
 }
 
 fn nv_beginline(cap: &mut Cmdarg) {
-     {
+    {
         cap.oap_mut().motion_type = MT_CHAR_WISE;
         cap.oap_mut().inclusive = false;
         beginline(cap.arg);
-        if (opt_vars().fdo_flags & K_OPT_FDO_FLAG_HOR) != 0 && g_st().key_typed && cap.oap_mut().op_type == OP_NOP {
+        if (opt_vars().fdo_flags & K_OPT_FDO_FLAG_HOR) != 0
+            && g_st().key_typed
+            && cap.oap_mut().op_type == OP_NOP
+        {
             fold_open_cursor();
         }
         g_st().ins_at_eol = false;
@@ -7071,7 +7120,7 @@ fn nv_beginline(cap: &mut Cmdarg) {
 }
 
 fn adjust_for_sel(cap: &mut Cmdarg) {
-     {
+    {
         if g_st().visual_global.active
             && cap.oap_mut().inclusive
             && crate::memory::cstr_first_byte(opt_vars().p_sel) == b'e'
@@ -7086,20 +7135,24 @@ fn adjust_for_sel(cap: &mut Cmdarg) {
 }
 
 pub fn unadjust_for_sel() -> bool {
-     {
-        if crate::memory::cstr_first_byte(opt_vars().p_sel) == b'e' && !equalpos(g_st().visual_global.start, curwin_mut().w_cursor) {
-            return unadjust_for_sel_inner(if lt(g_st().visual_global.start, curwin_mut().w_cursor) {
-                &mut curwin_mut().w_cursor
-            } else {
-                &mut g_st().visual_global.start
-            });
+    {
+        if crate::memory::cstr_first_byte(opt_vars().p_sel) == b'e'
+            && !equalpos(g_st().visual_global.start, curwin_mut().w_cursor)
+        {
+            return unadjust_for_sel_inner(
+                if lt(g_st().visual_global.start, curwin_mut().w_cursor) {
+                    &mut curwin_mut().w_cursor
+                } else {
+                    &mut g_st().visual_global.start
+                },
+            );
         }
         false
     }
 }
 
 pub fn unadjust_for_sel_inner(pp: &mut CursorPos) -> bool {
-     {
+    {
         g_st().visual_global.select_exclu_adj = false;
 
         if pp.coladd > 0 {
@@ -7125,17 +7178,17 @@ pub fn unadjust_for_sel_inner(pp: &mut CursorPos) -> bool {
 
 fn nv_select(cap: &mut Cmdarg) {
     if g_st().visual_global.active {
-            g_st().visual_global.select = true;
-            g_st().visual_global.select_reg = 0;
-        } else if g_st().visual_global.reselect != 0 {
-            cap.nchar = b'v' as c_int;
-            cap.arg = 1;
-            nv_g_cmd(cap);
-        }
+        g_st().visual_global.select = true;
+        g_st().visual_global.select_reg = 0;
+    } else if g_st().visual_global.reselect != 0 {
+        cap.nchar = b'v' as c_int;
+        cap.arg = 1;
+        nv_g_cmd(cap);
+    }
 }
 
 fn nv_goto(cap: &mut Cmdarg) {
-     {
+    {
         let mut lnum = if cap.arg != 0 {
             curbuf_mut().b_ml.ml_line_count
         } else {
@@ -7150,14 +7203,17 @@ fn nv_goto(cap: &mut Cmdarg) {
         lnum = lnum.max(1).min(curbuf_mut().b_ml.ml_line_count);
         curwin_mut().w_cursor.lnum = lnum;
         beginline(BL_SOL | BL_FIX);
-        if (opt_vars().fdo_flags & K_OPT_FDO_FLAG_JUMP) != 0 && g_st().key_typed && cap.oap_mut().op_type == OP_NOP {
+        if (opt_vars().fdo_flags & K_OPT_FDO_FLAG_JUMP) != 0
+            && g_st().key_typed
+            && cap.oap_mut().op_type == OP_NOP
+        {
             fold_open_cursor();
         }
     }
 }
 
 fn nv_normal(cap: &mut Cmdarg) {
-     {
+    {
         if cap.nchar == CTRL_N || cap.nchar == CTRL_G {
             clearop(cap.oap_mut());
             if g_st().restart_edit != 0 && g_st().mode_displayed {
@@ -7175,7 +7231,7 @@ fn nv_normal(cap: &mut Cmdarg) {
 }
 
 fn nv_esc(cap: &mut Cmdarg) {
-     {
+    {
         let no_reason = cap.oap_mut().op_type == OP_NOP
             && cap.opcount == 0
             && cap.count0 == 0
@@ -7189,9 +7245,7 @@ fn nv_esc(cap: &mut Cmdarg) {
             if g_st().restart_edit == 0 && !g_st().visual_global.active && no_reason {
                 if any_buf_is_changed() {
                     msg(
-                        tr(
-                            c"Type  :qa!  and press <Enter> to abandon all changes and exit Nvim",
-                        ),
+                        tr(c"Type  :qa!  and press <Enter> to abandon all changes and exit Nvim"),
                         0,
                     );
                 } else {
@@ -7219,7 +7273,7 @@ fn nv_esc(cap: &mut Cmdarg) {
 }
 
 pub fn set_cursor_for_append_to_line() {
-     {
+    {
         curwin_mut().w_set_curswant = true;
         if get_ve_flags(curwin_mut()) == K_OPT_VE_FLAG_ALL {
             let save_state = g_st().state_global;
@@ -7233,12 +7287,14 @@ pub fn set_cursor_for_append_to_line() {
 }
 
 fn nv_edit(cap: &mut Cmdarg) {
-     {
+    {
         if cap.cmdchar == K_INS || cap.cmdchar == K_KINS {
             cap.cmdchar = b'i' as c_int;
         }
 
-        if g_st().visual_global.active && (cap.cmdchar == b'A' as c_int || cap.cmdchar == b'I' as c_int) {
+        if g_st().visual_global.active
+            && (cap.cmdchar == b'A' as c_int || cap.cmdchar == b'I' as c_int)
+        {
             v_visop(cap);
         } else if (cap.cmdchar == b'a' as c_int || cap.cmdchar == b'i' as c_int)
             && (cap.oap_mut().op_type != OP_NOP || g_st().visual_global.active)
@@ -7282,7 +7338,7 @@ fn nv_edit(cap: &mut Cmdarg) {
 }
 
 fn invoke_edit(cap: &mut Cmdarg, repl: c_int, cmd: c_int, startln: c_int) {
-     {
+    {
         let restart_edit_save = if repl != 0 || !stuff_empty() {
             g_st().restart_edit
         } else {
@@ -7310,7 +7366,7 @@ fn invoke_edit(cap: &mut Cmdarg, repl: c_int, cmd: c_int, startln: c_int) {
 }
 
 fn nv_object(cap: &mut Cmdarg) {
-     {
+    {
         let include = cap.cmdchar != b'i' as c_int;
         let mps_save = curbuf_mut().b_p_mps;
         curbuf_mut().b_p_mps = c"(:),{:},[:],<:>".as_ptr().cast_mut();
@@ -7318,42 +7374,34 @@ fn nv_object(cap: &mut Cmdarg) {
         let flag = match cap.nchar {
             c if c == b'w' as c_int => current_word(cap.oap_mut(), cap.count1, include, false),
             c if c == b'W' as c_int => current_word(cap.oap_mut(), cap.count1, include, true),
-            c if c == b'b' as c_int || c == b'(' as c_int || c == b')' as c_int => {
-                current_block(
-                    cap.oap_mut(),
-                    cap.count1,
-                    include,
-                    b'(' as c_int,
-                    b')' as c_int,
-                )
-            }
-            c if c == b'B' as c_int || c == b'{' as c_int || c == b'}' as c_int => {
-                current_block(
-                    cap.oap_mut(),
-                    cap.count1,
-                    include,
-                    b'{' as c_int,
-                    b'}' as c_int,
-                )
-            }
-            c if c == b'[' as c_int || c == b']' as c_int => {
-                current_block(
-                    cap.oap_mut(),
-                    cap.count1,
-                    include,
-                    b'[' as c_int,
-                    b']' as c_int,
-                )
-            }
-            c if c == b'<' as c_int || c == b'>' as c_int => {
-                current_block(
-                    cap.oap_mut(),
-                    cap.count1,
-                    include,
-                    b'<' as c_int,
-                    b'>' as c_int,
-                )
-            }
+            c if c == b'b' as c_int || c == b'(' as c_int || c == b')' as c_int => current_block(
+                cap.oap_mut(),
+                cap.count1,
+                include,
+                b'(' as c_int,
+                b')' as c_int,
+            ),
+            c if c == b'B' as c_int || c == b'{' as c_int || c == b'}' as c_int => current_block(
+                cap.oap_mut(),
+                cap.count1,
+                include,
+                b'{' as c_int,
+                b'}' as c_int,
+            ),
+            c if c == b'[' as c_int || c == b']' as c_int => current_block(
+                cap.oap_mut(),
+                cap.count1,
+                include,
+                b'[' as c_int,
+                b']' as c_int,
+            ),
+            c if c == b'<' as c_int || c == b'>' as c_int => current_block(
+                cap.oap_mut(),
+                cap.count1,
+                include,
+                b'<' as c_int,
+                b'>' as c_int,
+            ),
             c if c == b't' as c_int => {
                 cap.retval |= CA_NO_ADJ_OP_END;
                 current_tagblock(cap.oap_mut(), cap.count1, include)
@@ -7379,7 +7427,7 @@ fn nv_object(cap: &mut Cmdarg) {
 }
 
 fn nv_q(cap: &mut Cmdarg) {
-     {
+    {
         if cap.oap_mut().op_type == OP_FORMAT {
             cap.cmdchar = b'g' as c_int;
             cap.nchar = b'q' as c_int;
@@ -7441,12 +7489,7 @@ fn nv_q(cap: &mut Cmdarg) {
                     vval: TypvalVval::Number(0),
                 },
             ];
-            nlua_call_typval(
-                c"vim._core.cmdwin",
-                c"open",
-                tv_args.as_mut_ptr(),
-                None,
-            );
+            nlua_call_typval(c"vim._core.cmdwin", c"open", tv_args.as_mut_ptr(), None);
         } else if g_st().reg_executing == 0 && !do_record(cap.nchar) {
             clearopbeep(cap.oap_mut());
         }
@@ -7454,7 +7497,7 @@ fn nv_q(cap: &mut Cmdarg) {
 }
 
 fn nv_at(cap: &mut Cmdarg) {
-     {
+    {
         if checkclearop(cap.oap_mut()) {
             return;
         }
@@ -7477,7 +7520,7 @@ fn nv_at(cap: &mut Cmdarg) {
 }
 
 fn nv_halfpage(cap: &mut Cmdarg) {
-     {
+    {
         if !checkclearop(cap.oap_mut()) {
             pagescroll(
                 if cap.cmdchar == CTRL_D_CONST {
@@ -7493,7 +7536,7 @@ fn nv_halfpage(cap: &mut Cmdarg) {
 }
 
 fn nv_join(cap: &mut Cmdarg) {
-     {
+    {
         if g_st().visual_global.active {
             nv_operator(cap);
             return;
@@ -7599,7 +7642,9 @@ fn nv_put_opt(cap: &mut Cmdarg, fix_indent: bool) {
             let regname = cap.oap_mut().regname;
             let keep_registers = cap.cmdchar == b'P' as c_int;
             let clipoverwrite = (regname == b'+' as c_int || regname == b'*' as c_int)
-                && (opt_vars().cb_flags & (K_OPT_CB_FLAG_UNNAMED_CONST | K_OPT_CB_FLAG_UNNAMEDPLUS_CONST)) != 0;
+                && (opt_vars().cb_flags
+                    & (K_OPT_CB_FLAG_UNNAMED_CONST | K_OPT_CB_FLAG_UNNAMEDPLUS_CONST))
+                    != 0;
             if regname == 0
                 || regname == b'"' as c_int
                 || clipoverwrite
@@ -7611,7 +7656,10 @@ fn nv_put_opt(cap: &mut Cmdarg, fix_indent: bool) {
 
             curwin_mut().w_onebuf_opt.wo_fen = 0;
 
-            if !g_st().visual_global.active || g_st().visual_global.mode == b'V' as c_int || regname != b'.' as c_int {
+            if !g_st().visual_global.active
+                || g_st().visual_global.mode == b'V' as c_int
+                || regname != b'.' as c_int
+            {
                 cap.cmdchar = b'd' as c_int;
                 cap.nchar = NUL as c_int;
                 cap.oap_mut().regname = if keep_registers {
@@ -7639,7 +7687,8 @@ fn nv_put_opt(cap: &mut Cmdarg, fix_indent: bool) {
                 flags |= PUT_LINE_FORWARD;
             }
             dir = BACKWARD;
-            if (g_st().visual_global.mode != b'V' as c_int && curwin_mut().w_cursor.col < curbuf_mut().b_op_start.col)
+            if (g_st().visual_global.mode != b'V' as c_int
+                && curwin_mut().w_cursor.col < curbuf_mut().b_op_start.col)
                 || (g_st().visual_global.mode == b'V' as c_int
                     && curwin_mut().w_cursor.lnum < curbuf_mut().b_op_start.lnum)
             {
@@ -7650,13 +7699,7 @@ fn nv_put_opt(cap: &mut Cmdarg, fix_indent: bool) {
         let savereg_ptr = savereg
             .as_mut()
             .map_or(ptr::null_mut(), |r| r as *mut Yankreg);
-        do_put(
-            cap.oap_mut().regname,
-            savereg_ptr,
-            dir,
-            cap.count1,
-            flags,
-        );
+        do_put(cap.oap_mut().regname, savereg_ptr, dir, cap.count1, flags);
         drop(savereg);
 
         if was_visual {
@@ -7684,7 +7727,7 @@ fn nv_put_opt(cap: &mut Cmdarg, fix_indent: bool) {
 }
 
 fn nv_open(cap: &mut Cmdarg) {
-     {
+    {
         if cap.oap_mut().op_type == OP_DELETE && cap.cmdchar == b'o' as c_int {
             atom_capture_op(cap.oap_mut(), cap, false);
             clearop(cap.oap_mut());
@@ -7692,7 +7735,8 @@ fn nv_open(cap: &mut Cmdarg) {
             nv_diffgetput(false, cap.opcount as usize);
         } else if g_st().visual_global.active {
             v_swap_corners(cap.cmdchar);
-        } else if bt_prompt(Some(crate::globals::curbuf_mut())) && curwin_mut().w_cursor.lnum < curbuf_mut().b_prompt_start.mark.lnum
+        } else if bt_prompt(Some(crate::globals::curbuf_mut()))
+            && curwin_mut().w_cursor.lnum < curbuf_mut().b_prompt_start.mark.lnum
         {
             clearopbeep(cap.oap_mut());
         } else {
@@ -7707,22 +7751,22 @@ fn nv_paste(cap: &mut Cmdarg) {
 
 fn nv_event(cap: &mut Cmdarg) {
     g_st().may_garbage_collect = false;
-        let may_restart = g_st().restart_edit != 0 || g_st().visual_global.restart_select != 0;
-        state_handle_k_event();
-        g_st().finish_op = false;
-        if may_restart {
-            cap.retval |= CA_COMMAND_BUSY;
-        }
+    let may_restart = g_st().restart_edit != 0 || g_st().visual_global.restart_select != 0;
+    state_handle_k_event();
+    g_st().finish_op = false;
+    if may_restart {
+        cap.retval |= CA_COMMAND_BUSY;
+    }
 }
 
 pub fn normal_cmd(oap: &mut Oparg, toplevel: bool) {
     let mut s = NormalState::new();
-        normal_state_init(&mut s);
-        s.toplevel = toplevel;
-        s.oa = *oap;
-        normal_prepare(&mut s);
-        normal_execute(&mut s, safe_vgetc());
-        *oap = s.oa;
+    normal_state_init(&mut s);
+    s.toplevel = toplevel;
+    s.oa = *oap;
+    normal_prepare(&mut s);
+    normal_execute(&mut s, safe_vgetc());
+    *oap = s.oa;
 }
 
 pub fn exec_stuffed(mut cap: Option<&mut Cmdarg>) {
@@ -7782,8 +7826,8 @@ mod tests {
     #[test]
     fn test_is_ident() {
         let line = c"int foo = 1; /* bar */ // baz";
-            assert!(is_ident(line.as_ptr(), 4));
-            assert!(!is_ident(line.as_ptr(), 16));
-            assert!(!is_ident(line.as_ptr(), 26));
+        assert!(is_ident(line.as_ptr(), 4));
+        assert!(!is_ident(line.as_ptr(), 16));
+        assert!(!is_ident(line.as_ptr(), 26));
     }
 }

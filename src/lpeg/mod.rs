@@ -170,13 +170,13 @@ pub fn isclosecap(cap: *const Capture) -> bool {
 
 #[inline]
 pub fn isopencap(cap: &Capture) -> bool {
-     cap.siz == 0
+    cap.siz == 0
 }
 
 #[inline]
 pub fn capinside(c1: &Capture, c2: *const Capture) -> bool {
     unsafe {
-        if isopencap( c1) {
+        if isopencap(c1) {
             !isclosecap(c2)
         } else {
             (*c2).index < c1.index + LpegIndex::from(c1.siz) - 1

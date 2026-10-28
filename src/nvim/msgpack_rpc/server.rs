@@ -7,14 +7,14 @@ use crate::event::socket::{
     ADDRESS_MAX_SIZE, SocketWatcher, socket_watcher_close, socket_watcher_init,
     socket_watcher_start,
 };
-use crate::extmark::{TriState, K_FALSE, K_NONE, K_TRUE};
+use crate::extmark::{K_FALSE, K_NONE, K_TRUE, TriState};
 use crate::globals::*;
 use crate::log::{LOGLVL_ERR, LOGLVL_WRN, logmsg};
 use crate::memory::{cstr_to_cstring, xstrlcpy};
 use crate::os::env::{os_env_exists, os_get_pid, os_getenv_cstr, os_unsetenv};
 use crate::os::stdpaths::get_appname;
 use crate::path::{fix_fname, to_slash, to_slash_save};
-use crate::strings::{vim_snprintf};
+use crate::strings::vim_snprintf;
 use std::ffi::{CStr, c_char, c_int};
 use std::ptr;
 
@@ -43,7 +43,8 @@ impl RpcServerState {
     }
 }
 
-static SERVER_STATE: crate::globals::GlobalState<RpcServerState> = crate::globals::GlobalState::new(RpcServerState::new());
+static SERVER_STATE: crate::globals::GlobalState<RpcServerState> =
+    crate::globals::GlobalState::new(RpcServerState::new());
 
 #[inline]
 fn srv_st() -> &'static mut RpcServerState {
@@ -55,7 +56,8 @@ fn watchers_mut() -> &'static mut Vec<*mut SocketWatcher> {
     &mut srv_st().watchers
 }
 
-pub fn server_init(listen_addr: impl crate::strings::IntoCCharPtr) -> bool { let mut listen_addr = listen_addr.into_c_char_ptr();
+pub fn server_init(listen_addr: impl crate::strings::IntoCCharPtr) -> bool {
+    let mut listen_addr = listen_addr.into_c_char_ptr();
     unsafe {
         let mut ok = true;
         let mut owned_addr: Option<std::ffi::CString> = None;
@@ -138,8 +140,9 @@ pub fn server_teardown() {
     }
 }
 
-pub fn server_address_new(name: impl crate::strings::IntoCCharPtr) -> std::ffi::CString { let name = name.into_c_char_ptr();
-     {
+pub fn server_address_new(name: impl crate::strings::IntoCCharPtr) -> std::ffi::CString {
+    let name = name.into_c_char_ptr();
+    {
         let mut fmt: [c_char; ADDRESS_MAX_SIZE] = [0; ADDRESS_MAX_SIZE];
         let cur_count = srv_st().server_addr_count;
         srv_st().server_addr_count = srv_st().server_addr_count.wrapping_add(1);
@@ -197,7 +200,8 @@ pub fn server_address_new(name: impl crate::strings::IntoCCharPtr) -> std::ffi::
     }
 }
 
-pub fn server_owns_pipe_address(address: impl crate::strings::IntoCCharPtr) -> bool { let address = address.into_c_char_ptr();
+pub fn server_owns_pipe_address(address: impl crate::strings::IntoCCharPtr) -> bool {
+    let address = address.into_c_char_ptr();
     unsafe {
         let path = fix_fname(address);
         for &watcher in watchers_mut().iter() {
@@ -210,7 +214,8 @@ pub fn server_owns_pipe_address(address: impl crate::strings::IntoCCharPtr) -> b
     }
 }
 
-pub fn server_start(addr: impl crate::strings::IntoCCharPtr) -> c_int { let addr = addr.into_c_char_ptr();
+pub fn server_start(addr: impl crate::strings::IntoCCharPtr) -> c_int {
+    let addr = addr.into_c_char_ptr();
     unsafe {
         if addr.is_null() || *addr == 0 {
             logmsg!(
@@ -234,8 +239,11 @@ pub fn server_start(addr: impl crate::strings::IntoCCharPtr) -> c_int { let addr
         };
         let watcher = Box::into_raw(Box::new(SocketWatcher::new()));
         let endpoint = addr_gen.as_ref().map_or(addr, |s| s.as_ptr());
-        let mut result =
-            socket_watcher_init(&mut *ptr::addr_of_mut!(g_st().main_loop).cast(),  &mut *watcher, endpoint);
+        let mut result = socket_watcher_init(
+            &mut *ptr::addr_of_mut!(g_st().main_loop).cast(),
+            &mut *watcher,
+            endpoint,
+        );
         drop(addr_gen);
         if result < 0 {
             let _ = Box::from_raw(watcher);
@@ -244,7 +252,9 @@ pub fn server_start(addr: impl crate::strings::IntoCCharPtr) -> c_int { let addr
 
         let w = watchers_mut();
         for &existing in w.iter() {
-            if crate::memory::cstr_as_bytes((*watcher).addr.as_ptr()) == crate::memory::cstr_as_bytes((*existing).addr.as_ptr()) {
+            if crate::memory::cstr_as_bytes((*watcher).addr.as_ptr())
+                == crate::memory::cstr_as_bytes((*existing).addr.as_ptr())
+            {
                 logmsg!(
                     LOGLVL_ERR,
                     ptr::null(),
@@ -262,7 +272,7 @@ pub fn server_start(addr: impl crate::strings::IntoCCharPtr) -> c_int { let addr
             }
         }
 
-        result = socket_watcher_start( &mut *watcher, MAX_CONNECTIONS);
+        result = socket_watcher_start(&mut *watcher, MAX_CONNECTIONS);
         if result < 0 {
             logmsg!(
                 LOGLVL_WRN,
@@ -288,7 +298,8 @@ pub fn server_start(addr: impl crate::strings::IntoCCharPtr) -> c_int { let addr
     }
 }
 
-pub fn server_stop(endpoint: impl crate::strings::IntoCCharPtr, keep_vservername: bool) -> bool { let endpoint = endpoint.into_c_char_ptr();
+pub fn server_stop(endpoint: impl crate::strings::IntoCCharPtr, keep_vservername: bool) -> bool {
+    let endpoint = endpoint.into_c_char_ptr();
     unsafe {
         let mut addr: [c_char; ADDRESS_MAX_SIZE] = [0; ADDRESS_MAX_SIZE];
 
@@ -296,10 +307,10 @@ pub fn server_stop(endpoint: impl crate::strings::IntoCCharPtr, keep_vservername
         to_slash(addr.as_mut_ptr());
 
         let w = watchers_mut();
-        let Some(idx) = w
-            .iter()
-            .position(|&watcher| crate::memory::cstr_as_bytes(addr.as_ptr()) == crate::memory::cstr_as_bytes((*watcher).addr.as_ptr()))
-        else {
+        let Some(idx) = w.iter().position(|&watcher| {
+            crate::memory::cstr_as_bytes(addr.as_ptr())
+                == crate::memory::cstr_as_bytes((*watcher).addr.as_ptr())
+        }) else {
             logmsg!(
                 LOGLVL_WRN,
                 ptr::null(),
@@ -315,7 +326,10 @@ pub fn server_stop(endpoint: impl crate::strings::IntoCCharPtr, keep_vservername
         let watcher = w.swap_remove(idx);
         socket_watcher_close(&mut *watcher);
 
-        if !keep_vservername && (crate::memory::cstr_as_opt_bytes(addr.as_ptr()) == crate::memory::cstr_as_opt_bytes(get_vim_var_str(VV_SEND_SERVER))) {
+        if !keep_vservername
+            && (crate::memory::cstr_as_opt_bytes(addr.as_ptr())
+                == crate::memory::cstr_as_opt_bytes(get_vim_var_str(VV_SEND_SERVER)))
+        {
             set_vservername(w);
         }
 
@@ -347,6 +361,6 @@ pub(crate) fn connection_cb(watcher: *mut SocketWatcher, result: c_int) {
             return;
         }
 
-        channel_from_connection( &mut *watcher);
+        channel_from_connection(&mut *watcher);
     }
 }

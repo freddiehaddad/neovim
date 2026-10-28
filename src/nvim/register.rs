@@ -7,17 +7,18 @@ use crate::autocmd::{
     EVENT_TEXTYANKPOST, HLF_8, apply_autocmds, has_event,
 };
 use crate::buffer::{
-    MAXLNUM, VAR_FIXED, buf_is_empty, buflist_findnr, buflist_findpat, buflist_name_nr,
-    getaltfname, K_UIMESSAGES,
+    K_UIMESSAGES, MAXLNUM, VAR_FIXED, buf_is_empty, buflist_findnr, buflist_findpat,
+    buflist_name_nr, getaltfname,
 };
 use crate::buffer_updates::buf_updates_send_changes;
-use crate::change::{SIN_NOMARK, changed_bytes, changed_lines, del_chars, K_OPT_VE_FLAG_ONEMORE};
+use crate::change::{K_OPT_VE_FLAG_ONEMORE, SIN_NOMARK, changed_bytes, changed_lines, del_chars};
 use crate::charset::{NL, NUL, ascii_iswhite, getdigits_int, skipwhite, transchar, vim_strsize};
 use crate::clipboard::{adjust_clipboard_name, get_clipboard, set_clipboard};
 use crate::cmdexpand::CTRL_P;
 use crate::cursor::{
-    coladvance_force, Colnr, gchar_cursor, get_cursor_line_len, get_cursor_line_ptr,
-    get_cursor_pos_len, get_cursor_pos_ptr, getviscol, getvpos, K_OPT_VE_FLAG_ALL, Linenr, CursorPos,
+    Colnr, CursorPos, K_OPT_VE_FLAG_ALL, Linenr, coladvance_force, gchar_cursor,
+    get_cursor_line_len, get_cursor_line_ptr, get_cursor_pos_len, get_cursor_pos_ptr, getviscol,
+    getvpos,
 };
 use crate::digraph::{K_BOOL_VAR_FALSE_CONST, K_BOOL_VAR_TRUE_CONST};
 use crate::drawscreen::{showmode, update_screen};
@@ -25,15 +26,16 @@ use crate::errors::*;
 use crate::eval::funcs::RE_SEARCH;
 use crate::eval::typval::{
     TvDict, TvList, tv_dict_add_bool, tv_dict_add_list, tv_dict_add_str, tv_dict_add_str_len,
-    tv_dict_set_keys_readonly, tv_list_alloc,
-    tv_list_append_string,
+    tv_dict_set_keys_readonly, tv_list_alloc, tv_list_append_string,
 };
 use crate::eval::{ESC, eval_to_string, get_v_event, restore_v_event};
 use crate::ex_cmds::{BL_FIX, BL_WHITE};
 use crate::ex_cmds2::check_fname;
 use crate::ex_docmd::{CAR, CMOD_LOCKMARKS, Exarg};
-use crate::ex_getln::{CTRL_A, CTRL_F_CONST, CTRL_L_CONST, CTRL_R_CONST, CTRL_W_CONST, cmdline_paste_str, getcmdline};
-use crate::extmark::{Bcount, extmark_splice, extmark_splice_cols, K_EXTMARK_NOOP, K_EXTMARK_UNDO};
+use crate::ex_getln::{
+    CTRL_A, CTRL_F_CONST, CTRL_L_CONST, CTRL_R_CONST, CTRL_W_CONST, cmdline_paste_str, getcmdline,
+};
+use crate::extmark::{Bcount, K_EXTMARK_NOOP, K_EXTMARK_UNDO, extmark_splice, extmark_splice_cols};
 use crate::file_search::{FNAME_EXP, FNAME_HYP, FNAME_MESS, file_name_at_cursor};
 use crate::fold::has_folding;
 use crate::globals::*;
@@ -71,8 +73,7 @@ use crate::regexp::{CTRL_V_CONST, MAXCOL, NUMBUFLEN};
 use crate::search::{BACKWARD, Direction, FORWARD, last_search_pat, set_last_search_pat};
 use crate::state::{REPLACE_FLAG, SaveVEvent};
 use crate::strings::{
-    gettext, ngettext, vim_snprintf, vim_snprintf_safelen, vim_strchr,
-    vim_strsave_escaped_ext,
+    gettext, ngettext, vim_snprintf, vim_snprintf_safelen, vim_strchr, vim_strsave_escaped_ext,
 };
 use crate::terminal::terminal_paste;
 use crate::textformat::Oparg;
@@ -103,8 +104,8 @@ pub struct Yankreg {
 impl Drop for Yankreg {
     fn drop(&mut self) {
         for item in self.y_array.iter_mut().rev() {
-                api_clear_string(item);
-            }
+            api_clear_string(item);
+        }
     }
 }
 
@@ -270,8 +271,8 @@ pub const fn get_register_name(num: c_int) -> c_int {
 
 #[inline]
 pub fn reg_empty(reg: &Yankreg) -> bool {
-     {
-                !reg.y_allocated
+    {
+        !reg.y_allocated
             || reg.y_array.is_empty()
             || (reg.y_array.len() == 1
                 && reg.y_type == MotionType::MtCharWise
@@ -298,7 +299,9 @@ pub fn get_unname_register() -> c_int {
         if reg_st().y_previous.is_null() {
             -1
         } else {
-            reg_st().y_previous.offset_from((&raw const reg_st().y_regs).cast::<Yankreg>()) as c_int
+            reg_st()
+                .y_previous
+                .offset_from((&raw const reg_st().y_regs).cast::<Yankreg>()) as c_int
         }
     }
 }
@@ -313,12 +316,12 @@ pub fn get_y_previous() -> *mut Yankreg {
 
 pub fn get_expr_register() -> c_int {
     let Some(new_line) = getcmdline(c_int::from(b'='), 0, 0, true) else {
-            return 0;
-        };
-        if !new_line.as_bytes().is_empty() {
-            set_expr_line(Some(new_line));
-        }
-        c_int::from(b'=')
+        return 0;
+    };
+    if !new_line.as_bytes().is_empty() {
+        set_expr_line(Some(new_line));
+    }
+    c_int::from(b'=')
 }
 
 pub fn set_expr_line(new_line: Option<std::ffi::CString>) {
@@ -327,14 +330,14 @@ pub fn set_expr_line(new_line: Option<std::ffi::CString>) {
 
 pub fn get_expr_line() -> Option<std::ffi::CString> {
     let expr_copy = reg_st().expr_line.clone()?;
-        if reg_st().get_expr_line_nested >= 10 {
-            return Some(expr_copy);
-        }
+    if reg_st().get_expr_line_nested >= 10 {
+        return Some(expr_copy);
+    }
 
-        reg_st().get_expr_line_nested += 1;
-        let rv = eval_to_string(expr_copy.as_ptr().cast_mut(), true, false);
-        reg_st().get_expr_line_nested -= 1;
-        rv
+    reg_st().get_expr_line_nested += 1;
+    let rv = eval_to_string(expr_copy.as_ptr().cast_mut(), true, false);
+    reg_st().get_expr_line_nested -= 1;
+    rv
 }
 
 pub fn get_expr_line_src() -> Option<std::ffi::CString> {
@@ -343,18 +346,18 @@ pub fn get_expr_line_src() -> Option<std::ffi::CString> {
 
 pub fn valid_yank_reg(regname: c_int, writing: bool) -> bool {
     (regname > 0 && regname <= 0x7f && (regname as u8).is_ascii_alphanumeric())
-            || (!writing && !vim_strchr(c"/#.%:=", regname).is_null())
-            || regname == c_int::from(b'"')
-            || regname == c_int::from(b'-')
-            || regname == c_int::from(b'_')
-            || regname == c_int::from(b'*')
-            || regname == c_int::from(b'+')
+        || (!writing && !vim_strchr(c"/#.%:=", regname).is_null())
+        || regname == c_int::from(b'"')
+        || regname == c_int::from(b'-')
+        || regname == c_int::from(b'_')
+        || regname == c_int::from(b'*')
+        || regname == c_int::from(b'+')
 }
 
 pub fn get_default_register_name() -> c_int {
     let mut name: c_int = 0;
-        adjust_clipboard_name(&mut name, true, false);
-        name
+    adjust_clipboard_name(&mut name, true, false);
+    name
 }
 
 pub fn op_reg_iter(
@@ -365,25 +368,25 @@ pub fn op_reg_iter(
     is_unnamed: &mut bool,
 ) -> Option<usize> {
     *name = NUL;
-        let mut idx = iter.unwrap_or(0);
-        while idx < NUM_SAVED_REGISTERS && reg_empty(&regs[idx]) {
-            idx += 1;
-        }
-        if idx >= NUM_SAVED_REGISTERS || reg_empty(&regs[idx]) {
-            return None;
-        }
-        *name = get_register_name(idx as c_int) as u8 as c_char;
-        let iter_reg = &raw const regs[idx];
-        *reg = iter_reg;
-        *is_unnamed = ptr::eq(iter_reg, reg_st().y_previous);
+    let mut idx = iter.unwrap_or(0);
+    while idx < NUM_SAVED_REGISTERS && reg_empty(&regs[idx]) {
         idx += 1;
-        while idx < NUM_SAVED_REGISTERS {
-            if !reg_empty(&regs[idx]) {
-                return Some(idx);
-            }
-            idx += 1;
+    }
+    if idx >= NUM_SAVED_REGISTERS || reg_empty(&regs[idx]) {
+        return None;
+    }
+    *name = get_register_name(idx as c_int) as u8 as c_char;
+    let iter_reg = &raw const regs[idx];
+    *reg = iter_reg;
+    *is_unnamed = ptr::eq(iter_reg, reg_st().y_previous);
+    idx += 1;
+    while idx < NUM_SAVED_REGISTERS {
+        if !reg_empty(&regs[idx]) {
+            return Some(idx);
         }
-        None
+        idx += 1;
+    }
+    None
 }
 
 pub fn op_global_reg_iter(
@@ -392,13 +395,7 @@ pub fn op_global_reg_iter(
     reg: &mut *const Yankreg,
     is_unnamed: &mut bool,
 ) -> Option<usize> {
-    op_reg_iter(
-            iter,
-            &reg_st().y_regs,
-            name,
-            reg,
-            is_unnamed,
-        )
+    op_reg_iter(iter, &reg_st().y_regs, name, reg, is_unnamed)
 }
 
 pub fn reg_max_ts(clipboard: bool) -> Timestamp {
@@ -448,7 +445,9 @@ pub fn op_reg_get(name: c_char) -> *const Yankreg {
         if i == -1 {
             return ptr::null();
         }
-        (&raw const reg_st().y_regs).cast::<Yankreg>().add(i as usize)
+        (&raw const reg_st().y_regs)
+            .cast::<Yankreg>()
+            .add(i as usize)
     }
 }
 
@@ -464,7 +463,7 @@ pub fn op_reg_set_previous(name: c_char) -> bool {
 }
 
 pub fn update_yankreg_width(reg: &mut Yankreg) {
-     {
+    {
         if reg.y_type == MotionType::MtBlockWise {
             let mut maxlen: usize = 0;
             for &item in &reg.y_array {
@@ -538,7 +537,8 @@ pub fn copy_register(name: c_int) -> Yankreg {
     }
 }
 
-fn stuff_yank(regname: c_int, p: impl crate::strings::IntoCCharPtr) -> bool { let p = p.into_c_char_ptr();
+fn stuff_yank(regname: c_int, p: impl crate::strings::IntoCCharPtr) -> bool {
+    let p = p.into_c_char_ptr();
     unsafe {
         if regname != 0 && !valid_yank_reg(regname, true) {
             return false;
@@ -570,7 +570,7 @@ fn stuff_yank(regname: c_int, p: impl crate::strings::IntoCCharPtr) -> bool { le
 }
 
 pub fn do_record(c: c_int) -> bool {
-     {
+    {
         let retval: bool;
 
         if g_st().reg_recording == 0 {
@@ -629,64 +629,69 @@ pub fn do_record(c: c_int) -> bool {
     }
 }
 
-fn put_in_typebuf(s: impl crate::strings::IntoCCharPtr, esc: bool, colon: bool, silent: c_int) -> bool { let s = s.into_c_char_ptr();
+fn put_in_typebuf(
+    s: impl crate::strings::IntoCCharPtr,
+    esc: bool,
+    colon: bool,
+    silent: c_int,
+) -> bool {
+    let s = s.into_c_char_ptr();
     let mut retval = true;
-        let is_silent = silent != 0;
+    let is_silent = silent != 0;
 
-        put_reedit_in_typebuf(silent);
-        if colon {
-            retval = ins_typebuf(c"\n", REMAP_NONE, 0, true, is_silent);
+    put_reedit_in_typebuf(silent);
+    if colon {
+        retval = ins_typebuf(c"\n", REMAP_NONE, 0, true, is_silent);
+    }
+    if retval {
+        let owned_p = if esc {
+            Some(vim_strsave_escape_ks(s))
+        } else {
+            None
+        };
+        let p = owned_p.as_ref().map_or(s, |cs| cs.as_ptr().cast_mut());
+        if p.is_null() {
+            retval = false;
+        } else {
+            retval = ins_typebuf(
+                p,
+                if esc { REMAP_NONE } else { REMAP_YES },
+                0,
+                true,
+                is_silent,
+            );
         }
-        if retval {
-            let owned_p = if esc {
-                Some(vim_strsave_escape_ks(s))
-            } else {
-                None
-            };
-            let p = owned_p.as_ref().map_or(s, |cs| cs.as_ptr().cast_mut());
-            if p.is_null() {
-                retval = false;
-            } else {
-                retval = ins_typebuf(
-                    p,
-                    if esc { REMAP_NONE } else { REMAP_YES },
-                    0,
-                    true,
-                    is_silent,
-                );
-            }
-        }
-        if colon && retval {
-            retval = ins_typebuf(c":", REMAP_NONE, 0, true, is_silent);
-        }
-        retval
+    }
+    if colon && retval {
+        retval = ins_typebuf(c":", REMAP_NONE, 0, true, is_silent);
+    }
+    retval
 }
 
 fn put_reedit_in_typebuf(silent: c_int) {
     if g_st().restart_edit == 0 {
-            return;
-        }
+        return;
+    }
 
-        let mut buf: [u8; 11] = [
-            K_SPECIAL, KS_EXTRA, KE_COMMAND, b's', b't', b'a', b'r', b't', b'i', CAR as u8, 0,
-        ];
-        if g_st().restart_edit == c_int::from(b'R') {
-            buf[8] = b'r';
-        } else if g_st().restart_edit == c_int::from(b'V') {
-            buf[8] = b'g';
-        } else if g_st().restart_edit == c_int::from(b'A') {
-            buf[8] = b'!';
-        }
-        if ins_typebuf(
-            buf.as_mut_ptr().cast::<c_char>(),
-            REMAP_NONE,
-            0,
-            true,
-            silent != 0,
-        )
-        {
-            g_st().restart_edit = 0;
-        }
+    let mut buf: [u8; 11] = [
+        K_SPECIAL, KS_EXTRA, KE_COMMAND, b's', b't', b'a', b'r', b't', b'i', CAR as u8, 0,
+    ];
+    if g_st().restart_edit == c_int::from(b'R') {
+        buf[8] = b'r';
+    } else if g_st().restart_edit == c_int::from(b'V') {
+        buf[8] = b'g';
+    } else if g_st().restart_edit == c_int::from(b'A') {
+        buf[8] = b'!';
+    }
+    if ins_typebuf(
+        buf.as_mut_ptr().cast::<c_char>(),
+        REMAP_NONE,
+        0,
+        true,
+        silent != 0,
+    ) {
+        g_st().restart_edit = 0;
+    }
 }
 
 fn execreg_line_continuation(lines: *mut NvimString, idx: &mut usize) -> Vec<c_char> {
@@ -768,7 +773,9 @@ pub fn do_execreg(mut regname: c_int, colon: c_int, addcr: c_int, silent: c_int)
                 false,
             );
             let p_ptr = p.as_ptr().cast_mut();
-            if g_st().visual_global.active && (crate::memory::cstr_prefix_bytes(p_ptr, 5) == &b"'<,'>"[..5]) {
+            if g_st().visual_global.active
+                && (crate::memory::cstr_prefix_bytes(p_ptr, 5) == &b"'<,'>"[..5])
+            {
                 retval = put_in_typebuf(p_ptr.add(5), true, true, silent);
             } else {
                 retval = put_in_typebuf(p_ptr, true, true, silent);
@@ -797,9 +804,7 @@ pub fn do_execreg(mut regname: c_int, colon: c_int, addcr: c_int, silent: c_int)
             let mut i = reg.y_array.len();
             while i > 0 {
                 i -= 1;
-                if (reg.y_type == MotionType::MtLineWise
-                    || i < reg.y_array.len() - 1
-                    || addcr != 0)
+                if (reg.y_type == MotionType::MtLineWise || i < reg.y_array.len() - 1 || addcr != 0)
                     && !ins_typebuf(c"\n", remap, 0, true, is_silent)
                 {
                     return false;
@@ -825,9 +830,7 @@ pub fn do_execreg(mut regname: c_int, colon: c_int, addcr: c_int, silent: c_int)
                 if !retval {
                     return false;
                 }
-                if colon != 0
-                    && !ins_typebuf(c":", remap, 0, true, is_silent)
-                {
+                if colon != 0 && !ins_typebuf(c":", remap, 0, true, is_silent) {
                     return false;
                 }
             }
@@ -900,8 +903,7 @@ pub fn insert_reg(regname: c_int, mut reg: *mut Yankreg, literally_arg: bool) ->
                         do_put(regname, ptr::null_mut(), dir, 1, PUT_CURSEND);
                     } else {
                         stuffescaped(reg_ref.y_array[i].data, literally);
-                        if reg_ref.y_type == MotionType::MtLineWise
-                            || i < reg_ref.y_array.len() - 1
+                        if reg_ref.y_type == MotionType::MtLineWise || i < reg_ref.y_array.len() - 1
                         {
                             stuffchar_readbuff(c_int::from(b'\n'));
                         }
@@ -953,7 +955,8 @@ pub fn get_spec_reg(
                 true
             }
             x if x == c_int::from(b':') => {
-                let last_cmd_ptr = g_st().last_cmdline
+                let last_cmd_ptr = g_st()
+                    .last_cmdline
                     .as_ref()
                     .map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut());
                 if last_cmd_ptr.is_null() && errmsg {
@@ -1173,25 +1176,19 @@ pub fn op_yank_reg(oap: &mut Oparg, message: bool, mut reg: *mut Yankreg, append
             match (*reg).y_type {
                 MotionType::MtBlockWise => {
                     block_prep(oap, &mut bd, lnum, false);
-                    yank_copy_line( &mut *reg, &mut bd, y_idx, oap.excl_tr_ws);
+                    yank_copy_line(&mut *reg, &mut bd, y_idx, oap.excl_tr_ws);
                 }
                 MotionType::MtLineWise => {
                     (&mut *reg).y_array[y_idx] =
                         cbuf_to_string(ml_get(lnum), ml_get_len(lnum) as usize);
                 }
                 MotionType::MtCharWise => {
-                    charwise_block_prep(
-                        oap.start,
-                        oap.end,
-                        &mut bd,
-                        lnum,
-                        oap.inclusive,
-                    );
+                    charwise_block_prep(oap.start, oap.end, &mut bd, lnum, oap.inclusive);
                     let tmp = crate::memory::cstr_len(bd.textstart) as c_int;
                     if tmp < bd.textlen {
                         bd.textlen = tmp;
                     }
-                    yank_copy_line( &mut *reg, &mut bd, y_idx, false);
+                    yank_copy_line(&mut *reg, &mut bd, y_idx, false);
                 }
                 MotionType::MtUnknown => std::process::abort(),
             }
@@ -1277,22 +1274,14 @@ pub fn op_yank_reg(oap: &mut Oparg, message: bool, mut reg: *mut Yankreg, append
                 if yank_type == MotionType::MtBlockWise {
                     smsg!(
                         0,
-                        ngettext(
-                            BLOCK_SINGLE,
-                            BLOCK_PLURAL,
-                            yanklines as c_ulong,
-                        ),
+                        ngettext(BLOCK_SINGLE, BLOCK_PLURAL, yanklines as c_ulong,),
                         yanklines as i64,
                         namebuf.as_ptr(),
                     );
                 } else {
                     smsg!(
                         0,
-                        ngettext(
-                            LINE_SINGLE,
-                            LINE_PLURAL,
-                            yanklines as c_ulong,
-                        ),
+                        ngettext(LINE_SINGLE, LINE_PLURAL, yanklines as c_ulong,),
                         yanklines as i64,
                         namebuf.as_ptr(),
                     );
@@ -1344,13 +1333,8 @@ pub fn format_reg_type(
     }
 }
 
-fn add_regtype_to_dict(
-    reg: Option<&Yankreg>,
-    dict: &mut TvDict,
-    buf: *mut c_char,
-    bufsize: usize,
-) {
-     {
+fn add_regtype_to_dict(reg: Option<&Yankreg>, dict: &mut TvDict, buf: *mut c_char, bufsize: usize) {
+    {
         let len = format_reg_type(
             if let Some(reg) = reg {
                 reg.y_type
@@ -1378,7 +1362,7 @@ pub fn do_autocmd_textyankpost(oap: &mut Oparg, reg: &mut Yankreg) {
 
         let list = tv_list_alloc(reg.y_array.len() as isize);
         for &item in &reg.y_array {
-            tv_list_append_string( &mut *list, item.data, item.size as isize);
+            tv_list_append_string(&mut *list, item.data, item.size as isize);
         }
         (*list).lv_lock = VAR_FIXED;
         tv_dict_add_list(&mut *dict, c"regcontents", list);
@@ -1453,13 +1437,17 @@ fn put_do_autocmd(
 
         if regname == c_int::from(b'.') {
             if !g_st().last_insert_ga.is_empty() {
-                tv_list_append_string( &mut *list, g_st().last_insert_ga.as_ptr(), g_st().last_insert_ga.len() as isize);
+                tv_list_append_string(
+                    &mut *list,
+                    g_st().last_insert_ga.as_ptr(),
+                    g_st().last_insert_ga.len() as isize,
+                );
             }
         } else if let Some(insert) = insert {
-            tv_list_append_string( &mut *list, insert.data, insert.size as isize);
+            tv_list_append_string(&mut *list, insert.data, insert.size as isize);
         } else {
             for &item in &(reg.unwrap()).y_array {
-                tv_list_append_string( &mut *list, item.data, item.size as isize);
+                tv_list_append_string(&mut *list, item.data, item.size as isize);
             }
         }
 
@@ -1564,7 +1552,8 @@ pub fn do_put(
         curbuf_mut().b_op_end = curwin_mut().w_cursor;
 
         if regname == c_int::from(b'.') && reg.is_null() {
-            let non_linewise_vis = g_st().visual_global.active && g_st().visual_global.mode != c_int::from(b'V');
+            let non_linewise_vis =
+                g_st().visual_global.active && g_st().visual_global.mode != c_int::from(b'V');
 
             let command_start_char = if non_linewise_vis {
                 c_int::from(b'c')
@@ -1635,8 +1624,8 @@ pub fn do_put(
 
                     let ve_allows =
                         cur_ve_flags == K_OPT_VE_FLAG_ALL || cur_ve_flags == K_OPT_VE_FLAG_ONEMORE;
-                    let eof =
-                        curbuf_mut().b_ml.ml_line_count == curwin_mut().w_cursor.lnum && one_past_line;
+                    let eof = curbuf_mut().b_ml.ml_line_count == curwin_mut().w_cursor.lnum
+                        && one_past_line;
                     if ve_allows || !(eol || eof) {
                         stuffchar_readbuff(c_int::from(b'l'));
                     }
@@ -1714,13 +1703,7 @@ pub fn do_put(
                 y_array = &raw mut insert_string;
             }
             if has_event(EVENT_TEXTPUTPRE) {
-                put_do_autocmd(
-                    regname,
-                    None,
-                    Some(&insert_string),
-                    false,
-                    dir,
-                );
+                put_do_autocmd(regname, None, Some(&insert_string), false, dir);
             }
         } else {
             if has_event(EVENT_TEXTPUTPRE) {
@@ -1931,13 +1914,7 @@ pub fn do_put(
                     let mut delcount: c_int = 0;
 
                     if curwin_mut().w_cursor.lnum > curbuf_mut().b_ml.ml_line_count {
-                        if !ml_append(
-                            curbuf_mut().b_ml.ml_line_count,
-                            c"",
-                            1,
-                            false,
-                        )
-                        {
+                        if !ml_append(curbuf_mut().b_ml.ml_line_count, c"", 1, false) {
                             break;
                         }
                         nr_lines += 1;
@@ -1947,28 +1924,27 @@ pub fn do_put(
                     let oldlen = get_cursor_line_len();
 
                     let mut csarg = CharsizeArg::new();
-                    let mut cstype: CSType =
-                        init_charsize_arg(&mut csarg, curwin_mut(), curwin_mut().w_cursor.lnum, oldp);
+                    let mut cstype: CSType = init_charsize_arg(
+                        &mut csarg,
+                        curwin_mut(),
+                        curwin_mut().w_cursor.lnum,
+                        oldp,
+                    );
                     let mut ci = utf_ptr2_str_char_info(oldp);
                     vcol = 0;
                     while vcol < col && !crate::memory::cstr_is_empty(ci.ptr) {
                         let cli = utf_cluster_info(ci);
-                        incr = win_charsize(
-                            cstype,
-                            vcol,
-                            ci.ptr,
-                            ci.chr.value,
-                            &mut csarg,
-                            cli.cells,
-                        )
-                        .width;
+                        incr =
+                            win_charsize(cstype, vcol, ci.ptr, ci.chr.value, &mut csarg, cli.cells)
+                                .width;
                         vcol += incr;
                         ci = cli.next;
                     }
                     let mut ptr_ = ci.ptr.cast_mut();
                     bd.textcol = ((ptr_ as usize) - (oldp as usize)) as Colnr;
 
-                    let shortline = (vcol < col) || (vcol == col && crate::memory::cstr_is_empty(ptr_));
+                    let shortline =
+                        (vcol < col) || (vcol == col && crate::memory::cstr_is_empty(ptr_));
 
                     if vcol < col {
                         bd.startspaces = col - vcol;
@@ -2127,14 +2103,7 @@ pub fn do_put(
                                 col,
                                 coladd: 0,
                             };
-                            getvcol(
-                                curwin_mut(),
-                                &mut pos,
-                                None,
-                                Some(&mut vcol),
-                                None,
-                                0,
-                            );
+                            getvcol(curwin_mut(), &mut pos, None, Some(&mut vcol), None, 0);
                         }
                     }
 
@@ -2277,7 +2246,8 @@ pub fn do_put(
                                     if cnt == count && i == y_size - 1 {
                                         lendiff = ml_get_len(lnum);
                                     }
-                                    let indent = if (crate::memory::cstr_first_byte(ptr_) == b'#' && preprocs_left())
+                                    let indent = if (crate::memory::cstr_first_byte(ptr_) == b'#'
+                                        && preprocs_left())
                                         || crate::memory::cstr_is_empty(ptr_)
                                     {
                                         0
@@ -2454,13 +2424,7 @@ pub fn do_put(
             if insert_string.data.is_null() {
                 put_do_autocmd(regname, reg.as_ref(), None, true, dir);
             } else {
-                put_do_autocmd(
-                    regname,
-                    None,
-                    Some(&insert_string),
-                    true,
-                    dir,
-                );
+                put_do_autocmd(regname, None, Some(&insert_string), true, dir);
             }
         }
 
@@ -2474,10 +2438,13 @@ pub fn do_put(
     }
 }
 
-fn dis_msg(p: impl crate::strings::IntoCCharPtr, skip_esc: bool) { let mut p = p.into_c_char_ptr();
+fn dis_msg(p: impl crate::strings::IntoCCharPtr, skip_esc: bool) {
+    let mut p = p.into_c_char_ptr();
     unsafe {
         let mut n = g_st().columns_global - 6;
-        while !crate::memory::cstr_is_empty(p) && !(*p == ESC && skip_esc && crate::memory::cstr_byte_at(p, 1) == 0) {
+        while !crate::memory::cstr_is_empty(p)
+            && !(*p == ESC && skip_esc && crate::memory::cstr_byte_at(p, 1) == 0)
+        {
             n -= ptr2cells(p);
             if n < 0 {
                 break;
@@ -2621,9 +2588,7 @@ pub fn ex_display(eap: &mut Exarg) {
         if (arg.is_null() || !vim_strchr(arg, c_int::from(b'#')).is_null()) && !g_st().got_int {
             let mut fname: *mut c_char = ptr::null_mut();
             let mut dummy: Linenr = 0;
-            if buflist_name_nr(0, &raw mut fname, &mut dummy)
-                && !message_filtered(fname)
-            {
+            if buflist_name_nr(0, &raw mut fname, &mut dummy) && !message_filtered(fname) {
                 msg_puts(c"\n  c  \"#   ");
                 dis_msg(fname, false);
             }
@@ -2690,7 +2655,7 @@ fn get_reg_wrap_one_line_list(s: Option<std::ffi::CString>) -> *mut TvList {
             return ptr::null_mut();
         };
         let list = tv_list_alloc(1);
-        tv_list_append_string( &mut *list, s.as_ptr(), -1);
+        tv_list_append_string(&mut *list, s.as_ptr(), -1);
         list
     }
 }
@@ -2787,7 +2752,7 @@ pub fn get_reg_contents_list(mut regname: c_int, flags: c_int) -> *mut TvList {
 
         let list = tv_list_alloc(reg.y_array.len() as isize);
         for &item in &reg.y_array {
-            tv_list_append_string( &mut *list, item.data, item.size as isize);
+            tv_list_append_string(&mut *list, item.data, item.size as isize);
         }
         list
     }
@@ -2821,7 +2786,8 @@ fn str_to_reg(
     len: usize,
     blocklen: Colnr,
     str_list: bool,
-) { let str_ = str_.into_c_char_ptr();
+) {
+    let str_ = str_.into_c_char_ptr();
     unsafe {
         if !y_ptr.y_allocated {
             y_ptr.y_array.clear();
@@ -2848,7 +2814,18 @@ fn str_to_reg(
                 ss = ss.add(1);
             }
         } else {
-            newlines = { let _d = (str_).cast::<u8>(); let _sz = len; if _sz == 0 { 0 } else { std::slice::from_raw_parts(_d, _sz).iter().filter(|&&_b| _b == (b'\n' as c_char) as u8).count() } };
+            newlines = {
+                let _d = (str_).cast::<u8>();
+                let _sz = len;
+                if _sz == 0 {
+                    0
+                } else {
+                    std::slice::from_raw_parts(_d, _sz)
+                        .iter()
+                        .filter(|&&_b| _b == (b'\n' as c_char) as u8)
+                        .count()
+                }
+            };
             if yank_type == MotionType::MtCharWise
                 || len == 0
                 || crate::memory::cstr_byte_at(str_, len - 1) != b'\n'
@@ -2913,7 +2890,19 @@ fn str_to_reg(
                 if line_len > 0 {
                     ptr::copy_nonoverlapping(start, s_vec.as_mut_ptr().add(extra), line_len);
                 }
-                { let _d = (s_vec.as_mut_ptr()).cast::<u8>(); let _sz = s_len; if _sz > 0 { let _c = (NUL) as u8; let _x = (b'\n' as c_char) as u8; for _b in std::slice::from_raw_parts_mut(_d, _sz) { if *_b == _c { *_b = _x; } } } };
+                {
+                    let _d = (s_vec.as_mut_ptr()).cast::<u8>();
+                    let _sz = s_len;
+                    if _sz > 0 {
+                        let _c = (NUL) as u8;
+                        let _x = (b'\n' as c_char) as u8;
+                        for _b in std::slice::from_raw_parts_mut(_d, _sz) {
+                            if *_b == _c {
+                                *_b = _x;
+                            }
+                        }
+                    }
+                };
                 let new_str = cbuf_to_string(s_vec.as_ptr(), s_len);
 
                 if append {
@@ -2944,13 +2933,18 @@ fn str_to_reg(
 }
 
 fn finish_write_reg(name: c_int, reg: &mut Yankreg, old_y_previous: *mut Yankreg) {
-    set_clipboard(name,  reg);
-        if name != c_int::from(b'"') {
-            reg_st().y_previous = old_y_previous;
-        }
+    set_clipboard(name, reg);
+    if name != c_int::from(b'"') {
+        reg_st().y_previous = old_y_previous;
+    }
 }
 
-pub fn write_reg_contents(name: c_int, str_: impl crate::strings::IntoCCharPtr, len: isize, must_append: c_int) {
+pub fn write_reg_contents(
+    name: c_int,
+    str_: impl crate::strings::IntoCCharPtr,
+    len: isize,
+    must_append: c_int,
+) {
     let str_ = str_.into_c_char_ptr();
     write_reg_contents_ex(name, str_, len, must_append != 0, MotionType::MtUnknown, 0);
 }
@@ -2967,10 +2961,7 @@ pub fn write_reg_contents_lst(
             let s = if (*strings).is_null() {
                 c"".as_ptr()
             } else if !(*strings.add(1)).is_null() {
-                semsg!(
-                    gettext(E_REGISTER_CHAR_CANNOT_CONTAIN_MULTIPLE_LINES),
-                    name,
-                );
+                semsg!(gettext(E_REGISTER_CHAR_CANNOT_CONTAIN_MULTIPLE_LINES), name,);
                 return;
             } else {
                 *strings
@@ -2989,8 +2980,15 @@ pub fn write_reg_contents_lst(
             return;
         }
 
-        str_to_reg(&mut *reg, yank_type, strings.cast::<c_char>(), 0, block_len, true);
-        finish_write_reg(name,  &mut *reg, old_y_previous);
+        str_to_reg(
+            &mut *reg,
+            yank_type,
+            strings.cast::<c_char>(),
+            0,
+            block_len,
+            true,
+        );
+        finish_write_reg(name, &mut *reg, old_y_previous);
     }
 }
 
@@ -3001,7 +2999,8 @@ pub fn write_reg_contents_ex(
     must_append: bool,
     yank_type: MotionType,
     block_len: Colnr,
-) { let str_ = str_.into_c_char_ptr();
+) {
+    let str_ = str_.into_c_char_ptr();
     unsafe {
         if len < 0 {
             len = crate::memory::cstr_len(str_) as isize;
@@ -3019,7 +3018,8 @@ pub fn write_reg_contents_ex(
             }
 
             let buf = if (crate::memory::cstr_first_byte(str_)).is_ascii_digit() {
-                let num = crate::charset::parse_i64_prefix(crate::memory::cstr_as_bytes(str_)) as c_int;
+                let num =
+                    crate::charset::parse_i64_prefix(crate::memory::cstr_as_bytes(str_)) as c_int;
                 let b = buflist_findnr(num);
                 if b.is_null() {
                     semsg!(gettext(E_NOBUFNR), i64::from(num));
@@ -3043,9 +3043,7 @@ pub fn write_reg_contents_ex(
 
         if name == c_int::from(b'=') {
             let mut out: Vec<u8> = Vec::new();
-            if must_append
-                && let Some(el) = &reg_st().expr_line
-            {
+            if must_append && let Some(el) = &reg_st().expr_line {
                 out.extend_from_slice(el.as_bytes());
             }
             let slice = crate::memory::cstr_slice(str_, len as usize);
@@ -3065,15 +3063,11 @@ pub fn write_reg_contents_ex(
             return;
         }
         str_to_reg(&mut *reg, yank_type, str_, len as usize, block_len, false);
-        finish_write_reg(name,  &mut *reg, old_y_previous);
+        finish_write_reg(name, &mut *reg, old_y_previous);
     }
 }
 
-pub fn prepare_yankreg_from_object(
-    reg: &mut Yankreg,
-    regtype: NvimString,
-    _lines: usize,
-) -> bool {
+pub fn prepare_yankreg_from_object(reg: &mut Yankreg, regtype: NvimString, _lines: usize) -> bool {
     unsafe {
         let type_ch = if !regtype.data.is_null() {
             crate::memory::cstr_first_byte(regtype.data)
@@ -3111,20 +3105,20 @@ pub fn prepare_yankreg_from_object(
 }
 
 pub fn finish_yankreg_from_object(reg: &mut Yankreg, clipboard_adjust: bool) {
-        if reg.y_array.last().is_some_and(|last| last.size == 0) {
-            if reg.y_type != MotionType::MtCharWise {
-                if reg.y_type == MotionType::MtUnknown || clipboard_adjust {
-                    reg.y_array.pop();
-                }
-                if reg.y_type == MotionType::MtUnknown {
-                    reg.y_type = MotionType::MtLineWise;
-                }
+    if reg.y_array.last().is_some_and(|last| last.size == 0) {
+        if reg.y_type != MotionType::MtCharWise {
+            if reg.y_type == MotionType::MtUnknown || clipboard_adjust {
+                reg.y_array.pop();
             }
-        } else if reg.y_type == MotionType::MtUnknown {
-            reg.y_type = MotionType::MtCharWise;
+            if reg.y_type == MotionType::MtUnknown {
+                reg.y_type = MotionType::MtLineWise;
+            }
         }
+    } else if reg.y_type == MotionType::MtUnknown {
+        reg.y_type = MotionType::MtCharWise;
+    }
 
-        update_yankreg_width(reg);
+    update_yankreg_width(reg);
 }
 
 #[cfg(test)]

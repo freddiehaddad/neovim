@@ -6,8 +6,8 @@ use crate::api::private::dispatch::msgpack_rpc_get_handler_for;
 use crate::api::private::helpers::{
     MAXLNUM, OBJECT_NIL, add_c, api_clear_error, api_free_object, api_set_error, api_typename,
     arena_array, array_obj, copy_object, copy_string, cstr_as_string, dict_obj, dict_set_var,
-    error_set, find_buffer_by_handle, find_window_by_handle, integer_obj,
-    static_cstr_as_string, string_obj, try_wrap, with_script_context,
+    error_set, find_buffer_by_handle, find_window_by_handle, integer_obj, static_cstr_as_string,
+    string_obj, try_wrap, with_script_context,
 };
 use crate::api::private::validate::{
     Array, Dict, Error, ErrorType, NvimString, Object, ObjectType, api_err_exp, api_err_invalid,
@@ -18,8 +18,8 @@ use crate::api::vimscript::{KeyDict_exec_opts, exec_impl};
 use crate::charset::{NL, NUL};
 use crate::cursor::Colnr;
 use crate::decoration::{
-    DECOR_ID_INVALID, DecorInline, DecorVirtText, DecorVirtTextData, decor_find_virttext,
-    K_HL_MODE_UNKNOWN, K_VPOS_END_OF_LINE,
+    DECOR_ID_INVALID, DecorInline, DecorVirtText, DecorVirtTextData, K_HL_MODE_UNKNOWN,
+    K_VPOS_END_OF_LINE, decor_find_virttext,
 };
 use crate::eval::vars::MAXCOL;
 use crate::eval::vars::get_globvar_dict;
@@ -34,8 +34,8 @@ use crate::memory::Arena;
 use crate::message::{emsg, msg, msg_end, msg_ext_no_fast};
 use crate::msgpack_rpc::packer::Integer;
 use crate::option::{
-    OPT_GLOBAL, OPT_LOCAL, OptScope, OptTarget, find_option, get_option_info, get_option_value_for,
-    K_OPT_INVALID, K_OPT_SCOPE_BUF, K_OPT_SCOPE_GLOBAL, K_OPT_SCOPE_WIN, option_has_scope,
+    K_OPT_INVALID, K_OPT_SCOPE_BUF, K_OPT_SCOPE_GLOBAL, K_OPT_SCOPE_WIN, OPT_GLOBAL, OPT_LOCAL,
+    OptScope, OptTarget, find_option, get_option_info, get_option_value_for, option_has_scope,
     set_option_value_for,
 };
 use crate::window::{win_setheight_win, win_setwidth_win};
@@ -64,7 +64,8 @@ impl ApiDeprecatedState {
     }
 }
 
-static API_DEP_STATE: crate::globals::GlobalState<ApiDeprecatedState> = crate::globals::GlobalState::new(ApiDeprecatedState::new());
+static API_DEP_STATE: crate::globals::GlobalState<ApiDeprecatedState> =
+    crate::globals::GlobalState::new(ApiDeprecatedState::new());
 
 #[inline]
 fn api_dep_st() -> &'static mut ApiDeprecatedState {
@@ -76,14 +77,9 @@ fn api_dep_st() -> &'static mut ApiDeprecatedState {
 // DLLEXPORT String nvim_exec(uint64_t channel_id, String src, Boolean output, Error *err)
 //   FUNC_API_SINCE(7) FUNC_API_DEPRECATED_SINCE(11)
 //   FUNC_API_RET_ALLOC;
-pub fn nvim_exec(
-    channel_id: u64,
-    src: NvimString,
-    output: Boolean,
-    err: &mut Error,
-) -> NvimString {
+pub fn nvim_exec(channel_id: u64, src: NvimString, output: Boolean, err: &mut Error) -> NvimString {
     let mut opts = KeyDict_exec_opts { output };
-        exec_impl(channel_id, src, &mut opts, err)
+    exec_impl(channel_id, src, &mut opts, err)
 }
 
 /// @deprecated
@@ -91,13 +87,9 @@ pub fn nvim_exec(
 // DLLEXPORT String nvim_command_output(uint64_t channel_id, String command, Error *err)
 //   FUNC_API_SINCE(1) FUNC_API_DEPRECATED_SINCE(7)
 //   FUNC_API_RET_ALLOC;
-pub fn nvim_command_output(
-    channel_id: u64,
-    command: NvimString,
-    err: &mut Error,
-) -> NvimString {
+pub fn nvim_command_output(channel_id: u64, command: NvimString, err: &mut Error) -> NvimString {
     let mut opts = KeyDict_exec_opts { output: true };
-        exec_impl(channel_id, command, &mut opts, err)
+    exec_impl(channel_id, command, &mut opts, err)
 }
 
 /// @deprecated Use nvim_exec_lua() instead.
@@ -126,7 +118,7 @@ pub fn nvim_execute_lua(
 //   FUNC_API_SINCE(1)
 //   FUNC_API_DEPRECATED_SINCE(2);
 pub fn nvim_buf_get_number(buffer: Buffer, err: &mut Error) -> Integer {
-     {
+    {
         let Some(buf) = crate::api::private::helpers::find_buffer_by_handle_mut(buffer, err) else {
             return 0;
         };
@@ -202,7 +194,7 @@ pub fn nvim_buf_add_highlight(
     mut col_end: Integer,
     err: &mut Error,
 ) -> Integer {
-     {
+    {
         let Some(buf) = crate::api::private::helpers::find_buffer_by_handle_mut(buffer, err) else {
             return 0;
         };
@@ -369,19 +361,14 @@ pub fn nvim_buf_set_virtual_text(
 // DLLEXPORT Dict nvim_get_hl_by_id(Integer hl_id, Boolean rgb, Arena *arena, Error *err)
 //   FUNC_API_SINCE(3)
 //   FUNC_API_DEPRECATED_SINCE(9);
-pub fn nvim_get_hl_by_id(
-    hl_id: Integer,
-    rgb: Boolean,
-    arena: &mut Arena,
-    err: &mut Error,
-) -> Dict {
+pub fn nvim_get_hl_by_id(hl_id: Integer, rgb: Boolean, arena: &mut Arena, err: &mut Error) -> Dict {
     let dic = Dict::new();
-        if syn_get_final_id(hl_id as c_int) == 0 {
-            api_err_invalid(err, c"highlight id", ptr::null(), hl_id, false);
-            return dic;
-        }
-        let attrcode = syn_id2attr(hl_id as c_int);
-        crate::highlight::hl_get_attr_by_id(i64::from(attrcode), rgb, arena, err)
+    if syn_get_final_id(hl_id as c_int) == 0 {
+        api_err_invalid(err, c"highlight id", ptr::null(), hl_id, false);
+        return dic;
+    }
+    let attrcode = syn_id2attr(hl_id as c_int);
+    crate::highlight::hl_get_attr_by_id(i64::from(attrcode), rgb, arena, err)
 }
 
 /// Gets a highlight definition by name.
@@ -514,12 +501,7 @@ pub fn buffer_set_line(
 /// @param[out] err Error details, if any
 // DLLEXPORT void buffer_del_line(Buffer buffer, Integer index, Arena *arena, Error *err)
 //   FUNC_API_DEPRECATED_SINCE(1);
-pub fn buffer_del_line(
-    buffer: Buffer,
-    mut index: Integer,
-    arena: &mut Arena,
-    err: &mut Error,
-) {
+pub fn buffer_del_line(buffer: Buffer, mut index: Integer, arena: &mut Arena, err: &mut Error) {
     {
         let array = Array::new();
         index = convert_index(index);
@@ -609,11 +591,19 @@ pub fn buffer_set_var(
     arena: &mut Arena,
     err: &mut Error,
 ) -> Object {
-    unsafe {
+    {
         let Some(buf) = crate::api::private::helpers::find_buffer_by_handle_mut(buffer, err) else {
             return OBJECT_NIL;
         };
-        dict_set_var(&mut *buf.b_vars(), name, value, false, true, Some(arena), err)
+        dict_set_var(
+            &mut *buf.b_vars(),
+            name,
+            value,
+            false,
+            true,
+            Some(arena),
+            err,
+        )
     }
 }
 
@@ -633,11 +623,19 @@ pub fn buffer_del_var(
     arena: &mut Arena,
     err: &mut Error,
 ) -> Object {
-    unsafe {
+    {
         let Some(buf) = crate::api::private::helpers::find_buffer_by_handle_mut(buffer, err) else {
             return OBJECT_NIL;
         };
-        dict_set_var(&mut *buf.b_vars(), name, OBJECT_NIL, true, true, Some(arena), err)
+        dict_set_var(
+            &mut *buf.b_vars(),
+            name,
+            OBJECT_NIL,
+            true,
+            true,
+            Some(arena),
+            err,
+        )
     }
 }
 
@@ -659,11 +657,19 @@ pub fn window_set_var(
     arena: &mut Arena,
     err: &mut Error,
 ) -> Object {
-    unsafe {
+    {
         let Some(win) = crate::api::private::helpers::find_window_by_handle_mut(window, err) else {
             return OBJECT_NIL;
         };
-        dict_set_var(&mut *win.w_vars(), name, value, false, true, Some(arena), err)
+        dict_set_var(
+            &mut *win.w_vars(),
+            name,
+            value,
+            false,
+            true,
+            Some(arena),
+            err,
+        )
     }
 }
 
@@ -683,11 +689,19 @@ pub fn window_del_var(
     arena: &mut Arena,
     err: &mut Error,
 ) -> Object {
-    unsafe {
+    {
         let Some(win) = crate::api::private::helpers::find_window_by_handle_mut(window, err) else {
             return OBJECT_NIL;
         };
-        dict_set_var(&mut *win.w_vars(), name, OBJECT_NIL, true, true, Some(arena), err)
+        dict_set_var(
+            &mut *win.w_vars(),
+            name,
+            OBJECT_NIL,
+            true,
+            true,
+            Some(arena),
+            err,
+        )
     }
 }
 
@@ -710,11 +724,19 @@ pub fn tabpage_set_var(
     arena: &mut Arena,
     err: &mut Error,
 ) -> Object {
-    unsafe {
+    {
         let Some(tab) = crate::api::private::helpers::find_tab_by_handle_mut(tabpage, err) else {
             return OBJECT_NIL;
         };
-        dict_set_var(&mut *tab.tp_vars(), name, value, false, true, Some(arena), err)
+        dict_set_var(
+            &mut *tab.tp_vars(),
+            name,
+            value,
+            false,
+            true,
+            Some(arena),
+            err,
+        )
     }
 }
 
@@ -734,11 +756,19 @@ pub fn tabpage_del_var(
     arena: &mut Arena,
     err: &mut Error,
 ) -> Object {
-    unsafe {
+    {
         let Some(tab) = crate::api::private::helpers::find_tab_by_handle_mut(tabpage, err) else {
             return OBJECT_NIL;
         };
-        dict_set_var(&mut *tab.tp_vars(), name, OBJECT_NIL, true, true, Some(arena), err)
+        dict_set_var(
+            &mut *tab.tp_vars(),
+            name,
+            OBJECT_NIL,
+            true,
+            true,
+            Some(arena),
+            err,
+        )
     }
 }
 
@@ -747,13 +777,16 @@ pub fn tabpage_del_var(
 /// @return Old value or nil if there was no previous value.
 // DLLEXPORT Object vim_set_var(String name, Object value, Arena *arena, Error *err)
 //   FUNC_API_DEPRECATED_SINCE(1);
-pub fn vim_set_var(
-    name: NvimString,
-    value: Object,
-    arena: &mut Arena,
-    err: &mut Error,
-) -> Object {
-     dict_set_var(&mut *get_globvar_dict(), name, value, false, true, Some(arena), err)
+pub fn vim_set_var(name: NvimString, value: Object, arena: &mut Arena, err: &mut Error) -> Object {
+    dict_set_var(
+        &mut *get_globvar_dict(),
+        name,
+        value,
+        false,
+        true,
+        Some(arena),
+        err,
+    )
 }
 
 /// @deprecated
@@ -761,7 +794,15 @@ pub fn vim_set_var(
 // DLLEXPORT Object vim_del_var(String name, Arena *arena, Error *err)
 //   FUNC_API_DEPRECATED_SINCE(1);
 pub fn vim_del_var(name: NvimString, arena: &mut Arena, err: &mut Error) -> Object {
-     dict_set_var(&mut *get_globvar_dict(), name, OBJECT_NIL, true, true, Some(arena), err)
+    dict_set_var(
+        &mut *get_globvar_dict(),
+        name,
+        OBJECT_NIL,
+        true,
+        true,
+        Some(arena),
+        err,
+    )
 }
 
 #[inline]
@@ -779,12 +820,15 @@ const fn convert_index(index: i64) -> i64 {
 // DLLEXPORT DictAs(get_option_info) nvim_get_option_info(String name, Arena *arena, Error *err)
 //   FUNC_API_SINCE(7)
 //   FUNC_API_DEPRECATED_SINCE(11);
-pub fn nvim_get_option_info(
-    name: NvimString,
-    arena: &mut Arena,
-    err: &mut Error,
-) -> Dict {
-     get_option_info(name, OPT_GLOBAL, g_st().curbuf.cast(), curwin_mut(), arena, err)
+pub fn nvim_get_option_info(name: NvimString, arena: &mut Arena, err: &mut Error) -> Dict {
+    get_option_info(
+        name,
+        OPT_GLOBAL,
+        g_st().curbuf.cast(),
+        curwin_mut(),
+        arena,
+        err,
+    )
 }
 
 /// Sets the global value of an option.
@@ -797,20 +841,15 @@ pub fn nvim_get_option_info(
 // DLLEXPORT void nvim_set_option(uint64_t channel_id, String name, Object value, Error *err)
 //   FUNC_API_SINCE(1)
 //   FUNC_API_DEPRECATED_SINCE(11);
-pub fn nvim_set_option(
-    channel_id: u64,
-    name: NvimString,
-    value: Object,
-    err: &mut Error,
-) {
+pub fn nvim_set_option(channel_id: u64, name: NvimString, value: Object, err: &mut Error) {
     set_option_to(
-            channel_id,
-            OptTarget::Global,
-            K_OPT_SCOPE_GLOBAL,
-            name,
-            value,
-            err,
-        );
+        channel_id,
+        OptTarget::Global,
+        K_OPT_SCOPE_GLOBAL,
+        name,
+        value,
+        err,
+    );
 }
 
 /// Gets the global value of an option.
@@ -838,16 +877,12 @@ pub fn nvim_get_option(name: NvimString, err: &mut Error) -> Object {
 //   FUNC_API_SINCE(1)
 //   FUNC_API_DEPRECATED_SINCE(11)
 //   FUNC_API_RET_ALLOC;
-pub fn nvim_buf_get_option(
-    buffer: Buffer,
-    name: NvimString,
-    err: &mut Error,
-) -> Object {
+pub fn nvim_buf_get_option(buffer: Buffer, name: NvimString, err: &mut Error) -> Object {
     let buf = find_buffer_by_handle(buffer, err);
-        if buf.is_null() {
-            return OBJECT_NIL;
-        }
-        get_option_from(OptTarget::Buf(buf), K_OPT_SCOPE_BUF, name, err)
+    if buf.is_null() {
+        return OBJECT_NIL;
+    }
+    get_option_from(OptTarget::Buf(buf), K_OPT_SCOPE_BUF, name, err)
 }
 
 /// Sets a buffer option value. Passing `nil` as value deletes the option (only
@@ -871,17 +906,17 @@ pub fn nvim_buf_set_option(
     err: &mut Error,
 ) {
     let buf = find_buffer_by_handle(buffer, err);
-        if buf.is_null() {
-            return;
-        }
-        set_option_to(
-            channel_id,
-            OptTarget::Buf(buf),
-            K_OPT_SCOPE_BUF,
-            name,
-            value,
-            err,
-        );
+    if buf.is_null() {
+        return;
+    }
+    set_option_to(
+        channel_id,
+        OptTarget::Buf(buf),
+        K_OPT_SCOPE_BUF,
+        name,
+        value,
+        err,
+    );
 }
 
 /// Gets a window option value
@@ -895,11 +930,7 @@ pub fn nvim_buf_set_option(
 //   FUNC_API_SINCE(1)
 //   FUNC_API_DEPRECATED_SINCE(11)
 //   FUNC_API_RET_ALLOC;
-pub fn nvim_win_get_option(
-    window: Window,
-    name: NvimString,
-    err: &mut Error,
-) -> Object {
+pub fn nvim_win_get_option(window: Window, name: NvimString, err: &mut Error) -> Object {
     {
         let win = find_window_by_handle(window, err);
         if win.is_null() {
@@ -945,44 +976,39 @@ pub fn nvim_win_set_option(
     }
 }
 
-fn get_option_from(
-    from: OptTarget,
-    scope: OptScope,
-    name: NvimString,
-    err: &mut Error,
-) -> Object {
+fn get_option_from(from: OptTarget, scope: OptScope, name: NvimString, err: &mut Error) -> Object {
     if name.size == 0 {
-            api_err_invalid(err, c"option name", c"<empty>", 0, true);
-            return OBJECT_NIL;
-        }
+        api_err_invalid(err, c"option name", c"<empty>", 0, true);
+        return OBJECT_NIL;
+    }
 
-        let opt_idx = find_option(name.data);
-        if opt_idx == K_OPT_INVALID {
-            api_err_invalid(err, c"option name", name.data, 0, true);
-            return OBJECT_NIL;
-        }
+    let opt_idx = find_option(name.data);
+    if opt_idx == K_OPT_INVALID {
+        api_err_invalid(err, c"option name", name.data, 0, true);
+        return OBJECT_NIL;
+    }
 
-        if !option_has_scope(opt_idx, scope) {
-            api_err_invalid(err, c"option name", name.data, 0, true);
-            return OBJECT_NIL;
-        }
+    if !option_has_scope(opt_idx, scope) {
+        api_err_invalid(err, c"option name", name.data, 0, true);
+        return OBJECT_NIL;
+    }
 
-        let value = get_option_value_for(
-            opt_idx,
-            if scope == K_OPT_SCOPE_GLOBAL {
-                OPT_GLOBAL
-            } else {
-                OPT_LOCAL
-            },
-            scope,
-            from,
-            err,
-        );
-        if error_set(err) {
-            return OBJECT_NIL;
-        }
+    let value = get_option_value_for(
+        opt_idx,
+        if scope == K_OPT_SCOPE_GLOBAL {
+            OPT_GLOBAL
+        } else {
+            OPT_LOCAL
+        },
+        scope,
+        from,
+        err,
+    );
+    if error_set(err) {
+        return OBJECT_NIL;
+    }
 
-        value
+    value
 }
 
 fn set_option_to(
@@ -994,44 +1020,44 @@ fn set_option_to(
     err: &mut Error,
 ) {
     if name.size == 0 {
-            api_err_invalid(err, c"option name", c"<empty>", 0, true);
-            return;
-        }
+        api_err_invalid(err, c"option name", c"<empty>", 0, true);
+        return;
+    }
 
-        let opt_idx = find_option(name.data);
-        if opt_idx == K_OPT_INVALID {
-            api_err_invalid(err, c"option name", name.data, 0, true);
-            return;
-        }
+    let opt_idx = find_option(name.data);
+    if opt_idx == K_OPT_INVALID {
+        api_err_invalid(err, c"option name", name.data, 0, true);
+        return;
+    }
 
-        let valid = matches!(
-            value.obj_type,
-            ObjectType::ObjectTypeNil
-                | ObjectType::ObjectTypeBoolean
-                | ObjectType::ObjectTypeInteger
-                | ObjectType::ObjectTypeString
+    let valid = matches!(
+        value.obj_type,
+        ObjectType::ObjectTypeNil
+            | ObjectType::ObjectTypeBoolean
+            | ObjectType::ObjectTypeInteger
+            | ObjectType::ObjectTypeString
+    );
+    if !valid {
+        api_err_exp(
+            err,
+            c"value",
+            c"valid option type",
+            api_typename(value.obj_type),
         );
-        if !valid {
-            api_err_exp(
-                err,
-                c"value",
-                c"valid option type",
-                api_typename(value.obj_type),
-            );
-            return;
-        }
+        return;
+    }
 
-        let opt_flags = if scope == K_OPT_SCOPE_WIN && !option_has_scope(opt_idx, K_OPT_SCOPE_GLOBAL) {
-            0
-        } else if scope == K_OPT_SCOPE_GLOBAL {
-            OPT_GLOBAL
-        } else {
-            OPT_LOCAL
-        };
+    let opt_flags = if scope == K_OPT_SCOPE_WIN && !option_has_scope(opt_idx, K_OPT_SCOPE_GLOBAL) {
+        0
+    } else if scope == K_OPT_SCOPE_GLOBAL {
+        OPT_GLOBAL
+    } else {
+        OPT_LOCAL
+    };
 
-        with_script_context(channel_id, || {
-            set_option_value_for(opt_idx, value, opt_flags, scope, to, true, err);
-        });
+    with_script_context(channel_id, || {
+        set_option_value_for(opt_idx, value, opt_flags, scope, to, true, err);
+    });
 }
 
 /// @deprecated Use nvim_exec_lua() instead.
@@ -1071,70 +1097,68 @@ pub fn nvim_call_atomic(
                 break 'theend;
             }
             let call = item.data.array();
-                if call.size != 2 {
-                    api_err_exp(
-                        err,
-                        c"'calls' item",
-                        c"2-item Array",
-                        ptr::null(),
-                    );
-                    break 'theend;
-                }
-                let first = call[0];
-                if first.obj_type != ObjectType::ObjectTypeString {
-                    api_err_exp(
-                        err,
-                        c"name",
-                        api_typename(ObjectType::ObjectTypeString),
-                        api_typename(first.obj_type),
-                    );
-                    break 'theend;
-                }
-                let name = first.data.string();
-                let second = call[1];
-                if second.obj_type != ObjectType::ObjectTypeArray {
-                    api_err_exp(
-                        err,
-                        c"call args",
-                        api_typename(ObjectType::ObjectTypeArray),
-                        api_typename(second.obj_type),
-                    );
-                    break 'theend;
-                }
-                let args = second.data.array();
-
-                let handler = msgpack_rpc_get_handler_for(name.data, name.size, &mut nested_error);
-                if error_set(&nested_error) {
-                    break;
-                }
-
-                let func = handler.r#fn.unwrap();
-                let result = func(channel_id, args, &mut *arena, &mut nested_error);
-                if error_set(&nested_error) {
-                    break;
-                }
-                add_c(&mut results, copy_object(result, Some(arena)));
-                if handler.ret_alloc {
-                    api_free_object(result);
-                }
-
-                i += 1;
+            if call.size != 2 {
+                api_err_exp(err, c"'calls' item", c"2-item Array", ptr::null());
+                break 'theend;
             }
-
-            add_c(&mut rv, array_obj(results));
-            if error_set(&nested_error) {
-                let mut errval = arena_array(arena, 3);
-                add_c(&mut errval, integer_obj(i as Integer));
-                add_c(&mut errval, integer_obj(nested_error.err_type as Integer));
-                add_c(
-                    &mut errval,
-                    string_obj(copy_string(cstr_as_string(nested_error.msg_ptr()), Some(arena))),
+            let first = call[0];
+            if first.obj_type != ObjectType::ObjectTypeString {
+                api_err_exp(
+                    err,
+                    c"name",
+                    api_typename(ObjectType::ObjectTypeString),
+                    api_typename(first.obj_type),
                 );
-                add_c(&mut rv, array_obj(errval));
-            } else {
-                add_c(&mut rv, OBJECT_NIL);
+                break 'theend;
             }
+            let name = first.data.string();
+            let second = call[1];
+            if second.obj_type != ObjectType::ObjectTypeArray {
+                api_err_exp(
+                    err,
+                    c"call args",
+                    api_typename(ObjectType::ObjectTypeArray),
+                    api_typename(second.obj_type),
+                );
+                break 'theend;
+            }
+            let args = second.data.array();
+
+            let handler = msgpack_rpc_get_handler_for(name.data, name.size, &mut nested_error);
+            if error_set(&nested_error) {
+                break;
+            }
+
+            let func = handler.r#fn.unwrap();
+            let result = func(channel_id, args, &mut *arena, &mut nested_error);
+            if error_set(&nested_error) {
+                break;
+            }
+            add_c(&mut results, copy_object(result, Some(arena)));
+            if handler.ret_alloc {
+                api_free_object(result);
+            }
+
+            i += 1;
         }
+
+        add_c(&mut rv, array_obj(results));
+        if error_set(&nested_error) {
+            let mut errval = arena_array(arena, 3);
+            add_c(&mut errval, integer_obj(i as Integer));
+            add_c(&mut errval, integer_obj(nested_error.err_type as Integer));
+            add_c(
+                &mut errval,
+                string_obj(copy_string(
+                    cstr_as_string(nested_error.msg_ptr()),
+                    Some(arena),
+                )),
+            );
+            add_c(&mut rv, array_obj(errval));
+        } else {
+            add_c(&mut rv, OBJECT_NIL);
+        }
+    }
 
     api_clear_error(&mut nested_error);
     rv
@@ -1160,25 +1184,25 @@ pub fn nvim_unsubscribe(_channel_id: u64, _event: NvimString) {}
 
 fn push_char(line_buf: &mut Vec<c_char>, c: c_char, to_err: bool) {
     if line_buf.capacity() == 0 {
-            line_buf.reserve(LINE_BUFFER_MIN_SIZE);
-        }
-        if c == NL {
-            line_buf.push(NUL);
-            if to_err {
-                emsg(line_buf.as_ptr());
-            } else {
-                msg(line_buf.as_ptr(), 0);
-            }
-            if g_st().msg_silent == 0 {
-                g_st().msg_didout = true;
-            }
-            line_buf.clear();
-            line_buf.shrink_to(LINE_BUFFER_MIN_SIZE);
-        } else if c == NUL {
-            line_buf.push(NL);
+        line_buf.reserve(LINE_BUFFER_MIN_SIZE);
+    }
+    if c == NL {
+        line_buf.push(NUL);
+        if to_err {
+            emsg(line_buf.as_ptr());
         } else {
-            line_buf.push(c);
+            msg(line_buf.as_ptr(), 0);
         }
+        if g_st().msg_silent == 0 {
+            g_st().msg_didout = true;
+        }
+        line_buf.clear();
+        line_buf.shrink_to(LINE_BUFFER_MIN_SIZE);
+    } else if c == NUL {
+        line_buf.push(NL);
+    } else {
+        line_buf.push(c);
+    }
 }
 
 fn write_msg(message: NvimString, to_err: bool, writeln: bool) {
@@ -1254,19 +1278,19 @@ pub fn nvim_notify(
     err: &mut Error,
 ) -> Object {
     let mut items = [string_obj(msg_str), integer_obj(log_level), dict_obj(opts)];
-        let args = Array {
-            size: 3,
-            capacity: 3,
-            items: items.as_mut_ptr(),
-        };
-        nlua_exec(
-            static_cstr_as_string(c"return vim.notify(...)"),
-            ptr::null(),
-            args,
-            K_RET_OBJECT,
-            Some(arena),
-            err,
-        )
+    let args = Array {
+        size: 3,
+        capacity: 3,
+        items: items.as_mut_ptr(),
+    };
+    nlua_exec(
+        static_cstr_as_string(c"return vim.notify(...)"),
+        ptr::null(),
+        args,
+        K_RET_OBJECT,
+        Some(arena),
+        err,
+    )
 }
 
 /// @deprecated

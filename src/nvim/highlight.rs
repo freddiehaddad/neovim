@@ -261,8 +261,9 @@ fn hl_st() -> &'static mut HighlightModuleState {
 }
 
 #[inline]
-fn is_none_str(s: impl crate::strings::IntoCCharPtr) -> bool { let s = s.into_c_char_ptr();
-    !s.is_null() &&  { crate::memory::cstr_as_bytes(s).eq_ignore_ascii_case(b"NONE") }
+fn is_none_str(s: impl crate::strings::IntoCCharPtr) -> bool {
+    let s = s.into_c_char_ptr();
+    !s.is_null() && { crate::memory::cstr_as_bytes(s).eq_ignore_ascii_case(b"NONE") }
 }
 
 use crate::api::private::dispatch::{
@@ -277,7 +278,7 @@ use crate::lua::converter::LUA_NOREF;
 
 #[inline]
 pub fn win_hl_attr(wp: &mut WinInfoInfo, hlf: c_int) -> c_int {
-     {
+    {
         if let Some(ref tbl) = wp.w_ns_hl_attr
             && g_st().ns_hl_fast < 0
         {
@@ -306,7 +307,7 @@ const fn hl_attr_key(a: c_int, b: c_int) -> u64 {
 }
 
 pub fn highlight_init() {
-     {
+    {
         if hl_st().attr_entries.is_empty() {
             let entry = HlEntry {
                 attr: HLATTRS_INIT,
@@ -323,15 +324,15 @@ pub fn highlight_init() {
 
 pub fn highlight_use_hlstate() -> bool {
     if hl_st().hlstate_active {
-            return false;
-        }
-        hl_st().hlstate_active = true;
-        clear_hl_tables(true);
-        true
+        return false;
+    }
+    hl_st().hlstate_active = true;
+    clear_hl_tables(true);
+    true
 }
 
 fn get_attr_entry(mut entry: HlEntry) -> c_int {
-     {
+    {
         let mut retried = false;
         if !hl_st().hlstate_active {
             entry.kind = K_HL_UNKNOWN;
@@ -381,7 +382,7 @@ fn get_attr_entry(mut entry: HlEntry) -> c_int {
 }
 
 pub fn ui_send_all_hls(ui: &mut RemoteUI) {
-     {
+    {
         let len = hl_st().attr_entries.len();
         for i in 1..len {
             let mut arena = Arena {
@@ -406,24 +407,24 @@ pub fn ui_send_all_hls(ui: &mut RemoteUI) {
 
 pub fn hl_get_syn_attr(ns_id: c_int, idx: c_int, at_en: HlAttrs) -> c_int {
     if at_en.cterm_fg_color != 0
-            || at_en.cterm_bg_color != 0
-            || at_en.rgb_fg_color != -1
-            || at_en.rgb_bg_color != -1
-            || at_en.rgb_sp_color != -1
-            || at_en.cterm_ae_attr != 0
-            || at_en.rgb_ae_attr != 0
-            || at_en.font >= 0
-            || ns_id != 0
-        {
-            return get_attr_entry(HlEntry {
-                attr: at_en,
-                kind: K_HL_SYNTAX,
-                id1: idx,
-                id2: ns_id,
-                winid: 0,
-            });
-        }
-        0
+        || at_en.cterm_bg_color != 0
+        || at_en.rgb_fg_color != -1
+        || at_en.rgb_bg_color != -1
+        || at_en.rgb_sp_color != -1
+        || at_en.cterm_ae_attr != 0
+        || at_en.rgb_ae_attr != 0
+        || at_en.font >= 0
+        || ns_id != 0
+    {
+        return get_attr_entry(HlEntry {
+            attr: at_en,
+            kind: K_HL_SYNTAX,
+            id1: idx,
+            id2: ns_id,
+            winid: 0,
+        });
+    }
+    0
 }
 
 pub fn ns_hl_def(
@@ -530,19 +531,12 @@ pub fn ns_get_hl(ns_hl: &mut NS, hl_id: c_int, link: bool, nodefault: bool) -> c
                     ret.data.dict(),
                     &mut err,
                 ) {
-                    attrs = dict2hlattrs(
-                        &mut dict,
-                        true,
-                        Some(&mut it.link_id),
-                        None,
-                        &mut err,
-                    );
-                    fallback =
-                        if has_key(dict.is_set_highlight, KEYSET_OPTIDX_HIGHLIGHT_FALLBACK) {
-                            dict.fallback
-                        } else {
-                            true
-                        };
+                    attrs = dict2hlattrs(&mut dict, true, Some(&mut it.link_id), None, &mut err);
+                    fallback = if has_key(dict.is_set_highlight, KEYSET_OPTIDX_HIGHLIGHT_FALLBACK) {
+                        dict.fallback
+                    } else {
+                        true
+                    };
                     tmp = dict.fallback;
                     if it.link_id >= 0 {
                         fallback = true;
@@ -581,7 +575,7 @@ pub fn ns_get_hl(ns_hl: &mut NS, hl_id: c_int, link: bool, nodefault: bool) -> c
 }
 
 pub fn hl_check_ns() -> bool {
-     {
+    {
         let ns = if g_st().ns_hl_fast > 0 {
             g_st().ns_hl_fast
         } else if g_st().ns_hl_win >= 0 {
@@ -606,7 +600,7 @@ pub fn hl_check_ns() -> bool {
 }
 
 pub fn win_check_ns_hl(wp: Option<&WinInfoInfo>) -> bool {
-     {
+    {
         g_st().ns_hl_win = wp.map_or(-1, |wp| wp.w_ns_hl);
         hl_check_ns()
     }
@@ -619,7 +613,11 @@ pub fn hl_ns_get_attrs(
     attrs: &mut HlAttrs,
 ) -> bool {
     {
-        let mut opt = if let Some(optional) = optional.as_deref_mut() { *optional } else { true };
+        let mut opt = if let Some(optional) = optional.as_deref_mut() {
+            *optional
+        } else {
+            true
+        };
         let syn_attr = syn_ns_id2attr(ns_id, hl_id, &mut opt);
         if let Some(optional) = optional {
             *optional = opt;
@@ -632,42 +630,37 @@ pub fn hl_ns_get_attrs(
     }
 }
 
-pub fn hl_get_ui_attr(
-    ns_id: c_int,
-    idx: c_int,
-    final_id: c_int,
-    mut optional: bool,
-) -> c_int {
+pub fn hl_get_ui_attr(ns_id: c_int, idx: c_int, final_id: c_int, mut optional: bool) -> c_int {
     let mut attrs = HLATTRS_INIT;
-        let mut available = false;
+    let mut available = false;
 
-        if final_id > 0 {
-            available = hl_ns_get_attrs(ns_id, final_id, Some(&mut optional), &mut attrs);
-        }
+    if final_id > 0 {
+        available = hl_ns_get_attrs(ns_id, final_id, Some(&mut optional), &mut attrs);
+    }
 
-        if (HLF_PNI..=HLF_PST).contains(&idx) {
-            if attrs.hl_blend == -1 && opt_vars().p_pb > 0 {
-                attrs.hl_blend = opt_vars().p_pb as i32;
-            }
-            if pum_drawn() {
-                g_st().must_redraw_pum = true;
-            }
+    if (HLF_PNI..=HLF_PST).contains(&idx) {
+        if attrs.hl_blend == -1 && opt_vars().p_pb > 0 {
+            attrs.hl_blend = opt_vars().p_pb as i32;
         }
+        if pum_drawn() {
+            g_st().must_redraw_pum = true;
+        }
+    }
 
-        if optional && !available {
-            return 0;
-        }
-        get_attr_entry(HlEntry {
-            attr: attrs,
-            kind: K_HL_UI,
-            id1: idx,
-            id2: final_id,
-            winid: 0,
-        })
+    if optional && !available {
+        return 0;
+    }
+    get_attr_entry(HlEntry {
+        attr: attrs,
+        kind: K_HL_UI,
+        id1: idx,
+        id2: final_id,
+        winid: 0,
+    })
 }
 
 pub fn hl_apply_winblend(winbl: c_int, mut attr: c_int) -> c_int {
-     {
+    {
         let mut entry = hl_st().attr_entries.as_slice()[attr as usize];
         if entry.attr.hl_blend == -1 && winbl > 0 {
             entry.attr.hl_blend = winbl;
@@ -678,7 +671,7 @@ pub fn hl_apply_winblend(winbl: c_int, mut attr: c_int) -> c_int {
 }
 
 pub fn update_window_hl(wp: &mut WinInfoInfo, invalid: bool) {
-     {
+    {
         let ns_id = wp.w_ns_hl;
 
         update_ns_hl(ns_id);
@@ -752,10 +745,8 @@ pub fn update_window_hl(wp: &mut WinInfoInfo, invalid: bool) {
         }
 
         if wp.w_floating {
-            wp.w_hl_attr_normalnc = hl_apply_winblend(
-                wp.w_onebuf_opt.wo_winbl as c_int,
-                wp.w_hl_attr_normalnc,
-            );
+            wp.w_hl_attr_normalnc =
+                hl_apply_winblend(wp.w_onebuf_opt.wo_winbl as c_int, wp.w_hl_attr_normalnc);
         }
     }
 }
@@ -770,7 +761,8 @@ pub fn update_ns_hl(ns_id: c_int) {
             return;
         }
 
-        let alloc = hl_st().ns_hl_attr
+        let alloc = hl_st()
+            .ns_hl_attr
             .entry(ns_id)
             .or_insert_with(|| std::rc::Rc::new([const { std::cell::Cell::new(0) }; HLF_COUNT]))
             .clone();
@@ -791,7 +783,7 @@ pub fn update_ns_hl(ns_id: c_int) {
 }
 
 pub fn win_bg_attr(wp: &mut WinInfoInfo) -> c_int {
-     {
+    {
         if g_st().ns_hl_fast < 0 {
             let local = if ptr::eq(wp, curwin_ptr()) {
                 wp.w_hl_attr_normal
@@ -813,18 +805,19 @@ pub fn win_bg_attr(wp: &mut WinInfoInfo) -> c_int {
 
 pub fn hl_get_underline() -> c_int {
     let mut attrs = HLATTRS_INIT;
-        attrs.cterm_ae_attr = HL_UNDERLINE;
-        attrs.rgb_ae_attr = HL_UNDERLINE;
-        get_attr_entry(HlEntry {
-            attr: attrs,
-            kind: K_HL_UI,
-            id1: 0,
-            id2: 0,
-            winid: 0,
-        })
+    attrs.cterm_ae_attr = HL_UNDERLINE;
+    attrs.rgb_ae_attr = HL_UNDERLINE;
+    get_attr_entry(HlEntry {
+        attr: attrs,
+        kind: K_HL_UI,
+        id1: 0,
+        id2: 0,
+        winid: 0,
+    })
 }
 
-pub fn hl_add_url(attr: c_int, url: impl crate::strings::IntoCCharPtr) -> c_int { let url = url.into_c_char_ptr();
+pub fn hl_add_url(attr: c_int, url: impl crate::strings::IntoCCharPtr) -> c_int {
+    let url = url.into_c_char_ptr();
     unsafe {
         let mut attrs = HLATTRS_INIT;
         let url_cstr = CStr::from_ptr(url);
@@ -849,9 +842,7 @@ pub fn hl_add_url(attr: c_int, url: impl crate::strings::IntoCCharPtr) -> c_int 
 }
 
 pub fn hl_get_url(index: u32) -> *const c_char {
-     {
-        hl_st().urls.as_slice()[index as usize].as_ptr()
-    }
+    hl_st().urls.as_slice()[index as usize].as_ptr()
 }
 
 pub fn hl_add_font_idx(font_name: impl crate::strings::IntoCCharPtr) -> i32 {
@@ -871,7 +862,7 @@ pub fn hl_add_font_idx(font_name: impl crate::strings::IntoCCharPtr) -> i32 {
 }
 
 pub fn hl_get_font(index: i32) -> *const c_char {
-     {
+    {
         if index < 0 || (index as usize) >= hl_st().fonts.len() {
             return ptr::null();
         }
@@ -892,7 +883,7 @@ pub fn hl_get_term_attr(aep: &mut HlAttrs) -> c_int {
 }
 
 pub fn clear_hl_tables(reinit: bool) {
-     {
+    {
         if reinit {
             hl_st().attr_entries.clear();
             hl_st().attr_entry_ids.clear();
@@ -920,7 +911,7 @@ pub fn clear_hl_tables(reinit: bool) {
 }
 
 pub fn hl_invalidate_blends() {
-     {
+    {
         hl_st().blend_attr_entries.clear();
         hl_st().blendthrough_attr_entries.clear();
         highlight_changed();
@@ -937,7 +928,7 @@ const fn hl_combine_ae(char_ae: i32, prim_ae: i32) -> i32 {
 }
 
 pub fn hl_combine_attr(char_attr: c_int, prim_attr: c_int) -> c_int {
-     {
+    {
         if char_attr == 0 {
             return prim_attr;
         } else if prim_attr == 0 {
@@ -945,7 +936,11 @@ pub fn hl_combine_attr(char_attr: c_int, prim_attr: c_int) -> c_int {
         }
 
         let combine_tag = hl_attr_key(char_attr, prim_attr);
-        let mut id = hl_st().combine_attr_entries.get(&combine_tag).copied().unwrap_or(0);
+        let mut id = hl_st()
+            .combine_attr_entries
+            .get(&combine_tag)
+            .copied()
+            .unwrap_or(0);
         if id > 0 {
             return id;
         }
@@ -1018,7 +1013,7 @@ pub fn hl_combine_attr(char_attr: c_int, prim_attr: c_int) -> c_int {
 }
 
 fn get_colors_force(mut attrs: HlAttrs) -> HlAttrs {
-     {
+    {
         if attrs.rgb_bg_color == -1 {
             attrs.rgb_bg_color = g_st().normal_bg;
         }
@@ -1115,7 +1110,11 @@ pub fn hl_blend_attrs(back_attr: c_int, front_attr: c_int, through: &mut bool) -
             };
         }
         cattrs.hl_blend = -1;
-        let kind = if *through { K_HL_BLEND_THROUGH } else { K_HL_BLEND };
+        let kind = if *through {
+            K_HL_BLEND_THROUGH
+        } else {
+            K_HL_BLEND
+        };
         id = get_attr_entry(HlEntry {
             attr: cattrs,
             kind,
@@ -1208,7 +1207,7 @@ const fn hl_cterm2rgb_color(nr: c_int) -> c_int {
 }
 
 pub fn syn_attr2entry(attr: c_int) -> HlAttrs {
-     {
+    {
         if attr <= 0 || (attr as usize) >= hl_st().attr_entries.len() {
             return HLATTRS_INIT;
         }
@@ -1411,7 +1410,8 @@ const fn apply_cterm_flag(val: bool, mut m: i32, flag: i32) -> i32 {
 
 pub fn dict2hlattrs(
     dict: &mut KeyDict_highlight,
-    use_rgb: bool,mut link_id: Option<&mut c_int>,
+    use_rgb: bool,
+    mut link_id: Option<&mut c_int>,
     base: Option<&HlAttrs>,
     err: &mut Error,
 ) -> HlAttrs {
@@ -1546,13 +1546,7 @@ pub fn dict2hlattrs(
             mask,
             HL_ALTFONT,
         );
-        mask = apply_flag_with_key(
-            is_set,
-            KEYSET_OPTIDX_HIGHLIGHT_DIM,
-            dict.dim,
-            mask,
-            HL_DIM,
-        );
+        mask = apply_flag_with_key(is_set, KEYSET_OPTIDX_HIGHLIGHT_DIM, dict.dim, mask, HL_DIM);
         mask = apply_flag_with_key(
             is_set,
             KEYSET_OPTIDX_HIGHLIGHT_BLINK,
@@ -1608,12 +1602,7 @@ pub fn dict2hlattrs(
         if has_key(is_set, KEYSET_OPTIDX_HIGHLIGHT_FG) {
             fg = object_to_color(dict.fg, c"fg", use_rgb, err);
         } else if has_key(is_set, KEYSET_OPTIDX_HIGHLIGHT_FOREGROUND) {
-            fg = object_to_color(
-                dict.foreground,
-                c"foreground",
-                use_rgb,
-                err,
-            );
+            fg = object_to_color(dict.foreground, c"foreground", use_rgb, err);
         }
         if err.err_type != ErrorType::ErrorTypeNone {
             return hlattrs;
@@ -1622,12 +1611,7 @@ pub fn dict2hlattrs(
         if has_key(is_set, KEYSET_OPTIDX_HIGHLIGHT_BG) {
             bg = object_to_color(dict.bg, c"bg", use_rgb, err);
         } else if has_key(is_set, KEYSET_OPTIDX_HIGHLIGHT_BACKGROUND) {
-            bg = object_to_color(
-                dict.background,
-                c"background",
-                use_rgb,
-                err,
-            );
+            bg = object_to_color(dict.background, c"background", use_rgb, err);
         }
         if err.err_type != ErrorType::ErrorTypeNone {
             return hlattrs;
@@ -1766,27 +1750,32 @@ pub fn dict2hlattrs(
 
 pub fn object_to_color(val: Object, key: &std::ffi::CStr, rgb: bool, err: &mut Error) -> c_int {
     if val.obj_type == ObjectType::ObjectTypeInteger {
-            val.data.integer() as c_int
-        } else if val.obj_type == ObjectType::ObjectTypeString {
-            let str_ = val.data.string();
-            if str_.size == 0 || is_none_str(str_.data) {
-                return -1;
-            }
-            let color = if rgb {
-                let mut dummy: c_int = 0;
-                name_to_color(str_.data, &raw mut dummy)
-            } else {
-                name_to_ctermcolor(str_.data)
-            };
-            if color < 0 {
-                api_err_invalid(err, c"highlight color", str_.data, 0, true);
-                return color;
-            }
-            color
-        } else {
-            api_err_exp(err, key.as_ptr().cast_mut(), c"String or Integer", ptr::null());
-            0
+        val.data.integer() as c_int
+    } else if val.obj_type == ObjectType::ObjectTypeString {
+        let str_ = val.data.string();
+        if str_.size == 0 || is_none_str(str_.data) {
+            return -1;
         }
+        let color = if rgb {
+            let mut dummy: c_int = 0;
+            name_to_color(str_.data, &raw mut dummy)
+        } else {
+            name_to_ctermcolor(str_.data)
+        };
+        if color < 0 {
+            api_err_invalid(err, c"highlight color", str_.data, 0, true);
+            return color;
+        }
+        color
+    } else {
+        api_err_exp(
+            err,
+            key.as_ptr().cast_mut(),
+            c"String or Integer",
+            ptr::null(),
+        );
+        0
+    }
 }
 
 pub fn hl_inspect(attr: c_int, arena: &mut Arena) -> Array {
@@ -1803,7 +1792,7 @@ pub fn hl_inspect(attr: c_int, arena: &mut Arena) -> Array {
 }
 
 fn hl_inspect_size(attr: c_int) -> usize {
-     {
+    {
         if attr <= 0 || (attr as usize) >= hl_st().attr_entries.len() {
             return 0;
         }
@@ -1817,7 +1806,7 @@ fn hl_inspect_size(attr: c_int) -> usize {
 }
 
 fn hl_inspect_impl(arr: &mut Array, attr: c_int, arena: &mut Arena) {
-     {
+    {
         if attr <= 0 || (attr as usize) >= hl_st().attr_entries.len() {
             return;
         }
@@ -1866,7 +1855,7 @@ mod tests {
         let _guard = crate::globals::TEST_GLOBAL_LOCK
             .lock()
             .unwrap_or_else(|e| e.into_inner());
-         {
+        {
             assert_eq!(hl_add_font_idx(ptr::null()), -1);
             assert_eq!(hl_add_font_idx(c""), -1);
             let idx = hl_add_font_idx(c"Monospace:h12");

@@ -4,16 +4,16 @@ use crate::charset::{ascii_isdigit, skipwhite};
 use crate::cursor::Linenr;
 use crate::debugger::dbg_check_skipped;
 use crate::errors::*;
-use crate::eval::typval::{TvList, tv_clear, tv_list_ref, tv_list_unref, TypVal};
+use crate::eval::typval::{TvList, TypVal, tv_clear, tv_list_ref, tv_list_unref};
 use crate::eval::userfunc::{do_return, get_return_cmd};
 use crate::eval::vars::{
-    VV_EXCEPTION, VV_STACKTRACE, VV_THROWPOINT, Evalarg, set_vim_var_list, set_vim_var_string,
+    Evalarg, VV_EXCEPTION, VV_STACKTRACE, VV_THROWPOINT, set_vim_var_list, set_vim_var_string,
 };
 use crate::eval::{
-    eval_for_line, eval_to_bool, eval_to_string_skip, eval0, fill_evalarg_from_eap,
-    Forinfo, next_for_item,
+    Forinfo, eval_for_line, eval_to_bool, eval_to_string_skip, eval0, fill_evalarg_from_eap,
+    next_for_item,
 };
-use crate::ex_docmd::{ends_excmd, Exarg, find_nextcmd, handle_did_throw, modifier_len};
+use crate::ex_docmd::{Exarg, ends_excmd, find_nextcmd, handle_did_throw, modifier_len};
 use crate::globals::*;
 use crate::memory::xstrlcpy;
 use crate::message::{emsg, internal_error, msg_puts, semsg, smsg, verbose_enter, verbose_leave};
@@ -22,9 +22,7 @@ use crate::regexp::{
     RE_MAGIC, RE_STRING, Regmatch, skip_regexp_err, vim_regcomp, vim_regexec_nl, vim_regfree,
 };
 use crate::runtime::{ESTACK_NONE, do_finish, estack_sfile, sourcing_lnum, stacktrace_create};
-use crate::strings::{
-    concat_str, gettext, vim_snprintf, vim_snprintf_safelen,
-};
+use crate::strings::{concat_str, gettext, vim_snprintf, vim_snprintf_safelen};
 use std::ffi::{CStr, CString, c_char, c_int};
 use std::ptr;
 
@@ -205,13 +203,12 @@ struct ExEvalModuleState {
 
 impl ExEvalModuleState {
     const fn new() -> Self {
-        Self {
-            cause_abort: false,
-        }
+        Self { cause_abort: false }
     }
 }
 
-static EXEVAL_STATE: crate::globals::GlobalState<ExEvalModuleState> = crate::globals::GlobalState::new(ExEvalModuleState::new());
+static EXEVAL_STATE: crate::globals::GlobalState<ExEvalModuleState> =
+    crate::globals::GlobalState::new(ExEvalModuleState::new());
 
 #[inline]
 fn exeval_st() -> &'static mut ExEvalModuleState {
@@ -221,10 +218,9 @@ fn exeval_st() -> &'static mut ExEvalModuleState {
 #[inline]
 fn check_skip(cstack: &Cstack) -> bool {
     g_st().did_emsg != 0
-            || g_st().got_int
-            || g_st().did_throw
-            || (cstack.cs_idx > 0
-                && (cstack.cs_flags[(cstack.cs_idx - 1) as usize] & CSF_ACTIVE) == 0)
+        || g_st().got_int
+        || g_st().did_throw
+        || (cstack.cs_idx > 0 && (cstack.cs_flags[(cstack.cs_idx - 1) as usize] & CSF_ACTIVE) == 0)
 }
 
 #[inline]
@@ -240,8 +236,8 @@ pub fn aborting() -> bool {
 
 pub fn update_force_abort() {
     if exeval_st().cause_abort {
-            g_st().force_abort = true;
-        }
+        g_st().force_abort = true;
+    }
 }
 
 pub fn should_abort(retcode: c_int) -> bool {
@@ -258,7 +254,8 @@ pub fn cause_errthrow(
     concat: bool,
     severe: bool,
     ignore: &mut bool,
-) -> bool { let mesg = mesg.into_c_char_ptr();
+) -> bool {
+    let mesg = mesg.into_c_char_ptr();
     unsafe {
         if g_st().suppress_errthrow {
             return false;
@@ -269,7 +266,9 @@ pub fn cause_errthrow(
             g_st().force_abort = false;
         }
 
-        if ((g_st().trylevel == 0 && !exeval_st().cause_abort) || g_st().emsg_silent != 0) && !g_st().did_throw {
+        if ((g_st().trylevel == 0 && !exeval_st().cause_abort) || g_st().emsg_silent != 0)
+            && !g_st().did_throw
+        {
             return false;
         }
 
@@ -281,7 +280,11 @@ pub fn cause_errthrow(
         exeval_st().cause_abort = true;
 
         if g_st().did_throw {
-            if g_st().current_exception.as_ref().is_some_and(|e| e.r#type == ET_INTERRUPT) {
+            if g_st()
+                .current_exception
+                .as_ref()
+                .is_some_and(|e| e.r#type == ET_INTERRUPT)
+            {
                 g_st().got_int = false;
             }
             discard_current_exception();
@@ -334,7 +337,8 @@ pub fn free_global_msglist() {
     }
 }
 
-pub fn do_errthrow(cstack: Option<&mut Cstack>, cmdname: impl crate::strings::IntoCCharPtr) { let cmdname = cmdname.into_c_char_ptr();
+pub fn do_errthrow(cstack: Option<&mut Cstack>, cmdname: impl crate::strings::IntoCCharPtr) {
+    let cmdname = cmdname.into_c_char_ptr();
     unsafe {
         if exeval_st().cause_abort {
             exeval_st().cause_abort = false;
@@ -361,13 +365,17 @@ pub fn do_errthrow(cstack: Option<&mut Cstack>, cmdname: impl crate::strings::In
 }
 
 pub fn do_intthrow(cstack: *mut Cstack) -> bool {
-     {
+    {
         if !g_st().got_int || (g_st().trylevel == 0 && !g_st().did_throw) {
             return false;
         }
 
         if g_st().did_throw {
-            if g_st().current_exception.as_ref().is_some_and(|e| e.r#type == ET_INTERRUPT) {
+            if g_st()
+                .current_exception
+                .as_ref()
+                .is_some_and(|e| e.r#type == ET_INTERRUPT)
+            {
                 return false;
             }
             discard_current_exception();
@@ -375,8 +383,7 @@ pub fn do_intthrow(cstack: *mut Cstack) -> bool {
         if throw_exception(
             ExceptionValue::Interrupt(c"Vim:Interrupt".to_owned()),
             ptr::null_mut(),
-        )
-        {
+        ) {
             do_throw(cstack);
         }
 
@@ -390,7 +397,12 @@ enum ExceptionValue {
     User(CString),
 }
 
-pub fn get_error_exception_string(mesg: impl crate::strings::IntoCCharPtr, cmdname: impl crate::strings::IntoCCharPtr) -> CString { let cmdname = cmdname.into_c_char_ptr(); let mesg = mesg.into_c_char_ptr();
+pub fn get_error_exception_string(
+    mesg: impl crate::strings::IntoCCharPtr,
+    cmdname: impl crate::strings::IntoCCharPtr,
+) -> CString {
+    let cmdname = cmdname.into_c_char_ptr();
+    let mesg = mesg.into_c_char_ptr();
     unsafe {
         let mut out: Vec<u8> = Vec::new();
         if !crate::memory::cstr_is_empty(cmdname) {
@@ -409,7 +421,8 @@ pub fn get_error_exception_string(mesg: impl crate::strings::IntoCCharPtr, cmdna
                     && (crate::memory::cstr_byte_at(p, 2) == b':'
                         || (ascii_isdigit(crate::memory::cstr_char_at(p, 2))
                             && (crate::memory::cstr_byte_at(p, 3) == b':'
-                                || (ascii_isdigit(crate::memory::cstr_char_at(p, 3)) && crate::memory::cstr_byte_at(p, 4) == b':')))))
+                                || (ascii_isdigit(crate::memory::cstr_char_at(p, 3))
+                                    && crate::memory::cstr_byte_at(p, 4) == b':')))))
             {
                 if crate::memory::cstr_is_empty(p) || ptr::eq(p, mesg) {
                     out.extend_from_slice(crate::memory::cstr_as_bytes(mesg));
@@ -440,7 +453,8 @@ pub fn get_error_exception_string(mesg: impl crate::strings::IntoCCharPtr, cmdna
     }
 }
 
-fn throw_exception(value: ExceptionValue, cmdname: impl crate::strings::IntoCCharPtr) -> bool { let cmdname = cmdname.into_c_char_ptr();
+fn throw_exception(value: ExceptionValue, cmdname: impl crate::strings::IntoCCharPtr) -> bool {
+    let cmdname = cmdname.into_c_char_ptr();
     unsafe {
         let (r#type, mut messages, excp_value) = match value {
             ExceptionValue::User(val_str) => {
@@ -448,9 +462,7 @@ fn throw_exception(value: ExceptionValue, cmdname: impl crate::strings::IntoCCha
                 if bytes.starts_with(b"Vim")
                     && (bytes.len() == 3 || bytes[3] == b':' || bytes[3] == b'(')
                 {
-                    emsg(gettext(
-                        c"E608: Cannot :throw exceptions with 'Vim' prefix",
-                    ));
+                    emsg(gettext(c"E608: Cannot :throw exceptions with 'Vim' prefix"));
                     g_st().current_exception = None;
                     return false;
                 }
@@ -496,11 +508,7 @@ fn throw_exception(value: ExceptionValue, cmdname: impl crate::strings::IntoCCha
             if g_st().debug_break_level > 0 || crate::memory::cstr_is_empty(opt_vars().p_vfile) {
                 g_st().msg_scroll = 1;
             }
-            smsg!(
-                0,
-                gettext(c"Exception thrown: %s"),
-                excp.value.as_ptr(),
-            );
+            smsg!(0, gettext(c"Exception thrown: %s"), excp.value.as_ptr(),);
             msg_puts(c"\n");
 
             if g_st().debug_break_level > 0 || crate::memory::cstr_is_empty(opt_vars().p_vfile) {
@@ -520,12 +528,13 @@ fn throw_exception(value: ExceptionValue, cmdname: impl crate::strings::IntoCCha
 }
 
 fn discard_exception(excp: Option<std::rc::Rc<Except>>, was_finished: bool) {
-     {
+    {
         let Some(excp) = excp else {
             internal_error(c"discard_exception()");
             return;
         };
-        if g_st().current_exception
+        if g_st()
+            .current_exception
             .as_ref()
             .is_some_and(|cur| std::rc::Rc::ptr_eq(cur, &excp))
         {
@@ -571,7 +580,7 @@ fn discard_exception(excp: Option<std::rc::Rc<Except>>, was_finished: bool) {
 }
 
 pub fn discard_current_exception() {
-     {
+    {
         if let Some(excp) = g_st().current_exception.take() {
             discard_exception(Some(excp), false);
         }
@@ -581,7 +590,7 @@ pub fn discard_current_exception() {
 }
 
 fn catch_exception(excp: &std::rc::Rc<Except>) {
-     {
+    {
         g_st().caught_stack.push(excp.clone());
         set_vim_var_string(VV_EXCEPTION, excp.value.as_ptr(), -1);
         set_vim_var_list(VV_STACKTRACE, excp.stacktrace);
@@ -623,11 +632,7 @@ fn catch_exception(excp: &std::rc::Rc<Except>) {
             if g_st().debug_break_level > 0 || crate::memory::cstr_is_empty(opt_vars().p_vfile) {
                 g_st().msg_scroll = 1;
             }
-            smsg!(
-                0,
-                gettext(c"Exception caught: %s"),
-                excp.value.as_ptr(),
-            );
+            smsg!(0, gettext(c"Exception caught: %s"), excp.value.as_ptr(),);
             msg_puts(c"\n");
 
             if g_st().debug_break_level > 0 || crate::memory::cstr_is_empty(opt_vars().p_vfile) {
@@ -644,7 +649,7 @@ fn catch_exception(excp: &std::rc::Rc<Except>) {
 }
 
 fn finish_exception(excp: Option<std::rc::Rc<Except>>) {
-     {
+    {
         if match (g_st().caught_stack.last(), excp.as_ref()) {
             (Some(last), Some(e)) => !std::rc::Rc::ptr_eq(last, e),
             _ => true,
@@ -691,7 +696,7 @@ fn finish_exception(excp: Option<std::rc::Rc<Except>>) {
 }
 
 pub fn exception_state_save(estate: &mut ExceptionState) {
-     {
+    {
         estate.estate_current_exception = g_st().current_exception.clone();
         estate.estate_did_throw = g_st().did_throw;
         estate.estate_need_rethrow = g_st().need_rethrow;
@@ -702,25 +707,25 @@ pub fn exception_state_save(estate: &mut ExceptionState) {
 
 pub fn exception_state_restore(estate: &mut ExceptionState) {
     if g_st().did_throw {
-            handle_did_throw();
-        }
-        g_st().current_exception = estate.estate_current_exception.take();
-        g_st().did_throw = estate.estate_did_throw;
-        g_st().need_rethrow = estate.estate_need_rethrow;
-        g_st().trylevel = estate.estate_trylevel;
-        g_st().did_emsg = estate.estate_did_emsg;
+        handle_did_throw();
+    }
+    g_st().current_exception = estate.estate_current_exception.take();
+    g_st().did_throw = estate.estate_did_throw;
+    g_st().need_rethrow = estate.estate_need_rethrow;
+    g_st().trylevel = estate.estate_trylevel;
+    g_st().did_emsg = estate.estate_did_emsg;
 }
 
 pub fn exception_state_clear() {
     g_st().current_exception = None;
-        g_st().did_throw = false;
-        g_st().need_rethrow = false;
-        g_st().trylevel = 0;
-        g_st().did_emsg = 0;
+    g_st().did_throw = false;
+    g_st().need_rethrow = false;
+    g_st().trylevel = 0;
+    g_st().did_emsg = 0;
 }
 
 fn report_pending(action: c_int, pending: c_int, value: PendingVal) {
-     {
+    {
         let mut mesg = match action {
             RP_MAKE => gettext(c"%s made pending"),
             RP_RESUME => gettext(c"%s resumed"),
@@ -789,49 +794,49 @@ fn report_pending(action: c_int, pending: c_int, value: PendingVal) {
 
 pub fn report_make_pending(pending: c_int, value: PendingVal) {
     if opt_vars().p_verbose >= 14 || g_st().debug_break_level > 0 {
-            if g_st().debug_break_level <= 0 {
-                verbose_enter();
-            }
-            report_pending(RP_MAKE, pending, value);
-            if g_st().debug_break_level <= 0 {
-                verbose_leave();
-            }
+        if g_st().debug_break_level <= 0 {
+            verbose_enter();
         }
+        report_pending(RP_MAKE, pending, value);
+        if g_st().debug_break_level <= 0 {
+            verbose_leave();
+        }
+    }
 }
 
 fn report_resume_pending(pending: c_int, value: PendingVal) {
     if opt_vars().p_verbose >= 14 || g_st().debug_break_level > 0 {
-            if g_st().debug_break_level <= 0 {
-                verbose_enter();
-            }
-            report_pending(RP_RESUME, pending, value);
-            if g_st().debug_break_level <= 0 {
-                verbose_leave();
-            }
+        if g_st().debug_break_level <= 0 {
+            verbose_enter();
         }
+        report_pending(RP_RESUME, pending, value);
+        if g_st().debug_break_level <= 0 {
+            verbose_leave();
+        }
+    }
 }
 
 fn report_discard_pending(pending: c_int, value: PendingVal) {
     if opt_vars().p_verbose >= 14 || g_st().debug_break_level > 0 {
-            if g_st().debug_break_level <= 0 {
-                verbose_enter();
-            }
-            report_pending(RP_DISCARD, pending, value);
-            if g_st().debug_break_level <= 0 {
-                verbose_leave();
-            }
+        if g_st().debug_break_level <= 0 {
+            verbose_enter();
         }
+        report_pending(RP_DISCARD, pending, value);
+        if g_st().debug_break_level <= 0 {
+            verbose_leave();
+        }
+    }
 }
 
 pub fn ex_eval(eap: &mut Exarg) {
     let mut tv: TypVal = TypVal::new();
-        let mut evalarg = Evalarg::new();
+    let mut evalarg = Evalarg::new();
 
-        fill_evalarg_from_eap(&mut evalarg, eap.skip != 0);
+    fill_evalarg_from_eap(&mut evalarg, eap.skip != 0);
 
-        if eval0(eap.arg, &mut tv, Some(&mut *eap), &mut evalarg) {
-            tv_clear(&mut tv);
-        }
+    if eval0(eap.arg, &mut tv, Some(&mut *eap), &mut evalarg) {
+        tv_clear(&mut tv);
+    }
 }
 
 pub fn ex_if(eap: &mut Exarg) {
@@ -1097,9 +1102,12 @@ pub fn ex_endwhile(eap: &mut Exarg) {
 }
 
 pub fn ex_throw(eap: &mut Exarg) {
-     {
+    {
         let arg = eap.arg;
-        let value = if !crate::memory::cstr_is_empty(arg) && crate::memory::cstr_first_byte(arg) != b'|' && crate::memory::cstr_first_byte(arg) != b'\n' {
+        let value = if !crate::memory::cstr_is_empty(arg)
+            && crate::memory::cstr_first_byte(arg) != b'|'
+            && crate::memory::cstr_first_byte(arg) != b'\n'
+        {
             eval_to_string_skip(arg, eap, eap.skip != 0)
         } else {
             emsg(gettext(E_ARGREQ));
@@ -1203,7 +1211,8 @@ pub fn ex_catch(eap: &mut Exarg) {
                 (c".*".as_ptr(), ptr::null_mut())
             } else {
                 let pat = eap.arg.add(1);
-                let end = skip_regexp_err(pat, c_int::from(crate::memory::cstr_first_byte(eap.arg)), 1);
+                let end =
+                    skip_regexp_err(pat, c_int::from(crate::memory::cstr_first_byte(eap.arg)), 1);
                 if end.is_null() {
                     give_up = true;
                 }
@@ -1250,7 +1259,13 @@ pub fn ex_catch(eap: &mut Exarg) {
                     } else {
                         let prev_got_int = g_st().got_int;
                         g_st().got_int = false;
-                        let val_ptr = g_st().current_exception.as_ref().unwrap().value.as_ptr().cast_mut();
+                        let val_ptr = g_st()
+                            .current_exception
+                            .as_ref()
+                            .unwrap()
+                            .value
+                            .as_ptr()
+                            .cast_mut();
                         caught = vim_regexec_nl(&mut regmatch, val_ptr, 0);
                         g_st().got_int |= prev_got_int;
                         vim_regfree(regmatch.regprog);
@@ -1353,7 +1368,10 @@ pub fn ex_finally(eap: &mut Exarg) {
                 (*cstack).cs_pending[cur_idx] = pending as c_char;
 
                 if g_st().did_throw
-                    && !match ((*cstack).cs_exception[cur_idx].as_ref(), g_st().current_exception.as_ref()) {
+                    && !match (
+                        (*cstack).cs_exception[cur_idx].as_ref(),
+                        g_st().current_exception.as_ref(),
+                    ) {
                         (Some(a), Some(b)) => std::rc::Rc::ptr_eq(a, b),
                         (None, None) => true,
                         _ => false,
@@ -1485,7 +1503,7 @@ pub fn ex_endtry(eap: &mut Exarg) {
 }
 
 pub fn enter_cleanup(csp: &mut ExCleanup) {
-     {
+    {
         let pending = CSTP_NONE;
 
         if g_st().did_emsg != 0 || g_st().got_int || g_st().did_throw || g_st().need_rethrow {
@@ -1520,7 +1538,7 @@ pub fn enter_cleanup(csp: &mut ExCleanup) {
 }
 
 pub fn leave_cleanup(csp: &mut ExCleanup) {
-     {
+    {
         let pending = csp.pending;
         if pending == CSTP_NONE {
             return;
@@ -1566,104 +1584,94 @@ pub fn leave_cleanup(csp: &mut ExCleanup) {
     }
 }
 
-pub fn cleanup_conditionals(
-    cstack: &mut Cstack,
-    searched_cond: c_int,
-    inclusive: c_int,
-) -> c_int {
+pub fn cleanup_conditionals(cstack: &mut Cstack, searched_cond: c_int, inclusive: c_int) -> c_int {
     let mut idx = cstack.cs_idx;
-        let mut stop = false;
+    let mut stop = false;
 
-        while idx >= 0 {
-            let u_idx = idx as usize;
-            if (cstack.cs_flags[u_idx] & CSF_TRY) != 0 {
-                if g_st().did_emsg != 0 || g_st().got_int || (cstack.cs_flags[u_idx] & CSF_FINALLY) != 0 {
-                    let pend = c_int::from(cstack.cs_pending[u_idx]);
-                    match pend {
-                        CSTP_NONE => {}
-                        CSTP_CONTINUE | CSTP_BREAK | CSTP_FINISH => {
-                            report_discard_pending(pend, PendingVal::None);
-                            cstack.cs_pending[u_idx] = CSTP_NONE as c_char;
-                        }
-                        CSTP_RETURN => {
-                            report_discard_pending(
-                                CSTP_RETURN,
-                                PendingVal::Return(cstack.cs_rettv[u_idx]),
-                            );
-                            discard_pending_return(&mut (&mut cstack.cs_rettv)[u_idx]);
-                            cstack.cs_pending[u_idx] = CSTP_NONE as c_char;
-                        }
-                        _ => {
-                            if (cstack.cs_flags[u_idx] & CSF_FINALLY) != 0 {
-                                if (pend & CSTP_THROW) != 0
-                                    && cstack.cs_exception[u_idx].is_some()
-                                {
-                                    discard_exception(
-                                        (&mut cstack.cs_exception)[u_idx].take(),
-                                        false,
-                                    );
-                                } else {
-                                    report_discard_pending(pend, PendingVal::None);
-                                }
-                                cstack.cs_pending[u_idx] = CSTP_NONE as c_char;
-                            }
-                        }
-                    }
-                }
-
-                if (cstack.cs_flags[u_idx] & CSF_FINALLY) == 0 {
-                    if (cstack.cs_flags[u_idx] & CSF_ACTIVE) != 0
-                        && (cstack.cs_flags[u_idx] & CSF_CAUGHT) != 0
-                        && (cstack.cs_flags[u_idx] & CSF_FINISHED) == 0
-                    {
-                        finish_exception((&mut cstack.cs_exception)[u_idx].take());
-                        cstack.cs_flags[u_idx] |= CSF_FINISHED;
-                    }
-                    if (cstack.cs_flags[u_idx] & CSF_TRUE) != 0 {
-                        if searched_cond == 0 && inclusive == 0 {
-                            break;
-                        }
-                        stop = true;
-                    }
-                }
-            }
-
-            if (cstack.cs_flags[u_idx] & searched_cond) != 0 {
-                if inclusive == 0 {
-                    break;
-                }
-                stop = true;
-            }
-            cstack.cs_flags[u_idx] &= !CSF_ACTIVE;
-            if stop && searched_cond != (CSF_TRY | CSF_SILENT) {
-                break;
-            }
-
-            if (cstack.cs_flags[u_idx] & CSF_TRY) != 0
-                && (cstack.cs_flags[u_idx] & CSF_SILENT) != 0
+    while idx >= 0 {
+        let u_idx = idx as usize;
+        if (cstack.cs_flags[u_idx] & CSF_TRY) != 0 {
+            if g_st().did_emsg != 0 || g_st().got_int || (cstack.cs_flags[u_idx] & CSF_FINALLY) != 0
             {
-                if let Some(saved) = cstack.cs_emsg_silent_list.pop() {
-                    g_st().emsg_silent = saved;
+                let pend = c_int::from(cstack.cs_pending[u_idx]);
+                match pend {
+                    CSTP_NONE => {}
+                    CSTP_CONTINUE | CSTP_BREAK | CSTP_FINISH => {
+                        report_discard_pending(pend, PendingVal::None);
+                        cstack.cs_pending[u_idx] = CSTP_NONE as c_char;
+                    }
+                    CSTP_RETURN => {
+                        report_discard_pending(
+                            CSTP_RETURN,
+                            PendingVal::Return(cstack.cs_rettv[u_idx]),
+                        );
+                        discard_pending_return(&mut (&mut cstack.cs_rettv)[u_idx]);
+                        cstack.cs_pending[u_idx] = CSTP_NONE as c_char;
+                    }
+                    _ => {
+                        if (cstack.cs_flags[u_idx] & CSF_FINALLY) != 0 {
+                            if (pend & CSTP_THROW) != 0 && cstack.cs_exception[u_idx].is_some() {
+                                discard_exception((&mut cstack.cs_exception)[u_idx].take(), false);
+                            } else {
+                                report_discard_pending(pend, PendingVal::None);
+                            }
+                            cstack.cs_pending[u_idx] = CSTP_NONE as c_char;
+                        }
+                    }
                 }
-                cstack.cs_flags[u_idx] &= !CSF_SILENT;
             }
-            if stop {
+
+            if (cstack.cs_flags[u_idx] & CSF_FINALLY) == 0 {
+                if (cstack.cs_flags[u_idx] & CSF_ACTIVE) != 0
+                    && (cstack.cs_flags[u_idx] & CSF_CAUGHT) != 0
+                    && (cstack.cs_flags[u_idx] & CSF_FINISHED) == 0
+                {
+                    finish_exception((&mut cstack.cs_exception)[u_idx].take());
+                    cstack.cs_flags[u_idx] |= CSF_FINISHED;
+                }
+                if (cstack.cs_flags[u_idx] & CSF_TRUE) != 0 {
+                    if searched_cond == 0 && inclusive == 0 {
+                        break;
+                    }
+                    stop = true;
+                }
+            }
+        }
+
+        if (cstack.cs_flags[u_idx] & searched_cond) != 0 {
+            if inclusive == 0 {
                 break;
             }
-            idx -= 1;
+            stop = true;
         }
-        idx
+        cstack.cs_flags[u_idx] &= !CSF_ACTIVE;
+        if stop && searched_cond != (CSF_TRY | CSF_SILENT) {
+            break;
+        }
+
+        if (cstack.cs_flags[u_idx] & CSF_TRY) != 0 && (cstack.cs_flags[u_idx] & CSF_SILENT) != 0 {
+            if let Some(saved) = cstack.cs_emsg_silent_list.pop() {
+                g_st().emsg_silent = saved;
+            }
+            cstack.cs_flags[u_idx] &= !CSF_SILENT;
+        }
+        if stop {
+            break;
+        }
+        idx -= 1;
+    }
+    idx
 }
 
 fn get_end_emsg(cstack: &Cstack) -> *mut c_char {
     let fl = cstack.cs_flags[cstack.cs_idx as usize];
-        if (fl & CSF_WHILE) != 0 {
-            return gettext(E_ENDWHILE);
-        }
-        if (fl & CSF_FOR) != 0 {
-            return gettext(E_ENDFOR);
-        }
-        gettext(E_ENDIF)
+    if (fl & CSF_WHILE) != 0 {
+        return gettext(E_ENDWHILE);
+    }
+    if (fl & CSF_FOR) != 0 {
+        return gettext(E_ENDFOR);
+    }
+    gettext(E_ENDIF)
 }
 
 pub fn rewind_conditionals(
@@ -1673,28 +1681,29 @@ pub fn rewind_conditionals(
     cond_level: &mut c_int,
 ) {
     while cstack.cs_idx > idx {
-            let cur_idx = cstack.cs_idx as usize;
-            if (cstack.cs_flags[cur_idx] & cond_type) != 0 {
-                *cond_level -= 1;
-            }
-            if (cstack.cs_flags[cur_idx] & CSF_FOR) != 0 {
-                (&mut cstack.cs_forinfo)[cur_idx] = None;
-            }
-            cstack.cs_idx -= 1;
+        let cur_idx = cstack.cs_idx as usize;
+        if (cstack.cs_flags[cur_idx] & cond_type) != 0 {
+            *cond_level -= 1;
         }
+        if (cstack.cs_flags[cur_idx] & CSF_FOR) != 0 {
+            (&mut cstack.cs_forinfo)[cur_idx] = None;
+        }
+        cstack.cs_idx -= 1;
+    }
 }
 
 pub fn ex_endfunction(_eap: &mut Exarg) {
-    semsg!(
-            gettext(E_STR_NOT_INSIDE_FUNCTION),
-            c":endfunction",
-        );
+    semsg!(gettext(E_STR_NOT_INSIDE_FUNCTION), c":endfunction",);
 }
 
-pub fn has_loop_cmd(p: impl crate::strings::IntoCCharPtr) -> bool { let mut p = p.into_c_char_ptr();
+pub fn has_loop_cmd(p: impl crate::strings::IntoCCharPtr) -> bool {
+    let mut p = p.into_c_char_ptr();
     unsafe {
         loop {
-            while crate::memory::cstr_first_byte(p) == b' ' || crate::memory::cstr_first_byte(p) == b'\t' || crate::memory::cstr_first_byte(p) == b':' {
+            while crate::memory::cstr_first_byte(p) == b' '
+                || crate::memory::cstr_first_byte(p) == b'\t'
+                || crate::memory::cstr_first_byte(p) == b':'
+            {
                 p = p.add(1);
             }
             let len = modifier_len(p);
@@ -1704,6 +1713,8 @@ pub fn has_loop_cmd(p: impl crate::strings::IntoCCharPtr) -> bool { let mut p = 
             p = p.add(len as usize);
         }
         (crate::memory::cstr_first_byte(p) == b'w' && crate::memory::cstr_byte_at(p, 1) == b'h')
-            || (crate::memory::cstr_first_byte(p) == b'f' && crate::memory::cstr_byte_at(p, 1) == b'o' && crate::memory::cstr_byte_at(p, 2) == b'r')
+            || (crate::memory::cstr_first_byte(p) == b'f'
+                && crate::memory::cstr_byte_at(p, 1) == b'o'
+                && crate::memory::cstr_byte_at(p, 2) == b'r')
     }
 }

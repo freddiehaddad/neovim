@@ -478,11 +478,11 @@ mod tests {
 
     #[test]
     fn error_strings_are_nul_terminated_and_match_codes() {
-        let abort =  { E_ABORT };
+        let abort = { E_ABORT };
         assert_eq!(&abort.to_bytes()[4..], b": Command aborted");
-        let invarg =  { E_INVARG };
+        let invarg = { E_INVARG };
         assert_eq!(&invarg.to_bytes()[4..], b": Invalid argument");
-        let lmsg =  { LINE_MSG };
+        let lmsg = { LINE_MSG };
         assert_eq!(lmsg.to_bytes(), b" line ");
         for ptr in [
             E_AFTERINIT.as_ptr(),
@@ -492,7 +492,7 @@ mod tests {
             E_INVALIDREG.as_ptr(),
             E_FNAMETOOLONG.as_ptr(),
         ] {
-            let s =  { crate::memory::cstr_as_bytes(ptr) };
+            let s = { crate::memory::cstr_as_bytes(ptr) };
             assert!(s.starts_with(b"E"));
         }
     }

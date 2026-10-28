@@ -493,7 +493,8 @@ mod unix_impl {
         prog: impl crate::strings::IntoCCharPtr,
         argv_ptrs: *const *mut c_char,
         new_env: *mut *mut c_char,
-    ) -> ! { let prog = prog.into_c_char_ptr();
+    ) -> ! {
+        let prog = prog.into_c_char_ptr();
         unsafe {
             setsid();
 
@@ -654,7 +655,11 @@ mod unix_impl {
                 }
                 if wifcontinued(stat) {
                     if !(*hdr).data.is_null() {
-                        crate::channel::channel_proc_state_cb(&mut *proc_, false, &mut *(*hdr).data);
+                        crate::channel::channel_proc_state_cb(
+                            &mut *proc_,
+                            false,
+                            &mut *(*hdr).data,
+                        );
                     }
                     continue;
                 }

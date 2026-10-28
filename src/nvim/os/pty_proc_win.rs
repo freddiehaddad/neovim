@@ -9,7 +9,7 @@ use crate::log::logmsg;
 #[cfg(windows)]
 use crate::mbyte::utf8_to_utf16;
 #[cfg(any(test, windows))]
-use crate::memory::{xstrlcpy};
+use crate::memory::xstrlcpy;
 #[cfg(windows)]
 use crate::os::env::os_shell_is_cmdexe;
 #[cfg(windows)]
@@ -38,7 +38,8 @@ pub(crate) fn quote_cmd_arg(
     dest: *mut c_char,
     mut dest_remaining: usize,
     src: impl crate::strings::IntoCCharPtr,
-) { let src = src.into_c_char_ptr();
+) {
+    let src = src.into_c_char_ptr();
     unsafe {
         let src_bytes = crate::memory::cstr_as_bytes(src);
         let src_len = src_bytes.len();
@@ -61,8 +62,18 @@ pub(crate) fn quote_cmd_arg(
 
         if !src_bytes.iter().any(|&b| b == b'"' || b == b'\\') {
             xstrlcpy(dest, c"\"", dest_remaining);
-            { let _dst: *mut c_char = dest; let _dsize: usize = dest_remaining; let _dlen = crate::memory::cstr_len(_dst); crate::memory::xstrlcpy(_dst.add(_dlen), src, _dsize - _dlen); };
-            { let _dst: *mut c_char = dest; let _dsize: usize = dest_remaining; let _dlen = crate::memory::cstr_len(_dst); crate::memory::xstrlcpy(_dst.add(_dlen), c"\"", _dsize - _dlen); };
+            {
+                let _dst: *mut c_char = dest;
+                let _dsize: usize = dest_remaining;
+                let _dlen = crate::memory::cstr_len(_dst);
+                crate::memory::xstrlcpy(_dst.add(_dlen), src, _dsize - _dlen);
+            };
+            {
+                let _dst: *mut c_char = dest;
+                let _dsize: usize = dest_remaining;
+                let _dlen = crate::memory::cstr_len(_dst);
+                crate::memory::xstrlcpy(_dst.add(_dlen), c"\"", _dsize - _dlen);
+            };
             return;
         }
 
@@ -489,24 +500,28 @@ mod win_impl {
 
     fn build_env_block(denv: Option<&TvDict>, env_block: &mut Vec<u16>) -> c_int {
         env_block.clear();
-            let mut rc: c_int = 0;
-            let env = tv_dict_to_env(denv);
-            let mut str_utf16: Vec<u16> = Vec::new();
+        let mut rc: c_int = 0;
+        let env = tv_dict_to_env(denv);
+        let mut str_utf16: Vec<u16> = Vec::new();
 
-            for entry in &env {
-                rc = utf8_to_utf16(entry.as_ptr(), -1, &mut str_utf16);
-                if rc != 0 {
-                    env_block.clear();
-                    break;
-                }
-                let len = str_utf16.iter().position(|&c| c == 0).unwrap_or(str_utf16.len()) + 1;
-                env_block.extend_from_slice(&str_utf16[..len]);
+        for entry in &env {
+            rc = utf8_to_utf16(entry.as_ptr(), -1, &mut str_utf16);
+            if rc != 0 {
+                env_block.clear();
+                break;
             }
-            if rc == 0 {
-                env_block.push(0);
-            }
+            let len = str_utf16
+                .iter()
+                .position(|&c| c == 0)
+                .unwrap_or(str_utf16.len())
+                + 1;
+            env_block.extend_from_slice(&str_utf16[..len]);
+        }
+        if rc == 0 {
+            env_block.push(0);
+        }
 
-            rc
+        rc
     }
 }
 

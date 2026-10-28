@@ -7,11 +7,11 @@ use crate::drawscreen::status_redraw_curbuf;
 use crate::errors::*;
 use crate::eval::eval_to_string;
 use crate::eval::typval::{
-    EvalFuncData, VarType, TvList, tv_check_for_opt_bool_arg, tv_get_bool, tv_get_string_buf_chk,
-    tv_get_string_chk, tv_list_alloc, tv_list_alloc_ret, tv_list_append_list,
-    tv_list_append_string, tv_list_first, tv_list_len, TypVal,
+    EvalFuncData, TvList, TypVal, VarType, tv_check_for_opt_bool_arg, tv_get_bool,
+    tv_get_string_buf_chk, tv_get_string_chk, tv_list_alloc, tv_list_alloc_ret,
+    tv_list_append_list, tv_list_append_string, tv_list_first, tv_list_len,
 };
-use crate::ex_docmd::{do_cmdline_cmd, Exarg};
+use crate::ex_docmd::{Exarg, do_cmdline_cmd};
 use crate::ex_getln::putcmdline;
 use crate::globals::*;
 use crate::input::plain_vgetc;
@@ -1614,24 +1614,24 @@ const HEADER_TABLE: [DgHeaderEntry; 27] = [
 /// Handle digraphs after typing a character (`do_digraph`).
 pub fn do_digraph(mut c: c_int) -> c_int {
     if c == -1 {
-            digr_st().backspaced = -1;
-        } else if opt_vars().p_dg != 0 {
-            if digr_st().backspaced >= 0 {
-                c = digraph_get(digr_st().backspaced, c, false);
-            }
-            digr_st().backspaced = -1;
-
-            if (c == K_BS || c == CTRL_H_CONST) && digr_st().lastchar >= 0 {
-                digr_st().backspaced = digr_st().lastchar;
-            }
+        digr_st().backspaced = -1;
+    } else if opt_vars().p_dg != 0 {
+        if digr_st().backspaced >= 0 {
+            c = digraph_get(digr_st().backspaced, c, false);
         }
-        digr_st().lastchar = c;
-        c
+        digr_st().backspaced = -1;
+
+        if (c == K_BS || c == CTRL_H_CONST) && digr_st().lastchar >= 0 {
+            digr_st().backspaced = digr_st().lastchar;
+        }
+    }
+    digr_st().lastchar = c;
+    c
 }
 
 /// Find a digraph for `val` (`get_digraph_for_char`).
 pub fn get_digraph_for_char(val: c_int) -> *mut c_char {
-     {
+    {
         for dp in digr_st().user_digraphs.iter().chain(DIGRAPHDEFAULT.iter()) {
             if dp.result == val {
                 digr_st().digraph_for_char_buf[0] = dp.char1 as c_char;
@@ -1647,36 +1647,36 @@ pub fn get_digraph_for_char(val: c_int) -> *mut c_char {
 /// Get a digraph (`get_digraph`).
 pub fn get_digraph(cmdline: bool) -> c_int {
     g_st().no_mapping += 1;
-        g_st().allow_keys += 1;
-        let c = plain_vgetc();
-        g_st().no_mapping -= 1;
-        g_st().allow_keys -= 1;
+    g_st().allow_keys += 1;
+    let c = plain_vgetc();
+    g_st().no_mapping -= 1;
+    g_st().allow_keys -= 1;
 
-        if c == ESC {
-            return c_int::from(NUL);
-        }
+    if c == ESC {
+        return c_int::from(NUL);
+    }
 
-        if is_special(c) {
-            return c;
-        }
+    if is_special(c) {
+        return c;
+    }
 
-        if cmdline {
-            if char2cells(c) == 1 && c < 128 && g_st().cmdline_star == 0 {
-                putcmdline(c as c_char, true);
-            }
-        } else {
-            add_to_showcmd(c);
+    if cmdline {
+        if char2cells(c) == 1 && c < 128 && g_st().cmdline_star == 0 {
+            putcmdline(c as c_char, true);
         }
-        g_st().no_mapping += 1;
-        g_st().allow_keys += 1;
-        let cc = plain_vgetc();
-        g_st().no_mapping -= 1;
-        g_st().allow_keys -= 1;
+    } else {
+        add_to_showcmd(c);
+    }
+    g_st().no_mapping += 1;
+    g_st().allow_keys += 1;
+    let cc = plain_vgetc();
+    g_st().no_mapping -= 1;
+    g_st().allow_keys -= 1;
 
-        if cc != ESC {
-            return digraph_get(c, cc, true);
-        }
-        c_int::from(NUL)
+    if cc != ESC {
+        return digraph_get(c, cc, true);
+    }
+    c_int::from(NUL)
 }
 
 /// Lookup the pair `char1`, `char2` in the digraph tables (`getexactdigraph`).
@@ -1705,18 +1705,18 @@ fn getexactdigraph(char1: c_int, char2: c_int, meta_char: bool) -> c_int {
 /// Get digraph (`digraph_get`).
 pub fn digraph_get(char1: c_int, char2: c_int, meta_char: bool) -> c_int {
     let mut retval = getexactdigraph(char1, char2, meta_char);
-        if retval == char2 && char1 != char2 {
-            retval = getexactdigraph(char2, char1, meta_char);
-            if retval == char1 {
-                return char2;
-            }
+    if retval == char2 && char1 != char2 {
+        retval = getexactdigraph(char2, char1, meta_char);
+        if retval == char1 {
+            return char2;
         }
-        retval
+    }
+    retval
 }
 
 /// Add a digraph to the digraph table (`registerdigraph`).
 fn registerdigraph(char1: c_int, char2: c_int, n: c_int) {
-     {
+    {
         let user_vec = &mut digr_st().user_digraphs;
         for dp in user_vec.iter_mut() {
             if c_int::from(dp.char1) == char1 && c_int::from(dp.char2) == char2 {
@@ -1736,20 +1736,20 @@ fn registerdigraph(char1: c_int, char2: c_int, n: c_int) {
 /// Check the characters are valid for a digraph (`check_digraph_chars_valid`).
 pub fn check_digraph_chars_valid(char1: c_int, char2: c_int) -> bool {
     if char2 == 0 {
-            let mut msg = [0 as c_char; MB_MAXCHAR + 1];
-            let len = utf_char2bytes(char1, msg.as_mut_ptr()) as usize;
-            msg[len] = NUL;
-            semsg!(
-                gettext(E_DIGRAPH_MUST_BE_JUST_TWO_CHARACTERS_STR),
-                msg.as_ptr(),
-            );
-            return false;
-        }
-        if char1 == ESC || char2 == ESC {
-            emsg(gettext(c"E104: Escape not allowed in digraph"));
-            return false;
-        }
-        true
+        let mut msg = [0 as c_char; MB_MAXCHAR + 1];
+        let len = utf_char2bytes(char1, msg.as_mut_ptr()) as usize;
+        msg[len] = NUL;
+        semsg!(
+            gettext(E_DIGRAPH_MUST_BE_JUST_TWO_CHARACTERS_STR),
+            msg.as_ptr(),
+        );
+        return false;
+    }
+    if char1 == ESC || char2 == ESC {
+        emsg(gettext(c"E104: Escape not allowed in digraph"));
+        return false;
+    }
+    true
 }
 
 /// Add the digraphs in the argument to the digraph table (`putdigraph`).
@@ -1782,16 +1782,17 @@ pub fn putdigraph(mut str: *mut c_char) {
     }
 }
 
-fn digraph_header(msg: impl crate::strings::IntoCCharPtr) { let msg = msg.into_c_char_ptr();
+fn digraph_header(msg: impl crate::strings::IntoCCharPtr) {
+    let msg = msg.into_c_char_ptr();
     if g_st().msg_col > 0 {
-            msg_putchar(b'\n' as c_int);
-        }
-        msg_outtrans(msg, HLF_CM, false);
         msg_putchar(b'\n' as c_int);
+    }
+    msg_outtrans(msg, HLF_CM, false);
+    msg_putchar(b'\n' as c_int);
 }
 
 pub fn listdigraphs(use_headers: bool) {
-     {
+    {
         let mut previous: DigrResult = 0;
 
         msg_ext_set_kind(c"list_cmd");
@@ -1828,7 +1829,7 @@ pub fn listdigraphs(use_headers: bool) {
                 digraph_header(gettext(c"Custom"));
             }
             previous = -1;
-            printdigraph( dp, ptr::null_mut());
+            printdigraph(dp, ptr::null_mut());
             fast_breakcheck();
         }
     }
@@ -1837,17 +1838,17 @@ pub fn listdigraphs(use_headers: bool) {
 fn digraph_getlist_appendpair(dp: &DigraphEntry, l: &mut TvList) {
     unsafe {
         let l2 = tv_list_alloc(2);
-        tv_list_append_list( &mut *l, l2);
+        tv_list_append_list(&mut *l, l2);
 
         let mut buf = [0 as c_char; 30];
         buf[0] = dp.char1 as c_char;
         buf[1] = dp.char2 as c_char;
         buf[2] = NUL;
-        tv_list_append_string( &mut *l2, buf.as_ptr(), -1);
+        tv_list_append_string(&mut *l2, buf.as_ptr(), -1);
 
         let len = utf_char2bytes(dp.result, buf.as_mut_ptr()) as usize;
         buf[len] = NUL;
-        tv_list_append_string( &mut *l2, buf.as_ptr(), -1);
+        tv_list_append_string(&mut *l2, buf.as_ptr(), -1);
     }
 }
 
@@ -1942,7 +1943,7 @@ fn printdigraph(dp: &DigraphEntry, previous: *mut DigrResult) {
 
 /// Get the two digraph characters from a typval (`get_digraph_chars`).
 fn get_digraph_chars(arg: &TypVal, char1: &mut c_int, char2: &mut c_int) -> bool {
-     {
+    {
         let mut buf_chars = [0 as c_char; NUMBUFLEN];
         let chars = tv_get_string_buf_chk(arg, buf_chars.as_mut_ptr());
         let mut p = chars;
@@ -1959,16 +1960,13 @@ fn get_digraph_chars(arg: &TypVal, char1: &mut c_int, char2: &mut c_int) -> bool
                 }
             }
         }
-        semsg!(
-            gettext(E_DIGRAPH_MUST_BE_JUST_TWO_CHARACTERS_STR),
-            chars,
-        );
+        semsg!(gettext(E_DIGRAPH_MUST_BE_JUST_TWO_CHARACTERS_STR), chars,);
         false
     }
 }
 
-fn digraph_set_common(argchars: &TypVal,argdigraph: &TypVal) -> bool {
-     {
+fn digraph_set_common(argchars: &TypVal, argdigraph: &TypVal) -> bool {
+    {
         let mut char1: c_int = 0;
         let mut char2: c_int = 0;
         if !get_digraph_chars(argchars, &mut char1, &mut char2) {
@@ -1996,9 +1994,8 @@ fn digraph_set_common(argchars: &TypVal,argdigraph: &TypVal) -> bool {
 }
 
 /// `digraph_get()` function (`f_digraph_get`).
-pub fn f_digraph_get(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData){
-
-     {
+pub fn f_digraph_get(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
+    {
         rettv.v_type = VarType::VarString;
         rettv.vval = crate::eval::typval::TypvalVval::String(ptr::null_mut());
         let digraphs = tv_get_string_chk(&argvars[0]);
@@ -2007,13 +2004,14 @@ pub fn f_digraph_get(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFunc
             return;
         }
         if crate::memory::cstr_len(digraphs) != 2 {
-            semsg!(
-                gettext(E_DIGRAPH_MUST_BE_JUST_TWO_CHARACTERS_STR),
-                digraphs,
-            );
+            semsg!(gettext(E_DIGRAPH_MUST_BE_JUST_TWO_CHARACTERS_STR), digraphs,);
             return;
         }
-        let code = digraph_get(crate::memory::cstr_first_char(digraphs), crate::memory::cstr_char_at(digraphs, 1), false);
+        let code = digraph_get(
+            crate::memory::cstr_first_char(digraphs),
+            crate::memory::cstr_char_at(digraphs, 1),
+            false,
+        );
 
         let mut buf = [0 as c_char; NUMBUFLEN];
         let len = utf_char2bytes(code, buf.as_mut_ptr()) as usize;
@@ -2023,9 +2021,8 @@ pub fn f_digraph_get(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFunc
 }
 
 /// `digraph_getlist()` function (`f_digraph_getlist`).
-pub fn f_digraph_getlist(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData){
-
-     {
+pub fn f_digraph_getlist(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
+    {
         if !tv_check_for_opt_bool_arg(argvars, 0) {
             return;
         }
@@ -2053,8 +2050,7 @@ pub fn f_digraph_set(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFunc
 }
 
 /// `digraph_setlist()` function (`f_digraph_setlist`).
-pub fn f_digraph_setlist(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData){
-
+pub fn f_digraph_setlist(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
     unsafe {
         rettv.v_type = VarType::VarBool;
         rettv.vval = crate::eval::typval::TypvalVval::Bool(K_BOOL_VAR_FALSE_CONST);
@@ -2112,7 +2108,7 @@ pub fn f_digraph_setlist(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: Eval
 
 /// Set up key mapping tables for the `'keymap'` option (`keymap_init`).
 pub fn keymap_init() -> *mut c_char {
-     {
+    {
         curbuf_mut().b_kmap_state &= !KEYMAP_INIT;
 
         if crate::memory::cstr_is_empty(curbuf_mut().b_p_keymap) {
@@ -2142,9 +2138,7 @@ pub fn ex_loadkeymap(eap: &mut Exarg) {
         let fgetline: LineGetter = eap.ea_getline;
 
         if !fgetline.is_source() {
-            emsg(gettext(
-                c"E105: Using :loadkeymap not in a sourced file",
-            ));
+            emsg(gettext(c"E105: Using :loadkeymap not in a sourced file"));
             return;
         }
 
@@ -2205,7 +2199,7 @@ pub fn ex_loadkeymap(eap: &mut Exarg) {
 
 /// Stop using `'keymap'` (`keymap_unload`).
 fn keymap_unload() {
-     {
+    {
         let mut buf = [0 as c_char; KMAP_MAXLEN + 10];
         let save_cpo = opt_vars().p_cpo;
 
@@ -2251,11 +2245,7 @@ pub fn get_keymap_str(
         g_st().curbuf = wp.w_buffer;
         set_curwin(&raw mut *wp);
         g_st().emsg_skip += 1;
-        let s = eval_to_string(
-            c"b:keymap_name",
-            false,
-            false,
-        );
+        let s = eval_to_string(c"b:keymap_name", false, false);
         let mut p: *const c_char = s.as_ref().map_or(ptr::null(), |cs| cs.as_ptr());
         g_st().emsg_skip -= 1;
         g_st().curbuf = old_curbuf;
@@ -2285,10 +2275,10 @@ mod tests {
     #[test]
     fn builtin_digraph_lookup_and_char_validation() {
         assert!(check_digraph_chars_valid(b'a' as c_int, b':' as c_int));
-            assert_eq!(getexactdigraph(b'a' as c_int, b':' as c_int, false), 0x00e4);
-            assert_eq!(
-                getexactdigraph(b'e' as c_int, b'\'' as c_int, false),
-                0x00e9
-            );
+        assert_eq!(getexactdigraph(b'a' as c_int, b':' as c_int, false), 0x00e4);
+        assert_eq!(
+            getexactdigraph(b'e' as c_int, b'\'' as c_int, false),
+            0x00e9
+        );
     }
 }

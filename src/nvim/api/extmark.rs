@@ -2,8 +2,8 @@
 
 use crate::api::private::helpers::{
     MAXLNUM, add_c, api_set_error, api_typename, arena_array, arena_dict, array_obj, boolean_obj,
-    cstr_as_string, dict_obj, error_set, find_window_by_handle, has_key,
-    integer_obj, object_to_hl_id, put_c, string_obj, string_to_cstr,
+    cstr_as_string, dict_obj, error_set, find_window_by_handle, has_key, integer_obj,
+    object_to_hl_id, put_c, string_obj, string_to_cstr,
 };
 use crate::api::private::validate::{
     Array, Dict, Error, ErrorType, KeyValuePair, NvimString, Object, ObjectType, api_err_exp,
@@ -14,23 +14,26 @@ use crate::buffer::FileBuf;
 use crate::charset::transstr;
 use crate::decoration::{
     DECOR_ID_INVALID, DECOR_SIGN_HIGHLIGHT_INIT, DecorInline, DecorPriority, DecorVirtText,
-    DecorVirtTextData, HLGroupID, NS, VirtLine, VirtText, VirtTextChunk, decor_free, decor_put_sh,
+    DecorVirtTextData, HLGroupID, K_HL_MODE_UNKNOWN, K_SHCONCEAL, K_SHCONCEAL_LINES,
+    K_SHCONCEAL_OFF, K_SHHL_EOL, K_SHIS_SIGN, K_SHSPELL_OFF, K_SHSPELL_ON, K_SHUIWATCHED,
+    K_SHUIWATCHED_OVERLAY, K_VLLEFTCOL, K_VLOVERFLOW_AUTO, K_VLOVERFLOW_SCROLL, K_VLOVERFLOW_TRUNC,
+    K_VLOVERFLOW_WRAP, K_VPOS_END_OF_LINE, K_VPOS_END_OF_LINE_RIGHT_ALIGN, K_VPOS_INLINE,
+    K_VPOS_OVERLAY, K_VPOS_RIGHT_ALIGN, K_VPOS_WIN_COL, K_VTHIDE, K_VTIS_LINES, K_VTLINES_ABOVE,
+    K_VTREPEAT_LINEBREAK, NS, VirtLine, VirtText, VirtTextChunk, decor_free, decor_put_sh,
     decor_put_vt, decor_range_add_sh, decor_range_add_virt, decor_sh_from_inline,
-    decor_to_dict_legacy, hl_group_name, K_HL_MODE_UNKNOWN, K_SHCONCEAL, K_SHCONCEAL_LINES,
-    K_SHCONCEAL_OFF, K_SHHL_EOL, K_SHIS_SIGN, K_SHSPELL_OFF, K_SHSPELL_ON, K_SHUIWATCHED, K_SHUIWATCHED_OVERLAY,
-    K_VLLEFTCOL, K_VLOVERFLOW_AUTO, K_VLOVERFLOW_SCROLL, K_VLOVERFLOW_TRUNC, K_VLOVERFLOW_WRAP,
-    K_VPOS_END_OF_LINE, K_VPOS_END_OF_LINE_RIGHT_ALIGN, K_VPOS_INLINE, K_VPOS_OVERLAY, K_VPOS_RIGHT_ALIGN,
-    K_VPOS_WIN_COL, K_VTHIDE, K_VTIS_LINES, K_VTLINES_ABOVE, K_VTREPEAT_LINEBREAK,
+    decor_to_dict_legacy, hl_group_name,
 };
-use crate::decoration_provider::{decor_provider_clear, get_decor_provider, K_DECOR_PROVIDER_ACTIVE};
+use crate::decoration_provider::{
+    K_DECOR_PROVIDER_ACTIVE, decor_provider_clear, get_decor_provider,
+};
 use crate::drawline::K_HL_MODE_BLEND;
 use crate::drawline::K_HL_MODE_COMBINE;
 use crate::drawline::K_HL_MODE_REPLACE;
 use crate::drawscreen::{UPD_NOT_VALID, redraw_all_later};
 use crate::eval::vars::MAXCOL;
 use crate::extmark::{
-    extmark_clear, extmark_del_id, extmark_from_id, extmark_get, extmark_set, K_EXTMARK_HIGHLIGHT,
-    K_EXTMARK_NONE, K_EXTMARK_SIGN, K_EXTMARK_VIRT_LINES, K_EXTMARK_VIRT_TEXT,
+    K_EXTMARK_HIGHLIGHT, K_EXTMARK_NONE, K_EXTMARK_SIGN, K_EXTMARK_VIRT_LINES, K_EXTMARK_VIRT_TEXT,
+    extmark_clear, extmark_del_id, extmark_from_id, extmark_get, extmark_set,
 };
 use crate::globals::*;
 use crate::grid::{schar_from_cluster, schar_high};
@@ -44,7 +47,7 @@ use crate::marktree::{
 };
 use crate::mbyte::{mb_string2cells, utf_cluster_info, utf_ptr2_str_char_info};
 use crate::memline::ml_get_buf_len;
-use crate::memory::{Arena};
+use crate::memory::Arena;
 use crate::r#move::changed_window_setting;
 use crate::msgpack_rpc::packer::Integer;
 use crate::sign::init_sign_text;
@@ -170,7 +173,7 @@ pub struct KeyDict_ns_opts {
 
 #[inline]
 pub fn ns_in_win(ns_id: u32, wp: &mut WinInfoInfo) -> bool {
-     {
+    {
         if !g_st().namespace_localscope.contains(&ns_id) {
             return true;
         }
@@ -180,7 +183,7 @@ pub fn ns_in_win(ns_id: u32, wp: &mut WinInfoInfo) -> bool {
 
 // DLLEXPORT void api_extmark_free_all_mem(void);
 pub fn api_extmark_free_all_mem() {
-     {
+    {
         g_st().namespace_ids = Vec::new();
         g_st().namespace_localscope = std::collections::BTreeSet::new();
     }
@@ -207,7 +210,10 @@ pub fn nvim_create_namespace(name: NvimString) -> Integer {
             crate::memory::cstr_slice(name.data, name.size)
         };
         if !name_bytes.is_empty()
-            && let Some((_, id)) = g_st().namespace_ids.iter().find(|(k, _)| k.as_bytes() == name_bytes)
+            && let Some((_, id)) = g_st()
+                .namespace_ids
+                .iter()
+                .find(|(k, _)| k.as_bytes() == name_bytes)
         {
             return i64::from(*id);
         }
@@ -244,7 +250,7 @@ pub fn nvim_get_namespaces(arena: &mut Arena) -> Dict {
 
 // DLLEXPORT const char *describe_ns(NS ns_id, const char *unknown);
 pub fn describe_ns(ns_id: NS, unknown: &std::ffi::CStr) -> *const c_char {
-     {
+    {
         for (name, id) in &g_st().namespace_ids {
             if *id == ns_id && !name.as_bytes().is_empty() {
                 return name.as_ptr();
@@ -265,41 +271,41 @@ pub fn ns_initialized(ns: u32) -> bool {
 // DLLEXPORT Array virt_text_to_array(VirtText vt, bool hl_name, Arena *arena);
 pub fn virt_text_to_array(vt: &[VirtTextChunk], hl_name: bool, arena: &mut Arena) -> Array {
     let mut chunks = arena_array(arena, vt.len());
-        let mut i = 0usize;
-        while i < vt.len() {
-            let mut j = i;
-            while j < vt.len() {
-                if vt[j].text.is_some() {
-                    break;
-                }
-                j += 1;
+    let mut i = 0usize;
+    while i < vt.len() {
+        let mut j = i;
+        while j < vt.len() {
+            if vt[j].text.is_some() {
+                break;
             }
+            j += 1;
+        }
 
-            let mut hl_array = arena_array(arena, if i < j { j - i + 1 } else { 0 });
-            while i < j {
-                let hl_id = vt[i].hl_id;
-                if hl_id >= 0 {
-                    add_c(&mut hl_array, hl_group_name(hl_id, hl_name));
-                }
-                i += 1;
-            }
-
-            let text = vt[i].text.as_ref().map_or(ptr::null(), |s| s.as_ptr());
+        let mut hl_array = arena_array(arena, if i < j { j - i + 1 } else { 0 });
+        while i < j {
             let hl_id = vt[i].hl_id;
-            let mut chunk = arena_array(arena, 2);
-            add_c(&mut chunk, string_obj(cstr_as_string(text)));
-            if hl_array.size > 0 {
-                if hl_id >= 0 {
-                    add_c(&mut hl_array, hl_group_name(hl_id, hl_name));
-                }
-                add_c(&mut chunk, array_obj(hl_array));
-            } else if hl_id >= 0 {
-                add_c(&mut chunk, hl_group_name(hl_id, hl_name));
+            if hl_id >= 0 {
+                add_c(&mut hl_array, hl_group_name(hl_id, hl_name));
             }
-            add_c(&mut chunks, array_obj(chunk));
             i += 1;
         }
-        chunks
+
+        let text = vt[i].text.as_ref().map_or(ptr::null(), |s| s.as_ptr());
+        let hl_id = vt[i].hl_id;
+        let mut chunk = arena_array(arena, 2);
+        add_c(&mut chunk, string_obj(cstr_as_string(text)));
+        if hl_array.size > 0 {
+            if hl_id >= 0 {
+                add_c(&mut hl_array, hl_group_name(hl_id, hl_name));
+            }
+            add_c(&mut chunk, array_obj(hl_array));
+        } else if hl_id >= 0 {
+            add_c(&mut chunk, hl_group_name(hl_id, hl_name));
+        }
+        add_c(&mut chunks, array_obj(chunk));
+        i += 1;
+    }
+    chunks
 }
 
 fn extmark_to_array(
@@ -310,52 +316,52 @@ fn extmark_to_array(
     arena: &mut Arena,
 ) -> Array {
     let start = extmark.start;
-        let mut rv = arena_array(arena, 4);
-        if id {
-            add_c(&mut rv, integer_obj(i64::from(start.id)));
-        }
-        add_c(&mut rv, integer_obj(i64::from(start.pos.row)));
-        add_c(&mut rv, integer_obj(i64::from(start.pos.col)));
+    let mut rv = arena_array(arena, 4);
+    if id {
+        add_c(&mut rv, integer_obj(i64::from(start.id)));
+    }
+    add_c(&mut rv, integer_obj(i64::from(start.pos.row)));
+    add_c(&mut rv, integer_obj(i64::from(start.pos.col)));
 
-        if add_dict {
-            let mut dict = arena_dict(arena, SET_EXTMARK_TABLE_SIZE);
-            put_c(&mut dict, c"ns_id", integer_obj(i64::from(start.ns)));
-            put_c(&mut dict, c"right_gravity", boolean_obj(mt_right(start)));
+    if add_dict {
+        let mut dict = arena_dict(arena, SET_EXTMARK_TABLE_SIZE);
+        put_c(&mut dict, c"ns_id", integer_obj(i64::from(start.ns)));
+        put_c(&mut dict, c"right_gravity", boolean_obj(mt_right(start)));
 
-            if mt_paired(start) {
-                put_c(
-                    &mut dict,
-                    c"end_row",
-                    integer_obj(i64::from(extmark.end_pos.row)),
-                );
-                put_c(
-                    &mut dict,
-                    c"end_col",
-                    integer_obj(i64::from(extmark.end_pos.col)),
-                );
-                put_c(
-                    &mut dict,
-                    c"end_right_gravity",
-                    boolean_obj(extmark.end_right_gravity),
-                );
-            }
-
-            if mt_no_undo(start) {
-                put_c(&mut dict, c"undo_restore", boolean_obj(false));
-            }
-
-            if mt_invalidate(start) {
-                put_c(&mut dict, c"invalidate", boolean_obj(true));
-            }
-            if mt_invalid(start) {
-                put_c(&mut dict, c"invalid", boolean_obj(true));
-            }
-
-            decor_to_dict_legacy(&mut dict, mt_decor(start), hl_name, arena);
-            add_c(&mut rv, dict_obj(dict));
+        if mt_paired(start) {
+            put_c(
+                &mut dict,
+                c"end_row",
+                integer_obj(i64::from(extmark.end_pos.row)),
+            );
+            put_c(
+                &mut dict,
+                c"end_col",
+                integer_obj(i64::from(extmark.end_pos.col)),
+            );
+            put_c(
+                &mut dict,
+                c"end_right_gravity",
+                boolean_obj(extmark.end_right_gravity),
+            );
         }
 
-        rv
+        if mt_no_undo(start) {
+            put_c(&mut dict, c"undo_restore", boolean_obj(false));
+        }
+
+        if mt_invalidate(start) {
+            put_c(&mut dict, c"invalidate", boolean_obj(true));
+        }
+        if mt_invalid(start) {
+            put_c(&mut dict, c"invalid", boolean_obj(true));
+        }
+
+        decor_to_dict_legacy(&mut dict, mt_decor(start), hl_name, arena);
+        add_c(&mut rv, dict_obj(dict));
+    }
+
+    rv
 }
 
 /// Gets the position (0-indexed) of an |extmark|.
@@ -386,7 +392,7 @@ pub fn nvim_buf_get_extmark_by_id(
     arena: &mut Arena,
     err: &mut Error,
 ) -> Array {
-     {
+    {
         let rv = Array::new();
         let Some(b) = crate::api::private::helpers::find_buffer_by_handle_mut(buf, err) else {
             return rv;
@@ -398,10 +404,7 @@ pub fn nvim_buf_get_extmark_by_id(
         }
 
         let details = opts.details;
-        let hl_name = if has_key(
-            opts.is_set_get_extmark,
-            KEYSET_OPTIDX_GET_EXTMARK_HL_NAME,
-        ) {
+        let hl_name = if has_key(opts.is_set_get_extmark, KEYSET_OPTIDX_GET_EXTMARK_HL_NAME) {
             opts.hl_name
         } else {
             true
@@ -486,7 +489,7 @@ pub fn nvim_buf_get_extmarks(
     arena: &mut Arena,
     err: &mut Error,
 ) -> Array {
-     {
+    {
         let mut rv = Array::new();
         let Some(b) = crate::api::private::helpers::find_buffer_by_handle_mut(buf, err) else {
             return rv;
@@ -540,13 +543,13 @@ pub fn nvim_buf_get_extmarks(
 
         let mut l_row: c_int = 0;
         let mut l_col: Colnr = 0;
-        if !extmark_get_index_from_obj( b, ns_id, start, &mut l_row, &mut l_col, err) {
+        if !extmark_get_index_from_obj(b, ns_id, start, &mut l_row, &mut l_col, err) {
             return rv;
         }
 
         let mut u_row: c_int = 0;
         let mut u_col: Colnr = 0;
-        if !extmark_get_index_from_obj( b, ns_id, end, &mut u_row, &mut u_col, err) {
+        if !extmark_get_index_from_obj(b, ns_id, end, &mut u_row, &mut u_col, err) {
             return rv;
         }
 
@@ -760,12 +763,7 @@ pub fn nvim_buf_set_extmark(
             let mut id: u32 = 0;
             if has_key(mask, KEYSET_OPTIDX_SET_EXTMARK_ID) {
                 if opts.id <= 0 {
-                    api_err_exp(
-                        err,
-                        c"id",
-                        c"positive Integer",
-                        ptr::null(),
-                    );
+                    api_err_exp(err, c"id", c"positive Integer", ptr::null());
                     break 'error;
                 }
                 id = opts.id as u32;
@@ -820,15 +818,13 @@ pub fn nvim_buf_set_extmark(
                 if opts.hl_group.obj_type == ObjectType::ObjectTypeArray {
                     let arr = opts.hl_group.data.array();
                     if arr.size >= 1 {
-                        hl.hl_id =
-                            object_to_hl_id(arr[0], c"hl_group item", err);
+                        hl.hl_id = object_to_hl_id(arr[0], c"hl_group item", err);
                         if error_set(err) {
                             break 'error;
                         }
                     }
                     for i in 1..arr.size {
-                        let hl_id =
-                            object_to_hl_id(arr[i], c"hl_group item", err);
+                        let hl_id = object_to_hl_id(arr[i], c"hl_group item", err);
                         if error_set(err) {
                             break 'error;
                         }
@@ -901,7 +897,9 @@ pub fn nvim_buf_set_extmark(
             if has_key(mask, KEYSET_OPTIDX_SET_EXTMARK_CONCEAL_LINES) {
                 hl.flags |= K_SHCONCEAL_LINES;
                 has_hl = true;
-                if opts.conceal_lines.size > 0 && !crate::memory::cstr_is_empty(opts.conceal_lines.data) {
+                if opts.conceal_lines.size > 0
+                    && !crate::memory::cstr_is_empty(opts.conceal_lines.data)
+                {
                     api_set_error!(
                         err,
                         ErrorType::ErrorTypeValidation,
@@ -932,7 +930,8 @@ pub fn nvim_buf_set_extmark(
                     virt_text.pos = K_VPOS_OVERLAY;
                 } else if crate::memory::cstr_as_opt_bytes(str_val.data) == Some(b"right_align") {
                     virt_text.pos = K_VPOS_RIGHT_ALIGN;
-                } else if crate::memory::cstr_as_opt_bytes(str_val.data) == Some(b"eol_right_align") {
+                } else if crate::memory::cstr_as_opt_bytes(str_val.data) == Some(b"eol_right_align")
+                {
                     virt_text.pos = K_VPOS_END_OF_LINE_RIGHT_ALIGN;
                 } else if crate::memory::cstr_as_opt_bytes(str_val.data) == Some(b"inline") {
                     virt_text.pos = K_VPOS_INLINE;
@@ -1044,12 +1043,7 @@ pub fn nvim_buf_set_extmark(
 
             if has_key(mask, KEYSET_OPTIDX_SET_EXTMARK_SIGN_TEXT) {
                 sign.text[0] = 0;
-                if !init_sign_text(
-                    None,
-                    sign.text.as_mut_ptr(),
-                    opts.sign_text.data,
-                )
-                {
+                if !init_sign_text(None, sign.text.as_mut_ptr(), opts.sign_text.data) {
                     api_err_invalid(err, c"sign_text", c"", 0, true);
                     break 'error;
                 }
@@ -1154,7 +1148,10 @@ pub fn nvim_buf_set_extmark(
                 col2 = 0;
             }
 
-            if opts.ephemeral && !g_st().decor_state.win.is_null() && (*g_st().decor_state.win).w_buffer == (&raw mut *b) {
+            if opts.ephemeral
+                && !g_st().decor_state.win.is_null()
+                && (*g_st().decor_state.win).w_buffer == (&raw mut *b)
+            {
                 let r = line as c_int;
                 let c = col as c_int;
                 if line2 == -1 {
@@ -1250,8 +1247,7 @@ pub fn nvim_buf_set_extmark(
                     let arr = opts.hl_group.data.array();
                     let mut i = arr.size - 1;
                     while i > 0 {
-                        let hl_id =
-                            object_to_hl_id(arr[i], c"hl_group item", err);
+                        let hl_id = object_to_hl_id(arr[i], c"hl_group item", err);
                         if hl_id > 0 {
                             let mut sh = DECOR_SIGN_HIGHLIGHT_INIT;
                             sh.hl_id = hl_id;
@@ -1337,13 +1333,8 @@ pub fn nvim_buf_set_extmark(
 /// @return true if the extmark was found, else false
 // DLLEXPORT Boolean nvim_buf_del_extmark(Buffer buf, Integer ns_id, Integer id, Error *err)
 //   FUNC_API_SINCE(7);
-pub fn nvim_buf_del_extmark(
-    buf: Buffer,
-    ns_id: Integer,
-    id: Integer,
-    err: &mut Error,
-) -> Boolean {
-     {
+pub fn nvim_buf_del_extmark(buf: Buffer, ns_id: Integer, id: Integer, err: &mut Error) -> Boolean {
+    {
         let Some(b) = crate::api::private::helpers::find_buffer_by_handle_mut(buf, err) else {
             return false;
         };
@@ -1378,25 +1369,25 @@ pub fn nvim_buf_clear_namespace(
     err: &mut Error,
 ) {
     let Some(b) = crate::api::private::helpers::find_buffer_by_handle_mut(buf, err) else {
-            return;
-        };
+        return;
+    };
 
-        if !(0..MAXLNUM).contains(&line_start) {
-            api_err_range(err, c"line number");
-            return;
-        }
+    if !(0..MAXLNUM).contains(&line_start) {
+        api_err_range(err, c"line number");
+        return;
+    }
 
-        if !(0..=MAXLNUM).contains(&line_end) {
-            line_end = MAXLNUM;
-        }
-        extmark_clear(
-             b,
-            if ns_id < 0 { 0 } else { ns_id as u32 },
-            line_start as c_int,
-            0,
-            (line_end as c_int) - 1,
-            MAXCOL as Colnr,
-        );
+    if !(0..=MAXLNUM).contains(&line_end) {
+        line_end = MAXLNUM;
+    }
+    extmark_clear(
+        b,
+        if ns_id < 0 { 0 } else { ns_id as u32 },
+        line_start as c_int,
+        0,
+        (line_end as c_int) - 1,
+        MAXCOL as Colnr,
+    );
 }
 
 /// Set or change decoration provider for a |namespace|
@@ -1491,10 +1482,7 @@ pub fn nvim_set_decoration_provider(
             (&raw mut opts.on_end, &raw mut (*p).redraw_end),
             (&raw mut opts._on_hl_def, &raw mut (*p).hl_def),
             (&raw mut opts._on_spell_nav, &raw mut (*p).spell_nav),
-            (
-                &raw mut opts._on_conceal_line,
-                &raw mut (*p).conceal_line,
-            ),
+            (&raw mut opts._on_conceal_line, &raw mut (*p).conceal_line),
         ];
 
         for (src, dst) in pairs {
@@ -1518,7 +1506,7 @@ fn extmark_get_index_from_obj(
     col: &mut Colnr,
     err: &mut Error,
 ) -> bool {
-     {
+    {
         if obj.obj_type == ObjectType::ObjectTypeInteger {
             let id = obj.data.integer();
             if id == 0 {
@@ -1548,12 +1536,7 @@ fn extmark_get_index_from_obj(
                 || pos[0].obj_type != ObjectType::ObjectTypeInteger
                 || pos[1].obj_type != ObjectType::ObjectTypeInteger
             {
-                api_err_exp(
-                    err,
-                    c"mark position",
-                    c"2 Integer items",
-                    ptr::null(),
-                );
+                api_err_exp(err, c"mark position", c"2 Integer items", ptr::null());
                 return false;
             }
 
@@ -1575,12 +1558,7 @@ fn extmark_get_index_from_obj(
 }
 
 // DLLEXPORT VirtText parse_virt_text(Array chunks, Error *err, int *width, bool untab);
-pub fn parse_virt_text(
-    chunks: Array,
-    err: &mut Error,
-    width: *mut c_int,
-    untab: bool,
-) -> VirtText {
+pub fn parse_virt_text(chunks: Array, err: &mut Error, width: *mut c_int, untab: bool) -> VirtText {
     unsafe {
         let mut virt_text = VirtText::new();
         let mut w: c_int = 0;
@@ -1618,11 +1596,7 @@ pub fn parse_virt_text(
                     if hl.obj_type == ObjectType::ObjectTypeArray {
                         let arr = hl.data.array();
                         for j in 0..arr.size {
-                            hl_id = object_to_hl_id(
-                                arr[j],
-                                c"virt_text highlight",
-                                err,
-                            );
+                            hl_id = object_to_hl_id(arr[j], c"virt_text highlight", err);
                             if error_set(err) {
                                 break 'free_exit;
                             }
@@ -1674,7 +1648,7 @@ pub fn nvim_buf_debug_extmarks(
     dot: Boolean,
     err: &mut Error,
 ) -> NvimString {
-     {
+    {
         let Some(b) = crate::api::private::helpers::find_buffer_by_handle_mut(buf, err) else {
             return NvimString {
                 data: ptr::null_mut(),
@@ -1718,7 +1692,7 @@ pub fn nvim_ns_set(ns_id: Integer, opts: &mut KeyDict_ns_opts, err: &mut Error) 
             }
 
             for tp in for_all_tabpages_ptr() {
-                for wp in for_all_windows_in_tab_ptr( &*tp) {
+                for wp in for_all_windows_in_tab_ptr(&*tp) {
                     if windows.contains(&wp)
                         && (*wp).w_ns_set.insert(ns_id as u32)
                         && (*wp).buf_mut().b_extmark_ns.contains_key(&(ns_id as u32))
@@ -1740,7 +1714,7 @@ pub fn nvim_ns_set(ns_id: Integer, opts: &mut KeyDict_ns_opts, err: &mut Error) 
             || (!set_scoped && g_st().namespace_localscope.remove(&(ns_id as u32)))
         {
             for tp in for_all_tabpages_ptr() {
-                for wp in for_all_windows_in_tab_mut( &*tp) {
+                for wp in for_all_windows_in_tab_mut(&*tp) {
                     if wp.buf_mut().b_extmark_ns.contains_key(&(ns_id as u32)) {
                         changed_window_setting(wp);
                     }
@@ -1755,11 +1729,7 @@ pub fn nvim_ns_set(ns_id: Integer, opts: &mut KeyDict_ns_opts, err: &mut Error) 
 /// @param ns_id Namespace
 /// @return  Map defining the namespace properties, see |nvim__ns_set()|
 // DLLEXPORT Dict(ns_opts) nvim__ns_get(Integer ns_id, Arena *arena, Error *err);
-pub fn nvim_ns_get(
-    ns_id: Integer,
-    arena: &mut Arena,
-    err: &mut Error,
-) -> KeyDict_ns_opts {
+pub fn nvim_ns_get(ns_id: Integer, arena: &mut Arena, err: &mut Error) -> KeyDict_ns_opts {
     unsafe {
         let mut opts = KeyDict_ns_opts {
             is_set_ns_opts: 1u64 << KEYSET_OPTIDX_NS_OPTS_WINS,
@@ -1778,7 +1748,7 @@ pub fn nvim_ns_get(
         let mut count = 0usize;
         let mut tp = g_st().first_tabpage;
         while !tp.is_null() {
-            for wp in for_all_windows_in_tab_mut( &*tp) {
+            for wp in for_all_windows_in_tab_mut(&*tp) {
                 if wp.w_ns_set.contains(&(ns_id as u32)) {
                     count += 1;
                 }
@@ -1790,7 +1760,7 @@ pub fn nvim_ns_get(
 
         tp = g_st().first_tabpage;
         while !tp.is_null() {
-            for wp in for_all_windows_in_tab_mut( &*tp) {
+            for wp in for_all_windows_in_tab_mut(&*tp) {
                 if wp.w_ns_set.contains(&(ns_id as u32)) {
                     windows.push(integer_obj(i64::from(wp.handle)));
                 }

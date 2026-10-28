@@ -95,7 +95,8 @@ impl WinConsoleState {
 }
 
 #[cfg(windows)]
-static WINCON_STATE: crate::globals::GlobalState<WinConsoleState> = crate::globals::GlobalState::new(WinConsoleState::new());
+static WINCON_STATE: crate::globals::GlobalState<WinConsoleState> =
+    crate::globals::GlobalState::new(WinConsoleState::new());
 
 #[cfg(windows)]
 #[inline]
@@ -262,8 +263,8 @@ pub fn os_redirect_stdout_stderr_to_conout() {
 #[cfg(windows)]
 pub fn os_reattach_console_stdio() {
     os_enable_ctrl_c();
-        os_redirect_stdin_to_conin();
-        os_redirect_stdout_stderr_to_conout();
+    os_redirect_stdin_to_conin();
+    os_redirect_stdout_stderr_to_conout();
 }
 
 #[cfg(windows)]
@@ -302,8 +303,8 @@ pub fn os_attach_parent_console() {
 #[cfg(windows)]
 pub fn os_detach_ui_console(stdio_ui: bool) {
     if stdio_ui || (wincon_st().CONSOLE_INHERITED && ui_active() == 0) {
-            os_swap_to_hidden_console();
-        }
+        os_swap_to_hidden_console();
+    }
 }
 
 #[cfg(windows)]
@@ -313,10 +314,20 @@ pub fn os_icon_reset() {
             return;
         }
         if !wincon_st().H_ORIG_ICON_SMALL.is_null() {
-            SendMessageA(wincon_st().H_WND, WM_SETICON, ICON_SMALL, wincon_st().H_ORIG_ICON_SMALL as LPARAM);
+            SendMessageA(
+                wincon_st().H_WND,
+                WM_SETICON,
+                ICON_SMALL,
+                wincon_st().H_ORIG_ICON_SMALL as LPARAM,
+            );
         }
         if !wincon_st().H_ORIG_ICON.is_null() {
-            SendMessageA(wincon_st().H_WND, WM_SETICON, ICON_BIG, wincon_st().H_ORIG_ICON as LPARAM);
+            SendMessageA(
+                wincon_st().H_WND,
+                WM_SETICON,
+                ICON_BIG,
+                wincon_st().H_ORIG_ICON as LPARAM,
+            );
         }
     }
 }
@@ -331,12 +342,7 @@ pub fn os_icon_init() {
 
         if let Some(vimruntime) = os_getenv_cstr(c"VIMRUNTIME") {
             let namebuff = std::ptr::addr_of_mut!(g_st().name_buff).cast::<c_char>();
-            vim_snprintf!(
-                namebuff,
-                MAXPATHL,
-                c"%s/neovim.ico",
-                vimruntime.as_ptr()
-            );
+            vim_snprintf!(namebuff, MAXPATHL, c"%s/neovim.ico", vimruntime.as_ptr());
             if !os_path_exists(namebuff) {
                 logmsg!(
                     LOGLVL_WRN,
@@ -356,10 +362,18 @@ pub fn os_icon_init() {
                     64,
                     LR_LOADFROMFILE | LR_LOADMAP3DCOLORS,
                 );
-                wincon_st().H_ORIG_ICON_SMALL =
-                    SendMessageA(wincon_st().H_WND, WM_SETICON, ICON_SMALL, h_vim_icon as LPARAM) as HICON;
-                wincon_st().H_ORIG_ICON =
-                    SendMessageA(wincon_st().H_WND, WM_SETICON, ICON_BIG, h_vim_icon as LPARAM) as HICON;
+                wincon_st().H_ORIG_ICON_SMALL = SendMessageA(
+                    wincon_st().H_WND,
+                    WM_SETICON,
+                    ICON_SMALL,
+                    h_vim_icon as LPARAM,
+                ) as HICON;
+                wincon_st().H_ORIG_ICON = SendMessageA(
+                    wincon_st().H_WND,
+                    WM_SETICON,
+                    ICON_BIG,
+                    h_vim_icon as LPARAM,
+                ) as HICON;
             }
         }
     }
@@ -385,12 +399,9 @@ pub fn os_title_reset() {
 pub fn os_tty_guess_term(term: *mut *const c_char, out_fd: c_int) {
     unsafe {
         let mut conemu_buf = [0 as c_char; 16];
-        let conemu_env = os_getenv_buf(
-            c"ConEmuANSI",
-            conemu_buf.as_mut_ptr(),
-            conemu_buf.len(),
-        );
-        let conemu_ansi = !conemu_env.is_null() && crate::memory::cstr_as_bytes(conemu_env) == b"ON";
+        let conemu_env = os_getenv_buf(c"ConEmuANSI", conemu_buf.as_mut_ptr(), conemu_buf.len());
+        let conemu_ansi =
+            !conemu_env.is_null() && crate::memory::cstr_as_bytes(conemu_env) == b"ON";
         let mut vtp = false;
 
         let handle = _get_osfhandle(out_fd) as HANDLE;

@@ -4,9 +4,7 @@ use std::ffi::{c_int, c_long, c_uint};
 
 use crate::xdiff::xprepare::xdl_prepare_env;
 use crate::xdiff::xutils::{xdl_fall_back_diff, xdl_hashbits, xdl_recmatch};
-use crate::xdiff::{
-    XDF_DIFF_ALGORITHM_MASK, Mmfile, Xdfenv, xdl_hashlong, Xpparam, Xrecord,
-};
+use crate::xdiff::{Mmfile, XDF_DIFF_ALGORITHM_MASK, Xdfenv, Xpparam, Xrecord, xdl_hashlong};
 
 const MAX_PTR: c_uint = c_int::MAX as c_uint;
 const MAX_CNT: c_uint = c_int::MAX as c_uint;
@@ -79,46 +77,46 @@ fn line_map_idx(index: &HistIndex, ptr: c_uint) -> usize {
 fn scan_a(index: &mut HistIndex, line1: c_int, count1: c_int) -> c_int {
     let mut ptr = line1 + count1 - 1;
     while line1 <= ptr {
-            let uptr = ptr as c_uint;
-            let tbl_idx = table_hash(index, 1, uptr);
-            let mut rec_idx = index.records[tbl_idx];
+        let uptr = ptr as c_uint;
+        let tbl_idx = table_hash(index, 1, uptr);
+        let mut rec_idx = index.records[tbl_idx];
 
-            let mut chain_len: c_uint = 0;
-            let mut matched = false;
-            while let Some(ri) = rec_idx {
-                let r_ptr = index.rcha[ri].ptr;
-                if cmp_index(index, 1, r_ptr, 1, uptr) {
-                    let lm_idx = line_map_idx(index, uptr);
-                    index.next_ptrs[lm_idx] = r_ptr;
-                    let rec = &mut index.rcha[ri];
-                    rec.ptr = uptr;
-                    rec.cnt = MAX_CNT.min(rec.cnt + 1);
-                    index.line_map[lm_idx] = Some(ri);
-                    matched = true;
-                    break;
-                }
-                rec_idx = index.rcha[ri].next;
-                chain_len += 1;
-            }
-
-            if !matched {
-                if chain_len == index.max_chain_length {
-                    return -1;
-                }
-
-                let new_ri = index.rcha.len();
-                index.rcha.push(Record {
-                    ptr: uptr,
-                    cnt: 1,
-                    next: index.records[tbl_idx],
-                });
-                index.records[tbl_idx] = Some(new_ri);
+        let mut chain_len: c_uint = 0;
+        let mut matched = false;
+        while let Some(ri) = rec_idx {
+            let r_ptr = index.rcha[ri].ptr;
+            if cmp_index(index, 1, r_ptr, 1, uptr) {
                 let lm_idx = line_map_idx(index, uptr);
-                index.line_map[lm_idx] = Some(new_ri);
+                index.next_ptrs[lm_idx] = r_ptr;
+                let rec = &mut index.rcha[ri];
+                rec.ptr = uptr;
+                rec.cnt = MAX_CNT.min(rec.cnt + 1);
+                index.line_map[lm_idx] = Some(ri);
+                matched = true;
+                break;
+            }
+            rec_idx = index.rcha[ri].next;
+            chain_len += 1;
+        }
+
+        if !matched {
+            if chain_len == index.max_chain_length {
+                return -1;
             }
 
-            ptr -= 1;
+            let new_ri = index.rcha.len();
+            index.rcha.push(Record {
+                ptr: uptr,
+                cnt: 1,
+                next: index.records[tbl_idx],
+            });
+            index.records[tbl_idx] = Some(new_ri);
+            let lm_idx = line_map_idx(index, uptr);
+            index.line_map[lm_idx] = Some(new_ri);
         }
+
+        ptr -= 1;
+    }
     0
 }
 

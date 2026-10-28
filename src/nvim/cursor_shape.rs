@@ -125,7 +125,6 @@ fn dict_put_c(dic: &mut Dict, key: &'static CStr, value: Object) {
     dic.size += 1;
 }
 
-
 fn clear_shape_table() {
     let tbl = unsafe { &mut *std::ptr::addr_of_mut!((*shape_table_mut())) };
     for entry in tbl.iter_mut() {
@@ -289,8 +288,14 @@ pub fn parse_shape_opt(what: c_int) -> *const c_char {
             }
             let mut modep: *const c_char = opt_vars().p_guicursor;
             while !modep.is_null() && *modep != 0 {
-                let colonp = crate::memory::cstr_as_bytes(modep).iter().position(|&b| b == b':').map_or(std::ptr::null(), |i| modep.add(i));
-                let commap = crate::memory::cstr_as_bytes(modep).iter().position(|&b| b == b',').map_or(std::ptr::null(), |i| modep.add(i));
+                let colonp = crate::memory::cstr_as_bytes(modep)
+                    .iter()
+                    .position(|&b| b == b':')
+                    .map_or(std::ptr::null(), |i| modep.add(i));
+                let commap = crate::memory::cstr_as_bytes(modep)
+                    .iter()
+                    .position(|&b| b == b',')
+                    .map_or(std::ptr::null(), |i| modep.add(i));
 
                 if colonp.is_null() || (!commap.is_null() && (commap as usize) < (colonp as usize))
                 {
@@ -310,12 +315,19 @@ pub fn parse_shape_opt(what: c_int) -> *const c_char {
                             2usize
                         };
 
-                        if len == 1 && (crate::memory::cstr_first_byte(modep)).eq_ignore_ascii_case(&b'a') {
+                        if len == 1
+                            && (crate::memory::cstr_first_byte(modep)).eq_ignore_ascii_case(&b'a')
+                        {
                             all_idx = (SHAPE_IDX_COUNT - 1) as isize;
                         } else {
                             idx = SHAPE_IDX_COUNT;
                             for (i, entry) in tbl.iter().enumerate() {
-                                if crate::memory::cstr_prefix_bytes(modep, len).eq_ignore_ascii_case(crate::memory::cstr_prefix_bytes(entry.name.as_ptr(), len)) {
+                                if crate::memory::cstr_prefix_bytes(modep, len)
+                                    .eq_ignore_ascii_case(crate::memory::cstr_prefix_bytes(
+                                        entry.name.as_ptr(),
+                                        len,
+                                    ))
+                                {
                                     idx = i;
                                     break;
                                 }
@@ -323,7 +335,10 @@ pub fn parse_shape_opt(what: c_int) -> *const c_char {
                             if idx == SHAPE_IDX_COUNT || (tbl[idx].used_for as c_int & what) == 0 {
                                 return c"E546: Illegal mode".as_ptr();
                             }
-                            if len == 2 && crate::memory::cstr_first_byte(modep) == b'v' && m1 == b'e' {
+                            if len == 2
+                                && crate::memory::cstr_first_byte(modep) == b'v'
+                                && m1 == b'e'
+                            {
                                 found_ve = true;
                             }
                         }
@@ -338,15 +353,22 @@ pub fn parse_shape_opt(what: c_int) -> *const c_char {
                     p = colonp.add(1);
                     while *p != 0 && crate::memory::cstr_first_byte(p) != b',' {
                         let first_byte = crate::memory::cstr_first_byte(p);
-                        let len = if crate::memory::cstr_prefix_bytes(p, 3).eq_ignore_ascii_case(b"ver")
+                        let len = if crate::memory::cstr_prefix_bytes(p, 3)
+                            .eq_ignore_ascii_case(b"ver")
                             || crate::memory::cstr_prefix_bytes(p, 3).eq_ignore_ascii_case(b"hor")
                         {
                             3usize
-                        } else if crate::memory::cstr_prefix_bytes(p, 9).eq_ignore_ascii_case(b"blinkwait") {
+                        } else if crate::memory::cstr_prefix_bytes(p, 9)
+                            .eq_ignore_ascii_case(b"blinkwait")
+                        {
                             9usize
-                        } else if crate::memory::cstr_prefix_bytes(p, 7).eq_ignore_ascii_case(b"blinkon") {
+                        } else if crate::memory::cstr_prefix_bytes(p, 7)
+                            .eq_ignore_ascii_case(b"blinkon")
+                        {
                             7usize
-                        } else if crate::memory::cstr_prefix_bytes(p, 8).eq_ignore_ascii_case(b"blinkoff") {
+                        } else if crate::memory::cstr_prefix_bytes(p, 8)
+                            .eq_ignore_ascii_case(b"blinkoff")
+                        {
                             8usize
                         } else {
                             0usize
@@ -379,13 +401,18 @@ pub fn parse_shape_opt(what: c_int) -> *const c_char {
                                     tbl[idx].blinkoff = n;
                                 }
                             }
-                        } else if crate::memory::cstr_prefix_bytes(p, 5).eq_ignore_ascii_case(b"block") {
+                        } else if crate::memory::cstr_prefix_bytes(p, 5)
+                            .eq_ignore_ascii_case(b"block")
+                        {
                             if round == 2 {
                                 tbl[idx].shape = CursorShape::ShapeBlock;
                             }
                             p = p.add(5);
                         } else {
-                            let mut endp = crate::memory::cstr_as_bytes(p).iter().position(|&b| b == b'-').map_or(std::ptr::null(), |i| p.add(i));
+                            let mut endp = crate::memory::cstr_as_bytes(p)
+                                .iter()
+                                .position(|&b| b == b'-')
+                                .map_or(std::ptr::null(), |i| p.add(i));
                             if commap.is_null() {
                                 if endp.is_null() {
                                     endp = p.add(crate::memory::cstr_len(p));
@@ -393,7 +420,10 @@ pub fn parse_shape_opt(what: c_int) -> *const c_char {
                             } else if endp.is_null() || (endp as usize) > (commap as usize) {
                                 endp = commap;
                             }
-                            let slashp = crate::memory::cstr_as_bytes(p).iter().position(|&b| b == b'/').map_or(std::ptr::null(), |i| p.add(i));
+                            let slashp = crate::memory::cstr_as_bytes(p)
+                                .iter()
+                                .position(|&b| b == b'/')
+                                .map_or(std::ptr::null(), |i| p.add(i));
                             let mut saved_hl_id = first_byte as c_int;
                             if !slashp.is_null() && (slashp as usize) < (endp as usize) {
                                 saved_hl_id = syn_check_group(p, (slashp as usize) - (p as usize));
@@ -439,7 +469,7 @@ pub fn parse_shape_opt(what: c_int) -> *const c_char {
 /// Map cursor mode from string to integer (`cursor_mode_str2int`).
 #[cfg(test)]
 pub fn cursor_mode_str2int(mode: &std::ffi::CStr) -> c_int {
-    let mode_bytes =  { mode.to_bytes() };
+    let mode_bytes = { mode.to_bytes() };
     let tbl = unsafe { &*std::ptr::addr_of!((*shape_table_mut())) };
     for (mode_idx, entry) in tbl.iter().enumerate() {
         if entry.full_name.to_bytes() == mode_bytes {
@@ -447,14 +477,14 @@ pub fn cursor_mode_str2int(mode: &std::ffi::CStr) -> c_int {
         }
     }
     logmsg!(
-            LOGLVL_WRN,
-            std::ptr::null(),
-            c"cursor_mode_str2int",
-            284,
-            true,
-            c"Unknown mode %s",
-            mode.as_ptr(),
-        );
+        LOGLVL_WRN,
+        std::ptr::null(),
+        c"cursor_mode_str2int",
+        284,
+        true,
+        c"Unknown mode %s",
+        mode.as_ptr(),
+    );
     -1
 }
 
@@ -476,12 +506,14 @@ pub fn cursor_mode_uses_syn_id(syn_id: c_int) -> bool {
 
 /// Return the index into `(*shape_table_mut())[]` for the current mode (`cursor_get_mode_idx`).
 pub fn cursor_get_mode_idx() -> c_int {
-     {
+    {
         if g_st().state_global == MODE_SHOWMATCH {
             SHAPE_IDX_SM as c_int
         } else if g_st().state_global == MODE_TERMINAL {
             SHAPE_IDX_TERM as c_int
-        } else if (g_st().state_global & VREPLACE_FLAG) != 0 || (g_st().state_global & REPLACE_FLAG) != 0 {
+        } else if (g_st().state_global & VREPLACE_FLAG) != 0
+            || (g_st().state_global & REPLACE_FLAG) != 0
+        {
             SHAPE_IDX_R as c_int
         } else if (g_st().state_global & MODE_INSERT) != 0 {
             SHAPE_IDX_I as c_int
@@ -513,14 +545,8 @@ mod tests {
 
     #[test]
     fn cursor_mode_str2int_finds_modes() {
-        assert_eq!(
-                cursor_mode_str2int(c"normal"),
-                SHAPE_IDX_N as c_int
-            );
-            assert_eq!(
-                cursor_mode_str2int(c"terminal"),
-                SHAPE_IDX_TERM as c_int
-            );
-            assert_eq!(cursor_mode_str2int(c"nonexistent"), -1);
+        assert_eq!(cursor_mode_str2int(c"normal"), SHAPE_IDX_N as c_int);
+        assert_eq!(cursor_mode_str2int(c"terminal"), SHAPE_IDX_TERM as c_int);
+        assert_eq!(cursor_mode_str2int(c"nonexistent"), -1);
     }
 }

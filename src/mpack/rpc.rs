@@ -3,8 +3,8 @@
 use std::ffi::{c_char, c_int};
 
 use crate::mpack::mpack_core::{
-    MPACK_EOF, MPACK_OK, MpackTokenArray, MpackTokenUint, mpack_read, mpack_tokbuf_init,
-    MpackTokbuf, MpackToken, MpackUint32, mpack_write,
+    MPACK_EOF, MPACK_OK, MpackTokbuf, MpackToken, MpackTokenArray, MpackTokenUint, MpackUint32,
+    mpack_read, mpack_tokbuf_init, mpack_write,
 };
 use crate::mpack::object::{MPACK_NOMEM, MpackData};
 
@@ -239,10 +239,7 @@ pub fn mpack_rpc_reply_tok(
     MPACK_OK
 }
 
-pub fn mpack_rpc_notify_tok(
-    session: &mut MpackRpcSession,
-    tok: &mut MpackToken,
-) -> c_int {
+pub fn mpack_rpc_notify_tok(session: &mut MpackRpcSession, tok: &mut MpackToken) -> c_int {
     if session.send.index == 0 {
         session.send = mpack_rpc_notify_hdr();
         *tok = session.send.toks[0];

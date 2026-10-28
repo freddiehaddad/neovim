@@ -7,16 +7,16 @@ use crate::api::private::validate::{
 };
 use crate::api::tabpage::{Buffer, Tabpage, Window};
 use crate::buffer::FileBuf;
-use crate::cursor::{Colnr, Linenr, CursorPos};
+use crate::cursor::{Colnr, CursorPos, Linenr};
 use crate::eval::typval::{
-    TvDict, Dictitem, tv_clear, tv_copy, tv_dict_add, tv_dict_find, tv_dict_item_alloc_len,
-    tv_dict_item_remove, tv_dict_watcher_notify, TypVal,
+    Dictitem, TvDict, TypVal, tv_clear, tv_copy, tv_dict_add, tv_dict_find, tv_dict_item_alloc_len,
+    tv_dict_item_remove, tv_dict_watcher_notify,
 };
 use crate::eval::vars::MAXCOL;
-use crate::eval::vars::{before_set_vvar, get_vimvar_dict, Scid};
+use crate::eval::vars::{Scid, before_set_vvar, get_vimvar_dict};
 use crate::ex_docmd::CAR;
 use crate::ex_eval::{
-    discard_current_exception, Except, free_global_msglist, get_error_exception_string, Msglist,
+    Except, Msglist, discard_current_exception, free_global_msglist, get_error_exception_string,
 };
 use crate::globals::*;
 use crate::highlight_group::{highlight_num_groups, syn_check_group, syn_id2name};
@@ -31,7 +31,7 @@ use crate::memory::{
 };
 use crate::msgpack_rpc::packer::{Integer, ObjHandle};
 use crate::msgpack_rpc::unpacker::unpack;
-use crate::runtime::{script_is_lua, Sctx};
+use crate::runtime::{Sctx, script_is_lua};
 use crate::window::{TabPageInfo, WinInfoInfo};
 use std::ffi::{CStr, c_char, c_int};
 use std::mem::size_of;
@@ -258,31 +258,32 @@ pub fn cstr_to_obj(s: impl crate::strings::IntoCCharPtr) -> Object {
 }
 
 #[inline]
-pub fn cstr_to_arena_obj(arena: &mut Arena, s: impl crate::strings::IntoCCharPtr) -> Object { let s = s.into_c_char_ptr();
+pub fn cstr_to_arena_obj(arena: &mut Arena, s: impl crate::strings::IntoCCharPtr) -> Object {
+    let s = s.into_c_char_ptr();
     string_obj(arena_string(arena, cstr_as_string(s)))
 }
 
 #[inline]
 pub fn try_wrap<F: FnOnce()>(err: &mut Error, f: F) {
     let mut tstate = TryState::new();
-        try_enter(&mut tstate);
-        f();
-        try_leave(&tstate, err);
+    try_enter(&mut tstate);
+    f();
+    try_leave(&tstate, err);
 }
 
 #[inline]
 pub fn try_wrap_err<F: FnOnce(&mut Error)>(err: &mut Error, f: F) {
     let mut tstate = TryState::new();
-        try_enter(&mut tstate);
-        f(err);
-        try_leave(&tstate, err);
+    try_enter(&mut tstate);
+    f(err);
+    try_leave(&tstate, err);
 }
 
 #[inline]
 pub fn with_script_context<F: FnOnce()>(channel_id: u64, f: F) {
     let save_current_sctx = api_set_sctx(channel_id);
-        f();
-        g_st().current_sctx = save_current_sctx;
+    f();
+    g_st().current_sctx = save_current_sctx;
 }
 
 #[inline]
@@ -299,7 +300,7 @@ pub fn api_clear_string(s: &mut NvimString) {
 
 #[inline]
 pub fn tv_dict_is_watched(d: Option<&TvDict>) -> bool {
-     d.is_some() && !d.unwrap().watchers.is_empty()
+    d.is_some() && !d.unwrap().watchers.is_empty()
 }
 
 pub trait IntoDictKey {
@@ -340,7 +341,12 @@ pub fn put_c<K: IntoDictKey>(dict: &mut Dict, key: K, val: Object) {
 }
 
 #[inline]
-pub fn cbuf_to_arena_str(arena: &mut Arena, buf: impl crate::strings::IntoCCharPtr, len: usize) -> NvimString { let buf = buf.into_c_char_ptr();
+pub fn cbuf_to_arena_str(
+    arena: &mut Arena,
+    buf: impl crate::strings::IntoCCharPtr,
+    len: usize,
+) -> NvimString {
+    let buf = buf.into_c_char_ptr();
     let ptr = if buf.is_null() { c"".as_ptr() } else { buf };
     NvimString {
         data: arena_memdupz(arena, ptr, len),
@@ -353,7 +359,8 @@ pub fn cbuf_to_arena_str_opt(
     arena: Option<&mut Arena>,
     buf: impl crate::strings::IntoCCharPtr,
     len: usize,
-) -> NvimString { let buf = buf.into_c_char_ptr();
+) -> NvimString {
+    let buf = buf.into_c_char_ptr();
     let ptr = if buf.is_null() { c"".as_ptr() } else { buf };
     NvimString {
         data: arena_memdupz_opt(arena, ptr, len),
@@ -405,23 +412,14 @@ pub fn try_leave(tstate: &TryState, err: &mut Error) {
             if g_st().did_throw {
                 discard_current_exception();
             }
-            api_set_error!(
-                err,
-                ErrorType::ErrorTypeException,
-                c"Keyboard interrupt",
-            );
+            api_set_error!(err, ErrorType::ErrorTypeException, c"Keyboard interrupt",);
             g_st().got_int = false;
         } else if let Some(ref msgs) = *ml
             && !msgs.is_empty()
         {
             let throw_ptr = msgs[msgs[0].throw_idx].msg.as_ptr().add(msgs[0].throw_off);
             let msg = get_error_exception_string(throw_ptr, ptr::null_mut());
-            api_set_error!(
-                err,
-                ErrorType::ErrorTypeException,
-                c"%s",
-                msg.as_ptr()
-            );
+            api_set_error!(err, ErrorType::ErrorTypeException, c"%s", msg.as_ptr());
             free_global_msglist();
         } else if g_st().did_throw || g_st().need_rethrow {
             if let Some(ref excp) = *ce {
@@ -519,23 +517,11 @@ pub fn dict_check_writable(
                 );
             }
         } else if dict.dv_lock != 0 {
-            api_set_error!(
-                err,
-                ErrorType::ErrorTypeException,
-                c"Dict is locked",
-            );
+            api_set_error!(err, ErrorType::ErrorTypeException, c"Dict is locked",);
         } else if key.size == 0 {
-            api_set_error!(
-                err,
-                ErrorType::ErrorTypeValidation,
-                c"Key name is empty",
-            );
+            api_set_error!(err, ErrorType::ErrorTypeValidation, c"Key name is empty",);
         } else if key.size > c_int::MAX as usize {
-            api_set_error!(
-                err,
-                ErrorType::ErrorTypeValidation,
-                c"Key name is too long",
-            );
+            api_set_error!(err, ErrorType::ErrorTypeValidation, c"Key name is too long",);
         }
         di
     }
@@ -574,7 +560,7 @@ pub fn dict_set_var(
                 if retval {
                     rv = vim_to_object(&raw mut (*di).di_tv, arena, false);
                 }
-                tv_dict_item_remove(&mut *dict,  &mut *di);
+                tv_dict_item_remove(&mut *dict, &mut *di);
             }
         } else {
             let mut tv: TypVal = TypVal::new();
@@ -590,14 +576,7 @@ pub fn dict_set_var(
                 }
                 let mut type_error = false;
                 if ptr::eq(dict, get_vimvar_dict())
-                    && !before_set_vvar(
-                        key.data,
-                        &mut *di,
-                        &mut tv,
-                        true,
-                        watched,
-                        &mut type_error,
-                    )
+                    && !before_set_vvar(key.data, &mut *di, &mut tv, true, watched, &mut type_error)
                 {
                     tv_clear(&mut tv);
                     if type_error {
@@ -633,7 +612,11 @@ pub fn find_buffer_by_handle(buffer: Buffer, err: &mut Error) -> *mut FileBuf {
         if buffer == 0 {
             return g_st().curbuf;
         }
-        let rv = g_st().buffer_handles.get(&buffer).copied().unwrap_or(ptr::null_mut());
+        let rv = g_st()
+            .buffer_handles
+            .get(&buffer)
+            .copied()
+            .unwrap_or(ptr::null_mut());
         if rv.is_null() {
             api_set_error!(
                 err,
@@ -673,7 +656,11 @@ pub fn find_tab_by_handle(tabpage: Tabpage, err: &mut Error) -> *mut TabPageInfo
         if tabpage == 0 {
             return g_st().curtab;
         }
-        let rv = g_st().tabpage_handles.get(&tabpage).copied().unwrap_or(ptr::null_mut());
+        let rv = g_st()
+            .tabpage_handles
+            .get(&tabpage)
+            .copied()
+            .unwrap_or(ptr::null_mut());
         if rv.is_null() {
             api_set_error!(
                 err,
@@ -694,7 +681,10 @@ pub fn find_buffer_by_handle_mut(buffer: Buffer, err: &mut Error) -> Option<&'st
 }
 
 #[inline]
-pub fn find_window_by_handle_mut(window: Window, err: &mut Error) -> Option<&'static mut WinInfoInfo> {
+pub fn find_window_by_handle_mut(
+    window: Window,
+    err: &mut Error,
+) -> Option<&'static mut WinInfoInfo> {
     let w = find_window_by_handle(window, err);
     (!w.is_null()).then(|| unsafe { &mut *w })
 }
@@ -710,7 +700,7 @@ pub fn find_tab_by_handle_mut(
 
 pub fn cstr_to_string(str_: impl crate::strings::IntoCCharPtr) -> NvimString {
     let str_ = str_.into_c_char_ptr();
-     {
+    {
         if str_.is_null() {
             return NvimString {
                 data: ptr::null_mut(),
@@ -726,7 +716,7 @@ pub fn cstr_to_string(str_: impl crate::strings::IntoCCharPtr) -> NvimString {
 }
 
 pub fn string_to_cstr(str_: NvimString) -> std::ffi::CString {
-     {
+    {
         let slice = if str_.data.is_null() || str_.size == 0 {
             &[]
         } else {
@@ -736,29 +726,31 @@ pub fn string_to_cstr(str_: NvimString) -> std::ffi::CString {
     }
 }
 
-pub fn cbuf_to_string(buf: impl crate::strings::IntoCCharPtr, size: usize) -> NvimString { let buf = buf.into_c_char_ptr();
+pub fn cbuf_to_string(buf: impl crate::strings::IntoCCharPtr, size: usize) -> NvimString {
+    let buf = buf.into_c_char_ptr();
     NvimString {
-            data: alloc_cstring_len(buf, size),
-            size,
-        }
+        data: alloc_cstring_len(buf, size),
+        size,
+    }
 }
 
-pub fn cstrn_as_string(str_: impl crate::strings::IntoCCharPtr, maxsize: usize) -> NvimString { let str_ = str_.into_c_char_ptr();
+pub fn cstrn_as_string(str_: impl crate::strings::IntoCCharPtr, maxsize: usize) -> NvimString {
+    let str_ = str_.into_c_char_ptr();
     if str_.is_null() {
-            return NvimString {
-                data: ptr::null_mut(),
-                size: 0,
-            };
-        }
-        NvimString {
-            data: str_.cast_mut(),
-            size: xstrnlen(str_, maxsize),
-        }
+        return NvimString {
+            data: ptr::null_mut(),
+            size: 0,
+        };
+    }
+    NvimString {
+        data: str_.cast_mut(),
+        size: xstrnlen(str_, maxsize),
+    }
 }
 
 pub fn cstr_as_string<S: crate::strings::IntoCCharPtr>(str_: S) -> NvimString {
     let str_ = str_.into_c_char_ptr();
-     {
+    {
         if str_.is_null() {
             return NvimString {
                 data: ptr::null_mut(),
@@ -799,7 +791,19 @@ pub fn string_to_array(input: NvimString, crlf: bool, arena: &mut Arena) -> Arra
                     size: line_len,
                 },
             );
-            { let _d = (s.data).cast::<u8>(); let _sz = line_len; if _sz > 0 { let _c = (NUL) as u8; let _x = (NL) as u8; for _b in std::slice::from_raw_parts_mut(_d, _sz) { if *_b == _c { *_b = _x; } } } };
+            {
+                let _d = (s.data).cast::<u8>();
+                let _sz = line_len;
+                if _sz > 0 {
+                    let _c = (NUL) as u8;
+                    let _x = (NL) as u8;
+                    for _b in std::slice::from_raw_parts_mut(_d, _sz) {
+                        if *_b == _c {
+                            *_b = _x;
+                        }
+                    }
+                }
+            };
             ret.push(Object {
                 obj_type: ObjectType::ObjectTypeString,
                 data: ObjectData::String(s),
@@ -831,18 +835,18 @@ pub fn normalize_index(
     oob: &mut bool,
 ) -> i64 {
     debug_assert!(buf.b_ml.ml_line_count > 0);
-        let max_index = i64::from(buf.b_ml.ml_line_count) + i64::from(end_exclusive) - 1;
-        if index < 0 {
-            index = max_index + index + 1;
-        }
-        if index > max_index {
-            *oob = true;
-            index = max_index;
-        } else if index < 0 {
-            *oob = true;
-            index = 0;
-        }
-        index + 1
+    let max_index = i64::from(buf.b_ml.ml_line_count) + i64::from(end_exclusive) - 1;
+    if index < 0 {
+        index = max_index + index + 1;
+    }
+    if index > max_index {
+        *oob = true;
+        index = max_index;
+    } else if index < 0 {
+        *oob = true;
+        index = 0;
+    }
+    index + 1
 }
 
 pub fn buf_get_text(
@@ -1098,17 +1102,21 @@ pub fn api_object_to_bool(
 ) -> bool {
     let what = what.into_c_char_ptr();
     match obj.obj_type {
-            ObjectType::ObjectTypeBoolean => obj.data.boolean(),
-            ObjectType::ObjectTypeInteger => obj.data.integer() != 0,
-            ObjectType::ObjectTypeNil => nil_value,
-            _ => {
-                api_err_exp(err, what, c"boolean", ptr::null());
-                false
-            }
+        ObjectType::ObjectTypeBoolean => obj.data.boolean(),
+        ObjectType::ObjectTypeInteger => obj.data.integer() != 0,
+        ObjectType::ObjectTypeNil => nil_value,
+        _ => {
+            api_err_exp(err, what, c"boolean", ptr::null());
+            false
         }
+    }
 }
 
-pub fn object_to_hl_id(obj: Object, what: impl crate::strings::IntoCCharPtr, err: &mut Error) -> c_int {
+pub fn object_to_hl_id(
+    obj: Object,
+    what: impl crate::strings::IntoCCharPtr,
+    err: &mut Error,
+) -> c_int {
     let what = what.into_c_char_ptr();
     unsafe {
         match obj.obj_type {
@@ -1212,7 +1220,11 @@ pub fn api_dict_to_keydict(
         };
         for i in 0..dict.size {
             let k = dict[i].key;
-            let key_bytes = if k.data.is_null() || k.size == 0 { &[][..] } else { crate::memory::cstr_slice(k.data, k.size) };
+            let key_bytes = if k.data.is_null() || k.size == 0 {
+                &[][..]
+            } else {
+                crate::memory::cstr_slice(k.data, k.size)
+            };
             let Some(field) = hashy_fn(key_bytes) else {
                 api_set_error!(
                     err,
@@ -1435,11 +1447,11 @@ pub fn api_keydict_to_dict(
 
 pub fn api_luarefs_free_object(value: Object) {
     match value.obj_type {
-            ObjectType::ObjectTypeLuaRef => api_free_luaref(value.data.luaref()),
-            ObjectType::ObjectTypeArray => api_luarefs_free_array(value.data.array()),
-            ObjectType::ObjectTypeDict => api_luarefs_free_dict(value.data.dict()),
-            _ => {}
-        }
+        ObjectType::ObjectTypeLuaRef => api_free_luaref(value.data.luaref()),
+        ObjectType::ObjectTypeArray => api_luarefs_free_array(value.data.array()),
+        ObjectType::ObjectTypeDict => api_luarefs_free_dict(value.data.dict()),
+        _ => {}
+    }
 }
 
 pub fn api_luarefs_free_keydict(dict: *mut OptKeySet, table: *mut KeySetLink) {
@@ -1463,14 +1475,14 @@ pub fn api_luarefs_free_keydict(dict: *mut OptKeySet, table: *mut KeySetLink) {
 
 pub fn api_luarefs_free_array(value: Array) {
     for &item in value.as_slice() {
-            api_luarefs_free_object(item);
-        }
+        api_luarefs_free_object(item);
+    }
 }
 
 pub fn api_luarefs_free_dict(value: Dict) {
     for &item in value.as_slice() {
-            api_luarefs_free_object(item.value);
-        }
+        api_luarefs_free_object(item.value);
+    }
 }
 
 pub fn set_mark(
@@ -1543,7 +1555,7 @@ pub fn get_default_stl_hl(
     use_winbar: bool,
     stc_hl_id: c_int,
 ) -> *const c_char {
-     {
+    {
         if wp.is_null() {
             c"TabLineFill".as_ptr()
         } else if use_winbar {
@@ -1564,18 +1576,18 @@ pub fn get_default_stl_hl(
 
 pub fn api_set_sctx(channel_id: u64) -> Sctx {
     let old_current_sctx = g_st().current_sctx;
-        if channel_id != VIML_INTERNAL_CALL {
-            g_st().current_sctx.sc_lnum = 0;
-            if channel_id == LUA_INTERNAL_CALL {
-                if !script_is_lua(g_st().current_sctx.sc_sid) {
-                    g_st().current_sctx.sc_sid = SID_LUA;
-                }
-            } else {
-                g_st().current_sctx.sc_sid = SID_API_CLIENT;
-                g_st().current_sctx.sc_chan = channel_id;
+    if channel_id != VIML_INTERNAL_CALL {
+        g_st().current_sctx.sc_lnum = 0;
+        if channel_id == LUA_INTERNAL_CALL {
+            if !script_is_lua(g_st().current_sctx.sc_sid) {
+                g_st().current_sctx.sc_sid = SID_LUA;
             }
+        } else {
+            g_st().current_sctx.sc_sid = SID_API_CLIENT;
+            g_st().current_sctx.sc_chan = channel_id;
         }
-        old_current_sctx
+    }
+    old_current_sctx
 }
 
 struct ApiMetadataState {
@@ -1592,7 +1604,8 @@ impl ApiMetadataState {
     }
 }
 
-static API_META_STATE: crate::globals::GlobalState<ApiMetadataState> = crate::globals::GlobalState::new(ApiMetadataState::new());
+static API_META_STATE: crate::globals::GlobalState<ApiMetadataState> =
+    crate::globals::GlobalState::new(ApiMetadataState::new());
 
 #[inline]
 fn api_meta_st() -> &'static mut ApiMetadataState {
@@ -4193,8 +4206,9 @@ static API_TYPES: [(&str, u32, &str); 3] = [
 use crate::api::buffer::{LUA_INTERNAL_CALL, VIML_INTERNAL_CALL};
 use crate::charset::{NL, NUL};
 use crate::version::{
-    NVIM_API_LEVEL_CONST, NVIM_API_LEVEL_COMPAT_CONST, NVIM_API_PRERELEASE_CONST, nvim_version_build,
-    NVIM_VERSION_MAJOR_CONST, NVIM_VERSION_MINOR_CONST, NVIM_VERSION_PATCH_CONST, NVIM_VERSION_PRERELEASE_CONST,
+    NVIM_API_LEVEL_COMPAT_CONST, NVIM_API_LEVEL_CONST, NVIM_API_PRERELEASE_CONST,
+    NVIM_VERSION_MAJOR_CONST, NVIM_VERSION_MINOR_CONST, NVIM_VERSION_PATCH_CONST,
+    NVIM_VERSION_PRERELEASE_CONST, nvim_version_build,
 };
 
 static PACKED_API_METADATA: std::sync::OnceLock<Box<[u8]>> = std::sync::OnceLock::new();
@@ -4357,32 +4371,32 @@ pub fn api_get_packed_metadata(len: &mut usize) -> *const u8 {
 
 pub fn api_metadata() -> Object {
     if api_meta_st().metadata_obj.obj_type == ObjectType::ObjectTypeNil {
-            let mut arena = Arena {
-                cur_blk: ptr::null_mut(),
-                pos: 0,
-                size: 0,
-            };
-            let mut err = Error::new();
-            let mut len: usize = 0;
-            let ptr = api_get_packed_metadata(&mut len).cast::<c_char>();
-            api_meta_st().metadata_obj = unpack(ptr, len, &mut arena, &mut err);
-            if error_set(&err) || api_meta_st().metadata_obj.obj_type != ObjectType::ObjectTypeDict {
-                std::process::abort();
-            }
-            api_meta_st().mem_for_metadata = arena_finish(&mut arena);
+        let mut arena = Arena {
+            cur_blk: ptr::null_mut(),
+            pos: 0,
+            size: 0,
+        };
+        let mut err = Error::new();
+        let mut len: usize = 0;
+        let ptr = api_get_packed_metadata(&mut len).cast::<c_char>();
+        api_meta_st().metadata_obj = unpack(ptr, len, &mut arena, &mut err);
+        if error_set(&err) || api_meta_st().metadata_obj.obj_type != ObjectType::ObjectTypeDict {
+            std::process::abort();
         }
-        api_meta_st().metadata_obj
+        api_meta_st().mem_for_metadata = arena_finish(&mut arena);
+    }
+    api_meta_st().metadata_obj
 }
 
 pub fn api_metadata_raw() -> NvimString {
     let mut len: usize = 0;
-        let ptr = api_get_packed_metadata(&mut len)
-            .cast::<c_char>()
-            .cast_mut();
-        NvimString {
-            data: ptr,
-            size: len,
-        }
+    let ptr = api_get_packed_metadata(&mut len)
+        .cast::<c_char>()
+        .cast_mut();
+    NvimString {
+        data: ptr,
+        size: len,
+    }
 }
 
 #[cfg(test)]

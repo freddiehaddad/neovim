@@ -4,13 +4,13 @@ use crate::api::private::helpers::api_clear_error;
 use crate::api::private::validate::{Array, Error, ErrorType, NvimString};
 use crate::api::vim::{is_internal_call, nvim_paste};
 use crate::charset::{ascii_iswhite, is_special, skipwhite, to_special};
-use crate::cursor::{Colnr, get_cursor_line_ptr, Linenr};
+use crate::cursor::{Colnr, Linenr, get_cursor_line_ptr};
 use crate::drawscreen::{SHOWCMD_COLS, setcursor, showmode, unshowmode, update_screen};
 use crate::errors::*;
 use crate::eval::garbage_collect;
 use crate::eval::typval::{
-    EvalFuncData, VarType, tv_check_for_opt_dict_arg, tv_dict_get_bool, tv_dict_get_string,
-    tv_dict_has_key, tv_get_bool_chk, TypVal, Varnumber,
+    EvalFuncData, TypVal, VarType, Varnumber, tv_check_for_opt_dict_arg, tv_dict_get_bool,
+    tv_dict_get_string, tv_dict_has_key, tv_get_bool_chk,
 };
 use crate::eval::vars::{
     VV_MOUSE_COL, VV_MOUSE_LNUM, VV_MOUSE_WIN, VV_MOUSE_WINID, set_vim_var_nr,
@@ -20,10 +20,10 @@ use crate::event::multiqueue::{MultiQueue, multiqueue_empty};
 use crate::ex_cmds::{CTRL_C_CONST, check_secure};
 use crate::ex_docmd::update_topline_cursor;
 use crate::ex_getln::{
-    CTRL_O, K_LUA, get_cmdline_info, K_OPT_BO_FLAG_ERROR, putcmdline, redrawcmd, redrawcmdline,
+    CTRL_O, K_LUA, K_OPT_BO_FLAG_ERROR, get_cmdline_info, putcmdline, redrawcmd, redrawcmdline,
     unputcmdline,
 };
-use crate::extmark::{TriState, K_FALSE, K_NONE};
+use crate::extmark::{K_FALSE, K_NONE, TriState};
 use crate::fileio::fputc;
 use crate::globals::*;
 use crate::input_cmdatom::{
@@ -45,11 +45,11 @@ use crate::keycodes::{
 };
 use crate::lua::executor::{K_RET_NIL_BOOL, nlua_call_ref, nlua_exec_on_key};
 use crate::mapping::{
-    MAXMAPLEN, REMAP_NONE, REMAP_YES, eval_map_expr, get_buf_maphash_list, get_maphash_list,
-    langmap_adjust_mb, map_luaid_get, Mapblock, Typebuf,
+    MAXMAPLEN, Mapblock, REMAP_NONE, REMAP_YES, Typebuf, eval_map_expr, get_buf_maphash_list,
+    get_maphash_list, langmap_adjust_mb, map_luaid_get,
 };
 use crate::mbyte::{
-    mb_cptr2char_adv, mb_unescape, utf_cluster_info, utf_byte2len, utf_char2bytes, utf_head_off,
+    mb_cptr2char_adv, mb_unescape, utf_byte2len, utf_char2bytes, utf_cluster_info, utf_head_off,
     utf_ptr2_str_char_info, utf_ptr2cells, utf_ptr2char,
 };
 use crate::mcursor::mc_replaying;
@@ -306,16 +306,12 @@ fn inp_st() -> &'static mut InputModuleState {
 
 #[inline]
 fn tb_buf_ptr() -> *mut u8 {
-     {
-        g_st().typebuf.tb_buf.as_mut_ptr()
-    }
+    g_st().typebuf.tb_buf.as_mut_ptr()
 }
 
 #[inline]
 fn tb_noremap_ptr() -> *mut u8 {
-     {
-        g_st().typebuf.tb_noremap.as_mut_ptr()
-    }
+    g_st().typebuf.tb_noremap.as_mut_ptr()
 }
 
 use crate::api::buffer::LUA_INTERNAL_CALL;
@@ -335,7 +331,7 @@ pub fn mb_byte2len_check(b: c_int) -> c_int {
 
 #[inline]
 pub(crate) fn langmap_adjust(c: &mut c_int, condition: bool) {
-     {
+    {
         if !crate::memory::cstr_is_empty(opt_vars().p_langmap)
             && condition
             && (opt_vars().p_lrm != 0
@@ -358,7 +354,7 @@ pub(crate) fn langmap_adjust(c: &mut c_int, condition: bool) {
 
 /// Gets the contents of the record buffer as a string (typeahead encoding) and clears the buffer.
 pub fn get_recorded() -> std::ffi::CString {
-     {
+    {
         let mut bytes: Vec<u8> = std::mem::take(&mut inp_st().recordbuff)
             .into_iter()
             .map(|b| b as u8)
@@ -379,7 +375,7 @@ pub fn get_recorded() -> std::ffi::CString {
 }
 
 fn redo_prefix(spec: &CmdSpec, buf: &mut Vec<c_char>, replay: bool) {
-     {
+    {
         if spec.regname != 0 {
             sb_add_char(buf, b'"' as c_int);
             sb_add_char(buf, spec.regname);
@@ -403,7 +399,7 @@ fn redo_prefix(spec: &CmdSpec, buf: &mut Vec<c_char>, replay: bool) {
 }
 
 fn redo_chars(spec: &CmdSpec, buf: &mut Vec<c_char>, arg_meta: bool) {
-     {
+    {
         if spec.op != NUL {
             sb_add_char(buf, spec.op);
         }
@@ -435,11 +431,11 @@ pub fn redo_keys(spec: *const CmdSpec) -> Option<std::ffi::CString> {
         };
 
         let mut buf: Vec<c_char> = Vec::new();
-        redo_prefix( &*spec, &mut buf, false);
+        redo_prefix(&*spec, &mut buf, false);
         if !(*spec).body.is_empty() {
             buf.extend_from_slice(&(*spec).body);
         } else {
-            redo_chars( &*spec, &mut buf, false);
+            redo_chars(&*spec, &mut buf, false);
         }
         if buf.is_empty() {
             None
@@ -452,9 +448,7 @@ pub fn redo_keys(spec: *const CmdSpec) -> Option<std::ffi::CString> {
 
 /// Gets the pending change's `CmdSpec` (without `body`).
 pub fn redo_spec() -> CmdSpec {
-     {
-        inp_st().redobuff.cur.without_body()
-    }
+    inp_st().redobuff.cur.without_body()
 }
 
 fn add_buff(buf: &mut StuffBuf, s: impl crate::strings::IntoCCharPtr, mut slen: isize) {
@@ -476,8 +470,8 @@ fn add_buff(buf: &mut StuffBuf, s: impl crate::strings::IntoCCharPtr, mut slen: 
 
 fn add_num_buff(buf: &mut StuffBuf, n: c_int) {
     let mut number = [0 as c_char; 32];
-        let numberlen = vim_snprintf!(number.as_mut_ptr(), number.len(), c"%d", n);
-        add_buff(&mut *buf, number.as_ptr(), numberlen as isize);
+    let numberlen = vim_snprintf!(number.as_mut_ptr(), number.len(), c"%d", n);
+    add_buff(&mut *buf, number.as_ptr(), numberlen as isize);
 }
 
 fn key_byte_encode(c: c_int, temp: &mut [c_char; 4]) -> isize {
@@ -528,55 +522,51 @@ fn sb_add_byte(sb: &mut Vec<c_char>, c: c_int) {
 /// Dual of `add_char_buff()`, for a byte buffer.
 pub fn sb_add_char(sb: &mut Vec<c_char>, c: c_int) {
     let mut temp = [0 as c_char; MB_MAXBYTES * 3 + 1];
-        let len = key_char_encode(c, temp.as_mut_ptr());
-        sb.extend_from_slice(&temp[..len]);
+    let len = key_char_encode(c, temp.as_mut_ptr());
+    sb.extend_from_slice(&temp[..len]);
 }
 
 fn read_readbuffers(advance: bool) -> c_int {
     let mut c = read_readbuf(&mut inp_st().readbuf1, advance);
-        if c == NUL {
-            c = read_readbuf(&mut inp_st().readbuf2, advance);
-        }
-        c
+    if c == NUL {
+        c = read_readbuf(&mut inp_st().readbuf2, advance);
+    }
+    c
 }
 
 fn read_readbuf(buf: &mut StuffBuf, advance: bool) -> c_int {
     if buf.read == buf.keys.len() {
-            return NUL;
-        }
+        return NUL;
+    }
 
-        let c = buf.keys.as_slice()[buf.read] as u8 as c_int;
+    let c = buf.keys.as_slice()[buf.read] as u8 as c_int;
 
-        if advance {
-            buf.read += 1;
-            if buf.read == buf.keys.len() {
-                buf.keys.clear();
-                buf.read = 0;
-                buf.insert = 0;
-            } else {
-                buf.insert = buf.insert.max(buf.read);
-            }
+    if advance {
+        buf.read += 1;
+        if buf.read == buf.keys.len() {
+            buf.keys.clear();
+            buf.read = 0;
+            buf.insert = 0;
+        } else {
+            buf.insert = buf.insert.max(buf.read);
         }
-        c
+    }
+    c
 }
 
 fn start_stuff() {
     inp_st().readbuf1.insert = inp_st().readbuf1.read;
-        inp_st().readbuf2.insert = inp_st().readbuf2.read;
+    inp_st().readbuf2.insert = inp_st().readbuf2.read;
 }
 
 /// Returns true if the readahead ("stuff") buffer is empty.
 pub fn stuff_empty() -> bool {
-     {
-        inp_st().readbuf1.keys.is_empty() && inp_st().readbuf2.keys.is_empty()
-    }
+    inp_st().readbuf1.keys.is_empty() && inp_st().readbuf2.keys.is_empty()
 }
 
 /// Returns true if `inp_st().readbuf1` is empty.
 pub fn readbuf1_empty() -> bool {
-     {
-        inp_st().readbuf1.keys.is_empty()
-    }
+    inp_st().readbuf1.keys.is_empty()
 }
 
 /// Set a typeahead character that won't be flushed.
@@ -586,7 +576,7 @@ pub fn typeahead_noflush(c: c_int) {
 
 /// Remove the contents of the stuff buffer and the mapped characters in the typeahead buffer.
 pub fn flush_buffers(flush_typeahead: FlushBuffers) {
-     {
+    {
         init_typebuf();
 
         if g_st().typebuf.tb_maplen > 0 {
@@ -642,14 +632,14 @@ pub fn unblock_on_key() {
 /// Flush map and typeahead buffers and give a warning for an error.
 pub fn beep_flush() {
     if g_st().emsg_silent == 0 && !mc_replaying() {
-            flush_buffers(FLUSH_MINIMAL);
-        }
-        vim_beep(K_OPT_BO_FLAG_ERROR);
+        flush_buffers(FLUSH_MINIMAL);
+    }
+    vim_beep(K_OPT_BO_FLAG_ERROR);
 }
 
 /// Starts capturing a new change.
 pub fn redo_new(spec: CmdSpec) {
-     {
+    {
         assert!(spec.body.is_empty());
         if inp_st().block_redo {
             return;
@@ -661,14 +651,14 @@ pub fn redo_new(spec: CmdSpec) {
 
 /// Frees both redo buffers.
 pub fn redo_free_all() {
-     {
+    {
         inp_st().redobuff = RedoState::new();
     }
 }
 
 /// Prepare for redo of any command.
 pub fn prep_redo(as_atom: bool, arg_meta: bool, spec: CmdSpec) {
-     {
+    {
         if as_atom {
             atom_redo_prepped();
         }
@@ -681,7 +671,8 @@ pub fn prep_redo(as_atom: bool, arg_meta: bool, spec: CmdSpec) {
 }
 
 /// Prepare for redo of a Visual-mode command.
-pub fn prep_redo_visual(keys: impl crate::strings::IntoCCharPtr, len: usize, spec: CmdSpec) { let keys = keys.into_c_char_ptr();
+pub fn prep_redo_visual(keys: impl crate::strings::IntoCCharPtr, len: usize, spec: CmdSpec) {
+    let keys = keys.into_c_char_ptr();
     unsafe {
         let mut stored = spec.without_body();
         stored.regname = 0;
@@ -692,7 +683,11 @@ pub fn prep_redo_visual(keys: impl crate::strings::IntoCCharPtr, len: usize, spe
             return;
         }
         if !keys.is_null() && len > 0 {
-            inp_st().redobuff.cur.body.extend_from_slice(std::slice::from_raw_parts(keys, len));
+            inp_st()
+                .redobuff
+                .cur
+                .body
+                .extend_from_slice(std::slice::from_raw_parts(keys, len));
         }
         redo_prefix(&spec, &mut inp_st().redobuff.cur.body, false);
         redo_chars(&spec, &mut inp_st().redobuff.cur.body, false);
@@ -701,7 +696,7 @@ pub fn prep_redo_visual(keys: impl crate::strings::IntoCCharPtr, len: usize, spe
 
 /// Discard the contents of the redo buffer and restore the previous redo buffer.
 pub fn redo_cancel() {
-     {
+    {
         if inp_st().block_redo {
             return;
         }
@@ -715,7 +710,7 @@ pub fn redo_cancel() {
 
 /// Saves the redo state to `save_redo` and detaches it.
 pub fn save_redobuff(save_redo: &mut RedoState) {
-     {
+    {
         save_redo.cur = inp_st().redobuff.cur.clone();
         save_redo.old = std::mem::take(&mut inp_st().redobuff.old);
     }
@@ -723,7 +718,7 @@ pub fn save_redobuff(save_redo: &mut RedoState) {
 
 /// Restores the redo state from `save_redo`.
 pub fn restore_redobuff(save_redo: &mut RedoState) {
-     {
+    {
         inp_st().redobuff = std::mem::take(&mut *save_redo);
     }
 }
@@ -733,16 +728,25 @@ pub fn redo_append_str<S: crate::strings::IntoCCharPtr>(s: S, len: isize) {
     let s = s.into_c_char_ptr();
     unsafe {
         if !inp_st().block_redo {
-            let slen = if len < 0 { crate::memory::cstr_len(s) } else { len as usize };
+            let slen = if len < 0 {
+                crate::memory::cstr_len(s)
+            } else {
+                len as usize
+            };
             if !s.is_null() && slen > 0 {
-                inp_st().redobuff.cur.body.extend_from_slice(std::slice::from_raw_parts(s, slen));
+                inp_st()
+                    .redobuff
+                    .cur
+                    .body
+                    .extend_from_slice(std::slice::from_raw_parts(s, slen));
             }
         }
     }
 }
 
 /// Appends `str` to `buf` literally, escaping special characters with CTRL-V.
-pub fn sb_add_lit(buf: &mut Vec<c_char>, str_: impl crate::strings::IntoCCharPtr, len: c_int) { let str_ = str_.into_c_char_ptr();
+pub fn sb_add_lit(buf: &mut Vec<c_char>, str_: impl crate::strings::IntoCCharPtr, len: c_int) {
+    let str_ = str_.into_c_char_ptr();
     unsafe {
         let mut s = str_;
         while if len < 0 {
@@ -758,7 +762,9 @@ pub fn sb_add_lit(buf: &mut Vec<c_char>, str_: impl crate::strings::IntoCCharPtr
                 s = s.add(1);
             }
 
-            if crate::memory::cstr_is_empty(s) && (*s.sub(1) == b'0' as c_char || *s.sub(1) == b'^' as c_char) {
+            if crate::memory::cstr_is_empty(s)
+                && (*s.sub(1) == b'0' as c_char || *s.sub(1) == b'^' as c_char)
+            {
                 s = s.sub(1);
             }
             if s > start {
@@ -766,7 +772,8 @@ pub fn sb_add_lit(buf: &mut Vec<c_char>, str_: impl crate::strings::IntoCCharPtr
                 buf.extend_from_slice(std::slice::from_raw_parts(start, n));
             }
 
-            if crate::memory::cstr_is_empty(s) || (len >= 0 && s.offset_from(str_) >= len as isize) {
+            if crate::memory::cstr_is_empty(s) || (len >= 0 && s.offset_from(str_) >= len as isize)
+            {
                 break;
             }
 
@@ -788,8 +795,9 @@ pub fn sb_add_lit(buf: &mut Vec<c_char>, str_: impl crate::strings::IntoCCharPtr
 }
 
 /// Append to redo literally; no-op if `inp_st().block_redo` is set.
-pub fn redo_append_lit(str_: impl crate::strings::IntoCCharPtr, len: c_int) { let str_ = str_.into_c_char_ptr();
-     {
+pub fn redo_append_lit(str_: impl crate::strings::IntoCCharPtr, len: c_int) {
+    let str_ = str_.into_c_char_ptr();
+    {
         if inp_st().block_redo {
             return;
         }
@@ -798,10 +806,14 @@ pub fn redo_append_lit(str_: impl crate::strings::IntoCCharPtr, len: c_int) { le
 }
 
 /// Appends `s` to `buf`, leaving 3-byte special key codes unmodified and escaping other K_SPECIAL bytes.
-pub fn sb_add_spec(buf: &mut Vec<c_char>, s: impl crate::strings::IntoCCharPtr) { let mut s = s.into_c_char_ptr();
+pub fn sb_add_spec(buf: &mut Vec<c_char>, s: impl crate::strings::IntoCCharPtr) {
+    let mut s = s.into_c_char_ptr();
     unsafe {
         while !crate::memory::cstr_is_empty(s) {
-            if crate::memory::cstr_first_byte(s) == K_SPECIAL && crate::memory::cstr_byte_at(s, 1) != 0 && crate::memory::cstr_byte_at(s, 2) != 0 {
+            if crate::memory::cstr_first_byte(s) == K_SPECIAL
+                && crate::memory::cstr_byte_at(s, 1) != 0
+                && crate::memory::cstr_byte_at(s, 2) != 0
+            {
                 buf.extend_from_slice(std::slice::from_raw_parts(s, 3));
                 s = s.add(3);
             } else {
@@ -813,8 +825,9 @@ pub fn sb_add_spec(buf: &mut Vec<c_char>, s: impl crate::strings::IntoCCharPtr) 
 }
 
 /// Append `s` to the redo buffer.
-pub fn redo_append_spec(s: impl crate::strings::IntoCCharPtr) { let s = s.into_c_char_ptr();
-     {
+pub fn redo_append_spec(s: impl crate::strings::IntoCCharPtr) {
+    let s = s.into_c_char_ptr();
+    {
         if inp_st().block_redo {
             return;
         }
@@ -824,7 +837,7 @@ pub fn redo_append_spec(s: impl crate::strings::IntoCCharPtr) { let s = s.into_c
 
 /// Appends character `c` to the redo buffer, translated to typeahead encoding.
 pub fn redo_append_char(c: c_int) {
-     {
+    {
         if !inp_st().block_redo {
             sb_add_char(&mut inp_st().redobuff.cur.body, c);
         }
@@ -846,17 +859,23 @@ pub fn stuff_readbuff_len(s: impl crate::strings::IntoCCharPtr, len: isize) {
     let s = s.into_c_char_ptr();
     unsafe {
         if g_st().add_last_insert == 1 && len > 0 {
-            g_st().last_insert_ga.extend_from_slice(std::slice::from_raw_parts(s, len as usize));
+            g_st()
+                .last_insert_ga
+                .extend_from_slice(std::slice::from_raw_parts(s, len as usize));
         }
         add_buff(&mut inp_st().readbuf1, s, len);
     }
 }
 
 /// Stuff `s` into the stuff buffer, leaving special key codes unmodified.
-pub fn stuff_readbuff_special(s: impl crate::strings::IntoCCharPtr) { let mut s = s.into_c_char_ptr();
+pub fn stuff_readbuff_special(s: impl crate::strings::IntoCCharPtr) {
+    let mut s = s.into_c_char_ptr();
     unsafe {
         while !crate::memory::cstr_is_empty(s) {
-            if crate::memory::cstr_first_byte(s) == K_SPECIAL && crate::memory::cstr_byte_at(s, 1) != 0 && crate::memory::cstr_byte_at(s, 2) != 0 {
+            if crate::memory::cstr_first_byte(s) == K_SPECIAL
+                && crate::memory::cstr_byte_at(s, 1) != 0
+                && crate::memory::cstr_byte_at(s, 2) != 0
+            {
                 stuff_readbuff_len(s, 3);
                 s = s.add(3);
             } else {
@@ -881,7 +900,8 @@ pub fn stuffnum_readbuff(n: c_int) {
 }
 
 /// Stuff a string into the typeahead buffer.
-pub fn stuffescaped(arg: impl crate::strings::IntoCCharPtr, literally: bool) { let mut arg = arg.into_c_char_ptr();
+pub fn stuffescaped(arg: impl crate::strings::IntoCCharPtr, literally: bool) {
+    let mut arg = arg.into_c_char_ptr();
     unsafe {
         while !crate::memory::cstr_is_empty(arg) {
             let start = arg;
@@ -926,7 +946,11 @@ pub fn start_redo(count: c_int, old_redo: bool) -> bool {
         }
         let mut prefix: Vec<c_char> = Vec::new();
         redo_prefix(&spec, &mut prefix, true);
-        add_buff(&mut inp_st().readbuf2, prefix.as_ptr(), prefix.len() as isize);
+        add_buff(
+            &mut inp_st().readbuf2,
+            prefix.as_ptr(),
+            prefix.len() as isize,
+        );
         drop(prefix);
         if spec.regname == b'=' as c_int {
             g_st().cmd_silent = true;
@@ -957,7 +981,9 @@ pub fn start_redo_ins() -> bool {
                 continue;
             }
             if !vim_strchr(c"AaIiRrOo", crate::memory::cstr_first_byte(p) as c_int).is_null() {
-                if crate::memory::cstr_first_byte(p) == b'O' || crate::memory::cstr_first_byte(p) == b'o' {
+                if crate::memory::cstr_first_byte(p) == b'O'
+                    || crate::memory::cstr_first_byte(p) == b'o'
+                {
                     add_buff(&mut inp_st().readbuf2, NL_STR, -1);
                 }
                 p = p.add(1);
@@ -977,7 +1003,7 @@ pub fn stop_redo_ins() {
 }
 
 fn init_typebuf() {
-     {
+    {
         if !g_st().typebuf.tb_buf.is_empty() {
             return;
         }
@@ -1025,7 +1051,8 @@ pub fn ins_typebuf(
         } else if g_st().typebuf.tb_len == 0
             && g_st().typebuf.tb_buflen >= addlen + (3 * (MAXMAPLEN + 4)) as c_int
         {
-            g_st().typebuf.tb_off = (g_st().typebuf.tb_buflen - addlen - (3 * (MAXMAPLEN + 4)) as c_int) / 2;
+            g_st().typebuf.tb_off =
+                (g_st().typebuf.tb_buflen - addlen - (3 * (MAXMAPLEN + 4)) as c_int) / 2;
             ptr::copy(
                 str_.cast::<u8>(),
                 tb_buf_ptr().add(g_st().typebuf.tb_off as usize),
@@ -1120,16 +1147,23 @@ pub fn ins_typebuf(
 /// Re-queues key `c`: puts a key obtained by `vgetc()` back into typeahead.
 pub fn requeue_key(c: c_int, modifiers: c_int, extra_consumed: c_int, recorded: bool) {
     let mut buf = [0 as c_char; MB_MAXBYTES * 3 + 4];
-        let len = special_to_buf(c, modifiers, true, buf.as_mut_ptr()) as usize;
-        assert!(len < buf.len());
-        buf[len] = NUL as c_char;
-        ins_typebuf(buf.as_mut_ptr(), inp_st().key_noremap, 0, !g_st().key_typed, g_st().cmd_silent);
-        ungetchars(len as c_int + extra_consumed, recorded);
+    let len = special_to_buf(c, modifiers, true, buf.as_mut_ptr()) as usize;
+    assert!(len < buf.len());
+    buf[len] = NUL as c_char;
+    ins_typebuf(
+        buf.as_mut_ptr(),
+        inp_st().key_noremap,
+        0,
+        !g_st().key_typed,
+        g_st().cmd_silent,
+    );
+    ungetchars(len as c_int + extra_consumed, recorded);
 }
 
 /// Return true if the typeahead buffer was changed.
 pub fn typebuf_changed(tb_change_cnt: c_int) -> bool {
-    tb_change_cnt != 0 && (g_st().typebuf.tb_change_cnt != tb_change_cnt || g_st().typebuf_was_filled)
+    tb_change_cnt != 0
+        && (g_st().typebuf.tb_change_cnt != tb_change_cnt || g_st().typebuf_was_filled)
 }
 
 /// Return true if there are no characters in the typeahead buffer that have not been typed.
@@ -1151,7 +1185,9 @@ pub fn del_typebuf(len: c_int, offset: c_int) {
 
         g_st().typebuf.tb_len -= len;
 
-        if offset == 0 && g_st().typebuf.tb_buflen - (g_st().typebuf.tb_off + len) >= (3 * MAXMAPLEN + 3) as c_int
+        if offset == 0
+            && g_st().typebuf.tb_buflen - (g_st().typebuf.tb_off + len)
+                >= (3 * MAXMAPLEN + 3) as c_int
         {
             g_st().typebuf.tb_off += len;
         } else {
@@ -1215,46 +1251,46 @@ pub fn del_typebuf(len: c_int, offset: c_int) {
 
 fn gotchars_add_byte(state: &mut GotcharsState, byte: u8) -> bool {
     state.buf[state.buflen] = byte;
-        state.buflen += 1;
-        let mut c = byte as c_int;
-        let mut retval = false;
-        let in_special = state.pending_special > 0;
-        let in_mbyte = state.pending_mbyte > 0;
+    state.buflen += 1;
+    let mut c = byte as c_int;
+    let mut retval = false;
+    let in_special = state.pending_special > 0;
+    let in_mbyte = state.pending_mbyte > 0;
 
-        'ret_false: {
-            if in_special {
-                state.pending_special -= 1;
-            } else if c == K_SPECIAL as c_int {
-                state.pending_special = 2;
-            }
-
-            if state.pending_special > 0 {
-                break 'ret_false;
-            }
-
-            if in_mbyte {
-                state.pending_mbyte -= 1;
-            } else {
-                if in_special {
-                    if state.prev_c == KS_MODIFIER as c_int {
-                        break 'ret_false;
-                    }
-                    c = to_special(state.prev_c, c);
-                    if c == K_COMPLETE_DELAY {
-                        state.buflen = 0;
-                    }
-                }
-                state.pending_mbyte = (mb_byte2len_check(c) - 1) as c_uint;
-            }
-
-            if state.pending_mbyte > 0 {
-                break 'ret_false;
-            }
-
-            retval = true;
+    'ret_false: {
+        if in_special {
+            state.pending_special -= 1;
+        } else if c == K_SPECIAL as c_int {
+            state.pending_special = 2;
         }
-        state.prev_c = c;
-        retval
+
+        if state.pending_special > 0 {
+            break 'ret_false;
+        }
+
+        if in_mbyte {
+            state.pending_mbyte -= 1;
+        } else {
+            if in_special {
+                if state.prev_c == KS_MODIFIER as c_int {
+                    break 'ret_false;
+                }
+                c = to_special(state.prev_c, c);
+                if c == K_COMPLETE_DELAY {
+                    state.buflen = 0;
+                }
+            }
+            state.pending_mbyte = (mb_byte2len_check(c) - 1) as c_uint;
+        }
+
+        if state.pending_mbyte > 0 {
+            break 'ret_false;
+        }
+
+        retval = true;
+    }
+    state.prev_c = c;
+    retval
 }
 
 fn gotchars(chars: *const u8, len: usize) {
@@ -1279,24 +1315,31 @@ fn gotchars(chars: *const u8, len: usize) {
                 let start_ptr = (&raw const inp_st().gotchars_state.buf)
                     .cast::<c_char>()
                     .add(inp_st().on_key_ignore_len);
-                inp_st().on_key_buf.extend_from_slice(std::slice::from_raw_parts(
-                    start_ptr,
-                    buflen - inp_st().on_key_ignore_len,
-                ));
+                inp_st()
+                    .on_key_buf
+                    .extend_from_slice(std::slice::from_raw_parts(
+                        start_ptr,
+                        buflen - inp_st().on_key_ignore_len,
+                    ));
                 inp_st().on_key_ignore_len = 0;
             } else {
                 inp_st().on_key_ignore_len -= buflen;
             }
 
             if g_st().reg_recording != 0 {
-                inp_st().recordbuff.extend_from_slice(std::slice::from_raw_parts(
-                    (&raw const inp_st().gotchars_state.buf).cast::<c_char>(),
-                    buflen,
-                ));
+                inp_st()
+                    .recordbuff
+                    .extend_from_slice(std::slice::from_raw_parts(
+                        (&raw const inp_st().gotchars_state.buf).cast::<c_char>(),
+                        buflen,
+                    ));
                 inp_st().last_recorded_len = inp_st().last_recorded_len.wrapping_add(buflen);
             }
 
-            atom_typed_add((&raw const inp_st().gotchars_state.buf).cast::<u8>(), buflen);
+            atom_typed_add(
+                (&raw const inp_st().gotchars_state.buf).cast::<u8>(),
+                buflen,
+            );
 
             inp_st().gotchars_state.buflen = 0;
         }
@@ -1310,63 +1353,70 @@ fn gotchars(chars: *const u8, len: usize) {
 /// Record an `<Ignore>` key.
 pub fn gotchars_ignore() {
     let nop_buf: [u8; 3] = [K_SPECIAL, KS_EXTRA, KE_IGNORE];
-        inp_st().on_key_ignore_len += 3;
-        gotchars(nop_buf.as_ptr(), 3);
+    inp_st().on_key_ignore_len += 3;
+    gotchars(nop_buf.as_ptr(), 3);
 }
 
 fn ungetchars(len: c_int, recorded: bool) {
-     {
+    {
         if !g_st().key_typed {
             return;
         }
         let len_u = len as usize;
         if recorded && g_st().reg_recording != 0 && inp_st().recordbuff.len() >= len_u {
-            inp_st().recordbuff.truncate(inp_st().recordbuff.len() - len_u);
+            inp_st()
+                .recordbuff
+                .truncate(inp_st().recordbuff.len() - len_u);
             inp_st().last_recorded_len = inp_st().last_recorded_len.wrapping_sub(len_u);
         }
         atom_typed_del(len_u);
         let trim = len_u.min(inp_st().on_key_buf.len());
-        inp_st().on_key_buf.truncate(inp_st().on_key_buf.len() - trim);
+        inp_st()
+            .on_key_buf
+            .truncate(inp_st().on_key_buf.len() - trim);
         inp_st().on_key_ignore_len += len_u - trim;
     }
 }
 
 /// Sync undo when typed characters are obtained from the typeahead buffer.
 pub fn may_sync_undo() {
-    if ((g_st().state_global & (MODE_INSERT | MODE_CMDLINE)) == 0 || g_st().ins_global.moved != K_INS_NONE) && inp_st().curscript < 0 {
-            u_sync(false);
-        }
+    if ((g_st().state_global & (MODE_INSERT | MODE_CMDLINE)) == 0
+        || g_st().ins_global.moved != K_INS_NONE)
+        && inp_st().curscript < 0
+    {
+        u_sync(false);
+    }
 }
 
 fn alloc_typebuf() {
     g_st().typebuf.tb_buf = vec![0u8; TYPELEN_INIT];
-        g_st().typebuf.tb_noremap = vec![0u8; TYPELEN_INIT];
-        g_st().typebuf.tb_buflen = TYPELEN_INIT as c_int;
-        g_st().typebuf.tb_off = (MAXMAPLEN + 4) as c_int;
-        g_st().typebuf.tb_len = 0;
-        g_st().typebuf.tb_maplen = 0;
-        g_st().typebuf.tb_silent = 0;
-        g_st().typebuf.tb_no_abbr_cnt = 0;
-        g_st().typebuf.tb_change_cnt = g_st().typebuf.tb_change_cnt.wrapping_add(1);
-        if g_st().typebuf.tb_change_cnt == 0 {
-            g_st().typebuf.tb_change_cnt = 1;
-        }
-        g_st().typebuf_was_filled = false;
+    g_st().typebuf.tb_noremap = vec![0u8; TYPELEN_INIT];
+    g_st().typebuf.tb_buflen = TYPELEN_INIT as c_int;
+    g_st().typebuf.tb_off = (MAXMAPLEN + 4) as c_int;
+    g_st().typebuf.tb_len = 0;
+    g_st().typebuf.tb_maplen = 0;
+    g_st().typebuf.tb_silent = 0;
+    g_st().typebuf.tb_no_abbr_cnt = 0;
+    g_st().typebuf.tb_change_cnt = g_st().typebuf.tb_change_cnt.wrapping_add(1);
+    if g_st().typebuf.tb_change_cnt == 0 {
+        g_st().typebuf.tb_change_cnt = 1;
+    }
+    g_st().typebuf_was_filled = false;
 }
 
 fn free_typebuf() {
     g_st().typebuf.tb_buf = Vec::new();
-        g_st().typebuf.tb_noremap = Vec::new();
+    g_st().typebuf.tb_noremap = Vec::new();
 }
 
 fn save_typebuf() {
     assert!(inp_st().curscript >= 0);
-        init_typebuf();
-        let prev_cnt = g_st().typebuf.tb_change_cnt;
-        inp_st().saved_typebuf[inp_st().curscript as usize] =
-            std::mem::replace(&mut g_st().typebuf, Typebuf::ZERO);
-        g_st().typebuf.tb_change_cnt = prev_cnt;
-        alloc_typebuf();
+    init_typebuf();
+    let prev_cnt = g_st().typebuf.tb_change_cnt;
+    inp_st().saved_typebuf[inp_st().curscript as usize] =
+        std::mem::replace(&mut g_st().typebuf, Typebuf::ZERO);
+    g_st().typebuf.tb_change_cnt = prev_cnt;
+    alloc_typebuf();
 }
 
 fn can_get_ungot() -> bool {
@@ -1375,10 +1425,9 @@ fn can_get_ungot() -> bool {
 
 /// Save all three kinds of typeahead, so that the user must type at a prompt.
 pub fn save_typeahead(tp: &mut Tasave) {
-     {
+    {
         let prev_cnt = g_st().typebuf.tb_change_cnt;
-        tp.save_typebuf =
-            std::mem::replace(&mut g_st().typebuf, Typebuf::ZERO);
+        tp.save_typebuf = std::mem::replace(&mut g_st().typebuf, Typebuf::ZERO);
         g_st().typebuf.tb_change_cnt = prev_cnt;
         alloc_typebuf();
         tp.ungot = inp_st().ungot;
@@ -1391,7 +1440,7 @@ pub fn save_typeahead(tp: &mut Tasave) {
 
 /// Restore the typeahead to what it was before calling `save_typeahead()`.
 pub fn restore_typeahead(tp: &mut Tasave) {
-     {
+    {
         free_typebuf();
         g_st().typebuf = std::mem::replace(&mut tp.save_typebuf, Typebuf::ZERO);
         inp_st().ungot = tp.ungot;
@@ -1402,7 +1451,8 @@ pub fn restore_typeahead(tp: &mut Tasave) {
 }
 
 /// Open a new script file for the `":source!"` command.
-pub fn openscript(name: impl crate::strings::IntoCCharPtr, directly: bool) { let name = name.into_c_char_ptr();
+pub fn openscript(name: impl crate::strings::IntoCCharPtr, directly: bool) {
+    let name = name.into_c_char_ptr();
     unsafe {
         if inp_st().curscript + 1 == NSCRIPT as c_int {
             emsg(gettext(E_NESTING));
@@ -1425,11 +1475,7 @@ pub fn openscript(name: impl crate::strings::IntoCCharPtr, directly: bool) { let
             .add(inp_st().curscript as usize);
         let error = file_open(&mut *scriptin_ptr, namebuff_ptr, K_FILE_READ_ONLY, 0);
         if error != 0 {
-            semsg!(
-                gettext(E_NOTOPEN_2),
-                name,
-                uv_strerror(error),
-            );
+            semsg!(gettext(E_NOTOPEN_2), name, uv_strerror(error),);
             inp_st().curscript -= 1;
             return;
         }
@@ -1484,11 +1530,12 @@ fn closescript() {
 
 pub fn close_all_scripts() {
     while inp_st().curscript >= 0 {
-            closescript();
-        }
+        closescript();
+    }
 }
 
-pub fn open_scriptin(scriptin_name: impl crate::strings::IntoCCharPtr) -> bool { let scriptin_name = scriptin_name.into_c_char_ptr();
+pub fn open_scriptin(scriptin_name: impl crate::strings::IntoCCharPtr) -> bool {
+    let scriptin_name = scriptin_name.into_c_char_ptr();
     unsafe {
         assert!(inp_st().curscript == -1);
         inp_st().curscript += 1;
@@ -1514,8 +1561,8 @@ pub fn open_scriptin(scriptin_name: impl crate::strings::IntoCCharPtr) -> bool {
                 uv_strerror(error),
             );
             if n > 0 {
-                let slice = crate::memory::cstr_slice(errbuf.as_ptr(), (n as usize).min(errbuf.len() - 1),
-                );
+                let slice =
+                    crate::memory::cstr_slice(errbuf.as_ptr(), (n as usize).min(errbuf.len() - 1));
                 let _ = std::io::Write::write_all(&mut std::io::stderr(), slice);
             }
             inp_st().curscript -= 1;
@@ -1535,9 +1582,9 @@ pub fn using_script() -> c_int {
 /// Called just before doing a blocking wait.
 pub fn before_blocking() {
     updatescript(0);
-        if g_st().may_garbage_collect {
-            garbage_collect(false);
-        }
+    if g_st().may_garbage_collect {
+        garbage_collect(false);
+    }
 }
 
 fn updatescript(c: c_int) {
@@ -1564,20 +1611,20 @@ fn updatescript(c: c_int) {
 pub fn merge_modifiers(c_arg: c_int, modifiers: &mut c_int) -> c_int {
     let mut c = c_arg;
 
-        if (*modifiers & (MOD_MASK_CTRL as c_int)) != 0 {
-            if c >= b'@' as c_int && c <= 0x7f {
-                c &= 0x1f;
-                if c == NUL {
-                    c = K_ZERO;
-                }
-            } else if c == b'6' as c_int {
-                c = 0x1e;
+    if (*modifiers & (MOD_MASK_CTRL as c_int)) != 0 {
+        if c >= b'@' as c_int && c <= 0x7f {
+            c &= 0x1f;
+            if c == NUL {
+                c = K_ZERO;
             }
-            if c != c_arg {
-                *modifiers &= !(MOD_MASK_CTRL as c_int);
-            }
+        } else if c == b'6' as c_int {
+            c = 0x1e;
         }
-        c
+        if c != c_arg {
+            *modifiers &= !(MOD_MASK_CTRL as c_int);
+        }
+    }
+    c
 }
 
 fn add_byte_to_showcmd(byte: u8) {
@@ -1640,7 +1687,7 @@ fn add_byte_to_showcmd(byte: u8) {
 
 /// Get the next input character.
 pub fn vgetc() -> c_int {
-     {
+    {
         let mut c: c_int;
         let mut buf = [0u8; MB_MAXBYTES + 1];
 
@@ -1660,7 +1707,9 @@ pub fn vgetc() -> c_int {
             g_st().vgetc_mod_mask = 0;
             g_st().vgetc_char = 0;
 
-            inp_st().last_recorded_len = inp_st().last_recorded_len.wrapping_sub(inp_st().last_vgetc_recorded_len);
+            inp_st().last_recorded_len = inp_st()
+                .last_recorded_len
+                .wrapping_sub(inp_st().last_vgetc_recorded_len);
 
             loop {
                 let mut did_inc = false;
@@ -1808,37 +1857,37 @@ pub fn vgetc() -> c_int {
 /// Like `vgetc()`, but never return a NUL when called recursively.
 pub fn safe_vgetc() -> c_int {
     let mut c = vgetc();
-        if c == NUL {
-            c = get_keystroke(ptr::null_mut());
-        }
-        c
+    if c == NUL {
+        c = get_keystroke(ptr::null_mut());
+    }
+    c
 }
 
 /// Like `safe_vgetc()`, but loop to handle `K_IGNORE`.
 pub fn plain_vgetc() -> c_int {
     loop {
-            let c = safe_vgetc();
-            if c != K_IGNORE && c != K_VER_SCROLLBAR && c != K_HOR_SCROLLBAR && c != K_MOUSEMOVE {
-                return c;
-            }
+        let c = safe_vgetc();
+        if c != K_IGNORE && c != K_VER_SCROLLBAR && c != K_HOR_SCROLLBAR && c != K_MOUSEMOVE {
+            return c;
         }
+    }
 }
 
 /// Check if a character is available, such that `vgetc()` will not block.
 pub fn vpeekc() -> c_int {
     if can_get_ungot() {
-            return inp_st().ungot.c;
-        }
-        vgetorpeek(false)
+        return inp_st().ungot.c;
+    }
+    vgetorpeek(false)
 }
 
 /// Check if any character is available, also half an escape sequence.
 pub fn vpeekc_any() -> c_int {
     let mut c = vpeekc();
-        if c == NUL && g_st().typebuf.tb_len > 0 {
-            c = ESC;
-        }
-        c
+    if c == NUL && g_st().typebuf.tb_len > 0 {
+        c = ESC;
+    }
+    c
 }
 
 /// Call `vpeekc()` without causing anything to be mapped.
@@ -1862,9 +1911,7 @@ fn getchar_common(argvars: &mut [TypVal], rettv: &mut TypVal, mut allow_number: 
         let mut simplify = true;
         let mut cursor_flag: c_char = NUL as c_char;
 
-        if argvars[0].v_type != VarType::VarUnknown
-            && !tv_check_for_opt_dict_arg(argvars, 1)
-        {
+        if argvars[0].v_type != VarType::VarUnknown && !tv_check_for_opt_dict_arg(argvars, 1) {
             return;
         }
 
@@ -1886,11 +1933,7 @@ fn getchar_common(argvars: &mut [TypVal], rettv: &mut TypVal, mut allow_number: 
                     && crate::memory::cstr_as_bytes(cursor_str) != b"keep"
                     && crate::memory::cstr_as_bytes(cursor_str) != b"msg"
                 {
-                    semsg!(
-                        gettext(E_INVARG_NVAL),
-                        c"cursor",
-                        cursor_str,
-                    );
+                    semsg!(gettext(E_INVARG_NVAL), c"cursor", cursor_str,);
                 } else {
                     cursor_flag = *cursor_str;
                 }
@@ -1913,7 +1956,8 @@ fn getchar_common(argvars: &mut [TypVal], rettv: &mut TypVal, mut allow_number: 
         }
         atom_payload_start();
         loop {
-            if cursor_flag == b'm' as c_char || (cursor_flag == NUL as c_char && g_st().msg_col > 0) {
+            if cursor_flag == b'm' as c_char || (cursor_flag == NUL as c_char && g_st().msg_col > 0)
+            {
                 ui_cursor_goto(g_st().msg_row, g_st().msg_col);
             }
 
@@ -1924,7 +1968,7 @@ fn getchar_common(argvars: &mut [TypVal], rettv: &mut TypVal, mut allow_number: 
                     ui_flush();
                     let events = main_loop_events();
                     input_get(ptr::null_mut(), 0, -1, g_st().typebuf.tb_change_cnt, events);
-                    if input_available() == 0 && !multiqueue_empty( &*events) {
+                    if input_available() == 0 && !multiqueue_empty(&*events) {
                         state_handle_k_event();
                         continue;
                     }
@@ -2018,26 +2062,21 @@ fn getchar_common(argvars: &mut [TypVal], rettv: &mut TypVal, mut allow_number: 
 }
 
 /// `"getchar()"` function.
-pub fn f_getchar(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData){
+pub fn f_getchar(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
     getchar_common(argvars, rettv, true);
 }
 
 /// `"getcharstr()"` function.
-pub fn f_getcharstr(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData){
+pub fn f_getcharstr(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
     getchar_common(argvars, rettv, false);
 }
 
 /// `"getcharmod()"` function.
-pub fn f_getcharmod(_argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData){
+pub fn f_getcharmod(_argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
     rettv.vval = crate::eval::typval::TypvalVval::Number(Varnumber::from(g_st().mod_mask));
 }
 
-fn put_string_in_typebuf(
-    offset: c_int,
-    slen: c_int,
-    string: *mut u8,
-    new_slen: c_int,
-) -> bool {
+fn put_string_in_typebuf(offset: c_int, slen: c_int, string: *mut u8, new_slen: c_int) -> bool {
     unsafe {
         let extra = new_slen - slen;
         *string.add(new_slen as usize) = NUL as u8;
@@ -2117,8 +2156,7 @@ fn check_simplify_modifier(max_offset: c_int) -> c_int {
                         }
                     } else {
                         *tp.add(2) = modifier as u8;
-                        if !put_string_in_typebuf(offset + 3, 1, new_string.as_mut_ptr(), len)
-                        {
+                        if !put_string_in_typebuf(offset + 3, 1, new_string.as_mut_ptr(), len) {
                             return -1;
                         }
                     }
@@ -2215,8 +2253,10 @@ fn handle_mapping(
             && (g_st().no_zero_mapping == 0 || tb_b1 != b'0' as c_int)
             && (g_st().typebuf.tb_maplen == 0
                 || is_plug_map
-                || (*tb_noremap_ptr().add(g_st().typebuf.tb_off as usize) & (RM_NONE | RM_ABBR)) == 0)
-            && !(opt_vars().p_paste != 0 && (g_st().state_global & (MODE_INSERT | MODE_CMDLINE)) != 0)
+                || (*tb_noremap_ptr().add(g_st().typebuf.tb_off as usize) & (RM_NONE | RM_ABBR))
+                    == 0)
+            && !(opt_vars().p_paste != 0
+                && (g_st().state_global & (MODE_INSERT | MODE_CMDLINE)) != 0)
             && !(g_st().state_global == MODE_HITRETURN && (tb_b1 == CAR || tb_b1 == b' ' as c_int))
             && g_st().state_global != MODE_ASKMORE
             && !at_ins_compl_key()
@@ -2242,7 +2282,8 @@ fn handle_mapping(
                 let orig_tb_c1 = tb_c1;
                 langmap_adjust(
                     &mut tb_c1,
-                    (g_st().state_global & (MODE_CMDLINE | MODE_INSERT)) == 0 && get_real_state() != MODE_SELECT,
+                    (g_st().state_global & (MODE_CMDLINE | MODE_INSERT)) == 0
+                        && get_real_state() != MODE_SELECT,
                 );
                 if orig_tb_c1 != tb_c1 {
                     let mut cbuf = [0 as c_char; 6];
@@ -2266,8 +2307,7 @@ fn handle_mapping(
                     let mut nomap = nolmaplen;
                     let mut modifiers: c_int = 0;
                     let mut tmp_tb_iter = tb_iter;
-                    let mut mlen =
-                        key_iter.offset_from(cand.m_keys.as_ptr().cast::<u8>()) as c_int;
+                    let mut mlen = key_iter.offset_from(cand.m_keys.as_ptr().cast::<u8>()) as c_int;
                     let mut tb_mlen =
                         (tmp_tb_iter.offset_from(tb_buf_ptr()) as c_int) - g_st().typebuf.tb_off;
 
@@ -2299,12 +2339,14 @@ fn handle_mapping(
                         }
 
                         mlen = key_iter.offset_from(cand.m_keys.as_ptr().cast::<u8>()) as c_int;
-                        tb_mlen =
-                            (tmp_tb_iter.offset_from(tb_buf_ptr()) as c_int) - g_st().typebuf.tb_off;
+                        tb_mlen = (tmp_tb_iter.offset_from(tb_buf_ptr()) as c_int)
+                            - g_st().typebuf.tb_off;
                     }
 
                     keylen = cand.m_keylen;
-                    if mlen == keylen || (mlen == g_st().typebuf.tb_len && g_st().typebuf.tb_len < keylen) {
+                    if mlen == keylen
+                        || (mlen == g_st().typebuf.tb_len && g_st().typebuf.tb_len < keylen)
+                    {
                         let mut s = tb_noremap_ptr().add(g_st().typebuf.tb_off as usize);
                         let m_keys_u8 = cand.m_keys.as_ptr().cast::<u8>();
                         if *s == RM_SCRIPT
@@ -2416,7 +2458,10 @@ fn handle_mapping(
                 return MapResult::MapResultFail as c_int;
             }
 
-            if g_st().visual_global.active && g_st().visual_global.select && (mp.m_mode & MODE_VISUAL) != 0 {
+            if g_st().visual_global.active
+                && g_st().visual_global.select
+                && (mp.m_mode & MODE_VISUAL) != 0
+            {
                 g_st().visual_global.select = false;
                 ins_typebuf(
                     K_SELECT_STRING.as_ptr().cast::<c_char>().cast_mut(),
@@ -2449,9 +2494,8 @@ fn handle_mapping(
 
                 if res.as_ref().is_none_or(|s| s.to_bytes().is_empty()) {
                     if prev_did_emsg != g_st().did_emsg {
-                        res = Some(
-                            std::ffi::CString::new([K_SPECIAL, KS_EXTRA, KE_IGNORE]).unwrap(),
-                        );
+                        res =
+                            Some(std::ffi::CString::new([K_SPECIAL, KS_EXTRA, KE_IGNORE]).unwrap());
                         if (g_st().state_global & MODE_CMDLINE) != 0 {
                             g_st().msg_didout = true;
                             g_st().msg_row = g_st().msg_row.max(g_st().cmdline_row);
@@ -2481,9 +2525,14 @@ fn handle_mapping(
 
                 let noremap = if save_m_noremap != REMAP_YES {
                     save_m_noremap
-                } else if (crate::memory::cstr_prefix_bytes(map_str, keylen as usize) == crate::memory::cstr_prefix_bytes(save_m_keys.as_ptr(), keylen as usize))
+                } else if (crate::memory::cstr_prefix_bytes(map_str, keylen as usize)
+                    == crate::memory::cstr_prefix_bytes(save_m_keys.as_ptr(), keylen as usize))
                     || save_alt_m_keys.as_ref().is_some_and(|alt| {
-                        crate::memory::cstr_prefix_bytes(map_str, save_alt_m_keylen as usize) == crate::memory::cstr_prefix_bytes(alt.as_ptr(), save_alt_m_keylen as usize)
+                        crate::memory::cstr_prefix_bytes(map_str, save_alt_m_keylen as usize)
+                            == crate::memory::cstr_prefix_bytes(
+                                alt.as_ptr(),
+                                save_alt_m_keylen as usize,
+                            )
                     })
                 {
                     REMAP_SKIP
@@ -2491,7 +2540,13 @@ fn handle_mapping(
                     REMAP_YES
                 };
 
-                ins_typebuf(map_str, noremap, 0, true, g_st().cmd_silent || save_m_silent)
+                ins_typebuf(
+                    map_str,
+                    noremap,
+                    0,
+                    true,
+                    g_st().cmd_silent || save_m_silent,
+                )
             };
             drop(owned_map_str);
             drop(save_m_keys);
@@ -2511,25 +2566,27 @@ fn handle_mapping(
 /// Unget one character (can only be done once!).
 pub fn vungetc(c: c_int) {
     inp_st().ungot = UngotKey {
-            c,
-            mod_mask: g_st().mod_mask,
-            mouse_grid: g_st().mouse_grid,
-            mouse_row: g_st().mouse_row,
-            mouse_col: g_st().mouse_col,
-            stuffed: g_st().key_stuffed != 0,
-        };
+        c,
+        mod_mask: g_st().mod_mask,
+        mouse_grid: g_st().mouse_grid,
+        mouse_row: g_st().mouse_row,
+        mouse_col: g_st().mouse_col,
+        stuffed: g_st().key_stuffed != 0,
+    };
 }
 
 /// When peeking and not getting a character, `reg_executing` cannot be cleared yet.
 pub fn check_end_reg_executing(advance: bool) {
-    if g_st().reg_executing != 0 && (g_st().typebuf.tb_maplen == 0 || g_st().pending_end_reg_executing) {
-            if advance {
-                g_st().reg_executing = 0;
-                g_st().pending_end_reg_executing = false;
-            } else {
-                g_st().pending_end_reg_executing = true;
-            }
+    if g_st().reg_executing != 0
+        && (g_st().typebuf.tb_maplen == 0 || g_st().pending_end_reg_executing)
+    {
+        if advance {
+            g_st().reg_executing = 0;
+            g_st().pending_end_reg_executing = false;
+        } else {
+            g_st().pending_end_reg_executing = true;
         }
+    }
 }
 
 fn vgetorpeek(advance: bool) -> c_int {
@@ -2575,7 +2632,10 @@ fn vgetorpeek(advance: bool) -> c_int {
                     if g_st().typebuf.tb_maplen != 0 {
                         line_breakcheck();
                     } else {
-                        if ((g_st().mapped_ctrl_c | curbuf_mut().b_mapped_ctrl_c) & get_real_state()) != 0 {
+                        if ((g_st().mapped_ctrl_c | curbuf_mut().b_mapped_ctrl_c)
+                            & get_real_state())
+                            != 0
+                        {
                             g_st().ctrl_c_interrupts = false;
                         }
                         os_breakcheck();
@@ -2601,12 +2661,7 @@ fn vgetorpeek(advance: bool) -> c_int {
 
                         break;
                     } else if g_st().typebuf.tb_len > 0 {
-                        let result = handle_mapping(
-                            &mut keylen,
-                            &timedout,
-                            &mut mapdepth,
-                            advance,
-                        );
+                        let result = handle_mapping(&mut keylen, &timedout, &mut mapdepth, advance);
 
                         if result == MapResult::MapResultRetry as c_int {
                             continue;
@@ -2646,10 +2701,12 @@ fn vgetorpeek(advance: bool) -> c_int {
                         && g_st().ex_normal_busy == 0
                         && g_st().typebuf.tb_maplen == 0
                         && (g_st().state_global & MODE_INSERT) != 0
-                        && (opt_vars().p_timeout != 0 || (keylen == KEYLEN_PART_KEY && opt_vars().p_ttimeout != 0))
+                        && (opt_vars().p_timeout != 0
+                            || (keylen == KEYLEN_PART_KEY && opt_vars().p_ttimeout != 0))
                         && {
                             c = inchar(
-                                tb_buf_ptr().add((g_st().typebuf.tb_off + g_st().typebuf.tb_len) as usize),
+                                tb_buf_ptr()
+                                    .add((g_st().typebuf.tb_off + g_st().typebuf.tb_len) as usize),
                                 3,
                                 25,
                             );
@@ -2669,7 +2726,8 @@ fn vgetorpeek(advance: bool) -> c_int {
                             if curwin_mut().w_wcol > 0 {
                                 if g_st().ins_global.did_ai
                                     && *skipwhite(
-                                        get_cursor_line_ptr().add(curwin_mut().w_cursor.col as usize),
+                                        get_cursor_line_ptr()
+                                            .add(curwin_mut().w_cursor.col as usize),
                                     ) == NUL as c_char
                                 {
                                     curwin_mut().w_wcol = 0;
@@ -2711,7 +2769,9 @@ fn vgetorpeek(advance: bool) -> c_int {
                                     curwin_mut().w_wcol -= 1;
                                     col = curwin_mut().w_cursor.col - 1;
                                 }
-                            } else if curwin_mut().w_onebuf_opt.wo_wrap != 0 && curwin_mut().w_wrow != 0 {
+                            } else if curwin_mut().w_onebuf_opt.wo_wrap != 0
+                                && curwin_mut().w_wrow != 0
+                            {
                                 curwin_mut().w_wrow -= 1;
                                 curwin_mut().w_wcol = curwin_mut().w_view_width - 1;
                                 col = curwin_mut().w_cursor.col - 1;
@@ -2780,20 +2840,25 @@ fn vgetorpeek(advance: bool) -> c_int {
                     let mut showcmd_idx: c_int = 0;
                     let mut showing_partial = false;
                     if g_st().typebuf.tb_len > 0 && advance {
-                        if ((g_st().state_global & (MODE_NORMAL | MODE_INSERT)) != 0 || g_st().state_global == MODE_LANGMAP)
+                        if ((g_st().state_global & (MODE_NORMAL | MODE_INSERT)) != 0
+                            || g_st().state_global == MODE_LANGMAP)
                             && g_st().state_global != MODE_HITRETURN
                         {
                             if (g_st().state_global & MODE_INSERT) != 0
                                 && utf_ptr2cells(
                                     tb_buf_ptr()
-                                        .add((g_st().typebuf.tb_off + g_st().typebuf.tb_len - 1) as usize)
+                                        .add(
+                                            (g_st().typebuf.tb_off + g_st().typebuf.tb_len - 1)
+                                                as usize,
+                                        )
                                         .cast::<c_char>(),
                                 ) == 1
                             {
                                 edit_putchar(
-                                    *tb_buf_ptr()
-                                        .add((g_st().typebuf.tb_off + g_st().typebuf.tb_len - 1) as usize)
-                                        as c_int,
+                                    *tb_buf_ptr().add(
+                                        (g_st().typebuf.tb_off + g_st().typebuf.tb_len - 1)
+                                            as usize,
+                                    ) as c_int,
                                     false,
                                 );
                                 setcursor();
@@ -2809,7 +2874,8 @@ fn vgetorpeek(advance: bool) -> c_int {
                             }
                             while showcmd_idx < g_st().typebuf.tb_len {
                                 add_byte_to_showcmd(
-                                    *tb_buf_ptr().add((g_st().typebuf.tb_off + showcmd_idx) as usize),
+                                    *tb_buf_ptr()
+                                        .add((g_st().typebuf.tb_off + showcmd_idx) as usize),
                                 );
                                 showcmd_idx += 1;
                             }
@@ -2838,7 +2904,8 @@ fn vgetorpeek(advance: bool) -> c_int {
                     let mut wait_time: c_long = 0;
                     if advance {
                         if g_st().typebuf.tb_len == 0
-                            || !(opt_vars().p_timeout != 0 || (opt_vars().p_ttimeout != 0 && keylen == KEYLEN_PART_KEY))
+                            || !(opt_vars().p_timeout != 0
+                                || (opt_vars().p_ttimeout != 0 && keylen == KEYLEN_PART_KEY))
                         {
                             wait_time = -1;
                         } else if keylen == KEYLEN_PART_KEY && opt_vars().p_ttm >= 0 {
@@ -2851,7 +2918,10 @@ fn vgetorpeek(advance: bool) -> c_int {
                     let wait_tb_len = g_st().typebuf.tb_len;
                     c = inchar(
                         tb_buf_ptr().add((g_st().typebuf.tb_off + g_st().typebuf.tb_len) as usize),
-                        g_st().typebuf.tb_buflen - g_st().typebuf.tb_off - g_st().typebuf.tb_len - 1,
+                        g_st().typebuf.tb_buflen
+                            - g_st().typebuf.tb_off
+                            - g_st().typebuf.tb_len
+                            - 1,
                         wait_time,
                     );
 
@@ -2862,7 +2932,9 @@ fn vgetorpeek(advance: bool) -> c_int {
                         if (g_st().state_global & MODE_INSERT) != 0 {
                             edit_unputchar();
                         }
-                        if (g_st().state_global & MODE_CMDLINE) != 0 && !get_cmdline_info().cmdbuff.is_null() {
+                        if (g_st().state_global & MODE_CMDLINE) != 0
+                            && !get_cmdline_info().cmdbuff.is_null()
+                        {
                             unputcmdline();
                         } else {
                             setcursor();
@@ -2881,10 +2953,12 @@ fn vgetorpeek(advance: bool) -> c_int {
                             continue;
                         }
                     } else {
-                        while *tb_buf_ptr().add((g_st().typebuf.tb_off + g_st().typebuf.tb_len) as usize)
+                        while *tb_buf_ptr()
+                            .add((g_st().typebuf.tb_off + g_st().typebuf.tb_len) as usize)
                             != NUL as u8
                         {
-                            *tb_noremap_ptr().add((g_st().typebuf.tb_off + g_st().typebuf.tb_len) as usize) =
+                            *tb_noremap_ptr()
+                                .add((g_st().typebuf.tb_off + g_st().typebuf.tb_len) as usize) =
                                 RM_YES;
                             g_st().typebuf.tb_len += 1;
                         }
@@ -2897,7 +2971,11 @@ fn vgetorpeek(advance: bool) -> c_int {
             }
         }
 
-        if advance && opt_vars().p_smd != 0 && g_st().msg_silent == 0 && (g_st().state_global & MODE_INSERT) != 0 {
+        if advance
+            && opt_vars().p_smd != 0
+            && g_st().msg_silent == 0
+            && (g_st().state_global & MODE_INSERT) != 0
+        {
             if c == ESC && !mode_deleted && g_st().no_mapping == 0 && g_st().mode_displayed {
                 if g_st().typebuf.tb_len != 0 && !g_st().key_typed {
                     g_st().redraw_cmdline = true;
@@ -3098,81 +3176,75 @@ pub fn get_keystroke(events: *mut MultiQueue) -> c_int {
 }
 
 /// Function passed to `do_cmdline()` to get the command after a `<Cmd>` key from typeahead.
-pub fn getcmdkeycmd(
-    promptc: c_int,
-    _indent: c_int,
-    _do_concat: bool,
-) -> Option<std::ffi::CString> {
+pub fn getcmdkeycmd(promptc: c_int, _indent: c_int, _do_concat: bool) -> Option<std::ffi::CString> {
     let mut line: Vec<u8> = Vec::new();
-        let mut c1: c_int = -1;
-        let mut cmod: c_int = 0;
-        let mut aborted = false;
+    let mut c1: c_int = -1;
+    let mut cmod: c_int = 0;
+    let mut aborted = false;
 
-        g_st().no_mapping += 1;
+    g_st().no_mapping += 1;
 
-        g_st().got_int = false;
-        while c1 != NUL && !aborted {
-            if vgetorpeek(false) == NUL {
-                emsg(gettext(E_CMD_MAPPING_MUST_END_WITH_CR));
-                aborted = true;
-                break;
-            }
+    g_st().got_int = false;
+    while c1 != NUL && !aborted {
+        if vgetorpeek(false) == NUL {
+            emsg(gettext(E_CMD_MAPPING_MUST_END_WITH_CR));
+            aborted = true;
+            break;
+        }
 
+        c1 = vgetorpeek(true);
+
+        if c1 == K_SPECIAL as c_int {
             c1 = vgetorpeek(true);
-
-            if c1 == K_SPECIAL as c_int {
-                c1 = vgetorpeek(true);
-                let c2 = vgetorpeek(true);
-                if c1 == KS_MODIFIER as c_int {
-                    cmod = c2;
-                    continue;
-                }
-                c1 = to_special(c1, c2);
+            let c2 = vgetorpeek(true);
+            if c1 == KS_MODIFIER as c_int {
+                cmod = c2;
+                continue;
             }
-
-            if g_st().got_int {
-                aborted = true;
-            } else if c1 == b'\r' as c_int || c1 == b'\n' as c_int {
-                c1 = NUL;
-            } else if c1 == ESC {
-                aborted = true;
-            } else if c1 == K_COMMAND {
-                emsg(gettext(
-                    E_CMD_MAPPING_MUST_END_WITH_CR_BEFORE_SECOND_CMD,
-                ));
-                aborted = true;
-            } else if c1 == K_SNR {
-                line.extend_from_slice(b"<SNR>");
-            } else {
-                if cmod != 0 {
-                    line.extend_from_slice(&[K_SPECIAL, KS_MODIFIER, cmod as u8]);
-                }
-                if is_special(c1) {
-                    line.extend_from_slice(&[K_SPECIAL, k_second(c1), k_third(c1)]);
-                } else {
-                    line.push(c1 as u8);
-                }
-            }
-
-            cmod = 0;
+            c1 = to_special(c1, c2);
         }
 
-        g_st().no_mapping -= 1;
-
-        if aborted {
-            None
+        if g_st().got_int {
+            aborted = true;
+        } else if c1 == b'\r' as c_int || c1 == b'\n' as c_int {
+            c1 = NUL;
+        } else if c1 == ESC {
+            aborted = true;
+        } else if c1 == K_COMMAND {
+            emsg(gettext(E_CMD_MAPPING_MUST_END_WITH_CR_BEFORE_SECOND_CMD));
+            aborted = true;
+        } else if c1 == K_SNR {
+            line.extend_from_slice(b"<SNR>");
         } else {
-            let out = cstr_from_bytes(&line);
-            if promptc == b':' as c_int {
-                atom_cmdline_set(K_COMMAND, out.as_ptr(), out.as_bytes().len());
+            if cmod != 0 {
+                line.extend_from_slice(&[K_SPECIAL, KS_MODIFIER, cmod as u8]);
             }
-            Some(out)
+            if is_special(c1) {
+                line.extend_from_slice(&[K_SPECIAL, k_second(c1), k_third(c1)]);
+            } else {
+                line.push(c1 as u8);
+            }
         }
+
+        cmod = 0;
+    }
+
+    g_st().no_mapping -= 1;
+
+    if aborted {
+        None
+    } else {
+        let out = cstr_from_bytes(&line);
+        if promptc == b':' as c_int {
+            atom_cmdline_set(K_COMMAND, out.as_ptr(), out.as_bytes().len());
+        }
+        Some(out)
+    }
 }
 
 /// Handle a Lua mapping: get its id from typeahead and execute its callback.
 pub fn map_execute_lua(may_repeat: bool, discard: bool) -> bool {
-     {
+    {
         let mut line: Vec<c_char> = Vec::new();
         let mut c1: c_int = -1;
         let mut aborted = false;
@@ -3198,7 +3270,8 @@ pub fn map_execute_lua(may_repeat: bool, discard: bool) -> bool {
         }
 
         line.push(NUL as c_char);
-        let id = crate::charset::parse_i64_prefix(crate::memory::cstr_as_bytes(line.as_ptr())) as c_int;
+        let id =
+            crate::charset::parse_i64_prefix(crate::memory::cstr_as_bytes(line.as_ptr())) as c_int;
         drop(line);
         let ref_ = map_luaid_get(id);
         if ref_ == LUA_NOREF {
@@ -3353,14 +3426,7 @@ pub fn paste_repeat(count: c_int) {
         let mut err = Error::new();
         let mut i = 0;
         while !aborted && i < count {
-            nvim_paste(
-                LUA_INTERNAL_CALL,
-                str_,
-                false,
-                -1,
-                &mut arena,
-                &mut err,
-            );
+            nvim_paste(LUA_INTERNAL_CALL, str_, false, -1, &mut arena, &mut err);
             aborted = err.err_type != ErrorType::ErrorTypeNone;
             i += 1;
         }

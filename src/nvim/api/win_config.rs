@@ -4,8 +4,7 @@ use crate::api::extmark::{parse_virt_text, virt_text_to_array};
 use crate::api::private::helpers::{
     add_c, api_clear_error, api_free_array, api_free_object, api_set_error, api_typename,
     arena_array, array_obj, cbuf_to_string, cstr_as_string, cstr_to_obj, cstrn_as_string,
-    error_set, find_window_by_handle, has_key, integer_obj, object_to_hl_id,
-    string_obj, try_wrap,
+    error_set, find_window_by_handle, has_key, integer_obj, object_to_hl_id, string_obj, try_wrap,
 };
 use crate::api::private::validate::{
     Array, Error, ErrorType, NvimString, Object, ObjectType, api_err_conflict, api_err_exp,
@@ -26,7 +25,7 @@ use crate::highlight::OptionalKeys;
 use crate::highlight_group::{syn_check_group, syn_id2name};
 use crate::lua::converter::Boolean;
 use crate::mbyte::{mb_string2cells, mb_string2cells_len};
-use crate::memory::{Arena};
+use crate::memory::Arena;
 use crate::r#move::changed_window_setting;
 use crate::msgpack_rpc::packer::Integer;
 use crate::option::didset_window_options;
@@ -34,9 +33,9 @@ use crate::option_vars::*;
 use crate::ui::ui_has;
 use crate::ui_compositor::ui_comp_remove_grid;
 use crate::window::{
-    WSP_ABOVE, WSP_BELOW, WSP_BOT, WSP_HOR, WSP_NOENTER, WSP_TOP, WSP_VERT, WinConfig,
-    check_split_disallowed_err, clear_float_config, Frame, goto_tabpage_win, last_status,
-    lastwin_nofloating, merge_win_config, one_window, TabPageInfo, WinInfoInfo, win_append, win_comp_pos,
+    Frame, TabPageInfo, WSP_ABOVE, WSP_BELOW, WSP_BOT, WSP_HOR, WSP_NOENTER, WSP_TOP, WSP_VERT,
+    WinConfig, WinInfoInfo, check_split_disallowed_err, clear_float_config, goto_tabpage_win,
+    last_status, lastwin_nofloating, merge_win_config, one_window, win_append, win_comp_pos,
     win_find_tabpage, win_goto, win_locked, win_remove, win_set_buf, win_setheight_win,
     win_setwidth_win, win_split_ins, win_valid, win_valid_any_tab, window_layout_locked_err,
     winframe_find_altwin, winframe_remove, winframe_restore,
@@ -344,7 +343,14 @@ pub fn nvim_open_win(
         let is_split = has_key(mask, KEYSET_OPTIDX_WIN_CONFIG_SPLIT)
             || has_key(mask, KEYSET_OPTIDX_WIN_CONFIG_VERTICAL);
         let mut fconfig = WIN_CONFIG_INIT;
-        if !parse_win_config(ptr::null_mut(), &mut *config, &mut fconfig, false, !is_split, err) {
+        if !parse_win_config(
+            ptr::null_mut(),
+            &mut *config,
+            &mut fconfig,
+            false,
+            !is_split,
+            err,
+        ) {
             return 0;
         }
 
@@ -377,8 +383,14 @@ pub fn nvim_open_win(
                 tp = win_find_tabpage(parent);
             }
             if is_split {
-                if !check_split_disallowed_err(if !parent.is_null() { parent } else { curwin_ptr() }, err)
-                {
+                if !check_split_disallowed_err(
+                    if !parent.is_null() {
+                        parent
+                    } else {
+                        curwin_ptr()
+                    },
+                    err,
+                ) {
                     break 'cleanup;
                 }
 
@@ -512,7 +524,7 @@ pub fn nvim_open_win(
 
             if fconfig.style == K_WIN_STYLE_MINIMAL {
                 win_set_minimal_style(&mut *wp);
-                didset_window_options( &mut *wp, true);
+                didset_window_options(&mut *wp, true);
                 changed_window_setting(&mut *wp);
             }
             rv = (*wp).handle;
@@ -563,7 +575,14 @@ const fn win_split_flags(split: WinSplit, toplevel: bool) -> c_int {
 
 fn win_can_move_tp(wp: *mut WinInfoInfo, tp: &mut TabPageInfo, err: &mut Error) -> bool {
     unsafe {
-        if one_window( &mut *wp, if &raw mut *tp == g_st().curtab { ptr::null_mut() } else { &raw mut *tp }) {
+        if one_window(
+            &mut *wp,
+            if &raw mut *tp == g_st().curtab {
+                ptr::null_mut()
+            } else {
+                &raw mut *tp
+            },
+        ) {
             api_set_error!(
                 err,
                 ErrorType::ErrorTypeException,
@@ -583,12 +602,7 @@ fn win_can_move_tp(wp: *mut WinInfoInfo, tp: &mut TabPageInfo, err: &mut Error) 
             return false;
         }
         if g_st().textlock != 0 || expr_map_locked() {
-            api_set_error!(
-                err,
-                ErrorType::ErrorTypeException,
-                c"%s",
-                E_TEXTLOCK,
-            );
+            api_set_error!(err, ErrorType::ErrorTypeException, c"%s", E_TEXTLOCK,);
             return false;
         }
         if is_ctx_win(wp) {
@@ -605,12 +619,16 @@ fn win_can_move_tp(wp: *mut WinInfoInfo, tp: &mut TabPageInfo, err: &mut Error) 
 
 fn win_find_altwin(win: *mut WinInfoInfo, tp: &mut TabPageInfo) -> *mut WinInfoInfo {
     unsafe {
-        let tp_arg = if ptr::eq(tp, g_st().curtab) { ptr::null_mut() } else { &raw mut *tp };
+        let tp_arg = if ptr::eq(tp, g_st().curtab) {
+            ptr::null_mut()
+        } else {
+            &raw mut *tp
+        };
         if (*win).w_floating {
             win_float_find_altwin(&*win, tp_arg.as_ref())
         } else {
             let mut dir: c_int = 0;
-            winframe_find_altwin( &mut *win, &mut dir, tp_arg, ptr::null_mut())
+            winframe_find_altwin(&mut *win, &mut dir, tp_arg, ptr::null_mut())
         }
     }
 }
@@ -626,7 +644,7 @@ fn win_config_split(
         let mask = config.is_set_win_config;
         let has_split = has_key(mask, KEYSET_OPTIDX_WIN_CONFIG_SPLIT);
         let has_vertical = has_key(mask, KEYSET_OPTIDX_WIN_CONFIG_VERTICAL);
-        let old_split = win_split_dir( win);
+        let old_split = win_split_dir(win);
         if has_vertical && !has_split {
             if config.vertical {
                 fconfig.split = if old_split == K_WIN_SPLIT_RIGHT || opt_vars().p_spr != 0 {
@@ -685,7 +703,8 @@ fn win_config_split(
             }
 
             let mut to_split_ok = false;
-            let curwin_moving_tp = (&raw mut *win) == curwin_ptr() && !parent.is_null() && win_tp != parent_tp;
+            let curwin_moving_tp =
+                (&raw mut *win) == curwin_ptr() && !parent.is_null() && win_tp != parent_tp;
 
             'restore_curwin: {
                 if curwin_moving_tp {
@@ -796,14 +815,12 @@ fn win_config_split(
                         );
                     }
                 } else {
-                    altwin = win_float_find_altwin(
-                        win,
-                        (win_tp != g_st().curtab).then(|| &*win_tp),
-                    );
+                    altwin =
+                        win_float_find_altwin(win, (win_tp != g_st().curtab).then(|| &*win_tp));
                 }
 
                 win_remove(
-                     win,
+                    win,
                     if win_tp == g_st().curtab {
                         ptr::null_mut()
                     } else {
@@ -835,7 +852,8 @@ fn win_config_split(
                         );
                         assert!(result);
                     }
-                    to_split_ok = !win_split_ins(0, flags, (&raw mut *win), 0, unflat_altfr).is_null();
+                    to_split_ok =
+                        !win_split_ins(0, flags, (&raw mut *win), 0, unflat_altfr).is_null();
                     if !to_split_ok {
                         win_append(
                             win.w_prev,
@@ -963,7 +981,7 @@ fn win_config_float_tp(
 
             if win_tp != parent_tp {
                 win_remove(
-                     win,
+                    win,
                     if win_tp == g_st().curtab {
                         ptr::null_mut()
                     } else {
@@ -1019,12 +1037,8 @@ fn win_config_float_tp(
 /// @param[out] err     Error details, if any
 // DLLEXPORT void nvim_win_set_config(Window win, Dict(win_config) *config, Error *err)
 //   FUNC_API_SINCE(6);
-pub fn nvim_win_set_config(
-    win: Window,
-    config: &mut KeyDict_win_config,
-    err: &mut Error,
-) {
-     {
+pub fn nvim_win_set_config(win: Window, config: &mut KeyDict_win_config, err: &mut Error) {
+    {
         let Some(w) = crate::api::private::helpers::find_window_by_handle_mut(win, err) else {
             return;
         };
@@ -1039,8 +1053,7 @@ pub fn nvim_win_set_config(
         let to_split = config.relative.size == 0
             && !(has_key(mask, KEYSET_OPTIDX_WIN_CONFIG_EXTERNAL) && config.external)
             && (has_split || has_vertical || was_split);
-        let will_float =
-            (!was_split && !to_split) || config.relative.size > 0 || config.external;
+        let will_float = (!was_split && !to_split) || config.relative.size > 0 || config.external;
 
         if !parse_win_config(
             (&raw mut *w),
@@ -1054,16 +1067,16 @@ pub fn nvim_win_set_config(
         }
 
         if to_split {
-            if !win_config_split( w, &*config, &mut fconfig, err) {
+            if !win_config_split(w, &*config, &mut fconfig, err) {
                 return;
             }
-        } else if !win_config_float_tp( w, &*config, &fconfig, err) {
+        } else if !win_config_float_tp(w, &*config, &fconfig, err) {
             return;
         }
 
         if fconfig.style == K_WIN_STYLE_MINIMAL && old_style != fconfig.style {
             win_set_minimal_style(w);
-            didset_window_options( w, true);
+            didset_window_options(w, true);
             changed_window_setting(w);
         }
         if fconfig._cmdline_offset < c_int::MAX {
@@ -1081,29 +1094,29 @@ fn config_put_bordertext(
     arena: &mut Arena,
 ) {
     let (vt, align) = match bordertext_type {
-            K_BORDER_TEXT_TITLE => (&fconfig.title_chunks, fconfig.title_pos),
-            _ => (&fconfig.footer_chunks, fconfig.footer_pos),
-        };
+        K_BORDER_TEXT_TITLE => (&fconfig.title_chunks, fconfig.title_pos),
+        _ => (&fconfig.footer_chunks, fconfig.footer_pos),
+    };
 
-        let bordertext = virt_text_to_array(vt, true, arena);
+    let bordertext = virt_text_to_array(vt, true, arena);
 
-        let pos = match align {
-            K_ALIGN_LEFT => c"left".as_ptr(),
-            K_ALIGN_CENTER => c"center".as_ptr(),
-            _ => c"right".as_ptr(),
-        };
+    let pos = match align {
+        K_ALIGN_LEFT => c"left".as_ptr(),
+        K_ALIGN_CENTER => c"center".as_ptr(),
+        _ => c"right".as_ptr(),
+    };
 
-        if bordertext_type == K_BORDER_TEXT_TITLE {
-            config.is_set_win_config |= 1u64 << KEYSET_OPTIDX_WIN_CONFIG_TITLE;
-            config.title = array_obj(bordertext);
-            config.is_set_win_config |= 1u64 << KEYSET_OPTIDX_WIN_CONFIG_TITLE_POS;
-            config.title_pos = cstr_as_string(pos);
-        } else {
-            config.is_set_win_config |= 1u64 << KEYSET_OPTIDX_WIN_CONFIG_FOOTER;
-            config.footer = array_obj(bordertext);
-            config.is_set_win_config |= 1u64 << KEYSET_OPTIDX_WIN_CONFIG_FOOTER_POS;
-            config.footer_pos = cstr_as_string(pos);
-        }
+    if bordertext_type == K_BORDER_TEXT_TITLE {
+        config.is_set_win_config |= 1u64 << KEYSET_OPTIDX_WIN_CONFIG_TITLE;
+        config.title = array_obj(bordertext);
+        config.is_set_win_config |= 1u64 << KEYSET_OPTIDX_WIN_CONFIG_TITLE_POS;
+        config.title_pos = cstr_as_string(pos);
+    } else {
+        config.is_set_win_config |= 1u64 << KEYSET_OPTIDX_WIN_CONFIG_FOOTER;
+        config.footer = array_obj(bordertext);
+        config.is_set_win_config |= 1u64 << KEYSET_OPTIDX_WIN_CONFIG_FOOTER_POS;
+        config.footer_pos = cstr_as_string(pos);
+    }
 }
 
 /// Gets window config as a dict which can be passed to |nvim_open_win()| as the `config` parameter.
@@ -1121,11 +1134,7 @@ fn config_put_bordertext(
 /// @return     Map defining the window configuration, see |nvim_open_win()|
 // DLLEXPORT Dict(win_config) nvim_win_get_config(Window win, Arena *arena, Error *err)
 //   FUNC_API_SINCE(6);
-pub fn nvim_win_get_config(
-    win: Window,
-    arena: &mut Arena,
-    err: &mut Error,
-) -> KeyDict_win_config {
+pub fn nvim_win_get_config(win: Window, arena: &mut Arena, err: &mut Error) -> KeyDict_win_config {
     unsafe {
         const FLOAT_RELATIVE_STR: [&CStr; 6] = [
             c"editor",
@@ -1215,7 +1224,7 @@ pub fn nvim_win_get_config(
             rv.width = i64::from(wp.w_width);
             rv.is_set_win_config |= 1u64 << KEYSET_OPTIDX_WIN_CONFIG_HEIGHT;
             rv.height = i64::from(wp.w_height);
-            let split = win_split_dir( wp);
+            let split = win_split_dir(wp);
             rv.is_set_win_config |= 1u64 << KEYSET_OPTIDX_WIN_CONFIG_SPLIT;
             rv.split = cstr_as_string(WIN_SPLIT_STR[split as usize].as_ptr());
         }
@@ -1242,13 +1251,20 @@ fn parse_float_anchor(anchor: NvimString, out: &mut FloatAnchor) -> bool {
             *out = 0;
         }
         let str_ptr = anchor.data;
-        if crate::memory::cstr_as_opt_bytes(str_ptr).is_some_and(|b| b.eq_ignore_ascii_case(b"NW")) {
+        if crate::memory::cstr_as_opt_bytes(str_ptr).is_some_and(|b| b.eq_ignore_ascii_case(b"NW"))
+        {
             *out = 0;
-        } else if crate::memory::cstr_as_opt_bytes(str_ptr).is_some_and(|b| b.eq_ignore_ascii_case(b"NE")) {
+        } else if crate::memory::cstr_as_opt_bytes(str_ptr)
+            .is_some_and(|b| b.eq_ignore_ascii_case(b"NE"))
+        {
             *out = K_FLOAT_ANCHOR_EAST;
-        } else if crate::memory::cstr_as_opt_bytes(str_ptr).is_some_and(|b| b.eq_ignore_ascii_case(b"SW")) {
+        } else if crate::memory::cstr_as_opt_bytes(str_ptr)
+            .is_some_and(|b| b.eq_ignore_ascii_case(b"SW"))
+        {
             *out = K_FLOAT_ANCHOR_SOUTH;
-        } else if crate::memory::cstr_as_opt_bytes(str_ptr).is_some_and(|b| b.eq_ignore_ascii_case(b"SE")) {
+        } else if crate::memory::cstr_as_opt_bytes(str_ptr)
+            .is_some_and(|b| b.eq_ignore_ascii_case(b"SE"))
+        {
             *out = K_FLOAT_ANCHOR_SOUTH | K_FLOAT_ANCHOR_EAST;
         } else {
             return false;
@@ -1260,17 +1276,29 @@ fn parse_float_anchor(anchor: NvimString, out: &mut FloatAnchor) -> bool {
 fn parse_float_relative(relative: NvimString, out: &mut FloatRelative) -> bool {
     {
         let str_ptr = relative.data;
-        if crate::memory::cstr_as_opt_bytes(str_ptr).is_some_and(|b| b.eq_ignore_ascii_case(b"editor")) {
+        if crate::memory::cstr_as_opt_bytes(str_ptr)
+            .is_some_and(|b| b.eq_ignore_ascii_case(b"editor"))
+        {
             *out = K_FLOAT_RELATIVE_EDITOR;
-        } else if crate::memory::cstr_as_opt_bytes(str_ptr).is_some_and(|b| b.eq_ignore_ascii_case(b"win")) {
+        } else if crate::memory::cstr_as_opt_bytes(str_ptr)
+            .is_some_and(|b| b.eq_ignore_ascii_case(b"win"))
+        {
             *out = K_FLOAT_RELATIVE_WINDOW;
-        } else if crate::memory::cstr_as_opt_bytes(str_ptr).is_some_and(|b| b.eq_ignore_ascii_case(b"cursor")) {
+        } else if crate::memory::cstr_as_opt_bytes(str_ptr)
+            .is_some_and(|b| b.eq_ignore_ascii_case(b"cursor"))
+        {
             *out = K_FLOAT_RELATIVE_CURSOR;
-        } else if crate::memory::cstr_as_opt_bytes(str_ptr).is_some_and(|b| b.eq_ignore_ascii_case(b"mouse")) {
+        } else if crate::memory::cstr_as_opt_bytes(str_ptr)
+            .is_some_and(|b| b.eq_ignore_ascii_case(b"mouse"))
+        {
             *out = K_FLOAT_RELATIVE_MOUSE;
-        } else if crate::memory::cstr_as_opt_bytes(str_ptr).is_some_and(|b| b.eq_ignore_ascii_case(b"tabline")) {
+        } else if crate::memory::cstr_as_opt_bytes(str_ptr)
+            .is_some_and(|b| b.eq_ignore_ascii_case(b"tabline"))
+        {
             *out = K_FLOAT_RELATIVE_TABLINE;
-        } else if crate::memory::cstr_as_opt_bytes(str_ptr).is_some_and(|b| b.eq_ignore_ascii_case(b"laststatus")) {
+        } else if crate::memory::cstr_as_opt_bytes(str_ptr)
+            .is_some_and(|b| b.eq_ignore_ascii_case(b"laststatus"))
+        {
             *out = K_FLOAT_RELATIVE_LASTSTATUS;
         } else {
             return false;
@@ -1282,13 +1310,21 @@ fn parse_float_relative(relative: NvimString, out: &mut FloatRelative) -> bool {
 fn parse_config_split(split: NvimString, out: &mut WinSplit) -> bool {
     {
         let str_ptr = split.data;
-        if crate::memory::cstr_as_opt_bytes(str_ptr).is_some_and(|b| b.eq_ignore_ascii_case(b"left")) {
+        if crate::memory::cstr_as_opt_bytes(str_ptr)
+            .is_some_and(|b| b.eq_ignore_ascii_case(b"left"))
+        {
             *out = K_WIN_SPLIT_LEFT;
-        } else if crate::memory::cstr_as_opt_bytes(str_ptr).is_some_and(|b| b.eq_ignore_ascii_case(b"right")) {
+        } else if crate::memory::cstr_as_opt_bytes(str_ptr)
+            .is_some_and(|b| b.eq_ignore_ascii_case(b"right"))
+        {
             *out = K_WIN_SPLIT_RIGHT;
-        } else if crate::memory::cstr_as_opt_bytes(str_ptr).is_some_and(|b| b.eq_ignore_ascii_case(b"above")) {
+        } else if crate::memory::cstr_as_opt_bytes(str_ptr)
+            .is_some_and(|b| b.eq_ignore_ascii_case(b"above"))
+        {
             *out = K_WIN_SPLIT_ABOVE;
-        } else if crate::memory::cstr_as_opt_bytes(str_ptr).is_some_and(|b| b.eq_ignore_ascii_case(b"below")) {
+        } else if crate::memory::cstr_as_opt_bytes(str_ptr)
+            .is_some_and(|b| b.eq_ignore_ascii_case(b"below"))
+        {
             *out = K_WIN_SPLIT_BELOW;
         } else {
             return false;
@@ -1299,14 +1335,14 @@ fn parse_config_split(split: NvimString, out: &mut WinSplit) -> bool {
 
 fn parse_float_bufpos(bufpos: Array, out: &mut Lpos) -> bool {
     if bufpos.size != 2
-            || bufpos[0].obj_type != ObjectType::ObjectTypeInteger
-            || bufpos[1].obj_type != ObjectType::ObjectTypeInteger
-        {
-            return false;
-        }
-        out.lnum = bufpos[0].data.integer() as i32;
-        out.col = bufpos[1].data.integer() as i32;
-        true
+        || bufpos[0].obj_type != ObjectType::ObjectTypeInteger
+        || bufpos[1].obj_type != ObjectType::ObjectTypeInteger
+    {
+        return false;
+    }
+    out.lnum = bufpos[0].data.integer() as i32;
+    out.col = bufpos[1].data.integer() as i32;
+    true
 }
 
 // DLLEXPORT void parse_bordertext(Object bordertext, BorderTextType bordertext_type,
@@ -1318,64 +1354,59 @@ pub fn parse_bordertext(
     err: &mut Error,
 ) {
     if bordertext.obj_type != ObjectType::ObjectTypeString
-            && bordertext.obj_type != ObjectType::ObjectTypeArray
-        {
-            api_err_exp(
-                err,
-                c"title/footer",
-                c"String or Array",
-                api_typename(bordertext.obj_type),
-            );
+        && bordertext.obj_type != ObjectType::ObjectTypeArray
+    {
+        api_err_exp(
+            err,
+            c"title/footer",
+            c"String or Array",
+            api_typename(bordertext.obj_type),
+        );
+        return;
+    }
+
+    if bordertext.obj_type == ObjectType::ObjectTypeArray && bordertext.data.array().size == 0 {
+        api_err_exp(err, c"title/footer", c"non-empty Array", ptr::null());
+        return;
+    }
+
+    let is_title = bordertext_type == K_BORDER_TEXT_TITLE;
+    let is_present = if is_title {
+        &mut fconfig.title
+    } else {
+        &mut fconfig.footer
+    };
+    let chunks = if is_title {
+        &mut fconfig.title_chunks
+    } else {
+        &mut fconfig.footer_chunks
+    };
+    let width = if is_title {
+        &mut fconfig.title_width
+    } else {
+        &mut fconfig.footer_width
+    };
+
+    if bordertext.obj_type == ObjectType::ObjectTypeString {
+        if bordertext.data.string().size == 0 {
+            *is_present = false;
             return;
         }
-
-        if bordertext.obj_type == ObjectType::ObjectTypeArray && bordertext.data.array().size == 0 {
-            api_err_exp(
-                err,
-                c"title/footer",
-                c"non-empty Array",
-                ptr::null(),
-            );
+        let text_cstr = transstr(bordertext.data.string().data, true);
+        *width = mb_string2cells(text_cstr.as_ptr()) as c_int;
+        chunks.clear();
+        chunks.push(VirtTextChunk {
+            text: Some(text_cstr),
+            hl_id: -1,
+        });
+    } else {
+        *chunks = parse_virt_text(bordertext.data.array(), err, width, true);
+        if error_set(err) {
             return;
         }
+    }
 
-        let is_title = bordertext_type == K_BORDER_TEXT_TITLE;
-        let is_present = if is_title {
-            &mut fconfig.title
-        } else {
-            &mut fconfig.footer
-        };
-        let chunks = if is_title {
-            &mut fconfig.title_chunks
-        } else {
-            &mut fconfig.footer_chunks
-        };
-        let width = if is_title {
-            &mut fconfig.title_width
-        } else {
-            &mut fconfig.footer_width
-        };
-
-        if bordertext.obj_type == ObjectType::ObjectTypeString {
-            if bordertext.data.string().size == 0 {
-                *is_present = false;
-                return;
-            }
-            let text_cstr = transstr(bordertext.data.string().data, true);
-            *width = mb_string2cells(text_cstr.as_ptr()) as c_int;
-            chunks.clear();
-            chunks.push(VirtTextChunk {
-                text: Some(text_cstr),
-                hl_id: -1,
-            });
-        } else {
-            *chunks = parse_virt_text(bordertext.data.array(), err, width, true);
-            if error_set(err) {
-                return;
-            }
-        }
-
-        *is_present = true;
+    *is_present = true;
 }
 
 fn parse_bordertext_pos(
@@ -1386,44 +1417,44 @@ fn parse_bordertext_pos(
     err: &mut Error,
 ) -> bool {
     let align = if bordertext_type == K_BORDER_TEXT_TITLE {
-            &mut fconfig.title_pos
-        } else {
-            &mut fconfig.footer_pos
-        };
+        &mut fconfig.title_pos
+    } else {
+        &mut fconfig.footer_pos
+    };
 
-        if bordertext_pos.size == 0 {
-            if wp.is_none() {
-                *align = K_ALIGN_LEFT;
-            }
-            return true;
-        }
-
-        let pos = bordertext_pos.data;
-        if crate::memory::cstr_as_opt_bytes(pos) == Some(b"left") {
+    if bordertext_pos.size == 0 {
+        if wp.is_none() {
             *align = K_ALIGN_LEFT;
-        } else if crate::memory::cstr_as_opt_bytes(pos) == Some(b"center") {
-            *align = K_ALIGN_CENTER;
-        } else if crate::memory::cstr_as_opt_bytes(pos) == Some(b"right") {
-            *align = K_ALIGN_RIGHT;
-        } else {
-            api_err_invalid(
-                err,
-                if bordertext_type == K_BORDER_TEXT_TITLE {
-                    c"title_pos".as_ptr()
-                } else {
-                    c"footer_pos".as_ptr()
-                },
-                pos,
-                0,
-                true,
-            );
-            return false;
         }
-        true
+        return true;
+    }
+
+    let pos = bordertext_pos.data;
+    if crate::memory::cstr_as_opt_bytes(pos) == Some(b"left") {
+        *align = K_ALIGN_LEFT;
+    } else if crate::memory::cstr_as_opt_bytes(pos) == Some(b"center") {
+        *align = K_ALIGN_CENTER;
+    } else if crate::memory::cstr_as_opt_bytes(pos) == Some(b"right") {
+        *align = K_ALIGN_RIGHT;
+    } else {
+        api_err_invalid(
+            err,
+            if bordertext_type == K_BORDER_TEXT_TITLE {
+                c"title_pos".as_ptr()
+            } else {
+                c"footer_pos".as_ptr()
+            },
+            pos,
+            0,
+            true,
+        );
+        return false;
+    }
+    true
 }
 
 // DLLEXPORT void parse_border_style(Object style, WinConfig *fconfig, Error *err);
-pub fn parse_border_style(style: Object,fconfig: Option<&mut WinConfig>, err: &mut Error) {
+pub fn parse_border_style(style: Object, fconfig: Option<&mut WinConfig>, err: &mut Error) {
     unsafe {
         const DEFAULTS_CHARS: [[&str; 8]; 6] = [
             ["╔", "═", "╗", "║", "╝", "═", "╚", "║"],
@@ -1444,12 +1475,7 @@ pub fn parse_border_style(style: Object,fconfig: Option<&mut WinConfig>, err: &m
             let arr = style.data.array();
             let mut size = arr.size;
             if size == 0 || size > 8 || (size & (size - 1)) != 0 {
-                api_err_exp(
-                    err,
-                    c"border",
-                    c"1, 2, 4, or 8 chars",
-                    ptr::null(),
-                );
+                api_err_exp(err, c"border", c"1, 2, 4, or 8 chars", ptr::null());
                 return;
             }
             for i in 0..size {
@@ -1459,31 +1485,17 @@ pub fn parse_border_style(style: Object,fconfig: Option<&mut WinConfig>, err: &m
                 if iytem.obj_type == ObjectType::ObjectTypeArray {
                     let iarr = iytem.data.array();
                     if iarr.size == 0 || iarr.size > 2 {
-                        api_err_exp(
-                            err,
-                            c"border",
-                            c"1 or 2-item Array",
-                            ptr::null(),
-                        );
+                        api_err_exp(err, c"border", c"1 or 2-item Array", ptr::null());
                         return;
                     }
                     let first = iarr[0];
                     if first.obj_type != ObjectType::ObjectTypeString {
-                        api_err_exp(
-                            err,
-                            c"border",
-                            c"Array of Strings",
-                            ptr::null(),
-                        );
+                        api_err_exp(err, c"border", c"Array of Strings", ptr::null());
                         return;
                     }
                     string = first.data.string();
                     if iarr.size == 2 {
-                        hl_id = object_to_hl_id(
-                            iarr[1],
-                            c"border char highlight",
-                            err,
-                        );
+                        hl_id = object_to_hl_id(iarr[1], c"border char highlight", err);
                         if error_set(err) {
                             return;
                         }
@@ -1500,12 +1512,7 @@ pub fn parse_border_style(style: Object,fconfig: Option<&mut WinConfig>, err: &m
                     return;
                 }
                 if string.size != 0 && mb_string2cells_len(string.data, string.size) > 1 {
-                    api_err_exp(
-                        err,
-                        c"border",
-                        c"only one-cell chars",
-                        ptr::null(),
-                    );
+                    api_err_exp(err, c"border", c"only one-cell chars", ptr::null());
                     return;
                 }
                 let len = string.size.min(MAX_SCHAR_SIZE - 1);
@@ -1536,7 +1543,9 @@ pub fn parse_border_style(style: Object,fconfig: Option<&mut WinConfig>, err: &m
             }
         } else if style.obj_type == ObjectType::ObjectTypeString {
             let str_val = style.data.string();
-            if str_val.size == 0 || (crate::memory::cstr_as_opt_bytes(str_val.data) == Some(b"none")) {
+            if str_val.size == 0
+                || (crate::memory::cstr_as_opt_bytes(str_val.data) == Some(b"none"))
+            {
                 fconfig.border = false;
                 fconfig.title = false;
                 fconfig.footer = false;
@@ -1544,7 +1553,9 @@ pub fn parse_border_style(style: Object,fconfig: Option<&mut WinConfig>, err: &m
             }
             for i in 0..6 {
                 let def_name = OPT_WINBORDER_VALUES[i + 1].as_ptr();
-                if crate::memory::cstr_as_opt_bytes(str_val.data) == crate::memory::cstr_as_opt_bytes(def_name) {
+                if crate::memory::cstr_as_opt_bytes(str_val.data)
+                    == crate::memory::cstr_as_opt_bytes(def_name)
+                {
                     *chars = [[0; MAX_SCHAR_SIZE]; 8];
                     for (slot, piece) in chars.iter_mut().zip(DEFAULTS_CHARS[i].iter()) {
                         let bytes = piece.as_bytes();
@@ -1574,7 +1585,9 @@ pub fn parse_border_style(style: Object,fconfig: Option<&mut WinConfig>, err: &m
 
 fn generate_api_error(wp: Option<&WinInfoInfo>, attribute: &std::ffi::CStr, err: &mut Error) {
     unsafe {
-        if let Some(wp) = wp && wp.w_floating {
+        if let Some(wp) = wp
+            && wp.w_floating
+        {
             api_set_error!(
                 err,
                 ErrorType::ErrorTypeValidation,
@@ -1589,11 +1602,13 @@ fn generate_api_error(wp: Option<&WinInfoInfo>, attribute: &std::ffi::CStr, err:
 
 /// Parses a border style name or custom (comma-separated) style.
 // DLLEXPORT bool parse_winborder(WinConfig *fconfig, char *border_opt, Error *err);
-pub fn parse_winborder(fconfig: Option<&mut WinConfig>,
+pub fn parse_winborder(
+    fconfig: Option<&mut WinConfig>,
     border_opt: impl crate::strings::IntoCCharPtr,
     err: &mut Error,
-) -> bool { let border_opt = border_opt.into_c_char_ptr();
-     {
+) -> bool {
+    let border_opt = border_opt.into_c_char_ptr();
+    {
         if fconfig.is_none() {
             return false;
         }
@@ -1619,7 +1634,7 @@ pub fn parse_winborder(fconfig: Option<&mut WinConfig>,
             cstr_to_obj(border_opt)
         };
 
-        parse_border_style(style, (fconfig.is_some()).then(||  { fconfig.unwrap() }), err);
+        parse_border_style(style, (fconfig.is_some()).then(|| fconfig.unwrap()), err);
         api_free_object(style);
         !error_set(err)
     }
@@ -1667,10 +1682,7 @@ fn parse_win_config(
                     is_split = true;
                     fconfig.external = false;
                 } else if wp.is_null() {
-                    api_err_required(
-                        err,
-                        c"'relative' or 'external' when creating a float",
-                    );
+                    api_err_required(err, c"'relative' or 'external' when creating a float");
                     break 'fail;
                 }
             }
@@ -1725,12 +1737,7 @@ fn parse_win_config(
                     break 'fail;
                 } else {
                     if !parse_float_bufpos(config.bufpos, &mut fconfig.bufpos) {
-                        api_err_exp(
-                            err,
-                            c"bufpos",
-                            c"[row, col] array",
-                            ptr::null(),
-                        );
+                        api_err_exp(err, c"bufpos", c"[row, col] array", ptr::null());
                         break 'fail;
                     }
 
@@ -1749,12 +1756,7 @@ fn parse_win_config(
 
             if has_key(mask, KEYSET_OPTIDX_WIN_CONFIG_WIDTH) {
                 if config.width <= 0 {
-                    api_err_exp(
-                        err,
-                        c"width",
-                        c"positive Integer",
-                        ptr::null(),
-                    );
+                    api_err_exp(err, c"width", c"positive Integer", ptr::null());
                     break 'fail;
                 }
                 fconfig.width = config.width as c_int;
@@ -1765,12 +1767,7 @@ fn parse_win_config(
 
             if has_key(mask, KEYSET_OPTIDX_WIN_CONFIG_HEIGHT) {
                 if config.height <= 0 {
-                    api_err_exp(
-                        err,
-                        c"height",
-                        c"positive Integer",
-                        ptr::null(),
-                    );
+                    api_err_exp(err, c"height", c"positive Integer", ptr::null());
                     break 'fail;
                 }
                 fconfig.height = config.height as c_int;
@@ -1807,7 +1804,9 @@ fn parse_win_config(
                     && (*wp).w_floating
                     && fconfig.relative == K_FLOAT_RELATIVE_WINDOW)
             {
-                let Some(target_win) = crate::api::private::helpers::find_window_by_handle_mut(config.win, err) else {
+                let Some(target_win) =
+                    crate::api::private::helpers::find_window_by_handle_mut(config.win, err)
+                else {
                     break 'fail;
                 };
                 if (&raw mut *target_win) == wp {
@@ -1850,12 +1849,7 @@ fn parse_win_config(
                     break 'fail;
                 }
                 if config.zindex <= 0 {
-                    api_err_exp(
-                        err,
-                        c"zindex",
-                        c"positive Integer",
-                        ptr::null(),
-                    );
+                    api_err_exp(err, c"zindex", c"positive Integer", ptr::null());
                     break 'fail;
                 }
                 fconfig.zindex = config.zindex as c_int;
@@ -1872,7 +1866,13 @@ fn parse_win_config(
                     break 'fail;
                 }
 
-                if !parse_bordertext_pos(wp.as_ref(), config.title_pos, K_BORDER_TEXT_TITLE, fconfig, err) {
+                if !parse_bordertext_pos(
+                    wp.as_ref(),
+                    config.title_pos,
+                    K_BORDER_TEXT_TITLE,
+                    fconfig,
+                    err,
+                ) {
                     break 'fail;
                 }
             } else if has_key(mask, KEYSET_OPTIDX_WIN_CONFIG_TITLE_POS) {
@@ -1891,8 +1891,13 @@ fn parse_win_config(
                     break 'fail;
                 }
 
-                if !parse_bordertext_pos(wp.as_ref(), config.footer_pos, K_BORDER_TEXT_FOOTER, fconfig, err)
-                {
+                if !parse_bordertext_pos(
+                    wp.as_ref(),
+                    config.footer_pos,
+                    K_BORDER_TEXT_FOOTER,
+                    fconfig,
+                    err,
+                ) {
                     break 'fail;
                 }
             } else if has_key(mask, KEYSET_OPTIDX_WIN_CONFIG_FOOTER_POS) {
@@ -1922,7 +1927,9 @@ fn parse_win_config(
             if has_key(mask, KEYSET_OPTIDX_WIN_CONFIG_STYLE) {
                 if crate::memory::cstr_is_empty(config.style.data) {
                     fconfig.style = K_WIN_STYLE_UNUSED;
-                } else if crate::memory::cstr_as_opt_bytes(config.style.data).is_some_and(|b| b.eq_ignore_ascii_case(b"minimal")) {
+                } else if crate::memory::cstr_as_opt_bytes(config.style.data)
+                    .is_some_and(|b| b.eq_ignore_ascii_case(b"minimal"))
+                {
                     fconfig.style = K_WIN_STYLE_MINIMAL;
                 } else {
                     api_err_invalid(err, c"style", config.style.data, 0, true);
@@ -1982,9 +1989,15 @@ mod tests {
 
     #[test]
     fn win_split_flags_computes_expected_bits() {
-        assert_eq!(win_split_flags(K_WIN_SPLIT_ABOVE, false), WSP_HOR | WSP_ABOVE);
+        assert_eq!(
+            win_split_flags(K_WIN_SPLIT_ABOVE, false),
+            WSP_HOR | WSP_ABOVE
+        );
         assert_eq!(win_split_flags(K_WIN_SPLIT_BELOW, true), WSP_HOR | WSP_BOT);
         assert_eq!(win_split_flags(K_WIN_SPLIT_LEFT, true), WSP_VERT | WSP_TOP);
-        assert_eq!(win_split_flags(K_WIN_SPLIT_RIGHT, false), WSP_VERT | WSP_BELOW);
+        assert_eq!(
+            win_split_flags(K_WIN_SPLIT_RIGHT, false),
+            WSP_VERT | WSP_BELOW
+        );
     }
 }

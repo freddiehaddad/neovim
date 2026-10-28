@@ -7,7 +7,10 @@ use crate::strings::strtod;
 
 pub const FPCONV_G_FMT_BUFSIZE: usize = 32;
 
-pub fn fpconv_strtod(nptr: impl crate::strings::IntoCCharPtr, endptr: *mut *mut c_char) -> c_double {
+pub fn fpconv_strtod(
+    nptr: impl crate::strings::IntoCCharPtr,
+    endptr: *mut *mut c_char,
+) -> c_double {
     let nptr = nptr.into_c_char_ptr();
     strtod(nptr, endptr)
 }

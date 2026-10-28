@@ -103,7 +103,9 @@ impl Event {
                 Self::SocketConnection { watcher, status } => {
                     crate::event::socket::connection_event(watcher, status);
                 }
-                Self::ProcCloseHandles(proc_) => crate::event::proc::proc_close_handles(&mut *proc_),
+                Self::ProcCloseHandles(proc_) => {
+                    crate::event::proc::proc_close_handles(&mut *proc_)
+                }
                 Self::ProcClose(proc_) => crate::event::proc::proc_close_event(&mut *proc_),
                 Self::ProcExit(status) => crate::event::proc::exit_event(status),
                 Self::AutoCmdDeferred(ev) => crate::autocmd::deferred_event(*ev),

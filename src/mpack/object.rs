@@ -4,8 +4,8 @@ use std::ffi::{c_char, c_int};
 use std::ptr;
 
 use crate::mpack::mpack_core::{
-    MPACK_EOF, MPACK_ERROR, MPACK_OK, MpackTokenChunk, MpackTokenMap, mpack_read,
-    MpackSintmax, mpack_tokbuf_init, MpackTokbuf, MpackToken, MpackUint32, mpack_write,
+    MPACK_EOF, MPACK_ERROR, MPACK_OK, MpackSintmax, MpackTokbuf, MpackToken, MpackTokenChunk,
+    MpackTokenMap, MpackUint32, mpack_read, mpack_tokbuf_init, mpack_write,
 };
 
 pub const MPACK_MAX_OBJECT_DEPTH: usize = 32;

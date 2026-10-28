@@ -1383,7 +1383,9 @@ fn main() -> ExitCode {
                             "https://github.com/linuxdeploy/linuxdeploy/releases/download/continuous/linuxdeploy-{uname_arch}.AppImage"
                         );
                         let mut dl_cmd = Command::new("curl");
-                        dl_cmd.args(["-sfL", "--retry", "3", &url, "-o"]).arg(&linuxdeploy);
+                        dl_cmd
+                            .args(["-sfL", "--retry", "3", &url, "-o"])
+                            .arg(&linuxdeploy);
                         run_status(&mut dl_cmd, "download linuxdeploy");
                         #[cfg(unix)]
                         {

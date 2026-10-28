@@ -130,7 +130,8 @@ impl TuiInputModuleState {
     }
 }
 
-static TUI_INP_STATE: crate::globals::GlobalState<TuiInputModuleState> = crate::globals::GlobalState::new(TuiInputModuleState::new());
+static TUI_INP_STATE: crate::globals::GlobalState<TuiInputModuleState> =
+    crate::globals::GlobalState::new(TuiInputModuleState::new());
 
 #[inline]
 fn tui_inp_st() -> &'static mut TuiInputModuleState {
@@ -274,10 +275,7 @@ pub fn tinput_destroy(input: &mut TermInput) {
 
 pub fn tinput_start(input: &mut TermInput) {
     let input_ptr = &raw mut *input;
-        rstream_start(
-            &mut input.read_stream,
-            StreamCbData::Input(input_ptr),
-        );
+    rstream_start(&mut input.read_stream, StreamCbData::Input(input_ptr));
 }
 
 pub fn tinput_stop(input: &mut TermInput) {
@@ -297,37 +295,38 @@ pub fn tinput_done_event() {
 /// Send all pending input in key buffer to Nvim server.
 fn tinput_flush(input: &mut TermInput) {
     let keys = NvimString {
-            data: input.key_buffer.as_mut_ptr(),
-            size: input.key_buffer_len,
+        data: input.key_buffer.as_mut_ptr(),
+        size: input.key_buffer_len,
+    };
+    if input.paste != 0 {
+        let mut items = [
+            string_obj(keys),
+            boolean_obj(true),
+            integer_obj(i64::from(input.paste)),
+        ];
+        let args = Array {
+            items: items.as_mut_ptr(),
+            size: 3,
+            capacity: 3,
         };
-        if input.paste != 0 {
-            let mut items = [
-                string_obj(keys),
-                boolean_obj(true),
-                integer_obj(i64::from(input.paste)),
-            ];
-            let args = Array {
-                items: items.as_mut_ptr(),
-                size: 3,
-                capacity: 3,
-            };
-            rpc_send_event(g_st().ui_client_channel_id, c"nvim_paste", args);
-            if input.paste == 1 {
-                input.paste = 2;
-            }
-        } else if input.key_buffer_len > 0 {
-            let mut items = [string_obj(keys)];
-            let args = Array {
-                items: items.as_mut_ptr(),
-                size: 1,
-                capacity: 1,
-            };
-            rpc_send_event(g_st().ui_client_channel_id, c"nvim_input", args);
+        rpc_send_event(g_st().ui_client_channel_id, c"nvim_paste", args);
+        if input.paste == 1 {
+            input.paste = 2;
         }
-        input.key_buffer_len = 0;
+    } else if input.key_buffer_len > 0 {
+        let mut items = [string_obj(keys)];
+        let args = Array {
+            items: items.as_mut_ptr(),
+            size: 1,
+            capacity: 1,
+        };
+        rpc_send_event(g_st().ui_client_channel_id, c"nvim_input", args);
+    }
+    input.key_buffer_len = 0;
 }
 
-fn tinput_enqueue(input: &mut TermInput, buf: impl crate::strings::IntoCCharPtr, size: usize) { let buf = buf.into_c_char_ptr();
+fn tinput_enqueue(input: &mut TermInput, buf: impl crate::strings::IntoCCharPtr, size: usize) {
+    let buf = buf.into_c_char_ptr();
     unsafe {
         if input.key_buffer_len > KEY_BUFFER_SIZE.saturating_sub(size) {
             tinput_flush(input);
@@ -335,10 +334,7 @@ fn tinput_enqueue(input: &mut TermInput, buf: impl crate::strings::IntoCCharPtr,
         let to_copy = size.min(KEY_BUFFER_SIZE - input.key_buffer_len);
         ptr::copy_nonoverlapping(
             buf,
-            input
-                .key_buffer
-                .as_mut_ptr()
-                .add(input.key_buffer_len),
+            input.key_buffer.as_mut_ptr().add(input.key_buffer_len),
             to_copy,
         );
         input.key_buffer_len += to_copy;
@@ -370,14 +366,14 @@ fn push_more_modifiers(modifiers: c_int, out: &mut String) {
 
 fn handle_kitty_key_protocol(input: &mut TermInput, key: &TermKeyKey) {
     if let Some(name) = kitty_key_name(key.code.codepoint as c_int) {
-            let mut buf = String::with_capacity(32);
-            buf.push('<');
-            push_termkey_modifiers(key.modifiers, &mut buf);
-            push_more_modifiers(key.modifiers, &mut buf);
-            buf.push_str(name);
-            buf.push('>');
-            tinput_enqueue(input, buf.as_ptr().cast::<c_char>(), buf.len());
-        }
+        let mut buf = String::with_capacity(32);
+        buf.push('<');
+        push_termkey_modifiers(key.modifiers, &mut buf);
+        push_more_modifiers(key.modifiers, &mut buf);
+        buf.push_str(name);
+        buf.push('>');
+        tinput_enqueue(input, buf.as_ptr().cast::<c_char>(), buf.len());
+    }
 }
 
 fn forward_simple_utf8(input: &mut TermInput, key: &TermKeyKey) {
@@ -474,20 +470,13 @@ fn forward_modified_utf8(input: &mut TermInput, key: &mut TermKeyKey) {
 }
 
 fn forward_mouse_event(input: &mut TermInput, key: &TermKeyKey) {
-     {
+    {
         let mut button: c_int = 0;
         let mut row: c_int = 0;
         let mut col: c_int = 0;
         let mut ev: TermKeyMouseEvent = TERMKEY_MOUSE_UNKNOWN;
 
-        termkey_interpret_mouse(
-            input.tk(),
-            key,
-            &mut ev,
-            &mut button,
-            &mut row,
-            &mut col,
-        );
+        termkey_interpret_mouse(input.tk(), key, &mut ev, &mut button, &mut row, &mut col);
 
         if (ev == TERMKEY_MOUSE_RELEASE || ev == TERMKEY_MOUSE_DRAG) && button == 0 {
             button = tui_inp_st().last_pressed_button;
@@ -548,10 +537,10 @@ fn forward_mouse_event(input: &mut TermInput, key: &TermKeyKey) {
 #[inline]
 fn tk_getkey(tk: &mut TermKey, key: &mut TermKeyKey, force: bool) -> TermKeyResult {
     if force {
-            termkey_getkey_force(tk, key)
-        } else {
-            termkey_getkey(tk, key)
-        }
+        termkey_getkey_force(tk, key)
+    } else {
+        termkey_getkey(tk, key)
+    }
 }
 
 fn tk_getkeys(input: &mut TermInput, force: bool) {
@@ -627,8 +616,13 @@ unsafe extern "C" fn bg_query_timer_cb(handle: *mut uv_timer_t) {
     }
 }
 
-fn handle_focus_event(_input: &mut TermInput, ptr: impl crate::strings::IntoCCharPtr, size: usize) -> usize { let ptr = ptr.into_c_char_ptr();
-     {
+fn handle_focus_event(
+    _input: &mut TermInput,
+    ptr: impl crate::strings::IntoCCharPtr,
+    size: usize,
+) -> usize {
+    let ptr = ptr.into_c_char_ptr();
+    {
         if size >= 3 {
             let bytes = crate::memory::cstr_slice(ptr, 3);
             if bytes == b"\x1b[I" || bytes == b"\x1b[O" {
@@ -652,8 +646,9 @@ fn handle_bracketed_paste(
     ptr: impl crate::strings::IntoCCharPtr,
     size: usize,
     incomplete: &mut bool,
-) -> usize { let ptr = ptr.into_c_char_ptr();
-     {
+) -> usize {
+    let ptr = ptr.into_c_char_ptr();
+    {
         let bytes = crate::memory::cstr_slice(ptr, size);
         if size >= 6 && (&bytes[..6] == START_PASTE || &bytes[..6] == END_PASTE) {
             let enable = bytes[4] == b'0';
@@ -731,11 +726,7 @@ fn handle_term_response(input: &mut TermInput, key: &TermKeyKey) {
     }
 }
 
-fn handle_primary_device_attr(
-    input: &mut TermInput,
-    params: &[TermKeyCsiParam],
-    nparams: usize,
-) {
+fn handle_primary_device_attr(input: &mut TermInput, params: &[TermKeyCsiParam], nparams: usize) {
     unsafe {
         if let Some(action) = input.primary_device_attr.take() {
             tui_handle_primary_device_attr(&mut *input.tui_data, action);
@@ -769,13 +760,8 @@ fn handle_modereport(input: &mut TermInput, key: &TermKeyKey) {
         let mut initial: c_int = 0;
         let mut mode: c_int = 0;
         let mut value: c_int = 0;
-        if termkey_interpret_modereport(
-            input.tk(),
-            key,
-            &mut initial,
-            &mut mode,
-            &mut value,
-        ) == TERMKEY_RES_KEY
+        if termkey_interpret_modereport(input.tk(), key, &mut initial, &mut mode, &mut value)
+            == TERMKEY_RES_KEY
         {
             tui_handle_term_mode(&mut *input.tui_data, mode, value);
         }
@@ -888,7 +874,8 @@ fn handle_raw_buffer(
     force: bool,
     data: impl crate::strings::IntoCCharPtr,
     mut size: usize,
-) -> usize { let data = data.into_c_char_ptr();
+) -> usize {
+    let data = data.into_c_char_ptr();
     unsafe {
         let mut ptr = data;
 
@@ -943,7 +930,8 @@ fn handle_raw_buffer(
             if to_use > remaining {
                 let delta = to_use - remaining;
                 let bufsize = termkey_get_buffer_size(input.tk());
-                if termkey_set_buffer_size(input.tk_mut(), (bufsize + delta).max(bufsize * 2)) == 0 {
+                if termkey_set_buffer_size(input.tk_mut(), (bufsize + delta).max(bufsize * 2)) == 0
+                {
                     std::process::abort();
                 }
             }
@@ -980,9 +968,9 @@ pub(crate) fn tinput_read_cb(
     count_: usize,
     input: &mut TermInput,
     eof: bool,
-) -> usize { let buf = buf.into_c_char_ptr();
+) -> usize {
+    let buf = buf.into_c_char_ptr();
     unsafe {
-
         let consumed = handle_raw_buffer(input, false, buf, count_);
         tinput_flush(input);
 

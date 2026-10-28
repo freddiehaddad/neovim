@@ -237,8 +237,7 @@ mod tests {
     fn lookup_and_decode_utf8_and_dec_drawing() {
         let utf8 = vterm_lookup_encoding(VTermEncodingType::EncUtf8, b'u' as c_char).unwrap();
         let dec = vterm_lookup_encoding(VTermEncodingType::EncSingle94, b'0' as c_char).unwrap();
-        let ascii =
-            vterm_lookup_encoding(VTermEncodingType::EncSingle94, b'B' as c_char).unwrap();
+        let ascii = vterm_lookup_encoding(VTermEncodingType::EncSingle94, b'B' as c_char).unwrap();
         assert_eq!(utf8, VTermEncoding::Utf8);
         assert_eq!(dec, VTermEncoding::DecDrawing);
         assert_eq!(ascii, VTermEncoding::UsAscii);

@@ -9,10 +9,10 @@ use crate::ex_docmd::Cmdmod;
 
 use crate::api::ui::NO_SCREEN;
 use crate::arglist::Alist;
-use crate::buffer::{MAXLNUM, SEA_NONE, FileBuf, Bufref};
+use crate::buffer::{Bufref, FileBuf, MAXLNUM, SEA_NONE};
 use crate::channel::Channel;
 use crate::context::CtxWin;
-use crate::cursor::{Colnr, Linenr, CursorPos};
+use crate::cursor::{Colnr, CursorPos, Linenr};
 use crate::drawscreen::WinExtmark;
 use crate::eval::CallerScope;
 use crate::eval::typval::Callback;
@@ -22,7 +22,7 @@ use crate::event::multiqueue::MultiQueue;
 use crate::ex_eval::{Except, Msglist};
 use crate::ex_getln::{Disptick, Hlf};
 use crate::extmark::TriState;
-use crate::grid::{GridView, ScreenGrid, Sattr, Schar};
+use crate::grid::{GridView, Sattr, Schar, ScreenGrid};
 use crate::lua::converter::NluaRefState;
 use crate::mapping::Typebuf;
 use crate::mark::Xfmark;
@@ -405,10 +405,10 @@ impl EditorState {
         Self {
             main_loop: Loop::new(),
             g_stats: NvimStats {
-    fsync: 0,
-    redraw: 0,
-    log_skip: 0,
-},
+                fsync: 0,
+                redraw: 0,
+                log_skip: 0,
+            },
             rows_global: DFLT_ROWS,
             columns_global: DFLT_COLS,
             mod_mask: 0,
@@ -488,47 +488,47 @@ impl EditorState {
             want_garbage_collect: false,
             garbage_collect_at_exit: false,
             current_sctx: Sctx {
-    sc_sid: 0,
-    sc_seq: 0,
-    sc_lnum: 0,
-    sc_chan: 0,
-},
+                sc_sid: 0,
+                sc_seq: 0,
+                sc_lnum: 0,
+                sc_chan: 0,
+            },
             current_ui: 0,
             did_source_packages: false,
             provider_caller_scope: CallerScope {
-    script_ctx: Sctx {
-        sc_sid: 0,
-        sc_seq: 0,
-        sc_lnum: 0,
-        sc_chan: 0,
-    },
-    es_entry: crate::profile::Estack {
-        es_lnum: 0,
-        es_name: None,
-        es_type: 0,
-        es_info: crate::profile::EStackInfo::None,
-    },
-    autocmd_fname: None,
-    autocmd_match: None,
-    autocmd_fname_full: false,
-    autocmd_bufnr: 0,
-    funccalp: ptr::null_mut(),
-},
+                script_ctx: Sctx {
+                    sc_sid: 0,
+                    sc_seq: 0,
+                    sc_lnum: 0,
+                    sc_chan: 0,
+                },
+                es_entry: crate::profile::Estack {
+                    es_lnum: 0,
+                    es_name: None,
+                    es_type: 0,
+                    es_info: crate::profile::EStackInfo::None,
+                },
+                autocmd_fname: None,
+                autocmd_match: None,
+                autocmd_fname_full: false,
+                autocmd_bufnr: 0,
+                funccalp: ptr::null_mut(),
+            },
             provider_call_nesting: 0,
             t_colors: 256,
             include_none: 0,
             include_default: 0,
             include_link: 0,
             search_global: SearchState {
-    hl_match: false,
-    match_lines: 0,
-    match_endcol: 0,
-    first_line: 0,
-    last_line: MAXLNUM,
-    no_smartcase: false,
-    cmdlen: 0,
-    no_hlsearch: false,
-},
+                hl_match: false,
+                match_lines: 0,
+                match_endcol: 0,
+                first_line: 0,
+                last_line: MAXLNUM,
+                no_smartcase: false,
+                cmdlen: 0,
+                no_hlsearch: false,
+            },
             need_check_timestamps: false,
             did_check_timestamps: false,
             no_check_timestamps: 0,
@@ -571,70 +571,70 @@ impl EditorState {
             silent_mode: false,
             exmode_active: false,
             visual_global: VisualState {
-    start: CursorPos {
-        lnum: 0,
-        col: 0,
-        coladd: 0,
-    },
-    active: false,
-    select: false,
-    select_reg: 0,
-    select_exclu_adj: false,
-    restart_select: 0,
-    need_end: false,
-    reselect: 0,
-    mode: b'v' as c_int,
-    resel: crate::normal::VisualExtent {
-        mode: 0,
-        line_count: 0,
-        vcol: 0,
-    },
-},
+                start: CursorPos {
+                    lnum: 0,
+                    col: 0,
+                    coladd: 0,
+                },
+                active: false,
+                select: false,
+                select_reg: 0,
+                select_exclu_adj: false,
+                restart_select: 0,
+                need_end: false,
+                reselect: 0,
+                mode: b'v' as c_int,
+                resel: crate::normal::VisualExtent {
+                    mode: 0,
+                    line_count: 0,
+                    vcol: 0,
+                },
+            },
             where_paste_started: CursorPos {
-    lnum: 0,
-    col: 0,
-    coladd: 0,
-},
+                lnum: 0,
+                col: 0,
+                coladd: 0,
+            },
             did_syncbind: false,
             old_indent: 0,
             saved_cursor: CursorPos {
-    lnum: 0,
-    col: 0,
-    coladd: 0,
-},
+                lnum: 0,
+                col: 0,
+                coladd: 0,
+            },
             ins_global: InsState {
-    start: CursorPos {
-        lnum: 0,
-        col: 0,
-        coladd: 0,
-    },
-    start_orig: CursorPos {
-        lnum: 0,
-        col: 0,
-        coladd: 0,
-    },
-    start_textlen: 0,
-    start_blank_vcol: 0,
-    moved: 0,
-    stop_insert_mode: false,
-    can_cindent: false,
-    need_undo: false,
-    did_ai: false,
-    ai_col: 0,
-    end_comment_pending: 0,
-    did_si: false,
-    can_si: false,
-    can_si_back: false,
-    update_start_orig: false,
-    new_insert_skip: 0,
-    did_restart_edit: 0,
-    revins_on: false,
-    revins_chars: 0,
-    revins_legal: 0,
-    revins_scol: 0,
-    dont_sync_undo: crate::extmark::K_NONE,
-    o_lnum: 0,
-},
+                start: CursorPos {
+                    lnum: 0,
+                    col: 0,
+                    coladd: 0,
+                },
+                start_orig: CursorPos {
+                    lnum: 0,
+                    col: 0,
+                    coladd: 0,
+                },
+                start_textlen: 0,
+                start_blank_vcol: 0,
+                moved: 0,
+                stop_insert_mode: false,
+                can_cindent: false,
+                need_undo: false,
+                did_ai: false,
+                ai_col: 0,
+                end_comment_pending: 0,
+                did_si: false,
+                can_si: false,
+                can_si_back: false,
+                update_start_orig: false,
+                new_insert_skip: 0,
+                did_restart_edit: 0,
+                revins_on: false,
+                revins_chars: 0,
+                revins_legal: 0,
+                revins_scol: 0,
+                dont_sync_undo: crate::extmark::K_NONE,
+                o_lnum: 0,
+            },
             orig_line_count: 0,
             vr_lines_changed: 0,
             inhibit_delete_count: 0,
@@ -748,18 +748,18 @@ impl EditorState {
             tabpage_handles: std::collections::BTreeMap::new(),
             last_cursormoved_win: ptr::null_mut(),
             last_cursormoved: CursorPos {
-    lnum: 0,
-    col: 0,
-    coladd: 0,
-},
+                lnum: 0,
+                col: 0,
+                coladd: 0,
+            },
             autocmd_busy: false,
             autocmd_no_enter: 0,
             autocmd_no_leave: 0,
             au_new_curbuf: Bufref {
-    br_buf: ptr::null_mut(),
-    br_fnum: 0,
-    br_buf_free_count: 0,
-},
+                br_buf: ptr::null_mut(),
+                br_fnum: 0,
+                br_buf_free_count: 0,
+            },
             au_pending_free_buf: Vec::new(),
             au_pending_free_win: Vec::new(),
             autocmd_fname: None,
@@ -781,35 +781,35 @@ impl EditorState {
             updating_screen: false,
             redraw_not_allowed: false,
             screen_search_hl: SynMatch {
-    rm: crate::regexp::Regmmatch {
-        regprog: ptr::null_mut(),
-        startpos: [crate::cursor::Lpos { lnum: 0, col: 0 }; crate::regexp::NSUBEXP],
-        endpos: [crate::cursor::Lpos { lnum: 0, col: 0 }; crate::regexp::NSUBEXP],
-        rmm_matchcol: 0,
-        rmm_ic: 0,
-        rmm_maxcol: 0,
-    },
-    buf: ptr::null_mut(),
-    lnum: 0,
-    attr: 0,
-    attr_cur: 0,
-    first_lnum: 0,
-    startcol: 0,
-    endcol: 0,
-    is_addpos: false,
-    has_cursor: false,
-    tm: 0,
-},
+                rm: crate::regexp::Regmmatch {
+                    regprog: ptr::null_mut(),
+                    startpos: [crate::cursor::Lpos { lnum: 0, col: 0 }; crate::regexp::NSUBEXP],
+                    endpos: [crate::cursor::Lpos { lnum: 0, col: 0 }; crate::regexp::NSUBEXP],
+                    rmm_matchcol: 0,
+                    rmm_ic: 0,
+                    rmm_maxcol: 0,
+                },
+                buf: ptr::null_mut(),
+                lnum: 0,
+                attr: 0,
+                attr_cur: 0,
+                first_lnum: 0,
+                startcol: 0,
+                endcol: 0,
+                is_addpos: false,
+                has_cursor: false,
+                tm: 0,
+            },
             search_hl_has_cursor_lnum: 0,
             evalarg_evaluate: Evalarg { eval_flags: 1 },
             curbuf_splice_pending: 0,
             disable_fold_update: 0,
             default_grid: SCREEN_GRID_INIT,
             default_gridview: GridView {
-    target: unsafe { &raw mut (*EDITOR_STATE.as_ptr()).default_grid },
-    row_offset: 0,
-    col_offset: 0,
-},
+                target: unsafe { &raw mut (*EDITOR_STATE.as_ptr()).default_grid },
+                row_offset: 0,
+                col_offset: 0,
+            },
             resizing_screen: false,
             linebuf_char: Vec::new(),
             linebuf_attr: Vec::new(),
@@ -841,10 +841,10 @@ impl EditorState {
             msg_grid: SCREEN_GRID_INIT,
             msg_grid_pos: 0,
             msg_grid_adj: GridView {
-    target: ptr::null_mut(),
-    row_offset: 0,
-    col_offset: 0,
-},
+                target: ptr::null_mut(),
+                row_offset: 0,
+                col_offset: 0,
+            },
             msg_scrolled_at_flush: 0,
             msg_grid_scroll_discount: 0,
             msg_listdo_overwrite: 0,
@@ -853,11 +853,11 @@ impl EditorState {
             nvim_testing: false,
             pum_grid: SCREEN_GRID_INIT,
             pum_want: PumWant {
-    active: false,
-    item: 0,
-    insert: false,
-    finish: false,
-},
+                active: false,
+                item: 0,
+                insert: false,
+                finish: false,
+            },
             last_insert_ga: Vec::new(),
             add_last_insert: 0,
             tab_page_click_defs: Vec::new(),
@@ -1054,7 +1054,7 @@ pub fn for_all_windows_in_tab_mut(tp: &TabPageInfo) -> WinMutIter {
     WinMutIter(if ptr::eq((&raw const *tp), g_st().curtab) {
         g_st().firstwin
     } else {
-         tp.tp_firstwin
+        tp.tp_firstwin
     })
 }
 
@@ -1073,7 +1073,7 @@ pub fn for_all_windows_in_tab_ptr(tp: &TabPageInfo) -> WinPtrIter {
     WinPtrIter(if ptr::eq((&raw const *tp), g_st().curtab) {
         g_st().firstwin
     } else {
-         tp.tp_firstwin
+        tp.tp_firstwin
     })
 }
 
@@ -1262,12 +1262,7 @@ pub const VIRT_TEXT_POS_STR: [&std::ffi::CStr; 6] = [
     c"right_align",
     c"win_col",
 ];
-pub const HL_MODE_STR: [&std::ffi::CStr; 4] = [
-    c"",
-    c"replace",
-    c"combine",
-    c"blend",
-];
+pub const HL_MODE_STR: [&std::ffi::CStr; 4] = [c"", c"replace", c"combine", c"blend"];
 pub const HLF_NAMES: [Option<&std::ffi::CStr>; HLF_COUNT] = [
     None,
     Some(c"SpecialKey"),
@@ -1356,12 +1351,7 @@ pub const fn hlf_name_ptr(idx: usize) -> *const c_char {
 #[allow(non_upper_case_globals)]
 #[unsafe(no_mangle)]
 pub static test_disable_char_avail: GlobalState<bool> = GlobalState::new(false);
-pub const FLOAT_ANCHOR_STR: [&std::ffi::CStr; 4] = [
-    c"NW",
-    c"NE",
-    c"SW",
-    c"SE",
-];
+pub const FLOAT_ANCHOR_STR: [&std::ffi::CStr; 4] = [c"NW", c"NE", c"SW", c"SE"];
 
 #[cfg(test)]
 pub(crate) static TEST_GLOBAL_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());

@@ -9,7 +9,9 @@ use crate::api::private::validate::{
     Array, Dict, Error, ErrorType, KeyValuePair, Object, ObjectData, ObjectType,
 };
 use crate::api::ui::{ARRAY_INIT, K_LINE_FLAG_WRAP};
-use crate::channel::{CallbackReader, channel_connect, channel_job_start, K_CHANNEL_STDIN_PIPE_CONST};
+use crate::channel::{
+    CallbackReader, K_CHANNEL_STDIN_PIPE_CONST, channel_connect, channel_job_start,
+};
 use crate::eval::typval::Callback;
 use crate::event::r#loop::{loop_poll_events, loop_queues};
 use crate::event::multiqueue::{
@@ -23,7 +25,7 @@ use crate::globals::*;
 use crate::highlight::{HLATTRS_INIT, HlAttrs, KeyDict_highlight, dict2hlattrs};
 use crate::log::{LOGLVL_ERR, LOGLVL_INF, logmsg};
 use crate::main_init::os_exit;
-use crate::memory::{Arena};
+use crate::memory::Arena;
 use crate::msgpack_rpc::channel::rpc_send_event;
 use crate::msgpack_rpc::packer::Integer;
 use crate::msgpack_rpc::unpacker::GridLineEvent;
@@ -89,7 +91,8 @@ pub fn ui_client_start_server(
     exepath: impl crate::strings::IntoCCharPtr,
     argc: usize,
     argv: *mut *mut c_char,
-) -> u64 { let exepath = exepath.into_c_char_ptr();
+) -> u64 {
+    let exepath = exepath.into_c_char_ptr();
     unsafe {
         let mut args = Vec::with_capacity(1 + argc);
         args.push(crate::memory::cstr_to_cstring(*argv));
@@ -142,12 +145,7 @@ pub fn ui_client_start_server(
 }
 
 /// Attaches this client to the UI channel, and sets its client info (`ui_client_attach`).
-pub fn ui_client_attach(
-    width: c_int,
-    height: c_int,
-    term: Option<&std::ffi::CStr>,
-    rgb: bool,
-) {
+pub fn ui_client_attach(width: c_int, height: c_int, term: Option<&std::ffi::CStr>, rgb: bool) {
     unsafe {
         let mut opts_items: [KeyValuePair; 9] = [KeyValuePair::new(); 9];
         let mut opts = Dict {
@@ -168,17 +166,11 @@ pub fn ui_client_attach(
         if let Some(term) = term {
             put_opt(c"term_name", cstr_as_obj(term.as_ptr()));
         }
-        put_opt(
-            c"term_colors",
-            integer_obj(Integer::from(g_st().t_colors)),
-        );
+        put_opt(c"term_colors", integer_obj(Integer::from(g_st().t_colors)));
         put_opt(c"stdin_tty", boolean_obj(g_st().stdin_isatty));
         put_opt(c"stdout_tty", boolean_obj(g_st().stdout_isatty));
         if g_st().ui_client_forward_stdin {
-            put_opt(
-                c"stdin_fd",
-                integer_obj(Integer::from(UI_CLIENT_STDIN_FD)),
-            );
+            put_opt(c"stdin_fd", integer_obj(Integer::from(UI_CLIENT_STDIN_FD)));
             g_st().ui_client_forward_stdin = false;
         }
 
@@ -261,11 +253,7 @@ pub fn ui_client_attach(
             size: 5,
             capacity: 5,
         };
-        rpc_send_event(
-            g_st().ui_client_channel_id,
-            c"nvim_set_client_info",
-            args2,
-        );
+        rpc_send_event(g_st().ui_client_channel_id, c"nvim_set_client_info", args2);
 
         if has_time_fd() {
             time_msg(c"nvim_set_client_info", None);
@@ -310,11 +298,11 @@ pub fn ui_client_run() -> ! {
 
         loop {
             let events = loop_queues(&mut g_st().main_loop).events;
-            if !multiqueue_empty( &*events) {
-                multiqueue_process_events( &mut *events);
+            if !multiqueue_empty(&*events) {
+                multiqueue_process_events(&mut *events);
             } else {
                 loop_poll_events(&mut g_st().main_loop, -1);
-                multiqueue_process_events( &mut *events);
+                multiqueue_process_events(&mut *events);
             }
         }
     }
@@ -322,27 +310,27 @@ pub fn ui_client_run() -> ! {
 
 pub fn ui_client_stop() {
     g_st().ui_client_attached = false;
-        let t = tui_ptr();
-        if !tui_is_stopped(t) {
-            tui_stop(t);
-        }
+    let t = tui_ptr();
+    if !tui_is_stopped(t) {
+        tui_stop(t);
+    }
 }
 
 pub fn ui_client_set_size(width: c_int, height: c_int) {
     if g_st().ui_client_attached {
-            let mut args_items: [Object; 2] = [
-                integer_obj(Integer::from(width)),
-                integer_obj(Integer::from(height)),
-            ];
-            let args = Array {
-                items: args_items.as_mut_ptr(),
-                size: 2,
-                capacity: 2,
-            };
-            rpc_send_event(g_st().ui_client_channel_id, c"nvim_ui_try_resize", args);
-        }
-        uic_st().tui_width = width;
-        uic_st().tui_height = height;
+        let mut args_items: [Object; 2] = [
+            integer_obj(Integer::from(width)),
+            integer_obj(Integer::from(height)),
+        ];
+        let args = Array {
+            items: args_items.as_mut_ptr(),
+            size: 2,
+            capacity: 2,
+        };
+        rpc_send_event(g_st().ui_client_channel_id, c"nvim_ui_try_resize", args);
+    }
+    uic_st().tui_width = width;
+    uic_st().tui_height = height;
 }
 
 pub fn handle_ui_client_redraw(
@@ -352,36 +340,30 @@ pub fn handle_ui_client_redraw(
     error: &mut Error,
 ) -> Object {
     api_set_error!(
-            error,
-            ErrorType::ErrorTypeValidation,
-            c"'redraw' cannot be sent as a request",
-        );
-        OBJECT_NIL
+        error,
+        ErrorType::ErrorTypeValidation,
+        c"'redraw' cannot be sent as a request",
+    );
+    OBJECT_NIL
 }
 
 pub fn ui_client_dict2hlattrs(d: Dict, rgb: bool) -> HlAttrs {
     let mut err = Error::new();
-        let mut dict = KeyDict_highlight::default();
-        if !api_dict_to_keydict(
-            (&raw mut dict).cast(),
-            Some(highlight_get_field_cb),
-            d,
-            &mut err,
-        ) {
-            return HLATTRS_INIT;
-        }
+    let mut dict = KeyDict_highlight::default();
+    if !api_dict_to_keydict(
+        (&raw mut dict).cast(),
+        Some(highlight_get_field_cb),
+        d,
+        &mut err,
+    ) {
+        return HLATTRS_INIT;
+    }
 
-        let mut attrs = dict2hlattrs(
-            &mut dict,
-            rgb,
-            None,
-            None,
-            &mut err,
-        );
-        if (dict.is_set_highlight & (1u64 << KEYSET_OPTIDX_HIGHLIGHT_URL)) != 0 {
-            attrs.url = tui_add_url(tui_ptr(), dict.url.data);
-        }
-        attrs
+    let mut attrs = dict2hlattrs(&mut dict, rgb, None, None, &mut err);
+    if (dict.is_set_highlight & (1u64 << KEYSET_OPTIDX_HIGHLIGHT_URL)) != 0 {
+        attrs.url = tui_add_url(tui_ptr(), dict.url.data);
+    }
+    attrs
 }
 
 pub fn ui_client_event_grid_resize(args: Array) {
@@ -420,7 +402,7 @@ pub fn ui_client_event_grid_line(_args: Array) {
 }
 
 pub fn ui_client_event_raw_line(g: &mut GridLineEvent) {
-     {
+    {
         let grid = g.args[0];
         let row = g.args[1];
         let startcol = g.args[2];
@@ -475,56 +457,56 @@ pub fn ui_client_event_connect(args: Array) {
 
 pub fn channel_connect_event(server_addr: std::ffi::CString) {
     let mut err: *const c_char = c"".as_ptr();
-        let addr_ptr = server_addr.as_ptr();
-        let is_tcp = !socket_address_tcp_host_end(addr_ptr).is_null();
-        let on_data = CallbackReader::none();
-        let chan = channel_connect(is_tcp, addr_ptr, true, on_data, 50, &mut err);
+    let addr_ptr = server_addr.as_ptr();
+    let is_tcp = !socket_address_tcp_host_end(addr_ptr).is_null();
+    let on_data = CallbackReader::none();
+    let chan = channel_connect(is_tcp, addr_ptr, true, on_data, 50, &mut err);
 
-        if !(crate::memory::cstr_as_opt_bytes(err) == Some(b"")) {
-            logmsg!(
-                LOGLVL_ERR,
-                ptr::null(),
-                c"channel_connect_event",
-                302,
-                true,
-                c"Cannot connect to server %s: %s",
-                addr_ptr,
-                err,
-            );
-            drop(server_addr);
-            g_st().ui_client_exit_status = 1;
-            os_exit(1);
-        }
-
-        g_st().ui_client_channel_id = chan;
-        ui_client_attach(
-            uic_st().tui_width,
-            uic_st().tui_height,
-            uic_st().tui_term.as_deref(),
-            uic_st().tui_rgb,
-        );
-
+    if !(crate::memory::cstr_as_opt_bytes(err) == Some(b"")) {
         logmsg!(
-            LOGLVL_INF,
+            LOGLVL_ERR,
             ptr::null(),
             c"channel_connect_event",
-            312,
+            302,
             true,
-            c"Connected to server %s on channel %lld",
+            c"Cannot connect to server %s: %s",
             addr_ptr,
-            chan as i64,
+            err,
         );
+        drop(server_addr);
+        g_st().ui_client_exit_status = 1;
+        os_exit(1);
+    }
+
+    g_st().ui_client_channel_id = chan;
+    ui_client_attach(
+        uic_st().tui_width,
+        uic_st().tui_height,
+        uic_st().tui_term.as_deref(),
+        uic_st().tui_rgb,
+    );
+
+    logmsg!(
+        LOGLVL_INF,
+        ptr::null(),
+        c"channel_connect_event",
+        312,
+        true,
+        c"Connected to server %s on channel %lld",
+        addr_ptr,
+        chan as i64,
+    );
 }
 
 pub fn ui_client_event_restart(args: Array) {
     api_free_array(uic_st().restart_args);
-        uic_st().restart_args = copy_array(args, None);
-        uic_st().restart_pending = true;
+    uic_st().restart_args = copy_array(args, None);
+    uic_st().restart_pending = true;
 }
 
 pub fn ui_client_event_set_restart_on_crash_exit(args: Array) {
     api_free_array(uic_st().restart_args_after_crash_exit);
-        uic_st().restart_args_after_crash_exit = copy_array(args, None);
+    uic_st().restart_args_after_crash_exit = copy_array(args, None);
 }
 
 pub fn ui_client_attach_to_restarted_server(error_restart: bool) {
@@ -532,7 +514,9 @@ pub fn ui_client_attach_to_restarted_server(error_restart: bool) {
         let mut args = uic_st().restart_args;
         let mut start_server = false;
         if !uic_st().restart_pending {
-            if error_restart && g_st().ui_client_error_exit == -1 && uic_st().restart_args_after_crash_exit.size > 0
+            if error_restart
+                && g_st().ui_client_error_exit == -1
+                && uic_st().restart_args_after_crash_exit.size > 0
             {
                 start_server = true;
                 args = uic_st().restart_args_after_crash_exit;
@@ -662,7 +646,7 @@ pub fn ui_client_event_error_exit(args: Array) {
 }
 
 pub fn ui_client_free_all_mem() {
-     {
+    {
         tui_free_all_mem(uic_st().tui.take());
         g_st().grid_line_buf_char = Vec::new();
         g_st().grid_line_buf_attr = Vec::new();
@@ -678,14 +662,14 @@ pub struct UIClientHandler {
 
 fn log_ui_event_err(func_name: &std::ffi::CStr, ev_name: &std::ffi::CStr) {
     logmsg!(
-            LOGLVL_ERR,
-            ptr::null(),
-            func_name.as_ptr(),
-            0,
-            true,
-            c"Error handling ui event '%s'",
-            ev_name.as_ptr(),
-        );
+        LOGLVL_ERR,
+        ptr::null(),
+        func_name.as_ptr(),
+        0,
+        true,
+        c"Error handling ui event '%s'",
+        ev_name.as_ptr(),
+    );
 }
 
 pub fn ui_client_event_mode_info_set(args: Array) {
@@ -694,10 +678,7 @@ pub fn ui_client_event_mode_info_set(args: Array) {
             || (*args.items).obj_type != ObjectType::ObjectTypeBoolean
             || args[1].obj_type != ObjectType::ObjectTypeArray
         {
-            log_ui_event_err(
-                c"ui_client_event_mode_info_set",
-                c"mode_info_set",
-            );
+            log_ui_event_err(c"ui_client_event_mode_info_set", c"mode_info_set");
             return;
         }
         tui_mode_info_set(
@@ -734,10 +715,7 @@ pub fn ui_client_event_mode_change(args: Array) {
             || (*args.items).obj_type != ObjectType::ObjectTypeString
             || args[1].obj_type != ObjectType::ObjectTypeInteger
         {
-            log_ui_event_err(
-                c"ui_client_event_mode_change",
-                c"mode_change",
-            );
+            log_ui_event_err(c"ui_client_event_mode_change", c"mode_change");
             return;
         }
         tui_mode_change(
@@ -787,10 +765,7 @@ pub fn ui_client_event_set_icon(args: Array) {
 pub fn ui_client_event_screenshot(args: Array) {
     unsafe {
         if args.size < 1 || (*args.items).obj_type != ObjectType::ObjectTypeString {
-            log_ui_event_err(
-                c"ui_client_event_screenshot",
-                c"screenshot",
-            );
+            log_ui_event_err(c"ui_client_event_screenshot", c"screenshot");
             return;
         }
         tui_screenshot(tui_ptr(), (*args.items).data.string());
@@ -800,10 +775,7 @@ pub fn ui_client_event_screenshot(args: Array) {
 pub fn ui_client_event_option_set(args: Array) {
     unsafe {
         if args.size < 2 || (*args.items).obj_type != ObjectType::ObjectTypeString {
-            log_ui_event_err(
-                c"ui_client_event_option_set",
-                c"option_set",
-            );
+            log_ui_event_err(c"ui_client_event_option_set", c"option_set");
             return;
         }
         tui_option_set(tui_ptr(), (*args.items).data.string(), args[1]);
@@ -839,10 +811,7 @@ pub fn ui_client_event_default_colors_set(args: Array) {
             || args[3].obj_type != ObjectType::ObjectTypeInteger
             || args[4].obj_type != ObjectType::ObjectTypeInteger
         {
-            log_ui_event_err(
-                c"ui_client_event_default_colors_set",
-                c"default_colors_set",
-            );
+            log_ui_event_err(c"ui_client_event_default_colors_set", c"default_colors_set");
             return;
         }
         tui_default_colors_set(
@@ -864,10 +833,7 @@ pub fn ui_client_event_hl_attr_define(args: Array) {
             || args[2].obj_type != ObjectType::ObjectTypeDict
             || args[3].obj_type != ObjectType::ObjectTypeArray
         {
-            log_ui_event_err(
-                c"ui_client_event_hl_attr_define",
-                c"hl_attr_define",
-            );
+            log_ui_event_err(c"ui_client_event_hl_attr_define", c"hl_attr_define");
             return;
         }
         let arg_1 = (*args.items).data.integer();
@@ -881,10 +847,7 @@ pub fn ui_client_event_hl_attr_define(args: Array) {
 pub fn ui_client_event_grid_clear(args: Array) {
     unsafe {
         if args.size < 1 || (*args.items).obj_type != ObjectType::ObjectTypeInteger {
-            log_ui_event_err(
-                c"ui_client_event_grid_clear",
-                c"grid_clear",
-            );
+            log_ui_event_err(c"ui_client_event_grid_clear", c"grid_clear");
             return;
         }
         tui_grid_clear(tui_ptr(), (*args.items).data.integer());
@@ -898,10 +861,7 @@ pub fn ui_client_event_grid_cursor_goto(args: Array) {
             || args[1].obj_type != ObjectType::ObjectTypeInteger
             || args[2].obj_type != ObjectType::ObjectTypeInteger
         {
-            log_ui_event_err(
-                c"ui_client_event_grid_cursor_goto",
-                c"grid_cursor_goto",
-            );
+            log_ui_event_err(c"ui_client_event_grid_cursor_goto", c"grid_cursor_goto");
             return;
         }
         tui_grid_cursor_goto(
@@ -924,10 +884,7 @@ pub fn ui_client_event_grid_scroll(args: Array) {
             || args[5].obj_type != ObjectType::ObjectTypeInteger
             || args[6].obj_type != ObjectType::ObjectTypeInteger
         {
-            log_ui_event_err(
-                c"ui_client_event_grid_scroll",
-                c"grid_scroll",
-            );
+            log_ui_event_err(c"ui_client_event_grid_scroll", c"grid_scroll");
             return;
         }
         tui_grid_scroll(
@@ -1058,11 +1015,12 @@ const EVENT_HANDLERS: [UIClientHandler; 28] = [
     },
 ];
 
-pub fn ui_client_handler_hash(str_in: impl crate::strings::IntoCCharPtr, len: usize) -> c_int { let str_in = str_in.into_c_char_ptr();
+pub fn ui_client_handler_hash(str_in: impl crate::strings::IntoCCharPtr, len: usize) -> c_int {
+    let str_in = str_in.into_c_char_ptr();
     if str_in.is_null() {
         return -1;
     }
-    let bytes =  { crate::memory::cstr_slice(str_in, len) };
+    let bytes = { crate::memory::cstr_slice(str_in, len) };
     let low: isize = match len {
         4 => 0,
         5 => match bytes[0] {
@@ -1124,13 +1082,14 @@ pub fn ui_client_handler_hash(str_in: impl crate::strings::IntoCCharPtr, len: us
 pub fn ui_client_get_redraw_handler(
     name: impl crate::strings::IntoCCharPtr,
     name_len: usize,
-) -> UIClientHandler { let name = name.into_c_char_ptr();
+) -> UIClientHandler {
+    let name = name.into_c_char_ptr();
     let hash = ui_client_handler_hash(name, name_len);
-        if hash < 0 {
-            return UIClientHandler {
-                name: c"",
-                r#fn: None,
-            };
-        }
-        EVENT_HANDLERS[hash as usize]
+    if hash < 0 {
+        return UIClientHandler {
+            name: c"",
+            r#fn: None,
+        };
+    }
+    EVENT_HANDLERS[hash as usize]
 }

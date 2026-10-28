@@ -6,8 +6,8 @@ use crate::xdiff::xutils::{
     xdl_bogosqrt, xdl_guess_lines, xdl_hash_record, xdl_hashbits, xdl_mmfile_first, xdl_recmatch,
 };
 use crate::xdiff::{
-    XDF_HISTOGRAM_DIFF, XDF_PATIENCE_DIFF, Mmfile, xdf_diff_alg, Xdfenv, Xdfile,
-    xdl_hashlong, Xpparam, Xrecord,
+    Mmfile, XDF_HISTOGRAM_DIFF, XDF_PATIENCE_DIFF, Xdfenv, Xdfile, Xpparam, Xrecord, xdf_diff_alg,
+    xdl_hashlong,
 };
 
 const XDL_KPDIS_RUN: c_long = 4;
@@ -44,49 +44,45 @@ fn xdl_init_classifier(cf: &mut Xdlclassifier, size: c_long, flags: c_long) -> c
     0
 }
 
-fn xdl_classify_record(
-    pass: c_uint,
-    cf: &mut Xdlclassifier,
-    rec: &mut Xrecord,
-) -> c_int {
+fn xdl_classify_record(pass: c_uint, cf: &mut Xdlclassifier, rec: &mut Xrecord) -> c_int {
     let line = rec.ptr;
-        let hi = xdl_hashlong(rec.ha, cf.hbits) as usize;
-        let mut rcrec_idx = cf.rchash[hi];
-        while let Some(idx) = rcrec_idx {
-            let rcrec = &cf.rcrecs[idx];
-            if rcrec.ha == rec.ha
-                && xdl_recmatch(rcrec.line, rcrec.size, rec.ptr, rec.size, cf.flags) != 0
-            {
-                break;
-            }
-            rcrec_idx = rcrec.next;
+    let hi = xdl_hashlong(rec.ha, cf.hbits) as usize;
+    let mut rcrec_idx = cf.rchash[hi];
+    while let Some(idx) = rcrec_idx {
+        let rcrec = &cf.rcrecs[idx];
+        if rcrec.ha == rec.ha
+            && xdl_recmatch(rcrec.line, rcrec.size, rec.ptr, rec.size, cf.flags) != 0
+        {
+            break;
         }
+        rcrec_idx = rcrec.next;
+    }
 
-        let idx = if let Some(idx) = rcrec_idx {
-            idx
-        } else {
-            let new_idx = cf.rcrecs.len();
-            cf.rcrecs.push(Xdlclass {
-                next: cf.rchash[hi],
-                ha: rec.ha,
-                line,
-                size: rec.size,
-                idx: new_idx as c_long,
-                len1: 0,
-                len2: 0,
-            });
-            cf.rchash[hi] = Some(new_idx);
-            new_idx
-        };
+    let idx = if let Some(idx) = rcrec_idx {
+        idx
+    } else {
+        let new_idx = cf.rcrecs.len();
+        cf.rcrecs.push(Xdlclass {
+            next: cf.rchash[hi],
+            ha: rec.ha,
+            line,
+            size: rec.size,
+            idx: new_idx as c_long,
+            len1: 0,
+            len2: 0,
+        });
+        cf.rchash[hi] = Some(new_idx);
+        new_idx
+    };
 
-        let rcrec = &mut cf.rcrecs[idx];
-        if pass == 1 {
-            rcrec.len1 += 1;
-        } else {
-            rcrec.len2 += 1;
-        }
+    let rcrec = &mut cf.rcrecs[idx];
+    if pass == 1 {
+        rcrec.len1 += 1;
+    } else {
+        rcrec.len2 += 1;
+    }
 
-        rec.ha = rcrec.idx as c_ulong;
+    rec.ha = rcrec.idx as c_ulong;
     0
 }
 
@@ -237,11 +233,7 @@ fn xdl_clean_mmatch(dis: *const c_char, i: c_long, mut s: c_long, mut e: c_long)
     c_int::from(rpdis1 * XDL_KPDIS_RUN < (rpdis1 + rdis1))
 }
 
-fn xdl_cleanup_records(
-    cf: &Xdlclassifier,
-    xdf1: &mut Xdfile,
-    xdf2: &mut Xdfile,
-) -> c_int {
+fn xdl_cleanup_records(cf: &Xdlclassifier, xdf1: &mut Xdfile, xdf2: &mut Xdfile) -> c_int {
     unsafe {
         let total = (xdf1.nrec + xdf2.nrec + 2) as usize;
         let mut dis_vec = vec![0 as c_char; total];
@@ -332,11 +324,7 @@ fn xdl_trim_ends(xdf1: &mut Xdfile, xdf2: &mut Xdfile) -> c_int {
     0
 }
 
-fn xdl_optimize_ctxs(
-    cf: &Xdlclassifier,
-    xdf1: &mut Xdfile,
-    xdf2: &mut Xdfile,
-) -> c_int {
+fn xdl_optimize_ctxs(cf: &Xdlclassifier, xdf1: &mut Xdfile, xdf2: &mut Xdfile) -> c_int {
     if xdl_trim_ends(xdf1, xdf2) < 0 || xdl_cleanup_records(cf, xdf1, xdf2) < 0 {
         return -1;
     }

@@ -3,7 +3,7 @@
 use crate::api::private::helpers::api_free_object;
 use crate::api::private::validate::{Array, Error, ErrorType, NvimString, ObjectType};
 use crate::api::win_config::K_UIMULTIGRID;
-use crate::buffer::{buf_is_empty, K_UIMESSAGES};
+use crate::buffer::{K_UIMESSAGES, buf_is_empty};
 use crate::charset::vim_strsize;
 use crate::drawscreen::screenclear;
 use crate::ex_docmd::Exarg;
@@ -3801,16 +3801,21 @@ static LONG_VERSION_BUF: [u8; 256] =
     make_cstr_buf_or(option_env!("NVIM_VERSION_LONG"), "NVIM v0.13.0-dev");
 static VERSION_BUILD_BUF: [u8; 256] = make_cstr_buf(option_env!("NVIM_VERSION_BUILD"));
 
-pub static NVIM_VERSION_MAJOR_CONST: c_int = parse_version_int(option_env!("NVIM_VERSION_MAJOR"), 0);
-pub static NVIM_VERSION_MINOR_CONST: c_int = parse_version_int(option_env!("NVIM_VERSION_MINOR"), 13);
-pub static NVIM_VERSION_PATCH_CONST: c_int = parse_version_int(option_env!("NVIM_VERSION_PATCH"), 0);
+pub static NVIM_VERSION_MAJOR_CONST: c_int =
+    parse_version_int(option_env!("NVIM_VERSION_MAJOR"), 0);
+pub static NVIM_VERSION_MINOR_CONST: c_int =
+    parse_version_int(option_env!("NVIM_VERSION_MINOR"), 13);
+pub static NVIM_VERSION_PATCH_CONST: c_int =
+    parse_version_int(option_env!("NVIM_VERSION_PATCH"), 0);
 pub const NVIM_VERSION_PRERELEASE_CONST: bool = match option_env!("NVIM_VERSION_PRERELEASE") {
     Some(s) => !s.is_empty(),
     None => true,
 };
 pub const NVIM_API_LEVEL_CONST: c_int = parse_version_int(option_env!("NVIM_API_LEVEL"), 15);
-pub const NVIM_API_LEVEL_COMPAT_CONST: c_int = parse_version_int(option_env!("NVIM_API_LEVEL_COMPAT"), 0);
-pub const NVIM_API_PRERELEASE_CONST: bool = env_flag_enabled(option_env!("NVIM_API_PRERELEASE"), true);
+pub const NVIM_API_LEVEL_COMPAT_CONST: c_int =
+    parse_version_int(option_env!("NVIM_API_LEVEL_COMPAT"), 0);
+pub const NVIM_API_PRERELEASE_CONST: bool =
+    env_flag_enabled(option_env!("NVIM_API_PRERELEASE"), true);
 
 #[inline]
 pub const fn version_buildtype() -> *const c_char {
@@ -3900,7 +3905,12 @@ pub fn has_nvim_version(version_str: &[u8]) -> bool {
         }
     }
 
-    (major, minor, patch) <= (NVIM_VERSION_MAJOR_CONST, NVIM_VERSION_MINOR_CONST, NVIM_VERSION_PATCH_CONST)
+    (major, minor, patch)
+        <= (
+            NVIM_VERSION_MAJOR_CONST,
+            NVIM_VERSION_MINOR_CONST,
+            NVIM_VERSION_PATCH_CONST,
+        )
 }
 
 pub fn min_vim_version() -> c_int {
@@ -3946,7 +3956,7 @@ pub fn has_vim_patch(n: c_int, major_minor_version: c_int) -> bool {
 }
 
 pub fn ex_version(eap: &mut Exarg) {
-     {
+    {
         if crate::memory::cstr_is_empty(eap.arg) {
             if !ui_has(K_UIMESSAGES) {
                 msg_putchar(b'\n' as c_int);
@@ -3956,10 +3966,15 @@ pub fn ex_version(eap: &mut Exarg) {
     }
 }
 
-fn version_msg_wrap(s: impl crate::strings::IntoCCharPtr, wrap: bool) { let s = s.into_c_char_ptr();
-     {
+fn version_msg_wrap(s: impl crate::strings::IntoCCharPtr, wrap: bool) {
+    let s = s.into_c_char_ptr();
+    {
         let len = vim_strsize(s) + if wrap { 2 } else { 0 };
-        if !g_st().got_int && len < g_st().columns_global && g_st().msg_col + len >= g_st().columns_global && crate::memory::cstr_first_byte(s) != b'\n' {
+        if !g_st().got_int
+            && len < g_st().columns_global
+            && g_st().msg_col + len >= g_st().columns_global
+            && crate::memory::cstr_first_byte(s) != b'\n'
+        {
             msg_putchar(b'\n' as c_int);
         }
         if !g_st().got_int {
@@ -3982,89 +3997,89 @@ fn version_msg(s: impl crate::strings::IntoCCharPtr) {
 /// List string items nicely aligned in columns (`list_in_columns`).
 pub fn list_in_columns(items: &[*mut c_char], current: c_int) {
     let item_count = items.len() as c_int;
-        let mut width: c_int = 0;
+    let mut width: c_int = 0;
 
-        for (i, &item) in items.iter().enumerate() {
-            let l = vim_strsize(item) + if i as c_int == current { 2 } else { 0 };
-            if l > width {
-                width = l;
+    for (i, &item) in items.iter().enumerate() {
+        let l = vim_strsize(item) + if i as c_int == current { 2 } else { 0 };
+        if l > width {
+            width = l;
+        }
+    }
+    width += 1;
+
+    if g_st().columns_global < width {
+        for (idx, &item) in items.iter().enumerate() {
+            version_msg_wrap(item, idx as c_int == current);
+            if g_st().msg_col > 0 && (idx as c_int) < item_count - 1 {
+                msg_putchar(b'\n' as c_int);
             }
         }
-        width += 1;
+        return;
+    }
 
-        if g_st().columns_global < width {
-            for (idx, &item) in items.iter().enumerate() {
-                version_msg_wrap(item, idx as c_int == current);
-                if g_st().msg_col > 0 && (idx as c_int) < item_count - 1 {
-                    msg_putchar(b'\n' as c_int);
-                }
+    let ncol = (g_st().columns_global + 1) / width;
+    let nrow = item_count / ncol + c_int::from(item_count % ncol != 0);
+    let mut cur_row: c_int = 1;
+
+    let mut idx_i: c_int = 0;
+    while !g_st().got_int && idx_i < nrow * ncol {
+        let idx = (idx_i / ncol) + (idx_i % ncol) * nrow;
+        if idx < item_count {
+            let last_col = (idx_i + 1) % ncol == 0;
+            if idx == current {
+                msg_putchar(b'[' as c_int);
             }
-            return;
-        }
-
-        let ncol = (g_st().columns_global + 1) / width;
-        let nrow = item_count / ncol + c_int::from(item_count % ncol != 0);
-        let mut cur_row: c_int = 1;
-
-        let mut idx_i: c_int = 0;
-        while !g_st().got_int && idx_i < nrow * ncol {
-            let idx = (idx_i / ncol) + (idx_i % ncol) * nrow;
-            if idx < item_count {
-                let last_col = (idx_i + 1) % ncol == 0;
-                if idx == current {
-                    msg_putchar(b'[' as c_int);
-                }
-                msg_puts(items[idx as usize]);
-                if idx == current {
-                    msg_putchar(b']' as c_int);
-                }
-                if last_col {
-                    if g_st().msg_col > 0 && cur_row < nrow {
-                        msg_putchar(b'\n' as c_int);
-                    }
-                    cur_row += 1;
-                } else {
-                    while g_st().msg_col % width != 0 {
-                        msg_putchar(b' ' as c_int);
-                    }
-                }
-            } else if g_st().msg_col > 0 {
-                if cur_row < nrow {
+            msg_puts(items[idx as usize]);
+            if idx == current {
+                msg_putchar(b']' as c_int);
+            }
+            if last_col {
+                if g_st().msg_col > 0 && cur_row < nrow {
                     msg_putchar(b'\n' as c_int);
                 }
                 cur_row += 1;
+            } else {
+                while g_st().msg_col % width != 0 {
+                    msg_putchar(b' ' as c_int);
+                }
             }
-            idx_i += 1;
+        } else if g_st().msg_col > 0 {
+            if cur_row < nrow {
+                msg_putchar(b'\n' as c_int);
+            }
+            cur_row += 1;
         }
+        idx_i += 1;
+    }
 }
 
 pub fn list_lua_version() {
     const CODE: &[u8] = b"return ((jit and jit.version) and jit.version or _VERSION)\0";
-        let mut err = Error::new();
-        let args = Array {
-            items: ptr::null_mut(),
-            size: 0,
-            capacity: 0,
-        };
-        let ret = nlua_exec(
-            NvimString {
-                data: CODE.as_ptr().cast_mut().cast(),
-                size: CODE.len() - 1,
-            },
-            ptr::null(),
-            args,
-            K_RET_OBJECT,
-            None,
-            &mut err,
-        );
-        debug_assert!(err.err_type == ErrorType::ErrorTypeNone);
-        debug_assert!(ret.obj_type == ObjectType::ObjectTypeString);
-        msg_puts(ret.data.string().data);
-        api_free_object(ret);
+    let mut err = Error::new();
+    let args = Array {
+        items: ptr::null_mut(),
+        size: 0,
+        capacity: 0,
+    };
+    let ret = nlua_exec(
+        NvimString {
+            data: CODE.as_ptr().cast_mut().cast(),
+            size: CODE.len() - 1,
+        },
+        ptr::null(),
+        args,
+        K_RET_OBJECT,
+        None,
+        &mut err,
+    );
+    debug_assert!(err.err_type == ErrorType::ErrorTypeNone);
+    debug_assert!(ret.obj_type == ObjectType::ObjectTypeString);
+    msg_puts(ret.data.string().data);
+    api_free_object(ret);
 }
 
 pub fn list_version() {
-     {
+    {
         msg_ext_set_kind(c"list_cmd");
         msg_puts(long_version());
         msg_putchar(b'\n' as c_int);
@@ -4118,7 +4133,7 @@ pub fn list_version() {
 
 /// Whether it still is not too late to show an intro message (`may_show_intro`).
 pub fn may_show_intro() -> bool {
-     {
+    {
         buf_is_empty(curbuf_mut())
             && curbuf_mut().b_fname.is_null()
             && curbuf_mut().b_fnum == 1
@@ -4166,7 +4181,10 @@ pub fn intro_message(colon: bool) {
             for (i, &p) in lines.iter().enumerate() {
                 let formatted_cstr: Option<CString>;
 
-                let mesg: *const c_char = if crate::memory::cstr_as_bytes(p).windows(4).any(|w| w == b"news") {
+                let mesg: *const c_char = if crate::memory::cstr_as_bytes(p)
+                    .windows(4)
+                    .any(|w| w == b"news")
+                {
                     let fmt_str = crate::memory::cstr_lossy(gettext(p));
                     let major_s = NVIM_VERSION_MAJOR_CONST.to_string();
                     let minor_s = NVIM_VERSION_MINOR_CONST.to_string();
@@ -4198,7 +4216,8 @@ pub fn intro_message(colon: bool) {
     }
 }
 
-fn do_intro_line(row: c_int, mesg: impl crate::strings::IntoCCharPtr, colon: bool, is_logo: bool) { let mesg = mesg.into_c_char_ptr();
+fn do_intro_line(row: c_int, mesg: impl crate::strings::IntoCCharPtr, colon: bool, is_logo: bool) {
+    let mesg = mesg.into_c_char_ptr();
     unsafe {
         let mut col = (g_st().columns_global - vim_strsize(mesg)) / 2;
         if col < 0 {
@@ -4270,7 +4289,10 @@ fn do_intro_line(row: c_int, mesg: impl crate::strings::IntoCCharPtr, colon: boo
             if crate::memory::cstr_first_byte(p) == b'<' {
                 col += grid_line_puts(col, p, l, hlf8_attr);
             } else {
-                let colon_pos = crate::memory::cstr_slice(p, l as usize).iter().position(|&b| b == b':').map_or(ptr::null(), |i| p.add(i));
+                let colon_pos = crate::memory::cstr_slice(p, l as usize)
+                    .iter()
+                    .position(|&b| b == b':')
+                    .map_or(ptr::null(), |i| p.add(i));
                 if !colon_pos.is_null() && crate::memory::cstr_byte_at(p, l as usize) == b'<' {
                     let prefix_len = colon_pos.offset_from(p) as c_int;
                     col += grid_line_puts(col, p, prefix_len, 0);
@@ -4289,8 +4311,8 @@ fn do_intro_line(row: c_int, mesg: impl crate::strings::IntoCCharPtr, colon: boo
 
 pub fn ex_intro(_eap: &mut Exarg) {
     screenclear();
-        intro_message(true);
-        plain_vgetc();
+    intro_message(true);
+    plain_vgetc();
 }
 
 #[cfg(test)]

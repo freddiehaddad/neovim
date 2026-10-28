@@ -1,6 +1,6 @@
 //! VT220/xterm-like terminal emulator (`src/nvim/terminal.c`).
 
-use crate::option::{OPT_LOCAL, OptInt, SB_MAX, K_OPT_BUFTYPE, set_option_value};
+use crate::option::{K_OPT_BUFTYPE, OPT_LOCAL, OptInt, SB_MAX, set_option_value};
 use crate::vterm::keyboard::VTERM_KEY_KP_0;
 use crate::vterm::state::VTERM_SELECTION_CLIPBOARD;
 use crate::vterm::state::VTERM_SELECTION_PRIMARY;
@@ -17,7 +17,7 @@ use crate::autocmd::{
     EVENT_TERMREQUEST, EVENT_TEXTCHANGEDT, apply_autocmds, apply_autocmds_group, block_autocmds,
     has_event, is_autocmd_blocked, unblock_autocmds,
 };
-use crate::buffer::{DOBUF_FIRST, DOBUF_WIPE, MAXLNUM, FileBuf, buf_get_changedtick, do_buffer};
+use crate::buffer::{DOBUF_FIRST, DOBUF_WIPE, FileBuf, MAXLNUM, buf_get_changedtick, do_buffer};
 use crate::change::{appended_lines_buf, changed_lines, deleted_lines_buf};
 use crate::channel::{
     TerminalOptions, channel_term_close, channel_term_read_pause, channel_term_resize,
@@ -27,7 +27,7 @@ use crate::charset::{NUL, is_special};
 use crate::context::{
     CtxSwitch, ctx_restore, ctx_switch, handle_get_buffer, handle_get_window, is_ctx_win,
 };
-use crate::cursor::{coladvance, Linenr, CursorPos};
+use crate::cursor::{CursorPos, Linenr, coladvance};
 use crate::cursor_shape::{
     CursorShape, SHAPE_CURSOR, SHAPE_IDX_TERM, parse_shape_opt, shape_table_mut,
 };
@@ -41,7 +41,7 @@ use crate::eval::typval::{
     tv_list_append_string,
 };
 use crate::eval::vars::{VV_TERMREQUEST, get_globvar_dict, set_vim_var_string};
-use crate::eval::{eval_call_provider, get_v_event, K_LIST_LEN_MAY_KNOW_CONST, restore_v_event};
+use crate::eval::{K_LIST_LEN_MAY_KNOW_CONST, eval_call_provider, get_v_event, restore_v_event};
 use crate::event::r#loop::loop_queues;
 use crate::event::multiqueue::{
     Event, MultiQueue, multiqueue_free, multiqueue_move_events, multiqueue_new,
@@ -60,7 +60,7 @@ use crate::highlight::{
 };
 use crate::highlight_group::name_to_color;
 use crate::input::{K_PASTE_START, map_execute_lua, merge_modifiers, paste_repeat, requeue_key};
-use crate::input_cmdatom::{atom_term_enter, Cmdarg};
+use crate::input_cmdatom::{Cmdarg, atom_term_enter};
 use crate::keycodes::{
     ESC, K_BS, K_COMMAND, K_DEL, K_DOWN, K_END, K_F1, K_F2, K_F3, K_F4, K_F5, K_F6, K_F7, K_F8,
     K_F9, K_F10, K_F11, K_F12, K_F13, K_F14, K_F15, K_F16, K_F17, K_F18, K_F19, K_F20, K_F21,
@@ -87,7 +87,7 @@ use crate::msgpack_rpc::packer::ObjHandle;
 use crate::option_vars::*;
 use crate::optionstr::{alloc_string_option, free_string_option};
 use crate::state::{
-    EditorState, MODE_TERMINAL, may_trigger_modechanged, SaveVEvent, state_enter,
+    EditorState, MODE_TERMINAL, SaveVEvent, may_trigger_modechanged, state_enter,
     state_handle_k_event,
 };
 use crate::strings::vim_snprintf;
@@ -129,7 +129,7 @@ use crate::vterm::state::{
 use crate::vterm::vterm::{
     vterm_get_size, vterm_new, vterm_output_set_callback, vterm_set_size, vterm_set_utf8,
 };
-use crate::window::{may_trigger_win_scrolled_resized, win_valid, Winopt};
+use crate::window::{Winopt, may_trigger_win_scrolled_resized, win_valid};
 use std::ffi::{c_char, c_int, c_uint};
 use std::ptr;
 
@@ -330,7 +330,7 @@ pub struct Terminal {
 impl Drop for Terminal {
     fn drop(&mut self) {
         multiqueue_free(self.pending.events);
-            self.pending.events = ptr::null_mut();
+        self.pending.events = ptr::null_mut();
     }
 }
 
@@ -350,7 +350,8 @@ impl TerminalModuleState {
     }
 }
 
-static TERM_MOD_STATE: crate::globals::GlobalState<TerminalModuleState> = crate::globals::GlobalState::new(TerminalModuleState::new());
+static TERM_MOD_STATE: crate::globals::GlobalState<TerminalModuleState> =
+    crate::globals::GlobalState::new(TerminalModuleState::new());
 
 #[inline]
 fn term_st() -> &'static mut TerminalModuleState {
@@ -387,7 +388,7 @@ static VTERM_FALLBACKS: VTermStateFallbacks = VTermStateFallbacks {
 
 #[inline]
 fn invalidate_terminal_add(term: &mut Terminal) {
-     {
+    {
         let term_ptr = &raw mut *term;
         if !term_st().invalidated_terminals.contains(&term_ptr) {
             term_st().invalidated_terminals.push(term_ptr);
@@ -401,8 +402,8 @@ const fn vterm_key_function(n: c_int) -> VTermKey {
 }
 
 #[inline]
-fn refresh_timer_ptr() -> *mut TimeWatcher {
-    &raw mut term_st().refresh_timer
+fn refresh_timer_ptr() -> &'static mut TimeWatcher {
+    &mut term_st().refresh_timer
 }
 
 #[inline]
@@ -434,7 +435,7 @@ pub fn emit_termrequest(mut req: Box<TermRequestEvent>) {
         let term = &mut *(*buf).terminal;
 
         if term.sb_pending > 0 {
-            multiqueue_put_event( &mut *term.pending.events, Event::TermRequest(req));
+            multiqueue_put_event(&mut *term.pending.events, Event::TermRequest(req));
             return;
         }
 
@@ -490,10 +491,10 @@ pub fn emit_termrequest(mut req: Box<TermRequestEvent>) {
         let mut data_obj = Object {
             obj_type: ObjectType::ObjectTypeDict,
             data: ObjectData::Dict(Dict {
-                    items: data_items.as_mut_ptr(),
-                    size: 3,
-                    capacity: 3,
-                }),
+                items: data_items.as_mut_ptr(),
+                size: 3,
+                capacity: 3,
+            }),
         };
 
         term.refcount += 1;
@@ -556,7 +557,8 @@ fn schedule_termrequest(term: &mut Terminal) {
     }
 }
 
-fn parse_osc8(str_: impl crate::strings::IntoCCharPtr, attr: &mut c_int) -> c_int { let str_ = str_.into_c_char_ptr();
+fn parse_osc8(str_: impl crate::strings::IntoCCharPtr, attr: &mut c_int) -> c_int {
+    let str_ = str_.into_c_char_ptr();
     unsafe {
         let mut i: usize = 0;
         while crate::memory::cstr_byte_at(str_, i) != 0 {
@@ -596,21 +598,14 @@ fn on_osc(command: c_int, frag: VTermStringFragment, term: *mut Terminal) -> c_i
         if frag.initial() {
             term.termrequest_buffer.clear();
             let mut prefix = [0 as c_char; 32];
-            let n = vim_snprintf!(
-                prefix.as_mut_ptr(),
-                prefix.len(),
-                c"\x1b]%d;",
-                command,
-            );
+            let n = vim_snprintf!(prefix.as_mut_ptr(), prefix.len(), c"\x1b]%d;", command,);
             if n > 0 {
-                term
-                    .termrequest_buffer
+                term.termrequest_buffer
                     .extend_from_slice(&prefix[..n as usize]);
             }
         }
         if !frag.is_empty() {
-            term
-                .termrequest_buffer
+            term.termrequest_buffer
                 .extend_from_slice(std::slice::from_raw_parts(frag.str_, frag.len()));
         }
         if frag.final_() {
@@ -650,18 +645,15 @@ fn on_dcs(
 
         if frag.initial() {
             term.termrequest_buffer.clear();
-            term
-                .termrequest_buffer
+            term.termrequest_buffer
                 .extend_from_slice(&[b'\x1b' as c_char, b'P' as c_char]);
             if commandlen > 0 {
-                term
-                    .termrequest_buffer
+                term.termrequest_buffer
                     .extend_from_slice(std::slice::from_raw_parts(command, commandlen));
             }
         }
         if !frag.is_empty() {
-            term
-                .termrequest_buffer
+            term.termrequest_buffer
                 .extend_from_slice(std::slice::from_raw_parts(frag.str_, frag.len()));
         }
         if frag.final_() {
@@ -685,12 +677,10 @@ fn on_apc(frag: VTermStringFragment, term: *mut Terminal) -> c_int {
 
         if frag.initial() {
             term.termrequest_buffer.clear();
-            term
-                .termrequest_buffer
+            term.termrequest_buffer
                 .extend_from_slice(&[b'\x1b' as c_char, b'_' as c_char]);
         }
-        term
-            .termrequest_buffer
+        term.termrequest_buffer
             .extend_from_slice(std::slice::from_raw_parts(frag.str_, frag.len()));
         if frag.final_() {
             term.termrequest_terminator = frag.terminator;
@@ -701,22 +691,22 @@ fn on_apc(frag: VTermStringFragment, term: *mut Terminal) -> c_int {
 }
 
 pub fn terminal_init() {
-    unsafe {
+    {
         let timer = refresh_timer_ptr();
         time_watcher_init(
             &mut g_st().main_loop,
             &mut *timer,
             TimeWatcherData::TerminalRefresh,
         );
-        (*timer).events = multiqueue_new_child(loop_queues(&mut g_st().main_loop).events);
+        timer.events = multiqueue_new_child(loop_queues(&mut g_st().main_loop).events);
     }
 }
 
 pub fn terminal_teardown() {
-    unsafe {
+    {
         let timer = refresh_timer_ptr();
         time_watcher_stop(&mut *timer);
-        multiqueue_free((*timer).events);
+        multiqueue_free(timer.events);
         time_watcher_close(&mut *timer);
         term_st().invalidated_terminals = Vec::new();
     }
@@ -822,7 +812,8 @@ pub fn terminal_alloc(buf: &mut FileBuf, mut opts: TerminalOptions) -> *mut Term
         vterm_state_set_termprop(state, VTERM_PROP_CURSORSHAPE, &mut cursor_shape);
 
         let mut cursor_blink = VTermValue::Boolean(c_int::from(
-            (*shape_table_mut())[SHAPE_IDX_TERM].blinkon != 0 && (*shape_table_mut())[SHAPE_IDX_TERM].blinkoff != 0,
+            (*shape_table_mut())[SHAPE_IDX_TERM].blinkon != 0
+                && (*shape_table_mut())[SHAPE_IDX_TERM].blinkoff != 0,
         ));
         vterm_state_set_termprop(state, VTERM_PROP_CURSORBLINK, &mut cursor_blink);
 
@@ -886,7 +877,13 @@ pub fn terminal_open(termpp: *mut *mut Terminal, buf: &mut FileBuf) {
             coladd: 0,
         };
 
-        apply_autocmds(EVENT_TERMOPEN, ptr::null_mut(), ptr::null_mut(), false, &raw mut *buf);
+        apply_autocmds(
+            EVENT_TERMOPEN,
+            ptr::null_mut(),
+            ptr::null_mut(),
+            false,
+            &raw mut *buf,
+        );
 
         ctx_restore(&mut aco);
 
@@ -1003,10 +1000,10 @@ pub fn terminal_close(termpp: *mut *mut Terminal, status: c_int) {
             let mut data_obj = Object {
                 obj_type: ObjectType::ObjectTypeDict,
                 data: ObjectData::Dict(Dict {
-                        items: data_items.as_mut_ptr(),
-                        size: 1,
-                        capacity: 1,
-                    }),
+                    items: data_items.as_mut_ptr(),
+                    size: 1,
+                    capacity: 1,
+                }),
             };
 
             apply_autocmds_group(
@@ -1040,7 +1037,7 @@ pub fn terminal_set_state(term: &mut Terminal, suspended: bool) {
     unsafe {
         if term.suspended != suspended {
             multiqueue_put_event(
-                &mut *(*refresh_timer_ptr()).events,
+                &mut *refresh_timer_ptr().events,
                 Event::TermStateChange(term.buf_handle),
             );
         }
@@ -1061,10 +1058,8 @@ pub fn terminal_check_size(term: &mut Terminal) {
         let mut height: u16 = 0;
 
         for tp in for_all_tabpages_ptr() {
-            for wp in for_all_windows_in_tab_ptr( &*tp) {
-                if !is_ctx_win(wp)
-                    && !(*wp).w_buffer.is_null()
-                    && (*wp).buf_mut().terminal == term
+            for wp in for_all_windows_in_tab_ptr(&*tp) {
+                if !is_ctx_win(wp) && !(*wp).w_buffer.is_null() && (*wp).buf_mut().terminal == term
                 {
                     let win_width = ((*wp).w_view_width - win_col_off(wp)).max(0) as u16;
                     width = width.max(win_width);
@@ -1088,7 +1083,7 @@ pub fn terminal_check_size(term: &mut Terminal) {
 }
 
 fn set_terminal_winopts(s: &mut TerminalState) {
-     {
+    {
         debug_assert!(s.save_curwin_handle == 0);
 
         s.save_curwin_handle = curwin_mut().handle;
@@ -1102,9 +1097,12 @@ fn set_terminal_winopts(s: &mut TerminalState) {
         if curwin_mut().w_onebuf_opt.wo_cul != 0
             && (curwin_mut().w_p_culopt_flags & K_OPT_CULOPT_FLAG_NUMBER) != 0
         {
-            if !(crate::memory::cstr_as_opt_bytes(curwin_mut().w_onebuf_opt.wo_culopt) == Some(b"number")) {
-                s.save_w_p_culopt =
-                    Some(crate::memory::cstr_to_cstring(curwin_mut().w_onebuf_opt.wo_culopt));
+            if !(crate::memory::cstr_as_opt_bytes(curwin_mut().w_onebuf_opt.wo_culopt)
+                == Some(b"number"))
+            {
+                s.save_w_p_culopt = Some(crate::memory::cstr_to_cstring(
+                    curwin_mut().w_onebuf_opt.wo_culopt,
+                ));
                 free_string_option(curwin_mut().w_onebuf_opt.wo_culopt);
                 curwin_mut().w_onebuf_opt.wo_culopt = alloc_string_option(c"number");
             }
@@ -1150,8 +1148,7 @@ fn unset_terminal_winopts(s: &mut TerminalState) {
                     if s.save_w_p_cuc != (*wp).w_onebuf_opt.wo_cuc {
                         redraw_later(wp.as_mut(), UPD_SOME_VALID);
                     } else if s.save_w_p_cul != ((*wp).w_onebuf_opt.wo_cul != 0)
-                        || (s.save_w_p_cul
-                            && s.save_w_p_culopt_flags != (*wp).w_p_culopt_flags)
+                        || (s.save_w_p_cul && s.save_w_p_culopt_flags != (*wp).w_p_culopt_flags)
                     {
                         redraw_later(wp.as_mut(), UPD_VALID);
                     }
@@ -1330,11 +1327,7 @@ fn terminal_check_focus(s: &mut TerminalState) -> bool {
 
 fn terminal_check(s: &mut TerminalState) -> c_int {
     unsafe {
-        debug_assert!(
-            !s.close
-                || ((*s.term).buf_handle == 0
-                    && s.term != curbuf_mut().terminal)
-        );
+        debug_assert!(!s.close || ((*s.term).buf_handle == 0 && s.term != curbuf_mut().terminal));
 
         if g_st().ins_global.stop_insert_mode || !terminal_check_focus(&mut *s) {
             return 0;
@@ -1464,7 +1457,11 @@ pub fn terminal_destroy(termpp: *mut *mut Terminal) {
         }
 
         if term.refcount == 0 {
-            if let Some(pos) = term_st().invalidated_terminals.iter().position(|&t| std::ptr::eq(t, term)) {
+            if let Some(pos) = term_st()
+                .invalidated_terminals
+                .iter()
+                .position(|&t| std::ptr::eq(t, term))
+            {
                 block_autocmds();
                 refresh_terminal(term);
                 unblock_autocmds();
@@ -1573,16 +1570,16 @@ pub fn terminal_paste(count: c_int, y_array: *mut NvimString, y_size: usize) {
 
 fn terminal_send_key(term: &mut Terminal, mut c: c_int) {
     let mut mod_: VTermModifier = VTERM_MOD_NONE;
-        if c == K_ZERO {
-            c = CTRL_AT;
-        }
+    if c == K_ZERO {
+        c = CTRL_AT;
+    }
 
-        let key = convert_key(&mut c, g_st().mod_mask, &mut mod_);
-        if key != VTERM_KEY_NONE {
-            vterm_keyboard_key(&mut term.vt, key, mod_);
-        } else if !is_special(c) {
-            vterm_keyboard_unichar(&mut term.vt, c as u32, mod_);
-        }
+    let key = convert_key(&mut c, g_st().mod_mask, &mut mod_);
+    if key != VTERM_KEY_NONE {
+        vterm_keyboard_key(&mut term.vt, key, mod_);
+    } else if !is_special(c) {
+        vterm_keyboard_unichar(&mut term.vt, c as u32, mod_);
+    }
 }
 
 pub fn on_sync_flush(buf_handle: ObjHandle) {
@@ -1611,7 +1608,9 @@ pub fn terminal_receive(term: &mut Terminal, data: impl crate::strings::IntoCCha
             let mut crlf_data: Vec<c_char> = Vec::with_capacity(len);
             for i in 0..len {
                 let b = *data.add(i);
-                if b == b'\n' as c_char && (i == 0 || crate::memory::cstr_byte_at(data, i - 1) != b'\r') {
+                if b == b'\n' as c_char
+                    && (i == 0 || crate::memory::cstr_byte_at(data, i - 1) != b'\r')
+                {
                     crlf_data.push(b'\r' as c_char);
                 }
                 crlf_data.push(b);
@@ -1639,10 +1638,10 @@ pub fn terminal_receive(term: &mut Terminal, data: impl crate::strings::IntoCCha
 
 fn get_rgb(state: &VTermStateFull, mut color: VTermColor) -> c_int {
     vterm_state_convert_color_to_rgb(state, &mut color);
-        let r = c_int::from(color.bytes[1]);
-        let g = c_int::from(color.bytes[2]);
-        let b = c_int::from(color.bytes[3]);
-        (r << 16) | (g << 8) | b
+    let r = c_int::from(color.bytes[1]);
+    let g = c_int::from(color.bytes[2]);
+    let b = c_int::from(color.bytes[3]);
+    (r << 16) | (g << 8) | b
 }
 
 const fn get_underline_hl_flag(attrs: VTermScreenCellAttrs) -> c_int {
@@ -1655,11 +1654,7 @@ const fn get_underline_hl_flag(attrs: VTermScreenCellAttrs) -> c_int {
     }
 }
 
-pub fn terminal_get_line_attributes(
-    term: &mut Terminal,
-    linenr: c_int,
-    term_attrs: *mut c_int,
-) {
+pub fn terminal_get_line_attributes(term: &mut Terminal, linenr: c_int, term_attrs: *mut c_int) {
     unsafe {
         let mut height: c_int = 0;
         let mut width: c_int = 0;
@@ -1790,23 +1785,23 @@ pub fn terminal_suspended(term: &Terminal) -> bool {
 
 pub fn terminal_notify_theme(term: &mut Terminal, dark: bool) {
     if !term.theme_updates {
-            return;
-        }
-        let seq: &[u8; 9] = if dark {
-            b"\x1b[?997;1n"
-        } else {
-            b"\x1b[?997;2n"
-        };
-        terminal_send(term, seq.as_ptr().cast::<c_char>(), seq.len());
+        return;
+    }
+    let seq: &[u8; 9] = if dark {
+        b"\x1b[?997;1n"
+    } else {
+        b"\x1b[?997;2n"
+    };
+    terminal_send(term, seq.as_ptr().cast::<c_char>(), seq.len());
 }
 
 fn terminal_focus(term: &mut Terminal, focus: bool) {
     let state = vterm_obtain_state(&mut term.vt);
-        if focus {
-            vterm_state_focus_in(state);
-        } else {
-            vterm_state_focus_out(state);
-        }
+    if focus {
+        vterm_state_focus_in(state);
+    } else {
+        vterm_state_focus_out(state);
+    }
 }
 
 fn term_damage(rect: VTermRect, term: *mut Terminal) -> c_int {
@@ -1844,7 +1839,8 @@ fn term_movecursor(
     }
 }
 
-fn buf_set_term_title(buf: *mut FileBuf, title: impl crate::strings::IntoCCharPtr, len: usize) { let title = title.into_c_char_ptr();
+fn buf_set_term_title(buf: *mut FileBuf, title: impl crate::strings::IntoCCharPtr, len: usize) {
+    let title = title.into_c_char_ptr();
     unsafe {
         if buf.is_null() {
             return;
@@ -1896,8 +1892,7 @@ fn term_settermprop(prop: VTermProp, val: &mut VTermValue, term: *mut Terminal) 
                     term.title.reserve(flen.max(1024));
                 }
 
-                term
-                    .title
+                term.title
                     .extend_from_slice(std::slice::from_raw_parts(frag.str_, flen));
 
                 if frag.final_() {
@@ -1940,7 +1935,7 @@ fn term_bell(_data: *mut Terminal) -> c_int {
 }
 
 fn term_theme(dark: &mut bool, _data: *mut Terminal) -> c_int {
-     {
+    {
         *dark = crate::memory::cstr_first_byte(opt_vars().p_bg) == b'd';
     }
     1
@@ -2041,27 +2036,22 @@ pub fn term_clipboard_set(mask: VTermSelectionMask, data: std::ffi::CString) {
         loop {
             let start_bytes = crate::memory::cstr_as_bytes(start);
             if let Some(pos) = start_bytes.iter().position(|&b| b == b'\n') {
-                tv_list_append_string( &mut *lines, start, pos as isize);
+                tv_list_append_string(&mut *lines, start, pos as isize);
                 start = start.add(pos + 1);
             } else {
                 break;
             }
         }
-        tv_list_append_string( &mut *lines, start, -1);
+        tv_list_append_string(&mut *lines, start, -1);
         drop(data);
 
         let args = tv_list_alloc(3);
-        tv_list_append_list( &mut *args, lines);
+        tv_list_append_list(&mut *args, lines);
 
         let regtype: c_char = b'v' as c_char;
-        tv_list_append_string( &mut *args, &regtype, 1);
-        tv_list_append_string( &mut *args, &regname, 1);
-        eval_call_provider(
-            c"clipboard",
-            c"set",
-            &mut *args,
-            true,
-        );
+        tv_list_append_string(&mut *args, &regtype, 1);
+        tv_list_append_string(&mut *args, &regname, 1);
+        eval_call_provider(c"clipboard", c"set", &mut *args, true);
     }
 }
 
@@ -2077,17 +2067,16 @@ fn term_selection_set(
         }
 
         if !frag.is_empty() {
-            term
-                .selection
+            term.selection
                 .extend_from_slice(std::slice::from_raw_parts(frag.str_, frag.len()));
         }
 
         if frag.final_() {
-            let bytes = crate::memory::cstr_slice(term.selection.as_ptr(), term.selection.len(),
-            );
+            let bytes = crate::memory::cstr_slice(term.selection.as_ptr(), term.selection.len());
             let end = bytes.iter().position(|&b| b == 0).unwrap_or(bytes.len());
             let data = std::ffi::CString::new(&bytes[..end]).unwrap();
-            multiqueue_put_event(&mut *loop_queues(&mut g_st().main_loop).events,
+            multiqueue_put_event(
+                &mut *loop_queues(&mut g_st().main_loop).events,
                 Event::TermClipboardSet { mask, data },
             );
         }
@@ -2116,110 +2105,106 @@ fn convert_modifiers(key: &mut c_int, modifiers: c_int, statep: &mut VTermModifi
     }
 }
 
-fn convert_key(
-    key: &mut c_int,
-    mut modifiers: c_int,
-    statep: &mut VTermModifier,
-) -> VTermKey {
+fn convert_key(key: &mut c_int, mut modifiers: c_int, statep: &mut VTermModifier) -> VTermKey {
     *key = unsimplify_key(*key, &mut modifiers);
-        convert_modifiers(key, modifiers, statep);
+    convert_modifiers(key, modifiers, statep);
 
-        match *key {
-            K_BS => VTERM_KEY_BACKSPACE,
-            K_TAB | TAB => VTERM_KEY_TAB,
-            CTRL_M => VTERM_KEY_ENTER,
-            ESC => VTERM_KEY_ESCAPE,
-            K_UP => VTERM_KEY_UP,
-            K_DOWN => VTERM_KEY_DOWN,
-            K_LEFT => VTERM_KEY_LEFT,
-            K_RIGHT => VTERM_KEY_RIGHT,
-            K_INS => VTERM_KEY_INS,
-            K_DEL => VTERM_KEY_DEL,
-            K_HOME => VTERM_KEY_HOME,
-            K_END => VTERM_KEY_END,
-            K_PAGEUP => VTERM_KEY_PAGEUP,
-            K_PAGEDOWN => VTERM_KEY_PAGEDOWN,
-            K_K0 | K_KINS => VTERM_KEY_KP_0,
-            K_K1 | K_KEND => VTERM_KEY_KP_1,
-            K_K2 | K_KDOWN => VTERM_KEY_KP_2,
-            K_K3 | K_KPAGEDOWN => VTERM_KEY_KP_3,
-            K_K4 | K_KLEFT => VTERM_KEY_KP_4,
-            K_K5 | K_KORIGIN => VTERM_KEY_KP_5,
-            K_K6 | K_KRIGHT => VTERM_KEY_KP_6,
-            K_K7 | K_KHOME => VTERM_KEY_KP_7,
-            K_K8 | K_KUP => VTERM_KEY_KP_8,
-            K_K9 | K_KPAGEUP => VTERM_KEY_KP_9,
-            K_KDEL | K_KPOINT => VTERM_KEY_KP_PERIOD,
-            K_KENTER => VTERM_KEY_KP_ENTER,
-            K_KPLUS => VTERM_KEY_KP_PLUS,
-            K_KMINUS => VTERM_KEY_KP_MINUS,
-            K_KMULTIPLY => VTERM_KEY_KP_MULT,
-            K_KDIVIDE => VTERM_KEY_KP_DIVIDE,
-            K_F1 => vterm_key_function(1),
-            K_F2 => vterm_key_function(2),
-            K_F3 => vterm_key_function(3),
-            K_F4 => vterm_key_function(4),
-            K_F5 => vterm_key_function(5),
-            K_F6 => vterm_key_function(6),
-            K_F7 => vterm_key_function(7),
-            K_F8 => vterm_key_function(8),
-            K_F9 => vterm_key_function(9),
-            K_F10 => vterm_key_function(10),
-            K_F11 => vterm_key_function(11),
-            K_F12 => vterm_key_function(12),
-            K_F13 => vterm_key_function(13),
-            K_F14 => vterm_key_function(14),
-            K_F15 => vterm_key_function(15),
-            K_F16 => vterm_key_function(16),
-            K_F17 => vterm_key_function(17),
-            K_F18 => vterm_key_function(18),
-            K_F19 => vterm_key_function(19),
-            K_F20 => vterm_key_function(20),
-            K_F21 => vterm_key_function(21),
-            K_F22 => vterm_key_function(22),
-            K_F23 => vterm_key_function(23),
-            K_F24 => vterm_key_function(24),
-            K_F25 => vterm_key_function(25),
-            K_F26 => vterm_key_function(26),
-            K_F27 => vterm_key_function(27),
-            K_F28 => vterm_key_function(28),
-            K_F29 => vterm_key_function(29),
-            K_F30 => vterm_key_function(30),
-            K_F31 => vterm_key_function(31),
-            K_F32 => vterm_key_function(32),
-            K_F33 => vterm_key_function(33),
-            K_F34 => vterm_key_function(34),
-            K_F35 => vterm_key_function(35),
-            K_F36 => vterm_key_function(36),
-            K_F37 => vterm_key_function(37),
-            K_F38 => vterm_key_function(38),
-            K_F39 => vterm_key_function(39),
-            K_F40 => vterm_key_function(40),
-            K_F41 => vterm_key_function(41),
-            K_F42 => vterm_key_function(42),
-            K_F43 => vterm_key_function(43),
-            K_F44 => vterm_key_function(44),
-            K_F45 => vterm_key_function(45),
-            K_F46 => vterm_key_function(46),
-            K_F47 => vterm_key_function(47),
-            K_F48 => vterm_key_function(48),
-            K_F49 => vterm_key_function(49),
-            K_F50 => vterm_key_function(50),
-            K_F51 => vterm_key_function(51),
-            K_F52 => vterm_key_function(52),
-            K_F53 => vterm_key_function(53),
-            K_F54 => vterm_key_function(54),
-            K_F55 => vterm_key_function(55),
-            K_F56 => vterm_key_function(56),
-            K_F57 => vterm_key_function(57),
-            K_F58 => vterm_key_function(58),
-            K_F59 => vterm_key_function(59),
-            K_F60 => vterm_key_function(60),
-            K_F61 => vterm_key_function(61),
-            K_F62 => vterm_key_function(62),
-            K_F63 => vterm_key_function(63),
-            _ => VTERM_KEY_NONE,
-        }
+    match *key {
+        K_BS => VTERM_KEY_BACKSPACE,
+        K_TAB | TAB => VTERM_KEY_TAB,
+        CTRL_M => VTERM_KEY_ENTER,
+        ESC => VTERM_KEY_ESCAPE,
+        K_UP => VTERM_KEY_UP,
+        K_DOWN => VTERM_KEY_DOWN,
+        K_LEFT => VTERM_KEY_LEFT,
+        K_RIGHT => VTERM_KEY_RIGHT,
+        K_INS => VTERM_KEY_INS,
+        K_DEL => VTERM_KEY_DEL,
+        K_HOME => VTERM_KEY_HOME,
+        K_END => VTERM_KEY_END,
+        K_PAGEUP => VTERM_KEY_PAGEUP,
+        K_PAGEDOWN => VTERM_KEY_PAGEDOWN,
+        K_K0 | K_KINS => VTERM_KEY_KP_0,
+        K_K1 | K_KEND => VTERM_KEY_KP_1,
+        K_K2 | K_KDOWN => VTERM_KEY_KP_2,
+        K_K3 | K_KPAGEDOWN => VTERM_KEY_KP_3,
+        K_K4 | K_KLEFT => VTERM_KEY_KP_4,
+        K_K5 | K_KORIGIN => VTERM_KEY_KP_5,
+        K_K6 | K_KRIGHT => VTERM_KEY_KP_6,
+        K_K7 | K_KHOME => VTERM_KEY_KP_7,
+        K_K8 | K_KUP => VTERM_KEY_KP_8,
+        K_K9 | K_KPAGEUP => VTERM_KEY_KP_9,
+        K_KDEL | K_KPOINT => VTERM_KEY_KP_PERIOD,
+        K_KENTER => VTERM_KEY_KP_ENTER,
+        K_KPLUS => VTERM_KEY_KP_PLUS,
+        K_KMINUS => VTERM_KEY_KP_MINUS,
+        K_KMULTIPLY => VTERM_KEY_KP_MULT,
+        K_KDIVIDE => VTERM_KEY_KP_DIVIDE,
+        K_F1 => vterm_key_function(1),
+        K_F2 => vterm_key_function(2),
+        K_F3 => vterm_key_function(3),
+        K_F4 => vterm_key_function(4),
+        K_F5 => vterm_key_function(5),
+        K_F6 => vterm_key_function(6),
+        K_F7 => vterm_key_function(7),
+        K_F8 => vterm_key_function(8),
+        K_F9 => vterm_key_function(9),
+        K_F10 => vterm_key_function(10),
+        K_F11 => vterm_key_function(11),
+        K_F12 => vterm_key_function(12),
+        K_F13 => vterm_key_function(13),
+        K_F14 => vterm_key_function(14),
+        K_F15 => vterm_key_function(15),
+        K_F16 => vterm_key_function(16),
+        K_F17 => vterm_key_function(17),
+        K_F18 => vterm_key_function(18),
+        K_F19 => vterm_key_function(19),
+        K_F20 => vterm_key_function(20),
+        K_F21 => vterm_key_function(21),
+        K_F22 => vterm_key_function(22),
+        K_F23 => vterm_key_function(23),
+        K_F24 => vterm_key_function(24),
+        K_F25 => vterm_key_function(25),
+        K_F26 => vterm_key_function(26),
+        K_F27 => vterm_key_function(27),
+        K_F28 => vterm_key_function(28),
+        K_F29 => vterm_key_function(29),
+        K_F30 => vterm_key_function(30),
+        K_F31 => vterm_key_function(31),
+        K_F32 => vterm_key_function(32),
+        K_F33 => vterm_key_function(33),
+        K_F34 => vterm_key_function(34),
+        K_F35 => vterm_key_function(35),
+        K_F36 => vterm_key_function(36),
+        K_F37 => vterm_key_function(37),
+        K_F38 => vterm_key_function(38),
+        K_F39 => vterm_key_function(39),
+        K_F40 => vterm_key_function(40),
+        K_F41 => vterm_key_function(41),
+        K_F42 => vterm_key_function(42),
+        K_F43 => vterm_key_function(43),
+        K_F44 => vterm_key_function(44),
+        K_F45 => vterm_key_function(45),
+        K_F46 => vterm_key_function(46),
+        K_F47 => vterm_key_function(47),
+        K_F48 => vterm_key_function(48),
+        K_F49 => vterm_key_function(49),
+        K_F50 => vterm_key_function(50),
+        K_F51 => vterm_key_function(51),
+        K_F52 => vterm_key_function(52),
+        K_F53 => vterm_key_function(53),
+        K_F54 => vterm_key_function(54),
+        K_F55 => vterm_key_function(55),
+        K_F56 => vterm_key_function(56),
+        K_F57 => vterm_key_function(57),
+        K_F58 => vterm_key_function(58),
+        K_F59 => vterm_key_function(59),
+        K_F60 => vterm_key_function(60),
+        K_F61 => vterm_key_function(61),
+        K_F62 => vterm_key_function(62),
+        K_F63 => vterm_key_function(63),
+        _ => VTERM_KEY_NONE,
+    }
 }
 
 fn mouse_action(
@@ -2231,9 +2216,9 @@ fn mouse_action(
     mod_: VTermModifier,
 ) {
     vterm_mouse_move(&mut term.vt, row, col, mod_);
-        if button != 0 {
-            vterm_mouse_button(&mut term.vt, button, pressed, mod_);
-        }
+    if button != 0 {
+        vterm_mouse_button(&mut term.vt, button, pressed, mod_);
+    }
 }
 
 fn send_mouse_event(term: &mut Terminal, mut c: c_int) -> bool {
@@ -2309,9 +2294,7 @@ fn send_mouse_event(term: &mut Terminal, mut c: c_int) -> bool {
             }
         }
 
-        if (c == K_LEFTRELEASE
-            && !mouse_win.is_null()
-            && (*mouse_win).buf_mut().terminal == term)
+        if (c == K_LEFTRELEASE && !mouse_win.is_null() && (*mouse_win).buf_mut().terminal == term)
             || c == K_MOUSEMOVE
         {
             return false;
@@ -2346,12 +2329,7 @@ fn fetch_row(term: &mut Terminal, row: c_int, end_col: c_int) {
     }
 }
 
-fn fetch_cell(
-    term: &mut Terminal,
-    row: c_int,
-    col: c_int,
-    cell: &mut VTermScreenCell,
-) -> bool {
+fn fetch_cell(term: &mut Terminal, row: c_int, col: c_int, cell: &mut VTermScreenCell) -> bool {
     unsafe {
         if row < 0 {
             let sbrow = &term.sb_buffer.as_slice()[(-row - 1) as usize];
@@ -2373,7 +2351,7 @@ fn fetch_cell(
 }
 
 fn invalidate_terminal(term: &mut Terminal, start_row: c_int, end_row: c_int) {
-    unsafe {
+    {
         if start_row != -1 && end_row != -1 {
             term.invalid_start = term.invalid_start.min(start_row);
             term.invalid_end = term.invalid_end.max(end_row);
@@ -2393,7 +2371,7 @@ fn invalidate_terminal(term: &mut Terminal, start_row: c_int, end_row: c_int) {
 
 pub fn terminal_check_refresh() {
     unsafe {
-        multiqueue_process_events(&mut *(*refresh_timer_ptr()).events);
+        multiqueue_process_events(&mut *refresh_timer_ptr().events);
     }
 }
 
@@ -2414,10 +2392,10 @@ fn refresh_terminal(term: &mut Terminal) {
 
         if resized {
             for tp in for_all_tabpages_ptr() {
-                for wp in for_all_windows_in_tab_ptr( &*tp) {
+                for wp in for_all_windows_in_tab_ptr(&*tp) {
                     if (*wp).w_buffer == buf && (*wp).w_leftcol != 0 {
                         (*wp).w_leftcol = 0;
-                        curs_columns( &mut *wp, 1);
+                        curs_columns(&mut *wp, 1);
                     }
                 }
             }
@@ -2516,40 +2494,40 @@ fn refresh_size(term: &mut Terminal) -> bool {
 
 pub fn on_scrollback_option_changed(term: &mut Terminal) {
     if term.sb_allocated {
-            refresh_terminal(term);
-        }
+        refresh_terminal(term);
+    }
 }
 
 fn adjust_scrollback(term: &mut Terminal, buf: &mut FileBuf) {
     if buf.b_p_scbk < 1 {
-            buf.b_p_scbk = SB_MAX;
-        }
-        let scbk = buf.b_p_scbk as usize;
-        debug_assert!(term.sb_buffer.len() < usize::MAX);
-        if term.sb_pending > 0 {
-            std::process::abort();
-        }
+        buf.b_p_scbk = SB_MAX;
+    }
+    let scbk = buf.b_p_scbk as usize;
+    debug_assert!(term.sb_buffer.len() < usize::MAX);
+    if term.sb_pending > 0 {
+        std::process::abort();
+    }
 
-        if scbk < term.sb_buffer.len() {
-            let diff = term.sb_buffer.len() - scbk;
-            for _ in 0..diff {
-                ml_delete_buf(buf, 1, false);
-                term.sb_buffer.pop();
-            }
-            mark_adjust_buf(
-                &mut *buf,
-                1,
-                diff as Linenr,
-                MAXLNUM,
-                -(diff as Linenr),
-                true,
-                K_MARK_ADJUST_TERM,
-                K_EXTMARK_UNDO,
-            );
-            deleted_lines_buf(buf, 1, diff as Linenr);
+    if scbk < term.sb_buffer.len() {
+        let diff = term.sb_buffer.len() - scbk;
+        for _ in 0..diff {
+            ml_delete_buf(buf, 1, false);
+            term.sb_buffer.pop();
         }
+        mark_adjust_buf(
+            &mut *buf,
+            1,
+            diff as Linenr,
+            MAXLNUM,
+            -(diff as Linenr),
+            true,
+            K_MARK_ADJUST_TERM,
+            K_EXTMARK_UNDO,
+        );
+        deleted_lines_buf(buf, 1, diff as Linenr);
+    }
 
-        term.sb_size = scbk;
+    term.sb_size = scbk;
 }
 
 fn refresh_scrollback(term: &mut Terminal, buf: &mut FileBuf) {
@@ -2608,41 +2586,41 @@ fn refresh_scrollback(term: &mut Terminal, buf: &mut FileBuf) {
 
 fn refresh_screen(term: &mut Terminal, buf: &mut FileBuf) {
     let mut changed: c_int = 0;
-        let mut added: c_int = 0;
-        let mut height: c_int = 0;
-        let mut width: c_int = 0;
-        vterm_get_size(&term.vt, &mut height, &mut width);
-        term.invalid_end = term.invalid_end.min(height);
+    let mut added: c_int = 0;
+    let mut height: c_int = 0;
+    let mut width: c_int = 0;
+    vterm_get_size(&term.vt, &mut height, &mut width);
+    term.invalid_end = term.invalid_end.min(height);
 
-        if term.invalid_start >= term.invalid_end {
-            term.invalid_start = c_int::MAX;
-            term.invalid_end = -1;
-            return;
-        }
-
-        let textbuf_ptr = (&raw mut term.textbuf).cast::<c_char>();
-        let mut r = term.invalid_start;
-        let mut linenr = row_to_linenr(term, r);
-        while r < term.invalid_end {
-            fetch_row(term, r, width);
-
-            if linenr <= buf.b_ml.ml_line_count {
-                ml_replace_buf(buf, linenr, textbuf_ptr, true, false);
-                changed += 1;
-            } else {
-                ml_append_buf(buf, linenr - 1, textbuf_ptr, 0, false);
-                added += 1;
-            }
-            r += 1;
-            linenr += 1;
-        }
-        term.old_height = height;
-
-        let change_start = row_to_linenr(term, term.invalid_start);
-        let change_end = change_start + changed;
+    if term.invalid_start >= term.invalid_end {
         term.invalid_start = c_int::MAX;
         term.invalid_end = -1;
-        changed_lines(buf, change_start, 0, change_end, added, true);
+        return;
+    }
+
+    let textbuf_ptr = (&raw mut term.textbuf).cast::<c_char>();
+    let mut r = term.invalid_start;
+    let mut linenr = row_to_linenr(term, r);
+    while r < term.invalid_end {
+        fetch_row(term, r, width);
+
+        if linenr <= buf.b_ml.ml_line_count {
+            ml_replace_buf(buf, linenr, textbuf_ptr, true, false);
+            changed += 1;
+        } else {
+            ml_append_buf(buf, linenr - 1, textbuf_ptr, 0, false);
+            added += 1;
+        }
+        r += 1;
+        linenr += 1;
+    }
+    term.old_height = height;
+
+    let change_start = row_to_linenr(term, term.invalid_start);
+    let change_end = change_start + changed;
+    term.invalid_start = c_int::MAX;
+    term.invalid_end = -1;
+    changed_lines(buf, change_start, 0, change_end, added, true);
 }
 
 fn adjust_topline_cursor(term: &mut Terminal, buf: &mut FileBuf, added: c_int) {
@@ -2650,7 +2628,7 @@ fn adjust_topline_cursor(term: &mut Terminal, buf: &mut FileBuf, added: c_int) {
         let ml_end = buf.b_ml.ml_line_count;
 
         for tp in for_all_tabpages_ptr() {
-            for wp in for_all_windows_in_tab_ptr( &*tp) {
+            for wp in for_all_windows_in_tab_ptr(&*tp) {
                 if (*wp).w_buffer == buf {
                     if wp == curwin_ptr() && is_focused(term) {
                         terminal_check_cursor();
@@ -2660,7 +2638,10 @@ fn adjust_topline_cursor(term: &mut Terminal, buf: &mut FileBuf, added: c_int) {
                     let following = ml_end == (*wp).w_cursor.lnum + added;
                     if following {
                         (*wp).w_cursor.lnum = ml_end;
-                        set_topline(&mut *wp, ((*wp).w_cursor.lnum - (*wp).w_view_height + 1).max(1));
+                        set_topline(
+                            &mut *wp,
+                            ((*wp).w_cursor.lnum - (*wp).w_view_height + 1).max(1),
+                        );
                     } else {
                         (*wp).w_cursor.lnum = (*wp).w_cursor.lnum.min(ml_end);
                     }
@@ -2697,20 +2678,20 @@ fn linenr_to_row(term: &mut Terminal, linenr: c_int) -> c_int {
 
 #[inline]
 fn is_focused(term: &mut Terminal) -> bool {
-     (g_st().state_global & MODE_TERMINAL) != 0 && curbuf_mut().terminal == term
+    (g_st().state_global & MODE_TERMINAL) != 0 && curbuf_mut().terminal == term
 }
 
 fn get_config_string(buf: &mut FileBuf, key: *mut c_char) -> *mut c_char {
-     {
+    {
         let mut err = Error::new();
         let key_str = NvimString {
             data: key,
             size: crate::memory::cstr_len(key),
         };
-        let mut obj = dict_get_value(unsafe { buf.b_vars().as_ref() }, key_str, None, &mut err);
+        let mut obj = dict_get_value(Some(&*buf.b_vars()), key_str, None, &mut err);
         api_clear_error(&mut err);
         if obj.obj_type == ObjectType::ObjectTypeNil {
-            obj = dict_get_value( Some(&*get_globvar_dict()), key_str, None, &mut err);
+            obj = dict_get_value(Some(&*get_globvar_dict()), key_str, None, &mut err);
             api_clear_error(&mut err);
         }
         if obj.obj_type == ObjectType::ObjectTypeString {

@@ -1,11 +1,11 @@
 //! Extended marks for plugins (`src/nvim/extmark.c`).
 
-use crate::buffer::{MAXLNUM, FileBuf, K_EXTMARK_NO_UNDO};
+use crate::buffer::{FileBuf, K_EXTMARK_NO_UNDO, MAXLNUM};
 use crate::buffer_updates::buf_updates_send_splice;
-use crate::cursor::{Colnr, Linenr, CursorPos};
+use crate::cursor::{Colnr, CursorPos, Linenr};
 use crate::decoration::{
-    DecorInline, buf_decor_remove, buf_put_decor, buf_signcols_count_range, decor_free,
-    decor_redraw, decor_state_invalidate, decor_type_flags, K_SHUIWATCHED, K_SHUIWATCHED_OVERLAY,
+    DecorInline, K_SHUIWATCHED, K_SHUIWATCHED_OVERLAY, buf_decor_remove, buf_put_decor,
+    buf_signcols_count_range, decor_free, decor_redraw, decor_state_invalidate, decor_type_flags,
 };
 use crate::globals::*;
 use crate::marktree::{
@@ -153,7 +153,8 @@ fn extmark_push_savepos(
 /// Create or update an extmark (`extmark_set`).
 pub fn extmark_set(
     buf: &mut FileBuf,
-    ns_id: u32,mut idp: Option<&mut u32>,
+    ns_id: u32,
+    mut idp: Option<&mut u32>,
     row: c_int,
     col: Colnr,
     end_row: c_int,
@@ -165,9 +166,13 @@ pub fn extmark_set(
     no_undo: bool,
     invalidate: bool,
 ) {
-     {
+    {
         let ns = buf.b_extmark_ns.entry(ns_id).or_insert(0);
-        let mut id = if idp.is_some() { *idp.as_deref_mut().unwrap() } else { 0 };
+        let mut id = if idp.is_some() {
+            *idp.as_deref_mut().unwrap()
+        } else {
+            0
+        };
         let mut created = true;
 
         let flags = mt_flags(right_gravity, no_undo, invalidate, decor.is_ext()) | decor_flags;
@@ -285,7 +290,7 @@ pub fn extmark_set(
 
 /// Moves a raw mark back to a recorded position (`extmark_setraw`).
 fn extmark_setraw(buf: &mut FileBuf, mark: u64, row: c_int, col: Colnr, revive: bool) {
-     {
+    {
         let mut itr = MarkTreeIter::new();
         let key = marktree_lookup(&buf.b_marktree, mark, Some(&mut itr));
         let move_ = key.pos.row != row || key.pos.col != col;
@@ -295,7 +300,13 @@ fn extmark_setraw(buf: &mut FileBuf, mark: u64, row: c_int, col: Colnr, revive: 
         }
 
         if !invalid && mt_decor_any(key) && key.pos.row != row {
-            decor_redraw(&mut *buf, key.pos.row, key.pos.row, key.pos.col, mt_decor(key));
+            decor_redraw(
+                &mut *buf,
+                key.pos.row,
+                key.pos.row,
+                key.pos.col,
+                mt_decor(key),
+            );
         }
 
         let mut row1: c_int = 0;
@@ -355,47 +366,47 @@ fn extmark_setraw(buf: &mut FileBuf, mark: u64, row: c_int, col: Colnr, revive: 
 /// Remove an extmark in `ns_id` by `id` (`extmark_del_id`).
 pub fn extmark_del_id(buf: &mut FileBuf, ns_id: u32, id: u32) -> bool {
     let mut itr = MarkTreeIter::new();
-        let key = marktree_lookup_ns(&buf.b_marktree, ns_id, id, false, Some(&mut itr));
-        if key.id != 0 {
-            extmark_del(buf, &mut itr, key, false);
-        }
-        key.id > 0
+    let key = marktree_lookup_ns(&buf.b_marktree, ns_id, id, false, Some(&mut itr));
+    if key.id != 0 {
+        extmark_del(buf, &mut itr, key, false);
+    }
+    key.id > 0
 }
 
 /// Remove a (paired) extmark `key` pointed to by `itr` (`extmark_del`).
 pub fn extmark_del(buf: &mut FileBuf, itr: &mut MarkTreeIter, mut key: MTKey, restore: bool) {
     debug_assert!(key.pos.row >= 0);
 
-        let mut key2 = key;
-        let other = marktree_del_itr(&mut buf.b_marktree, itr, false);
-        if other != 0 {
-            key2 = marktree_lookup(&buf.b_marktree, other, Some(itr));
-            debug_assert!(key2.pos.row >= 0);
-            marktree_del_itr(&mut buf.b_marktree, itr, false);
-            if restore {
-                marktree_itr_get(&buf.b_marktree, key.pos.row, key.pos.col, itr);
-            }
+    let mut key2 = key;
+    let other = marktree_del_itr(&mut buf.b_marktree, itr, false);
+    if other != 0 {
+        key2 = marktree_lookup(&buf.b_marktree, other, Some(itr));
+        debug_assert!(key2.pos.row >= 0);
+        marktree_del_itr(&mut buf.b_marktree, itr, false);
+        if restore {
+            marktree_itr_get(&buf.b_marktree, key.pos.row, key.pos.col, itr);
         }
+    }
 
-        if mt_decor_any(key) {
-            if mt_invalid(key) {
-                decor_free(mt_decor(key));
-            } else {
-                if mt_end(key) {
-                    std::mem::swap(&mut key, &mut key2);
-                }
-                buf_decor_remove(
-                    buf,
-                    key.pos.row,
-                    key2.pos.row,
-                    key.pos.col,
-                    mt_decor(key),
-                    true,
-                );
+    if mt_decor_any(key) {
+        if mt_invalid(key) {
+            decor_free(mt_decor(key));
+        } else {
+            if mt_end(key) {
+                std::mem::swap(&mut key, &mut key2);
             }
+            buf_decor_remove(
+                buf,
+                key.pos.row,
+                key2.pos.row,
+                key.pos.col,
+                mt_decor(key),
+                true,
+            );
         }
+    }
 
-        decor_state_invalidate(buf);
+    decor_state_invalidate(buf);
 }
 
 /// Free extmarks in a ns between lines (`extmark_clear`).
@@ -407,7 +418,7 @@ pub fn extmark_clear(
     u_row: c_int,
     u_col: Colnr,
 ) -> bool {
-     {
+    {
         if buf.b_extmark_ns.is_empty() {
             return false;
         }
@@ -473,84 +484,79 @@ pub fn extmark_get(
     overlap: bool,
 ) -> ExtmarkInfoArray {
     let mut array = ExtmarkInfoArray::new();
-        let mut itr = MarkTreeIter::new();
+    let mut itr = MarkTreeIter::new();
 
-        if overlap {
-            if !marktree_itr_get_overlap(&buf.b_marktree, l_row, l_col, &mut itr) {
-                return array;
-            }
-
-            while (array.len() as i64) < amount {
-                let mut pair = MTPair::new();
-                if !marktree_itr_step_overlap(&buf.b_marktree, &mut itr, &mut pair) {
-                    break;
-                }
-                push_mark(&mut array, ns_id, type_filter, pair);
-            }
-        } else {
-            marktree_itr_get_ext(
-                &buf.b_marktree,
-                MTPos {
-                    row: l_row,
-                    col: l_col,
-                },
-                &mut itr,
-                false,
-                false,
-                None,
-                None,
-            );
+    if overlap {
+        if !marktree_itr_get_overlap(&buf.b_marktree, l_row, l_col, &mut itr) {
+            return array;
         }
 
         while (array.len() as i64) < amount {
-            let mark = marktree_itr_current(&buf.b_marktree, &itr);
-            if mark.pos.row < 0
-                || mark.pos.row > u_row
-                || (mark.pos.row == u_row && mark.pos.col > u_col)
-            {
+            let mut pair = MTPair::new();
+            if !marktree_itr_step_overlap(&buf.b_marktree, &mut itr, &mut pair) {
                 break;
             }
-            if !mt_end(mark) {
-                let end = marktree_get_alt(&buf.b_marktree, mark, None);
-                push_mark(&mut array, ns_id, type_filter, mtpair_from(mark, end));
-            }
-            marktree_itr_next(&buf.b_marktree, &mut itr);
+            push_mark(&mut array, ns_id, type_filter, pair);
         }
-        array
+    } else {
+        marktree_itr_get_ext(
+            &buf.b_marktree,
+            MTPos {
+                row: l_row,
+                col: l_col,
+            },
+            &mut itr,
+            false,
+            false,
+            None,
+            None,
+        );
+    }
+
+    while (array.len() as i64) < amount {
+        let mark = marktree_itr_current(&buf.b_marktree, &itr);
+        if mark.pos.row < 0
+            || mark.pos.row > u_row
+            || (mark.pos.row == u_row && mark.pos.col > u_col)
+        {
+            break;
+        }
+        if !mt_end(mark) {
+            let end = marktree_get_alt(&buf.b_marktree, mark, None);
+            push_mark(&mut array, ns_id, type_filter, mtpair_from(mark, end));
+        }
+        marktree_itr_next(&buf.b_marktree, &mut itr);
+    }
+    array
 }
 
-fn push_mark(
-    array: &mut ExtmarkInfoArray,
-    ns_id: u32,
-    type_filter: ExtmarkType,
-    mark: MTPair,
-) {
+fn push_mark(array: &mut ExtmarkInfoArray, ns_id: u32, type_filter: ExtmarkType, mark: MTPair) {
     if !(ns_id == u32::MAX || mark.start.ns == ns_id) {
+        return;
+    }
+    if type_filter != K_EXTMARK_NONE {
+        if !mt_decor_any(mark.start) {
             return;
         }
-        if type_filter != K_EXTMARK_NONE {
-            if !mt_decor_any(mark.start) {
-                return;
-            }
-            let type_flags = decor_type_flags(mt_decor(mark.start));
-            if (type_flags & type_filter) == 0 {
-                return;
-            }
+        let type_flags = decor_type_flags(mt_decor(mark.start));
+        if (type_flags & type_filter) == 0 {
+            return;
         }
+    }
 
-        array.push(mark);
+    array.push(mark);
 }
 
 /// Lookup an extmark by id (`extmark_from_id`).
 pub fn extmark_from_id(buf: &mut FileBuf, ns_id: u32, id: u32) -> MTPair {
     let mark = marktree_lookup_ns(&buf.b_marktree, ns_id, id, false, None);
-        if mark.id == 0 {
-            return mtpair_from(mark, mark);
-        }
-        debug_assert!(mark.pos.row >= 0);
-        let end = marktree_get_alt(&buf.b_marktree, mark, None);
+    if mark.id == 0 {
+        return mtpair_from(mark, mark);
+    }
+    debug_assert!(mark.pos.row >= 0);
+    let end = marktree_get_alt(&buf.b_marktree, mark, None);
 
-        mtpair_from(mark, end)
+    mtpair_from(mark, end)
 }
 
 /// Creates or updates point extmark (`extmark_set_pos`).
@@ -563,7 +569,7 @@ pub fn extmark_set_pos(
     no_undo: bool,
     ui_watched: bool,
 ) {
-     {
+    {
         let mut decor = DecorInline {
             data: DecorInlineData::Hl(DECOR_HIGHLIGHT_INLINE_INIT),
         };
@@ -590,7 +596,7 @@ pub fn extmark_set_pos(
 
 /// Gets the position of an extmark, shifted by buffer edits since it was set (`extmark_get_pos`).
 pub fn extmark_get_pos(buf: &mut FileBuf, ns_id: u32, id: u32, pos: &mut CursorPos) -> bool {
-     {
+    {
         let mtp = extmark_from_id(buf, ns_id, id);
         if mtp.start.id == 0 {
             return false;
@@ -604,26 +610,26 @@ pub fn extmark_get_pos(buf: &mut FileBuf, ns_id: u32, id: u32, pos: &mut CursorP
 /// Free extmarks from the buffer (`extmark_free_all`).
 pub fn extmark_free_all(buf: &mut FileBuf) {
     let mut itr = MarkTreeIter::new();
-        marktree_itr_get(&buf.b_marktree, 0, 0, &mut itr);
-        loop {
-            let mark = marktree_itr_current(&buf.b_marktree, &itr);
-            if mark.pos.row < 0 {
-                break;
-            }
-
-            if !(mt_paired(mark) && mt_end(mark)) {
-                decor_free(mt_decor(mark));
-            }
-
-            marktree_itr_next(&buf.b_marktree, &mut itr);
+    marktree_itr_get(&buf.b_marktree, 0, 0, &mut itr);
+    loop {
+        let mark = marktree_itr_current(&buf.b_marktree, &itr);
+        if mark.pos.row < 0 {
+            break;
         }
 
-        marktree_clear(&mut buf.b_marktree);
+        if !(mt_paired(mark) && mt_end(mark)) {
+            decor_free(mt_decor(mark));
+        }
 
-        buf.b_signcols.max = 0;
-        buf.b_signcols.count = [0; 9];
+        marktree_itr_next(&buf.b_marktree, &mut itr);
+    }
 
-        buf.b_extmark_ns.clear();
+    marktree_clear(&mut buf.b_marktree);
+
+    buf.b_signcols.max = 0;
+    buf.b_signcols.count = [0; 9];
+
+    buf.b_extmark_ns.clear();
 }
 
 /// Invalidate extmarks between range and copy to undo header (`extmark_splice_delete`).
@@ -637,7 +643,7 @@ pub fn extmark_splice_delete(
     only_copy: bool,
     op: ExtmarkOp,
 ) {
-     {
+    {
         let mut itr = MarkTreeIter::new();
         marktree_itr_get(&buf.b_marktree, l_row, l_col, &mut itr);
         loop {
@@ -697,7 +703,9 @@ pub fn extmark_splice_delete(
                     redo_row: -1,
                     redo_col: -1,
                 };
-                uvp.as_deref_mut().unwrap().push(ExtmarkUndoObject::SavePos(pos));
+                uvp.as_deref_mut()
+                    .unwrap()
+                    .push(ExtmarkUndoObject::SavePos(pos));
             }
 
             marktree_itr_next(&buf.b_marktree, &mut itr);
@@ -707,7 +715,7 @@ pub fn extmark_splice_delete(
 
 /// Undo or redo an extmark operation (`extmark_apply_undo`).
 pub fn extmark_apply_undo(undo_info: ExtmarkUndoObject, undo: bool) {
-     {
+    {
         match undo_info {
             ExtmarkUndoObject::Splice(splice) => {
                 if undo {
@@ -797,7 +805,7 @@ pub fn extmark_adjust(
     amount_after: Linenr,
     undo: ExtmarkOp,
 ) {
-     {
+    {
         if g_st().curbuf_splice_pending != 0 {
             return;
         }
@@ -816,9 +824,8 @@ pub fn extmark_adjust(
             new_row = amount as c_int;
         }
         if new_row > 0 {
-            new_byte = (ml_find_line_or_offset(buf, line1 + new_row, None, true)
-                as Bcount)
-                - start_byte;
+            new_byte =
+                (ml_find_line_or_offset(buf, line1 + new_row, None, true) as Bcount) - start_byte;
         }
         extmark_splice_impl(
             buf,
@@ -849,7 +856,7 @@ pub fn extmark_splice(
     new_byte: Bcount,
     undo: ExtmarkOp,
 ) {
-     {
+    {
         let mut offset = ml_find_line_or_offset(buf, start_row + 1, None, true);
         if offset < 0 && buf.b_ml.ml_chunksize.is_empty() {
             offset = 0;
@@ -884,107 +891,114 @@ pub fn extmark_splice_impl(
     undo: ExtmarkOp,
 ) {
     buf.deleted_bytes2 = 0;
-        buf_updates_send_splice(
-            &mut *buf, start_row, start_col, start_byte, old_row, old_col, old_byte, new_row, new_col,
-            new_byte,
-        );
+    buf_updates_send_splice(
+        &mut *buf, start_row, start_col, start_byte, old_row, old_col, old_byte, new_row, new_col,
+        new_byte,
+    );
 
-        if old_row > 0 || old_col > 0 {
-            let end_row = start_row + old_row;
-            let end_col = (if old_row != 0 { 0 } else { start_col }) + old_col;
-            let uhp = u_force_get_undo_header(buf);
-            let uvp = if let Some(uh) = uhp {
-                &raw mut crate::undo::uhp_mut(buf, uh).uh_extmark
-            } else {
-                ptr::null_mut()
-            };
-            extmark_splice_delete(
-                buf, start_row, start_col, end_row, end_col, unsafe { uvp.as_mut() }, false, undo,
-            );
-        }
-
-        if old_row > 0 || new_row > 0 {
-            let count = if buf.b_prev_line_count > 0 {
-                buf.b_prev_line_count
-            } else {
-                buf.b_ml.ml_line_count
-            };
-            buf_signcols_count_range(
-                 &mut *buf,
-                start_row,
-                (count - 1).min(start_row + old_row),
-                0,
-                K_TRUE,
-            );
-            buf.b_prev_line_count = 0;
-        }
-
-        marktree_splice(
-            &mut buf.b_marktree,
+    if old_row > 0 || old_col > 0 {
+        let end_row = start_row + old_row;
+        let end_col = (if old_row != 0 { 0 } else { start_col }) + old_col;
+        let uhp = u_force_get_undo_header(buf);
+        let uvp = if let Some(uh) = uhp {
+            &raw mut crate::undo::uhp_mut(buf, uh).uh_extmark
+        } else {
+            ptr::null_mut()
+        };
+        extmark_splice_delete(
+            buf,
             start_row,
             start_col,
-            old_row,
-            old_col,
-            new_row,
-            new_col,
+            end_row,
+            end_col,
+            unsafe { uvp.as_mut() },
+            false,
+            undo,
         );
+    }
 
-        if old_row > 0 || new_row > 0 {
-            let row2 = (buf.b_ml.ml_line_count - 1).min(start_row + new_row);
-            buf_signcols_count_range( &mut *buf, start_row, row2, 0, K_NONE);
-        }
+    if old_row > 0 || new_row > 0 {
+        let count = if buf.b_prev_line_count > 0 {
+            buf.b_prev_line_count
+        } else {
+            buf.b_ml.ml_line_count
+        };
+        buf_signcols_count_range(
+            &mut *buf,
+            start_row,
+            (count - 1).min(start_row + old_row),
+            0,
+            K_TRUE,
+        );
+        buf.b_prev_line_count = 0;
+    }
 
-        if undo == K_EXTMARK_UNDO {
-            let Some(uh) = u_force_get_undo_header(buf) else {
-                return;
-            };
+    marktree_splice(
+        &mut buf.b_marktree,
+        start_row,
+        start_col,
+        old_row,
+        old_col,
+        new_row,
+        new_col,
+    );
 
-            let mut merged = false;
-            if old_row == 0
-                && new_row == 0
-                && let Some(ExtmarkUndoObject::Splice(splice)) =
-                    crate::undo::uhp_mut(buf, uh).uh_extmark.last_mut()
-                && splice.start_row == start_row
-                && splice.old_row == 0
-                && splice.new_row == 0
+    if old_row > 0 || new_row > 0 {
+        let row2 = (buf.b_ml.ml_line_count - 1).min(start_row + new_row);
+        buf_signcols_count_range(&mut *buf, start_row, row2, 0, K_NONE);
+    }
+
+    if undo == K_EXTMARK_UNDO {
+        let Some(uh) = u_force_get_undo_header(buf) else {
+            return;
+        };
+
+        let mut merged = false;
+        if old_row == 0
+            && new_row == 0
+            && let Some(ExtmarkUndoObject::Splice(splice)) =
+                crate::undo::uhp_mut(buf, uh).uh_extmark.last_mut()
+            && splice.start_row == start_row
+            && splice.old_row == 0
+            && splice.new_row == 0
+        {
+            if old_col == 0
+                && start_col >= splice.start_col
+                && start_col <= splice.start_col + splice.new_col
             {
-                if old_col == 0
-                    && start_col >= splice.start_col
-                    && start_col <= splice.start_col + splice.new_col
-                {
-                    splice.new_col += new_col;
-                    splice.new_byte += new_byte;
-                    merged = true;
-                } else if new_col == 0 && start_col == splice.start_col + splice.new_col {
-                    splice.old_col += old_col;
-                    splice.old_byte += old_byte;
-                    merged = true;
-                } else if new_col == 0 && start_col + old_col == splice.start_col {
-                    splice.start_col = start_col;
-                    splice.start_byte = start_byte;
-                    splice.old_col += old_col;
-                    splice.old_byte += old_byte;
-                    merged = true;
-                }
-            }
-
-            if !merged {
-                let splice = ExtmarkSplice {
-                    start_row,
-                    start_col,
-                    old_row,
-                    old_col,
-                    new_row,
-                    new_col,
-                    start_byte,
-                    old_byte,
-                    new_byte,
-                };
-                crate::undo::uhp_mut(buf, uh)
-                    .uh_extmark
-                    .push(ExtmarkUndoObject::Splice(splice));
+                splice.new_col += new_col;
+                splice.new_byte += new_byte;
+                merged = true;
+            } else if new_col == 0 && start_col == splice.start_col + splice.new_col {
+                splice.old_col += old_col;
+                splice.old_byte += old_byte;
+                merged = true;
+            } else if new_col == 0 && start_col + old_col == splice.start_col {
+                splice.start_col = start_col;
+                splice.start_byte = start_byte;
+                splice.old_col += old_col;
+                splice.old_byte += old_byte;
+                merged = true;
             }
         }
+
+        if !merged {
+            let splice = ExtmarkSplice {
+                start_row,
+                start_col,
+                old_row,
+                old_col,
+                new_row,
+                new_col,
+                start_byte,
+                old_byte,
+                new_byte,
+            };
+            crate::undo::uhp_mut(buf, uh)
+                .uh_extmark
+                .push(ExtmarkUndoObject::Splice(splice));
+        }
+    }
 }
 
 pub fn extmark_splice_cols(
@@ -996,17 +1010,17 @@ pub fn extmark_splice_cols(
     undo: ExtmarkOp,
 ) {
     extmark_splice(
-             buf,
-            start_row,
-            start_col,
-            0,
-            old_col,
-            old_col as Bcount,
-            0,
-            new_col,
-            new_col as Bcount,
-            undo,
-        );
+        buf,
+        start_row,
+        start_col,
+        0,
+        old_col,
+        old_col as Bcount,
+        0,
+        new_col,
+        new_col as Bcount,
+        undo,
+    );
 }
 
 pub fn extmark_move_region(
@@ -1023,68 +1037,68 @@ pub fn extmark_move_region(
     undo: ExtmarkOp,
 ) {
     buf.deleted_bytes2 = 0;
-        buf_updates_send_splice(
-            &mut *buf,
+    buf_updates_send_splice(
+        &mut *buf,
+        start_row,
+        start_col,
+        start_byte,
+        extent_row,
+        extent_col,
+        extent_byte,
+        0,
+        0,
+        0,
+    );
+
+    let row1 = start_row.min(new_row);
+    let row2 = start_row.max(new_row) + extent_row;
+    buf_signcols_count_range(&mut *buf, row1, row2, 0, K_TRUE);
+
+    marktree_move_region(
+        &mut buf.b_marktree,
+        start_row,
+        start_col,
+        extent_row,
+        extent_col,
+        new_row,
+        new_col,
+    );
+
+    buf_signcols_count_range(&mut *buf, row1, row2, 0, K_NONE);
+
+    buf_updates_send_splice(
+        &mut *buf,
+        new_row,
+        new_col,
+        new_byte,
+        0,
+        0,
+        0,
+        extent_row,
+        extent_col,
+        extent_byte,
+    );
+
+    if undo == K_EXTMARK_UNDO {
+        let Some(uh) = u_force_get_undo_header(&mut *buf) else {
+            return;
+        };
+
+        let move_ = ExtmarkMove {
             start_row,
             start_col,
+            extent_row,
+            extent_col,
+            new_row,
+            new_col,
             start_byte,
-            extent_row,
-            extent_col,
             extent_byte,
-            0,
-            0,
-            0,
-        );
-
-        let row1 = start_row.min(new_row);
-        let row2 = start_row.max(new_row) + extent_row;
-        buf_signcols_count_range(&mut *buf, row1, row2, 0, K_TRUE);
-
-        marktree_move_region(
-            &mut buf.b_marktree,
-            start_row,
-            start_col,
-            extent_row,
-            extent_col,
-            new_row,
-            new_col,
-        );
-
-        buf_signcols_count_range(&mut *buf, row1, row2, 0, K_NONE);
-
-        buf_updates_send_splice(
-            &mut *buf,
-            new_row,
-            new_col,
             new_byte,
-            0,
-            0,
-            0,
-            extent_row,
-            extent_col,
-            extent_byte,
-        );
-
-        if undo == K_EXTMARK_UNDO {
-            let Some(uh) = u_force_get_undo_header(&mut *buf) else {
-                return;
-            };
-
-            let move_ = ExtmarkMove {
-                start_row,
-                start_col,
-                extent_row,
-                extent_col,
-                new_row,
-                new_col,
-                start_byte,
-                extent_byte,
-                new_byte,
-            };
-            crate::undo::uhp_mut(&mut *buf, uh)
-                .uh_extmark
-                .push(ExtmarkUndoObject::Move(move_));
-        }
+        };
+        crate::undo::uhp_mut(&mut *buf, uh)
+            .uh_extmark
+            .push(ExtmarkUndoObject::Move(move_));
+    }
 }
 
 #[cfg(test)]

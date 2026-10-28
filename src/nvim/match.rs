@@ -6,15 +6,15 @@ use crate::drawscreen::{UPD_SOME_VALID, UPD_VALID, redraw_later, redraw_win_rang
 use crate::errors::*;
 use crate::eval::funcs::get_optional_window;
 use crate::eval::typval::{
-    EvalFuncData, VarType, TvList, tv_dict_add_list, tv_dict_add_nr, tv_dict_add_str,
-    tv_dict_add_str_len, tv_dict_alloc, tv_dict_find, tv_dict_get_number, tv_dict_get_string,
-    tv_dict_get_string_buf, tv_get_number, tv_get_number_chk, tv_get_string, tv_get_string_buf_chk,
-    tv_list_alloc, tv_list_alloc_ret, tv_list_append_dict, tv_list_append_number,
-    tv_list_append_string, tv_list_append_tv, tv_list_first, tv_list_idx_of_item, tv_list_len,
-    tv_list_ref, tv_list_unref, TypVal, Varnumber,
+    EvalFuncData, TvList, TypVal, VarType, Varnumber, tv_dict_add_list, tv_dict_add_nr,
+    tv_dict_add_str, tv_dict_add_str_len, tv_dict_alloc, tv_dict_find, tv_dict_get_number,
+    tv_dict_get_string, tv_dict_get_string_buf, tv_get_number, tv_get_number_chk, tv_get_string,
+    tv_get_string_buf_chk, tv_list_alloc, tv_list_alloc_ret, tv_list_append_dict,
+    tv_list_append_number, tv_list_append_string, tv_list_append_tv, tv_list_first,
+    tv_list_idx_of_item, tv_list_len, tv_list_ref, tv_list_unref,
 };
 use crate::eval::window::find_win_by_nr_or_id;
-use crate::ex_docmd::{ends_excmd, ex_errmsg, Exarg, find_nextcmd, set_no_hlsearch};
+use crate::ex_docmd::{Exarg, ends_excmd, ex_errmsg, find_nextcmd, set_no_hlsearch};
 use crate::fold::has_folding;
 use crate::globals::*;
 use crate::highlight_group::{syn_check_group, syn_id2attr, syn_id2name, syn_name2id};
@@ -22,9 +22,9 @@ use crate::mbyte::{utf_char2bytes, utf_ptr2char, utfc_ptr2len};
 use crate::memline::ml_get_buf;
 use crate::message::{emsg, semsg};
 use crate::option_vars::*;
-use crate::profile::{profile_passed_limit, profile_setlimit, Proftime};
+use crate::profile::{Proftime, profile_passed_limit, profile_setlimit};
 use crate::regexp::{
-    MAXCOL, NUMBUFLEN, RE_MAGIC, re_multiline, Regmmatch, Regprog, skip_regexp, vim_regcomp,
+    MAXCOL, NUMBUFLEN, RE_MAGIC, Regmmatch, Regprog, re_multiline, skip_regexp, vim_regcomp,
     vim_regexec_multi, vim_regfree,
 };
 use crate::strings::{gettext, vim_snprintf, vim_strchr};
@@ -134,12 +134,17 @@ fn match_add(
     mut id: c_int,
     pos_list: Option<&TvList>,
     conceal_char: impl crate::strings::IntoCCharPtr,
-) -> c_int { let grp = grp.into_c_char_ptr(); let pat = pat.into_c_char_ptr(); let conceal_char = conceal_char.into_c_char_ptr();
+) -> c_int {
+    let grp = grp.into_c_char_ptr();
+    let pat = pat.into_c_char_ptr();
+    let conceal_char = conceal_char.into_c_char_ptr();
     unsafe {
         let mut regprog: *mut Regprog = ptr::null_mut();
         let mut rtype = UPD_SOME_VALID;
 
-        if crate::memory::cstr_is_empty(grp) || (!pat.is_null() && crate::memory::cstr_is_empty(pat)) {
+        if crate::memory::cstr_is_empty(grp)
+            || (!pat.is_null() && crate::memory::cstr_is_empty(pat))
+        {
             return -1;
         }
         if id < -1 || id == 0 {
@@ -154,10 +159,7 @@ fn match_add(
             wp.w_next_match_id += 1;
         } else {
             if wp.w_match_head.iter().any(|cur| cur.mit_id == id) {
-                semsg!(
-                    gettext(c"E801: ID already taken: %lld"),
-                    i64::from(id),
-                );
+                semsg!(gettext(c"E801: ID already taken: %lld"), i64::from(id),);
                 return -1;
             }
 
@@ -243,8 +245,7 @@ fn match_add(
                     m.mit_pos[i].lnum = lnum;
                     subli = (*subli).li_next;
                     if !subli.is_null() {
-                        col =
-                            tv_get_number_chk(&(*subli).li_tv, Some(&mut error)) as Colnr;
+                        col = tv_get_number_chk(&(*subli).li_tv, Some(&mut error)) as Colnr;
                         if error {
                             failed = true;
                             break;
@@ -254,8 +255,7 @@ fn match_add(
                         }
                         subli = (*subli).li_next;
                         if !subli.is_null() {
-                            len = tv_get_number_chk(&(*subli).li_tv, Some(&mut error))
-                                as Colnr;
+                            len = tv_get_number_chk(&(*subli).li_tv, Some(&mut error)) as Colnr;
                             if len < 0 {
                                 continue;
                             }
@@ -319,66 +319,63 @@ fn match_add(
 fn match_delete(wp: &mut WinInfoInfo, id: c_int, perr: bool) -> c_int {
     let mut rtype = UPD_SOME_VALID;
 
-        if id < 1 {
-            if perr {
-                semsg!(
-                    gettext(
-                        c"E802: Invalid ID: %lld (must be greater than or equal to 1)",
-                    ),
-                    i64::from(id),
-                );
-            }
-            return -1;
+    if id < 1 {
+        if perr {
+            semsg!(
+                gettext(c"E802: Invalid ID: %lld (must be greater than or equal to 1)",),
+                i64::from(id),
+            );
         }
-        let Some(idx) = wp.w_match_head.iter().position(|cur| cur.mit_id == id) else {
-            if perr {
-                semsg!(gettext(c"E803: ID not found: %lld"), i64::from(id));
-            }
-            return -1;
-        };
-        let cur = wp.w_match_head.remove(idx);
-        if cur.mit_toplnum != 0 {
-            redraw_win_range_later(wp, cur.mit_toplnum, cur.mit_botlnum);
-            rtype = UPD_VALID;
+        return -1;
+    }
+    let Some(idx) = wp.w_match_head.iter().position(|cur| cur.mit_id == id) else {
+        if perr {
+            semsg!(gettext(c"E803: ID not found: %lld"), i64::from(id));
         }
-        redraw_later(Some(&mut *wp), rtype);
-        0
+        return -1;
+    };
+    let cur = wp.w_match_head.remove(idx);
+    if cur.mit_toplnum != 0 {
+        redraw_win_range_later(wp, cur.mit_toplnum, cur.mit_botlnum);
+        rtype = UPD_VALID;
+    }
+    redraw_later(Some(&mut *wp), rtype);
+    0
 }
 
 /// Delete all matches in the match list of window `wp` (`clear_matches`).
 pub fn clear_matches(wp: &mut WinInfoInfo) {
     wp.w_match_head.clear();
-        redraw_later(Some(&mut *wp), UPD_SOME_VALID);
+    redraw_later(Some(&mut *wp), UPD_SOME_VALID);
 }
 
 /// Get match from ID `id` in window `wp` (`get_match`).
 fn get_match(wp: &mut WinInfoInfo, id: c_int) -> *mut Matchitem {
-    wp
-            .w_match_head
-            .iter_mut()
-            .find(|cur| cur.mit_id == id)
-            .map_or(ptr::null_mut(), |cur| &raw mut *cur)
+    wp.w_match_head
+        .iter_mut()
+        .find(|cur| cur.mit_id == id)
+        .map_or(ptr::null_mut(), |cur| &raw mut *cur)
 }
 
 /// Init for calling `prepare_search_hl()` (`init_search_hl`).
 pub fn init_search_hl(wp: &mut WinInfoInfo, search_hl: &mut SynMatch) {
     let buf = wp.w_buffer;
-        for cur in &mut wp.w_match_head {
-            cur.mit_hl.rm = cur.mit_match;
-            cur.mit_hl.attr = if cur.mit_hlg_id == 0 {
-                0
-            } else {
-                syn_id2attr(cur.mit_hlg_id)
-            };
-            cur.mit_hl.buf = buf;
-            cur.mit_hl.lnum = 0;
-            cur.mit_hl.first_lnum = 0;
-            cur.mit_hl.tm = profile_setlimit(opt_vars().p_rdt);
-        }
-        search_hl.buf = wp.w_buffer;
-        search_hl.lnum = 0;
-        search_hl.first_lnum = 0;
-        search_hl.attr = win_hl_attr(&mut *wp, HLF_L as c_int);
+    for cur in &mut wp.w_match_head {
+        cur.mit_hl.rm = cur.mit_match;
+        cur.mit_hl.attr = if cur.mit_hlg_id == 0 {
+            0
+        } else {
+            syn_id2attr(cur.mit_hlg_id)
+        };
+        cur.mit_hl.buf = buf;
+        cur.mit_hl.lnum = 0;
+        cur.mit_hl.first_lnum = 0;
+        cur.mit_hl.tm = profile_setlimit(opt_vars().p_rdt);
+    }
+    search_hl.buf = wp.w_buffer;
+    search_hl.lnum = 0;
+    search_hl.first_lnum = 0;
+    search_hl.attr = win_hl_attr(&mut *wp, HLF_L as c_int);
 }
 
 fn next_search_hl_pos(
@@ -387,7 +384,7 @@ fn next_search_hl_pos(
     match_item: &mut Matchitem,
     mincol: Colnr,
 ) -> c_int {
-     {
+    {
         let mut found: isize = -1;
 
         shl.lnum = 0;
@@ -452,7 +449,9 @@ fn next_search_hl(
         let mut nmatched: c_int = 0;
         let called_emsg_before = g_st().called_emsg;
 
-        if (lnum < g_st().search_global.first_line || lnum > g_st().search_global.last_line) && cur.is_none() {
+        if (lnum < g_st().search_global.first_line || lnum > g_st().search_global.last_line)
+            && cur.is_none()
+        {
             shl.lnum = 0;
             return;
         }
@@ -474,8 +473,7 @@ fn next_search_hl(
             if shl.lnum == 0 {
                 matchcol = 0;
             } else if vim_strchr(opt_vars().p_cpo, K_CPO_SEARCH).is_null()
-                || (shl.rm.endpos[0].lnum == 0
-                    && shl.rm.endpos[0].col <= shl.rm.startpos[0].col)
+                || (shl.rm.endpos[0].lnum == 0 && shl.rm.endpos[0].col <= shl.rm.startpos[0].col)
             {
                 matchcol = shl.rm.startpos[0].col;
                 let ml = ml_get_buf(&mut *shl.buf, lnum).add(matchcol as usize);
@@ -492,7 +490,8 @@ fn next_search_hl(
             if !shl.rm.regprog.is_null() {
                 let regprog_is_copy = cur.is_some()
                     && ptr::eq(shl, &raw const cur.as_deref_mut().unwrap().mit_hl)
-                    && cur.as_deref_mut().unwrap().mit_match.regprog == cur.as_deref_mut().unwrap().mit_hl.rm.regprog;
+                    && cur.as_deref_mut().unwrap().mit_match.regprog
+                        == cur.as_deref_mut().unwrap().mit_hl.rm.regprog;
                 let mut timed_out: c_int = 0;
 
                 nmatched = vim_regexec_multi(
@@ -505,7 +504,8 @@ fn next_search_hl(
                     Some(&mut timed_out),
                 );
                 if regprog_is_copy {
-                    cur.as_deref_mut().unwrap().mit_match.regprog = cur.as_deref_mut().unwrap().mit_hl.rm.regprog;
+                    cur.as_deref_mut().unwrap().mit_match.regprog =
+                        cur.as_deref_mut().unwrap().mit_hl.rm.regprog;
                 }
                 if g_st().called_emsg > called_emsg_before || g_st().got_int || timed_out != 0 {
                     if cur.is_none() {
@@ -518,7 +518,7 @@ fn next_search_hl(
                     break;
                 }
             } else if cur.is_some() {
-                nmatched = next_search_hl_pos(shl, lnum,  cur.as_deref_mut().unwrap(), matchcol);
+                nmatched = next_search_hl_pos(shl, lnum, cur.as_deref_mut().unwrap(), matchcol);
             }
             if nmatched == 0 {
                 shl.lnum = 0;
@@ -586,7 +586,8 @@ pub fn prepare_search_hl(wp: &mut WinInfoInfo, search_hl: &mut SynMatch, lnum: L
                             ptr::null_mut()
                         } else {
                             cur
-                        }).as_mut(),
+                        })
+                        .as_mut(),
                     );
                     pos_inprogress = !cur.is_null() && (*cur).mit_pos_cur != 0;
                     if (*shl).lnum != 0 {
@@ -609,12 +610,10 @@ pub fn prepare_search_hl(wp: &mut WinInfoInfo, search_hl: &mut SynMatch, lnum: L
 /// Update `shl->has_cursor` based on the match in `shl` and the cursor position (`check_cur_search_hl`).
 fn check_cur_search_hl(wp: &mut WinInfoInfo, shl: &mut SynMatch) {
     let linecount = shl.rm.endpos[0].lnum - shl.rm.startpos[0].lnum;
-        shl.has_cursor = wp.w_cursor.lnum >= shl.lnum
-            && wp.w_cursor.lnum <= shl.lnum + linecount
-            && (wp.w_cursor.lnum > shl.lnum
-                || wp.w_cursor.col >= shl.rm.startpos[0].col)
-            && (wp.w_cursor.lnum < shl.lnum + linecount
-                || wp.w_cursor.col < shl.rm.endpos[0].col);
+    shl.has_cursor = wp.w_cursor.lnum >= shl.lnum
+        && wp.w_cursor.lnum <= shl.lnum + linecount
+        && (wp.w_cursor.lnum > shl.lnum || wp.w_cursor.col >= shl.rm.startpos[0].col)
+        && (wp.w_cursor.lnum < shl.lnum + linecount || wp.w_cursor.col < shl.rm.endpos[0].col);
 }
 
 /// Prepare for `'hlsearch'` and match highlighting in one window line (`prepare_search_hl_line`).
@@ -663,7 +662,8 @@ pub fn prepare_search_hl_line(
                     ptr::null_mut()
                 } else {
                     cur
-                }).as_mut(),
+                })
+                .as_mut(),
             );
 
             *line = ml_get_buf(wp.buf_mut(), lnum);
@@ -779,7 +779,8 @@ pub fn update_search_hl(
                             ptr::null_mut()
                         } else {
                             cur
-                        }).as_mut(),
+                        })
+                        .as_mut(),
                     );
                     pos_inprogress = !cur.is_null() && (*cur).mit_pos_cur != 0;
 
@@ -840,43 +841,41 @@ pub fn update_search_hl(
                 idx += 1;
             }
         }
-        if crate::memory::cstr_byte_at(*line, col as usize) == 0 && (wp.w_onebuf_opt.wo_list != 0 && !lcs_eol_todo) {
+        if crate::memory::cstr_byte_at(*line, col as usize) == 0
+            && (wp.w_onebuf_opt.wo_list != 0 && !lcs_eol_todo)
+        {
             search_attr = 0;
         }
         search_attr
     }
 }
 
-pub fn get_prevcol_hl_flag(
-    wp: &mut WinInfoInfo,
-    search_hl: &mut SynMatch,
-    curcol: Colnr,
-) -> bool {
+pub fn get_prevcol_hl_flag(wp: &mut WinInfoInfo, search_hl: &mut SynMatch, curcol: Colnr) -> bool {
     let mut prevcol = curcol;
-        let skip_or_left = if wp.w_onebuf_opt.wo_wrap != 0 {
-            wp.w_skipcol
-        } else {
-            wp.w_leftcol
-        };
-        if skip_or_left > prevcol {
-            prevcol += 1;
-        }
+    let skip_or_left = if wp.w_onebuf_opt.wo_wrap != 0 {
+        wp.w_skipcol
+    } else {
+        wp.w_leftcol
+    };
+    if skip_or_left > prevcol {
+        prevcol += 1;
+    }
 
-        if !search_hl.is_addpos
-            && (prevcol == search_hl.startcol
-                || (prevcol > search_hl.startcol && search_hl.endcol == MAXCOL))
+    if !search_hl.is_addpos
+        && (prevcol == search_hl.startcol
+            || (prevcol > search_hl.startcol && search_hl.endcol == MAXCOL))
+    {
+        return true;
+    }
+    for cur in &wp.w_match_head {
+        if !cur.mit_hl.is_addpos
+            && (prevcol == cur.mit_hl.startcol
+                || (prevcol > cur.mit_hl.startcol && cur.mit_hl.endcol == MAXCOL))
         {
             return true;
         }
-        for cur in &wp.w_match_head {
-            if !cur.mit_hl.is_addpos
-                && (prevcol == cur.mit_hl.startcol
-                    || (prevcol > cur.mit_hl.startcol && cur.mit_hl.endcol == MAXCOL))
-            {
-                return true;
-            }
-        }
-        false
+    }
+    false
 }
 
 /// Get highlighting for the char after the text in `char_attr` (`get_search_match_hl`).
@@ -904,7 +903,9 @@ pub fn get_search_match_hl(
             } else {
                 shl = &raw mut (*cur).mit_hl;
             }
-            if col - 1 == (*shl).startcol && (ptr::eq(shl, (&raw mut *search_hl)) || !(*shl).is_addpos) {
+            if col - 1 == (*shl).startcol
+                && (ptr::eq(shl, (&raw mut *search_hl)) || !(*shl).is_addpos)
+            {
                 *char_attr = (*shl).attr;
             }
             if !ptr::eq(shl, (&raw mut *search_hl)) && !cur.is_null() {
@@ -946,7 +947,7 @@ fn matchadd_dict_arg(
 }
 
 /// `clearmatches()` function (`f_clearmatches`).
-pub fn f_clearmatches(argvars: &mut [TypVal], _rettv: &mut TypVal, _fptr: EvalFuncData){
+pub fn f_clearmatches(argvars: &mut [TypVal], _rettv: &mut TypVal, _fptr: EvalFuncData) {
     unsafe {
         let win = get_optional_window(argvars, 0);
         if !win.is_null() {
@@ -956,7 +957,7 @@ pub fn f_clearmatches(argvars: &mut [TypVal], _rettv: &mut TypVal, _fptr: EvalFu
 }
 
 /// `getmatches()` function (`f_getmatches`).
-pub fn f_getmatches(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData){
+pub fn f_getmatches(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
     unsafe {
         let win = get_optional_window(argvars, 0);
 
@@ -973,14 +974,13 @@ pub fn f_getmatches(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncD
                         break;
                     }
                     let l = tv_list_alloc(1 + if llpos.col > 0 { 2 } else { 0 });
-                    tv_list_append_number( &mut *l, llpos.lnum as Varnumber);
+                    tv_list_append_number(&mut *l, llpos.lnum as Varnumber);
                     if llpos.col > 0 {
-                        tv_list_append_number( &mut *l, llpos.col as Varnumber);
-                        tv_list_append_number( &mut *l, llpos.len as Varnumber);
+                        tv_list_append_number(&mut *l, llpos.col as Varnumber);
+                        tv_list_append_number(&mut *l, llpos.len as Varnumber);
                     }
                     let mut buf = [0 as c_char; 30];
-                    let len =
-                        vim_snprintf!(buf.as_mut_ptr(), 30, c"pos%d", (i + 1) as c_int);
+                    let len = vim_snprintf!(buf.as_mut_ptr(), 30, c"pos%d", (i + 1) as c_int);
                     let _ = len;
                     tv_dict_add_list(&mut *dict, buf.as_ptr(), l);
                 }
@@ -992,11 +992,7 @@ pub fn f_getmatches(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncD
                 );
             }
             tv_dict_add_str(&mut *dict, c"group", syn_id2name(cur.mit_hlg_id));
-            tv_dict_add_nr(
-                &mut *dict,
-                c"priority",
-                cur.mit_priority as Varnumber,
-            );
+            tv_dict_add_nr(&mut *dict, c"priority", cur.mit_priority as Varnumber);
             tv_dict_add_nr(&mut *dict, c"id", cur.mit_id as Varnumber);
 
             if cur.mit_conceal_char != 0 {
@@ -1006,14 +1002,13 @@ pub fn f_getmatches(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncD
                 tv_dict_add_str_len(&mut *dict, c"conceal", buf.as_ptr(), buflen);
             }
 
-            tv_list_append_dict( &mut *rettv.vval.v_list(), dict);
+            tv_list_append_dict(&mut *rettv.vval.v_list(), dict);
         }
     }
 }
 
 /// `setmatches()` function (`f_setmatches`).
-pub fn f_setmatches(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData){
-
+pub fn f_setmatches(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
     unsafe {
         let mut s: *mut TvList = ptr::null_mut();
         let win = get_optional_window(argvars, 1);
@@ -1028,12 +1023,12 @@ pub fn f_setmatches(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncD
         }
 
         let l = argvars[0].vval.v_list();
-        for (li_idx, li) in (0 as c_int..).zip(crate::eval::typval::list_iter_mut(tv_list_first(l.as_ref()))) {
+        for (li_idx, li) in (0 as c_int..).zip(crate::eval::typval::list_iter_mut(tv_list_first(
+            l.as_ref(),
+        ))) {
             if li.li_tv.v_type != VarType::VarDict || li.li_tv.vval.v_dict().is_null() {
                 semsg!(
-                    gettext(
-                        c"E474: List item %d is either not a dictionary or an empty one",
-                    ),
+                    gettext(c"E474: List item %d is either not a dictionary or an empty one",),
                     li_idx,
                 );
                 return;
@@ -1075,7 +1070,7 @@ pub fn f_setmatches(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncD
                             tv_list_unref(s);
                             return;
                         }
-                        tv_list_append_tv( &mut *s, &mut (*pos_di).di_tv);
+                        tv_list_append_tv(&mut *s, &mut (*pos_di).di_tv);
                     } else {
                         break;
                     }
@@ -1099,7 +1094,16 @@ pub fn f_setmatches(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncD
                     match_add_failed = true;
                 }
             } else {
-                if match_add(&mut *win, group, ptr::null(), priority, id, s.as_ref(), conceal) != id {
+                if match_add(
+                    &mut *win,
+                    group,
+                    ptr::null(),
+                    priority,
+                    id,
+                    s.as_ref(),
+                    conceal,
+                ) != id
+                {
                     match_add_failed = true;
                 }
                 tv_list_unref(s);
@@ -1113,8 +1117,7 @@ pub fn f_setmatches(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncD
 }
 
 /// `matchadd()` function (`f_matchadd`).
-pub fn f_matchadd(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData){
-
+pub fn f_matchadd(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
     unsafe {
         let mut grpbuf = [0 as c_char; NUMBUFLEN];
         let mut patbuf = [0 as c_char; NUMBUFLEN];
@@ -1146,20 +1149,24 @@ pub fn f_matchadd(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDat
             return;
         }
         if (1..=3).contains(&id) {
-            semsg!(
-                gettext(c"E798: ID is reserved for \":match\": %d"),
-                id,
-            );
+            semsg!(gettext(c"E798: ID is reserved for \":match\": %d"), id,);
             return;
         }
 
-        rettv.vval = crate::eval::typval::TypvalVval::Number(match_add(&mut *win, grp, pat, prio, id, None, conceal_char) as Varnumber);
+        rettv.vval = crate::eval::typval::TypvalVval::Number(match_add(
+            &mut *win,
+            grp,
+            pat,
+            prio,
+            id,
+            None,
+            conceal_char,
+        ) as Varnumber);
     }
 }
 
 /// `matchaddpos()` function (`f_matchaddpos`).
-pub fn f_matchaddpos(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData){
-
+pub fn f_matchaddpos(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
     unsafe {
         rettv.vval = crate::eval::typval::TypvalVval::Number(-1);
 
@@ -1170,10 +1177,7 @@ pub fn f_matchaddpos(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFunc
         }
 
         if argvars[1].v_type != VarType::VarList {
-            semsg!(
-                gettext(E_LISTARG),
-                c"matchaddpos()",
-            );
+            semsg!(gettext(E_LISTARG), c"matchaddpos()",);
             return;
         }
 
@@ -1204,20 +1208,24 @@ pub fn f_matchaddpos(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFunc
         }
 
         if id == 1 || id == 2 {
-            semsg!(
-                gettext(c"E798: ID is reserved for \"match\": %d"),
-                id,
-            );
+            semsg!(gettext(c"E798: ID is reserved for \"match\": %d"), id,);
             return;
         }
 
-        rettv.vval = crate::eval::typval::TypvalVval::Number(match_add(&mut *win, group, ptr::null(), prio, id, l.as_ref(), conceal_char) as Varnumber);
+        rettv.vval = crate::eval::typval::TypvalVval::Number(match_add(
+            &mut *win,
+            group,
+            ptr::null(),
+            prio,
+            id,
+            l.as_ref(),
+            conceal_char,
+        ) as Varnumber);
     }
 }
 
 /// `matcharg()` function (`f_matcharg`).
-pub fn f_matcharg(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData){
-
+pub fn f_matcharg(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
     unsafe {
         let id = tv_get_number(&argvars[0]) as c_int;
 
@@ -1226,25 +1234,24 @@ pub fn f_matcharg(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDat
         if (1..=3).contains(&id) {
             let m = get_match(curwin_mut(), id);
             if !m.is_null() {
-                tv_list_append_string( &mut *rettv.vval.v_list(), syn_id2name((*m).mit_hlg_id), -1);
+                tv_list_append_string(&mut *rettv.vval.v_list(), syn_id2name((*m).mit_hlg_id), -1);
                 tv_list_append_string(
-                     &mut *rettv.vval.v_list(),
+                    &mut *rettv.vval.v_list(),
                     (*m).mit_pattern
                         .as_ref()
                         .map_or(ptr::null(), |p| p.as_ptr()),
                     -1,
                 );
             } else {
-                tv_list_append_string( &mut *rettv.vval.v_list(), ptr::null(), 0);
-                tv_list_append_string( &mut *rettv.vval.v_list(), ptr::null(), 0);
+                tv_list_append_string(&mut *rettv.vval.v_list(), ptr::null(), 0);
+                tv_list_append_string(&mut *rettv.vval.v_list(), ptr::null(), 0);
             }
         }
     }
 }
 
 /// `matchdelete()` function (`f_matchdelete`).
-pub fn f_matchdelete(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData){
-
+pub fn f_matchdelete(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
     unsafe {
         let win = get_optional_window(argvars, 1);
         rettv.vval = crate::eval::typval::TypvalVval::Number(if win.is_null() {
@@ -1279,14 +1286,17 @@ pub fn ex_match(eap: &mut Exarg) {
             let arg_bytes = crate::memory::cstr_as_bytes(arg);
             if arg_bytes.len() >= 4
                 && arg_bytes[..4].eq_ignore_ascii_case(b"none")
-                && (ascii_iswhite(crate::memory::cstr_char_at(arg, 4)) || ends_excmd(crate::memory::cstr_char_at(arg, 4)) != 0)
+                && (ascii_iswhite(crate::memory::cstr_char_at(arg, 4))
+                    || ends_excmd(crate::memory::cstr_char_at(arg, 4)) != 0)
             {
                 end = arg.add(4);
             } else {
                 let mut p = skiptowhite(arg);
                 if eap.skip == 0 {
                     g = Some(
-                        std::ffi::CString::new(crate::memory::cstr_slice(arg, p.offset_from(arg) as usize,
+                        std::ffi::CString::new(crate::memory::cstr_slice(
+                            arg,
+                            p.offset_from(arg) as usize,
                         ))
                         .unwrap_or_default(),
                     );
@@ -1298,7 +1308,9 @@ pub fn ex_match(eap: &mut Exarg) {
                 }
                 end = skip_regexp(p.add(1), c_int::from(crate::memory::cstr_first_byte(p)), 1);
                 if eap.skip == 0 {
-                    if !crate::memory::cstr_is_empty(end) && ends_excmd(c_int::from(*skipwhite(end.add(1)))) == 0 {
+                    if !crate::memory::cstr_is_empty(end)
+                        && ends_excmd(c_int::from(*skipwhite(end.add(1)))) == 0
+                    {
                         eap.errmsg = ex_errmsg(E_TRAILING_ARG, end);
                         return;
                     }

@@ -9,8 +9,9 @@ use crate::api::private::validate::{
 };
 use crate::api::ui::{remote_ui_disconnect, remote_ui_flush_if_incomplete};
 use crate::channel::{
-    CallbackReader, InternalState, channel_close, channel_decref, channel_event, channel_incref,
-    K_CHANNEL_PART_RPC_CONST, K_CHANNEL_STREAM_PROC, K_CHANNEL_STREAM_SOCKET, K_CHANNEL_STREAM_STDIO,
+    CallbackReader, InternalState, K_CHANNEL_PART_RPC_CONST, K_CHANNEL_STREAM_PROC,
+    K_CHANNEL_STREAM_SOCKET, K_CHANNEL_STREAM_STDIO, channel_close, channel_decref, channel_event,
+    channel_incref,
 };
 use crate::eval::typval::Callback;
 use crate::event::r#loop::{loop_poll_events, loop_queues, uv_strerror};
@@ -115,7 +116,7 @@ pub struct RequestEvent {
 impl Drop for RequestEvent {
     fn drop(&mut self) {
         arena_mem_free(arena_finish(&mut self.used_mem));
-            channel_decref(unsafe { &mut *self.channel });
+        channel_decref(unsafe { &mut *self.channel });
     }
 }
 
@@ -182,9 +183,9 @@ pub struct Channel {
 impl Drop for Channel {
     fn drop(&mut self) {
         crate::eval::typval::callback_free(&mut self.on_exit);
-            if !self.events.is_null() {
-                multiqueue_free(self.events);
-            }
+        if !self.events.is_null() {
+            multiqueue_free(self.events);
+        }
     }
 }
 
@@ -199,28 +200,26 @@ use crate::log::{LOGLVL_ERR, LOGLVL_INF};
 #[inline]
 pub fn channel_instream(chan: &mut Channel) -> *mut Stream {
     match chan.streamtype {
-            K_CHANNEL_STREAM_PROC => &raw mut chan.uv.proc_.r#in,
-            K_CHANNEL_STREAM_SOCKET => &raw mut chan.socket.s,
-            K_CHANNEL_STREAM_STDIO => &raw mut chan.stdio_out,
-            _ => std::process::abort(),
-        }
+        K_CHANNEL_STREAM_PROC => &raw mut chan.uv.proc_.r#in,
+        K_CHANNEL_STREAM_SOCKET => &raw mut chan.socket.s,
+        K_CHANNEL_STREAM_STDIO => &raw mut chan.stdio_out,
+        _ => std::process::abort(),
+    }
 }
 
 #[inline]
 pub fn channel_outstream(chan: &mut Channel) -> *mut RStream {
     match chan.streamtype {
-            K_CHANNEL_STREAM_PROC => &raw mut chan.uv.proc_.out,
-            K_CHANNEL_STREAM_SOCKET => &raw mut chan.socket,
-            K_CHANNEL_STREAM_STDIO => &raw mut chan.stdio_in,
-            _ => std::process::abort(),
-        }
+        K_CHANNEL_STREAM_PROC => &raw mut chan.uv.proc_.out,
+        K_CHANNEL_STREAM_SOCKET => &raw mut chan.socket,
+        K_CHANNEL_STREAM_STDIO => &raw mut chan.stdio_in,
+        _ => std::process::abort(),
+    }
 }
 
 #[inline]
 pub fn find_channel(id: u64) -> *mut Channel {
-     {
-        g_st().channels.get(&id).copied().unwrap_or(ptr::null_mut())
-    }
+    g_st().channels.get(&id).copied().unwrap_or(ptr::null_mut())
 }
 
 #[inline]
@@ -229,7 +228,7 @@ fn unpacker_closed(p: &Unpacker) -> bool {
 }
 
 pub fn rpc_init() {
-     {
+    {
         let qc = loop_queues(&mut g_st().main_loop);
         g_st().ch_before_blocking_events = multiqueue_new_child(qc.events);
     }
@@ -277,20 +276,20 @@ fn find_rpc_channel(id: u64) -> *mut Channel {
 pub fn rpc_send_event<S: crate::strings::IntoCCharPtr>(id: u64, name: S, args: Array) -> bool {
     let name = name.into_c_char_ptr();
     let mut channel: *mut Channel = ptr::null_mut();
-        if id != 0 {
-            channel = find_rpc_channel(id);
-            if channel.is_null() {
-                return false;
-            }
+    if id != 0 {
+        channel = find_rpc_channel(id);
+        if channel.is_null() {
+            return false;
         }
+    }
 
-        if !channel.is_null() {
-            serialize_request(&raw mut channel, 1, 0, name, args);
-        } else {
-            broadcast_event(name, args);
-        }
+    if !channel.is_null() {
+        serialize_request(&raw mut channel, 1, 0, name, args);
+    } else {
+        broadcast_event(name, args);
+    }
 
-        true
+    true
 }
 
 pub fn rpc_send_call(
@@ -330,8 +329,8 @@ pub fn rpc_send_call(
         rpc.call_stack.push(frame.clone());
 
         while !frame.returned.get() && !ptr::read_volatile(&raw const rpc.closed) {
-            if !(*channel).events.is_null() && !multiqueue_empty( &*(*channel).events) {
-                multiqueue_process_events( &mut *(*channel).events);
+            if !(*channel).events.is_null() && !multiqueue_empty(&*(*channel).events) {
+                multiqueue_process_events(&mut *(*channel).events);
             } else {
                 loop_poll_events(&mut g_st().main_loop, -1);
             }
@@ -346,7 +345,7 @@ pub fn rpc_send_call(
                     c"Invalid channel: %llu",
                     id,
                 );
-                channel_decref( &mut *channel);
+                channel_decref(&mut *channel);
             }
             return OBJECT_NIL;
         }
@@ -371,34 +370,19 @@ pub fn rpc_send_call(
                     )
                     && array[1].obj_type == ObjectType::ObjectTypeString
                 {
-                    api_set_error!(
-                        err,
-                        et,
-                        c"%s",
-                        array[1].data.string().data,
-                    );
+                    api_set_error!(err, et, c"%s", array[1].data.string().data,);
                 } else {
-                    api_set_error!(
-                        err,
-                        ErrorType::ErrorTypeException,
-                        c"%s",
-                        c"unknown error",
-                    );
+                    api_set_error!(err, ErrorType::ErrorTypeException, c"%s", c"unknown error",);
                 }
             } else {
-                api_set_error!(
-                    err,
-                    ErrorType::ErrorTypeException,
-                    c"%s",
-                    c"unknown error",
-                );
+                api_set_error!(err, ErrorType::ErrorTypeException, c"%s", c"unknown error",);
             }
 
             arena_mem_free(frame.result_mem.get());
             frame.result_mem.set(ptr::null_mut());
         }
 
-        channel_decref( &mut *channel);
+        channel_decref(&mut *channel);
 
         *result_mem = frame.result_mem.get();
 
@@ -416,7 +400,8 @@ pub(crate) fn receive_msgpack(
     c: usize,
     channel: &mut Channel,
     eof: bool,
-) -> usize { let rbuf = rbuf.into_c_char_ptr();
+) -> usize {
+    let rbuf = rbuf.into_c_char_ptr();
     unsafe {
         channel_incref(&mut *channel);
 
@@ -530,7 +515,7 @@ fn parse_msgpack(channel: &mut Channel) {
 }
 
 fn handle_request(channel: &mut Channel, p: &mut Unpacker, args: Array) {
-     {
+    {
         assert!(
             p.msg_type == MessageType::MessageTypeRequest
                 || p.msg_type == MessageType::MessageTypeNotification
@@ -570,7 +555,8 @@ fn handle_request(channel: &mut Channel, p: &mut Unpacker, args: Array) {
                 .is_some_and(|f| f as *const () == handle_nvim_get_mode as *const ());
 
             if is_get_mode && !input_blocking() {
-                multiqueue_put_event(unsafe { &mut *g_st().ch_before_blocking_events },
+                multiqueue_put_event(
+                    unsafe { &mut *g_st().ch_before_blocking_events },
                     Event::RpcRequest(Box::new(evdata)),
                 );
             } else {
@@ -584,10 +570,19 @@ fn handle_request(channel: &mut Channel, p: &mut Unpacker, args: Array) {
 
             if is_resize {
                 let oneshot = event_create_oneshot(Event::RpcRequest(Box::new(evdata)));
-                multiqueue_put_event(unsafe { &mut *channel.events }, Event::Oneshot(std::rc::Rc::clone(&oneshot)));
-                multiqueue_put_event(unsafe { &mut *g_st().resize_events }, Event::Oneshot(oneshot));
+                multiqueue_put_event(
+                    unsafe { &mut *channel.events },
+                    Event::Oneshot(std::rc::Rc::clone(&oneshot)),
+                );
+                multiqueue_put_event(
+                    unsafe { &mut *g_st().resize_events },
+                    Event::Oneshot(oneshot),
+                );
             } else {
-                multiqueue_put_event(unsafe { &mut *channel.events }, Event::RpcRequest(Box::new(evdata)));
+                multiqueue_put_event(
+                    unsafe { &mut *channel.events },
+                    Event::RpcRequest(Box::new(evdata)),
+                );
             }
         }
     }
@@ -646,7 +641,13 @@ fn channel_write(channel: &mut Channel, buffer: std::rc::Rc<WBuffer>) -> bool {
         if channel.streamtype == K_CHANNEL_STREAM_INTERNAL {
             channel_incref(&mut *channel);
             if !channel.events.is_null() {
-                multiqueue_put_event( &mut *channel.events, Event::RpcInternalRead { channel: &raw mut *channel, buffer });
+                multiqueue_put_event(
+                    &mut *channel.events,
+                    Event::RpcInternalRead {
+                        channel: &raw mut *channel,
+                        buffer,
+                    },
+                );
             } else {
                 internal_read_event(channel, buffer);
             }
@@ -686,11 +687,7 @@ pub fn internal_read_event(channel: &mut Channel, buffer: std::rc::Rc<WBuffer>) 
             parse_msgpack(channel);
 
             if (*p).read_size != 0 && !channel.rpc.closed {
-                chan_close_on_err(
-                    channel,
-                    c"internal channel: internal error",
-                    LOGLVL_ERR,
-                );
+                chan_close_on_err(channel, c"internal channel: internal error", LOGLVL_ERR);
             }
         }
 
@@ -704,22 +701,19 @@ fn send_error(
     r#type: MessageType,
     id: u32,
     err: impl crate::strings::IntoCCharPtr,
-) { let err = err.into_c_char_ptr();
+) {
+    let err = err.into_c_char_ptr();
     unsafe {
         let mut e = Error::new();
-        api_set_error!(
-            &mut e,
-            ErrorType::ErrorTypeException,
-            c"%s",
-            err,
-        );
+        api_set_error!(&mut e, ErrorType::ErrorTypeException, c"%s", err,);
         let mut nil_obj = OBJECT_NIL;
         serialize_response(chan, handler, r#type, id, &mut e, &mut nil_obj);
         api_clear_error(&mut e);
     }
 }
 
-fn broadcast_event(name: impl crate::strings::IntoCCharPtr, args: Array) { let name = name.into_c_char_ptr();
+fn broadcast_event(name: impl crate::strings::IntoCCharPtr, args: Array) {
+    let name = name.into_c_char_ptr();
     unsafe {
         let mut chans = Vec::<*mut Channel>::new();
 
@@ -757,7 +751,7 @@ pub fn rpc_close(channel: &mut Channel) {
 
         {
             let qc = loop_queues(&mut g_st().main_loop);
-            multiqueue_put_event( &mut *qc.fast_events, Event::RpcClose(&raw mut *channel));
+            multiqueue_put_event(&mut *qc.fast_events, Event::RpcClose(&raw mut *channel));
         }
     }
 }
@@ -771,7 +765,8 @@ pub fn rpc_close_event(channel: Option<&mut Channel>) {
 
     remote_ui_disconnect(channel.id, &mut Error::new(), false);
 
-    let is_ui_client = g_st().ui_client_channel_id != 0 && channel.id == g_st().ui_client_channel_id;
+    let is_ui_client =
+        g_st().ui_client_channel_id != 0 && channel.id == g_st().ui_client_channel_id;
     if is_ui_client {
         if !g_st().exiting && channel.streamtype != K_CHANNEL_STREAM_PROC {
             ui_client_attach_to_restarted_server(false);
@@ -793,18 +788,14 @@ pub fn rpc_close_event(channel: Option<&mut Channel>) {
     }
 }
 
-fn chan_close_on_err(channel: &mut Channel, msg: impl crate::strings::IntoCCharPtr, loglevel: c_int) {
+fn chan_close_on_err(
+    channel: &mut Channel,
+    msg: impl crate::strings::IntoCCharPtr,
+    loglevel: c_int,
+) {
     let msg = msg.into_c_char_ptr();
     unsafe {
-        logmsg!(
-            loglevel,
-            c"RPC: ",
-            ptr::null(),
-            -1,
-            true,
-            c"%s",
-            msg,
-        );
+        logmsg!(loglevel, c"RPC: ", ptr::null(), -1, true, c"%s", msg,);
         let p: *mut Unpacker = channel.rpc.unpacker.as_deref_mut().unwrap();
 
         for frame in &channel.rpc.call_stack {
@@ -845,19 +836,19 @@ fn serialize_request(
 ) {
     let method = method.into_c_char_ptr();
     let mut packer = PackerBuffer::new();
-        packer_buffer_init_channels(chans, nchans, &mut packer);
+    packer_buffer_init_channels(chans, nchans, &mut packer);
 
-        mpack_array(&raw mut packer.ptr, if request_id != 0 { 4 } else { 3 });
-        mpack_w(&raw mut packer.ptr, if request_id != 0 { 0 } else { 2 });
+    mpack_array(&raw mut packer.ptr, if request_id != 0 { 4 } else { 3 });
+    mpack_w(&raw mut packer.ptr, if request_id != 0 { 0 } else { 2 });
 
-        if request_id != 0 {
-            mpack_uint(&raw mut packer.ptr, request_id);
-        }
+    if request_id != 0 {
+        mpack_uint(&raw mut packer.ptr, request_id);
+    }
 
-        mpack_str(cstr_as_string(method), &mut packer);
-        mpack_object_array(args, &mut packer);
+    mpack_str(cstr_as_string(method), &mut packer);
+    mpack_object_array(args, &mut packer);
 
-        packer_buffer_finish_channels(&mut packer);
+    packer_buffer_finish_channels(&mut packer);
 }
 
 pub fn serialize_response(
@@ -868,66 +859,60 @@ pub fn serialize_response(
     err: &mut Error,
     arg: &mut Object,
 ) {
-    if err.err_type != ErrorType::ErrorTypeNone
-            && r#type == MessageType::MessageTypeNotification
-        {
-            let is_paste = handler
-                .r#fn
-                .is_some_and(|f| f as *const () == handle_nvim_paste as *const ());
+    if err.err_type != ErrorType::ErrorTypeNone && r#type == MessageType::MessageTypeNotification {
+        let is_paste = handler
+            .r#fn
+            .is_some_and(|f| f as *const () == handle_nvim_paste as *const ());
 
-            if is_paste {
-                {
-                    semsg!(c"paste: %s", err.msg_ptr());
-                    api_clear_error(err);
-                }
-            } else {
-                let mut items = [
-                    Object {
-                        obj_type: ObjectType::ObjectTypeInteger,
-                        data: ObjectData::Integer(err.err_type as i64),
-                    },
-                    Object {
-                        obj_type: ObjectType::ObjectTypeString,
-                        data: ObjectData::String(cstr_as_string(err.msg_ptr())),
-                    },
-                ];
-                let args = Array {
-                    items: items.as_mut_ptr(),
-                    size: 2,
-                    capacity: 2,
-                };
-                let mut ch_ptr = &raw mut *channel;
-                serialize_request(&raw mut ch_ptr, 1, 0, c"nvim_error_event", args);
+        if is_paste {
+            {
+                semsg!(c"paste: %s", err.msg_ptr());
+                api_clear_error(err);
             }
-            return;
-        }
-
-        let mut packer = PackerBuffer::new();
-        let mut ch_ptr = &raw mut *channel;
-        packer_buffer_init_channels(&raw mut ch_ptr, 1, &mut packer);
-
-        mpack_array(&raw mut packer.ptr, 4);
-        mpack_w(&raw mut packer.ptr, 1);
-        mpack_uint(&raw mut packer.ptr, response_id);
-
-        if err.err_type != ErrorType::ErrorTypeNone {
-            mpack_array(&raw mut packer.ptr, 2);
-            mpack_integer(&raw mut packer.ptr, err.err_type as Integer);
-            mpack_str(cstr_as_string(err.msg_ptr()), &mut packer);
-            mpack_nil(&raw mut packer.ptr);
         } else {
-            mpack_nil(&raw mut packer.ptr);
-            mpack_object(arg, &mut packer);
+            let mut items = [
+                Object {
+                    obj_type: ObjectType::ObjectTypeInteger,
+                    data: ObjectData::Integer(err.err_type as i64),
+                },
+                Object {
+                    obj_type: ObjectType::ObjectTypeString,
+                    data: ObjectData::String(cstr_as_string(err.msg_ptr())),
+                },
+            ];
+            let args = Array {
+                items: items.as_mut_ptr(),
+                size: 2,
+                capacity: 2,
+            };
+            let mut ch_ptr = &raw mut *channel;
+            serialize_request(&raw mut ch_ptr, 1, 0, c"nvim_error_event", args);
         }
+        return;
+    }
 
-        packer_buffer_finish_channels(&mut packer);
+    let mut packer = PackerBuffer::new();
+    let mut ch_ptr = &raw mut *channel;
+    packer_buffer_init_channels(&raw mut ch_ptr, 1, &mut packer);
+
+    mpack_array(&raw mut packer.ptr, 4);
+    mpack_w(&raw mut packer.ptr, 1);
+    mpack_uint(&raw mut packer.ptr, response_id);
+
+    if err.err_type != ErrorType::ErrorTypeNone {
+        mpack_array(&raw mut packer.ptr, 2);
+        mpack_integer(&raw mut packer.ptr, err.err_type as Integer);
+        mpack_str(cstr_as_string(err.msg_ptr()), &mut packer);
+        mpack_nil(&raw mut packer.ptr);
+    } else {
+        mpack_nil(&raw mut packer.ptr);
+        mpack_object(arg, &mut packer);
+    }
+
+    packer_buffer_finish_channels(&mut packer);
 }
 
-fn packer_buffer_init_channels(
-    chans: *mut *mut Channel,
-    nchans: usize,
-    packer: &mut PackerBuffer,
-) {
+fn packer_buffer_init_channels(chans: *mut *mut Channel, nchans: usize, packer: &mut PackerBuffer) {
     unsafe {
         for i in 0..nchans {
             let chan = *chans.add(i);
@@ -965,11 +950,7 @@ fn packer_buffer_finish_channels(packer: &mut PackerBuffer) {
 
 pub(crate) fn channel_flush_callback(packer: &mut PackerBuffer) {
     packer_buffer_finish_channels(packer);
-        packer_buffer_init_channels(
-            packer.anydata.as_chans(),
-            packer.anyint as usize,
-            packer,
-        );
+    packer_buffer_init_channels(packer.anydata.as_chans(), packer.anyint as usize, packer);
 }
 
 pub fn rpc_set_client_info(id: u64, info: Dict) {
@@ -998,7 +979,7 @@ pub fn rpc_set_client_info(id: u64, info: Dict) {
             }
         };
 
-        channel_event( &mut *chan, EVENT_CHANINFO);
+        channel_event(&mut *chan, EVENT_CHANINFO);
     }
 }
 
@@ -1064,8 +1045,14 @@ mod tests {
         rpc.call_stack.push(f1.clone());
         rpc.call_stack.push(f2.clone());
 
-        assert!(std::rc::Rc::ptr_eq(&find_call_frame(&rpc, 20).unwrap(), &f2));
-        assert!(std::rc::Rc::ptr_eq(&find_call_frame(&rpc, 10).unwrap(), &f1));
+        assert!(std::rc::Rc::ptr_eq(
+            &find_call_frame(&rpc, 20).unwrap(),
+            &f2
+        ));
+        assert!(std::rc::Rc::ptr_eq(
+            &find_call_frame(&rpc, 10).unwrap(),
+            &f1
+        ));
         assert!(find_call_frame(&rpc, 99).is_none());
     }
 }

@@ -240,7 +240,8 @@ impl TreesitterModuleState {
     }
 }
 
-static TS_STATE: crate::globals::GlobalState<TreesitterModuleState> = crate::globals::GlobalState::new(TreesitterModuleState::new());
+static TS_STATE: crate::globals::GlobalState<TreesitterModuleState> =
+    crate::globals::GlobalState::new(TreesitterModuleState::new());
 
 #[inline]
 fn ts_st() -> &'static mut TreesitterModuleState {
@@ -645,10 +646,11 @@ unsafe extern "C" {
         start_point: TSPoint,
         end_point: TSPoint,
     ) -> bool;
-    fn ts_query_cursor_next_match(self_: *mut TSQueryCursor,match_: &mut TSQueryMatch) -> bool;
+    fn ts_query_cursor_next_match(self_: *mut TSQueryCursor, match_: &mut TSQueryMatch) -> bool;
     fn ts_query_cursor_remove_match(self_: *mut TSQueryCursor, match_id: u32);
     fn ts_query_cursor_next_capture(
-        self_: *mut TSQueryCursor,match_: &mut TSQueryMatch,
+        self_: *mut TSQueryCursor,
+        match_: &mut TSQueryMatch,
         capture_index: &mut u32,
     ) -> bool;
     fn ts_query_cursor_set_max_start_depth(self_: *mut TSQueryCursor, max_start_depth: u32);
@@ -678,22 +680,27 @@ unsafe extern "C" {
 }
 
 #[inline]
-fn langs_has(lang_name: impl crate::strings::IntoCCharPtr) -> bool { let lang_name = lang_name.into_c_char_ptr();
+fn langs_has(lang_name: impl crate::strings::IntoCCharPtr) -> bool {
+    let lang_name = lang_name.into_c_char_ptr();
     if lang_name.is_null() {
         return false;
     }
-     {
-        ts_st().langs.contains_key(crate::memory::cstr_as_bytes(lang_name))
+    {
+        ts_st()
+            .langs
+            .contains_key(crate::memory::cstr_as_bytes(lang_name))
     }
 }
 
 #[inline]
-fn langs_get(lang_name: impl crate::strings::IntoCCharPtr) -> *mut TSLanguage { let lang_name = lang_name.into_c_char_ptr();
+fn langs_get(lang_name: impl crate::strings::IntoCCharPtr) -> *mut TSLanguage {
+    let lang_name = lang_name.into_c_char_ptr();
     if lang_name.is_null() {
         return ptr::null_mut();
     }
-     {
-        ts_st().langs
+    {
+        ts_st()
+            .langs
             .get(crate::memory::cstr_as_bytes(lang_name))
             .copied()
             .unwrap_or(ptr::null_mut())
@@ -725,7 +732,8 @@ unsafe extern "C" {
 }
 
 #[cfg(target_os = "emscripten")]
-pub fn nvim_ts_get_parser(lang: impl crate::strings::IntoCCharPtr) -> *const TSLanguage { let lang = lang.into_c_char_ptr();
+pub fn nvim_ts_get_parser(lang: impl crate::strings::IntoCCharPtr) -> *const TSLanguage {
+    let lang = lang.into_c_char_ptr();
     if lang.is_null() {
         return ptr::null();
     }
@@ -749,7 +757,10 @@ fn load_language_from_object(
     path: impl crate::strings::IntoCCharPtr,
     lang_name: impl crate::strings::IntoCCharPtr,
     symbol: impl crate::strings::IntoCCharPtr,
-) -> *const TSLanguage { let path = path.into_c_char_ptr(); let lang_name = lang_name.into_c_char_ptr(); let symbol = symbol.into_c_char_ptr();
+) -> *const TSLanguage {
+    let path = path.into_c_char_ptr();
+    let lang_name = lang_name.into_c_char_ptr();
+    let symbol = symbol.into_c_char_ptr();
     unsafe {
         #[cfg(target_os = "emscripten")]
         {
@@ -786,7 +797,11 @@ fn load_language_from_object(
         if uv_dlsym(&mut lib, symbol_buf.as_ptr(), &mut fn_ptr) != 0 {
             xstrlcpy(iobuff, uv_dlerror(&lib), IOSIZE);
             uv_dlclose(&mut lib);
-            luaL_error(lstate, c"Failed to load parser: uv_dlsym: %s".as_ptr(), iobuff);
+            luaL_error(
+                lstate,
+                c"Failed to load parser: uv_dlsym: %s".as_ptr(),
+                iobuff,
+            );
         }
 
         let lang_parser: unsafe extern "C" fn() -> *mut TSLanguage = std::mem::transmute(fn_ptr);
@@ -965,7 +980,10 @@ unsafe extern "C-unwind" fn tslua_inspect_lang(lstate: *mut lua_State) -> c_int 
 
                 lua_createtable(lstate, nsubtypes as c_int, 0);
                 for j in 1..=nsubtypes {
-                    lua_pushstring(lstate, ts_language_symbol_name(lang, *subtypes.add(j as usize)));
+                    lua_pushstring(
+                        lstate,
+                        ts_language_symbol_name(lang, *subtypes.add(j as usize)),
+                    );
                     lua_rawseti(lstate, -2, j as c_int);
                 }
 
@@ -1001,12 +1019,7 @@ unsafe extern "C-unwind" fn tslua_push_parser(lstate: *mut lua_State) -> c_int {
 fn parser_check(lstate: *mut lua_State, index: c_int) -> *mut TSParser {
     unsafe {
         let ud = luaL_checkudata(lstate, index, TS_META_PARSER).cast::<*mut TSParser>();
-        luaL_argcheck(
-            lstate,
-            !(*ud).is_null(),
-            index,
-            c"Parser has been deleted",
-        );
+        luaL_argcheck(lstate, !(*ud).is_null(), index, c"Parser has been deleted");
         *ud
     }
 }
@@ -1085,12 +1098,7 @@ unsafe extern "C" fn input_cb(
     }
 }
 
-fn push_ranges(
-    lstate: *mut lua_State,
-    ranges: *const TSRange,
-    length: usize,
-    include_bytes: bool,
-) {
+fn push_ranges(lstate: *mut lua_State, ranges: *const TSRange, length: usize, include_bytes: bool) {
     unsafe {
         lua_createtable(lstate, length as c_int, 0);
         for i in 0..length {
@@ -1571,7 +1579,7 @@ fn push_node(lstate: *mut lua_State, node: TSNode, uindex: c_int) {
     }
 }
 
-fn node_check_opt(lstate: *mut lua_State, index: c_int,res: &mut TSNode) -> bool {
+fn node_check_opt(lstate: *mut lua_State, index: c_int, res: &mut TSNode) -> bool {
     unsafe {
         let ud = luaL_checkudata(lstate, index, TS_META_NODE).cast::<TSNode>();
         if !ud.is_null() {
@@ -1719,7 +1727,9 @@ unsafe extern "C-unwind" fn node_field(lstate: *mut lua_State) -> c_int {
 
         for i in 0..count {
             let child_field_name = ts_node_field_name_for_child(node, i);
-            if crate::memory::cstr_as_opt_bytes(field_name) == crate::memory::cstr_as_opt_bytes(child_field_name) {
+            if crate::memory::cstr_as_opt_bytes(field_name)
+                == crate::memory::cstr_as_opt_bytes(child_field_name)
+            {
                 let child = ts_node_child(node, i);
                 push_node(lstate, child, 1);
                 curr_index += 1;
@@ -2074,7 +2084,8 @@ unsafe extern "C-unwind" fn tslua_push_querycursor(lstate: *mut lua_State) -> c_
 
         ts_query_cursor_exec(cursor, query, node);
 
-        let ud = lua_newuserdata(lstate, size_of::<*mut TSQueryCursor>()).cast::<*mut TSQueryCursor>();
+        let ud =
+            lua_newuserdata(lstate, size_of::<*mut TSQueryCursor>()).cast::<*mut TSQueryCursor>();
         *ud = cursor;
         lua_getfield(lstate, LUA_REGISTRYINDEX, TS_META_QUERYCURSOR);
         lua_setmetatable(lstate, -2);
@@ -2139,12 +2150,7 @@ unsafe extern "C-unwind" fn querycursor_next_match(lstate: *mut lua_State) -> c_
 fn querycursor_check(lstate: *mut lua_State, index: c_int) -> *mut TSQueryCursor {
     unsafe {
         let ud = luaL_checkudata(lstate, index, TS_META_QUERYCURSOR).cast::<*mut TSQueryCursor>();
-        luaL_argcheck(
-            lstate,
-            !(*ud).is_null(),
-            index,
-            c"TSQueryCursor expected",
-        );
+        luaL_argcheck(lstate, !(*ud).is_null(), index, c"TSQueryCursor expected");
         *ud
     }
 }
@@ -2157,7 +2163,7 @@ unsafe extern "C-unwind" fn querycursor_gc(lstate: *mut lua_State) -> c_int {
     }
 }
 
-fn push_querymatch(lstate: *mut lua_State,match_: &TSQueryMatch, uindex: c_int) {
+fn push_querymatch(lstate: *mut lua_State, match_: &TSQueryMatch, uindex: c_int) {
     unsafe {
         let ud = lua_newuserdata(lstate, size_of::<TSQueryMatch>()).cast::<TSQueryMatch>();
         *ud = *match_;
@@ -2252,7 +2258,8 @@ fn query_err_string(
     error_type: TSQueryError,
     mut err_data: *mut c_char,
     mut err_size: usize,
-) { let src = src.into_c_char_ptr();
+) {
+    let src = src.into_c_char_ptr();
     unsafe {
         let mut line_start: c_int = 0;
         let mut row: c_int = 0;
@@ -2448,7 +2455,12 @@ unsafe extern "C-unwind" fn query_disable_pattern(lstate: *mut lua_State) -> c_i
     }
 }
 
-fn build_meta(lstate: *mut lua_State, tname: impl crate::strings::IntoCCharPtr, meta: *const luaL_Reg) { let tname = tname.into_c_char_ptr();
+fn build_meta(
+    lstate: *mut lua_State,
+    tname: impl crate::strings::IntoCCharPtr,
+    meta: *const luaL_Reg,
+) {
+    let tname = tname.into_c_char_ptr();
     unsafe {
         if luaL_newmetatable(lstate, tname) != 0 {
             luaL_register(lstate, ptr::null(), meta);
@@ -2502,7 +2514,10 @@ unsafe extern "C-unwind" fn tslua_get_language_version(lstate: *mut lua_State) -
 
 unsafe extern "C-unwind" fn tslua_get_minimum_language_version(lstate: *mut lua_State) -> c_int {
     unsafe {
-        lua_pushnumber(lstate, TREE_SITTER_MIN_COMPATIBLE_LANGUAGE_VERSION as lua_Number);
+        lua_pushnumber(
+            lstate,
+            TREE_SITTER_MIN_COMPATIBLE_LANGUAGE_VERSION as lua_Number,
+        );
         1
     }
 }

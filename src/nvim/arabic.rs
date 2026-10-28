@@ -601,7 +601,7 @@ mod tests {
     #[test]
     fn combine_and_shape_lam_alef_and_contextual_forms() {
         opt_vars().p_arshape = 1;
-            opt_vars().p_tbidi = 0;
+        opt_vars().p_tbidi = 0;
 
         assert!(arabic_maycombine(A_ALEF as c_int));
         assert!(arabic_combine(A_LAM as c_int, A_ALEF as c_int));

@@ -83,24 +83,17 @@ pub type VTermCsiFn<T> = fn(
     user: *mut T,
 ) -> c_int;
 
-pub type VTermDcsFn<T> = fn(
-    command: *const c_char,
-    commandlen: usize,
-    frag: VTermStringFragment,
-    user: *mut T,
-) -> c_int;
+pub type VTermDcsFn<T> =
+    fn(command: *const c_char, commandlen: usize, frag: VTermStringFragment, user: *mut T) -> c_int;
 
 #[repr(C)]
 pub struct VTermParserCallbacks {
-    pub text:
-        Option<fn(bytes: *const c_char, len: usize, user: *mut VTermStateFull) -> c_int>,
+    pub text: Option<fn(bytes: *const c_char, len: usize, user: *mut VTermStateFull) -> c_int>,
     pub control: Option<fn(control: u8, user: *mut VTermStateFull) -> c_int>,
-    pub escape:
-        Option<fn(bytes: *const c_char, len: usize, user: *mut VTermStateFull) -> c_int>,
+    pub escape: Option<fn(bytes: *const c_char, len: usize, user: *mut VTermStateFull) -> c_int>,
     pub csi: Option<VTermCsiFn<VTermStateFull>>,
-    pub osc: Option<
-        fn(command: c_int, frag: VTermStringFragment, user: *mut VTermStateFull) -> c_int,
-    >,
+    pub osc:
+        Option<fn(command: c_int, frag: VTermStringFragment, user: *mut VTermStateFull) -> c_int>,
     pub dcs: Option<VTermDcsFn<VTermStateFull>>,
     pub apc: Option<fn(frag: VTermStringFragment, user: *mut VTermStateFull) -> c_int>,
     pub pm: Option<fn(frag: VTermStringFragment, user: *mut VTermStateFull) -> c_int>,
@@ -120,35 +113,35 @@ fn is_string_state(state: c_int) -> bool {
 
 fn do_control(vt: &mut VTerm, control: u8) {
     if let Some(callbacks) = vt.parser.callbacks
-            && let Some(cb) = callbacks.control
-        {
-            cb(control, vt.state_mut_ptr());
-        }
+        && let Some(cb) = callbacks.control
+    {
+        cb(control, vt.state_mut_ptr());
+    }
 }
 
 fn do_csi(vt: &mut VTerm, command: c_char) {
     if let Some(callbacks) = vt.parser.callbacks
-            && let Some(cb) = callbacks.csi
-        {
-            let leader = if vt.parser.csi.leaderlen != 0 {
-                vt.parser.csi.leader.as_ptr()
-            } else {
-                ptr::null()
-            };
-            let intermed = if vt.parser.intermedlen != 0 {
-                vt.parser.intermed.as_ptr()
-            } else {
-                ptr::null()
-            };
-            cb(
-                leader,
-                vt.parser.csi.args.as_ptr(),
-                vt.parser.csi.argi,
-                intermed,
-                command,
-                vt.state_mut_ptr(),
-            );
-        }
+        && let Some(cb) = callbacks.csi
+    {
+        let leader = if vt.parser.csi.leaderlen != 0 {
+            vt.parser.csi.leader.as_ptr()
+        } else {
+            ptr::null()
+        };
+        let intermed = if vt.parser.intermedlen != 0 {
+            vt.parser.intermed.as_ptr()
+        } else {
+            ptr::null()
+        };
+        cb(
+            leader,
+            vt.parser.csi.args.as_ptr(),
+            vt.parser.csi.argi,
+            intermed,
+            command,
+            vt.state_mut_ptr(),
+        );
+    }
 }
 
 fn do_escape(vt: &mut VTerm, command: c_char) {
@@ -174,60 +167,65 @@ fn string_fragment(
     len: usize,
     final_: bool,
     terminator: VTermTerminator,
-) { let str_ = str_.into_c_char_ptr();
-    let frag =
-            VTermStringFragment::new(str_, len, vt.parser.string_initial, final_, terminator);
-        let callbacks = vt.parser.callbacks;
-        let state = vt.state_mut_ptr();
+) {
+    let str_ = str_.into_c_char_ptr();
+    let frag = VTermStringFragment::new(str_, len, vt.parser.string_initial, final_, terminator);
+    let callbacks = vt.parser.callbacks;
+    let state = vt.state_mut_ptr();
 
-        match vt.parser.state {
-            OSC => {
-                if let Some(cbs) = callbacks
-                    && let Some(cb) = cbs.osc
-                {
-                    cb(vt.parser.osc.command, frag, state);
-                }
+    match vt.parser.state {
+        OSC => {
+            if let Some(cbs) = callbacks
+                && let Some(cb) = cbs.osc
+            {
+                cb(vt.parser.osc.command, frag, state);
             }
-            DCS_VTERM => {
-                if let Some(cbs) = callbacks
-                    && let Some(cb) = cbs.dcs
-                {
-                    cb(
-                        vt.parser.dcs.command.as_ptr(),
-                        vt.parser.dcs.commandlen as usize,
-                        frag,
-                        state,
-                    );
-                }
-            }
-            APC => {
-                if let Some(cbs) = callbacks
-                    && let Some(cb) = cbs.apc
-                {
-                    cb(frag, state);
-                }
-            }
-            PM => {
-                if let Some(cbs) = callbacks
-                    && let Some(cb) = cbs.pm
-                {
-                    cb(frag, state);
-                }
-            }
-            SOS => {
-                if let Some(cbs) = callbacks
-                    && let Some(cb) = cbs.sos
-                {
-                    cb(frag, state);
-                }
-            }
-            _ => return,
         }
+        DCS_VTERM => {
+            if let Some(cbs) = callbacks
+                && let Some(cb) = cbs.dcs
+            {
+                cb(
+                    vt.parser.dcs.command.as_ptr(),
+                    vt.parser.dcs.commandlen as usize,
+                    frag,
+                    state,
+                );
+            }
+        }
+        APC => {
+            if let Some(cbs) = callbacks
+                && let Some(cb) = cbs.apc
+            {
+                cb(frag, state);
+            }
+        }
+        PM => {
+            if let Some(cbs) = callbacks
+                && let Some(cb) = cbs.pm
+            {
+                cb(frag, state);
+            }
+        }
+        SOS => {
+            if let Some(cbs) = callbacks
+                && let Some(cb) = cbs.sos
+            {
+                cb(frag, state);
+            }
+        }
+        _ => return,
+    }
 
-        vt.parser.string_initial = false;
+    vt.parser.string_initial = false;
 }
 
-pub fn vterm_input_write(vt: &mut VTerm, bytes: impl crate::strings::IntoCCharPtr, len: usize) -> usize { let bytes = bytes.into_c_char_ptr();
+pub fn vterm_input_write(
+    vt: &mut VTerm,
+    bytes: impl crate::strings::IntoCCharPtr,
+    len: usize,
+) -> usize {
+    let bytes = bytes.into_c_char_ptr();
     unsafe {
         let mut pos: usize = 0;
         let mut string_start: *const c_char = match vt.parser.state {
@@ -501,8 +499,7 @@ pub fn vterm_input_write(vt: &mut VTerm, bytes: impl crate::strings::IntoCCharPt
                             if let Some(callbacks) = vt.parser.callbacks
                                 && let Some(cb) = callbacks.text
                             {
-                                eaten =
-                                    cb(bytes.add(pos), len - pos, vt.state_mut_ptr()) as usize;
+                                eaten = cb(bytes.add(pos), len - pos, vt.state_mut_ptr()) as usize;
                             }
 
                             if eaten == 0 {

@@ -69,7 +69,7 @@ fn rstream_space(stream: &mut RStream) -> usize {
 }
 
 pub fn rstream_init_fd(loop_: *mut Loop, stream: &mut RStream, fd: c_int) {
-     {
+    {
         stream_init(loop_, &mut stream.s, fd, false);
         rstream_init(stream);
     }
@@ -77,10 +77,10 @@ pub fn rstream_init_fd(loop_: *mut Loop, stream: &mut RStream, fd: c_int) {
 
 pub fn rstream_init(stream: &mut RStream) {
     stream.num_bytes = 0;
-        stream.buffer = vec![0; ARENA_BLOCK_SIZE];
-        stream.read_pos = 0;
-        stream.write_pos = 0;
-        stream.s.is_rstream = true;
+    stream.buffer = vec![0; ARENA_BLOCK_SIZE];
+    stream.read_pos = 0;
+    stream.write_pos = 0;
+    stream.s.is_rstream = true;
 }
 
 pub fn rstream_start_inner(stream: &mut RStream) {
@@ -95,10 +95,10 @@ pub fn rstream_start_inner(stream: &mut RStream) {
 
 pub fn rstream_start(stream: &mut RStream, data: StreamCbData) {
     stream.s.cb_data = data;
-        stream.want_read = true;
-        if !stream.paused_full {
-            rstream_start_inner(stream);
-        }
+    stream.want_read = true;
+    if !stream.paused_full {
+        rstream_start_inner(stream);
+    }
 }
 
 pub fn rstream_stop_inner(stream: &mut RStream) {
@@ -113,7 +113,7 @@ pub fn rstream_stop_inner(stream: &mut RStream) {
 
 pub fn rstream_stop(stream: &mut RStream) {
     rstream_stop_inner(stream);
-        stream.want_read = false;
+    stream.want_read = false;
 }
 
 unsafe extern "C" fn alloc_cb(handle: *mut uv_handle_t, _suggested: usize, buf: *mut uv_buf_t) {
@@ -200,12 +200,12 @@ pub fn read_event(stream: &mut RStream) {
         stream.pending_read = false;
         let available = rstream_available(stream);
         let read_ptr = stream.buffer.as_ptr().add(stream.read_pos);
-        if let Some(consumed) = stream.s.cb_data.call_read_cb(
-            stream,
-            read_ptr,
-            available,
-            stream.did_eof,
-        ) {
+        if let Some(consumed) =
+            stream
+                .s
+                .cb_data
+                .call_read_cb(stream, read_ptr, available, stream.did_eof)
+        {
             assert!(consumed <= available);
             rstream_consume(stream, consumed);
         }
@@ -222,44 +222,47 @@ pub fn rstream_available(stream: &mut RStream) -> usize {
 
 pub fn rstream_consume(stream: &mut RStream, consumed: usize) {
     stream.read_pos += consumed;
-        let remaining = stream.write_pos - stream.read_pos;
-        if remaining > 0 && stream.read_pos > 0 {
-            let rpos = stream.read_pos;
-            stream.buffer.copy_within(rpos..rpos + remaining, 0);
-            stream.read_pos = 0;
-            stream.write_pos = remaining;
-        } else if remaining == 0 {
-            stream.read_pos = 0;
-            stream.write_pos = 0;
-        }
+    let remaining = stream.write_pos - stream.read_pos;
+    if remaining > 0 && stream.read_pos > 0 {
+        let rpos = stream.read_pos;
+        stream.buffer.copy_within(rpos..rpos + remaining, 0);
+        stream.read_pos = 0;
+        stream.write_pos = remaining;
+    } else if remaining == 0 {
+        stream.read_pos = 0;
+        stream.write_pos = 0;
+    }
 
-        if stream.want_read && stream.paused_full && rstream_space(stream) != 0 {
-            assert!(stream.s.cb_data.has_read_cb());
-            stream.paused_full = false;
-            rstream_start_inner(stream);
-        }
+    if stream.want_read && stream.paused_full && rstream_space(stream) != 0 {
+        assert!(stream.s.cb_data.has_read_cb());
+        stream.paused_full = false;
+        rstream_start_inner(stream);
+    }
 }
 
 fn invoke_read_cb(stream: &mut RStream, eof: bool) {
     stream.did_eof |= eof;
 
-        if rstream_space(stream) == 0 {
-            rstream_stop_inner(stream);
-            stream.paused_full = true;
-        }
+    if rstream_space(stream) == 0 {
+        rstream_stop_inner(stream);
+        stream.paused_full = true;
+    }
 
-        if stream.pending_read {
-            return;
-        }
+    if stream.pending_read {
+        return;
+    }
 
-        stream.s.pending_reqs += 1;
-        stream.pending_read = true;
-        let events = stream.s.events;
-        if !events.is_null() {
-            multiqueue_put_event(unsafe { &mut *events }, Event::RStreamRead(&raw mut *stream));
-        } else {
-            read_event(stream);
-        }
+    stream.s.pending_reqs += 1;
+    stream.pending_read = true;
+    let events = stream.s.events;
+    if !events.is_null() {
+        multiqueue_put_event(
+            unsafe { &mut *events },
+            Event::RStreamRead(&raw mut *stream),
+        );
+    } else {
+        read_event(stream);
+    }
 }
 
 pub(crate) fn rstream_close_cb(s: &mut Stream) {

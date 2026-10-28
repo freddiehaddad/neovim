@@ -6,12 +6,12 @@ use std::ptr;
 
 use crate::lpeg::lpcap::{finddyncap, runtimecap};
 use crate::lpeg::{
-    CapState, Capture, CCLOSE, CGROUP, CRUNTIME, IANY, IBACK_COMMIT, IBEHIND, ICALL, ICHAR, ICHOICE,
-    ICLOSE_CAPTURE, ICLOSE_RUN_TIME, ICOMMIT, IEND, IFAIL, IFAIL_TWICE, IFULL_CAPTURE, IGIVEUP, IJMP,
-    INITCAPSIZE, IOPEN_CAPTURE, IPARTIAL_COMMIT, IRET, ISET, ISPAN, ITEST_ANY, ITEST_CHAR, ITEST_SET,
-    IUTFR, LpegIndex, Inst, InstAux2, Instruction, MAXBACK, MAXINDT, MAXLOP, MAXSTACKIDX, LpegByte,
-    caplistidx, getkind, getoff, isopencap, lua_Integer, lua_State, stackidx, testchar, LpegUint,
-    utf_to,
+    CCLOSE, CGROUP, CRUNTIME, CapState, Capture, IANY, IBACK_COMMIT, IBEHIND, ICALL, ICHAR,
+    ICHOICE, ICLOSE_CAPTURE, ICLOSE_RUN_TIME, ICOMMIT, IEND, IFAIL, IFAIL_TWICE, IFULL_CAPTURE,
+    IGIVEUP, IJMP, INITCAPSIZE, IOPEN_CAPTURE, IPARTIAL_COMMIT, IRET, ISET, ISPAN, ITEST_ANY,
+    ITEST_CHAR, ITEST_SET, IUTFR, Inst, InstAux2, Instruction, LpegByte, LpegIndex, LpegUint,
+    MAXBACK, MAXINDT, MAXLOP, MAXSTACKIDX, caplistidx, getkind, getoff, isopencap, lua_Integer,
+    lua_State, stackidx, testchar, utf_to,
 };
 
 use crate::lua::converter::{
@@ -195,12 +195,7 @@ fn adddyncaptures(index: LpegIndex, capture: *mut Capture, n: c_int, fd: c_int) 
     }
 }
 
-fn removedyncap(
-    l: *mut lua_State,
-    capture: *mut Capture,
-    level: c_int,
-    last: c_int,
-) -> c_int {
+fn removedyncap(l: *mut lua_State, capture: *mut Capture, level: c_int, last: c_int) -> c_int {
     unsafe {
         let id = finddyncap(capture.add(level as usize), capture.add(last as usize));
         let top = lua_gettop(l);
@@ -215,13 +210,13 @@ fn removedyncap(
 fn findopen_full(mut cap: *mut Capture, currindex: LpegIndex) -> *mut Capture {
     unsafe {
         cap = cap.sub(1);
-        if !isopencap( &*cap) && (*cap).index == currindex {
+        if !isopencap(&*cap) && (*cap).index == currindex {
             return ptr::null_mut();
         }
         for _ in 0..MAXLOP {
             if currindex - (*cap).index >= LpegIndex::from(u8::MAX) {
                 return ptr::null_mut();
-            } else if isopencap( &*cap) {
+            } else if isopencap(&*cap) {
                 return cap;
             } else if (*cap).kind == CCLOSE {
                 return ptr::null_mut();
@@ -292,7 +287,9 @@ pub fn r#match(
                     if s < e {
                         let mut codepoint: c_int = 0;
                         s = utf8_decode(s, &mut codepoint);
-                        if !s.is_null() && (*p.add(1)).offset <= codepoint && codepoint <= utf_to( &*p)
+                        if !s.is_null()
+                            && (*p.add(1)).offset <= codepoint
+                            && codepoint <= utf_to(&*p)
                         {
                             p = p.add(2);
                             continue;
@@ -325,7 +322,7 @@ pub fn r#match(
                 ISET => {
                     if s < e {
                         let c = LpegUint::from(*s as LpegByte);
-                        if charinset( &*p, p.add(1).cast::<LpegByte>(), c) != 0 {
+                        if charinset(&*p, p.add(1).cast::<LpegByte>(), c) != 0 {
                             p = p.add(1 + (*p).i.aux2.set.size as usize);
                             s = s.add(1);
                             continue;
@@ -335,7 +332,7 @@ pub fn r#match(
                 ITEST_SET => {
                     if s < e {
                         let c = LpegUint::from(*s as LpegByte);
-                        if charinset( &*p, p.add(2).cast::<LpegByte>(), c) != 0 {
+                        if charinset(&*p, p.add(2).cast::<LpegByte>(), c) != 0 {
                             p = p.add(2 + (*p).i.aux2.set.size as usize);
                             continue;
                         }
@@ -354,7 +351,7 @@ pub fn r#match(
                 ISPAN => {
                     while s < e {
                         let c = LpegUint::from(*s as LpegByte);
-                        if charinset( &*p, p.add(1).cast::<LpegByte>(), c) == 0 {
+                        if charinset(&*p, p.add(1).cast::<LpegByte>(), c) == 0 {
                             break;
                         }
                         s = s.add(1);
@@ -471,7 +468,7 @@ pub fn r#match(
                         (*cap).siz = 1;
                         (*cap).index = curr_idx;
                         (*cap).idx = (*p).i.aux2.key as c_ushort;
-                        (*cap).kind = getkind( &*p) as LpegByte;
+                        (*cap).kind = getkind(&*p) as LpegByte;
                         captop += 1;
                         capture = growcap(l, capture, &mut capsize, captop, 0, ptop);
                         p = p.add(1);
@@ -483,19 +480,19 @@ pub fn r#match(
                     (*cap).siz = 0;
                     (*cap).index = s.offset_from(o) as LpegIndex;
                     (*cap).idx = (*p).i.aux2.key as c_ushort;
-                    (*cap).kind = getkind( &*p) as LpegByte;
+                    (*cap).kind = getkind(&*p) as LpegByte;
                     captop += 1;
                     capture = growcap(l, capture, &mut capsize, captop, 0, ptop);
                     p = p.add(1);
                     continue;
                 }
                 IFULL_CAPTURE => {
-                    let off = getoff( &*p);
+                    let off = getoff(&*p);
                     let cap = capture.add(captop as usize);
                     (*cap).siz = (off + 1) as LpegByte;
                     (*cap).index = (s.offset_from(o) as c_int - off) as LpegIndex;
                     (*cap).idx = (*p).i.aux2.key as c_ushort;
-                    (*cap).kind = getkind( &*p) as LpegByte;
+                    (*cap).kind = getkind(&*p) as LpegByte;
                     captop += 1;
                     capture = growcap(l, capture, &mut capsize, captop, 0, ptop);
                     p = p.add(1);

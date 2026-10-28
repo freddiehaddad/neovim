@@ -5,7 +5,7 @@ use std::ptr;
 
 use crate::xdiff::xprepare::xdl_prepare_env;
 use crate::xdiff::xutils::xdl_fall_back_diff;
-use crate::xdiff::{XDF_DIFF_ALGORITHM_MASK, Mmfile, Xdfenv, Xpparam};
+use crate::xdiff::{Mmfile, XDF_DIFF_ALGORITHM_MASK, Xdfenv, Xpparam};
 
 const NON_UNIQUE: c_ulong = c_ulong::MAX;
 

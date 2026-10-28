@@ -9,8 +9,8 @@ use crate::cursor::{Colnr, Linenr, Lpos, lt};
 use crate::errors::*;
 use crate::eval::eval_to_string;
 use crate::eval::typval::{
-    VarType, TvList, StaticList10, tv_clear, tv_list_alloc, tv_list_append_string, tv_list_first,
-    tv_list_init_static10, tv_set_string, TypVal,
+    StaticList10, TvList, TypVal, VarType, tv_clear, tv_list_alloc, tv_list_append_string,
+    tv_list_first, tv_list_init_static10, tv_set_string,
 };
 use crate::eval::userfunc::{Funcexe, UserFunc};
 use crate::globals::*;
@@ -26,7 +26,7 @@ use crate::message::{emsg, iemsg, internal_error, msg_puts, semsg, verbose_enter
 use crate::option_vars::*;
 use crate::os::input::fast_breakcheck;
 use crate::plines::{getvvcol, win_linetabsize};
-use crate::profile::{profile_passed_limit, Proftime};
+use crate::profile::{Proftime, profile_passed_limit};
 pub(super) use crate::strings::tr;
 use crate::window::WinInfoInfo;
 use std::ffi::{CStr, c_char, c_int, c_uint};
@@ -307,8 +307,9 @@ pub struct RegExtmatch {
 pub(super) fn cstring_from_bytes(
     ptr: impl crate::strings::IntoCCharPtr,
     len: usize,
-) -> Option<std::ffi::CString> { let ptr = ptr.into_c_char_ptr();
-    let bytes =  { crate::memory::cstr_slice(ptr, len) };
+) -> Option<std::ffi::CString> {
+    let ptr = ptr.into_c_char_ptr();
+    let bytes = { crate::memory::cstr_slice(ptr, len) };
     let end = bytes.iter().position(|&b| b == 0).unwrap_or(len);
     std::ffi::CString::new(&bytes[..end]).ok()
 }
@@ -798,9 +799,9 @@ impl CaseConv {
     #[inline]
     fn apply(self, c: c_int) -> c_int {
         match self {
-                Self::Upper => mb_toupper(c),
-                Self::Lower => mb_tolower(c),
-            }
+            Self::Upper => mb_toupper(c),
+            Self::Lower => mb_tolower(c),
+        }
     }
 }
 
@@ -1386,7 +1387,11 @@ pub(super) const fn no_magic(x: c_int) -> c_int {
 
 #[inline]
 pub(super) const fn toggle_magic(x: c_int) -> c_int {
-    if is_magic_fn(x) { un_magic(x) } else { magic_fn(x) }
+    if is_magic_fn(x) {
+        un_magic(x)
+    } else {
+        magic_fn(x)
+    }
 }
 
 #[inline]
@@ -1412,10 +1417,12 @@ pub(super) fn mb_ptr_adv<T>(p: *mut *mut T) {
 /// Return MULTI_MULT if c is a multi "multi" operator.
 #[inline]
 pub(super) fn re_multi_type(c: c_int) -> c_int {
-    if c == magic_fn(b'@' as c_int) || c == magic_fn(b'=' as c_int) || c == magic_fn(b'?' as c_int) {
+    if c == magic_fn(b'@' as c_int) || c == magic_fn(b'=' as c_int) || c == magic_fn(b'?' as c_int)
+    {
         return MULTI_ONE;
     }
-    if c == magic_fn(b'*' as c_int) || c == magic_fn(b'+' as c_int) || c == magic_fn(b'{' as c_int) {
+    if c == magic_fn(b'*' as c_int) || c == magic_fn(b'+' as c_int) || c == magic_fn(b'{' as c_int)
+    {
         return MULTI_MULT;
     }
     NOT_MULTI
@@ -1512,43 +1519,35 @@ pub(super) fn init_class_tab() {
 
 #[inline]
 pub(super) fn ri_digit(c: c_int) -> bool {
-    (0..0x100).contains(&c)
-            && (re_st().class_tab[c as usize] & RI_DIGIT) != 0
+    (0..0x100).contains(&c) && (re_st().class_tab[c as usize] & RI_DIGIT) != 0
 }
 #[inline]
 pub(super) fn ri_hex(c: c_int) -> bool {
-    (0..0x100).contains(&c)
-            && (re_st().class_tab[c as usize] & RI_HEX) != 0
+    (0..0x100).contains(&c) && (re_st().class_tab[c as usize] & RI_HEX) != 0
 }
 #[inline]
 pub(super) fn ri_octal(c: c_int) -> bool {
-    (0..0x100).contains(&c)
-            && (re_st().class_tab[c as usize] & RI_OCTAL) != 0
+    (0..0x100).contains(&c) && (re_st().class_tab[c as usize] & RI_OCTAL) != 0
 }
 #[inline]
 pub(super) fn ri_word(c: c_int) -> bool {
-    (0..0x100).contains(&c)
-            && (re_st().class_tab[c as usize] & RI_WORD) != 0
+    (0..0x100).contains(&c) && (re_st().class_tab[c as usize] & RI_WORD) != 0
 }
 #[inline]
 pub(super) fn ri_head(c: c_int) -> bool {
-    (0..0x100).contains(&c)
-            && (re_st().class_tab[c as usize] & RI_HEAD) != 0
+    (0..0x100).contains(&c) && (re_st().class_tab[c as usize] & RI_HEAD) != 0
 }
 #[inline]
 pub(super) fn ri_alpha(c: c_int) -> bool {
-    (0..0x100).contains(&c)
-            && (re_st().class_tab[c as usize] & RI_ALPHA) != 0
+    (0..0x100).contains(&c) && (re_st().class_tab[c as usize] & RI_ALPHA) != 0
 }
 #[inline]
 pub(super) fn ri_lower(c: c_int) -> bool {
-    (0..0x100).contains(&c)
-            && (re_st().class_tab[c as usize] & RI_LOWER) != 0
+    (0..0x100).contains(&c) && (re_st().class_tab[c as usize] & RI_LOWER) != 0
 }
 #[inline]
 pub(super) fn ri_upper(c: c_int) -> bool {
-    (0..0x100).contains(&c)
-            && (re_st().class_tab[c as usize] & RI_UPPER) != 0
+    (0..0x100).contains(&c) && (re_st().class_tab[c as usize] & RI_UPPER) != 0
 }
 
 /// Return true if compiled regular expression `prog` can match a line break.
@@ -1562,7 +1561,9 @@ pub(super) fn get_equi_class(pp: *mut *mut c_char) -> c_int {
         let p = *pp;
         if crate::memory::cstr_byte_at(p, 1) == b'=' && crate::memory::cstr_byte_at(p, 2) != 0 {
             let l = utfc_ptr2len(p.add(2)) as usize;
-            if crate::memory::cstr_byte_at(p, l + 2) == b'=' && crate::memory::cstr_byte_at(p, l + 3) == b']' {
+            if crate::memory::cstr_byte_at(p, l + 2) == b'='
+                && crate::memory::cstr_byte_at(p, l + 3) == b']'
+            {
                 let c = utf_ptr2char(p.add(2));
                 *pp = (*pp).add(l + 4);
                 return c;
@@ -1576,9 +1577,14 @@ pub(super) fn get_equi_class(pp: *mut *mut c_char) -> c_int {
 pub(super) fn get_coll_element(pp: *mut *mut c_char) -> c_int {
     unsafe {
         let p = *pp;
-        if !crate::memory::cstr_is_empty(p) && crate::memory::cstr_byte_at(p, 1) == b'.' && crate::memory::cstr_byte_at(p, 2) != 0 {
+        if !crate::memory::cstr_is_empty(p)
+            && crate::memory::cstr_byte_at(p, 1) == b'.'
+            && crate::memory::cstr_byte_at(p, 2) != 0
+        {
             let l = utfc_ptr2len(p.add(2)) as usize;
-            if crate::memory::cstr_byte_at(p, l + 2) == b'.' && crate::memory::cstr_byte_at(p, l + 3) == b']' {
+            if crate::memory::cstr_byte_at(p, l + 2) == b'.'
+                && crate::memory::cstr_byte_at(p, l + 3) == b']'
+            {
                 let c = utf_ptr2char(p.add(2));
                 *pp = (*pp).add(l + 4);
                 return c;
@@ -1611,9 +1617,11 @@ pub(super) fn skip_anyof(mut p: *mut c_char) -> *mut c_char {
                     mb_ptr_adv(&raw mut p);
                 }
             } else if crate::memory::cstr_first_byte(p) == b'\\'
-                && (!vim_strchr(REGEXP_INRANGE, crate::memory::cstr_byte_at(p, 1) as c_int).is_null()
+                && (!vim_strchr(REGEXP_INRANGE, crate::memory::cstr_byte_at(p, 1) as c_int)
+                    .is_null()
                     || (re_st().reg_cpo_lit == 0
-                        && !vim_strchr(REGEXP_ABBR, crate::memory::cstr_byte_at(p, 1) as c_int).is_null()))
+                        && !vim_strchr(REGEXP_ABBR, crate::memory::cstr_byte_at(p, 1) as c_int)
+                            .is_null()))
             {
                 p = p.add(2);
             } else if crate::memory::cstr_first_byte(p) == b'[' {
@@ -1634,26 +1642,15 @@ pub(super) fn skip_anyof(mut p: *mut c_char) -> *mut c_char {
 
 /// Skip past regular expression.
 pub fn skip_regexp(startp: *mut c_char, delim: c_int, magic: c_int) -> *mut c_char {
-    skip_regexp_ex(
-            startp,
-            delim,
-            magic,
-            false,
-            None,
-            None,
-            None,
-        )
+    skip_regexp_ex(startp, delim, magic, false, None, None, None)
 }
 
 /// Call `skip_regexp()` and when the delimiter does not match give an error and return NULL.
 pub fn skip_regexp_err(startp: *mut c_char, delim: c_int, magic: c_int) -> *mut c_char {
-     {
+    {
         let p = skip_regexp(startp, delim, magic);
         if crate::memory::cstr_first_byte(p) as c_int != delim {
-            semsg!(
-                tr(E_MISSING_DELIMITER_AFTER_SEARCH_PATTERN_STR),
-                startp,
-            );
+            semsg!(tr(E_MISSING_DELIMITER_AFTER_SEARCH_PATTERN_STR), startp,);
             return ptr::null_mut();
         }
         p
@@ -1666,7 +1663,9 @@ pub fn skip_regexp_ex(
     dirc: c_int,
     magic: c_int,
     in_place: bool,
-    mut copy_buf: Option<&mut Vec<c_char>>,mut dropped: Option<&mut c_int>,mut magic_val: Option<&mut RegMagic>,
+    mut copy_buf: Option<&mut Vec<c_char>>,
+    mut dropped: Option<&mut c_int>,
+    mut magic_val: Option<&mut RegMagic>,
 ) -> *mut c_char {
     unsafe {
         let mut mymagic = if magic != 0 { MAGIC_ON } else { MAGIC_OFF };
@@ -1680,13 +1679,17 @@ pub fn skip_regexp_ex(
                 break;
             }
             if (crate::memory::cstr_first_byte(p) == b'[' && mymagic >= MAGIC_ON)
-                || (crate::memory::cstr_first_byte(p) == b'\\' && crate::memory::cstr_byte_at(p, 1) == b'[' && mymagic <= MAGIC_OFF)
+                || (crate::memory::cstr_first_byte(p) == b'\\'
+                    && crate::memory::cstr_byte_at(p, 1) == b'['
+                    && mymagic <= MAGIC_OFF)
             {
                 p = skip_anyof(p.add(1));
                 if crate::memory::cstr_is_empty(p) {
                     break;
                 }
-            } else if crate::memory::cstr_first_byte(p) == b'\\' && crate::memory::cstr_byte_at(p, 1) != 0 {
+            } else if crate::memory::cstr_first_byte(p) == b'\\'
+                && crate::memory::cstr_byte_at(p, 1) != 0
+            {
                 if dirc == b'?' as c_int && in_place && crate::memory::cstr_byte_at(p, 1) == b'?' {
                     if startplen == 0 {
                         startplen = crate::memory::cstr_len(startp);
@@ -1700,8 +1703,8 @@ pub fn skip_regexp_ex(
                         p = startp.add(off);
                     }
                     if let Some(ref mut p) = dropped {
-            **p += 1;
-        }
+                        **p += 1;
+                    }
                     ptr::copy(
                         p.add(1),
                         p,
@@ -1727,37 +1730,37 @@ pub fn skip_regexp_ex(
 
 pub(super) fn initchr(str_: *mut c_char) {
     re_st().regparse = str_;
-        re_st().prevchr_len = 0;
-        re_st().nextchr = -1;
-        re_st().prevchr = -1;
-        re_st().prevprevchr = -1;
-        re_st().curchr = -1;
-        re_st().at_start = 1;
-        re_st().prev_at_start = 0;
+    re_st().prevchr_len = 0;
+    re_st().nextchr = -1;
+    re_st().prevchr = -1;
+    re_st().prevprevchr = -1;
+    re_st().curchr = -1;
+    re_st().at_start = 1;
+    re_st().prev_at_start = 0;
 }
 
 pub(super) fn save_parse_state(ps: &mut ParseState) {
     ps.regparse = re_st().regparse;
-        ps.prevchr_len = re_st().prevchr_len;
-        ps.curchr = re_st().curchr;
-        ps.prevchr = re_st().prevchr;
-        ps.prevprevchr = re_st().prevprevchr;
-        ps.nextchr = re_st().nextchr;
-        ps.at_start = re_st().at_start;
-        ps.prev_at_start = re_st().prev_at_start;
-        ps.regnpar = re_st().regnpar;
+    ps.prevchr_len = re_st().prevchr_len;
+    ps.curchr = re_st().curchr;
+    ps.prevchr = re_st().prevchr;
+    ps.prevprevchr = re_st().prevprevchr;
+    ps.nextchr = re_st().nextchr;
+    ps.at_start = re_st().at_start;
+    ps.prev_at_start = re_st().prev_at_start;
+    ps.regnpar = re_st().regnpar;
 }
 
 pub(super) fn restore_parse_state(ps: &mut ParseState) {
     re_st().regparse = ps.regparse;
-        re_st().prevchr_len = ps.prevchr_len;
-        re_st().curchr = ps.curchr;
-        re_st().prevchr = ps.prevchr;
-        re_st().prevprevchr = ps.prevprevchr;
-        re_st().nextchr = ps.nextchr;
-        re_st().at_start = ps.at_start;
-        re_st().prev_at_start = ps.prev_at_start;
-        re_st().regnpar = ps.regnpar;
+    re_st().prevchr_len = ps.prevchr_len;
+    re_st().curchr = ps.curchr;
+    re_st().prevchr = ps.prevchr;
+    re_st().prevprevchr = ps.prevprevchr;
+    re_st().nextchr = ps.nextchr;
+    re_st().at_start = ps.at_start;
+    re_st().prev_at_start = ps.prev_at_start;
+    re_st().regnpar = ps.regnpar;
 }
 
 pub(super) fn peekchr() -> c_int {
@@ -1847,7 +1850,9 @@ pub(super) fn peekchr() -> c_int {
                     re_st().curchr = toggle_magic(re_st().curchr);
                 } else if !vim_strchr(REGEXP_ABBR, c).is_null() {
                     re_st().curchr = backslash_trans(c);
-                } else if re_st().reg_magic == MAGIC_NONE && (c == b'$' as c_int || c == b'^' as c_int) {
+                } else if re_st().reg_magic == MAGIC_NONE
+                    && (c == b'$' as c_int || c == b'^' as c_int)
+                {
                     re_st().curchr = toggle_magic(c);
                 } else {
                     re_st().curchr = if c >= 0x80 {
@@ -1879,7 +1884,8 @@ pub(super) fn skipchr() {
             if (*re_st().regparse.add(re_st().prevchr_len as usize) as u8) < 0x80 {
                 re_st().prevchr_len += 1;
             } else {
-                re_st().prevchr_len += utf_ptr2len(re_st().regparse.add(re_st().prevchr_len as usize));
+                re_st().prevchr_len +=
+                    utf_ptr2len(re_st().regparse.add(re_st().prevchr_len as usize));
             }
         }
         re_st().regparse = re_st().regparse.add(re_st().prevchr_len as usize);
@@ -1894,19 +1900,19 @@ pub(super) fn skipchr() {
 
 pub(super) fn skipchr_keepstart() {
     let as_ = re_st().prev_at_start;
-        let pr = re_st().prevchr;
-        let prpr = re_st().prevprevchr;
+    let pr = re_st().prevchr;
+    let prpr = re_st().prevprevchr;
 
-        skipchr();
-        re_st().at_start = as_;
-        re_st().prevchr = pr;
-        re_st().prevprevchr = prpr;
+    skipchr();
+    re_st().at_start = as_;
+    re_st().prevchr = pr;
+    re_st().prevprevchr = prpr;
 }
 
 pub(super) fn getchr() -> c_int {
     let chr = peekchr();
-        skipchr();
-        chr
+    skipchr();
+    chr
 }
 
 pub(super) fn ungetchr() {
@@ -2081,8 +2087,8 @@ pub(super) fn reg_getline(lnum: Linenr) -> *mut c_char {
 
 pub(super) fn reg_getline_len(lnum: Linenr) -> Colnr {
     let mut length: Colnr = 0;
-        reg_getline_common(lnum, RGLF_LENGTH, ptr::null_mut(), Some(&mut length));
-        length
+    reg_getline_common(lnum, RGLF_LENGTH, ptr::null_mut(), Some(&mut length));
+    length
 }
 
 pub(super) fn reg_prev_class() -> c_int {
@@ -2103,7 +2109,10 @@ pub(super) fn reg_match_visual() -> bool {
         } else {
             re_st().rex.reg_win
         };
-        if re_st().rex.reg_buf != g_st().curbuf || g_st().visual_global.start.lnum == 0 || !reg_multi() {
+        if re_st().rex.reg_buf != g_st().curbuf
+            || g_st().visual_global.start.lnum == 0
+            || !reg_multi()
+        {
             return false;
         }
 
@@ -2139,7 +2148,10 @@ pub(super) fn reg_match_visual() -> bool {
         let col = re_st().rex.input.offset_from(re_st().rex.line) as Colnr;
         if mode == b'v' as c_int {
             if (lnum == top.lnum && col < top.col)
-                || (lnum == bot.lnum && col >= bot.col + Colnr::from(crate::memory::cstr_first_byte(opt_vars().p_sel) != b'e'))
+                || (lnum == bot.lnum
+                    && col
+                        >= bot.col
+                            + Colnr::from(crate::memory::cstr_first_byte(opt_vars().p_sel) != b'e'))
             {
                 return false;
             }
@@ -2150,14 +2162,7 @@ pub(super) fn reg_match_visual() -> bool {
             let mut end2: Colnr = 0;
             let mut top_copy = top;
             let mut bot_copy = bot;
-            getvvcol(
-                wp,
-                &mut top_copy,
-                Some(&mut start),
-                None,
-                Some(&mut end),
-                0,
-            );
+            getvvcol(wp, &mut top_copy, Some(&mut start), None, Some(&mut end), 0);
             getvvcol(
                 wp,
                 &mut bot_copy,
@@ -2179,8 +2184,16 @@ pub(super) fn reg_match_visual() -> bool {
             re_st().rex.line = reg_getline(re_st().rex.lnum).cast();
             re_st().rex.input = re_st().rex.line.add(col as usize);
 
-            let cols = win_linetabsize(&mut *wp, re_st().rex.reg_firstlnum + re_st().rex.lnum, re_st().rex.line.cast(), col);
-            if cols < start || cols > end - Colnr::from(crate::memory::cstr_first_byte(opt_vars().p_sel) == b'e') {
+            let cols = win_linetabsize(
+                &mut *wp,
+                re_st().rex.reg_firstlnum + re_st().rex.lnum,
+                re_st().rex.line.cast(),
+                col,
+            );
+            if cols < start
+                || cols
+                    > end - Colnr::from(crate::memory::cstr_first_byte(opt_vars().p_sel) == b'e')
+            {
                 return false;
             }
         }
@@ -2225,31 +2238,32 @@ pub(super) fn cleanup_subexpr() {
 
 pub(super) fn cleanup_zsubexpr() {
     if re_st().rex.need_clear_zsubexpr == 0 {
-            return;
-        }
-        if reg_multi() {
-            let uninit_pos = Lpos { lnum: -1, col: -1 };
-            re_st().reg_startzpos = [uninit_pos; NSUBEXP];
-            re_st().reg_endzpos = [uninit_pos; NSUBEXP];
-        } else {
-            re_st().reg_startzp = [ptr::null_mut(); NSUBEXP];
-            re_st().reg_endzp = [ptr::null_mut(); NSUBEXP];
-        }
-        re_st().rex.need_clear_zsubexpr = 0;
+        return;
+    }
+    if reg_multi() {
+        let uninit_pos = Lpos { lnum: -1, col: -1 };
+        re_st().reg_startzpos = [uninit_pos; NSUBEXP];
+        re_st().reg_endzpos = [uninit_pos; NSUBEXP];
+    } else {
+        re_st().reg_startzp = [ptr::null_mut(); NSUBEXP];
+        re_st().reg_endzp = [ptr::null_mut(); NSUBEXP];
+    }
+    re_st().rex.need_clear_zsubexpr = 0;
 }
 
 pub(super) fn reg_nextline() {
     re_st().rex.lnum += 1;
-        re_st().rex.line = reg_getline(re_st().rex.lnum).cast();
-        re_st().rex.input = re_st().rex.line;
-        reg_breakcheck();
+    re_st().rex.line = reg_getline(re_st().rex.lnum).cast();
+    re_st().rex.input = re_st().rex.line;
+    reg_breakcheck();
 }
 
 pub(super) fn match_with_backref(
     start_lnum: Linenr,
     start_col: Colnr,
     end_lnum: Linenr,
-    end_col: Colnr,bytelen: &mut c_int,
+    end_col: Colnr,
+    bytelen: &mut c_int,
 ) -> c_int {
     unsafe {
         let mut clnum = start_lnum;
@@ -2257,13 +2271,17 @@ pub(super) fn match_with_backref(
 
         *bytelen = 0;
         loop {
-            if re_st().reg_tofree.is_empty() || re_st().rex.line != re_st().reg_tofree.as_mut_ptr() {
+            if re_st().reg_tofree.is_empty() || re_st().rex.line != re_st().reg_tofree.as_mut_ptr()
+            {
                 let len = crate::memory::cstr_len(re_st().rex.line.cast()) + 51;
                 let off = re_st().rex.input.offset_from(re_st().rex.line) as usize;
                 if re_st().reg_tofree.len() < len {
                     re_st().reg_tofree.resize(len, 0);
                 }
-                crate::memory::cstr_cpy(re_st().reg_tofree.as_mut_ptr().cast(), re_st().rex.line.cast());
+                crate::memory::cstr_cpy(
+                    re_st().reg_tofree.as_mut_ptr().cast(),
+                    re_st().rex.line.cast(),
+                );
                 re_st().rex.line = re_st().reg_tofree.as_mut_ptr();
                 re_st().rex.input = re_st().rex.line.add(off);
             }
@@ -2277,9 +2295,11 @@ pub(super) fn match_with_backref(
                 reg_getline_len(clnum) - ccol
             };
 
-            if (!re_st().rex.reg_ic && cstrncmp(p.add(ccol as usize), re_st().rex.input.cast(), &mut len) != 0)
+            if (!re_st().rex.reg_ic
+                && cstrncmp(p.add(ccol as usize), re_st().rex.input.cast(), &mut len) != 0)
                 || (re_st().rex.reg_ic
-                    && mb_strnicmp(p.add(ccol as usize), re_st().rex.input.cast(), len as usize) != 0)
+                    && mb_strnicmp(p.add(ccol as usize), re_st().rex.input.cast(), len as usize)
+                        != 0)
             {
                 return RA_NOMATCH;
             }
@@ -2305,30 +2325,37 @@ pub(super) fn match_with_backref(
 
 pub(super) fn re_mult_next(what: &std::ffi::CStr) -> bool {
     if re_multi_type(peekchr()) == MULTI_MULT {
-            semsg!(tr(c"E888: (NFA regexp) cannot repeat %s"), what.as_ptr());
-            g_st().rc_did_emsg = true;
-            return false;
-        }
-        true
+        semsg!(tr(c"E888: (NFA regexp) cannot repeat %s"), what.as_ptr());
+        g_st().rc_did_emsg = true;
+        return false;
+    }
+    true
 }
 
 fn mb_decompose(c: c_int, c1: &mut c_int, c2: &mut c_int, c3: &mut c_int) {
     if (0xfb20..=0xfb4f).contains(&c) {
-            let d = DECOMP_TABLE[(c - 0xfb20) as usize];
-            *c1 = d.a;
-            *c2 = d.b;
-            *c3 = d.c;
-        } else {
-            *c1 = c;
-            *c2 = 0;
-            *c3 = 0;
-        }
+        let d = DECOMP_TABLE[(c - 0xfb20) as usize];
+        *c1 = d.a;
+        *c2 = d.b;
+        *c3 = d.c;
+    } else {
+        *c1 = c;
+        *c2 = 0;
+        *c3 = 0;
+    }
 }
 
-pub(super) fn cstrncmp(s1: impl crate::strings::IntoCCharPtr, s2: impl crate::strings::IntoCCharPtr, n: &mut c_int) -> c_int { let s1 = s1.into_c_char_ptr(); let s2 = s2.into_c_char_ptr();
+pub(super) fn cstrncmp(
+    s1: impl crate::strings::IntoCCharPtr,
+    s2: impl crate::strings::IntoCCharPtr,
+    n: &mut c_int,
+) -> c_int {
+    let s1 = s1.into_c_char_ptr();
+    let s2 = s2.into_c_char_ptr();
     unsafe {
         let mut result = if !re_st().rex.reg_ic {
-            crate::memory::cstr_prefix_bytes(s1, *n as usize).cmp(crate::memory::cstr_prefix_bytes(s2, *n as usize)) as c_int
+            crate::memory::cstr_prefix_bytes(s1, *n as usize)
+                .cmp(crate::memory::cstr_prefix_bytes(s2, *n as usize)) as c_int
         } else {
             let mut p = s1.cast_mut();
             let mut n2: c_int = 0;
@@ -2386,7 +2413,8 @@ pub(super) fn cstrncmp(s1: impl crate::strings::IntoCCharPtr, s2: impl crate::st
 }
 
 #[inline]
-pub(super) fn cstrchr(s: impl crate::strings::IntoCCharPtr, c: c_int) -> *mut c_char { let s = s.into_c_char_ptr();
+pub(super) fn cstrchr(s: impl crate::strings::IntoCCharPtr, c: c_int) -> *mut c_char {
+    let s = s.into_c_char_ptr();
     unsafe {
         if !re_st().rex.reg_ic {
             return vim_strchr(s, c);
@@ -2409,10 +2437,14 @@ pub(super) fn cstrchr(s: impl crate::strings::IntoCCharPtr, c: c_int) -> *mut c_
         while !crate::memory::cstr_is_empty(p) {
             let uc = utf_ptr2char(p);
             if c > 0x80 || uc > 0x80 {
-                if (uc < 0x80 || uc != crate::memory::cstr_first_byte(p) as c_int) && utf_fold(uc) == lc {
+                if (uc < 0x80 || uc != crate::memory::cstr_first_byte(p) as c_int)
+                    && utf_fold(uc) == lc
+                {
                     return p.cast_mut();
                 }
-            } else if crate::memory::cstr_first_byte(p) as c_int == c || crate::memory::cstr_first_byte(p) as c_int == cc {
+            } else if crate::memory::cstr_first_byte(p) as c_int == c
+                || crate::memory::cstr_first_byte(p) as c_int == cc
+            {
                 return p.cast_mut();
             }
             p = p.add(utfc_ptr2len(p) as usize);
@@ -2423,11 +2455,7 @@ pub(super) fn cstrchr(s: impl crate::strings::IntoCCharPtr, c: c_int) -> *mut c_
 
 /// Replace tildes in the pattern by the old pattern.
 /// Returns `Some(CString)` if a new string was allocated, or `None` if `source` was modified in place.
-pub fn regtilde(
-    source: *mut c_char,
-    magic: c_int,
-    preview: bool,
-) -> Option<std::ffi::CString> {
+pub fn regtilde(source: *mut c_char, magic: c_int, preview: bool) -> Option<std::ffi::CString> {
     unsafe {
         let mut newsub_vec: Option<Vec<c_char>> = None;
         let mut newsub = source;
@@ -2445,7 +2473,9 @@ pub fn regtilde(
 
         let mut p = newsub;
         while !crate::memory::cstr_is_empty(p) {
-            if crate::memory::cstr_prefix_bytes(p, tildelen) == crate::memory::cstr_prefix_bytes(tilde.as_ptr(), tildelen) {
+            if crate::memory::cstr_prefix_bytes(p, tildelen)
+                == crate::memory::cstr_prefix_bytes(tilde.as_ptr(), tildelen)
+            {
                 let prefixlen = p.offset_from(newsub) as usize;
                 let postfix = p.add(tildelen);
                 if newsublen == 0 {
@@ -2485,7 +2515,9 @@ pub fn regtilde(
                 }
                 continue;
             } else {
-                if crate::memory::cstr_first_byte(p) == b'\\' && crate::memory::cstr_byte_at(p, 1) != 0 {
+                if crate::memory::cstr_first_byte(p) == b'\\'
+                    && crate::memory::cstr_byte_at(p, 1) != 0
+                {
                     p = p.add(1);
                 }
                 p = p.add(utfc_ptr2len(p) as usize);
@@ -2548,26 +2580,26 @@ pub fn vim_regsub(
     flags: c_int,
 ) -> c_int {
     let mut rex_save = Regexec::new();
-        let rex_in_use_save = re_st().rex_in_use;
+    let rex_in_use_save = re_st().rex_in_use;
 
-        if re_st().rex_in_use {
-            rex_save = re_st().rex;
-        }
-        re_st().rex_in_use = true;
+    if re_st().rex_in_use {
+        rex_save = re_st().rex;
+    }
+    re_st().rex_in_use = true;
 
-        re_st().rex.reg_match = rmp;
-        re_st().rex.reg_mmatch = ptr::null_mut();
-        re_st().rex.reg_maxline = 0;
-        re_st().rex.reg_buf = g_st().curbuf;
-        re_st().rex.reg_line_lbr = true;
-        let result = vim_regsub_both(source, expr, dest, destlen, flags);
+    re_st().rex.reg_match = rmp;
+    re_st().rex.reg_mmatch = ptr::null_mut();
+    re_st().rex.reg_maxline = 0;
+    re_st().rex.reg_buf = g_st().curbuf;
+    re_st().rex.reg_line_lbr = true;
+    let result = vim_regsub_both(source, expr, dest, destlen, flags);
 
-        re_st().rex_in_use = rex_in_use_save;
-        if re_st().rex_in_use {
-            re_st().rex = rex_save;
-        }
+    re_st().rex_in_use = rex_in_use_save;
+    if re_st().rex_in_use {
+        re_st().rex = rex_save;
+    }
 
-        result
+    result
 }
 
 pub fn vim_regsub_multi(
@@ -2578,7 +2610,7 @@ pub fn vim_regsub_multi(
     destlen: c_int,
     flags: c_int,
 ) -> c_int {
-     {
+    {
         let mut rex_save = Regexec::new();
         let rex_in_use_save = re_st().rex_in_use;
 
@@ -2610,7 +2642,8 @@ fn vim_regsub_both(
     dest: *mut c_char,
     destlen: c_int,
     flags: c_int,
-) -> c_int { let source = source.into_c_char_ptr();
+) -> c_int {
+    let source = source.into_c_char_ptr();
     unsafe {
         let mut no: c_int = -1;
         let mut func_all: Option<CaseConv> = None;
@@ -2635,7 +2668,10 @@ fn vim_regsub_both(
         let mut src = source;
         let mut dst = dest;
 
-        if expr.is_some() || (crate::memory::cstr_first_byte(source) == b'\\' && crate::memory::cstr_byte_at(source, 1) == b'=') {
+        if expr.is_some()
+            || (crate::memory::cstr_first_byte(source) == b'\\'
+                && crate::memory::cstr_byte_at(source, 1) == b'=')
+        {
             if copy {
                 if let Some(ref eval_cstr) = *eval_slot {
                     let eval_len = eval_cstr.to_bytes().len();
@@ -2670,7 +2706,8 @@ fn vim_regsub_both(
                     rettv.v_type = VarType::VarString;
                     rettv.vval = crate::eval::typval::TypvalVval::String(ptr::null_mut());
                     argv[0].v_type = VarType::VarList;
-                    argv[0].vval = crate::eval::typval::TypvalVval::List(&raw mut match_list.sl_list);
+                    argv[0].vval =
+                        crate::eval::typval::TypvalVval::List(&raw mut match_list.sl_list);
                     let mut funcexe = Funcexe {
                         fe_fill_submatch: true,
                         fe_firstline: 0,
@@ -2684,26 +2721,12 @@ fn vim_regsub_both(
                     };
                     if expr.v_type == VarType::VarFunc {
                         let s = expr.vval.v_string();
-                        call_func(
-                            s,
-                            -1,
-                            &mut rettv,
-                            1,
-                            argv.as_mut_ptr(),
-                            &mut funcexe,
-                        );
+                        call_func(s, -1, &mut rettv, 1, argv.as_mut_ptr(), &mut funcexe);
                     } else if expr.v_type == VarType::VarPartial {
                         let partial = expr.vval.v_partial();
                         let s = partial_name(partial.as_ref());
                         funcexe.fe_partial = partial;
-                        call_func(
-                            s,
-                            -1,
-                            &mut rettv,
-                            1,
-                            argv.as_mut_ptr(),
-                            &mut funcexe,
-                        );
+                        call_func(s, -1, &mut rettv, 1, argv.as_mut_ptr(), &mut funcexe);
                     }
                     if rettv.v_type == VarType::VarUnknown {
                         *eval_slot = None;
@@ -2727,7 +2750,9 @@ fn vim_regsub_both(
                     while !crate::memory::cstr_is_empty(s) {
                         if *s == NL as c_char && re_st().rsm.sm_line_lbr == 0 {
                             *s = CAR as c_char;
-                        } else if crate::memory::cstr_first_byte(s) == b'\\' && crate::memory::cstr_byte_at(s, 1) != 0 {
+                        } else if crate::memory::cstr_first_byte(s) == b'\\'
+                            && crate::memory::cstr_byte_at(s, 1) != 0
+                        {
                             s = s.add(1);
                             if *s == NL as c_char && re_st().rsm.sm_line_lbr == 0 {
                                 *s = CAR as c_char;
@@ -2768,7 +2793,9 @@ fn vim_regsub_both(
                     } else if (crate::memory::cstr_first_byte(src)).is_ascii_digit() {
                         no = (crate::memory::cstr_first_byte(src) - b'0') as c_int;
                         src = src.add(1);
-                    } else if !vim_strchr(c"uUlLeE", crate::memory::cstr_first_byte(src) as c_int).is_null() {
+                    } else if !vim_strchr(c"uUlLeE", crate::memory::cstr_first_byte(src) as c_int)
+                        .is_null()
+                    {
                         let ch = crate::memory::cstr_first_byte(src);
                         src = src.add(1);
                         match ch {
@@ -2914,7 +2941,8 @@ fn vim_regsub_both(
                         if (*re_st().rex.reg_match).endp[no as usize].is_null() {
                             s = ptr::null_mut();
                         } else {
-                            len = (*re_st().rex.reg_match).endp[no as usize].offset_from(s) as c_int;
+                            len =
+                                (*re_st().rex.reg_match).endp[no as usize].offset_from(s) as c_int;
                         }
                     }
                     if !s.is_null() {
@@ -2949,7 +2977,8 @@ fn vim_regsub_both(
                                 return (dst.offset_from(dest) + 1) as c_int;
                             } else {
                                 if (flags & REGSUB_BACKSLASH) != 0
-                                    && (*s == CAR as c_char || crate::memory::cstr_first_byte(s) == b'\\')
+                                    && (*s == CAR as c_char
+                                        || crate::memory::cstr_first_byte(s) == b'\\')
                                 {
                                     if copy {
                                         if dst.add(2) > dest.add(destlen as usize) {
@@ -3002,24 +3031,19 @@ fn vim_regsub_both(
 
 fn reg_getline_submatch(lnum: Linenr) -> *mut c_char {
     let mut line: *mut c_char = ptr::null_mut();
-        reg_getline_common(
-            lnum,
-            RGLF_LINE | RGLF_SUBMATCH,
-            &raw mut line,
-            None,
-        );
-        line
+    reg_getline_common(lnum, RGLF_LINE | RGLF_SUBMATCH, &raw mut line, None);
+    line
 }
 
 fn reg_getline_submatch_len(lnum: Linenr) -> Colnr {
     let mut length: Colnr = 0;
-        reg_getline_common(
-            lnum,
-            RGLF_LENGTH | RGLF_SUBMATCH,
-            ptr::null_mut(),
-            Some(&mut length),
-        );
-        length
+    reg_getline_common(
+        lnum,
+        RGLF_LENGTH | RGLF_SUBMATCH,
+        ptr::null_mut(),
+        Some(&mut length),
+    );
+    length
 }
 
 pub fn reg_submatch(no: c_int) -> Option<std::ffi::CString> {
@@ -3045,14 +3069,16 @@ pub fn reg_submatch(no: c_int) -> Option<std::ffi::CString> {
                 s = s.add((*re_st().rsm.sm_mmatch).startpos[no].col as usize);
                 let mut len: isize;
                 if (*re_st().rsm.sm_mmatch).endpos[no].lnum == lnum {
-                    len = ((*re_st().rsm.sm_mmatch).endpos[no].col - (*re_st().rsm.sm_mmatch).startpos[no].col)
+                    len = ((*re_st().rsm.sm_mmatch).endpos[no].col
+                        - (*re_st().rsm.sm_mmatch).startpos[no].col)
                         as isize;
                     if round == 2 {
                         crate::memory::cstr_ncpy(retval, s, len as usize);
                     }
                     len += 1;
                 } else {
-                    len = (reg_getline_submatch_len(lnum) - (*re_st().rsm.sm_mmatch).startpos[no].col)
+                    len = (reg_getline_submatch_len(lnum)
+                        - (*re_st().rsm.sm_mmatch).startpos[no].col)
                         as isize;
                     if round == 2 {
                         crate::memory::cstr_cpy(retval, s);
@@ -3128,16 +3154,16 @@ pub fn reg_submatch_list(no: c_int) -> *mut TvList {
 
             let mut s: *const c_char = reg_getline_submatch(slnum).add(scol as usize);
             if slnum == elnum {
-                tv_list_append_string( &mut *list, s, (ecol - scol) as isize);
+                tv_list_append_string(&mut *list, s, (ecol - scol) as isize);
             } else {
                 let max_lnum = elnum - slnum;
-                tv_list_append_string( &mut *list, s, -1);
+                tv_list_append_string(&mut *list, s, -1);
                 for i in 1..max_lnum {
                     s = reg_getline_submatch(slnum + i);
-                    tv_list_append_string( &mut *list, s, -1);
+                    tv_list_append_string(&mut *list, s, -1);
                 }
                 s = reg_getline_submatch(elnum);
-                tv_list_append_string( &mut *list, s, ecol as isize);
+                tv_list_append_string(&mut *list, s, ecol as isize);
             }
         } else {
             let s = (*re_st().rsm.sm_match).startp[no];
@@ -3145,7 +3171,11 @@ pub fn reg_submatch_list(no: c_int) -> *mut TvList {
                 return ptr::null_mut();
             }
             list = tv_list_alloc(1);
-            tv_list_append_string( &mut *list, s, (*re_st().rsm.sm_match).endp[no].offset_from(s));
+            tv_list_append_string(
+                &mut *list,
+                s,
+                (*re_st().rsm.sm_match).endp[no].offset_from(s),
+            );
         }
 
         tv_list_ref(list.as_mut());
@@ -3174,11 +3204,7 @@ pub(super) fn init_regexec_multi(
     }
 }
 
-pub(super) fn get_char_class_bits(
-    start: *const u8,
-    end: *const u8,
-    newl: &mut bool,
-) -> c_int {
+pub(super) fn get_char_class_bits(start: *const u8, end: *const u8, newl: &mut bool) -> c_int {
     unsafe {
         let mut config: c_int = 0;
         *newl = false;
@@ -3250,25 +3276,25 @@ pub(super) fn get_char_class_bits(
 
 pub(super) fn regcomp_start(expr: *mut u8, re_flags: c_int) {
     initchr(expr.cast());
-        if (re_flags & RE_MAGIC) != 0 {
-            re_st().reg_magic = MAGIC_ON;
-        } else {
-            re_st().reg_magic = MAGIC_OFF;
-        }
-        re_st().reg_string = re_flags & RE_STRING;
-        re_st().reg_strict = re_flags & RE_STRICT;
-        get_cpo_flags();
+    if (re_flags & RE_MAGIC) != 0 {
+        re_st().reg_magic = MAGIC_ON;
+    } else {
+        re_st().reg_magic = MAGIC_OFF;
+    }
+    re_st().reg_string = re_flags & RE_STRING;
+    re_st().reg_strict = re_flags & RE_STRICT;
+    get_cpo_flags();
 
-        re_st().num_complex_braces = 0;
-        re_st().regnpar = 1;
-        re_st().had_endbrace = [0; NSUBEXP];
-        re_st().regnzpar = 1;
-        re_st().re_has_z = 0;
-        re_st().regsize = 0;
-        re_st().reg_toolong = 0;
-        re_st().bt_reg_parse_depth = 0;
-        re_st().regflags = 0;
-        re_st().had_eol = 0;
+    re_st().num_complex_braces = 0;
+    re_st().regnpar = 1;
+    re_st().had_endbrace = [0; NSUBEXP];
+    re_st().regnzpar = 1;
+    re_st().re_has_z = 0;
+    re_st().regsize = 0;
+    re_st().reg_toolong = 0;
+    re_st().bt_reg_parse_depth = 0;
+    re_st().regflags = 0;
+    re_st().had_eol = 0;
 }
 
 pub(super) fn seen_endbrace(refnum: c_int) -> bool {
@@ -3320,7 +3346,8 @@ pub fn vim_regcomp_had_eol() -> c_int {
 }
 
 /// Compile a regular expression into internal code.
-pub fn vim_regcomp(expr_arg: impl crate::strings::IntoCCharPtr, re_flags: c_int) -> *mut Regprog { let expr_arg = expr_arg.into_c_char_ptr();
+pub fn vim_regcomp(expr_arg: impl crate::strings::IntoCCharPtr, re_flags: c_int) -> *mut Regprog {
+    let expr_arg = expr_arg.into_c_char_ptr();
     unsafe {
         let mut expr = expr_arg;
 
@@ -3399,7 +3426,11 @@ pub fn vim_regcomp(expr_arg: impl crate::strings::IntoCCharPtr, re_flags: c_int)
 }
 
 #[inline]
-pub fn vim_regcomp_box(expr_arg: impl crate::strings::IntoCCharPtr, re_flags: c_int) -> Option<Box<Regprog>> { let expr_arg = expr_arg.into_c_char_ptr();
+pub fn vim_regcomp_box(
+    expr_arg: impl crate::strings::IntoCCharPtr,
+    re_flags: c_int,
+) -> Option<Box<Regprog>> {
+    let expr_arg = expr_arg.into_c_char_ptr();
     unsafe {
         let p = vim_regcomp(expr_arg, re_flags);
         if p.is_null() {
@@ -3426,7 +3457,7 @@ pub fn vim_regfree(prog: *mut Regprog) {
 }
 
 pub fn free_regexp_stuff() {
-     {
+    {
         re_st().regstack = Vec::new();
         re_st().backpos = Vec::new();
         re_st().reg_tofree = Vec::new();
@@ -3435,14 +3466,14 @@ pub fn free_regexp_stuff() {
     }
 }
 
-fn report_re_switch(pat: impl crate::strings::IntoCCharPtr) { let pat = pat.into_c_char_ptr();
+fn report_re_switch(pat: impl crate::strings::IntoCCharPtr) {
+    let pat = pat.into_c_char_ptr();
     if opt_vars().p_verbose > 0 {
-            verbose_enter();
-            msg_puts(tr(
-                c"Switching to backtracking RE engine for pattern: "));
-            msg_puts(pat);
-            verbose_leave();
-        }
+        verbose_enter();
+        msg_puts(tr(c"Switching to backtracking RE engine for pattern: "));
+        msg_puts(pat);
+        verbose_leave();
+    }
 }
 
 fn vim_regexec_string(
@@ -3450,7 +3481,8 @@ fn vim_regexec_string(
     line: impl crate::strings::IntoCCharPtr,
     col: Colnr,
     nl: bool,
-) -> bool { let line = line.into_c_char_ptr();
+) -> bool {
+    let line = line.into_c_char_ptr();
     unsafe {
         let mut rex_save = Regexec::new();
         let rex_in_use_save = re_st().rex_in_use;
@@ -3477,8 +3509,7 @@ fn vim_regexec_string(
         };
         (*rmp.regprog).re_in_use = false;
 
-        if (*rmp.regprog).re_engine == AUTOMATIC_ENGINE as c_uint && result == NFA_TOO_EXPENSIVE
-        {
+        if (*rmp.regprog).re_engine == AUTOMATIC_ENGINE as c_uint && result == NFA_TOO_EXPENSIVE {
             let save_p_re = opt_vars().p_re;
             let re_flags = (*rmp.regprog).re_flags as c_int;
             let prev_prog = rmp.regprog;
@@ -3514,22 +3545,33 @@ pub fn vim_regexec_prog(
     ignore_case: bool,
     line: impl crate::strings::IntoCCharPtr,
     col: Colnr,
-) -> bool { let line = line.into_c_char_ptr();
+) -> bool {
+    let line = line.into_c_char_ptr();
     let mut regmatch = Regmatch {
-            regprog: prog.map_or(ptr::null_mut(), |p| ptr::from_ref(p).cast_mut()),
-            startp: [ptr::null_mut(); NSUBEXP],
-            endp: [ptr::null_mut(); NSUBEXP],
-            rm_matchcol: 0,
-            rm_ic: ignore_case,
-        };
-        vim_regexec_string(&mut regmatch, line, col, false)
+        regprog: prog.map_or(ptr::null_mut(), |p| ptr::from_ref(p).cast_mut()),
+        startp: [ptr::null_mut(); NSUBEXP],
+        endp: [ptr::null_mut(); NSUBEXP],
+        rm_matchcol: 0,
+        rm_ic: ignore_case,
+    };
+    vim_regexec_string(&mut regmatch, line, col, false)
 }
 
-pub fn vim_regexec(rmp: &mut Regmatch, line: impl crate::strings::IntoCCharPtr, col: Colnr) -> bool { let line = line.into_c_char_ptr();
+pub fn vim_regexec(
+    rmp: &mut Regmatch,
+    line: impl crate::strings::IntoCCharPtr,
+    col: Colnr,
+) -> bool {
+    let line = line.into_c_char_ptr();
     vim_regexec_string(rmp, line, col, false)
 }
 
-pub fn vim_regexec_nl(rmp: &mut Regmatch, line: impl crate::strings::IntoCCharPtr, col: Colnr) -> bool { let line = line.into_c_char_ptr();
+pub fn vim_regexec_nl(
+    rmp: &mut Regmatch,
+    line: impl crate::strings::IntoCCharPtr,
+    col: Colnr,
+) -> bool {
+    let line = line.into_c_char_ptr();
     vim_regexec_string(rmp, line, col, true)
 }
 
@@ -3539,7 +3581,8 @@ pub fn vim_regexec_multi(
     buf: *mut FileBuf,
     lnum: Linenr,
     col: Colnr,
-    tm: Option<Proftime>,mut timed_out: Option<&mut c_int>,
+    tm: Option<Proftime>,
+    mut timed_out: Option<&mut c_int>,
 ) -> c_int {
     unsafe {
         let mut rex_save = Regexec::new();
@@ -3557,13 +3600,28 @@ pub fn vim_regexec_multi(
         re_st().rex_in_use = true;
 
         let mut result = match (*rmp.regprog).engine {
-            RegProgEngine::Bt(_) => bt_regexec_multi(rmp, win, buf, lnum, col, tm, (timed_out.is_some()).then(||  &mut *timed_out.as_deref_mut().unwrap())),
-            RegProgEngine::Nfa(_) => nfa_regexec_multi(rmp, win, buf, lnum, col, tm, (timed_out.is_some()).then(||  &mut *timed_out.as_deref_mut().unwrap())),
+            RegProgEngine::Bt(_) => bt_regexec_multi(
+                rmp,
+                win,
+                buf,
+                lnum,
+                col,
+                tm,
+                (timed_out.is_some()).then(|| &mut *timed_out.as_deref_mut().unwrap()),
+            ),
+            RegProgEngine::Nfa(_) => nfa_regexec_multi(
+                rmp,
+                win,
+                buf,
+                lnum,
+                col,
+                tm,
+                (timed_out.is_some()).then(|| &mut *timed_out.as_deref_mut().unwrap()),
+            ),
         };
         (*rmp.regprog).re_in_use = false;
 
-        if (*rmp.regprog).re_engine == AUTOMATIC_ENGINE as c_uint && result == NFA_TOO_EXPENSIVE
-        {
+        if (*rmp.regprog).re_engine == AUTOMATIC_ENGINE as c_uint && result == NFA_TOO_EXPENSIVE {
             let save_p_re = opt_vars().p_re;
             let re_flags = (*rmp.regprog).re_flags as c_int;
             let prev_prog = rmp.regprog;
@@ -3580,12 +3638,24 @@ pub fn vim_regexec_multi(
                 *prev_prog = *Box::from_raw(new_prog);
                 (*rmp.regprog).re_in_use = true;
                 result = match (*rmp.regprog).engine {
-                    RegProgEngine::Bt(_) => {
-                        bt_regexec_multi(rmp, win, buf, lnum, col, tm, (timed_out.is_some()).then(||  &mut *timed_out.as_deref_mut().unwrap()))
-                    }
-                    RegProgEngine::Nfa(_) => {
-                        nfa_regexec_multi(rmp, win, buf, lnum, col, tm, (timed_out.is_some()).then(||  &mut *timed_out.unwrap()))
-                    }
+                    RegProgEngine::Bt(_) => bt_regexec_multi(
+                        rmp,
+                        win,
+                        buf,
+                        lnum,
+                        col,
+                        tm,
+                        (timed_out.is_some()).then(|| &mut *timed_out.as_deref_mut().unwrap()),
+                    ),
+                    RegProgEngine::Nfa(_) => nfa_regexec_multi(
+                        rmp,
+                        win,
+                        buf,
+                        lnum,
+                        col,
+                        tm,
+                        (timed_out.is_some()).then(|| &mut *timed_out.unwrap()),
+                    ),
                 };
                 (*rmp.regprog).re_in_use = false;
             }

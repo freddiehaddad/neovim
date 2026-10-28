@@ -4,8 +4,8 @@ use crate::api::buffer::KeyDict_keymap;
 use crate::api::private::converter::object_to_vim_take_luaref;
 use crate::api::private::helpers::{
     ArrayBuilder, api_clear_error, api_free_object, api_set_error, api_set_sctx, arena_dict,
-    arena_take_arraybuilder, cstr_as_obj, cstr_as_string, dict_obj, has_key,
-    integer_obj, luaref_obj, put_c, string_obj, string_to_cstr,
+    arena_take_arraybuilder, cstr_as_obj, cstr_as_string, dict_obj, has_key, integer_obj,
+    luaref_obj, put_c, string_obj, string_to_cstr,
 };
 use crate::api::private::validate::{Array, Dict, Error, ErrorType, NvimString, ObjectType};
 use crate::api::tabpage::Buffer;
@@ -16,14 +16,14 @@ use crate::charset::{
 use crate::cmdexpand::{EXPAND_MAPPINGS, EXPAND_NOTHING, MB_MAXBYTES, cmdline_fuzzy_complete};
 use crate::errors::*;
 use crate::eval::typval::{
-    EvalFuncData, TypvalVval, VAR_UNLOCKED, VarType, nlua_clear_ref, tv_check_for_dict_arg,
+    EvalFuncData, TypVal, TypvalVval, VAR_UNLOCKED, VarType, nlua_clear_ref, tv_check_for_dict_arg,
     tv_dict_alloc_ret, tv_dict_find, tv_dict_get_bool, tv_dict_get_number, tv_dict_get_string,
     tv_get_bool, tv_get_string, tv_get_string_buf, tv_get_string_buf_chk, tv_list_alloc_ret,
-    tv_list_append_dict, TypVal,
+    tv_list_append_dict,
 };
 use crate::eval::userfunc::{FC_LUAREF, find_func};
 use crate::eval::vars::{Scid, set_vim_var_char};
-use crate::eval::{eval_to_string, K_LIST_LEN_UNKNOWN_CONST, last_set_msg};
+use crate::eval::{K_LIST_LEN_UNKNOWN_CONST, eval_to_string, last_set_msg};
 use crate::ex_cmds::check_secure;
 use crate::ex_docmd::{CTRL_C_CONST, Exarg};
 use crate::ex_session::put_eol;
@@ -40,7 +40,7 @@ use crate::keycodes::{
 };
 use crate::lua::converter::{LUA_NOREF, LuaRef};
 use crate::lua::executor::{
-    api_free_luaref, api_new_luaref, K_RET_OBJECT, nlua_call_ref, nlua_funcref_str, nlua_set_sctx,
+    K_RET_OBJECT, api_free_luaref, api_new_luaref, nlua_call_ref, nlua_funcref_str, nlua_set_sctx,
 };
 use crate::mbyte::{
     mb_prevptr, mb_unescape, utf_char2bytes, utf_ptr2char, utf_ptr2len, utfc_ptr2len,
@@ -290,7 +290,7 @@ pub fn get_maphash_list(state: c_int, c: c_int) -> &'static [Mapblock] {
 
 /// Get the buffer-local hashed map list for "state" and first character "c".
 pub fn get_buf_maphash_list(state: c_int, c: c_int) -> &'static [Mapblock] {
-     curbuf_mut().b_maphash[map_hash(state, c as u8)].as_slice()
+    curbuf_mut().b_maphash[map_hash(state, c as u8)].as_slice()
 }
 
 #[inline]
@@ -315,7 +315,12 @@ fn map_luaid_scan(mappings: &[Vec<Mapblock>], id: c_int) -> Option<&Mapblock> {
     unsafe {
         for bucket in mappings {
             for mp in bucket {
-                if mp.m_luaref != LUA_NOREF && crate::charset::parse_i64_prefix(crate::memory::cstr_as_bytes(mp.m_str.as_ptr().add(3))) as c_int == id {
+                if mp.m_luaref != LUA_NOREF
+                    && crate::charset::parse_i64_prefix(crate::memory::cstr_as_bytes(
+                        mp.m_str.as_ptr().add(3),
+                    )) as c_int
+                        == id
+                {
                     return Some(mp);
                 }
             }
@@ -326,7 +331,7 @@ fn map_luaid_scan(mappings: &[Vec<Mapblock>], id: c_int) -> Option<&Mapblock> {
 
 /// Resolves a Lua-mapping id to its callback.
 pub fn map_luaid_get(n: c_int) -> LuaRef {
-     {
+    {
         let maphash_ref = &map_st().maphash;
         let first_abbr_ref = &map_st().first_abbr;
         let mut mp = map_luaid_scan(maphash_ref, n);
@@ -398,7 +403,7 @@ pub fn map_mode_to_chars(mode: c_int, buf: *mut c_char) {
 }
 
 fn showmap(mp: &Mapblock, local: bool) {
-     {
+    {
         if message_filtered(mp.m_keys.as_ptr())
             && message_filtered(mp.m_str.as_ptr())
             && mp
@@ -480,53 +485,55 @@ fn set_maparg_lhs_rhs(
     rhs_lua: LuaRef,
     cpo_val: impl crate::strings::IntoCCharPtr,
     mapargs: &mut MapArguments,
-) -> bool { let orig_lhs = orig_lhs.into_c_char_ptr(); let cpo_val = cpo_val.into_c_char_ptr();
+) -> bool {
+    let orig_lhs = orig_lhs.into_c_char_ptr();
+    let cpo_val = cpo_val.into_c_char_ptr();
     let orig_rhs = orig_rhs.into_c_char_ptr();
     mapargs.rhs_lua = rhs_lua;
 
-        let mut did_simplify = false;
-        let flags = REPTERM_FROM_PART | REPTERM_DO_LT;
-        let Some(replaced) = replace_termcodes(
+    let mut did_simplify = false;
+    let flags = REPTERM_FROM_PART | REPTERM_DO_LT;
+    let Some(replaced) = replace_termcodes(
+        orig_lhs,
+        orig_lhs_len,
+        true,
+        0,
+        flags,
+        Some(&mut did_simplify),
+        cpo_val,
+    ) else {
+        return false;
+    };
+    mapargs.lhs_len = replaced.as_bytes().len();
+    xstrlcpy(
+        mapargs.lhs.as_mut_ptr(),
+        replaced.as_ptr(),
+        mapargs.lhs.len(),
+    );
+    if did_simplify {
+        let Some(alt_replaced) = replace_termcodes(
             orig_lhs,
             orig_lhs_len,
             true,
             0,
-            flags,
-            Some(&mut did_simplify),
+            flags | REPTERM_NO_SIMPLIFY,
+            None,
             cpo_val,
         ) else {
             return false;
         };
-        mapargs.lhs_len = replaced.as_bytes().len();
+        mapargs.alt_lhs_len = alt_replaced.as_bytes().len();
         xstrlcpy(
-            mapargs.lhs.as_mut_ptr(),
-            replaced.as_ptr(),
-            mapargs.lhs.len(),
+            mapargs.alt_lhs.as_mut_ptr(),
+            alt_replaced.as_ptr(),
+            mapargs.alt_lhs.len(),
         );
-        if did_simplify {
-            let Some(alt_replaced) = replace_termcodes(
-                orig_lhs,
-                orig_lhs_len,
-                true,
-                0,
-                flags | REPTERM_NO_SIMPLIFY,
-                None,
-                cpo_val,
-            ) else {
-                return false;
-            };
-            mapargs.alt_lhs_len = alt_replaced.as_bytes().len();
-            xstrlcpy(
-                mapargs.alt_lhs.as_mut_ptr(),
-                alt_replaced.as_ptr(),
-                mapargs.alt_lhs.len(),
-            );
-        } else {
-            mapargs.alt_lhs_len = 0;
-        }
+    } else {
+        mapargs.alt_lhs_len = 0;
+    }
 
-        set_maparg_rhs(orig_rhs, orig_rhs_len, rhs_lua, 0, cpo_val, mapargs);
-        true
+    set_maparg_rhs(orig_rhs, orig_rhs_len, rhs_lua, 0, cpo_val, mapargs);
+    true
 }
 
 fn set_maparg_rhs(
@@ -536,17 +543,17 @@ fn set_maparg_rhs(
     sid: Scid,
     cpo_val: impl crate::strings::IntoCCharPtr,
     mapargs: &mut MapArguments,
-) { let orig_rhs = orig_rhs.into_c_char_ptr(); let cpo_val = cpo_val.into_c_char_ptr();
-     {
+) {
+    let orig_rhs = orig_rhs.into_c_char_ptr();
+    let cpo_val = cpo_val.into_c_char_ptr();
+    {
         mapargs.rhs_lua = rhs_lua;
 
         if rhs_lua == LUA_NOREF {
             mapargs.orig_rhs_len = orig_rhs_len;
             let orig_slice = crate::memory::cstr_slice(orig_rhs, orig_rhs_len);
             mapargs.orig_rhs = Some(CString::new(orig_slice).unwrap());
-            if crate::memory::cstr_as_bytes(orig_rhs)
-                .eq_ignore_ascii_case(b"<nop>")
-            {
+            if crate::memory::cstr_as_bytes(orig_rhs).eq_ignore_ascii_case(b"<nop>") {
                 mapargs.rhs = Some(CString::default());
                 mapargs.rhs_len = 0;
                 mapargs.rhs_is_noop = true;
@@ -588,7 +595,8 @@ fn str_to_mapargs(
     strargs: impl crate::strings::IntoCCharPtr,
     is_unmap: bool,
     mapargs: &mut MapArguments,
-) -> c_int { let strargs = strargs.into_c_char_ptr();
+) -> c_int {
+    let strargs = strargs.into_c_char_ptr();
     unsafe {
         let mut to_parse = skipwhite(strargs);
         *mapargs = MapArguments::new();
@@ -635,8 +643,11 @@ fn str_to_mapargs(
 
         let mut lhs_end = to_parse;
         let do_backslash = vim_strchr(opt_vars().p_cpo, K_CPO_BSLASH_CONST).is_null();
-        while !crate::memory::cstr_is_empty(lhs_end) && (is_unmap || !ascii_iswhite(crate::memory::cstr_first_byte(lhs_end) as c_int)) {
-            if (*lhs_end == CTRL_V_CONST as c_char || (do_backslash && crate::memory::cstr_first_byte(lhs_end) == b'\\'))
+        while !crate::memory::cstr_is_empty(lhs_end)
+            && (is_unmap || !ascii_iswhite(crate::memory::cstr_first_byte(lhs_end) as c_int))
+        {
+            if (*lhs_end == CTRL_V_CONST as c_char
+                || (do_backslash && crate::memory::cstr_first_byte(lhs_end) == b'\\'))
                 && crate::memory::cstr_byte_at(lhs_end, 1) != 0
             {
                 lhs_end = lhs_end.add(1);
@@ -685,7 +696,8 @@ fn map_add(
     lnum: Linenr,
     simplified: bool,
     alt: Option<std::rc::Rc<MapAltLink>>,
-) { let keys = keys.into_c_char_ptr();
+) {
+    let keys = keys.into_c_char_ptr();
     unsafe {
         if *keys == CTRL_C_CONST {
             if local {
@@ -738,7 +750,10 @@ fn map_add(
                 map_st().first_abbr.insert(0, mp);
             }
         } else {
-            let n = map_hash(mp.m_mode, crate::memory::cstr_first_byte(mp.m_keys.as_ptr()));
+            let n = map_hash(
+                mp.m_mode,
+                crate::memory::cstr_first_byte(mp.m_keys.as_ptr()),
+            );
             if local {
                 (&mut buf.b_maphash)[n].insert(0, mp);
             } else {
@@ -897,8 +912,7 @@ fn buf_do_map(
                                     let n = mp.m_keylen;
                                     let cmp_len = n.min(len) as usize;
                                     let mp_slice = &mp.m_keys.as_bytes()[..cmp_len];
-                                    let lhs_slice =
-                                        crate::memory::cstr_slice(lhs, cmp_len);
+                                    let lhs_slice = crate::memory::cstr_slice(lhs, cmp_len);
                                     if mp_slice == lhs_slice {
                                         showmap(mp, true);
                                         did_local = true;
@@ -964,8 +978,7 @@ fn buf_do_map(
                                 };
                                 let cmp_len = n.min(len) as usize;
                                 let p_slice = crate::memory::cstr_slice(p, cmp_len);
-                                let lhs_slice =
-                                    crate::memory::cstr_slice(lhs, cmp_len);
+                                let lhs_slice = crate::memory::cstr_slice(lhs, cmp_len);
                                 if p_slice == lhs_slice {
                                     if maptype == MAPTYPE_UNMAP {
                                         if n != len
@@ -1027,7 +1040,10 @@ fn buf_do_map(
                                         continue;
                                     }
 
-                                    let new_hash = map_hash(mp.m_mode, crate::memory::cstr_first_byte(mp.m_keys.as_ptr()));
+                                    let new_hash = map_hash(
+                                        mp.m_mode,
+                                        crate::memory::cstr_first_byte(mp.m_keys.as_ptr()),
+                                    );
                                     if !is_abbrev && new_hash != hash {
                                         let moved = mpp.remove(idx);
                                         if local {
@@ -1109,8 +1125,14 @@ fn buf_do_map(
 
 /// Set or remove a mapping or an abbreviation in the current buffer, OR
 /// display (matching) mappings/abbreviations.
-pub fn do_map(maptype: c_int, arg: impl crate::strings::IntoCCharPtr, mode: c_int, is_abbrev: bool) -> c_int { let arg = arg.into_c_char_ptr();
-     {
+pub fn do_map(
+    maptype: c_int,
+    arg: impl crate::strings::IntoCCharPtr,
+    mode: c_int,
+    is_abbrev: bool,
+) -> c_int {
+    let arg = arg.into_c_char_ptr();
+    {
         let mut parsed_args = MapArguments::new();
         let mut result = str_to_mapargs(arg, maptype == MAPTYPE_UNMAP, &mut parsed_args);
         match result {
@@ -1165,8 +1187,14 @@ fn get_map_mode(cmdp: *mut *mut c_char, forceit: bool) -> c_int {
     }
 }
 
-fn do_mapclear(mut cmdp: *mut c_char, arg: impl crate::strings::IntoCCharPtr, forceit: c_int, abbr: c_int) { let arg = arg.into_c_char_ptr();
-     {
+fn do_mapclear(
+    mut cmdp: *mut c_char,
+    arg: impl crate::strings::IntoCCharPtr,
+    forceit: c_int,
+    abbr: c_int,
+) {
+    let arg = arg.into_c_char_ptr();
+    {
         let local = crate::memory::cstr_as_bytes(arg) == b"<buffer>";
         if !local && !crate::memory::cstr_is_empty(arg) {
             emsg(gettext(E_INVARG));
@@ -1206,7 +1234,10 @@ pub fn map_clear_mode(buf: &mut FileBuf, mode: c_int, local: bool, abbr: bool) {
                         mpp.remove(idx);
                         continue;
                     }
-                    let new_hash = map_hash(mp.m_mode, crate::memory::cstr_first_byte(mp.m_keys.as_ptr()));
+                    let new_hash = map_hash(
+                        mp.m_mode,
+                        crate::memory::cstr_first_byte(mp.m_keys.as_ptr()),
+                    );
                     if !abbr && new_hash != hash {
                         let moved = mpp.remove(idx);
                         if local {
@@ -1224,8 +1255,14 @@ pub fn map_clear_mode(buf: &mut FileBuf, mode: c_int, local: bool, abbr: bool) {
 }
 
 /// Check if a map exists that has given string in the rhs.
-pub fn map_to_exists(str_ptr: impl crate::strings::IntoCCharPtr, modechars: impl crate::strings::IntoCCharPtr, abbr: bool) -> bool { let str_ptr = str_ptr.into_c_char_ptr(); let modechars = modechars.into_c_char_ptr();
-     {
+pub fn map_to_exists(
+    str_ptr: impl crate::strings::IntoCCharPtr,
+    modechars: impl crate::strings::IntoCCharPtr,
+    abbr: bool,
+) -> bool {
+    let str_ptr = str_ptr.into_c_char_ptr();
+    let modechars = modechars.into_c_char_ptr();
+    {
         let mut mode: c_int = 0;
         let rhs = replace_termcodes(
             str_ptr,
@@ -1271,13 +1308,20 @@ pub fn map_to_exists(str_ptr: impl crate::strings::IntoCCharPtr, modechars: impl
 /// Check if a map exists that has given string in the rhs.
 pub fn map_to_exists_mode(rhs: impl crate::strings::IntoCCharPtr, mode: c_int, abbr: bool) -> bool {
     let rhs = rhs.into_c_char_ptr();
-     {
+    {
         for exp_buffer in [false, true] {
-            let b = if exp_buffer { g_st().curbuf } else { ptr::null() };
+            let b = if exp_buffer {
+                g_st().curbuf
+            } else {
+                ptr::null()
+            };
             for bucket in get_map_buckets(b, abbr) {
                 for mp in bucket {
                     let rhs_b = crate::memory::cstr_as_bytes(rhs);
-            if (mp.m_mode & mode) != 0 && (rhs_b.is_empty() || mp.m_str.as_bytes().windows(rhs_b.len()).any(|w| w == rhs_b)) {
+                    if (mp.m_mode & mode) != 0
+                        && (rhs_b.is_empty()
+                            || mp.m_str.as_bytes().windows(rhs_b.len()).any(|w| w == rhs_b))
+                    {
                         return true;
                     }
                 }
@@ -1288,7 +1332,12 @@ pub fn map_to_exists_mode(rhs: impl crate::strings::IntoCCharPtr, mode: c_int, a
     }
 }
 
-fn translate_mapping(str_in: impl crate::strings::IntoCCharPtr, cpo_val: impl crate::strings::IntoCCharPtr) -> CString { let str_in = str_in.into_c_char_ptr(); let cpo_val = cpo_val.into_c_char_ptr();
+fn translate_mapping(
+    str_in: impl crate::strings::IntoCCharPtr,
+    cpo_val: impl crate::strings::IntoCCharPtr,
+) -> CString {
+    let str_in = str_in.into_c_char_ptr();
+    let cpo_val = cpo_val.into_c_char_ptr();
     unsafe {
         let mut str_ptr = str_in.cast::<u8>();
         let mut buf: Vec<u8> = Vec::with_capacity(40);
@@ -1331,7 +1380,11 @@ fn translate_mapping(str_in: impl crate::strings::IntoCCharPtr, cpo_val: impl cr
                 || c == b'<' as c_int
                 || (c == b'\\' as c_int && !cpo_bslash)
             {
-                buf.push(if cpo_bslash { CTRL_V_CONST as u8 } else { b'\\' });
+                buf.push(if cpo_bslash {
+                    CTRL_V_CONST as u8
+                } else {
+                    b'\\'
+                });
             }
 
             if c != 0 {
@@ -1367,7 +1420,8 @@ pub fn set_context_in_map_cmd(
             } else {
                 map_st().expand_mapmodes = MODE_INSERT | MODE_CMDLINE;
                 if !isabbrev {
-                    map_st().expand_mapmodes |= MODE_VISUAL | MODE_SELECT | MODE_NORMAL | MODE_OP_PENDING;
+                    map_st().expand_mapmodes |=
+                        MODE_VISUAL | MODE_SELECT | MODE_NORMAL | MODE_OP_PENDING;
                 }
             }
             map_st().expand_isabbrev = isabbrev;
@@ -1418,32 +1472,71 @@ pub fn expand_mappings(
     pat: impl crate::strings::IntoCCharPtr,
     regmatch: &mut Regmatch,
     matches: &mut Vec<CString>,
-) -> bool { let pat = pat.into_c_char_ptr();
+) -> bool {
+    let pat = pat.into_c_char_ptr();
     let fuzzy = cmdline_fuzzy_complete(pat);
 
-        matches.clear();
+    matches.clear();
 
-        let mut str_matches: Vec<CString> = Vec::new();
-        let mut fuz_matches: Vec<FuzmatchStr> = Vec::new();
+    let mut str_matches: Vec<CString> = Vec::new();
+    let mut fuz_matches: Vec<FuzmatchStr> = Vec::new();
 
-        for i in 0..7 {
-            let p_cstr: &CStr = match i {
-                0 => c"<silent>",
-                1 => c"<unique>",
-                2 => c"<script>",
-                3 => c"<expr>",
-                4 if !map_st().expand_buffer => c"<buffer>",
-                5 => c"<nowait>",
-                6 => c"<special>",
-                _ => continue,
-            };
-            let p = p_cstr.as_ptr();
+    for i in 0..7 {
+        let p_cstr: &CStr = match i {
+            0 => c"<silent>",
+            1 => c"<unique>",
+            2 => c"<script>",
+            3 => c"<expr>",
+            4 if !map_st().expand_buffer => c"<buffer>",
+            5 => c"<nowait>",
+            6 => c"<special>",
+            _ => continue,
+        };
+        let p = p_cstr.as_ptr();
+
+        let mut score: c_int = 0;
+        let match_found = if !fuzzy {
+            vim_regexec(regmatch, p, 0)
+        } else {
+            score = fuzzy_match_str(p as *mut c_char, pat);
+            score != FUZZY_SCORE_NONE
+        };
+
+        if !match_found {
+            continue;
+        }
+
+        if fuzzy {
+            let idx = fuz_matches.len() as c_int;
+            fuz_matches.push(FuzmatchStr {
+                idx,
+                str_cstr: p_cstr.to_owned(),
+                score,
+            });
+        } else {
+            str_matches.push(p_cstr.to_owned());
+        }
+    }
+
+    let exp_buf = if !map_st().expand_isabbrev && map_st().expand_buffer {
+        g_st().curbuf
+    } else {
+        ptr::null()
+    };
+    for bucket in get_map_buckets(exp_buf, map_st().expand_isabbrev) {
+        for mp in bucket {
+            if mp.m_simplified != 0 || (mp.m_mode & map_st().expand_mapmodes) == 0 {
+                continue;
+            }
+
+            let p_cstr = translate_mapping(mp.m_keys.as_ptr().cast_mut(), opt_vars().p_cpo);
+            let p = p_cstr.as_ptr().cast_mut();
 
             let mut score: c_int = 0;
             let match_found = if !fuzzy {
                 vim_regexec(regmatch, p, 0)
             } else {
-                score = fuzzy_match_str(p as *mut c_char, pat);
+                score = fuzzy_match_str(p, pat);
                 score != FUZZY_SCORE_NONE
             };
 
@@ -1455,84 +1548,41 @@ pub fn expand_mappings(
                 let idx = fuz_matches.len() as c_int;
                 fuz_matches.push(FuzmatchStr {
                     idx,
-                    str_cstr: p_cstr.to_owned(),
+                    str_cstr: p_cstr,
                     score,
                 });
             } else {
-                str_matches.push(p_cstr.to_owned());
+                str_matches.push(p_cstr);
             }
         }
+    }
 
-        let exp_buf = if !map_st().expand_isabbrev && map_st().expand_buffer {
-            g_st().curbuf
-        } else {
-            ptr::null()
-        };
-        for bucket in get_map_buckets(exp_buf, map_st().expand_isabbrev) {
-            for mp in bucket {
-                if mp.m_simplified != 0 || (mp.m_mode & map_st().expand_mapmodes) == 0 {
-                    continue;
-                }
+    if if fuzzy {
+        fuz_matches.is_empty()
+    } else {
+        str_matches.is_empty()
+    } {
+        return false;
+    }
 
-                let p_cstr = translate_mapping(mp.m_keys.as_ptr().cast_mut(), opt_vars().p_cpo);
-                let p = p_cstr.as_ptr().cast_mut();
+    if !fuzzy {
+        *matches = str_matches;
+    } else {
+        fuzzymatches_slice_to_strmatches(&mut fuz_matches, matches, false);
+    }
 
-                let mut score: c_int = 0;
-                let match_found = if !fuzzy {
-                    vim_regexec(regmatch, p, 0)
-                } else {
-                    score = fuzzy_match_str(p, pat);
-                    score != FUZZY_SCORE_NONE
-                };
-
-                if !match_found {
-                    continue;
-                }
-
-                if fuzzy {
-                    let idx = fuz_matches.len() as c_int;
-                    fuz_matches.push(FuzmatchStr {
-                        idx,
-                        str_cstr: p_cstr,
-                        score,
-                    });
-                } else {
-                    str_matches.push(p_cstr);
-                }
-            }
-        }
-
-        if if fuzzy {
-            fuz_matches.is_empty()
-        } else {
-            str_matches.is_empty()
-        } {
-            return false;
-        }
-
+    if matches.len() > 1 {
         if !fuzzy {
-            *matches = str_matches;
-        } else {
-            fuzzymatches_slice_to_strmatches(&mut fuz_matches, matches, false);
+            sort_strings(matches);
         }
+        matches.dedup();
+    }
 
-        if matches.len() > 1 {
-            if !fuzzy {
-                sort_strings(matches);
-            }
-            matches.dedup();
-        }
-
-        !matches.is_empty()
+    !matches.is_empty()
 }
 
 /// Check for an abbreviation.
-pub fn check_abbr(
-    mut c: c_int,
-    mut ptr_arg: *mut c_char,
-    col: c_int,
-    mincol: c_int,
-) -> bool {
+pub fn check_abbr(mut c: c_int, mut ptr_arg: *mut c_char, col: c_int, mincol: c_int) -> bool {
     unsafe {
         let mut tb = [0u8; MB_MAXBYTES + 4];
 
@@ -1565,7 +1615,9 @@ pub fn check_abbr(
             let min_ptr = ptr_arg.add(mincol.max(0) as usize);
             while (p as usize) > (min_ptr as usize) {
                 p = mb_prevptr(ptr_arg, p);
-                if ascii_isspace(crate::memory::cstr_first_byte(p) as c_int) || (!vim_abbr && is_id != vim_iswordp(p)) {
+                if ascii_isspace(crate::memory::cstr_first_byte(p) as c_int)
+                    || (!vim_abbr && is_id != vim_iswordp(p))
+                {
                     p = p.add(utfc_ptr2len(p) as usize);
                     break;
                 }
@@ -1649,7 +1701,11 @@ pub fn check_abbr(
                 let expr = mp.m_expr != 0;
                 let m_str_clone = if !expr { Some(mp.m_str.clone()) } else { None };
 
-                let owned_s = if expr { eval_map_expr(mp, c) } else { m_str_clone };
+                let owned_s = if expr {
+                    eval_map_expr(mp, c)
+                } else {
+                    m_str_clone
+                };
                 if let Some(ref cs) = owned_s {
                     let s = cs.as_ptr().cast_mut();
                     ins_typebuf(s, noremap, 0, true, silent);
@@ -1927,7 +1983,8 @@ pub fn makemap(fd: *mut FILE, buf: *mut FileBuf) -> bool {
 }
 
 /// Write escape string to file.
-pub fn put_escstr(fd: *mut FILE, strstart: impl crate::strings::IntoCCharPtr, what: c_int) -> bool { let strstart = strstart.into_c_char_ptr();
+pub fn put_escstr(fd: *mut FILE, strstart: impl crate::strings::IntoCCharPtr, what: c_int) -> bool {
+    let strstart = strstart.into_c_char_ptr();
     unsafe {
         let mut str_ptr = strstart.cast::<u8>();
 
@@ -1947,7 +2004,7 @@ pub fn put_escstr(fd: *mut FILE, strstart: impl crate::strings::IntoCCharPtr, wh
                     if fputc(p_byte as c_int, fd) < 0 {
                         return false;
                     }
-}
+                }
                 continue;
             }
 
@@ -2027,13 +2084,18 @@ pub fn check_map(
     mut mp_out: Option<&mut Option<&'static Mapblock>>,
     local_ptr: &mut c_int,
     rhs_lua: &mut c_int,
-) -> *mut c_char { let keys = keys.into_c_char_ptr();
+) -> *mut c_char {
+    let keys = keys.into_c_char_ptr();
     unsafe {
         *rhs_lua = LUA_NOREF;
 
         let len = crate::memory::cstr_len(keys) as c_int;
         for local in (0..=1).rev() {
-            let b = if local != 0 { g_st().curbuf } else { ptr::null() };
+            let b = if local != 0 {
+                g_st().curbuf
+            } else {
+                ptr::null()
+            };
             for bucket in get_map_buckets(b, abbr != 0) {
                 for mp in bucket {
                     if (mp.m_mode & mode) != 0 && (exact == 0 || mp.m_keylen == len) {
@@ -2074,9 +2136,8 @@ pub fn check_map(
 }
 
 /// "hasmapto()" function
-pub fn f_hasmapto(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData){
-
-     {
+pub fn f_hasmapto(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
+    {
         let name = tv_get_string(&argvars[0]);
         let mut abbr = false;
         let mut buf = [0 as c_char; NUMBUFLEN];
@@ -2090,7 +2151,8 @@ pub fn f_hasmapto(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDat
             m
         };
 
-        rettv.vval = crate::eval::typval::TypvalVval::Number(i64::from(map_to_exists(name, mode, abbr)));
+        rettv.vval =
+            crate::eval::typval::TypvalVval::Number(i64::from(map_to_exists(name, mode, abbr)));
     }
 }
 
@@ -2101,100 +2163,93 @@ fn mapblock_fill_dict(
     abbr: bool,
     compatible: bool,
     arena: &mut Arena,
-) -> Dict { let lhsrawalt = lhsrawalt.into_c_char_ptr();
+) -> Dict {
+    let lhsrawalt = lhsrawalt.into_c_char_ptr();
     let mut dict = arena_dict(arena, 20);
-        let lhs = str2special_arena(
-            mp.m_keys.as_ptr(),
-            compatible,
-            if compatible { K_FALSE } else { K_NONE },
-            arena,
-        );
-        let mapmode = arena_alloc(arena, 7, false).cast::<c_char>();
-        map_mode_to_chars(mp.m_mode, mapmode);
-        let noremap_value = if compatible {
-            i64::from(mp.m_noremap != 0)
-        } else if mp.m_noremap == REMAP_SCRIPT {
-            2
-        } else {
-            i64::from(mp.m_noremap != 0)
-        };
+    let lhs = str2special_arena(
+        mp.m_keys.as_ptr(),
+        compatible,
+        if compatible { K_FALSE } else { K_NONE },
+        arena,
+    );
+    let mapmode = arena_alloc(arena, 7, false).cast::<c_char>();
+    map_mode_to_chars(mp.m_mode, mapmode);
+    let noremap_value = if compatible {
+        i64::from(mp.m_noremap != 0)
+    } else if mp.m_noremap == REMAP_SCRIPT {
+        2
+    } else {
+        i64::from(mp.m_noremap != 0)
+    };
 
-        if mp.m_luaref != LUA_NOREF {
-            put_c(
-                &mut dict,
-                c"callback",
-                luaref_obj(api_new_luaref(mp.m_luaref)),
-            );
+    if mp.m_luaref != LUA_NOREF {
+        put_c(
+            &mut dict,
+            c"callback",
+            luaref_obj(api_new_luaref(mp.m_luaref)),
+        );
+    } else {
+        let rhs = cstr_as_string(if compatible {
+            mp.m_orig_str.as_ptr()
         } else {
-            let rhs = cstr_as_string(if compatible {
-                mp.m_orig_str.as_ptr()
-            } else {
-                str2special_arena(mp.m_str.as_ptr(), false, K_NONE, arena)
-            });
-            put_c(&mut dict, c"rhs", string_obj(rhs));
-        }
-        if let Some(ref desc) = mp.m_desc {
-            put_c(&mut dict, c"desc", cstr_as_obj(desc.as_ptr()));
-        }
-        put_c(&mut dict, c"lhs", cstr_as_obj(lhs));
-        put_c(&mut dict, c"lhsraw", cstr_as_obj(mp.m_keys.as_ptr()));
-        if !lhsrawalt.is_null() {
-            put_c(&mut dict, c"lhsrawalt", cstr_as_obj(lhsrawalt));
-        }
-        put_c(&mut dict, c"noremap", integer_obj(noremap_value));
-        put_c(
-            &mut dict,
-            c"script",
-            integer_obj(i64::from(mp.m_noremap == REMAP_SCRIPT)),
-        );
-        put_c(
-            &mut dict,
-            c"expr",
-            integer_obj(i64::from(mp.m_expr != 0)),
-        );
-        put_c(
-            &mut dict,
-            c"silent",
-            integer_obj(i64::from(mp.m_silent != 0)),
-        );
-        put_c(
-            &mut dict,
-            c"sid",
-            integer_obj(i64::from(mp.m_script_ctx.sc_sid)),
-        );
-        put_c(&mut dict, c"scriptversion", integer_obj(1));
-        put_c(
-            &mut dict,
-            c"lnum",
-            integer_obj(i64::from(mp.m_script_ctx.sc_lnum)),
-        );
-        put_c(&mut dict, c"buffer", integer_obj(i64::from(buffer_value)));
-        if !compatible {
-            put_c(&mut dict, c"buf", integer_obj(i64::from(buffer_value)));
-        }
-        put_c(
-            &mut dict,
-            c"nowait",
-            integer_obj(i64::from(mp.m_nowait != 0)),
-        );
-        put_c(
-            &mut dict,
-            c"replace_keycodes",
-            integer_obj(i64::from(mp.m_replace_keycodes)),
-        );
-        put_c(&mut dict, c"mode", cstr_as_obj(mapmode));
-        put_c(&mut dict, c"abbr", integer_obj(i64::from(abbr)));
-        put_c(
-            &mut dict,
-            c"mode_bits",
-            integer_obj(i64::from(mp.m_mode)),
-        );
+            str2special_arena(mp.m_str.as_ptr(), false, K_NONE, arena)
+        });
+        put_c(&mut dict, c"rhs", string_obj(rhs));
+    }
+    if let Some(ref desc) = mp.m_desc {
+        put_c(&mut dict, c"desc", cstr_as_obj(desc.as_ptr()));
+    }
+    put_c(&mut dict, c"lhs", cstr_as_obj(lhs));
+    put_c(&mut dict, c"lhsraw", cstr_as_obj(mp.m_keys.as_ptr()));
+    if !lhsrawalt.is_null() {
+        put_c(&mut dict, c"lhsrawalt", cstr_as_obj(lhsrawalt));
+    }
+    put_c(&mut dict, c"noremap", integer_obj(noremap_value));
+    put_c(
+        &mut dict,
+        c"script",
+        integer_obj(i64::from(mp.m_noremap == REMAP_SCRIPT)),
+    );
+    put_c(&mut dict, c"expr", integer_obj(i64::from(mp.m_expr != 0)));
+    put_c(
+        &mut dict,
+        c"silent",
+        integer_obj(i64::from(mp.m_silent != 0)),
+    );
+    put_c(
+        &mut dict,
+        c"sid",
+        integer_obj(i64::from(mp.m_script_ctx.sc_sid)),
+    );
+    put_c(&mut dict, c"scriptversion", integer_obj(1));
+    put_c(
+        &mut dict,
+        c"lnum",
+        integer_obj(i64::from(mp.m_script_ctx.sc_lnum)),
+    );
+    put_c(&mut dict, c"buffer", integer_obj(i64::from(buffer_value)));
+    if !compatible {
+        put_c(&mut dict, c"buf", integer_obj(i64::from(buffer_value)));
+    }
+    put_c(
+        &mut dict,
+        c"nowait",
+        integer_obj(i64::from(mp.m_nowait != 0)),
+    );
+    put_c(
+        &mut dict,
+        c"replace_keycodes",
+        integer_obj(i64::from(mp.m_replace_keycodes)),
+    );
+    put_c(&mut dict, c"mode", cstr_as_obj(mapmode));
+    put_c(&mut dict, c"abbr", integer_obj(i64::from(abbr)));
+    put_c(&mut dict, c"mode_bits", integer_obj(i64::from(mp.m_mode)));
 
-        dict
+    dict
 }
 
 fn get_maparg(argvars: &mut [TypVal], rettv: &mut TypVal, exact: c_int) {
-     {
+    {
         rettv.v_type = VarType::VarString;
         rettv.vval = crate::eval::typval::TypvalVval::String(ptr::null_mut());
 
@@ -2313,7 +2368,12 @@ fn get_maparg(argvars: &mut [TypVal], rettv: &mut TypVal, exact: c_int) {
                 &mut arena,
             );
             let mut dobj = dict_obj(dict);
-            object_to_vim_take_luaref(&mut dobj, &mut *rettv, true, &mut crate::api::private::validate::Error::new());
+            object_to_vim_take_luaref(
+                &mut dobj,
+                &mut *rettv,
+                true,
+                &mut crate::api::private::validate::Error::new(),
+            );
             arena_mem_free(arena_finish(&mut arena));
         } else {
             tv_dict_alloc_ret(rettv);
@@ -2321,7 +2381,8 @@ fn get_maparg(argvars: &mut [TypVal], rettv: &mut TypVal, exact: c_int) {
     }
 }
 
-fn get_map_mode_string(mode_string: impl crate::strings::IntoCCharPtr, abbr: bool) -> c_int { let mode_string = mode_string.into_c_char_ptr();
+fn get_map_mode_string(mode_string: impl crate::strings::IntoCCharPtr, abbr: bool) -> c_int {
+    let mode_string = mode_string.into_c_char_ptr();
     unsafe {
         let mut p = mode_string;
         const MASK_V: c_int = MODE_VISUAL | MODE_SELECT;
@@ -2365,8 +2426,7 @@ fn get_map_mode_string(mode_string: impl crate::strings::IntoCCharPtr, abbr: boo
 }
 
 /// "mapset()" function
-pub fn f_mapset(argvars: &mut [TypVal], _rettv: &mut TypVal, _fptr: EvalFuncData){
-
+pub fn f_mapset(argvars: &mut [TypVal], _rettv: &mut TypVal, _fptr: EvalFuncData) {
     unsafe {
         if check_secure() {
             return;
@@ -2505,9 +2565,8 @@ pub fn f_mapset(argvars: &mut [TypVal], _rettv: &mut TypVal, _fptr: EvalFuncData
 }
 
 /// "maplist()" function
-pub fn f_maplist(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData){
-
-     {
+pub fn f_maplist(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
+    {
         let flags = REPTERM_FROM_PART | REPTERM_DO_LT;
         let abbr = argvars[0].v_type != VarType::VarUnknown && tv_get_bool(&argvars[0]) != 0;
 
@@ -2562,7 +2621,12 @@ pub fn f_maplist(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData
                         vval: TypvalVval::Number(0),
                     };
                     let mut dobj = dict_obj(dict);
-                    object_to_vim_take_luaref(&mut dobj, &mut d, true, &mut crate::api::private::validate::Error::new());
+                    object_to_vim_take_luaref(
+                        &mut dobj,
+                        &mut d,
+                        true,
+                        &mut crate::api::private::validate::Error::new(),
+                    );
                     debug_assert!(d.v_type == VarType::VarDict);
                     tv_list_append_dict(unsafe { &mut *rettv.vval.v_list() }, d.vval.v_dict());
                     arena_mem_free(arena_finish(&mut arena));
@@ -2573,18 +2637,18 @@ pub fn f_maplist(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData
 }
 
 /// "maparg()" function
-pub fn f_maparg(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData){
+pub fn f_maparg(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
     get_maparg(argvars, rettv, 1);
 }
 
 /// "mapcheck()" function
-pub fn f_mapcheck(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData){
+pub fn f_mapcheck(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
     get_maparg(argvars, rettv, 0);
 }
 
 /// Add a mapping.
 pub fn add_map(lhs: &std::ffi::CStr, rhs: &std::ffi::CStr, mode: c_int, buffer: bool) {
-     {
+    {
         let mut args = MapArguments::new();
         set_maparg_lhs_rhs(
             lhs.as_ptr().cast_mut(),
@@ -2602,7 +2666,7 @@ pub fn add_map(lhs: &std::ffi::CStr, rhs: &std::ffi::CStr, mode: c_int, buffer: 
 }
 
 fn langmap_set_entry(from: c_int, to: c_int) {
-     {
+    {
         let entries = &mut map_st().langmap_mapga;
         match entries.binary_search_by_key(&from, |e| e.from) {
             Ok(idx) => entries[idx].to = to,
@@ -2637,8 +2701,13 @@ pub fn did_set_langmap(args: &mut Optset) -> *const c_char {
         let mut p = opt_vars().p_langmap;
         while !crate::memory::cstr_is_empty(p) {
             let mut p2 = p;
-            while !crate::memory::cstr_is_empty(p2) && crate::memory::cstr_first_byte(p2) != b',' && crate::memory::cstr_first_byte(p2) != b';' {
-                if crate::memory::cstr_first_byte(p2) == b'\\' && crate::memory::cstr_byte_at(p2, 1) != 0 {
+            while !crate::memory::cstr_is_empty(p2)
+                && crate::memory::cstr_first_byte(p2) != b','
+                && crate::memory::cstr_first_byte(p2) != b';'
+            {
+                if crate::memory::cstr_first_byte(p2) == b'\\'
+                    && crate::memory::cstr_byte_at(p2, 1) != 0
+                {
                     p2 = p2.add(1);
                 }
                 p2 = p2.add(utfc_ptr2len(p2) as usize);
@@ -2653,7 +2722,9 @@ pub fn did_set_langmap(args: &mut Optset) -> *const c_char {
                     p = p.add(1);
                     break;
                 }
-                if crate::memory::cstr_first_byte(p) == b'\\' && crate::memory::cstr_byte_at(p, 1) != 0 {
+                if crate::memory::cstr_first_byte(p) == b'\\'
+                    && crate::memory::cstr_byte_at(p, 1) != 0
+                {
                     p = p.add(1);
                 }
                 let from = utf_ptr2char(p);
@@ -2726,7 +2797,7 @@ pub fn did_set_langmap(args: &mut Optset) -> *const c_char {
 }
 
 fn do_exmap(eap: &mut Exarg, isabbrev: bool) {
-     {
+    {
         let mut cmdp = eap.cmd;
         let mode = get_map_mode(&mut cmdp, eap.forceit != 0 || isabbrev);
 
@@ -2791,11 +2862,11 @@ pub fn ex_abbreviate(eap: &mut Exarg) {
 /// ":map" and friends.
 pub fn ex_map(eap: &mut Exarg) {
     if g_st().secure != 0 {
-            g_st().secure = 2;
-            msg_outtrans(eap.cmd, 0, false);
-            msg_putchar(b'\n' as c_int);
-        }
-        do_exmap(eap, false);
+        g_st().secure = 2;
+        msg_outtrans(eap.cmd, 0, false);
+        msg_putchar(b'\n' as c_int);
+    }
+    do_exmap(eap, false);
 }
 
 /// ":unmap" and friends.
@@ -2831,7 +2902,8 @@ pub fn modify_keymap(
         if global {
             buffer = 0;
         }
-        let Some(target_buf) = crate::api::private::helpers::find_buffer_by_handle_mut(buffer, err) else {
+        let Some(target_buf) = crate::api::private::helpers::find_buffer_by_handle_mut(buffer, err)
+        else {
             return;
         };
 
@@ -2905,7 +2977,8 @@ pub fn modify_keymap(
                 debug_assert!(ptr::eq(p, mode.data));
                 p = p.add(1);
             }
-            let is_abbrev = (mode_val & (MODE_INSERT | MODE_CMDLINE)) != 0 && crate::memory::cstr_first_byte(p) == b'a';
+            let is_abbrev = (mode_val & (MODE_INSERT | MODE_CMDLINE)) != 0
+                && crate::memory::cstr_first_byte(p) == b'a';
             if is_abbrev {
                 p = p.add(1);
             }
@@ -2920,11 +2993,7 @@ pub fn modify_keymap(
             }
 
             if parsed_args.lhs_len == 0 {
-                api_set_error!(
-                    err,
-                    ErrorType::ErrorTypeValidation,
-                    c"Invalid (empty) LHS",
-                );
+                api_set_error!(err, ErrorType::ErrorTypeValidation, c"Invalid (empty) LHS",);
                 break 'block;
             }
 
@@ -3026,7 +3095,8 @@ pub fn keymap_array(mode: NvimString, buf: *mut FileBuf, arena: &mut Arena) -> A
             debug_assert!(ptr::eq(p, mode.data));
             p = p.add(1);
         }
-        let is_abbrev = (int_mode & (MODE_INSERT | MODE_CMDLINE)) != 0 && crate::memory::cstr_first_byte(p) == b'a';
+        let is_abbrev = (int_mode & (MODE_INSERT | MODE_CMDLINE)) != 0
+            && crate::memory::cstr_first_byte(p) == b'a';
 
         let buffer_value = if buf.is_null() { 0 } else { (*buf).b_fnum };
 
@@ -3060,7 +3130,7 @@ mod tests {
         let _guard = crate::globals::TEST_GLOBAL_LOCK
             .lock()
             .unwrap_or_else(|e| e.into_inner());
-         {
+        {
             let mut buf = [0 as c_char; 16];
             map_mode_to_chars(MODE_NORMAL | MODE_VISUAL, buf.as_mut_ptr());
             assert_eq!(crate::memory::cstr_as_bytes(buf.as_ptr()), b"nx");

@@ -717,17 +717,9 @@ pub static BUF_OPT_IDX: [OptIndex; 93] = [
 ];
 pub static OPT_AMBW_VALUES: [&std::ffi::CStr; 2] = [c"single", c"double"];
 pub static OPT_BG_VALUES: [&std::ffi::CStr; 2] = [c"light", c"dark"];
-pub static OPT_BS_VALUES: [&std::ffi::CStr; 4] = [
-    c"indent",
-    c"eol",
-    c"start",
-    c"nostop"];
-pub static OPT_BKC_VALUES: [&std::ffi::CStr; 5] = [
-    c"yes",
-    c"auto",
-    c"no",
-    c"breaksymlink",
-    c"breakhardlink"];
+pub static OPT_BS_VALUES: [&std::ffi::CStr; 4] = [c"indent", c"eol", c"start", c"nostop"];
+pub static OPT_BKC_VALUES: [&std::ffi::CStr; 5] =
+    [c"yes", c"auto", c"no", c"breaksymlink", c"breakhardlink"];
 pub static OPT_BO_VALUES: [&std::ffi::CStr; 20] = [
     c"all",
     c"backspace",
@@ -748,13 +740,10 @@ pub static OPT_BO_VALUES: [&std::ffi::CStr; 20] = [
     c"shell",
     c"spell",
     c"term",
-    c"wildmode"];
-pub static OPT_BRIOPT_VALUES: [&std::ffi::CStr; 5] = [
-    c"shift:",
-    c"min:",
-    c"sbr",
-    c"list:",
-    c"column:"];
+    c"wildmode",
+];
+pub static OPT_BRIOPT_VALUES: [&std::ffi::CStr; 5] =
+    [c"shift:", c"min:", c"sbr", c"list:", c"column:"];
 pub static OPT_BRIOPT_SCHEMA: [OptSchemaItem; 5] = [
     OptSchemaItem {
         name: c"shift",
@@ -782,12 +771,7 @@ pub static OPT_BRIOPT_SCHEMA: [OptSchemaItem; 5] = [
         enum_values: &[],
     },
 ];
-pub static OPT_BH_VALUES: [&std::ffi::CStr; 5] = [
-    c"",
-    c"hide",
-    c"unload",
-    c"delete",
-    c"wipe"];
+pub static OPT_BH_VALUES: [&std::ffi::CStr; 5] = [c"", c"hide", c"unload", c"delete", c"wipe"];
 pub static OPT_BT_VALUES: [&std::ffi::CStr; 8] = [
     c"",
     c"acwrite",
@@ -796,25 +780,13 @@ pub static OPT_BT_VALUES: [&std::ffi::CStr; 8] = [
     c"nowrite",
     c"quickfix",
     c"terminal",
-    c"prompt"];
+    c"prompt",
+];
 pub static OPT_CMP_VALUES: [&std::ffi::CStr; 2] = [c"internal", c"keepascii"];
 pub static OPT_CB_VALUES: [&std::ffi::CStr; 2] = [c"unnamed", c"unnamedplus"];
 pub static OPT_CPT_VALUES: [&std::ffi::CStr; 15] = [
-    c".",
-    c"w",
-    c"b",
-    c"u",
-    c"k",
-    c"kspell",
-    c"s",
-    c"i",
-    c"d",
-    c"]",
-    c"t",
-    c"U",
-    c"f",
-    c"F",
-    c"o"];
+    c".", c"w", c"b", c"u", c"k", c"kspell", c"s", c"i", c"d", c"]", c"t", c"U", c"f", c"F", c"o",
+];
 pub static OPT_COT_VALUES: [&std::ffi::CStr; 13] = [
     c"fuzzy",
     c"longest",
@@ -828,20 +800,11 @@ pub static OPT_COT_VALUES: [&std::ffi::CStr; 13] = [
     c"popup",
     c"preinsert",
     c"preselect",
-    c"preview"];
-pub static OPT_CSL_VALUES: [&std::ffi::CStr; 3] = [
-    c"",
-    c"slash",
-    c"backslash"];
-pub static OPT_CULOPT_VALUES: [&std::ffi::CStr; 4] = [
-    c"line",
-    c"screenline",
-    c"number",
-    c"both"];
-pub static OPT_DEBUG_VALUES: [&std::ffi::CStr; 3] = [
-    c"msg",
-    c"throw",
-    c"beep"];
+    c"preview",
+];
+pub static OPT_CSL_VALUES: [&std::ffi::CStr; 3] = [c"", c"slash", c"backslash"];
+pub static OPT_CULOPT_VALUES: [&std::ffi::CStr; 4] = [c"line", c"screenline", c"number", c"both"];
+pub static OPT_DEBUG_VALUES: [&std::ffi::CStr; 3] = [c"msg", c"throw", c"beep"];
 pub static OPT_DIP_VALUES: [&std::ffi::CStr; 19] = [
     c"filler",
     c"anchor",
@@ -861,17 +824,11 @@ pub static OPT_DIP_VALUES: [&std::ffi::CStr; 19] = [
     c"indent-heuristic",
     c"algorithm:",
     c"inline:",
-    c"linematch:"];
-pub static OPT_DIP_ALGORITHM_VALUES: [&std::ffi::CStr; 4] = [
-    c"myers",
-    c"minimal",
-    c"patience",
-    c"histogram"];
-pub static OPT_DIP_INLINE_VALUES: [&std::ffi::CStr; 4] = [
-    c"none",
-    c"simple",
-    c"char",
-    c"word"];
+    c"linematch:",
+];
+pub static OPT_DIP_ALGORITHM_VALUES: [&std::ffi::CStr; 4] =
+    [c"myers", c"minimal", c"patience", c"histogram"];
+pub static OPT_DIP_INLINE_VALUES: [&std::ffi::CStr; 4] = [c"none", c"simple", c"char", c"word"];
 pub static OPT_DIP_SCHEMA: [OptSchemaItem; 19] = [
     OptSchemaItem {
         name: c"filler",
@@ -969,48 +926,16 @@ pub static OPT_DIP_SCHEMA: [OptSchemaItem; 19] = [
         enum_values: &[],
     },
 ];
-pub static OPT_DY_VALUES: [&std::ffi::CStr; 4] = [
-    c"lastline",
-    c"truncate",
-    c"uhex",
-    c"msgsep"];
-pub static OPT_EAD_VALUES: [&std::ffi::CStr; 3] = [
-    c"both",
-    c"ver",
-    c"hor"];
-pub static OPT_FF_VALUES: [&std::ffi::CStr; 3] = [
-    c"unix",
-    c"dos",
-    c"mac"];
+pub static OPT_DY_VALUES: [&std::ffi::CStr; 4] = [c"lastline", c"truncate", c"uhex", c"msgsep"];
+pub static OPT_EAD_VALUES: [&std::ffi::CStr; 3] = [c"both", c"ver", c"hor"];
+pub static OPT_FF_VALUES: [&std::ffi::CStr; 3] = [c"unix", c"dos", c"mac"];
 pub static OPT_FCL_VALUES: [&std::ffi::CStr; 1] = [c"all"];
 pub static OPT_FDC_VALUES: [&std::ffi::CStr; 20] = [
-    c"auto",
-    c"auto:1",
-    c"auto:2",
-    c"auto:3",
-    c"auto:4",
-    c"auto:5",
-    c"auto:6",
-    c"auto:7",
-    c"auto:8",
-    c"auto:9",
-    c"0",
-    c"1",
-    c"2",
-    c"3",
-    c"4",
-    c"5",
-    c"6",
-    c"7",
-    c"8",
-    c"9"];
-pub static OPT_FDM_VALUES: [&std::ffi::CStr; 6] = [
-    c"manual",
-    c"expr",
-    c"marker",
-    c"indent",
-    c"syntax",
-    c"diff"];
+    c"auto", c"auto:1", c"auto:2", c"auto:3", c"auto:4", c"auto:5", c"auto:6", c"auto:7",
+    c"auto:8", c"auto:9", c"0", c"1", c"2", c"3", c"4", c"5", c"6", c"7", c"8", c"9",
+];
+pub static OPT_FDM_VALUES: [&std::ffi::CStr; 6] =
+    [c"manual", c"expr", c"marker", c"indent", c"syntax", c"diff"];
 pub static OPT_FDO_VALUES: [&std::ffi::CStr; 11] = [
     c"all",
     c"block",
@@ -1022,15 +947,10 @@ pub static OPT_FDO_VALUES: [&std::ffi::CStr; 11] = [
     c"tag",
     c"insert",
     c"undo",
-    c"jump"];
-pub static OPT_ICM_VALUES: [&std::ffi::CStr; 3] = [
-    c"nosplit",
-    c"split",
-    c""];
-pub static OPT_JOP_VALUES: [&std::ffi::CStr; 3] = [
-    c"stack",
-    c"view",
-    c"clean"];
+    c"jump",
+];
+pub static OPT_ICM_VALUES: [&std::ffi::CStr; 3] = [c"nosplit", c"split", c""];
+pub static OPT_JOP_VALUES: [&std::ffi::CStr; 3] = [c"stack", c"view", c"clean"];
 pub static OPT_KM_VALUES: [&std::ffi::CStr; 2] = [c"startsel", c"stopsel"];
 pub static OPT_LOP_VALUES: [&std::ffi::CStr; 2] = [c"expr:0", c"expr:1"];
 pub static OPT_MOPT_VALUES: [&std::ffi::CStr; 7] = [
@@ -1040,7 +960,8 @@ pub static OPT_MOPT_VALUES: [&std::ffi::CStr; 7] = [
     c"pager:",
     c"progress:",
     c"timeout:",
-    c"wait:"];
+    c"wait:",
+];
 pub static OPT_MOPT_PROGRESS_VALUES: [&std::ffi::CStr; 2] = [c"", c"c"];
 pub static OPT_MOPT_SCHEMA: [OptSchemaItem; 7] = [
     OptSchemaItem {
@@ -1079,10 +1000,7 @@ pub static OPT_MOPT_SCHEMA: [OptSchemaItem; 7] = [
         enum_values: &[],
     },
 ];
-pub static OPT_MOUSEM_VALUES: [&std::ffi::CStr; 3] = [
-    c"extend",
-    c"popup",
-    c"popup_setpos"];
+pub static OPT_MOUSEM_VALUES: [&std::ffi::CStr; 3] = [c"extend", c"popup", c"popup_setpos"];
 pub static OPT_MOUSESCROLL_VALUES: [&std::ffi::CStr; 2] = [c"hor:", c"ver:"];
 pub static OPT_MOUSESCROLL_SCHEMA: [OptSchemaItem; 2] = [
     OptSchemaItem {
@@ -1096,25 +1014,12 @@ pub static OPT_MOUSESCROLL_SCHEMA: [OptSchemaItem; 2] = [
         enum_values: &[],
     },
 ];
-pub static OPT_NF_VALUES: [&std::ffi::CStr; 6] = [
-    c"bin",
-    c"octal",
-    c"hex",
-    c"alpha",
-    c"unsigned",
-    c"blank"];
-pub static OPT_PVP_VALUES: [&std::ffi::CStr; 3] = [
-    c"height:",
-    c"width:",
-    c"border:"];
+pub static OPT_NF_VALUES: [&std::ffi::CStr; 6] =
+    [c"bin", c"octal", c"hex", c"alpha", c"unsigned", c"blank"];
+pub static OPT_PVP_VALUES: [&std::ffi::CStr; 3] = [c"height:", c"width:", c"border:"];
 pub static OPT_PVP_BORDER_VALUES: [&std::ffi::CStr; 7] = [
-    c"double",
-    c"single",
-    c"shadow",
-    c"rounded",
-    c"solid",
-    c"bold",
-    c"none"];
+    c"double", c"single", c"shadow", c"rounded", c"solid", c"bold", c"none",
+];
 pub static OPT_PVP_SCHEMA: [OptSchemaItem; 3] = [
     OptSchemaItem {
         name: c"height",
@@ -1133,34 +1038,20 @@ pub static OPT_PVP_SCHEMA: [OptSchemaItem; 3] = [
     },
 ];
 pub static OPT_PUMBORDER_VALUES: [&std::ffi::CStr; 8] = [
-    c"",
-    c"double",
-    c"single",
-    c"shadow",
-    c"rounded",
-    c"solid",
-    c"bold",
-    c"none"];
+    c"", c"double", c"single", c"shadow", c"rounded", c"solid", c"bold", c"none",
+];
 pub static OPT_RDB_VALUES: [&std::ffi::CStr; 6] = [
     c"compositor",
     c"nothrottle",
     c"invalid",
     c"nodelta",
     c"line",
-    c"flush"];
+    c"flush",
+];
 pub static OPT_RLC_VALUES: [&std::ffi::CStr; 1] = [c"search"];
-pub static OPT_SBO_VALUES: [&std::ffi::CStr; 3] = [
-    c"ver",
-    c"hor",
-    c"jump"];
-pub static OPT_SEL_VALUES: [&std::ffi::CStr; 3] = [
-    c"inclusive",
-    c"exclusive",
-    c"old"];
-pub static OPT_SLM_VALUES: [&std::ffi::CStr; 3] = [
-    c"mouse",
-    c"key",
-    c"cmd"];
+pub static OPT_SBO_VALUES: [&std::ffi::CStr; 3] = [c"ver", c"hor", c"jump"];
+pub static OPT_SEL_VALUES: [&std::ffi::CStr; 3] = [c"inclusive", c"exclusive", c"old"];
+pub static OPT_SLM_VALUES: [&std::ffi::CStr; 3] = [c"mouse", c"key", c"cmd"];
 pub static OPT_SSOP_VALUES: [&std::ffi::CStr; 18] = [
     c"buffers",
     c"winpos",
@@ -1179,100 +1070,41 @@ pub static OPT_SSOP_VALUES: [&std::ffi::CStr; 18] = [
     c"cursor",
     c"tabpages",
     c"terminal",
-    c"skiprtp"];
-pub static OPT_SLOC_VALUES: [&std::ffi::CStr; 3] = [
-    c"last",
-    c"statusline",
-    c"tabline"];
+    c"skiprtp",
+];
+pub static OPT_SLOC_VALUES: [&std::ffi::CStr; 3] = [c"last", c"statusline", c"tabline"];
 pub static OPT_SCL_VALUES: [&std::ffi::CStr; 22] = [
-    c"yes",
-    c"no",
-    c"auto",
-    c"auto:1",
-    c"auto:2",
-    c"auto:3",
-    c"auto:4",
-    c"auto:5",
-    c"auto:6",
-    c"auto:7",
-    c"auto:8",
-    c"auto:9",
-    c"yes:1",
-    c"yes:2",
-    c"yes:3",
-    c"yes:4",
-    c"yes:5",
-    c"yes:6",
-    c"yes:7",
-    c"yes:8",
-    c"yes:9",
-    c"number"];
+    c"yes", c"no", c"auto", c"auto:1", c"auto:2", c"auto:3", c"auto:4", c"auto:5", c"auto:6",
+    c"auto:7", c"auto:8", c"auto:9", c"yes:1", c"yes:2", c"yes:3", c"yes:4", c"yes:5", c"yes:6",
+    c"yes:7", c"yes:8", c"yes:9", c"number",
+];
 pub static OPT_SPO_VALUES: [&std::ffi::CStr; 2] = [c"camel", c"noplainbuffer"];
-pub static OPT_SPS_VALUES: [&std::ffi::CStr; 6] = [
-    c"best",
-    c"fast",
-    c"double",
-    c"expr:",
-    c"file:",
-    c"timeout:"];
-pub static OPT_SPK_VALUES: [&std::ffi::CStr; 3] = [
-    c"cursor",
-    c"screen",
-    c"topline"];
+pub static OPT_SPS_VALUES: [&std::ffi::CStr; 6] =
+    [c"best", c"fast", c"double", c"expr:", c"file:", c"timeout:"];
+pub static OPT_SPK_VALUES: [&std::ffi::CStr; 3] = [c"cursor", c"screen", c"topline"];
 pub static OPT_SWB_VALUES: [&std::ffi::CStr; 6] = [
-    c"useopen",
-    c"usetab",
-    c"split",
-    c"newtab",
-    c"vsplit",
-    c"uselast"];
+    c"useopen", c"usetab", c"split", c"newtab", c"vsplit", c"uselast",
+];
 pub static OPT_TCL_VALUES: [&std::ffi::CStr; 2] = [c"left", c"uselast"];
-pub static OPT_TC_VALUES: [&std::ffi::CStr; 5] = [
-    c"followic",
-    c"ignore",
-    c"match",
-    c"followscs",
-    c"smart"];
-pub static OPT_TPF_VALUES: [&std::ffi::CStr; 7] = [
-    c"BS",
-    c"HT",
-    c"FF",
-    c"ESC",
-    c"DEL",
-    c"C0",
-    c"C1"];
-pub static OPT_VE_VALUES: [&std::ffi::CStr; 6] = [
-    c"block",
-    c"insert",
-    c"all",
-    c"onemore",
-    c"none",
-    c"NONE"];
+pub static OPT_TC_VALUES: [&std::ffi::CStr; 5] =
+    [c"followic", c"ignore", c"match", c"followscs", c"smart"];
+pub static OPT_TPF_VALUES: [&std::ffi::CStr; 7] =
+    [c"BS", c"HT", c"FF", c"ESC", c"DEL", c"C0", c"C1"];
+pub static OPT_VE_VALUES: [&std::ffi::CStr; 6] =
+    [c"block", c"insert", c"all", c"onemore", c"none", c"NONE"];
 pub static OPT_WIM_VALUES: [&std::ffi::CStr; 6] = [
     c"full",
     c"longest",
     c"list",
     c"lastused",
     c"noselect",
-    c"noinsert"];
-pub static OPT_WOP_VALUES: [&std::ffi::CStr; 4] = [
-    c"fuzzy",
-    c"tagfile",
-    c"pum",
-    c"exacttext"];
-pub static OPT_WAK_VALUES: [&std::ffi::CStr; 3] = [
-    c"yes",
-    c"menu",
-    c"no"];
+    c"noinsert",
+];
+pub static OPT_WOP_VALUES: [&std::ffi::CStr; 4] = [c"fuzzy", c"tagfile", c"pum", c"exacttext"];
+pub static OPT_WAK_VALUES: [&std::ffi::CStr; 3] = [c"yes", c"menu", c"no"];
 pub static OPT_WINBORDER_VALUES: [&std::ffi::CStr; 8] = [
-    c"",
-    c"double",
-    c"single",
-    c"shadow",
-    c"rounded",
-    c"solid",
-    c"bold",
-    c"none"];
+    c"", c"double", c"single", c"shadow", c"rounded", c"solid", c"bold", c"none",
+];
 
 #[cfg(test)]
 mod tests {

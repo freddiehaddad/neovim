@@ -1,13 +1,13 @@
 //! Code for normal mode searching commands (`src/nvim/search.c`).
 
 use crate::autocmd::{EVENT_SEARCHWRAPPED, apply_autocmds};
-use crate::buffer::{FileBuf, buf_get_changedtick, K_UIMESSAGES};
+use crate::buffer::{FileBuf, K_UIMESSAGES, buf_get_changedtick};
 use crate::change::{TAB, get_leader_len};
 use crate::charset::{NUL, ascii_isdigit, skipwhite, vim_isfilec, vim_iswordc, vim_iswordp};
 use crate::cmdhist::{HIST_SEARCH, add_to_history};
 use crate::cursor::{
-    check_cursor, clearpos, Colnr, dec_cursor, equalpos, get_cursor_line_len,
-    get_cursor_line_ptr, inc_cursor, Linenr, Lpos, lt, ltoreq, CursorPos,
+    Colnr, CursorPos, Linenr, Lpos, check_cursor, clearpos, dec_cursor, equalpos,
+    get_cursor_line_len, get_cursor_line_ptr, inc_cursor, lt, ltoreq,
 };
 use crate::drawscreen::{
     UPD_INVERTED, UPD_SOME_VALID, UPD_VALID, redraw_all_later, redraw_curbuf_later, redraw_later,
@@ -15,9 +15,9 @@ use crate::drawscreen::{
 };
 use crate::errors::*;
 use crate::eval::typval::{
-    EvalFuncData, VarType, TvDict, Dictitem, Listitem, tv_check_for_nonnull_dict_arg,
-    tv_dict_add_nr, tv_dict_alloc_ret, tv_dict_find, tv_dict_get_bool, tv_get_number_chk,
-    tv_get_string_chk, tv_list_find, tv_list_len, TypVal, Varnumber,
+    Dictitem, EvalFuncData, Listitem, TvDict, TypVal, VarType, Varnumber,
+    tv_check_for_nonnull_dict_arg, tv_dict_add_nr, tv_dict_alloc_ret, tv_dict_find,
+    tv_dict_get_bool, tv_get_number_chk, tv_get_string_chk, tv_list_find, tv_list_len,
 };
 use crate::eval::vars::{VV_SEARCHFORWARD, set_vim_var_nr};
 use crate::ex_cmds::{HLF_R, RE_BOTH, RE_SUBST, SEARCH_HIS, getfile, prepare_tagpreview};
@@ -26,7 +26,7 @@ use crate::ex_docmd::{
     SEARCH_MSG, set_no_hlsearch,
 };
 use crate::ex_getln::gotocmdline;
-use crate::extmark::{TriState, K_FALSE, K_NONE, K_TRUE};
+use crate::extmark::{K_FALSE, K_NONE, K_TRUE, TriState};
 use crate::file_search::{
     FNAME_EXP, FNAME_INCL, FNAME_REL, file_name_in_line, find_file_name_in_path,
 };
@@ -37,9 +37,9 @@ use crate::indent_c::{FM_BACKWARD, FM_BLOCKSTOP, FM_SKIPCOMM, check_linecomment}
 use crate::input::char_avail;
 use crate::input_cmdatom::Cmdarg;
 use crate::insexpand::{
-    ACTION_EXPAND, LSIZE, compl_status_adding, compl_status_sol, ctrl_x_mode_not_default,
-    find_word_end, find_word_start, ins_compl_add_infercase, ins_compl_check_keys,
-    ins_compl_interrupted, ins_compl_len, K_SHM_COMPLETIONSCAN,
+    ACTION_EXPAND, K_SHM_COMPLETIONSCAN, LSIZE, compl_status_adding, compl_status_sol,
+    ctrl_x_mode_not_default, find_word_end, find_word_start, ins_compl_add_infercase,
+    ins_compl_check_keys, ins_compl_interrupted, ins_compl_len,
 };
 use crate::mark::setpcmark;
 use crate::r#match::K_CPO_SEARCH;
@@ -58,17 +58,19 @@ use crate::message::{
 use crate::mouse::setmouse;
 use crate::r#move::validate_cursor;
 use crate::normal::{
-    FM_FORWARD, SEARCH_ECHO, SEARCH_MARK, SEARCH_REV, K_CPO_MATCH, K_OPT_FDO_FLAG_SEARCH,
-    K_SHM_SEARCHCOUNT, may_start_select,
+    FM_FORWARD, K_CPO_MATCH, K_OPT_FDO_FLAG_SEARCH, K_SHM_SEARCHCOUNT, SEARCH_ECHO, SEARCH_MARK,
+    SEARCH_REV, may_start_select,
 };
 use crate::option::{OptInt, shortmess};
 use crate::option_vars::*;
 use crate::os::fs::os_fopen;
 use crate::os::input::{fast_breakcheck, line_breakcheck};
 use crate::os::time::{Timestamp, os_delay, os_time};
-use crate::path::{K_PATH_CMP_EXPAND, K_PATH_CMP_FULL, path_equal, path_try_shorten_fname, to_slash};
+use crate::path::{
+    K_PATH_CMP_EXPAND, K_PATH_CMP_FULL, path_equal, path_try_shorten_fname, to_slash,
+};
 use crate::plines::getvcol;
-use crate::profile::{profile_passed_limit, profile_setlimit, Proftime};
+use crate::profile::{Proftime, profile_passed_limit, profile_setlimit};
 use crate::regexp::{
     MAGIC_ALL, MAGIC_ON, MAXCOL, RE_MAGIC, RegMagic, Regmatch, Regmmatch, skip_regexp_ex,
     vim_regcomp, vim_regexec, vim_regexec_multi, vim_regfree,
@@ -77,7 +79,7 @@ use crate::state::MODE_SHOWMATCH;
 use crate::strings::{reverse_text, tr, vim_snprintf, vim_strchr};
 use crate::textformat::Oparg;
 use crate::ui::{ui_busy_start, ui_busy_stop, ui_cursor_shape, ui_flush, ui_has, vim_beep};
-use crate::window::{reset_binding, WinInfoInfo, win_enter, win_split, win_valid};
+use crate::window::{WinInfoInfo, reset_binding, win_enter, win_split, win_valid};
 use std::ffi::{CStr, CString, c_char, c_int, c_uint};
 use std::ptr;
 
@@ -87,7 +89,7 @@ pub(crate) const BACKWARD: Direction = -1;
 use crate::api::ui::MAX_SCHAR_SIZE;
 use crate::api::vim::HLF_N;
 use crate::cmdexpand::{HLF_D, RE_LAST, SEARCH_NOOF, SEARCH_OPT, SEARCH_PEEK, SEARCH_START};
-use crate::eval::funcs::{RE_SEARCH, SEARCH_COL, SEARCH_END, SEARCH_KEEP, MT_LINE_WISE};
+use crate::eval::funcs::{MT_LINE_WISE, RE_SEARCH, SEARCH_COL, SEARCH_END, SEARCH_KEEP};
 use crate::globals::IOSIZE;
 pub type AdditionalData = crate::msgpack_rpc::unpacker::AdditionalData;
 
@@ -333,8 +335,9 @@ const fn getfile_success(x: c_int) -> bool {
     x <= 0
 }
 
-fn find_substr(haystack: impl crate::strings::IntoCCharPtr, needle: &[u8]) -> bool { let haystack = haystack.into_c_char_ptr();
-     {
+fn find_substr(haystack: impl crate::strings::IntoCCharPtr, needle: &[u8]) -> bool {
+    let haystack = haystack.into_c_char_ptr();
+    {
         let bytes = crate::memory::cstr_as_bytes(haystack);
         bytes.windows(needle.len()).any(|w| w == needle)
     }
@@ -387,10 +390,7 @@ pub fn search_regcomp(
         {
             Some(reverse_text(pat))
         } else {
-            Some(
-                CString::new(crate::memory::cstr_slice(pat, patlen))
-                    .unwrap_or_default(),
-            )
+            Some(CString::new(crate::memory::cstr_slice(pat, patlen)).unwrap_or_default())
         };
 
         if (options & SEARCH_KEEP) == 0 && (g_st().cmdmod.cmod_flags & CMOD_KEEPPATTERNS) == 0 {
@@ -424,14 +424,13 @@ pub fn get_search_pat() -> *mut c_char {
 }
 
 pub fn save_re_pat(idx: c_int, pat: *mut c_char, patlen: usize, magic: c_int) {
-     {
+    {
         let i = idx as usize;
         if srch().spats[i].pat_ptr() == pat {
             return;
         }
 
-        let new_pat =
-            CString::new(crate::memory::cstr_slice(pat, patlen)).unwrap_or_default();
+        let new_pat = CString::new(crate::memory::cstr_slice(pat, patlen)).unwrap_or_default();
         free_spat(&mut srch().spats[i]);
         srch().spats[i].pat = Some(new_pat);
         srch().spats[i].magic = magic != 0;
@@ -448,88 +447,84 @@ pub fn save_re_pat(idx: c_int, pat: *mut c_char, patlen: usize, magic: c_int) {
 
 pub fn save_search_patterns() {
     let prev = srch().save_level;
-        srch().save_level += 1;
-        if prev != 0 {
-            return;
-        }
+    srch().save_level += 1;
+    if prev != 0 {
+        return;
+    }
 
-        for i in 0..2 {
-            srch().saved_spats[i] = srch().spats[i].clone();
-        }
-        srch().saved_mr_pattern = srch().mr_pattern.clone();
-        srch().saved_spats_last_idx = srch().last_idx;
-        srch().saved_spats_no_hlsearch = g_st().search_global.no_hlsearch;
+    for i in 0..2 {
+        srch().saved_spats[i] = srch().spats[i].clone();
+    }
+    srch().saved_mr_pattern = srch().mr_pattern.clone();
+    srch().saved_spats_last_idx = srch().last_idx;
+    srch().saved_spats_no_hlsearch = g_st().search_global.no_hlsearch;
 }
 
 pub fn restore_search_patterns() {
     srch().save_level -= 1;
-        if srch().save_level != 0 {
-            return;
-        }
+    if srch().save_level != 0 {
+        return;
+    }
 
-        for i in 0..2 {
-            free_spat(&mut srch().spats[i]);
-            srch().spats[i] = std::mem::replace(&mut srch().saved_spats[i], EMPTY_SEARCH_PATTERN);
-        }
-        set_vv_searchforward();
-        srch().mr_pattern = srch().saved_mr_pattern.take();
-        srch().last_idx = srch().saved_spats_last_idx;
-        set_no_hlsearch(srch().saved_spats_no_hlsearch);
+    for i in 0..2 {
+        free_spat(&mut srch().spats[i]);
+        srch().spats[i] = std::mem::replace(&mut srch().saved_spats[i], EMPTY_SEARCH_PATTERN);
+    }
+    set_vv_searchforward();
+    srch().mr_pattern = srch().saved_mr_pattern.take();
+    srch().last_idx = srch().saved_spats_last_idx;
+    set_no_hlsearch(srch().saved_spats_no_hlsearch);
 }
 
 #[inline]
 fn free_spat(spat: &mut SearchPattern) {
     spat.pat = None;
-        spat.additional_data = None;
+    spat.additional_data = None;
 }
 
 pub fn free_search_patterns() {
     free_spat(&mut srch().spats[0]);
-        free_spat(&mut srch().spats[1]);
-        srch().spats = [EMPTY_SEARCH_PATTERN, EMPTY_SEARCH_PATTERN];
-        srch().mr_pattern = None;
+    free_spat(&mut srch().spats[1]);
+    srch().spats = [EMPTY_SEARCH_PATTERN, EMPTY_SEARCH_PATTERN];
+    srch().mr_pattern = None;
 }
 
 pub fn save_last_search_pattern() {
     srch().did_save_last_search_spat += 1;
-        if srch().did_save_last_search_spat != 1 {
-            return;
-        }
+    if srch().did_save_last_search_spat != 1 {
+        return;
+    }
 
-        srch().saved_last_search_spat = srch().spats[RE_SEARCH as usize].clone();
-        srch().saved_last_idx = srch().last_idx;
-        srch().saved_no_hlsearch = g_st().search_global.no_hlsearch;
+    srch().saved_last_search_spat = srch().spats[RE_SEARCH as usize].clone();
+    srch().saved_last_idx = srch().last_idx;
+    srch().saved_no_hlsearch = g_st().search_global.no_hlsearch;
 }
 
 pub fn restore_last_search_pattern() {
     srch().did_save_last_search_spat -= 1;
-        if srch().did_save_last_search_spat > 0 {
-            return;
-        }
-        if srch().did_save_last_search_spat != 0 {
-            iemsg(
-                c"restore_last_search_pattern() called more often than save_last_search_pattern()",
-            );
-            return;
-        }
+    if srch().did_save_last_search_spat > 0 {
+        return;
+    }
+    if srch().did_save_last_search_spat != 0 {
+        iemsg(c"restore_last_search_pattern() called more often than save_last_search_pattern()");
+        return;
+    }
 
-        srch().spats[RE_SEARCH as usize] = std::mem::replace(
-            &mut srch().saved_last_search_spat,
-            EMPTY_SEARCH_PATTERN,
-        );
-        set_vv_searchforward();
-        srch().last_idx = srch().saved_last_idx;
-        set_no_hlsearch(srch().saved_no_hlsearch);
+    srch().spats[RE_SEARCH as usize] =
+        std::mem::replace(&mut srch().saved_last_search_spat, EMPTY_SEARCH_PATTERN);
+    set_vv_searchforward();
+    srch().last_idx = srch().saved_last_idx;
+    set_no_hlsearch(srch().saved_no_hlsearch);
 }
 
 fn save_incsearch_state() {
     srch().saved_search_match_endcol = g_st().search_global.match_endcol;
-        srch().saved_search_match_lines = g_st().search_global.match_lines;
+    srch().saved_search_match_lines = g_st().search_global.match_lines;
 }
 
 fn restore_incsearch_state() {
     g_st().search_global.match_endcol = srch().saved_search_match_endcol;
-        g_st().search_global.match_lines = srch().saved_search_match_lines;
+    g_st().search_global.match_lines = srch().saved_search_match_lines;
 }
 
 pub fn ignorecase(pat: *mut c_char) -> c_int {
@@ -537,7 +532,7 @@ pub fn ignorecase(pat: *mut c_char) -> c_int {
 }
 
 pub fn ignorecase_opt(pat: *mut c_char, ic_in: c_int, scs: c_int) -> c_int {
-     {
+    {
         let mut ic = ic_in;
         if ic != 0
             && !g_st().search_global.no_smartcase
@@ -575,7 +570,9 @@ pub fn pat_has_uppercase(pat: *mut c_char) -> bool {
                 }
                 p = p.add(l as usize);
             } else if crate::memory::cstr_first_byte(p) == b'\\' && magic_val <= MAGIC_ON {
-                if (crate::memory::cstr_byte_at(p, 1) == b'_' || crate::memory::cstr_byte_at(p, 1) == b'%') && crate::memory::cstr_byte_at(p, 2) != 0
+                if (crate::memory::cstr_byte_at(p, 1) == b'_'
+                    || crate::memory::cstr_byte_at(p, 1) == b'%')
+                    && crate::memory::cstr_byte_at(p, 2) != 0
                 {
                     p = p.add(3);
                 } else if crate::memory::cstr_byte_at(p, 1) != 0 {
@@ -583,7 +580,10 @@ pub fn pat_has_uppercase(pat: *mut c_char) -> bool {
                 } else {
                     p = p.add(1);
                 }
-            } else if (crate::memory::cstr_first_byte(p) == b'%' || crate::memory::cstr_first_byte(p) == b'_') && magic_val == MAGIC_ALL {
+            } else if (crate::memory::cstr_first_byte(p) == b'%'
+                || crate::memory::cstr_first_byte(p) == b'_')
+                && magic_val == MAGIC_ALL
+            {
                 if crate::memory::cstr_byte_at(p, 1) != 0 {
                     p = p.add(2);
                 } else {
@@ -611,12 +611,17 @@ pub fn last_csearch_until() -> c_int {
     c_int::from(srch().last_t_cmd)
 }
 
-pub fn set_last_csearch(c: c_int, s: impl crate::strings::IntoCCharPtr, len: c_int) { let s = s.into_c_char_ptr();
+pub fn set_last_csearch(c: c_int, s: impl crate::strings::IntoCCharPtr, len: c_int) {
+    let s = s.into_c_char_ptr();
     unsafe {
         srch().lastc[0] = c as u8;
         srch().lastc_bytelen = len;
         if len != 0 {
-            ptr::copy_nonoverlapping(s, (&raw mut srch().lastc_bytes).cast::<c_char>(), len as usize);
+            ptr::copy_nonoverlapping(
+                s,
+                (&raw mut srch().lastc_bytes).cast::<c_char>(),
+                len as usize,
+            );
         } else {
             srch().lastc_bytes = [0; MAX_SCHAR_SIZE + 1];
         }
@@ -637,11 +642,17 @@ pub fn last_search_pat() -> *mut c_char {
 
 pub fn reset_search_dir() {
     srch().spats[0].off.dir = b'/' as c_char;
-        set_vv_searchforward();
+    set_vv_searchforward();
 }
 
-pub fn set_last_search_pat(s: impl crate::strings::IntoCCharPtr, idx: c_int, magic: c_int, setlast: bool) { let s = s.into_c_char_ptr();
-     {
+pub fn set_last_search_pat(
+    s: impl crate::strings::IntoCCharPtr,
+    idx: c_int,
+    magic: c_int,
+    setlast: bool,
+) {
+    let s = s.into_c_char_ptr();
+    {
         let i = idx as usize;
         free_spat(&mut srch().spats[i]);
         if crate::memory::cstr_is_empty(s) {
@@ -675,21 +686,21 @@ pub fn set_last_search_pat(s: impl crate::strings::IntoCCharPtr, idx: c_int, mag
 
 pub fn last_pat_prog(regmatch: &mut Regmmatch) {
     if srch().spats[srch().last_idx as usize].pat.is_none() {
-            regmatch.regprog = ptr::null_mut();
-            return;
-        }
-        g_st().emsg_off += 1;
-        search_regcomp(
-            c"",
-            0,
-            ptr::null_mut(),
-            0,
-            srch().last_idx,
-            SEARCH_KEEP,
-            opt_vars().p_magic != 0,
-            regmatch,
-        );
-        g_st().emsg_off -= 1;
+        regmatch.regprog = ptr::null_mut();
+        return;
+    }
+    g_st().emsg_off += 1;
+    search_regcomp(
+        c"",
+        0,
+        ptr::null_mut(),
+        0,
+        srch().last_idx,
+        SEARCH_KEEP,
+        opt_vars().p_magic != 0,
+        regmatch,
+    );
+    g_st().emsg_off -= 1;
 }
 
 pub fn searchit(
@@ -703,7 +714,8 @@ pub fn searchit(
     mut count: c_int,
     options: c_int,
     pat_use: c_int,
-    magic: bool,mut extra_arg: Option<&mut SearchitArg>,
+    magic: bool,
+    mut extra_arg: Option<&mut SearchitArg>,
 ) -> c_int {
     let pat = pat.into_c_char_ptr().cast_mut();
     unsafe {
@@ -739,13 +751,9 @@ pub fn searchit(
             options & (SEARCH_HIS + SEARCH_KEEP),
             magic,
             &mut regmatch,
-        )
-        {
+        ) {
             if (options & SEARCH_MSG) != 0 && !g_st().rc_did_emsg {
-                semsg!(
-                    tr(c"E383: Invalid search string: %s"),
-                    get_search_pat()
-                );
+                semsg!(tr(c"E383: Invalid search string: %s"), get_search_pat());
             }
             return FAIL;
         }
@@ -853,7 +861,12 @@ pub fn searchit(
                                     nmatched == 1 && endpos.col - 1 < start_pos.col + extra_col
                                 } else {
                                     matchpos.col
-                                        - c_int::from(crate::memory::cstr_byte_at(ptr_line, matchpos.col as usize) == 0)
+                                        - c_int::from(
+                                            crate::memory::cstr_byte_at(
+                                                ptr_line,
+                                                matchpos.col as usize,
+                                            ) == 0,
+                                        )
                                         < start_pos.col + extra_col
                                 })
                             {
@@ -864,31 +877,35 @@ pub fn searchit(
                                     }
                                     matchcol = endpos.col;
                                     if matchcol == matchpos.col
-                                        && crate::memory::cstr_byte_at(ptr_line, matchcol as usize) != 0
+                                        && crate::memory::cstr_byte_at(ptr_line, matchcol as usize)
+                                            != 0
                                     {
                                         matchcol += utfc_ptr2len(ptr_line.add(matchcol as usize));
                                     }
                                 } else {
                                     matchcol = regmatch.rmm_matchcol;
-                                    if crate::memory::cstr_byte_at(ptr_line, matchcol as usize) != 0 {
+                                    if crate::memory::cstr_byte_at(ptr_line, matchcol as usize) != 0
+                                    {
                                         matchcol += utfc_ptr2len(ptr_line.add(matchcol as usize));
                                     }
                                 }
                                 if matchcol == 0 && (options & SEARCH_START) != 0 {
                                     break;
                                 }
-                                if crate::memory::cstr_byte_at(ptr_line, matchcol as usize) == 0 || {
-                                    nmatched = vim_regexec_multi(
-                                        &mut regmatch,
-                                        win,
-                                        (&raw mut *buf),
-                                        lnum,
-                                        matchcol,
-                                        tm,
-                                        extra_arg.as_deref_mut().map(|ea| &mut ea.sa_timed_out),
-                                    );
-                                    nmatched == 0
-                                } {
+                                if crate::memory::cstr_byte_at(ptr_line, matchcol as usize) == 0
+                                    || {
+                                        nmatched = vim_regexec_multi(
+                                            &mut regmatch,
+                                            win,
+                                            (&raw mut *buf),
+                                            lnum,
+                                            matchcol,
+                                            tm,
+                                            extra_arg.as_deref_mut().map(|ea| &mut ea.sa_timed_out),
+                                        );
+                                        nmatched == 0
+                                    }
+                                {
                                     match_ok = false;
                                     break;
                                 }
@@ -940,7 +957,8 @@ pub fn searchit(
                                     }
                                     matchcol = endpos.col;
                                     if matchcol == matchpos.col
-                                        && crate::memory::cstr_byte_at(ptr_line, matchcol as usize) != 0
+                                        && crate::memory::cstr_byte_at(ptr_line, matchcol as usize)
+                                            != 0
                                     {
                                         matchcol += utfc_ptr2len(ptr_line.add(matchcol as usize));
                                     }
@@ -949,22 +967,25 @@ pub fn searchit(
                                         break;
                                     }
                                     matchcol = matchpos.col;
-                                    if crate::memory::cstr_byte_at(ptr_line, matchcol as usize) != 0 {
+                                    if crate::memory::cstr_byte_at(ptr_line, matchcol as usize) != 0
+                                    {
                                         matchcol += utfc_ptr2len(ptr_line.add(matchcol as usize));
                                     }
                                 }
-                                if crate::memory::cstr_byte_at(ptr_line, matchcol as usize) == 0 || {
-                                    nmatched = vim_regexec_multi(
-                                        &mut regmatch,
-                                        win,
-                                        (&raw mut *buf),
-                                        lnum + matchpos.lnum,
-                                        matchcol,
-                                        tm,
-                                        extra_arg.as_deref_mut().map(|ea| &mut ea.sa_timed_out),
-                                    );
-                                    nmatched == 0
-                                } {
+                                if crate::memory::cstr_byte_at(ptr_line, matchcol as usize) == 0
+                                    || {
+                                        nmatched = vim_regexec_multi(
+                                            &mut regmatch,
+                                            win,
+                                            (&raw mut *buf),
+                                            lnum + matchpos.lnum,
+                                            matchcol,
+                                            tm,
+                                            extra_arg.as_deref_mut().map(|ea| &mut ea.sa_timed_out),
+                                        );
+                                        nmatched == 0
+                                    }
+                                {
                                     if tm.is_some_and(profile_passed_limit) {
                                         match_ok = false;
                                     }
@@ -1108,10 +1129,7 @@ pub fn searchit(
                 if opt_vars().p_ws != 0 {
                     semsg!(tr(E_PATNOTF2), get_search_pat());
                 } else if lnum == 0 {
-                    semsg!(
-                        tr(E_SEARCH_HIT_TOP_WITHOUT_MATCH_FOR_STR),
-                        get_search_pat(),
-                    );
+                    semsg!(tr(E_SEARCH_HIT_TOP_WITHOUT_MATCH_FOR_STR), get_search_pat(),);
                 } else {
                     semsg!(
                         tr(E_SEARCH_HIT_BOTTOM_WITHOUT_MATCH_FOR_STR),
@@ -1140,9 +1158,9 @@ pub fn set_search_direction(cdir: c_int) {
 
 fn set_vv_searchforward() {
     set_vim_var_nr(
-            VV_SEARCHFORWARD,
-            Varnumber::from(srch().spats[0].off.dir == b'/' as c_char),
-        );
+        VV_SEARCHFORWARD,
+        Varnumber::from(srch().spats[0].off.dir == b'/' as c_char),
+    );
 }
 
 fn first_submatch(rp: &Regmmatch) -> c_int {
@@ -1205,20 +1223,31 @@ pub fn parse_search_pattern_offset(
         offset.line = false;
         offset.end = false;
         offset.off = 0;
-        if crate::memory::cstr_first_byte(p) == b'+' || crate::memory::cstr_first_byte(p) == b'-' || ascii_isdigit(crate::memory::cstr_first_char(p)) {
+        if crate::memory::cstr_first_byte(p) == b'+'
+            || crate::memory::cstr_first_byte(p) == b'-'
+            || ascii_isdigit(crate::memory::cstr_first_char(p))
+        {
             offset.line = true;
         } else if (options & SEARCH_OPT) != 0
-            && (crate::memory::cstr_first_byte(p) == b'e' || crate::memory::cstr_first_byte(p) == b's' || crate::memory::cstr_first_byte(p) == b'b')
+            && (crate::memory::cstr_first_byte(p) == b'e'
+                || crate::memory::cstr_first_byte(p) == b's'
+                || crate::memory::cstr_first_byte(p) == b'b')
         {
             if crate::memory::cstr_first_byte(p) == b'e' {
                 offset.end = true;
             }
             p = p.add(1);
         }
-        if ascii_isdigit(crate::memory::cstr_first_char(p)) || crate::memory::cstr_first_byte(p) == b'+' || crate::memory::cstr_first_byte(p) == b'-' {
-            if ascii_isdigit(crate::memory::cstr_first_char(p)) || ascii_isdigit(crate::memory::cstr_char_at(p, 1)) {
+        if ascii_isdigit(crate::memory::cstr_first_char(p))
+            || crate::memory::cstr_first_byte(p) == b'+'
+            || crate::memory::cstr_first_byte(p) == b'-'
+        {
+            if ascii_isdigit(crate::memory::cstr_first_char(p))
+                || ascii_isdigit(crate::memory::cstr_char_at(p, 1))
+            {
                 {
-                    offset.off = crate::charset::parse_i64_prefix(crate::memory::cstr_as_bytes(p)) as std::ffi::c_long as _;
+                    offset.off = crate::charset::parse_i64_prefix(crate::memory::cstr_as_bytes(p))
+                        as std::ffi::c_long as _;
                 }
             } else if crate::memory::cstr_first_byte(p) == b'-' {
                 offset.off = -1;
@@ -1248,7 +1277,8 @@ pub fn do_search(
     mut patlen: usize,
     count: c_int,
     options: c_int,
-    magic: bool,mut sia: Option<&mut SearchitArg>,
+    magic: bool,
+    mut sia: Option<&mut SearchitArg>,
 ) -> c_int {
     unsafe {
         let mut searchstr: *mut c_char;
@@ -1307,7 +1337,9 @@ pub fn do_search(
             searchstrlen = patlen;
 
             dircp = ptr::null_mut();
-            if crate::memory::cstr_is_empty(pat) || c_int::from(crate::memory::cstr_first_byte(pat)) == search_delim {
+            if crate::memory::cstr_is_empty(pat)
+                || c_int::from(crate::memory::cstr_first_byte(pat)) == search_delim
+            {
                 if srch().spats[RE_SEARCH as usize].pat.is_none() {
                     if srch().spats[RE_SUBST as usize].pat.is_none() {
                         emsg(tr(E_NOPREVRE));
@@ -1356,7 +1388,11 @@ pub fn do_search(
                 msg_start();
                 msg_ext_set_kind(c"search_cmd");
 
-                if !g_st().cmd_silent && (srch().spats[0].off.line || srch().spats[0].off.end || srch().spats[0].off.off != 0) {
+                if !g_st().cmd_silent
+                    && (srch().spats[0].off.line
+                        || srch().spats[0].off.end
+                        || srch().spats[0].off.off != 0)
+                {
                     off_buf[off_len] = dirc as c_char;
                     off_len += 1;
                     if srch().spats[0].off.end {
@@ -1392,7 +1428,9 @@ pub fn do_search(
                     } else if g_st().msg_scrolled != 0 && !g_st().cmd_silent {
                         ((g_st().rows_global - g_st().msg_row) * g_st().columns_global - 1) as usize
                     } else {
-                        ((g_st().rows_global - g_st().msg_row - 1) * g_st().columns_global + g_st().sc_col - 1) as usize
+                        ((g_st().rows_global - g_st().msg_row - 1) * g_st().columns_global
+                            + g_st().sc_col
+                            - 1) as usize
                     };
                     if sz < plen + off_len + SEARCH_STAT_BUF_LEN + 3 {
                         sz = plen + off_len + SEARCH_STAT_BUF_LEN + 3;
@@ -1525,14 +1563,17 @@ pub fn do_search(
                             })),
                 RE_LAST,
                 magic,
-                (sia.is_some()).then(||  { sia.as_deref_mut().unwrap() }),
+                (sia.is_some()).then(|| sia.as_deref_mut().unwrap()),
             ));
 
             if !dircp.is_null() {
                 *dircp = search_delim as c_char;
             }
 
-            if !shortmess(K_SHM_SEARCH) && sia.is_some() && sia.as_deref_mut().unwrap().sa_wrapped != 0 {
+            if !shortmess(K_SHM_SEARCH)
+                && sia.is_some()
+                && sia.as_deref_mut().unwrap().sa_wrapped != 0
+            {
                 show_top_bot_msg = true;
             }
 
@@ -1556,7 +1597,9 @@ pub fn do_search(
                 );
             }
 
-            if (options & SEARCH_NOOF) == 0 || (!pat.is_null() && crate::memory::cstr_first_byte(pat) == b';') {
+            if (options & SEARCH_NOOF) == 0
+                || (!pat.is_null() && crate::memory::cstr_first_byte(pat) == b';')
+            {
                 let org_pos = pos;
 
                 if srch().spats[0].off.line {
@@ -1616,7 +1659,10 @@ pub fn do_search(
                 );
             }
 
-            if (options & SEARCH_OPT) == 0 || pat.is_null() || crate::memory::cstr_first_byte(pat) != b';' {
+            if (options & SEARCH_OPT) == 0
+                || pat.is_null()
+                || crate::memory::cstr_first_byte(pat) != b';'
+            {
                 break;
             }
 
@@ -1655,7 +1701,8 @@ pub fn search_for_exact_line(
     pos: &mut CursorPos,
     dir: Direction,
     pat: impl crate::strings::IntoCCharPtr,
-) -> bool { let pat = pat.into_c_char_ptr();
+) -> bool {
+    let pat = pat.into_c_char_ptr();
     unsafe {
         let mut start: Linenr = 0;
         let compl_len = ins_compl_len();
@@ -1705,7 +1752,8 @@ pub fn search_for_exact_line(
                 let eq = if opt_vars().p_ic != 0 {
                     mb_strnicmp(p, pat, compl_len as usize) == 0
                 } else {
-                    crate::memory::cstr_prefix_bytes(p, compl_len as usize) == crate::memory::cstr_prefix_bytes(pat, compl_len as usize)
+                    crate::memory::cstr_prefix_bytes(p, compl_len as usize)
+                        == crate::memory::cstr_prefix_bytes(pat, compl_len as usize)
                 };
                 if eq {
                     return true;
@@ -1736,14 +1784,19 @@ pub fn searchc(cap: &mut Cmdarg, mut t_cmd: bool) -> bool {
                         cap.nchar_len as usize,
                     );
                 } else {
-                    srch().lastc_bytelen = utf_char2bytes(c, (&raw mut srch().lastc_bytes).cast::<c_char>());
+                    srch().lastc_bytelen =
+                        utf_char2bytes(c, (&raw mut srch().lastc_bytes).cast::<c_char>());
                 }
             }
         } else {
             if srch().lastc[0] == 0 && srch().lastc_bytelen <= 1 {
                 return false;
             }
-            dir = if dir != 0 { -srch().lastcdir } else { srch().lastcdir };
+            dir = if dir != 0 {
+                -srch().lastcdir
+            } else {
+                srch().lastcdir
+            };
             t_cmd = srch().last_t_cmd;
             c = c_int::from(srch().lastc[0]);
 
@@ -1776,8 +1829,13 @@ pub fn searchc(cap: &mut Cmdarg, mut t_cmd: bool) -> bool {
                     if c_int::from(crate::memory::cstr_byte_at(p, col as usize)) == c && stop {
                         break;
                     }
-                } else if (crate::memory::cstr_prefix_bytes(p.add(col as usize), srch().lastc_bytelen as usize) == crate::memory::cstr_prefix_bytes((&raw const srch().lastc_bytes).cast::<c_char>(), srch().lastc_bytelen as usize))
-                    && stop
+                } else if (crate::memory::cstr_prefix_bytes(
+                    p.add(col as usize),
+                    srch().lastc_bytelen as usize,
+                ) == crate::memory::cstr_prefix_bytes(
+                    (&raw const srch().lastc_bytes).cast::<c_char>(),
+                    srch().lastc_bytelen as usize,
+                )) && stop
                 {
                     break;
                 }
@@ -1808,7 +1866,8 @@ fn check_prevcol(
     mut col: c_int,
     ch: c_int,
     prevcol: Option<&mut c_int>,
-) -> bool { let linep = linep.into_c_char_ptr();
+) -> bool {
+    let linep = linep.into_c_char_ptr();
     unsafe {
         col -= 1;
         if col > 0 {
@@ -1825,7 +1884,8 @@ fn find_rawstring_end(
     linep: impl crate::strings::IntoCCharPtr,
     startpos: &CursorPos,
     endpos: &CursorPos,
-) -> bool { let linep = linep.into_c_char_ptr();
+) -> bool {
+    let linep = linep.into_c_char_ptr();
     unsafe {
         let mut p = linep.add((startpos.col + 1) as usize);
         while !crate::memory::cstr_is_empty(p) && crate::memory::cstr_first_byte(p) != b'(' {
@@ -1852,7 +1912,8 @@ fn find_rawstring_end(
                     break;
                 }
                 if crate::memory::cstr_first_byte(p) == b')'
-                    && (crate::memory::cstr_prefix_bytes(delim_copy.as_ptr(), delim_len) == crate::memory::cstr_prefix_bytes(p.add(1), delim_len))
+                    && (crate::memory::cstr_prefix_bytes(delim_copy.as_ptr(), delim_len)
+                        == crate::memory::cstr_prefix_bytes(p.add(1), delim_len))
                     && crate::memory::cstr_byte_at(p, delim_len + 1) == b'"'
                 {
                     found = true;
@@ -1868,12 +1929,7 @@ fn find_rawstring_end(
     }
 }
 
-fn find_mps_values(
-    initc: &mut c_int,
-    findc: &mut c_int,
-    backwards: &mut bool,
-    switchit: bool,
-) {
+fn find_mps_values(initc: &mut c_int, findc: &mut c_int, backwards: &mut bool, switchit: bool) {
     unsafe {
         let mut ptr_mps = curbuf_mut().b_p_mps;
 
@@ -2007,7 +2063,9 @@ pub fn findmatchlimit(
                 }
 
                 if hash_dir == 0 && comment_dir == 0 {
-                    if *linep.add(srch().findmatch_pos.col as usize) == NUL && srch().findmatch_pos.col != 0 {
+                    if *linep.add(srch().findmatch_pos.col as usize) == NUL
+                        && srch().findmatch_pos.col != 0
+                    {
                         srch().findmatch_pos.col -= 1;
                     }
                     loop {
@@ -2020,7 +2078,8 @@ pub fn findmatchlimit(
                         if findc != 0 {
                             break;
                         }
-                        srch().findmatch_pos.col += utfc_ptr2len(linep.add(srch().findmatch_pos.col as usize));
+                        srch().findmatch_pos.col +=
+                            utfc_ptr2len(linep.add(srch().findmatch_pos.col as usize));
                     }
                     if findc == 0 {
                         if !cpo_match && *skipwhite(linep) == b'#' as c_char {
@@ -2090,7 +2149,9 @@ pub fn findmatchlimit(
                             return &raw mut srch().findmatch_pos;
                         }
                         count -= 1;
-                    } else if initc == b'#' as c_int && (crate::memory::cstr_prefix_bytes(ptr_line, 2) == &b"el"[..2]) {
+                    } else if initc == b'#' as c_int
+                        && (crate::memory::cstr_prefix_bytes(ptr_line, 2) == &b"el"[..2])
+                    {
                         if count == 0 {
                             return &raw mut srch().findmatch_pos;
                         }
@@ -2155,14 +2216,17 @@ pub fn findmatchlimit(
                         comment_col = check_linecomment(linep);
                     }
                     if (lisp
-                        || (skip_comments && !in_block_comment && srch().findmatch_pos.col > comment_col))
+                        || (skip_comments
+                            && !in_block_comment
+                            && srch().findmatch_pos.col > comment_col))
                         && comment_col != MAXCOL
                     {
                         srch().findmatch_pos.col = comment_col;
                     }
                 } else {
                     srch().findmatch_pos.col -= 1;
-                    srch().findmatch_pos.col -= utf_head_off(linep, linep.add(srch().findmatch_pos.col as usize));
+                    srch().findmatch_pos.col -=
+                        utf_head_off(linep, linep.add(srch().findmatch_pos.col as usize));
                 }
             } else if *linep.add(srch().findmatch_pos.col as usize) == NUL
                 || (lisp && comment_col != MAXCOL && srch().findmatch_pos.col == comment_col)
@@ -2186,7 +2250,8 @@ pub fn findmatchlimit(
                     comment_col = check_linecomment(linep);
                 }
             } else {
-                srch().findmatch_pos.col += utfc_ptr2len(linep.add(srch().findmatch_pos.col as usize));
+                srch().findmatch_pos.col +=
+                    utfc_ptr2len(linep.add(srch().findmatch_pos.col as usize));
             }
 
             if skip_comments && comment_dir == 0 && !inquote {
@@ -2222,7 +2287,8 @@ pub fn findmatchlimit(
 
             if srch().findmatch_pos.col == 0
                 && (flags & FM_BLOCKSTOP) != 0
-                && (crate::memory::cstr_first_byte(linep) == b'{' || crate::memory::cstr_first_byte(linep) == b'}')
+                && (crate::memory::cstr_first_byte(linep) == b'{'
+                    || crate::memory::cstr_first_byte(linep) == b'}')
             {
                 if c_int::from(crate::memory::cstr_first_byte(linep)) == findc && count == 0 {
                     return &raw mut srch().findmatch_pos;
@@ -2243,8 +2309,11 @@ pub fn findmatchlimit(
                 } else if raw_string {
                     if *linep.add((srch().findmatch_pos.col - 1) as usize) == b'R' as c_char
                         && *linep.add(srch().findmatch_pos.col as usize) == b'"' as c_char
-                        && !vim_strchr(linep.add((srch().findmatch_pos.col + 1) as usize), b'(' as c_int)
-                            .is_null()
+                        && !vim_strchr(
+                            linep.add((srch().findmatch_pos.col + 1) as usize),
+                            b'(' as c_int,
+                        )
+                        .is_null()
                     {
                         if !find_rawstring_end(
                             linep,
@@ -2296,7 +2365,8 @@ pub fn findmatchlimit(
                 at_start = do_quotes;
                 ptr_line = linep;
                 while !crate::memory::cstr_is_empty(ptr_line) {
-                    if ptr_line == linep.add((srch().findmatch_pos.col + c_int::from(backwards)) as usize)
+                    if ptr_line
+                        == linep.add((srch().findmatch_pos.col + c_int::from(backwards)) as usize)
                     {
                         at_start = do_quotes & 1;
                     }
@@ -2307,7 +2377,9 @@ pub fn findmatchlimit(
                     {
                         do_quotes += 1;
                     }
-                    if crate::memory::cstr_first_byte(ptr_line) == b'\\' && crate::memory::cstr_byte_at(ptr_line, 1) != 0 {
+                    if crate::memory::cstr_first_byte(ptr_line) == b'\\'
+                        && crate::memory::cstr_byte_at(ptr_line, 1) != 0
+                    {
                         ptr_line = ptr_line.add(1);
                     }
                     ptr_line = ptr_line.add(1);
@@ -2330,7 +2402,8 @@ pub fn findmatchlimit(
                     if srch().findmatch_pos.lnum > 1 {
                         ptr_line = ml_get(srch().findmatch_pos.lnum - 1);
                         if !crate::memory::cstr_is_empty(ptr_line)
-                            && *ptr_line.add((ml_get_len(srch().findmatch_pos.lnum - 1) - 1) as usize)
+                            && *ptr_line
+                                .add((ml_get_len(srch().findmatch_pos.lnum - 1) - 1) as usize)
                                 == b'\\' as c_char
                         {
                             do_quotes = 1;
@@ -2382,13 +2455,16 @@ pub fn findmatchlimit(
                 {
                     if backwards {
                         if srch().findmatch_pos.col > 1 {
-                            if *linep.add((srch().findmatch_pos.col - 2) as usize) == b'\'' as c_char {
+                            if *linep.add((srch().findmatch_pos.col - 2) as usize)
+                                == b'\'' as c_char
+                            {
                                 srch().findmatch_pos.col -= 2;
                                 skipped_single_quote = true;
                             } else if *linep.add((srch().findmatch_pos.col - 2) as usize)
                                 == b'\\' as c_char
                                 && srch().findmatch_pos.col > 2
-                                && *linep.add((srch().findmatch_pos.col - 3) as usize) == b'\'' as c_char
+                                && *linep.add((srch().findmatch_pos.col - 3) as usize)
+                                    == b'\'' as c_char
                             {
                                 srch().findmatch_pos.col -= 3;
                                 skipped_single_quote = true;
@@ -2397,11 +2473,14 @@ pub fn findmatchlimit(
                     } else if *linep.add((srch().findmatch_pos.col + 1) as usize) != NUL {
                         if *linep.add((srch().findmatch_pos.col + 1) as usize) == b'\\' as c_char
                             && *linep.add((srch().findmatch_pos.col + 2) as usize) != NUL
-                            && *linep.add((srch().findmatch_pos.col + 3) as usize) == b'\'' as c_char
+                            && *linep.add((srch().findmatch_pos.col + 3) as usize)
+                                == b'\'' as c_char
                         {
                             srch().findmatch_pos.col += 3;
                             skipped_single_quote = true;
-                        } else if *linep.add((srch().findmatch_pos.col + 2) as usize) == b'\'' as c_char {
+                        } else if *linep.add((srch().findmatch_pos.col + 2) as usize)
+                            == b'\'' as c_char
+                        {
                             srch().findmatch_pos.col += 2;
                             skipped_single_quote = true;
                         }
@@ -2413,12 +2492,7 @@ pub fn findmatchlimit(
                         && !vim_strchr(c"(){}[]", c).is_null()
                         && srch().findmatch_pos.col > 1
                         && check_prevcol(linep, srch().findmatch_pos.col, b'\\' as c_int, None)
-                        && check_prevcol(
-                            linep,
-                            srch().findmatch_pos.col - 1,
-                            b'#' as c_int,
-                            None,
-                        )
+                        && check_prevcol(linep, srch().findmatch_pos.col - 1, b'#' as c_int, None)
                     {
                         continue;
                     }
@@ -2478,11 +2552,15 @@ pub fn showmatch(c: c_int) {
 
         let mut p = curbuf_mut().b_p_mps;
         while !crate::memory::cstr_is_empty(p) {
-            if utf_ptr2char(p) == c && ((curwin_mut().w_onebuf_opt.wo_rl != 0) ^ (opt_vars().p_ri != 0)) {
+            if utf_ptr2char(p) == c
+                && ((curwin_mut().w_onebuf_opt.wo_rl != 0) ^ (opt_vars().p_ri != 0))
+            {
                 break;
             }
             p = p.add(utfc_ptr2len(p) as usize + 1);
-            if utf_ptr2char(p) == c && !((curwin_mut().w_onebuf_opt.wo_rl != 0) ^ (opt_vars().p_ri != 0)) {
+            if utf_ptr2char(p) == c
+                && !((curwin_mut().w_onebuf_opt.wo_rl != 0) ^ (opt_vars().p_ri != 0))
+            {
                 break;
             }
             p = p.add(utfc_ptr2len(p) as usize);
@@ -2506,18 +2584,12 @@ pub fn showmatch(c: c_int) {
         }
 
         if curwin_mut().w_onebuf_opt.wo_wrap == 0 {
-            getvcol(
-                curwin_mut(),
-                &mut *lpos,
-                None,
-                Some(&mut vcol),
-                None,
-                0,
-            );
+            getvcol(curwin_mut(), &mut *lpos, None, Some(&mut vcol), None, 0);
         }
 
         let col_visible = curwin_mut().w_onebuf_opt.wo_wrap != 0
-            || (vcol >= curwin_mut().w_leftcol && vcol < curwin_mut().w_leftcol + curwin_mut().w_view_width);
+            || (vcol >= curwin_mut().w_leftcol
+                && vcol < curwin_mut().w_leftcol + curwin_mut().w_view_width);
         if !col_visible {
             return;
         }
@@ -2558,15 +2630,20 @@ pub fn showmatch(c: c_int) {
 }
 
 pub fn current_search(count: c_int, forward: bool) -> bool {
-     {
+    {
         let old_p_ws = opt_vars().p_ws;
         let save_visual = g_st().visual_global.start;
 
-        if g_st().visual_global.active && crate::memory::cstr_first_byte(opt_vars().p_sel) == b'e' && lt(g_st().visual_global.start, curwin_mut().w_cursor) {
+        if g_st().visual_global.active
+            && crate::memory::cstr_first_byte(opt_vars().p_sel) == b'e'
+            && lt(g_st().visual_global.start, curwin_mut().w_cursor)
+        {
             dec_cursor();
         }
 
-        let skip_first_backward = forward && g_st().visual_global.active && lt(curwin_mut().w_cursor, g_st().visual_global.start);
+        let skip_first_backward = forward
+            && g_st().visual_global.active
+            && lt(curwin_mut().w_cursor, g_st().visual_global.start);
 
         let mut pos = curwin_mut().w_cursor;
         let orig_pos = curwin_mut().w_cursor;
@@ -2658,7 +2735,10 @@ pub fn current_search(count: c_int, forward: bool) -> bool {
             } else {
                 dec_cursor();
             }
-        } else if g_st().visual_global.active && lt(curwin_mut().w_cursor, g_st().visual_global.start) && forward {
+        } else if g_st().visual_global.active
+            && lt(curwin_mut().w_cursor, g_st().visual_global.start)
+            && forward
+        {
             curwin_mut().w_cursor = pos;
         }
         g_st().visual_global.active = true;
@@ -2691,8 +2771,9 @@ fn is_zero_width(
     move_to_start: bool,
     cur: &mut CursorPos,
     direction: Direction,
-) -> c_int { let mut pattern = pattern.into_c_char_ptr();
-     {
+) -> c_int {
+    let mut pattern = pattern.into_c_char_ptr();
+    {
         let mut regmatch: Regmmatch = Regmmatch::new();
         let mut result: c_int = -1;
         let mut pos = CursorPos {
@@ -2717,8 +2798,7 @@ fn is_zero_width(
             SEARCH_KEEP,
             opt_vars().p_magic != 0,
             &mut regmatch,
-        )
-        {
+        ) {
             return -1;
         }
 
@@ -2786,7 +2866,7 @@ fn is_zero_width(
 }
 
 pub fn linewhite(lnum: Linenr) -> bool {
-     {
+    {
         let p = skipwhite(ml_get(lnum));
         crate::memory::cstr_is_empty(p)
     }
@@ -2807,13 +2887,7 @@ fn cmdline_search_stat(
         let mut stat = Searchstat::default();
 
         update_search_stat(
-            dirc,
-            pos,
-            cursor_pos,
-            &mut stat,
-            recompute,
-            maxcount,
-            timeout,
+            dirc, pos, cursor_pos, &mut stat, recompute, maxcount, timeout,
         );
         if stat.cur <= 0 {
             return;
@@ -2823,60 +2897,32 @@ fn cmdline_search_stat(
         let t_ptr = (&raw mut t).cast::<c_char>();
         let mut len: usize;
 
-        if curwin_mut().w_onebuf_opt.wo_rl != 0 && crate::memory::cstr_first_byte(curwin_mut().w_onebuf_opt.wo_rlc) == b's' {
+        if curwin_mut().w_onebuf_opt.wo_rl != 0
+            && crate::memory::cstr_first_byte(curwin_mut().w_onebuf_opt.wo_rlc) == b's'
+        {
             if stat.incomplete == 1 {
                 len = vim_snprintf!(t_ptr, SEARCH_STAT_BUF_LEN, c"[?/??]") as usize;
             } else if stat.cnt > maxcount && stat.cur > maxcount {
-                len = vim_snprintf!(
-                    t_ptr,
-                    SEARCH_STAT_BUF_LEN,
-                    c"[>%d/>%d]",
-                    maxcount,
-                    maxcount,
-                ) as usize;
+                len = vim_snprintf!(t_ptr, SEARCH_STAT_BUF_LEN, c"[>%d/>%d]", maxcount, maxcount,)
+                    as usize;
             } else if stat.cnt > maxcount {
-                len = vim_snprintf!(
-                    t_ptr,
-                    SEARCH_STAT_BUF_LEN,
-                    c"[>%d/%d]",
-                    maxcount,
-                    stat.cur,
-                ) as usize;
+                len = vim_snprintf!(t_ptr, SEARCH_STAT_BUF_LEN, c"[>%d/%d]", maxcount, stat.cur,)
+                    as usize;
             } else {
-                len = vim_snprintf!(
-                    t_ptr,
-                    SEARCH_STAT_BUF_LEN,
-                    c"[%d/%d]",
-                    stat.cnt,
-                    stat.cur,
-                ) as usize;
+                len = vim_snprintf!(t_ptr, SEARCH_STAT_BUF_LEN, c"[%d/%d]", stat.cnt, stat.cur,)
+                    as usize;
             }
         } else if stat.incomplete == 1 {
             len = vim_snprintf!(t_ptr, SEARCH_STAT_BUF_LEN, c"[?/??]") as usize;
         } else if stat.cnt > maxcount && stat.cur > maxcount {
-            len = vim_snprintf!(
-                t_ptr,
-                SEARCH_STAT_BUF_LEN,
-                c"[>%d/>%d]",
-                maxcount,
-                maxcount,
-            ) as usize;
+            len = vim_snprintf!(t_ptr, SEARCH_STAT_BUF_LEN, c"[>%d/>%d]", maxcount, maxcount,)
+                as usize;
         } else if stat.cnt > maxcount {
-            len = vim_snprintf!(
-                t_ptr,
-                SEARCH_STAT_BUF_LEN,
-                c"[%d/>%d]",
-                stat.cur,
-                maxcount,
-            ) as usize;
+            len = vim_snprintf!(t_ptr, SEARCH_STAT_BUF_LEN, c"[%d/>%d]", stat.cur, maxcount,)
+                as usize;
         } else {
-            len = vim_snprintf!(
-                t_ptr,
-                SEARCH_STAT_BUF_LEN,
-                c"[%d/%d]",
-                stat.cur,
-                stat.cnt,
-            ) as usize;
+            len =
+                vim_snprintf!(t_ptr, SEARCH_STAT_BUF_LEN, c"[%d/%d]", stat.cur, stat.cnt,) as usize;
         }
 
         if show_top_bot_msg && len + 2 < SEARCH_STAT_BUF_LEN {
@@ -2906,7 +2952,7 @@ fn update_search_stat(
     maxcount: c_int,
     timeout: c_int,
 ) {
-     {
+    {
         let save_ws = opt_vars().p_ws;
         let p = *pos;
 
@@ -3027,8 +3073,7 @@ fn update_search_stat(
     }
 }
 
-pub fn f_searchcount(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData){
-
+pub fn f_searchcount(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
     unsafe {
         let mut pos = curwin_mut().w_cursor;
         let mut pattern: *mut c_char = ptr::null_mut();
@@ -3079,32 +3124,26 @@ pub fn f_searchcount(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFunc
                     return;
                 }
                 if tv_list_len(((*di).di_tv.vval.v_list()).as_ref()) != 3 {
-                    semsg!(
-                        tr(E_INVARG2),
-                        c"List format should be [lnum, col, off]",
-                    );
+                    semsg!(tr(E_INVARG2), c"List format should be [lnum, col, off]",);
                     return;
                 }
                 let mut li: *mut Listitem = tv_list_find(((*di).di_tv.vval.v_list()).as_mut(), 0);
                 if !li.is_null() {
-                    pos.lnum =
-                        tv_get_number_chk(&(*li).li_tv, Some(&mut error)) as Linenr;
+                    pos.lnum = tv_get_number_chk(&(*li).li_tv, Some(&mut error)) as Linenr;
                     if error {
                         return;
                     }
                 }
                 li = tv_list_find(((*di).di_tv.vval.v_list()).as_mut(), 1);
                 if !li.is_null() {
-                    pos.col =
-                        tv_get_number_chk(&(*li).li_tv, Some(&mut error)) as Colnr - 1;
+                    pos.col = tv_get_number_chk(&(*li).li_tv, Some(&mut error)) as Colnr - 1;
                     if error {
                         return;
                     }
                 }
                 li = tv_list_find(((*di).di_tv.vval.v_list()).as_mut(), 2);
                 if !li.is_null() {
-                    pos.coladd =
-                        tv_get_number_chk(&(*li).li_tv, Some(&mut error)) as Colnr;
+                    pos.coladd = tv_get_number_chk(&(*li).li_tv, Some(&mut error)) as Colnr;
                     if error {
                         return;
                     }
@@ -3119,7 +3158,8 @@ pub fn f_searchcount(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFunc
             if crate::memory::cstr_is_empty(pattern) {
                 do_update = false;
             } else {
-                srch().spats[srch().last_idx as usize].pat = Some(crate::memory::cstr_to_cstring(pattern));
+                srch().spats[srch().last_idx as usize].pat =
+                    Some(crate::memory::cstr_to_cstring(pattern));
             }
         }
         if do_update
@@ -3171,8 +3211,8 @@ pub fn f_searchcount(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFunc
 
 fn get_line_and_copy(lnum: Linenr, buf: *mut c_char) -> *mut c_char {
     let line = ml_get(lnum);
-        xstrlcpy(buf, line, LSIZE);
-        buf
+    xstrlcpy(buf, line, LSIZE);
+    buf
 }
 
 pub fn find_pattern_in_path(
@@ -3188,7 +3228,8 @@ pub fn find_pattern_in_path(
     mut end_lnum: Linenr,
     forceit: bool,
     silent: bool,
-) { let ptr_pat = ptr_pat.into_c_char_ptr();
+) {
+    let ptr_pat = ptr_pat.into_c_char_ptr();
     unsafe {
         let mut max_path_depth: c_int = 50;
         let mut match_count: c_int = 1;
@@ -3240,14 +3281,18 @@ pub fn find_pattern_in_path(
             curbuf_mut().b_p_inc
         };
         if !crate::memory::cstr_is_empty(inc_opt) {
-            incl_regmatch.regprog = vim_regcomp(inc_opt, if opt_vars().p_magic != 0 { RE_MAGIC } else { 0 });
+            incl_regmatch.regprog =
+                vim_regcomp(inc_opt, if opt_vars().p_magic != 0 { RE_MAGIC } else { 0 });
             if incl_regmatch.regprog.is_null() {
                 vim_regfree(regmatch.regprog);
                 return;
             }
             incl_regmatch.rm_ic = false;
         }
-        if type_ == FIND_DEFINE && (!crate::memory::cstr_is_empty(curbuf_mut().b_p_def) || !crate::memory::cstr_is_empty(opt_vars().p_def)) {
+        if type_ == FIND_DEFINE
+            && (!crate::memory::cstr_is_empty(curbuf_mut().b_p_def)
+                || !crate::memory::cstr_is_empty(opt_vars().p_def))
+        {
             def_regmatch.regprog = vim_regcomp(
                 if crate::memory::cstr_is_empty(curbuf_mut().b_p_def) {
                     opt_vars().p_def
@@ -3380,11 +3425,15 @@ pub fn find_pattern_in_path(
                                     as c_int;
                             } else {
                                 p = incl_regmatch.endp[0];
-                                while !crate::memory::cstr_is_empty(p) && !vim_isfilec(c_int::from(crate::memory::cstr_first_byte(p))) {
+                                while !crate::memory::cstr_is_empty(p)
+                                    && !vim_isfilec(c_int::from(crate::memory::cstr_first_byte(p)))
+                                {
                                     p = p.add(1);
                                 }
                                 i = 0;
-                                while vim_isfilec(c_int::from(crate::memory::cstr_byte_at(p, i as usize))) {
+                                while vim_isfilec(c_int::from(crate::memory::cstr_byte_at(
+                                    p, i as usize,
+                                ))) {
                                     i += 1;
                                 }
                             }
@@ -3471,11 +3520,11 @@ pub fn find_pattern_in_path(
                 p = line;
                 loop {
                     define_matched = false;
-                    if !def_regmatch.regprog.is_null()
-                        && vim_regexec(&mut def_regmatch, line, 0)
-                    {
+                    if !def_regmatch.regprog.is_null() && vim_regexec(&mut def_regmatch, line, 0) {
                         p = def_regmatch.endp[0];
-                        while !crate::memory::cstr_is_empty(p) && !vim_iswordc(c_int::from(crate::memory::cstr_first_byte(p))) {
+                        while !crate::memory::cstr_is_empty(p)
+                            && !vim_iswordc(c_int::from(crate::memory::cstr_first_byte(p)))
+                        {
                             p = p.add(1);
                         }
                         define_matched = true;
@@ -3487,12 +3536,15 @@ pub fn find_pattern_in_path(
                             if opt_vars().p_ic != 0 {
                                 matched = mb_strnicmp(startp, ptr_pat, len) == 0;
                             } else {
-                                matched = crate::memory::cstr_prefix_bytes(startp, len) == crate::memory::cstr_prefix_bytes(ptr_pat, len);
+                                matched = crate::memory::cstr_prefix_bytes(startp, len)
+                                    == crate::memory::cstr_prefix_bytes(ptr_pat, len);
                             }
                             if matched
                                 && define_matched
                                 && whole
-                                && vim_iswordc(c_int::from(crate::memory::cstr_byte_at(startp, len)))
+                                && vim_iswordc(c_int::from(crate::memory::cstr_byte_at(
+                                    startp, len,
+                                )))
                             {
                                 matched = false;
                             }
@@ -3503,7 +3555,10 @@ pub fn find_pattern_in_path(
                             startp = regmatch.startp[0];
                             if skip_comments {
                                 if (crate::memory::cstr_first_byte(line) != b'#'
-                                    || !(crate::memory::cstr_prefix_bytes(skipwhite(line.add(1)), 6) == &b"define"[..6]))
+                                    || !(crate::memory::cstr_prefix_bytes(
+                                        skipwhite(line.add(1)),
+                                        6,
+                                    ) == &b"define"[..6]))
                                     && get_leader_len(line, ptr::null_mut(), false, true) != 0
                                 {
                                     matched = false;
@@ -3511,7 +3566,8 @@ pub fn find_pattern_in_path(
 
                                 p = skipwhite(line);
                                 if matched
-                                    || (crate::memory::cstr_first_byte(p) == b'/' && crate::memory::cstr_byte_at(p, 1) == b'*')
+                                    || (crate::memory::cstr_first_byte(p) == b'/'
+                                        && crate::memory::cstr_byte_at(p, 1) == b'*')
                                     || crate::memory::cstr_first_byte(p) == b'*'
                                 {
                                     p = line;
@@ -3601,12 +3657,14 @@ pub fn find_pattern_in_path(
                                             if crate::memory::cstr_first_byte(aux) != b')'
                                                 && g_st().iobuff[(i - 1) as usize] != TAB
                                             {
-                                                if g_st().iobuff[(i - 1) as usize] != b' ' as c_char {
+                                                if g_st().iobuff[(i - 1) as usize] != b' ' as c_char
+                                                {
                                                     g_st().iobuff[i as usize] = b' ' as c_char;
                                                     i += 1;
                                                 }
                                                 if opt_vars().p_js != 0
-                                                    && (g_st().iobuff[(i - 2) as usize] == b'.' as c_char
+                                                    && (g_st().iobuff[(i - 2) as usize]
+                                                        == b'.' as c_char
                                                         || g_st().iobuff[(i - 2) as usize]
                                                             == b'?' as c_char
                                                         || g_st().iobuff[(i - 2) as usize]
@@ -3729,7 +3787,10 @@ pub fn find_pattern_in_path(
                             } else {
                                 if l_g_do_tagpreview != 0 {
                                     curwin_save = curwin_ptr();
-                                    prepare_tagpreview(true, !crate::memory::cstr_is_empty(opt_vars().p_pvp));
+                                    prepare_tagpreview(
+                                        true,
+                                        !crate::memory::cstr_is_empty(opt_vars().p_pvp),
+                                    );
                                 }
                                 if action == ACTION_SPLIT {
                                     if !win_split(0, 0) {
@@ -3935,7 +3996,11 @@ fn show_pat_in_path(
             }
             msg_prt_line(line, false);
 
-            if g_st().got_int || type_ != FIND_DEFINE || p < line || crate::memory::cstr_first_byte(p) != b'\\' {
+            if g_st().got_int
+                || type_ != FIND_DEFINE
+                || p < line
+                || crate::memory::cstr_first_byte(p) != b'\\'
+            {
                 break;
             }
 
@@ -3964,57 +4029,57 @@ pub fn get_search_pattern(pat: &mut SearchPattern) {
 
 pub fn get_substitute_pattern(pat: &mut SearchPattern) {
     *pat = srch().spats[1].clone();
-        pat.off = SearchOffset {
-            dir: 0,
-            line: false,
-            end: false,
-            off: 0,
-        };
+    pat.off = SearchOffset {
+        dir: 0,
+        line: false,
+        end: false,
+        off: 0,
+    };
 }
 
 pub fn get_search_pattern_ptr(substitute: bool) -> *const c_char {
     srch().spats[if substitute {
-            RE_SUBST as usize
-        } else {
-            RE_SEARCH as usize
-        }]
-        .pat_ptr()
+        RE_SUBST as usize
+    } else {
+        RE_SEARCH as usize
+    }]
+    .pat_ptr()
 }
 
 pub fn get_search_pattern_timestamp(substitute: bool) -> Timestamp {
     srch().spats[if substitute {
-            RE_SUBST as usize
-        } else {
-            RE_SEARCH as usize
-        }]
-        .timestamp
+        RE_SUBST as usize
+    } else {
+        RE_SEARCH as usize
+    }]
+    .timestamp
 }
 
 pub fn search_pattern_cleared(substitute: bool) -> bool {
     srch().spats[if substitute {
-            RE_SUBST as usize
-        } else {
-            RE_SEARCH as usize
-        }]
-        .pat
-        .is_none()
+        RE_SUBST as usize
+    } else {
+        RE_SEARCH as usize
+    }]
+    .pat
+    .is_none()
 }
 
 pub fn set_search_pattern(pat: SearchPattern) {
     free_spat(&mut srch().spats[0]);
-        srch().spats[0] = pat;
-        set_vv_searchforward();
+    srch().spats[0] = pat;
+    set_vv_searchforward();
 }
 
 pub fn set_substitute_pattern(pat: SearchPattern) {
     free_spat(&mut srch().spats[1]);
-        srch().spats[1] = pat;
-        srch().spats[1].off = SearchOffset {
-            dir: 0,
-            line: false,
-            end: false,
-            off: 0,
-        };
+    srch().spats[1] = pat;
+    srch().spats[1].off = SearchOffset {
+        dir: 0,
+        line: false,
+        end: false,
+        off: 0,
+    };
 }
 
 pub fn set_last_used_pattern(is_substitute_pattern: bool) {
@@ -4058,26 +4123,27 @@ mod tests {
             .lock()
             .unwrap_or_else(|e| e.into_inner());
         let save_magic = opt_vars().p_magic;
-            let save_cmp = opt_vars().cmp_flags;
-            opt_vars().p_magic = 1;
-            opt_vars().cmp_flags = crate::mbyte::K_OPT_CMP_FLAG_INTERNAL | crate::mbyte::K_OPT_CMP_FLAG_KEEPASCII;
-            for (pat, expected) in [
-                (c"", false),
-                (c"ä", false),
-                (c"Ä", true),
-                (c"äaÅ", true),
-                (c"\\", false),
-                (c"ab$\\", false),
-                (c"\\Ab", false),
-                (c"\\AU", true),
-                (c"\\_Ab", false),
-                (c"\\_AU", true),
-                (c"aa\\%Ab", false),
-                (c"aab\\%AU", true),
-            ] {
-                assert_eq!(pat_has_uppercase(pat.as_ptr().cast_mut()), expected);
-            }
-            opt_vars().p_magic = save_magic;
-            opt_vars().cmp_flags = save_cmp;
+        let save_cmp = opt_vars().cmp_flags;
+        opt_vars().p_magic = 1;
+        opt_vars().cmp_flags =
+            crate::mbyte::K_OPT_CMP_FLAG_INTERNAL | crate::mbyte::K_OPT_CMP_FLAG_KEEPASCII;
+        for (pat, expected) in [
+            (c"", false),
+            (c"ä", false),
+            (c"Ä", true),
+            (c"äaÅ", true),
+            (c"\\", false),
+            (c"ab$\\", false),
+            (c"\\Ab", false),
+            (c"\\AU", true),
+            (c"\\_Ab", false),
+            (c"\\_AU", true),
+            (c"aa\\%Ab", false),
+            (c"aab\\%AU", true),
+        ] {
+            assert_eq!(pat_has_uppercase(pat.as_ptr().cast_mut()), expected);
+        }
+        opt_vars().p_magic = save_magic;
+        opt_vars().cmp_flags = save_cmp;
     }
 }

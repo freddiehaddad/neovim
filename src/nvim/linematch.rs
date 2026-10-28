@@ -41,7 +41,7 @@ fn line_slice<'a>(m: &Mmfile) -> &'a [u8] {
     if m.ptr.is_null() || m.size <= 0 {
         return &[];
     }
-    let raw =  { crate::memory::cstr_slice(m.ptr, m.size as usize) };
+    let raw = { crate::memory::cstr_slice(m.ptr, m.size as usize) };
     let len = raw.iter().position(|&b| b == b'\n').unwrap_or(raw.len());
     &raw[..len.min(MATCH_CHAR_MAX_LEN - 1)]
 }
@@ -146,7 +146,7 @@ pub fn fastforward_buf_to_lnum(mut s: Mmfile, lnum: Linenr) -> Mmfile {
             s.size = 0;
             break;
         }
-        let slice =  { crate::memory::cstr_slice(s.ptr, s.size as usize) };
+        let slice = { crate::memory::cstr_slice(s.ptr, s.size as usize) };
         if let Some(pos) = slice.iter().position(|&b| b == b'\n') {
             s.ptr = unsafe { s.ptr.add(pos + 1) };
             s.size -= (pos as c_int) + 1;
@@ -224,26 +224,26 @@ fn try_possible_paths(
     let bit_place = paths[path_idx];
     *choice |= 1 << bit_place;
     try_possible_paths(
-            df_iters,
-            paths,
-            path_idx + 1,
-            choice,
-            diffcmppath,
-            diff_len,
-            diff_blk,
-            iwhite,
-        );
+        df_iters,
+        paths,
+        path_idx + 1,
+        choice,
+        diffcmppath,
+        diff_len,
+        diff_blk,
+        iwhite,
+    );
     *choice &= !(1 << bit_place);
     try_possible_paths(
-            df_iters,
-            paths,
-            path_idx + 1,
-            choice,
-            diffcmppath,
-            diff_len,
-            diff_blk,
-            iwhite,
-        );
+        df_iters,
+        paths,
+        path_idx + 1,
+        choice,
+        diffcmppath,
+        diff_len,
+        diff_blk,
+        iwhite,
+    );
 }
 
 fn populate_tensor(
@@ -268,28 +268,28 @@ fn populate_tensor(
         let unwrapped_idx_to = unwrap_indexes(&df_iters[..ndiffs], diff_len);
         diffcmppath[unwrapped_idx_to].df_lev_score = -1;
         try_possible_paths(
-                &df_iters[..ndiffs],
-                &paths[..npaths],
-                0,
-                &mut choice,
-                diffcmppath,
-                diff_len,
-                diff_blk,
-                iwhite,
-            );
+            &df_iters[..ndiffs],
+            &paths[..npaths],
+            0,
+            &mut choice,
+            diffcmppath,
+            diff_len,
+            diff_blk,
+            iwhite,
+        );
         return;
     }
 
     for i in 0..=diff_len[ch_dim] {
         df_iters[ch_dim] = i;
         populate_tensor(
-                df_iters,
-                ch_dim + 1,
-                diffcmppath,
-                diff_len,
-                diff_blk,
-                iwhite,
-            );
+            df_iters,
+            ch_dim + 1,
+            diffcmppath,
+            diff_len,
+            diff_blk,
+            iwhite,
+        );
     }
 }
 
@@ -327,11 +327,7 @@ fn test_charmatch_paths(
 /// # Safety
 /// Each `Mmfile` in `diff_blk` with a non-null `ptr` and `size > 0` must be valid for `size`
 /// bytes.
-pub fn linematch_nbuffers(
-    diff_blk: &[&Mmfile],
-    diff_len: &[c_int],
-    iwhite: bool,
-) -> Vec<c_int> {
+pub fn linematch_nbuffers(diff_blk: &[&Mmfile], diff_len: &[c_int], iwhite: bool) -> Vec<c_int> {
     let ndiffs = diff_blk.len();
     assert_eq!(ndiffs, diff_len.len());
     assert!(ndiffs <= LN_MAX_BUFS);
@@ -355,13 +351,13 @@ pub fn linematch_nbuffers(
 
     let mut df_iters = [0 as c_int; LN_MAX_BUFS];
     populate_tensor(
-            &mut df_iters,
-            0,
-            &mut diffcmppath,
-            diff_len,
-            &blks[..ndiffs],
-            iwhite,
-        );
+        &mut df_iters,
+        0,
+        &mut diffcmppath,
+        diff_len,
+        &blks[..ndiffs],
+        iwhite,
+    );
 
     let u = unwrap_indexes(diff_len, diff_len);
     test_charmatch_paths(&mut diffcmppath, u, 0);
@@ -398,11 +394,11 @@ mod tests {
         };
 
         let line2 = fastforward_buf_to_lnum(mm1, 2);
-            assert!(!line2.ptr.is_null());
-            assert_eq!(line_slice(&line2), b"beta_modified");
+        assert!(!line2.ptr.is_null());
+        assert_eq!(line_slice(&line2), b"beta_modified");
 
-            let decisions = linematch_nbuffers(&[&mm1, &mm2], &[3, 3], false);
-            // All 3 lines paired (1 | 2 == 3)
-            assert_eq!(decisions, vec![3, 3, 3]);
+        let decisions = linematch_nbuffers(&[&mm1, &mm2], &[3, 3], false);
+        // All 3 lines paired (1 | 2 == 3)
+        assert_eq!(decisions, vec![3, 3, 3]);
     }
 }

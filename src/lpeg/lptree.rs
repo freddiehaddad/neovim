@@ -9,13 +9,13 @@ use crate::lpeg::lpcode::{compile, fixedlen, hascaptures, nofail, nullable};
 use crate::lpeg::lpcset::{charsettype, tocharset};
 use crate::lpeg::lpvm::r#match;
 use crate::lpeg::{
-    CHARSETSIZE, CACC, Capture, CARG, CBACKREF, CCONST, CFOLD, CFUNCTION, CGROUP, Charset, CNUM,
-    CPOSITION, CQUERY, CSIMPLE, CSTRING, CSUBST, CTABLE, IANY, ICHAR, IFAIL, INITCAPSIZE, ISET,
-    Instruction, MAXBACK, MAXBEHIND, MAXINDT, MAXRULES, MAXSTACKIDX, NUMSIBLINGS, PATTERN_T,
-    Pattern, SUBJIDX, TAND, TANY, TBEHIND, TCALL, TCAPTURE, TCHAR, TCHOICE, TFALSE, TGRAMMAR, TNOT,
-    TOPEN_CALL, TREP, TRULE, TRUN_TIME, TSEQ, TSET, TTag, TTree, TTRUE, TUTFR, TXINFO, LpegByte,
-    bytes2slots, CharsetInfo, clearset, lua_Integer, lua_Number, lua_State, lua_Unsigned, luaL_Reg,
-    setchar, sib1, sib2, treebuffer, ttree_bitmap_offset, LpegUint,
+    CACC, CARG, CBACKREF, CCONST, CFOLD, CFUNCTION, CGROUP, CHARSETSIZE, CNUM, CPOSITION, CQUERY,
+    CSIMPLE, CSTRING, CSUBST, CTABLE, Capture, Charset, CharsetInfo, IANY, ICHAR, IFAIL,
+    INITCAPSIZE, ISET, Instruction, LpegByte, LpegUint, MAXBACK, MAXBEHIND, MAXINDT, MAXRULES,
+    MAXSTACKIDX, NUMSIBLINGS, PATTERN_T, Pattern, SUBJIDX, TAND, TANY, TBEHIND, TCALL, TCAPTURE,
+    TCHAR, TCHOICE, TFALSE, TGRAMMAR, TNOT, TOPEN_CALL, TREP, TRULE, TRUN_TIME, TSEQ, TSET, TTRUE,
+    TTag, TTree, TUTFR, TXINFO, bytes2slots, clearset, lua_Integer, lua_Number, lua_State,
+    lua_Unsigned, luaL_Reg, setchar, sib1, sib2, treebuffer, ttree_bitmap_offset,
 };
 
 use crate::lua::converter::{
@@ -105,7 +105,7 @@ fn finalfix(l: *mut lua_State, postable: c_int, g: *mut TTree, mut t: *mut TTree
                     }
                 }
                 TSEQ | TCHOICE => {
-                    correctassociativity( &mut *t);
+                    correctassociativity(&mut *t);
                 }
                 _ => {}
             }
@@ -260,10 +260,10 @@ fn mergektable(l: *mut lua_State, idx: c_int, stree: *mut TTree) {
 
 fn addtonewktable(l: *mut lua_State, p: c_int, idx: c_int) -> c_int {
     newktable(l, 1);
-        if p != 0 {
-            mergektable(l, p, ptr::null_mut());
-        }
-        addtoktable(l, idx)
+    if p != 0 {
+        mergektable(l, p, ptr::null_mut());
+    }
+    addtoktable(l, idx)
 }
 
 fn testpattern(l: *mut lua_State, idx: c_int) -> bool {
@@ -528,7 +528,7 @@ unsafe extern "C-unwind" fn lp_star(l: *mut lua_State) -> c_int {
             }
             while n > 0 {
                 n -= 1;
-                tree = seqaux( &mut *tree, tree1, size1);
+                tree = seqaux(&mut *tree, tree1, size1);
             }
             (*tree).tag = TREP;
             ptr::copy_nonoverlapping(tree1, sib1(tree), size1 as usize);
@@ -540,7 +540,7 @@ unsafe extern "C-unwind" fn lp_star(l: *mut lua_State) -> c_int {
                 (*tree).u.ps = n * (size1 + 3) - 2;
                 (*sib2(tree)).tag = TTRUE;
                 tree = sib1(tree);
-                tree = seqaux( &mut *tree, tree1, size1);
+                tree = seqaux(&mut *tree, tree1, size1);
                 n -= 1;
             }
             (*tree).tag = TCHOICE;
@@ -555,12 +555,12 @@ unsafe extern "C-unwind" fn lp_star(l: *mut lua_State) -> c_int {
 
 unsafe extern "C-unwind" fn lp_and(l: *mut lua_State) -> c_int {
     newroot1sib(l, TAND);
-        1
+    1
 }
 
 unsafe extern "C-unwind" fn lp_not(l: *mut lua_State) -> c_int {
     newroot1sib(l, TNOT);
-        1
+    1
 }
 
 unsafe extern "C-unwind" fn lp_sub(l: *mut lua_State) -> c_int {
@@ -672,18 +672,8 @@ unsafe extern "C-unwind" fn lp_behind(l: *mut lua_State) -> c_int {
         let tree1 = getpatt(l, 1, None);
         let n = fixedlen(tree1);
         luaL_argcheck(l, n >= 0, 1, c"pattern may not have fixed length");
-        luaL_argcheck(
-            l,
-            hascaptures(tree1) == 0,
-            1,
-            c"pattern have captures",
-        );
-        luaL_argcheck(
-            l,
-            n <= MAXBEHIND,
-            1,
-            c"pattern too long to look behind",
-        );
+        luaL_argcheck(l, hascaptures(tree1) == 0, 1, c"pattern have captures");
+        luaL_argcheck(l, n <= MAXBEHIND, 1, c"pattern too long to look behind");
         let tree = newroot1sib(l, TBEHIND);
         (*tree).u.n = n;
         1
@@ -693,12 +683,7 @@ unsafe extern "C-unwind" fn lp_behind(l: *mut lua_State) -> c_int {
 unsafe extern "C-unwind" fn lp_v(l: *mut lua_State) -> c_int {
     unsafe {
         let tree = newleaf(l, TOPEN_CALL);
-        luaL_argcheck(
-            l,
-            !lua_isnoneornil(l, 1),
-            1,
-            c"non-nil value expected",
-        );
+        luaL_argcheck(l, !lua_isnoneornil(l, 1), 1, c"non-nil value expected");
         (*tree).key = addtonewktable(l, 0, 1) as c_ushort;
         1
     }
@@ -784,10 +769,10 @@ unsafe extern "C-unwind" fn lp_tablecapture(l: *mut lua_State) -> c_int {
 
 unsafe extern "C-unwind" fn lp_groupcapture(l: *mut lua_State) -> c_int {
     if lua_isnoneornil(l, 2) {
-            capture_aux(l, CGROUP, 0)
-        } else {
-            capture_aux(l, CGROUP, 2)
-        }
+        capture_aux(l, CGROUP, 0)
+    } else {
+        capture_aux(l, CGROUP, 2)
+    }
 }
 
 unsafe extern "C-unwind" fn lp_foldcapture(l: *mut lua_State) -> c_int {
@@ -803,7 +788,7 @@ unsafe extern "C-unwind" fn lp_simplecapture(l: *mut lua_State) -> c_int {
 
 unsafe extern "C-unwind" fn lp_poscapture(l: *mut lua_State) -> c_int {
     newemptycap(l, CPOSITION, 0);
-        1
+    1
 }
 
 unsafe extern "C-unwind" fn lp_argcapture(l: *mut lua_State) -> c_int {
@@ -1161,12 +1146,7 @@ unsafe extern "C-unwind" fn lp_match(l: *mut lua_State) -> c_int {
         let s = luaL_checklstring(l, SUBJIDX, &mut len);
         let i = initposition(l, len);
         let ptop = lua_gettop(l);
-        luaL_argcheck(
-            l,
-            len < (MAXINDT as usize),
-            SUBJIDX,
-            c"subject too long",
-        );
+        luaL_argcheck(l, len < (MAXINDT as usize), SUBJIDX, c"subject too long");
         lua_pushnil(l);
         lua_pushlightuserdata(l, capture.as_mut_ptr().cast());
         lua_getfenv(l, 1);

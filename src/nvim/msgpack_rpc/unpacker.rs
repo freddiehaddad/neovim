@@ -10,11 +10,10 @@ use crate::grid::schar_from_buf;
 use crate::lua::converter::{Boolean, FieldHashfn, OptKeySet};
 use crate::memory::{Arena, arena_alloc, arena_finish, arena_mem_free};
 use crate::mpack::mpack_core::{
-    MPACK_OK, mpack_read, mpack_rtoken, mpack_tokbuf_init, MpackTokbuf, MpackToken,
-    MpackTokenType,
+    MPACK_OK, MpackTokbuf, MpackToken, MpackTokenType, mpack_read, mpack_rtoken, mpack_tokbuf_init,
 };
 use crate::mpack::object::{
-    MpackNode, mpack_parent_node, mpack_parse, mpack_parser_init, MpackParser,
+    MpackNode, MpackParser, mpack_parent_node, mpack_parse, mpack_parser_init,
 };
 use crate::msgpack_rpc::packer::{EXT_OBJECT_TYPE_SHIFT, Integer};
 use crate::ui_client::{
@@ -24,8 +23,7 @@ use crate::ui_client::{
 use std::ffi::{c_char, c_int};
 
 const MAX_EXT_LEN: usize = 9;
-const EXT_OBJECT_TYPE_MAX: c_int =
-    (ObjectType::ObjectTypeTabpage as c_int) - EXT_OBJECT_TYPE_SHIFT;
+const EXT_OBJECT_TYPE_MAX: c_int = (ObjectType::ObjectTypeTabpage as c_int) - EXT_OBJECT_TYPE_SHIFT;
 const K_UNPACK_TYPE_STRING_ARRAY: c_int = -1;
 
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
@@ -260,10 +258,10 @@ fn api_parse_enter(parser: &mut MpackParser, node: &mut MpackNode) {
                 *result = Object {
                     obj_type: ObjectType::ObjectTypeArray,
                     data: ObjectData::Array(Array {
-                            size: len,
-                            capacity: len,
-                            items,
-                        }),
+                        size: len,
+                        capacity: len,
+                        items,
+                    }),
                 };
                 node.data[0] = crate::mpack::object::MpackData::Object(result);
             }
@@ -278,10 +276,10 @@ fn api_parse_enter(parser: &mut MpackParser, node: &mut MpackNode) {
                 *result = Object {
                     obj_type: ObjectType::ObjectTypeDict,
                     data: ObjectData::Dict(Dict {
-                            size: len,
-                            capacity: len,
-                            items,
-                        }),
+                        size: len,
+                        capacity: len,
+                        items,
+                    }),
                 };
                 node.data[0] = crate::mpack::object::MpackData::Object(result);
             }
@@ -300,7 +298,8 @@ pub fn unpack(
     mut size: usize,
     arena: &mut Arena,
     err: &mut Error,
-) -> Object { let mut data = data.into_c_char_ptr();
+) -> Object {
+    let mut data = data.into_c_char_ptr();
     let mut unpacker = Unpacker::new();
     mpack_parser_init(&mut unpacker.parser, 0);
     unpacker.parser.data = crate::mpack::object::MpackData::Unpacker(&mut unpacker);
@@ -391,7 +390,7 @@ impl Unpacker {
 impl Drop for Unpacker {
     fn drop(&mut self) {
         let mem = arena_finish(&mut self.arena);
-            arena_mem_free(mem);
+        arena_mem_free(mem);
     }
 }
 
@@ -416,9 +415,7 @@ pub fn unpacker_parse_header(p: &mut Unpacker) -> bool {
 
         let mut result = mpack_read(&mut p.reader, &mut data, &mut size, &mut tok);
         if result == 0
-            && (tok.r#type != MpackTokenType::MpackTokenArray
-                || tok.length < 3
-                || tok.length > 4)
+            && (tok.r#type != MpackTokenType::MpackTokenArray || tok.length < 3 || tok.length > 4)
         {
             result = MPACK_ERROR;
         }
@@ -699,9 +696,10 @@ pub fn unpacker_parse_redraw(p: &mut Unpacker) -> bool {
             p.nevents -= 1;
             p.read_ptr = data;
             p.read_size = size;
-            if p.ui_handler.r#fn.is_none_or(|f| {
-                !std::ptr::fn_addr_eq(f, ui_client_event_grid_line as fn(Array))
-            }) {
+            if p.ui_handler
+                .r#fn
+                .is_none_or(|f| !std::ptr::fn_addr_eq(f, ui_client_event_grid_line as fn(Array)))
+            {
                 p.state = 12;
                 return true;
             } else {
@@ -918,11 +916,7 @@ pub fn unpack_array(data: &mut *const c_char, size: &mut usize) -> isize {
 }
 
 /// Unpack a msgpack integer (`unpack_integer`).
-pub fn unpack_integer(
-    data: &mut *const c_char,
-    size: &mut usize,
-    res: &mut Integer,
-) -> bool {
+pub fn unpack_integer(data: &mut *const c_char, size: &mut usize, res: &mut Integer) -> bool {
     let mut tok = MpackToken::new();
     let result = mpack_rtoken(data, size, &mut tok);
     if result != 0 {
@@ -1089,28 +1083,28 @@ mod tests {
     fn push_additional_data_populates_header_and_payload() {
         let mut ad = AdditionalDataBuilder::default();
         push_additional_data(&mut ad, c"abc", 3);
-            push_additional_data(&mut ad, c"de", 2);
-            let hdr = ad.as_ref().unwrap();
-            assert_eq!(hdr.nitems, 2);
-            assert_eq!(hdr.bytes.len(), 5);
+        push_additional_data(&mut ad, c"de", 2);
+        let hdr = ad.as_ref().unwrap();
+        assert_eq!(hdr.nitems, 2);
+        assert_eq!(hdr.bytes.len(), 5);
     }
 
     #[test]
     fn unpacker_handles_paused_and_empty_grid_line() {
         let payload1: &[u8] = b"\x93\x02\xa6\x72\x65\x64\x72\x61\x77\x91\x92\xa9\x67\x72\x69\x64\x5f\x6c\x69\x6e\x65\x95\x02\x00\x00\x91\x93\xa1\x20\x00\x4d\xc2";
-            let mut unpacker = Unpacker::new();
-            unpacker_init(&mut unpacker);
-            unpacker.read_ptr = payload1.as_ptr().cast();
-            unpacker.read_size = payload1.len() - 1;
-            assert!(!unpacker_advance(&mut unpacker));
-            unpacker.read_size += 1;
-            assert!(unpacker_advance(&mut unpacker));
+        let mut unpacker = Unpacker::new();
+        unpacker_init(&mut unpacker);
+        unpacker.read_ptr = payload1.as_ptr().cast();
+        unpacker.read_size = payload1.len() - 1;
+        assert!(!unpacker_advance(&mut unpacker));
+        unpacker.read_size += 1;
+        assert!(unpacker_advance(&mut unpacker));
 
-            let payload2: &[u8] = b"\x93\x02\xa6\x72\x65\x64\x72\x61\x77\x91\x92\xa9\x67\x72\x69\x64\x5f\x6c\x69\x6e\x65\x95\x02\x00\x00\x90\xc2";
-            unpacker = Unpacker::new();
-            unpacker_init(&mut unpacker);
-            unpacker.read_ptr = payload2.as_ptr().cast();
-            unpacker.read_size = payload2.len();
-            assert!(unpacker_advance(&mut unpacker));
+        let payload2: &[u8] = b"\x93\x02\xa6\x72\x65\x64\x72\x61\x77\x91\x92\xa9\x67\x72\x69\x64\x5f\x6c\x69\x6e\x65\x95\x02\x00\x00\x90\xc2";
+        unpacker = Unpacker::new();
+        unpacker_init(&mut unpacker);
+        unpacker.read_ptr = payload2.as_ptr().cast();
+        unpacker.read_size = payload2.len();
+        assert!(unpacker_advance(&mut unpacker));
     }
 }

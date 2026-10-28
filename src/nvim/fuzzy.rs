@@ -2,16 +2,16 @@
 
 use crate::buffer::FileBuf;
 use crate::charset::{ascii_isalnum, ascii_iswhite, skipwhite, vim_iswordc, vim_iswordp};
-use crate::cursor::{equalpos, CursorPos};
-use crate::errors::{E_INVARG2, E_INVARG_NVAL, E_INVARGVAL, E_LISTARG};
+use crate::cursor::{CursorPos, equalpos};
+use crate::errors::{E_INVARG_NVAL, E_INVARG2, E_INVARGVAL, E_LISTARG};
 use crate::eval::callback_call;
 use crate::eval::fs::K_LIST_LEN_UNKNOWN;
 use crate::eval::typval::{
-    Callback, EvalFuncData, TypvalVval, VAR_UNLOCKED, VarType, callback_free, TvList, Listitem,
-    tv_check_for_nonnull_dict_arg, tv_clear, tv_dict_find, tv_dict_get_callback,
+    Callback, EvalFuncData, Listitem, TvList, TypVal, TypvalVval, VAR_UNLOCKED, VarType,
+    callback_free, tv_check_for_nonnull_dict_arg, tv_clear, tv_dict_find, tv_dict_get_callback,
     tv_dict_get_string, tv_dict_has_key, tv_dict_unref, tv_get_number_chk, tv_get_string,
     tv_list_alloc, tv_list_alloc_ret, tv_list_append_list, tv_list_append_number,
-    tv_list_append_tv, tv_list_find, tv_list_len, TypVal,
+    tv_list_append_tv, tv_list_find, tv_list_len,
 };
 use crate::globals::*;
 use crate::insexpand::{ctrl_x_mode_whole_line, find_line_end, find_word_end, find_word_start};
@@ -70,7 +70,12 @@ struct MatchStruct {
     match_bonus: [f64; MATCH_MAX_LEN],
 }
 
-fn has_match(needle: impl crate::strings::IntoCCharPtr, haystack: impl crate::strings::IntoCCharPtr) -> bool { let needle = needle.into_c_char_ptr(); let haystack = haystack.into_c_char_ptr();
+fn has_match(
+    needle: impl crate::strings::IntoCCharPtr,
+    haystack: impl crate::strings::IntoCCharPtr,
+) -> bool {
+    let needle = needle.into_c_char_ptr();
+    let haystack = haystack.into_c_char_ptr();
     unsafe {
         if needle.is_null() || haystack.is_null() || *needle == 0 {
             return false;
@@ -107,27 +112,29 @@ fn has_match(needle: impl crate::strings::IntoCCharPtr, haystack: impl crate::st
 
 fn compute_bonus_codepoint(last_c: c_int, c: c_int) -> f64 {
     if ascii_isalnum(c) || vim_iswordc(c) {
-            if last_c == (b'/' as c_int) {
-                return SCORE_MATCH_SLASH;
-            }
-            if last_c == (b'-' as c_int) || last_c == (b'_' as c_int) || last_c == (b' ' as c_int) {
-                return SCORE_MATCH_WORD;
-            }
-            if last_c == (b'.' as c_int) {
-                return SCORE_MATCH_DOT;
-            }
-            if mb_isupper(c) && mb_islower(last_c) {
-                return SCORE_MATCH_CAPITAL;
-            }
+        if last_c == (b'/' as c_int) {
+            return SCORE_MATCH_SLASH;
         }
-        0.0
+        if last_c == (b'-' as c_int) || last_c == (b'_' as c_int) || last_c == (b' ' as c_int) {
+            return SCORE_MATCH_WORD;
+        }
+        if last_c == (b'.' as c_int) {
+            return SCORE_MATCH_DOT;
+        }
+        if mb_isupper(c) && mb_islower(last_c) {
+            return SCORE_MATCH_CAPITAL;
+        }
+    }
+    0.0
 }
 
 fn setup_match_struct(
     match_st: &mut MatchStruct,
     needle: impl crate::strings::IntoCCharPtr,
     haystack: impl crate::strings::IntoCCharPtr,
-) { let needle = needle.into_c_char_ptr(); let haystack = haystack.into_c_char_ptr();
+) {
+    let needle = needle.into_c_char_ptr();
+    let haystack = haystack.into_c_char_ptr();
     unsafe {
         let mut i = 0usize;
         let mut p = needle;
@@ -203,11 +210,7 @@ fn match_row(
     }
 }
 
-fn match_positions(
-    needle: *const c_char,
-    haystack: *const c_char,
-    positions: *mut u32,
-) -> f64 {
+fn match_positions(needle: *const c_char, haystack: *const c_char, positions: *mut u32) -> f64 {
     unsafe {
         if needle.is_null() || haystack.is_null() || *needle == 0 {
             return SCORE_MIN;
@@ -302,7 +305,9 @@ pub fn fuzzy_match(
     out_score: &mut c_int,
     matches: *mut u32,
     max_matches: c_int,
-) -> bool { let str_ptr = str_ptr.into_c_char_ptr(); let pat_arg = pat_arg.into_c_char_ptr();
+) -> bool {
+    let str_ptr = str_ptr.into_c_char_ptr();
+    let pat_arg = pat_arg.into_c_char_ptr();
     unsafe {
         let mut complete = false;
         let mut num_matches: c_int = 0;
@@ -422,7 +427,9 @@ fn fuzzy_match_in_list(
     retmatchpos: bool,
     fmatchlist: &mut TvList,
     max_matches: c_int,
-) { let str_ptr = str_ptr.into_c_char_ptr(); let key = key.into_c_char_ptr();
+) {
+    let str_ptr = str_ptr.into_c_char_ptr();
+    let key = key.into_c_char_ptr();
     unsafe {
         let mut len = tv_list_len(l);
         if len == 0 {
@@ -436,7 +443,8 @@ fn fuzzy_match_in_list(
         let mut match_count: c_int = 0;
         let mut matches = [0u32; FUZZY_MATCH_MAX_LEN];
 
-        for li in crate::eval::typval::list_iter_ptr(l.map_or(std::ptr::null_mut(), |l| l.lv_first)) {
+        for li in crate::eval::typval::list_iter_ptr(l.map_or(std::ptr::null_mut(), |l| l.lv_first))
+        {
             if max_matches > 0 && match_count >= max_matches {
                 break;
             }
@@ -534,7 +542,7 @@ fn fuzzy_match_in_list(
 
             for cur in &items {
                 let item_li = cur.item;
-                tv_list_append_tv( &mut *retlist, &mut (*item_li).li_tv);
+                tv_list_append_tv(&mut *retlist, &mut (*item_li).li_tv);
             }
 
             if retmatchpos {
@@ -545,16 +553,16 @@ fn fuzzy_match_in_list(
                 for cur in &items {
                     let match_positions_list = tv_list_alloc(cur.matchpos.len() as isize);
                     for &pos in &cur.matchpos {
-                        tv_list_append_number( &mut *match_positions_list, pos);
+                        tv_list_append_number(&mut *match_positions_list, pos);
                     }
-                    tv_list_append_list( &mut *retlist, match_positions_list);
+                    tv_list_append_list(&mut *retlist, match_positions_list);
                 }
 
                 let score_li = tv_list_find(Some(&mut *fmatchlist), -1);
                 assert!(!score_li.is_null() && !(*score_li).li_tv.vval.v_list().is_null());
                 retlist = (*score_li).li_tv.vval.v_list();
                 for cur in &items {
-                    tv_list_append_number( &mut *retlist, cur.score as i64);
+                    tv_list_append_number(&mut *retlist, cur.score as i64);
                 }
             }
         }
@@ -600,11 +608,7 @@ fn do_fuzzymatch(argvars: &[TypVal], rettv: &mut TypVal, retmatchpos: bool) {
                     || (*di_key).di_tv.vval.v_string().is_null()
                     || *(*di_key).di_tv.vval.v_string() == 0
                 {
-                    semsg!(
-                        E_INVARG_NVAL,
-                        c"key",
-                        tv_get_string(&(*di_key).di_tv),
-                    );
+                    semsg!(E_INVARG_NVAL, c"key", tv_get_string(&(*di_key).di_tv),);
                     return;
                 }
                 key = tv_get_string(&(*di_key).di_tv);
@@ -628,12 +632,15 @@ fn do_fuzzymatch(argvars: &[TypVal], rettv: &mut TypVal, retmatchpos: bool) {
             }
         }
 
-        tv_list_alloc_ret(&mut *rettv, if retmatchpos { 3 } else { K_LIST_LEN_UNKNOWN });
+        tv_list_alloc_ret(
+            &mut *rettv,
+            if retmatchpos { 3 } else { K_LIST_LEN_UNKNOWN },
+        );
         let out_list = rettv.vval.v_list();
         if retmatchpos {
-            tv_list_append_list( &mut *out_list, tv_list_alloc(K_LIST_LEN_UNKNOWN));
-            tv_list_append_list( &mut *out_list, tv_list_alloc(K_LIST_LEN_UNKNOWN));
-            tv_list_append_list( &mut *out_list, tv_list_alloc(K_LIST_LEN_UNKNOWN));
+            tv_list_append_list(&mut *out_list, tv_list_alloc(K_LIST_LEN_UNKNOWN));
+            tv_list_append_list(&mut *out_list, tv_list_alloc(K_LIST_LEN_UNKNOWN));
+            tv_list_append_list(&mut *out_list, tv_list_alloc(K_LIST_LEN_UNKNOWN));
         }
 
         fuzzy_match_in_list(
@@ -652,12 +659,12 @@ fn do_fuzzymatch(argvars: &[TypVal], rettv: &mut TypVal, retmatchpos: bool) {
 }
 
 /// `"matchfuzzy()"` function (`f_matchfuzzy`).
-pub fn f_matchfuzzy(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData){
+pub fn f_matchfuzzy(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
     do_fuzzymatch(argvars, rettv, false);
 }
 
 /// `"matchfuzzypos()"` function (`f_matchfuzzypos`).
-pub fn f_matchfuzzypos(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData){
+pub fn f_matchfuzzypos(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
     do_fuzzymatch(argvars, rettv, true);
 }
 
@@ -682,7 +689,12 @@ fn fuzzy_match_func_compare(f1: &FuzmatchStr, f2: &FuzmatchStr) -> c_int {
 }
 
 /// Fuzzy match `pat` in `str` (`fuzzy_match_str`).
-pub fn fuzzy_match_str(str_ptr: impl crate::strings::IntoCCharPtr, pat: impl crate::strings::IntoCCharPtr) -> c_int { let str_ptr = str_ptr.into_c_char_ptr(); let pat = pat.into_c_char_ptr();
+pub fn fuzzy_match_str(
+    str_ptr: impl crate::strings::IntoCCharPtr,
+    pat: impl crate::strings::IntoCCharPtr,
+) -> c_int {
+    let str_ptr = str_ptr.into_c_char_ptr();
+    let pat = pat.into_c_char_ptr();
     if str_ptr.is_null() || pat.is_null() {
         return 0;
     }
@@ -690,13 +702,13 @@ pub fn fuzzy_match_str(str_ptr: impl crate::strings::IntoCCharPtr, pat: impl cra
     let mut score = FUZZY_SCORE_NONE;
     let mut matchpos = [0u32; FUZZY_MATCH_MAX_LEN];
     fuzzy_match(
-            str_ptr,
-            pat,
-            true,
-            &mut score,
-            matchpos.as_mut_ptr(),
-            FUZZY_MATCH_MAX_LEN as c_int,
-        );
+        str_ptr,
+        pat,
+        true,
+        &mut score,
+        matchpos.as_mut_ptr(),
+        FUZZY_MATCH_MAX_LEN as c_int,
+    );
     score
 }
 
@@ -704,7 +716,9 @@ pub fn fuzzy_match_str(str_ptr: impl crate::strings::IntoCCharPtr, pat: impl cra
 pub fn fuzzy_match_str_with_pos(
     str_ptr: impl crate::strings::IntoCCharPtr,
     pat: impl crate::strings::IntoCCharPtr,
-) -> Option<Vec<u32>> { let str_ptr = str_ptr.into_c_char_ptr(); let pat = pat.into_c_char_ptr();
+) -> Option<Vec<u32>> {
+    let str_ptr = str_ptr.into_c_char_ptr();
+    let pat = pat.into_c_char_ptr();
     unsafe {
         if str_ptr.is_null() || pat.is_null() {
             return None;
@@ -746,7 +760,8 @@ pub fn fuzzy_match_str_in_line(
     len: &mut c_int,
     current_pos: Option<&mut CursorPos>,
     score: &mut c_int,
-) -> bool { let pat = pat.into_c_char_ptr();
+) -> bool {
+    let pat = pat.into_c_char_ptr();
     unsafe {
         let mut str_cur = *ptr;
         let str_begin = str_cur;
@@ -803,7 +818,8 @@ pub fn search_for_fuzzy_match(
     len: &mut c_int,
     ptr: *mut *mut c_char,
     score: &mut c_int,
-) -> bool { let pattern = pattern.into_c_char_ptr();
+) -> bool {
+    let pattern = pattern.into_c_char_ptr();
     unsafe {
         let mut current_pos = *pos;
         let mut found_new_match = false;
@@ -843,8 +859,13 @@ pub fn search_for_fuzzy_match(
 
                 if !(*ptr).is_null() && **ptr != 0 {
                     if !whole_line {
-                        found_new_match =
-                            fuzzy_match_str_in_line(ptr, pattern, len, Some(&mut current_pos), score);
+                        found_new_match = fuzzy_match_str_in_line(
+                            ptr,
+                            pattern,
+                            len,
+                            Some(&mut current_pos),
+                            score,
+                        );
                         if found_new_match {
                             *pos = current_pos;
                             break;
@@ -901,15 +922,19 @@ pub fn fuzzymatches_slice_to_strmatches(
     funcsort: bool,
 ) {
     matches.clear();
-        if !fuzmatch.is_empty() {
-            if funcsort {
-                fuzmatch.sort_by(|a, b| fuzzy_match_func_compare(a, b).cmp(&0));
-            } else {
-                fuzmatch.sort_unstable_by(fuzzy_match_str_compare);
-            }
-
-            matches.extend(fuzmatch.iter_mut().map(|item| std::mem::take(&mut item.str_cstr)));
+    if !fuzmatch.is_empty() {
+        if funcsort {
+            fuzmatch.sort_by(|a, b| fuzzy_match_func_compare(a, b).cmp(&0));
+        } else {
+            fuzmatch.sort_unstable_by(fuzzy_match_str_compare);
         }
+
+        matches.extend(
+            fuzmatch
+                .iter_mut()
+                .map(|item| std::mem::take(&mut item.str_cstr)),
+        );
+    }
 }
 
 #[cfg(test)]
@@ -919,20 +944,20 @@ mod tests {
     #[test]
     fn fuzzymatches_to_strmatches_sorts_snr_functions_last() {
         let mut fm = [
-                FuzmatchStr {
-                    idx: 0,
-                    str_cstr: c"<SNR>1_foo".to_owned(),
-                    score: 100,
-                },
-                FuzmatchStr {
-                    idx: 1,
-                    str_cstr: c"Bar".to_owned(),
-                    score: 50,
-                },
-            ];
-            let mut matches: Vec<CString> = Vec::new();
-            fuzzymatches_slice_to_strmatches(&mut fm, &mut matches, true);
-            assert_eq!(matches[0].as_bytes(), b"Bar");
-            assert_eq!(matches[1].as_bytes(), b"<SNR>1_foo");
+            FuzmatchStr {
+                idx: 0,
+                str_cstr: c"<SNR>1_foo".to_owned(),
+                score: 100,
+            },
+            FuzmatchStr {
+                idx: 1,
+                str_cstr: c"Bar".to_owned(),
+                score: 50,
+            },
+        ];
+        let mut matches: Vec<CString> = Vec::new();
+        fuzzymatches_slice_to_strmatches(&mut fm, &mut matches, true);
+        assert_eq!(matches[0].as_bytes(), b"Bar");
+        assert_eq!(matches[1].as_bytes(), b"<SNR>1_foo");
     }
 }

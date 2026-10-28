@@ -9,31 +9,31 @@ use crate::api::private::validate::{
     Array, Error, ErrorType, KeyValuePair, NvimString, Object, ObjectData, ObjectType,
 };
 use crate::api::ui::{
-    K_LINE_FLAG_WRAP, K_UICMDLINE, K_UIEXT_COUNT, K_UIHL_STATE, K_UILINEGRID, K_UIMESSAGES, K_UIMULTIGRID,
-    K_UITERM_COLORS, remote_ui_set_restart_on_crash_exit, remote_ui_bell, remote_ui_busy_start,
-    remote_ui_busy_stop, remote_ui_chdir, remote_ui_default_colors_set, remote_ui_error_exit,
-    remote_ui_event, remote_ui_flush, remote_ui_grid_clear, remote_ui_grid_cursor_goto,
-    remote_ui_grid_resize, remote_ui_grid_scroll, remote_ui_hl_attr_define, remote_ui_hl_group_set,
-    remote_ui_mode_change, remote_ui_mode_info_set, remote_ui_mouse_off, remote_ui_mouse_on,
-    remote_ui_msg_set_pos, remote_ui_option_set, remote_ui_raw_line, remote_ui_screenshot,
-    remote_ui_set_icon, remote_ui_set_title, remote_ui_suspend, remote_ui_ui_send,
+    K_LINE_FLAG_WRAP, K_UICMDLINE, K_UIEXT_COUNT, K_UIHL_STATE, K_UILINEGRID, K_UIMESSAGES,
+    K_UIMULTIGRID, K_UITERM_COLORS, remote_ui_bell, remote_ui_busy_start, remote_ui_busy_stop,
+    remote_ui_chdir, remote_ui_default_colors_set, remote_ui_error_exit, remote_ui_event,
+    remote_ui_flush, remote_ui_grid_clear, remote_ui_grid_cursor_goto, remote_ui_grid_resize,
+    remote_ui_grid_scroll, remote_ui_hl_attr_define, remote_ui_hl_group_set, remote_ui_mode_change,
+    remote_ui_mode_info_set, remote_ui_mouse_off, remote_ui_mouse_on, remote_ui_msg_set_pos,
+    remote_ui_option_set, remote_ui_raw_line, remote_ui_screenshot, remote_ui_set_icon,
+    remote_ui_set_restart_on_crash_exit, remote_ui_set_title, remote_ui_suspend, remote_ui_ui_send,
     remote_ui_update_menu, remote_ui_visual_bell, remote_ui_win_viewport,
     remote_ui_win_viewport_margins,
 };
 use crate::api::win_config::UIExtension;
 use crate::autocmd::do_autocmd_uienter;
 use crate::buffer::resettitle;
-use crate::cursor_shape::{cursor_get_mode_idx, Cursorentry, mode_style_array, shape_table_mut};
+use crate::cursor_shape::{Cursorentry, cursor_get_mode_idx, mode_style_array, shape_table_mut};
 use crate::drawscreen::{DEFAULT_GRID_HANDLE, conceal_check_cursor_line, screen_resize};
 use crate::event::r#loop::uv_cwd;
 use crate::event::multiqueue::{Event, multiqueue_free, multiqueue_put_event};
 use crate::ex_getln::cmdline_ui_flush;
 use crate::globals::*;
-use crate::grid::{ScreenGrid, get_win_by_grid_handle, Sattr, Schar};
+use crate::grid::{Sattr, Schar, ScreenGrid, get_win_by_grid_handle};
 use crate::highlight::{highlight_use_hlstate, ui_send_all_hls};
 use crate::log::{LOGLVL_ERR, logmsg};
 use crate::lua::converter::LuaRef;
-use crate::lua::executor::{api_free_luaref, K_RET_NIL_BOOL, nlua_call_ref_ctx};
+use crate::lua::executor::{K_RET_NIL_BOOL, api_free_luaref, nlua_call_ref_ctx};
 use crate::memory::{Arena, arena_finish, arena_mem_free};
 use crate::message::{
     msg, msg_ext_ui_flush, msg_schedule_semsg, msg_schedule_semsg_multiline, msg_scroll_flush,
@@ -163,12 +163,12 @@ fn ui_state() -> &'static mut UiState {
 
 pub fn ui_init() {
     g_st().default_grid.handle = 1;
-        g_st().msg_grid_adj.target = &raw mut g_st().default_grid;
-        ui_comp_init();
+    g_st().msg_grid_adj.target = &raw mut g_st().default_grid;
+    ui_comp_init();
 }
 
 pub fn ui_free_all_mem() {
-     {
+    {
         let cbs_ptr = &mut ui_state().ui_event_cbs;
         cbs_ptr.clear();
         ui_state().uis = Vec::new();
@@ -222,7 +222,7 @@ pub fn ui_override() -> bool {
 }
 
 pub fn ui_active() -> usize {
-     {
+    {
         let uis_ptr = &ui_state().uis;
         uis_ptr.len()
     }
@@ -324,12 +324,7 @@ pub fn ui_pum_get_height() -> c_int {
     }
 }
 
-pub fn ui_pum_get_pos(
-    pwidth: &mut f64,
-    pheight: &mut f64,
-    prow: &mut f64,
-    pcol: &mut f64,
-) -> bool {
+pub fn ui_pum_get_pos(pwidth: &mut f64, pheight: &mut f64, prow: &mut f64, pcol: &mut f64) -> bool {
     unsafe {
         let uis_ptr = &ui_state().uis;
         for &ui_ptr in uis_ptr {
@@ -356,7 +351,7 @@ pub fn ui_schedule_refresh() {
 }
 
 pub fn ui_default_colors_set() {
-     {
+    {
         ui_state().pending_default_colors = true;
         if starting_val() == 0 {
             ui_may_set_default_colors();
@@ -366,59 +361,61 @@ pub fn ui_default_colors_set() {
 
 fn ui_may_set_default_colors() {
     if ui_state().pending_default_colors {
-            ui_state().pending_default_colors = false;
-            ui_call_default_colors_set(
-                Integer::from(g_st().normal_fg),
-                Integer::from(g_st().normal_bg),
-                Integer::from(g_st().normal_sp),
-                Integer::from(g_st().cterm_normal_fg_color),
-                Integer::from(g_st().cterm_normal_bg_color),
-            );
-        }
+        ui_state().pending_default_colors = false;
+        ui_call_default_colors_set(
+            Integer::from(g_st().normal_fg),
+            Integer::from(g_st().normal_bg),
+            Integer::from(g_st().normal_sp),
+            Integer::from(g_st().cterm_normal_fg_color),
+            Integer::from(g_st().cterm_normal_bg_color),
+        );
+    }
 }
 
 pub fn ui_busy_start() {
     let prev = ui_state().busy;
-        ui_state().busy += 1;
-        if prev == 0 {
-            ui_call_busy_start();
-        }
+    ui_state().busy += 1;
+    if prev == 0 {
+        ui_call_busy_start();
+    }
 }
 
 pub fn ui_busy_stop() {
     ui_state().busy -= 1;
-        if ui_state().busy == 0 {
-            ui_call_busy_stop();
-        }
+    if ui_state().busy == 0 {
+        ui_call_busy_stop();
+    }
 }
 
 pub fn vim_beep(val: c_uint) {
     if g_st().emsg_silent != 0 || g_st().in_assert_fails {
-            g_st().did_beep_silent += 1;
-            return;
-        }
-        g_st().did_beep += 1;
+        g_st().did_beep_silent += 1;
+        return;
+    }
+    g_st().did_beep += 1;
 
-        if (opt_vars().bo_flags & val) == 0 && (opt_vars().bo_flags & K_OPT_BO_FLAG_ALL) == 0 {
-            let now = os_hrtime();
-            if ui_state().beep_start_time == 0 || now.wrapping_sub(ui_state().beep_start_time) > 500_000_000 {
-                ui_state().beep_count = 0;
-                ui_state().beep_start_time = now;
-            }
-            ui_state().beep_count += 1;
-            if ui_state().beep_count <= 3 {
-                if opt_vars().p_vb != 0 {
-                    ui_call_visual_bell();
-                } else {
-                    ui_call_bell();
-                }
+    if (opt_vars().bo_flags & val) == 0 && (opt_vars().bo_flags & K_OPT_BO_FLAG_ALL) == 0 {
+        let now = os_hrtime();
+        if ui_state().beep_start_time == 0
+            || now.wrapping_sub(ui_state().beep_start_time) > 500_000_000
+        {
+            ui_state().beep_count = 0;
+            ui_state().beep_start_time = now;
+        }
+        ui_state().beep_count += 1;
+        if ui_state().beep_count <= 3 {
+            if opt_vars().p_vb != 0 {
+                ui_call_visual_bell();
+            } else {
+                ui_call_bell();
             }
         }
+    }
 
-        if !vim_strchr(opt_vars().p_debug, b'e' as c_int).is_null() {
-            msg_source(HLF_W);
-            msg(gettext(c"Beep!"), HLF_W);
-        }
+    if !vim_strchr(opt_vars().p_debug, b'e' as c_int).is_null() {
+        msg_source(HLF_W);
+        msg(gettext(c"Beep!"), HLF_W);
+    }
 }
 
 pub fn do_autocmd_uienter_all() {
@@ -432,7 +429,7 @@ pub fn do_autocmd_uienter_all() {
 }
 
 pub fn ui_can_attach_more() -> bool {
-     {
+    {
         let uis_ptr = &ui_state().uis;
         uis_ptr.len() < MAX_UI_COUNT
     }
@@ -444,7 +441,9 @@ pub fn ui_attach_impl(ui: &mut RemoteUI, chanid: u64) {
         if uis_ptr.len() >= MAX_UI_COUNT {
             std::process::abort();
         }
-        if !ui.ui_ext[K_UIMULTIGRID] && !ui.ui_ext[K_UIFLOAT_DEBUG] && g_st().ui_client_channel_id == 0
+        if !ui.ui_ext[K_UIMULTIGRID]
+            && !ui.ui_ext[K_UIFLOAT_DEBUG]
+            && g_st().ui_client_channel_id == 0
         {
             ui_comp_attach(ui);
         }
@@ -480,7 +479,7 @@ pub fn ui_attach_impl(ui: &mut RemoteUI, chanid: u64) {
 }
 
 pub fn ui_detach_impl(ui: &mut RemoteUI, chanid: u64) {
-     {
+    {
         let uis_ptr = &mut ui_state().uis;
         if uis_ptr.len() > MAX_UI_COUNT {
             std::process::abort();
@@ -503,7 +502,7 @@ pub fn ui_detach_impl(ui: &mut RemoteUI, chanid: u64) {
 }
 
 pub fn ui_set_ext_option(ui: &mut RemoteUI, ext: UIExtension, active: bool) {
-     {
+    {
         let idx = ext as usize;
         if idx < K_UIGLOBAL_COUNT {
             ui_refresh();
@@ -569,19 +568,22 @@ pub fn ui_cursor_goto(new_row: c_int, new_col: c_int) {
 }
 
 pub fn ui_grid_cursor_goto(grid_handle: ObjHandle, new_row: c_int, new_col: c_int) {
-    if new_row == ui_state().cursor_row && new_col == ui_state().cursor_col && grid_handle == ui_state().cursor_grid_handle {
-            return;
-        }
-        ui_state().cursor_row = new_row;
-        ui_state().cursor_col = new_col;
-        ui_state().cursor_grid_handle = grid_handle;
-        ui_state().pending_cursor_update = true;
+    if new_row == ui_state().cursor_row
+        && new_col == ui_state().cursor_col
+        && grid_handle == ui_state().cursor_grid_handle
+    {
+        return;
+    }
+    ui_state().cursor_row = new_row;
+    ui_state().cursor_col = new_col;
+    ui_state().cursor_grid_handle = grid_handle;
+    ui_state().pending_cursor_update = true;
 }
 
 pub fn ui_check_cursor_grid(grid_handle: ObjHandle) {
     if ui_state().cursor_grid_handle == grid_handle {
-            ui_state().pending_cursor_update = true;
-        }
+        ui_state().pending_cursor_update = true;
+    }
 }
 
 pub fn ui_mode_info_set() {
@@ -603,7 +605,10 @@ pub fn ui_flush() {
             return;
         }
 
-        if (g_st().state_global & MODE_CMDLINE) == 0 && curwin_mut().w_floating && curwin_mut().w_config.hide {
+        if (g_st().state_global & MODE_CMDLINE) == 0
+            && curwin_mut().w_floating
+            && curwin_mut().w_config.hide
+        {
             if !ui_state().ui_flush_was_busy {
                 ui_call_busy_start();
                 ui_state().ui_flush_was_busy = true;
@@ -643,7 +648,9 @@ pub fn ui_flush() {
         }
 
         let cursor_obscured = ui_cursor_is_behind_floatwin();
-        if (cursor_obscured != ui_state().ui_flush_cursor_was_obscured || ui_state().pending_mode_update) && starting_val() == 0
+        if (cursor_obscured != ui_state().ui_flush_cursor_was_obscured
+            || ui_state().pending_mode_update)
+            && starting_val() == 0
         {
             let idx = if cursor_obscured {
                 SHAPE_IDX_R
@@ -676,7 +683,7 @@ pub fn ui_flush() {
 }
 
 pub fn ui_check_mouse() {
-     {
+    {
         ui_state().has_mouse = false;
         if crate::memory::cstr_is_empty(opt_vars().p_mouse) {
             return;
@@ -684,7 +691,10 @@ pub fn ui_check_mouse() {
 
         let checkfor = if g_st().visual_global.active {
             K_MOUSE_VISUAL
-        } else if g_st().state_global == MODE_HITRETURN || g_st().state_global == MODE_ASKMORE || g_st().state_global == MODE_SETWSIZE {
+        } else if g_st().state_global == MODE_HITRETURN
+            || g_st().state_global == MODE_ASKMORE
+            || g_st().state_global == MODE_SETWSIZE
+        {
             K_MOUSE_RETURN
         } else if (g_st().state_global & MODE_INSERT) != 0 {
             K_MOUSE_INSERT
@@ -703,7 +713,7 @@ pub fn ui_check_mouse() {
 }
 
 pub fn ui_mouse_has(mode: c_int) -> bool {
-     {
+    {
         let p = opt_vars().p_mouse;
         for &p_byte in crate::memory::cstr_as_bytes(p) {
             if p_byte == b'a' {
@@ -717,25 +727,25 @@ pub fn ui_mouse_has(mode: c_int) -> bool {
             } else if mode == (p_byte as c_char) as c_int {
                 return true;
             }
-}
+        }
         false
     }
 }
 
 pub fn ui_cursor_shape_no_check_conceal() {
     if !g_st().full_screen {
-            return;
-        }
-        let new_mode_idx = cursor_get_mode_idx();
-        if new_mode_idx != ui_state().ui_mode_idx {
-            ui_state().ui_mode_idx = new_mode_idx;
-            ui_state().pending_mode_update = true;
-        }
+        return;
+    }
+    let new_mode_idx = cursor_get_mode_idx();
+    if new_mode_idx != ui_state().ui_mode_idx {
+        ui_state().ui_mode_idx = new_mode_idx;
+        ui_state().pending_mode_update = true;
+    }
 }
 
 pub fn ui_cursor_shape() {
     ui_cursor_shape_no_check_conceal();
-        conceal_check_cursor_line();
+    conceal_check_cursor_line();
 }
 
 fn ui_cursor_is_behind_floatwin() -> bool {
@@ -789,8 +799,8 @@ pub fn ui_array(arena: &mut Arena) -> Array {
                 Object {
                     obj_type: ObjectType::ObjectTypeString,
                     data: ObjectData::String(cstr_as_string(
-                            ui.term_name.as_ref().map_or(ptr::null(), |s| s.as_ptr()),
-                        )),
+                        ui.term_name.as_ref().map_or(ptr::null(), |s| s.as_ptr()),
+                    )),
                 },
             );
             put_info(
@@ -798,15 +808,12 @@ pub fn ui_array(arena: &mut Arena) -> Array {
                 Object {
                     obj_type: ObjectType::ObjectTypeString,
                     data: ObjectData::String(NvimString {
-                            data: c"".as_ptr().cast_mut(),
-                            size: 0,
-                        }),
+                        data: c"".as_ptr().cast_mut(),
+                        size: 0,
+                    }),
                 },
             );
-            put_info(
-                c"term_colors",
-                integer_obj(Integer::from(ui.term_colors)),
-            );
+            put_info(c"term_colors", integer_obj(Integer::from(ui.term_colors)));
             put_info(c"stdin_tty", boolean_obj(ui.stdin_tty));
             put_info(c"stdout_tty", boolean_obj(ui.stdout_tty));
 
@@ -859,25 +866,31 @@ pub fn ui_grid_resize(grid_handle: ObjHandle, width: c_int, height: c_int, err: 
     }
 }
 
-fn ui_attach_error(ns_id: u32, name: impl crate::strings::IntoCCharPtr, msg: impl crate::strings::IntoCCharPtr) { let name = name.into_c_char_ptr(); let msg = msg.into_c_char_ptr();
+fn ui_attach_error(
+    ns_id: u32,
+    name: impl crate::strings::IntoCCharPtr,
+    msg: impl crate::strings::IntoCCharPtr,
+) {
+    let name = name.into_c_char_ptr();
+    let msg = msg.into_c_char_ptr();
     let ns = describe_ns(ns_id as c_int, c"(UNKNOWN PLUGIN)");
-        logmsg!(
-            LOGLVL_ERR,
-            ptr::null(),
-            c"ui_attach_error",
-            785,
-            true,
-            c"Error in \"%s\" UI event handler (ns=%s):\n%s",
-            name,
-            ns,
-            msg,
-        );
-        msg_schedule_semsg_multiline!(
-            c"Error in \"%s\" UI event handler (ns=%s):\n%s",
-            name,
-            ns,
-            msg,
-        );
+    logmsg!(
+        LOGLVL_ERR,
+        ptr::null(),
+        c"ui_attach_error",
+        785,
+        true,
+        c"Error in \"%s\" UI event handler (ns=%s):\n%s",
+        name,
+        ns,
+        msg,
+    );
+    msg_schedule_semsg_multiline!(
+        c"Error in \"%s\" UI event handler (ns=%s):\n%s",
+        name,
+        ns,
+        msg,
+    );
 }
 
 pub fn ui_call_event(name: &'static std::ffi::CStr, args: Array) {
@@ -965,7 +978,7 @@ pub fn ui_add_cb(ns_id: u32, cb: LuaRef, ext_widgets: &[bool; K_UIGLOBAL_COUNT])
 }
 
 pub fn ui_remove_cb(ns_id: u32, checkerr: bool) {
-     {
+    {
         let cbs_ptr = &mut ui_state().ui_event_cbs;
         let should_remove = if let Some(item) = cbs_ptr.get_mut(&ns_id) {
             if !checkerr {
@@ -983,15 +996,11 @@ pub fn ui_remove_cb(ns_id: u32, checkerr: bool) {
             ui_refresh();
             if checkerr {
                 let ns = describe_ns(ns_id as c_int, c"(UNKNOWN PLUGIN)");
-                msg_schedule_semsg!(
-                    c"Excessive errors in vim.ui_attach() callback (ns=%s)",
-                    ns,
-                );
+                msg_schedule_semsg!(c"Excessive errors in vim.ui_attach() callback (ns=%s)", ns,);
             }
         }
     }
 }
-
 
 pub fn ui_log(funname: &'static std::ffi::CStr) {
     #[cfg(not(debug_assertions))]
@@ -1013,7 +1022,9 @@ pub fn ui_log(funname: &'static std::ffi::CStr) {
                     -1,
                     true,
                     c"%s (+%zu times...)",
-                    ui_state().uilog_last_event.map_or(ptr::null(), |s| s.as_ptr()),
+                    ui_state()
+                        .uilog_last_event
+                        .map_or(ptr::null(), |s| s.as_ptr()),
                     ui_state().uilog_seen,
                 );
             }
@@ -1277,8 +1288,8 @@ pub fn ui_call_raw_line(
     attrs: *const Sattr,
 ) {
     ui_comp_raw_line(
-            grid, row, startcol, endcol, clearcol, clearattr, flags, chunk, attrs,
-        );
+        grid, row, startcol, endcol, clearcol, clearattr, flags, chunk, attrs,
+    );
     ui_call_loop!(!ui.composed, c"raw_line", |ui| {
         remote_ui_raw_line(
             ui, grid, row, startcol, endcol, clearcol, clearattr, flags, chunk, attrs,

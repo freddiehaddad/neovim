@@ -22,7 +22,8 @@ pub fn os_libcall(
     argi: c_int,
     str_out: Option<&mut Option<CString>>,
     int_out: Option<&mut c_int>,
-) -> bool { let argv = argv.into_c_char_ptr();
+) -> bool {
+    let argv = argv.into_c_char_ptr();
     let funcname = funcname.into_c_char_ptr();
     let libname = libname.into_c_char_ptr();
     if libname.is_null() || funcname.is_null() {
@@ -85,20 +86,20 @@ mod tests {
     #[test]
     fn null_libname_or_funcname_returns_false() {
         assert!(!os_libcall(
-                std::ptr::null(),
-                c"fn",
-                std::ptr::null(),
-                0,
-                None,
-                None
-            ));
-            assert!(!os_libcall(
-                c"lib",
-                std::ptr::null(),
-                std::ptr::null(),
-                0,
-                None,
-                None
-            ));
+            std::ptr::null(),
+            c"fn",
+            std::ptr::null(),
+            0,
+            None,
+            None
+        ));
+        assert!(!os_libcall(
+            c"lib",
+            std::ptr::null(),
+            std::ptr::null(),
+            0,
+            None,
+            None
+        ));
     }
 }

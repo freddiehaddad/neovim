@@ -205,7 +205,8 @@ impl ConptyModuleState {
 }
 
 #[cfg(windows)]
-static CONPTY_STATE: crate::globals::GlobalState<ConptyModuleState> = crate::globals::GlobalState::new(ConptyModuleState::new());
+static CONPTY_STATE: crate::globals::GlobalState<ConptyModuleState> =
+    crate::globals::GlobalState::new(ConptyModuleState::new());
 
 #[cfg(windows)]
 #[inline]
@@ -264,9 +265,9 @@ use crate::os::os_win_console::{CloseHandle, GetLastError};
 #[cfg(windows)]
 pub fn os_has_conpty_working() -> bool {
     if conpty_st().HAS_CONPTY == K_NONE {
-            conpty_st().HAS_CONPTY = os_dyn_conpty_init();
-        }
-        conpty_st().HAS_CONPTY == K_TRUE
+        conpty_st().HAS_CONPTY = os_dyn_conpty_init();
+    }
+    conpty_st().HAS_CONPTY == K_TRUE
 }
 
 #[cfg(windows)]

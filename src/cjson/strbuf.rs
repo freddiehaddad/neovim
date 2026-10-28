@@ -99,7 +99,7 @@ pub fn strbuf_init(s: &mut Strbuf, len: usize) {
 
 pub fn strbuf_append_string(s: &mut Strbuf, str_in: impl crate::strings::IntoCCharPtr) {
     let str_in = str_in.into_c_char_ptr();
-     {
+    {
         let bytes = crate::memory::cstr_as_bytes(str_in);
         strbuf_append_mem(s, bytes.as_ptr().cast::<c_char>(), bytes.len());
     }

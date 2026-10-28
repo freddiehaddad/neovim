@@ -38,7 +38,8 @@ impl OsTimeState {
 }
 
 #[cfg(unix)]
-static OSTIME_STATE: crate::globals::GlobalState<OsTimeState> = crate::globals::GlobalState::new(OsTimeState::new());
+static OSTIME_STATE: crate::globals::GlobalState<OsTimeState> =
+    crate::globals::GlobalState::new(OsTimeState::new());
 
 #[cfg(unix)]
 #[inline]
@@ -89,7 +90,7 @@ pub fn os_now() -> u64 {
 
 /// Sleep for `ms` milliseconds while polling the main event loop (`os_delay`).
 pub fn os_delay(ms: u64, ignoreinput: bool) {
-     {
+    {
         let clamped = ms.min(u64::from(c_int::MAX as u32)) as i64;
         let mut remaining = clamped;
         let mut before = if remaining > 0 { os_hrtime() } else { 0 };
@@ -217,7 +218,9 @@ pub fn os_strptime(
     str_ptr: impl crate::strings::IntoCCharPtr,
     format: impl crate::strings::IntoCCharPtr,
     tm: *mut Tm,
-) -> *mut c_char { let str_ptr = str_ptr.into_c_char_ptr(); let format = format.into_c_char_ptr();
+) -> *mut c_char {
+    let str_ptr = str_ptr.into_c_char_ptr();
+    let format = format.into_c_char_ptr();
     #[cfg(unix)]
     unsafe {
         strptime(str_ptr, format, tm)

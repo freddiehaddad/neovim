@@ -4,7 +4,7 @@
 use crate::api::private::validate::NvimString;
 use crate::globals::*;
 use crate::grid::{
-    ScreenGrid, BRAILLE_SPACE, K_OPT_RDB_FLAG_INVALID, Sattr, Schar, schar_from_ascii,
+    BRAILLE_SPACE, K_OPT_RDB_FLAG_INVALID, Sattr, Schar, ScreenGrid, schar_from_ascii,
     schar_from_buf, schar_from_char, schar_invisible,
 };
 use crate::highlight::hl_blend_attrs;
@@ -96,20 +96,20 @@ fn attrbuf_mut() -> &'static mut Vec<Sattr> {
 
 pub fn ui_comp_init() {
     layers_mut().push(&raw mut g_st().default_grid);
-        comp().curgrid = &raw mut g_st().default_grid;
+    comp().curgrid = &raw mut g_st().default_grid;
 }
 
 pub fn ui_comp_free_all_mem() {
     comp().layers = Vec::new();
-        comp().linebuf = Vec::new();
-        comp().attrbuf = Vec::new();
+    comp().linebuf = Vec::new();
+    comp().attrbuf = Vec::new();
 }
 
 pub fn ui_comp_syn_init() {
     comp().dbghl_normal = syn_check_group(c"RedrawDebugNormal", 17);
-        comp().dbghl_clear = syn_check_group(c"RedrawDebugClear", 16);
-        comp().dbghl_composed = syn_check_group(c"RedrawDebugComposed", 19);
-        comp().dbghl_recompose = syn_check_group(c"RedrawDebugRecompose", 20);
+    comp().dbghl_clear = syn_check_group(c"RedrawDebugClear", 16);
+    comp().dbghl_composed = syn_check_group(c"RedrawDebugComposed", 19);
+    comp().dbghl_recompose = syn_check_group(c"RedrawDebugRecompose", 20);
 }
 
 pub fn ui_comp_attach(ui: &mut RemoteUI) {
@@ -120,11 +120,11 @@ pub fn ui_comp_attach(ui: &mut RemoteUI) {
 
 pub fn ui_comp_detach(ui: &mut RemoteUI) {
     comp().composed_uis -= 1;
-        if comp().composed_uis == 0 {
-            comp().linebuf = Vec::new();
-            comp().attrbuf = Vec::new();
-        }
-        ui.composed = false;
+    if comp().composed_uis == 0 {
+        comp().linebuf = Vec::new();
+        comp().attrbuf = Vec::new();
+    }
+    ui.composed = false;
 }
 
 pub fn ui_comp_should_draw() -> bool {
@@ -406,12 +406,7 @@ pub fn ui_comp_get_grid_at_coord(row: c_int, col: c_int) -> *mut ScreenGrid {
     }
 }
 
-fn compose_line(
-    row: Integer,
-    mut startcol: Integer,
-    mut endcol: Integer,
-    mut flags: LineFlags,
-) {
+fn compose_line(row: Integer, mut startcol: Integer, mut endcol: Integer, mut flags: LineFlags) {
     unsafe {
         startcol = startcol.max(0);
         let mut skipstart: c_int = 0;
@@ -459,7 +454,9 @@ fn compose_line(
             debug_assert!(until <= g_st().default_grid.cols);
             let n = (until - col) as usize;
 
-            if row == (comp().msg_sep_row as Integer) && (*grid).comp_index <= g_st().msg_grid.comp_index {
+            if row == (comp().msg_sep_row as Integer)
+                && (*grid).comp_index <= g_st().msg_grid.comp_index
+            {
                 grid = &raw mut g_st().msg_grid;
                 let msg_sep_attr = crate::highlight::hl_attr(HLF_MSGSEP as c_int) as Sattr;
                 for i in col..until {
@@ -495,14 +492,11 @@ fn compose_line(
                         thru &= schar_invisible(*lbuf.add(idx + 1));
                     }
                     *abuf.add(idx) =
-                        hl_blend_attrs(*bg_attrs.add(idx), *abuf.add(idx), &mut thru)
-                            as Sattr;
+                        hl_blend_attrs(*bg_attrs.add(idx), *abuf.add(idx), &mut thru) as Sattr;
                     if width == 2 {
-                        *abuf.add(idx + 1) = hl_blend_attrs(
-                            *bg_attrs.add(idx + 1),
-                            *abuf.add(idx + 1),
-                            &mut thru,
-                        ) as Sattr;
+                        *abuf.add(idx + 1) =
+                            hl_blend_attrs(*bg_attrs.add(idx + 1), *abuf.add(idx + 1), &mut thru)
+                                as Sattr;
                     }
                     if thru {
                         ptr::copy_nonoverlapping(bg_line.add(idx), lbuf.add(idx), width as usize);
@@ -571,72 +565,74 @@ fn compose_debug(
     delay: bool,
 ) {
     if (opt_vars().rdb_flags & K_OPT_RDB_FLAG_COMPOSITOR) == 0 || startcol >= endcol {
-            return;
-        }
+        return;
+    }
 
-        endrow = endrow.min(g_st().default_grid.rows as Integer);
-        endcol = endcol.min(g_st().default_grid.cols as Integer);
-        let attr = syn_id2attr(syn_id);
+    endrow = endrow.min(g_st().default_grid.rows as Integer);
+    endcol = endcol.min(g_st().default_grid.cols as Integer);
+    let attr = syn_id2attr(syn_id);
 
-        if delay {
-            debug_delay(endrow - startrow);
-        }
+    if delay {
+        debug_delay(endrow - startrow);
+    }
 
-        let lbuf = linebuf_mut().as_ptr();
-        let abuf = attrbuf_mut().as_ptr();
-        for row in (startrow as c_int)..(endrow as c_int) {
-            ui_composed_call_raw_line(
-                1,
-                row as Integer,
-                startcol,
-                startcol,
-                endcol,
-                attr as Integer,
-                0,
-                lbuf,
-                abuf,
-            );
-        }
+    let lbuf = linebuf_mut().as_ptr();
+    let abuf = attrbuf_mut().as_ptr();
+    for row in (startrow as c_int)..(endrow as c_int) {
+        ui_composed_call_raw_line(
+            1,
+            row as Integer,
+            startcol,
+            startcol,
+            endcol,
+            attr as Integer,
+            0,
+            lbuf,
+            abuf,
+        );
+    }
 
-        if delay {
-            debug_delay(endrow - startrow);
-        }
+    if delay {
+        debug_delay(endrow - startrow);
+    }
 }
 
 fn debug_delay(lines: Integer) {
     ui_call_flush();
-        let wd = opt_vars().p_wd.unsigned_abs();
-        let factor = lines.clamp(1, 5) as u64;
-        os_sleep(factor * wd);
+    let wd = opt_vars().p_wd.unsigned_abs();
+    let factor = lines.clamp(1, 5) as u64;
+    os_sleep(factor * wd);
 }
 
-fn compose_area(
-    startrow: Integer,
-    mut endrow: Integer,
-    startcol: Integer,
-    mut endcol: Integer,
-) {
-    compose_debug(startrow, endrow, startcol, endcol, comp().dbghl_recompose, true);
-        endrow = endrow.min(g_st().default_grid.rows as Integer);
-        endcol = endcol.min(g_st().default_grid.cols as Integer);
-        if endcol <= startcol {
-            return;
-        }
-        for r in (startrow as c_int)..(endrow as c_int) {
-            compose_line(r as Integer, startcol, endcol, K_LINE_FLAG_INVALID);
-        }
+fn compose_area(startrow: Integer, mut endrow: Integer, startcol: Integer, mut endcol: Integer) {
+    compose_debug(
+        startrow,
+        endrow,
+        startcol,
+        endcol,
+        comp().dbghl_recompose,
+        true,
+    );
+    endrow = endrow.min(g_st().default_grid.rows as Integer);
+    endcol = endcol.min(g_st().default_grid.cols as Integer);
+    if endcol <= startcol {
+        return;
+    }
+    for r in (startrow as c_int)..(endrow as c_int) {
+        compose_line(r as Integer, startcol, endcol, K_LINE_FLAG_INVALID);
+    }
 }
 
 /// Compose the area under the grid (`ui_comp_compose_grid`).
 pub fn ui_comp_compose_grid(grid: &mut ScreenGrid) {
     if ui_comp_should_draw() {
-            compose_area(
-                grid.comp_row as Integer,
-                (grid.comp_row + grid.rows) as Integer,
-                grid.comp_col as Integer,
-                (grid.comp_col + grid.cols) as Integer,
-            );
-        }
+        compose_area(
+            grid.comp_row as Integer,
+            (grid.comp_row + grid.rows) as Integer,
+            grid.comp_col as Integer,
+            (grid.comp_col + grid.cols) as Integer,
+        );
+    }
 }
 
 pub fn ui_comp_raw_line(
@@ -683,7 +679,14 @@ pub fn ui_comp_raw_line(
             clearcol as c_int,
         );
         if (flags & K_LINE_FLAG_INVALID) != 0 || covered || (*comp().curgrid).blending {
-            compose_debug(row, row + 1, startcol, clearcol, comp().dbghl_composed, true);
+            compose_debug(
+                row,
+                row + 1,
+                startcol,
+                clearcol,
+                comp().dbghl_composed,
+                true,
+            );
             compose_line(row, startcol, clearcol, flags);
         } else {
             compose_debug(
@@ -708,11 +711,11 @@ pub fn ui_comp_raw_line(
 /// The screen is invalid and will soon be cleared (`ui_comp_set_screen_valid`).
 pub fn ui_comp_set_screen_valid(valid: bool) -> bool {
     let old_val = comp().valid_screen;
-        comp().valid_screen = valid;
-        if !valid {
-            comp().msg_sep_row = -1;
-        }
-        old_val
+    comp().valid_screen = valid;
+    if !valid {
+        comp().msg_sep_row = -1;
+    }
+    old_val
 }
 
 pub fn ui_comp_msg_set_pos(
@@ -724,55 +727,55 @@ pub fn ui_comp_msg_set_pos(
     _compindex: Integer,
 ) {
     g_st().msg_grid.pending_comp_index_update = true;
-        g_st().msg_grid.comp_row = row as c_int;
-        if scrolled && row > 0 {
-            comp().msg_sep_row = (row as c_int) - 1;
-            if !sep_char.data.is_null() {
-                comp().msg_sep_char = schar_from_buf(sep_char.data, sep_char.size);
-            }
-        } else {
-            comp().msg_sep_row = -1;
+    g_st().msg_grid.comp_row = row as c_int;
+    if scrolled && row > 0 {
+        comp().msg_sep_row = (row as c_int) - 1;
+        if !sep_char.data.is_null() {
+            comp().msg_sep_char = schar_from_buf(sep_char.data, sep_char.size);
         }
+    } else {
+        comp().msg_sep_row = -1;
+    }
 
-        if row > (comp().msg_current_row as Integer) && ui_comp_should_draw() {
+    if row > (comp().msg_current_row as Integer) && ui_comp_should_draw() {
+        compose_area(
+            (comp().msg_current_row - 1).max(0) as Integer,
+            row,
+            0,
+            g_st().default_grid.cols as Integer,
+        );
+    } else if row < (comp().msg_current_row as Integer)
+        && ui_comp_should_draw()
+        && (comp().msg_current_row < g_st().rows_global || (scrolled && !comp().msg_was_scrolled))
+    {
+        let delta = comp().msg_current_row - (row as c_int);
+        if g_st().msg_grid.blending {
+            let first_row = ((row as c_int) - if scrolled { 1 } else { 0 }).max(0);
             compose_area(
-                (comp().msg_current_row - 1).max(0) as Integer,
-                row,
+                first_row as Integer,
+                (g_st().rows_global - delta) as Integer,
                 0,
-                g_st().default_grid.cols as Integer,
+                g_st().columns_global as Integer,
             );
-        } else if row < (comp().msg_current_row as Integer)
-            && ui_comp_should_draw()
-            && (comp().msg_current_row < g_st().rows_global || (scrolled && !comp().msg_was_scrolled))
-        {
-            let delta = comp().msg_current_row - (row as c_int);
-            if g_st().msg_grid.blending {
-                let first_row = ((row as c_int) - if scrolled { 1 } else { 0 }).max(0);
-                compose_area(
-                    first_row as Integer,
-                    (g_st().rows_global - delta) as Integer,
-                    0,
-                    g_st().columns_global as Integer,
-                );
-            } else {
-                let first_row = ((row as c_int) - if comp().msg_was_scrolled { 1 } else { 0 }).max(0);
-                ui_composed_call_grid_scroll(
-                    1,
-                    first_row as Integer,
-                    g_st().rows_global as Integer,
-                    0,
-                    g_st().columns_global as Integer,
-                    delta as Integer,
-                    0,
-                );
-                if scrolled && !comp().msg_was_scrolled && row > 0 {
-                    compose_area(row - 1, row, 0, g_st().columns_global as Integer);
-                }
+        } else {
+            let first_row = ((row as c_int) - if comp().msg_was_scrolled { 1 } else { 0 }).max(0);
+            ui_composed_call_grid_scroll(
+                1,
+                first_row as Integer,
+                g_st().rows_global as Integer,
+                0,
+                g_st().columns_global as Integer,
+                delta as Integer,
+                0,
+            );
+            if scrolled && !comp().msg_was_scrolled && row > 0 {
+                compose_area(row - 1, row, 0, g_st().columns_global as Integer);
             }
         }
+    }
 
-        comp().msg_current_row = row as c_int;
-        comp().msg_was_scrolled = scrolled;
+    comp().msg_current_row = row as c_int;
+    comp().msg_was_scrolled = scrolled;
 }
 
 /// Check if `comp().curgrid` is covered by any other grid within the rectangle (`curgrid_covered_above`).
@@ -840,15 +843,15 @@ pub fn ui_comp_grid_scroll(
 
 pub fn ui_comp_grid_resize(grid: Integer, width: Integer, height: Integer) {
     if grid == 1 {
-            ui_composed_call_grid_resize(1, width, height);
-            comp().chk_width = width as c_int;
-            comp().chk_height = height as c_int;
-            let new_bufsize = width as usize;
-            let lbuf = linebuf_mut();
-            let abuf = attrbuf_mut();
-            if lbuf.len() != new_bufsize {
-                lbuf.resize(new_bufsize, 0);
-                abuf.resize(new_bufsize, 0);
-            }
+        ui_composed_call_grid_resize(1, width, height);
+        comp().chk_width = width as c_int;
+        comp().chk_height = height as c_int;
+        let new_bufsize = width as usize;
+        let lbuf = linebuf_mut();
+        let abuf = attrbuf_mut();
+        if lbuf.len() != new_bufsize {
+            lbuf.resize(new_bufsize, 0);
+            abuf.resize(new_bufsize, 0);
         }
+    }
 }

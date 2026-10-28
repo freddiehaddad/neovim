@@ -278,12 +278,7 @@ pub fn vterm_mouse_move(vt: &mut VTerm, row: c_int, col: c_int, mod_: VTermModif
     }
 }
 
-pub fn vterm_mouse_button(
-    vt: &mut VTerm,
-    button: c_int,
-    pressed: bool,
-    mod_: VTermModifier,
-) {
+pub fn vterm_mouse_button(vt: &mut VTerm, button: c_int, pressed: bool, mod_: VTermModifier) {
     unsafe {
         let state = &mut *vt.state_mut_ptr();
 

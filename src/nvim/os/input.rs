@@ -103,9 +103,9 @@ fn input_buf_ptr() -> *mut c_char {
 #[inline]
 fn ensure_input_ptrs_init() {
     if osi_st().input_read_pos.is_null() {
-            osi_st().input_read_pos = input_buf_ptr();
-            osi_st().input_write_pos = input_buf_ptr();
-        }
+        osi_st().input_read_pos = input_buf_ptr();
+        osi_st().input_write_pos = input_buf_ptr();
+    }
 }
 
 fn parse_mouse_coords(s: impl crate::strings::IntoCCharPtr) -> Option<(c_int, c_int, usize)> {
@@ -116,7 +116,10 @@ fn parse_mouse_coords(s: impl crate::strings::IntoCCharPtr) -> Option<(c_int, c_
         }
         let mut p = s.add(1);
         let parse_int = |mut cur: *const c_char| -> Option<(c_int, *const c_char)> {
-            while matches!(crate::memory::cstr_first_byte(cur), b' ' | b'\t' | b'\n' | b'\r' | 0x0b | 0x0c) {
+            while matches!(
+                crate::memory::cstr_first_byte(cur),
+                b' ' | b'\t' | b'\n' | b'\r' | 0x0b | 0x0c
+            ) {
                 cur = cur.add(1);
             }
             let neg = if crate::memory::cstr_first_byte(cur) == b'-' {
@@ -161,23 +164,29 @@ use crate::event::stream::UV_TTY;
 
 pub fn cursorhold_event() {
     let event = if (g_st().state_global & MODE_INSERT) != 0 {
-            EVENT_CURSORHOLDI
-        } else {
-            EVENT_CURSORHOLD
-        };
-        apply_autocmds(event, ptr::null_mut(), ptr::null_mut(), false, g_st().curbuf);
-        g_st().did_cursorhold = true;
+        EVENT_CURSORHOLDI
+    } else {
+        EVENT_CURSORHOLD
+    };
+    apply_autocmds(
+        event,
+        ptr::null_mut(),
+        ptr::null_mut(),
+        false,
+        g_st().curbuf,
+    );
+    g_st().did_cursorhold = true;
 }
 
 fn create_cursorhold_event(events_enabled: bool) {
     let events = main_loop_events();
-        debug_assert!(!events_enabled || multiqueue_empty(unsafe { &*events }));
-        multiqueue_put_event(unsafe { &mut *events }, Event::CursorHold);
+    debug_assert!(!events_enabled || multiqueue_empty(unsafe { &*events }));
+    multiqueue_put_event(unsafe { &mut *events }, Event::CursorHold);
 }
 
 fn reset_cursorhold_wait(tb_change_cnt: c_int) {
     osi_st().cursorhold_time = 0;
-        osi_st().cursorhold_tb_change_cnt = tb_change_cnt;
+    osi_st().cursorhold_tb_change_cnt = tb_change_cnt;
 }
 
 /// Reads OS input into `buf`, and consumes pending events while waiting (if `ms != 0`).
@@ -291,7 +300,7 @@ pub fn os_char_avail() -> bool {
 
 /// Poll for fast events. `got_int` will be set to `true` if CTRL-C was typed.
 pub fn os_breakcheck() {
-     {
+    {
         if g_st().got_int {
             return;
         }
@@ -337,7 +346,7 @@ pub fn os_isatty(fd: c_int) -> bool {
 
 pub fn input_available() -> usize {
     ensure_input_ptrs_init();
-        (osi_st().input_write_pos as usize).wrapping_sub(osi_st().input_read_pos as usize)
+    (osi_st().input_write_pos as usize).wrapping_sub(osi_st().input_read_pos as usize)
 }
 
 fn input_space() -> usize {
@@ -407,11 +416,15 @@ pub fn input_enqueue(chan_id: u64, keys: NvimString) -> usize {
                 // Invalid or incomplete key sequence, skip until the next '>' or *end.
                 loop {
                     ptr_cur = ptr_cur.add(1);
-                    if (ptr_cur as usize) >= (end as usize) || crate::memory::cstr_first_byte(ptr_cur) == b'>' {
+                    if (ptr_cur as usize) >= (end as usize)
+                        || crate::memory::cstr_first_byte(ptr_cur) == b'>'
+                    {
                         break;
                     }
                 }
-                if (ptr_cur as usize) >= (end as usize) || crate::memory::cstr_first_byte(ptr_cur) != b'>' {
+                if (ptr_cur as usize) >= (end as usize)
+                    || crate::memory::cstr_first_byte(ptr_cur) != b'>'
+                {
                     // Incomplete key sequence, return without consuming.
                     ptr_cur = old_ptr;
                     break;
@@ -440,19 +453,15 @@ pub fn input_enqueue(chan_id: u64, keys: NvimString) -> usize {
     }
 }
 
-fn check_multiclick(
-    code: c_int,
-    grid: c_int,
-    row: c_int,
-    col: c_int,
-    skip_event: &mut bool,
-) -> u8 {
+fn check_multiclick(code: c_int, grid: c_int, row: c_int, col: c_int, skip_event: &mut bool) -> u8 {
     {
         if (KE_MOUSEDOWN..=KE_MOUSERIGHT).contains(&code) {
             return 0;
         }
 
-        let no_move = osi_st().orig_mouse_grid == grid && osi_st().orig_mouse_col == col && osi_st().orig_mouse_row == row;
+        let no_move = osi_st().orig_mouse_grid == grid
+            && osi_st().orig_mouse_col == col
+            && osi_st().orig_mouse_row == row;
         let mut is_click = false;
         let mut is_drag = false;
         let _ = get_mouse_button(code, &mut is_click, &mut is_drag);
@@ -467,7 +476,11 @@ fn check_multiclick(
             let mouse_time = os_hrtime(); // time of current mouse click (ns)
             let timediff = mouse_time.wrapping_sub(osi_st().orig_mouse_time);
             let mouset = (opt_vars().p_mouset as u64).wrapping_mul(1_000_000);
-            if code == osi_st().orig_mouse_code && no_move && timediff < mouset && osi_st().orig_num_clicks != 4 {
+            if code == osi_st().orig_mouse_code
+                && no_move
+                && timediff < mouset
+                && osi_st().orig_num_clicks != 4
+            {
                 osi_st().orig_num_clicks += 1;
             } else {
                 osi_st().orig_num_clicks = 1;
@@ -499,11 +512,7 @@ fn check_multiclick(
 }
 
 /// Mouse event handling code (extract row/col if available and detect multiple clicks)
-fn handle_mouse_event(
-    ptr_p: *mut *const c_char,
-    buf: *mut u8,
-    mut bufsize: c_uint,
-) -> c_uint {
+fn handle_mouse_event(ptr_p: *mut *const c_char, buf: *mut u8, mut bufsize: c_uint) -> c_uint {
     unsafe {
         let mut mouse_code: c_int = 0;
         let mut key_type: c_int = 0;
@@ -571,13 +580,7 @@ fn handle_mouse_event(
     }
 }
 
-pub fn input_enqueue_mouse(
-    code: c_int,
-    mut modifier: u8,
-    grid: c_int,
-    row: c_int,
-    col: c_int,
-) {
+pub fn input_enqueue_mouse(code: c_int, mut modifier: u8, grid: c_int, row: c_int, col: c_int) {
     unsafe {
         let mut skip_event = false;
         modifier |= check_multiclick(code, grid, row, col, &mut skip_event);
@@ -629,7 +632,7 @@ fn inbuf_poll(ms: c_int, events: *mut MultiQueue) -> bool {
         if events != main_loop_events() {
             // The pending input provoked a osi_st().blocking wait. Do special events now. #6247
             osi_st().blocking = true;
-            multiqueue_process_events( &mut *g_st().ch_before_blocking_events);
+            multiqueue_process_events(&mut *g_st().ch_before_blocking_events);
         }
 
         // LOOP_PROCESS_EVENTS_UNTIL(&main_loop, NULL, ms, os_input_ready(events) || input_unanswerable());
@@ -738,7 +741,7 @@ pub fn os_input_ready(events: Option<&MultiQueue>) -> bool {
 }
 
 fn pending_events(events: Option<&MultiQueue>) -> bool {
-    events.is_some() && !multiqueue_empty( events.unwrap())
+    events.is_some() && !multiqueue_empty(events.unwrap())
 }
 
 #[cfg(test)]
@@ -764,10 +767,7 @@ mod tests {
             assert_eq!(push_event_key(buf.as_mut_ptr().add(2), 2), 1);
             assert_eq!(buf[2], KE_EVENT);
 
-            assert_eq!(
-                parse_mouse_coords(c"<12,34>rest"),
-                Some((12, 34, 7))
-            );
+            assert_eq!(parse_mouse_coords(c"<12,34>rest"), Some((12, 34, 7)));
             assert_eq!(parse_mouse_coords(c"<-1,0>"), Some((-1, 0, 6)));
             assert_eq!(parse_mouse_coords(c"<12,34"), None);
         }

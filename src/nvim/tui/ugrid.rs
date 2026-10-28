@@ -19,14 +19,7 @@ pub struct UGrid {
     pub cells: Vec<Vec<UCell>>,
 }
 
-fn clear_region(
-    grid: &mut UGrid,
-    top: c_int,
-    bot: c_int,
-    left: c_int,
-    right: c_int,
-    attr: Sattr,
-) {
+fn clear_region(grid: &mut UGrid, top: c_int, bot: c_int, left: c_int, right: c_int, attr: Sattr) {
     let space = schar_from_ascii(b' ');
     if right < left || bot < top {
         return;

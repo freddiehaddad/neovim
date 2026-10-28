@@ -12,7 +12,12 @@ use std::ffi::CString;
 
 use crate::ex_docmd::Exarg;
 
-fn nlua_trust(action: impl crate::strings::IntoCCharPtr, path: impl crate::strings::IntoCCharPtr) -> bool { let action = action.into_c_char_ptr(); let path = path.into_c_char_ptr();
+fn nlua_trust(
+    action: impl crate::strings::IntoCCharPtr,
+    path: impl crate::strings::IntoCCharPtr,
+) -> bool {
+    let action = action.into_c_char_ptr();
+    let path = path.into_c_char_ptr();
     unsafe {
         let lstate = get_global_lstate();
         let top = lua_gettop(lstate);
@@ -98,7 +103,7 @@ mod tests {
     #[test]
     fn skipwhite_and_skiptowhite_scan_ascii_whitespace() {
         let s = c"++deny   file.lua";
-         {
+        {
             let p = skiptowhite(s.as_ptr());
             assert_eq!((p as usize) - (s.as_ptr() as usize), 6);
             let q = skipwhite(p);

@@ -2,12 +2,12 @@
 use crate::buffer::FileBuf;
 use crate::change::inserted_bytes;
 use crate::charset::{NUL, ascii_isdigit, ascii_iswhite, getdigits_int, skiptowhite, skipwhite};
-use crate::cursor::{check_cursor, Colnr, get_cursor_line_len, get_cursor_line_ptr};
+use crate::cursor::{Colnr, check_cursor, get_cursor_line_len, get_cursor_line_ptr};
 use crate::errors::*;
 use crate::eval::typval::{
-    TypvalVval, VarType, tv_clear, tv_dict_add_bool, tv_dict_add_nr, tv_dict_add_str,
+    TypVal, TypvalVval, VarType, tv_clear, tv_dict_add_bool, tv_dict_add_nr, tv_dict_add_str,
     tv_dict_add_str_len, tv_dict_alloc, tv_list_alloc_ret, tv_list_append_tv, tv_list_unref,
-    tv_set_string, TypVal,
+    tv_set_string,
 };
 use crate::eval::vars::{eval_spell_expr, get_spellword};
 use crate::fileio::{fclose, vim_fgets};
@@ -21,27 +21,23 @@ use crate::mbyte::{
     utfc_ptr2len,
 };
 use crate::memline::{ml_get_buf, ml_replace};
-use crate::memory::{xstrlcpy};
+use crate::memory::xstrlcpy;
 use crate::message::{emsg, internal_error, msg, msg_ext_set_kind, semsg, smsg};
 use crate::normal::end_visual_mode;
 use crate::option::{copy_option_part, option_next_keyval, option_slice_eq};
 use crate::option_vars::*;
 use crate::os::fs::{MAXPATHL, os_fopen};
 use crate::os::input::{line_breakcheck, os_breakcheck};
-use crate::profile::{profile_passed_limit, profile_setlimit, Proftime};
+use crate::profile::{Proftime, profile_passed_limit, profile_setlimit};
 use crate::spell::{
     MAXWLEN, WF_ALLCAP, WF_BANNED, WF_CAPMASK, WF_KEEPCAP, WF_NEEDCOMP, WF_ONECAP, WF_RARE,
     WF_RAREPFX, WF_REGION, allcap_copy, byte_in_str, can_compound, captype, check_need_cap,
     make_case_word, match_checkcompoundpattern, match_compoundrule, nofold_len, parse_spelllang,
-    spell_priv_st, spell_casefold, spell_check, spell_isupper, spell_iswordp,
-    spell_iswordp_nmw, spell_move_to, spell_soundfold, spell_tofold, spell_valid_case,
-    valid_word_prefix,
+    spell_casefold, spell_check, spell_isupper, spell_iswordp, spell_iswordp_nmw, spell_move_to,
+    spell_priv_st, spell_soundfold, spell_tofold, spell_valid_case, valid_word_prefix,
 };
 use crate::spellfile::{MAXREGIONS, WF_NOSUGGEST, suggest_load_files};
-use crate::strings::{
-    gettext, vim_snprintf,
-    vim_strchr,
-};
+use crate::strings::{gettext, vim_snprintf, vim_strchr};
 use crate::ui::vim_beep;
 use crate::undo::u_save_cursor;
 use crate::viml::parser::expressions::TAB;
@@ -389,10 +385,10 @@ const fn maxscore(word_score: c_int, sound_score: c_int) -> c_int {
 #[inline]
 fn sug_clean_count(su: &Suginfo) -> c_int {
     if su.su_maxcount < 130 {
-            150
-        } else {
-            su.su_maxcount + 20
-        }
+        150
+    } else {
+        su.su_maxcount + 20
+    }
 }
 #[inline]
 fn sug_max_count(su: &Suginfo) -> c_int {
@@ -400,7 +396,8 @@ fn sug_max_count(su: &Suginfo) -> c_int {
 }
 
 #[inline]
-fn mb_cptr_back(s: impl crate::strings::IntoCCharPtr, p: &mut *const c_char) { let s = s.into_c_char_ptr();
+fn mb_cptr_back(s: impl crate::strings::IntoCCharPtr, p: &mut *const c_char) {
+    let s = s.into_c_char_ptr();
     unsafe {
         let off = utf_head_off(s, (*p).sub(1)) + 1;
         *p = (*p).sub(off as usize);
@@ -408,20 +405,12 @@ fn mb_cptr_back(s: impl crate::strings::IntoCCharPtr, p: &mut *const c_char) { l
 }
 
 #[inline]
-fn was_banned(su: &mut Suginfo, word: impl crate::strings::IntoCCharPtr) -> bool { let word = word.into_c_char_ptr();
-     {
-        su
-            .su_banned
-            .contains(crate::memory::cstr_as_bytes(word))
-    }
+fn was_banned(su: &mut Suginfo, word: impl crate::strings::IntoCCharPtr) -> bool {
+    let word = word.into_c_char_ptr();
+    su.su_banned.contains(crate::memory::cstr_as_bytes(word))
 }
 
-fn can_be_compound(
-    sp: &Trystate,
-    slang: &mut Slang,
-    compflags: *mut u8,
-    flag: c_int,
-) -> bool {
+fn can_be_compound(sp: &Trystate, slang: &mut Slang, compflags: *mut u8, flag: c_int) -> bool {
     unsafe {
         let flags_cstr = if sp.ts_complen == sp.ts_compsplit {
             &slang.sl_compstartflags
@@ -452,12 +441,10 @@ fn score_wordcount_adj(
     score: c_int,
     word: impl crate::strings::IntoCCharPtr,
     split: bool,
-) -> c_int { let word = word.into_c_char_ptr();
-     {
-        let Some(&wc_count) = slang
-            .sl_wordcount
-            .get(crate::memory::cstr_as_bytes(word))
-        else {
+) -> c_int {
+    let word = word.into_c_char_ptr();
+    {
+        let Some(&wc_count) = slang.sl_wordcount.get(crate::memory::cstr_as_bytes(word)) else {
             return score;
         };
         let bonus = if wc_count < SCORE_THRES2 {
@@ -477,34 +464,34 @@ fn score_wordcount_adj(
 }
 fn badword_captype(word: *mut c_char, end: *mut c_char) -> c_int {
     let mut flags = captype(word, end);
-        if (flags & WF_KEEPCAP) == 0 {
-            return flags;
-        }
-        let mut l: c_int = 0;
-        let mut u: c_int = 0;
-        let mut first = false;
-        let mut p = word;
-        while p < end {
-            let c = utf_ptr2char(p);
-            if spell_isupper(c) {
-                u += 1;
-                if p == word {
-                    first = true;
-                }
-            } else {
-                l += 1;
+    if (flags & WF_KEEPCAP) == 0 {
+        return flags;
+    }
+    let mut l: c_int = 0;
+    let mut u: c_int = 0;
+    let mut first = false;
+    let mut p = word;
+    while p < end {
+        let c = utf_ptr2char(p);
+        if spell_isupper(c) {
+            u += 1;
+            if p == word {
+                first = true;
             }
-            mb_ptr_adv(&mut p);
+        } else {
+            l += 1;
         }
-        if u > l && u > 2 {
-            flags |= WF_ALLCAP;
-        } else if first {
-            flags |= WF_ONECAP;
-        }
-        if u >= 2 && l >= 2 {
-            flags |= WF_MIXCAP;
-        }
-        flags
+        mb_ptr_adv(&mut p);
+    }
+    if u > l && u > 2 {
+        flags |= WF_ALLCAP;
+    } else if first {
+        flags |= WF_ONECAP;
+    }
+    if u >= 2 && l >= 2 {
+        flags |= WF_MIXCAP;
+    }
+    flags
 }
 fn bytes2offset(pp: *mut *mut c_char) -> c_int {
     unsafe {
@@ -544,7 +531,8 @@ pub fn spell_check_sps(
     value: impl crate::strings::IntoCCharPtr,
     ret_flags: &mut c_int,
     ret_limit: &mut c_int,
-) -> bool { let value = value.into_c_char_ptr();
+) -> bool {
+    let value = value.into_c_char_ptr();
     unsafe {
         let mut flags: c_int = 0;
         let mut limit: c_int = 9999;
@@ -577,8 +565,7 @@ pub fn spell_check_sps(
                 } else {
                     f = -1;
                 }
-            } else if option_slice_eq(key, keylen, c"expr")
-                || option_slice_eq(key, keylen, c"file")
+            } else if option_slice_eq(key, keylen, c"expr") || option_slice_eq(key, keylen, c"file")
             {
                 // consumed later in spell_find_suggest()
             } else if option_slice_eq(key, keylen, c"timeout") {
@@ -612,7 +599,7 @@ pub fn spell_check_sps(
 /// Apply validated 'spellsuggest' flags and suggestion limit.
 pub fn spell_apply_sps(flags: c_int, limit: c_int) {
     sps_st().sps_flags = flags;
-        sps_st().sps_limit = limit;
+    sps_st().sps_limit = limit;
 }
 fn select_spell_suggestion(sug: &mut Suginfo) {
     unsafe {
@@ -659,7 +646,7 @@ fn select_spell_suggestion(sug: &mut Suginfo) {
                 v_lock: 0,
                 vval: TypvalVval::Dict(d),
             };
-            tv_list_append_tv( &mut *items_tv.vval.v_list(), &mut item);
+            tv_list_append_tv(&mut *items_tv.vval.v_list(), &mut item);
         }
         let bad_cstr = CString::new(std::slice::from_raw_parts(
             sug.su_badptr.cast::<u8>(),
@@ -705,7 +692,7 @@ pub fn spell_suggest(count: c_int) {
         let prev_cursor = curwin_mut().w_cursor;
         'skip: {
             let w_s = curwin_mut().w_s_ptr();
-            if crate::memory::cstr_is_empty((*w_s).b_p_spl) {
+            if crate::memory::cstr_is_empty(w_s.b_p_spl) {
                 emsg(gettext(E_NO_SPELL));
                 break 'skip;
             }
@@ -741,7 +728,11 @@ pub fn spell_suggest(count: c_int) {
                 }
                 curwin_mut().w_cursor.col = p.offset_from(curline) as Colnr;
             }
-            let need_cap = check_need_cap(curwin_mut(), curwin_mut().w_cursor.lnum, curwin_mut().w_cursor.col);
+            let need_cap = check_need_cap(
+                curwin_mut(),
+                curwin_mut().w_cursor.lnum,
+                curwin_mut().w_cursor.col,
+            );
             let mut line_vec: Vec<c_char> = std::slice::from_raw_parts(
                 get_cursor_line_ptr(),
                 get_cursor_line_len() as usize + 1,
@@ -769,11 +760,7 @@ pub fn spell_suggest(count: c_int) {
             } else if count > 0 {
                 if count > sug_len {
                     msg_ext_set_kind(c"wmsg");
-                    smsg!(
-                        0,
-                        gettext(c"Only %lld suggestions"),
-                        sug_len as i64,
-                    );
+                    smsg!(0, gettext(c"Only %lld suggestions"), sug_len as i64,);
                 }
             } else {
                 curwin_mut().w_onebuf_opt.wo_spell = wo_spell_save;
@@ -800,7 +787,8 @@ pub fn spell_suggest(count: c_int) {
                         sug.su_badlen - stp.st_orglen,
                         sug.su_badptr.add(stp.st_orglen as usize),
                     );
-                    spell_priv_st().repl_to = Some(crate::memory::cstr_to_cstring(g_st().iobuff.as_ptr()));
+                    spell_priv_st().repl_to =
+                        Some(crate::memory::cstr_to_cstring(g_st().iobuff.as_ptr()));
                 } else {
                     spell_priv_st().repl_from = Some(
                         CString::new(std::slice::from_raw_parts(
@@ -809,10 +797,16 @@ pub fn spell_suggest(count: c_int) {
                         ))
                         .unwrap_or_default(),
                     );
-                    spell_priv_st().repl_to = Some(crate::memory::cstr_to_cstring(stp.st_word.as_ptr()));
+                    spell_priv_st().repl_to =
+                        Some(crate::memory::cstr_to_cstring(stp.st_word.as_ptr()));
                 }
-                let mut p_vec: Vec<c_char> =
-                    vec![0; crate::memory::cstr_len(line) - stp.st_orglen as usize + stp.st_wordlen as usize + 1];
+                let mut p_vec: Vec<c_char> = vec![
+                    0;
+                    crate::memory::cstr_len(line)
+                        - stp.st_orglen as usize
+                        + stp.st_wordlen as usize
+                        + 1
+                ];
                 let p = p_vec.as_mut_ptr();
                 let c = sug.su_badptr.offset_from(line) as c_int;
                 ptr::copy(line, p, c as usize);
@@ -852,22 +846,15 @@ pub fn spell_suggest_list(
 ) -> Vec<CString> {
     unsafe {
         let mut sug = Suginfo::default();
-        spell_find_suggest(
-            word,
-            0,
-            &mut sug,
-            maxcount,
-            false,
-            need_cap,
-            interactive,
-        );
+        spell_find_suggest(word, 0, &mut sug, maxcount, false, need_cap, interactive);
         let mut res = Vec::with_capacity(sug.su_ga.len());
         for stp in &sug.su_ga {
             let word_bytes = std::slice::from_raw_parts(
                 stp.st_word.as_ptr().cast::<u8>(),
                 stp.st_wordlen as usize,
             );
-            let tail_bytes = crate::memory::cstr_as_bytes(sug.su_badptr.add(stp.st_orglen as usize));
+            let tail_bytes =
+                crate::memory::cstr_as_bytes(sug.su_badptr.add(stp.st_orglen as usize));
             let mut bytes = Vec::with_capacity(word_bytes.len() + tail_bytes.len());
             bytes.extend_from_slice(word_bytes);
             bytes.extend_from_slice(tail_bytes);
@@ -898,19 +885,17 @@ fn spell_find_suggest(
         if badlen != 0 {
             su.su_badlen = badlen;
         } else {
-            let tmplen = spell_check(
-                curwin_mut(),
-                su.su_badptr,
-                &mut attr,
-                None,
-                false,
-            );
+            let tmplen = spell_check(curwin_mut(), su.su_badptr, &mut attr, None, false);
             su.su_badlen = tmplen as c_int;
         }
         su.su_maxcount = maxcount;
         su.su_maxscore = SCORE_MAXINIT;
         su.su_badlen = su.su_badlen.min(MAXWLEN as c_int - 1);
-        crate::memory::cstr_ncpy(su.su_badword.as_mut_ptr(), su.su_badptr, su.su_badlen as usize);
+        crate::memory::cstr_ncpy(
+            su.su_badword.as_mut_ptr(),
+            su.su_badptr,
+            su.su_badlen as usize,
+        );
         spell_casefold(
             curwin_mut(),
             su.su_badptr,
@@ -919,10 +904,7 @@ fn spell_find_suggest(
             MAXWLEN as c_int,
         );
         su.su_fbadword[su.su_badlen as usize] = NUL;
-        su.su_badflags = badword_captype(
-            su.su_badptr,
-            su.su_badptr.add(su.su_badlen as usize),
-        );
+        su.su_badflags = badword_captype(su.su_badptr, su.su_badptr.add(su.su_badlen as usize));
         if need_cap {
             su.su_badflags |= WF_ONECAP;
         }
@@ -976,7 +958,9 @@ fn spell_find_suggest(
             } else if crate::memory::cstr_prefix_bytes(buf_ptr, 5) == &b"file:"[..5] {
                 spell_suggest_file(su, buf_ptr.add(5));
             } else if crate::memory::cstr_prefix_bytes(buf_ptr, 8) == &b"timeout:"[..8] {
-                sps_st().spell_suggest_timeout = crate::charset::parse_i64_prefix(crate::memory::cstr_as_bytes(buf_ptr.add(8))) as c_int as i64;
+                sps_st().spell_suggest_timeout =
+                    crate::charset::parse_i64_prefix(crate::memory::cstr_as_bytes(buf_ptr.add(8)))
+                        as c_int as i64;
             } else if !did_intern {
                 spell_suggest_intern(su, interactive);
                 if (sps_st().sps_flags & SPS_DOUBLE) != 0 {
@@ -990,7 +974,8 @@ fn spell_find_suggest(
         }
     }
 }
-fn spell_suggest_expr(su: &mut Suginfo, expr: impl crate::strings::IntoCCharPtr) { let expr = expr.into_c_char_ptr();
+fn spell_suggest_expr(su: &mut Suginfo, expr: impl crate::strings::IntoCCharPtr) {
+    let expr = expr.into_c_char_ptr();
     unsafe {
         let mut p: *const c_char = ptr::null();
         let list = eval_spell_expr((&raw mut su.su_badword).cast(), expr);
@@ -1019,7 +1004,8 @@ fn spell_suggest_expr(su: &mut Suginfo, expr: impl crate::strings::IntoCCharPtr)
         cleanup_suggestions(&mut su.su_ga, su.su_maxscore, su.su_maxcount);
     }
 }
-fn spell_suggest_file(su: &mut Suginfo, fname: impl crate::strings::IntoCCharPtr) { let fname = fname.into_c_char_ptr();
+fn spell_suggest_file(su: &mut Suginfo, fname: impl crate::strings::IntoCCharPtr) {
+    let fname = fname.into_c_char_ptr();
     unsafe {
         let mut line: [c_char; MAXWLEN * 2] = [0; MAXWLEN * 2];
         let mut cword: [c_char; MAXWLEN] = [0; MAXWLEN];
@@ -1036,11 +1022,7 @@ fn spell_suggest_file(su: &mut Suginfo, fname: impl crate::strings::IntoCCharPtr
             }
             *p = NUL;
             p = p.add(1);
-            if mb_stricmp(
-                (&raw const su.su_badword).cast(),
-                (&raw const line).cast(),
-            ) == 0
-            {
+            if mb_stricmp((&raw const su.su_badword).cast(), (&raw const line).cast()) == 0 {
                 let mut len: usize = 0;
                 while (crate::memory::cstr_byte_at(p, len)) >= b' ' {
                     len += 1;
@@ -1070,42 +1052,42 @@ fn spell_suggest_file(su: &mut Suginfo, fname: impl crate::strings::IntoCCharPtr
 }
 fn spell_suggest_intern(su: &mut Suginfo, interactive: bool) {
     suggest_load_files();
-        suggest_try_special(su);
-        suggest_try_change(su);
-        if (sps_st().sps_flags & SPS_DOUBLE) != 0 {
-            score_comp_sal(su);
+    suggest_try_special(su);
+    suggest_try_change(su);
+    if (sps_st().sps_flags & SPS_DOUBLE) != 0 {
+        score_comp_sal(su);
+    }
+    if (sps_st().sps_flags & SPS_FAST) == 0 {
+        if (sps_st().sps_flags & SPS_BEST) != 0 {
+            rescore_suggestions(su);
         }
-        if (sps_st().sps_flags & SPS_FAST) == 0 {
-            if (sps_st().sps_flags & SPS_BEST) != 0 {
-                rescore_suggestions(su);
-            }
-            suggest_try_soundalike_prep();
-            su.su_maxscore = SCORE_SFMAX1;
-            su.su_sfmaxscore = SCORE_MAXINIT * 3;
+        suggest_try_soundalike_prep();
+        su.su_maxscore = SCORE_SFMAX1;
+        su.su_sfmaxscore = SCORE_MAXINIT * 3;
+        suggest_try_soundalike(su);
+        if (su.su_ga.len() as c_int) < sug_clean_count(su) {
+            su.su_maxscore = SCORE_SFMAX2;
             suggest_try_soundalike(su);
             if (su.su_ga.len() as c_int) < sug_clean_count(su) {
-                su.su_maxscore = SCORE_SFMAX2;
+                su.su_maxscore = SCORE_SFMAX3;
                 suggest_try_soundalike(su);
-                if (su.su_ga.len() as c_int) < sug_clean_count(su) {
-                    su.su_maxscore = SCORE_SFMAX3;
-                    suggest_try_soundalike(su);
-                }
             }
-            su.su_maxscore = su.su_sfmaxscore;
-            suggest_try_soundalike_finish();
         }
-        os_breakcheck();
-        if interactive && g_st().got_int {
-            let _ = vgetc();
-            g_st().got_int = false;
+        su.su_maxscore = su.su_sfmaxscore;
+        suggest_try_soundalike_finish();
+    }
+    os_breakcheck();
+    if interactive && g_st().got_int {
+        let _ = vgetc();
+        g_st().got_int = false;
+    }
+    if (sps_st().sps_flags & SPS_DOUBLE) == 0 && !su.su_ga.is_empty() {
+        if (sps_st().sps_flags & SPS_BEST) != 0 {
+            rescore_suggestions(su);
         }
-        if (sps_st().sps_flags & SPS_DOUBLE) == 0 && !su.su_ga.is_empty() {
-            if (sps_st().sps_flags & SPS_BEST) != 0 {
-                rescore_suggestions(su);
-            }
-            check_suggestions(su, false);
-            cleanup_suggestions(&mut su.su_ga, su.su_maxscore, su.su_maxcount);
-        }
+        check_suggestions(su, false);
+        cleanup_suggestions(&mut su.su_ga, su.su_maxscore, su.su_maxcount);
+    }
 }
 fn suggest_try_special(su: &mut Suginfo) {
     unsafe {
@@ -1114,7 +1096,10 @@ fn suggest_try_special(su: &mut Suginfo) {
         let mut p = skiptowhite(fbadword_ptr);
         let len = p.offset_from(fbadword_ptr) as usize;
         p = skipwhite(p);
-        if crate::memory::cstr_len(p) == len && (crate::memory::cstr_prefix_bytes(fbadword_ptr, len) == crate::memory::cstr_prefix_bytes(p, len)) {
+        if crate::memory::cstr_len(p) == len
+            && (crate::memory::cstr_prefix_bytes(fbadword_ptr, len)
+                == crate::memory::cstr_prefix_bytes(p, len))
+        {
             let c = su.su_fbadword[len];
             su.su_fbadword[len] = NUL;
             make_case_word(fbadword_ptr, (&raw mut word).cast(), su.su_badflags);
@@ -1151,7 +1136,7 @@ fn suggest_try_change(su: &mut Suginfo) {
             fword[n as usize] = NUL;
         }
         let w_s = curwin_mut().w_s_ptr();
-        for lp in &(*w_s).b_langp {
+        for lp in &w_s.b_langp {
             if (*lp.lp_slang).sl_fbyts.is_empty() {
                 continue;
             }
@@ -1160,12 +1145,7 @@ fn suggest_try_change(su: &mut Suginfo) {
     }
 }
 #[inline]
-fn try_deeper(
-    su: &Suginfo,
-    stack: &[Trystate; MAXWLEN],
-    depth: usize,
-    add: c_int,
-) -> bool {
+fn try_deeper(su: &Suginfo, stack: &[Trystate; MAXWLEN], depth: usize, add: c_int) -> bool {
     depth < MAXWLEN - 1 && stack[depth].ts_score + add < su.su_maxscore
 }
 fn suggest_trie_walk(su: &mut Suginfo, lp: &Langp, fword: *mut c_char, soundfold: bool) {
@@ -1246,8 +1226,7 @@ fn suggest_trie_walk(su: &mut Suginfo, lp: &Langp, fword: *mut c_char, soundfold
                         if udepth < MAXWLEN - 1 && (*byts.add(arridx as usize) == 0 || was_noprefix)
                         {
                             n = nofold_len(fword, stack[udepth].ts_fidx as c_int, su.su_badptr);
-                            let flags =
-                                badword_captype(su.su_badptr, su.su_badptr.add(n as usize));
+                            let flags = badword_captype(su.su_badptr, su.su_badptr.add(n as usize));
                             su.su_badflags = badword_captype(
                                 su.su_badptr.add(n as usize),
                                 su.su_badptr.add(su.su_badlen as usize),
@@ -1269,7 +1248,8 @@ fn suggest_trie_walk(su: &mut Suginfo, lp: &Langp, fword: *mut c_char, soundfold
                                     .add(stack[udepth].ts_prewordlen as usize),
                                 flags,
                             );
-                            stack[udepth].ts_prewordlen = crate::memory::cstr_len((&raw const preword).cast()) as u8;
+                            stack[udepth].ts_prewordlen =
+                                crate::memory::cstr_len((&raw const preword).cast()) as u8;
                             stack[udepth].ts_splitoff = stack[udepth].ts_twordlen;
                         }
                         continue;
@@ -1284,12 +1264,19 @@ fn suggest_trie_walk(su: &mut Suginfo, lp: &Langp, fword: *mut c_char, soundfold
                     if (flags & WF_NOSUGGEST) != 0 {
                         continue;
                     }
-                    let fword_ends = crate::memory::cstr_byte_at(fword, stack[udepth].ts_fidx as usize) == 0
-                        || if soundfold {
-                            ascii_iswhite(crate::memory::cstr_char_at(fword, stack[udepth].ts_fidx as usize))
-                        } else {
-                            !spell_iswordp(fword.add(stack[udepth].ts_fidx as usize), curwin_mut())
-                        };
+                    let fword_ends =
+                        crate::memory::cstr_byte_at(fword, stack[udepth].ts_fidx as usize) == 0
+                            || if soundfold {
+                                ascii_iswhite(crate::memory::cstr_char_at(
+                                    fword,
+                                    stack[udepth].ts_fidx as usize,
+                                ))
+                            } else {
+                                !spell_iswordp(
+                                    fword.add(stack[udepth].ts_fidx as usize),
+                                    curwin_mut(),
+                                )
+                            };
                     tword[stack[udepth].ts_twordlen as usize] = NUL;
                     if stack[udepth].ts_prefixdepth <= PFD_NOTSPECIAL
                         && (stack[udepth].ts_flags & TSF_PREFIXOK) == 0
@@ -1331,9 +1318,15 @@ fn suggest_trie_walk(su: &mut Suginfo, lp: &Langp, fword: *mut c_char, soundfold
                         if slang.sl_nobreak {
                             if stack[udepth].ts_fidx - stack[udepth].ts_splitfidx
                                 == stack[udepth].ts_twordlen - stack[udepth].ts_splitoff
-                                && (crate::memory::cstr_prefix_bytes(fword.add(stack[udepth].ts_splitfidx as usize), (stack[udepth].ts_fidx - stack[udepth].ts_splitfidx) as usize) == crate::memory::cstr_prefix_bytes((&raw const tword)
+                                && (crate::memory::cstr_prefix_bytes(
+                                    fword.add(stack[udepth].ts_splitfidx as usize),
+                                    (stack[udepth].ts_fidx - stack[udepth].ts_splitfidx) as usize,
+                                ) == crate::memory::cstr_prefix_bytes(
+                                    (&raw const tword)
                                         .cast::<c_char>()
-                                        .add(stack[udepth].ts_splitoff as usize), (stack[udepth].ts_fidx - stack[udepth].ts_splitfidx) as usize))
+                                        .add(stack[udepth].ts_splitoff as usize),
+                                    (stack[udepth].ts_fidx - stack[udepth].ts_splitfidx) as usize,
+                                ))
                             {
                                 preword[stack[udepth].ts_prewordlen as usize] = NUL;
                                 let newscore = score_wordcount_adj(
@@ -1379,11 +1372,15 @@ fn suggest_trie_walk(su: &mut Suginfo, lp: &Langp, fword: *mut c_char, soundfold
                             compflags[stack[udepth].ts_complen as usize] =
                                 ((flags as u32) >> 24) as u8;
                             compflags[stack[udepth].ts_complen as usize + 1] = 0;
-                            crate::memory::cstr_ncpy((&raw mut preword)
+                            crate::memory::cstr_ncpy(
+                                (&raw mut preword)
                                     .cast::<c_char>()
-                                    .add(stack[udepth].ts_prewordlen as usize), (&raw const tword)
+                                    .add(stack[udepth].ts_prewordlen as usize),
+                                (&raw const tword)
                                     .cast::<c_char>()
-                                    .add(stack[udepth].ts_splitoff as usize), (stack[udepth].ts_twordlen - stack[udepth].ts_splitoff) as usize);
+                                    .add(stack[udepth].ts_splitoff as usize),
+                                (stack[udepth].ts_twordlen - stack[udepth].ts_splitoff) as usize,
+                            );
                             if match_checkcompoundpattern(
                                 (&raw mut preword).cast(),
                                 stack[udepth].ts_prewordlen as c_int,
@@ -1415,11 +1412,14 @@ fn suggest_trie_walk(su: &mut Suginfo, lp: &Langp, fword: *mut c_char, soundfold
                         }
                     }
                     if soundfold {
-                        crate::memory::cstr_cpy((&raw mut preword)
+                        crate::memory::cstr_cpy(
+                            (&raw mut preword)
                                 .cast::<c_char>()
-                                .add(stack[udepth].ts_prewordlen as usize), (&raw const tword)
+                                .add(stack[udepth].ts_prewordlen as usize),
+                            (&raw const tword)
                                 .cast::<c_char>()
-                                .add(stack[udepth].ts_splitoff as usize));
+                                .add(stack[udepth].ts_splitoff as usize),
+                        );
                     } else if (flags & WF_KEEPCAP) != 0 {
                         find_keepcap_word(
                             slang,
@@ -1432,8 +1432,7 @@ fn suggest_trie_walk(su: &mut Suginfo, lp: &Langp, fword: *mut c_char, soundfold
                         );
                     } else {
                         c = su.su_badflags;
-                        if (c & WF_ALLCAP) != 0 && su.su_badlen == utfc_ptr2len(su.su_badptr)
-                        {
+                        if (c & WF_ALLCAP) != 0 && su.su_badlen == utfc_ptr2len(su.su_badptr) {
                             c = WF_ONECAP;
                         }
                         c |= flags;
@@ -1572,8 +1571,7 @@ fn suggest_trie_walk(su: &mut Suginfo, lp: &Langp, fword: *mut c_char, soundfold
                     if (stack[udepth].ts_fidx >= stack[udepth].ts_fidxtry || fword_ends)
                         && stack[udepth].ts_tcharlen == 0
                     {
-                        let try_split = (stack[udepth].ts_fidx as c_int - repextra)
-                            < su.su_badlen
+                        let try_split = (stack[udepth].ts_fidx as c_int - repextra) < su.su_badlen
                             && !soundfold;
                         let mut try_compound = false;
                         if !soundfold
@@ -1660,7 +1658,10 @@ fn suggest_trie_walk(su: &mut Suginfo, lp: &Langp, fword: *mut c_char, soundfold
                                 depth += 1;
                                 udepth = depth as usize;
                                 if !try_compound && !fword_ends {
-                                    crate::memory::cstr_cat((&raw mut preword).cast::<c_char>(), c" ");
+                                    crate::memory::cstr_cat(
+                                        (&raw mut preword).cast::<c_char>(),
+                                        c" ",
+                                    );
                                 }
                                 stack[udepth].ts_prewordlen =
                                     crate::memory::cstr_len((&raw const preword).cast()) as u8;
@@ -1672,7 +1673,10 @@ fn suggest_trie_walk(su: &mut Suginfo, lp: &Langp, fword: *mut c_char, soundfold
                                         curwin_mut(),
                                     ))
                                     || fword_ends)
-                                    && crate::memory::cstr_byte_at(fword, stack[udepth].ts_fidx as usize) != 0
+                                    && crate::memory::cstr_byte_at(
+                                        fword,
+                                        stack[udepth].ts_fidx as usize,
+                                    ) != 0
                                     && goodword_ends
                                 {
                                     let l = utfc_ptr2len(fword.add(stack[udepth].ts_fidx as usize));
@@ -1697,11 +1701,7 @@ fn suggest_trie_walk(su: &mut Suginfo, lp: &Langp, fword: *mut c_char, soundfold
                                     stack[udepth].ts_compsplit = stack[udepth].ts_complen;
                                 }
                                 stack[udepth].ts_prefixdepth = PFD_NOPREFIX;
-                                n = nofold_len(
-                                    fword,
-                                    stack[udepth].ts_fidx as c_int,
-                                    su.su_badptr,
-                                );
+                                n = nofold_len(fword, stack[udepth].ts_fidx as c_int, su.su_badptr);
                                 su.su_badflags = badword_captype(
                                     su.su_badptr.add(n as usize),
                                     su.su_badptr.add(su.su_badlen as usize),
@@ -1750,7 +1750,10 @@ fn suggest_trie_walk(su: &mut Suginfo, lp: &Langp, fword: *mut c_char, soundfold
                             stack[udepth].ts_curi += 1;
                             c = *byts.add(arridx as usize) as c_int;
                             let newscore = if c
-                                == crate::memory::cstr_byte_at(fword, stack[udepth].ts_fidx as usize) as c_int
+                                == crate::memory::cstr_byte_at(
+                                    fword,
+                                    stack[udepth].ts_fidx as usize,
+                                ) as c_int
                                 || (stack[udepth].ts_tcharlen > 0
                                     && stack[udepth].ts_isdiff != DIFF_NONE)
                             {
@@ -1761,14 +1764,21 @@ fn suggest_trie_walk(su: &mut Suginfo, lp: &Langp, fword: *mut c_char, soundfold
                             if (newscore == 0
                                 || (stack[udepth].ts_fidx >= stack[udepth].ts_fidxtry
                                     && ((stack[udepth].ts_flags & TSF_DIDDEL) == 0
-                                        || c != crate::memory::cstr_byte_at(fword, stack[udepth].ts_delidx as usize)
+                                        || c != crate::memory::cstr_byte_at(
+                                            fword,
+                                            stack[udepth].ts_delidx as usize,
+                                        )
                                             as c_int)))
                                 && try_deeper(su, &stack, udepth, newscore)
                             {
                                 go_deeper(&mut stack, udepth, newscore);
                                 depth += 1;
                                 udepth = depth as usize;
-                                if crate::memory::cstr_byte_at(fword, stack[udepth].ts_fidx as usize) != 0 {
+                                if crate::memory::cstr_byte_at(
+                                    fword,
+                                    stack[udepth].ts_fidx as usize,
+                                ) != 0
+                                {
                                     stack[udepth].ts_fidx += 1;
                                 }
                                 let twl = stack[udepth].ts_twordlen as usize;
@@ -1850,13 +1860,17 @@ fn suggest_trie_walk(su: &mut Suginfo, lp: &Langp, fword: *mut c_char, soundfold
                             stack[udepth].ts_curi = 1;
                             let newscore = if soundfold
                                 && stack[udepth].ts_fidx == 0
-                                && crate::memory::cstr_byte_at(fword, stack[udepth].ts_fidx as usize) == b'*'
+                                && crate::memory::cstr_byte_at(
+                                    fword,
+                                    stack[udepth].ts_fidx as usize,
+                                ) == b'*'
                             {
                                 2 * SCORE_DEL / 3
                             } else {
                                 SCORE_DEL
                             };
-                            if crate::memory::cstr_byte_at(fword, stack[udepth].ts_fidx as usize) != 0
+                            if crate::memory::cstr_byte_at(fword, stack[udepth].ts_fidx as usize)
+                                != 0
                                 && try_deeper(su, &stack, udepth, newscore)
                             {
                                 go_deeper(&mut stack, udepth, newscore);
@@ -1906,9 +1920,7 @@ fn suggest_trie_walk(su: &mut Suginfo, lp: &Langp, fword: *mut c_char, soundfold
                     }
                     n += stack[udepth].ts_curi as c_int;
                     stack[udepth].ts_curi += 1;
-                    if byts == slang.sl_fbyts.as_mut_ptr()
-                        && n >= slang.sl_fbyts.len() as c_int
-                    {
+                    if byts == slang.sl_fbyts.as_mut_ptr() && n >= slang.sl_fbyts.len() as c_int {
                         g_st().got_int = true;
                         continue;
                     }
@@ -1919,7 +1931,8 @@ fn suggest_trie_walk(su: &mut Suginfo, lp: &Langp, fword: *mut c_char, soundfold
                         } else {
                             SCORE_INS
                         };
-                    if c != crate::memory::cstr_byte_at(fword, stack[udepth].ts_fidx as usize) as c_int
+                    if c != crate::memory::cstr_byte_at(fword, stack[udepth].ts_fidx as usize)
+                        as c_int
                         && try_deeper(su, &stack, udepth, newscore)
                     {
                         go_deeper(&mut stack, udepth, newscore);
@@ -2105,7 +2118,8 @@ fn suggest_trie_walk(su: &mut Suginfo, lp: &Langp, fword: *mut c_char, soundfold
                             do_rep = false;
                         } else {
                             let first_byte =
-                                crate::memory::cstr_byte_at(fword, stack[udepth].ts_fidx as usize) as usize;
+                                crate::memory::cstr_byte_at(fword, stack[udepth].ts_fidx as usize)
+                                    as usize;
                             stack[udepth].ts_curi = if soundfold {
                                 slang.sl_repsal_first[first_byte]
                             } else {
@@ -2134,8 +2148,13 @@ fn suggest_trie_walk(su: &mut Suginfo, lp: &Langp, fword: *mut c_char, soundfold
                                 stack[udepth].ts_curi = gap.len() as i16;
                                 break;
                             }
-                            if (crate::memory::cstr_prefix_bytes(ftp.ft_from.as_ptr(), ftp.ft_from.as_bytes().len()) == crate::memory::cstr_prefix_bytes(p, ftp.ft_from.as_bytes().len()))
-                                && try_deeper(su, &stack, udepth, SCORE_REP)
+                            if (crate::memory::cstr_prefix_bytes(
+                                ftp.ft_from.as_ptr(),
+                                ftp.ft_from.as_bytes().len(),
+                            ) == crate::memory::cstr_prefix_bytes(
+                                p,
+                                ftp.ft_from.as_bytes().len(),
+                            )) && try_deeper(su, &stack, udepth, SCORE_REP)
                             {
                                 go_deeper(&mut stack, udepth, SCORE_REP);
                                 stack[udepth].ts_state = SugState::StateRepUndo;
@@ -2145,7 +2164,10 @@ fn suggest_trie_walk(su: &mut Suginfo, lp: &Langp, fword: *mut c_char, soundfold
                                 fl = ftp.ft_from.as_bytes().len() as c_int;
                                 tl = ftp.ft_to.as_bytes().len() as c_int;
                                 if fl != tl {
-                                    crate::memory::cstr_move(p.add(tl as usize), p.add(fl as usize));
+                                    crate::memory::cstr_move(
+                                        p.add(tl as usize),
+                                        p.add(fl as usize),
+                                    );
                                     repextra += tl - fl;
                                 }
                                 ptr::copy(ftp.ft_to.as_ptr(), p, tl as usize);
@@ -2205,7 +2227,12 @@ fn go_deeper(stack: &mut [Trystate; MAXWLEN], depth: usize, score_add: c_int) {
     stack[depth + 1].ts_curi = 1;
     stack[depth + 1].ts_flags = 0;
 }
-fn find_keepcap_word(slang: &mut Slang, fword: impl crate::strings::IntoCCharPtr, kword: *mut c_char) { let fword = fword.into_c_char_ptr();
+fn find_keepcap_word(
+    slang: &mut Slang,
+    fword: impl crate::strings::IntoCCharPtr,
+    kword: *mut c_char,
+) {
+    let fword = fword.into_c_char_ptr();
     unsafe {
         let mut uword: [c_char; MAXWLEN] = [0; MAXWLEN];
         let mut arridx: [Idx; MAXWLEN] = [0; MAXWLEN];
@@ -2312,7 +2339,7 @@ fn score_comp_sal(su: &mut Suginfo) {
         let sga = &mut su.su_sga;
         sga.reserve(su.su_ga.len());
         let w_s = curwin_mut().w_s_ptr();
-        for lp in &(*w_s).b_langp {
+        for lp in &w_s.b_langp {
             if (*lp.lp_slang).has_sal() {
                 spell_soundfold(
                     &mut *lp.lp_slang,
@@ -2321,7 +2348,8 @@ fn score_comp_sal(su: &mut Suginfo) {
                     (&raw mut badsound).cast(),
                 );
                 for stp in &su.su_ga {
-                    let score = stp_sal_score(stp, su, &mut *lp.lp_slang, (&raw mut badsound).cast());
+                    let score =
+                        stp_sal_score(stp, su, &mut *lp.lp_slang, (&raw mut badsound).cast());
                     if score < SCORE_MAXMAX {
                         let sga = &mut su.su_sga;
                         sga.push(Suggest {
@@ -2346,7 +2374,7 @@ fn score_combine(su: &mut Suginfo) {
         let mut badsound: [c_char; MAXWLEN] = [0; MAXWLEN];
         let mut slang: *mut Slang = ptr::null_mut();
         let w_s = curwin_mut().w_s_ptr();
-        for lp in &(*w_s).b_langp {
+        for lp in &w_s.b_langp {
             if (*lp.lp_slang).has_sal() {
                 slang = lp.lp_slang;
                 spell_soundfold(
@@ -2357,7 +2385,8 @@ fn score_combine(su: &mut Suginfo) {
                 );
                 let mut su_ga = std::mem::take(&mut su.su_ga);
                 for stp in &mut su_ga {
-                    stp.st_altscore = stp_sal_score(stp, su, &mut *slang, (&raw mut badsound).cast());
+                    stp.st_altscore =
+                        stp_sal_score(stp, su, &mut *slang, (&raw mut badsound).cast());
                     if stp.st_altscore == SCORE_MAXMAX {
                         stp.st_score = (stp.st_score * 3 + SCORE_BIG) / 4;
                     } else {
@@ -2421,7 +2450,8 @@ fn stp_sal_score(
     su: &Suginfo,
     slang: &mut Slang,
     badsound: impl crate::strings::IntoCCharPtr,
-) -> c_int { let badsound = badsound.into_c_char_ptr();
+) -> c_int {
+    let badsound = badsound.into_c_char_ptr();
     unsafe {
         let mut badsound2: [c_char; MAXWLEN] = [0; MAXWLEN];
         let mut fword: [c_char; MAXWLEN] = [0; MAXWLEN];
@@ -2438,8 +2468,10 @@ fn stp_sal_score(
                 (&raw mut fword).cast(),
                 MAXWLEN as c_int,
             );
-            if ascii_iswhite(crate::memory::cstr_char_at(su.su_badptr, su.su_badlen as usize))
-                && *skiptowhite(stp.st_word.as_ptr()) == NUL
+            if ascii_iswhite(crate::memory::cstr_char_at(
+                su.su_badptr,
+                su.su_badlen as usize,
+            )) && *skiptowhite(stp.st_word.as_ptr()) == NUL
             {
                 let mut p = (&raw mut fword).cast::<c_char>();
                 loop {
@@ -2460,11 +2492,13 @@ fn stp_sal_score(
         };
         let pgood = if lendiff > 0 && (stp.st_wordlen + lendiff) < MAXWLEN as c_int {
             crate::memory::cstr_cpy((&raw mut goodword).cast(), stp.st_word.as_ptr());
-            crate::memory::cstr_ncpy((&raw mut goodword)
+            crate::memory::cstr_ncpy(
+                (&raw mut goodword)
                     .cast::<c_char>()
-                    .add(stp.st_wordlen as usize), su
-                    .su_badptr
-                    .add((su.su_badlen - lendiff) as usize), lendiff as usize);
+                    .add(stp.st_wordlen as usize),
+                su.su_badptr.add((su.su_badlen - lendiff) as usize),
+                lendiff as usize,
+            );
             (&raw mut goodword).cast()
         } else {
             stp.st_word.as_ptr().cast_mut()
@@ -2476,7 +2510,7 @@ fn stp_sal_score(
 fn suggest_try_soundalike_prep() {
     unsafe {
         let w_s = curwin_mut().w_s_ptr();
-        for lp in &(*w_s).b_langp {
+        for lp in &w_s.b_langp {
             let slang = &mut *lp.lp_slang;
             if slang.has_sal() && !slang.sl_sbyts.is_empty() {
                 slang.sl_sounddone.clear();
@@ -2488,7 +2522,7 @@ fn suggest_try_soundalike(su: &mut Suginfo) {
     unsafe {
         let mut salword: [c_char; MAXWLEN] = [0; MAXWLEN];
         let w_s = curwin_mut().w_s_ptr();
-        for lp in &(*w_s).b_langp {
+        for lp in &w_s.b_langp {
             let slang = &mut *lp.lp_slang;
             if slang.has_sal() && !slang.sl_sbyts.is_empty() {
                 spell_soundfold(
@@ -2505,7 +2539,7 @@ fn suggest_try_soundalike(su: &mut Suginfo) {
 fn suggest_try_soundalike_finish() {
     unsafe {
         let w_s = curwin_mut().w_s_ptr();
-        for lp in &(*w_s).b_langp {
+        for lp in &w_s.b_langp {
             let slang = &mut *lp.lp_slang;
             if slang.has_sal() && !slang.sl_sbyts.is_empty() {
                 slang.sl_sounddone.clear();
@@ -2513,7 +2547,13 @@ fn suggest_try_soundalike_finish() {
         }
     }
 }
-fn add_sound_suggest(su: &mut Suginfo, goodword: impl crate::strings::IntoCCharPtr, score: c_int, lp: &Langp) { let goodword = goodword.into_c_char_ptr();
+fn add_sound_suggest(
+    su: &mut Suginfo,
+    goodword: impl crate::strings::IntoCCharPtr,
+    score: c_int,
+    lp: &Langp,
+) {
+    let goodword = goodword.into_c_char_ptr();
     unsafe {
         let slang = &mut *lp.lp_slang;
         let mut theword: [c_char; MAXWLEN] = [0; MAXWLEN];
@@ -2558,7 +2598,10 @@ fn add_sound_suggest(su: &mut Suginfo, goodword: impl crate::strings::IntoCCharP
                     }
                     while *byts.add((n + i) as usize) == 0 {
                         if i > *byts.add(n as usize) as c_int {
-                            crate::memory::cstr_cpy((&raw mut theword).cast::<c_char>().add(wlen), c"BAD");
+                            crate::memory::cstr_cpy(
+                                (&raw mut theword).cast::<c_char>().add(wlen),
+                                c"BAD",
+                            );
                             wlen += 3;
                             break 'badword;
                         }
@@ -2599,17 +2642,7 @@ fn add_sound_suggest(su: &mut Suginfo, goodword: impl crate::strings::IntoCCharP
                 };
                 if (sps_st().sps_flags & SPS_DOUBLE) != 0 {
                     if score <= su.su_maxscore {
-                        add_suggestion(
-                            su,
-                            true,
-                            p,
-                            su.su_badlen,
-                            score,
-                            0,
-                            false,
-                            slang,
-                            false,
-                        );
+                        add_suggestion(su, true, p, su.su_badlen, score, 0, false, slang, false);
                     }
                 } else {
                     let mut goodscore = if (flags & WF_REGION) != 0
@@ -2628,8 +2661,11 @@ fn add_sound_suggest(su: &mut Suginfo, goodword: impl crate::strings::IntoCCharP
                     }
                     let limit = maxscore(su.su_sfmaxscore - goodscore, score);
                     if limit > SCORE_LIMITMAX {
-                        goodscore +=
-                            spell_edit_score(Some(&mut *slang), (&raw const su.su_badword).cast(), p);
+                        goodscore += spell_edit_score(
+                            Some(&mut *slang),
+                            (&raw const su.su_badword).cast(),
+                            p,
+                        );
                     } else {
                         goodscore += spell_edit_score_limit(
                             Some(&mut *slang),
@@ -2661,7 +2697,8 @@ fn add_sound_suggest(su: &mut Suginfo, goodword: impl crate::strings::IntoCCharP
         }
     }
 }
-fn soundfold_find(slang: &mut Slang, word: impl crate::strings::IntoCCharPtr) -> c_int { let word = word.into_c_char_ptr();
+fn soundfold_find(slang: &mut Slang, word: impl crate::strings::IntoCCharPtr) -> c_int {
+    let word = word.into_c_char_ptr();
     unsafe {
         let mut arridx: Idx = 0;
         let mut wlen: usize = 0;
@@ -2716,23 +2753,23 @@ fn soundfold_find(slang: &mut Slang, word: impl crate::strings::IntoCCharPtr) ->
 }
 fn similar_chars(slang: &mut Slang, c1: c_int, c2: c_int) -> bool {
     let m1 = if c1 >= 256 {
-            slang.sl_map_hash.get(&c1).copied().unwrap_or(0)
-        } else if c1 >= 0 {
-            slang.sl_map_array[c1 as usize]
-        } else {
-            0
-        };
-        if m1 == 0 {
-            return false;
-        }
-        let m2 = if c2 >= 256 {
-            slang.sl_map_hash.get(&c2).copied().unwrap_or(0)
-        } else if c2 >= 0 {
-            slang.sl_map_array[c2 as usize]
-        } else {
-            0
-        };
-        m1 == m2
+        slang.sl_map_hash.get(&c1).copied().unwrap_or(0)
+    } else if c1 >= 0 {
+        slang.sl_map_array[c1 as usize]
+    } else {
+        0
+    };
+    if m1 == 0 {
+        return false;
+    }
+    let m2 = if c2 >= 256 {
+        slang.sl_map_hash.get(&c2).copied().unwrap_or(0)
+    } else if c2 >= 0 {
+        slang.sl_map_array[c2 as usize]
+    } else {
+        0
+    };
+    m1 == m2
 }
 fn add_suggestion(
     su: &mut Suginfo,
@@ -2744,7 +2781,8 @@ fn add_suggestion(
     had_bonus: bool,
     slang: *mut Slang,
     maxsf: bool,
-) { let goodword = goodword.into_c_char_ptr();
+) {
+    let goodword = goodword.into_c_char_ptr();
     unsafe {
         let mut goodlen: c_int;
         let mut badlen: c_int;
@@ -2766,12 +2804,17 @@ fn add_suggestion(
             return;
         }
         let mut found = false;
-        let mut gap_vec = if use_sga { std::mem::take(&mut su.su_sga) } else { std::mem::take(&mut su.su_ga) };
+        let mut gap_vec = if use_sga {
+            std::mem::take(&mut su.su_sga)
+        } else {
+            std::mem::take(&mut su.su_ga)
+        };
         let gap = &mut gap_vec;
         for stp in gap.iter_mut() {
             if stp.st_wordlen == goodlen
                 && stp.st_orglen == badlen
-                && (crate::memory::cstr_prefix_bytes(stp.st_word.as_ptr(), goodlen as usize) == crate::memory::cstr_prefix_bytes(goodword, goodlen as usize))
+                && (crate::memory::cstr_prefix_bytes(stp.st_word.as_ptr(), goodlen as usize)
+                    == crate::memory::cstr_prefix_bytes(goodword, goodlen as usize))
             {
                 if stp.st_slang.is_null() {
                     stp.st_slang = slang;
@@ -2824,18 +2867,25 @@ fn add_suggestion(
                     su.su_sfmaxscore =
                         cleanup_suggestions(gap, su.su_sfmaxscore, sug_clean_count(su));
                 } else {
-                    su.su_maxscore =
-                        cleanup_suggestions(gap, su.su_maxscore, sug_clean_count(su));
+                    su.su_maxscore = cleanup_suggestions(gap, su.su_maxscore, sug_clean_count(su));
                 }
             }
         }
-        if use_sga { su.su_sga = gap_vec; } else { su.su_ga = gap_vec; }
+        if use_sga {
+            su.su_sga = gap_vec;
+        } else {
+            su.su_ga = gap_vec;
+        }
     }
 }
 fn check_suggestions(su: &mut Suginfo, use_sga: bool) {
     unsafe {
         let badptr = su.su_badptr;
-        let gap = if use_sga { &mut su.su_sga } else { &mut su.su_ga };
+        let gap = if use_sga {
+            &mut su.su_sga
+        } else {
+            &mut su.su_ga
+        };
         let mut longword: [c_char; MAXWLEN + 1] = [0; MAXWLEN + 1];
         if gap.is_empty() {
             return;
@@ -2866,8 +2916,9 @@ fn check_suggestions(su: &mut Suginfo, use_sga: bool) {
         }
     }
 }
-fn add_banned(su: &mut Suginfo, word: impl crate::strings::IntoCCharPtr) { let word = word.into_c_char_ptr();
-     {
+fn add_banned(su: &mut Suginfo, word: impl crate::strings::IntoCCharPtr) {
+    let word = word.into_c_char_ptr();
+    {
         let word_bytes = crate::memory::cstr_as_bytes(word);
         if !su.su_banned.contains(word_bytes) {
             su.su_banned.insert(word_bytes.to_vec());
@@ -2876,12 +2927,12 @@ fn add_banned(su: &mut Suginfo, word: impl crate::strings::IntoCCharPtr) { let w
 }
 fn rescore_suggestions(su: &mut Suginfo) {
     if !su.su_sallang.is_null() {
-            let mut su_ga = std::mem::take(&mut su.su_ga);
-            for stp in &mut su_ga {
-                rescore_one(su, stp);
-            }
-            su.su_ga = su_ga;
+        let mut su_ga = std::mem::take(&mut su.su_ga);
+        for stp in &mut su_ga {
+            rescore_one(su, stp);
         }
+        su.su_ga = su_ga;
+    }
 }
 fn rescore_one(su: &mut Suginfo, stp: &mut Suggest) {
     unsafe {
@@ -2910,33 +2961,42 @@ fn rescore_one(su: &mut Suginfo, stp: &mut Suggest) {
 }
 fn sug_compare(p1: &Suggest, p2: &Suggest) -> std::cmp::Ordering {
     p1.st_score
-            .cmp(&p2.st_score)
-            .then_with(|| p1.st_altscore.cmp(&p2.st_altscore))
-            .then_with(|| mb_stricmp(p1.st_word.as_ptr(), p2.st_word.as_ptr()).cmp(&0))
+        .cmp(&p2.st_score)
+        .then_with(|| p1.st_altscore.cmp(&p2.st_altscore))
+        .then_with(|| mb_stricmp(p1.st_word.as_ptr(), p2.st_word.as_ptr()).cmp(&0))
 }
 fn cleanup_suggestions(gap: &mut Vec<Suggest>, maxscore: c_int, keep: c_int) -> c_int {
     if gap.is_empty() {
-            return maxscore;
+        return maxscore;
+    }
+    gap.sort_unstable_by(sug_compare);
+    let keep_usize = keep.max(0) as usize;
+    if gap.len() > keep_usize {
+        gap.truncate(keep_usize);
+        if keep >= 1 {
+            return gap[keep_usize - 1].st_score;
         }
-        gap.sort_unstable_by(sug_compare);
-        let keep_usize = keep.max(0) as usize;
-        if gap.len() > keep_usize {
-            gap.truncate(keep_usize);
-            if keep >= 1 {
-                return gap[keep_usize - 1].st_score;
-            }
-        }
-        maxscore
+    }
+    maxscore
 }
-fn soundalike_score(goodstart: impl crate::strings::IntoCCharPtr, badstart: impl crate::strings::IntoCCharPtr) -> c_int { let goodstart = goodstart.into_c_char_ptr(); let badstart = badstart.into_c_char_ptr();
+fn soundalike_score(
+    goodstart: impl crate::strings::IntoCCharPtr,
+    badstart: impl crate::strings::IntoCCharPtr,
+) -> c_int {
+    let goodstart = goodstart.into_c_char_ptr();
+    let badstart = badstart.into_c_char_ptr();
     unsafe {
         let mut goodsound = goodstart;
         let mut badsound = badstart;
         let mut score: c_int = 0;
-        if (crate::memory::cstr_first_byte(badsound) == b'*' || crate::memory::cstr_first_byte(goodsound) == b'*') && *badsound != *goodsound
+        if (crate::memory::cstr_first_byte(badsound) == b'*'
+            || crate::memory::cstr_first_byte(goodsound) == b'*')
+            && *badsound != *goodsound
         {
-            if (crate::memory::cstr_is_empty(badsound) && crate::memory::cstr_byte_at(goodsound, 1) == 0)
-                || (crate::memory::cstr_is_empty(goodsound) && crate::memory::cstr_byte_at(badsound, 1) == 0)
+            if (crate::memory::cstr_is_empty(badsound)
+                && crate::memory::cstr_byte_at(goodsound, 1) == 0)
+                || (crate::memory::cstr_is_empty(goodsound)
+                    && crate::memory::cstr_byte_at(badsound, 1) == 0)
             {
                 return SCORE_DEL;
             }
@@ -2991,11 +3051,16 @@ fn soundalike_score(goodstart: impl crate::strings::IntoCCharPtr, badstart: impl
                     pl2 = pl2.add(1);
                     ps2 = ps2.add(1);
                 }
-                if *pl2 == *ps2.add(1) && *pl2.add(1) == *ps2 && (crate::memory::cstr_as_bytes(pl2.add(2)) == crate::memory::cstr_as_bytes(ps2.add(2)))
+                if *pl2 == *ps2.add(1)
+                    && *pl2.add(1) == *ps2
+                    && (crate::memory::cstr_as_bytes(pl2.add(2))
+                        == crate::memory::cstr_as_bytes(ps2.add(2)))
                 {
                     return score + SCORE_DEL + SCORE_SWAP;
                 }
-                if crate::memory::cstr_as_bytes(pl2.add(1)) == crate::memory::cstr_as_bytes(ps2.add(1)) {
+                if crate::memory::cstr_as_bytes(pl2.add(1))
+                    == crate::memory::cstr_as_bytes(ps2.add(1))
+                {
                     return score + SCORE_DEL + SCORE_SUBST;
                 }
                 if *pl == *ps.add(1) && *pl.add(1) == *ps {
@@ -3005,7 +3070,8 @@ fn soundalike_score(goodstart: impl crate::strings::IntoCCharPtr, badstart: impl
                         pl2 = pl2.add(1);
                         ps2 = ps2.add(1);
                     }
-                    if crate::memory::cstr_as_bytes(pl2.add(1)) == crate::memory::cstr_as_bytes(ps2) {
+                    if crate::memory::cstr_as_bytes(pl2.add(1)) == crate::memory::cstr_as_bytes(ps2)
+                    {
                         return score + SCORE_SWAP + SCORE_DEL;
                     }
                 }
@@ -3035,11 +3101,14 @@ fn soundalike_score(goodstart: impl crate::strings::IntoCCharPtr, badstart: impl
                     }
                     if *pl2 == *ps2.add(1)
                         && *pl2.add(1) == *ps2
-                        && (crate::memory::cstr_as_bytes(pl2.add(2)) == crate::memory::cstr_as_bytes(ps2.add(2)))
+                        && (crate::memory::cstr_as_bytes(pl2.add(2))
+                            == crate::memory::cstr_as_bytes(ps2.add(2)))
                     {
                         return score + SCORE_SWAP + SCORE_SWAP;
                     }
-                    if crate::memory::cstr_as_bytes(pl2.add(1)) == crate::memory::cstr_as_bytes(ps2.add(1)) {
+                    if crate::memory::cstr_as_bytes(pl2.add(1))
+                        == crate::memory::cstr_as_bytes(ps2.add(1))
+                    {
                         return score + SCORE_SWAP + SCORE_SUBST;
                     }
                 }
@@ -3052,11 +3121,16 @@ fn soundalike_score(goodstart: impl crate::strings::IntoCCharPtr, badstart: impl
                     pl2 = pl2.add(1);
                     ps2 = ps2.add(1);
                 }
-                if *pl2 == *ps2.add(1) && *pl2.add(1) == *ps2 && (crate::memory::cstr_as_bytes(pl2.add(2)) == crate::memory::cstr_as_bytes(ps2.add(2)))
+                if *pl2 == *ps2.add(1)
+                    && *pl2.add(1) == *ps2
+                    && (crate::memory::cstr_as_bytes(pl2.add(2))
+                        == crate::memory::cstr_as_bytes(ps2.add(2)))
                 {
                     return score + SCORE_SUBST + SCORE_SWAP;
                 }
-                if crate::memory::cstr_as_bytes(pl2.add(1)) == crate::memory::cstr_as_bytes(ps2.add(1)) {
+                if crate::memory::cstr_as_bytes(pl2.add(1))
+                    == crate::memory::cstr_as_bytes(ps2.add(1))
+                {
                     return score + SCORE_SUBST + SCORE_SUBST;
                 }
                 pl2 = pl;
@@ -3087,8 +3161,10 @@ fn spell_edit_score(
     mut slang: Option<&mut Slang>,
     badword: impl crate::strings::IntoCCharPtr,
     goodword: impl crate::strings::IntoCCharPtr,
-) -> c_int { let badword = badword.into_c_char_ptr(); let goodword = goodword.into_c_char_ptr();
-     {
+) -> c_int {
+    let badword = badword.into_c_char_ptr();
+    let goodword = goodword.into_c_char_ptr();
+    {
         let mut wbadword: [c_int; MAXWLEN] = [0; MAXWLEN];
         let mut wgoodword: [c_int; MAXWLEN] = [0; MAXWLEN];
         let mut badlen: usize = 0;
@@ -3156,7 +3232,9 @@ fn spell_edit_score_limit(
     badword: impl crate::strings::IntoCCharPtr,
     goodword: impl crate::strings::IntoCCharPtr,
     limit: c_int,
-) -> c_int { let badword = badword.into_c_char_ptr(); let goodword = goodword.into_c_char_ptr();
+) -> c_int {
+    let badword = badword.into_c_char_ptr();
+    let goodword = goodword.into_c_char_ptr();
     spell_edit_score_limit_w(slang, badword, goodword, limit)
 }
 fn spell_edit_score_limit_w(
@@ -3164,8 +3242,10 @@ fn spell_edit_score_limit_w(
     badword: impl crate::strings::IntoCCharPtr,
     goodword: impl crate::strings::IntoCCharPtr,
     limit: c_int,
-) -> c_int { let badword = badword.into_c_char_ptr(); let goodword = goodword.into_c_char_ptr();
-     {
+) -> c_int {
+    let badword = badword.into_c_char_ptr();
+    let goodword = goodword.into_c_char_ptr();
+    {
         let mut stack: [Limitscore; 10] = [Limitscore::default(); 10];
         let mut wbadword: [c_int; MAXWLEN] = [0; MAXWLEN];
         let mut wgoodword: [c_int; MAXWLEN] = [0; MAXWLEN];
@@ -3308,18 +3388,18 @@ mod tests {
     #[test]
     fn bytes2offset_and_soundalike_score_work() {
         let mut raw = [5u8, 0u8];
-            let mut p = raw.as_mut_ptr().cast::<c_char>();
-            assert_eq!(bytes2offset(&raw mut p), 4);
-            let mut s1 = *b"tht\0";
-            let mut s2 = *b"tht\0";
-            assert_eq!(
-                soundalike_score(s1.as_mut_ptr().cast(), s2.as_mut_ptr().cast()),
-                0
-            );
-            let mut s3 = *b"ht\0";
-            assert_eq!(
-                soundalike_score(s1.as_mut_ptr().cast(), s3.as_mut_ptr().cast()),
-                SCORE_DEL
-            );
+        let mut p = raw.as_mut_ptr().cast::<c_char>();
+        assert_eq!(bytes2offset(&raw mut p), 4);
+        let mut s1 = *b"tht\0";
+        let mut s2 = *b"tht\0";
+        assert_eq!(
+            soundalike_score(s1.as_mut_ptr().cast(), s2.as_mut_ptr().cast()),
+            0
+        );
+        let mut s3 = *b"ht\0";
+        assert_eq!(
+            soundalike_score(s1.as_mut_ptr().cast(), s3.as_mut_ptr().cast()),
+            SCORE_DEL
+        );
     }
 }

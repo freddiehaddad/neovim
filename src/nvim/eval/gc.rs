@@ -16,7 +16,8 @@ impl GcModuleState {
     }
 }
 
-static GC_STATE: crate::globals::GlobalState<GcModuleState> = crate::globals::GlobalState::new(GcModuleState::new());
+static GC_STATE: crate::globals::GlobalState<GcModuleState> =
+    crate::globals::GlobalState::new(GcModuleState::new());
 
 #[inline]
 fn gc_st() -> &'static mut GcModuleState {
@@ -25,7 +26,7 @@ fn gc_st() -> &'static mut GcModuleState {
 
 #[inline]
 pub fn gc_register_dict(d: &mut TvDict) {
-     {
+    {
         let idx = gc_st().gc_dicts.len();
         gc_st().gc_dicts.push(d);
         d.dv_gc_idx = Some(idx);
@@ -45,7 +46,7 @@ pub fn gc_unregister_dict(idx: usize) {
 
 #[inline]
 pub fn gc_register_list(l: &mut TvList) {
-     {
+    {
         let idx = gc_st().gc_lists.len();
         gc_st().gc_lists.push(l);
         l.lv_gc_idx = Some(idx);
@@ -65,15 +66,10 @@ pub fn gc_unregister_list(idx: usize) {
 
 #[inline]
 pub fn gc_dicts_slice() -> &'static [*mut TvDict] {
-     {
-        gc_st().gc_dicts.as_slice()
-    }
+    gc_st().gc_dicts.as_slice()
 }
 
 #[inline]
 pub fn gc_lists_slice() -> &'static [*mut TvList] {
-     {
-        gc_st().gc_lists.as_slice()
-    }
+    gc_st().gc_lists.as_slice()
 }
-

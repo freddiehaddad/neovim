@@ -3,7 +3,7 @@
 use crate::charset::{NUL, kv_transstr};
 use crate::strings::vim_snprintf;
 use crate::tui::termkey::driver_ti::{
-    TerminfoEntry, K_TERM_COUNT, K_TERM_KEY_COUNT, K_TERMINFO_FUNC_KEY_MAX,
+    K_TERM_COUNT, K_TERM_KEY_COUNT, K_TERMINFO_FUNC_KEY_MAX, TerminfoEntry,
 };
 use std::borrow::Cow;
 use std::ffi::{CStr, c_char, c_int, c_long};
@@ -710,8 +710,9 @@ static ANSI_TERMINFO: BuiltinTerminfoEntry = {
     e.defs[K_TERM_PARM_UP_CURSOR] = Some(c"\x1b[%p1%dA");
     e.defs[K_TERM_SET_A_BACKGROUND] = Some(c"\x1b[4%p1%dm");
     e.defs[K_TERM_SET_A_FOREGROUND] = Some(c"\x1b[3%p1%dm");
-    e.defs[K_TERM_SET_ATTRIBUTES] =
-        Some(c"\x1b[0;10%?%p1%t;7%;%?%p2%t;4%;%?%p3%t;7%;%?%p4%t;5%;%?%p6%t;1%;%?%p7%t;8%;%?%p9%t;11%;m");
+    e.defs[K_TERM_SET_ATTRIBUTES] = Some(
+        c"\x1b[0;10%?%p1%t;7%;%?%p2%t;4%;%?%p3%t;7%;%?%p4%t;5%;%?%p6%t;1%;%?%p7%t;8%;%?%p9%t;11%;m",
+    );
     e.keys[K_TERM_KEY_BACKSPACE] = [Some(c"\x08"), None];
     e.keys[K_TERM_KEY_BTAB] = [Some(c"\x1b[Z"), None];
     e.keys[K_TERM_KEY_HOME] = [Some(c"\x1b[H"), None];
@@ -988,8 +989,9 @@ static ITERM_256COLOUR_TERMINFO: BuiltinTerminfoEntry = {
         Some(c"\x1b[%?%p1%{8}%<%t4%p1%d%e%p1%{16}%<%t10%p1%{8}%-%d%e48;5;%p1%d%;m");
     e.defs[K_TERM_SET_A_FOREGROUND] =
         Some(c"\x1b[%?%p1%{8}%<%t3%p1%d%e%p1%{16}%<%t9%p1%{8}%-%d%e38;5;%p1%d%;m");
-    e.defs[K_TERM_SET_ATTRIBUTES] =
-        Some(c"\x1b[0%?%p6%t;1%;%?%p2%t;4%;%?%p1%p3%|%t;7%;%?%p4%t;5%;%?%p5%t;2%;m%?%p9%t^N%e\x0f%;");
+    e.defs[K_TERM_SET_ATTRIBUTES] = Some(
+        c"\x1b[0%?%p6%t;1%;%?%p2%t;4%;%?%p1%p3%|%t;7%;%?%p4%t;5%;%?%p5%t;2%;m%?%p9%t^N%e\x0f%;",
+    );
     e.defs[K_TERM_TO_STATUS_LINE] = Some(c"\x1b]2;");
     e.defs[K_TERM_ENTER_STRIKETHROUGH_MODE] = Some(c"\x1b[9m");
     e.defs[K_TERM_SET_UNDERLINE_STYLE] = Some(c"\x1b[4:%p1%dm");
@@ -2088,16 +2090,10 @@ static UNI_KEYS: [[UnibiString; 2]; K_TERM_KEY_COUNT] = [
         UnibiString::UnibiKeySelect,
         UnibiString::UnibiStringBeginMarker,
     ],
-    [
-        UnibiString::UnibiKeySuspend,
-        UnibiString::UnibiKeySsuspend,
-    ],
+    [UnibiString::UnibiKeySuspend, UnibiString::UnibiKeySsuspend],
     [UnibiString::UnibiKeyUndo, UnibiString::UnibiKeySundo],
     [UnibiString::UnibiKeyLeft, UnibiString::UnibiKeySleft],
-    [
-        UnibiString::UnibiKeyRight,
-        UnibiString::UnibiKeySright,
-    ],
+    [UnibiString::UnibiKeyRight, UnibiString::UnibiKeySright],
 ];
 
 static UNI_FKEYS: [UnibiString; K_TERMINFO_FUNC_KEY_MAX] = [
@@ -2256,8 +2252,9 @@ const UNIBI_BOOL_COUNT: usize = (UnibiBoolean::UnibiBooleanEndMarker as usize)
 const UNIBI_NUM_COUNT: usize = (UnibiNumeric::UnibiNumericEndMarker as usize)
     - (UnibiNumeric::UnibiNumericBeginMarker as usize)
     - 1;
-const UNIBI_STR_COUNT: usize =
-    (UnibiString::UnibiStringEndMarker as usize) - (UnibiString::UnibiStringBeginMarker as usize) - 1;
+const UNIBI_STR_COUNT: usize = (UnibiString::UnibiStringEndMarker as usize)
+    - (UnibiString::UnibiStringBeginMarker as usize)
+    - 1;
 
 const UNIBI_TERMINFO: &str = if cfg!(windows) {
     ""
@@ -2596,11 +2593,12 @@ fn get_env_str(name: &CStr) -> Option<String> {
     crate::os::env::os_getenv_cstr(name.as_ptr()).map(|c| c.to_string_lossy().into_owned())
 }
 
-fn unibi_from_term(termname: impl crate::strings::IntoCCharPtr) -> Option<UnibiTerm> { let termname = termname.into_c_char_ptr();
+fn unibi_from_term(termname: impl crate::strings::IntoCCharPtr) -> Option<UnibiTerm> {
+    let termname = termname.into_c_char_ptr();
     if termname.is_null() {
         return None;
     }
-    let term_bytes =  { crate::memory::cstr_as_bytes(termname) };
+    let term_bytes = { crate::memory::cstr_as_bytes(termname) };
     if term_bytes.is_empty() || term_bytes[0] == b'.' || term_bytes.contains(&b'/') {
         return None;
     }
@@ -2630,11 +2628,15 @@ fn unibi_from_term(termname: impl crate::strings::IntoCCharPtr) -> Option<UnibiT
     unibi_from_dirs(UNIBI_TERMINFO_DIRS, term)
 }
 
-pub fn terminfo_is_term_family(term: impl crate::strings::IntoCCharPtr, family: &std::ffi::CStr) -> bool { let term = term.into_c_char_ptr();
+pub fn terminfo_is_term_family(
+    term: impl crate::strings::IntoCCharPtr,
+    family: &std::ffi::CStr,
+) -> bool {
+    let term = term.into_c_char_ptr();
     if term.is_null() {
         return false;
     }
-     {
+    {
         let term_bytes = crate::memory::cstr_as_bytes(term);
         let fam_bytes = family.to_bytes();
         let tlen = term_bytes.len();
@@ -2645,7 +2647,8 @@ pub fn terminfo_is_term_family(term: impl crate::strings::IntoCCharPtr, family: 
     }
 }
 
-pub fn terminfo_is_bsd_console(term: impl crate::strings::IntoCCharPtr) -> bool { let term = term.into_c_char_ptr();
+pub fn terminfo_is_bsd_console(term: impl crate::strings::IntoCCharPtr) -> bool {
+    let term = term.into_c_char_ptr();
     #[cfg(any(
         target_os = "freebsd",
         target_os = "netbsd",
@@ -2653,7 +2656,9 @@ pub fn terminfo_is_bsd_console(term: impl crate::strings::IntoCCharPtr) -> bool 
         target_os = "dragonfly"
     ))]
     unsafe {
-        if (crate::memory::cstr_as_opt_bytes(term) == Some(b"vt220")) || (crate::memory::cstr_as_opt_bytes(term) == Some(b"vt100")) {
+        if (crate::memory::cstr_as_opt_bytes(term) == Some(b"vt220"))
+            || (crate::memory::cstr_as_opt_bytes(term) == Some(b"vt100"))
+        {
             return true;
         }
         #[cfg(target_os = "freebsd")]
@@ -2669,66 +2674,71 @@ pub fn terminfo_is_bsd_console(term: impl crate::strings::IntoCCharPtr) -> bool 
 pub fn terminfo_from_builtin(
     term: impl crate::strings::IntoCCharPtr,
     termname: &mut Option<std::ffi::CString>,
-) -> TerminfoEntry { let term = term.into_c_char_ptr();
-    if (crate::memory::cstr_as_opt_bytes(term) == Some(b"ghostty")) || (crate::memory::cstr_as_opt_bytes(term) == Some(b"xterm-ghostty")) {
-            *termname = Some(c"ghostty".to_owned());
-            GHOSTTY_TERMINFO.to_entry()
-        } else if terminfo_is_term_family(term, c"xterm") {
-            *termname = Some(c"xterm".to_owned());
-            XTERM_256COLOUR_TERMINFO.to_entry()
-        } else if terminfo_is_term_family(term, c"screen") {
-            *termname = Some(c"screen".to_owned());
-            SCREEN_256COLOUR_TERMINFO.to_entry()
-        } else if terminfo_is_term_family(term, c"tmux") {
-            *termname = Some(c"tmux".to_owned());
-            TMUX_256COLOUR_TERMINFO.to_entry()
-        } else if terminfo_is_term_family(term, c"rxvt") {
-            *termname = Some(c"rxvt".to_owned());
-            RXVT_256COLOUR_TERMINFO.to_entry()
-        } else if terminfo_is_term_family(term, c"putty") {
-            *termname = Some(c"putty".to_owned());
-            PUTTY_256COLOUR_TERMINFO.to_entry()
-        } else if terminfo_is_term_family(term, c"linux") {
-            *termname = Some(c"linux".to_owned());
-            LINUX_16COLOUR_TERMINFO.to_entry()
-        } else if terminfo_is_term_family(term, c"interix") {
-            *termname = Some(c"interix".to_owned());
-            INTERIX_8COLOUR_TERMINFO.to_entry()
-        } else if terminfo_is_term_family(term, c"iterm")
-            || terminfo_is_term_family(term, c"iterm2")
-            || terminfo_is_term_family(term, c"iTerm.app")
-            || terminfo_is_term_family(term, c"iTerm2.app")
-        {
-            *termname = Some(c"iterm".to_owned());
-            ITERM_256COLOUR_TERMINFO.to_entry()
-        } else if terminfo_is_term_family(term, c"st") {
-            *termname = Some(c"st".to_owned());
-            ST_256COLOUR_TERMINFO.to_entry()
-        } else if terminfo_is_term_family(term, c"gnome")
-            || terminfo_is_term_family(term, c"vte")
-        {
-            *termname = Some(c"vte".to_owned());
-            VTE_256COLOUR_TERMINFO.to_entry()
-        } else if terminfo_is_term_family(term, c"cygwin") {
-            *termname = Some(c"cygwin".to_owned());
-            CYGWIN_TERMINFO.to_entry()
-        } else if terminfo_is_term_family(term, c"win32con") {
-            *termname = Some(c"win32con".to_owned());
-            WIN32CON_TERMINFO.to_entry()
-        } else if terminfo_is_term_family(term, c"conemu") {
-            *termname = Some(c"conemu".to_owned());
-            CONEMU_TERMINFO.to_entry()
-        } else if terminfo_is_term_family(term, c"vtpcon") {
-            *termname = Some(c"vtpcon".to_owned());
-            VTPCON_TERMINFO.to_entry()
-        } else {
-            *termname = Some(c"ansi".to_owned());
-            ANSI_TERMINFO.to_entry()
-        }
+) -> TerminfoEntry {
+    let term = term.into_c_char_ptr();
+    if (crate::memory::cstr_as_opt_bytes(term) == Some(b"ghostty"))
+        || (crate::memory::cstr_as_opt_bytes(term) == Some(b"xterm-ghostty"))
+    {
+        *termname = Some(c"ghostty".to_owned());
+        GHOSTTY_TERMINFO.to_entry()
+    } else if terminfo_is_term_family(term, c"xterm") {
+        *termname = Some(c"xterm".to_owned());
+        XTERM_256COLOUR_TERMINFO.to_entry()
+    } else if terminfo_is_term_family(term, c"screen") {
+        *termname = Some(c"screen".to_owned());
+        SCREEN_256COLOUR_TERMINFO.to_entry()
+    } else if terminfo_is_term_family(term, c"tmux") {
+        *termname = Some(c"tmux".to_owned());
+        TMUX_256COLOUR_TERMINFO.to_entry()
+    } else if terminfo_is_term_family(term, c"rxvt") {
+        *termname = Some(c"rxvt".to_owned());
+        RXVT_256COLOUR_TERMINFO.to_entry()
+    } else if terminfo_is_term_family(term, c"putty") {
+        *termname = Some(c"putty".to_owned());
+        PUTTY_256COLOUR_TERMINFO.to_entry()
+    } else if terminfo_is_term_family(term, c"linux") {
+        *termname = Some(c"linux".to_owned());
+        LINUX_16COLOUR_TERMINFO.to_entry()
+    } else if terminfo_is_term_family(term, c"interix") {
+        *termname = Some(c"interix".to_owned());
+        INTERIX_8COLOUR_TERMINFO.to_entry()
+    } else if terminfo_is_term_family(term, c"iterm")
+        || terminfo_is_term_family(term, c"iterm2")
+        || terminfo_is_term_family(term, c"iTerm.app")
+        || terminfo_is_term_family(term, c"iTerm2.app")
+    {
+        *termname = Some(c"iterm".to_owned());
+        ITERM_256COLOUR_TERMINFO.to_entry()
+    } else if terminfo_is_term_family(term, c"st") {
+        *termname = Some(c"st".to_owned());
+        ST_256COLOUR_TERMINFO.to_entry()
+    } else if terminfo_is_term_family(term, c"gnome") || terminfo_is_term_family(term, c"vte") {
+        *termname = Some(c"vte".to_owned());
+        VTE_256COLOUR_TERMINFO.to_entry()
+    } else if terminfo_is_term_family(term, c"cygwin") {
+        *termname = Some(c"cygwin".to_owned());
+        CYGWIN_TERMINFO.to_entry()
+    } else if terminfo_is_term_family(term, c"win32con") {
+        *termname = Some(c"win32con".to_owned());
+        WIN32CON_TERMINFO.to_entry()
+    } else if terminfo_is_term_family(term, c"conemu") {
+        *termname = Some(c"conemu".to_owned());
+        CONEMU_TERMINFO.to_entry()
+    } else if terminfo_is_term_family(term, c"vtpcon") {
+        *termname = Some(c"vtpcon".to_owned());
+        VTPCON_TERMINFO.to_entry()
+    } else {
+        *termname = Some(c"ansi".to_owned());
+        ANSI_TERMINFO.to_entry()
+    }
 }
 
-pub fn terminfo_from_database(ti: &mut TerminfoEntry, termname: impl crate::strings::IntoCCharPtr) -> bool { let termname = termname.into_c_char_ptr();
-     {
+pub fn terminfo_from_database(
+    ti: &mut TerminfoEntry,
+    termname: impl crate::strings::IntoCCharPtr,
+) -> bool {
+    let termname = termname.into_c_char_ptr();
+    {
         let Some(ut) = unibi_from_term(termname) else {
             return false;
         };
@@ -2769,7 +2779,10 @@ pub fn terminfo_from_database(ti: &mut TerminfoEntry, termname: impl crate::stri
         for (i, &name) in UNI_EXT.iter().enumerate() {
             for val in 0..max {
                 let n = ut.get_ext_str_name(val);
-                if !n.is_null() && (crate::memory::cstr_as_opt_bytes(n) == crate::memory::cstr_as_opt_bytes(name.as_ptr())) {
+                if !n.is_null()
+                    && (crate::memory::cstr_as_opt_bytes(n)
+                        == crate::memory::cstr_as_opt_bytes(name.as_ptr()))
+                {
                     let data = ut.get_ext_str(val);
                     ti.defs[K_TERM_EXT_OFFSET + i] = if !data.is_null() {
                         Some(Cow::Owned(crate::memory::cstr_to_cstring(data)))
@@ -2814,68 +2827,64 @@ const fn fmt_bool(val: bool) -> &'static str {
     if val { "true" } else { "false" }
 }
 
-pub fn terminfo_info_msg(
-    ti: &TerminfoEntry,
-    termname: Option<&CStr>,
-    from_db: bool,
-) -> Vec<u8> {
+pub fn terminfo_info_msg(ti: &TerminfoEntry, termname: Option<&CStr>, from_db: bool) -> Vec<u8> {
     let mut data: Vec<u8> = Vec::new();
-        let termname_bytes = termname.map_or(&b""[..], CStr::to_bytes);
+    let termname_bytes = termname.map_or(&b""[..], CStr::to_bytes);
 
-        data.extend_from_slice(b"&term: ");
-        data.extend_from_slice(termname_bytes);
-        data.push(b'\n');
-        if from_db {
-            data.extend_from_slice(b"using terminfo database\n\n");
-        } else {
-            data.extend_from_slice(b"using builtin terminfo\n\n");
+    data.extend_from_slice(b"&term: ");
+    data.extend_from_slice(termname_bytes);
+    data.push(b'\n');
+    if from_db {
+        data.extend_from_slice(b"using terminfo database\n\n");
+    } else {
+        data.extend_from_slice(b"using builtin terminfo\n\n");
+    }
+
+    let header = format!(
+        "Boolean capabilities:\n  back_color_erase: {}\n  truecolor ('Tc'): {}\n  RGB: {}\n  extended underline ('Su'): {}\n\nNumeric capabilities: (-1 for unknown)\n  lines: {}\n  columns: {}\n  max_colors: {}\n\nString capabilities:\n",
+        fmt_bool(ti.back_color_erase),
+        fmt_bool(ti.tc),
+        fmt_bool(ti.rgb),
+        fmt_bool(ti.su),
+        ti.lines,
+        ti.columns,
+        ti.max_colors
+    );
+    data.extend_from_slice(header.as_bytes());
+
+    for (i, &name) in STRING_NAMES.iter().enumerate() {
+        if let Some(ref s) = ti.defs[i] {
+            let prefix = format!("  {name:<31} = ");
+            data.extend_from_slice(prefix.as_bytes());
+            kv_transstr(&mut data, s.as_ptr(), false);
+            data.push(b'\n');
         }
+    }
 
-        let header = format!(
-            "Boolean capabilities:\n  back_color_erase: {}\n  truecolor ('Tc'): {}\n  RGB: {}\n  extended underline ('Su'): {}\n\nNumeric capabilities: (-1 for unknown)\n  lines: {}\n  columns: {}\n  max_colors: {}\n\nString capabilities:\n",
-            fmt_bool(ti.back_color_erase),
-            fmt_bool(ti.tc),
-            fmt_bool(ti.rgb),
-            fmt_bool(ti.su),
-            ti.lines,
-            ti.columns,
-            ti.max_colors
-        );
-        data.extend_from_slice(header.as_bytes());
-
-        for (i, &name) in STRING_NAMES.iter().enumerate() {
-            if let Some(ref s) = ti.defs[i] {
-                let prefix = format!("  {name:<31} = ");
-                data.extend_from_slice(prefix.as_bytes());
-                kv_transstr(&mut data, s.as_ptr(), false);
-                data.push(b'\n');
+    for (i, &name) in KEY_NAMES.iter().enumerate() {
+        if let Some(ref s) = ti.keys[i][0] {
+            let prefix = format!("  key_{name:<27} = ");
+            data.extend_from_slice(prefix.as_bytes());
+            kv_transstr(&mut data, s.as_ptr(), false);
+            if let Some(ref ss) = ti.keys[i][1] {
+                let sprefix = format!(", key_s{name} = ");
+                data.extend_from_slice(sprefix.as_bytes());
+                kv_transstr(&mut data, ss.as_ptr(), false);
             }
+            data.push(b'\n');
         }
+    }
 
-        for (i, &name) in KEY_NAMES.iter().enumerate() {
-            if let Some(ref s) = ti.keys[i][0] {
-                let prefix = format!("  key_{name:<27} = ");
-                data.extend_from_slice(prefix.as_bytes());
-                kv_transstr(&mut data, s.as_ptr(), false);
-                if let Some(ref ss) = ti.keys[i][1] {
-                    let sprefix = format!(", key_s{name} = ");
-                    data.extend_from_slice(sprefix.as_bytes());
-                    kv_transstr(&mut data, ss.as_ptr(), false);
-                }
-                data.push(b'\n');
-            }
+    for (i, &name) in FKEY_NAMES.iter().enumerate() {
+        if let Some(ref s) = ti.f_keys[i] {
+            let prefix = format!("  key_{name:<27} = ");
+            data.extend_from_slice(prefix.as_bytes());
+            kv_transstr(&mut data, s.as_ptr(), false);
+            data.push(b'\n');
         }
+    }
 
-        for (i, &name) in FKEY_NAMES.iter().enumerate() {
-            if let Some(ref s) = ti.f_keys[i] {
-                let prefix = format!("  key_{name:<27} = ");
-                data.extend_from_slice(prefix.as_bytes());
-                kv_transstr(&mut data, s.as_ptr(), false);
-                data.push(b'\n');
-            }
-        }
-
-        data
+    data
 }
 
 fn push(num: c_long, string: Option<[c_char; 8]>, stack: &mut TPSTACK) -> c_int {
@@ -2910,7 +2919,8 @@ fn pop(num: *mut c_long, string: Option<&mut Option<[c_char; 8]>>, stack: &mut T
     }
 }
 
-fn ochar(buf: *mut *mut c_char, buf_end: impl crate::strings::IntoCCharPtr, mut c: c_int) -> bool { let buf_end = buf_end.into_c_char_ptr();
+fn ochar(buf: *mut *mut c_char, buf_end: impl crate::strings::IntoCCharPtr, mut c: c_int) -> bool {
+    let buf_end = buf_end.into_c_char_ptr();
     unsafe {
         if c == 0 {
             c = 0o200;
@@ -2930,7 +2940,9 @@ fn onum(
     fmt: impl crate::strings::IntoCCharPtr,
     num: c_int,
     mut len: usize,
-) -> bool { let buf_end = buf_end.into_c_char_ptr(); let fmt = fmt.into_c_char_ptr();
+) -> bool {
+    let buf_end = buf_end.into_c_char_ptr();
+    let fmt = fmt.into_c_char_ptr();
     const LONG_STR_MAX: usize = 21;
     len = len.max(LONG_STR_MAX);
 
@@ -2954,7 +2966,8 @@ pub fn terminfo_fmt(
     buf_end: *mut c_char,
     str_: impl crate::strings::IntoCCharPtr,
     params: *mut TPVAR,
-) -> usize { let mut str_ = str_.into_c_char_ptr();
+) -> usize {
+    let mut str_ = str_.into_c_char_ptr();
     unsafe {
         let mut fmt = [0 as c_char; 64];
         let mut ostr: Option<[c_char; 8]> = None;
@@ -3101,9 +3114,7 @@ pub fn terminfo_fmt(
                 }
                 b'l' => {
                     pop(ptr::null_mut(), Some(&mut ostr), &mut stack);
-                    let l = ostr.map_or(0, |s_arr| {
-                        crate::memory::cstr_len(s_arr.as_ptr())
-                    });
+                    let l = ostr.map_or(0, |s_arr| crate::memory::cstr_len(s_arr.as_ptr()));
                     push(l as c_long, None, &mut stack);
                 }
                 b'd' | b'o' | b'x' | b'X' => {
@@ -3155,7 +3166,9 @@ pub fn terminfo_fmt(
                     if push(c_long::from(ch), None, &mut stack) != 0 {
                         return 0;
                     }
-                    while !crate::memory::cstr_is_empty(str_) && crate::memory::cstr_first_byte(str_) != b'\'' {
+                    while !crate::memory::cstr_is_empty(str_)
+                        && crate::memory::cstr_first_byte(str_) != b'\''
+                    {
                         str_ = str_.add(1);
                     }
                     if crate::memory::cstr_first_byte(str_) == b'\'' {
@@ -3165,13 +3178,16 @@ pub fn terminfo_fmt(
                 b'{' => {
                     val = 0;
                     while (crate::memory::cstr_first_byte(str_)).is_ascii_digit() {
-                        val = (val * 10) + c_long::from((crate::memory::cstr_first_byte(str_)) - b'0');
+                        val = (val * 10)
+                            + c_long::from((crate::memory::cstr_first_byte(str_)) - b'0');
                         str_ = str_.add(1);
                     }
                     if push(val, None, &mut stack) != 0 {
                         return 0;
                     }
-                    while !crate::memory::cstr_is_empty(str_) && crate::memory::cstr_first_byte(str_) != b'}' {
+                    while !crate::memory::cstr_is_empty(str_)
+                        && crate::memory::cstr_first_byte(str_) != b'}'
+                    {
                         str_ = str_.add(1);
                     }
                     if crate::memory::cstr_first_byte(str_) == b'}' {
@@ -3333,7 +3349,7 @@ mod tests {
         assert_eq!(ut.get_num(UnibiNumeric::UnibiColumns), 80);
         assert_eq!(ut.get_num(UnibiNumeric::UnibiMaxColors), -1);
         assert!(ut.get_str(UnibiString::UnibiBackTab).is_null());
-         {
+        {
             assert_eq!(
                 crate::memory::cstr_as_bytes(ut.get_str(UnibiString::UnibiCarriageReturn)),
                 b"\r"

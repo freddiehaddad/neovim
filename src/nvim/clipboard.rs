@@ -2,15 +2,15 @@
 
 use crate::api::private::helpers::{api_clear_string, cstr_to_string};
 use crate::eval::typval::{
-    VarType, TvList, tv_list_alloc, tv_list_append_list, tv_list_append_string,
+    TvList, VarType, tv_list_alloc, tv_list_append_list, tv_list_append_string,
 };
 use crate::eval::{eval_call_provider, eval_has_provider};
 use crate::mcursor::mc_replaying;
 use crate::message::{emsg, msg, redirecting};
 use crate::option_vars::*;
 use crate::register::{
-    EMPTY_YANKREG, MotionType, PLUS_REGISTER, STAR_REGISTER, get_y_previous, get_y_register,
-    update_yankreg_width, Yankreg,
+    EMPTY_YANKREG, MotionType, PLUS_REGISTER, STAR_REGISTER, Yankreg, get_y_previous,
+    get_y_register, update_yankreg_width,
 };
 use std::ffi::{CStr, c_char, c_int, c_uint};
 
@@ -37,7 +37,8 @@ impl ClipboardModuleState {
     }
 }
 
-static CLIP_STATE: crate::globals::GlobalState<ClipboardModuleState> = crate::globals::GlobalState::new(ClipboardModuleState::new());
+static CLIP_STATE: crate::globals::GlobalState<ClipboardModuleState> =
+    crate::globals::GlobalState::new(ClipboardModuleState::new());
 
 #[inline]
 fn clip_st() -> &'static mut ClipboardModuleState {
@@ -47,66 +48,62 @@ fn clip_st() -> &'static mut ClipboardModuleState {
 const MSG_NO_CLIP: &CStr = c"clipboard: No provider. Try \":checkhealth\" or \":h clipboard\".";
 
 /// Determine if register `*name` should be used as a clipboard (`adjust_clipboard_name`).
-pub fn adjust_clipboard_name(
-    name: &mut c_int,
-    quiet: bool,
-    writing: bool,
-) -> *mut Yankreg {
+pub fn adjust_clipboard_name(name: &mut c_int, quiet: bool, writing: bool) -> *mut Yankreg {
     let reg_char = *name;
-        let flags = opt_vars().cb_flags;
-        let explicit_cb_reg = reg_char == b'*' as c_int || reg_char == b'+' as c_int;
-        let implicit_cb_reg =
-            reg_char == 0 && (flags & (K_OPT_CB_FLAG_UNNAMED | K_OPT_CB_FLAG_UNNAMEDPLUS)) != 0;
-        if !explicit_cb_reg && !implicit_cb_reg {
-            return std::ptr::null_mut();
-        }
+    let flags = opt_vars().cb_flags;
+    let explicit_cb_reg = reg_char == b'*' as c_int || reg_char == b'+' as c_int;
+    let implicit_cb_reg =
+        reg_char == 0 && (flags & (K_OPT_CB_FLAG_UNNAMED | K_OPT_CB_FLAG_UNNAMEDPLUS)) != 0;
+    if !explicit_cb_reg && !implicit_cb_reg {
+        return std::ptr::null_mut();
+    }
 
-        if !eval_has_provider(c"clipboard", false) {
-            if clip_st().batch_change_count <= 1
-                && !quiet
-                && (!clip_st().clipboard_didwarn || (explicit_cb_reg && redirecting() == 0))
-            {
-                clip_st().clipboard_didwarn = true;
-                msg(MSG_NO_CLIP, 0);
-            }
-            return std::ptr::null_mut();
+    if !eval_has_provider(c"clipboard", false) {
+        if clip_st().batch_change_count <= 1
+            && !quiet
+            && (!clip_st().clipboard_didwarn || (explicit_cb_reg && redirecting() == 0))
+        {
+            clip_st().clipboard_didwarn = true;
+            msg(MSG_NO_CLIP, 0);
         }
+        return std::ptr::null_mut();
+    }
 
-        if explicit_cb_reg {
-            let target = get_y_register(if reg_char == b'*' as c_int {
-                STAR_REGISTER
-            } else {
-                PLUS_REGISTER
-            });
-            let match_flag = if reg_char == b'*' as c_int {
-                K_OPT_CB_FLAG_UNNAMED
-            } else {
-                K_OPT_CB_FLAG_UNNAMEDPLUS
-            };
-            if writing && (flags & match_flag) != 0 {
-                clip_st().clipboard_needs_update = false;
-            }
-            target
+    if explicit_cb_reg {
+        let target = get_y_register(if reg_char == b'*' as c_int {
+            STAR_REGISTER
         } else {
-            if writing && clip_st().clipboard_delay_update {
-                clip_st().clipboard_needs_update = true;
-                return std::ptr::null_mut();
-            } else if !writing && clip_st().clipboard_needs_update {
-                return std::ptr::null_mut();
-            }
-
-            if (flags & K_OPT_CB_FLAG_UNNAMEDPLUS) != 0 {
-                *name = if (flags & K_OPT_CB_FLAG_UNNAMED) != 0 && writing {
-                    b'"' as c_int
-                } else {
-                    b'+' as c_int
-                };
-                get_y_register(PLUS_REGISTER)
-            } else {
-                *name = b'*' as c_int;
-                get_y_register(STAR_REGISTER)
-            }
+            PLUS_REGISTER
+        });
+        let match_flag = if reg_char == b'*' as c_int {
+            K_OPT_CB_FLAG_UNNAMED
+        } else {
+            K_OPT_CB_FLAG_UNNAMEDPLUS
+        };
+        if writing && (flags & match_flag) != 0 {
+            clip_st().clipboard_needs_update = false;
         }
+        target
+    } else {
+        if writing && clip_st().clipboard_delay_update {
+            clip_st().clipboard_needs_update = true;
+            return std::ptr::null_mut();
+        } else if !writing && clip_st().clipboard_needs_update {
+            return std::ptr::null_mut();
+        }
+
+        if (flags & K_OPT_CB_FLAG_UNNAMEDPLUS) != 0 {
+            *name = if (flags & K_OPT_CB_FLAG_UNNAMED) != 0 && writing {
+                b'"' as c_int
+            } else {
+                b'+' as c_int
+            };
+            get_y_register(PLUS_REGISTER)
+        } else {
+            *name = b'*' as c_int;
+            get_y_register(STAR_REGISTER)
+        }
+    }
 }
 
 /// Read clipboard contents into `*target` (`get_clipboard`).
@@ -131,24 +128,18 @@ pub fn get_clipboard(mut name: c_int, target: *mut *mut Yankreg, quiet: bool) ->
 
         let args = tv_list_alloc(1);
         let regname = name as c_char;
-        tv_list_append_string( &mut *args, &regname, 1);
+        tv_list_append_string(&mut *args, &regname, 1);
 
-        let result = eval_call_provider(
-            c"clipboard",
-            c"get",
-            &mut *args,
-            false,
-        );
+        let result = eval_call_provider(c"clipboard", c"get", &mut *args, false);
 
-        let fail_cleanup =
-            |reg: &mut Yankreg, errmsg: bool, target: *mut *mut Yankreg| -> bool {
-                *reg = EMPTY_YANKREG;
-                if errmsg {
-                    emsg(c"clipboard: provider returned invalid data");
-                }
-                *target = reg as *mut Yankreg;
-                false
-            };
+        let fail_cleanup = |reg: &mut Yankreg, errmsg: bool, target: *mut *mut Yankreg| -> bool {
+            *reg = EMPTY_YANKREG;
+            if errmsg {
+                emsg(c"clipboard: provider returned invalid data");
+            }
+            *target = reg as *mut Yankreg;
+            false
+        };
 
         if result.v_type != VarType::VarList {
             if result.v_type == VarType::VarNumber && result.vval.v_number() == 0 {
@@ -236,61 +227,56 @@ pub fn set_clipboard(mut name: c_int, reg: &Yankreg) {
             return;
         }
 
-                let extra = usize::from(reg.y_type != MotionType::MtCharWise);
+        let extra = usize::from(reg.y_type != MotionType::MtCharWise);
         let lines = tv_list_alloc((reg.y_array.len() + extra) as isize);
 
         for &item in &reg.y_array {
-            tv_list_append_string( &mut *lines, item.data, item.size as isize);
+            tv_list_append_string(&mut *lines, item.data, item.size as isize);
         }
 
         let regtype: c_char = match reg.y_type {
             MotionType::MtLineWise => {
-                tv_list_append_string( &mut *lines, std::ptr::null(), 0);
+                tv_list_append_string(&mut *lines, std::ptr::null(), 0);
                 b'V' as c_char
             }
             MotionType::MtCharWise => b'v' as c_char,
             MotionType::MtBlockWise => {
-                tv_list_append_string( &mut *lines, std::ptr::null(), 0);
+                tv_list_append_string(&mut *lines, std::ptr::null(), 0);
                 b'b' as c_char
             }
             MotionType::MtUnknown => std::process::abort(),
         };
 
         let args = tv_list_alloc(3);
-        tv_list_append_list( &mut *args, lines);
-        tv_list_append_string( &mut *args, &regtype, 1);
+        tv_list_append_list(&mut *args, lines);
+        tv_list_append_string(&mut *args, &regtype, 1);
         let name_char = name as c_char;
-        tv_list_append_string( &mut *args, &name_char, 1);
+        tv_list_append_string(&mut *args, &name_char, 1);
 
-        let _ = eval_call_provider(
-            c"clipboard",
-            c"set",
-            &mut *args,
-            true,
-        );
+        let _ = eval_call_provider(c"clipboard", c"set", &mut *args, true);
     }
 }
 
 /// Defer clipboard updates during batch operations (`start_batch_changes`).
 pub fn start_batch_changes() {
     clip_st().batch_change_count += 1;
-        if clip_st().batch_change_count > 1 {
-            return;
-        }
-        clip_st().clipboard_delay_update = true;
+    if clip_st().batch_change_count > 1 {
+        return;
+    }
+    clip_st().clipboard_delay_update = true;
 }
 
 /// End batch operation and flush deferred clipboard update if needed (`end_batch_changes`).
 pub fn end_batch_changes() {
     clip_st().batch_change_count -= 1;
-        if clip_st().batch_change_count > 0 {
-            return;
-        }
-        clip_st().clipboard_delay_update = false;
-        if clip_st().clipboard_needs_update {
-            clip_st().clipboard_needs_update = false;
-            set_clipboard(0, unsafe { &*get_y_previous() });
-        }
+    if clip_st().batch_change_count > 0 {
+        return;
+    }
+    clip_st().clipboard_delay_update = false;
+    if clip_st().clipboard_needs_update {
+        clip_st().clipboard_needs_update = false;
+        set_clipboard(0, unsafe { &*get_y_previous() });
+    }
 }
 
 #[cfg(test)]
@@ -300,11 +286,11 @@ mod tests {
     #[test]
     fn batch_changes_nesting_toggles_delay_flag() {
         start_batch_changes();
-            assert!(clip_st().clipboard_delay_update);
-            start_batch_changes();
-            end_batch_changes();
-            assert!(clip_st().clipboard_delay_update);
-            end_batch_changes();
-            assert!(!clip_st().clipboard_delay_update);
+        assert!(clip_st().clipboard_delay_update);
+        start_batch_changes();
+        end_batch_changes();
+        assert!(clip_st().clipboard_delay_update);
+        end_batch_changes();
+        assert!(!clip_st().clipboard_delay_update);
     }
 }

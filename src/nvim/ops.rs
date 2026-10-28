@@ -3,33 +3,33 @@
 
 use crate::buffer::{FileBuf, buf_get_changedtick, col_print, modifiable};
 use crate::change::{
-    COM_END, appended_lines_mark, changed_bytes, changed_lines, del_bytes, del_char, del_lines,
-    get_last_leader_offset, get_leader_len, ins_char, ins_str, K_CPO_DOLLAR, K_OPT_VE_FLAG_ONEMORE,
-    truncate_line,
+    COM_END, K_CPO_DOLLAR, K_OPT_VE_FLAG_ONEMORE, appended_lines_mark, changed_bytes,
+    changed_lines, del_bytes, del_char, del_lines, get_last_leader_offset, get_leader_len,
+    ins_char, ins_str, truncate_line,
 };
 use crate::charset::{
-    NUL, STR2NR_BIN, STR2NR_HEX, STR2NR_OCT, ascii_isalpha, ascii_isbdigit, ascii_isdigit,
-    ascii_isspace, ascii_isupper, ascii_iswhite, ascii_isxdigit, getwhitecols,
-    getwhitecols_curline, skipwhite, Uvarnumber, vim_str2nr,
+    NUL, STR2NR_BIN, STR2NR_HEX, STR2NR_OCT, Uvarnumber, ascii_isalpha, ascii_isbdigit,
+    ascii_isdigit, ascii_isspace, ascii_isupper, ascii_iswhite, ascii_isxdigit, getwhitecols,
+    getwhitecols_curline, skipwhite, vim_str2nr,
 };
 use crate::clipboard::set_clipboard;
 use crate::cursor::{
-    VALID_VIRTCOL, check_cursor, check_cursor_col, check_pos, coladvance, coladvance_force,
-    Colnr, dec_cursor, equalpos, gchar_cursor, get_cursor_line_len, get_cursor_line_ptr,
-    get_cursor_pos_ptr, getviscol, getviscol2, getvpos, inc_cursor, K_OPT_VE_FLAG_ALL, Linenr, lt,
-    ltoreq, CursorPos,
+    Colnr, CursorPos, K_OPT_VE_FLAG_ALL, Linenr, VALID_VIRTCOL, check_cursor, check_cursor_col,
+    check_pos, coladvance, coladvance_force, dec_cursor, equalpos, gchar_cursor,
+    get_cursor_line_len, get_cursor_line_ptr, get_cursor_pos_ptr, getviscol, getviscol2, getvpos,
+    inc_cursor, lt, ltoreq,
 };
 use crate::drawscreen::{UPD_INVERTED, redraw_curbuf_later, update_screen};
 use crate::errors::*;
 use crate::eval::typval::{
-    TypvalVval, VarType, callback_free, TvDict, K_CALLBACK_NONE_CONST, tv_clear, tv_dict_add_nr, TypVal,
-    Varnumber,
+    K_CALLBACK_NONE_CONST, TvDict, TypVal, TypvalVval, VarType, Varnumber, callback_free, tv_clear,
+    tv_dict_add_nr,
 };
 use crate::eval::{callback_call, set_ref_in_callback};
 use crate::ex_docmd::{CMOD_LOCKMARKS, do_cmdline};
 use crate::ex_getln::{CTRL_A, K_LUA};
 use crate::extmark::{
-    TriState, Bcount, extmark_splice, extmark_splice_cols, K_EXTMARK_UNDO, K_NONE,
+    Bcount, K_EXTMARK_UNDO, K_NONE, TriState, extmark_splice, extmark_splice_cols,
 };
 use crate::fold::{delete_fold, fold_create, fold_open_cursor, has_folding, op_fold_range};
 use crate::globals::*;
@@ -44,17 +44,17 @@ use crate::input::{
     stuff_readbuff, stuffchar_readbuff, stuffnum_readbuff,
 };
 use crate::input_cmdatom::{
-    InsSession, VisualIns, atom_capture_op, atom_ins_end, atom_ins_start, atom_suppress,
-    atom_visual_redoable, Cmdarg, K_VINS_KEYS, K_VINS_MOTION, K_VINS_NONE, K_VINS_OTHER,
+    Cmdarg, InsSession, K_VINS_KEYS, K_VINS_MOTION, K_VINS_NONE, K_VINS_OTHER, VisualIns,
+    atom_capture_op, atom_ins_end, atom_ins_start, atom_suppress, atom_visual_redoable,
 };
-use crate::insert::{CTRL_X_CONST, beginline, display_dollar, edit, K_FO_AUTO, linetabsize_str};
+use crate::insert::{CTRL_X_CONST, K_FO_AUTO, beginline, display_dollar, edit, linetabsize_str};
 use crate::keycodes::{CAR, K_COMMAND, NL, TAB};
 use crate::mark::{mark_col_adjust, mark_mb_adjustpos};
 use crate::math::trim_to_int;
 use crate::mbyte::{
-    bomb_size, mb_islower, mb_isupper, mb_prevptr, mb_tolower, mb_toupper, utf_cluster_info,
-    utf_char2bytes, utf_char2cells, utf_char2len, utf_eat_space, utf_head_off, utf_ptr2_str_char_info,
-    utf_ptr2char, utf_ptr2len, utfc_ptr2len,
+    bomb_size, mb_islower, mb_isupper, mb_prevptr, mb_tolower, mb_toupper, utf_char2bytes,
+    utf_char2cells, utf_char2len, utf_cluster_info, utf_eat_space, utf_head_off,
+    utf_ptr2_str_char_info, utf_ptr2char, utf_ptr2len, utfc_ptr2len,
 };
 use crate::mcursor::mc_zq;
 use crate::memline::{
@@ -76,12 +76,12 @@ use crate::plines::{
     CSType, CharsizeArg, getvcol, getvcols, getvvcol, init_charsize_arg, win_charsize,
 };
 use crate::register::{
-    YREG_YANK, BlockDef, do_autocmd_textyankpost, get_y_register, get_yank_register,
-    is_append_register, op_yank, op_yank_reg, shift_delete_registers, valid_yank_reg, Yankreg,
+    BlockDef, YREG_YANK, Yankreg, do_autocmd_textyankpost, get_y_register, get_yank_register,
+    is_append_register, op_yank, op_yank_reg, shift_delete_registers, valid_yank_reg,
 };
 use crate::state::{MODE_INSERT, MODE_REPLACE, VREPLACE_FLAG, virtual_active};
 use crate::strings::{ngettext, tr, vim_snprintf, vim_strchr};
-use crate::textformat::{auto_format, has_format_option, op_format, op_formatexpr, Oparg};
+use crate::textformat::{Oparg, auto_format, has_format_option, op_format, op_formatexpr};
 use crate::ui::vim_beep;
 use crate::undo::{u_clearline, u_save, u_save_cursor};
 use std::ffi::{c_char, c_int, c_long, c_uint, c_ulong};
@@ -170,7 +170,7 @@ const OPCHARS: [[u8; 3]; 31] = [
     [b'g', b'w', OPF_LINES | OPF_CHANGE], // OP_FORMAT2
     [b'g', b'@', OPF_CHANGE],             // OP_FUNCTION
     [CTRL_A as u8, 0, OPF_CHANGE],        // OP_NR_ADD
-    [CTRL_X_CONST as u8, 0, OPF_CHANGE],        // OP_NR_SUB
+    [CTRL_X_CONST as u8, 0, OPF_CHANGE],  // OP_NR_SUB
     [b'z', b'q', 0],                      // OP_MCURSOR
 ];
 
@@ -186,7 +186,8 @@ impl OpsModuleState {
     }
 }
 
-static OPS_STATE: crate::globals::GlobalState<OpsModuleState> = crate::globals::GlobalState::new(OpsModuleState::new());
+static OPS_STATE: crate::globals::GlobalState<OpsModuleState> =
+    crate::globals::GlobalState::new(OpsModuleState::new());
 
 #[inline]
 fn ops_st() -> &'static mut OpsModuleState {
@@ -211,32 +212,32 @@ const fn rot13(c: c_int, a: c_int) -> c_int {
 /// Translate a command name into an operator type.
 pub fn get_op_type(char1: c_int, char2: c_int) -> c_int {
     if char1 == b'r' as c_int {
-            return OP_REPLACE;
+        return OP_REPLACE;
+    }
+    if char1 == b'~' as c_int {
+        return OP_TILDE;
+    }
+    if char1 == b'g' as c_int && char2 == CTRL_A {
+        return OP_NR_ADD;
+    }
+    if char1 == b'g' as c_int && char2 == CTRL_X_CONST {
+        return OP_NR_SUB;
+    }
+    if char1 == b'z' as c_int && char2 == b'y' as c_int {
+        return OP_YANK;
+    }
+    let mut i = 0;
+    loop {
+        if c_int::from(OPCHARS[i][0]) == char1 && c_int::from(OPCHARS[i][1]) == char2 {
+            break;
         }
-        if char1 == b'~' as c_int {
-            return OP_TILDE;
+        if i == OPCHARS.len() - 1 {
+            internal_error(c"get_op_type()");
+            break;
         }
-        if char1 == b'g' as c_int && char2 == CTRL_A {
-            return OP_NR_ADD;
-        }
-        if char1 == b'g' as c_int && char2 == CTRL_X_CONST {
-            return OP_NR_SUB;
-        }
-        if char1 == b'z' as c_int && char2 == b'y' as c_int {
-            return OP_YANK;
-        }
-        let mut i = 0;
-        loop {
-            if c_int::from(OPCHARS[i][0]) == char1 && c_int::from(OPCHARS[i][1]) == char2 {
-                break;
-            }
-            if i == OPCHARS.len() - 1 {
-                internal_error(c"get_op_type()");
-                break;
-            }
-            i += 1;
-        }
-        i as c_int
+        i += 1;
+    }
+    i as c_int
 }
 
 /// Return non-zero if operator `op` always works on whole lines.
@@ -253,10 +254,10 @@ pub fn op_is_change(op: c_int) -> c_int {
 /// not. Yank with the 'y' flag in 'cpoptions'.
 pub fn op_redoable(op: c_int, redo_yank: bool) -> bool {
     if op == OP_YANK {
-            redo_yank
-        } else {
-            op_is_change(op) != 0
-        }
+        redo_yank
+    } else {
+        op_is_change(op) != 0
+    }
 }
 
 /// Get first operator command character.
@@ -271,7 +272,7 @@ pub fn get_extra_op_char(optype: c_int) -> c_int {
 
 /// Handle a shift operation.
 pub fn op_shift(oap: &mut Oparg, curs_top: bool, amount: c_int) {
-     {
+    {
         let mut block_col: c_int = 0;
 
         if !u_save(oap.start.lnum - 1, oap.end.lnum + 1) {
@@ -328,11 +329,7 @@ pub fn op_shift(oap: &mut Oparg, curs_top: bool, amount: c_int) {
             vim_snprintf!(
                 iobuff_ptr,
                 IOSIZE,
-                ngettext(
-                    msg_line_single,
-                    msg_line_plural,
-                    oap.line_count as c_ulong,
-                ),
+                ngettext(msg_line_single, msg_line_plural, oap.line_count as c_ulong,),
                 i64::from(oap.line_count) as std::ffi::c_longlong,
                 op,
                 amount,
@@ -380,69 +377,69 @@ fn get_vts_sum(vts_array: &[c_int], index: c_int) -> c_int {
 fn get_new_sw_indent(left: bool, round: bool, mut amount: i64, sw_val: i64) -> i64 {
     let mut count = i64::from(get_indent());
 
-        if round {
-            let mut i = i64::from(trim_to_int(count / sw_val));
-            let j = i64::from(trim_to_int(count % sw_val));
-            if j != 0 && left {
-                amount -= 1;
-            }
-            if left {
-                i = (i - amount).max(0);
-            } else {
-                i += amount;
-            }
-            count = i * sw_val;
-        } else if left {
-            count = (count - sw_val * amount).max(0);
-        } else {
-            count += sw_val * amount;
+    if round {
+        let mut i = i64::from(trim_to_int(count / sw_val));
+        let j = i64::from(trim_to_int(count % sw_val));
+        if j != 0 && left {
+            amount -= 1;
         }
+        if left {
+            i = (i - amount).max(0);
+        } else {
+            i += amount;
+        }
+        count = i * sw_val;
+    } else if left {
+        count = (count - sw_val * amount).max(0);
+    } else {
+        count += sw_val * amount;
+    }
 
-        count
+    count
 }
 
 fn get_new_vts_indent(left: bool, round: bool, amount: c_int, vts_array: &[c_int]) -> i64 {
     let mut indent = i64::from(get_indent());
-        let mut vtsi: c_int = 0;
-        let mut vts_indent: c_int = 0;
-        let mut ts: c_int = 0;
+    let mut vtsi: c_int = 0;
+    let mut vts_indent: c_int = 0;
+    let mut ts: c_int = 0;
 
-        while i64::from(vts_indent) <= indent {
-            vtsi += 1;
-            ts = get_vts(vts_array, vtsi);
-            vts_indent += ts;
-        }
-        vts_indent -= ts;
-        vtsi -= 1;
+    while i64::from(vts_indent) <= indent {
+        vtsi += 1;
+        ts = get_vts(vts_array, vtsi);
+        vts_indent += ts;
+    }
+    vts_indent -= ts;
+    vtsi -= 1;
 
-        let offset = indent - i64::from(vts_indent);
+    let offset = indent - i64::from(vts_indent);
 
-        if round {
-            if left {
-                if offset == 0 {
-                    indent = i64::from(get_vts_sum(vts_array, vtsi - amount));
-                } else {
-                    indent = i64::from(get_vts_sum(vts_array, vtsi - (amount - 1)));
-                }
+    if round {
+        if left {
+            if offset == 0 {
+                indent = i64::from(get_vts_sum(vts_array, vtsi - amount));
             } else {
-                indent = i64::from(get_vts_sum(vts_array, vtsi + amount));
-            }
-        } else if left {
-            if amount > vtsi {
-                indent = 0;
-            } else {
-                indent = i64::from(get_vts_sum(vts_array, vtsi - amount)) + offset;
+                indent = i64::from(get_vts_sum(vts_array, vtsi - (amount - 1)));
             }
         } else {
-            indent = i64::from(get_vts_sum(vts_array, vtsi + amount)) + offset;
+            indent = i64::from(get_vts_sum(vts_array, vtsi + amount));
         }
+    } else if left {
+        if amount > vtsi {
+            indent = 0;
+        } else {
+            indent = i64::from(get_vts_sum(vts_array, vtsi - amount)) + offset;
+        }
+    } else {
+        indent = i64::from(get_vts_sum(vts_array, vtsi + amount)) + offset;
+    }
 
-        indent
+    indent
 }
 
 /// Shift the current line `amount` shiftwidth(s) left or right.
 pub fn shift_line(left: bool, round: bool, amount: c_int, call_changed_bytes: c_int) {
-     {
+    {
         let sw_val = curbuf_mut().b_p_sw;
         let ts_val = curbuf_mut().b_p_ts;
         let vts_array = &curbuf_mut().b_p_vts_array;
@@ -526,15 +523,8 @@ fn shift_block(oap: &mut Oparg, amount: c_int) {
             let mut vcol = bd.start_vcol;
             while ascii_iswhite(ci.chr.value) {
                 let cli = utf_cluster_info(ci);
-                let incr = win_charsize(
-                    cstype,
-                    vcol,
-                    ci.ptr,
-                    ci.chr.value,
-                    &mut csarg,
-                    cli.cells,
-                )
-                .width;
+                let incr =
+                    win_charsize(cstype, vcol, ci.ptr, ci.chr.value, &mut csarg, cli.cells).width;
                 ci = cli.next;
                 total += incr;
                 vcol += incr;
@@ -576,7 +566,10 @@ fn shift_block(oap: &mut Oparg, amount: c_int) {
                 b' ',
                 spaces as usize,
             );
-            crate::memory::cstr_cpy(newp.add((bd.textcol + tabs + spaces) as usize), bd.textstart);
+            crate::memory::cstr_cpy(
+                newp.add((bd.textcol + tabs + spaces) as usize),
+                bd.textstart,
+            );
             debug_assert_eq!(newlen - oldlen, new_line_len - old_line_len);
         } else {
             let mut non_white = bd.textstart;
@@ -680,7 +673,8 @@ fn block_insert(
     slen: usize,
     b_insert: bool,
     bdp: &mut BlockDef,
-) { let s = s.into_c_char_ptr();
+) {
+    let s = s.into_c_char_ptr();
     unsafe {
         let mut ts_val: c_int;
         let mut count: c_int = 0;
@@ -883,18 +877,14 @@ pub fn op_delete(oap: &mut Oparg) -> bool {
                     did_yank = true;
                 }
 
-                if oap.motion_type == MT_LINE_WISE || oap.line_count > 1 || oap.use_reg_one
-                {
+                if oap.motion_type == MT_LINE_WISE || oap.line_count > 1 || oap.use_reg_one {
                     shift_delete_registers(is_append_register(oap.regname));
                     reg = get_y_register(1);
                     op_yank_reg(oap, false, reg, false);
                     did_yank = true;
                 }
 
-                if oap.regname == 0
-                    && oap.motion_type != MT_LINE_WISE
-                    && oap.line_count == 1
-                {
+                if oap.regname == 0 && oap.motion_type != MT_LINE_WISE && oap.line_count == 1 {
                     reg = get_yank_register(b'-' as c_int, YREG_YANK);
                     op_yank_reg(oap, false, reg, false);
                     did_yank = true;
@@ -935,7 +925,10 @@ pub fn op_delete(oap: &mut Oparg) -> bool {
                         b' ',
                         (bd.startspaces + bd.endspaces) as usize,
                     );
-                    crate::memory::cstr_cpy(newp.add((bd.textcol + bd.startspaces + bd.endspaces) as usize), oldp.add((bd.textcol + bd.textlen) as usize));
+                    crate::memory::cstr_cpy(
+                        newp.add((bd.textcol + bd.startspaces + bd.endspaces) as usize),
+                        oldp.add((bd.textcol + bd.textlen) as usize),
+                    );
                     ml_replace(lnum, newp, true);
                     drop(newp_vec);
 
@@ -1006,10 +999,7 @@ pub fn op_delete(oap: &mut Oparg) -> bool {
                         }
                     }
 
-                    if gchar_pos(&mut oap.end) == TAB
-                        && oap.end.coladd == 0
-                        && oap.inclusive
-                    {
+                    if gchar_pos(&mut oap.end) == TAB && oap.end.coladd == 0 && oap.inclusive {
                         if !u_save(oap.end.lnum - 1, oap.end.lnum + 1) {
                             return false;
                         }
@@ -1034,8 +1024,7 @@ pub fn op_delete(oap: &mut Oparg) -> bool {
                         display_dollar(oap.end.col - c_int::from(!oap.inclusive));
                     }
 
-                    let mut n =
-                        oap.end.col - oap.start.col + 1 - c_int::from(!oap.inclusive);
+                    let mut n = oap.end.col - oap.start.col + 1 - c_int::from(!oap.inclusive);
 
                     if g_st().virtual_op != 0 {
                         let len = get_cursor_line_len();
@@ -1064,8 +1053,7 @@ pub fn op_delete(oap: &mut Oparg) -> bool {
                     if !u_save(
                         curwin_mut().w_cursor.lnum - 1,
                         curwin_mut().w_cursor.lnum + oap.line_count,
-                    )
-                    {
+                    ) {
                         return false;
                     }
 
@@ -1165,10 +1153,10 @@ fn pbyte(mut lp: CursorPos, c: c_int) {
 fn replace_character(c: c_int) {
     let n = g_st().state_global;
 
-        g_st().state_global = MODE_REPLACE;
-        ins_char(c);
-        g_st().state_global = n;
-        dec_cursor();
+    g_st().state_global = MODE_REPLACE;
+    ins_char(c);
+    g_st().state_global = n;
+    dec_cursor();
 }
 
 fn op_replace(oap: &mut Oparg, mut c: c_int) -> bool {
@@ -1205,7 +1193,10 @@ fn op_replace(oap: &mut Oparg, mut c: c_int) -> bool {
                     continue;
                 }
 
-                if g_st().virtual_op != 0 && bd.is_short != 0 && crate::memory::cstr_is_empty(bd.textstart) {
+                if g_st().virtual_op != 0
+                    && bd.is_short != 0
+                    && crate::memory::cstr_is_empty(bd.textstart)
+                {
                     let mut vpos = CursorPos {
                         lnum: curwin_mut().w_cursor.lnum,
                         col: 0,
@@ -1409,7 +1400,7 @@ fn op_replace(oap: &mut Oparg, mut c: c_int) -> bool {
 
 /// Handle the (non-standard vi) tilde operator. Also for "gu", "gU" and "g?".
 pub fn op_tilde(oap: &mut Oparg) {
-     {
+    {
         let mut bd = BlockDef::new();
         let mut did_change = false;
 
@@ -1494,24 +1485,24 @@ pub fn op_tilde(oap: &mut Oparg) {
 
 fn swapchars(op_type: c_int, pos: &mut CursorPos, length: c_int) -> c_int {
     let mut did_change: c_int = 0;
-        let mut todo = length;
-        while todo > 0 {
-            let len = utfc_ptr2len(ml_get_pos(pos));
+    let mut todo = length;
+    while todo > 0 {
+        let len = utfc_ptr2len(ml_get_pos(pos));
 
-            if len > 0 {
-                todo -= len - 1;
-            }
-            did_change |= c_int::from(swapchar(op_type, pos));
-            if inc(pos) == -1 {
-                break;
-            }
-            todo -= 1;
+        if len > 0 {
+            todo -= len - 1;
         }
-        did_change
+        did_change |= c_int::from(swapchar(op_type, pos));
+        if inc(pos) == -1 {
+            break;
+        }
+        todo -= 1;
+    }
+    did_change
 }
 
 pub fn swapchar(op_type: c_int, pos: &mut CursorPos) -> bool {
-     {
+    {
         let c = gchar_pos(pos);
 
         if c >= 0x80 && op_type == OP_ROT13 {
@@ -1758,7 +1749,10 @@ pub fn op_change(oap: &mut Oparg) -> c_int {
             return 0;
         }
 
-        if l > curwin_mut().w_cursor.col && !lineempty(curwin_mut().w_cursor.lnum) && g_st().virtual_op == 0 {
+        if l > curwin_mut().w_cursor.col
+            && !lineempty(curwin_mut().w_cursor.lnum)
+            && g_st().virtual_op == 0
+        {
             inc_cursor();
         }
 
@@ -1796,7 +1790,11 @@ pub fn op_change(oap: &mut Oparg) -> c_int {
             let ins_len = ml_get_len(oap.start.lnum) - pre_textlen;
             if ins_len > 0 {
                 let mut ins_text = vec![0 as c_char; (ins_len as usize) + 1];
-                crate::memory::cstr_ncpy(ins_text.as_mut_ptr(), firstline.add(bd.textcol as usize), ins_len as usize);
+                crate::memory::cstr_ncpy(
+                    ins_text.as_mut_ptr(),
+                    firstline.add(bd.textcol as usize),
+                    ins_len as usize,
+                );
                 for linenr in (oap.start.lnum + 1)..=oap.end.lnum {
                     block_prep(oap, &mut bd, linenr, true);
                     if bd.is_short == 0 || g_st().virtual_op != 0 {
@@ -1829,7 +1827,10 @@ pub fn op_change(oap: &mut Oparg) -> c_int {
                             ins_len as usize,
                         );
                         newlen += ins_len;
-                        crate::memory::cstr_cpy(newp.add(newlen as usize), oldp.add(bd.textcol as usize));
+                        crate::memory::cstr_cpy(
+                            newp.add(newlen as usize),
+                            oldp.add(bd.textcol as usize),
+                        );
                         ml_replace(linenr, newp, true);
                         drop(newp_vec);
                         extmark_splice_cols(
@@ -1862,7 +1863,7 @@ pub fn op_change(oap: &mut Oparg) -> c_int {
 /// When the cursor is on the NUL past the end of the line and it should not be
 /// there move it left.
 pub fn adjust_cursor_eol() {
-     {
+    {
         let cur_ve_flags = get_ve_flags(curwin_mut());
 
         let adj_cursor = curwin_mut().w_cursor.col > 0
@@ -1906,7 +1907,9 @@ pub fn skip_comment(
         *is_comment = false;
         if leader_offset != -1 {
             while !crate::memory::cstr_is_empty(comment_flags) {
-                if *comment_flags == COM_END || crate::memory::cstr_first_byte(comment_flags) == b':' {
+                if *comment_flags == COM_END
+                    || crate::memory::cstr_first_byte(comment_flags) == b':'
+                {
                     break;
                 }
                 comment_flags = comment_flags.add(1);
@@ -1933,7 +1936,9 @@ pub fn skip_comment(
             comment_flags = comment_flags.add(1);
         }
 
-        if crate::memory::cstr_first_byte(comment_flags) == b':' || crate::memory::cstr_is_empty(comment_flags) {
+        if crate::memory::cstr_first_byte(comment_flags) == b':'
+            || crate::memory::cstr_is_empty(comment_flags)
+        {
             line = line.add(lead_len as usize);
         }
 
@@ -1984,13 +1989,11 @@ pub fn do_join(
             curr = curr_start;
             if t == 0 && setmark && (g_st().cmdmod.cmod_flags & CMOD_LOCKMARKS) == 0 {
                 curwin_mut().buf_mut().b_op_start.lnum = curwin_mut().w_cursor.lnum;
-                curwin_mut().buf_mut().b_op_start.col =
-                    crate::memory::cstr_len(curr) as Colnr;
+                curwin_mut().buf_mut().b_op_start.col = crate::memory::cstr_len(curr) as Colnr;
             }
             if remove_comments {
                 if t > 0 && prev_was_comment {
-                    let new_curr =
-                        skip_comment(curr, true, insert_space, &mut prev_was_comment);
+                    let new_curr = skip_comment(curr, true, insert_space, &mut prev_was_comment);
                     *comments.add(t as usize) = new_curr.offset_from(curr) as c_int;
                     curr = new_curr;
                 } else {
@@ -2148,7 +2151,7 @@ pub fn do_join(
 
 /// Reset 'linebreak' and take care of side effects.
 pub fn reset_lbr() -> bool {
-     {
+    {
         if curwin_mut().w_onebuf_opt.wo_lbr == 0 {
             return false;
         }
@@ -2160,7 +2163,7 @@ pub fn reset_lbr() -> bool {
 
 /// Restore 'linebreak' and take care of side effects.
 pub fn restore_lbr(lbr_saved: bool) {
-     {
+    {
         if curwin_mut().w_onebuf_opt.wo_lbr != 0 || !lbr_saved {
             return;
         }
@@ -2197,15 +2200,7 @@ pub fn block_prep(oap: &mut Oparg, bdp: &mut BlockDef, lnum: Linenr, is_del: boo
         let mut vcol = bdp.start_vcol;
         while vcol < oap.start_vcol && !crate::memory::cstr_is_empty(ci.ptr) {
             let cli = utf_cluster_info(ci);
-            incr = win_charsize(
-                cstype,
-                vcol,
-                ci.ptr,
-                ci.chr.value,
-                &mut csarg,
-                cli.cells,
-            )
-            .width;
+            incr = win_charsize(cstype, vcol, ci.ptr, ci.chr.value, &mut csarg, cli.cells).width;
             vcol += incr;
             if ascii_iswhite(ci.chr.value) {
                 bdp.pre_whitesp += incr;
@@ -2244,8 +2239,7 @@ pub fn block_prep(oap: &mut Oparg, bdp: &mut BlockDef, lnum: Linenr, is_del: boo
                 } else {
                     bdp.startspaces = oap.end_vcol - oap.start_vcol + 1;
                     if is_del && oap.op_type != OP_LSHIFT {
-                        bdp.startspaces =
-                            bdp.start_char_vcols - (bdp.start_vcol - oap.start_vcol);
+                        bdp.startspaces = bdp.start_char_vcols - (bdp.start_vcol - oap.start_vcol);
                         bdp.endspaces = bdp.end_vcol - oap.end_vcol - 1;
                     }
                 }
@@ -2257,15 +2251,8 @@ pub fn block_prep(oap: &mut Oparg, bdp: &mut BlockDef, lnum: Linenr, is_del: boo
                 while vcol <= oap.end_vcol && !crate::memory::cstr_is_empty(ci.ptr) {
                     prev_pend = ci.ptr;
                     let cli = utf_cluster_info(ci);
-                    incr = win_charsize(
-                        cstype,
-                        vcol,
-                        ci.ptr,
-                        ci.chr.value,
-                        &mut csarg,
-                        cli.cells,
-                    )
-                    .width;
+                    incr = win_charsize(cstype, vcol, ci.ptr, ci.chr.value, &mut csarg, cli.cells)
+                        .width;
                     vcol += incr;
                     ci = cli.next;
                 }
@@ -2277,8 +2264,7 @@ pub fn block_prep(oap: &mut Oparg, bdp: &mut BlockDef, lnum: Linenr, is_del: boo
                 {
                     bdp.is_short = 1;
                     if oap.op_type == OP_APPEND || g_st().virtual_op != 0 {
-                        bdp.endspaces =
-                            oap.end_vcol - bdp.end_vcol + c_int::from(oap.inclusive);
+                        bdp.endspaces = oap.end_vcol - bdp.end_vcol + c_int::from(oap.inclusive);
                     }
                 } else if bdp.end_vcol > oap.end_vcol {
                     bdp.endspaces = bdp.end_vcol - oap.end_vcol - 1;
@@ -2307,7 +2293,8 @@ pub fn getregionpos_prep(
     p2: &mut CursorPos,
     region_type: c_int,
     exclusive: bool,
-    block_width: c_int,inclusive: &mut bool,
+    block_width: c_int,
+    inclusive: &mut bool,
     oap: &mut Oparg,
 ) {
     unsafe {
@@ -2385,8 +2372,7 @@ pub fn getregionpos_line(
 
             if bd.is_one_char != 0 {
                 if region_type == MT_BLOCK_WISE {
-                    ret_p1.col =
-                        (mb_prevptr(line, bd.textstart).offset_from(line) as Colnr) + 1;
+                    ret_p1.col = (mb_prevptr(line, bd.textstart).offset_from(line) as Colnr) + 1;
                     ret_p1.coladd = bd.start_char_vcols - (bd.start_vcol - oap.start_vcol);
                 } else {
                     ret_p1.col = p1.col + 1;
@@ -2517,7 +2503,7 @@ pub fn charwise_block_prep(
 }
 
 pub fn op_addsub(oap: &mut Oparg, prenum1: Linenr, g_cmd: bool) {
-     {
+    {
         let mut bd = BlockDef::new();
         let mut change_cnt: isize = 0;
         let mut amount = prenum1;
@@ -2616,12 +2602,7 @@ pub fn op_addsub(oap: &mut Oparg, prenum1: Linenr, g_cmd: bool) {
     }
 }
 
-pub fn do_addsub(
-    op_type: c_int,
-    pos: &mut CursorPos,
-    mut length: c_int,
-    prenum1: Linenr,
-) -> bool {
+pub fn do_addsub(op_type: c_int, pos: &mut CursorPos, mut length: c_int, prenum1: Linenr) -> bool {
     unsafe {
         let mut pre: c_int = 0;
         let mut n: Uvarnumber = 0;
@@ -2664,14 +2645,24 @@ pub fn do_addsub(
 
         if !g_st().visual_global.active {
             if do_bin {
-                while col > 0 && ascii_isbdigit(c_int::from(crate::memory::cstr_byte_at(ptr_line, col as usize))) {
+                while col > 0
+                    && ascii_isbdigit(c_int::from(crate::memory::cstr_byte_at(
+                        ptr_line,
+                        col as usize,
+                    )))
+                {
                     col -= 1;
                     col -= utf_head_off(ptr_line, ptr_line.add(col as usize));
                 }
             }
 
             if do_hex {
-                while col > 0 && ascii_isxdigit(c_int::from(crate::memory::cstr_byte_at(ptr_line, col as usize))) {
+                while col > 0
+                    && ascii_isxdigit(c_int::from(crate::memory::cstr_byte_at(
+                        ptr_line,
+                        col as usize,
+                    )))
+                {
                     col -= 1;
                     col -= utf_head_off(ptr_line, ptr_line.add(col as usize));
                 }
@@ -2687,7 +2678,12 @@ pub fn do_addsub(
             {
                 col = curwin_mut().w_cursor.col;
 
-                while col > 0 && ascii_isdigit(c_int::from(crate::memory::cstr_byte_at(ptr_line, col as usize))) {
+                while col > 0
+                    && ascii_isdigit(c_int::from(crate::memory::cstr_byte_at(
+                        ptr_line,
+                        col as usize,
+                    )))
+                {
                     col -= 1;
                     col -= utf_head_off(ptr_line, ptr_line.add(col as usize));
                 }
@@ -2714,15 +2710,26 @@ pub fn do_addsub(
                 col = pos.col;
 
                 while crate::memory::cstr_byte_at(ptr_line, col as usize) != 0
-                    && !ascii_isdigit(c_int::from(crate::memory::cstr_byte_at(ptr_line, col as usize)))
-                    && !(do_alpha && ascii_isalpha(c_int::from(crate::memory::cstr_byte_at(ptr_line, col as usize))))
+                    && !ascii_isdigit(c_int::from(crate::memory::cstr_byte_at(
+                        ptr_line,
+                        col as usize,
+                    )))
+                    && !(do_alpha
+                        && ascii_isalpha(c_int::from(crate::memory::cstr_byte_at(
+                            ptr_line,
+                            col as usize,
+                        ))))
                 {
                     col += 1;
                 }
 
                 while col > 0
                     && ascii_isdigit(c_int::from(*ptr_line.add((col - 1) as usize) as u8))
-                    && !(do_alpha && ascii_isalpha(c_int::from(crate::memory::cstr_byte_at(ptr_line, col as usize))))
+                    && !(do_alpha
+                        && ascii_isalpha(c_int::from(crate::memory::cstr_byte_at(
+                            ptr_line,
+                            col as usize,
+                        ))))
                 {
                     col -= 1;
                 }
@@ -2732,8 +2739,15 @@ pub fn do_addsub(
         if visual {
             while crate::memory::cstr_byte_at(ptr_line, col as usize) != 0
                 && length > 0
-                && !ascii_isdigit(c_int::from(crate::memory::cstr_byte_at(ptr_line, col as usize)))
-                && !(do_alpha && ascii_isalpha(c_int::from(crate::memory::cstr_byte_at(ptr_line, col as usize))))
+                && !ascii_isdigit(c_int::from(crate::memory::cstr_byte_at(
+                    ptr_line,
+                    col as usize,
+                )))
+                && !(do_alpha
+                    && ascii_isalpha(c_int::from(crate::memory::cstr_byte_at(
+                        ptr_line,
+                        col as usize,
+                    ))))
             {
                 let mb_len = utfc_ptr2len(ptr_line.add(col as usize));
                 col += mb_len;
@@ -2958,33 +2972,13 @@ pub fn do_addsub(
 
                 *buf2_ptr.add(buf2len as usize) = NUL;
             } else if pre == 0 {
-                buf2len = vim_snprintf!(
-                    buf2_ptr,
-                    NUMBUFLEN,
-                    c"%llu",
-                    n as std::ffi::c_ulonglong,
-                );
+                buf2len = vim_snprintf!(buf2_ptr, NUMBUFLEN, c"%llu", n as std::ffi::c_ulonglong,);
             } else if pre == b'0' as c_int {
-                buf2len = vim_snprintf!(
-                    buf2_ptr,
-                    NUMBUFLEN,
-                    c"%llo",
-                    n as std::ffi::c_ulonglong,
-                );
+                buf2len = vim_snprintf!(buf2_ptr, NUMBUFLEN, c"%llo", n as std::ffi::c_ulonglong,);
             } else if ops_st().addsub_hexupper {
-                buf2len = vim_snprintf!(
-                    buf2_ptr,
-                    NUMBUFLEN,
-                    c"%llX",
-                    n as std::ffi::c_ulonglong,
-                );
+                buf2len = vim_snprintf!(buf2_ptr, NUMBUFLEN, c"%llX", n as std::ffi::c_ulonglong,);
             } else {
-                buf2len = vim_snprintf!(
-                    buf2_ptr,
-                    NUMBUFLEN,
-                    c"%llx",
-                    n as std::ffi::c_ulonglong,
-                );
+                buf2len = vim_snprintf!(buf2_ptr, NUMBUFLEN, c"%llx", n as std::ffi::c_ulonglong,);
             }
             length -= buf2len;
 
@@ -3036,7 +3030,8 @@ fn line_count_info(
     cc: &mut Varnumber,
     limit: Varnumber,
     eol_size: c_int,
-) -> Varnumber { let line = line.into_c_char_ptr();
+) -> Varnumber {
+    let line = line.into_c_char_ptr();
     unsafe {
         let mut i: Varnumber = 0;
         let mut words: Varnumber = 0;
@@ -3130,7 +3125,8 @@ pub fn cursor_pos_info(mut dict: Option<&mut TvDict>) {
                     let saved_w_sbr = curwin_mut().w_onebuf_opt.wo_sbr;
 
                     opt_vars().p_sbr = EMPTY_STRING_OPTION.as_ptr().cast::<c_char>();
-                    curwin_mut().w_onebuf_opt.wo_sbr = EMPTY_STRING_OPTION.as_ptr().cast::<c_char>();
+                    curwin_mut().w_onebuf_opt.wo_sbr =
+                        EMPTY_STRING_OPTION.as_ptr().cast::<c_char>();
                     oparg.is_visual = true;
                     oparg.motion_type = MT_BLOCK_WISE;
                     oparg.op_type = OP_NOP;
@@ -3224,7 +3220,9 @@ pub fn cursor_pos_info(mut dict: Option<&mut TvDict>) {
                 );
             }
 
-            if curbuf_mut().b_p_eol == 0 && (curbuf_mut().b_p_bin != 0 || curbuf_mut().b_p_fixeol == 0) {
+            if curbuf_mut().b_p_eol == 0
+                && (curbuf_mut().b_p_bin != 0 || curbuf_mut().b_p_fixeol == 0)
+            {
                 byte_count -= Varnumber::from(eol_size);
             }
 
@@ -3367,7 +3365,11 @@ pub fn cursor_pos_info(mut dict: Option<&mut TvDict>) {
         if dict.is_some() {
             tv_dict_add_nr(dict.as_deref_mut().unwrap(), c"words", word_count);
             tv_dict_add_nr(dict.as_deref_mut().unwrap(), c"chars", char_count);
-            tv_dict_add_nr(dict.as_deref_mut().unwrap(), c"bytes", byte_count + bom_count);
+            tv_dict_add_nr(
+                dict.as_deref_mut().unwrap(),
+                c"bytes",
+                byte_count + bom_count,
+            );
 
             tv_dict_add_nr(
                 dict.as_deref_mut().unwrap(),
@@ -3401,7 +3403,7 @@ pub fn cursor_pos_info(mut dict: Option<&mut TvDict>) {
 }
 
 fn op_colon(oap: &mut Oparg) {
-     {
+    {
         if oap.is_visual {
             stuff_readbuff(c"'<,'>");
         } else {
@@ -3463,15 +3465,21 @@ pub fn free_operatorfunc_option() {
 }
 
 pub fn set_ref_in_opfunc(copy_id: c_int) -> bool {
-    set_ref_in_callback(&mut opt_vars().p_opfunc, copy_id, ptr::null_mut(), ptr::null_mut())
+    set_ref_in_callback(
+        &mut opt_vars().p_opfunc,
+        copy_id,
+        ptr::null_mut(),
+        ptr::null_mut(),
+    )
 }
 
 fn op_function(oap: &Oparg) {
-     {
+    {
         let orig_start = curbuf_mut().b_op_start;
         let orig_end = curbuf_mut().b_op_end;
 
-        if crate::eval::typval::Callback::raw_cb_type(&opt_vars().p_opfunc) == K_CALLBACK_NONE_CONST {
+        if crate::eval::typval::Callback::raw_cb_type(&opt_vars().p_opfunc) == K_CALLBACK_NONE_CONST
+        {
             emsg(tr(c"E774: 'operatorfunc' is empty"));
         } else {
             curbuf_mut().b_op_start = oap.start;
@@ -3529,11 +3537,13 @@ fn op_function(oap: &Oparg) {
 }
 
 fn get_op_vcol(oap: &mut Oparg, initial: bool) {
-     {
+    {
         let mut start: Colnr = 0;
         let mut end: Colnr = 0;
 
-        if g_st().visual_global.mode != CTRL_V_CONST || (!initial && oap.end.col < curwin_mut().w_view_width) {
+        if g_st().visual_global.mode != CTRL_V_CONST
+            || (!initial && oap.end.col < curwin_mut().w_view_width)
+        {
             return;
         }
 
@@ -3558,7 +3568,11 @@ fn get_op_vcol(oap: &mut Oparg, initial: bool) {
 
         oap.start_vcol = oap.start_vcol.min(start);
         if end > oap.end_vcol {
-            if initial && crate::memory::cstr_first_byte(opt_vars().p_sel) == b'e' && start >= 1 && start > oap.end_vcol {
+            if initial
+                && crate::memory::cstr_first_byte(opt_vars().p_sel) == b'e'
+                && start >= 1
+                && start > oap.end_vcol
+            {
                 oap.end_vcol = start - 1;
             } else {
                 oap.end_vcol = end;
@@ -3599,32 +3613,27 @@ fn is_ex_cmdchar(cap: &Cmdarg) -> bool {
 
 pub fn op_self_select(cap: &Cmdarg) -> bool {
     cap.cmdchar == b'g' as c_int
-        && (cap.nchar == b'n' as c_int
-            || cap.nchar == b'N' as c_int
-            || cap.nchar == b'v' as c_int)
+        && (cap.nchar == b'n' as c_int || cap.nchar == b'N' as c_int || cap.nchar == b'v' as c_int)
 }
 
 fn op_ins_visual(oap: &mut Oparg, cap: &mut Cmdarg) -> VisualIns {
     if !oap.is_visual {
-            return K_VINS_NONE;
-        }
-        if is_ex_cmdchar(cap) || cap.cmdchar == K_LUA {
-            return K_VINS_MOTION;
-        }
-        if op_self_select(cap)
-            && cap.nchar != b'v' as c_int
-            && oap.motion_force == c_int::from(NUL)
-        {
-            return K_VINS_MOTION;
-        }
-        if oap.motion_force != c_int::from(NUL) || op_self_select(cap) {
-            return K_VINS_OTHER;
-        }
-        if atom_visual_redoable() {
-            K_VINS_KEYS
-        } else {
-            K_VINS_OTHER
-        }
+        return K_VINS_NONE;
+    }
+    if is_ex_cmdchar(cap) || cap.cmdchar == K_LUA {
+        return K_VINS_MOTION;
+    }
+    if op_self_select(cap) && cap.nchar != b'v' as c_int && oap.motion_force == c_int::from(NUL) {
+        return K_VINS_MOTION;
+    }
+    if oap.motion_force != c_int::from(NUL) || op_self_select(cap) {
+        return K_VINS_OTHER;
+    }
+    if atom_visual_redoable() {
+        K_VINS_KEYS
+    } else {
+        K_VINS_OTHER
+    }
 }
 
 pub fn do_pending_operator(cap: &mut Cmdarg, old_col: c_int, gui_yank: bool) {
@@ -3678,7 +3687,8 @@ pub fn do_pending_operator(cap: &mut Cmdarg, old_col: c_int, gui_yank: bool) {
                         curwin_mut().w_cursor.col = ml_get_len(curwin_mut().w_cursor.lnum);
                     } else {
                         curwin_mut().w_cursor.col = 0;
-                        g_st().visual_global.start.col = ml_get_len(g_st().visual_global.start.lnum);
+                        g_st().visual_global.start.col =
+                            ml_get_len(g_st().visual_global.start.lnum);
                     }
                     g_st().visual_global.mode = b'v' as c_int;
                 } else if g_st().visual_global.mode == b'v' as c_int {
@@ -3729,12 +3739,7 @@ pub fn do_pending_operator(cap: &mut Cmdarg, old_col: c_int, gui_yank: bool) {
                     ) {
                         curwin_mut().w_cursor.col = 0;
                     }
-                    if has_folding(
-                        curwin_ptr(),
-                        oap.start.lnum,
-                        None,
-                        &raw mut oap.start.lnum,
-                    ) {
+                    if has_folding(curwin_ptr(), oap.start.lnum, None, &raw mut oap.start.lnum) {
                         oap.start.col = ml_get_len(oap.start.lnum);
                     }
                 }
@@ -3836,15 +3841,13 @@ pub fn do_pending_operator(cap: &mut Cmdarg, old_col: c_int, gui_yank: bool) {
 
             oap.empty = oap.motion_type != MT_LINE_WISE
                 && ((!oap.inclusive && oap.motion_type != MT_BLOCK_WISE)
-                    || (oap.op_type == OP_YANK
-                        && gchar_pos(&mut oap.end) == c_int::from(NUL)))
+                    || (oap.op_type == OP_YANK && gchar_pos(&mut oap.end) == c_int::from(NUL)))
                 && equalpos(oap.start, oap.end)
                 && !(g_st().virtual_op != 0 && oap.start.coladd != oap.end.coladd);
-            let empty_region_error = oap.empty && !vim_strchr(opt_vars().p_cpo, K_CPO_EMPTYREGION).is_null();
+            let empty_region_error =
+                oap.empty && !vim_strchr(opt_vars().p_cpo, K_CPO_EMPTYREGION).is_null();
 
-            if oap.is_visual
-                && (oap.empty || !modifiable(curbuf_mut()) || oap.op_type == OP_FOLD)
-            {
+            if oap.is_visual && (oap.empty || !modifiable(curbuf_mut()) || oap.op_type == OP_FOLD) {
                 restore_lbr(lbr_saved);
                 redraw_curbuf_later(UPD_INVERTED);
             }
@@ -3931,7 +3934,11 @@ pub fn do_pending_operator(cap: &mut Cmdarg, old_col: c_int, gui_yank: bool) {
                         vim_beep(K_OPT_BO_FLAG_OPERATOR);
                         redo_cancel();
                     } else {
-                        let restart_edit_save = if !g_st().key_typed { g_st().restart_edit } else { 0 };
+                        let restart_edit_save = if !g_st().key_typed {
+                            g_st().restart_edit
+                        } else {
+                            0
+                        };
                         g_st().restart_edit = 0;
 
                         restore_lbr(lbr_saved);
@@ -3996,7 +4003,9 @@ pub fn do_pending_operator(cap: &mut Cmdarg, old_col: c_int, gui_yank: bool) {
                 OP_FORMAT => {
                     if curbuf_mut().b_p_fex.cb_type() != K_CALLBACK_NONE_CONST {
                         op_formatexpr(oap);
-                    } else if !crate::memory::cstr_is_empty(opt_vars().p_fp) || !crate::memory::cstr_is_empty(curbuf_mut().b_p_fp) {
+                    } else if !crate::memory::cstr_is_empty(opt_vars().p_fp)
+                        || !crate::memory::cstr_is_empty(curbuf_mut().b_p_fp)
+                    {
                         op_colon(oap);
                     } else {
                         op_format(oap, false);
@@ -4064,9 +4073,7 @@ pub fn do_pending_operator(cap: &mut Cmdarg, old_col: c_int, gui_yank: bool) {
                     op_fold_range(
                         oap.start,
                         oap.end,
-                        c_int::from(
-                            oap.op_type == OP_FOLDOPEN || oap.op_type == OP_FOLDOPENREC,
-                        ),
+                        c_int::from(oap.op_type == OP_FOLDOPEN || oap.op_type == OP_FOLDOPENREC),
                         c_int::from(
                             oap.op_type == OP_FOLDOPENREC || oap.op_type == OP_FOLDCLOSEREC,
                         ),
@@ -4131,24 +4138,24 @@ pub fn get_region_bytecount(
     end_col: Colnr,
 ) -> Bcount {
     let max_lnum = buf.b_ml.ml_line_count;
-        if start_lnum > max_lnum {
-            return 0;
-        }
-        if start_lnum == end_lnum {
-            return (end_col - start_col) as Bcount;
-        }
-        let mut deleted_bytes = (ml_get_buf_len(buf, start_lnum) - start_col + 1) as Bcount;
+    if start_lnum > max_lnum {
+        return 0;
+    }
+    if start_lnum == end_lnum {
+        return (end_col - start_col) as Bcount;
+    }
+    let mut deleted_bytes = (ml_get_buf_len(buf, start_lnum) - start_col + 1) as Bcount;
 
-        for i in 1..=(end_lnum - start_lnum - 1) {
-            if start_lnum + i > max_lnum {
-                return deleted_bytes;
-            }
-            deleted_bytes += (ml_get_buf_len(buf, start_lnum + i) + 1) as Bcount;
-        }
-        if end_lnum > max_lnum {
+    for i in 1..=(end_lnum - start_lnum - 1) {
+        if start_lnum + i > max_lnum {
             return deleted_bytes;
         }
-        deleted_bytes + (end_col as Bcount)
+        deleted_bytes += (ml_get_buf_len(buf, start_lnum + i) + 1) as Bcount;
+    }
+    if end_lnum > max_lnum {
+        return deleted_bytes;
+    }
+    deleted_bytes + (end_col as Bcount)
 }
 
 #[cfg(test)]
@@ -4158,12 +4165,12 @@ mod tests {
     #[test]
     fn op_char_and_rot13_helpers() {
         assert_eq!(get_op_char(OP_UPPER), b'g' as c_int);
-            assert_eq!(get_extra_op_char(OP_UPPER), b'U' as c_int);
-            assert_ne!(op_on_lines(OP_INDENT), 0);
-            assert_eq!(op_on_lines(OP_DELETE), 0);
-            assert!(op_redoable(OP_DELETE, false));
-            assert!(!op_redoable(OP_YANK, false));
-            assert!(op_redoable(OP_YANK, true));
+        assert_eq!(get_extra_op_char(OP_UPPER), b'U' as c_int);
+        assert_ne!(op_on_lines(OP_INDENT), 0);
+        assert_eq!(op_on_lines(OP_DELETE), 0);
+        assert!(op_redoable(OP_DELETE, false));
+        assert!(!op_redoable(OP_YANK, false));
+        assert!(op_redoable(OP_YANK, true));
         assert_eq!(rot13(b'a' as c_int, b'a' as c_int), b'n' as c_int);
         assert_eq!(rot13(b'n' as c_int, b'a' as c_int), b'a' as c_int);
         assert_eq!(char_ord(b'C' as c_int), 2);

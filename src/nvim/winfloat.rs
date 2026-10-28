@@ -1,38 +1,41 @@
 //! Floating window creation, configuration, and layout (`src/nvim/winfloat.c`).
 
 use crate::api::private::helpers::{
-    api_clear_error, api_set_error, cstr_as_obj, error_init, error_set,
-    find_window_by_handle, has_key,
+    api_clear_error, api_set_error, cstr_as_obj, error_init, error_set, find_window_by_handle,
+    has_key,
 };
 use crate::api::private::validate::{Error, ErrorType};
 use crate::api::vim::nvim_create_buf;
 use crate::api::win_config::{
-    WIN_CONFIG_INIT, K_ALIGN_CENTER, K_BORDER_TEXT_TITLE, K_FLOAT_ANCHOR_EAST, K_FLOAT_ANCHOR_SOUTH,
-    K_FLOAT_RELATIVE_CURSOR, K_FLOAT_RELATIVE_EDITOR, K_FLOAT_RELATIVE_LASTSTATUS, K_FLOAT_RELATIVE_MOUSE,
-    K_FLOAT_RELATIVE_WINDOW, K_UIMULTIGRID, K_WIN_STYLE_MINIMAL, parse_bordertext, parse_winborder,
+    K_ALIGN_CENTER, K_BORDER_TEXT_TITLE, K_FLOAT_ANCHOR_EAST, K_FLOAT_ANCHOR_SOUTH,
+    K_FLOAT_RELATIVE_CURSOR, K_FLOAT_RELATIVE_EDITOR, K_FLOAT_RELATIVE_LASTSTATUS,
+    K_FLOAT_RELATIVE_MOUSE, K_FLOAT_RELATIVE_WINDOW, K_UIMULTIGRID, K_WIN_STYLE_MINIMAL,
+    WIN_CONFIG_INIT, parse_bordertext, parse_winborder,
 };
 use crate::autocmd::{block_autocmds, unblock_autocmds};
-use crate::cursor::{Linenr, CursorPos};
+use crate::cursor::{CursorPos, Linenr};
 use crate::drawscreen::{UPD_NOT_VALID, UPD_VALID, redraw_later, set_must_redraw};
 use crate::errors::*;
 use crate::fileio::shorten_buf_fname;
 use crate::globals::*;
 use crate::grid::grid_adjust;
-use crate::message::{emsg, K_ZINDEX_MESSAGES};
+use crate::message::{K_ZINDEX_MESSAGES, emsg};
 use crate::mouse::mouse_find_win_inner;
 use crate::r#move::{textpos2screenpos, validate_cursor};
-use crate::option::{OPT_LOCAL, OptTarget, K_OPT_BUFHIDDEN, parse_winhl_opt, set_option_direct_for};
+use crate::option::{
+    K_OPT_BUFHIDDEN, OPT_LOCAL, OptTarget, parse_winhl_opt, set_option_direct_for,
+};
 use crate::option_vars::*;
 use crate::optionstr::{
-    OptKeyDict_pvp, alloc_string_option, free_string_option, K_OPT_PREVIEWPOPUP, opt_keyset,
+    K_OPT_PREVIEWPOPUP, OptKeyDict_pvp, alloc_string_option, free_string_option, opt_keyset,
 };
 use crate::os::fs::{MAXPATHL, os_dirname};
 use crate::plines::{plines_m_win, win_max_displaywidth};
 use crate::strings::{concat_str, gettext};
 use crate::ui::ui_has;
 use crate::window::{
-    STATUS_HEIGHT, WinConfig, WinKind, last_status, lastwin_nofloating, merge_win_config,
-    TabPageInfo, tabpage_win_valid, WinInfoInfo, win_alloc, win_append, win_close, win_comp_pos, win_enter,
+    STATUS_HEIGHT, TabPageInfo, WinConfig, WinInfoInfo, WinKind, last_status, lastwin_nofloating,
+    merge_win_config, tabpage_win_valid, win_alloc, win_append, win_close, win_comp_pos, win_enter,
     win_find_tabpage, win_free, win_init, win_remove, win_remove_status_line, win_set_buf,
     win_set_inner_size, win_valid, winframe_remove,
 };
@@ -70,7 +73,11 @@ pub fn win_new_float(
                 if tp.is_null() {
                     return ptr::null_mut();
                 }
-                tp_last = lastwin_nofloating(if tp == g_st().curtab { ptr::null_mut() } else { tp });
+                tp_last = lastwin_nofloating(if tp == g_st().curtab {
+                    ptr::null_mut()
+                } else {
+                    tp
+                });
             }
             wp = win_alloc(tp_last, false);
             win_init(&mut *wp, curwin_mut(), 0);
@@ -89,7 +96,9 @@ pub fn win_new_float(
             debug_assert!(!(*wp).w_floating);
             let win_tp = win_find_tabpage(wp);
             debug_assert!(!win_tp.is_null());
-            if (win_tp == g_st().curtab && g_st().firstwin == wp && lastwin_nofloating(ptr::null_mut()) == wp)
+            if (win_tp == g_st().curtab
+                && g_st().firstwin == wp
+                && lastwin_nofloating(ptr::null_mut()) == wp)
                 || (win_tp != g_st().curtab
                     && (*win_tp).tp_firstwin == wp
                     && lastwin_nofloating(win_tp) == wp)
@@ -107,12 +116,12 @@ pub fn win_new_float(
                 win_tp
             };
             let mut dir: c_int = 0;
-            winframe_remove( &mut *wp, &mut dir, tp, ptr::null_mut());
+            winframe_remove(&mut *wp, &mut dir, tp, ptr::null_mut());
             if !(*wp).w_frame.is_null() {
                 drop(Box::from_raw((*wp).w_frame));
             }
             (*wp).w_frame = ptr::null_mut();
-            win_remove( &mut *wp, tp);
+            win_remove(&mut *wp, tp);
             if win_tp == g_st().curtab {
                 last_status(false);
                 win_comp_pos();
@@ -138,7 +147,7 @@ pub fn win_new_float(
 }
 
 pub fn win_set_minimal_style(wp: &mut WinInfoInfo) {
-     {
+    {
         let empty_opt = EMPTY_STRING_OPTION.as_ptr().cast::<c_char>();
         wp.w_onebuf_opt.wo_nu = 0;
         wp.w_onebuf_opt.wo_rnu = 0;
@@ -193,9 +202,7 @@ pub fn win_set_minimal_style(wp: &mut WinInfoInfo) {
         }
 
         // statusline: cleared (for floating windows)
-        if wp.w_floating
-            && !crate::memory::cstr_is_empty(wp.w_onebuf_opt.wo_stl)
-        {
+        if wp.w_floating && !crate::memory::cstr_is_empty(wp.w_onebuf_opt.wo_stl) {
             free_string_option(wp.w_onebuf_opt.wo_stl);
             wp.w_onebuf_opt.wo_stl = empty_opt;
             if wp.w_status_height > 0 {
@@ -217,7 +224,8 @@ pub fn win_border_width(wp: &mut WinInfoInfo) -> c_int {
 pub fn win_config_float(wp: &mut WinInfoInfo, mut fconfig: WinConfig) {
     unsafe {
         // Process statusline changes before applying new height from config
-        let show_stl = !crate::memory::cstr_is_empty(wp.w_onebuf_opt.wo_stl) && (opt_vars().p_ls == 1 || opt_vars().p_ls == 2);
+        let show_stl = !crate::memory::cstr_is_empty(wp.w_onebuf_opt.wo_stl)
+            && (opt_vars().p_ls == 1 || opt_vars().p_ls == 2);
         if wp.w_status_height != 0 && !show_stl {
             win_remove_status_line(wp, false);
         } else if wp.w_status_height == 0 && show_stl {
@@ -267,7 +275,9 @@ pub fn win_config_float(wp: &mut WinInfoInfo, mut fconfig: WinConfig) {
             } else {
                 0
             };
-            wp.w_height = wp.w_height.min(g_st().rows_global - win_border_height(wp) - above_ch);
+            wp.w_height = wp
+                .w_height
+                .min(g_st().rows_global - win_border_height(wp) - above_ch);
             wp.w_width = wp.w_width.min(g_st().columns_global - win_border_width(wp));
         }
 
@@ -376,7 +386,8 @@ pub fn win_float_update_statusline() {
         let mut wp = g_st().lastwin;
         while !wp.is_null() && (*wp).w_floating {
             let has_status = (*wp).w_status_height > 0;
-            let should_show = !crate::memory::cstr_is_empty((*wp).w_onebuf_opt.wo_stl) && (opt_vars().p_ls == 1 || opt_vars().p_ls == 2);
+            let should_show = !crate::memory::cstr_is_empty((*wp).w_onebuf_opt.wo_stl)
+                && (opt_vars().p_ls == 1 || opt_vars().p_ls == 2);
             if should_show != has_status {
                 win_config_float(&mut *wp, (*wp).w_config.clone());
             }
@@ -386,7 +397,7 @@ pub fn win_float_update_statusline() {
 }
 
 pub fn win_float_anchor_laststatus() {
-     {
+    {
         for win in for_all_windows_mut() {
             if win.w_config.relative == K_FLOAT_RELATIVE_LASTSTATUS {
                 win.w_pos_changed = true;
@@ -458,7 +469,7 @@ fn win_float_special_fail(wp: *mut WinInfoInfo, err: &mut Error) -> *mut WinInfo
             api_clear_error(err);
         }
         if !wp.is_null() {
-            win_remove( &mut *wp, ptr::null_mut());
+            win_remove(&mut *wp, ptr::null_mut());
             win_free(wp, ptr::null_mut());
         }
         unblock_autocmds();
@@ -468,7 +479,7 @@ fn win_float_special_fail(wp: *mut WinInfoInfo, err: &mut Error) -> *mut WinInfo
 
 /// Snapshot a 'previewpopup' preview's anchor: the current cursor's screen cell (`win_float_anchor_preview`).
 pub fn win_float_anchor_preview(wp: &mut WinInfoInfo) {
-     {
+    {
         wp.w_wantline = curwin_mut().w_winrow + curwin_mut().w_wrow;
         wp.w_wantcol = curwin_mut().w_wincol + curwin_mut().w_wcol;
     }
@@ -505,7 +516,8 @@ pub fn win_float_special(enter: bool, new_buf: bool, kind: WinKind) -> *mut WinI
             if b == 0 {
                 return win_float_special_fail(wp, &mut err);
             }
-            let Some(buf) = crate::api::private::helpers::find_buffer_by_handle_mut(b, &mut err) else {
+            let Some(buf) = crate::api::private::helpers::find_buffer_by_handle_mut(b, &mut err)
+            else {
                 return win_float_special_fail(wp, &mut err);
             };
             buf.b_p_bl = 0; // unlist
@@ -544,9 +556,9 @@ pub fn win_float_special(enter: bool, new_buf: bool, kind: WinKind) -> *mut WinI
 /// Closes a specified floating window used for previews or popups (`win_float_close`).
 pub fn win_float_close(kind: WinKind) {
     let wp = win_float_find(kind);
-        if !wp.is_null() {
-            win_close(wp, false, false);
-        }
+    if !wp.is_null() {
+        win_close(wp, false, false);
+    }
 }
 
 /// Re-layout a 'previewpopup' window for its current content (`win_float_update_preview`).
@@ -579,7 +591,8 @@ pub fn win_float_update_preview(wp: &mut WinInfoInfo) {
         let row = wp.w_wantline.max(0).min(g_st().rows_global - 1);
         let col = wp.w_wantcol.max(0).min(g_st().columns_global - 1);
 
-        let v = opt_keyset(opt_vars().p_pvp, K_OPT_PREVIEWPOPUP, ptr::null_mut()).cast::<OptKeyDict_pvp>();
+        let v = opt_keyset(opt_vars().p_pvp, K_OPT_PREVIEWPOPUP, ptr::null_mut())
+            .cast::<OptKeyDict_pvp>();
         let mut want_w = if has_key((*v).is_set_pvp, KEYSET_OPTIDX_PVP_WIDTH) {
             (*v).width as c_int
         } else {
@@ -631,7 +644,11 @@ pub fn win_float_update_preview(wp: &mut WinInfoInfo) {
 }
 
 /// Applies a 'previewpopup' value ("height:N,width:N,border:style") to `config` (`win_previewpopup_config`).
-pub fn win_previewpopup_config(value: impl crate::strings::IntoCCharPtr, config: &mut WinConfig) -> bool { let value = value.into_c_char_ptr();
+pub fn win_previewpopup_config(
+    value: impl crate::strings::IntoCCharPtr,
+    config: &mut WinConfig,
+) -> bool {
+    let value = value.into_c_char_ptr();
     unsafe {
         let v = opt_keyset(value, K_OPT_PREVIEWPOPUP, ptr::null_mut()).cast::<OptKeyDict_pvp>();
 

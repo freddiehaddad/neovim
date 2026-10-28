@@ -14,10 +14,9 @@ use crate::autocmd::{
     unblock_autocmds,
 };
 use crate::buffer::{
-    BLN_LISTED, MAXLNUM, SEA_DIALOG, SEA_NONE, SEA_QUIT, VAR_FIXED, buf_get_changedtick,
-    buf_is_empty, buf_set_changedtick, buf_valid, buflist_new, Bufref, bufref_valid,
-    do_autochdir, do_modelines, handle_swap_exists, open_buffer, set_buflisted, set_bufref,
-    set_curbuf, setfname,
+    BLN_LISTED, Bufref, MAXLNUM, SEA_DIALOG, SEA_NONE, SEA_QUIT, VAR_FIXED, buf_get_changedtick,
+    buf_is_empty, buf_set_changedtick, buf_valid, buflist_new, bufref_valid, do_autochdir,
+    do_modelines, handle_swap_exists, open_buffer, set_buflisted, set_bufref, set_curbuf, setfname,
 };
 use crate::channel::{
     CallbackReader, STDERR_FILENO, STDIN_FILENO, STDOUT_FILENO, channel_connect,
@@ -30,8 +29,7 @@ use crate::drawscreen::{
 };
 use crate::errors::*;
 use crate::eval::typval::{
-    tv_clear, tv_list_alloc, tv_list_alloc_ret, tv_list_append_string, tv_list_set_lock,
-    Varnumber,
+    Varnumber, tv_clear, tv_list_alloc, tv_list_alloc_ret, tv_list_append_string, tv_list_set_lock,
 };
 use crate::eval::userfunc::invoke_all_defer;
 use crate::eval::vars::{
@@ -41,7 +39,8 @@ use crate::eval::vars::{
     set_vim_var_string, set_vim_var_type,
 };
 use crate::eval::{
-    eval_has_provider, eval_init, garbage_collect, K_LIST_LEN_MAY_KNOW_CONST, set_argv_var, timer_teardown,
+    K_LIST_LEN_MAY_KNOW_CONST, eval_has_provider, eval_init, garbage_collect, set_argv_var,
+    timer_teardown,
 };
 use crate::event::r#loop::{
     loop_close, loop_init, loop_poll_events, loop_queues, uv_guess_handle, uv_strerror,
@@ -50,7 +49,7 @@ use crate::event::multiqueue::{multiqueue_new_child, multiqueue_process_events};
 use crate::event::proc::proc_teardown;
 use crate::event::socket::socket_address_tcp_host_end;
 use crate::event::stream::{UV_NAMED_PIPE, UV_TCP};
-use crate::ex_cmds::{ECMD_HIDE, ECMD_LASTL, do_ecmd, K_OPT_SHORTMESS};
+use crate::ex_cmds::{ECMD_HIDE, ECMD_LASTL, K_OPT_SHORTMESS, do_ecmd};
 use crate::ex_docmd::{do_cmdline_cmd, filetype_maybe_enable, filetype_plugin_enable};
 use crate::ex_getln::cmdline_init;
 use crate::extmark::TriState;
@@ -65,25 +64,26 @@ use crate::log::{
 };
 use crate::lua::converter::{LUA_GLOBALSINDEX, lua_getfield, lua_pushstring, lua_tolstring};
 use crate::lua::executor::{
-    get_global_lstate, K_RET_OBJECT, nlua_call_typval, nlua_exec, nlua_exec_file, nlua_init,
+    K_RET_OBJECT, get_global_lstate, nlua_call_typval, nlua_exec, nlua_exec_file, nlua_init,
     nlua_init_defaults, nlua_pcall,
 };
 use crate::mark::setpcmark;
 use crate::mcursor::mc_init;
 use crate::memline::{ml_close_all, ml_close_notmod, ml_recover, ml_sync_all, recover_names};
-use crate::memory::{mem_st, free_all_mem};
+use crate::memory::{free_all_mem, mem_st};
 use crate::message::{msg_putchar, semsg, wait_return};
 use crate::mouse::setmouse;
 use crate::r#move::update_topline;
 use crate::msgpack_rpc::packer::{Integer, ObjHandle};
 use crate::msgpack_rpc::server::{server_init, server_teardown};
 use crate::normal::{
-    check_scrollbind, init_normal_cmds, K_OPT_CB_FLAG_UNNAMED_CONST, K_OPT_CB_FLAG_UNNAMEDPLUS_CONST, normal_enter,
+    K_OPT_CB_FLAG_UNNAMED_CONST, K_OPT_CB_FLAG_UNNAMEDPLUS_CONST, check_scrollbind,
+    init_normal_cmds, normal_enter,
 };
 use crate::option::{
-    OptInt, K_OPT_ARABIC, K_OPT_KEYMAP, K_OPT_RIGHTLEFT, K_OPT_WINDOW, reset_modifiable, set_init_1,
-    set_init_2, set_init_3, set_init_tablocal, set_option_direct, set_option_value_give_err,
-    set_options_bin,
+    K_OPT_ARABIC, K_OPT_KEYMAP, K_OPT_RIGHTLEFT, K_OPT_WINDOW, OptInt, reset_modifiable,
+    set_init_1, set_init_2, set_init_3, set_init_tablocal, set_option_direct,
+    set_option_value_give_err, set_options_bin,
 };
 use crate::option_vars::*;
 use crate::optionstr::OptIndex;
@@ -108,7 +108,7 @@ use crate::os::time::os_realtime;
 #[cfg(windows)]
 use crate::path::path_to_slash;
 use crate::path::{
-    concat_fnames, K_PATH_CMP_EXPAND, path_equal, path_fix_case, path_guess_exepath, path_tail,
+    K_PATH_CMP_EXPAND, concat_fnames, path_equal, path_fix_case, path_guess_exepath, path_tail,
     vim_full_name,
 };
 use crate::profile::{profile_dump, time_finish, time_init, time_msg, time_start};
@@ -127,9 +127,9 @@ use crate::ui::{
 };
 use crate::ui_client::{ui_client_run, ui_client_start_server, ui_client_stop};
 use crate::ui_compositor::ui_comp_syn_init;
-use crate::version::{list_version, MAIN_EXITFREE};
+use crate::version::{MAIN_EXITFREE, list_version};
 use crate::window::{
-    goto_tabpage, make_tabpages, make_windows, only_one_window, TabPageInfo, win_alloc_first,
+    TabPageInfo, goto_tabpage, make_tabpages, make_windows, only_one_window, win_alloc_first,
     win_close, win_count, win_enter, win_equal, win_init_size, win_new_screensize, win_valid,
 };
 use std::ffi::{CStr, c_char, c_int};
@@ -252,7 +252,8 @@ impl MainInitState {
     }
 }
 
-static MAIN_INIT_STATE: crate::globals::GlobalState<MainInitState> = crate::globals::GlobalState::new(MainInitState::new());
+static MAIN_INIT_STATE: crate::globals::GlobalState<MainInitState> =
+    crate::globals::GlobalState::new(MainInitState::new());
 
 #[inline]
 fn main_init_st() -> &'static mut MainInitState {
@@ -276,8 +277,8 @@ use crate::os::os_win_console::{GetVersionExA, OsVersionInfoA};
 #[inline]
 fn time_msg_if_enabled(s: &std::ffi::CStr) {
     if has_time_fd() {
-            time_msg(s.as_ptr(), None);
-        }
+        time_msg(s.as_ptr(), None);
+    }
 }
 
 #[inline]
@@ -295,8 +296,9 @@ fn to_slash_if_needed(p: *mut c_char) {
 }
 
 #[inline]
-fn strnicmp_ascii(a: impl crate::strings::IntoCCharPtr, b: &[u8]) -> bool { let a = a.into_c_char_ptr();
-     {
+fn strnicmp_ascii(a: impl crate::strings::IntoCCharPtr, b: &[u8]) -> bool {
+    let a = a.into_c_char_ptr();
+    {
         if a.is_null() {
             return false;
         }
@@ -306,7 +308,7 @@ fn strnicmp_ascii(a: impl crate::strings::IntoCCharPtr, b: &[u8]) -> bool { let 
 }
 
 pub fn event_init() {
-     {
+    {
         loop_init(&mut g_st().main_loop);
         env_init();
         let queues = loop_queues(&mut g_st().main_loop);
@@ -328,7 +330,7 @@ fn event_teardown() -> bool {
             return true;
         }
 
-        multiqueue_process_events( &mut *queues.events);
+        multiqueue_process_events(&mut *queues.events);
         loop_poll_events(&mut g_st().main_loop, 0);
         server_teardown();
         channel_teardown();
@@ -446,7 +448,9 @@ fn nvim_main_inner(argc: c_int, argv: *mut *mut c_char) -> c_int {
         init_startuptime(&mut params);
 
         for i in 1..params.argc {
-            if crate::memory::cstr_as_opt_bytes(*params.argv.add(i as usize)).is_some_and(|b| b.eq_ignore_ascii_case(b"--clean")) {
+            if crate::memory::cstr_as_opt_bytes(*params.argv.add(i as usize))
+                .is_some_and(|b| b.eq_ignore_ascii_case(b"--clean"))
+            {
                 params.clean = true;
                 break;
             }
@@ -493,7 +497,8 @@ fn nvim_main_inner(argc: c_int, argv: *mut *mut c_char) -> c_int {
         #[cfg(not(windows))]
         let has_term = g_st().stdin_isatty || g_st().stdout_isatty || g_st().stderr_isatty;
 
-        let use_builtin_ui = has_term && !g_st().headless_mode && !g_st().embedded_mode && !g_st().silent_mode;
+        let use_builtin_ui =
+            has_term && !g_st().headless_mode && !g_st().embedded_mode && !g_st().silent_mode;
 
         if params.remote != 0 {
             let server_addr_ptr = params
@@ -568,7 +573,9 @@ fn nvim_main_inner(argc: c_int, argv: *mut *mut c_char) -> c_int {
         }
 
         assert!(
-            opt_vars().p_ch >= 0 && i64::from(g_st().rows_global) >= opt_vars().p_ch && i64::from(g_st().rows_global) - opt_vars().p_ch <= i64::from(c_int::MAX)
+            opt_vars().p_ch >= 0
+                && i64::from(g_st().rows_global) >= opt_vars().p_ch
+                && i64::from(g_st().rows_global) - opt_vars().p_ch <= i64::from(c_int::MAX)
         );
         g_st().cmdline_row = g_st().rows_global - opt_vars().p_ch as c_int;
         g_st().msg_row = g_st().cmdline_row;
@@ -626,10 +633,7 @@ fn nvim_main_inner(argc: c_int, argv: *mut *mut c_char) -> c_int {
             ));
             if !has_scriptout() {
                 let stderr = log_get_stderr();
-                fprintf!(
-                    stderr,
-                    gettext(c"Cannot open for script output: \""),
-                );
+                fprintf!(stderr, gettext(c"Cannot open for script output: \""),);
                 fprintf!(stderr, c"%s\"\n", scriptout_name.as_ptr());
                 os_exit(2);
             }
@@ -666,7 +670,7 @@ fn nvim_main_inner(argc: c_int, argv: *mut *mut c_char) -> c_int {
         if g_st().recoverymode && fname.is_null() {
             let mut items_tv = crate::eval::typval::TypVal::new();
             tv_list_alloc_ret(&mut items_tv, 0);
-            recover_names(ptr::null_mut(), false,  &mut *items_tv.vval.v_list());
+            recover_names(ptr::null_mut(), false, &mut *items_tv.vval.v_list());
             let mut lua_args = [items_tv, crate::eval::typval::TypVal::new()];
             nlua_call_typval(
                 c"vim._core.swapfile",
@@ -742,7 +746,7 @@ fn nvim_main_inner(argc: c_int, argv: *mut *mut c_char) -> c_int {
         if params.diff_mode != 0 {
             for wp in win_iter_ptr(curtab_mut().tp_firstwin) {
                 if !(*wp).w_arg_idx_invalid {
-                    diff_win_options( &mut *wp, true);
+                    diff_win_options(&mut *wp, true);
                 }
             }
         }
@@ -797,7 +801,9 @@ fn nvim_main_inner(argc: c_int, argv: *mut *mut c_char) -> c_int {
             stuffchar_readbuff(K_NOP);
         }
 
-        if (opt_vars().cb_flags & (K_OPT_CB_FLAG_UNNAMED_CONST | K_OPT_CB_FLAG_UNNAMEDPLUS_CONST)) != 0 {
+        if (opt_vars().cb_flags & (K_OPT_CB_FLAG_UNNAMED_CONST | K_OPT_CB_FLAG_UNNAMEDPLUS_CONST))
+            != 0
+        {
             eval_has_provider(c"clipboard", false);
         }
 
@@ -831,12 +837,7 @@ fn nvim_main_inner(argc: c_int, argv: *mut *mut c_char) -> c_int {
                     c"executing stdin as Ex commands",
                 );
                 let mut args = [crate::eval::typval::TypVal::new(); 1];
-                nlua_call_typval(
-                    c"vim._core.exmode",
-                    c"run",
-                    args.as_mut_ptr(),
-                    None,
-                );
+                nlua_call_typval(c"vim._core.exmode", c"run", args.as_mut_ptr(), None);
             }
             if g_st().msg_didout {
                 msg_putchar(b'\n' as c_int);
@@ -872,50 +873,50 @@ pub fn input_unanswerable() -> bool {
 
 pub fn os_exit(mut r: c_int) -> ! {
     g_st().exiting = true;
-        signal_reject_deadly();
+    signal_reject_deadly();
 
-        if g_st().ui_client_channel_id != 0 {
-            ui_client_stop();
-            if r == 0 {
-                r = g_st().ui_client_exit_status;
+    if g_st().ui_client_channel_id != 0 {
+        ui_client_stop();
+        if r == 0 {
+            r = g_st().ui_client_exit_status;
+        }
+    } else {
+        ui_flush();
+    }
+
+    if !event_teardown() && r == 0 {
+        r = 1;
+    }
+    if g_st().ui_client_channel_id != 0 {
+        #[cfg(unix)]
+        unsafe {
+            if g_st().stdout_isatty {
+                tcdrain(STDOUT_FILENO);
             }
-        } else {
-            ui_flush();
-        }
-
-        if !event_teardown() && r == 0 {
-            r = 1;
-        }
-        if g_st().ui_client_channel_id != 0 {
-            #[cfg(unix)]
-            unsafe {
-                if g_st().stdout_isatty {
-                    tcdrain(STDOUT_FILENO);
-                }
-                if g_st().stderr_isatty {
-                    tcdrain(STDERR_FILENO);
-                }
+            if g_st().stderr_isatty {
+                tcdrain(STDERR_FILENO);
             }
-        } else {
-            ml_close_all(true);
         }
+    } else {
+        ml_close_all(true);
+    }
 
-        let mut msg = [0u8; 32];
-        let _ = write!(&mut msg[..], "Nvim exit: {r}\0");
-        logmsg_str(
-            LOGLVL_INF,
-            ptr::null(),
-            c"os_exit",
-            line!() as c_int,
-            true,
-            msg.as_ptr().cast(),
-        );
+    let mut msg = [0u8; 32];
+    let _ = write!(&mut msg[..], "Nvim exit: {r}\0");
+    logmsg_str(
+        LOGLVL_INF,
+        ptr::null(),
+        c"os_exit",
+        line!() as c_int,
+        true,
+        msg.as_ptr().cast(),
+    );
 
-        if MAIN_EXITFREE {
-            free_all_mem();
-        }
+    if MAIN_EXITFREE {
+        free_all_mem();
+    }
 
-        std::process::exit(r);
+    std::process::exit(r);
 }
 
 pub fn getout(mut exitval: c_int) -> ! {
@@ -1000,7 +1001,10 @@ pub fn getout(mut exitval: c_int) -> ! {
             }
         }
 
-        if !mem_st().entered_free_all_mem && !opt_vars().p_shada.is_null() && !crate::memory::cstr_is_empty(opt_vars().p_shada) {
+        if !mem_st().entered_free_all_mem
+            && !opt_vars().p_shada.is_null()
+            && !crate::memory::cstr_is_empty(opt_vars().p_shada)
+        {
             shada_write_file(ptr::null(), false);
         }
 
@@ -1122,7 +1126,7 @@ pub fn __asan_default_options() -> *const c_char {
 
 fn get_number_arg(p: impl crate::strings::IntoCCharPtr, idx: &mut c_int, mut def: c_int) -> c_int {
     let p = p.into_c_char_ptr();
-     {
+    {
         let mut i = *idx as usize;
         if ascii_isdigit(crate::memory::cstr_char_at(p, i)) {
             def = 0;
@@ -1138,7 +1142,11 @@ fn get_number_arg(p: impl crate::strings::IntoCCharPtr, idx: &mut c_int, mut def
     }
 }
 
-fn server_connect(server_addr: impl crate::strings::IntoCCharPtr, errmsg: *mut *const c_char) -> u64 { let server_addr = server_addr.into_c_char_ptr();
+fn server_connect(
+    server_addr: impl crate::strings::IntoCCharPtr,
+    errmsg: *mut *const c_char,
+) -> u64 {
+    let server_addr = server_addr.into_c_char_ptr();
     unsafe {
         if server_addr.is_null() {
             *errmsg = c"no address specified".as_ptr();
@@ -1163,9 +1171,11 @@ fn remote_request(
     argc: c_int,
     argv: *mut *mut c_char,
     ui_only: bool,
-) { let server_addr = server_addr.into_c_char_ptr();
+) {
+    let server_addr = server_addr.into_c_char_ptr();
     unsafe {
-        let is_ui = crate::memory::cstr_as_opt_bytes(*argv.add(remote_args as usize)) == Some(b"--remote-ui");
+        let is_ui = crate::memory::cstr_as_opt_bytes(*argv.add(remote_args as usize))
+            == Some(b"--remote-ui");
         if ui_only && !is_ui {
             return;
         }
@@ -1180,30 +1190,21 @@ fn remote_request(
                 {
                     dup2(STDOUT_FILENO, STDERR_FILENO);
                 }
-                fprintf!(
-                    stderr,
-                    c"Remote ui failed to start: %s\n",
-                    connect_error,
-                );
+                fprintf!(stderr, c"Remote ui failed to start: %s\n", connect_error,);
                 os_exit(1);
             } else {
                 let mut nvim_env_buf = [0 as c_char; MAXPATHL];
-                let nvim_env = os_getenv_buf(
-                    c"NVIM",
-                    nvim_env_buf.as_mut_ptr(),
-                    nvim_env_buf.len(),
-                );
-                if crate::memory::cstr_as_opt_bytes(server_addr) == crate::memory::cstr_as_opt_bytes(nvim_env) {
+                let nvim_env =
+                    os_getenv_buf(c"NVIM", nvim_env_buf.as_mut_ptr(), nvim_env_buf.len());
+                if crate::memory::cstr_as_opt_bytes(server_addr)
+                    == crate::memory::cstr_as_opt_bytes(nvim_env)
+                {
                     fprintf!(
                         stderr,
                         c"%s",
                         c"Cannot attach UI of :terminal child to its parent. ",
                     );
-                    fprintf!(
-                        stderr,
-                        c"%s\n",
-                        c"(Unset $NVIM to skip this check)",
-                    );
+                    fprintf!(stderr, c"%s\n", c"(Unset $NVIM to skip this check)",);
                     os_exit(1);
                 }
             }
@@ -1252,10 +1253,7 @@ fn remote_request(
         }
 
         if o.obj_type != ObjectType::ObjectTypeDict {
-            fprintf!(
-                stderr,
-                c"vim._cs_remote returned unexpected value\n",
-            );
+            fprintf!(stderr, c"vim._cs_remote returned unexpected value\n",);
             os_exit(2);
         }
         let dict: Dict = o.data.dict();
@@ -1333,12 +1331,12 @@ fn remote_request(
 
 fn edit_stdin(parmp: &mut Mparm) -> bool {
     let implicit = !g_st().headless_mode
-            && !(g_st().embedded_mode && g_st().stdin_fd <= 0)
-            && (!parmp.exmode || parmp.input_istext)
-            && !g_st().stdin_isatty
-            && parmp.edit_type <= EDIT_STDIN
-            && parmp.scriptin.is_none();
-        parmp.had_stdin_file || implicit
+        && !(g_st().embedded_mode && g_st().stdin_fd <= 0)
+        && (!parmp.exmode || parmp.input_istext)
+        && !g_st().stdin_isatty
+        && parmp.edit_type <= EDIT_STDIN
+        && parmp.scriptin.is_none();
+    parmp.had_stdin_file || implicit
 }
 
 fn command_line_scan(parmp: &mut Mparm) {
@@ -1383,13 +1381,19 @@ fn command_line_scan(parmp: &mut Mparm) {
                     }
                     b'-' => {
                         let sub = arg0.add(argv_idx as usize);
-                        if crate::memory::cstr_as_opt_bytes(sub).is_some_and(|b| b.eq_ignore_ascii_case(b"help")) {
+                        if crate::memory::cstr_as_opt_bytes(sub)
+                            .is_some_and(|b| b.eq_ignore_ascii_case(b"help"))
+                        {
                             usage();
                             os_exit(0);
-                        } else if crate::memory::cstr_as_opt_bytes(sub).is_some_and(|b| b.eq_ignore_ascii_case(b"version")) {
+                        } else if crate::memory::cstr_as_opt_bytes(sub)
+                            .is_some_and(|b| b.eq_ignore_ascii_case(b"version"))
+                        {
                             version();
                             os_exit(0);
-                        } else if crate::memory::cstr_as_opt_bytes(sub).is_some_and(|b| b.eq_ignore_ascii_case(b"api-info")) {
+                        } else if crate::memory::cstr_as_opt_bytes(sub)
+                            .is_some_and(|b| b.eq_ignore_ascii_case(b"api-info"))
+                        {
                             #[cfg(windows)]
                             {
                                 _setmode(STDOUT_FILENO, 0x8000);
@@ -1404,9 +1408,13 @@ fn command_line_scan(parmp: &mut Mparm) {
                                 );
                             }
                             os_exit(0);
-                        } else if crate::memory::cstr_as_opt_bytes(sub).is_some_and(|b| b.eq_ignore_ascii_case(b"headless")) {
+                        } else if crate::memory::cstr_as_opt_bytes(sub)
+                            .is_some_and(|b| b.eq_ignore_ascii_case(b"headless"))
+                        {
                             g_st().headless_mode = true;
-                        } else if crate::memory::cstr_as_opt_bytes(sub).is_some_and(|b| b.eq_ignore_ascii_case(b"embed")) {
+                        } else if crate::memory::cstr_as_opt_bytes(sub)
+                            .is_some_and(|b| b.eq_ignore_ascii_case(b"embed"))
+                        {
                             g_st().embedded_mode = true;
                         } else if strnicmp_ascii(sub, b"listen") {
                             want_argument = true;
@@ -1429,11 +1437,7 @@ fn command_line_scan(parmp: &mut Mparm) {
                         } else if strnicmp_ascii(sub, b"clean") {
                             parmp.use_vimrc = Some(c"NONE".to_owned());
                             parmp.clean = true;
-                            set_option_value_give_err(
-                                K_OPT_SHADAFILE,
-                                cstr_as_obj(c"NONE"),
-                                0,
-                            );
+                            set_option_value_give_err(K_OPT_SHADAFILE, cstr_as_obj(c"NONE"), 0);
                         } else if strnicmp_ascii(sub, b"luamod-dev") {
                             g_st().nlua_disable_preload = true;
                         } else {
@@ -1523,12 +1527,10 @@ fn command_line_scan(parmp: &mut Mparm) {
                             g_st().silent_mode = true;
                             g_st().exmode_active = true;
                             parmp.no_swap_file = 1;
-                            if opt_vars().p_shadafile.is_null() || crate::memory::cstr_is_empty(opt_vars().p_shadafile) {
-                                set_option_value_give_err(
-                                    K_OPT_SHADAFILE,
-                                    cstr_as_obj(c"NONE"),
-                                    0,
-                                );
+                            if opt_vars().p_shadafile.is_null()
+                                || crate::memory::cstr_is_empty(opt_vars().p_shadafile)
+                            {
+                                set_option_value_give_err(K_OPT_SHADAFILE, cstr_as_obj(c"NONE"), 0);
                             }
                         } else {
                             want_argument = true;
@@ -1565,7 +1567,11 @@ fn command_line_scan(parmp: &mut Mparm) {
                     b'w' => {
                         if ascii_isdigit(crate::memory::cstr_char_at(arg0, argv_idx as usize)) {
                             let n = get_number_arg(arg0, &mut argv_idx, 10);
-                            set_option_value_give_err(K_OPT_WINDOW, integer_obj(OptInt::from(n)), 0);
+                            set_option_value_give_err(
+                                K_OPT_WINDOW,
+                                integer_obj(OptInt::from(n)),
+                                0,
+                            );
                         } else {
                             want_argument = true;
                         }
@@ -1641,10 +1647,14 @@ fn command_line_scan(parmp: &mut Mparm) {
                                 parmp
                                     .pre_commands
                                     .push(crate::memory::cstr_to_cstring(cur_arg));
-                            } else if crate::memory::cstr_as_opt_bytes(prev_arg) == Some(b"--listen") {
+                            } else if crate::memory::cstr_as_opt_bytes(prev_arg)
+                                == Some(b"--listen")
+                            {
                                 to_slash_if_needed(cur_arg);
                                 parmp.listen_addr = Some(crate::memory::cstr_to_cstring(cur_arg));
-                            } else if crate::memory::cstr_as_opt_bytes(prev_arg) == Some(b"--server") {
+                            } else if crate::memory::cstr_as_opt_bytes(prev_arg)
+                                == Some(b"--server")
+                            {
                                 to_slash_if_needed(cur_arg);
                                 parmp.server_addr = Some(crate::memory::cstr_to_cstring(cur_arg));
                             }
@@ -1663,12 +1673,10 @@ fn command_line_scan(parmp: &mut Mparm) {
                             if parmp.use_vimrc.is_none() {
                                 parmp.use_vimrc = Some(c"NONE".to_owned());
                             }
-                            if opt_vars().p_shadafile.is_null() || crate::memory::cstr_is_empty(opt_vars().p_shadafile) {
-                                set_option_value_give_err(
-                                    K_OPT_SHADAFILE,
-                                    cstr_as_obj(c"NONE"),
-                                    0,
-                                );
+                            if opt_vars().p_shadafile.is_null()
+                                || crate::memory::cstr_is_empty(opt_vars().p_shadafile)
+                            {
+                                set_option_value_give_err(K_OPT_SHADAFILE, cstr_as_obj(c"NONE"), 0);
                             }
                             parmp.luaf = Some(crate::memory::cstr_to_cstring(cur_arg));
                             argc -= 1;
@@ -1682,17 +1690,11 @@ fn command_line_scan(parmp: &mut Mparm) {
                                 vim_snprintf!(
                                     g_st().iobuff.as_mut_ptr(),
                                     IOSIZE,
-                                    gettext(
-                                        c"Attempt to open script file again: \"%s %s\"\n",
-                                    ),
+                                    gettext(c"Attempt to open script file again: \"%s %s\"\n",),
                                     prev_arg,
                                     cur_arg,
                                 );
-                                fprintf!(
-                                    log_get_stderr(),
-                                    c"%s",
-                                    g_st().iobuff.as_ptr(),
-                                );
+                                fprintf!(log_get_stderr(), c"%s", g_st().iobuff.as_ptr(),);
                                 os_exit(2);
                             }
                             parmp.scriptin = Some(crate::memory::cstr_to_cstring(cur_arg));
@@ -1720,17 +1722,11 @@ fn command_line_scan(parmp: &mut Mparm) {
                                     vim_snprintf!(
                                         g_st().iobuff.as_mut_ptr(),
                                         IOSIZE,
-                                        gettext(
-                                            c"Attempt to open script file again: \"%s %s\"\n",
-                                        ),
+                                        gettext(c"Attempt to open script file again: \"%s %s\"\n",),
                                         prev_arg,
                                         cur_arg,
                                     );
-                                    fprintf!(
-                                        log_get_stderr(),
-                                        c"%s",
-                                        g_st().iobuff.as_ptr(),
-                                    );
+                                    fprintf!(log_get_stderr(), c"%s", g_st().iobuff.as_ptr(),);
                                     os_exit(2);
                                 }
                                 parmp.scriptout = Some(crate::memory::cstr_to_cstring(cur_arg));
@@ -1830,7 +1826,7 @@ fn set_argf_var() {
             let fname = alist_name(&*garglist().add(i as usize));
             if !fname.is_null() {
                 let _ = vim_full_name(fname, g_st().name_buff.as_mut_ptr(), MAXPATHL, false);
-                tv_list_append_string( &mut *list, g_st().name_buff.as_ptr(), -1);
+                tv_list_append_string(&mut *list, g_st().name_buff.as_ptr(), -1);
             }
         }
         tv_list_set_lock(list.as_mut(), VAR_FIXED);
@@ -1840,28 +1836,32 @@ fn set_argf_var() {
 
 fn init_params(paramp: &mut Mparm, argc: c_int, argv: *mut *mut c_char) {
     *paramp = Mparm::new();
-        paramp.argc = argc;
-        paramp.argv = argv;
-        paramp.use_debug_break_level = -1;
-        paramp.window_count = -1;
-        paramp.listen_addr = None;
-        paramp.server_addr = None;
-        paramp.remote = 0;
-        paramp.luaf = None;
-        paramp.lua_arg0 = -1;
+    paramp.argc = argc;
+    paramp.argv = argv;
+    paramp.use_debug_break_level = -1;
+    paramp.window_count = -1;
+    paramp.listen_addr = None;
+    paramp.server_addr = None;
+    paramp.remote = 0;
+    paramp.luaf = None;
+    paramp.lua_arg0 = -1;
 }
 
 fn init_startuptime(paramp: &mut Mparm) {
     unsafe {
         let mut is_embed = false;
         for i in 1..(paramp.argc - 1) {
-            if crate::memory::cstr_as_opt_bytes(*paramp.argv.add(i as usize)).is_some_and(|b| b.eq_ignore_ascii_case(b"--embed")) {
+            if crate::memory::cstr_as_opt_bytes(*paramp.argv.add(i as usize))
+                .is_some_and(|b| b.eq_ignore_ascii_case(b"--embed"))
+            {
                 is_embed = true;
                 break;
             }
         }
         for i in 1..(paramp.argc - 1) {
-            if crate::memory::cstr_as_opt_bytes(*paramp.argv.add(i as usize)).is_some_and(|b| b.eq_ignore_ascii_case(b"--startuptime")) {
+            if crate::memory::cstr_as_opt_bytes(*paramp.argv.add(i as usize))
+                .is_some_and(|b| b.eq_ignore_ascii_case(b"--startuptime"))
+            {
                 time_init(
                     *paramp.argv.add((i + 1) as usize),
                     if is_embed {
@@ -1879,25 +1879,25 @@ fn init_startuptime(paramp: &mut Mparm) {
 
 fn check_and_set_isatty(_paramp: &mut Mparm) {
     g_st().stdin_isatty = os_isatty(STDIN_FILENO);
-        g_st().stdout_isatty = os_isatty(STDOUT_FILENO);
-        g_st().stderr_isatty = os_isatty(STDERR_FILENO);
-        time_msg_if_enabled(c"window checked");
+    g_st().stdout_isatty = os_isatty(STDOUT_FILENO);
+    g_st().stderr_isatty = os_isatty(STDERR_FILENO);
+    time_msg_if_enabled(c"window checked");
 }
 
 fn init_path(exename: impl crate::strings::IntoCCharPtr) {
     let exename = exename.into_c_char_ptr();
     let mut exepath = [0 as c_char; MAXPATHL];
-        let mut exepathlen: usize = MAXPATHL;
-        if os_exepath(exepath.as_mut_ptr(), &mut exepathlen) != 0 {
-            path_guess_exepath(exename, exepath.as_mut_ptr(), exepath.len());
-        }
-        set_vim_var_string(VV_PROGPATH, exepath.as_ptr(), -1);
-        set_vim_var_string(VV_PROGNAME, path_tail(exename), -1);
+    let mut exepathlen: usize = MAXPATHL;
+    if os_exepath(exepath.as_mut_ptr(), &mut exepathlen) != 0 {
+        path_guess_exepath(exename, exepath.as_mut_ptr(), exepath.len());
+    }
+    set_vim_var_string(VV_PROGPATH, exepath.as_ptr(), -1);
+    set_vim_var_string(VV_PROGNAME, path_tail(exename), -1);
 
-        #[cfg(windows)]
-        {
-            os_setenv_append_path(exepath.as_ptr());
-        }
+    #[cfg(windows)]
+    {
+        os_setenv_append_path(exepath.as_ptr());
+    }
 }
 
 fn get_fname(_parmp: &mut Mparm) -> *mut c_char {
@@ -1906,53 +1906,58 @@ fn get_fname(_parmp: &mut Mparm) -> *mut c_char {
 
 fn set_window_layout(paramp: &mut Mparm) {
     if paramp.diff_mode != 0 && paramp.window_layout == 0 {
-            paramp.window_layout = if diffopt_horizontal() {
-                WIN_HOR
-            } else {
-                WIN_VER
-            };
-        }
+        paramp.window_layout = if diffopt_horizontal() {
+            WIN_HOR
+        } else {
+            WIN_VER
+        };
+    }
 }
 
 fn handle_quickfix(paramp: &mut Mparm) {
     if paramp.edit_type == EDIT_QF {
-            if let Some(ref use_ef) = paramp.use_ef {
-                set_option_direct(K_OPT_ERRORFILE, cstr_as_obj(use_ef.as_ptr()), 0, SID_CARG);
-            }
-            vim_snprintf!(g_st().iobuff.as_mut_ptr(), IOSIZE, c"cfile %s", opt_vars().p_ef);
-            if qf_init(
-                None,
-                opt_vars().p_ef,
-                opt_vars().p_efm,
-                1,
-                g_st().iobuff.as_ptr(),
-                opt_vars().p_menc,
-            ) < 0
-            {
-                msg_putchar(b'\n' as c_int);
-                os_exit(3);
-            }
-            time_msg_if_enabled(c"reading errorfile");
+        if let Some(ref use_ef) = paramp.use_ef {
+            set_option_direct(K_OPT_ERRORFILE, cstr_as_obj(use_ef.as_ptr()), 0, SID_CARG);
         }
+        vim_snprintf!(
+            g_st().iobuff.as_mut_ptr(),
+            IOSIZE,
+            c"cfile %s",
+            opt_vars().p_ef
+        );
+        if qf_init(
+            None,
+            opt_vars().p_ef,
+            opt_vars().p_efm,
+            1,
+            g_st().iobuff.as_ptr(),
+            opt_vars().p_menc,
+        ) < 0
+        {
+            msg_putchar(b'\n' as c_int);
+            os_exit(3);
+        }
+        time_msg_if_enabled(c"reading errorfile");
+    }
 }
 
 fn handle_tag(tagname: Option<&CStr>) {
     if let Some(tagname) = tagname {
-            g_st().swap_exists_did_quit = false;
-            vim_snprintf!(
-                g_st().iobuff.as_mut_ptr(),
-                IOSIZE,
-                c"ta %s",
-                tagname.as_ptr(),
-            );
-            do_cmdline_cmd(g_st().iobuff.as_ptr());
-            time_msg_if_enabled(c"jumping to tag");
+        g_st().swap_exists_did_quit = false;
+        vim_snprintf!(
+            g_st().iobuff.as_mut_ptr(),
+            IOSIZE,
+            c"ta %s",
+            tagname.as_ptr(),
+        );
+        do_cmdline_cmd(g_st().iobuff.as_ptr());
+        time_msg_if_enabled(c"jumping to tag");
 
-            if g_st().swap_exists_did_quit {
-                ui_call_error_exit(1);
-                getout(1);
-            }
+        if g_st().swap_exists_did_quit {
+            ui_call_error_exit(1);
+            getout(1);
         }
+    }
 }
 
 fn read_stdin() {
@@ -2234,7 +2239,7 @@ fn edit_buffers(parmp: &mut Mparm) {
 }
 
 fn exe_pre_commands(parmp: &mut Mparm) {
-     {
+    {
         if parmp.pre_commands.is_empty() {
             return;
         }
@@ -2252,7 +2257,7 @@ fn exe_pre_commands(parmp: &mut Mparm) {
 }
 
 fn exe_commands(parmp: &mut Mparm) {
-     {
+    {
         g_st().msg_scroll = 1;
         if parmp.tagname.is_none() && curwin_mut().w_cursor.lnum <= 1 {
             curwin_mut().w_cursor.lnum = 0;
@@ -2280,7 +2285,7 @@ fn exe_commands(parmp: &mut Mparm) {
 }
 
 fn do_system_initialization() {
-     {
+    {
         if let Some(config_dirs) = stdpaths_get_xdg_var(XDGVarType::XDGConfigDirs) {
             let mut iter: *const c_char = ptr::null();
             let appname = get_appname(false);
@@ -2318,16 +2323,12 @@ fn do_system_initialization() {
             }
         }
 
-        do_source(c"$VIM/sysinit.vim",
-            false,
-            DOSO_NONE,
-            ptr::null_mut(),
-        );
+        do_source(c"$VIM/sysinit.vim", false, DOSO_NONE, ptr::null_mut());
     }
 }
 
 fn do_user_initialization() -> bool {
-     {
+    {
         let mut do_exrc = opt_vars().p_exrc != 0;
         if execute_env(c"VIMINIT") {
             do_exrc = opt_vars().p_exrc != 0;
@@ -2343,11 +2344,7 @@ fn do_user_initialization() -> bool {
             && do_source(init_lua_ptr, true, DOSO_VIMRC, ptr::null_mut())
         {
             if os_path_exists(user_vimrc_ptr) {
-                semsg!(
-                    E_CONFLICTING_CONFIGS,
-                    init_lua_ptr,
-                    user_vimrc_ptr,
-                );
+                semsg!(E_CONFLICTING_CONFIGS, init_lua_ptr, user_vimrc_ptr,);
             }
             do_exrc = opt_vars().p_exrc != 0;
             return do_exrc;
@@ -2409,11 +2406,7 @@ fn do_user_initialization() -> bool {
                     )
                 {
                     if os_path_exists(init_vim.as_ptr().cast()) {
-                        semsg!(
-                            E_CONFLICTING_CONFIGS,
-                            init_lua.as_ptr(),
-                            init_vim.as_ptr(),
-                        );
+                        semsg!(E_CONFLICTING_CONFIGS, init_lua.as_ptr(), init_vim.as_ptr(),);
                     }
                     do_exrc = opt_vars().p_exrc != 0;
                     return do_exrc;
@@ -2424,15 +2417,11 @@ fn do_user_initialization() -> bool {
                     true,
                     DOSO_VIMRC,
                     ptr::null_mut(),
-                )
-                {
+                ) {
                     do_exrc = opt_vars().p_exrc != 0;
                     if do_exrc {
-                        do_exrc = !path_equal(
-                            c".nvimrc",
-                            init_vim.as_ptr().cast(),
-                            K_PATH_CMP_EXPAND,
-                        );
+                        do_exrc =
+                            !path_equal(c".nvimrc", init_vim.as_ptr().cast(), K_PATH_CMP_EXPAND);
                     }
                     return do_exrc;
                 }
@@ -2470,172 +2459,171 @@ fn do_exrc_initialization() {
 
 fn source_startup_scripts(parmp: &Mparm) {
     if let Some(ref use_vimrc) = parmp.use_vimrc {
-            if use_vimrc.as_c_str() == c"NONE" || use_vimrc.as_c_str() == c"NORC" {
-                // Do nothing.
-            } else if !do_source(
-                use_vimrc.as_ptr().cast_mut(),
-                false,
-                DOSO_NONE,
-                ptr::null_mut(),
-            )
-            {
-                semsg!(
-                    gettext(E_CANNOT_READ_FROM_STR_2),
-                    use_vimrc.as_ptr(),
-                );
-            }
-        } else if !g_st().silent_mode {
-            do_system_initialization();
-            if do_user_initialization() {
-                do_exrc_initialization();
-            }
+        if use_vimrc.as_c_str() == c"NONE" || use_vimrc.as_c_str() == c"NORC" {
+            // Do nothing.
+        } else if !do_source(
+            use_vimrc.as_ptr().cast_mut(),
+            false,
+            DOSO_NONE,
+            ptr::null_mut(),
+        ) {
+            semsg!(gettext(E_CANNOT_READ_FROM_STR_2), use_vimrc.as_ptr(),);
         }
-        time_msg_if_enabled(c"sourcing vimrc file(s)");
+    } else if !g_st().silent_mode {
+        do_system_initialization();
+        if do_user_initialization() {
+            do_exrc_initialization();
+        }
+    }
+    time_msg_if_enabled(c"sourcing vimrc file(s)");
 }
 
 fn execute_env(env: &std::ffi::CStr) -> bool {
     let Some(initstr) = os_getenv_cstr(env.as_ptr().cast_mut()) else {
-            return false;
-        };
+        return false;
+    };
 
-        estack_push(ETYPE_ENV, env.as_ptr().cast_mut(), 0);
-        let save_current_sctx = g_st().current_sctx;
-        g_st().current_sctx.sc_sid = SID_ENV;
-        g_st().current_sctx.sc_seq = 0;
-        g_st().current_sctx.sc_lnum = 0;
-        do_cmdline_cmd(initstr.as_ptr());
+    estack_push(ETYPE_ENV, env.as_ptr().cast_mut(), 0);
+    let save_current_sctx = g_st().current_sctx;
+    g_st().current_sctx.sc_sid = SID_ENV;
+    g_st().current_sctx.sc_seq = 0;
+    g_st().current_sctx.sc_lnum = 0;
+    do_cmdline_cmd(initstr.as_ptr());
 
-        estack_pop();
-        g_st().current_sctx = save_current_sctx;
+    estack_pop();
+    g_st().current_sctx = save_current_sctx;
 
-        true
+    true
 }
 
-fn mainerr(msg1: impl crate::strings::IntoCCharPtr, msg2: impl crate::strings::IntoCCharPtr, msg3: impl crate::strings::IntoCCharPtr) -> ! { let msg2 = msg2.into_c_char_ptr(); let msg3 = msg3.into_c_char_ptr();
+fn mainerr(
+    msg1: impl crate::strings::IntoCCharPtr,
+    msg2: impl crate::strings::IntoCCharPtr,
+    msg3: impl crate::strings::IntoCCharPtr,
+) -> ! {
+    let msg2 = msg2.into_c_char_ptr();
+    let msg3 = msg3.into_c_char_ptr();
     let msg1 = msg1.into_c_char_ptr();
     print_mainerr(msg1, msg2, msg3);
-        os_exit(1);
+    os_exit(1);
 }
 
-fn print_mainerr(msg1: impl crate::strings::IntoCCharPtr, msg2: impl crate::strings::IntoCCharPtr, msg3: impl crate::strings::IntoCCharPtr) { let msg1 = msg1.into_c_char_ptr(); let msg2 = msg2.into_c_char_ptr(); let msg3 = msg3.into_c_char_ptr();
+fn print_mainerr(
+    msg1: impl crate::strings::IntoCCharPtr,
+    msg2: impl crate::strings::IntoCCharPtr,
+    msg3: impl crate::strings::IntoCCharPtr,
+) {
+    let msg1 = msg1.into_c_char_ptr();
+    let msg2 = msg2.into_c_char_ptr();
+    let msg3 = msg3.into_c_char_ptr();
     let prgname = path_tail(main_init_st().argv0);
-        signal_stop();
+    signal_stop();
 
-        let stderr = log_get_stderr();
-        fprintf!(stderr, c"%s: %s", prgname, gettext(msg1));
-        if !msg2.is_null() {
-            fprintf!(stderr, c": \"%s\"", msg2);
-        }
-        if !msg3.is_null() {
-            fprintf!(stderr, c": \"%s\"", msg3);
-        }
-        fprintf!(stderr, gettext(c"\nMore info with \""));
-        fprintf!(stderr, c"%s -h\"\n", prgname);
+    let stderr = log_get_stderr();
+    fprintf!(stderr, c"%s: %s", prgname, gettext(msg1));
+    if !msg2.is_null() {
+        fprintf!(stderr, c": \"%s\"", msg2);
+    }
+    if !msg3.is_null() {
+        fprintf!(stderr, c": \"%s\"", msg3);
+    }
+    fprintf!(stderr, gettext(c"\nMore info with \""));
+    fprintf!(stderr, c"%s -h\"\n", prgname);
 }
 
 fn version() {
     nlua_init(ptr::null_mut(), 0, -1);
-        g_st().info_message = true;
-        list_version();
-        msg_putchar(b'\n' as c_int);
-        g_st().msg_didout = false;
+    g_st().info_message = true;
+    list_version();
+    msg_putchar(b'\n' as c_int);
+    g_st().msg_didout = false;
 }
 
 fn usage() {
     signal_stop();
 
-        printf!(gettext(c"Usage:\n"));
-        printf!(gettext(c"  nvim [options] [file ...]\n"));
-        printf!(gettext(c"\nOptions:\n"));
-        printf!(gettext(
-            c"  --cmd <cmd>           Execute <cmd> before any config\n",
-        ));
-        printf!(gettext(
-            c"  +<cmd>, -c <cmd>      Execute <cmd> after config and first file\n",
-        ));
-        printf!(gettext(
-            c"  -l <script> [args...] Execute Lua <script> (with optional args)\n",
-        ));
-        printf!(gettext(
-            c"  -S <session>          Source <session> after loading the first file\n",
-        ));
-        printf!(gettext(
-            c"  -s <scriptin>         Read Normal mode commands from <scriptin>\n",
-        ));
-        printf!(gettext(
-            c"  -u <config>           Use this config file\n",
-        ));
-        printf!(c"\n");
-        printf!(gettext(c"  -d                    Diff mode\n"));
-        printf!(gettext(
-            c"  -es, -Es              Silent (batch) mode\n",
-        ));
-        printf!(gettext(
-            c"  -h, --help            Print this help message\n",
-        ));
-        printf!(gettext(
-            c"  -i <shada>            Use this shada file\n",
-        ));
-        printf!(gettext(
-            c"  -n                    No swap file, use memory only\n",
-        ));
-        printf!(gettext(
-            c"  -o[N]                 Open N windows (default: one per file)\n",
-        ));
-        printf!(gettext(
-            c"  -O[N]                 Open N vertical windows (default: one per file)\n",
-        ));
-        printf!(gettext(
-            c"  -p[N]                 Open N tab pages (default: one per file)\n",
-        ));
-        printf!(gettext(
-            c"  -R                    Read-only (view) mode\n",
-        ));
-        printf!(gettext(
-            c"  -v, --version         Print version information\n",
-        ));
-        printf!(gettext(
-            c"  -V[N][file]           Verbose [level][file]\n",
-        ));
-        printf!(c"\n");
-        printf!(gettext(
-            c"  --                    Only file names after this\n",
-        ));
-        printf!(gettext(
-            c"  --api-info            Write msgpack-encoded API metadata to stdout\n",
-        ));
-        printf!(gettext(
-            c"  --clean               \"Factory defaults\" (skip user config and plugins, shada)\n",
-        ));
-        printf!(gettext(
-            c"  --embed               Use stdin/stdout as a msgpack-rpc channel\n",
-        ));
-        printf!(gettext(
-            c"  --headless            Don't start a user interface\n",
-        ));
-        printf!(gettext(
-            c"  --listen <address>    Serve RPC API from this address\n",
-        ));
-        printf!(gettext(
-            c"  --remote[-subcommand] Execute commands remotely on a server\n",
-        ));
-        printf!(gettext(
-            c"  --server <address>    Connect to this Nvim server\n",
-        ));
-        printf!(gettext(
-            c"  --startuptime <file>  Write startup timing messages to <file>\n",
-        ));
-        printf!(gettext(
-            c"\nSee \":help startup-options\" for all options.\n",
-        ));
+    printf!(gettext(c"Usage:\n"));
+    printf!(gettext(c"  nvim [options] [file ...]\n"));
+    printf!(gettext(c"\nOptions:\n"));
+    printf!(gettext(
+        c"  --cmd <cmd>           Execute <cmd> before any config\n",
+    ));
+    printf!(gettext(
+        c"  +<cmd>, -c <cmd>      Execute <cmd> after config and first file\n",
+    ));
+    printf!(gettext(
+        c"  -l <script> [args...] Execute Lua <script> (with optional args)\n",
+    ));
+    printf!(gettext(
+        c"  -S <session>          Source <session> after loading the first file\n",
+    ));
+    printf!(gettext(
+        c"  -s <scriptin>         Read Normal mode commands from <scriptin>\n",
+    ));
+    printf!(gettext(c"  -u <config>           Use this config file\n",));
+    printf!(c"\n");
+    printf!(gettext(c"  -d                    Diff mode\n"));
+    printf!(gettext(c"  -es, -Es              Silent (batch) mode\n",));
+    printf!(gettext(
+        c"  -h, --help            Print this help message\n",
+    ));
+    printf!(gettext(c"  -i <shada>            Use this shada file\n",));
+    printf!(gettext(
+        c"  -n                    No swap file, use memory only\n",
+    ));
+    printf!(gettext(
+        c"  -o[N]                 Open N windows (default: one per file)\n",
+    ));
+    printf!(gettext(
+        c"  -O[N]                 Open N vertical windows (default: one per file)\n",
+    ));
+    printf!(gettext(
+        c"  -p[N]                 Open N tab pages (default: one per file)\n",
+    ));
+    printf!(gettext(c"  -R                    Read-only (view) mode\n",));
+    printf!(gettext(
+        c"  -v, --version         Print version information\n",
+    ));
+    printf!(gettext(c"  -V[N][file]           Verbose [level][file]\n",));
+    printf!(c"\n");
+    printf!(gettext(
+        c"  --                    Only file names after this\n",
+    ));
+    printf!(gettext(
+        c"  --api-info            Write msgpack-encoded API metadata to stdout\n",
+    ));
+    printf!(gettext(
+        c"  --clean               \"Factory defaults\" (skip user config and plugins, shada)\n",
+    ));
+    printf!(gettext(
+        c"  --embed               Use stdin/stdout as a msgpack-rpc channel\n",
+    ));
+    printf!(gettext(
+        c"  --headless            Don't start a user interface\n",
+    ));
+    printf!(gettext(
+        c"  --listen <address>    Serve RPC API from this address\n",
+    ));
+    printf!(gettext(
+        c"  --remote[-subcommand] Execute commands remotely on a server\n",
+    ));
+    printf!(gettext(
+        c"  --server <address>    Connect to this Nvim server\n",
+    ));
+    printf!(gettext(
+        c"  --startuptime <file>  Write startup timing messages to <file>\n",
+    ));
+    printf!(gettext(
+        c"\nSee \":help startup-options\" for all options.\n",
+    ));
 }
 
 fn check_swap_exists_action() {
     if g_st().swap_exists_action == SEA_QUIT {
-            ui_call_error_exit(1);
-            getout(1);
-        }
-        handle_swap_exists(None);
+        ui_call_error_exit(1);
+        getout(1);
+    }
+    handle_swap_exists(None);
 }
 
 #[cfg(test)]
@@ -2672,15 +2660,15 @@ mod tests {
     #[test]
     fn get_number_arg_and_init_params_work() {
         let mut idx: c_int = 1;
-            let val = get_number_arg(c"o25x", &mut idx, 0);
-            assert_eq!(val, 25);
-            assert_eq!(idx, 3);
+        let val = get_number_arg(c"o25x", &mut idx, 0);
+        assert_eq!(val, 25);
+        assert_eq!(idx, 3);
 
-            let mut params = Mparm::new();
-            init_params(&mut params, 3, ptr::null_mut());
-            assert_eq!(params.argc, 3);
-            assert_eq!(params.window_count, -1);
-            assert_eq!(params.use_debug_break_level, -1);
-            assert_eq!(params.lua_arg0, -1);
+        let mut params = Mparm::new();
+        init_params(&mut params, 3, ptr::null_mut());
+        assert_eq!(params.argc, 3);
+        assert_eq!(params.window_count, -1);
+        assert_eq!(params.use_debug_break_level, -1);
+        assert_eq!(params.lua_arg0, -1);
     }
 }

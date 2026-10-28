@@ -3,10 +3,9 @@
 use std::ffi::{c_char, c_double, c_int, c_uint};
 
 use crate::mpack::mpack_core::{
-    MpackTokenArray, MpackTokenBin, MpackTokenBoolean, MpackTokenChunk, MpackTokenExt,
-    MpackTokenFloat, MpackTokenMap, MpackTokenNil, MpackTokenSint, MpackTokenStr,
-    MpackTokenUint, MpackSintmax, MpackTokenData, MpackToken, MpackUint32,
-    MpackUintmax, MpackValue,
+    MpackSintmax, MpackToken, MpackTokenArray, MpackTokenBin, MpackTokenBoolean, MpackTokenChunk,
+    MpackTokenData, MpackTokenExt, MpackTokenFloat, MpackTokenMap, MpackTokenNil, MpackTokenSint,
+    MpackTokenStr, MpackTokenUint, MpackUint32, MpackUintmax, MpackValue,
 };
 
 #[inline]
@@ -220,11 +219,7 @@ pub fn mpack_unpack_number(t: MpackToken) -> c_double {
         }
     }
     let rv = f64::from(lo) + pow2(32) * f64::from(hi);
-    if t.r#type == MpackTokenSint {
-        -rv
-    } else {
-        rv
-    }
+    if t.r#type == MpackTokenSint { -rv } else { rv }
 }
 
 #[inline]

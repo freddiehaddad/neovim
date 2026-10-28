@@ -8,12 +8,12 @@ use crate::autocmd::{
 #[cfg(unix)]
 use crate::buffer::buf_set_file_id;
 use crate::buffer::{
-    BF_NEW, BF_WRITE_MASK, NOTDONE, bt_nofilename, FileBuf, buf_get_changedtick, Bufref,
+    BF_NEW, BF_WRITE_MASK, Bufref, FileBuf, NOTDONE, bt_nofilename, buf_get_changedtick,
     bufref_valid, set_bufref,
 };
 use crate::change::unchanged;
 use crate::context::{CtxSwitch, ctx_restore, ctx_switch};
-use crate::cursor::{Linenr, CursorPos};
+use crate::cursor::{CursorPos, Linenr};
 use crate::dialog::ask_yesno;
 use crate::drawscreen::status_redraw_all;
 use crate::errors::*;
@@ -22,12 +22,12 @@ use crate::event::r#loop::uv_strerror;
 #[cfg(unix)]
 use crate::event::r#loop::{uv_gid_t, uv_uid_t};
 use crate::ex_cmds::check_secure;
-use crate::ex_docmd::{CMOD_LOCKMARKS, UNDO_HASH_SIZE, Exarg};
+use crate::ex_docmd::{CMOD_LOCKMARKS, Exarg, UNDO_HASH_SIZE};
 use crate::ex_eval::{aborting, should_abort};
 use crate::fileio::{
     EOL_DOS, EOL_UNIX, FIO_ENDIAN_L, FIO_LATIN1, FIO_NOCONVERT, FIO_UCS2, FIO_UCS4, FIO_UTF8,
-    FIO_UTF16, ICONV_EINVAL, WRITEBUFSIZE, add_quoted_fname, buf_store_file_info, call_iconv,
-    call_iconv_close, close, filemess_bufwrite, fname_msg_id, get_fio_flags, iconv_t, K_SHM_OVER,
+    FIO_UTF16, ICONV_EINVAL, K_SHM_OVER, WRITEBUFSIZE, add_quoted_fname, buf_store_file_info,
+    call_iconv, call_iconv_close, close, filemess_bufwrite, fname_msg_id, get_fio_flags, iconv_t,
     match_file_list, modname, msg_add_fileformat, msg_add_lines, need_conversion, set_rw_fname,
     slow_io_ns, time_differs, vim_rename, vim_tempname, write_eintr,
 };
@@ -37,22 +37,22 @@ use crate::globals::IOSIZE;
 use crate::globals::*;
 use crate::mbyte::{enc_canonize, my_iconv_open, utf_ptr2char, utf_ptr2len_len};
 use crate::memline::{get_file_in_dir, make_percent_swname, ml_get_buf, ml_preserve, ml_timestamp};
-use crate::memory::{xstrlcpy};
+use crate::memory::xstrlcpy;
 use crate::message::{emsg, msg, msg_progress, msg_puts_hl, msg_with_id, semsg, set_keep_msg};
 use crate::option::{copy_option_part, get_bkc_flags, get_fileformat_force, shortmess};
 use crate::option_vars::*;
 use crate::os::fs::{
-    FileInfo, MAXPATHL, O_APPEND, O_CREAT, O_EXCL, O_NOFOLLOW, O_TRUNC, O_WRONLY, os_close,
+    FileInfo, MAXPATHL, O_APPEND, O_CREAT, O_EXCL, O_NOFOLLOW, O_TRUNC, O_WRONLY, VimAcl, os_close,
     os_copy, os_copy_xattr, os_errno, os_file_is_writable, os_fileinfo, os_fileinfo_hardlinks,
     os_fileinfo_id_equal, os_fileinfo_link, os_free_acl, os_fsync, os_get_acl, os_getperm,
     os_isdir, os_mkdir_recurse, os_nodetype, os_open, os_path_exists, os_remove, os_set_acl,
-    os_setperm, VimAcl,
+    os_setperm,
 };
 #[cfg(unix)]
 use crate::os::fs::{os_chown, os_fchown, os_file_settime, os_fsetperm, s_isdir, s_isreg};
 use crate::os::input::os_breakcheck;
 use crate::os::time::os_hrtime;
-use crate::path::{after_pathsep, K_PATH_CMP_LITERAL, path_equal, path_tail};
+use crate::path::{K_PATH_CMP_LITERAL, after_pathsep, path_equal, path_tail};
 use crate::sha256::ContextSha256;
 use crate::strings::{gettext, vim_snprintf, vim_snprintf_add, vim_strchr};
 use crate::ui::{ui_busy_start, ui_busy_stop, ui_flush};
@@ -289,47 +289,45 @@ fn buf_write_convert(ip: &mut BwInfo, bufp: *mut *mut c_char, lenp: &mut c_int) 
 
 fn buf_write_bytes(ip: &mut BwInfo) -> bool {
     let mut buf = ip.bw_buf.as_mut_ptr();
-        let mut len = ip.bw_len;
-        let flags = ip.bw_flags;
+    let mut len = ip.bw_len;
+    let flags = ip.bw_flags;
 
-        if (flags & FIO_NOCONVERT) == 0 {
-            let converted = buf_write_convert(ip, &raw mut buf, &mut len);
-            if converted < 0 {
+    if (flags & FIO_NOCONVERT) == 0 {
+        let converted = buf_write_convert(ip, &raw mut buf, &mut len);
+        if converted < 0 {
+            return false;
+        }
+        let remaining = ip.bw_len - converted;
+        ip.bw_len = remaining;
+
+        if ip.bw_fd >= 0 {
+            let wlen = write_eintr(ip.bw_fd, buf.cast(), len as usize) as c_int;
+            if wlen < len {
                 return false;
-            }
-            let remaining = ip.bw_len - converted;
-            ip.bw_len = remaining;
-
-            if ip.bw_fd >= 0 {
-                let wlen = write_eintr(ip.bw_fd, buf.cast(), len as usize) as c_int;
-                if wlen < len {
-                    return false;
-                }
-            }
-
-            if remaining > 0 {
-                let c = converted as usize;
-                let r = remaining as usize;
-                ip.bw_buf.as_mut_slice().copy_within(c..c + r, 0);
-            }
-        } else {
-            ip.bw_len = 0;
-            if ip.bw_fd >= 0 {
-                let wlen = write_eintr(ip.bw_fd, buf.cast(), len as usize) as c_int;
-                if wlen < len {
-                    return false;
-                }
             }
         }
 
-        true
+        if remaining > 0 {
+            let c = converted as usize;
+            let r = remaining as usize;
+            ip.bw_buf.as_mut_slice().copy_within(c..c + r, 0);
+        }
+    } else {
+        ip.bw_len = 0;
+        if ip.bw_fd >= 0 {
+            let wlen = write_eintr(ip.bw_fd, buf.cast(), len as usize) as c_int;
+            if wlen < len {
+                return false;
+            }
+        }
+    }
+
+    true
 }
 
 fn check_mtime(buf: &mut FileBuf, file_info: &FileInfo) -> bool {
-     {
-        if buf.b_mtime_read != 0
-            && time_differs(file_info, buf.b_mtime_read, buf.b_mtime_read_ns)
-        {
+    {
+        if buf.b_mtime_read != 0 && time_differs(file_info, buf.b_mtime_read, buf.b_mtime_read_ns) {
             g_st().msg_scroll = 1;
             g_st().msg_silent = 0;
             msg(
@@ -372,7 +370,8 @@ fn buf_write_do_autocmds(
     sfnamep: *mut *mut c_char,
     ffnamep: *mut *mut c_char,
     start: Linenr,
-    endp: &mut Linenr,eap: Option<&Exarg>,
+    endp: &mut Linenr,
+    eap: Option<&Exarg>,
     append: bool,
     filtering: bool,
     reset_changed: bool,
@@ -405,7 +404,14 @@ fn buf_write_do_autocmds(
         set_bufref(&mut bufref, buf);
 
         if append {
-            did_cmd = apply_autocmds_exarg(EVENT_FILEAPPENDCMD, sfname, sfname, false, g_st().curbuf, (eap.is_some()).then(||  { eap.unwrap() }));
+            did_cmd = apply_autocmds_exarg(
+                EVENT_FILEAPPENDCMD,
+                sfname,
+                sfname,
+                false,
+                g_st().curbuf,
+                (eap.is_some()).then(|| eap.unwrap()),
+            );
             if !did_cmd {
                 if overwriting && bt_nofilename(Some(crate::globals::curbuf_mut())) {
                     nofile_err = true;
@@ -416,7 +422,7 @@ fn buf_write_do_autocmds(
                         sfname,
                         false,
                         g_st().curbuf,
-                        (eap.is_some()).then(||  { eap.unwrap() }),
+                        (eap.is_some()).then(|| eap.unwrap()),
                     );
                 }
             }
@@ -427,11 +433,18 @@ fn buf_write_do_autocmds(
                 sfname,
                 false,
                 g_st().curbuf,
-                (eap.is_some()).then(||  { eap.unwrap() }),
+                (eap.is_some()).then(|| eap.unwrap()),
             );
         } else if reset_changed && whole {
             let was_changed = curbuf_is_changed_fn();
-            did_cmd = apply_autocmds_exarg(EVENT_BUFWRITECMD, sfname, sfname, false, g_st().curbuf, (eap.is_some()).then(||  { eap.unwrap() }));
+            did_cmd = apply_autocmds_exarg(
+                EVENT_BUFWRITECMD,
+                sfname,
+                sfname,
+                false,
+                g_st().curbuf,
+                (eap.is_some()).then(|| eap.unwrap()),
+            );
             if did_cmd {
                 if was_changed && !curbuf_is_changed_fn() {
                     u_unchanged(curbuf_mut());
@@ -440,10 +453,24 @@ fn buf_write_do_autocmds(
             } else if overwriting && bt_nofilename(Some(crate::globals::curbuf_mut())) {
                 nofile_err = true;
             } else {
-                let _ = apply_autocmds_exarg(EVENT_BUFWRITEPRE, sfname, sfname, false, g_st().curbuf, (eap.is_some()).then(||  { eap.unwrap() }));
+                let _ = apply_autocmds_exarg(
+                    EVENT_BUFWRITEPRE,
+                    sfname,
+                    sfname,
+                    false,
+                    g_st().curbuf,
+                    (eap.is_some()).then(|| eap.unwrap()),
+                );
             }
         } else {
-            did_cmd = apply_autocmds_exarg(EVENT_FILEWRITECMD, sfname, sfname, false, g_st().curbuf, (eap.is_some()).then(||  { eap.unwrap() }));
+            did_cmd = apply_autocmds_exarg(
+                EVENT_FILEWRITECMD,
+                sfname,
+                sfname,
+                false,
+                g_st().curbuf,
+                (eap.is_some()).then(|| eap.unwrap()),
+            );
             if !did_cmd {
                 if overwriting && bt_nofilename(Some(crate::globals::curbuf_mut())) {
                     nofile_err = true;
@@ -454,7 +481,7 @@ fn buf_write_do_autocmds(
                         sfname,
                         false,
                         g_st().curbuf,
-                        (eap.is_some()).then(||  { eap.unwrap() }),
+                        (eap.is_some()).then(|| eap.unwrap()),
                     );
                 }
             }
@@ -493,7 +520,7 @@ fn buf_write_do_autocmds(
                     return OK;
                 }
                 if overwriting {
-                    ml_timestamp( &mut *buf);
+                    ml_timestamp(&mut *buf);
                     if append {
                         (*buf).b_flags &= !BF_NEW;
                     } else {
@@ -553,20 +580,29 @@ fn buf_write_do_autocmds(
 
 fn buf_write_do_post_autocmds(
     buf: *mut FileBuf,
-    fname: impl crate::strings::IntoCCharPtr,eap: Option<&Exarg>,
+    fname: impl crate::strings::IntoCCharPtr,
+    eap: Option<&Exarg>,
     append: bool,
     filtering: bool,
     reset_changed: bool,
     whole: bool,
-) { let fname = fname.into_c_char_ptr();
-     {
+) {
+    let fname = fname.into_c_char_ptr();
+    {
         let mut aco: CtxSwitch = CtxSwitch::new();
         curbuf_mut().b_no_eol_lnum = 0;
 
         let _ = ctx_switch(&mut aco, ptr::null_mut(), ptr::null_mut(), buf, 0);
 
         if append {
-            let _ = apply_autocmds_exarg(EVENT_FILEAPPENDPOST, fname, fname, false, g_st().curbuf, (eap.is_some()).then(||  { eap.unwrap() }));
+            let _ = apply_autocmds_exarg(
+                EVENT_FILEAPPENDPOST,
+                fname,
+                fname,
+                false,
+                g_st().curbuf,
+                (eap.is_some()).then(|| eap.unwrap()),
+            );
         } else if filtering {
             let _ = apply_autocmds_exarg(
                 EVENT_FILTERWRITEPOST,
@@ -574,12 +610,26 @@ fn buf_write_do_post_autocmds(
                 fname,
                 false,
                 g_st().curbuf,
-                (eap.is_some()).then(||  { eap.unwrap() }),
+                (eap.is_some()).then(|| eap.unwrap()),
             );
         } else if reset_changed && whole {
-            let _ = apply_autocmds_exarg(EVENT_BUFWRITEPOST, fname, fname, false, g_st().curbuf, (eap.is_some()).then(||  { eap.unwrap() }));
+            let _ = apply_autocmds_exarg(
+                EVENT_BUFWRITEPOST,
+                fname,
+                fname,
+                false,
+                g_st().curbuf,
+                (eap.is_some()).then(|| eap.unwrap()),
+            );
         } else {
-            let _ = apply_autocmds_exarg(EVENT_FILEWRITEPOST, fname, fname, false, g_st().curbuf, (eap.is_some()).then(||  { eap.unwrap() }));
+            let _ = apply_autocmds_exarg(
+                EVENT_FILEWRITEPOST,
+                fname,
+                fname,
+                false,
+                g_st().curbuf,
+                (eap.is_some()).then(|| eap.unwrap()),
+            );
         }
 
         ctx_restore(&mut aco);
@@ -587,8 +637,9 @@ fn buf_write_do_post_autocmds(
 }
 
 #[inline]
-fn set_err_num(num: &'static CStr, msg: impl crate::strings::IntoCCharPtr) -> BwError { let msg = msg.into_c_char_ptr();
-     {
+fn set_err_num(num: &'static CStr, msg: impl crate::strings::IntoCCharPtr) -> BwError {
+    let msg = msg.into_c_char_ptr();
+    {
         BwError {
             num: Some(num),
             msg: if msg.is_null() {
@@ -602,8 +653,9 @@ fn set_err_num(num: &'static CStr, msg: impl crate::strings::IntoCCharPtr) -> Bw
 }
 
 #[inline]
-fn set_err(msg: impl crate::strings::IntoCCharPtr) -> BwError { let msg = msg.into_c_char_ptr();
-     {
+fn set_err(msg: impl crate::strings::IntoCCharPtr) -> BwError {
+    let msg = msg.into_c_char_ptr();
+    {
         BwError {
             num: None,
             msg: if msg.is_null() {
@@ -619,7 +671,7 @@ fn set_err(msg: impl crate::strings::IntoCCharPtr) -> BwError { let msg = msg.in
 #[inline]
 fn set_err_arg(msg: impl crate::strings::IntoCCharPtr, arg: c_int) -> BwError {
     let msg = msg.into_c_char_ptr();
-     {
+    {
         BwError {
             num: None,
             msg: if msg.is_null() {
@@ -632,7 +684,8 @@ fn set_err_arg(msg: impl crate::strings::IntoCCharPtr, arg: c_int) -> BwError {
     }
 }
 
-fn emit_err(e: &mut BwError, msg_id: impl crate::strings::IntoCCharPtr) { let msg_id = msg_id.into_c_char_ptr();
+fn emit_err(e: &mut BwError, msg_id: impl crate::strings::IntoCCharPtr) {
+    let msg_id = msg_id.into_c_char_ptr();
     unsafe {
         let mut errmsg = [0 as c_char; IOSIZE];
         let msg_ptr = e.msg.as_ref().map_or(c"".as_ptr(), |m| m.as_ptr());
@@ -706,10 +759,7 @@ fn get_fileinfo_os(
                 }
                 if os_nodetype(fname) != NODE_WRITABLE {
                     {
-                        *err = set_err_num(
-                            c"E503",
-                            gettext(c"is not a file or writable device"),
-                        );
+                        *err = set_err_num(c"E503", gettext(c"is not a file or writable device"));
                     }
                     return false;
                 }
@@ -740,10 +790,7 @@ fn get_fileinfo_os(
         };
         if nodetype == NODE_OTHER {
             {
-                *err = set_err_num(
-                    c"E503",
-                    gettext(c"is not a file or writable device"),
-                );
+                *err = set_err_num(c"E503", gettext(c"is not a file or writable device"));
             }
             return false;
         }
@@ -790,8 +837,7 @@ fn get_fileinfo(
             device,
             newfile,
             err,
-        )
-        {
+        ) {
             return false;
         }
 
@@ -807,15 +853,12 @@ fn get_fileinfo(
                         gettext(c"is read-only (cannot override: \"W\" in 'cpoptions')"),
                     );
                 } else {
-                    *err = set_err_num(
-                        c"E505",
-                        gettext(c"is read-only (add ! to override)"),
-                    );
+                    *err = set_err_num(c"E505", gettext(c"is read-only (add ! to override)"));
                 }
                 return false;
             }
 
-            if overwriting && !forceit && !check_mtime( buf, file_info_old) {
+            if overwriting && !forceit && !check_mtime(buf, file_info_old) {
                 return false;
             }
         }
@@ -828,7 +871,8 @@ pub fn buf_get_backup_name(
     dirp: *mut *mut c_char,
     no_prepend_dot: bool,
     backup_ext: impl crate::strings::IntoCCharPtr,
-) -> Option<std::ffi::CString> { let backup_ext = backup_ext.into_c_char_ptr();
+) -> Option<std::ffi::CString> {
+    let backup_ext = backup_ext.into_c_char_ptr();
     unsafe {
         let mut backup: Option<std::ffi::CString> = None;
         let iobuf = g_st().iobuff.as_mut_ptr();
@@ -839,9 +883,7 @@ pub fn buf_get_backup_name(
             let ret = os_mkdir_recurse(iobuf, 0o755, &mut failed_dir, None);
             if ret != 0 {
                 let _ = semsg!(
-                    gettext(
-                        c"E303: Unable to create directory \"%s\" for backup file: %s",
-                    ),
+                    gettext(c"E303: Unable to create directory \"%s\" for backup file: %s",),
                     failed_dir.as_ref().map_or(ptr::null(), |s| s.as_ptr()),
                     uv_strerror(ret),
                 );
@@ -1098,9 +1140,7 @@ fn buf_write_make_backup(
                 }
             }
             if backupp.is_none() && !forceit {
-                *err = set_err(gettext(
-                    c"E510: Can't make backup file (add ! to override)",
-                ));
+                *err = set_err(gettext(c"E510: Can't make backup file (add ! to override)"));
                 return false;
             }
         }
@@ -1114,7 +1154,8 @@ pub fn buf_write(
     mut fname: *mut c_char,
     mut sfname: *mut c_char,
     mut start: Linenr,
-    mut end: Linenr,eap: Option<&Exarg>,
+    mut end: Linenr,
+    eap: Option<&Exarg>,
     append: bool,
     forceit: bool,
     reset_changed: bool,
@@ -1127,7 +1168,7 @@ pub fn buf_write(
         let whole = start == 1 && end == (*buf).b_ml.ml_line_count;
         let mut write_undo_file = false;
         let mut sha_ctx = ContextSha256::new();
-        let bkc = get_bkc_flags( &mut *buf);
+        let bkc = get_bkc_flags(&mut *buf);
 
         if crate::memory::cstr_is_empty(fname) {
             return FAIL;
@@ -1202,7 +1243,7 @@ pub fn buf_write(
             &raw mut ffname,
             start,
             &mut end,
-            (eap.is_some()).then(||  { eap.unwrap() }),
+            (eap.is_some()).then(|| eap.unwrap()),
             append,
             filtering,
             reset_changed,
@@ -1279,7 +1320,7 @@ pub fn buf_write(
         'nofail: {
             'fail: {
                 if !get_fileinfo(
-                     &mut *buf,
+                    &mut *buf,
                     fname,
                     overwriting,
                     forceit,
@@ -1289,8 +1330,7 @@ pub fn buf_write(
                     &mut newfile,
                     &mut file_readonly,
                     &mut err,
-                )
-                {
+                ) {
                     break 'fail;
                 }
 
@@ -1298,8 +1338,13 @@ pub fn buf_write(
                     acl = os_get_acl(fname);
                 }
 
-                let mut dobackup = opt_vars().p_wb != 0 || opt_vars().p_bk != 0 || !crate::memory::cstr_is_empty(opt_vars().p_pm);
-                if dobackup && !crate::memory::cstr_is_empty(opt_vars().p_bsk) && match_file_list(opt_vars().p_bsk, sfname, ffname) {
+                let mut dobackup = opt_vars().p_wb != 0
+                    || opt_vars().p_bk != 0
+                    || !crate::memory::cstr_is_empty(opt_vars().p_pm);
+                if dobackup
+                    && !crate::memory::cstr_is_empty(opt_vars().p_bsk)
+                    && match_file_list(opt_vars().p_bsk, sfname, ffname)
+                {
                     dobackup = false;
                 }
 
@@ -1359,7 +1404,11 @@ pub fn buf_write(
                 let mut wfname_owned: Option<std::ffi::CString> = None;
 
                 'restore_backup: {
-                    if reset_changed && !newfile && overwriting && !(g_st().exiting && backup.is_some()) {
+                    if reset_changed
+                        && !newfile
+                        && overwriting
+                        && !(g_st().exiting && backup.is_some())
+                    {
                         let fsync_opt = if (*buf).b_p_fs >= 0 {
                             (*buf).b_p_fs != 0
                         } else {
@@ -1389,30 +1438,31 @@ pub fn buf_write(
                     if converted {
                         wb_flags = get_fio_flags(fenc);
                         if (wb_flags & (FIO_UCS2 | FIO_UCS4 | FIO_UTF16 | FIO_UTF8)) != 0 {
-                            let conv_buflen =
-                                if (wb_flags & (FIO_UCS2 | FIO_UTF16 | FIO_UTF8)) != 0 {
-                                    (bufsize as usize) * 2
-                                } else {
-                                    (bufsize as usize) * 4
-                                };
+                            let conv_buflen = if (wb_flags & (FIO_UCS2 | FIO_UTF16 | FIO_UTF8)) != 0
+                            {
+                                (bufsize as usize) * 2
+                            } else {
+                                (bufsize as usize) * 4
+                            };
                             write_info.bw_conv_buf = vec![0; conv_buflen];
                         }
                     }
 
                     if converted && wb_flags == 0 {
-                        write_info.bw_iconv_fd = my_iconv_open(fenc, c"utf-8")
-                            .map_or(-1, |fd| fd as iconv_t);
+                        write_info.bw_iconv_fd =
+                            my_iconv_open(fenc, c"utf-8").map_or(-1, |fd| fd as iconv_t);
                         if write_info.bw_iconv_fd != -1 {
                             write_info.bw_conv_buf = vec![0; (bufsize as usize) * ICONV_MULT];
                             write_info.bw_first = 1;
-                        } else if crate::eval::typval::Callback::raw_cb_type(&opt_vars().p_ccv) != K_CALLBACK_NONE_CONST {
+                        } else if crate::eval::typval::Callback::raw_cb_type(&opt_vars().p_ccv)
+                            != K_CALLBACK_NONE_CONST
+                        {
                             wfname_owned = vim_tempname();
                             match wfname_owned {
                                 Some(ref wf) => wfname = wf.as_ptr().cast_mut(),
                                 None => {
-                                    err = set_err(gettext(
-                                        c"E214: Can't find temp file for writing",
-                                    ));
+                                    err =
+                                        set_err(gettext(c"E214: Can't find temp file for writing"));
                                     break 'restore_backup;
                                 }
                             }
@@ -1468,8 +1518,7 @@ pub fn buf_write(
                                     #[cfg(not(windows))]
                                     {
                                         let mut file_info = FileInfo::new();
-                                        if (!newfile
-                                            && os_fileinfo_hardlinks(&file_info_old) > 1)
+                                        if (!newfile && os_fileinfo_hardlinks(&file_info_old) > 1)
                                             || (os_fileinfo_link(fname, &mut file_info)
                                                 && !os_fileinfo_id_equal(
                                                     &file_info,
@@ -1481,13 +1530,12 @@ pub fn buf_write(
                                             ));
                                         } else {
                                             err = set_err_arg(
-                                                gettext(
-                                                    c"E212: Can't open file for writing: %s",
-                                                ),
+                                                gettext(c"E212: Can't open file for writing: %s"),
                                                 fd,
                                             );
                                             if forceit
-                                                && vim_strchr(opt_vars().p_cpo, K_CPO_FWRITE).is_null()
+                                                && vim_strchr(opt_vars().p_cpo, K_CPO_FWRITE)
+                                                    .is_null()
                                                 && perm >= 0
                                             {
                                                 if (perm & 0o200) == 0 {
@@ -1510,9 +1558,7 @@ pub fn buf_write(
                                     #[cfg(windows)]
                                     {
                                         err = set_err_arg(
-                                            gettext(
-                                                c"E212: Can't open file for writing: %s",
-                                            ),
+                                            gettext(c"E212: Can't open file for writing: %s"),
                                             fd,
                                         );
                                         if forceit
@@ -1568,14 +1614,17 @@ pub fn buf_write(
 
                         write_info.bw_len = 0;
                         write_info.bw_flags = wb_flags;
-                        fileformat = get_fileformat_force( &*buf, (eap.is_some()).then(||  { eap.unwrap() }));
+                        fileformat =
+                            get_fileformat_force(&*buf, (eap.is_some()).then(|| eap.unwrap()));
                         let mut s = buffer;
                         lnum = start;
                         while lnum <= end {
                             let mut ptr = ml_get_buf(&mut *buf, lnum).sub(1);
                             if write_undo_file {
                                 let line_ptr = ptr.add(1);
-                                sha_ctx.update(crate::memory::cstr_slice(line_ptr, crate::memory::cstr_len(line_ptr) + 1,
+                                sha_ctx.update(crate::memory::cstr_slice(
+                                    line_ptr,
+                                    crate::memory::cstr_len(line_ptr) + 1,
                                 ));
                             }
                             loop {
@@ -1673,9 +1722,7 @@ pub fn buf_write(
                                         false,
                                     );
                                     if buf_get_changedtick(&*buf) != write_tick {
-                                        err = set_err(gettext(
-                                            E_BUFFER_CHANGED_UNEXPECTEDLY,
-                                        ));
+                                        err = set_err(gettext(E_BUFFER_CHANGED_UNEXPECTEDLY));
                                         end = 0;
                                         break;
                                     }
@@ -1752,8 +1799,7 @@ pub fn buf_write(
 
                         let close_err = os_close(fd);
                         if close_err != 0 {
-                            err =
-                                set_err_arg(gettext(c"E512: Close failed: %s"), close_err);
+                            err = set_err_arg(gettext(c"E512: Close failed: %s"), close_err);
                             end = 0;
                         }
 
@@ -1769,9 +1815,7 @@ pub fn buf_write(
                         }
 
                         if wfname != fname {
-                            if end != 0
-                                && !eval_charconvert(c"utf-8", fenc, wfname, fname)
-                            {
+                            if end != 0 && !eval_charconvert(c"utf-8", fenc, wfname, fname) {
                                 write_info.bw_conv_error = 1;
                                 end = 0;
                             }
@@ -1799,16 +1843,16 @@ pub fn buf_write(
                                     );
                                     err = BwError {
                                         num: None,
-                                        msg: Some(crate::memory::cstr_to_cstring(alloc_msg.as_ptr())),
+                                        msg: Some(crate::memory::cstr_to_cstring(
+                                            alloc_msg.as_ptr(),
+                                        )),
                                         arg: 0,
                                     };
                                 }
                             } else if g_st().got_int {
                                 err = set_err(gettext(E_INTERR));
                             } else {
-                                err = set_err(gettext(
-                                    c"E514: Write error (file system full?)",
-                                ));
+                                err = set_err(gettext(c"E514: Write error (file system full?)"));
                             }
                         }
 
@@ -1840,7 +1884,16 @@ pub fn buf_write(
                         add_quoted_fname(iobuf, IOSIZE, buf, fname);
                         let mut insert_space = false;
                         if write_info.bw_conv_error != 0 {
-                            { let _dst: *mut c_char = iobuf; let _dsize: usize = IOSIZE; let _dlen = crate::memory::cstr_len(_dst); crate::memory::xstrlcpy(_dst.add(_dlen), gettext(c" CONVERSION ERROR"), _dsize - _dlen); };
+                            {
+                                let _dst: *mut c_char = iobuf;
+                                let _dsize: usize = IOSIZE;
+                                let _dlen = crate::memory::cstr_len(_dst);
+                                crate::memory::xstrlcpy(
+                                    _dst.add(_dlen),
+                                    gettext(c" CONVERSION ERROR"),
+                                    _dsize - _dlen,
+                                );
+                            };
                             insert_space = true;
                             if write_info.bw_conv_error_lnum != 0 {
                                 let _ = vim_snprintf_add!(
@@ -1851,21 +1904,66 @@ pub fn buf_write(
                                 );
                             }
                         } else if notconverted {
-                            { let _dst: *mut c_char = iobuf; let _dsize: usize = IOSIZE; let _dlen = crate::memory::cstr_len(_dst); crate::memory::xstrlcpy(_dst.add(_dlen), gettext(c"[NOT converted]"), _dsize - _dlen); };
+                            {
+                                let _dst: *mut c_char = iobuf;
+                                let _dsize: usize = IOSIZE;
+                                let _dlen = crate::memory::cstr_len(_dst);
+                                crate::memory::xstrlcpy(
+                                    _dst.add(_dlen),
+                                    gettext(c"[NOT converted]"),
+                                    _dsize - _dlen,
+                                );
+                            };
                             insert_space = true;
                         } else if converted {
-                            { let _dst: *mut c_char = iobuf; let _dsize: usize = IOSIZE; let _dlen = crate::memory::cstr_len(_dst); crate::memory::xstrlcpy(_dst.add(_dlen), gettext(c"[converted]"), _dsize - _dlen); };
+                            {
+                                let _dst: *mut c_char = iobuf;
+                                let _dsize: usize = IOSIZE;
+                                let _dlen = crate::memory::cstr_len(_dst);
+                                crate::memory::xstrlcpy(
+                                    _dst.add(_dlen),
+                                    gettext(c"[converted]"),
+                                    _dsize - _dlen,
+                                );
+                            };
                             insert_space = true;
                         }
                         if device {
-                            { let _dst: *mut c_char = iobuf; let _dsize: usize = IOSIZE; let _dlen = crate::memory::cstr_len(_dst); crate::memory::xstrlcpy(_dst.add(_dlen), gettext(c"[Device]"), _dsize - _dlen); };
+                            {
+                                let _dst: *mut c_char = iobuf;
+                                let _dsize: usize = IOSIZE;
+                                let _dlen = crate::memory::cstr_len(_dst);
+                                crate::memory::xstrlcpy(
+                                    _dst.add(_dlen),
+                                    gettext(c"[Device]"),
+                                    _dsize - _dlen,
+                                );
+                            };
                             insert_space = true;
                         } else if newfile {
-                            { let _dst: *mut c_char = iobuf; let _dsize: usize = IOSIZE; let _dlen = crate::memory::cstr_len(_dst); crate::memory::xstrlcpy(_dst.add(_dlen), gettext(c"[New]"), _dsize - _dlen); };
+                            {
+                                let _dst: *mut c_char = iobuf;
+                                let _dsize: usize = IOSIZE;
+                                let _dlen = crate::memory::cstr_len(_dst);
+                                crate::memory::xstrlcpy(
+                                    _dst.add(_dlen),
+                                    gettext(c"[New]"),
+                                    _dsize - _dlen,
+                                );
+                            };
                             insert_space = true;
                         }
                         if no_eol {
-                            { let _dst: *mut c_char = iobuf; let _dsize: usize = IOSIZE; let _dlen = crate::memory::cstr_len(_dst); crate::memory::xstrlcpy(_dst.add(_dlen), gettext(c"[noeol]"), _dsize - _dlen); };
+                            {
+                                let _dst: *mut c_char = iobuf;
+                                let _dsize: usize = IOSIZE;
+                                let _dlen = crate::memory::cstr_len(_dst);
+                                crate::memory::xstrlcpy(
+                                    _dst.add(_dlen),
+                                    gettext(c"[noeol]"),
+                                    _dsize - _dlen,
+                                );
+                            };
                             insert_space = true;
                         }
                         if msg_add_fileformat(fileformat) {
@@ -1874,17 +1972,35 @@ pub fn buf_write(
                         msg_add_lines(c_int::from(insert_space), lnum, nchars);
                         if !shortmess(K_SHM_WRITE) {
                             if append {
-                                { let _dst: *mut c_char = iobuf; let _dsize: usize = IOSIZE; let _dlen = crate::memory::cstr_len(_dst); crate::memory::xstrlcpy(_dst.add(_dlen), if shortmess(K_SHM_WRI) {
-                                        gettext(c" [a]")
-                                    } else {
-                                        gettext(c" appended")
-                                    }, _dsize - _dlen); };
+                                {
+                                    let _dst: *mut c_char = iobuf;
+                                    let _dsize: usize = IOSIZE;
+                                    let _dlen = crate::memory::cstr_len(_dst);
+                                    crate::memory::xstrlcpy(
+                                        _dst.add(_dlen),
+                                        if shortmess(K_SHM_WRI) {
+                                            gettext(c" [a]")
+                                        } else {
+                                            gettext(c" appended")
+                                        },
+                                        _dsize - _dlen,
+                                    );
+                                };
                             } else {
-                                { let _dst: *mut c_char = iobuf; let _dsize: usize = IOSIZE; let _dlen = crate::memory::cstr_len(_dst); crate::memory::xstrlcpy(_dst.add(_dlen), if shortmess(K_SHM_WRI) {
-                                        gettext(c" [w]")
-                                    } else {
-                                        gettext(c" written")
-                                    }, _dsize - _dlen); };
+                                {
+                                    let _dst: *mut c_char = iobuf;
+                                    let _dsize: usize = IOSIZE;
+                                    let _dlen = crate::memory::cstr_len(_dst);
+                                    crate::memory::xstrlcpy(
+                                        _dst.add(_dlen),
+                                        if shortmess(K_SHM_WRI) {
+                                            gettext(c" [w]")
+                                        } else {
+                                            gettext(c" written")
+                                        },
+                                        _dsize - _dlen,
+                                    );
+                                };
                             }
                         }
                         set_keep_msg(
@@ -1922,7 +2038,7 @@ pub fn buf_write(
                         && (overwriting || !vim_strchr(opt_vars().p_cpo, K_CPO_PLUS).is_null())
                         && buf_get_changedtick(&*buf) == write_tick
                     {
-                        unchanged( &mut *buf, true, false);
+                        unchanged(&mut *buf, true, false);
                         let changedtick = buf_get_changedtick(&*buf);
                         if (*buf).b_last_changedtick + 1 == changedtick {
                             (*buf).b_last_changedtick = changedtick;
@@ -1932,7 +2048,7 @@ pub fn buf_write(
                     }
 
                     if overwriting {
-                        ml_timestamp( &mut *buf);
+                        ml_timestamp(&mut *buf);
                         if append {
                             (*buf).b_flags &= !BF_NEW;
                         } else {
@@ -1945,9 +2061,7 @@ pub fn buf_write(
                         if let Some(ref bk) = backup {
                             match org {
                                 None => {
-                                    emsg(gettext(
-                                        c"E205: Patchmode: can't save original file",
-                                    ));
+                                    emsg(gettext(c"E205: Patchmode: can't save original file"));
                                 }
                                 Some(ref org) if !os_path_exists(org.as_ptr()) => {
                                     let _ = vim_rename(bk.as_ptr(), org.as_ptr());
@@ -1973,9 +2087,7 @@ pub fn buf_write(
                                 ),
                             };
                             if empty_fd < 0 {
-                                emsg(gettext(
-                                    c"E206: Patchmode: can't touch empty original file",
-                                ));
+                                emsg(gettext(c"E206: Patchmode: can't touch empty original file"));
                             } else {
                                 let _ = close(empty_fd);
                             }
@@ -2049,9 +2161,7 @@ pub fn buf_write(
                     true,
                 );
                 msg_puts_hl(
-                    gettext(
-                        c"don't quit the editor until the file is successfully written!",
-                    ),
+                    gettext(c"don't quit the editor until the file is successfully written!"),
                     HLF_E,
                     true,
                 );
@@ -2070,11 +2180,19 @@ pub fn buf_write(
         if retval == OK && write_undo_file {
             let mut hash = [0u8; UNDO_HASH_SIZE];
             sha_ctx.finish_into(&mut hash);
-            u_write_undo(ptr::null(), false,  &mut *buf, hash.as_mut_ptr());
+            u_write_undo(ptr::null(), false, &mut *buf, hash.as_mut_ptr());
         }
 
         if !should_abort(retval) {
-            buf_write_do_post_autocmds(buf, fname, (eap.is_some()).then(||  { eap.unwrap() }), append, filtering, reset_changed, whole);
+            buf_write_do_post_autocmds(
+                buf,
+                fname,
+                (eap.is_some()).then(|| eap.unwrap()),
+                append,
+                filtering,
+                reset_changed,
+                whole,
+            );
             if aborting() {
                 retval = FAIL;
             }
@@ -2097,14 +2215,14 @@ mod tests {
     #[test]
     fn ucs2bytes_and_make_bom_encode_utf8_and_utf16() {
         let mut buf = [0 as c_char; 8];
-            assert_eq!(make_bom(buf.as_mut_ptr(), c"utf-8"), 3);
-            assert_eq!(
-                [buf[0] as u8, buf[1] as u8, buf[2] as u8],
-                [0xef, 0xbb, 0xbf]
-            );
+        assert_eq!(make_bom(buf.as_mut_ptr(), c"utf-8"), 3);
+        assert_eq!(
+            [buf[0] as u8, buf[1] as u8, buf[2] as u8],
+            [0xef, 0xbb, 0xbf]
+        );
 
-            let mut p = buf.as_mut_ptr();
-            assert!(!ucs2bytes(0xfeff, &raw mut p, FIO_UCS2 | FIO_ENDIAN_L));
-            assert_eq!([buf[0] as u8, buf[1] as u8], [0xff, 0xfe]);
+        let mut p = buf.as_mut_ptr();
+        assert!(!ucs2bytes(0xfeff, &raw mut p, FIO_UCS2 | FIO_ENDIAN_L));
+        assert_eq!([buf[0] as u8, buf[1] as u8], [0xff, 0xfe]);
     }
 }

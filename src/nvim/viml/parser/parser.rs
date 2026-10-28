@@ -1,6 +1,6 @@
 //! VimL parser input reader and state lifecycle (`src/nvim/viml/parser/parser.c`).
 
-use crate::mbyte::{string_convert, Vimconv};
+use crate::mbyte::{Vimconv, string_convert};
 use std::ffi::{c_char, c_int};
 
 pub const CONV_NONE: c_int = 0;
@@ -132,8 +132,8 @@ mod tests {
             size: 0,
         };
         viml_preader_get_line(&mut reader, &mut out);
-            assert_eq!(out.size, 9);
-            viml_preader_get_line(&mut reader, &mut out);
-            assert!(out.data.is_null());
+        assert_eq!(out.size, 9);
+        viml_preader_get_line(&mut reader, &mut out);
+        assert!(out.data.is_null());
     }
 }

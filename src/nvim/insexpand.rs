@@ -8,7 +8,7 @@ use crate::autocmd::{
     EVENT_COMPLETECHANGED, EVENT_COMPLETEDONE, EVENT_COMPLETEDONEPRE, apply_autocmds, has_event,
 };
 use crate::buffer::{
-    MAXLNUM, NOTDONE, VAR_FIXED, bt_cmdwin, FileBuf, buf_spname, buf_valid, K_UIMESSAGES,
+    FileBuf, K_UIMESSAGES, MAXLNUM, NOTDONE, VAR_FIXED, bt_cmdwin, buf_spname, buf_valid,
 };
 use crate::change::{
     HLF_W, MB_MAXCHAR, OPENLINE_FORCE_INDENT, OPENLINE_KEEPTRAIL, deleted_lines_mark,
@@ -23,30 +23,30 @@ use crate::cmdexpand::{
     RE_LAST, SEARCH_NFMSG, TAG_MANY, addstar, expand_cmdline, free_xp_files_extra, set_cmd_context,
 };
 use crate::cursor::{
-    check_cursor, Colnr, dec_cursor, equalpos, get_cursor_line_len, get_cursor_line_ptr,
-    get_cursor_pos_len, get_cursor_pos_ptr, inc_cursor, Linenr, CursorPos,
+    Colnr, CursorPos, Linenr, check_cursor, dec_cursor, equalpos, get_cursor_line_len,
+    get_cursor_line_ptr, get_cursor_pos_len, get_cursor_pos_ptr, inc_cursor,
 };
 use crate::drawscreen::{
-    conceal_cursor_line, K_SHM_COMPLETIONMENU, redraw_winline, setcursor, showmode, update_screen,
+    K_SHM_COMPLETIONMENU, conceal_cursor_line, redraw_winline, setcursor, showmode, update_screen,
 };
 use crate::errors::*;
 use crate::eval::typval::{
-    Callback, EvalFuncData, VarType, callback_copy, callback_free, TvDict, TvList,
-    tv_clear, tv_dict_add_bool, tv_dict_add_dict, tv_dict_add_list, tv_dict_add_nr,
+    Callback, EvalFuncData, TvDict, TvList, TypVal, VarType, Varnumber, callback_copy,
+    callback_free, tv_clear, tv_dict_add_bool, tv_dict_add_dict, tv_dict_add_list, tv_dict_add_nr,
     tv_dict_add_str, tv_dict_add_str_len, tv_dict_add_tv, tv_dict_alloc, tv_dict_alloc_lock,
     tv_dict_alloc_ret, tv_dict_find, tv_dict_get_number, tv_dict_get_string, tv_dict_get_tv,
     tv_dict_set_keys_readonly, tv_dict_unref, tv_get_number_chk, tv_get_string, tv_get_string_chk,
-    tv_list_alloc, tv_list_append_dict, tv_list_unref, TypVal, Varnumber,
+    tv_list_alloc, tv_list_append_dict, tv_list_unref,
 };
 use crate::eval::userfunc::callback_call_retnr;
 use crate::eval::vars::{VV_COMPLETED_ITEM, set_vim_var_dict};
 use crate::eval::{
-    callback_call, get_v_event, K_LIST_LEN_MAY_KNOW_CONST, restore_v_event, set_ref_in_callback,
+    K_LIST_LEN_MAY_KNOW_CONST, callback_call, get_v_event, restore_v_event, set_ref_in_callback,
 };
 use crate::ex_eval::aborting;
 use crate::ex_getln::{
-    CTRL_D_CONST, CTRL_F_CONST, CTRL_K_CONST, CTRL_L_CONST, CTRL_O, CTRL_Q_CONST, CTRL_R_CONST, CTRL_RSB_CONST, CTRL_T_CONST, CTRL_U, CTRL_Z_CONST,
-    K_EVENT, K_LUA, K_SELECT, tilde_replace,
+    CTRL_D_CONST, CTRL_F_CONST, CTRL_K_CONST, CTRL_L_CONST, CTRL_O, CTRL_Q_CONST, CTRL_R_CONST,
+    CTRL_RSB_CONST, CTRL_T_CONST, CTRL_U, CTRL_Z_CONST, K_EVENT, K_LUA, K_SELECT, tilde_replace,
 };
 use crate::extmark::{ExtmarkUndoObject, extmark_apply_undo, extmark_splice_delete};
 use crate::fileio::{fclose, vim_fgets};
@@ -62,8 +62,8 @@ use crate::input::{
     vpeekc_any, vungetc,
 };
 use crate::insert::{
-    BS_START, CTRL_S_CONST, CTRL_X_CONST, backspace_until_column, get_can_cindent, ins_apply_autocmds, ins_eol,
-    ins_redraw, insertchar, start_arrow, stop_arrow,
+    BS_START, CTRL_S_CONST, CTRL_X_CONST, backspace_until_column, get_can_cindent,
+    ins_apply_autocmds, ins_eol, ins_redraw, insertchar, start_arrow, stop_arrow,
 };
 use crate::keycodes::{
     CAR, K_BS, K_COMMAND, K_DOWN, K_IGNORE, K_KENTER, K_KPAGEDOWN, K_KPAGEUP, K_MOUSEDOWN,
@@ -78,7 +78,7 @@ use crate::mbyte::{
     utfc_ptr2len,
 };
 use crate::memline::{dec, ml_delete, ml_get, ml_get_buf, ml_get_buf_len, ml_get_len};
-use crate::memory::{xstrlcpy};
+use crate::memory::xstrlcpy;
 use crate::message::{
     emsg, internal_error, msg, msg_clr_cmdline, msg_delay, msg_ext_set_kind, msg_progress, semsg,
 };
@@ -98,24 +98,23 @@ use crate::path::{
 #[cfg(windows)]
 use crate::path::{path_has_drive_letter, path_to_slash};
 use crate::popupmenu::{
-    pum_clear, pum_display, pum_get_height, pum_set_event_info, pum_undisplay, pum_visible,
-    Pumitem,
+    Pumitem, pum_clear, pum_display, pum_get_height, pum_set_event_info, pum_undisplay, pum_visible,
 };
-use crate::regexp::{CTRL_V_CONST, MAXCOL, RE_MAGIC, Regmatch, vim_regcomp, vim_regexec, vim_regfree};
+use crate::regexp::{
+    CTRL_V_CONST, MAXCOL, RE_MAGIC, Regmatch, vim_regcomp, vim_regexec, vim_regfree,
+};
 use crate::register::{NUM_REGISTERS, copy_register, get_register_name, valid_yank_reg};
 use crate::search::{Direction, find_pattern_in_path, ignorecase, search_for_exact_line, searchit};
 use crate::spell::{
     expand_spelling, spell_dump_compl, spell_expand_check_cap, spell_move_to, spell_word_start,
 };
-use crate::state::{MODE_INSERT, REPLACE_FLAG, may_trigger_modechanged, SaveVEvent};
-use crate::strings::{
-    gettext, vim_snprintf, vim_strchr, vim_strsave_escaped,
-};
+use crate::state::{MODE_INSERT, REPLACE_FLAG, SaveVEvent, may_trigger_modechanged};
+use crate::strings::{gettext, vim_snprintf, vim_strchr, vim_strsave_escaped};
 use crate::tag::find_tags;
 use crate::textformat::auto_format;
 use crate::ui::{ui_flush, ui_has, vim_beep};
 use crate::undo::undo_allowed;
-use crate::window::{WinKind, WinInfoInfo, win_valid};
+use crate::window::{WinInfoInfo, WinKind, win_valid};
 use crate::winfloat::win_float_find;
 use std::ffi::{CStr, c_char, c_int, c_uint};
 use std::ptr;
@@ -318,7 +317,7 @@ pub struct Compl {
 
 impl Drop for Compl {
     fn drop(&mut self) {
-         {
+        {
             let ht_ptr = &mut insexp().compl_strings_ht;
             if !ht_ptr.is_empty()
                 && !self.cp_str.data.is_null()
@@ -598,7 +597,7 @@ fn insexp() -> &'static mut InsexpandState {
 
 #[inline]
 fn compl_next_idx(idx: usize) -> Option<usize> {
-     {
+    {
         let len = insexp().compl_list.len();
         if idx + 1 < len {
             Some(idx + 1)
@@ -612,7 +611,7 @@ fn compl_next_idx(idx: usize) -> Option<usize> {
 
 #[inline]
 fn compl_prev_idx(idx: usize) -> Option<usize> {
-     {
+    {
         let len = insexp().compl_list.len();
         if idx > 0 {
             Some(idx - 1)
@@ -626,7 +625,7 @@ fn compl_prev_idx(idx: usize) -> Option<usize> {
 
 #[inline]
 fn compl_list_mut() -> &'static mut Vec<Compl> {
-     &mut insexp().compl_list
+    &mut insexp().compl_list
 }
 
 #[inline]
@@ -641,7 +640,7 @@ fn compl_opt(idx: Option<usize>) -> *mut Compl {
 
 #[inline]
 fn compl_pattern_ptr() -> *mut c_char {
-     {
+    {
         insexp()
             .compl_pattern
             .as_ref()
@@ -651,7 +650,7 @@ fn compl_pattern_ptr() -> *mut c_char {
 
 #[inline]
 fn compl_pattern_len() -> usize {
-     {
+    {
         insexp()
             .compl_pattern
             .as_ref()
@@ -660,7 +659,8 @@ fn compl_pattern_len() -> usize {
 }
 
 #[inline]
-fn set_compl_pattern_bytes(ptr: impl crate::strings::IntoCCharPtr, len: usize) { let ptr = ptr.into_c_char_ptr();
+fn set_compl_pattern_bytes(ptr: impl crate::strings::IntoCCharPtr, len: usize) {
+    let ptr = ptr.into_c_char_ptr();
     unsafe {
         insexp().compl_pattern = Some(crate::memory::cstr_from_bytes(std::slice::from_raw_parts(
             ptr.cast::<u8>(),
@@ -672,13 +672,14 @@ fn set_compl_pattern_bytes(ptr: impl crate::strings::IntoCCharPtr, len: usize) {
 #[inline]
 fn decay_compl_timeout() {
     if insexp().compl_timeout_ms > COMPL_MIN_TIMEOUT_MS {
-            insexp().compl_timeout_ms /= 2;
-        }
+        insexp().compl_timeout_ms /= 2;
+    }
 }
 
 /// Count the string of a new match in the duplicate-check hashtab.
-fn compl_strings_add(str_ptr: impl crate::strings::IntoCCharPtr, len: usize) { let str_ptr = str_ptr.into_c_char_ptr();
-     {
+fn compl_strings_add(str_ptr: impl crate::strings::IntoCCharPtr, len: usize) {
+    let str_ptr = str_ptr.into_c_char_ptr();
+    {
         let bytes = crate::memory::cstr_slice(str_ptr, len);
         let key_len = bytes.iter().position(|&b| b == 0).unwrap_or(len);
         let ht_ptr = &mut insexp().compl_strings_ht;
@@ -689,20 +690,20 @@ fn compl_strings_add(str_ptr: impl crate::strings::IntoCCharPtr, len: usize) { l
 /// CTRL-X pressed in Insert mode.
 pub fn ins_ctrl_x() {
     if !ctrl_x_mode_cmdline() {
-            if (insexp().compl_cont_status & CONT_N_ADDS) != 0 {
-                insexp().compl_cont_status |= CONT_INTRPT;
-            } else {
-                insexp().compl_cont_status = 0;
-            }
-            insexp().ctrl_x_mode = CTRL_X_NOT_DEFINED_YET;
-            g_st().edit_submode = gettext(ctrl_x_msg(insexp().ctrl_x_mode));
-            g_st().edit_submode_pre = ptr::null();
-            g_st().redraw_mode = true;
+        if (insexp().compl_cont_status & CONT_N_ADDS) != 0 {
+            insexp().compl_cont_status |= CONT_INTRPT;
         } else {
-            insexp().ctrl_x_mode = CTRL_X_CMDLINE_CTRL_X;
+            insexp().compl_cont_status = 0;
         }
+        insexp().ctrl_x_mode = CTRL_X_NOT_DEFINED_YET;
+        g_st().edit_submode = gettext(ctrl_x_msg(insexp().ctrl_x_mode));
+        g_st().edit_submode_pre = ptr::null();
+        g_st().redraw_mode = true;
+    } else {
+        insexp().ctrl_x_mode = CTRL_X_CMDLINE_CTRL_X;
+    }
 
-        may_trigger_modechanged();
+    may_trigger_modechanged();
 }
 
 pub fn ctrl_x_mode_none() -> bool {
@@ -814,14 +815,17 @@ fn compl_shows_dir_backward() -> bool {
 
 /// Check that the 'dictionary' or 'thesaurus' option can be used.
 pub fn check_compl_option(dict_opt: bool) -> bool {
-     {
+    {
         let empty = if dict_opt {
-            crate::memory::cstr_is_empty(curbuf_mut().b_p_dict) && crate::memory::cstr_is_empty(opt_vars().p_dict) && curwin_mut().w_onebuf_opt.wo_spell == 0
+            crate::memory::cstr_is_empty(curbuf_mut().b_p_dict)
+                && crate::memory::cstr_is_empty(opt_vars().p_dict)
+                && curwin_mut().w_onebuf_opt.wo_spell == 0
         } else {
             crate::memory::cstr_is_empty(curbuf_mut().b_p_tsr)
                 && crate::memory::cstr_is_empty(opt_vars().p_tsr)
                 && curbuf_mut().b_p_tsrfu.cb_type() == K_CALLBACK_NONE_CONST
-                && crate::eval::typval::Callback::raw_cb_type(&opt_vars().p_tsrfu) == K_CALLBACK_NONE_CONST
+                && crate::eval::typval::Callback::raw_cb_type(&opt_vars().p_tsrfu)
+                    == K_CALLBACK_NONE_CONST
         };
         if empty {
             insexp().ctrl_x_mode = CTRL_X_NORMAL;
@@ -845,55 +849,59 @@ pub fn check_compl_option(dict_opt: bool) -> bool {
 /// Check that the character "c" a valid key to go to or keep us in CTRL-X mode.
 pub fn vim_is_ctrl_x_key(c: c_int) -> bool {
     if ins_compl_pum_key(c) {
-            return true;
-        }
+        return true;
+    }
 
-        match insexp().ctrl_x_mode {
-            0 => c == CTRL_N || c == CTRL_P || c == CTRL_X_CONST,
-            CTRL_X_NOT_DEFINED_YET | CTRL_X_CMDLINE_CTRL_X => {
-                c == CTRL_X_CONST
-                    || c == CTRL_Y
-                    || c == CTRL_E
-                    || c == CTRL_L_CONST
-                    || c == CTRL_F_CONST
-                    || c == CTRL_RSB_CONST
-                    || c == CTRL_I_CONST
-                    || c == CTRL_D_CONST
-                    || c == CTRL_P
-                    || c == CTRL_N
-                    || c == CTRL_T_CONST
-                    || c == CTRL_V_CONST
-                    || c == CTRL_Q_CONST
-                    || c == CTRL_U
-                    || c == CTRL_O
-                    || c == CTRL_S_CONST
-                    || c == CTRL_K_CONST
-                    || c == b's' as c_int
-                    || c == CTRL_Z_CONST
-                    || c == CTRL_R_CONST
-            }
-            CTRL_X_SCROLL => c == CTRL_Y || c == CTRL_E,
-            CTRL_X_WHOLE_LINE => c == CTRL_L_CONST || c == CTRL_P || c == CTRL_N,
-            CTRL_X_FILES => c == CTRL_F_CONST || c == CTRL_P || c == CTRL_N,
-            CTRL_X_DICTIONARY => c == CTRL_K_CONST || c == CTRL_P || c == CTRL_N,
-            CTRL_X_THESAURUS => c == CTRL_T_CONST || c == CTRL_P || c == CTRL_N,
-            CTRL_X_TAGS => c == CTRL_RSB_CONST || c == CTRL_P || c == CTRL_N,
-            CTRL_X_PATH_PATTERNS => c == CTRL_P || c == CTRL_N,
-            CTRL_X_PATH_DEFINES => c == CTRL_D_CONST || c == CTRL_P || c == CTRL_N,
-            CTRL_X_CMDLINE => {
-                c == CTRL_V_CONST || c == CTRL_Q_CONST || c == CTRL_P || c == CTRL_N || c == CTRL_X_CONST
-            }
-            CTRL_X_FUNCTION => c == CTRL_U || c == CTRL_P || c == CTRL_N,
-            CTRL_X_OMNI => c == CTRL_O || c == CTRL_P || c == CTRL_N,
-            CTRL_X_SPELL => c == CTRL_S_CONST || c == CTRL_P || c == CTRL_N,
-            CTRL_X_EVAL => c == CTRL_P || c == CTRL_N,
-            CTRL_X_BUFNAMES => c == CTRL_P || c == CTRL_N,
-            CTRL_X_REGISTER => c == CTRL_R_CONST || c == CTRL_P || c == CTRL_N,
-            _ => {
-                internal_error(c"vim_is_ctrl_x_key()");
-                false
-            }
+    match insexp().ctrl_x_mode {
+        0 => c == CTRL_N || c == CTRL_P || c == CTRL_X_CONST,
+        CTRL_X_NOT_DEFINED_YET | CTRL_X_CMDLINE_CTRL_X => {
+            c == CTRL_X_CONST
+                || c == CTRL_Y
+                || c == CTRL_E
+                || c == CTRL_L_CONST
+                || c == CTRL_F_CONST
+                || c == CTRL_RSB_CONST
+                || c == CTRL_I_CONST
+                || c == CTRL_D_CONST
+                || c == CTRL_P
+                || c == CTRL_N
+                || c == CTRL_T_CONST
+                || c == CTRL_V_CONST
+                || c == CTRL_Q_CONST
+                || c == CTRL_U
+                || c == CTRL_O
+                || c == CTRL_S_CONST
+                || c == CTRL_K_CONST
+                || c == b's' as c_int
+                || c == CTRL_Z_CONST
+                || c == CTRL_R_CONST
         }
+        CTRL_X_SCROLL => c == CTRL_Y || c == CTRL_E,
+        CTRL_X_WHOLE_LINE => c == CTRL_L_CONST || c == CTRL_P || c == CTRL_N,
+        CTRL_X_FILES => c == CTRL_F_CONST || c == CTRL_P || c == CTRL_N,
+        CTRL_X_DICTIONARY => c == CTRL_K_CONST || c == CTRL_P || c == CTRL_N,
+        CTRL_X_THESAURUS => c == CTRL_T_CONST || c == CTRL_P || c == CTRL_N,
+        CTRL_X_TAGS => c == CTRL_RSB_CONST || c == CTRL_P || c == CTRL_N,
+        CTRL_X_PATH_PATTERNS => c == CTRL_P || c == CTRL_N,
+        CTRL_X_PATH_DEFINES => c == CTRL_D_CONST || c == CTRL_P || c == CTRL_N,
+        CTRL_X_CMDLINE => {
+            c == CTRL_V_CONST
+                || c == CTRL_Q_CONST
+                || c == CTRL_P
+                || c == CTRL_N
+                || c == CTRL_X_CONST
+        }
+        CTRL_X_FUNCTION => c == CTRL_U || c == CTRL_P || c == CTRL_N,
+        CTRL_X_OMNI => c == CTRL_O || c == CTRL_P || c == CTRL_N,
+        CTRL_X_SPELL => c == CTRL_S_CONST || c == CTRL_P || c == CTRL_N,
+        CTRL_X_EVAL => c == CTRL_P || c == CTRL_N,
+        CTRL_X_BUFNAMES => c == CTRL_P || c == CTRL_N,
+        CTRL_X_REGISTER => c == CTRL_R_CONST || c == CTRL_P || c == CTRL_N,
+        _ => {
+            internal_error(c"vim_is_ctrl_x_key()");
+            false
+        }
+    }
 }
 
 #[inline]
@@ -904,20 +912,20 @@ fn match_at_original_text(match_: &Compl) -> bool {
 /// Return the index of the entry holding the original text, None if not found.
 fn find_original_text_match_idx() -> Option<usize> {
     let list = compl_list_mut();
-        if list.is_empty() {
-            return None;
-        }
-        if match_at_original_text(&list[0]) {
-            return Some(0);
-        }
-        if insexp().compl_is_cyclic && match_at_original_text(list.last().unwrap()) {
-            return Some(list.len() - 1);
-        }
-        None
+    if list.is_empty() {
+        return None;
+    }
+    if match_at_original_text(&list[0]) {
+        return Some(0);
+    }
+    if insexp().compl_is_cyclic && match_at_original_text(list.last().unwrap()) {
+        return Some(list.len() - 1);
+    }
+    None
 }
 
 fn do_autocmd_completedone(c: c_int, mode: c_int, word: Option<&NvimString>) {
-     {
+    {
         let mut save_v_event: SaveVEvent = SaveVEvent::new();
         let v_event = get_v_event(&mut save_v_event);
 
@@ -967,21 +975,21 @@ fn do_autocmd_completedone(c: c_int, mode: c_int, word: Option<&NvimString>) {
 /// Check that character "c" is part of the item currently being completed.
 pub fn ins_compl_accept_char(c: c_int) -> bool {
     if insexp().compl_autocomplete && insexp().compl_from_nonkeyword {
-            return false;
-        }
+        return false;
+    }
 
-        if (insexp().ctrl_x_mode & CTRL_X_WANT_IDENT) != 0 {
-            return vim_is_idc(c);
-        }
+    if (insexp().ctrl_x_mode & CTRL_X_WANT_IDENT) != 0 {
+        return vim_is_idc(c);
+    }
 
-        match insexp().ctrl_x_mode {
-            CTRL_X_FILES => vim_isfilec(c) && !vim_ispathsep(c),
-            CTRL_X_CMDLINE | CTRL_X_CMDLINE_CTRL_X | CTRL_X_OMNI => {
-                vim_isprintc(c) && !ascii_iswhite(c)
-            }
-            CTRL_X_WHOLE_LINE => vim_isprintc(c),
-            _ => vim_iswordc(c),
+    match insexp().ctrl_x_mode {
+        CTRL_X_FILES => vim_isfilec(c) && !vim_ispathsep(c),
+        CTRL_X_CMDLINE | CTRL_X_CMDLINE_CTRL_X | CTRL_X_OMNI => {
+            vim_isprintc(c) && !ascii_iswhite(c)
         }
+        CTRL_X_WHOLE_LINE => vim_isprintc(c),
+        _ => vim_iswordc(c),
+    }
 }
 
 /// Check if "c" is a commit character for the currently selected completion match.
@@ -1007,7 +1015,8 @@ fn ins_compl_infercase_gettext(
     compl_char_len: c_int,
     min_len: c_int,
     tofree: &mut Vec<c_char>,
-) -> *mut c_char { let str_ptr = str_ptr.into_c_char_ptr();
+) -> *mut c_char {
+    let str_ptr = str_ptr.into_c_char_ptr();
     unsafe {
         let mut has_lower = false;
 
@@ -1107,7 +1116,7 @@ pub fn ins_compl_add_infercase(
     cont_s_ipos: bool,
     score: c_int,
 ) -> c_int {
-     {
+    {
         let mut str_ptr = str_arg;
         let mut flags: c_int = 0;
         let mut tofree: Vec<c_char> = Vec::new();
@@ -1182,8 +1191,9 @@ pub fn ins_compl_is_match_selected() -> bool {
 /// Returns true if autocomplete is active and the pre-insert effect targets the longest prefix.
 pub fn ins_compl_preinsert_longest() -> bool {
     insexp().compl_autocomplete
-            && (get_cot_flags() & (K_OPT_COT_FLAG_LONGEST | K_OPT_COT_FLAG_PREINSERT | K_OPT_COT_FLAG_FUZZY))
-                == K_OPT_COT_FLAG_LONGEST
+        && (get_cot_flags()
+            & (K_OPT_COT_FLAG_LONGEST | K_OPT_COT_FLAG_PREINSERT | K_OPT_COT_FLAG_FUZZY))
+            == K_OPT_COT_FLAG_LONGEST
 }
 
 /// Add a match to the list of matches.
@@ -1191,7 +1201,8 @@ fn ins_compl_add(
     str_ptr: *mut c_char,
     mut len: c_int,
     fname: *mut c_char,
-    cptext: [Option<std::ffi::CString>; CPT_COUNT],user_data: Option<&mut TypVal>,
+    cptext: [Option<std::ffi::CString>; CPT_COUNT],
+    user_data: Option<&mut TypVal>,
     cdir: Direction,
     flags_arg: c_int,
     adup: bool,
@@ -1230,9 +1241,11 @@ fn ins_compl_add(
                 if is_nearest_active() && score > 0 {
                     for match_ in &mut *list {
                         if !match_at_original_text(match_)
-                            && (crate::memory::cstr_prefix_bytes(match_.cp_str.data, len as usize) == crate::memory::cstr_prefix_bytes(str_ptr, len as usize))
+                            && (crate::memory::cstr_prefix_bytes(match_.cp_str.data, len as usize)
+                                == crate::memory::cstr_prefix_bytes(str_ptr, len as usize))
                             && (match_.cp_str.size as c_int <= len
-                                || crate::memory::cstr_byte_at(match_.cp_str.data, len as usize) == 0)
+                                || crate::memory::cstr_byte_at(match_.cp_str.data, len as usize)
+                                    == 0)
                         {
                             if score < match_.cp_score {
                                 match_.cp_score = score;
@@ -1353,25 +1366,38 @@ fn ins_compl_add(
 }
 
 /// Check that "str[len]" matches with "match->cp_str", considering "match->cp_flags".
-fn ins_compl_equal(match_: &mut Compl, str_ptr: impl crate::strings::IntoCCharPtr, len: usize) -> bool { let str_ptr = str_ptr.into_c_char_ptr();
+fn ins_compl_equal(
+    match_: &mut Compl,
+    str_ptr: impl crate::strings::IntoCCharPtr,
+    len: usize,
+) -> bool {
+    let str_ptr = str_ptr.into_c_char_ptr();
     if (match_.cp_flags & CP_EQUAL) != 0 {
-            return true;
-        }
-        if (match_.cp_flags & CP_ICASE) != 0 {
-            return crate::memory::cstr_prefix_bytes(match_.cp_str.data, len).eq_ignore_ascii_case(crate::memory::cstr_prefix_bytes(str_ptr, len));
-        }
-        crate::memory::cstr_prefix_bytes(match_.cp_str.data, len) == crate::memory::cstr_prefix_bytes(str_ptr, len)
+        return true;
+    }
+    if (match_.cp_flags & CP_ICASE) != 0 {
+        return crate::memory::cstr_prefix_bytes(match_.cp_str.data, len)
+            .eq_ignore_ascii_case(crate::memory::cstr_prefix_bytes(str_ptr, len));
+    }
+    crate::memory::cstr_prefix_bytes(match_.cp_str.data, len)
+        == crate::memory::cstr_prefix_bytes(str_ptr, len)
 }
 
 /// Like `ins_compl_equal()`, but ignore case in the `'longest'`-inserted part of the leader.
-fn ins_compl_equal_sc(match_: &mut Compl, str_ptr: impl crate::strings::IntoCCharPtr, len: usize) -> bool { let str_ptr = str_ptr.into_c_char_ptr();
+fn ins_compl_equal_sc(
+    match_: &mut Compl,
+    str_ptr: impl crate::strings::IntoCCharPtr,
+    len: usize,
+) -> bool {
+    let str_ptr = str_ptr.into_c_char_ptr();
     unsafe {
         let typed = insexp().compl_length;
-        let longest_end = if insexp().compl_get_longest && insexp().compl_longest_end_col > insexp().compl_col {
-            insexp().compl_longest_end_col - insexp().compl_col
-        } else {
-            typed
-        };
+        let longest_end =
+            if insexp().compl_get_longest && insexp().compl_longest_end_col > insexp().compl_col {
+                insexp().compl_longest_end_col - insexp().compl_col
+            } else {
+                typed
+            };
 
         if (match_.cp_flags & (CP_EQUAL | CP_ICASE)) != 0 || longest_end <= typed {
             return ins_compl_equal(match_, str_ptr, len);
@@ -1398,8 +1424,9 @@ fn ins_compl_equal_sc(match_: &mut Compl, str_ptr: impl crate::strings::IntoCCha
     }
 }
 
-fn ins_compl_insert_bytes(p: impl crate::strings::IntoCCharPtr, mut len: c_int) { let p = p.into_c_char_ptr();
-     {
+fn ins_compl_insert_bytes(p: impl crate::strings::IntoCCharPtr, mut len: c_int) {
+    let p = p.into_c_char_ptr();
+    {
         if len == -1 {
             len = crate::memory::cstr_len(p) as c_int;
         }
@@ -1412,27 +1439,28 @@ fn ins_compl_insert_bytes(p: impl crate::strings::IntoCCharPtr, mut len: c_int) 
 /// Get current completion leader.
 pub fn ins_compl_leader() -> *mut c_char {
     if !insexp().compl_leader.data.is_null() {
-            insexp().compl_leader.data
-        } else {
-            insexp().compl_orig_text.data
-        }
+        insexp().compl_leader.data
+    } else {
+        insexp().compl_orig_text.data
+    }
 }
 
 #[inline]
 fn ins_compl_leader_len() -> usize {
     if !insexp().compl_leader.data.is_null() {
-            insexp().compl_leader.size
-        } else {
-            insexp().compl_orig_text.size
-        }
+        insexp().compl_leader.size
+    } else {
+        insexp().compl_orig_text.size
+    }
 }
 
 /// Checks if the column is within the currently inserted completion text column range.
 pub fn ins_compl_col_range_attr(lnum: Linenr, col: c_int) -> c_int {
-     {
+    {
         let has_preinsert = ins_compl_has_preinsert() || ins_compl_preinsert_longest();
 
-        if cot_fuzzy() || (!insexp().compl_hi_on_autocompl_longest && ins_compl_preinsert_longest()) {
+        if cot_fuzzy() || (!insexp().compl_hi_on_autocompl_longest && ins_compl_preinsert_longest())
+        {
             return -1;
         }
         let attr = syn_name2attr(if has_preinsert {
@@ -1474,7 +1502,7 @@ fn ins_compl_has_multiple() -> bool {
 
 /// Returns true if the given line number falls within the range of a multi-line completion.
 pub fn ins_compl_lnum_in_range(lnum: Linenr) -> bool {
-     {
+    {
         if !ins_compl_has_multiple() {
             return false;
         }
@@ -1535,36 +1563,36 @@ fn ins_compl_longest_match(match_: &mut Compl) {
 /// Add an array of matches to the list of matches. Frees matches[].
 fn ins_compl_add_matches(matches: &mut Vec<std::ffi::CString>, icase: c_int) {
     let mut add_r = OK;
-        let mut dir = insexp().compl_direction;
+    let mut dir = insexp().compl_direction;
 
-        for m in matches.drain(..) {
-            if add_r == FAIL {
-                break;
-            }
-            add_r = ins_compl_add(
-                m.as_ptr().cast_mut(),
-                m.as_bytes().len() as c_int,
-                ptr::null_mut(),
-                [const { None }; CPT_COUNT],
-                None,
-                dir,
-                CP_FAST | if icase != 0 { CP_ICASE } else { 0 },
-                false,
-                ptr::null(),
-                FUZZY_SCORE_NONE,
-                false,
-                None,
-            );
-            if add_r == OK {
-                dir = FORWARD;
-            }
+    for m in matches.drain(..) {
+        if add_r == FAIL {
+            break;
         }
+        add_r = ins_compl_add(
+            m.as_ptr().cast_mut(),
+            m.as_bytes().len() as c_int,
+            ptr::null_mut(),
+            [const { None }; CPT_COUNT],
+            None,
+            dir,
+            CP_FAST | if icase != 0 { CP_ICASE } else { 0 },
+            false,
+            ptr::null(),
+            FUZZY_SCORE_NONE,
+            false,
+            None,
+        );
+        if add_r == OK {
+            dir = FORWARD;
+        }
+    }
 }
 
 /// Make the completion list cyclic.
 /// Return the number of matches (excluding the original).
 fn ins_compl_make_cyclic() -> c_int {
-     {
+    {
         let list = &insexp().compl_list;
         if list.is_empty() {
             return 0;
@@ -1576,9 +1604,9 @@ fn ins_compl_make_cyclic() -> c_int {
 
 pub fn ins_compl_has_shown_match() -> bool {
     let Some(shown_idx) = insexp().compl_shown_idx else {
-            return true;
-        };
-        compl_next_idx(shown_idx) != Some(shown_idx)
+        return true;
+    };
+    compl_next_idx(shown_idx) != Some(shown_idx)
 }
 
 pub fn ins_compl_long_shown_match() -> bool {
@@ -1591,7 +1619,7 @@ pub fn ins_compl_long_shown_match() -> bool {
 }
 
 pub fn get_cot_flags() -> c_uint {
-     {
+    {
         if curbuf_mut().b_cot_flags != 0 {
             curbuf_mut().b_cot_flags
         } else {
@@ -1613,11 +1641,12 @@ fn ins_compl_del_pum() {
 }
 
 pub fn pum_wanted() -> bool {
-    (get_cot_flags() & (K_OPT_COT_FLAG_MENU | K_OPT_COT_FLAG_MENUONE)) != 0 || insexp().compl_autocomplete
+    (get_cot_flags() & (K_OPT_COT_FLAG_MENU | K_OPT_COT_FLAG_MENUONE)) != 0
+        || insexp().compl_autocomplete
 }
 
 fn pum_enough_matches() -> bool {
-     {
+    {
         let list = &insexp().compl_list;
         let mut i: c_int = 0;
         for comp in list {
@@ -1638,7 +1667,7 @@ fn pum_enough_matches() -> bool {
 
 fn ins_compl_dict_alloc(match_: *mut Compl) -> *mut TvDict {
     let dict = tv_dict_alloc_lock(VAR_FIXED);
-    unsafe {
+    {
         fill_complete_info_dict(&mut *dict, match_, false);
     }
     dict
@@ -1646,7 +1675,7 @@ fn ins_compl_dict_alloc(match_: *mut Compl) -> *mut TvDict {
 
 fn trigger_complete_changed_event(cur: c_int) {
     static RECURSIVE: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
-     {
+    {
         if RECURSIVE.load(std::sync::atomic::Ordering::Relaxed) {
             return;
         }
@@ -1727,7 +1756,7 @@ fn prepend_startcol_text(dest: &mut NvimString, src: &NvimString, startcol: c_in
 }
 
 fn get_leader_for_startcol(match_: Option<&Compl>, cached: bool) -> *mut NvimString {
-     {
+    {
         if match_.is_none() {
             api_clear_string(&mut insexp().adjusted_leader);
             return ptr::null_mut();
@@ -1766,7 +1795,11 @@ fn get_leader_for_startcol(match_: Option<&Compl>, cached: bool) -> *mut NvimStr
             }
 
             api_clear_string(&mut insexp().adjusted_leader);
-            prepend_startcol_text(&mut insexp().adjusted_leader, &insexp().compl_leader, startcol);
+            prepend_startcol_text(
+                &mut insexp().adjusted_leader,
+                &insexp().compl_leader,
+                startcol,
+            );
             return &raw mut insexp().adjusted_leader;
         }
 
@@ -1859,10 +1892,10 @@ fn sort_compl_match_list(compare: fn(&Compl, &Compl) -> c_int) {
 
 fn get_user_highlight_attr(hl_id: c_int) -> c_int {
     if hl_id <= 0 {
-            return -1;
-        }
-        let attr = syn_id2attr(hl_id);
-        if attr > 0 { attr } else { -1 }
+        return -1;
+    }
+    let attr = syn_id2attr(hl_id);
+    if attr > 0 { attr } else { -1 }
 }
 
 fn ins_compl_build_pum() -> c_int {
@@ -1881,7 +1914,10 @@ fn ins_compl_build_pum() -> c_int {
         let list = &mut insexp().compl_list;
         let mut shown_match_ok = match_at_original_text(&*compl_opt(insexp().compl_shown_idx));
 
-        if (crate::memory::cstr_as_opt_bytes(insexp().compl_leader.data) == crate::memory::cstr_as_opt_bytes(insexp().compl_orig_text.data)) && !shown_match_ok {
+        if (crate::memory::cstr_as_opt_bytes(insexp().compl_leader.data)
+            == crate::memory::cstr_as_opt_bytes(insexp().compl_orig_text.data))
+            && !shown_match_ok
+        {
             insexp().compl_shown_idx = if compl_no_select {
                 Some(0)
             } else {
@@ -1927,7 +1963,8 @@ fn ins_compl_build_pum() -> c_int {
                 let cur_source = comp.cp_cpt_source_idx;
                 if is_forward && cur_source != -1 && is_cpt_completion {
                     match_count[cur_source as usize] += 1;
-                    let max_matches = insexp().cpt_sources_array[cur_source as usize].cs_max_matches;
+                    let max_matches =
+                        insexp().cpt_sources_array[cur_source as usize].cs_max_matches;
                     if max_matches > 0 && match_count[cur_source as usize] > max_matches {
                         match_limit_exceeded = true;
                     }
@@ -1973,7 +2010,10 @@ fn ins_compl_build_pum() -> c_int {
                             shown_match_ok = true;
                         }
                     }
-                    if { insexp().compl_preselect_idx }.is_some() && comp.cp_preselect && !preselect_ok {
+                    if { insexp().compl_preselect_idx }.is_some()
+                        && comp.cp_preselect
+                        && !preselect_ok
+                    {
                         cur = i;
                         insexp().compl_shown_idx = Some(comp_idx);
                         shown_match_ok = true;
@@ -2017,7 +2057,7 @@ fn ins_compl_build_pum() -> c_int {
 
 /// Show the popup menu for the list of matches.
 pub fn ins_compl_show_pum() {
-     {
+    {
         if !pum_wanted() || !pum_enough_matches() {
             return;
         }
@@ -2052,13 +2092,7 @@ pub fn ins_compl_show_pum() {
         let col = curwin_mut().w_cursor.col;
         curwin_mut().w_cursor.col = insexp().compl_col;
         insexp().compl_selected_item = cur;
-        pum_display(
-            arr.as_mut_ptr(),
-            arr.len() as c_int,
-            cur,
-            array_changed,
-            0,
-        );
+        pum_display(arr.as_mut_ptr(), arr.len() as c_int, cur, array_changed, 0);
         curwin_mut().w_cursor.col = col;
 
         if curwin_mut().w_onebuf_opt.wo_cole > 0 && conceal_cursor_line(curwin_mut()) {
@@ -2145,7 +2179,8 @@ fn ins_compl_dictionaries(
         }
 
         regmatch.rm_ic = ignorecase(pat) != 0;
-        while !crate::memory::cstr_is_empty(dict) && !g_st().got_int && !insexp().compl_interrupted {
+        while !crate::memory::cstr_is_empty(dict) && !g_st().got_int && !insexp().compl_interrupted
+        {
             if flags == DICT_EXACT {
                 count = 1;
             } else {
@@ -2162,7 +2197,9 @@ fn ins_compl_dictionaries(
             }
 
             if count == -1 {
-                let ptr = if crate::memory::cstr_first_byte(pat) == b'\\' && crate::memory::cstr_byte_at(pat, 1) == b'<' {
+                let ptr = if crate::memory::cstr_first_byte(pat) == b'\\'
+                    && crate::memory::cstr_byte_at(pat, 1) == b'<'
+                {
                     pat.add(2)
                 } else {
                     pat
@@ -2179,14 +2216,7 @@ fn ins_compl_dictionaries(
                         &mut dir,
                     );
                 } else {
-                    ins_compl_files(
-                        &files,
-                        thesaurus,
-                        flags,
-                        &mut regmatch,
-                        buf,
-                        &mut dir,
-                    );
+                    ins_compl_files(&files, thesaurus, flags, &mut regmatch, buf, &mut dir);
                     files.clear();
                 }
             }
@@ -2205,7 +2235,8 @@ fn thesaurus_add_words_in_line(
     buf_arg: *mut *mut c_char,
     dir: c_int,
     skip_word: impl crate::strings::IntoCCharPtr,
-) -> bool { let skip_word = skip_word.into_c_char_ptr();
+) -> bool {
+    let skip_word = skip_word.into_c_char_ptr();
     unsafe {
         let mut status = true;
         let mut ptr = *buf_arg;
@@ -2272,7 +2303,10 @@ fn ins_compl_files(
                 break;
             }
             let fp = os_fopen(file, c"r");
-            if flags != DICT_EXACT && !shortmess(K_SHM_COMPLETIONSCAN) && !insexp().compl_autocomplete {
+            if flags != DICT_EXACT
+                && !shortmess(K_SHM_COMPLETIONSCAN)
+                && !insexp().compl_autocomplete
+            {
                 let iobuff_ptr = g_st().iobuff.as_mut_ptr();
                 vim_snprintf!(
                     iobuff_ptr,
@@ -2296,20 +2330,16 @@ fn ins_compl_files(
                 continue;
             }
 
-            while !g_st().got_int && !ins_compl_interrupted() && !vim_fgets(buf, LSIZE as c_int, fp) {
+            while !g_st().got_int && !ins_compl_interrupted() && !vim_fgets(buf, LSIZE as c_int, fp)
+            {
                 let mut ptr = buf;
                 if cot_fuzzy() && leader_len > 0 {
                     let line_end = find_line_end(ptr);
                     while ptr < line_end {
                         let mut score: c_int = 0;
                         let mut len: c_int = 0;
-                        if fuzzy_match_str_in_line(
-                            &raw mut ptr,
-                            leader,
-                            &mut len,
-                            None,
-                            &mut score,
-                        ) {
+                        if fuzzy_match_str_in_line(&raw mut ptr, leader, &mut len, None, &mut score)
+                        {
                             let end_ptr = if ctrl_x_mode_line_or_eval() {
                                 find_line_end(ptr)
                             } else {
@@ -2387,7 +2417,10 @@ fn ins_compl_files(
 
 pub fn find_word_start(mut ptr: *mut c_char) -> *mut c_char {
     unsafe {
-        while !crate::memory::cstr_is_empty(ptr) && crate::memory::cstr_first_byte(ptr) != b'\n' && mb_get_class(ptr) <= 1 {
+        while !crate::memory::cstr_is_empty(ptr)
+            && crate::memory::cstr_first_byte(ptr) != b'\n'
+            && mb_get_class(ptr) <= 1
+        {
             ptr = ptr.add(utfc_ptr2len(ptr) as usize);
         }
         ptr
@@ -2420,7 +2453,7 @@ pub fn find_line_end(ptr: *mut c_char) -> *mut c_char {
 }
 
 fn ins_compl_free() {
-     {
+    {
         insexp().compl_pattern = None;
         api_clear_string(&mut insexp().compl_leader);
 
@@ -2445,7 +2478,7 @@ fn ins_compl_free() {
 }
 
 pub fn ins_compl_clear() {
-     {
+    {
         insexp().compl_cont_status = 0;
         insexp().compl_started = false;
         insexp().compl_matches = 0;
@@ -2475,7 +2508,9 @@ pub fn ins_compl_active() -> bool {
 }
 
 pub fn ins_compl_win_active(wp: &mut WinInfoInfo) -> bool {
-    ins_compl_active() && ptr::eq(wp, insexp().compl_curr_win) && ptr::eq(wp.w_buffer, insexp().compl_curr_buf)
+    ins_compl_active()
+        && ptr::eq(wp, insexp().compl_curr_win)
+        && ptr::eq(wp.w_buffer, insexp().compl_curr_buf)
 }
 
 pub fn ins_compl_used_match() -> bool {
@@ -2504,19 +2539,20 @@ pub fn ins_compl_len() -> c_int {
 
 pub fn ins_compl_has_preinsert() -> bool {
     let cur_cot_flags = get_cot_flags();
-        if insexp().compl_autocomplete && opt_vars().p_ic != 0 && opt_vars().p_inf == 0 {
-            return false;
-        }
-        if !insexp().compl_autocomplete {
-            (cur_cot_flags & (K_OPT_COT_FLAG_PREINSERT | K_OPT_COT_FLAG_FUZZY | K_OPT_COT_FLAG_MENUONE))
-                == (K_OPT_COT_FLAG_PREINSERT | K_OPT_COT_FLAG_MENUONE)
-        } else {
-            (cur_cot_flags & (K_OPT_COT_FLAG_PREINSERT | K_OPT_COT_FLAG_FUZZY)) == K_OPT_COT_FLAG_PREINSERT
-        }
+    if insexp().compl_autocomplete && opt_vars().p_ic != 0 && opt_vars().p_inf == 0 {
+        return false;
+    }
+    if !insexp().compl_autocomplete {
+        (cur_cot_flags & (K_OPT_COT_FLAG_PREINSERT | K_OPT_COT_FLAG_FUZZY | K_OPT_COT_FLAG_MENUONE))
+            == (K_OPT_COT_FLAG_PREINSERT | K_OPT_COT_FLAG_MENUONE)
+    } else {
+        (cur_cot_flags & (K_OPT_COT_FLAG_PREINSERT | K_OPT_COT_FLAG_FUZZY))
+            == K_OPT_COT_FLAG_PREINSERT
+    }
 }
 
 pub fn ins_compl_preinsert_effect() -> bool {
-     {
+    {
         if !ins_compl_has_preinsert() && !ins_compl_preinsert_longest() {
             return false;
         }
@@ -2538,12 +2574,15 @@ pub fn ins_compl_bs() -> c_int {
         if (p_off as c_int) - insexp().compl_col < 0
             || ((p_off as c_int) - insexp().compl_col == 0 && !ctrl_x_mode_omni())
             || ctrl_x_mode_eval()
-            || (!can_bs(BS_START) && (p_off as c_int) - insexp().compl_col - insexp().compl_length < 0)
+            || (!can_bs(BS_START)
+                && (p_off as c_int) - insexp().compl_col - insexp().compl_length < 0)
         {
             return K_BS;
         }
 
-        if curwin_mut().w_cursor.col <= insexp().compl_col + insexp().compl_length || ins_compl_need_restart() {
+        if curwin_mut().w_cursor.col <= insexp().compl_col + insexp().compl_length
+            || ins_compl_need_restart()
+        {
             ins_compl_restart();
         }
 
@@ -2581,7 +2620,7 @@ fn ins_compl_need_restart() -> bool {
 }
 
 pub fn ins_compl_has_autocomplete() -> bool {
-     {
+    {
         if curbuf_mut().b_p_ac >= 0 {
             curbuf_mut().b_p_ac != 0
         } else {
@@ -2593,26 +2632,28 @@ pub fn ins_compl_has_autocomplete() -> bool {
 fn ins_compl_fuzzy_sort() {
     let cur_cot_flags = get_cot_flags();
 
-        set_fuzzy_score();
-        if (cur_cot_flags & K_OPT_COT_FLAG_NOSORT) == 0 {
-            sort_compl_match_list(cp_compare_fuzzy);
-            if (cur_cot_flags & (K_OPT_COT_FLAG_NOINSERT | K_OPT_COT_FLAG_NOSELECT)) == K_OPT_COT_FLAG_NOINSERT
-            {
-                let target = if compl_shows_dir_forward() {
-                    Some(0)
-                } else {
-                    compl_prev_idx(0)
-                };
-                let none_selected = insexp().compl_shown_idx == target;
-                if !none_selected {
-                    insexp().compl_shown_idx = if !insexp().compl_autocomplete && compl_shows_dir_forward() {
+    set_fuzzy_score();
+    if (cur_cot_flags & K_OPT_COT_FLAG_NOSORT) == 0 {
+        sort_compl_match_list(cp_compare_fuzzy);
+        if (cur_cot_flags & (K_OPT_COT_FLAG_NOINSERT | K_OPT_COT_FLAG_NOSELECT))
+            == K_OPT_COT_FLAG_NOINSERT
+        {
+            let target = if compl_shows_dir_forward() {
+                Some(0)
+            } else {
+                compl_prev_idx(0)
+            };
+            let none_selected = insexp().compl_shown_idx == target;
+            if !none_selected {
+                insexp().compl_shown_idx =
+                    if !insexp().compl_autocomplete && compl_shows_dir_forward() {
                         compl_next_idx(0)
                     } else {
                         Some(0)
                     };
-                }
             }
         }
+    }
 }
 
 fn ins_compl_new_leader() {
@@ -2646,7 +2687,8 @@ fn ins_compl_new_leader() {
             insexp().compl_restarting = false;
         }
 
-        insexp().compl_enter_selects = !insexp().compl_used_match && insexp().compl_selected_item != -1;
+        insexp().compl_enter_selects =
+            !insexp().compl_used_match && insexp().compl_selected_item != -1;
 
         if !insexp().compl_interrupted {
             show_pum(save_w_wrow, save_w_leftcol);
@@ -2672,7 +2714,7 @@ fn ins_compl_new_leader() {
 
 #[inline]
 fn get_compl_len() -> c_int {
-     (curwin_mut().w_cursor.col - insexp().compl_col).max(0)
+    (curwin_mut().w_cursor.col - insexp().compl_col).max(0)
 }
 
 pub fn ins_compl_addleader(c: c_int) {
@@ -2709,20 +2751,21 @@ pub fn ins_compl_addleader(c: c_int) {
 
 fn ins_compl_restart() {
     update_screen();
-        ins_compl_free();
-        insexp().compl_started = false;
-        insexp().compl_matches = 0;
-        insexp().compl_cont_status = 0;
-        insexp().compl_cont_mode = 0;
-        cpt_sources_clear();
-        insexp().compl_autocomplete = false;
-        insexp().compl_from_nonkeyword = false;
-        insexp().compl_autostarted = false;
-        insexp().compl_num_bests = 0;
+    ins_compl_free();
+    insexp().compl_started = false;
+    insexp().compl_matches = 0;
+    insexp().compl_cont_status = 0;
+    insexp().compl_cont_mode = 0;
+    cpt_sources_clear();
+    insexp().compl_autocomplete = false;
+    insexp().compl_from_nonkeyword = false;
+    insexp().compl_autostarted = false;
+    insexp().compl_num_bests = 0;
 }
 
-fn ins_compl_set_original_text(str_ptr: impl crate::strings::IntoCCharPtr, len: usize) { let str_ptr = str_ptr.into_c_char_ptr();
-     {
+fn ins_compl_set_original_text(str_ptr: impl crate::strings::IntoCCharPtr, len: usize) {
+    let str_ptr = str_ptr.into_c_char_ptr();
+    {
         let Some(orig_idx) = find_original_text_match_idx() else {
             return;
         };
@@ -2751,7 +2794,11 @@ pub fn ins_compl_addfrommatch() {
             {
                 let cp = compl_at(ci);
                 if insexp().compl_leader.data.is_null()
-                    || ins_compl_equal(&mut *cp, insexp().compl_leader.data, insexp().compl_leader.size)
+                    || ins_compl_equal(
+                        &mut *cp,
+                        insexp().compl_leader.data,
+                        insexp().compl_leader.size,
+                    )
                 {
                     p = cp.cp_str.data;
                     plen = cp.cp_str.size;
@@ -2772,89 +2819,89 @@ pub fn ins_compl_addfrommatch() {
 fn set_ctrl_x_mode(c: c_int) -> bool {
     let mut retval = false;
 
-        match c {
-            CTRL_E | CTRL_Y => {
-                insexp().ctrl_x_mode = CTRL_X_SCROLL;
-                if (g_st().state_global & REPLACE_FLAG) == 0 {
-                    g_st().edit_submode = gettext(c" (insert) Scroll (^E/^Y)");
-                } else {
-                    g_st().edit_submode = gettext(c" (replace) Scroll (^E/^Y)");
-                }
-                g_st().edit_submode_pre = ptr::null();
-                g_st().redraw_mode = true;
+    match c {
+        CTRL_E | CTRL_Y => {
+            insexp().ctrl_x_mode = CTRL_X_SCROLL;
+            if (g_st().state_global & REPLACE_FLAG) == 0 {
+                g_st().edit_submode = gettext(c" (insert) Scroll (^E/^Y)");
+            } else {
+                g_st().edit_submode = gettext(c" (replace) Scroll (^E/^Y)");
             }
-            CTRL_L_CONST => {
-                insexp().ctrl_x_mode = CTRL_X_WHOLE_LINE;
-            }
-            CTRL_F_CONST => {
-                insexp().ctrl_x_mode = CTRL_X_FILES;
-            }
-            CTRL_K_CONST => {
-                insexp().ctrl_x_mode = CTRL_X_DICTIONARY;
-            }
-            CTRL_R_CONST => {
-                if vpeekc() != b'=' as c_int {
-                    insexp().ctrl_x_mode = CTRL_X_REGISTER;
-                }
-            }
-            CTRL_T_CONST => {
-                insexp().ctrl_x_mode = CTRL_X_THESAURUS;
-            }
-            CTRL_U => {
-                insexp().ctrl_x_mode = CTRL_X_FUNCTION;
-            }
-            CTRL_O => {
-                insexp().ctrl_x_mode = CTRL_X_OMNI;
-            }
-            x if x == b's' as c_int || x == CTRL_S_CONST => {
-                insexp().ctrl_x_mode = CTRL_X_SPELL;
-                g_st().emsg_off += 1;
-                spell_back_to_badword();
-                g_st().emsg_off -= 1;
-            }
-            CTRL_RSB_CONST => {
-                insexp().ctrl_x_mode = CTRL_X_TAGS;
-            }
-            CTRL_I_CONST | K_S_TAB => {
-                insexp().ctrl_x_mode = CTRL_X_PATH_PATTERNS;
-            }
-            CTRL_D_CONST => {
-                insexp().ctrl_x_mode = CTRL_X_PATH_DEFINES;
-            }
-            CTRL_V_CONST | CTRL_Q_CONST => {
-                insexp().ctrl_x_mode = CTRL_X_CMDLINE;
-            }
-            CTRL_Z_CONST => {
-                insexp().ctrl_x_mode = CTRL_X_NORMAL;
-                g_st().edit_submode = ptr::null();
-                g_st().redraw_mode = true;
-                retval = true;
-            }
-            CTRL_P | CTRL_N => {
-                if (insexp().compl_cont_status & CONT_INTRPT) == 0 {
-                    insexp().compl_cont_status |= CONT_LOCAL;
-                } else if insexp().compl_cont_mode != 0 {
-                    insexp().compl_cont_status &= !CONT_LOCAL;
-                }
-                insexp().ctrl_x_mode = CTRL_X_NORMAL;
-                g_st().edit_submode = ptr::null();
-                g_st().redraw_mode = true;
-            }
-            _ => {
-                if c == CTRL_X_CONST {
-                    if insexp().compl_cont_mode != 0 {
-                        insexp().compl_cont_status = 0;
-                    } else {
-                        insexp().compl_cont_mode = CTRL_X_NOT_DEFINED_YET;
-                    }
-                }
-                insexp().ctrl_x_mode = CTRL_X_NORMAL;
-                g_st().edit_submode = ptr::null();
-                g_st().redraw_mode = true;
+            g_st().edit_submode_pre = ptr::null();
+            g_st().redraw_mode = true;
+        }
+        CTRL_L_CONST => {
+            insexp().ctrl_x_mode = CTRL_X_WHOLE_LINE;
+        }
+        CTRL_F_CONST => {
+            insexp().ctrl_x_mode = CTRL_X_FILES;
+        }
+        CTRL_K_CONST => {
+            insexp().ctrl_x_mode = CTRL_X_DICTIONARY;
+        }
+        CTRL_R_CONST => {
+            if vpeekc() != b'=' as c_int {
+                insexp().ctrl_x_mode = CTRL_X_REGISTER;
             }
         }
+        CTRL_T_CONST => {
+            insexp().ctrl_x_mode = CTRL_X_THESAURUS;
+        }
+        CTRL_U => {
+            insexp().ctrl_x_mode = CTRL_X_FUNCTION;
+        }
+        CTRL_O => {
+            insexp().ctrl_x_mode = CTRL_X_OMNI;
+        }
+        x if x == b's' as c_int || x == CTRL_S_CONST => {
+            insexp().ctrl_x_mode = CTRL_X_SPELL;
+            g_st().emsg_off += 1;
+            spell_back_to_badword();
+            g_st().emsg_off -= 1;
+        }
+        CTRL_RSB_CONST => {
+            insexp().ctrl_x_mode = CTRL_X_TAGS;
+        }
+        CTRL_I_CONST | K_S_TAB => {
+            insexp().ctrl_x_mode = CTRL_X_PATH_PATTERNS;
+        }
+        CTRL_D_CONST => {
+            insexp().ctrl_x_mode = CTRL_X_PATH_DEFINES;
+        }
+        CTRL_V_CONST | CTRL_Q_CONST => {
+            insexp().ctrl_x_mode = CTRL_X_CMDLINE;
+        }
+        CTRL_Z_CONST => {
+            insexp().ctrl_x_mode = CTRL_X_NORMAL;
+            g_st().edit_submode = ptr::null();
+            g_st().redraw_mode = true;
+            retval = true;
+        }
+        CTRL_P | CTRL_N => {
+            if (insexp().compl_cont_status & CONT_INTRPT) == 0 {
+                insexp().compl_cont_status |= CONT_LOCAL;
+            } else if insexp().compl_cont_mode != 0 {
+                insexp().compl_cont_status &= !CONT_LOCAL;
+            }
+            insexp().ctrl_x_mode = CTRL_X_NORMAL;
+            g_st().edit_submode = ptr::null();
+            g_st().redraw_mode = true;
+        }
+        _ => {
+            if c == CTRL_X_CONST {
+                if insexp().compl_cont_mode != 0 {
+                    insexp().compl_cont_status = 0;
+                } else {
+                    insexp().compl_cont_mode = CTRL_X_NOT_DEFINED_YET;
+                }
+            }
+            insexp().ctrl_x_mode = CTRL_X_NORMAL;
+            g_st().edit_submode = ptr::null();
+            g_st().redraw_mode = true;
+        }
+    }
 
-        retval
+    retval
 }
 
 fn ins_compl_stop(c: c_int, prev_mode: c_int, mut retval: bool) -> bool {
@@ -2886,11 +2933,13 @@ fn ins_compl_stop(c: c_int, prev_mode: c_int, mut retval: bool) -> bool {
                 dec_cursor();
             }
 
-            if g_st().ins_global.moved == K_INS_NONE && !g_st().ins_global.need_undo && c != CTRL_E {
+            if g_st().ins_global.moved == K_INS_NONE && !g_st().ins_global.need_undo && c != CTRL_E
+            {
                 insertchar(NUL as c_int, 0, -1);
             }
 
-            if prev_col > 0 && *get_cursor_line_ptr().add(curwin_mut().w_cursor.col as usize) != NUL {
+            if prev_col > 0 && *get_cursor_line_ptr().add(curwin_mut().w_cursor.col as usize) != NUL
+            {
                 inc_cursor();
             }
         }
@@ -2992,88 +3041,89 @@ pub fn ins_compl_cancel() -> bool {
 
 pub fn ins_compl_prep(c: c_int) -> bool {
     let mut retval = false;
-        let prev_mode = insexp().ctrl_x_mode;
+    let prev_mode = insexp().ctrl_x_mode;
 
-        if c != CTRL_R_CONST && vim_is_ctrl_x_key(c) {
-            g_st().edit_submode_extra = ptr::null_mut();
-        }
+    if c != CTRL_R_CONST && vim_is_ctrl_x_key(c) {
+        g_st().edit_submode_extra = ptr::null_mut();
+    }
 
-        if c == K_SELECT
-            || c == K_MOUSEDOWN
-            || c == K_MOUSEUP
-            || c == K_MOUSELEFT
-            || c == K_MOUSERIGHT
-            || c == K_MOUSEMOVE
-            || c == K_EVENT
-            || c == K_COMMAND
-            || c == K_LUA
+    if c == K_SELECT
+        || c == K_MOUSEDOWN
+        || c == K_MOUSEUP
+        || c == K_MOUSELEFT
+        || c == K_MOUSERIGHT
+        || c == K_MOUSEMOVE
+        || c == K_EVENT
+        || c == K_COMMAND
+        || c == K_LUA
+    {
+        return retval;
+    }
+
+    if insexp().ctrl_x_mode == CTRL_X_CMDLINE_CTRL_X && c != CTRL_X_CONST {
+        if c == CTRL_V_CONST
+            || c == CTRL_Q_CONST
+            || c == CTRL_Z_CONST
+            || ins_compl_pum_key(c)
+            || !vim_is_ctrl_x_key(c)
         {
-            return retval;
-        }
-
-        if insexp().ctrl_x_mode == CTRL_X_CMDLINE_CTRL_X && c != CTRL_X_CONST {
-            if c == CTRL_V_CONST
-                || c == CTRL_Q_CONST
-                || c == CTRL_Z_CONST
-                || ins_compl_pum_key(c)
-                || !vim_is_ctrl_x_key(c)
-            {
-                insexp().ctrl_x_mode = CTRL_X_CMDLINE;
-                if c == CTRL_Z_CONST {
-                    retval = true;
-                }
-            } else {
-                insexp().ctrl_x_mode = CTRL_X_CMDLINE;
-                ins_compl_prep(b' ' as c_int);
-                insexp().ctrl_x_mode = CTRL_X_NOT_DEFINED_YET;
+            insexp().ctrl_x_mode = CTRL_X_CMDLINE;
+            if c == CTRL_Z_CONST {
+                retval = true;
             }
+        } else {
+            insexp().ctrl_x_mode = CTRL_X_CMDLINE;
+            ins_compl_prep(b' ' as c_int);
+            insexp().ctrl_x_mode = CTRL_X_NOT_DEFINED_YET;
         }
+    }
 
-        if ctrl_x_mode_not_defined_yet() || (ctrl_x_mode_normal() && !insexp().compl_started) {
-            insexp().compl_get_longest = (get_cot_flags() & K_OPT_COT_FLAG_LONGEST) != 0;
-            insexp().compl_used_match = true;
-        }
+    if ctrl_x_mode_not_defined_yet() || (ctrl_x_mode_normal() && !insexp().compl_started) {
+        insexp().compl_get_longest = (get_cot_flags() & K_OPT_COT_FLAG_LONGEST) != 0;
+        insexp().compl_used_match = true;
+    }
 
-        if ctrl_x_mode_not_defined_yet() {
-            retval = set_ctrl_x_mode(c);
-        } else if ctrl_x_mode_not_default() {
-            if c != CTRL_R_CONST && !vim_is_ctrl_x_key(c) {
-                insexp().ctrl_x_mode = if ctrl_x_mode_scroll() {
-                    CTRL_X_NORMAL
-                } else {
-                    CTRL_X_FINISHED
-                };
-                g_st().edit_submode = ptr::null();
-            }
-            g_st().redraw_mode = true;
-        }
-
-        if insexp().compl_started || insexp().ctrl_x_mode == CTRL_X_FINISHED {
-            g_st().redraw_mode = true;
-            if (ctrl_x_mode_normal()
-                && c != CTRL_N
-                && c != CTRL_P
-                && c != CTRL_R_CONST
-                && !ins_compl_pum_key(c))
-                || insexp().ctrl_x_mode == CTRL_X_FINISHED
-            {
-                retval = ins_compl_stop(c, prev_mode, retval);
-            }
-        } else if insexp().ctrl_x_mode == CTRL_X_LOCAL_MSG {
-            do_autocmd_completedone(c, insexp().ctrl_x_mode, None);
-        }
-
-        may_trigger_modechanged();
-
+    if ctrl_x_mode_not_defined_yet() {
+        retval = set_ctrl_x_mode(c);
+    } else if ctrl_x_mode_not_default() {
         if c != CTRL_R_CONST && !vim_is_ctrl_x_key(c) {
-            insexp().compl_cont_status = 0;
-            insexp().compl_cont_mode = 0;
+            insexp().ctrl_x_mode = if ctrl_x_mode_scroll() {
+                CTRL_X_NORMAL
+            } else {
+                CTRL_X_FINISHED
+            };
+            g_st().edit_submode = ptr::null();
         }
+        g_st().redraw_mode = true;
+    }
 
-        retval
+    if insexp().compl_started || insexp().ctrl_x_mode == CTRL_X_FINISHED {
+        g_st().redraw_mode = true;
+        if (ctrl_x_mode_normal()
+            && c != CTRL_N
+            && c != CTRL_P
+            && c != CTRL_R_CONST
+            && !ins_compl_pum_key(c))
+            || insexp().ctrl_x_mode == CTRL_X_FINISHED
+        {
+            retval = ins_compl_stop(c, prev_mode, retval);
+        }
+    } else if insexp().ctrl_x_mode == CTRL_X_LOCAL_MSG {
+        do_autocmd_completedone(c, insexp().ctrl_x_mode, None);
+    }
+
+    may_trigger_modechanged();
+
+    if c != CTRL_R_CONST && !vim_is_ctrl_x_key(c) {
+        insexp().compl_cont_status = 0;
+        insexp().compl_cont_mode = 0;
+    }
+
+    retval
 }
 
-fn ins_compl_fix_redo_buf_for_leader(ptr_arg: impl crate::strings::IntoCCharPtr) { let ptr_arg = ptr_arg.into_c_char_ptr();
+fn ins_compl_fix_redo_buf_for_leader(ptr_arg: impl crate::strings::IntoCCharPtr) {
+    let ptr_arg = ptr_arg.into_c_char_ptr();
     unsafe {
         let mut len: usize = 0;
         let mut ptr = ptr_arg;
@@ -3159,7 +3209,9 @@ fn get_cpt_sources_count(cpt: *mut c_char) -> c_int {
         let mut p = cpt;
 
         while !crate::memory::cstr_is_empty(p) {
-            while crate::memory::cstr_first_byte(p) == b',' || crate::memory::cstr_first_byte(p) == b' ' {
+            while crate::memory::cstr_first_byte(p) == b','
+                || crate::memory::cstr_first_byte(p) == b' '
+            {
                 p = p.add(1);
             }
             if !crate::memory::cstr_is_empty(p) {
@@ -3174,29 +3226,29 @@ fn get_cpt_sources_count(cpt: *mut c_char) -> c_int {
 
 pub fn clear_cpt_callbacks(callbacks: &mut Vec<Callback>) {
     for cb in callbacks.iter_mut() {
-            callback_free(cb);
-        }
-        callbacks.clear();
+        callback_free(cb);
+    }
+    callbacks.clear();
 }
 
 fn copy_cpt_callbacks(dest: &mut Vec<Callback>, src: &mut [Callback]) {
     clear_cpt_callbacks(dest);
 
-        if src.is_empty() {
-            return;
-        }
+    if src.is_empty() {
+        return;
+    }
 
-        dest.resize(src.len(), Callback::new());
+    dest.resize(src.len(), Callback::new());
 
-        for (dst_cb, src_cb) in dest.iter_mut().zip(src.iter_mut()) {
-            if src_cb.cb_type() != K_CALLBACK_NONE_CONST {
-                callback_copy(dst_cb, src_cb);
-            }
+    for (dst_cb, src_cb) in dest.iter_mut().zip(src.iter_mut()) {
+        if src_cb.cb_type() != K_CALLBACK_NONE_CONST {
+            callback_copy(dst_cb, src_cb);
         }
+    }
 }
 
 pub fn set_buflocal_cpt_callbacks(buf: Option<&mut FileBuf>) {
-     {
+    {
         if buf.is_none() {
             return;
         }
@@ -3220,7 +3272,9 @@ fn parse_cpt_callbacks(cpt: *mut c_char, cbp: &mut Vec<Callback>) {
         let mut idx: usize = 0;
         let mut p = cpt;
         while !crate::memory::cstr_is_empty(p) {
-            while crate::memory::cstr_first_byte(p) == b',' || crate::memory::cstr_first_byte(p) == b' ' {
+            while crate::memory::cstr_first_byte(p) == b','
+                || crate::memory::cstr_first_byte(p) == b' '
+            {
                 p = p.add(1);
             }
             if !crate::memory::cstr_is_empty(p) {
@@ -3241,7 +3295,7 @@ fn parse_cpt_callbacks(cpt: *mut c_char, cbp: &mut Vec<Callback>) {
 }
 
 pub fn set_cpt_callbacks(args: &mut Optset) -> bool {
-     {
+    {
         let opt_flags = args.os_flags;
 
         if g_st().curbuf.is_null() {
@@ -3269,20 +3323,34 @@ pub fn set_cpt_callbacks(args: &mut Optset) -> bool {
 
 pub fn set_ref_in_cpt_callbacks(callbacks: &mut [Callback], copy_id: c_int) -> bool {
     let mut abort = false;
-        for cb in callbacks {
-            abort = abort || set_ref_in_callback(cb, copy_id, ptr::null_mut(), ptr::null_mut());
-        }
-        abort
+    for cb in callbacks {
+        abort = abort || set_ref_in_callback(cb, copy_id, ptr::null_mut(), ptr::null_mut());
+    }
+    abort
 }
 
 pub fn set_ref_in_insexpand_funcs(copy_id: c_int) -> bool {
-     {
-        let mut abort =
-            set_ref_in_callback(&mut opt_vars().p_cfu, copy_id, ptr::null_mut(), ptr::null_mut());
-        abort =
-            abort || set_ref_in_callback(&mut opt_vars().p_ofu, copy_id, ptr::null_mut(), ptr::null_mut());
+    {
+        let mut abort = set_ref_in_callback(
+            &mut opt_vars().p_cfu,
+            copy_id,
+            ptr::null_mut(),
+            ptr::null_mut(),
+        );
         abort = abort
-            || set_ref_in_callback(&mut opt_vars().p_tsrfu, copy_id, ptr::null_mut(), ptr::null_mut());
+            || set_ref_in_callback(
+                &mut opt_vars().p_ofu,
+                copy_id,
+                ptr::null_mut(),
+                ptr::null_mut(),
+            );
+        abort = abort
+            || set_ref_in_callback(
+                &mut opt_vars().p_tsrfu,
+                copy_id,
+                ptr::null_mut(),
+                ptr::null_mut(),
+            );
         let global_cb = &mut insexp().cpt_cb;
         abort = abort || set_ref_in_cpt_callbacks(global_cb, copy_id);
         abort
@@ -3315,8 +3383,12 @@ fn expand_by_function(type_: c_int, base: *mut c_char, mut cb: *mut Callback) {
         debug_assert!(!g_st().curbuf.is_null());
 
         let is_cpt_function = !cb.is_null();
-        let use_sandbox =
-            is_cpt_function && was_set_insecurely(Some(crate::globals::curwin_mut()), K_OPT_COMPLETE, OPT_LOCAL) != 0;
+        let use_sandbox = is_cpt_function
+            && was_set_insecurely(
+                Some(crate::globals::curwin_mut()),
+                K_OPT_COMPLETE,
+                OPT_LOCAL,
+            ) != 0;
         if !is_cpt_function {
             cb = get_insert_callback(type_);
             if (*cb).cb_type() == K_CALLBACK_NONE_CONST {
@@ -3341,7 +3413,7 @@ fn expand_by_function(type_: c_int, base: *mut c_char, mut cb: *mut Callback) {
             g_st().sandbox += 1;
         }
 
-        let called = callback_call( &mut *cb, 2, args.as_mut_ptr(), &mut rettv);
+        let called = callback_call(&mut *cb, 2, args.as_mut_ptr(), &mut rettv);
         if use_sandbox {
             g_st().sandbox -= 1;
         }
@@ -3383,8 +3455,9 @@ fn expand_by_function(type_: c_int, base: *mut c_char, mut cb: *mut Callback) {
 }
 
 #[inline]
-fn get_user_highlight_id(hlname: impl crate::strings::IntoCCharPtr) -> c_int { let hlname = hlname.into_c_char_ptr();
-     {
+fn get_user_highlight_id(hlname: impl crate::strings::IntoCCharPtr) -> c_int {
+    let hlname = hlname.into_c_char_ptr();
+    {
         if !crate::memory::cstr_is_empty(hlname) {
             return syn_check_group(hlname, crate::memory::cstr_len(hlname));
         }
@@ -3462,7 +3535,7 @@ fn ins_compl_add_tv(tv: &mut TypVal, dir: Direction, fast: bool) -> c_int {
 }
 
 fn ins_compl_add_list(list: Option<&TvList>) {
-     {
+    {
         let mut dir = insexp().compl_direction;
 
         if list.is_none() {
@@ -3497,7 +3570,7 @@ fn ins_compl_add_dict(dict: &mut TvDict) {
 }
 
 fn save_orig_extmarks() {
-     {
+    {
         extmark_splice_delete(
             curbuf_mut(),
             curwin_mut().w_cursor.lnum - 1,
@@ -3512,7 +3585,7 @@ fn save_orig_extmarks() {
 }
 
 fn restore_orig_extmarks() {
-     {
+    {
         let extmarks = &insexp().compl_orig_extmarks;
         for &undo_info in extmarks.iter().rev() {
             extmark_apply_undo(undo_info, true);
@@ -3604,13 +3677,10 @@ fn set_completion(mut startcol: Colnr, list: Option<&TvList>) {
     }
 }
 
-pub fn f_complete(argvars: &mut [TypVal], _rettv: &mut TypVal, _fptr: EvalFuncData){
-
-     {
+pub fn f_complete(argvars: &mut [TypVal], _rettv: &mut TypVal, _fptr: EvalFuncData) {
+    {
         if (g_st().state_global & MODE_INSERT) == 0 {
-            emsg(gettext(
-                c"E785: complete() can only be used in Insert mode",
-            ));
+            emsg(gettext(c"E785: complete() can only be used in Insert mode"));
             return;
         }
 
@@ -3637,26 +3707,26 @@ pub fn f_complete_add(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFun
     )));
 }
 
-pub fn f_complete_check(_argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData){
+pub fn f_complete_check(_argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
     let saved = g_st().redrawing_disabled;
-        g_st().redrawing_disabled = 0;
-        ins_compl_check_keys(0, true);
-        rettv.vval = crate::eval::typval::TypvalVval::Number(Varnumber::from(ins_compl_interrupted()));
-        g_st().redrawing_disabled = saved;
+    g_st().redrawing_disabled = 0;
+    ins_compl_check_keys(0, true);
+    rettv.vval = crate::eval::typval::TypvalVval::Number(Varnumber::from(ins_compl_interrupted()));
+    g_st().redrawing_disabled = saved;
 }
 
 fn ins_compl_mode() -> NvimString {
     if ctrl_x_mode_not_defined_yet() || ctrl_x_mode_scroll() || insexp().compl_started {
-            let idx = (insexp().ctrl_x_mode & !CTRL_X_WANT_IDENT) as usize;
-            if let Some(mode_cstr) = CTRL_X_MODE_NAMES.get(idx).copied().flatten() {
-                return cbuf_as_string(mode_cstr.as_ptr().cast_mut(), mode_cstr.to_bytes().len());
-            }
+        let idx = (insexp().ctrl_x_mode & !CTRL_X_WANT_IDENT) as usize;
+        if let Some(mode_cstr) = CTRL_X_MODE_NAMES.get(idx).copied().flatten() {
+            return cbuf_as_string(mode_cstr.as_ptr().cast_mut(), mode_cstr.to_bytes().len());
         }
-        cbuf_as_string(c"".as_ptr().cast_mut(), 0)
+    }
+    cbuf_as_string(c"".as_ptr().cast_mut(), 0)
 }
 
 fn ins_compl_update_sequence_numbers() {
-     {
+    {
         let mut number: c_int = 0;
         let Some(curr_idx) = insexp().compl_curr_idx else {
             return;
@@ -3786,12 +3856,7 @@ fn fill_complete_info_dict(di: &mut TvDict, match_: *mut Compl, add_match: bool)
         if (*match_).cp_user_data.v_type == VAR_UNKNOWN {
             tv_dict_add_str_len(di, c"user_data", c"", 0);
         } else {
-            tv_dict_add_tv(
-                di,
-                c"user_data",
-                9,
-                &mut (*match_).cp_user_data,
-            );
+            tv_dict_add_tv(di, c"user_data", 9, &mut (*match_).cp_user_data);
         }
     }
 }
@@ -3833,11 +3898,7 @@ fn get_complete_info(what_list: Option<&TvList>, retdict: &mut TvDict) {
         }
 
         if ret && (what_flag & CI_WHAT_PUM_VISIBLE) != 0 {
-            ret = tv_dict_add_nr(
-                retdict,
-                c"pum_visible",
-                Varnumber::from(pum_visible()),
-            );
+            ret = tv_dict_add_nr(retdict, c"pum_visible", Varnumber::from(pum_visible()));
         }
 
         if ret && (what_flag & CI_WHAT_AUTO) != 0 {
@@ -3897,7 +3958,7 @@ fn get_complete_info(what_list: Option<&TvList>, retdict: &mut TvDict) {
                     if !match_at_original_text(match_) {
                         if has_items || (has_matches && match_.cp_in_match_array) {
                             let di = tv_dict_alloc();
-                            tv_list_append_dict( &mut *li, di);
+                            tv_list_append_dict(&mut *li, di);
                             fill_complete_info_dict(&mut *di, match_, has_matches && has_items);
                         }
                         if !curr.is_null() && (*curr).cp_number == match_.cp_number {
@@ -3910,18 +3971,10 @@ fn get_complete_info(what_list: Option<&TvList>, retdict: &mut TvDict) {
                 }
             }
             if ret && (what_flag & CI_WHAT_SELECTED) != 0 {
-                ret = tv_dict_add_nr(
-                    retdict,
-                    c"selected",
-                    Varnumber::from(selected_idx),
-                );
+                ret = tv_dict_add_nr(retdict, c"selected", Varnumber::from(selected_idx));
                 let wp = win_float_find(K_WIN_INFO);
                 if !wp.is_null() {
-                    tv_dict_add_nr(
-                        retdict,
-                        c"preview_winid",
-                        Varnumber::from((*wp).handle),
-                    );
+                    tv_dict_add_nr(retdict, c"preview_winid", Varnumber::from((*wp).handle));
                     tv_dict_add_nr(
                         retdict,
                         c"preview_bufnr",
@@ -3938,8 +3991,7 @@ fn get_complete_info(what_list: Option<&TvList>, retdict: &mut TvDict) {
     }
 }
 
-pub fn f_complete_info(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData){
-
+pub fn f_complete_info(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
     unsafe {
         tv_dict_alloc_ret(rettv);
 
@@ -3958,21 +4010,24 @@ pub fn f_complete_info(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFu
 
 #[inline]
 fn thesaurus_func_complete(type_: c_int) -> bool {
-     {
+    {
         type_ == CTRL_X_THESAURUS
             && (curbuf_mut().b_p_tsrfu.cb_type() != K_CALLBACK_NONE_CONST
-                || crate::eval::typval::Callback::raw_cb_type(&opt_vars().p_tsrfu) != K_CALLBACK_NONE_CONST)
+                || crate::eval::typval::Callback::raw_cb_type(&opt_vars().p_tsrfu)
+                    != K_CALLBACK_NONE_CONST)
     }
 }
 
-fn may_advance_cpt_index(cpt: impl crate::strings::IntoCCharPtr) -> bool { let cpt = cpt.into_c_char_ptr();
+fn may_advance_cpt_index(cpt: impl crate::strings::IntoCCharPtr) -> bool {
+    let cpt = cpt.into_c_char_ptr();
     unsafe {
         let mut p = cpt;
 
         if insexp().cpt_sources_index == -1 {
             return false;
         }
-        while crate::memory::cstr_first_byte(p) == b',' || crate::memory::cstr_first_byte(p) == b' ' {
+        while crate::memory::cstr_first_byte(p) == b',' || crate::memory::cstr_first_byte(p) == b' '
+        {
             p = p.add(1);
         }
         !crate::memory::cstr_is_empty(p)
@@ -4016,8 +4071,7 @@ fn process_next_cpt_value(
             && !insexp().compl_time_slice_expired
             && !vim_strchr(c"buwU", c_int::from(st.e_cpt_char() as u8)).is_null()
             && {
-                st.ins_buf =
-                    ins_compl_next_buf(st.ins_buf, c_int::from(st.e_cpt_char()));
+                st.ins_buf = ins_compl_next_buf(st.ins_buf, c_int::from(st.e_cpt_char()));
                 !ptr::eq(st.ins_buf, g_st().curbuf)
             }
         {
@@ -4064,18 +4118,14 @@ fn process_next_cpt_value(
         } else {
             if ctrl_x_mode_line_or_eval() {
                 // compl_type = -1;
-            } else if st.e_cpt_char() == b'F' as c_char
-                || st.e_cpt_char() == b'o' as c_char
-            {
+            } else if st.e_cpt_char() == b'F' as c_char || st.e_cpt_char() == b'o' as c_char {
                 compl_type = CTRL_X_FUNCTION;
                 st.func_cb = get_callback_if_cpt_func(st.e_cpt_ptr(), insexp().cpt_sources_index);
                 if st.func_cb == CptFuncSource::None {
                     compl_type = -1;
                 }
             } else if !skip_source {
-                if st.e_cpt_char() == b'k' as c_char
-                    || st.e_cpt_char() == b's' as c_char
-                {
+                if st.e_cpt_char() == b'k' as c_char || st.e_cpt_char() == b's' as c_char {
                     if st.e_cpt_char() == b'k' as c_char {
                         compl_type = CTRL_X_DICTIONARY;
                     } else {
@@ -4092,18 +4142,11 @@ fn process_next_cpt_value(
                     compl_type = CTRL_X_PATH_DEFINES;
                 } else if st.e_cpt_char() == b'f' as c_char {
                     compl_type = CTRL_X_BUFNAMES;
-                } else if st.e_cpt_char() == b']' as c_char
-                    || st.e_cpt_char() == b't' as c_char
-                {
+                } else if st.e_cpt_char() == b']' as c_char || st.e_cpt_char() == b't' as c_char {
                     compl_type = CTRL_X_TAGS;
                     if !shortmess(K_SHM_COMPLETIONSCAN) && !insexp().compl_autocomplete {
                         let iobuff_ptr = g_st().iobuff.as_mut_ptr();
-                        vim_snprintf!(
-                            iobuff_ptr,
-                            IOSIZE,
-                            c"%s",
-                            gettext(c"Scanning tags."),
-                        );
+                        vim_snprintf!(iobuff_ptr, IOSIZE, c"%s", gettext(c"Scanning tags."),);
                         msg_progress(
                             iobuff_ptr,
                             c"nvim.completion",
@@ -4137,27 +4180,27 @@ fn process_next_cpt_value(
 
 fn get_next_include_file_completion(compl_type: c_int) {
     find_pattern_in_path(
-            compl_pattern_ptr(),
-            insexp().compl_direction,
-            compl_pattern_len(),
-            false,
-            false,
-            if compl_type == CTRL_X_PATH_DEFINES && (insexp().compl_cont_status & CONT_SOL) == 0 {
-                FIND_DEFINE
-            } else {
-                FIND_ANY
-            },
-            1,
-            ACTION_EXPAND,
-            1,
-            MAXLNUM,
-            false,
-            insexp().compl_autocomplete,
-        );
+        compl_pattern_ptr(),
+        insexp().compl_direction,
+        compl_pattern_len(),
+        false,
+        false,
+        if compl_type == CTRL_X_PATH_DEFINES && (insexp().compl_cont_status & CONT_SOL) == 0 {
+            FIND_DEFINE
+        } else {
+            FIND_ANY
+        },
+        1,
+        ACTION_EXPAND,
+        1,
+        MAXLNUM,
+        false,
+        insexp().compl_autocomplete,
+    );
 }
 
 fn get_next_dict_tsr_completion(compl_type: c_int, dict: *mut c_char, dict_f: c_int) {
-     {
+    {
         if thesaurus_func_complete(compl_type) {
             expand_by_function(compl_type, compl_pattern_ptr(), ptr::null_mut());
         } else {
@@ -4185,7 +4228,7 @@ fn get_next_dict_tsr_completion(compl_type: c_int, dict: *mut c_char, dict_f: c_
 }
 
 fn get_next_tag_completion() {
-     {
+    {
         let save_p_ic = opt_vars().p_ic;
         opt_vars().p_ic = ignorecase(compl_pattern_ptr());
 
@@ -4238,7 +4281,8 @@ fn get_next_tag_completion() {
     }
 }
 
-fn ins_compl_longest_insert(prefix: impl crate::strings::IntoCCharPtr) { let prefix = prefix.into_c_char_ptr();
+fn ins_compl_longest_insert(prefix: impl crate::strings::IntoCCharPtr) {
+    let prefix = prefix.into_c_char_ptr();
     unsafe {
         ins_compl_delete(false);
         ins_compl_insert_bytes(prefix.add(get_compl_len() as usize), -1);
@@ -4293,8 +4337,16 @@ fn fuzzy_longest_match() {
             let mut match_ptr = match_str;
             let mut j: c_int = 0;
 
-            while j < prefix_len && !crate::memory::cstr_is_empty(match_ptr) && !crate::memory::cstr_is_empty(prefix_ptr) {
-                if crate::memory::cstr_prefix_bytes(prefix_ptr, utfc_ptr2len(prefix_ptr) as usize) != crate::memory::cstr_prefix_bytes(match_ptr, utfc_ptr2len(prefix_ptr) as usize) {
+            while j < prefix_len
+                && !crate::memory::cstr_is_empty(match_ptr)
+                && !crate::memory::cstr_is_empty(prefix_ptr)
+            {
+                if crate::memory::cstr_prefix_bytes(prefix_ptr, utfc_ptr2len(prefix_ptr) as usize)
+                    != crate::memory::cstr_prefix_bytes(
+                        match_ptr,
+                        utfc_ptr2len(prefix_ptr) as usize,
+                    )
+                {
                     break;
                 }
 
@@ -4311,7 +4363,10 @@ fn fuzzy_longest_match() {
         let leader = ins_compl_leader();
         let leader_len = ins_compl_leader_len();
 
-        if leader_len == 0 || (crate::memory::cstr_prefix_bytes(prefix, leader_len) == crate::memory::cstr_prefix_bytes(leader, leader_len)) {
+        if leader_len == 0
+            || (crate::memory::cstr_prefix_bytes(prefix, leader_len)
+                == crate::memory::cstr_prefix_bytes(leader, leader_len))
+        {
             let mut dup_vec: Vec<c_char> = vec![0; prefix_len as usize + 1];
             ptr::copy_nonoverlapping(prefix, dup_vec.as_mut_ptr(), prefix_len as usize);
             ins_compl_longest_insert(dup_vec.as_mut_ptr());
@@ -4336,7 +4391,10 @@ fn get_next_filename_completion() {
             {
                 path_to_slash(leader);
             }
-            let last_sep = crate::memory::cstr_as_bytes(leader).iter().rposition(|&b| b == PATHSEP as u8).map_or(ptr::null_mut(), |i| leader.add(i));
+            let last_sep = crate::memory::cstr_as_bytes(leader)
+                .iter()
+                .rposition(|&b| b == PATHSEP as u8)
+                .map_or(ptr::null_mut(), |i| leader.add(i));
             if last_sep.is_null() {
                 insexp().compl_pattern = Some(c"*".to_owned());
             } else if crate::memory::cstr_byte_at(last_sep, 1) == 0 {
@@ -4370,7 +4428,9 @@ fn get_next_filename_completion() {
         tilde_replace(compl_pattern_ptr(), &mut matches);
         #[cfg(windows)]
         {
-            if (crate::memory::cstr_is_empty(curbuf_mut().b_p_csl) && opt_vars().p_ssl == 0) || crate::memory::cstr_first_byte(curbuf_mut().b_p_csl) == b'b' {
+            if (crate::memory::cstr_is_empty(curbuf_mut().b_p_csl) && opt_vars().p_ssl == 0)
+                || crate::memory::cstr_first_byte(curbuf_mut().b_p_csl) == b'b'
+            {
                 for slot in &mut matches {
                     if slot.as_bytes().contains(&b'/') {
                         let bytes: Vec<u8> = slot
@@ -4444,13 +4504,16 @@ fn get_next_filename_completion() {
         }
 
         if !matches.is_empty() {
-            ins_compl_add_matches(&mut matches, c_int::from(opt_vars().p_fic != 0 || opt_vars().p_wic != 0));
+            ins_compl_add_matches(
+                &mut matches,
+                c_int::from(opt_vars().p_fic != 0 || opt_vars().p_wic != 0),
+            );
         }
     }
 }
 
 fn get_next_cmdline_completion() {
-     {
+    {
         let mut matches: Vec<std::ffi::CString> = Vec::new();
         if expand_cmdline(
             &mut insexp().compl_xp,
@@ -4508,10 +4571,10 @@ fn get_next_cmdline_completion() {
 
 fn get_next_spell_completion(lnum: Linenr) {
     let mut matches: Vec<std::ffi::CString> = Vec::new();
-        expand_spelling(lnum, compl_pattern_ptr(), &mut matches);
-        if !matches.is_empty() {
-            ins_compl_add_matches(&mut matches, opt_vars().p_ic);
-        }
+    expand_spelling(lnum, compl_pattern_ptr(), &mut matches);
+    if !matches.is_empty() {
+        ins_compl_add_matches(&mut matches, opt_vars().p_ic);
+    }
 }
 
 fn ins_compl_get_next_word_or_line(
@@ -4553,7 +4616,11 @@ fn ins_compl_get_next_word_or_line(
             if compl_status_adding() && len == insexp().compl_length {
                 if cur_match_pos.lnum < ins_buf.b_ml.ml_line_count {
                     let iobuff_ptr = g_st().iobuff.as_mut_ptr();
-                    { let n = crate::memory::xstrnlen(ptr, len as usize); ptr::copy_nonoverlapping(ptr, iobuff_ptr, n); ptr::write_bytes(iobuff_ptr.add(n), 0, len as usize - n); }
+                    {
+                        let n = crate::memory::xstrnlen(ptr, len as usize);
+                        ptr::copy_nonoverlapping(ptr, iobuff_ptr, n);
+                        ptr::write_bytes(iobuff_ptr.add(n), 0, len as usize - n);
+                    }
                     ptr = ml_get_buf(ins_buf, cur_match_pos.lnum + 1);
                     ptr = skipwhite(ptr);
                     tmp_ptr = find_word_start(ptr);
@@ -4598,10 +4665,7 @@ fn ins_compl_get_next_word_or_line(
     }
 }
 
-fn get_next_default_completion(
-    st: &mut InsComplNextState,
-    start_pos: &mut CursorPos,
-) -> c_int {
+fn get_next_default_completion(st: &mut InsComplNextState, start_pos: &mut CursorPos) -> c_int {
     unsafe {
         let mut ptr: *mut c_char = ptr::null_mut();
         let mut len: c_int = 0;
@@ -4657,7 +4721,7 @@ fn get_next_default_completion(
             } else {
                 found_new_match = searchit(
                     ptr::null_mut(),
-                     &mut *st.ins_buf,
+                    &mut *st.ins_buf,
                     st.cur_match_pos_ptr(),
                     None,
                     insexp().compl_direction,
@@ -4717,7 +4781,10 @@ fn get_next_default_completion(
                     &mut cont_s_ipos,
                 );
             }
-            if ptr.is_null() || (ins_compl_has_preinsert() && (crate::memory::cstr_as_bytes(ptr) == crate::memory::cstr_as_bytes(ins_compl_leader())))
+            if ptr.is_null()
+                || (ins_compl_has_preinsert()
+                    && (crate::memory::cstr_as_bytes(ptr)
+                        == crate::memory::cstr_as_bytes(ins_compl_leader())))
             {
                 continue;
             }
@@ -4788,9 +4855,17 @@ fn get_register_completion() {
 
                     let matches = insexp().compl_orig_text.data.is_null()
                         || if opt_vars().p_ic != 0 {
-                            crate::memory::cstr_prefix_bytes(str_ptr, insexp().compl_orig_text.size).eq_ignore_ascii_case(crate::memory::cstr_prefix_bytes(insexp().compl_orig_text.data, insexp().compl_orig_text.size))
+                            crate::memory::cstr_prefix_bytes(str_ptr, insexp().compl_orig_text.size)
+                                .eq_ignore_ascii_case(crate::memory::cstr_prefix_bytes(
+                                    insexp().compl_orig_text.data,
+                                    insexp().compl_orig_text.size,
+                                ))
                         } else {
-                            crate::memory::cstr_prefix_bytes(str_ptr, insexp().compl_orig_text.size) == crate::memory::cstr_prefix_bytes(insexp().compl_orig_text.data, insexp().compl_orig_text.size)
+                            crate::memory::cstr_prefix_bytes(str_ptr, insexp().compl_orig_text.size)
+                                == crate::memory::cstr_prefix_bytes(
+                                    insexp().compl_orig_text.data,
+                                    insexp().compl_orig_text.size,
+                                )
                         };
                     if matches
                         && ins_compl_add_infercase(
@@ -4827,9 +4902,17 @@ fn get_register_completion() {
                         let len = word_end.offset_from(p) as c_int;
                         let matches = insexp().compl_orig_text.data.is_null()
                             || if opt_vars().p_ic != 0 {
-                                crate::memory::cstr_prefix_bytes(p, insexp().compl_orig_text.size).eq_ignore_ascii_case(crate::memory::cstr_prefix_bytes(insexp().compl_orig_text.data, insexp().compl_orig_text.size))
+                                crate::memory::cstr_prefix_bytes(p, insexp().compl_orig_text.size)
+                                    .eq_ignore_ascii_case(crate::memory::cstr_prefix_bytes(
+                                        insexp().compl_orig_text.data,
+                                        insexp().compl_orig_text.size,
+                                    ))
                             } else {
-                                crate::memory::cstr_prefix_bytes(p, insexp().compl_orig_text.size) == crate::memory::cstr_prefix_bytes(insexp().compl_orig_text.data, insexp().compl_orig_text.size)
+                                crate::memory::cstr_prefix_bytes(p, insexp().compl_orig_text.size)
+                                    == crate::memory::cstr_prefix_bytes(
+                                        insexp().compl_orig_text.data,
+                                        insexp().compl_orig_text.size,
+                                    )
                             };
                         if len > 0
                             && matches
@@ -4857,7 +4940,8 @@ fn get_register_completion() {
     }
 }
 
-fn get_callback_if_cpt_func(p: impl crate::strings::IntoCCharPtr, idx: c_int) -> CptFuncSource { let p = p.into_c_char_ptr();
+fn get_callback_if_cpt_func(p: impl crate::strings::IntoCCharPtr, idx: c_int) -> CptFuncSource {
+    let p = p.into_c_char_ptr();
     unsafe {
         if crate::memory::cstr_first_byte(p) == b'o' {
             return CptFuncSource::Ofu;
@@ -4949,11 +5033,16 @@ fn get_next_completion_match(
 }
 
 fn get_next_bufname_token() {
-     {
+    {
         for b in for_all_buffers_mut() {
             if b.b_p_bl != 0 && !b.b_sfname.is_null() {
                 let tail = path_tail(b.b_sfname);
-                if crate::memory::cstr_prefix_bytes(tail, insexp().compl_orig_text.size) == crate::memory::cstr_prefix_bytes(insexp().compl_orig_text.data, insexp().compl_orig_text.size) {
+                if crate::memory::cstr_prefix_bytes(tail, insexp().compl_orig_text.size)
+                    == crate::memory::cstr_prefix_bytes(
+                        insexp().compl_orig_text.data,
+                        insexp().compl_orig_text.size,
+                    )
+                {
                     ins_compl_add(
                         tail,
                         crate::memory::cstr_len(tail) as c_int,
@@ -4989,7 +5078,9 @@ fn strip_caret_numbers_in_place(str_ptr: *mut c_char) {
                 while ascii_isdigit(crate::memory::cstr_first_char(p)) {
                     p = p.add(1);
                 }
-                if (crate::memory::cstr_first_byte(p) == b',' || crate::memory::cstr_is_empty(p)) && !ptr::eq(p, read.add(1)) {
+                if (crate::memory::cstr_first_byte(p) == b',' || crate::memory::cstr_is_empty(p))
+                    && !ptr::eq(p, read.add(1))
+                {
                     read = p;
                     continue;
                 } else {
@@ -5016,7 +5107,9 @@ fn prepare_cpt_compl_funcs() {
         let mut idx: c_int = 0;
         let mut p = cpt;
         while !crate::memory::cstr_is_empty(p) {
-            while crate::memory::cstr_first_byte(p) == b',' || crate::memory::cstr_first_byte(p) == b' ' {
+            while crate::memory::cstr_first_byte(p) == b','
+                || crate::memory::cstr_first_byte(p) == b' '
+            {
                 p = p.add(1);
             }
             if crate::memory::cstr_is_empty(p) {
@@ -5026,8 +5119,7 @@ fn prepare_cpt_compl_funcs() {
             let cb = get_callback_if_cpt_func(p, idx).as_ptr();
             if !cb.is_null() {
                 let mut startcol: c_int = 0;
-                if !get_userdefined_compl_info(curwin_mut().w_cursor.col, cb, Some(&mut startcol))
-                {
+                if !get_userdefined_compl_info(curwin_mut().w_cursor.col, cb, Some(&mut startcol)) {
                     if startcol == -3 {
                         insexp().cpt_sources_array[idx as usize].cs_refresh_always = false;
                     } else {
@@ -5050,15 +5142,17 @@ fn prepare_cpt_compl_funcs() {
 
 fn compl_source_start_timer(source_idx: c_int) {
     if insexp().compl_autocomplete || opt_vars().p_cto > 0 {
-            insexp().cpt_sources_array[source_idx as usize].compl_start_tv = os_hrtime();
-            insexp().compl_time_slice_expired = false;
-        }
+        insexp().cpt_sources_array[source_idx as usize].compl_start_tv = os_hrtime();
+        insexp().compl_time_slice_expired = false;
+    }
 }
 
 fn advance_cpt_sources_index_safe() -> bool {
-     {
+    {
         let cpt_sources = &insexp().cpt_sources_array;
-        if insexp().cpt_sources_index >= 0 && (insexp().cpt_sources_index as usize) + 1 < cpt_sources.len() {
+        if insexp().cpt_sources_index >= 0
+            && (insexp().cpt_sources_index as usize) + 1 < cpt_sources.len()
+        {
             insexp().cpt_sources_index += 1;
             return true;
         }
@@ -5161,7 +5255,10 @@ fn ins_compl_get_exp(ini: &mut CursorPos) -> c_int {
             }
 
             let mut compl_timeout_save: u64 = 0;
-            if normal_mode_strict && type_ == CTRL_X_FUNCTION && (insexp().compl_autocomplete || opt_vars().p_cto > 0) {
+            if normal_mode_strict
+                && type_ == CTRL_X_FUNCTION
+                && (insexp().compl_autocomplete || opt_vars().p_cto > 0)
+            {
                 compl_timeout_save = insexp().compl_timeout_ms;
                 insexp().compl_timeout_ms = if insexp().compl_from_nonkeyword {
                     COMPL_FUNC_TIMEOUT_NON_KW_MS
@@ -5196,7 +5293,9 @@ fn ins_compl_get_exp(ini: &mut CursorPos) -> c_int {
                     ins_compl_check_keys(0, false);
                 }
 
-                if (ctrl_x_mode_not_default() && !ctrl_x_mode_line_or_eval()) || insexp().compl_interrupted {
+                if (ctrl_x_mode_not_default() && !ctrl_x_mode_line_or_eval())
+                    || insexp().compl_interrupted
+                {
                     break;
                 }
                 insexp().compl_started = !insexp().compl_time_slice_expired;
@@ -5208,7 +5307,10 @@ fn ins_compl_get_exp(ini: &mut CursorPos) -> c_int {
                 insexp().compl_started = false;
             }
 
-            if normal_mode_strict && type_ == CTRL_X_FUNCTION && (insexp().compl_autocomplete || opt_vars().p_cto > 0) {
+            if normal_mode_strict
+                && type_ == CTRL_X_FUNCTION
+                && (insexp().compl_autocomplete || opt_vars().p_cto > 0)
+            {
                 insexp().compl_timeout_ms = compl_timeout_save;
             }
 
@@ -5301,7 +5403,8 @@ pub fn ins_compl_delete(new_leader: bool) {
         if new_leader {
             let mut orig = insexp().compl_orig_text.data;
             let mut leader = ins_compl_leader();
-            while !crate::memory::cstr_is_empty(orig) && utf_ptr2char(orig) == utf_ptr2char(leader) {
+            while !crate::memory::cstr_is_empty(orig) && utf_ptr2char(orig) == utf_ptr2char(leader)
+            {
                 leader = leader.add(utf_ptr2len(leader) as usize);
                 orig = orig.add(utf_ptr2len(orig) as usize);
             }
@@ -5358,7 +5461,8 @@ pub fn ins_compl_delete(new_leader: bool) {
     }
 }
 
-fn ins_compl_expand_multiple(str_ptr: impl crate::strings::IntoCCharPtr) { let str_ptr = str_ptr.into_c_char_ptr();
+fn ins_compl_expand_multiple(str_ptr: impl crate::strings::IntoCCharPtr) {
+    let str_ptr = str_ptr.into_c_char_ptr();
     unsafe {
         let mut start = str_ptr;
         let mut curr = str_ptr;
@@ -5423,7 +5527,8 @@ fn find_common_prefix(prefix_len: &mut usize, curbuf_only: bool) -> *mut c_char 
 
                 if cur_source != -1 {
                     match_count[cur_source as usize] += 1;
-                    let max_matches = insexp().cpt_sources_array[cur_source as usize].cs_max_matches;
+                    let max_matches =
+                        insexp().cpt_sources_array[cur_source as usize].cs_max_matches;
                     if max_matches > 0 && match_count[cur_source as usize] > max_matches {
                         match_limit_exceeded = true;
                     }
@@ -5432,10 +5537,17 @@ fn find_common_prefix(prefix_len: &mut usize, curbuf_only: bool) -> *mut c_char 
                 if !match_limit_exceeded
                     && (!curbuf_only
                         || (cur_source != -1
-                            && insexp().cpt_sources_array[cur_source as usize].cs_flag == b'.' as c_char))
+                            && insexp().cpt_sources_array[cur_source as usize].cs_flag
+                                == b'.' as c_char))
                 {
                     if first.is_null()
-                        && (crate::memory::cstr_prefix_bytes(ins_compl_leader(), ins_compl_leader_len()) == crate::memory::cstr_prefix_bytes(compl.cp_str.data, ins_compl_leader_len()))
+                        && (crate::memory::cstr_prefix_bytes(
+                            ins_compl_leader(),
+                            ins_compl_leader_len(),
+                        ) == crate::memory::cstr_prefix_bytes(
+                            compl.cp_str.data,
+                            ins_compl_leader_len(),
+                        ))
                     {
                         first = compl.cp_str.data;
                         len = crate::memory::cstr_len(first) as c_int;
@@ -5444,10 +5556,16 @@ fn find_common_prefix(prefix_len: &mut usize, curbuf_only: bool) -> *mut c_char 
                         let mut s1 = first;
                         let mut s2 = compl.cp_str.data;
 
-                        while j < len && !crate::memory::cstr_is_empty(s1) && !crate::memory::cstr_is_empty(s2) {
+                        while j < len
+                            && !crate::memory::cstr_is_empty(s1)
+                            && !crate::memory::cstr_is_empty(s2)
+                        {
                             let l1 = utf_byte2len(c_int::from(crate::memory::cstr_first_byte(s1)));
                             let l2 = utf_byte2len(c_int::from(crate::memory::cstr_first_byte(s2)));
-                            if l1 != l2 || crate::memory::cstr_slice(s1, l1 as usize) != crate::memory::cstr_slice(s2, l1 as usize) {
+                            if l1 != l2
+                                || crate::memory::cstr_slice(s1, l1 as usize)
+                                    != crate::memory::cstr_slice(s2, l1 as usize)
+                            {
                                 break;
                             }
 
@@ -5475,7 +5593,10 @@ fn find_common_prefix(prefix_len: &mut usize, curbuf_only: bool) -> *mut c_char 
                     let text_len = end.offset_from(p) as c_int;
                     if text_len > 0
                         && text_len < len - ins_compl_leader_len() as c_int
-                        && (crate::memory::cstr_prefix_bytes(first.add((len - text_len) as usize), text_len as usize) == crate::memory::cstr_prefix_bytes(p, text_len as usize))
+                        && (crate::memory::cstr_prefix_bytes(
+                            first.add((len - text_len) as usize),
+                            text_len as usize,
+                        ) == crate::memory::cstr_prefix_bytes(p, text_len as usize))
                     {
                         len -= text_len;
                     }
@@ -5541,7 +5662,8 @@ pub fn ins_compl_insert(move_cursor: bool, insert_prefix: bool) {
             }
         }
         let shown = compl_opt(insexp().compl_shown_idx);
-        insexp().compl_used_match = !(match_at_original_text(&*shown) || (preinsert && !insert_prefix));
+        insexp().compl_used_match =
+            !(match_at_original_text(&*shown) || (preinsert && !insert_prefix));
 
         let dict = ins_compl_dict_alloc(shown);
         set_vim_var_dict(VV_COMPLETED_ITEM, dict);
@@ -5553,8 +5675,12 @@ fn ins_compl_show_filename() {
     unsafe {
         let lead = gettext(c"match in file");
 
-        let mut space =
-            (if ui_has(K_UIMESSAGES) { g_st().columns_global } else { g_st().sc_col }) - vim_strsize(lead) - 2;
+        let mut space = (if ui_has(K_UIMESSAGES) {
+            g_st().columns_global
+        } else {
+            g_st().sc_col
+        }) - vim_strsize(lead)
+            - 2;
         if space <= 0 {
             return;
         }
@@ -5597,7 +5723,7 @@ fn ins_compl_show_filename() {
 }
 
 fn find_next_match_in_menu() -> Option<usize> {
-     {
+    {
         let is_forward = compl_shows_dir_forward();
         let mut match_idx = insexp().compl_shown_idx?;
 
@@ -5682,7 +5808,10 @@ fn find_next_completion_match(
 
                 *num_matches = ins_compl_get_exp(&mut insexp().compl_startpos);
 
-                while insexp().compl_pending != 0 && insexp().compl_direction == insexp().compl_shows_dir && advance {
+                while insexp().compl_pending != 0
+                    && insexp().compl_direction == insexp().compl_shows_dir
+                    && advance
+                {
                     let cur_shown = insexp().compl_shown_idx.unwrap();
                     if insexp().compl_pending > 0
                         && let Some(ni) = compl_next_idx(cur_shown)
@@ -5749,7 +5878,10 @@ fn ins_compl_next(allow_get_expansion: bool, count: c_int, insert_match: bool) -
             ins_compl_update_shown_match();
         }
 
-        if allow_get_expansion && insert_match && (!insexp().compl_get_longest || insexp().compl_used_match) {
+        if allow_get_expansion
+            && insert_match
+            && (!insexp().compl_get_longest || insexp().compl_used_match)
+        {
             ins_compl_delete(false);
         }
 
@@ -5760,9 +5892,7 @@ fn ins_compl_next(allow_get_expansion: bool, count: c_int, insert_match: bool) -
             insexp().compl_restarting = false;
         }
 
-        if find_next_completion_match(allow_get_expansion, todo, advance, &mut num_matches)
-            == -1
-        {
+        if find_next_completion_match(allow_get_expansion, todo, advance, &mut num_matches) == -1 {
             return -1;
         }
 
@@ -5773,7 +5903,10 @@ fn ins_compl_next(allow_get_expansion: bool, count: c_int, insert_match: bool) -
         if !started && ins_compl_preinsert_longest() {
             ins_compl_insert(true, true);
         } else if compl_no_insert && !started && !compl_preinsert {
-            ins_compl_insert_bytes(insexp().compl_orig_text.data.add(get_compl_len() as usize), -1);
+            ins_compl_insert_bytes(
+                insexp().compl_orig_text.data.add(get_compl_len() as usize),
+                -1,
+            );
             insexp().compl_used_match = false;
             restore_orig_extmarks();
         } else if insert_match {
@@ -5783,10 +5916,15 @@ fn ins_compl_next(allow_get_expansion: bool, count: c_int, insert_match: bool) -
                 ins_compl_insert(compl_preinsert || preinsert_longest, preinsert_longest);
             } else {
                 debug_assert!(!insexp().compl_leader.data.is_null());
-                ins_compl_insert_bytes(insexp().compl_leader.data.add(get_compl_len() as usize), -1);
+                ins_compl_insert_bytes(
+                    insexp().compl_leader.data.add(get_compl_len() as usize),
+                    -1,
+                );
             }
             let shown = compl_opt(insexp().compl_shown_idx);
-            if crate::memory::cstr_as_opt_bytes((*shown).cp_str.data) == crate::memory::cstr_as_opt_bytes(insexp().compl_orig_text.data) {
+            if crate::memory::cstr_as_opt_bytes((*shown).cp_str.data)
+                == crate::memory::cstr_as_opt_bytes(insexp().compl_orig_text.data)
+            {
                 restore_orig_extmarks();
             }
         } else {
@@ -5817,12 +5955,12 @@ fn ins_compl_next(allow_get_expansion: bool, count: c_int, insert_match: bool) -
 
 fn check_elapsed_time() {
     let start_tv = insexp().cpt_sources_array[insexp().cpt_sources_index as usize].compl_start_tv;
-        let elapsed_ms = (os_hrtime() - start_tv) / 1_000_000;
+    let elapsed_ms = (os_hrtime() - start_tv) / 1_000_000;
 
-        if elapsed_ms > insexp().compl_timeout_ms {
-            insexp().compl_time_slice_expired = true;
-            decay_compl_timeout();
-        }
+    if elapsed_ms > insexp().compl_timeout_ms {
+        insexp().compl_time_slice_expired = true;
+        decay_compl_timeout();
+    }
 }
 
 pub fn ins_compl_check_keys(frequency: c_int, in_compl_func: bool) {
@@ -5847,7 +5985,9 @@ pub fn ins_compl_check_keys(frequency: c_int, in_compl_func: bool) {
             } else {
                 c = safe_vgetc();
                 if c != K_IGNORE {
-                    if c != CTRL_R_CONST && (g_st().key_typed || (in_compl_func && g_st().reg_executing == 0)) {
+                    if c != CTRL_R_CONST
+                        && (g_st().key_typed || (in_compl_func && g_st().reg_executing == 0))
+                    {
                         insexp().compl_interrupted = true;
                     }
 
@@ -5880,67 +6020,72 @@ pub fn ins_compl_check_keys(frequency: c_int, in_compl_func: bool) {
 
 fn ins_compl_key2dir(c: c_int) -> Direction {
     if c == K_EVENT || c == K_COMMAND || c == K_LUA {
-            return if g_st().pum_want.item < insexp().compl_selected_item {
-                BACKWARD
-            } else {
-                FORWARD
-            };
-        }
-        if c == CTRL_P || c == CTRL_L_CONST || c == K_PAGEUP || c == K_KPAGEUP || c == K_S_UP || c == K_UP
-        {
-            return BACKWARD;
-        }
-        FORWARD
+        return if g_st().pum_want.item < insexp().compl_selected_item {
+            BACKWARD
+        } else {
+            FORWARD
+        };
+    }
+    if c == CTRL_P
+        || c == CTRL_L_CONST
+        || c == K_PAGEUP
+        || c == K_KPAGEUP
+        || c == K_S_UP
+        || c == K_UP
+    {
+        return BACKWARD;
+    }
+    FORWARD
 }
 
 fn ins_compl_pum_key(c: c_int) -> bool {
     pum_visible()
-            && (c == K_PAGEUP
-                || c == K_KPAGEUP
-                || c == K_S_UP
-                || c == K_PAGEDOWN
-                || c == K_KPAGEDOWN
-                || c == K_S_DOWN
-                || c == K_UP
-                || c == K_DOWN)
+        && (c == K_PAGEUP
+            || c == K_KPAGEUP
+            || c == K_S_UP
+            || c == K_PAGEDOWN
+            || c == K_KPAGEDOWN
+            || c == K_S_DOWN
+            || c == K_UP
+            || c == K_DOWN)
 }
 
 fn ins_compl_key2count(c: c_int) -> c_int {
     if c == K_EVENT || c == K_COMMAND || c == K_LUA {
-            return (g_st().pum_want.item - insexp().compl_selected_item).abs();
-        }
+        return (g_st().pum_want.item - insexp().compl_selected_item).abs();
+    }
 
-        if ins_compl_pum_key(c) && c != K_UP && c != K_DOWN {
-            let mut h = pum_get_height();
-            if h > 3 {
-                h -= 2;
-            }
-            return h;
+    if ins_compl_pum_key(c) && c != K_UP && c != K_DOWN {
+        let mut h = pum_get_height();
+        if h > 3 {
+            h -= 2;
         }
-        1
+        return h;
+    }
+    1
 }
 
 fn ins_compl_use_match(c: c_int) -> bool {
     match c {
-            K_UP | K_DOWN | K_PAGEDOWN | K_KPAGEDOWN | K_S_DOWN | K_PAGEUP | K_KPAGEUP | K_S_UP => {
-                false
-            }
-            K_EVENT | K_COMMAND | K_LUA => g_st().pum_want.active && g_st().pum_want.insert,
-            _ => true,
+        K_UP | K_DOWN | K_PAGEDOWN | K_KPAGEDOWN | K_S_DOWN | K_PAGEUP | K_KPAGEUP | K_S_UP => {
+            false
         }
+        K_EVENT | K_COMMAND | K_LUA => g_st().pum_want.active && g_st().pum_want.insert,
+        _ => true,
+    }
 }
 
-fn get_normal_compl_info(
-    line: *mut c_char,
-    mut startcol: c_int,
-    curs_col: Colnr,
-) -> bool {
+fn get_normal_compl_info(line: *mut c_char, mut startcol: c_int, curs_col: Colnr) -> bool {
     unsafe {
         if (insexp().compl_cont_status & CONT_SOL) != 0 || ctrl_x_mode_path_defines() {
             if !compl_status_adding() {
                 while {
                     startcol -= 1;
-                    startcol >= 0 && vim_is_idc(c_int::from(crate::memory::cstr_byte_at(line, startcol as usize)))
+                    startcol >= 0
+                        && vim_is_idc(c_int::from(crate::memory::cstr_byte_at(
+                            line,
+                            startcol as usize,
+                        )))
                 } {}
                 startcol += 1;
                 insexp().compl_col += startcol;
@@ -5954,21 +6099,28 @@ fn get_normal_compl_info(
                     0,
                 );
             } else {
-                set_compl_pattern_bytes(line.add(insexp().compl_col as usize), insexp().compl_length as usize);
+                set_compl_pattern_bytes(
+                    line.add(insexp().compl_col as usize),
+                    insexp().compl_length as usize,
+                );
             }
         } else if compl_status_adding() {
             let mut prefix = c"\\<".as_ptr();
             let mut prefixlen: usize = 2;
 
             if !vim_iswordp(line.add(insexp().compl_col as usize))
-                || (insexp().compl_col > 0 && vim_iswordp(mb_prevptr(line, line.add(insexp().compl_col as usize))))
+                || (insexp().compl_col > 0
+                    && vim_iswordp(mb_prevptr(line, line.add(insexp().compl_col as usize))))
             {
                 prefix = c"".as_ptr();
                 prefixlen = 0;
             }
 
-            let n = quote_meta(ptr::null_mut(), line.add(insexp().compl_col as usize), insexp().compl_length)
-                as usize
+            let n = quote_meta(
+                ptr::null_mut(),
+                line.add(insexp().compl_col as usize),
+                insexp().compl_length,
+            ) as usize
                 + prefixlen;
             let mut pat_vec: Vec<c_char> = vec![0; n];
             crate::memory::cstr_cpy(pat_vec.as_mut_ptr(), prefix);
@@ -6005,12 +6157,22 @@ fn get_normal_compl_info(
                 if insexp().compl_length == 1 {
                     let mut pat_vec = [0 as c_char; 7];
                     crate::memory::cstr_cpy(pat_vec.as_mut_ptr(), c"\\<");
-                    quote_meta(pat_vec.as_mut_ptr().add(2), line.add(insexp().compl_col as usize), 1);
+                    quote_meta(
+                        pat_vec.as_mut_ptr().add(2),
+                        line.add(insexp().compl_col as usize),
+                        1,
+                    );
                     crate::memory::cstr_cat(pat_vec.as_mut_ptr(), c"\\k");
-                    set_compl_pattern_bytes(pat_vec.as_ptr(), crate::memory::cstr_len(pat_vec.as_ptr()));
+                    set_compl_pattern_bytes(
+                        pat_vec.as_ptr(),
+                        crate::memory::cstr_len(pat_vec.as_ptr()),
+                    );
                 } else {
-                    let n = quote_meta(ptr::null_mut(), line.add(insexp().compl_col as usize), insexp().compl_length)
-                        as usize
+                    let n = quote_meta(
+                        ptr::null_mut(),
+                        line.add(insexp().compl_col as usize),
+                        insexp().compl_length,
+                    ) as usize
                         + 2;
                     let mut pat_vec: Vec<c_char> = vec![0; n];
                     crate::memory::cstr_cpy(pat_vec.as_mut_ptr(), c"\\<");
@@ -6033,7 +6195,8 @@ fn get_normal_compl_info(
     }
 }
 
-fn get_wholeline_compl_info(line: impl crate::strings::IntoCCharPtr, curs_col: Colnr) -> bool { let line = line.into_c_char_ptr();
+fn get_wholeline_compl_info(line: impl crate::strings::IntoCCharPtr, curs_col: Colnr) -> bool {
+    let line = line.into_c_char_ptr();
     unsafe {
         insexp().compl_col = getwhitecols(line) as Colnr;
         insexp().compl_length = curs_col - insexp().compl_col;
@@ -6048,18 +6211,17 @@ fn get_wholeline_compl_info(line: impl crate::strings::IntoCCharPtr, curs_col: C
                 0,
             );
         } else {
-            set_compl_pattern_bytes(line.add(insexp().compl_col as usize), insexp().compl_length as usize);
+            set_compl_pattern_bytes(
+                line.add(insexp().compl_col as usize),
+                insexp().compl_length as usize,
+            );
         }
 
         true
     }
 }
 
-fn get_filename_compl_info(
-    line: *mut c_char,
-    mut startcol: c_int,
-    curs_col: Colnr,
-) -> bool {
+fn get_filename_compl_info(line: *mut c_char, mut startcol: c_int, curs_col: Colnr) -> bool {
     unsafe {
         if startcol > 0 {
             let mut p = line.add(startcol as usize);
@@ -6102,7 +6264,8 @@ fn get_filename_compl_info(
     }
 }
 
-fn get_cmdline_compl_info(line: impl crate::strings::IntoCCharPtr, curs_col: Colnr) -> bool { let line = line.into_c_char_ptr();
+fn get_cmdline_compl_info(line: impl crate::strings::IntoCCharPtr, curs_col: Colnr) -> bool {
+    let line = line.into_c_char_ptr();
     unsafe {
         set_compl_pattern_bytes(line, curs_col as usize);
         set_cmd_context(
@@ -6115,10 +6278,15 @@ fn get_cmdline_compl_info(line: impl crate::strings::IntoCCharPtr, curs_col: Col
         if insexp().compl_xp.xp_context == EXPAND_LUA {
             nlua_expand_pat(&mut insexp().compl_xp);
         }
-        if insexp().compl_xp.xp_context == EXPAND_UNSUCCESSFUL || insexp().compl_xp.xp_context == EXPAND_NOTHING {
+        if insexp().compl_xp.xp_context == EXPAND_UNSUCCESSFUL
+            || insexp().compl_xp.xp_context == EXPAND_NOTHING
+        {
             insexp().compl_col = curs_col;
         } else {
-            insexp().compl_col = insexp().compl_xp.xp_pattern.offset_from(compl_pattern_ptr()) as Colnr;
+            insexp().compl_col = insexp()
+                .compl_xp
+                .xp_pattern
+                .offset_from(compl_pattern_ptr()) as Colnr;
         }
         insexp().compl_length = curs_col - insexp().compl_col;
 
@@ -6163,8 +6331,12 @@ fn get_userdefined_compl_info(
         let save_state = g_st().state_global;
 
         let is_cpt_function = !cb.is_null();
-        let use_sandbox =
-            is_cpt_function && was_set_insecurely(Some(crate::globals::curwin_mut()), K_OPT_COMPLETE, OPT_LOCAL) != 0;
+        let use_sandbox = is_cpt_function
+            && was_set_insecurely(
+                Some(crate::globals::curwin_mut()),
+                K_OPT_COMPLETE,
+                OPT_LOCAL,
+            ) != 0;
         if !is_cpt_function {
             cb = get_insert_callback(insexp().ctrl_x_mode);
             if (*cb).cb_type() == K_CALLBACK_NONE_CONST {
@@ -6192,7 +6364,7 @@ fn get_userdefined_compl_info(
         if use_sandbox {
             g_st().sandbox += 1;
         }
-        let col = callback_call_retnr( &mut *cb, 2, args.as_mut_ptr()) as Colnr;
+        let col = callback_call_retnr(&mut *cb, 2, args.as_mut_ptr()) as Colnr;
         if use_sandbox {
             g_st().sandbox -= 1;
         }
@@ -6252,7 +6424,10 @@ fn get_spell_compl_info(startcol: c_int, curs_col: Colnr) -> bool {
             insexp().compl_length = curs_col - insexp().compl_col;
         }
         let line = ml_get(curwin_mut().w_cursor.lnum);
-        set_compl_pattern_bytes(line.add(insexp().compl_col as usize), insexp().compl_length as usize);
+        set_compl_pattern_bytes(
+            line.add(insexp().compl_col as usize),
+            insexp().compl_length as usize,
+        );
 
         true
     }
@@ -6267,7 +6442,8 @@ fn compl_get_info(
     {
         if ctrl_x_mode_normal()
             || ctrl_x_mode_register()
-            || ((insexp().ctrl_x_mode & CTRL_X_WANT_IDENT) != 0 && !thesaurus_func_complete(insexp().ctrl_x_mode))
+            || ((insexp().ctrl_x_mode & CTRL_X_WANT_IDENT) != 0
+                && !thesaurus_func_complete(insexp().ctrl_x_mode))
         {
             if !get_normal_compl_info(line, startcol, curs_col) {
                 return false;
@@ -6301,7 +6477,8 @@ fn compl_get_info(
     }
 }
 
-fn ins_compl_continue_search(line: impl crate::strings::IntoCCharPtr) { let line = line.into_c_char_ptr();
+fn ins_compl_continue_search(line: impl crate::strings::IntoCCharPtr) {
+    let line = line.into_c_char_ptr();
     unsafe {
         insexp().compl_cont_status &= !CONT_INTRPT;
         if ctrl_x_mode_normal() || ctrl_x_mode_path_patterns() || ctrl_x_mode_path_defines() {
@@ -6313,7 +6490,9 @@ fn ins_compl_continue_search(line: impl crate::strings::IntoCCharPtr) { let line
             } else {
                 if (insexp().compl_cont_status & CONT_S_IPOS) != 0 {
                     insexp().compl_cont_status |= CONT_SOL;
-                    let p = skipwhite(line.add((insexp().compl_length + insexp().compl_startpos.col) as usize));
+                    let p = skipwhite(
+                        line.add((insexp().compl_length + insexp().compl_startpos.col) as usize),
+                    );
                     insexp().compl_startpos.col = p.offset_from(line) as Colnr;
                 }
                 insexp().compl_col = insexp().compl_startpos.col;
@@ -6354,7 +6533,9 @@ fn ins_compl_start() -> bool {
         insexp().compl_pending = 0;
         insexp().compl_lnum = curwin_mut().w_cursor.lnum;
 
-        if (insexp().compl_cont_status & CONT_INTRPT) == CONT_INTRPT && insexp().compl_cont_mode == insexp().ctrl_x_mode {
+        if (insexp().compl_cont_status & CONT_INTRPT) == CONT_INTRPT
+            && insexp().compl_cont_mode == insexp().ctrl_x_mode
+        {
             ins_compl_continue_search(line);
         } else {
             insexp().compl_cont_status &= CONT_LOCAL;
@@ -6374,7 +6555,9 @@ fn ins_compl_start() -> bool {
 
         let mut line_invalid = false;
         if !compl_get_info(line, startcol, curs_col, &mut line_invalid) {
-            if ctrl_x_mode_function() || ctrl_x_mode_omni() || thesaurus_func_complete(insexp().ctrl_x_mode)
+            if ctrl_x_mode_function()
+                || ctrl_x_mode_omni()
+                || thesaurus_func_complete(insexp().ctrl_x_mode)
             {
                 g_st().ins_global.did_ai = save_did_ai;
             }
@@ -6417,7 +6600,10 @@ fn ins_compl_start() -> bool {
         api_clear_string(&mut insexp().compl_orig_text);
         let extmarks = &raw mut insexp().compl_orig_extmarks;
         (*extmarks).clear();
-        insexp().compl_orig_text = cbuf_to_string(line.add(insexp().compl_col as usize), insexp().compl_length as usize);
+        insexp().compl_orig_text = cbuf_to_string(
+            line.add(insexp().compl_col as usize),
+            insexp().compl_length as usize,
+        );
         save_orig_extmarks();
         let mut flags = CP_ORIGINAL_TEXT;
         if opt_vars().p_ic != 0 {
@@ -6460,7 +6646,7 @@ fn ins_compl_start() -> bool {
 }
 
 fn ins_compl_show_statusmsg() {
-     {
+    {
         if compl_next_idx(0) == Some(0) {
             g_st().edit_submode_extra = if compl_status_adding() && insexp().compl_length > 1 {
                 gettext(c"Hit end of paragraph")
@@ -6500,12 +6686,7 @@ fn ins_compl_show_statusmsg() {
                             insexp().compl_matches,
                         );
                     } else {
-                        vim_snprintf!(
-                            match_ref_ptr,
-                            81,
-                            gettext(c"match %d"),
-                            curr.cp_number,
-                        );
+                        vim_snprintf!(match_ref_ptr, 81, gettext(c"match %d"), curr.cp_number,);
                     }
                     g_st().edit_submode_extra = match_ref_ptr;
                     g_st().edit_submode_highl = HLF_R;
@@ -6626,7 +6807,7 @@ pub fn ins_complete(c: c_int, enable_pum: bool) -> bool {
 
 pub fn ins_compl_enable_autocomplete() {
     insexp().compl_autocomplete = true;
-        insexp().compl_get_longest = false;
+    insexp().compl_get_longest = false;
 }
 
 pub fn ins_compl_disable_autocomplete() {
@@ -6643,11 +6824,11 @@ pub fn ins_compl_disarm_autostart() {
 
 pub fn ins_compl_arm_autocomplete_delay() -> bool {
     if opt_vars().p_acl > 0 {
-            insexp().compl_autocomplete_start_tv = os_hrtime();
-            insexp().compl_autocomplete_pending = true;
-            return true;
-        }
-        false
+        insexp().compl_autocomplete_start_tv = os_hrtime();
+        insexp().compl_autocomplete_pending = true;
+        return true;
+    }
+    false
 }
 
 pub fn ins_compl_clear_autocomplete_delay() {
@@ -6663,7 +6844,7 @@ pub fn ins_compl_autocomplete_elapsed() -> i64 {
 }
 
 fn show_pum(prev_w_wrow: c_int, prev_w_leftcol: c_int) {
-     {
+    {
         let n = g_st().redrawing_disabled;
         g_st().redrawing_disabled = 0;
 
@@ -6678,7 +6859,12 @@ fn show_pum(prev_w_wrow: c_int, prev_w_leftcol: c_int) {
     }
 }
 
-fn quote_meta(mut dest: *mut c_char, src: impl crate::strings::IntoCCharPtr, mut len: c_int) -> c_uint { let mut src = src.into_c_char_ptr();
+fn quote_meta(
+    mut dest: *mut c_char,
+    src: impl crate::strings::IntoCCharPtr,
+    mut len: c_int,
+) -> c_uint {
+    let mut src = src.into_c_char_ptr();
     unsafe {
         let mut m = (len + 1) as c_uint;
 
@@ -6746,9 +6932,10 @@ pub fn free_insexpand_stuff() {
 }
 
 fn spell_back_to_badword() {
-     {
+    {
         let mut tpos = curwin_mut().w_cursor;
-        insexp().spell_bad_len = spell_move_to(curwin_mut(), BACKWARD, SMT_ALL, true, ptr::null_mut());
+        insexp().spell_bad_len =
+            spell_move_to(curwin_mut(), BACKWARD, SMT_ALL, true, ptr::null_mut());
         if curwin_mut().w_cursor.col != tpos.col {
             start_arrow(&raw mut tpos, true, NUL as c_int);
         }
@@ -6757,7 +6944,7 @@ fn spell_back_to_badword() {
 
 fn cpt_sources_clear() {
     insexp().cpt_sources_array = Vec::new();
-        insexp().cpt_sources_index = -1;
+    insexp().cpt_sources_index = -1;
 }
 
 fn setup_cpt_sources() {
@@ -6784,7 +6971,9 @@ fn setup_cpt_sources() {
         let mut idx: usize = 0;
         let mut p = curbuf_mut().b_p_cpt;
         while !crate::memory::cstr_is_empty(p) {
-            while crate::memory::cstr_first_byte(p) == b',' || crate::memory::cstr_first_byte(p) == b' ' {
+            while crate::memory::cstr_first_byte(p) == b','
+                || crate::memory::cstr_first_byte(p) == b' '
+            {
                 p = p.add(1);
             }
             if !crate::memory::cstr_is_empty(p) {
@@ -6794,7 +6983,9 @@ fn setup_cpt_sources() {
                 if slen > 0 {
                     let caret = vim_strchr(buf.as_mut_ptr(), b'^' as c_int);
                     if !caret.is_null() {
-                        sources[idx].cs_max_matches = crate::charset::parse_i64_prefix(crate::memory::cstr_as_bytes(caret.add(1))) as c_int;
+                        sources[idx].cs_max_matches = crate::charset::parse_i64_prefix(
+                            crate::memory::cstr_as_bytes(caret.add(1)),
+                        ) as c_int;
                     }
                 }
                 idx += 1;
@@ -6806,7 +6997,7 @@ fn setup_cpt_sources() {
 }
 
 fn is_cpt_func_refresh_always() -> bool {
-     {
+    {
         let cpt_sources = &insexp().cpt_sources_array;
         cpt_sources.iter().any(|s| s.cs_refresh_always)
     }
@@ -6818,63 +7009,64 @@ fn ins_compl_make_linear() {
 
 fn remove_old_matches() {
     let list = compl_list_mut();
-        if list.is_empty() || insexp().cpt_sources_index < 0 {
-            return;
-        }
-        let forward = list[0].cp_cpt_source_idx < 0;
-        insexp().compl_direction = if forward { FORWARD } else { BACKWARD };
-        insexp().compl_shows_dir = insexp().compl_direction;
+    if list.is_empty() || insexp().cpt_sources_index < 0 {
+        return;
+    }
+    let forward = list[0].cp_cpt_source_idx < 0;
+    insexp().compl_direction = if forward { FORWARD } else { BACKWARD };
+    insexp().compl_shows_dir = insexp().compl_direction;
 
-        let shown_ptr = insexp().compl_shown_idx.map(|i| list[i].cp_str.data);
-        let preselect_ptr = insexp().compl_preselect_idx.map(|i| list[i].cp_str.data);
-        let old_ptr = insexp().compl_old_idx.map(|i| list[i].cp_str.data);
+    let shown_ptr = insexp().compl_shown_idx.map(|i| list[i].cp_str.data);
+    let preselect_ptr = insexp().compl_preselect_idx.map(|i| list[i].cp_str.data);
+    let old_ptr = insexp().compl_old_idx.map(|i| list[i].cp_str.data);
 
-        let mut i = 0;
-        while i < list.len() {
-            if list[i].cp_cpt_source_idx == insexp().cpt_sources_index {
-                list.remove(i);
-            } else {
-                i += 1;
-            }
-        }
-
-        insexp().compl_preselect_idx =
-            preselect_ptr.and_then(|p| list.iter().position(|m| ptr::eq(m.cp_str.data, p)));
-        insexp().compl_old_idx = old_ptr.and_then(|p| list.iter().position(|m| ptr::eq(m.cp_str.data, p)));
-
-        if let Some(sp) = shown_ptr
-            && let Some(new_shown) = list.iter().position(|m| ptr::eq(m.cp_str.data, sp))
-        {
-            insexp().compl_shown_idx = Some(new_shown);
-        } else if !list.is_empty() {
-            insexp().compl_shown_idx = Some(if forward { 0 } else { list.len() - 1 });
+    let mut i = 0;
+    while i < list.len() {
+        if list[i].cp_cpt_source_idx == insexp().cpt_sources_index {
+            list.remove(i);
         } else {
-            insexp().compl_shown_idx = None;
+            i += 1;
         }
+    }
 
-        insexp().compl_curr_idx = if list.is_empty() { None } else { Some(0) };
-        for idx in 0..list.len() {
-            let cond = if forward {
-                list[idx].cp_cpt_source_idx < insexp().cpt_sources_index
+    insexp().compl_preselect_idx =
+        preselect_ptr.and_then(|p| list.iter().position(|m| ptr::eq(m.cp_str.data, p)));
+    insexp().compl_old_idx =
+        old_ptr.and_then(|p| list.iter().position(|m| ptr::eq(m.cp_str.data, p)));
+
+    if let Some(sp) = shown_ptr
+        && let Some(new_shown) = list.iter().position(|m| ptr::eq(m.cp_str.data, sp))
+    {
+        insexp().compl_shown_idx = Some(new_shown);
+    } else if !list.is_empty() {
+        insexp().compl_shown_idx = Some(if forward { 0 } else { list.len() - 1 });
+    } else {
+        insexp().compl_shown_idx = None;
+    }
+
+    insexp().compl_curr_idx = if list.is_empty() { None } else { Some(0) };
+    for idx in 0..list.len() {
+        let cond = if forward {
+            list[idx].cp_cpt_source_idx < insexp().cpt_sources_index
+        } else {
+            list[idx].cp_cpt_source_idx > insexp().cpt_sources_index
+        };
+        if cond {
+            insexp().compl_curr_idx = if forward {
+                Some(idx)
+            } else if idx + 1 < list.len() {
+                Some(idx + 1)
             } else {
-                list[idx].cp_cpt_source_idx > insexp().cpt_sources_index
+                None
             };
-            if cond {
-                insexp().compl_curr_idx = if forward {
-                    Some(idx)
-                } else if idx + 1 < list.len() {
-                    Some(idx + 1)
-                } else {
-                    None
-                };
-            } else {
-                break;
-            }
+        } else {
+            break;
         }
+    }
 }
 
 fn get_cpt_func_completion_matches(cb: &mut Callback) {
-     {
+    {
         let cpt_src = &mut insexp().cpt_sources_array[insexp().cpt_sources_index as usize];
         let startcol = cpt_src.cs_startcol;
 
@@ -6909,7 +7101,9 @@ fn cpt_compl_refresh() {
         insexp().cpt_sources_index = 0;
         let mut p = cpt;
         while !crate::memory::cstr_is_empty(p) {
-            while crate::memory::cstr_first_byte(p) == b',' || crate::memory::cstr_first_byte(p) == b' ' {
+            while crate::memory::cstr_first_byte(p) == b','
+                || crate::memory::cstr_first_byte(p) == b' '
+            {
                 p = p.add(1);
             }
             if crate::memory::cstr_is_empty(p) {
@@ -6921,18 +7115,23 @@ fn cpt_compl_refresh() {
                 if !cb.is_null() {
                     remove_old_matches();
                     let mut startcol: c_int = 0;
-                    let ret =
-                        get_userdefined_compl_info(curwin_mut().w_cursor.col, cb, Some(&mut startcol));
+                    let ret = get_userdefined_compl_info(
+                        curwin_mut().w_cursor.col,
+                        cb,
+                        Some(&mut startcol),
+                    );
                     if !ret {
                         if startcol == -3 {
-                            insexp().cpt_sources_array[insexp().cpt_sources_index as usize].cs_refresh_always = false;
+                            insexp().cpt_sources_array[insexp().cpt_sources_index as usize]
+                                .cs_refresh_always = false;
                         } else {
                             startcol = -2;
                         }
                     } else if startcol < 0 || startcol > curwin_mut().w_cursor.col {
                         startcol = curwin_mut().w_cursor.col;
                     }
-                    insexp().cpt_sources_array[insexp().cpt_sources_index as usize].cs_startcol = startcol;
+                    insexp().cpt_sources_array[insexp().cpt_sources_index as usize].cs_startcol =
+                        startcol;
                     if ret {
                         compl_source_start_timer(insexp().cpt_sources_index);
                         get_cpt_func_completion_matches(&mut *cb);
@@ -6952,10 +7151,10 @@ fn cpt_compl_refresh() {
     }
 }
 
-pub fn f_preinserted(_argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData){
+pub fn f_preinserted(_argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
     if ins_compl_preinsert_effect() {
-            rettv.vval = crate::eval::typval::TypvalVval::Number(1);
-        }
+        rettv.vval = crate::eval::typval::TypvalVval::Number(1);
+    }
 }
 
 #[cfg(test)]

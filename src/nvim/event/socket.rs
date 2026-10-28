@@ -133,7 +133,7 @@ fn connect_req_handle(req: *mut uv_connect_t) -> *mut uv_stream_t {
 
 #[inline]
 fn poll_main_loop_until<F: FnMut() -> bool>(timeout: i64, mut cond: F) {
-     {
+    {
         let mut remaining = timeout;
         let mut before = if remaining > 0 { os_hrtime() } else { 0 };
         while !cond() {
@@ -168,7 +168,10 @@ pub fn socket_address_tcp_host_end(address: impl crate::strings::IntoCCharPtr) -
             return ptr::null_mut();
         }
 
-        let colon = crate::memory::cstr_as_bytes(address).iter().rposition(|&b| b == b':').map_or(ptr::null_mut(), |i| address.add(i).cast_mut());
+        let colon = crate::memory::cstr_as_bytes(address)
+            .iter()
+            .rposition(|&b| b == b':')
+            .map_or(ptr::null_mut(), |i| address.add(i).cast_mut());
         if !colon.is_null() && colon != address.cast_mut() {
             colon
         } else {
@@ -181,7 +184,8 @@ pub fn socket_watcher_init(
     loop_: &mut Loop,
     watcher: &mut SocketWatcher,
     endpoint: impl crate::strings::IntoCCharPtr,
-) -> c_int { let endpoint = endpoint.into_c_char_ptr();
+) -> c_int {
+    let endpoint = endpoint.into_c_char_ptr();
     unsafe {
         let addr = watcher.addr.as_mut_ptr();
         xstrlcpy(addr, endpoint, ADDRESS_MAX_SIZE);
@@ -260,7 +264,8 @@ pub fn socket_watcher_init(
 }
 
 /// Check if a socket is alive by attempting to connect to it.
-fn socket_alive(loop_: &mut Loop, addr: impl crate::strings::IntoCCharPtr) -> bool { let addr = addr.into_c_char_ptr();
+fn socket_alive(loop_: &mut Loop, addr: impl crate::strings::IntoCCharPtr) -> bool {
+    let addr = addr.into_c_char_ptr();
     unsafe {
         let mut stream = RStream::new();
         let mut error: *const c_char = std::ptr::null();
@@ -322,7 +327,12 @@ pub fn socket_watcher_start(watcher: &mut SocketWatcher, backlog: c_int) -> c_in
             }
             uv_freeaddrinfo(watcher.tcp_addrinfo.cast());
         } else {
-            result = uv_pipe_bind2(uv_ptr.cast(), addr, crate::memory::cstr_len(addr), UV_PIPE_NO_TRUNCATE);
+            result = uv_pipe_bind2(
+                uv_ptr.cast(),
+                addr,
+                crate::memory::cstr_len(addr),
+                UV_PIPE_NO_TRUNCATE,
+            );
 
             // If bind failed with EACCES/EADDRINUSE, check if socket is stale
             if result == UV_EACCES || result == UV_EADDRINUSE {
@@ -356,8 +366,12 @@ pub fn socket_watcher_start(watcher: &mut SocketWatcher, backlog: c_int) -> c_in
                         *watcher.stream_ptr().cast::<*mut SocketWatcher>() = (&raw mut *watcher);
 
                         // Retry bind with fresh handle
-                        result =
-                            uv_pipe_bind2(uv_ptr.cast(), addr, crate::memory::cstr_len(addr), UV_PIPE_NO_TRUNCATE);
+                        result = uv_pipe_bind2(
+                            uv_ptr.cast(),
+                            addr,
+                            crate::memory::cstr_len(addr),
+                            UV_PIPE_NO_TRUNCATE,
+                        );
                     }
                 } else {
                     logmsg!(
@@ -432,7 +446,8 @@ unsafe extern "C" fn connection_cb(handle: *mut uv_stream_t, status: c_int) {
     unsafe {
         let watcher = *handle.cast::<*mut SocketWatcher>();
         if !(*watcher).events.is_null() {
-            multiqueue_put_event( &mut *(*watcher).events,
+            multiqueue_put_event(
+                &mut *(*watcher).events,
                 Event::SocketConnection { watcher, status },
             );
         } else {
@@ -467,7 +482,8 @@ pub fn socket_connect(
     address: impl crate::strings::IntoCCharPtr,
     timeout: c_int,
     error: *mut *const c_char,
-) -> bool { let address = address.into_c_char_ptr();
+) -> bool {
+    let address = address.into_c_char_ptr();
     unsafe {
         let mut success = false;
         let mut closed = false;
@@ -490,10 +506,14 @@ pub fn socket_connect(
 
         'cleanup: {
             if is_tcp {
-                let addr_slice = std::slice::from_raw_parts(address, crate::memory::cstr_len(address) + 1);
+                let addr_slice =
+                    std::slice::from_raw_parts(address, crate::memory::cstr_len(address) + 1);
                 addr_buf.extend_from_slice(addr_slice);
                 let addr = addr_buf.as_mut_ptr();
-                let host_end = crate::memory::cstr_as_bytes(addr).iter().rposition(|&b| b == b':').map_or(ptr::null_mut(), |i| addr.add(i));
+                let host_end = crate::memory::cstr_as_bytes(addr)
+                    .iter()
+                    .rposition(|&b| b == b':')
+                    .map_or(ptr::null_mut(), |i| addr.add(i));
                 if host_end.is_null() {
                     *error = gettext(c"tcp address must be host:port");
                     break 'cleanup;

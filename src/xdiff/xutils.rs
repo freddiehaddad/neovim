@@ -5,9 +5,8 @@ use std::ptr;
 
 use crate::xdiff::xdiffi::xdl_do_diff;
 use crate::xdiff::{
-    XDF_IGNORE_CR_AT_EOL, XDF_IGNORE_WHITESPACE, XDF_IGNORE_WHITESPACE_AT_EOL,
-    XDF_IGNORE_WHITESPACE_CHANGE, XDF_WHITESPACE_FLAGS, Mmbuffer, Mmfile, Xdemitcb, Xdfenv,
-    xdl_isspace, Xpparam,
+    Mmbuffer, Mmfile, XDF_IGNORE_CR_AT_EOL, XDF_IGNORE_WHITESPACE, XDF_IGNORE_WHITESPACE_AT_EOL,
+    XDF_IGNORE_WHITESPACE_CHANGE, XDF_WHITESPACE_FLAGS, Xdemitcb, Xdfenv, Xpparam, xdl_isspace,
 };
 
 pub fn xdl_bogosqrt(mut n: c_long) -> c_long {
@@ -266,16 +265,16 @@ fn xdl_hash_record_with_whitespace(
         ha ^= unsafe { *ptr } as c_ulong;
         ptr = unsafe { ptr.add(1) };
     }
-    *data = if ptr < top { unsafe { ptr.add(1) } } else { ptr };
+    *data = if ptr < top {
+        unsafe { ptr.add(1) }
+    } else {
+        ptr
+    };
 
     ha
 }
 
-pub fn xdl_hash_record(
-    data: &mut *const c_char,
-    top: *const c_char,
-    flags: c_long,
-) -> c_ulong {
+pub fn xdl_hash_record(data: &mut *const c_char, top: *const c_char, flags: c_long) -> c_ulong {
     if ((flags as c_ulong) & XDF_WHITESPACE_FLAGS) != 0 {
         return xdl_hash_record_with_whitespace(data, top, flags);
     }
@@ -288,7 +287,11 @@ pub fn xdl_hash_record(
         ha ^= unsafe { *ptr } as c_ulong;
         ptr = unsafe { ptr.add(1) };
     }
-    *data = if ptr < top { unsafe { ptr.add(1) } } else { ptr };
+    *data = if ptr < top {
+        unsafe { ptr.add(1) }
+    } else {
+        ptr
+    };
 
     ha
 }

@@ -13,8 +13,8 @@ use crate::context::K_CTX_KEEP_DIRS;
 use crate::context::{CtxSwitch, ctx_restore, ctx_switch, handle_get_buffer, handle_get_window};
 use crate::cursor::Linenr;
 use crate::eval::typval::{
-    TvDict, tv_clear, tv_copy, tv_dict_add, tv_dict_find, tv_dict_item_alloc_len,
-    tv_dict_item_remove, tv_dict_watcher_notify, TypVal,
+    TvDict, TypVal, tv_clear, tv_copy, tv_dict_add, tv_dict_find, tv_dict_item_alloc_len,
+    tv_dict_item_remove, tv_dict_watcher_notify,
 };
 use crate::eval::vars::{before_set_vvar, get_globvar_dict, get_vimvar_dict};
 use crate::ex_docmd::{
@@ -42,8 +42,8 @@ use crate::lua::converter::{
 use crate::lua::spell::luaopen_spell;
 use crate::lua::xdiff::nlua_xdl_diff;
 use crate::mbyte::{
-    convert_setup_ext, enc_canonize, enc_skip, mb_stricmp, mb_utf_index_to_bytes, mb_utflen,
-    string_convert, utf_cp_bounds_len, utf_ptr2len_len, Vimconv,
+    Vimconv, convert_setup_ext, enc_canonize, enc_skip, mb_stricmp, mb_utf_index_to_bytes,
+    mb_utflen, string_convert, utf_cp_bounds_len, utf_ptr2len_len,
 };
 use crate::memline::{ml_get_buf, ml_get_buf_len};
 use crate::message::str2special;
@@ -94,7 +94,8 @@ fn regex_match(
     lstate: *mut lua_State,
     prog: *mut *mut Regprog,
     str_: impl crate::strings::IntoCCharPtr,
-) -> c_int { let str_ = str_.into_c_char_ptr();
+) -> c_int {
+    let str_ = str_.into_c_char_ptr();
     unsafe {
         let mut rm: Regmatch = Regmatch::new();
         rm.regprog = *prog;
@@ -430,7 +431,7 @@ pub unsafe extern "C-unwind" fn nlua_setvar(lstate: *mut lua_State) -> c_int {
             if watched {
                 tv_dict_watcher_notify(&mut *dict, key.data, None, Some(&(*di).di_tv));
             }
-            tv_dict_item_remove(&mut *dict,  &mut *di);
+            tv_dict_item_remove(&mut *dict, &mut *di);
         } else {
             let mut tv: TypVal = TypVal::new();
 
@@ -447,14 +448,7 @@ pub unsafe extern "C-unwind" fn nlua_setvar(lstate: *mut lua_State) -> c_int {
             } else {
                 let mut type_error = false;
                 if dict == get_vimvar_dict()
-                    && !before_set_vvar(
-                        key.data,
-                        &mut *di,
-                        &mut tv,
-                        true,
-                        watched,
-                        &mut type_error,
-                    )
+                    && !before_set_vvar(key.data, &mut *di, &mut tv, true, watched, &mut type_error)
                 {
                     tv_clear(&mut tv);
                     if type_error {
@@ -683,7 +677,11 @@ unsafe extern "C-unwind" fn nlua_with(lstate: *mut lua_State) -> c_int {
             }
 
             if !win.is_null() || !buf.is_null() || keepcwd {
-                let dirs = if keepcwd { K_CTX_KEEP_DIRS } else { K_CTX_KEEP_CWD };
+                let dirs = if keepcwd {
+                    K_CTX_KEEP_DIRS
+                } else {
+                    K_CTX_KEEP_CWD
+                };
                 let tab = if !win.is_null() {
                     win_find_tabpage(win)
                 } else {

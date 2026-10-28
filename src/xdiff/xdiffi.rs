@@ -8,9 +8,9 @@ use crate::xdiff::xpatience::xdl_do_patience_diff;
 use crate::xdiff::xprepare::xdl_prepare_env;
 use crate::xdiff::xutils::{xdl_blankline, xdl_bogosqrt, xdl_recmatch};
 use crate::xdiff::{
-    XDF_HISTOGRAM_DIFF, XDF_IGNORE_BLANK_LINES, XDF_INDENT_HEURISTIC, XDF_NEED_MINIMAL,
-    XDF_PATIENCE_DIFF, Diffdata, EmitFunc, Mmfile, Xdalgoenv, Xdchange, Xdemitcb,
-    Xdemitconf, xdf_diff_alg, Xdfenv, Xdfile, xdl_isspace, Xpparam, Xrecord,
+    Diffdata, EmitFunc, Mmfile, XDF_HISTOGRAM_DIFF, XDF_IGNORE_BLANK_LINES, XDF_INDENT_HEURISTIC,
+    XDF_NEED_MINIMAL, XDF_PATIENCE_DIFF, Xdalgoenv, Xdchange, Xdemitcb, Xdemitconf, Xdfenv, Xdfile,
+    Xpparam, Xrecord, xdf_diff_alg, xdl_isspace,
 };
 
 const XDL_MAX_COST_MIN: c_long = 256;
@@ -339,7 +339,17 @@ pub fn xdl_recs_cmp(
             };
 
             if xdl_split(
-                ha1, off1, lim1, ha2, off2, lim2, (&raw mut *kvdf), kvdb, need_min, &mut spl, xenv,
+                ha1,
+                off1,
+                lim1,
+                ha2,
+                off2,
+                lim2,
+                (&raw mut *kvdf),
+                kvdb,
+                need_min,
+                &mut spl,
+                xenv,
             ) < 0
             {
                 return -1;
@@ -359,12 +369,7 @@ pub fn xdl_recs_cmp(
     0
 }
 
-pub fn xdl_do_diff(
-    mf1: &mut Mmfile,
-    mf2: &mut Mmfile,
-    xpp: &Xpparam,
-    xe: &mut Xdfenv,
-) -> c_int {
+pub fn xdl_do_diff(mf1: &mut Mmfile, mf2: &mut Mmfile, xpp: &Xpparam, xe: &mut Xdfenv) -> c_int {
     unsafe {
         if xdf_diff_alg(xpp.flags) == XDF_PATIENCE_DIFF {
             return xdl_do_patience_diff(mf1, mf2, xpp, xe);
@@ -414,7 +419,7 @@ pub fn xdl_do_diff(
             &mut dd2,
             0,
             dd2_nrec,
-             &mut *kvdf,
+            &mut *kvdf,
             kvdb,
             c_int::from((xpp.flags & XDF_NEED_MINIMAL) != 0),
             &xenv,
@@ -664,105 +669,105 @@ pub fn xdl_change_compact(xdf: &mut Xdfile, xdfo: &mut Xdfile, flags: c_long) ->
     let mut go = XdlGroup::default();
 
     group_init(xdf, &mut g);
-        group_init(xdfo, &mut go);
+    group_init(xdfo, &mut go);
 
-        loop {
-            if g.end != g.start {
-                let mut earliest_end: c_long;
-                let mut end_matching_other: c_long;
-                let mut groupsize: c_long;
+    loop {
+        if g.end != g.start {
+            let mut earliest_end: c_long;
+            let mut end_matching_other: c_long;
+            let mut groupsize: c_long;
+
+            loop {
+                groupsize = g.end - g.start;
+                end_matching_other = -1;
+
+                while group_slide_up(xdf, &mut g, flags) == 0 {
+                    if group_previous(xdfo, &mut go) != 0 {
+                        xdl_bug("group sync broken sliding up");
+                    }
+                }
+
+                earliest_end = g.end;
+                if go.end > go.start {
+                    end_matching_other = g.end;
+                }
 
                 loop {
-                    groupsize = g.end - g.start;
-                    end_matching_other = -1;
-
-                    while group_slide_up(xdf, &mut g, flags) == 0 {
-                        if group_previous(xdfo, &mut go) != 0 {
-                            xdl_bug("group sync broken sliding up");
-                        }
+                    if group_slide_down(xdf, &mut g, flags) != 0 {
+                        break;
                     }
-
-                    earliest_end = g.end;
+                    if group_next(xdfo, &mut go) != 0 {
+                        xdl_bug("group sync broken sliding down");
+                    }
                     if go.end > go.start {
                         end_matching_other = g.end;
                     }
-
-                    loop {
-                        if group_slide_down(xdf, &mut g, flags) != 0 {
-                            break;
-                        }
-                        if group_next(xdfo, &mut go) != 0 {
-                            xdl_bug("group sync broken sliding down");
-                        }
-                        if go.end > go.start {
-                            end_matching_other = g.end;
-                        }
-                    }
-
-                    if groupsize == g.end - g.start {
-                        break;
-                    }
                 }
 
-                if g.end == earliest_end {
-                    // no shifting was possible
-                } else if end_matching_other != -1 {
-                    while go.end == go.start {
-                        if group_slide_up(xdf, &mut g, flags) != 0 {
-                            xdl_bug("match disappeared");
-                        }
-                        if group_previous(xdfo, &mut go) != 0 {
-                            xdl_bug("group sync broken sliding to match");
-                        }
-                    }
-                } else if ((flags as c_ulong) & XDF_INDENT_HEURISTIC) != 0 {
-                    let mut shift = earliest_end;
-                    if g.end - groupsize - 1 > shift {
-                        shift = g.end - groupsize - 1;
-                    }
-                    if g.end - INDENT_HEURISTIC_MAX_SLIDING > shift {
-                        shift = g.end - INDENT_HEURISTIC_MAX_SLIDING;
-                    }
-                    let mut best_shift: c_long = -1;
-                    let mut best_score = SplitScore::default();
-
-                    while shift <= g.end {
-                        let mut m = SplitMeasurement::default();
-                        let mut score = SplitScore::default();
-
-                        measure_split(xdf, shift, &mut m);
-                        score_add_split(&m, &mut score);
-                        measure_split(xdf, shift - groupsize, &mut m);
-                        score_add_split(&m, &mut score);
-                        if best_shift == -1 || score_cmp(&score, &best_score) <= 0 {
-                            best_score = score;
-                            best_shift = shift;
-                        }
-                        shift += 1;
-                    }
-
-                    while g.end > best_shift {
-                        if group_slide_up(xdf, &mut g, flags) != 0 {
-                            xdl_bug("best shift unreached");
-                        }
-                        if group_previous(xdfo, &mut go) != 0 {
-                            xdl_bug("group sync broken sliding to blank line");
-                        }
-                    }
+                if groupsize == g.end - g.start {
+                    break;
                 }
             }
 
-            if group_next(xdf, &mut g) != 0 {
-                break;
-            }
-            if group_next(xdfo, &mut go) != 0 {
-                xdl_bug("group sync broken moving to next group");
+            if g.end == earliest_end {
+                // no shifting was possible
+            } else if end_matching_other != -1 {
+                while go.end == go.start {
+                    if group_slide_up(xdf, &mut g, flags) != 0 {
+                        xdl_bug("match disappeared");
+                    }
+                    if group_previous(xdfo, &mut go) != 0 {
+                        xdl_bug("group sync broken sliding to match");
+                    }
+                }
+            } else if ((flags as c_ulong) & XDF_INDENT_HEURISTIC) != 0 {
+                let mut shift = earliest_end;
+                if g.end - groupsize - 1 > shift {
+                    shift = g.end - groupsize - 1;
+                }
+                if g.end - INDENT_HEURISTIC_MAX_SLIDING > shift {
+                    shift = g.end - INDENT_HEURISTIC_MAX_SLIDING;
+                }
+                let mut best_shift: c_long = -1;
+                let mut best_score = SplitScore::default();
+
+                while shift <= g.end {
+                    let mut m = SplitMeasurement::default();
+                    let mut score = SplitScore::default();
+
+                    measure_split(xdf, shift, &mut m);
+                    score_add_split(&m, &mut score);
+                    measure_split(xdf, shift - groupsize, &mut m);
+                    score_add_split(&m, &mut score);
+                    if best_shift == -1 || score_cmp(&score, &best_score) <= 0 {
+                        best_score = score;
+                        best_shift = shift;
+                    }
+                    shift += 1;
+                }
+
+                while g.end > best_shift {
+                    if group_slide_up(xdf, &mut g, flags) != 0 {
+                        xdl_bug("best shift unreached");
+                    }
+                    if group_previous(xdfo, &mut go) != 0 {
+                        xdl_bug("group sync broken sliding to blank line");
+                    }
+                }
             }
         }
 
-        if group_next(xdfo, &mut go) == 0 {
-            xdl_bug("group sync broken at end of file");
+        if group_next(xdf, &mut g) != 0 {
+            break;
         }
+        if group_next(xdfo, &mut go) != 0 {
+            xdl_bug("group sync broken moving to next group");
+        }
+    }
+
+    if group_next(xdfo, &mut go) == 0 {
+        xdl_bug("group sync broken at end of file");
+    }
 
     0
 }

@@ -2,32 +2,31 @@
 use crate::api::private::helpers::{boolean_obj, static_cstr_as_obj};
 use crate::autocmd::{EVENT_DIFFUPDATED, apply_autocmds};
 use crate::buffer::{
-    MAXLNUM, bt_prompt, FileBuf, buf_get_changedtick, buf_is_empty, buf_valid, buflist_findnr,
-    buflist_findpat, Bufref, bufref_valid, modifiable, set_bufref,
+    Bufref, FileBuf, MAXLNUM, bt_prompt, buf_get_changedtick, buf_is_empty, buf_valid,
+    buflist_findnr, buflist_findpat, bufref_valid, modifiable, set_bufref,
 };
 use crate::bufwrite::buf_write;
 use crate::change::{change_warning, changed_lines};
 use crate::charset::{ascii_isdigit, ascii_iswhite, getdigits_int, getdigits_int32, skipwhite};
 use crate::context::{CtxSwitch, ctx_restore, ctx_switch};
-use crate::cursor::{check_cursor, Colnr, Linenr};
+use crate::cursor::{Colnr, Linenr, check_cursor};
 use crate::decoration::decor_conceal_line;
 use crate::drawscreen::{UPD_NOT_VALID, UPD_SOME_VALID, UPD_VALID, redraw_later};
 use crate::errors::*;
 use crate::eval::typval::{
-    EvalFuncData, K_CALLBACK_NONE_CONST, tv_get_lnum, tv_get_number, TypVal, Varnumber,
+    EvalFuncData, K_CALLBACK_NONE_CONST, TypVal, Varnumber, tv_get_lnum, tv_get_number,
 };
 use crate::eval::vars::{eval_diff, eval_patch};
 use crate::ex_cmds::{append_redir, ex_file};
-use crate::ex_docmd::{
-    ADDR_LINES, CMOD_LOCKMARKS, do_cmdline_cmd, do_exedit, Exarg, get_address,
-};
+use crate::ex_docmd::{ADDR_LINES, CMOD_LOCKMARKS, Exarg, do_cmdline_cmd, do_exedit, get_address};
 use crate::ex_getln::Hlf;
 use crate::extmark::{TriState, extmark_adjust};
 use crate::fileio::{FILE, buf_check_timestamp, fclose, fwrite, vim_fgets, vim_tempname};
 #[cfg(unix)]
 use crate::fileio::{shorten_fnames, vim_gettempdir};
 use crate::fold::{
-    fold_update, fold_update_all, foldmethod_is_diff, foldmethod_is_manual, has_folding, new_fold_level,
+    fold_update, fold_update_all, foldmethod_is_diff, foldmethod_is_manual, has_folding,
+    new_fold_level,
 };
 use crate::globals::*;
 use crate::linematch::linematch_nbuffers;
@@ -51,14 +50,11 @@ use crate::optionstr::{
 use crate::os::env::{os_env_exists, os_unsetenv};
 use crate::os::fs::{FileInfo, os_fileinfo, os_fileinfo_size, os_fopen, os_remove};
 use crate::os::shell::call_shell;
-use crate::strings::{
-    gettext, vim_snprintf, vim_strchr,
-    vim_strsave_shellescape,
-};
+use crate::strings::{gettext, vim_snprintf, vim_strchr, vim_strsave_shellescape};
 use crate::ui::vim_beep;
 use crate::undo::{u_save, u_sync};
 use crate::window::{
-    WSP_VERT, frames_locked, scroll_to_fraction, set_fraction, TabPageInfo, WinInfoInfo, win_split,
+    TabPageInfo, WSP_VERT, WinInfoInfo, frames_locked, scroll_to_fraction, set_fraction, win_split,
     win_valid, window_layout_lock, window_layout_unlock,
 };
 use crate::xdiff::xdiffi::xdl_diff;
@@ -256,25 +252,20 @@ const fn has_dip_key(v: &OptKeyDict_dip, idx: u64) -> bool {
 }
 fn diff_scan_start(tp: &mut TabPageInfo, idx: c_int, lnum: Linenr) -> usize {
     if let Some(dp_idx) = diff_st().diff_finger_dp_idx
-            && diff_st().diff_finger_tp == tp
-            && diff_st().diff_finger_idx == idx
-            && lnum >= diff_st().diff_finger_lnum
-            && dp_idx < tp.tp_diffs.len()
-        {
-            return dp_idx;
-        }
-        0
+        && diff_st().diff_finger_tp == tp
+        && diff_st().diff_finger_idx == idx
+        && lnum >= diff_st().diff_finger_lnum
+        && dp_idx < tp.tp_diffs.len()
+    {
+        return dp_idx;
+    }
+    0
 }
-fn diff_scan_remember(
-    tp: &mut TabPageInfo,
-    idx: c_int,
-    lnum: Linenr,
-    dp_idx: Option<usize>,
-) {
+fn diff_scan_remember(tp: &mut TabPageInfo, idx: c_int, lnum: Linenr, dp_idx: Option<usize>) {
     diff_st().diff_finger_tp = tp;
-        diff_st().diff_finger_idx = idx;
-        diff_st().diff_finger_lnum = lnum;
-        diff_st().diff_finger_dp_idx = Some(dp_idx.unwrap_or(0));
+    diff_st().diff_finger_idx = idx;
+    diff_st().diff_finger_lnum = lnum;
+    diff_st().diff_finger_dp_idx = Some(dp_idx.unwrap_or(0));
 }
 pub fn diff_buf_delete(buf: *mut FileBuf) {
     unsafe {
@@ -292,7 +283,7 @@ pub fn diff_buf_delete(buf: *mut FileBuf) {
     }
 }
 pub fn diff_buf_adjust(win: &mut WinInfoInfo) {
-     {
+    {
         if win.w_onebuf_opt.wo_diff == 0 {
             let mut found_win = false;
             for wp in for_all_windows_mut() {
@@ -314,7 +305,7 @@ pub fn diff_buf_adjust(win: &mut WinInfoInfo) {
     }
 }
 pub fn diff_buf_add(buf: *mut FileBuf) {
-     {
+    {
         if diff_buf_idx(buf, curtab_mut()) != DB_COUNT as c_int {
             return;
         }
@@ -333,7 +324,7 @@ pub fn diff_buf_add(buf: *mut FileBuf) {
     }
 }
 fn diff_buf_clear() {
-     {
+    {
         for i in 0..DB_COUNT {
             if !curtab_mut().tp_diffbuf[i].is_null() {
                 curtab_mut().tp_diffbuf[i] = ptr::null_mut();
@@ -345,13 +336,13 @@ fn diff_buf_clear() {
 }
 fn diff_buf_idx(buf: *mut FileBuf, tp: &mut TabPageInfo) -> c_int {
     let mut idx: usize = 0;
-        while idx < DB_COUNT {
-            if tp.tp_diffbuf[idx] == buf {
-                break;
-            }
-            idx += 1;
+    while idx < DB_COUNT {
+        if tp.tp_diffbuf[idx] == buf {
+            break;
         }
-        idx as c_int
+        idx += 1;
+    }
+    idx as c_int
 }
 pub fn diff_invalidate(buf: *mut FileBuf) {
     unsafe {
@@ -373,7 +364,7 @@ pub fn diff_mark_adjust(
     amount: Linenr,
     amount_after: Linenr,
 ) {
-     {
+    {
         for tp in for_all_tabpages_mut() {
             let idx = diff_buf_idx(buf, tp);
             if idx != DB_COUNT as c_int {
@@ -391,210 +382,200 @@ fn diff_mark_adjust_tp(
     amount_after: Linenr,
 ) {
     diff_st().diff_finger_dp_idx = None;
-        if diff_internal() != 0 {
-            tp.tp_diff_invalid = 1;
-            tp.tp_diff_update = 1;
-        }
-        let inserted: Linenr;
-        let mut deleted: Linenr;
-        if line2 == MAXLNUM {
-            inserted = amount;
-            deleted = 0;
-        } else if amount_after > 0 {
-            inserted = amount_after;
-            deleted = 0;
-        } else {
-            inserted = 0;
-            deleted = -amount_after;
-        }
-        let mut dprev_idx: Option<usize> = None;
-        let mut dp_idx: usize = 0;
-        let mut lnum_deleted = line1;
-        loop {
-            let dp_past_line2 = dp_idx >= tp.tp_diffs.len()
-                || (&tp.tp_diffs)[dp_idx].df_lnum[idx] - 1 > line2
-                || (line2 == MAXLNUM && (&tp.tp_diffs)[dp_idx].df_lnum[idx] > line1);
-            let dprev_before_line1 = match dprev_idx {
-                None => true,
-                Some(pi) => {
-                    (&tp.tp_diffs)[pi].df_lnum[idx] + (&tp.tp_diffs)[pi].df_count[idx] < line1
-                }
-            };
-            if dp_past_line2 && dprev_before_line1 && !diff_st().diff_busy {
-                let dprev_copy = dprev_idx.map(|pi| {
-                    (
-                        (&tp.tp_diffs)[pi].df_lnum,
-                        (&tp.tp_diffs)[pi].df_count,
-                    )
-                });
-                let dnext_idx = diff_alloc_new(tp, dp_idx);
-                dp_idx += 1;
-                (&mut tp.tp_diffs)[dnext_idx].df_lnum[idx] = line1;
-                (&mut tp.tp_diffs)[dnext_idx].df_count[idx] = inserted;
-                for i in 0..DB_COUNT {
-                    if !tp.tp_diffbuf[i].is_null() && i != idx {
-                        (&mut tp.tp_diffs)[dnext_idx].df_lnum[i] = match dprev_copy {
-                            None => line1,
-                            Some((prev_lnum, prev_count)) => {
-                                line1 + (prev_lnum[i] + prev_count[i])
-                                    - (prev_lnum[idx] + prev_count[idx])
-                            }
-                        };
-                        (&mut tp.tp_diffs)[dnext_idx].df_count[i] = deleted;
-                    }
+    if diff_internal() != 0 {
+        tp.tp_diff_invalid = 1;
+        tp.tp_diff_update = 1;
+    }
+    let inserted: Linenr;
+    let mut deleted: Linenr;
+    if line2 == MAXLNUM {
+        inserted = amount;
+        deleted = 0;
+    } else if amount_after > 0 {
+        inserted = amount_after;
+        deleted = 0;
+    } else {
+        inserted = 0;
+        deleted = -amount_after;
+    }
+    let mut dprev_idx: Option<usize> = None;
+    let mut dp_idx: usize = 0;
+    let mut lnum_deleted = line1;
+    loop {
+        let dp_past_line2 = dp_idx >= tp.tp_diffs.len()
+            || (&tp.tp_diffs)[dp_idx].df_lnum[idx] - 1 > line2
+            || (line2 == MAXLNUM && (&tp.tp_diffs)[dp_idx].df_lnum[idx] > line1);
+        let dprev_before_line1 = match dprev_idx {
+            None => true,
+            Some(pi) => (&tp.tp_diffs)[pi].df_lnum[idx] + (&tp.tp_diffs)[pi].df_count[idx] < line1,
+        };
+        if dp_past_line2 && dprev_before_line1 && !diff_st().diff_busy {
+            let dprev_copy =
+                dprev_idx.map(|pi| ((&tp.tp_diffs)[pi].df_lnum, (&tp.tp_diffs)[pi].df_count));
+            let dnext_idx = diff_alloc_new(tp, dp_idx);
+            dp_idx += 1;
+            (&mut tp.tp_diffs)[dnext_idx].df_lnum[idx] = line1;
+            (&mut tp.tp_diffs)[dnext_idx].df_count[idx] = inserted;
+            for i in 0..DB_COUNT {
+                if !tp.tp_diffbuf[i].is_null() && i != idx {
+                    (&mut tp.tp_diffs)[dnext_idx].df_lnum[i] = match dprev_copy {
+                        None => line1,
+                        Some((prev_lnum, prev_count)) => {
+                            line1 + (prev_lnum[i] + prev_count[i])
+                                - (prev_lnum[idx] + prev_count[idx])
+                        }
+                    };
+                    (&mut tp.tp_diffs)[dnext_idx].df_count[i] = deleted;
                 }
             }
-            if dp_idx >= tp.tp_diffs.len() {
-                break;
-            }
-            let last = (&tp.tp_diffs)[dp_idx].df_lnum[idx]
-                + (&tp.tp_diffs)[dp_idx].df_count[idx]
-                - 1;
-            if last >= line1 - 1 {
-                if diff_st().diff_busy {
-                    if (&tp.tp_diffs)[dp_idx].df_lnum[idx] > line2 {
-                        (&mut tp.tp_diffs)[dp_idx].df_lnum[idx] += amount_after;
-                    }
-                    dprev_idx = Some(dp_idx);
-                    dp_idx += 1;
-                    continue;
-                }
-                if (&tp.tp_diffs)[dp_idx].df_lnum[idx] - Linenr::from(deleted + inserted != 0)
-                    > line2
-                {
-                    if amount_after == 0 {
-                        break;
-                    }
+        }
+        if dp_idx >= tp.tp_diffs.len() {
+            break;
+        }
+        let last = (&tp.tp_diffs)[dp_idx].df_lnum[idx] + (&tp.tp_diffs)[dp_idx].df_count[idx] - 1;
+        if last >= line1 - 1 {
+            if diff_st().diff_busy {
+                if (&tp.tp_diffs)[dp_idx].df_lnum[idx] > line2 {
                     (&mut tp.tp_diffs)[dp_idx].df_lnum[idx] += amount_after;
-                } else {
-                    let mut check_unchanged = false;
-                    if deleted > 0 {
-                        let mut n: Linenr;
-                        let mut off: Linenr = 0;
-                        let next_lnum = tp
-                            .tp_diffs
-                            .as_slice()
-                            .get(dp_idx + 1)
-                            .map(|nd| nd.df_lnum[idx]);
-                        let dp = &mut (&mut tp.tp_diffs)[dp_idx];
-                        if dp.df_lnum[idx] >= line1 {
-                            if last <= line2 {
-                                if let Some(nl) = next_lnum
-                                    && nl - 1 <= line2
-                                {
-                                    n = nl - lnum_deleted;
-                                    deleted -= n;
-                                    n -= dp.df_count[idx];
-                                    lnum_deleted = nl;
-                                } else {
-                                    n = deleted - dp.df_count[idx];
-                                }
-                                dp.df_count[idx] = 0;
-                            } else {
-                                off = dp.df_lnum[idx] - lnum_deleted;
-                                n = off;
-                                dp.df_count[idx] -= line2 - dp.df_lnum[idx] + 1;
-                                check_unchanged = true;
-                            }
-                            dp.df_lnum[idx] = line1;
-                        } else if last < line2 {
-                            dp.df_count[idx] -= last - lnum_deleted + 1;
+                }
+                dprev_idx = Some(dp_idx);
+                dp_idx += 1;
+                continue;
+            }
+            if (&tp.tp_diffs)[dp_idx].df_lnum[idx] - Linenr::from(deleted + inserted != 0) > line2 {
+                if amount_after == 0 {
+                    break;
+                }
+                (&mut tp.tp_diffs)[dp_idx].df_lnum[idx] += amount_after;
+            } else {
+                let mut check_unchanged = false;
+                if deleted > 0 {
+                    let mut n: Linenr;
+                    let mut off: Linenr = 0;
+                    let next_lnum = tp
+                        .tp_diffs
+                        .as_slice()
+                        .get(dp_idx + 1)
+                        .map(|nd| nd.df_lnum[idx]);
+                    let dp = &mut (&mut tp.tp_diffs)[dp_idx];
+                    if dp.df_lnum[idx] >= line1 {
+                        if last <= line2 {
                             if let Some(nl) = next_lnum
                                 && nl - 1 <= line2
                             {
-                                n = nl - 1 - last;
-                                deleted -= nl - lnum_deleted;
+                                n = nl - lnum_deleted;
+                                deleted -= n;
+                                n -= dp.df_count[idx];
                                 lnum_deleted = nl;
                             } else {
-                                n = line2 - last;
+                                n = deleted - dp.df_count[idx];
                             }
-                            check_unchanged = true;
+                            dp.df_count[idx] = 0;
                         } else {
-                            n = 0;
-                            dp.df_count[idx] -= deleted;
+                            off = dp.df_lnum[idx] - lnum_deleted;
+                            n = off;
+                            dp.df_count[idx] -= line2 - dp.df_lnum[idx] + 1;
+                            check_unchanged = true;
                         }
-                        for i in 0..DB_COUNT {
-                            if !tp.tp_diffbuf[i].is_null() && i != idx {
-                                if dp.df_lnum[i] > off {
-                                    dp.df_lnum[i] -= off;
-                                } else {
-                                    dp.df_lnum[i] = 1;
-                                }
-                                dp.df_count[i] += n;
-                            }
+                        dp.df_lnum[idx] = line1;
+                    } else if last < line2 {
+                        dp.df_count[idx] -= last - lnum_deleted + 1;
+                        if let Some(nl) = next_lnum
+                            && nl - 1 <= line2
+                        {
+                            n = nl - 1 - last;
+                            deleted -= nl - lnum_deleted;
+                            lnum_deleted = nl;
+                        } else {
+                            n = line2 - last;
                         }
-                    } else if (&tp.tp_diffs)[dp_idx].df_lnum[idx] <= line1 {
-                        (&mut tp.tp_diffs)[dp_idx].df_count[idx] += inserted;
                         check_unchanged = true;
                     } else {
-                        (&mut tp.tp_diffs)[dp_idx].df_lnum[idx] += inserted;
+                        n = 0;
+                        dp.df_count[idx] -= deleted;
                     }
-                    if check_unchanged {
-                        diff_check_unchanged(tp, dp_idx);
+                    for i in 0..DB_COUNT {
+                        if !tp.tp_diffbuf[i].is_null() && i != idx {
+                            if dp.df_lnum[i] > off {
+                                dp.df_lnum[i] -= off;
+                            } else {
+                                dp.df_lnum[i] = 1;
+                            }
+                            dp.df_count[i] += n;
+                        }
                     }
+                } else if (&tp.tp_diffs)[dp_idx].df_lnum[idx] <= line1 {
+                    (&mut tp.tp_diffs)[dp_idx].df_count[idx] += inserted;
+                    check_unchanged = true;
+                } else {
+                    (&mut tp.tp_diffs)[dp_idx].df_lnum[idx] += inserted;
+                }
+                if check_unchanged {
+                    diff_check_unchanged(tp, dp_idx);
                 }
             }
-            if let Some(pi) = dprev_idx
-                && !(&tp.tp_diffs)[dp_idx].is_linematched
-                && !diff_st().diff_busy
-                && (&tp.tp_diffs)[pi].df_lnum[idx] + (&tp.tp_diffs)[pi].df_count[idx]
-                    == (&tp.tp_diffs)[dp_idx].df_lnum[idx]
-            {
-                let dp_counts = (&tp.tp_diffs)[dp_idx].df_count;
-                for (i, &c) in dp_counts.iter().enumerate() {
-                    if !tp.tp_diffbuf[i].is_null() {
-                        (&mut tp.tp_diffs)[pi].df_count[i] += c;
-                    }
+        }
+        if let Some(pi) = dprev_idx
+            && !(&tp.tp_diffs)[dp_idx].is_linematched
+            && !diff_st().diff_busy
+            && (&tp.tp_diffs)[pi].df_lnum[idx] + (&tp.tp_diffs)[pi].df_count[idx]
+                == (&tp.tp_diffs)[dp_idx].df_lnum[idx]
+        {
+            let dp_counts = (&tp.tp_diffs)[dp_idx].df_count;
+            for (i, &c) in dp_counts.iter().enumerate() {
+                if !tp.tp_diffbuf[i].is_null() {
+                    (&mut tp.tp_diffs)[pi].df_count[i] += c;
                 }
-                diff_free(tp, dp_idx);
-            } else {
-                dprev_idx = Some(dp_idx);
-                dp_idx += 1;
             }
+            diff_free(tp, dp_idx);
+        } else {
+            dprev_idx = Some(dp_idx);
+            dp_idx += 1;
         }
-        let mut i_dp = 0;
-        while i_dp < tp.tp_diffs.len() {
-            let mut i = 0;
-            while i < DB_COUNT {
-                if !tp.tp_diffbuf[i].is_null() && (&tp.tp_diffs)[i_dp].df_count[i] != 0 {
-                    break;
-                }
-                i += 1;
+    }
+    let mut i_dp = 0;
+    while i_dp < tp.tp_diffs.len() {
+        let mut i = 0;
+        while i < DB_COUNT {
+            if !tp.tp_diffbuf[i].is_null() && (&tp.tp_diffs)[i_dp].df_count[i] != 0 {
+                break;
             }
-            if i == DB_COUNT {
-                diff_free(tp, i_dp);
-            } else {
-                i_dp += 1;
-            }
+            i += 1;
         }
-        if ptr::eq(tp, g_st().curtab) {
-            g_st().need_diff_redraw = true;
-            g_st().diff_need_scrollbind = true;
+        if i == DB_COUNT {
+            diff_free(tp, i_dp);
+        } else {
+            i_dp += 1;
         }
+    }
+    if ptr::eq(tp, g_st().curtab) {
+        g_st().need_diff_redraw = true;
+        g_st().diff_need_scrollbind = true;
+    }
 }
 fn diff_alloc_new(tp: &mut TabPageInfo, idx: usize) -> usize {
     let df_id = diff_st().next_diff_id;
-        diff_st().next_diff_id += 1;
-        diff_st().diff_finger_dp_idx = None;
-        tp.tp_diffs.insert(
-            idx,
-            DiffBlock {
-                df_id,
-                df_lnum: [0; DB_COUNT],
-                df_count: [0; DB_COUNT],
-                is_linematched: false,
-                has_changes: false,
-                df_changes: Vec::new(),
-            },
-        );
-        idx
+    diff_st().next_diff_id += 1;
+    diff_st().diff_finger_dp_idx = None;
+    tp.tp_diffs.insert(
+        idx,
+        DiffBlock {
+            df_id,
+            df_lnum: [0; DB_COUNT],
+            df_count: [0; DB_COUNT],
+            is_linematched: false,
+            has_changes: false,
+            df_changes: Vec::new(),
+        },
+    );
+    idx
 }
 fn diff_free(tp: &mut TabPageInfo, idx: usize) {
     diff_st().diff_finger_dp_idx = None;
-        tp.tp_diffs.remove(idx);
+    tp.tp_diffs.remove(idx);
 }
 fn diff_check_unchanged(tp: &mut TabPageInfo, dp_idx: usize) {
-     {
+    {
         let mut i_org = 0;
         while i_org < DB_COUNT {
             if !tp.tp_diffbuf[i_org].is_null() {
@@ -667,9 +648,7 @@ fn diff_check_sanity(tp: &TabPageInfo, dp: &DiffBlock) -> bool {
     unsafe {
         for i in 0..DB_COUNT {
             let buf = tp.tp_diffbuf[i];
-            if !buf.is_null()
-                && dp.df_lnum[i] + dp.df_count[i] - 1 > (*buf).b_ml.ml_line_count
-            {
+            if !buf.is_null() && dp.df_lnum[i] + dp.df_count[i] - 1 > (*buf).b_ml.ml_line_count {
                 return false;
             }
         }
@@ -693,7 +672,7 @@ pub fn diff_redraw(dofold: bool) {
             if dofold && foldmethod_is_diff(&mut *wp) {
                 fold_update_all(&mut *wp);
             }
-            let n = diff_check_fill( &mut *wp, (*wp).w_topline);
+            let n = diff_check_fill(&mut *wp, (*wp).w_topline);
             if (wp != curwin_ptr() && (*wp).w_topfill > 0) || n > 0 {
                 if (*wp).w_topfill > n {
                     (*wp).w_topfill = n.max(0);
@@ -705,7 +684,7 @@ pub fn diff_redraw(dofold: bool) {
                         used_max_fill_other = true;
                     }
                 }
-                check_topfill( &mut *wp, false);
+                check_topfill(&mut *wp, false);
             }
         }
         if !wp_other.is_null() && curwin_mut().w_onebuf_opt.wo_scb != 0 {
@@ -719,19 +698,19 @@ pub fn diff_redraw(dofold: bool) {
 }
 fn clear_diffin(din: &mut Diffin) {
     if let Some(ref fname) = din.din_fname {
-            let _ = os_remove(fname.as_ptr());
-        } else {
-            din.din_buf = Vec::new();
-            din.din_mmfile.ptr = ptr::null_mut();
-            din.din_mmfile.size = 0;
-        }
+        let _ = os_remove(fname.as_ptr());
+    } else {
+        din.din_buf = Vec::new();
+        din.din_mmfile.ptr = ptr::null_mut();
+        din.din_mmfile.size = 0;
+    }
 }
 fn clear_diffout(dout: &mut Diffout) {
     if let Some(ref fname) = dout.dout_fname {
-            let _ = os_remove(fname.as_ptr());
-        } else {
-            dout.dout_ga = Vec::new();
-        }
+        let _ = os_remove(fname.as_ptr());
+    } else {
+        dout.dout_ga = Vec::new();
+    }
 }
 fn diff_write_buffer(
     buf: &mut FileBuf,
@@ -792,7 +771,19 @@ fn diff_write_buffer(
             } else {
                 let slen = crate::memory::cstr_len(s);
                 ptr::copy(s, ptr.add(len), slen);
-                { let _d = (ptr.add(len)).cast::<u8>(); let _sz = slen; if _sz > 0 { let _c = (NL) as u8; let _x = (NUL) as u8; for _b in std::slice::from_raw_parts_mut(_d, _sz) { if *_b == _c { *_b = _x; } } } };
+                {
+                    let _d = (ptr.add(len)).cast::<u8>();
+                    let _sz = slen;
+                    if _sz > 0 {
+                        let _c = (NL) as u8;
+                        let _x = (NUL) as u8;
+                        for _b in std::slice::from_raw_parts_mut(_d, _sz) {
+                            if *_b == _c {
+                                *_b = _x;
+                            }
+                        }
+                    }
+                };
                 len += slen;
             }
             *ptr.add(len) = NL;
@@ -801,47 +792,42 @@ fn diff_write_buffer(
         true
     }
 }
-fn diff_write(
-    buf: &mut FileBuf,
-    din: &mut Diffin,
-    start: Linenr,
-    mut end: Linenr,
-) -> bool {
+fn diff_write(buf: &mut FileBuf, din: &mut Diffin, start: Linenr, mut end: Linenr) -> bool {
     let Some(ref din_fname) = din.din_fname else {
-            return diff_write_buffer(buf, &mut din.din_mmfile, &mut din.din_buf, start, end);
-        };
-        if frames_locked() {
-            return false;
-        }
-        if end < 0 {
-            end = buf.b_ml.ml_line_count;
-        }
-        let save_ml_flags = buf.b_ml.ml_flags;
-        let save_ff = buf.b_p_ff;
-        buf.b_p_ff = alloc_string_option(c"unix");
-        let save_cmod_flags = g_st().cmdmod.cmod_flags != 0;
-        g_st().cmdmod.cmod_flags |= CMOD_LOCKMARKS;
-        if end < start {
-            end = start;
-            buf.b_ml.ml_flags |= ML_EMPTY;
-        }
-        let r = buf_write(
-            &raw mut *buf,
-            din_fname.as_ptr().cast_mut(),
-            ptr::null_mut(),
-            start,
-            end,
-            None,
-            false,
-            false,
-            false,
-            true,
-        );
-        g_st().cmdmod.cmod_flags = c_int::from(save_cmod_flags);
-        free_string_option(buf.b_p_ff);
-        buf.b_p_ff = save_ff;
-        buf.b_ml.ml_flags = (buf.b_ml.ml_flags & !ML_EMPTY) | (save_ml_flags & ML_EMPTY);
-        r == OK
+        return diff_write_buffer(buf, &mut din.din_mmfile, &mut din.din_buf, start, end);
+    };
+    if frames_locked() {
+        return false;
+    }
+    if end < 0 {
+        end = buf.b_ml.ml_line_count;
+    }
+    let save_ml_flags = buf.b_ml.ml_flags;
+    let save_ff = buf.b_p_ff;
+    buf.b_p_ff = alloc_string_option(c"unix");
+    let save_cmod_flags = g_st().cmdmod.cmod_flags != 0;
+    g_st().cmdmod.cmod_flags |= CMOD_LOCKMARKS;
+    if end < start {
+        end = start;
+        buf.b_ml.ml_flags |= ML_EMPTY;
+    }
+    let r = buf_write(
+        &raw mut *buf,
+        din_fname.as_ptr().cast_mut(),
+        ptr::null_mut(),
+        start,
+        end,
+        None,
+        false,
+        false,
+        false,
+        true,
+    );
+    g_st().cmdmod.cmod_flags = c_int::from(save_cmod_flags);
+    free_string_option(buf.b_p_ff);
+    buf.b_p_ff = save_ff;
+    buf.b_ml.ml_flags = (buf.b_ml.ml_flags & !ML_EMPTY) | (save_ml_flags & ML_EMPTY);
+    r == OK
 }
 fn diff_try_update(dio: &mut Diffio, idx_orig: usize, eap: &mut Exarg) {
     unsafe {
@@ -885,11 +871,8 @@ fn diff_try_update(dio: &mut Diffio, idx_orig: usize, eap: &mut Exarg) {
                         curtab_mut().tp_diffbuf[idx],
                         (&raw mut anchors[idx]).cast(),
                         Some(&mut buf_num_anchors),
-                    )
-                    {
-                        emsg(gettext(
-                            E_FAILED_TO_FIND_ALL_DIFF_ANCHORS,
-                        ));
+                    ) {
+                        emsg(gettext(E_FAILED_TO_FIND_ALL_DIFF_ANCHORS));
                         num_anchors = 0;
                         anchors = [[0; MAX_DIFF_ANCHORS]; DB_COUNT];
                         break;
@@ -973,11 +956,13 @@ fn diff_try_update(dio: &mut Diffio, idx_orig: usize, eap: &mut Exarg) {
 }
 pub fn diff_internal() -> c_int {
     c_int::from(
-            (diff_st().diff_flags & DIFF_INTERNAL) != 0 && crate::eval::typval::Callback::raw_cb_type(&opt_vars().p_dex) == K_CALLBACK_NONE_CONST,
-        )
+        (diff_st().diff_flags & DIFF_INTERNAL) != 0
+            && crate::eval::typval::Callback::raw_cb_type(&opt_vars().p_dex)
+                == K_CALLBACK_NONE_CONST,
+    )
 }
 pub fn ex_diffupdate(eap: &mut Exarg) {
-     {
+    {
         if diff_st().diff_busy {
             diff_st().diff_need_update = true;
             return;
@@ -1084,8 +1069,12 @@ fn check_external_diff(diffio: &mut Diffio) -> bool {
                             if vim_fgets((&raw mut linebuf).cast(), LBUFLEN as c_int, fd) {
                                 break;
                             }
-                            if (crate::memory::cstr_prefix_bytes((&raw const linebuf).cast(), 3) == &b"1c1"[..3])
-                                || (crate::memory::cstr_prefix_bytes((&raw const linebuf).cast(), 11) == &b"@@ -1 +1 @@"[..11])
+                            if (crate::memory::cstr_prefix_bytes((&raw const linebuf).cast(), 3)
+                                == &b"1c1"[..3])
+                                || (crate::memory::cstr_prefix_bytes(
+                                    (&raw const linebuf).cast(),
+                                    11,
+                                ) == &b"@@ -1 +1 @@"[..11])
                             {
                                 ok = K_TRUE;
                             }
@@ -1097,7 +1086,9 @@ fn check_external_diff(diffio: &mut Diffio) -> bool {
                 }
                 let _ = os_remove(orig_fname);
             }
-            if crate::eval::typval::Callback::raw_cb_type(&opt_vars().p_dex) != K_CALLBACK_NONE_CONST {
+            if crate::eval::typval::Callback::raw_cb_type(&opt_vars().p_dex)
+                != K_CALLBACK_NONE_CONST
+            {
                 break;
             }
             if diff_st().diff_a_works != K_NONE {
@@ -1121,48 +1112,44 @@ fn check_external_diff(diffio: &mut Diffio) -> bool {
 }
 fn diff_file_internal(diffio: &mut Diffio) -> bool {
     let mut param = Xpparam {
-            flags: diff_st().diff_algorithm as c_ulong,
-        };
-        let emit_cfg = Xdemitconf {
-            ctxlen: 0,
-            interhunkctxlen: 0,
-            flags: 0,
-        };
-        let mut emit_cb = Xdemitcb::Diff(&raw mut diffio.dio_diff);
-        if (diff_st().diff_flags & DIFF_IWHITE) != 0 {
-            param.flags |= XDF_IGNORE_WHITESPACE_CHANGE;
-        }
-        if (diff_st().diff_flags & DIFF_IWHITEALL) != 0 {
-            param.flags |= XDF_IGNORE_WHITESPACE;
-        }
-        if (diff_st().diff_flags & DIFF_IWHITEEOL) != 0 {
-            param.flags |= XDF_IGNORE_WHITESPACE_AT_EOL;
-        }
-        if (diff_st().diff_flags & DIFF_IBLANK) != 0 {
-            param.flags |= XDF_IGNORE_BLANK_LINES;
-        }
-        if diffio.dio_orig.din_mmfile.size > MAX_XDIFF_SIZE
-            || diffio.dio_new.din_mmfile.size > MAX_XDIFF_SIZE
-        {
-            emsg(gettext(
-                E_PROBLEM_CREATING_INTERNAL_DIFF,
-            ));
-            return false;
-        }
-        if xdl_diff(
-            &mut diffio.dio_orig.din_mmfile,
-            &mut diffio.dio_new.din_mmfile,
-            &param,
-            &emit_cfg,
-            &mut emit_cb,
-        ) < 0
-        {
-            emsg(gettext(
-                E_PROBLEM_CREATING_INTERNAL_DIFF,
-            ));
-            return false;
-        }
-        true
+        flags: diff_st().diff_algorithm as c_ulong,
+    };
+    let emit_cfg = Xdemitconf {
+        ctxlen: 0,
+        interhunkctxlen: 0,
+        flags: 0,
+    };
+    let mut emit_cb = Xdemitcb::Diff(&raw mut diffio.dio_diff);
+    if (diff_st().diff_flags & DIFF_IWHITE) != 0 {
+        param.flags |= XDF_IGNORE_WHITESPACE_CHANGE;
+    }
+    if (diff_st().diff_flags & DIFF_IWHITEALL) != 0 {
+        param.flags |= XDF_IGNORE_WHITESPACE;
+    }
+    if (diff_st().diff_flags & DIFF_IWHITEEOL) != 0 {
+        param.flags |= XDF_IGNORE_WHITESPACE_AT_EOL;
+    }
+    if (diff_st().diff_flags & DIFF_IBLANK) != 0 {
+        param.flags |= XDF_IGNORE_BLANK_LINES;
+    }
+    if diffio.dio_orig.din_mmfile.size > MAX_XDIFF_SIZE
+        || diffio.dio_new.din_mmfile.size > MAX_XDIFF_SIZE
+    {
+        emsg(gettext(E_PROBLEM_CREATING_INTERNAL_DIFF));
+        return false;
+    }
+    if xdl_diff(
+        &mut diffio.dio_orig.din_mmfile,
+        &mut diffio.dio_new.din_mmfile,
+        &param,
+        &emit_cfg,
+        &mut emit_cb,
+    ) < 0
+    {
+        emsg(gettext(E_PROBLEM_CREATING_INTERNAL_DIFF));
+        return false;
+    }
+    true
 }
 fn diff_file(dio: &mut Diffio) -> bool {
     unsafe {
@@ -1188,7 +1175,11 @@ fn diff_file(dio: &mut Diffio) -> bool {
         if dio.dio_internal != 0 {
             return diff_file_internal(dio);
         }
-        let len = crate::memory::cstr_len(tmp_orig) + crate::memory::cstr_len(tmp_new) + crate::memory::cstr_len(tmp_diff) + crate::memory::cstr_len(opt_vars().p_srr) + 27;
+        let len = crate::memory::cstr_len(tmp_orig)
+            + crate::memory::cstr_len(tmp_new)
+            + crate::memory::cstr_len(tmp_diff)
+            + crate::memory::cstr_len(opt_vars().p_srr)
+            + 27;
         let mut cmd_vec: Vec<c_char> = vec![0; len];
         let cmd = cmd_vec.as_mut_ptr();
         if os_env_exists(c"DIFF_OPTIONS", true) {
@@ -1279,9 +1270,7 @@ pub fn ex_diffpatch(eap: &mut Exarg) {
             {
                 fullname = crate::path::FullName_save(eap.arg, false);
                 esc_name = Some(vim_strsave_shellescape(
-                    fullname
-                        .as_ref()
-                        .map_or(eap.arg, |s| s.as_ptr().cast_mut()),
+                    fullname.as_ref().map_or(eap.arg, |s| s.as_ptr().cast_mut()),
                     true,
                     true,
                 ));
@@ -1290,10 +1279,11 @@ pub fn ex_diffpatch(eap: &mut Exarg) {
             {
                 esc_name = Some(vim_strsave_shellescape(eap.arg, true, true));
             }
-            let esc_ptr = esc_name
-                .as_ref()
-                .map_or(c"".as_ptr(), |s| s.as_ptr());
-            let buflen = crate::memory::cstr_len(tmp_orig) + crate::memory::cstr_len(esc_ptr) + crate::memory::cstr_len(tmp_new) + 16;
+            let esc_ptr = esc_name.as_ref().map_or(c"".as_ptr(), |s| s.as_ptr());
+            let buflen = crate::memory::cstr_len(tmp_orig)
+                + crate::memory::cstr_len(esc_ptr)
+                + crate::memory::cstr_len(tmp_new)
+                + 16;
             buf_vec = vec![0; buflen];
             let buf = buf_vec.as_mut_ptr();
             #[cfg(unix)]
@@ -1313,13 +1303,13 @@ pub fn ex_diffpatch(eap: &mut Exarg) {
                     shorten_fnames(1);
                 }
             }
-            if crate::eval::typval::Callback::raw_cb_type(&opt_vars().p_pex) != K_CALLBACK_NONE_CONST {
+            if crate::eval::typval::Callback::raw_cb_type(&opt_vars().p_pex)
+                != K_CALLBACK_NONE_CONST
+            {
                 #[cfg(unix)]
                 eval_patch(
                     tmp_orig,
-                    fullname
-                        .as_ref()
-                        .map_or(eap.arg, |s| s.as_ptr().cast_mut()),
+                    fullname.as_ref().map_or(eap.arg, |s| s.as_ptr().cast_mut()),
                     tmp_new,
                 );
                 #[cfg(not(unix))]
@@ -1372,14 +1362,13 @@ pub fn ex_diffpatch(eap: &mut Exarg) {
                     } else {
                         0
                     },
-                )
-                {
+                ) {
                     eap.cmdidx = CMD_SPLIT;
                     eap.arg = tmp_new;
                     do_exedit(eap, old_curwin);
                     if curwin_ptr() != old_curwin && win_valid(old_curwin) {
                         diff_win_options(curwin_mut(), true);
-                        diff_win_options( &mut *old_curwin, true);
+                        diff_win_options(&mut *old_curwin, true);
                         if !newname.is_null() {
                             eap.arg = newname;
                             ex_file(eap);
@@ -1418,8 +1407,7 @@ pub fn ex_diffsplit(eap: &mut Exarg) {
             } else {
                 0
             },
-        )
-        {
+        ) {
             return;
         }
         eap.cmdidx = CMD_SPLIT;
@@ -1430,7 +1418,7 @@ pub fn ex_diffsplit(eap: &mut Exarg) {
         }
         diff_win_options(curwin_mut(), true);
         if win_valid(old_curwin) {
-            diff_win_options( &mut *old_curwin, true);
+            diff_win_options(&mut *old_curwin, true);
             if bufref_valid(Some(&old_curbuf)) {
                 curwin_mut().w_cursor.lnum = diff_get_corresponding_line(
                     old_curbuf.br_buf.cast(),
@@ -1442,12 +1430,12 @@ pub fn ex_diffsplit(eap: &mut Exarg) {
     }
 }
 pub fn ex_diffthis(_eap: &mut Exarg) {
-     {
+    {
         diff_win_options(curwin_mut(), true);
     }
 }
 fn set_diff_option(wp: *mut WinInfoInfo, value: bool) {
-     {
+    {
         let old_curwin = curwin_ptr();
         set_curwin(wp);
         g_st().curbuf = curwin_mut().w_buffer;
@@ -1459,7 +1447,7 @@ fn set_diff_option(wp: *mut WinInfoInfo, value: bool) {
     }
 }
 pub fn diff_win_options(wp: &mut WinInfoInfo, addbuf: bool) {
-     {
+    {
         let old_curwin = curwin_ptr();
         set_curwin(&raw mut *wp);
         new_fold_level();
@@ -1545,19 +1533,21 @@ pub fn ex_diffoff(eap: &mut Exarg) {
                         (*wp).w_leftcol = 0;
                     }
                     free_string_option((*wp).w_onebuf_opt.wo_fdm);
-                    (*wp).w_onebuf_opt.wo_fdm =
-                        alloc_string_option(if !crate::memory::cstr_is_empty((*wp).w_onebuf_opt.wo_fdm_save) {
+                    (*wp).w_onebuf_opt.wo_fdm = alloc_string_option(
+                        if !crate::memory::cstr_is_empty((*wp).w_onebuf_opt.wo_fdm_save) {
                             (*wp).w_onebuf_opt.wo_fdm_save
                         } else {
                             c"manual".as_ptr()
-                        });
+                        },
+                    );
                     free_string_option((*wp).w_onebuf_opt.wo_fdc);
-                    (*wp).w_onebuf_opt.wo_fdc =
-                        alloc_string_option(if !crate::memory::cstr_is_empty((*wp).w_onebuf_opt.wo_fdc_save) {
+                    (*wp).w_onebuf_opt.wo_fdc = alloc_string_option(
+                        if !crate::memory::cstr_is_empty((*wp).w_onebuf_opt.wo_fdc_save) {
                             (*wp).w_onebuf_opt.wo_fdc_save
                         } else {
                             c"0".as_ptr()
-                        });
+                        },
+                    );
                     if (*wp).w_onebuf_opt.wo_fdl == 0 {
                         (*wp).w_onebuf_opt.wo_fdl = (*wp).w_onebuf_opt.wo_fdl_save;
                     }
@@ -1590,12 +1580,8 @@ pub fn ex_diffoff(eap: &mut Exarg) {
         }
     }
 }
-fn extract_hunk_internal(
-    dout: &mut Diffout,
-    hunk: &mut Diffhunk,
-    line_idx: &mut c_int,
-) -> bool {
-     {
+fn extract_hunk_internal(dout: &mut Diffout, hunk: &mut Diffhunk, line_idx: &mut c_int) -> bool {
+    {
         let eof = *line_idx >= dout.dout_ga.len() as c_int;
         if !eof {
             *hunk = (&dout.dout_ga)[*line_idx as usize];
@@ -1614,12 +1600,16 @@ fn extract_hunk(fd: *mut FILE, hunk: &mut Diffhunk, diffstyle: &mut Diffstyle) -
             if *diffstyle == Diffstyle::DiffNone {
                 if ascii_isdigit(line[0]) {
                     *diffstyle = Diffstyle::DiffEd;
-                } else if (crate::memory::cstr_prefix_bytes((&raw const line).cast(), 3) == &b"@@ "[..3])
-                    || ((crate::memory::cstr_prefix_bytes((&raw const line).cast(), 4) == &b"--- "[..4])
+                } else if (crate::memory::cstr_prefix_bytes((&raw const line).cast(), 3)
+                    == &b"@@ "[..3])
+                    || ((crate::memory::cstr_prefix_bytes((&raw const line).cast(), 4)
+                        == &b"--- "[..4])
                         && !vim_fgets((&raw mut line).cast(), LBUFLEN as c_int, fd)
-                        && (crate::memory::cstr_prefix_bytes((&raw const line).cast(), 4) == &b"+++ "[..4])
+                        && (crate::memory::cstr_prefix_bytes((&raw const line).cast(), 4)
+                            == &b"+++ "[..4])
                         && !vim_fgets((&raw mut line).cast(), LBUFLEN as c_int, fd)
-                        && (crate::memory::cstr_prefix_bytes((&raw const line).cast(), 3) == &b"@@ "[..3]))
+                        && (crate::memory::cstr_prefix_bytes((&raw const line).cast(), 3)
+                            == &b"@@ "[..3]))
                 {
                     *diffstyle = Diffstyle::DiffUnified;
                 } else {
@@ -1635,7 +1625,8 @@ fn extract_hunk(fd: *mut FILE, hunk: &mut Diffhunk, diffstyle: &mut Diffstyle) -
                 }
             } else {
                 debug_assert!(*diffstyle == Diffstyle::DiffUnified);
-                if !(crate::memory::cstr_prefix_bytes((&raw const line).cast(), 3) == &b"@@ "[..3]) {
+                if !(crate::memory::cstr_prefix_bytes((&raw const line).cast(), 3) == &b"@@ "[..3])
+                {
                     continue;
                 }
                 if !parse_diff_unified((&raw mut line).cast(), hunk) {
@@ -1653,7 +1644,7 @@ fn process_hunk(
     hunk: &Diffhunk,
     notsetp: &mut bool,
 ) {
-     {
+    {
         let mut dp_idx = *dp_idx_p;
         while dp_idx < curtab_mut().tp_diffs.len()
             && hunk.lnum_orig
@@ -1704,14 +1695,12 @@ fn process_hunk(
                     .min(dp.df_lnum[idx_orig] + dp.df_count[idx_orig] - hunk.lnum_orig);
                 let size_diff = hunk.count_new - orig_size_in_dp;
                 dp.df_count[idx_new] += size_diff;
-                off = hunk.lnum_new + hunk.count_new
-                    - (dp.df_lnum[idx_new] + dp.df_count[idx_new]);
+                off = hunk.lnum_new + hunk.count_new - (dp.df_lnum[idx_new] + dp.df_count[idx_new]);
                 if off > 0 {
                     dp.df_count[idx_new] += off;
                 }
             }
-            off = (hunk.lnum_orig + hunk.count_orig)
-                - (dpl_lnum[idx_orig] + dpl_count[idx_orig]);
+            off = (hunk.lnum_orig + hunk.count_orig) - (dpl_lnum[idx_orig] + dpl_count[idx_orig]);
             if off < 0 {
                 if *notsetp || dp_idx != dpl_idx {
                     dp.df_count[idx_new] += -off;
@@ -1766,20 +1755,14 @@ fn diff_read(idx_orig: usize, idx_new: usize, dio: &mut Diffio) {
                 count_new: 0,
             };
             let eof = if dio.dio_internal != 0 {
-                extract_hunk_internal( dout, &mut hunk, &mut line_hunk_idx)
+                extract_hunk_internal(dout, &mut hunk, &mut line_hunk_idx)
             } else {
                 extract_hunk(fd, &mut hunk, &mut diffstyle)
             };
             if eof {
                 break;
             }
-            process_hunk(
-                &mut dp_idx,
-                idx_orig,
-                idx_new,
-                &hunk,
-                &mut notset,
-            );
+            process_hunk(&mut dp_idx, idx_orig, idx_new, &hunk, &mut notset);
         }
         while dp_idx < curtab_mut().tp_diffs.len() {
             if notset {
@@ -1794,7 +1777,7 @@ fn diff_read(idx_orig: usize, idx_new: usize, dio: &mut Diffio) {
     }
 }
 fn diff_copy_entry(dp_idx: usize, idx_orig: usize, idx_new: usize) {
-     {
+    {
         let off = if dp_idx == 0 {
             0
         } else {
@@ -1809,10 +1792,10 @@ fn diff_copy_entry(dp_idx: usize, idx_orig: usize, idx_new: usize) {
 }
 pub fn diff_clear(tp: &mut TabPageInfo) {
     diff_st().diff_finger_dp_idx = None;
-        tp.tp_diffs.clear();
+    tp.tp_diffs.clear();
 }
 pub fn diff_linematch(dp: &DiffBlock) -> bool {
-     {
+    {
         if (diff_st().diff_flags & DIFF_LINEMATCH) == 0 {
             return false;
         }
@@ -1829,7 +1812,7 @@ pub fn diff_linematch(dp: &DiffBlock) -> bool {
     }
 }
 fn get_max_diff_length(dp: &DiffBlock) -> c_int {
-     {
+    {
         let mut maxlength: c_int = 0;
         for k in 0..DB_COUNT {
             if !curtab_mut().tp_diffbuf[k].is_null() && dp.df_count[k] > maxlength {
@@ -1845,7 +1828,7 @@ fn find_top_diff_block(
     fromidx: usize,
     topline: c_int,
 ) {
-     {
+    {
         let mut localtopdiff: Option<usize> = None;
         let mut topdiffchange = false;
         let diffs = &curtab_mut().tp_diffs;
@@ -1885,7 +1868,7 @@ fn calculate_topfill_and_topline(
     topfill: &mut c_int,
     topline: &mut Linenr,
 ) {
-     {
+    {
         let mut thistopdiff: Option<usize> = None;
         let mut next_adjacent_blocks: Option<usize> = None;
         let mut virtual_lines_passed: c_int = 0;
@@ -1956,7 +1939,7 @@ fn calculate_topfill_and_topline(
     }
 }
 fn apply_linematch_results(dp_idx: usize, decisions: &[c_int]) {
-     {
+    {
         let mut line_numbers: [Linenr; DB_COUNT] = [0; DB_COUNT];
         let mut outputmap: [usize; DB_COUNT] = [0; DB_COUNT];
         let mut ndiffs: usize = 0;
@@ -2050,9 +2033,7 @@ pub fn diff_check_with_linestatus(
             return 0;
         }
         let u_idx = idx as usize;
-        if has_folding(wp, lnum, None, ptr::null_mut())
-            || decor_conceal_line(wp, lnum - 1, false)
-        {
+        if has_folding(wp, lnum, None, ptr::null_mut()) || decor_conceal_line(wp, lnum - 1, false) {
             return 0;
         }
         let mut le: Option<usize> = None;
@@ -2070,7 +2051,8 @@ pub fn diff_check_with_linestatus(
             dp_idx += 1;
         }
         diff_scan_remember(curtab_mut(), idx, lnum, le);
-        if dp_idx >= curtab_mut().tp_diffs.len() || lnum < (&curtab_mut().tp_diffs)[dp_idx].df_lnum[u_idx]
+        if dp_idx >= curtab_mut().tp_diffs.len()
+            || lnum < (&curtab_mut().tp_diffs)[dp_idx].df_lnum[u_idx]
         {
             return 0;
         }
@@ -2147,7 +2129,7 @@ pub fn diff_check_with_linestatus(
     }
 }
 pub fn diff_check_fill(wp: &mut WinInfoInfo, lnum: Linenr) -> c_int {
-     {
+    {
         if (diff_st().diff_flags & DIFF_FILLER) == 0 {
             return 0;
         }
@@ -2156,7 +2138,7 @@ pub fn diff_check_fill(wp: &mut WinInfoInfo, lnum: Linenr) -> c_int {
     }
 }
 fn diff_equal_entry(dp: &DiffBlock, idx1: usize, idx2: usize) -> bool {
-     {
+    {
         if dp.df_count[idx1] != dp.df_count[idx2] {
             return false;
         }
@@ -2170,7 +2152,10 @@ fn diff_equal_entry(dp: &DiffBlock, idx1: usize, idx2: usize) -> bool {
             ));
             let cmp = diff_cmp(
                 line.as_ptr(),
-                ml_get_buf(unsafe { &mut *curtab_mut().tp_diffbuf[idx2] }, dp.df_lnum[idx2] + i),
+                ml_get_buf(
+                    unsafe { &mut *curtab_mut().tp_diffbuf[idx2] },
+                    dp.df_lnum[idx2] + i,
+                ),
             );
             if cmp != 0 {
                 return false;
@@ -2179,14 +2164,21 @@ fn diff_equal_entry(dp: &DiffBlock, idx1: usize, idx2: usize) -> bool {
         true
     }
 }
-fn diff_equal_char(p1: impl crate::strings::IntoCCharPtr, p2: impl crate::strings::IntoCCharPtr, len: &mut c_int) -> bool { let p1 = p1.into_c_char_ptr(); let p2 = p2.into_c_char_ptr();
+fn diff_equal_char(
+    p1: impl crate::strings::IntoCCharPtr,
+    p2: impl crate::strings::IntoCCharPtr,
+    len: &mut c_int,
+) -> bool {
+    let p1 = p1.into_c_char_ptr();
+    let p2 = p2.into_c_char_ptr();
     unsafe {
         let l = utfc_ptr2len(p1);
         if l != utfc_ptr2len(p2) {
             return false;
         }
         if l > 1 {
-            if (crate::memory::cstr_prefix_bytes(p1, l as usize) != crate::memory::cstr_prefix_bytes(p2, l as usize))
+            if (crate::memory::cstr_prefix_bytes(p1, l as usize)
+                != crate::memory::cstr_prefix_bytes(p2, l as usize))
                 && ((diff_st().diff_flags & DIFF_ICASE) == 0
                     || utf_fold(utf_ptr2char(p1)) != utf_fold(utf_ptr2char(p2)))
             {
@@ -2196,7 +2188,8 @@ fn diff_equal_char(p1: impl crate::strings::IntoCCharPtr, p2: impl crate::string
         } else {
             if *p1 != *p2
                 && ((diff_st().diff_flags & DIFF_ICASE) == 0
-                    || !(crate::memory::cstr_first_byte(p1)).eq_ignore_ascii_case(&(crate::memory::cstr_first_byte(p2))))
+                    || !(crate::memory::cstr_first_byte(p1))
+                        .eq_ignore_ascii_case(&(crate::memory::cstr_first_byte(p2))))
             {
                 return false;
             }
@@ -2205,23 +2198,31 @@ fn diff_equal_char(p1: impl crate::strings::IntoCCharPtr, p2: impl crate::string
         true
     }
 }
-fn diff_cmp(s1: impl crate::strings::IntoCCharPtr, s2: impl crate::strings::IntoCCharPtr) -> c_int { let s1 = s1.into_c_char_ptr(); let s2 = s2.into_c_char_ptr();
+fn diff_cmp(s1: impl crate::strings::IntoCCharPtr, s2: impl crate::strings::IntoCCharPtr) -> c_int {
+    let s1 = s1.into_c_char_ptr();
+    let s2 = s2.into_c_char_ptr();
     unsafe {
-        if (diff_st().diff_flags & DIFF_IBLANK) != 0 && (*skipwhite(s1) == NUL || *skipwhite(s2) == NUL) {
+        if (diff_st().diff_flags & DIFF_IBLANK) != 0
+            && (*skipwhite(s1) == NUL || *skipwhite(s2) == NUL)
+        {
             return 0;
         }
         if (diff_st().diff_flags & (DIFF_ICASE | ALL_WHITE_DIFF)) == 0 {
             return crate::memory::cstr_as_bytes(s1).cmp(crate::memory::cstr_as_bytes(s2)) as c_int;
         }
-        if (diff_st().diff_flags & DIFF_ICASE) != 0 && (diff_st().diff_flags & ALL_WHITE_DIFF) == 0 {
+        if (diff_st().diff_flags & DIFF_ICASE) != 0 && (diff_st().diff_flags & ALL_WHITE_DIFF) == 0
+        {
             return mb_stricmp(s1, s2);
         }
         let mut p1: *const c_char = s1;
         let mut p2: *const c_char = s2;
         while !crate::memory::cstr_is_empty(p1) && !crate::memory::cstr_is_empty(p2) {
-            if ((diff_st().diff_flags & DIFF_IWHITE) != 0 && ascii_iswhite(crate::memory::cstr_first_char(p1)) && ascii_iswhite(crate::memory::cstr_first_char(p2)))
+            if ((diff_st().diff_flags & DIFF_IWHITE) != 0
+                && ascii_iswhite(crate::memory::cstr_first_char(p1))
+                && ascii_iswhite(crate::memory::cstr_first_char(p2)))
                 || ((diff_st().diff_flags & DIFF_IWHITEALL) != 0
-                    && (ascii_iswhite(crate::memory::cstr_first_char(p1)) || ascii_iswhite(crate::memory::cstr_first_char(p2))))
+                    && (ascii_iswhite(crate::memory::cstr_first_char(p1))
+                        || ascii_iswhite(crate::memory::cstr_first_char(p2))))
             {
                 p1 = skipwhite(p1);
                 p2 = skipwhite(p2);
@@ -2325,9 +2326,7 @@ fn parse_diffanchors(
                 bw = (*bw).w_next;
             }
             if bw.is_null() && !crate::memory::cstr_is_empty(dia) {
-                emsg(gettext(
-                    E_DIFF_ANCHORS_WITH_HIDDEN_WINDOWS,
-                ));
+                emsg(gettext(E_DIFF_ANCHORS_WITH_HIDDEN_WINDOWS));
                 return false;
             }
             bw
@@ -2388,7 +2387,7 @@ fn parse_diffanchors(
     }
 }
 pub fn diffanchors_changed(buflocal: bool) -> bool {
-     {
+    {
         let result = parse_diffanchors(true, g_st().curbuf, ptr::null_mut(), None);
         if result && (diff_st().diff_flags & DIFF_ANCHOR) != 0 {
             for tp in for_all_tabpages_mut() {
@@ -2409,7 +2408,8 @@ pub fn diffanchors_changed(buflocal: bool) -> bool {
 }
 pub fn diffopt_changed() -> bool {
     unsafe {
-        let v = opt_keyset(opt_vars().p_dip, K_OPT_DIFFOPT, ptr::null_mut()).cast::<OptKeyDict_dip>();
+        let v =
+            opt_keyset(opt_vars().p_dip, K_OPT_DIFFOPT, ptr::null_mut()).cast::<OptKeyDict_dip>();
         let mut flags = (if (*v).filler { DIFF_FILLER } else { 0 })
             | (if (*v).anchor { DIFF_ANCHOR } else { 0 })
             | (if (*v).iblank { DIFF_IBLANK } else { 0 })
@@ -2500,7 +2500,7 @@ pub fn diffopt_filler() -> bool {
     (diff_st().diff_flags & DIFF_FILLER) != 0
 }
 pub fn diff_update_line(lnum: Linenr) {
-     {
+    {
         if (diff_st().diff_flags & ALL_INLINE_DIFF) == 0 {
             return;
         }
@@ -2526,30 +2526,30 @@ pub fn diff_change_parse(
     change_end: &mut c_int,
 ) -> bool {
     let bufidx = diffline.bufidx as usize;
-        if change.dc_start_lnum_off[bufidx] < diffline.lineoff {
-            *change_start = 0;
-        } else {
-            *change_start = change.dc_start[bufidx];
+    if change.dc_start_lnum_off[bufidx] < diffline.lineoff {
+        *change_start = 0;
+    } else {
+        *change_start = change.dc_start[bufidx];
+    }
+    if change.dc_end_lnum_off[bufidx] > diffline.lineoff {
+        *change_end = c_int::MAX;
+    } else {
+        *change_end = change.dc_end[bufidx];
+    }
+    if diffline.is_simple {
+        return false;
+    }
+    for i in 0..DB_COUNT {
+        if i == bufidx {
+            continue;
         }
-        if change.dc_end_lnum_off[bufidx] > diffline.lineoff {
-            *change_end = c_int::MAX;
-        } else {
-            *change_end = change.dc_end[bufidx];
-        }
-        if diffline.is_simple {
+        if change.dc_start[i] != change.dc_end[i]
+            || change.dc_end_lnum_off[i] != change.dc_start_lnum_off[i]
+        {
             return false;
         }
-        for i in 0..DB_COUNT {
-            if i == bufidx {
-                continue;
-            }
-            if change.dc_start[i] != change.dc_end[i]
-                || change.dc_end_lnum_off[i] != change.dc_start_lnum_off[i]
-            {
-                return false;
-            }
-        }
-        true
+    }
+    true
 }
 fn diff_find_change_simple(
     wp: &mut WinInfoInfo,
@@ -2563,7 +2563,10 @@ fn diff_find_change_simple(
         let line_org_owned = if (diff_st().diff_flags & DIFF_INLINE_NONE) != 0 {
             None
         } else {
-            Some(crate::memory::cstr_to_cstring(ml_get_buf(wp.buf_mut(), lnum)))
+            Some(crate::memory::cstr_to_cstring(ml_get_buf(
+                wp.buf_mut(),
+                lnum,
+            )))
         };
         let line_org = line_org_owned
             .as_ref()
@@ -2587,8 +2590,13 @@ fn diff_find_change_simple(
                         && ascii_iswhite(crate::memory::cstr_char_at(line_org, si_org as usize))
                         && ascii_iswhite(crate::memory::cstr_char_at(line_new, si_new as usize)))
                         || ((diff_st().diff_flags & DIFF_IWHITEALL) != 0
-                            && (ascii_iswhite(crate::memory::cstr_char_at(line_org, si_org as usize))
-                                || ascii_iswhite(crate::memory::cstr_char_at(line_new, si_new as usize))))
+                            && (ascii_iswhite(crate::memory::cstr_char_at(
+                                line_org,
+                                si_org as usize,
+                            )) || ascii_iswhite(crate::memory::cstr_char_at(
+                                line_new,
+                                si_new as usize,
+                            ))))
                     {
                         si_org =
                             skipwhite(line_org.add(si_org as usize)).offset_from(line_org) as c_int;
@@ -2610,22 +2618,43 @@ fn diff_find_change_simple(
                 si_org -= utf_head_off(line_org, line_org.add(si_org as usize));
                 si_new -= utf_head_off(line_new, line_new.add(si_new as usize));
                 *startp = (*startp).min(si_org);
-                if crate::memory::cstr_byte_at(line_org, si_org as usize) != 0 || crate::memory::cstr_byte_at(line_new, si_new as usize) != 0 {
+                if crate::memory::cstr_byte_at(line_org, si_org as usize) != 0
+                    || crate::memory::cstr_byte_at(line_new, si_new as usize) != 0
+                {
                     let mut ei_org = crate::memory::cstr_len(line_org) as c_int;
                     let mut ei_new = crate::memory::cstr_len(line_new) as c_int;
                     while ei_org >= *startp && ei_new >= si_new && ei_org >= 0 && ei_new >= 0 {
                         if ((diff_st().diff_flags & DIFF_IWHITE) != 0
-                            && ascii_iswhite(crate::memory::cstr_char_at(line_org, ei_org as usize))
-                            && ascii_iswhite(crate::memory::cstr_char_at(line_new, ei_new as usize)))
+                            && ascii_iswhite(crate::memory::cstr_char_at(
+                                line_org,
+                                ei_org as usize,
+                            ))
+                            && ascii_iswhite(crate::memory::cstr_char_at(
+                                line_new,
+                                ei_new as usize,
+                            )))
                             || ((diff_st().diff_flags & DIFF_IWHITEALL) != 0
-                                && (ascii_iswhite(crate::memory::cstr_char_at(line_org, ei_org as usize))
-                                    || ascii_iswhite(crate::memory::cstr_char_at(line_new, ei_new as usize))))
+                                && (ascii_iswhite(crate::memory::cstr_char_at(
+                                    line_org,
+                                    ei_org as usize,
+                                )) || ascii_iswhite(crate::memory::cstr_char_at(
+                                    line_new,
+                                    ei_new as usize,
+                                ))))
                         {
-                            while ei_org >= *startp && ascii_iswhite(crate::memory::cstr_char_at(line_org, ei_org as usize))
+                            while ei_org >= *startp
+                                && ascii_iswhite(crate::memory::cstr_char_at(
+                                    line_org,
+                                    ei_org as usize,
+                                ))
                             {
                                 ei_org -= 1;
                             }
-                            while ei_new >= si_new && ascii_iswhite(crate::memory::cstr_char_at(line_new, ei_new as usize))
+                            while ei_new >= si_new
+                                && ascii_iswhite(crate::memory::cstr_char_at(
+                                    line_new,
+                                    ei_new as usize,
+                                ))
                             {
                                 ei_new -= 1;
                             }
@@ -2650,11 +2679,8 @@ fn diff_find_change_simple(
         added
     }
 }
-fn diff_refine_inline_char_highlight(
-    linemap: &[Vec<LinemapEntry>; DB_COUNT],
-    idx1: usize,
-) {
-     {
+fn diff_refine_inline_char_highlight(linemap: &[Vec<LinemapEntry>; DB_COUNT], idx1: usize) {
+    {
         let mut pass: c_int = 1;
         loop {
             let mut has_unmerged_gaps = false;
@@ -2694,8 +2720,9 @@ fn diff_refine_inline_char_highlight(
                         let next_lnum = (&curtab_mut().tp_diffs)[di + 1].df_lnum;
                         let next_count = (&curtab_mut().tp_diffs)[di + 1].df_count;
                         for i in 0..DB_COUNT {
-                            (&mut curtab_mut().tp_diffs)[di].df_count[i] =
-                                next_lnum[i] + next_count[i] - (&curtab_mut().tp_diffs)[di].df_lnum[i];
+                            (&mut curtab_mut().tp_diffs)[di].df_count[i] = next_lnum[i]
+                                + next_count[i]
+                                - (&curtab_mut().tp_diffs)[di].df_lnum[i];
                         }
                         diff_free(curtab_mut(), di + 1);
                         has_merged_gaps = true;
@@ -2754,7 +2781,10 @@ fn diff_refine_inline_word_highlight(
                     di += 1;
                     continue;
                 }
-                let line = ml_get_buf(&mut *curtab_mut().tp_diffbuf[idx1], start_lnum + entry1.lineoff);
+                let line = ml_get_buf(
+                    &mut *curtab_mut().tp_diffbuf[idx1],
+                    start_lnum + entry1.lineoff,
+                );
                 let gap_text = line.add(gap_start as usize);
                 let mut only_non_word = true;
                 let mut has_content = false;
@@ -2883,7 +2913,8 @@ fn diff_find_change_inline_diff(dp_idx: usize) {
                         if (diff_st().diff_flags & DIFF_INLINE_WORD) != 0 {
                             new_in_keyword = mb_get_class_tab(
                                 s,
-                                (&raw const (*curtab_mut().tp_diffbuf[file1_idx as usize]).b_chartab)
+                                (&raw const (*curtab_mut().tp_diffbuf[file1_idx as usize])
+                                    .b_chartab)
                                     .cast(),
                             ) == 2;
                         }
@@ -2918,7 +2949,9 @@ fn diff_find_change_inline_diff(dp_idx: usize) {
                             curstr.push(NUL as u8);
                         } else {
                             char_len = utfc_ptr2len(s);
-                            if ascii_iswhite(crate::memory::cstr_first_char(s)) && (diff_st().diff_flags & DIFF_IWHITE) != 0 {
+                            if ascii_iswhite(crate::memory::cstr_first_char(s))
+                                && (diff_st().diff_flags & DIFF_IWHITE) != 0
+                            {
                                 char_len = skipwhite(s).offset_from(s) as c_int;
                             }
                             if (diff_st().diff_flags & DIFF_ICASE) != 0 {
@@ -2964,7 +2997,8 @@ fn diff_find_change_inline_diff(dp_idx: usize) {
                         curstr.push(NL as u8);
                         numlines += 1;
                     }
-                    if ((diff_st().diff_flags & DIFF_IWHITEEOL) != 0 || (diff_st().diff_flags & DIFF_IWHITE) != 0)
+                    if ((diff_st().diff_flags & DIFF_IWHITEEOL) != 0
+                        || (diff_st().diff_flags & DIFF_IWHITE) != 0)
                         && eol_ga_len != -1
                     {
                         curstr.truncate(eol_ga_len as usize);
@@ -3058,7 +3092,7 @@ fn diff_find_change_inline_diff(dp_idx: usize) {
     }
 }
 pub fn diff_find_change(wp: &mut WinInfoInfo, lnum: Linenr, diffline: &mut Diffline) -> bool {
-     {
+    {
         let idx = diff_buf_idx(wp.w_buffer, curtab_mut());
         if idx == DB_COUNT as c_int {
             return false;
@@ -3148,7 +3182,7 @@ pub fn diff_find_change(wp: &mut WinInfoInfo, lnum: Linenr, diffline: &mut Diffl
     }
 }
 pub fn diff_infold(wp: &mut WinInfoInfo, lnum: Linenr) -> bool {
-     {
+    {
         if wp.w_onebuf_opt.wo_diff == 0 {
             return false;
         }
@@ -3193,7 +3227,7 @@ pub fn diff_infold(wp: &mut WinInfoInfo, lnum: Linenr) -> bool {
     }
 }
 pub fn nv_diffgetput(put: bool, count: usize) {
-     {
+    {
         if bt_prompt(Some(crate::globals::curbuf_mut())) {
             vim_beep(K_OPT_BO_FLAG_OPERATOR);
             return;
@@ -3214,7 +3248,7 @@ pub fn nv_diffgetput(put: bool, count: usize) {
     }
 }
 fn valid_diff(df_id: Option<u64>) -> Option<usize> {
-     {
+    {
         let id = df_id?;
         curtab_mut().tp_diffs.iter().position(|dp| dp.df_id == id)
     }
@@ -3232,7 +3266,9 @@ pub fn ex_diffgetput(eap: &mut Exarg) {
             let mut found_not_ma = false;
             let mut idx = 0;
             while idx < DB_COUNT {
-                if curtab_mut().tp_diffbuf[idx] != g_st().curbuf && !curtab_mut().tp_diffbuf[idx].is_null() {
+                if curtab_mut().tp_diffbuf[idx] != g_st().curbuf
+                    && !curtab_mut().tp_diffbuf[idx].is_null()
+                {
                     if eap.cmdidx != CMD_DIFFPUT || modifiable(&*curtab_mut().tp_diffbuf[idx]) {
                         break;
                     }
@@ -3243,9 +3279,7 @@ pub fn ex_diffgetput(eap: &mut Exarg) {
             idx_other = idx;
             if idx_other == DB_COUNT {
                 if found_not_ma {
-                    emsg(gettext(
-                        c"E793: No other buffer in diff mode is modifiable",
-                    ));
+                    emsg(gettext(c"E793: No other buffer in diff mode is modifiable"));
                 } else {
                     emsg(gettext(c"E100: No other buffer in diff mode"));
                 }
@@ -3272,7 +3306,8 @@ pub fn ex_diffgetput(eap: &mut Exarg) {
                 i += 1;
             }
             let bufnr = if eap.arg.add(i) == p {
-                crate::charset::parse_i64_prefix(crate::memory::cstr_as_bytes(eap.arg)) as std::ffi::c_long as c_int
+                crate::charset::parse_i64_prefix(crate::memory::cstr_as_bytes(eap.arg))
+                    as std::ffi::c_long as c_int
             } else {
                 let nr = buflist_findpat(eap.arg, p, false, true, false);
                 if nr < 0 {
@@ -3282,10 +3317,7 @@ pub fn ex_diffgetput(eap: &mut Exarg) {
             };
             let buf = buflist_findnr(bufnr);
             if buf.is_null() {
-                semsg!(
-                    gettext(c"E102: Can't find buffer \"%s\""),
-                    eap.arg,
-                );
+                semsg!(gettext(c"E102: Can't find buffer \"%s\""), eap.arg,);
                 return;
             }
             if buf == g_st().curbuf {
@@ -3293,10 +3325,7 @@ pub fn ex_diffgetput(eap: &mut Exarg) {
             }
             let idx_o = diff_buf_idx(buf, curtab_mut());
             if idx_o == DB_COUNT as c_int {
-                semsg!(
-                    gettext(c"E103: Buffer \"%s\" is not in diff mode"),
-                    eap.arg,
-                );
+                semsg!(gettext(c"E103: Buffer \"%s\" is not in diff mode"), eap.arg,);
                 return;
             }
             idx_other = idx_o as usize;
@@ -3308,8 +3337,11 @@ pub fn ex_diffgetput(eap: &mut Exarg) {
                 && diff_check_with_linestatus(curwin_mut(), eap.line1, Some(&mut linestatus)) == 0
                 && linestatus == 0
                 && (eap.line1 == 1
-                    || (diff_check_with_linestatus(curwin_mut(), eap.line1 - 1, Some(&mut linestatus))
-                        >= 0
+                    || (diff_check_with_linestatus(
+                        curwin_mut(),
+                        eap.line1 - 1,
+                        Some(&mut linestatus),
+                    ) >= 0
                         && linestatus == 0))
             {
                 eap.line2 += 1;
@@ -3482,7 +3514,10 @@ fn diffgetput(
                     if nr > (*curtab_mut().tp_diffbuf[idx_from]).b_ml.ml_line_count {
                         break;
                     }
-                    let p = crate::memory::cstr_to_cstring(ml_get_buf(&mut *curtab_mut().tp_diffbuf[idx_from], nr));
+                    let p = crate::memory::cstr_to_cstring(ml_get_buf(
+                        &mut *curtab_mut().tp_diffbuf[idx_from],
+                        nr,
+                    ));
                     let _ = ml_append(lnum + i - 1, p.as_ptr().cast_mut(), 0, false);
                     added += 1;
                     if buf_empty && curbuf_mut().b_ml.ml_line_count == 2 {
@@ -3522,14 +3557,23 @@ fn diffgetput(
                     if curwin_mut().w_cursor.lnum >= lnum {
                         if curwin_mut().w_cursor.lnum >= lnum + count {
                             curwin_mut().w_cursor.lnum += added;
-                            curwin_mut().w_cursor.lnum =
-                                curwin_mut().w_cursor.lnum.min(curbuf_mut().b_ml.ml_line_count);
+                            curwin_mut().w_cursor.lnum = curwin_mut()
+                                .w_cursor
+                                .lnum
+                                .min(curbuf_mut().b_ml.ml_line_count);
                         } else if added < 0 {
                             curwin_mut().w_cursor.lnum = lnum;
                         }
                     }
                 }
-                extmark_adjust(curbuf_mut(), lnum, lnum + count - 1, MAXLNUM, added, K_EXTMARK_UNDO);
+                extmark_adjust(
+                    curbuf_mut(),
+                    lnum,
+                    lnum + count - 1,
+                    MAXLNUM,
+                    added,
+                    K_EXTMARK_UNDO,
+                );
                 changed_lines(curbuf_mut(), lnum, 0, lnum + count, added, true);
                 if did_free {
                     diff_fold_update(&dfree_lnum, &dfree_count, idx_to);
@@ -3554,11 +3598,7 @@ fn diffgetput(
         }
     }
 }
-fn diff_fold_update(
-    df_lnum: &[Linenr; DB_COUNT],
-    df_count: &[Linenr; DB_COUNT],
-    skip_idx: usize,
-) {
+fn diff_fold_update(df_lnum: &[Linenr; DB_COUNT], df_count: &[Linenr; DB_COUNT], skip_idx: usize) {
     unsafe {
         for wp in for_all_windows_ptr() {
             for i in 0..DB_COUNT {
@@ -3570,7 +3610,7 @@ fn diff_fold_update(
     }
 }
 pub fn diff_mode_buf(buf: *mut FileBuf) -> bool {
-     {
+    {
         for tp in for_all_tabpages_mut() {
             if diff_buf_idx(buf, tp) != DB_COUNT as c_int {
                 return true;
@@ -3580,7 +3620,7 @@ pub fn diff_mode_buf(buf: *mut FileBuf) -> bool {
     }
 }
 pub fn diff_move_to(dir: c_int, mut count: c_int) -> bool {
-     {
+    {
         let mut lnum = curwin_mut().w_cursor.lnum;
         let idx = diff_buf_idx(g_st().curbuf, curtab_mut());
         if idx == DB_COUNT as c_int || curtab_mut().tp_diffs.is_empty() {
@@ -3622,11 +3662,14 @@ pub fn diff_move_to(dir: c_int, mut count: c_int) -> bool {
     }
 }
 fn diff_get_corresponding_line_int(buf1: *mut FileBuf, lnum1: Linenr) -> Linenr {
-     {
+    {
         let mut baseline: Linenr = 0;
         let idx1 = diff_buf_idx(buf1, curtab_mut());
         let idx2 = diff_buf_idx(g_st().curbuf, curtab_mut());
-        if idx1 == DB_COUNT as c_int || idx2 == DB_COUNT as c_int || curtab_mut().tp_diffs.is_empty() {
+        if idx1 == DB_COUNT as c_int
+            || idx2 == DB_COUNT as c_int
+            || curtab_mut().tp_diffs.is_empty()
+        {
             return lnum1;
         }
         if curtab_mut().tp_diff_invalid != 0 {
@@ -3660,13 +3703,13 @@ fn diff_get_corresponding_line_int(buf1: *mut FileBuf, lnum1: Linenr) -> Linenr 
     }
 }
 pub fn diff_get_corresponding_line(buf1: *mut FileBuf, lnum1: Linenr) -> Linenr {
-     {
+    {
         let lnum = diff_get_corresponding_line_int(buf1, lnum1);
         lnum.min(curbuf_mut().b_ml.ml_line_count)
     }
 }
 pub fn diff_lnum_win(lnum: Linenr, wp: &mut WinInfoInfo) -> Linenr {
-     {
+    {
         let idx = diff_buf_idx(g_st().curbuf, curtab_mut());
         if idx == DB_COUNT as c_int {
             return 0;
@@ -3701,7 +3744,10 @@ fn parse_diff_ed(line: *mut c_char, hunk: &mut Diffhunk) -> bool {
         } else {
             f1
         };
-        if crate::memory::cstr_first_byte(p) != b'a' && crate::memory::cstr_first_byte(p) != b'c' && crate::memory::cstr_first_byte(p) != b'd' {
+        if crate::memory::cstr_first_byte(p) != b'a'
+            && crate::memory::cstr_first_byte(p) != b'c'
+            && crate::memory::cstr_first_byte(p) != b'd'
+        {
             return false;
         }
         let difftype = crate::memory::cstr_first_byte(p);
@@ -3749,7 +3795,9 @@ fn parse_diff_unified(line: *mut c_char, hunk: &mut Diffhunk) -> bool {
             } else {
                 1
             };
-            if crate::memory::cstr_first_byte(p) == b' ' && crate::memory::cstr_byte_at(p, 1) == b'+' {
+            if crate::memory::cstr_first_byte(p) == b' '
+                && crate::memory::cstr_byte_at(p, 1) == b'+'
+            {
                 p = p.add(2);
                 let mut newline = getdigits_int(&raw mut p, true, 0);
                 let newcount = if crate::memory::cstr_first_byte(p) == b',' {
@@ -3786,22 +3834,22 @@ pub(crate) fn xdiff_out(
     dout: &mut Diffout,
 ) -> c_int {
     dout.dout_ga.push(Diffhunk {
-            lnum_orig: start_a + 1,
-            count_orig: count_a,
-            lnum_new: start_b + 1,
-            count_new: count_b,
-        });
-        0
+        lnum_orig: start_a + 1,
+        count_orig: count_a,
+        lnum_new: start_b + 1,
+        count_new: count_b,
+    });
+    0
 }
-pub fn f_diff_filler(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData){
-
-     {
-        rettv.vval = crate::eval::typval::TypvalVval::Number(diff_check_fill(curwin_mut(), tv_get_lnum(&argvars[0])).max(0) as Varnumber);
+pub fn f_diff_filler(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
+    {
+        rettv.vval = crate::eval::typval::TypvalVval::Number(
+            diff_check_fill(curwin_mut(), tv_get_lnum(&argvars[0])).max(0) as Varnumber,
+        );
     }
 }
-pub fn f_diff_hl_id(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData){
-
-     {
+pub fn f_diff_hl_id(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
+    {
         let mut diffline = Diffline::default();
         let cache_results = (diff_st().diff_flags & ALL_INLINE_DIFF) == 0;
         let mut lnum = tv_get_lnum(&argvars[0]);
@@ -3847,7 +3895,9 @@ pub fn f_diff_hl_id(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncD
         if diff_st().f_diff_hlid_hl_id == HLF_CHD || diff_st().f_diff_hlid_hl_id == HLF_TXD {
             let col = tv_get_number(&argvars[1]) as c_int - 1;
             if cache_results {
-                if col >= diff_st().f_diff_hlid_change_start && col < diff_st().f_diff_hlid_change_end {
+                if col >= diff_st().f_diff_hlid_change_start
+                    && col < diff_st().f_diff_hlid_change_end
+                {
                     diff_st().f_diff_hlid_hl_id = HLF_TXD;
                 } else {
                     diff_st().f_diff_hlid_hl_id = HLF_CHD;
@@ -3861,7 +3911,9 @@ pub fn f_diff_hl_id(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncD
                         &mut diff_st().f_diff_hlid_change_start,
                         &mut diff_st().f_diff_hlid_change_end,
                     );
-                    if col >= diff_st().f_diff_hlid_change_start && col < diff_st().f_diff_hlid_change_end {
+                    if col >= diff_st().f_diff_hlid_change_start
+                        && col < diff_st().f_diff_hlid_change_end
+                    {
                         diff_st().f_diff_hlid_hl_id = if added { HLF_TXA } else { HLF_TXD };
                         break;
                     }
@@ -3871,7 +3923,8 @@ pub fn f_diff_hl_id(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncD
                 }
             }
         }
-        rettv.vval = crate::eval::typval::TypvalVval::Number(diff_st().f_diff_hlid_hl_id as Varnumber);
+        rettv.vval =
+            crate::eval::typval::TypvalVval::Number(diff_st().f_diff_hlid_hl_id as Varnumber);
     }
 }
 #[cfg(test)]
@@ -3880,22 +3933,22 @@ mod tests {
     #[test]
     fn parse_diff_ed_and_unified_work() {
         let mut hunk = Diffhunk {
-                lnum_orig: 0,
-                count_orig: 0,
-                lnum_new: 0,
-                count_new: 0,
-            };
-            let mut ed_line = *b"2,4c5,6\n\0";
-            assert!(parse_diff_ed(ed_line.as_mut_ptr().cast(), &mut hunk));
-            assert_eq!(hunk.lnum_orig, 2);
-            assert_eq!(hunk.count_orig, 3);
-            assert_eq!(hunk.lnum_new, 5);
-            assert_eq!(hunk.count_new, 2);
-            let mut uni_line = *b"@@ -10,3 +12,4 @@\n\0";
-            assert!(parse_diff_unified(uni_line.as_mut_ptr().cast(), &mut hunk));
-            assert_eq!(hunk.lnum_orig, 10);
-            assert_eq!(hunk.count_orig, 3);
-            assert_eq!(hunk.lnum_new, 12);
-            assert_eq!(hunk.count_new, 4);
+            lnum_orig: 0,
+            count_orig: 0,
+            lnum_new: 0,
+            count_new: 0,
+        };
+        let mut ed_line = *b"2,4c5,6\n\0";
+        assert!(parse_diff_ed(ed_line.as_mut_ptr().cast(), &mut hunk));
+        assert_eq!(hunk.lnum_orig, 2);
+        assert_eq!(hunk.count_orig, 3);
+        assert_eq!(hunk.lnum_new, 5);
+        assert_eq!(hunk.count_new, 2);
+        let mut uni_line = *b"@@ -10,3 +12,4 @@\n\0";
+        assert!(parse_diff_unified(uni_line.as_mut_ptr().cast(), &mut hunk));
+        assert_eq!(hunk.lnum_orig, 10);
+        assert_eq!(hunk.count_orig, 3);
+        assert_eq!(hunk.lnum_new, 12);
+        assert_eq!(hunk.count_new, 4);
     }
 }

@@ -2,7 +2,7 @@
 
 use crate::arglist::{Aentry, alist_name};
 use crate::autocmd::{EVENT_SESSIONWRITEPOST, EVENT_SESSIONWRITEPRE, apply_autocmds};
-use crate::buffer::{bt_help, bt_nofilename, bt_normal, bt_terminal, FileBuf, buflist_findnr};
+use crate::buffer::{FileBuf, bt_help, bt_nofilename, bt_normal, bt_terminal, buflist_findnr};
 use crate::charset::{NUL, ascii_isdigit};
 use crate::errors::*;
 use crate::eval::typval::{VarType, tv_get_string};
@@ -25,7 +25,7 @@ use crate::os::fs::{MAXPATHL, os_chdir, os_dirname, os_isdir};
 use crate::path::{add_pathsep, vim_full_name, vim_ispathsep};
 use crate::runtime::{DOSO_NONE, do_source};
 use crate::strings::{gettext, vim_strsave_escaped};
-use crate::window::{Frame, TabPageInfo, tabpage_index, WinInfoInfo};
+use crate::window::{Frame, TabPageInfo, WinInfoInfo, tabpage_index};
 use std::ffi::{CString, c_char, c_int, c_uint};
 use std::ptr;
 
@@ -63,13 +63,12 @@ struct ExSessionState {
 
 impl ExSessionState {
     const fn new() -> Self {
-        Self {
-            did_lcd: false,
-        }
+        Self { did_lcd: false }
     }
 }
 
-static EXSES_STATE: crate::globals::GlobalState<ExSessionState> = crate::globals::GlobalState::new(ExSessionState::new());
+static EXSES_STATE: crate::globals::GlobalState<ExSessionState> =
+    crate::globals::GlobalState::new(ExSessionState::new());
 
 #[inline]
 fn exses_st() -> &'static mut ExSessionState {
@@ -95,7 +94,7 @@ fn write_fmt(fd: *mut FILE, s: String) -> bool {
 }
 
 fn put_view_curpos(fd: *mut FILE, wp: &WinInfoInfo, spaces: &str) -> c_int {
-     {
+    {
         let s = if wp.w_curswant == MAXCOL {
             format!("{spaces}normal! $\n")
         } else {
@@ -256,31 +255,31 @@ fn ses_arglist(
     _flagp: &mut c_uint,
 ) -> bool {
     if !write_fmt(fd, format!("{}\n%argdel\n", cstr_to_str(cmd.as_ptr()))) {
-            return false;
-        }
-        let mut buf: Vec<c_char> = if fullname {
-            vec![0; MAXPATHL]
-        } else {
-            Vec::new()
-        };
-        for entry in gap {
-            let mut s = alist_name(entry);
-            if !s.is_null() {
-                if fullname {
-                    vim_full_name(s, buf.as_mut_ptr(), MAXPATHL, false);
-                    s = buf.as_mut_ptr();
-                }
-                let fname_esc = ses_escape_fname(s);
-                if !write_fmt(fd, format!("$argadd {}\n", cstr_to_str(fname_esc.as_ptr()))) {
-                    return false;
-                }
+        return false;
+    }
+    let mut buf: Vec<c_char> = if fullname {
+        vec![0; MAXPATHL]
+    } else {
+        Vec::new()
+    };
+    for entry in gap {
+        let mut s = alist_name(entry);
+        if !s.is_null() {
+            if fullname {
+                vim_full_name(s, buf.as_mut_ptr(), MAXPATHL, false);
+                s = buf.as_mut_ptr();
+            }
+            let fname_esc = ses_escape_fname(s);
+            if !write_fmt(fd, format!("$argadd {}\n", cstr_to_str(fname_esc.as_ptr()))) {
+                return false;
             }
         }
-        true
+    }
+    true
 }
 
 fn ses_get_fname(buf: &mut FileBuf, flagp: &c_uint) -> *mut c_char {
-     {
+    {
         if !buf.b_sfname.is_null()
             && ptr::eq(flagp, &raw const opt_vars().ssop_flags)
             && (opt_vars().ssop_flags & (K_OPT_SSOP_FLAG_CURDIR | K_OPT_SSOP_FLAG_SESDIR)) != 0
@@ -294,14 +293,15 @@ fn ses_get_fname(buf: &mut FileBuf, flagp: &c_uint) -> *mut c_char {
 }
 
 fn ses_fname(fd: *mut FILE, buf: &mut FileBuf, flagp: &mut c_uint, add_eol: bool) -> bool {
-    let name = ses_get_fname( buf, flagp);
-        if !ses_put_fname(fd, name, flagp) || (add_eol && !write_bytes(fd, b"\n")) {
-            return false;
-        }
-        true
+    let name = ses_get_fname(buf, flagp);
+    if !ses_put_fname(fd, name, flagp) || (add_eol && !write_bytes(fd, b"\n")) {
+        return false;
+    }
+    true
 }
 
-fn ses_escape_fname(name: impl crate::strings::IntoCCharPtr) -> CString { let name = name.into_c_char_ptr();
+fn ses_escape_fname(name: impl crate::strings::IntoCCharPtr) -> CString {
+    let name = name.into_c_char_ptr();
     unsafe {
         let mut sname_vec: Vec<c_char> = home_replace_save(None, name)
             .into_bytes_with_nul()
@@ -321,7 +321,12 @@ fn ses_escape_fname(name: impl crate::strings::IntoCCharPtr) -> CString { let na
     }
 }
 
-fn ses_put_fname(fd: *mut FILE, name: impl crate::strings::IntoCCharPtr, _flagp: &mut c_uint) -> bool { let name = name.into_c_char_ptr();
+fn ses_put_fname(
+    fd: *mut FILE,
+    name: impl crate::strings::IntoCCharPtr,
+    _flagp: &mut c_uint,
+) -> bool {
+    let name = name.into_c_char_ptr();
     unsafe {
         let p = ses_escape_fname(name);
         fputs(p.as_ptr(), fd) >= 0
@@ -338,8 +343,8 @@ fn put_view(
 ) -> bool {
     unsafe {
         let mut did_next = false;
-        let mut do_cursor =
-            ptr::eq(flagp, &raw mut opt_vars().ssop_flags) || (*flagp & K_OPT_SSOP_FLAG_CURSOR) != 0;
+        let mut do_cursor = ptr::eq(flagp, &raw mut opt_vars().ssop_flags)
+            || (*flagp & K_OPT_SSOP_FLAG_CURSOR) != 0;
 
         if (*wp).w_alist.is_none() {
             if !put_line(fd, c"argglobal") {
@@ -356,8 +361,7 @@ fn put_view(
                     || tp.tp_localdir.is_some()
                     || (*wp).w_localdir.is_some(),
                 &mut *flagp,
-            )
-            {
+            ) {
                 return false;
             }
         }
@@ -391,7 +395,8 @@ fn put_view(
                     return false;
                 }
             } else if !(*wp).buf_mut().b_ffname.is_null()
-                && (!bt_nofilename(((*wp).w_buffer).as_ref()) || !(*wp).buf_mut().terminal.is_null())
+                && (!bt_nofilename(((*wp).w_buffer).as_ref())
+                    || !(*wp).buf_mut().terminal.is_null())
             {
                 let fesc = cstr_to_str(fname_esc.as_ptr());
                 if !write_fmt(
@@ -421,8 +426,9 @@ fn put_view(
                 && !alt.is_null()
                 && !crate::memory::cstr_is_empty((*alt).b_fname)
                 && (*alt).b_p_bl != 0
-                && !(bt_terminal(alt.as_ref()) && (opt_vars().ssop_flags & K_OPT_SSOP_FLAG_TERMINAL) == 0)
-                && (fputs(c"balt ", fd) < 0 || !ses_fname(fd,  &mut *alt, &mut *flagp, true))
+                && !(bt_terminal(alt.as_ref())
+                    && (opt_vars().ssop_flags & K_OPT_SSOP_FLAG_TERMINAL) == 0)
+                && (fputs(c"balt ", fd) < 0 || !ses_fname(fd, &mut *alt, &mut *flagp, true))
             {
                 return false;
             }
@@ -442,7 +448,8 @@ fn put_view(
                 fd,
                 OPT_LOCAL,
                 c_int::from(
-                    ptr::eq(flagp, &raw mut opt_vars().vop_flags) || (*flagp & K_OPT_SSOP_FLAG_OPTIONS) == 0,
+                    ptr::eq(flagp, &raw mut opt_vars().vop_flags)
+                        || (*flagp & K_OPT_SSOP_FLAG_OPTIONS) == 0,
                 ),
             )
         } else if (*flagp & K_OPT_SSOP_FLAG_FOLDS) != 0 {
@@ -459,7 +466,7 @@ fn put_view(
         if (*flagp & K_OPT_SSOP_FLAG_FOLDS) != 0
             && !(*wp).buf_mut().b_ffname.is_null()
             && (bt_normal(((*wp).w_buffer).as_ref()) || bt_help(((*wp).w_buffer).as_ref()))
-            && !put_folds(fd,  &mut *wp)
+            && !put_folds(fd, &mut *wp)
         {
             return false;
         }
@@ -504,18 +511,19 @@ fn put_view(
                         i64::from((*wp).w_width / 2),
                         i64::from((*wp).w_width),
                     ),
-                ) || put_view_curpos(fd,  &*wp, "  ") == FAIL
+                ) || put_view_curpos(fd, &*wp, "  ") == FAIL
                     || !put_line(fd, c"endif")
                 {
                     return false;
                 }
-            } else if put_view_curpos(fd,  &*wp, "") == FAIL {
+            } else if put_view_curpos(fd, &*wp, "") == FAIL {
                 return false;
             }
         }
 
         if let Some(ref w_localdir) = (*wp).w_localdir
-            && (!ptr::eq(flagp, &raw mut opt_vars().vop_flags) || (*flagp & K_OPT_SSOP_FLAG_CURDIR) != 0)
+            && (!ptr::eq(flagp, &raw mut opt_vars().vop_flags)
+                || (*flagp & K_OPT_SSOP_FLAG_CURDIR) != 0)
         {
             if fputs(c"lcd ", fd) < 0
                 || !ses_put_fname(fd, w_localdir.as_ptr().cast_mut(), &mut *flagp)
@@ -545,10 +553,7 @@ fn store_session_globals(fd: *mut FILE) -> bool {
                     || this_var.di_tv.v_type == VarType::VarString)
                     && var_flavour(key_ptr) == VAR_FLAVOUR_SESSION
                 {
-                    let p = vim_strsave_escaped(
-                        tv_get_string(&this_var.di_tv),
-                        c"\\\"\n\r",
-                    );
+                    let p = vim_strsave_escaped(tv_get_string(&this_var.di_tv), c"\\\"\n\r");
                     let mut p_vec: Vec<c_char> = p
                         .into_bytes_with_nul()
                         .into_iter()
@@ -602,7 +607,8 @@ fn store_session_globals(fd: *mut FILE) -> bool {
     }
 }
 
-fn makeopens(fd: *mut FILE, dirnow: impl crate::strings::IntoCCharPtr) -> bool { let dirnow = dirnow.into_c_char_ptr();
+fn makeopens(fd: *mut FILE, dirnow: impl crate::strings::IntoCCharPtr) -> bool {
+    let dirnow = dirnow.into_c_char_ptr();
     unsafe {
         let mut only_save_windows = true;
         let mut edited_win: *mut WinInfoInfo = ptr::null_mut();
@@ -613,11 +619,7 @@ fn makeopens(fd: *mut FILE, dirnow: impl crate::strings::IntoCCharPtr) -> bool {
             only_save_windows = false;
         }
 
-        if !put_line(
-            fd,
-            c"let v:this_session=expand(\"<sfile>:p\")",
-        )
-        {
+        if !put_line(fd, c"let v:this_session=expand(\"<sfile>:p\")") {
             return false;
         }
         if !put_line(fd, c"doautoall SessionLoadPre") {
@@ -638,11 +640,7 @@ fn makeopens(fd: *mut FILE, dirnow: impl crate::strings::IntoCCharPtr) -> bool {
         }
 
         if (opt_vars().ssop_flags & K_OPT_SSOP_FLAG_SESDIR) != 0 {
-            if !put_line(
-                fd,
-                c"exe \"cd \" . escape(expand(\"<sfile>:p:h\"), ' ')",
-            )
-            {
+            if !put_line(fd, c"exe \"cd \" . escape(expand(\"<sfile>:p:h\"), ' ')") {
                 return false;
             }
         } else if (opt_vars().ssop_flags & K_OPT_SSOP_FLAG_CURDIR) != 0 {
@@ -680,7 +678,8 @@ fn makeopens(fd: *mut FILE, dirnow: impl crate::strings::IntoCCharPtr) -> bool {
         for buf in for_all_buffers_ptr() {
             if !(only_save_windows && (*buf).b_nwindows == 0)
                 && !((*buf).b_help && (opt_vars().ssop_flags & K_OPT_SSOP_FLAG_HELP) == 0)
-                && !(bt_terminal(buf.as_ref()) && (opt_vars().ssop_flags & K_OPT_SSOP_FLAG_TERMINAL) == 0)
+                && !(bt_terminal(buf.as_ref())
+                    && (opt_vars().ssop_flags & K_OPT_SSOP_FLAG_TERMINAL) == 0)
                 && !(*buf).b_fname.is_null()
                 && (*buf).b_p_bl != 0
             {
@@ -689,7 +688,7 @@ fn makeopens(fd: *mut FILE, dirnow: impl crate::strings::IntoCCharPtr) -> bool {
                     .first()
                     .map_or(1i64, |wi| i64::from(wi.wi_mark.mark.lnum));
                 if !write_fmt(fd, format!("badd +{lnum} "))
-                    || !ses_fname(fd,  &mut *buf, &mut opt_vars().ssop_flags, true)
+                    || !ses_fname(fd, &mut *buf, &mut opt_vars().ssop_flags, true)
                 {
                     return false;
                 }
@@ -702,8 +701,7 @@ fn makeopens(fd: *mut FILE, dirnow: impl crate::strings::IntoCCharPtr) -> bool {
             &g_st().global_alist.al_ga,
             (opt_vars().ssop_flags & K_OPT_SSOP_FLAG_CURDIR) == 0,
             &mut opt_vars().ssop_flags,
-        )
-        {
+        ) {
             return false;
         }
 
@@ -716,7 +714,8 @@ fn makeopens(fd: *mut FILE, dirnow: impl crate::strings::IntoCCharPtr) -> bool {
                     || (*b).b_p_bl == 0
                     || (only_save_windows && (*b).b_nwindows == 0)
                     || ((*b).b_help && (opt_vars().ssop_flags & K_OPT_SSOP_FLAG_HELP) == 0)
-                    || (bt_terminal(b.as_ref()) && (opt_vars().ssop_flags & K_OPT_SSOP_FLAG_TERMINAL) == 0)
+                    || (bt_terminal(b.as_ref())
+                        && (opt_vars().ssop_flags & K_OPT_SSOP_FLAG_TERMINAL) == 0)
                 {
                     continue;
                 }
@@ -764,16 +763,12 @@ fn makeopens(fd: *mut FILE, dirnow: impl crate::strings::IntoCCharPtr) -> bool {
 
         if (opt_vars().ssop_flags & K_OPT_SSOP_FLAG_TABPAGES) != 0 {
             for tp in for_all_tabpages_mut() {
-                if !tp.tp_next.is_null()
-                    && !put_line(fd, c"tabnew +setlocal\\ bufhidden=wipe")
-                {
+                if !tp.tp_next.is_null() && !put_line(fd, c"tabnew +setlocal\\ bufhidden=wipe") {
                     return false;
                 }
             }
 
-            if !(*g_st().first_tabpage).tp_next.is_null()
-                && !put_line(fd, c"tabrewind")
-            {
+            if !(*g_st().first_tabpage).tp_next.is_null() && !put_line(fd, c"tabrewind") {
                 return false;
             }
         }
@@ -811,7 +806,11 @@ fn makeopens(fd: *mut FILE, dirnow: impl crate::strings::IntoCCharPtr) -> bool {
                 }
                 need_tabnext = false;
                 if fputs(c"tcd ", fd) < 0
-                    || !ses_put_fname(fd, tp_localdir.as_ptr().cast_mut(), &mut opt_vars().ssop_flags)
+                    || !ses_put_fname(
+                        fd,
+                        tp_localdir.as_ptr().cast_mut(),
+                        &mut opt_vars().ssop_flags,
+                    )
                     || !put_eol(fd)
                 {
                     return false;
@@ -849,24 +848,12 @@ fn makeopens(fd: *mut FILE, dirnow: impl crate::strings::IntoCCharPtr) -> bool {
             }
 
             if (*tab_topframe).fr_layout != FR_LEAF
-                && (!put_line(
-                    fd,
-                    c"let s:save_splitbelow = &splitbelow",
-                )
-                    || !put_line(
-                        fd,
-                        c"let s:save_splitright = &splitright",
-                    )
+                && (!put_line(fd, c"let s:save_splitbelow = &splitbelow")
+                    || !put_line(fd, c"let s:save_splitright = &splitright")
                     || !put_line(fd, c"set splitbelow splitright")
                     || !ses_win_rec(fd, &mut *tab_topframe)
-                    || !put_line(
-                        fd,
-                        c"let &splitbelow = s:save_splitbelow",
-                    )
-                    || !put_line(
-                        fd,
-                        c"let &splitright = s:save_splitright",
-                    ))
+                    || !put_line(fd, c"let &splitbelow = s:save_splitbelow")
+                    || !put_line(fd, c"let &splitright = s:save_splitright"))
             {
                 return false;
             }
@@ -891,14 +878,8 @@ fn makeopens(fd: *mut FILE, dirnow: impl crate::strings::IntoCCharPtr) -> bool {
                     return false;
                 }
                 if !restore_height_width
-                    && (!put_line(
-                        fd,
-                        c"let s:save_winminheight = &winminheight",
-                    )
-                        || !put_line(
-                            fd,
-                            c"let s:save_winminwidth = &winminwidth",
-                        ))
+                    && (!put_line(fd, c"let s:save_winminheight = &winminheight")
+                        || !put_line(fd, c"let s:save_winminwidth = &winminwidth"))
                 {
                     return false;
                 }
@@ -927,8 +908,7 @@ fn makeopens(fd: *mut FILE, dirnow: impl crate::strings::IntoCCharPtr) -> bool {
                     !ptr::eq(wp, edited_win),
                     &mut opt_vars().ssop_flags,
                     cur_arg_idx,
-                )
-                {
+                ) {
                     return false;
                 }
                 if nr > 1 && !put_line(fd, c"wincmd w") {
@@ -976,7 +956,10 @@ fn makeopens(fd: *mut FILE, dirnow: impl crate::strings::IntoCCharPtr) -> bool {
         }
 
         if (opt_vars().ssop_flags & K_OPT_SSOP_FLAG_OPTIONS) != 0 {
-            if !write_fmt(fd, format!("set shortmess={}\n", cstr_to_str(opt_vars().p_shm))) {
+            if !write_fmt(
+                fd,
+                format!("set shortmess={}\n", cstr_to_str(opt_vars().p_shm)),
+            ) {
                 return false;
             }
         } else if !put_line(fd, c"let &shortmess = s:shortmess_save") {
@@ -984,14 +967,8 @@ fn makeopens(fd: *mut FILE, dirnow: impl crate::strings::IntoCCharPtr) -> bool {
         }
 
         if restore_height_width
-            && (!put_line(
-                fd,
-                c"let &winminheight = s:save_winminheight",
-            )
-                || !put_line(
-                    fd,
-                    c"let &winminwidth = s:save_winminwidth",
-                ))
+            && (!put_line(fd, c"let &winminheight = s:save_winminheight")
+                || !put_line(fd, c"let &winminwidth = s:save_winminwidth"))
         {
             return false;
         }
@@ -1034,7 +1011,8 @@ pub fn ex_mkrc(eap: &mut Exarg) {
         let fname: *mut c_char;
         if eap.cmdidx == CMD_MKVIEW
             && (crate::memory::cstr_is_empty(eap.arg)
-                || (ascii_isdigit(*eap.arg as c_int) && crate::memory::cstr_byte_at(eap.arg, 1) == 0))
+                || (ascii_isdigit(*eap.arg as c_int)
+                    && crate::memory::cstr_byte_at(eap.arg, 1) == 0))
         {
             eap.forceit = 1;
             let Some(vf) = get_view_file(*eap.arg) else {
@@ -1080,9 +1058,7 @@ pub fn ex_mkrc(eap: &mut Exarg) {
                 put_line(fd, c"version 6.0");
             }
 
-            if eap.cmdidx == CMD_MKSESSION
-                && !put_line(fd, c"let SessionLoad = 1")
-            {
+            if eap.cmdidx == CMD_MKSESSION && !put_line(fd, c"let SessionLoad = 1") {
                 failed = true;
             }
 
@@ -1111,7 +1087,9 @@ pub fn ex_mkrc(eap: &mut Exarg) {
                     if !os_dirname(dirnow, MAXPATHL) || os_chdir(dirnow) != 0 {
                         *dirnow = NUL;
                     }
-                    if !crate::memory::cstr_is_empty(dirnow) && (opt_vars().ssop_flags & K_OPT_SSOP_FLAG_SESDIR) != 0 {
+                    if !crate::memory::cstr_is_empty(dirnow)
+                        && (opt_vars().ssop_flags & K_OPT_SSOP_FLAG_SESDIR) != 0
+                    {
                         if vim_chdirfile(fname, K_CD_CAUSE_OTHER) {
                             shorten_fnames(1);
                         }
@@ -1136,7 +1114,8 @@ pub fn ex_mkrc(eap: &mut Exarg) {
                         shorten_fnames(1);
                     }
                 } else {
-                    failed |= !put_view(fd, curwin_ptr(), curtab_mut(), !using_vdir, &mut *flagp, -1);
+                    failed |=
+                        !put_view(fd, curwin_ptr(), curtab_mut(), !using_vdir, &mut *flagp, -1);
                 }
                 if !write_bytes(fd, b"let &g:so = s:so_save | let &g:siso = s:siso_save\n") {
                     failed = true;
@@ -1195,7 +1174,9 @@ fn get_view_file(c: c_char) -> Option<CString> {
         let mut len: usize = 0;
         let mut p = sname;
         while !crate::memory::cstr_is_empty(p) {
-            if crate::memory::cstr_first_byte(p) == b'=' || vim_ispathsep(c_int::from(crate::memory::cstr_first_byte(p))) {
+            if crate::memory::cstr_first_byte(p) == b'='
+                || vim_ispathsep(c_int::from(crate::memory::cstr_first_byte(p)))
+            {
                 len += 1;
             }
             p = p.add(1);

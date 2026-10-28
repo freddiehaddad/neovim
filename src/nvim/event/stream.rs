@@ -64,22 +64,44 @@ impl StreamCbData {
         unsafe {
             match self {
                 Self::None => None,
-                Self::ChannelData(chan) => {
-                    Some(crate::channel::on_channel_data(&mut *stream, buf, count, &mut *chan, eof))
-                }
-                Self::ChannelStderr(chan) => {
-                    Some(crate::channel::on_job_stderr(&mut *stream, buf, count, &mut *chan, eof))
-                }
+                Self::ChannelData(chan) => Some(crate::channel::on_channel_data(
+                    &mut *stream,
+                    buf,
+                    count,
+                    &mut *chan,
+                    eof,
+                )),
+                Self::ChannelStderr(chan) => Some(crate::channel::on_job_stderr(
+                    &mut *stream,
+                    buf,
+                    count,
+                    &mut *chan,
+                    eof,
+                )),
                 Self::ChannelRpc(chan) => Some(crate::msgpack_rpc::channel::receive_msgpack(
-                    &mut *stream, buf, count, &mut *chan, eof,
+                    &mut *stream,
+                    buf,
+                    count,
+                    &mut *chan,
+                    eof,
                 )),
                 Self::ShellBuf(dbuf) => Some(crate::os::shell::system_data_cb(
-                    &mut *stream, buf, count, &mut *dbuf, eof,
+                    &mut *stream,
+                    buf,
+                    count,
+                    &mut *dbuf,
+                    eof,
                 )),
-                Self::ShellOut => Some(crate::os::shell::out_data_cb(&mut *stream, buf, count, eof)),
-                Self::Input(input) => {
-                    Some(crate::tui::input::tinput_read_cb(&mut *stream, buf, count, &mut *input, eof))
+                Self::ShellOut => {
+                    Some(crate::os::shell::out_data_cb(&mut *stream, buf, count, eof))
                 }
+                Self::Input(input) => Some(crate::tui::input::tinput_read_cb(
+                    &mut *stream,
+                    buf,
+                    count,
+                    &mut *input,
+                    eof,
+                )),
             }
         }
     }
@@ -181,12 +203,7 @@ pub fn stream_set_blocking(fd: c_int, blocking: bool) -> c_int {
     }
 }
 
-pub fn stream_init(
-    loop_: *mut Loop,
-    stream: &mut Stream,
-    fd: c_int,
-    has_uvstream: bool,
-) {
+pub fn stream_init(loop_: *mut Loop, stream: &mut Stream, fd: c_int, has_uvstream: bool) {
     unsafe {
         assert!(if !has_uvstream {
             fd >= 0 && !loop_.is_null()
@@ -328,7 +345,7 @@ unsafe extern "C" fn close_cb(handle: *mut uv_handle_t) {
             }
             match (*stream).internal_data {
                 StreamInternalData::None => {}
-                StreamInternalData::Channel(chan) => crate::channel::channel_decref( &mut *chan),
+                StreamInternalData::Channel(chan) => crate::channel::channel_decref(&mut *chan),
                 StreamInternalData::Proc(proc_) => crate::event::proc::proc_decref(&mut *proc_),
                 StreamInternalData::Closed(closed_ptr) => *closed_ptr = true,
             }

@@ -5,7 +5,7 @@ use crate::charset::{
     ascii_isalpha, ascii_isdigit, is_special, transchar, vim_isprintc, vim_str2nr,
 };
 use crate::errors::{E_INVARG, E_USINGSID};
-use crate::eval::vars::{get_var_value, Scid};
+use crate::eval::vars::{Scid, get_var_value};
 use crate::globals::*;
 use crate::mbyte::{
     utf_char2bytes, utf_char2len, utf_ptr2char, utf_ptr2len, utfc_ptr2len, utfc_ptr2len_len,
@@ -2151,7 +2151,8 @@ static SPECIAL_KEY_STRING: crate::globals::GlobalState<[c_char; MAX_KEY_NAME_LEN
 /// (`get_special_key`).
 pub fn get_special_key(
     mut c: c_int,
-    mut modifiers: c_int,mut data: Option<&mut KeyChord>,
+    mut modifiers: c_int,
+    mut data: Option<&mut KeyChord>,
 ) -> *mut c_char {
     unsafe {
         let string = (*SPECIAL_KEY_STRING.as_ptr()).as_mut_ptr();
@@ -2341,7 +2342,8 @@ pub fn trans_special(
     src_len: usize,
     dst: *mut c_char,
     flags: c_int,
-    escape_ks: bool,did_simplify: Option<&mut bool>,
+    escape_ks: bool,
+    did_simplify: Option<&mut bool>,
 ) -> c_uint {
     let mut modifiers: c_int = 0;
     let key = find_special_key(srcp, src_len, &mut modifiers, flags, did_simplify);
@@ -2354,12 +2356,7 @@ pub fn trans_special(
 
 /// Put the character sequence for `key` with `modifiers` into `dst` and return
 /// the resulting length (`special_to_buf`).
-pub fn special_to_buf(
-    key: c_int,
-    modifiers: c_int,
-    escape_ks: bool,
-    dst: *mut c_char,
-) -> c_uint {
+pub fn special_to_buf(key: c_int, modifiers: c_int, escape_ks: bool, dst: *mut c_char) -> c_uint {
     unsafe {
         let mut dlen: c_uint = 0;
 
@@ -2396,7 +2393,8 @@ pub fn special_to_buf(
 fn extract_modifiers(
     mut key: c_int,
     modp: &mut c_int,
-    simplify: bool,did_simplify: Option<&mut bool>,
+    simplify: bool,
+    did_simplify: Option<&mut bool>,
 ) -> c_int {
     let mut modifiers = *modp;
 
@@ -2438,7 +2436,8 @@ pub fn find_special_key(
     srcp: *mut *const c_char,
     src_len: usize,
     modp: &mut c_int,
-    flags: c_int,did_simplify: Option<&mut bool>,
+    flags: c_int,
+    did_simplify: Option<&mut bool>,
 ) -> c_int {
     unsafe {
         if src_len == 0 {
@@ -2459,7 +2458,10 @@ pub fn find_special_key(
         // Find end of modifier list
         let mut last_dash = src;
         let mut bp = src.add(1);
-        while (bp as usize) <= (end as usize) && (crate::memory::cstr_first_byte(bp) == b'-' || ascii_isident(crate::memory::cstr_first_char(bp))) {
+        while (bp as usize) <= (end as usize)
+            && (crate::memory::cstr_first_byte(bp) == b'-'
+                || ascii_isident(crate::memory::cstr_first_char(bp)))
+        {
             if crate::memory::cstr_first_byte(bp) == b'-' {
                 last_dash = bp;
                 if (bp.add(1) as usize) <= (end as usize) {
@@ -2482,9 +2484,14 @@ pub fn find_special_key(
             }
             if (bp as usize) <= (end as usize) {
                 let end_minus_bp = end as usize - bp as usize;
-                if end_minus_bp > 3 && crate::memory::cstr_first_byte(bp) == b't' && crate::memory::cstr_byte_at(bp, 1) == b'_' {
+                if end_minus_bp > 3
+                    && crate::memory::cstr_first_byte(bp) == b't'
+                    && crate::memory::cstr_byte_at(bp, 1) == b'_'
+                {
                     bp = bp.add(3); // skip t_xx, xx may be '-' or '>'
-                } else if end_minus_bp > 4 && crate::memory::cstr_prefix_bytes(bp, 5).eq_ignore_ascii_case(b"char-") {
+                } else if end_minus_bp > 4
+                    && crate::memory::cstr_prefix_bytes(bp, 5).eq_ignore_ascii_case(b"char-")
+                {
                     let mut l: c_int = 0;
                     vim_str2nr(
                         bp.add(5),
@@ -2529,7 +2536,8 @@ pub fn find_special_key(
             // Legal modifier name.
             if (bp as usize) >= (last_dash as usize) {
                 let mut key: c_int;
-                if crate::memory::cstr_prefix_bytes(last_dash.add(1), 5).eq_ignore_ascii_case(b"char-")
+                if crate::memory::cstr_prefix_bytes(last_dash.add(1), 5)
+                    .eq_ignore_ascii_case(b"char-")
                     && ascii_isdigit(crate::memory::cstr_char_at(last_dash, 6))
                 {
                     // <Char-123> or <Char-033> or <Char-0x33>
@@ -2599,7 +2607,7 @@ pub fn find_special_key(
                             key,
                             &mut modifiers,
                             (flags & FSK_SIMPLIFY) != 0,
-                            (did_simplify.is_some()).then(||  &mut *did_simplify.unwrap()),
+                            (did_simplify.is_some()).then(|| &mut *did_simplify.unwrap()),
                         );
                     }
 
@@ -2658,7 +2666,7 @@ pub fn get_mouse_button(code: c_int, is_click: &mut bool, is_drag: &mut bool) ->
     for entry in MOUSE_TABLE {
         if code == entry.pseudo_code {
             *is_click = entry.is_click;
-                *is_drag = entry.is_drag;
+            *is_drag = entry.is_drag;
             return entry.button;
         }
     }
@@ -2671,9 +2679,12 @@ pub fn replace_termcodes(
     from_len: usize,
     buf_limit: bool,
     sid_arg: Scid,
-    flags: c_int,mut did_simplify: Option<&mut bool>,
+    flags: c_int,
+    mut did_simplify: Option<&mut bool>,
     cpo_val: impl crate::strings::IntoCCharPtr,
-) -> Option<std::ffi::CString> { let from = from.into_c_char_ptr(); let cpo_val = cpo_val.into_c_char_ptr();
+) -> Option<std::ffi::CString> {
+    let from = from.into_c_char_ptr();
+    let cpo_val = cpo_val.into_c_char_ptr();
     unsafe {
         let mut dlen: usize = 0;
         let end_exclusive = from.add(from_len);
@@ -2704,7 +2715,9 @@ pub fn replace_termcodes(
             {
                 // Change <SID>Func to K_SNR <script-nr> _Func. This name is used
                 // for script-local user functions.
-                if rem >= 5 && crate::memory::cstr_prefix_bytes(src, 5).eq_ignore_ascii_case(b"<SID>") {
+                if rem >= 5
+                    && crate::memory::cstr_prefix_bytes(src, 5).eq_ignore_ascii_case(b"<SID>")
+                {
                     if sid_arg < 0 || (sid_arg == 0 && g_st().current_sctx.sc_sid <= 0) {
                         emsg(E_USINGSID);
                     } else {
@@ -2720,12 +2733,7 @@ pub fn replace_termcodes(
                         dlen += 1;
                         *result.add(dlen) = KE_SNR as c_char;
                         dlen += 1;
-                        vim_snprintf!(
-                            result.add(dlen),
-                            buf_len - dlen,
-                            c"%d",
-                            sid as c_int,
-                        );
+                        vim_snprintf!(result.add(dlen), buf_len - dlen, c"%d", sid as c_int,);
                         dlen += crate::memory::cstr_len(result.add(dlen));
                         *result.add(dlen) = b'_' as c_char;
                         dlen += 1;
@@ -2745,7 +2753,7 @@ pub fn replace_termcodes(
                     result.add(dlen),
                     fsk_flags,
                     true,
-                    (did_simplify.is_some()).then(||  &mut *did_simplify.as_deref_mut().unwrap()),
+                    (did_simplify.is_some()).then(|| &mut *did_simplify.as_deref_mut().unwrap()),
                 ) as usize;
                 if slen != 0 {
                     dlen += slen;
@@ -2761,7 +2769,10 @@ pub fn replace_termcodes(
                     && crate::memory::cstr_prefix_bytes(src, 8).eq_ignore_ascii_case(b"<Leader>")
                 {
                     (8, get_var_value(c"g:mapleader"))
-                } else if rem >= 13 && crate::memory::cstr_prefix_bytes(src, 13).eq_ignore_ascii_case(b"<LocalLeader>") {
+                } else if rem >= 13
+                    && crate::memory::cstr_prefix_bytes(src, 13)
+                        .eq_ignore_ascii_case(b"<LocalLeader>")
+                {
                     (13, get_var_value(c"g:maplocalleader"))
                 } else {
                     (0, std::ptr::null_mut())
@@ -2855,7 +2866,8 @@ pub fn add_char2buf(c: c_int, s: *mut c_char) -> *mut c_char {
 }
 
 /// Copy `p` to an owned `CString`, escaping `K_SPECIAL` (`vim_strsave_escape_ks`).
-pub fn vim_strsave_escape_ks(p: impl crate::strings::IntoCCharPtr) -> std::ffi::CString { let p = p.into_c_char_ptr();
+pub fn vim_strsave_escape_ks(p: impl crate::strings::IntoCCharPtr) -> std::ffi::CString {
+    let p = p.into_c_char_ptr();
     unsafe {
         let mut res = vec![0 as c_char; crate::memory::cstr_len(p) * 4 + 1];
         let mut d = res.as_mut_ptr();
@@ -2957,50 +2969,38 @@ mod tests {
     #[test]
     fn find_special_key_handles_modifiers_case_and_quotes() {
         let mut modp: c_int = 0;
-            let mut p = c"abc".as_ptr();
-            assert_eq!(
-                find_special_key(&mut p, 3, &mut modp, 0, None),
-                0
-            );
+        let mut p = c"abc".as_ptr();
+        assert_eq!(find_special_key(&mut p, 3, &mut modp, 0, None), 0);
 
-            p = c"<C-M-S-A>".as_ptr();
-            assert_ne!(
-                find_special_key(&mut p, 9, &mut modp, 0, None),
-                0
-            );
-            assert_ne!(modp, 0);
+        p = c"<C-M-S-A>".as_ptr();
+        assert_ne!(find_special_key(&mut p, 9, &mut modp, 0, None), 0);
+        assert_ne!(modp, 0);
 
-            p = c"<C-A>".as_ptr();
-            let k_upper = find_special_key(&mut p, 5, &mut modp, 0, None);
-            let m_upper = modp;
-            for variant in [c"<C-a>", c"<c-A>", c"<c-a>"] {
-                p = variant.as_ptr();
-                assert_eq!(
-                    find_special_key(&mut p, 5, &mut modp, 0, None),
-                    k_upper
-                );
-                assert_eq!(modp, m_upper);
-            }
+        p = c"<C-A>".as_ptr();
+        let k_upper = find_special_key(&mut p, 5, &mut modp, 0, None);
+        let m_upper = modp;
+        for variant in [c"<C-a>", c"<c-A>", c"<c-a>"] {
+            p = variant.as_ptr();
+            assert_eq!(find_special_key(&mut p, 5, &mut modp, 0, None), k_upper);
+            assert_eq!(modp, m_upper);
+        }
 
-            p = c"<C-\">".as_ptr();
-            assert_eq!(
-                find_special_key(&mut p, 5, &mut modp, 0, None),
-                b'"' as c_int
-            );
-            p = c"<C-\">".as_ptr();
-            assert_eq!(
-                find_special_key(&mut p, 5, &mut modp, FSK_IN_STRING, None),
-                0
-            );
-            p = c"<C-\\\">".as_ptr();
-            assert_eq!(
-                find_special_key(&mut p, 6, &mut modp, 0, None),
-                0
-            );
-            p = c"<C-\\\">".as_ptr();
-            assert_eq!(
-                find_special_key(&mut p, 6, &mut modp, FSK_IN_STRING, None),
-                b'"' as c_int
-            );
+        p = c"<C-\">".as_ptr();
+        assert_eq!(
+            find_special_key(&mut p, 5, &mut modp, 0, None),
+            b'"' as c_int
+        );
+        p = c"<C-\">".as_ptr();
+        assert_eq!(
+            find_special_key(&mut p, 5, &mut modp, FSK_IN_STRING, None),
+            0
+        );
+        p = c"<C-\\\">".as_ptr();
+        assert_eq!(find_special_key(&mut p, 6, &mut modp, 0, None), 0);
+        p = c"<C-\\\">".as_ptr();
+        assert_eq!(
+            find_special_key(&mut p, 6, &mut modp, FSK_IN_STRING, None),
+            b'"' as c_int
+        );
     }
 }

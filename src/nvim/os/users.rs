@@ -27,7 +27,8 @@ impl OsUsersState {
     }
 }
 
-static USERS_STATE: crate::globals::GlobalState<OsUsersState> = crate::globals::GlobalState::new(OsUsersState::new());
+static USERS_STATE: crate::globals::GlobalState<OsUsersState> =
+    crate::globals::GlobalState::new(OsUsersState::new());
 
 #[inline]
 fn users_st() -> &'static mut OsUsersState {
@@ -108,7 +109,8 @@ unsafe extern "system" {
 }
 
 #[cfg(unix)]
-fn add_user(users: &mut Vec<CString>, user: impl crate::strings::IntoCCharPtr) { let user = user.into_c_char_ptr();
+fn add_user(users: &mut Vec<CString>, user: impl crate::strings::IntoCCharPtr) {
+    let user = user.into_c_char_ptr();
     if user.is_null() || unsafe { *user == 0 } {
         return;
     }
@@ -253,10 +255,10 @@ pub fn free_users() {
 
 fn init_users() {
     if users_st().lazy_init_done {
-            return;
-        }
-        users_st().lazy_init_done = true;
-        users_st().users = collect_usernames();
+        return;
+    }
+    users_st().lazy_init_done = true;
+    users_st().users = collect_usernames();
 }
 
 /// Obtain username at `idx` for `ExpandGeneric()` (`get_users`).
@@ -267,7 +269,7 @@ pub fn get_users(_xp: &mut crate::os::env::ExpandCtx, idx: c_int) -> *mut c_char
     if idx < 0 {
         return std::ptr::null_mut();
     }
-     {
+    {
         init_users();
         let users = &users_st().users;
         users
@@ -280,8 +282,9 @@ pub fn get_users(_xp: &mut crate::os::env::ExpandCtx, idx: c_int) -> *mut c_char
 ///
 /// # Safety
 /// `name` must be a valid C string.
-pub fn match_user(name: impl crate::strings::IntoCCharPtr) -> c_int { let name = name.into_c_char_ptr();
-     {
+pub fn match_user(name: impl crate::strings::IntoCCharPtr) -> c_int {
+    let name = name.into_c_char_ptr();
+    {
         init_users();
         let target = crate::memory::cstr_as_bytes(name);
         let users = &users_st().users;

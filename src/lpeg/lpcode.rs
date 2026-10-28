@@ -5,13 +5,13 @@ use std::mem::size_of;
 
 use crate::lpeg::lpcset::{charsettype, getbytefromcharset, tocharset, tree2cset};
 use crate::lpeg::{
-    CHARSETSIZE, CCLOSE, CGROUP, Charset, IANY, IBACK_COMMIT, IBEHIND, ICALL, ICHAR, ICHOICE,
-    ICLOSE_CAPTURE, ICLOSE_RUN_TIME, ICOMMIT, IEMPTY, IEND, IFAIL, IFAIL_TWICE, IFULL_CAPTURE, IJMP,
-    IOPEN_CALL, IOPEN_CAPTURE, IPARTIAL_COMMIT, IRET, ISET, ISPAN, ITEST_ANY, ITEST_CHAR, ITEST_SET,
-    IUTFR, Instruction, MAXBEHIND, MAXOFF, MAXRULES, NUMSIBLINGS, Opcode, Pattern, TAND, TANY,
-    TBEHIND, TCALL, TCAPTURE, TCHAR, TCHOICE, TFALSE, TGRAMMAR, TNOT, TOPEN_CALL, TREP, TRULE,
-    TRUN_TIME, TSEQ, TSET, TTree, TTRUE, TUTFR, TXINFO, LpegByte, CharsetInfo, clearset, instsize,
-    joinkindoff, lua_State, setchar, sib1, sib2, LpegUint,
+    CCLOSE, CGROUP, CHARSETSIZE, Charset, CharsetInfo, IANY, IBACK_COMMIT, IBEHIND, ICALL, ICHAR,
+    ICHOICE, ICLOSE_CAPTURE, ICLOSE_RUN_TIME, ICOMMIT, IEMPTY, IEND, IFAIL, IFAIL_TWICE,
+    IFULL_CAPTURE, IJMP, IOPEN_CALL, IOPEN_CAPTURE, IPARTIAL_COMMIT, IRET, ISET, ISPAN, ITEST_ANY,
+    ITEST_CHAR, ITEST_SET, IUTFR, Instruction, LpegByte, LpegUint, MAXBEHIND, MAXOFF, MAXRULES,
+    NUMSIBLINGS, Opcode, Pattern, TAND, TANY, TBEHIND, TCALL, TCAPTURE, TCHAR, TCHOICE, TFALSE,
+    TGRAMMAR, TNOT, TOPEN_CALL, TREP, TRULE, TRUN_TIME, TSEQ, TSET, TTRUE, TTree, TUTFR, TXINFO,
+    clearset, instsize, joinkindoff, lua_State, setchar, sib1, sib2,
 };
 
 use crate::lua::converter::luaL_error;
@@ -69,7 +69,7 @@ pub fn hascaptures(mut tree: *mut TTree) -> c_int {
         loop {
             match (*tree).tag {
                 TCAPTURE | TRUN_TIME => return 1,
-                TCALL => return callrecursive( &mut *tree, hascaptures, 0),
+                TCALL => return callrecursive(&mut *tree, hascaptures, 0),
                 TRULE => {
                     tree = sib1(tree);
                 }
@@ -164,7 +164,7 @@ pub fn fixedlen(mut tree: *mut TTree) -> c_int {
                     tree = sib1(tree);
                 }
                 TCALL => {
-                    let n1 = callrecursive( &mut *tree, fixedlen, -1);
+                    let n1 = callrecursive(&mut *tree, fixedlen, -1);
                     return if n1 < 0 { -1 } else { len + n1 };
                 }
                 TSEQ => {
@@ -189,11 +189,7 @@ pub fn fixedlen(mut tree: *mut TTree) -> c_int {
     }
 }
 
-fn getfirst(
-    mut tree: *mut TTree,
-    mut follow: &Charset,
-    firstset: &mut Charset,
-) -> c_int {
+fn getfirst(mut tree: *mut TTree, mut follow: &Charset, firstset: &mut Charset) -> c_int {
     unsafe {
         loop {
             match (*tree).tag {
@@ -419,13 +415,7 @@ fn codeutfr(compst: &mut CompileState, tree: &mut TTree) {
     }
 }
 
-fn addinstcap(
-    compst: &mut CompileState,
-    op: Opcode,
-    cap: c_int,
-    key: c_int,
-    aux: c_int,
-) -> c_int {
+fn addinstcap(compst: &mut CompileState, op: Opcode, cap: c_int, key: c_int, aux: c_int) -> c_int {
     unsafe {
         let i = addinstruction(compst, op, joinkindoff(cap, aux));
         (*getinstr(compst, i)).i.aux2.key = key as c_short;
@@ -505,7 +495,7 @@ fn cs_equal(p: *const Instruction, info: &CharsetInfo) -> bool {
 
 fn codecharset(compst: &mut CompileState, tree: &mut TTree, tt: c_int) {
     let mut info = CharsetInfo::new();
-    tree2cset( tree, &mut info);
+    tree2cset(tree, &mut info);
     if tt >= 0 && cs_equal(getinstr(compst, tt), &info) {
         addinstruction(compst, IANY, 0);
     } else {
@@ -562,13 +552,7 @@ fn codebehind(compst: &mut CompileState, tree: &mut TTree) {
     }
 }
 
-fn codechoice(
-    compst: &mut CompileState,
-    p1: *mut TTree,
-    p2: *mut TTree,
-    opt: bool,
-    fl: &Charset,
-) {
+fn codechoice(compst: &mut CompileState, p1: *mut TTree, p2: *mut TTree, opt: bool, fl: &Charset) {
     unsafe {
         let emptyp2 = (*p2).tag == TTRUE;
         let mut cs1 = Charset::new();
@@ -624,7 +608,7 @@ fn codeand(compst: &mut CompileState, tree: *mut TTree, tt: c_int) {
 }
 
 fn codecapture(compst: &mut CompileState, tree: &mut TTree, tt: c_int, fl: &Charset) {
-     {
+    {
         let len = fixedlen(sib1(&raw mut *tree));
         if (0..=MAXOFF).contains(&len) && hascaptures(sib1(&raw mut *tree)) == 0 {
             codegen(compst, sib1(&raw mut *tree), false, tt, fl);
@@ -650,7 +634,7 @@ fn codecapture(compst: &mut CompileState, tree: &mut TTree, tt: c_int, fl: &Char
 }
 
 fn coderuntime(compst: &mut CompileState, tree: &mut TTree, tt: c_int) {
-     {
+    {
         addinstcap(
             compst,
             IOPEN_CAPTURE,
@@ -832,7 +816,7 @@ fn codegen(
                     return;
                 }
                 TSET => {
-                    codecharset(compst,  &mut *tree, tt);
+                    codecharset(compst, &mut *tree, tt);
                     return;
                 }
                 TTRUE => return,
@@ -841,7 +825,7 @@ fn codegen(
                     return;
                 }
                 TUTFR => {
-                    codeutfr(compst,  &mut *tree);
+                    codeutfr(compst, &mut *tree);
                     return;
                 }
                 TCHOICE => {
@@ -853,7 +837,7 @@ fn codegen(
                     return;
                 }
                 TBEHIND => {
-                    codebehind(compst,  &mut *tree);
+                    codebehind(compst, &mut *tree);
                     return;
                 }
                 TNOT => {
@@ -865,11 +849,11 @@ fn codegen(
                     return;
                 }
                 TCAPTURE => {
-                    codecapture(compst,  &mut *tree, tt, fl);
+                    codecapture(compst, &mut *tree, tt, fl);
                     return;
                 }
                 TRUN_TIME => {
-                    coderuntime(compst,  &mut *tree, tt);
+                    coderuntime(compst, &mut *tree, tt);
                     return;
                 }
                 TGRAMMAR => {
@@ -937,7 +921,11 @@ fn peephole(compst: &mut CompileState) {
 }
 
 pub fn compile(l: *mut lua_State, p: &mut Pattern, size: LpegUint) -> *mut Instruction {
-    let mut compst = CompileState { p, ncode: 0, lstate: l };
+    let mut compst = CompileState {
+        p,
+        ncode: 0,
+        lstate: l,
+    };
     let init_size = ((size / 2) + 2) as usize;
     p.code = vec![Instruction { offset: 0 }; init_size];
     let tree_ptr = (&raw mut p.tree).cast::<TTree>();

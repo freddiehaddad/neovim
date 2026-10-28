@@ -13,7 +13,7 @@ use crate::globals::*;
 use crate::highlight::hl_check_ns;
 use crate::log::{LOGLVL_ERR, logmsg};
 use crate::lua::converter::{LUA_NOREF, LuaRef};
-use crate::lua::executor::{api_free_luaref, K_RET_MULTI, K_RET_NIL_BOOL, nlua_call_ref};
+use crate::lua::executor::{K_RET_MULTI, K_RET_NIL_BOOL, api_free_luaref, nlua_call_ref};
 use crate::message::msg_schedule_semsg_multiline;
 use crate::r#move::validate_botline_win;
 use crate::msgpack_rpc::packer::Integer;
@@ -59,7 +59,8 @@ impl DecorProviderState {
     }
 }
 
-static DECOR_PROV_STATE: crate::globals::GlobalState<DecorProviderState> = crate::globals::GlobalState::new(DecorProviderState::new());
+static DECOR_PROV_STATE: crate::globals::GlobalState<DecorProviderState> =
+    crate::globals::GlobalState::new(DecorProviderState::new());
 
 #[inline]
 fn decor_prov_st() -> &'static mut DecorProviderState {
@@ -96,34 +97,31 @@ const fn decor_provider_init(ns_id: NS) -> DecorProvider {
 #[inline]
 fn clear_ref(r: &mut LuaRef) {
     if *r != LUA_NOREF {
-            api_free_luaref(*r);
-            *r = LUA_NOREF;
-        }
+        api_free_luaref(*r);
+        *r = LUA_NOREF;
+    }
 }
 
 fn decor_provider_error(
     provider: &mut DecorProvider,
     name: impl crate::strings::IntoCCharPtr,
     msg: impl crate::strings::IntoCCharPtr,
-) { let name = name.into_c_char_ptr(); let msg = msg.into_c_char_ptr();
+) {
+    let name = name.into_c_char_ptr();
+    let msg = msg.into_c_char_ptr();
     let ns = describe_ns(provider.ns_id, c"(UNKNOWN PLUGIN)");
-        logmsg!(
-            LOGLVL_ERR,
-            ptr::null(),
-            c"decor_provider_error",
-            31,
-            true,
-            c"Error in decoration provider \"%s\" (ns=%s):\n%s",
-            name,
-            ns,
-            msg,
-        );
-        msg_schedule_semsg_multiline!(
-            c"Decoration provider \"%s\" (ns=%s):\n%s",
-            name,
-            ns,
-            msg,
-        );
+    logmsg!(
+        LOGLVL_ERR,
+        ptr::null(),
+        c"decor_provider_error",
+        31,
+        true,
+        c"Error in decoration provider \"%s\" (ns=%s):\n%s",
+        name,
+        ns,
+        msg,
+    );
+    msg_schedule_semsg_multiline!(c"Decoration provider \"%s\" (ns=%s):\n%s", name, ns, msg,);
 }
 
 /// Note we pass in a provider index as this function may cause `decor_prov_st().decor_providers` to be
@@ -161,12 +159,7 @@ fn decor_provider_invoke(
                 debug_assert!(matches!(ret.obj_type, ObjectType::ObjectTypeArray));
                 *res = ret.data.array();
                 return true;
-            } else if api_object_to_bool(
-                ret,
-                c"provider %s retval",
-                default_true,
-                &mut err,
-            ) {
+            } else if api_object_to_bool(ret, c"provider %s retval", default_true, &mut err) {
                 return true;
             }
         }
@@ -186,13 +179,14 @@ fn decor_provider_invoke(
     }
 }
 
-pub fn decor_providers_invoke_spell(wp: &mut WinInfoInfo,
+pub fn decor_providers_invoke_spell(
+    wp: &mut WinInfoInfo,
     start_row: c_int,
     start_col: c_int,
     end_row: c_int,
     end_col: c_int,
 ) {
-     {
+    {
         let mut i = 0usize;
         while i < providers_mut().len() {
             let p = &providers_mut()[i];
@@ -211,14 +205,7 @@ pub fn decor_providers_invoke_spell(wp: &mut WinInfoInfo,
                     size: 6,
                     capacity: 0,
                 };
-                decor_provider_invoke(
-                    i as c_int,
-                    c"spell",
-                    spell_nav,
-                    args,
-                    true,
-                    None,
-                );
+                decor_provider_invoke(i as c_int, c"spell", spell_nav, args, true, None);
             }
             i += 1;
         }
@@ -227,7 +214,7 @@ pub fn decor_providers_invoke_spell(wp: &mut WinInfoInfo,
 
 /// Return whether a provider placed any marks in the callback (`decor_providers_invoke_conceal_line`).
 pub fn decor_providers_invoke_conceal_line(wp: &mut WinInfoInfo, row: c_int) -> bool {
-     {
+    {
         let keys = wp.buf_mut().b_marktree.n_keys;
         let mut i = 0usize;
         while i < providers_mut().len() {
@@ -244,14 +231,7 @@ pub fn decor_providers_invoke_conceal_line(wp: &mut WinInfoInfo, row: c_int) -> 
                     size: 3,
                     capacity: 0,
                 };
-                decor_provider_invoke(
-                    i as c_int,
-                    c"conceal_line",
-                    conceal_line,
-                    args,
-                    true,
-                    None,
-                );
+                decor_provider_invoke(i as c_int, c"conceal_line", conceal_line, args, true, None);
             }
             i += 1;
         }
@@ -261,7 +241,7 @@ pub fn decor_providers_invoke_conceal_line(wp: &mut WinInfoInfo, row: c_int) -> 
 
 /// For each provider invoke the 'start' callback (`decor_providers_start`).
 pub fn decor_providers_start() {
-     {
+    {
         let mut i = 0usize;
         while i < providers_mut().len() {
             let p = &providers_mut()[i];
@@ -273,14 +253,8 @@ pub fn decor_providers_start() {
                     size: 1,
                     capacity: 0,
                 };
-                let active = decor_provider_invoke(
-                    i as c_int,
-                    c"start",
-                    redraw_start,
-                    args,
-                    true,
-                    None,
-                );
+                let active =
+                    decor_provider_invoke(i as c_int, c"start", redraw_start, args, true, None);
                 providers_mut()[i].state = if active {
                     K_DECOR_PROVIDER_ACTIVE
                 } else {
@@ -296,9 +270,10 @@ pub fn decor_providers_start() {
 
 /// For each provider run 'win' (`decor_providers_invoke_win`).
 pub fn decor_providers_invoke_win(wp: &mut WinInfoInfo) {
-     {
+    {
         debug_assert!(
-            g_st().decor_state.current_end == 0 && g_st().decor_state.future_begin == g_st().decor_state.ranges_i.len() as c_int
+            g_st().decor_state.current_end == 0
+                && g_st().decor_state.future_begin == g_st().decor_state.ranges_i.len() as c_int
         );
 
         if !providers_mut().is_empty() {
@@ -329,14 +304,7 @@ pub fn decor_providers_invoke_win(wp: &mut WinInfoInfo) {
                     size: 4,
                     capacity: 0,
                 };
-                if !decor_provider_invoke(
-                    i as c_int,
-                    c"win",
-                    redraw_win,
-                    args,
-                    true,
-                    None,
-                ) {
+                if !decor_provider_invoke(i as c_int, c"win", redraw_win, args, true, None) {
                     providers_mut()[i].state = K_DECOR_PROVIDER_WIN_DISABLED;
                 }
             }
@@ -347,7 +315,7 @@ pub fn decor_providers_invoke_win(wp: &mut WinInfoInfo) {
 
 /// For each provider invoke the 'line' callback for a given window row (`decor_providers_invoke_line`).
 pub fn decor_providers_invoke_line(wp: &mut WinInfoInfo, row: c_int) {
-     {
+    {
         g_st().decor_state.running_decor_provider = true;
         let mut i = 0usize;
         while i < providers_mut().len() {
@@ -364,14 +332,7 @@ pub fn decor_providers_invoke_line(wp: &mut WinInfoInfo, row: c_int) {
                     size: 3,
                     capacity: 0,
                 };
-                if !decor_provider_invoke(
-                    i as c_int,
-                    c"line",
-                    redraw_line,
-                    args,
-                    true,
-                    None,
-                ) {
+                if !decor_provider_invoke(i as c_int, c"line", redraw_line, args, true, None) {
                     providers_mut()[i].state = K_DECOR_PROVIDER_WIN_DISABLED;
                 }
 
@@ -462,7 +423,7 @@ pub fn decor_providers_invoke_range(
 
 /// For each provider invoke the 'buf' callback for a given buffer (`decor_providers_invoke_buf`).
 pub fn decor_providers_invoke_buf(buf: &mut FileBuf) {
-     {
+    {
         let mut i = 0usize;
         while i < providers_mut().len() {
             let p = &providers_mut()[i];
@@ -477,14 +438,7 @@ pub fn decor_providers_invoke_buf(buf: &mut FileBuf) {
                     size: 2,
                     capacity: 0,
                 };
-                decor_provider_invoke(
-                    i as c_int,
-                    c"buf",
-                    redraw_buf,
-                    args,
-                    true,
-                    None,
-                );
+                decor_provider_invoke(i as c_int, c"buf", redraw_buf, args, true, None);
             }
             i += 1;
         }
@@ -493,7 +447,7 @@ pub fn decor_providers_invoke_buf(buf: &mut FileBuf) {
 
 /// For each provider invoke the 'end' callback (`decor_providers_invoke_end`).
 pub fn decor_providers_invoke_end() {
-     {
+    {
         let mut i = 0usize;
         while i < providers_mut().len() {
             let p = &providers_mut()[i];
@@ -505,14 +459,7 @@ pub fn decor_providers_invoke_end() {
                     size: 1,
                     capacity: 0,
                 };
-                decor_provider_invoke(
-                    i as c_int,
-                    c"end",
-                    redraw_end,
-                    args,
-                    true,
-                    None,
-                );
+                decor_provider_invoke(i as c_int, c"end", redraw_end, args, true, None);
             }
             i += 1;
         }
@@ -523,34 +470,34 @@ pub fn decor_providers_invoke_end() {
 /// Mark all cached state of per-namespace highlights as invalid (`decor_provider_invalidate_hl`).
 pub fn decor_provider_invalidate_hl() {
     for p in providers_mut().iter_mut() {
-            p.hl_cached = false;
-        }
+        p.hl_cached = false;
+    }
 
-        if g_st().ns_hl_active != 0 {
-            g_st().ns_hl_active = -1;
-            hl_check_ns();
-        }
+    if g_st().ns_hl_active != 0 {
+        g_st().ns_hl_active = -1;
+        hl_check_ns();
+    }
 }
 
 pub fn get_decor_provider(ns_id: NS, force: bool) -> *mut DecorProvider {
     debug_assert!(ns_id > 0);
-        let p_vec = providers_mut();
-        for p in p_vec.iter_mut() {
-            if p.ns_id == ns_id {
-                return &raw mut *p;
-            }
+    let p_vec = providers_mut();
+    for p in p_vec.iter_mut() {
+        if p.ns_id == ns_id {
+            return &raw mut *p;
         }
+    }
 
-        if !force {
-            return ptr::null_mut();
-        }
+    if !force {
+        return ptr::null_mut();
+    }
 
-        p_vec.push(decor_provider_init(ns_id));
-        p_vec.last_mut().map_or(ptr::null_mut(), |p| &raw mut *p)
+    p_vec.push(decor_provider_init(ns_id));
+    p_vec.last_mut().map_or(ptr::null_mut(), |p| &raw mut *p)
 }
 
 pub fn decor_provider_clear(mut p: Option<&mut DecorProvider>) {
-     {
+    {
         if p.is_none() {
             return;
         }

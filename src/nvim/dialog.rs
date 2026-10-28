@@ -210,17 +210,20 @@ fn msg_show_console_dialog(
     message: impl crate::strings::IntoCCharPtr,
     buttons: impl crate::strings::IntoCCharPtr,
     dfltbutton: c_int,
-) -> Vec<c_char> { let message = message.into_c_char_ptr(); let buttons = buttons.into_c_char_ptr();
+) -> Vec<c_char> {
+    let message = message.into_c_char_ptr();
+    let buttons = buttons.into_c_char_ptr();
     let mut has_hotkey = [false; HAS_HOTKEY_LEN];
-        let mut hotk = console_dialog_alloc(message, buttons, &mut has_hotkey);
-        copy_confirm_hotkeys(buttons, dfltbutton, &has_hotkey, hotk.as_mut_ptr());
-        display_confirm_msg();
-        hotk
+    let mut hotk = console_dialog_alloc(message, buttons, &mut has_hotkey);
+    copy_confirm_hotkeys(buttons, dfltbutton, &has_hotkey, hotk.as_mut_ptr());
+    display_confirm_msg();
+    hotk
 }
 
 /// Ask for a `'y'` or `'n'` reply from the user (`ask_yesno`).
-pub fn ask_yesno(str_ptr: impl crate::strings::IntoCCharPtr) -> c_int { let str_ptr = str_ptr.into_c_char_ptr();
-     {
+pub fn ask_yesno(str_ptr: impl crate::strings::IntoCCharPtr) -> c_int {
+    let str_ptr = str_ptr.into_c_char_ptr();
+    {
         let save_state = g_st().state_global;
         g_st().no_wait_return += 1;
 
@@ -232,12 +235,7 @@ pub fn ask_yesno(str_ptr: impl crate::strings::IntoCCharPtr) -> c_int { let str_
 
         let mut r: c_int = b' ' as c_int;
         while r != (b'y' as c_int) && r != (b'n' as c_int) {
-            r = prompt_for_input(
-                prompt.as_mut_ptr().cast::<c_char>(),
-                HLF_R,
-                true,
-                None,
-            );
+            r = prompt_for_input(prompt.as_mut_ptr().cast::<c_char>(), HLF_R, true, None);
             if r == CTRL_C || r == ESC {
                 r = b'n' as c_int;
                 if !ui_has(K_UI_MESSAGES) {
@@ -258,10 +256,11 @@ pub fn ask_yesno(str_ptr: impl crate::strings::IntoCCharPtr) -> c_int { let str_
 pub fn prompt_for_input(
     prompt: impl crate::strings::IntoCCharPtr,
     hl_id: c_int,
-    one_key: bool,mouse_used: Option<&mut bool>,
+    one_key: bool,
+    mouse_used: Option<&mut bool>,
 ) -> c_int {
     let prompt = prompt.into_c_char_ptr().cast_mut();
-     {
+    {
         let mut ret = if one_key { ESC } else { 0 };
         let kmsg = g_st().keep_msg.clone();
 
@@ -338,7 +337,8 @@ pub fn do_dialog(
     dfltbutton: c_int,
     _textfield: *const c_char,
     ex_cmd: c_int,
-) -> c_int { let message = message.into_c_char_ptr();
+) -> c_int {
+    let message = message.into_c_char_ptr();
     let buttons = buttons.into_c_char_ptr();
     unsafe {
         if g_st().silent_mode {
@@ -360,12 +360,7 @@ pub fn do_dialog(
                 break;
             }
 
-            let mut c = prompt_for_input(
-                dlg_st().confirm_buttons.as_mut_ptr(),
-                HLF_M,
-                true,
-                None,
-            );
+            let mut c = prompt_for_input(dlg_st().confirm_buttons.as_mut_ptr(), HLF_M, true, None);
             match c {
                 CAR | 0 => {
                     retval = dfltbutton;
@@ -434,14 +429,14 @@ pub fn vim_dialog_yesno(
         title.cast_const()
     };
     if do_dialog(
-            dlg_type,
-            t,
-            message,
-            c"&Yes\n&No",
-            dflt,
-            std::ptr::null(),
-            0,
-        ) == 1
+        dlg_type,
+        t,
+        message,
+        c"&Yes\n&No",
+        dflt,
+        std::ptr::null(),
+        0,
+    ) == 1
     {
         VIM_YES
     } else {
@@ -455,21 +450,22 @@ pub fn vim_dialog_yesnocancel(
     title: *mut c_char,
     message: impl crate::strings::IntoCCharPtr,
     dflt: c_int,
-) -> c_int { let message = message.into_c_char_ptr();
+) -> c_int {
+    let message = message.into_c_char_ptr();
     let t = if title.is_null() {
         c"Question".as_ptr()
     } else {
         title.cast_const()
     };
     match do_dialog(
-            dlg_type,
-            t,
-            message,
-            c"&Yes\n&No\n&Cancel",
-            dflt,
-            std::ptr::null(),
-            0,
-        ) {
+        dlg_type,
+        t,
+        message,
+        c"&Yes\n&No\n&Cancel",
+        dflt,
+        std::ptr::null(),
+        0,
+    ) {
         1 => VIM_YES,
         2 => VIM_NO,
         _ => VIM_CANCEL,
@@ -482,21 +478,22 @@ pub fn vim_dialog_yesnoallcancel(
     title: *mut c_char,
     message: impl crate::strings::IntoCCharPtr,
     dflt: c_int,
-) -> c_int { let message = message.into_c_char_ptr();
+) -> c_int {
+    let message = message.into_c_char_ptr();
     let t = if title.is_null() {
         c"Question".as_ptr()
     } else {
         title.cast_const()
     };
     match do_dialog(
-            dlg_type,
-            t,
-            message,
-            c"&Yes\n&No\nSave &All\n&Discard All\n&Cancel",
-            dflt,
-            std::ptr::null(),
-            0,
-        ) {
+        dlg_type,
+        t,
+        message,
+        c"&Yes\n&No\nSave &All\n&Discard All\n&Cancel",
+        dflt,
+        std::ptr::null(),
+        0,
+    ) {
         1 => VIM_YES,
         2 => VIM_NO,
         3 => VIM_ALL,
@@ -512,13 +509,13 @@ mod tests {
     #[test]
     fn vim_dialog_yesno_uses_default_in_test_mode() {
         g_st().silent_mode = true;
-            assert_eq!(
-                vim_dialog_yesno(0, std::ptr::null_mut(), c"Save?", 1),
-                VIM_YES
-            );
-            assert_eq!(
-                vim_dialog_yesno(0, std::ptr::null_mut(), c"Save?", 2),
-                VIM_NO
-            );
+        assert_eq!(
+            vim_dialog_yesno(0, std::ptr::null_mut(), c"Save?", 1),
+            VIM_YES
+        );
+        assert_eq!(
+            vim_dialog_yesno(0, std::ptr::null_mut(), c"Save?", 2),
+            VIM_NO
+        );
     }
 }

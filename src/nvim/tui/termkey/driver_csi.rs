@@ -211,10 +211,10 @@ const CSIFUNCS: [TiKeyInfo; NCSIFUNCS] = {
 
 #[inline]
 pub fn termkey_key_get_linecol(key: &TermKeyKey, line: &mut c_int, col: &mut c_int) {
-    *col = c_int::from(key.code.mouse[1] as u8)
-        | (c_int::from(key.code.mouse[3] as u8 & 0x0f) << 8);
-    *line = c_int::from(key.code.mouse[2] as u8)
-        | (c_int::from(key.code.mouse[3] as u8 & 0x70) << 4);
+    *col =
+        c_int::from(key.code.mouse[1] as u8) | (c_int::from(key.code.mouse[3] as u8 & 0x0f) << 8);
+    *line =
+        c_int::from(key.code.mouse[2] as u8) | (c_int::from(key.code.mouse[3] as u8 & 0x70) << 4);
 }
 
 #[inline]
@@ -226,8 +226,8 @@ pub fn termkey_key_set_linecol(key: &mut TermKeyKey, mut line: c_int, mut col: c
         col = 0x7ff;
     }
     key.code.mouse[1] = (line & 0x0ff) as u8 as c_char;
-        key.code.mouse[2] = (col & 0x0ff) as u8 as c_char;
-        key.code.mouse[3] = (((line & 0xf00) >> 8) | ((col & 0x300) >> 4)) as u8 as c_char;
+    key.code.mouse[2] = (col & 0x0ff) as u8 as c_char;
+    key.code.mouse[3] = (((line & 0xf00) >> 8) | ((col & 0x300) >> 4)) as u8 as c_char;
 }
 
 #[inline]
@@ -249,48 +249,48 @@ fn handle_csi_ss3_full(
 ) -> TermKeyResult {
     let mut result = TERMKEY_RES_KEY;
 
-        if !(0x40..0x80).contains(&cmd) {
-            return TERMKEY_RES_NONE;
+    if !(0x40..0x80).contains(&cmd) {
+        return TERMKEY_RES_NONE;
+    }
+
+    if nparams > 1 && params[1].present {
+        let mut arg: c_int = 0;
+        let mut subparam: c_int = 0;
+        let mut nsubparams: usize = 1;
+        result = termkey_interpret_csi_param(
+            params[1],
+            &mut arg,
+            Some(std::slice::from_mut(&mut subparam)),
+            Some(&mut nsubparams),
+        );
+        if result != TERMKEY_RES_KEY {
+            return result;
         }
 
-        if nparams > 1 && params[1].present {
-            let mut arg: c_int = 0;
-            let mut subparam: c_int = 0;
-            let mut nsubparams: usize = 1;
-            result = termkey_interpret_csi_param(
-                params[1],
-                &mut arg,
-                Some(std::slice::from_mut(&mut subparam)),
-                Some(&mut nsubparams),
-            );
-            if result != TERMKEY_RES_KEY {
-                return result;
+        if nsubparams > 0 {
+            key.event = parse_key_event(subparam);
+            if key.event == TERMKEY_EVENT_UNKNOWN {
+                return TERMKEY_RES_NONE;
             }
-
-            if nsubparams > 0 {
-                key.event = parse_key_event(subparam);
-                if key.event == TERMKEY_EVENT_UNKNOWN {
-                    return TERMKEY_RES_NONE;
-                }
-            }
-
-            key.modifiers = arg - 1;
-        } else {
-            key.modifiers = 0;
         }
 
-        let idx = (cmd - 0x40) as usize;
-        key.r#type = CSI_SS3S[idx].r#type;
-        key.code.sym = CSI_SS3S[idx].sym;
-        key.code.number = CSI_SS3S[idx].sym;
-        key.modifiers &= !CSI_SS3S[idx].modifier_mask;
-        key.modifiers |= CSI_SS3S[idx].modifier_set;
+        key.modifiers = arg - 1;
+    } else {
+        key.modifiers = 0;
+    }
 
-        if key.code.sym == TERMKEY_SYM_UNKNOWN {
-            result = TERMKEY_RES_NONE;
-        }
+    let idx = (cmd - 0x40) as usize;
+    key.r#type = CSI_SS3S[idx].r#type;
+    key.code.sym = CSI_SS3S[idx].sym;
+    key.code.number = CSI_SS3S[idx].sym;
+    key.modifiers &= !CSI_SS3S[idx].modifier_mask;
+    key.modifiers |= CSI_SS3S[idx].modifier_set;
 
-        result
+    if key.code.sym == TERMKEY_SYM_UNKNOWN {
+        result = TERMKEY_RES_NONE;
+    }
+
+    result
 }
 
 fn handle_csifunc(
@@ -305,65 +305,65 @@ fn handle_csifunc(
     }
 
     let mut result: TermKeyResult;
-        let mut args = [0 as c_int; 3];
+    let mut args = [0 as c_int; 3];
 
-        if nparams > 1 && params[1].present {
-            let mut subparam: c_int = 0;
-            let mut nsubparams: usize = 1;
-            result = termkey_interpret_csi_param(
-                params[1],
-                &mut args[1],
-                Some(std::slice::from_mut(&mut subparam)),
-                Some(&mut nsubparams),
-            );
-            if result != TERMKEY_RES_KEY {
-                return result;
-            }
-
-            if nsubparams > 0 {
-                key.event = parse_key_event(subparam);
-                if key.event == TERMKEY_EVENT_UNKNOWN {
-                    return TERMKEY_RES_NONE;
-                }
-            }
-
-            key.modifiers = args[1] - 1;
-        } else {
-            key.modifiers = 0;
-        }
-
-        key.r#type = TERMKEY_TYPE_KEYSYM;
-
-        result = termkey_interpret_csi_param(params[0], &mut args[0], None, None);
+    if nparams > 1 && params[1].present {
+        let mut subparam: c_int = 0;
+        let mut nsubparams: usize = 1;
+        result = termkey_interpret_csi_param(
+            params[1],
+            &mut args[1],
+            Some(std::slice::from_mut(&mut subparam)),
+            Some(&mut nsubparams),
+        );
         if result != TERMKEY_RES_KEY {
             return result;
         }
 
-        if args[0] == 27 && nparams > 2 && params[2].present {
-            result = termkey_interpret_csi_param(params[2], &mut args[2], None, None);
-            if result != TERMKEY_RES_KEY {
-                return result;
+        if nsubparams > 0 {
+            key.event = parse_key_event(subparam);
+            if key.event == TERMKEY_EVENT_UNKNOWN {
+                return TERMKEY_RES_NONE;
             }
-
-            let m = key.modifiers;
-            emit_codepoint(tk, args[2], key);
-            key.modifiers |= m;
-        } else if args[0] >= 0 && (args[0] as usize) < NCSIFUNCS {
-            let idx = args[0] as usize;
-            key.r#type = CSIFUNCS[idx].r#type;
-            key.code.sym = CSIFUNCS[idx].sym;
-            key.code.number = CSIFUNCS[idx].sym;
-            key.modifiers &= !CSIFUNCS[idx].modifier_mask;
-            key.modifiers |= CSIFUNCS[idx].modifier_set;
-        } else {
-            key.code.sym = TERMKEY_SYM_UNKNOWN;
         }
 
-        if key.code.sym == TERMKEY_SYM_UNKNOWN {
-            result = TERMKEY_RES_NONE;
+        key.modifiers = args[1] - 1;
+    } else {
+        key.modifiers = 0;
+    }
+
+    key.r#type = TERMKEY_TYPE_KEYSYM;
+
+    result = termkey_interpret_csi_param(params[0], &mut args[0], None, None);
+    if result != TERMKEY_RES_KEY {
+        return result;
+    }
+
+    if args[0] == 27 && nparams > 2 && params[2].present {
+        result = termkey_interpret_csi_param(params[2], &mut args[2], None, None);
+        if result != TERMKEY_RES_KEY {
+            return result;
         }
 
-        result
+        let m = key.modifiers;
+        emit_codepoint(tk, args[2], key);
+        key.modifiers |= m;
+    } else if args[0] >= 0 && (args[0] as usize) < NCSIFUNCS {
+        let idx = args[0] as usize;
+        key.r#type = CSIFUNCS[idx].r#type;
+        key.code.sym = CSIFUNCS[idx].sym;
+        key.code.number = CSIFUNCS[idx].sym;
+        key.modifiers &= !CSIFUNCS[idx].modifier_mask;
+        key.modifiers |= CSIFUNCS[idx].modifier_set;
+    } else {
+        key.code.sym = TERMKEY_SYM_UNKNOWN;
+    }
+
+    if key.code.sym == TERMKEY_SYM_UNKNOWN {
+        result = TERMKEY_RES_NONE;
+    }
+
+    result
 }
 
 fn handle_csi_u(
@@ -374,44 +374,44 @@ fn handle_csi_u(
     nparams: c_int,
 ) -> TermKeyResult {
     if cmd != b'u' as c_int {
-            return TERMKEY_RES_NONE;
-        }
-        let mut args = [0 as c_int; 2];
-        if nparams > 1 && params[1].present {
-            let mut subparam: c_int = 0;
-            let mut nsubparams: usize = 1;
-            if termkey_interpret_csi_param(
-                params[1],
-                &mut args[1],
-                Some(std::slice::from_mut(&mut subparam)),
-                Some(&mut nsubparams),
-            ) != TERMKEY_RES_KEY
-            {
-                return TERMKEY_RES_ERROR;
-            }
-
-            if nsubparams > 0 {
-                key.event = parse_key_event(subparam);
-                if key.event == TERMKEY_EVENT_UNKNOWN {
-                    return TERMKEY_RES_NONE;
-                }
-            }
-
-            key.modifiers = args[1] - 1;
-        } else {
-            key.modifiers = 0;
-        }
-
-        if termkey_interpret_csi_param(params[0], &mut args[0], None, None) != TERMKEY_RES_KEY {
+        return TERMKEY_RES_NONE;
+    }
+    let mut args = [0 as c_int; 2];
+    if nparams > 1 && params[1].present {
+        let mut subparam: c_int = 0;
+        let mut nsubparams: usize = 1;
+        if termkey_interpret_csi_param(
+            params[1],
+            &mut args[1],
+            Some(std::slice::from_mut(&mut subparam)),
+            Some(&mut nsubparams),
+        ) != TERMKEY_RES_KEY
+        {
             return TERMKEY_RES_ERROR;
         }
 
-        let m = key.modifiers;
-        key.r#type = TERMKEY_TYPE_KEYSYM;
-        emit_codepoint(tk, args[0], key);
-        key.modifiers |= m;
+        if nsubparams > 0 {
+            key.event = parse_key_event(subparam);
+            if key.event == TERMKEY_EVENT_UNKNOWN {
+                return TERMKEY_RES_NONE;
+            }
+        }
 
-        TERMKEY_RES_KEY
+        key.modifiers = args[1] - 1;
+    } else {
+        key.modifiers = 0;
+    }
+
+    if termkey_interpret_csi_param(params[0], &mut args[0], None, None) != TERMKEY_RES_KEY {
+        return TERMKEY_RES_ERROR;
+    }
+
+    let m = key.modifiers;
+    key.r#type = TERMKEY_TYPE_KEYSYM;
+    emit_codepoint(tk, args[0], key);
+    key.modifiers |= m;
+
+    TERMKEY_RES_KEY
 }
 
 fn handle_csi_m(
@@ -433,34 +433,34 @@ fn handle_csi_m(
     }
 
     let mut args = [0 as c_int; 3];
-        for (i, arg) in args.iter_mut().enumerate() {
-            if termkey_interpret_csi_param(params[i], arg, None, None) != TERMKEY_RES_KEY {
-                return TERMKEY_RES_ERROR;
-            }
+    for (i, arg) in args.iter_mut().enumerate() {
+        if termkey_interpret_csi_param(params[i], arg, None, None) != TERMKEY_RES_KEY {
+            return TERMKEY_RES_ERROR;
         }
+    }
 
-        if initial == 0 {
-            key.r#type = TERMKEY_TYPE_MOUSE;
-            key.code.mouse[0] = args[0] as u8 as c_char;
-            key.modifiers = c_int::from((key.code.mouse[0] as u8 & 0x1c) >> 2);
-            key.code.mouse[0] = (key.code.mouse[0] as u8 & !0x1c) as c_char;
-            termkey_key_set_linecol(key, args[1], args[2]);
-            return TERMKEY_RES_KEY;
+    if initial == 0 {
+        key.r#type = TERMKEY_TYPE_MOUSE;
+        key.code.mouse[0] = args[0] as u8 as c_char;
+        key.modifiers = c_int::from((key.code.mouse[0] as u8 & 0x1c) >> 2);
+        key.code.mouse[0] = (key.code.mouse[0] as u8 & !0x1c) as c_char;
+        termkey_key_set_linecol(key, args[1], args[2]);
+        return TERMKEY_RES_KEY;
+    }
+
+    if initial == b'<' as c_int {
+        key.r#type = TERMKEY_TYPE_MOUSE;
+        key.code.mouse[0] = args[0] as u8 as c_char;
+        key.modifiers = c_int::from((key.code.mouse[0] as u8 & 0x1c) >> 2);
+        key.code.mouse[0] = (key.code.mouse[0] as u8 & !0x1c) as c_char;
+        termkey_key_set_linecol(key, args[1], args[2]);
+        if cmd == b'm' as c_int {
+            key.code.mouse[3] = (key.code.mouse[3] as u8 | 0x80) as c_char;
         }
+        return TERMKEY_RES_KEY;
+    }
 
-        if initial == b'<' as c_int {
-            key.r#type = TERMKEY_TYPE_MOUSE;
-            key.code.mouse[0] = args[0] as u8 as c_char;
-            key.modifiers = c_int::from((key.code.mouse[0] as u8 & 0x1c) >> 2);
-            key.code.mouse[0] = (key.code.mouse[0] as u8 & !0x1c) as c_char;
-            termkey_key_set_linecol(key, args[1], args[2]);
-            if cmd == b'm' as c_int {
-                key.code.mouse[3] = (key.code.mouse[3] as u8 | 0x80) as c_char;
-            }
-            return TERMKEY_RES_KEY;
-        }
-
-        TERMKEY_RES_NONE
+    TERMKEY_RES_NONE
 }
 
 pub fn termkey_interpret_mouse(
@@ -540,22 +540,22 @@ fn handle_csi_r(
     nparams: c_int,
 ) -> TermKeyResult {
     if cmd == (b'R' as c_int | ((b'?' as c_int) << 8)) {
-            if nparams < 2 {
-                return TERMKEY_RES_NONE;
-            }
-            let mut args = [0 as c_int; 2];
-            if termkey_interpret_csi_param(params[0], &mut args[0], None, None) != TERMKEY_RES_KEY {
-                return TERMKEY_RES_ERROR;
-            }
-            if termkey_interpret_csi_param(params[1], &mut args[1], None, None) != TERMKEY_RES_KEY {
-                return TERMKEY_RES_ERROR;
-            }
-            key.r#type = TERMKEY_TYPE_POSITION;
-            termkey_key_set_linecol(key, args[1], args[0]);
-            TERMKEY_RES_KEY
-        } else {
-            handle_csi_ss3_full(tk, key, cmd, params, nparams)
+        if nparams < 2 {
+            return TERMKEY_RES_NONE;
         }
+        let mut args = [0 as c_int; 2];
+        if termkey_interpret_csi_param(params[0], &mut args[0], None, None) != TERMKEY_RES_KEY {
+            return TERMKEY_RES_ERROR;
+        }
+        if termkey_interpret_csi_param(params[1], &mut args[1], None, None) != TERMKEY_RES_KEY {
+            return TERMKEY_RES_ERROR;
+        }
+        key.r#type = TERMKEY_TYPE_POSITION;
+        termkey_key_set_linecol(key, args[1], args[0]);
+        TERMKEY_RES_KEY
+    } else {
+        handle_csi_ss3_full(tk, key, cmd, params, nparams)
+    }
 }
 
 #[cfg(test)]
@@ -582,25 +582,25 @@ fn handle_csi_y(
     const CMD_ANSI: c_int = (b'y' as c_int) | ((b'$' as c_int) << 16);
     const CMD_DEC: c_int = CMD_ANSI | ((b'?' as c_int) << 8);
     if cmd == CMD_ANSI || cmd == CMD_DEC {
-            if nparams < 2 {
-                return TERMKEY_RES_NONE;
-            }
-            let mut args = [0 as c_int; 2];
-            if termkey_interpret_csi_param(params[0], &mut args[0], None, None) != TERMKEY_RES_KEY {
-                return TERMKEY_RES_ERROR;
-            }
-            if termkey_interpret_csi_param(params[1], &mut args[1], None, None) != TERMKEY_RES_KEY {
-                return TERMKEY_RES_ERROR;
-            }
-            key.r#type = TERMKEY_TYPE_MODEREPORT;
-            key.code.mouse[0] = ((cmd >> 8) & 0xff) as u8 as c_char;
-            key.code.mouse[1] = ((args[0] >> 8) & 0xff) as u8 as c_char;
-            key.code.mouse[2] = (args[0] & 0xff) as u8 as c_char;
-            key.code.mouse[3] = (args[1] & 0xff) as u8 as c_char;
-            TERMKEY_RES_KEY
-        } else {
-            TERMKEY_RES_NONE
+        if nparams < 2 {
+            return TERMKEY_RES_NONE;
         }
+        let mut args = [0 as c_int; 2];
+        if termkey_interpret_csi_param(params[0], &mut args[0], None, None) != TERMKEY_RES_KEY {
+            return TERMKEY_RES_ERROR;
+        }
+        if termkey_interpret_csi_param(params[1], &mut args[1], None, None) != TERMKEY_RES_KEY {
+            return TERMKEY_RES_ERROR;
+        }
+        key.r#type = TERMKEY_TYPE_MODEREPORT;
+        key.code.mouse[0] = ((cmd >> 8) & 0xff) as u8 as c_char;
+        key.code.mouse[1] = ((args[0] >> 8) & 0xff) as u8 as c_char;
+        key.code.mouse[2] = (args[0] & 0xff) as u8 as c_char;
+        key.code.mouse[3] = (args[1] & 0xff) as u8 as c_char;
+        TERMKEY_RES_KEY
+    } else {
+        TERMKEY_RES_NONE
+    }
 }
 
 pub fn termkey_interpret_modereport(
@@ -618,8 +618,8 @@ pub fn termkey_interpret_modereport(
             *initial = c_int::from(key.code.mouse[0] as u8);
         }
         {
-            *mode = (c_int::from(key.code.mouse[1] as u8) << 8)
-                | c_int::from(key.code.mouse[2] as u8);
+            *mode =
+                (c_int::from(key.code.mouse[1] as u8) << 8) | c_int::from(key.code.mouse[2] as u8);
         }
         {
             *value = c_int::from(key.code.mouse[3] as u8);
@@ -951,32 +951,32 @@ pub fn peekkey_csi(
     nbytep: &mut usize,
 ) -> TermKeyResult {
     if tk.buffcount == 0 {
-            return if tk.is_closed != 0 {
-                TERMKEY_RES_EOF
-            } else {
-                TERMKEY_RES_NONE
-            };
-        }
+        return if tk.is_closed != 0 {
+            TERMKEY_RES_EOF
+        } else {
+            TERMKEY_RES_NONE
+        };
+    }
 
-        let b0 = tk.buffer[tk.buffstart];
+    let b0 = tk.buffer[tk.buffstart];
 
-        match b0 {
-            0x1b => {
-                if tk.buffcount < 2 {
-                    return TERMKEY_RES_NONE;
-                }
-                match tk.buffer[tk.buffstart + 1] {
-                    0x4f => peekkey_ss3(tk, 2, key, force, &mut *nbytep),
-                    0x50 | 0x5d | 0x5f => peekkey_ctrlstring(tk, 2, key, force, &mut *nbytep),
-                    0x5b => peekkey_csi_csi(tk, 2, key, force, &mut *nbytep),
-                    _ => TERMKEY_RES_NONE,
-                }
+    match b0 {
+        0x1b => {
+            if tk.buffcount < 2 {
+                return TERMKEY_RES_NONE;
             }
-            0x8f => peekkey_ss3(tk, 1, key, force, &mut *nbytep),
-            0x90 | 0x9d => peekkey_ctrlstring(tk, 1, key, force, &mut *nbytep),
-            0x9b => peekkey_csi_csi(tk, 1, key, force, &mut *nbytep),
-            _ => TERMKEY_RES_NONE,
+            match tk.buffer[tk.buffstart + 1] {
+                0x4f => peekkey_ss3(tk, 2, key, force, &mut *nbytep),
+                0x50 | 0x5d | 0x5f => peekkey_ctrlstring(tk, 2, key, force, &mut *nbytep),
+                0x5b => peekkey_csi_csi(tk, 2, key, force, &mut *nbytep),
+                _ => TERMKEY_RES_NONE,
+            }
         }
+        0x8f => peekkey_ss3(tk, 1, key, force, &mut *nbytep),
+        0x90 | 0x9d => peekkey_ctrlstring(tk, 1, key, force, &mut *nbytep),
+        0x9b => peekkey_csi_csi(tk, 1, key, force, &mut *nbytep),
+        _ => TERMKEY_RES_NONE,
+    }
 }
 
 #[cfg(test)]
@@ -993,8 +993,8 @@ mod tests {
             termkey_interpret_csi_param(param, &mut p, Some(&mut sub), Some(&mut nsub)),
             TERMKEY_RES_KEY
         );
-            assert_eq!(p, 12);
-            assert_eq!(nsub, 2);
-            assert_eq!(sub, [3, 4]);
+        assert_eq!(p, 12);
+        assert_eq!(nsub, 2);
+        assert_eq!(sub, [3, 4]);
     }
 }

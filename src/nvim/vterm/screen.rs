@@ -365,10 +365,8 @@ pub struct VTermScreenCallbacks {
     pub bell: Option<fn(user: *mut Terminal) -> c_int>,
     pub resize: Option<fn(rows: c_int, cols: c_int, user: *mut Terminal) -> c_int>,
     pub theme: Option<fn(dark: &mut bool, user: *mut Terminal) -> c_int>,
-    pub sb_pushline:
-        Option<fn(cells: &[VTermScreenCell], user: *mut Terminal) -> c_int>,
-    pub sb_popline:
-        Option<fn(cells: &mut [VTermScreenCell], user: *mut Terminal) -> c_int>,
+    pub sb_pushline: Option<fn(cells: &[VTermScreenCell], user: *mut Terminal) -> c_int>,
+    pub sb_popline: Option<fn(cells: &mut [VTermScreenCell], user: *mut Terminal) -> c_int>,
     pub sb_clear: Option<fn(user: *mut Terminal) -> c_int>,
 }
 
@@ -435,73 +433,73 @@ fn vterm_rect_move(rect: &mut VTermRect, row_delta: c_int, col_delta: c_int) {
 
 pub fn getcell(screen: &VTermScreen, row: c_int, col: c_int) -> *mut ScreenCell {
     if row < 0 || row >= screen.rows || col < 0 || col >= screen.cols {
-            return ptr::null_mut();
-        }
-        let idx = (screen.cols * row + col) as usize;
-        (&raw const screen.buffers[screen.bufidx][idx]).cast_mut()
+        return ptr::null_mut();
+    }
+    let idx = (screen.cols * row + col) as usize;
+    (&raw const screen.buffers[screen.bufidx][idx]).cast_mut()
 }
 
 fn alloc_buffer(screen: &mut VTermScreen, rows: c_int, cols: c_int) -> Vec<ScreenCell> {
     let count = (rows as usize) * (cols as usize);
-        let mut new_buffer = vec![ScreenCell::default(); count];
+    let mut new_buffer = vec![ScreenCell::default(); count];
 
-        for cell in &mut new_buffer {
-            clearcell(&*screen, cell);
-        }
+    for cell in &mut new_buffer {
+        clearcell(&*screen, cell);
+    }
 
-        new_buffer
+    new_buffer
 }
 
 fn damagerect(screen: &mut VTermScreen, rect: VTermRect) {
     let emit = match screen.damage_merge {
-            VTERM_DAMAGE_CELL => rect,
-            VTERM_DAMAGE_ROW => {
-                if rect.end_row > rect.start_row + 1 {
-                    vterm_screen_flush_damage(screen);
-                    rect
-                } else if screen.damaged.start_row == -1 {
-                    screen.damaged = rect;
-                    return;
-                } else if rect.start_row == screen.damaged.start_row {
-                    if screen.damaged.start_col > rect.start_col {
-                        screen.damaged.start_col = rect.start_col;
-                    }
-                    if screen.damaged.end_col < rect.end_col {
-                        screen.damaged.end_col = rect.end_col;
-                    }
-                    return;
-                } else {
-                    let prev = screen.damaged;
-                    screen.damaged = rect;
-                    prev
+        VTERM_DAMAGE_CELL => rect,
+        VTERM_DAMAGE_ROW => {
+            if rect.end_row > rect.start_row + 1 {
+                vterm_screen_flush_damage(screen);
+                rect
+            } else if screen.damaged.start_row == -1 {
+                screen.damaged = rect;
+                return;
+            } else if rect.start_row == screen.damaged.start_row {
+                if screen.damaged.start_col > rect.start_col {
+                    screen.damaged.start_col = rect.start_col;
                 }
-            }
-            VTERM_DAMAGE_SCREEN | VTERM_DAMAGE_SCROLL => {
-                if screen.damaged.start_row == -1 {
-                    screen.damaged = rect;
-                } else {
-                    rect_expand(&mut screen.damaged, &rect);
+                if screen.damaged.end_col < rect.end_col {
+                    screen.damaged.end_col = rect.end_col;
                 }
                 return;
+            } else {
+                let prev = screen.damaged;
+                screen.damaged = rect;
+                prev
             }
-            _ => return,
-        };
-
-        if let Some(callbacks) = screen.callbacks
-            && let Some(cb) = callbacks.damage
-        {
-            cb(emit, screen.term_ptr());
         }
+        VTERM_DAMAGE_SCREEN | VTERM_DAMAGE_SCROLL => {
+            if screen.damaged.start_row == -1 {
+                screen.damaged = rect;
+            } else {
+                rect_expand(&mut screen.damaged, &rect);
+            }
+            return;
+        }
+        _ => return,
+    };
+
+    if let Some(callbacks) = screen.callbacks
+        && let Some(cb) = callbacks.damage
+    {
+        cb(emit, screen.term_ptr());
+    }
 }
 
 fn damagescreen(screen: &mut VTermScreen) {
     let rect = VTermRect {
-            start_row: 0,
-            end_row: screen.rows,
-            start_col: 0,
-            end_col: screen.cols,
-        };
-        damagerect(screen, rect);
+        start_row: 0,
+        end_row: screen.rows,
+        start_col: 0,
+        end_col: screen.cols,
+    };
+    damagerect(screen, rect);
 }
 
 fn putglyph(info: &mut VTermGlyphInfo, pos: VTermPos, screen: *mut VTermScreen) -> c_int {
@@ -700,9 +698,7 @@ fn scrollrect(
             return 1;
         }
 
-        if screen.damaged.start_row != -1
-            && rect_intersects(&mut rect, &mut screen.damaged) == 0
-        {
+        if screen.damaged.start_row != -1 && rect_intersects(&mut rect, &mut screen.damaged) == 0 {
             vterm_screen_flush_damage(screen);
         }
 
@@ -744,8 +740,7 @@ fn scrollrect(
             && rect.end_col >= screen.damaged.end_col
             && rightward == 0
         {
-            if screen.damaged.start_row >= rect.start_row
-                && screen.damaged.start_row < rect.end_row
+            if screen.damaged.start_row >= rect.start_row && screen.damaged.start_row < rect.end_row
             {
                 screen.damaged.start_row -= downward;
                 if screen.damaged.start_row < rect.start_row {
@@ -755,9 +750,7 @@ fn scrollrect(
                     screen.damaged.start_row = rect.end_row;
                 }
             }
-            if screen.damaged.end_row >= rect.start_row
-                && screen.damaged.end_row < rect.end_row
-            {
+            if screen.damaged.end_row >= rect.start_row && screen.damaged.end_row < rect.end_row {
                 screen.damaged.end_row -= downward;
                 if screen.damaged.end_row < rect.start_row {
                     screen.damaged.end_row = rect.start_row;
@@ -772,12 +765,7 @@ fn scrollrect(
     }
 }
 
-fn movecursor(
-    pos: VTermPos,
-    oldpos: VTermPos,
-    visible: c_int,
-    screen: *mut VTermScreen,
-) -> c_int {
+fn movecursor(pos: VTermPos, oldpos: VTermPos, visible: c_int, screen: *mut VTermScreen) -> c_int {
     unsafe {
         let screen = &mut *screen;
         if let Some(callbacks) = screen.callbacks
@@ -923,8 +911,7 @@ fn resize_buffer(
     let old_rows = screen.rows;
     let old_cols = screen.cols;
 
-    let mut new_buffer_vec =
-        vec![ScreenCell::default(); (new_rows as usize) * (new_cols as usize)];
+    let mut new_buffer_vec = vec![ScreenCell::default(); (new_rows as usize) * (new_cols as usize)];
     let mut new_lineinfo_vec = vec![VTermLineInfo::default(); new_rows as usize];
 
     let mut old_row = old_rows - 1;
@@ -941,260 +928,256 @@ fn resize_buffer(
         let old_lineinfo = &statefields.lineinfos[bufidx];
         let has_old_lineinfo = !old_lineinfo.is_empty();
 
-            while old_row >= 0 {
-                let old_row_end = old_row;
-                while do_reflow
-                    && has_old_lineinfo
-                    && old_row > 0
-                    && old_lineinfo[old_row as usize].continuation()
+        while old_row >= 0 {
+            let old_row_end = old_row;
+            while do_reflow
+                && has_old_lineinfo
+                && old_row > 0
+                && old_lineinfo[old_row as usize].continuation()
+            {
+                old_row -= 1;
+            }
+            let old_row_start = old_row;
+
+            let mut width: c_int = 0;
+            for row in old_row_start..=old_row_end {
+                if do_reflow
+                    && row < (old_rows - 1)
+                    && old_lineinfo[(row + 1) as usize].continuation()
                 {
-                    old_row -= 1;
+                    width += old_cols;
+                } else {
+                    width += line_popcount(old_buffer, row, old_rows, old_cols);
                 }
-                let old_row_start = old_row;
+            }
 
-                let mut width: c_int = 0;
-                for row in old_row_start..=old_row_end {
-                    if do_reflow
-                        && row < (old_rows - 1)
-                        && old_lineinfo[(row + 1) as usize].continuation()
-                    {
-                        width += old_cols;
-                    } else {
-                        width += line_popcount(old_buffer, row, old_rows, old_cols);
-                    }
-                }
+            if final_blank_row == (new_row + 1) && width == 0 {
+                final_blank_row = new_row;
+            }
 
-                if final_blank_row == (new_row + 1) && width == 0 {
-                    final_blank_row = new_row;
-                }
-
-                let new_height = if do_reflow {
-                    if width != 0 {
-                        (width + new_cols - 1) / new_cols
-                    } else {
-                        1
-                    }
+            let new_height = if do_reflow {
+                if width != 0 {
+                    (width + new_cols - 1) / new_cols
                 } else {
                     1
-                };
-
-                let mut new_row_end = new_row;
-                let mut new_row_start = new_row - new_height + 1;
-
-                old_row = old_row_start;
-                let mut old_col: c_int = 0;
-
-                let spare_rows = new_rows - final_blank_row;
-
-                if new_row_start < 0
-                    && spare_rows >= 0
-                    && (!active
-                        || new_cursor.row == -1
-                        || (new_cursor.row - new_row_start) < new_rows)
-                {
-                    let mut downwards = -new_row_start;
-                    if downwards > spare_rows {
-                        downwards = spare_rows;
-                    }
-                    let rowcount = new_rows - downwards;
-
-                    new_buffer_vec.copy_within(
-                        0..(rowcount as usize) * (new_cols as usize),
-                        (downwards * new_cols) as usize,
-                    );
-                    new_lineinfo_vec.copy_within(0..rowcount as usize, downwards as usize);
-
-                    new_row += downwards;
-                    new_row_start += downwards;
-                    new_row_end += downwards;
-
-                    if new_cursor.row >= 0 {
-                        new_cursor.row += downwards;
-                    }
-
-                    final_blank_row += downwards;
                 }
+            } else {
+                1
+            };
 
-                if new_row_start < 0 {
-                    if old_row_start <= old_cursor.row && old_cursor.row <= old_row_end {
-                        new_cursor.row = 0;
-                        new_cursor.col = old_cursor.col;
-                        if new_cursor.col >= new_cols {
-                            new_cursor.col = new_cols - 1;
-                        }
-                    }
-                    break;
-                }
+            let mut new_row_end = new_row;
+            let mut new_row_start = new_row - new_height + 1;
 
-                new_row = new_row_start;
-                old_row = old_row_start;
-                while new_row <= new_row_end {
-                    let mut count = if width >= new_cols { new_cols } else { width };
-                    width -= count;
+            old_row = old_row_start;
+            let mut old_col: c_int = 0;
 
-                    let mut new_col: c_int = 0;
+            let spare_rows = new_rows - final_blank_row;
 
-                    while count != 0 {
-                        new_buffer_vec[(new_row * new_cols + new_col) as usize] =
-                            old_buffer[(old_row * old_cols + old_col) as usize];
-
-                        if old_cursor.row == old_row && old_cursor.col == old_col {
-                            new_cursor.row = new_row;
-                            new_cursor.col = new_col;
-                        }
-
-                        old_col += 1;
-                        if old_col == old_cols {
-                            old_row += 1;
-
-                            if !do_reflow {
-                                new_col += 1;
-                                break;
-                            }
-                            old_col = 0;
-                        }
-
-                        new_col += 1;
-                        count -= 1;
-                    }
-
-                    if old_row <= old_row_end
-                        && old_cursor.row == old_row
-                        && old_cursor.col >= old_col
-                    {
-                        new_cursor.row = new_row;
-                        new_cursor.col = old_cursor.col - old_col + new_col;
-                        if new_cursor.col >= new_cols {
-                            new_cursor.col = new_cols - 1;
-                        }
-                    }
-
-                    while new_col < new_cols {
-                        clearcell(
-                            &*screen,
-                            &mut new_buffer_vec[(new_row * new_cols + new_col) as usize],
-                        );
-                        new_col += 1;
-                    }
-
-                    new_lineinfo_vec[new_row as usize].set_continuation(new_row > new_row_start);
-                    new_row += 1;
-                }
-
-                old_row = old_row_start - 1;
-                new_row = new_row_start - 1;
-            }
-        }
-
-        if old_cursor.row <= old_row {
-            new_cursor.row = 0;
-            new_cursor.col = old_cursor.col;
-            if new_cursor.col >= new_cols {
-                new_cursor.col = new_cols - 1;
-            }
-        }
-
-        if active && (new_cursor.row == -1 || new_cursor.col == -1) {
-            std::process::abort();
-        }
-
-        if old_row >= 0 && bufidx == BUFIDX_PRIMARY {
-            if screen
-                .callbacks
-                .is_some_and(|cbs| cbs.sb_pushline.is_some())
+            if new_row_start < 0
+                && spare_rows >= 0
+                && (!active || new_cursor.row == -1 || (new_cursor.row - new_row_start) < new_rows)
             {
-                for row in 0..=old_row {
-                    sb_pushline_from_row(screen, row);
+                let mut downwards = -new_row_start;
+                if downwards > spare_rows {
+                    downwards = spare_rows;
                 }
-            }
-            if active {
-                statefields.pos.row -= old_row + 1;
-            }
-        }
-        if new_row >= 0
-            && bufidx == BUFIDX_PRIMARY
-            && let Some(callbacks) = screen.callbacks
-            && let Some(sb_popline) = callbacks.sb_popline
-        {
-            while new_row >= 0 {
-                let term_ptr = screen.term_ptr();
-                if sb_popline(&mut screen.sb_buffer[..old_cols as usize], term_ptr) == 0 {
-                    break;
+                let rowcount = new_rows - downwards;
+
+                new_buffer_vec.copy_within(
+                    0..(rowcount as usize) * (new_cols as usize),
+                    (downwards * new_cols) as usize,
+                );
+                new_lineinfo_vec.copy_within(0..rowcount as usize, downwards as usize);
+
+                new_row += downwards;
+                new_row_start += downwards;
+                new_row_end += downwards;
+
+                if new_cursor.row >= 0 {
+                    new_cursor.row += downwards;
                 }
 
-                let mut pos = VTermPos {
-                    row: new_row,
-                    col: 0,
-                };
-                while pos.col < old_cols && pos.col < new_cols {
-                    let src = &screen.sb_buffer[pos.col as usize];
-                    let dst_idx = (pos.row * new_cols + pos.col) as usize;
-                    let dst = &mut new_buffer_vec[dst_idx];
+                final_blank_row += downwards;
+            }
 
-                    dst.schar = src.schar;
-
-                    dst.pen.set_bold(src.attrs.bold());
-                    dst.pen.set_underline(src.attrs.underline());
-                    dst.pen.set_italic(src.attrs.italic());
-                    dst.pen.set_blink(src.attrs.blink());
-                    dst.pen
-                        .set_reverse(src.attrs.reverse() ^ screen.global_reverse());
-                    dst.pen.set_conceal(src.attrs.conceal());
-                    dst.pen.set_strike(src.attrs.strike());
-                    dst.pen.set_font(src.attrs.font());
-                    dst.pen.set_small(src.attrs.small());
-                    dst.pen.set_baseline(src.attrs.baseline());
-                    dst.pen.set_dim(src.attrs.dim());
-                    dst.pen.set_overline(src.attrs.overline());
-
-                    dst.pen.fg = src.fg;
-                    dst.pen.bg = src.bg;
-                    dst.pen.uri = src.uri;
-
-                    let width = c_int::from(src.width);
-                    if width == 2 && pos.col < (new_cols - 1) {
-                        new_buffer_vec[dst_idx + 1].schar = u32::MAX;
+            if new_row_start < 0 {
+                if old_row_start <= old_cursor.row && old_cursor.row <= old_row_end {
+                    new_cursor.row = 0;
+                    new_cursor.col = old_cursor.col;
+                    if new_cursor.col >= new_cols {
+                        new_cursor.col = new_cols - 1;
                     }
-                    pos.col += width;
                 }
-                while pos.col < new_cols {
+                break;
+            }
+
+            new_row = new_row_start;
+            old_row = old_row_start;
+            while new_row <= new_row_end {
+                let mut count = if width >= new_cols { new_cols } else { width };
+                width -= count;
+
+                let mut new_col: c_int = 0;
+
+                while count != 0 {
+                    new_buffer_vec[(new_row * new_cols + new_col) as usize] =
+                        old_buffer[(old_row * old_cols + old_col) as usize];
+
+                    if old_cursor.row == old_row && old_cursor.col == old_col {
+                        new_cursor.row = new_row;
+                        new_cursor.col = new_col;
+                    }
+
+                    old_col += 1;
+                    if old_col == old_cols {
+                        old_row += 1;
+
+                        if !do_reflow {
+                            new_col += 1;
+                            break;
+                        }
+                        old_col = 0;
+                    }
+
+                    new_col += 1;
+                    count -= 1;
+                }
+
+                if old_row <= old_row_end && old_cursor.row == old_row && old_cursor.col >= old_col
+                {
+                    new_cursor.row = new_row;
+                    new_cursor.col = old_cursor.col - old_col + new_col;
+                    if new_cursor.col >= new_cols {
+                        new_cursor.col = new_cols - 1;
+                    }
+                }
+
+                while new_col < new_cols {
                     clearcell(
                         &*screen,
-                        &mut new_buffer_vec[(pos.row * new_cols + pos.col) as usize],
+                        &mut new_buffer_vec[(new_row * new_cols + new_col) as usize],
                     );
-                    pos.col += 1;
+                    new_col += 1;
                 }
-                new_row -= 1;
 
-                if active {
-                    statefields.pos.row += 1;
-                }
+                new_lineinfo_vec[new_row as usize].set_continuation(new_row > new_row_start);
+                new_row += 1;
+            }
+
+            old_row = old_row_start - 1;
+            new_row = new_row_start - 1;
+        }
+    }
+
+    if old_cursor.row <= old_row {
+        new_cursor.row = 0;
+        new_cursor.col = old_cursor.col;
+        if new_cursor.col >= new_cols {
+            new_cursor.col = new_cols - 1;
+        }
+    }
+
+    if active && (new_cursor.row == -1 || new_cursor.col == -1) {
+        std::process::abort();
+    }
+
+    if old_row >= 0 && bufidx == BUFIDX_PRIMARY {
+        if screen
+            .callbacks
+            .is_some_and(|cbs| cbs.sb_pushline.is_some())
+        {
+            for row in 0..=old_row {
+                sb_pushline_from_row(screen, row);
             }
         }
-        if new_row >= 0 {
-            let moverows = new_rows - new_row - 1;
-            let src_start = ((new_row + 1) * new_cols) as usize;
-            let count = (moverows as usize) * (new_cols as usize);
-            new_buffer_vec.copy_within(src_start..src_start + count, 0);
-            let li_start = (new_row + 1) as usize;
-            new_lineinfo_vec.copy_within(li_start..li_start + (moverows as usize), 0);
-
-            new_cursor.row -= new_row + 1;
-
-            for r in moverows..new_rows {
-                for col in 0..new_cols {
-                    clearcell(&*screen, &mut new_buffer_vec[(r * new_cols + col) as usize]);
-                }
-                new_lineinfo_vec[r as usize] = VTermLineInfo { flags: 0 };
-            }
-        }
-
-        screen.buffers[bufidx] = new_buffer_vec;
-        statefields.lineinfos[bufidx] = new_lineinfo_vec;
-
         if active {
-            statefields.pos = new_cursor;
+            statefields.pos.row -= old_row + 1;
         }
+    }
+    if new_row >= 0
+        && bufidx == BUFIDX_PRIMARY
+        && let Some(callbacks) = screen.callbacks
+        && let Some(sb_popline) = callbacks.sb_popline
+    {
+        while new_row >= 0 {
+            let term_ptr = screen.term_ptr();
+            if sb_popline(&mut screen.sb_buffer[..old_cols as usize], term_ptr) == 0 {
+                break;
+            }
+
+            let mut pos = VTermPos {
+                row: new_row,
+                col: 0,
+            };
+            while pos.col < old_cols && pos.col < new_cols {
+                let src = &screen.sb_buffer[pos.col as usize];
+                let dst_idx = (pos.row * new_cols + pos.col) as usize;
+                let dst = &mut new_buffer_vec[dst_idx];
+
+                dst.schar = src.schar;
+
+                dst.pen.set_bold(src.attrs.bold());
+                dst.pen.set_underline(src.attrs.underline());
+                dst.pen.set_italic(src.attrs.italic());
+                dst.pen.set_blink(src.attrs.blink());
+                dst.pen
+                    .set_reverse(src.attrs.reverse() ^ screen.global_reverse());
+                dst.pen.set_conceal(src.attrs.conceal());
+                dst.pen.set_strike(src.attrs.strike());
+                dst.pen.set_font(src.attrs.font());
+                dst.pen.set_small(src.attrs.small());
+                dst.pen.set_baseline(src.attrs.baseline());
+                dst.pen.set_dim(src.attrs.dim());
+                dst.pen.set_overline(src.attrs.overline());
+
+                dst.pen.fg = src.fg;
+                dst.pen.bg = src.bg;
+                dst.pen.uri = src.uri;
+
+                let width = c_int::from(src.width);
+                if width == 2 && pos.col < (new_cols - 1) {
+                    new_buffer_vec[dst_idx + 1].schar = u32::MAX;
+                }
+                pos.col += width;
+            }
+            while pos.col < new_cols {
+                clearcell(
+                    &*screen,
+                    &mut new_buffer_vec[(pos.row * new_cols + pos.col) as usize],
+                );
+                pos.col += 1;
+            }
+            new_row -= 1;
+
+            if active {
+                statefields.pos.row += 1;
+            }
+        }
+    }
+    if new_row >= 0 {
+        let moverows = new_rows - new_row - 1;
+        let src_start = ((new_row + 1) * new_cols) as usize;
+        let count = (moverows as usize) * (new_cols as usize);
+        new_buffer_vec.copy_within(src_start..src_start + count, 0);
+        let li_start = (new_row + 1) as usize;
+        new_lineinfo_vec.copy_within(li_start..li_start + (moverows as usize), 0);
+
+        new_cursor.row -= new_row + 1;
+
+        for r in moverows..new_rows {
+            for col in 0..new_cols {
+                clearcell(&*screen, &mut new_buffer_vec[(r * new_cols + col) as usize]);
+            }
+            new_lineinfo_vec[r as usize] = VTermLineInfo { flags: 0 };
+        }
+    }
+
+    screen.buffers[bufidx] = new_buffer_vec;
+    statefields.lineinfos[bufidx] = new_lineinfo_vec;
+
+    if active {
+        statefields.pos = new_cursor;
+    }
 }
 
 fn resize(
@@ -1205,8 +1188,8 @@ fn resize(
 ) -> c_int {
     unsafe {
         let screen = &mut *screen;
-        let altscreen_active = !screen.buffers[BUFIDX_ALTSCREEN].is_empty()
-            && screen.bufidx == BUFIDX_ALTSCREEN;
+        let altscreen_active =
+            !screen.buffers[BUFIDX_ALTSCREEN].is_empty() && screen.bufidx == BUFIDX_ALTSCREEN;
 
         let old_rows = screen.rows;
         let old_cols = screen.cols;
@@ -1331,7 +1314,7 @@ static STATE_CBS: VTermStateCallbacks = VTermStateCallbacks {
 };
 
 fn screen_new(vt: &mut VTerm) -> Option<Box<VTermScreen>> {
-     {
+    {
         let _state = vterm_obtain_state(vt);
         if false {
             return None;
@@ -1425,8 +1408,7 @@ pub fn vterm_screen_get_cell(
         cell.bg = (*intcell).pen.bg;
         cell.uri = (*intcell).pen.uri;
 
-        if pos.col < (screen.cols - 1)
-            && (*getcell(screen, pos.row, pos.col + 1)).schar == u32::MAX
+        if pos.col < (screen.cols - 1) && (*getcell(screen, pos.row, pos.col + 1)).schar == u32::MAX
         {
             cell.width = 2;
         } else {
@@ -1491,32 +1473,32 @@ pub fn vterm_screen_set_unrecognised_fallbacks(
 
 pub fn vterm_screen_flush_damage(screen: &mut VTermScreen) {
     if screen.pending_scrollrect.start_row != -1 {
-            vterm_scroll_rect(
-                screen.pending_scrollrect,
-                screen.pending_scroll_downward,
-                screen.pending_scroll_rightward,
-                Some(moverect_user),
-                Some(erase_user),
-                &raw mut *screen,
-            );
+        vterm_scroll_rect(
+            screen.pending_scrollrect,
+            screen.pending_scroll_downward,
+            screen.pending_scroll_rightward,
+            Some(moverect_user),
+            Some(erase_user),
+            &raw mut *screen,
+        );
 
-            screen.pending_scrollrect.start_row = -1;
+        screen.pending_scrollrect.start_row = -1;
+    }
+
+    if screen.damaged.start_row != -1 {
+        if let Some(callbacks) = screen.callbacks
+            && let Some(cb) = callbacks.damage
+        {
+            cb(screen.damaged, screen.term_ptr());
         }
 
-        if screen.damaged.start_row != -1 {
-            if let Some(callbacks) = screen.callbacks
-                && let Some(cb) = callbacks.damage
-            {
-                cb(screen.damaged, screen.term_ptr());
-            }
-
-            screen.damaged.start_row = -1;
-        }
+        screen.damaged.start_row = -1;
+    }
 }
 
 pub fn vterm_screen_set_damage_merge(screen: &mut VTermScreen, size: VTermDamageSize) {
     vterm_screen_flush_damage(screen);
-        screen.damage_merge = size;
+    screen.damage_merge = size;
 }
 
 #[cfg(test)]
@@ -1528,71 +1510,71 @@ pub fn vterm_screen_convert_color_to_rgb(screen: &VTermScreen, col: &mut VTermCo
 
 pub fn rect_expand(dst: &mut VTermRect, src: &VTermRect) {
     if dst.start_row > src.start_row {
-            dst.start_row = src.start_row;
-        }
-        if dst.start_col > src.start_col {
-            dst.start_col = src.start_col;
-        }
-        if dst.end_row < src.end_row {
-            dst.end_row = src.end_row;
-        }
-        if dst.end_col < src.end_col {
-            dst.end_col = src.end_col;
-        }
+        dst.start_row = src.start_row;
+    }
+    if dst.start_col > src.start_col {
+        dst.start_col = src.start_col;
+    }
+    if dst.end_row < src.end_row {
+        dst.end_row = src.end_row;
+    }
+    if dst.end_col < src.end_col {
+        dst.end_col = src.end_col;
+    }
 }
 
 pub fn rect_clip(dst: &mut VTermRect, bounds: &mut VTermRect) {
     if dst.start_row < bounds.start_row {
-            dst.start_row = bounds.start_row;
-        }
-        if dst.start_col < bounds.start_col {
-            dst.start_col = bounds.start_col;
-        }
-        if dst.end_row > bounds.end_row {
-            dst.end_row = bounds.end_row;
-        }
-        if dst.end_col > bounds.end_col {
-            dst.end_col = bounds.end_col;
-        }
-        if dst.end_row < dst.start_row {
-            dst.end_row = dst.start_row;
-        }
-        if dst.end_col < dst.start_col {
-            dst.end_col = dst.start_col;
-        }
+        dst.start_row = bounds.start_row;
+    }
+    if dst.start_col < bounds.start_col {
+        dst.start_col = bounds.start_col;
+    }
+    if dst.end_row > bounds.end_row {
+        dst.end_row = bounds.end_row;
+    }
+    if dst.end_col > bounds.end_col {
+        dst.end_col = bounds.end_col;
+    }
+    if dst.end_row < dst.start_row {
+        dst.end_row = dst.start_row;
+    }
+    if dst.end_col < dst.start_col {
+        dst.end_col = dst.start_col;
+    }
 }
 
 pub fn rect_equal(a: &mut VTermRect, b: &mut VTermRect) -> c_int {
     c_int::from(
-            a.start_row == b.start_row
-                && a.start_col == b.start_col
-                && a.end_row == b.end_row
-                && a.end_col == b.end_col,
-        )
+        a.start_row == b.start_row
+            && a.start_col == b.start_col
+            && a.end_row == b.end_row
+            && a.end_col == b.end_col,
+    )
 }
 
 pub fn rect_contains(big: &mut VTermRect, small: &mut VTermRect) -> c_int {
     if small.start_row < big.start_row
-            || small.start_col < big.start_col
-            || small.end_row > big.end_row
-            || small.end_col > big.end_col
-        {
-            0
-        } else {
-            1
-        }
+        || small.start_col < big.start_col
+        || small.end_row > big.end_row
+        || small.end_col > big.end_col
+    {
+        0
+    } else {
+        1
+    }
 }
 
 pub fn rect_intersects(a: &mut VTermRect, b: &mut VTermRect) -> c_int {
     if a.start_row > b.end_row
-            || b.start_row > a.end_row
-            || a.start_col > b.end_col
-            || b.start_col > a.end_col
-        {
-            0
-        } else {
-            1
-        }
+        || b.start_row > a.end_row
+        || a.start_col > b.end_col
+        || b.start_col > a.end_col
+    {
+        0
+    } else {
+        1
+    }
 }
 
 #[cfg(test)]
@@ -1614,12 +1596,12 @@ mod tests {
             end_col: 10,
         };
         assert_eq!(rect_intersects(&mut r1, &mut r2), 1);
-            assert_eq!(rect_equal(&mut r1, &mut r2), 0);
-            rect_expand(&mut r1, &r2);
-            assert_eq!(
-                (r1.start_row, r1.end_row, r1.start_col, r1.end_col),
-                (1, 5, 3, 10)
-            );
-            assert_eq!(rect_contains(&mut r1, &mut r2), 1);
+        assert_eq!(rect_equal(&mut r1, &mut r2), 0);
+        rect_expand(&mut r1, &r2);
+        assert_eq!(
+            (r1.start_row, r1.end_row, r1.start_col, r1.end_col),
+            (1, 5, 3, 10)
+        );
+        assert_eq!(rect_contains(&mut r1, &mut r2), 1);
     }
 }

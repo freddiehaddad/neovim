@@ -9,9 +9,9 @@ use crate::api::private::helpers::{
 use crate::api::private::validate::{
     Array, Dict, Error, ErrorType, KeyValuePair, NvimString, Object, ObjectType, api_err_exp,
 };
-use crate::eval::typval::{VarType, TvDict, tv_clear, tv_dict_find, TypVal};
-use crate::eval::userfunc::{call_func, Funcexe};
-use crate::eval::{eval0};
+use crate::eval::eval0;
+use crate::eval::typval::{TvDict, TypVal, VarType, tv_clear, tv_dict_find};
+use crate::eval::userfunc::{Funcexe, call_func};
 use crate::ex_docmd::do_cmdline_cmd;
 use crate::globals::*;
 use crate::lua::converter::Boolean;
@@ -19,11 +19,12 @@ use crate::memory::Arena;
 use crate::msgpack_rpc::packer::Integer;
 use crate::runtime::do_source_str;
 use crate::viml::parser::expressions::{
-    ExprASTNode, CCS_TAB, EAST_NODE_TYPE_TAB, ELTKN_CMP_TYPE_TAB, EXPR_ASGN_TYPE_TAB,
+    CCS_TAB, EAST_NODE_TYPE_TAB, ELTKN_CMP_TYPE_TAB, EXPR_ASGN_TYPE_TAB, ExprASTNode,
     K_EXPR_ASGN_PLAIN, K_EXPR_FLAGS_DISALLOW_EOC, K_EXPR_FLAGS_MULTI, K_EXPR_FLAGS_PARSE_LET,
-    K_EXPR_NODE_ASSIGNMENT, K_EXPR_NODE_COMPARISON, K_EXPR_NODE_DOUBLE_QUOTED_STRING, K_EXPR_NODE_ENVIRONMENT,
-    K_EXPR_NODE_FLOAT, K_EXPR_NODE_INTEGER, K_EXPR_NODE_OPTION, K_EXPR_NODE_PLAIN_IDENTIFIER, K_EXPR_NODE_PLAIN_KEY,
-    K_EXPR_NODE_REGISTER, K_EXPR_NODE_SINGLE_QUOTED_STRING, viml_pexpr_parse,
+    K_EXPR_NODE_ASSIGNMENT, K_EXPR_NODE_COMPARISON, K_EXPR_NODE_DOUBLE_QUOTED_STRING,
+    K_EXPR_NODE_ENVIRONMENT, K_EXPR_NODE_FLOAT, K_EXPR_NODE_INTEGER, K_EXPR_NODE_OPTION,
+    K_EXPR_NODE_PLAIN_IDENTIFIER, K_EXPR_NODE_PLAIN_KEY, K_EXPR_NODE_REGISTER,
+    K_EXPR_NODE_SINGLE_QUOTED_STRING, viml_pexpr_parse,
 };
 use crate::viml::parser::parser::{
     ParserHighlight, ParserInputReader, ParserLine, ParserPosition, ParserState,
@@ -54,7 +55,8 @@ impl ApiVimscriptState {
     }
 }
 
-static API_VIMS_STATE: crate::globals::GlobalState<ApiVimscriptState> = crate::globals::GlobalState::new(ApiVimscriptState::new());
+static API_VIMS_STATE: crate::globals::GlobalState<ApiVimscriptState> =
+    crate::globals::GlobalState::new(ApiVimscriptState::new());
 
 #[inline]
 fn api_vims_st() -> &'static mut ApiVimscriptState {
@@ -64,14 +66,19 @@ fn api_vims_st() -> &'static mut ApiVimscriptState {
 use crate::api::private::helpers::cstr_to_string;
 
 #[inline]
-fn cbuf_to_arena_obj(arena: &mut Arena, s: impl crate::strings::IntoCCharPtr, len: usize) -> Object { let s = s.into_c_char_ptr();
+fn cbuf_to_arena_obj(
+    arena: &mut Arena,
+    s: impl crate::strings::IntoCCharPtr,
+    len: usize,
+) -> Object {
+    let s = s.into_c_char_ptr();
     string_obj(arena_string(
-            arena,
-            NvimString {
-                data: s.cast_mut(),
-                size: len,
-            },
-        ))
+        arena,
+        NvimString {
+            data: s.cast_mut(),
+            size: len,
+        },
+    ))
 }
 
 /// Executes Vimscript (multiline block of Ex commands), like anonymous
@@ -125,46 +132,46 @@ pub fn exec_impl(
     err: &mut Error,
 ) -> NvimString {
     let save_msg_silent = g_st().msg_silent;
-        let save_redir_off = g_st().redir_off;
-        let save_capture_ga = g_st().capture_ga;
-        let save_msg_col = g_st().msg_col;
-        let mut capture_local: Vec<c_char> = Vec::new();
-        if opts.output {
-            g_st().capture_ga = &raw mut capture_local;
-        }
+    let save_redir_off = g_st().redir_off;
+    let save_capture_ga = g_st().capture_ga;
+    let save_msg_col = g_st().msg_col;
+    let mut capture_local: Vec<c_char> = Vec::new();
+    if opts.output {
+        g_st().capture_ga = &raw mut capture_local;
+    }
 
-        let mut tstate = TryState::new();
-        try_enter(&mut tstate);
-        if opts.output {
-            g_st().msg_silent += 1;
-            g_st().redir_off = false;
-            g_st().msg_col = 0;
-        }
+    let mut tstate = TryState::new();
+    try_enter(&mut tstate);
+    if opts.output {
+        g_st().msg_silent += 1;
+        g_st().redir_off = false;
+        g_st().msg_col = 0;
+    }
 
-        let save_current_sctx = api_set_sctx(channel_id);
-        do_source_str(src.data, c"nvim_exec2()");
-        if opts.output {
-            g_st().capture_ga = save_capture_ga;
-            g_st().msg_silent = save_msg_silent;
-            g_st().redir_off = save_redir_off;
-            g_st().msg_col = save_msg_col;
-        }
-        g_st().current_sctx = save_current_sctx;
-        try_leave(&tstate, err);
+    let save_current_sctx = api_set_sctx(channel_id);
+    do_source_str(src.data, c"nvim_exec2()");
+    if opts.output {
+        g_st().capture_ga = save_capture_ga;
+        g_st().msg_silent = save_msg_silent;
+        g_st().redir_off = save_redir_off;
+        g_st().msg_col = save_msg_col;
+    }
+    g_st().current_sctx = save_current_sctx;
+    try_leave(&tstate, err);
 
-        if !error_set(err) && opts.output && capture_local.len() > 1 {
-            let slice = if capture_local[0] == b'\n' as c_char {
-                &capture_local[1..]
-            } else {
-                &capture_local[..]
-            };
-            return crate::api::private::helpers::cbuf_to_string(slice.as_ptr(), slice.len());
-        }
+    if !error_set(err) && opts.output && capture_local.len() > 1 {
+        let slice = if capture_local[0] == b'\n' as c_char {
+            &capture_local[1..]
+        } else {
+            &capture_local[..]
+        };
+        return crate::api::private::helpers::cbuf_to_string(slice.as_ptr(), slice.len());
+    }
 
-        NvimString {
-            data: std::ptr::null_mut(),
-            size: 0,
-        }
+    NvimString {
+        data: std::ptr::null_mut(),
+        size: 0,
+    }
 }
 
 /// Executes an Ex command.
@@ -179,9 +186,9 @@ pub fn exec_impl(
 // DLLEXPORT void nvim_command(String cmd, Error *err) FUNC_API_SINCE(1);
 pub fn nvim_command(cmd: NvimString, err: &mut Error) {
     let mut tstate = TryState::new();
-        try_enter(&mut tstate);
-        do_cmdline_cmd(cmd.data);
-        try_leave(&tstate, err);
+    try_enter(&mut tstate);
+    do_cmdline_cmd(cmd.data);
+    try_leave(&tstate, err);
 }
 
 /// Evaluates a Vimscript |expression|. Dicts and Lists are recursively expanded.
@@ -207,12 +214,7 @@ pub fn nvim_eval(expr: NvimString, arena: &mut Arena, err: &mut Error) -> Object
         let mut rettv: TypVal = TypVal::new();
         let mut tstate = TryState::new();
         try_enter(&mut tstate);
-        let ok = eval0(
-            expr.data,
-            &mut rettv,
-            None,
-            &mut g_st().evalarg_evaluate,
-        );
+        let ok = eval0(expr.data, &mut rettv, None, &mut g_st().evalarg_evaluate);
         try_leave(&tstate, err);
 
         if !error_set(err) {
@@ -244,7 +246,7 @@ fn call_function_impl(
     arena: &mut Arena,
     err: &mut Error,
 ) -> Object {
-     {
+    {
         let mut rv = nil_obj();
 
         if args.size > MAX_FUNC_ARGS {
@@ -382,12 +384,7 @@ pub fn nvim_call_dict_function(
                 object_to_vim(dict, &mut rettv, err);
             }
             _ => {
-                api_err_exp(
-                    err,
-                    c"dict argument",
-                    c"String or Dict",
-                    std::ptr::null(),
-                );
+                api_err_exp(err, c"dict argument", c"String or Dict", std::ptr::null());
                 return rv;
             }
         }
@@ -395,11 +392,7 @@ pub fn nvim_call_dict_function(
         'body: {
             let self_dict = rettv.vval.v_dict();
             if rettv.v_type != VarType::VarDict || self_dict.is_null() {
-                api_set_error!(
-                    err,
-                    ErrorType::ErrorTypeValidation,
-                    c"dict not found",
-                );
+                api_set_error!(err, ErrorType::ErrorTypeValidation, c"dict not found",);
                 break 'body;
             }
 
@@ -621,7 +614,10 @@ pub fn nvim_parse_expression(
                 add_c(&mut chunk_arr, integer_obj(chunk.start.line as Integer));
                 add_c(&mut chunk_arr, integer_obj(chunk.start.col as Integer));
                 add_c(&mut chunk_arr, integer_obj(chunk.end_col as Integer));
-                add_c(&mut chunk_arr, string_obj(cstr_as_string(chunk.group.as_ptr())));
+                add_c(
+                    &mut chunk_arr,
+                    string_obj(cstr_as_string(chunk.group.as_ptr())),
+                );
                 add_c(&mut hl_arr, array_obj(chunk_arr));
             }
             put_c(&mut ret, c"highlight", array_obj(hl_arr));
@@ -641,147 +637,148 @@ pub fn nvim_parse_expression(
 
 fn expr_ast_node_to_obj(node: &ExprASTNode, arena: &mut Arena) -> Object {
     let nt = node.r#type;
-        let items_size = 3
-            + usize::from(node.children.is_some())
-            + usize::from(nt == K_EXPR_NODE_OPTION || nt == K_EXPR_NODE_PLAIN_IDENTIFIER)
-            + usize::from(
-                nt == K_EXPR_NODE_OPTION
-                    || nt == K_EXPR_NODE_PLAIN_IDENTIFIER
-                    || nt == K_EXPR_NODE_PLAIN_KEY
-                    || nt == K_EXPR_NODE_ENVIRONMENT,
-            )
-            + usize::from(nt == K_EXPR_NODE_REGISTER)
-            + 3 * usize::from(nt == K_EXPR_NODE_COMPARISON)
-            + usize::from(nt == K_EXPR_NODE_INTEGER)
-            + usize::from(nt == K_EXPR_NODE_FLOAT)
-            + usize::from(nt == K_EXPR_NODE_DOUBLE_QUOTED_STRING || nt == K_EXPR_NODE_SINGLE_QUOTED_STRING)
-            + usize::from(nt == K_EXPR_NODE_ASSIGNMENT);
-        let mut ret_node = arena_dict(arena, items_size);
+    let items_size = 3
+        + usize::from(node.children.is_some())
+        + usize::from(nt == K_EXPR_NODE_OPTION || nt == K_EXPR_NODE_PLAIN_IDENTIFIER)
+        + usize::from(
+            nt == K_EXPR_NODE_OPTION
+                || nt == K_EXPR_NODE_PLAIN_IDENTIFIER
+                || nt == K_EXPR_NODE_PLAIN_KEY
+                || nt == K_EXPR_NODE_ENVIRONMENT,
+        )
+        + usize::from(nt == K_EXPR_NODE_REGISTER)
+        + 3 * usize::from(nt == K_EXPR_NODE_COMPARISON)
+        + usize::from(nt == K_EXPR_NODE_INTEGER)
+        + usize::from(nt == K_EXPR_NODE_FLOAT)
+        + usize::from(
+            nt == K_EXPR_NODE_DOUBLE_QUOTED_STRING || nt == K_EXPR_NODE_SINGLE_QUOTED_STRING,
+        )
+        + usize::from(nt == K_EXPR_NODE_ASSIGNMENT);
+    let mut ret_node = arena_dict(arena, items_size);
 
-        if let Some(ref first_child) = node.children {
-            let num_children = 1 + usize::from(first_child.next.is_some());
-            let mut children_array = arena_array(arena, num_children);
+    if let Some(ref first_child) = node.children {
+        let num_children = 1 + usize::from(first_child.next.is_some());
+        let mut children_array = arena_array(arena, num_children);
+        add_c(
+            &mut children_array,
+            expr_ast_node_to_obj(first_child, arena),
+        );
+        if let Some(ref second_child) = first_child.next {
             add_c(
                 &mut children_array,
-                expr_ast_node_to_obj(first_child, arena),
+                expr_ast_node_to_obj(second_child, arena),
             );
-            if let Some(ref second_child) = first_child.next {
-                add_c(
-                    &mut children_array,
-                    expr_ast_node_to_obj(second_child, arena),
-                );
-            }
-            put_c(&mut ret_node, c"children", array_obj(children_array));
         }
+        put_c(&mut ret_node, c"children", array_obj(children_array));
+    }
 
-        put_c(
-            &mut ret_node,
-            c"type",
-            string_obj(cstr_as_string(EAST_NODE_TYPE_TAB[nt as usize].as_ptr())),
-        );
-        let mut start_array = arena_array(arena, 2);
-        add_c(&mut start_array, integer_obj(node.start.line as Integer));
-        add_c(&mut start_array, integer_obj(node.start.col as Integer));
-        put_c(&mut ret_node, c"start", array_obj(start_array));
-        put_c(&mut ret_node, c"len", integer_obj(node.len as Integer));
+    put_c(
+        &mut ret_node,
+        c"type",
+        string_obj(cstr_as_string(EAST_NODE_TYPE_TAB[nt as usize].as_ptr())),
+    );
+    let mut start_array = arena_array(arena, 2);
+    add_c(&mut start_array, integer_obj(node.start.line as Integer));
+    add_c(&mut start_array, integer_obj(node.start.col as Integer));
+    put_c(&mut ret_node, c"start", array_obj(start_array));
+    put_c(&mut ret_node, c"len", integer_obj(node.len as Integer));
 
-        match nt {
-            K_EXPR_NODE_DOUBLE_QUOTED_STRING | K_EXPR_NODE_SINGLE_QUOTED_STRING => {
-                let str_obj =
-                    cbuf_to_arena_obj(arena, node.data.str().value_ptr(), node.data.str().size);
-                put_c(&mut ret_node, c"svalue", str_obj);
-            }
-            K_EXPR_NODE_OPTION => {
-                put_c(
-                    &mut ret_node,
-                    c"scope",
-                    integer_obj(i64::from(node.data.opt().scope)),
-                );
-                put_c(
-                    &mut ret_node,
-                    c"ident",
-                    cbuf_to_arena_obj(arena, node.data.opt().ident, node.data.opt().ident_len),
-                );
-            }
-            K_EXPR_NODE_PLAIN_IDENTIFIER => {
-                put_c(
-                    &mut ret_node,
-                    c"scope",
-                    integer_obj(i64::from(node.data.var().scope)),
-                );
-                put_c(
-                    &mut ret_node,
-                    c"ident",
-                    cbuf_to_arena_obj(arena, node.data.var().ident, node.data.var().ident_len),
-                );
-            }
-            K_EXPR_NODE_PLAIN_KEY => {
-                put_c(
-                    &mut ret_node,
-                    c"ident",
-                    cbuf_to_arena_obj(arena, node.data.var().ident, node.data.var().ident_len),
-                );
-            }
-            K_EXPR_NODE_ENVIRONMENT => {
-                put_c(
-                    &mut ret_node,
-                    c"ident",
-                    cbuf_to_arena_obj(arena, node.data.env().ident, node.data.env().ident_len),
-                );
-            }
-            K_EXPR_NODE_REGISTER => {
-                put_c(
-                    &mut ret_node,
-                    c"name",
-                    integer_obj(i64::from(node.data.reg().name)),
-                );
-            }
-            K_EXPR_NODE_COMPARISON => {
-                put_c(
-                    &mut ret_node,
-                    c"cmp_type",
-                    string_obj(cstr_as_string(
-                        ELTKN_CMP_TYPE_TAB[node.data.cmp().r#type as usize].as_ptr(),
-                    )),
-                );
-                put_c(
-                    &mut ret_node,
-                    c"ccs_strategy",
-                    string_obj(cstr_as_string(
-                        CCS_TAB[node.data.cmp().ccs as usize]
-                            .map_or(std::ptr::null(), |s| s.as_ptr()),
-                    )),
-                );
-                put_c(&mut ret_node, c"invert", boolean_obj(node.data.cmp().inv));
-            }
-            K_EXPR_NODE_FLOAT => {
-                put_c(&mut ret_node, c"fvalue", float_obj(node.data.flt().value));
-            }
-            K_EXPR_NODE_INTEGER => {
-                let v = node.data.num().value;
-                let iv = if v > API_INTEGER_MAX {
-                    API_INTEGER_MAX as Integer
-                } else {
-                    v as Integer
-                };
-                put_c(&mut ret_node, c"ivalue", integer_obj(iv));
-            }
-            K_EXPR_NODE_ASSIGNMENT => {
-                let asgn_type = node.data.ass().r#type;
-                let str_val = if asgn_type == K_EXPR_ASGN_PLAIN {
-                    NvimString {
-                        data: std::ptr::null_mut(),
-                        size: 0,
-                    }
-                } else {
-                    cstr_as_string(EXPR_ASGN_TYPE_TAB[asgn_type as usize].as_ptr())
-                };
-                put_c(&mut ret_node, c"augmentation", string_obj(str_val));
-            }
-            _ => {}
+    match nt {
+        K_EXPR_NODE_DOUBLE_QUOTED_STRING | K_EXPR_NODE_SINGLE_QUOTED_STRING => {
+            let str_obj =
+                cbuf_to_arena_obj(arena, node.data.str().value_ptr(), node.data.str().size);
+            put_c(&mut ret_node, c"svalue", str_obj);
         }
-        debug_assert_eq!(ret_node.size, ret_node.capacity);
-        dict_obj(ret_node)
+        K_EXPR_NODE_OPTION => {
+            put_c(
+                &mut ret_node,
+                c"scope",
+                integer_obj(i64::from(node.data.opt().scope)),
+            );
+            put_c(
+                &mut ret_node,
+                c"ident",
+                cbuf_to_arena_obj(arena, node.data.opt().ident, node.data.opt().ident_len),
+            );
+        }
+        K_EXPR_NODE_PLAIN_IDENTIFIER => {
+            put_c(
+                &mut ret_node,
+                c"scope",
+                integer_obj(i64::from(node.data.var().scope)),
+            );
+            put_c(
+                &mut ret_node,
+                c"ident",
+                cbuf_to_arena_obj(arena, node.data.var().ident, node.data.var().ident_len),
+            );
+        }
+        K_EXPR_NODE_PLAIN_KEY => {
+            put_c(
+                &mut ret_node,
+                c"ident",
+                cbuf_to_arena_obj(arena, node.data.var().ident, node.data.var().ident_len),
+            );
+        }
+        K_EXPR_NODE_ENVIRONMENT => {
+            put_c(
+                &mut ret_node,
+                c"ident",
+                cbuf_to_arena_obj(arena, node.data.env().ident, node.data.env().ident_len),
+            );
+        }
+        K_EXPR_NODE_REGISTER => {
+            put_c(
+                &mut ret_node,
+                c"name",
+                integer_obj(i64::from(node.data.reg().name)),
+            );
+        }
+        K_EXPR_NODE_COMPARISON => {
+            put_c(
+                &mut ret_node,
+                c"cmp_type",
+                string_obj(cstr_as_string(
+                    ELTKN_CMP_TYPE_TAB[node.data.cmp().r#type as usize].as_ptr(),
+                )),
+            );
+            put_c(
+                &mut ret_node,
+                c"ccs_strategy",
+                string_obj(cstr_as_string(
+                    CCS_TAB[node.data.cmp().ccs as usize].map_or(std::ptr::null(), |s| s.as_ptr()),
+                )),
+            );
+            put_c(&mut ret_node, c"invert", boolean_obj(node.data.cmp().inv));
+        }
+        K_EXPR_NODE_FLOAT => {
+            put_c(&mut ret_node, c"fvalue", float_obj(node.data.flt().value));
+        }
+        K_EXPR_NODE_INTEGER => {
+            let v = node.data.num().value;
+            let iv = if v > API_INTEGER_MAX {
+                API_INTEGER_MAX as Integer
+            } else {
+                v as Integer
+            };
+            put_c(&mut ret_node, c"ivalue", integer_obj(iv));
+        }
+        K_EXPR_NODE_ASSIGNMENT => {
+            let asgn_type = node.data.ass().r#type;
+            let str_val = if asgn_type == K_EXPR_ASGN_PLAIN {
+                NvimString {
+                    data: std::ptr::null_mut(),
+                    size: 0,
+                }
+            } else {
+                cstr_as_string(EXPR_ASGN_TYPE_TAB[asgn_type as usize].as_ptr())
+            };
+            put_c(&mut ret_node, c"augmentation", string_obj(str_val));
+        }
+        _ => {}
+    }
+    debug_assert_eq!(ret_node.size, ret_node.capacity);
+    dict_obj(ret_node)
 }
 
 #[cfg(test)]
@@ -791,10 +788,10 @@ mod tests {
     #[test]
     fn cstr_as_string_handles_null_and_non_null() {
         let empty = cstr_as_string(std::ptr::null());
-            assert!(empty.data.is_null());
-            assert_eq!(empty.size, 0);
+        assert!(empty.data.is_null());
+        assert_eq!(empty.size, 0);
 
-            let s = cstr_as_string(c"echo 1");
-            assert_eq!(s.size, 6);
+        let s = cstr_as_string(c"echo 1");
+        assert_eq!(s.size, 6);
     }
 }

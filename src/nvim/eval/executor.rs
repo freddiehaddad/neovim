@@ -3,8 +3,8 @@
 
 use crate::errors::*;
 use crate::eval::typval::{
-    TypvalVval, VarType, tv_clear, tv_get_number, tv_get_string, tv_get_string_buf, tv_list_extend,
-    TypVal,
+    TypVal, TypvalVval, VarType, tv_clear, tv_get_number, tv_get_string, tv_get_string_buf,
+    tv_list_extend,
 };
 use crate::eval::{grow_string_tv, num_divide, num_modulus};
 use crate::message::semsg;
@@ -63,7 +63,11 @@ fn tv_op_list(tv1: &mut TypVal, tv2: &TypVal, op: u8) -> bool {
             (*l2).lv_refcount += 1;
         }
     } else {
-        tv_list_extend(unsafe { &mut *l1 }, unsafe { l2.as_ref() }, std::ptr::null_mut());
+        tv_list_extend(
+            unsafe { &mut *l1 },
+            unsafe { l2.as_ref() },
+            std::ptr::null_mut(),
+        );
     }
 
     true
@@ -116,7 +120,7 @@ fn tv_op_string(tv1: &mut TypVal, tv2: &TypVal) -> bool {
         return false;
     }
 
-     {
+    {
         let mut numbuf = [0 as c_char; NUMBUFLEN];
         let s2 = tv_get_string_buf(tv2, numbuf.as_mut_ptr());
         if grow_string_tv(&mut *tv1, s2) {
@@ -171,11 +175,11 @@ fn tv_op_float(tv1: &mut TypVal, tv2: &TypVal, op: u8) -> bool {
 }
 
 /// Execute compound assignment `tv1 <op>= tv2` (`eexe_mod_op`).
-pub fn eexe_mod_op(tv1: &mut TypVal,tv2: &TypVal, op: impl crate::strings::IntoCCharPtr) -> bool {
+pub fn eexe_mod_op(tv1: &mut TypVal, tv2: &TypVal, op: impl crate::strings::IntoCCharPtr) -> bool {
     let op = op.into_c_char_ptr();
-    let tv1 =  { tv1 };
-    let tv2 =  { tv2 };
-    let op_byte =  { crate::memory::cstr_first_byte(op) };
+    let tv1 = { tv1 };
+    let tv2 = { tv2 };
+    let op_byte = { crate::memory::cstr_first_byte(op) };
 
     if tv2.v_type == VarType::VarFunc
         || tv2.v_type == VarType::VarDict
@@ -222,8 +226,8 @@ mod tests {
             vval: TypvalVval::Number(5),
         };
         assert!(eexe_mod_op(&mut tv1, &tv2, c"+"));
-            assert_eq!(tv1.vval.v_number(), 15);
-            assert!(eexe_mod_op(&mut tv1, &tv2, c"*"));
-            assert_eq!(tv1.vval.v_number(), 75);
+        assert_eq!(tv1.vval.v_number(), 15);
+        assert!(eexe_mod_op(&mut tv1, &tv2, c"*"));
+        assert_eq!(tv1.vval.v_number(), 75);
     }
 }

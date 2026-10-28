@@ -4,10 +4,9 @@ use crate::charset::vim_str2nr;
 use crate::eval::encode::encode_list_write;
 use crate::eval::string2float;
 use crate::eval::typval::{
-    TypvalVval, VAR_UNLOCKED, VarType, TvList, tv_blob_alloc_ret, tv_clear, tv_dict_add,
+    TvList, TypVal, TypvalVval, VAR_UNLOCKED, VarType, tv_blob_alloc_ret, tv_clear, tv_dict_add,
     tv_dict_alloc, tv_dict_find, tv_dict_item_alloc, tv_dict_item_alloc_len, tv_list_alloc,
     tv_list_append_list, tv_list_append_number, tv_list_append_owned_tv, tv_list_len, tv_list_ref,
-    TypVal,
 };
 use crate::eval::vars::eval_msgpack_type_lists_mut;
 use crate::hashtab::hashitem_empty;
@@ -30,7 +29,7 @@ pub(crate) const SURROGATE_FIRST_CHAR: c_int = 0x10000;
 
 use crate::mpack::mpack_core::{MPACK_OK, MpackTokenType};
 use crate::mpack::object::{
-    MpackNode, mpack_parent_node, mpack_parse, mpack_parser_init, MpackParser,
+    MpackNode, MpackParser, mpack_parent_node, mpack_parse, mpack_parser_init,
 };
 
 use crate::api::private::converter::{K_BOOL_VAR_FALSE, K_BOOL_VAR_TRUE, K_SPECIAL_VAR_NULL};
@@ -58,14 +57,16 @@ fn create_special_dict(rettv: &mut TypVal, mp_type: usize, val: TypVal) {
     unsafe {
         let dict = tv_dict_alloc();
         let type_di = tv_dict_item_alloc_len(c"_TYPE", 5);
-        (*type_di).di_tv.v_type = VarType::VarList;
-        (*type_di).di_tv.v_lock = VAR_UNLOCKED;
-        (*type_di).di_tv.vval = crate::eval::typval::TypvalVval::List((*eval_msgpack_type_lists_mut())[mp_type].cast_mut());
-        tv_list_ref((*type_di).di_tv.vval.v_list().as_mut());
+        type_di.di_tv.v_type = VarType::VarList;
+        type_di.di_tv.v_lock = VAR_UNLOCKED;
+        type_di.di_tv.vval = crate::eval::typval::TypvalVval::List(
+            (*eval_msgpack_type_lists_mut())[mp_type].cast_mut(),
+        );
+        tv_list_ref(type_di.di_tv.vval.v_list().as_mut());
         tv_dict_add(&mut *dict, type_di);
 
         let val_di = tv_dict_item_alloc_len(c"_VAL", 4);
-        (*val_di).di_tv = val;
+        val_di.di_tv = val;
         tv_dict_add(&mut *dict, val_di);
         (*dict).dv_refcount += 1;
         *rettv = TypVal {
@@ -104,7 +105,7 @@ pub fn decode_string(
     let s = s.into_c_char_ptr();
     assert!(!s.is_null() || len == 0);
     let has_nul = if !s.is_null() && len > 0 {
-        let slice =  { crate::memory::cstr_slice(s, len) };
+        let slice = { crate::memory::cstr_slice(s, len) };
         slice.contains(&0)
     } else {
         false
@@ -117,11 +118,10 @@ pub fn decode_string(
             v_lock: VAR_UNLOCKED,
             vval: TypvalVval::Number(0),
         };
-        unsafe {
+        {
             let b = &mut *tv_blob_alloc_ret(&mut tv);
             if !s.is_null() && len > 0 {
-                b.bv_ga
-                    .extend_from_slice(crate::memory::cstr_slice(s, len));
+                b.bv_ga.extend_from_slice(crate::memory::cstr_slice(s, len));
             }
         }
         return tv;
@@ -155,7 +155,10 @@ fn json_decoder_pop(
     let mut last_container = *container_stack.last().unwrap();
     let mut val_location = *pp;
     if obj.val.v_type == last_container.container.v_type
-        && std::ptr::eq(obj.val.vval.v_list(), last_container.container.vval.v_list())
+        && std::ptr::eq(
+            obj.val.vval.v_list(),
+            last_container.container.vval.v_list(),
+        )
     {
         container_stack.pop();
         val_location = last_container.s;
@@ -165,16 +168,13 @@ fn json_decoder_pop(
     unsafe {
         if last_container.container.v_type == VarType::VarList {
             if tv_list_len(last_container.container.vval.v_list().as_ref()) != 0 && !obj.didcomma {
-                semsg!(
-                    c"E474: Expected comma before list item: %s",
-                    val_location,
-                );
+                semsg!(c"E474: Expected comma before list item: %s", val_location,);
                 let mut v = obj.val;
                 tv_clear(&mut v);
                 return false;
             }
             assert!(last_container.special_val.is_null());
-            tv_list_append_owned_tv( &mut *last_container.container.vval.v_list(), obj.val);
+            tv_list_append_owned_tv(&mut *last_container.container.vval.v_list(), obj.val);
         } else if last_container.stack_index + 2 == stack.len() {
             if !obj.didcolon {
                 semsg!(
@@ -194,12 +194,12 @@ fn json_decoder_pop(
                 if !tv_dict_add(&mut *dict, obj_di) {
                     std::process::abort();
                 }
-                (*obj_di).di_tv = obj.val;
+                obj_di.di_tv = obj.val;
             } else {
                 let kv_pair = tv_list_alloc(2);
-                tv_list_append_list( &mut *last_container.special_val, kv_pair);
-                tv_list_append_owned_tv( &mut *kv_pair, key.val);
-                tv_list_append_owned_tv( &mut *kv_pair, obj.val);
+                tv_list_append_list(&mut *last_container.special_val, kv_pair);
+                tv_list_append_owned_tv(&mut *kv_pair, key.val);
+                tv_list_append_owned_tv(&mut *kv_pair, obj.val);
             }
         } else {
             if !obj.is_special_string && obj.val.v_type != VarType::VarString {
@@ -254,7 +254,8 @@ fn parse_json_string(
     next_map_special: &mut bool,
     didcomma: &mut bool,
     didcolon: &mut bool,
-) -> bool { let buf = buf.into_c_char_ptr();
+) -> bool {
+    let buf = buf.into_c_char_ptr();
     let e = unsafe { buf.add(buf_len) };
     let mut p = unsafe { (*pp).add(1) };
     let s = p;
@@ -356,11 +357,7 @@ fn parse_json_string(
         }
 
         if p == e || crate::memory::cstr_first_byte(p) != b'"' {
-            semsg!(
-                c"E474: Expected string end: %.*s",
-                buf_len as c_int,
-                buf,
-            );
+            semsg!(c"E474: Expected string end: %.*s", buf_len as c_int, buf,);
             *pp = p;
             return false;
         }
@@ -372,7 +369,10 @@ fn parse_json_string(
         let mut t = s;
 
         while t < p {
-            if (crate::memory::cstr_first_byte(t) != b'\\' || crate::memory::cstr_byte_at(t, 1) != b'u') && fst_in_pair != 0 {
+            if (crate::memory::cstr_first_byte(t) != b'\\'
+                || crate::memory::cstr_byte_at(t, 1) != b'u')
+                && fst_in_pair != 0
+            {
                 str_end = str_end.add(utf_char2bytes(fst_in_pair, str_end) as usize);
                 fst_in_pair = 0;
             }
@@ -489,7 +489,8 @@ fn parse_json_number(
     next_map_special: &mut bool,
     didcomma: &mut bool,
     didcolon: &mut bool,
-) -> bool { let buf = buf.into_c_char_ptr();
+) -> bool {
+    let buf = buf.into_c_char_ptr();
     let e = unsafe { buf.add(buf_len) };
     let mut p = *pp;
     let s = p;
@@ -523,7 +524,10 @@ fn parse_json_number(
                         p = p.add(1);
                     }
                 }
-                if p < e && (fracs.is_null() || p != fracs) && matches!(crate::memory::cstr_first_byte(p), b'e' | b'E') {
+                if p < e
+                    && (fracs.is_null() || p != fracs)
+                    && matches!(crate::memory::cstr_first_byte(p), b'e' | b'E')
+                {
                     p = p.add(1);
                     exps_s = p;
                     if p < e && matches!(crate::memory::cstr_first_byte(p), b'-' | b'+') {
@@ -622,8 +626,7 @@ fn parse_json_number(
             next_map_special,
             didcomma,
             didcolon,
-        )
-        {
+        ) {
             *pp = p;
             return false;
         }
@@ -645,7 +648,12 @@ pub fn json_decode_string(
     unsafe {
         let mut p = buf;
         let e = buf.add(buf_len);
-        while p < e && matches!(crate::memory::cstr_first_byte(p), b' ' | b'\t' | b'\n' | b'\r') {
+        while p < e
+            && matches!(
+                crate::memory::cstr_first_byte(p),
+                b' ' | b'\t' | b'\n' | b'\r'
+            )
+        {
             p = p.add(1);
         }
         if p == e {
@@ -678,13 +686,10 @@ pub fn json_decode_string(
                             return fail_cleanup(stack);
                         }
                         let last_container = *container_stack.last().unwrap();
-                        if crate::memory::cstr_first_byte(p) == b'}' && last_container.container.v_type != VarType::VarDict
+                        if crate::memory::cstr_first_byte(p) == b'}'
+                            && last_container.container.v_type != VarType::VarDict
                         {
-                            semsg!(
-                                c"E474: Closing list with curly bracket: %.*s",
-                                len_rem,
-                                p,
-                            );
+                            semsg!(c"E474: Closing list with curly bracket: %.*s", len_rem, p,);
                             return fail_cleanup(stack);
                         } else if crate::memory::cstr_first_byte(p) == b']'
                             && last_container.container.v_type != VarType::VarList
@@ -699,11 +704,7 @@ pub fn json_decode_string(
                             semsg!(c"E474: Trailing comma: %.*s", len_rem, p);
                             return fail_cleanup(stack);
                         } else if didcolon {
-                            semsg!(
-                                c"E474: Expected value after colon: %.*s",
-                                len_rem,
-                                p,
-                            );
+                            semsg!(c"E474: Expected value after colon: %.*s", len_rem, p,);
                             return fail_cleanup(stack);
                         } else if last_container.stack_index + 1 != stack.len() {
                             semsg!(c"E474: Expected value: %.*s", len_rem, p);
@@ -723,8 +724,7 @@ pub fn json_decode_string(
                                 &mut next_map_special,
                                 &mut didcomma,
                                 &mut didcolon,
-                            )
-                            {
+                            ) {
                                 return fail_cleanup(stack);
                             }
                             debug_assert!(!next_map_special);
@@ -732,11 +732,7 @@ pub fn json_decode_string(
                     }
                     b',' => {
                         if container_stack.is_empty() {
-                            semsg!(
-                                c"E474: Comma not inside container: %.*s",
-                                len_rem,
-                                p,
-                            );
+                            semsg!(c"E474: Comma not inside container: %.*s", len_rem, p,);
                             return fail_cleanup(stack);
                         }
                         let last_container = *container_stack.last().unwrap();
@@ -759,11 +755,7 @@ pub fn json_decode_string(
                         } else if last_container.container.v_type == VarType::VarDict
                             && last_container.stack_index + 1 != stack.len()
                         {
-                            semsg!(
-                                c"E474: Using comma in place of colon: %.*s",
-                                len_rem,
-                                p,
-                            );
+                            semsg!(c"E474: Using comma in place of colon: %.*s", len_rem, p,);
                             return fail_cleanup(stack);
                         } else if is_empty_cont {
                             semsg!(c"E474: Leading comma: %.*s", len_rem, p);
@@ -775,20 +767,12 @@ pub fn json_decode_string(
                     }
                     b':' => {
                         if container_stack.is_empty() {
-                            semsg!(
-                                c"E474: Colon not inside container: %.*s",
-                                len_rem,
-                                p,
-                            );
+                            semsg!(c"E474: Colon not inside container: %.*s", len_rem, p,);
                             return fail_cleanup(stack);
                         }
                         let last_container = *container_stack.last().unwrap();
                         if last_container.container.v_type != VarType::VarDict {
-                            semsg!(
-                                c"E474: Using colon not in dictionary: %.*s",
-                                len_rem,
-                                p,
-                            );
+                            semsg!(c"E474: Using colon not in dictionary: %.*s", len_rem, p,);
                             return fail_cleanup(stack);
                         } else if last_container.stack_index + 2 != stack.len() {
                             semsg!(c"E474: Unexpected colon: %.*s", len_rem, p);
@@ -834,8 +818,7 @@ pub fn json_decode_string(
                             &mut next_map_special,
                             &mut didcomma,
                             &mut didcolon,
-                        )
-                        {
+                        ) {
                             return fail_cleanup(stack);
                         }
                         if next_map_special {
@@ -868,8 +851,7 @@ pub fn json_decode_string(
                             &mut next_map_special,
                             &mut didcomma,
                             &mut didcolon,
-                        )
-                        {
+                        ) {
                             return fail_cleanup(stack);
                         }
                         if next_map_special {
@@ -902,8 +884,7 @@ pub fn json_decode_string(
                             &mut next_map_special,
                             &mut didcomma,
                             &mut didcolon,
-                        )
-                        {
+                        ) {
                             return fail_cleanup(stack);
                         }
                         if next_map_special {
@@ -920,8 +901,7 @@ pub fn json_decode_string(
                             &mut next_map_special,
                             &mut didcomma,
                             &mut didcolon,
-                        )
-                        {
+                        ) {
                             return fail_cleanup(stack);
                         }
                         if next_map_special {
@@ -938,8 +918,7 @@ pub fn json_decode_string(
                             &mut next_map_special,
                             &mut didcomma,
                             &mut didcolon,
-                        )
-                        {
+                        ) {
                             return fail_cleanup(stack);
                         }
                         if next_map_special {
@@ -1059,10 +1038,10 @@ fn positive_integer_to_special_typval(rettv: &mut TypVal, val: u64) {
                     vval: TypvalVval::List(list),
                 },
             );
-            tv_list_append_number( &mut *list, 1);
-            tv_list_append_number( &mut *list, ((val >> 62) & 0x3) as i64);
-            tv_list_append_number( &mut *list, ((val >> 31) & 0x7FFF_FFFF) as i64);
-            tv_list_append_number( &mut *list, (val & 0x7FFF_FFFF) as i64);
+            tv_list_append_number(&mut *list, 1);
+            tv_list_append_number(&mut *list, ((val >> 62) & 0x3) as i64);
+            tv_list_append_number(&mut *list, ((val >> 31) & 0x7FFF_FFFF) as i64);
+            tv_list_append_number(&mut *list, (val & 0x7FFF_FFFF) as i64);
         }
     }
 }
@@ -1078,7 +1057,7 @@ fn typval_parse_enter(parser: &mut MpackParser, node: &mut MpackNode) {
                 MpackTokenType::MpackTokenArray => {
                     let list = (*parent).data[1].list();
                     result = tv_list_append_owned_tv(
-                         &mut *list,
+                        &mut *list,
                         TypVal {
                             v_type: VarType::VarUnknown,
                             v_lock: 0,
@@ -1148,8 +1127,7 @@ fn typval_parse_enter(parser: &mut MpackParser, node: &mut MpackNode) {
                 let data = (*parent).data[1].owned_bytes_mut();
                 let len = node.tok.length as usize;
                 if len > 0 {
-                    let chunk =
-                        crate::memory::cstr_slice(node.tok.data.chunk_ptr(), len);
+                    let chunk = crate::memory::cstr_slice(node.tok.data.chunk_ptr(), len);
                     data[(*parent).pos..((*parent).pos + len)].copy_from_slice(chunk);
                 }
             }
@@ -1206,9 +1184,9 @@ fn typval_parse_exit(_parser: &mut MpackParser, node: &mut MpackNode) {
                 let bytes = node.data[1].take_owned_bytes();
                 let list = tv_list_alloc(2);
                 tv_list_ref(list.as_mut());
-                tv_list_append_number( &mut *list, i64::from(node.tok.data.ext_type()));
+                tv_list_append_number(&mut *list, i64::from(node.tok.data.ext_type()));
                 let ext_val_list = tv_list_alloc(K_LIST_LEN_MAY_KNOW);
-                tv_list_append_list( &mut *list, ext_val_list);
+                tv_list_append_list(&mut *list, ext_val_list);
                 create_special_dict(
                     &mut *result,
                     K_MP_EXT,
@@ -1254,7 +1232,8 @@ fn typval_parse_exit(_parser: &mut MpackParser, node: &mut MpackNode) {
                                     todo -= 1;
                                     let d = crate::eval::typval::tv_dict_hi2di(hi);
                                     d.di_tv.v_type = VarType::VarSpecial;
-                                    d.di_tv.vval = crate::eval::typval::TypvalVval::Number(K_SPECIAL_VAR_NULL);
+                                    d.di_tv.vval =
+                                        crate::eval::typval::TypvalVval::Number(K_SPECIAL_VAR_NULL);
                                 }
                                 hi = hi.add(1);
                             }
@@ -1263,7 +1242,7 @@ fn typval_parse_exit(_parser: &mut MpackParser, node: &mut MpackNode) {
                             can_be_dict = false;
                             break;
                         }
-                        (*di).di_tv = pair[1];
+                        di.di_tv = pair[1];
                     }
                 }
 
@@ -1275,9 +1254,9 @@ fn typval_parse_exit(_parser: &mut MpackParser, node: &mut MpackNode) {
                     let list = decode_create_map_special_dict(&mut *result, len as isize);
                     for pair in &items[..len] {
                         let kv_pair = tv_list_alloc(2);
-                        tv_list_append_list( &mut *list, kv_pair);
-                        tv_list_append_owned_tv( &mut *kv_pair, pair[0]);
-                        tv_list_append_owned_tv( &mut *kv_pair, pair[1]);
+                        tv_list_append_list(&mut *list, kv_pair);
+                        tv_list_append_owned_tv(&mut *kv_pair, pair[0]);
+                        tv_list_append_owned_tv(&mut *kv_pair, pair[1]);
                     }
                 }
             }
@@ -1302,11 +1281,7 @@ pub fn mpack_parse_typval(
 }
 
 /// Unpack msgpack buffer `*data[..*size]` into `*ret` (`unpack_typval`).
-pub fn unpack_typval(
-    data: &mut *const c_char,
-    size: &mut usize,
-    ret: &mut TypVal,
-) -> c_int {
+pub fn unpack_typval(data: &mut *const c_char, size: &mut usize, ret: &mut TypVal) -> c_int {
     ret.v_type = VarType::VarUnknown;
     let mut parser = MpackParser::new(0);
     mpack_parser_init(&mut parser, 0);
@@ -1329,7 +1304,10 @@ mod tests {
         unsafe {
             let mut tv = decode_string(c"hello", 5, false, false);
             assert_eq!(tv.v_type, VarType::VarString);
-            assert_eq!(CStr::from_ptr(tv.vval.v_string()).to_str().unwrap(), "hello");
+            assert_eq!(
+                CStr::from_ptr(tv.vval.v_string()).to_str().unwrap(),
+                "hello"
+            );
             tv_clear(&mut tv);
         }
     }
@@ -1340,69 +1318,69 @@ mod tests {
             .lock()
             .unwrap_or_else(|e| e.into_inner());
         crate::globals::g_st().emsg_skip += 1;
-            let mut rettv = TypVal {
-                v_type: VarType::VarUnknown,
-                v_lock: VAR_UNLOCKED,
-                vval: TypvalVval::Number(0),
-            };
+        let mut rettv = TypVal {
+            v_type: VarType::VarUnknown,
+            v_lock: VAR_UNLOCKED,
+            vval: TypvalVval::Number(0),
+        };
 
-            for &(s, len) in &[
-                (b"null" as &[u8], 1usize),
-                (b"true", 1),
-                (b"false", 1),
-                (b"null", 2),
-                (b"true", 2),
-                (b"false", 2),
-                (b"null", 3),
-                (b"true", 3),
-                (b"false", 3),
-                (b"false", 4),
-                (b"\"t\"", 2),
-                (b"\"\"", 1),
-                (b"]test", 1),
-                (b"[}test", 2),
-                (b"{]test", 2),
-                (b"[1,]test", 4),
-                (b"{\"1\":}test", 6),
-                (b"{\"1\"}test", 5),
-                (b",test", 1),
-                (b"[1,,1]test", 6),
-                (b"{\"1\":,}test", 7),
-                (b"{\"1\",}test", 6),
-                (b"{,}test", 3),
-                (b"[,]test", 3),
-                (b":test", 1),
-                (b"[:]test", 3),
-                (b"{:}test", 3),
-                (b"{\"1\"::1}test", 8),
-                (b"ntest", 1),
-                (b"ttest", 1),
-                (b"ftest", 1),
-                (b"\"\\test", 2),
-                (b"\"\\u\"test", 4),
-                (b"\"\\uXXXX\"est", 8),
-                (b"\"\\?\"test", 4),
-                (b"\"\t\"test", 3),
-                (b"\"\xc2\"test", 3),
-                (b"\"\xfc\x90\x80\x80\x80\x80\"test", 8),
-                (b"\"test", 1),
-                (b"-test", 1),
-                (b"-0", 1),
-                (b"-1.test", 3),
-                (b"-1.0etest", 5),
-                (b"?test", 1),
-                (b"1?test", 2),
-                (b"[1test", 2),
-            ] {
-                assert!(!json_decode_string(s.as_ptr().cast(), len, &mut rettv));
-                assert_eq!(rettv.v_type, VarType::VarUnknown);
-            }
+        for &(s, len) in &[
+            (b"null" as &[u8], 1usize),
+            (b"true", 1),
+            (b"false", 1),
+            (b"null", 2),
+            (b"true", 2),
+            (b"false", 2),
+            (b"null", 3),
+            (b"true", 3),
+            (b"false", 3),
+            (b"false", 4),
+            (b"\"t\"", 2),
+            (b"\"\"", 1),
+            (b"]test", 1),
+            (b"[}test", 2),
+            (b"{]test", 2),
+            (b"[1,]test", 4),
+            (b"{\"1\":}test", 6),
+            (b"{\"1\"}test", 5),
+            (b",test", 1),
+            (b"[1,,1]test", 6),
+            (b"{\"1\":,}test", 7),
+            (b"{\"1\",}test", 6),
+            (b"{,}test", 3),
+            (b"[,]test", 3),
+            (b":test", 1),
+            (b"[:]test", 3),
+            (b"{:}test", 3),
+            (b"{\"1\"::1}test", 8),
+            (b"ntest", 1),
+            (b"ttest", 1),
+            (b"ftest", 1),
+            (b"\"\\test", 2),
+            (b"\"\\u\"test", 4),
+            (b"\"\\uXXXX\"est", 8),
+            (b"\"\\?\"test", 4),
+            (b"\"\t\"test", 3),
+            (b"\"\xc2\"test", 3),
+            (b"\"\xfc\x90\x80\x80\x80\x80\"test", 8),
+            (b"\"test", 1),
+            (b"-test", 1),
+            (b"-0", 1),
+            (b"-1.test", 3),
+            (b"-1.0etest", 5),
+            (b"?test", 1),
+            (b"1?test", 2),
+            (b"[1test", 2),
+        ] {
+            assert!(!json_decode_string(s.as_ptr().cast(), len, &mut rettv));
+            assert_eq!(rettv.v_type, VarType::VarUnknown);
+        }
 
-            assert!(json_decode_string(c"true", 4, &mut rettv));
-            assert_eq!(rettv.v_type, VarType::VarBool);
-            assert_eq!(rettv.vval.v_bool(), K_BOOL_VAR_TRUE as c_int);
-            tv_clear(&mut rettv);
+        assert!(json_decode_string(c"true", 4, &mut rettv));
+        assert_eq!(rettv.v_type, VarType::VarBool);
+        assert_eq!(rettv.vval.v_bool(), K_BOOL_VAR_TRUE as c_int);
+        tv_clear(&mut rettv);
 
-            crate::globals::g_st().emsg_skip -= 1;
+        crate::globals::g_st().emsg_skip -= 1;
     }
 }

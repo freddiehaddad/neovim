@@ -11,11 +11,11 @@ use crate::api::private::validate::{Array, Dict, Error, ErrorType, NvimString, O
 use crate::api::vimscript::{KeyDict_exec_opts, exec_impl};
 use crate::autocmd::{block_autocmds, unblock_autocmds};
 use crate::buffer::{
-    BCO_ENTER, BCO_NOHELP, MAXLNUM, bt_prompt, FileBuf, bufref_valid, do_autochdir, set_bufref,
+    BCO_ENTER, BCO_NOHELP, FileBuf, MAXLNUM, bt_prompt, bufref_valid, do_autochdir, set_bufref,
 };
-use crate::cursor::{check_cursor, check_pos, Colnr, equalpos, CursorPos};
+use crate::cursor::{Colnr, CursorPos, check_cursor, check_pos, equalpos};
 use crate::eval::encode::encode_vim_list_to_buf;
-use crate::eval::typval::{VarType, tv_clear, TypVal};
+use crate::eval::typval::{TypVal, VarType, tv_clear};
 use crate::eval::userfunc::func_tbl_get;
 use crate::eval::vars::vars_clear;
 use crate::ex_docmd::do_cmdline_cmd;
@@ -23,7 +23,7 @@ use crate::extmark::{extmark_del_id, extmark_get_pos, extmark_set_pos};
 use crate::fileio::shorten_fnames;
 use crate::globals::*;
 use crate::mark::{Fmark, Fmarkv};
-use crate::memory::{Arena};
+use crate::memory::Arena;
 use crate::msgpack_rpc::packer::ObjHandle;
 use crate::normal::Visualinfo;
 use crate::option::buf_copy_options;
@@ -31,12 +31,13 @@ use crate::option_vars::*;
 use crate::os::fs::{MAXPATHL, os_chdir, os_dirname};
 use crate::register::{EMPTY_YANKREG, get_y_register};
 use crate::shada::{
-    K_SHA_DA_FORCEIT, K_SHA_DA_NANOS, K_SHA_DA_NO_HISTORY, K_SHA_DA_NO_OPT, K_SHA_DA_WANT_INFO, shada_encode_buflist,
-    shada_encode_gvars, shada_encode_jumps, shada_encode_regs, shada_read_string,
+    K_SHA_DA_FORCEIT, K_SHA_DA_NANOS, K_SHA_DA_NO_HISTORY, K_SHA_DA_NO_OPT, K_SHA_DA_WANT_INFO,
+    shada_encode_buflist, shada_encode_gvars, shada_encode_jumps, shada_encode_regs,
+    shada_read_string,
 };
 use crate::window::{
-    close_tabpage, entering_window, goto_tabpage_tp, leaving_window, TabPageInfo, unuse_tabpage,
-    update_cwd, use_tabpage, valid_tabpage, valid_tabpage_win, WinInfoInfo, win_alloc_ctx_win,
+    TabPageInfo, WinInfoInfo, close_tabpage, entering_window, goto_tabpage_tp, leaving_window,
+    unuse_tabpage, update_cwd, use_tabpage, valid_tabpage, valid_tabpage_win, win_alloc_ctx_win,
     win_append, win_find_by_handle, win_goto, win_init_empty, win_remove, win_valid,
 };
 use crate::winfloat::win_config_float;
@@ -234,29 +235,38 @@ fn ctx_st() -> &'static mut ContextModuleState {
 
 #[inline]
 pub fn handle_get_buffer(h: ObjHandle) -> *mut FileBuf {
-     {
-        g_st().buffer_handles.get(&h).copied().unwrap_or(ptr::null_mut())
+    {
+        g_st()
+            .buffer_handles
+            .get(&h)
+            .copied()
+            .unwrap_or(ptr::null_mut())
     }
 }
 
 #[inline]
 pub fn handle_get_window(h: ObjHandle) -> *mut WinInfoInfo {
-     {
-        g_st().window_handles.get(&h).copied().unwrap_or(ptr::null_mut())
+    {
+        g_st()
+            .window_handles
+            .get(&h)
+            .copied()
+            .unwrap_or(ptr::null_mut())
     }
 }
 
 fn ctx_marks_ns() -> u32 {
     {
         if ctx_st().ctx_marks_ns_id == 0 {
-            ctx_st().ctx_marks_ns_id = nvim_create_namespace(static_cstr_as_string(c"nvim.context")) as u32;
+            ctx_st().ctx_marks_ns_id =
+                nvim_create_namespace(static_cstr_as_string(c"nvim.context")) as u32;
         }
         ctx_st().ctx_marks_ns_id
     }
 }
 
 fn ctx_positions(ctx: &mut Context, flags: CtxStateFlags) -> [*mut CursorPos; 6] {
-     {
+    {
         let visual = (flags & K_CTX_VISUAL) != 0;
         let marks = (flags & K_CTX_MARKS) != 0;
         [
@@ -429,7 +439,7 @@ pub fn ctx_load(ctx: &mut Context, flags: CtxStateFlags, loadflags: CtxLoadFlags
                 if pos_ptr.is_null() || ctx.pos_marks[i] == 0 {
                     continue;
                 }
-                extmark_get_pos( &mut *buf, ctx_marks_ns(), ctx.pos_marks[i], &mut *pos_ptr);
+                extmark_get_pos(&mut *buf, ctx_marks_ns(), ctx.pos_marks[i], &mut *pos_ptr);
             }
             if (flags & K_CTX_VISUAL) != 0 {
                 (*buf).b_visual = ctx.visual;
@@ -509,7 +519,6 @@ fn array_to_string(array: Array, err: &mut Error) -> Vec<u8> {
 
 pub fn ctx_to_dict(ctx: &mut Context, arena: &mut Arena) -> Dict {
     {
-        
         let as_str = |v: &[u8]| NvimString {
             data: v.as_ptr().cast::<c_char>().cast_mut(),
             size: v.len(),
@@ -546,7 +555,6 @@ pub fn ctx_to_dict(ctx: &mut Context, arena: &mut Arena) -> Dict {
 
 pub fn ctx_from_dict(dict: Dict, ctx: &mut Context, err: &mut Error) -> CtxStateFlags {
     {
-        
         let mut types: CtxStateFlags = 0;
         let mut i = 0usize;
         while i < dict.size && !error_set(err) {
@@ -577,7 +585,7 @@ pub fn ctx_from_dict(dict: Dict, ctx: &mut Context, err: &mut Error) -> CtxState
 }
 
 fn ctx_win_dirs_save(cs: &mut CtxSwitch, cw_win: &mut WinInfoInfo, buf: &mut FileBuf) {
-     {
+    {
         cw_win.w_localdir = None;
         cs.cs_b_localdir = buf.b_localdir.take();
         cs.cs_tp_localdir = curtab_mut().tp_localdir.take();
@@ -585,7 +593,8 @@ fn ctx_win_dirs_save(cs: &mut CtxSwitch, cw_win: &mut WinInfoInfo, buf: &mut Fil
     }
 }
 
-fn ctx_localdirs_restore(cs: &mut CtxSwitch,
+fn ctx_localdirs_restore(
+    cs: &mut CtxSwitch,
     cwp: Option<&WinInfoInfo>,
     mut tp: Option<&mut TabPageInfo>,
     persist: bool,
@@ -622,16 +631,18 @@ fn ctx_localdirs_restore(cs: &mut CtxSwitch,
             update_cwd(K_CD_CAUSE_WINDOW);
         }
 
-        if !(persist
-            && cs.cs_globaldir.is_none()
-            && g_st().globaldir.is_some())
-        {
+        if !(persist && cs.cs_globaldir.is_none() && g_st().globaldir.is_some()) {
             g_st().globaldir = cs.cs_globaldir.take();
         }
     }
 }
 
-fn ctx_dirs_save(cs: &mut CtxSwitch, wp: &mut WinInfoInfo, tp: *mut TabPageInfo, buf: *mut FileBuf) {
+fn ctx_dirs_save(
+    cs: &mut CtxSwitch,
+    wp: &mut WinInfoInfo,
+    tp: *mut TabPageInfo,
+    buf: *mut FileBuf,
+) {
     unsafe {
         if (cs.cs_flags & (K_CTX_KEEP_CWD | K_CTX_KEEP_DIRS)) == 0 {
             return;
@@ -705,13 +716,17 @@ pub fn ctx_did_chdir() {
 }
 
 pub fn is_ctx_win(win: *const WinInfoInfo) -> bool {
-    g_st().ctx_win_vec.iter().any(|item| item.cw_used && ptr::eq(item.cw_win, win))
+    g_st()
+        .ctx_win_vec
+        .iter()
+        .any(|item| item.cw_used && ptr::eq(item.cw_win, win))
 }
 
 fn ctx_win_prep(cs: &mut CtxSwitch, buf: &mut FileBuf) -> *mut WinInfoInfo {
     unsafe {
         let mut need_append = true;
-        let idx = g_st().ctx_win_vec
+        let idx = g_st()
+            .ctx_win_vec
             .iter()
             .position(|item| !item.cw_used)
             .unwrap_or_else(|| {
@@ -754,7 +769,7 @@ fn ctx_win_rest(cs: &mut CtxSwitch) -> *mut WinInfoInfo {
         if curwin_ptr() != cwp {
             'win_found: {
                 for tp in for_all_tabpages_ptr() {
-                    for wp in for_all_windows_in_tab_ptr( &*tp) {
+                    for wp in for_all_windows_in_tab_ptr(&*tp) {
                         if wp == cwp {
                             if tp != g_st().curtab {
                                 goto_tabpage_tp(tp, true, true);
@@ -784,20 +799,23 @@ fn ctx_win_rest(cs: &mut CtxSwitch) -> *mut WinInfoInfo {
 
 pub fn ctx_saved_curwin() -> *mut WinInfoInfo {
     if ctx_st().ctx_saved_curwin == 0 {
-            ptr::null_mut()
-        } else {
-            win_find_by_handle(ctx_st().ctx_saved_curwin)
-        }
+        ptr::null_mut()
+    } else {
+        win_find_by_handle(ctx_st().ctx_saved_curwin)
+    }
 }
 
-pub fn ctx_switch(cs: &mut CtxSwitch,
+pub fn ctx_switch(
+    cs: &mut CtxSwitch,
     mut wp: *mut WinInfoInfo,
     tp: *mut TabPageInfo,
     buf: *mut FileBuf,
     flags: CtxSwitchFlags,
 ) -> bool {
     unsafe {
-        assert!((wp.is_null() != buf.is_null()) || (wp.is_null() && (flags & K_CTX_KEEP_DIRS) != 0));
+        assert!(
+            (wp.is_null() != buf.is_null()) || (wp.is_null() && (flags & K_CTX_KEEP_DIRS) != 0)
+        );
         assert!(buf.is_null() || tp.is_null());
         *cs = CtxSwitch::new();
         cs.cs_flags = flags;
@@ -833,7 +851,12 @@ pub fn ctx_switch(cs: &mut CtxSwitch,
             cs.cs_target_old_pos = (*wp).w_cursor;
         }
         if !wp.is_null() {
-            ctx_dirs_save(cs,  &mut *wp, if tp.is_null() { g_st().curtab } else { tp }, buf);
+            ctx_dirs_save(
+                cs,
+                &mut *wp,
+                if tp.is_null() { g_st().curtab } else { tp },
+                buf,
+            );
         }
 
         cs.cs_curwin = curwin_mut().handle;
@@ -867,9 +890,9 @@ pub fn ctx_switch(cs: &mut CtxSwitch,
 
         if !buf.is_null() {
             if wp.is_null() {
-                wp = ctx_win_prep(cs,  &mut *buf);
+                wp = ctx_win_prep(cs, &mut *buf);
                 leaving_window(curwin_mut());
-                buf_copy_options( &mut *buf, BCO_ENTER | BCO_NOHELP);
+                buf_copy_options(&mut *buf, BCO_ENTER | BCO_NOHELP);
                 g_st().prevwin = curwin_ptr();
             }
             assert!(wp == curwin_ptr() || win_valid(wp));
@@ -895,7 +918,7 @@ pub fn ctx_switch(cs: &mut CtxSwitch,
 }
 
 fn ctx_restore_curwin(cs: &mut CtxSwitch, fallback: *mut WinInfoInfo) {
-     {
+    {
         let mut save_curwin = if cs.cs_curwin_xtab {
             handle_get_window(cs.cs_curwin)
         } else {
@@ -938,10 +961,15 @@ pub fn ctx_restore(cs: &mut CtxSwitch) {
                 curbuf_mut().b_prompt_insert = cs.cs_prompt_insert;
             }
 
-            vars_clear(&mut (*(*cwp).w_vars()).dv_hashtab);
+            vars_clear(&mut (*cwp).w_vars().dv_hashtab);
 
             let free_dirs = (cs.cs_flags & K_CTX_KEEP_DIRS) == 0;
-            ctx_localdirs_restore(&mut *cs, cwp.as_ref(), Some(crate::globals::curtab_mut()), free_dirs);
+            ctx_localdirs_restore(
+                &mut *cs,
+                cwp.as_ref(),
+                Some(crate::globals::curtab_mut()),
+                free_dirs,
+            );
 
             if curwin_mut().w_topline > curbuf_mut().b_ml.ml_line_count {
                 curwin_mut().w_topline = curbuf_mut().b_ml.ml_line_count;

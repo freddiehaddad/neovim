@@ -1,7 +1,7 @@
 //! Vimscript expression lexer and parser (`src/nvim/viml/parser/expressions.c`).
 
 use crate::charset::{
-    ascii_isalpha, ascii_isdigit, ascii_iswhite, ascii_isxdigit, Uvarnumber, vim_str2nr,
+    Uvarnumber, ascii_isalpha, ascii_isdigit, ascii_iswhite, ascii_isxdigit, vim_str2nr,
 };
 use crate::keycodes::{FSK_IN_STRING, FSK_KEYCODE, FSK_SIMPLIFY, NUL, trans_special};
 use crate::mbyte::{mb_copy_char, utf_char2bytes, utf_char2len, utfc_ptr2len_len};
@@ -1096,12 +1096,7 @@ pub static ELTKN_CMP_TYPE_TAB: [&std::ffi::CStr; 5] = [
     c"Identical",
 ];
 
-pub static EXPR_ASGN_TYPE_TAB: [&std::ffi::CStr; 4] = [
-    c"Plain",
-    c"Add",
-    c"Subtract",
-    c"Concat",
-];
+pub static EXPR_ASGN_TYPE_TAB: [&std::ffi::CStr; 4] = [c"Plain", c"Add", c"Subtract", c"Concat"];
 
 const fn build_ccs_tab() -> [Option<&'static std::ffi::CStr>; 64] {
     let mut tab = [None; 64];
@@ -1174,27 +1169,27 @@ const NODE_PROPS: [(ExprOpLvl, ExprOpAssociativity); 39] = [
     (ExprOpLvl::Parens, ExprOpAssociativity::No),  // K_EXPR_NODE_LAMBDA
     (ExprOpLvl::Parens, ExprOpAssociativity::No),  // K_EXPR_NODE_DICT_LITERAL
     (ExprOpLvl::ComplexIdentifier, ExprOpAssociativity::Left), // K_EXPR_NODE_CURLY_BRACES_IDENTIFIER
-    (ExprOpLvl::Comma, ExprOpAssociativity::Right), // K_EXPR_NODE_COMMA
-    (ExprOpLvl::Colon, ExprOpAssociativity::No),   // K_EXPR_NODE_COLON
-    (ExprOpLvl::Arrow, ExprOpAssociativity::No),   // K_EXPR_NODE_ARROW
-    (ExprOpLvl::Comparison, ExprOpAssociativity::Right), // K_EXPR_NODE_COMPARISON
-    (ExprOpLvl::Addition, ExprOpAssociativity::Left), // K_EXPR_NODE_CONCAT
-    (ExprOpLvl::Subscript, ExprOpAssociativity::Left), // K_EXPR_NODE_CONCAT_OR_SUBSCRIPT
-    (ExprOpLvl::Value, ExprOpAssociativity::No),   // K_EXPR_NODE_INTEGER
-    (ExprOpLvl::Value, ExprOpAssociativity::No),   // K_EXPR_NODE_FLOAT
-    (ExprOpLvl::Value, ExprOpAssociativity::No),   // K_EXPR_NODE_SINGLE_QUOTED_STRING
-    (ExprOpLvl::Value, ExprOpAssociativity::No),   // K_EXPR_NODE_DOUBLE_QUOTED_STRING
-    (ExprOpLvl::Or, ExprOpAssociativity::Left),    // K_EXPR_NODE_OR
-    (ExprOpLvl::And, ExprOpAssociativity::Left),   // K_EXPR_NODE_AND
-    (ExprOpLvl::Unary, ExprOpAssociativity::No),   // K_EXPR_NODE_UNARY_MINUS
-    (ExprOpLvl::Addition, ExprOpAssociativity::Left), // K_EXPR_NODE_BINARY_MINUS
-    (ExprOpLvl::Unary, ExprOpAssociativity::No),   // K_EXPR_NODE_NOT
-    (ExprOpLvl::Multiplication, ExprOpAssociativity::Left), // K_EXPR_NODE_MULTIPLICATION
-    (ExprOpLvl::Multiplication, ExprOpAssociativity::Left), // K_EXPR_NODE_DIVISION
-    (ExprOpLvl::Multiplication, ExprOpAssociativity::Left), // K_EXPR_NODE_MOD
-    (ExprOpLvl::Value, ExprOpAssociativity::No),   // K_EXPR_NODE_OPTION
-    (ExprOpLvl::Value, ExprOpAssociativity::No),   // K_EXPR_NODE_ENVIRONMENT
-    (ExprOpLvl::Assignment, ExprOpAssociativity::Left), // K_EXPR_NODE_ASSIGNMENT
+    (ExprOpLvl::Comma, ExprOpAssociativity::Right),            // K_EXPR_NODE_COMMA
+    (ExprOpLvl::Colon, ExprOpAssociativity::No),               // K_EXPR_NODE_COLON
+    (ExprOpLvl::Arrow, ExprOpAssociativity::No),               // K_EXPR_NODE_ARROW
+    (ExprOpLvl::Comparison, ExprOpAssociativity::Right),       // K_EXPR_NODE_COMPARISON
+    (ExprOpLvl::Addition, ExprOpAssociativity::Left),          // K_EXPR_NODE_CONCAT
+    (ExprOpLvl::Subscript, ExprOpAssociativity::Left),         // K_EXPR_NODE_CONCAT_OR_SUBSCRIPT
+    (ExprOpLvl::Value, ExprOpAssociativity::No),               // K_EXPR_NODE_INTEGER
+    (ExprOpLvl::Value, ExprOpAssociativity::No),               // K_EXPR_NODE_FLOAT
+    (ExprOpLvl::Value, ExprOpAssociativity::No),               // K_EXPR_NODE_SINGLE_QUOTED_STRING
+    (ExprOpLvl::Value, ExprOpAssociativity::No),               // K_EXPR_NODE_DOUBLE_QUOTED_STRING
+    (ExprOpLvl::Or, ExprOpAssociativity::Left),                // K_EXPR_NODE_OR
+    (ExprOpLvl::And, ExprOpAssociativity::Left),               // K_EXPR_NODE_AND
+    (ExprOpLvl::Unary, ExprOpAssociativity::No),               // K_EXPR_NODE_UNARY_MINUS
+    (ExprOpLvl::Addition, ExprOpAssociativity::Left),          // K_EXPR_NODE_BINARY_MINUS
+    (ExprOpLvl::Unary, ExprOpAssociativity::No),               // K_EXPR_NODE_NOT
+    (ExprOpLvl::Multiplication, ExprOpAssociativity::Left),    // K_EXPR_NODE_MULTIPLICATION
+    (ExprOpLvl::Multiplication, ExprOpAssociativity::Left),    // K_EXPR_NODE_DIVISION
+    (ExprOpLvl::Multiplication, ExprOpAssociativity::Left),    // K_EXPR_NODE_MOD
+    (ExprOpLvl::Value, ExprOpAssociativity::No),               // K_EXPR_NODE_OPTION
+    (ExprOpLvl::Value, ExprOpAssociativity::No),               // K_EXPR_NODE_ENVIRONMENT
+    (ExprOpLvl::Assignment, ExprOpAssociativity::Left),        // K_EXPR_NODE_ASSIGNMENT
 ];
 
 use crate::charset::{ascii_isident, hex2nr};
@@ -1247,12 +1242,7 @@ fn viml_parser_highlight(
 }
 
 #[inline]
-fn scale_number(
-    num: TvFloat,
-    base: u8,
-    exponent: Uvarnumber,
-    exponent_negative: bool,
-) -> TvFloat {
+fn scale_number(num: TvFloat, base: u8, exponent: Uvarnumber, exponent_negative: bool) -> TvFloat {
     if num == 0.0 || exponent == 0 {
         return num;
     }
@@ -1836,8 +1826,7 @@ fn viml_pexpr_handle_bop(
             );
             let top_ref = (*top_node_p).as_deref_mut().unwrap();
             debug_assert!(
-                top_ref.children.is_some()
-                    && top_ref.children.as_ref().unwrap().next.is_some()
+                top_ref.children.is_some() && top_ref.children.as_ref().unwrap().next.is_some()
             );
             let top_child = top_ref.children.as_deref_mut().unwrap();
             let bop_type = bop_node.r#type;
@@ -1885,11 +1874,7 @@ struct StringShift {
 
 macro_rules! hl_group {
     ($is_invalid:expr, $valid:literal, $invalid:literal) => {
-        if $is_invalid {
-            $invalid
-        } else {
-            $valid
-        }
+        if $is_invalid { $invalid } else { $valid }
     };
 }
 
@@ -1966,7 +1951,8 @@ fn parse_quoted_string(
             );
             p = s.add(1);
             while (p as usize) < (e as usize) {
-                if crate::memory::cstr_first_byte(p) == b'\\' && (p.add(1) as usize) < (e as usize) {
+                if crate::memory::cstr_first_byte(p) == b'\\' && (p.add(1) as usize) < (e as usize)
+                {
                     p = p.add(1);
                     if std::ptr::eq(p.add(1), e) {
                         size -= 1;
@@ -1989,7 +1975,11 @@ fn parse_quoted_string(
                         }
                         b'u' | b'U' => {
                             let esc_start = p;
-                            let mut n: usize = if crate::memory::cstr_first_byte(p) == b'u' { 4 } else { 8 };
+                            let mut n: usize = if crate::memory::cstr_first_byte(p) == b'u' {
+                                4
+                            } else {
+                                8
+                            };
                             let mut nr: c_int = 0;
                             p = p.add(1);
                             while (p.add(1) as usize) < (e as usize)
@@ -1998,7 +1988,8 @@ fn parse_quoted_string(
                             {
                                 n -= 1;
                                 p = p.add(1);
-                                nr = (nr << 4) + hex2nr(c_int::from(crate::memory::cstr_first_byte(p)));
+                                nr = (nr << 4)
+                                    + hex2nr(c_int::from(crate::memory::cstr_first_byte(p)));
                             }
                             let esc_len = (p as usize) - (esc_start as usize - 1);
                             let char_len = utf_char2len(nr) as usize;
@@ -2008,7 +1999,9 @@ fn parse_quoted_string(
                         b'0'..=b'7' => {
                             size -= 1;
                             p = p.add(1);
-                            if (crate::memory::cstr_first_byte(p)) >= b'0' && (crate::memory::cstr_first_byte(p)) <= b'7' {
+                            if (crate::memory::cstr_first_byte(p)) >= b'0'
+                                && (crate::memory::cstr_first_byte(p)) <= b'7'
+                            {
                                 size -= 1;
                                 p = p.add(1);
                                 if (p as usize) < (e as usize)
@@ -2095,9 +2088,11 @@ fn parse_quoted_string(
                             p = p.add(1);
                         }
                         b'X' | b'x' | b'u' | b'U' => {
-                            if (p.add(1) as usize) < (e as usize) && ascii_isxdigit(crate::memory::cstr_byte_at(p, 1))
+                            if (p.add(1) as usize) < (e as usize)
+                                && ascii_isxdigit(crate::memory::cstr_byte_at(p, 1))
                             {
-                                let is_hex = crate::memory::cstr_first_byte(p) == b'x' || crate::memory::cstr_first_byte(p) == b'X';
+                                let is_hex = crate::memory::cstr_first_byte(p) == b'x'
+                                    || crate::memory::cstr_first_byte(p) == b'X';
                                 let mut n: usize = if is_hex {
                                     2
                                 } else if crate::memory::cstr_first_byte(p) == b'u' {
@@ -2112,7 +2107,8 @@ fn parse_quoted_string(
                                 {
                                     n -= 1;
                                     p = p.add(1);
-                                    nr = (nr << 4) + hex2nr(c_int::from(crate::memory::cstr_first_byte(p)));
+                                    nr = (nr << 4)
+                                        + hex2nr(c_int::from(crate::memory::cstr_first_byte(p)));
                                 }
                                 p = p.add(1);
                                 if is_hex {
@@ -2135,13 +2131,15 @@ fn parse_quoted_string(
                                 && (crate::memory::cstr_first_byte(p)) >= b'0'
                                 && (crate::memory::cstr_first_byte(p)) <= b'7'
                             {
-                                ch = (ch << 3).wrapping_add(crate::memory::cstr_first_byte(p) - b'0');
+                                ch = (ch << 3)
+                                    .wrapping_add(crate::memory::cstr_first_byte(p) - b'0');
                                 p = p.add(1);
                                 if (p as usize) < (e as usize)
                                     && (crate::memory::cstr_first_byte(p)) >= b'0'
                                     && (crate::memory::cstr_first_byte(p)) <= b'7'
                                 {
-                                    ch = (ch << 3).wrapping_add(crate::memory::cstr_first_byte(p) - b'0');
+                                    ch = (ch << 3)
+                                        .wrapping_add(crate::memory::cstr_first_byte(p) - b'0');
                                     p = p.add(1);
                                 }
                             }
@@ -2281,7 +2279,7 @@ fn parse_quoted_string(
 
 const WANT_NODE_TO_LEXER_FLAGS: [c_int; 2] = [
     K_ELFLAG_FORBID_SCOPE, // Operator
-    K_ELFLAG_IS_NOT_CMP,    // Value
+    K_ELFLAG_IS_NOT_CMP,   // Value
 ];
 
 const BASE_TO_PREFIX_LENGTH: [usize; 17] = [0, 0, 2, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 2];
@@ -2479,8 +2477,11 @@ pub fn viml_pexpr_parse(pstate: &mut ParserState<'_>, flags: c_int) -> ExprAST {
                                 c"E15: Missing operator: %.*s",
                                 cur_token.start,
                             );
-                            let mut cur_node =
-                                new_node_with_cur_pos(K_EXPR_NODE_OP_MISSING, cur_token, prev_token);
+                            let mut cur_node = new_node_with_cur_pos(
+                                K_EXPR_NODE_OP_MISSING,
+                                cur_token,
+                                prev_token,
+                            );
                             cur_node.len = 0;
                             let _ = viml_pexpr_handle_bop(
                                 pstate,
@@ -2542,8 +2543,11 @@ pub fn viml_pexpr_parse(pstate: &mut ParserState<'_>, flags: c_int) -> ExprAST {
                     }
                     K_EXPR_LEX_PLUS => {
                         if want_node == ExprASTWantedNode::Value {
-                            let cur_node =
-                                new_node_with_cur_pos(K_EXPR_NODE_UNARY_PLUS, cur_token, prev_token);
+                            let cur_node = new_node_with_cur_pos(
+                                K_EXPR_NODE_UNARY_PLUS,
+                                cur_token,
+                                prev_token,
+                            );
                             *top_node_p = Some(cur_node);
                             let node_ref = (*top_node_p).as_deref_mut().unwrap();
                             ast_stack.push(&raw mut node_ref.children);
@@ -2554,8 +2558,11 @@ pub fn viml_pexpr_parse(pstate: &mut ParserState<'_>, flags: c_int) -> ExprAST {
                                 hl_group!(is_invalid, c"NvimUnaryPlus", c"NvimInvalidUnaryPlus"),
                             );
                         } else {
-                            let cur_node =
-                                new_node_with_cur_pos(K_EXPR_NODE_BINARY_PLUS, cur_token, prev_token);
+                            let cur_node = new_node_with_cur_pos(
+                                K_EXPR_NODE_BINARY_PLUS,
+                                cur_token,
+                                prev_token,
+                            );
                             is_invalid |= !viml_pexpr_handle_bop(
                                 pstate,
                                 &mut ast_stack,
@@ -2574,8 +2581,11 @@ pub fn viml_pexpr_parse(pstate: &mut ParserState<'_>, flags: c_int) -> ExprAST {
                     }
                     K_EXPR_LEX_MINUS => {
                         if want_node == ExprASTWantedNode::Value {
-                            let cur_node =
-                                new_node_with_cur_pos(K_EXPR_NODE_UNARY_MINUS, cur_token, prev_token);
+                            let cur_node = new_node_with_cur_pos(
+                                K_EXPR_NODE_UNARY_MINUS,
+                                cur_token,
+                                prev_token,
+                            );
                             *top_node_p = Some(cur_node);
                             let node_ref = (*top_node_p).as_deref_mut().unwrap();
                             ast_stack.push(&raw mut node_ref.children);
@@ -2586,8 +2596,11 @@ pub fn viml_pexpr_parse(pstate: &mut ParserState<'_>, flags: c_int) -> ExprAST {
                                 hl_group!(is_invalid, c"NvimUnaryMinus", c"NvimInvalidUnaryMinus"),
                             );
                         } else {
-                            let cur_node =
-                                new_node_with_cur_pos(K_EXPR_NODE_BINARY_MINUS, cur_token, prev_token);
+                            let cur_node = new_node_with_cur_pos(
+                                K_EXPR_NODE_BINARY_MINUS,
+                                cur_token,
+                                prev_token,
+                            );
                             is_invalid |= !viml_pexpr_handle_bop(
                                 pstate,
                                 &mut ast_stack,
@@ -2627,7 +2640,8 @@ pub fn viml_pexpr_parse(pstate: &mut ParserState<'_>, flags: c_int) -> ExprAST {
                     }
                     K_EXPR_LEX_AND => {
                         add_value_if_missing!(c"E15: Unexpected and operator: %.*s");
-                        let cur_node = new_node_with_cur_pos(K_EXPR_NODE_AND, cur_token, prev_token);
+                        let cur_node =
+                            new_node_with_cur_pos(K_EXPR_NODE_AND, cur_token, prev_token);
                         viml_parser_highlight(
                             pstate,
                             cur_token.start,
@@ -2666,8 +2680,11 @@ pub fn viml_pexpr_parse(pstate: &mut ParserState<'_>, flags: c_int) -> ExprAST {
                                 n
                             }
                             K_EXPR_LEX_MUL_DIV => {
-                                let n =
-                                    new_node_with_cur_pos(K_EXPR_NODE_DIVISION, cur_token, prev_token);
+                                let n = new_node_with_cur_pos(
+                                    K_EXPR_NODE_DIVISION,
+                                    cur_token,
+                                    prev_token,
+                                );
                                 viml_parser_highlight(
                                     pstate,
                                     cur_token.start,
@@ -2677,7 +2694,8 @@ pub fn viml_pexpr_parse(pstate: &mut ParserState<'_>, flags: c_int) -> ExprAST {
                                 n
                             }
                             _ => {
-                                let n = new_node_with_cur_pos(K_EXPR_NODE_MOD, cur_token, prev_token);
+                                let n =
+                                    new_node_with_cur_pos(K_EXPR_NODE_MOD, cur_token, prev_token);
                                 viml_parser_highlight(
                                     pstate,
                                     cur_token.start,
@@ -2706,7 +2724,10 @@ pub fn viml_pexpr_parse(pstate: &mut ParserState<'_>, flags: c_int) -> ExprAST {
                                 pline.data.add(cur_token.start.col + cur_token.len);
                             cur_node.data.opt_mut().ident_len = 0;
                             cur_node.data.opt_mut().scope = if cur_token.len == 3 {
-                                c_int::from(crate::memory::cstr_byte_at(pline.data, cur_token.start.col + 1))
+                                c_int::from(crate::memory::cstr_byte_at(
+                                    pline.data,
+                                    cur_token.start.col + 1,
+                                ))
                             } else {
                                 K_EXPR_OPT_SCOPE_UNSPECIFIED
                             };
@@ -2723,12 +2744,12 @@ pub fn viml_pexpr_parse(pstate: &mut ParserState<'_>, flags: c_int) -> ExprAST {
                             1,
                             hl_group!(is_invalid, c"NvimOptionSigil", c"NvimInvalidOptionSigil"),
                         );
-                        let scope_shift = if cur_token.data.opt().scope == K_EXPR_OPT_SCOPE_UNSPECIFIED
-                        {
-                            0
-                        } else {
-                            2
-                        };
+                        let scope_shift =
+                            if cur_token.data.opt().scope == K_EXPR_OPT_SCOPE_UNSPECIFIED {
+                                0
+                            } else {
+                                2
+                            };
                         if scope_shift != 0 {
                             viml_parser_highlight(
                                 pstate,
@@ -2802,7 +2823,8 @@ pub fn viml_pexpr_parse(pstate: &mut ParserState<'_>, flags: c_int) -> ExprAST {
                         if want_node == ExprASTWantedNode::Operator {
                             op_missing!();
                         }
-                        let cur_node = new_node_with_cur_pos(K_EXPR_NODE_NOT, cur_token, prev_token);
+                        let cur_node =
+                            new_node_with_cur_pos(K_EXPR_NODE_NOT, cur_token, prev_token);
                         *top_node_p = Some(cur_node);
                         let node_ref = (*top_node_p).as_deref_mut().unwrap();
                         ast_stack.push(&raw mut node_ref.children);
@@ -2922,7 +2944,8 @@ pub fn viml_pexpr_parse(pstate: &mut ParserState<'_>, flags: c_int) -> ExprAST {
                                 cur_token.start,
                             );
                         }
-                        let cur_node = new_node_with_cur_pos(K_EXPR_NODE_COMMA, cur_token, prev_token);
+                        let cur_node =
+                            new_node_with_cur_pos(K_EXPR_NODE_COMMA, cur_token, prev_token);
                         is_invalid |= !viml_pexpr_handle_bop(
                             pstate,
                             &mut ast_stack,
@@ -2961,9 +2984,7 @@ pub fn viml_pexpr_parse(pstate: &mut ParserState<'_>, flags: c_int) -> ExprAST {
                                     }
                                     is_ternary = true;
                                     eastnode.data.ter_mut().got_colon = true;
-                                    add_value_if_missing!(
-                                        c"E15: Expected value, got colon: %.*s"
-                                    );
+                                    add_value_if_missing!(c"E15: Expected value, got colon: %.*s");
                                     let child = eastnode.children.as_deref_mut().unwrap();
                                     ast_stack.push(&raw mut child.next);
                                     valid_colon = true;
@@ -2999,15 +3020,16 @@ pub fn viml_pexpr_parse(pstate: &mut ParserState<'_>, flags: c_int) -> ExprAST {
                                 && (*ast_stack[ast_stack.len() - 2]).as_ref().unwrap().r#type
                                     == K_EXPR_NODE_SUBSCRIPT
                             {
-                                let mut cur_node =
-                                    new_node_with_cur_pos(K_EXPR_NODE_MISSING, cur_token, prev_token);
+                                let mut cur_node = new_node_with_cur_pos(
+                                    K_EXPR_NODE_MISSING,
+                                    cur_token,
+                                    prev_token,
+                                );
                                 cur_node.len = 0;
                                 *top_node_p = Some(cur_node);
                                 want_node = ExprASTWantedNode::Operator;
                             } else {
-                                add_value_if_missing!(
-                                    c"E15: Expected value, got colon: %.*s"
-                                );
+                                add_value_if_missing!(c"E15: Expected value, got colon: %.*s");
                             }
                             let cur_node =
                                 new_node_with_cur_pos(K_EXPR_NODE_COLON, cur_token, prev_token);
@@ -3194,8 +3216,11 @@ pub fn viml_pexpr_parse(pstate: &mut ParserState<'_>, flags: c_int) -> ExprAST {
                                 pt_stack.pop();
                             }
                         } else if want_node == ExprASTWantedNode::Value {
-                            let cur_node =
-                                new_node_with_cur_pos(K_EXPR_NODE_LIST_LITERAL, cur_token, prev_token);
+                            let cur_node = new_node_with_cur_pos(
+                                K_EXPR_NODE_LIST_LITERAL,
+                                cur_token,
+                                prev_token,
+                            );
                             *top_node_p = Some(cur_node);
                             let node_ref = (*top_node_p).as_deref_mut().unwrap();
                             ast_stack.push(&raw mut node_ref.children);
@@ -3304,7 +3329,8 @@ pub fn viml_pexpr_parse(pstate: &mut ParserState<'_>, flags: c_int) -> ExprAST {
                                             && (*new_top_node_p).as_ref().is_some_and(|n| {
                                                 n.r#type == K_EXPR_NODE_UNKNOWN_FIGURE
                                                     || n.r#type == K_EXPR_NODE_DICT_LITERAL
-                                                    || n.r#type == K_EXPR_NODE_CURLY_BRACES_IDENTIFIER
+                                                    || n.r#type
+                                                        == K_EXPR_NODE_CURLY_BRACES_IDENTIFIER
                                                     || n.r#type == K_EXPR_NODE_LAMBDA
                                             }))
                                     {
@@ -3331,13 +3357,9 @@ pub fn viml_pexpr_parse(pstate: &mut ParserState<'_>, flags: c_int) -> ExprAST {
                                                 cur_token.len,
                                                 grp,
                                             );
-                                        } else if new_top_node
-                                            .data
-                                            .fig()
-                                            .type_guesses
-                                            .allow_ident
-                                        {
-                                            new_top_node.r#type = K_EXPR_NODE_CURLY_BRACES_IDENTIFIER;
+                                        } else if new_top_node.data.fig().type_guesses.allow_ident {
+                                            new_top_node.r#type =
+                                                K_EXPR_NODE_CURLY_BRACES_IDENTIFIER;
                                             let grp = hl_group!(
                                                 is_invalid,
                                                 c"NvimCurly",
@@ -3588,8 +3610,11 @@ pub fn viml_pexpr_parse(pstate: &mut ParserState<'_>, flags: c_int) -> ExprAST {
                                     c"E15: Unexpected arrow: %.*s",
                                     cur_token.start,
                                 );
-                                let mut missing_node =
-                                    new_node_with_cur_pos(K_EXPR_NODE_MISSING, cur_token, prev_token);
+                                let mut missing_node = new_node_with_cur_pos(
+                                    K_EXPR_NODE_MISSING,
+                                    cur_token,
+                                    prev_token,
+                                );
                                 missing_node.len = 0;
                                 *top_node_p = Some(missing_node);
                                 want_node = ExprASTWantedNode::Operator;
@@ -3636,7 +3661,11 @@ pub fn viml_pexpr_parse(pstate: &mut ParserState<'_>, flags: c_int) -> ExprAST {
                                 prev_token,
                             );
                             cur_node.data.var_mut().scope = scope;
-                            let scope_shift = if scope == K_EXPR_VAR_SCOPE_MISSING { 0 } else { 2 };
+                            let scope_shift = if scope == K_EXPR_VAR_SCOPE_MISSING {
+                                0
+                            } else {
+                                2
+                            };
                             cur_node.data.var_mut().ident =
                                 pline.data.add(cur_token.start.col + scope_shift);
                             cur_node.data.var_mut().ident_len = cur_token.len - scope_shift;
@@ -3708,8 +3737,7 @@ pub fn viml_pexpr_parse(pstate: &mut ParserState<'_>, flags: c_int) -> ExprAST {
                                     prev_token,
                                 );
                                 cur_node.data.var_mut().scope = scope;
-                                cur_node.data.var_mut().ident =
-                                    pline.data.add(cur_token.start.col);
+                                cur_node.data.var_mut().ident = pline.data.add(cur_token.start.col);
                                 cur_node.data.var_mut().ident_len = cur_token.len;
                                 want_node = ExprASTWantedNode::Operator;
                                 *new_top_node_p = Some(cur_node);
@@ -3800,7 +3828,8 @@ pub fn viml_pexpr_parse(pstate: &mut ParserState<'_>, flags: c_int) -> ExprAST {
                                     cur_token.start,
                                 );
                             }
-                            let n = new_node_with_cur_pos(K_EXPR_NODE_CONCAT, cur_token, prev_token);
+                            let n =
+                                new_node_with_cur_pos(K_EXPR_NODE_CONCAT, cur_token, prev_token);
                             viml_parser_highlight(
                                 pstate,
                                 cur_token.start,
@@ -3870,7 +3899,8 @@ pub fn viml_pexpr_parse(pstate: &mut ParserState<'_>, flags: c_int) -> ExprAST {
                             while !ast_stack.is_empty()
                                 && (new_top_node_p.is_null()
                                     || (*new_top_node_p).as_ref().is_none_or(|n| {
-                                        n.r#type != K_EXPR_NODE_NESTED && n.r#type != K_EXPR_NODE_CALL
+                                        n.r#type != K_EXPR_NODE_NESTED
+                                            && n.r#type != K_EXPR_NODE_CALL
                                     }))
                             {
                                 new_top_node_p = ast_stack.pop().unwrap();
@@ -3880,7 +3910,8 @@ pub fn viml_pexpr_parse(pstate: &mut ParserState<'_>, flags: c_int) -> ExprAST {
                                     n.r#type == K_EXPR_NODE_NESTED || n.r#type == K_EXPR_NODE_CALL
                                 })
                             {
-                                if (*new_top_node_p).as_ref().unwrap().r#type == K_EXPR_NODE_NESTED {
+                                if (*new_top_node_p).as_ref().unwrap().r#type == K_EXPR_NODE_NESTED
+                                {
                                     viml_parser_highlight(
                                         pstate,
                                         cur_token.start,
@@ -3964,8 +3995,11 @@ pub fn viml_pexpr_parse(pstate: &mut ParserState<'_>, flags: c_int) -> ExprAST {
                                             op_missing!();
                                         }
                                     }
-                                    let cur_node =
-                                        new_node_with_cur_pos(K_EXPR_NODE_CALL, cur_token, prev_token);
+                                    let cur_node = new_node_with_cur_pos(
+                                        K_EXPR_NODE_CALL,
+                                        cur_token,
+                                        prev_token,
+                                    );
                                     is_invalid |= !viml_pexpr_handle_bop(
                                         pstate,
                                         &mut ast_stack,
@@ -3989,9 +4023,7 @@ pub fn viml_pexpr_parse(pstate: &mut ParserState<'_>, flags: c_int) -> ExprAST {
                         }
                     }
                     K_EXPR_LEX_QUESTION => {
-                        add_value_if_missing!(
-                            c"E15: Expected value, got question mark: %.*s"
-                        );
+                        add_value_if_missing!(c"E15: Expected value, got question mark: %.*s");
                         let cur_node =
                             new_node_with_cur_pos(K_EXPR_NODE_TERNARY, cur_token, prev_token);
                         is_invalid |= !viml_pexpr_handle_bop(
@@ -4241,176 +4273,182 @@ mod tests {
     #[test]
     fn lexer_tokens_and_flags() {
         let t = lex_one(b"(", 0);
-            assert_eq!(t.r#type, K_EXPR_LEX_PARENTHESIS);
-            assert!(!t.data.brc().closing);
+        assert_eq!(t.r#type, K_EXPR_LEX_PARENTHESIS);
+        assert!(!t.data.brc().closing);
 
-            let t = lex_one(b")]", 0);
-            assert_eq!(t.r#type, K_EXPR_LEX_PARENTHESIS);
-            assert!(t.data.brc().closing);
-            assert_eq!(t.len, 1);
+        let t = lex_one(b")]", 0);
+        assert_eq!(t.r#type, K_EXPR_LEX_PARENTHESIS);
+        assert!(t.data.brc().closing);
+        assert_eq!(t.len, 1);
 
-            let t = lex_one(b"0x123", 0);
-            assert_eq!(t.r#type, K_EXPR_LEX_NUMBER);
-            assert!(!t.data.num().is_float);
-            assert_eq!(t.data.num().base, 16);
-            assert_eq!(t.data.num().val.integer(), 0x123);
+        let t = lex_one(b"0x123", 0);
+        assert_eq!(t.r#type, K_EXPR_LEX_NUMBER);
+        assert!(!t.data.num().is_float);
+        assert_eq!(t.data.num().base, 16);
+        assert_eq!(t.data.num().val.integer(), 0x123);
 
-            let t = lex_one(b"0b100111", 0);
-            assert_eq!(t.r#type, K_EXPR_LEX_NUMBER);
-            assert_eq!(t.data.num().base, 2);
-            assert_eq!(t.data.num().val.integer(), 39);
+        let t = lex_one(b"0b100111", 0);
+        assert_eq!(t.r#type, K_EXPR_LEX_NUMBER);
+        assert_eq!(t.data.num().base, 2);
+        assert_eq!(t.data.num().val.integer(), 39);
 
-            let t = lex_one(b"0123", 0);
-            assert_eq!(t.r#type, K_EXPR_LEX_NUMBER);
-            assert_eq!(t.data.num().base, 8);
-            assert_eq!(t.data.num().val.integer(), 83);
+        let t = lex_one(b"0123", 0);
+        assert_eq!(t.r#type, K_EXPR_LEX_NUMBER);
+        assert_eq!(t.data.num().base, 8);
+        assert_eq!(t.data.num().val.integer(), 83);
 
-            // Without K_ELFLAG_ALLOW_FLOAT, "2.5" stops at "2".
-            let t = lex_one(b"2.5", 0);
-            assert_eq!(t.r#type, K_EXPR_LEX_NUMBER);
-            assert!(!t.data.num().is_float);
-            assert_eq!(t.len, 1);
-            assert_eq!(t.data.num().val.integer(), 2);
+        // Without K_ELFLAG_ALLOW_FLOAT, "2.5" stops at "2".
+        let t = lex_one(b"2.5", 0);
+        assert_eq!(t.r#type, K_EXPR_LEX_NUMBER);
+        assert!(!t.data.num().is_float);
+        assert_eq!(t.len, 1);
+        assert_eq!(t.data.num().val.integer(), 2);
 
-            // With K_ELFLAG_ALLOW_FLOAT, "2.5e-2" parses as float.
-            let t = lex_one(b"2.5e-2", K_ELFLAG_ALLOW_FLOAT);
-            assert_eq!(t.r#type, K_EXPR_LEX_NUMBER);
-            assert!(t.data.num().is_float);
-            assert_eq!(t.len, 6);
-            assert!((t.data.num().val.floating() - 0.025).abs() < 1e-12);
+        // With K_ELFLAG_ALLOW_FLOAT, "2.5e-2" parses as float.
+        let t = lex_one(b"2.5e-2", K_ELFLAG_ALLOW_FLOAT);
+        assert_eq!(t.r#type, K_EXPR_LEX_NUMBER);
+        assert!(t.data.num().is_float);
+        assert_eq!(t.len, 6);
+        assert!((t.data.num().val.floating() - 0.025).abs() < 1e-12);
 
-            // Comparisons and case strategies
-            let t = lex_one(b"==#", 0);
-            assert_eq!(t.r#type, K_EXPR_LEX_COMPARISON);
-            assert_eq!(t.data.cmp().r#type, K_EXPR_CMP_EQUAL);
-            assert!(!t.data.cmp().inv);
-            assert_eq!(t.data.cmp().ccs, K_CCSTRATEGY_MATCH_CASE);
+        // Comparisons and case strategies
+        let t = lex_one(b"==#", 0);
+        assert_eq!(t.r#type, K_EXPR_LEX_COMPARISON);
+        assert_eq!(t.data.cmp().r#type, K_EXPR_CMP_EQUAL);
+        assert!(!t.data.cmp().inv);
+        assert_eq!(t.data.cmp().ccs, K_CCSTRATEGY_MATCH_CASE);
 
-            let t = lex_one(b"!~?", 0);
-            assert_eq!(t.r#type, K_EXPR_LEX_COMPARISON);
-            assert_eq!(t.data.cmp().r#type, K_EXPR_CMP_MATCHES);
-            assert!(t.data.cmp().inv);
-            assert_eq!(t.data.cmp().ccs, K_CCSTRATEGY_IGNORE_CASE);
+        let t = lex_one(b"!~?", 0);
+        assert_eq!(t.r#type, K_EXPR_LEX_COMPARISON);
+        assert_eq!(t.data.cmp().r#type, K_EXPR_CMP_MATCHES);
+        assert!(t.data.cmp().inv);
+        assert_eq!(t.data.cmp().ccs, K_CCSTRATEGY_IGNORE_CASE);
 
-            // `is` / `isnot` with and without K_ELFLAG_IS_NOT_CMP
-            let t = lex_one(b"isnot#", 0);
-            assert_eq!(t.r#type, K_EXPR_LEX_COMPARISON);
-            assert_eq!(t.data.cmp().r#type, K_EXPR_CMP_IDENTICAL);
-            assert!(t.data.cmp().inv);
-            assert_eq!(t.data.cmp().ccs, K_CCSTRATEGY_MATCH_CASE);
+        // `is` / `isnot` with and without K_ELFLAG_IS_NOT_CMP
+        let t = lex_one(b"isnot#", 0);
+        assert_eq!(t.r#type, K_EXPR_LEX_COMPARISON);
+        assert_eq!(t.data.cmp().r#type, K_EXPR_CMP_IDENTICAL);
+        assert!(t.data.cmp().inv);
+        assert_eq!(t.data.cmp().ccs, K_CCSTRATEGY_MATCH_CASE);
 
-            let t = lex_one(b"isnot#foo", K_ELFLAG_IS_NOT_CMP);
+        let t = lex_one(b"isnot#foo", K_ELFLAG_IS_NOT_CMP);
+        assert_eq!(t.r#type, K_EXPR_LEX_PLAIN_IDENTIFIER);
+        assert_eq!(t.len, 9);
+        assert!(t.data.var().autoload);
+
+        // Scope and K_ELFLAG_FORBID_SCOPE
+        let t = lex_one(b"g:test#var", 0);
+        assert_eq!(t.r#type, K_EXPR_LEX_PLAIN_IDENTIFIER);
+        assert_eq!(t.data.var().scope, b'g' as c_int);
+        assert!(t.data.var().autoload);
+
+        let t = lex_one(b"g:test", K_ELFLAG_FORBID_SCOPE);
+        assert_eq!(t.r#type, K_EXPR_LEX_PLAIN_IDENTIFIER);
+        assert_eq!(t.len, 1);
+        assert_eq!(t.data.var().scope, 0);
+
+        // Options, registers, env, strings, assignments
+        let t = lex_one(b"&l:opt", 0);
+        assert_eq!(t.r#type, K_EXPR_LEX_OPTION);
+        assert_eq!(t.data.opt().scope, b'l' as c_int);
+        assert_eq!(t.data.opt().len, 3);
+
+        let t = lex_one(b"&g:", 0);
+        assert_eq!(t.r#type, K_EXPR_LEX_INVALID);
+        assert_eq!(
+            &t.data.err().msg.unwrap().to_bytes()[4..],
+            b": Option name missing: %.*s"
+        );
+
+        let t = lex_one(b"@a", 0);
+        assert_eq!(t.r#type, K_EXPR_LEX_REGISTER);
+        assert_eq!(t.data.reg().name, b'a' as c_int);
+
+        let t = lex_one(b"'x'''", 0);
+        assert_eq!(t.r#type, K_EXPR_LEX_SINGLE_QUOTED_STRING);
+        assert!(t.data.str().closed);
+
+        let t = lex_one(b"\"x\\\"", 0);
+        assert_eq!(t.r#type, K_EXPR_LEX_DOUBLE_QUOTED_STRING);
+        assert!(!t.data.str().closed);
+
+        let t = lex_one(b".=", 0);
+        assert_eq!(t.r#type, K_EXPR_LEX_ASSIGNMENT);
+        assert_eq!(t.data.ass().r#type, K_EXPR_ASGN_CONCAT);
+
+        // Peek does not advance pstate.pos
+        with_pstate(b"abc", |pstate| {
+            let t = viml_pexpr_next_token(pstate, K_ELFLAG_PEEK);
             assert_eq!(t.r#type, K_EXPR_LEX_PLAIN_IDENTIFIER);
-            assert_eq!(t.len, 9);
-            assert!(t.data.var().autoload);
+            assert_eq!(t.len, 3);
+            assert_eq!(pstate.pos.col, 0);
+        });
 
-            // Scope and K_ELFLAG_FORBID_SCOPE
-            let t = lex_one(b"g:test#var", 0);
-            assert_eq!(t.r#type, K_EXPR_LEX_PLAIN_IDENTIFIER);
-            assert_eq!(t.data.var().scope, b'g' as c_int);
-            assert!(t.data.var().autoload);
-
-            let t = lex_one(b"g:test", K_ELFLAG_FORBID_SCOPE);
-            assert_eq!(t.r#type, K_EXPR_LEX_PLAIN_IDENTIFIER);
-            assert_eq!(t.len, 1);
-            assert_eq!(t.data.var().scope, 0);
-
-            // Options, registers, env, strings, assignments
-            let t = lex_one(b"&l:opt", 0);
-            assert_eq!(t.r#type, K_EXPR_LEX_OPTION);
-            assert_eq!(t.data.opt().scope, b'l' as c_int);
-            assert_eq!(t.data.opt().len, 3);
-
-            let t = lex_one(b"&g:", 0);
-            assert_eq!(t.r#type, K_EXPR_LEX_INVALID);
-            assert_eq!(
-                &t.data.err().msg.unwrap().to_bytes()[4..],
-                b": Option name missing: %.*s"
-            );
-
-            let t = lex_one(b"@a", 0);
-            assert_eq!(t.r#type, K_EXPR_LEX_REGISTER);
-            assert_eq!(t.data.reg().name, b'a' as c_int);
-
-            let t = lex_one(b"'x'''", 0);
-            assert_eq!(t.r#type, K_EXPR_LEX_SINGLE_QUOTED_STRING);
-            assert!(t.data.str().closed);
-
-            let t = lex_one(b"\"x\\\"", 0);
-            assert_eq!(t.r#type, K_EXPR_LEX_DOUBLE_QUOTED_STRING);
-            assert!(!t.data.str().closed);
-
-            let t = lex_one(b".=", 0);
-            assert_eq!(t.r#type, K_EXPR_LEX_ASSIGNMENT);
-            assert_eq!(t.data.ass().r#type, K_EXPR_ASGN_CONCAT);
-
-            // Peek does not advance pstate.pos
-            with_pstate(b"abc", |pstate| {
-                let t = viml_pexpr_next_token(pstate, K_ELFLAG_PEEK);
-                assert_eq!(t.r#type, K_EXPR_LEX_PLAIN_IDENTIFIER);
-                assert_eq!(t.len, 3);
-                assert_eq!(pstate.pos.col, 0);
-            });
-
-            // EOC and K_ELFLAG_FORBID_EOC
-            let t = lex_one(b"|", 0);
-            assert_eq!(t.r#type, K_EXPR_LEX_EOC);
-            let t = lex_one(b"|", K_ELFLAG_FORBID_EOC);
-            assert_eq!(t.r#type, K_EXPR_LEX_INVALID);
+        // EOC and K_ELFLAG_FORBID_EOC
+        let t = lex_one(b"|", 0);
+        assert_eq!(t.r#type, K_EXPR_LEX_EOC);
+        let t = lex_one(b"|", K_ELFLAG_FORBID_EOC);
+        assert_eq!(t.r#type, K_EXPR_LEX_INVALID);
     }
 
     #[test]
     fn lex_and_parse_expressions_and_errors() {
         // Binary precedence: 1 + 2 * 3
-            with_pstate(b"1 + 2 * 3", |pstate| {
-                let ast = viml_pexpr_parse(pstate, 0);
-                assert!(ast.err.msg.is_none());
-                let root = ast.root.as_ref().unwrap();
-                assert_eq!(root.r#type, K_EXPR_NODE_BINARY_PLUS);
-                let left = root.children.as_ref().unwrap();
-                let right = left.next.as_ref().unwrap();
-                assert_eq!(left.r#type, K_EXPR_NODE_INTEGER);
-                assert_eq!(right.r#type, K_EXPR_NODE_MULTIPLICATION);
-                assert!(!pstate.colors.as_ref().unwrap().is_empty());
-            });
+        with_pstate(b"1 + 2 * 3", |pstate| {
+            let ast = viml_pexpr_parse(pstate, 0);
+            assert!(ast.err.msg.is_none());
+            let root = ast.root.as_ref().unwrap();
+            assert_eq!(root.r#type, K_EXPR_NODE_BINARY_PLUS);
+            let left = root.children.as_ref().unwrap();
+            let right = left.next.as_ref().unwrap();
+            assert_eq!(left.r#type, K_EXPR_NODE_INTEGER);
+            assert_eq!(right.r#type, K_EXPR_NODE_MULTIPLICATION);
+            assert!(!pstate.colors.as_ref().unwrap().is_empty());
+        });
 
-            // Ternary, lambda, dictionary, list, call, subscript
-            with_pstate(b"cond ? {x -> [x, {'k': f(x)[0]}]} : 0", |pstate| {
-                let ast = viml_pexpr_parse(pstate, 0);
-                assert!(ast.err.msg.is_none());
-                assert_eq!(ast.root.as_ref().unwrap().r#type, K_EXPR_NODE_TERNARY);
-            });
+        // Ternary, lambda, dictionary, list, call, subscript
+        with_pstate(b"cond ? {x -> [x, {'k': f(x)[0]}]} : 0", |pstate| {
+            let ast = viml_pexpr_parse(pstate, 0);
+            assert!(ast.err.msg.is_none());
+            assert_eq!(ast.root.as_ref().unwrap().r#type, K_EXPR_NODE_TERNARY);
+        });
 
-            // Assignment with K_EXPR_FLAGS_PARSE_LET
-            with_pstate(b"[a, b] = [1, 2]", |pstate| {
-                let ast = viml_pexpr_parse(pstate, K_EXPR_FLAGS_PARSE_LET);
-                assert!(ast.err.msg.is_none());
-                assert_eq!(ast.root.as_ref().unwrap().r#type, K_EXPR_NODE_ASSIGNMENT);
-                assert_eq!(ast.root.as_ref().unwrap().data.ass().r#type, K_EXPR_ASGN_PLAIN);
-            });
+        // Assignment with K_EXPR_FLAGS_PARSE_LET
+        with_pstate(b"[a, b] = [1, 2]", |pstate| {
+            let ast = viml_pexpr_parse(pstate, K_EXPR_FLAGS_PARSE_LET);
+            assert!(ast.err.msg.is_none());
+            assert_eq!(ast.root.as_ref().unwrap().r#type, K_EXPR_NODE_ASSIGNMENT);
+            assert_eq!(
+                ast.root.as_ref().unwrap().data.ass().r#type,
+                K_EXPR_ASGN_PLAIN
+            );
+        });
 
-            with_pstate(b"a += 1", |pstate| {
-                let ast = viml_pexpr_parse(pstate, K_EXPR_FLAGS_PARSE_LET);
-                assert!(ast.err.msg.is_none());
-                assert_eq!(ast.root.as_ref().unwrap().r#type, K_EXPR_NODE_ASSIGNMENT);
-                assert_eq!(ast.root.as_ref().unwrap().data.ass().r#type, K_EXPR_ASGN_ADD);
-            });
+        with_pstate(b"a += 1", |pstate| {
+            let ast = viml_pexpr_parse(pstate, K_EXPR_FLAGS_PARSE_LET);
+            assert!(ast.err.msg.is_none());
+            assert_eq!(ast.root.as_ref().unwrap().r#type, K_EXPR_NODE_ASSIGNMENT);
+            assert_eq!(
+                ast.root.as_ref().unwrap().data.ass().r#type,
+                K_EXPR_ASGN_ADD
+            );
+        });
 
-            // Syntax errors report expected diagnostics
-            with_pstate(b"1 + (2 * 3", |pstate| {
-                let ast = viml_pexpr_parse(pstate, 0);
-                assert_eq!(
-                    &ast.err.msg.unwrap().to_bytes()[4..],
-                    b": Missing closing parenthesis for nested expression: %.*s"
-                );
-            });
+        // Syntax errors report expected diagnostics
+        with_pstate(b"1 + (2 * 3", |pstate| {
+            let ast = viml_pexpr_parse(pstate, 0);
+            assert_eq!(
+                &ast.err.msg.unwrap().to_bytes()[4..],
+                b": Missing closing parenthesis for nested expression: %.*s"
+            );
+        });
 
-            with_pstate(b"cond ? 1", |pstate| {
-                let ast = viml_pexpr_parse(pstate, 0);
-                assert_eq!(
-                    &ast.err.msg.unwrap().to_bytes()[4..],
-                    b": Missing ':' after '?': %.*s"
-                );
-            });
+        with_pstate(b"cond ? 1", |pstate| {
+            let ast = viml_pexpr_parse(pstate, 0);
+            assert_eq!(
+                &ast.err.msg.unwrap().to_bytes()[4..],
+                b": Missing ':' after '?': %.*s"
+            );
+        });
     }
 }

@@ -512,13 +512,13 @@ const KEYCODES_KP_CSIU: [KeycodeEntry; 18] = [
 #[inline]
 fn vterm_state_get_key_encoding_disambiguate(state: &VTermStateFull) -> bool {
     let screen = if (state.mode & MODE_ALT_SCREEN_BIT) != 0 {
-            BUFIDX_ALTSCREEN
-        } else {
-            BUFIDX_PRIMARY
-        };
-        let stack = &state.key_encoding_stacks[screen];
-        debug_assert!(stack.size > 0);
-        (stack.items[(stack.size - 1) as usize] & 0x01) != 0
+        BUFIDX_ALTSCREEN
+    } else {
+        BUFIDX_PRIMARY
+    };
+    let stack = &state.key_encoding_stacks[screen];
+    debug_assert!(stack.size > 0);
+    (stack.items[(stack.size - 1) as usize] & 0x01) != 0
 }
 
 pub fn vterm_keyboard_unichar(vt: &mut VTerm, mut c: u32, mut mod_: VTermModifier) {
@@ -590,34 +590,34 @@ fn emit_literal(
     literal: c_int,
 ) {
     if disambiguate && matches!(key, VTERM_KEY_TAB | VTERM_KEY_ENTER | VTERM_KEY_BACKSPACE) {
-            disambiguate = mod_ != VTERM_MOD_NONE;
-        }
+        disambiguate = mod_ != VTERM_MOD_NONE;
+    }
 
-        if disambiguate {
-            let s = format!("{literal};{}u", mod_ + 1);
-            vterm_push_output_ctrl_bytes(vt, C1_CSI, s.as_bytes());
-        } else if (mod_ & VTERM_MOD_ALT) != 0 {
-            vterm_push_output_bytes_slice(vt, &[0x1b, literal as u8]);
-        } else {
-            vterm_push_output_bytes_slice(vt, &[literal as u8]);
-        }
+    if disambiguate {
+        let s = format!("{literal};{}u", mod_ + 1);
+        vterm_push_output_ctrl_bytes(vt, C1_CSI, s.as_bytes());
+    } else if (mod_ & VTERM_MOD_ALT) != 0 {
+        vterm_push_output_bytes_slice(vt, &[0x1b, literal as u8]);
+    } else {
+        vterm_push_output_bytes_slice(vt, &[literal as u8]);
+    }
 }
 
 fn emit_csi(vt: &mut VTerm, mod_: VTermModifier, literal: c_int) {
     if mod_ == 0 {
-            vterm_push_output_ctrl_bytes(vt, C1_CSI, &[literal as u8]);
-        } else {
-            let s = format!("1;{}{}", mod_ + 1, (literal as u8) as char);
-            vterm_push_output_ctrl_bytes(vt, C1_CSI, s.as_bytes());
-        }
+        vterm_push_output_ctrl_bytes(vt, C1_CSI, &[literal as u8]);
+    } else {
+        let s = format!("1;{}{}", mod_ + 1, (literal as u8) as char);
+        vterm_push_output_ctrl_bytes(vt, C1_CSI, s.as_bytes());
+    }
 }
 
 fn emit_ss3(vt: &mut VTerm, mod_: VTermModifier, literal: c_int) {
     if mod_ == 0 {
-            vterm_push_output_ctrl_bytes(vt, C1_SS3, &[literal as u8]);
-        } else {
-            emit_csi(vt, mod_, literal);
-        }
+        vterm_push_output_ctrl_bytes(vt, C1_SS3, &[literal as u8]);
+    } else {
+        emit_csi(vt, mod_, literal);
+    }
 }
 
 pub fn vterm_keyboard_key(vt: &mut VTerm, key: VTermKey, mod_: VTermModifier) {

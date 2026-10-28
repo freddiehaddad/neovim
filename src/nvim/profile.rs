@@ -3,8 +3,8 @@
 use crate::charset::{skiptowhite, skipwhite};
 use crate::debugger::ex_breakadd;
 use crate::errors::E_NOTOPEN;
-use crate::eval::typval::{TvDict, Dictitem, TvList, Listitem, TypVal};
-use crate::eval::userfunc::{DeferCall, func_tbl_get, get_current_funccal, UserFunc};
+use crate::eval::typval::{Dictitem, Listitem, TvDict, TvList, TypVal};
+use crate::eval::userfunc::{DeferCall, UserFunc, func_tbl_get, get_current_funccal};
 use crate::eval::vars::{VV_PROFILING, set_vim_var_nr};
 use crate::event::r#loop::uv_err_name;
 use crate::ex_docmd::Exarg;
@@ -276,11 +276,7 @@ pub const fn profile_sub(tm1: Proftime, tm2: Proftime) -> Proftime {
 }
 
 /// Adds the `self` time from the total time and the `children` time (`profile_self`).
-pub const fn profile_self(
-    self_time: Proftime,
-    total: Proftime,
-    children: Proftime,
-) -> Proftime {
+pub const fn profile_self(self_time: Proftime, total: Proftime, children: Proftime) -> Proftime {
     if total <= children {
         return self_time;
     }
@@ -430,7 +426,8 @@ pub fn get_profile_name(_xp: &mut ExpandCtx, idx: c_int) -> *mut c_char {
 }
 
 /// Set command-line completion context for `:profile` (`set_context_in_profile_cmd`).
-pub fn set_context_in_profile_cmd(xp: &mut ExpandCtx, arg: impl crate::strings::IntoCCharPtr) { let arg = arg.into_c_char_ptr();
+pub fn set_context_in_profile_cmd(xp: &mut ExpandCtx, arg: impl crate::strings::IntoCCharPtr) {
+    let arg = arg.into_c_char_ptr();
     xp.xp_context = EXPAND_PROFILE;
     prof_st().pexpand_what = PEXP_SUBCMD;
     xp.xp_pattern = arg.cast_mut();
@@ -441,7 +438,7 @@ pub fn set_context_in_profile_cmd(xp: &mut ExpandCtx, arg: impl crate::strings::
     }
 
     let len = (end_subcmd as usize) - (arg as usize);
-    let sub_bytes =  { crate::memory::cstr_slice(arg, len) };
+    let sub_bytes = { crate::memory::cstr_slice(arg, len) };
     if sub_bytes == b"start" || sub_bytes == b"file" {
         xp.xp_context = EXPAND_FILES;
         xp.xp_pattern = skipwhite(end_subcmd);
@@ -467,7 +464,7 @@ pub fn prof_input_end() {
 
 /// Returns `true` when a function defined in the current script should be profiled (`prof_def_func`).
 pub fn prof_def_func() -> bool {
-     {
+    {
         if g_st().current_sctx.sc_sid > 0 {
             script_item(g_st().current_sctx.sc_sid).sn_pr_force
         } else {
@@ -484,20 +481,20 @@ fn prof_func_line(
     prefer_self: bool,
 ) {
     if count > 0 {
-            fprintf!(fd, c"%5d ", count);
-            if prefer_self && profile_equal(*total, *self_time) {
-                fprintf!(fd, c"           ");
-            } else {
-                fprintf!(fd, c"%s ", profile_msg(*total));
-            }
-            if !prefer_self && profile_equal(*total, *self_time) {
-                fprintf!(fd, c"           ");
-            } else {
-                fprintf!(fd, c"%s ", profile_msg(*self_time));
-            }
+        fprintf!(fd, c"%5d ", count);
+        if prefer_self && profile_equal(*total, *self_time) {
+            fprintf!(fd, c"           ");
         } else {
-            fprintf!(fd, c"                            ");
+            fprintf!(fd, c"%s ", profile_msg(*total));
         }
+        if !prefer_self && profile_equal(*total, *self_time) {
+            fprintf!(fd, c"           ");
+        } else {
+            fprintf!(fd, c"%s ", profile_msg(*self_time));
+        }
+    } else {
+        fprintf!(fd, c"                            ");
+    }
 }
 
 fn prof_sort_list(
@@ -674,16 +671,8 @@ fn func_dump_profile(fd: *mut FILE) {
                 } else {
                     fprintf!(fd, c"Called %d times\n", (*fp).uf_tm_count);
                 }
-                fprintf!(
-                    fd,
-                    c"Total time: %s\n",
-                    profile_msg((*fp).uf_tm_total),
-                );
-                fprintf!(
-                    fd,
-                    c" Self time: %s\n",
-                    profile_msg((*fp).uf_tm_self),
-                );
+                fprintf!(fd, c"Total time: %s\n", profile_msg((*fp).uf_tm_total),);
+                fprintf!(fd, c" Self time: %s\n", profile_msg((*fp).uf_tm_self),);
                 fprintf!(fd, c"\n");
                 fprintf!(fd, c"count  total (s)   self (s)\n");
 
@@ -730,7 +719,7 @@ pub fn profile_init(si: *mut Scriptitem) {
 
 /// Save time when starting to invoke another script or function (`script_prof_save`).
 pub fn script_prof_save(tm: &mut Proftime) {
-     {
+    {
         if script_id_valid(g_st().current_sctx.sc_sid) {
             let si = &mut *script_item(g_st().current_sctx.sc_sid);
             if si.sn_prof_on {
@@ -749,7 +738,7 @@ pub fn script_prof_save(tm: &mut Proftime) {
 
 /// Count time spent in children after invoking another script or function (`script_prof_restore`).
 pub fn script_prof_restore(tm: &Proftime) {
-     {
+    {
         if !script_id_valid(g_st().current_sctx.sc_sid) {
             return;
         }
@@ -779,16 +768,8 @@ fn script_dump_profile(fd: *mut FILE) {
                 } else {
                     fprintf!(fd, c"Sourced %d times\n", si.sn_pr_count);
                 }
-                fprintf!(
-                    fd,
-                    c"Total time: %s\n",
-                    profile_msg(si.sn_pr_total),
-                );
-                fprintf!(
-                    fd,
-                    c" Self time: %s\n",
-                    profile_msg(si.sn_pr_self),
-                );
+                fprintf!(fd, c"Total time: %s\n", profile_msg(si.sn_pr_total),);
+                fprintf!(fd, c" Self time: %s\n", profile_msg(si.sn_pr_self),);
                 fprintf!(fd, c"\n");
                 fprintf!(fd, c"count  total (s)   self (s)\n");
 
@@ -856,7 +837,7 @@ pub fn profile_dump() {
 
 /// Called when starting to read a script line (`script_line_start`).
 pub fn script_line_start() {
-     {
+    {
         if !script_id_valid(g_st().current_sctx.sc_sid) {
             return;
         }
@@ -884,7 +865,7 @@ pub fn script_line_start() {
 
 /// Called when actually executing a script line (`script_line_exec`).
 pub fn script_line_exec() {
-     {
+    {
         if !script_id_valid(g_st().current_sctx.sc_sid) {
             return;
         }
@@ -897,24 +878,19 @@ pub fn script_line_exec() {
 
 /// Called when done with a script line (`script_line_end`).
 pub fn script_line_end() {
-     {
+    {
         if !script_id_valid(g_st().current_sctx.sc_sid) {
             return;
         }
         let si = script_item(g_st().current_sctx.sc_sid);
-        if si.sn_prof_on
-            && si.sn_prl_idx >= 0
-            && (si.sn_prl_idx as usize) < si.sn_prl_ga.len()
-        {
+        if si.sn_prof_on && si.sn_prl_idx >= 0 && (si.sn_prl_idx as usize) < si.sn_prl_ga.len() {
             if si.sn_prl_execed != 0 {
                 let prl_idx = si.sn_prl_idx as usize;
                 let pp = &mut (&mut si.sn_prl_ga)[prl_idx];
                 pp.snp_count += 1;
-                si.sn_prl_start =
-                    profile_sub_wait(si.sn_prl_wait, profile_end(si.sn_prl_start));
+                si.sn_prl_start = profile_sub_wait(si.sn_prl_wait, profile_end(si.sn_prl_start));
                 pp.sn_prl_total = profile_add(pp.sn_prl_total, si.sn_prl_start);
-                pp.sn_prl_self =
-                    profile_self(pp.sn_prl_self, si.sn_prl_start, si.sn_prl_children);
+                pp.sn_prl_self = profile_self(pp.sn_prl_self, si.sn_prl_start, si.sn_prl_children);
             }
             si.sn_prl_idx = -1;
         }
@@ -941,32 +917,26 @@ fn time_diff(then: Proftime, now: Proftime) {
     let diff = profile_sub(now, then);
     let s = format!("{:07.3}\0", (diff as f64) / 1.0e6);
     if let Some(ref tf) = g_st().time_fd {
-            fprintf!(tf.as_ptr(), c"%s", s.as_ptr().cast::<c_char>());
-        }
+        fprintf!(tf.as_ptr(), c"%s", s.as_ptr().cast::<c_char>());
+    }
 }
 
 /// Initializes the startuptime code (`time_start`).
 pub fn time_start(message: &std::ffi::CStr) {
     let Some(ref tf) = g_st().time_fd else {
-            return;
-        };
-        let fp = tf.as_ptr();
+        return;
+    };
+    let fp = tf.as_ptr();
 
-        let now = profile_start();
-        prof_st().g_start_time = now;
-        prof_st().g_prev_time = now;
+    let now = profile_start();
+    prof_st().g_start_time = now;
+    prof_st().g_prev_time = now;
 
-        fprintf!(fp, c"\ntimes in msec\n");
-        fprintf!(
-            fp,
-            c" clock   self+sourced   self:  sourced script\n",
-        );
-        fprintf!(
-            fp,
-            c" clock   elapsed:              other lines\n\n",
-        );
+    fprintf!(fp, c"\ntimes in msec\n");
+    fprintf!(fp, c" clock   self+sourced   self:  sourced script\n",);
+    fprintf!(fp, c" clock   elapsed:              other lines\n\n",);
 
-        time_msg(message.as_ptr(), None);
+    time_msg(message.as_ptr(), None);
 }
 
 /// Prints out timing info (`time_msg`).
@@ -996,7 +966,12 @@ pub fn time_msg(mesg: impl crate::strings::IntoCCharPtr, start: Option<&Proftime
 }
 
 /// Initializes the `time_fd` stream for `--startuptime` (`time_init`).
-pub fn time_init(fname: impl crate::strings::IntoCCharPtr, proc_name: impl crate::strings::IntoCCharPtr) { let fname = fname.into_c_char_ptr(); let proc_name = proc_name.into_c_char_ptr();
+pub fn time_init(
+    fname: impl crate::strings::IntoCCharPtr,
+    proc_name: impl crate::strings::IntoCCharPtr,
+) {
+    let fname = fname.into_c_char_ptr();
+    let proc_name = proc_name.into_c_char_ptr();
     unsafe {
         const BUFSIZE: usize = 8192;
         g_st().time_fd = crate::os::fs::CFile::from_raw(fopen(fname, c"a".as_ptr()));
@@ -1020,25 +995,21 @@ pub fn time_init(fname: impl crate::strings::IntoCCharPtr, proc_name: impl crate
             eprint!("time_init: setvbuf failed: {r} {err_str}");
             return;
         }
-        fprintf!(
-            fp,
-            c"--- Startup times for process: %s ---\n",
-            proc_name,
-        );
+        fprintf!(fp, c"--- Startup times for process: %s ---\n", proc_name,);
     }
 }
 
 /// Flushes the startuptimes to disk for the current process (`time_finish`).
 pub fn time_finish() {
     if !has_time_fd() {
-            return;
-        }
-        assert!(!prof_st().startuptime_buf.is_empty());
-        time_msg(c"--- NVIM STARTED ---\n", None);
+        return;
+    }
+    assert!(!prof_st().startuptime_buf.is_empty());
+    time_msg(c"--- NVIM STARTED ---\n", None);
 
-        g_st().time_fd = None;
+    g_st().time_fd = None;
 
-        prof_st().startuptime_buf = Vec::new();
+    prof_st().startuptime_buf = Vec::new();
 }
 
 #[cfg(test)]

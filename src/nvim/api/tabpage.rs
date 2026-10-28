@@ -1,8 +1,8 @@
 //! Tabpage API functions (`src/nvim/api/tabpage.c`).
 
 use crate::api::private::helpers::{
-    TryState, api_clear_error, api_set_error, arena_array, dict_get_value, dict_set_var, error_set, find_tab_by_handle, find_window_by_handle, has_key, nil_obj, try_enter,
-    try_leave, window_obj,
+    TryState, api_clear_error, api_set_error, arena_array, dict_get_value, dict_set_var, error_set,
+    find_tab_by_handle, find_window_by_handle, has_key, nil_obj, try_enter, try_leave, window_obj,
 };
 use crate::api::private::validate::{Array, Error, ErrorType, NvimString, Object};
 use crate::api::vim::nvim_get_current_win;
@@ -12,7 +12,8 @@ use crate::lua::converter::Boolean;
 use crate::memory::Arena;
 use crate::msgpack_rpc::packer::{Integer, ObjHandle};
 use crate::window::{
-    tabpage_index, tabpage_win_valid, valid_tabpage, WinInfoInfo, win_goto, win_new_tabpage, win_set_buf,
+    WinInfoInfo, tabpage_index, tabpage_win_valid, valid_tabpage, win_goto, win_new_tabpage,
+    win_set_buf,
 };
 use std::ffi::c_int;
 
@@ -36,11 +37,7 @@ pub struct KeyDict_tabpage_config {
 /// @return List of windows in `tabpage`
 // DLLEXPORT ArrayOf(Window) nvim_tabpage_list_wins(Tabpage tabpage, Arena *arena,
 //                                                  Error *err) FUNC_API_SINCE(1);
-pub fn nvim_tabpage_list_wins(
-    tabpage: Tabpage,
-    arena: &mut Arena,
-    err: &mut Error,
-) -> Array {
+pub fn nvim_tabpage_list_wins(tabpage: Tabpage, arena: &mut Arena, err: &mut Error) -> Array {
     unsafe {
         let mut rv = Array {
             items: std::ptr::null_mut(),
@@ -91,11 +88,11 @@ pub fn nvim_tabpage_get_var(
     arena: &mut Arena,
     err: &mut Error,
 ) -> Object {
-     {
+    {
         let Some(tab) = crate::api::private::helpers::find_tab_by_handle_mut(tabpage, err) else {
             return nil_obj();
         };
-        dict_get_value(unsafe { tab.tp_vars().as_ref() }, name, Some(arena), err)
+        dict_get_value(Some(&*tab.tp_vars()), name, Some(arena), err)
     }
 }
 
@@ -107,25 +104,12 @@ pub fn nvim_tabpage_get_var(
 /// @param[out] err Error details, if any
 // DLLEXPORT void nvim_tabpage_set_var(Tabpage tabpage, String name, Object value,
 //                                     Error *err) FUNC_API_SINCE(1);
-pub fn nvim_tabpage_set_var(
-    tabpage: Tabpage,
-    name: NvimString,
-    value: Object,
-    err: &mut Error,
-) {
-    unsafe {
+pub fn nvim_tabpage_set_var(tabpage: Tabpage, name: NvimString, value: Object, err: &mut Error) {
+    {
         let Some(tab) = crate::api::private::helpers::find_tab_by_handle_mut(tabpage, err) else {
             return;
         };
-        dict_set_var(
-            &mut *tab.tp_vars(),
-            name,
-            value,
-            false,
-            false,
-            None,
-            err,
-        );
+        dict_set_var(&mut *tab.tp_vars(), name, value, false, false, None, err);
     }
 }
 
@@ -136,19 +120,11 @@ pub fn nvim_tabpage_set_var(
 /// @param[out] err Error details, if any
 // DLLEXPORT void nvim_tabpage_del_var(Tabpage tabpage, String name, Error *err) FUNC_API_SINCE(1);
 pub fn nvim_tabpage_del_var(tabpage: Tabpage, name: NvimString, err: &mut Error) {
-    unsafe {
+    {
         let Some(tab) = crate::api::private::helpers::find_tab_by_handle_mut(tabpage, err) else {
             return;
         };
-        dict_set_var(
-            &mut *tab.tp_vars(),
-            name,
-            nil_obj(),
-            true,
-            false,
-            None,
-            err,
-        );
+        dict_set_var(&mut *tab.tp_vars(), name, nil_obj(), true, false, None, err);
     }
 }
 
@@ -220,10 +196,10 @@ pub fn nvim_tabpage_set_win(tabpage: Tabpage, win: Window, err: &mut Error) {
 // DLLEXPORT Integer nvim_tabpage_get_number(Tabpage tabpage, Error *err) FUNC_API_SINCE(1);
 pub fn nvim_tabpage_get_number(tabpage: Tabpage, err: &mut Error) -> Integer {
     let tab = find_tab_by_handle(tabpage, err);
-        if tab.is_null() {
-            return 0;
-        }
-        i64::from(tabpage_index(tab))
+    if tab.is_null() {
+        return 0;
+    }
+    i64::from(tabpage_index(tab))
 }
 
 /// Checks if a tabpage is valid
@@ -233,9 +209,9 @@ pub fn nvim_tabpage_get_number(tabpage: Tabpage, err: &mut Error) -> Integer {
 // DLLEXPORT Boolean nvim_tabpage_is_valid(Tabpage tabpage) FUNC_API_SINCE(1);
 pub fn nvim_tabpage_is_valid(tabpage: Tabpage) -> Boolean {
     let mut stub = Error::new();
-        let ret = !find_tab_by_handle(tabpage, &mut stub).is_null();
-        api_clear_error(&mut stub);
-        ret
+    let ret = !find_tab_by_handle(tabpage, &mut stub).is_null();
+    api_clear_error(&mut stub);
+    ret
 }
 
 /// Opens a new tabpage.

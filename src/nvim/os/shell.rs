@@ -19,7 +19,7 @@ use crate::event::stream::{Stream, StreamCbData, stream_may_close};
 use crate::event::wstream::{
     wstream_init, wstream_new_vec_buffer, wstream_set_write_cb, wstream_write,
 };
-use crate::ex_cmds::{check_secure, K_SHELL_OPT_READ, K_SHELL_OPT_WRITE, make_filter_cmd};
+use crate::ex_cmds::{K_SHELL_OPT_READ, K_SHELL_OPT_WRITE, check_secure, make_filter_cmd};
 use crate::ex_docmd::CAR;
 #[cfg(unix)]
 use crate::fileio::fopen;
@@ -29,7 +29,7 @@ use crate::globals::*;
 use crate::mbyte::CP_UTF8;
 use crate::mbyte::{UTF8LEN_TAB_ZERO, utfc_ptr2len_len};
 use crate::memline::ml_append;
-use crate::memory::{xstrlcpy};
+use crate::memory::xstrlcpy;
 #[cfg(unix)]
 use crate::message::msg;
 use crate::message::{
@@ -52,10 +52,10 @@ use crate::path::{
     EW_DIR, EW_EXEC, EW_FILE, EW_KEEPDOLLAR, EW_NOTFOUND, EW_SHELLCMD, EW_SILENT, add_pathsep,
     invocation_path_tail, path_has_wildcard, path_tail,
 };
-use crate::profile::{prof_child_enter, prof_child_exit, Proftime};
-use crate::strings::{gettext, vim_strnsave_unquoted, vim_strsave_escaped_ext};
+use crate::profile::{Proftime, prof_child_enter, prof_child_exit};
 #[cfg(unix)]
-use crate::strings::{vim_strchr};
+use crate::strings::vim_strchr;
+use crate::strings::{gettext, vim_strnsave_unquoted, vim_strsave_escaped_ext};
 use crate::tag::tag_freematch;
 use crate::ui::{ui_busy_start, ui_busy_stop, ui_flush, ui_has};
 #[cfg(unix)]
@@ -65,7 +65,7 @@ use std::ptr;
 
 use crate::autocmd::PROF_YES;
 use crate::change::TAB;
-use crate::channel::{STDERR_FILENO, STDOUT_FILENO, K_PROC_TYPE_UV};
+use crate::channel::{K_PROC_TYPE_UV, STDERR_FILENO, STDOUT_FILENO};
 use crate::diff::{K_SHELL_OPT_DO_OUT, K_SHELL_OPT_SILENT};
 use crate::eval::typval::Varnumber;
 use crate::state::MODE_EXTERNCMD;
@@ -138,11 +138,7 @@ unsafe extern "system" {
 }
 
 #[cfg(unix)]
-fn save_patterns(
-    num_pat: c_int,
-    pat: *mut *mut c_char,
-    file: &mut Vec<std::ffi::CString>,
-) {
+fn save_patterns(num_pat: c_int, pat: *mut *mut c_char, file: &mut Vec<std::ffi::CString>) {
     unsafe {
         file.clear();
         file.reserve(num_pat as usize);
@@ -268,7 +264,9 @@ pub fn os_expand_wildcards(
             let p_i = *pat.add(i);
             let mut j = 0;
             while crate::memory::cstr_byte_at(p_i, j) != 0 {
-                if !vim_strchr(SHELL_SPECIAL, crate::memory::cstr_byte_at(p_i, j) as c_int).is_null() {
+                if !vim_strchr(SHELL_SPECIAL, crate::memory::cstr_byte_at(p_i, j) as c_int)
+                    .is_null()
+                {
                     len += 1;
                 }
                 len += 1;
@@ -285,7 +283,14 @@ pub fn os_expand_wildcards(
 
         if shell_style == STYLE_BT {
             if is_fish_shell {
-                { let s = c"begin; ".as_ptr(); std::ptr::copy_nonoverlapping(s, command, std::ffi::CStr::from_ptr(s).to_bytes_with_nul().len()); };
+                {
+                    let s = c"begin; ".as_ptr();
+                    std::ptr::copy_nonoverlapping(
+                        s,
+                        command,
+                        std::ffi::CStr::from_ptr(s).to_bytes_with_nul().len(),
+                    );
+                };
             } else {
                 crate::memory::cstr_cpy(command, c"(");
             }
@@ -299,7 +304,9 @@ pub fn os_expand_wildcards(
                 *p = b')' as c_char;
                 p = p.sub(1);
             }
-            while (p as usize) > (command as usize) && ascii_iswhite(crate::memory::cstr_first_char(p)) {
+            while (p as usize) > (command as usize)
+                && ascii_iswhite(crate::memory::cstr_first_char(p))
+            {
                 p = p.sub(1);
             }
             if crate::memory::cstr_first_byte(p) == b'&' {
@@ -311,9 +318,25 @@ pub fn os_expand_wildcards(
             *command = NUL;
             if shell_style == STYLE_GLOB {
                 if (flags & EW_NOTFOUND) != 0 {
-                    { let d = command; let s = c"set nonomatch; ".as_ptr(); std::ptr::copy_nonoverlapping(s, d.add(crate::memory::cstr_len(d)), std::ffi::CStr::from_ptr(s).to_bytes_with_nul().len()); };
+                    {
+                        let d = command;
+                        let s = c"set nonomatch; ".as_ptr();
+                        std::ptr::copy_nonoverlapping(
+                            s,
+                            d.add(crate::memory::cstr_len(d)),
+                            std::ffi::CStr::from_ptr(s).to_bytes_with_nul().len(),
+                        );
+                    };
                 } else {
-                    { let d = command; let s = c"unset nonomatch; ".as_ptr(); std::ptr::copy_nonoverlapping(s, d.add(crate::memory::cstr_len(d)), std::ffi::CStr::from_ptr(s).to_bytes_with_nul().len()); };
+                    {
+                        let d = command;
+                        let s = c"unset nonomatch; ".as_ptr();
+                        std::ptr::copy_nonoverlapping(
+                            s,
+                            d.add(crate::memory::cstr_len(d)),
+                            std::ffi::CStr::from_ptr(s).to_bytes_with_nul().len(),
+                        );
+                    };
                 }
             }
             if shell_style == STYLE_GLOB {
@@ -345,7 +368,8 @@ pub fn os_expand_wildcards(
                     let ch = *p_i.add(j);
                     if ch == b'`' as c_char {
                         intick = !intick;
-                    } else if ch == b'\\' as c_char && crate::memory::cstr_byte_at(p_i, j + 1) != 0 {
+                    } else if ch == b'\\' as c_char && crate::memory::cstr_byte_at(p_i, j + 1) != 0
+                    {
                         let next_ch = *p_i.add(j + 1);
                         if intick
                             || !vim_strchr(SHELL_SPECIAL, next_ch as u8 as c_int).is_null()
@@ -452,7 +476,9 @@ pub fn os_expand_wildcards(
             *buffer.add(len) = b'\n' as c_char;
             let mut p = buffer;
             while crate::memory::cstr_first_byte(p) != b'\n' {
-                while crate::memory::cstr_first_byte(p) != b' ' && crate::memory::cstr_first_byte(p) != b'\n' {
+                while crate::memory::cstr_first_byte(p) != b' '
+                    && crate::memory::cstr_first_byte(p) != b'\n'
+                {
                     p = p.add(1);
                 }
                 p = skipwhite(p);
@@ -465,7 +491,8 @@ pub fn os_expand_wildcards(
             *buffer.add(len) = NUL;
             let mut p = buffer;
             while !crate::memory::cstr_is_empty(p) {
-                while crate::memory::cstr_first_byte(p) != b'\n' && !crate::memory::cstr_is_empty(p) {
+                while crate::memory::cstr_first_byte(p) != b'\n' && !crate::memory::cstr_is_empty(p)
+                {
                     p = p.add(1);
                 }
                 if !crate::memory::cstr_is_empty(p) {
@@ -492,7 +519,9 @@ pub fn os_expand_wildcards(
             }
             let mut p = buffer;
             while (p as usize) < (buffer.add(len) as usize) {
-                if crate::memory::cstr_is_empty(p) || (crate::memory::cstr_first_byte(p) == b' ' && check_spaces) {
+                if crate::memory::cstr_is_empty(p)
+                    || (crate::memory::cstr_first_byte(p) == b' ' && check_spaces)
+                {
                     count += 1;
                     *p = NUL;
                 }
@@ -502,7 +531,10 @@ pub fn os_expand_wildcards(
                 count += 1;
             }
         }
-        debug_assert!(crate::memory::cstr_byte_at(buffer, len) == 0 || crate::memory::cstr_byte_at(buffer, len) == b'\n');
+        debug_assert!(
+            crate::memory::cstr_byte_at(buffer, len) == 0
+                || crate::memory::cstr_byte_at(buffer, len) == b'\n'
+        );
 
         if count == 0 {
             if (flags & EW_NOTFOUND) != 0 {
@@ -534,7 +566,8 @@ pub fn os_expand_wildcards(
                     p = skipwhite(p.add(1));
                 }
             } else {
-                while !crate::memory::cstr_is_empty(p) && (p as usize) < (buffer.add(len) as usize) {
+                while !crate::memory::cstr_is_empty(p) && (p as usize) < (buffer.add(len) as usize)
+                {
                     p = p.add(1);
                 }
                 p = p.add(1);
@@ -585,8 +618,10 @@ pub fn os_expand_wildcards(
 pub fn shell_build_argv(
     cmd: impl crate::strings::IntoCCharPtr,
     extra_args: impl crate::strings::IntoCCharPtr,
-) -> Vec<std::ffi::CString> { let cmd = cmd.into_c_char_ptr(); let extra_args = extra_args.into_c_char_ptr();
-     {
+) -> Vec<std::ffi::CString> {
+    let cmd = cmd.into_c_char_ptr();
+    let extra_args = extra_args.into_c_char_ptr();
+    {
         let mut rv: Vec<std::ffi::CString> = Vec::new();
         tokenize(opt_vars().p_sh, &mut rv);
 
@@ -616,9 +651,24 @@ pub fn shell_argv_to_str(argv: &[std::ffi::CString]) -> [c_char; 256] {
             return rv;
         }
         for arg in argv {
-            { let _dst: *mut c_char = rv_ptr; let _dsize: usize = maxsize; let _dlen = crate::memory::cstr_len(_dst); crate::memory::xstrlcpy(_dst.add(_dlen), c"'", _dsize - _dlen); };
-            { let _dst: *mut c_char = rv_ptr; let _dsize: usize = maxsize; let _dlen = crate::memory::cstr_len(_dst); crate::memory::xstrlcpy(_dst.add(_dlen), arg.as_ptr(), _dsize - _dlen); };
-            n = { let _dst: *mut c_char = rv_ptr; let _dsize: usize = maxsize; let _dlen = crate::memory::cstr_len(_dst); crate::memory::xstrlcpy(_dst.add(_dlen), c"' ", _dsize - _dlen) + _dlen };
+            {
+                let _dst: *mut c_char = rv_ptr;
+                let _dsize: usize = maxsize;
+                let _dlen = crate::memory::cstr_len(_dst);
+                crate::memory::xstrlcpy(_dst.add(_dlen), c"'", _dsize - _dlen);
+            };
+            {
+                let _dst: *mut c_char = rv_ptr;
+                let _dsize: usize = maxsize;
+                let _dlen = crate::memory::cstr_len(_dst);
+                crate::memory::xstrlcpy(_dst.add(_dlen), arg.as_ptr(), _dsize - _dlen);
+            };
+            n = {
+                let _dst: *mut c_char = rv_ptr;
+                let _dsize: usize = maxsize;
+                let _dlen = crate::memory::cstr_len(_dst);
+                crate::memory::xstrlcpy(_dst.add(_dlen), c"' ", _dsize - _dlen) + _dlen
+            };
             if n >= maxsize {
                 break;
             }
@@ -636,70 +686,82 @@ pub fn shell_argv_to_str(argv: &[std::ffi::CString]) -> [c_char; 256] {
 }
 
 /// Calls the user-configured 'shell' (opt_vars().p_sh) for running a command or wildcard expansion.
-pub fn os_call_shell(cmd: impl crate::strings::IntoCCharPtr, opts: c_int, extra_args: impl crate::strings::IntoCCharPtr) -> c_int { let cmd = cmd.into_c_char_ptr(); let extra_args = extra_args.into_c_char_ptr();
+pub fn os_call_shell(
+    cmd: impl crate::strings::IntoCCharPtr,
+    opts: c_int,
+    extra_args: impl crate::strings::IntoCCharPtr,
+) -> c_int {
+    let cmd = cmd.into_c_char_ptr();
+    let extra_args = extra_args.into_c_char_ptr();
     let mut input: Vec<c_char> = Vec::new();
-        let mut output: Vec<c_char> = Vec::new();
-        let mut want_output = false;
-        let current_state = g_st().state_global;
-        let mut forward_output = true;
+    let mut output: Vec<c_char> = Vec::new();
+    let mut want_output = false;
+    let current_state = g_st().state_global;
+    let mut forward_output = true;
 
-        signal_reject_deadly();
+    signal_reject_deadly();
 
-        if (opts & (K_SHELL_OPT_HIDE_MESS | K_SHELL_OPT_EXPAND)) != 0 {
+    if (opts & (K_SHELL_OPT_HIDE_MESS | K_SHELL_OPT_EXPAND)) != 0 {
+        forward_output = false;
+    } else {
+        g_st().state_global = MODE_EXTERNCMD;
+
+        if (opts & K_SHELL_OPT_WRITE) != 0 {
+            read_input(&mut input);
+        }
+
+        if (opts & K_SHELL_OPT_READ) != 0 {
+            want_output = true;
             forward_output = false;
+        } else if (opts & K_SHELL_OPT_DO_OUT) != 0 {
+            forward_output = false;
+        }
+    }
+
+    let exitcode = do_os_system(
+        shell_build_argv(cmd, extra_args),
+        if input.is_empty() {
+            ptr::null()
         } else {
-            g_st().state_global = MODE_EXTERNCMD;
+            input.as_ptr()
+        },
+        input.len(),
+        want_output.then_some(&mut output),
+        g_st().emsg_silent != 0,
+        forward_output,
+    );
+    drop(input);
 
-            if (opts & K_SHELL_OPT_WRITE) != 0 {
-                read_input(&mut input);
-            }
+    if !output.is_empty() {
+        let nread = output.len();
+        write_output(output.as_mut_ptr(), nread, true);
+    }
 
-            if (opts & K_SHELL_OPT_READ) != 0 {
-                want_output = true;
-                forward_output = false;
-            } else if (opts & K_SHELL_OPT_DO_OUT) != 0 {
-                forward_output = false;
-            }
+    if g_st().emsg_silent == 0 && exitcode != 0 && (opts & K_SHELL_OPT_SILENT) == 0 {
+        msg_ext_set_kind(c"shell_ret");
+        msg_ext_no_fast();
+        if !ui_has(K_UIMESSAGES) {
+            msg_putchar(b'\n' as c_int);
         }
+        msg_puts(gettext(c"shell returned "));
+        msg_outnum(exitcode);
+    }
 
-        let exitcode = do_os_system(
-            shell_build_argv(cmd, extra_args),
-            if input.is_empty() {
-                ptr::null()
-            } else {
-                input.as_ptr()
-            },
-            input.len(),
-            want_output.then_some(&mut output),
-            g_st().emsg_silent != 0,
-            forward_output,
-        );
-        drop(input);
+    g_st().state_global = current_state;
+    signal_accept_deadly();
 
-        if !output.is_empty() {
-            let nread = output.len();
-            write_output(output.as_mut_ptr(), nread, true);
-        }
-
-        if g_st().emsg_silent == 0 && exitcode != 0 && (opts & K_SHELL_OPT_SILENT) == 0 {
-            msg_ext_set_kind(c"shell_ret");
-            msg_ext_no_fast();
-            if !ui_has(K_UIMESSAGES) {
-                msg_putchar(b'\n' as c_int);
-            }
-            msg_puts(gettext(c"shell returned "));
-            msg_outnum(exitcode);
-        }
-
-        g_st().state_global = current_state;
-        signal_accept_deadly();
-
-        exitcode
+    exitcode
 }
 
 /// os_call_shell() wrapper. Handles 'verbose', :profile, and v:shell_error.
-pub fn call_shell(cmd: impl crate::strings::IntoCCharPtr, opts: c_int, extra_shell_arg: impl crate::strings::IntoCCharPtr) -> c_int { let cmd = cmd.into_c_char_ptr(); let extra_shell_arg = extra_shell_arg.into_c_char_ptr();
-     {
+pub fn call_shell(
+    cmd: impl crate::strings::IntoCCharPtr,
+    opts: c_int,
+    extra_shell_arg: impl crate::strings::IntoCCharPtr,
+) -> c_int {
+    let cmd = cmd.into_c_char_ptr();
+    let extra_shell_arg = extra_shell_arg.into_c_char_ptr();
+    {
         let mut wait_time: Proftime = 0;
 
         if opt_vars().p_verbose > 3 {
@@ -741,7 +803,8 @@ pub fn get_cmd_output(
     cmd: impl crate::strings::IntoCCharPtr,
     infile: impl crate::strings::IntoCCharPtr,
     flags: c_int,
-) -> Option<std::ffi::CString> { let infile = infile.into_c_char_ptr();
+) -> Option<std::ffi::CString> {
+    let infile = infile.into_c_char_ptr();
     let cmd = cmd.into_c_char_ptr().cast_mut();
     unsafe {
         if check_secure() {
@@ -812,7 +875,8 @@ pub fn os_system(
     input: impl crate::strings::IntoCCharPtr,
     len: usize,
     output: Option<&mut Vec<c_char>>,
-) -> c_int { let input = input.into_c_char_ptr();
+) -> c_int {
+    let input = input.into_c_char_ptr();
     do_os_system(argv, input, len, output, true, false)
 }
 
@@ -823,18 +887,15 @@ fn do_os_system(
     output: Option<&mut Vec<c_char>>,
     silent: bool,
     forward_output: bool,
-) -> c_int { let input = input.into_c_char_ptr();
+) -> c_int {
+    let input = input.into_c_char_ptr();
     unsafe {
         let mut exitcode: c_int = -1;
 
         #[cfg(windows)]
         let (oldval, old_output_cp, old_input_cp) = {
             let ov = os_getenv_cstr(c"NoDefaultCurrentDirectoryInExePath");
-            os_setenv(
-                c"NoDefaultCurrentDirectoryInExePath",
-                c"1",
-                1,
-            );
+            os_setenv(c"NoDefaultCurrentDirectoryInExePath", c"1", 1);
             let oocp = GetConsoleOutputCP();
             let oicp = GetConsoleCP();
             SetConsoleOutputCP(CP_UTF8);
@@ -915,7 +976,7 @@ fn do_os_system(
                 g_st().msg_no_more = true;
                 g_st().lines_left = -1;
             }
-            exitcode = proc_wait( proc_, -1, ptr::null_mut());
+            exitcode = proc_wait(proc_, -1, ptr::null_mut());
             if !g_st().got_int && out_data_decide_throttle(0) {
                 out_data_ring(ptr::null(), usize::MAX);
             }
@@ -932,7 +993,7 @@ fn do_os_system(
                 *out = buf;
             }
 
-            debug_assert!(multiqueue_empty( &*events));
+            debug_assert!(multiqueue_empty(&*events));
         }
 
         multiqueue_free(events);
@@ -954,7 +1015,8 @@ pub(crate) fn system_data_cb(
     count: usize,
     dbuf: &mut Vec<c_char>,
     _eof: bool,
-) -> usize { let buf = buf.into_c_char_ptr();
+) -> usize {
+    let buf = buf.into_c_char_ptr();
     unsafe {
         if !buf.is_null() && count > 0 {
             dbuf.extend_from_slice(std::slice::from_raw_parts(buf, count));
@@ -965,60 +1027,61 @@ pub(crate) fn system_data_cb(
 
 fn out_data_decide_throttle(size: usize) -> bool {
     if size == 0 {
-            let previous_decision = sh_st().throttle_visit > 0;
-            sh_st().throttle_started = 0;
+        let previous_decision = sh_st().throttle_visit > 0;
+        sh_st().throttle_started = 0;
+        sh_st().throttle_received = 0;
+        sh_st().throttle_visit = 0;
+        return previous_decision;
+    }
+
+    sh_st().throttle_received += size;
+    if sh_st().throttle_received < OUT_DATA_THRESHOLD
+        || (sh_st().throttle_started == 0 && sh_st().throttle_received < size + 1000)
+    {
+        return false;
+    } else if sh_st().throttle_visit == 0 {
+        sh_st().throttle_started = os_hrtime();
+    } else {
+        let since = os_hrtime() - sh_st().throttle_started;
+        if since < (sh_st().throttle_visit as u64) * (NS_PER_SEC / 10) {
+            return true;
+        }
+        if since > 3 * NS_PER_SEC {
             sh_st().throttle_received = 0;
             sh_st().throttle_visit = 0;
-            return previous_decision;
-        }
-
-        sh_st().throttle_received += size;
-        if sh_st().throttle_received < OUT_DATA_THRESHOLD
-            || (sh_st().throttle_started == 0 && sh_st().throttle_received < size + 1000)
-        {
             return false;
-        } else if sh_st().throttle_visit == 0 {
-            sh_st().throttle_started = os_hrtime();
-        } else {
-            let since = os_hrtime() - sh_st().throttle_started;
-            if since < (sh_st().throttle_visit as u64) * (NS_PER_SEC / 10) {
-                return true;
-            }
-            if since > 3 * NS_PER_SEC {
-                sh_st().throttle_received = 0;
-                sh_st().throttle_visit = 0;
-                return false;
-            }
         }
+    }
 
-        sh_st().throttle_visit += 1;
-        let tick = sh_st().throttle_visit % 4;
-        sh_st().throttle_pulse_msg[0] = if tick > 0 {
-            b'.' as c_char
-        } else {
-            b' ' as c_char
-        };
-        sh_st().throttle_pulse_msg[1] = if tick > 1 {
-            b'.' as c_char
-        } else {
-            b' ' as c_char
-        };
-        sh_st().throttle_pulse_msg[2] = if tick > 2 {
-            b'.' as c_char
-        } else {
-            b' ' as c_char
-        };
-        if sh_st().throttle_visit == 1 {
-            msg_puts(c"...\n");
-        }
-        msg_putchar(b'\r' as c_int);
-        msg_puts((&raw const sh_st().throttle_pulse_msg).cast());
-        msg_putchar(b'\r' as c_int);
-        ui_flush();
-        true
+    sh_st().throttle_visit += 1;
+    let tick = sh_st().throttle_visit % 4;
+    sh_st().throttle_pulse_msg[0] = if tick > 0 {
+        b'.' as c_char
+    } else {
+        b' ' as c_char
+    };
+    sh_st().throttle_pulse_msg[1] = if tick > 1 {
+        b'.' as c_char
+    } else {
+        b' ' as c_char
+    };
+    sh_st().throttle_pulse_msg[2] = if tick > 2 {
+        b'.' as c_char
+    } else {
+        b' ' as c_char
+    };
+    if sh_st().throttle_visit == 1 {
+        msg_puts(c"...\n");
+    }
+    msg_putchar(b'\r' as c_int);
+    msg_puts((&raw const sh_st().throttle_pulse_msg).cast());
+    msg_putchar(b'\r' as c_int);
+    ui_flush();
+    true
 }
 
-fn out_data_ring(output: impl crate::strings::IntoCCharPtr, size: usize) { let output = output.into_c_char_ptr();
+fn out_data_ring(output: impl crate::strings::IntoCCharPtr, size: usize) {
+    let output = output.into_c_char_ptr();
     unsafe {
         debug_assert!(!output.is_null() || size == 0 || size == usize::MAX);
 
@@ -1051,21 +1114,21 @@ fn out_data_ring(output: impl crate::strings::IntoCCharPtr, size: usize) { let o
 
 pub fn out_data_event(mut str_copy: Vec<c_char>, fd: c_int) {
     let mut need_clear = true;
-        let hl = if fd == STDERR_FILENO { HLF_SE } else { HLF_SO };
-        msg_ext_set_kind(if fd == STDERR_FILENO {
-            c"shell_err".as_ptr()
-        } else {
-            c"shell_out".as_ptr()
-        });
-        msg_ext_set_append(true);
-        msg_ext_no_fast();
-        let str_arg = NvimString {
-            data: str_copy.as_mut_ptr(),
-            size: str_copy.len(),
-        };
-        msg_multiline(str_arg, hl, false, false, &mut need_clear);
-        drop(str_copy);
-        ui_flush();
+    let hl = if fd == STDERR_FILENO { HLF_SE } else { HLF_SO };
+    msg_ext_set_kind(if fd == STDERR_FILENO {
+        c"shell_err".as_ptr()
+    } else {
+        c"shell_out".as_ptr()
+    });
+    msg_ext_set_append(true);
+    msg_ext_no_fast();
+    let str_arg = NvimString {
+        data: str_copy.as_mut_ptr(),
+        size: str_copy.len(),
+    };
+    msg_multiline(str_arg, hl, false, false, &mut need_clear);
+    drop(str_copy);
+    ui_flush();
 }
 
 fn out_data_append_to_screen(
@@ -1073,7 +1136,8 @@ fn out_data_append_to_screen(
     count: &mut usize,
     fd: c_int,
     eof: bool,
-) { let output = output.into_c_char_ptr();
+) {
+    let output = output.into_c_char_ptr();
     unsafe {
         let mut p = output;
         let end = output.add(*count);
@@ -1098,7 +1162,7 @@ fn out_data_append_to_screen(
         let str_copy = std::slice::from_raw_parts(output, *count).to_vec();
         if ui_has(K_UIMESSAGES) {
             let qc = loop_queues(&mut *main_loop_ptr());
-            multiqueue_put_event( &mut *qc.fast_events, Event::ShellOutData { str_copy, fd });
+            multiqueue_put_event(&mut *qc.fast_events, Event::ShellOutData { str_copy, fd });
         } else {
             out_data_event(str_copy, fd);
         }
@@ -1110,17 +1174,19 @@ pub(crate) fn out_data_cb(
     ptr_data: impl crate::strings::IntoCCharPtr,
     mut count: usize,
     eof: bool,
-) -> usize { let ptr_data = ptr_data.into_c_char_ptr();
+) -> usize {
+    let ptr_data = ptr_data.into_c_char_ptr();
     if count > 0 && out_data_decide_throttle(count) {
-            out_data_ring(ptr_data, count);
-        } else if count > 0 {
-            let fd = stream.s.fd;
-            out_data_append_to_screen(ptr_data, &mut count, fd, eof);
-        }
-        count
+        out_data_ring(ptr_data, count);
+    } else if count > 0 {
+        let fd = stream.s.fd;
+        out_data_append_to_screen(ptr_data, &mut count, fd, eof);
+    }
+    count
 }
 
-fn tokenize(str_in: impl crate::strings::IntoCCharPtr, argv: &mut Vec<std::ffi::CString>) { let str_in = str_in.into_c_char_ptr();
+fn tokenize(str_in: impl crate::strings::IntoCCharPtr, argv: &mut Vec<std::ffi::CString>) {
+    let str_in = str_in.into_c_char_ptr();
     unsafe {
         let mut p = str_in;
 
@@ -1139,7 +1205,9 @@ pub(crate) fn word_length(str_in: impl crate::strings::IntoCCharPtr) -> usize {
         let mut inquote = false;
         let mut length: usize = 0;
 
-        while !crate::memory::cstr_is_empty(p) && (inquote || (crate::memory::cstr_first_byte(p) != b' ' && *p != TAB)) {
+        while !crate::memory::cstr_is_empty(p)
+            && (inquote || (crate::memory::cstr_first_byte(p) != b' ' && *p != TAB))
+        {
             if crate::memory::cstr_first_byte(p) == b'"' {
                 inquote = !inquote;
             } else if crate::memory::cstr_first_byte(p) == b'\\' && inquote {
@@ -1156,7 +1224,7 @@ pub(crate) fn word_length(str_in: impl crate::strings::IntoCCharPtr) -> usize {
 }
 
 fn read_input(buf: &mut Vec<c_char>) {
-     {
+    {
         read_buffer_into(
             Some(crate::globals::curbuf_mut()),
             curbuf_mut().b_op_start.lnum,
@@ -1188,7 +1256,8 @@ fn write_output(mut output: *mut c_char, mut remaining: usize, eof: bool) -> usi
                 remaining -= skip;
                 off = 0;
                 continue;
-            } else if (*output.add(off) == CAR && curbuf_mut().b_p_bin == 0) || *output.add(off) == NL
+            } else if (*output.add(off) == CAR && curbuf_mut().b_p_bin == 0)
+                || *output.add(off) == NL
             {
                 *output.add(off) = NUL;
                 let lnum = curwin_mut().w_cursor.lnum;
@@ -1237,15 +1306,21 @@ pub(crate) fn shell_write_cb(stream: &mut Stream, status: c_int) {
     }
 }
 
-fn shell_xescape_xquote(cmd: impl crate::strings::IntoCCharPtr) -> std::ffi::CString { let cmd = cmd.into_c_char_ptr();
-     {
+fn shell_xescape_xquote(cmd: impl crate::strings::IntoCCharPtr) -> std::ffi::CString {
+    let cmd = cmd.into_c_char_ptr();
+    {
         if crate::memory::cstr_is_empty(opt_vars().p_sxq) {
             return crate::memory::cstr_to_cstring(cmd);
         }
 
         let sxq_bytes = crate::memory::cstr_as_bytes(opt_vars().p_sxq);
         let owned_ecmd = if !crate::memory::cstr_is_empty(opt_vars().p_sxe) && sxq_bytes == b"(" {
-            Some(vim_strsave_escaped_ext(cmd, opt_vars().p_sxe, b'^' as c_char, false))
+            Some(vim_strsave_escaped_ext(
+                cmd,
+                opt_vars().p_sxe,
+                b'^' as c_char,
+                false,
+            ))
         } else {
             None
         };
@@ -1280,8 +1355,8 @@ mod tests {
     #[test]
     fn word_length_handles_quotes_and_escaped_chars() {
         assert_eq!(word_length(c"foo bar"), 3);
-            assert_eq!(word_length(c"\"foo bar\" baz"), 9);
-            assert_eq!(word_length(c"/Program\" \"Files/zsh -f"), 20);
+        assert_eq!(word_length(c"\"foo bar\" baz"), 9);
+        assert_eq!(word_length(c"/Program\" \"Files/zsh -f"), 20);
     }
 
     #[test]

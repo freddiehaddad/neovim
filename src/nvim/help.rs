@@ -8,15 +8,15 @@ use crate::charset::{
 use crate::errors::*;
 use crate::eval::K_BOOL_VAR_FALSE_CONST;
 use crate::eval::K_BOOL_VAR_TRUE_CONST;
-use crate::eval::typval::{TypvalVval, VarType, tv_clear, TypVal};
+use crate::eval::typval::{TypVal, TypvalVval, VarType, tv_clear};
 use crate::ex_cmds::{ECMD_HIDE, ECMD_LASTL, ECMD_SET_HELP, do_ecmd};
-use crate::ex_docmd::{CMOD_KEEPALT, do_cmdline_cmd, Exarg};
+use crate::ex_docmd::{CMOD_KEEPALT, Exarg, do_cmdline_cmd};
 use crate::fileio::fclose;
 use crate::globals::*;
 use crate::lua::executor::nlua_call_typval;
 use crate::memory::xstrlcpy;
 use crate::message::{emsg, semsg, smsg};
-use crate::option::{OPT_LOCAL, OptInt, K_OPT_BUFTYPE, set_option_direct};
+use crate::option::{K_OPT_BUFTYPE, OPT_LOCAL, OptInt, set_option_direct};
 use crate::option_vars::*;
 use crate::optionstr::{OptIndex, check_buf_options};
 use crate::os::fs::os_fopen;
@@ -83,7 +83,10 @@ pub fn ex_help(eap: &mut Exarg) {
         let arg_len = crate::memory::cstr_len(arg);
         if arg_len > 0 {
             let mut p = arg.add(arg_len - 1);
-            while p > arg && ascii_iswhite(crate::memory::cstr_first_char(p)) && *p.sub(1) != b'\\' as c_char {
+            while p > arg
+                && ascii_iswhite(crate::memory::cstr_first_char(p))
+                && *p.sub(1) != b'\\' as c_char
+            {
                 *p = NUL;
                 p = p.sub(1);
             }
@@ -196,7 +199,11 @@ pub fn ex_help(eap: &mut Exarg) {
                         && curwin_mut().w_width != g_st().columns_global
                         && curwin_mut().w_width < 80
                     {
-                        n |= if opt_vars().p_sb != 0 { WSP_BOT } else { WSP_TOP };
+                        n |= if opt_vars().p_sb != 0 {
+                            WSP_BOT
+                        } else {
+                            WSP_TOP
+                        };
                     }
                     if !win_split(0, n) {
                         early_ret = true;
@@ -229,14 +236,7 @@ pub fn ex_help(eap: &mut Exarg) {
             g_st().restart_edit = 0;
             g_st().key_typed = old_key_typed;
 
-            do_tag(
-                None,
-                tag.as_ptr().cast_mut(),
-                DT_HELP,
-                1,
-                0,
-                true,
-            );
+            do_tag(None, tag.as_ptr().cast_mut(), DT_HELP, 1, 0, true);
 
             if empty_fnum != 0 && curbuf_mut().b_fnum != empty_fnum {
                 let buf = buflist_findnr(empty_fnum);
@@ -298,7 +298,7 @@ pub fn help_heuristic(
             if ascii_isalnum(p_byte as c_char as c_int) {
                 num_letters += 1;
             }
-}
+        }
 
         if offset > 0
             && ascii_isalnum(crate::memory::cstr_char_at(matched_string, offset as usize))
@@ -311,7 +311,9 @@ pub fn help_heuristic(
         if wrong_case {
             offset += 5000;
         }
-        if crate::memory::cstr_first_byte(matched_string) == b'+' && crate::memory::cstr_byte_at(matched_string, 1) != 0 {
+        if crate::memory::cstr_first_byte(matched_string) == b'+'
+            && crate::memory::cstr_byte_at(matched_string, 1) != 0
+        {
             offset += 100;
         }
         let len = crate::memory::cstr_len(matched_string) as c_int;
@@ -337,8 +339,9 @@ pub fn find_help_tags(
     arg: impl crate::strings::IntoCCharPtr,
     matches: &mut Vec<std::ffi::CString>,
     keep_lang: bool,
-) -> bool { let arg = arg.into_c_char_ptr();
-     {
+) -> bool {
+    let arg = arg.into_c_char_ptr();
+    {
         let mut tv_args = [
             TypVal {
                 v_type: VarType::VarString,
@@ -397,10 +400,11 @@ pub fn find_help_tags(
 
 /// Cleanup matches for help tags (`cleanup_help_tags`).
 pub fn cleanup_help_tags(file: &mut [std::ffi::CString]) {
-     {
+    {
         let mut buf = [0u8; 3];
-        let has_default_lang =
-            !crate::memory::cstr_is_empty(opt_vars().p_hlg) && (crate::memory::cstr_first_byte(opt_vars().p_hlg) != b'e' || crate::memory::cstr_byte_at(opt_vars().p_hlg, 1) != b'n');
+        let has_default_lang = !crate::memory::cstr_is_empty(opt_vars().p_hlg)
+            && (crate::memory::cstr_first_byte(opt_vars().p_hlg) != b'e'
+                || crate::memory::cstr_byte_at(opt_vars().p_hlg, 1) != b'n');
         if has_default_lang {
             buf[0] = b'@';
             buf[1] = crate::memory::cstr_first_byte(opt_vars().p_hlg);
@@ -447,7 +451,7 @@ pub fn cleanup_help_tags(file: &mut [std::ffi::CString]) {
 
 /// Called when starting to edit a buffer for a help file (`prepare_help_buffer`).
 pub fn prepare_help_buffer() {
-     {
+    {
         curbuf_mut().b_help = true;
         set_option_direct(K_OPT_BUFTYPE, cstr_as_obj(c"help"), OPT_LOCAL, 0);
 
@@ -458,12 +462,7 @@ pub fn prepare_help_buffer() {
             buf_init_isk_chartab(curbuf_mut());
         }
 
-        set_option_direct(
-            K_OPT_FOLDMETHOD,
-            cstr_as_obj(c"manual"),
-            OPT_LOCAL,
-            0,
-        );
+        set_option_direct(K_OPT_FOLDMETHOD, cstr_as_obj(c"manual"), OPT_LOCAL, 0);
 
         curbuf_mut().b_p_ts = 8;
         curwin_mut().w_onebuf_opt.wo_list = 0;
@@ -487,16 +486,16 @@ pub fn prepare_help_buffer() {
 /// Populate `*local-additions*` in `help.txt` (`get_local_additions`).
 pub fn get_local_additions() {
     let mut no_args = [TypVal {
-            v_type: VarType::VarUnknown,
-            v_lock: 0,
-            vval: TypvalVval::Number(0),
-        }];
-        nlua_call_typval(
-            c"vim._core.help",
-            c"local_additions",
-            no_args.as_mut_ptr(),
-            None,
-        );
+        v_type: VarType::VarUnknown,
+        v_lock: 0,
+        vval: TypvalVval::Number(0),
+    }];
+    nlua_call_typval(
+        c"vim._core.help",
+        c"local_additions",
+        no_args.as_mut_ptr(),
+        None,
+    );
 }
 
 /// `:exusage` (`ex_exusage`).
@@ -515,7 +514,10 @@ pub fn ex_helptags(eap: &mut Exarg) {
         let mut add_help_tags = false;
 
         let arg_bytes = crate::memory::cstr_as_bytes(eap.arg);
-        if arg_bytes.len() > 3 && &arg_bytes[..3] == b"++t" && ascii_iswhite(crate::memory::cstr_char_at(eap.arg, 3)) {
+        if arg_bytes.len() > 3
+            && &arg_bytes[..3] == b"++t"
+            && ascii_iswhite(crate::memory::cstr_char_at(eap.arg, 3))
+        {
             add_help_tags = true;
             eap.arg = skipwhite(eap.arg.add(3));
         }
@@ -549,12 +551,7 @@ pub fn ex_helptags(eap: &mut Exarg) {
                 vval: TypvalVval::Number(0),
             },
         ];
-        nlua_call_typval(
-            c"vim._core.help",
-            c"gen_tags",
-            tv_args.as_mut_ptr(),
-            None,
-        );
+        nlua_call_typval(c"vim._core.help", c"gen_tags", tv_args.as_mut_ptr(), None);
     }
 }
 
@@ -564,12 +561,15 @@ mod tests {
 
     #[test]
     fn check_help_lang_and_help_heuristic_work() {
-         {
+        {
             let mut buf = *b"options@en\0";
             let lang = check_help_lang(buf.as_mut_ptr().cast());
             assert!(!lang.is_null());
             assert_eq!(crate::memory::cstr_as_bytes(lang), b"en");
-            assert_eq!(crate::memory::cstr_as_bytes(buf.as_ptr().cast()), b"options");
+            assert_eq!(
+                crate::memory::cstr_as_bytes(buf.as_ptr().cast()),
+                b"options"
+            );
 
             let exact = help_heuristic(c"help", 0, false);
             let wrong_case = help_heuristic(c"Help", 0, true);

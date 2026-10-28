@@ -11,8 +11,7 @@ mod tests {
 
     use crate::cjson::fpconv::{FPCONV_G_FMT_BUFSIZE, fpconv_g_fmt, fpconv_strtod};
     use crate::cjson::strbuf::{
-        strbuf_append_char, strbuf_append_string, strbuf_init, strbuf_length, strbuf_string,
-        Strbuf,
+        Strbuf, strbuf_append_char, strbuf_append_string, strbuf_init, strbuf_length, strbuf_string,
     };
 
     #[test]

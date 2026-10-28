@@ -8,21 +8,21 @@ use crate::charset::{
     NUL, ascii_isdigit, ascii_iswhite, backslash_halve, getdigits_int, skiptowhite,
     skiptowhite_esc, skipwhite, vim_isprintc,
 };
-use crate::cursor::{check_cursor_lnum, Linenr};
+use crate::cursor::{Linenr, check_cursor_lnum};
 use crate::decoration::{
-    DECOR_SIGN_HIGHLIGHT_INIT, DecorInline, DecorPriority, DecorSignHighlight, NS, SIGN_WIDTH,
-    SignItem, decor_find_sign, decor_put_sh, K_SHIS_SIGN, sign_item_cmp,
+    DECOR_SIGN_HIGHLIGHT_INIT, DecorInline, DecorPriority, DecorSignHighlight, K_SHIS_SIGN, NS,
+    SIGN_WIDTH, SignItem, decor_find_sign, decor_put_sh, sign_item_cmp,
 };
 use crate::drawscreen::{UPD_NOT_VALID, redraw_buf_later};
 use crate::errors::*;
 use crate::eval::funcs::get_buf_arg;
 use crate::eval::typval::{
-    EvalFuncData, VarType, TvDict, TvList, tv_check_for_nonnull_dict_arg,
+    EvalFuncData, TvDict, TvList, TypVal, VarType, tv_check_for_nonnull_dict_arg,
     tv_check_for_opt_dict_arg, tv_check_for_string_arg, tv_dict_add_list, tv_dict_add_nr,
     tv_dict_add_str, tv_dict_add_str_len, tv_dict_alloc, tv_dict_find, tv_dict_get_number,
     tv_dict_get_number_def, tv_dict_get_string, tv_get_lnum, tv_get_number_chk, tv_get_string,
     tv_get_string_chk, tv_list_alloc, tv_list_alloc_ret, tv_list_append_dict,
-    tv_list_append_number, TypVal,
+    tv_list_append_number,
 };
 use crate::ex_cmds::{BL_WHITE, ECMD_HIDE, do_ecmd};
 use crate::ex_docmd::Exarg;
@@ -34,8 +34,8 @@ use crate::highlight_group::{get_highlight_name_ext, syn_check_group};
 use crate::insert::beginline;
 use crate::mark::setpcmark;
 use crate::marktree::{
-    DecorExt, DecorInlineData, MT_FLAG_DECOR_SIGNHL, MT_FLAG_DECOR_SIGNTEXT, MTKey, MTPair,
-    MarkTreeIter, K_MTMETA_SIGN_HL, K_MTMETA_SIGN_TEXT, marktree_itr_current, marktree_itr_get,
+    DecorExt, DecorInlineData, K_MTMETA_SIGN_HL, K_MTMETA_SIGN_TEXT, MT_FLAG_DECOR_SIGNHL,
+    MT_FLAG_DECOR_SIGNTEXT, MTKey, MTPair, MarkTreeIter, marktree_itr_current, marktree_itr_get,
     marktree_itr_get_overlap, marktree_itr_next, marktree_itr_step_overlap, marktree_lookup_ns,
     mt_decor, mt_decor_sign, mt_end,
 };
@@ -104,7 +104,8 @@ impl SignModuleState {
     }
 }
 
-static SIGN_STATE: crate::globals::GlobalState<SignModuleState> = crate::globals::GlobalState::new(SignModuleState::new());
+static SIGN_STATE: crate::globals::GlobalState<SignModuleState> =
+    crate::globals::GlobalState::new(SignModuleState::new());
 
 #[inline]
 fn sign_st() -> &'static mut SignModuleState {
@@ -122,13 +123,16 @@ const CMDS: [*const c_char; 7] = [
 ];
 
 #[inline]
-fn pmap_get_sign(name: impl crate::strings::IntoCCharPtr) -> *mut Sign { let name = name.into_c_char_ptr();
+fn pmap_get_sign(name: impl crate::strings::IntoCCharPtr) -> *mut Sign {
+    let name = name.into_c_char_ptr();
     if name.is_null() {
         return ptr::null_mut();
     }
-     {
+    {
         for sp in &mut sign_st().sign_map {
-            if crate::memory::cstr_as_bytes(sp.sn_name.as_ptr()) == crate::memory::cstr_as_bytes(name) {
+            if crate::memory::cstr_as_bytes(sp.sn_name.as_ptr())
+                == crate::memory::cstr_as_bytes(name)
+            {
                 return sp;
             }
         }
@@ -137,21 +141,24 @@ fn pmap_get_sign(name: impl crate::strings::IntoCCharPtr) -> *mut Sign { let nam
 }
 
 #[inline]
-fn find_ns_by_name(group: impl crate::strings::IntoCCharPtr) -> c_int { let group = group.into_c_char_ptr();
+fn find_ns_by_name(group: impl crate::strings::IntoCCharPtr) -> c_int {
+    let group = group.into_c_char_ptr();
     if group.is_null() {
         return 0;
     }
     unsafe {
         let group_cstr = CStr::from_ptr(group);
-        g_st().namespace_ids
+        g_st()
+            .namespace_ids
             .iter()
             .find_map(|(k, v)| (k.as_c_str() == group_cstr).then_some(*v))
             .unwrap_or(0)
     }
 }
 
-fn group_get_ns(group: impl crate::strings::IntoCCharPtr) -> i64 { let group = group.into_c_char_ptr();
-     {
+fn group_get_ns(group: impl crate::strings::IntoCCharPtr) -> i64 {
+    let group = group.into_c_char_ptr();
+    {
         if group.is_null() {
             return 0;
         } else if crate::memory::cstr_as_bytes(group) == b"*" {
@@ -164,13 +171,13 @@ fn group_get_ns(group: impl crate::strings::IntoCCharPtr) -> i64 { let group = g
 
 fn sign_get_name(sh: &DecorSignHighlight) -> *const c_char {
     let Some(ref name) = sh.sign_name else {
-            return c"".as_ptr();
-        };
-        if !pmap_get_sign(name.as_ptr()).is_null() {
-            name.as_ptr()
-        } else {
-            c"[Deleted]".as_ptr()
-        }
+        return c"".as_ptr();
+    };
+    if !pmap_get_sign(name.as_ptr()).is_null() {
+        name.as_ptr()
+    } else {
+        c"[Deleted]".as_ptr()
+    }
 }
 
 fn buf_set_sign(
@@ -180,8 +187,9 @@ fn buf_set_sign(
     prio: c_int,
     lnum: Linenr,
     sp: &mut Sign,
-) { let group = group.into_c_char_ptr();
-     {
+) {
+    let group = group.into_c_char_ptr();
+    {
         if !group.is_null() && find_ns_by_name(group) == 0 {
             let ns_vec = &mut sign_st().sign_ns;
             ns_vec.push(nvim_create_namespace(cstr_as_string(group)));
@@ -240,8 +248,9 @@ fn buf_mod_sign(
     group: impl crate::strings::IntoCCharPtr,
     prio: c_int,
     sp: &mut Sign,
-) -> Linenr { let group = group.into_c_char_ptr();
-     {
+) -> Linenr {
+    let group = group.into_c_char_ptr();
+    {
         let ns = group_get_ns(group);
         if ns < 0 || (!group.is_null() && ns == 0) {
             return 0;
@@ -249,14 +258,15 @@ fn buf_mod_sign(
 
         let mark = marktree_lookup_ns(&buf.b_marktree, ns as u32, *id, false, None);
         if mark.pos.row >= 0 {
-            buf_set_sign( buf, id, group, prio, mark.pos.row + 1,  sp);
+            buf_set_sign(buf, id, group, prio, mark.pos.row + 1, sp);
         }
         mark.pos.row + 1
     }
 }
 
-fn buf_findsign(buf: &mut FileBuf, id: c_int, group: impl crate::strings::IntoCCharPtr) -> c_int { let group = group.into_c_char_ptr();
-     {
+fn buf_findsign(buf: &mut FileBuf, id: c_int, group: impl crate::strings::IntoCCharPtr) -> c_int {
+    let group = group.into_c_char_ptr();
+    {
         let ns = group_get_ns(group);
         if ns < 0 || (!group.is_null() && ns == 0) {
             return 0;
@@ -270,19 +280,19 @@ fn buf_findsign(buf: &mut FileBuf, id: c_int, group: impl crate::strings::IntoCC
 
 fn sign_row_cmp_slice(s1: &MTKey, s2: &MTKey) -> Ordering {
     if s1.pos.row != s2.pos.row {
-            return if s1.pos.row > s2.pos.row {
-                Ordering::Greater
-            } else {
-                Ordering::Less
-            };
-        }
+        return if s1.pos.row > s2.pos.row {
+            Ordering::Greater
+        } else {
+            Ordering::Less
+        };
+    }
 
-        let sh1 = decor_find_sign(mt_decor(*s1)).unwrap();
-        let sh2 = decor_find_sign(mt_decor(*s2)).unwrap();
-        let si1 = SignItem { sh: sh1, id: s1.id };
-        let si2 = SignItem { sh: sh2, id: s2.id };
+    let sh1 = decor_find_sign(mt_decor(*s1)).unwrap();
+    let sh2 = decor_find_sign(mt_decor(*s2)).unwrap();
+    let si1 = SignItem { sh: sh1, id: s1.id };
+    let si2 = SignItem { sh: sh2, id: s2.id };
 
-        sign_item_cmp(&si1, &si2)
+    sign_item_cmp(&si1, &si2)
 }
 
 fn buf_delete_signs(
@@ -290,8 +300,9 @@ fn buf_delete_signs(
     group: impl crate::strings::IntoCCharPtr,
     id: c_int,
     atlnum: Linenr,
-) -> bool { let group = group.into_c_char_ptr();
-     {
+) -> bool {
+    let group = group.into_c_char_ptr();
+    {
         let ns = group_get_ns(group);
         if ns < 0 {
             return false;
@@ -352,21 +363,26 @@ fn buf_delete_signs(
 }
 
 pub fn buf_has_signs(buf: &FileBuf) -> bool {
-     buf_meta_total(buf, K_MTMETA_SIGN_HL) + buf_meta_total(buf, K_MTMETA_SIGN_TEXT) != 0
+    buf_meta_total(buf, K_MTMETA_SIGN_HL) + buf_meta_total(buf, K_MTMETA_SIGN_TEXT) != 0
 }
 
-fn sign_list_placed(rbuf: *mut FileBuf, group: impl crate::strings::IntoCCharPtr) { let group = group.into_c_char_ptr();
+fn sign_list_placed(rbuf: *mut FileBuf, group: impl crate::strings::IntoCCharPtr) {
+    let group = group.into_c_char_ptr();
     unsafe {
         let mut lbuf = [0 as c_char; MSG_BUF_LEN];
         let mut namebuf = [0 as c_char; MSG_BUF_LEN];
         let mut groupbuf = [0 as c_char; MSG_BUF_LEN];
-        let mut buf = if !rbuf.is_null() { rbuf } else { g_st().firstbuf };
+        let mut buf = if !rbuf.is_null() {
+            rbuf
+        } else {
+            g_st().firstbuf
+        };
         let ns = group_get_ns(group);
 
         msg_puts_title(gettext(c"\n--- Signs ---"));
 
         while !buf.is_null() && !g_st().got_int {
-            if buf_has_signs( &*buf) {
+            if buf_has_signs(&*buf) {
                 msg_putchar(b'\n' as c_int);
                 let fname = if !(*buf).b_fname.is_null() {
                     (*buf).b_fname.cast_const()
@@ -450,14 +466,17 @@ fn sign_list_placed(rbuf: *mut FileBuf, group: impl crate::strings::IntoCCharPtr
     }
 }
 
-fn sign_cmd_idx(begin_cmd: impl crate::strings::IntoCCharPtr, end_cmd: *mut c_char) -> c_int { let begin_cmd = begin_cmd.into_c_char_ptr();
+fn sign_cmd_idx(begin_cmd: impl crate::strings::IntoCCharPtr, end_cmd: *mut c_char) -> c_int {
+    let begin_cmd = begin_cmd.into_c_char_ptr();
     unsafe {
         let save = *end_cmd;
         *end_cmd = NUL;
         let mut idx: usize = 0;
         loop {
             let cmd = CMDS[idx];
-            if cmd.is_null() || crate::memory::cstr_as_bytes(begin_cmd) == crate::memory::cstr_as_bytes(cmd) {
+            if cmd.is_null()
+                || crate::memory::cstr_as_bytes(begin_cmd) == crate::memory::cstr_as_bytes(cmd)
+            {
                 break;
             }
             idx += 1;
@@ -533,7 +552,13 @@ fn sign_define_by_name(
     culhl: impl crate::strings::IntoCCharPtr,
     numhl: impl crate::strings::IntoCCharPtr,
     prio: c_int,
-) -> bool { let name = name.into_c_char_ptr(); let icon = icon.into_c_char_ptr(); let linehl = linehl.into_c_char_ptr(); let texthl = texthl.into_c_char_ptr(); let culhl = culhl.into_c_char_ptr(); let numhl = numhl.into_c_char_ptr();
+) -> bool {
+    let name = name.into_c_char_ptr();
+    let icon = icon.into_c_char_ptr();
+    let linehl = linehl.into_c_char_ptr();
+    let texthl = texthl.into_c_char_ptr();
+    let culhl = culhl.into_c_char_ptr();
+    let numhl = numhl.into_c_char_ptr();
     unsafe {
         let existing = pmap_get_sign(name);
         let new_sign = existing.is_null();
@@ -590,11 +615,9 @@ fn sign_define_by_name(
         if !new_sign {
             let mut did_redraw = false;
             for sh in g_st().decor_items.iter_mut() {
-                if sh
-                    .sign_name
-                    .as_ref()
-                    .is_some_and(|sn| crate::memory::cstr_as_bytes(sn.as_ptr()) == crate::memory::cstr_as_bytes(name))
-                {
+                if sh.sign_name.as_ref().is_some_and(|sn| {
+                    crate::memory::cstr_as_bytes(sn.as_ptr()) == crate::memory::cstr_as_bytes(name)
+                }) {
                     sh.text = (*sp).sn_text;
                     sh.hl_id = (*sp).sn_text_hl;
                     sh.line_hl_id = (*sp).sn_line_hl;
@@ -615,12 +638,12 @@ fn sign_define_by_name(
     }
 }
 
-fn sign_undefine_by_name(name: impl crate::strings::IntoCCharPtr) -> bool { let name = name.into_c_char_ptr();
-     {
-        let Some(pos) = sign_st().sign_map
-            .iter()
-            .position(|sp| crate::memory::cstr_as_bytes(sp.sn_name.as_ptr()) == crate::memory::cstr_as_bytes(name))
-        else {
+fn sign_undefine_by_name(name: impl crate::strings::IntoCCharPtr) -> bool {
+    let name = name.into_c_char_ptr();
+    {
+        let Some(pos) = sign_st().sign_map.iter().position(|sp| {
+            crate::memory::cstr_as_bytes(sp.sn_name.as_ptr()) == crate::memory::cstr_as_bytes(name)
+        }) else {
             semsg!(gettext(c"E155: Unknown sign: %s"), name);
             return false;
         };
@@ -631,49 +654,46 @@ fn sign_undefine_by_name(name: impl crate::strings::IntoCCharPtr) -> bool { let 
 
 fn sign_list_defined(sp: &mut Sign) {
     smsg!(0, c"sign %s", sp.sn_name.as_ptr());
-        if let Some(ref icon) = sp.sn_icon {
-            msg_puts(c" icon=");
-            msg_outtrans(icon.as_ptr(), 0, false);
-            msg_puts(gettext(c" (not supported)"));
+    if let Some(ref icon) = sp.sn_icon {
+        msg_puts(c" icon=");
+        msg_outtrans(icon.as_ptr(), 0, false);
+        msg_puts(gettext(c" (not supported)"));
+    }
+    if sp.sn_text[0] != 0 {
+        msg_puts(c" text=");
+        let mut buf = [0 as c_char; SIGN_WIDTH * MAX_SCHAR_SIZE];
+        describe_sign_text(buf.as_mut_ptr(), sp.sn_text.as_mut_ptr());
+        msg_outtrans(buf.as_ptr(), 0, false);
+    }
+    if sp.sn_priority > 0 {
+        let mut lbuf = [0 as c_char; MSG_BUF_LEN];
+        vim_snprintf!(
+            lbuf.as_mut_ptr(),
+            MSG_BUF_LEN,
+            c" priority=%d",
+            sp.sn_priority,
+        );
+        msg_puts(lbuf.as_ptr());
+    }
+    let args = [
+        c" linehl=".as_ptr(),
+        c" texthl=".as_ptr(),
+        c" culhl=".as_ptr(),
+        c" numhl=".as_ptr(),
+    ];
+    let hls = [sp.sn_line_hl, sp.sn_text_hl, sp.sn_cul_hl, sp.sn_num_hl];
+    for i in 0..4 {
+        if hls[i] > 0 {
+            msg_puts(args[i]);
+            let p =
+                get_highlight_name_ext(&mut crate::os::env::ExpandCtx::new(), hls[i] - 1, false);
+            msg_puts(if !p.is_null() { p } else { c"NONE".as_ptr() });
         }
-        if sp.sn_text[0] != 0 {
-            msg_puts(c" text=");
-            let mut buf = [0 as c_char; SIGN_WIDTH * MAX_SCHAR_SIZE];
-            describe_sign_text(buf.as_mut_ptr(), sp.sn_text.as_mut_ptr());
-            msg_outtrans(buf.as_ptr(), 0, false);
-        }
-        if sp.sn_priority > 0 {
-            let mut lbuf = [0 as c_char; MSG_BUF_LEN];
-            vim_snprintf!(
-                lbuf.as_mut_ptr(),
-                MSG_BUF_LEN,
-                c" priority=%d",
-                sp.sn_priority,
-            );
-            msg_puts(lbuf.as_ptr());
-        }
-        let args = [
-            c" linehl=".as_ptr(),
-            c" texthl=".as_ptr(),
-            c" culhl=".as_ptr(),
-            c" numhl=".as_ptr(),
-        ];
-        let hls = [
-            sp.sn_line_hl,
-            sp.sn_text_hl,
-            sp.sn_cul_hl,
-            sp.sn_num_hl,
-        ];
-        for i in 0..4 {
-            if hls[i] > 0 {
-                msg_puts(args[i]);
-                let p = get_highlight_name_ext(&mut crate::os::env::ExpandCtx::new(), hls[i] - 1, false);
-                msg_puts(if !p.is_null() { p } else { c"NONE".as_ptr() });
-            }
-        }
+    }
 }
 
-fn sign_list_by_name(name: impl crate::strings::IntoCCharPtr) { let name = name.into_c_char_ptr();
+fn sign_list_by_name(name: impl crate::strings::IntoCCharPtr) {
+    let name = name.into_c_char_ptr();
     unsafe {
         let sp = pmap_get_sign(name);
         if !sp.is_null() {
@@ -691,9 +711,14 @@ fn sign_place(
     buf: &mut FileBuf,
     mut lnum: Linenr,
     mut prio: c_int,
-) -> bool { let group = group.into_c_char_ptr(); let name = name.into_c_char_ptr();
+) -> bool {
+    let group = group.into_c_char_ptr();
+    let name = name.into_c_char_ptr();
     unsafe {
-        if !group.is_null() && (crate::memory::cstr_first_byte(group) == b'*' || crate::memory::cstr_is_empty(group)) {
+        if !group.is_null()
+            && (crate::memory::cstr_first_byte(group) == b'*'
+                || crate::memory::cstr_is_empty(group))
+        {
             return false;
         }
 
@@ -712,15 +737,12 @@ fn sign_place(
         }
 
         if lnum > 0 {
-            buf_set_sign( buf, id, group, prio, lnum,  &mut *sp);
+            buf_set_sign(buf, id, group, prio, lnum, &mut *sp);
         } else {
-            lnum = buf_mod_sign( buf, &mut *id, group, prio,  &mut *sp);
+            lnum = buf_mod_sign(buf, &mut *id, group, prio, &mut *sp);
         }
         if lnum <= 0 {
-            semsg!(
-                gettext(c"E885: Not possible to change sign %s"),
-                name,
-            );
+            semsg!(gettext(c"E885: Not possible to change sign %s"), name,);
             return false;
         }
 
@@ -733,14 +755,18 @@ fn sign_unplace_inner(
     id: c_int,
     group: impl crate::strings::IntoCCharPtr,
     atlnum: Linenr,
-) -> bool { let group = group.into_c_char_ptr();
-     {
-        if !buf_has_signs( buf) {
+) -> bool {
+    let group = group.into_c_char_ptr();
+    {
+        if !buf_has_signs(buf) {
             return false;
         }
 
-        if id == 0 || atlnum > 0 || (!group.is_null() && crate::memory::cstr_first_byte(group) == b'*') {
-            if !buf_delete_signs( buf, group, id, atlnum) {
+        if id == 0
+            || atlnum > 0
+            || (!group.is_null() && crate::memory::cstr_first_byte(group) == b'*')
+        {
+            if !buf_delete_signs(buf, group, id, atlnum) {
                 return false;
             }
         } else {
@@ -754,10 +780,16 @@ fn sign_unplace_inner(
     }
 }
 
-fn sign_unplace(buf: Option<&mut FileBuf>, id: c_int, group: impl crate::strings::IntoCCharPtr, atlnum: Linenr) -> bool { let group = group.into_c_char_ptr();
-     {
+fn sign_unplace(
+    buf: Option<&mut FileBuf>,
+    id: c_int,
+    group: impl crate::strings::IntoCCharPtr,
+    atlnum: Linenr,
+) -> bool {
+    let group = group.into_c_char_ptr();
+    {
         if let Some(buf) = buf {
-            sign_unplace_inner( buf, id, group, atlnum)
+            sign_unplace_inner(buf, id, group, atlnum)
         } else {
             let mut retval = true;
             for cbuf in for_all_buffers_ptr() {
@@ -770,9 +802,10 @@ fn sign_unplace(buf: Option<&mut FileBuf>, id: c_int, group: impl crate::strings
     }
 }
 
-fn sign_jump(id: c_int, group: impl crate::strings::IntoCCharPtr, buf: &mut FileBuf) -> Linenr { let group = group.into_c_char_ptr();
-     {
-        let lnum = buf_findsign( buf, id, group);
+fn sign_jump(id: c_int, group: impl crate::strings::IntoCCharPtr, buf: &mut FileBuf) -> Linenr {
+    let group = group.into_c_char_ptr();
+    {
+        let lnum = buf_findsign(buf, id, group);
         if lnum <= 0 {
             semsg!(gettext(c"E157: Invalid sign ID: %d"), id);
             return -1;
@@ -798,8 +831,7 @@ fn sign_jump(id: c_int, group: impl crate::strings::IntoCCharPtr, buf: &mut File
                 lnum,
                 if buf_hide(curbuf_mut()) { ECMD_HIDE } else { 0 },
                 curwin_ptr(),
-            )
-            {
+            ) {
                 return -1;
             }
         }
@@ -809,7 +841,8 @@ fn sign_jump(id: c_int, group: impl crate::strings::IntoCCharPtr, buf: &mut File
     }
 }
 
-fn sign_define_cmd(name: impl crate::strings::IntoCCharPtr, mut cmdline: *mut c_char) { let name = name.into_c_char_ptr();
+fn sign_define_cmd(name: impl crate::strings::IntoCCharPtr, mut cmdline: *mut c_char) {
+    let name = name.into_c_char_ptr();
     unsafe {
         let mut icon: *mut c_char = ptr::null_mut();
         let mut text: *mut c_char = ptr::null_mut();
@@ -838,7 +871,8 @@ fn sign_define_cmd(name: impl crate::strings::IntoCCharPtr, mut cmdline: *mut c_
             } else if crate::memory::cstr_prefix_bytes(arg, 6) == &b"numhl="[..6] {
                 numhl = arg.add(6);
             } else if crate::memory::cstr_prefix_bytes(arg, 9) == &b"priority="[..9] {
-                prio = crate::charset::parse_i64_prefix(crate::memory::cstr_as_bytes(arg.add(9))) as c_int;
+                prio = crate::charset::parse_i64_prefix(crate::memory::cstr_as_bytes(arg.add(9)))
+                    as c_int;
             } else {
                 semsg!(gettext(E_INVARG2), arg);
                 return;
@@ -861,21 +895,29 @@ fn sign_place_cmd(
     id: c_int,
     group: impl crate::strings::IntoCCharPtr,
     prio: c_int,
-) { let name = name.into_c_char_ptr(); let group = group.into_c_char_ptr();
+) {
+    let name = name.into_c_char_ptr();
+    let group = group.into_c_char_ptr();
     unsafe {
         if id <= 0 {
-            if lnum >= 0 || !name.is_null() || (!group.is_null() && crate::memory::cstr_is_empty(group)) {
+            if lnum >= 0
+                || !name.is_null()
+                || (!group.is_null() && crate::memory::cstr_is_empty(group))
+            {
                 emsg(gettext(E_INVARG));
             } else {
                 sign_list_placed(buf, group);
             }
         } else {
-            if name.is_null() || buf.is_null() || (!group.is_null() && crate::memory::cstr_is_empty(group)) {
+            if name.is_null()
+                || buf.is_null()
+                || (!group.is_null() && crate::memory::cstr_is_empty(group))
+            {
                 emsg(gettext(E_INVARG));
                 return;
             }
             let mut uid = id as u32;
-            sign_place(&mut uid, group, name,  &mut *buf, lnum, prio);
+            sign_place(&mut uid, group, name, &mut *buf, lnum, prio);
         }
     }
 }
@@ -886,9 +928,12 @@ fn sign_unplace_cmd(
     name: impl crate::strings::IntoCCharPtr,
     id: c_int,
     group: impl crate::strings::IntoCCharPtr,
-) { let group = group.into_c_char_ptr(); let name = name.into_c_char_ptr();
+) {
+    let group = group.into_c_char_ptr();
+    let name = name.into_c_char_ptr();
     unsafe {
-        if lnum >= 0 || !name.is_null() || (!group.is_null() && crate::memory::cstr_is_empty(group)) {
+        if lnum >= 0 || !name.is_null() || (!group.is_null() && crate::memory::cstr_is_empty(group))
+        {
             emsg(gettext(E_INVARG));
             return;
         }
@@ -910,19 +955,25 @@ fn sign_jump_cmd(
     name: impl crate::strings::IntoCCharPtr,
     id: c_int,
     group: impl crate::strings::IntoCCharPtr,
-) { let group = group.into_c_char_ptr(); let name = name.into_c_char_ptr();
-     {
+) {
+    let group = group.into_c_char_ptr();
+    let name = name.into_c_char_ptr();
+    {
         if name.is_null() && group.is_null() && id == -1 {
             emsg(gettext(E_ARGREQ));
             return;
         }
 
-        if buf.is_none() || (!group.is_null() && crate::memory::cstr_is_empty(group)) || lnum >= 0 || !name.is_null() {
+        if buf.is_none()
+            || (!group.is_null() && crate::memory::cstr_is_empty(group))
+            || lnum >= 0
+            || !name.is_null()
+        {
             emsg(gettext(E_INVARG));
             return;
         }
 
-        sign_jump(id, group,  buf.unwrap());
+        sign_jump(id, group, buf.unwrap());
     }
 }
 
@@ -943,7 +994,9 @@ fn parse_sign_cmd_args(
 
         if ascii_isdigit(crate::memory::cstr_first_char(arg)) {
             *id = getdigits_int(&raw mut arg, true, 0);
-            if !ascii_iswhite(crate::memory::cstr_first_char(arg)) && !crate::memory::cstr_is_empty(arg) {
+            if !ascii_iswhite(crate::memory::cstr_first_char(arg))
+                && !crate::memory::cstr_is_empty(arg)
+            {
                 *id = -1;
                 arg = arg1;
             } else {
@@ -954,10 +1007,13 @@ fn parse_sign_cmd_args(
         while !crate::memory::cstr_is_empty(arg) {
             if crate::memory::cstr_prefix_bytes(arg, 5) == &b"line="[..5] {
                 arg = arg.add(5);
-                *lnum = crate::charset::parse_i64_prefix(crate::memory::cstr_as_bytes(arg)) as c_int;
+                *lnum =
+                    crate::charset::parse_i64_prefix(crate::memory::cstr_as_bytes(arg)) as c_int;
                 arg = skiptowhite(arg);
                 lnum_arg = true;
-            } else if (crate::memory::cstr_prefix_bytes(arg, 1) == &b"*"[..1]) && cmd == SIGNCMD_UNPLACE {
+            } else if (crate::memory::cstr_prefix_bytes(arg, 1) == &b"*"[..1])
+                && cmd == SIGNCMD_UNPLACE
+            {
                 if *id != -1 {
                     emsg(gettext(E_INVARG));
                     return false;
@@ -972,7 +1028,9 @@ fn parse_sign_cmd_args(
                     *arg = NUL;
                     arg = arg.add(1);
                 }
-                while crate::memory::cstr_first_byte(namep) == b'0' && crate::memory::cstr_byte_at(namep, 1) != 0 {
+                while crate::memory::cstr_first_byte(namep) == b'0'
+                    && crate::memory::cstr_byte_at(namep, 1) != 0
+                {
                     namep = namep.add(1);
                 }
                 *name = namep;
@@ -986,7 +1044,8 @@ fn parse_sign_cmd_args(
                 }
             } else if crate::memory::cstr_prefix_bytes(arg, 9) == &b"priority="[..9] {
                 arg = arg.add(9);
-                *prio = crate::charset::parse_i64_prefix(crate::memory::cstr_as_bytes(arg)) as c_int;
+                *prio =
+                    crate::charset::parse_i64_prefix(crate::memory::cstr_as_bytes(arg)) as c_int;
                 arg = skiptowhite(arg);
             } else if crate::memory::cstr_prefix_bytes(arg, 5) == &b"file="[..5] {
                 arg = arg.add(5);
@@ -1045,7 +1104,9 @@ pub fn ex_sign(eap: &mut Exarg) {
                     *p = NUL;
                     p = p.add(1);
                 }
-                while crate::memory::cstr_first_byte(arg) == b'0' && crate::memory::cstr_byte_at(arg, 1) != 0 {
+                while crate::memory::cstr_first_byte(arg) == b'0'
+                    && crate::memory::cstr_byte_at(arg, 1) != 0
+                {
                     arg = arg.add(1);
                 }
 
@@ -1074,8 +1135,7 @@ pub fn ex_sign(eap: &mut Exarg) {
                 &mut prio,
                 &raw mut buf,
                 &mut lnum,
-            )
-            {
+            ) {
                 return;
             }
 
@@ -1093,52 +1153,52 @@ pub fn ex_sign(eap: &mut Exarg) {
 fn sign_get_info_dict(sp: &mut Sign) -> *mut TvDict {
     let d = tv_dict_alloc();
 
-        tv_dict_add_str(unsafe { &mut *d }, c"name", sp.sn_name.as_ptr());
+    tv_dict_add_str(unsafe { &mut *d }, c"name", sp.sn_name.as_ptr());
 
-        if let Some(ref icon) = sp.sn_icon {
-            tv_dict_add_str(unsafe { &mut *d }, c"icon", icon.as_ptr());
-        }
-        if sp.sn_text[0] != 0 {
-            let mut buf = [0 as c_char; SIGN_WIDTH * MAX_SCHAR_SIZE];
-            describe_sign_text(buf.as_mut_ptr(), sp.sn_text.as_mut_ptr());
-            tv_dict_add_str(unsafe { &mut *d }, c"text", buf.as_ptr());
-        }
-        if sp.sn_priority > 0 {
-            tv_dict_add_nr(unsafe { &mut *d }, c"priority", i64::from(sp.sn_priority));
-        }
-        let args = [
-            (c"linehl", sp.sn_line_hl),
-            (c"texthl", sp.sn_text_hl),
-            (c"culhl", sp.sn_cul_hl),
-            (c"numhl", sp.sn_num_hl),
-        ];
-        for (name, hl) in args {
-            if hl > 0 {
-                let p = get_highlight_name_ext(&mut crate::os::env::ExpandCtx::new(), hl - 1, false);
-                if p.is_null() {
-                    tv_dict_add_str_len(unsafe { &mut *d }, name, c"NONE", 4);
-                } else {
-                    tv_dict_add_str(unsafe { &mut *d }, name, p);
-                }
+    if let Some(ref icon) = sp.sn_icon {
+        tv_dict_add_str(unsafe { &mut *d }, c"icon", icon.as_ptr());
+    }
+    if sp.sn_text[0] != 0 {
+        let mut buf = [0 as c_char; SIGN_WIDTH * MAX_SCHAR_SIZE];
+        describe_sign_text(buf.as_mut_ptr(), sp.sn_text.as_mut_ptr());
+        tv_dict_add_str(unsafe { &mut *d }, c"text", buf.as_ptr());
+    }
+    if sp.sn_priority > 0 {
+        tv_dict_add_nr(unsafe { &mut *d }, c"priority", i64::from(sp.sn_priority));
+    }
+    let args = [
+        (c"linehl", sp.sn_line_hl),
+        (c"texthl", sp.sn_text_hl),
+        (c"culhl", sp.sn_cul_hl),
+        (c"numhl", sp.sn_num_hl),
+    ];
+    for (name, hl) in args {
+        if hl > 0 {
+            let p = get_highlight_name_ext(&mut crate::os::env::ExpandCtx::new(), hl - 1, false);
+            if p.is_null() {
+                tv_dict_add_str_len(unsafe { &mut *d }, name, c"NONE", 4);
+            } else {
+                tv_dict_add_str(unsafe { &mut *d }, name, p);
             }
         }
-        d
+    }
+    d
 }
 
 fn sign_get_placed_info_dict(mark: MTKey) -> *mut TvDict {
     let d = tv_dict_alloc();
-        let sh = decor_find_sign(mt_decor(mark)).unwrap();
+    let sh = decor_find_sign(mt_decor(mark)).unwrap();
 
-        tv_dict_add_str(unsafe { &mut *d }, c"name", sign_get_name(sh));
-        tv_dict_add_nr(unsafe { &mut *d }, c"id", i64::from(mark.id as c_int));
-        tv_dict_add_str(
-            unsafe { &mut *d },
-            c"group",
-            describe_ns(mark.ns as c_int, c""),
-        );
-        tv_dict_add_nr(unsafe { &mut *d }, c"lnum", i64::from(mark.pos.row + 1));
-        tv_dict_add_nr(unsafe { &mut *d }, c"priority", i64::from(sh.priority));
-        d
+    tv_dict_add_str(unsafe { &mut *d }, c"name", sign_get_name(sh));
+    tv_dict_add_nr(unsafe { &mut *d }, c"id", i64::from(mark.id as c_int));
+    tv_dict_add_str(
+        unsafe { &mut *d },
+        c"group",
+        describe_ns(mark.ns as c_int, c""),
+    );
+    tv_dict_add_nr(unsafe { &mut *d }, c"lnum", i64::from(mark.pos.row + 1));
+    tv_dict_add_nr(unsafe { &mut *d }, c"priority", i64::from(sh.priority));
+    d
 }
 
 pub fn get_buffer_signs(buf: &mut FileBuf) -> *mut TvList {
@@ -1151,7 +1211,7 @@ pub fn get_buffer_signs(buf: &mut FileBuf) -> *mut TvList {
         while itr.x.is_some() {
             let mark = marktree_itr_current(b, &itr);
             if !mt_end(mark) && mt_decor_sign(mark) {
-                tv_list_append_dict( &mut *l, sign_get_placed_info_dict(mark));
+                tv_list_append_dict(&mut *l, sign_get_placed_info_dict(mark));
             }
             marktree_itr_next(b, &mut itr);
         }
@@ -1166,10 +1226,11 @@ fn sign_get_placed_in_buf(
     sign_id: c_int,
     group: impl crate::strings::IntoCCharPtr,
     retlist: &mut TvList,
-) { let group = group.into_c_char_ptr();
+) {
+    let group = group.into_c_char_ptr();
     unsafe {
         let d = tv_dict_alloc();
-        tv_list_append_dict( &mut *retlist, d);
+        tv_list_append_dict(&mut *retlist, d);
 
         tv_dict_add_nr(&mut *d, c"bufnr", i64::from(buf.b_fnum));
 
@@ -1177,7 +1238,7 @@ fn sign_get_placed_in_buf(
         tv_dict_add_list(&mut *d, c"signs", l);
 
         let ns = group_get_ns(group);
-        if !buf_has_signs( buf) || ns < 0 {
+        if !buf_has_signs(buf) || ns < 0 {
             return;
         }
 
@@ -1207,7 +1268,7 @@ fn sign_get_placed_in_buf(
         if !signs.is_empty() {
             signs.sort_by(sign_row_cmp_slice);
             for mark in signs {
-                tv_list_append_dict( &mut *l, sign_get_placed_info_dict(mark));
+                tv_list_append_dict(&mut *l, sign_get_placed_info_dict(mark));
             }
         }
     }
@@ -1219,14 +1280,15 @@ fn sign_get_placed(
     id: c_int,
     group: impl crate::strings::IntoCCharPtr,
     retlist: &mut TvList,
-) { let group = group.into_c_char_ptr();
+) {
+    let group = group.into_c_char_ptr();
     unsafe {
         if let Some(buf) = buf {
-            sign_get_placed_in_buf( buf, lnum, id, group, retlist);
+            sign_get_placed_in_buf(buf, lnum, id, group, retlist);
         } else {
             for cbuf in for_all_buffers_ptr() {
-                if buf_has_signs( &*cbuf) {
-                    sign_get_placed_in_buf( &mut *cbuf, 0, id, group, retlist);
+                if buf_has_signs(&*cbuf) {
+                    sign_get_placed_in_buf(&mut *cbuf, 0, id, group, retlist);
                 }
             }
         }
@@ -1238,7 +1300,7 @@ pub fn free_signs() {
 }
 
 fn get_nth_sign_name(idx: c_int) -> *mut c_char {
-     {
+    {
         if let Ok(idx_usize) = usize::try_from(idx)
             && let Some(sp) = sign_st().sign_map.as_slice().get(idx_usize)
         {
@@ -1252,55 +1314,55 @@ fn get_nth_sign_group_name(idx: c_int) -> *mut c_char {
     if idx < 0 {
         return ptr::null_mut();
     }
-     {
+    {
         let ns_slice = sign_st().sign_ns.as_slice();
-        ns_slice.get(idx as usize).map_or(ptr::null_mut(), |&ns| {
-            describe_ns(ns as NS, c"").cast_mut()
-        })
+        ns_slice
+            .get(idx as usize)
+            .map_or(ptr::null_mut(), |&ns| describe_ns(ns as NS, c"").cast_mut())
     }
 }
 
 pub fn get_sign_name(_xp: &mut ExpandCtx, idx: c_int) -> *mut c_char {
     match sign_st().expand_what {
-            EXP_SUBCMD => CMDS[idx as usize].cast_mut(),
-            EXP_DEFINE => {
-                const DEFINE_ARG: [*const c_char; 8] = [
-                    c"culhl=".as_ptr(),
-                    c"icon=".as_ptr(),
-                    c"linehl=".as_ptr(),
-                    c"numhl=".as_ptr(),
-                    c"text=".as_ptr(),
-                    c"texthl=".as_ptr(),
-                    c"priority=".as_ptr(),
-                    ptr::null(),
-                ];
-                DEFINE_ARG[idx as usize].cast_mut()
-            }
-            EXP_PLACE => {
-                const PLACE_ARG: [*const c_char; 7] = [
-                    c"line=".as_ptr(),
-                    c"name=".as_ptr(),
-                    c"group=".as_ptr(),
-                    c"priority=".as_ptr(),
-                    c"file=".as_ptr(),
-                    c"buffer=".as_ptr(),
-                    ptr::null(),
-                ];
-                PLACE_ARG[idx as usize].cast_mut()
-            }
-            EXP_LIST | EXP_UNPLACE => {
-                const LIST_ARG: [*const c_char; 4] = [
-                    c"group=".as_ptr(),
-                    c"file=".as_ptr(),
-                    c"buffer=".as_ptr(),
-                    ptr::null(),
-                ];
-                LIST_ARG[idx as usize].cast_mut()
-            }
-            EXP_SIGN_NAMES => get_nth_sign_name(idx),
-            EXP_SIGN_GROUPS => get_nth_sign_group_name(idx),
-            _ => ptr::null_mut(),
+        EXP_SUBCMD => CMDS[idx as usize].cast_mut(),
+        EXP_DEFINE => {
+            const DEFINE_ARG: [*const c_char; 8] = [
+                c"culhl=".as_ptr(),
+                c"icon=".as_ptr(),
+                c"linehl=".as_ptr(),
+                c"numhl=".as_ptr(),
+                c"text=".as_ptr(),
+                c"texthl=".as_ptr(),
+                c"priority=".as_ptr(),
+                ptr::null(),
+            ];
+            DEFINE_ARG[idx as usize].cast_mut()
         }
+        EXP_PLACE => {
+            const PLACE_ARG: [*const c_char; 7] = [
+                c"line=".as_ptr(),
+                c"name=".as_ptr(),
+                c"group=".as_ptr(),
+                c"priority=".as_ptr(),
+                c"file=".as_ptr(),
+                c"buffer=".as_ptr(),
+                ptr::null(),
+            ];
+            PLACE_ARG[idx as usize].cast_mut()
+        }
+        EXP_LIST | EXP_UNPLACE => {
+            const LIST_ARG: [*const c_char; 4] = [
+                c"group=".as_ptr(),
+                c"file=".as_ptr(),
+                c"buffer=".as_ptr(),
+                ptr::null(),
+            ];
+            LIST_ARG[idx as usize].cast_mut()
+        }
+        EXP_SIGN_NAMES => get_nth_sign_name(idx),
+        EXP_SIGN_GROUPS => get_nth_sign_group_name(idx),
+        _ => ptr::null_mut(),
+    }
 }
 
 pub fn set_context_in_sign_cmd(xp: &mut ExpandCtx, arg: *mut c_char) {
@@ -1386,8 +1448,9 @@ pub fn set_context_in_sign_cmd(xp: &mut ExpandCtx, arg: *mut c_char) {
     }
 }
 
-fn sign_define_from_dict(name: impl crate::strings::IntoCCharPtr, dict: Option<&TvDict>) -> c_int { let mut name = name.into_c_char_ptr();
-     {
+fn sign_define_from_dict(name: impl crate::strings::IntoCCharPtr, dict: Option<&TvDict>) -> c_int {
+    let mut name = name.into_c_char_ptr();
+    {
         if name.is_null() {
             name = tv_dict_get_string(dict, c"name");
             if crate::memory::cstr_is_empty(name) {
@@ -1413,22 +1476,25 @@ fn sign_define_from_dict(name: impl crate::strings::IntoCCharPtr, dict: Option<&
             prio = tv_dict_get_number_def(dict, c"priority", -1) as c_int;
         }
 
-        if sign_define_by_name(name, icon, text, linehl, texthl, culhl, numhl, prio) { 0 } else { -1 }
+        if sign_define_by_name(name, icon, text, linehl, texthl, culhl, numhl, prio) {
+            0
+        } else {
+            -1
+        }
     }
 }
 
 fn sign_define_multiple(l: Option<&TvList>, retlist: &mut TvList) {
-     {
+    {
         if l.is_none() {
             return;
         }
         for li in crate::eval::typval::list_iter_mut(l.unwrap().lv_first) {
             let mut retval: c_int = -1;
             if li.li_tv.v_type == VarType::VarDict {
-                retval = sign_define_from_dict(
-                    ptr::null_mut(),
-                    unsafe { li.li_tv.vval.v_dict().as_ref() },
-                );
+                retval = sign_define_from_dict(ptr::null_mut(), unsafe {
+                    li.li_tv.vval.v_dict().as_ref()
+                });
             } else {
                 emsg(gettext(E_DICTREQ));
             }
@@ -1437,14 +1503,13 @@ fn sign_define_multiple(l: Option<&TvList>, retlist: &mut TvList) {
     }
 }
 
-pub fn f_sign_define(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData){
-
-     {
-        if argvars[0].v_type == VarType::VarList
-            && argvars[1].v_type == VarType::VarUnknown
-        {
+pub fn f_sign_define(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
+    {
+        if argvars[0].v_type == VarType::VarList && argvars[1].v_type == VarType::VarUnknown {
             tv_list_alloc_ret(rettv, K_LIST_LEN_MAY_KNOW_CONST);
-            sign_define_multiple(unsafe { argvars[0].vval.v_list().as_ref() }, unsafe { &mut *rettv.vval.v_list() });
+            sign_define_multiple(unsafe { argvars[0].vval.v_list().as_ref() }, unsafe {
+                &mut *rettv.vval.v_list()
+            });
             return;
         }
 
@@ -1464,30 +1529,31 @@ pub fn f_sign_define(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFunc
         } else {
             ptr::null_mut()
         };
-        rettv.vval = crate::eval::typval::TypvalVval::Number(i64::from(sign_define_from_dict(name, unsafe { d.as_ref() })));
+        rettv.vval = crate::eval::typval::TypvalVval::Number(i64::from(sign_define_from_dict(
+            name,
+            unsafe { d.as_ref() },
+        )));
     }
 }
 
-pub fn f_sign_getdefined(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData){
-
+pub fn f_sign_getdefined(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
     unsafe {
         tv_list_alloc_ret(rettv, 0);
 
         if argvars[0].v_type == VarType::VarUnknown {
             for sp in &mut sign_st().sign_map {
-                tv_list_append_dict( &mut *rettv.vval.v_list(), sign_get_info_dict(sp));
+                tv_list_append_dict(&mut *rettv.vval.v_list(), sign_get_info_dict(sp));
             }
         } else {
             let sp = pmap_get_sign(tv_get_string(&argvars[0]));
             if !sp.is_null() {
-                tv_list_append_dict( &mut *rettv.vval.v_list(), sign_get_info_dict(&mut *sp));
+                tv_list_append_dict(&mut *rettv.vval.v_list(), sign_get_info_dict(&mut *sp));
             }
         }
     }
 }
 
-pub fn f_sign_getplaced(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData){
-
+pub fn f_sign_getplaced(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
     unsafe {
         let mut buf: *mut FileBuf = ptr::null_mut();
         let mut lnum: Linenr = 0;
@@ -1517,8 +1583,7 @@ pub fn f_sign_getplaced(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalF
                 }
                 let di_id = tv_dict_find(dict.as_ref(), c"id", -1);
                 if !di_id.is_null() {
-                    sign_id =
-                        tv_get_number_chk(&(*di_id).di_tv, Some(&mut notanum)) as c_int;
+                    sign_id = tv_get_number_chk(&(*di_id).di_tv, Some(&mut notanum)) as c_int;
                     if notanum {
                         return;
                     }
@@ -1536,12 +1601,17 @@ pub fn f_sign_getplaced(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalF
             }
         }
 
-        sign_get_placed(buf.as_mut(), lnum, sign_id, group,  &mut *rettv.vval.v_list());
+        sign_get_placed(
+            buf.as_mut(),
+            lnum,
+            sign_id,
+            group,
+            &mut *rettv.vval.v_list(),
+        );
     }
 }
 
-pub fn f_sign_jump(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData){
-
+pub fn f_sign_jump(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
     unsafe {
         rettv.vval = crate::eval::typval::TypvalVval::Number(-1);
 
@@ -1568,7 +1638,8 @@ pub fn f_sign_jump(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDa
             return;
         }
 
-        rettv.vval = crate::eval::typval::TypvalVval::Number(i64::from(sign_jump(id, group,  &mut *buf)));
+        rettv.vval =
+            crate::eval::typval::TypvalVval::Number(i64::from(sign_jump(id, group, &mut *buf)));
     }
 }
 
@@ -1664,7 +1735,7 @@ fn sign_place_from_dict(
         }
 
         let mut uid = id as u32;
-        if sign_place(&mut uid, group, name,  &mut *buf, lnum, prio) {
+        if sign_place(&mut uid, group, name, &mut *buf, lnum, prio) {
             return uid as c_int;
         }
 
@@ -1720,14 +1791,14 @@ pub fn f_sign_placelist(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalF
                 } else {
                     emsg(gettext(E_DICTREQ));
                 }
-                tv_list_append_number( &mut *rettv.vval.v_list(), i64::from(sign_id));
+                tv_list_append_number(&mut *rettv.vval.v_list(), i64::from(sign_id));
             }
         }
     }
 }
 
 fn sign_undefine_multiple(l: Option<&TvList>, retlist: &mut TvList) {
-     {
+    {
         if l.is_none() {
             return;
         }
@@ -1742,14 +1813,13 @@ fn sign_undefine_multiple(l: Option<&TvList>, retlist: &mut TvList) {
     }
 }
 
-pub fn f_sign_undefine(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData){
-
-     {
-        if argvars[0].v_type == VarType::VarList
-            && argvars[1].v_type == VarType::VarUnknown
-        {
+pub fn f_sign_undefine(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
+    {
+        if argvars[0].v_type == VarType::VarList && argvars[1].v_type == VarType::VarUnknown {
             tv_list_alloc_ret(rettv, K_LIST_LEN_MAY_KNOW_CONST);
-            sign_undefine_multiple(unsafe { argvars[0].vval.v_list().as_ref() }, unsafe { &mut *rettv.vval.v_list() });
+            sign_undefine_multiple(unsafe { argvars[0].vval.v_list().as_ref() }, unsafe {
+                &mut *rettv.vval.v_list()
+            });
             return;
         }
 
@@ -1800,7 +1870,11 @@ fn sign_unplace_from_dict(group_tv: Option<&TypVal>, dict: Option<&TvDict>) -> c
             }
         }
 
-        if sign_unplace(buf.as_mut(), id, group, 0) { 0 } else { -1 }
+        if sign_unplace(buf.as_mut(), id, group, 0) {
+            0
+        } else {
+            -1
+        }
     }
 }
 
@@ -1809,9 +1883,7 @@ pub fn f_sign_unplace(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFun
 
     rettv.vval = crate::eval::typval::TypvalVval::Number(-1);
 
-    if !tv_check_for_string_arg(argvars, 0)
-        || !tv_check_for_opt_dict_arg(argvars, 1)
-    {
+    if !tv_check_for_string_arg(argvars, 0) || !tv_check_for_opt_dict_arg(argvars, 1) {
         return;
     }
 
@@ -1825,9 +1897,7 @@ pub fn f_sign_unplace(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFun
     )));
 }
 
-pub fn f_sign_unplacelist(argvars: &mut [TypVal], rettv: &mut TypVal,
-    _fptr: EvalFuncData,){
-
+pub fn f_sign_unplacelist(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
     unsafe {
         tv_list_alloc_ret(rettv, K_LIST_LEN_MAY_KNOW_CONST);
 
@@ -1841,14 +1911,11 @@ pub fn f_sign_unplacelist(argvars: &mut [TypVal], rettv: &mut TypVal,
             for li in crate::eval::typval::list_iter_mut((*l).lv_first) {
                 let mut retval: c_int = -1;
                 if li.li_tv.v_type == VarType::VarDict {
-                    retval = sign_unplace_from_dict(
-                        None,
-                        li.li_tv.vval.v_dict().as_ref(),
-                    );
+                    retval = sign_unplace_from_dict(None, li.li_tv.vval.v_dict().as_ref());
                 } else {
                     emsg(gettext(E_DICTREQ));
                 }
-                tv_list_append_number( &mut *rettv.vval.v_list(), i64::from(retval));
+                tv_list_append_number(&mut *rettv.vval.v_list(), i64::from(retval));
             }
         }
     }

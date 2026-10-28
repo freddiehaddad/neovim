@@ -3,8 +3,8 @@
 use std::ffi::c_int;
 
 use crate::lpeg::{
-    BITSPERCHAR, CHARSETSIZE, Charset, IANY, ICHAR, IFAIL, ISET, Opcode, TANY, TCHAR, TFALSE, TSET,
-    TTree, LpegByte, CharsetInfo, clearset, fillset, setchar, treebuffer,
+    BITSPERCHAR, CHARSETSIZE, Charset, CharsetInfo, IANY, ICHAR, IFAIL, ISET, LpegByte, Opcode,
+    TANY, TCHAR, TFALSE, TSET, TTree, clearset, fillset, setchar, treebuffer,
 };
 
 fn onlybit(mut c: c_int, mut b: c_int) -> c_int {

@@ -13,17 +13,18 @@ use crate::api::private::validate::{
 };
 use crate::api::tabpage::Buffer;
 use crate::buffer::{
-    BufUpdateCallbacks, DOBUF_FIRST, DOBUF_UNLOAD, DOBUF_WIPE, FileBuf, buf_ensure_loaded, do_buffer,
+    BufUpdateCallbacks, DOBUF_FIRST, DOBUF_UNLOAD, DOBUF_WIPE, FileBuf, buf_ensure_loaded,
+    do_buffer,
 };
 use crate::buffer_updates::{buf_updates_register, buf_updates_unregister};
 use crate::change::changed_lines;
 use crate::context::{CtxSwitch, ctx_restore, ctx_switch};
 use crate::cursor::{
-    check_cursor_col, check_cursor_lnum, check_visual_pos, Colnr, Linenr, CursorPos,
+    Colnr, CursorPos, Linenr, check_cursor_col, check_cursor_lnum, check_visual_pos,
 };
 use crate::eval::vars::MAXCOL;
 use crate::ex_cmds::rename_buffer;
-use crate::extmark::{Bcount, extmark_splice, K_EXTMARK_NOOP, K_EXTMARK_UNDO};
+use crate::extmark::{Bcount, K_EXTMARK_NOOP, K_EXTMARK_UNDO, extmark_splice};
 use crate::globals::*;
 use crate::highlight::OptionalKeys;
 use crate::lua::converter::{
@@ -125,17 +126,13 @@ use crate::state::MODE_INSERT;
 /// Ensures that a buffer is loaded.
 // DLLEXPORT FileBuf *api_buf_ensure_loaded(Buffer buf, Error *err);
 pub fn api_buf_ensure_loaded(buf: Buffer, err: &mut Error) -> *mut FileBuf {
-     {
+    {
         let Some(b) = crate::api::private::helpers::find_buffer_by_handle_mut(buf, err) else {
             return ptr::null_mut();
         };
 
         if b.b_ml.ml_mfp.is_none() && !buf_ensure_loaded(b) {
-            api_set_error!(
-                err,
-                ErrorType::ErrorTypeException,
-                c"Failed to load buffer",
-            );
+            api_set_error!(err, ErrorType::ErrorTypeException, c"Failed to load buffer",);
             return ptr::null_mut();
         }
 
@@ -242,7 +239,7 @@ pub fn nvim_buf_attach(
     opts: &mut KeyDict_buf_attach,
     err: &mut Error,
 ) -> Boolean {
-     {
+    {
         let Some(b) = crate::api::private::helpers::find_buffer_by_handle_mut(buf, err) else {
             return false;
         };
@@ -300,7 +297,7 @@ pub fn nvim_buf_attach(
 // DLLEXPORT Boolean nvim_buf_detach(uint64_t channel_id, Buffer buf, Error *err)
 //   FUNC_API_SINCE(4) FUNC_API_REMOTE_ONLY;
 pub fn nvim_buf_detach(channel_id: u64, buf: Buffer, err: &mut Error) -> Boolean {
-     {
+    {
         let Some(b) = crate::api::private::helpers::find_buffer_by_handle_mut(buf, err) else {
             return false;
         };
@@ -455,12 +452,7 @@ pub fn nvim_buf_set_lines(
         }
 
         let disallow_nl = channel_id != VIML_INTERNAL_CALL;
-        if !check_string_array(
-            replacement,
-            c"replacement string",
-            disallow_nl,
-            err,
-        ) {
+        if !check_string_array(replacement, c"replacement string", disallow_nl, err) {
             return;
         }
 
@@ -477,7 +469,19 @@ pub fn nvim_buf_set_lines(
         for i in 0..new_len {
             let l = replacement[i].data.string();
             let p = arena_memdupz(arena, l.data, l.size);
-            { let _d = (p).cast::<u8>(); let _sz = l.size; if _sz > 0 { let _c = (NUL) as u8; let _x = (NL) as u8; for _b in std::slice::from_raw_parts_mut(_d, _sz) { if *_b == _c { *_b = _x; } } } };
+            {
+                let _d = (p).cast::<u8>();
+                let _sz = l.size;
+                if _sz > 0 {
+                    let _c = (NUL) as u8;
+                    let _x = (NL) as u8;
+                    for _b in std::slice::from_raw_parts_mut(_d, _sz) {
+                        if *_b == _c {
+                            *_b = _x;
+                        }
+                    }
+                }
+            };
             *lines.add(i) = p;
         }
 
@@ -505,11 +509,7 @@ pub fn nvim_buf_set_lines(
             let to_delete = old_len.saturating_sub(new_len);
             for _ in 0..to_delete {
                 if !ml_delete_buf(&mut *b, start as Linenr, false) {
-                    api_set_error!(
-                        err,
-                        ErrorType::ErrorTypeException,
-                        c"Failed to delete line",
-                    );
+                    api_set_error!(err, ErrorType::ErrorTypeException, c"Failed to delete line",);
                     break 'end;
                 }
             }
@@ -533,7 +533,7 @@ pub fn nvim_buf_set_lines(
                 }
 
                 let line_ptr = *lines.add(i);
-                if !ml_replace_buf( &mut *b, lnum as Linenr, line_ptr, false, true) {
+                if !ml_replace_buf(&mut *b, lnum as Linenr, line_ptr, false, true) {
                     api_set_error!(
                         err,
                         ErrorType::ErrorTypeException,
@@ -558,12 +558,8 @@ pub fn nvim_buf_set_lines(
                 }
 
                 let line_ptr = *lines.add(i);
-                if !ml_append_buf( &mut *b, lnum as Linenr, line_ptr, 0, false) {
-                    api_set_error!(
-                        err,
-                        ErrorType::ErrorTypeException,
-                        c"Failed to insert line",
-                    );
+                if !ml_append_buf(&mut *b, lnum as Linenr, line_ptr, 0, false) {
+                    api_set_error!(err, ErrorType::ErrorTypeException, c"Failed to insert line",);
                     break 'end;
                 }
 
@@ -583,7 +579,10 @@ pub fn nvim_buf_set_lines(
                 K_EXTMARK_NOOP,
             );
 
-            if g_st().visual_global.active && b == g_st().curbuf && g_st().visual_global.start.lnum >= (start as Linenr) {
+            if g_st().visual_global.active
+                && b == g_st().curbuf
+                && g_st().visual_global.start.lnum >= (start as Linenr)
+            {
                 if g_st().visual_global.start.lnum >= (end as Linenr) {
                     g_st().visual_global.start.lnum += extra as Linenr;
                 }
@@ -591,7 +590,7 @@ pub fn nvim_buf_set_lines(
             }
 
             extmark_splice(
-                 &mut *b,
+                &mut *b,
                 (start as c_int) - 1,
                 0,
                 (end - start) as c_int,
@@ -604,7 +603,7 @@ pub fn nvim_buf_set_lines(
             );
 
             changed_lines(
-                 &mut *b,
+                &mut *b,
                 start as Linenr,
                 0,
                 end as Linenr,
@@ -613,7 +612,7 @@ pub fn nvim_buf_set_lines(
             );
 
             for tp in for_all_tabpages_ptr() {
-                for win in for_all_windows_in_tab_mut( &*tp) {
+                for win in for_all_windows_in_tab_mut(&*tp) {
                     if win.w_buffer == b {
                         fix_cursor(win, start as Linenr, end as Linenr, extra as Linenr);
                     }
@@ -724,12 +723,7 @@ pub fn nvim_buf_set_text(
         }
 
         let disallow_nl = channel_id != VIML_INTERNAL_CALL;
-        if !check_string_array(
-            replacement,
-            c"replacement string",
-            disallow_nl,
-            err,
-        ) {
+        if !check_string_array(replacement, c"replacement string", disallow_nl, err) {
             return;
         }
 
@@ -766,7 +760,19 @@ pub fn nvim_buf_set_text(
                 first_item.size,
             );
         }
-        { let _d = (first.add(start_col as usize)).cast::<u8>(); let _sz = first_item.size; if _sz > 0 { let _c = (NUL) as u8; let _x = (NL) as u8; for _b in std::slice::from_raw_parts_mut(_d, _sz) { if *_b == _c { *_b = _x; } } } };
+        {
+            let _d = (first.add(start_col as usize)).cast::<u8>();
+            let _sz = first_item.size;
+            if _sz > 0 {
+                let _c = (NUL) as u8;
+                let _x = (NL) as u8;
+                for _b in std::slice::from_raw_parts_mut(_d, _sz) {
+                    if *_b == _c {
+                        *_b = _x;
+                    }
+                }
+            }
+        };
         if replacement.size == 1 {
             ptr::copy_nonoverlapping(
                 str_at_end.add(end_col as usize),
@@ -778,7 +784,19 @@ pub fn nvim_buf_set_text(
             if last_item.size > 0 {
                 ptr::copy_nonoverlapping(last_item.data, last, last_item.size);
             }
-            { let _d = (last).cast::<u8>(); let _sz = last_item.size; if _sz > 0 { let _c = (NUL) as u8; let _x = (NL) as u8; for _b in std::slice::from_raw_parts_mut(_d, _sz) { if *_b == _c { *_b = _x; } } } };
+            {
+                let _d = (last).cast::<u8>();
+                let _sz = last_item.size;
+                if _sz > 0 {
+                    let _c = (NUL) as u8;
+                    let _x = (NL) as u8;
+                    for _b in std::slice::from_raw_parts_mut(_d, _sz) {
+                        if *_b == _c {
+                            *_b = _x;
+                        }
+                    }
+                }
+            };
             ptr::copy_nonoverlapping(
                 str_at_end.add(end_col as usize),
                 last.add(last_item.size),
@@ -793,7 +811,19 @@ pub fn nvim_buf_set_text(
         for i in 1..new_len.saturating_sub(1) {
             let l = replacement[i].data.string();
             let p = arena_memdupz(arena, l.data, l.size);
-            { let _d = (p).cast::<u8>(); let _sz = l.size; if _sz > 0 { let _c = (NUL) as u8; let _x = (NL) as u8; for _b in std::slice::from_raw_parts_mut(_d, _sz) { if *_b == _c { *_b = _x; } } } };
+            {
+                let _d = (p).cast::<u8>();
+                let _sz = l.size;
+                if _sz > 0 {
+                    let _c = (NUL) as u8;
+                    let _x = (NL) as u8;
+                    for _b in std::slice::from_raw_parts_mut(_d, _sz) {
+                        if *_b == _c {
+                            *_b = _x;
+                        }
+                    }
+                }
+            };
             *lines.add(i) = p;
             new_byte += (l.size as Bcount) + 1;
         }
@@ -827,11 +857,7 @@ pub fn nvim_buf_set_text(
             let to_delete = old_len.saturating_sub(new_len);
             for _ in 0..to_delete {
                 if !ml_delete_buf(&mut *b, start_row as Linenr, false) {
-                    api_set_error!(
-                        err,
-                        ErrorType::ErrorTypeException,
-                        c"Failed to delete line",
-                    );
+                    api_set_error!(err, ErrorType::ErrorTypeException, c"Failed to delete line",);
                     break 'end;
                 }
             }
@@ -853,7 +879,7 @@ pub fn nvim_buf_set_text(
                     break 'end;
                 }
 
-                if !ml_replace_buf( &mut *b, lnum as Linenr, *lines.add(i), false, true) {
+                if !ml_replace_buf(&mut *b, lnum as Linenr, *lines.add(i), false, true) {
                     api_set_error!(
                         err,
                         ErrorType::ErrorTypeException,
@@ -875,20 +901,15 @@ pub fn nvim_buf_set_text(
                     break 'end;
                 }
 
-                if !ml_append_buf( &mut *b, lnum as Linenr, *lines.add(i), 0, false) {
-                    api_set_error!(
-                        err,
-                        ErrorType::ErrorTypeException,
-                        c"Failed to insert line",
-                    );
+                if !ml_append_buf(&mut *b, lnum as Linenr, *lines.add(i), 0, false) {
+                    api_set_error!(err, ErrorType::ErrorTypeException, c"Failed to insert line",);
                     break 'end;
                 }
 
                 extra += 1;
             }
 
-            let col_extent =
-                (end_col - if end_row == start_row { start_col } else { 0 }) as Colnr;
+            let col_extent = (end_col - if end_row == start_row { start_col } else { 0 }) as Colnr;
 
             let adjust = if end_row >= start_row {
                 MAXLNUM as Linenr
@@ -906,7 +927,10 @@ pub fn nvim_buf_set_text(
                 K_EXTMARK_NOOP,
             );
 
-            if g_st().visual_global.active && b == g_st().curbuf && g_st().visual_global.mode != CTRL_V_CONST {
+            if g_st().visual_global.active
+                && b == g_st().curbuf
+                && g_st().visual_global.mode != CTRL_V_CONST
+            {
                 fix_pos_col(
                     &mut *b,
                     &mut g_st().visual_global.start,
@@ -922,7 +946,7 @@ pub fn nvim_buf_set_text(
             }
 
             extmark_splice(
-                 &mut *b,
+                &mut *b,
                 (start_row as c_int) - 1,
                 start_col as Colnr,
                 (end_row - start_row) as c_int,
@@ -935,7 +959,7 @@ pub fn nvim_buf_set_text(
             );
 
             changed_lines(
-                 &mut *b,
+                &mut *b,
                 start_row as Linenr,
                 start_col as Colnr,
                 (end_row as Linenr) + 1,
@@ -944,7 +968,7 @@ pub fn nvim_buf_set_text(
             );
 
             for tp in for_all_tabpages_ptr() {
-                for win in for_all_windows_in_tab_mut( &*tp) {
+                for win in for_all_windows_in_tab_mut(&*tp) {
                     if win.w_buffer == b {
                         if i64::from(win.w_cursor.lnum) >= start_row
                             && i64::from(win.w_cursor.lnum) <= end_row
@@ -1122,11 +1146,7 @@ pub fn nvim_buf_get_text(
 /// @return Integer byte offset, or -1 for unloaded buffer.
 // DLLEXPORT Integer nvim_buf_get_offset(Buffer buf, Integer index, Error *err)
 //   FUNC_API_SINCE(5);
-pub fn nvim_buf_get_offset(
-    buf: Buffer,
-    index: Integer,
-    err: &mut Error,
-) -> Integer {
+pub fn nvim_buf_get_offset(buf: Buffer, index: Integer, err: &mut Error) -> Integer {
     unsafe {
         let Some(b) = crate::api::private::helpers::find_buffer_by_handle_mut(buf, err) else {
             return 0;
@@ -1146,12 +1166,7 @@ pub fn nvim_buf_get_offset(
             return 0;
         }
 
-        i64::from(ml_find_line_or_offset(
-            b,
-            (index as Linenr) + 1,
-            None,
-            true,
-        ))
+        i64::from(ml_find_line_or_offset(b, (index as Linenr) + 1, None, true))
     }
 }
 
@@ -1169,11 +1184,11 @@ pub fn nvim_buf_get_var(
     arena: &mut Arena,
     err: &mut Error,
 ) -> Object {
-     {
+    {
         let Some(b) = crate::api::private::helpers::find_buffer_by_handle_mut(buf, err) else {
             return OBJECT_NIL;
         };
-        dict_get_value(unsafe { b.b_vars().as_ref() }, name, Some(arena), err)
+        dict_get_value(Some(&*b.b_vars()), name, Some(arena), err)
     }
 }
 
@@ -1186,7 +1201,7 @@ pub fn nvim_buf_get_var(
 // DLLEXPORT Integer nvim_buf_get_changedtick(Buffer buf, Error *err)
 //   FUNC_API_SINCE(2);
 pub fn nvim_buf_get_changedtick(buf: Buffer, err: &mut Error) -> Integer {
-     {
+    {
         let Some(b) = crate::api::private::helpers::find_buffer_by_handle_mut(buf, err) else {
             return -1;
         };
@@ -1211,10 +1226,10 @@ pub fn nvim_buf_get_keymap(
     err: &mut Error,
 ) -> Array {
     let b = find_buffer_by_handle(buf, err);
-        if b.is_null() {
-            return Array::new();
-        }
-        keymap_array(mode, b, arena)
+    if b.is_null() {
+        return Array::new();
+    }
+    keymap_array(mode, b, arena)
 }
 
 /// Sets a buffer-local |mapping| for the given mode.
@@ -1234,7 +1249,16 @@ pub fn nvim_buf_set_keymap(
     opts: &mut KeyDict_keymap,
     err: &mut Error,
 ) {
-    modify_keymap(channel_id, buf, MAPTYPE_MAP, mode, lhs, rhs, Some(opts), err);
+    modify_keymap(
+        channel_id,
+        buf,
+        MAPTYPE_MAP,
+        mode,
+        lhs,
+        rhs,
+        Some(opts),
+        err,
+    );
 }
 
 /// Unmaps a buffer-local |mapping| for the given mode.
@@ -1266,16 +1290,7 @@ pub fn nvim_buf_del_keymap(
     } else {
         MAPTYPE_UNMAP
     };
-    modify_keymap(
-        channel_id,
-        buf,
-        maptype,
-        mode,
-        lhs,
-        rhs,
-        None,
-        err,
-    );
+    modify_keymap(channel_id, buf, maptype, mode, lhs, rhs, None, err);
 }
 
 /// Sets a buffer-scoped (b:) variable
@@ -1286,13 +1301,8 @@ pub fn nvim_buf_del_keymap(
 /// @param[out] err   Error details, if any
 // DLLEXPORT void nvim_buf_set_var(Buffer buf, String name, Object value, Error *err)
 //   FUNC_API_SINCE(1);
-pub fn nvim_buf_set_var(
-    buf: Buffer,
-    name: NvimString,
-    value: Object,
-    err: &mut Error,
-) {
-    unsafe {
+pub fn nvim_buf_set_var(buf: Buffer, name: NvimString, value: Object, err: &mut Error) {
+    {
         let Some(b) = crate::api::private::helpers::find_buffer_by_handle_mut(buf, err) else {
             return;
         };
@@ -1308,19 +1318,11 @@ pub fn nvim_buf_set_var(
 // DLLEXPORT void nvim_buf_del_var(Buffer buf, String name, Error *err)
 //   FUNC_API_SINCE(1);
 pub fn nvim_buf_del_var(buf: Buffer, name: NvimString, err: &mut Error) {
-    unsafe {
+    {
         let Some(b) = crate::api::private::helpers::find_buffer_by_handle_mut(buf, err) else {
             return;
         };
-        dict_set_var(
-            &mut *b.b_vars(),
-            name,
-            OBJECT_NIL,
-            true,
-            false,
-            None,
-            err,
-        );
+        dict_set_var(&mut *b.b_vars(), name, OBJECT_NIL, true, false, None, err);
     }
 }
 
@@ -1356,41 +1358,41 @@ pub fn nvim_buf_get_name(buf: Buffer, err: &mut Error) -> NvimString {
 //   FUNC_API_SINCE(1);
 pub fn nvim_buf_set_name(buf: Buffer, name: NvimString, err: &mut Error) {
     let b = find_buffer_by_handle(buf, err);
-        if b.is_null() {
-            return;
+    if b.is_null() {
+        return;
+    }
+
+    let mut ren_ret = OK;
+    try_wrap(err, || {
+        let is_curbuf = b == g_st().curbuf;
+        let save_acd = opt_vars().p_acd;
+        if !is_curbuf {
+            g_st().redrawing_disabled += 1;
+            opt_vars().p_acd = 0;
         }
 
-        let mut ren_ret = OK;
-        try_wrap(err, || {
-            let is_curbuf = b == g_st().curbuf;
-            let save_acd = opt_vars().p_acd;
-            if !is_curbuf {
-                g_st().redrawing_disabled += 1;
-                opt_vars().p_acd = 0;
-            }
+        let mut aco: CtxSwitch = CtxSwitch::new();
+        ctx_switch(&mut aco, ptr::null_mut(), ptr::null_mut(), b.cast(), 0);
+        ren_ret = if rename_buffer(name.data) { OK } else { FAIL };
+        ctx_restore(&mut aco);
 
-            let mut aco: CtxSwitch = CtxSwitch::new();
-            ctx_switch(&mut aco, ptr::null_mut(), ptr::null_mut(), b.cast(), 0);
-            ren_ret = if rename_buffer(name.data) { OK } else { FAIL };
-            ctx_restore(&mut aco);
-
-            if !is_curbuf {
-                g_st().redrawing_disabled -= 1;
-                opt_vars().p_acd = save_acd;
-            }
-        });
-
-        if error_set(err) {
-            return;
+        if !is_curbuf {
+            g_st().redrawing_disabled -= 1;
+            opt_vars().p_acd = save_acd;
         }
+    });
 
-        if ren_ret == FAIL {
-            api_set_error!(
-                err,
-                ErrorType::ErrorTypeException,
-                c"Failed to rename buffer",
-            );
-        }
+    if error_set(err) {
+        return;
+    }
+
+    if ren_ret == FAIL {
+        api_set_error!(
+            err,
+            ErrorType::ErrorTypeException,
+            c"Failed to rename buffer",
+        );
+    }
 }
 
 /// Checks if a buffer is valid and loaded. See |api-buffer| for more info
@@ -1424,12 +1426,8 @@ pub fn nvim_buf_is_loaded(buf: Buffer) -> Boolean {
 // DLLEXPORT void nvim_buf_delete(Buffer buf, Dict(buf_delete) *opts, Error *err)
 //   FUNC_API_SINCE(7)
 //   FUNC_API_TEXTLOCK;
-pub fn nvim_buf_delete(
-    buf: Buffer,
-    opts: &mut KeyDict_buf_delete,
-    err: &mut Error,
-) {
-     {
+pub fn nvim_buf_delete(buf: Buffer, opts: &mut KeyDict_buf_delete, err: &mut Error) {
+    {
         let Some(b) = crate::api::private::helpers::find_buffer_by_handle_mut(buf, err) else {
             return;
         };
@@ -1466,9 +1464,9 @@ pub fn nvim_buf_delete(
 //   FUNC_API_SINCE(1);
 pub fn nvim_buf_is_valid(buf: Buffer) -> Boolean {
     let mut stub = Error::new();
-        let ret = !find_buffer_by_handle(buf, &mut stub).is_null();
-        api_clear_error(&mut stub);
-        ret
+    let ret = !find_buffer_by_handle(buf, &mut stub).is_null();
+    api_clear_error(&mut stub);
+    ret
 }
 
 /// Deletes a named mark in the buffer. See |mark-motions|.
@@ -1482,11 +1480,7 @@ pub fn nvim_buf_is_valid(buf: Buffer) -> Boolean {
 /// @see |nvim_del_mark()|
 // DLLEXPORT Boolean nvim_buf_del_mark(Buffer buf, String name, Error *err)
 //   FUNC_API_SINCE(8);
-pub fn nvim_buf_del_mark(
-    buf: Buffer,
-    name: NvimString,
-    err: &mut Error,
-) -> Boolean {
+pub fn nvim_buf_del_mark(buf: Buffer, name: NvimString, err: &mut Error) -> Boolean {
     unsafe {
         let mut res = false;
         let Some(b) = crate::api::private::helpers::find_buffer_by_handle_mut(buf, err) else {
@@ -1551,22 +1545,22 @@ pub fn nvim_buf_set_mark(
     err: &mut Error,
 ) -> Boolean {
     let b = api_buf_ensure_loaded(buf, err);
-        if b.is_null() {
-            return false;
-        }
+    if b.is_null() {
+        return false;
+    }
 
-        if name.size != 1 {
-            api_err_invalid(
-                err,
-                c"mark name (must be a single char)",
-                name.data,
-                0,
-                true,
-            );
-            return false;
-        }
+    if name.size != 1 {
+        api_err_invalid(
+            err,
+            c"mark name (must be a single char)",
+            name.data,
+            0,
+            true,
+        );
+        return false;
+    }
 
-        set_mark(b, name, line, col, err)
+    set_mark(b, name, line, col, err)
 }
 
 /// Returns a `(row,col)` tuple representing the position of the named mark.
@@ -1654,34 +1648,34 @@ pub fn nvim_buf_call(
     err: &mut Error,
 ) -> Object {
     let b = find_buffer_by_handle(buf, err);
-        if b.is_null() {
-            return OBJECT_NIL;
-        }
+    if b.is_null() {
+        return OBJECT_NIL;
+    }
 
-        try_wrap_err(err, |err| {
-            let mut cs: CtxSwitch = CtxSwitch::new();
-            ctx_switch(&mut cs, ptr::null_mut(), ptr::null_mut(), b.cast(), 0);
+    try_wrap_err(err, |err| {
+        let mut cs: CtxSwitch = CtxSwitch::new();
+        ctx_switch(&mut cs, ptr::null_mut(), ptr::null_mut(), b.cast(), 0);
 
-            let args = Array::new();
-            nlua_call_ref(
-                fn_ref,
-                ptr::null(),
-                args,
-                K_RET_MULTI_STACK,
-                None,
-                Some(err),
-            );
+        let args = Array::new();
+        nlua_call_ref(
+            fn_ref,
+            ptr::null(),
+            args,
+            K_RET_MULTI_STACK,
+            None,
+            Some(err),
+        );
 
-            ctx_restore(&mut cs);
-        });
+        ctx_restore(&mut cs);
+    });
 
-        OBJECT_NIL
+    OBJECT_NIL
 }
 
 /// @nodoc
 // DLLEXPORT Dict nvim__buf_stats(Buffer buf, Arena *arena, Error *err);
 pub fn nvim_buf_stats(buf: Buffer, arena: &mut Arena, err: &mut Error) -> Dict {
-     {
+    {
         let Some(b) = crate::api::private::helpers::find_buffer_by_handle_mut(buf, err) else {
             return Dict::new();
         };
@@ -1733,18 +1727,18 @@ pub fn nvim_buf_stats(buf: Buffer, arena: &mut Arena, err: &mut Error) -> Dict {
 
 fn fix_cursor(win: &mut WinInfoInfo, lo: Linenr, hi: Linenr, extra: Linenr) {
     if win.w_cursor.lnum >= lo {
-            if win.w_cursor.lnum >= hi {
-                win.w_cursor.lnum += extra;
-            } else if extra < 0 {
-                check_cursor_lnum(&mut *win);
-            }
-            check_cursor_col(&mut *win);
-            changed_cline_bef_curs(win);
-            win.w_valid &= !VALID_BOTLINE_AP;
-            update_topline(win);
-        } else {
-            invalidate_botline_win(&mut *win);
+        if win.w_cursor.lnum >= hi {
+            win.w_cursor.lnum += extra;
+        } else if extra < 0 {
+            check_cursor_lnum(&mut *win);
         }
+        check_cursor_col(&mut *win);
+        changed_cline_bef_curs(win);
+        win.w_valid &= !VALID_BOTLINE_AP;
+        update_topline(win);
+    } else {
+        invalidate_botline_win(&mut *win);
+    }
 }
 
 fn fix_pos_col(
@@ -1759,46 +1753,46 @@ fn fix_pos_col(
     mode_col_adj: Colnr,
 ) {
     if pos.lnum < start_row {
-            return;
+        return;
+    }
+
+    let old_rows = end_row - start_row + 1;
+    let lnum_shift = new_rows - old_rows;
+
+    if pos.lnum > end_row {
+        pos.lnum += lnum_shift;
+        return;
+    }
+
+    let end_row_change_start = if new_rows == 1 { start_col } else { 0 };
+    let end_row_change_end = end_row_change_start + new_cols_at_end_row;
+
+    if pos.lnum == end_row && pos.col + mode_col_adj > end_col {
+        pos.lnum += lnum_shift;
+        pos.col += end_row_change_end - end_col;
+        return;
+    }
+
+    let old_coladd = pos.coladd;
+    pos.col += pos.coladd;
+    pos.coladd = 0;
+
+    let new_end_row = start_row + new_rows - 1;
+
+    if pos.lnum > new_end_row {
+        pos.lnum = new_end_row;
+        let len = ml_get_buf_len(buf, new_end_row);
+        if pos.col < len {
+            pos.col = len;
         }
+    }
 
-        let old_rows = end_row - start_row + 1;
-        let lnum_shift = new_rows - old_rows;
-
-        if pos.lnum > end_row {
-            pos.lnum += lnum_shift;
-            return;
+    if pos.lnum == new_end_row && pos.col > end_row_change_end && old_coladd == 0 {
+        pos.col = end_row_change_end;
+        if pos.col - mode_col_adj >= end_row_change_start {
+            pos.col -= mode_col_adj;
         }
-
-        let end_row_change_start = if new_rows == 1 { start_col } else { 0 };
-        let end_row_change_end = end_row_change_start + new_cols_at_end_row;
-
-        if pos.lnum == end_row && pos.col + mode_col_adj > end_col {
-            pos.lnum += lnum_shift;
-            pos.col += end_row_change_end - end_col;
-            return;
-        }
-
-        let old_coladd = pos.coladd;
-        pos.col += pos.coladd;
-        pos.coladd = 0;
-
-        let new_end_row = start_row + new_rows - 1;
-
-        if pos.lnum > new_end_row {
-            pos.lnum = new_end_row;
-            let len = ml_get_buf_len(buf, new_end_row);
-            if pos.col < len {
-                pos.col = len;
-            }
-        }
-
-        if pos.lnum == new_end_row && pos.col > end_row_change_end && old_coladd == 0 {
-            pos.col = end_row_change_end;
-            if pos.col - mode_col_adj >= end_row_change_start {
-                pos.col -= mode_col_adj;
-            }
-        }
+    }
 }
 
 fn fix_cursor_cols(
@@ -1810,8 +1804,9 @@ fn fix_cursor_cols(
     new_rows: Linenr,
     new_cols_at_end_row: Colnr,
 ) {
-     {
-        let mode_col_adj = if ptr::eq(win, curwin_ptr()) && (g_st().state_global & MODE_INSERT) != 0 {
+    {
+        let mode_col_adj = if ptr::eq(win, curwin_ptr()) && (g_st().state_global & MODE_INSERT) != 0
+        {
             0
         } else {
             1
@@ -1853,12 +1848,21 @@ fn push_linestr(
     idx: c_int,
     replace_nl: bool,
     arena: &mut Arena,
-) { let s = s.into_c_char_ptr();
+) {
+    let s = s.into_c_char_ptr();
     unsafe {
         if !lstate.is_null() {
             if !s.is_null() && replace_nl && crate::memory::cstr_as_bytes(s).contains(&b'\n') {
                 let mut tmp: Vec<c_char> = std::slice::from_raw_parts(s, len + 1).to_vec();
-                { let _p = tmp.as_mut_ptr(); let _len = crate::memory::cstr_len(_p); for _b in std::slice::from_raw_parts_mut(_p.cast::<u8>(), _len) { if *_b == (NL) as u8 { *_b = (NUL) as u8; } } };
+                {
+                    let _p = tmp.as_mut_ptr();
+                    let _len = crate::memory::cstr_len(_p);
+                    for _b in std::slice::from_raw_parts_mut(_p.cast::<u8>(), _len) {
+                        if *_b == (NL) as u8 {
+                            *_b = (NUL) as u8;
+                        }
+                    }
+                };
                 lua_pushlstring(lstate, tmp.as_ptr(), len);
             } else {
                 lua_pushlstring(lstate, s, len);
@@ -1872,7 +1876,15 @@ fn push_linestr(
             if len > 0 {
                 let data = arena_memdupz(arena, s, len);
                 if replace_nl {
-                    { let _p = data; let _len = crate::memory::cstr_len(_p); for _b in std::slice::from_raw_parts_mut(_p.cast::<u8>(), _len) { if *_b == (NL) as u8 { *_b = (NUL) as u8; } } };
+                    {
+                        let _p = data;
+                        let _len = crate::memory::cstr_len(_p);
+                        for _b in std::slice::from_raw_parts_mut(_p.cast::<u8>(), _len) {
+                            if *_b == (NL) as u8 {
+                                *_b = (NUL) as u8;
+                            }
+                        }
+                    };
                 }
                 str_val = NvimString { data, size: len };
             }
@@ -1906,19 +1918,19 @@ pub fn buf_collect_lines(
     arena: &mut Arena,
 ) {
     for i in 0..n {
-            let lnum = start + (i as Linenr);
-            let bufstr = ml_get_buf(buf, lnum);
-            let bufstrlen = ml_get_buf_len(buf, lnum) as usize;
-            push_linestr(
-                lstate,
-                l,
-                bufstr,
-                bufstrlen,
-                start_idx + (i as c_int),
-                replace_nl,
-                arena,
-            );
-        }
+        let lnum = start + (i as Linenr);
+        let bufstr = ml_get_buf(buf, lnum);
+        let bufstrlen = ml_get_buf_len(buf, lnum) as usize;
+        push_linestr(
+            lstate,
+            l,
+            bufstr,
+            bufstrlen,
+            start_idx + (i as c_int),
+            replace_nl,
+            arena,
+        );
+    }
 }
 
 #[cfg(test)]

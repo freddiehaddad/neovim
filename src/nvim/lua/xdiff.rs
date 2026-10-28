@@ -12,8 +12,8 @@ use crate::lua::converter::{
 use crate::lua::executor::{api_free_luaref, nlua_pushref};
 use crate::xdiff::xdiffi::xdl_diff;
 use crate::xdiff::{
-    XDF_HISTOGRAM_DIFF, XDF_IGNORE_CR_AT_EOL, XDF_INDENT_HEURISTIC, XDF_NEED_MINIMAL,
-    XDF_PATIENCE_DIFF, Mmbuffer, Mmfile, Xdemitcb, Xdemitconf, Xpparam,
+    Mmbuffer, Mmfile, XDF_HISTOGRAM_DIFF, XDF_IGNORE_CR_AT_EOL, XDF_INDENT_HEURISTIC,
+    XDF_NEED_MINIMAL, XDF_PATIENCE_DIFF, Xdemitcb, Xdemitconf, Xpparam,
 };
 use std::ffi::{c_char, c_int, c_long};
 
@@ -190,8 +190,7 @@ fn get_linematch_results(
 pub(crate) fn write_string(out: &mut Vec<u8>, mb: &[Mmbuffer]) -> c_int {
     for chunk in mb {
         if chunk.size > 0 && !chunk.ptr.is_null() {
-            let slice =
-                 { crate::memory::cstr_slice(chunk.ptr, chunk.size as usize) };
+            let slice = { crate::memory::cstr_slice(chunk.ptr, chunk.size as usize) };
             out.extend_from_slice(slice);
         }
     }
@@ -205,27 +204,27 @@ pub(crate) fn hunk_locations_cb(
     count_b: c_int,
     cb_data: &mut HunkPriv,
 ) -> c_int {
-    let priv_ref =  { cb_data };
+    let priv_ref = { cb_data };
     let lstate = priv_ref.lstate;
     if priv_ref.linematch > 0 && i64::from(count_a) + i64::from(count_b) <= priv_ref.linematch {
         get_linematch_results(
-                lstate,
-                priv_ref.ma,
-                priv_ref.mb,
-                start_a,
-                count_a,
-                start_b,
-                count_b,
-                priv_ref.iwhite,
-            );
+            lstate,
+            priv_ref.ma,
+            priv_ref.mb,
+            start_a,
+            count_a,
+            start_b,
+            count_b,
+            priv_ref.iwhite,
+        );
     } else {
         lua_pushhunk(
-                lstate,
-                start_a as isize,
-                count_a as isize,
-                start_b as isize,
-                count_b as isize,
-            );
+            lstate,
+            start_a as isize,
+            count_a as isize,
+            start_b as isize,
+            count_b as isize,
+        );
     }
     0
 }
@@ -244,7 +243,7 @@ pub(crate) fn call_on_hunk_cb(
         start_b += 1;
     }
 
-    let priv_ref =  { cb_data };
+    let priv_ref = { cb_data };
     let lstate = priv_ref.lstate;
     let err = &mut priv_ref.err;
 
@@ -258,12 +257,7 @@ pub(crate) fn call_on_hunk_cb(
 
         if lua_pcall(lstate, 4, 1, 0) != 0 {
             let msg_ptr = lua_tolstring(lstate, -1, std::ptr::null_mut());
-            api_set_error!(
-                err,
-                ErrorType::ErrorTypeException,
-                c"on_hunk: %s",
-                msg_ptr,
-            );
+            api_set_error!(err, ErrorType::ErrorTypeException, c"on_hunk: %s", msg_ptr,);
             return -1;
         }
 
@@ -326,7 +320,9 @@ fn process_xdl_diff_opts(
             if opts.has_key(KEYSET_OPTIDX_RESULT_TYPE) {
                 if crate::memory::cstr_as_opt_bytes(opts.result_type.data) == Some(b"unified") {
                     // default
-                } else if crate::memory::cstr_as_opt_bytes(opts.result_type.data) == Some(b"indices") {
+                } else if crate::memory::cstr_as_opt_bytes(opts.result_type.data)
+                    == Some(b"indices")
+                {
                     had_result_type_indices = true;
                 } else {
                     api_set_error!(
@@ -341,11 +337,15 @@ fn process_xdl_diff_opts(
             if opts.has_key(KEYSET_OPTIDX_ALGORITHM) {
                 if crate::memory::cstr_as_opt_bytes(opts.algorithm.data) == Some(b"myers") {
                     // default
-                } else if crate::memory::cstr_as_opt_bytes(opts.algorithm.data) == Some(b"minimal") {
+                } else if crate::memory::cstr_as_opt_bytes(opts.algorithm.data) == Some(b"minimal")
+                {
                     params.flags |= XDF_NEED_MINIMAL;
-                } else if crate::memory::cstr_as_opt_bytes(opts.algorithm.data) == Some(b"patience") {
+                } else if crate::memory::cstr_as_opt_bytes(opts.algorithm.data) == Some(b"patience")
+                {
                     params.flags |= XDF_PATIENCE_DIFF;
-                } else if crate::memory::cstr_as_opt_bytes(opts.algorithm.data) == Some(b"histogram") {
+                } else if crate::memory::cstr_as_opt_bytes(opts.algorithm.data)
+                    == Some(b"histogram")
+                {
                     params.flags |= XDF_HISTOGRAM_DIFF;
                 } else {
                     api_set_error!(

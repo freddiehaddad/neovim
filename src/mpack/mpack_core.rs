@@ -341,11 +341,7 @@ pub fn mpack_write(
     }
 }
 
-pub fn mpack_rtoken(
-    buf: &mut *const c_char,
-    buflen: &mut usize,
-    tok: &mut MpackToken,
-) -> c_int {
+pub fn mpack_rtoken(buf: &mut *const c_char, buflen: &mut usize, tok: &mut MpackToken) -> c_int {
     if *buflen == 0 {
         return MPACK_EOF;
     }
@@ -388,19 +384,11 @@ pub fn mpack_rtoken(
     }
 }
 
-fn mpack_rpending(
-    buf: &mut *const c_char,
-    buflen: &mut usize,
-    state: &mut MpackTokbuf,
-) -> c_int {
+fn mpack_rpending(buf: &mut *const c_char, buflen: &mut usize, state: &mut MpackTokbuf) -> c_int {
     unsafe {
         debug_assert!(state.ppos < state.plen);
         let count = (state.plen - state.ppos).min(*buflen);
-        ptr::copy_nonoverlapping(
-            *buf,
-            state.pending.as_mut_ptr().add(state.ppos),
-            count,
-        );
+        ptr::copy_nonoverlapping(*buf, state.pending.as_mut_ptr().add(state.ppos), count);
         state.ppos += count;
         if state.ppos < state.plen {
             *buf = (*buf).add(*buflen);
@@ -479,21 +467,13 @@ fn mpack_rblob(
     MPACK_OK
 }
 
-fn mpack_wtoken(
-    tok: &MpackToken,
-    buf: &mut *mut c_char,
-    buflen: &mut usize,
-) -> c_int {
+fn mpack_wtoken(tok: &MpackToken, buf: &mut *mut c_char, buflen: &mut usize) -> c_int {
     match tok.r#type {
         MpackTokenNil => mpack_w1(buf, buflen, 0xc0),
         MpackTokenBoolean => mpack_w1(
             buf,
             buflen,
-            if tok.data.value().lo != 0 {
-                0xc3
-            } else {
-                0xc2
-            },
+            if tok.data.value().lo != 0 { 0xc3 } else { 0xc2 },
         ),
         MpackTokenUint => mpack_wpint(buf, buflen, tok.data.value()),
         MpackTokenSint => mpack_wnint(buf, buflen, tok.data.value()),
@@ -507,11 +487,7 @@ fn mpack_wtoken(
     }
 }
 
-fn mpack_wpending(
-    buf: &mut *mut c_char,
-    buflen: &mut usize,
-    state: &mut MpackTokbuf,
-) -> c_int {
+fn mpack_wpending(buf: &mut *mut c_char, buflen: &mut usize, state: &mut MpackTokbuf) -> c_int {
     unsafe {
         debug_assert!(state.ppos < state.plen);
         let count = (state.plen - state.ppos).min(*buflen);
@@ -569,11 +545,7 @@ fn mpack_wnint(buf: &mut *mut c_char, buflen: &mut usize, val: MpackValue) -> c_
     }
 }
 
-fn mpack_wfloat(
-    buf: &mut *mut c_char,
-    buflen: &mut usize,
-    tok: &MpackToken,
-) -> c_int {
+fn mpack_wfloat(buf: &mut *mut c_char, buflen: &mut usize, tok: &MpackToken) -> c_int {
     let v = tok.data.value();
     if tok.length == 4 {
         mpack_w1(buf, buflen, 0xca);
@@ -615,12 +587,7 @@ fn mpack_wbin(buf: &mut *mut c_char, buflen: &mut usize, len: MpackUint32) -> c_
     }
 }
 
-fn mpack_wext(
-    buf: &mut *mut c_char,
-    buflen: &mut usize,
-    r#type: c_int,
-    len: MpackUint32,
-) -> c_int {
+fn mpack_wext(buf: &mut *mut c_char, buflen: &mut usize, r#type: c_int, len: MpackUint32) -> c_int {
     debug_assert!((0..0x80).contains(&r#type));
     let t = r#type as MpackUint32;
     match len {

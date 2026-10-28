@@ -76,7 +76,8 @@ impl MemoryModuleState {
     }
 }
 
-static MEM_STATE: crate::globals::GlobalState<MemoryModuleState> = crate::globals::GlobalState::new(MemoryModuleState::new());
+static MEM_STATE: crate::globals::GlobalState<MemoryModuleState> =
+    crate::globals::GlobalState::new(MemoryModuleState::new());
 
 #[inline]
 pub(crate) fn mem_st() -> &'static mut MemoryModuleState {
@@ -158,15 +159,15 @@ fn sys_realloc(ptr: *mut c_void, size: usize) -> *mut u8 {
 
 fn try_to_free_memory() {
     if mem_st().trying_to_free {
-            return;
-        }
-        mem_st().trying_to_free = true;
+        return;
+    }
+    mem_st().trying_to_free = true;
 
-        clear_sb_text(true);
-        mf_release_all();
-        arena_free_reuse_blks();
+    clear_sb_text(true);
+    mf_release_all();
+    arena_free_reuse_blks();
 
-        mem_st().trying_to_free = false;
+    mem_st().trying_to_free = false;
 }
 
 fn out_of_memory_exit() -> ! {
@@ -191,7 +192,7 @@ pub fn try_malloc(size: usize) -> *mut c_void {
     let mut ret = sys_malloc(allocated_size);
     if ret.is_null() {
         try_to_free_memory();
-            ret = sys_malloc(allocated_size);
+        ret = sys_malloc(allocated_size);
     }
     ret.cast::<c_void>()
 }
@@ -215,10 +216,10 @@ pub fn raw_calloc(count: usize, size: usize) -> *mut c_void {
     let mut ret = sys_calloc(allocated_count, allocated_size);
     if ret.is_null() {
         try_to_free_memory();
-            ret = sys_calloc(allocated_count, allocated_size);
-            if ret.is_null() {
-                out_of_memory_exit();
-            }
+        ret = sys_calloc(allocated_count, allocated_size);
+        if ret.is_null() {
+            out_of_memory_exit();
+        }
     }
     ret.cast::<c_void>()
 }
@@ -229,10 +230,10 @@ pub fn raw_realloc(ptr: *mut c_void, size: usize) -> *mut c_void {
     let mut ret = sys_realloc(ptr, allocated_size);
     if ret.is_null() {
         try_to_free_memory();
-            ret = sys_realloc(ptr, allocated_size);
-            if ret.is_null() {
-                out_of_memory_exit();
-            }
+        ret = sys_realloc(ptr, allocated_size);
+        if ret.is_null() {
+            out_of_memory_exit();
+        }
     }
     ret.cast::<c_void>()
 }
@@ -267,7 +268,7 @@ pub fn alloc_cstring_len(data: *const c_char, len: usize) -> *mut c_char {
 /// Duplicate a NUL-terminated C string.
 #[inline]
 pub fn alloc_cstring(str_ptr: &std::ffi::CStr) -> *mut c_char {
-    let len =  { str_ptr.to_bytes().len() };
+    let len = { str_ptr.to_bytes().len() };
     alloc_cstring_len(str_ptr.as_ptr(), len)
 }
 
@@ -316,11 +317,7 @@ pub fn cstr_is_empty<S: crate::strings::IntoCCharPtr>(s: S) -> bool {
 #[inline]
 pub fn cstr_first_byte<S: crate::strings::IntoCCharPtr>(s: S) -> u8 {
     let s = s.into_c_char_ptr();
-    if s.is_null() {
-        0
-    } else {
-        unsafe { *s as u8 }
-    }
+    if s.is_null() { 0 } else { unsafe { *s as u8 } }
 }
 
 /// Return the byte at `idx` in `s` (`*s.add(idx) as u8`, or `0` if `s` is null).
@@ -658,7 +655,11 @@ pub fn arena_memdupz(arena: &mut Arena, buf: *const c_char, size: usize) -> *mut
 
 /// Copy `buf[..size]` into a NUL-terminated buffer on `arena` (or heap if `None`).
 #[inline]
-pub fn arena_memdupz_opt(arena: Option<&mut Arena>, buf: *const c_char, size: usize) -> *mut c_char {
+pub fn arena_memdupz_opt(
+    arena: Option<&mut Arena>,
+    buf: *const c_char,
+    size: usize,
+) -> *mut c_char {
     let mem = arena_allocz_opt(arena, size).cast::<u8>();
     if size > 0 {
         unsafe {
@@ -680,9 +681,7 @@ pub fn free_all_mem() {
     use crate::api::extmark::api_extmark_free_all_mem;
     use crate::arglist::alist_clear;
     use crate::autocmd::{autocmd_free_all_mem, block_autocmds, free_all_autocmds};
-    use crate::buffer::{
-        DOBUF_WIPE, Bufref, bufref_valid, close_buffer, free_titles, set_bufref,
-    };
+    use crate::buffer::{Bufref, DOBUF_WIPE, bufref_valid, close_buffer, free_titles, set_bufref};
     use crate::channel::channel_free_all_mem;
     use crate::cmdhist::init_history;
     use crate::decoration_provider::decor_free_all_mem;

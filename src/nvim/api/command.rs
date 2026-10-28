@@ -22,9 +22,9 @@ use crate::ex_docmd::{
     ADDR_QUICKFIX, ADDR_TABS, ADDR_WINDOWS, CMD_SIZE, CMD_USER, CMD_USER_BUF, CMOD_BROWSE,
     CMOD_CONFIRM, CMOD_ERRSILENT, CMOD_HIDE, CMOD_KEEPALT, CMOD_KEEPJUMPS, CMOD_KEEPMARKS,
     CMOD_KEEPPATTERNS, CMOD_LOCKMARKS, CMOD_NOAUTOCMD, CMOD_NOSWAPFILE, CMOD_SANDBOX, CMOD_SILENT,
-    CMOD_UNSILENT, EX_ARGOPT, EX_ARGSPACE, EX_BANG, EX_CMDARG, EX_COUNT, EX_DFLALL, EX_EXTRA,
-    EX_KEEPSCRIPT, EX_NEEDARG, EX_NOSPC, EX_PREVIEW, EX_RANGE, EX_REGSTR, EX_SBOXOK, EX_TRLBAR,
-    EX_XFILE, EX_ZEROR, Cmdmod, Exarg, excmd_get_argt, execute_cmd, find_ex_command,
+    CMOD_UNSILENT, Cmdmod, EX_ARGOPT, EX_ARGSPACE, EX_BANG, EX_CMDARG, EX_COUNT, EX_DFLALL,
+    EX_EXTRA, EX_KEEPSCRIPT, EX_NEEDARG, EX_NOSPC, EX_PREVIEW, EX_RANGE, EX_REGSTR, EX_SBOXOK,
+    EX_TRLBAR, EX_XFILE, EX_ZEROR, Exarg, excmd_get_argt, execute_cmd, find_ex_command,
     get_command_name, getargcmd, getargopt, invalid_range, is_cmd_ni, is_map_cmd, parse_cmdline,
     replace_makeprg, set_cmd_count, undo_cmdmod,
 };
@@ -45,7 +45,7 @@ use crate::usercmd::{
 use std::ffi::{c_char, c_int};
 use std::ptr;
 
-use crate::cmdexpand::{EXPAND_NOTHING, EXPAND_USER_LUA, CmdAddr};
+use crate::cmdexpand::{CmdAddr, EXPAND_NOTHING, EXPAND_USER_LUA};
 use crate::cursor::Linenr;
 
 const CMD_IPUT: c_int = 200;
@@ -174,8 +174,9 @@ pub struct KeyDict_get_commands {
 }
 
 #[inline]
-fn cstr_to_arena_str(arena: &mut Arena, str_ptr: impl crate::strings::IntoCCharPtr) -> NvimString { let str_ptr = str_ptr.into_c_char_ptr();
-     {
+fn cstr_to_arena_str(arena: &mut Arena, str_ptr: impl crate::strings::IntoCCharPtr) -> NvimString {
+    let str_ptr = str_ptr.into_c_char_ptr();
+    {
         if str_ptr.is_null() {
             NvimString {
                 data: ptr::null_mut(),
@@ -211,7 +212,8 @@ pub fn is_user_cmdidx<T: CmdIdxVal>(cmdidx: T) -> bool {
     cmdidx.check_user_cmd()
 }
 
-fn parse_map_cmd(arg_str: impl crate::strings::IntoCCharPtr, arena: &mut Arena) -> Array { let arg_str = arg_str.into_c_char_ptr();
+fn parse_map_cmd(arg_str: impl crate::strings::IntoCCharPtr, arena: &mut Arena) -> Array {
+    let arg_str = arg_str.into_c_char_ptr();
     unsafe {
         let mut args = arena_array(arena, 2);
 
@@ -320,11 +322,7 @@ pub fn nvim_parse_cmd(
                     errormsg,
                 );
             } else {
-                api_set_error!(
-                    err,
-                    ErrorType::ErrorTypeException,
-                    c"Parsing command-line",
-                );
+                api_set_error!(err, ErrorType::ErrorTypeException, c"Parsing command-line",);
             }
             return result;
         }
@@ -647,12 +645,7 @@ pub fn nvim_cmd(
                 && !((has_key(mask, KEYSET_OPTIDX_CMD_RANGE) && cmd.range.size > 0)
                     || has_key(mask, KEYSET_OPTIDX_CMD_MODS))
             {
-                api_err_exp(
-                    err,
-                    c"cmd",
-                    c"non-empty String",
-                    ptr::null(),
-                );
+                api_err_exp(err, c"cmd", c"non-empty String", ptr::null());
                 break 'end;
             }
 
@@ -840,12 +833,7 @@ pub fn nvim_cmd(
                     break 'end;
                 }
                 if cmd.range.size > 2 {
-                    api_err_exp(
-                        err,
-                        c"range",
-                        c"<=2 elements",
-                        ptr::null(),
-                    );
+                    api_err_exp(err, c"range", c"<=2 elements", ptr::null());
                     break 'end;
                 }
 
@@ -855,12 +843,7 @@ pub fn nvim_cmd(
                 for i in 0..range.size {
                     let elem = range[i];
                     if elem.obj_type != ObjectType::ObjectTypeInteger || elem.data.integer() < 0 {
-                        api_err_exp(
-                            err,
-                            c"range element",
-                            c"non-negative Integer",
-                            ptr::null(),
-                        );
+                        api_err_exp(err, c"range element", c"non-negative Integer", ptr::null());
                         break 'end;
                     }
                 }
@@ -897,9 +880,7 @@ pub fn nvim_cmd(
                 ea.argt = EX_RANGE | EX_SBOXOK;
             }
 
-            if has_key(mask, KEYSET_OPTIDX_CMD_RANGE)
-                && !invalid_range(&mut ea).is_null()
-            {
+            if has_key(mask, KEYSET_OPTIDX_CMD_RANGE) && !invalid_range(&mut ea).is_null() {
                 api_err_invalid(err, c"range", c"", 0, true);
                 break 'end;
             }
@@ -941,12 +922,7 @@ pub fn nvim_cmd(
                     break 'end;
                 }
                 if cmd.count < 0 {
-                    api_err_exp(
-                        err,
-                        c"count",
-                        c"non-negative Integer",
-                        ptr::null(),
-                    );
+                    api_err_exp(err, c"count", c"non-negative Integer", ptr::null());
                     break 'end;
                 }
                 set_cmd_count(&mut ea, cmd.count as Linenr, true);
@@ -964,12 +940,7 @@ pub fn nvim_cmd(
                     break 'end;
                 }
                 if cmd.reg.size != 1 {
-                    api_err_exp(
-                        err,
-                        c"reg",
-                        c"single character",
-                        cmd.reg.data,
-                    );
+                    api_err_exp(err, c"reg", c"single character", cmd.reg.data);
                     break 'end;
                 }
                 let regname = *cmd.reg.data;
@@ -1020,8 +991,7 @@ pub fn nvim_cmd(
                     break 'end;
                 }
 
-                ea.magic.file = if has_key(magic.is_set_cmd_magic, KEYSET_OPTIDX_CMD_MAGIC_FILE)
-                {
+                ea.magic.file = if has_key(magic.is_set_cmd_magic, KEYSET_OPTIDX_CMD_MAGIC_FILE) {
                     magic.file
                 } else {
                     (ea.argt & EX_XFILE) != 0
@@ -1069,7 +1039,9 @@ pub fn nvim_cmd(
                         KEYSET_OPTIDX_CMD_MODS_FILTER_PATTERN,
                     ) {
                         cmod.cmod_filter_force = filter.force;
-                        if !crate::memory::cstr_is_empty(filter.pattern.data) || cmod.cmod_filter_force {
+                        if !crate::memory::cstr_is_empty(filter.pattern.data)
+                            || cmod.cmod_filter_force
+                        {
                             let pat = cstr_from_bytes(std::slice::from_raw_parts(
                                 filter.pattern.data.cast::<u8>(),
                                 filter.pattern.size,
@@ -1100,17 +1072,22 @@ pub fn nvim_cmd(
                 if has_key(mods_mask, KEYSET_OPTIDX_CMD_MODS_SPLIT) {
                     if crate::memory::cstr_is_empty(mods.split.data) {
                         // Empty string
-                    } else if (crate::memory::cstr_as_opt_bytes(mods.split.data) == Some(b"aboveleft"))
+                    } else if (crate::memory::cstr_as_opt_bytes(mods.split.data)
+                        == Some(b"aboveleft"))
                         || (crate::memory::cstr_as_opt_bytes(mods.split.data) == Some(b"leftabove"))
                     {
                         cmod.cmod_split |= WSP_ABOVE;
-                    } else if (crate::memory::cstr_as_opt_bytes(mods.split.data) == Some(b"belowright"))
-                        || (crate::memory::cstr_as_opt_bytes(mods.split.data) == Some(b"rightbelow"))
+                    } else if (crate::memory::cstr_as_opt_bytes(mods.split.data)
+                        == Some(b"belowright"))
+                        || (crate::memory::cstr_as_opt_bytes(mods.split.data)
+                            == Some(b"rightbelow"))
                     {
                         cmod.cmod_split |= WSP_BELOW;
-                    } else if crate::memory::cstr_as_opt_bytes(mods.split.data) == Some(b"topleft") {
+                    } else if crate::memory::cstr_as_opt_bytes(mods.split.data) == Some(b"topleft")
+                    {
                         cmod.cmod_split |= WSP_TOP;
-                    } else if crate::memory::cstr_as_opt_bytes(mods.split.data) == Some(b"botright") {
+                    } else if crate::memory::cstr_as_opt_bytes(mods.split.data) == Some(b"botright")
+                    {
                         cmod.cmod_split |= WSP_BOT;
                     } else {
                         api_err_invalid(err, c"mods.split", c"", 0, true);
@@ -1185,11 +1162,12 @@ pub fn nvim_cmd(
             }
 
             if (ea.argt & EX_ARGOPT) != 0 {
-                while crate::memory::cstr_byte_at(ea.arg, 0) == b'+' && crate::memory::cstr_byte_at(ea.arg, 1) == b'+' {
+                while crate::memory::cstr_byte_at(ea.arg, 0) == b'+'
+                    && crate::memory::cstr_byte_at(ea.arg, 1) == b'+'
+                {
                     let orig_arg = ea.arg;
                     let result = getargopt(&mut ea);
-                    if !result && !is_cmd_ni(crate::cmdexpand::Cmdidx::from_raw(ea.cmdidx))
-                    {
+                    if !result && !is_cmd_ni(crate::cmdexpand::Cmdidx::from_raw(ea.cmdidx)) {
                         api_err_invalid(err, c"argument ", orig_arg, 0, true);
                         break 'end;
                     }
@@ -1496,13 +1474,7 @@ pub fn create_user_command(
                 }
             } else if opts.nargs.obj_type == ObjectType::ObjectTypeString {
                 if opts.nargs.data.string().size > 1 {
-                    api_err_invalid(
-                        err,
-                        c"nargs",
-                        opts.nargs.data.string().data,
-                        0,
-                        true,
-                    );
+                    api_err_invalid(err, c"nargs", opts.nargs.data.string().data, 0, true);
                     break 'err;
                 }
                 match crate::memory::cstr_first_byte(opts.nargs.data.string().data) {
@@ -1511,13 +1483,7 @@ pub fn create_user_command(
                     b'+' => argt |= EX_EXTRA | EX_NEEDARG,
                     b'_' => argt |= EX_EXTRA | EX_NOSPC | EX_NEEDARG | EX_ARGSPACE,
                     _ => {
-                        api_err_invalid(
-                            err,
-                            c"nargs",
-                            opts.nargs.data.string().data,
-                            0,
-                            true,
-                        );
+                        api_err_invalid(err, c"nargs", opts.nargs.data.string().data, 0, true);
                         break 'err;
                     }
                 }
@@ -1588,15 +1554,8 @@ pub fn create_user_command(
                     opts.addr.data.string().data,
                     opts.addr.data.string().size as c_int,
                     &mut addr_type_arg,
-                )
-                {
-                    api_err_invalid(
-                        err,
-                        c"addr",
-                        opts.addr.data.string().data,
-                        0,
-                        true,
-                    );
+                ) {
+                    api_err_invalid(err, c"addr", opts.addr.data.string().data, 0, true);
                     break 'err;
                 }
                 argt |= EX_RANGE;
@@ -1630,8 +1589,7 @@ pub fn create_user_command(
             if opts.complete.obj_type == ObjectType::ObjectTypeLuaRef {
                 context = EXPAND_USER_LUA;
                 compl_luaref = opts.complete.data.luaref();
-                opts.complete.data =
-                    crate::api::private::validate::ObjectData::LuaRef(LUA_NOREF);
+                opts.complete.data = crate::api::private::validate::ObjectData::LuaRef(LUA_NOREF);
             } else if opts.complete.obj_type == ObjectType::ObjectTypeString {
                 if !parse_compl_arg(
                     opts.complete.data.string().data,
@@ -1639,24 +1597,12 @@ pub fn create_user_command(
                     &mut context,
                     &mut argt,
                     &mut compl_arg,
-                )
-                {
-                    api_err_invalid(
-                        err,
-                        c"complete",
-                        opts.complete.data.string().data,
-                        0,
-                        true,
-                    );
+                ) {
+                    api_err_invalid(err, c"complete", opts.complete.data.string().data, 0, true);
                     break 'err;
                 }
             } else if has_key(mask, KEYSET_OPTIDX_USER_COMMAND_COMPLETE) {
-                api_err_exp(
-                    err,
-                    c"complete",
-                    c"Function or String",
-                    ptr::null(),
-                );
+                api_err_exp(err, c"complete", c"Function or String", ptr::null());
                 break 'err;
             }
 
@@ -1672,8 +1618,7 @@ pub fn create_user_command(
                 }
                 argt |= EX_PREVIEW;
                 preview_luaref = opts.preview.data.luaref();
-                opts.preview.data =
-                    crate::api::private::validate::ObjectData::LuaRef(LUA_NOREF);
+                opts.preview.data = crate::api::private::validate::ObjectData::LuaRef(LUA_NOREF);
             }
 
             let mut desc: *const c_char = ptr::null();
@@ -1699,12 +1644,7 @@ pub fn create_user_command(
                     rep = cmd.data.string().data;
                 }
                 _ => {
-                    api_err_exp(
-                        err,
-                        c"command",
-                        c"Function or String",
-                        ptr::null(),
-                    );
+                    api_err_exp(err, c"command", c"Function or String", ptr::null());
                     break 'err;
                 }
             }
@@ -1725,8 +1665,7 @@ pub fn create_user_command(
                     luaref,
                     desc,
                     force,
-                )
-                {
+                ) {
                     api_set_error!(
                         err,
                         ErrorType::ErrorTypeException,

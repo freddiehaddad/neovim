@@ -15,7 +15,7 @@ use crate::autocmd::{
     EVENT_FILETYPE, block_autocmds, do_filetype_autocmd, has_event, unblock_autocmds,
 };
 use crate::buffer::{
-    BF_DUMMY, BLN_DUMMY, FileBuf, buflist_new, Bufref, bufref_valid, set_bufref, wipe_buffer,
+    BF_DUMMY, BLN_DUMMY, Bufref, FileBuf, buflist_new, bufref_valid, set_bufref, wipe_buffer,
 };
 use crate::context::{CtxSwitch, ctx_restore, ctx_switch};
 use crate::globals::*;
@@ -23,14 +23,14 @@ use crate::lua::converter::Boolean;
 use crate::memline::ml_open;
 use crate::memory::{Arena, arena_memdupz};
 use crate::option::{
-    OP_ADDING, OP_NONE, OP_PREPENDING, OP_REMOVING, OPT_GLOBAL, OPT_LOCAL, OptScope, OptTarget,
-    PREFIX_NONE, copy_option_part, escape_option_str_cmdline, find_option, get_all_options_info,
-    get_option, get_option_info, get_option_newval, get_option_value_for,
-    get_option_varp_scope_from, get_varp_from, K_OPT_BUFHIDDEN, K_OPT_BUFTYPE, K_OPT_FILETYPE,
-    K_OPT_FLAG_COLON, K_OPT_FLAG_COMMA, K_OPT_FLAG_FLAG_LIST, K_OPT_INVALID, K_OPT_MODELINE, K_OPT_SCOPE_BUF,
-    K_OPT_SCOPE_GLOBAL, K_OPT_SCOPE_TAB, K_OPT_SCOPE_WIN, K_OPT_SWAPFILE, opt_from_varp, option_has_scope,
-    option_has_type, optval_free, optval_from_obj, optval_own, SetOp, set_option_direct,
-    set_option_value_for, validate_and_prepare_option_value,
+    K_OPT_BUFHIDDEN, K_OPT_BUFTYPE, K_OPT_FILETYPE, K_OPT_FLAG_COLON, K_OPT_FLAG_COMMA,
+    K_OPT_FLAG_FLAG_LIST, K_OPT_INVALID, K_OPT_MODELINE, K_OPT_SCOPE_BUF, K_OPT_SCOPE_GLOBAL,
+    K_OPT_SCOPE_TAB, K_OPT_SCOPE_WIN, K_OPT_SWAPFILE, OP_ADDING, OP_NONE, OP_PREPENDING,
+    OP_REMOVING, OPT_GLOBAL, OPT_LOCAL, OptScope, OptTarget, PREFIX_NONE, SetOp, copy_option_part,
+    escape_option_str_cmdline, find_option, get_all_options_info, get_option, get_option_info,
+    get_option_newval, get_option_value_for, get_option_varp_scope_from, get_varp_from,
+    opt_from_varp, option_has_scope, option_has_type, optval_free, optval_from_obj, optval_own,
+    set_option_direct, set_option_value_for, validate_and_prepare_option_value,
 };
 use crate::window::close_windows;
 use std::ffi::{c_char, c_int};
@@ -75,7 +75,8 @@ fn validate_option_value_args(
     operation: Option<&mut SetOp>,
     dry_run: Option<&mut bool>,
     err: &mut Error,
-) -> bool { let name = name.into_c_char_ptr();
+) -> bool {
+    let name = name.into_c_char_ptr();
     unsafe {
         let mask = opts.is_set_option;
         if has_key(mask, KEYSET_OPTIDX_OPTION_FILETYPE)
@@ -84,11 +85,7 @@ fn validate_option_value_args(
                 || has_key(mask, KEYSET_OPTIDX_OPTION_WIN)
                 || has_key(mask, KEYSET_OPTIDX_OPTION_TAB))
         {
-            api_err_conflict(
-                err,
-                c"filetype",
-                c"'scope', 'buf', 'win' or 'tab'",
-            );
+            api_err_conflict(err, c"filetype", c"'scope', 'buf', 'win' or 'tab'");
             return false;
         }
 
@@ -103,11 +100,7 @@ fn validate_option_value_args(
                 || has_key(mask, KEYSET_OPTIDX_OPTION_FILETYPE)
                 || has_key(mask, KEYSET_OPTIDX_OPTION_SCOPE))
         {
-            api_err_conflict(
-                err,
-                c"tab",
-                c"'win', 'buf', 'filetype' or 'scope'",
-            );
+            api_err_conflict(err, c"tab", c"'win', 'buf', 'filetype' or 'scope'");
             return false;
         }
 
@@ -122,12 +115,7 @@ fn validate_option_value_args(
             } else if crate::memory::cstr_as_opt_bytes(opts.scope.data) == Some(b"global") {
                 *opt_flags = OPT_GLOBAL;
             } else {
-                api_err_exp(
-                    err,
-                    c"scope",
-                    c"'local' or 'global'",
-                    std::ptr::null(),
-                );
+                api_err_exp(err, c"scope", c"'local' or 'global'", std::ptr::null());
                 return false;
             }
         }
@@ -214,7 +202,8 @@ fn validate_option_value_args(
             *dry_run = opts.dry_run;
         }
 
-        if has_key(mask, KEYSET_OPTIDX_OPTION_TAB) && !option_has_scope(*opt_idxp, K_OPT_SCOPE_TAB) {
+        if has_key(mask, KEYSET_OPTIDX_OPTION_TAB) && !option_has_scope(*opt_idxp, K_OPT_SCOPE_TAB)
+        {
             api_err_conflict(err, c"tab", name);
             return false;
         }
@@ -256,7 +245,12 @@ fn validate_option_value_args(
     }
 }
 
-fn do_ft_buf(filetype: impl crate::strings::IntoCCharPtr, aco: &mut CtxSwitch, err: &mut Error) -> *mut FileBuf { let filetype = filetype.into_c_char_ptr();
+fn do_ft_buf(
+    filetype: impl crate::strings::IntoCCharPtr,
+    aco: &mut CtxSwitch,
+    err: &mut Error,
+) -> *mut FileBuf {
+    let filetype = filetype.into_c_char_ptr();
     unsafe {
         if filetype.is_null() {
             return ptr::null_mut();
@@ -303,11 +297,11 @@ fn do_ft_buf(filetype: impl crate::strings::IntoCCharPtr, aco: &mut CtxSwitch, e
             SID_NONE,
         );
         assert!((*(*ftbuf).b_ml.mfp_ptr()).mf_fd < 0);
-        *(get_option_varp_scope_from(K_OPT_SWAPFILE, OPT_LOCAL,  &mut *ftbuf, ptr::null_mut())
+        *(get_option_varp_scope_from(K_OPT_SWAPFILE, OPT_LOCAL, &mut *ftbuf, ptr::null_mut())
             as *mut c_int) = 0;
-        *(get_option_varp_scope_from(K_OPT_MODELINE, OPT_LOCAL,  &mut *ftbuf, ptr::null_mut())
+        *(get_option_varp_scope_from(K_OPT_MODELINE, OPT_LOCAL, &mut *ftbuf, ptr::null_mut())
             as *mut c_int) = 0;
-        *(get_option_varp_scope_from(K_OPT_FILETYPE, OPT_LOCAL,  &mut *ftbuf, ptr::null_mut())
+        *(get_option_varp_scope_from(K_OPT_FILETYPE, OPT_LOCAL, &mut *ftbuf, ptr::null_mut())
             as *mut *mut c_char) = crate::optionstr::alloc_string_option(filetype);
 
         if !has_event(EVENT_FILETYPE) {
@@ -410,8 +404,7 @@ pub fn nvim_get_option_value(
             None,
             None,
             err,
-        )
-        {
+        ) {
             return OBJECT_NIL;
         }
 
@@ -502,7 +495,7 @@ pub fn nvim_option_to_object(
                 if p_byte == b',' {
                     nparts += 1;
                 }
-}
+            }
             let as_map = (flags & K_OPT_FLAG_COLON) != 0
                 || (flags & K_OPT_FLAG_FLAG_LIST) != 0
                 || !schema.is_empty();
@@ -532,7 +525,10 @@ pub fn nvim_option_to_object(
                     );
                     continue;
                 }
-                let colon = crate::memory::cstr_as_bytes(item).iter().position(|&b| b == b':').map_or(ptr::null_mut(), |i| item.add(i));
+                let colon = crate::memory::cstr_as_bytes(item)
+                    .iter()
+                    .position(|&b| b == b':')
+                    .map_or(ptr::null_mut(), |i| item.add(i));
                 let mut val: *mut c_char = ptr::null_mut();
                 if !colon.is_null() {
                     *colon = NUL;
@@ -607,12 +603,14 @@ pub fn nvim_set_option_value(
             Some(&mut operation),
             Some(&mut dry_run),
             err,
-        )
-        {
+        ) {
             return OBJECT_NIL;
         }
 
-        if scope == K_OPT_SCOPE_WIN && opt_flags == 0 && option_has_scope(opt_idx, K_OPT_SCOPE_GLOBAL) {
+        if scope == K_OPT_SCOPE_WIN
+            && opt_flags == 0
+            && option_has_scope(opt_idx, K_OPT_SCOPE_GLOBAL)
+        {
             opt_flags = OPT_LOCAL;
         }
 
@@ -632,7 +630,7 @@ pub fn nvim_set_option_value(
         } else {
             curwin_ptr()
         };
-        let varp = get_varp_from( &mut *option,  &mut *buf,  &mut *win);
+        let varp = get_varp_from(&mut *option, &mut *buf, &mut *win);
 
         let nitems = if is_array {
             value.data.array().size
@@ -650,19 +648,19 @@ pub fn nvim_set_option_value(
                 item = Object {
                     obj_type: ObjectType::ObjectTypeArray,
                     data: ObjectData::Array(Array {
-                            items: value.data.array().items.add(i),
-                            size: 1,
-                            capacity: 0,
-                        }),
+                        items: value.data.array().items.add(i),
+                        size: 1,
+                        capacity: 0,
+                    }),
                 };
             } else if per_item {
                 item = Object {
                     obj_type: ObjectType::ObjectTypeDict,
                     data: ObjectData::Dict(Dict {
-                            items: value.data.dict().items.add(i),
-                            size: 1,
-                            capacity: 0,
-                        }),
+                        items: value.data.dict().items.add(i),
+                        size: 1,
+                        capacity: 0,
+                    }),
                 };
             }
 
@@ -840,7 +838,7 @@ pub fn nvim_get_option_info2(
     arena: &mut Arena,
     err: &mut Error,
 ) -> Dict {
-     {
+    {
         let mut opt_idx: OptIndex = 0;
         let mut opt_flags: c_int = 0;
         let mut scope: OptScope = K_OPT_SCOPE_GLOBAL;
@@ -858,8 +856,7 @@ pub fn nvim_get_option_info2(
             None,
             None,
             err,
-        )
-        {
+        ) {
             return Dict::new();
         }
 
@@ -888,10 +885,13 @@ mod tests {
         assert!(has_key(mask, KEYSET_OPTIDX_OPTION_BUF));
         assert!(has_key(mask, KEYSET_OPTIDX_OPTION_SCOPE));
         assert!(!has_key(mask, KEYSET_OPTIDX_OPTION_WIN));
-         {
+        {
             assert!((crate::memory::cstr_as_opt_bytes(c"local") == Some(b"local")));
             assert!(!(crate::memory::cstr_as_opt_bytes(c"local") == Some(b"global")));
-            assert!(!{ let _a: *const c_char = std::ptr::null(); !_a.is_null() && crate::memory::cstr_as_bytes(_a) == b"local" });
+            assert!(!{
+                let _a: *const c_char = std::ptr::null();
+                !_a.is_null() && crate::memory::cstr_as_bytes(_a) == b"local"
+            });
         }
     }
 }

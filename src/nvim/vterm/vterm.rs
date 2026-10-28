@@ -42,13 +42,13 @@ pub fn vterm_set_size(vt: &mut VTerm, rows: c_int, cols: c_int) {
     }
 
     vt.rows = rows;
-        vt.cols = cols;
+    vt.cols = cols;
 
-        if let Some(callbacks) = vt.parser.callbacks
-            && let Some(resize_cb) = callbacks.resize
-        {
-            let _ = resize_cb(rows, cols, vt.state_mut_ptr());
-        }
+    if let Some(callbacks) = vt.parser.callbacks
+        && let Some(resize_cb) = callbacks.resize
+    {
+        let _ = resize_cb(rows, cols, vt.state_mut_ptr());
+    }
 }
 
 pub fn vterm_set_utf8(vt: &mut VTerm, is_utf8: c_int) {
@@ -59,21 +59,22 @@ pub fn vterm_set_utf8(vt: &mut VTerm, is_utf8: c_int) {
     }
 }
 
-pub fn vterm_output_set_callback(
-    vt: &mut VTerm,
-    func: VTermOutputCallback,
-    user: *mut Terminal,
-) {
+pub fn vterm_output_set_callback(vt: &mut VTerm, func: VTermOutputCallback, user: *mut Terminal) {
     vt.outfunc = func;
     vt.outdata = user;
 }
 
-pub fn vterm_push_output_bytes(vt: &mut VTerm, bytes: impl crate::strings::IntoCCharPtr, len: usize) { let bytes = bytes.into_c_char_ptr();
+pub fn vterm_push_output_bytes(
+    vt: &mut VTerm,
+    bytes: impl crate::strings::IntoCCharPtr,
+    len: usize,
+) {
+    let bytes = bytes.into_c_char_ptr();
     if let Some(func) = vt.outfunc {
         let slice = if len == 0 || bytes.is_null() {
             &[][..]
         } else {
-             crate::memory::cstr_slice(bytes, len)
+            crate::memory::cstr_slice(bytes, len)
         };
         func(slice, vt.outdata);
     }
@@ -87,34 +88,34 @@ pub fn vterm_push_output_bytes_slice(vt: &mut VTerm, payload: &[u8]) {
 
 pub fn vterm_push_output_ctrl_bytes(vt: &mut VTerm, ctrl: u8, payload: &[u8]) {
     let ctrl8bit = (vt.mode & VT_MODE_CTRL8BIT) != 0;
-        let mut buf = Vec::with_capacity(2 + payload.len());
+    let mut buf = Vec::with_capacity(2 + payload.len());
+    if ctrl >= 0x80 && !ctrl8bit {
+        buf.push(0x1b);
+        buf.push(ctrl - 0x40);
+    } else {
+        buf.push(ctrl);
+    }
+    buf.extend_from_slice(payload);
+    vterm_push_output_bytes_slice(vt, &buf);
+}
+
+pub fn vterm_push_output_str_bytes(vt: &mut VTerm, ctrl: u8, term: bool, payload: &[u8]) {
+    let ctrl8bit = (vt.mode & VT_MODE_CTRL8BIT) != 0;
+    let mut buf = Vec::with_capacity(4 + payload.len());
+    if ctrl != 0 {
         if ctrl >= 0x80 && !ctrl8bit {
             buf.push(0x1b);
             buf.push(ctrl - 0x40);
         } else {
             buf.push(ctrl);
         }
-        buf.extend_from_slice(payload);
-        vterm_push_output_bytes_slice(vt, &buf);
-}
-
-pub fn vterm_push_output_str_bytes(vt: &mut VTerm, ctrl: u8, term: bool, payload: &[u8]) {
-    let ctrl8bit = (vt.mode & VT_MODE_CTRL8BIT) != 0;
-        let mut buf = Vec::with_capacity(4 + payload.len());
-        if ctrl != 0 {
-            if ctrl >= 0x80 && !ctrl8bit {
-                buf.push(0x1b);
-                buf.push(ctrl - 0x40);
-            } else {
-                buf.push(ctrl);
-            }
-        }
-        buf.extend_from_slice(payload);
-        if term {
-            let st: &[u8] = if ctrl8bit { b"\x9c" } else { b"\x1b\\" };
-            buf.extend_from_slice(st);
-        }
-        vterm_push_output_bytes_slice(vt, &buf);
+    }
+    buf.extend_from_slice(payload);
+    if term {
+        let st: &[u8] = if ctrl8bit { b"\x9c" } else { b"\x1b\\" };
+        buf.extend_from_slice(st);
+    }
+    vterm_push_output_bytes_slice(vt, &buf);
 }
 
 pub fn vterm_get_attr_type(attr: VTermAttr) -> VTermValueType {
@@ -143,86 +144,84 @@ pub fn vterm_scroll_rect(
     downward: c_int,
     rightward: c_int,
     moverect: Option<fn(src: VTermRect, dest: VTermRect, user: *mut VTermScreen) -> c_int>,
-    eraserect: Option<
-        fn(rect: VTermRect, selective: c_int, user: *mut VTermScreen) -> c_int,
-    >,
+    eraserect: Option<fn(rect: VTermRect, selective: c_int, user: *mut VTermScreen) -> c_int>,
     user: *mut VTermScreen,
 ) {
     if downward.abs() >= rect.end_row - rect.start_row
-            || rightward.abs() >= rect.end_col - rect.start_col
-        {
-            if let Some(erase_cb) = eraserect {
-                let _ = erase_cb(rect, 0, user);
-            }
-            return;
-        }
-
-        let (src_start_col, src_end_col, dest_start_col, dest_end_col) = if rightward >= 0 {
-            (
-                rect.start_col + rightward,
-                rect.end_col,
-                rect.start_col,
-                rect.end_col - rightward,
-            )
-        } else {
-            let leftward = -rightward;
-            (
-                rect.start_col,
-                rect.end_col - leftward,
-                rect.start_col + leftward,
-                rect.end_col,
-            )
-        };
-
-        let (src_start_row, src_end_row, dest_start_row, dest_end_row) = if downward >= 0 {
-            (
-                rect.start_row + downward,
-                rect.end_row,
-                rect.start_row,
-                rect.end_row - downward,
-            )
-        } else {
-            let upward = -downward;
-            (
-                rect.start_row,
-                rect.end_row - upward,
-                rect.start_row + upward,
-                rect.end_row,
-            )
-        };
-
-        let src = VTermRect {
-            start_row: src_start_row,
-            end_row: src_end_row,
-            start_col: src_start_col,
-            end_col: src_end_col,
-        };
-        let dest = VTermRect {
-            start_row: dest_start_row,
-            end_row: dest_end_row,
-            start_col: dest_start_col,
-            end_col: dest_end_col,
-        };
-
-        if let Some(move_cb) = moverect {
-            let _ = move_cb(dest, src, user);
-        }
-
-        if downward > 0 {
-            rect.start_row = rect.end_row - downward;
-        } else if downward < 0 {
-            rect.end_row = rect.start_row - downward;
-        }
-
-        if rightward > 0 {
-            rect.start_col = rect.end_col - rightward;
-        } else if rightward < 0 {
-            rect.end_col = rect.start_col - rightward;
-        }
-
+        || rightward.abs() >= rect.end_col - rect.start_col
+    {
         if let Some(erase_cb) = eraserect {
             let _ = erase_cb(rect, 0, user);
         }
+        return;
+    }
+
+    let (src_start_col, src_end_col, dest_start_col, dest_end_col) = if rightward >= 0 {
+        (
+            rect.start_col + rightward,
+            rect.end_col,
+            rect.start_col,
+            rect.end_col - rightward,
+        )
+    } else {
+        let leftward = -rightward;
+        (
+            rect.start_col,
+            rect.end_col - leftward,
+            rect.start_col + leftward,
+            rect.end_col,
+        )
+    };
+
+    let (src_start_row, src_end_row, dest_start_row, dest_end_row) = if downward >= 0 {
+        (
+            rect.start_row + downward,
+            rect.end_row,
+            rect.start_row,
+            rect.end_row - downward,
+        )
+    } else {
+        let upward = -downward;
+        (
+            rect.start_row,
+            rect.end_row - upward,
+            rect.start_row + upward,
+            rect.end_row,
+        )
+    };
+
+    let src = VTermRect {
+        start_row: src_start_row,
+        end_row: src_end_row,
+        start_col: src_start_col,
+        end_col: src_end_col,
+    };
+    let dest = VTermRect {
+        start_row: dest_start_row,
+        end_row: dest_end_row,
+        start_col: dest_start_col,
+        end_col: dest_end_col,
+    };
+
+    if let Some(move_cb) = moverect {
+        let _ = move_cb(dest, src, user);
+    }
+
+    if downward > 0 {
+        rect.start_row = rect.end_row - downward;
+    } else if downward < 0 {
+        rect.end_row = rect.start_row - downward;
+    }
+
+    if rightward > 0 {
+        rect.start_col = rect.end_col - rightward;
+    } else if rightward < 0 {
+        rect.end_col = rect.start_col - rightward;
+    }
+
+    if let Some(erase_cb) = eraserect {
+        let _ = erase_cb(rect, 0, user);
+    }
 }
 
 #[cfg(test)]

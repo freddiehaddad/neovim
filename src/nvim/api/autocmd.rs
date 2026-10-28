@@ -11,16 +11,16 @@ use crate::api::private::validate::{
     api_err_invalid, api_err_required, check_string_array,
 };
 use crate::autocmd::{
-    AUGROUP_ALL, AUGROUP_DEFAULT, AUGROUP_ERROR, BUFLOCAL_PAT_LEN, NUM_EVENTS,
+    AUGROUP_ALL, AUGROUP_DEFAULT, AUGROUP_ERROR, AuEvent, BUFLOCAL_PAT_LEN, NUM_EVENTS,
     apply_autocmds_group, au_get_autocmds_for_event, aucmd_del_for_event_and_group,
     aucmd_span_pattern, augroup_add, augroup_del, augroup_del_by_id, augroup_exists, augroup_find,
     augroup_name, aupat_get_buflocal_nr, aupat_is_buflocal, aupat_normalize_buflocal_pat,
-    autocmd_delete_id, autocmd_register, do_autocmd_event, AuEvent, event_name2nr_str,
-    event_nr2name,
+    autocmd_delete_id, autocmd_register, do_autocmd_event, event_name2nr_str, event_nr2name,
 };
 use crate::buffer::do_modelines;
 use crate::eval::typval::{
-    Callback, callback_free, callback_to_string, K_CALLBACK_FUNCREF, K_CALLBACK_LUA, K_CALLBACK_PARTIAL,
+    Callback, K_CALLBACK_FUNCREF, K_CALLBACK_LUA, K_CALLBACK_PARTIAL, callback_free,
+    callback_to_string,
 };
 use crate::globals::*;
 use crate::lua::converter::LUA_NOREF;
@@ -58,7 +58,6 @@ const KEYSET_OPTIDX_EXEC_AUTOCMDS_DATA: u64 = 2;
 const KEYSET_OPTIDX_EXEC_AUTOCMDS_BUFFER: u64 = 4;
 const KEYSET_OPTIDX_EXEC_AUTOCMDS_PATTERN: u64 = 5;
 const KEYSET_OPTIDX_EXEC_AUTOCMDS_MODELINE: u64 = 6;
-
 
 #[repr(C)]
 #[derive(Default)]
@@ -123,13 +122,12 @@ struct ApiAutocmdState {
 
 impl ApiAutocmdState {
     const fn new() -> Self {
-        Self {
-            next_autocmd_id: 1,
-        }
+        Self { next_autocmd_id: 1 }
     }
 }
 
-static API_AU_STATE: crate::globals::GlobalState<ApiAutocmdState> = crate::globals::GlobalState::new(ApiAutocmdState::new());
+static API_AU_STATE: crate::globals::GlobalState<ApiAutocmdState> =
+    crate::globals::GlobalState::new(ApiAutocmdState::new());
 
 #[inline]
 fn api_au_st() -> &'static mut ApiAutocmdState {
@@ -161,10 +159,10 @@ fn api_err_req(err: &mut Error, name: &std::ffi::CStr) {
 fn format_buflocal_arena(arena: &mut Arena, handle: c_int) -> NvimString {
     let s = format!("<buffer={handle}>");
     let data = arena_memdupz(arena, s.as_ptr().cast(), s.len());
-        NvimString {
-            data,
-            size: s.len(),
-        }
+    NvimString {
+        data,
+        size: s.len(),
+    }
 }
 
 fn unpack_string_or_array(
@@ -175,69 +173,69 @@ fn unpack_string_or_array(
     err: &mut Error,
 ) -> Array {
     if v.obj_type == ObjectType::ObjectTypeString {
-            let mut arr = arena_array(arena, 1);
-            add_c(&mut arr, v);
-            arr
-        } else if v.obj_type == ObjectType::ObjectTypeArray {
-            if !check_string_array(v.data.array(), k.as_ptr().cast_mut(), true, err) {
-                return Array {
-                    items: std::ptr::null_mut(),
-                    size: 0,
-                    capacity: 0,
-                };
-            }
-            v.data.array()
-        } else {
-            if !(!required && v.obj_type == ObjectType::ObjectTypeNil) {
-                api_err_exp(
-                    err,
-                    k.as_ptr(),
-                    c"Array or String",
-                    api_typename(v.obj_type),
-                );
-            }
-            Array {
+        let mut arr = arena_array(arena, 1);
+        add_c(&mut arr, v);
+        arr
+    } else if v.obj_type == ObjectType::ObjectTypeArray {
+        if !check_string_array(v.data.array(), k.as_ptr().cast_mut(), true, err) {
+            return Array {
                 items: std::ptr::null_mut(),
                 size: 0,
                 capacity: 0,
-            }
+            };
         }
+        v.data.array()
+    } else {
+        if !(!required && v.obj_type == ObjectType::ObjectTypeNil) {
+            api_err_exp(
+                err,
+                k.as_ptr(),
+                c"Array or String",
+                api_typename(v.obj_type),
+            );
+        }
+        Array {
+            items: std::ptr::null_mut(),
+            size: 0,
+            capacity: 0,
+        }
+    }
 }
 
 fn get_augroup_from_object(group: Object, err: &mut Error) -> c_int {
     match group.obj_type {
-            ObjectType::ObjectTypeNil => AUGROUP_DEFAULT,
-            ObjectType::ObjectTypeString => {
-                let au_group = augroup_find(group.data.string().data);
-                if au_group == AUGROUP_ERROR {
-                    api_err_inv(err, c"group", group.data.string().data);
-                    return AUGROUP_ERROR;
-                }
-                au_group
+        ObjectType::ObjectTypeNil => AUGROUP_DEFAULT,
+        ObjectType::ObjectTypeString => {
+            let au_group = augroup_find(group.data.string().data);
+            if au_group == AUGROUP_ERROR {
+                api_err_inv(err, c"group", group.data.string().data);
+                return AUGROUP_ERROR;
             }
-            ObjectType::ObjectTypeInteger => {
-                let au_group = group.data.integer() as c_int;
-                let name = if au_group == 0 {
-                    std::ptr::null()
-                } else {
-                    augroup_name(au_group)
-                };
-                if !augroup_exists(name) {
-                    api_err_int(err, c"group", i64::from(au_group));
-                    return AUGROUP_ERROR;
-                }
-                au_group
-            }
-            _ => {
-                api_err_exp(
-                    err,
-                    c"group",
-                    c"String or Integer",
-                    api_typename(group.obj_type),
-                );
-                AUGROUP_ERROR
-            }
+            au_group
         }
+        ObjectType::ObjectTypeInteger => {
+            let au_group = group.data.integer() as c_int;
+            let name = if au_group == 0 {
+                std::ptr::null()
+            } else {
+                augroup_name(au_group)
+            };
+            if !augroup_exists(name) {
+                api_err_int(err, c"group", i64::from(au_group));
+                return AUGROUP_ERROR;
+            }
+            au_group
+        }
+        _ => {
+            api_err_exp(
+                err,
+                c"group",
+                c"String or Integer",
+                api_typename(group.obj_type),
+            );
+            AUGROUP_ERROR
+        }
+    }
 }
 
 fn get_patterns_from_pattern_or_buf(
@@ -267,12 +265,7 @@ fn get_patterns_from_pattern_or_buf(
                     patlen = aucmd_span_pattern(pat.add(patlen), &mut pat);
                 }
             } else if pattern.obj_type == ObjectType::ObjectTypeArray {
-                if !check_string_array(
-                    pattern.data.array(),
-                    c"pattern",
-                    true,
-                    err,
-                ) {
+                if !check_string_array(pattern.data.array(), c"pattern", true, err) {
                     return Array {
                         items: std::ptr::null_mut(),
                         size: 0,
@@ -331,16 +324,17 @@ fn clear_autocmd(
     pat: impl crate::strings::IntoCCharPtr,
     au_group: c_int,
     err: &mut Error,
-) -> bool { let pat = pat.into_c_char_ptr();
+) -> bool {
+    let pat = pat.into_c_char_ptr();
     if !do_autocmd_event(event, pat, false, 0, c"", true, au_group) {
-            api_set_error!(
-                err,
-                ErrorType::ErrorTypeException,
-                c"Failed to clear autocmd",
-            );
-            return false;
-        }
-        true
+        api_set_error!(
+            err,
+            ErrorType::ErrorTypeException,
+            c"Failed to clear autocmd",
+        );
+        return false;
+    }
+    true
 }
 
 /// Gets all autocommands matching ALL criteria in the {opts} query.
@@ -473,12 +467,7 @@ pub fn nvim_get_autocmds(
                         event_set[event_nr as usize] = true;
                     }
                 } else {
-                    api_err_exp(
-                        err,
-                        c"event",
-                        c"String or Array",
-                        std::ptr::null(),
-                    );
+                    api_err_exp(err, c"event", c"String or Array", std::ptr::null());
                     break 'body;
                 }
             }
@@ -486,11 +475,7 @@ pub fn nvim_get_autocmds(
             let has_buf_key = has_key(mask, KEYSET_OPTIDX_GET_AUTOCMDS_BUF);
             let has_buffer_key = has_key(mask, KEYSET_OPTIDX_GET_AUTOCMDS_BUFFER);
             let has_buf = has_buf_key || has_buffer_key;
-            let buf = if has_buf_key {
-                opts.buf
-            } else {
-                opts.buffer
-            };
+            let buf = if has_buf_key { opts.buf } else { opts.buffer };
 
             if has_buf_key && has_buffer_key {
                 api_err_con(err, c"buf", c"buffer");
@@ -545,7 +530,10 @@ pub fn nvim_get_autocmds(
             if buf.obj_type == ObjectType::ObjectTypeInteger
                 || buf.obj_type == ObjectType::ObjectTypeBuffer
             {
-                let Some(b) = crate::api::private::helpers::find_buffer_by_handle_mut(buf.data.integer() as Buffer, err) else {
+                let Some(b) = crate::api::private::helpers::find_buffer_by_handle_mut(
+                    buf.data.integer() as Buffer,
+                    err,
+                ) else {
                     break 'body;
                 };
                 let pat = format_buflocal_arena(arena, b.b_fnum);
@@ -567,15 +555,13 @@ pub fn nvim_get_autocmds(
                     if bufnr.obj_type != ObjectType::ObjectTypeInteger
                         && bufnr.obj_type != ObjectType::ObjectTypeBuffer
                     {
-                        api_err_exp(
-                            err,
-                            c"buffer",
-                            c"Integer",
-                            api_typename(bufnr.obj_type),
-                        );
+                        api_err_exp(err, c"buffer", c"Integer", api_typename(bufnr.obj_type));
                         break 'body;
                     }
-                    let Some(b) = crate::api::private::helpers::find_buffer_by_handle_mut(bufnr.data.integer() as Buffer, err) else {
+                    let Some(b) = crate::api::private::helpers::find_buffer_by_handle_mut(
+                        bufnr.data.integer() as Buffer,
+                        err,
+                    ) else {
                         break 'body;
                     };
                     add_c(
@@ -631,7 +617,8 @@ pub fn nvim_get_autocmds(
                                 );
                                 pat = pattern_buflocal.as_ptr();
                             }
-                            if !pat.is_null() && ap.pat.as_bytes() == crate::memory::cstr_as_bytes(pat)
+                            if !pat.is_null()
+                                && ap.pat.as_bytes() == crate::memory::cstr_as_bytes(pat)
                             {
                                 passed = true;
                                 break;
@@ -858,7 +845,8 @@ pub fn nvim_create_autocmd(
                         }
                         handler_fn.data =
                             crate::eval::typval::CallbackData::lua(callback.data.luaref());
-                        callback.data = crate::api::private::validate::ObjectData::LuaRef(LUA_NOREF);
+                        callback.data =
+                            crate::api::private::validate::ObjectData::LuaRef(LUA_NOREF);
                     }
                     ObjectType::ObjectTypeString => {
                         let s = cstr_from_bytes(callback.data.string().as_bytes());
@@ -889,11 +877,7 @@ pub fn nvim_create_autocmd(
             let has_buf_key = has_key(mask, KEYSET_OPTIDX_CREATE_AUTOCMD_BUF);
             let has_buffer_key = has_key(mask, KEYSET_OPTIDX_CREATE_AUTOCMD_BUFFER);
             let has_buf = has_buf_key || has_buffer_key;
-            let buf = if has_buf_key {
-                opts.buf
-            } else {
-                opts.buffer
-            };
+            let buf = if has_buf_key { opts.buf } else { opts.buffer };
 
             if has_buf_key && has_buffer_key {
                 api_err_con(err, c"buf", c"buffer");
@@ -904,14 +888,8 @@ pub fn nvim_create_autocmd(
                 break 'body;
             }
 
-            let patterns = get_patterns_from_pattern_or_buf(
-                opts.pattern,
-                has_buf,
-                buf,
-                c"*",
-                arena,
-                err,
-            );
+            let patterns =
+                get_patterns_from_pattern_or_buf(opts.pattern, has_buf, buf, c"*", arena, err);
             if error_set(err) {
                 break 'body;
             }
@@ -990,16 +968,16 @@ pub fn nvim_create_autocmd(
 // DLLEXPORT void nvim_del_autocmd(Integer id, Error *err) FUNC_API_SINCE(9);
 pub fn nvim_del_autocmd(id: Integer, err: &mut Error) {
     if id <= 0 {
-            api_err_int(err, c"autocmd id", id);
-            return;
-        }
-        if !autocmd_delete_id(id) {
-            api_set_error!(
-                err,
-                ErrorType::ErrorTypeException,
-                c"Failed to delete autocmd",
-            );
-        }
+        api_err_int(err, c"autocmd id", id);
+        return;
+    }
+    if !autocmd_delete_id(id) {
+        api_set_error!(
+            err,
+            ErrorType::ErrorTypeException,
+            c"Failed to delete autocmd",
+        );
+    }
 }
 
 /// Clears all autocommands matching the {opts} query. To delete autocmds see |nvim_del_autocmd()|.
@@ -1019,14 +997,9 @@ pub fn nvim_del_autocmd(id: Integer, err: &mut Error) {
 ///
 // DLLEXPORT void nvim_clear_autocmds(Dict(clear_autocmds) *opts, Arena *arena,
 //                                    Error *err) FUNC_API_SINCE(9);
-pub fn nvim_clear_autocmds(
-    opts: &mut KeyDict_clear_autocmds,
-    arena: &mut Arena,
-    err: &mut Error,
-) {
+pub fn nvim_clear_autocmds(opts: &mut KeyDict_clear_autocmds, arena: &mut Arena, err: &mut Error) {
     {
-        let event_array =
-            unpack_string_or_array(opts.event, c"event", false, arena, err);
+        let event_array = unpack_string_or_array(opts.event, c"event", false, arena, err);
         if error_set(err) {
             return;
         }
@@ -1035,11 +1008,7 @@ pub fn nvim_clear_autocmds(
         let has_buf_key = has_key(mask, KEYSET_OPTIDX_CLEAR_AUTOCMDS_BUF);
         let has_buffer_key = has_key(mask, KEYSET_OPTIDX_CLEAR_AUTOCMDS_BUFFER);
         let has_buf = has_buf_key || has_buffer_key;
-        let buf = if has_buf_key {
-            opts.buf
-        } else {
-            opts.buffer
-        };
+        let buf = if has_buf_key { opts.buf } else { opts.buffer };
 
         if has_buf_key && has_buffer_key {
             api_err_con(err, c"buf", c"buffer");
@@ -1055,14 +1024,8 @@ pub fn nvim_clear_autocmds(
             return;
         }
 
-        let patterns = get_patterns_from_pattern_or_buf(
-            opts.pattern,
-            has_buf,
-            buf,
-            c"",
-            arena,
-            err,
-        );
+        let patterns =
+            get_patterns_from_pattern_or_buf(opts.pattern, has_buf, buf, c"", arena, err);
         if error_set(err) {
             return;
         }
@@ -1071,8 +1034,12 @@ pub fn nvim_clear_autocmds(
             for event in 0..NUM_EVENTS {
                 for j in 0..patterns.size {
                     let pat_object = patterns[j];
-                    if !clear_autocmd(event as AuEvent, pat_object.data.string().data, au_group, err)
-                    {
+                    if !clear_autocmd(
+                        event as AuEvent,
+                        pat_object.data.string().data,
+                        au_group,
+                        err,
+                    ) {
                         return;
                     }
                 }
@@ -1133,11 +1100,7 @@ pub fn nvim_create_augroup(
         let save_current_sctx = api_set_sctx(channel_id);
         let augroup = augroup_add(augroup_name);
         if augroup == AUGROUP_ERROR {
-            api_set_error!(
-                err,
-                ErrorType::ErrorTypeException,
-                c"Failed to set augroup",
-            );
+            api_set_error!(err, ErrorType::ErrorTypeException, c"Failed to set augroup",);
             g_st().current_sctx = save_current_sctx;
             return -1;
         }
@@ -1165,9 +1128,9 @@ pub fn nvim_create_augroup(
 // DLLEXPORT void nvim_del_augroup_by_id(Integer id, Error *err) FUNC_API_SINCE(9);
 pub fn nvim_del_augroup_by_id(id: Integer, err: &mut Error) {
     let mut tstate = TryState::new();
-        try_enter(&mut tstate);
-        augroup_del_by_id(id as c_int);
-        try_leave(&tstate, err);
+    try_enter(&mut tstate);
+    augroup_del_by_id(id as c_int);
+    try_leave(&tstate, err);
 }
 
 /// Delete an autocommand group by name.
@@ -1179,9 +1142,9 @@ pub fn nvim_del_augroup_by_id(id: Integer, err: &mut Error) {
 // DLLEXPORT void nvim_del_augroup_by_name(String name, Error *err) FUNC_API_SINCE(9);
 pub fn nvim_del_augroup_by_name(name: NvimString, err: &mut Error) {
     let mut tstate = TryState::new();
-        try_enter(&mut tstate);
-        augroup_del(name.data, -1, false);
-        try_leave(&tstate, err);
+    try_enter(&mut tstate);
+    augroup_del(name.data, -1, false);
+    try_leave(&tstate, err);
 }
 
 /// Executes {event} handlers matching the {opts} query, in the context of {buf} (if given). |autocmd-execute|
@@ -1203,7 +1166,7 @@ pub fn nvim_exec_autocmds(
     arena: &mut Arena,
     err: &mut Error,
 ) {
-     {
+    {
         let mut au_group = AUGROUP_ALL;
         let mut b = g_st().curbuf;
         let mut data: *mut Object = std::ptr::null_mut();
@@ -1249,11 +1212,7 @@ pub fn nvim_exec_autocmds(
         let has_buf_key = has_key(mask, KEYSET_OPTIDX_EXEC_AUTOCMDS_BUF);
         let has_buffer_key = has_key(mask, KEYSET_OPTIDX_EXEC_AUTOCMDS_BUFFER);
         let has_buf = has_buf_key || has_buffer_key;
-        let buf = if has_buf_key {
-            opts.buf
-        } else {
-            opts.buffer
-        };
+        let buf = if has_buf_key { opts.buf } else { opts.buffer };
 
         if has_buf_key && has_buffer_key {
             api_err_con(err, c"buf", c"buffer");
@@ -1271,14 +1230,8 @@ pub fn nvim_exec_autocmds(
             }
         }
 
-        let patterns = get_patterns_from_pattern_or_buf(
-            opts.pattern,
-            has_buf,
-            buf,
-            c"",
-            arena,
-            err,
-        );
+        let patterns =
+            get_patterns_from_pattern_or_buf(opts.pattern, has_buf, buf, c"", arena, err);
         if error_set(err) {
             return;
         }

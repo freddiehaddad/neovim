@@ -71,7 +71,8 @@ pub fn file_open(
     fname: impl crate::strings::IntoCCharPtr,
     flags: c_int,
     mode: c_int,
-) -> c_int { let fname = fname.into_c_char_ptr();
+) -> c_int {
+    let fname = fname.into_c_char_ptr();
     let mut os_open_flags: c_int = 0;
     let mut wr: Option<bool> = None;
 
@@ -162,7 +163,12 @@ pub fn file_open_stdin(fp: &mut FileDescriptor) -> c_int {
 ///
 /// # Safety
 /// `ret_fp` must be a valid writable pointer, and `data` must be valid for `len` bytes.
-pub fn file_open_buffer(ret_fp: &mut FileDescriptor, data: impl crate::strings::IntoCCharPtr, len: usize) { let data = data.into_c_char_ptr();
+pub fn file_open_buffer(
+    ret_fp: &mut FileDescriptor,
+    data: impl crate::strings::IntoCCharPtr,
+    len: usize,
+) {
+    let data = data.into_c_char_ptr();
     ret_fp.wr = false;
     ret_fp.non_blocking = false;
     ret_fp.fd = -1;
@@ -182,7 +188,6 @@ pub fn file_open_buffer(ret_fp: &mut FileDescriptor, data: impl crate::strings::
 /// # Safety
 /// `fp` must be a valid writable pointer to an initialized `FileDescriptor`.
 pub fn file_close(fp: &mut FileDescriptor, do_fsync: bool) -> c_int {
-    
     if fp.fd < 0 {
         return 0;
     }
@@ -207,7 +212,6 @@ pub fn file_close(fp: &mut FileDescriptor, do_fsync: bool) -> c_int {
 /// # Safety
 /// `fp` must be a valid writable pointer to an initialized `FileDescriptor`.
 pub fn file_fsync(fp: &mut FileDescriptor) -> c_int {
-    
     if !fp.wr {
         return 0;
     }
@@ -324,8 +328,7 @@ pub fn file_read(fp: *mut FileDescriptor, ret_buf: *mut c_char, size: usize) -> 
     {
         if !fp.eof {
             if read_remaining >= ARENA_BLOCK_SIZE {
-                let r_ret =
-                    os_read(fp.fd, &mut fp.eof, buf, read_remaining, fp.non_blocking);
+                let r_ret = os_read(fp.fd, &mut fp.eof, buf, read_remaining, fp.non_blocking);
                 if r_ret >= 0 {
                     read_remaining -= r_ret as usize;
                 } else {
@@ -334,12 +337,12 @@ pub fn file_read(fp: *mut FileDescriptor, ret_buf: *mut c_char, size: usize) -> 
             } else {
                 let write_ptr = unsafe { fp.buffer.as_mut_ptr().add(fp.write_pos) };
                 let r_ret = os_read(
-                        fp.fd,
-                        &mut fp.eof,
-                        write_ptr,
-                        ARENA_BLOCK_SIZE,
-                        fp.non_blocking,
-                    );
+                    fp.fd,
+                    &mut fp.eof,
+                    write_ptr,
+                    ARENA_BLOCK_SIZE,
+                    fp.non_blocking,
+                );
                 if r_ret < 0 {
                     return r_ret;
                 }
@@ -384,8 +387,13 @@ pub fn file_try_read_buffered(fp: *mut FileDescriptor, size: usize) -> *mut c_ch
 ///
 /// # Safety
 /// `fp` must be a valid writable `FileDescriptor`, and `buf` must be valid for `size` bytes.
-pub fn file_write(fp: &mut FileDescriptor, buf: impl crate::strings::IntoCCharPtr, size: usize) -> isize { let buf = buf.into_c_char_ptr();
-    
+pub fn file_write(
+    fp: &mut FileDescriptor,
+    buf: impl crate::strings::IntoCCharPtr,
+    size: usize,
+) -> isize {
+    let buf = buf.into_c_char_ptr();
+
     assert!(fp.wr);
     if size < file_space(fp) {
         if size > 0 {
@@ -452,12 +460,12 @@ pub fn file_skip(fp: *mut FileDescriptor, size: usize) -> isize {
             break;
         }
         let r_ret = os_read(
-                fp.fd,
-                &mut fp.eof,
-                fp.buffer.as_mut_ptr(),
-                ARENA_BLOCK_SIZE,
-                fp.non_blocking,
-            );
+            fp.fd,
+            &mut fp.eof,
+            fp.buffer.as_mut_ptr(),
+            ARENA_BLOCK_SIZE,
+            fp.non_blocking,
+        );
         if r_ret < 0 {
             return r_ret;
         }
@@ -486,7 +494,7 @@ mod tests {
         let mut data = *b"0123456789abcdef";
         let mut fp = FileDescriptor::new();
 
-         {
+        {
             file_open_buffer(&mut fp, data.as_mut_ptr().cast::<c_char>(), data.len());
             let chunk = file_try_read_buffered(&mut fp, 4);
             assert!(!chunk.is_null());
@@ -514,43 +522,43 @@ mod tests {
         let c_path = std::ffi::CString::new(tmp.to_string_lossy().as_bytes()).unwrap();
 
         let mut fp = FileDescriptor::new();
-            assert_eq!(
-                file_open(&mut fp, c_path.as_ptr(), K_FILE_CREATE_ONLY, 0o600),
-                0
-            );
-            assert!(fp.wr);
-            assert_eq!(
-                file_write(&mut fp, fcontents.as_ptr().cast(), fcontents.len()),
-                fcontents.len() as isize
-            );
-            assert_eq!(file_flush(&mut fp), 0);
-            assert_eq!(file_fsync(&mut fp), 0);
-            assert_eq!(file_close(&mut fp, true), 0);
+        assert_eq!(
+            file_open(&mut fp, c_path.as_ptr(), K_FILE_CREATE_ONLY, 0o600),
+            0
+        );
+        assert!(fp.wr);
+        assert_eq!(
+            file_write(&mut fp, fcontents.as_ptr().cast(), fcontents.len()),
+            fcontents.len() as isize
+        );
+        assert_eq!(file_flush(&mut fp), 0);
+        assert_eq!(file_fsync(&mut fp), 0);
+        assert_eq!(file_close(&mut fp, true), 0);
 
-            assert!(file_open(&mut fp, c_path.as_ptr(), K_FILE_CREATE_ONLY, 0o600) < 0);
+        assert!(file_open(&mut fp, c_path.as_ptr(), K_FILE_CREATE_ONLY, 0o600) < 0);
 
-            assert_eq!(
-                file_open(&mut fp, c_path.as_ptr(), K_FILE_READ_ONLY, 0o600),
-                0
-            );
-            assert!(!fp.wr);
-            assert_eq!(file_skip(&mut fp, 3), 3);
-            let mut buf3 = [0u8; 3];
-            assert_eq!(file_read(&mut fp, buf3.as_mut_ptr().cast(), 3), 3);
-            assert_eq!(&buf3, &fcontents[3..6]);
-            assert_eq!(file_close(&mut fp, false), 0);
+        assert_eq!(
+            file_open(&mut fp, c_path.as_ptr(), K_FILE_READ_ONLY, 0o600),
+            0
+        );
+        assert!(!fp.wr);
+        assert_eq!(file_skip(&mut fp, 3), 3);
+        let mut buf3 = [0u8; 3];
+        assert_eq!(file_read(&mut fp, buf3.as_mut_ptr().cast(), 3), 3);
+        assert_eq!(&buf3, &fcontents[3..6]);
+        assert_eq!(file_close(&mut fp, false), 0);
 
-            assert_eq!(
-                file_open(&mut fp, c_path.as_ptr(), K_FILE_READ_ONLY, 0o600),
-                0
-            );
-            let mut all = vec![0u8; fcontents.len()];
-            assert_eq!(
-                file_read(&mut fp, all.as_mut_ptr().cast(), all.len()),
-                fcontents.len() as isize
-            );
-            assert_eq!(all, fcontents);
-            assert_eq!(file_close(&mut fp, false), 0);
+        assert_eq!(
+            file_open(&mut fp, c_path.as_ptr(), K_FILE_READ_ONLY, 0o600),
+            0
+        );
+        let mut all = vec![0u8; fcontents.len()];
+        assert_eq!(
+            file_read(&mut fp, all.as_mut_ptr().cast(), all.len()),
+            fcontents.len() as isize
+        );
+        assert_eq!(all, fcontents);
+        assert_eq!(file_close(&mut fp, false), 0);
         let _ = std::fs::remove_file(&tmp);
     }
 }

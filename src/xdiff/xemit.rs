@@ -4,10 +4,7 @@ use std::ffi::{c_char, c_int, c_long, c_ulong};
 use std::ptr;
 
 use crate::xdiff::xutils::{xdl_emit_diffrec, xdl_emit_hunk_hdr};
-use crate::xdiff::{
-    XDL_EMIT_NO_HUNK_HDR, Xdchange, Xdemitcb, Xdemitconf, Xdfenv, Xdfile,
-};
-
+use crate::xdiff::{XDL_EMIT_NO_HUNK_HDR, Xdchange, Xdemitcb, Xdemitconf, Xdfenv, Xdfile};
 
 fn xdl_get_rec(xdf: &Xdfile, ri: c_long, rec: &mut *const c_char) -> c_long {
     let r = &xdf.recs[ri as usize];
@@ -15,13 +12,8 @@ fn xdl_get_rec(xdf: &Xdfile, ri: c_long, rec: &mut *const c_char) -> c_long {
     r.size
 }
 
-fn xdl_emit_record(
-    xdf: &Xdfile,
-    ri: c_long,
-    pre: &std::ffi::CStr,
-    ecb: &mut Xdemitcb,
-) -> c_int {
-    let psize =  { pre.to_bytes().len() as c_long };
+fn xdl_emit_record(xdf: &Xdfile, ri: c_long, pre: &std::ffi::CStr, ecb: &mut Xdemitcb) -> c_int {
+    let psize = { pre.to_bytes().len() as c_long };
     let mut rec: *const c_char = ptr::null();
     let size = xdl_get_rec(xdf, ri, &mut rec);
     if xdl_emit_diffrec(rec, size, pre.as_ptr(), psize, ecb) < 0 {
@@ -30,11 +22,7 @@ fn xdl_emit_record(
     0
 }
 
-pub fn xdl_get_hunk(
-    xscr: &[Xdchange],
-    idx: &mut usize,
-    xecfg: &Xdemitconf,
-) -> Option<usize> {
+pub fn xdl_get_hunk(xscr: &[Xdchange], idx: &mut usize, xecfg: &Xdemitconf) -> Option<usize> {
     let max_common = 2 * xecfg.ctxlen + xecfg.interhunkctxlen;
     let max_ignorable = xecfg.ctxlen;
     let mut ignored: c_ulong = 0;
@@ -42,9 +30,7 @@ pub fn xdl_get_hunk(
     let mut xchp = *idx;
     while xchp < xscr.len() && xscr[xchp].ignore != 0 {
         let xch = xchp + 1;
-        if xch >= xscr.len()
-            || xscr[xch].i1 - (xscr[xchp].i1 + xscr[xchp].chg1) >= max_ignorable
-        {
+        if xch >= xscr.len() || xscr[xch].i1 - (xscr[xchp].i1 + xscr[xchp].chg1) >= max_ignorable {
             *idx = xch;
         }
         xchp = xch;
@@ -69,8 +55,7 @@ pub fn xdl_get_hunk(
         } else if distance < max_ignorable && xscr[xch].ignore != 0 {
             ignored += xscr[xch].chg2 as c_ulong;
         } else if lxch != xchp
-            && xscr[xch].i1 + (ignored as c_long) - (xscr[lxch].i1 + xscr[lxch].chg1)
-                > max_common
+            && xscr[xch].i1 + (ignored as c_long) - (xscr[lxch].i1 + xscr[lxch].chg1) > max_common
         {
             break;
         } else if xscr[xch].ignore == 0 {

@@ -3,17 +3,17 @@
 use crate::api::private::converter::object_to_vim;
 use crate::api::private::helpers::{arena_array, arena_dict, cstr_as_string, put_c};
 use crate::api::private::validate::{Array, Dict, NvimString, Object, ObjectData, ObjectType};
-use crate::autocmd::{apply_autocmds, AuEvent, has_event};
+use crate::autocmd::{AuEvent, apply_autocmds, has_event};
 use crate::buffer::FileBuf;
 use crate::errors::*;
 use crate::eval::encode::encode_list_write;
 use crate::eval::typval::{
-    Callback, TypvalVval, VAR_UNLOCKED, VarType, callback_free, TvDict, K_CALLBACK_NONE_CONST, TvList,
-    tv_clear, tv_dict_add_dict, tv_dict_add_list, tv_dict_find, tv_dict_free,
-    tv_dict_set_keys_readonly, tv_list_alloc, tv_list_append_string, tv_list_ref, tv_list_unref,
-    TypVal, Varnumber,
+    Callback, K_CALLBACK_NONE_CONST, TvDict, TvList, TypVal, TypvalVval, VAR_UNLOCKED, VarType,
+    Varnumber, callback_free, tv_clear, tv_dict_add_dict, tv_dict_add_list, tv_dict_find,
+    tv_dict_free, tv_dict_set_keys_readonly, tv_list_alloc, tv_list_append_string, tv_list_ref,
+    tv_list_unref,
 };
-use crate::eval::{callback_call, get_v_event, K_LIST_LEN_MAY_KNOW_CONST, restore_v_event};
+use crate::eval::{K_LIST_LEN_MAY_KNOW_CONST, callback_call, get_v_event, restore_v_event};
 use crate::event::r#loop::{loop_queues, uv_strerror};
 use crate::event::multiqueue::{Event, multiqueue_new_child, multiqueue_put_event};
 use crate::event::proc::{Proc, exit_on_closed_chan, proc_spawn, proc_stop};
@@ -50,11 +50,11 @@ use crate::os::pty_proc::{
 };
 use crate::state::SaveVEvent;
 use crate::strings::gettext;
+#[cfg(unix)]
+use crate::terminal::terminal_set_state;
 use crate::terminal::{
     terminal_alloc, terminal_buf, terminal_close, terminal_destroy, terminal_receive,
 };
-#[cfg(unix)]
-use crate::terminal::terminal_set_state;
 use crate::ui_client::ui_client_attach_to_restarted_server;
 use std::ffi::{CStr, c_char, c_int};
 use std::ptr;
@@ -142,7 +142,8 @@ impl ChannelModuleState {
     }
 }
 
-static CHAN_STATE: crate::globals::GlobalState<ChannelModuleState> = crate::globals::GlobalState::new(ChannelModuleState::new());
+static CHAN_STATE: crate::globals::GlobalState<ChannelModuleState> =
+    crate::globals::GlobalState::new(ChannelModuleState::new());
 
 #[inline]
 fn chan_st() -> &'static mut ChannelModuleState {
@@ -251,7 +252,8 @@ pub fn channel_close(id: u64, part: ChannelPart, mut error: *mut *const c_char) 
                 }
                 return false;
             }
-        } else if (part == K_CHANNEL_PART_STDIN || part == K_CHANNEL_PART_STDOUT) && (*chan).is_rpc {
+        } else if (part == K_CHANNEL_PART_STDIN || part == K_CHANNEL_PART_STDOUT) && (*chan).is_rpc
+        {
             {
                 *error = E_INVSTREAMRPC.as_ptr();
             }
@@ -309,7 +311,7 @@ pub fn channel_close(id: u64, part: ChannelPart, mut error: *mut *const c_char) 
                     if !g_st().exiting {
                         redirect_stderr_to_null();
                     }
-                    channel_decref( &mut *chan);
+                    channel_decref(&mut *chan);
                 }
             }
             K_CHANNEL_STREAM_INTERNAL => {
@@ -327,7 +329,7 @@ pub fn channel_close(id: u64, part: ChannelPart, mut error: *mut *const c_char) 
                     terminal_close(&raw mut (*chan).term, 0);
                     (*chan).exit_status = 0;
                 } else {
-                    channel_decref( &mut *chan);
+                    channel_decref(&mut *chan);
                 }
             }
             _ => {}
@@ -340,12 +342,12 @@ pub fn channel_close(id: u64, part: ChannelPart, mut error: *mut *const c_char) 
 /// Initializes the module.
 pub fn channel_init() {
     let _ = channel_alloc(K_CHANNEL_STREAM_STDERR);
-        rpc_init();
+    rpc_init();
 }
 
 /// Allocates a channel.
 pub fn channel_alloc(r#type: ChannelStreamType) -> *mut Channel {
-     {
+    {
         let id = if r#type == K_CHANNEL_STREAM_STDIO {
             CHAN_STDIO
         } else if r#type == K_CHANNEL_STREAM_STDERR {
@@ -411,7 +413,7 @@ pub fn channel_decref(chan: &mut Channel) {
         chan.refcount -= 1;
         if chan.refcount == 0 {
             let qc = loop_queues(&mut g_st().main_loop);
-            multiqueue_put_event( &mut *qc.events, Event::ChannelFree(&raw mut *chan));
+            multiqueue_put_event(&mut *qc.events, Event::ChannelFree(&raw mut *chan));
         }
     }
 }
@@ -442,7 +444,7 @@ fn channel_destroy_early(chan: &mut Channel) {
         }
 
         let qc = loop_queues(&mut g_st().main_loop);
-        multiqueue_put_event( &mut *qc.events, Event::ChannelFree(&raw mut *chan));
+        multiqueue_put_event(&mut *qc.events, Event::ChannelFree(&raw mut *chan));
     }
 }
 
@@ -463,7 +465,9 @@ pub fn channel_job_start(
     pty_height: u16,
     env: *mut TvDict,
     status_out: *mut Varnumber,
-) -> *mut Channel { let exepath = exepath.into_c_char_ptr(); let cwd = cwd.into_c_char_ptr();
+) -> *mut Channel {
+    let exepath = exepath.into_c_char_ptr();
+    let cwd = cwd.into_c_char_ptr();
     unsafe {
         let chan = channel_alloc(K_CHANNEL_STREAM_PROC);
         (*chan).on_data = on_stdout;
@@ -474,10 +478,7 @@ pub fn channel_job_start(
         if pty {
             if detach {
                 {
-                    semsg!(
-                        gettext(E_INVARG2),
-                        c"terminal/pty job cannot be detached",
-                    );
+                    semsg!(gettext(E_INVARG2), c"terminal/pty job cannot be detached",);
                     if !env.is_null() {
                         tv_dict_free(env);
                     }
@@ -561,11 +562,7 @@ pub fn channel_job_start(
         let status = proc_spawn(&mut *proc_ptr, has_in, has_out, has_err);
         if status != 0 {
             {
-                semsg!(
-                    gettext(E_JOBSPAWN),
-                    uv_strerror(status),
-                    cmd.as_ptr(),
-                );
+                semsg!(gettext(E_JOBSPAWN), uv_strerror(status), cmd.as_ptr(),);
                 if !(*ph).env.is_null() {
                     tv_dict_free((*ph).env);
                 }
@@ -612,7 +609,8 @@ pub fn channel_connect(
     on_output: CallbackReader,
     timeout: c_int,
     error: *mut *const c_char,
-) -> u64 { let address = address.into_c_char_ptr();
+) -> u64 {
+    let address = address.into_c_char_ptr();
     unsafe {
         if !tcp && rpc && server_owns_pipe_address(address) {
             let channel = channel_alloc(K_CHANNEL_STREAM_INTERNAL);
@@ -634,7 +632,7 @@ pub fn channel_connect(
         );
 
         if !connected {
-            channel_decref( &mut *channel);
+            channel_decref(&mut *channel);
             return 0;
         }
 
@@ -674,11 +672,7 @@ pub fn channel_from_connection(watcher: &mut SocketWatcher) {
 }
 
 /// Creates an API channel from stdin/stdout. Used when embedding Nvim.
-pub fn channel_from_stdio(
-    rpc: bool,
-    on_output: CallbackReader,
-    error: *mut *const c_char,
-) -> u64 {
+pub fn channel_from_stdio(rpc: bool, on_output: CallbackReader, error: *mut *const c_char) -> u64 {
     unsafe {
         if !g_st().headless_mode && !g_st().embedded_mode {
             *error = gettext(c"can only be opened in headless mode");
@@ -715,7 +709,7 @@ pub fn channel_from_stdio(
         let stdio_in = &mut (*channel).stdio_in;
         let stdio_out = &mut (*channel).stdio_out;
         {
-            rstream_init_fd((&raw mut g_st().main_loop).cast(),  stdio_in, stdin_dup_fd);
+            rstream_init_fd((&raw mut g_st().main_loop).cast(), stdio_in, stdin_dup_fd);
             wstream_init_fd(&mut g_st().main_loop, stdio_out, stdout_dup_fd, 0);
         }
 
@@ -785,10 +779,11 @@ pub fn channel_send(id: u64, data: Vec<c_char>, error: *mut *const c_char) -> us
 }
 
 #[inline]
-fn buffer_to_tv_list(buf: impl crate::strings::IntoCCharPtr, len: usize) -> *mut TvList { let buf = buf.into_c_char_ptr();
+fn buffer_to_tv_list(buf: impl crate::strings::IntoCCharPtr, len: usize) -> *mut TvList {
+    let buf = buf.into_c_char_ptr();
     unsafe {
         let l = tv_list_alloc(K_LIST_LEN_MAY_KNOW_CONST);
-        tv_list_append_string( &mut *l, c"", 0);
+        tv_list_append_string(&mut *l, c"", 0);
         if len > 0 {
             encode_list_write(l.as_mut(), buf, len);
         }
@@ -802,7 +797,8 @@ pub fn on_channel_data(
     count: usize,
     chan: &mut Channel,
     eof: bool,
-) -> usize { let buf = buf.into_c_char_ptr();
+) -> usize {
+    let buf = buf.into_c_char_ptr();
     on_channel_output(stream, chan, buf, count, eof, false)
 }
 
@@ -812,7 +808,8 @@ pub fn on_job_stderr(
     count: usize,
     chan: &mut Channel,
     eof: bool,
-) -> usize { let buf = buf.into_c_char_ptr();
+) -> usize {
+    let buf = buf.into_c_char_ptr();
     on_channel_output(stream, chan, buf, count, eof, true)
 }
 
@@ -823,7 +820,8 @@ fn on_channel_output(
     count: usize,
     eof: bool,
     is_stderr: bool,
-) -> usize { let buf = buf.into_c_char_ptr();
+) -> usize {
+    let buf = buf.into_c_char_ptr();
     unsafe {
         if !chan.term.is_null() {
             terminal_receive(&mut *chan.term, buf, count);
@@ -861,7 +859,10 @@ fn on_channel_output(
 fn schedule_channel_event(chan: &mut Channel) {
     if !chan.callback_scheduled {
         if !chan.callback_busy {
-            multiqueue_put_event(unsafe { &mut *chan.events }, Event::ChannelCallback(&raw mut *chan));
+            multiqueue_put_event(
+                unsafe { &mut *chan.events },
+                Event::ChannelCallback(&raw mut *chan),
+            );
             channel_incref(chan);
         }
         chan.callback_scheduled = true;
@@ -869,7 +870,7 @@ fn schedule_channel_event(chan: &mut Channel) {
 }
 
 pub fn on_channel_event(chan: &mut Channel) {
-     {
+    {
         chan.callback_busy = true;
         chan.callback_scheduled = false;
 
@@ -883,7 +884,10 @@ pub fn on_channel_event(chan: &mut Channel) {
 
         chan.callback_busy = false;
         if chan.callback_scheduled {
-            multiqueue_put_event(unsafe { &mut *chan.events }, Event::ChannelCallback(&raw mut *chan));
+            multiqueue_put_event(
+                unsafe { &mut *chan.events },
+                Event::ChannelCallback(&raw mut *chan),
+            );
             channel_incref(chan);
         }
 
@@ -901,20 +905,18 @@ pub fn channel_reader_callbacks(chan: &mut Channel, is_stderr: bool) {
         if reader.eof {
             if !reader.self_dict.is_null() {
                 let reader_type = reader.reader_type.unwrap();
-                if tv_dict_find(unsafe { reader.self_dict.as_ref() }, reader_type.as_ptr(), -1).is_null() {
+                if tv_dict_find(
+                    unsafe { reader.self_dict.as_ref() },
+                    reader_type.as_ptr(),
+                    -1,
+                )
+                .is_null()
+                {
                     let data = buffer_to_tv_list(reader.buffer.as_ptr(), reader.buffer.len());
                     let _type_len = reader_type.to_bytes().len();
-                    let _ = tv_dict_add_list(
-                        unsafe { &mut *reader.self_dict },
-                        reader_type,
-                        data,
-                    );
+                    let _ = tv_dict_add_list(unsafe { &mut *reader.self_dict }, reader_type, data);
                 } else {
-                    semsg!(
-                        gettext(E_STREAMKEY),
-                        reader_type.as_ptr(),
-                        chan.id,
-                    );
+                    semsg!(gettext(E_STREAMKEY), reader_type.as_ptr(), chan.id,);
                 }
                 reader.eof = false;
             } else {
@@ -941,8 +943,7 @@ pub fn channel_reader_callbacks(chan: &mut Channel, is_stderr: bool) {
 }
 
 pub(crate) fn channel_proc_exit_cb(proc_: &mut Proc, status: c_int, chan: &mut Channel) {
-     {
-
+    {
         if !chan.term.is_null() {
             terminal_close(&raw mut chan.term, status);
         }
@@ -1021,7 +1022,7 @@ fn channel_callback_call(chan: &mut Channel, is_stderr: Option<bool>) {
 
 /// Allocate terminal for channel.
 pub fn channel_terminal_alloc(buf: &mut FileBuf, chan: &mut Channel) {
-     {
+    {
         let topts = TerminalOptions {
             data: chan,
             width: chan.uv.proc_.width,
@@ -1037,7 +1038,7 @@ pub fn channel_terminal_alloc(buf: &mut FileBuf, chan: &mut Channel) {
 }
 
 pub fn channel_term_read_pause(pause: bool, chan: &mut Channel) {
-     {
+    {
         if chan.streamtype == K_CHANNEL_STREAM_INTERNAL {
             return;
         }
@@ -1053,7 +1054,8 @@ pub fn channel_term_read_pause(pause: bool, chan: &mut Channel) {
     }
 }
 
-pub fn channel_term_write(buf: impl crate::strings::IntoCCharPtr, size: usize, chan: &mut Channel) { let buf = buf.into_c_char_ptr();
+pub fn channel_term_write(buf: impl crate::strings::IntoCCharPtr, size: usize, chan: &mut Channel) {
+    let buf = buf.into_c_char_ptr();
     unsafe {
         if chan.streamtype == K_CHANNEL_STREAM_INTERNAL {
             let internal = &mut chan.internal;
@@ -1063,9 +1065,9 @@ pub fn channel_term_write(buf: impl crate::strings::IntoCCharPtr, size: usize, c
             }
             let mut args_items = [
                 crate::api::private::helpers::integer_obj(chan.id as Integer),
-                crate::api::private::helpers::buffer_obj(
-                    crate::terminal::terminal_buf(&*chan.term),
-                ),
+                crate::api::private::helpers::buffer_obj(crate::terminal::terminal_buf(
+                    &*chan.term,
+                )),
                 crate::api::private::helpers::string_obj(NvimString {
                     data: buf.cast_mut(),
                     size,
@@ -1104,23 +1106,26 @@ pub fn channel_term_write(buf: impl crate::strings::IntoCCharPtr, size: usize, c
 
 pub fn channel_term_resize(width: u16, height: u16, chan: &mut Channel) {
     if chan.streamtype == K_CHANNEL_STREAM_INTERNAL {
-            return;
-        }
-        pty_proc_resize(&mut chan.uv.proc_, width, height);
+        return;
+    }
+    pty_proc_resize(&mut chan.uv.proc_, width, height);
 }
 
 pub fn channel_term_resume(chan: &mut Channel) {
     if chan.streamtype == K_CHANNEL_STREAM_INTERNAL {
-            return;
-        }
-        pty_proc_resume(&mut chan.uv.proc_);
+        return;
+    }
+    pty_proc_resume(&mut chan.uv.proc_);
 }
 
 pub fn term_delayed_free(chan: &mut Channel) {
     unsafe {
         let proc_ptr = &mut chan.uv.proc_;
         if proc_ptr.r#in.pending_reqs != 0 || proc_ptr.out.s.pending_reqs != 0 {
-            multiqueue_put_event( &mut *chan.events, Event::ChannelTermDelayedFree(&raw mut *chan));
+            multiqueue_put_event(
+                &mut *chan.events,
+                Event::ChannelTermDelayedFree(&raw mut *chan),
+            );
             return;
         }
 
@@ -1142,7 +1147,10 @@ pub fn channel_term_close(chan: &mut Channel) {
             return;
         }
         proc_stop(&mut chan.uv.proc_);
-        multiqueue_put_event( &mut *chan.events, Event::ChannelTermDelayedFree(&raw mut *chan));
+        multiqueue_put_event(
+            &mut *chan.events,
+            Event::ChannelTermDelayedFree(&raw mut *chan),
+        );
     }
 }
 
@@ -1151,13 +1159,19 @@ pub fn channel_event(chan: &mut Channel, event: AuEvent) {
         if has_event(event) {
             channel_incref(chan);
             let qc = loop_queues(&mut g_st().main_loop);
-            multiqueue_put_event( &mut *qc.events, Event::ChannelSetInfo { chan: &raw mut *chan, event });
+            multiqueue_put_event(
+                &mut *qc.events,
+                Event::ChannelSetInfo {
+                    chan: &raw mut *chan,
+                    event,
+                },
+            );
         }
     }
 }
 
 pub fn set_info_event(chan: &mut Channel, event: AuEvent) {
-     {
+    {
         let mut save_v_event: SaveVEvent = SaveVEvent::new();
         let dict = get_v_event(&mut save_v_event);
         let mut arena = Arena {
@@ -1368,7 +1382,7 @@ pub fn channel_info(id: u64, arena: &mut Arena) -> Dict {
 }
 
 pub fn channel_all_info(arena: &mut Arena) -> Array {
-     {
+    {
         let mut ret = arena_array(arena, g_st().channels.len());
 
         for &id in g_st().channels.keys() {
