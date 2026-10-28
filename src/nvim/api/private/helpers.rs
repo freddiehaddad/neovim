@@ -4254,7 +4254,7 @@ pub fn api_get_packed_metadata(len: &mut usize) -> *const u8 {
         if build_ptr.is_null() {
             out.push(0xc0);
         } else {
-            let b = unsafe { CStr::from_ptr(build_ptr) }.to_bytes();
+            let b = crate::memory::cstr_as_bytes(build_ptr);
             mpack_push_str(&mut out, b);
         }
 

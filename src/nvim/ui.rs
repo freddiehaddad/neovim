@@ -777,7 +777,7 @@ pub fn ui_array(arena: &mut Arena) -> Array {
         for &ui_ptr in &*uis_ptr {
             let ui = &mut *ui_ptr;
             let mut info = arena_dict(arena, 10 + kUIExtCount);
-            let mut put_info = |k: *const c_char, v: Object| {
+            let mut put_info = |k: &std::ffi::CStr, v: Object| {
                 *info.items.add(info.size) = KeyValuePair {
                     key: cstr_as_string(k),
                     value: v,
@@ -785,12 +785,12 @@ pub fn ui_array(arena: &mut Arena) -> Array {
                 info.size += 1;
             };
 
-            put_info(c"width".as_ptr(), integer_obj(Integer::from(ui.width)));
-            put_info(c"height".as_ptr(), integer_obj(Integer::from(ui.height)));
-            put_info(c"rgb".as_ptr(), boolean_obj(ui.rgb));
-            put_info(c"override".as_ptr(), boolean_obj(ui.r#override));
+            put_info(c"width", integer_obj(Integer::from(ui.width)));
+            put_info(c"height", integer_obj(Integer::from(ui.height)));
+            put_info(c"rgb", boolean_obj(ui.rgb));
+            put_info(c"override", boolean_obj(ui.r#override));
             put_info(
-                c"term_name".as_ptr(),
+                c"term_name",
                 Object {
                     obj_type: ObjectType::kObjectTypeString,
                     data: ObjectData::String(cstr_as_string(
@@ -799,7 +799,7 @@ pub fn ui_array(arena: &mut Arena) -> Array {
                 },
             );
             put_info(
-                c"term_background".as_ptr(),
+                c"term_background",
                 Object {
                     obj_type: ObjectType::kObjectTypeString,
                     data: ObjectData::String(NvimString {
@@ -809,19 +809,18 @@ pub fn ui_array(arena: &mut Arena) -> Array {
                 },
             );
             put_info(
-                c"term_colors".as_ptr(),
+                c"term_colors",
                 integer_obj(Integer::from(ui.term_colors)),
             );
-            put_info(c"stdin_tty".as_ptr(), boolean_obj(ui.stdin_tty));
-            put_info(c"stdout_tty".as_ptr(), boolean_obj(ui.stdout_tty));
+            put_info(c"stdin_tty", boolean_obj(ui.stdin_tty));
+            put_info(c"stdout_tty", boolean_obj(ui.stdout_tty));
 
             for (j, ext_name) in ui_ext_names.iter().enumerate().take(kUIExtCount) {
-                let ename = ext_name.as_ptr();
-                if *ename != b'_' as c_char || ui.ui_ext[j] {
-                    put_info(ename, boolean_obj(ui.ui_ext[j]));
+                if ext_name.to_bytes().first() != Some(&b'_') || ui.ui_ext[j] {
+                    put_info(ext_name, boolean_obj(ui.ui_ext[j]));
                 }
             }
-            put_info(c"chan".as_ptr(), integer_obj(ui.channel_id as Integer));
+            put_info(c"chan", integer_obj(ui.channel_id as Integer));
 
             *all_uis.items.add(all_uis.size) = Object {
                 obj_type: ObjectType::kObjectTypeDict,

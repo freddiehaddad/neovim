@@ -5156,12 +5156,7 @@ pub fn do_cmdline(cmdline: impl crate::strings::IntoCCharPtr, fgetline: LineGett
                     }
                 }
             } else if cmdline_copy.is_null() {
-                let bytes = CStr::from_ptr(next_cmdline).to_bytes_with_nul();
-                cmdline_buf.clear();
-                cmdline_buf.extend_from_slice(std::slice::from_raw_parts(
-                    bytes.as_ptr().cast::<c_char>(),
-                    bytes.len(),
-                ));
+                cmdline_buf = crate::memory::cstr_to_cchar_vec(next_cmdline);
                 next_cmdline = cmdline_buf.as_mut_ptr();
             }
             cmdline_copy = next_cmdline;

@@ -2327,8 +2327,7 @@ fn do_system_initialization() {
             }
         }
 
-        do_source(
-            c"$VIM/sysinit.vim".as_ptr().cast_mut(),
+        do_source(c"$VIM/sysinit.vim",
             false,
             DOSO_NONE,
             ptr::null_mut(),

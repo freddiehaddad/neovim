@@ -155,28 +155,28 @@ pub fn ui_client_attach(
             size: 0,
             capacity: 9,
         };
-        let mut put_opt = |k: *const c_char, v: Object| {
+        let mut put_opt = |k: &std::ffi::CStr, v: Object| {
             *opts.items.add(opts.size) = KeyValuePair {
                 key: cstr_as_string(k),
                 value: v,
             };
             opts.size += 1;
         };
-        put_opt(c"rgb".as_ptr(), boolean_obj(rgb));
-        put_opt(c"ext_linegrid".as_ptr(), boolean_obj(true));
-        put_opt(c"ext_termcolors".as_ptr(), boolean_obj(true));
+        put_opt(c"rgb", boolean_obj(rgb));
+        put_opt(c"ext_linegrid", boolean_obj(true));
+        put_opt(c"ext_termcolors", boolean_obj(true));
         if let Some(term) = term {
-            put_opt(c"term_name".as_ptr(), cstr_as_obj(term.as_ptr()));
+            put_opt(c"term_name", cstr_as_obj(term.as_ptr()));
         }
         put_opt(
-            c"term_colors".as_ptr(),
+            c"term_colors",
             integer_obj(Integer::from(g_st().t_colors)),
         );
-        put_opt(c"stdin_tty".as_ptr(), boolean_obj(g_st().stdin_isatty));
-        put_opt(c"stdout_tty".as_ptr(), boolean_obj(g_st().stdout_isatty));
+        put_opt(c"stdin_tty", boolean_obj(g_st().stdin_isatty));
+        put_opt(c"stdout_tty", boolean_obj(g_st().stdout_isatty));
         if g_st().ui_client_forward_stdin {
             put_opt(
-                c"stdin_fd".as_ptr(),
+                c"stdin_fd",
                 integer_obj(Integer::from(UI_CLIENT_STDIN_FD)),
             );
             g_st().ui_client_forward_stdin = false;

@@ -1086,8 +1086,7 @@ pub fn remove_bom(s: *mut c_char) {
         let mut p = s.cast::<u8>();
         while *p != 0 {
             if *p == 0xef && *p.add(1) == 0xbb && *p.add(2) == 0xbf {
-                let tail_len = CStr::from_ptr(p.add(3).cast()).to_bytes_with_nul().len();
-                ptr::copy(p.add(3), p, tail_len);
+                crate::memory::cstr_move(p.cast(), p.add(3).cast::<c_char>());
             } else {
                 p = p.add(1);
             }

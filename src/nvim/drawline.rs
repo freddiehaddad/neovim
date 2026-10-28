@@ -79,7 +79,7 @@ use crate::syntax::{
 use crate::terminal::{terminal_get_line_attributes};
 use crate::ui::ui_rgb_attached;
 use crate::window::win_T;
-use std::ffi::{CStr, c_char, c_int};
+use std::ffi::{c_char, c_int};
 use std::ptr;
 
 type HlMode = u8;
@@ -1779,9 +1779,10 @@ pub fn win_line(
                 if (line_len as usize) < SPWORDLEN {
                     nextlinecol = 0;
                     ptr::copy(line, nextline_ptr, line_len as usize);
-                    let src = nextline_ptr.add(SPWORDLEN);
-                    let src_len = CStr::from_ptr(src).to_bytes_with_nul().len();
-                    ptr::copy(src, nextline_ptr.add(line_len as usize), src_len);
+                    crate::memory::cstr_move(
+                        nextline_ptr.add(line_len as usize),
+                        nextline_ptr.add(SPWORDLEN),
+                    );
                     nextline_idx = line_len + 1;
                 } else {
                     nextlinecol = line_len - SPWORDLEN as c_int;

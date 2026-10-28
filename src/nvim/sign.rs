@@ -558,7 +558,7 @@ fn sign_define_by_name(
         };
 
         if !icon.is_null() {
-            let mut icon_vec = CStr::from_ptr(icon).to_bytes_with_nul().to_vec();
+            let mut icon_vec = crate::memory::cstr_as_bytes_with_nul(icon).to_vec();
             backslash_halve(icon_vec.as_mut_ptr().cast());
             let end = icon_vec
                 .iter()

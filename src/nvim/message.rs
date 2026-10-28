@@ -952,11 +952,11 @@ pub fn reset_last_sourcing() {
 
 /// @return  true if "SOURCING_NAME" differs from "last_sourcing_name".
 fn other_sourcing_name() -> bool {
-    unsafe {
+    {
         let sname = sourcing_name();
         if have_sourcing_info() && !sname.is_null() {
             if let Some(ref last) = msg_st().last_sourcing_name {
-                return CStr::from_ptr(sname) != last.as_c_str();
+                return crate::memory::cstr_as_bytes(sname) != last.as_bytes();
             }
             return true;
         }

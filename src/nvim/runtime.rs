@@ -3082,11 +3082,12 @@ fn do_source_ext(
 }
 
 pub fn do_source(
-    fname: *mut c_char,
+    fname: impl crate::strings::IntoCCharPtr,
     check_other: bool,
     is_vimrc: c_int,
     ret_sid: *mut c_int,
 ) -> bool {
+    let fname = fname.into_c_char_ptr().cast_mut();
     do_source_ext(
             fname,
             check_other,

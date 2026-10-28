@@ -25,7 +25,7 @@ use crate::tag::{do_tag, find_tags};
 use crate::window::{
     WSP_BOT, WSP_HELP, WSP_TOP, win_T, win_close, win_enter, win_setheight, win_split,
 };
-use std::ffi::{CStr, c_char, c_int};
+use std::ffi::{c_char, c_int};
 use std::ptr;
 
 use crate::cmdexpand::TAG_MANY;
@@ -457,8 +457,8 @@ pub fn prepare_help_buffer() {
         set_option_direct(kOptBuftype, cstr_as_obj(c"help"), OPT_LOCAL, 0);
 
         let p = c"!-~,^*,^|,^\",192-255";
-        if CStr::from_ptr((*g_st().curbuf).b_p_isk) != p {
-            set_option_direct(kOptIskeyword, cstr_as_obj(p.as_ptr()), OPT_LOCAL, 0);
+        if crate::memory::cstr_as_bytes((*g_st().curbuf).b_p_isk) != p.to_bytes() {
+            set_option_direct(kOptIskeyword, cstr_as_obj(p), OPT_LOCAL, 0);
             check_buf_options(&mut *g_st().curbuf);
             buf_init_isk_chartab(&mut *g_st().curbuf);
         }

@@ -368,9 +368,21 @@ pub fn cstr_cat<S: crate::strings::IntoCCharPtr>(dst: *mut c_char, src: S) {
     }
 }
 
+/// View a NUL-terminated C string as a byte slice (including trailing NUL), returning `b"\0"` if null.
+#[inline]
+pub fn cstr_as_bytes_with_nul<'a, S: crate::strings::IntoCCharPtr>(s: S) -> &'a [u8] {
+    let s = s.into_c_char_ptr();
+    if s.is_null() {
+        b"\0"
+    } else {
+        unsafe { CStr::from_ptr(s).to_bytes_with_nul() }
+    }
+}
+
 /// View a NUL-terminated C string as a byte slice, returning `b""` if null.
 #[inline]
-pub fn cstr_as_bytes<'a>(s: *const c_char) -> &'a [u8] {
+pub fn cstr_as_bytes<'a, S: crate::strings::IntoCCharPtr>(s: S) -> &'a [u8] {
+    let s = s.into_c_char_ptr();
     if s.is_null() {
         b""
     } else {
@@ -380,7 +392,8 @@ pub fn cstr_as_bytes<'a>(s: *const c_char) -> &'a [u8] {
 
 /// View a nullable NUL-terminated C string as `Option<&[u8]>`.
 #[inline]
-pub fn cstr_as_opt_bytes<'a>(s: *const c_char) -> Option<&'a [u8]> {
+pub fn cstr_as_opt_bytes<'a, S: crate::strings::IntoCCharPtr>(s: S) -> Option<&'a [u8]> {
+    let s = s.into_c_char_ptr();
     (!s.is_null()).then(|| unsafe { CStr::from_ptr(s).to_bytes() })
 }
 
