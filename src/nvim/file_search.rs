@@ -534,23 +534,22 @@ pub fn vim_findfile(search_ctx: Option<&mut ff_search_ctx_T>) -> Option<std::ffi
                 let Some(mut stack_elem) = ff_pop(search_ctx) else {
                     break;
                 };
-                let stackp: *mut ff_stack_T = &raw mut stack_elem;
-
-                if (*stackp).ffs_filearray.is_empty() {
+                let stackp = &mut stack_elem;
+                if stackp.ffs_filearray.is_empty() {
                     let dir_vis_idx = search_ctx.ffsc_dir_visited_list.unwrap();
                     if !ff_check_visited(
                         &mut search_ctx.ffsc_dir_visited_lists_list[dir_vis_idx].ffvl_visited_list,
-                        (*stackp).ffs_fix_path.data,
-                        (*stackp).ffs_fix_path.size,
-                        (*stackp).ffs_wc_path.data,
-                        (*stackp).ffs_wc_path.size,
+                        stackp.ffs_fix_path.data,
+                        stackp.ffs_fix_path.size,
+                        stackp.ffs_wc_path.data,
+                        stackp.ffs_wc_path.size,
                     )
                     {
                         continue;
                     }
                 }
 
-                if (*stackp).ffs_level <= 0 {
+                if stackp.ffs_level <= 0 {
                     continue;
                 }
 
@@ -558,10 +557,10 @@ pub fn vim_findfile(search_ctx: Option<&mut ff_search_ctx_T>) -> Option<std::ffi
                 file_path.size = 0;
 
                 let mut rest_of_wildcards: NvimString;
-                if (*stackp).ffs_filearray.is_empty() {
+                if stackp.ffs_filearray.is_empty() {
                     let mut dirptrs: [*mut c_char; 2] = [file_path.data, ptr::null_mut()];
 
-                    if !vim_isAbsName((*stackp).ffs_fix_path.data)
+                    if !vim_isAbsName(stackp.ffs_fix_path.data)
                         && !search_ctx.ffsc_start_dir.data.is_null()
                     {
                         if search_ctx.ffsc_start_dir.size + 1 >= MAXPATHL {
@@ -590,18 +589,18 @@ pub fn vim_findfile(search_ctx: Option<&mut ff_search_ctx_T>) -> Option<std::ffi
                         }
                     }
 
-                    if file_path.size + (*stackp).ffs_fix_path.size + 1 >= MAXPATHL {
+                    if file_path.size + stackp.ffs_fix_path.size + 1 >= MAXPATHL {
                         break 'upward;
                     }
                     let add_sep = after_pathsep(
-                        (*stackp).ffs_fix_path.data,
-                        (*stackp).ffs_fix_path.data.add((*stackp).ffs_fix_path.size),
+                        stackp.ffs_fix_path.data,
+                        stackp.ffs_fix_path.data.add(stackp.ffs_fix_path.size),
                     ) == 0;
                     file_path.size += vim_snprintf!(
                         file_path.data.add(file_path.size),
                         MAXPATHL - file_path.size,
                         c"%s%s",
-                        (*stackp).ffs_fix_path.data,
+                        stackp.ffs_fix_path.data,
                         if add_sep {
                             PATHSEPSTR_C.as_ptr()
                         } else {
@@ -612,7 +611,7 @@ pub fn vim_findfile(search_ctx: Option<&mut ff_search_ctx_T>) -> Option<std::ffi
                         break 'upward;
                     }
 
-                    rest_of_wildcards = (*stackp).ffs_wc_path;
+                    rest_of_wildcards = stackp.ffs_wc_path;
                     if !crate::memory::cstr_is_empty(rest_of_wildcards.data) {
                         if crate::memory::cstr_first_byte(rest_of_wildcards.data) == b'*'
                             && crate::memory::cstr_byte_at(rest_of_wildcards.data, 1) == b'*'
@@ -635,15 +634,15 @@ pub fn vim_findfile(search_ctx: Option<&mut ff_search_ctx_T>) -> Option<std::ffi
                                     (rest_of_wildcards.size - 3) + 1,
                                 );
                                 rest_of_wildcards.size -= 3;
-                                (*stackp).ffs_wc_path.size = rest_of_wildcards.size;
+                                stackp.ffs_wc_path.size = rest_of_wildcards.size;
                             } else {
                                 rest_of_wildcards.data = rest_of_wildcards.data.add(3);
                                 rest_of_wildcards.size -= 3;
                             }
 
-                            if (*stackp).ffs_star_star_empty == 0 {
-                                (*stackp).ffs_star_star_empty = 1;
-                                dirptrs[1] = (*stackp).ffs_fix_path.data;
+                            if stackp.ffs_star_star_empty == 0 {
+                                stackp.ffs_star_star_empty = 1;
+                                dirptrs[1] = stackp.ffs_fix_path.data;
                             }
                         }
 
@@ -667,33 +666,33 @@ pub fn vim_findfile(search_ctx: Option<&mut ff_search_ctx_T>) -> Option<std::ffi
                     }
 
                     if path_with_url(dirptrs[0]) != 0 {
-                        (*stackp).ffs_filearray = vec![crate::memory::cstr_from_bytes(std::slice::from_raw_parts(dirptrs[0].cast::<u8>(), crate::memory::xstrnlen(dirptrs[0], file_path.size)))];
+                        stackp.ffs_filearray = vec![crate::memory::cstr_from_bytes(std::slice::from_raw_parts(dirptrs[0].cast::<u8>(), crate::memory::xstrnlen(dirptrs[0], file_path.size)))];
                     } else {
                         expand_wildcards_vec(
                             if dirptrs[1].is_null() { 1 } else { 2 },
                             dirptrs.as_mut_ptr(),
-                            &mut (*stackp).ffs_filearray,
+                            &mut stackp.ffs_filearray,
                             EW_DIR | EW_ADDSLASH | EW_SILENT | EW_NOTWILD,
                         );
                     }
 
-                    (*stackp).ffs_filearray_cur = 0;
-                    (*stackp).ffs_stage = 0;
+                    stackp.ffs_filearray_cur = 0;
+                    stackp.ffs_stage = 0;
                 } else {
                     rest_of_wildcards = NvimString {
-                        data: (*stackp).ffs_wc_path.data.add((*stackp).ffs_wc_path.size),
+                        data: stackp.ffs_wc_path.data.add(stackp.ffs_wc_path.size),
                         size: 0,
                     };
                 }
 
-                if (*stackp).ffs_stage == 0 {
+                if stackp.ffs_stage == 0 {
                     if crate::memory::cstr_is_empty(rest_of_wildcards.data) {
-                        for i in (*stackp).ffs_filearray_cur..(*stackp).ffs_filearray.len() {
-                            let entry = (*stackp).ffs_filearray.as_slice()[i].as_ptr().cast_mut();
+                        for i in stackp.ffs_filearray_cur..stackp.ffs_filearray.len() {
+                            let entry = stackp.ffs_filearray.as_slice()[i].as_ptr().cast_mut();
                             if path_with_url(entry) == 0 && !os_isdir(entry) {
                                 continue;
                             }
-                            let mut len = (*stackp).ffs_filearray.as_slice()[i].as_bytes().len();
+                            let mut len = stackp.ffs_filearray.as_slice()[i].as_bytes().len();
                             if len + 1 + search_ctx.ffsc_file_to_search.size >= MAXPATHL {
                                 break 'upward;
                             }
@@ -736,7 +735,7 @@ pub fn vim_findfile(search_ctx: Option<&mut ff_search_ctx_T>) -> Option<std::ffi
                                         0,
                                     )
                                 {
-                                    (*stackp).ffs_filearray_cur = i + 1;
+                                    stackp.ffs_filearray_cur = i + 1;
                                     ff_push(search_ctx, stack_elem);
 
                                     if path_with_url(file_path.data) == 0 {
@@ -773,10 +772,10 @@ pub fn vim_findfile(search_ctx: Option<&mut ff_search_ctx_T>) -> Option<std::ffi
                             }
                         }
                     } else {
-                        for i in (*stackp).ffs_filearray_cur..(*stackp).ffs_filearray.len() {
-                            let entry = (*stackp).ffs_filearray.as_slice()[i].as_ptr();
+                        for i in stackp.ffs_filearray_cur..stackp.ffs_filearray.len() {
+                            let entry = stackp.ffs_filearray.as_slice()[i].as_ptr();
                             let entry_len =
-                                (*stackp).ffs_filearray.as_slice()[i].as_bytes().len();
+                                stackp.ffs_filearray.as_slice()[i].as_bytes().len();
                             if !os_isdir(entry) {
                                 continue;
                             }
@@ -787,23 +786,23 @@ pub fn vim_findfile(search_ctx: Option<&mut ff_search_ctx_T>) -> Option<std::ffi
                                     entry_len,
                                     rest_of_wildcards.data,
                                     rest_of_wildcards.size,
-                                    (*stackp).ffs_level - 1,
+                                    stackp.ffs_level - 1,
                                     0,
                                 ),
                             );
                         }
                     }
-                    (*stackp).ffs_filearray_cur = 0;
-                    (*stackp).ffs_stage = 1;
+                    stackp.ffs_filearray_cur = 0;
+                    stackp.ffs_stage = 1;
                 }
 
-                if crate::memory::cstr_first_byte((*stackp).ffs_wc_path.data) == b'*'
-                    && crate::memory::cstr_byte_at((*stackp).ffs_wc_path.data, 1) == b'*'
+                if crate::memory::cstr_first_byte(stackp.ffs_wc_path.data) == b'*'
+                    && crate::memory::cstr_byte_at(stackp.ffs_wc_path.data, 1) == b'*'
                 {
-                    for i in (*stackp).ffs_filearray_cur..(*stackp).ffs_filearray.len() {
-                        let entry = (*stackp).ffs_filearray.as_slice()[i].as_ptr();
-                        let entry_len = (*stackp).ffs_filearray.as_slice()[i].as_bytes().len();
-                        if path_equal(entry, (*stackp).ffs_fix_path.data, kPathCmpLiteral) {
+                    for i in stackp.ffs_filearray_cur..stackp.ffs_filearray.len() {
+                        let entry = stackp.ffs_filearray.as_slice()[i].as_ptr();
+                        let entry_len = stackp.ffs_filearray.as_slice()[i].as_bytes().len();
+                        if path_equal(entry, stackp.ffs_fix_path.data, kPathCmpLiteral) {
                             continue;
                         }
                         if !os_isdir(entry) {
@@ -814,9 +813,9 @@ pub fn vim_findfile(search_ctx: Option<&mut ff_search_ctx_T>) -> Option<std::ffi
                             ff_create_stack_element(
                                 entry,
                                 entry_len,
-                                (*stackp).ffs_wc_path.data,
-                                (*stackp).ffs_wc_path.size,
-                                (*stackp).ffs_level - 1,
+                                stackp.ffs_wc_path.data,
+                                stackp.ffs_wc_path.size,
+                                stackp.ffs_level - 1,
                                 1,
                             ),
                         );

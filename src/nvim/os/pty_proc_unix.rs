@@ -286,11 +286,10 @@ mod unix_impl {
             let proc_: *mut Proc = ptyproc;
             let hdr = proc_;
             let ptail = pty_proc_unix_tail(ptyproc);
-            let s_in = &raw mut (*proc_).r#in;
-            let r_out = &raw mut (*proc_).out;
-            let r_err = &raw mut (*proc_).err;
-
-            debug_assert!((*r_err).s.closed);
+            let s_in = &mut (*proc_).r#in;
+            let r_out = &mut (*proc_).out;
+            let r_err = &mut (*proc_).err;
+            debug_assert!(r_err.s.closed);
             uv_signal_start(
                 loop_children_watcher(&mut *(*hdr).loop_),
                 Some(chld_handler),
@@ -390,14 +389,14 @@ mod unix_impl {
                     break 'error;
                 }
 
-                if !(*s_in).closed {
-                    status = set_duplicating_descriptor(master, (&raw mut (*s_in).uv).cast());
+                if !s_in.closed {
+                    status = set_duplicating_descriptor(master, (&raw mut s_in.uv).cast());
                     if status != 0 {
                         break 'error;
                     }
                 }
-                if !(*r_out).s.closed {
-                    status = set_duplicating_descriptor(master, (&raw mut (*r_out).s.uv).cast());
+                if !r_out.s.closed {
+                    status = set_duplicating_descriptor(master, (&raw mut r_out.s.uv).cast());
                     if status != 0 {
                         break 'error;
                     }

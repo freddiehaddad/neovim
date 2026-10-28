@@ -383,8 +383,8 @@ mod tests {
             .collect();
 
         unsafe {
-            let ht: *mut hashtab_T = &raw mut ht_val;
-            assert_eq!((*ht).ht_used, 0);
+            let ht = &mut ht_val;
+            assert_eq!(ht.ht_used, 0);
 
             let mut items: Vec<*mut crate::eval::typval::dictitem_T> = keys
                 .iter()
@@ -392,16 +392,16 @@ mod tests {
                 .collect();
 
             for &di in &items {
-                assert!(hash_add(&mut *ht, &mut *di));
+                assert!(hash_add(ht, &mut *di));
             }
-            assert_eq!((*ht).ht_used, 50);
+            assert_eq!(ht.ht_used, 50);
             // Duplicate key returns FAIL
             crate::globals::g_st().emsg_skip += 1;
-            assert!(!hash_add(&mut *ht, &mut *items[0]));
+            assert!(!hash_add(ht, &mut *items[0]));
             crate::globals::g_st().emsg_skip -= 1;
 
             for (k, &di) in keys.iter().zip(&items) {
-                let hi = hash_find(&*ht, k.as_ptr());
+                let hi = hash_find(ht, k.as_ptr());
                 assert!(!hashitem_empty(&*hi));
                 assert_eq!(CStr::from_ptr((*hi).key_ptr()), k.as_c_str());
                 assert_eq!((*hi).hi_di, di);
@@ -409,13 +409,13 @@ mod tests {
 
             // Remove all keys and verify table shrinks back to HT_INIT_SIZE
             for k in &keys {
-                let hi = hash_find(&*ht, k.as_ptr());
-                hash_remove(&mut *ht, &mut *hi);
+                let hi = hash_find(ht, k.as_ptr());
+                hash_remove(ht, &mut *hi);
             }
-            assert_eq!((*ht).ht_used, 0);
-            assert_eq!((*ht).ht_mask, HT_INIT_SIZE - 1);
-            hash_clear(&mut *ht);
-            assert!(std::ptr::eq((*ht).array_ptr(), empty_hasharray_ptr()));
+            assert_eq!(ht.ht_used, 0);
+            assert_eq!(ht.ht_mask, HT_INIT_SIZE - 1);
+            hash_clear(ht);
+            assert!(std::ptr::eq(ht.array_ptr(), empty_hasharray_ptr()));
 
             for di in items {
                 crate::eval::typval::tv_dict_item_free(di);

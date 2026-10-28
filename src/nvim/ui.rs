@@ -168,9 +168,9 @@ pub fn ui_init() {
 }
 
 pub fn ui_free_all_mem() {
-    unsafe {
-        let cbs_ptr = &raw mut ui_state().ui_event_cbs;
-        (*cbs_ptr).clear();
+     {
+        let cbs_ptr = &mut ui_state().ui_event_cbs;
+        cbs_ptr.clear();
         ui_state().uis = Vec::new();
 
         multiqueue_free(g_st().resize_events);
@@ -182,8 +182,8 @@ pub fn ui_rgb_attached() -> bool {
         if opt_vars().p_tgc != 0 {
             return true;
         }
-        let uis_ptr = &raw const ui_state().uis;
-        for &ui_ptr in &*uis_ptr {
+        let uis_ptr = &ui_state().uis;
+        for &ui_ptr in uis_ptr {
             let ui = &mut *ui_ptr;
             let is_tui = ui.stdin_tty || ui.stdout_tty;
             if !is_tui && ui.rgb {
@@ -196,8 +196,8 @@ pub fn ui_rgb_attached() -> bool {
 
 pub fn ui_gui_attached() -> bool {
     unsafe {
-        let uis_ptr = &raw const ui_state().uis;
-        for &ui_ptr in &*uis_ptr {
+        let uis_ptr = &ui_state().uis;
+        for &ui_ptr in uis_ptr {
             let ui = &mut *ui_ptr;
             let is_tui = ui.stdin_tty || ui.stdout_tty;
             if !is_tui {
@@ -210,8 +210,8 @@ pub fn ui_gui_attached() -> bool {
 
 pub fn ui_override() -> bool {
     unsafe {
-        let uis_ptr = &raw const ui_state().uis;
-        for &ui_ptr in &*uis_ptr {
+        let uis_ptr = &ui_state().uis;
+        for &ui_ptr in uis_ptr {
             let ui = &mut *ui_ptr;
             if ui.r#override {
                 return true;
@@ -222,9 +222,9 @@ pub fn ui_override() -> bool {
 }
 
 pub fn ui_active() -> usize {
-    unsafe {
-        let uis_ptr = &raw const ui_state().uis;
-        (*uis_ptr).len()
+     {
+        let uis_ptr = &ui_state().uis;
+        uis_ptr.len()
     }
 }
 
@@ -239,9 +239,8 @@ pub fn ui_refresh() {
         let active = ui_active() != 0;
         let mut ext_widgets = [active; kUIExtCount];
         let inclusive = ui_override();
-        let uis_ptr = &raw const ui_state().uis;
-
-        for &ui_ptr in &*uis_ptr {
+        let uis_ptr = &ui_state().uis;
+        for &ui_ptr in uis_ptr {
             let ui = &mut *ui_ptr;
             width = width.min(ui.width);
             height = height.min(ui.height);
@@ -309,8 +308,8 @@ pub fn ui_refresh() {
 pub fn ui_pum_get_height() -> c_int {
     unsafe {
         let mut pum_height: c_int = 0;
-        let uis_ptr = &raw const ui_state().uis;
-        for &ui_ptr in &*uis_ptr {
+        let uis_ptr = &ui_state().uis;
+        for &ui_ptr in uis_ptr {
             let ui = &mut *ui_ptr;
             let ui_pum_height = ui.pum_nlines;
             if ui_pum_height != 0 {
@@ -332,8 +331,8 @@ pub fn ui_pum_get_pos(
     pcol: &mut f64,
 ) -> bool {
     unsafe {
-        let uis_ptr = &raw const ui_state().uis;
-        for &ui_ptr in &*uis_ptr {
+        let uis_ptr = &ui_state().uis;
+        for &ui_ptr in uis_ptr {
             let ui = &mut *ui_ptr;
             if !ui.pum_pos {
                 continue;
@@ -424,8 +423,8 @@ pub fn vim_beep(val: c_uint) {
 
 pub fn do_autocmd_uienter_all() {
     unsafe {
-        let uis_ptr = &raw const ui_state().uis;
-        for &ui_ptr in &*uis_ptr {
+        let uis_ptr = &ui_state().uis;
+        for &ui_ptr in uis_ptr {
             let ui = &mut *ui_ptr;
             do_autocmd_uienter(ui.channel_id, true);
         }
@@ -433,16 +432,16 @@ pub fn do_autocmd_uienter_all() {
 }
 
 pub fn ui_can_attach_more() -> bool {
-    unsafe {
-        let uis_ptr = &raw const ui_state().uis;
-        (*uis_ptr).len() < MAX_UI_COUNT
+     {
+        let uis_ptr = &ui_state().uis;
+        uis_ptr.len() < MAX_UI_COUNT
     }
 }
 
 pub fn ui_attach_impl(ui: &mut RemoteUI, chanid: u64) {
     unsafe {
-        let uis_ptr = &raw mut ui_state().uis;
-        if (*uis_ptr).len() >= MAX_UI_COUNT {
+        let uis_ptr = &mut ui_state().uis;
+        if uis_ptr.len() >= MAX_UI_COUNT {
             std::process::abort();
         }
         if !ui.ui_ext[kUIMultigrid] && !ui.ui_ext[kUIFloatDebug] && g_st().ui_client_channel_id == 0
@@ -450,7 +449,7 @@ pub fn ui_attach_impl(ui: &mut RemoteUI, chanid: u64) {
             ui_comp_attach(ui);
         }
 
-        (*uis_ptr).push(&raw mut *ui);
+        uis_ptr.push(&raw mut *ui);
         ui_refresh_options();
         resettitle();
 
@@ -481,17 +480,17 @@ pub fn ui_attach_impl(ui: &mut RemoteUI, chanid: u64) {
 }
 
 pub fn ui_detach_impl(ui: &mut RemoteUI, chanid: u64) {
-    unsafe {
-        let uis_ptr = &raw mut ui_state().uis;
-        if (*uis_ptr).len() > MAX_UI_COUNT {
+     {
+        let uis_ptr = &mut ui_state().uis;
+        if uis_ptr.len() > MAX_UI_COUNT {
             std::process::abort();
         }
-        let Some(shift_index) = (*uis_ptr).iter().position(|&u| u == ui) else {
+        let Some(shift_index) = uis_ptr.iter().position(|&u| u == ui) else {
             std::process::abort();
         };
-        (*uis_ptr).remove(shift_index);
+        uis_ptr.remove(shift_index);
 
-        if !(*uis_ptr).is_empty() && !g_st().exiting {
+        if !uis_ptr.is_empty() && !g_st().exiting {
             ui_schedule_refresh();
         }
 
@@ -768,10 +767,10 @@ pub fn ui_has(ext: UIExtension) -> bool {
 
 pub fn ui_array(arena: &mut Arena) -> Array {
     unsafe {
-        let uis_ptr = &raw const ui_state().uis;
-        let mut all_uis = arena_array(arena, (*uis_ptr).len());
+        let uis_ptr = &ui_state().uis;
+        let mut all_uis = arena_array(arena, uis_ptr.len());
 
-        for &ui_ptr in &*uis_ptr {
+        for &ui_ptr in uis_ptr {
             let ui = &mut *ui_ptr;
             let mut info = arena_dict(arena, 10 + kUIExtCount);
             let mut put_info = |k: &std::ffi::CStr, v: Object| {
@@ -891,10 +890,10 @@ pub fn ui_call_event(name: &'static std::ffi::CStr, args: Array) {
 
         let mut handled = false;
         let fast = g_st().msg_ext_fast && name == c"msg_show";
-        let cbs_ptr = &raw const ui_state().ui_event_cbs;
-        let entries: Vec<(u32, LuaRef)> = (*cbs_ptr).iter().map(|(&k, v)| (k, v.cb)).collect();
+        let cbs_ptr = &ui_state().ui_event_cbs;
+        let entries: Vec<(u32, LuaRef)> = cbs_ptr.iter().map(|(&k, v)| (k, v.cb)).collect();
         for (ns_id, cb_ref) in entries {
-            if !(*cbs_ptr).contains_key(&ns_id) {
+            if !cbs_ptr.contains_key(&ns_id) {
                 continue;
             }
             g_st().ui_event_ns_id = ns_id;
@@ -922,8 +921,8 @@ pub fn ui_call_event(name: &'static std::ffi::CStr, args: Array) {
         g_st().textlock = save_textlock;
 
         if !handled {
-            let uis_ptr = &raw const ui_state().uis;
-            for &ui_ptr in &*uis_ptr {
+            let uis_ptr = &ui_state().uis;
+            for &ui_ptr in uis_ptr {
                 remote_ui_event(&mut *ui_ptr, name, args);
             }
         }
@@ -935,9 +934,9 @@ fn ui_cb_update_ext() {
         ui_state().ui_cb_ext = [false; kUIExtCount];
         let ui_cb_ext_ptr = (&raw mut ui_state().ui_cb_ext).cast::<bool>();
 
-        let cbs_ptr = &raw const ui_state().ui_event_cbs;
+        let cbs_ptr = &ui_state().ui_event_cbs;
         for i in 0..kUIGlobalCount {
-            for event_cb in (*cbs_ptr).values() {
+            for event_cb in cbs_ptr.values() {
                 if event_cb.ext_widgets[i] {
                     *ui_cb_ext_ptr.add(i) = true;
                     break;
@@ -967,9 +966,9 @@ pub fn ui_add_cb(ns_id: u32, cb: LuaRef, ext_widgets: &[bool; kUIGlobalCount]) {
 }
 
 pub fn ui_remove_cb(ns_id: u32, checkerr: bool) {
-    unsafe {
-        let cbs_ptr = &raw mut ui_state().ui_event_cbs;
-        let should_remove = if let Some(item) = (*cbs_ptr).get_mut(&ns_id) {
+     {
+        let cbs_ptr = &mut ui_state().ui_event_cbs;
+        let should_remove = if let Some(item) = cbs_ptr.get_mut(&ns_id) {
             if !checkerr {
                 true
             } else {
@@ -980,7 +979,7 @@ pub fn ui_remove_cb(ns_id: u32, checkerr: bool) {
             false
         };
         if should_remove {
-            (*cbs_ptr).remove(&ns_id);
+            cbs_ptr.remove(&ns_id);
             ui_cb_update_ext();
             ui_refresh();
             if checkerr {

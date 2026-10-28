@@ -533,9 +533,9 @@ fn put_view(
 fn store_session_globals(fd: *mut FILE) -> bool {
     unsafe {
         let d = get_globvar_dict();
-        let ht = &raw mut (*d).dv_hashtab;
-        let mut todo = (*ht).ht_used;
-        let mut hi = (&*ht).array_ptr();
+        let ht = &mut (*d).dv_hashtab;
+        let mut todo = ht.ht_used;
+        let mut hi = (ht).array_ptr();
         while todo > 0 {
             if !hashitem_empty(&*hi) {
                 todo -= 1;

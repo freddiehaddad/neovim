@@ -7170,7 +7170,7 @@ pub fn set_errorlist(
 }
 
 fn mark_quickfix_user_data(qi: &mut qf_info_T, copyID: c_int) -> bool {
-    unsafe {
+     {
         let mut abort = false;
         let mut i: c_int = 0;
         while i < qi.qf_maxcount && !abort {
@@ -7180,13 +7180,13 @@ fn mark_quickfix_user_data(qi: &mut qf_info_T, copyID: c_int) -> bool {
                     if g_st().got_int {
                         break;
                     }
-                    let user_data = &raw mut qfp.qf_user_data;
-                    if (*user_data).v_type != VarType::VAR_NUMBER
-                        && (*user_data).v_type != VarType::VAR_STRING
-                        && (*user_data).v_type != VarType::VAR_FLOAT
+                    let user_data = &mut qfp.qf_user_data;
+                    if user_data.v_type != VarType::VAR_NUMBER
+                        && user_data.v_type != VarType::VAR_STRING
+                        && user_data.v_type != VarType::VAR_FLOAT
                     {
                         abort = abort
-                            || set_ref_in_item(&mut *user_data, copyID, ptr::null_mut(), ptr::null_mut());
+                            || set_ref_in_item(user_data, copyID, ptr::null_mut(), ptr::null_mut());
                     }
                 }
             }
@@ -7197,7 +7197,7 @@ fn mark_quickfix_user_data(qi: &mut qf_info_T, copyID: c_int) -> bool {
 }
 
 fn mark_quickfix_ctx(qi: &mut qf_info_T, copyID: c_int) -> bool {
-    unsafe {
+     {
         let mut abort = false;
         let mut i: c_int = 0;
         while i < qi.qf_maxcount && !abort {
@@ -7210,8 +7210,8 @@ fn mark_quickfix_ctx(qi: &mut qf_info_T, copyID: c_int) -> bool {
                 abort = set_ref_in_item(ctx, copyID, ptr::null_mut(), ptr::null_mut());
             }
 
-            let cb = &raw mut qfl.qf_qftf_cb;
-            abort = abort || set_ref_in_callback(&mut *cb, copyID, ptr::null_mut(), ptr::null_mut());
+            let cb = &mut qfl.qf_qftf_cb;
+            abort = abort || set_ref_in_callback(cb, copyID, ptr::null_mut(), ptr::null_mut());
             i += 1;
         }
         abort

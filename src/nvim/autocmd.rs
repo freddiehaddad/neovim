@@ -1679,9 +1679,9 @@ fn aucmd_del(ac: &mut AutoCmd) {
 }
 
 pub fn aucmd_del_for_event_and_group(event: event_T, group: c_int) {
-    unsafe {
-        let acs = &raw mut au_st().autocmds[event as usize];
-        for ac in &mut *acs {
+     {
+        let acs = &mut au_st().autocmds[event as usize];
+        for ac in acs {
             if ac.pat.as_ref().is_some_and(|ap| ap.group == group) {
                 aucmd_del(ac);
             }
@@ -1712,7 +1712,7 @@ pub fn au_get_autocmds_for_event(event: event_T) -> &'static mut AutoCmdVec {
 }
 
 pub fn aubuflocal_remove(buf: &mut buf_T) {
-    unsafe {
+     {
         for arg_bufnr in au_st().active_apc_list.iter().rev() {
             if buf.b_fnum == arg_bufnr.get() {
                 arg_bufnr.set(0);
@@ -1720,8 +1720,8 @@ pub fn aubuflocal_remove(buf: &mut buf_T) {
         }
 
         for event in 0..NUM_EVENTS as event_T {
-            let acs = &raw mut au_st().autocmds[event as usize];
-            for ac in &mut *acs {
+            let acs = &mut au_st().autocmds[event as usize];
+            for ac in acs {
                 if !ac
                     .pat
                     .as_ref()
@@ -2221,8 +2221,8 @@ pub fn do_autocmd_event(
             if del {
                 assert!(!crate::memory::cstr_is_empty(pat));
 
-                let acs = &raw mut au_st().autocmds[event as usize];
-                for ac in &mut *acs {
+                let acs = &mut au_st().autocmds[event as usize];
+                for ac in acs {
                     if let Some(ref ap) = ac.pat
                         && ap.group == findgroup
                         && ap.patlen == patlen
@@ -2302,8 +2302,8 @@ pub fn autocmd_register(
         }
 
         let mut ap: Option<std::rc::Rc<AutoPat>> = None;
-        let acs = &raw mut au_st().autocmds[event as usize];
-        for ac in (*acs).iter().rev() {
+        let acs = &mut au_st().autocmds[event as usize];
+        for ac in acs.iter().rev() {
             let Some(ref ac_ap) = ac.pat else {
                 continue;
             };
@@ -2398,7 +2398,7 @@ pub fn autocmd_register(
         } else {
             Some(crate::memory::cstr_to_cstring(desc))
         };
-        (*acs).push(ac);
+        acs.push(ac);
 
         true
     }
@@ -2750,9 +2750,9 @@ pub fn apply_autocmds_retval(
 }
 
 pub fn has_event(event: event_T) -> bool {
-    unsafe {
-        let acs = &raw const au_st().autocmds[event as usize];
-        !(*acs).is_empty()
+     {
+        let acs = &au_st().autocmds[event as usize];
+        !acs.is_empty()
     }
 }
 
@@ -3005,11 +3005,11 @@ pub fn apply_autocmds_group(
                 curbuf_mut().b_did_filetype = true;
             }
 
-            let acs = &raw const au_st().autocmds[event as usize];
+            let acs = &au_st().autocmds[event as usize];
             let mut patcmd = AutoPatCmd {
                 lastpat: None,
                 auidx: 0,
-                ausize: (*acs).len(),
+                ausize: acs.len(),
                 afile_orig: afile_orig_owned,
                 fname: fname_owned,
                 sfname: sfname_owned,
@@ -3191,14 +3191,14 @@ pub fn is_autocmd_blocked() -> bool {
 }
 
 fn aucmd_next(apc: &mut AutoPatCmd) {
-    unsafe {
+     {
         let entry = rt_st().exestack.last_mut().unwrap();
 
-        let acs = &raw mut au_st().autocmds[apc.event as usize];
-        assert!(apc.ausize <= (*acs).len());
+        let acs = &mut au_st().autocmds[apc.event as usize];
+        assert!(apc.ausize <= acs.len());
         let mut i = apc.auidx;
         while i < apc.ausize && !g_st().got_int {
-            let ac = &(&*acs)[i];
+            let ac = &(acs)[i];
             let Some(ref ap) = ac.pat else {
                 i += 1;
                 continue;
@@ -3389,14 +3389,13 @@ pub fn getnextac(
 ) -> Option<CString> {
     unsafe {
         let apc = &mut *apc;
-        let acs = &raw mut au_st().autocmds[apc.event as usize];
-
+        let acs = &mut au_st().autocmds[apc.event as usize];
         aucmd_next(apc);
         apc.lastpat.as_ref()?;
 
-        assert!(apc.auidx < (*acs).len());
+        assert!(apc.auidx < acs.len());
         let auidx = apc.auidx;
-        let ac = &mut (&mut *acs)[auidx];
+        let ac = &mut (acs)[auidx];
         assert!(ac.pat.is_some());
         let mut oneshot = ac.once;
 
@@ -3421,7 +3420,7 @@ pub fn getnextac(
                 let saved_pat = if oneshot { ac.pat.take() } else { None };
                 let rv = au_callback(cb, id, group, apc);
                 if oneshot {
-                    (&mut *acs)[auidx].pat = saved_pat;
+                    (acs)[auidx].pat = saved_pat;
                 }
                 oneshot = oneshot || rv;
                 CString::default()
@@ -3432,7 +3431,7 @@ pub fn getnextac(
                 let saved_pat = if oneshot { ac.pat.take() } else { None };
                 let rv = au_callback(Callback::NONE, id, group, apc);
                 if oneshot {
-                    (&mut *acs)[auidx].pat = saved_pat;
+                    (acs)[auidx].pat = saved_pat;
                 }
                 oneshot = oneshot || rv;
                 CString::default()
@@ -3440,7 +3439,7 @@ pub fn getnextac(
         };
 
         if oneshot {
-            aucmd_del(&mut (&mut *acs)[auidx]);
+            aucmd_del(&mut (acs)[auidx]);
         }
 
         if apc.auidx < apc.ausize {
@@ -3458,7 +3457,7 @@ fn has_autocmd_ext(
     sfname: impl crate::strings::IntoCCharPtr,mut buf: Option<&mut buf_T>,
     is_full: bool,
 ) -> bool { let sfname = sfname.into_c_char_ptr();
-    unsafe {
+     {
         if !has_event(event) {
             return false;
         }
@@ -3475,8 +3474,8 @@ fn has_autocmd_ext(
             return false;
         };
 
-        let acs = &raw mut au_st().autocmds[event as usize];
-        for ac in &*acs {
+        let acs = &mut au_st().autocmds[event as usize];
+        for ac in acs {
             if let Some(ref ap) = ac.pat {
                 let matched = if ap.buflocal_nr == 0 {
                     match_file_pat(
@@ -3653,13 +3652,13 @@ pub fn au_exists(arg: impl crate::strings::IntoCCharPtr) -> bool { let arg = arg
         let pattern = p;
         let event = event_name2nr(event_name, &raw mut p);
         if event != NUM_EVENTS as event_T {
-            let acs = &raw mut au_st().autocmds[event as usize];
-            if !(*acs).is_empty() {
+            let acs = &mut au_st().autocmds[event as usize];
+            if !acs.is_empty() {
                 if !pattern.is_null() && crate::memory::cstr_as_bytes(pattern).eq_ignore_ascii_case(b"<buffer>") {
                     buflocal_buf = g_st().curbuf;
                 }
 
-                for ac in &*acs {
+                for ac in acs {
                     if let Some(ref ap) = ac.pat
                         && (group == AUGROUP_ALL || ap.group == group)
                     {

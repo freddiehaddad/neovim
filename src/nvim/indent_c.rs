@@ -1130,13 +1130,13 @@ fn cin_isbreak(p: impl crate::strings::IntoCCharPtr) -> bool { let p = p.into_c_
 }
 fn cin_is_cpp_baseclass(cached: &mut cpp_baseclass_cache_T) -> bool {
     unsafe {
-        let pos = &raw mut cached.lpos;
+        let pos = &mut cached.lpos;
         let mut lnum = curwin_mut().w_cursor.lnum;
         let mut line: *const c_char = get_cursor_line_ptr();
-        if (*pos).lnum <= lnum {
+        if pos.lnum <= lnum {
             return cached.found != 0;
         }
-        (*pos).col = 0;
+        pos.col = 0;
         let mut s: *const c_char = skipwhite(line);
         if crate::memory::cstr_first_byte(s) == b'#' {
             return false;
@@ -1171,7 +1171,7 @@ fn cin_is_cpp_baseclass(cached: &mut cpp_baseclass_cache_T) -> bool {
             }
             lnum -= 1;
         }
-        (*pos).lnum = lnum;
+        pos.lnum = lnum;
         line = ml_get(lnum);
         s = line;
         loop {
@@ -1202,7 +1202,7 @@ fn cin_is_cpp_baseclass(cached: &mut cpp_baseclass_cache_T) -> bool {
                     cpp_base_class = true;
                     lookfor_ctor_init = false;
                     class_or_struct = false;
-                    (*pos).col = 0;
+                    pos.col = 0;
                     s = cin_skipcomment(s.add(1));
                 } else {
                     s = cin_skipcomment(s.add(1));
@@ -1231,21 +1231,21 @@ fn cin_is_cpp_baseclass(cached: &mut cpp_baseclass_cache_T) -> bool {
                 } else if !vim_isIDc(crate::memory::cstr_first_byte(s) as c_int) {
                     class_or_struct = false;
                     lookfor_ctor_init = false;
-                } else if (*pos).col == 0 {
+                } else if pos.col == 0 {
                     lookfor_ctor_init = false;
                     if cpp_base_class {
-                        (*pos).col = s.offset_from(line) as colnr_T;
+                        pos.col = s.offset_from(line) as colnr_T;
                     }
                 }
                 if lnum == curwin_mut().w_cursor.lnum && crate::memory::cstr_first_byte(s) == b',' && cin_nocode(s.add(1)) {
-                    (*pos).col = 0;
+                    pos.col = 0;
                 }
                 s = cin_skipcomment(s.add(1));
             }
         }
         cached.found = c_int::from(cpp_base_class);
         if cpp_base_class {
-            (*pos).lnum = lnum;
+            pos.lnum = lnum;
         }
         cpp_base_class
     }

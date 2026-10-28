@@ -3805,8 +3805,8 @@ fn color_cmdline(colored_ccline: &mut CmdlineInfo) -> bool {
                 }
                 let mut prev_end: varnumber_T = 0;
                 for (i, li) in (0 as c_int..).zip(crate::eval::typval::list_iter_ptr(tv_list_first(v_list.as_ref()))) {
-                    let li_tv = &raw mut (*li).li_tv;
-                    if (*li_tv).v_type != VarType::VAR_LIST {
+                    let li_tv = &mut (*li).li_tv;
+                    if li_tv.v_type != VarType::VAR_LIST {
                         g_st().msg_scroll = 1;
                         msg_putchar(b'\n' as c_int);
                         smsg!(
@@ -3817,7 +3817,7 @@ fn color_cmdline(colored_ccline: &mut CmdlineInfo) -> bool {
                         printed_errmsg = true;
                         break 'color_cmdline_error;
                     }
-                    let l = (*li_tv).vval.v_list();
+                    let l = li_tv.vval.v_list();
                     if tv_list_len(l.as_ref()) != 3 {
                         g_st().msg_scroll = 1;
                         msg_putchar(b'\n' as c_int);

@@ -207,10 +207,9 @@ mod win_impl {
             let proc_: *mut Proc = ptyproc;
             let hdr = proc_;
             let ptail = pty_proc_win_tail(ptyproc);
-            let s_in = &raw mut (*proc_).r#in;
-            let r_out = &raw mut (*proc_).out;
-            let r_err = &raw mut (*proc_).err;
-
+            let s_in = &mut (*proc_).r#in;
+            let r_out = &mut (*proc_).out;
+            let r_err = &mut (*proc_).err;
             let mut status: c_int;
             let mut conpty_object: Option<Box<conpty_t>> = None;
             let mut in_name: Option<std::ffi::CString> = None;
@@ -226,7 +225,7 @@ mod win_impl {
             let mut env: Vec<u16> = Vec::new();
             let mut emsg: *const c_char = ptr::null();
 
-            debug_assert!((*r_err).s.closed);
+            debug_assert!(r_err.s.closed);
 
             'cleanup: {
                 if !os_has_conpty_working() {
@@ -240,25 +239,25 @@ mod win_impl {
                     break 'cleanup;
                 }
 
-                if !(*s_in).closed {
+                if !s_in.closed {
                     let mut buf = vec![0u64; uv_req_size(UV_CONNECT).div_ceil(8)];
                     in_req = buf.as_mut_ptr().cast();
                     in_req_buf = Some(buf);
                     uv_pipe_connect(
                         in_req,
-                        (&raw mut (*s_in).uv).cast(),
+                        (&raw mut s_in.uv).cast(),
                         in_name.as_ref().unwrap().as_ptr(),
                         Some(pty_proc_connect_cb),
                     );
                 }
 
-                if !(*r_out).s.closed {
+                if !r_out.s.closed {
                     let mut buf = vec![0u64; uv_req_size(UV_CONNECT).div_ceil(8)];
                     out_req = buf.as_mut_ptr().cast();
                     out_req_buf = Some(buf);
                     uv_pipe_connect(
                         out_req,
-                        (&raw mut (*r_out).s.uv).cast(),
+                        (&raw mut r_out.s.uv).cast(),
                         out_name.as_ref().unwrap().as_ptr(),
                         Some(pty_proc_connect_cb),
                     );
@@ -352,7 +351,7 @@ mod win_impl {
                     uv_run((*hdr).loop_.cast(), UV_RUN_ONCE);
                 }
 
-                (*r_out).s.close_console = true;
+                r_out.s.close_console = true;
                 (*ptail).conpty = conpty_object.take();
                 (*ptail).proc_handle = proc_handle;
                 proc_handle = ptr::null_mut();

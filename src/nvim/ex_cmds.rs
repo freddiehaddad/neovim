@@ -2887,9 +2887,9 @@ pub fn do_ecmd(
                 }
 
                 if (oldbuf && newlnum == ECMD_LASTL) || newlnum == ECMD_LAST {
-                    let pos = &raw mut (*buflist_findfmark( &mut *buf)).mark;
-                    newlnum = (*pos).lnum;
-                    solcol = (*pos).col;
+                    let pos = &mut (*buflist_findfmark( &mut *buf)).mark;
+                    newlnum = pos.lnum;
+                    solcol = pos.col;
                 }
 
                 if buf != g_st().curbuf {

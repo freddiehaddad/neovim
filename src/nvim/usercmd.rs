@@ -317,8 +317,8 @@ pub fn find_ucmd(
                 break;
             }
             is_global = true;
-            let u = &raw const (*ucmds_mut());
-            gap = &*u;
+            let u = ucmds_mut();
+            gap = u;
         }
 
         if amb_local {
@@ -450,10 +450,10 @@ pub fn get_user_commands(_xp: &mut expand_T, mut idx: c_int) -> *mut c_char {
         }
 
         idx -= b_len;
-        let u = &raw const (*ucmds_mut());
-        let u_len = (*u).len() as c_int;
+        let u = ucmds_mut();
+        let u_len = u.len() as c_int;
         if idx < u_len {
-            let name = (&*u)[idx as usize].uc_name.as_ptr().cast_mut();
+            let name = (u)[idx as usize].uc_name.as_ptr().cast_mut();
 
             for cmd in &(*buf).b_ucmds {
                 if crate::memory::cstr_as_bytes(name) == crate::memory::cstr_as_bytes(cmd.uc_name.as_ptr()) {
@@ -469,10 +469,10 @@ pub fn get_user_commands(_xp: &mut expand_T, mut idx: c_int) -> *mut c_char {
 /// Get the name of user command `idx` (`get_user_command_name`).
 pub fn get_user_command_name(idx: c_int, cmdidx: c_int) -> *mut c_char {
     unsafe {
-        let u = &raw const (*ucmds_mut());
-        let u_len = (*u).len() as c_int;
+        let u = ucmds_mut();
+        let u_len = u.len() as c_int;
         if cmdidx == CMD_USER && idx < u_len {
-            return (&*u)[idx as usize].uc_name.as_ptr().cast_mut();
+            return (u)[idx as usize].uc_name.as_ptr().cast_mut();
         }
         if cmdidx == CMD_USER_BUF {
             let buf = (*prevwin_curwin()).w_buffer;
@@ -807,8 +807,8 @@ fn uc_list(name: impl crate::strings::IntoCCharPtr, name_len: usize) { let name 
                 break;
             }
             is_global = true;
-            let u = &raw const (*ucmds_mut());
-            gap = &*u;
+            let u = ucmds_mut();
+            gap = u;
         }
 
         if !found {
@@ -1113,10 +1113,10 @@ pub fn uc_add_command(
         )
         .unwrap_or_else(|| crate::memory::cstr_to_cstring(rep));
 
-        let u = &raw mut (*ucmds_mut());
+        let u = ucmds_mut();
         let gap: &mut Vec<ucmd_T> = if (flags & UC_BUFFER) != 0 {
             &mut curbuf_mut().b_ucmds
-        } else { &mut *u };
+        } else { u };
 
         let mut i: c_int = 0;
         while (i as usize) < gap.len() {
@@ -1267,9 +1267,9 @@ pub fn ex_command(eap: &mut exarg_T) {
 
 /// `:comclear` (`ex_comclear`).
 pub fn ex_comclear(_eap: &mut exarg_T) {
-    unsafe {
-        let u = &raw mut (*ucmds_mut());
-        (*u).clear();
+     {
+        let u = ucmds_mut();
+        u.clear();
         if !g_st().curbuf.is_null() {
             curbuf_mut().b_ucmds.clear();
         }
@@ -1303,17 +1303,17 @@ pub fn ex_delcommand(eap: &mut exarg_T) {
                 break;
             }
             is_global = true;
-            let u = &raw mut (*ucmds_mut());
-            gap = &mut *u;
+            let u = ucmds_mut();
+            gap = u;
         }
 
         if res != 0 {
             let _ = &mut i;
             semsg!(
                 gettext(if buffer_only {
-                    E_NO_SUCH_USER_DEFINED_COMMAND_IN_CURRENT_BUFFER_STR.as_ptr()
+                    E_NO_SUCH_USER_DEFINED_COMMAND_IN_CURRENT_BUFFER_STR
                 } else {
-                    E_NO_SUCH_USER_DEFINED_COMMAND_STR.as_ptr()
+                    E_NO_SUCH_USER_DEFINED_COMMAND_STR
                 }),
                 arg,
             );
@@ -1872,8 +1872,8 @@ pub fn do_ucmd(eap: &mut exarg_T, preview: bool) -> c_int {
         let mut split_buf: Option<CString> = None;
 
         let cmd = if eap.cmdidx == CMD_USER {
-            let u = &raw mut (*ucmds_mut());
-            &raw mut (&mut *u)[eap.useridx as usize]
+            let u = ucmds_mut();
+            &raw mut (u)[eap.useridx as usize]
         } else {
             &raw mut (&mut (*(*prevwin_curwin()).w_buffer).b_ucmds)[eap.useridx as usize]
         };
@@ -2000,9 +2000,9 @@ fn arena_str_obj(arena: &mut Arena, bytes: &[u8]) -> Object {
 /// Gets a map of maps describing user-commands defined for buffer `buf` or
 /// defined globally if `buf` is NULL (`commands_array`).
 pub fn commands_array(buf: Option<&buf_T>, arena: &mut Arena) -> Dict {
-    unsafe {
-        let u = &raw const (*ucmds_mut());
-        let gap: &[ucmd_T] = buf.map_or(&*u, |buf| &buf.b_ucmds);
+     {
+        let u = ucmds_mut();
+        let gap: &[ucmd_T] = buf.map_or(u, |buf| &buf.b_ucmds);
 
         let mut rv = arena_dict(arena, gap.len());
         for cmd in gap {

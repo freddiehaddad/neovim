@@ -2980,9 +2980,9 @@ pub fn modify_keymap(
                         err,
                         ErrorType::kErrorTypeException,
                         if is_abbrev {
-                            E_ABBREVIATION_ALREADY_EXISTS_FOR_STR.as_ptr()
+                            E_ABBREVIATION_ALREADY_EXISTS_FOR_STR
                         } else {
-                            E_MAPPING_ALREADY_EXISTS_FOR_STR.as_ptr()
+                            E_MAPPING_ALREADY_EXISTS_FOR_STR
                         },
                         lhs.data,
                     );
@@ -2992,9 +2992,9 @@ pub fn modify_keymap(
                         err,
                         ErrorType::kErrorTypeException,
                         if is_abbrev {
-                            E_GLOBAL_ABBREVIATION_ALREADY_EXISTS_FOR_STR.as_ptr()
+                            E_GLOBAL_ABBREVIATION_ALREADY_EXISTS_FOR_STR
                         } else {
-                            E_GLOBAL_MAPPING_ALREADY_EXISTS_FOR_STR.as_ptr()
+                            E_GLOBAL_MAPPING_ALREADY_EXISTS_FOR_STR
                         },
                         lhs.data,
                     );

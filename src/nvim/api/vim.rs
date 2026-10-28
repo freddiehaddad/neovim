@@ -1665,11 +1665,11 @@ pub fn nvim_open_term(
             };
 
         let chan = channel_alloc(kChannelStreamInternal);
-        let internal = &raw mut (*chan).internal;
+        let internal = &mut (*chan).internal;
         let prefix = chan;
         let tail = chan;
-        (*internal).cb = cb;
-        (*internal).closed = false;
+        internal.cb = cb;
+        internal.closed = false;
         let topts = TerminalOptions {
             data: chan,
             width: (curwin_mut().w_view_width - win_col_off(curwin_ptr())).max(0) as u16,

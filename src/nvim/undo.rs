@@ -2087,9 +2087,9 @@ fn u_undoredo(undo: bool, do_buf_event: bool) {
         let entries_len = (*curhead).uh_entries.len();
         for entry_idx in 0..entries_len {
             let is_last = entry_idx + 1 == entries_len;
-            let uep: *mut u_entry_T = &raw mut (*curhead).uh_entries.as_mut_slice()[entry_idx];
-            let top = (*uep).ue_top;
-            let mut bot = (*uep).ue_bot;
+            let uep = &mut (*curhead).uh_entries.as_mut_slice()[entry_idx];
+            let top = uep.ue_top;
+            let mut bot = uep.ue_bot;
             if bot == 0 {
                 bot = curbuf_mut().b_ml.ml_line_count + 1;
             }
@@ -2104,7 +2104,7 @@ fn u_undoredo(undo: bool, do_buf_event: bool) {
             }
 
             let oldsize = bot - top - 1;
-            let newsize = (*uep).ue_size();
+            let newsize = uep.ue_size();
 
             {
                 let lnum = (*curhead).uh_cursor.lnum;
@@ -2114,7 +2114,7 @@ fn u_undoredo(undo: bool, do_buf_event: bool) {
                 } else if top < newlnum {
                     let mut i: linenr_T = 0;
                     while i < newsize && i < oldsize {
-                        if crate::memory::cstr_as_bytes((*uep).ue_array.as_slice()[i as usize].as_ptr()) != crate::memory::cstr_as_bytes(ml_get(top + 1 + i))
+                        if crate::memory::cstr_as_bytes(uep.ue_array.as_slice()[i as usize].as_ptr()) != crate::memory::cstr_as_bytes(ml_get(top + 1 + i))
                         {
                             break;
                         }
@@ -2153,7 +2153,7 @@ fn u_undoredo(undo: bool, do_buf_event: bool) {
             check_cursor_lnum(curwin_mut());
 
             if newsize != 0 {
-                for (i, line) in (*uep).ue_array.drain(..).enumerate() {
+                for (i, line) in uep.ue_array.drain(..).enumerate() {
                     let lnum = top + i as linenr_T;
                     let line_ptr = line.as_ptr().cast_mut();
                     if empty_buffer && lnum == 0 {
@@ -2196,8 +2196,8 @@ fn u_undoredo(undo: bool, do_buf_event: bool) {
 
             undo_st().u_newcount += newsize;
             undo_st().u_oldcount += oldsize;
-            (*uep).ue_array = newarray;
-            (*uep).ue_bot = top + newsize + 1;
+            uep.ue_array = newarray;
+            uep.ue_bot = top + newsize + 1;
         }
 
         curbuf_mut().b_op_start.lnum = curbuf_mut().b_op_start.lnum.min(curbuf_mut().b_ml.ml_line_count);
@@ -2578,7 +2578,7 @@ pub fn u_unchanged(buf: &mut buf_T) {
 /// After reloading a buffer which was saved for `'undoreload'`: Find the first
 /// line that was changed and set the cursor there.
 pub fn u_find_first_changed() {
-    unsafe {
+     {
         if curbuf_mut().b_u_curhead.is_some() {
             return;
         }
@@ -2588,14 +2588,14 @@ pub fn u_find_first_changed() {
         if uhp_ref(curbuf_mut(), nh).uh_entries.is_empty() {
             return;
         }
-        let uep: *const u_entry_T = &raw const uhp_ref(curbuf_mut(), nh).uh_entries[0];
-        if (*uep).ue_top != 0 || (*uep).ue_bot != 0 {
+        let uep = &uhp_ref(curbuf_mut(), nh).uh_entries[0];
+        if uep.ue_top != 0 || uep.ue_bot != 0 {
             return;
         }
 
         let mut lnum: linenr_T = 1;
-        while lnum < curbuf_mut().b_ml.ml_line_count && lnum <= (*uep).ue_size() {
-            if crate::memory::cstr_as_bytes(ml_get_buf(crate::globals::curbuf_mut(), lnum)) != crate::memory::cstr_as_bytes((*uep).ue_array.as_slice()[(lnum - 1) as usize].as_ptr())
+        while lnum < curbuf_mut().b_ml.ml_line_count && lnum <= uep.ue_size() {
+            if crate::memory::cstr_as_bytes(ml_get_buf(crate::globals::curbuf_mut(), lnum)) != crate::memory::cstr_as_bytes(uep.ue_array.as_slice()[(lnum - 1) as usize].as_ptr())
             {
                 clearpos(&mut uhp_mut(curbuf_mut(), nh).uh_cursor);
                 uhp_mut(curbuf_mut(), nh).uh_cursor.lnum = lnum;
@@ -2603,7 +2603,7 @@ pub fn u_find_first_changed() {
             }
             lnum += 1;
         }
-        if curbuf_mut().b_ml.ml_line_count != (*uep).ue_size() {
+        if curbuf_mut().b_ml.ml_line_count != uep.ue_size() {
             clearpos(&mut uhp_mut(curbuf_mut(), nh).uh_cursor);
             uhp_mut(curbuf_mut(), nh).uh_cursor.lnum = lnum;
         }
@@ -2779,19 +2779,19 @@ fn u_freeentries(buf: &mut buf_T, uhp: usize, uhpp: &mut Option<usize>) {
 
 /// Prunes the newest undo entry if it has no changes.
 pub fn u_forget_unchanged(buf: &mut buf_T) {
-    unsafe {
+     {
         let Some(uhp) = buf.b_u_newhead else {
             return;
         };
         if uhp_ref(&*buf, uhp).uh_entries.is_empty() || buf.b_u_curhead.is_some() {
             return;
         };
-        let uep: *mut u_entry_T = &raw mut uhp_mut(&mut *buf, uhp).uh_entries.as_mut_slice()[0];
-        if u_entry_resized(&mut *buf, &*uep) {
+        let uep = &mut uhp_mut(&mut *buf, uhp).uh_entries.as_mut_slice()[0];
+        if u_entry_resized(&mut *buf, uep) {
             return;
         }
-        for i in 0..(*uep).ue_size() {
-            if crate::memory::cstr_as_bytes((*uep).ue_array.as_slice()[i as usize].as_ptr()) != crate::memory::cstr_as_bytes(ml_get_buf(buf, (*uep).ue_top + 1 + i))
+        for i in 0..uep.ue_size() {
+            if crate::memory::cstr_as_bytes(uep.ue_array.as_slice()[i as usize].as_ptr()) != crate::memory::cstr_as_bytes(ml_get_buf(buf, uep.ue_top + 1 + i))
             {
                 return;
             }

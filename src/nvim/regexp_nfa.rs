@@ -4325,17 +4325,17 @@ fn nfa_regmatch(prog: &mut nfa_regprog_T,
                             re_st().rex.input = re_st().rex.line.add(col);
                         }
                         if !fm.is_null() && (*fm).mark.lnum > 0 {
-                            let pos = &raw const (*fm).mark;
-                            let pos_col = if (*pos).lnum == re_st().rex.lnum + re_st().rex.reg_firstlnum
-                                && (*pos).col == MAXCOL
+                            let pos = &(*fm).mark;
+                            let pos_col = if pos.lnum == re_st().rex.lnum + re_st().rex.reg_firstlnum
+                                && pos.col == MAXCOL
                             {
-                                reg_getline_len((*pos).lnum - re_st().rex.reg_firstlnum)
+                                reg_getline_len(pos.lnum - re_st().rex.reg_firstlnum)
                             } else {
-                                (*pos).col
+                                pos.col
                             };
                             let cur_col = re_st().rex.input.offset_from(re_st().rex.line) as colnr_T;
                             let st_c = t_st.c;
-                            let matched = if (*pos).lnum == re_st().rex.lnum + re_st().rex.reg_firstlnum {
+                            let matched = if pos.lnum == re_st().rex.lnum + re_st().rex.reg_firstlnum {
                                 if pos_col == cur_col {
                                     st_c == NFA_MARK
                                 } else if pos_col < cur_col {
@@ -4343,7 +4343,7 @@ fn nfa_regmatch(prog: &mut nfa_regprog_T,
                                 } else {
                                     st_c == NFA_MARK_LT
                                 }
-                            } else if (*pos).lnum < re_st().rex.lnum + re_st().rex.reg_firstlnum {
+                            } else if pos.lnum < re_st().rex.lnum + re_st().rex.reg_firstlnum {
                                 st_c == NFA_MARK_GT
                             } else {
                                 st_c == NFA_MARK_LT

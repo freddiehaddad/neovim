@@ -1464,10 +1464,9 @@ fn find_tagfunc_tags(
                                 todo -= 1;
                                 let di = crate::eval::typval::tv_dict_hi2di(hi);
                                 let dict_key = (&*hi).key_ptr();
-                                let tv = &raw mut (*di).di_tv;
-
-                                if (*tv).v_type == VarType::VAR_STRING
-                                    && !(*tv).vval.v_string().is_null()
+                                let tv = &mut (*di).di_tv;
+                                if tv.v_type == VarType::VAR_STRING
+                                    && !tv.vval.v_string().is_null()
                                     && crate::memory::cstr_as_bytes(dict_key) != b"name"
                                     && crate::memory::cstr_as_bytes(dict_key) != b"filename"
                                     && crate::memory::cstr_as_bytes(dict_key) != b"cmd"
@@ -1479,7 +1478,7 @@ fn find_tagfunc_tags(
                                     p = p.add(crate::memory::cstr_len(p));
                                     crate::memory::cstr_cpy(p, c":");
                                     p = p.add(crate::memory::cstr_len(p));
-                                    crate::memory::cstr_cpy(p, (*tv).vval.v_string());
+                                    crate::memory::cstr_cpy(p, tv.vval.v_string());
                                     p = p.add(crate::memory::cstr_len(p));
                                 }
                             }
@@ -3340,25 +3339,25 @@ fn get_tag_details(tag: &mut taggy_T, retdict: &mut dict_T) {
         let pos = tv_list_alloc(4);
         tv_dict_add_list(retdict, c"from", pos);
 
-        let fmark = &raw mut tag.fmark;
+        let fmark = &mut tag.fmark;
         tv_list_append_number(
              &mut *pos,
-            if (*fmark).fnum != -1 {
-                (*fmark).fnum as varnumber_T
+            if fmark.fnum != -1 {
+                fmark.fnum as varnumber_T
             } else {
                 0
             },
         );
-        tv_list_append_number( &mut *pos, (*fmark).mark.lnum as varnumber_T);
+        tv_list_append_number( &mut *pos, fmark.mark.lnum as varnumber_T);
         tv_list_append_number(
              &mut *pos,
-            if (*fmark).mark.col == MAXCOL {
+            if fmark.mark.col == MAXCOL {
                 MAXCOL as varnumber_T
             } else {
-                ((*fmark).mark.col + 1) as varnumber_T
+                (fmark.mark.col + 1) as varnumber_T
             },
         );
-        tv_list_append_number( &mut *pos, (*fmark).mark.coladd as varnumber_T);
+        tv_list_append_number( &mut *pos, fmark.mark.coladd as varnumber_T);
     }
 }
 

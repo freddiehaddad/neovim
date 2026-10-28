@@ -3079,15 +3079,14 @@ pub fn buflist_getfile(
 fn buflist_getfpos() {
     unsafe {
         let fm = buflist_findfmark(curbuf_mut());
-        let fpos = &raw const (*fm).mark;
-
-        curwin_mut().w_cursor.lnum = (*fpos).lnum;
+        let fpos = &(*fm).mark;
+        curwin_mut().w_cursor.lnum = fpos.lnum;
         check_cursor_lnum(curwin_mut());
 
         if opt_vars().p_sol != 0 {
             curwin_mut().w_cursor.col = 0;
         } else {
-            curwin_mut().w_cursor.col = (*fpos).col;
+            curwin_mut().w_cursor.col = fpos.col;
             check_cursor_col(curwin_mut());
             curwin_mut().w_cursor.coladd = 0;
             curwin_mut().w_set_curswant = true;

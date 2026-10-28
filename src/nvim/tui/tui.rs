@@ -1162,11 +1162,11 @@ pub fn tui_stop(tui: &mut TUIData) {
 
         let wait_start = os_hrtime();
         let events = (*loop_queues(&mut *tui.loop_)).events;
-        let rs = &raw mut (*input).read_stream;
+        let rs = &mut (*input).read_stream;
         let mut remaining: i64 = EXIT_TIMEOUT_MS;
         let mut before = if remaining > 0 { os_hrtime() } else { 0 };
         while !(ptr::read_volatile(&raw const tui.stopped)
-            || ptr::read_volatile(&raw const (*rs).did_eof))
+            || ptr::read_volatile(&raw const rs.did_eof))
         {
             if !events.is_null() && !multiqueue_empty( &*events) {
                 multiqueue_process_events( &mut *events);

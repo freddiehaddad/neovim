@@ -263,8 +263,8 @@ fn socket_alive(loop_: &mut Loop, addr: impl crate::strings::IntoCCharPtr) -> bo
         let mut stream = RStream::new();
         let mut error: *const c_char = std::ptr::null();
 
-        let stream_ptr: *mut RStream = &raw mut stream;
-        let connected = socket_connect(loop_, &mut *stream_ptr, false, addr, 500, &mut error);
+        let stream_ptr = &mut stream;
+        let connected = socket_connect(loop_, stream_ptr, false, addr, 500, &mut error);
         if !connected {
             return false;
         }

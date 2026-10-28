@@ -1748,11 +1748,11 @@ fn diff_read(idx_orig: usize, idx_new: usize, dio: &mut diffio_T) {
         let mut fd: *mut FILE = ptr::null_mut();
         let mut line_hunk_idx: c_int = 0;
         let mut dp_idx: usize = 0;
-        let dout = &raw mut dio.dio_diff;
+        let dout = &mut dio.dio_diff;
         let mut notset = true;
         let mut diffstyle = diffstyle_T::DIFF_NONE;
         if dio.dio_internal == 0 {
-            fd = os_fopen((*dout).dout_fname.as_ref().unwrap().as_ptr(), c"r");
+            fd = os_fopen(dout.dout_fname.as_ref().unwrap().as_ptr(), c"r");
             if fd.is_null() {
                 emsg(gettext(c"E98: Cannot read diff output"));
                 return;
@@ -1766,7 +1766,7 @@ fn diff_read(idx_orig: usize, idx_new: usize, dio: &mut diffio_T) {
                 count_new: 0,
             };
             let eof = if dio.dio_internal != 0 {
-                extract_hunk_internal( &mut *dout, &mut hunk, &mut line_hunk_idx)
+                extract_hunk_internal( dout, &mut hunk, &mut line_hunk_idx)
             } else {
                 extract_hunk(fd, &mut hunk, &mut diffstyle)
             };

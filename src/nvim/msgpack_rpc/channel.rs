@@ -239,18 +239,18 @@ pub fn rpc_start(channel: &mut Channel) {
     unsafe {
         channel_incref(&mut *channel);
         channel.is_rpc = true;
-        let rpc = &raw mut channel.rpc;
-        (*rpc).closed = false;
+        let rpc = &mut channel.rpc;
+        rpc.closed = false;
         let mut unpacker = Box::new(Unpacker::new());
         unpacker_init(&mut unpacker);
-        (*rpc).unpacker = Some(unpacker);
-        (*rpc).next_request_id = 1;
-        (*rpc).info = Dict {
+        rpc.unpacker = Some(unpacker);
+        rpc.next_request_id = 1;
+        rpc.info = Dict {
             items: ptr::null_mut(),
             size: 0,
             capacity: 0,
         };
-        (*rpc).call_stack.clear();
+        rpc.call_stack.clear();
 
         if channel.streamtype != kChannelStreamInternal {
             let out = channel_outstream(channel);
@@ -314,9 +314,9 @@ pub fn rpc_send_call(
         }
 
         channel_incref(&mut *channel);
-        let rpc = &raw mut (*channel).rpc;
-        let request_id = (*rpc).next_request_id;
-        (*rpc).next_request_id += 1;
+        let rpc = &mut (*channel).rpc;
+        let request_id = rpc.next_request_id;
+        rpc.next_request_id += 1;
 
         serialize_request(&raw mut channel, 1, request_id, method_name, args);
 
@@ -327,16 +327,16 @@ pub fn rpc_send_call(
             result: std::cell::Cell::new(OBJECT_NIL),
             result_mem: std::cell::Cell::new(ptr::null_mut()),
         });
-        (*rpc).call_stack.push(frame.clone());
+        rpc.call_stack.push(frame.clone());
 
-        while !frame.returned.get() && !ptr::read_volatile(&raw const (*rpc).closed) {
+        while !frame.returned.get() && !ptr::read_volatile(&raw const rpc.closed) {
             if !(*channel).events.is_null() && !multiqueue_empty( &*(*channel).events) {
                 multiqueue_process_events( &mut *(*channel).events);
             } else {
                 loop_poll_events(&mut g_st().main_loop, -1);
             }
         }
-        (*rpc).call_stack.pop();
+        rpc.call_stack.pop();
 
         if !frame.returned.get() {
             {

@@ -513,10 +513,9 @@ pub fn setpcmark() {
             (&mut curwin_mut().w_jumplist)[..JUMPLISTSIZE as usize].rotate_left(1);
         }
         curwin_mut().w_jumplistidx = curwin_mut().w_jumplistlen;
-        let fm = &raw mut (*curwin_ptr()).w_jumplist[(curwin_mut().w_jumplistlen - 1) as usize];
-
+        let fm = &mut (*curwin_ptr()).w_jumplist[(curwin_mut().w_jumplistlen - 1) as usize];
         let view = mark_view_make(curwin_mut(), curwin_mut().w_pcmark);
-        set_xfmark(&mut *fm, curwin_mut().w_pcmark, curbuf_mut().b_fnum, view, None);
+        set_xfmark(fm, curwin_mut().w_pcmark, curbuf_mut().b_fnum, view, None);
     }
 }
 
@@ -534,7 +533,7 @@ pub fn checkpcmark() {
 
 /// Get mark in `count` position in the jumplist relative to the current index (`get_jumplist`).
 pub fn get_jumplist(win: &mut win_T, mut count: c_int) -> *mut fmark_T {
-    unsafe {
+     {
         cleanup_jumplist(win, true);
 
         if win.w_jumplistlen == 0 {
@@ -558,16 +557,16 @@ pub fn get_jumplist(win: &mut win_T, mut count: c_int) -> *mut fmark_T {
 
             win.w_jumplistidx += count;
 
-            let jmp = &raw mut win.w_jumplist[win.w_jumplistidx as usize];
-            if (*jmp).fmark.fnum == 0 {
-                fname2fnum(&mut *jmp);
+            let jmp = &mut win.w_jumplist[win.w_jumplistidx as usize];
+            if jmp.fmark.fnum == 0 {
+                fname2fnum(jmp);
             }
-            if (*jmp).fmark.fnum != curbuf_mut().b_fnum && buflist_findnr((*jmp).fmark.fnum).is_null()
+            if jmp.fmark.fnum != curbuf_mut().b_fnum && buflist_findnr(jmp.fmark.fnum).is_null()
             {
                 count += if count < 0 { -1 } else { 1 };
                 continue;
             }
-            return &raw mut (*jmp).fmark;
+            return &raw mut jmp.fmark;
         }
     }
 }

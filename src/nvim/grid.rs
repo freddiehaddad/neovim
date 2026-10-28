@@ -1076,7 +1076,7 @@ pub fn grid_free_all_mem() {
 
 pub fn win_grid_alloc(wp: &mut win_T) {
     unsafe {
-        let grid = &raw mut wp.w_grid;
+        let grid = &mut wp.w_grid;
         let grid_allocated = &raw mut wp.w_grid_alloc;
 
         let total_rows = wp.w_height_outer;
@@ -1121,13 +1121,13 @@ pub fn win_grid_alloc(wp: &mut win_T) {
         }
 
         if want_allocation {
-            (*grid).target = grid_allocated;
-            (*grid).row_offset = wp.w_winrow_off;
-            (*grid).col_offset = wp.w_wincol_off;
+            grid.target = grid_allocated;
+            grid.row_offset = wp.w_winrow_off;
+            grid.col_offset = wp.w_wincol_off;
         } else {
-            (*grid).target = &raw mut g_st().default_grid;
-            (*grid).row_offset = wp.w_winrow + wp.w_winrow_off;
-            (*grid).col_offset = wp.w_wincol + wp.w_wincol_off;
+            grid.target = &raw mut g_st().default_grid;
+            grid.row_offset = wp.w_winrow + wp.w_winrow_off;
+            grid.col_offset = wp.w_wincol + wp.w_wincol_off;
         }
 
         if (g_st().resizing_screen || was_resized) && want_allocation {

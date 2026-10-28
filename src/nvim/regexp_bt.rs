@@ -3130,8 +3130,8 @@ fn regmatch(mut scan: *mut u8, tm: Option<proftime_T>,mut timed_out: Option<&mut
                                 pos
                             };
                             if status != RA_NOMATCH {
-                                let pos_ptr = &raw mut (*bp).as_mut_slice()[idx].bp_pos;
-                                reg_save(&mut *pos_ptr);
+                                let pos_ptr = &mut (*bp).as_mut_slice()[idx].bp_pos;
+                                reg_save(pos_ptr);
                             }
                         }
                         x if (MOPEN..=MOPEN + 9).contains(&x) => {

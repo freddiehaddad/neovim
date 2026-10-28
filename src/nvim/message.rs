@@ -1641,7 +1641,7 @@ pub fn did_set_messagesopt(_args: &mut optset_T) -> *const c_char {
 
 /// :messages command implementation
 pub fn ex_messages(eap: &mut exarg_T) {
-    unsafe {
+     {
         if crate::memory::cstr_as_bytes(eap.arg) == b"clear" {
             msg_hist_clear(if eap.addr_count != 0 {
                 eap.line2 as c_int
@@ -1668,12 +1668,12 @@ pub fn ex_messages(eap: &mut exarg_T) {
             0
         };
         while idx < msg_st().msg_hist.len() {
-            let p: *mut MessageHistoryEntry = &raw mut (&mut msg_st().msg_hist)[idx];
+            let p = &mut (&mut msg_st().msg_hist)[idx];
             idx += 1;
             // Skip over count or temporary "g<" messages.
             let prev_skip = skip;
             skip -= 1;
-            if ((*p).temp && eap.skip == 0) || prev_skip > 0 {
+            if (p.temp && eap.skip == 0) || prev_skip > 0 {
                 continue;
             }
             if ui_has(kUIMessages) && g_st().msg_silent == 0 {
@@ -1681,11 +1681,11 @@ pub fn ex_messages(eap: &mut exarg_T) {
                 entry.push(Object {
                     obj_type: ObjectType::kObjectTypeString,
                     data: ObjectData::String(cstr_to_string(
-                            (*p).kind.as_ref().map_or(ptr::null(), |k| k.as_ptr()),
+                            p.kind.as_ref().map_or(ptr::null(), |k| k.as_ptr()),
                         )),
                 });
                 let mut content = Array::new();
-                for chunk in &(*p).msg {
+                for chunk in &p.msg {
                     let mut content_entry = Array::new();
                     content_entry.push(Object {
                         obj_type: ObjectType::kObjectTypeInteger,
@@ -1714,7 +1714,7 @@ pub fn ex_messages(eap: &mut exarg_T) {
                 });
                 entry.push(Object {
                     obj_type: ObjectType::kObjectTypeBoolean,
-                    data: ObjectData::Boolean((*p).append),
+                    data: ObjectData::Boolean(p.append),
                 });
                 entries.push(Object {
                     obj_type: ObjectType::kObjectTypeArray,
@@ -1726,8 +1726,8 @@ pub fn ex_messages(eap: &mut exarg_T) {
                 let mut needs_clear = false;
                 msg_multihl(
                     NIL_OBJ,
-                    &mut (*p).msg,
-                    (*p).kind.as_ref().map_or(ptr::null(), |k| k.as_ptr()),
+                    &mut p.msg,
+                    p.kind.as_ref().map_or(ptr::null(), |k| k.as_ptr()),
                     false,
                     false,
                     None,

@@ -4534,9 +4534,9 @@ pub fn create_environment(
             {
                 let d = job_env.di_tv.vval.v_dict();
                 if !d.is_null() {
-                    let ht = &raw const (*d).dv_hashtab;
-                    let mut todo = (*ht).ht_used;
-                    let mut hi = (&*ht).array_ptr();
+                    let ht = &(*d).dv_hashtab;
+                    let mut todo = ht.ht_used;
+                    let mut hi = (ht).array_ptr();
                     while todo > 0 {
                         if !crate::hashtab::hashitem_empty(&*hi) {
                             todo -= 1;
@@ -4940,23 +4940,23 @@ pub fn f_jobwait(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFunc
         let waiting_jobs = multiqueue_new(main_loop_ptr);
 
         for (i, arg) in crate::eval::typval::list_iter_ptr(tv_list_first(args.as_ref())).enumerate() {
-            let tv = &raw const (*arg).li_tv;
-            let chan = if (*tv).v_type == VarType::VAR_NUMBER {
-                find_channel((*tv).vval.v_number() as u64)
+            let tv = &(*arg).li_tv;
+            let chan = if tv.v_type == VarType::VAR_NUMBER {
+                find_channel(tv.vval.v_number() as u64)
             } else {
                 ptr::null_mut()
             };
             if chan.is_null() || (*chan).streamtype != kChannelStreamProc {
                 jobs[i] = ptr::null_mut();
             } else {
-                let proc_ptr = &raw mut (*chan).uv.proc_;
-                if proc_is_stopped(&mut *proc_ptr) {
-                    proc_wait( &mut *proc_ptr, -1, ptr::null_mut());
+                let proc_ptr = &mut (*chan).uv.proc_;
+                if proc_is_stopped(proc_ptr) {
+                    proc_wait( proc_ptr, -1, ptr::null_mut());
                     jobs[i] = ptr::null_mut();
                 } else {
                     jobs[i] = chan;
                     channel_incref(&mut *chan);
-                    if (*proc_ptr).status < 0 {
+                    if proc_ptr.status < 0 {
                         let events = (*chan).events;
                         multiqueue_process_events( &mut *events);
                         multiqueue_replace_parent(&mut *events, &mut *waiting_jobs);
@@ -5690,10 +5690,10 @@ pub fn f_matchstrlist(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: Eva
                 }
 
                 for (idx, li) in (0 as c_int..).zip(crate::eval::typval::list_iter_ptr(tv_list_first(l.as_ref()))) {
-                    let li_tv = &raw const (*li).li_tv;
-                    if (*li_tv).v_type == VarType::VAR_STRING && !(*li_tv).vval.v_string().is_null() {
+                    let li_tv = &(*li).li_tv;
+                    if li_tv.v_type == VarType::VAR_STRING && !li_tv.vval.v_string().is_null() {
                         get_matches_in_str(
-                            (*li_tv).vval.v_string(),
+                            li_tv.vval.v_string(),
                             &mut regmatch,
                             &mut *retlist,
                             idx,
@@ -5740,9 +5740,9 @@ fn max_min(tv: &typval_T, rettv: &mut typval_T, domax: bool) {
             if tv_dict_len(d.as_ref()) == 0 {
                 return;
             }
-            let ht = &raw const (*d).dv_hashtab;
-            let mut todo = (*ht).ht_used;
-            let mut hi = (&*ht).array_ptr();
+            let ht = &(*d).dv_hashtab;
+            let mut todo = ht.ht_used;
+            let mut hi = (ht).array_ptr();
             while todo > 0 {
                 if !crate::hashtab::hashitem_empty(&*hi) {
                     todo -= 1;
@@ -6213,31 +6213,31 @@ pub fn f_rand(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncDat
                 return;
             }
 
-            let tvx = &raw mut (*tv_list_find(l.as_mut(), 0)).li_tv;
-            let tvy = &raw mut (*tv_list_find(l.as_mut(), 1)).li_tv;
-            let tvz = &raw mut (*tv_list_find(l.as_mut(), 2)).li_tv;
-            let tvw = &raw mut (*tv_list_find(l.as_mut(), 3)).li_tv;
-            if (*tvx).v_type != VarType::VAR_NUMBER
-                || (*tvy).v_type != VarType::VAR_NUMBER
-                || (*tvz).v_type != VarType::VAR_NUMBER
-                || (*tvw).v_type != VarType::VAR_NUMBER
+            let tvx = &mut (*tv_list_find(l.as_mut(), 0)).li_tv;
+            let tvy = &mut (*tv_list_find(l.as_mut(), 1)).li_tv;
+            let tvz = &mut (*tv_list_find(l.as_mut(), 2)).li_tv;
+            let tvw = &mut (*tv_list_find(l.as_mut(), 3)).li_tv;
+            if tvx.v_type != VarType::VAR_NUMBER
+                || tvy.v_type != VarType::VAR_NUMBER
+                || tvz.v_type != VarType::VAR_NUMBER
+                || tvw.v_type != VarType::VAR_NUMBER
             {
                 semsg!(gettext(e_invarg2), tv_get_string(&argvars[0]));
                 rettv.v_type = VarType::VAR_NUMBER;
                 rettv.vval = crate::eval::typval::TypvalVval::Number(-1);
                 return;
             }
-            let mut x = (*tvx).vval.v_number() as u32;
-            let mut y = (*tvy).vval.v_number() as u32;
-            let mut z = (*tvz).vval.v_number() as u32;
-            let mut w = (*tvw).vval.v_number() as u32;
+            let mut x = tvx.vval.v_number() as u32;
+            let mut y = tvy.vval.v_number() as u32;
+            let mut z = tvz.vval.v_number() as u32;
+            let mut w = tvw.vval.v_number() as u32;
 
             result = shuffle_xoshiro128starstar(&mut x, &mut y, &mut z, &mut w);
 
-            (*tvx).vval = crate::eval::typval::TypvalVval::Number(varnumber_T::from(x));
-            (*tvy).vval = crate::eval::typval::TypvalVval::Number(varnumber_T::from(y));
-            (*tvz).vval = crate::eval::typval::TypvalVval::Number(varnumber_T::from(z));
-            (*tvw).vval = crate::eval::typval::TypvalVval::Number(varnumber_T::from(w));
+            tvx.vval = crate::eval::typval::TypvalVval::Number(varnumber_T::from(x));
+            tvy.vval = crate::eval::typval::TypvalVval::Number(varnumber_T::from(y));
+            tvz.vval = crate::eval::typval::TypvalVval::Number(varnumber_T::from(z));
+            tvw.vval = crate::eval::typval::TypvalVval::Number(varnumber_T::from(w));
         } else {
             semsg!(gettext(e_invarg2), tv_get_string(&argvars[0]));
             rettv.v_type = VarType::VAR_NUMBER;
@@ -6587,7 +6587,7 @@ pub fn f_repeat(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncD
 }
 
 fn reduce_list(argvars: &mut [typval_T], rettv: &mut typval_T) {
-    let expr: *const typval_T = &raw const argvars[1];
+    let expr = &argvars[1];
     unsafe {
         let l = argvars[0].vval.v_list();
         let called_emsg_start = g_st().called_emsg;
@@ -6623,7 +6623,7 @@ fn reduce_list(argvars: &mut [typval_T], rettv: &mut typval_T) {
             argv[1] = (*li).li_tv;
             rettv.v_type = VarType::VAR_UNKNOWN;
 
-            let r = eval_expr_typval(&*expr, true, argv.as_mut_ptr(), 2, &mut *rettv);
+            let r = eval_expr_typval(expr, true, argv.as_mut_ptr(), 2, &mut *rettv);
             tv_clear(&mut argv[0]);
             if !r || g_st().called_emsg != called_emsg_start {
                 break;
@@ -6635,7 +6635,7 @@ fn reduce_list(argvars: &mut [typval_T], rettv: &mut typval_T) {
 }
 
 fn reduce_string(argvars: &mut [typval_T], rettv: &mut typval_T) {
-    let expr: *const typval_T = &raw const argvars[1];
+    let expr = &argvars[1];
     unsafe {
         let mut p = tv_get_string(&argvars[0]);
         let mut len: c_int;
@@ -6670,7 +6670,7 @@ fn reduce_string(argvars: &mut [typval_T], rettv: &mut typval_T) {
             len = utfc_ptr2len(p);
             crate::eval::typval::tv_set_string_len(&mut argv[1], p, len as usize);
 
-            let r = eval_expr_typval(&*expr, true, argv.as_mut_ptr(), 2, &mut *rettv);
+            let r = eval_expr_typval(expr, true, argv.as_mut_ptr(), 2, &mut *rettv);
             tv_clear(&mut argv[0]);
             tv_clear(&mut argv[1]);
             if !r || g_st().called_emsg != called_emsg_start {
@@ -6682,7 +6682,7 @@ fn reduce_string(argvars: &mut [typval_T], rettv: &mut typval_T) {
 }
 
 fn reduce_blob(argvars: &mut [typval_T], rettv: &mut typval_T) {
-    let expr: *const typval_T = &raw const argvars[1];
+    let expr = &argvars[1];
     unsafe {
         let b = argvars[0].vval.v_blob().cast::<blob_T>();
         let called_emsg_start = g_st().called_emsg;
@@ -6720,7 +6720,7 @@ fn reduce_blob(argvars: &mut [typval_T], rettv: &mut typval_T) {
                 vval: TypvalVval::Number(varnumber_T::from(tv_blob_get( &*b, i))),
             };
 
-            let r = eval_expr_typval(&*expr, true, argv.as_mut_ptr(), 2, &mut *rettv);
+            let r = eval_expr_typval(expr, true, argv.as_mut_ptr(), 2, &mut *rettv);
             if !r || g_st().called_emsg != called_emsg_start {
                 return;
             }

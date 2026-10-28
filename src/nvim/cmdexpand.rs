@@ -2086,11 +2086,11 @@ fn cmdline_pum_create(
 }
 
 pub fn cmdline_pum_display(changed_array: bool) {
-    unsafe {
-        let arr = &raw mut cmdexp().compl_match_array;
+     {
+        let arr = &mut cmdexp().compl_match_array;
         pum_display(
-            (*arr).as_mut_ptr(),
-            (*arr).len() as c_int,
+            arr.as_mut_ptr(),
+            arr.len() as c_int,
             cmdexp().compl_selected,
             changed_array,
             cmdexp().compl_startcol,
@@ -2100,9 +2100,9 @@ pub fn cmdline_pum_display(changed_array: bool) {
 
 /// Returns true if the cmdline completion popup menu is being displayed.
 pub fn cmdline_pum_active() -> bool {
-    unsafe {
-        let arr = &raw const cmdexp().compl_match_array;
-        pum_visible() && !(*arr).is_empty()
+     {
+        let arr = &cmdexp().compl_match_array;
+        pum_visible() && !arr.is_empty()
     }
 }
 
@@ -2428,8 +2428,8 @@ fn get_next_or_prev_match(mode: c_int, xp: &mut expand_T) -> Option<CString> {
         }
 
         if opt_vars().p_wmnu != 0 {
-            let arr = &raw const cmdexp().compl_match_array;
-            if !(*arr).is_empty() {
+            let arr = &cmdexp().compl_match_array;
+            if !arr.is_empty() {
                 cmdexp().compl_selected = findex;
                 cmdline_pum_display(false);
             } else if cmdline_compl_use_pum(true) {
@@ -2586,7 +2586,7 @@ pub fn ExpandOne(
     options: c_int,
     mode: c_int,
 ) -> Option<CString> {
-    unsafe {
+     {
         let mut ss: Option<CString> = None;
 
         if mode == WILD_NEXT
@@ -2617,8 +2617,8 @@ pub fn ExpandOne(
             xp.xp_numfiles = -1;
             xp.xp_orig = None;
 
-            let arr = &raw const cmdexp().compl_match_array;
-            if !(*arr).is_empty() {
+            let arr = &cmdexp().compl_match_array;
+            if !arr.is_empty() {
                 cmdline_pum_remove(false);
             }
         }
@@ -5412,20 +5412,20 @@ pub fn expand_process_user_list(
 
         if let Some(retlist) = retlist {
             for li in crate::eval::typval::list_iter_ptr(retlist.lv_first) {
-                let tv = &raw const (*li).li_tv;
+                let tv = &(*li).li_tv;
                 let p: CString;
                 let mut abbr: Option<std::ffi::CString> = None;
                 let mut kind: Option<std::ffi::CString> = None;
                 let mut menu: Option<std::ffi::CString> = None;
                 let mut info: Option<std::ffi::CString> = None;
 
-                if (*tv).v_type == VarType::VAR_STRING {
-                    if (*tv).vval.v_string().is_null() {
+                if tv.v_type == VarType::VAR_STRING {
+                    if tv.vval.v_string().is_null() {
                         continue;
                     }
-                    p = cstr_to_cstring((*tv).vval.v_string());
-                } else if (*tv).v_type == VarType::VAR_DICT && !(*tv).vval.v_dict().is_null() {
-                    let d = (*tv).vval.v_dict();
+                    p = cstr_to_cstring(tv.vval.v_string());
+                } else if tv.v_type == VarType::VAR_DICT && !tv.vval.v_dict().is_null() {
+                    let d = tv.vval.v_dict();
                     let word = tv_dict_get_string(d.as_ref(), c"word");
                     if word.is_null() {
                         continue;
@@ -5969,8 +5969,8 @@ pub fn f_cmdcomplete_info(_argvars: &mut [typval_T], rettv: &mut typval_T,
         {
             return;
         }
-        let orig_ptr = &raw const cmdexp().cmdline_orig;
-        let orig_ref = (*orig_ptr).as_ref();
+        let orig_ptr = &cmdexp().cmdline_orig;
+        let orig_ref = orig_ptr.as_ref();
 
         let retdict = rettv.vval.v_dict();
         let mut ret = tv_dict_add_str_len(

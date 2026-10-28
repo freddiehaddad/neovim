@@ -687,22 +687,22 @@ pub fn deref_func_name(
         if v.is_null() {
             return name.cast_mut();
         }
-        let tv = &raw mut (*v).di_tv;
+        let tv = &mut (*v).di_tv;
         if let Some(found_var) = found_var {
             *found_var = true;
         }
 
-        if (*tv).v_type == VarType::VAR_FUNC {
-            if (*tv).vval.v_string().is_null() {
+        if tv.v_type == VarType::VAR_FUNC {
+            if tv.vval.v_string().is_null() {
                 *lenp = 0;
                 return c"".as_ptr().cast_mut();
             }
-            *lenp = crate::memory::cstr_len((*tv).vval.v_string()) as c_int;
-            return (*tv).vval.v_string();
+            *lenp = crate::memory::cstr_len(tv.vval.v_string()) as c_int;
+            return tv.vval.v_string();
         }
 
-        if (*tv).v_type == VarType::VAR_PARTIAL {
-            let pt = (*tv).vval.v_partial();
+        if tv.v_type == VarType::VAR_PARTIAL {
+            let pt = tv.vval.v_partial();
             if pt.is_null() {
                 *lenp = 0;
                 return c"".as_ptr().cast_mut();
@@ -4115,14 +4115,14 @@ pub fn current_func_returned() -> c_int {
 }
 
 pub fn free_unref_funccal(copyID: c_int, testing: c_int) -> bool {
-    unsafe {
+     {
         let mut did_free = false;
         let mut did_free_funccal = false;
 
         let mut i = 0usize;
         while i < uf_st().previous_funccal.len() {
-            let fc: *const funccall_T = &raw const *uf_st().previous_funccal.as_slice()[i].0;
-            if can_free_funccal(&*fc, copyID) {
+            let fc = &*uf_st().previous_funccal.as_slice()[i].0;
+            if can_free_funccal(fc, copyID) {
                 uf_st().previous_funccal.remove(i);
                 did_free = true;
                 did_free_funccal = true;
@@ -4332,19 +4332,19 @@ pub fn find_var_in_scoped_ht(
 }
 
 pub fn set_ref_in_previous_funccal(copyID: c_int) -> bool {
-    unsafe {
+     {
         for item in uf_st().previous_funccal.as_mut_slice() {
-            let fc: *mut funccall_T = &raw mut *item.0;
-            (*fc).fc_copyID = copyID + 1;
+            let fc = &mut *item.0;
+            fc.fc_copyID = copyID + 1;
             if set_ref_in_ht(
-                &raw mut (*fc).fc_l_vars.dv_hashtab,
+                &raw mut fc.fc_l_vars.dv_hashtab,
                 copyID + 1,
                 ptr::null_mut(),
             ) || set_ref_in_ht(
-                &raw mut (*fc).fc_l_avars.dv_hashtab,
+                &raw mut fc.fc_l_avars.dv_hashtab,
                 copyID + 1,
                 ptr::null_mut(),
-            ) || set_ref_in_list_items(&raw mut (*fc).fc_l_varlist, copyID + 1, ptr::null_mut())
+            ) || set_ref_in_list_items(&raw mut fc.fc_l_varlist, copyID + 1, ptr::null_mut())
             {
                 return true;
             }

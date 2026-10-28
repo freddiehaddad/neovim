@@ -649,7 +649,7 @@ fn remove_menu(
     modes: c_int,
     silent: bool,
 ) -> bool {
-    unsafe {
+     {
         if menup.is_empty() {
             return true;
         }
@@ -658,16 +658,16 @@ fn remove_menu(
         let mut idx: usize = 0;
         let mut found_menu = false;
         while idx < menup.len() {
-            let menu: *mut vimmenu_T = &raw mut menup[idx];
-            if crate::memory::cstr_is_empty(name) || menu_name_equal(name, &*menu) {
-                if !crate::memory::cstr_is_empty(p) && (*menu).children.is_empty() {
+            let menu = &mut menup[idx];
+            if crate::memory::cstr_is_empty(name) || menu_name_equal(name, menu) {
+                if !crate::memory::cstr_is_empty(p) && menu.children.is_empty() {
                     if !silent {
                         emsg(gettext(E_NOTSUBMENU));
                     }
                     return false;
                 }
-                if ((*menu).modes & modes) != 0 {
-                    if !remove_menu(&mut (*menu).children, p, modes, silent) {
+                if (menu.modes & modes) != 0 {
+                    if !remove_menu(&mut menu.children, p, modes, silent) {
                         return false;
                     }
                 } else if !crate::memory::cstr_is_empty(name) {
@@ -682,11 +682,11 @@ fn remove_menu(
                     break;
                 }
 
-                (*menu).modes &= !modes;
+                menu.modes &= !modes;
                 if (modes & MENU_TIP_MODE) != 0 {
-                    (*menu).strings[MENU_INDEX_TIP as usize] = None;
+                    menu.strings[MENU_INDEX_TIP as usize] = None;
                 }
-                if ((*menu).modes & MENU_ALL_MODES) == 0 {
+                if (menu.modes & MENU_ALL_MODES) == 0 {
                     menup.remove(idx);
                 } else {
                     idx += 1;
@@ -703,15 +703,15 @@ fn remove_menu(
                 return false;
             }
 
-            let found = &raw mut menup[idx];
-            (*found).modes &= !modes;
-            for child in &(*found).children {
-                (*found).modes |= child.modes;
+            let found = &mut menup[idx];
+            found.modes &= !modes;
+            for child in &found.children {
+                found.modes |= child.modes;
             }
             if (modes & MENU_TIP_MODE) != 0 {
-                (*found).strings[MENU_INDEX_TIP as usize] = None;
+                found.strings[MENU_INDEX_TIP as usize] = None;
             }
-            if ((*found).modes & MENU_ALL_MODES) == 0 {
+            if (found.modes & MENU_ALL_MODES) == 0 {
                 menup.remove(idx);
             }
         }

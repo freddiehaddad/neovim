@@ -6854,8 +6854,8 @@ pub fn find_job(id: u64, show_error: bool) -> *mut Channel {
     unsafe {
         let data = find_channel(id);
         let is_stopped = if !data.is_null() && (*data).streamtype == kChannelStreamProc {
-            let hdr = &raw const (*data).uv.proc_;
-            (*hdr).status >= 0 || (*hdr).stopped_time != 0
+            let hdr = &(*data).uv.proc_;
+            hdr.status >= 0 || hdr.stopped_time != 0
         } else {
             true
         };

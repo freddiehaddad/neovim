@@ -1898,21 +1898,20 @@ fn item_compare(
         let item1 = si1.item;
         let item2 = si2.item;
 
-        let tv1 = &raw mut (*item1).li_tv;
-        let tv2 = &raw mut (*item2).li_tv;
-
+        let tv1 = &mut (*item1).li_tv;
+        let tv2 = &mut (*item2).li_tv;
         let mut res: c_int;
 
         if info.item_compare_numbers {
             let v1 = if info.item_compare_keys_ready {
                 si1.key.as_int()
             } else {
-                tv_get_number(&*tv1)
+                tv_get_number(tv1)
             };
             let v2 = if info.item_compare_keys_ready {
                 si2.key.as_int()
             } else {
-                tv_get_number(&*tv2)
+                tv_get_number(tv2)
             };
 
             res = if v1 == v2 {
@@ -1932,12 +1931,12 @@ fn item_compare(
             let v1 = if info.item_compare_keys_ready {
                 si1.key.as_float()
             } else {
-                tv_get_float(&*tv1)
+                tv_get_float(tv1)
             };
             let v2 = if info.item_compare_keys_ready {
                 si2.key.as_float()
             } else {
-                tv_get_float(&*tv2)
+                tv_get_float(tv2)
             };
 
             res = if v1 == v2 {
@@ -1975,25 +1974,25 @@ fn item_compare(
         let mut p1: *mut c_char;
         let mut p2: *mut c_char;
 
-        if (*tv1).v_type == VarType::VAR_STRING {
-            if (*tv2).v_type != VarType::VAR_STRING || info.item_compare_numeric {
+        if tv1.v_type == VarType::VAR_STRING {
+            if tv2.v_type != VarType::VAR_STRING || info.item_compare_numeric {
                 p1 = c"'".as_ptr().cast_mut();
             } else {
-                p1 = (*tv1).vval.v_string();
+                p1 = tv1.vval.v_string();
             }
         } else {
-            let s1 = encode_tv2string(&mut *tv1, None);
+            let s1 = encode_tv2string(tv1, None);
             p1 = s1.as_ptr().cast_mut();
             tofree1 = Some(s1);
         }
-        if (*tv2).v_type == VarType::VAR_STRING {
-            if (*tv1).v_type != VarType::VAR_STRING || info.item_compare_numeric {
+        if tv2.v_type == VarType::VAR_STRING {
+            if tv1.v_type != VarType::VAR_STRING || info.item_compare_numeric {
                 p2 = c"'".as_ptr().cast_mut();
             } else {
-                p2 = (*tv2).vval.v_string();
+                p2 = tv2.vval.v_string();
             }
         } else {
-            let s2 = encode_tv2string(&mut *tv2, None);
+            let s2 = encode_tv2string(tv2, None);
             p2 = s2.as_ptr().cast_mut();
             tofree2 = Some(s2);
         }
@@ -2114,11 +2113,11 @@ fn sort_compute_keys(ptrs: &mut [ListSortItem], info: &mut sortinfo_T) {
             }
         } else {
             for si in ptrs.iter_mut() {
-                let tv = &raw mut (*si.item).li_tv;
-                if (*tv).v_type == VarType::VAR_STRING {
+                let tv = &mut (*si.item).li_tv;
+                if tv.v_type == VarType::VAR_STRING {
                     si.key = ListSortKey::Float(0.0);
                 } else {
-                    let p = encode_tv2string(&mut *tv, None);
+                    let p = encode_tv2string(tv, None);
                     let f = strtod(p.as_ptr(), ptr::null_mut());
                     si.key = ListSortKey::Float(f);
                 }

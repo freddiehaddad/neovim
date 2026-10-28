@@ -332,16 +332,15 @@ fn changed_common(
                 let add = if buf.b_changelistlen == 0 {
                     true
                 } else {
-                    let p =
-                        &raw const buf.b_changelist[(buf.b_changelistlen - 1) as usize].mark;
-                    if (*p).lnum != lnum {
+                    let p = &buf.b_changelist[(buf.b_changelistlen - 1) as usize].mark;
+                    if p.lnum != lnum {
                         true
                     } else {
                         let mut cols = comp_textwidth(false);
                         if cols == 0 {
                             cols = 79;
                         }
-                        (*p).col + cols < col || col + cols < (*p).col
+                        p.col + cols < col || col + cols < p.col
                     }
                 };
                 if add {

@@ -9536,9 +9536,9 @@ fn ex_restart(eap: &mut exarg_T) {
             arena_mem_free(result_mem);
         }
 
-        let proc_ptr = &raw mut (*channel).uv.proc_;
-        proc_stop(&mut *proc_ptr);
-        if proc_wait( &mut *proc_ptr, -1, ptr::null_mut()) < 0 {
+        let proc_ptr = &mut (*channel).uv.proc_;
+        proc_stop(proc_ptr);
+        if proc_wait( proc_ptr, -1, ptr::null_mut()) < 0 {
             let _ = emsg(c"killing new nvim server failed");
         }
 
@@ -10005,12 +10005,12 @@ fn findfunc_find_file(
         } else {
             let li = tv_list_find(fname_list.as_mut(), count - 1);
             if !li.is_null() {
-                let tv = &raw const (*li).li_tv;
-                if (*tv).v_type == VarType::VAR_STRING && !(*tv).vval.v_string().is_null() {
-                    ret_fname = Some(cstr_to_cstring((*tv).vval.v_string()));
-                } else if (*tv).v_type == VarType::VAR_DICT && !(*tv).vval.v_dict().is_null() {
+                let tv = &(*li).li_tv;
+                if tv.v_type == VarType::VAR_STRING && !tv.vval.v_string().is_null() {
+                    ret_fname = Some(cstr_to_cstring(tv.vval.v_string()));
+                } else if tv.v_type == VarType::VAR_DICT && !tv.vval.v_dict().is_null() {
                     ret_fname =
-                        crate::eval::typval::tv_dict_get_cstring(((*tv).vval.v_dict()).as_ref(), c"word");
+                        crate::eval::typval::tv_dict_get_cstring((tv.vval.v_dict()).as_ref(), c"word");
                 }
             }
         }

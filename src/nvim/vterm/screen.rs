@@ -1331,7 +1331,7 @@ static STATE_CBS: VTermStateCallbacks = VTermStateCallbacks {
 };
 
 fn screen_new(vt: &mut VTerm) -> Option<Box<VTermScreen>> {
-    unsafe {
+     {
         let _state = vterm_obtain_state(vt);
         if false {
             return None;
@@ -1371,8 +1371,8 @@ fn screen_new(vt: &mut VTerm) -> Option<Box<VTermScreen>> {
         screen.set_global_reverse(0);
         screen.set_reflow(false);
 
-        let screen_ptr: *mut VTermScreen = &raw mut *screen;
-        screen.buffers[BUFIDX_PRIMARY] = alloc_buffer(&mut *screen_ptr, rows, cols);
+        let screen_ptr = &mut *screen;
+        screen.buffers[BUFIDX_PRIMARY] = alloc_buffer(screen_ptr, rows, cols);
 
         Some(screen)
     }

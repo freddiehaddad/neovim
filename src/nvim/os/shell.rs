@@ -13,7 +13,7 @@ use crate::event::r#loop::{
 use crate::event::multiqueue::{
     Event, multiqueue_empty, multiqueue_free, multiqueue_new_child, multiqueue_put_event,
 };
-use crate::event::proc::{LibuvProc, Proc, proc_spawn, proc_stop, proc_wait};
+use crate::event::proc::{LibuvProc, proc_spawn, proc_stop, proc_wait};
 use crate::event::rstream::{RStream, rstream_init, rstream_start};
 use crate::event::stream::{Stream, StreamCbData, stream_may_close};
 use crate::event::wstream::{
@@ -860,20 +860,20 @@ fn do_os_system(
 
         let mloop = main_loop_ptr();
         let mut uvproc = LibuvProc::new();
-        let proc_: *mut Proc = &raw mut uvproc.proc_;
-        (*proc_).r#type = kProcTypeUv;
-        (*proc_).loop_ = mloop;
-        (*proc_).status = -1;
-        (*proc_).out.s.fd = STDOUT_FILENO;
-        (*proc_).err.s.fd = STDERR_FILENO;
+        let proc_ = &mut uvproc.proc_;
+        proc_.r#type = kProcTypeUv;
+        proc_.loop_ = mloop;
+        proc_.status = -1;
+        proc_.out.s.fd = STDOUT_FILENO;
+        proc_.err.s.fd = STDERR_FILENO;
 
         let qc = loop_queues(&mut *mloop);
         let events = multiqueue_new_child((*qc).events);
-        (*proc_).events = events;
-        (*proc_).argv = argv;
+        proc_.events = events;
+        proc_.argv = argv;
 
         'end: {
-            let status = proc_spawn(&mut *proc_, has_input, true, true);
+            let status = proc_spawn(proc_, has_input, true, true);
             if status != 0 {
                 loop_poll_events(&mut *mloop, 0);
                 if !silent {
@@ -886,26 +886,25 @@ fn do_os_system(
                 break 'end;
             }
 
-            let s_in = &raw mut (*proc_).r#in;
-            let r_out = &raw mut (*proc_).out;
-            let r_err = &raw mut (*proc_).err;
-
+            let s_in = &mut proc_.r#in;
+            let r_out = &mut proc_.out;
+            let r_err = &mut proc_.err;
             if has_input {
-                wstream_init(&mut *s_in, 0);
+                wstream_init(s_in, 0);
             }
-            rstream_init(&mut *r_out);
-            rstream_start(&mut *r_out, cb_data);
-            rstream_init(&mut *r_err);
-            rstream_start(&mut *r_err, cb_data);
+            rstream_init(r_out);
+            rstream_start(r_out, cb_data);
+            rstream_init(r_err);
+            rstream_start(r_err, cb_data);
 
             if has_input {
                 let input_buffer =
                     wstream_new_vec_buffer(std::slice::from_raw_parts(input, len).to_vec());
-                if wstream_write(&mut *s_in, input_buffer) != 0 {
-                    proc_stop(&mut *proc_);
+                if wstream_write(s_in, input_buffer) != 0 {
+                    proc_stop(proc_);
                     break 'end;
                 }
-                wstream_set_write_cb(&mut *s_in);
+                wstream_set_write_cb(s_in);
             }
 
             ui_busy_start();
@@ -916,7 +915,7 @@ fn do_os_system(
                 g_st().msg_no_more = true;
                 g_st().lines_left = -1;
             }
-            exitcode = proc_wait( &mut *proc_, -1, ptr::null_mut());
+            exitcode = proc_wait( proc_, -1, ptr::null_mut());
             if !g_st().got_int && out_data_decide_throttle(0) {
                 out_data_ring(ptr::null(), usize::MAX);
             }
