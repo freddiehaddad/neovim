@@ -1025,7 +1025,7 @@ fn valid_filetype(val: *const c_char) -> bool {
 }
 
 /// Handle setting 'signcolumn' for value 'val'.
-pub fn check_signcolumn(scl: *mut c_char, wp: *mut win_T) -> c_int {
+pub fn check_signcolumn(scl: *mut c_char, wp: *mut win_T) -> bool {
     unsafe {
         let mut val = empty_string_option.as_ptr().cast::<c_char>();
         if !scl.is_null() {
@@ -1035,7 +1035,7 @@ pub fn check_signcolumn(scl: *mut c_char, wp: *mut win_T) -> c_int {
         }
 
         if *val == NUL {
-            return FAIL;
+            return false;
         }
 
         if opt_strings_flags(
@@ -1048,7 +1048,7 @@ pub fn check_signcolumn(scl: *mut c_char, wp: *mut win_T) -> c_int {
         .is_null()
         {
             if wp.is_null() {
-                return OK;
+                return true;
             }
             if crate::memory::cstr_prefix_bytes(val, 2) == &b"no"[..2] {
                 (*wp).w_minscwidth = SCL_NO;
@@ -1079,15 +1079,15 @@ pub fn check_signcolumn(scl: *mut c_char, wp: *mut win_T) -> c_int {
                 || *val.add(6) != b'-' as c_char
                 || !ascii_isdigit(*val.add(7) as c_int)
             {
-                return FAIL;
+                return false;
             }
             let min = (*val.add(5) as c_int) - (b'0' as c_int);
             let max = (*val.add(7) as c_int) - (b'0' as c_int);
             if min < 1 || max < 2 || min > 8 || min >= max {
-                return FAIL;
+                return false;
             }
             if wp.is_null() {
-                return OK;
+                return true;
             }
             (*wp).w_minscwidth = min;
             (*wp).w_maxscwidth = max;
@@ -1099,7 +1099,7 @@ pub fn check_signcolumn(scl: *mut c_char, wp: *mut win_T) -> c_int {
             (*wp).w_maxscwidth.min((*wp).w_scwidth)
         };
         (*wp).w_scwidth = (*wp).w_minscwidth.max(scwidth);
-        OK
+        true
     }
 }
 
@@ -1960,7 +1960,7 @@ pub fn validate_complete(args: &mut optset_T) -> *const c_char {
 
 /// The 'complete' option is changed.
 pub fn did_set_complete(args: &mut optset_T) -> *const c_char {
-    if set_cpt_callbacks(args) != OK {
+    if !set_cpt_callbacks(args) {
             return crate::option::opt_error_int(
                 args.os_errbuf,
                 E_ILLEGAL_CHARACTER_AFTER_CHR.as_ptr(),
@@ -2094,7 +2094,7 @@ pub fn validate_cursorlineopt(args: &mut optset_T) -> *const c_char {
     unsafe {
         let value = args.os_newval.data.string().data;
         let mut flags: c_uint = 0;
-        if *value == NUL || fill_culopt_flags(value, &mut flags) != OK {
+        if *value == NUL || !fill_culopt_flags(value, &mut flags) {
             return e_invarg.as_ptr();
         }
         args.os_prep = OptSetPrep::Flags(flags);
@@ -2225,10 +2225,10 @@ pub fn expand_set_encoding(args: &mut optexpand_T, matches: &mut Vec<std::ffi::C
 
 /// Validate the 'eventignore'/'eventignorewin' option.
 pub fn validate_eventignore(args: &mut optset_T) -> *const c_char {
-    if check_ei(
+    if !check_ei(
             args.os_newval.data.string().data,
             args.os_idx == kOptEventignorewin,
-        ) == FAIL
+        )
         {
             return e_invarg.as_ptr();
         }
@@ -2484,7 +2484,7 @@ pub fn did_set_iskeyword(args: &mut optset_T) -> *const c_char {
         let varp = args.os_varp.cast::<*mut c_char>();
         if !ptr::eq(varp, &raw mut opt_vars().p_isk) {
             let buf = args.os_buf;
-            if buf_init_isk_chartab(&mut *buf) == FAIL {
+            if !buf_init_isk_chartab(&mut *buf) {
                 return e_invarg.as_ptr();
             }
         }
@@ -2831,7 +2831,7 @@ pub fn did_set_showcmdloc(_args: &mut optset_T) -> *const c_char {
 }
 
 pub fn validate_signcolumn(args: &mut optset_T) -> *const c_char {
-    if check_signcolumn(args.os_newval.data.string().data, ptr::null_mut()) == OK {
+    if check_signcolumn(args.os_newval.data.string().data, ptr::null_mut()) {
             ptr::null()
         } else {
             e_invarg.as_ptr()
@@ -2844,14 +2844,14 @@ pub fn did_set_signcolumn(args: &mut optset_T) -> *const c_char {
         let win = args.os_win;
         let varp = args.os_varp.cast::<*mut c_char>();
         let oldval = args.os_oldval.data.string().data;
-        if check_signcolumn(
+        if !check_signcolumn(
             *varp,
             if ptr::eq(varp, &raw mut (*win).w_onebuf_opt.wo_scl) {
                 win
             } else {
                 ptr::null_mut()
             },
-        ) != OK
+        )
         {
             return e_invarg.as_ptr();
         }
@@ -2977,11 +2977,11 @@ pub fn did_set_spelloptions(args: &mut optset_T) -> *const c_char {
 pub fn validate_spellsuggest(args: &mut optset_T) -> *const c_char {
     let mut sps: [c_int; 2] = [0, 0];
     let [s0, s1] = &mut sps;
-    if spell_check_sps(
+    if !spell_check_sps(
         args.os_newval.data.string().data,
         s0,
         s1,
-    ) != OK
+    )
     {
         return e_invarg.as_ptr();
     }
@@ -3200,7 +3200,7 @@ pub fn did_set_vartabstop(args: &mut optset_T) -> *const c_char {
 pub fn did_set_verbosefile(_args: &mut optset_T) -> *const c_char {
     unsafe {
         verbose_stop();
-        if *opt_vars().p_vfile != NUL && verbose_open() == FAIL {
+        if *opt_vars().p_vfile != NUL && !verbose_open() {
             return e_invarg.as_ptr();
         }
         ptr::null()
@@ -3259,7 +3259,7 @@ pub fn expand_set_whichwrap(
 
 pub fn validate_wildmode(args: &mut optset_T) -> *const c_char {
     let mut flags = [0u8; 4];
-        if check_opt_wim(args.os_newval.data.string().data, flags.as_mut_ptr()) == FAIL {
+        if !check_opt_wim(args.os_newval.data.string().data, flags.as_mut_ptr()) {
             return e_invarg.as_ptr();
         }
         args.os_prep = OptSetPrep::Wildmode(flags);

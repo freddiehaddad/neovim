@@ -900,7 +900,7 @@ fn fname_trans_sid(
 
 pub fn get_func_arity(
     name: *const c_char,required: &mut c_int,optional: &mut c_int,varargs: &mut bool,
-) -> c_int {
+) -> bool {
     unsafe {
         let argcount: c_int;
         let min_argcount: c_int;
@@ -928,7 +928,7 @@ pub fn get_func_arity(
             drop(tofree);
 
             if ufunc.is_null() {
-                return FAIL;
+                return false;
             }
 
             argcount = (*ufunc).uf_args.len() as c_int;
@@ -939,7 +939,7 @@ pub fn get_func_arity(
         *required = min_argcount;
         *optional = argcount - min_argcount;
 
-        OK
+        true
     }
 }
 

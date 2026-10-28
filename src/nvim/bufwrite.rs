@@ -1164,7 +1164,7 @@ pub fn buf_write(
             && (!append || !vim_strchr(opt_vars().p_cpo, kCpoFnameapp).is_null())
             && !vim_strchr(opt_vars().p_cpo, kCpoFnamew).is_null()
         {
-            if set_rw_fname(fname, sfname) == FAIL {
+            if !set_rw_fname(fname, sfname) {
                 return FAIL;
             }
             buf = g_st().curbuf;

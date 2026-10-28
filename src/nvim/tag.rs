@@ -2379,7 +2379,7 @@ pub fn find_tags(
 
                     let mut tn = tagname_T::new();
                     let mut first_file: c_int = 1;
-                    while get_tagfname(&mut tn, first_file, st.tag_fname.as_mut_ptr()) == OK {
+                    while get_tagfname(&mut tn, first_file, st.tag_fname.as_mut_ptr()) {
                         findtags_in_file(&mut st, flags, buf_ffname);
                         if st.stop_searching {
                             retval = OK;
@@ -2453,7 +2453,7 @@ pub fn free_tag_stuff() {
 }
 
 /// Get the next name of a tag file from the tag file list.
-pub fn get_tagfname(tnp: &mut tagname_T, first: c_int, buf: *mut c_char) -> c_int {
+pub fn get_tagfname(tnp: &mut tagname_T, first: c_int, buf: *mut c_char) -> bool {
     unsafe {
         let mut fname: Option<std::ffi::CString>;
 
@@ -2475,7 +2475,7 @@ pub fn get_tagfname(tnp: &mut tagname_T, first: c_int, buf: *mut c_char) -> c_in
             let len = (*tf).len() as c_int;
             if tnp.tn_hf_idx >= len {
                 if tnp.tn_hf_idx > len || *opt_vars().p_hf == NUL {
-                    return FAIL;
+                    return false;
                 }
                 tnp.tn_hf_idx += 1;
                 xstrlcpy(buf, opt_vars().p_hf, MAXPATHL - 4);
@@ -2484,7 +2484,7 @@ pub fn get_tagfname(tnp: &mut tagname_T, first: c_int, buf: *mut c_char) -> c_in
 
                 let buf_bytes = CStr::from_ptr(buf).to_bytes();
                 if (*tf).iter().any(|entry| entry.as_bytes() == buf_bytes) {
-                    return FAIL;
+                    return false;
                 }
             } else {
                 xstrlcpy(
@@ -2494,7 +2494,7 @@ pub fn get_tagfname(tnp: &mut tagname_T, first: c_int, buf: *mut c_char) -> c_in
                 );
                 tnp.tn_hf_idx += 1;
             }
-            return OK;
+            return true;
         }
 
         if first != 0 {
@@ -2517,7 +2517,7 @@ pub fn get_tagfname(tnp: &mut tagname_T, first: c_int, buf: *mut c_char) -> c_in
             } else {
                 if *tnp.tn_np == NUL {
                     tnp.tn_search_ctx = None;
-                    return FAIL;
+                    return false;
                 }
 
                 *buf = NUL;
@@ -2552,7 +2552,7 @@ pub fn get_tagfname(tnp: &mut tagname_T, first: c_int, buf: *mut c_char) -> c_in
         }
 
         { let s = fname.as_ref().unwrap().as_ptr(); std::ptr::copy_nonoverlapping(s, buf, std::ffi::CStr::from_ptr(s).to_bytes_with_nul().len()); };
-        OK
+        true
     }
 }
 
@@ -3477,7 +3477,7 @@ fn tagstack_push_items(wp: &mut win_T, l: *mut list_T) {
                         Some(&mut fnum),
                         None,
                         false,
-                    ) == OK
+                    )
                     {
                         let tagname = tv_dict_get_string(itemdict, c"tagname".as_ptr());
                         if !tagname.is_null() {
@@ -3508,11 +3508,11 @@ fn tagstack_set_curidx(wp: &mut win_T, curidx: c_int) {
 }
 
 /// Set the tag stack entries of the specified window.
-pub fn set_tagstack(wp: &mut win_T, d: *const dict_T, action: c_int) -> c_int {
+pub fn set_tagstack(wp: &mut win_T, d: *const dict_T, action: c_int) -> bool {
     unsafe {
         if tag_st().tfu_in_use {
             emsg(gettext(E_CANNOT_MODIFY_TAG_STACK_WITHIN_TAGFUNC.as_ptr()));
-            return FAIL;
+            return false;
         }
 
         let mut l: *mut list_T = ptr::null_mut();
@@ -3521,7 +3521,7 @@ pub fn set_tagstack(wp: &mut win_T, d: *const dict_T, action: c_int) -> c_int {
         if !di_items.is_null() {
             if (*di_items).di_tv.v_type != VarType::VAR_LIST {
                 emsg(gettext((&raw const e_listreq).cast()));
-                return FAIL;
+                return false;
             }
             l = (*di_items).di_tv.vval.v_list();
         }
@@ -3555,7 +3555,7 @@ pub fn set_tagstack(wp: &mut win_T, d: *const dict_T, action: c_int) -> c_int {
             wp.w_tagstackidx = wp.w_tagstacklen;
         }
 
-        OK
+        true
     }
 }
 

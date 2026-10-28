@@ -558,7 +558,7 @@ pub fn f_delete(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncD
 /// "executable()" function
 pub fn f_executable(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData){
 
-    if tv_check_for_string_arg(argvars, 0) == FAIL {
+    if !tv_check_for_string_arg(argvars, 0) {
             return;
         }
 
@@ -569,7 +569,7 @@ pub fn f_executable(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalF
 /// "exepath()" function
 pub fn f_exepath(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData){
 
-    if tv_check_for_nonempty_string_arg(argvars, 0) == FAIL {
+    if !tv_check_for_nonempty_string_arg(argvars, 0) {
         return;
     }
 
@@ -599,8 +599,8 @@ pub fn f_filecopy(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFun
     rettv.vval = crate::eval::typval::TypvalVval::Number(0);
 
     if check_secure()
-        || tv_check_for_string_arg(argvars, 0) == FAIL
-        || tv_check_for_string_arg(argvars, 1) == FAIL
+        || !tv_check_for_string_arg(argvars, 0)
+        || !tv_check_for_string_arg(argvars, 1)
     {
         return;
     }

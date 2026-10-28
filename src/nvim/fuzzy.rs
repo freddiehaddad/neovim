@@ -15,7 +15,6 @@ use crate::eval::typval::{
 };
 use crate::globals::*;
 use crate::insexpand::{ctrl_x_mode_whole_line, find_line_end, find_word_end, find_word_start};
-use crate::math::FAIL;
 use crate::mbyte::{
     mb_charlen, mb_islower, mb_isupper, mb_tolower, mb_toupper, utf_ptr2char, utf_ptr2len,
     utfc_ptr2len,
@@ -596,7 +595,7 @@ fn do_fuzzymatch(argvars: &[typval_T], rettv: &mut typval_T, retmatchpos: bool) 
         let mut max_matches: c_int = 0;
 
         if arg2.v_type != VarType::VAR_UNKNOWN {
-            if tv_check_for_nonnull_dict_arg(argvars, 2) == FAIL {
+            if !tv_check_for_nonnull_dict_arg(argvars, 2) {
                 return;
             }
 

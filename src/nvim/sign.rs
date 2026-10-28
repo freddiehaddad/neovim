@@ -1524,7 +1524,7 @@ pub fn f_sign_getplaced(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: E
             }
 
             if argvars[1].v_type != VarType::VAR_UNKNOWN {
-                if tv_check_for_nonnull_dict_arg(argvars, 1) == FAIL {
+                if !tv_check_for_nonnull_dict_arg(argvars, 1) {
                     return;
                 }
                 let dict = argvars[1].vval.v_dict().cast::<dict_T>();
@@ -1698,7 +1698,7 @@ pub fn f_sign_place(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalF
     rettv.vval = crate::eval::typval::TypvalVval::Number(-1);
 
     if argvars[4].v_type != VarType::VAR_UNKNOWN {
-        if tv_check_for_nonnull_dict_arg(argvars, 4) == FAIL {
+        if !tv_check_for_nonnull_dict_arg(argvars, 4) {
             return;
         }
         dict = argvars[4].vval.v_dict().cast::<dict_T>();
@@ -1833,7 +1833,7 @@ pub fn f_sign_unplace(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: Eva
 
     rettv.vval = crate::eval::typval::TypvalVval::Number(-1);
 
-    if tv_check_for_string_arg(argvars, 0) == FAIL
+    if !tv_check_for_string_arg(argvars, 0)
         || tv_check_for_opt_dict_arg(argvars, 1) == FAIL
     {
         return;

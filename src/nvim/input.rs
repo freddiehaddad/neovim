@@ -959,11 +959,11 @@ pub fn start_redo(count: c_int, old_redo: bool) -> c_int {
 }
 
 /// Repeats the last insert (`R`, `o`, `O`, `a`, `A`, `i` or `I` command).
-pub fn start_redo_ins() -> c_int {
+pub fn start_redo_ins() -> bool {
     unsafe {
         let body = &raw const inp_st().redobuff.cur.body;
         if (*body).is_empty() {
-            return FAIL;
+            return false;
         }
         start_stuff();
 
@@ -986,7 +986,7 @@ pub fn start_redo_ins() -> c_int {
 
         add_buff(&mut inp_st().readbuf2, p, end.offset_from(p));
         inp_st().block_redo = true;
-        OK
+        true
     }
 }
 

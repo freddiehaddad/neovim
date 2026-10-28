@@ -880,7 +880,7 @@ pub fn f_remove(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncD
 pub fn f_reverse(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData){
 
     unsafe {
-        if tv_check_for_string_or_list_or_blob_arg(argvars, 0) == FAIL {
+        if !tv_check_for_string_or_list_or_blob_arg(argvars, 0) {
             return;
         }
 

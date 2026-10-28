@@ -4812,7 +4812,7 @@ fn nv_left(cap: &mut cmdarg_T) {
         (*cap.oap).inclusive = false;
         let mut n = cap.count1;
         while n > 0 {
-            if oneleft() == FAIL {
+            if !oneleft() {
                 if (((cap.cmdchar == K_BS || cap.cmdchar == Ctrl_H)
                     && !vim_strchr(opt_vars().p_ww, b'b' as c_int).is_null())
                     || (cap.cmdchar == b'h' as c_int
@@ -6510,7 +6510,7 @@ fn nv_g_dollar_cmd(cap: &mut cmdarg_T) {
         if flag {
             loop {
                 i = gchar_cursor();
-                if !(ascii_iswhite_or_nul(i) && oneleft() == OK) {
+                if !(ascii_iswhite_or_nul(i) && oneleft()) {
                     break;
                 }
             }

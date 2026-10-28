@@ -51,7 +51,6 @@ use crate::keycodes::{
 };
 use crate::log::{LOGLVL_DBG, LOGLVL_INF, log_get_stderr, logmsg};
 use crate::main_init::input_unanswerable;
-use crate::math::{FAIL, OK};
 use crate::mbyte::{
     mb_string2cells_len, mb_unescape, ptr2cells, utf_char2bytes, utf_char2cells, utf_head_off,
     utf_ptr2cells, utf_ptr2char, utf_ptr2len, utf8len_tab, utfc_ptr2len, utfc_ptr2len_len,
@@ -4008,17 +4007,17 @@ pub fn verbose_stop() {
 /// Open the file 'verbosefile'.
 ///
 /// @return  FAIL or OK.
-pub fn verbose_open() -> c_int {
+pub fn verbose_open() -> bool {
     if msg_st().verbose_fd.is_none() && !msg_st().verbose_did_open {
             msg_st().verbose_did_open = true;
 
             msg_st().verbose_fd = crate::os::fs::CFile::from_raw(os_fopen(opt_vars().p_vfile, c"a".as_ptr()));
             if msg_st().verbose_fd.is_none() {
                 semsg!(gettext(e_notopen.as_ptr()), opt_vars().p_vfile);
-                return FAIL;
+                return false;
             }
         }
-        OK
+        true
 }
 
 /// Give a warning message (for searching).

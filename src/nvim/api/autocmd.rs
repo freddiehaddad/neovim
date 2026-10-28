@@ -333,7 +333,7 @@ fn clear_autocmd(
     au_group: c_int,
     err: &mut Error,
 ) -> bool {
-    if do_autocmd_event(event, pat, false, 0, c"".as_ptr(), true, au_group) == FAIL {
+    if !do_autocmd_event(event, pat, false, 0, c"".as_ptr(), true, au_group) {
             api_set_error!(
                 err,
                 ErrorType::kErrorTypeException,

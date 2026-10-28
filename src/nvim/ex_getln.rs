@@ -3400,7 +3400,7 @@ pub fn getcmdline_prompt(
 }
 
 /// Parse `'wildmode'`, updating flags only when non-NULL and the value is valid.
-pub fn check_opt_wim(value: *const c_char, flags: *mut u8) -> c_int {
+pub fn check_opt_wim(value: *const c_char, flags: *mut u8) -> bool {
     unsafe {
         let mut new_wim_flags: [u8; 4] = [0; 4];
         let mut idx: usize = 0;
@@ -3412,7 +3412,7 @@ pub fn check_opt_wim(value: *const c_char, flags: *mut u8) -> c_int {
                 i += 1;
             }
             if *p.add(i) != NUL && *p.add(i) != b',' as c_char && *p.add(i) != b':' as c_char {
-                return FAIL;
+                return false;
             }
             if i == 7 && (crate::memory::cstr_prefix_bytes(p, 7) == &b"longest"[..7]) {
                 new_wim_flags[idx] |= kOptWimFlagLongest;
@@ -3427,7 +3427,7 @@ pub fn check_opt_wim(value: *const c_char, flags: *mut u8) -> c_int {
             } else if i == 8 && (crate::memory::cstr_prefix_bytes(p, 8) == &b"noinsert"[..8]) {
                 new_wim_flags[idx] |= kOptWimFlagNoinsert;
             } else {
-                return FAIL;
+                return false;
             }
             p = p.add(i);
             if *p == NUL {
@@ -3435,7 +3435,7 @@ pub fn check_opt_wim(value: *const c_char, flags: *mut u8) -> c_int {
             }
             if *p == b',' as c_char {
                 if idx == 3 {
-                    return FAIL;
+                    return false;
                 }
                 idx += 1;
             }
@@ -3450,7 +3450,7 @@ pub fn check_opt_wim(value: *const c_char, flags: *mut u8) -> c_int {
         if !flags.is_null() {
             ptr::copy_nonoverlapping(new_wim_flags.as_ptr(), flags, 4);
         }
-        OK
+        true
     }
 }
 
@@ -4938,7 +4938,7 @@ fn set_cmdline_pos(pos: c_int) -> c_int {
 pub fn f_setcmdline(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData){
 
      {
-        if tv_check_for_string_arg(argvars, 0) == FAIL
+        if !tv_check_for_string_arg(argvars, 0)
             || tv_check_for_opt_number_arg(argvars, 1) == FAIL
         {
             return;
@@ -5323,13 +5323,13 @@ pub fn get_user_input(argvars: &[typval_T],
         if !xp_name.is_null() {
             let xp_namelen = std::ffi::CStr::from_ptr(xp_name).to_bytes().len() as c_int;
             let mut argt: u32 = 0;
-            if parse_compl_arg(
+            if !parse_compl_arg(
                 xp_name,
                 xp_namelen,
                 &mut xp_type,
                 &mut argt,
                 &mut xp_arg,
-            ) == FAIL
+            )
             {
                 return;
             }

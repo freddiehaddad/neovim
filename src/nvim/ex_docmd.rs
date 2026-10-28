@@ -6138,7 +6138,7 @@ fn execute_cmd0(
     preview: bool,
 ) -> bool {
     unsafe {
-        if (eap.argt & EX_XFILE) != 0 && expand_filename(eap, eap.cmdlinep, errormsg) == FAIL
+        if (eap.argt & EX_XFILE) != 0 && !expand_filename(eap, eap.cmdlinep, errormsg)
         {
             return false;
         }
@@ -8216,7 +8216,7 @@ pub fn expand_filename(
     eap: &mut exarg_T,
     cmdlinep: *mut *mut c_char,
     errormsgp: *mut *const c_char,
-) -> c_int {
+) -> bool {
     unsafe {
         let mut p = skip_grep_pat(&mut *eap);
         let mut has_wildcards = path_has_wildcard(p, true);
@@ -8247,7 +8247,7 @@ pub fn expand_filename(
                 true,
             );
             if !(*errormsgp).is_null() {
-                return FAIL;
+                return false;
             }
             let Some(mut repl_cstr) = repl_owned else {
                 p = p.add(srclen);
@@ -8347,7 +8347,7 @@ pub fn expand_filename(
                     options,
                     WILD_EXPAND_FREE,
                 ) else {
-                    return FAIL;
+                    return false;
                 };
                 repl_cmdline(
                     eap,
@@ -8360,7 +8360,7 @@ pub fn expand_filename(
                 to_slash(eap.arg);
             }
         }
-        OK
+        true
     }
 }
 
@@ -8517,7 +8517,7 @@ pub fn skip_cmd_arg(mut p: *mut c_char, rembs: bool) -> *mut c_char {
     }
 }
 
-pub fn get_bad_opt(p: *const c_char, eap: &mut exarg_T) -> c_int {
+pub fn get_bad_opt(p: *const c_char, eap: &mut exarg_T) -> bool {
     unsafe {
         if std::ffi::CStr::from_ptr(p).to_bytes().eq_ignore_ascii_case(b"keep") {
             eap.bad_char = BAD_KEEP;
@@ -8526,9 +8526,9 @@ pub fn get_bad_opt(p: *const c_char, eap: &mut exarg_T) -> c_int {
         } else if utfc_ptr2len(p) == 1 && *p.add(1) == NUL {
             eap.bad_char = c_int::from(*p as u8);
         } else {
-            return FAIL;
+            return false;
         }
-        OK
+        true
     }
 }
 
@@ -8612,7 +8612,7 @@ pub fn getargopt(eap: &mut exarg_T) -> c_int {
                 *p = tolower_asc(c_int::from(*p as u8)) as c_char;
                 p = p.add(1);
             }
-        } else if get_bad_opt(eap.cmd.add(bad_char_idx as usize), eap) == FAIL {
+        } else if !get_bad_opt(eap.cmd.add(bad_char_idx as usize), eap) {
             return FAIL;
         }
 
@@ -9100,21 +9100,21 @@ fn ex_cquit(eap: &mut exarg_T) {
         getout(status);
 }
 
-pub fn before_quit_all(eap: &mut exarg_T) -> c_int {
+pub fn before_quit_all(eap: &mut exarg_T) -> bool {
     unsafe {
         if text_locked() {
             text_locked_msg();
-            return FAIL;
+            return false;
         }
         if before_quit_autocmds(*curwin.as_ptr(), true, eap.forceit != 0) {
-            return FAIL;
+            return false;
         }
-        OK
+        true
     }
 }
 
 fn ex_quitall(eap: &mut exarg_T) {
-    if before_quit_all(eap) == FAIL {
+    if !before_quit_all(eap) {
             return;
         }
         let save_exiting = g_st().exiting;
@@ -10742,7 +10742,7 @@ fn ex_read(eap: &mut exarg_T) {
         }
 
         let i = if *eap.arg == NUL {
-            if check_fname() == FAIL {
+            if !check_fname() {
                 return;
             }
             readfile(
@@ -11241,7 +11241,7 @@ fn ex_copymove(eap: &mut exarg_T) {
         }
 
         if eap.cmdidx == cmdidx_T::CMD_move as c_int {
-            if do_move(eap.line1, eap.line2, n) == FAIL {
+            if !do_move(eap.line1, eap.line2, n) {
                 return;
             }
         } else {
@@ -11501,7 +11501,7 @@ fn ex_redir(eap: &mut exarg_T) {
                 false
             };
 
-            if var_redir_start(skipwhite(arg), append) == OK {
+            if var_redir_start(skipwhite(arg), append) {
                 g_st().redir_vname = true;
             }
         } else {

@@ -1325,32 +1325,32 @@ pub fn ex_let_vars(
     var_count: c_int,
     is_const: c_int,
     op: *mut c_char,
-) -> c_int {
+) -> bool {
     unsafe {
         let mut arg = arg_start;
         let mut ltv: typval_T = typval_T::new();
 
         if *arg != b'[' as c_char {
             if ex_let_one(arg, &mut *tv, copy != 0, is_const != 0, op, op).is_null() {
-                return FAIL;
+                return false;
             }
-            return OK;
+            return true;
         }
 
         if tv.v_type != VarType::VAR_LIST {
             emsg(gettext(e_listreq.as_ptr()));
-            return FAIL;
+            return false;
         }
         let l = tv.vval.v_list();
 
         let len = tv_list_len(l);
         if semicolon == 0 && var_count < len {
             emsg(gettext(c"E687: Less targets than List items".as_ptr()));
-            return FAIL;
+            return false;
         }
         if var_count - semicolon > len {
             emsg(gettext(c"E688: More targets than List items".as_ptr()));
-            return FAIL;
+            return false;
         }
         debug_assert!(!l.is_null());
 
@@ -1367,7 +1367,7 @@ pub fn ex_let_vars(
                 op,
             );
             if arg.is_null() {
-                return FAIL;
+                return false;
             }
             rest_len -= 1;
 
@@ -1395,16 +1395,16 @@ pub fn ex_let_vars(
                 );
                 tv_clear(&raw mut ltv);
                 if arg.is_null() {
-                    return FAIL;
+                    return false;
                 }
                 break;
             } else if *arg != b',' as c_char && *arg != b']' as c_char {
                 internal_error(c"ex_let_vars()".as_ptr());
-                return FAIL;
+                return false;
             }
         }
 
-        OK
+        true
     }
 }
 
@@ -3648,11 +3648,11 @@ pub fn var_exists(mut var: *const c_char) -> bool {
 }
 
 /// Start recording command output to a variable.
-pub fn var_redir_start(name: *mut c_char, append: bool) -> c_int {
+pub fn var_redir_start(name: *mut c_char, append: bool) -> bool {
     unsafe {
         if !eval_isnamec1(*name as u8 as c_int) {
             emsg(gettext(e_invarg.as_ptr()));
-            return FAIL;
+            return false;
         }
 
         let name_cstr = cstr_to_cstring(name);
@@ -3682,7 +3682,7 @@ pub fn var_redir_start(name: *mut c_char, append: bool) -> c_int {
             }
             vars_st().redir_endp = ptr::null_mut();
             var_redir_stop();
-            return FAIL;
+            return false;
         }
 
         let called_emsg_before = g_st().called_emsg;
@@ -3715,10 +3715,10 @@ pub fn var_redir_start(name: *mut c_char, append: bool) -> c_int {
         if g_st().called_emsg > called_emsg_before {
             vars_st().redir_endp = ptr::null_mut();
             var_redir_stop();
-            return FAIL;
+            return false;
         }
 
-        OK
+        true
     }
 }
 

@@ -907,10 +907,10 @@ pub fn parse_fmt_types(
     num_posarg: &mut c_int,
     fmt: *const c_char,
     tvs: *mut typval_T,
-) -> c_int {
+) -> bool {
     unsafe {
         if fmt.is_null() {
-            return OK;
+            return true;
         }
         let mut ap_types: Vec<*const c_char> = Vec::new();
         let mut p = fmt;
@@ -922,7 +922,7 @@ pub fn parse_fmt_types(
                 if any_pos && any_arg {
                     semsg!(gettext(E_CANNOT_MIX_POSITIONAL.as_ptr()), fmt);
                     *num_posarg = 0;
-                    return FAIL;
+                    return false;
                 }
             };
         }
@@ -930,7 +930,7 @@ pub fn parse_fmt_types(
         macro_rules! fail {
             () => {
                 *num_posarg = 0;
-                return FAIL;
+                return false;
             };
         }
 
@@ -1108,7 +1108,7 @@ pub fn parse_fmt_types(
             }
         }
 
-        OK
+        true
     }
 }
 
@@ -1309,7 +1309,7 @@ fn vim_vsnprintf_typval_inner(
         let mut num_posarg: c_int = 0;
         let mut arg_idx: c_int = 1;
 
-        if parse_fmt_types(&mut num_posarg, fmt, tvs) == FAIL {
+        if !parse_fmt_types(&mut num_posarg, fmt, tvs) {
             return 0;
         }
 
@@ -2344,8 +2344,8 @@ pub fn f_charidx(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFunc
     unsafe {
         rettv.vval = crate::eval::typval::TypvalVval::Number(-1);
 
-        if tv_check_for_string_arg(argvars, 0) == FAIL
-            || tv_check_for_number_arg(argvars, 1) == FAIL
+        if !tv_check_for_string_arg(argvars, 0)
+            || !tv_check_for_number_arg(argvars, 1)
             || tv_check_for_opt_bool_arg(argvars, 2) == FAIL
             || (argvars[2].v_type != VarType::VAR_UNKNOWN
                 && tv_check_for_opt_bool_arg(argvars, 3) == FAIL)
@@ -2601,7 +2601,7 @@ pub fn f_strutf16len(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: Eval
     unsafe {
         rettv.vval = crate::eval::typval::TypvalVval::Number(-1);
 
-        if tv_check_for_string_arg(argvars, 0) == FAIL
+        if !tv_check_for_string_arg(argvars, 0)
             || tv_check_for_opt_bool_arg(argvars, 1) == FAIL
         {
             return;
@@ -2833,7 +2833,7 @@ pub fn f_utf16idx(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFun
     unsafe {
         rettv.vval = crate::eval::typval::TypvalVval::Number(-1);
 
-        if tv_check_for_string_arg(argvars, 0) == FAIL
+        if !tv_check_for_string_arg(argvars, 0)
             || tv_check_for_opt_number_arg(argvars, 1) == FAIL
             || tv_check_for_opt_bool_arg(argvars, 2) == FAIL
             || (argvars[2].v_type != VarType::VAR_UNKNOWN

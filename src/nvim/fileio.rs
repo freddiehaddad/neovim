@@ -1042,7 +1042,7 @@ pub fn readfile(
                 && !fname.is_null()
                 && !vim_strchr(opt_vars().p_cpo, kCpoFnamer).is_null()
                 && (flags & READ_DUMMY) == 0
-                && set_rw_fname(fname, sfname) == FAIL
+                && !set_rw_fname(fname, sfname)
             {
                 break 'theend;
             }
@@ -2946,7 +2946,7 @@ fn readfile_charconvert(
 }
 
 /// Set the name of the current buffer.
-pub fn set_rw_fname(fname: *mut c_char, sfname: *mut c_char) -> c_int {
+pub fn set_rw_fname(fname: *mut c_char, sfname: *mut c_char) -> bool {
     unsafe {
         let buf = g_st().curbuf;
 
@@ -2967,11 +2967,11 @@ pub fn set_rw_fname(fname: *mut c_char, sfname: *mut c_char) -> c_int {
             g_st().curbuf,
         );
         if aborting() {
-            return FAIL;
+            return false;
         }
         if g_st().curbuf != buf {
             emsg(tr(E_AUCHANGEDBUF.as_ptr()));
-            return FAIL;
+            return false;
         }
 
         if setfname(g_st().curbuf, fname, sfname, false) == OK {
@@ -2995,7 +2995,7 @@ pub fn set_rw_fname(fname: *mut c_char, sfname: *mut c_char) -> c_int {
             );
         }
         if aborting() {
-            return FAIL;
+            return false;
         }
 
         if *(*g_st().curbuf).b_p_ft == NUL {
@@ -3009,7 +3009,7 @@ pub fn set_rw_fname(fname: *mut c_char, sfname: *mut c_char) -> c_int {
             do_modelines(0);
         }
 
-        OK
+        true
     }
 }
 

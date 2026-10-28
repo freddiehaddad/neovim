@@ -1539,7 +1539,7 @@ pub fn f_byte2line(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFu
 pub fn f_call(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData){
 
     unsafe {
-        if tv_check_for_list_arg(argvars, 1) == FAIL {
+        if !tv_check_for_list_arg(argvars, 1) {
             return;
         }
         if argvars[1].vval.v_list().is_null() {
@@ -1584,7 +1584,7 @@ pub fn f_call(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncDat
         'done: {
             let mut selfdict: *mut dict_T = ptr::null_mut();
             if argvars[2].v_type != VarType::VAR_UNKNOWN {
-                if tv_check_for_dict_arg(argvars, 2) == FAIL {
+                if !tv_check_for_dict_arg(argvars, 2) {
                     break 'done;
                 }
                 selfdict = argvars[2].vval.v_dict().cast();
@@ -1720,7 +1720,7 @@ pub fn f_char2nr(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFunc
 /// Get the current cursor column and store it in `rettv`.
 fn get_col(argvars: &mut [typval_T], rettv: &mut typval_T, charcol: bool) {
     unsafe {
-        if tv_check_for_string_or_list_arg(argvars, 0) == FAIL
+        if !tv_check_for_string_or_list_arg(argvars, 0)
             || tv_check_for_opt_number_arg(argvars, 1) == FAIL
         {
             return;
@@ -1870,13 +1870,13 @@ fn set_cursorpos(argvars: &mut [typval_T], rettv: &mut typval_T, charcol: bool) 
                 coladd: 0,
             };
             let mut curswant: colnr_T = -1;
-            if list2fpos(
+            if !list2fpos(
                 &mut argvars[0],
                 &mut pos,
                 None,
                 Some(&mut curswant),
                 charcol,
-            ) == FAIL
+            )
             {
                 emsg(gettext(e_invarg.as_ptr()));
                 return;
@@ -2471,7 +2471,7 @@ pub fn f_expandcmd(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFu
         if emsgoff {
             g_st().emsg_off += 1;
         }
-        if expand_filename(&mut eap, &raw mut cmdstr, &mut errormsg) == FAIL
+        if !expand_filename(&mut eap, &raw mut cmdstr, &mut errormsg)
             && !emsgoff
             && !errormsg.is_null()
             && *errormsg != NUL
@@ -2691,7 +2691,7 @@ fn common_function(argvars: &mut [typval_T], rettv: &mut typval_T, is_funcref: b
                         arg_idx = 1;
                     }
                     if dict_idx > 0 {
-                        if tv_check_for_dict_arg(argvars, dict_idx as c_int) == FAIL {
+                        if !tv_check_for_dict_arg(argvars, dict_idx as c_int) {
                             break 'theend;
                         }
                         if argvars[dict_idx].vval.v_dict().is_null() {
@@ -3236,8 +3236,8 @@ fn getregionpos(argvars: &mut [typval_T],rettv: &mut typval_T,
     unsafe {
         tv_list_alloc_ret(&mut *rettv, kListLenMayKnow);
 
-        if tv_check_for_list_arg(argvars, 0) == FAIL
-            || tv_check_for_list_arg(argvars, 1) == FAIL
+        if !tv_check_for_list_arg(argvars, 0)
+            || !tv_check_for_list_arg(argvars, 1)
             || tv_check_for_opt_dict_arg(argvars, 2) == FAIL
         {
             return false;
@@ -3245,8 +3245,8 @@ fn getregionpos(argvars: &mut [typval_T],rettv: &mut typval_T,
 
         let mut fnum1: c_int = -1;
         let mut fnum2: c_int = -1;
-        if list2fpos(&mut argvars[0], p1, Some(&mut fnum1), None, false) != OK
-            || list2fpos(&mut argvars[1], p2, Some(&mut fnum2), None, false) != OK
+        if !list2fpos(&mut argvars[0], p1, Some(&mut fnum1), None, false)
+            || !list2fpos(&mut argvars[1], p2, Some(&mut fnum2), None, false)
             || fnum1 != fnum2
         {
             return false;
@@ -3764,7 +3764,7 @@ pub fn f_wait(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncDat
 pub fn f_gettext(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData){
 
      {
-        if tv_check_for_nonempty_string_arg(argvars, 0) == FAIL {
+        if !tv_check_for_nonempty_string_arg(argvars, 0) {
             return;
         }
         crate::eval::typval::tv_set_string(rettv, gettext(argvars[0].vval.v_string()));
@@ -4206,8 +4206,8 @@ pub fn f_indexof(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFunc
     unsafe {
         rettv.vval = crate::eval::typval::TypvalVval::Number(-1);
 
-        if tv_check_for_list_or_blob_arg(argvars, 0) == FAIL
-            || tv_check_for_string_or_func_arg(argvars, 1) == FAIL
+        if !tv_check_for_list_or_blob_arg(argvars, 0)
+            || !tv_check_for_string_or_func_arg(argvars, 1)
             || tv_check_for_opt_dict_arg(argvars, 2) == FAIL
         {
             return;
@@ -5104,7 +5104,7 @@ pub fn f_keytrans(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFun
 
      {
         rettv.v_type = VarType::VAR_STRING;
-        if tv_check_for_string_arg(argvars, 0) == FAIL || argvars[0].vval.v_string().is_null() {
+        if !tv_check_for_string_arg(argvars, 0) || argvars[0].vval.v_string().is_null() {
             return;
         }
         let escaped = vim_strsave_escape_ks(argvars[0].vval.v_string());
@@ -5562,7 +5562,7 @@ pub fn f_matchbufline(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: Eva
         let retlist = rettv.vval.v_list();
 
         if tv_check_for_buffer_arg(argvars, 0) == FAIL
-            || tv_check_for_string_arg(argvars, 1) == FAIL
+            || !tv_check_for_string_arg(argvars, 1)
             || tv_check_for_lnum_arg(argvars, 2) == FAIL
             || tv_check_for_lnum_arg(argvars, 3) == FAIL
             || tv_check_for_opt_dict_arg(argvars, 4) == FAIL
@@ -5676,8 +5676,8 @@ pub fn f_matchstrlist(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: Eva
         tv_list_alloc_ret(rettv, kListLenUnknown);
         let retlist = rettv.vval.v_list();
 
-        if tv_check_for_list_arg(argvars, 0) == FAIL
-            || tv_check_for_string_arg(argvars, 1) == FAIL
+        if !tv_check_for_list_arg(argvars, 0)
+            || !tv_check_for_string_arg(argvars, 1)
             || tv_check_for_opt_dict_arg(argvars, 2) == FAIL
         {
             return;
@@ -6536,7 +6536,7 @@ fn repeat_list(l: *mut list_T, mut n: varnumber_T, rettv: &mut typval_T) {
         if l.is_null() || n <= 0 || slen == 0 {
             return;
         }
-        if check_repeat_count(varnumber_T::from(slen), n) == FAIL {
+        if !check_repeat_count(varnumber_T::from(slen), n) {
             return;
         }
         while n > 0 {
@@ -6556,7 +6556,7 @@ fn repeat_blob(blob_tv: &mut typval_T, n: varnumber_T, rettv: &mut typval_T) {
         if slen <= 0 {
             return;
         }
-        if check_repeat_count(varnumber_T::from(slen), n) == FAIL {
+        if !check_repeat_count(varnumber_T::from(slen), n) {
             return;
         }
         let len = slen * (n as c_int);
@@ -6597,7 +6597,7 @@ fn repeat_string(str_tv: &mut typval_T, n: varnumber_T, rettv: &mut typval_T) {
         if slen == 0 || n <= 0 {
             return;
         }
-        if check_repeat_count(slen as varnumber_T, n) == FAIL {
+        if !check_repeat_count(slen as varnumber_T, n) {
             return;
         }
         let len = slen * (n as usize);
@@ -6700,7 +6700,7 @@ fn reduce_string(argvars: &mut [typval_T], rettv: &mut typval_T) {
             };
             crate::eval::typval::tv_set_string_len(&mut *rettv, p, len as usize);
             p = p.add(len as usize);
-        } else if tv_check_for_string_arg(argvars, 2) == FAIL {
+        } else if !tv_check_for_string_arg(argvars, 2) {
             return;
         } else {
             tv_copy(&argvars[2], &mut *rettv);
@@ -6746,7 +6746,7 @@ fn reduce_blob(argvars: &mut [typval_T], rettv: &mut typval_T) {
                 vval: TypvalVval::Number(varnumber_T::from(tv_blob_get(b, 0))),
             };
             i = 1;
-        } else if tv_check_for_number_arg(argvars, 2) == FAIL {
+        } else if !tv_check_for_number_arg(argvars, 2) {
             return;
         } else {
             initial = argvars[2];
@@ -7785,13 +7785,13 @@ fn set_position(argvars: &mut [typval_T], rettv: &mut typval_T, charpos: bool) {
             coladd: 0,
         };
         let mut fnum: c_int = 0;
-        if list2fpos(
+        if !list2fpos(
             &mut argvars[1],
             &mut pos,
             Some(&mut fnum),
             Some(&mut curswant),
             charpos,
-        ) != OK
+        )
         {
             return;
         }
@@ -7836,7 +7836,7 @@ pub fn f_setcharpos(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalF
 pub fn f_setcharsearch(argvars: &mut [typval_T], _rettv: &mut typval_T, _fptr: EvalFuncData){
 
     unsafe {
-        if tv_check_for_dict_arg(argvars, 0) == FAIL {
+        if !tv_check_for_dict_arg(argvars, 0) {
             return;
         }
         let d = argvars[0].vval.v_dict().cast::<dict_T>();
@@ -8115,7 +8115,7 @@ pub fn f_settagstack(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: Eval
         if wp.is_null() {
             return;
         }
-        if tv_check_for_dict_arg(argvars, 1) == FAIL {
+        if !tv_check_for_dict_arg(argvars, 1) {
             return;
         }
         let d = argvars[1].vval.v_dict().cast::<dict_T>();
@@ -8125,7 +8125,7 @@ pub fn f_settagstack(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: Eval
 
         if argvars[2].v_type == VarType::VAR_UNKNOWN {
             // default 'r'
-        } else if tv_check_for_string_arg(argvars, 2) == FAIL {
+        } else if !tv_check_for_string_arg(argvars, 2) {
             return;
         } else {
             let actstr = tv_get_string_chk(&argvars[2]);
@@ -8142,7 +8142,7 @@ pub fn f_settagstack(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: Eval
             }
         }
 
-        if set_tagstack(&mut *wp, d, c_int::from(action)) == OK {
+        if set_tagstack(&mut *wp, d, c_int::from(action)) {
             rettv.vval = crate::eval::typval::TypvalVval::Number(0);
         }
     }
@@ -9032,7 +9032,7 @@ pub fn f_tagfiles(_argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFu
 
         let mut first = true;
         let mut tn = tagname_T::new();
-        while get_tagfname(&mut tn, c_int::from(first), fname.as_mut_ptr()) == OK {
+        while get_tagfname(&mut tn, c_int::from(first), fname.as_mut_ptr()) {
             tv_list_append_string(rettv.vval.v_list(), fname.as_ptr(), -1);
             first = false;
         }
@@ -9114,7 +9114,7 @@ pub fn f_timer_start(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: Eval
         }
 
         if argvars[2].v_type != VarType::VAR_UNKNOWN {
-            if tv_check_for_nonnull_dict_arg(argvars, 2) == FAIL {
+            if !tv_check_for_nonnull_dict_arg(argvars, 2) {
                 return;
             }
             let dict = argvars[2].vval.v_dict().cast::<dict_T>();
@@ -9139,7 +9139,7 @@ pub fn f_timer_start(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: Eval
 pub fn f_timer_stop(argvars: &mut [typval_T], _rettv: &mut typval_T, _fptr: EvalFuncData){
 
     unsafe {
-        if tv_check_for_number_arg(argvars, 0) == FAIL {
+        if !tv_check_for_number_arg(argvars, 0) {
             return;
         }
         let timer = find_timer_by_nr(tv_get_number(&argvars[0]));

@@ -1290,9 +1290,9 @@ pub fn f_virtcol2col(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: Eval
     unsafe {
         rettv.vval = crate::eval::typval::TypvalVval::Number(-1);
 
-        if tv_check_for_number_arg(argvars, 0) == FAIL
-            || tv_check_for_number_arg(argvars, 1) == FAIL
-            || tv_check_for_number_arg(argvars, 2) == FAIL
+        if !tv_check_for_number_arg(argvars, 0)
+            || !tv_check_for_number_arg(argvars, 1)
+            || !tv_check_for_number_arg(argvars, 2)
         {
             return;
         }

@@ -7472,7 +7472,7 @@ fn trigger_cexpr_autocmd(cmdidx: c_int) -> bool {
     }
 }
 
-pub fn cexpr_core(eap: &exarg_T, tv: &mut typval_T) -> c_int {
+pub fn cexpr_core(eap: &exarg_T, tv: &mut typval_T) -> bool {
     unsafe {
         let mut wp: *mut win_T = ptr::null_mut();
         let qi = qf_cmd_get_or_alloc_stack(eap, &raw mut wp);
@@ -7497,7 +7497,7 @@ pub fn cexpr_core(eap: &exarg_T, tv: &mut typval_T) -> c_int {
             );
             if qf_stack_empty(qi) {
                 decr_quickfix_busy();
-                return FAIL;
+                return false;
             }
             if res >= 0 {
                 qf_list_changed(qf_get_curlist(&mut *qi));
@@ -7519,11 +7519,11 @@ pub fn cexpr_core(eap: &exarg_T, tv: &mut typval_T) -> c_int {
                 qf_jump_first(&mut *qi, save_qfid, eap.forceit);
             }
             decr_quickfix_busy();
-            return OK;
+            return true;
         } else {
             emsg(gettext(c"E777: String or List expected".as_ptr()));
         }
-        FAIL
+        false
     }
 }
 

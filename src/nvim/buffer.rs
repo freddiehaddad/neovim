@@ -2694,7 +2694,7 @@ pub fn do_autochdir() {
         if opt_vars().p_acd != 0
             && *starting.as_ptr() == 0
             && !(*g_st().curbuf).b_ffname.is_null()
-            && vim_chdirfile((*g_st().curbuf).b_ffname, kCdCauseAuto) == OK
+            && vim_chdirfile((*g_st().curbuf).b_ffname, kCdCauseAuto)
         {
             g_st().last_chdir_reason = Some(c"autochdir");
             shorten_fnames(1);
@@ -3798,17 +3798,17 @@ pub fn buflist_list(eap: &mut exarg_T) {
 }
 
 /// Get file name and line number for file `fnum`.
-pub fn buflist_name_nr(fnum: c_int, fname: *mut *mut c_char, lnum: &mut linenr_T) -> c_int {
+pub fn buflist_name_nr(fnum: c_int, fname: *mut *mut c_char, lnum: &mut linenr_T) -> bool {
     unsafe {
         let buf = buflist_findnr(fnum);
         if buf.is_null() || (*buf).b_fname.is_null() {
-            return FAIL;
+            return false;
         }
 
         *fname = (*buf).b_fname;
         *lnum = buflist_findlnum(buf);
 
-        OK
+        true
     }
 }
 
@@ -3950,7 +3950,7 @@ pub fn getaltfname(errmsg: bool) -> *mut c_char {
     let mut fname: *mut c_char = ptr::null_mut();
         let mut dummy: linenr_T = 0;
 
-        if buflist_name_nr(0, &raw mut fname, &mut dummy) == FAIL {
+        if !buflist_name_nr(0, &raw mut fname, &mut dummy) {
             if errmsg {
                 emsg(gettext(e_noalt.as_ptr()));
             }

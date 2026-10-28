@@ -237,7 +237,7 @@ pub fn dialog_changed(buf: &mut buf_T, checkall: bool) {
                 buf_set_name(buf.b_fnum, c"Untitled".as_ptr().cast_mut());
             }
 
-            if check_overwrite(&mut ea, buf, buf.b_fname, buf.b_ffname, false) == OK
+            if check_overwrite(&mut ea, buf, buf.b_fname, buf.b_ffname, false)
                 && buf_write_all(buf, false) == OK
             {
                 return;
@@ -263,7 +263,7 @@ pub fn dialog_changed(buf: &mut buf_T, checkall: bool) {
                             (*buf2).b_fname,
                             (*buf2).b_ffname,
                             false,
-                        ) == OK
+                        )
                     {
                         buf_write_all(&mut *buf2, false);
                     }
@@ -445,13 +445,13 @@ pub fn check_changed_any(hidden: bool, unload: bool) -> bool {
 }
 
 /// Return `FAIL` if there is no file name, `OK` if there is one (`check_fname`).
-pub fn check_fname() -> c_int {
+pub fn check_fname() -> bool {
     unsafe {
         if (*g_st().curbuf).b_ffname.is_null() {
             emsg(gettext((&raw const e_noname).cast()));
-            return FAIL;
+            return false;
         }
-        OK
+        true
     }
 }
 

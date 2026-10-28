@@ -2638,7 +2638,7 @@ fn ins_compl_new_leader() {
             } else {
                 insexp().compl_autocomplete = false;
             }
-            if ins_complete(Ctrl_N, false) == FAIL {
+            if !ins_complete(Ctrl_N, false) {
                 insexp().compl_cont_status = 0;
             }
             insexp().compl_restarting = false;
@@ -3228,7 +3228,7 @@ fn parse_cpt_callbacks(cpt: *mut c_char, cbp: &mut Vec<Callback>) {
                     if !caret.is_null() {
                         *caret = NUL;
                     }
-                    if option_set_callback_func(buf.as_mut_ptr().add(1), &mut cbp[idx]) != OK {
+                    if !option_set_callback_func(buf.as_mut_ptr().add(1), &mut cbp[idx]) {
                         cbp[idx] = Callback::NONE;
                     }
                 }
@@ -3238,12 +3238,12 @@ fn parse_cpt_callbacks(cpt: *mut c_char, cbp: &mut Vec<Callback>) {
     }
 }
 
-pub fn set_cpt_callbacks(args: &mut optset_T) -> c_int {
+pub fn set_cpt_callbacks(args: &mut optset_T) -> bool {
     unsafe {
         let opt_flags = args.os_flags;
 
         if g_st().curbuf.is_null() {
-            return FAIL;
+            return false;
         }
 
         if (opt_flags & OPT_GLOBAL) == 0 {
@@ -3251,17 +3251,17 @@ pub fn set_cpt_callbacks(args: &mut optset_T) -> c_int {
         }
 
         if (opt_flags & OPT_LOCAL) != 0 {
-            return OK;
+            return true;
         }
 
         let global_cb = &raw mut insexp().cpt_cb;
         if (opt_flags & OPT_GLOBAL) != 0 {
             parse_cpt_callbacks(opt_vars().p_cpt, &mut *global_cb);
-            return OK;
+            return true;
         }
 
         copy_cpt_callbacks(&mut *global_cb, &mut (*g_st().curbuf).b_p_cpt_cb);
-        OK
+        true
     }
 }
 
@@ -6563,7 +6563,7 @@ fn ins_compl_show_statusmsg() {
     }
 }
 
-pub fn ins_complete(c: c_int, enable_pum: bool) -> c_int {
+pub fn ins_complete(c: c_int, enable_pum: bool) -> bool {
     unsafe {
         insexp().compl_direction = ins_compl_key2dir(c);
         let insert_match = ins_compl_use_match(c);
@@ -6572,10 +6572,10 @@ pub fn ins_complete(c: c_int, enable_pum: bool) -> c_int {
             insexp().compl_autostarted = insexp().compl_autostart_pending;
             insexp().compl_autostart_pending = false;
             if !ins_compl_start() {
-                return FAIL;
+                return false;
             }
         } else if insert_match && stop_arrow() == FAIL {
-            return FAIL;
+            return false;
         }
 
         insexp().compl_curr_win = *curwin.as_ptr();
@@ -6644,7 +6644,7 @@ pub fn ins_complete(c: c_int, enable_pum: bool) -> c_int {
         insexp().compl_was_interrupted = insexp().compl_interrupted;
         insexp().compl_interrupted = false;
 
-        OK
+        true
     }
 }
 

@@ -42,7 +42,6 @@ use crate::keycodes::{K_SPECIAL, KS_SPECIAL, replace_termcodes};
 use crate::lua::converter::{LUA_NOREF, LuaRef};
 use crate::lua::executor::{api_new_luaref, nlua_do_ucmd, nlua_funcref_str, nlua_set_sctx};
 use crate::mapping::set_context_in_map_cmd;
-use crate::math::{FAIL, OK};
 use crate::mbyte::{mb_copy_char, utfc_ptr2len};
 use crate::memory::{Arena, arena_memdupz};
 use crate::menu::set_context_in_menu_cmd;
@@ -823,7 +822,7 @@ pub fn parse_addr_type_arg(
     value: *mut c_char,
     vallen: c_int,
     addr_type_arg: &mut cmd_addr_T,
-) -> c_int {
+) -> bool {
     unsafe {
         for entry in &ADDR_TYPE_COMPLETE {
             if entry.expand == ADDR_NONE {
@@ -834,7 +833,7 @@ pub fn parse_addr_type_arg(
                 let b = crate::memory::cstr_prefix_bytes(value, vallen as usize) == crate::memory::cstr_prefix_bytes(name.as_ptr(), vallen as usize);
                 if a && b {
                     *addr_type_arg = entry.expand;
-                    return OK;
+                    return true;
                 }
             }
         }
@@ -849,7 +848,7 @@ pub fn parse_addr_type_arg(
             gettext(c"E180: Invalid address type value: %s".as_ptr()),
             err,
         );
-        FAIL
+        false
     }
 }
 
@@ -860,7 +859,7 @@ pub fn parse_compl_arg(
     complp: &mut c_int,
     argt: &mut u32,
     compl_arg: &mut Option<CString>,
-) -> c_int {
+) -> bool {
     unsafe {
         let mut arg: *const c_char = ptr::null();
         let mut arglen: usize = 0;
@@ -897,21 +896,21 @@ pub fn parse_compl_arg(
 
         if !matched {
             semsg!(gettext(c"E180: Invalid complete value: %s".as_ptr()), value);
-            return FAIL;
+            return false;
         }
 
         if *complp != EXPAND_USER_DEFINED && *complp != EXPAND_USER_LIST && !arg.is_null() {
             emsg(gettext(
                 c"E468: Completion argument only allowed for custom completion".as_ptr(),
             ));
-            return FAIL;
+            return false;
         }
 
         if (*complp == EXPAND_USER_DEFINED || *complp == EXPAND_USER_LIST) && arg.is_null() {
             emsg(gettext(
                 c"E467: Custom completion requires a function argument".as_ptr(),
             ));
-            return FAIL;
+            return false;
         }
 
         if !arg.is_null() {
@@ -920,7 +919,7 @@ pub fn parse_compl_arg(
                     .unwrap_or_default(),
             );
         }
-        OK
+        true
     }
 }
 
@@ -1037,7 +1036,7 @@ fn uc_scan_attr(
                     return false;
                 }
 
-                if parse_compl_arg(val, vallen as c_int, complp, argt, compl_arg) == FAIL {
+                if !parse_compl_arg(val, vallen as c_int, complp, argt, compl_arg) {
                     return false;
                 }
             } else if crate::memory::cstr_prefix_bytes(attr, attrlen).eq_ignore_ascii_case(crate::memory::cstr_prefix_bytes(c"addr".as_ptr(), attrlen)) {
@@ -1049,7 +1048,7 @@ fn uc_scan_attr(
                     );
                     return false;
                 }
-                if parse_addr_type_arg(val, vallen as c_int, addr_type_arg) == FAIL {
+                if !parse_addr_type_arg(val, vallen as c_int, addr_type_arg) {
                     return false;
                 }
                 if *addr_type_arg != ADDR_LINES {
@@ -1099,7 +1098,7 @@ pub fn uc_add_command(
     mut luaref: LuaRef,
     desc: *const c_char,
     force: bool,
-) -> c_int {
+) -> bool {
     unsafe {
         let mut cmd: *mut ucmd_T = ptr::null_mut();
         let mut cmp: c_int = 1;
@@ -1146,7 +1145,7 @@ pub fn uc_add_command(
                     nlua_clear_ref(&mut luaref);
                     nlua_clear_ref(&mut compl_luaref);
                     nlua_clear_ref(&mut preview_luaref);
-                    return FAIL;
+                    return false;
                 }
 
                 (*cmd).uc_rep = CString::default();
@@ -1190,7 +1189,7 @@ pub fn uc_add_command(
         (*cmd).uc_addr_type = addr_type;
         (*cmd).uc_luaref = luaref;
 
-        OK
+        true
     }
 }
 

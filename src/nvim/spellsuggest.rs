@@ -54,7 +54,7 @@ use crate::drawline::{HLF_COUNT, SMT_ALL};
 use crate::ex_getln::hlf_T;
 use crate::globals::IOSIZE;
 use crate::keycodes::ESC;
-use crate::math::{FAIL, OK};
+use crate::math::OK;
 use crate::search::FORWARD;
 const WF_MIXCAP: c_int = 0x20;
 const SCORE_SPLIT: c_int = 149;
@@ -545,7 +545,7 @@ pub fn spell_check_sps(
     value: *const c_char,
     ret_flags: &mut c_int,
     ret_limit: &mut c_int,
-) -> c_int {
+) -> bool {
     unsafe {
         let mut flags: c_int = 0;
         let mut limit: c_int = 9999;
@@ -596,7 +596,7 @@ pub fn spell_check_sps(
                 f = -1;
             }
             if f == -1 || (flags != 0 && f != 0) {
-                return FAIL;
+                return false;
             }
             if f != 0 {
                 flags = f;
@@ -607,7 +607,7 @@ pub fn spell_check_sps(
         }
         *ret_flags = flags;
         *ret_limit = limit;
-        OK
+        true
     }
 }
 /// Apply validated 'spellsuggest' flags and suggestion limit.

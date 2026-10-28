@@ -2369,7 +2369,7 @@ fn didset_options() {
 
         let mut sps_flags: c_int = 0;
         let mut sps_limit: c_int = 0;
-        if spell_check_sps(opt_vars().p_sps, &mut sps_flags, &mut sps_limit) == OK {
+        if spell_check_sps(opt_vars().p_sps, &mut sps_flags, &mut sps_limit) {
             spell_apply_sps(sps_flags, sps_limit);
         }
         let ws = (**curwin.as_ptr()).w_s_ptr();
@@ -5858,7 +5858,7 @@ fn set_option(
                 && value.data.string().size > 0
             {
                 let mut cb = Callback::NONE;
-                if option_set_callback_func(value.data.string().data, &mut cb) == FAIL {
+                if !option_set_callback_func(value.data.string().data, &mut cb) {
                     errmsg = e_invarg.as_ptr();
                 }
                 callback_free(&mut cb);
@@ -6654,7 +6654,7 @@ fn put_set_value(
                                     return FAIL;
                                 }
                                 copy_option_part(&raw mut p, part, size, c",".as_ptr().cast_mut());
-                                if put_escstr(fd.cast(), part, 2) == FAIL
+                                if !put_escstr(fd.cast(), part, 2)
                                     || put_eol(fd.cast()) == FAIL
                                 {
                                     return FAIL;
@@ -6662,10 +6662,10 @@ fn put_set_value(
                             }
                             return OK;
                         }
-                        if put_escstr(fd.cast(), buf, 2) == FAIL {
+                        if !put_escstr(fd.cast(), buf, 2) {
                             return FAIL;
                         }
-                    } else if put_escstr(fd.cast(), value_str, 2) == FAIL {
+                    } else if !put_escstr(fd.cast(), value_str, 2) {
                         return FAIL;
                     }
                 }
@@ -7347,7 +7347,7 @@ pub fn didset_window_options(wp: *mut win_T, valid_cursor: bool) {
         check_colorcolumn(ptr::null_mut(), wp);
         briopt_check(wp);
         let mut culopt_flags: c_uint = 0;
-        if fill_culopt_flags((*wp).w_onebuf_opt.wo_culopt, &mut culopt_flags) == OK {
+        if fill_culopt_flags((*wp).w_onebuf_opt.wo_culopt, &mut culopt_flags) {
             (*wp).w_p_culopt_flags = culopt_flags as u8;
         }
         set_chars_option(
@@ -8241,7 +8241,7 @@ pub fn reset_option_was_set(opt_idx: OptIndex) {
 }
 
 /// Parse 'cursorlineopt', writing flags only when the value is valid.
-pub fn fill_culopt_flags(val: *mut c_char, flags: &mut c_uint) -> c_int {
+pub fn fill_culopt_flags(val: *mut c_char, flags: &mut c_uint) -> bool {
     unsafe {
         let mut p = val;
         let mut culopt_flags_new: u8 = 0;
@@ -8262,7 +8262,7 @@ pub fn fill_culopt_flags(val: *mut c_char, flags: &mut c_uint) -> c_int {
             }
 
             if *p != b',' as c_char && *p != NUL {
-                return FAIL;
+                return false;
             }
             if *p == b',' as c_char {
                 p = p.add(1);
@@ -8272,20 +8272,20 @@ pub fn fill_culopt_flags(val: *mut c_char, flags: &mut c_uint) -> c_int {
         if (culopt_flags_new & kOptCuloptFlagLine) != 0
             && (culopt_flags_new & kOptCuloptFlagScreenline) != 0
         {
-            return FAIL;
+            return false;
         }
         *flags = c_uint::from(culopt_flags_new);
 
-        OK
+        true
     }
 }
 
 /// Set the callback function value for an option that accepts a function name, lambda, et al.
-pub fn option_set_callback_func(optval: *mut c_char, optcb: &mut Callback) -> c_int {
+pub fn option_set_callback_func(optval: *mut c_char, optcb: &mut Callback) -> bool {
     unsafe {
         if optval.is_null() || *optval == NUL {
             callback_free(optcb);
-            return OK;
+            return true;
         }
 
         let mut tv: typval_T = if *optval == b'{' as c_char
@@ -8293,7 +8293,7 @@ pub fn option_set_callback_func(optval: *mut c_char, optcb: &mut Callback) -> c_
             || (crate::memory::cstr_prefix_bytes(optval, 8) == &b"funcref("[..8])
         {
             let Some(evaluated) = eval_expr(optval, None) else {
-                return FAIL;
+                return false;
             };
             evaluated
         } else {
@@ -8305,13 +8305,13 @@ pub fn option_set_callback_func(optval: *mut c_char, optcb: &mut Callback) -> c_
         let mut cb = Callback::NONE;
         if !callback_from_typval(&mut cb, &tv) || cb.cb_type() == kCallbackNone {
             tv_clear(&raw mut tv);
-            return FAIL;
+            return false;
         }
 
         callback_free(optcb);
         *optcb = cb;
         tv_clear(&raw mut tv);
-        OK
+        true
     }
 }
 

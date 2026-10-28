@@ -38,7 +38,7 @@ use crate::api::win_config::kCtxNoDisplay;
 use crate::api::window::{kCtxKeepCwd, kCtxValidate};
 use crate::drawscreen::{FR_LEAF, FR_ROW};
 use crate::eval::{kListLenMayKnow, kListLenUnknown};
-use crate::math::{FAIL, OK};
+use crate::math::FAIL;
 
 const E_CANNOT_RESIZE_WINDOW_IN_ANOTHER_TAB_PAGE: &CStr =
     c"E1308: Cannot resize a window in another tab page";
@@ -828,7 +828,7 @@ pub fn f_win_splitmove(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: Ev
         let mut size: c_int = 0;
 
         if argvars[2].v_type != VarType::VAR_UNKNOWN {
-            if tv_check_for_nonnull_dict_arg(argvars, 2) == FAIL {
+            if !tv_check_for_nonnull_dict_arg(argvars, 2) {
                 return;
             }
 
@@ -856,7 +856,7 @@ pub fn f_win_splitmove(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: Ev
         }
 
         if *curwin.as_ptr() == targetwin && win_valid(wp) {
-            if win_splitmove(wp, size, flags) == OK {
+            if win_splitmove(wp, size, flags) {
                 rettv.vval = crate::eval::typval::TypvalVval::Number(0);
             }
         } else {
@@ -1011,7 +1011,7 @@ pub fn f_winrestcmd(_argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: Eval
 pub fn f_winrestview(argvars: &mut [typval_T], _rettv: &mut typval_T, _fptr: EvalFuncData){
 
     unsafe {
-        if tv_check_for_nonnull_dict_arg(argvars, 0) == FAIL {
+        if !tv_check_for_nonnull_dict_arg(argvars, 0) {
             return;
         }
 

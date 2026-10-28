@@ -1721,7 +1721,7 @@ pub fn do_autocmd_dirchanged(
 }
 
 /// Change to a file's directory.
-pub fn vim_chdirfile(fname: *mut c_char, cause: CdCause) -> c_int {
+pub fn vim_chdirfile(fname: *mut c_char, cause: CdCause) -> bool {
     unsafe {
         let mut dir: [c_char; MAXPATHL] = [0; MAXPATHL];
         let name_buff = (&raw mut g_st().NameBuff).cast::<c_char>();
@@ -1734,7 +1734,7 @@ pub fn vim_chdirfile(fname: *mut c_char, cause: CdCause) -> c_int {
         }
 
         if path_equal(dir.as_ptr(), name_buff, kPathCmpLiteral) {
-            return OK;
+            return true;
         }
 
         if cause != kCdCauseOther {
@@ -1742,14 +1742,14 @@ pub fn vim_chdirfile(fname: *mut c_char, cause: CdCause) -> c_int {
         }
 
         if os_chdir(dir.as_ptr()) != 0 {
-            return FAIL;
+            return false;
         }
 
         if cause != kCdCauseOther {
             do_autocmd_dirchanged(dir.as_mut_ptr(), kCdScopeWindow, cause, false);
         }
 
-        OK
+        true
     }
 }
 

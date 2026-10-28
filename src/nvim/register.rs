@@ -2634,7 +2634,7 @@ pub fn ex_display(eap: &mut exarg_T) {
         if (arg.is_null() || !vim_strchr(arg, c_int::from(b'#')).is_null()) && !g_st().got_int {
             let mut fname: *mut c_char = ptr::null_mut();
             let mut dummy: linenr_T = 0;
-            if buflist_name_nr(0, &raw mut fname, &mut dummy) != FAIL
+            if buflist_name_nr(0, &raw mut fname, &mut dummy)
                 && !message_filtered(fname)
             {
                 msg_puts(c"\n  c  \"#   ".as_ptr());

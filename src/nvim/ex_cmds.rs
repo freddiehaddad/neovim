@@ -1162,13 +1162,13 @@ pub fn ex_uniq(eap: &mut exarg_T) {
 }
 
 /// `:move` command - move lines `line1`-`line2` to line `dest`.
-pub fn do_move(line1: linenr_T, line2: linenr_T, mut dest: linenr_T) -> c_int {
+pub fn do_move(line1: linenr_T, line2: linenr_T, mut dest: linenr_T) -> bool {
     unsafe {
         if dest >= line1 && dest < line2 {
             emsg(gettext(
                 c"E134: Cannot move a range of lines into itself".as_ptr(),
             ));
-            return FAIL;
+            return false;
         }
 
         if dest == line1 - 1 || dest == line2 {
@@ -1177,7 +1177,7 @@ pub fn do_move(line1: linenr_T, line2: linenr_T, mut dest: linenr_T) -> c_int {
             } else {
                 dest + (line2 - line1) + 1
             };
-            return OK;
+            return true;
         }
 
         let start_byte = ml_find_line_or_offset(&mut *g_st().curbuf, line1, None, true) as bcount_t;
@@ -1188,7 +1188,7 @@ pub fn do_move(line1: linenr_T, line2: linenr_T, mut dest: linenr_T) -> c_int {
         let num_lines = line2 - line1 + 1;
 
         if u_save(dest, dest + 1) == FAIL {
-            return FAIL;
+            return false;
         }
 
         let mut extra: linenr_T = 0;
@@ -1290,7 +1290,7 @@ pub fn do_move(line1: linenr_T, line2: linenr_T, mut dest: linenr_T) -> c_int {
         buf_updates_send_changes(g_st().curbuf, dest + 1, num_lines as i64, 0);
 
         if u_save(line1 + extra - 1, line2 + extra + 1) == FAIL {
-            return FAIL;
+            return false;
         }
 
         for _ in line1..=line2 {
@@ -1339,7 +1339,7 @@ pub fn do_move(line1: linenr_T, line2: linenr_T, mut dest: linenr_T) -> c_int {
 
         buf_updates_send_changes(g_st().curbuf, line1 + extra, 0, num_lines as i64);
 
-        OK
+        true
     }
 }
 
@@ -2227,7 +2227,7 @@ pub fn do_write(eap: &mut exarg_T) -> c_int {
             }
 
             if !other {
-                if bt_dontwrite_msg(g_st().curbuf) || check_fname() == FAIL {
+                if bt_dontwrite_msg(g_st().curbuf) || !check_fname() {
                     break 'theend;
                 }
                 #[cfg(unix)]
@@ -2265,7 +2265,7 @@ pub fn do_write(eap: &mut exarg_T) -> c_int {
                 }
             }
 
-            if check_overwrite(eap, &mut *g_st().curbuf, fname, ffname, other) == OK {
+            if check_overwrite(eap, &mut *g_st().curbuf, fname, ffname, other) {
                 if eap.cmdidx == cmdidx_T::CMD_saveas as c_int && !alt_buf.is_null() {
                     let was_curbuf = g_st().curbuf;
 
@@ -2375,7 +2375,7 @@ pub fn check_overwrite(
     fname: *mut c_char,
     ffname: *mut c_char,
     other: bool,
-) -> c_int {
+) -> bool {
     unsafe {
         if (other
             || (!bt_nofilename(&raw mut *buf)
@@ -2389,7 +2389,7 @@ pub fn check_overwrite(
             if eap.forceit == 0 && eap.append == 0 {
                 if os_isdir(ffname) {
                     semsg!(gettext(e_isadir2.as_ptr()), ffname);
-                    return FAIL;
+                    return false;
                 }
                 if opt_vars().p_confirm != 0 || (g_st().cmdmod.cmod_flags & CMOD_CONFIRM) != 0 {
                     let mut buff: [c_char; DIALOG_MSG_SIZE] = [0; DIALOG_MSG_SIZE];
@@ -2402,12 +2402,12 @@ pub fn check_overwrite(
                     if vim_dialog_yesno(VIM_QUESTION, ptr::null_mut(), buff.as_mut_ptr(), 2)
                         != VIM_YES
                     {
-                        return FAIL;
+                        return false;
                     }
                     eap.forceit = 1;
                 } else {
                     emsg(gettext(e_exists.as_ptr()));
-                    return FAIL;
+                    return false;
                 }
             }
 
@@ -2434,7 +2434,7 @@ pub fn check_overwrite(
                         if vim_dialog_yesno(VIM_QUESTION, ptr::null_mut(), buff.as_mut_ptr(), 2)
                             != VIM_YES
                         {
-                            return FAIL;
+                            return false;
                         }
                         eap.forceit = 1;
                     } else {
@@ -2442,12 +2442,12 @@ pub fn check_overwrite(
                             gettext(c"E768: Swap file exists: %s (:silent! overrides)".as_ptr()),
                             swapname.as_ptr(),
                         );
-                        return FAIL;
+                        return false;
                     }
                 }
             }
         }
-        OK
+        true
     }
 }
 
@@ -2477,7 +2477,7 @@ pub fn do_wqall(eap: &mut exarg_T) {
         if eap.cmdidx == cmdidx_T::CMD_xall as c_int
             || eap.cmdidx == cmdidx_T::CMD_wqall as c_int
         {
-            if before_quit_all(eap) == FAIL {
+            if !before_quit_all(eap) {
                 return;
             }
             g_st().exiting = true;
@@ -2510,7 +2510,7 @@ pub fn do_wqall(eap: &mut exarg_T) {
                 );
                 error += 1;
             } else if check_readonly(&mut eap.forceit, &mut *buf)
-                || check_overwrite(eap, &mut *buf, (*buf).b_fname, (*buf).b_ffname, false) == FAIL
+                || !check_overwrite(eap, &mut *buf, (*buf).b_fname, (*buf).b_ffname, false)
             {
                 error += 1;
             } else {
@@ -3010,7 +3010,7 @@ pub fn do_ecmd(
                 (**curwin.as_ptr()).w_pcmark.lnum = 1;
                 (**curwin.as_ptr()).w_pcmark.col = 0;
             } else {
-                if (flags & (ECMD_ADDBUF | ECMD_ALTBUF)) != 0 || check_fname() == FAIL {
+                if (flags & (ECMD_ADDBUF | ECMD_ALTBUF)) != 0 || !check_fname() {
                     break 'theend;
                 }
                 oldbuf = (flags & ECMD_OLDBUF) != 0;
@@ -4074,7 +4074,7 @@ fn do_sub(
         } else {
             opt_vars().p_magic != 0
         };
-        if search_regcomp(
+        if !search_regcomp(
             pat.data,
             pat.size,
             ptr::null_mut(),
@@ -4083,7 +4083,7 @@ fn do_sub(
             if cmdpreview_ns > 0 { 0 } else { SEARCH_HIS },
             magic,
             &mut regmatch,
-        ) == FAIL
+        )
         {
             if excmds_st().subflags.do_error {
                 emsg(gettext(e_invcmd.as_ptr()));
@@ -4940,7 +4940,7 @@ pub fn ex_global(eap: &mut exarg_T) {
         }
 
         let mut used_pat: *mut c_char = ptr::null_mut();
-        if search_regcomp(
+        if !search_regcomp(
             pat,
             patlen,
             &raw mut used_pat,
@@ -4949,7 +4949,7 @@ pub fn ex_global(eap: &mut exarg_T) {
             SEARCH_HIS,
             opt_vars().p_magic != 0,
             &mut regmatch,
-        ) == FAIL
+        )
         {
             emsg(gettext(e_invcmd.as_ptr()));
             return;

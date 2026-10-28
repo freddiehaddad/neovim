@@ -5804,7 +5804,7 @@ pub fn f_getcompletion(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: Ev
         let mut options =
             WILD_SILENT | WILD_USE_NL | WILD_ADD_SLASH | WILD_NO_BEEP | WILD_HOME_REPLACE;
 
-        if tv_check_for_string_arg(argvars, 1) == FAIL {
+        if !tv_check_for_string_arg(argvars, 1) {
             return;
         }
         let type_str = tv_get_string(&argvars[1]);
@@ -5941,7 +5941,7 @@ pub fn f_getcompletiontype(argvars: &mut [typval_T], rettv: &mut typval_T,
         rettv.v_type = VarType::VAR_STRING;
         rettv.vval = crate::eval::typval::TypvalVval::String(ptr::null_mut());
 
-        if tv_check_for_string_arg(argvars, 0) == FAIL {
+        if !tv_check_for_string_arg(argvars, 0) {
             return;
         }
 

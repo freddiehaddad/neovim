@@ -1187,17 +1187,17 @@ fn get_lval_blob(
             lp.ll_n1 = tv_get_number(&*var1) as c_int;
         }
 
-        if tv_blob_check_index(bloblen, varnumber_T::from(lp.ll_n1), quiet) == FAIL {
+        if !tv_blob_check_index(bloblen, varnumber_T::from(lp.ll_n1), quiet) {
             return false;
         }
         if lp.ll_range && !lp.ll_empty2 {
             lp.ll_n2 = tv_get_number(&*var2) as c_int;
-            if tv_blob_check_range(
+            if !tv_blob_check_range(
                 bloblen,
                 varnumber_T::from(lp.ll_n1),
                 varnumber_T::from(lp.ll_n2),
                 quiet,
-            ) == FAIL
+            )
             {
                 return false;
             }
@@ -1234,13 +1234,13 @@ fn get_lval_list(
 
         if lp.ll_range && !lp.ll_empty2 {
             lp.ll_n2 = tv_get_number(&*var2) as c_int;
-            if tv_list_check_range_index_two(
+            if !tv_list_check_range_index_two(
                 lp.ll_list,
                 &mut lp.ll_n1,
                 lp.ll_li,
                 &mut lp.ll_n2,
                 quiet,
-            ) == FAIL
+            )
             {
                 return false;
             }
@@ -1575,12 +1575,12 @@ pub fn set_var_lval(
                         lp.ll_n2 = tv_blob_len(lp.ll_blob) - 1;
                     }
 
-                    if tv_blob_set_range(
+                    if !tv_blob_set_range(
                         &mut *lp.ll_blob,
                         varnumber_T::from(lp.ll_n1),
                         varnumber_T::from(lp.ll_n2),
                         rettv,
-                    ) == FAIL
+                    )
                     {
                         *endp = cc;
                         return;
@@ -1829,7 +1829,7 @@ pub fn next_for_item(fi: &mut forinfo_T, arg: *mut c_char) -> bool {
                     fi.fi_varcount,
                     0,
                     ptr::null_mut(),
-                ) == OK
+                )
             }
             ForSource::Str { text, byte_idx } => {
                 let str_ptr = text.as_ptr();
@@ -1853,7 +1853,7 @@ pub fn next_for_item(fi: &mut forinfo_T, arg: *mut c_char) -> bool {
                     fi.fi_varcount,
                     0,
                     ptr::null_mut(),
-                ) == OK;
+                );
                 tv_clear(&raw mut tv);
                 result
             }
@@ -1871,7 +1871,7 @@ pub fn next_for_item(fi: &mut forinfo_T, arg: *mut c_char) -> bool {
                     fi.fi_varcount,
                     0,
                     ptr::null_mut(),
-                ) == OK
+                )
             }
         }
     }
@@ -2531,15 +2531,15 @@ fn eval_addlist(tv1: &mut typval_T, tv2: &mut typval_T) -> bool {
 }
 
 /// Append string "s2" to the string in "tv1".
-pub fn grow_string_tv(tv1: &mut typval_T, s2: *const c_char) -> c_int {
+pub fn grow_string_tv(tv1: &mut typval_T, s2: *const c_char) -> bool {
     unsafe {
         if tv1.v_type != VarType::VAR_STRING || tv1.vval.v_string().is_null() {
-            return FAIL;
+            return false;
         }
 
         let joined = concat_str(std::ffi::CStr::from_ptr(tv1.vval.v_string()), std::ffi::CStr::from_ptr(s2));
         crate::eval::typval::tv_set_string(tv1, joined.as_ptr());
-        OK
+        true
     }
 }
 
@@ -2556,7 +2556,7 @@ fn eval_concat_str(tv1: &mut typval_T, tv2: &mut typval_T) -> bool {
             return false;
         }
 
-        if grow_string_tv(tv1, s2) == OK {
+        if grow_string_tv(tv1, s2) {
             return true;
         }
 
@@ -3530,14 +3530,14 @@ fn eval_index_inner(rettv: &mut typval_T,
                 if var2.is_null() {
                     n2 = VARNUMBER_MAX;
                 }
-                if tv_list_slice_or_index(
+                if !tv_list_slice_or_index(
                     is_range,
                     n1,
                     n2,
                     exclusive,
                     rettv,
                     verbose,
-                ) == FAIL
+                )
                 {
                     return FAIL;
                 }
@@ -5804,17 +5804,17 @@ pub fn list2fpos(
     arg: &mut typval_T,
     posp: &mut pos_T,mut fnump: Option<&mut c_int>,mut curswantp: Option<&mut colnr_T>,
     charcol: bool,
-) -> c_int {
+) -> bool {
     unsafe {
         if arg.v_type != VarType::VAR_LIST {
-            return FAIL;
+            return false;
         }
         let l = arg.vval.v_list();
         if l.is_null()
             || tv_list_len(l) < if fnump.is_none() { 2 } else { 3 }
             || tv_list_len(l) > if fnump.is_none() { 4 } else { 5 }
         {
-            return FAIL;
+            return false;
         }
 
         let mut i: c_int = 0;
@@ -5823,7 +5823,7 @@ pub fn list2fpos(
             n = tv_list_find_nr(l, i, None) as c_int;
             i += 1;
             if n < 0 {
-                return FAIL;
+                return false;
             }
             if n == 0 {
                 {
@@ -5836,14 +5836,14 @@ pub fn list2fpos(
         n = tv_list_find_nr(l, i, None) as c_int;
         i += 1;
         if n < 0 {
-            return FAIL;
+            return false;
         }
         posp.lnum = n;
 
         n = tv_list_find_nr(l, i, None) as c_int;
         i += 1;
         if n < 0 {
-            return FAIL;
+            return false;
         }
         if charcol {
             let buf = buflist_findnr(if let Some(fnump) = fnump {
@@ -5852,7 +5852,7 @@ pub fn list2fpos(
                 (*g_st().curbuf).b_fnum
             });
             if buf.is_null() || (*buf).b_ml.ml_mfp.is_none() {
-                return FAIL;
+                return false;
             }
             let cur_lnum = (**curwin.as_ptr()).w_cursor.lnum;
             n = buf_charidx_to_byteidx(
@@ -5878,7 +5878,7 @@ pub fn list2fpos(
             **p = tv_list_find_nr(l, i + 1, None) as colnr_T;
         }
 
-        OK
+        true
     }
 }
 

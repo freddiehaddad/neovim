@@ -82,7 +82,7 @@ const KEYSET_OPTIDX_user_command__range: u64 = 8;
 const KEYSET_OPTIDX_user_command__preview: u64 = 9;
 const KEYSET_OPTIDX_user_command__complete: u64 = 10;
 
-use crate::math::{FAIL, OK};
+use crate::math::FAIL;
 use crate::window::{WSP_ABOVE, WSP_BELOW, WSP_BOT, WSP_HOR, WSP_TOP, WSP_VERT};
 
 #[repr(C)]
@@ -1587,11 +1587,11 @@ pub fn create_user_command(
                     );
                     break 'err;
                 }
-                if parse_addr_type_arg(
+                if !parse_addr_type_arg(
                     opts.addr.data.string().data,
                     opts.addr.data.string().size as c_int,
                     &mut addr_type_arg,
-                ) != OK
+                )
                 {
                     api_err_invalid(
                         err,
@@ -1636,13 +1636,13 @@ pub fn create_user_command(
                 opts.complete.data =
                     crate::api::private::validate::ObjectData::LuaRef(LUA_NOREF);
             } else if opts.complete.obj_type == ObjectType::kObjectTypeString {
-                if parse_compl_arg(
+                if !parse_compl_arg(
                     opts.complete.data.string().data,
                     opts.complete.data.string().size as c_int,
                     &mut context,
                     &mut argt,
                     &mut compl_arg,
-                ) != OK
+                )
                 {
                     api_err_invalid(
                         err,
@@ -1713,7 +1713,7 @@ pub fn create_user_command(
             }
 
             with_script_context(channel_id, || {
-                if uc_add_command(
+                if !uc_add_command(
                     name.data,
                     name.size,
                     rep,
@@ -1728,7 +1728,7 @@ pub fn create_user_command(
                     luaref,
                     desc,
                     force,
-                ) != OK
+                )
                 {
                     api_set_error!(
                         err,

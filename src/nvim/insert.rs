@@ -1328,7 +1328,7 @@ fn insert_do_complete(s: &mut InsertState) {
         ins_compl_clear_autocomplete_delay();
         ins_st().compl_busy = true;
         g_st().disable_fold_update += 1;
-        if ins_complete(s.c, true) == FAIL {
+        if !ins_complete(s.c, true) {
             compl_status_clear();
         }
         g_st().disable_fold_update -= 1;
@@ -2321,12 +2321,12 @@ pub fn oneright() -> c_int {
     }
 }
 
-pub fn oneleft() -> c_int {
+pub fn oneleft() -> bool {
     unsafe {
         if virtual_active(*curwin.as_ptr()) {
             let v = getviscol();
             if v == 0 {
-                return FAIL;
+                return false;
             }
             let mut width: c_int = 1;
             loop {
@@ -2346,11 +2346,11 @@ pub fn oneleft() -> c_int {
 
             (**curwin.as_ptr()).w_set_curswant = true;
             adjust_skipcol();
-            return OK;
+            return true;
         }
 
         if (**curwin.as_ptr()).w_cursor.col == 0 {
-            return FAIL;
+            return false;
         }
 
         (**curwin.as_ptr()).w_set_curswant = true;
@@ -2358,7 +2358,7 @@ pub fn oneleft() -> c_int {
 
         mb_adjust_cursor();
         adjust_skipcol();
-        OK
+        true
     }
 }
 
@@ -3389,7 +3389,7 @@ fn ins_left() {
         }
         undisplay_dollar();
         let mut tpos = (**curwin.as_ptr()).w_cursor;
-        if oneleft() == OK {
+        if oneleft() {
             start_arrow_with_change(&mut tpos, end_change, K_LEFT);
             if g_st().Ins.revins_scol != -1 && (**curwin.as_ptr()).w_cursor.col >= g_st().Ins.revins_scol {
                 g_st().Ins.revins_legal += 1;

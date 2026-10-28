@@ -673,7 +673,7 @@ pub fn current_word(
                     if fwd_word(1, bigword, true) == FAIL && count > 1 {
                         return FAIL;
                     }
-                    if oneleft() == FAIL {
+                    if !oneleft() {
                         inclusive = false;
                     }
                 } else if end_word(1, bigword, true, true) == FAIL {
@@ -686,7 +686,7 @@ pub fn current_word(
         if include_white && (cls() != 0 || ((**curwin.as_ptr()).w_cursor.col == 0 && !inclusive)) {
             let pos = (**curwin.as_ptr()).w_cursor;
             (**curwin.as_ptr()).w_cursor = start_pos;
-            if oneleft() == OK {
+            if oneleft() {
                 back_in_line();
                 if cls() == 0 && (**curwin.as_ptr()).w_cursor.col > 0 {
                     if g_st().Visual.active {

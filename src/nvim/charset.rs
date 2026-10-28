@@ -240,7 +240,7 @@ const fn nr2hex(n: u32) -> u8 {
 
 use crate::keycodes::k_second;
 
-pub fn buf_init_isk_chartab(buf: &mut buf_T) -> c_int {
+pub fn buf_init_isk_chartab(buf: &mut buf_T) -> bool {
     let save_chartab = buf.b_chartab;
         buf.b_chartab = [0; 4];
         if buf.b_p_lisp != 0 {
@@ -248,9 +248,9 @@ pub fn buf_init_isk_chartab(buf: &mut buf_T) -> c_int {
         }
         if parse_isopt(buf.b_p_isk, buf.b_chartab.as_mut_ptr()) == FAIL {
             buf.b_chartab = save_chartab;
-            return FAIL;
+            return false;
         }
-        OK
+        true
 }
 
 pub fn init_isf_chartab() -> c_int {

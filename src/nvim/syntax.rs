@@ -3864,7 +3864,7 @@ fn syn_cmd_include(eap: &mut exarg_T, _syncing: c_int) {
             || path_is_absolute(eap.arg)
         {
             source = true;
-            if expand_filename(eap, eap.cmdlinep, &mut errormsg) == FAIL {
+            if !expand_filename(eap, eap.cmdlinep, &mut errormsg) {
                 if !errormsg.is_null() {
                     emsg(errormsg);
                 }

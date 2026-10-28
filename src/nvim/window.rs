@@ -2851,16 +2851,16 @@ fn win_rotate(upwards: bool, mut count: c_int) {
     }
 }
 
-pub fn win_splitmove(wp: *mut win_T, size: c_int, flags: c_int) -> c_int {
+pub fn win_splitmove(wp: *mut win_T, size: c_int, flags: c_int) -> bool {
     unsafe {
         let mut dir: c_int = 0;
         let height = (*wp).w_height;
 
         if one_window(wp, ptr::null_mut()) {
-            return OK;
+            return true;
         }
         if is_ctx_win(wp) || check_split_disallowed(wp) == FAIL {
-            return FAIL;
+            return false;
         }
 
         let mut unflat_altfr: *mut frame_T = ptr::null_mut();
@@ -2880,7 +2880,7 @@ pub fn win_splitmove(wp: *mut win_T, size: c_int, flags: c_int) -> c_int {
                 winframe_restore(&mut *wp, dir, &mut *unflat_altfr);
             }
             win_append((*wp).w_prev, wp, ptr::null_mut());
-            return FAIL;
+            return false;
         }
 
         if size == 0 && (flags & WSP_VERT) == 0 && win_valid(wp) && !(*wp).w_floating {
@@ -2890,7 +2890,7 @@ pub fn win_splitmove(wp: *mut win_T, size: c_int, flags: c_int) -> c_int {
             }
         }
 
-        OK
+        true
     }
 }
 
@@ -6665,7 +6665,7 @@ fn check_window_scroll_resize(
                     c"%d".as_ptr(),
                     (*wp).handle,
                 );
-                if tv_dict_add_dict(v_event, winid.as_ptr(), key_len as usize, d) == FAIL {
+                if !tv_dict_add_dict(v_event, winid.as_ptr(), key_len as usize, d) {
                     tv_dict_unref(d);
                     break;
                 }
@@ -6692,7 +6692,7 @@ fn check_window_scroll_resize(
                 tot_skipcol,
             );
             if !alldict.is_null() {
-                if tv_dict_add_dict(v_event, c"all".as_ptr(), 3, alldict) == FAIL {
+                if !tv_dict_add_dict(v_event, c"all".as_ptr(), 3, alldict) {
                     tv_dict_unref(alldict);
                 } else {
                     (*alldict).dv_refcount -= 1;

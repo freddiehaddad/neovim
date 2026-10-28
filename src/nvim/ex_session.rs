@@ -435,7 +435,7 @@ fn put_view(
         }
 
         if (*flagp & (kOptSsopFlagOptions | kOptSsopFlagLocaloptions)) != 0
-            && makemap(fd, (*wp).w_buffer) == FAIL
+            && !makemap(fd, (*wp).w_buffer)
         {
             return false;
         }
@@ -1121,7 +1121,7 @@ pub fn ex_mkrc(eap: &mut exarg_T) {
                 if eap.cmdidx == CMD_mksession && (*flagp & kOptSsopFlagSkiprtp) != 0 {
                     flags |= OPT_SKIPRTP;
                 }
-                failed |= makemap(fd, ptr::null_mut()) == FAIL || makeset(fd, flags, 0) == FAIL;
+                failed |= !makemap(fd, ptr::null_mut()) || makeset(fd, flags, 0) == FAIL;
             }
 
             if !failed && view_session {
@@ -1142,7 +1142,7 @@ pub fn ex_mkrc(eap: &mut exarg_T) {
                         *dirnow = NUL;
                     }
                     if *dirnow != NUL && (opt_vars().ssop_flags & kOptSsopFlagSesdir) != 0 {
-                        if vim_chdirfile(fname, kCdCauseOther) == OK {
+                        if vim_chdirfile(fname, kCdCauseOther) {
                             shorten_fnames(1);
                         }
                     } else if *dirnow != NUL

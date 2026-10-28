@@ -2003,7 +2003,7 @@ pub fn event_ignored(event: event_T, mut ei: *mut c_char) -> bool {
     }
 }
 
-pub fn check_ei(mut ei: *mut c_char, win: bool) -> c_int {
+pub fn check_ei(mut ei: *mut c_char, win: bool) -> bool {
     unsafe {
         while *ei != NUL {
             if crate::memory::cstr_prefix_bytes(ei, 3).eq_ignore_ascii_case(crate::memory::cstr_prefix_bytes(c"all".as_ptr(), 3))
@@ -2017,11 +2017,11 @@ pub fn check_ei(mut ei: *mut c_char, win: bool) -> c_int {
                 let event = event_name2nr(ei, &raw mut ei);
                 if event == NUM_EVENTS as event_T || (win && EVENT_NAMES[event as usize].event > 0)
                 {
-                    return FAIL;
+                    return false;
                 }
             }
         }
-        OK
+        true
     }
 }
 
@@ -2151,7 +2151,7 @@ pub fn do_autocmd(eap: &mut exarg_T, arg_in: *mut c_char, forceit: c_int) {
                 while *arg != NUL && *arg != b'|' as c_char && !ascii_iswhite(*arg) {
                     let event = event_name2nr(arg, &raw mut arg);
                     assert!((event as usize) < NUM_EVENTS);
-                    if do_autocmd_event(
+                    if !do_autocmd_event(
                         event,
                         pat,
                         once,
@@ -2159,7 +2159,7 @@ pub fn do_autocmd(eap: &mut exarg_T, arg_in: *mut c_char, forceit: c_int) {
                         cmd,
                         forceit != 0,
                         group,
-                    ) == FAIL
+                    )
                     {
                         break;
                     }
@@ -2180,7 +2180,7 @@ pub fn do_all_autocmd_events(
     group: c_int,
 ) {
     for event in 0..NUM_EVENTS as event_T {
-            if do_autocmd_event(event, pat, once, nested, cmd, del, group) == FAIL {
+            if !do_autocmd_event(event, pat, once, nested, cmd, del, group) {
                 return;
             }
         }
@@ -2194,7 +2194,7 @@ pub fn do_autocmd_event(
     cmd: *const c_char,
     del: bool,
     group: c_int,
-) -> c_int {
+) -> bool {
     unsafe {
         assert!(*pat != NUL || del);
 
@@ -2208,7 +2208,7 @@ pub fn do_autocmd_event(
 
         if *pat == NUL && del {
             aucmd_del_for_event_and_group(event, findgroup);
-            return OK;
+            return true;
         }
 
         let mut patlen = aucmd_span_pattern(pat, &raw mut pat) as c_int;
@@ -2225,7 +2225,7 @@ pub fn do_autocmd_event(
                         )),
                         buflocal_nr,
                     );
-                    return FAIL;
+                    return false;
                 }
                 aupat_normalize_buflocal_pat(buflocal_pat.as_mut_ptr(), pat, patlen, buflocal_nr);
                 pat = buflocal_pat.as_ptr();
@@ -2268,7 +2268,7 @@ pub fn do_autocmd_event(
         }
 
         au_cleanup();
-        OK
+        true
     }
 }
 

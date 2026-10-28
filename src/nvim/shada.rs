@@ -3171,10 +3171,10 @@ fn shada_write(
 }
 
 /// Write ShaDa file to a given location (`shada_write_file`).
-pub fn shada_write_file(file: *const c_char, mut nomerge: bool) -> c_int {
+pub fn shada_write_file(file: *const c_char, mut nomerge: bool) -> bool {
     unsafe {
         let Some(fname_cstr) = shada_filename(file) else {
-            return FAIL;
+            return false;
         };
         let mut fname_bytes = fname_cstr.into_bytes_with_nul();
         let fname = fname_bytes.as_mut_ptr().cast::<c_char>();
@@ -3231,7 +3231,7 @@ pub fn shada_write_file(file: *const c_char, mut nomerge: bool) -> c_int {
                                     if did_open_reader {
                                         close_file(&mut sd_reader);
                                     }
-                                    return FAIL;
+                                    return false;
                                 }
                                 tempname_bytes[last_idx] += 1;
                                 continue;
@@ -3273,7 +3273,7 @@ pub fn shada_write_file(file: *const c_char, mut nomerge: bool) -> c_int {
                             failed_dir.as_ref().map_or(ptr::null(), |s| s.as_ptr()),
                             uv_strerror(ret),
                         );
-                        return FAIL;
+                        return false;
                     }
                 }
                 *tail = tail_save;
@@ -3301,7 +3301,7 @@ pub fn shada_write_file(file: *const c_char, mut nomerge: bool) -> c_int {
             if did_open_reader {
                 close_file(&mut sd_reader);
             }
-            return FAIL;
+            return false;
         }
 
         if opt_vars().p_verbose > 1 {
@@ -3425,7 +3425,7 @@ pub fn shada_write_file(file: *const c_char, mut nomerge: bool) -> c_int {
         }
         close_file(&mut sd_writer);
 
-        OK
+        true
     }
 }
 

@@ -1750,7 +1750,7 @@ pub fn eval_map_expr(mp: &mapblock_T, c: c_int) -> Option<CString> {
 }
 
 /// Write map commands for the current mappings to an .exrc file.
-pub fn makemap(fd: *mut FILE, buf: *mut buf_T) -> c_int {
+pub fn makemap(fd: *mut FILE, buf: *mut buf_T) -> bool {
     unsafe {
         let mut did_cpo = false;
 
@@ -1857,7 +1857,7 @@ pub fn makemap(fd: *mut FILE, buf: *mut buf_T) -> c_int {
                         MODE_TERMINAL => c1 = b't' as c_char,
                         _ => {
                             iemsg(gettext(c"E228: makemap: Illegal mode".as_ptr()));
-                            return FAIL;
+                            return false;
                         }
                     }
 
@@ -1879,38 +1879,38 @@ pub fn makemap(fd: *mut FILE, buf: *mut buf_T) -> c_int {
                                     || fputs(c"set cpo&vim".as_ptr(), fd) < 0
                                     || put_eol(fd) == FAIL)
                             {
-                                return FAIL;
+                                return false;
                             }
                         }
                         if c1 != NUL && fputc(c1 as u8 as c_int, fd) < 0 {
-                            return FAIL;
+                            return false;
                         }
                         if mp.m_noremap != REMAP_YES && fputs(c"nore".as_ptr(), fd) < 0 {
-                            return FAIL;
+                            return false;
                         }
                         if fputs(cmd, fd) < 0 {
-                            return FAIL;
+                            return false;
                         }
                         if !buf.is_null() && fputs(c" <buffer>".as_ptr(), fd) < 0 {
-                            return FAIL;
+                            return false;
                         }
                         if mp.m_nowait != 0 && fputs(c" <nowait>".as_ptr(), fd) < 0 {
-                            return FAIL;
+                            return false;
                         }
                         if mp.m_silent != 0 && fputs(c" <silent>".as_ptr(), fd) < 0 {
-                            return FAIL;
+                            return false;
                         }
                         if mp.m_expr != 0 && fputs(c" <expr>".as_ptr(), fd) < 0 {
-                            return FAIL;
+                            return false;
                         }
 
                         if fputc(b' ' as c_int, fd) < 0
-                            || put_escstr(fd, mp.m_keys.as_ptr(), 0) == FAIL
+                            || !put_escstr(fd, mp.m_keys.as_ptr(), 0)
                             || fputc(b' ' as c_int, fd) < 0
-                            || put_escstr(fd, mp.m_str.as_ptr(), 1) == FAIL
+                            || !put_escstr(fd, mp.m_str.as_ptr(), 1)
                             || put_eol(fd) == FAIL
                         {
-                            return FAIL;
+                            return false;
                         }
                         c1 = c2;
                         c2 = c3;
@@ -1928,22 +1928,22 @@ pub fn makemap(fd: *mut FILE, buf: *mut buf_T) -> c_int {
                 || fputs(c"unlet s:cpo_save".as_ptr(), fd) < 0
                 || put_eol(fd) == FAIL)
         {
-            return FAIL;
+            return false;
         }
-        OK
+        true
     }
 }
 
 /// Write escape string to file.
-pub fn put_escstr(fd: *mut FILE, strstart: *const c_char, what: c_int) -> c_int {
+pub fn put_escstr(fd: *mut FILE, strstart: *const c_char, what: c_int) -> bool {
     unsafe {
         let mut str_ptr = strstart.cast::<u8>();
 
         if *str_ptr == 0 && what == 1 {
             if fputs(c"<Nop>".as_ptr(), fd) < 0 {
-                return FAIL;
+                return false;
             }
-            return OK;
+            return true;
         }
 
         while *str_ptr != 0 {
@@ -1953,7 +1953,7 @@ pub fn put_escstr(fd: *mut FILE, strstart: *const c_char, what: c_int) -> c_int 
             if !p.is_null() {
                 while *p != NUL {
                     if fputc(*p as u8 as c_int, fd) < 0 {
-                        return FAIL;
+                        return false;
                     }
                     p = p.add(1);
                 }
@@ -1984,7 +1984,7 @@ pub fn put_escstr(fd: *mut FILE, strstart: *const c_char, what: c_int) -> c_int 
                 }
                 if is_special(c) || modifiers != 0 {
                     if fputs(get_special_key_name(c, modifiers), fd) < 0 {
-                        return FAIL;
+                        return false;
                     }
                     str_ptr = str_ptr.add(1);
                     continue;
@@ -1994,10 +1994,10 @@ pub fn put_escstr(fd: *mut FILE, strstart: *const c_char, what: c_int) -> c_int 
             if c == NL {
                 if what == 2 {
                     if fputs(c"\\\x16\n".as_ptr(), fd) < 0 {
-                        return FAIL;
+                        return false;
                     }
                 } else if fputs(c"<NL>".as_ptr(), fd) < 0 {
-                    return FAIL;
+                    return false;
                 }
                 str_ptr = str_ptr.add(1);
                 continue;
@@ -2005,7 +2005,7 @@ pub fn put_escstr(fd: *mut FILE, strstart: *const c_char, what: c_int) -> c_int 
 
             if what == 2 && (ascii_iswhite(c) || c == b'"' as c_int || c == b'\\' as c_int) {
                 if fputc(b'\\' as c_int, fd) < 0 {
-                    return FAIL;
+                    return false;
                 }
             } else if (c < b' ' as c_int
                 || c > b'~' as c_int
@@ -2015,14 +2015,14 @@ pub fn put_escstr(fd: *mut FILE, strstart: *const c_char, what: c_int) -> c_int 
                 || (what != 2 && c == b'<' as c_int))
                 && fputc(Ctrl_V, fd) < 0
             {
-                return FAIL;
+                return false;
             }
             if fputc(c, fd) < 0 {
-                return FAIL;
+                return false;
             }
             str_ptr = str_ptr.add(1);
         }
-        OK
+        true
     }
 }
 
@@ -2399,7 +2399,7 @@ pub fn f_mapset(argvars: &mut [typval_T], _rettv: &mut typval_T, _fptr: EvalFunc
                 return;
             }
             let is_abbr = tv_get_bool(&argvars[1]) as c_int;
-            if tv_check_for_dict_arg(argvars, 2) == FAIL {
+            if !tv_check_for_dict_arg(argvars, 2) {
                 return;
             }
             let d = argvars[2].vval.v_dict();

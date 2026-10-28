@@ -350,7 +350,7 @@ pub fn search_regcomp(
     options: c_int,
     mut magic: bool,
     regmatch: &mut regmmatch_T,
-) -> c_int {
+) -> bool {
     unsafe {
         g_st().rc_did_emsg = false;
 
@@ -367,7 +367,7 @@ pub fn search_regcomp(
                     emsg(tr(e_noprevre.as_ptr()));
                 }
                 g_st().rc_did_emsg = true;
-                return FAIL;
+                return false;
             }
             pat = srch().spats[i as usize].pat_ptr();
             patlen = srch().spats[i as usize].patlen();
@@ -405,9 +405,9 @@ pub fn search_regcomp(
         regmatch.rmm_maxcol = 0;
         regmatch.regprog = vim_regcomp(pat, if magic { RE_MAGIC } else { 0 });
         if regmatch.regprog.is_null() {
-            return FAIL;
+            return false;
         }
-        OK
+        true
     }
 }
 
@@ -729,7 +729,7 @@ pub fn searchit(
             tm = ea.sa_tm;
         }
 
-        if search_regcomp(
+        if !search_regcomp(
             pat,
             patlen,
             ptr::null_mut(),
@@ -738,7 +738,7 @@ pub fn searchit(
             options & (SEARCH_HIS + SEARCH_KEEP),
             magic,
             &mut regmatch,
-        ) == FAIL
+        )
         {
             if (options & SEARCH_MSG) != 0 && !g_st().rc_did_emsg {
                 semsg!(
@@ -2707,7 +2707,7 @@ fn is_zero_width(
             patternlen = srch().spats[srch().last_idx as usize].patlen();
         }
 
-        if search_regcomp(
+        if !search_regcomp(
             pattern,
             patternlen,
             ptr::null_mut(),
@@ -2716,7 +2716,7 @@ fn is_zero_width(
             SEARCH_KEEP,
             opt_vars().p_magic != 0,
             &mut regmatch,
-        ) == FAIL
+        )
         {
             return -1;
         }
@@ -3045,7 +3045,7 @@ pub fn f_searchcount(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: Eval
         if argvars[0].v_type != VarType::VAR_UNKNOWN {
             let mut error = false;
 
-            if tv_check_for_nonnull_dict_arg(argvars, 0) == FAIL {
+            if !tv_check_for_nonnull_dict_arg(argvars, 0) {
                 return;
             }
             let dict: *mut dict_T = argvars[0].vval.v_dict();

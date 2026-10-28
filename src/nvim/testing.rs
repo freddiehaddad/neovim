@@ -857,9 +857,9 @@ fn assert_inrange(argvars: &mut [typval_T]) -> c_int {
 
 /// `"assert_inrange(lower, upper, actual[, msg])"` function (`f_assert_inrange`).
 pub fn f_assert_inrange(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData) {
-    if tv_check_for_float_or_nr_arg(argvars, 0) == FAIL
-        || tv_check_for_float_or_nr_arg(argvars, 1) == FAIL
-        || tv_check_for_float_or_nr_arg(argvars, 2) == FAIL
+    if !tv_check_for_float_or_nr_arg(argvars, 0)
+        || !tv_check_for_float_or_nr_arg(argvars, 1)
+        || !tv_check_for_float_or_nr_arg(argvars, 2)
         || tv_check_for_opt_string_arg(argvars, 3) == FAIL
     {
         return;

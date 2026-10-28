@@ -3493,7 +3493,7 @@ pub fn f_getcellwidths(_argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: E
 pub fn f_charclass(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData){
 
      {
-        if tv_check_for_string_arg(argvars, 0) == FAIL || argvars[0].vval.v_string().is_null() {
+        if !tv_check_for_string_arg(argvars, 0) || argvars[0].vval.v_string().is_null() {
             return;
         }
         rettv.vval = crate::eval::typval::TypvalVval::Number(varnumber_T::from(mb_get_class(argvars[0].vval.v_string())));
