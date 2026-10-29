@@ -103,6 +103,20 @@ impl IntoCCharPtr for &std::ffi::CString {
     }
 }
 
+impl IntoCCharPtr for Option<&CStr> {
+    #[inline]
+    fn into_c_char_ptr(self) -> *const c_char {
+        self.map_or(ptr::null(), |s| s.as_ptr())
+    }
+}
+
+impl IntoCCharPtr for Option<&std::ffi::CString> {
+    #[inline]
+    fn into_c_char_ptr(self) -> *const c_char {
+        self.map_or(ptr::null(), |s| s.as_ptr())
+    }
+}
+
 impl IntoCCharPtr for &c_char {
     #[inline]
     fn into_c_char_ptr(self) -> *const c_char {

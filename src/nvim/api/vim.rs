@@ -3025,7 +3025,7 @@ pub fn nvim_complete_set(
         return rv;
     }
     if (opts.is_set_complete_set & (1u64 << KEYSET_OPTIDX_COMPLETE_SET_INFO)) != 0 {
-        let wp = pum_set_info(index as i32, opts.info.data);
+        let wp = pum_set_info(index as i32, opts.info.data.cast());
         if !wp.is_null() {
             let wp = unsafe { &mut *wp };
             put_c(&mut rv, c"winid", window_obj(wp.handle));

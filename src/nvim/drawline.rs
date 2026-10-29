@@ -1939,11 +1939,11 @@ pub fn win_line(
                 wp,
                 lnum,
                 v,
-                &raw mut line,
                 &mut g_st().screen_search_hl,
                 &mut search_attr,
                 &mut search_attr_from_match,
             );
+            line = ml_get_buf(wp.buf_mut(), lnum);
             ptr = line.wrapping_add(v as usize);
         }
 
@@ -2217,7 +2217,6 @@ pub fn win_line(
                             wp,
                             lnum,
                             v,
-                            &raw mut line,
                             &mut g_st().screen_search_hl,
                             &mut has_match_conc,
                             &mut match_conc,
@@ -2225,6 +2224,7 @@ pub fn win_line(
                             &mut on_last_col,
                             &mut search_attr_from_match,
                         );
+                        line = ml_get_buf(wp.buf_mut(), lnum);
                         ptr = line.wrapping_add(v as usize);
 
                         if crate::memory::cstr_is_empty(ptr) {
