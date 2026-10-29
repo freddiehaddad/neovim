@@ -79,7 +79,7 @@ use crate::state::{MODE_INSERT, virtual_active};
 use crate::strings::vim_snprintf;
 use crate::textformat::{InsState, Oparg};
 use crate::undo::{u_forget_unchanged, u_save, uhp_mut};
-use std::ffi::c_char;
+use std::ffi::CStr;
 use std::ptr;
 
 const DECOR_INLINE_INIT: DecorInline = DecorInline {
@@ -266,11 +266,11 @@ fn mc_session_ns() -> u32 {
     mc_st().ns_session
 }
 
-pub fn mc_showcmd(buf: *mut c_char, size: usize) -> usize {
+pub fn mc_showcmd(buf: &mut [u8]) -> usize {
     let count = cursors().len();
     if count == 0 {
-        unsafe {
-            *buf = 0;
+        if !buf.is_empty() {
+            buf[0] = 0;
         }
         return 0;
     }
@@ -279,7 +279,7 @@ pub fn mc_showcmd(buf: *mut c_char, size: usize) -> usize {
     } else {
         c"".as_ptr()
     };
-    vim_snprintf!(buf, size, c"%s%zu\xc3\x97 ", prefix, count) as usize
+    vim_snprintf!(buf.as_mut_ptr().cast(), buf.len(), c"%s%zu\xc3\x97 ", prefix, count) as usize
 }
 
 pub fn mc_replaying() -> bool {
@@ -851,26 +851,21 @@ fn mc_ins_preview_set(new_text: &NvimString) {
     mc_ins_restore_state(&saved);
 }
 
-fn mc_ins_keys_nonliteral(keys: impl crate::strings::IntoCCharPtr, len: usize) -> bool {
-    let keys = keys.into_c_char_ptr();
-    {
-        let mut i = 0;
-        while i < len {
-            let mut key = i32::from(crate::memory::cstr_byte_at(keys, i));
-            if key == i32::from(K_SPECIAL) && i + 2 < len {
-                key = to_special(
-                    i32::from(crate::memory::cstr_byte_at(keys, i + 1)),
-                    i32::from(crate::memory::cstr_byte_at(keys, i + 2)),
-                );
-                i += 2;
-            }
-            if (atom_key_class(key, NUL, NUL) & K_KEY_INS_FLUSH) != 0 {
-                return true;
-            }
-            i += 1;
+fn mc_ins_keys_nonliteral(keys: &[u8]) -> bool {
+    let len = keys.len();
+    let mut i = 0;
+    while i < len {
+        let mut key = i32::from(keys[i]);
+        if key == i32::from(K_SPECIAL) && i + 2 < len {
+            key = to_special(i32::from(keys[i + 1]), i32::from(keys[i + 2]));
+            i += 2;
         }
-        false
+        if (atom_key_class(key, NUL, NUL) & K_KEY_INS_FLUSH) != 0 {
+            return true;
+        }
+        i += 1;
     }
+    false
 }
 
 pub fn mc_ins_cascade_restart() {
@@ -943,10 +938,7 @@ pub fn mc_ins_cascade() {
     } else if !ins.data.is_null() && ins.size < mc_st().mc_ins_span.done_len {
         mc_ins_cascade_restart();
     } else if ins.size > mc_st().mc_ins_span.done_len
-        && mc_ins_keys_nonliteral(
-            ins.data.wrapping_add(mc_st().mc_ins_span.done_len),
-            ins.size - mc_st().mc_ins_span.done_len,
-        )
+        && mc_ins_keys_nonliteral(&ins.as_bytes()[mc_st().mc_ins_span.done_len..])
     {
         if !ins_compl_active() && !pum_visible() {
             mc_ins_span_flush(&ins, false);
@@ -978,10 +970,7 @@ pub fn mc_ins_cascade() {
             }
         }
         if update {
-            let text_str = NvimString {
-                data: text.as_ptr().cast::<c_char>().cast_mut(),
-                size: text.len(),
-            };
+            let text_str = NvimString::from_bytes(&text);
             mc_ins_preview_set(&text_str);
         }
     }
@@ -989,43 +978,31 @@ pub fn mc_ins_cascade() {
 }
 
 fn mc_ins_span_flush(ins: &NvimString, commit: bool) {
-    let empty = NvimString {
-        data: ptr::null_mut(),
-        size: 0,
-    };
+    let empty = NvimString::new();
     let fp = mc_ins_region_first();
     if fp.start.id != 0
         && (fp.start.pos.row != fp.end_pos.row || fp.start.pos.col != fp.end_pos.col)
     {
         mc_ins_preview_set(&empty);
     }
-    let dlen = ins.size - mc_st().mc_ins_span.done_len;
-    let mut keys: Vec<c_char> = Vec::with_capacity(dlen + 2);
-    keys.push(b'i' as c_char);
+    let done = mc_st().mc_ins_span.done_len;
+    let ins_bytes = ins.as_bytes();
+    let dlen = ins_bytes.len() - done;
+    let mut keys: Vec<u8> = Vec::with_capacity(dlen + 2);
+    keys.push(b'i');
     if dlen > 0 {
-        keys.extend_from_slice(unsafe {
-            std::slice::from_raw_parts(ins.data.wrapping_add(mc_st().mc_ins_span.done_len), dlen)
-        });
+        keys.extend_from_slice(&ins_bytes[done..]);
     }
     if !commit {
-        keys.push(ESC);
+        keys.push(ESC as u8);
     }
     let text = if commit && dlen > 1 {
-        let text_slice = unsafe {
-            std::slice::from_raw_parts(
-                ins.data
-                    .wrapping_add(mc_st().mc_ins_span.done_len)
-                    .cast::<u8>(),
-                dlen - 1,
-            )
-        };
-        Some(std::ffi::CString::new(text_slice).unwrap())
+        Some(std::ffi::CString::new(&ins_bytes[done..done + dlen - 1]).unwrap())
     } else {
         None
     };
     mc_st().mc_ins_span.done_len = ins.size;
-    let keys_slice = crate::memory::cstr_slice(keys.as_ptr(), keys.len());
-    mc_ins_span_push(std::ffi::CString::new(keys_slice).unwrap(), text);
+    mc_ins_span_push(std::ffi::CString::new(keys).unwrap(), text);
     if !commit {
         mc_ins_preview_rebase();
     }
@@ -1092,7 +1069,7 @@ fn mc_reg_gather() {
     let mut save = CONTEXT_INIT;
     ctx_save(&mut save, K_CTX_REGS);
 
-    let mut joined: [Vec<c_char>; MC_REGS.len()] = [const { Vec::new() }; MC_REGS.len()];
+    let mut joined: [Vec<u8>; MC_REGS.len()] = [const { Vec::new() }; MC_REGS.len()];
     for &ctx_ptr in &order {
         ctx_load(unsafe { &mut *ctx_ptr }, K_CTX_REGS, 0);
         let mut idx = 0;
@@ -1102,11 +1079,9 @@ fn mc_reg_gather() {
                 let text_bytes = text.to_bytes();
                 if !text_bytes.is_empty() {
                     if !joined[idx].is_empty() {
-                        joined[idx].push(NL as c_char);
+                        joined[idx].push(b'\n');
                     }
-                    joined[idx].extend_from_slice(unsafe {
-                        std::slice::from_raw_parts(text.as_ptr(), text_bytes.len())
-                    });
+                    joined[idx].extend_from_slice(text_bytes);
                 }
             }
             idx += 1;
@@ -1122,7 +1097,7 @@ fn mc_reg_gather() {
             let r = i32::from(MC_REGS[idx]);
             write_reg_contents_ex(
                 r,
-                joined[idx].as_ptr(),
+                joined[idx].as_ptr().cast(),
                 joined[idx].len() as isize,
                 false,
                 crate::register::MotionType::MtLineWise,
@@ -1369,35 +1344,32 @@ pub fn mc_mark_at(buf: &mut FileBuf, pos: CursorPos, skip: u32) -> u32 {
     0
 }
 
-fn mc_zq_step(keys: impl crate::strings::IntoCCharPtr, pos: CursorPos) -> CursorPos {
-    let keys = keys.into_c_char_ptr();
-    {
-        curwin_mut().w_cursor = pos;
-        curwin_mut().w_set_curswant = false;
-        g_st().msg_silent += 1;
-        g_st().emsg_silent += 1;
-        let save_cmod_flags = g_st().cmdmod.cmod_flags;
-        g_st().cmdmod.cmod_flags |= CMOD_KEEPJUMPS;
-        atom_suppress(true);
-        block_autocmds();
-        block_on_key();
-        let mut sst = SaveState::new();
-        save_current_state(&mut sst);
-        let beeps = g_st().did_beep_silent;
-        exec_normal_cmd(keys.cast_mut(), REMAP_NONE, true);
-        let failed = g_st().did_beep_silent != beeps;
-        restore_current_state(&mut sst);
-        unblock_on_key();
-        unblock_autocmds();
-        atom_suppress(false);
-        g_st().cmdmod.cmod_flags = save_cmod_flags;
-        g_st().emsg_silent -= 1;
-        g_st().msg_silent -= 1;
-        if failed {
-            INIT_POS
-        } else {
-            curwin_mut().w_cursor
-        }
+fn mc_zq_step(keys: &CStr, pos: CursorPos) -> CursorPos {
+    curwin_mut().w_cursor = pos;
+    curwin_mut().w_set_curswant = false;
+    g_st().msg_silent += 1;
+    g_st().emsg_silent += 1;
+    let save_cmod_flags = g_st().cmdmod.cmod_flags;
+    g_st().cmdmod.cmod_flags |= CMOD_KEEPJUMPS;
+    atom_suppress(true);
+    block_autocmds();
+    block_on_key();
+    let mut sst = SaveState::new();
+    save_current_state(&mut sst);
+    let beeps = g_st().did_beep_silent;
+    exec_normal_cmd(keys.as_ptr().cast_mut(), REMAP_NONE, true);
+    let failed = g_st().did_beep_silent != beeps;
+    restore_current_state(&mut sst);
+    unblock_on_key();
+    unblock_autocmds();
+    atom_suppress(false);
+    g_st().cmdmod.cmod_flags = save_cmod_flags;
+    g_st().emsg_silent -= 1;
+    g_st().msg_silent -= 1;
+    if failed {
+        INIT_POS
+    } else {
+        curwin_mut().w_cursor
     }
 }
 
@@ -1440,109 +1412,101 @@ fn mc_zq_target(
 }
 
 fn mc_zq_first(
-    keys: impl crate::strings::IntoCCharPtr,
+    keys: &CStr,
     search: bool,
     motion_type: i32,
-    bounds: *const CursorPos,
+    bounds: &[CursorPos; 2],
     step: &mut CursorPos,
 ) -> bool {
-    let keys = keys.into_c_char_ptr();
-    {
-        let start = unsafe { *bounds };
-        let end_bound = unsafe { *bounds.wrapping_add(1) };
-        let curswant = curwin_mut().w_curswant;
-        let mut before = start;
-        let bof = dec(&mut before) == -1;
-        step.lnum = 0;
-        if !bof {
-            let save_ww = opt_vars().p_ww;
-            opt_vars().p_ww = c"s,l,>".as_ptr().cast_mut();
-            let s = mc_zq_step(keys, before);
-            opt_vars().p_ww = save_ww;
-            curwin_mut().w_curswant = curswant;
-            if ltoreq(start, s) && ltoreq(s, end_bound) {
-                *step = s;
-            }
-        }
-        curwin_mut().w_cursor = start;
-        check_cursor_col(curwin_mut());
-        let from = curwin_mut().w_cursor;
-        let s = mc_zq_step(keys, from);
-        if s.lnum > from.lnum && !curwin_mut().w_set_curswant {
-            let mut c = from;
-            getvpos(curwin_ptr(), &mut c, curwin_mut().w_curswant);
-            if ltoreq(start, c) && ltoreq(c, end_bound) && (step.lnum == 0 || lt(c, *step)) {
-                *step = c;
-            }
-        }
+    let start = bounds[0];
+    let end_bound = bounds[1];
+    let curswant = curwin_mut().w_curswant;
+    let mut before = start;
+    let bof = dec(&mut before) == -1;
+    step.lnum = 0;
+    if !bof {
+        let save_ww = opt_vars().p_ww;
+        opt_vars().p_ww = c"s,l,>".as_ptr().cast_mut();
+        let s = mc_zq_step(keys, before);
+        opt_vars().p_ww = save_ww;
         curwin_mut().w_curswant = curswant;
-        if step.lnum != 0 {
-            return true;
+        if ltoreq(start, s) && ltoreq(s, end_bound) {
+            *step = s;
         }
-        let failed = s.lnum == 0;
-        if failed && motion_type != MT_LINE_WISE && equalpos(from, start) {
-            return false;
-        }
-        if bof
-            && (!search || equalpos(mc_zq_target(start, true, motion_type, None).vi_start, start))
-        {
-            *step = start;
-            return true;
-        }
-        if failed || equalpos(s, from) {
-            *step = start;
-            return true;
-        }
-        *step = s;
-        ltoreq(start, s) && ltoreq(s, end_bound)
     }
+    curwin_mut().w_cursor = start;
+    check_cursor_col(curwin_mut());
+    let from = curwin_mut().w_cursor;
+    let s = mc_zq_step(keys, from);
+    if s.lnum > from.lnum && !curwin_mut().w_set_curswant {
+        let mut c = from;
+        getvpos(curwin_ptr(), &mut c, curwin_mut().w_curswant);
+        if ltoreq(start, c) && ltoreq(c, end_bound) && (step.lnum == 0 || lt(c, *step)) {
+            *step = c;
+        }
+    }
+    curwin_mut().w_curswant = curswant;
+    if step.lnum != 0 {
+        return true;
+    }
+    let failed = s.lnum == 0;
+    if failed && motion_type != MT_LINE_WISE && equalpos(from, start) {
+        return false;
+    }
+    if bof && (!search || equalpos(mc_zq_target(start, true, motion_type, None).vi_start, start)) {
+        *step = start;
+        return true;
+    }
+    if failed || equalpos(s, from) {
+        *step = start;
+        return true;
+    }
+    *step = s;
+    ltoreq(start, s) && ltoreq(s, end_bound)
 }
 
 fn mc_zq_run(
-    keys: impl crate::strings::IntoCCharPtr,
+    keys: &CStr,
     search: bool,
     motion_type: i32,
     end: CursorPos,
     first: CursorPos,
 ) -> i32 {
-    let keys = keys.into_c_char_ptr();
-    {
-        let wrap = end.lnum == MAXLNUM;
-        let mut wrapped = false;
-        let mut placed: i32 = 0;
-        let mut step = first;
-        let curswant = curwin_mut().w_curswant;
-        while !g_st().got_int {
-            mc_zq_target(step, search, motion_type, unsafe {
-                (mc_add(curbuf_mut(), step)).as_mut()
-            });
-            placed += 1;
-            let prev = step;
-            let mut from = prev;
+    let wrap = end.lnum == MAXLNUM;
+    let mut wrapped = false;
+    let mut placed: i32 = 0;
+    let mut step = first;
+    let curswant = curwin_mut().w_curswant;
+    while !g_st().got_int {
+        mc_zq_target(step, search, motion_type, unsafe {
+            (mc_add(curbuf_mut(), step)).as_mut()
+        });
+        placed += 1;
+        let prev = step;
+        let mut from = prev;
+        step = mc_zq_step(keys, from);
+        if equalpos(step, from) && inc(&mut from) != -1 {
             step = mc_zq_step(keys, from);
-            if equalpos(step, from) && inc(&mut from) != -1 {
-                step = mc_zq_step(keys, from);
-            }
-            if step.lnum == 0 || equalpos(step, prev) || equalpos(step, from) {
-                break;
-            }
-            if lt(step, prev) {
-                if !wrap || wrapped {
-                    break;
-                }
-                wrapped = true;
-            }
-            if if wrapped {
-                ltoreq(first, step)
-            } else {
-                lt(end, step)
-            } {
-                break;
-            }
         }
-        curwin_mut().w_curswant = curswant;
-        placed
+        if step.lnum == 0 || equalpos(step, prev) || equalpos(step, from) {
+            break;
+        }
+        if lt(step, prev) {
+            if !wrap || wrapped {
+                break;
+            }
+            wrapped = true;
+        }
+        if if wrapped {
+            ltoreq(first, step)
+        } else {
+            lt(end, step)
+        } {
+            break;
+        }
     }
+    curwin_mut().w_curswant = curswant;
+    placed
 }
 
 pub fn mc_zq_start(cap: &mut Cmdarg) {
@@ -1625,21 +1589,20 @@ pub fn mc_zq(oap: &mut Oparg, cap: &mut Cmdarg, origin: CursorPos) {
     } else {
         redo_keys(&spec).unwrap_or_default()
     };
-    let keys_data = keys_cstr.as_ptr().cast_mut();
     if !oap.from_visual && search {
         first = mc_zq_target(primary, true, oap.motion_type, None).vi_start;
         if first.lnum != 0 {
-            placed = mc_zq_run(keys_data, search, oap.motion_type, bounds[1], first);
+            placed = mc_zq_run(&keys_cstr, search, oap.motion_type, bounds[1], first);
         }
     } else if !blockwise {
         if mc_zq_first(
-            keys_data,
+            &keys_cstr,
             search,
             oap.motion_type,
-            bounds.as_ptr(),
+            &bounds,
             &mut first,
         ) {
-            placed = mc_zq_run(keys_data, search, oap.motion_type, bounds[1], first);
+            placed = mc_zq_run(&keys_cstr, search, oap.motion_type, bounds[1], first);
         }
     } else {
         for lnum in bounds[0].lnum..=bounds[1].lnum {
@@ -1661,11 +1624,11 @@ pub fn mc_zq(oap: &mut Oparg, cap: &mut Cmdarg, origin: CursorPos) {
                 getvpos(curwin_ptr(), &mut line[1], vcols[1]);
             }
             let mut step = INIT_POS;
-            if mc_zq_first(keys_data, search, oap.motion_type, line.as_ptr(), &mut step) {
+            if mc_zq_first(&keys_cstr, search, oap.motion_type, &line, &mut step) {
                 if first.lnum == 0 {
                     first = step;
                 }
-                placed += mc_zq_run(keys_data, search, oap.motion_type, line[1], step);
+                placed += mc_zq_run(&keys_cstr, search, oap.motion_type, line[1], step);
             }
         }
     }

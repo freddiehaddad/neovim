@@ -12,7 +12,7 @@ use crate::globals::*;
 use crate::indent::inindent;
 use crate::insert::oneleft;
 use crate::mark::setpcmark;
-use crate::mbyte::{mb_prevptr, utf_class, utf_head_off, utfc_ptr2len};
+use crate::mbyte::{mb_prevptr, utf_class, utf_head_off, utfc_ptr2len, utfc_slice2len};
 use crate::memline::{dec, decl, gchar_pos, inc, incl, ml_get, ml_get_len, ml_get_pos};
 use crate::r#move::adjust_skipcol;
 use crate::normal::{FM_FORWARD, lineempty, unadjust_for_sel};
@@ -22,7 +22,7 @@ use crate::search::{
 };
 use crate::strings::vim_strchr;
 use crate::textformat::Oparg;
-use std::ffi::c_char;
+use std::ffi::CStr;
 use std::ptr;
 
 use crate::regexp::MAXCOL;
@@ -243,7 +243,7 @@ pub fn findpar(pincl: &mut bool, dir: i32, mut count: i32, what: i32, both: bool
         }
     }
     setpcmark();
-    if both && unsafe { *ml_get(curr) } == b'}' as c_char {
+    if both && crate::memory::cstr_first_byte(ml_get(curr)) == b'}' {
         curr += 1;
     }
     curwin_mut().w_cursor.lnum = curr;
@@ -266,52 +266,39 @@ pub fn findpar(pincl: &mut bool, dir: i32, mut count: i32, what: i32, both: bool
 }
 
 /// Check if the string `s` is a nroff macro that is in option `opt` (`inmacro`).
-fn inmacro(opt: impl crate::strings::IntoCCharPtr, s: impl crate::strings::IntoCCharPtr) -> bool {
-    let opt = opt.into_c_char_ptr();
-    let s = s.into_c_char_ptr();
-    {
-        let mut macro_p = opt;
-        let s0 = unsafe { *s };
-        let s1 = if s0 == NUL {
-            NUL
-        } else {
-            unsafe { *s.wrapping_add(1) }
-        };
+fn inmacro(opt: &[u8], s: &[u8]) -> bool {
+    let s0 = s.first().copied().unwrap_or(0);
+    let s1 = s.get(1).copied().unwrap_or(0);
 
-        while !crate::memory::cstr_is_empty(macro_p) {
-            let m0 = unsafe { *macro_p };
-            let m1 = unsafe { *macro_p.wrapping_add(1) };
-            if (m0 == s0 || (m0 == b' ' as c_char && (s0 == NUL || s0 == b' ' as c_char)))
-                && (m1 == s1
-                    || ((m1 == NUL || m1 == b' ' as c_char)
-                        && (s0 == NUL || s1 == NUL || s1 == b' ' as c_char)))
-            {
-                break;
-            }
-            macro_p = macro_p.wrapping_add(1);
-            if crate::memory::cstr_is_empty(macro_p) {
-                break;
-            }
-            macro_p = macro_p.wrapping_add(1);
+    let mut i = 0usize;
+    while i < opt.len() {
+        let m0 = opt[i];
+        let m1 = opt.get(i + 1).copied().unwrap_or(0);
+        if (m0 == s0 || (m0 == b' ' && (s0 == 0 || s0 == b' ')))
+            && (m1 == s1 || ((m1 == 0 || m1 == b' ') && (s0 == 0 || s1 == 0 || s1 == b' ')))
+        {
+            return true;
         }
-        !crate::memory::cstr_is_empty(macro_p)
+        i += 2;
     }
+    false
 }
 
 /// Return true if line `lnum` is the start of a section or paragraph (`startPS`).
 pub fn start_ps(lnum: Linenr, para: i32, both: bool) -> bool {
     let s = ml_get(lnum);
-    if i32::from(crate::memory::cstr_first_byte(s)) == para
-        || crate::memory::cstr_first_byte(s) == b'\x0c'
-        || (both && crate::memory::cstr_first_byte(s) == b'}')
-    {
+    let s_bytes = crate::memory::cstr_as_bytes(s);
+    let first = s_bytes.first().copied().unwrap_or(0);
+    if i32::from(first) == para || first == b'\x0c' || (both && first == b'}') {
         return true;
     }
-    if crate::memory::cstr_first_byte(s) == b'.'
-        && (inmacro(opt_vars().p_sections, s.wrapping_add(1))
-            || (para == 0 && inmacro(opt_vars().p_para, s.wrapping_add(1))))
-    {
-        return true;
+    if first == b'.' {
+        let rest = &s_bytes[1..];
+        if inmacro(crate::memory::cstr_as_bytes(opt_vars().p_sections), rest)
+            || (para == 0 && inmacro(crate::memory::cstr_as_bytes(opt_vars().p_para), rest))
+        {
+            return true;
+        }
     }
     false
 }
@@ -1207,9 +1194,9 @@ pub fn current_tagblock(oap: &mut Oparg, count_arg: i32, include: bool) -> bool 
         epat.extend_from_slice(b">\\c\0");
 
         let r = do_searchpair(
-            spat.as_ptr().cast::<c_char>(),
+            CStr::from_bytes_with_nul(&spat).unwrap_or(c""),
             c"",
-            epat.as_ptr().cast::<c_char>(),
+            CStr::from_bytes_with_nul(&epat).unwrap_or(c""),
             FORWARD,
             None,
             0,
@@ -1469,65 +1456,61 @@ pub fn current_par(oap: &mut Oparg, count: i32, include: bool, type_: i32) -> bo
 
 /// Search quote char from string `line[col]` (`find_next_quote`).
 fn find_next_quote(
-    line: impl crate::strings::IntoCCharPtr,
+    line_bytes: &[u8],
     mut col: i32,
     quotechar: i32,
-    escape: impl crate::strings::IntoCCharPtr,
+    escape: Option<&[u8]>,
 ) -> i32 {
-    let line = line.into_c_char_ptr();
-    let escape = escape.into_c_char_ptr();
-    {
-        loop {
-            let c = i32::from(crate::memory::cstr_byte_at(line, col as usize));
-            if c == i32::from(NUL) {
+    loop {
+        let Some(&b) = line_bytes.get(col as usize) else {
+            return -1;
+        };
+        let c = i32::from(b);
+        if c == 0 {
+            return -1;
+        } else if escape.is_some_and(|esc| esc.contains(&b)) {
+            col += 1;
+            if line_bytes.get(col as usize).copied().unwrap_or(0) == 0 {
                 return -1;
-            } else if !escape.is_null() && crate::strings::vim_haschr(escape, c) {
-                col += 1;
-                if crate::memory::cstr_byte_at(line, col as usize) == 0 {
-                    return -1;
-                }
-            } else if c == quotechar {
-                break;
             }
-            col += utfc_ptr2len(line.wrapping_add(col as usize));
+        } else if c == quotechar {
+            break;
         }
-        col
+        col += utfc_slice2len(&line_bytes[col as usize..]) as i32;
     }
+    col
 }
 
 /// Search backwards in `line` from column `col_start` to find `quotechar` (`find_prev_quote`).
 fn find_prev_quote(
-    line: impl crate::strings::IntoCCharPtr,
+    line_bytes: &[u8],
     mut col_start: i32,
     quotechar: i32,
-    escape: impl crate::strings::IntoCCharPtr,
+    escape: Option<&[u8]>,
 ) -> i32 {
-    let line = line.into_c_char_ptr();
-    let escape = escape.into_c_char_ptr();
-    {
-        while col_start > 0 {
-            col_start -= 1;
-            col_start -= utf_head_off(line, line.wrapping_add(col_start as usize));
-            let mut n = 0;
-            if !escape.is_null() {
-                while col_start - n > 0
-                    && crate::strings::vim_haschr(
-                        escape,
-                        i32::from(unsafe { *line.wrapping_add((col_start - n - 1) as usize) } as u8),
-                    )
-                {
-                    n += 1;
-                }
-            }
-            if (n & 1) != 0 {
-                col_start -= n;
-            } else if i32::from(crate::memory::cstr_byte_at(line, col_start as usize)) == quotechar
+    let line_ptr = if line_bytes.is_empty() {
+        c"".as_ptr()
+    } else {
+        line_bytes.as_ptr().cast()
+    };
+    while col_start > 0 {
+        col_start -= 1;
+        col_start -= utf_head_off(line_ptr, line_ptr.wrapping_add(col_start as usize));
+        let mut n = 0;
+        if let Some(esc) = escape {
+            while col_start - n > 0
+                && esc.contains(&line_bytes[(col_start - n - 1) as usize])
             {
-                break;
+                n += 1;
             }
         }
-        col_start
+        if (n & 1) != 0 {
+            col_start -= n;
+        } else if i32::from(line_bytes.get(col_start as usize).copied().unwrap_or(0)) == quotechar {
+            break;
+        }
     }
+    col_start
 }
 
 /// Find quote under the cursor, cursor at end (`current_quote`).
@@ -1630,47 +1613,50 @@ pub fn current_quote(oap: &mut Oparg, count: i32, include: bool, quotechar: i32)
         }
     }
 
-    if !vis_empty && i32::from(crate::memory::cstr_byte_at(line, col_start as usize)) == quotechar {
+    let line_bytes = crate::memory::cstr_as_bytes(line);
+    let qe_bytes = crate::memory::cstr_as_opt_bytes(curbuf_mut().b_p_qe);
+    if !vis_empty && i32::from(line_bytes.get(col_start as usize).copied().unwrap_or(0)) == quotechar
+    {
         if vis_bef_curs {
-            col_start = find_next_quote(line, col_start + 1, quotechar, ptr::null_mut());
+            col_start = find_next_quote(line_bytes, col_start + 1, quotechar, None);
             if col_start < 0 {
                 return abort_search(did_exclusive_adj, restore_vis_bef);
             }
-            col_end = find_next_quote(line, col_start + 1, quotechar, curbuf_mut().b_p_qe);
+            col_end = find_next_quote(line_bytes, col_start + 1, quotechar, qe_bytes);
             if col_end < 0 {
                 col_end = col_start;
                 col_start = curwin_mut().w_cursor.col;
             }
         } else {
-            col_end = find_prev_quote(line, col_start, quotechar, ptr::null_mut());
-            if i32::from(crate::memory::cstr_byte_at(line, col_end as usize)) != quotechar {
+            col_end = find_prev_quote(line_bytes, col_start, quotechar, None);
+            if i32::from(line_bytes.get(col_end as usize).copied().unwrap_or(0)) != quotechar {
                 return abort_search(did_exclusive_adj, restore_vis_bef);
             }
-            col_start = find_prev_quote(line, col_end, quotechar, curbuf_mut().b_p_qe);
-            if i32::from(crate::memory::cstr_byte_at(line, col_start as usize)) != quotechar {
+            col_start = find_prev_quote(line_bytes, col_end, quotechar, qe_bytes);
+            if i32::from(line_bytes.get(col_start as usize).copied().unwrap_or(0)) != quotechar {
                 col_start = col_end;
                 col_end = curwin_mut().w_cursor.col;
             }
         }
-    } else if i32::from(crate::memory::cstr_byte_at(line, col_start as usize)) == quotechar
+    } else if i32::from(line_bytes.get(col_start as usize).copied().unwrap_or(0)) == quotechar
         || !vis_empty
     {
         let mut first_col = col_start;
 
         if !vis_empty {
             if vis_bef_curs {
-                first_col = find_next_quote(line, col_start, quotechar, ptr::null_mut());
+                first_col = find_next_quote(line_bytes, col_start, quotechar, None);
             } else {
-                first_col = find_prev_quote(line, col_start, quotechar, ptr::null_mut());
+                first_col = find_prev_quote(line_bytes, col_start, quotechar, None);
             }
         }
         col_start = 0;
         loop {
-            col_start = find_next_quote(line, col_start, quotechar, ptr::null_mut());
+            col_start = find_next_quote(line_bytes, col_start, quotechar, None);
             if col_start < 0 || col_start > first_col {
                 return abort_search(did_exclusive_adj, restore_vis_bef);
             }
-            col_end = find_next_quote(line, col_start + 1, quotechar, curbuf_mut().b_p_qe);
+            col_end = find_next_quote(line_bytes, col_start + 1, quotechar, qe_bytes);
             if col_end < 0 {
                 return abort_search(did_exclusive_adj, restore_vis_bef);
             }
@@ -1680,15 +1666,15 @@ pub fn current_quote(oap: &mut Oparg, count: i32, include: bool, quotechar: i32)
             col_start = col_end + 1;
         }
     } else {
-        col_start = find_prev_quote(line, col_start, quotechar, curbuf_mut().b_p_qe);
-        if i32::from(crate::memory::cstr_byte_at(line, col_start as usize)) != quotechar {
-            col_start = find_next_quote(line, col_start, quotechar, ptr::null_mut());
+        col_start = find_prev_quote(line_bytes, col_start, quotechar, qe_bytes);
+        if i32::from(line_bytes.get(col_start as usize).copied().unwrap_or(0)) != quotechar {
+            col_start = find_next_quote(line_bytes, col_start, quotechar, None);
             if col_start < 0 {
                 return abort_search(did_exclusive_adj, restore_vis_bef);
             }
         }
 
-        col_end = find_next_quote(line, col_start + 1, quotechar, curbuf_mut().b_p_qe);
+        col_end = find_next_quote(line_bytes, col_start + 1, quotechar, qe_bytes);
         if col_end < 0 {
             return abort_search(did_exclusive_adj, restore_vis_bef);
         }

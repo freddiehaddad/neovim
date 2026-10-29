@@ -1,7 +1,7 @@
 //! Mouse input, clicking, dragging, and scrolling (`src/nvim/mouse.c`).
 
 use crate::buffer::{VALID_TOPLINE, VAR_FIXED, bt_prompt, bt_quickfix};
-use crate::charset::{NUL, ascii_iswhite, vim_iswordc};
+use crate::charset::{ascii_iswhite, vim_iswordc};
 use crate::cursor::{
     Colnr, CursorPos, Linenr, coladvance, equalpos, get_cursor_pos_ptr, lt, ltoreq, set_leftcol,
 };
@@ -67,7 +67,6 @@ use crate::window::{
     VALID_BOTLINE_AP, WinInfoInfo, find_tabpage, global_stl_height, goto_tabpage, tabpage_index,
     tabpage_move, win_drag_status_line, win_drag_vsep_line, win_enter, win_fdccol_count, win_valid,
 };
-use std::ffi::c_char;
 use std::ptr;
 
 use crate::cmdexpand::CTRL_P;
@@ -207,37 +206,37 @@ fn mouse_st() -> &'static mut MouseModuleState {
 /// 1: punctuation groups
 /// 2: normal word character
 /// >2: multi-byte word character.
-fn get_mouse_class(p: impl crate::strings::IntoCCharPtr) -> i32 {
-    let p = p.into_c_char_ptr();
-    {
-        if UTF8LEN_TAB[crate::memory::cstr_first_byte(p) as usize] > 1 {
-            return mb_get_class(p);
-        }
-
-        let c = i32::from(crate::memory::cstr_first_byte(p));
-        if c == b' ' as i32 || c == b'\t' as i32 {
-            return 0;
-        }
-        if vim_iswordc(c) {
-            return 2;
-        }
-
-        if c != 0 && crate::strings::vim_haschr(c"-+*/%<>&|^!=", c) {
-            return 1;
-        }
-        c
+fn get_mouse_class(bytes: &[u8]) -> i32 {
+    let first = bytes.first().copied().unwrap_or(0);
+    if UTF8LEN_TAB[first as usize] > 1 {
+        let cstr = crate::memory::cstr_from_bytes(bytes);
+        return mb_get_class(cstr.as_ptr());
     }
+
+    let c = i32::from(first);
+    if c == b' ' as i32 || c == b'\t' as i32 {
+        return 0;
+    }
+    if vim_iswordc(c) {
+        return 2;
+    }
+
+    if c != 0 && crate::strings::vim_haschr(c"-+*/%<>&|^!=", c) {
+        return 1;
+    }
+    c
 }
 
 /// Move "pos" back to the start of the word it's in.
 fn find_start_of_word(pos: &mut CursorPos) {
     let line = ml_get(pos.lnum);
-    let cclass = get_mouse_class(line.wrapping_add(pos.col as usize));
+    let line_bytes = crate::memory::cstr_as_bytes(line);
+    let cclass = get_mouse_class(line_bytes.get(pos.col as usize..).unwrap_or(&[]));
 
     while pos.col > 0 {
         let mut col = pos.col - 1;
         col -= utf_head_off(line, line.wrapping_add(col as usize));
-        if get_mouse_class(line.wrapping_add(col as usize)) != cclass {
+        if get_mouse_class(line_bytes.get(col as usize..).unwrap_or(&[])) != cclass {
             break;
         }
         pos.col = col;
@@ -252,10 +251,11 @@ fn find_end_of_word(pos: &mut CursorPos) {
         pos.col -= 1;
         pos.col -= utf_head_off(line, line.wrapping_add(pos.col as usize));
     }
-    let cclass = get_mouse_class(line.wrapping_add(pos.col as usize));
-    while crate::memory::cstr_byte_at(line, pos.col as usize) != 0 {
+    let line_bytes = crate::memory::cstr_as_bytes(line);
+    let cclass = get_mouse_class(line_bytes.get(pos.col as usize..).unwrap_or(&[]));
+    while (pos.col as usize) < line_bytes.len() {
         let col = pos.col + utfc_ptr2len(line.wrapping_add(pos.col as usize));
-        if get_mouse_class(line.wrapping_add(col as usize)) != cclass {
+        if get_mouse_class(line_bytes.get(col as usize..).unwrap_or(&[])) != cclass {
             if crate::memory::cstr_first_byte(opt_vars().p_sel) == b'e' {
                 pos.col = col;
             }
@@ -322,28 +322,28 @@ fn call_click_def_func(click_defs: *mut StlClickDefinition, col: i32, which_butt
             c"?".as_ptr()
         };
 
-        let mut mod_str: [c_char; 5] = [
+        let mut mod_str: [u8; 5] = [
             if (g_st().mod_mask & MOD_MASK_SHIFT) != 0 {
-                b's' as c_char
+                b's'
             } else {
-                b' ' as c_char
+                b' '
             },
             if (g_st().mod_mask & MOD_MASK_CTRL) != 0 {
-                b'c' as c_char
+                b'c'
             } else {
-                b' ' as c_char
+                b' '
             },
             if (g_st().mod_mask & MOD_MASK_ALT) != 0 {
-                b'a' as c_char
+                b'a'
             } else {
-                b' ' as c_char
+                b' '
             },
             if (g_st().mod_mask & MOD_MASK_META) != 0 {
-                b'm' as c_char
+                b'm'
             } else {
-                b' ' as c_char
+                b' '
             },
-            NUL,
+            0,
         ];
 
         let mut argv: [TypVal; 4] = [
@@ -367,7 +367,7 @@ fn call_click_def_func(click_defs: *mut StlClickDefinition, col: i32, which_butt
             TypVal {
                 v_type: VarType::VarString,
                 v_lock: VAR_FIXED,
-                vval: TypvalVval::String(mod_str.as_mut_ptr()),
+                vval: TypvalVval::String(mod_str.as_mut_ptr().cast()),
             },
         ];
 

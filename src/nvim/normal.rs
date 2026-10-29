@@ -3032,15 +3032,15 @@ pub fn display_showcmd() {
         return;
     }
 
-    let mut mc_buf: [c_char; 16] = [0; 16];
-    let mc_len = mc_showcmd(mc_buf.as_mut_ptr(), mc_buf.len());
+    let mut mc_buf: [u8; 16] = [0; 16];
+    let mc_len = mc_showcmd(&mut mc_buf);
     let sc_buf = (&raw const g_st().showcmd_buf).cast::<c_char>();
 
     if ui_has(K_UIMESSAGES) {
         let mut content_items: [Object; 1] = [NIL_OBJ];
         let mut chunk_items: [Object; 3] = [NIL_OBJ; 3];
         let mut ext_buf: [c_char; 16 + SHOWCMD_BUFLEN] = [0; 16 + SHOWCMD_BUFLEN];
-        crate::memory::cstr_cpy(ext_buf.as_mut_ptr(), mc_buf.as_ptr());
+        crate::memory::cstr_cpy(ext_buf.as_mut_ptr(), mc_buf.as_ptr().cast::<c_char>());
         xstrlcpy(
             ext_buf.as_mut_ptr().wrapping_add(mc_len),
             if norm_st().showcmd_is_clear {
@@ -3080,7 +3080,12 @@ pub fn display_showcmd() {
     grid_line_start(&raw mut g_st().msg_grid_adj, showcmd_row);
 
     let mut len = if mc_len > 0 {
-        grid_line_puts(g_st().sc_col, mc_buf.as_ptr(), -1, 0)
+        grid_line_puts(
+            g_st().sc_col,
+            CStr::from_bytes_until_nul(&mc_buf).unwrap_or(c""),
+            -1,
+            0,
+        )
     } else {
         0
     };
