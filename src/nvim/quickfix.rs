@@ -7571,7 +7571,13 @@ pub fn ex_helpgrep(eap: &mut Exarg) {
 
     incr_quickfix_busy();
 
-    let lang = check_help_lang(eap.arg);
+    let lang = if eap.arg.is_null() {
+        ptr::null()
+    } else {
+        let len = crate::memory::cstr_len(eap.arg);
+        let slice = unsafe { std::slice::from_raw_parts_mut(eap.arg.cast::<u8>(), len + 1) };
+        check_help_lang(slice).map_or(ptr::null(), |s| s.as_ptr())
+    };
     let mut regmatch: Regmatch = Regmatch::new();
     regmatch.regprog = vim_regcomp(eap.arg, RE_MAGIC + RE_STRING);
     regmatch.rm_ic = false;

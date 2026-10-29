@@ -9,7 +9,7 @@ use crate::os::env::os_get_pid;
 #[cfg(windows)]
 use crate::os::os_win_console::INVALID_HANDLE_VALUE;
 #[cfg(windows)]
-use std::ffi::{CString, c_char, c_void};
+use std::ffi::{CStr, CString, c_void};
 
 #[cfg(windows)]
 use crate::os::os_win_console::{BOOL, DWORD, HANDLE};
@@ -218,7 +218,7 @@ fn conpty_st() -> &'static mut ConptyModuleState {
 #[link(name = "kernel32")]
 unsafe extern "system" {
     fn CreateNamedPipeA(
-        lpName: *const c_char,
+        lpName: *const u8,
         dwOpenMode: DWORD,
         dwPipeMode: DWORD,
         nMaxInstances: DWORD,
@@ -301,23 +301,23 @@ pub fn os_dyn_conpty_init() -> TriState {
         );
     }
 
-    let entries: [(*const c_char, *mut *mut c_void); 3] = [
+    let entries: [(&CStr, *mut *mut c_void); 3] = [
         (
-            c"CreatePseudoConsole".as_ptr(),
+            c"CreatePseudoConsole",
             std::ptr::addr_of_mut!(conpty_st().pCreatePseudoConsole).cast::<*mut c_void>(),
         ),
         (
-            c"ResizePseudoConsole".as_ptr(),
+            c"ResizePseudoConsole",
             std::ptr::addr_of_mut!(conpty_st().pResizePseudoConsole).cast::<*mut c_void>(),
         ),
         (
-            c"ClosePseudoConsole".as_ptr(),
+            c"ClosePseudoConsole",
             std::ptr::addr_of_mut!(conpty_st().pClosePseudoConsole).cast::<*mut c_void>(),
         ),
     ];
 
     for (name, ptr) in entries {
-        if unsafe { uv_dlsym(&mut conpty_lib, name, ptr) } != 0 {
+        if unsafe { uv_dlsym(&mut conpty_lib, name.as_ptr(), ptr) } != 0 {
             unsafe { uv_dlclose(&mut conpty_lib) };
             return K_FALSE;
         }
@@ -334,7 +334,7 @@ pub fn os_conpty_init(
     height: u16,
 ) -> Option<Box<Conpty>> {
     let mut conpty_object = Box::new(Conpty::new());
-    let emsg: *const c_char;
+    let emsg: &CStr;
     let in_read: HANDLE;
     let mut out_write: HANDLE = INVALID_HANDLE_VALUE;
     let mut sa = SECURITY_ATTRIBUTES {
@@ -347,7 +347,7 @@ pub fn os_conpty_init(
     let pid = os_get_pid();
     let count = conpty_st().CONPTY_COUNT;
     let in_pipe_cstr = CString::new(format!("\\\\.\\pipe\\nvim-term-in-{pid}-{count}")).unwrap();
-    let in_pipe_ptr = in_pipe_cstr.as_ptr();
+    let in_pipe_ptr = in_pipe_cstr.as_ptr().cast();
     *in_name = Some(in_pipe_cstr);
 
     'init: {
@@ -364,13 +364,13 @@ pub fn os_conpty_init(
             )
         };
         if in_read == INVALID_HANDLE_VALUE {
-            emsg = c"create input pipe failed".as_ptr();
+            emsg = c"create input pipe failed";
             break 'init;
         }
 
         let out_pipe_cstr =
             CString::new(format!("\\\\.\\pipe\\nvim-term-out-{pid}-{count}")).unwrap();
-        let out_pipe_ptr = out_pipe_cstr.as_ptr();
+        let out_pipe_ptr = out_pipe_cstr.as_ptr().cast();
         *out_name = Some(out_pipe_cstr);
         out_write = unsafe {
             CreateNamedPipeA(
@@ -385,7 +385,7 @@ pub fn os_conpty_init(
             )
         };
         if out_write == INVALID_HANDLE_VALUE {
-            emsg = c"create output pipe failed".as_ptr();
+            emsg = c"create output pipe failed";
             break 'init;
         }
 
@@ -405,7 +405,7 @@ pub fn os_conpty_init(
             )
         };
         if hr < 0 {
-            emsg = c"create pseudo console failed".as_ptr();
+            emsg = c"create pseudo console failed";
             break 'init;
         }
 
@@ -426,7 +426,7 @@ pub fn os_conpty_init(
         } == 0
         {
             conpty_object.si_ex.lpAttributeList = std::ptr::null_mut();
-            emsg = c"InitializeProcThreadAttributeList failed".as_ptr();
+            emsg = c"InitializeProcThreadAttributeList failed";
             break 'init;
         }
         if unsafe {
@@ -441,7 +441,7 @@ pub fn os_conpty_init(
             )
         } == 0
         {
-            emsg = c"UpdateProcThreadAttribute failed".as_ptr();
+            emsg = c"UpdateProcThreadAttribute failed";
             break 'init;
         }
 
@@ -462,7 +462,7 @@ pub fn os_conpty_init(
         139,
         true,
         c"os_conpty_init:%s : error code: %d",
-        emsg,
+        emsg.as_ptr(),
         unsafe { uv_translate_sys_error(GetLastError() as i32) },
     );
     drop(conpty_object);

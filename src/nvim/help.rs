@@ -3,7 +3,7 @@
 use crate::api::private::helpers::cstr_as_obj;
 use crate::buffer::{bt_help, buflist_findnr, set_buflisted, wipe_buffer};
 use crate::charset::{
-    NUL, ascii_isalnum, ascii_isalpha, ascii_iswhite, buf_init_isk_chartab, skipwhite,
+    ascii_isalnum, ascii_isalpha, ascii_iswhite, buf_init_isk_chartab, skipwhite,
 };
 use crate::errors::*;
 use crate::eval::K_BOOL_VAR_FALSE_CONST;
@@ -25,7 +25,7 @@ use crate::tag::{do_tag, find_tags};
 use crate::window::{
     WSP_BOT, WSP_HELP, WSP_TOP, WinInfoInfo, win_close, win_enter, win_setheight, win_split,
 };
-use std::ffi::c_char;
+use std::ffi::CStr;
 use std::ptr;
 
 use crate::cmdexpand::TAG_MANY;
@@ -48,59 +48,53 @@ use crate::eval::funcs::K_SPECIAL_VAR_NULL_CONST;
 /// `:help`: open a read-only window on a help file (`ex_help`).
 pub fn ex_help(eap: &mut Exarg) {
     unsafe {
-        let mut arg: *mut c_char;
         let mut wp: *mut WinInfoInfo;
         let mut empty_fnum: i32 = 0;
         let mut alt_fnum: i32 = 0;
         let old_key_typed = g_st().key_typed;
 
+        let mut lang: Option<std::ffi::CString> = None;
+        let mut arg_cstr: &CStr = c"";
         if !eap.arg.is_null() {
-            arg = eap.arg;
-            while !crate::memory::cstr_is_empty(arg) {
-                if crate::memory::cstr_first_byte(arg) == b'\n'
-                    || crate::memory::cstr_first_byte(arg) == b'\r'
-                    || (crate::memory::cstr_first_byte(arg) == b'|'
-                        && crate::memory::cstr_byte_at(arg, 1) != 0
-                        && crate::memory::cstr_byte_at(arg, 1) != b'|')
+            let full_len = crate::memory::cstr_len(eap.arg);
+            let slice = std::slice::from_raw_parts_mut(eap.arg.cast::<u8>(), full_len + 1);
+            for i in 0..full_len {
+                let b = slice[i];
+                if b == b'\n'
+                    || b == b'\r'
+                    || (b == b'|' && slice[i + 1] != 0 && slice[i + 1] != b'|')
                 {
-                    *arg = NUL;
-                    arg = arg.wrapping_add(1);
-                    eap.nextcmd = arg;
+                    slice[i] = 0;
+                    eap.nextcmd = eap.arg.wrapping_add(i + 1);
                     break;
                 }
-                arg = arg.wrapping_add(1);
             }
-            arg = eap.arg;
 
             if eap.skip != 0 {
                 return;
             }
-        } else {
-            arg = c"".as_ptr().cast_mut();
-        }
 
-        // remove trailing blanks
-        let arg_len = crate::memory::cstr_len(arg);
-        if arg_len > 0 {
-            let mut p = arg.wrapping_add(arg_len - 1);
-            while p > arg
-                && ascii_iswhite(crate::memory::cstr_first_char(p))
-                && *p.wrapping_sub(1) != b'\\' as c_char
+            // remove trailing blanks
+            let mut end = slice.iter().position(|&b| b == 0).unwrap_or(full_len);
+            while end > 1
+                && ascii_iswhite(i32::from(slice[end - 1]))
+                && slice[end - 2] != b'\\'
             {
-                *p = NUL;
-                p = p.wrapping_sub(1);
+                end -= 1;
+                slice[end] = 0;
             }
-        }
 
-        // Check for a specified language
-        let lang = check_help_lang(arg);
+            // Check for a specified language
+            lang = check_help_lang(slice).map(CStr::to_owned);
+            arg_cstr = CStr::from_bytes_until_nul(slice).unwrap_or(c"");
+        }
 
         // ":help!" (bang, no args).
-        let helpbang = eap.forceit != 0 && crate::memory::cstr_is_empty(arg);
+        let helpbang = eap.forceit != 0 && arg_cstr.to_bytes().is_empty();
 
         // When no argument given go to the index.
-        if crate::memory::cstr_is_empty(arg) && !helpbang {
-            arg = c"help.txt".as_ptr().cast_mut();
+        if arg_cstr.to_bytes().is_empty() && !helpbang {
+            arg_cstr = c"help.txt";
         }
 
         // ":help!" (bang, no args): DWIM help, resolve best tag at cursor via Lua.
@@ -127,7 +121,7 @@ pub fn ex_help(eap: &mut Exarg) {
                 && !crate::memory::cstr_is_empty(rettv.vval.v_string())
             {
                 allocated_arg = crate::eval::typval::tv_take_string(rettv.vval.v_string());
-                arg = allocated_arg.as_ref().unwrap().as_ptr().cast_mut();
+                arg_cstr = allocated_arg.as_deref().unwrap();
             } else {
                 tv_clear(&mut rettv);
                 emsg(gettext(E_NOIDENT));
@@ -137,11 +131,11 @@ pub fn ex_help(eap: &mut Exarg) {
 
         // Check if there is a match for the argument.
         let mut matches: Vec<std::ffi::CString> = Vec::new();
-        let found_tags = find_help_tags(arg, &mut matches, eap.forceit != 0);
+        let found_tags = find_help_tags(arg_cstr, &mut matches, eap.forceit != 0);
 
         let mut i: usize = 0;
-        if found_tags && !lang.is_null() {
-            let lang_bytes = crate::memory::cstr_as_bytes(lang);
+        if found_tags && let Some(ref lang_cstr) = lang {
+            let lang_bytes = lang_cstr.to_bytes();
             while i < matches.len() {
                 let m_bytes = matches[i].as_bytes();
                 let len = m_bytes.len();
@@ -155,10 +149,14 @@ pub fn ex_help(eap: &mut Exarg) {
             }
         }
         if i >= matches.len() || !found_tags {
-            if !lang.is_null() {
-                semsg!(gettext(c"E661: No '%s' help for %s"), lang, arg);
+            if let Some(ref lang_cstr) = lang {
+                semsg!(
+                    gettext(c"E661: No '%s' help for %s"),
+                    lang_cstr.as_ptr(),
+                    arg_cstr.as_ptr()
+                );
             } else {
-                semsg!(gettext(c"E149: No help for %s"), arg);
+                semsg!(gettext(c"E149: No help for %s"), arg_cstr.as_ptr());
             }
             return;
         }
@@ -267,131 +265,124 @@ pub fn ex_helpclose(eap: &mut Exarg) {
 }
 
 /// Search for a language specifier in the form `@xx` (`check_help_lang`).
-pub fn check_help_lang(arg: *mut c_char) -> *mut c_char {
-    let len = crate::memory::cstr_len(arg);
+pub fn check_help_lang(arg: &mut [u8]) -> Option<&CStr> {
+    let len = arg.iter().position(|&b| b == 0).unwrap_or(arg.len());
     if len >= 3
-        && crate::memory::cstr_byte_at(arg, len - 3) == b'@'
-        && ascii_isalpha(crate::memory::cstr_char_at(arg, len - 2))
-        && ascii_isalpha(crate::memory::cstr_char_at(arg, len - 1))
+        && arg[len - 3] == b'@'
+        && ascii_isalpha(i32::from(arg[len - 2]))
+        && ascii_isalpha(i32::from(arg[len - 1]))
     {
-        unsafe {
-            *arg.wrapping_add(len - 3) = NUL;
-        }
-        return arg.wrapping_add(len - 2);
+        arg[len - 3] = 0;
+        return CStr::from_bytes_until_nul(&arg[len - 2..]).ok();
     }
-    ptr::null_mut()
+    None
 }
 
 /// Return a heuristic indicating how well the given string matches (`help_heuristic`).
-pub fn help_heuristic(
-    matched_string: impl crate::strings::IntoCCharPtr,
-    mut offset: i32,
-    wrong_case: bool,
-) -> i32 {
-    let matched_string = matched_string.into_c_char_ptr().cast_mut();
-    {
-        let mut num_letters: i32 = 0;
-        let p = matched_string;
-        for &p_byte in crate::memory::cstr_as_bytes(p) {
-            if ascii_isalnum(p_byte as c_char as i32) {
-                num_letters += 1;
-            }
+pub fn help_heuristic(matched_string: &[u8], mut offset: i32, wrong_case: bool) -> i32 {
+    let mut num_letters: i32 = 0;
+    for &p_byte in matched_string {
+        if ascii_isalnum(i32::from(p_byte)) {
+            num_letters += 1;
         }
-
-        if offset > 0
-            && ascii_isalnum(crate::memory::cstr_char_at(matched_string, offset as usize))
-            && ascii_isalnum(unsafe { *matched_string.wrapping_add((offset - 1) as usize) })
-        {
-            offset += 10000;
-        } else if offset > 2 {
-            offset *= 200;
-        }
-        if wrong_case {
-            offset += 5000;
-        }
-        if crate::memory::cstr_first_byte(matched_string) == b'+'
-            && crate::memory::cstr_byte_at(matched_string, 1) != 0
-        {
-            offset += 100;
-        }
-        let len = crate::memory::cstr_len(matched_string) as i32;
-        100 * num_letters + len + offset
     }
+
+    if offset > 0
+        && matched_string
+            .get(offset as usize)
+            .is_some_and(|&b| ascii_isalnum(i32::from(b)))
+        && matched_string
+            .get((offset - 1) as usize)
+            .is_some_and(|&b| ascii_isalnum(i32::from(b)))
+    {
+        offset += 10000;
+    } else if offset > 2 {
+        offset *= 200;
+    }
+    if wrong_case {
+        offset += 5000;
+    }
+    if matched_string.first() == Some(&b'+') && matched_string.get(1).is_some_and(|&b| b != 0) {
+        offset += 100;
+    }
+    let len = matched_string.len() as i32;
+    100 * num_letters + len + offset
 }
 
-fn help_compare(str1: &[c_char], str2: &[c_char]) -> std::cmp::Ordering {
-    let p1 = str1.as_ptr();
-    let p2 = str2.as_ptr();
-    let b1 = crate::memory::cstr_as_bytes(p1);
-    let b2 = crate::memory::cstr_as_bytes(p2);
-    let pri1 = crate::memory::cstr_as_bytes(p1.wrapping_add(b1.len() + 1));
-    let pri2 = crate::memory::cstr_as_bytes(p2.wrapping_add(b2.len() + 1));
+fn help_compare(str1: &[u8], str2: &[u8]) -> std::cmp::Ordering {
+    let len1 = str1.iter().position(|&b| b == 0).unwrap_or(str1.len());
+    let len2 = str2.iter().position(|&b| b == 0).unwrap_or(str2.len());
+    let b1 = &str1[..len1];
+    let b2 = &str2[..len2];
+    let rest1 = str1.get(len1 + 1..).unwrap_or(&[]);
+    let rest2 = str2.get(len2 + 1..).unwrap_or(&[]);
+    let pri1_len = rest1.iter().position(|&b| b == 0).unwrap_or(rest1.len());
+    let pri2_len = rest2.iter().position(|&b| b == 0).unwrap_or(rest2.len());
+    let pri1 = &rest1[..pri1_len];
+    let pri2 = &rest2[..pri2_len];
 
     pri1.cmp(pri2).then_with(|| b1.cmp(b2))
 }
 
 /// Find all help tags matching `arg`, sort them and return in `matches` (`find_help_tags`).
 pub fn find_help_tags(
-    arg: impl crate::strings::IntoCCharPtr,
+    arg: &CStr,
     matches: &mut Vec<std::ffi::CString>,
     keep_lang: bool,
 ) -> bool {
-    let arg = arg.into_c_char_ptr();
-    {
-        let mut tv_args = [
-            TypVal {
-                v_type: VarType::VarString,
-                v_lock: 0,
-                vval: TypvalVval::String(arg.cast_mut()),
-            },
-            TypVal {
-                v_type: VarType::VarUnknown,
-                v_lock: 0,
-                vval: TypvalVval::Number(0),
-            },
-        ];
-        let mut rettv = TypVal {
+    let mut tv_args = [
+        TypVal {
+            v_type: VarType::VarString,
+            v_lock: 0,
+            vval: TypvalVval::String(arg.as_ptr().cast_mut()),
+        },
+        TypVal {
             v_type: VarType::VarUnknown,
             v_lock: 0,
             vval: TypvalVval::Number(0),
-        };
-        nlua_call_typval(
-            c"vim._core.help",
-            c"escape_subject",
-            tv_args.as_mut_ptr(),
-            Some(&mut rettv),
-        );
-        if rettv.v_type != VarType::VarString || rettv.vval.v_string().is_null() {
-            tv_clear(&mut rettv);
-            return false;
-        }
-        xstrlcpy(g_st().iobuff.as_mut_ptr(), rettv.vval.v_string(), IOSIZE);
+        },
+    ];
+    let mut rettv = TypVal {
+        v_type: VarType::VarUnknown,
+        v_lock: 0,
+        vval: TypvalVval::Number(0),
+    };
+    nlua_call_typval(
+        c"vim._core.help",
+        c"escape_subject",
+        tv_args.as_mut_ptr(),
+        Some(&mut rettv),
+    );
+    if rettv.v_type != VarType::VarString || rettv.vval.v_string().is_null() {
         tv_clear(&mut rettv);
-
-        matches.clear();
-        let mut flags = TAG_HELP | TAG_REGEXP | TAG_NAMES | TAG_VERBOSE | TAG_NO_TAGFUNC;
-        if keep_lang {
-            flags |= TAG_KEEP_LANG;
-        }
-        let mut raw_matches: Vec<Vec<c_char>> = Vec::new();
-        if find_tags(
-            g_st().iobuff.as_mut_ptr(),
-            &mut raw_matches,
-            flags,
-            crate::regexp::MAXCOL,
-            ptr::null_mut(),
-        ) == OK
-            && !raw_matches.is_empty()
-        {
-            raw_matches.sort_unstable_by(|a, b| help_compare(a, b));
-            raw_matches.truncate(TAG_MANY as usize);
-            matches.reserve_exact(raw_matches.len());
-            for m in raw_matches {
-                matches.push(crate::memory::cstr_to_cstring(m.as_ptr()));
-            }
-        }
-        true
+        return false;
     }
+    xstrlcpy(g_st().iobuff.as_mut_ptr(), rettv.vval.v_string(), IOSIZE);
+    tv_clear(&mut rettv);
+
+    matches.clear();
+    let mut flags = TAG_HELP | TAG_REGEXP | TAG_NAMES | TAG_VERBOSE | TAG_NO_TAGFUNC;
+    if keep_lang {
+        flags |= TAG_KEEP_LANG;
+    }
+    let mut raw_matches: Vec<Vec<u8>> = Vec::new();
+    if find_tags(
+        g_st().iobuff.as_mut_ptr(),
+        &mut raw_matches,
+        flags,
+        crate::regexp::MAXCOL,
+        ptr::null_mut(),
+    ) == OK
+        && !raw_matches.is_empty()
+    {
+        raw_matches.sort_unstable_by(|a, b| help_compare(a, b));
+        raw_matches.truncate(TAG_MANY as usize);
+        matches.reserve_exact(raw_matches.len());
+        for m in raw_matches {
+            matches.push(crate::memory::cstr_to_cstring(m.as_ptr().cast()));
+        }
+    }
+    true
 }
 
 /// Cleanup matches for help tags (`cleanup_help_tags`).
@@ -552,16 +543,15 @@ mod tests {
     #[test]
     fn check_help_lang_and_help_heuristic_work() {
         let mut buf = *b"options@en\0";
-        let lang = check_help_lang(buf.as_mut_ptr().cast());
-        assert!(!lang.is_null());
-        assert_eq!(crate::memory::cstr_as_bytes(lang), b"en");
+        let lang = check_help_lang(&mut buf);
+        assert_eq!(lang.map(CStr::to_bytes), Some(&b"en"[..]));
         assert_eq!(
-            crate::memory::cstr_as_bytes(buf.as_ptr().cast()),
+            CStr::from_bytes_until_nul(&buf).unwrap().to_bytes(),
             b"options"
         );
 
-        let exact = help_heuristic(c"help", 0, false);
-        let wrong_case = help_heuristic(c"Help", 0, true);
+        let exact = help_heuristic(b"help", 0, false);
+        let wrong_case = help_heuristic(b"Help", 0, true);
         assert!(wrong_case > exact);
     }
 }

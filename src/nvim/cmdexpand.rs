@@ -5064,9 +5064,9 @@ fn expand_from_context(
         if xp.xp_context == EXPAND_HELP {
             if find_help_tags(
                 if crate::memory::cstr_is_empty(pat) {
-                    c"help".as_ptr()
+                    c"help"
                 } else {
-                    pat
+                    crate::memory::cstr_from_ptr(pat)
                 },
                 matches,
                 false,

@@ -13,7 +13,7 @@ use crate::strings::vim_snprintf;
 #[cfg(windows)]
 use crate::ui::ui_active;
 #[cfg(windows)]
-use std::ffi::{c_char, c_void};
+use std::ffi::c_void;
 
 #[cfg(windows)]
 pub type HANDLE = *mut c_void;
@@ -70,7 +70,7 @@ const UV_TTY_SUPPORTED: i32 = 0;
 #[cfg(windows)]
 struct WinConsoleState {
     #[allow(non_snake_case)]
-    ORIG_TITLE: [c_char; 256],
+    ORIG_TITLE: [u8; 256],
     #[allow(non_snake_case)]
     H_WND: HWND,
     #[allow(non_snake_case)]
@@ -118,7 +118,7 @@ pub struct OsVersionInfoA {
     #[allow(non_snake_case)]
     pub dwPlatformId: u32,
     #[allow(non_snake_case)]
-    pub szCSDVersion: [c_char; 128],
+    pub szCSDVersion: [u8; 128],
 }
 
 #[cfg(windows)]
@@ -147,7 +147,7 @@ impl Default for OsVersionInfoA {
 unsafe extern "system" {
     fn SetConsoleCtrlHandler(HandlerRoutine: *const c_void, Add: BOOL) -> BOOL;
     fn CreateFileA(
-        lpFileName: *const c_char,
+        lpFileName: *const u8,
         dwDesiredAccess: DWORD,
         dwShareMode: DWORD,
         lpSecurityAttributes: *mut c_void,
@@ -160,8 +160,8 @@ unsafe extern "system" {
     fn GetConsoleWindow() -> HWND;
     fn AttachConsole(dwProcessId: DWORD) -> BOOL;
     pub fn GetLastError() -> DWORD;
-    fn GetConsoleTitleA(lpConsoleTitle: *mut c_char, nSize: DWORD) -> DWORD;
-    fn SetConsoleTitleA(lpConsoleTitle: *const c_char) -> BOOL;
+    fn GetConsoleTitleA(lpConsoleTitle: *mut u8, nSize: DWORD) -> DWORD;
+    fn SetConsoleTitleA(lpConsoleTitle: *const u8) -> BOOL;
     pub fn GetConsoleMode(hConsoleHandle: HANDLE, lpMode: *mut DWORD) -> BOOL;
     pub fn SetConsoleMode(hConsoleHandle: HANDLE, dwMode: DWORD) -> BOOL;
     pub fn CloseHandle(hObject: HANDLE) -> BOOL;
@@ -180,7 +180,7 @@ unsafe extern "system" {
     fn SendMessageA(hWnd: HWND, Msg: UINT, wParam: WPARAM, lParam: LPARAM) -> LRESULT;
     fn LoadImageA(
         hInst: *mut c_void,
-        name: *const c_char,
+        name: *const u8,
         r#type: UINT,
         cx: i32,
         cy: i32,
@@ -209,7 +209,7 @@ pub fn os_enable_ctrl_c() {
 pub fn os_open_conin_fd() -> i32 {
     let conin_handle = unsafe {
         CreateFileA(
-            c"CONIN$".as_ptr(),
+            c"CONIN$".as_ptr().cast(),
             GENERIC_READ | GENERIC_WRITE,
             FILE_SHARE_READ | FILE_SHARE_WRITE,
             std::ptr::null_mut(),
@@ -240,7 +240,7 @@ pub fn os_redirect_stdin_to_conin() {
 pub fn os_redirect_stdout_stderr_to_conout() {
     unsafe {
         let conout_handle = CreateFileA(
-            c"CONOUT$".as_ptr(),
+            c"CONOUT$".as_ptr().cast(),
             GENERIC_READ | GENERIC_WRITE,
             FILE_SHARE_READ | FILE_SHARE_WRITE,
             std::ptr::null_mut(),
@@ -340,7 +340,7 @@ pub fn os_icon_init() {
     }
 
     if let Some(vimruntime) = os_getenv_cstr(c"VIMRUNTIME") {
-        let namebuff = std::ptr::addr_of_mut!(g_st().name_buff).cast::<c_char>();
+        let namebuff = std::ptr::addr_of_mut!(g_st().name_buff).cast();
         vim_snprintf!(namebuff, MAXPATHL, c"%s/neovim.ico", vimruntime.as_ptr());
         if !os_path_exists(namebuff) {
             logmsg!(
@@ -356,7 +356,7 @@ pub fn os_icon_init() {
             let h_vim_icon = unsafe {
                 LoadImageA(
                     std::ptr::null_mut(),
-                    namebuff,
+                    namebuff.cast(),
                     IMAGE_ICON,
                     64,
                     64,
@@ -386,24 +386,26 @@ pub fn os_icon_init() {
 #[cfg(windows)]
 pub fn os_title_save() {
     unsafe {
-        let ptr = std::ptr::addr_of_mut!(wincon_st().ORIG_TITLE).cast::<c_char>();
-        GetConsoleTitleA(ptr, 256);
+        GetConsoleTitleA(wincon_st().ORIG_TITLE.as_mut_ptr(), 256);
     }
 }
 
 #[cfg(windows)]
 pub fn os_title_reset() {
     unsafe {
-        let ptr = std::ptr::addr_of!(wincon_st().ORIG_TITLE).cast::<c_char>();
-        SetConsoleTitleA(ptr);
+        SetConsoleTitleA(wincon_st().ORIG_TITLE.as_ptr());
     }
 }
 
 #[cfg(windows)]
 pub fn os_tty_guess_term(out_fd: i32) -> &'static std::ffi::CStr {
     unsafe {
-        let mut conemu_buf = [0 as c_char; 16];
-        let conemu_env = os_getenv_buf(c"ConEmuANSI", conemu_buf.as_mut_ptr(), conemu_buf.len());
+        let mut conemu_buf = [0u8; 16];
+        let conemu_env = os_getenv_buf(
+            c"ConEmuANSI",
+            conemu_buf.as_mut_ptr().cast(),
+            conemu_buf.len(),
+        );
         let conemu_ansi =
             !conemu_env.is_null() && crate::memory::cstr_as_bytes(conemu_env) == b"ON";
         let mut vtp = false;

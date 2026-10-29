@@ -295,7 +295,7 @@ struct FindtagsState {
     help_lang_find: Option<[c_char; 3]>,
     is_txt: bool,
     match_count: i32,
-    ga_match: [Vec<Vec<c_char>>; MT_COUNT],
+    ga_match: [Vec<Vec<u8>>; MT_COUNT],
     ht_match: [std::collections::HashSet<Vec<u8>>; MT_COUNT],
 }
 
@@ -346,7 +346,7 @@ struct TagModuleState {
     tfu_in_use: bool,
     tag_fnames: Vec<std::ffi::CString>,
     do_tag_max_num_matches: i32,
-    do_tag_matches: Vec<Vec<c_char>>,
+    do_tag_matches: Vec<Vec<u8>>,
     do_tag_flags: i32,
     tag_listfiles_extra: Vec<([c_char; 2], std::ffi::CString)>,
 }
@@ -728,7 +728,7 @@ pub fn do_tag(
                         tag_st().do_tag_flags |= TAG_NO_TAGFUNC;
                     }
 
-                    let mut new_matches: Vec<Vec<c_char>> = Vec::new();
+                    let mut new_matches: Vec<Vec<u8>> = Vec::new();
                     if find_tags(
                         name,
                         &mut new_matches,
@@ -754,9 +754,9 @@ pub fn do_tag(
                         let mut tagp2 = Tagptrs::default();
 
                         for old_match in &tag_st().do_tag_matches {
-                            parse_match(old_match.as_ptr().cast_mut(), &mut tagp);
+                            parse_match(old_match.as_ptr().cast_mut().cast(), &mut tagp);
                             for i in idx..new_matches.len() {
-                                parse_match(new_matches[i].as_mut_ptr(), &mut tagp2);
+                                parse_match(new_matches[i].as_mut_ptr().cast(), &mut tagp2);
                                 if crate::memory::cstr_as_bytes(tagp.tagname)
                                     == crate::memory::cstr_as_bytes(tagp2.tagname)
                                 {
@@ -823,7 +823,8 @@ pub fn do_tag(
                             && parse_match(
                                 tag_st().do_tag_matches.as_slice()[cur_match as usize]
                                     .as_ptr()
-                                    .cast_mut(),
+                                    .cast_mut()
+                                    .cast(),
                                 &mut tagp2,
                             )
                             && !tagp2.user_data.is_null()
@@ -851,7 +852,8 @@ pub fn do_tag(
 
                     let cur_match_ptr = tag_st().do_tag_matches.as_slice()[cur_match as usize]
                         .as_ptr()
-                        .cast_mut();
+                        .cast_mut()
+                        .cast::<c_char>();
                     let ic = ((unsafe { *cur_match_ptr } as usize) & MT_IC_OFF) != 0;
                     if type_ != DT_TAG
                         && type_ != DT_SELECT
@@ -953,7 +955,7 @@ fn select_tag_match(
     eap: Option<&Exarg>,
     new_tag: bool,
     use_tagstack: bool,
-    matches: &[Vec<c_char>],
+    matches: &[Vec<u8>],
     name: impl crate::strings::IntoCCharPtr,
 ) {
     let name = name.into_c_char_ptr();
@@ -968,7 +970,7 @@ fn select_tag_match(
         tv_list_alloc_ret(&mut items_tv, matches.len() as isize);
 
         for (idx, m_vec) in matches.iter().enumerate() {
-            let m = m_vec.as_ptr().cast_mut();
+            let m = m_vec.as_ptr().cast_mut().cast::<c_char>();
             let i = idx as i32;
             os_breakcheck();
             if g_st().got_int {
@@ -1046,7 +1048,7 @@ fn select_tag_match(
 }
 
 /// Add the matching tags to the location list for the current window.
-fn add_llist_tags(tag: impl crate::strings::IntoCCharPtr, matches: &[Vec<c_char>]) -> bool {
+fn add_llist_tags(tag: impl crate::strings::IntoCCharPtr, matches: &[Vec<u8>]) -> bool {
     let tag = tag.into_c_char_ptr();
     {
         let mut tag_name = [0 as c_char; 128 + 1];
@@ -1059,7 +1061,7 @@ fn add_llist_tags(tag: impl crate::strings::IntoCCharPtr, matches: &[Vec<c_char>
         let list = tv_list_alloc(0);
 
         for m_vec in matches {
-            let m = m_vec.as_ptr().cast_mut();
+            let m = m_vec.as_ptr().cast_mut().cast::<c_char>();
             parse_match(m, &mut tagp);
 
             let mut len =
@@ -1321,7 +1323,7 @@ fn tagfunc_cmd_kind(cmd: impl crate::strings::IntoCCharPtr) -> Tagcmd {
 
 fn find_tagfunc_tags(
     pat: impl crate::strings::IntoCCharPtr,
-    ga: &mut Vec<Vec<c_char>>,
+    ga: &mut Vec<Vec<u8>>,
     match_count: &mut i32,
     flags: i32,
     buf_ffname: impl crate::strings::IntoCCharPtr,
@@ -1489,16 +1491,12 @@ fn find_tagfunc_tags(
             if cmdkind == Tagcmd::TagcmdGeneric {
                 len += 3;
             }
-            let mut mfp_vec: Vec<c_char> = if name_only {
-                cstr_to_cstring(res_name)
-                    .into_bytes_with_nul()
-                    .into_iter()
-                    .map(|b| b as c_char)
-                    .collect()
+            let mut mfp_vec: Vec<u8> = if name_only {
+                cstr_to_cstring(res_name).into_bytes_with_nul()
             } else {
-                vec![0 as c_char; len + 2]
+                vec![0u8; len + 2]
             };
-            let mfp = mfp_vec.as_mut_ptr();
+            let mfp = mfp_vec.as_mut_ptr().cast::<c_char>();
 
             if !name_only {
                 let mut p = mfp;
@@ -2105,7 +2103,7 @@ fn findtags_add_match(
             mtt += MT_RE_OFF;
         }
 
-        let mut mfp_vec: Option<Vec<c_char>> = None;
+        let mut mfp_vec: Option<Vec<u8>> = None;
 
         if st.help_only {
             unsafe {
@@ -2113,15 +2111,15 @@ fn findtags_add_match(
             }
             let len = crate::memory::ptr_offset_from(tagpp.tagname_end, tagpp.tagname) as usize;
             let mfp_size = 1 + len + 10 + ML_EXTRA + 1;
-            let mut v = vec![0 as c_char; mfp_size];
-            let p = v.as_mut_ptr();
+            let mut v = vec![0u8; mfp_size];
+            let p = v.as_mut_ptr().cast::<c_char>();
             crate::memory::cstr_cpy(p, tagpp.tagname);
             unsafe {
                 *p.wrapping_add(len) = b'@' as c_char;
             }
             crate::memory::cstr_cpy(p.wrapping_add(len + 1), st.help_lang.as_ptr());
             let heur = help_heuristic(
-                tagpp.tagname,
+                crate::memory::cstr_as_bytes(tagpp.tagname),
                 if margs.match_re { margs.matchoff } else { 0 },
                 !margs.match_no_ic,
             ) + st.help_pri;
@@ -2153,15 +2151,19 @@ fn findtags_add_match(
                     let len =
                         crate::memory::ptr_offset_from(temp_end, tagpp.command.wrapping_add(2))
                             as usize;
-                    let mut v = vec![0 as c_char; len + 2];
-                    crate::memory::cstr_ncpy(v.as_mut_ptr(), tagpp.command.wrapping_add(2), len);
+                    let mut v = vec![0u8; len + 2];
+                    crate::memory::cstr_ncpy(
+                        v.as_mut_ptr().cast(),
+                        tagpp.command.wrapping_add(2),
+                        len,
+                    );
                     mfp_vec = Some(v);
                 }
                 st.get_searchpat = false;
             } else {
                 let len = crate::memory::ptr_offset_from(tagpp.tagname_end, tagpp.tagname) as usize;
-                let mut v = vec![0 as c_char; 1 + len + 1];
-                crate::memory::cstr_ncpy(v.as_mut_ptr(), tagpp.tagname, len);
+                let mut v = vec![0u8; 1 + len + 1];
+                crate::memory::cstr_ncpy(v.as_mut_ptr().cast(), tagpp.tagname, len);
                 mfp_vec = Some(v);
 
                 if (g_st().state_global & MODE_INSERT) != 0 {
@@ -2171,8 +2173,8 @@ fn findtags_add_match(
         } else {
             let tag_fname_len = crate::memory::cstr_len(tag_fname_ptr);
             let len = tag_fname_len + crate::memory::cstr_len(lbuf_ptr) + 3;
-            let mut v = vec![0 as c_char; 1 + len + 1];
-            let p = v.as_mut_ptr();
+            let mut v = vec![0u8; 1 + len + 1];
+            let p = v.as_mut_ptr().cast::<c_char>();
             unsafe {
                 *p = (mtt + 1) as c_char;
             }
@@ -2186,7 +2188,7 @@ fn findtags_add_match(
         }
 
         if let Some(v) = mfp_vec {
-            let mfp_bytes = crate::memory::cstr_as_bytes(v.as_ptr()).to_vec();
+            let mfp_bytes = crate::memory::cstr_as_bytes(v.as_ptr().cast()).to_vec();
             if st.ht_match[mtt].insert(mfp_bytes) {
                 st.ga_match[mtt].push(v);
                 st.match_count += 1;
@@ -2336,7 +2338,7 @@ fn findtags_in_file(
     }
 }
 
-fn findtags_copy_matches(st: &mut FindtagsState, matches: &mut Vec<Vec<c_char>>) {
+fn findtags_copy_matches(st: &mut FindtagsState, matches: &mut Vec<Vec<u8>>) {
     let name_only = (st.flags & TAG_NAMES) != 0;
     let keep = st.match_count > 0;
     matches.clear();
@@ -2349,18 +2351,14 @@ fn findtags_copy_matches(st: &mut FindtagsState, matches: &mut Vec<Vec<c_char>>)
         for mut mfp_vec in st.ga_match[mtt].drain(..) {
             if keep {
                 if !name_only {
-                    let mfp = mfp_vec.as_mut_ptr();
-                    unsafe {
-                        *mfp -= 1;
-                    }
-                    let mut p = mfp.wrapping_add(1);
-                    while !crate::memory::cstr_is_empty(p) {
-                        if unsafe { *p } == TAG_SEP {
-                            unsafe {
-                                *p = NUL;
-                            }
+                    mfp_vec[0] = mfp_vec[0].wrapping_sub(1);
+                    for b in &mut mfp_vec[1..] {
+                        if *b == 0 {
+                            break;
                         }
-                        p = p.wrapping_add(1);
+                        if *b == TAG_SEP as u8 {
+                            *b = 0;
+                        }
                     }
                 }
                 matches.push(mfp_vec);
@@ -2373,10 +2371,10 @@ fn findtags_copy_matches(st: &mut FindtagsState, matches: &mut Vec<Vec<c_char>>)
     }
 }
 
-/// `find_tags()` - search for tags in tags files into owned `Vec<c_char>` items.
+/// `find_tags()` - search for tags in tags files into owned `Vec<u8>` items.
 pub fn find_tags(
     pat: *mut c_char,
-    matches: &mut Vec<Vec<c_char>>,
+    matches: &mut Vec<Vec<u8>>,
     flags: i32,
     mincount: i32,
     buf_ffname: impl crate::strings::IntoCCharPtr,
@@ -3262,7 +3260,7 @@ pub fn tag_listfiles_extra(idx: usize) -> Option<(*const c_char, *const c_char)>
 
 pub fn expand_tags(tagnames: bool, pat: *mut c_char, file: &mut Vec<std::ffi::CString>) -> bool {
     let extra_flag = if tagnames { TAG_NAMES } else { 0 };
-    let mut raw_matches: Vec<Vec<c_char>> = Vec::new();
+    let mut raw_matches: Vec<Vec<u8>> = Vec::new();
     let ret = if crate::memory::cstr_first_byte(pat) == b'/' {
         find_tags(
             pat.wrapping_add(1),
@@ -3286,7 +3284,7 @@ pub fn expand_tags(tagnames: bool, pat: *mut c_char, file: &mut Vec<std::ffi::CS
         file.reserve_exact(raw_matches.len());
         if tagnames {
             for m in raw_matches {
-                file.push(crate::memory::cstr_to_cstring(m.as_ptr()));
+                file.push(crate::memory::cstr_to_cstring(m.as_ptr().cast()));
             }
         } else {
             tag_st()
@@ -3294,7 +3292,7 @@ pub fn expand_tags(tagnames: bool, pat: *mut c_char, file: &mut Vec<std::ffi::CS
                 .reserve_exact(raw_matches.len());
             for mut m in raw_matches {
                 let mut t_p = Tagptrs::default();
-                parse_match(m.as_mut_ptr(), &mut t_p);
+                parse_match(m.as_mut_ptr().cast(), &mut t_p);
                 let len = crate::memory::ptr_offset_from(t_p.tagname_end, t_p.tagname) as usize;
                 file.push(crate::memory::cstr_from_bytes(unsafe {
                     std::slice::from_raw_parts(t_p.tagname.cast::<u8>(), len)
@@ -3365,7 +3363,7 @@ pub fn get_tags(
 ) -> bool {
     let buf_fname = buf_fname.into_c_char_ptr();
     {
-        let mut matches: Vec<Vec<c_char>> = Vec::new();
+        let mut matches: Vec<Vec<u8>> = Vec::new();
         let mut tp = Tagptrs::default();
 
         let mut ret = find_tags(pat, &mut matches, TAG_REGEXP | TAG_NOIC, MAXCOL, buf_fname) == OK;
@@ -3374,7 +3372,7 @@ pub fn get_tags(
         }
 
         for mut match_vec in matches {
-            let match_i = match_vec.as_mut_ptr();
+            let match_i = match_vec.as_mut_ptr().cast::<c_char>();
             if !parse_match(match_i, &mut tp) {
                 continue;
             }

@@ -4142,7 +4142,7 @@ fn get_next_tag_completion() {
     opt_vars().p_ic = ignorecase(compl_pattern_ptr());
 
     g_st().g_tag_at_cursor = true;
-    let mut matches: Vec<Vec<c_char>> = Vec::new();
+    let mut matches: Vec<Vec<u8>> = Vec::new();
     if find_tags(
         compl_pattern_ptr(),
         &mut matches,
@@ -4167,7 +4167,7 @@ fn get_next_tag_completion() {
                 break;
             }
             add_r = ins_compl_add(
-                m.as_ptr().cast_mut(),
+                m.as_ptr().cast_mut().cast(),
                 -1,
                 ptr::null_mut(),
                 [const { None }; CPT_COUNT],
