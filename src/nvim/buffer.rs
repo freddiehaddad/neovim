@@ -5017,7 +5017,7 @@ pub fn read_buffer_into(
     mut buf: Option<&mut FileBuf>,
     start: Linenr,
     end: Linenr,
-    sb: &mut Vec<c_char>,
+    sb: &mut Vec<u8>,
 ) {
     debug_assert!(buf.is_some());
 
@@ -5036,7 +5036,7 @@ pub fn read_buffer_into(
             len = 0;
         } else if unsafe { *lp.wrapping_add(written) } == NL {
             len = 1;
-            sb.push(NUL);
+            sb.push(0);
         } else {
             let s = vim_strchr(lp.wrapping_add(written), NL as i32);
             len = if s.is_null() {
@@ -5046,7 +5046,7 @@ pub fn read_buffer_into(
             };
             if len > 0 {
                 sb.extend_from_slice(unsafe {
-                    std::slice::from_raw_parts(lp.wrapping_add(written), len)
+                    std::slice::from_raw_parts(lp.wrapping_add(written).cast::<u8>(), len)
                 });
             }
         }
@@ -5059,7 +5059,7 @@ pub fn read_buffer_into(
                     && (lnum != buf.as_deref_mut().unwrap().b_ml.ml_line_count
                         || buf.as_deref_mut().unwrap().b_p_eol != 0))
             {
-                sb.push(NL);
+                sb.push(b'\n');
             }
             lnum += 1;
             if lnum > end {

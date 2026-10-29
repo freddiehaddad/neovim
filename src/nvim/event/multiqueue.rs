@@ -2,7 +2,7 @@
 
 use std::cell::Cell;
 use std::collections::VecDeque;
-use std::ffi::{CString, c_char};
+use std::ffi::CString;
 use std::rc::Rc;
 
 pub enum Event {
@@ -57,7 +57,7 @@ pub enum Event {
     #[cfg(windows)]
     PtyProcFinish(*mut crate::event::proc::Proc),
     ShellOutData {
-        str_copy: Vec<c_char>,
+        str_copy: Vec<u8>,
         fd: i32,
     },
     TermRequest(Box<crate::terminal::TermRequestEvent>),

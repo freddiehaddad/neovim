@@ -740,7 +740,7 @@ pub fn channel_from_stdio(rpc: bool, on_output: CallbackReader, error: *mut *con
     unsafe { (*channel).id }
 }
 
-pub fn channel_send(id: u64, data: Vec<c_char>, error: *mut *const c_char) -> usize {
+pub fn channel_send(id: u64, data: Vec<u8>, error: *mut *const c_char) -> usize {
     unsafe {
         let chan = find_channel(id);
         let len = data.len();
@@ -755,7 +755,7 @@ pub fn channel_send(id: u64, data: Vec<c_char>, error: *mut *const c_char) -> us
                 *error = gettext(c"Can't send data to closed stream");
                 return 0;
             }
-            let wres = os_write(STDERR_FILENO, data.as_ptr(), len, false);
+            let wres = os_write(STDERR_FILENO, data.as_ptr().cast::<c_char>(), len, false);
             return if wres >= 0 { wres as usize } else { 0 };
         }
 
@@ -769,8 +769,7 @@ pub fn channel_send(id: u64, data: Vec<c_char>, error: *mut *const c_char) -> us
                 *error = gettext(c"Can't send data to closed stream");
                 return 0;
             }
-            let data_bytes = crate::memory::cstr_slice(data.as_ptr(), len);
-            terminal_receive(&mut *(*chan).term, data_bytes);
+            terminal_receive(&mut *(*chan).term, &data);
             return len;
         }
 
@@ -785,7 +784,7 @@ pub fn channel_send(id: u64, data: Vec<c_char>, error: *mut *const c_char) -> us
             return 0;
         }
 
-        let buf = wstream_new_vec_buffer(data.into_iter().map(|c| c as u8).collect());
+        let buf = wstream_new_vec_buffer(data);
         if wstream_write(&mut *in_stream, buf) == 0 {
             len
         } else {

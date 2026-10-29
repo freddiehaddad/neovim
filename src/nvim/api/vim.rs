@@ -1598,7 +1598,7 @@ pub fn nvim_open_term(buf: Buffer, opts: &mut KeyDict_open_term, err: &mut Error
             force_crlf,
         };
 
-        let mut contents: Vec<c_char> = Vec::new();
+        let mut contents: Vec<u8> = Vec::new();
         if may_read_buffer {
             read_buffer_into(b.as_mut(), 1, (*b).b_ml.ml_line_count, &mut contents);
         }
@@ -1642,13 +1642,11 @@ pub fn nvim_chan_send(chan: Integer, data: NvimString, err: &mut Error) {
     if data.size == 0 {
         return;
     }
-    {
-        let mut error: *const c_char = ptr::null();
-        let buf = unsafe { std::slice::from_raw_parts(data.data.cast_const(), data.size) }.to_vec();
-        channel_send(chan as u64, buf, &mut error);
-        if !error.is_null() {
-            api_set_error!(err, ErrorType::ErrorTypeValidation, c"%s", error);
-        }
+    let mut error: *const c_char = ptr::null();
+    let buf = data.as_bytes().to_vec();
+    channel_send(chan as u64, buf, &mut error);
+    if !error.is_null() {
+        api_set_error!(err, ErrorType::ErrorTypeValidation, c"%s", error);
     }
 }
 

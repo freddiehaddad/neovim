@@ -41,7 +41,7 @@ pub enum StreamCbData {
     ChannelData(*mut crate::channel::Channel),
     ChannelStderr(*mut crate::channel::Channel),
     ChannelRpc(*mut crate::channel::Channel),
-    ShellBuf(*mut Vec<std::ffi::c_char>),
+    ShellBuf(*mut Vec<u8>),
     ShellOut,
     Input(*mut crate::tui::input::TermInput),
 }

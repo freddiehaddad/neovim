@@ -219,6 +219,7 @@ fn main() {
             "block_autocmds",
             "unblock_autocmds",
             "nvim__id_float",
+            "gc_first_list",
             "tv_list_alloc",
             "tv_list_free",
             "curwin",

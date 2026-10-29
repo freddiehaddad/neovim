@@ -27,7 +27,7 @@ use crate::fileio::{SEEK_END, SEEK_SET, fclose, fread, vim_fseek, vim_ftell, vim
 use crate::globals::*;
 #[cfg(windows)]
 use crate::mbyte::CP_UTF8;
-use crate::mbyte::{UTF8LEN_TAB_ZERO, utfc_ptr2len_len};
+use crate::mbyte::UTF8LEN_TAB_ZERO;
 use crate::memline::ml_append;
 use crate::memory::xstrlcpy;
 #[cfg(unix)]
@@ -99,8 +99,8 @@ struct ShellModuleState {
     throttle_started: u64,
     throttle_received: usize,
     throttle_visit: usize,
-    throttle_pulse_msg: [c_char; 4],
-    last_skipped: [c_char; MAX_CHUNK_SIZE],
+    throttle_pulse_msg: [u8; 4],
+    last_skipped: [u8; MAX_CHUNK_SIZE],
     last_skipped_len: usize,
 }
 
@@ -112,7 +112,7 @@ impl ShellModuleState {
             throttle_started: 0,
             throttle_received: 0,
             throttle_visit: 0,
-            throttle_pulse_msg: [b' ' as c_char, b' ' as c_char, b' ' as c_char, NUL],
+            throttle_pulse_msg: [b' ', b' ', b' ', 0],
             last_skipped: [0; MAX_CHUNK_SIZE],
             last_skipped_len: 0,
         }
@@ -690,8 +690,8 @@ pub fn os_call_shell(
 ) -> i32 {
     let cmd = cmd.into_c_char_ptr();
     let extra_args = extra_args.into_c_char_ptr();
-    let mut input: Vec<c_char> = Vec::new();
-    let mut output: Vec<c_char> = Vec::new();
+    let mut input: Vec<u8> = Vec::new();
+    let mut output: Vec<u8> = Vec::new();
     let mut want_output = false;
     let current_state = g_st().state_global;
     let mut forward_output = true;
@@ -717,12 +717,7 @@ pub fn os_call_shell(
 
     let exitcode = do_os_system(
         shell_build_argv(cmd, extra_args),
-        if input.is_empty() {
-            ptr::null()
-        } else {
-            input.as_ptr()
-        },
-        input.len(),
+        &input,
         want_output.then_some(&mut output),
         g_st().emsg_silent != 0,
         forward_output,
@@ -731,7 +726,7 @@ pub fn os_call_shell(
 
     if !output.is_empty() {
         let nread = output.len();
-        write_output(output.as_mut_ptr(), nread, true);
+        write_output(output.as_mut_ptr().cast::<c_char>(), nread, true);
     }
 
     if g_st().emsg_silent == 0 && exitcode != 0 && (opts & K_SHELL_OPT_SILENT) == 0 {
@@ -869,156 +864,144 @@ pub fn get_cmd_output(
 /// os_system - synchronously execute a command in the shell
 pub fn os_system(
     argv: Vec<std::ffi::CString>,
-    input: impl crate::strings::IntoCCharPtr,
-    len: usize,
-    output: Option<&mut Vec<c_char>>,
+    input: &[u8],
+    output: Option<&mut Vec<u8>>,
 ) -> i32 {
-    let input = input.into_c_char_ptr();
-    do_os_system(argv, input, len, output, true, false)
+    do_os_system(argv, input, output, true, false)
 }
 
 fn do_os_system(
     argv: Vec<std::ffi::CString>,
-    input: impl crate::strings::IntoCCharPtr,
-    len: usize,
-    output: Option<&mut Vec<c_char>>,
+    input: &[u8],
+    output: Option<&mut Vec<u8>>,
     silent: bool,
     forward_output: bool,
 ) -> i32 {
-    let input = input.into_c_char_ptr();
-    {
-        let mut exitcode: i32 = -1;
+    let mut exitcode: i32 = -1;
 
-        #[cfg(windows)]
-        let (oldval, old_output_cp, old_input_cp) = {
-            let ov = os_getenv_cstr(c"NoDefaultCurrentDirectoryInExePath");
-            os_setenv(c"NoDefaultCurrentDirectoryInExePath", c"1", 1);
-            let oocp = unsafe { GetConsoleOutputCP() };
-            let oicp = unsafe { GetConsoleCP() };
-            unsafe { SetConsoleOutputCP(CP_UTF8) };
-            unsafe { SetConsoleCP(CP_UTF8) };
-            (ov, oocp, oicp)
-        };
+    #[cfg(windows)]
+    let (oldval, old_output_cp, old_input_cp) = {
+        let ov = os_getenv_cstr(c"NoDefaultCurrentDirectoryInExePath");
+        os_setenv(c"NoDefaultCurrentDirectoryInExePath", c"1", 1);
+        let oocp = unsafe { GetConsoleOutputCP() };
+        let oicp = unsafe { GetConsoleCP() };
+        unsafe { SetConsoleOutputCP(CP_UTF8) };
+        unsafe { SetConsoleCP(CP_UTF8) };
+        (ov, oocp, oicp)
+    };
 
-        out_data_decide_throttle(0);
-        out_data_ring(ptr::null(), 0);
-        let has_input = !input.is_null() && len > 0;
+    out_data_decide_throttle(0);
+    out_data_ring(Some(&[]));
+    let has_input = !input.is_empty();
 
-        let mut buf: Vec<c_char> = Vec::new();
-        let cb_data = if forward_output {
-            StreamCbData::ShellOut
-        } else if output.is_none() {
-            StreamCbData::None
-        } else {
-            StreamCbData::ShellBuf(&raw mut buf)
-        };
+    let mut buf: Vec<u8> = Vec::new();
+    let cb_data = if forward_output {
+        StreamCbData::ShellOut
+    } else if output.is_none() {
+        StreamCbData::None
+    } else {
+        StreamCbData::ShellBuf(&raw mut buf)
+    };
 
-        let mut prog = [0 as c_char; MAXPATHL];
-        xstrlcpy(prog.as_mut_ptr(), argv[0].as_ptr(), MAXPATHL);
+    let mut prog = [0 as c_char; MAXPATHL];
+    xstrlcpy(prog.as_mut_ptr(), argv[0].as_ptr(), MAXPATHL);
 
-        let mloop = main_loop_ptr();
-        let mut uvproc = LibuvProc::new();
-        let proc_ = &mut uvproc.proc_;
-        proc_.r#type = K_PROC_TYPE_UV;
-        proc_.loop_ = mloop;
-        proc_.status = -1;
-        proc_.out.s.fd = STDOUT_FILENO;
-        proc_.err.s.fd = STDERR_FILENO;
+    let mloop = main_loop_ptr();
+    let mut uvproc = LibuvProc::new();
+    let proc_ = &mut uvproc.proc_;
+    proc_.r#type = K_PROC_TYPE_UV;
+    proc_.loop_ = mloop;
+    proc_.status = -1;
+    proc_.out.s.fd = STDOUT_FILENO;
+    proc_.err.s.fd = STDERR_FILENO;
 
-        let qc = loop_queues(&mut *mloop);
-        let events = multiqueue_new_child(qc.events);
-        proc_.events = events;
-        proc_.argv = argv;
+    let qc = loop_queues(&mut *mloop);
+    let events = multiqueue_new_child(qc.events);
+    proc_.events = events;
+    proc_.argv = argv;
 
-        'end: {
-            let status = proc_spawn(proc_, has_input, true, true);
-            if status != 0 {
-                loop_poll_events(&mut *mloop, 0);
-                if !silent {
-                    msg_puts(gettext(c"\nshell failed to start: "));
-                    msg_outtrans(unsafe { uv_strerror(status) }, 0, false);
-                    msg_puts(c": ");
-                    msg_outtrans(prog.as_ptr(), 0, false);
-                    msg_putchar(b'\n' as i32);
-                }
+    'end: {
+        let status = proc_spawn(proc_, has_input, true, true);
+        if status != 0 {
+            loop_poll_events(&mut *mloop, 0);
+            if !silent {
+                msg_puts(gettext(c"\nshell failed to start: "));
+                msg_outtrans(unsafe { uv_strerror(status) }, 0, false);
+                msg_puts(c": ");
+                msg_outtrans(prog.as_ptr(), 0, false);
+                msg_putchar(b'\n' as i32);
+            }
+            break 'end;
+        }
+
+        let s_in = &mut proc_.r#in;
+        let r_out = &mut proc_.out;
+        let r_err = &mut proc_.err;
+        if has_input {
+            wstream_init(s_in, 0);
+        }
+        rstream_init(r_out);
+        rstream_start(r_out, cb_data);
+        rstream_init(r_err);
+        rstream_start(r_err, cb_data);
+
+        if has_input {
+            let input_buffer = wstream_new_vec_buffer(input.to_vec());
+            if wstream_write(s_in, input_buffer) != 0 {
+                proc_stop(&raw mut *proc_);
                 break 'end;
             }
-
-            let s_in = &mut proc_.r#in;
-            let r_out = &mut proc_.out;
-            let r_err = &mut proc_.err;
-            if has_input {
-                wstream_init(s_in, 0);
-            }
-            rstream_init(r_out);
-            rstream_start(r_out, cb_data);
-            rstream_init(r_err);
-            rstream_start(r_err, cb_data);
-
-            if has_input {
-                let input_buffer = wstream_new_vec_buffer(
-                    unsafe { std::slice::from_raw_parts(input.cast::<u8>(), len) }.to_vec(),
-                );
-                if wstream_write(s_in, input_buffer) != 0 {
-                    proc_stop(&raw mut *proc_);
-                    break 'end;
-                }
-                wstream_set_write_cb(s_in);
-            }
-
-            ui_busy_start();
-            ui_flush();
-            if forward_output {
-                msg_sb_eol();
-                msg_start();
-                g_st().msg_no_more = true;
-                g_st().lines_left = -1;
-            }
-            exitcode = proc_wait(&raw mut *proc_, -1, ptr::null_mut());
-            if !g_st().got_int && out_data_decide_throttle(0) {
-                out_data_ring(ptr::null(), usize::MAX);
-            }
-            if forward_output {
-                g_st().no_wait_return += 1;
-                msg_end();
-                g_st().no_wait_return -= 1;
-                g_st().msg_no_more = false;
-            }
-
-            ui_busy_stop();
-
-            if let Some(out) = output {
-                *out = buf;
-            }
-
-            debug_assert!(multiqueue_empty(&*events));
+            wstream_set_write_cb(s_in);
         }
 
-        multiqueue_free(events);
-
-        #[cfg(windows)]
-        {
-            restore_env_var(c"NoDefaultCurrentDirectoryInExePath", oldval);
-            unsafe { SetConsoleOutputCP(old_output_cp) };
-            unsafe { SetConsoleCP(old_input_cp) };
+        ui_busy_start();
+        ui_flush();
+        if forward_output {
+            msg_sb_eol();
+            msg_start();
+            g_st().msg_no_more = true;
+            g_st().lines_left = -1;
+        }
+        exitcode = proc_wait(&raw mut *proc_, -1, ptr::null_mut());
+        if !g_st().got_int && out_data_decide_throttle(0) {
+            out_data_ring(None);
+        }
+        if forward_output {
+            g_st().no_wait_return += 1;
+            msg_end();
+            g_st().no_wait_return -= 1;
+            g_st().msg_no_more = false;
         }
 
-        exitcode
+        ui_busy_stop();
+
+        if let Some(out) = output {
+            *out = buf;
+        }
+
+        debug_assert!(multiqueue_empty(&*events));
     }
+
+    multiqueue_free(events);
+
+    #[cfg(windows)]
+    {
+        restore_env_var(c"NoDefaultCurrentDirectoryInExePath", oldval);
+        unsafe { SetConsoleOutputCP(old_output_cp) };
+        unsafe { SetConsoleCP(old_input_cp) };
+    }
+
+    exitcode
 }
 
 pub(crate) fn system_data_cb(
     _stream: &mut RStream,
     buf: &[u8],
-    dbuf: &mut Vec<c_char>,
+    dbuf: &mut Vec<u8>,
     _eof: bool,
 ) -> usize {
-    let count = buf.len();
-    if count > 0 {
-        let chars = unsafe { std::slice::from_raw_parts(buf.as_ptr().cast::<c_char>(), count) };
-        dbuf.extend_from_slice(chars);
-    }
-    count
+    dbuf.extend_from_slice(buf);
+    buf.len()
 }
 
 fn out_data_decide_throttle(size: usize) -> bool {
@@ -1051,66 +1034,59 @@ fn out_data_decide_throttle(size: usize) -> bool {
 
     sh_st().throttle_visit += 1;
     let tick = sh_st().throttle_visit % 4;
-    sh_st().throttle_pulse_msg[0] = if tick > 0 {
-        b'.' as c_char
-    } else {
-        b' ' as c_char
-    };
-    sh_st().throttle_pulse_msg[1] = if tick > 1 {
-        b'.' as c_char
-    } else {
-        b' ' as c_char
-    };
-    sh_st().throttle_pulse_msg[2] = if tick > 2 {
-        b'.' as c_char
-    } else {
-        b' ' as c_char
-    };
+    sh_st().throttle_pulse_msg[0] = if tick > 0 { b'.' } else { b' ' };
+    sh_st().throttle_pulse_msg[1] = if tick > 1 { b'.' } else { b' ' };
+    sh_st().throttle_pulse_msg[2] = if tick > 2 { b'.' } else { b' ' };
     if sh_st().throttle_visit == 1 {
         msg_puts(c"...\n");
     }
     msg_putchar(b'\r' as i32);
-    msg_puts((&raw const sh_st().throttle_pulse_msg).cast());
+    msg_puts(
+        std::ffi::CStr::from_bytes_until_nul(&sh_st().throttle_pulse_msg).unwrap_or(c""),
+    );
     msg_putchar(b'\r' as i32);
     ui_flush();
     true
 }
 
-fn out_data_ring(output: impl crate::strings::IntoCCharPtr, size: usize) {
-    let output = output.into_c_char_ptr();
-    {
-        debug_assert!(!output.is_null() || size == 0 || size == usize::MAX);
+fn out_data_ring(output: Option<&[u8]>) {
+    let Some(output) = output else {
+        let len = sh_st().last_skipped_len;
+        let ring_ptr = (&raw const sh_st().last_skipped).cast::<u8>();
+        let mut count = len;
+        out_data_append_to_screen(
+            unsafe { std::slice::from_raw_parts(ring_ptr, len) },
+            &mut count,
+            STDOUT_FILENO,
+            true,
+        );
+        return;
+    };
 
-        if output.is_null() && size == 0 {
-            sh_st().last_skipped_len = 0;
-            return;
-        }
+    if output.is_empty() {
+        sh_st().last_skipped_len = 0;
+        return;
+    }
 
-        let ring_ptr = (&raw mut sh_st().last_skipped).cast::<c_char>();
-        if output.is_null() && size == usize::MAX {
-            out_data_append_to_screen(ring_ptr, &mut sh_st().last_skipped_len, STDOUT_FILENO, true);
-            return;
+    let size = output.len();
+    if size >= MAX_CHUNK_SIZE {
+        let start = size - MAX_CHUNK_SIZE;
+        sh_st().last_skipped.copy_from_slice(&output[start..]);
+        sh_st().last_skipped_len = MAX_CHUNK_SIZE;
+    } else {
+        let keep_len = sh_st().last_skipped_len.min(MAX_CHUNK_SIZE - size);
+        let keep_start = sh_st().last_skipped_len - keep_len;
+        if keep_start != 0 {
+            sh_st()
+                .last_skipped
+                .copy_within(keep_start..keep_start + keep_len, 0);
         }
-
-        if size >= MAX_CHUNK_SIZE {
-            let start = size - MAX_CHUNK_SIZE;
-            unsafe {
-                ptr::copy_nonoverlapping(output.wrapping_add(start), ring_ptr, MAX_CHUNK_SIZE)
-            };
-            sh_st().last_skipped_len = MAX_CHUNK_SIZE;
-        } else if size > 0 {
-            let keep_len = sh_st().last_skipped_len.min(MAX_CHUNK_SIZE - size);
-            let keep_start = sh_st().last_skipped_len - keep_len;
-            if keep_start != 0 {
-                unsafe { ptr::copy(ring_ptr.wrapping_add(keep_start), ring_ptr, keep_len) };
-            }
-            unsafe { ptr::copy_nonoverlapping(output, ring_ptr.wrapping_add(keep_len), size) };
-            sh_st().last_skipped_len = keep_len + size;
-        }
+        sh_st().last_skipped[keep_len..keep_len + size].copy_from_slice(output);
+        sh_st().last_skipped_len = keep_len + size;
     }
 }
 
-pub fn out_data_event(mut str_copy: Vec<c_char>, fd: i32) {
+pub fn out_data_event(str_copy: Vec<u8>, fd: i32) {
     let mut need_clear = true;
     let hl = if fd == STDERR_FILENO { HLF_SE } else { HLF_SO };
     msg_ext_set_kind(if fd == STDERR_FILENO {
@@ -1120,70 +1096,53 @@ pub fn out_data_event(mut str_copy: Vec<c_char>, fd: i32) {
     });
     msg_ext_set_append(true);
     msg_ext_no_fast();
-    let str_arg = NvimString {
-        data: str_copy.as_mut_ptr(),
-        size: str_copy.len().saturating_sub(1),
-    };
+    let str_arg = NvimString::from_bytes(&str_copy[..str_copy.len().saturating_sub(1)]);
     msg_multiline(str_arg, hl, false, false, &mut need_clear);
     drop(str_copy);
     ui_flush();
 }
 
-fn out_data_append_to_screen(
-    output: impl crate::strings::IntoCCharPtr,
-    count: &mut usize,
-    fd: i32,
-    eof: bool,
-) {
-    let output = output.into_c_char_ptr();
-    {
-        let mut p = output;
-        let end = output.wrapping_add(*count);
-        while (p as usize) < (end as usize) {
-            let off = (p as usize).wrapping_sub(output as usize);
-            let i = if !crate::memory::cstr_is_empty(p) {
-                utfc_ptr2len_len(p, (*count - off) as i32)
-            } else {
-                1
-            };
-            if !eof
-                && i == 1
-                && usize::from(UTF8LEN_TAB_ZERO[crate::memory::cstr_first_byte(p) as usize])
-                    > (end as usize).wrapping_sub(p as usize)
-            {
-                *count = off;
-                break;
-            }
-            p = p.wrapping_add(i as usize);
-        }
-
-        if *count == 0 {
-            return;
-        }
-
-        let mut str_copy = Vec::with_capacity(*count + 1);
-        str_copy.extend_from_slice(unsafe { std::slice::from_raw_parts(output, *count) });
-        str_copy.push(0);
-        if ui_has(K_UIMESSAGES) {
-            let qc = loop_queues(&mut *main_loop_ptr());
-            multiqueue_put_event(
-                unsafe { &mut *qc.fast_events },
-                Event::ShellOutData { str_copy, fd },
-            );
+fn out_data_append_to_screen(output: &[u8], count: &mut usize, fd: i32, eof: bool) {
+    let mut off = 0usize;
+    while off < *count {
+        let slice = &output[off..*count];
+        let i = if slice[0] != 0 {
+            crate::mbyte::utfc_slice2len(slice)
         } else {
-            out_data_event(str_copy, fd);
+            1
+        };
+        if !eof && i == 1 && usize::from(UTF8LEN_TAB_ZERO[slice[0] as usize]) > slice.len() {
+            *count = off;
+            break;
         }
+        off += i;
+    }
+
+    if *count == 0 {
+        return;
+    }
+
+    let mut str_copy = Vec::with_capacity(*count + 1);
+    str_copy.extend_from_slice(&output[..*count]);
+    str_copy.push(0);
+    if ui_has(K_UIMESSAGES) {
+        let qc = loop_queues(&mut *main_loop_ptr());
+        multiqueue_put_event(
+            unsafe { &mut *qc.fast_events },
+            Event::ShellOutData { str_copy, fd },
+        );
+    } else {
+        out_data_event(str_copy, fd);
     }
 }
 
 pub(crate) fn out_data_cb(stream: &mut RStream, buf: &[u8], eof: bool) -> usize {
     let mut count = buf.len();
-    let ptr_data = buf.as_ptr().cast::<c_char>();
     if count > 0 && out_data_decide_throttle(count) {
-        out_data_ring(ptr_data, count);
+        out_data_ring(Some(buf));
     } else if count > 0 {
         let fd = stream.s.fd;
-        out_data_append_to_screen(ptr_data, &mut count, fd, eof);
+        out_data_append_to_screen(buf, &mut count, fd, eof);
     }
     count
 }
@@ -1226,7 +1185,7 @@ pub(crate) fn word_length(str_in: impl crate::strings::IntoCCharPtr) -> usize {
     }
 }
 
-fn read_input(buf: &mut Vec<c_char>) {
+fn read_input(buf: &mut Vec<u8>) {
     read_buffer_into(
         Some(crate::globals::curbuf_mut()),
         curbuf_mut().b_op_start.lnum,

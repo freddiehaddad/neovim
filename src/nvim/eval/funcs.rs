@@ -1672,7 +1672,7 @@ pub fn f_chansend(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDat
             if input_len == 0 {
                 return;
             }
-            std::slice::from_raw_parts((*b).bv_ga.as_ptr().cast::<c_char>(), input_len).to_vec()
+            std::slice::from_raw_parts((*b).bv_ga.as_ptr(), input_len).to_vec()
         } else {
             let Some(vec) = save_tv_as_string(&mut argvars[1], false, crlf) else {
                 return;

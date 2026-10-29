@@ -42,11 +42,18 @@ pub fn gc_unregister_dict(idx: usize) {
     }
 }
 
+#[unsafe(no_mangle)]
+#[allow(non_upper_case_globals)]
+pub static gc_first_list: crate::globals::GlobalState<*mut TvList> =
+    crate::globals::GlobalState::new(std::ptr::null_mut());
+
 #[inline]
 pub fn gc_register_list(l: &mut TvList) {
     let idx = gc_st().gc_lists.len();
-    gc_st().gc_lists.push(l);
+    let ptr: *mut TvList = l;
+    gc_st().gc_lists.push(ptr);
     l.lv_gc_idx = Some(idx);
+    unsafe { *gc_first_list.as_ptr() = ptr };
 }
 
 #[inline]
@@ -57,6 +64,13 @@ pub fn gc_unregister_list(idx: usize) {
         unsafe {
             (*moved).lv_gc_idx = Some(idx);
         }
+    }
+    unsafe {
+        *gc_first_list.as_ptr() = gc_st()
+            .gc_lists
+            .last()
+            .copied()
+            .unwrap_or(std::ptr::null_mut());
     }
 }
 

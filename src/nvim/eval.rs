@@ -5099,17 +5099,8 @@ fn get_system_output_as_rettv(argvars: &mut [TypVal], rettv: &mut TypVal, retlis
         prof_child_enter(&mut wait_time);
     }
 
-    let mut res: Vec<c_char> = Vec::new();
-    let status = os_system(
-        argv,
-        if input.is_empty() {
-            ptr::null()
-        } else {
-            input.as_ptr()
-        },
-        input.len(),
-        Some(&mut res),
-    );
+    let mut res: Vec<u8> = Vec::new();
+    let status = os_system(argv, &input, Some(&mut res));
 
     if profiling {
         prof_child_exit(&mut wait_time);
@@ -5134,33 +5125,25 @@ fn get_system_output_as_rettv(argvars: &mut [TypVal], rettv: &mut TypVal, retlis
             keepempty = tv_get_number(&argvars[2]) as i32;
         }
         rettv.vval = crate::eval::typval::TypvalVval::List(string_to_list(
-            res.as_ptr(),
+            res.as_ptr().cast::<c_char>(),
             res.len(),
             keepempty != 0,
         ));
         tv_list_ref(unsafe { rettv.vval.v_list().as_mut() });
         rettv.v_type = VarType::VarList;
     } else {
-        let nread = res.len();
-        {
-            let _d = (res.as_mut_ptr()).cast::<u8>();
-            let _sz = nread;
-            if _sz > 0 {
-                let _c = (NUL) as u8;
-                let _x = 1_u8;
-                for _b in unsafe { std::slice::from_raw_parts_mut(_d, _sz) } {
-                    if *_b == _c {
-                        *_b = _x;
-                    }
-                }
+        for b in &mut res {
+            if *b == 0 {
+                *b = 1;
             }
-        };
+        }
         #[cfg(windows)]
         {
+            let nread = res.len();
             let mut d = 0usize;
             let mut s = 0usize;
             while s < nread {
-                if res[s] == CAR && s + 1 < nread && res[s + 1] == NL {
+                if res[s] == b'\r' && s + 1 < nread && res[s + 1] == b'\n' {
                     s += 1;
                 }
                 res[d] = res[s];
@@ -5169,7 +5152,7 @@ fn get_system_output_as_rettv(argvars: &mut [TypVal], rettv: &mut TypVal, retlis
             }
             res.truncate(d);
         }
-        crate::eval::typval::tv_set_string_len(rettv, res.as_ptr(), res.len());
+        crate::eval::typval::tv_set_string_len(rettv, res.as_ptr().cast::<c_char>(), res.len());
     }
 }
 
@@ -5551,7 +5534,7 @@ pub fn timer_teardown() {
 }
 
 /// Saves a TypVal as a string buffer (`None` on error, `Some(vec)` on success).
-pub fn save_tv_as_string(tv: &mut TypVal, endnl: bool, crlf: bool) -> Option<Vec<c_char>> {
+pub fn save_tv_as_string(tv: &mut TypVal, endnl: bool, crlf: bool) -> Option<Vec<u8>> {
     if tv.v_type == VarType::VarUnknown {
         return Some(Vec::new());
     }
@@ -5559,12 +5542,7 @@ pub fn save_tv_as_string(tv: &mut TypVal, endnl: bool, crlf: bool) -> Option<Vec
     if tv.v_type != VarType::VarList && tv.v_type != VarType::VarNumber {
         let ret = tv_get_string_chk(&*tv);
         if !ret.is_null() {
-            let len = crate::memory::cstr_len(ret);
-            let mut vec = Vec::with_capacity(len);
-            if len > 0 {
-                vec.extend_from_slice(unsafe { std::slice::from_raw_parts(ret, len) });
-            }
-            return Some(vec);
+            return Some(crate::memory::cstr_as_bytes(ret).to_vec());
         } else {
             return None;
         }
@@ -5576,10 +5554,7 @@ pub fn save_tv_as_string(tv: &mut TypVal, endnl: bool, crlf: bool) -> Option<Vec
         if !buf.is_null() {
             for lnum in 1..=unsafe { (*buf).b_ml.ml_line_count } {
                 let p = ml_get_buf(unsafe { &mut *buf }, lnum);
-                for &_p_byte in crate::memory::cstr_as_bytes(p) {
-                    total_len += 1;
-                }
-                total_len += 1;
+                total_len += crate::memory::cstr_len(p) + 1;
             }
         } else {
             semsg!(gettext(E_NOBUFNR), tv.vval.v_number());
@@ -5594,13 +5569,9 @@ pub fn save_tv_as_string(tv: &mut TypVal, endnl: bool, crlf: bool) -> Option<Vec
         for lnum in 1..=unsafe { (*buf).b_ml.ml_line_count } {
             let p = ml_get_buf(unsafe { &mut *buf }, lnum);
             for &p_byte in crate::memory::cstr_as_bytes(p) {
-                ret.push(if p_byte == b'\n' {
-                    NUL
-                } else {
-                    p_byte as c_char
-                });
+                ret.push(if p_byte == b'\n' { 0 } else { p_byte });
             }
-            ret.push(b'\n' as c_char);
+            ret.push(b'\n');
         }
         return Some(ret);
     }
@@ -5633,17 +5604,13 @@ pub fn save_tv_as_string(tv: &mut TypVal, endnl: bool, crlf: bool) -> Option<Vec
     while !li.is_null() {
         let s = tv_get_string(&*tv_list_item_tv(unsafe { &mut *li }));
         for &s_byte in crate::memory::cstr_as_bytes(s) {
-            ret.push(if s_byte == b'\n' {
-                NUL
-            } else {
-                s_byte as c_char
-            });
+            ret.push(if s_byte == b'\n' { 0 } else { s_byte });
         }
         if endnl || !tv_list_item_next(unsafe { &*li }).is_null() {
             if crlf {
-                ret.push(b'\r' as c_char);
+                ret.push(b'\r');
             }
-            ret.push(b'\n' as c_char);
+            ret.push(b'\n');
         }
         li = unsafe { (*li).li_next };
     }
