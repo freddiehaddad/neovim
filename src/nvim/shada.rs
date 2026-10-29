@@ -1215,7 +1215,7 @@ fn var_shada_iter(
     } else {
         let mut i = 0;
         while i < hinum
-            && (hashitem_empty(&harray[i]) || (var_flavour(harray[i].key_ptr()) & flavour) == 0)
+            && (hashitem_empty(&harray[i]) || (var_flavour(harray[i].key_cstr()) & flavour) == 0)
         {
             i += 1;
         }
@@ -1229,7 +1229,7 @@ fn var_shada_iter(
     tv_copy(&di.di_tv, rettv);
     idx += 1;
     while idx < hinum {
-        if !hashitem_empty(&harray[idx]) && (var_flavour(harray[idx].key_ptr()) & flavour) != 0 {
+        if !hashitem_empty(&harray[idx]) && (var_flavour(harray[idx].key_cstr()) & flavour) != 0 {
             return Some(idx);
         }
         idx += 1;

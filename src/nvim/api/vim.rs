@@ -2566,9 +2566,9 @@ pub fn nvim_inspect_cell(
         }
         ret = arena_array(arena, 3);
         let off = g.line_offset[row as usize] + (col as usize);
-        let sc_buf = arena_alloc(arena, MAX_SCHAR_SIZE, false).cast();
+        let sc_buf = arena_alloc(arena, MAX_SCHAR_SIZE, false).cast::<u8>();
         schar_get(sc_buf, g.chars[off]);
-        add_c(&mut ret, cstr_as_obj(sc_buf));
+        add_c(&mut ret, cstr_as_obj(sc_buf.cast()));
         let attr = g.attrs[off];
         add_c(
             &mut ret,

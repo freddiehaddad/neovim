@@ -416,14 +416,14 @@ pub fn msg_id_exists(id: i64) -> bool {
 }
 
 fn ui_ext_msg_set_pos(row: i32, scrolled: bool) {
-    let mut buf = [0 as c_char; MAX_SCHAR_SIZE];
+    let mut buf = [0u8; MAX_SCHAR_SIZE];
     let size = schar_get(buf.as_mut_ptr(), curwin_mut().w_p_fcs_chars.msgsep);
     ui_call_msg_set_pos(
         g_st().msg_grid.handle as Integer,
         row as Integer,
         scrolled,
         NvimString {
-            data: buf.as_mut_ptr(),
+            data: buf.as_mut_ptr().cast(),
             size,
         },
         g_st().msg_grid.zindex as Integer,
@@ -2635,7 +2635,7 @@ pub fn msg_prt_line(s: impl crate::strings::IntoCCharPtr, mut list: bool) {
                         && list
                         && (utf_ptr2char(s) == 160 || utf_ptr2char(s) == 0x202f)
                     {
-                        schar_get(buf.as_mut_ptr(), curwin_mut().w_p_lcs_chars.nbsp);
+                        schar_get(buf.as_mut_ptr().cast(), curwin_mut().w_p_lcs_chars.nbsp);
                     } else {
                         unsafe { ptr::copy(s, buf.as_mut_ptr(), l as usize) };
                         buf[l as usize] = NUL;
@@ -2759,9 +2759,13 @@ pub fn msg_prt_line(s: impl crate::strings::IntoCCharPtr, mut list: bool) {
                 break;
             }
 
-            let mut buf = [0 as c_char; MAX_SCHAR_SIZE];
+            let mut buf = [0u8; MAX_SCHAR_SIZE];
             schar_get(buf.as_mut_ptr(), sc);
-            msg_puts_hl(buf.as_ptr(), hl_id, false);
+            msg_puts_hl(
+                CStr::from_bytes_until_nul(&buf).unwrap_or_default(),
+                hl_id,
+                false,
+            );
             col += 1;
         }
         msg_clr_eos();

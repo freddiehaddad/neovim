@@ -1287,7 +1287,7 @@ fn stl_truncate(
             if *width >= minwid {
                 break;
             }
-            schar_get_adv(out_p, fillchar);
+            schar_get_adv(out_p.cast(), fillchar);
         }
         **out_p = NUL;
     }
@@ -1342,7 +1342,7 @@ fn stl_expand(
                     ptr::copy(start, seploc, len);
                     let mut s = start;
                     while s < seploc {
-                        schar_get_adv(&raw mut s, fillchar);
+                        schar_get_adv((&raw mut s).cast(), fillchar);
                     }
                 }
             }
@@ -1351,7 +1351,7 @@ fn stl_expand(
             *out_p = (*out_p).wrapping_add(added_bytes as usize);
         } else if padding == StlPadding::PaddingRight {
             while added_cells > 0 {
-                schar_get_adv(out_p, fillchar);
+                schar_get_adv(out_p.cast(), fillchar);
                 added_cells -= 1;
             }
             *width += added_bytes / fillchar_bytes;
@@ -1364,7 +1364,7 @@ fn stl_expand(
 
             let orig_added_cells = added_cells;
             while added_cells > 0 {
-                schar_get_adv(&raw mut start_p, fillchar);
+                schar_get_adv((&raw mut start_p).cast(), fillchar);
                 added_cells -= 1;
             }
 
@@ -2259,7 +2259,8 @@ pub extern "C" fn build_stl_str_hl(
                             };
                         let mut buflen: usize = 0;
                         for &fc in fold_buf.iter().take(fdc as usize) {
-                            buflen += schar_get(buf_tmp.as_mut_ptr().wrapping_add(buflen), fc);
+                            buflen +=
+                                schar_get(buf_tmp.as_mut_ptr().wrapping_add(buflen).cast(), fc);
                         }
                     }
 
@@ -2344,7 +2345,7 @@ pub extern "C" fn build_stl_str_hl(
                             *out_p = b' ' as c_char;
                             out_p = out_p.wrapping_add(1);
                         } else {
-                            schar_get_adv(&raw mut out_p, fillchar);
+                            schar_get_adv((&raw mut out_p).cast(), fillchar);
                         }
                         l += 1;
                     }
@@ -2370,7 +2371,7 @@ pub extern "C" fn build_stl_str_hl(
                         && (!ascii_isdigit(crate::memory::cstr_char_at(t, 1))
                             || fillchar != schar_from_ascii(b'-'))
                     {
-                        schar_get_adv(&raw mut out_p, fillchar);
+                        schar_get_adv((&raw mut out_p).cast(), fillchar);
                     } else {
                         *out_p = *t;
                         out_p = out_p.wrapping_add(1);
@@ -2385,7 +2386,7 @@ pub extern "C" fn build_stl_str_hl(
                 }
 
                 while l < minwid && out_p < out_end_p {
-                    schar_get_adv(&raw mut out_p, fillchar);
+                    schar_get_adv((&raw mut out_p).cast(), fillchar);
                     l += 1;
                 }
             } else if num >= 0 {

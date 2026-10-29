@@ -1,7 +1,7 @@
 //! Handling of a hashtable with Vim-specific properties (`src/nvim/hashtab.c`).
 
 use crate::message::siemsg;
-use std::ffi::c_char;
+use std::ffi::CStr;
 
 pub type HashVal = usize;
 
@@ -23,11 +23,18 @@ impl Hashitem {
     }
 
     #[inline]
-    pub fn key_ptr(&self) -> *mut c_char {
+    pub fn key_cstr(&self) -> Option<&CStr> {
         if self.hi_di.is_null() {
-            std::ptr::null_mut()
+            None
         } else {
-            unsafe { (*self.hi_di).di_key.as_ptr().cast_mut() }
+            unsafe {
+                let di_key = &(*self.hi_di).di_key;
+                CStr::from_bytes_until_nul(std::slice::from_raw_parts(
+                    di_key.as_ptr().cast::<u8>(),
+                    di_key.len(),
+                ))
+                .ok()
+            }
         }
     }
 }
@@ -156,7 +163,7 @@ pub fn hash_lookup(
     let mut freeitem: *mut Hashitem = std::ptr::null_mut();
     if hi_ref.hi_removed {
         freeitem = hi;
-    } else if hi_ref.hi_hash == hash && key_matches(hi_ref.key_ptr(), key, key_len) {
+    } else if hi_ref.hi_hash == hash && key_matches(hi_ref.key_cstr(), key, key_len) {
         return hi;
     }
 
@@ -170,7 +177,7 @@ pub fn hash_lookup(
             return if freeitem.is_null() { hi } else { freeitem };
         }
 
-        if item.hi_hash == hash && !item.hi_removed && key_matches(item.key_ptr(), key, key_len) {
+        if item.hi_hash == hash && !item.hi_removed && key_matches(item.key_cstr(), key, key_len) {
             return hi;
         }
 
@@ -198,18 +205,17 @@ pub fn hash_add(ht: &mut Hashtab, di: &mut crate::eval::typval::Dictitem) -> boo
         );
         return false;
     }
-    hash_add_item(ht, hi, key, &mut *di, hash);
+    hash_add_item(ht, hi, &mut *di, hash);
     true
 }
 
-/// Add item `hi` for `key` with precomputed `hash` to `ht` (`hash_add_item`).
+/// Add item `hi` with precomputed `hash` to `ht` (`hash_add_item`).
 ///
 /// # Safety
-/// `ht`, `hi`, `key`, and `di` must be valid pointers, with `hi` obtained from `hash_lookup(ht, ...)`.
+/// `ht`, `hi`, and `di` must be valid pointers, with `hi` obtained from `hash_lookup(ht, ...)`.
 pub fn hash_add_item(
     ht: &mut Hashtab,
     mut hi: *mut Hashitem,
-    _key: *mut c_char,
     di: &mut crate::eval::typval::Dictitem,
     hash: HashVal,
 ) {
@@ -412,7 +418,7 @@ mod tests {
             for (k, &di) in keys.iter().zip(&items) {
                 let hi = hash_find(ht, k.as_ptr());
                 assert!(!hashitem_empty(&*hi));
-                assert_eq!(crate::memory::cstr_from_ptr((*hi).key_ptr()), k.as_c_str());
+                assert_eq!((*hi).key_cstr(), Some(k.as_c_str()));
                 assert_eq!((*hi).hi_di, di);
             }
 

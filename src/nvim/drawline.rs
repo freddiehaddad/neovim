@@ -1301,7 +1301,7 @@ fn schar_get_single_width(mb_schar: Schar) -> i32 {
     #[cfg(debug_assertions)]
     {
         let mut sc_buf = [0u8; MAX_SCHAR_SIZE];
-        schar_get(sc_buf.as_mut_ptr().cast(), mb_schar);
+        schar_get(sc_buf.as_mut_ptr(), mb_schar);
         debug_assert_eq!(crate::mbyte::ptr2cells(sc_buf.as_ptr().cast()), 1);
     }
     let _ = mb_schar;
@@ -2868,9 +2868,7 @@ pub fn win_line(
                                         if lcs_tab3 != 0 && i == tab_len - 1 {
                                             lcs = lcs_tab3;
                                         }
-                                        let mut p_c = p.cast();
-                                        let slen = schar_get_adv(&raw mut p_c, lcs);
-                                        p = p_c.cast();
+                                        let slen = schar_get_adv(&raw mut p, lcs);
                                         wlv.n_extra +=
                                             slen as i32 - if saved_nextra > 0 { 1 } else { 0 };
                                     }
@@ -3035,7 +3033,7 @@ pub fn win_line(
                             }
 
                             let mut sc_buf = [0u8; MAX_SCHAR_SIZE];
-                            schar_get(sc_buf.as_mut_ptr().cast(), mb_schar);
+                            schar_get(sc_buf.as_mut_ptr(), mb_schar);
                             mb_schar_width = utf_ptr2cells(sc_buf.as_ptr().cast());
 
                             prev_syntax_id = syntax_seqnr;

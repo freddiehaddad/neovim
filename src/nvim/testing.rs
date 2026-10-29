@@ -204,7 +204,7 @@ fn fill_assert_error(
                 while todo > 0 {
                     if !hashitem_empty(&*hi) {
                         let di1 = crate::eval::typval::tv_dict_hi2di(hi);
-                        let hi_key = (&*hi).key_ptr();
+                        let hi_key = (&*hi).key_cstr();
                         let item2 = tv_dict_find(got_d.as_ref(), hi_key, -1);
                         if item2.is_null() || !tv_equal(&di1.di_tv, &(*item2).di_tv, false) {
                             let key_len = crate::memory::cstr_len(hi_key);
@@ -229,7 +229,7 @@ fn fill_assert_error(
                 hi = (*got_d).dv_hashtab.array_ptr();
                 while todo > 0 {
                     if !hashitem_empty(&*hi) {
-                        let hi_key = (&*hi).key_ptr();
+                        let hi_key = (&*hi).key_cstr();
                         let item2 = tv_dict_find(exp_d.as_ref(), hi_key, -1);
                         if item2.is_null() {
                             let di2 = crate::eval::typval::tv_dict_hi2di(hi);

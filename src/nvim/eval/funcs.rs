@@ -7005,7 +7005,7 @@ pub fn f_screenchars(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFunc
         return;
     }
 
-    let mut buf = [0 as c_char; MAX_SCHAR_SIZE + 1];
+    let mut buf = [0u8; MAX_SCHAR_SIZE + 1];
     schar_get(
         buf.as_mut_ptr(),
         grid_getchar(unsafe { &*grid }, row, col, None),
@@ -7013,10 +7013,10 @@ pub fn f_screenchars(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFunc
 
     let mut i: usize = 0;
     loop {
-        let c = utf_ptr2char(buf.as_ptr().wrapping_add(i));
+        let c = utf_ptr2char(buf.as_ptr().wrapping_add(i).cast());
         tv_list_append_number(rettv.vval.v_list_ref(), Varnumber::from(c));
-        i += utf_ptr2len(buf.as_ptr().wrapping_add(i)) as usize;
-        if buf[i] == NUL {
+        i += utf_ptr2len(buf.as_ptr().wrapping_add(i).cast()) as usize;
+        if buf[i] == 0 {
             break;
         }
     }
@@ -7046,12 +7046,15 @@ pub fn f_screenstring(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFun
         return;
     }
 
-    let mut buf = [0 as c_char; MAX_SCHAR_SIZE + 1];
+    let mut buf = [0u8; MAX_SCHAR_SIZE + 1];
     schar_get(
         buf.as_mut_ptr(),
         grid_getchar(unsafe { &*grid }, row, col, None),
     );
-    crate::eval::typval::tv_set_string(rettv, buf.as_ptr());
+    crate::eval::typval::tv_set_string(
+        rettv,
+        CStr::from_bytes_until_nul(&buf).unwrap_or_default(),
+    );
 }
 
 /// "search()" function
@@ -8619,7 +8622,7 @@ pub fn f_synconcealed(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFun
                 };
             }
             if cchar != 0 {
-                schar_get(str_.as_mut_ptr(), cchar);
+                schar_get(str_.as_mut_ptr().cast(), cchar);
             }
         }
     }

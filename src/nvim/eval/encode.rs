@@ -328,7 +328,11 @@ fn conv_error(msg: &CStr, mpstack: &[MPConvStackVal], objname: &CStr) -> i32 {
                     let mut key_tv = TypVal {
                         v_type: VarType::VarString,
                         v_lock: VAR_UNLOCKED,
-                        vval: TypvalVval::String((&*hi_ptr).key_ptr()),
+                        vval: TypvalVval::String(
+                            (&*hi_ptr)
+                                .key_cstr()
+                                .map_or(std::ptr::null_mut(), |s| s.as_ptr().cast_mut()),
+                        ),
                     };
                     let key = encode_tv2string(&mut key_tv, None);
                     ga_concat_literal(&mut msg_ga, b"key ");

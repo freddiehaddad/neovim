@@ -3704,12 +3704,12 @@ mod tests {
             assert_eq!(utf_ptr2cells(c"\xff"), 4);
 
             let mut firstc: i32 = 0;
-            let mut sbuf = [0 as c_char; 32];
+            let mut sbuf = [0u8; 32];
             let sc = crate::grid::unittest_schar_from_cluster(c")\xcc\x80\xcc\x81", &mut firstc);
             schar_get(sbuf.as_mut_ptr(), sc);
             assert_eq!(firstc, 0x29);
             assert_eq!(
-                crate::memory::cstr_as_bytes(sbuf.as_ptr()),
+                CStr::from_bytes_until_nul(&sbuf).unwrap().to_bytes(),
                 b")\xcc\x80\xcc\x81"
             );
 

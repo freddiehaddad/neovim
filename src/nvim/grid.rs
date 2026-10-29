@@ -18,7 +18,6 @@ use crate::ui::{
     ui_line,
 };
 use crate::window::{WinConfig, WinInfoInfo};
-use std::ffi::c_char;
 use std::ptr;
 
 pub type Schar = u32;
@@ -29,7 +28,7 @@ use crate::api::win_config::{
     AlignTextPos, BorderTextType, K_ALIGN_CENTER, K_ALIGN_LEFT, K_ALIGN_RIGHT,
     K_BORDER_TEXT_FOOTER, K_BORDER_TEXT_TITLE, K_UIMULTIGRID,
 };
-use crate::charset::NUL;
+
 use crate::drawline::{SLF_INC_VCOL, SLF_RIGHTLEFT, SLF_WRAP};
 use crate::drawscreen::DEFAULT_GRID_HANDLE;
 
@@ -92,7 +91,7 @@ pub struct Wline {
 
 struct GridModuleState {
     linebuf_scratch: Vec<Sscratch>,
-    glyph_cache_keys: Vec<c_char>,
+    glyph_cache_keys: Vec<u8>,
     glyph_cache_offsets: std::collections::BTreeMap<Vec<u8>, u32>,
     grid_line_grid: *mut ScreenGrid,
     grid_line_row: i32,
@@ -203,9 +202,7 @@ pub fn schar_from_bytes(bytes: &[u8]) -> Schar {
             existing_idx
         } else {
             let new_idx = grid_st().glyph_cache_keys.len() as u32;
-            grid_st()
-                .glyph_cache_keys
-                .extend(bytes.iter().map(|&b| b as c_char));
+            grid_st().glyph_cache_keys.extend_from_slice(bytes);
             grid_st().glyph_cache_keys.push(0);
             grid_st()
                 .glyph_cache_offsets
@@ -259,32 +256,32 @@ pub fn schar_high(sc: Schar) -> bool {
 }
 
 /// Sets final NUL (`schar_get`).
-pub fn schar_get(mut buf_out: *mut c_char, sc: Schar) -> usize {
+pub fn schar_get(mut buf_out: *mut u8, sc: Schar) -> usize {
     let len = schar_get_adv(&raw mut buf_out, sc);
     unsafe {
-        *buf_out = NUL;
+        *buf_out = 0;
     }
     len
 }
 
 pub fn schar_get_bytes(buf_out: &mut [u8], sc: Schar) -> usize {
-    schar_get(buf_out.as_mut_ptr().cast::<c_char>(), sc)
+    schar_get(buf_out.as_mut_ptr(), sc)
 }
 
 /// Advance `buf_out`. Do NOT set final NUL (`schar_get_adv`).
-pub fn schar_get_adv(buf_out: *mut *mut c_char, sc: Schar) -> usize {
+pub fn schar_get_adv(buf_out: *mut *mut u8, sc: Schar) -> usize {
     unsafe {
         let len: usize;
         if schar_high(sc) {
             let idx = schar_idx(sc) as usize;
             assert!(idx < grid_st().glyph_cache_keys.len());
             let key_ptr = grid_st().glyph_cache_keys.as_ptr().wrapping_add(idx);
-            len = crate::memory::cstr_len(key_ptr);
+            len = crate::memory::cstr_len(key_ptr.cast());
             ptr::copy_nonoverlapping(key_ptr, *buf_out, len);
         } else {
             let sc_ptr = (&raw const sc).cast::<u8>();
             len = strnlen_4(sc_ptr);
-            ptr::copy_nonoverlapping(sc_ptr.cast::<c_char>(), *buf_out, len);
+            ptr::copy_nonoverlapping(sc_ptr, *buf_out, len);
         }
         *buf_out = (*buf_out).wrapping_add(len);
         len
@@ -295,19 +292,19 @@ pub fn schar_len(sc: Schar) -> usize {
     if schar_high(sc) {
         let idx = schar_idx(sc) as usize;
         assert!(idx < grid_st().glyph_cache_keys.len());
-        crate::memory::cstr_len(grid_st().glyph_cache_keys.as_ptr().wrapping_add(idx))
+        crate::memory::cstr_len(grid_st().glyph_cache_keys.as_ptr().wrapping_add(idx).cast())
     } else {
         strnlen_4((&raw const sc).cast::<u8>())
     }
 }
 
 #[inline]
-fn schar_get_first_byte(sc: Schar) -> c_char {
+fn schar_get_first_byte(sc: Schar) -> u8 {
     assert!(!(schar_high(sc) && (schar_idx(sc) as usize) >= grid_st().glyph_cache_keys.len()));
     if schar_high(sc) {
         grid_st().glyph_cache_keys.as_slice()[schar_idx(sc) as usize]
     } else {
-        unsafe { *(&raw const sc).cast::<c_char>() }
+        unsafe { *(&raw const sc).cast::<u8>() }
     }
 }
 
@@ -317,24 +314,24 @@ pub fn schar_get_first_codepoint(sc: Schar) -> i32 {
     utf_slice2char(&sc_buf)
 }
 
-pub fn schar_get_ascii(sc: Schar) -> c_char {
+pub fn schar_get_ascii(sc: Schar) -> u8 {
     #[cfg(target_endian = "big")]
     unsafe {
         if (sc & 0x80FF_FFFF) == 0 {
-            *(&raw const sc).cast::<c_char>()
+            *(&raw const sc).cast::<u8>()
         } else {
-            NUL
+            0
         }
     }
     #[cfg(not(target_endian = "big"))]
     {
-        if sc < 0x80 { sc as c_char } else { NUL }
+        if sc < 0x80 { sc as u8 } else { 0 }
     }
 }
 
 #[inline]
 fn schar_in_arabic_block(sc: Schar) -> bool {
-    let first_byte = schar_get_first_byte(sc) as u8;
+    let first_byte = schar_get_first_byte(sc);
     (first_byte & 0xFE) == 0xD8
 }
 
@@ -385,21 +382,22 @@ pub fn line_do_arabic_shape(buf: *mut Schar, cols: i32) {
             let c0new = arabic_shape(c0, &mut c1new, c0next, c1next, c0prev);
 
             if !(c0new == c0 && c1new == c1) {
-                let mut scbuf = [0 as c_char; MAX_SCHAR_SIZE];
+                let mut scbuf = [0u8; MAX_SCHAR_SIZE];
                 schar_get(scbuf.as_mut_ptr(), unsafe { *buf.wrapping_add(i as usize) });
 
-                let mut scbuf_new = [0 as c_char; MAX_SCHAR_SIZE];
-                let mut len = utf_char2bytes(c0new, scbuf_new.as_mut_ptr()) as usize;
+                let mut scbuf_new = [0u8; MAX_SCHAR_SIZE];
+                let mut len = utf_char2bytes(c0new, scbuf_new.as_mut_ptr().cast()) as usize;
                 if c1new != 0 {
-                    len += utf_char2bytes(c1new, scbuf_new.as_mut_ptr().wrapping_add(len)) as usize;
+                    len += utf_char2bytes(c1new, scbuf_new.as_mut_ptr().wrapping_add(len).cast())
+                        as usize;
                 }
 
                 let off = (utf_char2len(c0) + if c1 != 0 { utf_char2len(c1) } else { 0 }) as usize;
-                let mut rest = crate::memory::cstr_len(scbuf.as_ptr().wrapping_add(off));
+                let mut rest = crate::memory::cstr_len(scbuf.as_ptr().wrapping_add(off).cast());
                 if rest + len + 1 > MAX_SCHAR_SIZE {
                     let bounds = utf_cp_bounds(
-                        scbuf.as_ptr().wrapping_add(off),
-                        scbuf.as_ptr().wrapping_add(off + rest - 1),
+                        scbuf.as_ptr().wrapping_add(off).cast(),
+                        scbuf.as_ptr().wrapping_add(off + rest - 1).cast(),
                     );
                     rest = (rest as isize - (isize::from(bounds.begin_off) + 1)) as usize;
                 }
@@ -411,7 +409,8 @@ pub fn line_do_arabic_shape(buf: *mut Schar, cols: i32) {
                     )
                 };
                 unsafe {
-                    *buf.wrapping_add(i as usize) = schar_from_buf(scbuf_new.as_ptr(), len + rest);
+                    *buf.wrapping_add(i as usize) =
+                        schar_from_buf(scbuf_new.as_ptr().cast(), len + rest);
                 }
             }
         }
@@ -1406,7 +1405,7 @@ pub fn schar_from_char(mut c: i32) -> Schar {
     if c >= 0x20_0000 {
         c = 0xFFFD;
     }
-    utf_char2bytes(c, (&raw mut sc).cast::<c_char>());
+    utf_char2bytes(c, (&raw mut sc).cast());
     sc
 }
 
@@ -1436,10 +1435,12 @@ pub fn schar_from_cluster_impl(
         }
 
         if first_compose {
-            let mut cbuf = [0 as c_char; MAX_SCHAR_SIZE];
-            cbuf[0] = b' ' as c_char;
-            unsafe { ptr::copy_nonoverlapping(buf, cbuf.as_mut_ptr().wrapping_add(1), len) };
-            schar_from_buf(cbuf.as_ptr(), len + 1)
+            let mut cbuf = [0u8; MAX_SCHAR_SIZE];
+            cbuf[0] = b' ';
+            unsafe {
+                ptr::copy_nonoverlapping(buf.cast::<u8>(), cbuf.as_mut_ptr().wrapping_add(1), len)
+            };
+            schar_from_buf(cbuf.as_ptr().cast(), len + 1)
         } else {
             schar_from_buf(buf, len)
         }
@@ -1458,7 +1459,7 @@ pub fn schar_from_cluster(ci: StrCharInfo, cli: ClusterInfo) -> Schar {
     }
     let mut sc: Schar = 0;
     unsafe {
-        ptr::copy_nonoverlapping(ci.ptr, (&raw mut sc).cast::<c_char>(), len);
+        ptr::copy_nonoverlapping(ci.ptr.cast::<u8>(), (&raw mut sc).cast::<u8>(), len);
     }
     sc
 }
@@ -1486,14 +1487,17 @@ mod tests {
             .unwrap_or_else(|e| e.into_inner());
         {
             let sc_a = schar_from_ascii(b'A');
-            assert_eq!(schar_get_ascii(sc_a), b'A' as c_char);
+            assert_eq!(schar_get_ascii(sc_a), b'A');
 
             let sc_u = schar_from_char(0x2603);
-            let mut buf = [0 as c_char; 16];
+            let mut buf = [0u8; 16];
             let len = schar_get(buf.as_mut_ptr(), sc_u);
             assert_eq!(len, 3);
             assert_eq!(
-                crate::memory::cstr_from_ptr(buf.as_ptr()).to_str().unwrap(),
+                std::ffi::CStr::from_bytes_until_nul(&buf)
+                    .unwrap()
+                    .to_str()
+                    .unwrap(),
                 "☃"
             );
         }

@@ -2331,7 +2331,7 @@ pub fn del_menutrans_vars() {
     while todo > 0 {
         if !hashitem_empty(unsafe { &*hi }) {
             todo -= 1;
-            if crate::memory::cstr_prefix_bytes((unsafe { &*hi }).key_ptr(), 10)
+            if crate::memory::cstr_prefix_bytes((unsafe { &*hi }).key_cstr(), 10)
                 == &b"menutrans_"[..10]
             {
                 delete_var(&mut vars_st().globvardict.dv_hashtab, unsafe { &mut *hi });
@@ -2425,11 +2425,11 @@ pub fn get_user_var_name(xp: &mut ExpandCtx, idx: i32) -> *mut c_char {
             while hashitem_empty(&*vars_st().hi) {
                 vars_st().hi = vars_st().hi.wrapping_add(1);
             }
-            let hi_key = (&*vars_st().hi).key_ptr();
+            let hi_key = (&*vars_st().hi).key_cstr();
             if b"g:" == crate::memory::cstr_prefix_bytes(xp.xp_pattern, 2) {
                 return cat_prefix_varname(b'g' as i32, hi_key);
             }
-            return hi_key;
+            return hi_key.map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut());
         }
 
         let mut ht: *const Hashtab = &raw const (*prevwin_curwin().w_buffer).b_vars().dv_hashtab;
@@ -2443,7 +2443,7 @@ pub fn get_user_var_name(xp: &mut ExpandCtx, idx: i32) -> *mut c_char {
             while hashitem_empty(&*vars_st().hi) {
                 vars_st().hi = vars_st().hi.wrapping_add(1);
             }
-            return cat_prefix_varname(b'b' as i32, (&*vars_st().hi).key_ptr());
+            return cat_prefix_varname(b'b' as i32, (&*vars_st().hi).key_cstr());
         }
 
         ht = &raw const (*prevwin_curwin()).w_vars().dv_hashtab;
@@ -2457,7 +2457,7 @@ pub fn get_user_var_name(xp: &mut ExpandCtx, idx: i32) -> *mut c_char {
             while hashitem_empty(&*vars_st().hi) {
                 vars_st().hi = vars_st().hi.wrapping_add(1);
             }
-            return cat_prefix_varname(b'w' as i32, (&*vars_st().hi).key_ptr());
+            return cat_prefix_varname(b'w' as i32, (&*vars_st().hi).key_cstr());
         }
 
         ht = &raw const curtab_mut().tp_vars().dv_hashtab;
@@ -2471,7 +2471,7 @@ pub fn get_user_var_name(xp: &mut ExpandCtx, idx: i32) -> *mut c_char {
             while hashitem_empty(&*vars_st().hi) {
                 vars_st().hi = vars_st().hi.wrapping_add(1);
             }
-            return cat_prefix_varname(b't' as i32, (&*vars_st().hi).key_ptr());
+            return cat_prefix_varname(b't' as i32, (&*vars_st().hi).key_cstr());
         }
 
         if vars_st().vidx < VV_LEN {

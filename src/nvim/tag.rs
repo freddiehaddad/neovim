@@ -1448,7 +1448,7 @@ fn find_tagfunc_tags(
                     if !hashitem_empty(&*hi) {
                         todo -= 1;
                         let di = crate::eval::typval::tv_dict_hi2di(hi);
-                        let dict_key = (&*hi).key_ptr();
+                        let dict_key = (&*hi).key_cstr();
                         let tv = &raw mut di.di_tv;
                         let tv = &mut *tv;
 
@@ -1548,7 +1548,7 @@ fn find_tagfunc_tags(
                             if !hashitem_empty(&*hi) {
                                 todo -= 1;
                                 let di = crate::eval::typval::tv_dict_hi2di(hi);
-                                let dict_key = (&*hi).key_ptr();
+                                let dict_key = (&*hi).key_cstr();
                                 let tv = &mut di.di_tv;
                                 if tv.v_type == VarType::VarString
                                     && !tv.vval.v_string().is_null()
