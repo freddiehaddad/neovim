@@ -1283,7 +1283,7 @@ pub fn decor_redraw_col_impl(
                         spell = K_FALSE;
                     }
                     if let Some(ref url) = r.data.sh().url {
-                        attr = hl_add_url(attr, url.as_ptr());
+                        attr = hl_add_url(attr, url);
                     }
                 }
             }

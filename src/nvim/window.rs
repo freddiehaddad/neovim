@@ -402,7 +402,7 @@ pub struct WinConfig {
 #[repr(C)]
 #[derive(Clone, Copy)]
 pub struct Frame {
-    pub fr_layout: c_char,
+    pub fr_layout: u8,
     pub fr_width: i32,
     pub fr_newwidth: i32,
     pub fr_height: i32,
@@ -454,7 +454,7 @@ pub struct WinInfoInfo {
     pub w_set_curswant: bool,
     pub w_cursorline: i32,
     pub w_last_cursorline: i32,
-    pub w_old_visual_mode: c_char,
+    pub w_old_visual_mode: u8,
     pub w_old_cursor_lnum: i32,
     pub w_old_cursor_fcol: i32,
     pub w_old_cursor_lcol: i32,
@@ -542,7 +542,7 @@ pub struct WinInfoInfo {
     pub w_stl_topline: i32,
     pub w_stl_line_count: i32,
     pub w_stl_topfill: i32,
-    pub w_stl_empty: c_char,
+    pub w_stl_empty: bool,
     pub w_stl_recording: i32,
     pub w_stl_state: i32,
     pub w_stl_visual_mode: i32,
@@ -751,7 +751,7 @@ impl WinInfoInfo {
             w_stl_topline: 0,
             w_stl_line_count: 0,
             w_stl_topfill: 0,
-            w_stl_empty: 0,
+            w_stl_empty: false,
             w_stl_recording: 0,
             w_stl_state: 0,
             w_stl_visual_mode: 0,
@@ -828,7 +828,7 @@ pub type StcClick = Vec<crate::mouse::StlClickDefinition>;
 pub type StcClicks = std::collections::BTreeMap<i32, StcClick>;
 
 pub struct SnapshotFrame {
-    pub fr_layout: c_char,
+    pub fr_layout: u8,
     pub fr_width: i32,
     pub fr_height: i32,
     pub fr_next: Option<Box<SnapshotFrame>>,

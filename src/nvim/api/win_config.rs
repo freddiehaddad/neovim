@@ -57,7 +57,7 @@ pub type UIExtension = i32;
 pub(crate) const K_UIMULTIGRID: UIExtension = 6;
 pub(crate) const K_ZINDEX_FLOAT_DEFAULT: i32 = 50;
 
-pub(crate) const FR_COL: c_char = 2;
+pub(crate) const FR_COL: u8 = 2;
 
 pub(crate) const K_CTX_NO_DISPLAY: i32 = 4;
 pub(crate) const K_CTX_NO_EVENTS: i32 = 8;

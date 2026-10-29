@@ -1060,7 +1060,7 @@ pub fn set_hl_group(id: i32, attrs: HlAttrs, dict: &KeyDict_highlight, link_id: 
         }
 
         if attrs.font >= 0 {
-            g.sg_font = Some(crate::memory::cstr_to_cstring(hl_get_font(attrs.font)));
+            g.sg_font = hl_get_font(attrs.font).map(ToOwned::to_owned);
         } else if has_key(dict.is_set_highlight, KEYSET_OPTIDX_HIGHLIGHT_FONT) || !update {
             g.sg_font = None;
         }
@@ -2113,7 +2113,7 @@ fn set_hl_attr(idx: i32) {
     };
     at_en.hl_blend = sgp.sg_blend;
     if let Some(ref font) = sgp.sg_font {
-        at_en.font = hl_add_font_idx(font.as_ptr());
+        at_en.font = hl_add_font_idx(Some(font.as_bytes()));
     }
 
     sgp.sg_attr = hl_get_syn_attr(0, idx + 1, at_en);

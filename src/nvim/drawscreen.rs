@@ -89,7 +89,7 @@ use crate::window::{
     Frame, MIN_COLUMNS, WinInfoInfo, frame2win, global_stl_height, last_stl_height, min_rows,
     min_rows_for_all_tabpages, win_fdccol_count, win_new_screensize, win_ui_flush,
 };
-use std::ffi::{CStr, c_char};
+use std::ffi::CStr;
 use std::ptr;
 
 use crate::api::ui::NO_SCREEN;
@@ -111,8 +111,8 @@ const COL_RULER: i32 = 18;
 pub(crate) const SHOWCMD_COLS: i32 = 10;
 pub(crate) const SIGN_WIDTH: i32 = 2;
 
-pub(crate) const FR_LEAF: c_char = 0;
-pub(crate) const FR_ROW: c_char = 1;
+pub(crate) const FR_LEAF: u8 = 0;
+pub(crate) const FR_ROW: u8 = 1;
 
 pub(crate) const VALID_BOTLINE: i32 = 0x20;
 
@@ -833,10 +833,8 @@ pub fn redraw_custom_title_later() -> bool {
 
 pub fn show_cursor_info_later(force: bool) {
     let state = get_real_state();
-    let empty_line = i32::from(
-        (g_st().state_global & MODE_INSERT) == 0
-            && unsafe { *ml_get_buf(curwin_mut().buf_mut(), curwin_mut().w_cursor.lnum) } == NUL,
-    );
+    let empty_line = (g_st().state_global & MODE_INSERT) == 0
+        && unsafe { *ml_get_buf(curwin_mut().buf_mut(), curwin_mut().w_cursor.lnum) } == NUL;
 
     validate_virtcol(curwin_mut());
     if force
@@ -847,7 +845,7 @@ pub fn show_cursor_info_later(force: bool) {
         || curwin_mut().w_topline != curwin_mut().w_stl_topline
         || curwin_mut().buf_mut().b_ml.ml_line_count != curwin_mut().w_stl_line_count
         || curwin_mut().w_topfill != curwin_mut().w_stl_topfill
-        || (empty_line as c_char) != curwin_mut().w_stl_empty
+        || empty_line != curwin_mut().w_stl_empty
         || g_st().reg_recording != curwin_mut().w_stl_recording
         || state != curwin_mut().w_stl_state
         || (g_st().visual_global.active
@@ -873,7 +871,7 @@ pub fn show_cursor_info_later(force: bool) {
 
     curwin_mut().w_stl_cursor = curwin_mut().w_cursor;
     curwin_mut().w_stl_virtcol = curwin_mut().w_virtcol;
-    curwin_mut().w_stl_empty = empty_line as c_char;
+    curwin_mut().w_stl_empty = empty_line;
     curwin_mut().w_stl_topline = curwin_mut().w_topline;
     curwin_mut().w_stl_line_count = curwin_mut().buf_mut().b_ml.ml_line_count;
     curwin_mut().w_stl_topfill = curwin_mut().w_topfill;
@@ -1103,13 +1101,8 @@ fn recording_mode(hl_id: i32) {
     }
 
     msg_puts_hl(gettext(c"recording"), hl_id, false);
-    let s: [c_char; 4] = [
-        b' ' as c_char,
-        b'@' as c_char,
-        g_st().reg_recording as u8 as c_char,
-        0,
-    ];
-    msg_puts_hl(s.as_ptr(), hl_id, false);
+    let s: [u8; 4] = [b' ', b'@', g_st().reg_recording as u8, 0];
+    msg_puts_hl(CStr::from_bytes_until_nul(&s).unwrap_or(c""), hl_id, false);
 }
 
 pub fn comp_col() {
@@ -1738,7 +1731,7 @@ fn win_update(wp: &mut WinInfoInfo) {
             let mut to: Linenr;
 
             if g_st().visual_global.active {
-                if g_st().visual_global.mode != i32::from(wp.w_old_visual_mode as u8)
+                if g_st().visual_global.mode != i32::from(wp.w_old_visual_mode)
                     || type_ == UPD_INVERTED_ALL
                 {
                     if curwin_mut().w_cursor.lnum < g_st().visual_global.start.lnum {
@@ -1870,7 +1863,7 @@ fn win_update(wp: &mut WinInfoInfo) {
         }
 
         if g_st().visual_global.active && ptr::eq(buf, curwin_mut().w_buffer) {
-            wp.w_old_visual_mode = g_st().visual_global.mode as c_char;
+            wp.w_old_visual_mode = g_st().visual_global.mode as u8;
             wp.w_old_cursor_lnum = curwin_mut().w_cursor.lnum;
             wp.w_old_visual_lnum = g_st().visual_global.start.lnum;
             wp.w_old_visual_col = g_st().visual_global.start.col;

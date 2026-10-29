@@ -582,7 +582,7 @@ fn parse_osc8(str_: impl crate::strings::IntoCCharPtr, attr: &mut i32) -> i32 {
             return 1;
         }
 
-        *attr = hl_add_url(0, str_.wrapping_add(i));
+        *attr = hl_add_url(0, unsafe { std::ffi::CStr::from_ptr(str_.wrapping_add(i)) });
         1
     }
 }

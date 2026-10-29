@@ -44,7 +44,7 @@ use crate::undo::buf_is_changed_fn;
 use crate::window::{
     goto_tabpage_tp, goto_tabpage_win, valid_tabpage, win_goto, win_split, win_valid,
 };
-use std::ffi::{CStr, c_char};
+use std::ffi::CStr;
 use std::ptr;
 
 use crate::cursor::Linenr;
@@ -205,7 +205,7 @@ pub fn check_changed(buf: &mut FileBuf, flags: i32) -> bool {
 /// Ask the user what to do when abandoning a changed buffer (`dialog_changed`).
 pub fn dialog_changed(buf: &mut FileBuf, checkall: bool) {
     unsafe {
-        let mut buff = [0 as c_char; DIALOG_MSG_SIZE];
+        let mut buff = [0u8; DIALOG_MSG_SIZE];
         let mut ea: Exarg = Exarg::new();
 
         let fname = if !buf.b_fname.is_null() {
@@ -214,15 +214,15 @@ pub fn dialog_changed(buf: &mut FileBuf, checkall: bool) {
             gettext(c"Untitled")
         };
         vim_snprintf!(
-            buff.as_mut_ptr(),
+            buff.as_mut_ptr().cast(),
             DIALOG_MSG_SIZE,
             gettext(c"Save changes to \"%s\"?"),
             fname,
         );
         let ret = if checkall {
-            vim_dialog_yesnoallcancel(VIM_QUESTION, ptr::null_mut(), buff.as_mut_ptr(), 1)
+            vim_dialog_yesnoallcancel(VIM_QUESTION, ptr::null_mut(), buff.as_mut_ptr().cast(), 1)
         } else {
-            vim_dialog_yesnocancel(VIM_QUESTION, ptr::null_mut(), buff.as_mut_ptr(), 1)
+            vim_dialog_yesnocancel(VIM_QUESTION, ptr::null_mut(), buff.as_mut_ptr().cast(), 1)
         };
 
         if ret == VIM_YES {
@@ -281,19 +281,19 @@ pub fn dialog_changed(buf: &mut FileBuf, checkall: bool) {
 
 /// Ask the user whether to close the terminal buffer or not (`dialog_close_terminal`).
 pub fn dialog_close_terminal(buf: &mut FileBuf) -> bool {
-    let mut buff = [0 as c_char; DIALOG_MSG_SIZE];
+    let mut buff = [0u8; DIALOG_MSG_SIZE];
     let fname = if !buf.b_fname.is_null() {
         buf.b_fname.cast_const()
     } else {
         c"?".as_ptr()
     };
     vim_snprintf!(
-        buff.as_mut_ptr(),
+        buff.as_mut_ptr().cast(),
         DIALOG_MSG_SIZE,
         gettext(c"Close \"%s\"?"),
         fname,
     );
-    vim_dialog_yesnocancel(VIM_QUESTION, ptr::null_mut(), buff.as_mut_ptr(), 1) == VIM_YES
+    vim_dialog_yesnocancel(VIM_QUESTION, ptr::null_mut(), buff.as_mut_ptr().cast(), 1) == VIM_YES
 }
 
 /// Return true if the buffer `buf` can be abandoned (`can_abandon`).
@@ -718,7 +718,7 @@ pub fn ex_compiler(eap: &mut Exarg) {
 
     let arg_len = crate::memory::cstr_len(eap.arg);
     let bufsize = arg_len + 14;
-    let mut buf = vec![0 as c_char; bufsize];
+    let mut buf = vec![0u8; bufsize];
 
     if eap.forceit != 0 {
         do_cmdline_cmd(c"command -nargs=* -keepscript CompilerSet set <args>");
@@ -732,8 +732,8 @@ pub fn ex_compiler(eap: &mut Exarg) {
     do_unlet(c"g:current_compiler", 18, true);
     do_unlet(c"b:current_compiler", 18, true);
 
-    vim_snprintf!(buf.as_mut_ptr(), bufsize, c"compiler/%s.*", eap.arg,);
-    if !source_runtime_vim_lua(buf.as_mut_ptr(), DIP_ALL) {
+    vim_snprintf!(buf.as_mut_ptr().cast(), bufsize, c"compiler/%s.*", eap.arg);
+    if !source_runtime_vim_lua(buf.as_mut_ptr().cast(), DIP_ALL) {
         semsg!(gettext(E_COMPILER_NOT_SUPPORTED_STR), eap.arg);
     }
     drop(buf);
@@ -784,11 +784,15 @@ fn script_host_execute(name: &std::ffi::CStr, eap: &mut Exarg) {
 
 fn script_host_execute_file(name: &std::ffi::CStr, eap: &mut Exarg) {
     if eap.skip == 0 {
-        let mut buffer = [0 as c_char; MAXPATHL];
-        vim_full_name(eap.arg, buffer.as_mut_ptr(), MAXPATHL, false);
+        let mut buffer = [0u8; MAXPATHL];
+        vim_full_name(eap.arg, buffer.as_mut_ptr().cast(), MAXPATHL, false);
 
         let args = tv_list_alloc(3);
-        tv_list_append_string(&mut *args, buffer.as_ptr(), -1);
+        tv_list_append_string(
+            &mut *args,
+            CStr::from_bytes_until_nul(&buffer).unwrap_or(c""),
+            -1,
+        );
         tv_list_append_number(&mut *args, eap.line1 as Varnumber);
         tv_list_append_number(&mut *args, eap.line2 as Varnumber);
         eval_call_provider(name.as_ptr().cast_mut(), c"execute_file", &mut *args, true);
@@ -864,7 +868,7 @@ pub fn ex_drop(eap: &mut Exarg) {
     if split {
         eap.cmdidx = CMD_SFIRST;
         unsafe {
-            *eap.cmd = b's' as c_char;
+            *eap.cmd.cast::<u8>() = b's';
         }
     } else {
         eap.cmdidx = CMD_FIRST;

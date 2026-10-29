@@ -28,7 +28,7 @@ use crate::popupmenu::pum_drawn;
 use crate::strings::gettext;
 use crate::ui::ui_call_hl_attr_define;
 use crate::window::WinInfoInfo;
-use std::ffi::c_char;
+use std::ffi::CStr;
 use std::ptr;
 
 pub type RgbValue = i32;
@@ -261,9 +261,8 @@ fn hl_st() -> &'static mut HighlightModuleState {
 }
 
 #[inline]
-fn is_none_str(s: impl crate::strings::IntoCCharPtr) -> bool {
-    let s = s.into_c_char_ptr();
-    !s.is_null() && { crate::memory::cstr_as_bytes(s).eq_ignore_ascii_case(b"NONE") }
+fn is_none_str(s: &[u8]) -> bool {
+    s.eq_ignore_ascii_case(b"NONE")
 }
 
 use crate::api::private::dispatch::{
@@ -793,56 +792,53 @@ pub fn hl_get_underline() -> i32 {
     })
 }
 
-pub fn hl_add_url(attr: i32, url: impl crate::strings::IntoCCharPtr) -> i32 {
-    let url = url.into_c_char_ptr();
-    {
-        let mut attrs = HLATTRS_INIT;
-        let url_cstr = crate::memory::cstr_from_ptr(url);
-        let k = if let Some(pos) = hl_st().urls.iter().position(|u| u.as_c_str() == url_cstr) {
-            pos
-        } else {
-            let idx = hl_st().urls.len();
-            hl_st().urls.push(url_cstr.to_owned());
-            idx
-        };
-        attrs.url = k as i32;
+pub fn hl_add_url(attr: i32, url: &CStr) -> i32 {
+    let mut attrs = HLATTRS_INIT;
+    let k = if let Some(pos) = hl_st().urls.iter().position(|u| u.as_c_str() == url) {
+        pos
+    } else {
+        let idx = hl_st().urls.len();
+        hl_st().urls.push(url.to_owned());
+        idx
+    };
+    attrs.url = k as i32;
 
-        let new = get_attr_entry(HlEntry {
-            attr: attrs,
-            kind: K_HL_UI,
-            id1: 0,
-            id2: 0,
-            winid: 0,
-        });
-        hl_combine_attr(attr, new)
-    }
+    let new = get_attr_entry(HlEntry {
+        attr: attrs,
+        kind: K_HL_UI,
+        id1: 0,
+        id2: 0,
+        winid: 0,
+    });
+    hl_combine_attr(attr, new)
 }
 
-pub fn hl_get_url(index: u32) -> &'static std::ffi::CStr {
+pub fn hl_get_url(index: u32) -> &'static CStr {
     hl_st().urls.as_slice()[index as usize].as_c_str()
 }
 
-pub fn hl_add_font_idx(font_name: impl crate::strings::IntoCCharPtr) -> i32 {
-    let font_name = font_name.into_c_char_ptr();
-    {
-        if font_name.is_null() || unsafe { *font_name } == 0 {
-            return -1;
-        }
-        let font_cstr = crate::memory::cstr_from_ptr(font_name);
-        if let Some(pos) = hl_st().fonts.iter().position(|f| f.as_c_str() == font_cstr) {
-            return pos as i32;
-        }
-        let idx = hl_st().fonts.len() as i32;
-        hl_st().fonts.push(font_cstr.to_owned());
-        idx
+pub fn hl_add_font_idx(font_name: Option<&[u8]>) -> i32 {
+    let Some(font_bytes) = font_name else {
+        return -1;
+    };
+    if font_bytes.is_empty() {
+        return -1;
     }
+    if let Some(pos) = hl_st().fonts.iter().position(|f| f.as_bytes() == font_bytes) {
+        return pos as i32;
+    }
+    let idx = hl_st().fonts.len() as i32;
+    hl_st()
+        .fonts
+        .push(crate::memory::cstr_from_bytes(font_bytes));
+    idx
 }
 
-pub fn hl_get_font(index: i32) -> *const c_char {
+pub fn hl_get_font(index: i32) -> Option<&'static CStr> {
     if index < 0 || (index as usize) >= hl_st().fonts.len() {
-        return ptr::null();
+        return None;
     }
-    hl_st().fonts.as_slice()[index as usize].as_ptr()
+    Some(hl_st().fonts.as_slice()[index as usize].as_c_str())
 }
 
 pub fn hl_get_term_attr(aep: &mut HlAttrs) -> i32 {
@@ -1302,8 +1298,7 @@ pub fn hlattrs2dict(
             if (mask & HL_BG_INDEXED) != 0 {
                 put_c(&mut *hl, c"bg_indexed", boolean_obj(true));
             }
-            let font = hl_get_font(ae.font);
-            if !font.is_null() {
+            if let Some(font) = hl_get_font(ae.font) {
                 put_c(&mut *hl, c"font", string_obj(cstr_as_string(font)));
             }
         } else {
@@ -1692,8 +1687,9 @@ pub fn dict2hlattrs(
 
     if has_key(is_set, KEYSET_OPTIDX_HIGHLIGHT_FONT) {
         let str_ = dict.font;
-        font = if str_.size > 0 && !is_none_str(str_.data) {
-            hl_add_font_idx(str_.data)
+        let bytes = str_.cstr_bytes();
+        font = if str_.size > 0 && !is_none_str(bytes) {
+            hl_add_font_idx(Some(bytes))
         } else {
             -1
         };
@@ -1708,7 +1704,7 @@ pub fn object_to_color(val: Object, key: &std::ffi::CStr, rgb: bool, err: &mut E
         val.data.integer() as i32
     } else if val.obj_type == ObjectType::ObjectTypeString {
         let str_ = val.data.string();
-        if str_.size == 0 || is_none_str(str_.data) {
+        if str_.size == 0 || is_none_str(str_.cstr_bytes()) {
             return -1;
         }
         let color = if rgb {
@@ -1807,13 +1803,13 @@ mod tests {
             .lock()
             .unwrap_or_else(|e| e.into_inner());
         {
-            assert_eq!(hl_add_font_idx(ptr::null()), -1);
-            assert_eq!(hl_add_font_idx(c""), -1);
-            let idx = hl_add_font_idx(c"Monospace:h12");
+            assert_eq!(hl_add_font_idx(None), -1);
+            assert_eq!(hl_add_font_idx(Some(b"")), -1);
+            let idx = hl_add_font_idx(Some(b"Monospace:h12"));
             assert!(idx >= 0);
-            assert_eq!(hl_add_font_idx(c"Monospace:h12"), idx);
-            let got = hl_get_font(idx);
-            assert_eq!(crate::memory::cstr_as_bytes(got), b"Monospace:h12");
+            assert_eq!(hl_add_font_idx(Some(b"Monospace:h12")), idx);
+            let got = hl_get_font(idx).unwrap();
+            assert_eq!(got.to_bytes(), b"Monospace:h12");
         }
     }
 }
