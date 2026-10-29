@@ -1,3 +1,6 @@
+* text=auto eol=lf
+*.{bat,cmd} text eol=crlf
+
 runtime/doc/*   linguist-documentation
 runtime/doc/builtin.txt linguist-generated
 
