@@ -3985,7 +3985,7 @@ pub fn do_return(
 
     let idx = cleanup_conditionals(&mut *cstack, 0, 1);
     if idx >= 0 {
-        cstack.cs_pending[idx as usize] = CSTP_RETURN as c_char;
+        cstack.cs_pending[idx as usize] = CSTP_RETURN as u8;
 
         if reanimate {
             debug_assert!(!cur_funccal_mut().fc_rettv.is_null());

@@ -23,7 +23,7 @@ use crate::regexp::{
 };
 use crate::runtime::{ESTACK_NONE, do_finish, estack_sfile, sourcing_lnum, stacktrace_create};
 use crate::strings::{concat_str, gettext, vim_snprintf, vim_snprintf_safelen};
-use std::ffi::{CStr, CString, c_char};
+use std::ffi::{CStr, CString};
 use std::ptr;
 
 const CSTACK_LEN: usize = 50;
@@ -79,7 +79,7 @@ const E_MULTIPLE_FINALLY: &CStr = c"E607: Multiple :finally";
 #[repr(C)]
 pub struct Cstack {
     pub cs_flags: [i32; CSTACK_LEN],
-    pub cs_pending: [c_char; CSTACK_LEN],
+    pub cs_pending: [u8; CSTACK_LEN],
     pub cs_rettv: [Option<TypVal>; CSTACK_LEN],
     pub cs_exception: [Option<std::rc::Rc<Except>>; CSTACK_LEN],
     pub cs_forinfo: [Option<Box<Forinfo>>; CSTACK_LEN],
@@ -724,7 +724,7 @@ fn report_pending(action: i32, pending: i32, value: PendingVal) {
     let s_owned: Option<CString>;
     let mesg_owned: Option<CString>;
     let excp_hold: Option<std::rc::Rc<Except>>;
-    let s: *const c_char = match pending {
+    let s = match pending {
         CSTP_NONE => return,
         CSTP_CONTINUE => c":continue".as_ptr(),
         CSTP_BREAK => c":break".as_ptr(),
@@ -1003,7 +1003,7 @@ pub fn ex_continue(eap: &mut Exarg) {
             cstack.cs_trylevel = trylevel;
             cstack.cs_lflags |= CSL_HAD_CONT;
         } else {
-            cstack.cs_pending[idx as usize] = CSTP_CONTINUE as c_char;
+            cstack.cs_pending[idx as usize] = CSTP_CONTINUE as u8;
             report_make_pending(CSTP_CONTINUE, PendingVal::None);
         }
     }
@@ -1017,7 +1017,7 @@ pub fn ex_break(eap: &mut Exarg) {
     } else {
         let idx = cleanup_conditionals(&mut *cstack, CSF_WHILE | CSF_FOR, 1);
         if idx >= 0 && (cstack.cs_flags[idx as usize] & (CSF_WHILE | CSF_FOR)) == 0 {
-            cstack.cs_pending[idx as usize] = CSTP_BREAK as c_char;
+            cstack.cs_pending[idx as usize] = CSTP_BREAK as u8;
             report_make_pending(CSTP_BREAK, PendingVal::None);
         }
     }
@@ -1123,7 +1123,7 @@ pub fn ex_try(eap: &mut Exarg) {
         cstack.cs_trylevel += 1;
         let idx = cstack.cs_idx as usize;
         cstack.cs_flags[idx] = CSF_TRY;
-        cstack.cs_pending[idx] = CSTP_NONE as c_char;
+        cstack.cs_pending[idx] = CSTP_NONE as u8;
 
         let skip = check_skip(&*cstack);
         if !skip {
@@ -1149,7 +1149,7 @@ pub fn ex_catch(eap: &mut Exarg) {
         give_up = true;
     } else {
         if (cstack.cs_flags[cstack.cs_idx as usize] & CSF_TRY) == 0 {
-            eap.errmsg = get_end_emsg(&*cstack);
+            eap.errmsg = get_end_emsg(&*cstack).as_ptr().cast_mut();
             skip = true;
         }
         idx = cstack.cs_idx;
@@ -1169,10 +1169,10 @@ pub fn ex_catch(eap: &mut Exarg) {
         }
     }
 
-    let (pat, end): (*const c_char, *mut c_char) =
+    let (pat, end) =
         if ends_excmd(i32::from(crate::memory::cstr_first_byte(eap.arg))) != 0 {
             eap.nextcmd = find_nextcmd(eap.arg);
-            (c".*".as_ptr(), ptr::null_mut())
+            (c".*".as_ptr().cast_mut(), ptr::null_mut())
         } else {
             let pat = eap.arg.wrapping_add(1);
             let end = skip_regexp_err(pat, i32::from(crate::memory::cstr_first_byte(eap.arg)), 1);
@@ -1201,7 +1201,7 @@ pub fn ex_catch(eap: &mut Exarg) {
             }
 
             if !dbg_check_skipped(eap) || !do_intthrow(cstack) {
-                let mut save_char: c_char = 0;
+                let mut save_char = 0;
                 if !end.is_null() {
                     save_char = unsafe { *end };
                     unsafe {
@@ -1287,7 +1287,7 @@ pub fn ex_finally(eap: &mut Exarg) {
     }
 
     if (cstack.cs_flags[cstack.cs_idx as usize] & CSF_TRY) == 0 {
-        eap.errmsg = get_end_emsg(&*cstack);
+        eap.errmsg = get_end_emsg(&*cstack).as_ptr().cast_mut();
         pending = CSTP_ERROR;
     }
 
@@ -1324,7 +1324,7 @@ pub fn ex_finally(eap: &mut Exarg) {
             if g_st().got_int {
                 pending |= CSTP_INTERRUPT;
             }
-            cstack.cs_pending[cur_idx] = pending as c_char;
+            cstack.cs_pending[cur_idx] = pending as u8;
 
             if g_st().did_throw
                 && !match (
@@ -1368,7 +1368,7 @@ pub fn ex_endtry(eap: &mut Exarg) {
         || (cstack.cs_flags[cstack.cs_idx as usize] & CSF_TRUE) == 0;
 
     if (cstack.cs_flags[cstack.cs_idx as usize] & CSF_TRY) == 0 {
-        eap.errmsg = get_end_emsg(&*cstack);
+        eap.errmsg = get_end_emsg(&*cstack).as_ptr().cast_mut();
         let mut looplevel = cstack.cs_looplevel;
         rewind_conditionals(cstack, idx, CSF_WHILE | CSF_FOR, &mut looplevel);
         cstack.cs_looplevel = looplevel;
@@ -1402,7 +1402,7 @@ pub fn ex_endtry(eap: &mut Exarg) {
 
     if !skip {
         pending = i32::from(cstack.cs_pending[u_idx]);
-        cstack.cs_pending[u_idx] = CSTP_NONE as c_char;
+        cstack.cs_pending[u_idx] = CSTP_NONE as u8;
         if pending == CSTP_RETURN {
             rettv = (&mut cstack.cs_rettv)[u_idx].take();
         } else if (pending & CSTP_THROW) != 0 {
@@ -1545,7 +1545,7 @@ pub fn cleanup_conditionals(cstack: &mut Cstack, searched_cond: i32, inclusive: 
                     CSTP_NONE => {}
                     CSTP_CONTINUE | CSTP_BREAK | CSTP_FINISH => {
                         report_discard_pending(pend, PendingVal::None);
-                        cstack.cs_pending[u_idx] = CSTP_NONE as c_char;
+                        cstack.cs_pending[u_idx] = CSTP_NONE as u8;
                     }
                     CSTP_RETURN => {
                         report_discard_pending(
@@ -1553,7 +1553,7 @@ pub fn cleanup_conditionals(cstack: &mut Cstack, searched_cond: i32, inclusive: 
                             PendingVal::Return(cstack.cs_rettv[u_idx]),
                         );
                         discard_pending_return(&mut (&mut cstack.cs_rettv)[u_idx]);
-                        cstack.cs_pending[u_idx] = CSTP_NONE as c_char;
+                        cstack.cs_pending[u_idx] = CSTP_NONE as u8;
                     }
                     _ => {
                         if (cstack.cs_flags[u_idx] & CSF_FINALLY) != 0 {
@@ -1562,7 +1562,7 @@ pub fn cleanup_conditionals(cstack: &mut Cstack, searched_cond: i32, inclusive: 
                             } else {
                                 report_discard_pending(pend, PendingVal::None);
                             }
-                            cstack.cs_pending[u_idx] = CSTP_NONE as c_char;
+                            cstack.cs_pending[u_idx] = CSTP_NONE as u8;
                         }
                     }
                 }
@@ -1610,15 +1610,15 @@ pub fn cleanup_conditionals(cstack: &mut Cstack, searched_cond: i32, inclusive: 
     idx
 }
 
-fn get_end_emsg(cstack: &Cstack) -> *mut c_char {
+fn get_end_emsg(cstack: &Cstack) -> &'static CStr {
     let fl = cstack.cs_flags[cstack.cs_idx as usize];
     if (fl & CSF_WHILE) != 0 {
-        return gettext(E_ENDWHILE);
+        return crate::memory::cstr_from_ptr(gettext(E_ENDWHILE));
     }
     if (fl & CSF_FOR) != 0 {
-        return gettext(E_ENDFOR);
+        return crate::memory::cstr_from_ptr(gettext(E_ENDFOR));
     }
-    gettext(E_ENDIF)
+    crate::memory::cstr_from_ptr(gettext(E_ENDIF))
 }
 
 pub fn rewind_conditionals(cstack: &mut Cstack, idx: i32, cond_type: i32, cond_level: &mut i32) {
