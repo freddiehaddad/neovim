@@ -83,7 +83,7 @@ pub struct TermInput {
     pub loop_: *mut Loop,
     pub read_stream: RStream,
     pub tui_data: *mut TUIData,
-    pub key_buffer: [c_char; KEY_BUFFER_SIZE],
+    pub key_buffer: [u8; KEY_BUFFER_SIZE],
     pub key_buffer_len: usize,
 }
 
@@ -295,7 +295,7 @@ pub fn tinput_done_event() {
 /// Send all pending input in key buffer to Nvim server.
 fn tinput_flush(input: &mut TermInput) {
     let keys = NvimString {
-        data: input.key_buffer.as_mut_ptr(),
+        data: input.key_buffer.as_mut_ptr().cast::<c_char>(),
         size: input.key_buffer_len,
     };
     if input.paste != 0 {
@@ -325,25 +325,15 @@ fn tinput_flush(input: &mut TermInput) {
     input.key_buffer_len = 0;
 }
 
-fn tinput_enqueue(input: &mut TermInput, buf: impl crate::strings::IntoCCharPtr, size: usize) {
-    let buf = buf.into_c_char_ptr();
-    {
-        if input.key_buffer_len > KEY_BUFFER_SIZE.saturating_sub(size) {
-            tinput_flush(input);
-        }
-        let to_copy = size.min(KEY_BUFFER_SIZE - input.key_buffer_len);
-        unsafe {
-            ptr::copy_nonoverlapping(
-                buf,
-                input
-                    .key_buffer
-                    .as_mut_ptr()
-                    .wrapping_add(input.key_buffer_len),
-                to_copy,
-            )
-        };
-        input.key_buffer_len += to_copy;
+fn tinput_enqueue(input: &mut TermInput, buf: &[u8]) {
+    let size = buf.len();
+    if input.key_buffer_len > KEY_BUFFER_SIZE.saturating_sub(size) {
+        tinput_flush(input);
     }
+    let to_copy = size.min(KEY_BUFFER_SIZE - input.key_buffer_len);
+    input.key_buffer[input.key_buffer_len..input.key_buffer_len + to_copy]
+        .copy_from_slice(&buf[..to_copy]);
+    input.key_buffer_len += to_copy;
 }
 
 #[inline]
@@ -377,7 +367,7 @@ fn handle_kitty_key_protocol(input: &mut TermInput, key: &TermKeyKey) {
         push_more_modifiers(key.modifiers, &mut buf);
         buf.push_str(name);
         buf.push('>');
-        tinput_enqueue(input, buf.as_ptr().cast::<c_char>(), buf.len());
+        tinput_enqueue(input, buf.as_bytes());
     }
 }
 
@@ -390,38 +380,29 @@ fn forward_simple_utf8(input: &mut TermInput, key: &TermKeyKey) {
 
     let mut buf = [0u8; 64];
     let mut len: usize = 0;
-    let mut ptr = key.utf8.as_ptr();
-    while unsafe { *ptr } != 0 {
-        if crate::memory::cstr_first_byte(ptr) == b'<' {
+    for &b in key.utf8_bytes() {
+        if b == b'<' {
             buf[len..len + 4].copy_from_slice(b"<lt>");
             len += 4;
         } else {
-            buf[len] = crate::memory::cstr_first_byte(ptr);
+            buf[len] = b;
             len += 1;
         }
         assert!(len < buf.len());
-        ptr = ptr.wrapping_add(1);
     }
 
-    tinput_enqueue(input, buf.as_ptr().cast::<c_char>(), len);
+    tinput_enqueue(input, &buf[..len]);
 }
 
 fn forward_modified_utf8(input: &mut TermInput, key: &mut TermKeyKey) {
-    let mut buf = [0 as c_char; 64];
+    let mut buf = [0u8; 64];
     let mut len: usize;
 
     if key.r#type == TERMKEY_TYPE_KEYSYM && key.code.sym == TERMKEY_SYM_SUSPEND {
-        let s = b"<C-Z>\0";
-        unsafe { ptr::copy_nonoverlapping(s.as_ptr().cast::<c_char>(), buf.as_mut_ptr(), s.len()) };
+        buf[..6].copy_from_slice(b"<C-Z>\0");
         len = 5;
     } else if key.r#type != TERMKEY_TYPE_UNICODE {
-        len = termkey_strfkey(
-            input.tk(),
-            buf.as_mut_ptr(),
-            buf.len(),
-            key,
-            TERMKEY_FORMAT_VIM,
-        );
+        len = termkey_strfkey(input.tk(), &mut buf, key, TERMKEY_FORMAT_VIM);
     } else {
         assert!(key.modifiers != 0);
         let cp = key.code.codepoint;
@@ -429,27 +410,15 @@ fn forward_modified_utf8(input: &mut TermInput, key: &mut TermKeyKey) {
             handle_kitty_key_protocol(input, key);
             return;
         }
-        len = termkey_strfkey(
-            input.tk(),
-            buf.as_mut_ptr(),
-            buf.len(),
-            key,
-            TERMKEY_FORMAT_VIM,
-        );
+        len = termkey_strfkey(input.tk(), &mut buf, key, TERMKEY_FORMAT_VIM);
         if (key.modifiers & TERMKEY_KEYMOD_CTRL) != 0
             && (key.modifiers & TERMKEY_KEYMOD_SHIFT) == 0
             && (b'A' as i32..=b'Z' as i32).contains(&cp)
         {
             assert!(len + 2 < buf.len());
-            unsafe {
-                ptr::copy(
-                    buf.as_ptr().wrapping_add(1),
-                    buf.as_mut_ptr().wrapping_add(3),
-                    len - 1,
-                )
-            };
-            buf[1] = b'S' as c_char;
-            buf[2] = b'-' as c_char;
+            buf.copy_within(1..len, 3);
+            buf[1] = b'S';
+            buf[2] = b'-';
             len += 2;
         }
     }
@@ -459,25 +428,13 @@ fn forward_modified_utf8(input: &mut TermInput, key: &mut TermKeyKey) {
     let more_len = more_str.len();
     if more_len > 0 {
         assert!(len + more_len < buf.len());
-        unsafe {
-            ptr::copy(
-                buf.as_ptr().wrapping_add(1),
-                buf.as_mut_ptr().wrapping_add(1 + more_len),
-                len - 1,
-            )
-        };
-        unsafe {
-            ptr::copy_nonoverlapping(
-                more_str.as_ptr().cast::<c_char>(),
-                buf.as_mut_ptr().wrapping_add(1),
-                more_len,
-            )
-        };
+        buf.copy_within(1..len, 1 + more_len);
+        buf[1..1 + more_len].copy_from_slice(more_str.as_bytes());
         len += more_len;
     }
 
     assert!(len < buf.len());
-    tinput_enqueue(input, buf.as_ptr(), len);
+    tinput_enqueue(input, &buf[..len]);
 }
 
 fn forward_mouse_event(input: &mut TermInput, key: &TermKeyKey) {
@@ -538,7 +495,7 @@ fn forward_mouse_event(input: &mut TermInput, key: &TermKeyKey) {
     use std::fmt::Write as _;
     let _ = write!(buf, "><{col},{row}>");
     assert!(buf.len() < 64);
-    tinput_enqueue(input, buf.as_ptr().cast::<c_char>(), buf.len());
+    tinput_enqueue(input, buf.as_bytes());
 }
 
 #[inline]
@@ -604,7 +561,8 @@ unsafe extern "C" fn tinput_timer_cb(handle: *mut uv_timer_t) {
         let rs = &raw mut input.read_stream;
         let size = rstream_available(&mut *rs);
         if size != 0 {
-            let consumed = handle_raw_buffer(input, true, (*rs).read_ptr(), size);
+            let bytes = crate::memory::cstr_slice((*rs).read_ptr(), size);
+            let consumed = handle_raw_buffer(input, true, bytes);
             rstream_consume(&mut *rs, consumed);
         }
         tk_getkeys(input, true);
@@ -619,65 +577,47 @@ unsafe extern "C" fn bg_query_timer_cb(handle: *mut uv_timer_t) {
     }
 }
 
-fn handle_focus_event(
-    _input: &mut TermInput,
-    ptr: impl crate::strings::IntoCCharPtr,
-    size: usize,
-) -> usize {
-    let ptr = ptr.into_c_char_ptr();
-    {
-        if size >= 3 {
-            let bytes = crate::memory::cstr_slice(ptr, 3);
-            if bytes == b"\x1b[I" || bytes == b"\x1b[O" {
-                let focus_gained = bytes[2] == b'I';
-                let mut items = [boolean_obj(focus_gained)];
-                let args = Array {
-                    items: items.as_mut_ptr(),
-                    size: 1,
-                    capacity: 1,
-                };
-                rpc_send_event(g_st().ui_client_channel_id, c"nvim_ui_set_focus", args);
-                return 3;
-            }
-        }
-        0
+fn handle_focus_event(_input: &mut TermInput, bytes: &[u8]) -> usize {
+    if bytes.len() >= 3 && (&bytes[..3] == b"\x1b[I" || &bytes[..3] == b"\x1b[O") {
+        let focus_gained = bytes[2] == b'I';
+        let mut items = [boolean_obj(focus_gained)];
+        let args = Array {
+            items: items.as_mut_ptr(),
+            size: 1,
+            capacity: 1,
+        };
+        rpc_send_event(g_st().ui_client_channel_id, c"nvim_ui_set_focus", args);
+        return 3;
     }
+    0
 }
 
-fn handle_bracketed_paste(
-    input: &mut TermInput,
-    ptr: impl crate::strings::IntoCCharPtr,
-    size: usize,
-    incomplete: &mut bool,
-) -> usize {
-    let ptr = ptr.into_c_char_ptr();
-    {
-        let bytes = crate::memory::cstr_slice(ptr, size);
-        if size >= 6 && (&bytes[..6] == START_PASTE || &bytes[..6] == END_PASTE) {
-            let enable = bytes[4] == b'0';
-            if input.paste != 0 && enable {
-                return 0;
-            }
-
-            if (input.paste != 0) == enable {
-                return 6;
-            }
-
-            if enable {
-                tinput_flush(input);
-                input.paste = 1;
-            } else if input.paste != 0 {
-                input.paste = if input.paste == 2 { 3 } else { -1 };
-                tinput_flush(input);
-                input.paste = 0;
-            }
-            return 6;
-        } else if size < 6 && (bytes == &START_PASTE[..size] || bytes == &END_PASTE[..size]) {
-            *incomplete = true;
+fn handle_bracketed_paste(input: &mut TermInput, bytes: &[u8], incomplete: &mut bool) -> usize {
+    let size = bytes.len();
+    if size >= 6 && (&bytes[..6] == START_PASTE || &bytes[..6] == END_PASTE) {
+        let enable = bytes[4] == b'0';
+        if input.paste != 0 && enable {
             return 0;
         }
-        0
+
+        if (input.paste != 0) == enable {
+            return 6;
+        }
+
+        if enable {
+            tinput_flush(input);
+            input.paste = 1;
+        } else if input.paste != 0 {
+            input.paste = if input.paste == 2 { 3 } else { -1 };
+            tinput_flush(input);
+            input.paste = 0;
+        }
+        return 6;
+    } else if size < 6 && (bytes == &START_PASTE[..size] || bytes == &END_PASTE[..size]) {
+        *incomplete = true;
+        return 0;
     }
+    0
 }
 
 fn send_termresponse(response: &[u8]) {
@@ -700,31 +640,28 @@ fn send_termresponse(response: &[u8]) {
 }
 
 fn handle_term_response(input: &mut TermInput, key: &TermKeyKey) {
-    let mut str_ptr: *const c_char = ptr::null();
-    if termkey_interpret_string(input.tk(), key, &raw mut str_ptr) == TERMKEY_RES_KEY {
-        assert!(!str_ptr.is_null());
-        let s_bytes = crate::memory::cstr_as_bytes(str_ptr);
+    let Some(s_bytes) = termkey_interpret_string(input.tk(), key) else {
+        return;
+    };
+    let enable_undercurl = key.r#type == TERMKEY_TYPE_DCS
+        && (s_bytes.starts_with(b"1$r4:3m") || s_bytes.starts_with(b"1$r0;4:3m"));
 
-        if key.r#type == TERMKEY_TYPE_DCS
-            && (s_bytes.starts_with(b"1$r4:3m") || s_bytes.starts_with(b"1$r0;4:3m"))
-        {
-            tui_enable_extended_underline(unsafe { &mut *input.tui_data });
-        }
+    let prefix: &[u8] = match key.r#type {
+        TERMKEY_TYPE_OSC => b"\x1b]",
+        TERMKEY_TYPE_DCS => b"\x1bP",
+        TERMKEY_TYPE_APC => b"\x1b_",
+        _ => std::process::abort(),
+    };
 
-        let prefix: &[u8] = match key.r#type {
-            TERMKEY_TYPE_OSC => b"\x1b]",
-            TERMKEY_TYPE_DCS => b"\x1bP",
-            TERMKEY_TYPE_APC => b"\x1b_",
-            _ => std::process::abort(),
-        };
+    let mut response = Vec::with_capacity(prefix.len() + s_bytes.len());
+    response.extend_from_slice(prefix);
+    response.extend_from_slice(s_bytes);
 
-        let mut response = Vec::with_capacity(prefix.len() + s_bytes.len() + 1);
-        response.extend_from_slice(prefix);
-        response.extend_from_slice(s_bytes);
-        response.push(0);
-
-        send_termresponse(&response[..response.len() - 1]);
+    if enable_undercurl {
+        tui_enable_extended_underline(unsafe { &mut *input.tui_data });
     }
+
+    send_termresponse(&response);
 }
 
 fn handle_primary_device_attr(input: &mut TermInput, params: &[TermKeyCsiParam], nparams: usize) {
@@ -859,97 +796,71 @@ fn handle_unknown_csi(input: &mut TermInput, key: &TermKeyKey) {
     }
 }
 
-fn handle_raw_buffer(
-    input: &mut TermInput,
-    force: bool,
-    data: impl crate::strings::IntoCCharPtr,
-    mut size: usize,
-) -> usize {
-    let data = data.into_c_char_ptr();
-    {
-        let mut ptr = data;
+fn handle_raw_buffer(input: &mut TermInput, force: bool, mut rest: &[u8]) -> usize {
+    let total_len = rest.len();
 
-        loop {
-            if !force {
-                let consumed = handle_focus_event(input, ptr, size);
-                if consumed != 0 {
-                    ptr = ptr.wrapping_add(consumed);
-                    size -= consumed;
-                    if size == 0 {
-                        break;
-                    }
-                    continue;
-                }
-
-                let mut incomplete = false;
-                let consumed = handle_bracketed_paste(input, ptr, size, &mut incomplete);
-                if incomplete {
-                    assert_eq!(consumed, 0);
-                    return (ptr as usize) - (data as usize);
-                } else if consumed != 0 {
-                    ptr = ptr.wrapping_add(consumed);
-                    size -= consumed;
-                    if size == 0 {
-                        break;
-                    }
-                    continue;
-                }
-            }
-
-            let mut count: usize = 0;
-            for i in 0..size {
-                count = i + 1;
-                if (crate::memory::cstr_byte_at(ptr, i)) == 0x1b && count > 1 {
-                    count -= 1;
-                    break;
-                }
-            }
-
-            if input.paste != 0 {
-                tinput_enqueue(input, ptr, count);
-                ptr = ptr.wrapping_add(count);
-                size -= count;
-                if size == 0 {
-                    break;
-                }
+    while !rest.is_empty() {
+        if !force {
+            let consumed = handle_focus_event(input, rest);
+            if consumed != 0 {
+                rest = &rest[consumed..];
                 continue;
             }
 
-            let to_use = count.min(size);
-            let remaining = termkey_get_buffer_remaining(input.tk());
-            if to_use > remaining {
-                let delta = to_use - remaining;
-                let bufsize = termkey_get_buffer_size(input.tk());
-                if termkey_set_buffer_size(input.tk_mut(), (bufsize + delta).max(bufsize * 2)) == 0
-                {
-                    std::process::abort();
-                }
+            let mut incomplete = false;
+            let consumed = handle_bracketed_paste(input, rest, &mut incomplete);
+            if incomplete {
+                assert_eq!(consumed, 0);
+                return total_len - rest.len();
+            } else if consumed != 0 {
+                rest = &rest[consumed..];
+                continue;
             }
+        }
 
-            let consumed = termkey_push_bytes(input.tk_mut(), ptr, to_use);
-            assert!(consumed <= to_use);
-            ptr = ptr.wrapping_add(consumed);
-            size -= consumed;
-
-            tk_getkeys(input, false);
-
-            if size == 0 {
+        let mut count: usize = 0;
+        for (i, &b) in rest.iter().enumerate() {
+            count = i + 1;
+            if b == 0x1b && count > 1 {
+                count -= 1;
                 break;
             }
         }
 
-        let tk_size = termkey_get_buffer_size(input.tk());
-        let tk_remaining = termkey_get_buffer_remaining(input.tk());
-        let tk_count = tk_size - tk_remaining;
-        if tk_count < INPUT_BUFFER_SIZE
-            && tk_size > INPUT_BUFFER_SIZE
-            && termkey_set_buffer_size(input.tk_mut(), INPUT_BUFFER_SIZE) == 0
-        {
-            std::process::abort();
+        if input.paste != 0 {
+            tinput_enqueue(input, &rest[..count]);
+            rest = &rest[count..];
+            continue;
         }
 
-        (ptr as usize) - (data as usize)
+        let to_use = count.min(rest.len());
+        let remaining = termkey_get_buffer_remaining(input.tk());
+        if to_use > remaining {
+            let delta = to_use - remaining;
+            let bufsize = termkey_get_buffer_size(input.tk());
+            if termkey_set_buffer_size(input.tk_mut(), (bufsize + delta).max(bufsize * 2)) == 0 {
+                std::process::abort();
+            }
+        }
+
+        let consumed = termkey_push_bytes(input.tk_mut(), &rest[..to_use]);
+        assert!(consumed <= to_use);
+        rest = &rest[consumed..];
+
+        tk_getkeys(input, false);
     }
+
+    let tk_size = termkey_get_buffer_size(input.tk());
+    let tk_remaining = termkey_get_buffer_remaining(input.tk());
+    let tk_count = tk_size - tk_remaining;
+    if tk_count < INPUT_BUFFER_SIZE
+        && tk_size > INPUT_BUFFER_SIZE
+        && termkey_set_buffer_size(input.tk_mut(), INPUT_BUFFER_SIZE) == 0
+    {
+        std::process::abort();
+    }
+
+    total_len - rest.len()
 }
 
 pub(crate) fn tinput_read_cb(
@@ -961,7 +872,8 @@ pub(crate) fn tinput_read_cb(
 ) -> usize {
     let buf = buf.into_c_char_ptr();
     {
-        let consumed = handle_raw_buffer(input, false, buf, count_);
+        let bytes = crate::memory::cstr_slice(buf, count_);
+        let consumed = handle_raw_buffer(input, false, bytes);
         tinput_flush(input);
 
         if eof {

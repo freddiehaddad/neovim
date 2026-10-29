@@ -1,6 +1,6 @@
 //! Terminfo driver for libtermkey (`src/nvim/tui/termkey/driver-ti.c`).
 
-use std::ffi::{CStr, c_char};
+use std::ffi::CStr;
 
 use crate::tui::termkey::termkey::peekkey_mouse;
 
@@ -139,7 +139,7 @@ pub struct TermKeyKeyCode {
     pub codepoint: i32,
     pub number: i32,
     pub sym: TermKeySym,
-    pub mouse: [c_char; 4],
+    pub mouse: [u8; 4],
 }
 
 #[repr(C)]
@@ -149,7 +149,7 @@ pub struct TermKeyKey {
     pub code: TermKeyKeyCode,
     pub modifiers: i32,
     pub event: TermKeyEvent,
-    pub utf8: [c_char; 7],
+    pub utf8: [u8; 7],
 }
 
 impl TermKeyKey {
@@ -166,6 +166,16 @@ impl TermKeyKey {
             event: 0,
             utf8: [0; 7],
         }
+    }
+
+    #[inline]
+    pub fn utf8_bytes(&self) -> &[u8] {
+        let end = self
+            .utf8
+            .iter()
+            .position(|&b| b == 0)
+            .unwrap_or(self.utf8.len());
+        &self.utf8[..end]
     }
 }
 
@@ -191,9 +201,9 @@ pub struct TermKey {
     pub buffstart: usize,
     pub buffcount: usize,
     pub hightide: usize,
-    pub is_closed: c_char,
-    pub is_started: c_char,
-    pub keynames: Vec<Option<&'static CStr>>,
+    pub is_closed: u8,
+    pub is_started: u8,
+    pub keynames: Vec<Option<&'static str>>,
     pub c0: [TiKeyInfo; 32],
     pub ti: TermKeyTI,
     pub csi: crate::tui::termkey::driver_csi::TermKeyCsi,
@@ -414,39 +424,36 @@ fn try_load_terminfo_key(
     fn_nr: bool,
     key: usize,
     shift: bool,
-    name: impl crate::strings::IntoCCharPtr,
+    name: &str,
     info: TiKeyInfo,
 ) -> bool {
-    let name = name.into_c_char_ptr();
-    {
-        let mut value: *const c_char = std::ptr::null();
+    let mut value: Option<&CStr> = None;
 
-        if let Some(ti_ref) = ti {
-            if !fn_nr {
-                value = ti_ref.keys[key][usize::from(shift)]
-                    .as_deref()
-                    .map_or(std::ptr::null(), CStr::as_ptr);
-            } else {
-                debug_assert!(!shift);
-                value = ti_ref.f_keys[key]
-                    .as_deref()
-                    .map_or(std::ptr::null(), CStr::as_ptr);
-            }
+    if let Some(ti_ref) = ti {
+        if !fn_nr {
+            value = ti_ref.keys[key][usize::from(shift)].as_deref();
+        } else {
+            debug_assert!(!shift);
+            value = ti_ref.f_keys[key].as_deref();
         }
-
-        if let Some(input) = input {
-            value = crate::tui::tui::tui_tk_ti_getstr(name, value, input);
-        }
-
-        if value.is_null() || value == (-1isize as *const c_char) || unsafe { *value } == 0 {
-            return false;
-        }
-
-        let seq = crate::memory::cstr_as_bytes(value);
-        insert_seq(root, seq, info);
-
-        true
     }
+
+    let seq = if let Some(input) = input {
+        crate::tui::tui::tui_tk_ti_getstr(name, value, input)
+    } else {
+        value.map(CStr::to_bytes)
+    };
+
+    let Some(seq) = seq else {
+        return false;
+    };
+    if seq.is_empty() {
+        return false;
+    }
+
+    insert_seq(root, seq, info);
+
+    true
 }
 
 fn load_terminfo(
@@ -457,10 +464,7 @@ fn load_terminfo(
     let mut root = TrieNode::new_arr(0, 0xff);
 
     for entry in FUNCS {
-        let mut name_buf = [0 as c_char; 16];
-        let s = format!("key_{}", entry.funcname);
-        unsafe { std::ptr::copy_nonoverlapping(s.as_ptr().cast(), name_buf.as_mut_ptr(), s.len()) };
-        name_buf[s.len()] = 0;
+        let name = format!("key_{}", entry.funcname);
 
         let info = TiKeyInfo {
             r#type: entry.r#type,
@@ -475,21 +479,13 @@ fn load_terminfo(
             false,
             entry.ti_key as usize,
             false,
-            name_buf.as_ptr(),
+            &name,
             info,
         ) {
             continue;
         }
 
-        let s_shift = format!("key_s{}", entry.funcname);
-        unsafe {
-            std::ptr::copy_nonoverlapping(
-                s_shift.as_ptr().cast(),
-                name_buf.as_mut_ptr(),
-                s_shift.len(),
-            )
-        };
-        name_buf[s_shift.len()] = 0;
+        let name_shift = format!("key_s{}", entry.funcname);
 
         let shift_info = TiKeyInfo {
             r#type: entry.r#type,
@@ -504,16 +500,13 @@ fn load_terminfo(
             false,
             entry.ti_key as usize,
             true,
-            name_buf.as_ptr(),
+            &name_shift,
             shift_info,
         );
     }
 
     for i in 1..=K_TERMINFO_FUNC_KEY_MAX {
-        let mut name_buf = [0 as c_char; 16];
-        let s = format!("key_f{i}");
-        unsafe { std::ptr::copy_nonoverlapping(s.as_ptr().cast(), name_buf.as_mut_ptr(), s.len()) };
-        name_buf[s.len()] = 0;
+        let name = format!("key_f{i}");
 
         let fn_info = TiKeyInfo {
             r#type: TERMKEY_TYPE_FUNCTION,
@@ -528,7 +521,7 @@ fn load_terminfo(
             true,
             i - 1,
             false,
-            name_buf.as_ptr(),
+            &name,
             fn_info,
         ) {
             break;

@@ -1,7 +1,5 @@
 //! CSI / SS3 / DCS / OSC / APC driver for libtermkey (`src/nvim/tui/termkey/driver-csi.c`).
 
-use std::ffi::c_char;
-
 use crate::tui::termkey::driver_ti::{
     TERMKEY_EVENT_PRESS, TERMKEY_EVENT_RELEASE, TERMKEY_EVENT_REPEAT, TERMKEY_EVENT_UNKNOWN,
     TERMKEY_KEYMOD_ALT, TERMKEY_KEYMOD_SHIFT, TERMKEY_RES_AGAIN, TERMKEY_RES_EOF,
@@ -88,7 +86,7 @@ impl Default for TermKeyCsiParam {
 #[derive(Default)]
 pub struct TermKeyCsi {
     pub saved_string_id: i32,
-    pub saved_string: Vec<c_char>,
+    pub saved_string: Vec<u8>,
 }
 
 const NCSIFUNCS: usize = 35;
@@ -154,25 +152,25 @@ const SS3S: [TiKeyInfo; 64] = {
     tbl
 };
 
-const SS3_KPALTS: [c_char; 64] = {
-    let mut tbl = [0 as c_char; 64];
-    tbl[(b'X' - 0x40) as usize] = b'=' as c_char;
-    tbl[(b'j' - 0x40) as usize] = b'*' as c_char;
-    tbl[(b'k' - 0x40) as usize] = b'+' as c_char;
-    tbl[(b'l' - 0x40) as usize] = b',' as c_char;
-    tbl[(b'm' - 0x40) as usize] = b'-' as c_char;
-    tbl[(b'n' - 0x40) as usize] = b'.' as c_char;
-    tbl[(b'o' - 0x40) as usize] = b'/' as c_char;
-    tbl[(b'p' - 0x40) as usize] = b'0' as c_char;
-    tbl[(b'q' - 0x40) as usize] = b'1' as c_char;
-    tbl[(b'r' - 0x40) as usize] = b'2' as c_char;
-    tbl[(b's' - 0x40) as usize] = b'3' as c_char;
-    tbl[(b't' - 0x40) as usize] = b'4' as c_char;
-    tbl[(b'u' - 0x40) as usize] = b'5' as c_char;
-    tbl[(b'v' - 0x40) as usize] = b'6' as c_char;
-    tbl[(b'w' - 0x40) as usize] = b'7' as c_char;
-    tbl[(b'x' - 0x40) as usize] = b'8' as c_char;
-    tbl[(b'y' - 0x40) as usize] = b'9' as c_char;
+const SS3_KPALTS: [u8; 64] = {
+    let mut tbl = [0u8; 64];
+    tbl[(b'X' - 0x40) as usize] = b'=';
+    tbl[(b'j' - 0x40) as usize] = b'*';
+    tbl[(b'k' - 0x40) as usize] = b'+';
+    tbl[(b'l' - 0x40) as usize] = b',';
+    tbl[(b'm' - 0x40) as usize] = b'-';
+    tbl[(b'n' - 0x40) as usize] = b'.';
+    tbl[(b'o' - 0x40) as usize] = b'/';
+    tbl[(b'p' - 0x40) as usize] = b'0';
+    tbl[(b'q' - 0x40) as usize] = b'1';
+    tbl[(b'r' - 0x40) as usize] = b'2';
+    tbl[(b's' - 0x40) as usize] = b'3';
+    tbl[(b't' - 0x40) as usize] = b'4';
+    tbl[(b'u' - 0x40) as usize] = b'5';
+    tbl[(b'v' - 0x40) as usize] = b'6';
+    tbl[(b'w' - 0x40) as usize] = b'7';
+    tbl[(b'x' - 0x40) as usize] = b'8';
+    tbl[(b'y' - 0x40) as usize] = b'9';
     tbl
 };
 
@@ -211,8 +209,8 @@ const CSIFUNCS: [TiKeyInfo; NCSIFUNCS] = {
 
 #[inline]
 pub fn termkey_key_get_linecol(key: &TermKeyKey, line: &mut i32, col: &mut i32) {
-    *col = i32::from(key.code.mouse[1] as u8) | (i32::from(key.code.mouse[3] as u8 & 0x0f) << 8);
-    *line = i32::from(key.code.mouse[2] as u8) | (i32::from(key.code.mouse[3] as u8 & 0x70) << 4);
+    *col = i32::from(key.code.mouse[1]) | (i32::from(key.code.mouse[3] & 0x0f) << 8);
+    *line = i32::from(key.code.mouse[2]) | (i32::from(key.code.mouse[3] & 0x70) << 4);
 }
 
 #[inline]
@@ -223,9 +221,9 @@ pub fn termkey_key_set_linecol(key: &mut TermKeyKey, mut line: i32, mut col: i32
     if col > 0x7ff {
         col = 0x7ff;
     }
-    key.code.mouse[1] = (line & 0x0ff) as u8 as c_char;
-    key.code.mouse[2] = (col & 0x0ff) as u8 as c_char;
-    key.code.mouse[3] = (((line & 0xf00) >> 8) | ((col & 0x300) >> 4)) as u8 as c_char;
+    key.code.mouse[1] = (line & 0x0ff) as u8;
+    key.code.mouse[2] = (col & 0x0ff) as u8;
+    key.code.mouse[3] = (((line & 0xf00) >> 8) | ((col & 0x300) >> 4)) as u8;
 }
 
 #[inline]
@@ -439,21 +437,21 @@ fn handle_csi_m(
 
     if initial == 0 {
         key.r#type = TERMKEY_TYPE_MOUSE;
-        key.code.mouse[0] = args[0] as u8 as c_char;
-        key.modifiers = i32::from((key.code.mouse[0] as u8 & 0x1c) >> 2);
-        key.code.mouse[0] = (key.code.mouse[0] as u8 & !0x1c) as c_char;
+        key.code.mouse[0] = args[0] as u8;
+        key.modifiers = i32::from((key.code.mouse[0] & 0x1c) >> 2);
+        key.code.mouse[0] &= !0x1c;
         termkey_key_set_linecol(key, args[1], args[2]);
         return TERMKEY_RES_KEY;
     }
 
     if initial == b'<' as i32 {
         key.r#type = TERMKEY_TYPE_MOUSE;
-        key.code.mouse[0] = args[0] as u8 as c_char;
-        key.modifiers = i32::from((key.code.mouse[0] as u8 & 0x1c) >> 2);
-        key.code.mouse[0] = (key.code.mouse[0] as u8 & !0x1c) as c_char;
+        key.code.mouse[0] = args[0] as u8;
+        key.modifiers = i32::from((key.code.mouse[0] & 0x1c) >> 2);
+        key.code.mouse[0] &= !0x1c;
         termkey_key_set_linecol(key, args[1], args[2]);
         if cmd == b'm' as i32 {
-            key.code.mouse[3] = (key.code.mouse[3] as u8 | 0x80) as c_char;
+            key.code.mouse[3] |= 0x80;
         }
         return TERMKEY_RES_KEY;
     }
@@ -480,7 +478,7 @@ pub fn termkey_interpret_mouse(
     termkey_key_get_linecol(key, line, col);
 
     let mut btn: i32 = 0;
-    let mut code = i32::from(key.code.mouse[0] as u8);
+    let mut code = i32::from(key.code.mouse[0]);
     let drag = (code & 0x20) != 0;
     code &= !0x3c;
 
@@ -521,7 +519,7 @@ pub fn termkey_interpret_mouse(
         *button = btn;
     }
 
-    if (key.code.mouse[3] as u8 & 0x80) != 0 {
+    if (key.code.mouse[3] & 0x80) != 0 {
         *event = TERMKEY_MOUSE_RELEASE;
     }
 
@@ -589,10 +587,10 @@ fn handle_csi_y(
             return TERMKEY_RES_ERROR;
         }
         key.r#type = TERMKEY_TYPE_MODEREPORT;
-        key.code.mouse[0] = ((cmd >> 8) & 0xff) as u8 as c_char;
-        key.code.mouse[1] = ((args[0] >> 8) & 0xff) as u8 as c_char;
-        key.code.mouse[2] = (args[0] & 0xff) as u8 as c_char;
-        key.code.mouse[3] = (args[1] & 0xff) as u8 as c_char;
+        key.code.mouse[0] = ((cmd >> 8) & 0xff) as u8;
+        key.code.mouse[1] = ((args[0] >> 8) & 0xff) as u8;
+        key.code.mouse[2] = (args[0] & 0xff) as u8;
+        key.code.mouse[3] = (args[1] & 0xff) as u8;
         TERMKEY_RES_KEY
     } else {
         TERMKEY_RES_NONE
@@ -609,15 +607,9 @@ pub fn termkey_interpret_modereport(
     if key.r#type != TERMKEY_TYPE_MODEREPORT {
         return TERMKEY_RES_NONE;
     }
-    {
-        *initial = i32::from(key.code.mouse[0] as u8);
-    }
-    {
-        *mode = (i32::from(key.code.mouse[1] as u8) << 8) | i32::from(key.code.mouse[2] as u8);
-    }
-    {
-        *value = i32::from(key.code.mouse[3] as u8);
-    }
+    *initial = i32::from(key.code.mouse[0]);
+    *mode = (i32::from(key.code.mouse[1]) << 8) | i32::from(key.code.mouse[2]);
+    *value = i32::from(key.code.mouse[3]);
     TERMKEY_RES_KEY
 }
 
@@ -843,7 +835,7 @@ fn peekkey_ss3(
     if key.code.sym == TERMKEY_SYM_UNKNOWN {
         if (tk.flags & TERMKEY_FLAG_CONVERTKP) != 0 && SS3_KPALTS[idx] != 0 {
             key.r#type = TERMKEY_TYPE_UNICODE;
-            key.code.codepoint = i32::from(SS3_KPALTS[idx] as u8);
+            key.code.codepoint = i32::from(SS3_KPALTS[idx]);
             key.modifiers = 0;
             key.utf8[0] = SS3_KPALTS[idx];
             key.utf8[1] = 0;
@@ -902,7 +894,7 @@ fn peekkey_ctrlstring(
 
     let mut copied = 0usize;
     while copied < len && tk.buffer[tk.buffstart + introlen + copied] != 0 {
-        saved_string.push(tk.buffer[tk.buffstart + introlen + copied] as c_char);
+        saved_string.push(tk.buffer[tk.buffstart + introlen + copied]);
         copied += 1;
     }
     while copied <= len {

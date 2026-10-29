@@ -3122,73 +3122,69 @@ fn tui_get_stty_erase(input: &mut TermInput) -> *const c_char {
     (&raw const tui_st().stty_erase_buf).cast::<c_char>()
 }
 
-pub(crate) fn tui_tk_ti_getstr(
-    name: impl crate::strings::IntoCCharPtr,
-    value: impl crate::strings::IntoCCharPtr,
+pub(crate) fn tui_tk_ti_getstr<'a>(
+    name: &str,
+    value: Option<&'a CStr>,
     input: &mut TermInput,
-) -> *const c_char {
-    let name = name.into_c_char_ptr();
-    let value = value.into_c_char_ptr();
-    {
-        if tui_st().stty_erase_ptr.is_null() {
-            tui_st().stty_erase_ptr = tui_get_stty_erase(input);
-        }
-
-        if crate::memory::cstr_as_opt_bytes(name) == Some(b"key_backspace") {
-            if log_st().g_min_log_level <= LOGLVL_DBG {
-                logmsg!(
-                    LOGLVL_DBG,
-                    ptr::null(),
-                    c"tui_tk_ti_getstr",
-                    2709,
-                    true,
-                    c"libtermkey:kbs=%s",
-                    value,
-                );
-            }
-            if unsafe { *tui_st().stty_erase_ptr } != 0 {
-                return tui_st().stty_erase_ptr;
-            }
-        } else if crate::memory::cstr_as_opt_bytes(name) == Some(b"key_dc") {
-            if log_st().g_min_log_level <= LOGLVL_DBG {
-                logmsg!(
-                    LOGLVL_DBG,
-                    ptr::null(),
-                    c"tui_tk_ti_getstr",
-                    2714,
-                    true,
-                    c"libtermkey:kdch1=%s",
-                    value,
-                );
-            }
-            if !value.is_null()
-                && value != usize::MAX as *const c_char
-                && (crate::memory::cstr_as_opt_bytes(tui_st().stty_erase_ptr)
-                    == crate::memory::cstr_as_opt_bytes(value))
-            {
-                return if unsafe { *tui_st().stty_erase_ptr } == DEL {
-                    c"\x08".as_ptr()
-                } else {
-                    c"\x7f".as_ptr()
-                };
-            }
-        } else if crate::memory::cstr_as_opt_bytes(name) == Some(b"key_mouse") {
-            if log_st().g_min_log_level <= LOGLVL_DBG {
-                logmsg!(
-                    LOGLVL_DBG,
-                    ptr::null(),
-                    c"tui_tk_ti_getstr",
-                    2720,
-                    true,
-                    c"libtermkey:kmous=%s",
-                    value,
-                );
-            }
-            return ptr::null();
-        }
-
-        value
+) -> Option<&'a [u8]> {
+    let val_ptr = value.map_or(ptr::null(), CStr::as_ptr);
+    if tui_st().stty_erase_ptr.is_null() {
+        tui_st().stty_erase_ptr = tui_get_stty_erase(input);
     }
+
+    if name == "key_backspace" {
+        if log_st().g_min_log_level <= LOGLVL_DBG {
+            logmsg!(
+                LOGLVL_DBG,
+                ptr::null(),
+                c"tui_tk_ti_getstr",
+                2709,
+                true,
+                c"libtermkey:kbs=%s",
+                val_ptr,
+            );
+        }
+        if unsafe { *tui_st().stty_erase_ptr } != 0 {
+            return Some(crate::memory::cstr_as_bytes(tui_st().stty_erase_ptr));
+        }
+    } else if name == "key_dc" {
+        if log_st().g_min_log_level <= LOGLVL_DBG {
+            logmsg!(
+                LOGLVL_DBG,
+                ptr::null(),
+                c"tui_tk_ti_getstr",
+                2714,
+                true,
+                c"libtermkey:kdch1=%s",
+                val_ptr,
+            );
+        }
+        if let Some(val_cstr) = value
+            && crate::memory::cstr_as_opt_bytes(tui_st().stty_erase_ptr)
+                == Some(val_cstr.to_bytes())
+        {
+            return Some(if unsafe { *tui_st().stty_erase_ptr } == DEL {
+                b"\x08"
+            } else {
+                b"\x7f"
+            });
+        }
+    } else if name == "key_mouse" {
+        if log_st().g_min_log_level <= LOGLVL_DBG {
+            logmsg!(
+                LOGLVL_DBG,
+                ptr::null(),
+                c"tui_tk_ti_getstr",
+                2720,
+                true,
+                c"libtermkey:kmous=%s",
+                val_ptr,
+            );
+        }
+        return None;
+    }
+
+    value.map(CStr::to_bytes)
 }
 
 #[cfg(test)]
