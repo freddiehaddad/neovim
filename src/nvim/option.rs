@@ -3362,7 +3362,7 @@ pub fn did_set_spell(args: &mut Optset) -> *const c_char {
     unsafe {
         let win = args.os_win;
         if (*win).w_onebuf_opt.wo_spell != 0 {
-            return parse_spelllang(&mut *win);
+            return parse_spelllang(&mut *win).map_or(ptr::null(), |s| s.as_ptr());
         }
         ptr::null()
     }

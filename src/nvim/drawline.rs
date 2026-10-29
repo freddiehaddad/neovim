@@ -1895,7 +1895,7 @@ pub fn win_line(
 
                 if len == 0 || wp.w_cursor.col > linecol {
                     word_end = crate::memory::ptr_offset_from(
-                        spell_to_word_end(ptr.cast_mut(), &mut *wp),
+                        spell_to_word_end(ptr, &mut *wp).cast(),
                         line,
                     ) as i32
                         + 1;

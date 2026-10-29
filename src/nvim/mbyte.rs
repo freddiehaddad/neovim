@@ -884,8 +884,11 @@ use crate::regexp::{GRAPHEME_STATE_INIT, NUMBUFLEN};
 use crate::viml::parser::parser::CONV_NONE;
 
 #[inline]
-pub fn mb_ptr_adv(p: &mut *mut c_char) {
-    *p = (*p).wrapping_add(utfc_ptr2len(*p) as usize);
+pub fn mb_ptr_adv<T>(p: &mut *mut T) {
+    *p = (*p)
+        .cast::<u8>()
+        .wrapping_add(utfc_ptr2len((*p).cast()) as usize)
+        .cast();
 }
 
 #[inline]

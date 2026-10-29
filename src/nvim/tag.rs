@@ -2836,9 +2836,7 @@ fn parse_match(lbuf: impl crate::strings::IntoCCharPtr, tagp: &mut Tagptrs) -> b
                         break;
                     }
                     p = pt;
-                    let mut p_c = p.cast();
-                    mb_ptr_adv(&mut p_c);
-                    p = p_c.cast();
+                    mb_ptr_adv(&mut p);
                 }
             }
         }
@@ -2849,9 +2847,7 @@ fn parse_match(lbuf: impl crate::strings::IntoCCharPtr, tagp: &mut Tagptrs) -> b
                 && crate::memory::cstr_first_byte(p.cast()) != b'\r'
                 && crate::memory::cstr_first_byte(p.cast()) != b'\n'
             {
-                let mut p_c = p.cast();
-                mb_ptr_adv(&mut p_c);
-                p = p_c.cast();
+                mb_ptr_adv(&mut p);
             }
             tagp.tagkind_end = p;
         }
@@ -2862,9 +2858,7 @@ fn parse_match(lbuf: impl crate::strings::IntoCCharPtr, tagp: &mut Tagptrs) -> b
                 && crate::memory::cstr_first_byte(p.cast()) != b'\r'
                 && crate::memory::cstr_first_byte(p.cast()) != b'\n'
             {
-                let mut p_c = p.cast();
-                mb_ptr_adv(&mut p_c);
-                p = p_c.cast();
+                mb_ptr_adv(&mut p);
             }
             tagp.user_data_end = p;
         }
@@ -3568,9 +3562,7 @@ pub fn get_tags(
                             break;
                         }
                     }
-                    let mut p_c = p.cast();
-                    mb_ptr_adv(&mut p_c);
-                    p = p_c.cast();
+                    mb_ptr_adv(&mut p);
                 }
             }
         }

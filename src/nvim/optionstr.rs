@@ -2808,7 +2808,8 @@ pub fn validate_spellcapcheck(args: &mut Optset) -> *const c_char {
 
     let mut tstate = TryState::new();
     try_enter(&mut tstate);
-    let mut errmsg = compile_cap_prog(args.os_newval.data.string().data, &mut prog);
+    let mut errmsg = compile_cap_prog(args.os_newval.data.string().data, &mut prog)
+        .map_or(ptr::null(), |s| s.as_ptr());
     try_leave(&tstate, &mut err);
 
     g_st().emsg_silent = save_emsg_silent;
@@ -2851,7 +2852,7 @@ pub fn validate_spellfile(args: &mut Optset) -> *const c_char {
 
 /// The 'spellfile' option is changed.
 pub fn did_set_spellfile(_args: &mut Optset) -> *const c_char {
-    did_set_spell_option()
+    did_set_spell_option().map_or(ptr::null(), |s| s.as_ptr())
 }
 
 /// Validate the 'spelllang' option.
@@ -2865,7 +2866,7 @@ pub fn validate_spelllang(args: &mut Optset) -> *const c_char {
 
 /// The 'spelllang' option is changed.
 pub fn did_set_spelllang(_args: &mut Optset) -> *const c_char {
-    did_set_spell_option()
+    did_set_spell_option().map_or(ptr::null(), |s| s.as_ptr())
 }
 
 /// The 'spelloptions' option is changed.

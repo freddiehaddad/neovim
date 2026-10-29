@@ -2307,7 +2307,7 @@ fn spell_read_aff(
 
                                         if aff_entry.ae_cond.is_some() {
                                             let mut buf = [0 as c_char; MAXLINELEN];
-                                            onecap_copy(items[4], buf.as_mut_ptr(), true);
+                                            onecap_copy(items[4], buf.as_mut_ptr().cast(), true);
                                             let cond_cstr =
                                                 crate::memory::cstr_to_cstring(buf.as_ptr());
                                             vim_snprintf!(
@@ -2879,7 +2879,7 @@ fn add_fromto(
             curwin_mut(),
             from,
             crate::memory::cstr_len(from) as i32,
-            word.as_mut_ptr(),
+            word.as_mut_ptr().cast(),
             MAXWLEN as i32,
         );
         let ft_from = crate::memory::cstr_to_cstring(word.as_ptr());
@@ -2887,7 +2887,7 @@ fn add_fromto(
             curwin_mut(),
             to,
             crate::memory::cstr_len(to) as i32,
-            word.as_mut_ptr(),
+            word.as_mut_ptr().cast(),
             MAXWLEN as i32,
         );
         let ft_to = crate::memory::cstr_to_cstring(word.as_ptr());
@@ -3822,7 +3822,7 @@ fn store_word(
     let pfxlist = pfxlist.into_c_char_ptr();
     {
         let len = crate::memory::cstr_len(word) as i32;
-        let ct = captype(word, word.wrapping_offset(len as isize));
+        let ct = captype(word, Some(word.wrapping_offset(len as isize).cast()));
         let mut foldword = [0 as c_char; MAXWLEN];
         let mut res = true;
 
@@ -3834,7 +3834,7 @@ fn store_word(
             curwin_mut(),
             word,
             len,
-            foldword.as_mut_ptr(),
+            foldword.as_mut_ptr().cast(),
             MAXWLEN as i32,
         );
         let mut p = pfxlist;
@@ -4774,7 +4774,7 @@ fn sug_filltree(spin: &mut Spellinfo, slang: &mut Slang) -> bool {
             let c = unsafe { *byts.wrapping_offset(n as isize) } as i32;
             if c == 0 {
                 tword[d] = NUL;
-                spell_soundfold(slang, tword.as_mut_ptr(), true, tsalword.as_mut_ptr());
+                spell_soundfold(slang, tword.as_mut_ptr(), true, tsalword.as_mut_ptr().cast());
 
                 if !tree_add_word(
                     spin,
@@ -5033,7 +5033,7 @@ fn mkspell(fnames: &[std::ffi::CString], ascii: bool, over_write: bool, added_wo
                 SPL_FNAME_TMPL,
                 f0,
                 if spin.si_ascii != 0 {
-                    c"ascii".as_ptr()
+                    c"ascii"
                 } else {
                     spell_enc()
                 },
@@ -5047,7 +5047,7 @@ fn mkspell(fnames: &[std::ffi::CString], ascii: bool, over_write: bool, added_wo
                 SPL_FNAME_TMPL,
                 f0,
                 if spin.si_ascii != 0 {
-                    c"ascii".as_ptr()
+                    c"ascii"
                 } else {
                     spell_enc()
                 },
@@ -5486,7 +5486,7 @@ fn init_spellfile() {
                 .windows(7)
                 .any(|w| w == b".ascii.")
         {
-            c"ascii".as_ptr()
+            c"ascii"
         } else {
             spell_enc()
         };

@@ -472,7 +472,7 @@ fn badword_captype(
 ) -> i32 {
     let word = word.into_c_char_ptr().cast_mut();
     let end = end.into_c_char_ptr().cast_mut();
-    let mut flags = captype(word, end);
+    let mut flags = captype(word, (!end.is_null()).then_some(end.cast()));
     if (flags & WF_KEEPCAP) == 0 {
         return flags;
     }
@@ -1057,7 +1057,7 @@ fn spell_suggest_file(su: &mut Suginfo, fname: impl crate::strings::IntoCCharPtr
                 unsafe {
                     *p.wrapping_add(len) = NUL;
                 }
-                if captype(p, ptr::null()) == 0 {
+                if captype(p, None) == 0 {
                     make_case_word(p, (&raw mut cword).cast(), su.su_badflags);
                     p = (&raw mut cword).cast();
                 }
@@ -1549,7 +1549,7 @@ fn suggest_trie_walk(su: &mut Suginfo, lp: &Langp, fword: *mut u8, soundfold: bo
                                     .as_ptr()
                                     .wrapping_add(stack[udepth].ts_prewordlen as usize)
                                     .cast(),
-                                ptr::null(),
+                                None,
                             ),
                         ) {
                             newscore += SCORE_ICASE;
@@ -1605,7 +1605,7 @@ fn suggest_trie_walk(su: &mut Suginfo, lp: &Langp, fword: *mut u8, soundfold: bo
                                     false,
                                 );
                                 if (su.su_badflags & WF_MIXCAP) != 0 {
-                                    c = captype(preword.as_ptr().cast(), ptr::null());
+                                    c = captype(preword.as_ptr().cast(), None);
                                     if c == 0 || c == WF_ALLCAP {
                                         make_case_word(
                                             tword
@@ -2629,9 +2629,9 @@ fn stp_sal_score(
                     .cast(),
                 lendiff as usize,
             );
-            (&raw mut goodword).cast()
+            (&raw const goodword).cast()
         } else {
-            stp.st_word.as_ptr().cast_mut()
+            stp.st_word.as_ptr()
         };
         spell_soundfold(slang, pgood, false, (&raw mut goodsound).cast());
         soundalike_score((&raw mut goodsound).cast(), pbad)
