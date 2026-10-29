@@ -1800,12 +1800,7 @@ pub fn parse_spelllang(wp: &mut WinInfoInfo) -> Option<&'static std::ffi::CStr> 
                 }
                 if slang.is_null() {
                     if filename {
-                        let _ = spell_load_file(
-                            lang_ptr.cast(),
-                            lang_ptr.cast(),
-                            ptr::null_mut(),
-                            false,
-                        );
+                        let _ = spell_load_file(lang_ptr.cast(), lang_ptr, ptr::null_mut(), false);
                     } else {
                         spell_load_lang(lang_ptr.cast());
                         if !bufref_valid(Some(&bufref)) || !win_valid_any_tab(&raw mut *wp) {
@@ -1922,7 +1917,7 @@ pub fn parse_spelllang(wp: &mut WinInfoInfo) -> Option<&'static std::ffi::CStr> 
                             *p = NUL;
                         }
                     }
-                    slang = spell_load_file(spf_ptr.cast(), lang_ptr.cast(), ptr::null_mut(), true);
+                    slang = spell_load_file(spf_ptr.cast(), lang_ptr, ptr::null_mut(), true);
                     if !slang.is_null() && nobreak {
                         (*slang).sl_nobreak = true;
                     }

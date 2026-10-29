@@ -3617,14 +3617,14 @@ pub fn get8ctime(fd: *mut FILE) -> time_t {
 }
 
 /// Reads a string of length "cnt" from "fd" into allocated memory.
-pub fn read_string(fd: *mut FILE, cnt: usize) -> Option<Vec<c_char>> {
-    let mut buf: Vec<c_char> = Vec::with_capacity(cnt + 1);
+pub fn read_string(fd: *mut FILE, cnt: usize) -> Option<Vec<u8>> {
+    let mut buf: Vec<u8> = Vec::with_capacity(cnt + 1);
     for _ in 0..cnt {
         let c = unsafe { fgetc(fd) };
         if c == EOF {
             return None;
         }
-        buf.push(c as c_char);
+        buf.push(c as u8);
     }
     buf.push(0);
     Some(buf)
