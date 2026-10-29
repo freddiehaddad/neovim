@@ -384,7 +384,7 @@ pub struct EditorState {
     pub nvim_testing: bool,
     pub pum_grid: ScreenGrid,
     pub pum_want: PumWant,
-    pub last_insert_ga: Vec<c_char>,
+    pub last_insert_ga: Vec<u8>,
     pub add_last_insert: i32,
     pub tab_page_click_defs: Vec<StlClickDefinition>,
     pub ui_event_ns_id: u32,

@@ -829,7 +829,7 @@ pub fn stuff_readbuff_len(s: impl crate::strings::IntoCCharPtr, len: isize) {
         if g_st().add_last_insert == 1 && len > 0 {
             g_st()
                 .last_insert_ga
-                .extend_from_slice(unsafe { std::slice::from_raw_parts(s, len as usize) });
+                .extend_from_slice(unsafe { std::slice::from_raw_parts(s.cast::<u8>(), len as usize) });
         }
         add_buff(&mut inp_st().readbuf1, s, len);
     }

@@ -1013,11 +1013,11 @@ pub fn f_prompt_setprompt(argvars: &mut [TypVal], _rettv: &mut TypVal, _fptr: Ev
         }
 
         let prompt_lno = buf.b_prompt_start.mark.lnum;
-        let old_prompt = buf_prompt_text(&*buf);
         let old_line = ml_get_buf(&mut *buf, prompt_lno);
         let old_line_len = ml_get_buf_len(&mut *buf, prompt_lno);
 
-        let old_prompt_bytes = crate::memory::cstr_as_bytes(old_prompt);
+        let old_prompt = buf_prompt_text(&*buf);
+        let old_prompt_bytes = old_prompt.to_bytes();
         let old_prompt_len = old_prompt_bytes.len() as i32;
         let mut cursor_col = curwin_mut().w_cursor.col;
 

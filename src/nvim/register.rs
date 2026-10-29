@@ -1414,7 +1414,7 @@ fn put_do_autocmd(
         if !g_st().last_insert_ga.is_empty() {
             tv_list_append_string(
                 &mut *list,
-                g_st().last_insert_ga.as_ptr(),
+                g_st().last_insert_ga.as_ptr().cast(),
                 g_st().last_insert_ga.len() as isize,
             );
         }
