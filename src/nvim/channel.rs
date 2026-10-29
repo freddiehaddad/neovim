@@ -29,7 +29,7 @@ use crate::fileio::fcntl;
 use crate::globals::*;
 use crate::lua::converter::LuaRef;
 use crate::lua::executor::api_free_luaref;
-use crate::memory::{Arena, arena_finish, arena_mem_free, arena_memdupz};
+use crate::memory::{Arena, arena_finish, arena_mem_free};
 use crate::message::semsg;
 pub use crate::msgpack_rpc::channel::Channel;
 use crate::msgpack_rpc::channel::{
@@ -1192,18 +1192,9 @@ pub fn channel_info(id: u64, arena: &mut Arena) -> Dict {
                 let proc_ptr = &raw mut (*chan).uv.proc_;
                 let ph = proc_ptr;
                 if (*ph).r#type == K_PROC_TYPE_PTY {
-                    let name = pty_proc_tty_name(&mut *proc_ptr.cast());
-                    let s = if name.is_null() {
-                        NvimString {
-                            data: c"".as_ptr().cast_mut(),
-                            size: 0,
-                        }
-                    } else {
-                        let len = crate::memory::cstr_len(name);
-                        NvimString {
-                            data: arena_memdupz(arena, name, len),
-                            size: len,
-                        }
+                    let s = match pty_proc_tty_name(&mut *proc_ptr.cast()) {
+                        Some(name) => crate::api::private::helpers::arena_bytes(arena, name.to_bytes()),
+                        None => NvimString::from_bytes(b""),
                     };
                     put_c(
                         &mut info,

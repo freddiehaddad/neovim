@@ -6,7 +6,7 @@ use crate::memory::xstrlcpy;
 #[cfg(unix)]
 use crate::os::env::os_getenv_buf;
 use crate::os::input::os_input_ready;
-use std::ffi::c_char;
+use std::ffi::{CStr, c_char};
 
 pub type Timestamp = u64;
 #[allow(non_camel_case_types)]
@@ -130,8 +130,8 @@ pub fn os_sleep(ms: u64) {
 pub fn os_localtime_r(clock: &time_t, result: *mut Tm) -> *mut Tm {
     #[cfg(unix)]
     unsafe {
-        let mut tz_buf = [0 as c_char; 64];
-        let tz_ptr = os_getenv_buf(c"TZ", tz_buf.as_mut_ptr(), tz_buf.len());
+        let mut tz_buf = [0u8; 64];
+        let tz_ptr = os_getenv_buf(c"TZ", tz_buf.as_mut_ptr().cast(), tz_buf.len());
         let tz_bytes = if tz_ptr.is_null() {
             &[][..]
         } else {
@@ -168,65 +168,45 @@ pub fn os_localtime(result: *mut Tm) -> *mut Tm {
     os_localtime_r(&rawtime, result)
 }
 
-/// Format `clock` as local time into `result[..result_len]` (`os_ctime_r`).
-///
-/// # Safety
-/// `clock` and `result` must be valid pointers, with `result` writable for `result_len` bytes.
-pub fn os_ctime_r(
-    clock: &time_t,
-    result: *mut c_char,
-    result_len: usize,
-    add_newline: bool,
-) -> *mut c_char {
+/// Format `clock` as local time into `result` (`os_ctime_r`).
+pub fn os_ctime_r<'a>(clock: &time_t, result: &'a mut [u8], add_newline: bool) -> &'a CStr {
     let mut clock_local = Tm { _fields: [0; 16] };
     let ptr = os_localtime_r(clock, &mut clock_local);
+    let result_len = result.len();
 
+    if ptr.is_null()
+        || unsafe {
+            strftime(
+                result.as_mut_ptr().cast(),
+                result_len.saturating_sub(1),
+                c"%a %b %d %H:%M:%S %Y".as_ptr(),
+                ptr,
+            )
+        } == 0
     {
-        if ptr.is_null()
-            || unsafe {
-                strftime(
-                    result,
-                    result_len.saturating_sub(1),
-                    c"%a %b %d %H:%M:%S %Y".as_ptr(),
-                    ptr,
-                )
-            } == 0
-        {
-            xstrlcpy(result, c"(Invalid)", result_len);
-        }
+        xstrlcpy(result.as_mut_ptr().cast(), c"(Invalid)", result_len);
     }
 
     if add_newline && result_len > 0 {
-        unsafe {
-            let cur_len = crate::memory::cstr_len(result);
-            if cur_len + 1 < result_len {
-                *result.wrapping_add(cur_len) = b'\n' as c_char;
-                *result.wrapping_add(cur_len + 1) = 0;
-            }
+        let cur_len = result.iter().position(|&b| b == 0).unwrap_or(result_len);
+        if cur_len + 1 < result_len {
+            result[cur_len] = b'\n';
+            result[cur_len + 1] = 0;
         }
     }
-    result
+    CStr::from_bytes_until_nul(result).unwrap_or(c"")
 }
 
 /// Portable wrapper for POSIX `strptime()` (`os_strptime`).
-///
-/// # Safety
-/// `str_ptr`, `format`, and `tm` must be valid pointers.
-pub fn os_strptime(
-    str_ptr: impl crate::strings::IntoCCharPtr,
-    format: impl crate::strings::IntoCCharPtr,
-    tm: *mut Tm,
-) -> *mut c_char {
-    let str_ptr = str_ptr.into_c_char_ptr();
-    let format = format.into_c_char_ptr();
+pub fn os_strptime(str_ptr: &CStr, format: &CStr, tm: *mut Tm) -> bool {
     #[cfg(unix)]
     unsafe {
-        strptime(str_ptr, format, tm)
+        !strptime(str_ptr.as_ptr(), format.as_ptr(), tm).is_null()
     }
     #[cfg(not(unix))]
     {
         let _ = (str_ptr, format, tm);
-        std::ptr::null_mut()
+        false
     }
 }
 
@@ -244,11 +224,11 @@ mod tests {
     #[test]
     fn os_time_and_ctime_r_work() {
         assert!(os_time() > 0);
-        let mut buf = [0 as c_char; 64];
+        let mut buf = [0u8; 64];
         let t: time_t = 0;
         {
-            let out = os_ctime_r(&t, buf.as_mut_ptr(), buf.len(), true);
-            let s = crate::memory::cstr_from_ptr(out).to_str().unwrap();
+            let out = os_ctime_r(&t, &mut buf, true);
+            let s = out.to_str().unwrap();
             assert!(s.ends_with('\n'));
             assert!(s.contains("1969") || s.contains("1970"));
         }

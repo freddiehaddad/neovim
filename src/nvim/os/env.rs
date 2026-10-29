@@ -794,7 +794,9 @@ pub fn expand_env_esc(
                         if crate::memory::cstr_is_empty(dst) {
                             var = ptr::null_mut();
                         } else {
-                            var_cstr = os_get_userdir(dst.wrapping_add(1));
+                            var_cstr = os_get_userdir(crate::memory::cstr_as_opt_cstr(
+                                dst.wrapping_add(1),
+                            ));
                             var = var_cstr
                                 .as_ref()
                                 .map_or(ptr::null_mut(), |c| c.as_ptr().cast_mut());

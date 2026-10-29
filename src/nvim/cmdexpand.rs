@@ -3334,7 +3334,7 @@ fn set_context_for_wildcard_arg(
             }
             if crate::memory::cstr_is_empty(p)
                 && (p as usize) > (xp.xp_pattern.wrapping_add(1) as usize)
-                && match_user(xp.xp_pattern.wrapping_add(1)) >= 1
+                && match_user(crate::memory::cstr_as_bytes(xp.xp_pattern.wrapping_add(1))) >= 1
             {
                 xp.xp_context = EXPAND_USER;
                 xp.xp_pattern = xp.xp_pattern.wrapping_add(1);

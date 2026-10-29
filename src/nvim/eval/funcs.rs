@@ -8363,7 +8363,13 @@ pub fn f_strptime(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDat
     } else {
         fmt_owned = None;
     }
-    if fmt.is_null() || os_strptime(str_, fmt, &raw mut tmval).is_null() {
+    if fmt.is_null()
+        || !os_strptime(
+            crate::memory::cstr_from_ptr(str_),
+            crate::memory::cstr_from_ptr(fmt),
+            &raw mut tmval,
+        )
+    {
         rettv.vval = crate::eval::typval::TypvalVval::Number(0);
     } else {
         let t = unsafe { mktime(&raw mut tmval) };

@@ -467,7 +467,10 @@ pub fn ml_open(buf: &mut FileBuf) -> bool {
             (*b0p).set_dirty(if buf.b_changed != 0 { B0_DIRTY } else { 0 });
             (*b0p).set_flags((get_fileformat(&*buf) + 1) as u8);
             set_b0_fname(&mut *b0p, &mut *buf);
-            os_get_username((&raw mut b0p.b0_uname).cast(), B0_UNAME_SIZE);
+            os_get_username(std::slice::from_raw_parts_mut(
+                (&raw mut b0p.b0_uname).cast::<u8>(),
+                B0_UNAME_SIZE,
+            ));
             b0p.b0_uname[B0_UNAME_SIZE - 1] = NUL;
             os_get_hostname((&raw mut b0p.b0_hname).cast(), B0_HNAME_SIZE);
             b0p.b0_hname[B0_HNAME_SIZE - 1] = NUL;
@@ -746,12 +749,12 @@ fn set_b0_fname(b0p: &mut ZeroBlock, buf: &mut FileBuf) {
     if buf.b_ffname.is_null() {
         b0p.b0_fname[0] = NUL;
     } else {
-        let mut uname = [0 as c_char; B0_UNAME_SIZE];
+        let mut uname = [0u8; B0_UNAME_SIZE];
         let fname_ptr = (&raw mut b0p.b0_fname).cast::<c_char>();
         let flen = home_replace(None, buf.b_ffname, fname_ptr, B0_FNAME_SIZE_CRYPT, true);
         if b0p.b0_fname[0] == b'~' as c_char {
-            let retval = os_get_username((&raw mut uname).cast(), B0_UNAME_SIZE);
-            let ulen = crate::memory::cstr_len((&raw const uname).cast());
+            let retval = os_get_username(&mut uname);
+            let ulen = crate::memory::cstr_len(uname.as_ptr().cast());
             if !retval || ulen + flen > B0_FNAME_SIZE_CRYPT - 1 {
                 xstrlcpy(fname_ptr, buf.b_ffname, B0_FNAME_SIZE_CRYPT);
             } else {
@@ -1757,14 +1760,10 @@ fn swapfile_info(fname: impl crate::strings::IntoCCharPtr, msg: &mut Vec<u8>) ->
         if os_fileinfo(fname, &mut file_info) {
             #[cfg(unix)]
             {
-                let mut uname = [0 as c_char; B0_UNAME_SIZE];
-                if os_get_uname(
-                    file_info.stat.st_uid as u32,
-                    (&raw mut uname).cast(),
-                    B0_UNAME_SIZE,
-                ) {
+                let mut uname = [0u8; B0_UNAME_SIZE];
+                if os_get_uname(file_info.stat.st_uid as u32, &mut uname) {
                     sb_push_cstr(msg, tr(c"          owned by: "));
-                    sb_push_cstr(msg, (&raw const uname).cast());
+                    sb_push_cstr(msg, uname.as_ptr().cast());
                     sb_push_cstr(msg, tr(c"   dated: "));
                 } else {
                     sb_push_cstr(msg, tr(c"             dated: "));
@@ -1775,14 +1774,9 @@ fn swapfile_info(fname: impl crate::strings::IntoCCharPtr, msg: &mut Vec<u8>) ->
                 sb_push_cstr(msg, tr(c"             dated: "));
             }
             x = file_info.stat.st_mtim.tv_sec as _;
-            let mut ctime_buf = [0 as c_char; 100];
-            let ct = os_ctime_r(
-                &x,
-                (&raw mut ctime_buf).cast(),
-                size_of_val(&ctime_buf),
-                true,
-            );
-            sb_push_cstr(msg, ct);
+            let mut ctime_buf = [0u8; 100];
+            let ct = os_ctime_r(&x, &mut ctime_buf, true);
+            sb_push_cstr(msg, ct.as_ptr());
         }
 
         let fd = os_open(fname, O_RDONLY, 0);
@@ -3533,14 +3527,9 @@ fn attention_message(
     } else {
         sb_push_cstr(msg, tr(c"             dated: "));
         let x: time_t = file_info.stat.st_mtim.tv_sec as _;
-        let mut ctime_buf = [0 as c_char; 50];
-        let ct = os_ctime_r(
-            &x,
-            (&raw mut ctime_buf).cast(),
-            size_of_val(&ctime_buf),
-            true,
-        );
-        sb_push_cstr(msg, ct);
+        let mut ctime_buf = [0u8; 50];
+        let ct = os_ctime_r(&x, &mut ctime_buf, true);
+        sb_push_cstr(msg, ct.as_ptr());
         if swap_mtime != 0 && x > swap_mtime {
             sb_push_cstr(msg, tr(c"      NEWER than swap file!\n"));
         }

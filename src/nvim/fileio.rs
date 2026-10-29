@@ -4252,35 +4252,14 @@ fn vim_mktempdir() {
 
     let mut tmp: [c_char; TEMP_FILE_PATH_MAXLEN] = [0; TEMP_FILE_PATH_MAXLEN];
     let mut path: [c_char; TEMP_FILE_PATH_MAXLEN] = [0; TEMP_FILE_PATH_MAXLEN];
-    let mut user: [c_char; 40] = [0; 40];
+    let mut user: [u8; 40] = [0; 40];
 
-    os_get_username(user.as_mut_ptr(), user.len());
-    {
-        let _d = (user.as_mut_ptr()).cast::<u8>();
-        let _sz = user.len();
-        if _sz > 0 {
-            let _c = (b'/' as c_char) as u8;
-            let _x = (b'_' as c_char) as u8;
-            for _b in unsafe { std::slice::from_raw_parts_mut(_d, _sz) } {
-                if *_b == _c {
-                    *_b = _x;
-                }
-            }
+    os_get_username(&mut user);
+    for b in &mut user {
+        if *b == b'/' || *b == b'\\' {
+            *b = b'_';
         }
-    };
-    {
-        let _d = (user.as_mut_ptr()).cast::<u8>();
-        let _sz = user.len();
-        if _sz > 0 {
-            let _c = (b'\\' as c_char) as u8;
-            let _x = (b'_' as c_char) as u8;
-            for _b in unsafe { std::slice::from_raw_parts_mut(_d, _sz) } {
-                if *_b == _c {
-                    *_b = _x;
-                }
-            }
-        }
-    };
+    }
 
     let umask_save = call_umask(0o077);
     for temp_dir in TEMP_DIRS {
@@ -4328,7 +4307,7 @@ fn vim_mktempdir() {
             tmp.as_mut_ptr().wrapping_add(tmplen),
             tmp.len() - tmplen,
             c"nvim.%s",
-            user.as_ptr(),
+            user.as_ptr().cast::<c_char>(),
         ) as usize;
         debug_assert!(tmplen < tmp.len());
         os_mkdir(tmp.as_ptr(), 0o700);
@@ -4386,7 +4365,7 @@ fn vim_mktempdir() {
                     tmp.as_ptr(),
                 );
             }
-            tmplen -= crate::memory::cstr_len(user.as_ptr());
+            tmplen -= crate::memory::cstr_len(user.as_ptr().cast());
             tmp[tmplen] = NUL;
         }
 

@@ -13,7 +13,7 @@ use crate::os::env::os_shell_is_cmdexe;
 #[cfg(windows)]
 use crate::os::fs::os_can_exe;
 #[cfg(windows)]
-use std::ffi::{c_char, c_void};
+use std::ffi::{CStr, c_void};
 #[cfg(windows)]
 use std::ptr;
 
@@ -188,7 +188,7 @@ mod win_impl {
             let mut cmd_line: Vec<u16> = Vec::new();
             let mut cwd: Vec<u16> = Vec::new();
             let mut env: Vec<u16> = Vec::new();
-            let mut emsg: *const c_char = ptr::null();
+            let mut emsg: Option<&CStr> = None;
 
             debug_assert!(r_err.s.closed);
 
@@ -231,7 +231,7 @@ mod win_impl {
                 if let Some(ref hdr_cwd) = hdr.cwd {
                     status = utf8_to_utf16(hdr_cwd.as_ptr(), -1, &mut cwd);
                     if status != 0 {
-                        emsg = c"utf8_to_utf16(proc->cwd) failed".as_ptr();
+                        emsg = Some(c"utf8_to_utf16(proc->cwd) failed");
                         break 'cleanup;
                     }
                 }
@@ -242,7 +242,7 @@ mod win_impl {
                     let mut path: Option<std::ffi::CString> = None;
                     if !os_can_exe(arg0, Some(&mut path), true) {
                         status = UV_ENOENT;
-                        emsg = c"executable not found".as_ptr();
+                        emsg = Some(c"executable not found");
                         break 'cleanup;
                     }
                     status = utf8_to_utf16(
@@ -251,13 +251,13 @@ mod win_impl {
                         &mut file,
                     );
                     if status != 0 {
-                        emsg = c"utf8_to_utf16(proc->argv[0]) failed".as_ptr();
+                        emsg = Some(c"utf8_to_utf16(proc->argv[0]) failed");
                         break 'cleanup;
                     }
                 }
                 status = build_cmd_line(hdr.argv.as_slice(), &mut cmd_line, is_cmdexe);
                 if status != 0 {
-                    emsg = c"build_cmd_line failed".as_ptr();
+                    emsg = Some(c"build_cmd_line failed");
                     break 'cleanup;
                 }
 
@@ -266,7 +266,7 @@ mod win_impl {
                 }
 
                 if status != 0 {
-                    emsg = c"build_env_block failed".as_ptr();
+                    emsg = Some(c"build_env_block failed");
                     break 'cleanup;
                 }
 
@@ -290,7 +290,7 @@ mod win_impl {
                         env.as_mut_ptr()
                     },
                 ) {
-                    emsg = c"os_conpty_spawn failed".as_ptr();
+                    emsg = Some(c"os_conpty_spawn failed");
                     status = GetLastError() as i32;
                     break 'cleanup;
                 }
@@ -331,7 +331,7 @@ mod win_impl {
                     true,
                     c"pty_proc_spawn(%s): %s: error code: %d",
                     hdr.argv.as_slice()[0].as_ptr(),
-                    emsg,
+                    emsg.map_or(ptr::null(), CStr::as_ptr),
                     status,
                 );
                 status = uv_translate_sys_error(status);
@@ -348,8 +348,8 @@ mod win_impl {
         }
     }
 
-    pub fn pty_proc_tty_name(_ptyproc: &mut PtyProc) -> *const c_char {
-        c"?".as_ptr()
+    pub fn pty_proc_tty_name(_ptyproc: &mut PtyProc) -> Option<&CStr> {
+        Some(c"?")
     }
 
     pub fn pty_proc_resize(ptyproc: &mut PtyProc, width: u16, height: u16) {
@@ -438,7 +438,7 @@ mod win_impl {
         }
         utf8_cmd_line.push(0);
 
-        utf8_to_utf16(utf8_cmd_line.as_ptr().cast::<c_char>(), -1, cmd_line)
+        utf8_to_utf16(utf8_cmd_line.as_ptr().cast(), -1, cmd_line)
     }
 
     fn build_env_block(denv: Option<&TvDict>, env_block: &mut Vec<u16>) -> i32 {

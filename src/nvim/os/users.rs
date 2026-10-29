@@ -136,8 +136,8 @@ fn collect_usernames() -> Vec<CString> {
         }
         endpwent();
 
-        let mut user_buf = [0 as c_char; 256];
-        let user_env = os_getenv_buf(c"USER", user_buf.as_mut_ptr(), user_buf.len());
+        let mut user_buf = [0u8; 256];
+        let user_env = os_getenv_buf(c"USER", user_buf.as_mut_ptr().cast(), user_buf.len());
 
         if !user_env.is_null() && *user_env != 0 {
             let env_bytes = crate::memory::cstr_as_bytes(user_env);
@@ -195,49 +195,37 @@ fn collect_usernames() -> Vec<CString> {
 }
 
 /// Get the username that owns the current Nvim process (`os_get_username`).
-///
-/// # Safety
-/// `s` must be valid for `len` writable bytes.
-pub fn os_get_username(s: *mut c_char, len: usize) -> bool {
+pub fn os_get_username(s: &mut [u8]) -> bool {
     #[cfg(unix)]
     let uid = unsafe { getuid() };
     #[cfg(not(unix))]
     let uid = 0;
 
-    os_get_uname(uid, s, len)
+    os_get_uname(uid, s)
 }
 
 /// Get the username associated with `uid` (`os_get_uname`).
-///
-/// # Safety
-/// `s` must be valid for `len` writable bytes.
-pub fn os_get_uname(uid: uv_uid_t, s: *mut c_char, len: usize) -> bool {
+pub fn os_get_uname(uid: uv_uid_t, s: &mut [u8]) -> bool {
     #[cfg(unix)]
     unsafe {
         let pw = getpwuid(uid);
         if !pw.is_null() && !(*pw).pw_name.is_null() && *(*pw).pw_name != 0 {
-            xstrlcpy(s, (*pw).pw_name, len);
+            xstrlcpy(s.as_mut_ptr().cast(), (*pw).pw_name, s.len());
             return true;
         }
     }
 
-    vim_snprintf!(s, len, c"%d", uid as i32);
+    vim_snprintf!(s.as_mut_ptr().cast(), s.len(), c"%d", uid as i32);
     false
 }
 
 /// Get the home directory for `name`, or `None` on failure (`os_get_userdir`).
-///
-/// # Safety
-/// `name` must be null or a valid C string.
 #[cfg_attr(not(unix), cfg(test))]
-pub fn os_get_userdir(name: impl crate::strings::IntoCCharPtr) -> Option<CString> {
-    let name = name.into_c_char_ptr();
+pub fn os_get_userdir(name: Option<&std::ffi::CStr>) -> Option<CString> {
     #[cfg(unix)]
     unsafe {
-        if name.is_null() || *name == 0 {
-            return None;
-        }
-        let pw = getpwnam(name);
+        let name = name.filter(|s| !s.to_bytes().is_empty())?;
+        let pw = getpwnam(name.as_ptr());
         if !pw.is_null() && !(*pw).pw_dir.is_null() {
             return Some(crate::memory::cstr_to_cstring((*pw).pw_dir));
         }
@@ -282,28 +270,21 @@ pub fn get_users(_xp: &mut crate::os::env::ExpandCtx, idx: i32) -> *mut c_char {
 }
 
 /// Check whether `name` matches a cached username (`match_user`).
-///
-/// # Safety
-/// `name` must be a valid C string.
-pub fn match_user(name: impl crate::strings::IntoCCharPtr) -> i32 {
-    let name = name.into_c_char_ptr();
-    {
-        init_users();
-        let target = crate::memory::cstr_as_bytes(name);
-        let users = &users_st().users;
-        let mut result = 0;
+pub fn match_user(target: &[u8]) -> i32 {
+    init_users();
+    let users = &users_st().users;
+    let mut result = 0;
 
-        for entry_cstr in users {
-            let entry = entry_cstr.as_bytes();
-            if entry == target {
-                return 2;
-            }
-            if entry.starts_with(target) {
-                result = 1;
-            }
+    for entry_cstr in users {
+        let entry = entry_cstr.as_bytes();
+        if entry == target {
+            return 2;
         }
-        result
+        if entry.starts_with(target) {
+            result = 1;
+        }
     }
+    result
 }
 
 #[cfg(test)]
@@ -312,18 +293,21 @@ mod tests {
 
     #[test]
     fn get_usernames_null_returns_fail_and_uname_formats_fallback() {
-        assert!(os_get_userdir(std::ptr::null()).is_none());
+        assert!(os_get_userdir(None).is_none());
 
-        let mut buf = [0 as c_char; 32];
-        let res = os_get_uname(250 as uv_uid_t, buf.as_mut_ptr(), buf.len());
+        let mut buf = [0u8; 32];
+        let res = os_get_uname(250 as uv_uid_t, &mut buf);
         if !res {
             assert_eq!(
-                crate::memory::cstr_from_ptr(buf.as_ptr()).to_str().unwrap(),
+                std::ffi::CStr::from_bytes_until_nul(&buf)
+                    .unwrap()
+                    .to_str()
+                    .unwrap(),
                 "250"
             );
         }
 
-        assert!(os_get_userdir(c"neovim_user_not_found_test").is_none());
+        assert!(os_get_userdir(Some(c"neovim_user_not_found_test")).is_none());
 
         let users = collect_usernames();
         assert!(users.iter().all(|u| !u.as_bytes().is_empty()));
