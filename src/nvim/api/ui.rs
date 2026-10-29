@@ -501,7 +501,8 @@ pub fn nvim_ui_set_option(channel_id: u64, name: NvimString, value: Object, erro
 }
 
 fn ui_set_option(ui: &mut RemoteUI, init: bool, name: NvimString, value: Object, err: &mut Error) {
-    if crate::memory::cstr_as_opt_bytes(name.data) == Some(b"override") {
+    let name_bytes = name.cstr_bytes();
+    if name_bytes == b"override" {
         if value.obj_type != ObjectType::ObjectTypeBoolean {
             api_err_exp(
                 err,
@@ -515,7 +516,7 @@ fn ui_set_option(ui: &mut RemoteUI, init: bool, name: NvimString, value: Object,
         return;
     }
 
-    if crate::memory::cstr_as_opt_bytes(name.data) == Some(b"rgb") {
+    if name_bytes == b"rgb" {
         if value.obj_type != ObjectType::ObjectTypeBoolean {
             api_err_exp(
                 err,
@@ -532,7 +533,7 @@ fn ui_set_option(ui: &mut RemoteUI, init: bool, name: NvimString, value: Object,
         return;
     }
 
-    if crate::memory::cstr_as_opt_bytes(name.data) == Some(b"term_name") {
+    if name_bytes == b"term_name" {
         if value.obj_type != ObjectType::ObjectTypeString {
             api_err_exp(
                 err,
@@ -543,18 +544,13 @@ fn ui_set_option(ui: &mut RemoteUI, init: bool, name: NvimString, value: Object,
             return;
         }
         let s = value.data.string();
-        let slice = if s.data.is_null() || s.size == 0 {
-            &[][..]
-        } else {
-            crate::memory::cstr_slice(s.data, s.size)
-        };
-        let term_cstr = std::ffi::CString::new(slice).unwrap();
+        let term_cstr = std::ffi::CString::new(s.as_bytes()).unwrap();
         set_tty_option(c"term", Some(term_cstr.clone()));
         ui.term_name = Some(term_cstr);
         return;
     }
 
-    if crate::memory::cstr_as_opt_bytes(name.data) == Some(b"term_colors") {
+    if name_bytes == b"term_colors" {
         if value.obj_type != ObjectType::ObjectTypeInteger {
             api_err_exp(
                 err,
@@ -569,7 +565,7 @@ fn ui_set_option(ui: &mut RemoteUI, init: bool, name: NvimString, value: Object,
         return;
     }
 
-    if crate::memory::cstr_as_opt_bytes(name.data) == Some(b"stdin_fd") {
+    if name_bytes == b"stdin_fd" {
         if value.obj_type != ObjectType::ObjectTypeInteger {
             api_err_exp(
                 err,
@@ -601,7 +597,7 @@ fn ui_set_option(ui: &mut RemoteUI, init: bool, name: NvimString, value: Object,
         return;
     }
 
-    if crate::memory::cstr_as_opt_bytes(name.data) == Some(b"stdin_tty") {
+    if name_bytes == b"stdin_tty" {
         if value.obj_type != ObjectType::ObjectTypeBoolean {
             api_err_exp(
                 err,
@@ -618,7 +614,7 @@ fn ui_set_option(ui: &mut RemoteUI, init: bool, name: NvimString, value: Object,
         return;
     }
 
-    if crate::memory::cstr_as_opt_bytes(name.data) == Some(b"stdout_tty") {
+    if name_bytes == b"stdout_tty" {
         if value.obj_type != ObjectType::ObjectTypeBoolean {
             api_err_exp(
                 err,
@@ -635,10 +631,9 @@ fn ui_set_option(ui: &mut RemoteUI, init: bool, name: NvimString, value: Object,
         return;
     }
 
-    let is_popupmenu = crate::memory::cstr_as_opt_bytes(name.data) == Some(b"popupmenu_external");
+    let is_popupmenu = name_bytes == b"popupmenu_external";
     for (i, ext_name) in UI_EXT_NAMES.iter().enumerate().take(K_UIEXT_COUNT) {
-        if (crate::memory::cstr_as_opt_bytes(name.data)
-            == crate::memory::cstr_as_opt_bytes(ext_name.as_ptr()))
+        if (!name.data.is_null() && name_bytes == ext_name.to_bytes())
             || (i == K_UIPOPUPMENU && is_popupmenu)
         {
             if value.obj_type != ObjectType::ObjectTypeBoolean {

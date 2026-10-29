@@ -14,7 +14,6 @@ use crate::eval::typval::{
 };
 use crate::eval::vars::MAXCOL;
 use crate::eval::vars::{Scid, before_set_vvar, get_vimvar_dict};
-use crate::ex_docmd::CAR;
 use crate::ex_eval::{
     Except, Msglist, discard_current_exception, free_global_msglist, get_error_exception_string,
 };
@@ -713,12 +712,14 @@ pub fn cstr_to_string(str_: impl crate::strings::IntoCCharPtr) -> NvimString {
 }
 
 pub fn string_to_cstr(str_: NvimString) -> std::ffi::CString {
-    let slice = if str_.data.is_null() || str_.size == 0 {
-        &[]
-    } else {
-        crate::memory::cstr_slice(str_.data, str_.size)
-    };
-    crate::memory::cstr_from_bytes(slice)
+    crate::memory::cstr_from_bytes(str_.as_bytes())
+}
+
+pub fn bytes_to_string(bytes: &[u8]) -> NvimString {
+    NvimString {
+        data: alloc_cstring_len(bytes.as_ptr().cast::<c_char>(), bytes.len()),
+        size: bytes.len(),
+    }
 }
 
 pub fn cbuf_to_string(buf: impl crate::strings::IntoCCharPtr, size: usize) -> NvimString {
@@ -761,59 +762,40 @@ pub fn cstr_as_string<S: crate::strings::IntoCCharPtr>(str_: S) -> NvimString {
 
 pub fn string_to_array(input: NvimString, crlf: bool, arena: &mut Arena) -> Array {
     let mut ret = ArrayBuilder::new();
+    let bytes = input.as_bytes();
 
     let mut i: usize = 0;
-    while i < input.size {
-        let start = input.data.wrapping_add(i);
-        let mut end = start;
+    while i < bytes.len() {
+        let start = i;
         let mut line_len: usize = 0;
-        while line_len < input.size - i {
-            end = start.wrapping_add(line_len);
-            if unsafe { *end } == NL || (crlf && unsafe { *end } == CAR) {
+        while line_len < bytes.len() - i {
+            let b = bytes[start + line_len];
+            if b == b'\n' || (crlf && b == b'\r') {
                 break;
             }
             line_len += 1;
         }
+        let end_idx = start + line_len;
+        let end_byte = bytes.get(end_idx).copied().unwrap_or(0);
         i += line_len;
-        if crlf
-            && unsafe { *end } == CAR
-            && i + 1 < input.size
-            && unsafe { *end.wrapping_add(1) } == NL
-        {
+        if crlf && end_byte == b'\r' && bytes.get(end_idx + 1).copied() == Some(b'\n') {
             i += 1;
         }
-        let s = arena_string(
-            arena,
-            NvimString {
-                data: start,
-                size: line_len,
-            },
-        );
-        {
-            let _d = (s.data).cast::<u8>();
-            let _sz = line_len;
-            if _sz > 0 {
-                let _c = (NUL) as u8;
-                let _x = (NL) as u8;
-                for _b in unsafe { std::slice::from_raw_parts_mut(_d, _sz) } {
-                    if *_b == _c {
-                        *_b = _x;
-                    }
+        let s = arena_bytes(arena, &bytes[start..start + line_len]);
+        if line_len > 0 {
+            let out_slice = unsafe { std::slice::from_raw_parts_mut(s.data.cast::<u8>(), line_len) };
+            for b in out_slice {
+                if *b == 0 {
+                    *b = b'\n';
                 }
             }
-        };
+        }
         ret.push(Object {
             obj_type: ObjectType::ObjectTypeString,
             data: ObjectData::String(s),
         });
-        if i + 1 == input.size && (unsafe { *end } == NL || (crlf && unsafe { *end } == CAR)) {
-            let empty_s = arena_string(
-                arena,
-                NvimString {
-                    data: c"".as_ptr().cast_mut(),
-                    size: 0,
-                },
-            );
+        if i + 1 == bytes.len() && (end_byte == b'\n' || (crlf && end_byte == b'\r')) {
+            let empty_s = arena_bytes(arena, &[]);
             ret.push(Object {
                 obj_type: ObjectType::ObjectTypeString,
                 data: ObjectData::String(empty_s),
@@ -932,11 +914,11 @@ pub fn arena_dict_opt(arena: Option<&mut Arena>, max_size: usize) -> Dict {
     }
 }
 
-pub fn arena_string(arena: &mut Arena, str_: NvimString) -> NvimString {
-    if str_.size != 0 {
+pub fn arena_bytes(arena: &mut Arena, bytes: &[u8]) -> NvimString {
+    if !bytes.is_empty() {
         NvimString {
-            data: arena_memdupz(arena, str_.data, str_.size),
-            size: str_.size,
+            data: arena_memdupz(arena, bytes.as_ptr().cast::<c_char>(), bytes.len()),
+            size: bytes.len(),
         }
     } else {
         NvimString {
@@ -944,6 +926,10 @@ pub fn arena_string(arena: &mut Arena, str_: NvimString) -> NvimString {
             size: 0,
         }
     }
+}
+
+pub fn arena_string(arena: &mut Arena, str_: NvimString) -> NvimString {
+    arena_bytes(arena, str_.as_bytes())
 }
 
 #[inline]
@@ -1204,11 +1190,7 @@ pub fn api_dict_to_keydict(
         };
         for i in 0..dict.size {
             let k = dict[i].key;
-            let key_bytes = if k.data.is_null() || k.size == 0 {
-                &[][..]
-            } else {
-                crate::memory::cstr_slice(k.data, k.size)
-            };
+            let key_bytes = k.as_bytes();
             let Some(field) = hashy_fn(key_bytes) else {
                 api_set_error!(
                     err,
@@ -1504,8 +1486,9 @@ pub fn set_mark(
         col: col as Colnr,
         coladd: 0,
     };
+    let mark_char = name.as_bytes().first().copied().unwrap_or(0) as i32;
     let res = setmark_pos(
-        crate::memory::cstr_first_char(name.data),
+        mark_char,
         &mut pos,
         unsafe { (*buf).b_fnum },
         None,
@@ -1516,14 +1499,14 @@ pub fn set_mark(
                 err,
                 ErrorType::ErrorTypeException,
                 c"Failed to delete named mark: %c",
-                crate::memory::cstr_first_char(name.data),
+                mark_char,
             );
         } else {
             api_set_error!(
                 err,
                 ErrorType::ErrorTypeException,
                 c"Failed to set named mark: %c",
-                crate::memory::cstr_first_char(name.data),
+                mark_char,
             );
         }
     }
@@ -4178,7 +4161,6 @@ static API_TYPES: [(&str, u32, &str); 3] = [
 ];
 
 use crate::api::buffer::{LUA_INTERNAL_CALL, VIML_INTERNAL_CALL};
-use crate::charset::{NL, NUL};
 use crate::version::{
     NVIM_API_LEVEL_COMPAT_CONST, NVIM_API_LEVEL_CONST, NVIM_API_PRERELEASE_CONST,
     NVIM_VERSION_MAJOR_CONST, NVIM_VERSION_MINOR_CONST, NVIM_VERSION_PATCH_CONST,

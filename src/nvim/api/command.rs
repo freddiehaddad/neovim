@@ -1037,13 +1037,8 @@ pub fn nvim_cmd(
                         KEYSET_OPTIDX_CMD_MODS_FILTER_PATTERN,
                     ) {
                         cmod.cmod_filter_force = filter.force;
-                        if !crate::memory::cstr_is_empty(filter.pattern.data)
-                            || cmod.cmod_filter_force
-                        {
-                            let pat = cstr_from_bytes(std::slice::from_raw_parts(
-                                filter.pattern.data.cast::<u8>(),
-                                filter.pattern.size,
-                            ));
+                        if !filter.pattern.cstr_bytes().is_empty() || cmod.cmod_filter_force {
+                            let pat = cstr_from_bytes(filter.pattern.as_bytes());
                             cmod.cmod_filter_regmatch.regprog = vim_regcomp(pat.as_ptr(), RE_MAGIC);
                             cmod.cmod_filter_pat = Some(pat);
                         }
@@ -1067,28 +1062,16 @@ pub fn nvim_cmd(
                 }
 
                 if has_key(mods_mask, KEYSET_OPTIDX_CMD_MODS_SPLIT) {
-                    if crate::memory::cstr_is_empty(mods.split.data) {
-                        // Empty string
-                    } else if (crate::memory::cstr_as_opt_bytes(mods.split.data)
-                        == Some(b"aboveleft"))
-                        || (crate::memory::cstr_as_opt_bytes(mods.split.data) == Some(b"leftabove"))
-                    {
-                        cmod.cmod_split |= WSP_ABOVE;
-                    } else if (crate::memory::cstr_as_opt_bytes(mods.split.data)
-                        == Some(b"belowright"))
-                        || (crate::memory::cstr_as_opt_bytes(mods.split.data)
-                            == Some(b"rightbelow"))
-                    {
-                        cmod.cmod_split |= WSP_BELOW;
-                    } else if crate::memory::cstr_as_opt_bytes(mods.split.data) == Some(b"topleft")
-                    {
-                        cmod.cmod_split |= WSP_TOP;
-                    } else if crate::memory::cstr_as_opt_bytes(mods.split.data) == Some(b"botright")
-                    {
-                        cmod.cmod_split |= WSP_BOT;
-                    } else {
-                        api_err_invalid(err, c"mods.split", c"", 0, true);
-                        break 'end;
+                    match mods.split.cstr_bytes() {
+                        b"" => {}
+                        b"aboveleft" | b"leftabove" => cmod.cmod_split |= WSP_ABOVE,
+                        b"belowright" | b"rightbelow" => cmod.cmod_split |= WSP_BELOW,
+                        b"topleft" => cmod.cmod_split |= WSP_TOP,
+                        b"botright" => cmod.cmod_split |= WSP_BOT,
+                        _ => {
+                            api_err_invalid(err, c"mods.split", c"", 0, true);
+                            break 'end;
+                        }
                     }
                 }
 

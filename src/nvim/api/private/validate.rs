@@ -22,11 +22,23 @@ impl NvimString {
 
     #[inline]
     pub fn as_bytes(&self) -> &[u8] {
-        if self.size == 0 || self.data.is_null() {
+        if self.is_empty() {
             &[]
         } else {
-            crate::memory::cstr_slice(self.data, self.size)
+            unsafe { std::slice::from_raw_parts(self.data.cast::<u8>(), self.size) }
         }
+    }
+
+    #[inline]
+    pub const fn is_empty(&self) -> bool {
+        self.size == 0 || self.data.is_null()
+    }
+
+    #[inline]
+    pub fn cstr_bytes(&self) -> &[u8] {
+        let bytes = self.as_bytes();
+        let end = bytes.iter().position(|&b| b == 0).unwrap_or(bytes.len());
+        &bytes[..end]
     }
 }
 

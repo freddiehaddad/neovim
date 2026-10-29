@@ -316,42 +316,34 @@ fn process_xdl_diff_opts(
 
         'validate: {
             if opts.has_key(KEYSET_OPTIDX_RESULT_TYPE) {
-                if crate::memory::cstr_as_opt_bytes(opts.result_type.data) == Some(b"unified") {
-                    // default
-                } else if crate::memory::cstr_as_opt_bytes(opts.result_type.data)
-                    == Some(b"indices")
-                {
-                    had_result_type_indices = true;
-                } else {
-                    api_set_error!(
-                        err,
-                        ErrorType::ErrorTypeValidation,
-                        c"not a valid result_type",
-                    );
-                    break 'validate;
+                match opts.result_type.cstr_bytes() {
+                    b"unified" => {}
+                    b"indices" => had_result_type_indices = true,
+                    _ => {
+                        api_set_error!(
+                            err,
+                            ErrorType::ErrorTypeValidation,
+                            c"not a valid result_type",
+                        );
+                        break 'validate;
+                    }
                 }
             }
 
             if opts.has_key(KEYSET_OPTIDX_ALGORITHM) {
-                if crate::memory::cstr_as_opt_bytes(opts.algorithm.data) == Some(b"myers") {
-                    // default
-                } else if crate::memory::cstr_as_opt_bytes(opts.algorithm.data) == Some(b"minimal")
-                {
-                    params.flags |= XDF_NEED_MINIMAL;
-                } else if crate::memory::cstr_as_opt_bytes(opts.algorithm.data) == Some(b"patience")
-                {
-                    params.flags |= XDF_PATIENCE_DIFF;
-                } else if crate::memory::cstr_as_opt_bytes(opts.algorithm.data)
-                    == Some(b"histogram")
-                {
-                    params.flags |= XDF_HISTOGRAM_DIFF;
-                } else {
-                    api_set_error!(
-                        err,
-                        ErrorType::ErrorTypeValidation,
-                        c"not a valid algorithm",
-                    );
-                    break 'validate;
+                match opts.algorithm.cstr_bytes() {
+                    b"myers" => {}
+                    b"minimal" => params.flags |= XDF_NEED_MINIMAL,
+                    b"patience" => params.flags |= XDF_PATIENCE_DIFF,
+                    b"histogram" => params.flags |= XDF_HISTOGRAM_DIFF,
+                    _ => {
+                        api_set_error!(
+                            err,
+                            ErrorType::ErrorTypeValidation,
+                            c"not a valid algorithm",
+                        );
+                        break 'validate;
+                    }
                 }
             }
 

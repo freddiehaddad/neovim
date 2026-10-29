@@ -688,45 +688,31 @@ pub fn nvim_input_mouse(
             break 'check None;
         }
 
-        let mut code: i32 = if crate::memory::cstr_as_opt_bytes(button.data) == Some(b"left") {
-            i32::from(KE_LEFTMOUSE)
-        } else if crate::memory::cstr_as_opt_bytes(button.data) == Some(b"middle") {
-            i32::from(KE_MIDDLEMOUSE)
-        } else if crate::memory::cstr_as_opt_bytes(button.data) == Some(b"right") {
-            i32::from(KE_RIGHTMOUSE)
-        } else if crate::memory::cstr_as_opt_bytes(button.data) == Some(b"wheel") {
-            i32::from(KE_MOUSEDOWN)
-        } else if crate::memory::cstr_as_opt_bytes(button.data) == Some(b"x1") {
-            i32::from(KE_X1MOUSE)
-        } else if crate::memory::cstr_as_opt_bytes(button.data) == Some(b"x2") {
-            i32::from(KE_X2MOUSE)
-        } else if crate::memory::cstr_as_opt_bytes(button.data) == Some(b"move") {
-            i32::from(KE_MOUSEMOVE)
-        } else {
-            break 'check None;
+        let mut code: i32 = match button.cstr_bytes() {
+            b"left" => i32::from(KE_LEFTMOUSE),
+            b"middle" => i32::from(KE_MIDDLEMOUSE),
+            b"right" => i32::from(KE_RIGHTMOUSE),
+            b"wheel" => i32::from(KE_MOUSEDOWN),
+            b"x1" => i32::from(KE_X1MOUSE),
+            b"x2" => i32::from(KE_X2MOUSE),
+            b"move" => i32::from(KE_MOUSEMOVE),
+            _ => break 'check None,
         };
 
         if code == i32::from(KE_MOUSEDOWN) {
-            if crate::memory::cstr_as_opt_bytes(action.data) == Some(b"down") {
-                code = i32::from(KE_MOUSEUP);
-            } else if crate::memory::cstr_as_opt_bytes(action.data) == Some(b"up") {
-                // code = KE_MOUSEDOWN
-            } else if crate::memory::cstr_as_opt_bytes(action.data) == Some(b"left") {
-                code = i32::from(KE_MOUSERIGHT);
-            } else if crate::memory::cstr_as_opt_bytes(action.data) == Some(b"right") {
-                code = i32::from(KE_MOUSELEFT);
-            } else {
-                break 'check None;
+            match action.cstr_bytes() {
+                b"down" => code = i32::from(KE_MOUSEUP),
+                b"up" => {}
+                b"left" => code = i32::from(KE_MOUSERIGHT),
+                b"right" => code = i32::from(KE_MOUSELEFT),
+                _ => break 'check None,
             }
         } else if code != i32::from(KE_MOUSEMOVE) {
-            if crate::memory::cstr_as_opt_bytes(action.data) == Some(b"press") {
-                // pass
-            } else if crate::memory::cstr_as_opt_bytes(action.data) == Some(b"drag") {
-                code += i32::from(KE_LEFTDRAG) - i32::from(KE_LEFTMOUSE);
-            } else if crate::memory::cstr_as_opt_bytes(action.data) == Some(b"release") {
-                code += i32::from(KE_LEFTRELEASE) - i32::from(KE_LEFTMOUSE);
-            } else {
-                break 'check None;
+            match action.cstr_bytes() {
+                b"press" => {}
+                b"drag" => code += i32::from(KE_LEFTDRAG) - i32::from(KE_LEFTMOUSE),
+                b"release" => code += i32::from(KE_LEFTRELEASE) - i32::from(KE_LEFTMOUSE),
+                _ => break 'check None,
             }
         }
 
@@ -1243,10 +1229,10 @@ pub fn nvim_echo(
         }
 
         if is_progress
-            && !((crate::memory::cstr_as_opt_bytes(opts.status.data) == Some(b"success"))
-                || (crate::memory::cstr_as_opt_bytes(opts.status.data) == Some(b"failed"))
-                || (crate::memory::cstr_as_opt_bytes(opts.status.data) == Some(b"running"))
-                || (crate::memory::cstr_as_opt_bytes(opts.status.data) == Some(b"cancel")))
+            && !matches!(
+                opts.status.cstr_bytes(),
+                b"success" | b"failed" | b"running" | b"cancel"
+            )
         {
             api_err_exp(
                 err,
@@ -1270,7 +1256,7 @@ pub fn nvim_echo(
         }
 
         if !validate_s(
-            !is_progress || !(crate::memory::cstr_as_opt_bytes(opts.source.data) == Some(b"nvim")),
+            !is_progress || opts.source.cstr_bytes() != b"nvim",
             c"source",
             opts.source.data,
             err,
@@ -1960,22 +1946,18 @@ pub fn nvim_get_context(opts: &mut KeyDict_context, arena: &mut Arena, err: &mut
         for i in 0..types.size {
             let item = types[i];
             if item.obj_type == ObjectType::ObjectTypeString {
-                let s = item.data.string().data;
-                if crate::memory::cstr_as_opt_bytes(s) == Some(b"regs") {
-                    int_types |= K_CTX_REGS;
-                } else if crate::memory::cstr_as_opt_bytes(s) == Some(b"jumps") {
-                    int_types |= K_CTX_JUMPS;
-                } else if crate::memory::cstr_as_opt_bytes(s) == Some(b"bufs") {
-                    int_types |= K_CTX_BUFS;
-                } else if crate::memory::cstr_as_opt_bytes(s) == Some(b"gvars") {
-                    int_types |= K_CTX_GVARS;
-                } else if crate::memory::cstr_as_opt_bytes(s) == Some(b"sfuncs") {
-                    int_types |= K_CTX_SFUNCS;
-                } else if crate::memory::cstr_as_opt_bytes(s) == Some(b"funcs") {
-                    int_types |= K_CTX_FUNCS;
-                } else {
-                    let _ = validate_s(false, c"type", s, err);
-                    return Dict::new();
+                let s = item.data.string();
+                match s.cstr_bytes() {
+                    b"regs" => int_types |= K_CTX_REGS,
+                    b"jumps" => int_types |= K_CTX_JUMPS,
+                    b"bufs" => int_types |= K_CTX_BUFS,
+                    b"gvars" => int_types |= K_CTX_GVARS,
+                    b"sfuncs" => int_types |= K_CTX_SFUNCS,
+                    b"funcs" => int_types |= K_CTX_FUNCS,
+                    _ => {
+                        let _ = validate_s(false, c"type", s.data, err);
+                        return Dict::new();
+                    }
                 }
             }
         }
@@ -2191,7 +2173,7 @@ pub fn nvim_set_client_info(
 
     let mut has_major = false;
     for i in 0..version.size {
-        if crate::memory::cstr_as_opt_bytes(version[i].key.data) == Some(b"major") {
+        if version[i].key.cstr_bytes() == b"major" {
             has_major = true;
             break;
         }

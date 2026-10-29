@@ -110,13 +110,13 @@ fn validate_option_value_args(
         }
 
         if has_key(mask, KEYSET_OPTIDX_OPTION_SCOPE) {
-            if crate::memory::cstr_as_opt_bytes(opts.scope.data) == Some(b"local") {
-                *opt_flags = OPT_LOCAL;
-            } else if crate::memory::cstr_as_opt_bytes(opts.scope.data) == Some(b"global") {
-                *opt_flags = OPT_GLOBAL;
-            } else {
-                api_err_exp(err, c"scope", c"'local' or 'global'", std::ptr::null());
-                return false;
+            match opts.scope.cstr_bytes() {
+                b"local" => *opt_flags = OPT_LOCAL,
+                b"global" => *opt_flags = OPT_GLOBAL,
+                _ => {
+                    api_err_exp(err, c"scope", c"'local' or 'global'", std::ptr::null());
+                    return false;
+                }
             }
         }
 
@@ -171,22 +171,20 @@ fn validate_option_value_args(
         if has_key(mask, KEYSET_OPTIDX_OPTION_OPERATION)
             && let Some(operation) = operation
         {
-            if crate::memory::cstr_as_opt_bytes(opts.operation.data) == Some(b"set") {
-                *operation = OP_NONE;
-            } else if crate::memory::cstr_as_opt_bytes(opts.operation.data) == Some(b"append") {
-                *operation = OP_ADDING;
-            } else if crate::memory::cstr_as_opt_bytes(opts.operation.data) == Some(b"prepend") {
-                *operation = OP_PREPENDING;
-            } else if crate::memory::cstr_as_opt_bytes(opts.operation.data) == Some(b"remove") {
-                *operation = OP_REMOVING;
-            } else {
-                api_err_exp(
-                    err,
-                    c"operation",
-                    c"'set', 'append', 'prepend', or 'remove'",
-                    std::ptr::null(),
-                );
-                return false;
+            match opts.operation.cstr_bytes() {
+                b"set" => *operation = OP_NONE,
+                b"append" => *operation = OP_ADDING,
+                b"prepend" => *operation = OP_PREPENDING,
+                b"remove" => *operation = OP_REMOVING,
+                _ => {
+                    api_err_exp(
+                        err,
+                        c"operation",
+                        c"'set', 'append', 'prepend', or 'remove'",
+                        std::ptr::null(),
+                    );
+                    return false;
+                }
             }
 
             if !(*operation == OP_NONE

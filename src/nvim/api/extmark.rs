@@ -199,11 +199,7 @@ pub fn api_extmark_free_all_mem() {
 // DLLEXPORT Integer nvim_create_namespace(String name)
 //   FUNC_API_SINCE(5);
 pub fn nvim_create_namespace(name: NvimString) -> Integer {
-    let name_bytes = if name.size == 0 || name.data.is_null() {
-        &[][..]
-    } else {
-        crate::memory::cstr_slice(name.data, name.size)
-    };
+    let name_bytes = name.as_bytes();
     if !name_bytes.is_empty()
         && let Some((_, id)) = g_st()
             .namespace_ids
@@ -497,22 +493,20 @@ pub fn nvim_buf_get_extmarks(
 
     let mut type_filter = K_EXTMARK_NONE;
     if has_key(mask, KEYSET_OPTIDX_GET_EXTMARKS_TYPE) {
-        if crate::memory::cstr_as_opt_bytes(opts.type_.data) == Some(b"sign") {
-            type_filter = K_EXTMARK_SIGN;
-        } else if crate::memory::cstr_as_opt_bytes(opts.type_.data) == Some(b"virt_text") {
-            type_filter = K_EXTMARK_VIRT_TEXT;
-        } else if crate::memory::cstr_as_opt_bytes(opts.type_.data) == Some(b"virt_lines") {
-            type_filter = K_EXTMARK_VIRT_LINES;
-        } else if crate::memory::cstr_as_opt_bytes(opts.type_.data) == Some(b"highlight") {
-            type_filter = K_EXTMARK_HIGHLIGHT;
-        } else {
-            api_err_exp(
-                err,
-                c"type",
-                c"sign, virt_text, virt_lines or highlight",
-                opts.type_.data,
-            );
-            return rv;
+        match opts.type_.cstr_bytes() {
+            b"sign" => type_filter = K_EXTMARK_SIGN,
+            b"virt_text" => type_filter = K_EXTMARK_VIRT_TEXT,
+            b"virt_lines" => type_filter = K_EXTMARK_VIRT_LINES,
+            b"highlight" => type_filter = K_EXTMARK_HIGHLIGHT,
+            _ => {
+                api_err_exp(
+                    err,
+                    c"type",
+                    c"sign, virt_text, virt_lines or highlight",
+                    opts.type_.data,
+                );
+                return rv;
+            }
         }
     }
 
@@ -882,8 +876,7 @@ pub fn nvim_buf_set_extmark(
         if has_key(mask, KEYSET_OPTIDX_SET_EXTMARK_CONCEAL_LINES) {
             hl.flags |= K_SHCONCEAL_LINES;
             has_hl = true;
-            if opts.conceal_lines.size > 0 && !crate::memory::cstr_is_empty(opts.conceal_lines.data)
-            {
+            if !opts.conceal_lines.cstr_bytes().is_empty() {
                 api_set_error!(
                     err,
                     ErrorType::ErrorTypeValidation,
@@ -908,19 +901,16 @@ pub fn nvim_buf_set_extmark(
 
         if has_key(mask, KEYSET_OPTIDX_SET_EXTMARK_VIRT_TEXT_POS) {
             let str_val = opts.virt_text_pos;
-            if crate::memory::cstr_as_opt_bytes(str_val.data) == Some(b"eol") {
-                virt_text.pos = K_VPOS_END_OF_LINE;
-            } else if crate::memory::cstr_as_opt_bytes(str_val.data) == Some(b"overlay") {
-                virt_text.pos = K_VPOS_OVERLAY;
-            } else if crate::memory::cstr_as_opt_bytes(str_val.data) == Some(b"right_align") {
-                virt_text.pos = K_VPOS_RIGHT_ALIGN;
-            } else if crate::memory::cstr_as_opt_bytes(str_val.data) == Some(b"eol_right_align") {
-                virt_text.pos = K_VPOS_END_OF_LINE_RIGHT_ALIGN;
-            } else if crate::memory::cstr_as_opt_bytes(str_val.data) == Some(b"inline") {
-                virt_text.pos = K_VPOS_INLINE;
-            } else {
-                api_err_invalid(err, c"virt_text_pos", str_val.data, 0, true);
-                break 'error;
+            match str_val.cstr_bytes() {
+                b"eol" => virt_text.pos = K_VPOS_END_OF_LINE,
+                b"overlay" => virt_text.pos = K_VPOS_OVERLAY,
+                b"right_align" => virt_text.pos = K_VPOS_RIGHT_ALIGN,
+                b"eol_right_align" => virt_text.pos = K_VPOS_END_OF_LINE_RIGHT_ALIGN,
+                b"inline" => virt_text.pos = K_VPOS_INLINE,
+                _ => {
+                    api_err_invalid(err, c"virt_text_pos", str_val.data, 0, true);
+                    break 'error;
+                }
             }
         }
 
@@ -939,24 +929,25 @@ pub fn nvim_buf_set_extmark(
 
         if has_key(mask, KEYSET_OPTIDX_SET_EXTMARK_HL_MODE) {
             let str_val = opts.hl_mode;
-            if crate::memory::cstr_as_opt_bytes(str_val.data) == Some(b"replace") {
-                virt_text.hl_mode = K_HL_MODE_REPLACE;
-            } else if crate::memory::cstr_as_opt_bytes(str_val.data) == Some(b"combine") {
-                virt_text.hl_mode = K_HL_MODE_COMBINE;
-            } else if crate::memory::cstr_as_opt_bytes(str_val.data) == Some(b"blend") {
-                if virt_text.pos == K_VPOS_INLINE {
-                    api_set_error!(
-                        err,
-                        ErrorType::ErrorTypeValidation,
-                        c"%s",
-                        c"cannot use 'blend' hl_mode with inline virtual text",
-                    );
+            match str_val.cstr_bytes() {
+                b"replace" => virt_text.hl_mode = K_HL_MODE_REPLACE,
+                b"combine" => virt_text.hl_mode = K_HL_MODE_COMBINE,
+                b"blend" => {
+                    if virt_text.pos == K_VPOS_INLINE {
+                        api_set_error!(
+                            err,
+                            ErrorType::ErrorTypeValidation,
+                            c"%s",
+                            c"cannot use 'blend' hl_mode with inline virtual text",
+                        );
+                        break 'error;
+                    }
+                    virt_text.hl_mode = K_HL_MODE_BLEND;
+                }
+                _ => {
+                    api_err_invalid(err, c"hl_mode", str_val.data, 0, true);
                     break 'error;
                 }
-                virt_text.hl_mode = K_HL_MODE_BLEND;
-            } else {
-                api_err_invalid(err, c"hl_mode", str_val.data, 0, true);
-                break 'error;
             }
         }
 
@@ -968,15 +959,15 @@ pub fn nvim_buf_set_extmark(
         let mut virt_lines_overflow = K_VLOVERFLOW_TRUNC;
         if has_key(mask, KEYSET_OPTIDX_SET_EXTMARK_VIRT_LINES_OVERFLOW) {
             let str_val = opts.virt_lines_overflow;
-            if crate::memory::cstr_as_opt_bytes(str_val.data) == Some(b"scroll") {
-                virt_lines_overflow = K_VLOVERFLOW_SCROLL;
-            } else if crate::memory::cstr_as_opt_bytes(str_val.data) == Some(b"wrap") {
-                virt_lines_overflow = K_VLOVERFLOW_WRAP;
-            } else if crate::memory::cstr_as_opt_bytes(str_val.data) == Some(b"auto") {
-                virt_lines_overflow = K_VLOVERFLOW_AUTO;
-            } else if !(crate::memory::cstr_as_opt_bytes(str_val.data) == Some(b"trunc")) {
-                api_err_invalid(err, c"virt_lines_overflow", str_val.data, 0, true);
-                break 'error;
+            match str_val.cstr_bytes() {
+                b"scroll" => virt_lines_overflow = K_VLOVERFLOW_SCROLL,
+                b"wrap" => virt_lines_overflow = K_VLOVERFLOW_WRAP,
+                b"auto" => virt_lines_overflow = K_VLOVERFLOW_AUTO,
+                b"trunc" => {}
+                _ => {
+                    api_err_invalid(err, c"virt_lines_overflow", str_val.data, 0, true);
+                    break 'error;
+                }
             }
         }
 

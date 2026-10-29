@@ -15,7 +15,6 @@ use crate::api::private::validate::{
 };
 use crate::api::tabpage::{Buffer, Tabpage, Window};
 use crate::api::vimscript::{KeyDict_exec_opts, exec_impl};
-use crate::charset::{NL, NUL};
 use crate::cursor::Colnr;
 use crate::decoration::{
     DECOR_ID_INVALID, DecorInline, DecorVirtText, DecorVirtTextData, K_HL_MODE_UNKNOWN,
@@ -39,7 +38,6 @@ use crate::option::{
     set_option_value_for,
 };
 use crate::window::{win_setheight_win, win_setwidth_win};
-use std::ffi::c_char;
 use std::ptr;
 
 const LINE_BUFFER_MIN_SIZE: usize = 4096;
@@ -51,8 +49,8 @@ pub struct KeyDict_empty {
 }
 
 struct ApiDeprecatedState {
-    out_line_buf: Vec<c_char>,
-    err_line_buf: Vec<c_char>,
+    out_line_buf: Vec<u8>,
+    err_line_buf: Vec<u8>,
 }
 
 impl ApiDeprecatedState {
@@ -1143,24 +1141,25 @@ pub fn nvim_subscribe(_channel_id: u64, _event: NvimString) {}
 //   FUNC_API_SINCE(1) FUNC_API_DEPRECATED_SINCE(13) FUNC_API_REMOTE_ONLY;
 pub fn nvim_unsubscribe(_channel_id: u64, _event: NvimString) {}
 
-fn push_char(line_buf: &mut Vec<c_char>, c: c_char, to_err: bool) {
+fn push_char(line_buf: &mut Vec<u8>, c: u8, to_err: bool) {
     if line_buf.capacity() == 0 {
         line_buf.reserve(LINE_BUFFER_MIN_SIZE);
     }
-    if c == NL {
-        line_buf.push(NUL);
+    if c == b'\n' {
+        line_buf.push(0);
+        let cstr = unsafe { std::ffi::CStr::from_bytes_with_nul_unchecked(line_buf) };
         if to_err {
-            emsg(line_buf.as_ptr());
+            emsg(cstr);
         } else {
-            msg(line_buf.as_ptr(), 0);
+            msg(cstr, 0);
         }
         if g_st().msg_silent == 0 {
             g_st().msg_didout = true;
         }
         line_buf.clear();
         line_buf.shrink_to(LINE_BUFFER_MIN_SIZE);
-    } else if c == NUL {
-        line_buf.push(NL);
+    } else if c == 0 {
+        line_buf.push(b'\n');
     } else {
         line_buf.push(c);
     }
@@ -1176,14 +1175,14 @@ fn write_msg(message: NvimString, to_err: bool, writeln: bool) {
 
     msg_ext_no_fast();
     g_st().no_wait_return += 1;
-    for i in 0..message.size {
+    for &b in message.as_bytes() {
         if g_st().got_int {
             break;
         }
-        push_char(line_buf, unsafe { *message.data.wrapping_add(i) }, to_err);
+        push_char(line_buf, b, to_err);
     }
     if writeln {
-        push_char(line_buf, NL, to_err);
+        push_char(line_buf, b'\n', to_err);
     }
     g_st().no_wait_return -= 1;
     msg_end();

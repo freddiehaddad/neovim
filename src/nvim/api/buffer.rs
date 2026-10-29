@@ -1066,7 +1066,7 @@ pub fn nvim_buf_get_text(
         if error_set(err) {
             return Array::new();
         }
-        push_linestr(lstate, &mut rv, line.data, line.size, 0, replace_nl, arena);
+        push_linestr(lstate, &mut rv, line.as_bytes(), 0, replace_nl, arena);
         return rv;
     }
 
@@ -1075,15 +1075,7 @@ pub fn nvim_buf_get_text(
         return Array::new();
     }
 
-    push_linestr(
-        lstate,
-        &mut rv,
-        str_val.data,
-        str_val.size,
-        0,
-        replace_nl,
-        arena,
-    );
+    push_linestr(lstate, &mut rv, str_val.as_bytes(), 0, replace_nl, arena);
 
     if size > 2 {
         buf_collect_lines(
@@ -1106,8 +1098,7 @@ pub fn nvim_buf_get_text(
     push_linestr(
         lstate,
         &mut rv,
-        str_val.data,
-        str_val.size,
+        str_val.as_bytes(),
         (size - 1) as i32,
         replace_nl,
         arena,
@@ -1812,54 +1803,52 @@ fn init_line_array(lstate: *mut lua_State, a: &mut Array, size: usize, arena: &m
 fn push_linestr(
     lstate: *mut lua_State,
     a: &mut Array,
-    s: impl crate::strings::IntoCCharPtr,
-    len: usize,
+    s: &[u8],
     idx: i32,
     replace_nl: bool,
     arena: &mut Arena,
 ) {
-    let s = s.into_c_char_ptr();
-    {
-        if !lstate.is_null() {
-            if !s.is_null() && replace_nl && crate::memory::cstr_as_bytes(s).contains(&b'\n') {
-                let mut tmp: Vec<c_char> =
-                    unsafe { std::slice::from_raw_parts(s, len + 1) }.to_vec();
-                {
-                    let _p = tmp.as_mut_ptr();
-                    let _len = crate::memory::cstr_len(_p);
-                    for _b in unsafe { std::slice::from_raw_parts_mut(_p.cast::<u8>(), _len) } {
-                        if *_b == (NL) as u8 {
-                            *_b = (NUL) as u8;
-                        }
-                    }
-                };
-                unsafe { lua_pushlstring(lstate, tmp.as_ptr(), len) };
-            } else {
-                unsafe { lua_pushlstring(lstate, s, len) };
-            }
-            unsafe { lua_rawseti(lstate, -2, idx + 1) };
-        } else {
-            let mut str_val = NvimString {
-                data: ptr::null_mut(),
-                size: 0,
-            };
-            if len > 0 {
-                let data = arena_memdupz(arena, s, len);
-                if replace_nl {
-                    {
-                        let _p = data;
-                        let _len = crate::memory::cstr_len(_p);
-                        for _b in unsafe { std::slice::from_raw_parts_mut(_p.cast::<u8>(), _len) } {
-                            if *_b == (NL) as u8 {
-                                *_b = (NUL) as u8;
-                            }
-                        }
-                    };
+    if !lstate.is_null() {
+        if replace_nl && s.contains(&b'\n') {
+            let mut tmp: Vec<u8> = s.to_vec();
+            for b in &mut tmp {
+                if *b == b'\n' {
+                    *b = 0;
                 }
-                str_val = NvimString { data, size: len };
             }
-            add_c(a, string_obj(str_val));
+            unsafe { lua_pushlstring(lstate, tmp.as_ptr().cast::<c_char>(), tmp.len()) };
+        } else {
+            unsafe {
+                lua_pushlstring(
+                    lstate,
+                    if s.is_empty() {
+                        c"".as_ptr()
+                    } else {
+                        s.as_ptr().cast::<c_char>()
+                    },
+                    s.len(),
+                )
+            };
         }
+        unsafe { lua_rawseti(lstate, -2, idx + 1) };
+    } else {
+        let mut str_val = NvimString::new();
+        if !s.is_empty() {
+            let data = arena_memdupz(arena, s.as_ptr().cast::<c_char>(), s.len());
+            if replace_nl {
+                let slice = unsafe { std::slice::from_raw_parts_mut(data.cast::<u8>(), s.len()) };
+                for b in slice {
+                    if *b == b'\n' {
+                        *b = 0;
+                    }
+                }
+            }
+            str_val = NvimString {
+                data,
+                size: s.len(),
+            };
+        }
+        add_c(a, string_obj(str_val));
     }
 }
 
@@ -1891,11 +1880,15 @@ pub fn buf_collect_lines(
         let lnum = start + (i as Linenr);
         let bufstr = ml_get_buf(buf, lnum);
         let bufstrlen = ml_get_buf_len(buf, lnum) as usize;
+        let line_bytes = if bufstrlen == 0 || bufstr.is_null() {
+            &[][..]
+        } else {
+            unsafe { std::slice::from_raw_parts(bufstr.cast::<u8>(), bufstrlen) }
+        };
         push_linestr(
             lstate,
             l,
-            bufstr,
-            bufstrlen,
+            line_bytes,
             start_idx + (i as i32),
             replace_nl,
             arena,

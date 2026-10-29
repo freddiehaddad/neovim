@@ -3,7 +3,7 @@
 use crate::api::extmark::{parse_virt_text, virt_text_to_array};
 use crate::api::private::helpers::{
     add_c, api_clear_error, api_free_array, api_free_object, api_set_error, api_typename,
-    arena_array, array_obj, cbuf_to_string, cstr_as_string, cstr_to_obj, cstrn_as_string,
+    arena_array, array_obj, bytes_to_string, cstr_as_string, cstr_to_obj, cstrn_as_string,
     error_set, find_window_by_handle, has_key, integer_obj, object_to_hl_id, string_obj, try_wrap,
 };
 use crate::api::private::validate::{
@@ -1242,23 +1242,14 @@ pub fn nvim_win_get_config(win: Window, arena: &mut Arena, err: &mut Error) -> K
 }
 
 fn parse_float_anchor(anchor: NvimString, out: &mut FloatAnchor) -> bool {
-    if anchor.size == 0 {
+    let bytes = anchor.cstr_bytes();
+    if bytes.eq_ignore_ascii_case(b"NW") {
         *out = 0;
-    }
-    let str_ptr = anchor.data;
-    if crate::memory::cstr_as_opt_bytes(str_ptr).is_some_and(|b| b.eq_ignore_ascii_case(b"NW")) {
-        *out = 0;
-    } else if crate::memory::cstr_as_opt_bytes(str_ptr)
-        .is_some_and(|b| b.eq_ignore_ascii_case(b"NE"))
-    {
+    } else if bytes.eq_ignore_ascii_case(b"NE") {
         *out = K_FLOAT_ANCHOR_EAST;
-    } else if crate::memory::cstr_as_opt_bytes(str_ptr)
-        .is_some_and(|b| b.eq_ignore_ascii_case(b"SW"))
-    {
+    } else if bytes.eq_ignore_ascii_case(b"SW") {
         *out = K_FLOAT_ANCHOR_SOUTH;
-    } else if crate::memory::cstr_as_opt_bytes(str_ptr)
-        .is_some_and(|b| b.eq_ignore_ascii_case(b"SE"))
-    {
+    } else if bytes.eq_ignore_ascii_case(b"SE") {
         *out = K_FLOAT_ANCHOR_SOUTH | K_FLOAT_ANCHOR_EAST;
     } else {
         return false;
@@ -1267,29 +1258,18 @@ fn parse_float_anchor(anchor: NvimString, out: &mut FloatAnchor) -> bool {
 }
 
 fn parse_float_relative(relative: NvimString, out: &mut FloatRelative) -> bool {
-    let str_ptr = relative.data;
-    if crate::memory::cstr_as_opt_bytes(str_ptr).is_some_and(|b| b.eq_ignore_ascii_case(b"editor"))
-    {
+    let bytes = relative.cstr_bytes();
+    if bytes.eq_ignore_ascii_case(b"editor") {
         *out = K_FLOAT_RELATIVE_EDITOR;
-    } else if crate::memory::cstr_as_opt_bytes(str_ptr)
-        .is_some_and(|b| b.eq_ignore_ascii_case(b"win"))
-    {
+    } else if bytes.eq_ignore_ascii_case(b"win") {
         *out = K_FLOAT_RELATIVE_WINDOW;
-    } else if crate::memory::cstr_as_opt_bytes(str_ptr)
-        .is_some_and(|b| b.eq_ignore_ascii_case(b"cursor"))
-    {
+    } else if bytes.eq_ignore_ascii_case(b"cursor") {
         *out = K_FLOAT_RELATIVE_CURSOR;
-    } else if crate::memory::cstr_as_opt_bytes(str_ptr)
-        .is_some_and(|b| b.eq_ignore_ascii_case(b"mouse"))
-    {
+    } else if bytes.eq_ignore_ascii_case(b"mouse") {
         *out = K_FLOAT_RELATIVE_MOUSE;
-    } else if crate::memory::cstr_as_opt_bytes(str_ptr)
-        .is_some_and(|b| b.eq_ignore_ascii_case(b"tabline"))
-    {
+    } else if bytes.eq_ignore_ascii_case(b"tabline") {
         *out = K_FLOAT_RELATIVE_TABLINE;
-    } else if crate::memory::cstr_as_opt_bytes(str_ptr)
-        .is_some_and(|b| b.eq_ignore_ascii_case(b"laststatus"))
-    {
+    } else if bytes.eq_ignore_ascii_case(b"laststatus") {
         *out = K_FLOAT_RELATIVE_LASTSTATUS;
     } else {
         return false;
@@ -1298,20 +1278,14 @@ fn parse_float_relative(relative: NvimString, out: &mut FloatRelative) -> bool {
 }
 
 fn parse_config_split(split: NvimString, out: &mut WinSplit) -> bool {
-    let str_ptr = split.data;
-    if crate::memory::cstr_as_opt_bytes(str_ptr).is_some_and(|b| b.eq_ignore_ascii_case(b"left")) {
+    let bytes = split.cstr_bytes();
+    if bytes.eq_ignore_ascii_case(b"left") {
         *out = K_WIN_SPLIT_LEFT;
-    } else if crate::memory::cstr_as_opt_bytes(str_ptr)
-        .is_some_and(|b| b.eq_ignore_ascii_case(b"right"))
-    {
+    } else if bytes.eq_ignore_ascii_case(b"right") {
         *out = K_WIN_SPLIT_RIGHT;
-    } else if crate::memory::cstr_as_opt_bytes(str_ptr)
-        .is_some_and(|b| b.eq_ignore_ascii_case(b"above"))
-    {
+    } else if bytes.eq_ignore_ascii_case(b"above") {
         *out = K_WIN_SPLIT_ABOVE;
-    } else if crate::memory::cstr_as_opt_bytes(str_ptr)
-        .is_some_and(|b| b.eq_ignore_ascii_case(b"below"))
-    {
+    } else if bytes.eq_ignore_ascii_case(b"below") {
         *out = K_WIN_SPLIT_BELOW;
     } else {
         return false;
@@ -1415,26 +1389,24 @@ fn parse_bordertext_pos(
         return true;
     }
 
-    let pos = bordertext_pos.data;
-    if crate::memory::cstr_as_opt_bytes(pos) == Some(b"left") {
-        *align = K_ALIGN_LEFT;
-    } else if crate::memory::cstr_as_opt_bytes(pos) == Some(b"center") {
-        *align = K_ALIGN_CENTER;
-    } else if crate::memory::cstr_as_opt_bytes(pos) == Some(b"right") {
-        *align = K_ALIGN_RIGHT;
-    } else {
-        api_err_invalid(
-            err,
-            if bordertext_type == K_BORDER_TEXT_TITLE {
-                c"title_pos".as_ptr()
-            } else {
-                c"footer_pos".as_ptr()
-            },
-            pos,
-            0,
-            true,
-        );
-        return false;
+    match bordertext_pos.cstr_bytes() {
+        b"left" => *align = K_ALIGN_LEFT,
+        b"center" => *align = K_ALIGN_CENTER,
+        b"right" => *align = K_ALIGN_RIGHT,
+        _ => {
+            api_err_invalid(
+                err,
+                if bordertext_type == K_BORDER_TEXT_TITLE {
+                    c"title_pos".as_ptr()
+                } else {
+                    c"footer_pos".as_ptr()
+                },
+                bordertext_pos.data,
+                0,
+                true,
+            );
+            return false;
+        }
     }
     true
 }
@@ -1528,17 +1500,16 @@ pub fn parse_border_style(style: Object, fconfig: Option<&mut WinConfig>, err: &
         }
     } else if style.obj_type == ObjectType::ObjectTypeString {
         let str_val = style.data.string();
-        if str_val.size == 0 || (crate::memory::cstr_as_opt_bytes(str_val.data) == Some(b"none")) {
+        let str_bytes = str_val.cstr_bytes();
+        if str_val.size == 0 || str_bytes == b"none" {
             fconfig.border = false;
             fconfig.title = false;
             fconfig.footer = false;
             return;
         }
         for i in 0..6 {
-            let def_name = OPT_WINBORDER_VALUES[i + 1].as_ptr();
-            if crate::memory::cstr_as_opt_bytes(str_val.data)
-                == crate::memory::cstr_as_opt_bytes(def_name)
-            {
+            let def_name = OPT_WINBORDER_VALUES[i + 1];
+            if !str_val.data.is_null() && str_bytes == def_name.to_bytes() {
                 *chars = [[0; MAX_SCHAR_SIZE]; 8];
                 for (slot, piece) in chars.iter_mut().zip(DEFAULTS_CHARS[i].iter()) {
                     let bytes = piece.as_bytes();
@@ -1602,10 +1573,7 @@ pub fn parse_winborder(
                     api_free_array(border_chars);
                     return false;
                 }
-                border_chars.push(string_obj(cbuf_to_string(
-                    part.as_ptr().cast::<c_char>(),
-                    part.len(),
-                )));
+                border_chars.push(string_obj(bytes_to_string(part)));
             }
             if border_chars.size != 8 {
                 api_free_array(border_chars);
@@ -1907,11 +1875,10 @@ fn parse_win_config(
             }
 
             if has_key(mask, KEYSET_OPTIDX_WIN_CONFIG_STYLE) {
-                if crate::memory::cstr_is_empty(config.style.data) {
+                let style_bytes = config.style.cstr_bytes();
+                if style_bytes.is_empty() {
                     fconfig.style = K_WIN_STYLE_UNUSED;
-                } else if crate::memory::cstr_as_opt_bytes(config.style.data)
-                    .is_some_and(|b| b.eq_ignore_ascii_case(b"minimal"))
-                {
+                } else if style_bytes.eq_ignore_ascii_case(b"minimal") {
                     fconfig.style = K_WIN_STYLE_MINIMAL;
                 } else {
                     api_err_invalid(err, c"style", config.style.data, 0, true);
