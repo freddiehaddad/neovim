@@ -721,9 +721,14 @@ pub fn nlua_pop_typval(lstate: *mut lua_State, ret_tv: *mut TypVal) -> bool {
                     if next_key_found {
                         let mut len = 0usize;
                         let s = lua_tolstring(lstate, -2, &mut len);
+                        let slice = if s.is_null() || len == 0 {
+                            &[]
+                        } else {
+                            std::slice::from_raw_parts(s.cast::<u8>(), len)
+                        };
                         if cur.special {
                             let kv_pair = tv_list_alloc(2);
-                            let s_tv = decode_string(s, len, true, false);
+                            let s_tv = decode_string(slice, true);
                             tv_list_append_owned_tv(&mut *kv_pair, s_tv);
                             tv_list_append_owned_tv(
                                 &mut *kv_pair,
@@ -812,7 +817,12 @@ pub fn nlua_pop_typval(lstate: *mut lua_State, ret_tv: *mut TypVal) -> bool {
                 LUA_TSTRING => {
                     let mut len = 0usize;
                     let s = lua_tolstring(lstate, -1, &mut len);
-                    *cur.tv = decode_string(s, len, false, false);
+                    let slice = if s.is_null() || len == 0 {
+                        &[]
+                    } else {
+                        std::slice::from_raw_parts(s.cast::<u8>(), len)
+                    };
+                    *cur.tv = decode_string(slice, false);
                 }
                 LUA_TNUMBER => {
                     let n = lua_tonumber(lstate, -1);
@@ -1240,7 +1250,11 @@ fn lua_convert_one_value(
                                                 (val_di.di_tv.vval.v_list()).as_ref(),
                                             )
                                         {
-                                            lua_pushlstring(lstate, buf.as_ptr(), buf.len());
+                                            lua_pushlstring(
+                                                lstate,
+                                                buf.as_ptr().cast::<c_char>(),
+                                                buf.len(),
+                                            );
                                             handled_special = true;
                                         }
                                     }

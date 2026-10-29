@@ -4897,36 +4897,30 @@ pub fn f_jobwait(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData
 /// "json_decode()" function
 pub fn f_json_decode(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
     let mut numbuf = [0 as c_char; NUMBUFLEN];
-    let s: *const c_char;
-    let mut owned_buf: Vec<c_char> = Vec::new();
-    let len: usize;
+    let owned_buf: Vec<u8>;
+    let json_slice: &[u8];
     if argvars[0].v_type == VarType::VarList {
         let Some(buf) = encode_vim_list_to_buf(unsafe { argvars[0].vval.v_list().as_ref() }) else {
             emsg(gettext(c"E474: Failed to convert list to string"));
             return;
         };
-        len = buf.len();
         owned_buf = buf;
-        if owned_buf.is_empty() {
-            s = c"".as_ptr();
-        } else {
-            s = owned_buf.as_ptr();
-        }
+        json_slice = &owned_buf;
     } else {
-        s = tv_get_string_buf_chk(&argvars[0], numbuf.as_mut_ptr());
+        let s = tv_get_string_buf_chk(&argvars[0], numbuf.as_mut_ptr());
         if !s.is_null() {
-            len = crate::memory::cstr_len(s);
+            json_slice = crate::memory::cstr_as_bytes(s);
         } else {
             return;
         }
     }
-    if !json_decode_string(s, len, rettv) {
-        semsg!(gettext(c"E474: Failed to parse %.*s"), len as i32, s,);
+    if !json_decode_string(json_slice, rettv) {
+        let cstr = crate::memory::cstr_from_bytes(json_slice);
+        semsg!(gettext(c"E474: Failed to parse %s"), cstr.as_ptr());
         rettv.v_type = VarType::VarNumber;
         rettv.vval = crate::eval::typval::TypvalVval::Number(0);
     }
     debug_assert!(rettv.v_type != VarType::VarUnknown);
-    drop(owned_buf);
 }
 
 /// "json_encode()" function
@@ -5758,8 +5752,7 @@ pub fn f_msgpackdump(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFunc
     } else {
         encode_list_write(
             Some(&mut *(tv_list_alloc_ret(rettv, K_LIST_LEN_MAY_KNOW_CONST))),
-            data.as_ptr().cast::<c_char>(),
-            data.len(),
+            &data,
         );
     }
 }
@@ -5800,12 +5793,13 @@ fn msgpackparse_unpack_list(list: Option<&TvList>, ret_list: &mut TvList) {
     'end: {
         loop {
             let mut read_bytes: usize = 0;
-            let rlret = encode_read_from_list(
-                &raw mut lrstate,
-                buf.wrapping_add(buf_size),
-                ARENA_BLOCK_SIZE - buf_size,
-                &mut read_bytes,
-            );
+            let dest_slice = unsafe {
+                std::slice::from_raw_parts_mut(
+                    buf.wrapping_add(buf_size).cast::<u8>(),
+                    ARENA_BLOCK_SIZE - buf_size,
+                )
+            };
+            let rlret = encode_read_from_list(&mut lrstate, dest_slice, &mut read_bytes);
             if rlret == FAIL {
                 semsg!(gettext(E_INVARG2), c"List item is not a string",);
                 break 'end;

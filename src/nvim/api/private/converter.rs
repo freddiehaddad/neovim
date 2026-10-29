@@ -409,7 +409,7 @@ pub fn object_to_vim_take_luaref(
         }
         ObjectType::ObjectTypeString => {
             let s = obj.data.string();
-            *tv_ref = decode_string(s.data, s.size, false, false);
+            *tv_ref = decode_string(s.as_bytes(), false);
         }
         ObjectType::ObjectTypeArray => {
             let mut arr = obj.data.array();

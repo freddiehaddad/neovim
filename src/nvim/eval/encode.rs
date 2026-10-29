@@ -119,130 +119,70 @@ pub(crate) struct MPConvStackVal {
 }
 
 /// Msgpack callback for writing to `readfile()`-style list (`encode_list_write`).
-pub fn encode_list_write(
-    mut list: Option<&mut TvList>,
-    buf: impl crate::strings::IntoCCharPtr,
-    len: usize,
-) {
-    let buf = buf.into_c_char_ptr();
-    {
-        if len == 0 {
-            return;
-        }
-        let end = buf.wrapping_add(len);
-        let mut line_end = buf;
-        let li = tv_list_last(list.as_deref());
+pub fn encode_list_write(mut list: Option<&mut TvList>, buf: &[u8]) {
+    if buf.is_empty() {
+        return;
+    }
+    let len = buf.len();
+    let mut line_end_idx = 0usize;
+    let li = tv_list_last(list.as_deref());
 
-        if !li.is_null() {
-            let li = unsafe { &mut *li };
-            line_end = {
-                let _a = (buf).cast::<u8>();
-                let _sz = len;
-                let _off = if _sz == 0 {
-                    0
-                } else {
-                    unsafe { std::slice::from_raw_parts(_a, _sz) }
-                        .iter()
-                        .position(|&_b| _b == (NL as c_char) as u8)
-                        .unwrap_or(_sz)
-                };
-                _a.wrapping_add(_off).cast_mut().cast::<std::ffi::c_void>()
-            }
-            .cast_const()
-            .cast::<c_char>();
-            if line_end != buf {
-                let line_length = (line_end as usize) - (buf as usize);
-                let str_ptr = li.li_tv.vval.v_string();
-                let li_len = if str_ptr.is_null() {
-                    0
-                } else {
-                    crate::memory::cstr_len(str_ptr)
-                };
-                let mut combined = vec![0 as c_char; li_len + line_length];
-                if !str_ptr.is_null() {
-                    unsafe {
-                        std::ptr::copy_nonoverlapping(str_ptr, combined.as_mut_ptr(), li_len)
-                    };
-                }
-                let dst = combined.as_mut_ptr().wrapping_add(li_len);
-                unsafe {
-                    std::ptr::copy_nonoverlapping(buf.cast::<u8>(), dst.cast::<u8>(), line_length)
-                };
-                {
-                    let _d = (dst).cast::<u8>();
-                    let _sz = line_length;
-                    if _sz > 0 {
-                        let _c = 0_u8;
-                        let _x = (NL as c_char) as u8;
-                        for _b in unsafe { std::slice::from_raw_parts_mut(_d, _sz) } {
-                            if *_b == _c {
-                                *_b = _x;
-                            }
-                        }
-                    }
-                };
-                crate::eval::typval::tv_set_string_len(
-                    &mut li.li_tv,
-                    combined.as_ptr(),
-                    combined.len(),
-                );
-            }
-            line_end = line_end.wrapping_add(1);
-        }
-
-        while (line_end as usize) < (end as usize) {
-            let line_start = line_end;
-            line_end = {
-                let _a = (line_start).cast::<u8>();
-                let _sz = (end as usize) - (line_start as usize);
-                let _off = if _sz == 0 {
-                    0
-                } else {
-                    unsafe { std::slice::from_raw_parts(_a, _sz) }
-                        .iter()
-                        .position(|&_b| _b == (NL as c_char) as u8)
-                        .unwrap_or(_sz)
-                };
-                _a.wrapping_add(_off).cast_mut().cast::<std::ffi::c_void>()
-            }
-            .cast_const()
-            .cast::<c_char>();
-            if line_end != line_start {
-                let line_length = (line_end as usize) - (line_start as usize);
-                let mut line_buf = vec![0 as c_char; line_length];
-                unsafe {
-                    std::ptr::copy_nonoverlapping(
-                        line_start.cast::<u8>(),
-                        line_buf.as_mut_ptr().cast::<u8>(),
-                        line_length,
-                    )
-                };
-                {
-                    let _d = (line_buf.as_mut_ptr()).cast::<u8>();
-                    let _sz = line_length;
-                    if _sz > 0 {
-                        let _c = 0_u8;
-                        let _x = (NL as c_char) as u8;
-                        for _b in unsafe { std::slice::from_raw_parts_mut(_d, _sz) } {
-                            if *_b == _c {
-                                *_b = _x;
-                            }
-                        }
-                    }
-                };
-                crate::eval::typval::tv_list_append_string(
-                    list.as_deref_mut().unwrap(),
-                    line_buf.as_ptr(),
-                    line_length as isize,
-                );
+    if !li.is_null() {
+        let li = unsafe { &mut *li };
+        line_end_idx = buf.iter().position(|&b| b == b'\n').unwrap_or(len);
+        if line_end_idx != 0 {
+            let line_length = line_end_idx;
+            let str_ptr = li.li_tv.vval.v_string();
+            let li_len = if str_ptr.is_null() {
+                0
             } else {
-                tv_list_append_string(list.as_deref_mut().unwrap(), std::ptr::null(), 0);
+                crate::memory::cstr_len(str_ptr)
+            };
+            let mut combined = vec![0u8; li_len + line_length];
+            if !str_ptr.is_null() {
+                combined[..li_len]
+                    .copy_from_slice(unsafe { std::slice::from_raw_parts(str_ptr.cast(), li_len) });
             }
-            line_end = line_end.wrapping_add(1);
+            for (dst_b, &src_b) in combined[li_len..].iter_mut().zip(&buf[..line_length]) {
+                *dst_b = if src_b == 0 { b'\n' } else { src_b };
+            }
+            crate::eval::typval::tv_set_string_len(
+                &mut li.li_tv,
+                combined.as_ptr().cast::<c_char>(),
+                combined.len(),
+            );
         }
-        if line_end == end {
-            tv_list_append_string(list.unwrap(), std::ptr::null(), 0);
+        line_end_idx += 1;
+    }
+
+    while line_end_idx < len {
+        let line_start_idx = line_end_idx;
+        let rel_end = buf[line_start_idx..]
+            .iter()
+            .position(|&b| b == b'\n')
+            .unwrap_or(len - line_start_idx);
+        line_end_idx = line_start_idx + rel_end;
+        if line_end_idx != line_start_idx {
+            let line_length = line_end_idx - line_start_idx;
+            let mut line_buf = vec![0u8; line_length];
+            for (dst_b, &src_b) in line_buf
+                .iter_mut()
+                .zip(&buf[line_start_idx..line_end_idx])
+            {
+                *dst_b = if src_b == 0 { b'\n' } else { src_b };
+            }
+            crate::eval::typval::tv_list_append_string(
+                list.as_deref_mut().unwrap(),
+                line_buf.as_ptr().cast::<c_char>(),
+                line_length as isize,
+            );
+        } else {
+            tv_list_append_string(list.as_deref_mut().unwrap(), std::ptr::null(), 0);
         }
+        line_end_idx += 1;
+    }
+    if line_end_idx == len {
+        tv_list_append_string(list.unwrap(), std::ptr::null(), 0);
     }
 }
 
@@ -268,36 +208,30 @@ pub fn encode_init_lrstate(list: Option<&TvList>) -> ListReaderState {
 
 /// Read bytes from list (`encode_read_from_list`).
 pub fn encode_read_from_list(
-    state: *mut ListReaderState,
-    buf: *mut c_char,
-    nbuf: usize,
+    state: &mut ListReaderState,
+    buf: &mut [u8],
     read_bytes: &mut usize,
 ) -> i32 {
-    let state = unsafe { &mut *state };
-    let buf_end = buf.wrapping_add(nbuf);
-    let mut p = buf;
-    while (p as usize) < (buf_end as usize) {
-        while state.offset < state.li_length && (p as usize) < (buf_end as usize) {
+    let nbuf = buf.len();
+    let mut p = 0usize;
+    while p < nbuf {
+        while state.offset < state.li_length && p < nbuf {
             let s = unsafe { (*state.li).li_tv.vval.v_string() };
-            let ch = unsafe { *s.wrapping_add(state.offset) };
+            let ch = unsafe { *s.wrapping_add(state.offset) } as u8;
             state.offset += 1;
-            unsafe {
-                *p = if ch == (NL as c_char) { 0 } else { ch };
-                p = p.wrapping_add(1);
-            }
+            buf[p] = if ch == b'\n' { 0 } else { ch };
+            p += 1;
         }
-        if (p as usize) < (buf_end as usize) {
+        if p < nbuf {
             state.li = unsafe { (*state.li).li_next };
             if state.li.is_null() {
-                *read_bytes = (p as usize) - (buf as usize);
+                *read_bytes = p;
                 return OK;
             }
-            unsafe {
-                *p = NL as c_char;
-                p = p.wrapping_add(1);
-            }
+            buf[p] = b'\n';
+            p += 1;
             if unsafe { (*state.li).li_tv.v_type } != VarType::VarString {
-                *read_bytes = (p as usize) - (buf as usize);
+                *read_bytes = p;
                 return FAIL;
             }
             state.offset = 0;
@@ -317,8 +251,8 @@ pub fn encode_read_from_list(
     }
 }
 
-/// Convert `readfile()`-style list to a `Vec<c_char>` buffer (`encode_vim_list_to_buf`).
-pub fn encode_vim_list_to_buf(list: Option<&TvList>) -> Option<Vec<c_char>> {
+/// Convert `readfile()`-style list to a `Vec<u8>` buffer (`encode_vim_list_to_buf`).
+pub fn encode_vim_list_to_buf(list: Option<&TvList>) -> Option<Vec<u8>> {
     let mut len = 0usize;
     for li in crate::eval::typval::list_iter_mut(tv_list_first(list)) {
         let tv = &li.li_tv;
@@ -336,9 +270,9 @@ pub fn encode_vim_list_to_buf(list: Option<&TvList>) -> Option<Vec<c_char>> {
         return Some(Vec::new());
     }
     let mut lrstate = encode_init_lrstate(list);
-    let mut buf = vec![0 as c_char; len];
+    let mut buf = vec![0u8; len];
     let mut read_bytes = 0usize;
-    if encode_read_from_list(&mut lrstate, buf.as_mut_ptr(), len, &mut read_bytes) == FAIL {
+    if encode_read_from_list(&mut lrstate, &mut buf, &mut read_bytes) == FAIL {
         std::process::abort();
     }
     assert_eq!(len, read_bytes);
@@ -1412,7 +1346,10 @@ fn convert_one_value(
                                                 (val_di.di_tv.vval.v_list()).as_ref(),
                                             )
                                         {
-                                            if !backend.conv_str_string(buf.as_ptr(), buf.len()) {
+                                            if !backend.conv_str_string(
+                                                buf.as_ptr().cast::<c_char>(),
+                                                buf.len(),
+                                            ) {
                                                 return FAIL;
                                             }
                                             handled_special = true;
@@ -1505,13 +1442,13 @@ fn convert_one_value(
                                                 && (i8::MIN as i64..=i8::MAX as i64)
                                                     .contains(&first.li_tv.vval.v_number())
                                                 && (*last).li_tv.v_type == VarType::VarList
-                                                && let Some(mut buf) = encode_vim_list_to_buf(
+                                                && let Some(buf) = encode_vim_list_to_buf(
                                                     ((*last).li_tv.vval.v_list()).as_ref(),
                                                 )
                                             {
                                                 let ext_type = first.li_tv.vval.v_number() as i8;
                                                 if !backend.conv_ext_string(
-                                                    buf.as_mut_ptr(),
+                                                    buf.as_ptr().cast::<c_char>(),
                                                     buf.len(),
                                                     ext_type,
                                                 ) {
@@ -1889,8 +1826,7 @@ mod tests {
         {
             let buf = encode_vim_list_to_buf(Some(&list)).unwrap();
             assert_eq!(buf.len(), 5);
-            let slice = crate::memory::cstr_slice(buf.as_ptr(), buf.len());
-            assert_eq!(slice, b"a\0b\nc");
+            assert_eq!(&buf[..], b"a\0b\nc");
         }
         li1.li_tv.v_type = VarType::VarUnknown;
         li2.li_tv.v_type = VarType::VarUnknown;
@@ -1907,7 +1843,7 @@ mod tests {
             let check = |chunks: &[&[u8]], expected: &[Option<&[u8]>]| {
                 let l = tv_list_alloc(0);
                 for &chunk in chunks {
-                    encode_list_write(Some(&mut *l), chunk.as_ptr().cast(), chunk.len());
+                    encode_list_write(Some(&mut *l), chunk);
                 }
                 assert_eq!(l.lv_len as usize, expected.len());
                 let mut li = l.lv_first;

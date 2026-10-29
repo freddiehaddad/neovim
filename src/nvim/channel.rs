@@ -65,7 +65,7 @@ pub type ChannelStdinMode = i32;
 pub struct CallbackReader {
     pub cb: Callback,
     pub self_dict: *mut TvDict,
-    pub buffer: Vec<c_char>,
+    pub buffer: Vec<u8>,
     pub eof: bool,
     pub buffered: bool,
     pub fwd_err: bool,
@@ -794,16 +794,13 @@ pub fn channel_send(id: u64, data: Vec<u8>, error: *mut *const c_char) -> usize 
 }
 
 #[inline]
-fn buffer_to_tv_list(buf: impl crate::strings::IntoCCharPtr, len: usize) -> *mut TvList {
-    let buf = buf.into_c_char_ptr();
-    {
-        let l = tv_list_alloc(K_LIST_LEN_MAY_KNOW_CONST);
-        tv_list_append_string(&mut *l, c"", 0);
-        if len > 0 {
-            encode_list_write(Some(&mut *l), buf, len);
-        }
-        l
+fn buffer_to_tv_list(buf: &[u8]) -> *mut TvList {
+    let l = tv_list_alloc(K_LIST_LEN_MAY_KNOW_CONST);
+    tv_list_append_string(&mut *l, c"", 0);
+    if !buf.is_empty() {
+        encode_list_write(Some(&mut *l), buf);
     }
+    l
 }
 
 pub fn on_channel_data(stream: &mut RStream, buf: &[u8], chan: &mut Channel, eof: bool) -> usize {
@@ -844,8 +841,7 @@ fn on_channel_output(
 
     if callback_reader_set(reader) {
         if count > 0 {
-            let chars = unsafe { std::slice::from_raw_parts(buf.as_ptr().cast::<c_char>(), count) };
-            reader.buffer.extend_from_slice(chars);
+            reader.buffer.extend_from_slice(buf);
         }
         schedule_channel_event(chan);
     }
@@ -907,7 +903,7 @@ pub fn channel_reader_callbacks(chan: &mut Channel, is_stderr: bool) {
                 )
                 .is_null()
                 {
-                    let data = buffer_to_tv_list(reader.buffer.as_ptr(), reader.buffer.len());
+                    let data = buffer_to_tv_list(&reader.buffer);
                     let _type_len = reader_type.to_bytes().len();
                     let _ = tv_dict_add_list(unsafe { &mut *reader.self_dict }, reader_type, data);
                 } else {
@@ -981,7 +977,7 @@ fn channel_callback_call(chan: &mut Channel, is_stderr: Option<bool>) {
         } else {
             &mut chan.on_data
         };
-        let l = buffer_to_tv_list(reader.buffer.as_ptr(), reader.buffer.len());
+        let l = buffer_to_tv_list(&reader.buffer);
         argv[1].v_type = VarType::VarList;
         argv[1].v_lock = VAR_UNLOCKED;
         argv[1].vval = TypvalVval::List(l);

@@ -5047,20 +5047,13 @@ pub fn tv_to_argv(
     argv
 }
 
-fn string_to_list(
-    str_: impl crate::strings::IntoCCharPtr,
-    mut len: usize,
-    keepempty: bool,
-) -> &'static mut TvList {
-    let str_ = str_.into_c_char_ptr();
-    {
-        if !keepempty && len > 0 && unsafe { *str_.wrapping_add(len - 1) } == NL {
-            len -= 1;
-        }
-        let list = tv_list_alloc(K_LIST_LEN_MAY_KNOW_CONST);
-        encode_list_write(Some(&mut *list), str_, len);
-        list
+fn string_to_list(mut bytes: &[u8], keepempty: bool) -> &'static mut TvList {
+    if !keepempty && bytes.last() == Some(&b'\n') {
+        bytes = &bytes[..bytes.len() - 1];
     }
+    let list = tv_list_alloc(K_LIST_LEN_MAY_KNOW_CONST);
+    encode_list_write(Some(&mut *list), bytes);
+    list
 }
 
 fn get_system_output_as_rettv(argvars: &mut [TypVal], rettv: &mut TypVal, retlist: bool) {
@@ -5124,11 +5117,8 @@ fn get_system_output_as_rettv(argvars: &mut [TypVal], rettv: &mut TypVal, retlis
         if argvars[1].v_type != VarType::VarUnknown && argvars[2].v_type != VarType::VarUnknown {
             keepempty = tv_get_number(&argvars[2]) as i32;
         }
-        rettv.vval = crate::eval::typval::TypvalVval::List(string_to_list(
-            res.as_ptr().cast::<c_char>(),
-            res.len(),
-            keepempty != 0,
-        ));
+        rettv.vval =
+            crate::eval::typval::TypvalVval::List(string_to_list(&res, keepempty != 0));
         tv_list_ref(unsafe { rettv.vval.v_list().as_mut() });
         rettv.v_type = VarType::VarList;
     } else {
