@@ -2208,7 +2208,12 @@ fn get_eventignore_name(xp: &mut ExpandCtx, idx: i32) -> *mut c_char {
         return c"all".as_ptr().cast_mut();
     }
 
-    let name = get_event_name_no_group(xp, idx - 1 + i32::from(subtract), optstr_st().expand_eiw);
+    let name = get_event_name_no_group(
+        xp,
+        idx - 1 + i32::from(subtract),
+        optstr_st().expand_eiw,
+    )
+    .map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut());
     if name.is_null() {
         return ptr::null_mut();
     }

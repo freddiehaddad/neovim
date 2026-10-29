@@ -219,7 +219,7 @@ fn get_augroup_from_object(group: Object, err: &mut Error) -> i32 {
             let name = if au_group == 0 {
                 std::ptr::null()
             } else {
-                augroup_name(au_group)
+                augroup_name(au_group).map_or(std::ptr::null(), CStr::as_ptr)
             };
             if !augroup_exists(name) {
                 api_err_int(err, c"group", i64::from(au_group));
@@ -395,7 +395,7 @@ pub fn nvim_get_autocmds(
                 let name = if group == 0 {
                     std::ptr::null()
                 } else {
-                    augroup_name(group)
+                    augroup_name(group).map_or(std::ptr::null(), CStr::as_ptr)
                 };
                 if !augroup_exists(name) {
                     api_err_int(err, c"group", opts.group.data.integer());
@@ -599,7 +599,7 @@ pub fn nvim_get_autocmds(
                         let mut pattern_buflocal = [0u8; BUFLOCAL_PAT_LEN];
                         if aupat_is_buflocal(pat_cstr.as_ptr(), patlen) {
                             aupat_normalize_buflocal_pat(
-                                pattern_buflocal.as_mut_ptr().cast(),
+                                &mut pattern_buflocal,
                                 pat_cstr.as_ptr(),
                                 patlen,
                                 aupat_get_buflocal_nr(pat_cstr.as_ptr(), patlen),
@@ -627,7 +627,9 @@ pub fn nvim_get_autocmds(
                     put_c(
                         &mut autocmd_info,
                         c"group_name",
-                        string_obj(cstr_as_string(augroup_name(ap.group))),
+                        string_obj(cstr_as_string(
+                            augroup_name(ap.group).map_or(std::ptr::null(), CStr::as_ptr),
+                        )),
                     );
                 }
 
@@ -1163,7 +1165,7 @@ pub fn nvim_exec_autocmds(
             let name = if au_group == 0 {
                 std::ptr::null()
             } else {
-                augroup_name(au_group)
+                augroup_name(au_group).map_or(std::ptr::null(), CStr::as_ptr)
             };
             if !augroup_exists(name) {
                 api_err_int(err, c"group", i64::from(au_group));

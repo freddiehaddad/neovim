@@ -4907,13 +4907,17 @@ fn expand_other(
         },
         ExpGen {
             context: EXPAND_EVENTS,
-            func: expand_get_event_name,
+            func: |xp, idx| {
+                expand_get_event_name(xp, idx).map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut())
+            },
             ic: true,
             escaped: false,
         },
         ExpGen {
             context: EXPAND_AUGROUP,
-            func: expand_get_augroup_name,
+            func: |xp, idx| {
+                expand_get_augroup_name(xp, idx).map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut())
+            },
             ic: true,
             escaped: false,
         },
