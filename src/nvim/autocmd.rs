@@ -2356,7 +2356,7 @@ pub fn autocmd_register(
             };
 
             if event == EVENT_MODECHANGED && !has_event(EVENT_MODECHANGED) {
-                get_mode((&raw mut g_st().last_mode).cast::<c_char>());
+                get_mode(&mut g_st().last_mode);
             }
 
             if (event == EVENT_CURSORMOVED && !has_event(EVENT_CURSORMOVED))

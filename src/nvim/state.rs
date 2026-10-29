@@ -20,7 +20,7 @@ use crate::os::input::{input_available, input_get, os_breakcheck};
 use crate::strings::vim_snprintf;
 use crate::ui::ui_flush;
 use crate::window::WinInfoInfo;
-use std::ffi::{CStr, c_char};
+use std::ffi::CStr;
 use std::ptr;
 
 pub const MODE_MAX_LENGTH: usize = 4;
@@ -217,102 +217,103 @@ pub fn get_real_state() -> i32 {
     g_st().state_global
 }
 
-pub fn get_mode(buf: *mut c_char) {
-    unsafe {
-        let mut i: usize = 0;
+pub fn get_mode(buf: &mut [u8; MODE_MAX_LENGTH]) -> usize {
+    *buf = [0; MODE_MAX_LENGTH];
+    let mut i: usize = 0;
 
-        if g_st().state_global == MODE_HITRETURN
-            || g_st().state_global == MODE_ASKMORE
-            || g_st().state_global == MODE_SETWSIZE
-            || ((g_st().state_global & MODE_CMDLINE) != 0 && get_cmdline_info().one_key)
-        {
-            *buf.wrapping_add(i) = b'r' as c_char;
+    if g_st().state_global == MODE_HITRETURN
+        || g_st().state_global == MODE_ASKMORE
+        || g_st().state_global == MODE_SETWSIZE
+        || ((g_st().state_global & MODE_CMDLINE) != 0 && get_cmdline_info().one_key)
+    {
+        buf[i] = b'r';
+        i += 1;
+        if g_st().state_global == MODE_ASKMORE {
+            buf[i] = b'm';
             i += 1;
-            if g_st().state_global == MODE_ASKMORE {
-                *buf.wrapping_add(i) = b'm' as c_char;
-                i += 1;
-            } else if (g_st().state_global & MODE_CMDLINE) != 0 {
-                *buf.wrapping_add(i) = b'?' as c_char;
-                i += 1;
-            }
-        } else if g_st().state_global == MODE_EXTERNCMD {
-            *buf.wrapping_add(i) = b'!' as c_char;
+        } else if (g_st().state_global & MODE_CMDLINE) != 0 {
+            buf[i] = b'?';
             i += 1;
-        } else if (g_st().state_global & MODE_INSERT) != 0 {
-            if (g_st().state_global & VREPLACE_FLAG) != 0 {
-                *buf.wrapping_add(i) = b'R' as c_char;
-                i += 1;
-                *buf.wrapping_add(i) = b'v' as c_char;
-                i += 1;
-            } else if (g_st().state_global & REPLACE_FLAG) != 0 {
-                *buf.wrapping_add(i) = b'R' as c_char;
-                i += 1;
-            } else {
-                *buf.wrapping_add(i) = b'i' as c_char;
-                i += 1;
-            }
-            if ins_compl_active() {
-                *buf.wrapping_add(i) = b'c' as c_char;
-                i += 1;
-            } else if ctrl_x_mode_not_defined_yet() {
-                *buf.wrapping_add(i) = b'x' as c_char;
-                i += 1;
-            }
-        } else if (g_st().state_global & MODE_CMDLINE) != 0 || g_st().exmode_active {
-            *buf.wrapping_add(i) = b'c' as c_char;
+        }
+    } else if g_st().state_global == MODE_EXTERNCMD {
+        buf[i] = b'!';
+        i += 1;
+    } else if (g_st().state_global & MODE_INSERT) != 0 {
+        if (g_st().state_global & VREPLACE_FLAG) != 0 {
+            buf[i] = b'R';
             i += 1;
-            if g_st().exmode_active {
-                *buf.wrapping_add(i) = b'v' as c_char;
-                i += 1;
-            }
-            if (g_st().state_global & MODE_CMDLINE) != 0 && cmdline_overstrike() {
-                *buf.wrapping_add(i) = b'r' as c_char;
-                i += 1;
-            }
-        } else if (g_st().state_global & MODE_TERMINAL) != 0 {
-            *buf.wrapping_add(i) = b't' as c_char;
+            buf[i] = b'v';
             i += 1;
-        } else if g_st().visual_global.active {
-            if g_st().visual_global.select {
-                *buf.wrapping_add(i) =
-                    (g_st().visual_global.mode + (b's' as i32) - (b'v' as i32)) as c_char;
-                i += 1;
-            } else {
-                *buf.wrapping_add(i) = g_st().visual_global.mode as c_char;
-                i += 1;
-                if g_st().visual_global.restart_select != 0 {
-                    *buf.wrapping_add(i) = b's' as c_char;
-                    i += 1;
-                }
-            }
+        } else if (g_st().state_global & REPLACE_FLAG) != 0 {
+            buf[i] = b'R';
+            i += 1;
         } else {
-            *buf.wrapping_add(i) = b'n' as c_char;
+            buf[i] = b'i';
             i += 1;
-            if g_st().finish_op {
-                *buf.wrapping_add(i) = b'o' as c_char;
-                i += 1;
-                *buf.wrapping_add(i) = g_st().motion_force as c_char;
-                i += 1;
-            } else if !curbuf_mut().terminal.is_null() {
-                *buf.wrapping_add(i) = b't' as c_char;
-                i += 1;
-                if g_st().restart_edit == b'I' as i32 {
-                    *buf.wrapping_add(i) = b'T' as c_char;
-                    i += 1;
-                }
-            } else if g_st().restart_edit == b'I' as i32
-                || g_st().restart_edit == b'R' as i32
-                || g_st().restart_edit == b'V' as i32
-            {
-                *buf.wrapping_add(i) = b'i' as c_char;
-                i += 1;
-                *buf.wrapping_add(i) = g_st().restart_edit as c_char;
+        }
+        if ins_compl_active() {
+            buf[i] = b'c';
+            i += 1;
+        } else if ctrl_x_mode_not_defined_yet() {
+            buf[i] = b'x';
+            i += 1;
+        }
+    } else if (g_st().state_global & MODE_CMDLINE) != 0 || g_st().exmode_active {
+        buf[i] = b'c';
+        i += 1;
+        if g_st().exmode_active {
+            buf[i] = b'v';
+            i += 1;
+        }
+        if (g_st().state_global & MODE_CMDLINE) != 0 && cmdline_overstrike() {
+            buf[i] = b'r';
+            i += 1;
+        }
+    } else if (g_st().state_global & MODE_TERMINAL) != 0 {
+        buf[i] = b't';
+        i += 1;
+    } else if g_st().visual_global.active {
+        if g_st().visual_global.select {
+            buf[i] = (g_st().visual_global.mode + (b's' as i32) - (b'v' as i32)) as u8;
+            i += 1;
+        } else {
+            buf[i] = g_st().visual_global.mode as u8;
+            i += 1;
+            if g_st().visual_global.restart_select != 0 {
+                buf[i] = b's';
                 i += 1;
             }
         }
-
-        *buf.wrapping_add(i) = 0;
+    } else {
+        buf[i] = b'n';
+        i += 1;
+        if g_st().finish_op {
+            buf[i] = b'o';
+            i += 1;
+            if g_st().motion_force != 0 {
+                buf[i] = g_st().motion_force as u8;
+                i += 1;
+            }
+        } else if !curbuf_mut().terminal.is_null() {
+            buf[i] = b't';
+            i += 1;
+            if g_st().restart_edit == b'I' as i32 {
+                buf[i] = b'T';
+                i += 1;
+            }
+        } else if g_st().restart_edit == b'I' as i32
+            || g_st().restart_edit == b'R' as i32
+            || g_st().restart_edit == b'V' as i32
+        {
+            buf[i] = b'i';
+            i += 1;
+            buf[i] = g_st().restart_edit as u8;
+            i += 1;
+        }
     }
+
+    buf[i] = 0;
+    i
 }
 
 pub fn may_trigger_modechanged() {
@@ -320,45 +321,40 @@ pub fn may_trigger_modechanged() {
         return;
     }
 
-    let mut curr_mode: [c_char; MODE_MAX_LENGTH] = [0; MODE_MAX_LENGTH];
-    let mut pattern_buf: [c_char; 2 * MODE_MAX_LENGTH] = [0; 2 * MODE_MAX_LENGTH];
+    let mut curr_mode: [u8; MODE_MAX_LENGTH] = [0; MODE_MAX_LENGTH];
+    let mut pattern_buf: [u8; 2 * MODE_MAX_LENGTH] = [0; 2 * MODE_MAX_LENGTH];
 
-    get_mode(curr_mode.as_mut_ptr());
-    if crate::memory::cstr_as_bytes(curr_mode.as_ptr())
-        == crate::memory::cstr_as_bytes(ptr::addr_of!(g_st().last_mode).cast())
-    {
+    get_mode(&mut curr_mode);
+    if curr_mode == g_st().last_mode {
         return;
     }
 
+    let curr_cstr = CStr::from_bytes_until_nul(&curr_mode).unwrap_or(c"");
+    let old_mode = g_st().last_mode;
+    let old_cstr = CStr::from_bytes_until_nul(&old_mode).unwrap_or(c"");
+
     let mut save_v_event: SaveVEvent = SaveVEvent::new();
     let v_event = get_v_event(&mut save_v_event);
-    tv_dict_add_str(&mut *v_event, c"new_mode", curr_mode.as_ptr());
-    tv_dict_add_str(
-        &mut *v_event,
-        c"old_mode",
-        ptr::addr_of!(g_st().last_mode).cast(),
-    );
+    tv_dict_add_str(&mut *v_event, c"new_mode", curr_cstr);
+    tv_dict_add_str(&mut *v_event, c"old_mode", old_cstr);
     tv_dict_set_keys_readonly(&mut *v_event);
 
     vim_snprintf!(
-        pattern_buf.as_mut_ptr(),
+        pattern_buf.as_mut_ptr().cast(),
         pattern_buf.len(),
         c"%s:%s",
-        ptr::addr_of!(g_st().last_mode).cast::<c_char>(),
-        curr_mode.as_ptr(),
+        old_cstr.as_ptr(),
+        curr_cstr.as_ptr(),
     );
 
     apply_autocmds(
         EVENT_MODECHANGED,
-        pattern_buf.as_mut_ptr(),
+        pattern_buf.as_mut_ptr().cast(),
         ptr::null_mut(),
         false,
         g_st().curbuf,
     );
-    crate::memory::cstr_cpy(
-        ptr::addr_of_mut!(g_st().last_mode).cast(),
-        curr_mode.as_ptr(),
-    );
+    g_st().last_mode = curr_mode;
 
     restore_v_event(&mut *v_event, &mut save_v_event);
 }
@@ -403,9 +399,11 @@ pub fn may_trigger_safestate(safe: bool) {
     state_mod_st().was_safe = is_safe;
 }
 
-pub fn state_no_longer_safe(reason: impl crate::strings::IntoCCharPtr) {
-    let reason = reason.into_c_char_ptr();
-    if state_mod_st().was_safe && !reason.is_null() && log_st().g_min_log_level <= LOGLVL_DBG {
+pub fn state_no_longer_safe(reason: Option<&CStr>) {
+    if state_mod_st().was_safe
+        && let Some(reason) = reason
+        && log_st().g_min_log_level <= LOGLVL_DBG
+    {
         logmsg!(
             LOGLVL_DBG,
             ptr::null(),
@@ -413,7 +411,7 @@ pub fn state_no_longer_safe(reason: impl crate::strings::IntoCCharPtr) {
             320,
             true,
             c"SafeState reset: %s",
-            reason,
+            reason.as_ptr(),
         );
     }
     state_mod_st().was_safe = false;
@@ -429,7 +427,7 @@ mod tests {
 
     #[test]
     fn safe_state_reset_clears_was_safe() {
-        state_no_longer_safe(ptr::null());
+        state_no_longer_safe(None);
         assert!(!get_was_safe_state());
     }
 }

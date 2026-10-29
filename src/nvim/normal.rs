@@ -2434,7 +2434,7 @@ fn normal_check(s: &mut NormalState) -> i32 {
     g_st().msg_scroll = 0;
     g_st().quit_more = false;
 
-    state_no_longer_safe(ptr::null());
+    state_no_longer_safe(None);
 
     if g_st().skip_redraw {
         g_st().skip_redraw = false;

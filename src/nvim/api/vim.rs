@@ -594,7 +594,7 @@ pub fn nvim_feedkeys(keys: NvimString, mode: NvimString, escape_ks: Boolean) {
         .as_ref()
         .map_or(keys.data, |cs| cs.as_ptr().cast_mut());
     if lowlevel {
-        input_enqueue_raw(keys_esc, crate::memory::cstr_len(keys_esc));
+        input_enqueue_raw(crate::memory::cstr_as_bytes(keys_esc));
     } else {
         ins_typebuf(
             keys_esc,
@@ -1996,11 +1996,11 @@ pub fn nvim_load_context(dict: Dict, err: &mut Error) -> Object {
 // DLLEXPORT DictAs(get_mode) nvim_get_mode(Arena *arena) FUNC_API_SINCE(2) FUNC_API_FAST;
 pub fn nvim_get_mode(arena: &mut Arena) -> Dict {
     let mut rv = arena_dict(arena, 2);
-    let modestr = arena_alloc(arena, MODE_MAX_LENGTH, false).cast::<c_char>();
-    get_mode(modestr);
+    let mut mode = [0u8; MODE_MAX_LENGTH];
+    let len = get_mode(&mut mode);
     let blocked = input_blocking();
 
-    put_c(&mut rv, c"mode", cstr_as_obj(modestr));
+    put_c(&mut rv, c"mode", string_obj( crate::api::private::helpers::arena_bytes(arena, &mode[..len])));
     put_c(&mut rv, c"blocking", boolean_obj(blocked));
     rv
 }

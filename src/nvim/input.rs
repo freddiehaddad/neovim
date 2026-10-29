@@ -1001,7 +1001,7 @@ pub fn ins_typebuf(
         if g_st().typebuf.tb_change_cnt == 0 {
             g_st().typebuf.tb_change_cnt = 1;
         }
-        state_no_longer_safe(c"ins_typebuf()");
+        state_no_longer_safe(Some(c"ins_typebuf()"));
 
         let addlen = crate::memory::cstr_len(str_) as i32;
 
@@ -1806,7 +1806,7 @@ pub fn vgetc() -> i32 {
     inp_st().on_key_buf = Vec::new();
 
     if c != K_IGNORE {
-        state_no_longer_safe(c"key typed");
+        state_no_longer_safe(Some(c"key typed"));
     }
 
     c

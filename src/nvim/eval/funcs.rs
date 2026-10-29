@@ -5667,12 +5667,13 @@ pub fn f_min(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
 
 /// "mode()" function
 pub fn f_mode(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
-    let mut buf = [0 as c_char; MODE_MAX_LENGTH];
-    get_mode(buf.as_mut_ptr());
+    let mut buf = [0u8; MODE_MAX_LENGTH];
+    get_mode(&mut buf);
     if !non_zero_arg(&argvars[0]) {
-        buf[1] = NUL;
+        buf[1] = 0;
     }
-    crate::eval::typval::tv_set_string(rettv, buf.as_ptr());
+    let cstr = std::ffi::CStr::from_bytes_until_nul(&buf).unwrap_or(c"");
+    crate::eval::typval::tv_set_string(rettv, cstr);
 }
 
 fn may_add_state_char(

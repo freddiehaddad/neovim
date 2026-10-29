@@ -16,7 +16,7 @@ use crate::insexpand::{
 };
 use crate::keycodes::{
     FSK_KEYCODE, K_SPECIAL, KE_COMPLETE_DELAY, KE_EVENT, KE_FILLER, KS_EXTRA, KS_MODIFIER,
-    KS_SPECIAL, get_mouse_button, trans_special,
+    KS_SPECIAL, get_mouse_button, trans_special_slice,
 };
 use crate::log::{LOGLVL_WRN, logmsg};
 use crate::main_init::{getout, input_unanswerable};
@@ -24,7 +24,6 @@ use crate::option_vars::*;
 use crate::os::time::{os_hrtime, os_realtime};
 use crate::profile::{prof_input_end, prof_input_start};
 use crate::state::{MODE_INSERT, MODE_MAX_LENGTH, get_mode, get_real_state};
-use std::ffi::c_char;
 use std::ptr;
 
 use crate::eval::typval::Varnumber;
@@ -51,9 +50,9 @@ const CTRL_C_CONST_CONST_CONST: u8 = 3;
 const BREAKCHECK_SKIP: i32 = 1000;
 
 struct OsInputState {
-    input_buffer: [c_char; INPUT_BUFFER_SIZE],
-    input_read_pos: *mut c_char,
-    input_write_pos: *mut c_char,
+    input_buffer: [u8; INPUT_BUFFER_SIZE],
+    input_read_pos: usize,
+    input_write_pos: usize,
     blocking: bool,
     cursorhold_time: i32,
     cursorhold_tb_change_cnt: i32,
@@ -71,8 +70,8 @@ impl OsInputState {
     const fn new() -> Self {
         Self {
             input_buffer: [0; INPUT_BUFFER_SIZE],
-            input_read_pos: ptr::null_mut(),
-            input_write_pos: ptr::null_mut(),
+            input_read_pos: 0,
+            input_write_pos: 0,
             blocking: false,
             cursorhold_time: 0,
             cursorhold_tb_change_cnt: 0,
@@ -95,69 +94,46 @@ fn osi_st() -> &'static mut OsInputState {
     unsafe { &mut *OSI_STATE.as_ptr() }
 }
 
-#[inline]
-fn input_buf_ptr() -> *mut c_char {
-    (&raw mut osi_st().input_buffer).cast::<c_char>()
-}
-
-#[inline]
-fn ensure_input_ptrs_init() {
-    if osi_st().input_read_pos.is_null() {
-        osi_st().input_read_pos = input_buf_ptr();
-        osi_st().input_write_pos = input_buf_ptr();
+fn parse_mouse_coords(s: &[u8]) -> Option<(i32, i32, usize)> {
+    if s.first().copied() != Some(b'<') {
+        return None;
     }
-}
-
-fn parse_mouse_coords(s: impl crate::strings::IntoCCharPtr) -> Option<(i32, i32, usize)> {
-    let s = s.into_c_char_ptr();
-    {
-        if s.is_null() || crate::memory::cstr_first_byte(s) != b'<' {
-            return None;
+    let parse_int = |mut idx: usize| -> Option<(i32, usize)> {
+        while matches!(
+            s.get(idx).copied(),
+            Some(b' ' | b'\t' | b'\n' | b'\r' | 0x0b | 0x0c)
+        ) {
+            idx += 1;
         }
-        let mut p = s.wrapping_add(1);
-        let parse_int = |mut cur: *const c_char| -> Option<(i32, *const c_char)> {
-            while matches!(
-                crate::memory::cstr_first_byte(cur),
-                b' ' | b'\t' | b'\n' | b'\r' | 0x0b | 0x0c
-            ) {
-                cur = cur.wrapping_add(1);
+        let neg = if s.get(idx).copied() == Some(b'-') {
+            idx += 1;
+            true
+        } else {
+            if s.get(idx).copied() == Some(b'+') {
+                idx += 1;
             }
-            let neg = if crate::memory::cstr_first_byte(cur) == b'-' {
-                cur = cur.wrapping_add(1);
-                true
-            } else {
-                if crate::memory::cstr_first_byte(cur) == b'+' {
-                    cur = cur.wrapping_add(1);
-                }
-                false
-            };
-            if !(crate::memory::cstr_first_byte(cur)).is_ascii_digit() {
-                return None;
-            }
-            let mut acc: i64 = 0;
-            while (crate::memory::cstr_first_byte(cur)).is_ascii_digit() {
-                acc = acc
-                    .saturating_mul(10)
-                    .saturating_add(i64::from((crate::memory::cstr_first_byte(cur)) - b'0'));
-                cur = cur.wrapping_add(1);
-            }
-            let val = if neg { -acc } else { acc } as i32;
-            Some((val, cur))
+            false
         };
-        let (col, after_col) = parse_int(p)?;
-        p = after_col;
-        if crate::memory::cstr_first_byte(p) != b',' {
+        if !s.get(idx).is_some_and(u8::is_ascii_digit) {
             return None;
         }
-        p = p.wrapping_add(1);
-        let (row, after_row) = parse_int(p)?;
-        p = after_row;
-        if crate::memory::cstr_first_byte(p) != b'>' {
-            return None;
+        let mut acc: i64 = 0;
+        while let Some(d) = s.get(idx).copied().filter(u8::is_ascii_digit) {
+            acc = acc.saturating_mul(10).saturating_add(i64::from(d - b'0'));
+            idx += 1;
         }
-        p = p.wrapping_add(1);
-        Some((col, row, crate::memory::ptr_offset_from(p, s) as usize))
+        let val = if neg { -acc } else { acc } as i32;
+        Some((val, idx))
+    };
+    let (col, after_col) = parse_int(1)?;
+    if s.get(after_col).copied() != Some(b',') {
+        return None;
     }
+    let (row, after_row) = parse_int(after_col + 1)?;
+    if s.get(after_row).copied() != Some(b'>') {
+        return None;
+    }
+    Some((col, row, after_row + 1))
 }
 
 use crate::event::stream::UV_TTY;
@@ -197,7 +173,6 @@ pub fn input_get(
     tb_change_cnt: i32,
     events: *mut MultiQueue,
 ) -> i32 {
-    ensure_input_ptrs_init();
     debug_assert!((maxlen > 0 && !buf.is_null()) || maxlen == 0);
     // This check is needed so that feeding typeahead from RPC can prevent CursorHold.
     if tb_change_cnt != osi_st().cursorhold_tb_change_cnt {
@@ -207,8 +182,9 @@ pub fn input_get(
     if maxlen != 0 && input_available() != 0 {
         reset_cursorhold_wait(tb_change_cnt);
         let to_read = (maxlen as usize).min(input_available());
-        unsafe { ptr::copy_nonoverlapping(osi_st().input_read_pos.cast::<u8>(), buf, to_read) };
-        osi_st().input_read_pos = osi_st().input_read_pos.wrapping_add(to_read);
+        let rpos = osi_st().input_read_pos;
+        unsafe { ptr::copy_nonoverlapping(osi_st().input_buffer[rpos..].as_ptr(), buf, to_read) };
+        osi_st().input_read_pos = rpos + to_read;
         debug_assert!(to_read <= i32::MAX as usize);
         return to_read as i32;
     }
@@ -247,7 +223,7 @@ pub fn input_get(
             {
                 if buf.is_null() {
                     let ibuf: [u8; 3] = [K_SPECIAL, KS_EXTRA, KE_COMPLETE_DELAY];
-                    input_enqueue_raw(ibuf.as_ptr().cast(), 3);
+                    input_enqueue_raw(&ibuf);
                     return 0;
                 }
                 unsafe {
@@ -283,8 +259,9 @@ pub fn input_get(
     if maxlen != 0 && input_available() != 0 {
         reset_cursorhold_wait(tb_change_cnt);
         let to_read = (maxlen as usize).min(input_available());
-        unsafe { ptr::copy_nonoverlapping(osi_st().input_read_pos.cast::<u8>(), buf, to_read) };
-        osi_st().input_read_pos = osi_st().input_read_pos.wrapping_add(to_read);
+        let rpos = osi_st().input_read_pos;
+        unsafe { ptr::copy_nonoverlapping(osi_st().input_buffer[rpos..].as_ptr(), buf, to_read) };
+        osi_st().input_read_pos = rpos + to_read;
         debug_assert!(to_read <= i32::MAX as usize);
         return to_read as i32;
     }
@@ -347,108 +324,85 @@ pub fn os_isatty(fd: i32) -> bool {
 }
 
 pub fn input_available() -> usize {
-    ensure_input_ptrs_init();
-    (osi_st().input_write_pos as usize).wrapping_sub(osi_st().input_read_pos as usize)
+    osi_st().input_write_pos.saturating_sub(osi_st().input_read_pos)
 }
 
 fn input_space() -> usize {
-    ensure_input_ptrs_init();
-    let buf_end = input_buf_ptr().wrapping_add(INPUT_BUFFER_SIZE);
-    (buf_end as usize).wrapping_sub(osi_st().input_write_pos as usize)
+    INPUT_BUFFER_SIZE.saturating_sub(osi_st().input_write_pos)
 }
 
-pub fn input_enqueue_raw(data: impl crate::strings::IntoCCharPtr, size: usize) {
-    let data = data.into_c_char_ptr();
-    {
-        ensure_input_ptrs_init();
-        let buf_start = input_buf_ptr();
-        if (osi_st().input_read_pos as usize) > (buf_start as usize) {
-            let available = input_available();
-            unsafe { ptr::copy(osi_st().input_read_pos, buf_start, available) };
-            osi_st().input_read_pos = buf_start;
-            osi_st().input_write_pos = buf_start.wrapping_add(available);
-        }
-
-        let to_write = size.min(input_space());
-        unsafe { ptr::copy_nonoverlapping(data, osi_st().input_write_pos, to_write) };
-        osi_st().input_write_pos = osi_st().input_write_pos.wrapping_add(to_write);
+pub fn input_enqueue_raw(data: &[u8]) {
+    let st = osi_st();
+    if st.input_read_pos > 0 {
+        let available = st.input_write_pos.saturating_sub(st.input_read_pos);
+        st.input_buffer
+            .copy_within(st.input_read_pos..st.input_write_pos, 0);
+        st.input_read_pos = 0;
+        st.input_write_pos = available;
     }
+
+    let to_write = data.len().min(INPUT_BUFFER_SIZE.saturating_sub(st.input_write_pos));
+    let wpos = st.input_write_pos;
+    st.input_buffer[wpos..wpos + to_write].copy_from_slice(&data[..to_write]);
+    st.input_write_pos = wpos + to_write;
 }
 
 pub fn input_enqueue(chan_id: u64, keys: NvimString) -> usize {
-    ensure_input_ptrs_init();
     g_st().current_ui = chan_id;
 
     if osi_st().input_read_pos == osi_st().input_write_pos {
-        osi_st().input_read_pos = input_buf_ptr();
-        osi_st().input_write_pos = input_buf_ptr();
+        osi_st().input_read_pos = 0;
+        osi_st().input_write_pos = 0;
     }
 
-    if keys.size > 0 {
+    let key_bytes = keys.as_bytes();
+    if !key_bytes.is_empty() {
         set_vim_var_nr(VV_USERACTIVE, os_realtime() as Varnumber);
     }
 
-    let mut ptr_cur: *const c_char = keys.data.cast_const();
-    let end = ptr_cur.wrapping_add(keys.size);
-
-    while input_space() >= 19 && (ptr_cur as usize) < (end as usize) {
+    let mut pos: usize = 0;
+    while input_space() >= 19 && pos < key_bytes.len() {
         let mut buf = [0u8; 19];
-        let mut new_size = trans_special(
-            &raw mut ptr_cur,
-            (end as usize).wrapping_sub(ptr_cur as usize),
-            buf.as_mut_ptr().cast(),
-            FSK_KEYCODE,
-            true,
-            None,
-        );
-
-        if new_size > 0 {
-            new_size = handle_mouse_event(&raw mut ptr_cur, buf.as_mut_ptr(), new_size);
+        if let Some((consumed, dlen)) =
+            trans_special_slice(&key_bytes[pos..], &mut buf, FSK_KEYCODE, true, None)
+        {
+            pos += consumed;
+            let new_size = handle_mouse_event(key_bytes, &mut pos, &mut buf, dlen as u32);
             if new_size > 0 {
-                input_enqueue_raw(buf.as_ptr().cast(), new_size as usize);
+                input_enqueue_raw(&buf[..new_size as usize]);
             }
             continue;
         }
 
-        if crate::memory::cstr_first_byte(ptr_cur) == b'<' {
-            let old_ptr = ptr_cur;
+        if key_bytes[pos] == b'<' {
+            let old_pos = pos;
             // Invalid or incomplete key sequence, skip until the next '>' or *end.
             loop {
-                ptr_cur = ptr_cur.wrapping_add(1);
-                if (ptr_cur as usize) >= (end as usize)
-                    || crate::memory::cstr_first_byte(ptr_cur) == b'>'
-                {
+                pos += 1;
+                if pos >= key_bytes.len() || key_bytes[pos] == b'>' {
                     break;
                 }
             }
-            if (ptr_cur as usize) >= (end as usize)
-                || crate::memory::cstr_first_byte(ptr_cur) != b'>'
-            {
+            if pos >= key_bytes.len() || key_bytes[pos] != b'>' {
                 // Incomplete key sequence, return without consuming.
-                ptr_cur = old_ptr;
+                pos = old_pos;
                 break;
             }
-            ptr_cur = ptr_cur.wrapping_add(1);
+            pos += 1;
             continue;
         }
 
         // copy the character, escaping K_SPECIAL
-        if crate::memory::cstr_first_byte(ptr_cur) == K_SPECIAL {
-            let k_spec = K_SPECIAL as c_char;
-            let ks_spec = KS_SPECIAL as c_char;
-            let ke_fill = KE_FILLER as c_char;
-            input_enqueue_raw(&raw const k_spec, 1);
-            input_enqueue_raw(&raw const ks_spec, 1);
-            input_enqueue_raw(&raw const ke_fill, 1);
+        if key_bytes[pos] == K_SPECIAL {
+            input_enqueue_raw(&[K_SPECIAL, KS_SPECIAL, KE_FILLER]);
         } else {
-            input_enqueue_raw(ptr_cur, 1);
+            input_enqueue_raw(&key_bytes[pos..pos + 1]);
         }
-        ptr_cur = ptr_cur.wrapping_add(1);
+        pos += 1;
     }
 
-    let rv = (ptr_cur as usize).wrapping_sub(keys.data as usize);
     process_ctrl_c();
-    rv
+    pos
 }
 
 fn check_multiclick(code: i32, grid: i32, row: i32, col: i32, skip_event: &mut bool) -> u8 {
@@ -508,72 +462,75 @@ fn check_multiclick(code: i32, grid: i32, row: i32, col: i32, skip_event: &mut b
 }
 
 /// Mouse event handling code (extract row/col if available and detect multiple clicks)
-fn handle_mouse_event(ptr_p: *mut *const c_char, buf: *mut u8, mut bufsize: u32) -> u32 {
-    unsafe {
-        let mut mouse_code: i32 = 0;
-        let mut key_type: i32 = 0;
+fn handle_mouse_event(
+    key_bytes: &[u8],
+    pos: &mut usize,
+    buf: &mut [u8; 19],
+    mut bufsize: u32,
+) -> u32 {
+    let mut mouse_code: i32 = 0;
+    let mut key_type: i32 = 0;
 
-        if bufsize == 3 {
-            mouse_code = i32::from(*buf.wrapping_add(2));
-            key_type = i32::from(*buf.wrapping_add(1));
-        } else if bufsize == 6 {
-            // prefixed with K_SPECIAL KS_MODIFIER mod
-            mouse_code = i32::from(*buf.wrapping_add(5));
-            key_type = i32::from(*buf.wrapping_add(4));
-        }
-
-        if key_type != i32::from(KS_EXTRA)
-            || !((KE_LEFTMOUSE..=KE_RIGHTRELEASE).contains(&mouse_code)
-                || (KE_X1MOUSE..=KE_X2RELEASE).contains(&mouse_code)
-                || (KE_MOUSEDOWN..=KE_MOUSERIGHT).contains(&mouse_code)
-                || mouse_code == KE_MOUSEMOVE)
-        {
-            return bufsize;
-        }
-
-        if let Some((mut col, mut row, advance)) = parse_mouse_coords(*ptr_p) {
-            if col >= 0 && row >= 0 {
-                if col >= g_st().columns_global {
-                    col = g_st().columns_global - 1;
-                }
-                if row >= g_st().rows_global {
-                    row = g_st().rows_global - 1;
-                }
-                g_st().mouse_grid = 0;
-                g_st().mouse_row = row;
-                g_st().mouse_col = col;
-            }
-            *ptr_p = (*ptr_p).wrapping_add(advance);
-        }
-
-        let mut skip_event = false;
-        let modifiers = check_multiclick(
-            mouse_code,
-            g_st().mouse_grid,
-            g_st().mouse_row,
-            g_st().mouse_col,
-            &mut skip_event,
-        );
-        if skip_event {
-            return 0;
-        }
-
-        if modifiers != 0 {
-            if *buf.wrapping_add(1) != KS_MODIFIER {
-                // no modifiers in the buffer yet, shift the bytes 3 positions
-                ptr::copy(buf, buf.wrapping_add(3), 3);
-                // add the modifier sequence
-                *buf = K_SPECIAL;
-                *buf.wrapping_add(1) = KS_MODIFIER;
-                *buf.wrapping_add(2) = modifiers;
-                bufsize += 3;
-            } else {
-                *buf.wrapping_add(2) |= modifiers;
-            }
-        }
-
-        bufsize
+    if bufsize == 3 {
+        mouse_code = i32::from(buf[2]);
+        key_type = i32::from(buf[1]);
+    } else if bufsize == 6 {
+        // prefixed with K_SPECIAL KS_MODIFIER mod
+        mouse_code = i32::from(buf[5]);
+        key_type = i32::from(buf[4]);
     }
+
+    if key_type != i32::from(KS_EXTRA)
+        || !((KE_LEFTMOUSE..=KE_RIGHTRELEASE).contains(&mouse_code)
+            || (KE_X1MOUSE..=KE_X2RELEASE).contains(&mouse_code)
+            || (KE_MOUSEDOWN..=KE_MOUSERIGHT).contains(&mouse_code)
+            || mouse_code == KE_MOUSEMOVE)
+    {
+        return bufsize;
+    }
+
+    if let Some((mut col, mut row, advance)) = parse_mouse_coords(&key_bytes[*pos..]) {
+        if col >= 0 && row >= 0 {
+            if col >= g_st().columns_global {
+                col = g_st().columns_global - 1;
+            }
+            if row >= g_st().rows_global {
+                row = g_st().rows_global - 1;
+            }
+            g_st().mouse_grid = 0;
+            g_st().mouse_row = row;
+            g_st().mouse_col = col;
+        }
+        *pos += advance;
+    }
+
+    let mut skip_event = false;
+    let modifiers = check_multiclick(
+        mouse_code,
+        g_st().mouse_grid,
+        g_st().mouse_row,
+        g_st().mouse_col,
+        &mut skip_event,
+    );
+    if skip_event {
+        return 0;
+    }
+
+    if modifiers != 0 {
+        if buf[1] != KS_MODIFIER {
+            // no modifiers in the buffer yet, shift the bytes 3 positions
+            buf.copy_within(0..3, 3);
+            // add the modifier sequence
+            buf[0] = K_SPECIAL;
+            buf[1] = KS_MODIFIER;
+            buf[2] = modifiers;
+            bufsize += 3;
+        } else {
+            buf[2] |= modifiers;
+        }
+    }
+
+    bufsize
 }
 
 pub fn input_enqueue_mouse(code: i32, mut modifier: u8, grid: i32, row: i32, col: i32) {
@@ -583,35 +540,22 @@ pub fn input_enqueue_mouse(code: i32, mut modifier: u8, grid: i32, row: i32, col
         return;
     }
     let mut buf = [0u8; 7];
-    let mut p = buf.as_mut_ptr();
+    let mut idx = 0usize;
     if modifier != 0 {
-        unsafe {
-            *p = K_SPECIAL;
-        }
-        unsafe {
-            *p.wrapping_add(1) = KS_MODIFIER;
-        }
-        unsafe {
-            *p.wrapping_add(2) = modifier;
-        }
-        p = p.wrapping_add(3);
+        buf[0] = K_SPECIAL;
+        buf[1] = KS_MODIFIER;
+        buf[2] = modifier;
+        idx = 3;
     }
-    unsafe {
-        *p = K_SPECIAL;
-    }
-    unsafe {
-        *p.wrapping_add(1) = KS_EXTRA;
-    }
-    unsafe {
-        *p.wrapping_add(2) = code as u8;
-    }
+    buf[idx] = K_SPECIAL;
+    buf[idx + 1] = KS_EXTRA;
+    buf[idx + 2] = code as u8;
 
     g_st().mouse_grid = grid;
     g_st().mouse_row = row;
     g_st().mouse_col = col;
 
-    let written = 3 + (p as usize).wrapping_sub(buf.as_ptr() as usize);
-    input_enqueue_raw(buf.as_ptr().cast(), written);
+    input_enqueue_raw(&buf[..idx + 3]);
 }
 
 /// @return true if the main loop is blocked and waiting for input.
@@ -667,8 +611,9 @@ fn inbuf_poll(ms: i32, events: *mut MultiQueue) -> bool {
         // Dismiss the prompt (CTRL-C) instead of waiting forever.
         static DID_LOG: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
         if !DID_LOG.swap(true, std::sync::atomic::Ordering::Relaxed) {
-            let mut mode = [0 as c_char; MODE_MAX_LENGTH];
-            get_mode(mode.as_mut_ptr());
+            let mut mode = [0u8; MODE_MAX_LENGTH];
+            get_mode(&mut mode);
+            let mode_cstr = std::ffi::CStr::from_bytes_until_nul(&mode).unwrap_or(c"");
             logmsg!(
                 LOGLVL_WRN,
                 ptr::null(),
@@ -676,10 +621,10 @@ fn inbuf_poll(ms: i32, events: *mut MultiQueue) -> bool {
                 line!() as i32,
                 true,
                 c"Interrupted prompt (mode=%s): user input is unlikely",
-                mode.as_ptr(),
+                mode_cstr.as_ptr(),
             );
         }
-        input_enqueue_raw(c"\x03", 1);
+        input_enqueue_raw(b"\x03");
         // Also interrupt the code that prompted. Skips remaining exit autocmds.
         g_st().got_int = true;
     }
@@ -692,21 +637,22 @@ fn process_ctrl_c() {
         return;
     }
 
-    let available = input_available();
+    let st = osi_st();
+    let rpos = st.input_read_pos;
+    let wpos = st.input_write_pos;
+    let available = wpos.saturating_sub(rpos);
     let mut i = available as isize - 1;
     while i >= 0 {
-        let c = unsafe { *osi_st().input_read_pos.wrapping_offset(i) } as u8;
+        let idx = rpos + (i as usize);
+        let c = st.input_buffer[idx];
         if c == CTRL_C_CONST_CONST_CONST
             || (c == b'C'
                 && i >= 3
-                && unsafe { *osi_st().input_read_pos.wrapping_offset(i - 3) } as u8 == K_SPECIAL
-                && unsafe { *osi_st().input_read_pos.wrapping_offset(i - 2) } as u8 == KS_MODIFIER
-                && unsafe { *osi_st().input_read_pos.wrapping_offset(i - 1) } as u8
-                    == MOD_MASK_CTRL)
+                && st.input_buffer[idx - 3] == K_SPECIAL
+                && st.input_buffer[idx - 2] == KS_MODIFIER
+                && st.input_buffer[idx - 1] == MOD_MASK_CTRL)
         {
-            unsafe {
-                *osi_st().input_read_pos.wrapping_offset(i) = CTRL_C_CONST_CONST_CONST as c_char;
-            }
+            st.input_buffer[idx] = CTRL_C_CONST_CONST_CONST;
             g_st().got_int = true;
             break;
         }
@@ -715,7 +661,7 @@ fn process_ctrl_c() {
 
     if g_st().got_int && i > 0 {
         // Remove all unprocessed input (typeahead) before the CTRL-C.
-        osi_st().input_read_pos = osi_st().input_read_pos.wrapping_offset(i);
+        st.input_read_pos = rpos + (i as usize);
     }
 }
 
@@ -756,13 +702,13 @@ mod tests {
 
     #[test]
     fn input_enqueue_raw_and_push_event_key_work() {
-        osi_st().input_read_pos = input_buf_ptr();
-        osi_st().input_write_pos = input_buf_ptr();
+        osi_st().input_read_pos = 0;
+        osi_st().input_write_pos = 0;
         assert_eq!(input_available(), 0);
-        input_enqueue_raw(c"abc", 3);
+        input_enqueue_raw(b"abc");
         assert_eq!(input_available(), 3);
-        osi_st().input_read_pos = input_buf_ptr();
-        osi_st().input_write_pos = input_buf_ptr();
+        osi_st().input_read_pos = 0;
+        osi_st().input_write_pos = 0;
 
         osi_st().push_event_key_idx = 0;
         let mut buf = [0u8; 3];
@@ -772,8 +718,8 @@ mod tests {
         assert_eq!(push_event_key(buf.as_mut_ptr().wrapping_add(2), 2), 1);
         assert_eq!(buf[2], KE_EVENT);
 
-        assert_eq!(parse_mouse_coords(c"<12,34>rest"), Some((12, 34, 7)));
-        assert_eq!(parse_mouse_coords(c"<-1,0>"), Some((-1, 0, 6)));
-        assert_eq!(parse_mouse_coords(c"<12,34"), None);
+        assert_eq!(parse_mouse_coords(b"<12,34>rest"), Some((12, 34, 7)));
+        assert_eq!(parse_mouse_coords(b"<-1,0>"), Some((-1, 0, 6)));
+        assert_eq!(parse_mouse_coords(b"<12,34"), None);
     }
 }
