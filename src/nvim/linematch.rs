@@ -39,7 +39,7 @@ fn line_slice<'a>(m: &Mmfile) -> &'a [u8] {
     if m.ptr.is_null() || m.size <= 0 {
         return &[];
     }
-    let raw = crate::memory::cstr_slice(m.ptr, m.size as usize);
+    let raw = unsafe { std::slice::from_raw_parts(m.ptr, m.size as usize) };
     let len = raw.iter().position(|&b| b == b'\n').unwrap_or(raw.len());
     &raw[..len.min(MATCH_CHAR_MAX_LEN - 1)]
 }
@@ -144,7 +144,7 @@ pub fn fastforward_buf_to_lnum(mut s: Mmfile, lnum: Linenr) -> Mmfile {
             s.size = 0;
             break;
         }
-        let slice = crate::memory::cstr_slice(s.ptr, s.size as usize);
+        let slice = unsafe { std::slice::from_raw_parts(s.ptr, s.size as usize) };
         if let Some(pos) = slice.iter().position(|&b| b == b'\n') {
             s.ptr = s.ptr.wrapping_add(pos + 1);
             s.size -= (pos as i32) + 1;
@@ -375,7 +375,6 @@ pub fn linematch_nbuffers(diff_blk: &[&Mmfile], diff_len: &[i32], iwhite: bool) 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::ffi::c_char;
 
     #[test]
     fn fastforward_and_two_buffer_linematch() {
@@ -383,11 +382,11 @@ mod tests {
         let buf2 = b"unrelated\nbeta_mod\ngamma\n";
 
         let mm1 = Mmfile {
-            ptr: buf1.as_ptr().cast::<c_char>().cast_mut(),
+            ptr: buf1.as_ptr().cast_mut(),
             size: buf1.len() as i32,
         };
         let mm2 = Mmfile {
-            ptr: buf2.as_ptr().cast::<c_char>().cast_mut(),
+            ptr: buf2.as_ptr().cast_mut(),
             size: buf2.len() as i32,
         };
 

@@ -1,7 +1,5 @@
 //! XDiff environment preparation (`src/xdiff/xprepare.c`).
 
-use std::ffi::c_char;
-
 use crate::xdiff::xutils::{
     xdl_bogosqrt, xdl_guess_lines, xdl_hash_record, xdl_hashbits, xdl_mmfile_first, xdl_recmatch,
 };
@@ -21,7 +19,7 @@ const XDL_GUESS_NLINES2: i64 = 20;
 struct Xdlclass {
     next: Option<usize>,
     ha: u64,
-    line: *const c_char,
+    line: *const u8,
     size: i64,
     idx: i64,
     len1: i64,
@@ -179,7 +177,7 @@ pub fn xdl_prepare_env(mf1: &mut Mmfile, mf2: &mut Mmfile, xpp: &Xpparam, xe: &m
     0
 }
 
-fn xdl_clean_mmatch(dis: *const c_char, i: i64, mut s: i64, mut e: i64) -> i32 {
+fn xdl_clean_mmatch(dis: *const u8, i: i64, mut s: i64, mut e: i64) -> i32 {
     if i - s > XDL_SIMSCAN_WINDOW {
         s = i - XDL_SIMSCAN_WINDOW;
     }
@@ -231,7 +229,7 @@ fn xdl_clean_mmatch(dis: *const c_char, i: i64, mut s: i64, mut e: i64) -> i32 {
 fn xdl_cleanup_records(cf: &Xdlclassifier, xdf1: &mut Xdfile, xdf2: &mut Xdfile) -> i32 {
     unsafe {
         let total = (xdf1.nrec + xdf2.nrec + 2) as usize;
-        let mut dis_vec = vec![0 as c_char; total];
+        let mut dis_vec = vec![0u8; total];
         let dis1 = dis_vec.as_mut_ptr();
         let dis2 = dis1.wrapping_offset((xdf1.nrec + 1) as isize);
 

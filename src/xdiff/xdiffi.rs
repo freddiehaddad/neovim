@@ -1,7 +1,5 @@
 //! Core diff algorithm (`src/xdiff/xdiffi.c`).
 
-use std::ffi::c_char;
-
 use crate::xdiff::xemit::{xdl_emit_diff, xdl_get_hunk};
 use crate::xdiff::xhistogram::xdl_do_histogram_diff;
 use crate::xdiff::xpatience::xdl_do_patience_diff;
@@ -457,9 +455,9 @@ fn xget_indent(rec: &Xrecord) -> i32 {
             let c = *rec.ptr.wrapping_offset(i as isize);
             if !xdl_isspace(c) {
                 return ret;
-            } else if c == b' ' as c_char {
+            } else if c == b' ' {
                 ret += 1;
-            } else if c == b'\t' as c_char {
+            } else if c == b'\t' {
                 ret += 8 - ret % 8;
             }
 

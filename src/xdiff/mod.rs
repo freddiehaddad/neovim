@@ -7,8 +7,6 @@ pub mod xpatience;
 pub mod xprepare;
 pub mod xutils;
 
-use std::ffi::c_char;
-
 pub const XDF_NEED_MINIMAL: u64 = 1 << 0;
 
 pub const XDF_IGNORE_WHITESPACE: u64 = 1 << 1;
@@ -38,14 +36,14 @@ pub const XDL_EMIT_NO_HUNK_HDR: u64 = 1 << 1;
 #[repr(C)]
 #[derive(Copy, Clone, Debug)]
 pub struct Mmfile {
-    pub ptr: *mut c_char,
+    pub ptr: *mut u8,
     pub size: i32,
 }
 
 #[repr(C)]
 #[derive(Copy, Clone)]
 pub struct Mmbuffer {
-    pub ptr: *mut c_char,
+    pub ptr: *mut u8,
     pub size: i32,
 }
 
@@ -111,7 +109,7 @@ pub struct Xdemitconf {
 #[repr(C)]
 #[derive(Copy, Clone)]
 pub struct Xrecord {
-    pub ptr: *const c_char,
+    pub ptr: *const u8,
     pub size: i64,
     pub ha: u64,
 }
@@ -122,8 +120,8 @@ pub struct Xdfile {
     pub dstart: i64,
     pub dend: i64,
     pub recs: Vec<Xrecord>,
-    pub rchg_vec: Vec<c_char>,
-    pub rchg: *mut c_char,
+    pub rchg_vec: Vec<u8>,
+    pub rchg: *mut u8,
     pub rindex: Vec<i64>,
     pub nreff: i64,
     pub ha: Vec<u64>,
@@ -173,7 +171,7 @@ pub struct Diffdata {
     pub nrec: i64,
     pub ha: *const u64,
     pub rindex: *mut i64,
-    pub rchg: *mut c_char,
+    pub rchg: *mut u8,
 }
 
 #[repr(C)]
@@ -203,8 +201,8 @@ pub fn xdl_hashlong(v: u64, b: u32) -> u64 {
 }
 
 #[inline]
-pub fn xdl_isspace(c: c_char) -> bool {
-    matches!(c as u8, b' ' | b'\t' | b'\n' | b'\r' | b'\x0b' | b'\x0c')
+pub fn xdl_isspace(c: u8) -> bool {
+    matches!(c, b' ' | b'\t' | b'\n' | b'\r' | b'\x0b' | b'\x0c')
 }
 
 #[cfg(test)]
@@ -235,9 +233,9 @@ mod tests {
         assert_eq!(xdl_recmatch_slice(a, b, XDF_IGNORE_WHITESPACE_CHANGE), 1);
         assert_eq!(
             xdl_recmatch(
-                a.as_ptr().cast::<c_char>(),
+                a.as_ptr(),
                 a.len() as i64,
-                b.as_ptr().cast::<c_char>(),
+                b.as_ptr(),
                 b.len() as i64,
                 XDF_IGNORE_WHITESPACE_CHANGE as i64,
             ),

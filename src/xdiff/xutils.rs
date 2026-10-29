@@ -1,6 +1,5 @@
 //! XDiff utility functions (`src/xdiff/xutils.c`).
 
-use std::ffi::c_char;
 use std::ptr;
 
 use crate::xdiff::xdiffi::xdl_do_diff;
@@ -19,9 +18,9 @@ pub fn xdl_bogosqrt(mut n: i64) -> i64 {
 }
 
 pub fn xdl_emit_diffrec(
-    rec: *const c_char,
+    rec: *const u8,
     size: i64,
-    pre: *const c_char,
+    pre: *const u8,
     psize: i64,
     ecb: &mut Xdemitcb,
 ) -> i32 {
@@ -35,9 +34,9 @@ pub fn xdl_emit_diffrec(
     mb[0].size = psize as i32;
     mb[1].ptr = rec.cast_mut();
     mb[1].size = size as i32;
-    if size > 0 && unsafe { *rec.wrapping_offset((size - 1) as isize) } != b'\n' as c_char {
+    if size > 0 && unsafe { *rec.wrapping_offset((size - 1) as isize) } != b'\n' {
         const NO_NL: &[u8] = b"\n\\ No newline at end of file\n\0";
-        mb[2].ptr = NO_NL.as_ptr().cast::<c_char>().cast_mut();
+        mb[2].ptr = NO_NL.as_ptr().cast_mut();
         mb[2].size = (NO_NL.len() - 1) as i32;
         i += 1;
     }
@@ -48,7 +47,7 @@ pub fn xdl_emit_diffrec(
     0
 }
 
-pub fn xdl_mmfile_first(mmf: &Mmfile, size: &mut i64) -> *mut c_char {
+pub fn xdl_mmfile_first(mmf: &Mmfile, size: &mut i64) -> *mut u8 {
     *size = mmf.size as i64;
     mmf.ptr
 }
@@ -68,9 +67,7 @@ pub fn xdl_guess_lines(mf: &Mmfile, sample: i64) -> i64 {
         let top = data.wrapping_offset(size as isize);
         while nl < sample && cur < top {
             nl += 1;
-            let rem = unsafe {
-                std::slice::from_raw_parts(cur.cast::<u8>(), top.offset_from(cur) as usize)
-            };
+            let rem = unsafe { std::slice::from_raw_parts(cur, top.offset_from(cur) as usize) };
             if let Some(pos) = rem.iter().position(|&b| b == b'\n') {
                 cur = cur.wrapping_add(pos + 1);
             } else {
@@ -93,15 +90,15 @@ pub fn xdl_blankline_slice(line: &[u8], flags: u64) -> i32 {
     }
 
     let mut i = 0usize;
-    while i < line.len() && xdl_isspace(line[i] as c_char) {
+    while i < line.len() && xdl_isspace(line[i]) {
         i += 1;
     }
 
     i32::from(i == line.len())
 }
 
-pub fn xdl_blankline(line: *const c_char, size: i64, flags: i64) -> i32 {
-    let slice = unsafe { std::slice::from_raw_parts(line.cast::<u8>(), size.max(0) as usize) };
+pub fn xdl_blankline(line: *const u8, size: i64, flags: i64) -> i32 {
+    let slice = unsafe { std::slice::from_raw_parts(line, size.max(0) as usize) };
     xdl_blankline_slice(slice, flags as u64)
 }
 
@@ -135,10 +132,10 @@ pub fn xdl_recmatch_slice(b1: &[u8], b2: &[u8], uflags: u64) -> i32 {
     let mut i2 = 0usize;
 
     if (uflags & XDF_IGNORE_WHITESPACE) != 0 {
-        while i1 < s1 && xdl_isspace(b1[i1] as c_char) {
+        while i1 < s1 && xdl_isspace(b1[i1]) {
             i1 += 1;
         }
-        while i2 < s2 && xdl_isspace(b2[i2] as c_char) {
+        while i2 < s2 && xdl_isspace(b2[i2]) {
             i2 += 1;
         }
         while i1 < s1 && i2 < s2 {
@@ -149,20 +146,20 @@ pub fn xdl_recmatch_slice(b1: &[u8], b2: &[u8], uflags: u64) -> i32 {
             if c1 != c2 {
                 return 0;
             }
-            while i1 < s1 && xdl_isspace(b1[i1] as c_char) {
+            while i1 < s1 && xdl_isspace(b1[i1]) {
                 i1 += 1;
             }
-            while i2 < s2 && xdl_isspace(b2[i2] as c_char) {
+            while i2 < s2 && xdl_isspace(b2[i2]) {
                 i2 += 1;
             }
         }
     } else if (uflags & XDF_IGNORE_WHITESPACE_CHANGE) != 0 {
         while i1 < s1 && i2 < s2 {
-            if xdl_isspace(b1[i1] as c_char) && xdl_isspace(b2[i2] as c_char) {
-                while i1 < s1 && xdl_isspace(b1[i1] as c_char) {
+            if xdl_isspace(b1[i1]) && xdl_isspace(b2[i2]) {
+                while i1 < s1 && xdl_isspace(b1[i1]) {
                     i1 += 1;
                 }
-                while i2 < s2 && xdl_isspace(b2[i2] as c_char) {
+                while i2 < s2 && xdl_isspace(b2[i2]) {
                     i2 += 1;
                 }
                 continue;
@@ -191,7 +188,7 @@ pub fn xdl_recmatch_slice(b1: &[u8], b2: &[u8], uflags: u64) -> i32 {
     }
 
     if i1 < s1 {
-        while i1 < s1 && xdl_isspace(b1[i1] as c_char) {
+        while i1 < s1 && xdl_isspace(b1[i1]) {
             i1 += 1;
         }
         if s1 != i1 {
@@ -199,7 +196,7 @@ pub fn xdl_recmatch_slice(b1: &[u8], b2: &[u8], uflags: u64) -> i32 {
         }
     }
     if i2 < s2 {
-        while i2 < s2 && xdl_isspace(b2[i2] as c_char) {
+        while i2 < s2 && xdl_isspace(b2[i2]) {
             i2 += 1;
         }
         return i32::from(s2 == i2);
@@ -207,26 +204,22 @@ pub fn xdl_recmatch_slice(b1: &[u8], b2: &[u8], uflags: u64) -> i32 {
     1
 }
 
-pub fn xdl_recmatch(l1: *const c_char, s1: i64, l2: *const c_char, s2: i64, flags: i64) -> i32 {
-    let b1 = unsafe { std::slice::from_raw_parts(l1.cast::<u8>(), s1.max(0) as usize) };
-    let b2 = unsafe { std::slice::from_raw_parts(l2.cast::<u8>(), s2.max(0) as usize) };
+pub fn xdl_recmatch(l1: *const u8, s1: i64, l2: *const u8, s2: i64, flags: i64) -> i32 {
+    let b1 = unsafe { std::slice::from_raw_parts(l1, s1.max(0) as usize) };
+    let b2 = unsafe { std::slice::from_raw_parts(l2, s2.max(0) as usize) };
     xdl_recmatch_slice(b1, b2, flags as u64)
 }
 
-fn xdl_hash_record_with_whitespace(
-    data: &mut *const c_char,
-    top: *const c_char,
-    flags: i64,
-) -> u64 {
+fn xdl_hash_record_with_whitespace(data: &mut *const u8, top: *const u8, flags: i64) -> u64 {
     let mut ha: u64 = 5381;
     let mut ptr = *data;
     let uflags = flags as u64;
     let cr_at_eol_only = (uflags & XDF_WHITESPACE_FLAGS) == XDF_IGNORE_CR_AT_EOL;
 
-    while ptr < top && unsafe { *ptr } != b'\n' as c_char {
+    while ptr < top && unsafe { *ptr } != b'\n' {
         if cr_at_eol_only {
-            if unsafe { *ptr } == b'\r' as c_char
-                && unsafe { ptr.wrapping_add(1) < top && *ptr.wrapping_add(1) == b'\n' as c_char }
+            if unsafe { *ptr } == b'\r'
+                && unsafe { ptr.wrapping_add(1) < top && *ptr.wrapping_add(1) == b'\n' }
             {
                 ptr = ptr.wrapping_add(1);
                 continue;
@@ -236,12 +229,11 @@ fn xdl_hash_record_with_whitespace(
             while unsafe {
                 ptr.wrapping_add(1) < top
                     && xdl_isspace(*ptr.wrapping_add(1))
-                    && *ptr.wrapping_add(1) != b'\n' as c_char
+                    && *ptr.wrapping_add(1) != b'\n'
             } {
                 ptr = ptr.wrapping_add(1);
             }
-            let at_eol =
-                unsafe { top <= ptr.wrapping_add(1) || *ptr.wrapping_add(1) == b'\n' as c_char };
+            let at_eol = unsafe { top <= ptr.wrapping_add(1) || *ptr.wrapping_add(1) == b'\n' };
             if (uflags & XDF_IGNORE_WHITESPACE) != 0 {
                 // already handled
             } else if (uflags & XDF_IGNORE_WHITESPACE_CHANGE) != 0 && !at_eol {
@@ -251,7 +243,7 @@ fn xdl_hash_record_with_whitespace(
                 let end = ptr.wrapping_add(1);
                 while ptr2 != end {
                     ha = ha.wrapping_add(ha << 5);
-                    ha ^= unsafe { *ptr2 } as u64;
+                    ha ^= unsafe { *ptr2 as i8 } as u64;
                     ptr2 = ptr2.wrapping_add(1);
                 }
             }
@@ -259,7 +251,7 @@ fn xdl_hash_record_with_whitespace(
             continue;
         }
         ha = ha.wrapping_add(ha << 5);
-        ha ^= unsafe { *ptr } as u64;
+        ha ^= unsafe { *ptr as i8 } as u64;
         ptr = ptr.wrapping_add(1);
     }
     *data = if ptr < top { ptr.wrapping_add(1) } else { ptr };
@@ -267,7 +259,7 @@ fn xdl_hash_record_with_whitespace(
     ha
 }
 
-pub fn xdl_hash_record(data: &mut *const c_char, top: *const c_char, flags: i64) -> u64 {
+pub fn xdl_hash_record(data: &mut *const u8, top: *const u8, flags: i64) -> u64 {
     if ((flags as u64) & XDF_WHITESPACE_FLAGS) != 0 {
         return xdl_hash_record_with_whitespace(data, top, flags);
     }
@@ -275,9 +267,9 @@ pub fn xdl_hash_record(data: &mut *const c_char, top: *const c_char, flags: i64)
     let mut ha: u64 = 5381;
     let mut ptr = *data;
 
-    while ptr < top && unsafe { *ptr } != b'\n' as c_char {
+    while ptr < top && unsafe { *ptr } != b'\n' {
         ha = ha.wrapping_add(ha << 5);
-        ha ^= unsafe { *ptr } as u64;
+        ha ^= unsafe { *ptr as i8 } as u64;
         ptr = ptr.wrapping_add(1);
     }
     *data = if ptr < top { ptr.wrapping_add(1) } else { ptr };
@@ -313,7 +305,7 @@ fn xdl_format_hunk_hdr(s1: i64, c1: i64, s2: i64, c2: i64, ecb: &mut Xdemitcb) -
     let nb = cursor.position() as i32;
 
     let mb = [Mmbuffer {
-        ptr: buf.as_mut_ptr().cast::<c_char>(),
+        ptr: buf.as_mut_ptr(),
         size: nb,
     }];
     if ecb.out_line(&mb) < 0 {

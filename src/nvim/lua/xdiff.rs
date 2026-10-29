@@ -188,7 +188,7 @@ fn get_linematch_results(
 pub(crate) fn write_string(out: &mut Vec<u8>, mb: &[Mmbuffer]) -> i32 {
     for chunk in mb {
         if chunk.size > 0 && !chunk.ptr.is_null() {
-            let slice = crate::memory::cstr_slice(chunk.ptr, chunk.size as usize);
+            let slice = unsafe { std::slice::from_raw_parts(chunk.ptr, chunk.size as usize) };
             out.extend_from_slice(slice);
         }
     }
@@ -273,7 +273,9 @@ fn get_string_arg(lstate: *mut lua_State, idx: i32) -> Mmfile {
         luaL_argerror(lstate, idx, c"expected string");
     }
     let mut size: usize = 0;
-    let ptr = unsafe { lua_tolstring(lstate, idx, &mut size) }.cast_mut();
+    let ptr = unsafe { lua_tolstring(lstate, idx, &mut size) }
+        .cast::<u8>()
+        .cast_mut();
     if size > (i32::MAX as usize) {
         luaL_argerror(lstate, idx, c"string too long");
     }

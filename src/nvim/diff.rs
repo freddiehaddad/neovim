@@ -142,7 +142,7 @@ pub struct Diffline {
 struct Diffin {
     din_fname: Option<CString>,
     din_mmfile: Mmfile,
-    din_buf: Vec<c_char>,
+    din_buf: Vec<u8>,
 }
 #[repr(C)]
 pub(crate) struct Diffout {
@@ -698,7 +698,7 @@ fn clear_diffout(dout: &mut Diffout) {
 fn diff_write_buffer(
     buf: &mut FileBuf,
     m: &mut Mmfile,
-    backing: &mut Vec<c_char>,
+    backing: &mut Vec<u8>,
     start: Linenr,
     mut end: Linenr,
 ) -> bool {
@@ -715,7 +715,7 @@ fn diff_write_buffer(
     for lnum in start..=end {
         len += ml_get_buf_len(buf, lnum) as usize + 1;
     }
-    *backing = vec![0; len];
+    *backing = vec![0u8; len];
     let ptr = backing.as_mut_ptr();
     m.ptr = ptr;
     m.size = len as i32;
@@ -726,7 +726,7 @@ fn diff_write_buffer(
             while !crate::memory::cstr_is_empty(s) {
                 let c: i32;
                 let mut c_len: i32 = 1;
-                let mut cbuf: [c_char; MB_MAXBYTES + 1] = [0; MB_MAXBYTES + 1];
+                let mut cbuf: [u8; MB_MAXBYTES + 1] = [0; MB_MAXBYTES + 1];
                 if unsafe { *s } == NL {
                     c = NUL as i32;
                 } else {
@@ -734,51 +734,32 @@ fn diff_write_buffer(
                     c_len = utf_char2len(ch);
                     c = utf_fold(ch);
                 }
-                let orig_len = utfc_ptr2len(s);
-                if utf_char2bytes(c, (&raw mut cbuf).cast()) != c_len {
-                    unsafe { ptr::copy(s, ptr.wrapping_add(len), orig_len as usize) };
+                let orig_len = utfc_ptr2len(s) as usize;
+                let s_bytes = crate::memory::cstr_slice(s, orig_len);
+                if crate::mbyte::utf_char2slice(c, &mut cbuf) != c_len as usize {
+                    backing[len..len + orig_len].copy_from_slice(s_bytes);
                 } else {
-                    unsafe {
-                        ptr::copy(
-                            (&raw const cbuf).cast(),
-                            ptr.wrapping_add(len),
-                            c_len as usize,
-                        )
-                    };
-                    if orig_len > c_len {
-                        unsafe {
-                            ptr::copy(
-                                s.wrapping_add(c_len as usize),
-                                ptr.wrapping_add(len + c_len as usize),
-                                (orig_len - c_len) as usize,
-                            )
-                        };
+                    let cl = c_len as usize;
+                    backing[len..len + cl].copy_from_slice(&cbuf[..cl]);
+                    if orig_len > cl {
+                        backing[len + cl..len + orig_len].copy_from_slice(&s_bytes[cl..]);
                     }
                 }
-                s = s.wrapping_add(orig_len as usize);
-                len += orig_len as usize;
+                s = s.wrapping_add(orig_len);
+                len += orig_len;
             }
         } else {
-            let slen = crate::memory::cstr_len(s);
-            unsafe { ptr::copy(s, ptr.wrapping_add(len), slen) };
-            {
-                let _d = unsafe { ptr.add(len) }.cast::<u8>();
-                let _sz = slen;
-                if _sz > 0 {
-                    let _c = (NL) as u8;
-                    let _x = (NUL) as u8;
-                    for _b in unsafe { std::slice::from_raw_parts_mut(_d, _sz) } {
-                        if *_b == _c {
-                            *_b = _x;
-                        }
-                    }
+            let s_bytes = crate::memory::cstr_as_bytes(s);
+            let slen = s_bytes.len();
+            backing[len..len + slen].copy_from_slice(s_bytes);
+            for b in &mut backing[len..len + slen] {
+                if *b == b'\n' {
+                    *b = 0;
                 }
-            };
+            }
             len += slen;
         }
-        unsafe {
-            *ptr.wrapping_add(len) = NL;
-        }
+        backing[len] = b'\n';
         len += 1;
     }
     true
@@ -1922,7 +1903,7 @@ fn run_linematch_algorithm(dp_idx: usize) {
         ptr: ptr::null_mut(),
         size: 0,
     }; DB_COUNT];
-    let mut diffbufs_vec: [Vec<c_char>; DB_COUNT] = [const { Vec::new() }; DB_COUNT];
+    let mut diffbufs_vec: [Vec<u8>; DB_COUNT] = [const { Vec::new() }; DB_COUNT];
     let mut diff_length: [i32; DB_COUNT] = [0; DB_COUNT];
     let mut ndiffs: usize = 0;
     let dp_lnum = (&curtab_mut().tp_diffs)[dp_idx].df_lnum;
@@ -2936,7 +2917,7 @@ fn diff_find_change_inline_diff(dp_idx: usize) {
                 let ptr = if curstr.is_empty() {
                     ptr::null_mut()
                 } else {
-                    curstr.as_mut_ptr().cast::<c_char>()
+                    curstr.as_mut_ptr()
                 };
                 if file1_idx != i as isize {
                     dio.dio_new.din_mmfile.ptr = ptr;
