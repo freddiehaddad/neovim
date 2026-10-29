@@ -2767,11 +2767,7 @@ fn get_function_body(
                         if !nextcmd.is_null() {
                             if let Some(ref ltf) = line_to_free {
                                 let off = (nextcmd as usize) - (ltf.as_ptr() as usize);
-                                let new_buf: Vec<c_char> = ltf
-                                    .as_bytes_with_nul()
-                                    .iter()
-                                    .map(|&b| b as c_char)
-                                    .collect();
+                                let new_buf: Vec<u8> = ltf.as_bytes_with_nul().to_vec();
                                 eap.set_cmdline_vec(eap.cmdlinep, new_buf);
                                 eap.nextcmd = (*eap.cmdlinep).wrapping_add(off);
                             } else {

@@ -3189,8 +3189,9 @@ fn cmdpreview_may_show(_s: &mut CommandLineState) -> bool {
     let mut ea: Exarg = Exarg::new();
     let mut cmod: Cmdmod = Cmdmod::new();
     let mut cmdpreview_type: i32;
-    let mut cmdline_vec: Vec<c_char> = crate::memory::cstr_to_cchar_vec(getln_st().ccline.cmdbuff);
-    let mut cmdline = cmdline_vec.as_mut_ptr();
+    let mut cmdline_vec: Vec<u8> =
+        crate::memory::cstr_as_bytes_with_nul(getln_st().ccline.cmdbuff).to_vec();
+    let mut cmdline = cmdline_vec.as_mut_ptr().cast::<c_char>();
     let mut errormsg: *const c_char = ptr::null();
     g_st().emsg_off += 1;
     let parsed = parse_cmdline(

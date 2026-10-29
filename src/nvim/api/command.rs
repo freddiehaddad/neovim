@@ -5,10 +5,10 @@ use crate::api::private::dispatch::{
     key_dict_cmd_magic_get_field, key_dict_cmd_mods_filter_get_field, key_dict_cmd_mods_get_field,
 };
 use crate::api::private::helpers::{
-    add_c, api_dict_to_keydict, api_set_error, api_typename, arena_array, arena_dict, arena_string,
-    boolean_obj, cbuf_to_arena_str, cstr_as_string, cstrn_as_string, dict_obj, error_set,
-    find_buffer_by_handle, has_key, integer_obj, put_c, static_cstr_as_string, string_obj,
-    try_wrap, with_script_context,
+    add_c, api_dict_to_keydict, api_set_error, api_typename, arena_array, arena_bytes, arena_dict,
+    arena_string, boolean_obj, cbuf_to_arena_str, cstr_as_string, cstrn_as_string, dict_obj,
+    error_set, find_buffer_by_handle, has_key, integer_obj, put_c, static_cstr_as_string,
+    string_obj, try_wrap, with_script_context,
 };
 use crate::api::private::validate::{
     Array, Dict, Error, ErrorType, NvimString, Object, ObjectType, api_err_exp, api_err_invalid,
@@ -16,7 +16,7 @@ use crate::api::private::validate::{
 };
 use crate::api::tabpage::Buffer;
 use crate::autocmd::{EVENT_CMDUNDEFINED, apply_autocmds, has_event};
-use crate::charset::{NUL, ascii_isupper, getdigits_long, skiptowhite, skipwhite};
+use crate::charset::{ascii_isupper, getdigits_long, skiptowhite, skipwhite};
 use crate::ex_docmd::{
     ADDR_ARGUMENTS, ADDR_BUFFERS, ADDR_LINES, ADDR_LOADED_BUFFERS, ADDR_NONE, ADDR_OTHER,
     ADDR_QUICKFIX, ADDR_TABS, ADDR_WINDOWS, CMD_SIZE, CMD_USER, CMD_USER_BUF, CMOD_BROWSE,
@@ -42,7 +42,7 @@ use crate::usercmd::{
     UC_BUFFER, commands_array, get_user_command_name, parse_addr_type_arg, parse_compl_arg,
     uc_add_command, uc_nargs_upper_bound, uc_split_args_iter, uc_validate_name, ucmds_mut,
 };
-use std::ffi::c_char;
+use std::ffi::CStr;
 use std::ptr;
 
 use crate::cmdexpand::{CmdAddr, EXPAND_NOTHING, EXPAND_USER_LUA};
@@ -217,7 +217,7 @@ fn parse_map_cmd(arg_str: impl crate::strings::IntoCCharPtr, arena: &mut Arena) 
     {
         let mut args = arena_array(arena, 2);
 
-        let lhs_start = arg_str as *mut c_char;
+        let lhs_start = arg_str.cast_mut();
         let lhs_end = skiptowhite(lhs_start);
         let lhs_len = crate::memory::ptr_offset_from(lhs_end, lhs_start) as usize;
 
@@ -302,8 +302,8 @@ pub fn nvim_parse_cmd(
     let mut ea: Exarg = Exarg::new();
     let mut cmod: Cmdmod = Cmdmod::new();
     let mut cmdline = arena_memdupz(arena, str_val.data, str_val.size);
-    let mut cmdline_buf: Vec<c_char> = Vec::new();
-    let mut errormsg: *const c_char = ptr::null();
+    let mut cmdline_buf: Vec<u8> = Vec::new();
+    let mut errormsg = ptr::null();
 
     if !parse_cmdline(
         &mut cmdline,
@@ -342,14 +342,14 @@ pub fn nvim_parse_cmd(
     } else {
         let mut end: usize = 0;
         let mut len: usize = 0;
-        let mut buf = arena_alloc(arena, length + 1, false).cast::<c_char>();
+        let mut buf = arena_alloc(arena, length + 1, false);
         let mut done = false;
         args = arena_array(arena, uc_nargs_upper_bound(ea.arg, length));
 
         while !done {
-            done = uc_split_args_iter(ea.arg, length, &mut end, buf, &mut len);
+            done = uc_split_args_iter(ea.arg, length, &mut end, buf.cast(), &mut len);
             if len > 0 {
-                add_c(&mut args, string_obj(cstrn_as_string(buf, len)));
+                add_c(&mut args, string_obj(cstrn_as_string(buf.cast(), len)));
                 buf = buf.wrapping_add(len + 1);
             }
         }
@@ -400,9 +400,13 @@ pub fn nvim_parse_cmd(
     }
 
     if (ea.argt & EX_REGSTR) != 0 {
-        let reg = [ea.regname as c_char, NUL];
+        let reg = if ea.regname != 0 {
+            &[ea.regname as u8][..]
+        } else {
+            b""
+        };
         result.is_set_cmd |= 1u64 << KEYSET_OPTIDX_CMD_REG;
-        result.reg = cstr_to_arena_str(arena, reg.as_ptr());
+        result.reg = arena_bytes(arena, reg);
     }
 
     result.is_set_cmd |= 1u64 << KEYSET_OPTIDX_CMD_BANG;
@@ -427,9 +431,8 @@ pub fn nvim_parse_cmd(
     } else {
         b'0'
     };
-    let nargs = [nargs_ch as c_char, NUL];
     result.is_set_cmd |= 1u64 << KEYSET_OPTIDX_CMD_NARGS;
-    result.nargs = string_obj(cstr_to_arena_str(arena, nargs.as_ptr()));
+    result.nargs = string_obj(arena_bytes(arena, &[nargs_ch]));
 
     let addr = match ea.addr_type {
         ADDR_LINES => c"line".as_ptr(),
@@ -622,9 +625,9 @@ pub fn nvim_cmd(
     unsafe {
         let mut ea: Exarg = Exarg::new();
         let mut cmod: Cmdmod = Cmdmod::new();
-        let mut cmdline_buf: Vec<c_char> = Vec::new();
-        let mut cmdline: *mut c_char = ptr::null_mut();
-        let mut errormsg: *const c_char = ptr::null();
+        let mut cmdline_buf: Vec<u8> = Vec::new();
+        let mut cmdline;
+        let mut errormsg = ptr::null();
         let mut args = Array::new();
         let mut retv = NvimString {
             data: ptr::null_mut(),
@@ -735,7 +738,7 @@ pub fn nvim_cmd(
                         is_numeric = true;
                         count_value = first_arg.data.integer();
                     } else if first_arg.obj_type == ObjectType::ObjectTypeString {
-                        let mut endptr: *const c_char = first_arg.data.string().data;
+                        let mut endptr = first_arg.data.string().data.cast_const();
                         let val = getdigits_long((&raw mut endptr).cast(), false, 0);
                         if *endptr == 0 && first_arg.data.string().size > 0 {
                             is_numeric = true;
@@ -760,20 +763,15 @@ pub fn nvim_cmd(
                         let elem = cmd.args[i];
                         match elem.obj_type {
                             ObjectType::ObjectTypeBoolean => {
-                                let data_str = arena_alloc(arena, 2, false).cast::<c_char>();
-                                *data_str.wrapping_add(0) =
-                                    if elem.data.boolean() { b'1' } else { b'0' } as c_char;
-                                *data_str.wrapping_add(1) = NUL;
-                                add_c(&mut args, string_obj(cstr_as_string(data_str)));
+                                let b = if elem.data.boolean() { b"1" } else { b"0" };
+                                add_c(&mut args, string_obj(arena_bytes(arena, b)));
                             }
                             ObjectType::ObjectTypeBuffer
                             | ObjectType::ObjectTypeWindow
                             | ObjectType::ObjectTypeTabpage
                             | ObjectType::ObjectTypeInteger => {
                                 let s = elem.data.integer().to_string();
-                                let data_str =
-                                    arena_memdupz(arena, s.as_ptr().cast::<c_char>(), s.len());
-                                add_c(&mut args, string_obj(cstr_as_string(data_str)));
+                                add_c(&mut args, string_obj(arena_bytes(arena, s.as_bytes())));
                             }
                             ObjectType::ObjectTypeString => {
                                 if string_iswhite(elem.data.string()) {
@@ -852,7 +850,8 @@ pub fn nvim_cmd(
                 }
             }
 
-            build_cmdline_str(&mut cmdline_buf, &mut cmdline, &mut ea, args);
+            build_cmdline_str(&mut cmdline_buf, &mut ea, args);
+            cmdline = cmdline_buf.as_mut_ptr().cast();
             if !parse_cmdline(
                 &mut cmdline,
                 &mut cmdline_buf,
@@ -941,8 +940,8 @@ pub fn nvim_cmd(
                     api_err_exp(err, c"reg", c"single character", cmd.reg.data);
                     break 'end;
                 }
-                let regname = *cmd.reg.data;
-                if regname == b'=' as c_char {
+                let regname = *cmd.reg.data.cast::<u8>();
+                if regname == b'=' {
                     api_set_error!(
                         err,
                         ErrorType::ErrorTypeValidation,
@@ -952,7 +951,7 @@ pub fn nvim_cmd(
                     break 'end;
                 }
                 if !valid_yank_reg(
-                    i32::from(regname as u8),
+                    i32::from(regname),
                     !is_user_cmdidx(ea.cmdidx) && ea.cmdidx != CMD_PUT && ea.cmdidx != CMD_IPUT,
                 ) {
                     api_set_error!(
@@ -963,7 +962,7 @@ pub fn nvim_cmd(
                     );
                     break 'end;
                 }
-                ea.regname = i32::from(regname as u8);
+                ea.regname = i32::from(regname);
             }
 
             ea.forceit = i32::from(cmd.bang);
@@ -1206,8 +1205,7 @@ fn string_iswhite(str_val: NvimString) -> bool {
 }
 
 fn build_cmdline_str(
-    cmdline_buf: &mut Vec<c_char>,
-    cmdlinep: *mut *mut c_char,
+    cmdline_buf: &mut Vec<u8>,
     eap: &mut Exarg,
     args: Array,
 ) {
@@ -1217,31 +1215,21 @@ fn build_cmdline_str(
     if (eap.argt & EX_RANGE) != 0 {
         if eap.addr_count == 1 {
             let s = eap.line2.to_string();
-            cmdline_buf.extend(s.as_bytes().iter().map(|&b| b as c_char));
+            cmdline_buf.extend_from_slice(s.as_bytes());
         } else if eap.addr_count > 1 {
             let s = format!("{},{}", eap.line1, eap.line2);
-            cmdline_buf.extend(s.as_bytes().iter().map(|&b| b as c_char));
+            cmdline_buf.extend_from_slice(s.as_bytes());
         }
     }
 
-    cmdline_buf.extend(
-        crate::memory::cstr_as_bytes(eap.cmd)
-            .iter()
-            .map(|&b| b as c_char),
-    );
+    cmdline_buf.extend_from_slice(crate::memory::cstr_as_bytes(eap.cmd));
 
     for i in 0..args.size {
         let s = args[i].data.string();
-        cmdline_buf.push(b' ' as c_char);
-        if s.size > 0 {
-            cmdline_buf.extend_from_slice(unsafe { std::slice::from_raw_parts(s.data, s.size) });
-        }
+        cmdline_buf.push(b' ');
+        cmdline_buf.extend_from_slice(s.as_bytes());
     }
-    cmdline_buf.push(NUL);
-
-    unsafe {
-        *cmdlinep = cmdline_buf.as_mut_ptr();
-    }
+    cmdline_buf.push(0);
 }
 
 /// Creates a global |user-commands| command.
@@ -1391,7 +1379,7 @@ pub fn create_user_command(
     let mut addr_type_arg: CmdAddr = ADDR_NONE;
     let mut context: i32 = EXPAND_NOTHING;
     let mut compl_arg: Option<std::ffi::CString> = None;
-    let rep: *const c_char;
+    let rep: &CStr;
     let mut luaref: LuaRef = LUA_NOREF;
     let mut compl_luaref: LuaRef = LUA_NOREF;
     let mut preview_luaref: LuaRef = LUA_NOREF;
@@ -1584,7 +1572,7 @@ pub fn create_user_command(
             opts.preview.data = crate::api::private::validate::ObjectData::LuaRef(LUA_NOREF);
         }
 
-        let mut desc: *const c_char = ptr::null();
+        let mut desc: Option<&CStr> = None;
         if has_key(mask, KEYSET_OPTIDX_USER_COMMAND_DESC) {
             if opts.desc.obj_type != ObjectType::ObjectTypeString {
                 api_err_exp(
@@ -1595,16 +1583,16 @@ pub fn create_user_command(
                 );
                 break 'err;
             }
-            desc = opts.desc.data.string().data;
+            desc = crate::memory::cstr_as_opt_cstr(opts.desc.data.string().data);
         }
 
         match cmd.obj_type {
             ObjectType::ObjectTypeLuaRef => {
                 luaref = api_new_luaref(cmd.data.luaref());
-                rep = c"".as_ptr();
+                rep = c"";
             }
             ObjectType::ObjectTypeString => {
-                rep = cmd.data.string().data;
+                rep = crate::memory::cstr_from_ptr(cmd.data.string().data);
             }
             _ => {
                 api_err_exp(err, c"command", c"Function or String", ptr::null());
@@ -1616,7 +1604,7 @@ pub fn create_user_command(
             if !uc_add_command(
                 name.data,
                 name.size,
-                rep,
+                rep.as_ptr(),
                 argt,
                 def,
                 flags,
@@ -1626,7 +1614,7 @@ pub fn create_user_command(
                 preview_luaref,
                 addr_type_arg,
                 luaref,
-                desc,
+                desc.map_or(ptr::null(), CStr::as_ptr),
                 force,
             ) {
                 api_set_error!(
@@ -1722,8 +1710,8 @@ mod tests {
         assert!(is_user_cmdidx(CMD_USER));
         assert!(is_user_cmdidx(CMD_USER_BUF));
         assert!(!is_user_cmdidx(CMD_SIZE));
-        assert!(ascii_isupper(b'A' as c_char));
-        assert!(!ascii_isupper(b'a' as c_char));
+        assert!(ascii_isupper(i32::from(b'A')));
+        assert!(!ascii_isupper(i32::from(b'a')));
         assert!(string_iswhite(NvimString::from_bytes(b" \t")));
         assert!(!string_iswhite(NvimString::from_bytes(b" x")));
     }

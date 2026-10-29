@@ -327,7 +327,7 @@ pub struct Exarg {
     pub nextcmd: *mut c_char,
     pub cmd: *mut c_char,
     pub cmdlinep: *mut *mut c_char,
-    pub cmdline_buf: *mut Vec<c_char>,
+    pub cmdline_buf: *mut Vec<u8>,
     pub cmdidx: i32,
     pub argt: u32,
     pub skip: i32,
@@ -398,11 +398,11 @@ impl Exarg {
         }
     }
 
-    pub fn set_cmdline_vec(&mut self, cmdlinep: *mut *mut c_char, new_buf: Vec<c_char>) {
+    pub fn set_cmdline_vec(&mut self, cmdlinep: *mut *mut c_char, new_buf: Vec<u8>) {
         unsafe {
             debug_assert!(!self.cmdline_buf.is_null());
             *self.cmdline_buf = new_buf;
-            let new_ptr = (*self.cmdline_buf).as_mut_ptr();
+            let new_ptr = (*self.cmdline_buf).as_mut_ptr().cast::<c_char>();
             if !cmdlinep.is_null() {
                 *cmdlinep = new_ptr;
             }
@@ -4990,7 +4990,7 @@ pub fn do_cmdline(
 
     unsafe {
         let mut next_cmdline: *mut c_char;
-        let mut cmdline_buf: Vec<c_char> = Vec::new();
+        let mut cmdline_buf: Vec<u8> = Vec::new();
         let mut cmdline_copy: *mut c_char = ptr::null_mut();
         let mut used_getline = false;
         let mut msg_didout_before_start = false;
@@ -5147,11 +5147,8 @@ pub fn do_cmdline(
                 };
                 let bytes = next_cstr.as_bytes_with_nul();
                 cmdline_buf.clear();
-                cmdline_buf.extend_from_slice(std::slice::from_raw_parts(
-                    bytes.as_ptr().cast::<c_char>(),
-                    bytes.len(),
-                ));
-                next_cmdline = cmdline_buf.as_mut_ptr();
+                cmdline_buf.extend_from_slice(bytes);
+                next_cmdline = cmdline_buf.as_mut_ptr().cast();
                 used_getline = true;
 
                 if ui_has(K_UICMDLINE) && count > 0 && fgetline.is_exline() {
@@ -5166,8 +5163,8 @@ pub fn do_cmdline(
                     }
                 }
             } else if cmdline_copy.is_null() {
-                cmdline_buf = crate::memory::cstr_to_cchar_vec(next_cmdline);
-                next_cmdline = cmdline_buf.as_mut_ptr();
+                cmdline_buf = crate::memory::cstr_as_bytes_with_nul(next_cmdline).to_vec();
+                next_cmdline = cmdline_buf.as_mut_ptr().cast();
             }
             cmdline_copy = next_cmdline;
 
@@ -5944,7 +5941,7 @@ pub fn cmd_has_expr_args(cmdidx: Cmdidx) -> bool {
 
 pub fn parse_cmdline(
     cmdline: *mut *mut c_char,
-    cmdline_buf: *mut Vec<c_char>,
+    cmdline_buf: *mut Vec<u8>,
     eap: &mut Exarg,
     cmod: &mut Cmdmod,
     errormsg: *mut *const c_char,
@@ -6411,7 +6408,7 @@ fn skip_cmd(eap: &Exarg) -> bool {
 
 fn do_one_cmd(
     cmdlinep: *mut *mut c_char,
-    cmdline_buf: *mut Vec<c_char>,
+    cmdline_buf: *mut Vec<u8>,
     flags: i32,
     cstack: &mut Cstack,
     fgetline: LineGetter,
@@ -8229,19 +8226,16 @@ pub fn replace_makeprg(
 
         arg = skipwhite(arg);
 
-        let new_buf: Vec<c_char> = if let Some(rep) = strrep(program, c"$*", arg) {
+        let new_buf: Vec<u8> = if let Some(rep) = strrep(program, c"$*", arg) {
             rep.into_bytes_with_nul()
-                .into_iter()
-                .map(|b| b as c_char)
-                .collect()
         } else {
             let prog_b = crate::memory::cstr_as_bytes(program);
             let arg_b = crate::memory::cstr_as_bytes(arg);
             let mut combined = Vec::with_capacity(prog_b.len() + 1 + arg_b.len() + 1);
-            combined.extend(prog_b.iter().map(|&b| b as c_char));
-            combined.push(b' ' as c_char);
-            combined.extend(arg_b.iter().map(|&b| b as c_char));
-            combined.push(NUL);
+            combined.extend_from_slice(prog_b);
+            combined.push(b' ');
+            combined.extend_from_slice(arg_b);
+            combined.push(0);
             combined
         };
 
@@ -8424,8 +8418,8 @@ fn repl_cmdline(
             0
         };
         let total = offset + tail_len + len + 3 + nextcmd_len;
-        let mut new_buf: Vec<c_char> = vec![0; total];
-        let new_cmdline = new_buf.as_mut_ptr();
+        let mut new_buf: Vec<u8> = vec![0; total];
+        let new_cmdline = new_buf.as_mut_ptr().cast::<c_char>();
 
         let mut i = offset;
         unsafe { ptr::copy_nonoverlapping(*cmdlinep, new_cmdline, i) };

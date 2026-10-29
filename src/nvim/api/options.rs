@@ -1,9 +1,9 @@
 //! Options API functions (`src/nvim/api/options.c`).
 
 use crate::api::private::helpers::{
-    OBJECT_NIL, add_c, api_free_object, api_set_error, api_typename, arena_array, arena_dict,
-    arena_string, array_obj, boolean_obj, copy_object, cstr_as_string, dict_obj, error_set,
-    find_buffer_by_handle, find_tab_by_handle, find_window_by_handle, has_key, put_c,
+    OBJECT_NIL, add_c, api_free_object, api_set_error, api_typename, arena_array, arena_bytes,
+    arena_dict, arena_string, array_obj, boolean_obj, copy_object, cstr_as_string, dict_obj,
+    error_set, find_buffer_by_handle, find_tab_by_handle, find_window_by_handle, has_key, put_c,
     static_cstr_as_obj, string_obj, try_wrap, with_script_context,
 };
 use crate::api::private::validate::{
@@ -23,17 +23,16 @@ use crate::lua::converter::Boolean;
 use crate::memline::ml_open;
 use crate::memory::{Arena, arena_memdupz};
 use crate::option::{
-    K_OPT_BUFHIDDEN, K_OPT_BUFTYPE, K_OPT_FILETYPE, K_OPT_FLAG_COLON, K_OPT_FLAG_COMMA,
-    K_OPT_FLAG_FLAG_LIST, K_OPT_INVALID, K_OPT_MODELINE, K_OPT_SCOPE_BUF, K_OPT_SCOPE_GLOBAL,
-    K_OPT_SCOPE_TAB, K_OPT_SCOPE_WIN, K_OPT_SWAPFILE, OP_ADDING, OP_NONE, OP_PREPENDING,
-    OP_REMOVING, OPT_GLOBAL, OPT_LOCAL, OptScope, OptTarget, PREFIX_NONE, SetOp, copy_option_part,
-    escape_option_str_cmdline, find_option, get_all_options_info, get_option, get_option_info,
-    get_option_newval, get_option_value_for, get_option_varp_scope_from, get_varp_from,
-    opt_from_varp, option_has_scope, option_has_type, optval_free, optval_from_obj, optval_own,
-    set_option_direct, set_option_value_for, validate_and_prepare_option_value,
+    K_OPT_BUFHIDDEN, K_OPT_BUFTYPE, K_OPT_FLAG_COLON, K_OPT_FLAG_COMMA, K_OPT_FLAG_FLAG_LIST,
+    K_OPT_INVALID, K_OPT_SCOPE_BUF, K_OPT_SCOPE_GLOBAL, K_OPT_SCOPE_TAB, K_OPT_SCOPE_WIN,
+    OP_ADDING, OP_NONE, OP_PREPENDING, OP_REMOVING, OPT_GLOBAL, OPT_LOCAL, OptScope, OptTarget,
+    PREFIX_NONE, SetOp, copy_option_part, escape_option_str_cmdline, find_option,
+    get_all_options_info, get_option, get_option_info, get_option_newval, get_option_value_for,
+    get_varp_from, opt_from_varp, option_has_scope, option_has_type, optval_free, optval_from_obj,
+    optval_own, set_option_direct, set_option_value_for, validate_and_prepare_option_value,
 };
 use crate::window::close_windows;
-use std::ffi::c_char;
+use std::ffi::CStr;
 use std::ptr;
 
 use crate::highlight::OptionalKeys;
@@ -47,8 +46,6 @@ const KEYSET_OPTIDX_OPTION_SCOPE: u64 = 4;
 const KEYSET_OPTIDX_OPTION_DRY_RUN: u64 = 5;
 const KEYSET_OPTIDX_OPTION_FILETYPE: u64 = 6;
 const KEYSET_OPTIDX_OPTION_OPERATION: u64 = 7;
-
-use crate::charset::NUL;
 
 #[repr(C)]
 #[derive(Default)]
@@ -71,7 +68,7 @@ fn validate_option_value_args(
     opt_flags: &mut i32,
     scope: &mut OptScope,
     from: &mut OptTarget,
-    filetype: *mut *mut c_char,
+    filetype: Option<&mut Option<&CStr>>,
     operation: Option<&mut SetOp>,
     dry_run: Option<&mut bool>,
     err: &mut Error,
@@ -122,10 +119,10 @@ fn validate_option_value_args(
 
         *scope = K_OPT_SCOPE_GLOBAL;
 
-        if !filetype.is_null() && has_key(mask, KEYSET_OPTIDX_OPTION_FILETYPE) {
-            unsafe {
-                *filetype = opts.filetype.data;
-            }
+        if let Some(ft_out) = filetype
+            && has_key(mask, KEYSET_OPTIDX_OPTION_FILETYPE)
+        {
+            *ft_out = crate::memory::cstr_as_opt_cstr(opts.filetype.data);
         }
 
         if has_key(mask, KEYSET_OPTIDX_OPTION_WIN) {
@@ -246,15 +243,14 @@ fn validate_option_value_args(
 }
 
 fn do_ft_buf(
-    filetype: impl crate::strings::IntoCCharPtr,
+    filetype: Option<&CStr>,
     aco: &mut CtxSwitch,
     err: &mut Error,
 ) -> *mut FileBuf {
-    let filetype = filetype.into_c_char_ptr();
     unsafe {
-        if filetype.is_null() {
+        let Some(filetype) = filetype else {
             return ptr::null_mut();
-        }
+        };
 
         let ftbuf = buflist_new(ptr::null_mut(), ptr::null_mut(), 1, BLN_DUMMY);
         if ftbuf.is_null() {
@@ -297,12 +293,9 @@ fn do_ft_buf(
             SID_NONE,
         );
         assert!((*(*ftbuf).b_ml.mfp_ptr()).mf_fd < 0);
-        *(get_option_varp_scope_from(K_OPT_SWAPFILE, OPT_LOCAL, &mut *ftbuf, ptr::null_mut())
-            as *mut i32) = 0;
-        *(get_option_varp_scope_from(K_OPT_MODELINE, OPT_LOCAL, &mut *ftbuf, ptr::null_mut())
-            as *mut i32) = 0;
-        *(get_option_varp_scope_from(K_OPT_FILETYPE, OPT_LOCAL, &mut *ftbuf, ptr::null_mut())
-            as *mut *mut c_char) = crate::optionstr::alloc_string_option(filetype);
+        (*ftbuf).b_p_swf = 0;
+        (*ftbuf).b_p_ml = 0;
+        (*ftbuf).b_p_ft = crate::optionstr::alloc_string_option(filetype.as_ptr());
 
         if !has_event(EVENT_FILETYPE) {
             return ftbuf;
@@ -387,7 +380,7 @@ pub fn nvim_get_option_value(
     let mut opt_flags: i32 = 0;
     let mut scope: OptScope = K_OPT_SCOPE_GLOBAL;
     let mut from = OptTarget::Global;
-    let mut filetype: *mut c_char = ptr::null_mut();
+    let mut filetype: Option<&CStr> = None;
 
     if !validate_option_value_args(
         opts,
@@ -397,7 +390,7 @@ pub fn nvim_get_option_value(
         &mut opt_flags,
         &mut scope,
         &mut from,
-        &mut filetype,
+        Some(&mut filetype),
         None,
         None,
         err,
@@ -505,37 +498,30 @@ pub fn nvim_option_to_object(
             arena_array(arena, nparts)
         };
         let str_len = crate::memory::cstr_len(str_ptr);
-        let mut item_buf = vec![0 as c_char; str_len + 1];
-        let item = item_buf.as_mut_ptr();
+        let mut item_buf = vec![0u8; str_len + 1];
         p = str_ptr;
         while !crate::memory::cstr_is_empty(p) {
-            copy_option_part(&raw mut p, item, str_len + 1, c",");
-            if crate::memory::cstr_is_empty(item) {
+            copy_option_part(&raw mut p, item_buf.as_mut_ptr().cast(), str_len + 1, c",");
+            let item_bytes = CStr::from_bytes_until_nul(&item_buf)
+                .unwrap_or(c"")
+                .to_bytes();
+            if item_bytes.is_empty() {
                 continue;
             }
             if !as_map {
-                add_c(
-                    &mut a,
-                    string_obj(arena_string(arena, cstr_as_string(item))),
-                );
+                add_c(&mut a, string_obj(arena_bytes(arena, item_bytes)));
                 continue;
             }
-            let colon = crate::memory::cstr_as_bytes(item)
-                .iter()
-                .position(|&b| b == b':')
-                .map_or(ptr::null_mut(), |i| item.wrapping_add(i));
-            let mut val: *mut c_char = ptr::null_mut();
-            if !colon.is_null() {
-                unsafe {
-                    *colon = NUL;
+            let (key_bytes, val_bytes) = match item_bytes.iter().position(|&b| b == b':') {
+                Some(idx) => (&item_bytes[..idx], Some(&item_bytes[idx + 1..])),
+                None => (item_bytes, None),
+            };
+            let key = arena_bytes(arena, key_bytes);
+            let v = match val_bytes {
+                Some(vb) if (flags & K_OPT_FLAG_FLAG_LIST) == 0 => {
+                    string_obj(arena_bytes(arena, vb))
                 }
-                val = colon.wrapping_add(1);
-            }
-            let key = arena_string(arena, cstr_as_string(item));
-            let v = if (flags & K_OPT_FLAG_FLAG_LIST) != 0 || val.is_null() {
-                boolean_obj(true)
-            } else {
-                string_obj(arena_string(arena, cstr_as_string(val)))
+                _ => boolean_obj(true),
             };
             put_c(&mut d, key.data, v);
         }
@@ -594,7 +580,7 @@ pub fn nvim_set_option_value(
         &mut opt_flags,
         &mut scope,
         &mut to,
-        ptr::null_mut(),
+        None,
         Some(&mut operation),
         Some(&mut dry_run),
         err,
@@ -607,7 +593,7 @@ pub fn nvim_set_option_value(
     }
 
     let mut merged_val = OBJECT_NIL;
-    let mut errmsg: *const c_char = std::ptr::null();
+    let mut errmsg = ptr::null();
     let option = get_option(opt_idx);
     let is_array = value.obj_type == ObjectType::ObjectTypeArray;
     let is_dict = value.obj_type == ObjectType::ObjectTypeDict;
@@ -670,7 +656,7 @@ pub fn nvim_set_option_value(
             return OBJECT_NIL;
         }
 
-        let mut argp: *mut c_char = ptr::null_mut();
+        let mut argp = ptr::null_mut();
 
         match optval_right.obj_type {
             ObjectType::ObjectTypeUnset | ObjectType::ObjectTypeNil => {}
@@ -728,9 +714,9 @@ pub fn nvim_set_option_value(
     }
 
     if dry_run {
-        let mut raw_buf = [0 as c_char; IOSIZE];
+        let mut raw_buf = [0u8; IOSIZE];
         let errbuf = CharBuf {
-            data: raw_buf.as_mut_ptr(),
+            data: raw_buf.as_mut_ptr().cast(),
             size: IOSIZE,
         };
         let mut args = Optset {
@@ -842,7 +828,7 @@ pub fn nvim_get_option_info2(
         &mut opt_flags,
         &mut scope,
         &mut from,
-        ptr::null_mut(),
+        None,
         None,
         None,
         err,
@@ -877,10 +863,7 @@ mod tests {
         {
             assert!((crate::memory::cstr_as_opt_bytes(c"local") == Some(b"local")));
             assert!(!(crate::memory::cstr_as_opt_bytes(c"local") == Some(b"global")));
-            assert!(!{
-                let _a: *const c_char = std::ptr::null();
-                !_a.is_null() && crate::memory::cstr_as_bytes(_a) == b"local"
-            });
+            assert!(crate::memory::cstr_as_opt_bytes(std::ptr::null()).is_none());
         }
     }
 }

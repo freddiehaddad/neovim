@@ -2,9 +2,9 @@
 
 use crate::api::deprecated::KeyDict_empty;
 use crate::api::private::helpers::{
-    MAXLNUM, OBJECT_NIL, add_c, api_clear_error, api_set_error, arena_array, arena_dict,
-    boolean_obj, buf_get_text, cstr_as_string, dict_get_value, dict_set_var, error_set,
-    find_buffer_by_handle, has_key, integer_obj, normalize_index, put_c, set_mark,
+    MAXLNUM, OBJECT_NIL, add_c, api_clear_error, api_set_error, arena_array, arena_bytes,
+    arena_dict, boolean_obj, buf_get_text, cstr_as_string, dict_get_value, dict_set_var,
+    error_set, find_buffer_by_handle, has_key, integer_obj, normalize_index, put_c, set_mark,
     static_cstr_as_obj, string_obj, try_wrap, try_wrap_err,
 };
 use crate::api::private::validate::{
@@ -28,7 +28,7 @@ use crate::extmark::{Bcount, K_EXTMARK_NOOP, K_EXTMARK_UNDO, extmark_splice};
 use crate::globals::*;
 use crate::highlight::OptionalKeys;
 use crate::lua::converter::{
-    Boolean, LUA_NOREF, LuaRef, lua_State, lua_createtable, lua_pushlstring, lua_rawseti,
+    Boolean, LUA_NOREF, LuaRef, lua_State, lua_createtable, lua_push_bytes, lua_rawseti,
 };
 use crate::lua::executor::{K_RET_MULTI_STACK, nlua_call_ref};
 use crate::mapping::{MAPTYPE_MAP, MAPTYPE_UNMAP, MAPTYPE_UNMAP_LHS, keymap_array, modify_keymap};
@@ -38,17 +38,15 @@ use crate::memline::{
     ML_LINE_DIRTY, ml_append_buf, ml_delete_buf, ml_find_line_or_offset, ml_get_buf,
     ml_get_buf_len, ml_replace_buf,
 };
-use crate::memory::{Arena, arena_alloc, arena_allocz, arena_memdupz};
+use crate::memory::{Arena, arena_allocz, arena_memdupz};
 use crate::r#move::{changed_cline_bef_curs, invalidate_botline_win, update_topline};
 use crate::msgpack_rpc::packer::Integer;
 use crate::ops::get_region_bytecount;
 use crate::option_vars::*;
 use crate::undo::{u_save_buf, uhp_ref};
 use crate::window::{VALID_BOTLINE_AP, WinInfoInfo};
-use std::ffi::c_char;
 use std::ptr;
 
-use crate::charset::{NL, NUL};
 use crate::search::FORWARD;
 
 pub(crate) const INTERNAL_CALL_MASK: u64 = 1u64 << 63;
@@ -450,31 +448,19 @@ pub fn nvim_buf_set_lines(
     let new_len = replacement.size;
     let old_len = (end - start) as usize;
     let mut extra: isize = 0;
-    let lines = if new_len != 0 {
-        arena_alloc(arena, new_len * std::mem::size_of::<*mut c_char>(), true).cast::<*mut c_char>()
-    } else {
-        ptr::null_mut()
-    };
+    let mut lines: Vec<*mut u8> = Vec::with_capacity(new_len);
 
     for i in 0..new_len {
         let l = replacement[i].data.string();
-        let p = arena_memdupz(arena, l.data, l.size);
-        {
-            let _d = (p).cast::<u8>();
-            let _sz = l.size;
-            if _sz > 0 {
-                let _c = (NUL) as u8;
-                let _x = (NL) as u8;
-                for _b in unsafe { std::slice::from_raw_parts_mut(_d, _sz) } {
-                    if *_b == _c {
-                        *_b = _x;
-                    }
+        let p = arena_memdupz(arena, l.data, l.size).cast::<u8>();
+        if l.size > 0 {
+            for b in unsafe { std::slice::from_raw_parts_mut(p, l.size) } {
+                if *b == 0 {
+                    *b = b'\n';
                 }
             }
-        };
-        unsafe {
-            *lines.wrapping_add(i) = p;
         }
+        lines.push(p);
     }
 
     try_wrap_err(err, |err| 'end: {
@@ -513,7 +499,7 @@ pub fn nvim_buf_set_lines(
 
         let to_replace = old_len.min(new_len);
         let mut inserted_bytes: Bcount = 0;
-        for i in 0..to_replace {
+        for (i, &line) in lines.iter().enumerate().take(to_replace) {
             let lnum = start + (i as i64);
             if lnum >= MAXLNUM {
                 api_set_error!(
@@ -525,7 +511,7 @@ pub fn nvim_buf_set_lines(
                 break 'end;
             }
 
-            let line_ptr = unsafe { *lines.wrapping_add(i) };
+            let line_ptr = line.cast();
             if !ml_replace_buf(unsafe { &mut *b }, lnum as Linenr, line_ptr, false, true) {
                 api_set_error!(
                     err,
@@ -538,7 +524,7 @@ pub fn nvim_buf_set_lines(
             inserted_bytes += crate::memory::cstr_len(line_ptr) as Bcount + 1;
         }
 
-        for i in to_replace..new_len {
+        for (i, &line) in lines.iter().enumerate().take(new_len).skip(to_replace) {
             let lnum = start + (i as i64) - 1;
             if lnum >= MAXLNUM {
                 api_set_error!(
@@ -550,7 +536,7 @@ pub fn nvim_buf_set_lines(
                 break 'end;
             }
 
-            let line_ptr = unsafe { *lines.wrapping_add(i) };
+            let line_ptr = line.cast();
             if !ml_append_buf(unsafe { &mut *b }, lnum as Linenr, line_ptr, 0, false) {
                 api_set_error!(err, ErrorType::ErrorTypeException, c"Failed to insert line",);
                 break 'end;
@@ -742,85 +728,63 @@ pub fn nvim_buf_set_text(
         if replacement.size == 1 {
             firstlen += last_part_len;
         }
-        let first = arena_allocz(arena, firstlen).cast::<c_char>();
-        let mut last: *mut c_char = ptr::null_mut();
-        ptr::copy_nonoverlapping(str_at_start, first, start_col as usize);
+        let first = arena_allocz(arena, firstlen).cast::<u8>();
+        let mut last: *mut u8 = ptr::null_mut();
+        ptr::copy_nonoverlapping(str_at_start.cast::<u8>(), first, start_col as usize);
         if first_item.size > 0 {
             ptr::copy_nonoverlapping(
-                first_item.data,
+                first_item.data.cast::<u8>(),
                 first.wrapping_add(start_col as usize),
                 first_item.size,
             );
-        }
-        {
-            let _d = (first.add(start_col as usize)).cast::<u8>();
-            let _sz = first_item.size;
-            if _sz > 0 {
-                let _c = (NUL) as u8;
-                let _x = (NL) as u8;
-                for _b in std::slice::from_raw_parts_mut(_d, _sz) {
-                    if *_b == _c {
-                        *_b = _x;
-                    }
+            for b in std::slice::from_raw_parts_mut(first.add(start_col as usize), first_item.size)
+            {
+                if *b == 0 {
+                    *b = b'\n';
                 }
             }
-        };
+        }
         if replacement.size == 1 {
             ptr::copy_nonoverlapping(
-                str_at_end.wrapping_add(end_col as usize),
+                str_at_end.wrapping_add(end_col as usize).cast::<u8>(),
                 first.wrapping_add((start_col as usize) + first_item.size),
                 last_part_len,
             );
         } else {
-            last = arena_allocz(arena, last_item.size + last_part_len).cast::<c_char>();
+            last = arena_allocz(arena, last_item.size + last_part_len).cast::<u8>();
             if last_item.size > 0 {
-                ptr::copy_nonoverlapping(last_item.data, last, last_item.size);
-            }
-            {
-                let _d = (last).cast::<u8>();
-                let _sz = last_item.size;
-                if _sz > 0 {
-                    let _c = (NUL) as u8;
-                    let _x = (NL) as u8;
-                    for _b in std::slice::from_raw_parts_mut(_d, _sz) {
-                        if *_b == _c {
-                            *_b = _x;
-                        }
+                ptr::copy_nonoverlapping(last_item.data.cast::<u8>(), last, last_item.size);
+                for b in std::slice::from_raw_parts_mut(last, last_item.size) {
+                    if *b == 0 {
+                        *b = b'\n';
                     }
                 }
-            };
+            }
             ptr::copy_nonoverlapping(
-                str_at_end.wrapping_add(end_col as usize),
+                str_at_end.wrapping_add(end_col as usize).cast::<u8>(),
                 last.wrapping_add(last_item.size),
                 last_part_len,
             );
         }
 
-        let lines = arena_alloc(arena, new_len * std::mem::size_of::<*mut c_char>(), true)
-            .cast::<*mut c_char>();
-        *lines.wrapping_add(0) = first;
+        let mut lines: Vec<*mut u8> = Vec::with_capacity(new_len);
+        lines.push(first);
         new_byte += first_item.size as Bcount;
         for i in 1..new_len.saturating_sub(1) {
             let l = replacement[i].data.string();
-            let p = arena_memdupz(arena, l.data, l.size);
-            {
-                let _d = (p).cast::<u8>();
-                let _sz = l.size;
-                if _sz > 0 {
-                    let _c = (NUL) as u8;
-                    let _x = (NL) as u8;
-                    for _b in std::slice::from_raw_parts_mut(_d, _sz) {
-                        if *_b == _c {
-                            *_b = _x;
-                        }
+            let p = arena_memdupz(arena, l.data, l.size).cast::<u8>();
+            if l.size > 0 {
+                for b in std::slice::from_raw_parts_mut(p, l.size) {
+                    if *b == 0 {
+                        *b = b'\n';
                     }
                 }
-            };
-            *lines.wrapping_add(i) = p;
+            }
+            lines.push(p);
             new_byte += (l.size as Bcount) + 1;
         }
         if replacement.size > 1 {
-            *lines.wrapping_add(replacement.size - 1) = last;
+            lines.push(last);
             new_byte += (last_item.size as Bcount) + 1;
         }
 
@@ -859,7 +823,7 @@ pub fn nvim_buf_set_text(
             }
 
             let to_replace = old_len.min(new_len);
-            for i in 0..to_replace {
+            for (i, &line) in lines.iter().enumerate().take(to_replace) {
                 let lnum = start_row + (i as i64);
                 if lnum >= MAXLNUM {
                     api_set_error!(
@@ -871,7 +835,7 @@ pub fn nvim_buf_set_text(
                     break 'end;
                 }
 
-                if !ml_replace_buf(&mut *b, lnum as Linenr, *lines.wrapping_add(i), false, true) {
+                if !ml_replace_buf(&mut *b, lnum as Linenr, line.cast(), false, true) {
                     api_set_error!(
                         err,
                         ErrorType::ErrorTypeException,
@@ -881,7 +845,7 @@ pub fn nvim_buf_set_text(
                 }
             }
 
-            for i in to_replace..new_len {
+            for (i, &line) in lines.iter().enumerate().take(new_len).skip(to_replace) {
                 let lnum = start_row + (i as i64) - 1;
                 if lnum >= MAXLNUM {
                     api_set_error!(
@@ -893,7 +857,7 @@ pub fn nvim_buf_set_text(
                     break 'end;
                 }
 
-                if !ml_append_buf(&mut *b, lnum as Linenr, *lines.wrapping_add(i), 0, false) {
+                if !ml_append_buf(&mut *b, lnum as Linenr, line.cast(), 0, false) {
                     api_set_error!(err, ErrorType::ErrorTypeException, c"Failed to insert line",);
                     break 'end;
                 }
@@ -1257,10 +1221,7 @@ pub fn nvim_buf_del_keymap(
     opts: &mut KeyDict_keymap_del,
     err: &mut Error,
 ) {
-    let rhs = NvimString {
-        data: c"".as_ptr() as *mut c_char,
-        size: 0,
-    };
+    let rhs = NvimString::from_bytes(b"");
     let maptype = if opts.lhs {
         MAPTYPE_UNMAP_LHS
     } else {
@@ -1816,37 +1777,23 @@ fn push_linestr(
                     *b = 0;
                 }
             }
-            unsafe { lua_pushlstring(lstate, tmp.as_ptr().cast::<c_char>(), tmp.len()) };
+            lua_push_bytes(lstate, &tmp);
         } else {
-            unsafe {
-                lua_pushlstring(
-                    lstate,
-                    if s.is_empty() {
-                        c"".as_ptr()
-                    } else {
-                        s.as_ptr().cast::<c_char>()
-                    },
-                    s.len(),
-                )
-            };
+            lua_push_bytes(lstate, s);
         }
         unsafe { lua_rawseti(lstate, -2, idx + 1) };
     } else {
         let mut str_val = NvimString::new();
         if !s.is_empty() {
-            let data = arena_memdupz(arena, s.as_ptr().cast::<c_char>(), s.len());
+            str_val = arena_bytes(arena, s);
             if replace_nl {
-                let slice = unsafe { std::slice::from_raw_parts_mut(data.cast::<u8>(), s.len()) };
+                let slice = unsafe { std::slice::from_raw_parts_mut(str_val.data.cast::<u8>(), s.len()) };
                 for b in slice {
                     if *b == b'\n' {
                         *b = 0;
                     }
                 }
             }
-            str_val = NvimString {
-                data,
-                size: s.len(),
-            };
         }
         add_c(a, string_obj(str_val));
     }
