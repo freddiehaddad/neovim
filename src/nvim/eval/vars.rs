@@ -908,20 +908,18 @@ pub fn eval_spell_expr(
 }
 
 /// Get spell word from an entry from spellsuggest=expr:
-pub fn get_spellword(list: &mut TvList, ret_word: *mut *const c_char) -> i32 {
-    unsafe {
-        if tv_list_len(Some(list)) != 2 {
-            emsg(gettext(
-                c"E5700: Expression from 'spellsuggest' must yield lists with exactly two values",
-            ));
-            return -1;
-        }
-        *ret_word = tv_list_find_str(Some(&mut *list), 0);
-        if (*ret_word).is_null() {
-            return -1;
-        }
-        tv_list_find_nr(Some(&mut *list), -1, None) as i32
+pub fn get_spellword<'a>(list: &'a mut TvList, ret_word: &mut Option<&'a CStr>) -> i32 {
+    if tv_list_len(Some(list)) != 2 {
+        emsg(gettext(
+            c"E5700: Expression from 'spellsuggest' must yield lists with exactly two values",
+        ));
+        return -1;
     }
+    *ret_word = crate::memory::cstr_as_opt_cstr(tv_list_find_str(Some(&mut *list), 0));
+    if ret_word.is_none() {
+        return -1;
+    }
+    tv_list_find_nr(Some(&mut *list), -1, None) as i32
 }
 
 /// Prepare v: variable "idx" to be used.

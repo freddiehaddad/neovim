@@ -1530,7 +1530,7 @@ pub fn slang_clear(lp: &mut Slang) {
     lp.sl_compmax = MAXWLEN as i32;
     lp.sl_compminlen = 0;
     lp.sl_compsylmax = MAXWLEN as i32;
-    lp.sl_regions[0] = NUL;
+    lp.sl_regions[0] = 0;
 }
 pub fn slang_clear_sug(lp: &mut Slang) {
     lp.sl_sbyts = Vec::new();
@@ -1810,7 +1810,7 @@ pub fn parse_spelllang(wp: &mut WinInfoInfo) -> *mut c_char {
                             let c = find_region((&raw const slang.sl_regions).cast(), region);
                             if c == REGION_ALL {
                                 if slang.sl_add {
-                                    if slang.sl_regions[0] != NUL {
+                                    if slang.sl_regions[0] != 0 {
                                         region_mask = 0;
                                     }
                                 } else {
@@ -1896,7 +1896,7 @@ pub fn parse_spelllang(wp: &mut WinInfoInfo) -> *mut c_char {
                         let c = find_region((&raw const slang.sl_regions).cast(), use_region);
                         if c != REGION_ALL {
                             region_mask = 1 << c;
-                        } else if slang.sl_regions[0] != NUL {
+                        } else if slang.sl_regions[0] != 0 {
                             region_mask = 0;
                         }
                     }
