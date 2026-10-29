@@ -19,7 +19,7 @@ use crate::option_vars::*;
 use crate::strings::gettext;
 use crate::ui::ui_has;
 use crate::window::{LOWEST_WIN_ID, one_window};
-use std::ffi::{CStr, CString, c_char};
+use std::ffi::{CStr, CString};
 use std::ptr;
 
 const K_SHM_INTRO: i32 = b'I' as i32;
@@ -3815,53 +3815,74 @@ pub const NVIM_API_PRERELEASE_CONST: bool =
     env_flag_enabled(option_env!("NVIM_API_PRERELEASE"), true);
 
 #[inline]
-pub const fn version_buildtype() -> *const c_char {
-    (&raw const VERSION_BUILDTYPE_BUF).cast::<c_char>()
-}
-
-#[inline]
-pub const fn version_cflags() -> *const c_char {
-    if match option_env!("NVIM_VERSION_CFLAGS") {
-        Some(s) => !s.is_empty(),
-        None => false,
-    } {
-        (&raw const VERSION_CFLAGS_BUF).cast::<c_char>()
-    } else {
-        ptr::null()
+pub const fn version_buildtype() -> &'static CStr {
+    match CStr::from_bytes_until_nul(&VERSION_BUILDTYPE_BUF) {
+        Ok(s) => s,
+        Err(_) => c"",
     }
 }
 
 #[inline]
-pub const fn default_vim_dir() -> *const c_char {
-    (&raw const DEFAULT_VIM_DIR_BUF).cast::<c_char>()
+pub const fn version_cflags() -> Option<&'static CStr> {
+    if match option_env!("NVIM_VERSION_CFLAGS") {
+        Some(s) => !s.is_empty(),
+        None => false,
+    } {
+        match CStr::from_bytes_until_nul(&VERSION_CFLAGS_BUF) {
+            Ok(s) => Some(s),
+            Err(_) => None,
+        }
+    } else {
+        None
+    }
 }
 
 #[inline]
-pub const fn default_vimruntime_dir() -> *const c_char {
-    (&raw const DEFAULT_VIMRUNTIME_DIR_BUF).cast::<c_char>()
+pub const fn default_vim_dir() -> &'static CStr {
+    match CStr::from_bytes_until_nul(&DEFAULT_VIM_DIR_BUF) {
+        Ok(s) => s,
+        Err(_) => c"",
+    }
 }
 
 #[inline]
-pub const fn default_lib_dir() -> *const c_char {
-    (&raw const DEFAULT_LIB_DIR_BUF).cast::<c_char>()
+pub const fn default_vimruntime_dir() -> &'static CStr {
+    match CStr::from_bytes_until_nul(&DEFAULT_VIMRUNTIME_DIR_BUF) {
+        Ok(s) => s,
+        Err(_) => c"",
+    }
+}
+
+#[inline]
+pub const fn default_lib_dir() -> &'static CStr {
+    match CStr::from_bytes_until_nul(&DEFAULT_LIB_DIR_BUF) {
+        Ok(s) => s,
+        Err(_) => c"",
+    }
 }
 
 pub static MAIN_EXITFREE: bool = env_flag_enabled(option_env!("NVIM_EXITFREE"), false);
 
 #[inline]
-pub const fn long_version() -> *const c_char {
-    (&raw const LONG_VERSION_BUF).cast::<c_char>()
+pub const fn long_version() -> &'static CStr {
+    match CStr::from_bytes_until_nul(&LONG_VERSION_BUF) {
+        Ok(s) => s,
+        Err(_) => c"",
+    }
 }
 
 #[inline]
-pub const fn nvim_version_build() -> *const c_char {
+pub const fn nvim_version_build() -> Option<&'static CStr> {
     if match option_env!("NVIM_VERSION_BUILD") {
         Some(s) => !s.is_empty(),
         None => false,
     } {
-        (&raw const VERSION_BUILD_BUF).cast::<c_char>()
+        match CStr::from_bytes_until_nul(&VERSION_BUILD_BUF) {
+            Ok(s) => Some(s),
+            Err(_) => None,
+        }
     } else {
-        ptr::null()
+        None
     }
 }
 
@@ -3961,41 +3982,37 @@ pub fn ex_version(eap: &mut Exarg) {
     }
 }
 
-fn version_msg_wrap(s: impl crate::strings::IntoCCharPtr, wrap: bool) {
-    let s = s.into_c_char_ptr();
+fn version_msg_wrap(s: &CStr, wrap: bool) {
+    let len = vim_strsize(s.as_ptr()) + if wrap { 2 } else { 0 };
+    if !g_st().got_int
+        && len < g_st().columns_global
+        && g_st().msg_col + len >= g_st().columns_global
+        && s.to_bytes().first() != Some(&b'\n')
     {
-        let len = vim_strsize(s) + if wrap { 2 } else { 0 };
-        if !g_st().got_int
-            && len < g_st().columns_global
-            && g_st().msg_col + len >= g_st().columns_global
-            && crate::memory::cstr_first_byte(s) != b'\n'
-        {
-            msg_putchar(b'\n' as i32);
+        msg_putchar(b'\n' as i32);
+    }
+    if !g_st().got_int {
+        if wrap {
+            msg_puts(c"[");
         }
-        if !g_st().got_int {
-            if wrap {
-                msg_puts(c"[");
-            }
-            msg_puts(s);
-            if wrap {
-                msg_puts(c"]");
-            }
+        msg_puts(s.as_ptr());
+        if wrap {
+            msg_puts(c"]");
         }
     }
 }
 
 fn version_msg(s: impl crate::strings::IntoCCharPtr) {
-    let s = s.into_c_char_ptr();
-    version_msg_wrap(s, false);
+    version_msg_wrap(crate::memory::cstr_from_ptr(s), false);
 }
 
 /// List string items nicely aligned in columns (`list_in_columns`).
-pub fn list_in_columns(items: &[*mut c_char], current: i32) {
+pub fn list_in_columns(items: &[&CStr], current: i32) {
     let item_count = items.len() as i32;
     let mut width: i32 = 0;
 
     for (i, &item) in items.iter().enumerate() {
-        let l = vim_strsize(item) + if i as i32 == current { 2 } else { 0 };
+        let l = vim_strsize(item.as_ptr()) + if i as i32 == current { 2 } else { 0 };
         if l > width {
             width = l;
         }
@@ -4024,7 +4041,7 @@ pub fn list_in_columns(items: &[*mut c_char], current: i32) {
             if idx == current {
                 msg_putchar(b'[' as i32);
             }
-            msg_puts(items[idx as usize]);
+            msg_puts(items[idx as usize].as_ptr());
             if idx == current {
                 msg_putchar(b']' as i32);
             }
@@ -4092,9 +4109,9 @@ pub fn list_version() {
             msg_puts(ver.as_ptr());
         }
 
-        if !version_cflags().is_null() {
+        if let Some(cflags) = version_cflags() {
             msg_putchar(b'\n' as i32);
-            msg_puts(version_cflags());
+            msg_puts(cflags);
         }
         version_msg(c"\n\n");
 
@@ -4102,13 +4119,13 @@ pub fn list_version() {
         version_msg(c"$VIM/sysinit.vim");
         version_msg(c"\"\n");
 
-        if !crate::memory::cstr_is_empty(default_vim_dir()) {
+        if !default_vim_dir().to_bytes().is_empty() {
             version_msg(gettext(c"  fall-back for $VIM: \""));
             version_msg(default_vim_dir());
             version_msg(c"\"\n");
         }
 
-        if !crate::memory::cstr_is_empty(default_vimruntime_dir()) {
+        if !default_vimruntime_dir().to_bytes().is_empty() {
             version_msg(gettext(c" f-b for $VIMRUNTIME: \""));
             version_msg(default_vimruntime_dir());
             version_msg(c"\"\n");
@@ -4136,25 +4153,25 @@ pub fn may_show_intro() -> bool {
 
 /// Give an introductory message about Vim (`intro_message`).
 pub fn intro_message(colon: bool) {
-    let lines: [*const c_char; 18] = [
-        c"│ ╲ ││".as_ptr(),
-        c"││╲╲││".as_ptr(),
-        c"││ ╲ │".as_ptr(),
-        c"".as_ptr(),
+    let lines: [&CStr; 18] = [
+        c"│ ╲ ││",
+        c"││╲╲││",
+        c"││ ╲ │",
+        c"",
         long_version(),
-        c"────────────────────────────────────────────".as_ptr(),
-        c"Nvim is open source and freely distributable".as_ptr(),
-        c"https://neovim.io/#chat".as_ptr(),
-        c"────────────────────────────────────────────".as_ptr(),
-        c"type  :help nvim<Enter>     if you are new! ".as_ptr(),
-        c"type  :checkhealth<Enter>   to optimize Nvim".as_ptr(),
-        c"type  :q<Enter>             to exit         ".as_ptr(),
-        c"type  :help<Enter>          for help        ".as_ptr(),
-        c"────────────────────────────────────────────".as_ptr(),
-        c"type  :help news<Enter>     for v%s.%s notes ".as_ptr(),
-        c"────────────────────────────────────────────".as_ptr(),
-        c"Help poor children in Uganda!".as_ptr(),
-        c"type  :help Kuwasha<Enter>  for information ".as_ptr(),
+        c"────────────────────────────────────────────",
+        c"Nvim is open source and freely distributable",
+        c"https://neovim.io/#chat",
+        c"────────────────────────────────────────────",
+        c"type  :help nvim<Enter>     if you are new! ",
+        c"type  :checkhealth<Enter>   to optimize Nvim",
+        c"type  :q<Enter>             to exit         ",
+        c"type  :help<Enter>          for help        ",
+        c"────────────────────────────────────────────",
+        c"type  :help news<Enter>     for v%s.%s notes ",
+        c"────────────────────────────────────────────",
+        c"Help poor children in Uganda!",
+        c"type  :help Kuwasha<Enter>  for information ",
     ];
 
     let lines_size = lines.len() as i32;
@@ -4171,11 +4188,8 @@ pub fn intro_message(colon: bool) {
         for (i, &p) in lines.iter().enumerate() {
             let formatted_cstr: Option<CString>;
 
-            let mesg: *const c_char = if crate::memory::cstr_as_bytes(p)
-                .windows(4)
-                .any(|w| w == b"news")
-            {
-                let fmt_str = crate::memory::cstr_lossy(gettext(p));
+            let mesg: &CStr = if p.to_bytes().windows(4).any(|w| w == b"news") {
+                let fmt_str = crate::memory::cstr_lossy(gettext(p.as_ptr()));
                 let major_s = NVIM_VERSION_MAJOR_CONST.to_string();
                 let minor_s = NVIM_VERSION_MINOR_CONST.to_string();
                 let formatted = if let Some((a, rest)) = fmt_str.split_once("%s") {
@@ -4188,16 +4202,14 @@ pub fn intro_message(colon: bool) {
                     fmt_str.into_owned()
                 };
                 formatted_cstr = CString::new(formatted).ok();
-                formatted_cstr
-                    .as_ref()
-                    .map_or(c"".as_ptr(), |cs| cs.as_ptr())
-            } else if !crate::memory::cstr_is_empty(p) {
-                gettext(p)
+                formatted_cstr.as_deref().unwrap_or(c"")
+            } else if !p.to_bytes().is_empty() {
+                crate::memory::cstr_from_ptr(gettext(p.as_ptr()))
             } else {
-                c"".as_ptr()
+                c""
             };
 
-            if !crate::memory::cstr_is_empty(mesg) && row < g_st().rows_global - 1 {
+            if !mesg.to_bytes().is_empty() && row < g_st().rows_global - 1 {
                 do_intro_line(row, mesg, colon, i < 3);
             }
             row += 1;
@@ -4205,8 +4217,8 @@ pub fn intro_message(colon: bool) {
     }
 }
 
-fn do_intro_line(row: i32, mesg: impl crate::strings::IntoCCharPtr, colon: bool, is_logo: bool) {
-    let mesg = mesg.into_c_char_ptr();
+fn do_intro_line(row: i32, mesg: &CStr, colon: bool, is_logo: bool) {
+    let mesg = mesg.as_ptr();
     unsafe {
         let mut col = (g_st().columns_global - vim_strsize(mesg)) / 2;
         if col < 0 {
@@ -4270,7 +4282,7 @@ fn do_intro_line(row: i32, mesg: impl crate::strings::IntoCCharPtr, colon: bool,
             while crate::memory::cstr_byte_at(p, l as usize) != 0
                 && (l == 0
                     || (crate::memory::cstr_byte_at(p, l as usize) != b'<'
-                        && *p.wrapping_add((l - 1) as usize) != b'>' as c_char))
+                        && crate::memory::cstr_byte_at(p, (l - 1) as usize) != b'>'))
             {
                 l += utfc_ptr2len(p.wrapping_add(l as usize));
             }

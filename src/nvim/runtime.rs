@@ -2317,11 +2317,9 @@ fn add_dir(
 }
 
 pub fn get_lib_dir() -> Option<std::ffi::CString> {
-    if !default_lib_dir().is_null()
-        && !crate::memory::cstr_is_empty(default_lib_dir())
-        && os_isdir(default_lib_dir().cast_mut())
-    {
-        return Some(crate::memory::cstr_to_cstring(default_lib_dir()));
+    let dld = default_lib_dir();
+    if !dld.to_bytes().is_empty() && os_isdir(dld.as_ptr().cast_mut()) {
+        return Some(dld.to_owned());
     }
 
     let mut exe_name = [0 as c_char; MAXPATHL];

@@ -556,8 +556,8 @@ pub fn ex_args(eap: &mut Exarg) {
         gotocmdline(true);
 
         let entries = arglist();
-        let items: Vec<*mut c_char> = (0..(count as usize))
-            .map(|i| alist_name(unsafe { &*entries.wrapping_add(i) }))
+        let items: Vec<&CStr> = (0..(count as usize))
+            .map(|i| crate::memory::cstr_from_ptr(alist_name(unsafe { &*entries.wrapping_add(i) })))
             .collect();
         list_in_columns(&items, curwin_mut().w_arg_idx);
         return;

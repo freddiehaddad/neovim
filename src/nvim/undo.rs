@@ -67,7 +67,7 @@ use crate::sha256::ContextSha256;
 use crate::spell::spell_check_window;
 use crate::state::virtual_active;
 use crate::strings::{gettext, ngettext, vim_snprintf, vim_snprintf_add};
-use std::ffi::{CStr, c_char};
+use std::ffi::CStr;
 use std::ptr;
 
 #[cfg(unix)]
@@ -76,7 +76,6 @@ use crate::event::r#loop::{uv_gid_t, uv_uid_t};
 use crate::os::fs::{os_fchown, os_fileinfo};
 
 use crate::arglist::ML_EMPTY;
-use crate::charset::NUL;
 use crate::eval::K_LIST_LEN_MAY_KNOW_CONST;
 use crate::ex_cmds::{BL_FIX, BL_SOL, K_CPO_UNDO};
 
@@ -602,47 +601,52 @@ pub fn u_get_undo_file_name(
         }
 
         #[cfg(unix)]
-        let mut fname_buf = [0 as c_char; MAXPATHL];
+        let mut fname_buf = [0u8; MAXPATHL];
         #[cfg(unix)]
         {
-            if resolve_symlink(ffname, fname_buf.as_mut_ptr()) {
-                ffname = fname_buf.as_ptr();
+            if resolve_symlink(ffname, fname_buf.as_mut_ptr().cast()) {
+                ffname = fname_buf.as_ptr().cast();
             }
         }
 
-        let mut dir_name = [0 as c_char; MAXPATHL + 1];
-        let mut munged_vec: Vec<c_char> = Vec::new();
+        let mut dir_name = [0u8; MAXPATHL + 1];
+        let mut munged_vec: Vec<u8> = Vec::new();
         let mut undo_file_name: Option<std::ffi::CString> = None;
 
         let ffname_len = crate::memory::cstr_len(ffname);
         let mut dirp = opt_vars().p_udir;
         while !crate::memory::cstr_is_empty(dirp) {
             let mut dir_len =
-                copy_option_part(&raw mut dirp, dir_name.as_mut_ptr(), MAXPATHL, c",");
-            if dir_len == 1 && dir_name[0] == b'.' as c_char {
-                let mut ufn_vec: Vec<c_char> = vec![0; ffname_len + 6];
-                let ufn = ufn_vec.as_mut_ptr();
+                copy_option_part(&raw mut dirp, dir_name.as_mut_ptr().cast(), MAXPATHL, c",");
+            if dir_len == 1 && dir_name[0] == b'.' {
+                let mut ufn_vec: Vec<u8> = vec![0; ffname_len + 6];
+                let ufn = ufn_vec.as_mut_ptr().cast();
                 unsafe { ptr::copy(ffname, ufn, ffname_len + 1) };
                 let tail = path_tail(ufn);
                 let tail_len = ffname_len - (crate::memory::ptr_offset_from(tail, ufn) as usize);
                 unsafe { ptr::copy(tail, tail.wrapping_add(1), tail_len + 1) };
                 unsafe {
-                    *tail = b'.' as c_char;
+                    *tail.cast::<u8>() = b'.';
                 }
                 unsafe { ptr::copy(c".un~".as_ptr(), tail.wrapping_add(tail_len + 1), 5) };
                 undo_file_name = Some(crate::memory::cstr_to_cstring(ufn));
             } else {
-                dir_name[dir_len] = NUL;
+                dir_name[dir_len] = 0;
 
                 while dir_len > 1 && vim_ispathsep_nocolon(dir_name[dir_len - 1] as i32) {
                     dir_len -= 1;
-                    dir_name[dir_len] = NUL;
+                    dir_name[dir_len] = 0;
                 }
 
-                let mut has_directory = os_isdir(dir_name.as_ptr());
+                let mut has_directory = os_isdir(dir_name.as_ptr().cast());
                 if !has_directory && crate::memory::cstr_is_empty(dirp) && !reading {
                     let mut failed_dir: Option<std::ffi::CString> = None;
-                    let ret = os_mkdir_recurse(dir_name.as_ptr(), 0o755, &mut failed_dir, None);
+                    let ret = os_mkdir_recurse(
+                        dir_name.as_ptr().cast(),
+                        0o755,
+                        &mut failed_dir,
+                        None,
+                    );
                     if ret != 0 {
                         semsg!(
                             gettext(c"E5003: Unable to create directory \"%s\" for undo file: %s",),
@@ -657,26 +661,24 @@ pub fn u_get_undo_file_name(
                     if munged_vec.is_empty() {
                         munged_vec = vec![0; ffname_len + 1];
                         unsafe {
-                            ptr::copy_nonoverlapping(ffname, munged_vec.as_mut_ptr(), ffname_len)
+                            ptr::copy_nonoverlapping(
+                                ffname.cast::<u8>(),
+                                munged_vec.as_mut_ptr(),
+                                ffname_len,
+                            )
                         };
-                        let mut p = munged_vec.as_mut_ptr();
+                        let mut p = munged_vec.as_mut_ptr().cast();
                         while !crate::memory::cstr_is_empty(p) {
                             if vim_ispathsep(crate::memory::cstr_first_char(p)) {
                                 unsafe {
-                                    *p = b'%' as c_char;
+                                    *p.cast::<u8>() = b'%';
                                 }
                             }
                             p = p.wrapping_add(utfc_ptr2len(p) as usize);
                         }
                     }
-                    let dir_str = NvimString {
-                        data: dir_name.as_mut_ptr(),
-                        size: dir_len,
-                    };
-                    let munged_name = NvimString {
-                        data: munged_vec.as_mut_ptr(),
-                        size: ffname_len,
-                    };
+                    let dir_str = NvimString::from_bytes(&dir_name[..dir_len]);
+                    let munged_name = NvimString::from_bytes(&munged_vec[..ffname_len]);
                     undo_file_name = Some(concat_fnames(dir_str, munged_name, true));
                 }
             }
@@ -806,7 +808,11 @@ fn serialize_uhp(bi: &mut Bufinfo, uhp: usize) -> bool {
     }
 }
 
-fn unserialize_uhp(bi: &mut Bufinfo, file_name: *const c_char) -> Option<(UHeader, [i32; 4])> {
+fn unserialize_uhp(
+    bi: &mut Bufinfo,
+    file_name: impl crate::strings::IntoCCharPtr,
+) -> Option<(UHeader, [i32; 4])> {
+    let file_name = file_name.into_c_char_ptr();
     let mut uhp = UHeader::new();
     let seqs = [
         undo_read_4c(bi),
@@ -873,7 +879,7 @@ fn unserialize_uhp(bi: &mut Bufinfo, file_name: *const c_char) -> Option<(UHeade
 
     c = undo_read_2c(bi);
     while c == UF_ENTRY_MAGIC {
-        let extup = unserialize_extmark(bi, file_name)?;
+        let extup = unserialize_extmark(bi)?;
         uhp.uh_extmark.push(extup);
         c = undo_read_2c(bi);
     }
@@ -914,7 +920,7 @@ fn serialize_extmark(bi: &mut Bufinfo, extup: ExtmarkUndoObject) -> bool {
     true
 }
 
-fn unserialize_extmark(bi: &mut Bufinfo, _filename: *const c_char) -> Option<ExtmarkUndoObject> {
+fn unserialize_extmark(bi: &mut Bufinfo) -> Option<ExtmarkUndoObject> {
     let type_ = undo_read_4c(bi) as UndoObjectType;
     if type_ == K_EXTMARK_SPLICE {
         let mut splice = ExtmarkSplice::new();
@@ -2325,13 +2331,9 @@ fn u_undo_end(mut did_undo: bool, absolute: bool, quiet: bool) {
         curbuf_mut().b_u_newhead
     };
 
-    let mut msgbuf = [0 as c_char; 80];
+    let mut msgbuf = [0u8; 80];
     if let Some(uh) = uhp {
-        undo_fmt_time(
-            msgbuf.as_mut_ptr(),
-            msgbuf.len(),
-            uhp_ref(curbuf_mut(), uh).uh_time,
-        );
+        undo_fmt_time(&mut msgbuf, uhp_ref(curbuf_mut(), uh).uh_time);
     }
 
     for wp in for_all_windows_ptr() {
@@ -2359,37 +2361,43 @@ fn u_undo_end(mut did_undo: bool, absolute: bool, quiet: bool) {
             gettext(c"after")
         },
         uhp.map_or(0i64, |uh| uhp_ref(curbuf_mut(), uh).uh_seq as i64),
-        msgbuf.as_ptr(),
+        CStr::from_bytes_until_nul(&msgbuf).unwrap_or(c"").as_ptr(),
     );
 }
 
-/// Put the timestamp of an undo header in `buf[buflen]` in a nice format.
-pub fn undo_fmt_time(buf: *mut c_char, buflen: usize, tt: time_t) {
+/// Put the timestamp of an undo header in `buf` in a nice format.
+pub fn undo_fmt_time(buf: &mut [u8], tt: time_t) {
+    let buflen = buf.len();
     let now = os_time() as time_t;
     if now - tt >= 100 {
         let mut curtime = Tm { _fields: [0; 16] };
         os_localtime_r(&tt, &raw mut curtime);
         let n = if (os_time() as time_t) - tt < 60 * 60 * 12 {
-            unsafe { strftime(buf, buflen, c"%H:%M:%S".as_ptr(), &raw const curtime) }
+            unsafe {
+                strftime(
+                    buf.as_mut_ptr().cast(),
+                    buflen,
+                    c"%H:%M:%S".as_ptr(),
+                    &raw const curtime,
+                )
+            }
         } else {
             unsafe {
                 strftime(
-                    buf,
+                    buf.as_mut_ptr().cast(),
                     buflen,
                     c"%Y/%m/%d %H:%M:%S".as_ptr(),
                     &raw const curtime,
                 )
             }
         };
-        if n == 0 {
-            unsafe {
-                *buf = NUL;
-            }
+        if n == 0 && !buf.is_empty() {
+            buf[0] = 0;
         }
     } else {
         let seconds = now - tt;
         vim_snprintf!(
-            buf,
+            buf.as_mut_ptr().cast(),
             buflen,
             ngettext(
                 c"%lld second ago",
@@ -2436,15 +2444,17 @@ pub fn ex_undolist(_eap: &mut Exarg) {
         if uh_prev.is_none() && uh_walk != nomark && uh_walk != mark {
             vim_snprintf!(iobuf_ptr, IOSIZE, c"%6d %7d  ", uh_seq, changes,);
             let cur_len = crate::memory::cstr_len(iobuf_ptr);
-            undo_fmt_time(iobuf_ptr.wrapping_add(cur_len), IOSIZE - cur_len, uh_time);
+            let iobuf_slice = unsafe {
+                std::slice::from_raw_parts_mut(
+                    iobuf_ptr.wrapping_add(cur_len).cast::<u8>(),
+                    IOSIZE - cur_len,
+                )
+            };
+            undo_fmt_time(iobuf_slice, uh_time);
             if uh_save_nr > 0 {
                 while crate::memory::cstr_len(iobuf_ptr) < 33 {
-                    {
-                        let _dst: *mut c_char = iobuf_ptr;
-                        let _dsize: usize = IOSIZE;
-                        let _dlen = crate::memory::cstr_len(_dst);
-                        crate::memory::xstrlcpy(_dst.wrapping_add(_dlen), c" ", _dsize - _dlen);
-                    };
+                    let dlen = crate::memory::cstr_len(iobuf_ptr);
+                    crate::memory::xstrlcpy(iobuf_ptr.wrapping_add(dlen), c" ", IOSIZE - dlen);
                 }
                 vim_snprintf_add!(iobuf_ptr, IOSIZE, c"  %3d", uh_save_nr);
             }
@@ -3097,9 +3107,10 @@ mod tests {
             crate::main_init::ensure_test_editor_init();
             g_st().emsg_skip += 1;
 
-            let mut cwd_buf = [0 as c_char; MAXPATHL];
-            assert!(os_dirname(cwd_buf.as_mut_ptr(), MAXPATHL));
-            let cwd = crate::memory::cstr_from_ptr(cwd_buf.as_ptr())
+            let mut cwd_buf = [0u8; MAXPATHL];
+            assert!(os_dirname(cwd_buf.as_mut_ptr().cast(), MAXPATHL));
+            let cwd = CStr::from_bytes_until_nul(&cwd_buf)
+                .unwrap()
                 .to_str()
                 .unwrap();
             let base = format!("{cwd}/target/ut_undo_{}", std::process::id());

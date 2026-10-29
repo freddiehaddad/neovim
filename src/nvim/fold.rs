@@ -6,7 +6,7 @@ use crate::api::private::validate::{Error, ErrorType, ObjectType};
 use crate::buffer::{FileBuf, MAXLNUM};
 use crate::buffer_updates::buf_updates_send_changes;
 use crate::change::{TAB, changed_lines};
-use crate::charset::{NUL, ascii_isdigit, ascii_iswhite, skipwhite, transstr, vim_isprintc};
+use crate::charset::{ascii_isdigit, ascii_iswhite, skipwhite, transstr, vim_isprintc};
 use crate::cursor::{Colnr, CursorPos, Linenr, check_cursor_col, ltoreq};
 use crate::decoration::{VirtText, next_virt_text_chunk};
 use crate::diff::{diff_infold, diff_lnum_win};
@@ -43,7 +43,7 @@ use crate::strings::{gettext, vim_snprintf, vim_strchr};
 use crate::syntax::syn_get_foldlevel;
 use crate::undo::u_save;
 use crate::window::WinInfoInfo;
-use std::ffi::{CStr, c_char};
+use std::ffi::CStr;
 use std::ptr;
 
 use crate::state::MODE_INSERT;
@@ -51,9 +51,9 @@ use crate::state::MODE_INSERT;
 pub const FOLD_TEXT_LEN: usize = 51;
 const MAX_LEVEL: i32 = 20;
 
-const FD_OPEN: c_char = 0;
-const FD_CLOSED: c_char = 1;
-const FD_LEVEL: c_char = 2;
+const FD_OPEN: u8 = 0;
+const FD_CLOSED: u8 = 1;
+const FD_LEVEL: u8 = 2;
 
 const DONE_NOTHING: i32 = 0;
 const DONE_ACTION: i32 = 1;
@@ -76,7 +76,7 @@ pub struct FoldEntry {
     fd_top: Linenr,
     fd_len: Linenr,
     fd_nested: Vec<FoldEntry>,
-    fd_flags: c_char,
+    fd_flags: u8,
     fd_small: TriState,
 }
 
@@ -106,7 +106,7 @@ struct FoldModuleState {
     prev_lnum: Linenr,
     prev_lnum_lvl: i32,
     foldstartmarkerlen: usize,
-    foldendmarker: *mut c_char,
+    foldendmarker: *const u8,
     foldendmarkerlen: usize,
     got_fdt_error: bool,
     last_wp: *mut WinInfoInfo,
@@ -123,7 +123,7 @@ impl FoldModuleState {
             prev_lnum: 0,
             prev_lnum_lvl: -1,
             foldstartmarkerlen: 0,
-            foldendmarker: ptr::null_mut(),
+            foldendmarker: ptr::null(),
             foldendmarkerlen: 0,
             got_fdt_error: false,
             last_wp: ptr::null_mut(),
@@ -1296,14 +1296,12 @@ fn fold_create_markers(wp: &mut WinInfoInfo, start: CursorPos, end: CursorPos) {
     fold_add_marker(
         unsafe { &mut *buf },
         start,
-        wp.w_onebuf_opt.wo_fmr,
-        fold_st().foldstartmarkerlen,
+        crate::memory::cstr_slice(wp.w_onebuf_opt.wo_fmr, fold_st().foldstartmarkerlen),
     );
     fold_add_marker(
         unsafe { &mut *buf },
         end,
-        fold_st().foldendmarker,
-        fold_st().foldendmarkerlen,
+        unsafe { std::slice::from_raw_parts(fold_st().foldendmarker, fold_st().foldendmarkerlen) },
     );
 
     changed_lines(unsafe { &mut *buf }, start.lnum, 0, end.lnum, 0, false);
@@ -1312,64 +1310,56 @@ fn fold_create_markers(wp: &mut WinInfoInfo, start: CursorPos, end: CursorPos) {
     buf_updates_send_changes(unsafe { &mut *buf }, start.lnum, num_changed, num_changed);
 }
 
-fn fold_add_marker(
-    buf: &mut FileBuf,
-    pos: CursorPos,
-    marker: impl crate::strings::IntoCCharPtr,
-    markerlen: usize,
-) {
-    let marker = marker.into_c_char_ptr();
-    {
-        let cms = buf.b_p_cms;
-        let p = crate::memory::cstr_as_bytes(cms)
-            .windows(2)
-            .position(|w| w == b"%s")
-            .map_or(ptr::null_mut(), |i| cms.wrapping_add(i));
-        let mut line_is_comment = false;
-        let lnum = pos.lnum;
+fn fold_add_marker(buf: &mut FileBuf, pos: CursorPos, marker: &[u8]) {
+    let markerlen = marker.len();
+    let cms = buf.b_p_cms;
+    let p = crate::memory::cstr_as_bytes(cms)
+        .windows(2)
+        .position(|w| w == b"%s")
+        .map_or(ptr::null_mut(), |i| cms.wrapping_add(i));
+    let mut line_is_comment = false;
+    let lnum = pos.lnum;
 
-        let line = ml_get_buf(buf, lnum);
-        let line_len = ml_get_buf_len(buf, lnum) as usize;
+    let line = ml_get_buf(buf, lnum);
+    let line_len = ml_get_buf_len(buf, lnum) as usize;
 
-        if !u_save(lnum - 1, lnum + 1) {
-            return;
-        }
+    if !u_save(lnum - 1, lnum + 1) {
+        return;
+    }
 
-        skip_comment(line, false, false, &mut line_is_comment);
-        let cms_len = crate::memory::cstr_len(cms);
-        let mut newline_vec = vec![0 as c_char; line_len + markerlen + cms_len + 1];
-        let newline = newline_vec.as_mut_ptr();
-        unsafe { ptr::copy_nonoverlapping(line, newline, line_len + 1) };
-        let added = if p.is_null() || line_is_comment {
-            crate::memory::cstr_ncpy(newline.wrapping_add(line_len), marker, markerlen);
-            markerlen
-        } else {
-            unsafe { ptr::copy_nonoverlapping(cms, newline.wrapping_add(line_len), cms_len + 1) };
-            let p_off = (p as usize) - (cms as usize);
-            unsafe {
-                ptr::copy_nonoverlapping(marker, newline.wrapping_add(line_len + p_off), markerlen)
-            };
-            let tail_len = crate::memory::cstr_len(p.wrapping_add(2));
-            unsafe {
-                ptr::copy_nonoverlapping(
-                    p.wrapping_add(2),
-                    newline.wrapping_add(line_len + p_off + markerlen),
-                    tail_len + 1,
-                )
-            };
-            markerlen + cms_len - 2
+    skip_comment(line, false, false, &mut line_is_comment);
+    let cms_len = crate::memory::cstr_len(cms);
+    let mut newline_vec = vec![0u8; line_len + markerlen + cms_len + 1];
+    let newline = newline_vec.as_mut_ptr();
+    unsafe { ptr::copy_nonoverlapping(line.cast::<u8>(), newline, line_len + 1) };
+    let added = if p.is_null() || line_is_comment {
+        newline_vec[line_len..line_len + markerlen].copy_from_slice(marker);
+        newline_vec[line_len + markerlen] = 0;
+        markerlen
+    } else {
+        unsafe { ptr::copy_nonoverlapping(cms.cast::<u8>(), newline.wrapping_add(line_len), cms_len + 1) };
+        let p_off = (p as usize) - (cms as usize);
+        newline_vec[line_len + p_off..line_len + p_off + markerlen].copy_from_slice(marker);
+        let tail_len = crate::memory::cstr_len(p.wrapping_add(2));
+        unsafe {
+            ptr::copy_nonoverlapping(
+                p.wrapping_add(2).cast::<u8>(),
+                newline.wrapping_add(line_len + p_off + markerlen),
+                tail_len + 1,
+            )
         };
-        ml_replace_buf(buf, lnum, newline, true, false);
-        if added != 0 {
-            extmark_splice_cols(
-                buf,
-                lnum - 1,
-                line_len as Colnr,
-                0,
-                added as Colnr,
-                K_EXTMARK_UNDO,
-            );
-        }
+        markerlen + cms_len - 2
+    };
+    ml_replace_buf(buf, lnum, newline.cast(), true, false);
+    if added != 0 {
+        extmark_splice_cols(
+            buf,
+            lnum - 1,
+            line_len as Colnr,
+            0,
+            added as Colnr,
+            K_EXTMARK_UNDO,
+        );
     }
 }
 
@@ -1387,90 +1377,84 @@ fn delete_fold_markers(
     fold_del_marker(
         wp.buf_mut(),
         fp.fd_top + lnum_off,
-        wp.w_onebuf_opt.wo_fmr,
-        fold_st().foldstartmarkerlen,
+        crate::memory::cstr_slice(wp.w_onebuf_opt.wo_fmr, fold_st().foldstartmarkerlen),
     );
     fold_del_marker(
         wp.buf_mut(),
         fp.fd_top + lnum_off + fp.fd_len - 1,
-        fold_st().foldendmarker,
-        fold_st().foldendmarkerlen,
+        unsafe { std::slice::from_raw_parts(fold_st().foldendmarker, fold_st().foldendmarkerlen) },
     );
 }
 
-fn fold_del_marker(
-    buf: &mut FileBuf,
-    lnum: Linenr,
-    marker: impl crate::strings::IntoCCharPtr,
-    markerlen: usize,
-) {
-    let marker = marker.into_c_char_ptr();
-    {
-        if lnum > buf.b_ml.ml_line_count {
-            return;
-        }
+fn fold_del_marker(buf: &mut FileBuf, lnum: Linenr, marker_slice: &[u8]) {
+    let markerlen = marker_slice.len();
+    if lnum > buf.b_ml.ml_line_count {
+        return;
+    }
 
-        let cms = buf.b_p_cms;
-        let line = ml_get_buf(buf, lnum);
-        let marker_slice = crate::memory::cstr_slice(marker, markerlen);
-        let mut p = line;
-        while !crate::memory::cstr_is_empty(p) {
-            let rem_len = crate::memory::cstr_len(p);
-            if rem_len < markerlen || crate::memory::cstr_slice(p, markerlen) != marker_slice {
-                p = p.wrapping_add(1);
-                continue;
-            }
-            let mut len = markerlen;
-            if ascii_isdigit(crate::memory::cstr_byte_at(p, len) as i32) {
-                len += 1;
-            }
-            if !crate::memory::cstr_is_empty(cms) {
-                let cms2 = crate::memory::cstr_as_bytes(cms)
-                    .windows(2)
-                    .position(|w| w == b"%s")
-                    .map_or(ptr::null_mut(), |i| cms.wrapping_add(i));
-                if !cms2.is_null() {
-                    let prefix_len = (cms2 as usize) - (cms as usize);
-                    let suffix = cms2.wrapping_add(2);
-                    let suffix_len = crate::memory::cstr_len(suffix);
-                    if (p as usize) - (line as usize) >= prefix_len
-                        && unsafe {
-                            std::slice::from_raw_parts(
-                                p.wrapping_sub(prefix_len).cast::<u8>(),
-                                prefix_len,
-                            )
-                        } == crate::memory::cstr_slice(cms, prefix_len)
-                        && crate::memory::cstr_as_bytes(p.wrapping_add(len))
-                            .starts_with(crate::memory::cstr_slice(suffix, suffix_len))
-                    {
-                        p = p.wrapping_sub(prefix_len);
-                        len += crate::memory::cstr_len(cms) - 2;
-                    }
+    let cms = buf.b_p_cms;
+    let line = ml_get_buf(buf, lnum);
+    let mut p = line;
+    while !crate::memory::cstr_is_empty(p) {
+        let rem_len = crate::memory::cstr_len(p);
+        if rem_len < markerlen || crate::memory::cstr_slice(p, markerlen) != marker_slice {
+            p = p.wrapping_add(1);
+            continue;
+        }
+        let mut len = markerlen;
+        if ascii_isdigit(crate::memory::cstr_byte_at(p, len) as i32) {
+            len += 1;
+        }
+        if !crate::memory::cstr_is_empty(cms) {
+            let cms2 = crate::memory::cstr_as_bytes(cms)
+                .windows(2)
+                .position(|w| w == b"%s")
+                .map_or(ptr::null_mut(), |i| cms.wrapping_add(i));
+            if !cms2.is_null() {
+                let prefix_len = (cms2 as usize) - (cms as usize);
+                let suffix = cms2.wrapping_add(2);
+                let suffix_len = crate::memory::cstr_len(suffix);
+                if (p as usize) - (line as usize) >= prefix_len
+                    && unsafe {
+                        std::slice::from_raw_parts(
+                            p.wrapping_sub(prefix_len).cast::<u8>(),
+                            prefix_len,
+                        )
+                    } == crate::memory::cstr_slice(cms, prefix_len)
+                    && crate::memory::cstr_as_bytes(p.wrapping_add(len))
+                        .starts_with(crate::memory::cstr_slice(suffix, suffix_len))
+                {
+                    p = p.wrapping_sub(prefix_len);
+                    len += crate::memory::cstr_len(cms) - 2;
                 }
             }
-            if u_save(lnum - 1, lnum + 1) {
-                let orig_len = ml_get_buf_len(buf, lnum) as usize;
-                let mut newline_vec = vec![0 as c_char; orig_len - len + 1];
-                let newline = newline_vec.as_mut_ptr();
-                let before_len = (p as usize) - (line as usize);
-                unsafe { ptr::copy_nonoverlapping(line, newline, before_len) };
-                let after = p.wrapping_add(len);
-                let after_len = crate::memory::cstr_len(after);
-                unsafe {
-                    ptr::copy_nonoverlapping(after, newline.wrapping_add(before_len), after_len + 1)
-                };
-                ml_replace_buf(buf, lnum, newline, true, false);
-                extmark_splice_cols(
-                    buf,
-                    lnum - 1,
-                    before_len as Colnr,
-                    len as Colnr,
-                    0,
-                    K_EXTMARK_UNDO,
-                );
-            }
-            break;
         }
+        if u_save(lnum - 1, lnum + 1) {
+            let orig_len = ml_get_buf_len(buf, lnum) as usize;
+            let mut newline_vec = vec![0u8; orig_len - len + 1];
+            let newline = newline_vec.as_mut_ptr();
+            let before_len = (p as usize) - (line as usize);
+            unsafe { ptr::copy_nonoverlapping(line.cast::<u8>(), newline, before_len) };
+            let after = p.wrapping_add(len);
+            let after_len = crate::memory::cstr_len(after);
+            unsafe {
+                ptr::copy_nonoverlapping(
+                    after.cast::<u8>(),
+                    newline.wrapping_add(before_len),
+                    after_len + 1,
+                )
+            };
+            ml_replace_buf(buf, lnum, newline.cast(), true, false);
+            extmark_splice_cols(
+                buf,
+                lnum - 1,
+                before_len as Colnr,
+                len as Colnr,
+                0,
+                K_EXTMARK_UNDO,
+            );
+        }
+        break;
     }
 }
 
@@ -1498,15 +1482,15 @@ pub fn get_foldtext(
     }
 
     if wp.w_onebuf_opt.wo_fdt.cb_type() != K_CALLBACK_NONE_CONST {
-        let mut dashes = [0 as c_char; (MAX_LEVEL as usize) + 2];
+        let mut dashes = [0u8; (MAX_LEVEL as usize) + 2];
 
         set_vim_var_nr(VV_FOLDSTART, Varnumber::from(lnum));
         set_vim_var_nr(VV_FOLDEND, Varnumber::from(lnume));
 
         let level = foldinfo.fi_level.min((dashes.len() - 1) as i32).max(0);
-        unsafe { ptr::write_bytes(dashes.as_mut_ptr().cast::<u8>(), b'-', level as usize) };
-        dashes[level as usize] = NUL;
-        set_vim_var_string(VV_FOLDDASHES, dashes.as_ptr(), level as isize);
+        dashes[..level as usize].fill(b'-');
+        dashes[level as usize] = 0;
+        set_vim_var_string(VV_FOLDDASHES, dashes.as_ptr().cast(), level as isize);
         set_vim_var_nr(VV_FOLDLEVEL, Varnumber::from(level));
 
         if !fold_st().got_fdt_error {
@@ -1553,7 +1537,7 @@ pub fn get_foldtext(
 
         if let Some(t) = text.take() {
             let mut bytes = t.into_bytes_with_nul();
-            let mut p = bytes.as_mut_ptr().cast::<c_char>();
+            let mut p = bytes.as_mut_ptr().cast();
             while !crate::memory::cstr_is_empty(p) {
                 let len = utfc_ptr2len(p);
                 if len > 1 {
@@ -1563,7 +1547,7 @@ pub fn get_foldtext(
                     p = p.wrapping_add((len - 1) as usize);
                 } else if unsafe { *p } == TAB {
                     unsafe {
-                        *p = b' ' as c_char;
+                        *p.cast::<u8>() = b' ';
                     }
                 } else if ptr2cells(p) > 1 {
                     break;
@@ -1571,26 +1555,27 @@ pub fn get_foldtext(
                 p = p.wrapping_add(1);
             }
             text = if !crate::memory::cstr_is_empty(p) {
-                Some(transstr(bytes.as_ptr().cast::<c_char>(), true))
+                Some(transstr(bytes.as_ptr().cast(), true))
             } else {
                 Some(CStr::from_bytes_with_nul(&bytes).unwrap().to_owned())
             };
         }
     }
     text.unwrap_or_else(|| {
-        let mut buf = [0 as c_char; FOLD_TEXT_LEN];
+        let mut buf = [0u8; FOLD_TEXT_LEN];
         let count = lnume - lnum + 1;
         vim_snprintf!(
-            buf.as_mut_ptr(),
+            buf.as_mut_ptr().cast(),
             FOLD_TEXT_LEN,
             ngettext(c"+--%3d line folded", c"+--%3d lines folded ", count as u64,),
             count,
         );
-        crate::memory::cstr_to_cstring(buf.as_ptr())
+        crate::memory::cstr_to_cstring(buf.as_ptr().cast())
     })
 }
 
-fn foldtext_cleanup(str_ptr: *mut c_char) {
+fn foldtext_cleanup(str_slice: &mut [u8]) {
+    let str_ptr = str_slice.as_mut_ptr().cast();
     let cms_start = skipwhite(curbuf_mut().b_p_cms);
     let mut cms_slen = crate::memory::cstr_len(cms_start);
     while cms_slen > 0 && ascii_iswhite(crate::memory::cstr_byte_at(cms_start, cms_slen - 1) as i32)
@@ -1627,7 +1612,8 @@ fn foldtext_cleanup(str_ptr: *mut c_char) {
         curwin_mut().w_onebuf_opt.wo_fmr,
         fold_st().foldstartmarkerlen,
     );
-    let end_slice = crate::memory::cstr_slice(fold_st().foldendmarker, fold_st().foldendmarkerlen);
+    let end_slice =
+        unsafe { std::slice::from_raw_parts(fold_st().foldendmarker, fold_st().foldendmarkerlen) };
 
     let mut s = str_ptr;
     while !crate::memory::cstr_is_empty(s) {
@@ -1893,7 +1879,7 @@ fn fold_update_iemsrecurse(
     flp: &mut Fline,
     getlevel: LevelGetterKind,
     mut bot: Linenr,
-    topflags: c_char,
+    topflags: u8,
 ) -> Linenr {
     let mut fp_idx: Option<usize> = None;
 
@@ -2533,8 +2519,9 @@ fn parse_marker(wp: &mut WinInfoInfo) {
     let fmr = wp.w_onebuf_opt.wo_fmr;
     let comma = vim_strchr(fmr, b',' as i32);
     fold_st().foldstartmarkerlen = (comma as usize) - (fmr as usize);
-    fold_st().foldendmarker = comma.wrapping_add(1);
-    fold_st().foldendmarkerlen = crate::memory::cstr_len(fold_st().foldendmarker);
+    let end_ptr = comma.wrapping_add(1);
+    fold_st().foldendmarker = end_ptr.cast();
+    fold_st().foldendmarkerlen = crate::memory::cstr_len(end_ptr);
 }
 
 fn foldlevel_marker(flp: &mut Fline) {
@@ -2542,12 +2529,12 @@ fn foldlevel_marker(flp: &mut Fline) {
     let startmarker_full = flp.wp_mut().w_onebuf_opt.wo_fmr;
     let cstart = unsafe { *startmarker_full };
     let startmarker = startmarker_full.wrapping_add(1);
-    let cend = unsafe { *fold_st().foldendmarker };
+    let cend = unsafe { *fold_st().foldendmarker.cast() };
 
     let start_rest = crate::memory::cstr_slice(startmarker, fold_st().foldstartmarkerlen - 1);
     let end_rest = unsafe {
         std::slice::from_raw_parts(
-            fold_st().foldendmarker.wrapping_add(1).cast::<u8>(),
+            fold_st().foldendmarker.wrapping_add(1),
             fold_st().foldendmarkerlen - 1,
         )
     };
@@ -2628,15 +2615,15 @@ fn put_folds_recurse(fd: *mut FILE, gap: &[FoldEntry], off: Linenr) -> bool {
         if !put_folds_recurse(fd, &fp.fd_nested, off + fp.fd_top) {
             return false;
         }
-        let mut buf = [0 as c_char; 64];
+        let mut buf = [0u8; 64];
         vim_snprintf!(
-            buf.as_mut_ptr(),
+            buf.as_mut_ptr().cast(),
             buf.len(),
             c"sil! %lld,%lldfold",
             i64::from(fp.fd_top + off),
             i64::from(fp.fd_top + off + fp.fd_len - 1),
         );
-        if fputs(buf.as_ptr(), fd) < 0 || !put_eol(fd) {
+        if fputs(buf.as_ptr().cast(), fd) < 0 || !put_eol(fd) {
             return false;
         }
     }
@@ -2652,14 +2639,16 @@ fn put_foldopen_recurse(
     for fp in gap {
         if fp.fd_flags != FD_LEVEL {
             if !fp.fd_nested.is_empty() {
-                let mut buf = [0 as c_char; 32];
+                let mut buf = [0u8; 32];
                 vim_snprintf!(
-                    buf.as_mut_ptr(),
+                    buf.as_mut_ptr().cast(),
                     buf.len(),
                     c"%lld",
                     i64::from(fp.fd_top + off),
                 );
-                if fputs(buf.as_ptr(), fd) < 0 || !put_eol(fd) || !put_line(fd, c"sil! normal! zo")
+                if fputs(buf.as_ptr().cast(), fd) < 0
+                    || !put_eol(fd)
+                    || !put_line(fd, c"sil! normal! zo")
                 {
                     return false;
                 }
@@ -2685,9 +2674,9 @@ fn put_foldopen_recurse(
 }
 
 fn put_fold_open_close(fd: *mut FILE, fp: &FoldEntry, off: Linenr) -> bool {
-    let mut buf = [0 as c_char; 32];
-    vim_snprintf!(buf.as_mut_ptr(), buf.len(), c"%d", fp.fd_top + off,);
-    if fputs(buf.as_ptr(), fd) < 0 || !put_eol(fd) {
+    let mut buf = [0u8; 32];
+    vim_snprintf!(buf.as_mut_ptr().cast(), buf.len(), c"%d", fp.fd_top + off);
+    if fputs(buf.as_ptr().cast(), fd) < 0 || !put_eol(fd) {
         return false;
     }
     let cmd = if fp.fd_flags == FD_CLOSED {
@@ -2770,12 +2759,18 @@ pub fn f_foldtext(_argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDa
         let txt = ngettext(c"+-%s%3d line: ", c"+-%s%3d lines: ", count as u64);
         let s_len = crate::memory::cstr_len(s);
         let len = crate::memory::cstr_len(txt) + crate::memory::cstr_len(dashes) + 20 + s_len;
-        let mut r_vec = vec![0 as c_char; len];
-        let r = r_vec.as_mut_ptr();
+        let mut r_vec = vec![0u8; len];
+        let r = r_vec.as_mut_ptr().cast();
         vim_snprintf!(r, len, txt, dashes, count);
         let r_len = crate::memory::cstr_len(r);
-        unsafe { ptr::copy_nonoverlapping(s, r.wrapping_add(r_len), s_len + 1) };
-        foldtext_cleanup(r.wrapping_add(r_len));
+        unsafe {
+            ptr::copy_nonoverlapping(
+                s.cast::<u8>(),
+                r_vec.as_mut_ptr().wrapping_add(r_len),
+                s_len + 1,
+            )
+        };
+        foldtext_cleanup(&mut r_vec[r_len..]);
         crate::eval::typval::tv_set_string_len(rettv, r, crate::memory::cstr_len(r));
     }
 }

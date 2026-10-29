@@ -4243,12 +4243,10 @@ pub fn api_get_packed_metadata(len: &mut usize) -> *const u8 {
         mpack_push_str(&mut out, b"api_prerelease");
         mpack_push_bool(&mut out, NVIM_API_PRERELEASE_CONST);
         mpack_push_str(&mut out, b"build");
-        let build_ptr = nvim_version_build();
-        if build_ptr.is_null() {
-            out.push(0xc0);
+        if let Some(build_cstr) = nvim_version_build() {
+            mpack_push_str(&mut out, build_cstr.to_bytes());
         } else {
-            let b = crate::memory::cstr_as_bytes(build_ptr);
-            mpack_push_str(&mut out, b);
+            out.push(0xc0);
         }
 
         mpack_push_str(&mut out, b"functions");

@@ -3730,7 +3730,13 @@ pub fn buflist_list(eap: &mut Exarg) {
             }
         }
         if crate::strings::vim_haschr(eap.arg, b't' as i32) && buf.b_last_used != 0 {
-            undo_fmt_time(iobuff_ptr.wrapping_add(len), IOSIZE - len, buf.b_last_used);
+            let slice = unsafe {
+                std::slice::from_raw_parts_mut(
+                    iobuff_ptr.wrapping_add(len).cast::<u8>(),
+                    IOSIZE - len,
+                )
+            };
+            undo_fmt_time(slice, buf.b_last_used);
         } else {
             vim_snprintf!(
                 iobuff_ptr.wrapping_add(len),

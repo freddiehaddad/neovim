@@ -1058,7 +1058,7 @@ pub fn vim_getenv(name: impl crate::strings::IntoCCharPtr) -> Option<std::ffi::C
         {
             let mut vim_path_cstr: Option<std::ffi::CString> = None;
             if vimruntime
-                && crate::memory::cstr_is_empty(default_vimruntime_dir())
+                && default_vimruntime_dir().to_bytes().is_empty()
                 && let Some(kos_cstr) = os_getenv_cstr(c"VIM")
             {
                 vim_path_cstr = vim_runtime_dir(kos_cstr.as_ptr()).or(Some(kos_cstr));
@@ -1106,14 +1106,14 @@ pub fn vim_getenv(name: impl crate::strings::IntoCCharPtr) -> Option<std::ffi::C
             }
 
             if vim_path_cstr.is_none() {
-                if vimruntime && !crate::memory::cstr_is_empty(default_vimruntime_dir()) {
-                    vim_path_cstr = Some(crate::memory::cstr_to_cstring(default_vimruntime_dir()));
-                } else if !crate::memory::cstr_is_empty(default_vim_dir()) {
+                if vimruntime && !default_vimruntime_dir().to_bytes().is_empty() {
+                    vim_path_cstr = Some(default_vimruntime_dir().to_owned());
+                } else if !default_vim_dir().to_bytes().is_empty() {
                     if vimruntime {
                         vim_path_cstr = vim_runtime_dir(default_vim_dir());
                     }
                     if vim_path_cstr.is_none() {
-                        vim_path_cstr = Some(crate::memory::cstr_to_cstring(default_vim_dir()));
+                        vim_path_cstr = Some(default_vim_dir().to_owned());
                     }
                 }
             }
