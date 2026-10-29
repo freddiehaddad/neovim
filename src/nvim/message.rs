@@ -2526,16 +2526,18 @@ pub fn str2special(
             c,
             modifiers,
             (data.is_some()).then(|| data.as_deref_mut().unwrap()),
-        );
+        )
+        .as_ptr()
+        .cast_mut();
     }
 
     let buf_ptr = (&raw mut msg_st().str2_special_buf).cast::<c_char>();
     if data.is_some() {
         data.as_deref_mut().unwrap().mods = 0;
         if (b'A' as i32..=b'Z' as i32).contains(&c) {
-            data.as_deref_mut().unwrap().key_mem = (c + 32) as c_char;
+            data.as_deref_mut().unwrap().key_mem = (c + 32) as u8;
             data.as_deref_mut().unwrap().key = NvimString {
-                data: &raw mut data.as_deref_mut().unwrap().key_mem,
+                data: (&raw mut data.as_deref_mut().unwrap().key_mem).cast(),
                 size: 1,
             };
             data.as_deref_mut().unwrap().mods |= i32::from(MOD_MASK_SHIFT);

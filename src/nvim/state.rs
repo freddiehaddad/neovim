@@ -140,9 +140,9 @@ pub fn state_enter<S: EditorState>(s: &mut S) {
 
             if log_st().g_min_log_level <= LOGLVL_DBG {
                 let keyname = if key == K_EVENT {
-                    c"K_EVENT".as_ptr()
+                    c"K_EVENT"
                 } else {
-                    get_special_key_name(key, g_st().mod_mask).cast_const()
+                    get_special_key_name(key, g_st().mod_mask)
                 };
                 logmsg!(
                     LOGLVL_DBG,

@@ -2301,8 +2301,9 @@ fn find_key_len(arg_arg: impl crate::strings::IntoCCharPtr, len: usize, has_lt: 
         } else if has_lt {
             arg = arg.wrapping_offset(-1);
             let mut modifiers: i32 = 0;
+            let mut arg_u8 = arg.cast::<u8>();
             key = find_special_key(
-                &raw mut arg,
+                &raw mut arg_u8,
                 len + 1,
                 &mut modifiers,
                 FSK_KEYCODE | FSK_KEEP_X_KEY | FSK_SIMPLIFY,
@@ -6606,7 +6607,7 @@ fn put_set_value(
                 let value_num = value.data.integer();
                 let mut wc: OptInt = 0;
                 if wc_use_keyname(varp.cast::<OptInt>(), &mut wc) != 0 {
-                    if fputs(get_special_key_name(wc as i32, 0), fd) < 0 {
+                    if fputs(get_special_key_name(wc as i32, 0).as_ptr(), fd) < 0 {
                         return false;
                     }
                 } else {

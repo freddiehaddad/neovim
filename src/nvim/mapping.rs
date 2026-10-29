@@ -825,7 +825,8 @@ fn buf_do_map(
                         let mut same: i32 = -1;
                         let mut keys_unescaped = [0 as c_char; MAXMAPLEN + 1];
                         crate::memory::cstr_ncpy(keys_unescaped.as_mut_ptr(), lhs, len as usize);
-                        let keys_unescaped_len = vim_unescape_ks(keys_unescaped.as_mut_ptr());
+                        let keys_unescaped_len =
+                            vim_unescape_ks(keys_unescaped.as_mut_ptr().cast());
                         let mut p = keys_unescaped.as_ptr();
                         let end_p = p.wrapping_add(keys_unescaped_len);
 
@@ -1366,9 +1367,7 @@ fn translate_mapping(
                 }
                 if is_special(c) || modifiers != 0 {
                     let s = get_special_key_name(c, modifiers);
-                    if !s.is_null() {
-                        buf.extend_from_slice(crate::memory::cstr_as_bytes(s));
-                    }
+                    buf.extend_from_slice(s.to_bytes());
                     str_ptr = str_ptr.wrapping_add(1);
                     continue;
                 }
@@ -1647,7 +1646,7 @@ pub fn check_abbr(mut c: i32, mut ptr_arg: *mut c_char, col: i32, mincol: i32) -
                     .map(|&b| b as c_char)
                     .collect();
                 q = q_vec.as_mut_ptr();
-                qlen = vim_unescape_ks(q) as i32;
+                qlen = vim_unescape_ks(q.cast()) as i32;
             }
             let match_found = (cand.m_mode & g_st().state_global) != 0
                 && qlen == len
@@ -1744,7 +1743,7 @@ pub fn eval_map_expr(mp: &Mapblock, c: i32) -> Option<CString> {
         expr_bytes.extend_from_slice(unsafe {
             std::slice::from_raw_parts(mp.m_str.as_ptr(), mp.m_str.to_bytes_with_nul().len())
         });
-        vim_unescape_ks(expr_bytes.as_mut_ptr());
+        vim_unescape_ks(expr_bytes.as_mut_ptr().cast());
     }
 
     g_st().expr_map_lock += 1;
@@ -2032,7 +2031,7 @@ pub fn put_escstr(fd: *mut FILE, strstart: impl crate::strings::IntoCCharPtr, wh
                     str_ptr = str_ptr.wrapping_add(2);
                 }
                 if is_special(c) || modifiers != 0 {
-                    if fputs(get_special_key_name(c, modifiers), fd) < 0 {
+                    if fputs(get_special_key_name(c, modifiers).as_ptr(), fd) < 0 {
                         return false;
                     }
                     str_ptr = str_ptr.wrapping_add(1);

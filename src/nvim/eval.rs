@@ -3858,7 +3858,7 @@ fn eval_string(
                     if crate::memory::cstr_byte_at(p, 1) != b'*' {
                         flags |= FSK_SIMPLIFY;
                     }
-                    let mut p_const: *const c_char = p;
+                    let mut p_const: *const u8 = p.cast();
                     if find_special_key(
                         &raw mut p_const,
                         (arg_end as usize).wrapping_sub(p as usize),
@@ -3867,9 +3867,9 @@ fn eval_string(
                         None,
                     ) != 0
                     {
-                        p = p_const.cast_mut().wrapping_sub(1);
+                        p = p_const.cast_mut().wrapping_sub(1).cast();
                     } else {
-                        p = p_const.cast_mut();
+                        p = p_const.cast_mut().cast();
                     }
                 }
             } else if interpolate
@@ -3993,16 +3993,16 @@ fn eval_string(
                         if crate::memory::cstr_byte_at(p, 1) != b'*' {
                             flags |= FSK_SIMPLIFY;
                         }
-                        let mut p_const: *const c_char = p;
+                        let mut p_const: *const u8 = p.cast();
                         let spec_len = trans_special(
                             &raw mut p_const,
                             (arg_end as usize).wrapping_sub(p as usize),
-                            end,
+                            end.cast(),
                             flags,
                             false,
                             None,
                         );
-                        p = p_const.cast_mut();
+                        p = p_const.cast_mut().cast();
                         if spec_len != 0 {
                             end = end.wrapping_add(spec_len as usize);
                             if (end as usize) >= (buf_ptr as usize + len) {

@@ -747,11 +747,11 @@ unsafe extern "C-unwind" fn nlua_keyparse(lstate: *mut lua_State) -> i32 {
 
         lua_newtable(lstate);
         let mut i: usize = 0;
-        while MOD_MASK_TABLE[i].name as u8 != b'A' {
+        while MOD_MASK_TABLE[i].name != b'A' {
             if (data.mods & i32::from(MOD_MASK_TABLE[i].mod_mask))
                 == i32::from(MOD_MASK_TABLE[i].mod_flag)
             {
-                unsafe { lua_pushlstring(lstate, &raw const MOD_MASK_TABLE[i].name, 1) };
+                unsafe { lua_pushlstring(lstate, (&raw const MOD_MASK_TABLE[i].name).cast(), 1) };
                 unsafe { lua_rawseti(lstate, -2, (lua_objlen(lstate, -2) as i32) + 1) };
             }
             i += 1;

@@ -1816,18 +1816,16 @@ fn insert_special(mut c: i32, mut allow_modmask: i32, mut ctrlv: i32) {
         allow_modmask = 1;
     }
     if is_special_fn(c) || (g_st().mod_mask != 0 && allow_modmask != 0) {
-        let p = get_special_key_name(c, g_st().mod_mask);
-        let len = crate::memory::cstr_len(p);
-        c = crate::memory::cstr_byte_at(p, len - 1) as i32;
+        let p = get_special_key_name(c, g_st().mod_mask).to_bytes();
+        let len = p.len();
+        c = i32::from(p[len - 1]);
         if len > 2 {
             if !stop_arrow() {
                 return;
             }
-            unsafe {
-                *p.wrapping_add(len - 1) = NUL;
-            }
-            ins_str(p, len - 1);
-            redo_append_lit(p, -1);
+            let prefix = std::ffi::CString::new(&p[..len - 1]).unwrap();
+            ins_str(prefix.as_c_str(), len - 1);
+            redo_append_lit(prefix.as_c_str(), -1);
             ctrlv = 0;
         }
     }
@@ -2212,7 +2210,7 @@ pub fn set_last_insert(c: i32) {
         }
         s = s.wrapping_add(1);
     }
-    s = add_char2buf(c, s.cast()).cast();
+    s = add_char2buf(c, s);
     unsafe {
         *s = ESC as u8;
     }
