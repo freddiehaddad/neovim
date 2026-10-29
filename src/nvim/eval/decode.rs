@@ -117,8 +117,7 @@ pub fn decode_string(s: &[u8], force_blob: bool) -> TypVal {
         v_lock: VAR_UNLOCKED,
         vval: TypvalVval::String(std::ptr::null_mut()),
     };
-    let cstr = crate::memory::cstr_from_bytes(s);
-    crate::eval::typval::tv_set_string_len(&mut tv, cstr.as_ptr(), s.len());
+    crate::eval::typval::tv_set_bytes(&mut tv, s);
     tv
 }
 

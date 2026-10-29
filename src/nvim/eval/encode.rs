@@ -146,11 +146,7 @@ pub fn encode_list_write(mut list: Option<&mut TvList>, buf: &[u8]) {
             for (dst_b, &src_b) in combined[li_len..].iter_mut().zip(&buf[..line_length]) {
                 *dst_b = if src_b == 0 { b'\n' } else { src_b };
             }
-            crate::eval::typval::tv_set_string_len(
-                &mut li.li_tv,
-                combined.as_ptr().cast::<c_char>(),
-                combined.len(),
-            );
+            crate::eval::typval::tv_set_bytes(&mut li.li_tv, &combined);
         }
         line_end_idx += 1;
     }
@@ -171,11 +167,7 @@ pub fn encode_list_write(mut list: Option<&mut TvList>, buf: &[u8]) {
             {
                 *dst_b = if src_b == 0 { b'\n' } else { src_b };
             }
-            crate::eval::typval::tv_list_append_string(
-                list.as_deref_mut().unwrap(),
-                line_buf.as_ptr().cast::<c_char>(),
-                line_length as isize,
-            );
+            crate::eval::typval::tv_list_append_bytes(list.as_deref_mut().unwrap(), &line_buf);
         } else {
             tv_list_append_string(list.as_deref_mut().unwrap(), std::ptr::null(), 0);
         }

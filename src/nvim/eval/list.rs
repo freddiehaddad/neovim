@@ -11,7 +11,8 @@ use crate::eval::typval::{
     tv_get_bool_chk, tv_get_number_chk, tv_get_string, tv_get_string_chk, tv_list_alloc_ret,
     tv_list_append_owned_tv, tv_list_append_tv, tv_list_copy, tv_list_extend, tv_list_find,
     tv_list_first, tv_list_insert_tv, tv_list_item_remove, tv_list_len, tv_list_remove,
-    tv_list_reverse, tv_list_set_lock, tv_list_set_ret, tv_list_unref, value_check_lock,
+    tv_list_reverse, tv_list_set_lock, tv_list_set_ret, tv_list_unref, tv_set_bytes,
+    value_check_lock,
 };
 use crate::eval::vars::{
     VV_KEY, VV_VAL, get_vim_var_tv, prepare_vimvar, restore_vimvar, set_vim_var_nr,
@@ -21,10 +22,10 @@ use crate::eval::{eval_expr_typval, get_copy_id, tv_blob_set_ret};
 use crate::ex_docmd::do_cmdline_cmd;
 use crate::globals::*;
 use crate::hashtab::{hash_lock, hash_unlock, hashitem_empty};
-use crate::mbyte::{mb_strnicmp, utf_ptr2len, utfc_ptr2len};
+use crate::mbyte::{mb_strnicmp, utf_ptr2len, utfc_slice2len};
 use crate::message::{emsg, semsg};
 use crate::strings::reverse_text;
-use std::ffi::c_char;
+use std::ffi::CStr;
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum FilterMap {
@@ -91,11 +92,10 @@ fn filter_map_one(
 fn filter_map_dict(
     mut d: Option<&mut TvDict>,
     filtermap: FilterMap,
-    arg_errmsg: impl crate::strings::IntoCCharPtr,
+    arg_errmsg: &CStr,
     expr: &mut TypVal,
     rettv: &mut TypVal,
 ) {
-    let arg_errmsg = arg_errmsg.into_c_char_ptr();
     {
         if filtermap == FilterMap::MapNew {
             rettv.v_type = VarType::VarDict;
@@ -179,10 +179,9 @@ fn filter_map_blob(
     blob_arg: *mut TvBlob,
     filtermap: FilterMap,
     expr: &mut TypVal,
-    arg_errmsg: impl crate::strings::IntoCCharPtr,
+    arg_errmsg: &CStr,
     rettv: &mut TypVal,
 ) {
-    let arg_errmsg = arg_errmsg.into_c_char_ptr();
     unsafe {
         if filtermap == FilterMap::MapNew {
             rettv.v_type = VarType::VarBlob;
@@ -255,75 +254,66 @@ fn filter_map_blob(
 }
 
 fn filter_map_string(
-    str_ptr: impl crate::strings::IntoCCharPtr,
+    str_bytes: &[u8],
     filtermap: FilterMap,
     expr: &mut TypVal,
     rettv: &mut TypVal,
 ) {
-    let str_ptr = str_ptr.into_c_char_ptr();
-    {
-        rettv.v_type = VarType::VarString;
-        rettv.vval = crate::eval::typval::TypvalVval::String(std::ptr::null_mut());
+    rettv.v_type = VarType::VarString;
+    rettv.vval = crate::eval::typval::TypvalVval::String(std::ptr::null_mut());
 
-        set_vim_var_type(VV_KEY, VarType::VarNumber);
+    set_vim_var_type(VV_KEY, VarType::VarNumber);
 
-        let mut out: Vec<u8> = Vec::with_capacity(80);
-        let mut idx: i64 = 0;
-        let mut p = str_ptr;
-        while unsafe { *p } != 0 {
-            let len = utfc_ptr2len(p) as usize;
-            let mut tv = TypVal::new();
-            crate::eval::typval::tv_set_string_len(&mut tv, p, len);
+    let mut out: Vec<u8> = Vec::with_capacity(80);
+    let mut idx: i64 = 0;
+    let mut off = 0usize;
+    while off < str_bytes.len() {
+        let len = utfc_slice2len(&str_bytes[off..]);
+        let mut tv = TypVal::new();
+        tv_set_bytes(&mut tv, &str_bytes[off..off + len]);
 
-            set_vim_var_nr(VV_KEY, idx);
-            let mut newtv = TypVal {
-                v_type: VarType::VarUnknown,
-                v_lock: VAR_UNLOCKED,
-                vval: TypvalVval::Number(0),
-            };
-            let mut rem = false;
-            if !filter_map_one(&mut tv, expr, filtermap, &mut newtv, &mut rem)
-                || g_st().did_emsg != 0
-            {
-                tv_clear(&mut newtv);
-                tv_clear(&mut tv);
-                break;
-            }
-            if filtermap == FilterMap::Map || filtermap == FilterMap::MapNew {
-                if newtv.v_type != VarType::VarString {
-                    tv_clear(&mut newtv);
-                    tv_clear(&mut tv);
-                    emsg(E_STRING_REQUIRED);
-                    break;
-                } else if !newtv.vval.v_string().is_null() {
-                    out.extend_from_slice(crate::memory::cstr_as_bytes(newtv.vval.v_string()));
-                }
-            } else if (filtermap == FilterMap::ForEach || !rem) && !tv.vval.v_string().is_null() {
-                out.extend_from_slice(crate::memory::cstr_as_bytes(tv.vval.v_string()));
-            }
-
+        set_vim_var_nr(VV_KEY, idx);
+        let mut newtv = TypVal {
+            v_type: VarType::VarUnknown,
+            v_lock: VAR_UNLOCKED,
+            vval: TypvalVval::Number(0),
+        };
+        let mut rem = false;
+        if !filter_map_one(&mut tv, expr, filtermap, &mut newtv, &mut rem) || g_st().did_emsg != 0
+        {
             tv_clear(&mut newtv);
             tv_clear(&mut tv);
-
-            idx += 1;
-            p = p.wrapping_add(len);
+            break;
         }
-        crate::eval::typval::tv_set_string_len(
-            &mut *rettv,
-            out.as_ptr().cast::<c_char>(),
-            out.len(),
-        );
+        if filtermap == FilterMap::Map || filtermap == FilterMap::MapNew {
+            if newtv.v_type != VarType::VarString {
+                tv_clear(&mut newtv);
+                tv_clear(&mut tv);
+                emsg(E_STRING_REQUIRED);
+                break;
+            } else if !newtv.vval.v_string().is_null() {
+                out.extend_from_slice(crate::memory::cstr_as_bytes(newtv.vval.v_string()));
+            }
+        } else if (filtermap == FilterMap::ForEach || !rem) && !tv.vval.v_string().is_null() {
+            out.extend_from_slice(crate::memory::cstr_as_bytes(tv.vval.v_string()));
+        }
+
+        tv_clear(&mut newtv);
+        tv_clear(&mut tv);
+
+        idx += 1;
+        off += len;
     }
+    tv_set_bytes(&mut *rettv, &out);
 }
 
 fn filter_map_list(
     mut l: Option<&mut TvList>,
     filtermap: FilterMap,
-    arg_errmsg: impl crate::strings::IntoCCharPtr,
+    arg_errmsg: &CStr,
     expr: &mut TypVal,
     rettv: &mut TypVal,
 ) {
-    let arg_errmsg = arg_errmsg.into_c_char_ptr();
     {
         if filtermap == FilterMap::MapNew {
             rettv.v_type = VarType::VarList;
@@ -457,7 +447,12 @@ fn filter_map(argvars: &mut [TypVal], rettv: &mut TypVal, filtermap: FilterMap) 
             filter_map_blob(arg0.vval.v_blob(), filtermap, expr, arg_errmsg, rettv);
         }
         VarType::VarString => {
-            filter_map_string(tv_get_string(arg0), filtermap, expr, rettv);
+            filter_map_string(
+                crate::memory::cstr_as_bytes(tv_get_string(arg0)),
+                filtermap,
+                expr,
+                rettv,
+            );
         }
         VarType::VarList => {
             filter_map_list(
@@ -529,48 +524,43 @@ pub fn f_add(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
     }
 }
 
-fn count_string(
-    haystack: impl crate::strings::IntoCCharPtr,
-    needle: impl crate::strings::IntoCCharPtr,
-    ic: bool,
-) -> i64 {
-    let haystack = haystack.into_c_char_ptr();
-    let needle = needle.into_c_char_ptr();
-    {
-        if haystack.is_null() || needle.is_null() || unsafe { *needle } == 0 {
-            return 0;
-        }
-        let needle_bytes = crate::memory::cstr_as_bytes(needle);
-        let needlelen = needle_bytes.len();
-        let mut n: i64 = 0;
-        let mut p = haystack;
-
-        if ic {
-            while unsafe { *p } != 0 {
-                if mb_strnicmp(p, needle, needlelen) == 0 {
-                    n += 1;
-                    p = p.wrapping_add(needlelen);
-                } else {
-                    p = p.wrapping_add(utf_ptr2len(p) as usize);
-                }
-            }
-        } else {
-            let hay_bytes = crate::memory::cstr_as_bytes(haystack);
-            let mut offset = 0usize;
-            while offset + needlelen <= hay_bytes.len() {
-                if let Some(pos) = hay_bytes[offset..]
-                    .windows(needlelen)
-                    .position(|w| w == needle_bytes)
-                {
-                    n += 1;
-                    offset += pos + needlelen;
-                } else {
-                    break;
-                }
-            }
-        }
-        n
+fn count_string(haystack: Option<&[u8]>, needle: Option<&[u8]>, ic: bool) -> i64 {
+    let (Some(hay_bytes), Some(needle_bytes)) = (haystack, needle) else {
+        return 0;
+    };
+    if needle_bytes.is_empty() {
+        return 0;
     }
+    let needlelen = needle_bytes.len();
+    let mut n: i64 = 0;
+
+    if ic {
+        let hay_cstr = crate::memory::cstr_from_bytes(hay_bytes);
+        let needle_cstr = crate::memory::cstr_from_bytes(needle_bytes);
+        let mut p = hay_cstr.as_ptr();
+        while unsafe { *p } != 0 {
+            if mb_strnicmp(p, needle_cstr.as_ptr(), needlelen) == 0 {
+                n += 1;
+                p = p.wrapping_add(needlelen);
+            } else {
+                p = p.wrapping_add(utf_ptr2len(p) as usize);
+            }
+        }
+    } else {
+        let mut offset = 0usize;
+        while offset + needlelen <= hay_bytes.len() {
+            if let Some(pos) = hay_bytes[offset..]
+                .windows(needlelen)
+                .position(|w| w == needle_bytes)
+            {
+                n += 1;
+                offset += pos + needlelen;
+            } else {
+                break;
+            }
+        }
+    }
+    n
 }
 
 fn count_list(l: Option<&mut TvList>, needle: &TypVal, idx: i64, ic: bool) -> i64 {
@@ -628,7 +618,11 @@ pub fn f_count(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) 
     }
 
     if !error && arg0.v_type == VarType::VarString {
-        n = count_string(arg0.vval.v_string(), tv_get_string_chk(arg1), ic);
+        n = count_string(
+            crate::memory::cstr_as_opt_bytes(arg0.vval.v_string()),
+            crate::memory::cstr_as_opt_bytes(tv_get_string_chk(arg1)),
+            ic,
+        );
     } else if !error && arg0.v_type == VarType::VarList {
         let mut idx: i64 = 0;
         if arg2.v_type != VarType::VarUnknown && arg3.v_type != VarType::VarUnknown {
@@ -657,11 +651,10 @@ pub fn f_count(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) 
 
 fn extend_dict(
     argvars: &mut [TypVal],
-    arg_errmsg: impl crate::strings::IntoCCharPtr,
+    arg_errmsg: &CStr,
     is_new: bool,
     rettv: &mut TypVal,
 ) {
-    let arg_errmsg = arg_errmsg.into_c_char_ptr();
     {
         let mut d1 = argvars[0].vval.v_dict();
         if d1.is_null() {
@@ -719,11 +712,10 @@ fn extend_dict(
 
 fn extend_list(
     argvars: &mut [TypVal],
-    arg_errmsg: impl crate::strings::IntoCCharPtr,
+    arg_errmsg: &CStr,
     is_new: bool,
     rettv: &mut TypVal,
 ) {
-    let arg_errmsg = arg_errmsg.into_c_char_ptr();
     {
         let mut error = false;
         let mut l1 = argvars[0].vval.v_list();
@@ -792,9 +784,9 @@ fn extend_impl(
     let t0 = argvars[0].v_type;
     let t1 = argvars[1].v_type;
     if t0 == VarType::VarList && t1 == VarType::VarList {
-        extend_list(argvars, arg_errmsg.as_ptr(), is_new, rettv);
+        extend_list(argvars, arg_errmsg, is_new, rettv);
     } else if t0 == VarType::VarDict && t1 == VarType::VarDict {
-        extend_dict(argvars, arg_errmsg.as_ptr(), is_new, rettv);
+        extend_dict(argvars, arg_errmsg, is_new, rettv);
     } else {
         semsg!(
             E_LISTDICTARG,

@@ -772,6 +772,12 @@ pub fn tv_set_string(tv: &mut TypVal, s: impl crate::strings::IntoCCharPtr) {
 }
 
 #[inline]
+pub fn tv_set_bytes(tv: &mut TypVal, bytes: &[u8]) {
+    tv.v_type = VarType::VarString;
+    tv.vval = crate::eval::typval::TypvalVval::String(tv_alloc_string_bytes(bytes));
+}
+
+#[inline]
 pub fn tv_set_string_len(tv: &mut TypVal, s: impl crate::strings::IntoCCharPtr, len: usize) {
     let s = s.into_c_char_ptr();
     {
@@ -1287,6 +1293,18 @@ pub fn tv_list_append_dict(l: &mut TvList, dict: *mut TvDict) {
 }
 
 /// Make a copy of "str" and append it as an item to list "l".
+#[inline]
+pub fn tv_list_append_bytes(l: &mut TvList, bytes: &[u8]) {
+    tv_list_append_owned_tv(
+        l,
+        TypVal {
+            v_type: VarType::VarString,
+            v_lock: VAR_UNLOCKED,
+            vval: TypvalVval::String(tv_alloc_string_bytes(bytes)),
+        },
+    );
+}
+
 pub fn tv_list_append_string<S: crate::strings::IntoCCharPtr>(l: &mut TvList, str_: S, len: isize) {
     let str_ = str_.into_c_char_ptr();
     {

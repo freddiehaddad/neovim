@@ -11,8 +11,7 @@ use crate::eval::typval::{
     tv_dict_add_dict, tv_dict_add_list, tv_dict_add_nr, tv_dict_alloc, tv_dict_alloc_ret,
     tv_dict_find, tv_dict_get_bool, tv_dict_get_number, tv_get_bool, tv_get_number,
     tv_get_number_chk, tv_get_string_chk, tv_list_alloc, tv_list_alloc_ret, tv_list_append_dict,
-    tv_list_append_list, tv_list_append_number, tv_list_append_string, tv_set_string,
-    tv_set_string_len,
+    tv_list_append_list, tv_list_append_number, tv_list_append_string, tv_set_bytes, tv_set_string,
 };
 use crate::ex_getln::text_or_buf_locked;
 use crate::globals::*;
@@ -30,7 +29,7 @@ use crate::window::{
     win_drag_status_line, win_drag_vsep_line, win_get_tabwin, win_goto, win_horz_neighbor,
     win_splitmove, win_valid, win_vert_neighbor,
 };
-use std::ffi::{CStr, c_char};
+use std::ffi::CStr;
 use std::fmt::Write as _;
 use std::ptr;
 
@@ -792,8 +791,12 @@ pub fn f_win_gettype(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFunc
 
 /// `getcmdwintype()` function (`f_getcmdwintype`).
 pub fn f_getcmdwintype(_argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
-    let buf = [g_st().cmdwin_type as c_char, 0];
-    tv_set_string(rettv, buf.as_ptr());
+    let ch = g_st().cmdwin_type as u8;
+    if ch == 0 {
+        tv_set_string(rettv, c"");
+    } else {
+        tv_set_bytes(rettv, &[ch]);
+    }
 }
 
 /// `winbufnr(nr)` function (`f_winbufnr`).
@@ -876,7 +879,7 @@ pub fn f_winrestcmd(_argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFunc
         }
     }
 
-    tv_set_string_len(rettv, buf.as_ptr().cast::<c_char>(), buf.len());
+    tv_set_bytes(rettv, buf.as_bytes());
 }
 
 /// `winrestview()` function (`f_winrestview`).
