@@ -4042,7 +4042,8 @@ fn set_context_by_cmdname(
             | Cmdidx::CmdTunmenu
             | Cmdidx::CmdPopup
             | Cmdidx::CmdEmenu => {
-                return set_context_in_menu_cmd(xp, cmd, arg.cast_mut(), forceit);
+                set_context_in_menu_cmd(xp, cmd, arg, forceit);
+                return ptr::null_mut();
             }
             Cmdidx::CmdColorscheme => {
                 xp.xp_context = EXPAND_COLORS;
@@ -4864,13 +4865,17 @@ fn expand_other(
         },
         ExpGen {
             context: EXPAND_MENUS,
-            func: get_menu_name,
+            func: |xp, idx| {
+                get_menu_name(xp, idx).map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut())
+            },
             ic: false,
             escaped: true,
         },
         ExpGen {
             context: EXPAND_MENUNAMES,
-            func: get_menu_names,
+            func: |xp, idx| {
+                get_menu_names(xp, idx).map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut())
+            },
             ic: false,
             escaped: true,
         },
@@ -5246,11 +5251,7 @@ pub fn expand_generic(
                 cstr_to_cstring(str_item)
             };
 
-            if ptr::fn_addr_eq(
-                func_fn,
-                get_menu_names as fn(&mut ExpandCtx, i32) -> *mut c_char,
-            ) && item_cstr.as_bytes().last() == Some(&1)
-            {
+            if xp.xp_context == EXPAND_MENUNAMES && item_cstr.as_bytes().last() == Some(&1) {
                 let mut bytes = item_cstr.into_bytes();
                 if let Some(last) = bytes.last_mut() {
                     *last = b'.';

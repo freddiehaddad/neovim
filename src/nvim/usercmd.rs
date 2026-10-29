@@ -419,7 +419,8 @@ pub fn set_context_in_user_cmdarg(
         }
 
         if context == EXPAND_MENUS {
-            return set_context_in_menu_cmd(xp, cmd, arg.cast_mut(), forceit);
+            set_context_in_menu_cmd(xp, cmd, arg, forceit);
+            return ptr::null();
         }
         if context == EXPAND_COMMANDS {
             return arg;
