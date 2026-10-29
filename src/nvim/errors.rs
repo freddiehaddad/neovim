@@ -2,8 +2,10 @@
 
 macro_rules! def_err {
     ($name:ident, $s:literal) => {
-        pub static $name: &std::ffi::CStr =
-            unsafe { std::ffi::CStr::from_bytes_with_nul_unchecked($s) };
+        pub static $name: &std::ffi::CStr = match std::ffi::CStr::from_bytes_with_nul($s) {
+            Ok(s) => s,
+            Err(_) => panic!("invalid CStr literal"),
+        };
     };
 }
 

@@ -63,22 +63,6 @@ pub fn vterm_output_set_callback(vt: &mut VTerm, func: VTermOutputCallback, user
     vt.outdata = user;
 }
 
-pub fn vterm_push_output_bytes(
-    vt: &mut VTerm,
-    bytes: impl crate::strings::IntoCCharPtr,
-    len: usize,
-) {
-    let bytes = bytes.into_c_char_ptr();
-    if let Some(func) = vt.outfunc {
-        let slice = if len == 0 || bytes.is_null() {
-            &[][..]
-        } else {
-            crate::memory::cstr_slice(bytes, len)
-        };
-        func(slice, vt.outdata);
-    }
-}
-
 pub fn vterm_push_output_bytes_slice(vt: &mut VTerm, payload: &[u8]) {
     if let Some(func) = vt.outfunc {
         func(payload, vt.outdata);

@@ -1,7 +1,5 @@
 //! VTerm character encodings (`src/nvim/vterm/encoding.c`).
 
-use std::ffi::c_char;
-
 const UNICODE_INVALID: u32 = 0xFFFD;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -215,9 +213,9 @@ impl VTermEncodingInstance {
 /// Look up a `VTermEncoding` by `(type, designation)` (`vterm_lookup_encoding`).
 pub fn vterm_lookup_encoding(
     enc_type: VTermEncodingType,
-    designation: c_char,
+    designation: u8,
 ) -> Option<VTermEncoding> {
-    match (enc_type, designation as u8) {
+    match (enc_type, designation) {
         (VTermEncodingType::EncUtf8, b'u') => Some(VTermEncoding::Utf8),
         (VTermEncodingType::EncSingle94, b'0') => Some(VTermEncoding::DecDrawing),
         (VTermEncodingType::EncSingle94, b'B') => Some(VTermEncoding::UsAscii),
@@ -231,13 +229,13 @@ mod tests {
 
     #[test]
     fn lookup_and_decode_utf8_and_dec_drawing() {
-        let utf8 = vterm_lookup_encoding(VTermEncodingType::EncUtf8, b'u' as c_char).unwrap();
-        let dec = vterm_lookup_encoding(VTermEncodingType::EncSingle94, b'0' as c_char).unwrap();
-        let ascii = vterm_lookup_encoding(VTermEncodingType::EncSingle94, b'B' as c_char).unwrap();
+        let utf8 = vterm_lookup_encoding(VTermEncodingType::EncUtf8, b'u').unwrap();
+        let dec = vterm_lookup_encoding(VTermEncodingType::EncSingle94, b'0').unwrap();
+        let ascii = vterm_lookup_encoding(VTermEncodingType::EncSingle94, b'B').unwrap();
         assert_eq!(utf8, VTermEncoding::Utf8);
         assert_eq!(dec, VTermEncoding::DecDrawing);
         assert_eq!(ascii, VTermEncoding::UsAscii);
-        assert!(vterm_lookup_encoding(VTermEncodingType::EncUtf8, b'X' as c_char).is_none());
+        assert!(vterm_lookup_encoding(VTermEncodingType::EncUtf8, b'X').is_none());
 
         let mut inst = VTermEncodingInstance::default();
         inst.init(utf8);

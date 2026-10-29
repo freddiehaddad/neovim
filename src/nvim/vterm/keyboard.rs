@@ -8,9 +8,7 @@ use crate::tui::termkey::termkey::fill_utf8;
 pub use crate::vterm::encoding::VTermEncodingInstance;
 use crate::vterm::mouse::{VTerm, VTermPos};
 use crate::vterm::screen::VTermScreen;
-use crate::vterm::vterm::{
-    vterm_push_output_bytes, vterm_push_output_bytes_slice, vterm_push_output_ctrl_bytes,
-};
+use crate::vterm::vterm::{vterm_push_output_bytes_slice, vterm_push_output_ctrl_bytes};
 
 pub type VTermModifier = i32;
 pub type VTermKey = i32;
@@ -535,8 +533,10 @@ pub fn vterm_keyboard_unichar(vt: &mut VTerm, mut c: u32, mut mod_: VTermModifie
 
     if passthru {
         let mut str_buf = [0 as c_char; 6];
-        let seqlen = fill_utf8(c as i32, str_buf.as_mut_ptr());
-        vterm_push_output_bytes(vt, str_buf.as_ptr(), seqlen as usize);
+        let seqlen = fill_utf8(c as i32, str_buf.as_mut_ptr()) as usize;
+        let bytes: &[u8] =
+            unsafe { std::slice::from_raw_parts(str_buf.as_ptr().cast::<u8>(), seqlen) };
+        vterm_push_output_bytes_slice(vt, bytes);
         return;
     }
 
