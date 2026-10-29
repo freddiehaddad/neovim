@@ -374,8 +374,7 @@ pub fn do_ascii(_eap: &mut Exarg) {
         }
         let buf2: [c_char; 20] = [0; 20];
 
-        let dig = get_digraph_for_char(cval);
-        if !dig.is_null() {
+        if let Some(dig) = get_digraph_for_char(cval) {
             vim_snprintf!(
                 iobuff_ptr,
                 IOSIZE,
@@ -386,7 +385,7 @@ pub fn do_ascii(_eap: &mut Exarg) {
                 cval,
                 cval,
                 cval,
-                dig,
+                dig.as_ptr(),
             );
         } else {
             vim_snprintf!(
@@ -429,8 +428,7 @@ pub fn do_ascii(_eap: &mut Exarg) {
         }
         iobuff_len += utf_char2bytes(c, iobuff_ptr.wrapping_add(iobuff_len)) as usize;
 
-        let dig = get_digraph_for_char(c);
-        if !dig.is_null() {
+        if let Some(dig) = get_digraph_for_char(c) {
             let fmt = if c < 0x10000 {
                 gettext(c"> %d, Hex %04x, Oct %o, Digr %s")
             } else {
@@ -443,7 +441,7 @@ pub fn do_ascii(_eap: &mut Exarg) {
                 c,
                 c,
                 c,
-                dig,
+                dig.as_ptr(),
             );
         } else {
             let fmt = if c < 0x10000 {

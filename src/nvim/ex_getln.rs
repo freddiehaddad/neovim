@@ -2260,7 +2260,7 @@ fn command_line_toggle_langmap(s: &mut CommandLineState) {
 fn command_line_insert_reg(s: &mut CommandLineState) -> i32 {
     let save_new_cmdpos = getln_st().new_cmdpos;
 
-    putcmdline(b'"' as c_char, true);
+    putcmdline(b'"', true);
     g_st().no_mapping += 1;
     g_st().allow_keys += 1;
     s.c = plain_vgetc();
@@ -2300,7 +2300,7 @@ fn command_line_insert_reg(s: &mut CommandLineState) -> i32 {
     }
     getln_st().new_cmdpos = save_new_cmdpos;
 
-    getln_st().ccline.special_char = NUL;
+    getln_st().ccline.special_char = 0;
     redrawcmd();
 
     if literally {
@@ -2658,7 +2658,7 @@ fn command_line_handle_key(s: &mut CommandLineState) -> i32 {
                         }
 
                         getln_st().ccline.cmdspos = cmd_screencol(getln_st().ccline.cmdpos);
-                        if getln_st().ccline.special_char != NUL {
+                        if getln_st().ccline.special_char != 0 {
                             putcmdline(
                                 getln_st().ccline.special_char,
                                 getln_st().ccline.special_shift,
@@ -2832,12 +2832,12 @@ fn command_line_handle_key(s: &mut CommandLineState) -> i32 {
 
                     CTRL_V_CONST | CTRL_Q_CONST => {
                         s.ignore_drag_release = true;
-                        putcmdline(b'^' as c_char, true);
+                        putcmdline(b'^', true);
 
                         s.c = get_literal((g_st().mod_mask & (MOD_MASK_SHIFT as i32)) != 0);
 
                         s.do_abbr = false;
-                        getln_st().ccline.special_char = NUL;
+                        getln_st().ccline.special_char = 0;
                         if utf_iscomposing_first(s.c) && !g_st().cmd_silent {
                             if ui_has(K_UICMDLINE) {
                                 unputcmdline();
@@ -2854,9 +2854,9 @@ fn command_line_handle_key(s: &mut CommandLineState) -> i32 {
 
                     CTRL_K_CONST => {
                         s.ignore_drag_release = true;
-                        putcmdline(b'?' as c_char, true);
+                        putcmdline(b'?', true);
                         s.c = get_digraph(true);
-                        getln_st().ccline.special_char = NUL;
+                        getln_st().ccline.special_char = 0;
 
                         if s.c != NUL as i32 {
                             break 'key_switch;
@@ -4032,7 +4032,7 @@ fn draw_cmdline(start: i32, len: i32) {
     }
 
     if ui_has(K_UICMDLINE) {
-        getln_st().ccline.special_char = NUL;
+        getln_st().ccline.special_char = 0;
         getln_st().ccline.redraw_state = K_CMD_REDRAW_ALL;
         return;
     }
@@ -4135,8 +4135,8 @@ fn ui_ext_cmdline_show(line: &mut CmdlineInfo) {
             -1
         },
     );
-    if line.special_char != NUL {
-        charbuf[0] = line.special_char;
+    if line.special_char != 0 {
+        charbuf[0] = line.special_char as c_char;
         ui_call_cmdline_special_char(
             cstr_as_string(charbuf.as_ptr()),
             line.special_shift,
@@ -4253,13 +4253,13 @@ pub fn cmdline_ui_flush() {
 }
 
 /// Put a character on the command line.
-pub fn putcmdline(c: c_char, shift: bool) {
+pub fn putcmdline(c: u8, shift: bool) {
     if g_st().cmd_silent {
         return;
     }
     if !ui_has(K_UICMDLINE) {
         g_st().msg_no_more = true;
-        msg_putchar((c as u8) as i32);
+        msg_putchar(i32::from(c));
         if shift {
             draw_cmdline(
                 getln_st().ccline.cmdpos,
@@ -4268,9 +4268,9 @@ pub fn putcmdline(c: c_char, shift: bool) {
         }
         g_st().msg_no_more = false;
     } else if getln_st().ccline.redraw_state != K_CMD_REDRAW_ALL {
-        let charbuf: [c_char; 2] = [c, 0];
+        let charbuf: [u8; 2] = [c, 0];
         ui_call_cmdline_special_char(
-            cstr_as_string(charbuf.as_ptr()),
+            cstr_as_string(charbuf.as_ptr().cast()),
             shift,
             getln_st().ccline.level as Integer,
         );
@@ -4302,7 +4302,7 @@ pub fn unputcmdline() {
     }
     g_st().msg_no_more = false;
     cursorcmd();
-    getln_st().ccline.special_char = NUL;
+    getln_st().ccline.special_char = 0;
     ui_cursor_shape();
 }
 
@@ -4628,7 +4628,7 @@ pub fn redrawcmd() {
 
     getln_st().ccline.cmdspos = cmd_screencol(getln_st().ccline.cmdpos);
 
-    if getln_st().ccline.special_char != NUL {
+    if getln_st().ccline.special_char != 0 {
         putcmdline(
             getln_st().ccline.special_char,
             getln_st().ccline.special_shift,

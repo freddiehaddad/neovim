@@ -59,7 +59,7 @@ use crate::window::{
 };
 use crate::xdiff::xdiffi::xdl_diff;
 use crate::xdiff::{Mmfile, Xdemitcb, Xdemitconf, Xpparam};
-use std::ffi::{CString, c_char};
+use std::ffi::CString;
 use std::ptr;
 const DB_COUNT: usize = 8;
 const MAX_DIFF_ANCHORS: usize = 20;
@@ -1033,16 +1033,12 @@ fn check_external_diff(diffio: &mut Diffio) -> bool {
                 if fd.is_null() {
                     io_error = true;
                 } else {
-                    let mut linebuf: [c_char; LBUFLEN] = [0; LBUFLEN];
+                    let mut linebuf: [u8; LBUFLEN] = [0; LBUFLEN];
                     loop {
-                        if vim_fgets((&raw mut linebuf).cast(), LBUFLEN as i32, fd) {
+                        if vim_fgets(linebuf.as_mut_ptr().cast(), LBUFLEN as i32, fd) {
                             break;
                         }
-                        if (crate::memory::cstr_prefix_bytes((&raw const linebuf).cast(), 3)
-                            == &b"1c1"[..3])
-                            || (crate::memory::cstr_prefix_bytes((&raw const linebuf).cast(), 11)
-                                == &b"@@ -1 +1 @@"[..11])
-                        {
+                        if linebuf.starts_with(b"1c1") || linebuf.starts_with(b"@@ -1 +1 @@") {
                             ok = K_TRUE;
                         }
                     }
@@ -1143,8 +1139,8 @@ fn diff_file(dio: &mut Diffio) -> bool {
         + crate::memory::cstr_len(tmp_diff)
         + crate::memory::cstr_len(opt_vars().p_srr)
         + 27;
-    let mut cmd_vec: Vec<c_char> = vec![0; len];
-    let cmd = cmd_vec.as_mut_ptr();
+    let mut cmd_vec: Vec<u8> = vec![0; len];
+    let cmd = cmd_vec.as_mut_ptr().cast();
     if os_env_exists(c"DIFF_OPTIONS", true) {
         let _ = os_unsetenv(c"DIFF_OPTIONS");
     }
@@ -1197,9 +1193,9 @@ fn diff_file(dio: &mut Diffio) -> bool {
     true
 }
 pub fn ex_diffpatch(eap: &mut Exarg) {
-    let mut buf_vec: Vec<c_char>;
+    let mut buf_vec: Vec<u8>;
     let old_curwin = curwin_ptr();
-    let mut newname_vec: Vec<c_char>;
+    let mut newname_vec: Vec<u8> = Vec::new();
     let esc_name: Option<CString>;
     #[cfg(unix)]
     let fullname: Option<CString>;
@@ -1245,17 +1241,17 @@ pub fn ex_diffpatch(eap: &mut Exarg) {
             + crate::memory::cstr_len(tmp_new)
             + 16;
         buf_vec = vec![0; buflen];
-        let buf = buf_vec.as_mut_ptr();
+        let buf = buf_vec.as_mut_ptr().cast();
         #[cfg(unix)]
-        let mut dirbuf: [c_char; MAXPATHL] = [0; MAXPATHL];
+        let mut dirbuf: [u8; MAXPATHL] = [0; MAXPATHL];
         #[cfg(unix)]
         {
-            if !crate::os::fs::os_dirname((&raw mut dirbuf).cast(), MAXPATHL)
-                || crate::os::fs::os_chdir((&raw const dirbuf).cast()) != 0
+            if !crate::os::fs::os_dirname(dirbuf.as_mut_ptr().cast(), MAXPATHL)
+                || crate::os::fs::os_chdir(dirbuf.as_ptr().cast()) != 0
             {
-                dirbuf[0] = NUL;
+                dirbuf[0] = 0;
             } else {
-                let mut tempdir: *const c_char = vim_gettempdir();
+                let mut tempdir = vim_gettempdir();
                 if tempdir.is_null() {
                     tempdir = c"/tmp".as_ptr();
                 }
@@ -1286,8 +1282,8 @@ pub fn ex_diffpatch(eap: &mut Exarg) {
             crate::autocmd::unblock_autocmds();
         }
         #[cfg(unix)]
-        if dirbuf[0] != NUL {
-            if crate::os::fs::os_chdir((&raw const dirbuf).cast()) != 0 {
+        if dirbuf[0] != 0 {
+            if crate::os::fs::os_chdir(dirbuf.as_ptr().cast()) != 0 {
                 emsg(gettext(E_PREV_DIR));
             }
             shorten_fnames(1);
@@ -1304,13 +1300,11 @@ pub fn ex_diffpatch(eap: &mut Exarg) {
         if !info_ok || filesize == 0 {
             emsg(gettext(c"E816: Cannot read patch output"));
         } else {
-            let mut newname: *mut c_char = ptr::null_mut();
             if !curbuf_mut().b_fname.is_null() {
                 let fname_len = crate::memory::cstr_len(curbuf_mut().b_fname);
                 newname_vec = vec![0; fname_len + 5];
-                crate::memory::cstr_cpy(newname_vec.as_mut_ptr(), curbuf_mut().b_fname);
-                crate::memory::cstr_cat(newname_vec.as_mut_ptr(), c".new");
-                newname = newname_vec.as_mut_ptr();
+                crate::memory::cstr_cpy(newname_vec.as_mut_ptr().cast(), curbuf_mut().b_fname);
+                crate::memory::cstr_cat(newname_vec.as_mut_ptr().cast(), c".new");
             }
             g_st().cmdmod.cmod_tab = 0;
             if win_split(
@@ -1327,8 +1321,8 @@ pub fn ex_diffpatch(eap: &mut Exarg) {
                 if curwin_ptr() != old_curwin && win_valid(old_curwin) {
                     diff_win_options(curwin_mut(), true);
                     diff_win_options(unsafe { &mut *old_curwin }, true);
-                    if !newname.is_null() {
-                        eap.arg = newname;
+                    if !newname_vec.is_empty() {
+                        eap.arg = newname_vec.as_mut_ptr().cast();
                         ex_file(eap);
                         if crate::autocmd::augroup_exists(c"filetypedetect") {
                             do_cmdline_cmd(c":doau filetypedetect BufRead");
@@ -1440,8 +1434,8 @@ pub fn diff_win_options(wp: &mut WinInfoInfo, addbuf: bool) {
     }
     free_string_option(wp.w_onebuf_opt.wo_fdc);
     debug_assert!(g_st().diff_foldcolumn >= 0 && g_st().diff_foldcolumn <= 9);
-    let fdc_buf = [b'0' as c_char + (g_st().diff_foldcolumn as c_char), NUL];
-    wp.w_onebuf_opt.wo_fdc = alloc_string_option(fdc_buf.as_ptr());
+    let fdc_buf: [u8; 2] = [b'0' + (g_st().diff_foldcolumn as u8), 0];
+    wp.w_onebuf_opt.wo_fdc = alloc_string_option(fdc_buf.as_ptr().cast());
     wp.w_onebuf_opt.wo_fen = 1;
     wp.w_onebuf_opt.wo_fdl = 0;
     fold_update_all(wp);
@@ -1537,23 +1531,19 @@ fn extract_hunk_internal(dout: &mut Diffout, hunk: &mut Diffhunk, line_idx: &mut
 }
 fn extract_hunk(fd: *mut FILE, hunk: &mut Diffhunk, diffstyle: &mut Diffstyle) -> bool {
     loop {
-        let mut line: [c_char; LBUFLEN] = [0; LBUFLEN];
-        if vim_fgets((&raw mut line).cast(), LBUFLEN as i32, fd) {
+        let mut line: [u8; LBUFLEN] = [0; LBUFLEN];
+        if vim_fgets(line.as_mut_ptr().cast(), LBUFLEN as i32, fd) {
             return true;
         }
         if *diffstyle == Diffstyle::DiffNone {
-            if ascii_isdigit(line[0]) {
+            if ascii_isdigit(i32::from(line[0])) {
                 *diffstyle = Diffstyle::DiffEd;
-            } else if (crate::memory::cstr_prefix_bytes((&raw const line).cast(), 3)
-                == &b"@@ "[..3])
-                || ((crate::memory::cstr_prefix_bytes((&raw const line).cast(), 4)
-                    == &b"--- "[..4])
-                    && !vim_fgets((&raw mut line).cast(), LBUFLEN as i32, fd)
-                    && (crate::memory::cstr_prefix_bytes((&raw const line).cast(), 4)
-                        == &b"+++ "[..4])
-                    && !vim_fgets((&raw mut line).cast(), LBUFLEN as i32, fd)
-                    && (crate::memory::cstr_prefix_bytes((&raw const line).cast(), 3)
-                        == &b"@@ "[..3]))
+            } else if line.starts_with(b"@@ ")
+                || (line.starts_with(b"--- ")
+                    && !vim_fgets(line.as_mut_ptr().cast(), LBUFLEN as i32, fd)
+                    && line.starts_with(b"+++ ")
+                    && !vim_fgets(line.as_mut_ptr().cast(), LBUFLEN as i32, fd)
+                    && line.starts_with(b"@@ "))
             {
                 *diffstyle = Diffstyle::DiffUnified;
             } else {
@@ -1561,18 +1551,18 @@ fn extract_hunk(fd: *mut FILE, hunk: &mut Diffhunk, diffstyle: &mut Diffstyle) -
             }
         }
         if *diffstyle == Diffstyle::DiffEd {
-            if !ascii_isdigit(line[0]) {
+            if !ascii_isdigit(i32::from(line[0])) {
                 continue;
             }
-            if !parse_diff_ed((&raw mut line).cast(), hunk) {
+            if !parse_diff_ed(line.as_ptr().cast(), hunk) {
                 continue;
             }
         } else {
             debug_assert!(*diffstyle == Diffstyle::DiffUnified);
-            if !(crate::memory::cstr_prefix_bytes((&raw const line).cast(), 3) == &b"@@ "[..3]) {
+            if !line.starts_with(b"@@ ") {
                 continue;
             }
-            if !parse_diff_unified((&raw mut line).cast(), hunk) {
+            if !parse_diff_unified(line.as_ptr().cast(), hunk) {
                 continue;
             }
         }
@@ -2132,8 +2122,8 @@ fn diff_cmp(s1: impl crate::strings::IntoCCharPtr, s2: impl crate::strings::Into
         {
             return mb_stricmp(s1, s2);
         }
-        let mut p1: *const c_char = s1;
-        let mut p2: *const c_char = s2;
+        let mut p1 = s1;
+        let mut p2 = s2;
         while !crate::memory::cstr_is_empty(p1) && !crate::memory::cstr_is_empty(p2) {
             if ((diff_st().diff_flags & DIFF_IWHITE) != 0
                 && ascii_iswhite(crate::memory::cstr_first_char(p1))
@@ -2254,7 +2244,7 @@ fn parse_diffanchors(
         }
         g_st().curbuf = buf;
         set_curwin(bufwin);
-        let mut errormsg: *const c_char = ptr::null();
+        let mut errormsg = ptr::null();
         let lnum = get_address(
             ptr::null_mut(),
             &raw mut dia,
@@ -2342,15 +2332,11 @@ pub fn diffopt_changed() -> bool {
     }
     if has_dip_key(v, KEYSET_OPTIDX_DIP_INLINE) {
         flags &= !ALL_INLINE;
-        let inline_ptr = (&raw const v.inline_).cast::<c_char>();
-        if crate::memory::cstr_as_opt_bytes(inline_ptr) == Some(b"simple") {
-            flags |= DIFF_INLINE_SIMPLE;
-        } else if crate::memory::cstr_as_opt_bytes(inline_ptr) == Some(b"char") {
-            flags |= DIFF_INLINE_CHAR;
-        } else if crate::memory::cstr_as_opt_bytes(inline_ptr) == Some(b"word") {
-            flags |= DIFF_INLINE_WORD;
-        } else {
-            flags |= DIFF_INLINE_NONE;
+        match crate::memory::cstr_as_bytes(v.inline_.as_ptr()) {
+            b"simple" => flags |= DIFF_INLINE_SIMPLE,
+            b"char" => flags |= DIFF_INLINE_CHAR,
+            b"word" => flags |= DIFF_INLINE_WORD,
+            _ => flags |= DIFF_INLINE_NONE,
         }
     }
     let mut algorithm = if v.indent_heuristic {
@@ -2359,13 +2345,11 @@ pub fn diffopt_changed() -> bool {
         0
     };
     if has_dip_key(v, KEYSET_OPTIDX_DIP_ALGORITHM) {
-        let algo_ptr = (&raw const v.algorithm).cast::<c_char>();
-        if crate::memory::cstr_as_opt_bytes(algo_ptr) == Some(b"minimal") {
-            algorithm |= XDF_NEED_MINIMAL;
-        } else if crate::memory::cstr_as_opt_bytes(algo_ptr) == Some(b"patience") {
-            algorithm |= XDF_PATIENCE_DIFF;
-        } else if crate::memory::cstr_as_opt_bytes(algo_ptr) == Some(b"histogram") {
-            algorithm |= XDF_HISTOGRAM_DIFF;
+        match crate::memory::cstr_as_bytes(v.algorithm.as_ptr()) {
+            b"minimal" => algorithm |= XDF_NEED_MINIMAL,
+            b"patience" => algorithm |= XDF_PATIENCE_DIFF,
+            b"histogram" => algorithm |= XDF_HISTOGRAM_DIFF,
+            _ => {}
         }
     }
     let mut ret = true;
@@ -2562,8 +2546,8 @@ fn diff_find_change_simple(
                             ei_new -= 1;
                         }
                     } else {
-                        let mut p1: *const c_char = line_org.wrapping_add(ei_org as usize);
-                        let mut p2: *const c_char = line_new.wrapping_add(ei_new as usize);
+                        let mut p1 = line_org.wrapping_add(ei_org as usize).cast_const();
+                        let mut p2 = line_new.wrapping_add(ei_new as usize).cast_const();
                         p1 = p1.wrapping_sub(utf_head_off(line_org, p1) as usize);
                         p2 = p2.wrapping_sub(utf_head_off(line_new, p2) as usize);
                         let mut l: i32 = 0;
@@ -2857,12 +2841,9 @@ fn diff_find_change_inline_diff(dp_idx: usize) {
                                 let mut c = utf_ptr2char(s);
                                 let c_len = utf_char2len(c);
                                 c = utf_fold(c);
-                                let mut cbuf: [c_char; MB_MAXBYTES + 1] = [0; MB_MAXBYTES + 1];
-                                let c_fold_len = utf_char2bytes(c, (&raw mut cbuf).cast());
-                                curstr.extend_from_slice(std::slice::from_raw_parts(
-                                    cbuf.as_ptr().cast::<u8>(),
-                                    c_fold_len as usize,
-                                ));
+                                let mut cbuf: [u8; MB_MAXBYTES + 1] = [0; MB_MAXBYTES + 1];
+                                let c_fold_len = utf_char2bytes(c, cbuf.as_mut_ptr().cast());
+                                curstr.extend_from_slice(&cbuf[..c_fold_len as usize]);
                                 if char_len > c_len {
                                     curstr.extend_from_slice(std::slice::from_raw_parts(
                                         s.wrapping_add(c_len as usize).cast::<u8>(),
@@ -3127,12 +3108,12 @@ pub fn nv_diffgetput(put: bool, count: usize) {
         return;
     }
     let mut ea = Exarg::new();
-    let mut buf: [c_char; 30] = [0; 30];
+    let mut buf: [u8; 30] = [0; 30];
     if count == 0 {
         ea.arg = c"".as_ptr().cast_mut();
     } else {
-        vim_snprintf!((&raw mut buf).cast(), buf.len(), c"%zu", count);
-        ea.arg = (&raw mut buf).cast();
+        vim_snprintf!(buf.as_mut_ptr().cast(), buf.len(), c"%zu", count);
+        ea.arg = buf.as_mut_ptr().cast();
     }
     ea.cmdidx = if put { CMD_DIFFPUT } else { CMD_DIFFGET };
     ea.addr_count = 0;

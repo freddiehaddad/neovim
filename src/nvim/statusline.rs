@@ -2078,7 +2078,9 @@ pub extern "C" fn build_stl_str_hl(
                 }
                 STL_KEYMAP => {
                     fillable = false;
-                    if get_keymap_str(&mut *wp, c"<%s>", buf_tmp.as_mut_ptr(), TMPLEN as i32) > 0 {
+                    let buf_slice =
+                        std::slice::from_raw_parts_mut(buf_tmp.as_mut_ptr().cast::<u8>(), TMPLEN);
+                    if get_keymap_str(&mut *wp, c"<%s>", buf_slice) > 0 {
                         str = buf_tmp.as_mut_ptr();
                     }
                 }

@@ -989,14 +989,16 @@ pub fn showmode() -> i32 {
                 if (g_st().state_global & MODE_LANGMAP) != 0 {
                     if curwin_mut().w_onebuf_opt.wo_arab != 0 {
                         msg_puts_hl(gettext(c" Arabic"), hl_id, false);
-                    } else if get_keymap_str(
-                        curwin_mut(),
-                        c" (%s)",
-                        g_st().name_buff.as_mut_ptr(),
-                        MAXPATHL as i32,
-                    ) > 0
-                    {
-                        msg_puts_hl(g_st().name_buff.as_ptr(), hl_id, false);
+                    } else {
+                        let name_slice = unsafe {
+                            std::slice::from_raw_parts_mut(
+                                g_st().name_buff.as_mut_ptr().cast::<u8>(),
+                                MAXPATHL,
+                            )
+                        };
+                        if get_keymap_str(curwin_mut(), c" (%s)", name_slice) > 0 {
+                            msg_puts_hl(g_st().name_buff.as_ptr(), hl_id, false);
+                        }
                     }
                 }
                 if (g_st().state_global & MODE_INSERT) != 0 && opt_vars().p_paste != 0 {

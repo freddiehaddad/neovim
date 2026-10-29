@@ -2464,7 +2464,7 @@ pub fn did_set_keymap(args: &mut Optset) -> *const c_char {
 
     args.os_value_checked = true;
 
-    if errmsg.is_null() {
+    if errmsg.is_none() {
         if !crate::memory::cstr_is_empty(buf.b_p_keymap) {
             buf.b_p_iminsert = B_IMODE_LMAP;
             if buf.b_p_imsearch != B_IMODE_USE_INSERT {
@@ -2485,7 +2485,7 @@ pub fn did_set_keymap(args: &mut Optset) -> *const c_char {
         status_redraw_buf(buf);
     }
 
-    errmsg
+    errmsg.map_or(ptr::null(), |s| s.as_ptr())
 }
 
 /// The 'keymodel' option is changed.

@@ -2855,7 +2855,7 @@ fn vgetorpeek(advance: bool) -> i32 {
                                 )
                                 .cast::<c_char>();
                             if utf_ptr2cells(p) == 1 && (crate::memory::cstr_first_byte(p)) < 128 {
-                                putcmdline(*p, false);
+                                putcmdline(crate::memory::cstr_first_byte(p), false);
                                 showing_partial = true;
                             }
                         }

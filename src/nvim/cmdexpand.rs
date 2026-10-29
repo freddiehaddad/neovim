@@ -1421,7 +1421,7 @@ pub struct CmdlineInfo {
     pub last_colors: ColoredCmdline,
     pub level: i32,
     pub prev_ccline: Option<Box<CmdlineInfo>>,
-    pub special_char: c_char,
+    pub special_char: u8,
     pub special_shift: bool,
     pub redraw_state: i32,
     pub one_key: bool,
