@@ -64,7 +64,7 @@ Pre-built archives and installers for Windows (`.zip`, `.msi`), macOS (`.tar.gz`
 
 ### Build and install from source
 
-With Rust (`1.85+`) and a system C compiler installed (used once to build the bundled `libuv`, `LuaJIT`, `luv`, and `tree-sitter` archives in `.deps/`), building and installing is a single command:
+With Rust (`1.88+`) and a system C compiler installed (used once to build the bundled `libuv`, `LuaJIT`, `luv`, and `tree-sitter` archives in `.deps/`), building and installing is a single command:
 
 ```bash
 cargo xtask install
@@ -117,6 +117,7 @@ cargo xtask lint              # run clippy, stylua, error-code, and vimdoc linte
 
 ## Contributing & Maintenance
 
+- [PORTING.md](./PORTING.md): How the 460K-line C codebase was ported to Rust, the pitfalls hit along the way, and what comes next.
 - [BUILD.md](./BUILD.md): Prerequisites, platform build instructions, and `cargo xtask` reference.
 - [CONTRIBUTING.md](./CONTRIBUTING.md): Workflow, testing, linting, and pull request guidelines.
 - [MAINTAIN.md](./MAINTAIN.md): Upstream `neovim/neovim` sync process and release packaging.

@@ -6,6 +6,7 @@ default-members = ["."]
 name = "neovim"
 version = "0.13.0-dev"
 edition = "2024"
+rust-version = "1.88"
 
 [package.metadata.nvim]
 api_level = 15
