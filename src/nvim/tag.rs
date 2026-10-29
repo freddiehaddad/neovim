@@ -2611,14 +2611,14 @@ pub fn get_tagfname(tnp: &mut Tagname, first: i32, buf: *mut c_char) -> bool {
             }
             copy_option_part(&raw mut tnp.tn_np, buf, MAXPATHL - 1, c" ,");
 
-            let mut r_ptr = vim_findfile_stopdir(buf);
+            let mut r_ptr = vim_findfile_stopdir(buf.cast());
             let mut filename = path_tail(buf);
             if !r_ptr.is_null() {
                 unsafe {
                     ptr::copy(
                         r_ptr,
                         r_ptr.wrapping_add(1),
-                        crate::memory::cstr_len(r_ptr) + 1,
+                        crate::memory::cstr_len(r_ptr.cast()) + 1,
                     )
                 };
                 r_ptr = r_ptr.wrapping_add(1);
@@ -2639,7 +2639,7 @@ pub fn get_tagfname(tnp: &mut Tagname, first: i32, buf: *mut c_char) -> bool {
                 buf,
                 filename,
                 crate::memory::cstr_len(filename),
-                r_ptr,
+                r_ptr.cast(),
                 100,
                 0,
                 FINDFILE_FILE,

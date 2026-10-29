@@ -24,7 +24,7 @@ use crate::msgpack_rpc::packer::ObjHandle;
 use crate::os::dl::UvLib;
 use crate::os::time::os_hrtime;
 use crate::strings::vim_snprintf;
-use std::ffi::{c_char, c_void};
+use std::ffi::c_void;
 use std::ptr;
 
 pub type TSSymbol = u16;
@@ -118,7 +118,7 @@ pub struct TSInput {
             byte_index: u32,
             position: TSPoint,
             bytes_read: *mut u32,
-        ) -> *const c_char,
+        ) -> *const u8,
     >,
     pub encoding: TSInputEncoding,
     pub decode: TSDecodeFunction,
@@ -144,7 +144,7 @@ pub struct TSParseOptions {
 pub struct TSLogger {
     pub payload: *mut c_void,
     pub log: Option<
-        unsafe extern "C" fn(payload: *mut c_void, log_type: TSLogType, buffer: *const c_char),
+        unsafe extern "C" fn(payload: *mut c_void, log_type: TSLogType, buffer: *const u8),
     >,
 }
 
@@ -558,7 +558,7 @@ unsafe extern "C" {
     fn ts_parser_parse_string(
         self_: *mut TSParser,
         old_tree: *const TSTree,
-        string: *const c_char,
+        string: *const u8,
         length: u32,
     ) -> *mut TSTree;
     fn ts_parser_reset(self_: *mut TSParser);
@@ -576,13 +576,13 @@ unsafe extern "C" {
         length: &mut u32,
     ) -> *mut TSRange;
 
-    fn ts_node_type(self_: TSNode) -> *const c_char;
+    fn ts_node_type(self_: TSNode) -> *const u8;
     fn ts_node_symbol(self_: TSNode) -> TSSymbol;
     fn ts_node_start_byte(self_: TSNode) -> u32;
     fn ts_node_start_point(self_: TSNode) -> TSPoint;
     fn ts_node_end_byte(self_: TSNode) -> u32;
     fn ts_node_end_point(self_: TSNode) -> TSPoint;
-    fn ts_node_string(self_: TSNode) -> *mut c_char;
+    fn ts_node_string(self_: TSNode) -> *mut u8;
     fn ts_node_is_null(self_: TSNode) -> bool;
     fn ts_node_is_named(self_: TSNode) -> bool;
     fn ts_node_is_missing(self_: TSNode) -> bool;
@@ -592,7 +592,7 @@ unsafe extern "C" {
     fn ts_node_parent(self_: TSNode) -> TSNode;
     fn ts_node_child_with_descendant(self_: TSNode, descendant: TSNode) -> TSNode;
     fn ts_node_child(self_: TSNode, child_index: u32) -> TSNode;
-    fn ts_node_field_name_for_child(self_: TSNode, child_index: u32) -> *const c_char;
+    fn ts_node_field_name_for_child(self_: TSNode, child_index: u32) -> *const u8;
     fn ts_node_child_count(self_: TSNode) -> u32;
     fn ts_node_named_child(self_: TSNode, child_index: u32) -> TSNode;
     fn ts_node_named_child_count(self_: TSNode) -> u32;
@@ -610,7 +610,7 @@ unsafe extern "C" {
 
     fn ts_query_new(
         language: *const TSLanguage,
-        source: *const c_char,
+        source: *const u8,
         source_len: u32,
         error_offset: &mut u32,
         error_type: &mut TSQueryError,
@@ -627,13 +627,13 @@ unsafe extern "C" {
         self_: *const TSQuery,
         index: u32,
         length: &mut u32,
-    ) -> *const c_char;
+    ) -> *const u8;
     fn ts_query_string_value_for_id(
         self_: *const TSQuery,
         index: u32,
         length: &mut u32,
-    ) -> *const c_char;
-    fn ts_query_disable_capture(self_: *mut TSQuery, name: *const c_char, length: u32);
+    ) -> *const u8;
+    fn ts_query_disable_capture(self_: *mut TSQuery, name: *const u8, length: u32);
     fn ts_query_disable_pattern(self_: *mut TSQuery, pattern_index: u32);
 
     fn ts_query_cursor_new() -> *mut TSQueryCursor;
@@ -657,14 +657,14 @@ unsafe extern "C" {
     fn ts_language_symbol_count(self_: *const TSLanguage) -> u32;
     fn ts_language_state_count(self_: *const TSLanguage) -> u32;
     fn ts_language_field_count(self_: *const TSLanguage) -> u32;
-    fn ts_language_field_name_for_id(self_: *const TSLanguage, id: TSFieldId) -> *const c_char;
+    fn ts_language_field_name_for_id(self_: *const TSLanguage, id: TSFieldId) -> *const u8;
     fn ts_language_supertypes(self_: *const TSLanguage, length: &mut u32) -> *const TSSymbol;
     fn ts_language_subtypes(
         self_: *const TSLanguage,
         supertype: TSSymbol,
         length: &mut u32,
     ) -> *const TSSymbol;
-    fn ts_language_symbol_name(self_: *const TSLanguage, symbol: TSSymbol) -> *const c_char;
+    fn ts_language_symbol_name(self_: *const TSLanguage, symbol: TSSymbol) -> *const u8;
     fn ts_language_symbol_type(self_: *const TSLanguage, symbol: TSSymbol) -> TSSymbolType;
     fn ts_language_abi_version(self_: *const TSLanguage) -> u32;
     fn ts_language_metadata(self_: *const TSLanguage) -> *const TSLanguageMetadata;
@@ -907,7 +907,7 @@ unsafe extern "C-unwind" fn tslua_inspect_lang(lstate: *mut lua_State) -> i32 {
                     vim_snprintf!(buf.as_mut_ptr().cast(), buf.len(), c"\"%s\"", name);
                     lua_setfield(lstate, -2, buf.as_ptr().cast());
                 } else {
-                    lua_setfield(lstate, -2, name);
+                    lua_setfield(lstate, -2, name.cast());
                 }
             }
 
@@ -918,7 +918,10 @@ unsafe extern "C-unwind" fn tslua_inspect_lang(lstate: *mut lua_State) -> i32 {
             let nfields = ts_language_field_count(lang);
             lua_createtable(lstate, nfields as i32, 1);
             for i in 1..=nfields {
-                lua_pushstring(lstate, ts_language_field_name_for_id(lang, i as TSFieldId));
+                lua_pushstring(
+                    lstate,
+                    ts_language_field_name_for_id(lang, i as TSFieldId).cast(),
+                );
                 lua_rawseti(lstate, -2, i as i32);
             }
 
@@ -966,12 +969,12 @@ unsafe extern "C-unwind" fn tslua_inspect_lang(lstate: *mut lua_State) -> i32 {
                 for j in 1..=nsubtypes {
                     lua_pushstring(
                         lstate,
-                        ts_language_symbol_name(lang, *subtypes.wrapping_add(j as usize)),
+                        ts_language_symbol_name(lang, *subtypes.wrapping_add(j as usize)).cast(),
                     );
                     lua_rawseti(lstate, -2, j as i32);
                 }
 
-                lua_setfield(lstate, -2, ts_language_symbol_name(lang, supertype));
+                lua_setfield(lstate, -2, ts_language_symbol_name(lang, supertype).cast());
             }
 
             lua_setfield(lstate, -2, c"supertypes");
@@ -1041,7 +1044,7 @@ unsafe extern "C" fn input_cb(
     _byte_index: u32,
     position: TSPoint,
     bytes_read: *mut u32,
-) -> *const c_char {
+) -> *const u8 {
     let bp = payload.cast::<FileBuf>();
     let bp = unsafe { &mut *bp };
     let buf = &mut ts_st().input_buf;
@@ -1050,7 +1053,7 @@ unsafe extern "C" fn input_cb(
         unsafe {
             *bytes_read = 0;
         }
-        return c"".as_ptr();
+        return c"".as_ptr().cast();
     }
     let lnum = (position.row as Linenr) + 1;
     let line = ml_get_buf(&mut *bp, lnum);
@@ -1060,7 +1063,7 @@ unsafe extern "C" fn input_cb(
         unsafe {
             *bytes_read = 0;
         }
-        return c"".as_ptr();
+        return c"".as_ptr().cast();
     }
     let tocopy = (len - col).min(BUFSIZE);
 
@@ -1084,7 +1087,7 @@ unsafe extern "C" fn input_cb(
             *bytes_read += 1;
         }
     }
-    buf.as_ptr().cast::<c_char>()
+    buf.as_ptr()
 }
 
 fn push_ranges(lstate: *mut lua_State, ranges: *const TSRange, length: usize, include_bytes: bool) {
@@ -1183,7 +1186,7 @@ unsafe extern "C-unwind" fn parser_parse(lstate: *mut lua_State) -> i32 {
             LUA_TSTRING => {
                 let mut len: usize = 0;
                 let str_ptr = lua_tolstring(lstate, 3, &mut len);
-                ts_parser_parse_string(p, old_tree, str_ptr, len as u32)
+                ts_parser_parse_string(p, old_tree, str_ptr.cast(), len as u32)
             }
             LUA_TNUMBER => {
                 let bufnr = lua_tointeger(lstate, 3) as ObjHandle;
@@ -1365,7 +1368,7 @@ unsafe extern "C-unwind" fn parser_get_ranges(lstate: *mut lua_State) -> i32 {
     }
 }
 
-unsafe extern "C" fn logger_cb(payload: *mut c_void, logtype: TSLogType, s: *const c_char) {
+unsafe extern "C" fn logger_cb(payload: *mut c_void, logtype: TSLogType, s: *const u8) {
     unsafe {
         let opts = payload.cast::<TSLuaLoggerOpts>();
         let opts = &mut *opts;
@@ -1384,7 +1387,7 @@ unsafe extern "C" fn logger_cb(payload: *mut c_void, logtype: TSLogType, s: *con
                 c"lex".as_ptr()
             },
         );
-        lua_pushstring(lstate, s);
+        lua_pushstring(lstate, s.cast());
         if { lua_pcall(lstate, 2, 0, 0) } != 0 {
             luaL_error(lstate, c"treesitter logger callback failed".as_ptr());
         }
@@ -1583,7 +1586,7 @@ unsafe extern "C-unwind" fn node_tostring(lstate: *mut lua_State) -> i32 {
     unsafe {
         let node = node_check(lstate, 1);
         lua_pushstring(lstate, c"<node ");
-        lua_pushstring(lstate, ts_node_type(node));
+        lua_pushstring(lstate, ts_node_type(node).cast());
         lua_pushstring(lstate, c">");
         lua_concat(lstate, 3);
         1
@@ -1682,7 +1685,7 @@ unsafe extern "C-unwind" fn node_named_child_count(lstate: *mut lua_State) -> i3
 unsafe extern "C-unwind" fn node_type(lstate: *mut lua_State) -> i32 {
     unsafe {
         let node = node_check(lstate, 1);
-        lua_pushstring(lstate, ts_node_type(node));
+        lua_pushstring(lstate, ts_node_type(node).cast());
         1
     }
 }
@@ -1710,7 +1713,7 @@ unsafe extern "C-unwind" fn node_field(lstate: *mut lua_State) -> i32 {
         for i in 0..count {
             let child_field_name = ts_node_field_name_for_child(node, i);
             if crate::memory::cstr_as_opt_bytes(field_name)
-                == crate::memory::cstr_as_opt_bytes(child_field_name)
+                == crate::memory::cstr_as_opt_bytes(child_field_name.cast())
             {
                 let child = ts_node_child(node, i);
                 push_node(lstate, child, 1);
@@ -1735,7 +1738,7 @@ unsafe extern "C-unwind" fn node_sexpr(lstate: *mut lua_State) -> i32 {
     unsafe {
         let node = node_check(lstate, 1);
         let allocated = ts_node_string(node);
-        lua_pushstring(lstate, allocated);
+        lua_pushstring(lstate, allocated.cast());
         ts_free(allocated.cast::<c_void>());
         1
     }
@@ -1841,7 +1844,7 @@ unsafe extern "C-unwind" fn node_next_child(lstate: *mut lua_State) -> i32 {
 
         let field = ts_node_field_name_for_child(source, *child_index);
         if !field.is_null() {
-            lua_pushstring(lstate, field);
+            lua_pushstring(lstate, field.cast());
         } else {
             lua_pushnil(lstate);
         }
@@ -1884,7 +1887,7 @@ unsafe extern "C-unwind" fn __has_ancestor(lstate: *mut lua_State) -> i32 {
         let mut node = ts_tree_root_node(descendant.tree);
         while node.id != descendant.id && !ts_node_is_null(node) {
             let node_type = ts_node_type(node);
-            let node_type_bytes = crate::memory::cstr_as_bytes(node_type);
+            let node_type_bytes = crate::memory::cstr_as_bytes(node_type.cast());
 
             for i in 3..=pred_len {
                 lua_rawgeti(lstate, 2, i);
@@ -2201,7 +2204,8 @@ unsafe extern "C-unwind" fn tslua_parse_query(lstate: *mut lua_State) -> i32 {
         g_st().tslua_query_parse_count += 1;
         let mut error_offset: u32 = 0;
         let mut error_type: TSQueryError = TSQUERY_ERROR_NONE;
-        let query = ts_query_new(lang, src, len as u32, &mut error_offset, &mut error_type);
+        let query =
+            ts_query_new(lang, src.cast(), len as u32, &mut error_offset, &mut error_type);
 
         if query.is_null() {
             let src_bytes = crate::memory::cstr_slice(src, len);
@@ -2365,7 +2369,7 @@ unsafe extern "C-unwind" fn query_inspect(lstate: *mut lua_State) -> i32 {
                 if s.type_ == TSQUERY_PREDICATE_STEP_TYPE_STRING {
                     let mut strlen: u32 = 0;
                     let str_ptr = ts_query_string_value_for_id(query, s.value_id, &mut strlen);
-                    lua_pushlstring(lstate, str_ptr, strlen as usize);
+                    lua_pushlstring(lstate, str_ptr.cast(), strlen as usize);
                 } else if s.type_ == TSQUERY_PREDICATE_STEP_TYPE_CAPTURE {
                     lua_pushinteger(lstate, (s.value_id + 1) as lua_Integer);
                 } else {
@@ -2384,7 +2388,7 @@ unsafe extern "C-unwind" fn query_inspect(lstate: *mut lua_State) -> i32 {
         for i in 0..(n_captures as usize) {
             let mut strlen: u32 = 0;
             let str_ptr = ts_query_capture_name_for_id(query, i as u32, &mut strlen);
-            lua_pushlstring(lstate, str_ptr, strlen as usize);
+            lua_pushlstring(lstate, str_ptr.cast(), strlen as usize);
             lua_rawseti(lstate, -2, (i + 1) as i32);
         }
         lua_setfield(lstate, -2, c"captures");
@@ -2398,7 +2402,7 @@ unsafe extern "C-unwind" fn query_disable_capture(lstate: *mut lua_State) -> i32
         let query = query_check(lstate, 1);
         let mut name_len: usize = 0;
         let name = luaL_checklstring(lstate, 2, &mut name_len);
-        ts_query_disable_capture(query, name, name_len as u32);
+        ts_query_disable_capture(query, name.cast(), name_len as u32);
         0
     }
 }
