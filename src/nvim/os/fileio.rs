@@ -227,8 +227,8 @@ pub fn file_flush(fp: *mut FileDescriptor) -> i32 {
     if to_write == 0 {
         return 0;
     }
-    let read_ptr = fp.buffer.as_ptr().wrapping_add(fp.read_pos).cast();
-    let wres = os_write(fp.fd, read_ptr, to_write, fp.non_blocking);
+    let slice = &fp.buffer[fp.read_pos..fp.read_pos + to_write];
+    let wres = os_write(fp.fd, slice, fp.non_blocking);
     fp.read_pos = 0;
     fp.write_pos = 0;
     if wres != to_write as isize {
@@ -308,8 +308,7 @@ pub fn file_read(fp: *mut FileDescriptor, ret_buf: &mut [u8]) -> isize {
                 let r_ret = os_read(
                     fp.fd,
                     &mut fp.eof,
-                    buf_slice.as_mut_ptr().cast(),
-                    read_remaining,
+                    &mut buf_slice[..read_remaining],
                     fp.non_blocking,
                 );
                 if r_ret >= 0 {
@@ -318,12 +317,11 @@ pub fn file_read(fp: *mut FileDescriptor, ret_buf: &mut [u8]) -> isize {
                     return r_ret;
                 }
             } else {
-                let write_ptr = fp.buffer.as_mut_ptr().wrapping_add(fp.write_pos).cast();
+                let write_slice = &mut fp.buffer[fp.write_pos..fp.write_pos + ARENA_BLOCK_SIZE];
                 let r_ret = os_read(
                     fp.fd,
                     &mut fp.eof,
-                    write_ptr,
-                    ARENA_BLOCK_SIZE,
+                    write_slice,
                     fp.non_blocking,
                 );
                 if r_ret < 0 {
@@ -386,7 +384,7 @@ pub fn file_write(fp: &mut FileDescriptor, buf: &[u8]) -> isize {
         return size as isize;
     }
 
-    let wres = os_write(fp.fd, buf.as_ptr().cast(), size, fp.non_blocking);
+    let wres = os_write(fp.fd, buf, fp.non_blocking);
     if wres != size as isize && wres >= 0 {
         UV_EIO as isize
     } else {
@@ -420,8 +418,7 @@ pub fn file_skip(fp: *mut FileDescriptor, size: usize) -> isize {
         let r_ret = os_read(
             fp.fd,
             &mut fp.eof,
-            fp.buffer.as_mut_ptr().cast(),
-            ARENA_BLOCK_SIZE,
+            &mut fp.buffer[..ARENA_BLOCK_SIZE],
             fp.non_blocking,
         );
         if r_ret < 0 {

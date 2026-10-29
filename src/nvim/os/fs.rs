@@ -961,63 +961,55 @@ pub fn os_open_stdin_fd() -> i32 {
 }
 
 /// Read from a file.
-pub fn os_read(
-    fd: i32,
-    ret_eof: &mut bool,
-    ret_buf: *mut c_char,
-    size: usize,
-    non_blocking: bool,
-) -> isize {
+pub fn os_read(fd: i32, ret_eof: &mut bool, ret_buf: &mut [u8], non_blocking: bool) -> isize {
     *ret_eof = false;
-    if ret_buf.is_null() {
-        assert_eq!(size, 0);
+    let size = ret_buf.len();
+    if size == 0 {
         return 0;
     }
-    {
-        let mut read_bytes: usize = 0;
-        while read_bytes != size {
-            assert!(size >= read_bytes);
-            #[cfg(windows)]
-            let cur_read_bytes = unsafe {
-                _read(
-                    fd,
-                    ret_buf.wrapping_add(read_bytes).cast(),
-                    (size - read_bytes) as u32,
-                )
-            } as isize;
-            #[cfg(not(windows))]
-            let cur_read_bytes = unsafe {
-                read(
-                    fd,
-                    ret_buf.wrapping_add(read_bytes).cast(),
-                    size - read_bytes,
-                )
-            };
+    let mut read_bytes: usize = 0;
+    while read_bytes != size {
+        assert!(size >= read_bytes);
+        #[cfg(windows)]
+        let cur_read_bytes = unsafe {
+            _read(
+                fd,
+                ret_buf.as_mut_ptr().wrapping_add(read_bytes).cast(),
+                (size - read_bytes) as u32,
+            )
+        } as isize;
+        #[cfg(not(windows))]
+        let cur_read_bytes = unsafe {
+            read(
+                fd,
+                ret_buf.as_mut_ptr().wrapping_add(read_bytes).cast(),
+                size - read_bytes,
+            )
+        };
 
-            if cur_read_bytes > 0 {
-                read_bytes += cur_read_bytes as usize;
+        if cur_read_bytes > 0 {
+            read_bytes += cur_read_bytes as usize;
+        }
+        if cur_read_bytes < 0 {
+            let ep = unsafe { errno_ptr() };
+            let error = unsafe { uv_translate_sys_error(*ep) };
+            unsafe {
+                *ep = 0;
             }
-            if cur_read_bytes < 0 {
-                let ep = unsafe { errno_ptr() };
-                let error = unsafe { uv_translate_sys_error(*ep) };
-                unsafe {
-                    *ep = 0;
-                }
-                if non_blocking && error == UV_EAGAIN {
-                    break;
-                } else if error == UV_EINTR || error == UV_EAGAIN {
-                    continue;
-                } else {
-                    return error as isize;
-                }
-            }
-            if cur_read_bytes == 0 {
-                *ret_eof = true;
+            if non_blocking && error == UV_EAGAIN {
                 break;
+            } else if error == UV_EINTR || error == UV_EAGAIN {
+                continue;
+            } else {
+                return error as isize;
             }
         }
-        read_bytes as isize
+        if cur_read_bytes == 0 {
+            *ret_eof = true;
+            break;
+        }
     }
+    read_bytes as isize
 }
 
 /// Read from a file to multiple buffers at once.
@@ -1086,61 +1078,53 @@ pub fn os_readv(
 }
 
 /// Write to a file.
-pub fn os_write(
-    fd: i32,
-    buf: impl crate::strings::IntoCCharPtr,
-    size: usize,
-    non_blocking: bool,
-) -> isize {
-    let buf = buf.into_c_char_ptr();
-    if buf.is_null() {
-        assert_eq!(size, 0);
+pub fn os_write(fd: i32, buf: &[u8], non_blocking: bool) -> isize {
+    let size = buf.len();
+    if size == 0 {
         return 0;
     }
-    {
-        let mut written_bytes: usize = 0;
-        while written_bytes != size {
-            assert!(size >= written_bytes);
-            #[cfg(windows)]
-            let cur_written_bytes = unsafe {
-                _write(
-                    fd,
-                    buf.wrapping_add(written_bytes).cast(),
-                    (size - written_bytes) as u32,
-                )
-            } as isize;
-            #[cfg(not(windows))]
-            let cur_written_bytes = unsafe {
-                write(
-                    fd,
-                    buf.wrapping_add(written_bytes).cast(),
-                    size - written_bytes,
-                )
-            };
+    let mut written_bytes: usize = 0;
+    while written_bytes != size {
+        assert!(size >= written_bytes);
+        #[cfg(windows)]
+        let cur_written_bytes = unsafe {
+            _write(
+                fd,
+                buf.as_ptr().wrapping_add(written_bytes).cast(),
+                (size - written_bytes) as u32,
+            )
+        } as isize;
+        #[cfg(not(windows))]
+        let cur_written_bytes = unsafe {
+            write(
+                fd,
+                buf.as_ptr().wrapping_add(written_bytes).cast(),
+                size - written_bytes,
+            )
+        };
 
-            if cur_written_bytes > 0 {
-                written_bytes += cur_written_bytes as usize;
+        if cur_written_bytes > 0 {
+            written_bytes += cur_written_bytes as usize;
+        }
+        if cur_written_bytes < 0 {
+            let ep = unsafe { errno_ptr() };
+            let error = unsafe { uv_translate_sys_error(*ep) };
+            unsafe {
+                *ep = 0;
             }
-            if cur_written_bytes < 0 {
-                let ep = unsafe { errno_ptr() };
-                let error = unsafe { uv_translate_sys_error(*ep) };
-                unsafe {
-                    *ep = 0;
-                }
-                if non_blocking && error == UV_EAGAIN {
-                    break;
-                } else if error == UV_EINTR || error == UV_EAGAIN {
-                    continue;
-                } else {
-                    return error as isize;
-                }
-            }
-            if cur_written_bytes == 0 {
-                return UV_UNKNOWN as isize;
+            if non_blocking && error == UV_EAGAIN {
+                break;
+            } else if error == UV_EINTR || error == UV_EAGAIN {
+                continue;
+            } else {
+                return error as isize;
             }
         }
-        written_bytes as isize
+        if cur_written_bytes == 0 {
+            return UV_UNKNOWN as isize;
+        }
     }
+    written_bytes as isize
 }
 
 /// Copies a file from `path` to `new_path`.
@@ -2110,9 +2094,9 @@ mod tests {
                     payload.push(b);
                 }
             }
-            assert_eq!(os_write(fd, ptr::null(), 0, false), 0);
+            assert_eq!(os_write(fd, &[], false), 0);
             assert_eq!(
-                os_write(fd, payload.as_ptr().cast(), payload.len(), false),
+                os_write(fd, &payload, false),
                 payload.len() as isize
             );
             assert_eq!(os_fchown(fd, uv_uid_t::MAX, uv_gid_t::MAX), 0);
@@ -2129,18 +2113,18 @@ mod tests {
             let rfd = os_open(fpath_c.as_ptr(), O_RDONLY, 0);
             assert!(rfd >= 0);
             let mut eof = true;
-            assert_eq!(os_read(rfd, &mut eof, ptr::null_mut(), 0, false), 0);
+            assert_eq!(os_read(rfd, &mut eof, &mut [], false), 0);
             assert!(!eof);
 
             let mut rbuf = vec![0u8; payload.len()];
             assert_eq!(
-                os_read(rfd, &mut eof, rbuf.as_mut_ptr().cast(), rbuf.len(), false),
+                os_read(rfd, &mut eof, &mut rbuf, false),
                 payload.len() as isize
             );
             assert!(!eof);
             assert_eq!(rbuf, payload);
             assert_eq!(
-                os_read(rfd, &mut eof, rbuf.as_mut_ptr().cast(), 16, false),
+                os_read(rfd, &mut eof, &mut rbuf[..16], false),
                 0
             );
             assert!(eof);

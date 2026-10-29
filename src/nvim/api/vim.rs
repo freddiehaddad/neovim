@@ -1612,10 +1612,10 @@ pub fn nvim_open_term(buf: Buffer, opts: &mut KeyDict_open_term, err: &mut Error
         channel_decref(&mut *chan);
 
         if !contents.is_empty() {
-            let mut error: *const c_char = ptr::null();
+            let mut error = None;
             channel_send((*prefix).id, contents, &mut error);
-            if !error.is_null() {
-                api_set_error!(err, ErrorType::ErrorTypeValidation, c"%s", error);
+            if let Some(err_str) = error {
+                api_set_error!(err, ErrorType::ErrorTypeValidation, c"%s", err_str.as_ptr());
             }
         }
 
@@ -1642,11 +1642,11 @@ pub fn nvim_chan_send(chan: Integer, data: NvimString, err: &mut Error) {
     if data.size == 0 {
         return;
     }
-    let mut error: *const c_char = ptr::null();
+    let mut error = None;
     let buf = data.as_bytes().to_vec();
     channel_send(chan as u64, buf, &mut error);
-    if !error.is_null() {
-        api_set_error!(err, ErrorType::ErrorTypeValidation, c"%s", error);
+    if let Some(err_str) = error {
+        api_set_error!(err, ErrorType::ErrorTypeValidation, c"%s", err_str.as_ptr());
     }
 }
 

@@ -439,6 +439,17 @@ pub fn cstr_from_ptr<'a, S: crate::strings::IntoCCharPtr>(s: S) -> &'a CStr {
     }
 }
 
+/// View a NUL-terminated C string as an `Option<&CStr>`, returning `None` if null.
+#[inline]
+pub fn cstr_as_opt_cstr<'a, S: crate::strings::IntoCCharPtr>(s: S) -> Option<&'a CStr> {
+    let s = s.into_c_char_ptr();
+    if s.is_null() {
+        None
+    } else {
+        Some(unsafe { CStr::from_ptr(s) })
+    }
+}
+
 /// View a NUL-terminated C string as a byte slice (including trailing NUL), returning `b"\0"` if null.
 #[inline]
 pub fn cstr_as_bytes_with_nul<'a, S: crate::strings::IntoCCharPtr>(s: S) -> &'a [u8] {

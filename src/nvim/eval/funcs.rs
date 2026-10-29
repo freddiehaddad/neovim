@@ -1685,12 +1685,12 @@ pub fn f_chansend(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDat
             vec
         };
 
-        let mut error: *const c_char = ptr::null();
+        let mut error = None;
         rettv.vval = crate::eval::typval::TypvalVval::Number(
             channel_send(id, input, &mut error) as Varnumber
         );
-        if !error.is_null() {
-            emsg(error);
+        if let Some(err) = error {
+            emsg(err.as_ptr());
         }
     }
 }
@@ -4625,7 +4625,7 @@ pub fn f_jobstart(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDat
         let env = create_environment(job_env.as_ref(), clear_env, pty, true, term_name);
         let chan = channel_job_start(
             argv,
-            ptr::null(),
+            None,
             on_stdout,
             on_stderr,
             on_exit,
@@ -4634,7 +4634,7 @@ pub fn f_jobstart(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDat
             overlapped,
             detach,
             stdin_mode,
-            cwd,
+            crate::memory::cstr_as_opt_cstr(cwd),
             width,
             height,
             env,
@@ -4643,7 +4643,7 @@ pub fn f_jobstart(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDat
         if chan.is_null() {
             // do nothing
         } else if !term {
-            channel_create_event(&mut *chan, ptr::null());
+            channel_create_event(&mut *chan);
         } else {
             if rettv.vval.v_number() <= 0 {
                 return;
@@ -4751,7 +4751,7 @@ pub fn f_jobstart(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDat
 
                 terminal_open(&raw mut (*ct).term, &mut *buf);
             }
-            channel_create_event(&mut *chan, ptr::null());
+            channel_create_event(&mut *chan);
             channel_decref(&mut *chan);
         }
     }
@@ -7942,10 +7942,10 @@ pub fn f_sockconnect(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFunc
             }
         }
 
-        let mut error: *const c_char = ptr::null();
-        let id = channel_connect(tcp, address.as_ptr(), rpc, on_data, 50, &mut error);
-        if !error.is_null() {
-            semsg!(gettext(c"connection failed: %s"), error);
+        let mut error = None;
+        let id = channel_connect(tcp, &address, rpc, on_data, 50, &mut error);
+        if let Some(err) = error {
+            semsg!(gettext(c"connection failed: %s"), err.as_ptr());
         }
 
         rettv.vval = crate::eval::typval::TypvalVval::Number(id as Varnumber);
@@ -7983,10 +7983,10 @@ pub fn f_stdioopen(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDa
         on_stdin.self_dict = opts;
     }
 
-    let mut error: *const c_char = ptr::null();
+    let mut error = None;
     let id = channel_from_stdio(rpc, on_stdin, &mut error);
     if id == 0 {
-        semsg!(E_STDIOCHAN2, error);
+        semsg!(E_STDIOCHAN2, error.map_or(ptr::null(), |s| s.as_ptr()));
     }
 
     rettv.vval = crate::eval::typval::TypvalVval::Number(id as Varnumber);

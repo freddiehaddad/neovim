@@ -56,7 +56,7 @@ use crate::terminal::{
     terminal_alloc, terminal_buf, terminal_close, terminal_destroy, terminal_receive,
 };
 use crate::ui_client::ui_client_attach_to_restarted_server;
-use std::ffi::{CStr, c_char};
+use std::ffi::CStr;
 use std::ptr;
 
 pub type ChannelStdinMode = i32;
@@ -388,7 +388,7 @@ pub fn channel_alloc(r#type: ChannelStreamType) -> *mut Channel {
     chan
 }
 
-pub fn channel_create_event(chan: &mut Channel, _ext_source: *const c_char) {
+pub fn channel_create_event(chan: &mut Channel) {
     channel_event(chan, EVENT_CHANOPEN);
 }
 
@@ -446,7 +446,7 @@ fn channel_destroy_early(chan: &mut Channel) {
 /// Starts a job and returns the associated channel.
 pub fn channel_job_start(
     argv: Vec<std::ffi::CString>,
-    exepath: impl crate::strings::IntoCCharPtr,
+    exepath: Option<&CStr>,
     on_stdout: CallbackReader,
     on_stderr: CallbackReader,
     on_exit: Callback,
@@ -455,14 +455,12 @@ pub fn channel_job_start(
     overlapped: bool,
     detach: bool,
     stdin_mode: ChannelStdinMode,
-    cwd: impl crate::strings::IntoCCharPtr,
+    cwd: Option<&CStr>,
     pty_width: u16,
     pty_height: u16,
     env: *mut TvDict,
     status_out: *mut Varnumber,
 ) -> *mut Channel {
-    let exepath = exepath.into_c_char_ptr();
-    let cwd = cwd.into_c_char_ptr();
     unsafe {
         let chan = channel_alloc(K_CHANNEL_STREAM_PROC);
         let chan = &mut *chan;
@@ -512,18 +510,10 @@ pub fn channel_job_start(
         let ph = proc_ptr;
         let pt = proc_ptr;
         (*ph).argv = argv;
-        (*ph).exepath = if exepath.is_null() {
-            None
-        } else {
-            Some(crate::memory::cstr_to_cstring(exepath))
-        };
+        (*ph).exepath = exepath.map(CStr::to_owned);
         (*pt).events = chan.events;
         (*pt).detach = detach;
-        (*ph).cwd = if cwd.is_null() {
-            None
-        } else {
-            Some(crate::memory::cstr_to_cstring(cwd))
-        };
+        (*ph).cwd = cwd.map(CStr::to_owned);
         (*ph).env = env;
         (*pt).overlapped = overlapped;
         #[cfg(windows)]
@@ -600,19 +590,18 @@ pub fn channel_job_start(
 
 pub fn channel_connect(
     tcp: bool,
-    address: impl crate::strings::IntoCCharPtr,
+    address: &CStr,
     rpc: bool,
     on_output: CallbackReader,
     timeout: i32,
-    error: *mut *const c_char,
+    error: &mut Option<&'static CStr>,
 ) -> u64 {
-    let address = address.into_c_char_ptr();
     unsafe {
-        if !tcp && rpc && server_owns_pipe_address(crate::memory::cstr_from_ptr(address)) {
+        if !tcp && rpc && server_owns_pipe_address(address) {
             let channel = channel_alloc(K_CHANNEL_STREAM_INTERNAL);
             (*channel).internal.cb = LUA_NOREF;
             rpc_start(&mut *channel);
-            channel_create_event(&mut *channel, address);
+            channel_create_event(&mut *channel);
             return (*channel).id;
         }
 
@@ -644,7 +633,7 @@ pub fn channel_connect(
             rstream_start(socket_stream, StreamCbData::ChannelData(channel));
         }
 
-        channel_create_event(&mut *channel, address);
+        channel_create_event(&mut *channel);
         (*channel).id
     }
 }
@@ -663,25 +652,27 @@ pub fn channel_from_connection(watcher: &mut SocketWatcher) {
         wstream_init(&mut socket_stream.s, 0);
         rstream_init(socket_stream);
         rpc_start(&mut *channel);
-        channel_create_event(&mut *channel, watcher.addr.as_ptr());
+        channel_create_event(&mut *channel);
     }
 }
 
 /// Creates an API channel from stdin/stdout. Used when embedding Nvim.
-pub fn channel_from_stdio(rpc: bool, on_output: CallbackReader, error: *mut *const c_char) -> u64 {
+pub fn channel_from_stdio(
+    rpc: bool,
+    on_output: CallbackReader,
+    error: &mut Option<&'static CStr>,
+) -> u64 {
     if !g_st().headless_mode && !g_st().embedded_mode {
-        unsafe {
-            *error = gettext(c"can only be opened in headless mode");
-        }
+        *error = Some(crate::memory::cstr_from_ptr(gettext(
+            c"can only be opened in headless mode",
+        )));
         return 0;
     }
 
     if chan_st().did_stdio {
-        {
-            unsafe {
-                *error = gettext(c"channel was already open");
-            }
-        }
+        *error = Some(crate::memory::cstr_from_ptr(gettext(
+            c"channel was already open",
+        )));
         return 0;
     }
     chan_st().did_stdio = true;
@@ -725,33 +716,39 @@ pub fn channel_from_stdio(rpc: bool, on_output: CallbackReader, error: *mut *con
     unsafe { (*channel).id }
 }
 
-pub fn channel_send(id: u64, data: Vec<u8>, error: *mut *const c_char) -> usize {
+pub fn channel_send(id: u64, data: Vec<u8>, error: &mut Option<&'static CStr>) -> usize {
     unsafe {
         let chan = find_channel(id);
         let len = data.len();
 
         if chan.is_null() {
-            *error = gettext(E_INVCHAN);
+            *error = Some(crate::memory::cstr_from_ptr(gettext(E_INVCHAN)));
             return 0;
         }
 
         if (*chan).streamtype == K_CHANNEL_STREAM_STDERR {
             if (*chan).err_closed {
-                *error = gettext(c"Can't send data to closed stream");
+                *error = Some(crate::memory::cstr_from_ptr(gettext(
+                    c"Can't send data to closed stream",
+                )));
                 return 0;
             }
-            let wres = os_write(STDERR_FILENO, data.as_ptr().cast::<c_char>(), len, false);
+            let wres = os_write(STDERR_FILENO, &data, false);
             return if wres >= 0 { wres as usize } else { 0 };
         }
 
         if (*chan).streamtype == K_CHANNEL_STREAM_INTERNAL {
             if (*chan).is_rpc {
-                *error = gettext(c"Can't send raw data to rpc channel");
+                *error = Some(crate::memory::cstr_from_ptr(gettext(
+                    c"Can't send raw data to rpc channel",
+                )));
                 return 0;
             }
             let internal = &mut (*chan).internal;
             if (*chan).term.is_null() || internal.closed {
-                *error = gettext(c"Can't send data to closed stream");
+                *error = Some(crate::memory::cstr_from_ptr(gettext(
+                    c"Can't send data to closed stream",
+                )));
                 return 0;
             }
             terminal_receive(&mut *(*chan).term, &data);
@@ -760,12 +757,16 @@ pub fn channel_send(id: u64, data: Vec<u8>, error: *mut *const c_char) -> usize 
 
         let in_stream = channel_instream(&mut *chan);
         if (*in_stream).closed {
-            *error = gettext(c"Can't send data to closed stream");
+            *error = Some(crate::memory::cstr_from_ptr(gettext(
+                c"Can't send data to closed stream",
+            )));
             return 0;
         }
 
         if (*chan).is_rpc {
-            *error = gettext(c"Can't send raw data to rpc channel");
+            *error = Some(crate::memory::cstr_from_ptr(gettext(
+                c"Can't send raw data to rpc channel",
+            )));
             return 0;
         }
 
@@ -820,7 +821,7 @@ fn on_channel_output(
 
     #[cfg(windows)]
     if reader.fwd_err && count > 0 {
-        let wres = os_write(STDOUT_FILENO, buf.as_ptr().cast::<c_char>(), count, false);
+        let wres = os_write(STDOUT_FILENO, &buf[..count], false);
         return wres.max(0) as usize;
     }
 
@@ -1024,54 +1025,43 @@ pub fn channel_term_read_pause(pause: bool, chan: &mut Channel) {
     }
 }
 
-pub fn channel_term_write(buf: impl crate::strings::IntoCCharPtr, size: usize, chan: &mut Channel) {
-    let buf = buf.into_c_char_ptr();
-    {
-        if chan.streamtype == K_CHANNEL_STREAM_INTERNAL {
-            let internal = &mut chan.internal;
-            let cb = internal.cb;
-            if cb == LUA_NOREF {
-                return;
-            }
-            let mut args_items = [
-                crate::api::private::helpers::integer_obj(chan.id as Integer),
-                crate::api::private::helpers::buffer_obj(crate::terminal::terminal_buf(unsafe {
-                    &*chan.term
-                })),
-                crate::api::private::helpers::string_obj(NvimString {
-                    data: buf.cast_mut(),
-                    size,
-                }),
-            ];
-            let args = Array {
-                items: args_items.as_mut_ptr(),
-                size: 3,
-                capacity: 3,
-            };
-            g_st().textlock += 1;
-            crate::lua::executor::nlua_call_ref(
-                cb,
-                c"input",
-                args,
-                crate::lua::executor::K_RET_NIL_BOOL,
-                None,
-                None,
-            );
-            g_st().textlock -= 1;
+pub fn channel_term_write(buf: &[u8], chan: &mut Channel) {
+    if chan.streamtype == K_CHANNEL_STREAM_INTERNAL {
+        let internal = &mut chan.internal;
+        let cb = internal.cb;
+        if cb == LUA_NOREF {
             return;
         }
-        let in_stream = &mut chan.uv.proc_.r#in;
-        if in_stream.closed {
-            return;
-        }
-        let data = if size == 0 {
-            Vec::new()
-        } else {
-            unsafe { std::slice::from_raw_parts(buf.cast::<u8>(), size) }.to_vec()
+        let mut args_items = [
+            crate::api::private::helpers::integer_obj(chan.id as Integer),
+            crate::api::private::helpers::buffer_obj(crate::terminal::terminal_buf(unsafe {
+                &*chan.term
+            })),
+            crate::api::private::helpers::string_obj(NvimString::from_bytes(buf)),
+        ];
+        let args = Array {
+            items: args_items.as_mut_ptr(),
+            size: 3,
+            capacity: 3,
         };
-        let wbuf = wstream_new_vec_buffer(data);
-        let _ = wstream_write(in_stream, wbuf);
+        g_st().textlock += 1;
+        crate::lua::executor::nlua_call_ref(
+            cb,
+            c"input",
+            args,
+            crate::lua::executor::K_RET_NIL_BOOL,
+            None,
+            None,
+        );
+        g_st().textlock -= 1;
+        return;
     }
+    let in_stream = &mut chan.uv.proc_.r#in;
+    if in_stream.closed {
+        return;
+    }
+    let wbuf = wstream_new_vec_buffer(buf.to_vec());
+    let _ = wstream_write(in_stream, wbuf);
 }
 
 pub fn channel_term_resize(width: u16, height: u16, chan: &mut Channel) {

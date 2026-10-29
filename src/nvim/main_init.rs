@@ -463,7 +463,7 @@ fn nvim_main_inner(argc: i32, argv: *mut *mut c_char) -> i32 {
     let stdio_rpc =
         params.listen_addr.is_none() || stdin_type == UV_NAMED_PIPE || stdin_type == UV_TCP;
     if g_st().embedded_mode && stdio_rpc {
-        let mut err: *const c_char = ptr::null();
+        let mut err = None;
         let on_data = CallbackReader::none();
         if channel_from_stdio(true, on_data, &mut err) == 0 {
             std::process::abort();
@@ -506,10 +506,12 @@ fn nvim_main_inner(argc: i32, argv: *mut *mut c_char) -> i32 {
 
     if use_builtin_ui && !remote_ui {
         g_st().ui_client_forward_stdin = !g_st().stdin_isatty;
+        let argv_vec: Vec<std::ffi::CString> = (0..params.argc as usize)
+            .map(|i| crate::memory::cstr_to_cstring(unsafe { *params.argv.wrapping_add(i) }))
+            .collect();
         let rv = ui_client_start_server(
-            get_vim_var_str(VV_PROGPATH),
-            params.argc as usize,
-            params.argv,
+            crate::memory::cstr_from_ptr(get_vim_var_str(VV_PROGPATH)),
+            &argv_vec,
         );
         if rv == 0 {
             fprintf!(log_get_stderr(), c"Failed to start Nvim server!\n");
@@ -1131,12 +1133,20 @@ fn server_connect(
             return 0;
         }
         let on_data = CallbackReader::none();
-        let mut error: *const c_char = ptr::null();
-        let is_tcp = !socket_address_tcp_host_end(server_addr).is_null();
-        let chan = channel_connect(is_tcp, server_addr, true, on_data, 500, &mut error);
-        if !error.is_null() {
+        let mut error = None;
+        let server_addr_cstr = crate::memory::cstr_from_ptr(server_addr);
+        let is_tcp = socket_address_tcp_host_end(server_addr_cstr.to_bytes()).is_some();
+        let chan = channel_connect(
+            is_tcp,
+            server_addr_cstr,
+            true,
+            on_data,
+            500,
+            &mut error,
+        );
+        if let Some(err) = error {
             unsafe {
-                *errmsg = error;
+                *errmsg = err.as_ptr();
             }
             return 0;
         }
@@ -1374,7 +1384,7 @@ fn command_line_scan(parmp: &mut Mparm) {
                             unsafe { _setmode(STDOUT_FILENO, 0x8000) };
                         }
                         let data = api_metadata_raw();
-                        let written_bytes = os_write(STDOUT_FILENO, data.data, data.size, false);
+                        let written_bytes = os_write(STDOUT_FILENO, data.as_bytes(), false);
                         if written_bytes < 0 {
                             semsg!(gettext(c"E5420: Failed to write to file: %s"), unsafe {
                                 uv_strerror(written_bytes as i32)

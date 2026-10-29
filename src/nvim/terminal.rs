@@ -1462,7 +1462,12 @@ fn terminal_send(term: &mut Terminal, data: impl crate::strings::IntoCCharPtr, s
             }
             return;
         }
-        channel_term_write(data, size, unsafe { &mut *term.opts.data });
+        let bytes = if size == 0 {
+            &[]
+        } else {
+            unsafe { std::slice::from_raw_parts(data.cast::<u8>(), size) }
+        };
+        channel_term_write(bytes, unsafe { &mut *term.opts.data });
     }
 }
 

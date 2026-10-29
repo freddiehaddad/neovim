@@ -41,7 +41,7 @@ use crate::tui::tui::{
     tui_set_icon, tui_set_title, tui_start, tui_stop, tui_suspend, tui_ui_send, tui_update_menu,
     tui_visual_bell,
 };
-use std::ffi::{CStr, c_char};
+use std::ffi::{CStr, CString};
 use std::ptr;
 
 pub(crate) const UI_CLIENT_STDIN_FD: i32 = 3;
@@ -87,63 +87,54 @@ fn tui_ptr() -> &'static mut TUIData {
 
 use crate::event::r#loop::uv_os_getpid;
 
-pub fn ui_client_start_server(
-    exepath: impl crate::strings::IntoCCharPtr,
-    argc: usize,
-    argv: *mut *mut c_char,
-) -> u64 {
-    let exepath = exepath.into_c_char_ptr();
-    {
-        let mut args = Vec::with_capacity(1 + argc);
-        args.push(crate::memory::cstr_to_cstring(unsafe { *argv }));
-        args.push(c"--embed".to_owned());
-        for i in 1..argc {
-            args.push(crate::memory::cstr_to_cstring(unsafe {
-                *argv.wrapping_add(i)
-            }));
-        }
-
-        let on_stdout = CallbackReader::none();
-        let mut on_err = CallbackReader::none();
-        on_err.fwd_err = true;
-        let on_exit: Callback = Callback::new();
-
-        let mut exit_status: i64 = 0;
-        let channel = channel_job_start(
-            args,
-            exepath,
-            on_stdout,
-            on_err,
-            on_exit,
-            false,
-            true,
-            true,
-            true,
-            K_CHANNEL_STDIN_PIPE_CONST,
-            ptr::null(),
-            0,
-            0,
-            ptr::null_mut(),
-            &raw mut exit_status,
-        );
-        if channel.is_null() {
-            return 0;
-        }
-
-        if g_st().ui_client_forward_stdin {
-            unsafe { close(0) };
-            #[cfg(windows)]
-            {
-                os_open_conin_fd();
-            }
-            #[cfg(not(windows))]
-            {
-                let _ = unsafe { dup(if g_st().stderr_isatty { 2 } else { 1 }) };
-            }
-        }
-
-        unsafe { *(channel.cast::<u64>()) }
+pub fn ui_client_start_server(exepath: &CStr, argv: &[CString]) -> u64 {
+    let mut args = Vec::with_capacity(1 + argv.len());
+    args.push(argv.first().cloned().unwrap_or_default());
+    args.push(c"--embed".to_owned());
+    for arg in argv.iter().skip(1) {
+        args.push(arg.clone());
     }
+
+    let on_stdout = CallbackReader::none();
+    let mut on_err = CallbackReader::none();
+    on_err.fwd_err = true;
+    let on_exit: Callback = Callback::new();
+
+    let mut exit_status: i64 = 0;
+    let channel = channel_job_start(
+        args,
+        Some(exepath),
+        on_stdout,
+        on_err,
+        on_exit,
+        false,
+        true,
+        true,
+        true,
+        K_CHANNEL_STDIN_PIPE_CONST,
+        None,
+        0,
+        0,
+        ptr::null_mut(),
+        &raw mut exit_status,
+    );
+    if channel.is_null() {
+        return 0;
+    }
+
+    if g_st().ui_client_forward_stdin {
+        unsafe { close(0) };
+        #[cfg(windows)]
+        {
+            os_open_conin_fd();
+        }
+        #[cfg(not(windows))]
+        {
+            let _ = unsafe { dup(if g_st().stderr_isatty { 2 } else { 1 }) };
+        }
+    }
+
+    unsafe { *(channel.cast::<u64>()) }
 }
 
 /// Attaches this client to the UI channel, and sets its client info (`ui_client_attach`).
@@ -448,13 +439,13 @@ pub fn ui_client_event_connect(args: Array) {
 }
 
 pub fn channel_connect_event(server_addr: std::ffi::CString) {
-    let mut err: *const c_char = c"".as_ptr();
+    let mut err: Option<&CStr> = None;
     let addr_ptr = server_addr.as_ptr();
-    let is_tcp = !socket_address_tcp_host_end(addr_ptr).is_null();
+    let is_tcp = socket_address_tcp_host_end(server_addr.to_bytes()).is_some();
     let on_data = CallbackReader::none();
-    let chan = channel_connect(is_tcp, addr_ptr, true, on_data, 50, &mut err);
+    let chan = channel_connect(is_tcp, &server_addr, true, on_data, 50, &mut err);
 
-    if !(crate::memory::cstr_as_opt_bytes(err) == Some(b"")) {
+    if let Some(err_cstr) = err {
         logmsg!(
             LOGLVL_ERR,
             ptr::null(),
@@ -463,7 +454,7 @@ pub fn channel_connect_event(server_addr: std::ffi::CString) {
             true,
             c"Cannot connect to server %s: %s",
             addr_ptr,
-            err,
+            err_cstr.as_ptr(),
         );
         drop(server_addr);
         g_st().ui_client_exit_status = 1;
@@ -553,25 +544,32 @@ pub fn ui_client_attach_to_restarted_server(error_restart: bool) {
             return;
         }
         let cmdargs = args[1].data.array();
-        let mut argv: Vec<*mut c_char> = vec![ptr::null_mut(); cmdargs.size + 1];
-        for (i, dst) in argv.iter_mut().enumerate().take(cmdargs.size) {
+        let mut argv: Vec<CString> = Vec::with_capacity(cmdargs.size);
+        for i in 0..cmdargs.size {
             let item = cmdargs[i];
             if item.obj_type == ObjectType::ObjectTypeString {
-                *dst = item.data.string().data;
-            }
-            if (*dst).is_null() {
-                *dst = c"".as_ptr().cast_mut();
+                argv.push(crate::memory::cstr_from_bytes(item.data.string().cstr_bytes()));
+            } else {
+                argv.push(CString::default());
             }
         }
-        let id = ui_client_start_server(first_arg, cmdargs.size, argv.as_mut_ptr());
+        let id = ui_client_start_server(crate::memory::cstr_from_ptr(first_arg), &argv);
         g_st().ui_client_error_exit = -1;
         id
     } else {
-        let is_tcp = !socket_address_tcp_host_end(first_arg).is_null();
-        let mut err: *const c_char = ptr::null();
+        let first_arg_cstr = crate::memory::cstr_from_ptr(first_arg);
+        let is_tcp = socket_address_tcp_host_end(first_arg_cstr.to_bytes()).is_some();
+        let mut err: Option<&CStr> = None;
         let on_data = CallbackReader::none();
-        let id = channel_connect(is_tcp, first_arg, true, on_data, 50, &mut err);
-        if !err.is_null() {
+        let id = channel_connect(
+            is_tcp,
+            first_arg_cstr,
+            true,
+            on_data,
+            50,
+            &mut err,
+        );
+        if let Some(err_cstr) = err {
             logmsg!(
                 LOGLVL_ERR,
                 ptr::null(),
@@ -580,7 +578,7 @@ pub fn ui_client_attach_to_restarted_server(error_restart: bool) {
                 true,
                 c"cannot connect to server %s: %s",
                 first_arg,
-                err,
+                err_cstr.as_ptr(),
             );
             cleanup();
             return;

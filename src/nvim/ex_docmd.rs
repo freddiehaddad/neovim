@@ -9374,7 +9374,7 @@ fn ex_restart(eap: &mut Exarg) {
 
         let channel = channel_job_start(
             argv_vec,
-            exepath,
+            crate::memory::cstr_as_opt_cstr(exepath),
             on_stdout,
             on_err,
             on_exit,
@@ -9386,8 +9386,7 @@ fn ex_restart(eap: &mut Exarg) {
             (&raw const g_st().globaldir)
                 .as_ref()
                 .unwrap()
-                .as_ref()
-                .map_or(ptr::null(), |s| s.as_ptr()),
+                .as_deref(),
             0,
             0,
             env,

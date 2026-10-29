@@ -17,7 +17,7 @@ use crate::os::time::os_hrtime;
 use crate::path::path_tail;
 use crate::strings::{gettext, vim_snprintf};
 
-use std::ffi::{c_char, c_void};
+use std::ffi::{CStr, c_void};
 use std::ptr;
 
 use crate::event::r#loop::UV_REQ;
@@ -64,7 +64,7 @@ pub struct addrinfo {
     pub ai_addrlen: usize,
     #[cfg(target_os = "linux")]
     pub ai_addr: *mut c_void,
-    pub ai_canonname: *mut c_char,
+    pub ai_canonname: *mut u8,
     #[cfg(not(target_os = "linux"))]
     pub ai_addr: *mut c_void,
     pub ai_next: *mut addrinfo,
@@ -75,7 +75,7 @@ pub struct UvSocketHandle(pub [u8; 640]);
 
 #[repr(C)]
 pub struct SocketWatcher {
-    pub addr: [c_char; ADDRESS_MAX_SIZE],
+    pub addr: [u8; ADDRESS_MAX_SIZE],
     pub uv: UvSocketHandle,
     pub tcp_addrinfo: *mut addrinfo,
     pub events: *mut MultiQueue,
@@ -94,6 +94,16 @@ impl SocketWatcher {
     #[inline]
     pub fn stream_ptr(&mut self) -> *mut uv_stream_t {
         (&raw mut self.uv).cast()
+    }
+
+    #[inline]
+    pub fn addr_cstr(&self) -> &CStr {
+        CStr::from_bytes_until_nul(&self.addr).unwrap_or(c"")
+    }
+
+    #[inline]
+    pub fn addr_bytes(&self) -> &[u8] {
+        self.addr_cstr().to_bytes()
     }
 }
 
@@ -148,145 +158,126 @@ fn poll_main_loop_until<F: FnMut() -> bool>(timeout: i64, mut cond: F) {
     }
 }
 
-/// Checks if an address string looks like a TCP endpoint, and returns the end of the host part.
-pub fn socket_address_tcp_host_end(address: impl crate::strings::IntoCCharPtr) -> *mut c_char {
-    let address = address.into_c_char_ptr();
-    if address.is_null() {
-        return ptr::null_mut();
-    }
+/// Checks if an address string looks like a TCP endpoint, and returns the byte offset of the `:` separator.
+pub fn socket_address_tcp_host_end(address: &[u8]) -> Option<usize> {
+    // Windows drive letter path: "X:/..." is a local path, not TCP.
+    if address.first().is_some_and(u8::is_ascii_alphabetic)
+        && address.get(1) == Some(&b':')
+        && address.get(2) == Some(&b'/')
     {
-        // Windows drive letter path: "X:/..." is a local path, not TCP.
-        let b0 = crate::memory::cstr_first_byte(address);
-        if b0.is_ascii_alphabetic()
-            && crate::memory::cstr_byte_at(address, 1) == b':'
-            && crate::memory::cstr_byte_at(address, 2) == b'/'
-        {
-            return ptr::null_mut();
-        }
-
-        let colon = crate::memory::cstr_as_bytes(address)
-            .iter()
-            .rposition(|&b| b == b':')
-            .map_or(ptr::null_mut(), |i| address.wrapping_add(i).cast_mut());
-        if !colon.is_null() && colon != address.cast_mut() {
-            colon
-        } else {
-            ptr::null_mut()
-        }
+        return None;
     }
+
+    address.iter().rposition(|&b| b == b':').filter(|&i| i != 0)
 }
 
 pub fn socket_watcher_init(
     loop_: &mut Loop,
     watcher: &mut SocketWatcher,
-    endpoint: impl crate::strings::IntoCCharPtr,
+    endpoint: &CStr,
 ) -> i32 {
-    let endpoint = endpoint.into_c_char_ptr();
-    {
-        let addr = watcher.addr.as_mut_ptr();
-        xstrlcpy(addr, endpoint, ADDRESS_MAX_SIZE);
-        let host_end = socket_address_tcp_host_end(addr);
-        let uv_ptr: *mut c_void = (&raw mut watcher.uv).cast();
+    xstrlcpy(
+        watcher.addr.as_mut_ptr().cast(),
+        endpoint.as_ptr(),
+        ADDRESS_MAX_SIZE,
+    );
+    let host_end_idx = socket_address_tcp_host_end(watcher.addr_bytes());
+    let uv_ptr: *mut c_void = (&raw mut watcher.uv).cast();
 
-        if !host_end.is_null() {
-            unsafe {
-                *host_end = NUL;
-            }
-            let mut port = host_end.wrapping_add(1);
-            let mut port_scan = port;
-            let mut iport: i64 = 0;
+    if let Some(colon_idx) = host_end_idx {
+        watcher.addr[colon_idx] = 0;
+        let addr = watcher.addr.as_ptr().cast();
+        let mut port = watcher.addr.as_mut_ptr().wrapping_add(colon_idx + 1).cast();
+        let mut port_scan = port;
+        let mut iport: i64 = 0;
 
-            let ok = try_getdigits(&raw mut port_scan, &mut iport);
-            if !ok || iport < 0 || iport > i64::from(u16::MAX) {
-                logmsg!(
-                    LOGLVL_ERR,
-                    std::ptr::null(),
-                    c"socket_watcher_init",
-                    line!() as i32,
-                    true,
-                    c"Invalid port: %s",
-                    port,
-                );
-                return UV_EINVAL;
-            }
-
-            if crate::memory::cstr_is_empty(port) {
-                port = ptr::null_mut();
-            }
-
-            let mut request = UvGetaddrinfoReq([0; 512]);
-            let hints = addrinfo {
-                ai_flags: 0,
-                ai_family: AF_UNSPEC,
-                ai_socktype: SOCK_STREAM,
-                ai_protocol: 0,
-                ai_addrlen: 0,
-                ai_addr: ptr::null_mut(),
-                ai_canonname: ptr::null_mut(),
-                ai_next: ptr::null_mut(),
-            };
-
-            let retval = unsafe {
-                uv_getaddrinfo(
-                    (&raw mut loop_.uv).cast(),
-                    (&raw mut request).cast(),
-                    ptr::null_mut(),
-                    addr,
-                    port,
-                    &raw const hints,
-                )
-            };
-            if retval != 0 {
-                logmsg!(
-                    LOGLVL_ERR,
-                    std::ptr::null(),
-                    c"socket_watcher_init",
-                    line!() as i32,
-                    true,
-                    c"Host lookup failed: %s",
-                    endpoint,
-                );
-                return retval;
-            }
-            watcher.tcp_addrinfo =
-                unsafe { *getaddrinfo_req_addrinfo_ptr((&raw mut request).cast()) };
-
-            unsafe { uv_tcp_init((&raw mut loop_.uv).cast(), uv_ptr.cast()) };
-            unsafe { uv_tcp_nodelay(uv_ptr.cast(), 1) };
-        } else {
-            unsafe { uv_pipe_init((&raw mut loop_.uv).cast(), uv_ptr.cast(), 0) };
+        let ok = try_getdigits(&raw mut port_scan, &mut iport);
+        if !ok || iport < 0 || iport > i64::from(u16::MAX) {
+            logmsg!(
+                LOGLVL_ERR,
+                std::ptr::null(),
+                c"socket_watcher_init",
+                line!() as i32,
+                true,
+                c"Invalid port: %s",
+                port,
+            );
+            return UV_EINVAL;
         }
 
-        unsafe {
-            *watcher.stream_ptr().cast::<*mut SocketWatcher>() = (&raw mut *watcher);
+        if crate::memory::cstr_is_empty(port) {
+            port = ptr::null_mut();
         }
-        watcher.events = ptr::null_mut();
 
-        0
+        let mut request = UvGetaddrinfoReq([0; 512]);
+        let hints = addrinfo {
+            ai_flags: 0,
+            ai_family: AF_UNSPEC,
+            ai_socktype: SOCK_STREAM,
+            ai_protocol: 0,
+            ai_addrlen: 0,
+            ai_addr: ptr::null_mut(),
+            ai_canonname: ptr::null_mut(),
+            ai_next: ptr::null_mut(),
+        };
+
+        let retval = unsafe {
+            uv_getaddrinfo(
+                (&raw mut loop_.uv).cast(),
+                (&raw mut request).cast(),
+                ptr::null_mut(),
+                addr,
+                port,
+                &raw const hints,
+            )
+        };
+        if retval != 0 {
+            logmsg!(
+                LOGLVL_ERR,
+                std::ptr::null(),
+                c"socket_watcher_init",
+                line!() as i32,
+                true,
+                c"Host lookup failed: %s",
+                endpoint.as_ptr(),
+            );
+            return retval;
+        }
+        watcher.tcp_addrinfo =
+            unsafe { *getaddrinfo_req_addrinfo_ptr((&raw mut request).cast()) };
+
+        unsafe { uv_tcp_init((&raw mut loop_.uv).cast(), uv_ptr.cast()) };
+        unsafe { uv_tcp_nodelay(uv_ptr.cast(), 1) };
+    } else {
+        unsafe { uv_pipe_init((&raw mut loop_.uv).cast(), uv_ptr.cast(), 0) };
     }
+
+    unsafe {
+        *watcher.stream_ptr().cast::<*mut SocketWatcher>() = (&raw mut *watcher);
+    }
+    watcher.events = ptr::null_mut();
+
+    0
 }
 
 /// Check if a socket is alive by attempting to connect to it.
-fn socket_alive(loop_: &mut Loop, addr: impl crate::strings::IntoCCharPtr) -> bool {
-    let addr = addr.into_c_char_ptr();
-    {
-        let mut stream = RStream::new();
-        let mut error: *const c_char = std::ptr::null();
+fn socket_alive(loop_: &mut Loop, addr: &CStr) -> bool {
+    let mut stream = RStream::new();
+    let mut error = None;
 
-        let stream_ptr = &mut stream;
-        let connected = socket_connect(loop_, stream_ptr, false, addr, 500, &mut error);
-        if !connected {
-            return false;
-        }
-
-        let mut closed = false;
-        let closed_ptr: *mut bool = &raw mut closed;
-        stream.s.internal_data = StreamInternalData::Closed(closed_ptr);
-        stream_may_close(&mut stream.s);
-        poll_main_loop_until(-1, || unsafe { ptr::read_volatile(closed_ptr) });
-
-        true
+    let stream_ptr = &mut stream;
+    let connected = socket_connect(loop_, stream_ptr, false, addr, 500, &mut error);
+    if !connected {
+        return false;
     }
+
+    let mut closed = false;
+    let closed_ptr: *mut bool = &raw mut closed;
+    stream.s.internal_data = StreamInternalData::Closed(closed_ptr);
+    stream_may_close(&mut stream.s);
+    poll_main_loop_until(-1, || unsafe { ptr::read_volatile(closed_ptr) });
+
+    true
 }
 
 unsafe extern "C" fn early_server_close_cb(handle: *mut uv_handle_t) {
@@ -298,7 +289,8 @@ unsafe extern "C" fn early_server_close_cb(handle: *mut uv_handle_t) {
 
 pub fn socket_watcher_start(watcher: &mut SocketWatcher, backlog: i32) -> i32 {
     unsafe {
-        let addr = watcher.addr.as_mut_ptr();
+        let addr_len = watcher.addr_bytes().len();
+        let addr = watcher.addr.as_mut_ptr().cast();
         let uv_ptr: *mut c_void = (&raw mut watcher.uv).cast();
         let mut result: i32 = UV_EINVAL;
 
@@ -317,10 +309,9 @@ pub fn socket_watcher_start(watcher: &mut SocketWatcher, backlog: i32) -> i32 {
                     let mut sas_len = size_of::<SockaddrStorage>() as i32;
                     uv_tcp_getsockname(uv_ptr.cast(), (&raw mut sas).cast(), &mut sas_len);
                     let port = u16::from_be_bytes([sas.bytes[2], sas.bytes[3]]);
-                    let len = crate::memory::cstr_len(addr);
                     vim_snprintf!(
-                        addr.wrapping_add(len),
-                        ADDRESS_MAX_SIZE - len,
+                        watcher.addr.as_mut_ptr().wrapping_add(addr_len).cast(),
+                        ADDRESS_MAX_SIZE - addr_len,
                         c":%u",
                         u32::from(port),
                     );
@@ -333,7 +324,7 @@ pub fn socket_watcher_start(watcher: &mut SocketWatcher, backlog: i32) -> i32 {
             result = uv_pipe_bind2(
                 uv_ptr.cast(),
                 addr,
-                crate::memory::cstr_len(addr),
+                addr_len,
                 UV_PIPE_NO_TRUNCATE,
             );
 
@@ -342,7 +333,7 @@ pub fn socket_watcher_start(watcher: &mut SocketWatcher, backlog: i32) -> i32 {
                 let uv_loop = uv_handle_get_loop(watcher.stream_ptr().cast());
                 let loop_ = *uv_loop.cast::<*mut Loop>();
 
-                if !socket_alive(&mut *loop_, addr) {
+                if !socket_alive(&mut *loop_, watcher.addr_cstr()) {
                     let rm_result = os_remove(addr);
 
                     if rm_result != 0 {
@@ -372,7 +363,7 @@ pub fn socket_watcher_start(watcher: &mut SocketWatcher, backlog: i32) -> i32 {
                         result = uv_pipe_bind2(
                             uv_ptr.cast(),
                             addr,
-                            crate::memory::cstr_len(addr),
+                            addr_len,
                             UV_PIPE_NO_TRUNCATE,
                         );
                     }
@@ -482,11 +473,10 @@ pub fn socket_connect(
     loop_: &mut Loop,
     stream: &mut RStream,
     is_tcp: bool,
-    address: impl crate::strings::IntoCCharPtr,
+    address: & std::ffi::CStr,
     timeout: i32,
-    error: *mut *const c_char,
+    error: &mut Option<&'static std::ffi::CStr>,
 ) -> bool {
-    let address = address.into_c_char_ptr();
     unsafe {
         let mut success = false;
         let mut closed = false;
@@ -505,23 +495,23 @@ pub fn socket_connect(
         let addr_req_ptr = (&raw mut addr_req).cast::<uv_getaddrinfo_t>();
         *getaddrinfo_req_addrinfo_ptr(addr_req_ptr) = ptr::null_mut();
         let mut cur_addrinfo: *const addrinfo = std::ptr::null();
-        let mut addr_buf: Vec<c_char> = Vec::new();
+        let mut addr_buf: Vec<u8> = Vec::new();
 
         'cleanup: {
             if is_tcp {
-                let addr_slice =
-                    std::slice::from_raw_parts(address, crate::memory::cstr_len(address) + 1);
-                addr_buf.extend_from_slice(addr_slice);
-                let addr = addr_buf.as_mut_ptr();
-                let host_end = crate::memory::cstr_as_bytes(addr)
+                addr_buf.extend_from_slice(address.to_bytes_with_nul());
+                let Some(colon_idx) = addr_buf[..addr_buf.len() - 1]
                     .iter()
                     .rposition(|&b| b == b':')
-                    .map_or(ptr::null_mut(), |i| addr.wrapping_add(i));
-                if host_end.is_null() {
-                    *error = gettext(c"tcp address must be host:port");
+                else {
+                    *error = Some(crate::memory::cstr_from_ptr(gettext(
+                        c"tcp address must be host:port",
+                    )));
                     break 'cleanup;
-                }
-                *host_end = NUL;
+                };
+                addr_buf[colon_idx] = 0;
+                let addr = addr_buf.as_ptr().cast();
+                let port = addr_buf.as_ptr().wrapping_add(colon_idx + 1).cast();
 
                 let hints = addrinfo {
                     ai_flags: AI_NUMERICSERV,
@@ -538,11 +528,13 @@ pub fn socket_connect(
                     addr_req_ptr,
                     ptr::null_mut(),
                     addr,
-                    host_end.wrapping_add(1),
+                    port,
                     &raw const hints,
                 );
                 if retval != 0 {
-                    *error = gettext(c"failed to lookup host or port");
+                    *error = Some(crate::memory::cstr_from_ptr(gettext(
+                        c"failed to lookup host or port",
+                    )));
                     break 'cleanup;
                 }
                 cur_addrinfo = *getaddrinfo_req_addrinfo_ptr(addr_req_ptr);
@@ -557,7 +549,7 @@ pub fn socket_connect(
                 } else {
                     let pipe: *mut uv_pipe_t = uv_ptr.cast();
                     uv_pipe_init((&raw mut loop_.uv).cast(), pipe, 0);
-                    uv_pipe_connect(req_ptr, pipe, address, Some(connect_cb));
+                    uv_pipe_connect(req_ptr, pipe, address.as_ptr(), Some(connect_cb));
                 }
                 stream_init(ptr::null_mut(), &mut *s_ptr, -1, true);
                 (*fields).internal_data = StreamInternalData::Closed(closed_ptr);
@@ -575,7 +567,9 @@ pub fn socket_connect(
                         cur_addrinfo = (*cur_addrinfo).ai_next;
                         continue;
                     } else {
-                        *error = gettext(c"connection refused");
+                        *error = Some(crate::memory::cstr_from_ptr(gettext(
+                            c"connection refused",
+                        )));
                         break;
                     }
                 }
@@ -595,11 +589,9 @@ mod tests {
 
     #[test]
     fn socket_address_tcp_host_end_detects_tcp_and_rejects_drive_letters() {
-        assert!(socket_address_tcp_host_end(std::ptr::null()).is_null());
-        assert!(socket_address_tcp_host_end(c"C:/tmp/nvim.sock").is_null());
-        assert!(socket_address_tcp_host_end(c"/tmp/nvim.sock").is_null());
-        let s = c"127.0.0.1:6666".as_ptr();
-        let host_end = socket_address_tcp_host_end(s);
-        assert_eq!(host_end, s.wrapping_add(9).cast_mut());
+        assert_eq!(socket_address_tcp_host_end(b""), None);
+        assert_eq!(socket_address_tcp_host_end(b"C:/tmp/nvim.sock"), None);
+        assert_eq!(socket_address_tcp_host_end(b"/tmp/nvim.sock"), None);
+        assert_eq!(socket_address_tcp_host_end(b"127.0.0.1:6666"), Some(9));
     }
 }

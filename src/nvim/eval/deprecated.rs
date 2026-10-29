@@ -85,7 +85,7 @@ pub fn f_rpcstart(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDat
 
     let chan = channel_job_start(
         argv,
-        std::ptr::null(),
+        None,
         callback_reader_init(),
         callback_reader_init(),
         callback_none(),
@@ -94,14 +94,14 @@ pub fn f_rpcstart(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDat
         false,
         false,
         K_CHANNEL_STDIN_PIPE,
-        std::ptr::null(),
+        None,
         0,
         0,
         std::ptr::null_mut(),
         rettv.vval.v_number_mut(),
     );
     if !chan.is_null() {
-        channel_create_event(unsafe { &mut *chan }, std::ptr::null());
+        channel_create_event(unsafe { &mut *chan });
     }
 }
 

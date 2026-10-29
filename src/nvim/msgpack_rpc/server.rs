@@ -10,7 +10,7 @@ use crate::event::socket::{
 use crate::extmark::{K_FALSE, K_NONE, K_TRUE, TriState};
 use crate::globals::*;
 use crate::log::{LOGLVL_ERR, LOGLVL_WRN, logmsg};
-use crate::memory::{cstr_to_cstring, xstrlcpy};
+use crate::memory::xstrlcpy;
 use crate::os::env::{os_env_exists, os_get_pid, os_getenv_cstr, os_unsetenv};
 use crate::os::stdpaths::get_appname;
 use crate::path::{fix_fname, to_slash, to_slash_save};
@@ -123,7 +123,7 @@ fn set_vservername(srvs: &[*mut SocketWatcher]) {
     unsafe {
         let default_server = srvs
             .first()
-            .map_or(ptr::null(), |&first| (*first).addr.as_ptr());
+            .map_or(ptr::null(), |&first| (*first).addr_cstr().as_ptr());
         set_vim_var_string(VV_SEND_SERVER, default_server, -1);
     }
 }
@@ -189,7 +189,7 @@ pub fn server_owns_pipe_address(address: &CStr) -> bool {
     unsafe {
         let path = fix_fname(address.as_ptr());
         for &watcher in watchers_mut().iter() {
-            let addr = fix_fname((*watcher).addr.as_ptr());
+            let addr = fix_fname((*watcher).addr_cstr().as_ptr());
             if path == addr {
                 return true;
             }
@@ -226,7 +226,7 @@ pub fn server_start(addr: Option<&CStr>) -> i32 {
         let mut result = socket_watcher_init(
             &mut *ptr::addr_of_mut!(g_st().main_loop).cast(),
             &mut *watcher,
-            endpoint.as_ptr(),
+            endpoint,
         );
         drop(addr_gen);
         if result < 0 {
@@ -236,9 +236,7 @@ pub fn server_start(addr: Option<&CStr>) -> i32 {
 
         let w = watchers_mut();
         for &existing in w.iter() {
-            if crate::memory::cstr_as_bytes((*watcher).addr.as_ptr())
-                == crate::memory::cstr_as_bytes((*existing).addr.as_ptr())
-            {
+            if (*watcher).addr_bytes() == (*existing).addr_bytes() {
                 logmsg!(
                     LOGLVL_ERR,
                     ptr::null(),
@@ -246,7 +244,7 @@ pub fn server_start(addr: Option<&CStr>) -> i32 {
                     184,
                     true,
                     c"Already listening on %s",
-                    (*watcher).addr.as_ptr(),
+                    (*watcher).addr_cstr().as_ptr(),
                 );
                 if uv_handle_get_type((*watcher).stream_ptr().cast()) == UV_TCP {
                     uv_freeaddrinfo((*watcher).tcp_addrinfo.cast());
@@ -266,7 +264,7 @@ pub fn server_start(addr: Option<&CStr>) -> i32 {
                 true,
                 c"Failed to start server: %s: %s",
                 uv_strerror(result),
-                (*watcher).addr.as_ptr(),
+                (*watcher).addr_cstr().as_ptr(),
             );
             socket_watcher_close(&mut *watcher);
             return result;
@@ -292,9 +290,10 @@ pub fn server_stop(endpoint: &CStr, keep_vservername: bool) -> bool {
         let addr_bytes = addr_cstr.to_bytes();
 
         let w = watchers_mut();
-        let Some(idx) = w.iter().position(|&watcher| {
-            addr_bytes == crate::memory::cstr_as_bytes((*watcher).addr.as_ptr())
-        }) else {
+        let Some(idx) = w
+            .iter()
+            .position(|&watcher| addr_bytes == (*watcher).addr_bytes())
+        else {
             logmsg!(
                 LOGLVL_WRN,
                 ptr::null(),
@@ -324,7 +323,7 @@ pub fn server_address_list() -> Vec<std::ffi::CString> {
     unsafe {
         watchers_mut()
             .iter()
-            .map(|&watcher| cstr_to_cstring((*watcher).addr.as_ptr()))
+            .map(|&watcher| (*watcher).addr_cstr().to_owned())
             .collect()
     }
 }
