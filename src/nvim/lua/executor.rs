@@ -942,7 +942,7 @@ unsafe extern "C-unwind" fn nlua_ex_docmd(lstate: *mut lua_State) -> i32 {
 unsafe extern "C-unwind" fn nlua_os_exit(lstate: *mut lua_State) -> i32 {
     unsafe {
         if nlua_st().in_fast_callback > 0 {
-            return luaL_error(lstate, E_FAST_API_DISABLED.as_ptr(), c"os.exit");
+            return luaL_error(lstate, E_FAST_API_DISABLED.as_ptr(), c"os.exit".as_ptr());
         }
 
         let mut status: i32 = 0;
@@ -1634,7 +1634,7 @@ pub unsafe extern "C-unwind" fn nlua_call(lstate: *mut lua_State) -> i32 {
 unsafe extern "C-unwind" fn nlua_rpcrequest(lstate: *mut lua_State) -> i32 {
     unsafe {
         if !nlua_is_deferred_safe() {
-            return luaL_error(lstate, E_FAST_API_DISABLED.as_ptr(), c"rpcrequest");
+            return luaL_error(lstate, E_FAST_API_DISABLED.as_ptr(), c"rpcrequest".as_ptr());
         }
         nlua_rpc(lstate, true)
     }

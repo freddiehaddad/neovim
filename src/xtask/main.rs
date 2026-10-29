@@ -629,7 +629,7 @@ fn run_lua_tests(
         .env("LC_ALL", "en_US.UTF-8")
         .env("NVIM_LOG_FILE", &log_file)
         .env("NVIM_PRG", norm_slashes(nvim_bin))
-        .env("TMPDIR", &tmp_dir)
+        .env("TMPDIR", norm_slashes(&tmp_dir))
         .env("HISTFILE", "/dev/null")
         .env("SYSTEM_NAME", system_name())
         .env("NVIM_TEST_SOURCE_DIR", norm_slashes(root))
@@ -639,6 +639,11 @@ fn run_lua_tests(
         .env_remove("TMUX");
     if !cfg!(target_os = "windows") {
         cmd.env("SHELL", "sh");
+    } else if let Ok(path) = env::var("PATH") {
+        let git_usr_bin = Path::new(r"C:\Program Files\Git\usr\bin");
+        if git_usr_bin.is_dir() && !path.to_ascii_lowercase().contains(r"git\usr\bin") {
+            cmd.env("PATH", format!("{path};{}", git_usr_bin.display()));
+        }
     }
 
     cmd.arg("-l")
