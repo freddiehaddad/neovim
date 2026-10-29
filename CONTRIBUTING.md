@@ -135,9 +135,10 @@ cargo xtask format      # runs cargo fmt and stylua
 ### Navigate
 
 - Use **[rust-analyzer]** for Rust IDE support and **[lua-language-server]** / **[EmmyLua]** for Lua files.
-- Set `blame.ignoreRevsFile` to ignore noisy formatting commits in `git blame`:
+- Configure local Git settings for `git blame` and `:help` diff hunk headers:
   ```bash
   git config blame.ignoreRevsFile .git-blame-ignore-revs
+  git config diff.helphelp.xfuncname '^.*\*[.a-zA-Z0-9_()\-]+\*$'
   ```
 
 ### Lua runtime files
