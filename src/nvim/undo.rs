@@ -3108,7 +3108,7 @@ mod tests {
             g_st().emsg_skip += 1;
 
             let mut cwd_buf = [0u8; MAXPATHL];
-            assert!(os_dirname(cwd_buf.as_mut_ptr().cast(), MAXPATHL));
+            assert!(os_dirname(cwd_buf.as_mut_ptr(), MAXPATHL));
             let cwd = CStr::from_bytes_until_nul(&cwd_buf)
                 .unwrap()
                 .to_str()

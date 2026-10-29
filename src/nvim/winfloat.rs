@@ -555,7 +555,7 @@ pub fn win_float_update_preview(wp: &mut WinInfoInfo) {
     // Title is the previewed file's name, only known once it is loaded.
     if wp.w_config.border && !wp.buf_mut().b_fname.is_null() {
         let mut dirname = [0u8; MAXPATHL];
-        os_dirname(dirname.as_mut_ptr().cast(), MAXPATHL);
+        os_dirname(dirname.as_mut_ptr(), MAXPATHL);
         shorten_buf_fname(wp.buf_mut(), dirname.as_mut_ptr().cast(), 0);
 
         wp.w_config.title_chunks.clear();

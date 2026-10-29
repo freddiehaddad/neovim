@@ -668,7 +668,7 @@ fn scandir_next_with_dots(dir: Option<&mut Directory>) -> *const c_char {
             c"..".as_ptr()
         };
     }
-    os_scandir_next(dir)
+    os_scandir_next(dir).map_or(ptr::null(), |s| s.as_ptr())
 }
 
 fn path_expand(
@@ -2043,14 +2043,9 @@ pub fn path_fix_case(name: *mut c_char) {
     }
 
     let taillen = crate::memory::cstr_len(tail);
-    loop {
-        let entry = os_scandir_next(&mut dir);
-        if entry.is_null() {
-            break;
-        }
-        if crate::memory::cstr_as_bytes(tail)
-            .eq_ignore_ascii_case(crate::memory::cstr_as_bytes(entry))
-            && taillen == crate::memory::cstr_len(entry)
+    while let Some(entry) = os_scandir_next(&mut dir) {
+        if crate::memory::cstr_as_bytes(tail).eq_ignore_ascii_case(entry.to_bytes())
+            && taillen == entry.to_bytes().len()
         {
             let mut newname = [0 as c_char; MAXPATHL + 1];
             let tail_off = crate::memory::ptr_offset_from(tail, name) as usize;
@@ -2064,7 +2059,7 @@ pub fn path_fix_case(name: *mut c_char) {
             if os_fileinfo_link(newname.as_ptr(), &mut file_info_new)
                 && os_fileinfo_id_equal(&file_info, &file_info_new)
             {
-                unsafe { ptr::copy_nonoverlapping(entry, tail, taillen + 1) };
+                unsafe { ptr::copy_nonoverlapping(entry.as_ptr(), tail, taillen + 1) };
                 break;
             }
         }

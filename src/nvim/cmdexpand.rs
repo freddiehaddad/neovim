@@ -4536,11 +4536,11 @@ fn expand_files_and_dirs(
                     || crate::memory::cstr_first_byte(opt_vars().p_csl) == b'b'))
         {
             for slot in matches.iter_mut() {
-                if slot.as_bytes().contains(&(PATHSEP as u8)) {
+                if slot.as_bytes().contains(&PATHSEP) {
                     let bytes: Vec<u8> = slot
                         .as_bytes()
                         .iter()
-                        .map(|&b| if b == PATHSEP as u8 { b'\\' } else { b })
+                        .map(|&b| if b == PATHSEP { b'\\' } else { b })
                         .collect();
                     *slot = cstr_from_bytes(&bytes);
                 }

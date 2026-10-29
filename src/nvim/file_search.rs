@@ -802,7 +802,7 @@ pub fn vim_findfile(search_ctx: Option<&mut FfSearchCtx>) -> Option<std::ffi::CS
                                 }
 
                                 let mut expand_buf: [u8; MAXPATHL] = [0; MAXPATHL];
-                                if os_dirname(expand_buf.as_mut_ptr().cast(), MAXPATHL) {
+                                if os_dirname(expand_buf.as_mut_ptr(), MAXPATHL) {
                                     let p = path_shorten_fname(
                                         file_path.data,
                                         expand_buf.as_mut_ptr().cast(),

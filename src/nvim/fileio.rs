@@ -4415,11 +4415,8 @@ pub fn readdir_core(
             return false;
         }
 
-        loop {
-            let p = os_scandir_next(&raw mut dir);
-            if p.is_null() {
-                break;
-            }
+        while let Some(p) = os_scandir_next(&raw mut dir) {
+            let p = p.as_ptr();
 
             let mut ignore = crate::memory::cstr_first_byte(p) == b'.'
                 && (crate::memory::cstr_byte_at(p, 1) == 0

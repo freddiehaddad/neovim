@@ -226,7 +226,7 @@ pub fn modify_fname(
                     let mut dirnamelen: usize = 0;
 
                     if c == b'.' as i32 {
-                        os_dirname(dirname.as_mut_ptr().cast(), MAXPATHL);
+                        os_dirname(dirname.as_mut_ptr(), MAXPATHL);
                         if has_homerelative {
                             let s_cstr = cstr_to_cstring(dirname.as_ptr().cast());
                             dirnamelen = home_replace(
@@ -507,7 +507,7 @@ pub fn f_chdir(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) 
 
     // Return the current directory
     let mut cwd = vec![0u8; MAXPATHL];
-    if os_dirname(cwd.as_mut_ptr().cast(), MAXPATHL) {
+    if os_dirname(cwd.as_mut_ptr(), MAXPATHL) {
         #[cfg(windows)]
         slash_adjust(cwd.as_mut_ptr().cast());
         crate::eval::typval::tv_set_string(
@@ -990,7 +990,7 @@ pub fn f_getcwd(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData)
                 cur_scope = K_CD_SCOPE_INVALID;
             }
         }
-        if cur_scope == K_CD_SCOPE_INVALID && !os_dirname(cwd.as_mut_ptr().cast(), MAXPATHL) {
+        if cur_scope == K_CD_SCOPE_INVALID && !os_dirname(cwd.as_mut_ptr(), MAXPATHL) {
             from = Some(c""); // Return empty string on failure.
         }
 

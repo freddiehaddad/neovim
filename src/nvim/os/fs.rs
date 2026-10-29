@@ -31,7 +31,7 @@ use crate::strings::gettext;
 #[cfg(unix)]
 use crate::strings::strerror;
 use crate::ui::ui_call_chdir;
-use std::ffi::{CStr, c_char, c_void};
+use std::ffi::{CStr, c_void};
 use std::ptr;
 
 pub(crate) const MAXPATHL: usize = 4096;
@@ -256,7 +256,7 @@ pub(crate) const O_BINARY: i32 = 0x8000;
 pub(crate) const ENV_SEPCHAR: u8 = if cfg!(windows) { b';' } else { b':' };
 #[cfg_attr(not(windows), cfg(test))]
 pub(crate) const ENV_SEPSTR: &CStr = if cfg!(windows) { c";" } else { c":" };
-pub(crate) const PATHSEP: c_char = b'/' as c_char;
+pub(crate) const PATHSEP: u8 = b'/';
 pub(crate) const PATHSEPSTR: &CStr = c"/";
 #[cfg(not(windows))]
 const F_GETFD: i32 = 1;
@@ -285,7 +285,7 @@ pub struct NvimStats {
 
 #[repr(C)]
 pub struct uv_dirent_t {
-    pub name: *const c_char,
+    pub name: *const u8,
     pub r#type: i32,
 }
 
@@ -414,14 +414,13 @@ unsafe extern "C" {
     fn readv(fd: i32, iov: *const iovec, iovcnt: i32) -> isize;
 
     #[cfg(target_os = "linux")]
-    fn listxattr(path: *const c_char, list: *mut c_char, size: usize) -> isize;
+    fn listxattr(path: *const u8, list: *mut u8, size: usize) -> isize;
     #[cfg(target_os = "linux")]
-    fn getxattr(path: *const c_char, name: *const c_char, value: *mut c_void, size: usize)
-    -> isize;
+    fn getxattr(path: *const u8, name: *const u8, value: *mut c_void, size: usize) -> isize;
     #[cfg(target_os = "linux")]
     fn setxattr(
-        path: *const c_char,
-        name: *const c_char,
+        path: *const u8,
+        name: *const u8,
         value: *const c_void,
         size: usize,
         flags: i32,
@@ -503,20 +502,21 @@ pub fn os_chdir(path: impl crate::strings::IntoCCharPtr) -> i32 {
 }
 
 /// Get the name of current directory.
-pub fn os_dirname(buf: *mut c_char, mut len: usize) -> bool {
-    let error_number = unsafe { uv_cwd(buf, &mut len) };
+pub fn os_dirname<T>(buf: *mut T, mut len: usize) -> bool {
+    let error_number = unsafe { uv_cwd(buf.cast(), &mut len) };
     if error_number != 0 {
-        xstrlcpy(buf, unsafe { uv_strerror(error_number) }, len);
+        xstrlcpy(buf.cast(), unsafe { uv_strerror(error_number) }, len);
         return false;
     }
-    to_slash(buf);
+    to_slash(buf.cast());
     true
 }
 
 /// Get the current working directory as an owned `CString` (`os_dirname_cstr`).
 pub fn os_dirname_cstr() -> Option<std::ffi::CString> {
-    let mut cwd = [0 as c_char; MAXPATHL];
-    os_dirname(cwd.as_mut_ptr(), MAXPATHL).then(|| crate::memory::cstr_to_cstring(cwd.as_ptr()))
+    let mut cwd = [0u8; MAXPATHL];
+    os_dirname(cwd.as_mut_ptr(), MAXPATHL)
+        .then(|| crate::memory::cstr_to_cstring(cwd.as_ptr().cast()))
 }
 
 /// Check if the given path is a directory and not a symlink to a directory.
@@ -585,9 +585,9 @@ pub fn os_nodetype(name: impl crate::strings::IntoCCharPtr) -> i32 {
 }
 
 /// Gets the absolute path of the currently running executable.
-pub fn os_exepath(buffer: *mut c_char, size: &mut usize) -> i32 {
-    let r = unsafe { uv_exepath(buffer, size) };
-    to_slash(buffer);
+pub fn os_exepath(buffer: *mut u8, size: &mut usize) -> i32 {
+    let r = unsafe { uv_exepath(buffer.cast(), size) };
+    to_slash(buffer.cast());
     r
 }
 
@@ -657,20 +657,24 @@ fn is_executable_ext(
             (ptr::null(), 0)
         };
 
-        let buf = (&raw mut g_st().os_buf).cast::<c_char>();
-        xstrlcpy(buf, name, MAXPATHL);
-        let buf_end = buf.wrapping_add(crate::memory::cstr_len(buf));
-        let mut pathext_buf = [0 as c_char; MAXPATHL];
-        let mut pathext: *const c_char =
-            os_getenv_buf(c"PATHEXT", pathext_buf.as_mut_ptr(), pathext_buf.len());
+        let buf = (&raw mut g_st().os_buf).cast::<u8>();
+        xstrlcpy(buf.cast(), name, MAXPATHL);
+        let buf_end = buf.wrapping_add(crate::memory::cstr_len(buf.cast()));
+        let mut pathext_buf = [0u8; MAXPATHL];
+        let mut pathext: *const u8 = os_getenv_buf(
+            c"PATHEXT",
+            pathext_buf.as_mut_ptr().cast(),
+            pathext_buf.len(),
+        )
+        .cast();
         if pathext.is_null() {
-            pathext = c".com;.exe;.bat;.cmd".as_ptr();
+            pathext = c".com;.exe;.bat;.cmd".as_ptr().cast();
         }
         let mut ext = pathext;
         while unsafe { *ext } != 0 {
-            if crate::memory::cstr_first_byte(ext) == b'.'
-                && (crate::memory::cstr_byte_at(ext, 1) == 0
-                    || (crate::memory::cstr_byte_at(ext, 1)) == ENV_SEPCHAR)
+            if crate::memory::cstr_first_byte(ext.cast()) == b'.'
+                && (crate::memory::cstr_byte_at(ext.cast(), 1) == 0
+                    || (crate::memory::cstr_byte_at(ext.cast(), 1)) == ENV_SEPCHAR)
             {
                 if is_executable(name, abspath.as_deref_mut()) {
                     return true;
@@ -682,18 +686,19 @@ fn is_executable_ext(
                 continue;
             }
 
-            let mut ext_end = ext.cast_mut();
+            let mut ext_end = ext.cast_mut().cast();
             let rem = MAXPATHL - ((buf_end as usize) - (buf as usize));
-            let ext_len = copy_option_part(&raw mut ext_end, buf_end, rem, ENV_SEPSTR);
+            let ext_len = copy_option_part(&raw mut ext_end, buf_end.cast(), rem, ENV_SEPSTR);
             if ext_len != 0 {
-                let in_pathext = nameext_len == ext_len && mb_strnicmp(nameext, ext, ext_len) == 0;
+                let in_pathext =
+                    nameext_len == ext_len && mb_strnicmp(nameext, ext.cast(), ext_len) == 0;
                 if ((in_pathext || is_unix_shell) && is_executable(name, abspath.as_deref_mut()))
-                    || is_executable(buf, abspath.as_deref_mut())
+                    || is_executable(buf.cast(), abspath.as_deref_mut())
                 {
                     return true;
                 }
             }
-            ext = ext_end;
+            ext = ext_end.cast();
         }
         false
     }
@@ -720,28 +725,28 @@ fn is_executable_in_path(
         };
 
         #[cfg(windows)]
-        let path_vec: Vec<c_char> = {
+        let path_vec: Vec<u8> = {
             let sh_tail = crate::memory::cstr_as_bytes(path_tail(opt_vars().p_sh));
             let env_bytes = path_env.as_bytes_with_nul();
             if !os_env_exists(c"NoDefaultCurrentDirectoryInExePath", false)
                 && sh_tail.windows(7).any(|w| w == b"cmd.exe")
             {
                 let mut v = Vec::with_capacity(env_bytes.len() + 2);
-                v.push(b'.' as c_char);
-                v.push(b';' as c_char);
-                v.extend(env_bytes.iter().map(|&b| b as c_char));
+                v.push(b'.');
+                v.push(b';');
+                v.extend_from_slice(env_bytes);
                 v
             } else {
-                env_bytes.iter().map(|&b| b as c_char).collect()
+                env_bytes.to_vec()
             }
         };
         #[cfg(windows)]
         let path = path_vec.as_ptr();
         #[cfg(not(windows))]
-        let path = path_env.as_ptr();
+        let path = path_env.as_ptr().cast::<u8>();
 
-        let bufsize = crate::memory::cstr_len(name) + crate::memory::cstr_len(path) + 2;
-        let mut buf_vec = vec![0 as c_char; bufsize];
+        let bufsize = crate::memory::cstr_len(name) + crate::memory::cstr_len(path.cast()) + 2;
+        let mut buf_vec = vec![0u8; bufsize];
         let buf = buf_vec.as_mut_ptr();
 
         let mut p = path;
@@ -749,21 +754,18 @@ fn is_executable_in_path(
         loop {
             let e = {
                 let _s = p;
-                let _b = crate::memory::cstr_as_bytes(_s);
-                let _off = _b
-                    .iter()
-                    .position(|&_x| _x == (ENV_SEPCHAR as c_char) as u8)
-                    .unwrap_or(_b.len());
+                let _b = crate::memory::cstr_as_bytes(_s.cast());
+                let _off = _b.iter().position(|&_x| _x == ENV_SEPCHAR).unwrap_or(_b.len());
                 _s.wrapping_add(_off).cast_mut()
             };
-            crate::memory::cstr_ncpy(buf, p, (e as usize) - (p as usize));
-            let _ = append_path(buf, name, bufsize);
+            crate::memory::cstr_ncpy(buf.cast(), p.cast(), (e as usize) - (p as usize));
+            let _ = append_path(buf.cast(), name, bufsize);
 
-            if is_executable_ext(buf, abspath.as_deref_mut()) {
+            if is_executable_ext(buf.cast(), abspath.as_deref_mut()) {
                 rv = true;
                 break;
             }
-            if (crate::memory::cstr_first_byte(e)) != ENV_SEPCHAR {
+            if (crate::memory::cstr_first_byte(e.cast())) != ENV_SEPCHAR {
                 break;
             }
             p = e.wrapping_add(1);
@@ -1227,20 +1229,20 @@ pub fn os_copy_xattr(
         if from_file.is_null() {
             return;
         }
-        let mut size = listxattr(from_file, ptr::null_mut(), 0);
+        let mut size = listxattr(from_file.cast(), ptr::null_mut(), 0);
         if size <= 0 {
             return;
         }
-        let mut xattr_buf = vec![0 as c_char; size as usize];
-        size = listxattr(from_file, xattr_buf.as_mut_ptr(), size as usize);
+        let mut xattr_buf = vec![0u8; size as usize];
+        size = listxattr(from_file.cast(), xattr_buf.as_mut_ptr(), size as usize);
         let tsize = size;
 
         let ep = errno_ptr();
         *ep = 0;
 
         let mut max_vallen: isize = 0;
-        let mut val_buf: Vec<c_char> = Vec::new();
-        let mut errmsg: *const c_char = ptr::null();
+        let mut val_buf: Vec<u8> = Vec::new();
+        let mut errmsg: Option<&CStr> = None;
 
         'outer: for round in 0..2 {
             let mut key = xattr_buf.as_ptr();
@@ -1255,30 +1257,30 @@ pub fn os_copy_xattr(
                     ptr::null_mut()
                 };
                 let vallen = getxattr(
-                    from_file,
+                    from_file.cast(),
                     key,
                     val_ptr.cast(),
                     if round != 0 { max_vallen as usize } else { 0 },
                 );
                 if vallen >= 0
                     && round != 0
-                    && setxattr(to_file, key, val_ptr.cast(), vallen as usize, 0) == 0
+                    && setxattr(to_file.cast(), key, val_ptr.cast(), vallen as usize, 0) == 0
                 {
                 } else if *ep != 0 {
                     match *ep {
                         E2BIG => {
-                            errmsg = c"E1508: Size of the extended attribute value is larger than the maximum size allowed".as_ptr();
+                            errmsg = Some(c"E1508: Size of the extended attribute value is larger than the maximum size allowed");
                             break 'outer;
                         }
                         ENOTSUP | EACCES | EPERM => {}
                         ERANGE => {
-                            errmsg = c"E1506: Buffer too small to copy xattr value or key".as_ptr();
+                            errmsg = Some(c"E1506: Buffer too small to copy xattr value or key");
                             break 'outer;
                         }
                         _ => {
-                            errmsg =
-                                c"E1509: Error occurred when reading or writing extended attribute"
-                                    .as_ptr();
+                            errmsg = Some(
+                                c"E1509: Error occurred when reading or writing extended attribute",
+                            );
                             break 'outer;
                         }
                     }
@@ -1288,27 +1290,27 @@ pub fn os_copy_xattr(
                     max_vallen = vallen;
                 }
 
-                let keylen = (crate::memory::cstr_len(key) + 1) as isize;
+                let keylen = (crate::memory::cstr_len(key.cast()) + 1) as isize;
                 size -= keylen;
                 key = key.add(keylen as usize);
             }
             if round != 0 {
                 break;
             }
-            val_buf = vec![0 as c_char; (max_vallen as usize) + 1];
+            val_buf = vec![0u8; (max_vallen as usize) + 1];
         }
 
-        if !errmsg.is_null() {
+        if let Some(errmsg) = errmsg {
             emsg(gettext(errmsg));
         }
     }
 }
 
-pub fn os_get_acl(_fname: *const c_char) -> VimAcl {
+pub fn os_get_acl(_fname: impl crate::strings::IntoCCharPtr) -> VimAcl {
     ptr::null_mut()
 }
 
-pub fn os_set_acl(_fname: *const c_char, _aclent: VimAcl) {}
+pub fn os_set_acl(_fname: impl crate::strings::IntoCCharPtr, _aclent: VimAcl) {}
 
 pub fn os_free_acl(_aclent: VimAcl) {}
 
@@ -1448,24 +1450,24 @@ pub fn os_mkdir_recurse(
     let dir = dir.into_c_char_ptr();
     {
         let dirlen = crate::memory::cstr_len(dir);
-        let mut curdir_vec: Vec<c_char> =
-            unsafe { std::slice::from_raw_parts(dir, dirlen + 1) }.to_vec();
+        let mut curdir_vec: Vec<u8> =
+            unsafe { std::slice::from_raw_parts(dir.cast::<u8>(), dirlen + 1) }.to_vec();
         let curdir = curdir_vec.as_mut_ptr();
-        let past_head = get_past_head(curdir);
+        let past_head: *mut u8 = get_past_head(curdir.cast()).cast();
         let mut e = curdir.wrapping_add(dirlen);
-        let real_end: *const c_char = e;
+        let real_end: *const u8 = e;
         let past_head_save = unsafe { *past_head };
 
-        while !os_isdir(curdir) {
-            e = path_tail_with_sep(curdir);
+        while !os_isdir(curdir.cast()) {
+            e = path_tail_with_sep(curdir.cast()).cast();
             if (e as usize) <= (past_head as usize) {
                 unsafe {
-                    *past_head = NUL;
+                    *past_head = 0;
                 }
                 break;
             }
             unsafe {
-                *e = NUL;
+                *e = 0;
             }
         }
         while !ptr::eq(e, real_end) {
@@ -1478,31 +1480,31 @@ pub fn os_mkdir_recurse(
                     *past_head = past_head_save;
                 }
             }
-            let component_len = crate::memory::cstr_len(e);
+            let component_len = crate::memory::cstr_len(e.cast());
             e = e.wrapping_add(component_len);
             if ptr::eq(e, real_end) && {
-                let _d = unsafe { e.sub(component_len) }.cast::<u8>();
+                let _d = unsafe { e.sub(component_len) };
                 let _sz = component_len;
                 if _sz == 0 {
                     0
                 } else {
                     unsafe { std::slice::from_raw_parts(_d, _sz) }
                         .iter()
-                        .filter(|&&_b| _b == (PATHSEP) as u8)
+                        .filter(|&&_b| _b == PATHSEP)
                         .count()
                 }
             } == component_len
             {
                 break;
             }
-            let ret = os_mkdir(curdir, mode);
+            let ret = os_mkdir(curdir.cast(), mode);
             if ret != 0 {
-                *failed_dir = Some(cstr_to_cstring(curdir));
+                *failed_dir = Some(cstr_to_cstring(curdir.cast()));
                 return ret;
             } else if let Some(ref mut c_out) = created
                 && c_out.is_none()
             {
-                **c_out = FullName_save(curdir, false);
+                **c_out = FullName_save(curdir.cast(), false);
             }
         }
         0
@@ -1510,7 +1512,8 @@ pub fn os_mkdir_recurse(
 }
 
 /// Create the parent directory of a file if it does not exist.
-pub fn os_file_mkdir(fname: *mut c_char, mode: i32) -> i32 {
+pub fn os_file_mkdir(fname: impl crate::strings::IntoCCharPtr, mode: i32) -> i32 {
+    let fname = fname.into_c_char_ptr().cast_mut();
     if !dir_of_file_exists(fname) {
         let tail = path_tail_with_sep(fname);
         let last_char = tail
@@ -1542,7 +1545,7 @@ pub fn os_file_mkdir(fname: *mut c_char, mode: i32) -> i32 {
 }
 
 /// Create a unique temporary directory.
-pub fn os_mkdtemp(templ: impl crate::strings::IntoCCharPtr, path: *mut c_char) -> i32 {
+pub fn os_mkdtemp<T>(templ: impl crate::strings::IntoCCharPtr, path: *mut T) -> i32 {
     let templ = templ.into_c_char_ptr();
     {
         let mut request: uv_fs_buf_t = [0; 80];
@@ -1550,11 +1553,11 @@ pub fn os_mkdtemp(templ: impl crate::strings::IntoCCharPtr, path: *mut c_char) -
             unsafe { uv_fs_mkdtemp(ptr::null_mut(), &raw mut request, templ, ptr::null()) };
         if result == 0 {
             xstrlcpy(
-                path,
+                path.cast(),
                 unsafe { uv_fs_get_path(&raw const request) },
                 TEMP_FILE_PATH_MAXLEN,
             );
-            to_slash(path);
+            to_slash(path.cast());
         }
         unsafe { uv_fs_req_cleanup((&raw mut request).cast()) };
         result
@@ -1589,7 +1592,7 @@ pub fn os_scandir(dir: &mut Directory, path: impl crate::strings::IntoCCharPtr) 
 }
 
 /// Increments the directory pointer.
-pub fn os_scandir_next(dir: *mut Directory) -> *const c_char {
+pub fn os_scandir_next(dir: *mut Directory) -> Option<&'static CStr> {
     let req = dir.cast::<uv_fs_buf_t>();
     let ent = dir
         .cast::<u8>()
@@ -1597,9 +1600,10 @@ pub fn os_scandir_next(dir: *mut Directory) -> *const c_char {
         .cast::<uv_dirent_t>();
     let err = unsafe { uv_fs_scandir_next(req, ent) };
     if err != UV_EOF {
-        unsafe { (*ent).name }
+        let name = unsafe { (*ent).name };
+        (!name.is_null()).then(|| unsafe { CStr::from_ptr(name.cast()) })
     } else {
-        ptr::null()
+        None
     }
 }
 
@@ -1636,9 +1640,9 @@ pub fn os_fileinfo2(path: impl crate::strings::IntoCCharPtr, info: &mut FileInfo
         return true;
     }
     #[cfg(windows)]
-    let mut p: *const c_char = path_skip_sep(path, false);
+    let mut p = path_skip_sep(path, false);
     #[cfg(not(windows))]
-    let p: *const c_char = path_skip_sep(path, false);
+    let p = path_skip_sep(path, false);
     let leading_slashes = (p as usize) - (path as usize);
 
     #[cfg(windows)]
@@ -1797,19 +1801,15 @@ pub fn os_fileid_equal(file_id_1: &FileID, file_id_2: &FileID) -> bool {
 }
 
 /// Return the canonicalized absolute pathname.
-pub fn os_realpath(
-    name: impl crate::strings::IntoCCharPtr,
-    buf: *mut c_char,
-    len: usize,
-) -> *mut c_char {
+pub fn os_realpath<T>(name: impl crate::strings::IntoCCharPtr, buf: *mut T, len: usize) -> *mut T {
     let name = name.into_c_char_ptr();
     unsafe {
         assert!(!buf.is_null());
         let mut request: uv_fs_buf_t = [0; 80];
         let result = uv_fs_realpath(ptr::null_mut(), &raw mut request, name, ptr::null());
         if result == 0 {
-            xstrlcpy(buf, uv_fs_get_ptr(&raw const request).cast(), len);
-            to_slash(buf);
+            xstrlcpy(buf.cast(), uv_fs_get_ptr(&raw const request).cast(), len);
+            to_slash(buf.cast());
         }
         uv_fs_req_cleanup((&raw mut request).cast());
         if result == 0 { buf } else { ptr::null_mut() }
@@ -1822,11 +1822,11 @@ pub fn os_realpath_cstr(
     len: usize,
 ) -> Option<std::ffi::CString> {
     let name = name.into_c_char_ptr();
-    let mut buf = vec![0 as c_char; len];
+    let mut buf = vec![0u8; len];
     if os_realpath(name, buf.as_mut_ptr(), len).is_null() {
         None
     } else {
-        Some(cstr_to_cstring(buf.as_ptr()))
+        Some(cstr_to_cstring(buf.as_ptr().cast()))
     }
 }
 
@@ -1886,7 +1886,7 @@ pub fn os_resolve_shortcut(fname: impl crate::strings::IntoCCharPtr) -> Option<s
                                 semsg!(c"utf16_to_utf8 failed: %d", r2);
                             } else if let Some(cstr) = rfname_cstr {
                                 let mut v = cstr.into_bytes_with_nul();
-                                to_slash(v.as_mut_ptr().cast::<c_char>());
+                                to_slash(v.as_mut_ptr().cast());
                                 rfname = Some(std::ffi::CString::from_vec_with_nul(v).unwrap());
                             }
                         }
@@ -2007,11 +2007,11 @@ mod tests {
             .lock()
             .unwrap_or_else(|e| e.into_inner());
         {
-            let mut cwd = [0 as c_char; MAXPATHL];
+            let mut cwd = [0u8; MAXPATHL];
             assert!(os_dirname(cwd.as_mut_ptr(), MAXPATHL));
-            let cwd_len = crate::memory::cstr_len(cwd.as_ptr());
+            let cwd_len = crate::memory::cstr_len(cwd.as_ptr().cast());
             assert!(cwd_len > 0);
-            let mut tiny = [0 as c_char; 4];
+            let mut tiny = [0u8; 4];
             assert!(!os_dirname(tiny.as_mut_ptr(), cwd_len.min(3)));
 
             // os_chdir("~") fails and leaves cwd unchanged
@@ -2024,7 +2024,7 @@ mod tests {
             assert!(!os_isdir(c"/non-existing-directory-xyz"));
             assert!(os_isdir(c"."));
             assert!(os_isdir(c".."));
-            assert!(os_isdir(cwd.as_ptr()));
+            assert!(os_isdir(cwd.as_ptr().cast()));
 
             assert_eq!(os_nodetype(c"non-existing-file-xyz"), NODE_NORMAL);
             #[cfg(not(windows))]
@@ -2056,9 +2056,9 @@ mod tests {
             .lock()
             .unwrap_or_else(|e| e.into_inner());
         {
-            let mut cwd_buf = [0 as c_char; MAXPATHL];
+            let mut cwd_buf = [0u8; MAXPATHL];
             assert!(os_dirname(cwd_buf.as_mut_ptr(), MAXPATHL));
-            let cwd = crate::memory::cstr_from_ptr(cwd_buf.as_ptr())
+            let cwd = crate::memory::cstr_from_ptr(cwd_buf.as_ptr().cast())
                 .to_str()
                 .unwrap();
             let base = format!("{cwd}/target/ut_fs_{}", std::process::id());

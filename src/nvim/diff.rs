@@ -1246,7 +1246,7 @@ pub fn ex_diffpatch(eap: &mut Exarg) {
         let mut dirbuf: [u8; MAXPATHL] = [0; MAXPATHL];
         #[cfg(unix)]
         {
-            if !crate::os::fs::os_dirname(dirbuf.as_mut_ptr().cast(), MAXPATHL)
+            if !crate::os::fs::os_dirname(dirbuf.as_mut_ptr(), MAXPATHL)
                 || crate::os::fs::os_chdir(dirbuf.as_ptr().cast()) != 0
             {
                 dirbuf[0] = 0;

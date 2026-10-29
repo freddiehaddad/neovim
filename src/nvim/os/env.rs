@@ -589,7 +589,7 @@ pub fn init_homedir() {
         }
 
         if (crate::memory::cstr_is_empty(var))
-            && os_dirname((&raw mut g_st().os_buf).cast(), MAXPATHL)
+            && os_dirname(&raw mut g_st().os_buf, MAXPATHL)
         {
             var = (&raw mut g_st().os_buf).cast();
         }

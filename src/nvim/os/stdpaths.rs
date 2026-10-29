@@ -259,9 +259,7 @@ pub fn stdpaths_user_state_subpath(
         }
         out.push(b);
     }
-    for _ in 0..trailing_pathseps {
-        out.push(PATHSEP as u8);
-    }
+    out.extend(std::iter::repeat_n(PATHSEP, trailing_pathseps));
     cstr_from_bytes(&out)
 }
 
@@ -273,7 +271,7 @@ mod tests {
     fn state_subpath_escapes_commas_and_appends_separators() {
         let p = stdpaths_user_state_subpath(c"a,b", 2, true);
         let s = p.as_bytes();
-        let expected_suffix = [b'/', b'a', b'\\', b',', b'b', PATHSEP as u8, PATHSEP as u8];
+        let expected_suffix = [b'/', b'a', b'\\', b',', b'b', PATHSEP, PATHSEP];
         assert!(s.ends_with(&expected_suffix));
     }
 }

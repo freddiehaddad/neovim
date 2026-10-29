@@ -1870,7 +1870,7 @@ fn init_path(exename: impl crate::strings::IntoCCharPtr) {
     let exename = exename.into_c_char_ptr();
     let mut exepath = [0u8; MAXPATHL];
     let mut exepathlen: usize = MAXPATHL;
-    if os_exepath(exepath.as_mut_ptr().cast(), &mut exepathlen) != 0 {
+    if os_exepath(exepath.as_mut_ptr(), &mut exepathlen) != 0 {
         path_guess_exepath(exename, exepath.as_mut_ptr().cast(), exepath.len());
     }
     set_vim_var_string(VV_PROGPATH, exepath.as_ptr().cast(), -1);
