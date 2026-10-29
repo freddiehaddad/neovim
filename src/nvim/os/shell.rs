@@ -957,7 +957,7 @@ fn do_os_system(
 
             if has_input {
                 let input_buffer = wstream_new_vec_buffer(
-                    unsafe { std::slice::from_raw_parts(input, len) }.to_vec(),
+                    unsafe { std::slice::from_raw_parts(input.cast::<u8>(), len) }.to_vec(),
                 );
                 if wstream_write(s_in, input_buffer) != 0 {
                     proc_stop(&raw mut *proc_);

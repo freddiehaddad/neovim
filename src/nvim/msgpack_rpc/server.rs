@@ -15,7 +15,7 @@ use crate::os::env::{os_env_exists, os_get_pid, os_getenv_cstr, os_unsetenv};
 use crate::os::stdpaths::get_appname;
 use crate::path::{fix_fname, to_slash, to_slash_save};
 use crate::strings::vim_snprintf;
-use std::ffi::{CStr, c_char};
+use std::ffi::CStr;
 use std::ptr;
 
 #[cfg(not(windows))]
@@ -141,7 +141,7 @@ pub fn server_teardown() {
 pub fn server_address_new(name: impl crate::strings::IntoCCharPtr) -> std::ffi::CString {
     let name = name.into_c_char_ptr();
     {
-        let mut fmt: [c_char; ADDRESS_MAX_SIZE] = [0; ADDRESS_MAX_SIZE];
+        let mut fmt: [u8; ADDRESS_MAX_SIZE] = [0; ADDRESS_MAX_SIZE];
         let cur_count = srv_st().server_addr_count;
         srv_st().server_addr_count = srv_st().server_addr_count.wrapping_add(1);
 
@@ -154,7 +154,7 @@ pub fn server_address_new(name: impl crate::strings::IntoCCharPtr) -> std::ffi::
                 ptr::addr_of!(g_st().name_buff).cast()
             };
             vim_snprintf!(
-                fmt.as_mut_ptr(),
+                fmt.as_mut_ptr().cast(),
                 fmt.len(),
                 c"//./pipe/%s.%llu.%u",
                 app,
@@ -173,7 +173,7 @@ pub fn server_address_new(name: impl crate::strings::IntoCCharPtr) -> std::ffi::
                 ptr::addr_of!(g_st().name_buff).cast()
             };
             vim_snprintf!(
-                fmt.as_mut_ptr(),
+                fmt.as_mut_ptr().cast(),
                 fmt.len(),
                 c"%s/%s.%llu.%u",
                 dir.as_ref().map_or(ptr::null(), |s| s.as_ptr()),
@@ -183,6 +183,7 @@ pub fn server_address_new(name: impl crate::strings::IntoCCharPtr) -> std::ffi::
             )
         };
 
+        let addr_cstr = CStr::from_bytes_until_nul(&fmt).unwrap_or(c"");
         if (r as usize) >= fmt.len() {
             logmsg!(
                 LOGLVL_ERR,
@@ -191,10 +192,10 @@ pub fn server_address_new(name: impl crate::strings::IntoCCharPtr) -> std::ffi::
                 133,
                 true,
                 c"truncated server address: %.40s...",
-                fmt.as_ptr(),
+                addr_cstr.as_ptr(),
             );
         }
-        crate::memory::cstr_to_cstring(fmt.as_ptr())
+        addr_cstr.to_owned()
     }
 }
 
@@ -299,15 +300,16 @@ pub fn server_start(addr: impl crate::strings::IntoCCharPtr) -> i32 {
 pub fn server_stop(endpoint: impl crate::strings::IntoCCharPtr, keep_vservername: bool) -> bool {
     let endpoint = endpoint.into_c_char_ptr();
     unsafe {
-        let mut addr: [c_char; ADDRESS_MAX_SIZE] = [0; ADDRESS_MAX_SIZE];
+        let mut addr: [u8; ADDRESS_MAX_SIZE] = [0; ADDRESS_MAX_SIZE];
 
-        xstrlcpy(addr.as_mut_ptr(), endpoint, addr.len());
-        to_slash(addr.as_mut_ptr());
+        xstrlcpy(addr.as_mut_ptr().cast(), endpoint, addr.len());
+        to_slash(addr.as_mut_ptr().cast());
+        let addr_cstr = CStr::from_bytes_until_nul(&addr).unwrap_or(c"");
+        let addr_bytes = addr_cstr.to_bytes();
 
         let w = watchers_mut();
         let Some(idx) = w.iter().position(|&watcher| {
-            crate::memory::cstr_as_bytes(addr.as_ptr())
-                == crate::memory::cstr_as_bytes((*watcher).addr.as_ptr())
+            addr_bytes == crate::memory::cstr_as_bytes((*watcher).addr.as_ptr())
         }) else {
             logmsg!(
                 LOGLVL_WRN,
@@ -316,7 +318,7 @@ pub fn server_stop(endpoint: impl crate::strings::IntoCCharPtr, keep_vservername
                 238,
                 true,
                 c"Not listening on %s",
-                addr.as_ptr(),
+                addr_cstr.as_ptr(),
             );
             return false;
         };
@@ -325,8 +327,7 @@ pub fn server_stop(endpoint: impl crate::strings::IntoCCharPtr, keep_vservername
         socket_watcher_close(&mut *watcher);
 
         if !keep_vservername
-            && (crate::memory::cstr_as_opt_bytes(addr.as_ptr())
-                == crate::memory::cstr_as_opt_bytes(get_vim_var_str(VV_SEND_SERVER)))
+            && Some(addr_bytes) == crate::memory::cstr_as_opt_bytes(get_vim_var_str(VV_SEND_SERVER))
         {
             set_vservername(w);
         }

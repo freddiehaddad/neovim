@@ -416,7 +416,8 @@ pub(crate) fn receive_msgpack(
 
         if eof {
             let msg = format!("ch {} was closed by the peer\0", channel.id);
-            chan_close_on_err(channel, msg.as_ptr().cast::<c_char>(), LOGLVL_INF);
+            let msg_cstr = std::ffi::CStr::from_bytes_with_nul(msg.as_bytes()).unwrap();
+            chan_close_on_err(channel, msg_cstr, LOGLVL_INF);
         }
 
         channel_decref(channel);
@@ -465,7 +466,8 @@ fn parse_msgpack(channel: &mut Channel) {
                         channel.rpc.client_type as u32,
                         (*p).request_id
                     );
-                    chan_close_on_err(channel, msg.as_ptr().cast::<c_char>(), LOGLVL_ERR);
+                    let msg_cstr = std::ffi::CStr::from_bytes_with_nul(msg.as_bytes()).unwrap();
+                    chan_close_on_err(channel, msg_cstr, LOGLVL_ERR);
                     return;
                 };
                 if (*p).request_id != frame.request_id {
@@ -475,7 +477,8 @@ fn parse_msgpack(channel: &mut Channel) {
                         channel.rpc.client_type as u32,
                         (*p).request_id
                     );
-                    chan_close_on_err(channel, msg.as_ptr().cast::<c_char>(), LOGLVL_ERR);
+                    let msg_cstr = std::ffi::CStr::from_bytes_with_nul(msg.as_bytes()).unwrap();
+                    chan_close_on_err(channel, msg_cstr, LOGLVL_ERR);
                     return;
                 }
 
@@ -504,8 +507,8 @@ fn parse_msgpack(channel: &mut Channel) {
         }
 
         if unpacker_closed(&*p) {
-            let msg_ptr = (*p).unpack_error.msg_ptr();
-            chan_close_on_err(channel, msg_ptr, LOGLVL_INF);
+            let msg_cstr = crate::memory::cstr_from_ptr((*p).unpack_error.msg_ptr());
+            chan_close_on_err(channel, msg_cstr, LOGLVL_INF);
             api_clear_error(&mut (*p).unpack_error);
         }
     }
@@ -650,9 +653,10 @@ fn channel_write(channel: &mut Channel, buffer: std::rc::Rc<WBuffer>) -> bool {
             "ch {}: stream write failed: {err_str}. RPC canceled; closing channel\0",
             channel.id
         );
+        let msg_cstr = std::ffi::CStr::from_bytes_with_nul(msg.as_bytes()).unwrap();
         chan_close_on_err(
             channel,
-            msg.as_ptr().cast::<c_char>(),
+            msg_cstr,
             if err == UV_EPIPE {
                 LOGLVL_INF
             } else {
@@ -776,40 +780,36 @@ pub fn rpc_close_event(channel: Option<&mut Channel>) {
     }
 }
 
-fn chan_close_on_err(channel: &mut Channel, msg: impl crate::strings::IntoCCharPtr, loglevel: i32) {
-    let msg = msg.into_c_char_ptr();
-    {
-        logmsg!(loglevel, c"RPC: ", ptr::null(), -1, true, c"%s", msg,);
-        let p: *mut Unpacker = channel.rpc.unpacker.as_deref_mut().unwrap();
-        let p = unsafe { &mut *p };
+fn chan_close_on_err(channel: &mut Channel, msg: &std::ffi::CStr, loglevel: i32) {
+    let msg = msg.as_ptr();
+    logmsg!(loglevel, c"RPC: ", ptr::null(), -1, true, c"%s", msg,);
+    let p: *mut Unpacker = channel.rpc.unpacker.as_deref_mut().unwrap();
+    let p = unsafe { &mut *p };
 
-        for frame in &channel.rpc.call_stack {
-            if frame.returned.get() {
-                continue;
-            }
-            frame.returned.set(true);
-            frame.errored.set(true);
-            let s = arena_string(&mut p.arena, cstr_as_string(msg));
-            frame.result.set(Object {
-                obj_type: ObjectType::ObjectTypeString,
-                data: ObjectData::String(s),
-            });
-            frame.result_mem.set(arena_finish(&mut p.arena));
+    for frame in &channel.rpc.call_stack {
+        if frame.returned.get() {
+            continue;
         }
-
-        {
-            channel_close(channel.id, K_CHANNEL_PART_RPC_CONST, ptr::null_mut());
-            logmsg!(
-                loglevel,
-                ptr::null(),
-                c"chan_close_on_err",
-                492,
-                true,
-                c"RPC: %s",
-                msg,
-            );
-        }
+        frame.returned.set(true);
+        frame.errored.set(true);
+        let s = arena_string(&mut p.arena, cstr_as_string(msg));
+        frame.result.set(Object {
+            obj_type: ObjectType::ObjectTypeString,
+            data: ObjectData::String(s),
+        });
+        frame.result_mem.set(arena_finish(&mut p.arena));
     }
+
+    channel_close(channel.id, K_CHANNEL_PART_RPC_CONST, ptr::null_mut());
+    logmsg!(
+        loglevel,
+        ptr::null(),
+        c"chan_close_on_err",
+        492,
+        true,
+        c"RPC: %s",
+        msg,
+    );
 }
 
 fn serialize_request(

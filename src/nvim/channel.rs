@@ -784,7 +784,7 @@ pub fn channel_send(id: u64, data: Vec<c_char>, error: *mut *const c_char) -> us
             return 0;
         }
 
-        let buf = wstream_new_vec_buffer(data);
+        let buf = wstream_new_vec_buffer(data.into_iter().map(|c| c as u8).collect());
         if wstream_write(&mut *in_stream, buf) == 0 {
             len
         } else {
@@ -1104,7 +1104,7 @@ pub fn channel_term_write(buf: impl crate::strings::IntoCCharPtr, size: usize, c
         let data = if size == 0 {
             Vec::new()
         } else {
-            unsafe { std::slice::from_raw_parts(buf, size) }.to_vec()
+            unsafe { std::slice::from_raw_parts(buf.cast::<u8>(), size) }.to_vec()
         };
         let wbuf = wstream_new_vec_buffer(data);
         let _ = wstream_write(in_stream, wbuf);

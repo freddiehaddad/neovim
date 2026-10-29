@@ -3,7 +3,6 @@
 use crate::api::private::validate::{Array, NvimString, Object, ObjectData, ObjectType};
 use crate::lua::converter::LUA_NOREF;
 use crate::lua::executor::{api_free_luaref, nlua_funcref_str};
-use std::ffi::c_char;
 
 pub const MPACK_ITEM_SIZE: usize = 9;
 pub(crate) const EXT_OBJECT_TYPE_SHIFT: i32 = ObjectType::ObjectTypeBuffer as i32;
@@ -41,12 +40,12 @@ impl PackerData {
 #[repr(C)]
 #[derive(Clone, Debug)]
 pub struct PackerBuffer {
-    pub startptr: *mut c_char,
-    pub ptr: *mut c_char,
-    pub endptr: *mut c_char,
+    pub startptr: *mut u8,
+    pub ptr: *mut u8,
+    pub endptr: *mut u8,
     pub anydata: PackerData,
     pub anyint: i64,
-    pub owned_buf: Vec<c_char>,
+    pub owned_buf: Vec<u8>,
 }
 
 impl PackerBuffer {
@@ -86,42 +85,42 @@ struct ContainerStackItem {
 }
 
 #[inline]
-pub(crate) fn mpack_w(b: *mut *mut c_char, byte: u8) {
+pub(crate) fn mpack_w(b: *mut *mut u8, byte: u8) {
     unsafe {
-        **b = byte as c_char;
+        **b = byte;
         *b = (*b).wrapping_add(1);
     }
 }
 
 #[inline]
-pub fn mpack_w2(b: *mut *mut c_char, v: u32) {
+pub fn mpack_w2(b: *mut *mut u8, v: u32) {
     let bytes = (v as u16).to_be_bytes();
     unsafe {
-        std::ptr::copy_nonoverlapping(bytes.as_ptr(), (*b).cast::<u8>(), 2);
+        std::ptr::copy_nonoverlapping(bytes.as_ptr(), *b, 2);
         *b = (*b).wrapping_add(2);
     }
 }
 
 #[inline]
-fn mpack_w4(b: *mut *mut c_char, v: u32) {
+fn mpack_w4(b: *mut *mut u8, v: u32) {
     let bytes = v.to_be_bytes();
     unsafe {
-        std::ptr::copy_nonoverlapping(bytes.as_ptr(), (*b).cast::<u8>(), 4);
+        std::ptr::copy_nonoverlapping(bytes.as_ptr(), *b, 4);
         *b = (*b).wrapping_add(4);
     }
 }
 
 #[inline]
-fn mpack_w8(b: *mut *mut c_char, v: u64) {
+fn mpack_w8(b: *mut *mut u8, v: u64) {
     let bytes = v.to_be_bytes();
     unsafe {
-        std::ptr::copy_nonoverlapping(bytes.as_ptr(), (*b).cast::<u8>(), 8);
+        std::ptr::copy_nonoverlapping(bytes.as_ptr(), *b, 8);
         *b = (*b).wrapping_add(8);
     }
 }
 
 #[inline]
-pub(crate) fn mpack_uint(buf: *mut *mut c_char, val: u32) {
+pub(crate) fn mpack_uint(buf: *mut *mut u8, val: u32) {
     if val > 0xffff {
         mpack_w(buf, 0xce);
         mpack_w4(buf, val);
@@ -137,17 +136,17 @@ pub(crate) fn mpack_uint(buf: *mut *mut c_char, val: u32) {
 }
 
 #[inline]
-pub(crate) fn mpack_nil(buf: *mut *mut c_char) {
+pub(crate) fn mpack_nil(buf: *mut *mut u8) {
     mpack_w(buf, 0xc0);
 }
 
 #[inline]
-pub(crate) fn mpack_bool(buf: *mut *mut c_char, val: bool) {
+pub(crate) fn mpack_bool(buf: *mut *mut u8, val: bool) {
     mpack_w(buf, 0xc2 | u8::from(val));
 }
 
 #[inline]
-pub(crate) fn mpack_array(buf: *mut *mut c_char, len: u32) {
+pub(crate) fn mpack_array(buf: *mut *mut u8, len: u32) {
     if len < 0x10 {
         mpack_w(buf, 0x90 | (len as u8));
     } else if len < 0x10000 {
@@ -160,7 +159,7 @@ pub(crate) fn mpack_array(buf: *mut *mut c_char, len: u32) {
 }
 
 #[inline]
-pub(crate) fn mpack_map(buf: *mut *mut c_char, len: u32) {
+pub(crate) fn mpack_map(buf: *mut *mut u8, len: u32) {
     if len < 0x10 {
         mpack_w(buf, 0x80 | (len as u8));
     } else if len < 0x10000 {
@@ -191,7 +190,7 @@ pub fn mpack_check_buffer(packer: &mut PackerBuffer) {
 ///
 /// # Safety
 /// `ptr` and `*ptr` must be valid writable pointers with sufficient space.
-pub fn mpack_uint64(ptr: *mut *mut c_char, i: u64) {
+pub fn mpack_uint64(ptr: *mut *mut u8, i: u64) {
     if i > 0x0fff_ffff {
         mpack_w(ptr, 0xcf);
         mpack_w8(ptr, i);
@@ -204,7 +203,7 @@ pub fn mpack_uint64(ptr: *mut *mut c_char, i: u64) {
 ///
 /// # Safety
 /// `ptr` and `*ptr` must be valid writable pointers with sufficient space.
-pub fn mpack_integer(ptr: *mut *mut c_char, i: Integer) {
+pub fn mpack_integer(ptr: *mut *mut u8, i: Integer) {
     if i >= 0 {
         mpack_uint64(ptr, i as u64);
     } else if i < -0x8000_0000 {
@@ -228,7 +227,7 @@ pub fn mpack_integer(ptr: *mut *mut c_char, i: Integer) {
 ///
 /// # Safety
 /// `ptr` and `*ptr` must be valid writable pointers with sufficient space.
-pub fn mpack_float8(ptr: *mut *mut c_char, i: f64) {
+pub fn mpack_float8(ptr: *mut *mut u8, i: f64) {
     mpack_w(ptr, 0xcb);
     mpack_w8(ptr, i.to_bits());
 }
@@ -253,7 +252,8 @@ pub fn mpack_str(str_val: NvimString, packer: &mut PackerBuffer) {
     } else {
         std::process::abort();
     }
-    mpack_raw(str_val.data, len, packer);
+    let slice = crate::memory::cstr_slice(str_val.data, len);
+    mpack_raw(slice, packer);
 }
 
 /// Pack a msgpack binary blob into `packer` (`mpack_bin`).
@@ -274,30 +274,22 @@ pub fn mpack_bin(str_val: NvimString, packer: &mut PackerBuffer) {
     } else {
         std::process::abort();
     }
-    mpack_raw(str_val.data, len, packer);
+    let slice = crate::memory::cstr_slice(str_val.data, len);
+    mpack_raw(slice, packer);
 }
 
-/// Write raw bytes `data[..len]` into `packer`, flushing as needed (`mpack_raw`).
-///
-/// # Safety
-/// `data` must be valid for `len` bytes when `len > 0`, and `packer` must be valid.
-pub fn mpack_raw(data: impl crate::strings::IntoCCharPtr, len: usize, packer: &mut PackerBuffer) {
-    let data = data.into_c_char_ptr();
+/// Write raw `bytes` into `packer`, flushing as needed (`mpack_raw`).
+pub fn mpack_raw(bytes: &[u8], packer: &mut PackerBuffer) {
+    let len = bytes.len();
     let mut pos = 0usize;
     while pos < len {
         let remaining = mpack_remaining(packer);
         let to_copy = (len - pos).min(remaining);
         if to_copy > 0 {
-            {
-                unsafe {
-                    std::ptr::copy_nonoverlapping(
-                        data.wrapping_add(pos).cast::<u8>(),
-                        packer.ptr.cast::<u8>(),
-                        to_copy,
-                    )
-                };
-                packer.ptr = packer.ptr.wrapping_add(to_copy);
+            unsafe {
+                std::ptr::copy_nonoverlapping(bytes[pos..].as_ptr(), packer.ptr, to_copy);
             }
+            packer.ptr = packer.ptr.wrapping_add(to_copy);
             pos += to_copy;
         }
         if pos < len {
@@ -308,16 +300,8 @@ pub fn mpack_raw(data: impl crate::strings::IntoCCharPtr, len: usize, packer: &m
 }
 
 /// Pack a msgpack ext payload into `packer` (`mpack_ext`).
-///
-/// # Safety
-/// `buf` must be valid for `len` bytes when `len > 0`, and `packer` must be valid.
-pub fn mpack_ext(
-    buf: impl crate::strings::IntoCCharPtr,
-    len: usize,
-    ext_type: i8,
-    packer: &mut PackerBuffer,
-) {
-    let buf = buf.into_c_char_ptr();
+pub fn mpack_ext(bytes: &[u8], ext_type: i8, packer: &mut PackerBuffer) {
+    let len = bytes.len();
     if len == 1 {
         mpack_w(&mut packer.ptr, 0xd4);
     } else if len == 2 {
@@ -334,7 +318,7 @@ pub fn mpack_ext(
         std::process::abort();
     }
     mpack_w(&mut packer.ptr, ext_type as u8);
-    mpack_raw(buf, len, packer);
+    mpack_raw(bytes, packer);
 }
 
 /// Pack a Neovim handle (Buffer/Window/Tabpage) as a msgpack ext object (`mpack_handle`).
@@ -343,29 +327,23 @@ pub fn mpack_ext(
 /// `packer` must be a valid writable pointer to a `PackerBuffer`.
 pub fn mpack_handle(obj_type: ObjectType, handle: ObjHandle, packer: &mut PackerBuffer) {
     let exttype = ((obj_type as i32) - EXT_OBJECT_TYPE_SHIFT) as u8;
-    {
-        if (-0x1f..=0x7f).contains(&handle) {
-            mpack_w(&mut packer.ptr, 0xd4);
-            mpack_w(&mut packer.ptr, exttype);
-            mpack_w(&mut packer.ptr, handle as u8);
-        } else {
-            assert!(handle >= 0);
-            let mut buf = [0 as c_char; MPACK_ITEM_SIZE];
-            let mut pos = buf.as_mut_ptr();
-            mpack_uint(&mut pos, handle as u32);
-            let packsize = (pos as usize) - (buf.as_ptr() as usize);
-            mpack_w(&mut packer.ptr, 0xc7);
-            mpack_w(&mut packer.ptr, packsize as u8);
-            mpack_w(&mut packer.ptr, exttype);
-            unsafe {
-                std::ptr::copy_nonoverlapping(
-                    buf.as_ptr().cast::<u8>(),
-                    packer.ptr.cast::<u8>(),
-                    packsize,
-                )
-            };
-            packer.ptr = packer.ptr.wrapping_add(packsize);
+    if (-0x1f..=0x7f).contains(&handle) {
+        mpack_w(&mut packer.ptr, 0xd4);
+        mpack_w(&mut packer.ptr, exttype);
+        mpack_w(&mut packer.ptr, handle as u8);
+    } else {
+        assert!(handle >= 0);
+        let mut buf = [0u8; MPACK_ITEM_SIZE];
+        let mut pos = buf.as_mut_ptr();
+        mpack_uint(&mut pos, handle as u32);
+        let packsize = (pos as usize) - (buf.as_ptr() as usize);
+        mpack_w(&mut packer.ptr, 0xc7);
+        mpack_w(&mut packer.ptr, packsize as u8);
+        mpack_w(&mut packer.ptr, exttype);
+        unsafe {
+            std::ptr::copy_nonoverlapping(buf.as_ptr(), packer.ptr, packsize);
         }
+        packer.ptr = packer.ptr.wrapping_add(packsize);
     }
 }
 
@@ -509,15 +487,15 @@ fn flush_string_buffer(buffer: &mut PackerBuffer) {
     buffer.endptr = buffer.startptr.wrapping_add(new_capacity);
 }
 
-/// Create a growable `PackerBuffer` backed by `Vec<c_char>` (`packer_string_buffer`).
+/// Create a growable `PackerBuffer` backed by `Vec<u8>` (`packer_string_buffer`).
 pub fn packer_string_buffer() -> PackerBuffer {
     const INITIAL_SIZE: usize = 64;
-    let mut owned_buf = vec![0 as c_char; INITIAL_SIZE];
+    let mut owned_buf = vec![0u8; INITIAL_SIZE];
     let alloc = owned_buf.as_mut_ptr();
     PackerBuffer {
         startptr: alloc,
         ptr: alloc,
-        endptr: { alloc.wrapping_add(INITIAL_SIZE) },
+        endptr: alloc.wrapping_add(INITIAL_SIZE),
         anydata: PackerData::StringBuffer,
         anyint: 0,
         owned_buf,
@@ -530,11 +508,10 @@ pub fn packer_string_buffer() -> PackerBuffer {
 /// `buffer` must be a valid pointer to a `PackerBuffer` created by `packer_string_buffer`.
 pub fn packer_take_string(buffer: &mut PackerBuffer) -> Vec<u8> {
     let len = (buffer.ptr as usize) - (buffer.startptr as usize);
-    let vec = std::mem::take(&mut buffer.owned_buf);
+    let mut bytes = std::mem::take(&mut buffer.owned_buf);
     buffer.startptr = std::ptr::null_mut();
     buffer.ptr = std::ptr::null_mut();
     buffer.endptr = std::ptr::null_mut();
-    let mut bytes: Vec<u8> = vec.into_iter().map(|c| c as u8).collect();
     bytes.truncate(len);
     bytes
 }

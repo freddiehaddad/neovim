@@ -1755,7 +1755,7 @@ fn additional_data_len(src: &Option<AdditionalData>) -> u32 {
 #[inline]
 fn dump_additional_data(src: &Option<AdditionalData>, sbuf: &mut PackerBuffer) {
     if let Some(ad) = src {
-        mpack_raw(ad.bytes.as_ptr(), ad.bytes.len(), sbuf);
+        mpack_raw(&ad.bytes, sbuf);
     }
 }
 
@@ -1773,7 +1773,8 @@ fn shada_pack_entry(
         ShadaEntryType::SDItemMissing => std::process::abort(),
         ShadaEntryType::SDItemUnknown => {
             let ui = entry.data.unknown_item();
-            mpack_raw(ui.contents.as_ptr(), ui.contents.len(), &mut sbuf);
+            let slice = crate::memory::cstr_slice(ui.contents.as_ptr(), ui.contents.len());
+            mpack_raw(slice, &mut sbuf);
         }
         ShadaEntryType::SDItemHistoryEntry => {
             let hi = entry.data.history_item();
@@ -2027,7 +2028,7 @@ fn shada_pack_entry(
         mpack_uint64(&mut packer.ptr, entry.timestamp);
         if !packed.is_empty() {
             mpack_uint64(&mut packer.ptr, packed.len() as u64);
-            mpack_raw(packed.as_ptr().cast::<c_char>(), packed.len(), packer);
+            mpack_raw(&packed, packer);
         }
         if packer.anyint != 0 {
             return ret;
@@ -2565,17 +2566,21 @@ const fn hist_type2char(hist_type: i32) -> i32 {
 
 pub(crate) fn flush_file_buffer(buffer: &mut PackerBuffer) {
     let fd = buffer.anydata.as_file();
-    let base = fd.buffer.as_ptr();
+    let base = fd.buffer.as_ptr().cast::<u8>();
     fd.write_pos = (buffer.ptr as usize).saturating_sub(base as usize);
     buffer.anyint = i64::from(file_flush(fd));
-    buffer.ptr = fd.buffer.as_mut_ptr().wrapping_add(fd.write_pos);
+    buffer.ptr = fd
+        .buffer
+        .as_mut_ptr()
+        .cast::<u8>()
+        .wrapping_add(fd.write_pos);
 }
 
 fn packer_buffer_for_file(file: &mut FileDescriptor) -> PackerBuffer {
     if file_space(&*file) < SHADA_MPACK_FREE_SPACE {
         file_flush(&raw mut *file);
     }
-    let base = file.buffer.as_mut_ptr();
+    let base = file.buffer.as_mut_ptr().cast::<u8>();
     PackerBuffer {
         startptr: base,
         ptr: base.wrapping_add(file.write_pos),
@@ -4127,11 +4132,11 @@ fn shada_read_next_item(
                 if status != 0 {
                     break 'parse_item false;
                 }
-                push_additional_data(
-                    &mut ad,
+                let skipped = crate::memory::cstr_slice(
                     item_start,
                     (read_ptr as usize) - (item_start as usize),
                 );
+                push_additional_data(&mut ad, skipped);
             }
 
             if read_size != 0 {

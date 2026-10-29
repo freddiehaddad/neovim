@@ -894,7 +894,8 @@ impl EncodeBackend<'_> {
                 }
                 Self::Text { .. } => true,
                 Self::Msgpack { packer } => {
-                    mpack_ext(buf, len, ext_type, unsafe { &mut **packer });
+                    let bytes = crate::memory::cstr_slice(buf, len);
+                    mpack_ext(bytes, ext_type, unsafe { &mut **packer });
                     true
                 }
             }

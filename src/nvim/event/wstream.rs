@@ -19,7 +19,7 @@ pub type uv_write_t = c_void;
 
 #[repr(C)]
 pub struct WBuffer {
-    pub data: Vec<c_char>,
+    pub data: Vec<u8>,
 }
 
 impl WBuffer {
@@ -29,7 +29,7 @@ impl WBuffer {
     }
 
     #[inline]
-    pub fn data_ptr(&self) -> *mut c_char {
+    pub fn data_ptr(&self) -> *mut u8 {
         self.data.as_ptr().cast_mut()
     }
 }
@@ -97,7 +97,7 @@ pub fn wstream_write(stream: &mut Stream, buffer: std::rc::Rc<WBuffer>) -> i32 {
         assert!(stream.maxmem != 0);
         assert!(!stream.closed);
 
-        let uvbuf = uv_buf_t::new(buffer.data_ptr(), buffer.size());
+        let uvbuf = uv_buf_t::new(buffer.data_ptr().cast(), buffer.size());
 
         if !stream.has_uvstream {
             let mut req_buf = [0u64; 128];
@@ -142,7 +142,7 @@ pub fn wstream_write(stream: &mut Stream, buffer: std::rc::Rc<WBuffer>) -> i32 {
     }
 }
 
-pub fn wstream_new_vec_buffer(buf: Vec<c_char>) -> std::rc::Rc<WBuffer> {
+pub fn wstream_new_vec_buffer(buf: Vec<u8>) -> std::rc::Rc<WBuffer> {
     std::rc::Rc::new(WBuffer { data: buf })
 }
 

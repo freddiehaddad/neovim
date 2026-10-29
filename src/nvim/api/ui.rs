@@ -115,19 +115,19 @@ fn get_ui_or_err(chan_id: u64, err: &mut Error) -> Option<&'static mut RemoteUI>
     ui
 }
 
-fn mpack_array_dyn16(buf: *mut *mut c_char) -> *mut c_char {
+fn mpack_array_dyn16(buf: *mut *mut u8) -> *mut u8 {
     mpack_w(buf, 0xdc);
     let pos = unsafe { *buf };
     mpack_w2(buf, 0xFFEF);
     pos
 }
 
-fn mpack_str_small(buf: *mut *mut c_char, str_: impl crate::strings::IntoCCharPtr, len: usize) {
+fn mpack_str_small(buf: *mut *mut u8, str_: impl crate::strings::IntoCCharPtr, len: usize) {
     let str_ = str_.into_c_char_ptr();
     unsafe {
         debug_assert!(len < 0x20);
         mpack_w(buf, (0xa0 | len) as u8);
-        ptr::copy_nonoverlapping(str_, *buf, len);
+        ptr::copy_nonoverlapping(str_.cast::<u8>(), *buf, len);
         *buf = (*buf).wrapping_add(len);
     }
 }
@@ -1266,8 +1266,8 @@ pub fn remote_ui_raw_line(
                     mpack_array(buf, csize);
                     let size_byte = *buf;
                     *buf = (*buf).wrapping_add(1);
-                    let len = schar_get_adv(buf, *chunk.wrapping_add(i));
-                    *size_byte = (0xa0 | len) as c_char;
+                    let len = schar_get_adv(buf.cast::<*mut c_char>(), *chunk.wrapping_add(i));
+                    *size_byte = (0xa0 | len) as u8;
                     if csize >= 2 {
                         mpack_uint(buf, *attrs.wrapping_add(i) as u32);
                         if csize >= 3 {
