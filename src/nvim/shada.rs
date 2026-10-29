@@ -1061,7 +1061,7 @@ fn shada_hist_iter(
         *hist = MISSING_ENTRY;
     } else {
         let sep = if (history_type as i32) == HIST_SEARCH {
-            hist_he.sep
+            hist_he.sep as c_char
         } else {
             0
         };
@@ -1182,7 +1182,7 @@ fn hms_to_he_array(
             timestamp: cur_entry.data.timestamp,
             hisnum: (count as i32) + 1,
             hisstr: hi.string.clone(),
-            sep: hi.sep,
+            sep: hi.sep as u8,
             additional_data: cur_entry.data.additional_data.clone(),
         };
         count += 1;

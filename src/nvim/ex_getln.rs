@@ -2435,7 +2435,7 @@ fn command_line_browse_history(s: &mut CommandLineState) -> i32 {
                 let entry = &get_histentry(s.histype)[s.hiscnt as usize];
                 p = entry.hisstr_ptr();
                 plen = entry.hisstrlen() as i32;
-                sep = entry.sep;
+                sep = entry.sep as c_char;
             }
 
             if s.histype == HIST_SEARCH && p != lookfor_ptr && {

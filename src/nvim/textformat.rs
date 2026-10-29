@@ -44,7 +44,7 @@ use crate::textobject::start_ps;
 use crate::ui::ui_cursor_shape;
 use crate::undo::{u_save, u_save_cursor};
 use crate::window::win_fdccol_count;
-use std::ffi::c_char;
+use std::ffi::CStr;
 use std::ptr;
 
 const INSCHAR_DO_COM: i32 = 2;
@@ -196,7 +196,7 @@ pub fn internal_format(
     c: i32,
 ) {
     let mut cc: i32;
-    let mut save_char: c_char = NUL;
+    let mut save_char: u8 = 0;
     let mut haveto_redraw = false;
     let fo_ins_blank = has_format_option(K_FO_INS_BLANK);
     let fo_multibyte = has_format_option(K_FO_MBYTE_BREAK);
@@ -213,8 +213,8 @@ pub fn internal_format(
     if curbuf_mut().b_p_ai == 0 && (g_st().state_global & VREPLACE_FLAG) == 0 {
         cc = gchar_cursor();
         if ascii_iswhite(cc) {
-            save_char = cc as c_char;
-            pchar_cursor(b'x' as c_char);
+            save_char = cc as u8;
+            pchar_cursor(b'x');
         }
     }
 
@@ -223,7 +223,7 @@ pub fn internal_format(
         let mut foundcol: i32;
         let mut end_foundcol: i32 = 0;
         let mut orig_col: i32 = 0;
-        let mut saved_text: Vec<c_char> = Vec::new();
+        let mut saved_text: Vec<u8> = Vec::new();
         let mut col: Colnr;
         let mut did_do_comment = false;
 
@@ -454,9 +454,9 @@ pub fn internal_format(
             let keep_len = (startcol as usize).min(pos_len);
             saved_text.reserve_exact(keep_len + 1);
             saved_text.extend_from_slice(unsafe {
-                std::slice::from_raw_parts(get_cursor_pos_ptr(), keep_len)
+                std::slice::from_raw_parts(get_cursor_pos_ptr().cast::<u8>(), keep_len)
             });
-            saved_text.push(NUL);
+            saved_text.push(0);
             curwin_mut().w_cursor.col = orig_col;
 
             if !fo_white_par {
@@ -504,9 +504,8 @@ pub fn internal_format(
                         change_indent(INDENT_SET, second_indent, 0, true);
                     } else if leader_len > 0 && second_indent - leader_len > 0 {
                         let padding = second_indent - leader_len;
-                        let space = c" ".as_ptr() as *mut c_char;
                         for _ in 0..padding {
-                            ins_str(space, 1);
+                            ins_str(c" ".as_ptr(), 1);
                         }
                     } else {
                         set_indent(second_indent, SIN_CHANGED);
@@ -517,7 +516,7 @@ pub fn internal_format(
         }
 
         if (g_st().state_global & VREPLACE_FLAG) != 0 {
-            ins_bytes(saved_text.as_mut_ptr());
+            ins_bytes(saved_text.as_mut_ptr().cast());
         } else {
             curwin_mut().w_cursor.col += startcol;
             let len = get_cursor_line_len();
@@ -533,7 +532,7 @@ pub fn internal_format(
         line_breakcheck();
     }
 
-    if save_char != NUL {
+    if save_char != 0 {
         pchar_cursor(save_char);
     }
 
@@ -548,29 +547,33 @@ pub fn internal_format(
 fn fmt_check_par(
     lnum: Linenr,
     leader_len: &mut i32,
-    leader_flags: *mut *mut c_char,
+    leader_flags: &mut Option<&'static CStr>,
     do_comments: bool,
 ) -> bool {
-    let mut flags: *mut c_char = ptr::null_mut();
     let ptr = ml_get(lnum);
     if do_comments {
-        *leader_len = get_leader_len(ptr, leader_flags, false, true);
+        let mut raw_flags = ptr::null_mut();
+        *leader_len = get_leader_len(ptr, &raw mut raw_flags, false, true);
+        *leader_flags = crate::memory::cstr_as_opt_cstr(raw_flags);
     } else {
         *leader_len = 0;
+        *leader_flags = None;
     }
 
-    if *leader_len > 0 {
-        flags = unsafe { *leader_flags };
-        while !crate::memory::cstr_is_empty(flags)
-            && crate::memory::cstr_first_byte(flags) != b':'
-            && unsafe { *flags } != COM_END
-        {
-            flags = flags.wrapping_add(1);
-        }
+    let mut is_com_end = false;
+    if *leader_len > 0
+        && let Some(flags_cstr) = *leader_flags
+    {
+        let flags_bytes = flags_cstr.to_bytes();
+        let idx = flags_bytes
+            .iter()
+            .position(|&b| b == b':' || b == COM_END as u8)
+            .unwrap_or(flags_bytes.len());
+        is_com_end = flags_bytes.get(idx) == Some(&(COM_END as u8));
     }
 
     crate::memory::cstr_is_empty(skipwhite(ptr.wrapping_add(*leader_len as usize)))
-        || (*leader_len > 0 && unsafe { *flags } == COM_END)
+        || (*leader_len > 0 && is_com_end)
         || start_ps(lnum, 0, false)
 }
 
@@ -586,82 +589,78 @@ fn ends_in_white(lnum: Linenr) -> bool {
 fn same_leader(
     lnum: Linenr,
     leader1_len: i32,
-    leader1_flags: impl crate::strings::IntoCCharPtr,
+    leader1_flags: Option<&CStr>,
     leader2_len: i32,
-    leader2_flags: impl crate::strings::IntoCCharPtr,
+    leader2_flags: Option<&CStr>,
 ) -> bool {
-    let leader1_flags = leader1_flags.into_c_char_ptr();
-    let leader2_flags = leader2_flags.into_c_char_ptr();
-    {
-        if leader1_len == 0 {
-            return leader2_len == 0;
-        }
-
-        if !leader1_flags.is_null() {
-            let mut p = leader1_flags;
-            while !crate::memory::cstr_is_empty(p) && crate::memory::cstr_first_byte(p) != b':' {
-                if unsafe { *p } == COM_FIRST {
-                    return leader2_len == 0;
-                }
-                if unsafe { *p } == COM_END {
-                    return false;
-                }
-                if unsafe { *p } == COM_START {
-                    let line_len = ml_get_len(lnum);
-                    if line_len <= leader1_len {
-                        return false;
-                    }
-                    if leader2_flags.is_null() || leader2_len == 0 {
-                        return false;
-                    }
-                    let mut p2 = leader2_flags;
-                    while !crate::memory::cstr_is_empty(p2)
-                        && crate::memory::cstr_first_byte(p2) != b':'
-                    {
-                        if unsafe { *p2 } == COM_MIDDLE {
-                            return true;
-                        }
-                        p2 = p2.wrapping_add(1);
-                    }
-                    return false;
-                }
-                p = p.wrapping_add(1);
-            }
-        }
-
-        let line1 =
-            unsafe { std::slice::from_raw_parts(ml_get(lnum), ml_get_len(lnum) as usize + 1) }
-                .to_vec();
-        let mut idx1: i32 = 0;
-        while ascii_iswhite(line1[idx1 as usize] as i32) {
-            idx1 += 1;
-        }
-        let line2 = ml_get(lnum + 1);
-        let mut idx2: i32 = 0;
-        while idx2 < leader2_len {
-            if !ascii_iswhite(crate::memory::cstr_char_at(line2, idx2 as usize)) {
-                let c1 = line1[idx1 as usize];
-                idx1 += 1;
-                if c1 != unsafe { *line2.wrapping_add(idx2 as usize) } {
-                    break;
-                }
-            } else {
-                while ascii_iswhite(line1[idx1 as usize] as i32) {
-                    idx1 += 1;
-                }
-            }
-            idx2 += 1;
-        }
-
-        idx2 == leader2_len && idx1 == leader1_len
+    if leader1_len == 0 {
+        return leader2_len == 0;
     }
+
+    if let Some(f1) = leader1_flags {
+        for &b in f1.to_bytes() {
+            if b == b':' {
+                break;
+            }
+            if b == COM_FIRST as u8 {
+                return leader2_len == 0;
+            }
+            if b == COM_END as u8 {
+                return false;
+            }
+            if b == COM_START as u8 {
+                let line_len = ml_get_len(lnum);
+                if line_len <= leader1_len {
+                    return false;
+                }
+                let Some(f2) = leader2_flags.filter(|_| leader2_len != 0) else {
+                    return false;
+                };
+                for &b2 in f2.to_bytes() {
+                    if b2 == b':' {
+                        break;
+                    }
+                    if b2 == COM_MIDDLE as u8 {
+                        return true;
+                    }
+                }
+                return false;
+            }
+        }
+    }
+
+    let line1 =
+        unsafe { std::slice::from_raw_parts(ml_get(lnum).cast::<u8>(), ml_get_len(lnum) as usize + 1) }
+            .to_vec();
+    let mut idx1: i32 = 0;
+    while ascii_iswhite(i32::from(line1[idx1 as usize])) {
+        idx1 += 1;
+    }
+    let line2 = ml_get(lnum + 1);
+    let mut idx2: i32 = 0;
+    while idx2 < leader2_len {
+        if !ascii_iswhite(crate::memory::cstr_char_at(line2, idx2 as usize)) {
+            let c1 = line1[idx1 as usize];
+            idx1 += 1;
+            if c1 != crate::memory::cstr_byte_at(line2, idx2 as usize) {
+                break;
+            }
+        } else {
+            while ascii_iswhite(i32::from(line1[idx1 as usize])) {
+                idx1 += 1;
+            }
+        }
+        idx2 += 1;
+    }
+
+    idx2 == leader2_len && idx1 == leader1_len
 }
 
 fn paragraph_start(lnum: Linenr) -> bool {
     let mut leader_len: i32 = 0;
-    let mut leader_flags: *mut c_char = ptr::null_mut();
+    let mut leader_flags: Option<&CStr> = None;
     let mut next_leader_len: i32 = 0;
-    let mut next_leader_flags: *mut c_char = ptr::null_mut();
+    let mut next_leader_flags: Option<&CStr> = None;
 
     if lnum <= 1 {
         return true;
@@ -674,7 +673,7 @@ fn paragraph_start(lnum: Linenr) -> bool {
     if fmt_check_par(
         lnum - 1,
         &mut leader_len,
-        &raw mut leader_flags,
+        &mut leader_flags,
         do_comments,
     ) {
         return true;
@@ -683,7 +682,7 @@ fn paragraph_start(lnum: Linenr) -> bool {
     if fmt_check_par(
         lnum,
         &mut next_leader_len,
-        &raw mut next_leader_flags,
+        &mut next_leader_flags,
         do_comments,
     ) {
         return true;
@@ -777,10 +776,12 @@ pub fn auto_format(trailblank: bool, prev_line: bool) {
         let len = get_cursor_line_len();
         if curwin_mut().w_cursor.col == len {
             let mut pline = Vec::with_capacity(len as usize + 2);
-            pline.extend_from_slice(unsafe { std::slice::from_raw_parts(linep, len as usize) });
-            pline.push(b' ' as c_char);
-            pline.push(NUL);
-            ml_replace(curwin_mut().w_cursor.lnum, pline.as_mut_ptr(), true);
+            pline.extend_from_slice(unsafe {
+                std::slice::from_raw_parts(linep.cast::<u8>(), len as usize)
+            });
+            pline.push(b' ');
+            pline.push(0);
+            ml_replace(curwin_mut().w_cursor.lnum, pline.as_mut_ptr().cast(), true);
             tf_st().did_add_space = true;
         } else {
             check_auto_format(false);
@@ -930,8 +931,8 @@ pub fn format_lines(line_count: Linenr, avoid_fex: bool) {
     let mut next_is_start_par = false;
     let mut leader_len: i32 = 0;
     let mut next_leader_len: i32 = 0;
-    let mut leader_flags: *mut c_char = ptr::null_mut();
-    let mut next_leader_flags: *mut c_char = ptr::null_mut();
+    let mut leader_flags: Option<&CStr> = None;
+    let mut next_leader_flags: Option<&CStr> = None;
     let mut advance = true;
     let mut second_indent: i32 = -1;
     let mut first_par_line = true;
@@ -952,7 +953,7 @@ pub fn format_lines(line_count: Linenr, avoid_fex: bool) {
         is_not_par = fmt_check_par(
             curwin_mut().w_cursor.lnum - 1,
             &mut leader_len,
-            &raw mut leader_flags,
+            &mut leader_flags,
             do_comments,
         );
     } else {
@@ -961,7 +962,7 @@ pub fn format_lines(line_count: Linenr, avoid_fex: bool) {
     next_is_not_par = fmt_check_par(
         curwin_mut().w_cursor.lnum,
         &mut next_leader_len,
-        &raw mut next_leader_flags,
+        &mut next_leader_flags,
         do_comments,
     );
     is_end_par = is_not_par || next_is_not_par;
@@ -985,12 +986,12 @@ pub fn format_lines(line_count: Linenr, avoid_fex: bool) {
         if count == 1 || curwin_mut().w_cursor.lnum == curbuf_mut().b_ml.ml_line_count {
             next_is_not_par = true;
             next_leader_len = 0;
-            next_leader_flags = ptr::null_mut();
+            next_leader_flags = None;
         } else {
             next_is_not_par = fmt_check_par(
                 curwin_mut().w_cursor.lnum + 1,
                 &mut next_leader_len,
-                &raw mut next_leader_flags,
+                &mut next_leader_flags,
                 do_comments,
             );
             if do_number_indent {
@@ -1038,8 +1039,7 @@ pub fn format_lines(line_count: Linenr, avoid_fex: bool) {
                     next_leader_len,
                     next_leader_flags,
                 ))
-                && (next_leader_flags.is_null()
-                    || !(crate::memory::cstr_prefix_bytes(next_leader_flags, 3) == &b"://"[..3])
+                && (!next_leader_flags.is_some_and(|f| f.to_bytes().starts_with(b"://"))
                     || check_linecomment(get_cursor_line_ptr()) == MAXCOL)
             {
                 is_end_par = true;

@@ -33,9 +33,9 @@ struct ProfileModuleState {
     g_start_time: Proftime,
     g_prev_time: Proftime,
     pexpand_what: i32,
-    startuptime_buf: Vec<c_char>,
+    startuptime_buf: Vec<u8>,
     profile_fname: Option<CString>,
-    profile_msg_buf: [c_char; 50],
+    profile_msg_buf: [u8; 50],
 }
 
 impl ProfileModuleState {
@@ -221,16 +221,16 @@ pub fn profile_end(tm: Proftime) -> Proftime {
 }
 
 /// Gets a static string representing time `tm` (`profile_msg`).
-pub fn profile_msg(tm: Proftime) -> *const c_char {
+pub fn profile_msg(tm: Proftime) -> &'static CStr {
     let secs = (profile_signed(tm) as f64) / NS_PER_SEC;
     let formatted = format!("{secs:10.6}");
     let bytes = formatted.as_bytes();
     unsafe {
         let buf = &mut *std::ptr::addr_of_mut!(prof_st().profile_msg_buf);
         let copy_len = bytes.len().min(buf.len() - 1);
-        std::ptr::copy_nonoverlapping(bytes.as_ptr(), buf.as_mut_ptr().cast::<u8>(), copy_len);
+        buf[..copy_len].copy_from_slice(&bytes[..copy_len]);
         buf[copy_len] = 0;
-        buf.as_ptr()
+        CStr::from_bytes_until_nul(buf).unwrap_or(c"")
     }
 }
 
@@ -479,12 +479,12 @@ fn prof_func_line(
         if prefer_self && profile_equal(*total, *self_time) {
             fprintf!(fd, c"           ");
         } else {
-            fprintf!(fd, c"%s ", profile_msg(*total));
+            fprintf!(fd, c"%s ", profile_msg(*total).as_ptr());
         }
         if !prefer_self && profile_equal(*total, *self_time) {
             fprintf!(fd, c"           ");
         } else {
-            fprintf!(fd, c"%s ", profile_msg(*self_time));
+            fprintf!(fd, c"%s ", profile_msg(*self_time).as_ptr());
         }
     } else {
         fprintf!(fd, c"                            ");
@@ -661,8 +661,8 @@ fn func_dump_profile(fd: *mut FILE) {
                 } else {
                     fprintf!(fd, c"Called %d times\n", (*fp).uf_tm_count);
                 }
-                fprintf!(fd, c"Total time: %s\n", profile_msg((*fp).uf_tm_total),);
-                fprintf!(fd, c" Self time: %s\n", profile_msg((*fp).uf_tm_self),);
+                fprintf!(fd, c"Total time: %s\n", profile_msg((*fp).uf_tm_total).as_ptr());
+                fprintf!(fd, c" Self time: %s\n", profile_msg((*fp).uf_tm_self).as_ptr());
                 fprintf!(fd, c"\n");
                 fprintf!(fd, c"count  total (s)   self (s)\n");
 
@@ -745,7 +745,7 @@ pub fn script_prof_restore(tm: &Proftime) {
 }
 
 fn script_dump_profile(fd: *mut FILE) {
-    let mut iobuf = [0 as c_char; IOSIZE];
+    let mut iobuf = [0u8; IOSIZE];
     for id in 1..=crate::runtime::script_items_len() {
         let si = script_item(id);
         if si.sn_prof_on {
@@ -755,8 +755,8 @@ fn script_dump_profile(fd: *mut FILE) {
             } else {
                 fprintf!(fd, c"Sourced %d times\n", si.sn_pr_count);
             }
-            fprintf!(fd, c"Total time: %s\n", profile_msg(si.sn_pr_total),);
-            fprintf!(fd, c" Self time: %s\n", profile_msg(si.sn_pr_self),);
+            fprintf!(fd, c"Total time: %s\n", profile_msg(si.sn_pr_total).as_ptr());
+            fprintf!(fd, c" Self time: %s\n", profile_msg(si.sn_pr_self).as_ptr());
             fprintf!(fd, c"\n");
             fprintf!(fd, c"count  total (s)   self (s)\n");
 
@@ -766,15 +766,15 @@ fn script_dump_profile(fd: *mut FILE) {
             } else {
                 let mut i: i32 = 0;
                 loop {
-                    if vim_fgets(iobuf.as_mut_ptr(), IOSIZE as i32, sfd) {
+                    if vim_fgets(iobuf.as_mut_ptr().cast(), IOSIZE as i32, sfd) {
                         break;
                     }
-                    if iobuf[IOSIZE - 2] != 0 && iobuf[IOSIZE - 2] != NL {
+                    if iobuf[IOSIZE - 2] != 0 && iobuf[IOSIZE - 2] != NL as u8 {
                         let mut n = IOSIZE - 2;
-                        while n > 0 && ((iobuf[n] as u8) & 0xc0) == 0x80 {
+                        while n > 0 && (iobuf[n] & 0xc0) == 0x80 {
                             n -= 1;
                         }
-                        iobuf[n] = NL;
+                        iobuf[n] = NL as u8;
                         iobuf[n + 1] = 0;
                     }
                     if (i as usize) < si.sn_prl_ga.len() {
@@ -784,16 +784,16 @@ fn script_dump_profile(fd: *mut FILE) {
                             if profile_equal(pp.sn_prl_total, pp.sn_prl_self) {
                                 fprintf!(fd, c"           ");
                             } else {
-                                fprintf!(fd, c"%s ", profile_msg(pp.sn_prl_total));
+                                fprintf!(fd, c"%s ", profile_msg(pp.sn_prl_total).as_ptr());
                             }
-                            fprintf!(fd, c"%s ", profile_msg(pp.sn_prl_self));
+                            fprintf!(fd, c"%s ", profile_msg(pp.sn_prl_self).as_ptr());
                         } else {
                             fprintf!(fd, c"                            ");
                         }
                     } else {
                         fprintf!(fd, c"                            ");
                     }
-                    fprintf!(fd, c"%s", iobuf.as_ptr());
+                    fprintf!(fd, c"%s", iobuf.as_ptr().cast::<c_char>());
                     i += 1;
                 }
                 unsafe { fclose(sfd) };
@@ -963,7 +963,7 @@ pub fn time_init(
         let r = unsafe {
             setvbuf(
                 fp,
-                prof_st().startuptime_buf.as_mut_ptr(),
+                prof_st().startuptime_buf.as_mut_ptr().cast(),
                 IOFBF,
                 BUFSIZE + 1,
             )
@@ -1009,9 +1009,7 @@ mod tests {
         assert_eq!(profile_cmp(10, 10), 0);
         assert_eq!(profile_cmp(profile_zero(), profile_zero()), 0);
         {
-            let msg = crate::memory::cstr_from_ptr(profile_msg(0))
-                .to_str()
-                .unwrap();
+            let msg = profile_msg(0).to_str().unwrap();
             assert_eq!(msg.trim(), "0.000000");
         }
     }
@@ -1053,10 +1051,7 @@ mod tests {
 
         {
             let endt = profile_end(profile_start());
-            let s = crate::memory::cstr_from_ptr(profile_msg(endt))
-                .to_str()
-                .unwrap()
-                .trim();
+            let s = profile_msg(endt).to_str().unwrap().trim();
             let (secs, _us) = s.split_once('.').unwrap();
             assert_eq!(secs, "0");
         }

@@ -69,7 +69,7 @@ const HISTORY_EXPAND_ARGS: [&CStr; 12] = [
 pub struct Histentry {
     pub hisnum: i32,
     pub hisstr: Option<std::ffi::CString>,
-    pub sep: c_char,
+    pub sep: u8,
     pub timestamp: u64,
     pub additional_data: Option<crate::search::AdditionalData>,
 }
@@ -204,97 +204,84 @@ pub fn init_history() {
     hist_st().hislen = newlen;
 }
 
-fn in_history(
-    hist_type: usize,
-    str_ptr: impl crate::strings::IntoCCharPtr,
-    move_to_front: bool,
-    sep: i32,
-) -> bool {
-    let str_ptr = str_ptr.into_c_char_ptr();
-    {
-        let cur_idx = hist_st().hisidx[hist_type];
-        if cur_idx < 0 {
-            return false;
-        }
-        let hislen = hist_st().hislen;
-        let str_bytes = crate::memory::cstr_as_bytes(str_ptr);
-        let mut last_i: i32 = -1;
-        let mut i = cur_idx;
-
-        loop {
-            let entry = &hist_st().history[hist_type][i as usize];
-            let Some(ref hisstr) = entry.hisstr else {
-                return false;
-            };
-            let p_bytes = hisstr.to_bytes();
-            let sep_matches = (hist_type as i32) != HIST_SEARCH || (sep as c_char) == entry.sep;
-            if str_bytes == p_bytes && sep_matches {
-                if !move_to_front {
-                    return true;
-                }
-                last_i = i;
-                break;
-            }
-            i -= 1;
-            if i < 0 {
-                i = hislen - 1;
-            }
-            if i == cur_idx {
-                break;
-            }
-        }
-
-        if last_i < 0 {
-            return false;
-        }
-
-        let matched = hist_st().history[hist_type][i as usize].clone();
-        while i != hist_st().hisidx[hist_type] {
-            i += 1;
-            if i >= hislen {
-                i = 0;
-            }
-            hist_st().history[hist_type][last_i as usize] =
-                hist_st().history[hist_type][i as usize].clone();
-            last_i = i;
-        }
-        hist_st().hisnum[hist_type] += 1;
-        let dst = &mut hist_st().history[hist_type][i as usize];
-        dst.hisnum = hist_st().hisnum[hist_type];
-        dst.hisstr = matched.hisstr;
-        dst.sep = matched.sep;
-        dst.timestamp = os_time();
-        dst.additional_data = None;
-        true
+fn in_history(hist_type: usize, str_bytes: &[u8], move_to_front: bool, sep: i32) -> bool {
+    let cur_idx = hist_st().hisidx[hist_type];
+    if cur_idx < 0 {
+        return false;
     }
+    let hislen = hist_st().hislen;
+    let mut last_i: i32 = -1;
+    let mut i = cur_idx;
+
+    loop {
+        let entry = &hist_st().history[hist_type][i as usize];
+        let Some(ref hisstr) = entry.hisstr else {
+            return false;
+        };
+        let p_bytes = hisstr.to_bytes();
+        let sep_matches = (hist_type as i32) != HIST_SEARCH || (sep as u8) == entry.sep;
+        if str_bytes == p_bytes && sep_matches {
+            if !move_to_front {
+                return true;
+            }
+            last_i = i;
+            break;
+        }
+        i -= 1;
+        if i < 0 {
+            i = hislen - 1;
+        }
+        if i == cur_idx {
+            break;
+        }
+    }
+
+    if last_i < 0 {
+        return false;
+    }
+
+    let matched = hist_st().history[hist_type][i as usize].clone();
+    while i != hist_st().hisidx[hist_type] {
+        i += 1;
+        if i >= hislen {
+            i = 0;
+        }
+        hist_st().history[hist_type][last_i as usize] =
+            hist_st().history[hist_type][i as usize].clone();
+        last_i = i;
+    }
+    hist_st().hisnum[hist_type] += 1;
+    let dst = &mut hist_st().history[hist_type][i as usize];
+    dst.hisnum = hist_st().hisnum[hist_type];
+    dst.hisstr = matched.hisstr;
+    dst.sep = matched.sep;
+    dst.timestamp = os_time();
+    dst.additional_data = None;
+    true
 }
 
-fn get_histtype(name: impl crate::strings::IntoCCharPtr, len: usize, return_default: bool) -> i32 {
-    let name = name.into_c_char_ptr();
-    {
-        if len == 0 {
-            return if return_default {
-                HIST_DEFAULT
-            } else {
-                hist_char2type(get_cmdline_firstc())
-            };
-        }
-
-        for (i, &hname) in HISTORY_NAMES.iter().enumerate() {
-            if crate::memory::cstr_prefix_bytes(name, len)
-                .eq_ignore_ascii_case(crate::memory::cstr_prefix_bytes(hname.as_ptr(), len))
-            {
-                return i as i32;
-            }
-        }
-
-        let b0 = crate::memory::cstr_first_byte(name);
-        if len == 1 && matches!(b0, b':' | b'=' | b'@' | b'>' | b'?' | b'/') {
-            return hist_char2type(b0 as i32);
-        }
-
-        HIST_INVALID
+fn get_histtype(name: &[u8], return_default: bool) -> i32 {
+    if name.is_empty() {
+        return if return_default {
+            HIST_DEFAULT
+        } else {
+            hist_char2type(get_cmdline_firstc())
+        };
     }
+
+    for (i, &hname) in HISTORY_NAMES.iter().enumerate() {
+        let hb = hname.to_bytes();
+        if name.len() <= hb.len() && name.eq_ignore_ascii_case(&hb[..name.len()]) {
+            return i as i32;
+        }
+    }
+
+    let b0 = name[0];
+    if name.len() == 1 && matches!(b0, b':' | b'=' | b'@' | b'>' | b'?' | b'/') {
+        return hist_char2type(b0 as i32);
+    }
+
+    HIST_INVALID
 }
 
 /// Add the given string to the given history (`add_to_history`).
@@ -331,7 +318,10 @@ pub fn add_to_history(
 
     let htype = histype as usize;
     {
-        if in_history(htype, new_entry, true, sep) {
+        let entry_bytes = crate::memory::cstr_as_bytes(new_entry);
+        let actual_len = entry_bytes.len().min(new_entrylen);
+        let entry_slice = &entry_bytes[..actual_len];
+        if in_history(htype, entry_slice, true, sep) {
             return;
         }
 
@@ -342,10 +332,8 @@ pub fn add_to_history(
         let hisptr = &mut hist_st().history[htype][hist_st().hisidx[htype] as usize];
         hist_free_entry(hisptr);
 
-        let entry_bytes = crate::memory::cstr_as_bytes(new_entry);
-        let actual_len = entry_bytes.len().min(new_entrylen);
-        hisptr.hisstr = Some(std::ffi::CString::new(&entry_bytes[..actual_len]).unwrap());
-        hisptr.sep = sep as c_char;
+        hisptr.hisstr = Some(std::ffi::CString::new(entry_slice).unwrap());
+        hisptr.sep = sep as u8;
         hisptr.timestamp = os_time();
         hisptr.additional_data = None;
         hist_st().hisnum[htype] += 1;
@@ -423,14 +411,13 @@ pub fn clr_history(histype: i32) -> bool {
     }
 }
 
-fn del_history_entry(histype: i32, str_ptr: impl crate::strings::IntoCCharPtr) -> i32 {
-    let str_ptr = str_ptr.into_c_char_ptr();
+fn del_history_entry(histype: i32, str_ptr: &CStr) -> i32 {
     unsafe {
         let hislen = hist_st().hislen;
         if hislen == 0
             || histype < 0
             || (histype as usize) >= HIST_COUNT
-            || *str_ptr == 0
+            || str_ptr.to_bytes().is_empty()
             || hist_st().hisidx[histype as usize] < 0
         {
             return 0;
@@ -439,7 +426,7 @@ fn del_history_entry(histype: i32, str_ptr: impl crate::strings::IntoCCharPtr) -
         let htype = histype as usize;
         let idx = hist_st().hisidx[htype];
         let mut regmatch = Regmatch {
-            regprog: vim_regcomp(str_ptr, RE_MAGIC + RE_STRING),
+            regprog: vim_regcomp(str_ptr.as_ptr(), RE_MAGIC + RE_STRING),
             startp: [std::ptr::null_mut(); NSUBEXP],
             endp: [std::ptr::null_mut(); NSUBEXP],
             rm_matchcol: 0,
@@ -524,7 +511,7 @@ pub fn f_histadd(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData
     }
     let str_ptr = tv_get_string_chk(&argvars[0]);
     let histype = if !str_ptr.is_null() {
-        get_histtype(str_ptr, crate::memory::cstr_len(str_ptr), false)
+        get_histtype(crate::memory::cstr_as_bytes(str_ptr), false)
     } else {
         HIST_INVALID
     };
@@ -532,8 +519,8 @@ pub fn f_histadd(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData
         return;
     }
 
-    let mut buf = [0 as c_char; NUMBUFLEN];
-    let entry_str = tv_get_string_buf(&argvars[1], buf.as_mut_ptr());
+    let mut buf = [0u8; NUMBUFLEN];
+    let entry_str = tv_get_string_buf(&argvars[1], buf.as_mut_ptr().cast());
     if unsafe { *entry_str } == 0 {
         return;
     }
@@ -555,16 +542,16 @@ pub fn f_histdel(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData
     let n = if str_ptr.is_null() {
         0
     } else {
-        let htype = get_histtype(str_ptr, crate::memory::cstr_len(str_ptr), false);
+        let htype = get_histtype(crate::memory::cstr_as_bytes(str_ptr), false);
         let arg1 = &argvars[1];
         if arg1.v_type == VarType::VarUnknown {
             i32::from(clr_history(htype))
         } else if arg1.v_type == VarType::VarNumber {
             del_history_idx(htype, tv_get_number(arg1) as i32)
         } else {
-            let mut buf = [0 as c_char; NUMBUFLEN];
-            let pat = tv_get_string_buf(arg1, buf.as_mut_ptr());
-            del_history_entry(htype, pat.cast_mut())
+            let mut buf = [0u8; NUMBUFLEN];
+            let pat = tv_get_string_buf(arg1, buf.as_mut_ptr().cast());
+            del_history_entry(htype, crate::memory::cstr_from_ptr(pat))
         }
     };
     rettv.vval = crate::eval::typval::TypvalVval::Number(n as i64);
@@ -576,7 +563,7 @@ pub fn f_histget(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData
     if str_ptr.is_null() {
         tv_set_string(rettv, std::ptr::null());
     } else {
-        let htype = get_histtype(str_ptr, crate::memory::cstr_len(str_ptr), false);
+        let htype = get_histtype(crate::memory::cstr_as_bytes(str_ptr), false);
         let arg1 = &argvars[1];
         let req_idx = if arg1.v_type == VarType::VarUnknown {
             get_history_idx(htype)
@@ -599,7 +586,7 @@ pub fn f_histnr(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData)
     let htype = if histname.is_null() {
         HIST_INVALID
     } else {
-        get_histtype(histname, crate::memory::cstr_len(histname), false)
+        get_histtype(crate::memory::cstr_as_bytes(histname), false)
     };
     rettv.vval = crate::eval::typval::TypvalVval::Number(if htype != HIST_INVALID {
         get_history_idx(htype) as i64
@@ -635,10 +622,10 @@ pub fn ex_history(eap: &mut Exarg) {
             end = end.wrapping_add(1);
         }
         let name_len = (end as usize) - (arg as usize);
-        histype1 = get_histtype(arg, name_len, false);
+        let name_slice = crate::memory::cstr_slice(arg, name_len);
+        histype1 = get_histtype(name_slice, false);
         if histype1 == HIST_INVALID {
-            if crate::memory::cstr_prefix_bytes(arg, name_len)
-                .eq_ignore_ascii_case(crate::memory::cstr_prefix_bytes(c"all", name_len))
+            if name_slice.len() <= 3 && name_slice.eq_ignore_ascii_case(&b"all"[..name_slice.len()])
             {
                 histype1 = 0;
                 histype2 = (HIST_COUNT as i32) - 1;
@@ -660,11 +647,11 @@ pub fn ex_history(eap: &mut Exarg) {
         return;
     }
 
-    let mut iobuf = [0 as c_char; IOSIZE];
+    let mut iobuf = [0u8; IOSIZE];
     while !g_st().got_int && histype1 <= histype2 {
         let hname = HISTORY_NAMES[histype1 as usize].to_str().unwrap();
         let title = format!("\n      #  {hname} history\0");
-        msg_puts_title(title.as_ptr().cast::<c_char>());
+        msg_puts_title(title.as_ptr().cast());
 
         let idx = hist_st().hisidx[histype1 as usize];
         let hist = hist_st().history[histype1 as usize].as_slice();
@@ -701,29 +688,23 @@ pub fn ex_history(eap: &mut Exarg) {
                     let marker = if i == idx { '>' } else { ' ' };
                     let prefix = format!("{marker}{:6}  ", entry.hisnum);
                     let prefix_bytes = prefix.as_bytes();
-                    unsafe {
-                        std::ptr::copy_nonoverlapping(
-                            prefix_bytes.as_ptr(),
-                            iobuf.as_mut_ptr().cast::<u8>(),
-                            prefix_bytes.len(),
-                        )
-                    };
                     let len = prefix_bytes.len();
+                    iobuf[..len].copy_from_slice(prefix_bytes);
                     if vim_strsize(entry_ptr) > g_st().columns_global - 10 {
                         trunc_string(
                             entry_ptr,
-                            iobuf.as_mut_ptr().wrapping_add(len),
+                            iobuf.as_mut_ptr().wrapping_add(len).cast(),
                             g_st().columns_global - 10,
                             (IOSIZE - len) as i32,
                         );
                     } else {
                         xstrlcpy(
-                            iobuf.as_mut_ptr().wrapping_add(len),
+                            iobuf.as_mut_ptr().wrapping_add(len).cast(),
                             entry_ptr,
                             IOSIZE - len,
                         );
                     }
-                    msg_outtrans(iobuf.as_ptr(), 0, false);
+                    msg_outtrans(iobuf.as_ptr().cast(), 0, false);
                 }
                 if i == idx {
                     break;

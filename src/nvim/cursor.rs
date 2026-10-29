@@ -231,17 +231,13 @@ fn coladvance2(
                 let newline_size = (idx as usize)
                     .checked_add(correct as usize)
                     .expect("STRICT_ADD overflow");
-                let mut newline = vec![0 as c_char; newline_size + 1];
-                unsafe { ptr::copy_nonoverlapping(line, newline.as_mut_ptr(), idx as usize) };
+                let mut newline = vec![0u8; newline_size + 1];
                 unsafe {
-                    ptr::write_bytes(
-                        newline.as_mut_ptr().wrapping_add(idx as usize),
-                        b' ',
-                        correct as usize,
-                    )
+                    ptr::copy_nonoverlapping(line.cast::<u8>(), newline.as_mut_ptr(), idx as usize)
                 };
+                newline[idx as usize..idx as usize + correct as usize].fill(b' ');
 
-                ml_replace(pos.lnum, newline.as_mut_ptr(), true);
+                ml_replace(pos.lnum, newline.as_mut_ptr().cast(), true);
                 inserted_bytes(pos.lnum, idx, 0, correct);
                 idx += correct;
                 col = wcol;
@@ -254,28 +250,24 @@ fn coladvance2(
                 let alloc_n = ((linelen - 1) as usize)
                     .checked_add(csize as usize)
                     .expect("STRICT_ADD overflow");
-                let mut newline = vec![0 as c_char; alloc_n + 1];
-                unsafe { ptr::copy_nonoverlapping(line, newline.as_mut_ptr(), idx as usize) };
+                let mut newline = vec![0u8; alloc_n + 1];
                 unsafe {
-                    ptr::write_bytes(
-                        newline.as_mut_ptr().wrapping_add(idx as usize),
-                        b' ',
-                        csize as usize,
-                    )
+                    ptr::copy_nonoverlapping(line.cast::<u8>(), newline.as_mut_ptr(), idx as usize)
                 };
+                newline[idx as usize..(idx + csize) as usize].fill(b' ');
                 let rest_n = (linelen as usize)
                     .checked_sub(idx as usize)
                     .and_then(|v| v.checked_sub(1))
                     .expect("STRICT_SUB underflow");
                 unsafe {
                     ptr::copy_nonoverlapping(
-                        line.wrapping_add(idx as usize + 1),
+                        line.wrapping_add(idx as usize + 1).cast::<u8>(),
                         newline.as_mut_ptr().wrapping_add((idx + csize) as usize),
                         rest_n,
                     )
                 };
 
-                ml_replace(pos.lnum, newline.as_mut_ptr(), true);
+                ml_replace(pos.lnum, newline.as_mut_ptr().cast(), true);
                 inserted_bytes(pos.lnum, idx, 1, csize);
                 idx += csize - 1 + correct;
                 col += correct;
@@ -528,10 +520,11 @@ pub fn char_before_cursor() -> i32 {
 }
 
 /// Write a character at the current cursor position (`pchar_cursor`).
-pub fn pchar_cursor(c: c_char) {
+pub fn pchar_cursor(c: u8) {
     unsafe {
         *ml_get_buf_mut(curbuf_mut(), curwin_mut().w_cursor.lnum)
-            .wrapping_add(curwin_mut().w_cursor.col as usize) = c;
+            .wrapping_add(curwin_mut().w_cursor.col as usize)
+            .cast::<u8>() = c;
     }
 }
 
