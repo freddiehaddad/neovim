@@ -4334,8 +4334,9 @@ pub fn api_metadata() -> Object {
         };
         let mut err = Error::new();
         let mut len: usize = 0;
-        let ptr = api_get_packed_metadata(&mut len).cast::<c_char>();
-        api_meta_st().metadata_obj = unpack(ptr, len, &mut arena, &mut err);
+        let ptr = api_get_packed_metadata(&mut len);
+        let packed = unsafe { std::slice::from_raw_parts(ptr, len) };
+        api_meta_st().metadata_obj = unpack(packed, &mut arena, &mut err);
         if error_set(&err) || api_meta_st().metadata_obj.obj_type != ObjectType::ObjectTypeDict {
             std::process::abort();
         }

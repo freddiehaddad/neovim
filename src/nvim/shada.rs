@@ -3618,7 +3618,7 @@ fn shada_read_next_item(
             buf = owned_buf.as_mut_ptr();
         }
 
-        let mut read_ptr: *const c_char = buf.cast::<c_char>();
+        let mut read_ptr: *const u8 = buf;
         let mut read_size: usize = length;
 
         if verify_but_ignore {
@@ -3965,9 +3965,7 @@ fn shada_read_next_item(
                         }
                         gv.value = decode_string(binval.data, binval.size, is_blob, false);
                     } else {
-                        let mut u8_ptr = read_ptr.cast::<u8>();
-                        let status = unpack_typval(&mut u8_ptr, &mut read_size, &mut gv.value);
-                        read_ptr = u8_ptr.cast::<c_char>();
+                        let status = unpack_typval(&mut read_ptr, &mut read_size, &mut gv.value);
                         if status != MPACK_OK {
                             semsg!(
                                     gettext(
@@ -4122,10 +4120,12 @@ fn shada_read_next_item(
                 if status != 0 {
                     break 'parse_item false;
                 }
-                let skipped = crate::memory::cstr_slice(
-                    item_start,
-                    (read_ptr as usize) - (item_start as usize),
-                );
+                let skipped = unsafe {
+                    std::slice::from_raw_parts(
+                        item_start,
+                        (read_ptr as usize) - (item_start as usize),
+                    )
+                };
                 push_additional_data(&mut ad, skipped);
             }
 

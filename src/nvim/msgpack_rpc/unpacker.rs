@@ -19,7 +19,6 @@ use crate::ui_client::{
     UIClientHandler, handle_ui_client_redraw, ui_client_event_grid_line,
     ui_client_get_redraw_handler,
 };
-use std::ffi::c_char;
 
 const MAX_EXT_LEN: usize = 9;
 const EXT_OBJECT_TYPE_MAX: i32 = (ObjectType::ObjectTypeTabpage as i32) - EXT_OBJECT_TYPE_SHIFT;
@@ -181,12 +180,9 @@ fn api_parse_enter(parser: &mut MpackParser, node: &mut MpackNode) {
             }
             MpackTokenType::MpackTokenBin | MpackTokenType::MpackTokenStr => {
                 let len = tok.length as usize;
-                let mem = arena_alloc(&mut p.arena, len + 1, false).cast::<c_char>();
+                let mem = arena_alloc(&mut p.arena, len + 1, false).cast::<u8>();
                 *mem.wrapping_add(len) = 0;
-                let s = NvimString {
-                    data: mem,
-                    size: len,
-                };
+                let s = NvimString::from_bytes(std::slice::from_raw_parts(mem, len));
                 if !key_location.is_null() {
                     *key_location = s;
                 } else {
@@ -195,7 +191,7 @@ fn api_parse_enter(parser: &mut MpackParser, node: &mut MpackNode) {
                         data: ObjectData::String(s),
                     };
                 }
-                node.data[0] = crate::mpack::object::MpackData::Bytes(mem.cast());
+                node.data[0] = crate::mpack::object::MpackData::Bytes(mem);
             }
             MpackTokenType::MpackTokenExt => {
                 node.data[0] = crate::mpack::object::MpackData::Object(result);
@@ -296,13 +292,9 @@ fn api_parse_exit(_parser: &mut MpackParser, _node: &mut MpackNode) {}
 fn parse_nop(_parser: &mut MpackParser, _node: &mut MpackNode) {}
 
 /// Unpack a single MessagePack value into an `Object` (`unpack`).
-pub fn unpack(
-    data: impl crate::strings::IntoCCharPtr,
-    mut size: usize,
-    arena: &mut Arena,
-    err: &mut Error,
-) -> Object {
-    let mut data = data.into_c_char_ptr().cast::<u8>();
+pub fn unpack(bytes: &[u8], arena: &mut Arena, err: &mut Error) -> Object {
+    let mut data = bytes.as_ptr();
+    let mut size = bytes.len();
     let mut unpacker = Unpacker::new();
     mpack_parser_init(&mut unpacker.parser, 0);
     unpacker.parser.data = crate::mpack::object::MpackData::Unpacker(&mut unpacker);
@@ -481,16 +473,17 @@ pub fn unpacker_parse_header(p: &mut Unpacker) -> bool {
                         result = MPACK_EOF;
                     }
                     if result == 0 {
-                        let name_ptr = if tok.length != 0 {
-                            tok.data.chunk_ptr().cast::<c_char>()
+                        let name_bytes = if tok.length != 0 {
+                            unsafe {
+                                std::slice::from_raw_parts(
+                                    tok.data.chunk_ptr(),
+                                    tok.length as usize,
+                                )
+                            }
                         } else {
-                            c"".as_ptr()
+                            &[]
                         };
-                        p.handler = msgpack_rpc_get_handler_for(
-                            name_ptr,
-                            tok.length as usize,
-                            &mut p.unpack_error,
-                        );
+                        p.handler = msgpack_rpc_get_handler_for(name_bytes, &mut p.unpack_error);
                     }
                 }
             }
@@ -689,7 +682,8 @@ pub fn unpacker_parse_redraw(p: &mut Unpacker) -> bool {
             return false;
         }
 
-        p.ui_handler = ui_client_get_redraw_handler(data.cast::<c_char>(), str_len);
+        p.ui_handler =
+            ui_client_get_redraw_handler(unsafe { std::slice::from_raw_parts(data, str_len) });
         data = data.wrapping_add(str_len);
         size -= str_len;
 
@@ -872,8 +866,8 @@ pub fn unpacker_parse_redraw(p: &mut Unpacker) -> bool {
 }
 
 /// Unpack a complete msgpack string/bin token (`unpack_string`).
-pub fn unpack_string(data: &mut *const c_char, size: &mut usize) -> NvimString {
-    let mut data2 = (*data).cast::<u8>();
+pub fn unpack_string(data: &mut *const u8, size: &mut usize) -> NvimString {
+    let mut data2 = *data;
     let mut size2 = *size;
     let mut tok = MpackToken::new();
 
@@ -882,32 +876,21 @@ pub fn unpack_string(data: &mut *const c_char, size: &mut usize) -> NvimString {
         || (tok.r#type != MpackTokenType::MpackTokenStr
             && tok.r#type != MpackTokenType::MpackTokenBin)
     {
-        return NvimString {
-            data: std::ptr::null_mut(),
-            size: 0,
-        };
+        return NvimString::new();
     }
     let len = tok.length as usize;
     if size2 < len {
-        return NvimString {
-            data: std::ptr::null_mut(),
-            size: 0,
-        };
+        return NvimString::new();
     }
-    *data = data2.wrapping_add(len).cast::<c_char>();
+    *data = data2.wrapping_add(len);
     *size = size2 - len;
-    NvimString {
-        data: data2.cast::<c_char>().cast_mut(),
-        size: len,
-    }
+    NvimString::from_bytes(unsafe { std::slice::from_raw_parts(data2, len) })
 }
 
 /// Unpack a msgpack array header (`unpack_array`).
-pub fn unpack_array(data: &mut *const c_char, size: &mut usize) -> isize {
+pub fn unpack_array(data: &mut *const u8, size: &mut usize) -> isize {
     let mut tok = MpackToken::new();
-    let mut u8_ptr = (*data).cast::<u8>();
-    let result = mpack_rtoken(&mut u8_ptr, size, &mut tok);
-    *data = u8_ptr.cast::<c_char>();
+    let result = mpack_rtoken(data, size, &mut tok);
     if result != 0 || tok.r#type != MpackTokenType::MpackTokenArray {
         return -1;
     }
@@ -915,11 +898,9 @@ pub fn unpack_array(data: &mut *const c_char, size: &mut usize) -> isize {
 }
 
 /// Unpack a msgpack integer (`unpack_integer`).
-pub fn unpack_integer(data: &mut *const c_char, size: &mut usize, res: &mut Integer) -> bool {
+pub fn unpack_integer(data: &mut *const u8, size: &mut usize, res: &mut Integer) -> bool {
     let mut tok = MpackToken::new();
-    let mut u8_ptr = (*data).cast::<u8>();
-    let result = mpack_rtoken(&mut u8_ptr, size, &mut tok);
-    *data = u8_ptr.cast::<c_char>();
+    let result = mpack_rtoken(data, size, &mut tok);
     if result != 0 {
         return false;
     }
@@ -940,19 +921,16 @@ pub fn unpack_uint_or_sint(tok: MpackToken, res: &mut Integer) -> bool {
 }
 
 /// Skip one msgpack value (`unpack_skip`).
-pub fn unpack_skip(data: &mut *const c_char, size: &mut usize) -> i32 {
+pub fn unpack_skip(data: &mut *const u8, size: &mut usize) -> i32 {
     let mut parser = MpackParser::new(0);
     mpack_parser_init(&mut parser, 0);
-    let mut u8_ptr = (*data).cast::<u8>();
-    let ret = mpack_parse(
+    mpack_parse(
         &mut parser,
-        &mut u8_ptr,
+        data,
         size,
         Some(parse_nop),
         Some(parse_nop),
-    );
-    *data = u8_ptr.cast::<c_char>();
-    ret
+    )
 }
 
 /// Append raw msgpack key-value bytes to `AdditionalDataBuilder` (`push_additional_data`).
@@ -972,7 +950,7 @@ pub fn unpack_keydict(
     retval: *mut OptKeySet,
     hashy: FieldHashfn,
     ad: &mut AdditionalDataBuilder,
-    data: &mut *const c_char,
+    data: &mut *const u8,
     size: &mut usize,
     error: &mut Option<std::ffi::CString>,
 ) -> bool {
@@ -980,9 +958,7 @@ pub fn unpack_keydict(
         let ks = retval;
         let mut tok = MpackToken::new();
 
-        let mut u8_ptr = (*data).cast::<u8>();
-        let result = mpack_rtoken(&mut u8_ptr, size, &mut tok);
-        *data = u8_ptr.cast::<c_char>();
+        let result = mpack_rtoken(data, size, &mut tok);
         if result != 0 || tok.r#type != MpackTokenType::MpackTokenMap {
             *error = Some(c"is not a dict".to_owned());
             return false;
@@ -992,7 +968,7 @@ pub fn unpack_keydict(
         let hashy_fn = hashy.unwrap();
 
         let alloc_key_error = |key: NvimString, suffix: &[u8]| -> Option<std::ffi::CString> {
-            let key_bytes = crate::memory::cstr_slice(key.data, key.size);
+            let key_bytes = key.as_bytes();
             let mut out = Vec::with_capacity(4 + key.size + suffix.len());
             out.extend_from_slice(b"has ");
             out.extend_from_slice(key_bytes);
@@ -1010,7 +986,7 @@ pub fn unpack_keydict(
                 *error = Some(c"has empty key".to_owned());
                 return false;
             }
-            let key_bytes = crate::memory::cstr_slice(key.data, key.size);
+            let key_bytes = key.as_bytes();
             let field_opt = hashy_fn(key_bytes);
 
             let Some(field) = field_opt else {
@@ -1019,7 +995,7 @@ pub fn unpack_keydict(
                     return false;
                 }
                 let skipped =
-                    crate::memory::cstr_slice(item_start, (*data as usize) - (item_start as usize));
+                    std::slice::from_raw_parts(item_start, (*data as usize) - (item_start as usize));
                 push_additional_data(ad, skipped);
                 continue;
             };
@@ -1034,7 +1010,7 @@ pub fn unpack_keydict(
 
             let mem = retval.cast::<u8>().wrapping_add(field.ptr_off);
             if field.key_type == (ObjectType::ObjectTypeBoolean as i32) {
-                let cur_byte = if *size > 0 { **data as u8 } else { 0 };
+                let cur_byte = if *size > 0 { **data } else { 0 };
                 if *size == 0 || (cur_byte & 0xfe) != 0xc2 {
                     *error = alloc_key_error(key, b" key value which is not a boolean");
                     return false;

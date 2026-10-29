@@ -2601,7 +2601,7 @@ pub fn nvim_invalidate_glyph_cache() {
 /// @nodoc
 // DLLEXPORT Object nvim__unpack(String str, Arena *arena, Error *err) FUNC_API_FAST;
 pub fn nvim_unpack(str_: NvimString, arena: &mut Arena, err: &mut Error) -> Object {
-    unpack(str_.data, str_.size, arena, err)
+    unpack(str_.as_bytes(), arena, err)
 }
 
 /// Deletes an uppercase/file named mark. See |mark-motions|.

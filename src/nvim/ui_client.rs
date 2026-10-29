@@ -967,13 +967,8 @@ const EVENT_HANDLERS: [UIClientHandler; 28] = [
     },
 ];
 
-pub fn ui_client_handler_hash(str_in: impl crate::strings::IntoCCharPtr, len: usize) -> i32 {
-    let str_in = str_in.into_c_char_ptr();
-    if str_in.is_null() {
-        return -1;
-    }
-    let bytes = crate::memory::cstr_slice(str_in, len);
-    let low: isize = match len {
+pub fn ui_client_handler_hash(bytes: &[u8]) -> i32 {
+    let low: isize = match bytes.len() {
         4 => 0,
         5 => match bytes[0] {
             b'c' => 1,
@@ -1031,12 +1026,8 @@ pub fn ui_client_handler_hash(str_in: impl crate::strings::IntoCCharPtr, len: us
     low as i32
 }
 
-pub fn ui_client_get_redraw_handler(
-    name: impl crate::strings::IntoCCharPtr,
-    name_len: usize,
-) -> UIClientHandler {
-    let name = name.into_c_char_ptr();
-    let hash = ui_client_handler_hash(name, name_len);
+pub fn ui_client_get_redraw_handler(name: &[u8]) -> UIClientHandler {
+    let hash = ui_client_handler_hash(name);
     if hash < 0 {
         return UIClientHandler {
             name: c"",

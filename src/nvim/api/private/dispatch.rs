@@ -15479,40 +15479,27 @@ pub fn msgpack_rpc_get_handler_at(hash: i32) -> MsgpackRpcRequestHandler {
 }
 
 pub fn msgpack_rpc_get_handler_for(
-    name: impl crate::strings::IntoCCharPtr,
-    name_len: usize,
+    key_bytes: &[u8],
     error: &mut Error,
 ) -> MsgpackRpcRequestHandler {
-    let name = name.into_c_char_ptr();
-    {
-        let key_bytes = if name.is_null() || name_len == 0 {
-            &[][..]
+    let hash = msgpack_rpc_get_handler_for_hash(key_bytes);
+    if hash < 0 {
+        let mut msg = b"Invalid method: ".to_vec();
+        if key_bytes.is_empty() {
+            msg.extend_from_slice(b"<empty>");
         } else {
-            crate::memory::cstr_slice(name, name_len)
-        };
-        let hash = msgpack_rpc_get_handler_for_hash(key_bytes);
-        if hash < 0 {
-            let empty = c"<empty>";
-            api_set_error!(
-                error,
-                ErrorType::ErrorTypeException,
-                c"Invalid method: %.*s",
-                if name_len > 0 {
-                    name_len as i32
-                } else {
-                    (empty.to_bytes_with_nul().len()) as i32
-                },
-                if name_len > 0 { name } else { empty.as_ptr() },
-            );
-            return MsgpackRpcRequestHandler {
-                name: c"",
-                r#fn: None,
-                fast: false,
-                ret_alloc: false,
-            };
+            msg.extend_from_slice(key_bytes);
         }
-        msgpack_rpc_get_handler_at(hash)
+        error.msg = Some(crate::memory::cstr_from_bytes(&msg));
+        error.err_type = ErrorType::ErrorTypeException;
+        return MsgpackRpcRequestHandler {
+            name: c"",
+            r#fn: None,
+            fast: false,
+            ret_alloc: false,
+        };
     }
+    msgpack_rpc_get_handler_at(hash)
 }
 
 use crate::errors::E_FAST_API_DISABLED;

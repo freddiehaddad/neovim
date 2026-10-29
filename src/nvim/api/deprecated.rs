@@ -1083,7 +1083,7 @@ pub fn nvim_call_atomic(
             }
             let args = second.data.array();
 
-            let handler = msgpack_rpc_get_handler_for(name.data, name.size, &mut nested_error);
+            let handler = msgpack_rpc_get_handler_for(name.as_bytes(), &mut nested_error);
             if error_set(&nested_error) {
                 break;
             }
