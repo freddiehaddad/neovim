@@ -101,9 +101,13 @@ fn clear_ref(r: &mut LuaRef) {
     }
 }
 
-fn decor_provider_error(provider: &mut DecorProvider, name: &std::ffi::CStr, msg: Option<&std::ffi::CStr>) {
+fn decor_provider_error(
+    provider: &mut DecorProvider,
+    name: &std::ffi::CStr,
+    msg: Option<&std::ffi::CStr>,
+) {
     let msg_ptr = msg.map_or(ptr::null(), std::ffi::CStr::as_ptr);
-    let ns = describe_ns(provider.ns_id, c"(UNKNOWN PLUGIN)");
+    let ns = describe_ns(provider.ns_id, c"(UNKNOWN PLUGIN)").as_ptr();
     logmsg!(
         LOGLVL_ERR,
         ptr::null(),

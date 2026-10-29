@@ -52,7 +52,6 @@ use crate::r#move::changed_window_setting;
 use crate::msgpack_rpc::packer::Integer;
 use crate::sign::init_sign_text;
 use crate::window::WinInfoInfo;
-use std::ffi::c_char;
 use std::ptr;
 
 use crate::cursor::{Colnr, Linenr};
@@ -237,13 +236,13 @@ pub fn nvim_get_namespaces(arena: &mut Arena) -> Dict {
 }
 
 // DLLEXPORT const char *describe_ns(NS ns_id, const char *unknown);
-pub fn describe_ns(ns_id: NS, unknown: &std::ffi::CStr) -> *const c_char {
+pub fn describe_ns(ns_id: NS, unknown: &std::ffi::CStr) -> &std::ffi::CStr {
     for (name, id) in &g_st().namespace_ids {
         if *id == ns_id && !name.as_bytes().is_empty() {
-            return name.as_ptr();
+            return name.as_c_str();
         }
     }
-    unknown.as_ptr()
+    unknown
 }
 
 // DLLEXPORT bool ns_initialized(uint32_t ns);

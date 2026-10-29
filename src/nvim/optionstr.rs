@@ -3176,7 +3176,7 @@ pub fn validate_border(args: &mut Optset) -> *const c_char {
     let mut err = Error::new();
     let ok = parse_winborder(
         Some(&mut fconfig),
-        args.os_newval.data.string().data,
+        args.os_newval.data.string().cstr_bytes(),
         &mut err,
     );
     api_clear_error(&mut err);
@@ -4158,7 +4158,8 @@ pub fn check_chars_options() -> *const c_char {
 
 pub fn validate_previewpopup(args: &mut Optset) -> *const c_char {
     let mut fconfig = WIN_CONFIG_INIT;
-    if !win_previewpopup_config(args.os_newval.data.string().data, &mut fconfig) {
+    let cstr = crate::memory::cstr_from_ptr(args.os_newval.data.string().data);
+    if !win_previewpopup_config(cstr, &mut fconfig) {
         return E_INVARG.as_ptr();
     }
     ptr::null()

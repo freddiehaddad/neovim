@@ -10407,7 +10407,11 @@ fn ex_connect(eap: &mut Exarg) {
     };
 
     let mut err = error_init();
-    remote_ui_connect(g_st().current_ui, eap.arg, &mut err);
+    remote_ui_connect(
+        g_st().current_ui,
+        crate::memory::cstr_as_bytes(eap.arg),
+        &mut err,
+    );
 
     if error_set(&err) {
         let _ = emsg(err.msg_ptr());

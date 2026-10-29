@@ -1287,7 +1287,9 @@ pub fn grid_draw_border(
     let mut border_attrs = [0_i32; 8];
 
     for i in 0..8 {
-        chars[i] = schar_from_str(config.border_chars[i].as_ptr());
+        let bchars = &config.border_chars[i];
+        let blen = bchars.iter().position(|&b| b == 0).unwrap_or(bchars.len());
+        chars[i] = schar_from_bytes(&bchars[..blen]);
         border_attrs[i] = hl_combine_attr(win_hl_attr_normal, config.border_attr[i]);
     }
 

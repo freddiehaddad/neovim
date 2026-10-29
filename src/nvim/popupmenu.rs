@@ -28,7 +28,7 @@ use crate::globals::*;
 use crate::grid::{
     Schar, get_win_by_grid_handle, grid_alloc, grid_assign_handle, grid_draw_border, grid_free,
     grid_invalidate, grid_line_fill, grid_line_flush, grid_line_put_schar, grid_line_puts,
-    schar_from_ascii, schar_from_str, screengrid_line_start,
+    schar_from_ascii, screengrid_line_start,
 };
 use crate::highlight::{HLF_PNI, HLF_PST, hl_combine_attr, hl_get_ui_attr, win_hl_attr};
 use crate::highlight_group::syn_check_group;
@@ -820,7 +820,11 @@ pub fn pum_redraw() {
 
     if border_width > 0 {
         let mut err = Error::new();
-        if !parse_winborder(Some(&mut fconfig), opt_vars().p_pumborder, &mut err) {
+        if !parse_winborder(
+            Some(&mut fconfig),
+            crate::memory::cstr_as_bytes(opt_vars().p_pumborder),
+            &mut err,
+        ) {
             if err.err_type != ErrorType::ErrorTypeNone {
                 emsg(err.msg_ptr());
             }
@@ -850,7 +854,9 @@ pub fn pum_redraw() {
         }
         api_clear_error(&mut err);
         if pum().scrollbar != 0 {
-            border_char = schar_from_str(fconfig.border_chars[3].as_ptr());
+            let bchars = &fconfig.border_chars[3];
+            let blen = bchars.iter().position(|&b| b == 0).unwrap_or(bchars.len());
+            border_char = crate::grid::schar_from_bytes(&bchars[..blen]);
             border_attr = fconfig.border_attr[3];
         }
     }

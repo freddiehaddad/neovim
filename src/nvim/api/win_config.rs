@@ -3,8 +3,8 @@
 use crate::api::extmark::{parse_virt_text, virt_text_to_array};
 use crate::api::private::helpers::{
     add_c, api_clear_error, api_free_array, api_free_object, api_set_error, api_typename,
-    arena_array, array_obj, bytes_to_string, cstr_as_string, cstr_to_obj, cstrn_as_string,
-    error_set, find_window_by_handle, has_key, integer_obj, object_to_hl_id, string_obj, try_wrap,
+    arena_array, array_obj, bytes_to_string, cstr_as_string, error_set, find_window_by_handle,
+    has_key, integer_obj, object_to_hl_id, string_obj, try_wrap,
 };
 use crate::api::private::validate::{
     Array, Error, ErrorType, NvimString, Object, ObjectType, api_err_conflict, api_err_exp,
@@ -43,7 +43,7 @@ use crate::window::{
 use crate::winfloat::{
     win_config_float, win_float_find_altwin, win_new_float, win_set_minimal_style,
 };
-use std::ffi::{CStr, c_char};
+use std::ffi::CStr;
 use std::ptr;
 
 pub type FloatAnchor = i32;
@@ -113,7 +113,6 @@ const KEYSET_OPTIDX_WIN_CONFIG_FOOTER_POS: u64 = 23;
 const KEYSET_OPTIDX_WIN_CONFIG_CMDLINE_OFFSET: u64 = 24;
 
 use crate::api::ui::MAX_SCHAR_SIZE;
-use crate::charset::NUL;
 
 #[repr(C)]
 #[derive(Clone, Copy, Default)]
@@ -1192,7 +1191,9 @@ pub fn nvim_win_get_config(win: Window, arena: &mut Arena, err: &mut Error) -> K
         if config.border {
             let mut border = arena_array(arena, 8);
             for i in 0..8 {
-                let s = cstrn_as_string(config.border_chars[i].as_ptr(), MAX_SCHAR_SIZE);
+                let bchars = &config.border_chars[i];
+                let blen = bchars.iter().position(|&b| b == 0).unwrap_or(MAX_SCHAR_SIZE);
+                let s = NvimString::from_bytes(&bchars[..blen]);
                 let hi_id = config.border_hl_ids[i];
                 let hi_name = syn_id2name(hi_id);
                 if unsafe { *hi_name } != 0 {
@@ -1474,9 +1475,9 @@ pub fn parse_border_style(style: Object, fconfig: Option<&mut WinConfig>, err: &
             }
             let len = string.size.min(MAX_SCHAR_SIZE - 1);
             if len > 0 {
-                unsafe { ptr::copy_nonoverlapping(string.data, chars[i].as_mut_ptr(), len) };
+                chars[i][..len].copy_from_slice(&string.as_bytes()[..len]);
             }
-            chars[i][len] = NUL;
+            chars[i][len] = 0;
             hl_ids[i] = hl_id;
         }
         while size < 8 {
@@ -1513,13 +1514,7 @@ pub fn parse_border_style(style: Object, fconfig: Option<&mut WinConfig>, err: &
                 *chars = [[0; MAX_SCHAR_SIZE]; 8];
                 for (slot, piece) in chars.iter_mut().zip(DEFAULTS_CHARS[i].iter()) {
                     let bytes = piece.as_bytes();
-                    unsafe {
-                        ptr::copy_nonoverlapping(
-                            bytes.as_ptr().cast::<c_char>(),
-                            slot.as_mut_ptr(),
-                            bytes.len(),
-                        )
-                    };
+                    slot[..bytes.len()].copy_from_slice(bytes);
                 }
                 *hl_ids = [0; 8];
                 if DEFAULTS_SHADOW[i] {
@@ -1557,37 +1552,33 @@ fn generate_api_error(wp: Option<&WinInfoInfo>, attribute: &std::ffi::CStr, err:
 // DLLEXPORT bool parse_winborder(WinConfig *fconfig, char *border_opt, Error *err);
 pub fn parse_winborder(
     fconfig: Option<&mut WinConfig>,
-    border_opt: impl crate::strings::IntoCCharPtr,
+    opt_bytes: &[u8],
     err: &mut Error,
 ) -> bool {
-    let border_opt = border_opt.into_c_char_ptr();
-    {
-        if fconfig.is_none() {
-            return false;
-        }
-        let opt_bytes = crate::memory::cstr_as_bytes(border_opt);
-        let style = if opt_bytes.contains(&b',') {
-            let mut border_chars = Array::new();
-            for part in opt_bytes.split(|&b| b == b',') {
-                if border_chars.size >= 8 {
-                    api_free_array(border_chars);
-                    return false;
-                }
-                border_chars.push(string_obj(bytes_to_string(part)));
-            }
-            if border_chars.size != 8 {
+    if fconfig.is_none() {
+        return false;
+    }
+    let style = if opt_bytes.contains(&b',') {
+        let mut border_chars = Array::new();
+        for part in opt_bytes.split(|&b| b == b',') {
+            if border_chars.size >= 8 {
                 api_free_array(border_chars);
                 return false;
             }
-            array_obj(border_chars)
-        } else {
-            cstr_to_obj(border_opt)
-        };
+            border_chars.push(string_obj(bytes_to_string(part)));
+        }
+        if border_chars.size != 8 {
+            api_free_array(border_chars);
+            return false;
+        }
+        array_obj(border_chars)
+    } else {
+        string_obj(bytes_to_string(opt_bytes))
+    };
 
-        parse_border_style(style, (fconfig.is_some()).then(|| fconfig.unwrap()), err);
-        api_free_object(style);
-        !error_set(err)
-    }
+    parse_border_style(style, (fconfig.is_some()).then(|| fconfig.unwrap()), err);
+    api_free_object(style);
+    !error_set(err)
 }
 
 fn parse_win_config(
@@ -1869,7 +1860,11 @@ fn parse_win_config(
                 }
             } else if !crate::memory::cstr_is_empty(opt_vars().p_winborder)
                 && (wp.is_null() || !(*wp).w_floating)
-                && !parse_winborder(Some(&mut *fconfig), opt_vars().p_winborder, err)
+                && !parse_winborder(
+                    Some(&mut *fconfig),
+                    crate::memory::cstr_as_bytes(opt_vars().p_winborder),
+                    err,
+                )
             {
                 break 'fail;
             }

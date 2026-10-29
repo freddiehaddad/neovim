@@ -382,7 +382,7 @@ pub struct WinConfig {
     pub style: i32,
     pub border: bool,
     pub shadow: bool,
-    pub border_chars: [[c_char; 32]; 8],
+    pub border_chars: [[u8; 32]; 8],
     pub border_hl_ids: [i32; 8],
     pub border_attr: [i32; 8],
     pub title: bool,

@@ -15,7 +15,7 @@ use crate::event::r#loop::{loop_poll_events, loop_queues};
 use crate::event::multiqueue::{multiqueue_empty, multiqueue_process_events};
 use crate::event::wstream::wstream_new_vec_buffer;
 use crate::globals::*;
-use crate::grid::{Sattr, Schar, schar_from_ascii, schar_get_adv};
+use crate::grid::{Sattr, Schar, schar_from_ascii, schar_get_bytes};
 use crate::highlight::{HlAttrs, hl_get_url, hlattrs2dict, syn_attr2entry};
 use crate::lua::converter::{Boolean, Float};
 use crate::mbyte::utf_ambiguous_width;
@@ -31,7 +31,7 @@ use crate::ui::{
     ui_active, ui_attach_impl, ui_call_ui_send, ui_can_attach_more, ui_detach_impl, ui_grid_resize,
     ui_refresh, ui_set_ext_option,
 };
-use std::ffi::{CStr, c_char};
+use std::ffi::CStr;
 use std::ptr;
 
 #[cfg(windows)]
@@ -122,12 +122,12 @@ fn mpack_array_dyn16(buf: *mut *mut u8) -> *mut u8 {
     pos
 }
 
-fn mpack_str_small(buf: *mut *mut u8, str_: impl crate::strings::IntoCCharPtr, len: usize) {
-    let str_ = str_.into_c_char_ptr();
+fn mpack_str_small(buf: *mut *mut u8, str_: &[u8]) {
     unsafe {
+        let len = str_.len();
         debug_assert!(len < 0x20);
         mpack_w(buf, (0xa0 | len) as u8);
-        ptr::copy_nonoverlapping(str_.cast::<u8>(), *buf, len);
+        ptr::copy_nonoverlapping(str_.as_ptr(), *buf, len);
         *buf = (*buf).wrapping_add(len);
     }
 }
@@ -172,12 +172,7 @@ pub fn remote_ui_disconnect(channel_id: u64, err: &mut Error, send_error_exit: b
 pub fn ui_detach_channel(chan: u64, err: &mut Error) {
     let c = find_channel(chan);
     if c.is_null() {
-        api_set_error!(
-            err,
-            ErrorType::ErrorTypeValidation,
-            c"%s",
-            (&raw const E_INVCHAN).cast::<c_char>(),
-        );
+        api_set_error!(err, ErrorType::ErrorTypeValidation, c"%s", E_INVCHAN.as_ptr());
         return;
     }
     let c = unsafe { &mut *c };
@@ -429,16 +424,11 @@ pub fn nvim_ui_detach(channel_id: u64, err: &mut Error) {
 }
 
 // DLLEXPORT void remote_ui_connect(uint64_t channel_id, char *server_addr, Error *err);
-pub fn remote_ui_connect(
-    channel_id: u64,
-    server_addr: impl crate::strings::IntoCCharPtr,
-    err: &mut Error,
-) {
-    let server_addr = server_addr.into_c_char_ptr();
+pub fn remote_ui_connect(channel_id: u64, server_addr: &[u8], err: &mut Error) {
     let Some(ui) = get_ui_or_err(channel_id, err) else {
         return;
     };
-    let mut args_items: [Object; 1] = [string_obj(cstr_as_string(server_addr))];
+    let mut args_items: [Object; 1] = [string_obj(NvimString::from_bytes(server_addr))];
     let args = Array {
         items: args_items.as_mut_ptr(),
         size: 1,
@@ -812,7 +802,7 @@ fn prepare_call(ui: &mut RemoteUI, name: &'static CStr) {
         if ui.nevents_pos.is_none() {
             mpack_array(buf, 3);
             mpack_uint(buf, 2);
-            mpack_str_small(buf, c"redraw", 6);
+            mpack_str_small(buf, b"redraw");
             let pos = mpack_array_dyn16(buf);
             ui.nevents_pos = Some(crate::memory::ptr_offset_from(pos, ui.packer.startptr) as usize);
             debug_assert!(ui.cur_event.is_none());
@@ -821,7 +811,7 @@ fn prepare_call(ui: &mut RemoteUI, name: &'static CStr) {
         ui.cur_event = Some(name);
         let pos = mpack_array_dyn16(buf);
         ui.ncalls_pos = Some(crate::memory::ptr_offset_from(pos, ui.packer.startptr) as usize);
-        mpack_str_small(buf, name.as_ptr(), name.to_bytes().len());
+        mpack_str_small(buf, name.to_bytes());
         ui.nevents += 1;
         ui.ncalls = 1;
     } else {
@@ -1176,10 +1166,9 @@ pub fn remote_ui_cursor_goto(ui: &mut RemoteUI, row: Integer, col: Integer) {
 }
 
 // DLLEXPORT void remote_ui_put(RemoteUI *ui, const char *cell);
-pub fn remote_ui_put(ui: &mut RemoteUI, cell: impl crate::strings::IntoCCharPtr) {
-    let cell = cell.into_c_char_ptr();
+pub fn remote_ui_put(ui: &mut RemoteUI, cell: &[u8]) {
     ui.client_col += 1;
-    let mut args_items: [Object; 1] = [string_obj(cstr_as_string(cell))];
+    let mut args_items: [Object; 1] = [string_obj(NvimString::from_bytes(cell))];
     let args = Array {
         items: args_items.as_mut_ptr(),
         size: 1,
@@ -1233,7 +1222,7 @@ pub fn remote_ui_raw_line(
                             nelem += 1;
                             ui.ncells_pending += 1;
                             mpack_array(buf, 3);
-                            mpack_str_small(buf, c" ", 1);
+                            mpack_str_small(buf, b" ");
                             mpack_uint(buf, clearattr as u32);
                             mpack_uint(buf, 0);
                         }
@@ -1261,7 +1250,10 @@ pub fn remote_ui_raw_line(
                     mpack_array(buf, csize);
                     let size_byte = *buf;
                     *buf = (*buf).wrapping_add(1);
-                    let len = schar_get_adv(buf.cast::<*mut c_char>(), *chunk.wrapping_add(i));
+                    let mut cell_buf = [0u8; MAX_SCHAR_SIZE];
+                    let len = schar_get_bytes(&mut cell_buf, *chunk.wrapping_add(i));
+                    ptr::copy_nonoverlapping(cell_buf.as_ptr(), *buf, len);
+                    *buf = (*buf).wrapping_add(len);
                     *size_byte = (0xa0 | len) as u8;
                     if csize >= 2 {
                         mpack_uint(buf, *attrs.wrapping_add(i) as u32);
@@ -1280,7 +1272,7 @@ pub fn remote_ui_raw_line(
                 nelem += 1;
                 ui.ncells_pending += 1;
                 mpack_array(buf, 3);
-                mpack_str_small(buf, c" ", 1);
+                mpack_str_small(buf, b" ");
                 mpack_uint(buf, clearattr as u32);
                 mpack_uint(buf, (clearcol - endcol) as u32);
             }
@@ -1292,11 +1284,8 @@ pub fn remote_ui_raw_line(
                 remote_ui_cursor_goto(ui, row, startcol + i as Integer);
                 remote_ui_highlight_set(ui, *attrs.wrapping_add(i));
                 let mut sc_buf = [0u8; MAX_SCHAR_SIZE];
-                let len = crate::grid::schar_get_bytes(&mut sc_buf, *chunk.wrapping_add(i));
-                remote_ui_put(
-                    ui,
-                    std::ffi::CStr::from_bytes_until_nul(&sc_buf).unwrap_or(c""),
-                );
+                let len = schar_get_bytes(&mut sc_buf, *chunk.wrapping_add(i));
+                remote_ui_put(ui, &sc_buf[..len]);
                 if utf_ambiguous_width(&sc_buf[..len]) {
                     ui.client_col = -1;
                 }
@@ -1309,7 +1298,7 @@ pub fn remote_ui_raw_line(
                 } else {
                     let mut c = endcol;
                     while c < clearcol {
-                        remote_ui_put(ui, c" ");
+                        remote_ui_put(ui, b" ");
                         c += 1;
                     }
                 }

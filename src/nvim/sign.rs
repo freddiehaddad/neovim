@@ -437,7 +437,7 @@ fn sign_list_placed(rbuf: *mut FileBuf, group: impl crate::strings::IntoCCharPtr
                                 groupbuf.as_mut_ptr(),
                                 MSG_BUF_LEN,
                                 gettext(c"  group=%s"),
-                                describe_ns(mark.ns as i32, c""),
+                                describe_ns(mark.ns as i32, c"").as_ptr(),
                             );
                         }
                         vim_snprintf!(
@@ -1323,7 +1323,7 @@ fn get_nth_sign_group_name(idx: i32) -> *mut c_char {
         let ns_slice = sign_st().sign_ns.as_slice();
         ns_slice
             .get(idx as usize)
-            .map_or(ptr::null_mut(), |&ns| describe_ns(ns as NS, c"").cast_mut())
+            .map_or(ptr::null_mut(), |&ns| describe_ns(ns as NS, c"").as_ptr().cast_mut())
     }
 }
 

@@ -39,7 +39,6 @@ use crate::window::{
     win_find_tabpage, win_free, win_init, win_remove, win_remove_status_line, win_set_buf,
     win_set_inner_size, win_valid, winframe_remove,
 };
-use std::ffi::c_char;
 use std::ptr;
 
 const KEYSET_OPTIDX_PVP_WIDTH: u64 = 1;
@@ -56,7 +55,7 @@ pub fn win_new_float(
     err: &mut Error,
 ) -> *mut WinInfoInfo {
     unsafe {
-        let empty_opt = EMPTY_STRING_OPTION.as_ptr().cast::<c_char>();
+        let empty_opt = EMPTY_STRING_OPTION.as_ptr().cast();
         if wp.is_null() {
             let mut tp_last = if last {
                 g_st().lastwin
@@ -149,7 +148,7 @@ pub fn win_new_float(
 }
 
 pub fn win_set_minimal_style(wp: &mut WinInfoInfo) {
-    let empty_opt = EMPTY_STRING_OPTION.as_ptr().cast::<c_char>();
+    let empty_opt = EMPTY_STRING_OPTION.as_ptr().cast();
     wp.w_onebuf_opt.wo_nu = 0;
     wp.w_onebuf_opt.wo_rnu = 0;
     wp.w_onebuf_opt.wo_cul = 0;
@@ -487,7 +486,7 @@ pub fn win_float_special(enter: bool, new_buf: bool, kind: WinKind) -> *mut WinI
     config.style = K_WIN_STYLE_MINIMAL;
     let mut err = error_init();
     let preview = kind == K_WIN_PREVIEW;
-    if preview && !win_previewpopup_config(opt_vars().p_pvp, &mut config) {
+    if preview && !win_previewpopup_config(crate::memory::cstr_from_ptr(opt_vars().p_pvp), &mut config) {
         emsg(gettext(E_INVARG));
         return ptr::null_mut();
     }
@@ -555,9 +554,9 @@ pub fn win_float_update_preview(wp: &mut WinInfoInfo) {
 
     // Title is the previewed file's name, only known once it is loaded.
     if wp.w_config.border && !wp.buf_mut().b_fname.is_null() {
-        let mut dirname = [0 as c_char; MAXPATHL];
-        os_dirname(dirname.as_mut_ptr(), MAXPATHL);
-        shorten_buf_fname(wp.buf_mut(), dirname.as_mut_ptr(), 0);
+        let mut dirname = [0u8; MAXPATHL];
+        os_dirname(dirname.as_mut_ptr().cast(), MAXPATHL);
+        shorten_buf_fname(wp.buf_mut(), dirname.as_mut_ptr().cast(), 0);
 
         wp.w_config.title_chunks.clear();
         let mut err = error_init();
@@ -629,11 +628,7 @@ pub fn win_float_update_preview(wp: &mut WinInfoInfo) {
 }
 
 /// Applies a 'previewpopup' value ("height:N,width:N,border:style") to `config` (`win_previewpopup_config`).
-pub fn win_previewpopup_config(
-    value: impl crate::strings::IntoCCharPtr,
-    config: &mut WinConfig,
-) -> bool {
-    let value = value.into_c_char_ptr();
+pub fn win_previewpopup_config(value: &std::ffi::CStr, config: &mut WinConfig) -> bool {
     {
         let v = unsafe {
             &mut *opt_keyset(value, K_OPT_PREVIEWPOPUP, ptr::null_mut()).cast::<OptKeyDict_pvp>()
@@ -656,13 +651,12 @@ pub fn win_previewpopup_config(
         };
 
         // Use 'previewpopup' border if set, else fallback to 'winborder'.
-        let mut border: *mut c_char = ptr::null_mut();
-        if has_key(v.is_set_pvp, KEYSET_OPTIDX_PVP_BORDER) {
-            border = v.border.as_mut_ptr();
-        } else if !crate::memory::cstr_is_empty(opt_vars().p_winborder) {
-            border = opt_vars().p_winborder;
-        }
-        if !border.is_null() {
+        let border = if has_key(v.is_set_pvp, KEYSET_OPTIDX_PVP_BORDER) {
+            Some(crate::memory::cstr_as_bytes(v.border.as_ptr()))
+        } else {
+            crate::memory::cstr_as_opt_bytes(opt_vars().p_winborder).filter(|b| !b.is_empty())
+        };
+        if let Some(border) = border {
             let mut err = error_init();
             let ok = parse_winborder(Some(&mut *config), border, &mut err);
             api_clear_error(&mut err);
