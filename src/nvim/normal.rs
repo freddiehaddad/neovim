@@ -1965,7 +1965,8 @@ fn normal_get_additional_char(s: &mut NormalState) {
                 }
 
                 if s.ca.nchar_len == 0 {
-                    s.ca.nchar_len = utf_char2bytes(s.ca.nchar, s.ca.nchar_composing.as_mut_ptr());
+                    s.ca.nchar_len =
+                        utf_char2bytes(s.ca.nchar, s.ca.nchar_composing.as_mut_ptr().cast());
                 }
 
                 if ((s.ca.nchar_len + utf_char2len(s.c)) as usize) < s.ca.nchar_composing.len() {
@@ -1973,12 +1974,13 @@ fn normal_get_additional_char(s: &mut NormalState) {
                         s.c,
                         s.ca.nchar_composing
                             .as_mut_ptr()
-                            .wrapping_add(s.ca.nchar_len as usize),
+                            .wrapping_add(s.ca.nchar_len as usize)
+                            .cast(),
                     );
                 }
                 prev_code = s.c;
             }
-            s.ca.nchar_composing[s.ca.nchar_len as usize] = NUL;
+            s.ca.nchar_composing[s.ca.nchar_len as usize] = 0;
             g_st().no_mapping += 1;
             g_st().no_u_sync += 1;
             gotchars_ignore();
@@ -2705,7 +2707,7 @@ fn prep_redo_cmd(cap: &mut Cmdarg) {
     let composing = cap.nchar_len > 0;
     prep_redo(true, composing, atom_cmd_spec(cap));
     if composing {
-        redo_append_str(cap.nchar_composing.as_ptr(), -1);
+        redo_append_str(cap.nchar_composing.as_ptr().cast(), -1);
     }
 }
 
@@ -5668,7 +5670,7 @@ fn nv_replace(cap: &mut Cmdarg) {
         let old_state = g_st().state_global;
 
         if cap.nchar_len > 0 {
-            redo_append_str(cap.nchar_composing.as_ptr(), -1);
+            redo_append_str(cap.nchar_composing.as_ptr().cast(), -1);
         } else {
             redo_append_char(cap.nchar);
         }
@@ -5686,7 +5688,7 @@ fn nv_replace(cap: &mut Cmdarg) {
                     curwin_mut().w_cursor.col += 1;
                 }
             } else if cap.nchar_len != 0 {
-                ins_char_bytes(cap.nchar_composing.as_mut_ptr(), cap.nchar_len as usize);
+                ins_char_bytes(cap.nchar_composing.as_mut_ptr().cast(), cap.nchar_len as usize);
             } else {
                 ins_char(cap.nchar);
             }

@@ -1777,7 +1777,7 @@ pub fn searchc(cap: &mut Cmdarg, mut t_cmd: bool) -> bool {
                 srch().lastc_bytelen = cap.nchar_len;
                 unsafe {
                     ptr::copy_nonoverlapping(
-                        cap.nchar_composing.as_ptr(),
+                        cap.nchar_composing.as_ptr().cast(),
                         (&raw mut srch().lastc_bytes).cast::<c_char>(),
                         cap.nchar_len as usize,
                     )
