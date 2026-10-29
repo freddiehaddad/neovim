@@ -83,7 +83,7 @@
   <rect class="frame" x="8" y="8" width="864" height="604" rx="10"/>
 
   <!-- Header -->
-  <text class="title" x="30" y="40">Real-World Editor Benchmarks — Rust Port vs. Upstream C</text>
+  <text class="title" x="30" y="40">Real-World Editor Benchmarks: Rust Port vs. Upstream C</text>
   <text class="subtitle" x="30" y="60">Relative execution time (shorter bar = faster). Measured on identical hardware via cargo xtask benchmark --release.</text>
 
   <!-- Legend -->

@@ -11,7 +11,7 @@
 
 This is [Neovim](https://github.com/neovim/neovim) with its entire C codebase and CMake build system replaced by Rust and Cargo.
 
-It is a drop-in replacement for upstream Neovim—not a from-scratch clone with missing features. Your `init.lua`, keymaps, colorschemes, LSP servers, and plugins work without changes.
+It is a drop-in replacement for upstream Neovim, not a from-scratch rewrite with missing features. Your `init.lua`, keymaps, colorschemes, LSP servers, and plugins work without changes.
 
 ### What stays the same
 
@@ -35,23 +35,24 @@ Measured head-to-head against upstream `neovim/neovim` Nightly (`v0.13.0-dev`) o
 </p>
 
 <details>
-<summary><strong>View detailed benchmark numbers</strong></summary>
+<summary><strong>View full benchmark table</strong></summary>
 
-| Workload | Benchmark | Upstream C (`nightly`) | Rust Port (`--release`) | Result |
-|---|---|---:|---:|---|
-| **Cold startup** | `nvim --clean --headless +q` (median) | `31.4 ms` | **`16.7 ms`** | **1.88× faster** (`-47%`) |
-| **Screen layout & UTF-8 wrapping** | `screenpos_spec.lua` (24-test suite) | `36.8 s` | **`19.9 s`** | **1.85× faster** (`-46%`) |
-| — Long ASCII line `screenpos()` | `nobreakindent` / `breakindent` | `55.2 µs` / `81.3 µs` | **`23.8 µs` / `36.4 µs`** | **2.32× / 2.23× faster** |
-| — Long UTF-8 line `screenpos()` | 3-byte UTF-8 (`nobreakindent` / `breakindent`) | `167.0 µs` / `201.3 µs` | **`97.1 µs` / `121.0 µs`** | **1.72× / 1.66× faster** |
-| **Regex search** | `bench_regexp_spec.lua` (`regexpengine=1` / `0`) | `6.40 ms` / `7.94 ms` | **`3.48 ms` / `6.19 ms`** | **1.84× / 1.28× faster** |
-| **Virtual line cursor motion** | `extmark_spec.lua` (step over 2,000 virt lines) | `117 µs` | **`71 µs`** | **1.65× faster** (`-39%`) |
-| **Treesitter fold navigation** | `treesitter_spec.lua` (100 macro replays, 6k-line fold) | `60.9 ms` | **`43.1 ms`** | **1.41× faster** (`-29%`) |
-| **Treesitter redraw suite** | `treesitter_spec.lua` (8-test suite total) | `1,535 ms` | **`1,433 ms`** | **1.07× faster** (`-7%`) |
-| **Plugin autocmd lifecycle** | `autocmd_spec.lua` (8-test suite, 10k events) | `464 ms` | **`333 ms`** | **1.39× faster** (`-28%`) |
-| — Delete 10k autocmds | Same pattern / unique patterns | `24.4 ms` / `27.1 ms` | **`13.8 ms` / `15.3 ms`** | **1.76× / 1.78× faster** |
-| **Extmarks & inline diagnostics** | `extmark_spec.lua` (suite total) | `197 ms` | **`168 ms`** | **1.17× faster** (`-15%`) |
-| **Option & buffer config** | `option_spec.lua` (140,000 `vim.o` / `vim.opt` updates) | `609 ms` | **`539 ms`** | **1.13× faster** (`-11%`) |
-| **Full-screen Treesitter redraw** | `decor_spec.lua` (100×50 grid, median frame time) | `16.6 ms` | **`16.3 ms`** | **60+ FPS parity** |
+| Workload | Suite | Upstream C | Rust Port | Speedup |
+|---|---|---:|---:|---:|
+| Cold startup (headless median) | Startup | 31.4 ms | 16.7 ms | 1.88x |
+| Screen layout & wrapping (24 tests) | screenpos | 36.8 s | 19.9 s | 1.85x |
+| Long ASCII line layout (median) | screenpos | 55.2 µs | 23.8 µs | 2.32x |
+| Long UTF-8 line layout (median) | screenpos | 167.0 µs | 97.1 µs | 1.72x |
+| Regex search (backtracking) | regexp | 6.40 ms | 3.48 ms | 1.84x |
+| Regex search (auto engine) | regexp | 7.94 ms | 6.19 ms | 1.28x |
+| Cursor motion over 2k virtual lines | extmark | 117 µs | 71 µs | 1.65x |
+| Treesitter fold navigation (100 macros) | treesitter | 60.9 ms | 43.1 ms | 1.41x |
+| Treesitter redraw suite (8 tests) | treesitter | 1,535 ms | 1,433 ms | 1.07x |
+| Autocmd lifecycle suite (10k events) | autocmd | 464 ms | 333 ms | 1.39x |
+| Delete 10k autocmds (unique patterns) | autocmd | 27.1 ms | 15.3 ms | 1.78x |
+| Extmark & virtual line suite | extmark | 197 ms | 168 ms | 1.17x |
+| Option updates (140k calls) | option | 609 ms | 539 ms | 1.13x |
+| Full-screen Treesitter redraw (100x50) | decor | 16.6 ms | 16.3 ms | 1.02x |
 
 </details>
 
@@ -116,10 +117,10 @@ cargo xtask lint              # run clippy, stylua, error-code, and vimdoc linte
 
 ## Contributing & Maintenance
 
-- [BUILD.md](./BUILD.md) — Prerequisites, platform build instructions, and `cargo xtask` reference.
-- [CONTRIBUTING.md](./CONTRIBUTING.md) — Workflow, testing, linting, and pull request guidelines.
-- [MAINTAIN.md](./MAINTAIN.md) — Upstream `neovim/neovim` sync process and release packaging.
-- [AGENTS.md](./AGENTS.md) — Architecture, soundness invariants, and rules for AI coding agents.
+- [BUILD.md](./BUILD.md): Prerequisites, platform build instructions, and `cargo xtask` reference.
+- [CONTRIBUTING.md](./CONTRIBUTING.md): Workflow, testing, linting, and pull request guidelines.
+- [MAINTAIN.md](./MAINTAIN.md): Upstream `neovim/neovim` sync process and release packaging.
+- [AGENTS.md](./AGENTS.md): Architecture, soundness invariants, and rules for AI coding agents.
 
 ## License
 
