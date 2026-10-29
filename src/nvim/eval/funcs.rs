@@ -8517,7 +8517,7 @@ pub fn f_syn_idattr(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncD
     };
     let _ = &mut modec;
 
-    let mut p: *const c_char = ptr::null();
+    let mut p: Option<&CStr> = None;
     let w = |i: usize| tolower_asc(i32::from(crate::memory::cstr_byte_at(what, i))) as u8;
     match w(0) {
         b'b' => {
@@ -8577,7 +8577,7 @@ pub fn f_syn_idattr(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncD
         _ => {}
     }
 
-    crate::eval::typval::tv_set_string(rettv, p);
+    crate::eval::typval::tv_set_string(rettv, p.map_or(ptr::null(), CStr::as_ptr));
 }
 
 /// "synIDtrans(id)" function

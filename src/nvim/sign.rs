@@ -698,7 +698,7 @@ fn sign_list_defined(sp: &mut Sign) {
             msg_puts(args[i]);
             let p =
                 get_highlight_name_ext(&mut crate::os::env::ExpandCtx::new(), hls[i] - 1, false);
-            msg_puts(if !p.is_null() { p } else { c"NONE".as_ptr() });
+            msg_puts(p.unwrap_or(c"NONE"));
         }
     }
 }
@@ -1187,11 +1187,12 @@ fn sign_get_info_dict(sp: &mut Sign) -> &'static mut TvDict {
     ];
     for (name, hl) in args {
         if hl > 0 {
-            let p = get_highlight_name_ext(&mut crate::os::env::ExpandCtx::new(), hl - 1, false);
-            if p.is_null() {
-                tv_dict_add_str_len(&mut *d, name, c"NONE", 4);
-            } else {
+            if let Some(p) =
+                get_highlight_name_ext(&mut crate::os::env::ExpandCtx::new(), hl - 1, false)
+            {
                 tv_dict_add_str(&mut *d, name, p);
+            } else {
+                tv_dict_add_str_len(&mut *d, name, c"NONE", 4);
             }
         }
     }

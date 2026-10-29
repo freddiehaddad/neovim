@@ -83,7 +83,7 @@ use crate::mark::mark_get_global;
 use crate::math::xpopcount;
 use crate::mbyte::{mb_string2cells, utf_cluster_info, utf_ptr2_str_char_info};
 use crate::memline::ml_open;
-use crate::memory::{Arena, arena_alloc, arena_strdup};
+use crate::memory::{Arena, arena_alloc};
 use crate::message::{
     msg_ext_no_fast, msg_id_exists, msg_multihl, verbose_enter, verbose_leave, verbose_stop,
 };
@@ -2945,8 +2945,11 @@ pub fn nvim_eval_statusline(
 
             let mut sp = hltab;
             while !(*sp).start.is_null() {
-                let user_str: String;
-                let grpname = if (*sp).userhl == 0 {
+                const USER_HLS: [&CStr; 9] = [
+                    c"User1", c"User2", c"User3", c"User4", c"User5", c"User6", c"User7", c"User8",
+                    c"User9",
+                ];
+                let grpname: &'static CStr = if (*sp).userhl == 0 {
                     get_default_stl_hl(
                         if opts.use_tabline {
                             ptr::null_mut()
@@ -2959,11 +2962,10 @@ pub fn nvim_eval_statusline(
                 } else if (*sp).userhl < 0 {
                     syn_id2name(-(*sp).userhl)
                 } else {
-                    user_str = format!("User{}\0", (*sp).userhl);
-                    arena_strdup(arena, user_str.as_ptr().cast())
+                    USER_HLS[((*sp).userhl - 1) as usize]
                 };
 
-                let combine = if (*sp).item == i32::from(STL_SIGNCOL as u8) {
+                let combine: &'static CStr = if (*sp).item == i32::from(STL_SIGNCOL as u8) {
                     syn_id2name(scl_hl_id)
                 } else if (*sp).item == i32::from(STL_FOLDCOL as u8) {
                     grpname

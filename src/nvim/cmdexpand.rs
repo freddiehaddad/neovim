@@ -4901,7 +4901,9 @@ fn expand_other(
         },
         ExpGen {
             context: EXPAND_HIGHLIGHT,
-            func: get_highlight_name,
+            func: |xp, idx| {
+                get_highlight_name(xp, idx).map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut())
+            },
             ic: true,
             escaped: false,
         },

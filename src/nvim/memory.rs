@@ -691,13 +691,6 @@ pub fn arena_memdupz_opt(
     mem.cast::<c_char>()
 }
 
-/// Duplicate C string `str_ptr` onto `arena` (`arena_strdup`).
-pub fn arena_strdup(arena: &mut Arena, str_ptr: impl crate::strings::IntoCCharPtr) -> *mut c_char {
-    let str_ptr = str_ptr.into_c_char_ptr();
-    let len = unsafe { CStr::from_ptr(str_ptr).to_bytes().len() };
-    arena_memdupz(arena, str_ptr, len)
-}
-
 /// Free everything that we allocated (`free_all_mem`).
 pub fn free_all_mem() {
     use crate::api::extmark::api_extmark_free_all_mem;
@@ -888,7 +881,7 @@ mod tests {
             pos: 0,
             size: 0,
         };
-        let s1 = arena_strdup(&mut arena, c"hello arena");
+        let s1 = arena_memdupz(&mut arena, c"hello arena".as_ptr(), 11);
         let big = arena_alloc(&mut arena, 8192, true);
         assert!(!big.is_null());
         assert_eq!(

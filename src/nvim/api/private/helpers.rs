@@ -1518,21 +1518,25 @@ pub fn set_mark(
     res
 }
 
-pub fn get_default_stl_hl(wp: *mut WinInfoInfo, use_winbar: bool, stc_hl_id: i32) -> *const c_char {
+pub fn get_default_stl_hl(
+    wp: *mut WinInfoInfo,
+    use_winbar: bool,
+    stc_hl_id: i32,
+) -> &'static CStr {
     if wp.is_null() {
-        c"TabLineFill".as_ptr()
+        c"TabLineFill"
     } else if use_winbar {
         if wp == curwin_ptr() {
-            c"WinBar".as_ptr()
+            c"WinBar"
         } else {
-            c"WinBarNC".as_ptr()
+            c"WinBarNC"
         }
     } else if stc_hl_id > 0 {
         syn_id2name(stc_hl_id)
     } else if wp == curwin_ptr() {
-        c"StatusLine".as_ptr()
+        c"StatusLine"
     } else {
-        c"StatusLineNC".as_ptr()
+        c"StatusLineNC"
     }
 }
 

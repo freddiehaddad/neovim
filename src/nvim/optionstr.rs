@@ -3205,7 +3205,13 @@ pub fn did_set_winhighlight(args: &mut Optset) -> *const c_char {
 }
 
 pub fn expand_set_winhighlight(args: &mut Optexpand, matches: &mut Vec<std::ffi::CString>) -> bool {
-    expand_set_opt_generic(args, Some(get_highlight_name), matches)
+    expand_set_opt_generic(
+        args,
+        Some(|xp, idx| {
+            get_highlight_name(xp, idx).map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut())
+        }),
+        matches,
+    )
 }
 
 /// Format an error naming an item (at most 63 bytes) and listing its valid values.

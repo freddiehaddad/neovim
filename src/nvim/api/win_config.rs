@@ -1196,7 +1196,7 @@ pub fn nvim_win_get_config(win: Window, arena: &mut Arena, err: &mut Error) -> K
                 let s = NvimString::from_bytes(&bchars[..blen]);
                 let hi_id = config.border_hl_ids[i];
                 let hi_name = syn_id2name(hi_id);
-                if unsafe { *hi_name } != 0 {
+                if !hi_name.to_bytes().is_empty() {
                     let mut tuple = arena_array(arena, 2);
                     add_c(&mut tuple, string_obj(s));
                     add_c(&mut tuple, string_obj(cstr_as_string(hi_name)));
