@@ -1234,10 +1234,10 @@ fn grid_draw_bordertext(
     let mut i: usize = 0;
     while i < vt.len() {
         let mut attr: i32 = -1;
-        let mut text = next_virt_text_chunk(vt, &mut i, &mut attr);
-        if text.is_null() {
+        let Some(text_cstr) = next_virt_text_chunk(vt, &mut i, &mut attr) else {
             break;
-        }
+        };
+        let mut text = text_cstr.as_ptr().cast_mut();
         if overflow > 0 {
             let cells = mb_string2cells(text) as i32;
             if overflow >= cells {

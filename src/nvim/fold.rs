@@ -2800,14 +2800,13 @@ pub fn f_foldtextresult(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalF
             let mut i: usize = 0;
             while i < vt.len() {
                 let mut attr: i32 = 0;
-                let new_text = next_virt_text_chunk(&vt, &mut i, &mut attr);
-                if new_text.is_null() {
+                let Some(new_text) = next_virt_text_chunk(&vt, &mut i, &mut attr) else {
                     break;
-                }
-                text_bytes.extend_from_slice(crate::memory::cstr_as_bytes(new_text));
+                };
+                text_bytes.extend_from_slice(new_text.to_bytes());
             }
         }
-        crate::eval::typval::tv_set_string_len(rettv, text_bytes.as_ptr().cast(), text_bytes.len());
+        crate::eval::typval::tv_set_bytes(rettv, &text_bytes);
     }
 
     fold_st().fdt_result_entered = false;

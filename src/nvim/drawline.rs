@@ -473,10 +473,9 @@ fn draw_virt_text_item(
                 }
             } else {
                 virt_attr = 0;
-                let next = next_virt_text_chunk(vt, &mut virt_pos, &mut virt_attr);
-                if next.is_null() {
+                let Some(next) = next_virt_text_chunk(vt, &mut virt_pos, &mut virt_attr) else {
                     break;
-                }
+                };
                 ci = utf_ptr2_str_char_info(next);
             }
         }
@@ -1215,12 +1214,13 @@ fn handle_inline_virtual_text(wlv: &mut Winlinevars, v: isize, selected: bool) {
                 }
             } else {
                 let mut attr: i32 = 0;
-                let text = next_virt_text_chunk(wlv.virt_inline, &mut wlv.virt_inline_i, &mut attr);
-                if text.is_null() {
+                let Some(text) =
+                    next_virt_text_chunk(wlv.virt_inline, &mut wlv.virt_inline_i, &mut attr)
+                else {
                     continue;
-                }
-                wlv.p_extra = text;
-                wlv.n_extra = crate::memory::cstr_len(text) as i32;
+                };
+                wlv.p_extra = text.as_ptr().cast_mut();
+                wlv.n_extra = text.to_bytes().len() as i32;
                 if wlv.n_extra == 0 {
                     continue;
                 }

@@ -4,7 +4,6 @@ use crate::api::private::helpers::{arena_array, arena_dict, cstr_as_string};
 use crate::api::private::validate::{
     Array, Dict, KeyValuePair, NvimString, Object, ObjectData, ObjectType,
 };
-use crate::charset::getdigits_int;
 use crate::ex_getln::{cmdline_at_end, cmdline_overstrike};
 use crate::globals::*;
 use crate::highlight_group::{syn_check_group, syn_id2attr};
@@ -13,7 +12,7 @@ use crate::log::{LOGLVL_WRN, logmsg};
 use crate::memory::Arena;
 use crate::option_vars::*;
 use crate::ui::ui_mode_info_set;
-use std::ffi::{CStr, c_char};
+use std::ffi::CStr;
 
 pub const SHAPE_IDX_N: usize = 0;
 pub const SHAPE_IDX_V: usize = 1;
@@ -30,7 +29,7 @@ pub const SHAPE_IDX_COUNT: usize = 18;
 
 pub const SHAPE_MOUSE: i32 = 1;
 pub const SHAPE_CURSOR: i32 = 2;
-const SHAPE_BOTH: c_char = (SHAPE_CURSOR + SHAPE_MOUSE) as c_char;
+const SHAPE_BOTH: i32 = SHAPE_CURSOR + SHAPE_MOUSE;
 
 #[repr(C)]
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -53,7 +52,7 @@ pub struct Cursorentry {
     pub id: i32,
     pub id_lm: i32,
     pub name: &'static CStr,
-    pub used_for: c_char,
+    pub used_for: i32,
 }
 
 use crate::state::{
@@ -66,7 +65,7 @@ const fn entry(
     blinkon: i32,
     blinkoff: i32,
     name: &'static CStr,
-    used_for: c_char,
+    used_for: i32,
 ) -> Cursorentry {
     Cursorentry {
         full_name,
@@ -93,15 +92,15 @@ static SHAPE_TABLE: GlobalState<[Cursorentry; SHAPE_IDX_COUNT]> = GlobalState::n
     entry(c"cmdline_replace", 700, 400, 250, c"cr", SHAPE_BOTH),
     entry(c"operator", 700, 400, 250, c"o", SHAPE_BOTH),
     entry(c"visual_select", 700, 400, 250, c"ve", SHAPE_BOTH),
-    entry(c"cmdline_hover", 0, 0, 0, c"e", SHAPE_MOUSE as c_char),
-    entry(c"statusline_hover", 0, 0, 0, c"s", SHAPE_MOUSE as c_char),
-    entry(c"statusline_drag", 0, 0, 0, c"sd", SHAPE_MOUSE as c_char),
-    entry(c"vsep_hover", 0, 0, 0, c"vs", SHAPE_MOUSE as c_char),
-    entry(c"vsep_drag", 0, 0, 0, c"vd", SHAPE_MOUSE as c_char),
-    entry(c"more", 0, 0, 0, c"m", SHAPE_MOUSE as c_char),
-    entry(c"more_lastline", 0, 0, 0, c"ml", SHAPE_MOUSE as c_char),
-    entry(c"showmatch", 100, 100, 100, c"sm", SHAPE_CURSOR as c_char),
-    entry(c"terminal", 0, 0, 0, c"t", SHAPE_CURSOR as c_char),
+    entry(c"cmdline_hover", 0, 0, 0, c"e", SHAPE_MOUSE),
+    entry(c"statusline_hover", 0, 0, 0, c"s", SHAPE_MOUSE),
+    entry(c"statusline_drag", 0, 0, 0, c"sd", SHAPE_MOUSE),
+    entry(c"vsep_hover", 0, 0, 0, c"vs", SHAPE_MOUSE),
+    entry(c"vsep_drag", 0, 0, 0, c"vd", SHAPE_MOUSE),
+    entry(c"more", 0, 0, 0, c"m", SHAPE_MOUSE),
+    entry(c"more_lastline", 0, 0, 0, c"ml", SHAPE_MOUSE),
+    entry(c"showmatch", 100, 100, 100, c"sm", SHAPE_CURSOR),
+    entry(c"terminal", 0, 0, 0, c"t", SHAPE_CURSOR),
 ]);
 
 #[inline]
@@ -143,14 +142,14 @@ pub fn mode_style_array(arena: &mut Arena) -> Array {
     let tbl = unsafe { &*std::ptr::addr_of!((*shape_table_mut())) };
 
     for cur in tbl.iter() {
-        let is_cursor = (cur.used_for as i32 & SHAPE_CURSOR) != 0;
+        let is_cursor = (cur.used_for & SHAPE_CURSOR) != 0;
         let mut dic = arena_dict(arena, 3 + if is_cursor { 9 } else { 0 });
         dict_put_c(
             &mut dic,
             c"name",
             Object {
                 obj_type: ObjectType::ObjectTypeString,
-                data: ObjectData::String(cstr_as_string(cur.full_name.as_ptr())),
+                data: ObjectData::String(cstr_as_string(cur.full_name)),
             },
         );
         dict_put_c(
@@ -158,10 +157,10 @@ pub fn mode_style_array(arena: &mut Arena) -> Array {
             c"short_name",
             Object {
                 obj_type: ObjectType::ObjectTypeString,
-                data: ObjectData::String(cstr_as_string(cur.name.as_ptr())),
+                data: ObjectData::String(cstr_as_string(cur.name)),
             },
         );
-        if (cur.used_for as i32 & SHAPE_MOUSE) != 0 {
+        if (cur.used_for & SHAPE_MOUSE) != 0 {
             dict_put_c(
                 &mut dic,
                 c"mouse_shape",
@@ -182,7 +181,7 @@ pub fn mode_style_array(arena: &mut Arena) -> Array {
                 c"cursor_shape",
                 Object {
                     obj_type: ObjectType::ObjectTypeString,
-                    data: ObjectData::String(cstr_as_string(shape_cstr.as_ptr())),
+                    data: ObjectData::String(cstr_as_string(shape_cstr)),
                 },
             );
             dict_put_c(
@@ -269,70 +268,68 @@ pub fn mode_style_array(arena: &mut Arena) -> Array {
 }
 
 /// Parses the `'guicursor'` option (`parse_shape_opt`).
-pub fn parse_shape_opt(what: i32) -> *const c_char {
-    let mut p: *const c_char = std::ptr::null();
+pub fn parse_shape_opt(what: i32) -> Option<&'static CStr> {
     let mut idx: usize = 0;
     let mut found_ve = false;
     let tbl = unsafe { &mut *std::ptr::addr_of_mut!((*shape_table_mut())) };
+    let guicursor_ptr = opt_vars().p_guicursor;
+    let guicursor = crate::memory::cstr_as_bytes(guicursor_ptr);
 
     for round in 1..=2 {
-        if round == 2 || crate::memory::cstr_is_empty(opt_vars().p_guicursor) {
+        if round == 2 || guicursor.is_empty() {
             clear_shape_table();
-            if crate::memory::cstr_is_empty(opt_vars().p_guicursor) {
+            if guicursor.is_empty() {
                 ui_mode_info_set();
-                return std::ptr::null();
+                return None;
             }
         }
-        let mut modep: *const c_char = opt_vars().p_guicursor;
-        while !modep.is_null() && unsafe { *modep } != 0 {
-            let colonp = crate::memory::cstr_as_bytes(modep)
-                .iter()
-                .position(|&b| b == b':')
-                .map_or(std::ptr::null(), |i| modep.wrapping_add(i));
-            let commap = crate::memory::cstr_as_bytes(modep)
-                .iter()
-                .position(|&b| b == b',')
-                .map_or(std::ptr::null(), |i| modep.wrapping_add(i));
-
-            if colonp.is_null() || (!commap.is_null() && (commap as usize) < (colonp as usize)) {
-                return c"E545: Missing colon".as_ptr();
+        let mut mode_idx = 0usize;
+        while mode_idx < guicursor.len() {
+            let rest = &guicursor[mode_idx..];
+            let Some(colon_rel) = rest.iter().position(|&b| b == b':') else {
+                return Some(c"E545: Missing colon");
+            };
+            let comma_rel = rest.iter().position(|&b| b == b',');
+            if comma_rel.is_some_and(|c| c < colon_rel) {
+                return Some(c"E545: Missing colon");
             }
-            if colonp == modep {
-                return c"E546: Illegal mode".as_ptr();
+            if colon_rel == 0 {
+                return Some(c"E546: Illegal mode");
             }
+            let colon_idx = mode_idx + colon_rel;
+            let comma_idx = comma_rel.map_or(guicursor.len(), |c| mode_idx + c);
 
             let mut all_idx: isize = -1;
-            while (modep as usize) < (colonp as usize) || all_idx >= 0 {
+            let mut p_idx = colon_idx + 1;
+            while mode_idx < colon_idx || all_idx >= 0 {
                 if all_idx < 0 {
-                    let m1 = crate::memory::cstr_byte_at(modep, 1);
+                    let m0 = guicursor[mode_idx];
+                    let m1 = guicursor.get(mode_idx + 1).copied().unwrap_or(0);
                     let len = if m1 == b'-' || m1 == b':' {
                         1usize
                     } else {
                         2usize
                     };
 
-                    if len == 1
-                        && (crate::memory::cstr_first_byte(modep)).eq_ignore_ascii_case(&b'a')
-                    {
+                    if len == 1 && m0.eq_ignore_ascii_case(&b'a') {
                         all_idx = (SHAPE_IDX_COUNT - 1) as isize;
                     } else {
+                        let mode_slice = &guicursor[mode_idx..mode_idx + len];
                         idx = SHAPE_IDX_COUNT;
                         for (i, entry) in tbl.iter().enumerate() {
-                            if crate::memory::cstr_prefix_bytes(modep, len).eq_ignore_ascii_case(
-                                crate::memory::cstr_prefix_bytes(entry.name.as_ptr(), len),
-                            ) {
+                            if entry.name.to_bytes().eq_ignore_ascii_case(mode_slice) {
                                 idx = i;
                                 break;
                             }
                         }
-                        if idx == SHAPE_IDX_COUNT || (tbl[idx].used_for as i32 & what) == 0 {
-                            return c"E546: Illegal mode".as_ptr();
+                        if idx == SHAPE_IDX_COUNT || (tbl[idx].used_for & what) == 0 {
+                            return Some(c"E546: Illegal mode");
                         }
-                        if len == 2 && crate::memory::cstr_first_byte(modep) == b'v' && m1 == b'e' {
+                        if len == 2 && m0 == b'v' && m1 == b'e' {
                             found_ve = true;
                         }
                     }
-                    modep = modep.wrapping_add(len + 1);
+                    mode_idx += len + 1;
                 }
 
                 if all_idx >= 0 {
@@ -340,23 +337,28 @@ pub fn parse_shape_opt(what: i32) -> *const c_char {
                     all_idx -= 1;
                 }
 
-                p = colonp.wrapping_add(1);
-                while unsafe { *p } != 0 && crate::memory::cstr_first_byte(p) != b',' {
-                    let first_byte = crate::memory::cstr_first_byte(p);
-                    let len = if crate::memory::cstr_prefix_bytes(p, 3).eq_ignore_ascii_case(b"ver")
-                        || crate::memory::cstr_prefix_bytes(p, 3).eq_ignore_ascii_case(b"hor")
+                p_idx = colon_idx + 1;
+                while p_idx < comma_idx {
+                    let rem = &guicursor[p_idx..comma_idx];
+                    let first_byte = rem[0];
+                    let len = if rem
+                        .get(..3)
+                        .is_some_and(|s| s.eq_ignore_ascii_case(b"ver") || s.eq_ignore_ascii_case(b"hor"))
                     {
                         3usize
-                    } else if crate::memory::cstr_prefix_bytes(p, 9)
-                        .eq_ignore_ascii_case(b"blinkwait")
+                    } else if rem
+                        .get(..9)
+                        .is_some_and(|s| s.eq_ignore_ascii_case(b"blinkwait"))
                     {
                         9usize
-                    } else if crate::memory::cstr_prefix_bytes(p, 7)
-                        .eq_ignore_ascii_case(b"blinkon")
+                    } else if rem
+                        .get(..7)
+                        .is_some_and(|s| s.eq_ignore_ascii_case(b"blinkon"))
                     {
                         7usize
-                    } else if crate::memory::cstr_prefix_bytes(p, 8)
-                        .eq_ignore_ascii_case(b"blinkoff")
+                    } else if rem
+                        .get(..8)
+                        .is_some_and(|s| s.eq_ignore_ascii_case(b"blinkoff"))
                     {
                         8usize
                     } else {
@@ -364,14 +366,22 @@ pub fn parse_shape_opt(what: i32) -> *const c_char {
                     };
 
                     if len != 0 {
-                        p = p.wrapping_add(len);
-                        if !(crate::memory::cstr_first_byte(p)).is_ascii_digit() {
-                            return c"E548: Digit expected".as_ptr();
+                        p_idx += len;
+                        if !guicursor
+                            .get(p_idx)
+                            .is_some_and(u8::is_ascii_digit)
+                        {
+                            return Some(c"E548: Digit expected");
                         }
-                        let n = getdigits_int((&raw mut p).cast(), false, 0);
+                        let mut n: i64 = 0;
+                        while let Some(&d) = guicursor.get(p_idx).filter(|b| b.is_ascii_digit()) {
+                            n = n.saturating_mul(10).saturating_add(i64::from(d - b'0'));
+                            p_idx += 1;
+                        }
+                        let n = n.min(i64::from(i32::MAX)) as i32;
                         if len == 3 {
                             if n == 0 {
-                                return c"E549: Illegal percentage".as_ptr();
+                                return Some(c"E549: Illegal percentage");
                             }
                             if round == 2 {
                                 if first_byte.eq_ignore_ascii_case(&b'v') {
@@ -390,51 +400,47 @@ pub fn parse_shape_opt(what: i32) -> *const c_char {
                                 tbl[idx].blinkoff = n;
                             }
                         }
-                    } else if crate::memory::cstr_prefix_bytes(p, 5).eq_ignore_ascii_case(b"block")
-                    {
+                    } else if rem.get(..5).is_some_and(|s| s.eq_ignore_ascii_case(b"block")) {
                         if round == 2 {
                             tbl[idx].shape = CursorShape::ShapeBlock;
                         }
-                        p = p.wrapping_add(5);
+                        p_idx += 5;
                     } else {
-                        let mut endp = crate::memory::cstr_as_bytes(p)
-                            .iter()
-                            .position(|&b| b == b'-')
-                            .map_or(std::ptr::null(), |i| p.wrapping_add(i));
-                        if commap.is_null() {
-                            if endp.is_null() {
-                                endp = p.wrapping_add(crate::memory::cstr_len(p));
-                            }
-                        } else if endp.is_null() || (endp as usize) > (commap as usize) {
-                            endp = commap;
-                        }
-                        let slashp = crate::memory::cstr_as_bytes(p)
+                        let end_rel = rem.iter().position(|&b| b == b'-').unwrap_or(rem.len());
+                        let end_idx = p_idx + end_rel;
+                        let slash_idx = rem[..end_rel]
                             .iter()
                             .position(|&b| b == b'/')
-                            .map_or(std::ptr::null(), |i| p.wrapping_add(i));
+                            .map(|s| p_idx + s);
                         let mut saved_hl_id = first_byte as i32;
-                        if !slashp.is_null() && (slashp as usize) < (endp as usize) {
-                            saved_hl_id = syn_check_group(p, (slashp as usize) - (p as usize));
-                            p = slashp.wrapping_add(1);
+                        if let Some(s_idx) = slash_idx {
+                            saved_hl_id = syn_check_group(
+                                guicursor_ptr.wrapping_add(p_idx),
+                                s_idx - p_idx,
+                            );
+                            p_idx = s_idx + 1;
                         }
                         if round == 2 {
-                            tbl[idx].id = syn_check_group(p, (endp as usize) - (p as usize));
+                            tbl[idx].id = syn_check_group(
+                                guicursor_ptr.wrapping_add(p_idx),
+                                end_idx - p_idx,
+                            );
                             tbl[idx].id_lm = tbl[idx].id;
-                            if !slashp.is_null() && (slashp as usize) < (endp as usize) {
+                            if slash_idx.is_some() {
                                 tbl[idx].id = saved_hl_id;
                             }
                         }
-                        p = endp;
+                        p_idx = end_idx;
                     }
 
-                    if crate::memory::cstr_first_byte(p) == b'-' {
-                        p = p.wrapping_add(1);
+                    if guicursor.get(p_idx).copied() == Some(b'-') {
+                        p_idx += 1;
                     }
                 }
             }
-            modep = p;
-            if !modep.is_null() && crate::memory::cstr_first_byte(modep) == b',' {
-                modep = modep.wrapping_add(1);
+            mode_idx = p_idx;
+            if guicursor.get(mode_idx).copied() == Some(b',') {
+                mode_idx += 1;
             }
         }
     }
@@ -450,7 +456,7 @@ pub fn parse_shape_opt(what: i32) -> *const c_char {
         tbl[SHAPE_IDX_VE].id_lm = v_entry.id_lm;
     }
     ui_mode_info_set();
-    std::ptr::null()
+    None
 }
 
 /// Map cursor mode from string to integer (`cursor_mode_str2int`).

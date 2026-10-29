@@ -2485,7 +2485,7 @@ fn didset_options2() {
 /// Repair UI state after `:set all&`.
 fn didset_options_all() {
     let errmsg = parse_shape_opt(SHAPE_CURSOR);
-    assert!(errmsg.is_null());
+    assert!(errmsg.is_none());
     last_status(false);
     win_float_update_statusline();
     win_new_screen_rows();

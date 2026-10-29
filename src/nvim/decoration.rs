@@ -2,19 +2,19 @@
 
 use crate::api::extmark::{ns_in_win, virt_text_to_array};
 use crate::api::private::helpers::{
-    arena_array, array_obj, boolean_obj, cstr_as_obj, cstr_to_arena_obj, integer_obj, put_c,
+    arena_array, arena_bytes, array_obj, boolean_obj, cstr_as_obj, integer_obj, put_c, string_obj,
 };
 use crate::api::private::validate::{Dict, Object};
 use crate::api::ui::MAX_SCHAR_SIZE;
 use crate::buffer::{FileBuf, buf_meta_total};
-use crate::change::{TAB, changed_lines_invalidate_buf};
+use crate::change::changed_lines_invalidate_buf;
 use crate::cursor::{Colnr, Lpos};
 use crate::decoration_provider::decor_providers_invoke_conceal_line;
 use crate::drawscreen::{conceal_cursor_line, redraw_buf_line_later, redraw_buf_range_later};
 use crate::extmark::{K_FALSE, K_NONE, K_TRUE, TriState, extmark_set};
 use crate::fold::{has_any_folding, has_folding};
 use crate::globals::*;
-use crate::grid::{Schar, schar_from_char, schar_get, schar_get_first_codepoint, schar_high};
+use crate::grid::{Schar, schar_from_char, schar_get_bytes, schar_get_first_codepoint, schar_high};
 use crate::highlight::{hl_add_url, hl_combine_attr};
 use crate::highlight_group::{syn_id2attr, syn_id2name};
 use crate::indent::tabstop_padding;
@@ -27,7 +27,7 @@ use crate::marktree::{
     marktree_itr_step_out_filter, marktree_itr_step_overlap, mt_decor, mt_decor_any, mt_decor_sign,
     mt_end, mt_invalid,
 };
-use crate::mbyte::{utf_ptr2cells, utfc_ptr2len};
+use crate::mbyte::{utf_ptr2cells, utfc_slice2len};
 use crate::memory::Arena;
 use crate::r#move::{changed_window_setting, win_col_off};
 use crate::msgpack_rpc::packer::Integer;
@@ -35,7 +35,7 @@ use crate::regexp::MAXCOL;
 use crate::sign::{buf_has_signs, describe_sign_text};
 use crate::window::WinInfoInfo;
 use std::cmp::Ordering;
-use std::ffi::c_char;
+use std::ffi::CStr;
 use std::ptr;
 
 pub type NS = crate::msgpack_rpc::packer::ObjHandle;
@@ -789,14 +789,15 @@ pub fn decor_check_invalid_glyphs() {
     }
 }
 
-pub fn next_virt_text_chunk(vt: &[VirtTextChunk], pos: &mut usize, attr: &mut i32) -> *mut c_char {
-    let mut text: *mut c_char = ptr::null_mut();
-    while text.is_null() && *pos < vt.len() {
+pub fn next_virt_text_chunk<'a>(
+    vt: &'a [VirtTextChunk],
+    pos: &mut usize,
+    attr: &mut i32,
+) -> Option<&'a CStr> {
+    let mut text: Option<&'a CStr> = None;
+    while text.is_none() && *pos < vt.len() {
         let chunk = &vt[*pos];
-        text = chunk
-            .text
-            .as_ref()
-            .map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut());
+        text = chunk.text.as_deref();
         let hl_id = chunk.hl_id;
         if hl_id >= 0 {
             *attr = (*attr).max(0);
@@ -1632,17 +1633,18 @@ pub fn decor_virt_line_rows(
         let Some(ref text) = chunk.text else {
             continue;
         };
-        let mut virt_str: *const c_char = text.as_ptr();
-        while !crate::memory::cstr_is_empty(virt_str) {
-            let bytes_to_next_char = utfc_ptr2len(virt_str);
-            let cells = if unsafe { *virt_str } == TAB {
+        let bytes = text.as_bytes();
+        let mut off = 0usize;
+        while off < bytes.len() {
+            let bytes_to_next_char = utfc_slice2len(&bytes[off..]);
+            let cells = if bytes[off] == b'\t' {
                 tabstop_padding(vcol, unsafe { (*buf).b_p_ts }, unsafe {
                     &(*buf).b_p_vts_array
                 })
             } else {
-                utf_ptr2cells(virt_str)
+                utf_ptr2cells(text.as_ptr().wrapping_add(off))
             };
-            virt_str = virt_str.wrapping_add(bytes_to_next_char as usize);
+            off += bytes_to_next_char;
             if row_cells + cells > row_width {
                 row += 1;
                 if skip_cells.is_some() && row == target_row {
@@ -1783,9 +1785,9 @@ pub fn decor_to_dict_legacy(dict: &mut Dict, decor: DecorInline, hl_name: bool, 
     if (sh_hl.flags & K_SHCONCEAL_OFF) != 0 {
         put_c(dict, c"conceal", boolean_obj(false));
     } else if (sh_hl.flags & K_SHCONCEAL) != 0 {
-        let mut buf = [0 as c_char; MAX_SCHAR_SIZE];
-        schar_get(buf.as_mut_ptr(), sh_hl.text[0]);
-        put_c(dict, c"conceal", cstr_to_arena_obj(arena, buf.as_ptr()));
+        let mut buf = [0u8; MAX_SCHAR_SIZE];
+        let len = schar_get_bytes(&mut buf, sh_hl.text[0]);
+        put_c(dict, c"conceal", string_obj(arena_bytes(arena, &buf[..len])));
     }
 
     if (sh_hl.flags & K_SHCONCEAL_LINES) != 0 {
@@ -1873,9 +1875,13 @@ pub fn decor_to_dict_legacy(dict: &mut Dict, decor: DecorInline, hl_name: bool, 
 
     if (sh_sign.flags & K_SHIS_SIGN) != 0 {
         if sh_sign.text[0] != 0 {
-            let mut buf = [0 as c_char; SIGN_WIDTH * MAX_SCHAR_SIZE];
-            describe_sign_text(buf.as_mut_ptr(), sh_sign.text.as_ptr().cast_mut());
-            put_c(dict, c"sign_text", cstr_to_arena_obj(arena, buf.as_ptr()));
+            let mut buf = [0u8; SIGN_WIDTH * MAX_SCHAR_SIZE];
+            let len = describe_sign_text(buf.as_mut_ptr().cast(), sh_sign.text.as_ptr().cast_mut());
+            put_c(
+                dict,
+                c"sign_text",
+                string_obj(arena_bytes(arena, &buf[..len])),
+            );
         }
 
         if let Some(ref sign_name) = sh_sign.sign_name {

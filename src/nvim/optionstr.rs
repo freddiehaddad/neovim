@@ -2356,9 +2356,8 @@ pub fn expand_set_formatoptions(
 
 /// The 'guicursor' option is changed.
 pub fn did_set_guicursor(_args: &mut Optset) -> *const c_char {
-    let errmsg = parse_shape_opt(SHAPE_CURSOR);
-    if !errmsg.is_null() {
-        return errmsg;
+    if let Some(errmsg) = parse_shape_opt(SHAPE_CURSOR) {
+        return errmsg.as_ptr();
     }
     if g_st().visual_global.active {
         redraw_winline(crate::globals::curwin_mut(), curwin_mut().w_cursor.lnum);
