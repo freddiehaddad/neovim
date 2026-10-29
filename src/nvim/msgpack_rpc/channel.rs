@@ -390,40 +390,37 @@ pub fn rpc_send_call(
 
 pub(crate) fn receive_msgpack(
     _stream: &mut RStream,
-    rbuf: impl crate::strings::IntoCCharPtr,
-    c: usize,
+    rbuf: &[u8],
     channel: &mut Channel,
     eof: bool,
 ) -> usize {
-    let rbuf = rbuf.into_c_char_ptr();
-    {
-        channel_incref(&mut *channel);
+    let c = rbuf.len();
+    channel_incref(&mut *channel);
 
-        let mut consumed: usize = 0;
+    let mut consumed: usize = 0;
 
-        if c > 0 {
-            let p: *mut Unpacker = channel.rpc.unpacker.as_deref_mut().unwrap();
-            unsafe {
-                (*p).read_ptr = rbuf.cast::<u8>();
-                (*p).read_size = c;
-            }
-            parse_msgpack(channel);
-
-            if !unpacker_closed(unsafe { &*p }) {
-                consumed = c - unsafe { (*p).read_size };
-            }
+    if c > 0 {
+        let p: *mut Unpacker = channel.rpc.unpacker.as_deref_mut().unwrap();
+        unsafe {
+            (*p).read_ptr = rbuf.as_ptr();
+            (*p).read_size = c;
         }
+        parse_msgpack(channel);
 
-        if eof {
-            let msg = format!("ch {} was closed by the peer\0", channel.id);
-            let msg_cstr = std::ffi::CStr::from_bytes_with_nul(msg.as_bytes()).unwrap();
-            chan_close_on_err(channel, msg_cstr, LOGLVL_INF);
+        if !unpacker_closed(unsafe { &*p }) {
+            consumed = c - unsafe { (*p).read_size };
         }
-
-        channel_decref(channel);
-
-        consumed
     }
+
+    if eof {
+        let msg = format!("ch {} was closed by the peer\0", channel.id);
+        let msg_cstr = std::ffi::CStr::from_bytes_with_nul(msg.as_bytes()).unwrap();
+        chan_close_on_err(channel, msg_cstr, LOGLVL_INF);
+    }
+
+    channel_decref(channel);
+
+    consumed
 }
 
 fn find_call_frame(rpc: &RpcState, request_id: u32) -> Option<std::rc::Rc<ChannelCallFrame>> {

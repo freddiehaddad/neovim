@@ -933,7 +933,7 @@ pub fn terminal_close(termpp: *mut *mut Terminal, status: i32) {
                 if status != -1 && term.cursor.row == height - 1 {
                     fetch_row(term, term.cursor.row, width);
                     if term.textbuf[0] != NUL {
-                        terminal_receive(term, c"\r\n", 2);
+                        terminal_receive(term, b"\r\n");
                     }
                 }
                 block_autocmds();
@@ -1568,40 +1568,32 @@ pub fn on_sync_flush(buf_handle: ObjHandle) {
     }
 }
 
-pub fn terminal_receive(term: &mut Terminal, data: impl crate::strings::IntoCCharPtr, len: usize) {
-    let data = data.into_c_char_ptr();
-    {
-        if data.is_null() {
-            return;
-        }
-
-        let data_bytes = crate::memory::cstr_slice(data, len);
-        if term.opts.force_crlf {
-            let mut crlf_data: Vec<u8> = Vec::with_capacity(len);
-            for (i, &b) in data_bytes.iter().enumerate() {
-                if b == b'\n' && (i == 0 || data_bytes[i - 1] != b'\r') {
-                    crlf_data.push(b'\r');
-                }
-                crlf_data.push(b);
+pub fn terminal_receive(term: &mut Terminal, data_bytes: &[u8]) {
+    if term.opts.force_crlf {
+        let mut crlf_data: Vec<u8> = Vec::with_capacity(data_bytes.len());
+        for (i, &b) in data_bytes.iter().enumerate() {
+            if b == b'\n' && (i == 0 || data_bytes[i - 1] != b'\r') {
+                crlf_data.push(b'\r');
             }
-            vterm_input_write(&mut term.vt, &crlf_data);
-        } else {
-            vterm_input_write(&mut term.vt, data_bytes);
+            crlf_data.push(b);
         }
-        vterm_screen_flush_damage(unsafe { &mut *term.vt.screen_mut_ptr() });
+        vterm_input_write(&mut term.vt, &crlf_data);
+    } else {
+        vterm_input_write(&mut term.vt, data_bytes);
+    }
+    vterm_screen_flush_damage(unsafe { &mut *term.vt.screen_mut_ptr() });
 
-        if term.sync_flush_pending {
-            term.sync_flush_pending = false;
-            let mut height: i32 = 0;
-            let mut width: i32 = 0;
-            vterm_get_size(&term.vt, &mut height, &mut width);
-            term.invalid_start = 0;
-            term.invalid_end = height;
-            multiqueue_put_event(
-                unsafe { &mut *loop_queues(&mut g_st().main_loop).events },
-                Event::TermSyncFlush(term.buf_handle),
-            );
-        }
+    if term.sync_flush_pending {
+        term.sync_flush_pending = false;
+        let mut height: i32 = 0;
+        let mut width: i32 = 0;
+        vterm_get_size(&term.vt, &mut height, &mut width);
+        term.invalid_start = 0;
+        term.invalid_end = height;
+        multiqueue_put_event(
+            unsafe { &mut *loop_queues(&mut g_st().main_loop).events },
+            Event::TermSyncFlush(term.buf_handle),
+        );
     }
 }
 

@@ -2358,20 +2358,19 @@ pub fn nlua_exec_file(path: impl crate::strings::IntoCCharPtr) -> bool {
             }
 
             let mut sb: Vec<u8> = Vec::with_capacity(64);
+            let mut buf = [0u8; 64];
             loop {
                 if g_st().got_int {
                     file_close(&mut stdin_dup, false);
                     return false;
                 }
-                let read_size = file_read(&raw mut stdin_dup, g_st().iobuff.as_mut_ptr(), 64);
+                let read_size = file_read(&raw mut stdin_dup, &mut buf);
                 if read_size < 0 {
                     file_close(&mut stdin_dup, false);
                     return false;
                 }
                 if read_size > 0 {
-                    let slice =
-                        crate::memory::cstr_slice(g_st().iobuff.as_ptr(), read_size as usize);
-                    sb.extend_from_slice(slice);
+                    sb.extend_from_slice(&buf[..read_size as usize]);
                 }
                 if read_size < 64 {
                     break;

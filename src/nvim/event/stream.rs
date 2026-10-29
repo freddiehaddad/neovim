@@ -57,8 +57,7 @@ impl StreamCbData {
     pub fn call_read_cb(
         self,
         stream: *mut crate::event::rstream::RStream,
-        buf: *const std::ffi::c_char,
-        count: usize,
+        buf: &[u8],
         eof: bool,
     ) -> Option<usize> {
         unsafe {
@@ -67,38 +66,31 @@ impl StreamCbData {
                 Self::ChannelData(chan) => Some(crate::channel::on_channel_data(
                     &mut *stream,
                     buf,
-                    count,
                     &mut *chan,
                     eof,
                 )),
                 Self::ChannelStderr(chan) => Some(crate::channel::on_job_stderr(
                     &mut *stream,
                     buf,
-                    count,
                     &mut *chan,
                     eof,
                 )),
                 Self::ChannelRpc(chan) => Some(crate::msgpack_rpc::channel::receive_msgpack(
                     &mut *stream,
                     buf,
-                    count,
                     &mut *chan,
                     eof,
                 )),
                 Self::ShellBuf(dbuf) => Some(crate::os::shell::system_data_cb(
                     &mut *stream,
                     buf,
-                    count,
                     &mut *dbuf,
                     eof,
                 )),
-                Self::ShellOut => {
-                    Some(crate::os::shell::out_data_cb(&mut *stream, buf, count, eof))
-                }
+                Self::ShellOut => Some(crate::os::shell::out_data_cb(&mut *stream, buf, eof)),
                 Self::Input(input) => Some(crate::tui::input::tinput_read_cb(
                     &mut *stream,
                     buf,
-                    count,
                     &mut *input,
                     eof,
                 )),

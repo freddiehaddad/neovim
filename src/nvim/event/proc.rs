@@ -487,12 +487,7 @@ fn flush_stream(proc_: *mut Proc, stream: *mut RStream) {
 
             if num_bytes == ptr::read_volatile(&raw const (*stream).num_bytes) {
                 if !ptr::read_volatile(&raw const (*stream).did_eof) {
-                    let _ = (*stream).s.cb_data.call_read_cb(
-                        &mut *stream,
-                        (*stream).buffer.as_ptr(),
-                        0,
-                        true,
-                    );
+                    let _ = (*stream).s.cb_data.call_read_cb(&mut *stream, &[], true);
                 }
                 break;
             }

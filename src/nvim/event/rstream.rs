@@ -13,7 +13,6 @@ use crate::event::wstream::uv_buf_t;
 use crate::log::{LOGLVL_DBG, log_st, logmsg};
 use crate::memory::ARENA_BLOCK_SIZE;
 use crate::os::fs::{UV_ENOBUFS, UV_EOF};
-use std::ffi::c_char;
 use std::ptr;
 
 #[repr(C)]
@@ -23,7 +22,7 @@ pub struct RStream {
     pub want_read: bool,
     pub pending_read: bool,
     pub paused_full: bool,
-    pub buffer: Vec<c_char>,
+    pub buffer: Vec<u8>,
     pub read_pos: usize,
     pub write_pos: usize,
     pub uvbuf: uv_buf_t,
@@ -56,8 +55,9 @@ impl RStream {
     }
 
     #[inline]
-    pub fn read_ptr(&self) -> *const c_char {
-        self.buffer.as_ptr().wrapping_add(self.read_pos)
+    pub fn read_slice(&self) -> &[u8] {
+        let len = self.write_pos.saturating_sub(self.read_pos);
+        &self.buffer[self.read_pos..self.read_pos + len]
     }
 }
 
@@ -117,7 +117,11 @@ pub fn rstream_stop(stream: &mut RStream) {
 unsafe extern "C" fn alloc_cb(handle: *mut uv_handle_t, _suggested: usize, buf: *mut uv_buf_t) {
     unsafe {
         let stream = &mut **handle.cast::<*mut RStream>();
-        let write_ptr = stream.buffer.as_mut_ptr().wrapping_add(stream.write_pos);
+        let write_ptr = stream
+            .buffer
+            .as_mut_ptr()
+            .wrapping_add(stream.write_pos)
+            .cast();
         *buf = uv_buf_t::new(write_ptr, rstream_space(&mut *stream));
     }
 }
@@ -165,7 +169,11 @@ unsafe extern "C" fn fread_idle_cb(handle: *mut uv_idle_t) {
     let stream = unsafe { *handle.cast::<*mut RStream>() };
     let stream = unsafe { &mut *stream };
 
-    let write_ptr = stream.buffer.as_mut_ptr().wrapping_add(stream.write_pos);
+    let write_ptr = stream
+        .buffer
+        .as_mut_ptr()
+        .wrapping_add(stream.write_pos)
+        .cast();
     stream.uvbuf = uv_buf_t::new(write_ptr, rstream_space(&mut *stream));
 
     let loop_ptr = unsafe { uv_handle_get_loop(handle.cast()) };
@@ -199,11 +207,11 @@ pub fn read_event(stream: *mut RStream) {
         (*stream).pending_read = false;
         let available = rstream_available(&mut *stream);
         let read_ptr = (*stream).buffer.as_ptr().wrapping_add((*stream).read_pos);
-        if let Some(consumed) =
-            (*stream)
-                .s
-                .cb_data
-                .call_read_cb(stream, read_ptr, available, (*stream).did_eof)
+        let bytes = std::slice::from_raw_parts(read_ptr, available);
+        if let Some(consumed) = (*stream)
+            .s
+            .cb_data
+            .call_read_cb(stream, bytes, (*stream).did_eof)
         {
             assert!(consumed <= available);
             rstream_consume(&mut *stream, consumed);

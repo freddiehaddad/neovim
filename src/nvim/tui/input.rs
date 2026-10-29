@@ -561,7 +561,7 @@ unsafe extern "C" fn tinput_timer_cb(handle: *mut uv_timer_t) {
         let rs = &raw mut input.read_stream;
         let size = rstream_available(&mut *rs);
         if size != 0 {
-            let bytes = crate::memory::cstr_slice((*rs).read_ptr(), size);
+            let bytes = (*rs).read_slice();
             let consumed = handle_raw_buffer(input, true, bytes);
             rstream_consume(&mut *rs, consumed);
         }
@@ -865,37 +865,31 @@ fn handle_raw_buffer(input: &mut TermInput, force: bool, mut rest: &[u8]) -> usi
 
 pub(crate) fn tinput_read_cb(
     _stream: &mut RStream,
-    buf: impl crate::strings::IntoCCharPtr,
-    count_: usize,
+    bytes: &[u8],
     input: &mut TermInput,
     eof: bool,
 ) -> usize {
-    let buf = buf.into_c_char_ptr();
-    {
-        let bytes = crate::memory::cstr_slice(buf, count_);
-        let consumed = handle_raw_buffer(input, false, bytes);
-        tinput_flush(input);
+    let count_ = bytes.len();
+    let consumed = handle_raw_buffer(input, false, bytes);
+    tinput_flush(input);
 
-        if eof {
-            loop_schedule_fast(&mut g_st().main_loop, Event::TInputDone);
-            return consumed;
-        }
-
-        if consumed < count_ {
-            let ms = if input.ttimeout {
-                input.ttimeoutlen.max(0)
-            } else {
-                0
-            };
-            {
-                let th: *mut uv_timer_t = (&raw mut input.timer_handle).cast();
-                unsafe { uv_timer_stop(th) };
-                unsafe { uv_timer_start(th, Some(tinput_timer_cb), u64::from(ms as u32), 0) };
-            }
-        }
-
-        consumed
+    if eof {
+        loop_schedule_fast(&mut g_st().main_loop, Event::TInputDone);
+        return consumed;
     }
+
+    if consumed < count_ {
+        let ms = if input.ttimeout {
+            input.ttimeoutlen.max(0)
+        } else {
+            0
+        };
+        let th: *mut uv_timer_t = (&raw mut input.timer_handle).cast();
+        unsafe { uv_timer_stop(th) };
+        unsafe { uv_timer_start(th, Some(tinput_timer_cb), u64::from(ms as u32), 0) };
+    }
+
+    consumed
 }
 
 #[cfg(test)]

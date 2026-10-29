@@ -1,6 +1,5 @@
 //! Buffered file descriptor reading and writing (`src/nvim/os/fileio.c`).
 
-use std::ffi::c_char;
 #[cfg(unix)]
 use std::ffi::c_void;
 
@@ -27,7 +26,7 @@ pub const K_FILE_MK_DIR: i32 = 256;
 #[derive(Debug)]
 pub struct FileDescriptor {
     pub fd: i32,
-    pub buffer: Vec<c_char>,
+    pub buffer: Vec<u8>,
     pub read_pos: usize,
     pub write_pos: usize,
     pub wr: bool,
@@ -159,25 +158,13 @@ pub fn file_open_stdin(fp: &mut FileDescriptor) -> i32 {
     file_open_fd(fp, fd, K_FILE_READ_ONLY | K_FILE_NON_BLOCKING)
 }
 
-/// Open an in-memory buffer `data[..len]` for reading (`file_open_buffer`).
-///
-/// # Safety
-/// `ret_fp` must be a valid writable pointer, and `data` must be valid for `len` bytes.
-pub fn file_open_buffer(
-    ret_fp: &mut FileDescriptor,
-    data: impl crate::strings::IntoCCharPtr,
-    len: usize,
-) {
-    let data = data.into_c_char_ptr();
+/// Open an in-memory buffer `data` for reading (`file_open_buffer`).
+pub fn file_open_buffer(ret_fp: &mut FileDescriptor, data: &[u8]) {
     ret_fp.wr = false;
     ret_fp.non_blocking = false;
     ret_fp.fd = -1;
     ret_fp.eof = true;
-    ret_fp.buffer = if data.is_null() || len == 0 {
-        Vec::new()
-    } else {
-        unsafe { std::slice::from_raw_parts(data, len).to_vec() }
-    };
+    ret_fp.buffer = data.to_vec();
     ret_fp.read_pos = 0;
     ret_fp.write_pos = ret_fp.buffer.len();
     ret_fp.bytes_read = 0;
@@ -240,7 +227,7 @@ pub fn file_flush(fp: *mut FileDescriptor) -> i32 {
     if to_write == 0 {
         return 0;
     }
-    let read_ptr = fp.buffer.as_ptr().wrapping_add(fp.read_pos);
+    let read_ptr = fp.buffer.as_ptr().wrapping_add(fp.read_pos).cast();
     let wres = os_write(fp.fd, read_ptr, to_write, fp.non_blocking);
     fp.read_pos = 0;
     fp.write_pos = 0;
@@ -250,29 +237,17 @@ pub fn file_flush(fp: *mut FileDescriptor) -> i32 {
     0
 }
 
-/// Read up to `size` bytes from `fp` into `ret_buf` (`file_read`).
-///
-/// # Safety
-/// `fp` must be a valid readable `FileDescriptor`, and `ret_buf` must be writable for `size` bytes.
-pub fn file_read(fp: *mut FileDescriptor, ret_buf: *mut c_char, size: usize) -> isize {
+/// Read up to `ret_buf.len()` bytes from `fp` into `ret_buf` (`file_read`).
+pub fn file_read(fp: *mut FileDescriptor, ret_buf: &mut [u8]) -> isize {
     let fp = unsafe { &mut *fp };
     assert!(!fp.wr);
+    let size = ret_buf.len();
     let buffered = fp.write_pos.saturating_sub(fp.read_pos);
     let from_buffer = buffered.min(size);
     if from_buffer > 0 {
-        unsafe {
-            std::ptr::copy_nonoverlapping(
-                fp.buffer.as_ptr().wrapping_add(fp.read_pos).cast::<u8>(),
-                ret_buf.cast::<u8>(),
-                from_buffer,
-            )
-        };
+        ret_buf[..from_buffer].copy_from_slice(&fp.buffer[fp.read_pos..fp.read_pos + from_buffer]);
     }
 
-    #[cfg(unix)]
-    let mut buf = unsafe { ret_buf.add(from_buffer) };
-    #[cfg(not(unix))]
-    let buf = ret_buf.wrapping_add(from_buffer);
     let mut read_remaining = size - from_buffer;
     if read_remaining == 0 {
         fp.bytes_read += from_buffer as u64;
@@ -285,6 +260,7 @@ pub fn file_read(fp: *mut FileDescriptor, ret_buf: *mut c_char, size: usize) -> 
 
     #[cfg(unix)]
     {
+        let mut buf_pos = from_buffer;
         let mut called_read = false;
         while read_remaining > 0 {
             if fp.eof || (called_read && fp.non_blocking) {
@@ -293,7 +269,7 @@ pub fn file_read(fp: *mut FileDescriptor, ret_buf: *mut c_char, size: usize) -> 
             let write_ptr = unsafe { fp.buffer.as_mut_ptr().add(fp.write_pos) };
             let mut iov = [
                 iovec {
-                    iov_base: buf.cast::<c_void>(),
+                    iov_base: ret_buf[buf_pos..].as_mut_ptr().cast::<c_void>(),
                     iov_len: read_remaining,
                 },
                 iovec {
@@ -314,7 +290,7 @@ pub fn file_read(fp: *mut FileDescriptor, ret_buf: *mut c_char, size: usize) -> 
                     fp.write_pos += r_usize - read_remaining;
                     read_remaining = 0;
                 } else {
-                    buf = unsafe { buf.add(r_usize) };
+                    buf_pos += r_usize;
                     read_remaining -= r_usize;
                 }
             } else if r_ret < 0 {
@@ -327,15 +303,22 @@ pub fn file_read(fp: *mut FileDescriptor, ret_buf: *mut c_char, size: usize) -> 
     #[cfg(not(unix))]
     {
         if !fp.eof {
+            let buf_slice = &mut ret_buf[from_buffer..];
             if read_remaining >= ARENA_BLOCK_SIZE {
-                let r_ret = os_read(fp.fd, &mut fp.eof, buf, read_remaining, fp.non_blocking);
+                let r_ret = os_read(
+                    fp.fd,
+                    &mut fp.eof,
+                    buf_slice.as_mut_ptr().cast(),
+                    read_remaining,
+                    fp.non_blocking,
+                );
                 if r_ret >= 0 {
                     read_remaining -= r_ret as usize;
                 } else {
                     return r_ret;
                 }
             } else {
-                let write_ptr = fp.buffer.as_mut_ptr().wrapping_add(fp.write_pos);
+                let write_ptr = fp.buffer.as_mut_ptr().wrapping_add(fp.write_pos).cast();
                 let r_ret = os_read(
                     fp.fd,
                     &mut fp.eof,
@@ -349,15 +332,8 @@ pub fn file_read(fp: *mut FileDescriptor, ret_buf: *mut c_char, size: usize) -> 
                 let r_usize = r_ret as usize;
                 fp.write_pos += r_usize;
                 let to_copy = r_usize.min(read_remaining);
-                {
-                    unsafe {
-                        std::ptr::copy_nonoverlapping(
-                            fp.buffer.as_ptr().wrapping_add(fp.read_pos).cast::<u8>(),
-                            buf.cast::<u8>(),
-                            to_copy,
-                        )
-                    };
-                }
+                buf_slice[..to_copy]
+                    .copy_from_slice(&fp.buffer[fp.read_pos..fp.read_pos + to_copy]);
                 fp.read_pos += to_copy;
                 read_remaining -= to_copy;
             }
@@ -373,7 +349,7 @@ pub fn file_read(fp: *mut FileDescriptor, ret_buf: *mut c_char, size: usize) -> 
 ///
 /// # Safety
 /// `fp` must be a valid writable pointer to a `FileDescriptor`.
-pub fn file_try_read_buffered(fp: *mut FileDescriptor, size: usize) -> *mut c_char {
+pub fn file_try_read_buffered(fp: *mut FileDescriptor, size: usize) -> *mut u8 {
     let fp = unsafe { &mut *fp };
     if fp.write_pos.saturating_sub(fp.read_pos) >= size {
         let ret = fp.buffer.as_mut_ptr().wrapping_add(fp.read_pos);
@@ -385,32 +361,13 @@ pub fn file_try_read_buffered(fp: *mut FileDescriptor, size: usize) -> *mut c_ch
     }
 }
 
-/// Write `size` bytes from `buf` to `fp` (`file_write`).
-///
-/// # Safety
-/// `fp` must be a valid writable `FileDescriptor`, and `buf` must be valid for `size` bytes.
-pub fn file_write(
-    fp: &mut FileDescriptor,
-    buf: impl crate::strings::IntoCCharPtr,
-    size: usize,
-) -> isize {
-    let buf = buf.into_c_char_ptr();
-
+/// Write `buf` to `fp` (`file_write`).
+pub fn file_write(fp: &mut FileDescriptor, buf: &[u8]) -> isize {
+    let size = buf.len();
     assert!(fp.wr);
     if size < file_space(fp) {
         if size > 0 {
-            {
-                unsafe {
-                    std::ptr::copy_nonoverlapping(
-                        buf.cast::<u8>(),
-                        fp.buffer
-                            .as_mut_ptr()
-                            .wrapping_add(fp.write_pos)
-                            .cast::<u8>(),
-                        size,
-                    )
-                };
-            }
+            fp.buffer[fp.write_pos..fp.write_pos + size].copy_from_slice(buf);
             fp.write_pos += size;
         }
         return size as isize;
@@ -423,24 +380,13 @@ pub fn file_write(
 
     if size < ARENA_BLOCK_SIZE {
         if size > 0 {
-            {
-                unsafe {
-                    std::ptr::copy_nonoverlapping(
-                        buf.cast::<u8>(),
-                        fp.buffer
-                            .as_mut_ptr()
-                            .wrapping_add(fp.write_pos)
-                            .cast::<u8>(),
-                        size,
-                    )
-                };
-            }
+            fp.buffer[fp.write_pos..fp.write_pos + size].copy_from_slice(buf);
             fp.write_pos += size;
         }
         return size as isize;
     }
 
-    let wres = os_write(fp.fd, buf, size, fp.non_blocking);
+    let wres = os_write(fp.fd, buf.as_ptr().cast(), size, fp.non_blocking);
     if wres != size as isize && wres >= 0 {
         UV_EIO as isize
     } else {
@@ -474,7 +420,7 @@ pub fn file_skip(fp: *mut FileDescriptor, size: usize) -> isize {
         let r_ret = os_read(
             fp.fd,
             &mut fp.eof,
-            fp.buffer.as_mut_ptr(),
+            fp.buffer.as_mut_ptr().cast(),
             ARENA_BLOCK_SIZE,
             fp.non_blocking,
         );
@@ -503,22 +449,20 @@ mod tests {
 
     #[test]
     fn memory_buffer_read_and_skip() {
-        let mut data = *b"0123456789abcdef";
+        let data = *b"0123456789abcdef";
         let mut fp = FileDescriptor::new();
 
-        {
-            file_open_buffer(&mut fp, data.as_mut_ptr().cast::<c_char>(), data.len());
-            let chunk = file_try_read_buffered(&mut fp, 4);
-            assert!(!chunk.is_null());
-            assert_eq!(crate::memory::cstr_slice(chunk, 4), b"0123");
+        file_open_buffer(&mut fp, &data);
+        let chunk = file_try_read_buffered(&mut fp, 4);
+        assert!(!chunk.is_null());
+        assert_eq!(unsafe { std::slice::from_raw_parts(chunk, 4) }, b"0123");
 
-            assert_eq!(file_skip(&mut fp, 6), 6);
-            let mut out = [0u8; 6];
-            assert_eq!(file_read(&mut fp, out.as_mut_ptr().cast::<c_char>(), 6), 6);
-            assert_eq!(&out, b"abcdef");
-            assert_eq!(fp.bytes_read, 16);
-            assert_eq!(file_close(&mut fp, false), 0);
-        }
+        assert_eq!(file_skip(&mut fp, 6), 6);
+        let mut out = [0u8; 6];
+        assert_eq!(file_read(&mut fp, &mut out), 6);
+        assert_eq!(&out, b"abcdef");
+        assert_eq!(fp.bytes_read, 16);
+        assert_eq!(file_close(&mut fp, false), 0);
     }
 
     #[test]
@@ -539,10 +483,7 @@ mod tests {
             0
         );
         assert!(fp.wr);
-        assert_eq!(
-            file_write(&mut fp, fcontents.as_ptr().cast(), fcontents.len()),
-            fcontents.len() as isize
-        );
+        assert_eq!(file_write(&mut fp, &fcontents), fcontents.len() as isize);
         assert_eq!(file_flush(&mut fp), 0);
         assert_eq!(file_fsync(&mut fp), 0);
         assert_eq!(file_close(&mut fp, true), 0);
@@ -556,7 +497,7 @@ mod tests {
         assert!(!fp.wr);
         assert_eq!(file_skip(&mut fp, 3), 3);
         let mut buf3 = [0u8; 3];
-        assert_eq!(file_read(&mut fp, buf3.as_mut_ptr().cast(), 3), 3);
+        assert_eq!(file_read(&mut fp, &mut buf3), 3);
         assert_eq!(&buf3, &fcontents[3..6]);
         assert_eq!(file_close(&mut fp, false), 0);
 
@@ -565,10 +506,7 @@ mod tests {
             0
         );
         let mut all = vec![0u8; fcontents.len()];
-        assert_eq!(
-            file_read(&mut fp, all.as_mut_ptr().cast(), all.len()),
-            fcontents.len() as isize
-        );
+        assert_eq!(file_read(&mut fp, &mut all), fcontents.len() as isize);
         assert_eq!(all, fcontents);
         assert_eq!(file_close(&mut fp, false), 0);
         let _ = std::fs::remove_file(&tmp);

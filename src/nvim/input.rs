@@ -2985,12 +2985,12 @@ fn inchar(buf: *mut u8, maxlen: i32, wait_time: i64) -> i32 {
 
     let mut read_size: isize = -1;
     while inp_st().curscript >= 0 && read_size <= 0 && !g_st().ignore_script {
-        let mut script_char: c_char = 0;
+        let mut script_char = [0u8; 1];
         let scriptin_ptr = (&raw mut inp_st().scriptin)
             .cast::<FileDescriptor>()
             .wrapping_add(inp_st().curscript as usize);
         if g_st().got_int || {
-            read_size = file_read(scriptin_ptr, &raw mut script_char, 1);
+            read_size = file_read(scriptin_ptr, &mut script_char);
             read_size != 1
         } {
             closescript();
@@ -3001,7 +3001,7 @@ fn inchar(buf: *mut u8, maxlen: i32, wait_time: i64) -> i32 {
             }
         } else {
             unsafe {
-                *buf = script_char as u8;
+                *buf = script_char[0];
             }
             len = 1;
         }

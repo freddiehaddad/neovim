@@ -291,7 +291,7 @@ struct ShadaGlobalVar {
 #[derive(Clone)]
 struct ShadaUnknownItem {
     item_type: u64,
-    contents: Vec<c_char>,
+    contents: Vec<u8>,
 }
 
 #[derive(Clone)]
@@ -1773,8 +1773,7 @@ fn shada_pack_entry(
         ShadaEntryType::SDItemMissing => std::process::abort(),
         ShadaEntryType::SDItemUnknown => {
             let ui = entry.data.unknown_item();
-            let slice = crate::memory::cstr_slice(ui.contents.as_ptr(), ui.contents.len());
-            mpack_raw(slice, &mut sbuf);
+            mpack_raw(&ui.contents, &mut sbuf);
         }
         ShadaEntryType::SDItemHistoryEntry => {
             let hi = entry.data.history_item();
@@ -3452,32 +3451,26 @@ fn shada_free_shada_entry(entry: &mut ShadaEntry) {
     entry.additional_data = None;
 }
 
-fn fread_len(
-    sd_reader: *mut FileDescriptor,
-    buffer: impl crate::strings::IntoCCharPtr,
-    length: usize,
-) -> ShaDaReadResult {
-    let buffer = buffer.into_c_char_ptr().cast_mut();
-    {
-        let read_bytes = file_read(sd_reader, buffer, length);
-        if read_bytes < 0 {
-            semsg!(
-                gettext(c"E886: System error while reading ShaDa file: %s"),
-                unsafe { uv_strerror(read_bytes as i32) },
-            );
-            return ShaDaReadResult::SDReadStatusReadError;
-        }
-        if read_bytes != (length as isize) {
-            semsg!(
-                gettext(
-                    c"E576: Error while reading ShaDa file: last entry specified that it occupies %llu bytes, but file ended earlier",
-                ),
-                length as u64,
-            );
-            return ShaDaReadResult::SDReadStatusNotShaDa;
-        }
-        ShaDaReadResult::SDReadStatusSuccess
+fn fread_len(sd_reader: *mut FileDescriptor, buffer: &mut [u8]) -> ShaDaReadResult {
+    let length = buffer.len();
+    let read_bytes = file_read(sd_reader, buffer);
+    if read_bytes < 0 {
+        semsg!(
+            gettext(c"E886: System error while reading ShaDa file: %s"),
+            unsafe { uv_strerror(read_bytes as i32) },
+        );
+        return ShaDaReadResult::SDReadStatusReadError;
     }
+    if read_bytes != (length as isize) {
+        semsg!(
+            gettext(
+                c"E576: Error while reading ShaDa file: last entry specified that it occupies %llu bytes, but file ended earlier",
+            ),
+            length as u64,
+        );
+        return ShaDaReadResult::SDReadStatusNotShaDa;
+    }
+    ShaDaReadResult::SDReadStatusSuccess
 }
 
 fn msgpack_read_uint64(
@@ -3486,8 +3479,9 @@ fn msgpack_read_uint64(
     result: &mut u64,
 ) -> ShaDaReadResult {
     let fpos = sd_reader.bytes_read;
-    let mut ret: u8 = 0;
-    let read_bytes = file_read((&raw mut *sd_reader), (&raw mut ret).cast::<c_char>(), 1);
+    let mut ret = [0u8; 1];
+    let read_bytes = file_read(&raw mut *sd_reader, &mut ret);
+    let ret = ret[0];
     if read_bytes < 0 {
         semsg!(
             gettext(c"E886: System error while reading integer from ShaDa file: %s"),
@@ -3526,11 +3520,7 @@ fn msgpack_read_uint64(
             }
         };
         let mut buf = [0u8; 8];
-        let fl_ret = fread_len(
-            (&raw mut *sd_reader),
-            buf.as_mut_ptr().wrapping_add(8 - length).cast::<c_char>(),
-            length,
-        );
+        let fl_ret = fread_len(&raw mut *sd_reader, &mut buf[8 - length..]);
         if fl_ret != ShaDaReadResult::SDReadStatusSuccess {
             return fl_ret;
         }
@@ -3617,18 +3607,18 @@ fn shada_read_next_item(
         }
 
         let parse_pos = sd_reader.bytes_read;
-        let mut owned_buf: Vec<c_char> = Vec::new();
+        let mut owned_buf: Vec<u8> = Vec::new();
         let mut buf = file_try_read_buffered((&raw mut *sd_reader), length);
         if buf.is_null() {
-            owned_buf = vec![0 as c_char; length];
-            buf = owned_buf.as_mut_ptr();
-            let fl_ret = fread_len((&raw mut *sd_reader), buf, length);
+            owned_buf = vec![0u8; length];
+            let fl_ret = fread_len((&raw mut *sd_reader), &mut owned_buf);
             if fl_ret != ShaDaReadResult::SDReadStatusSuccess {
                 return fl_ret;
             }
+            buf = owned_buf.as_mut_ptr();
         }
 
-        let mut read_ptr: *const c_char = buf;
+        let mut read_ptr: *const c_char = buf.cast::<c_char>();
         let mut read_size: usize = length;
 
         if verify_but_ignore {
@@ -4369,11 +4359,7 @@ pub fn shada_read_string(bytes: &[u8], flags: i32) {
         return;
     }
     let mut sd_reader = FileDescriptor::new();
-    file_open_buffer(
-        &mut sd_reader,
-        bytes.as_ptr().cast::<c_char>().cast_mut(),
-        bytes.len(),
-    );
+    file_open_buffer(&mut sd_reader, bytes);
     shada_read(&mut sd_reader, flags);
     close_file(&mut sd_reader);
 }

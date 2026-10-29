@@ -769,7 +769,8 @@ pub fn channel_send(id: u64, data: Vec<c_char>, error: *mut *const c_char) -> us
                 *error = gettext(c"Can't send data to closed stream");
                 return 0;
             }
-            terminal_receive(&mut *(*chan).term, data.as_ptr(), len);
+            let data_bytes = crate::memory::cstr_slice(data.as_ptr(), len);
+            terminal_receive(&mut *(*chan).term, data_bytes);
             return len;
         }
 
@@ -806,69 +807,51 @@ fn buffer_to_tv_list(buf: impl crate::strings::IntoCCharPtr, len: usize) -> *mut
     }
 }
 
-pub fn on_channel_data(
-    stream: &mut RStream,
-    buf: impl crate::strings::IntoCCharPtr,
-    count: usize,
-    chan: &mut Channel,
-    eof: bool,
-) -> usize {
-    let buf = buf.into_c_char_ptr();
-    on_channel_output(stream, chan, buf, count, eof, false)
+pub fn on_channel_data(stream: &mut RStream, buf: &[u8], chan: &mut Channel, eof: bool) -> usize {
+    on_channel_output(stream, chan, buf, eof, false)
 }
 
-pub fn on_job_stderr(
-    stream: &mut RStream,
-    buf: impl crate::strings::IntoCCharPtr,
-    count: usize,
-    chan: &mut Channel,
-    eof: bool,
-) -> usize {
-    let buf = buf.into_c_char_ptr();
-    on_channel_output(stream, chan, buf, count, eof, true)
+pub fn on_job_stderr(stream: &mut RStream, buf: &[u8], chan: &mut Channel, eof: bool) -> usize {
+    on_channel_output(stream, chan, buf, eof, true)
 }
 
 fn on_channel_output(
     _stream: &mut RStream,
     chan: &mut Channel,
-    buf: impl crate::strings::IntoCCharPtr,
-    count: usize,
+    buf: &[u8],
     eof: bool,
     is_stderr: bool,
 ) -> usize {
-    let buf = buf.into_c_char_ptr();
-    {
-        if !chan.term.is_null() {
-            terminal_receive(unsafe { &mut *chan.term }, buf, count);
-        }
-
-        let reader = if is_stderr {
-            &mut chan.on_stderr
-        } else {
-            &mut chan.on_data
-        };
-
-        if eof {
-            reader.eof = true;
-        }
-
-        #[cfg(windows)]
-        if reader.fwd_err && count > 0 {
-            let wres = os_write(STDOUT_FILENO, buf, count, false);
-            return wres.max(0) as usize;
-        }
-
-        if callback_reader_set(reader) {
-            if !buf.is_null() && count > 0 {
-                reader
-                    .buffer
-                    .extend_from_slice(unsafe { std::slice::from_raw_parts(buf, count) });
-            }
-            schedule_channel_event(chan);
-        }
-
-        count
+    let count = buf.len();
+    if !chan.term.is_null() {
+        terminal_receive(unsafe { &mut *chan.term }, buf);
     }
+
+    let reader = if is_stderr {
+        &mut chan.on_stderr
+    } else {
+        &mut chan.on_data
+    };
+
+    if eof {
+        reader.eof = true;
+    }
+
+    #[cfg(windows)]
+    if reader.fwd_err && count > 0 {
+        let wres = os_write(STDOUT_FILENO, buf.as_ptr().cast::<c_char>(), count, false);
+        return wres.max(0) as usize;
+    }
+
+    if callback_reader_set(reader) {
+        if count > 0 {
+            let chars = unsafe { std::slice::from_raw_parts(buf.as_ptr().cast::<c_char>(), count) };
+            reader.buffer.extend_from_slice(chars);
+        }
+        schedule_channel_event(chan);
+    }
+
+    count
 }
 
 fn schedule_channel_event(chan: &mut Channel) {

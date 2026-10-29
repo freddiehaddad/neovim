@@ -1917,11 +1917,11 @@ fn write_list(fp: &mut FileDescriptor, list: Option<&TvList>, binary: bool) -> b
             loop {
                 if crate::memory::cstr_is_empty(p) || *p == NL {
                     if p != hunk_start {
-                        let written = file_write(
-                            fp,
+                        let hunk = crate::memory::cstr_slice(
                             hunk_start,
                             (p as usize).wrapping_sub(hunk_start as usize),
                         );
+                        let written = file_write(fp, hunk);
                         if written < 0 {
                             error = written as i32;
                             break 'outer;
@@ -1931,8 +1931,7 @@ fn write_list(fp: &mut FileDescriptor, list: Option<&TvList>, binary: bool) -> b
                         break;
                     } else {
                         hunk_start = p.wrapping_add(1);
-                        let nul_byte: c_char = NUL;
-                        let written = file_write(fp, &raw const nul_byte, 1);
+                        let written = file_write(fp, &[0]);
                         if written < 0 {
                             error = written as i32;
                             break;
@@ -1942,8 +1941,7 @@ fn write_list(fp: &mut FileDescriptor, list: Option<&TvList>, binary: bool) -> b
                 p = p.wrapping_add(1);
             }
             if !binary || !(*li).li_next.is_null() {
-                let nl_byte: c_char = NL;
-                let written = file_write(fp, &raw const nl_byte, 1);
+                let written = file_write(fp, b"\n");
                 if written < 0 {
                     error = written as i32;
                     break 'outer;
@@ -1971,7 +1969,7 @@ fn write_data(
     let data = data.into_c_char_ptr();
     {
         if len > 0 {
-            let written = file_write(fp, data, len);
+            let written = file_write(fp, crate::memory::cstr_slice(data, len));
             if written < len as isize {
                 let error = written as i32;
                 semsg!(gettext(E_ERROR_WHILE_WRITING_STR), unsafe {

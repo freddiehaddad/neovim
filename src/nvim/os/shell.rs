@@ -1009,18 +1009,16 @@ fn do_os_system(
 
 pub(crate) fn system_data_cb(
     _stream: &mut RStream,
-    buf: impl crate::strings::IntoCCharPtr,
-    count: usize,
+    buf: &[u8],
     dbuf: &mut Vec<c_char>,
     _eof: bool,
 ) -> usize {
-    let buf = buf.into_c_char_ptr();
-    {
-        if !buf.is_null() && count > 0 {
-            dbuf.extend_from_slice(unsafe { std::slice::from_raw_parts(buf, count) });
-        }
-        count
+    let count = buf.len();
+    if count > 0 {
+        let chars = unsafe { std::slice::from_raw_parts(buf.as_ptr().cast::<c_char>(), count) };
+        dbuf.extend_from_slice(chars);
     }
+    count
 }
 
 fn out_data_decide_throttle(size: usize) -> bool {
@@ -1178,13 +1176,9 @@ fn out_data_append_to_screen(
     }
 }
 
-pub(crate) fn out_data_cb(
-    stream: &mut RStream,
-    ptr_data: impl crate::strings::IntoCCharPtr,
-    mut count: usize,
-    eof: bool,
-) -> usize {
-    let ptr_data = ptr_data.into_c_char_ptr();
+pub(crate) fn out_data_cb(stream: &mut RStream, buf: &[u8], eof: bool) -> usize {
+    let mut count = buf.len();
+    let ptr_data = buf.as_ptr().cast::<c_char>();
     if count > 0 && out_data_decide_throttle(count) {
         out_data_ring(ptr_data, count);
     } else if count > 0 {
