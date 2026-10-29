@@ -84,7 +84,6 @@ use crate::strings::{ngettext, tr, vim_snprintf};
 use crate::textformat::{Oparg, auto_format, has_format_option, op_format, op_formatexpr};
 use crate::ui::vim_beep;
 use crate::undo::{u_clearline, u_save, u_save_cursor};
-use std::ffi::c_char;
 use std::ptr;
 
 use crate::arglist::ML_EMPTY;
@@ -488,8 +487,8 @@ fn shift_block(oap: &mut Oparg, amount: i32) {
     let oldp = get_cursor_line_ptr();
     let old_line_len = get_cursor_line_len();
 
-    let mut newp_vec: Vec<c_char>;
-    let newp: *mut c_char;
+    let mut newp_vec: Vec<u8>;
+    let newp: *mut u8;
     let startcol: i32;
     let oldlen: i32;
     let newlen: i32;
@@ -549,9 +548,9 @@ fn shift_block(oap: &mut Oparg, amount: i32) {
             + tabs
             + spaces
             + (old_line_len - (crate::memory::ptr_offset_from(bd.textstart, oldp) as i32));
-        newp_vec = vec![0 as c_char; (new_line_len as usize) + 1];
+        newp_vec = vec![0u8; (new_line_len as usize) + 1];
         newp = newp_vec.as_mut_ptr();
-        unsafe { ptr::copy(oldp, newp, bd.textcol as usize) };
+        unsafe { ptr::copy(oldp.cast::<u8>(), newp, bd.textcol as usize) };
         startcol = bd.textcol;
         oldlen = (crate::memory::ptr_offset_from(bd.textstart, old_textstart) as i32) + col_pre;
         newlen = tabs + spaces;
@@ -564,7 +563,7 @@ fn shift_block(oap: &mut Oparg, amount: i32) {
             )
         };
         crate::memory::cstr_cpy(
-            newp.wrapping_add((bd.textcol + tabs + spaces) as usize),
+            newp.wrapping_add((bd.textcol + tabs + spaces) as usize).cast(),
             bd.textstart,
         );
         debug_assert_eq!(newlen - oldlen, new_line_len - old_line_len);
@@ -638,18 +637,18 @@ fn shift_block(oap: &mut Oparg, amount: i32) {
             + fill
             + (old_line_len - (crate::memory::ptr_offset_from(non_white, oldp) as i32));
 
-        newp_vec = vec![0 as c_char; (new_line_len as usize) + 1];
+        newp_vec = vec![0u8; (new_line_len as usize) + 1];
         newp = newp_vec.as_mut_ptr();
         startcol = fixedlen;
         oldlen = bd.textcol + (crate::memory::ptr_offset_from(non_white, bd.textstart) as i32)
             - fixedlen;
         newlen = fill;
-        unsafe { ptr::copy(oldp, newp, fixedlen as usize) };
+        unsafe { ptr::copy(oldp.cast::<u8>(), newp, fixedlen as usize) };
         unsafe { ptr::write_bytes(newp.wrapping_add(fixedlen as usize), b' ', fill as usize) };
-        crate::memory::cstr_cpy(newp.wrapping_add((fixedlen + fill) as usize), non_white);
+        crate::memory::cstr_cpy(newp.wrapping_add((fixedlen + fill) as usize).cast(), non_white);
         debug_assert_eq!(newlen - oldlen, new_line_len - old_line_len);
     }
-    ml_replace(curwin_mut().w_cursor.lnum, newp, true);
+    ml_replace(curwin_mut().w_cursor.lnum, newp.cast(), true);
     drop(newp_vec);
     changed_bytes(curwin_mut().w_cursor.lnum, bd.textcol);
     extmark_splice_cols(
@@ -735,16 +734,16 @@ fn block_insert(
                 }
                 + (count as usize)
                 + 1;
-            let mut newp_vec = vec![0 as c_char; alloc_len];
-            let newp: *mut c_char = newp_vec.as_mut_ptr();
+            let mut newp_vec = vec![0u8; alloc_len];
+            let newp: *mut u8 = newp_vec.as_mut_ptr();
 
-            unsafe { ptr::copy(oldp, newp, offset as usize) };
+            unsafe { ptr::copy(oldp.cast::<u8>(), newp, offset as usize) };
             oldp = oldp.wrapping_add(offset as usize);
             let startcol = offset;
 
             unsafe { ptr::write_bytes(newp.wrapping_add(offset as usize), b' ', spaces as usize) };
 
-            unsafe { ptr::copy(s, newp.wrapping_add((offset + spaces) as usize), slen) };
+            unsafe { ptr::copy(s.cast::<u8>(), newp.wrapping_add((offset + spaces) as usize), slen) };
             offset += slen as i32;
 
             let mut skipped: i32 = 0;
@@ -768,9 +767,9 @@ fn block_insert(
             if spaces > 0 {
                 offset += count;
             }
-            crate::memory::cstr_cpy(newp.wrapping_add(offset as usize), oldp);
+            crate::memory::cstr_cpy(newp.wrapping_add(offset as usize).cast(), oldp);
 
-            ml_replace(lnum, newp, true);
+            ml_replace(lnum, newp.cast(), true);
             drop(newp_vec);
             extmark_splice_cols(
                 curbuf_mut(),
@@ -916,9 +915,9 @@ pub fn op_delete(oap: &mut Oparg) -> bool {
 
                 let n = bd.textlen - bd.startspaces - bd.endspaces;
                 let oldp = ml_get(lnum);
-                let mut newp_vec = vec![0 as c_char; ((ml_get_len(lnum) - n) as usize) + 1];
-                let newp: *mut c_char = newp_vec.as_mut_ptr();
-                unsafe { ptr::copy(oldp, newp, bd.textcol as usize) };
+                let mut newp_vec = vec![0u8; ((ml_get_len(lnum) - n) as usize) + 1];
+                let newp: *mut u8 = newp_vec.as_mut_ptr();
+                unsafe { ptr::copy(oldp.cast::<u8>(), newp, bd.textcol as usize) };
                 unsafe {
                     ptr::write_bytes(
                         newp.wrapping_add(bd.textcol as usize),
@@ -927,10 +926,11 @@ pub fn op_delete(oap: &mut Oparg) -> bool {
                     )
                 };
                 crate::memory::cstr_cpy(
-                    newp.wrapping_add((bd.textcol + bd.startspaces + bd.endspaces) as usize),
+                    newp.wrapping_add((bd.textcol + bd.startspaces + bd.endspaces) as usize)
+                        .cast(),
                     oldp.wrapping_add((bd.textcol + bd.textlen) as usize),
                 );
-                ml_replace(lnum, newp, true);
+                ml_replace(lnum, newp.cast(), true);
                 drop(newp_vec);
 
                 extmark_splice_cols(
@@ -1141,7 +1141,7 @@ fn pbyte(mut lp: CursorPos, c: i32) {
         lp.col = if len > 1 { len - 2 } else { 0 };
     }
     unsafe {
-        *p.wrapping_add(lp.col as usize) = c as c_char;
+        *p.wrapping_add(lp.col as usize).cast::<u8>() = c as u8;
     }
     if g_st().curbuf_splice_pending == 0 {
         extmark_splice_cols(curbuf_mut(), lp.lnum - 1, lp.col, 1, 1, K_EXTMARK_UNDO);
@@ -1160,7 +1160,7 @@ fn replace_character(c: i32) {
 fn op_replace(oap: &mut Oparg, mut c: i32) -> bool {
     let mut n: i32;
     let mut bd = BlockDef::new();
-    let mut after_p: Vec<c_char> = Vec::new();
+    let mut after_p: Vec<u8> = Vec::new();
     let mut had_ctrl_v_cr = false;
 
     if (curbuf_mut().b_ml.ml_flags & ML_EMPTY) != 0 || oap.empty {
@@ -1242,9 +1242,9 @@ fn op_replace(oap: &mut Oparg, mut c: i32) -> bool {
                     newp_size += (bd.endspaces + oldlen - bd.textcol - bd.textlen) as usize;
                 }
             }
-            let mut newp_vec = vec![0 as c_char; newp_size + 1];
-            let newp: *mut c_char = newp_vec.as_mut_ptr();
-            unsafe { ptr::copy(oldp, newp, bd.textcol as usize) };
+            let mut newp_vec = vec![0u8; newp_size + 1];
+            let newp: *mut u8 = newp_vec.as_mut_ptr();
+            unsafe { ptr::copy(oldp.cast::<u8>(), newp, bd.textcol as usize) };
             oldp = oldp.wrapping_add((bd.textcol + bd.textlen) as usize);
             unsafe {
                 ptr::write_bytes(
@@ -1261,7 +1261,7 @@ fn op_replace(oap: &mut Oparg, mut c: i32) -> bool {
                 let mut newp_len = bd.textcol + bd.startspaces;
                 while num_chars > 0 {
                     num_chars -= 1;
-                    newp_len += utf_char2bytes(c, newp.wrapping_add(newp_len as usize));
+                    newp_len += utf_char2bytes(c, newp.wrapping_add(newp_len as usize).cast());
                 }
                 if bd.is_short == 0 {
                     unsafe {
@@ -1272,23 +1272,35 @@ fn op_replace(oap: &mut Oparg, mut c: i32) -> bool {
                         )
                     };
                     newp_len += bd.endspaces;
-                    unsafe { ptr::copy(oldp, newp.wrapping_add(newp_len as usize), col as usize) };
+                    unsafe {
+                        ptr::copy(
+                            oldp.cast::<u8>(),
+                            newp.wrapping_add(newp_len as usize),
+                            col as usize,
+                        )
+                    };
                 }
                 newcols = newp_len - bd.textcol;
             } else {
                 after_p.clear();
-                after_p
-                    .extend_from_slice(unsafe { std::slice::from_raw_parts(oldp, col as usize) });
+                after_p.extend_from_slice(unsafe {
+                    std::slice::from_raw_parts(oldp.cast::<u8>(), col as usize)
+                });
                 newrows = 1;
             }
-            ml_replace(curwin_mut().w_cursor.lnum, newp, true);
+            ml_replace(curwin_mut().w_cursor.lnum, newp.cast(), true);
             drop(newp_vec);
             g_st().curbuf_splice_pending += 1;
             let baselnum = curwin_mut().w_cursor.lnum;
             if !after_p.is_empty() {
                 let cur_lnum = curwin_mut().w_cursor.lnum;
                 curwin_mut().w_cursor.lnum += 1;
-                ml_append(cur_lnum, after_p.as_mut_ptr(), after_p.len() as i32, false);
+                ml_append(
+                    cur_lnum,
+                    after_p.as_mut_ptr().cast(),
+                    after_p.len() as i32,
+                    false,
+                );
                 appended_lines_mark(curwin_mut().w_cursor.lnum, 1);
                 oap.end.lnum += 1;
                 after_p.clear();
@@ -1730,7 +1742,7 @@ pub fn op_insert(oap: &mut Oparg, count1: i32) {
 pub fn op_change(oap: &mut Oparg) -> i32 {
     let mut pre_textlen: i32 = 0;
     let mut pre_indent: i32 = 0;
-    let mut firstline: *mut c_char;
+    let mut firstline: *mut u8;
     let mut bd = BlockDef::new();
 
     let mut l = oap.start.col;
@@ -1760,9 +1772,9 @@ pub fn op_change(oap: &mut Oparg) -> i32 {
         {
             coladvance_force(getviscol());
         }
-        firstline = ml_get(oap.start.lnum);
+        firstline = ml_get(oap.start.lnum).cast();
         pre_textlen = ml_get_len(oap.start.lnum);
-        pre_indent = getwhitecols(firstline) as i32;
+        pre_indent = getwhitecols(firstline.cast()) as i32;
         bd.textcol = curwin_mut().w_cursor.col;
     }
 
@@ -1778,19 +1790,19 @@ pub fn op_change(oap: &mut Oparg) -> i32 {
     g_st().finish_op = save_finish_op;
 
     if oap.motion_type == MT_BLOCK_WISE && oap.start.lnum != oap.end.lnum && !g_st().got_int {
-        firstline = ml_get(oap.start.lnum);
+        firstline = ml_get(oap.start.lnum).cast();
         if bd.textcol > pre_indent {
-            let new_indent = getwhitecols(firstline) as i32;
+            let new_indent = getwhitecols(firstline.cast()) as i32;
             pre_textlen += new_indent - pre_indent;
             bd.textcol += new_indent - pre_indent;
         }
 
         let ins_len = ml_get_len(oap.start.lnum) - pre_textlen;
         if ins_len > 0 {
-            let mut ins_text = vec![0 as c_char; (ins_len as usize) + 1];
+            let mut ins_text = vec![0u8; (ins_len as usize) + 1];
             crate::memory::cstr_ncpy(
-                ins_text.as_mut_ptr(),
-                firstline.wrapping_add(bd.textcol as usize),
+                ins_text.as_mut_ptr().cast(),
+                firstline.wrapping_add(bd.textcol as usize).cast(),
                 ins_len as usize,
             );
             for linenr in (oap.start.lnum + 1)..=oap.end.lnum {
@@ -1808,14 +1820,14 @@ pub fn op_change(oap: &mut Oparg) -> i32 {
                     }
                     let oldp = ml_get(linenr);
                     let mut newp_vec = vec![
-                        0 as c_char;
+                        0u8;
                         (ml_get_len(linenr) as usize)
                             + (vpos.coladd as usize)
                             + (ins_len as usize)
                             + 1
                     ];
-                    let newp: *mut c_char = newp_vec.as_mut_ptr();
-                    unsafe { ptr::copy(oldp, newp, bd.textcol as usize) };
+                    let newp: *mut u8 = newp_vec.as_mut_ptr();
+                    unsafe { ptr::copy(oldp.cast::<u8>(), newp, bd.textcol as usize) };
                     let mut newlen = bd.textcol;
                     unsafe {
                         ptr::write_bytes(
@@ -1834,10 +1846,10 @@ pub fn op_change(oap: &mut Oparg) -> i32 {
                     };
                     newlen += ins_len;
                     crate::memory::cstr_cpy(
-                        newp.wrapping_add(newlen as usize),
+                        newp.wrapping_add(newlen as usize).cast(),
                         oldp.wrapping_add(bd.textcol as usize),
                     );
-                    ml_replace(linenr, newp, true);
+                    ml_replace(linenr, newp.cast(), true);
                     drop(newp_vec);
                     extmark_splice_cols(
                         curbuf_mut(),
@@ -1898,12 +1910,13 @@ pub fn adjust_cursor_eol() {
 }
 
 pub fn skip_comment(
-    mut line: *mut c_char,
+    line: impl crate::strings::IntoCCharPtr,
     process: bool,
     include_space: bool,
     is_comment: &mut bool,
-) -> *mut c_char {
-    let mut comment_flags: *mut c_char = ptr::null_mut();
+) -> *mut u8 {
+    let mut line = line.into_c_char_ptr().cast_mut();
+    let mut comment_flags = ptr::null_mut();
     let leader_offset = get_last_leader_offset(line, &raw mut comment_flags);
 
     *is_comment = false;
@@ -1922,13 +1935,13 @@ pub fn skip_comment(
     }
 
     if !process {
-        return line;
+        return line.cast();
     }
 
     let lead_len = get_leader_len(line, &raw mut comment_flags, false, include_space);
 
     if lead_len == 0 {
-        return line;
+        return line.cast();
     }
 
     while !crate::memory::cstr_is_empty(comment_flags) {
@@ -1946,7 +1959,7 @@ pub fn skip_comment(
         line = line.wrapping_add(lead_len as usize);
     }
 
-    line
+    line.cast()
 }
 
 pub fn do_join(
@@ -1957,9 +1970,9 @@ pub fn do_join(
     setmark: bool,
 ) -> bool {
     unsafe {
-        let mut curr: *mut c_char = ptr::null_mut();
-        let mut curr_start: *mut c_char = ptr::null_mut();
-        let mut cend: *mut c_char;
+        let mut curr: *mut u8 = ptr::null_mut();
+        let mut curr_start: *mut u8 = ptr::null_mut();
+        let mut cend: *mut u8;
         let mut endcurr1: i32 = i32::from(NUL);
         let mut endcurr2: i32 = i32::from(NUL);
         let mut currsize: i32 = 0;
@@ -1977,8 +1990,8 @@ pub fn do_join(
         {
             return false;
         }
-        let mut spaces_vec = vec![0 as c_char; count];
-        let spaces: *mut c_char = spaces_vec.as_mut_ptr();
+        let mut spaces_vec = vec![0u8; count];
+        let spaces: *mut u8 = spaces_vec.as_mut_ptr();
         let mut comments_vec = if remove_comments {
             vec![0_i32; count]
         } else {
@@ -1988,34 +2001,37 @@ pub fn do_join(
 
         let mut aborted = false;
         for t in 0..(count as Linenr) {
-            curr_start = ml_get(curwin_mut().w_cursor.lnum + t);
+            curr_start = ml_get(curwin_mut().w_cursor.lnum + t).cast();
             curr = curr_start;
             if t == 0 && setmark && (g_st().cmdmod.cmod_flags & CMOD_LOCKMARKS) == 0 {
                 curwin_mut().buf_mut().b_op_start.lnum = curwin_mut().w_cursor.lnum;
-                curwin_mut().buf_mut().b_op_start.col = crate::memory::cstr_len(curr) as Colnr;
+                curwin_mut().buf_mut().b_op_start.col =
+                    crate::memory::cstr_len(curr.cast()) as Colnr;
             }
             if remove_comments {
                 if t > 0 && prev_was_comment {
-                    let new_curr = skip_comment(curr, true, insert_space, &mut prev_was_comment);
+                    let new_curr =
+                        skip_comment(curr.cast_const().cast(), true, insert_space, &mut prev_was_comment);
                     *comments.wrapping_add(t as usize) =
                         crate::memory::ptr_offset_from(new_curr, curr) as i32;
                     curr = new_curr;
                 } else {
-                    curr = skip_comment(curr, false, insert_space, &mut prev_was_comment);
+                    curr =
+                        skip_comment(curr.cast_const().cast(), false, insert_space, &mut prev_was_comment);
                 }
             }
 
             if insert_space && t > 0 {
-                curr = skipwhite(curr);
-                if !crate::memory::cstr_is_empty(curr)
-                    && crate::memory::cstr_first_byte(curr) != b')'
+                curr = skipwhite(curr.cast()).cast();
+                if !crate::memory::cstr_is_empty(curr.cast())
+                    && crate::memory::cstr_first_byte(curr.cast()) != b')'
                     && sumsize != 0
                     && endcurr1 != TAB
                     && (!has_format_option(K_FO_MBYTE_JOIN)
-                        || (utf_ptr2char(curr) < 0x100 && endcurr1 < 0x100))
+                        || (utf_ptr2char(curr.cast()) < 0x100 && endcurr1 < 0x100))
                     && (!has_format_option(K_FO_MBYTE_JOIN2)
-                        || (utf_ptr2char(curr) < 0x100 && !utf_eat_space(endcurr1))
-                        || (endcurr1 < 0x100 && !utf_eat_space(utf_ptr2char(curr))))
+                        || (utf_ptr2char(curr.cast()) < 0x100 && !utf_eat_space(endcurr1))
+                        || (endcurr1 < 0x100 && !utf_eat_space(utf_ptr2char(curr.cast()))))
                 {
                     if endcurr1 == b' ' as i32 {
                         endcurr1 = endcurr2;
@@ -2032,7 +2048,7 @@ pub fn do_join(
                 }
             }
 
-            let space_t = crate::memory::cstr_char_at(spaces, t as usize);
+            let space_t = i32::from(*spaces.wrapping_add(t as usize));
             if t > 0 && g_st().curbuf_splice_pending == 0 {
                 let removed = crate::memory::ptr_offset_from(curr, curr_start) as Colnr;
                 extmark_splice(
@@ -2048,18 +2064,20 @@ pub fn do_join(
                     K_EXTMARK_UNDO,
                 );
             }
-            currsize = crate::memory::cstr_len(curr) as i32;
+            currsize = crate::memory::cstr_len(curr.cast()) as i32;
             sumsize += currsize + space_t;
             endcurr1 = i32::from(NUL);
             endcurr2 = i32::from(NUL);
             if insert_space && currsize > 0 {
                 cend = curr.wrapping_add(currsize as usize);
-                cend = cend.wrapping_sub((utf_head_off(curr, cend.wrapping_sub(1)) + 1) as usize);
-                endcurr1 = utf_ptr2char(cend);
+                cend = cend
+                    .wrapping_sub((utf_head_off(curr.cast(), cend.wrapping_sub(1).cast()) + 1) as usize);
+                endcurr1 = utf_ptr2char(cend.cast());
                 if cend > curr {
-                    cend =
-                        cend.wrapping_sub((utf_head_off(curr, cend.wrapping_sub(1)) + 1) as usize);
-                    endcurr2 = utf_ptr2char(cend);
+                    cend = cend.wrapping_sub(
+                        (utf_head_off(curr.cast(), cend.wrapping_sub(1).cast()) + 1) as usize,
+                    );
+                    endcurr2 = utf_ptr2char(cend.cast());
                 }
             }
             line_breakcheck();
@@ -2071,11 +2089,11 @@ pub fn do_join(
         }
 
         if !aborted {
-            let col = sumsize - currsize - crate::memory::cstr_char_at(spaces, count - 1);
+            let col = sumsize - currsize - i32::from(*spaces.wrapping_add(count - 1));
 
             let newp_len = sumsize as usize;
-            let mut newp_vec = vec![0 as c_char; newp_len + 1];
-            let newp: *mut c_char = newp_vec.as_mut_ptr();
+            let mut newp_vec = vec![0u8; newp_len + 1];
+            let newp: *mut u8 = newp_vec.as_mut_ptr();
             cend = newp.wrapping_add(sumsize as usize);
 
             g_st().curbuf_splice_pending += 1;
@@ -2085,7 +2103,7 @@ pub fn do_join(
                 cend = cend.wrapping_sub(currsize as usize);
                 ptr::copy(curr, cend, currsize as usize);
 
-                let space_t = crate::memory::cstr_char_at(spaces, t as usize);
+                let space_t = i32::from(*spaces.wrapping_add(t as usize));
                 if space_t > 0 {
                     cend = cend.wrapping_sub(space_t as usize);
                     ptr::write_bytes(cend, b' ', space_t as usize);
@@ -2105,19 +2123,19 @@ pub fn do_join(
                     break;
                 }
 
-                curr_start = ml_get(curwin_mut().w_cursor.lnum + t - 1);
+                curr_start = ml_get(curwin_mut().w_cursor.lnum + t - 1).cast();
                 curr = curr_start;
                 if remove_comments {
                     curr = curr.wrapping_add(*comments.wrapping_add((t - 1) as usize) as usize);
                 }
                 if insert_space && t > 1 {
-                    curr = skipwhite(curr);
+                    curr = skipwhite(curr.cast()).cast();
                 }
-                currsize = crate::memory::cstr_len(curr) as i32;
+                currsize = crate::memory::cstr_len(curr.cast()) as i32;
                 t -= 1;
             }
 
-            ml_replace_len(curwin_mut().w_cursor.lnum, newp, newp_len, true);
+            ml_replace_len(curwin_mut().w_cursor.lnum, newp.cast(), newp_len, true);
             drop(newp_vec);
 
             if setmark && (g_st().cmdmod.cmod_flags & CMOD_LOCKMARKS) == 0 {
@@ -2230,7 +2248,7 @@ pub fn block_prep(oap: &mut Oparg, bdp: &mut BlockDef, lnum: Linenr, is_del: boo
         if is_del && bdp.startspaces != 0 {
             bdp.startspaces = bdp.start_char_vcols - bdp.startspaces;
         }
-        let mut pend: *const c_char = pstart;
+        let mut pend = pstart.cast_const();
         bdp.end_vcol = bdp.start_vcol;
         if bdp.end_vcol > oap.end_vcol {
             bdp.is_one_char = 1;
@@ -2627,7 +2645,7 @@ pub fn do_addsub(op_type: i32, pos: &mut CursorPos, mut length: i32, prenum1: Li
         }
 
         curwin_mut().w_cursor = *pos;
-        let mut ptr_line = ml_get(pos.lnum);
+        let ptr_line = ml_get(pos.lnum);
         let linelen = ml_get_len(pos.lnum);
         let mut col = pos.col;
 
@@ -2669,7 +2687,7 @@ pub fn do_addsub(op_type: i32, pos: &mut CursorPos, mut length: i32, prenum1: Li
                 && !(col > 0
                     && (crate::memory::cstr_byte_at(ptr_line, col as usize) == b'X'
                         || crate::memory::cstr_byte_at(ptr_line, col as usize) == b'x')
-                    && *ptr_line.wrapping_add((col - 1) as usize) == b'0' as c_char
+                    && crate::memory::cstr_byte_at(ptr_line, (col - 1) as usize) == b'0'
                     && utf_head_off(ptr_line, ptr_line.wrapping_add((col - 1) as usize)) == 0
                     && ascii_isxdigit(i32::from(*ptr_line.wrapping_add((col + 1) as usize) as u8)))
             {
@@ -2690,14 +2708,14 @@ pub fn do_addsub(op_type: i32, pos: &mut CursorPos, mut length: i32, prenum1: Li
                 && col > 0
                 && (crate::memory::cstr_byte_at(ptr_line, col as usize) == b'X'
                     || crate::memory::cstr_byte_at(ptr_line, col as usize) == b'x')
-                && *ptr_line.wrapping_add((col - 1) as usize) == b'0' as c_char
+                && crate::memory::cstr_byte_at(ptr_line, (col - 1) as usize) == b'0'
                 && utf_head_off(ptr_line, ptr_line.wrapping_add((col - 1) as usize)) == 0
                 && ascii_isxdigit(i32::from(*ptr_line.wrapping_add((col + 1) as usize) as u8)))
                 || (do_bin
                     && col > 0
                     && (crate::memory::cstr_byte_at(ptr_line, col as usize) == b'B'
                         || crate::memory::cstr_byte_at(ptr_line, col as usize) == b'b')
-                    && *ptr_line.wrapping_add((col - 1) as usize) == b'0' as c_char
+                    && crate::memory::cstr_byte_at(ptr_line, (col - 1) as usize) == b'0'
                     && utf_head_off(ptr_line, ptr_line.wrapping_add((col - 1) as usize)) == 0
                     && ascii_isbdigit(i32::from(*ptr_line.wrapping_add((col + 1) as usize) as u8)))
             {
@@ -2757,7 +2775,7 @@ pub fn do_addsub(op_type: i32, pos: &mut CursorPos, mut length: i32, prenum1: Li
             }
 
             if col > pos.col
-                && *ptr_line.wrapping_add((col - 1) as usize) == b'-' as c_char
+                && crate::memory::cstr_byte_at(ptr_line, (col - 1) as usize) == b'-'
                 && utf_head_off(ptr_line, ptr_line.wrapping_add((col - 1) as usize)) == 0
                 && !do_unsigned
             {
@@ -2813,7 +2831,7 @@ pub fn do_addsub(op_type: i32, pos: &mut CursorPos, mut length: i32, prenum1: Li
             curwin_mut().w_cursor.col = col;
         } else {
             if col > 0
-                && *ptr_line.wrapping_add((col - 1) as usize) == b'-' as c_char
+                && crate::memory::cstr_byte_at(ptr_line, (col - 1) as usize) == b'-'
                 && utf_head_off(ptr_line, ptr_line.wrapping_add((col - 1) as usize)) == 0
                 && !visual
                 && !do_unsigned
@@ -2923,27 +2941,27 @@ pub fn do_addsub(op_type: i32, pos: &mut CursorPos, mut length: i32, prenum1: Li
                 c = gchar_cursor();
             }
 
-            let mut buf1_vec = vec![0 as c_char; (length as usize) + NUMBUFLEN];
+            let mut buf1_vec = vec![0u8; (length as usize) + NUMBUFLEN];
             let buf1 = buf1_vec.as_mut_ptr();
-            ptr_line = buf1;
+            let mut ptr_line = buf1;
             if negative && (!visual || was_positive) {
-                *ptr_line = b'-' as c_char;
+                *ptr_line = b'-';
                 ptr_line = ptr_line.wrapping_add(1);
             }
             if pre != 0 {
-                *ptr_line = b'0' as c_char;
+                *ptr_line = b'0';
                 ptr_line = ptr_line.wrapping_add(1);
                 length -= 1;
             }
             if pre == b'b' as i32 || pre == b'B' as i32 || pre == b'x' as i32 || pre == b'X' as i32
             {
-                *ptr_line = pre as c_char;
+                *ptr_line = pre as u8;
                 ptr_line = ptr_line.wrapping_add(1);
                 length -= 1;
             }
 
-            let mut buf2 = [0 as c_char; NUMBUFLEN];
-            let buf2_ptr = (&raw mut buf2).cast::<c_char>();
+            let mut buf2 = [0u8; NUMBUFLEN];
+            let buf2_ptr = buf2.as_mut_ptr();
             let mut buf2len: i32 = 0;
             if pre == b'b' as i32 || pre == b'B' as i32 {
                 let mut bits = Uvarnumber::BITS as usize;
@@ -2957,39 +2975,39 @@ pub fn do_addsub(op_type: i32, pos: &mut CursorPos, mut length: i32, prenum1: Li
                 while bits > 0 && (buf2len as usize) < NUMBUFLEN - 1 {
                     bits -= 1;
                     *buf2_ptr.wrapping_add(buf2len as usize) = if ((n >> bits) & 0x1) != 0 {
-                        b'1' as c_char
+                        b'1'
                     } else {
-                        b'0' as c_char
+                        b'0'
                     };
                     buf2len += 1;
                 }
 
-                *buf2_ptr.wrapping_add(buf2len as usize) = NUL;
+                *buf2_ptr.wrapping_add(buf2len as usize) = 0;
             } else if pre == 0 {
-                buf2len = vim_snprintf!(buf2_ptr, NUMBUFLEN, c"%llu", n as u64,);
+                buf2len = vim_snprintf!(buf2_ptr.cast(), NUMBUFLEN, c"%llu", n as u64,);
             } else if pre == b'0' as i32 {
-                buf2len = vim_snprintf!(buf2_ptr, NUMBUFLEN, c"%llo", n as u64,);
+                buf2len = vim_snprintf!(buf2_ptr.cast(), NUMBUFLEN, c"%llo", n as u64,);
             } else if ops_st().addsub_hexupper {
-                buf2len = vim_snprintf!(buf2_ptr, NUMBUFLEN, c"%llX", n as u64,);
+                buf2len = vim_snprintf!(buf2_ptr.cast(), NUMBUFLEN, c"%llX", n as u64,);
             } else {
-                buf2len = vim_snprintf!(buf2_ptr, NUMBUFLEN, c"%llx", n as u64,);
+                buf2len = vim_snprintf!(buf2_ptr.cast(), NUMBUFLEN, c"%llx", n as u64,);
             }
             length -= buf2len;
 
             if firstdigit == b'0' as i32 && !(do_oct && pre == 0) {
                 while length > 0 {
                     length -= 1;
-                    *ptr_line = b'0' as c_char;
+                    *ptr_line = b'0';
                     ptr_line = ptr_line.wrapping_add(1);
                 }
             }
-            *ptr_line = NUL;
+            *ptr_line = 0;
             let mut buf1len = crate::memory::ptr_offset_from(ptr_line, buf1) as i32;
 
-            crate::memory::cstr_cpy(buf1.wrapping_add(buf1len as usize), buf2_ptr);
+            crate::memory::cstr_cpy(buf1.wrapping_add(buf1len as usize).cast(), buf2_ptr.cast());
             buf1len += buf2len;
 
-            ins_str(buf1, buf1len as usize);
+            ins_str(buf1.cast(), buf1len as usize);
             drop(buf1_vec);
 
             endpos = curwin_mut().w_cursor;
@@ -3061,10 +3079,10 @@ fn line_count_info(
 }
 
 pub fn cursor_pos_info(mut dict: Option<&mut TvDict>) {
-    let mut buf1 = [0 as c_char; 50];
-    let buf1_ptr = (&raw mut buf1).cast::<c_char>();
-    let mut buf2 = [0 as c_char; 40];
-    let buf2_ptr = (&raw mut buf2).cast::<c_char>();
+    let mut buf1 = [0u8; 50];
+    let buf1_ptr = buf1.as_mut_ptr();
+    let mut buf2 = [0u8; 40];
+    let buf2_ptr = buf2.as_mut_ptr();
     let mut byte_count: Varnumber = 0;
     let mut bom_count: Varnumber = 0;
     let mut byte_count_cursor: Varnumber = 0;
@@ -3117,8 +3135,8 @@ pub fn cursor_pos_info(mut dict: Option<&mut TvDict>) {
                 let saved_sbr = opt_vars().p_sbr;
                 let saved_w_sbr = curwin_mut().w_onebuf_opt.wo_sbr;
 
-                opt_vars().p_sbr = EMPTY_STRING_OPTION.as_ptr().cast::<c_char>();
-                curwin_mut().w_onebuf_opt.wo_sbr = EMPTY_STRING_OPTION.as_ptr().cast::<c_char>();
+                opt_vars().p_sbr = EMPTY_STRING_OPTION.as_ptr().cast();
+                curwin_mut().w_onebuf_opt.wo_sbr = EMPTY_STRING_OPTION.as_ptr().cast();
                 oparg.is_visual = true;
                 oparg.motion_type = MT_BLOCK_WISE;
                 oparg.op_type = OP_NOP;
@@ -3152,17 +3170,17 @@ pub fn cursor_pos_info(mut dict: Option<&mut TvDict>) {
             }
 
             if l_visual_active && lnum >= min_pos.lnum && lnum <= max_pos.lnum {
-                let mut s: *mut c_char = ptr::null_mut();
+                let mut s: *mut u8 = ptr::null_mut();
                 let mut len: i32 = 0;
 
                 if l_visual_mode == CTRL_V_CONST {
                     g_st().virtual_op = TriState::from(virtual_active(curwin_mut()));
                     block_prep(&mut oparg, &mut bd, lnum, false);
                     g_st().virtual_op = K_NONE;
-                    s = bd.textstart;
+                    s = bd.textstart.cast();
                     len = bd.textlen;
                 } else if l_visual_mode == b'V' as i32 {
-                    s = ml_get(lnum);
+                    s = ml_get(lnum).cast();
                     len = MAXCOL;
                 } else if l_visual_mode == b'v' as i32 {
                     let start_col = if lnum == min_pos.lnum { min_pos.col } else { 0 };
@@ -3172,12 +3190,12 @@ pub fn cursor_pos_info(mut dict: Option<&mut TvDict>) {
                         MAXCOL
                     };
 
-                    s = ml_get(lnum).wrapping_add(start_col as usize);
+                    s = ml_get(lnum).wrapping_add(start_col as usize).cast();
                     len = end_col;
                 }
                 if !s.is_null() {
                     byte_count_cursor += line_count_info(
-                        s,
+                        s.cast_const().cast(),
                         &mut word_count_cursor,
                         &mut char_count_cursor,
                         Varnumber::from(len),
@@ -3186,7 +3204,7 @@ pub fn cursor_pos_info(mut dict: Option<&mut TvDict>) {
                     if lnum == curbuf_mut().b_ml.ml_line_count
                         && curbuf_mut().b_p_eol == 0
                         && (curbuf_mut().b_p_bin != 0 || curbuf_mut().b_p_fixeol == 0)
-                        && (crate::memory::cstr_len(s) as i32) < len
+                        && (crate::memory::cstr_len(s.cast()) as i32) < len
                     {
                         byte_count_cursor -= Varnumber::from(eol_size);
                     }
@@ -3234,13 +3252,14 @@ pub fn cursor_pos_info(mut dict: Option<&mut TvDict>) {
                     let cols = i64::from(oparg.end_vcol + 1)
                         .checked_sub(i64::from(oparg.start_vcol))
                         .unwrap_or_else(|| std::process::abort());
-                    vim_snprintf!(buf1_ptr, buf1.len(), tr(c"%lld Cols; "), cols,);
+                    vim_snprintf!(buf1_ptr.cast(), buf1.len(), tr(c"%lld Cols; "), cols,);
                 } else {
                     unsafe {
-                        *buf1_ptr = NUL;
+                        *buf1_ptr = 0;
                     }
                 }
 
+                let buf1_cstr = std::ffi::CStr::from_bytes_until_nul(&buf1).unwrap_or_default();
                 if char_count_cursor == byte_count_cursor && char_count == byte_count {
                     vim_snprintf!(
                             iobuff_ptr,
@@ -3248,7 +3267,7 @@ pub fn cursor_pos_info(mut dict: Option<&mut TvDict>) {
                             tr(
                                 c"Selected %s%lld of %lld Lines; %lld of %lld Words; %lld of %lld Bytes",
                             ),
-                            buf1_ptr,
+                            buf1_cstr.as_ptr(),
                             i64::from(line_count_selected),
                             i64::from(curbuf_mut().b_ml.ml_line_count),
                             word_count_cursor as i64,
@@ -3263,7 +3282,7 @@ pub fn cursor_pos_info(mut dict: Option<&mut TvDict>) {
                             tr(
                                 c"Selected %s%lld of %lld Lines; %lld of %lld Words; %lld of %lld Chars; %lld of %lld Bytes",
                             ),
-                            buf1_ptr,
+                            buf1_cstr.as_ptr(),
                             i64::from(line_count_selected),
                             i64::from(curbuf_mut().b_ml.ml_line_count),
                             word_count_cursor as i64,
@@ -3278,17 +3297,19 @@ pub fn cursor_pos_info(mut dict: Option<&mut TvDict>) {
                 let p = get_cursor_line_ptr();
                 validate_virtcol(curwin_mut());
                 col_print(
-                    buf1_ptr,
+                    buf1_ptr.cast(),
                     buf1.len(),
                     curwin_mut().w_cursor.col + 1,
                     curwin_mut().w_virtcol + 1,
                 );
                 col_print(
-                    buf2_ptr,
+                    buf2_ptr.cast(),
                     buf2.len(),
                     get_cursor_line_len(),
                     linetabsize_str(p),
                 );
+                let buf1_cstr = std::ffi::CStr::from_bytes_until_nul(&buf1).unwrap_or_default();
+                let buf2_cstr = std::ffi::CStr::from_bytes_until_nul(&buf2).unwrap_or_default();
 
                 if char_count_cursor == byte_count_cursor && char_count == byte_count {
                     vim_snprintf!(
@@ -3297,8 +3318,8 @@ pub fn cursor_pos_info(mut dict: Option<&mut TvDict>) {
                             tr(
                                 c"Col %s of %s; Line %lld of %lld; Word %lld of %lld; Byte %lld of %lld",
                             ),
-                            buf1_ptr,
-                            buf2_ptr,
+                            buf1_cstr.as_ptr(),
+                            buf2_cstr.as_ptr(),
                             i64::from(curwin_mut().w_cursor.lnum),
                             i64::from(curbuf_mut().b_ml.ml_line_count),
                             word_count_cursor as i64,
@@ -3313,8 +3334,8 @@ pub fn cursor_pos_info(mut dict: Option<&mut TvDict>) {
                             tr(
                                 c"Col %s of %s; Line %lld of %lld; Word %lld of %lld; Char %lld of %lld; Byte %lld of %lld",
                             ),
-                            buf1_ptr,
-                            buf2_ptr,
+                            buf1_cstr.as_ptr(),
+                            buf2_cstr.as_ptr(),
                             i64::from(curwin_mut().w_cursor.lnum),
                             i64::from(curbuf_mut().b_ml.ml_line_count),
                             word_count_cursor as i64,
