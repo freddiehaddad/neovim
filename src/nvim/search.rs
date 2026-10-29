@@ -108,7 +108,7 @@ const K_OPT_BO_FLAG_SHOWMATCH: u32 = 0x2000;
 #[repr(C)]
 #[derive(Clone, Copy, Default)]
 pub struct SearchOffset {
-    pub dir: c_char,
+    pub dir: u8,
     pub line: bool,
     pub end: bool,
     pub off: i64,
@@ -227,7 +227,7 @@ const E_SEARCH_HIT_BOTTOM_WITHOUT_MATCH_FOR_STR: &CStr =
     c"E385: Search hit BOTTOM without match for: %s";
 
 const EMPTY_SEARCH_OFFSET: SearchOffset = SearchOffset {
-    dir: b'/' as c_char,
+    dir: b'/',
     line: false,
     end: false,
     off: 0,
@@ -636,7 +636,7 @@ pub fn last_search_pat() -> *mut c_char {
 }
 
 pub fn reset_search_dir() {
-    srch().spats[0].off.dir = b'/' as c_char;
+    srch().spats[0].off.dir = b'/';
     set_vv_searchforward();
 }
 
@@ -659,7 +659,7 @@ pub fn set_last_search_pat(
         srch().spats[i].additional_data = None;
         srch().spats[i].magic = magic != 0;
         srch().spats[i].no_scs = false;
-        srch().spats[i].off.dir = b'/' as c_char;
+        srch().spats[i].off.dir = b'/';
         set_vv_searchforward();
         srch().spats[i].off.line = false;
         srch().spats[i].off.end = false;
@@ -1151,13 +1151,13 @@ pub fn searchit(
 }
 
 pub fn set_search_direction(cdir: i32) {
-    srch().spats[0].off.dir = cdir as c_char;
+    srch().spats[0].off.dir = cdir as u8;
 }
 
 fn set_vv_searchforward() {
     set_vim_var_nr(
         VV_SEARCHFORWARD,
-        Varnumber::from(srch().spats[0].off.dir == b'/' as c_char),
+        Varnumber::from(srch().spats[0].off.dir == b'/'),
     );
 }
 
@@ -1297,9 +1297,9 @@ pub fn do_search(
     let mut pos = curwin_mut().w_cursor;
 
     if dirc == 0 {
-        dirc = i32::from(srch().spats[0].off.dir as u8);
+        dirc = i32::from(srch().spats[0].off.dir);
     } else {
-        srch().spats[0].off.dir = dirc as c_char;
+        srch().spats[0].off.dir = dirc as u8;
         set_vv_searchforward();
     }
     if (options & SEARCH_REV) != 0 {

@@ -2686,7 +2686,7 @@ pub fn nvim_get_mark(
     let mut filename: Option<&CStr> = if mark.fmark.fnum != 0 {
         owned_filename.as_deref()
     } else {
-        crate::memory::cstr_as_opt_cstr((*mark).fname_ptr())
+        (*mark).fname_cstr()
     };
 
     let exists = filename.is_some();

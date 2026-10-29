@@ -7796,7 +7796,7 @@ pub fn f_setreg(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData)
         rettv.vval = crate::eval::typval::TypvalVval::Number(0);
 
         if set_unnamed {
-            op_reg_set_previous(regname);
+            op_reg_set_previous(regname as u8);
         }
     }
 }

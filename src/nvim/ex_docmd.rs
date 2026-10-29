@@ -7283,12 +7283,19 @@ pub fn parse_cmd_address(eap: &mut Exarg, errormsg: *mut *const c_char, silent: 
                         eap.cmd = eap.cmd.wrapping_add(1);
                         if eap.skip == 0 {
                             let fm1 = mark_get_visual(curbuf_mut(), b'<' as i32);
-                            if !mark_check(fm1.as_mut(), errormsg) {
+                            let mut err_opt = None;
+                            if !mark_check(fm1.as_mut(), &mut err_opt) {
+                                if let Some(e) = err_opt {
+                                    *errormsg = e.as_ptr();
+                                }
                                 break 'theend;
                             }
                             eap.line1 = (*fm1).mark.lnum;
                             let fm2 = mark_get_visual(curbuf_mut(), b'>' as i32);
-                            if !mark_check(fm2.as_mut(), errormsg) {
+                            if !mark_check(fm2.as_mut(), &mut err_opt) {
+                                if let Some(e) = err_opt {
+                                    *errormsg = e.as_ptr();
+                                }
                                 break 'theend;
                             }
                             eap.line2 = (*fm2).mark.lnum;
@@ -7849,7 +7856,11 @@ pub fn get_address(
                                 mark_move_to(fm, 0);
                                 lnum = curwin_mut().w_cursor.lnum;
                             } else {
-                                if !mark_check(fm.as_mut(), errormsg) {
+                                let mut err_opt = None;
+                                if !mark_check(fm.as_mut(), &mut err_opt) {
+                                    if let Some(e) = err_opt {
+                                        *errormsg = e.as_ptr();
+                                    }
                                     cmd = ptr::null_mut();
                                     break 'error;
                                 }

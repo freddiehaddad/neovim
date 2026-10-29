@@ -360,11 +360,11 @@ pub fn get_default_register_name() -> i32 {
 pub fn op_reg_iter(
     iter: Option<usize>,
     regs: &[Yankreg],
-    name: &mut c_char,
+    name: &mut u8,
     reg: &mut *const Yankreg,
     is_unnamed: &mut bool,
 ) -> Option<usize> {
-    *name = NUL;
+    *name = 0;
     let mut idx = iter.unwrap_or(0);
     while idx < NUM_SAVED_REGISTERS && reg_empty(&regs[idx]) {
         idx += 1;
@@ -372,7 +372,7 @@ pub fn op_reg_iter(
     if idx >= NUM_SAVED_REGISTERS || reg_empty(&regs[idx]) {
         return None;
     }
-    *name = get_register_name(idx as i32) as u8 as c_char;
+    *name = get_register_name(idx as i32) as u8;
     let iter_reg = &raw const regs[idx];
     *reg = iter_reg;
     *is_unnamed = ptr::eq(iter_reg, reg_st().y_previous);
@@ -388,7 +388,7 @@ pub fn op_reg_iter(
 
 pub fn op_global_reg_iter(
     iter: Option<usize>,
-    name: &mut c_char,
+    name: &mut u8,
     reg: &mut *const Yankreg,
     is_unnamed: &mut bool,
 ) -> Option<usize> {
@@ -399,11 +399,11 @@ pub fn reg_max_ts(clipboard: bool) -> Timestamp {
     let mut max_ts: Timestamp = 0;
     let mut iter: Option<usize> = None;
     loop {
-        let mut name: c_char = NUL;
+        let mut name: u8 = 0;
         let mut reg: *const Yankreg = ptr::null();
         let mut is_unnamed = false;
         iter = op_global_reg_iter(iter, &mut name, &mut reg, &mut is_unnamed);
-        if name == NUL {
+        if name == 0 {
             break;
         }
         max_ts = max_ts.max(unsafe { (*reg).timestamp });
@@ -418,8 +418,8 @@ pub fn reg_max_ts(clipboard: bool) -> Timestamp {
     max_ts
 }
 
-pub fn op_reg_set(name: c_char, reg: Yankreg, is_unnamed: bool) -> bool {
-    let i = op_reg_index(i32::from(name as u8));
+pub fn op_reg_set(name: u8, reg: Yankreg, is_unnamed: bool) -> bool {
+    let i = op_reg_index(i32::from(name));
     if i == -1 {
         return false;
     }
@@ -436,8 +436,8 @@ pub fn op_reg_set(name: c_char, reg: Yankreg, is_unnamed: bool) -> bool {
     true
 }
 
-pub fn op_reg_get(name: c_char) -> *const Yankreg {
-    let i = op_reg_index(i32::from(name as u8));
+pub fn op_reg_get(name: u8) -> *const Yankreg {
+    let i = op_reg_index(i32::from(name));
     if i == -1 {
         return ptr::null();
     }
@@ -446,8 +446,8 @@ pub fn op_reg_get(name: c_char) -> *const Yankreg {
         .wrapping_add(i as usize)
 }
 
-pub fn op_reg_set_previous(name: c_char) -> bool {
-    let i = op_reg_index(i32::from(name as u8));
+pub fn op_reg_set_previous(name: u8) -> bool {
+    let i = op_reg_index(i32::from(name));
     if i == -1 {
         return false;
     }
