@@ -121,7 +121,7 @@ use crate::ui::{ui_array, ui_call_screenshot, ui_call_set_restart_on_crash_exit,
 use crate::window::{
     WinInfoInfo, global_stl_height, goto_tabpage_tp, goto_tabpage_win, win_find_tabpage,
 };
-use std::ffi::c_char;
+use std::ffi::CStr;
 use std::ptr;
 
 #[cfg(windows)]
@@ -729,12 +729,11 @@ pub fn nvim_input_mouse(
     };
 
     let mut modmask: i32 = 0;
-    for i in 0..modifier.size {
-        let byte = unsafe { *modifier.data.wrapping_add(i) };
-        if byte == (b'-' as c_char) {
+    for &byte in modifier.as_bytes() {
+        if byte == b'-' {
             continue;
         }
-        let m = name_to_mod_mask(i32::from(byte as u8));
+        let m = name_to_mod_mask(i32::from(byte));
         if m == 0 {
             api_set_error!(
                 err,
@@ -2567,7 +2566,7 @@ pub fn nvim_inspect_cell(
         }
         ret = arena_array(arena, 3);
         let off = g.line_offset[row as usize] + (col as usize);
-        let sc_buf = arena_alloc(arena, MAX_SCHAR_SIZE, false).cast::<c_char>();
+        let sc_buf = arena_alloc(arena, MAX_SCHAR_SIZE, false).cast();
         schar_get(sc_buf, g.chars[off]);
         add_c(&mut ret, cstr_as_obj(sc_buf));
         let attr = g.attrs[off];
@@ -2676,7 +2675,6 @@ pub fn nvim_get_mark(
     let mark = unsafe { &mut *mark };
     let pos = mark.fmark.mark;
     let mut bufnr: i32;
-    let mut filename: *mut c_char;
 
     let owned_filename = if mark.fmark.fnum != 0 {
         bufnr = mark.fmark.fnum;
@@ -2685,20 +2683,18 @@ pub fn nvim_get_mark(
         bufnr = 0;
         None
     };
-    filename = if mark.fmark.fnum != 0 {
-        owned_filename
-            .as_ref()
-            .map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut())
+    let mut filename: Option<&CStr> = if mark.fmark.fnum != 0 {
+        owned_filename.as_deref()
     } else {
-        (*mark).fname_ptr()
+        crate::memory::cstr_as_opt_cstr((*mark).fname_ptr())
     };
 
-    let exists = !filename.is_null();
+    let exists = filename.is_some();
     let row: Integer;
     let col: Integer;
 
     if !exists || pos.lnum <= 0 {
-        filename = c"".as_ptr().cast_mut();
+        filename = Some(c"");
         bufnr = 0;
         row = 0;
         col = 0;
@@ -2711,7 +2707,10 @@ pub fn nvim_get_mark(
     add_c(&mut rv, integer_obj(row));
     add_c(&mut rv, integer_obj(col));
     add_c(&mut rv, integer_obj(Integer::from(bufnr)));
-    add_c(&mut rv, cstr_to_arena_obj(arena, filename));
+    add_c(
+        &mut rv,
+        cstr_to_arena_obj(arena, filename.map_or(ptr::null(), CStr::as_ptr)),
+    );
 
     rv
 }
@@ -2755,13 +2754,11 @@ pub fn nvim_eval_statusline(
         let mut fillchar: Schar = 0;
         let mut statuscol_lnum: i32 = 0;
 
-        if str_.size < 2
-            || *str_.data != (b'%' as c_char)
-            || crate::memory::cstr_byte_at(str_.data, 1) != b'!'
-        {
-            let mut raw_errbuf = [0 as c_char; ERR_BUFLEN];
+        let str_bytes = str_.as_bytes();
+        if !str_bytes.starts_with(b"%!") {
+            let mut raw_errbuf = [0u8; ERR_BUFLEN];
             let errbuf = CharBuf {
-                data: raw_errbuf.as_mut_ptr(),
+                data: raw_errbuf.as_mut_ptr().cast(),
                 size: ERR_BUFLEN,
             };
             let errmsg = check_stl_option(str_.data, Some(errbuf));
@@ -2886,7 +2883,7 @@ pub fn nvim_eval_statusline(
         };
 
         result = arena_dict(arena, 3);
-        let buf_data = arena_alloc(arena, MAXPATHL, false).cast::<c_char>();
+        let buf_data = arena_alloc(arena, MAXPATHL, false).cast();
         let buf = CharBuf {
             data: buf_data,
             size: MAXPATHL,
@@ -2949,7 +2946,7 @@ pub fn nvim_eval_statusline(
             let mut sp = hltab;
             while !(*sp).start.is_null() {
                 let user_str: String;
-                let grpname: *const c_char = if (*sp).userhl == 0 {
+                let grpname = if (*sp).userhl == 0 {
                     get_default_stl_hl(
                         if opts.use_tabline {
                             ptr::null_mut()
@@ -2963,7 +2960,7 @@ pub fn nvim_eval_statusline(
                     syn_id2name(-(*sp).userhl)
                 } else {
                     user_str = format!("User{}\0", (*sp).userhl);
-                    arena_strdup(arena, user_str.as_ptr().cast::<c_char>())
+                    arena_strdup(arena, user_str.as_ptr().cast())
                 };
 
                 let combine = if (*sp).item == i32::from(STL_SIGNCOL as u8) {

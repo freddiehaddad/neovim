@@ -2417,6 +2417,29 @@ pub fn autocmd_register(
     }
 }
 
+pub fn aucmd_span_pattern_slice(mut pat: &[u8]) -> Option<(&[u8], &[u8])> {
+    while pat.first() == Some(&b',') {
+        pat = &pat[1..];
+    }
+    if pat.is_empty() || pat[0] == 0 {
+        return None;
+    }
+    let mut i = 0usize;
+    let mut brace_level: i32 = 0;
+    while i < pat.len()
+        && pat[i] != 0
+        && (pat[i] != b',' || brace_level != 0 || (i > 0 && pat[i - 1] == b'\\'))
+    {
+        if pat[i] == b'{' {
+            brace_level += 1;
+        } else if pat[i] == b'}' {
+            brace_level -= 1;
+        }
+        i += 1;
+    }
+    Some((&pat[..i], &pat[i..]))
+}
+
 pub fn aucmd_span_pattern(
     pat: impl crate::strings::IntoCCharPtr,
     start: *mut *const c_char,

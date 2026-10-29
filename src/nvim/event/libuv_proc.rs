@@ -11,7 +11,7 @@ use crate::os::env::os_shell_is_cmdexe;
 use crate::os::fs::os_close;
 #[cfg(windows)]
 use crate::path::path_to_backslash;
-use std::ffi::{c_char, c_void};
+use std::ffi::c_void;
 use std::ptr;
 
 const UV_IGNORE: i32 = 0x00;
@@ -56,10 +56,10 @@ pub struct uv_stdio_container_t {
 #[repr(C)]
 pub struct uv_process_options_t {
     pub exit_cb: uv_exit_cb,
-    pub file: *const c_char,
-    pub args: *mut *mut c_char,
-    pub env: *mut *mut c_char,
-    pub cwd: *const c_char,
+    pub file: *const u8,
+    pub args: *mut *mut u8,
+    pub env: *mut *mut u8,
+    pub cwd: *const u8,
     pub flags: u32,
     pub stdio_count: i32,
     pub stdio: *mut uv_stdio_container_t,
@@ -76,9 +76,9 @@ pub struct LibuvProc {
     pub uv: UvProcessHandle,
     pub uvopts: uv_process_options_t,
     pub uvstdio: [uv_stdio_container_t; 4],
-    pub args_ptrs: Vec<*mut c_char>,
+    pub args_ptrs: Vec<*mut u8>,
     pub env_vec: Vec<std::ffi::CString>,
-    pub env_ptrs: Vec<*mut c_char>,
+    pub env_ptrs: Vec<*mut u8>,
 }
 
 impl LibuvProc {
@@ -214,15 +214,18 @@ pub fn libuv_proc_spawn(uvproc: &mut LibuvProc) -> i32 {
     uvproc.args_ptrs = proc_
         .argv
         .iter()
-        .map(|s| s.as_ptr().cast_mut())
+        .map(|s| s.as_ptr().cast_mut().cast())
         .chain(std::iter::once(ptr::null_mut()))
         .collect();
-    uvproc.uvopts.file = proc_get_exepath(&*proc_).as_ptr();
+    uvproc.uvopts.file = proc_get_exepath(&*proc_).as_ptr().cast();
     uvproc.uvopts.args = uvproc.args_ptrs.as_mut_ptr();
     uvproc.uvopts.flags |= UV_PROCESS_WINDOWS_HIDE;
 
     uvproc.uvopts.exit_cb = Some(exit_cb);
-    uvproc.uvopts.cwd = proc_.cwd.as_ref().map_or(ptr::null(), |s| s.as_ptr());
+    uvproc.uvopts.cwd = proc_
+        .cwd
+        .as_ref()
+        .map_or(ptr::null(), |s| s.as_ptr().cast());
 
     uvproc.uvopts.stdio = uvproc.uvstdio.as_mut_ptr();
     uvproc.uvopts.stdio_count = 3;
@@ -245,7 +248,7 @@ pub fn libuv_proc_spawn(uvproc: &mut LibuvProc) -> i32 {
         uvproc.env_ptrs = uvproc
             .env_vec
             .iter()
-            .map(|s| s.as_ptr().cast_mut())
+            .map(|s| s.as_ptr().cast_mut().cast())
             .chain(std::iter::once(ptr::null_mut()))
             .collect();
         uvproc.uvopts.env = uvproc.env_ptrs.as_mut_ptr();

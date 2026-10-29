@@ -2,7 +2,7 @@
 
 use crate::api::private::helpers::{
     ArrayBuilder, TryState, add_c, api_set_error, api_set_sctx, api_typename, arena_array,
-    arena_dict, arena_string, arena_take_arraybuilder, boolean_obj, cstr_as_string, dict_obj,
+    arena_bytes, arena_dict, arena_take_arraybuilder, boolean_obj, cstr_as_string, dict_obj,
     error_set, find_buffer_by_handle, has_key, integer_obj, luaref_obj, put_c, string_obj,
     try_enter, try_leave,
 };
@@ -13,9 +13,10 @@ use crate::api::private::validate::{
 use crate::autocmd::{
     AUGROUP_ALL, AUGROUP_DEFAULT, AUGROUP_ERROR, AuEvent, BUFLOCAL_PAT_LEN, NUM_EVENTS,
     apply_autocmds_group, au_get_autocmds_for_event, aucmd_del_for_event_and_group,
-    aucmd_span_pattern, augroup_add, augroup_del, augroup_del_by_id, augroup_exists, augroup_find,
-    augroup_name, aupat_get_buflocal_nr, aupat_is_buflocal, aupat_normalize_buflocal_pat,
-    autocmd_delete_id, autocmd_register, do_autocmd_event, event_name2nr_str, event_nr2name,
+    aucmd_span_pattern_slice, augroup_add, augroup_del, augroup_del_by_id, augroup_exists,
+    augroup_find, augroup_name, aupat_get_buflocal_nr, aupat_is_buflocal,
+    aupat_normalize_buflocal_pat, autocmd_delete_id, autocmd_register, do_autocmd_event,
+    event_name2nr_str, event_nr2name,
 };
 use crate::buffer::do_modelines;
 use crate::eval::typval::{
@@ -27,7 +28,7 @@ use crate::lua::converter::LUA_NOREF;
 use crate::lua::executor::{api_new_luaref, nlua_ref_is_function};
 use crate::memory::{Arena, arena_memdupz, cstr_from_bytes};
 use crate::msgpack_rpc::packer::Integer;
-use std::ffi::{CString, c_char};
+use std::ffi::{CStr, CString};
 
 use crate::api::tabpage::Buffer;
 use crate::highlight::OptionalKeys;
@@ -250,18 +251,11 @@ fn get_patterns_from_pattern_or_buf(
 
     if pattern.obj_type != ObjectType::ObjectTypeNil {
         if pattern.obj_type == ObjectType::ObjectTypeString {
-            let mut pat: *const c_char = pattern.data.string().data;
-            let mut patlen = aucmd_span_pattern(pat, &mut pat);
-            while patlen != 0 {
-                let s = arena_string(
-                    arena,
-                    NvimString {
-                        data: pat.cast_mut(),
-                        size: patlen,
-                    },
-                );
-                patterns.push(string_obj(s));
-                patlen = aucmd_span_pattern(pat.wrapping_add(patlen), &mut pat);
+            let pat_str = pattern.data.string();
+            let mut rem = pat_str.cstr_bytes();
+            while let Some((span, rest)) = aucmd_span_pattern_slice(rem) {
+                patterns.push(string_obj(arena_bytes(arena, span)));
+                rem = rest;
             }
         } else if pattern.obj_type == ObjectType::ObjectTypeArray {
             if !check_string_array(pattern.data.array(), c"pattern", true, err) {
@@ -273,19 +267,11 @@ fn get_patterns_from_pattern_or_buf(
             }
             let array = pattern.data.array();
             for i in 0..array.size {
-                let entry = array[i];
-                let mut pat: *const c_char = entry.data.string().data;
-                let mut patlen = aucmd_span_pattern(pat, &mut pat);
-                while patlen != 0 {
-                    let s = arena_string(
-                        arena,
-                        NvimString {
-                            data: pat.cast_mut(),
-                            size: patlen,
-                        },
-                    );
-                    patterns.push(string_obj(s));
-                    patlen = aucmd_span_pattern(pat.wrapping_add(patlen), &mut pat);
+                let entry_str = array[i].data.string();
+                let mut rem = entry_str.cstr_bytes();
+                while let Some((span, rest)) = aucmd_span_pattern_slice(rem) {
+                    patterns.push(string_obj(arena_bytes(arena, span)));
+                    rem = rest;
                 }
             }
         } else {
@@ -384,7 +370,7 @@ pub fn nvim_get_autocmds(
     err: &mut Error,
 ) -> Array {
     let mut autocmd_list = ArrayBuilder::new();
-    let mut pattern_filters = [std::ptr::null::<c_char>(); AUCMD_MAX_PATTERNS];
+    let mut pattern_filters: [Option<&CStr>; AUCMD_MAX_PATTERNS] = [None; AUCMD_MAX_PATTERNS];
     let mut buffers = Array {
         items: std::ptr::null_mut(),
         size: 0,
@@ -487,7 +473,8 @@ pub fn nvim_get_autocmds(
         if has_key(mask, KEYSET_OPTIDX_GET_AUTOCMDS_PATTERN) {
             let v = opts.pattern;
             if v.obj_type == ObjectType::ObjectTypeString {
-                pattern_filters[pattern_filter_count] = v.data.string().data;
+                pattern_filters[pattern_filter_count] =
+                    crate::memory::cstr_as_opt_cstr(v.data.string().data);
                 pattern_filter_count += 1;
             } else if v.obj_type == ObjectType::ObjectTypeArray {
                 if v.data.array().size > AUCMD_MAX_PATTERNS {
@@ -510,7 +497,8 @@ pub fn nvim_get_autocmds(
                         );
                         break 'body;
                     }
-                    pattern_filters[pattern_filter_count] = item.data.string().data;
+                    pattern_filters[pattern_filter_count] =
+                        crate::memory::cstr_as_opt_cstr(item.data.string().data);
                     pattern_filter_count += 1;
                 }
             } else {
@@ -578,7 +566,8 @@ pub fn nvim_get_autocmds(
 
         for i in 0..buffers.size {
             let bufnr = buffers[i];
-            pattern_filters[pattern_filter_count] = bufnr.data.string().data;
+            pattern_filters[pattern_filter_count] =
+                crate::memory::cstr_as_opt_cstr(bufnr.data.string().data);
             pattern_filter_count += 1;
         }
 
@@ -602,20 +591,22 @@ pub fn nvim_get_autocmds(
                 if pattern_filter_count > 0 {
                     let mut passed = false;
                     for &raw_pat in &pattern_filters[..pattern_filter_count] {
-                        let mut pat = raw_pat;
-                        let patlen = crate::memory::cstr_len(pat) as i32;
-                        let mut pattern_buflocal = [0 as c_char; BUFLOCAL_PAT_LEN];
-                        if aupat_is_buflocal(pat, patlen) {
+                        let Some(raw_cstr) = raw_pat else {
+                            continue;
+                        };
+                        let mut pat_cstr = raw_cstr;
+                        let patlen = pat_cstr.to_bytes().len() as i32;
+                        let mut pattern_buflocal = [0u8; BUFLOCAL_PAT_LEN];
+                        if aupat_is_buflocal(pat_cstr.as_ptr(), patlen) {
                             aupat_normalize_buflocal_pat(
-                                pattern_buflocal.as_mut_ptr(),
-                                pat,
+                                pattern_buflocal.as_mut_ptr().cast(),
+                                pat_cstr.as_ptr(),
                                 patlen,
-                                aupat_get_buflocal_nr(pat, patlen),
+                                aupat_get_buflocal_nr(pat_cstr.as_ptr(), patlen),
                             );
-                            pat = pattern_buflocal.as_ptr();
+                            pat_cstr = CStr::from_bytes_until_nul(&pattern_buflocal).unwrap_or(c"");
                         }
-                        if !pat.is_null() && ap.pat.as_bytes() == crate::memory::cstr_as_bytes(pat)
-                        {
+                        if ap.pat.as_bytes() == pat_cstr.to_bytes() {
                             passed = true;
                             break;
                         }
@@ -806,7 +797,7 @@ pub fn nvim_create_autocmd(
     err: &mut Error,
 ) -> Integer {
     let mut autocmd_id: i64 = -1;
-    let mut desc: *const c_char = std::ptr::null();
+    let mut desc: Option<&CStr> = None;
     let mut handler_cmd: Option<CString> = None;
     let mut handler_fn = Callback::NONE;
 
@@ -897,7 +888,7 @@ pub fn nvim_create_autocmd(
         }
 
         if has_key(mask, KEYSET_OPTIDX_CREATE_AUTOCMD_DESC) {
-            desc = opts.desc.data;
+            desc = crate::memory::cstr_as_opt_cstr(opts.desc.data);
         }
 
         if event_array.size == 0 {
@@ -927,7 +918,7 @@ pub fn nvim_create_autocmd(
                     au_group,
                     opts.once,
                     opts.nested,
-                    desc.cast_mut(),
+                    desc.map_or(std::ptr::null_mut(), |s| s.as_ptr().cast_mut()),
                     handler_cmd
                         .as_ref()
                         .map_or(std::ptr::null_mut(), |s| s.as_ptr().cast_mut()),

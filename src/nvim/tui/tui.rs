@@ -2013,7 +2013,7 @@ pub fn tui_ui_send(tui: &mut TUIData, content: NvimString) {
         return;
     }
     let mut req = [0u64; 64];
-    let buf = uv_buf_t::new(content.data, content.size);
+    let buf = uv_buf_t::new(content.data.cast(), content.size);
     let ret = unsafe {
         uv_write(
             req.as_mut_ptr().cast(),
