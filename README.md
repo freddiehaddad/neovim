@@ -117,7 +117,7 @@ cargo xtask lint              # run clippy, stylua, error-code, and vimdoc linte
 
 ## Contributing & Maintenance
 
-- [PORTING.md](./PORTING.md): How the 460K-line C codebase was ported to Rust, the pitfalls hit along the way, and what comes next.
+- [PORTING.md](./PORTING.md): Porting strategy, pitfalls encountered, and lessons learned.
 - [BUILD.md](./BUILD.md): Prerequisites, platform build instructions, and `cargo xtask` reference.
 - [CONTRIBUTING.md](./CONTRIBUTING.md): Workflow, testing, linting, and pull request guidelines.
 - [MAINTAIN.md](./MAINTAIN.md): Upstream `neovim/neovim` sync process and release packaging.
