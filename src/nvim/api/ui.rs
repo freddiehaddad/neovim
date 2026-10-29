@@ -183,7 +183,7 @@ pub fn ui_detach_channel(chan: u64, err: &mut Error) {
     if error_set(err) {
         return;
     }
-    channel_close(chan, K_CHANNEL_PART_ALL, ptr::null_mut());
+    channel_close(chan, K_CHANNEL_PART_ALL, None);
     #[cfg(windows)]
     {
         os_detach_ui_console(detach_stdio);

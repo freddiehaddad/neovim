@@ -12,7 +12,6 @@ use crate::eval::typval::{
 use crate::ex_cmds::check_secure;
 use crate::globals::*;
 use crate::message::{emsg, semsg};
-use std::ffi::c_char;
 
 const K_CHANNEL_PART_RPC: i32 = 3;
 const K_CHANNEL_STDIN_PIPE: i32 = 0;
@@ -125,11 +124,11 @@ pub fn f_rpcstop(argvars: &mut [TypVal], rettv: &mut TypVal, fptr: EvalFuncData)
     if !find_job(id, false).is_null() {
         f_jobstop(argvars, rettv, fptr);
     } else {
-        let mut error: *const c_char = std::ptr::null();
-        let closed = channel_close(id, K_CHANNEL_PART_RPC, &mut error);
+        let mut error = None;
+        let closed = channel_close(id, K_CHANNEL_PART_RPC, Some(&mut error));
         rettv.vval = crate::eval::typval::TypvalVval::Number(i64::from(closed));
-        if !closed {
-            emsg(error);
+        if !closed && let Some(err) = error {
+            emsg(err);
         }
     }
 }

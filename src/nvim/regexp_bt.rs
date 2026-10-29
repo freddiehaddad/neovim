@@ -1,7 +1,6 @@
 //! Backtracking regular expression engine (`src/nvim/regexp.c`).
 
 use crate::message::semsg;
-use std::ffi::c_char;
 use std::mem::size_of;
 use std::ptr;
 
@@ -1414,7 +1413,7 @@ fn regatom(flagp: &mut i32) -> *mut u8 {
                             endc = get_coll_element(&raw mut re_st().regparse);
                         }
                         if endc == 0 {
-                            let mut rp_const: *const c_char = re_st().regparse;
+                            let mut rp_const = re_st().regparse.cast_const();
                             endc = mb_ptr2char_adv(&raw mut rp_const);
                             re_st().regparse = rp_const.cast_mut();
                         }
@@ -4039,7 +4038,7 @@ fn bt_regexec_both(
         }
 
         if let Some(off) = prog.regmust_off {
-            let regmust = prog.program.as_ptr().wrapping_add(off).cast::<c_char>();
+            let regmust = prog.program.as_ptr().wrapping_add(off).cast();
             let c = utf_ptr2char(regmust);
             let mut s = line.wrapping_add(col as usize);
             if !re_st().rex.reg_ic {

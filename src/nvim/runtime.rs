@@ -2198,7 +2198,7 @@ fn add_env_sep_dirs(
         }
         let mut iter: *const c_char = ptr::null();
         let appname = get_appname(false);
-        let appname_len = crate::memory::cstr_len(appname);
+        let appname_len = appname.to_bytes().len();
         loop {
             let mut dir_len: usize = 0;
             let mut dir: *const c_char = ptr::null();
@@ -2215,7 +2215,7 @@ fn add_env_sep_dirs(
                     }
                     dest = dest.wrapping_add(1);
                 }
-                unsafe { ptr::copy(appname, dest, appname_len) };
+                unsafe { ptr::copy(appname.as_ptr(), dest, appname_len) };
                 dest = dest.wrapping_add(appname_len);
                 if !suf1.is_null() {
                     unsafe {
@@ -2368,7 +2368,7 @@ pub fn runtimepath_default(clean_arg: bool) -> Option<std::ffi::CString> {
     let mut config_len: usize = 0;
     let mut vimruntime_len: usize = 0;
     let mut libdir_len: usize = 0;
-    let appname_len = crate::memory::cstr_len(get_appname(false));
+    let appname_len = get_appname(false).to_bytes().len();
 
     if let Some(ref dh) = data_home_cstr {
         data_len = dh.as_bytes().len();

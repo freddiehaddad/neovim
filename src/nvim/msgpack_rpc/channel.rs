@@ -791,7 +791,7 @@ fn chan_close_on_err(channel: &mut Channel, msg: &std::ffi::CStr, loglevel: i32)
         frame.result_mem.set(arena_finish(&mut p.arena));
     }
 
-    channel_close(channel.id, K_CHANNEL_PART_RPC_CONST, ptr::null_mut());
+    channel_close(channel.id, K_CHANNEL_PART_RPC_CONST, None);
     logmsg!(
         loglevel,
         ptr::null(),

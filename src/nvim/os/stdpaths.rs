@@ -12,7 +12,7 @@ use crate::os::fs::{ENV_SEPCHAR, MAXPATHL, PATHSEP};
 #[cfg(windows)]
 use crate::path::path_to_slash;
 use crate::path::{K_PATH_CMP_LITERAL, concat_fnames_cstr, path_equal, path_is_absolute};
-use std::ffi::{CStr, CString, c_char};
+use std::ffi::{CStr, CString};
 
 #[repr(C)]
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -71,37 +71,36 @@ const XDG_DEFAULTS: [Option<&CStr>; 7] = [
 ];
 
 /// Get the value of `$NVIM_APPNAME`, or `"nvim"` if not set (`get_appname`).
-pub fn get_appname(namelike: bool) -> *const c_char {
-    let name_buff = g_st().name_buff.as_mut_ptr().cast::<u8>();
-    let env_val = os_getenv_buf(c"NVIM_APPNAME", name_buff.cast(), MAXPATHL);
+pub fn get_appname(namelike: bool) -> &'static CStr {
+    let name_buff = unsafe {
+        std::slice::from_raw_parts_mut(g_st().name_buff.as_mut_ptr().cast::<u8>(), MAXPATHL)
+    };
+    let env_val = os_getenv_buf(c"NVIM_APPNAME", name_buff.as_mut_ptr().cast(), MAXPATHL);
     if env_val.is_null() {
-        unsafe { name_buff.copy_from_nonoverlapping(c"nvim".as_ptr().cast::<u8>(), 5) };
+        name_buff[..5].copy_from_slice(b"nvim\0");
     }
     #[cfg(windows)]
-    path_to_slash(name_buff.cast::<c_char>());
+    path_to_slash(name_buff.as_mut_ptr().cast());
     if namelike {
-        for i in 0..MAXPATHL {
-            let b = unsafe { *name_buff.wrapping_add(i) };
-            if b == 0 {
+        for b in name_buff.iter_mut() {
+            if *b == 0 {
                 break;
             }
-            if b == b'/' || b == b'\\' {
-                unsafe {
-                    *name_buff.wrapping_add(i) = b'-';
-                }
+            if *b == b'/' || *b == b'\\' {
+                *b = b'-';
             }
         }
     }
-    name_buff.cast::<c_char>()
+    CStr::from_bytes_until_nul(name_buff).unwrap_or(c"nvim")
 }
 
 /// Return true if `$NVIM_APPNAME` is a valid name or relative path (`appname_is_valid`).
 pub fn appname_is_valid() -> bool {
-    let appname_ptr = get_appname(false);
-    if path_is_absolute(appname_ptr) {
+    let appname = get_appname(false);
+    if path_is_absolute(appname) {
         return false;
     }
-    let bytes = crate::memory::cstr_as_bytes(appname_ptr);
+    let bytes = appname.to_bytes();
     if matches!(bytes, b"/" | b"\\" | b"." | b"..") {
         return false;
     }
@@ -209,7 +208,7 @@ pub fn stdpaths_get_xdg_var(idx: XDGVarType) -> Option<CString> {
 pub fn get_xdg_home(idx: XDGVarType) -> Option<CString> {
     let dir = stdpaths_get_xdg_var(idx)?;
 
-    let appname_bytes = crate::memory::cstr_as_bytes(get_appname(false));
+    let appname_bytes = get_appname(false).to_bytes();
     let mut suffix = Vec::with_capacity(appname_bytes.len() + 6);
     suffix.extend_from_slice(appname_bytes);
     #[cfg(target_os = "windows")]

@@ -5,7 +5,7 @@ use crate::api::private::validate::{Error, ErrorType, NvimString, Object, Object
 use crate::linematch::{fastforward_buf_to_lnum, linematch_nbuffers};
 use crate::lua::converter::{
     LUA_TFUNCTION, LUA_TTABLE, lua_State, lua_concat, lua_createtable, lua_error, lua_gettop,
-    lua_isnumber, lua_objlen, lua_pcall, lua_pushinteger, lua_pushlstring, lua_pushstring,
+    lua_isnumber, lua_objlen, lua_pcall, lua_push_bytes, lua_pushinteger, lua_pushstring,
     lua_pushvalue, lua_rawseti, lua_settop, lua_tolstring, lua_tonumber, lua_type, luaL_argerror,
     luaL_error, luaL_where, nlua_pop_keydict_opt,
 };
@@ -15,7 +15,6 @@ use crate::xdiff::{
     Mmbuffer, Mmfile, XDF_HISTOGRAM_DIFF, XDF_IGNORE_CR_AT_EOL, XDF_INDENT_HEURISTIC,
     XDF_NEED_MINIMAL, XDF_PATIENCE_DIFF, Xdemitcb, Xdemitconf, Xpparam,
 };
-use std::ffi::c_char;
 
 const COMPARED_BUFFER0: i32 = 1 << 0;
 const COMPARED_BUFFER1: i32 = 1 << 1;
@@ -474,13 +473,7 @@ pub unsafe extern "C-unwind" fn nlua_xdl_diff(lstate: *mut lua_State) -> i32 {
         unsafe { lua_concat(lstate, 2) };
         return unsafe { lua_error(lstate) };
     } else if mode == NluaXdiffMode::Unified {
-        unsafe {
-            lua_pushlstring(
-                lstate,
-                unified_buf.as_ptr().cast::<c_char>(),
-                unified_buf.len(),
-            )
-        };
+        lua_push_bytes(lstate, &unified_buf);
         return 1;
     } else if mode == NluaXdiffMode::Locations {
         return 1;

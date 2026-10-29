@@ -1641,7 +1641,7 @@ pub fn set_var_lval(
                     if (di.is_null()
                         || (!var_check_ro(i32::from((*di).di_flags), lp.ll_name, TV_CSTRING)
                             && !tv_check_lock(&(*di).di_tv, lp.ll_name, TV_CSTRING)))
-                        && eexe_mod_op(&mut tv, &*rettv, op)
+                        && eexe_mod_op(&mut tv, &*rettv, crate::memory::cstr_from_ptr(op))
                     {
                         set_var(lp.ll_name, lp.ll_name_len, &mut tv, false);
                     }
@@ -1710,7 +1710,7 @@ pub fn set_var_lval(
                 }
 
                 if !op.is_null() && crate::memory::cstr_first_byte(op) != b'=' {
-                    eexe_mod_op(&mut *lp.ll_tv, &*rettv, op);
+                    eexe_mod_op(&mut *lp.ll_tv, &*rettv, crate::memory::cstr_from_ptr(op));
                     skip_assign = true;
                 } else {
                     tv_clear(&mut *lp.ll_tv);

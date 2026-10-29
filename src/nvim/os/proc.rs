@@ -1,7 +1,7 @@
 //! OS process inspection and process-tree termination (`src/nvim/os/proc.c`).
 
 #[cfg(windows)]
-use crate::api::private::helpers::{arena_dict, arena_string};
+use crate::api::private::helpers::{arena_bytes, arena_dict};
 #[cfg(windows)]
 use crate::eval::funcs::PROCESS_ALL_ACCESS;
 use crate::event::r#loop::uv_kill;
@@ -10,7 +10,7 @@ use crate::memory::Arena;
 #[cfg(target_os = "windows")]
 use std::ffi::c_void;
 #[cfg(windows)]
-use std::ffi::{CStr, c_char};
+use std::ffi::CStr;
 
 #[cfg(target_os = "windows")]
 use crate::api::private::validate::{Dict, NvimString};
@@ -42,7 +42,7 @@ struct ProcessEntry32 {
     th32_parent_process_id: u32,
     pc_pri_class_base: i32,
     dw_flags: u32,
-    sz_exe_file: [c_char; 260],
+    sz_exe_file: [u8; 260],
 }
 
 #[cfg(target_os = "windows")]
@@ -250,15 +250,8 @@ pub fn os_proc_info(pid: i32, arena: &mut Arena) -> Dict {
                     data: ObjectData::Integer(i64::from(pe.th32_parent_process_id as i32)),
                 },
             );
-            let exe_ptr = pe.sz_exe_file.as_ptr();
-            let exe_len = crate::memory::cstr_len(exe_ptr);
-            let name_str = arena_string(
-                arena,
-                NvimString {
-                    data: exe_ptr.cast_mut(),
-                    size: exe_len,
-                },
-            );
+            let exe_cstr = CStr::from_bytes_until_nul(&pe.sz_exe_file).unwrap_or(c"");
+            let name_str = arena_bytes(arena, exe_cstr.to_bytes());
             put(
                 &mut pinfo,
                 c"name",

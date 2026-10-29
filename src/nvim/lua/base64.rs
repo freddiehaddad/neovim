@@ -2,10 +2,9 @@
 
 use crate::base64::{decode_bytes, encode_bytes};
 use crate::lua::converter::{
-    LUA_TSTRING, lua_State, lua_createtable, lua_gettop, lua_pushlstring, lua_tolstring, lua_type,
+    LUA_TSTRING, lua_State, lua_createtable, lua_gettop, lua_push_bytes, lua_tolstring, lua_type,
     luaL_Reg, luaL_argerror, luaL_error, luaL_register,
 };
-use std::ffi::c_char;
 
 unsafe extern "C-unwind" fn nlua_base64_encode(lstate: *mut lua_State) -> i32 {
     unsafe {
@@ -25,7 +24,7 @@ unsafe extern "C-unwind" fn nlua_base64_encode(lstate: *mut lua_State) -> i32 {
         };
 
         let encoded = encode_bytes(slice);
-        lua_pushlstring(lstate, encoded.as_ptr().cast::<c_char>(), encoded.len());
+        lua_push_bytes(lstate, &encoded);
         1
     }
 }
@@ -50,7 +49,7 @@ unsafe extern "C-unwind" fn nlua_base64_decode(lstate: *mut lua_State) -> i32 {
         return unsafe { luaL_error(lstate, c"Invalid input".as_ptr()) };
     };
 
-    unsafe { lua_pushlstring(lstate, decoded.as_ptr().cast::<c_char>(), decoded.len()) };
+    lua_push_bytes(lstate, &decoded);
     1
 }
 

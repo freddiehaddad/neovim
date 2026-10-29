@@ -1461,7 +1461,11 @@ pub fn tv_list_assign_range(
         while !src_li.is_null() {
             debug_assert!(!dest_li.is_null());
             if !op.is_null() && crate::memory::cstr_first_byte(op) != b'=' {
-                eexe_mod_op(&mut (*dest_li).li_tv, &(*src_li).li_tv, op);
+                eexe_mod_op(
+                    &mut (*dest_li).li_tv,
+                    &(*src_li).li_tv,
+                    crate::memory::cstr_from_ptr(op),
+                );
             } else {
                 tv_clear(&mut (*dest_li).li_tv);
                 tv_copy(&(*src_li).li_tv, &mut (*dest_li).li_tv);

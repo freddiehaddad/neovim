@@ -10,7 +10,7 @@ use crate::eval::{grow_string_tv, num_divide, num_modulus};
 use crate::message::semsg;
 use crate::regexp::NUMBUFLEN;
 use crate::strings::concat_str;
-use std::ffi::c_char;
+use std::ffi::CStr;
 
 fn tv_op_blob(tv1: &mut TypVal, tv2: &TypVal, op: u8) -> bool {
     if op != b'+' || tv2.v_type != VarType::VarBlob {
@@ -122,8 +122,8 @@ fn tv_op_string(tv1: &mut TypVal, tv2: &TypVal) -> bool {
     }
 
     {
-        let mut numbuf = [0 as c_char; NUMBUFLEN];
-        let s2 = tv_get_string_buf(tv2, numbuf.as_mut_ptr());
+        let mut numbuf = [0u8; NUMBUFLEN];
+        let s2 = tv_get_string_buf(tv2, numbuf.as_mut_ptr().cast());
         if grow_string_tv(&mut *tv1, s2) {
             return true;
         }
@@ -176,15 +176,14 @@ fn tv_op_float(tv1: &mut TypVal, tv2: &TypVal, op: u8) -> bool {
 }
 
 /// Execute compound assignment `tv1 <op>= tv2` (`eexe_mod_op`).
-pub fn eexe_mod_op(tv1: &mut TypVal, tv2: &TypVal, op: impl crate::strings::IntoCCharPtr) -> bool {
-    let op = op.into_c_char_ptr();
-    let op_byte = crate::memory::cstr_first_byte(op);
+pub fn eexe_mod_op(tv1: &mut TypVal, tv2: &TypVal, op: &CStr) -> bool {
+    let op_byte = op.to_bytes().first().copied().unwrap_or(0);
 
     if tv2.v_type == VarType::VarFunc
         || tv2.v_type == VarType::VarDict
         || (matches!(tv2.v_type, VarType::VarBool | VarType::VarSpecial) && op_byte == b'.')
     {
-        semsg!(E_LETWRONG, op);
+        semsg!(E_LETWRONG, op.as_ptr());
         return false;
     }
 

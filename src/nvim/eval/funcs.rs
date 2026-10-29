@@ -1631,14 +1631,16 @@ pub fn f_chanclose(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDa
             return;
         }
     }
-    let mut error: *const c_char = ptr::null();
+    let mut error = None;
     rettv.vval = crate::eval::typval::TypvalVval::Number(Varnumber::from(channel_close(
         argvars[0].vval.v_number() as u64,
         part,
-        &mut error,
+        Some(&mut error),
     )));
-    if rettv.vval.v_number() == 0 {
-        emsg(error);
+    if rettv.vval.v_number() == 0
+        && let Some(err) = error
+    {
+        emsg(err);
     }
 }
 
@@ -4774,14 +4776,14 @@ pub fn f_jobstop(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData
     }
     let data = unsafe { &mut *data };
 
-    let mut error: *const c_char = ptr::null();
+    let mut error = None;
     if data.is_rpc {
-        channel_close(data.id, K_CHANNEL_PART_RPC_CONST, &mut error);
+        channel_close(data.id, K_CHANNEL_PART_RPC_CONST, Some(&mut error));
     }
     proc_stop(&raw mut data.uv.proc_);
     rettv.vval = crate::eval::typval::TypvalVval::Number(1);
-    if !error.is_null() {
-        emsg(error);
+    if let Some(err) = error {
+        emsg(err);
     }
 }
 

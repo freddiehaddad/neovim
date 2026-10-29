@@ -320,6 +320,21 @@ unsafe extern "C-unwind" {
 }
 
 #[inline]
+pub fn lua_push_bytes(lstate: *mut lua_State, bytes: &[u8]) {
+    unsafe {
+        lua_pushlstring(
+            lstate,
+            if bytes.is_empty() {
+                c"".as_ptr()
+            } else {
+                bytes.as_ptr().cast::<c_char>()
+            },
+            bytes.len(),
+        )
+    };
+}
+
+#[inline]
 pub fn lua_pushstring<S: crate::strings::IntoCCharPtr>(lstate: *mut lua_State, s: S) {
     unsafe { c_lua_pushstring(lstate, s.into_c_char_ptr()) }
 }

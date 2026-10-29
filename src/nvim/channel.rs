@@ -208,7 +208,7 @@ use crate::api::private::helpers::add_c;
 pub fn channel_teardown() {
     let all_chans: Vec<*mut Channel> = g_st().channels.values().copied().collect();
     for chan in all_chans {
-        channel_close(unsafe { (*chan).id }, K_CHANNEL_PART_ALL, ptr::null_mut());
+        channel_close(unsafe { (*chan).id }, K_CHANNEL_PART_ALL, None);
     }
 }
 
@@ -221,21 +221,18 @@ pub fn channel_free_all_mem() {
 }
 
 /// Closes a channel.
-pub fn channel_close(id: u64, part: ChannelPart, mut error: *mut *const c_char) -> bool {
-    let mut dummy: *const c_char = ptr::null();
-    if error.is_null() {
-        error = &raw mut dummy;
-    }
-
+pub fn channel_close(
+    id: u64,
+    part: ChannelPart,
+    error: Option<&mut Option<&'static CStr>>,
+) -> bool {
     let chan = find_channel(id);
     if chan.is_null() {
         if id < chan_st().next_chan_id {
             return true;
         }
-        {
-            unsafe {
-                *error = E_INVCHAN.as_ptr();
-            }
+        if let Some(err) = error {
+            *err = Some(E_INVCHAN);
         }
         return false;
     }
@@ -247,18 +244,14 @@ pub fn channel_close(id: u64, part: ChannelPart, mut error: *mut *const c_char) 
         if chan.is_rpc {
             rpc_close(&mut *chan);
         } else if part == K_CHANNEL_PART_RPC_CONST {
-            {
-                unsafe {
-                    *error = E_INVSTREAM.as_ptr();
-                }
+            if let Some(err) = error {
+                *err = Some(E_INVSTREAM);
             }
             return false;
         }
     } else if (part == K_CHANNEL_PART_STDIN || part == K_CHANNEL_PART_STDOUT) && chan.is_rpc {
-        {
-            unsafe {
-                *error = E_INVSTREAMRPC.as_ptr();
-            }
+        if let Some(err) = error {
+            *err = Some(E_INVSTREAMRPC);
         }
         return false;
     }
@@ -266,10 +259,8 @@ pub fn channel_close(id: u64, part: ChannelPart, mut error: *mut *const c_char) 
     match chan.streamtype {
         K_CHANNEL_STREAM_SOCKET => {
             if !close_main {
-                {
-                    unsafe {
-                        *error = E_INVSTREAM.as_ptr();
-                    }
+                if let Some(err) = error {
+                    *err = Some(E_INVSTREAM);
                 }
                 return false;
             }
@@ -298,20 +289,16 @@ pub fn channel_close(id: u64, part: ChannelPart, mut error: *mut *const c_char) 
                 stream_may_close(&mut chan.stdio_out);
             }
             if part == K_CHANNEL_PART_STDERR {
-                {
-                    unsafe {
-                        *error = E_INVSTREAM.as_ptr();
-                    }
+                if let Some(err) = error {
+                    *err = Some(E_INVSTREAM);
                 }
                 return false;
             }
         }
         K_CHANNEL_STREAM_STDERR => {
             if part != K_CHANNEL_PART_ALL && part != K_CHANNEL_PART_STDERR {
-                {
-                    unsafe {
-                        *error = E_INVSTREAM.as_ptr();
-                    }
+                if let Some(err) = error {
+                    *err = Some(E_INVSTREAM);
                 }
                 return false;
             }
@@ -325,10 +312,8 @@ pub fn channel_close(id: u64, part: ChannelPart, mut error: *mut *const c_char) 
         }
         K_CHANNEL_STREAM_INTERNAL => {
             if !close_main {
-                {
-                    unsafe {
-                        *error = E_INVSTREAM.as_ptr();
-                    }
+                if let Some(err) = error {
+                    *err = Some(E_INVSTREAM);
                 }
                 return false;
             }
