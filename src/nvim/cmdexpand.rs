@@ -2725,7 +2725,7 @@ fn showmatches_oneline(
                 msg_advance(maxlen + 1);
                 msg_puts(kind_str);
                 msg_advance(maxlen + 3);
-                msg_outtrans_long(fname_str.cast_mut(), HLF_D);
+                msg_outtrans_long(fname_str, HLF_D);
             }
             break;
         }

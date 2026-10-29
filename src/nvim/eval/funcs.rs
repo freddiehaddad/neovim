@@ -8691,12 +8691,16 @@ pub fn f_tabpagebuflist(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalF
 /// "tagfiles()" function
 pub fn f_tagfiles(_argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
     tv_list_alloc_ret(rettv, K_LIST_LEN_UNKNOWN_CONST);
-    let mut fname = [0 as c_char; MAXPATHL];
+    let mut fname = [0u8; MAXPATHL];
 
     let mut first = true;
     let mut tn = Tagname::new();
-    while get_tagfname(&mut tn, i32::from(first), fname.as_mut_ptr()) {
-        tv_list_append_string(rettv.vval.v_list_ref(), fname.as_ptr(), -1);
+    while get_tagfname(&mut tn, i32::from(first), &mut fname) {
+        tv_list_append_string(
+            rettv.vval.v_list_ref(),
+            CStr::from_bytes_until_nul(&fname).unwrap_or_default(),
+            -1,
+        );
         first = false;
     }
 }
