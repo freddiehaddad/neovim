@@ -1,14 +1,13 @@
 //! Built-in fallback terminfo entries and database loader (`src/nvim/tui/terminfo.c`).
 
-use crate::charset::{NUL, kv_transstr};
+use crate::charset::kv_transstr;
 use crate::strings::vim_snprintf;
 use crate::tui::termkey::driver_ti::{
     K_TERM_COUNT, K_TERM_KEY_COUNT, K_TERMINFO_FUNC_KEY_MAX, TerminfoEntry,
 };
 use std::borrow::Cow;
-use std::ffi::{CStr, c_char};
+use std::ffi::CStr;
 use std::io::Read;
-use std::ptr;
 
 pub const K_TERM_CARRIAGE_RETURN: usize = 0;
 pub const K_TERM_CHANGE_SCROLL_REGION: usize = 1;
@@ -82,13 +81,13 @@ pub const K_TERM_KEY_RIGHT: usize = 15;
 #[derive(Clone, Copy, Default)]
 pub struct TPVAR {
     pub num: i64,
-    pub string: Option<[c_char; 8]>,
+    pub string: Option<[u8; 8]>,
 }
 
 #[repr(C)]
 struct TPSTACK {
     nums: [i64; 20],
-    strings: [Option<[c_char; 8]>; 20],
+    strings: [Option<[u8; 8]>; 20],
     offset: usize,
 }
 
@@ -2472,16 +2471,13 @@ impl UnibiTerm {
     }
 
     #[inline]
-    fn get_str(&self, v: UnibiString) -> *const c_char {
+    fn get_str(&self, v: UnibiString) -> Option<&CStr> {
         let idx = (v as usize).wrapping_sub((UnibiString::UnibiStringBeginMarker as usize) + 1);
         let off = self.str_offs.get(idx).copied().unwrap_or(-1);
         if off < 0 || (off as usize) >= self.str_table.len() {
-            ptr::null()
+            None
         } else {
-            self.str_table
-                .as_ptr()
-                .wrapping_add(off as usize)
-                .cast::<c_char>()
+            CStr::from_bytes_until_nul(&self.str_table[off as usize..]).ok()
         }
     }
 
@@ -2491,12 +2487,14 @@ impl UnibiTerm {
     }
 
     #[inline]
-    fn get_ext_bool_name(&self, i: usize) -> *const c_char {
+    fn get_ext_bool_name(&self, i: usize) -> Option<&[u8]> {
         if i >= self.ext_bool_count {
-            return ptr::null();
+            return None;
         }
         let off = self.ext_name_offs[i];
-        self.ext_table.as_ptr().wrapping_add(off).cast::<c_char>()
+        CStr::from_bytes_until_nul(self.ext_table.get(off..)?)
+            .ok()
+            .map(CStr::to_bytes)
     }
 
     #[inline]
@@ -2505,24 +2503,23 @@ impl UnibiTerm {
     }
 
     #[inline]
-    fn get_ext_str_name(&self, i: usize) -> *const c_char {
+    fn get_ext_str_name(&self, i: usize) -> Option<&[u8]> {
         if i >= self.ext_str_offs.len() {
-            return ptr::null();
+            return None;
         }
         let off = self.ext_name_offs[self.ext_bool_count + self.ext_num_count + i];
-        self.ext_table.as_ptr().wrapping_add(off).cast::<c_char>()
+        CStr::from_bytes_until_nul(self.ext_table.get(off..)?)
+            .ok()
+            .map(CStr::to_bytes)
     }
 
     #[inline]
-    fn get_ext_str(&self, i: usize) -> *const c_char {
+    fn get_ext_str(&self, i: usize) -> Option<&CStr> {
         let off = self.ext_str_offs.get(i).copied().unwrap_or(-1);
         if off < 0 || (off as usize) >= self.ext_table.len() {
-            ptr::null()
+            None
         } else {
-            self.ext_table
-                .as_ptr()
-                .wrapping_add(off as usize)
-                .cast::<c_char>()
+            CStr::from_bytes_until_nul(&self.ext_table[off as usize..]).ok()
         }
     }
 }
@@ -2599,12 +2596,8 @@ fn get_env_str(name: &CStr) -> Option<String> {
     crate::os::env::os_getenv_cstr(name.as_ptr()).map(|c| c.to_string_lossy().into_owned())
 }
 
-fn unibi_from_term(termname: impl crate::strings::IntoCCharPtr) -> Option<UnibiTerm> {
-    let termname = termname.into_c_char_ptr();
-    if termname.is_null() {
-        return None;
-    }
-    let term_bytes = crate::memory::cstr_as_bytes(termname);
+fn unibi_from_term(term_bytes: Option<&[u8]>) -> Option<UnibiTerm> {
+    let term_bytes = term_bytes?;
     if term_bytes.is_empty() || term_bytes[0] == b'.' || term_bytes.contains(&b'/') {
         return None;
     }
@@ -2634,27 +2627,19 @@ fn unibi_from_term(termname: impl crate::strings::IntoCCharPtr) -> Option<UnibiT
     unibi_from_dirs(UNIBI_TERMINFO_DIRS, term)
 }
 
-pub fn terminfo_is_term_family(
-    term: impl crate::strings::IntoCCharPtr,
-    family: &std::ffi::CStr,
-) -> bool {
-    let term = term.into_c_char_ptr();
-    if term.is_null() {
+pub fn terminfo_is_term_family(term: Option<&[u8]>, family: &std::ffi::CStr) -> bool {
+    let Some(term_bytes) = term else {
         return false;
-    }
-    {
-        let term_bytes = crate::memory::cstr_as_bytes(term);
-        let fam_bytes = family.to_bytes();
-        let tlen = term_bytes.len();
-        let flen = fam_bytes.len();
-        tlen >= flen
-            && &term_bytes[..flen] == fam_bytes
-            && (tlen == flen || term_bytes[flen] == b'-' || term_bytes[flen] == b'.')
-    }
+    };
+    let fam_bytes = family.to_bytes();
+    let tlen = term_bytes.len();
+    let flen = fam_bytes.len();
+    tlen >= flen
+        && &term_bytes[..flen] == fam_bytes
+        && (tlen == flen || term_bytes[flen] == b'-' || term_bytes[flen] == b'.')
 }
 
-pub fn terminfo_is_bsd_console(term: impl crate::strings::IntoCCharPtr) -> bool {
-    let term = term.into_c_char_ptr();
+pub fn terminfo_is_bsd_console(term: Option<&[u8]>) -> bool {
     #[cfg(any(
         target_os = "freebsd",
         target_os = "netbsd",
@@ -2662,15 +2647,12 @@ pub fn terminfo_is_bsd_console(term: impl crate::strings::IntoCCharPtr) -> bool 
         target_os = "dragonfly"
     ))]
     unsafe {
-        if (crate::memory::cstr_as_opt_bytes(term) == Some(b"vt220"))
-            || (crate::memory::cstr_as_opt_bytes(term) == Some(b"vt100"))
-        {
+        if term == Some(b"vt220") || term == Some(b"vt100") {
             return true;
         }
         #[cfg(target_os = "freebsd")]
         {
-            return (crate::memory::cstr_as_opt_bytes(term) == Some(b"xterm"))
-                && os_env_exists(c"XTERM_VERSION", true);
+            return term == Some(b"xterm") && os_env_exists(c"XTERM_VERSION", true);
         }
     }
     let _ = term;
@@ -2678,13 +2660,10 @@ pub fn terminfo_is_bsd_console(term: impl crate::strings::IntoCCharPtr) -> bool 
 }
 
 pub fn terminfo_from_builtin(
-    term: impl crate::strings::IntoCCharPtr,
+    term: Option<&[u8]>,
     termname: &mut Option<std::ffi::CString>,
 ) -> TerminfoEntry {
-    let term = term.into_c_char_ptr();
-    if (crate::memory::cstr_as_opt_bytes(term) == Some(b"ghostty"))
-        || (crate::memory::cstr_as_opt_bytes(term) == Some(b"xterm-ghostty"))
-    {
+    if term == Some(b"ghostty") || term == Some(b"xterm-ghostty") {
         *termname = Some(c"ghostty".to_owned());
         GHOSTTY_TERMINFO.to_entry()
     } else if terminfo_is_term_family(term, c"xterm") {
@@ -2739,93 +2718,62 @@ pub fn terminfo_from_builtin(
     }
 }
 
-pub fn terminfo_from_database(
-    ti: &mut TerminfoEntry,
-    termname: impl crate::strings::IntoCCharPtr,
-) -> bool {
-    let termname = termname.into_c_char_ptr();
-    {
-        let Some(ut) = unibi_from_term(termname) else {
-            return false;
-        };
+pub fn terminfo_from_database(ti: &mut TerminfoEntry, termname: Option<&[u8]>) -> bool {
+    let Some(ut) = unibi_from_term(termname) else {
+        return false;
+    };
 
-        ti.back_color_erase = ut.get_bool(UnibiBoolean::UnibiBackColorErase);
-        ti.max_colors = ut.get_num(UnibiNumeric::UnibiMaxColors);
-        ti.lines = ut.get_num(UnibiNumeric::UnibiLines);
-        ti.columns = ut.get_num(UnibiNumeric::UnibiColumns);
+    ti.back_color_erase = ut.get_bool(UnibiBoolean::UnibiBackColorErase);
+    ti.max_colors = ut.get_num(UnibiNumeric::UnibiMaxColors);
+    ti.lines = ut.get_num(UnibiNumeric::UnibiLines);
+    ti.columns = ut.get_num(UnibiNumeric::UnibiColumns);
 
-        ti.tc = false;
-        ti.rgb = false;
-        ti.su = false;
-        let ext_bool_count = ut.count_ext_bool();
-        for i in 0..ext_bool_count {
-            let n = ut.get_ext_bool_name(i);
-            if !n.is_null() {
-                let bytes = crate::memory::cstr_as_bytes(n);
-                if bytes == b"Tc" {
-                    ti.tc = true;
-                } else if bytes == b"RGB" {
-                    ti.rgb = true;
-                } else if bytes == b"Su" {
-                    ti.su = true;
-                }
+    ti.tc = false;
+    ti.rgb = false;
+    ti.su = false;
+    let ext_bool_count = ut.count_ext_bool();
+    for i in 0..ext_bool_count {
+        if let Some(bytes) = ut.get_ext_bool_name(i) {
+            if bytes == b"Tc" {
+                ti.tc = true;
+            } else if bytes == b"RGB" {
+                ti.rgb = true;
+            } else if bytes == b"Su" {
+                ti.su = true;
             }
         }
-
-        for (i, &uni_id) in UNI_IDS.iter().enumerate() {
-            let val = ut.get_str(uni_id);
-            ti.defs[i] = if !val.is_null() {
-                Some(Cow::Owned(crate::memory::cstr_to_cstring(val)))
-            } else {
-                None
-            };
-        }
-
-        let max = ut.count_ext_str();
-        for (i, &name) in UNI_EXT.iter().enumerate() {
-            for val in 0..max {
-                let n = ut.get_ext_str_name(val);
-                if !n.is_null()
-                    && (crate::memory::cstr_as_opt_bytes(n)
-                        == crate::memory::cstr_as_opt_bytes(name.as_ptr()))
-                {
-                    let data = ut.get_ext_str(val);
-                    ti.defs[K_TERM_EXT_OFFSET + i] = if !data.is_null() {
-                        Some(Cow::Owned(crate::memory::cstr_to_cstring(data)))
-                    } else {
-                        None
-                    };
-                    break;
-                }
-            }
-        }
-
-        for (i, pair) in UNI_KEYS.iter().enumerate() {
-            let val = ut.get_str(pair[0]);
-            if !val.is_null() {
-                ti.keys[i][0] = Some(Cow::Owned(crate::memory::cstr_to_cstring(val)));
-                if pair[1] != UnibiString::UnibiStringBeginMarker {
-                    let sval = ut.get_str(pair[1]);
-                    ti.keys[i][1] = if !sval.is_null() {
-                        Some(Cow::Owned(crate::memory::cstr_to_cstring(sval)))
-                    } else {
-                        None
-                    };
-                }
-            }
-        }
-
-        for (i, &fkey_id) in UNI_FKEYS.iter().enumerate() {
-            let val = ut.get_str(fkey_id);
-            ti.f_keys[i] = if !val.is_null() {
-                Some(Cow::Owned(crate::memory::cstr_to_cstring(val)))
-            } else {
-                None
-            };
-        }
-
-        true
     }
+
+    for (i, &uni_id) in UNI_IDS.iter().enumerate() {
+        ti.defs[i] = ut.get_str(uni_id).map(|s| Cow::Owned(s.to_owned()));
+    }
+
+    let max = ut.count_ext_str();
+    for (i, &name) in UNI_EXT.iter().enumerate() {
+        let name_bytes = name.to_bytes();
+        for val in 0..max {
+            if ut.get_ext_str_name(val) == Some(name_bytes) {
+                ti.defs[K_TERM_EXT_OFFSET + i] =
+                    ut.get_ext_str(val).map(|s| Cow::Owned(s.to_owned()));
+                break;
+            }
+        }
+    }
+
+    for (i, pair) in UNI_KEYS.iter().enumerate() {
+        if let Some(val) = ut.get_str(pair[0]) {
+            ti.keys[i][0] = Some(Cow::Owned(val.to_owned()));
+            if pair[1] != UnibiString::UnibiStringBeginMarker {
+                ti.keys[i][1] = ut.get_str(pair[1]).map(|s| Cow::Owned(s.to_owned()));
+            }
+        }
+    }
+
+    for (i, &fkey_id) in UNI_FKEYS.iter().enumerate() {
+        ti.f_keys[i] = ut.get_str(fkey_id).map(|s| Cow::Owned(s.to_owned()));
+    }
+
+    true
 }
 
 #[inline]
@@ -2893,7 +2841,7 @@ pub fn terminfo_info_msg(ti: &TerminfoEntry, termname: Option<&CStr>, from_db: b
     data
 }
 
-fn push(num: i64, string: Option<[c_char; 8]>, stack: &mut TPSTACK) -> i32 {
+fn push(num: i64, string: Option<[u8; 8]>, stack: &mut TPSTACK) -> i32 {
     if stack.offset >= stack.nums.len() {
         return -1;
     }
@@ -2903,12 +2851,10 @@ fn push(num: i64, string: Option<[c_char; 8]>, stack: &mut TPSTACK) -> i32 {
     0
 }
 
-fn pop(num: *mut i64, string: Option<&mut Option<[c_char; 8]>>, stack: &mut TPSTACK) -> i32 {
+fn pop(num: Option<&mut i64>, string: Option<&mut Option<[u8; 8]>>, stack: &mut TPSTACK) -> i32 {
     if stack.offset == 0 {
-        if !num.is_null() {
-            unsafe {
-                *num = 0;
-            }
+        if let Some(n) = num {
+            *n = 0;
         }
         if let Some(s) = string {
             *s = None;
@@ -2916,10 +2862,8 @@ fn pop(num: *mut i64, string: Option<&mut Option<[c_char; 8]>>, stack: &mut TPST
         return -1;
     }
     stack.offset -= 1;
-    if !num.is_null() {
-        unsafe {
-            *num = stack.nums[stack.offset];
-        }
+    if let Some(n) = num {
+        *n = stack.nums[stack.offset];
     }
     if let Some(s) = string {
         *s = stack.strings[stack.offset];
@@ -2927,392 +2871,380 @@ fn pop(num: *mut i64, string: Option<&mut Option<[c_char; 8]>>, stack: &mut TPST
     0
 }
 
-fn ochar(buf: *mut *mut c_char, buf_end: impl crate::strings::IntoCCharPtr, mut c: i32) -> bool {
-    let buf_end = buf_end.into_c_char_ptr();
-    unsafe {
-        if c == 0 {
-            c = 0o200;
-        }
-        if crate::memory::ptr_offset_from(buf_end, *buf) < 2 {
-            return false;
-        }
-        **buf = c as c_char;
-        *buf = (*buf).wrapping_add(1);
-        true
+fn ochar(out_buf: &mut [u8], out_pos: &mut usize, mut c: i32) -> bool {
+    if c == 0 {
+        c = 0o200;
     }
+    if out_buf.len().saturating_sub(*out_pos) < 2 {
+        return false;
+    }
+    out_buf[*out_pos] = c as u8;
+    *out_pos += 1;
+    true
 }
 
-fn onum(
-    buf: *mut *mut c_char,
-    buf_end: impl crate::strings::IntoCCharPtr,
-    fmt: impl crate::strings::IntoCCharPtr,
-    num: i32,
-    mut len: usize,
-) -> bool {
-    let buf_end = buf_end.into_c_char_ptr();
-    let fmt = fmt.into_c_char_ptr();
+fn onum(out_buf: &mut [u8], out_pos: &mut usize, fmt: &[u8], num: i32, mut len: usize) -> bool {
     const LONG_STR_MAX: usize = 21;
     len = len.max(LONG_STR_MAX);
 
-    unsafe {
-        if crate::memory::ptr_offset_from(buf_end, *buf) < (len + 2) as isize {
-            return false;
+    if out_buf.len().saturating_sub(*out_pos) < len + 2 {
+        return false;
+    }
+    let l = vim_snprintf!(
+        out_buf[*out_pos..].as_mut_ptr().cast(),
+        len + 2,
+        fmt.as_ptr().cast(),
+        num
+    );
+    if l < 0 {
+        return false;
+    }
+    *out_pos += l as usize;
+    true
+}
+
+#[inline]
+fn next_byte(s: &mut &[u8]) -> u8 {
+    match s.split_first() {
+        Some((&b, rest)) if b != 0 => {
+            *s = rest;
+            b
         }
-        {
-            let l = vim_snprintf!(*buf, len + 2, fmt, num);
-            if l < 0 {
-                return false;
-            }
-            *buf = (*buf).wrapping_add(l as usize);
-        }
-        true
+        _ => 0,
     }
 }
 
-pub fn terminfo_fmt(
-    buf_start: impl crate::strings::IntoCCharPtr,
-    buf_end: impl crate::strings::IntoCCharPtr,
-    str_: impl crate::strings::IntoCCharPtr,
-    params: *mut TPVAR,
-) -> usize {
-    let buf_start = buf_start.into_c_char_ptr().cast_mut();
-    let buf_end = buf_end.into_c_char_ptr().cast_mut();
-    let mut str_ = str_.into_c_char_ptr();
-    {
-        let mut fmt = [0 as c_char; 64];
-        let mut ostr: Option<[c_char; 8]> = None;
-        let mut val: i64;
-        let mut val2: i64 = 0;
-        let mut dnums = [0_i64; 26];
-        let mut snums = [0_i64; 26];
+#[inline]
+fn peek_byte(s: &[u8]) -> u8 {
+    s.first().copied().unwrap_or(0)
+}
 
-        let mut buf = buf_start;
-        let mut stack = TPSTACK {
-            nums: [0; 20],
-            strings: [None; 20],
-            offset: 0,
-        };
+#[inline]
+fn slice_str_len(s: &[u8]) -> usize {
+    s.iter().position(|&b| b == 0).unwrap_or(s.len())
+}
 
-        loop {
-            let mut c = unsafe { *str_ };
-            str_ = str_.wrapping_add(1);
-            if c == NUL {
+pub fn terminfo_fmt(out_buf: &mut [u8], mut str_: &[u8], params: &mut [TPVAR; 9]) -> usize {
+    let mut fmt = [0u8; 64];
+    let mut ostr: Option<[u8; 8]> = None;
+    let mut val: i64;
+    let mut val2: i64 = 0;
+    let mut dnums = [0_i64; 26];
+    let mut snums = [0_i64; 26];
+
+    let mut out_pos = 0usize;
+    let mut stack = TPSTACK {
+        nums: [0; 20],
+        strings: [None; 20],
+        offset: 0,
+    };
+
+    loop {
+        let mut c = next_byte(&mut str_);
+        if c == 0 {
+            break;
+        }
+        if c != b'%' || {
+            c = next_byte(&mut str_);
+            c == b'%'
+        } {
+            if c == 0 {
                 break;
             }
-            if c != b'%' as c_char || {
-                c = unsafe { *str_ };
-                str_ = str_.wrapping_add(1);
-                c == b'%' as c_char
-            } {
-                if c == NUL {
-                    break;
-                }
-                if !ochar(&mut buf, buf_end, c as i32) {
-                    return 0;
-                }
-                continue;
+            if !ochar(out_buf, &mut out_pos, i32::from(c)) {
+                return 0;
             }
+            continue;
+        }
 
-            let mut fp_idx: usize = 0;
-            fmt[fp_idx] = b'%' as c_char;
-            fp_idx += 1;
-            let mut done: u32 = 0;
-            let mut dot: u32 = 0;
-            let mut minus: u32 = 0;
-            let mut width: usize = 0;
-            let mut precision: usize = 0;
-            val = 0;
+        let mut fp_idx: usize = 0;
+        fmt[fp_idx] = b'%';
+        fp_idx += 1;
+        let mut done: u32 = 0;
+        let mut dot: u32 = 0;
+        let mut minus: u32 = 0;
+        let mut width: usize = 0;
+        let mut precision: usize = 0;
+        val = 0;
 
-            while done == 0 && fp_idx < fmt.len() {
-                match c as u8 {
-                    b'c' | b's' => {
-                        fmt[fp_idx] = c;
-                        fp_idx += 1;
-                        done = 1;
-                    }
-                    b'd' | b'o' | b'x' | b'X' => {
-                        fmt[fp_idx] = b'l' as c_char;
-                        fp_idx += 1;
-                        fmt[fp_idx] = c;
-                        fp_idx += 1;
-                        done = 1;
-                    }
-                    b'#' | b' ' => {
-                        fmt[fp_idx] = c;
-                        fp_idx += 1;
-                    }
-                    b'.' => {
-                        fmt[fp_idx] = c;
-                        fp_idx += 1;
-                        if dot == 0 {
-                            dot = 1;
-                            width = val as usize;
-                        } else {
-                            done = 2;
-                        }
-                        val = 0;
-                    }
-                    b':' => {
-                        minus = 1;
-                    }
-                    b'-' => {
-                        if minus != 0 {
-                            fmt[fp_idx] = c;
-                            fp_idx += 1;
-                        } else {
-                            done = 1;
-                        }
-                    }
-                    b if b.is_ascii_digit() => {
-                        val = (val * 10) + i64::from(b - b'0');
-                        if val > 10000 {
-                            done = 2;
-                        } else {
-                            fmt[fp_idx] = c;
-                            fp_idx += 1;
-                        }
-                    }
-                    _ => {
-                        done = 1;
-                    }
-                }
-                if done == 0 {
-                    c = unsafe { *str_ };
-                    str_ = str_.wrapping_add(1);
-                }
-            }
-
-            let olen = if done == 2 {
-                fp_idx = 1;
-                fmt[fp_idx] = unsafe { *str_ };
-                0
-            } else {
-                if dot == 0 {
-                    width = val as usize;
-                } else {
-                    precision = val as usize;
-                }
-                width.max(precision)
-            };
-            fmt[fp_idx] = NUL;
-
-            match c as u8 {
-                b'c' => {
-                    pop(&mut val, None, &mut stack);
-                    if !ochar(&mut buf, buf_end, (val as u8) as i32) {
-                        return 0;
-                    }
-                }
-                b's' => {
-                    pop(ptr::null_mut(), Some(&mut ostr), &mut stack);
-                    if let Some(ref s_arr) = ostr {
-                        let ostr_ptr = s_arr.as_ptr();
-                        let mut l = crate::memory::cstr_len(ostr_ptr);
-                        if l < olen {
-                            l = olen;
-                        }
-                        if (crate::memory::ptr_offset_from(buf_end, buf) as usize) < (l + 1) {
-                            return 0;
-                        }
-                        {
-                            let r = vim_snprintf!(buf, l + 1, fmt.as_ptr(), ostr_ptr);
-                            if r >= 0 {
-                                buf = buf.wrapping_add(r as usize);
-                            }
-                        }
-                    }
-                }
-                b'l' => {
-                    pop(ptr::null_mut(), Some(&mut ostr), &mut stack);
-                    let l = ostr.map_or(0, |s_arr| crate::memory::cstr_len(s_arr.as_ptr()));
-                    push(l as i64, None, &mut stack);
+        while done == 0 && fp_idx < fmt.len() {
+            match c {
+                b'c' | b's' => {
+                    fmt[fp_idx] = c;
+                    fp_idx += 1;
+                    done = 1;
                 }
                 b'd' | b'o' | b'x' | b'X' => {
-                    pop(&mut val, None, &mut stack);
-                    if !onum(&mut buf, buf_end, fmt.as_ptr(), val as i32, olen) {
-                        return 0;
-                    }
+                    fmt[fp_idx] = b'l';
+                    fp_idx += 1;
+                    fmt[fp_idx] = c;
+                    fp_idx += 1;
+                    done = 1;
                 }
-                b'p' => {
-                    let sc = crate::memory::cstr_first_byte(str_);
-                    if !(b'1'..=b'9').contains(&sc) {
-                        continue;
-                    }
-                    str_ = str_.wrapping_add(1);
-                    let l = (sc - b'1') as usize;
-                    let param = unsafe { *params.wrapping_add(l) };
-                    if push(param.num, param.string, &mut stack) != 0 {
-                        return 0;
-                    }
+                b'#' | b' ' => {
+                    fmt[fp_idx] = c;
+                    fp_idx += 1;
                 }
-                b'P' => {
-                    pop(&mut val, None, &mut stack);
-                    let sc = crate::memory::cstr_first_byte(str_);
-                    if sc.is_ascii_lowercase() {
-                        dnums[(sc - b'a') as usize] = val;
-                    } else if sc.is_ascii_uppercase() {
-                        snums[(sc - b'A') as usize] = val;
+                b'.' => {
+                    fmt[fp_idx] = c;
+                    fp_idx += 1;
+                    if dot == 0 {
+                        dot = 1;
+                        width = val as usize;
+                    } else {
+                        done = 2;
                     }
-                }
-                b'g' => {
-                    let sc = crate::memory::cstr_first_byte(str_);
-                    if sc.is_ascii_lowercase() {
-                        if push(dnums[(sc - b'a') as usize], None, &mut stack) != 0 {
-                            return 0;
-                        }
-                    } else if sc.is_ascii_uppercase()
-                        && push(snums[(sc - b'A') as usize], None, &mut stack) != 0
-                    {
-                        return 0;
-                    }
-                }
-                b'i' => {
-                    unsafe {
-                        (*params.wrapping_add(0)).num += 1;
-                    }
-                    unsafe {
-                        (*params.wrapping_add(1)).num += 1;
-                    }
-                }
-                b'\'' => {
-                    let ch = crate::memory::cstr_first_byte(str_);
-                    str_ = str_.wrapping_add(1);
-                    if push(i64::from(ch), None, &mut stack) != 0 {
-                        return 0;
-                    }
-                    while !crate::memory::cstr_is_empty(str_)
-                        && crate::memory::cstr_first_byte(str_) != b'\''
-                    {
-                        str_ = str_.wrapping_add(1);
-                    }
-                    if crate::memory::cstr_first_byte(str_) == b'\'' {
-                        str_ = str_.wrapping_add(1);
-                    }
-                }
-                b'{' => {
                     val = 0;
-                    while (crate::memory::cstr_first_byte(str_)).is_ascii_digit() {
-                        val = (val * 10) + i64::from((crate::memory::cstr_first_byte(str_)) - b'0');
-                        str_ = str_.wrapping_add(1);
+                }
+                b':' => {
+                    minus = 1;
+                }
+                b'-' => {
+                    if minus != 0 {
+                        fmt[fp_idx] = c;
+                        fp_idx += 1;
+                    } else {
+                        done = 1;
                     }
-                    if push(val, None, &mut stack) != 0 {
+                }
+                b if b.is_ascii_digit() => {
+                    val = (val * 10) + i64::from(b - b'0');
+                    if val > 10000 {
+                        done = 2;
+                    } else {
+                        fmt[fp_idx] = c;
+                        fp_idx += 1;
+                    }
+                }
+                _ => {
+                    done = 1;
+                }
+            }
+            if done == 0 {
+                c = next_byte(&mut str_);
+            }
+        }
+
+        let olen = if done == 2 {
+            fp_idx = 1;
+            fmt[fp_idx] = peek_byte(str_);
+            0
+        } else {
+            if dot == 0 {
+                width = val as usize;
+            } else {
+                precision = val as usize;
+            }
+            width.max(precision)
+        };
+        fmt[fp_idx] = 0;
+
+        match c {
+            b'c' => {
+                pop(Some(&mut val), None, &mut stack);
+                if !ochar(out_buf, &mut out_pos, i32::from(val as u8)) {
+                    return 0;
+                }
+            }
+            b's' => {
+                pop(None, Some(&mut ostr), &mut stack);
+                if let Some(ref s_arr) = ostr {
+                    let l = slice_str_len(s_arr).max(olen);
+                    if out_buf.len().saturating_sub(out_pos) < l + 1 {
                         return 0;
                     }
-                    while !crate::memory::cstr_is_empty(str_)
-                        && crate::memory::cstr_first_byte(str_) != b'}'
-                    {
-                        str_ = str_.wrapping_add(1);
-                    }
-                    if crate::memory::cstr_first_byte(str_) == b'}' {
-                        str_ = str_.wrapping_add(1);
+                    let s_cstr = CStr::from_bytes_until_nul(s_arr).unwrap_or(c"");
+                    let r = vim_snprintf!(
+                        out_buf[out_pos..].as_mut_ptr().cast(),
+                        l + 1,
+                        fmt.as_ptr().cast(),
+                        s_cstr.as_ptr()
+                    );
+                    if r >= 0 {
+                        out_pos += r as usize;
                     }
                 }
-                b'+' | b'-' | b'*' | b'/' | b'm' | b'A' | b'O' | b'&' | b'|' | b'^' | b'='
-                | b'<' | b'>' => {
-                    pop(&mut val, None, &mut stack);
-                    pop(&mut val2, None, &mut stack);
-                    val = match c as u8 {
-                        b'+' => val.wrapping_add(val2),
-                        b'-' => val2.wrapping_sub(val),
-                        b'*' => val.wrapping_mul(val2),
-                        b'/' => {
-                            if val != 0 {
-                                val2.wrapping_div(val)
-                            } else {
-                                0
-                            }
-                        }
-                        b'm' => {
-                            if val != 0 {
-                                val2.wrapping_rem(val)
-                            } else {
-                                0
-                            }
-                        }
-                        b'A' => i64::from(val != 0 && val2 != 0),
-                        b'O' => i64::from(val != 0 || val2 != 0),
-                        b'&' => val & val2,
-                        b'|' => val | val2,
-                        b'^' => val ^ val2,
-                        b'=' => i64::from(val == val2),
-                        b'<' => i64::from(val2 < val),
-                        b'>' => i64::from(val2 > val),
-                        _ => val,
-                    };
-                    if push(val, None, &mut stack) != 0 {
+            }
+            b'l' => {
+                pop(None, Some(&mut ostr), &mut stack);
+                let l = ostr.map_or(0, |s_arr| slice_str_len(&s_arr));
+                push(l as i64, None, &mut stack);
+            }
+            b'd' | b'o' | b'x' | b'X' => {
+                pop(Some(&mut val), None, &mut stack);
+                if !onum(out_buf, &mut out_pos, &fmt, val as i32, olen) {
+                    return 0;
+                }
+            }
+            b'p' => {
+                let sc = peek_byte(str_);
+                if !(b'1'..=b'9').contains(&sc) {
+                    continue;
+                }
+                let _ = next_byte(&mut str_);
+                let l = (sc - b'1') as usize;
+                let param = params[l];
+                if push(param.num, param.string, &mut stack) != 0 {
+                    return 0;
+                }
+            }
+            b'P' => {
+                pop(Some(&mut val), None, &mut stack);
+                let sc = peek_byte(str_);
+                if sc.is_ascii_lowercase() {
+                    dnums[(sc - b'a') as usize] = val;
+                } else if sc.is_ascii_uppercase() {
+                    snums[(sc - b'A') as usize] = val;
+                }
+            }
+            b'g' => {
+                let sc = peek_byte(str_);
+                if sc.is_ascii_lowercase() {
+                    if push(dnums[(sc - b'a') as usize], None, &mut stack) != 0 {
                         return 0;
                     }
+                } else if sc.is_ascii_uppercase()
+                    && push(snums[(sc - b'A') as usize], None, &mut stack) != 0
+                {
+                    return 0;
                 }
-                b'!' | b'~' => {
-                    pop(&mut val, None, &mut stack);
-                    val = match c as u8 {
-                        b'!' => i64::from(val == 0),
-                        b'~' => !val,
-                        _ => val,
-                    };
-                    if push(val, None, &mut stack) != 0 {
-                        return 0;
-                    }
+            }
+            b'i' => {
+                params[0].num += 1;
+                params[1].num += 1;
+            }
+            b'\'' => {
+                let ch = next_byte(&mut str_);
+                if push(i64::from(ch), None, &mut stack) != 0 {
+                    return 0;
                 }
-                b'?' => {}
-                b't' => {
-                    pop(&mut val, None, &mut stack);
-                    if val == 0 {
-                        let mut l: usize = 0;
-                        while !crate::memory::cstr_is_empty(str_) {
-                            if crate::memory::cstr_first_byte(str_) != b'%' {
-                                str_ = str_.wrapping_add(1);
-                                continue;
-                            }
-                            str_ = str_.wrapping_add(1);
-                            if crate::memory::cstr_first_byte(str_) == b'?' {
-                                l += 1;
-                            } else if crate::memory::cstr_first_byte(str_) == b';' {
-                                if l > 0 {
-                                    l -= 1;
-                                } else {
-                                    str_ = str_.wrapping_add(1);
-                                    break;
-                                }
-                            } else if crate::memory::cstr_first_byte(str_) == b'e' && l == 0 {
-                                str_ = str_.wrapping_add(1);
-                                break;
-                            }
-                            if !crate::memory::cstr_is_empty(str_) {
-                                str_ = str_.wrapping_add(1);
-                            }
+                while peek_byte(str_) != 0 && peek_byte(str_) != b'\'' {
+                    let _ = next_byte(&mut str_);
+                }
+                if peek_byte(str_) == b'\'' {
+                    let _ = next_byte(&mut str_);
+                }
+            }
+            b'{' => {
+                val = 0;
+                while peek_byte(str_).is_ascii_digit() {
+                    val = (val * 10) + i64::from(next_byte(&mut str_) - b'0');
+                }
+                if push(val, None, &mut stack) != 0 {
+                    return 0;
+                }
+                while peek_byte(str_) != 0 && peek_byte(str_) != b'}' {
+                    let _ = next_byte(&mut str_);
+                }
+                if peek_byte(str_) == b'}' {
+                    let _ = next_byte(&mut str_);
+                }
+            }
+            b'+' | b'-' | b'*' | b'/' | b'm' | b'A' | b'O' | b'&' | b'|' | b'^' | b'=' | b'<'
+            | b'>' => {
+                pop(Some(&mut val), None, &mut stack);
+                pop(Some(&mut val2), None, &mut stack);
+                val = match c {
+                    b'+' => val.wrapping_add(val2),
+                    b'-' => val2.wrapping_sub(val),
+                    b'*' => val.wrapping_mul(val2),
+                    b'/' => {
+                        if val != 0 {
+                            val2.wrapping_div(val)
+                        } else {
+                            0
                         }
                     }
+                    b'm' => {
+                        if val != 0 {
+                            val2.wrapping_rem(val)
+                        } else {
+                            0
+                        }
+                    }
+                    b'A' => i64::from(val != 0 && val2 != 0),
+                    b'O' => i64::from(val != 0 || val2 != 0),
+                    b'&' => val & val2,
+                    b'|' => val | val2,
+                    b'^' => val ^ val2,
+                    b'=' => i64::from(val == val2),
+                    b'<' => i64::from(val2 < val),
+                    b'>' => i64::from(val2 > val),
+                    _ => val,
+                };
+                if push(val, None, &mut stack) != 0 {
+                    return 0;
                 }
-                b'e' => {
+            }
+            b'!' | b'~' => {
+                pop(Some(&mut val), None, &mut stack);
+                val = match c {
+                    b'!' => i64::from(val == 0),
+                    b'~' => !val,
+                    _ => val,
+                };
+                if push(val, None, &mut stack) != 0 {
+                    return 0;
+                }
+            }
+            b'?' => {}
+            b't' => {
+                pop(Some(&mut val), None, &mut stack);
+                if val == 0 {
                     let mut l: usize = 0;
-                    while !crate::memory::cstr_is_empty(str_) {
-                        if crate::memory::cstr_first_byte(str_) != b'%' {
-                            str_ = str_.wrapping_add(1);
+                    while peek_byte(str_) != 0 {
+                        if peek_byte(str_) != b'%' {
+                            let _ = next_byte(&mut str_);
                             continue;
                         }
-                        str_ = str_.wrapping_add(1);
-                        if crate::memory::cstr_first_byte(str_) == b'?' {
+                        let _ = next_byte(&mut str_);
+                        if peek_byte(str_) == b'?' {
                             l += 1;
-                        } else if crate::memory::cstr_first_byte(str_) == b';' {
+                        } else if peek_byte(str_) == b';' {
                             if l > 0 {
                                 l -= 1;
                             } else {
-                                str_ = str_.wrapping_add(1);
+                                let _ = next_byte(&mut str_);
                                 break;
                             }
+                        } else if peek_byte(str_) == b'e' && l == 0 {
+                            let _ = next_byte(&mut str_);
+                            break;
                         }
-                        if !crate::memory::cstr_is_empty(str_) {
-                            str_ = str_.wrapping_add(1);
+                        if peek_byte(str_) != 0 {
+                            let _ = next_byte(&mut str_);
                         }
                     }
                 }
-                b';' => {}
-                _ => {}
             }
+            b'e' => {
+                let mut l: usize = 0;
+                while peek_byte(str_) != 0 {
+                    if peek_byte(str_) != b'%' {
+                        let _ = next_byte(&mut str_);
+                        continue;
+                    }
+                    let _ = next_byte(&mut str_);
+                    if peek_byte(str_) == b'?' {
+                        l += 1;
+                    } else if peek_byte(str_) == b';' {
+                        if l > 0 {
+                            l -= 1;
+                        } else {
+                            let _ = next_byte(&mut str_);
+                            break;
+                        }
+                    }
+                    if peek_byte(str_) != 0 {
+                        let _ = next_byte(&mut str_);
+                    }
+                }
+            }
+            b';' => {}
+            _ => {}
         }
-        crate::memory::ptr_offset_from(buf, buf_start) as usize
     }
+    out_pos
 }
 
 #[cfg(test)]
@@ -3361,23 +3293,18 @@ mod tests {
         assert!(!ut.get_bool(UnibiBoolean::UnibiBackColorErase));
         assert_eq!(ut.get_num(UnibiNumeric::UnibiColumns), 80);
         assert_eq!(ut.get_num(UnibiNumeric::UnibiMaxColors), -1);
-        assert!(ut.get_str(UnibiString::UnibiBackTab).is_null());
-        {
-            assert_eq!(
-                crate::memory::cstr_as_bytes(ut.get_str(UnibiString::UnibiCarriageReturn)),
-                b"\r"
-            );
-            assert_eq!(ut.count_ext_bool(), 1);
-            assert_eq!(crate::memory::cstr_as_bytes(ut.get_ext_bool_name(0)), b"Tc");
-            assert_eq!(ut.count_ext_str(), 1);
-            assert_eq!(crate::memory::cstr_as_bytes(ut.get_ext_str_name(0)), b"Se");
-            assert_eq!(crate::memory::cstr_as_bytes(ut.get_ext_str(0)), b"\x1b[0 q");
-        }
+        assert!(ut.get_str(UnibiString::UnibiBackTab).is_none());
+        assert_eq!(ut.get_str(UnibiString::UnibiCarriageReturn), Some(c"\r"));
+        assert_eq!(ut.count_ext_bool(), 1);
+        assert_eq!(ut.get_ext_bool_name(0), Some(&b"Tc"[..]));
+        assert_eq!(ut.count_ext_str(), 1);
+        assert_eq!(ut.get_ext_str_name(0), Some(&b"Se"[..]));
+        assert_eq!(ut.get_ext_str(0), Some(c"\x1b[0 q"));
     }
 
     #[test]
     fn terminfo_fmt_stack_overflow_fails_before_output() {
-        let mut buf = [0 as c_char; 256];
+        let mut buf = [0u8; 256];
         let mut params = [TPVAR {
             num: 65,
             string: None,
@@ -3385,20 +3312,11 @@ mod tests {
         let valid_fmt = format!("{}%c\0", "%p1".repeat(20));
         let overflow_fmt = format!("{}%c\0", "%p1".repeat(21));
 
-        {
-            let start = buf.as_mut_ptr();
-            let end = start.wrapping_add(buf.len());
-            let valid_n = terminfo_fmt(start, end, valid_fmt.as_ptr().cast(), params.as_mut_ptr());
-            assert_eq!(valid_n, 1);
-            assert_eq!(buf[0] as u8, b'A');
+        let valid_n = terminfo_fmt(&mut buf, valid_fmt.as_bytes(), &mut params);
+        assert_eq!(valid_n, 1);
+        assert_eq!(buf[0], b'A');
 
-            let overflow_n = terminfo_fmt(
-                start,
-                end,
-                overflow_fmt.as_ptr().cast(),
-                params.as_mut_ptr(),
-            );
-            assert_eq!(overflow_n, 0);
-        }
+        let overflow_n = terminfo_fmt(&mut buf, overflow_fmt.as_bytes(), &mut params);
+        assert_eq!(overflow_n, 0);
     }
 }

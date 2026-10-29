@@ -863,10 +863,10 @@ fn terminfo_start(tui: &mut TUIData) {
             os_setenv(c"TERM", guessed_term, 1);
         }
     }
-    let term = term_cstr.as_ref().map_or(ptr::null(), |c| c.as_ptr());
+    let term = term_cstr.as_deref().map(CStr::to_bytes);
 
     tui.terminfo_found_in_db = false;
-    if !term.is_null()
+    if term.is_some()
         && !os_env_exists(c"NVIM_TERMDEFS", false)
         && terminfo_from_database(&mut tui.ti, term)
     {
@@ -1305,7 +1305,7 @@ fn update_attrs(tui: &mut TUIData, attr_id: i32) {
             params[6].num = 0;
             params[7].num = 0;
             params[8].num = 0;
-            terminfo_print(tui, K_TERM_SET_ATTRIBUTES, params.as_mut_ptr());
+            terminfo_print(tui, K_TERM_SET_ATTRIBUTES, &mut params);
         } else if !tui.default_attr {
             terminfo_out(tui, K_TERM_EXIT_ATTRIBUTE_MODE);
         }
@@ -1846,15 +1846,13 @@ fn tui_set_mode(tui: &mut TUIData, mode: ModeShape) {
             let mut params = [TPVAR::default(); 9];
             if tui.set_cursor_color_as_str {
                 let s = format!("#{:06x}", aep.rgb_bg_color as u32 & 0x00ff_ffff);
-                let mut hexbuf = [0 as c_char; 8];
-                for (i, &b) in s.as_bytes().iter().enumerate().take(7) {
-                    hexbuf[i] = b as c_char;
-                }
+                let mut hexbuf = [0u8; 8];
+                hexbuf[..7].copy_from_slice(&s.as_bytes()[..7]);
                 params[0].string = Some(hexbuf);
             } else {
                 params[0].num = i64::from(aep.rgb_bg_color);
             }
-            terminfo_print(tui, K_TERM_SET_CURSOR_COLOR, params.as_mut_ptr());
+            terminfo_print(tui, K_TERM_SET_CURSOR_COLOR, &mut params);
             tui.cursor_has_color = true;
         }
     } else if c.id == 0 && (tui.want_invisible || tui.cursor_has_color) {
@@ -2560,7 +2558,7 @@ fn out_printf_str(tui: &mut TUIData, limit: usize, formatted: &str) {
 
 fn terminfo_out(tui: &mut TUIData, what: TerminfoDef) {
     let mut null_params = [TPVAR::default(); 9];
-    terminfo_print(tui, what, null_params.as_mut_ptr());
+    terminfo_print(tui, what, &mut null_params);
 }
 
 fn terminfo_print_num1(tui: &mut TUIData, what: TerminfoDef, num: i32) {
@@ -2576,10 +2574,10 @@ fn terminfo_print_num(tui: &mut TUIData, what: TerminfoDef, num1: i32, num2: i32
     params[0].num = i64::from(num1);
     params[1].num = i64::from(num2);
     params[2].num = i64::from(num3);
-    terminfo_print(tui, what, params.as_mut_ptr());
+    terminfo_print(tui, what, &mut params);
 }
 
-fn terminfo_print(tui: &mut TUIData, what: TerminfoDef, params: *mut TPVAR) {
+fn terminfo_print(tui: &mut TUIData, what: TerminfoDef, params: &mut [TPVAR; 9]) {
     if what >= K_TERM_COUNT {
         std::process::abort();
     }
@@ -2587,22 +2585,20 @@ fn terminfo_print(tui: &mut TUIData, what: TerminfoDef, params: *mut TPVAR) {
     let Some(ref str_cow) = tui.ti.defs[what] else {
         return;
     };
-    if str_cow.to_bytes().is_empty() {
+    let str_bytes = str_cow.to_bytes();
+    if str_bytes.is_empty() {
         return;
     }
-    let str_ = str_cow.as_ptr();
 
-    let buf_start = tui.buf.as_mut_ptr();
-    let buf_end = buf_start.wrapping_add(tui.buf.len());
     if tui.buf.len() - tui.bufpos > TERMINFO_SEQ_LIMIT {
-        let mut copy_params = [TPVAR::default(); 9];
-        unsafe { ptr::copy_nonoverlapping(params, copy_params.as_mut_ptr(), 9) };
-        let len = terminfo_fmt(
-            buf_start.wrapping_add(tui.bufpos),
-            buf_end,
-            str_,
-            copy_params.as_mut_ptr(),
-        );
+        let mut copy_params = *params;
+        let out_slice = unsafe {
+            std::slice::from_raw_parts_mut(
+                tui.buf.as_mut_ptr().wrapping_add(tui.bufpos).cast::<u8>(),
+                tui.buf.len() - tui.bufpos,
+            )
+        };
+        let len = terminfo_fmt(out_slice, str_bytes, &mut copy_params);
         if len > 0 {
             tui.bufpos += len;
             return;
@@ -2610,9 +2606,18 @@ fn terminfo_print(tui: &mut TUIData, what: TerminfoDef, params: *mut TPVAR) {
     }
 
     flush_buf(tui, FlushBufFinish::FlushBufPartial);
-    let len = terminfo_fmt(buf_start.wrapping_add(tui.bufpos), buf_end, str_, params);
-    if len > 0 {
-        tui.bufpos += len;
+    if let Some(ref str_cow) = tui.ti.defs[what] {
+        let str_bytes = str_cow.to_bytes();
+        let out_slice = unsafe {
+            std::slice::from_raw_parts_mut(
+                tui.buf.as_mut_ptr().wrapping_add(tui.bufpos).cast::<u8>(),
+                tui.buf.len() - tui.bufpos,
+            )
+        };
+        let len = terminfo_fmt(out_slice, str_bytes, params);
+        if len > 0 {
+            tui.bufpos += len;
+        }
     }
 }
 
@@ -2644,14 +2649,13 @@ fn term_has_truecolor(tui: &mut TUIData, colorterm: impl crate::strings::IntoCCh
 
 fn patch_terminfo_bugs(
     tui: &mut TUIData,
-    term: impl crate::strings::IntoCCharPtr,
+    term: Option<&[u8]>,
     colorterm: impl crate::strings::IntoCCharPtr,
     vte_version: i32,
     konsolev: i32,
     iterm_env: bool,
     nsterm: bool,
 ) {
-    let term = term.into_c_char_ptr();
     let colorterm = colorterm.into_c_char_ptr();
     let xterm_version_cstr = os_getenv_cstr(c"XTERM_VERSION");
     let xterm_version = xterm_version_cstr
@@ -2771,7 +2775,7 @@ fn patch_terminfo_bugs(
             || gnome_pretending_xterm
             || tmux
             || cstr_contains(colorterm, b"256")
-            || cstr_contains(term, b"256")
+            || term.is_some_and(|t| t.windows(3).any(|w| w == b"256"))
         {
             tui.ti.max_colors = 256;
             terminfo_set_str(tui, K_TERM_SET_A_FOREGROUND, XTERM_SETAF_256);
@@ -2823,14 +2827,13 @@ fn patch_terminfo_bugs(
 
 fn augment_terminfo(
     tui: &mut TUIData,
-    term: impl crate::strings::IntoCCharPtr,
+    term: Option<&[u8]>,
     vte_version: i32,
     konsolev: i32,
     weztermv: impl crate::strings::IntoCCharPtr,
     iterm_env: bool,
     nsterm: bool,
 ) {
-    let term = term.into_c_char_ptr();
     let weztermv = weztermv.into_c_char_ptr();
     {
         let xterm_version_cstr = os_getenv_cstr(c"XTERM_VERSION");
@@ -2966,68 +2969,42 @@ fn flush_buf_raw(
         }
 
         let mut req = [0u64; 64];
-        let mut pre = [0 as c_char; 32];
-        let mut post = [0 as c_char; 32];
+        let mut pre = [0u8; 32];
+        let mut post = [0u8; 32];
         let mut pre_len = 0usize;
         let mut post_len = 0usize;
         let mut null_params = [TPVAR::default(); 9];
 
         if !tui.sync_output_active && tui.sync_output && tui.has_sync_mode {
             let sync_start = b"\x1b[?2026h\0";
-            unsafe {
-                ptr::copy_nonoverlapping(
-                    sync_start.as_ptr().cast::<c_char>(),
-                    pre.as_mut_ptr(),
-                    sync_start.len(),
-                )
-            };
+            pre[..sync_start.len()].copy_from_slice(sync_start);
             pre_len += sync_start.len() - 1;
             tui.sync_output_active = true;
         } else if !tui.sync_output_active && !tui.is_invisible {
             tui.is_invisible = true;
             if let Some(ref str_) = tui.ti.defs[K_TERM_CURSOR_INVISIBLE] {
-                pre_len += terminfo_fmt(
-                    pre.as_mut_ptr().wrapping_add(pre_len),
-                    pre.as_mut_ptr().wrapping_add(pre.len()),
-                    str_.as_ptr(),
-                    null_params.as_mut_ptr(),
-                );
+                pre_len += terminfo_fmt(&mut pre[pre_len..], str_.to_bytes(), &mut null_params);
             }
         }
 
         if finish == FlushBufFinish::FlushBufFinal && tui.sync_output_active {
             let sync_end = b"\x1b[?2026l\0";
-            unsafe {
-                ptr::copy_nonoverlapping(
-                    sync_end.as_ptr().cast::<c_char>(),
-                    post.as_mut_ptr(),
-                    sync_end.len(),
-                )
-            };
+            post[..sync_end.len()].copy_from_slice(sync_end);
             post_len += sync_end.len() - 1;
             tui.sync_output_active = false;
         }
 
         if !tui.sync_output_active {
-            let mut str_: *const c_char = ptr::null();
+            let mut str_: Option<&CStr> = None;
             if tui.is_invisible && !should_be_invisible {
-                str_ = tui.ti.defs[K_TERM_CURSOR_NORMAL]
-                    .as_deref()
-                    .map_or(ptr::null(), CStr::as_ptr);
+                str_ = tui.ti.defs[K_TERM_CURSOR_NORMAL].as_deref();
                 tui.is_invisible = false;
             } else if !tui.is_invisible && should_be_invisible {
-                str_ = tui.ti.defs[K_TERM_CURSOR_INVISIBLE]
-                    .as_deref()
-                    .map_or(ptr::null(), CStr::as_ptr);
+                str_ = tui.ti.defs[K_TERM_CURSOR_INVISIBLE].as_deref();
                 tui.is_invisible = true;
             }
-            if !str_.is_null() {
-                post_len += terminfo_fmt(
-                    post.as_mut_ptr().wrapping_add(post_len),
-                    post.as_mut_ptr().wrapping_add(post.len()),
-                    str_,
-                    null_params.as_mut_ptr(),
-                );
+            if let Some(str_) = str_ {
+                post_len += terminfo_fmt(&mut post[post_len..], str_.to_bytes(), &mut null_params);
             }
         }
 
@@ -3037,9 +3014,9 @@ fn flush_buf_raw(
             tui.buf.as_mut_ptr()
         };
         let bufs = [
-            uv_buf_t::new(pre.as_mut_ptr(), pre_len),
+            uv_buf_t::new(pre.as_mut_ptr().cast(), pre_len),
             uv_buf_t::new(mid_base, tui.bufpos),
-            uv_buf_t::new(post.as_mut_ptr(), post_len),
+            uv_buf_t::new(post.as_mut_ptr().cast(), post_len),
         ];
 
         if let Some(ref screenshot) = tui.screenshot {
