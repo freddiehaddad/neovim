@@ -1497,6 +1497,16 @@ pub fn utfc_ptr2len(p: impl crate::strings::IntoCCharPtr) -> i32 {
     }
 }
 
+pub fn utfc_slice2len(bytes: &[u8]) -> usize {
+    utfc_ptr2len_len(bytes.as_ptr().cast::<c_char>(), bytes.len() as i32) as usize
+}
+
+pub fn mb_copy_slice_char(src: &[u8], dst: &mut [u8]) -> usize {
+    let l = utfc_slice2len(src).min(src.len());
+    dst[..l].copy_from_slice(&src[..l]);
+    l
+}
+
 pub fn utfc_ptr2len_len(p: impl crate::strings::IntoCCharPtr, size: i32) -> i32 {
     let p = p.into_c_char_ptr();
     {
@@ -3343,6 +3353,11 @@ pub fn convert_setup_ext(
 
         vcp.vc_type != CONV_NONE
     }
+}
+
+pub fn string_convert_slice(vcp: &Vimconv, bytes: &[u8], lenp: &mut usize) -> Option<Vec<u8>> {
+    *lenp = bytes.len();
+    string_convert(vcp, bytes.as_ptr().cast::<c_char>(), Some(lenp))
 }
 
 pub fn string_convert(

@@ -66,17 +66,17 @@ fn api_vims_st() -> &'static mut ApiVimscriptState {
 use crate::api::private::helpers::cstr_to_string;
 
 #[inline]
-fn cbuf_to_arena_obj(
-    arena: &mut Arena,
-    s: impl crate::strings::IntoCCharPtr,
-    len: usize,
-) -> Object {
-    let s = s.into_c_char_ptr();
+fn cbuf_to_arena_obj(arena: &mut Arena, bytes: &[u8]) -> Object {
+    let ptr = if bytes.is_empty() {
+        std::ptr::null_mut()
+    } else {
+        bytes.as_ptr().cast::<c_char>().cast_mut()
+    };
     string_obj(arena_string(
         arena,
         NvimString {
-            data: s.cast_mut(),
-            size: len,
+            data: ptr,
+            size: bytes.len(),
         },
     ))
 }
@@ -566,7 +566,7 @@ pub fn nvim_parse_expression(
 
     let parser_lines = [
         ParserLine {
-            data: expr.data,
+            data: expr.data.cast::<u8>(),
             size: expr.size,
         },
         ParserLine {
@@ -598,7 +598,7 @@ pub fn nvim_parse_expression(
         put_c(
             &mut err_dict,
             c"arg",
-            cbuf_to_arena_obj(arena, east.err.arg, east.err.arg_len as usize),
+            cbuf_to_arena_obj(arena, east.err.arg_bytes()),
         );
         put_c(&mut ret, c"error", dict_obj(err_dict));
     }
@@ -680,8 +680,7 @@ fn expr_ast_node_to_obj(node: &ExprASTNode, arena: &mut Arena) -> Object {
 
     match nt {
         K_EXPR_NODE_DOUBLE_QUOTED_STRING | K_EXPR_NODE_SINGLE_QUOTED_STRING => {
-            let str_obj =
-                cbuf_to_arena_obj(arena, node.data.str().value_ptr(), node.data.str().size);
+            let str_obj = cbuf_to_arena_obj(arena, node.data.str().as_bytes());
             put_c(&mut ret_node, c"svalue", str_obj);
         }
         K_EXPR_NODE_OPTION => {
@@ -693,7 +692,7 @@ fn expr_ast_node_to_obj(node: &ExprASTNode, arena: &mut Arena) -> Object {
             put_c(
                 &mut ret_node,
                 c"ident",
-                cbuf_to_arena_obj(arena, node.data.opt().ident, node.data.opt().ident_len),
+                cbuf_to_arena_obj(arena, node.data.opt().ident_bytes()),
             );
         }
         K_EXPR_NODE_PLAIN_IDENTIFIER => {
@@ -705,21 +704,21 @@ fn expr_ast_node_to_obj(node: &ExprASTNode, arena: &mut Arena) -> Object {
             put_c(
                 &mut ret_node,
                 c"ident",
-                cbuf_to_arena_obj(arena, node.data.var().ident, node.data.var().ident_len),
+                cbuf_to_arena_obj(arena, node.data.var().ident_bytes()),
             );
         }
         K_EXPR_NODE_PLAIN_KEY => {
             put_c(
                 &mut ret_node,
                 c"ident",
-                cbuf_to_arena_obj(arena, node.data.var().ident, node.data.var().ident_len),
+                cbuf_to_arena_obj(arena, node.data.var().ident_bytes()),
             );
         }
         K_EXPR_NODE_ENVIRONMENT => {
             put_c(
                 &mut ret_node,
                 c"ident",
-                cbuf_to_arena_obj(arena, node.data.env().ident, node.data.env().ident_len),
+                cbuf_to_arena_obj(arena, node.data.env().ident_bytes()),
             );
         }
         K_EXPR_NODE_REGISTER => {

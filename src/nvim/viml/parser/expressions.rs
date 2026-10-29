@@ -1,14 +1,13 @@
 //! Vimscript expression lexer and parser (`src/nvim/viml/parser/expressions.c`).
 
 use crate::charset::{
-    Uvarnumber, ascii_isalpha, ascii_isdigit, ascii_iswhite, ascii_isxdigit, vim_str2nr,
+    Uvarnumber, ascii_isalpha, ascii_isdigit, ascii_iswhite, ascii_isxdigit, vim_slice2nr,
 };
-use crate::keycodes::{FSK_IN_STRING, FSK_KEYCODE, FSK_SIMPLIFY, NUL, trans_special};
-use crate::mbyte::{mb_copy_char, utf_char2bytes, utf_char2len, utfc_ptr2len_len};
+use crate::keycodes::{FSK_IN_STRING, FSK_KEYCODE, FSK_SIMPLIFY, NUL, trans_special_slice};
+use crate::mbyte::{mb_copy_slice_char, utf_char2len, utf_char2slice, utfc_slice2len};
 use crate::viml::parser::parser::{
     ParserHighlightChunk, ParserLine, ParserPosition, ParserState, viml_parser_get_remaining_line,
 };
-use std::ffi::c_char;
 
 use crate::eval::STR2NR_ALL;
 use crate::eval::typval::TvFloat;
@@ -204,7 +203,7 @@ impl LexExprTokenStr {
 #[repr(C)]
 #[derive(Clone, Copy)]
 pub struct LexExprTokenOpt {
-    pub name: *const c_char,
+    pub name: *const u8,
     pub len: usize,
     pub scope: ExprOptScope,
 }
@@ -611,7 +610,7 @@ impl ExprASTNodeFig {
 #[derive(Clone, Copy)]
 pub struct ExprASTNodeVar {
     pub scope: ExprVarScope,
-    pub ident: *const c_char,
+    pub ident: *const u8,
     pub ident_len: usize,
 }
 
@@ -621,6 +620,15 @@ impl ExprASTNodeVar {
             scope: K_EXPR_VAR_SCOPE_MISSING,
             ident: std::ptr::null(),
             ident_len: 0,
+        }
+    }
+
+    #[inline]
+    pub fn ident_bytes(&self) -> &[u8] {
+        if self.ident_len == 0 || self.ident.is_null() {
+            &[]
+        } else {
+            unsafe { std::slice::from_raw_parts(self.ident, self.ident_len) }
         }
     }
 }
@@ -682,7 +690,7 @@ impl ExprASTNodeFlt {
 #[repr(C)]
 #[derive(Clone, Default)]
 pub struct ExprASTNodeStr {
-    pub value: Vec<c_char>,
+    pub value: Vec<u8>,
     pub size: usize,
 }
 
@@ -695,19 +703,15 @@ impl ExprASTNodeStr {
     }
 
     #[inline]
-    pub fn value_ptr(&self) -> *const c_char {
-        if self.value.is_empty() {
-            std::ptr::null()
-        } else {
-            self.value.as_ptr()
-        }
+    pub fn as_bytes(&self) -> &[u8] {
+        &self.value[..self.size]
     }
 }
 
 #[repr(C)]
 #[derive(Clone, Copy)]
 pub struct ExprASTNodeOpt {
-    pub ident: *const c_char,
+    pub ident: *const u8,
     pub ident_len: usize,
     pub scope: ExprOptScope,
 }
@@ -720,12 +724,21 @@ impl ExprASTNodeOpt {
             scope: K_EXPR_OPT_SCOPE_UNSPECIFIED,
         }
     }
+
+    #[inline]
+    pub fn ident_bytes(&self) -> &[u8] {
+        if self.ident_len == 0 || self.ident.is_null() {
+            &[]
+        } else {
+            unsafe { std::slice::from_raw_parts(self.ident, self.ident_len) }
+        }
+    }
 }
 
 #[repr(C)]
 #[derive(Clone, Copy)]
 pub struct ExprASTNodeEnv {
-    pub ident: *const c_char,
+    pub ident: *const u8,
     pub ident_len: usize,
 }
 
@@ -734,6 +747,15 @@ impl ExprASTNodeEnv {
         Self {
             ident: std::ptr::null(),
             ident_len: 0,
+        }
+    }
+
+    #[inline]
+    pub fn ident_bytes(&self) -> &[u8] {
+        if self.ident_len == 0 || self.ident.is_null() {
+            &[]
+        } else {
+            unsafe { std::slice::from_raw_parts(self.ident, self.ident_len) }
         }
     }
 }
@@ -1015,8 +1037,19 @@ impl ExprASTNode {
 #[derive(Clone, Copy)]
 pub struct ExprASTError {
     pub msg: Option<&'static std::ffi::CStr>,
-    pub arg: *const c_char,
+    pub arg: *const u8,
     pub arg_len: i32,
+}
+
+impl ExprASTError {
+    #[inline]
+    pub fn arg_bytes(&self) -> &[u8] {
+        if self.arg_len <= 0 || self.arg.is_null() {
+            &[]
+        } else {
+            unsafe { std::slice::from_raw_parts(self.arg, self.arg_len as usize) }
+        }
+    }
 }
 
 #[repr(C)]
@@ -1298,7 +1331,7 @@ pub fn viml_pexpr_next_token(pstate: &mut ParserState<'_>, flags: i32) -> LexExp
         }
         return ret;
     }
-    let bytes = crate::memory::cstr_slice(pline.data, pline.size);
+    let bytes = pline.as_bytes();
     ret.len = 1;
     let schar = bytes[0];
 
@@ -1415,14 +1448,13 @@ pub fn viml_pexpr_next_token(pstate: &mut ParserState<'_>, flags: i32) -> LexExp
                     significand_part = significand_part * 10.0 + TvFloat::from(b - b'0');
                 }
                 if exp_start != 0 {
-                    vim_str2nr(
-                        pline.data.wrapping_add(exp_start),
+                    vim_slice2nr(
+                        &bytes[exp_start..ret.len],
                         None,
                         None,
                         0,
                         None,
                         Some(&mut exp_part),
-                        (ret.len - exp_start) as i32,
                         false,
                         None,
                     );
@@ -1445,14 +1477,13 @@ pub fn viml_pexpr_next_token(pstate: &mut ParserState<'_>, flags: i32) -> LexExp
                 let mut len: i32 = 0;
                 let mut prep: i32 = 0;
                 let mut int_val: Uvarnumber = 0;
-                vim_str2nr(
-                    pline.data,
+                vim_slice2nr(
+                    bytes,
                     Some(&mut prep),
                     Some(&mut len),
                     STR2NR_ALL,
                     None,
                     Some(&mut int_val),
-                    pline.size as i32,
                     false,
                     None,
                 );
@@ -1685,7 +1716,7 @@ pub fn viml_pexpr_next_token(pstate: &mut ParserState<'_>, flags: i32) -> LexExp
             }
         }
         _ => {
-            ret.len = utfc_ptr2len_len(pline.data, pline.size as i32) as usize;
+            ret.len = utfc_slice2len(bytes);
             ret.r#type = K_EXPR_LEX_INVALID;
             ret.data.err_mut().r#type = K_EXPR_LEX_PLAIN_IDENTIFIER;
             ret.data.err_mut().msg = Some(c"E15: Unidentified character: %.*s");
@@ -1880,395 +1911,353 @@ fn parse_quoted_string(
     _ast_stack: &ExprASTStack,
     is_invalid: bool,
 ) {
-    unsafe {
-        let pline = pstate.reader.lines.as_slice()[token.start.line];
-        let s = pline.data.wrapping_add(token.start.col);
-        let closed_len = usize::from(token.data.str().closed);
-        let e = s.wrapping_add(token.len - closed_len);
-        let mut p = s.wrapping_add(1);
-        let is_double = token.r#type == K_EXPR_LEX_DOUBLE_QUOTED_STRING;
-        let mut size = token.len - closed_len - 1;
-        let mut shifts: Vec<StringShift> = Vec::new();
+    let pline = pstate.reader.lines.as_slice()[token.start.line];
+    let closed_len = usize::from(token.data.str().closed);
+    let body = &pline.as_bytes()[token.start.col + 1..token.start.col + token.len - closed_len];
+    let is_double = token.r#type == K_EXPR_LEX_DOUBLE_QUOTED_STRING;
+    let mut size = body.len();
+    let mut shifts: Vec<StringShift> = Vec::new();
 
-        if !is_double {
-            viml_parser_highlight(
-                pstate,
-                token.start,
-                1,
-                hl_group!(is_invalid, c"NvimSingleQuote", c"NvimInvalidSingleQuote"),
-            );
-            while (p as usize) < (e as usize) {
-                let rem = e as usize - p as usize;
-                let slice = crate::memory::cstr_slice(p, rem);
-                let Some(pos) = slice.iter().position(|&b| b == b'\'') else {
+    if !is_double {
+        viml_parser_highlight(
+            pstate,
+            token.start,
+            1,
+            hl_group!(is_invalid, c"NvimSingleQuote", c"NvimInvalidSingleQuote"),
+        );
+        let mut i = 0;
+        while i < body.len() {
+            let Some(pos) = body[i..].iter().position(|&b| b == b'\'') else {
+                break;
+            };
+            let chunk_e = i + pos;
+            size -= 1;
+            i = chunk_e + 2;
+            if pstate.colors.is_some() {
+                shifts.push(StringShift {
+                    start: token.start.col + 1 + chunk_e,
+                    orig_len: 2,
+                    act_len: 1,
+                    escape_not_known: false,
+                });
+            }
+        }
+        node.data.str_mut().size = size;
+        if size == 0 {
+            node.data.str_mut().value = Vec::new();
+        } else {
+            let mut buf = vec![0u8; size + 1];
+            let mut out_pos = 0;
+            let mut i = 0;
+            while i < body.len() {
+                let Some(pos) = body[i..].iter().position(|&b| b == b'\'') else {
+                    let rem = body.len() - i;
+                    buf[out_pos..out_pos + rem].copy_from_slice(&body[i..]);
                     break;
                 };
-                let chunk_e = p.wrapping_add(pos);
-                size -= 1;
-                p = chunk_e.wrapping_add(2);
-                if pstate.colors.is_some() {
-                    shifts.push(StringShift {
-                        start: token.start.col + (chunk_e as usize - s as usize),
-                        orig_len: 2,
-                        act_len: 1,
-                        escape_not_known: false,
-                    });
-                }
+                buf[out_pos..out_pos + pos].copy_from_slice(&body[i..i + pos]);
+                buf[out_pos + pos] = b'\'';
+                out_pos += pos + 1;
+                i += pos + 2;
             }
-            node.data.str_mut().size = size;
-            if size == 0 {
-                node.data.str_mut().value = Vec::new();
-            } else {
-                let mut buf = vec![0 as c_char; size + 1];
-                let mut v_p = buf.as_mut_ptr();
-                p = s.wrapping_add(1);
-                while (p as usize) < (e as usize) {
-                    let rem = e as usize - p as usize;
-                    let slice = crate::memory::cstr_slice(p, rem);
-                    let Some(pos) = slice.iter().position(|&b| b == b'\'') else {
-                        std::ptr::copy_nonoverlapping(p, v_p, rem);
-                        break;
-                    };
-                    let chunk_e = p.wrapping_add(pos);
-                    std::ptr::copy_nonoverlapping(p, v_p, pos);
-                    v_p = v_p.wrapping_add(pos + 1);
-                    *v_p.wrapping_sub(1) = b'\'' as c_char;
-                    p = chunk_e.wrapping_add(2);
+            node.data.str_mut().value = buf;
+        }
+    } else {
+        viml_parser_highlight(
+            pstate,
+            token.start,
+            1,
+            hl_group!(is_invalid, c"NvimDoubleQuote", c"NvimInvalidDoubleQuote"),
+        );
+        let mut i = 0;
+        while i < body.len() {
+            if body[i] == b'\\' && i + 1 < body.len() {
+                i += 1;
+                if i + 1 == body.len() {
+                    size -= 1;
+                    break;
                 }
-                node.data.str_mut().value = buf;
-            }
-        } else {
-            viml_parser_highlight(
-                pstate,
-                token.start,
-                1,
-                hl_group!(is_invalid, c"NvimDoubleQuote", c"NvimInvalidDoubleQuote"),
-            );
-            p = s.wrapping_add(1);
-            while (p as usize) < (e as usize) {
-                if crate::memory::cstr_first_byte(p) == b'\\'
-                    && (p.wrapping_add(1) as usize) < (e as usize)
-                {
-                    p = p.wrapping_add(1);
-                    if std::ptr::eq(p.wrapping_add(1), e) {
-                        size -= 1;
-                        break;
+                match body[i] {
+                    b'<' => {
+                        size += 5;
                     }
-                    match crate::memory::cstr_first_byte(p) {
-                        b'<' => {
-                            size += 5;
-                        }
-                        b'x' | b'X' => {
+                    b'x' | b'X' => {
+                        size -= 1;
+                        if ascii_isxdigit(body[i + 1]) {
                             size -= 1;
-                            if ascii_isxdigit(crate::memory::cstr_byte_at(p, 1)) {
+                            if i + 2 < body.len() && ascii_isxdigit(body[i + 2]) {
                                 size -= 1;
-                                if (p.wrapping_add(2) as usize) < (e as usize)
-                                    && ascii_isxdigit(crate::memory::cstr_byte_at(p, 2))
-                                {
-                                    size -= 1;
-                                }
                             }
                         }
-                        b'u' | b'U' => {
-                            let esc_start = p;
-                            let mut n: usize = if crate::memory::cstr_first_byte(p) == b'u' {
+                    }
+                    b'u' | b'U' => {
+                        let esc_start = i;
+                        let mut n: usize = if body[i] == b'u' { 4 } else { 8 };
+                        let mut nr: i32 = 0;
+                        i += 1;
+                        while i + 1 < body.len() && n != 0 && ascii_isxdigit(body[i + 1]) {
+                            n -= 1;
+                            i += 1;
+                            nr = (nr << 4) + hex2nr(i32::from(body[i]));
+                        }
+                        let esc_len = i - (esc_start - 1);
+                        let char_len = utf_char2len(nr) as usize;
+                        size = size.wrapping_sub(esc_len.wrapping_sub(char_len));
+                        i -= 1;
+                    }
+                    b'0'..=b'7' => {
+                        size -= 1;
+                        i += 1;
+                        if body[i] >= b'0' && body[i] <= b'7' {
+                            size -= 1;
+                            i += 1;
+                            if i < body.len() && body[i] >= b'0' && body[i] <= b'7' {
+                                size -= 1;
+                                i += 1;
+                            }
+                        }
+                    }
+                    _ => {
+                        size -= 1;
+                    }
+                }
+            }
+            i += 1;
+        }
+        if size == 0 {
+            node.data.str_mut().value = Vec::new();
+            node.data.str_mut().size = 0;
+        } else {
+            let mut buf = vec![0u8; size];
+            let mut out_pos = 0;
+            let mut i = 0;
+            while i < body.len() {
+                let Some(pos) = body[i..].iter().position(|&b| b == b'\\') else {
+                    let rem = body.len() - i;
+                    buf[out_pos..out_pos + rem].copy_from_slice(&body[i..]);
+                    out_pos += rem;
+                    break;
+                };
+                let chunk_e = i + pos;
+                buf[out_pos..out_pos + pos].copy_from_slice(&body[i..chunk_e]);
+                out_pos += pos;
+                i = chunk_e + 1;
+                if i == body.len() {
+                    buf[out_pos] = b'\\';
+                    out_pos += 1;
+                    break;
+                }
+                let mut is_unknown = false;
+                let out_pos_start = out_pos;
+                match body[i] {
+                    b'b' => {
+                        buf[out_pos] = BS;
+                        out_pos += 1;
+                        i += 1;
+                    }
+                    b'e' => {
+                        buf[out_pos] = ESC;
+                        out_pos += 1;
+                        i += 1;
+                    }
+                    b'f' => {
+                        buf[out_pos] = FF;
+                        out_pos += 1;
+                        i += 1;
+                    }
+                    b'n' => {
+                        buf[out_pos] = NL;
+                        out_pos += 1;
+                        i += 1;
+                    }
+                    b'r' => {
+                        buf[out_pos] = CAR;
+                        out_pos += 1;
+                        i += 1;
+                    }
+                    b't' => {
+                        buf[out_pos] = TAB;
+                        out_pos += 1;
+                        i += 1;
+                    }
+                    b'"' => {
+                        buf[out_pos] = b'"';
+                        out_pos += 1;
+                        i += 1;
+                    }
+                    b'\\' => {
+                        buf[out_pos] = b'\\';
+                        out_pos += 1;
+                        i += 1;
+                    }
+                    b'X' | b'x' | b'u' | b'U' => {
+                        if i + 1 < body.len() && ascii_isxdigit(body[i + 1]) {
+                            let is_hex = body[i] == b'x' || body[i] == b'X';
+                            let mut n: usize = if is_hex {
+                                2
+                            } else if body[i] == b'u' {
                                 4
                             } else {
                                 8
                             };
                             let mut nr: i32 = 0;
-                            p = p.wrapping_add(1);
-                            while (p.wrapping_add(1) as usize) < (e as usize)
-                                && n != 0
-                                && ascii_isxdigit(crate::memory::cstr_byte_at(p, 1))
-                            {
+                            while i + 1 < body.len() && n != 0 && ascii_isxdigit(body[i + 1]) {
                                 n -= 1;
-                                p = p.wrapping_add(1);
-                                nr = (nr << 4)
-                                    + hex2nr(i32::from(crate::memory::cstr_first_byte(p)));
+                                i += 1;
+                                nr = (nr << 4) + hex2nr(i32::from(body[i]));
                             }
-                            let esc_len = (p as usize) - (esc_start as usize - 1);
-                            let char_len = utf_char2len(nr) as usize;
-                            size = size.wrapping_sub(esc_len.wrapping_sub(char_len));
-                            p = p.wrapping_sub(1);
-                        }
-                        b'0'..=b'7' => {
-                            size -= 1;
-                            p = p.wrapping_add(1);
-                            if (crate::memory::cstr_first_byte(p)) >= b'0'
-                                && (crate::memory::cstr_first_byte(p)) <= b'7'
-                            {
-                                size -= 1;
-                                p = p.wrapping_add(1);
-                                if (p as usize) < (e as usize)
-                                    && (crate::memory::cstr_first_byte(p)) >= b'0'
-                                    && (crate::memory::cstr_first_byte(p)) <= b'7'
-                                {
-                                    size -= 1;
-                                    p = p.wrapping_add(1);
-                                }
-                            }
-                        }
-                        _ => {
-                            size -= 1;
-                        }
-                    }
-                }
-                p = p.wrapping_add(1);
-            }
-            if size == 0 {
-                node.data.str_mut().value = Vec::new();
-                node.data.str_mut().size = 0;
-            } else {
-                let mut buf = vec![0 as c_char; size];
-                let mut v_p = buf.as_mut_ptr();
-                p = s.wrapping_add(1);
-                while (p as usize) < (e as usize) {
-                    let rem = e as usize - p as usize;
-                    let slice = crate::memory::cstr_slice(p, rem);
-                    let Some(pos) = slice.iter().position(|&b| b == b'\\') else {
-                        std::ptr::copy_nonoverlapping(p, v_p, rem);
-                        v_p = v_p.wrapping_add(rem);
-                        break;
-                    };
-                    let chunk_e = p.wrapping_add(pos);
-                    std::ptr::copy_nonoverlapping(p, v_p, pos);
-                    v_p = v_p.wrapping_add(pos);
-                    p = chunk_e.wrapping_add(1);
-                    if std::ptr::eq(p, e) {
-                        *v_p = b'\\' as c_char;
-                        v_p = v_p.wrapping_add(1);
-                        break;
-                    }
-                    let mut is_unknown = false;
-                    let v_p_start = v_p;
-                    match crate::memory::cstr_first_byte(p) {
-                        b'b' => {
-                            *v_p = BS as c_char;
-                            v_p = v_p.wrapping_add(1);
-                            p = p.wrapping_add(1);
-                        }
-                        b'e' => {
-                            *v_p = ESC as c_char;
-                            v_p = v_p.wrapping_add(1);
-                            p = p.wrapping_add(1);
-                        }
-                        b'f' => {
-                            *v_p = FF as c_char;
-                            v_p = v_p.wrapping_add(1);
-                            p = p.wrapping_add(1);
-                        }
-                        b'n' => {
-                            *v_p = NL as c_char;
-                            v_p = v_p.wrapping_add(1);
-                            p = p.wrapping_add(1);
-                        }
-                        b'r' => {
-                            *v_p = CAR as c_char;
-                            v_p = v_p.wrapping_add(1);
-                            p = p.wrapping_add(1);
-                        }
-                        b't' => {
-                            *v_p = TAB as c_char;
-                            v_p = v_p.wrapping_add(1);
-                            p = p.wrapping_add(1);
-                        }
-                        b'"' => {
-                            *v_p = b'"' as c_char;
-                            v_p = v_p.wrapping_add(1);
-                            p = p.wrapping_add(1);
-                        }
-                        b'\\' => {
-                            *v_p = b'\\' as c_char;
-                            v_p = v_p.wrapping_add(1);
-                            p = p.wrapping_add(1);
-                        }
-                        b'X' | b'x' | b'u' | b'U' => {
-                            if (p.wrapping_add(1) as usize) < (e as usize)
-                                && ascii_isxdigit(crate::memory::cstr_byte_at(p, 1))
-                            {
-                                let is_hex = crate::memory::cstr_first_byte(p) == b'x'
-                                    || crate::memory::cstr_first_byte(p) == b'X';
-                                let mut n: usize = if is_hex {
-                                    2
-                                } else if crate::memory::cstr_first_byte(p) == b'u' {
-                                    4
-                                } else {
-                                    8
-                                };
-                                let mut nr: i32 = 0;
-                                while (p.wrapping_add(1) as usize) < (e as usize)
-                                    && n != 0
-                                    && ascii_isxdigit(crate::memory::cstr_byte_at(p, 1))
-                                {
-                                    n -= 1;
-                                    p = p.wrapping_add(1);
-                                    nr = (nr << 4)
-                                        + hex2nr(i32::from(crate::memory::cstr_first_byte(p)));
-                                }
-                                p = p.wrapping_add(1);
-                                if is_hex {
-                                    *v_p = (nr as u8) as c_char;
-                                    v_p = v_p.wrapping_add(1);
-                                } else {
-                                    v_p = v_p.wrapping_add(utf_char2bytes(nr, v_p) as usize);
-                                }
+                            i += 1;
+                            if is_hex {
+                                buf[out_pos] = nr as u8;
+                                out_pos += 1;
                             } else {
-                                is_unknown = true;
-                                *v_p = *p;
-                                v_p = v_p.wrapping_add(1);
-                                p = p.wrapping_add(1);
+                                out_pos += utf_char2slice(nr, &mut buf[out_pos..]);
                             }
-                        }
-                        b'0'..=b'7' => {
-                            let mut ch = (crate::memory::cstr_first_byte(p)) - b'0';
-                            p = p.wrapping_add(1);
-                            if (p as usize) < (e as usize)
-                                && (crate::memory::cstr_first_byte(p)) >= b'0'
-                                && (crate::memory::cstr_first_byte(p)) <= b'7'
-                            {
-                                ch = (ch << 3)
-                                    .wrapping_add(crate::memory::cstr_first_byte(p) - b'0');
-                                p = p.wrapping_add(1);
-                                if (p as usize) < (e as usize)
-                                    && (crate::memory::cstr_first_byte(p)) >= b'0'
-                                    && (crate::memory::cstr_first_byte(p)) <= b'7'
-                                {
-                                    ch = (ch << 3)
-                                        .wrapping_add(crate::memory::cstr_first_byte(p) - b'0');
-                                    p = p.wrapping_add(1);
-                                }
-                            }
-                            *v_p = ch as c_char;
-                            v_p = v_p.wrapping_add(1);
-                        }
-                        b'<' => {
-                            let mut flags = FSK_KEYCODE | FSK_IN_STRING;
-                            if crate::memory::cstr_byte_at(p, 1) != b'*' {
-                                flags |= FSK_SIMPLIFY;
-                            }
-                            let special_len = trans_special(
-                                &mut p,
-                                e as usize - p as usize,
-                                v_p,
-                                flags,
-                                false,
-                                None,
-                            ) as usize;
-                            if special_len != 0 {
-                                v_p = v_p.wrapping_add(special_len);
-                            } else {
-                                is_unknown = true;
-                                mb_copy_char(&mut p, &mut v_p);
-                            }
-                        }
-                        _ => {
+                        } else {
                             is_unknown = true;
-                            mb_copy_char(&mut p, &mut v_p);
+                            buf[out_pos] = body[i];
+                            out_pos += 1;
+                            i += 1;
                         }
                     }
-                    if pstate.colors.is_some() {
-                        shifts.push(StringShift {
-                            start: token.start.col + (chunk_e as usize - s as usize),
-                            orig_len: p as usize - chunk_e as usize,
-                            act_len: v_p as usize - v_p_start as usize,
-                            escape_not_known: is_unknown,
-                        });
+                    b'0'..=b'7' => {
+                        let mut ch = body[i] - b'0';
+                        i += 1;
+                        if i < body.len() && body[i] >= b'0' && body[i] <= b'7' {
+                            ch = (ch << 3).wrapping_add(body[i] - b'0');
+                            i += 1;
+                            if i < body.len() && body[i] >= b'0' && body[i] <= b'7' {
+                                ch = (ch << 3).wrapping_add(body[i] - b'0');
+                                i += 1;
+                            }
+                        }
+                        buf[out_pos] = ch;
+                        out_pos += 1;
+                    }
+                    b'<' => {
+                        let mut flags = FSK_KEYCODE | FSK_IN_STRING;
+                        if body.get(i + 1).copied().unwrap_or(0) != b'*' {
+                            flags |= FSK_SIMPLIFY;
+                        }
+                        if let Some((adv, special_len)) =
+                            trans_special_slice(&body[i..], &mut buf[out_pos..], flags, false, None)
+                        {
+                            i += adv;
+                            out_pos += special_len;
+                        } else {
+                            is_unknown = true;
+                            let adv = mb_copy_slice_char(&body[i..], &mut buf[out_pos..]);
+                            i += adv;
+                            out_pos += adv;
+                        }
+                    }
+                    _ => {
+                        is_unknown = true;
+                        let adv = mb_copy_slice_char(&body[i..], &mut buf[out_pos..]);
+                        i += adv;
+                        out_pos += adv;
                     }
                 }
-                let actual_len = v_p as usize - buf.as_ptr() as usize;
-                buf.truncate(actual_len);
-                node.data.str_mut().size = actual_len;
-                node.data.str_mut().value = buf;
-            }
-        }
-        if pstate.colors.is_some() {
-            let mut next_col = token.start.col + 1;
-            let body_str = if is_double {
-                hl_group!(
-                    is_invalid,
-                    c"NvimDoubleQuotedBody",
-                    c"NvimInvalidDoubleQuotedBody"
-                )
-            } else {
-                hl_group!(
-                    is_invalid,
-                    c"NvimSingleQuotedBody",
-                    c"NvimInvalidSingleQuotedBody"
-                )
-            };
-            let esc_str = if is_double {
-                hl_group!(
-                    is_invalid,
-                    c"NvimDoubleQuotedEscape",
-                    c"NvimInvalidDoubleQuotedEscape"
-                )
-            } else {
-                hl_group!(
-                    is_invalid,
-                    c"NvimSingleQuotedQuote",
-                    c"NvimInvalidSingleQuotedQuote"
-                )
-            };
-            let ukn_esc_str = if is_double {
-                hl_group!(
-                    is_invalid,
-                    c"NvimDoubleQuotedUnknownEscape",
-                    c"NvimInvalidDoubleQuotedUnknownEscape"
-                )
-            } else {
-                hl_group!(
-                    is_invalid,
-                    c"NvimSingleQuotedUnknownEscape",
-                    c"NvimInvalidSingleQuotedUnknownEscape"
-                )
-            };
-            for cur_shift in &shifts {
-                if cur_shift.start > next_col {
-                    viml_parser_highlight(
-                        pstate,
-                        recol_pos(token.start, next_col),
-                        cur_shift.start - next_col,
-                        body_str,
-                    );
+                if pstate.colors.is_some() {
+                    shifts.push(StringShift {
+                        start: token.start.col + 1 + chunk_e,
+                        orig_len: i - chunk_e,
+                        act_len: out_pos - out_pos_start,
+                        escape_not_known: is_unknown,
+                    });
                 }
-                viml_parser_highlight(
-                    pstate,
-                    recol_pos(token.start, cur_shift.start),
-                    cur_shift.orig_len,
-                    if cur_shift.escape_not_known {
-                        ukn_esc_str
-                    } else {
-                        esc_str
-                    },
-                );
-                next_col = cur_shift.start + cur_shift.orig_len;
             }
-            if next_col - token.start.col < token.len - closed_len {
+            buf.truncate(out_pos);
+            node.data.str_mut().size = out_pos;
+            node.data.str_mut().value = buf;
+        }
+    }
+    if pstate.colors.is_some() {
+        let mut next_col = token.start.col + 1;
+        let body_str = if is_double {
+            hl_group!(
+                is_invalid,
+                c"NvimDoubleQuotedBody",
+                c"NvimInvalidDoubleQuotedBody"
+            )
+        } else {
+            hl_group!(
+                is_invalid,
+                c"NvimSingleQuotedBody",
+                c"NvimInvalidSingleQuotedBody"
+            )
+        };
+        let esc_str = if is_double {
+            hl_group!(
+                is_invalid,
+                c"NvimDoubleQuotedEscape",
+                c"NvimInvalidDoubleQuotedEscape"
+            )
+        } else {
+            hl_group!(
+                is_invalid,
+                c"NvimSingleQuotedQuote",
+                c"NvimInvalidSingleQuotedQuote"
+            )
+        };
+        let ukn_esc_str = if is_double {
+            hl_group!(
+                is_invalid,
+                c"NvimDoubleQuotedUnknownEscape",
+                c"NvimInvalidDoubleQuotedUnknownEscape"
+            )
+        } else {
+            hl_group!(
+                is_invalid,
+                c"NvimSingleQuotedUnknownEscape",
+                c"NvimInvalidSingleQuotedUnknownEscape"
+            )
+        };
+        for cur_shift in &shifts {
+            if cur_shift.start > next_col {
                 viml_parser_highlight(
                     pstate,
                     recol_pos(token.start, next_col),
-                    token.start.col + token.len - closed_len - next_col,
+                    cur_shift.start - next_col,
                     body_str,
                 );
             }
+            viml_parser_highlight(
+                pstate,
+                recol_pos(token.start, cur_shift.start),
+                cur_shift.orig_len,
+                if cur_shift.escape_not_known {
+                    ukn_esc_str
+                } else {
+                    esc_str
+                },
+            );
+            next_col = cur_shift.start + cur_shift.orig_len;
         }
-        if token.data.str().closed {
-            if is_double {
-                viml_parser_highlight(
-                    pstate,
-                    shifted_pos(token.start, token.len - 1),
-                    1,
-                    hl_group!(is_invalid, c"NvimDoubleQuote", c"NvimInvalidDoubleQuote"),
-                );
-            } else {
-                viml_parser_highlight(
-                    pstate,
-                    shifted_pos(token.start, token.len - 1),
-                    1,
-                    hl_group!(is_invalid, c"NvimSingleQuote", c"NvimInvalidSingleQuote"),
-                );
-            }
+        if next_col - token.start.col < token.len - closed_len {
+            viml_parser_highlight(
+                pstate,
+                recol_pos(token.start, next_col),
+                token.start.col + token.len - closed_len - next_col,
+                body_str,
+            );
+        }
+    }
+    if token.data.str().closed {
+        if is_double {
+            viml_parser_highlight(
+                pstate,
+                shifted_pos(token.start, token.len - 1),
+                1,
+                hl_group!(is_invalid, c"NvimDoubleQuote", c"NvimInvalidDoubleQuote"),
+            );
+        } else {
+            viml_parser_highlight(
+                pstate,
+                shifted_pos(token.start, token.len - 1),
+                1,
+                hl_group!(is_invalid, c"NvimSingleQuote", c"NvimInvalidSingleQuote"),
+            );
         }
     }
 }
@@ -2720,10 +2709,7 @@ pub fn viml_pexpr_parse(pstate: &mut ParserState<'_>, flags: i32) -> ExprAST {
                                 pline.data.wrapping_add(cur_token.start.col + cur_token.len);
                             cur_node.data.opt_mut().ident_len = 0;
                             cur_node.data.opt_mut().scope = if cur_token.len == 3 {
-                                i32::from(crate::memory::cstr_byte_at(
-                                    pline.data,
-                                    cur_token.start.col + 1,
-                                ))
+                                i32::from(pline.as_bytes()[cur_token.start.col + 1])
                             } else {
                                 K_EXPR_OPT_SCOPE_UNSPECIFIED
                             };
@@ -4248,7 +4234,7 @@ mod tests {
     fn with_pstate<R>(input: &[u8], f: impl FnOnce(&mut ParserState<'_>) -> R) -> R {
         let lines = [
             ParserLine {
-                data: input.as_ptr().cast::<c_char>(),
+                data: input.as_ptr(),
                 size: input.len(),
             },
             ParserLine {

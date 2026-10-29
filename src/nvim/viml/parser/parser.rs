@@ -1,15 +1,25 @@
 //! VimL parser input reader and state lifecycle (`src/nvim/viml/parser/parser.c`).
 
-use crate::mbyte::{Vimconv, string_convert};
-use std::ffi::c_char;
+use crate::mbyte::{Vimconv, string_convert_slice};
 
 pub const CONV_NONE: i32 = 0;
 
 #[repr(C)]
 #[derive(Clone, Copy, Debug)]
 pub struct ParserLine {
-    pub data: *const c_char,
+    pub data: *const u8,
     pub size: usize,
+}
+
+impl ParserLine {
+    #[inline]
+    pub fn as_bytes(&self) -> &[u8] {
+        if self.size == 0 || self.data.is_null() {
+            &[]
+        } else {
+            unsafe { std::slice::from_raw_parts(self.data, self.size) }
+        }
+    }
 }
 
 #[repr(C)]
@@ -80,9 +90,9 @@ fn viml_preader_get_line(preader: &mut ParserInputReader<'_>, ret_pline: &mut Pa
             size: pline.size,
         };
         if let Some(conv_bytes) =
-            string_convert(&preader.conv, pline.data.cast_mut(), Some(&mut cpline.size))
+            string_convert_slice(&preader.conv, pline.as_bytes(), &mut cpline.size)
         {
-            cpline.data = conv_bytes.as_ptr().cast::<c_char>();
+            cpline.data = conv_bytes.as_ptr();
             preader.owned_lines.push(conv_bytes);
         }
         pline = cpline;
@@ -118,7 +128,7 @@ mod tests {
     fn preader_get_line_advances_cursor() {
         let lines = [
             ParserLine {
-                data: c"let x = 1".as_ptr(),
+                data: b"let x = 1".as_ptr(),
                 size: 9,
             },
             ParserLine {

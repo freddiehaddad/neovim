@@ -2340,6 +2340,29 @@ pub fn get_special_key_name(c: i32, modifiers: i32) -> *mut c_char {
     get_special_key(c, modifiers, None)
 }
 
+pub fn trans_special_slice(
+    src: &[u8],
+    dst: &mut [u8],
+    flags: i32,
+    escape_ks: bool,
+    did_simplify: Option<&mut bool>,
+) -> Option<(usize, usize)> {
+    let mut p = src.as_ptr().cast::<c_char>();
+    let dlen = trans_special(
+        &raw mut p,
+        src.len(),
+        dst.as_mut_ptr().cast::<c_char>(),
+        flags,
+        escape_ks,
+        did_simplify,
+    ) as usize;
+    if dlen == 0 {
+        None
+    } else {
+        Some(((p as usize) - (src.as_ptr() as usize), dlen))
+    }
+}
+
 /// Try translating a `<>` name ("keycode") (`trans_special`).
 pub fn trans_special(
     srcp: *mut *const c_char,

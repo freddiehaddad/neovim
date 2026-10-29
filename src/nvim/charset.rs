@@ -1075,6 +1075,29 @@ pub fn vim_isblankline(lbuf: impl crate::strings::IntoCCharPtr) -> bool {
     }
 }
 
+pub fn vim_slice2nr(
+    bytes: &[u8],
+    prep: Option<&mut i32>,
+    len: Option<&mut i32>,
+    what: i32,
+    nptr: Option<&mut Varnumber>,
+    unptr: Option<&mut Uvarnumber>,
+    strict: bool,
+    overflow: Option<&mut bool>,
+) {
+    vim_str2nr(
+        bytes.as_ptr().cast::<c_char>(),
+        prep,
+        len,
+        what,
+        nptr,
+        unptr,
+        bytes.len() as i32,
+        strict,
+        overflow,
+    );
+}
+
 pub fn vim_str2nr(
     start: impl crate::strings::IntoCCharPtr,
     prep: Option<&mut i32>,

@@ -3703,7 +3703,7 @@ pub fn realloc_cmdbuff(mut len: i32) {
 fn color_expr_cmdline(colored_ccline: &CmdlineInfo, ret_ccline_colors: &mut ColoredCmdline) {
     let parser_lines = [
         ParserLine {
-            data: colored_ccline.cmdbuff,
+            data: colored_ccline.cmdbuff.cast::<u8>(),
             size: crate::memory::cstr_len(colored_ccline.cmdbuff),
         },
         ParserLine {
