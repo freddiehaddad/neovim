@@ -401,9 +401,9 @@ fn do_log_to_file_str(
         let mut date_time = [0u8; 20];
         if unsafe {
             strftime(
-                date_time.as_mut_ptr().cast(),
+                date_time.as_mut_ptr(),
                 date_time.len(),
-                c"%Y-%m-%dT%H:%M:%S".as_ptr(),
+                c"%Y-%m-%dT%H:%M:%S".as_ptr().cast(),
                 &raw const local_time,
             )
         } == 0

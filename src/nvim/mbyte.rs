@@ -3061,13 +3061,13 @@ pub fn enc_canonize(enc: impl crate::strings::IntoCCharPtr) -> std::ffi::CString
 
 pub fn enc_locale() -> Option<std::ffi::CString> {
     #[cfg(unix)]
-    let mut s: *const c_char = unsafe { nl_langinfo(CODESET) };
+    let mut s: *const c_char = unsafe { nl_langinfo(CODESET).cast() };
     #[cfg(not(unix))]
     let mut s: *const c_char = ptr::null();
 
     let mut env_buf = [0 as c_char; 64];
     if crate::memory::cstr_is_empty(s) {
-        s = unsafe { setlocale(LC_CTYPE, ptr::null()) };
+        s = unsafe { setlocale(LC_CTYPE, ptr::null()).cast() };
         if crate::memory::cstr_is_empty(s) {
             s = os_getenv_buf(c"LC_ALL", env_buf.as_mut_ptr(), env_buf.len());
             if s.is_null() {

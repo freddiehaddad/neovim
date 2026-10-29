@@ -4933,13 +4933,15 @@ fn expand_other(
         },
         ExpGen {
             context: EXPAND_LANGUAGE,
-            func: get_lang_arg,
+            func: |xp, idx| {
+                get_lang_arg(xp, idx).map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut())
+            },
             ic: true,
             escaped: false,
         },
         ExpGen {
             context: EXPAND_LOCALES,
-            func: get_locales,
+            func: |xp, idx| get_locales(xp, idx).map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut()),
             ic: true,
             escaped: false,
         },

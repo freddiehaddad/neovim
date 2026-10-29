@@ -8319,7 +8319,14 @@ pub fn f_strftime(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDat
     }
     let mut result_buf = [0 as c_char; 256];
     if p.is_null()
-        || unsafe { strftime(result_buf.as_mut_ptr(), result_buf.len(), p, curtime_ptr) } == 0
+        || unsafe {
+            strftime(
+                result_buf.as_mut_ptr().cast(),
+                result_buf.len(),
+                p.cast(),
+                curtime_ptr,
+            )
+        } == 0
     {
         result_buf[0] = NUL;
     }

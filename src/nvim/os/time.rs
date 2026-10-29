@@ -6,7 +6,7 @@ use crate::memory::xstrlcpy;
 #[cfg(unix)]
 use crate::os::env::os_getenv_buf;
 use crate::os::input::os_input_ready;
-use std::ffi::{CStr, c_char};
+use std::ffi::CStr;
 
 pub type Timestamp = u64;
 #[allow(non_camel_case_types)]
@@ -50,14 +50,14 @@ fn ostime_st() -> &'static mut OsTimeState {
 unsafe extern "C" {
     #[cfg_attr(target_os = "windows", link_name = "_mktime64")]
     pub fn mktime(tm: *mut Tm) -> time_t;
-    pub fn strftime(s: *mut c_char, max: usize, format: *const c_char, tm: *const Tm) -> usize;
+    pub fn strftime(s: *mut u8, max: usize, format: *const u8, tm: *const Tm) -> usize;
 
     #[cfg(unix)]
     fn tzset();
     #[cfg(unix)]
     fn localtime_r(clock: *const time_t, result: *mut Tm) -> *mut Tm;
     #[cfg(unix)]
-    fn strptime(s: *const c_char, format: *const c_char, tm: *mut Tm) -> *mut c_char;
+    fn strptime(s: *const u8, format: *const u8, tm: *mut Tm) -> *mut u8;
 
     #[cfg(target_os = "windows")]
     #[link_name = "_localtime64"]
@@ -177,9 +177,9 @@ pub fn os_ctime_r<'a>(clock: &time_t, result: &'a mut [u8], add_newline: bool) -
     if ptr.is_null()
         || unsafe {
             strftime(
-                result.as_mut_ptr().cast(),
+                result.as_mut_ptr(),
                 result_len.saturating_sub(1),
-                c"%a %b %d %H:%M:%S %Y".as_ptr(),
+                c"%a %b %d %H:%M:%S %Y".as_ptr().cast(),
                 ptr,
             )
         } == 0
@@ -201,7 +201,7 @@ pub fn os_ctime_r<'a>(clock: &time_t, result: &'a mut [u8], add_newline: bool) -
 pub fn os_strptime(str_ptr: &CStr, format: &CStr, tm: *mut Tm) -> bool {
     #[cfg(unix)]
     unsafe {
-        !strptime(str_ptr.as_ptr(), format.as_ptr(), tm).is_null()
+        !strptime(str_ptr.as_ptr().cast(), format.as_ptr().cast(), tm).is_null()
     }
     #[cfg(not(unix))]
     {

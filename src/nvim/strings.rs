@@ -118,11 +118,12 @@ pub fn tr<S: IntoCCharPtr>(s: S) -> *mut c_char {
 #[inline]
 pub fn gettext<S: IntoCCharPtr>(msgid: S) -> *mut c_char {
     let msgid = msgid.into_c_char_ptr();
-    if crate::os::lang::HAVE_LIBINTL {
-        crate::os::lang::c_gettext(msgid)
-    } else {
-        msgid.cast_mut()
+    if crate::os::lang::HAVE_LIBINTL
+        && let Some(tr) = crate::os::lang::c_gettext(msgid)
+    {
+        return tr.as_ptr().cast_mut();
     }
+    msgid.cast_mut()
 }
 
 pub trait IntoNgettextCount {
@@ -180,9 +181,12 @@ pub fn ngettext<S1: IntoCCharPtr, S2: IntoCCharPtr, N: IntoNgettextCount>(
     let msgid1 = msgid1.into_c_char_ptr();
     let msgid2 = msgid2.into_c_char_ptr();
     let count = n.into_ngettext_count();
-    if crate::os::lang::HAVE_LIBINTL {
-        crate::os::lang::c_ngettext(msgid1, msgid2, count)
-    } else if count == 1 {
+    if crate::os::lang::HAVE_LIBINTL
+        && let Some(tr) = crate::os::lang::c_ngettext(msgid1, count)
+    {
+        return tr.as_ptr().cast_mut();
+    }
+    if count == 1 {
         msgid1.cast_mut()
     } else {
         msgid2.cast_mut()

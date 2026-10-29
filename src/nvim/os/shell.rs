@@ -2,7 +2,7 @@
 
 use crate::api::private::validate::NvimString;
 use crate::buffer::{K_UIMESSAGES, read_buffer_into};
-use crate::charset::{NL, NUL, skipwhite};
+use crate::charset::{NL, skipwhite};
 #[cfg(unix)]
 use crate::charset::{ascii_iswhite, backslash_halve};
 use crate::errors::*;
@@ -56,9 +56,8 @@ use crate::profile::{Proftime, prof_child_enter, prof_child_exit};
 use crate::strings::{gettext, vim_strnsave_unquoted, vim_strsave_escaped_ext};
 use crate::tag::tag_freematch;
 use crate::ui::{ui_busy_start, ui_busy_stop, ui_flush, ui_has};
-#[cfg(unix)]
+#[cfg(any(unix, test))]
 use std::ffi::CStr;
-use std::ffi::c_char;
 use std::ptr;
 
 use crate::autocmd::PROF_YES;
@@ -136,23 +135,24 @@ unsafe extern "system" {
 }
 
 #[cfg(unix)]
-fn save_patterns(num_pat: i32, pat: *mut *mut c_char, file: &mut Vec<std::ffi::CString>) {
+fn save_patterns(num_pat: i32, pat: *mut *mut u8, file: &mut Vec<std::ffi::CString>) {
     unsafe {
         file.clear();
         file.reserve(num_pat as usize);
         for i in 0..(num_pat as usize) {
-            let mut v: Vec<c_char> = crate::memory::cstr_to_cchar_vec(*pat.add(i));
-            backslash_halve(v.as_mut_ptr());
-            file.push(crate::memory::cstr_to_cstring(v.as_ptr()));
+            let mut v: Vec<u8> = crate::memory::cstr_as_bytes((*pat.add(i)).cast()).to_vec();
+            v.push(0);
+            backslash_halve(v.as_mut_ptr().cast());
+            file.push(crate::memory::cstr_to_cstring(v.as_ptr().cast()));
         }
     }
 }
 
 #[cfg(unix)]
-fn have_wildcard(num: i32, file: *mut *mut c_char) -> bool {
+fn have_wildcard(num: i32, file: *mut *mut u8) -> bool {
     unsafe {
         for i in 0..(num as usize) {
-            if path_has_wildcard(*file.add(i), true) {
+            if path_has_wildcard((*file.add(i)).cast(), true) {
                 return true;
             }
         }
@@ -161,10 +161,10 @@ fn have_wildcard(num: i32, file: *mut *mut c_char) -> bool {
 }
 
 #[cfg(unix)]
-fn have_dollars(num: i32, file: *mut *mut c_char) -> bool {
+fn have_dollars(num: i32, file: *mut *mut u8) -> bool {
     unsafe {
         for i in 0..(num as usize) {
-            if crate::strings::vim_haschr(*file.add(i), b'$' as i32) {
+            if crate::strings::vim_haschr((*file.add(i)).cast(), b'$' as i32) {
                 return true;
             }
         }
@@ -176,7 +176,7 @@ fn have_dollars(num: i32, file: *mut *mut c_char) -> bool {
 #[cfg(unix)]
 pub fn os_expand_wildcards(
     num_pat: i32,
-    pat: *mut *mut c_char,
+    pat: *mut *mut u8,
     file: &mut Vec<std::ffi::CString>,
     flags: i32,
 ) -> bool {
@@ -185,7 +185,7 @@ pub fn os_expand_wildcards(
     const SH_GLOBSTAR_OPT: &CStr = c"[[ ${BASH_VERSINFO[0]} -ge 4 ]] && shopt -s globstar; ";
 
     unsafe {
-        let mut extra_shell_arg: *mut c_char = ptr::null_mut();
+        let mut extra_shell_arg: *mut u8 = ptr::null_mut();
         let mut shellopts: i32 = K_SHELL_OPT_EXPAND | K_SHELL_OPT_SILENT;
         let mut shell_style: i32 = STYLE_ECHO;
         let mut ampersand = false;
@@ -212,7 +212,8 @@ pub fn os_expand_wildcards(
 
         if g_st().secure != 0 {
             for i in 0..(num_pat as usize) {
-                if crate::strings::vim_haschr(*pat.add(i), b'`' as i32) && check_secure() {
+                if crate::strings::vim_haschr((*pat.add(i)).cast(), b'`' as i32) && check_secure()
+                {
                     return false;
                 }
             }
@@ -224,9 +225,9 @@ pub fn os_expand_wildcards(
         };
         let tempname = tempname_cstr.as_ptr();
 
-        if num_pat == 1 && **pat == b'`' as c_char {
-            let pat0_len = crate::memory::cstr_len(*pat);
-            if pat0_len > 2 && crate::memory::cstr_byte_at(*pat, pat0_len - 1) == b'`' {
+        if num_pat == 1 && **pat == b'`' {
+            let pat0_len = crate::memory::cstr_len((*pat).cast());
+            if pat0_len > 2 && crate::memory::cstr_byte_at((*pat).cast(), pat0_len - 1) == b'`' {
                 shell_style = STYLE_BT;
             }
         }
@@ -277,112 +278,86 @@ pub fn os_expand_wildcards(
             len += b"egin; end".len();
         }
 
-        let mut command_vec = vec![0 as c_char; len];
+        let mut command_vec = vec![0u8; len];
         let command = command_vec.as_mut_ptr();
 
         if shell_style == STYLE_BT {
             if is_fish_shell {
-                {
-                    let s = c"begin; ".as_ptr();
-                    std::ptr::copy_nonoverlapping(
-                        s,
-                        command,
-                        std::ffi::CStr::from_ptr(s).to_bytes_with_nul().len(),
-                    );
-                };
+                crate::memory::cstr_cpy(command.cast(), c"begin; ");
             } else {
-                crate::memory::cstr_cpy(command, c"(");
+                crate::memory::cstr_cpy(command.cast(), c"(");
             }
-            crate::memory::cstr_cat(command, (*pat).add(1));
-            let mut p = command.add(crate::memory::cstr_len(command) - 1);
+            crate::memory::cstr_cat(command.cast(), (*pat).add(1).cast());
+            let mut p = command.add(crate::memory::cstr_len(command.cast()) - 1);
             if is_fish_shell {
-                *p = b';' as c_char;
+                *p = b';';
                 p = p.sub(1);
-                crate::memory::cstr_cat(command, c" end");
+                crate::memory::cstr_cat(command.cast(), c" end");
             } else {
-                *p = b')' as c_char;
+                *p = b')';
                 p = p.sub(1);
             }
-            while (p as usize) > (command as usize)
-                && ascii_iswhite(crate::memory::cstr_first_char(p))
-            {
+            while (p as usize) > (command as usize) && ascii_iswhite(i32::from(*p)) {
                 p = p.sub(1);
             }
-            if crate::memory::cstr_first_byte(p) == b'&' {
+            if *p == b'&' {
                 ampersand = true;
-                *p = b' ' as c_char;
+                *p = b' ';
             }
-            crate::memory::cstr_cat(command, c">");
+            crate::memory::cstr_cat(command.cast(), c">");
         } else {
-            *command = NUL;
+            *command = 0;
             if shell_style == STYLE_GLOB {
                 if (flags & EW_NOTFOUND) != 0 {
-                    {
-                        let d = command;
-                        let s = c"set nonomatch; ".as_ptr();
-                        std::ptr::copy_nonoverlapping(
-                            s,
-                            d.add(crate::memory::cstr_len(d)),
-                            std::ffi::CStr::from_ptr(s).to_bytes_with_nul().len(),
-                        );
-                    };
+                    crate::memory::cstr_cat(command.cast(), c"set nonomatch; ");
                 } else {
-                    {
-                        let d = command;
-                        let s = c"unset nonomatch; ".as_ptr();
-                        std::ptr::copy_nonoverlapping(
-                            s,
-                            d.add(crate::memory::cstr_len(d)),
-                            std::ffi::CStr::from_ptr(s).to_bytes_with_nul().len(),
-                        );
-                    };
+                    crate::memory::cstr_cat(command.cast(), c"unset nonomatch; ");
                 }
             }
             if shell_style == STYLE_GLOB {
-                crate::memory::cstr_cat(command, c"glob >");
+                crate::memory::cstr_cat(command.cast(), c"glob >");
             } else if shell_style == STYLE_PRINT {
-                crate::memory::cstr_cat(command, c"print -N >");
+                crate::memory::cstr_cat(command.cast(), c"print -N >");
             } else if shell_style == STYLE_VIMGLOB {
-                crate::memory::cstr_cat(command, SH_VIMGLOB_FUNC);
+                crate::memory::cstr_cat(command.cast(), SH_VIMGLOB_FUNC);
             } else if shell_style == STYLE_GLOBSTAR {
-                crate::memory::cstr_cat(command, SH_GLOBSTAR_OPT);
-                crate::memory::cstr_cat(command, SH_VIMGLOB_FUNC);
+                crate::memory::cstr_cat(command.cast(), SH_GLOBSTAR_OPT);
+                crate::memory::cstr_cat(command.cast(), SH_VIMGLOB_FUNC);
             } else {
-                crate::memory::cstr_cat(command, c"echo >");
+                crate::memory::cstr_cat(command.cast(), c"echo >");
             }
         }
 
-        crate::memory::cstr_cat(command, tempname);
+        crate::memory::cstr_cat(command.cast(), tempname);
 
         if shell_style != STYLE_BT {
             for i in 0..(num_pat as usize) {
                 let mut intick = false;
                 let p_i = *pat.add(i);
 
-                let mut p = command.add(crate::memory::cstr_len(command));
-                *p = b' ' as c_char;
+                let mut p = command.add(crate::memory::cstr_len(command.cast()));
+                *p = b' ';
                 p = p.add(1);
                 let mut j = 0;
-                while crate::memory::cstr_byte_at(p_i, j) != 0 {
+                while *p_i.add(j) != 0 {
                     let ch = *p_i.add(j);
-                    if ch == b'`' as c_char {
+                    if ch == b'`' {
                         intick = !intick;
-                    } else if ch == b'\\' as c_char && crate::memory::cstr_byte_at(p_i, j + 1) != 0
-                    {
+                    } else if ch == b'\\' && *p_i.add(j + 1) != 0 {
                         let next_ch = *p_i.add(j + 1);
                         if intick
-                            || crate::strings::vim_haschr(SHELL_SPECIAL, next_ch as u8 as i32)
-                            || next_ch == b'`' as c_char
+                            || crate::strings::vim_haschr(SHELL_SPECIAL, i32::from(next_ch))
+                            || next_ch == b'`'
                         {
-                            *p = b'\\' as c_char;
+                            *p = b'\\';
                             p = p.add(1);
                         }
                         j += 1;
                     } else if !intick
-                        && ((flags & EW_KEEPDOLLAR) == 0 || ch != b'$' as c_char)
-                        && crate::strings::vim_haschr(SHELL_SPECIAL, ch as u8 as i32)
+                        && ((flags & EW_KEEPDOLLAR) == 0 || ch != b'$')
+                        && crate::strings::vim_haschr(SHELL_SPECIAL, i32::from(ch))
                     {
-                        *p = b'\\' as c_char;
+                        *p = b'\\';
                         p = p.add(1);
                     }
 
@@ -390,7 +365,7 @@ pub fn os_expand_wildcards(
                     p = p.add(1);
                     j += 1;
                 }
-                *p = NUL;
+                *p = 0;
             }
         }
 
@@ -459,7 +434,7 @@ pub fn os_expand_wildcards(
         }
         len = templen as usize;
         vim_fseek(fd, 0, SEEK_SET);
-        let mut buffer_vec = vec![0 as c_char; len + 1];
+        let mut buffer_vec = vec![0u8; len + 1];
         let buffer = buffer_vec.as_mut_ptr();
         let readlen = fread(buffer.cast(), 1, len, fd);
         fclose(fd);
@@ -472,57 +447,52 @@ pub fn os_expand_wildcards(
 
         let mut count: i32 = 0;
         if shell_style == STYLE_ECHO {
-            *buffer.add(len) = b'\n' as c_char;
+            *buffer.add(len) = b'\n';
             let mut p = buffer;
-            while crate::memory::cstr_first_byte(p) != b'\n' {
-                while crate::memory::cstr_first_byte(p) != b' '
-                    && crate::memory::cstr_first_byte(p) != b'\n'
-                {
+            while *p != b'\n' {
+                while *p != b' ' && *p != b'\n' {
                     p = p.add(1);
                 }
-                p = skipwhite(p);
+                p = skipwhite(p.cast()).cast();
                 count += 1;
             }
         } else if shell_style == STYLE_BT
             || shell_style == STYLE_VIMGLOB
             || shell_style == STYLE_GLOBSTAR
         {
-            *buffer.add(len) = NUL;
+            *buffer.add(len) = 0;
             let mut p = buffer;
-            while !crate::memory::cstr_is_empty(p) {
-                while crate::memory::cstr_first_byte(p) != b'\n' && !crate::memory::cstr_is_empty(p)
-                {
+            while *p != 0 {
+                while *p != b'\n' && *p != 0 {
                     p = p.add(1);
                 }
-                if !crate::memory::cstr_is_empty(p) {
+                if *p != 0 {
                     p = p.add(1);
                 }
-                p = skipwhite(p);
+                p = skipwhite(p.cast()).cast();
                 count += 1;
             }
         } else {
             let mut check_spaces = false;
             if shell_style == STYLE_PRINT && !sh_st().did_find_nul {
-                *buffer.add(len) = NUL;
-                if len != 0 && (crate::memory::cstr_len(buffer) as i32) < (len as i32) {
+                *buffer.add(len) = 0;
+                if len != 0 && (crate::memory::cstr_len(buffer.cast()) as i32) < (len as i32) {
                     sh_st().did_find_nul = true;
                 } else {
                     check_spaces = true;
                 }
             }
 
-            if len != 0 && crate::memory::cstr_byte_at(buffer, len - 1) == 0 {
+            if len != 0 && *buffer.add(len - 1) == 0 {
                 len -= 1;
             } else {
-                *buffer.add(len) = NUL;
+                *buffer.add(len) = 0;
             }
             let mut p = buffer;
             while (p as usize) < (buffer.add(len) as usize) {
-                if crate::memory::cstr_is_empty(p)
-                    || (crate::memory::cstr_first_byte(p) == b' ' && check_spaces)
-                {
+                if *p == 0 || (*p == b' ' && check_spaces) {
                     count += 1;
-                    *p = NUL;
+                    *p = 0;
                 }
                 p = p.add(1);
             }
@@ -530,10 +500,7 @@ pub fn os_expand_wildcards(
                 count += 1;
             }
         }
-        debug_assert!(
-            crate::memory::cstr_byte_at(buffer, len) == 0
-                || crate::memory::cstr_byte_at(buffer, len) == b'\n'
-        );
+        debug_assert!(*buffer.add(len) == 0 || *buffer.add(len) == b'\n');
 
         if count == 0 {
             if (flags & EW_NOTFOUND) != 0 {
@@ -542,7 +509,7 @@ pub fn os_expand_wildcards(
             }
             return false;
         }
-        let mut raw_entries: Vec<*mut c_char> = Vec::with_capacity(count as usize);
+        let mut raw_entries: Vec<*mut u8> = Vec::with_capacity(count as usize);
 
         let mut p = buffer;
         for _ in 0..(count as usize) {
@@ -552,21 +519,17 @@ pub fn os_expand_wildcards(
                 || shell_style == STYLE_VIMGLOB
                 || shell_style == STYLE_GLOBSTAR
             {
-                while !(shell_style == STYLE_ECHO && crate::memory::cstr_first_byte(p) == b' ')
-                    && crate::memory::cstr_first_byte(p) != b'\n'
-                    && !crate::memory::cstr_is_empty(p)
-                {
+                while !(shell_style == STYLE_ECHO && *p == b' ') && *p != b'\n' && *p != 0 {
                     p = p.add(1);
                 }
                 if p == buffer.add(len) {
-                    *p = NUL;
+                    *p = 0;
                 } else {
-                    *p = NUL;
-                    p = skipwhite(p.add(1));
+                    *p = 0;
+                    p = skipwhite(p.add(1).cast()).cast();
                 }
             } else {
-                while !crate::memory::cstr_is_empty(p) && (p as usize) < (buffer.add(len) as usize)
-                {
+                while *p != 0 && (p as usize) < (buffer.add(len) as usize) {
                     p = p.add(1);
                 }
                 p = p.add(1);
@@ -574,29 +537,29 @@ pub fn os_expand_wildcards(
         }
 
         for entry in raw_entries {
-            if (flags & EW_NOTFOUND) == 0 && !os_path_exists(entry) {
+            if (flags & EW_NOTFOUND) == 0 && !os_path_exists(entry.cast()) {
                 continue;
             }
 
-            let dir = os_isdir(entry);
+            let dir = os_isdir(entry.cast());
             if (dir && (flags & EW_DIR) == 0) || (!dir && (flags & EW_FILE) == 0) {
                 continue;
             }
 
             if !dir
                 && (flags & EW_EXEC) != 0
-                && !os_can_exe(entry, None, (flags & EW_SHELLCMD) == 0)
+                && !os_can_exe(entry.cast(), None, (flags & EW_SHELLCMD) == 0)
             {
                 continue;
             }
 
-            let entry_len = crate::memory::cstr_len(entry);
-            let mut new_vec = vec![0 as c_char; entry_len + 1 + usize::from(dir)];
-            crate::memory::cstr_cpy(new_vec.as_mut_ptr(), entry);
+            let entry_len = crate::memory::cstr_len(entry.cast());
+            let mut new_vec = vec![0u8; entry_len + 1 + usize::from(dir)];
+            crate::memory::cstr_cpy(new_vec.as_mut_ptr().cast(), entry.cast());
             if dir {
-                add_pathsep(new_vec.as_mut_ptr());
+                add_pathsep(new_vec.as_mut_ptr().cast());
             }
-            file.push(crate::memory::cstr_to_cstring(new_vec.as_ptr()));
+            file.push(crate::memory::cstr_to_cstring(new_vec.as_ptr().cast()));
         }
         drop(buffer_vec);
 
@@ -639,47 +602,38 @@ pub fn shell_build_argv(
     }
 }
 
-/// Joins shell arguments from `argv` into a fixed 256-byte string buffer.
-pub fn shell_argv_to_str(argv: &[std::ffi::CString]) -> [c_char; 256] {
-    let mut n: usize = 0;
-    let maxsize: usize = 256;
-    let mut rv: [c_char; 256] = [0; 256];
-    let rv_ptr = rv.as_mut_ptr();
+/// Joins shell arguments from `argv` into a `CString` (truncated at 255 bytes with `"..."`).
+pub fn shell_argv_to_str(argv: &[std::ffi::CString]) -> std::ffi::CString {
+    const MAXSIZE: usize = 256;
     if argv.is_empty() {
-        return rv;
+        return std::ffi::CString::default();
     }
+    let mut out = Vec::with_capacity(MAXSIZE);
+    let mut overflow = false;
+    let push_bytes = |out: &mut Vec<u8>, bytes: &[u8], overflow: &mut bool| {
+        let avail = (MAXSIZE - 1).saturating_sub(out.len());
+        if bytes.len() > avail {
+            out.extend_from_slice(&bytes[..avail]);
+            *overflow = true;
+        } else {
+            out.extend_from_slice(bytes);
+        }
+    };
     for arg in argv {
-        {
-            let _dst: *mut c_char = rv_ptr;
-            let _dsize: usize = maxsize;
-            let _dlen = crate::memory::cstr_len(_dst);
-            crate::memory::xstrlcpy(_dst.wrapping_add(_dlen), c"'", _dsize - _dlen);
-        };
-        {
-            let _dst: *mut c_char = rv_ptr;
-            let _dsize: usize = maxsize;
-            let _dlen = crate::memory::cstr_len(_dst);
-            crate::memory::xstrlcpy(_dst.wrapping_add(_dlen), arg.as_ptr(), _dsize - _dlen);
-        };
-        n = {
-            let _dst: *mut c_char = rv_ptr;
-            let _dsize: usize = maxsize;
-            let _dlen = crate::memory::cstr_len(_dst);
-            crate::memory::xstrlcpy(_dst.wrapping_add(_dlen), c"' ", _dsize - _dlen) + _dlen
-        };
-        if n >= maxsize {
+        push_bytes(&mut out, b"'", &mut overflow);
+        push_bytes(&mut out, arg.as_bytes(), &mut overflow);
+        push_bytes(&mut out, b"' ", &mut overflow);
+        if overflow {
             break;
         }
     }
-    if n < maxsize {
-        rv[n - 1] = NUL;
-    } else {
-        rv[maxsize - 4] = b'.' as c_char;
-        rv[maxsize - 3] = b'.' as c_char;
-        rv[maxsize - 2] = b'.' as c_char;
-        rv[maxsize - 1] = NUL;
+    if !overflow {
+        out.pop();
+    } else if out.len() >= MAXSIZE - 4 {
+        out.truncate(MAXSIZE - 4);
+        out.extend_from_slice(b"...");
     }
-    rv
+    std::ffi::CString::new(out).unwrap_or_default()
 }
 
 /// Calls the user-configured 'shell' (opt_vars().p_sh) for running a command or wildcard expansion.
@@ -725,8 +679,7 @@ pub fn os_call_shell(
     drop(input);
 
     if !output.is_empty() {
-        let nread = output.len();
-        write_output(output.as_mut_ptr().cast::<c_char>(), nread, true);
+        write_output(&mut output, true);
     }
 
     if g_st().emsg_silent == 0 && exitcode != 0 && (opts & K_SHELL_OPT_SILENT) == 0 {
@@ -903,8 +856,8 @@ fn do_os_system(
         StreamCbData::ShellBuf(&raw mut buf)
     };
 
-    let mut prog = [0 as c_char; MAXPATHL];
-    xstrlcpy(prog.as_mut_ptr(), argv[0].as_ptr(), MAXPATHL);
+    let mut prog = [0u8; MAXPATHL];
+    xstrlcpy(prog.as_mut_ptr().cast(), argv[0].as_ptr(), MAXPATHL);
 
     let mloop = main_loop_ptr();
     let mut uvproc = LibuvProc::new();
@@ -928,7 +881,7 @@ fn do_os_system(
                 msg_puts(gettext(c"\nshell failed to start: "));
                 msg_outtrans(unsafe { uv_strerror(status) }, 0, false);
                 msg_puts(c": ");
-                msg_outtrans(prog.as_ptr(), 0, false);
+                msg_outtrans(prog.as_ptr().cast(), 0, false);
                 msg_putchar(b'\n' as i32);
             }
             break 'end;
@@ -1194,70 +1147,75 @@ fn read_input(buf: &mut Vec<u8>) {
     );
 }
 
-fn write_output(mut output: *mut c_char, mut remaining: usize, eof: bool) -> usize {
-    if output.is_null() {
+fn write_output(output: &mut Vec<u8>, eof: bool) -> usize {
+    let mut remaining = output.len();
+    if remaining == 0 {
         return 0;
     }
-    {
-        let start = output;
-        let mut off: usize = 0;
-        while off < remaining {
-            if unsafe { *output.wrapping_add(off) } == CAR
-                && off + 1 < remaining
-                && unsafe { *output.wrapping_add(off + 1) } == NL
-                && curbuf_mut().b_p_bin == 0
-            {
-                unsafe {
-                    *output.wrapping_add(off) = NUL;
-                }
-                let lnum = curwin_mut().w_cursor.lnum;
-                curwin_mut().w_cursor.lnum += 1;
-                ml_append(lnum, output, off as i32 + 1, false);
-                let skip = off + 2;
-                output = output.wrapping_add(skip);
-                remaining -= skip;
-                off = 0;
-                continue;
-            } else if (unsafe { *output.wrapping_add(off) } == CAR && curbuf_mut().b_p_bin == 0)
-                || unsafe { *output.wrapping_add(off) } == NL
-            {
-                unsafe {
-                    *output.wrapping_add(off) = NUL;
-                }
-                let lnum = curwin_mut().w_cursor.lnum;
-                curwin_mut().w_cursor.lnum += 1;
-                ml_append(lnum, output, off as i32 + 1, false);
-                let skip = off + 1;
-                output = output.wrapping_add(skip);
-                remaining -= skip;
-                off = 0;
-                continue;
-            }
-
-            if crate::memory::cstr_byte_at(output, off) == 0 {
-                unsafe {
-                    *output.wrapping_add(off) = NL;
-                }
-            }
-            off += 1;
+    output.push(0);
+    let mut base: usize = 0;
+    let mut off: usize = 0;
+    while off < remaining {
+        if output[base + off] == CAR as u8
+            && off + 1 < remaining
+            && output[base + off + 1] == NL as u8
+            && curbuf_mut().b_p_bin == 0
+        {
+            output[base + off] = 0;
+            let lnum = curwin_mut().w_cursor.lnum;
+            curwin_mut().w_cursor.lnum += 1;
+            ml_append(
+                lnum,
+                output[base..].as_mut_ptr().cast(),
+                off as i32 + 1,
+                false,
+            );
+            let skip = off + 2;
+            base += skip;
+            remaining -= skip;
+            off = 0;
+            continue;
+        } else if (output[base + off] == CAR as u8 && curbuf_mut().b_p_bin == 0)
+            || output[base + off] == NL as u8
+        {
+            output[base + off] = 0;
+            let lnum = curwin_mut().w_cursor.lnum;
+            curwin_mut().w_cursor.lnum += 1;
+            ml_append(
+                lnum,
+                output[base..].as_mut_ptr().cast(),
+                off as i32 + 1,
+                false,
+            );
+            let skip = off + 1;
+            base += skip;
+            remaining -= skip;
+            off = 0;
+            continue;
         }
 
-        if eof {
-            if remaining != 0 {
-                let lnum = curwin_mut().w_cursor.lnum;
-                curwin_mut().w_cursor.lnum += 1;
-                ml_append(lnum, output, 0, false);
-                curbuf_mut().b_no_eol_lnum = curwin_mut().w_cursor.lnum;
-                output = output.wrapping_add(remaining);
-            } else {
-                curbuf_mut().b_no_eol_lnum = 0;
-            }
+        if output[base + off] == 0 {
+            output[base + off] = NL as u8;
         }
-
-        ui_flush();
-
-        (output as usize).wrapping_sub(start as usize)
+        off += 1;
     }
+
+    if eof {
+        if remaining != 0 {
+            let lnum = curwin_mut().w_cursor.lnum;
+            curwin_mut().w_cursor.lnum += 1;
+            ml_append(lnum, output[base..].as_mut_ptr().cast(), 0, false);
+            curbuf_mut().b_no_eol_lnum = curwin_mut().w_cursor.lnum;
+            base += remaining;
+        } else {
+            curbuf_mut().b_no_eol_lnum = 0;
+        }
+    }
+    output.pop();
+
+    ui_flush();
+
+    base
 }
 
 pub(crate) fn shell_write_cb(stream: &mut Stream, status: i32) {
@@ -1282,7 +1240,7 @@ fn shell_xescape_xquote(cmd: impl crate::strings::IntoCCharPtr) -> std::ffi::CSt
             Some(vim_strsave_escaped_ext(
                 cmd,
                 opt_vars().p_sxe,
-                b'^' as c_char,
+                b'^' as _,
                 false,
             ))
         } else {
@@ -1334,31 +1292,34 @@ mod tests {
         opt_vars().p_sxq = c"".as_ptr().cast_mut();
         opt_vars().p_sxe = c"".as_ptr().cast_mut();
 
-        let collect_argv = |cmd: *const c_char, extra: *const c_char| -> Vec<String> {
-            shell_build_argv(cmd, extra)
-                .into_iter()
-                .map(|arg| arg.into_string().unwrap())
-                .collect()
+        let collect_argv = |cmd: Option<&CStr>, extra: Option<&CStr>| -> Vec<String> {
+            shell_build_argv(
+                cmd.map_or(ptr::null(), CStr::as_ptr),
+                extra.map_or(ptr::null(), CStr::as_ptr),
+            )
+            .into_iter()
+            .map(|arg| arg.into_string().unwrap())
+            .collect()
         };
 
-        assert_eq!(collect_argv(ptr::null(), ptr::null()), vec!["/bin/sh"]);
+        assert_eq!(collect_argv(None, None), vec!["/bin/sh"]);
         assert_eq!(
-            collect_argv(c"abc  def".as_ptr(), ptr::null()),
+            collect_argv(Some(c"abc  def"), None),
             vec!["/bin/sh", "-c", "abc  def"]
         );
         assert_eq!(
-            collect_argv(ptr::null(), c"ghi  jkl".as_ptr()),
+            collect_argv(None, Some(c"ghi  jkl")),
             vec!["/bin/sh", "ghi  jkl"]
         );
         assert_eq!(
-            collect_argv(c"abc  def".as_ptr(), c"ghi  jkl".as_ptr()),
+            collect_argv(Some(c"abc  def"), Some(c"ghi  jkl")),
             vec!["/bin/sh", "ghi  jkl", "-c", "abc  def"]
         );
 
         opt_vars().p_sh = c"/Program\" \"Files/zsh -f".as_ptr().cast_mut();
         opt_vars().p_shcf = c"-x -o \"sh word split\" \"-\"c".as_ptr().cast_mut();
         assert_eq!(
-            collect_argv(c"abc  def".as_ptr(), c"ghi  jkl".as_ptr()),
+            collect_argv(Some(c"abc  def"), Some(c"ghi  jkl")),
             vec![
                 "/Program Files/zsh",
                 "-f",
@@ -1376,29 +1337,26 @@ mod tests {
         opt_vars().p_sxq = c"(".as_ptr().cast_mut();
         opt_vars().p_sxe = c"\"&|<>()@^".as_ptr().cast_mut();
         assert_eq!(
-            collect_argv(c"echo &|<>()@^".as_ptr(), ptr::null()),
+            collect_argv(Some(c"echo &|<>()@^"), None),
             vec!["/bin/sh", "-c", "(echo ^&^|^<^>^(^)^@^^)"]
         );
 
         opt_vars().p_sxq = c"\"(".as_ptr().cast_mut();
         assert_eq!(
-            collect_argv(c"echo -n some text".as_ptr(), ptr::null()),
+            collect_argv(Some(c"echo -n some text"), None),
             vec!["/bin/sh", "-c", "\"(echo -n some text)\""]
         );
 
         opt_vars().p_sxq = c"\"".as_ptr().cast_mut();
         opt_vars().p_sxe = c"".as_ptr().cast_mut();
         assert_eq!(
-            collect_argv(c"echo -n some text".as_ptr(), ptr::null()),
+            collect_argv(Some(c"echo -n some text"), None),
             vec!["/bin/sh", "-c", "\"echo -n some text\""]
         );
 
         let argv_arr = [c"foo".to_owned(), c"".to_owned(), c"bar".to_owned()];
         let s = shell_argv_to_str(&argv_arr);
-        assert_eq!(
-            crate::memory::cstr_from_ptr(s.as_ptr()).to_str().unwrap(),
-            "'foo' '' 'bar'"
-        );
+        assert_eq!(s.to_str().unwrap(), "'foo' '' 'bar'");
 
         opt_vars().p_sh = save_sh;
         opt_vars().p_shcf = save_shcf;

@@ -1376,7 +1376,7 @@ pub fn gen_expand_wildcards_vec(
     if path_st().expand_recursive {
         #[cfg(unix)]
         {
-            return os_expand_wildcards(num_pat, pat, file, flags);
+            return os_expand_wildcards(num_pat, pat.cast(), file, flags);
         }
         #[cfg(not(unix))]
         {
@@ -1390,7 +1390,7 @@ pub fn gen_expand_wildcards_vec(
         if has_special_wildchar(pi, flags)
             && !(vim_backtick(pi) && crate::memory::cstr_byte_at(pi, 1) == b'=')
         {
-            return os_expand_wildcards(num_pat, pat, file, flags);
+            return os_expand_wildcards(num_pat, pat.cast(), file, flags);
         }
     }
 
@@ -1422,7 +1422,8 @@ pub fn gen_expand_wildcards_vec(
                 if has_env_var(p) || crate::memory::cstr_first_byte(p) == b'~' {
                     drop(p_owned);
                     file.clear();
-                    let res = os_expand_wildcards(num_pat, pat, file, flags | EW_KEEPDOLLAR);
+                    let res =
+                        os_expand_wildcards(num_pat, pat.cast(), file, flags | EW_KEEPDOLLAR);
                     path_st().expand_recursive = false;
                     return res;
                 }

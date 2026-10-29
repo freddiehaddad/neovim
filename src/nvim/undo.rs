@@ -2375,18 +2375,18 @@ pub fn undo_fmt_time(buf: &mut [u8], tt: time_t) {
         let n = if (os_time() as time_t) - tt < 60 * 60 * 12 {
             unsafe {
                 strftime(
-                    buf.as_mut_ptr().cast(),
+                    buf.as_mut_ptr(),
                     buflen,
-                    c"%H:%M:%S".as_ptr(),
+                    c"%H:%M:%S".as_ptr().cast(),
                     &raw const curtime,
                 )
             }
         } else {
             unsafe {
                 strftime(
-                    buf.as_mut_ptr().cast(),
+                    buf.as_mut_ptr(),
                     buflen,
-                    c"%Y/%m/%d %H:%M:%S".as_ptr(),
+                    c"%Y/%m/%d %H:%M:%S".as_ptr().cast(),
                     &raw const curtime,
                 )
             }
