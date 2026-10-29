@@ -1876,7 +1876,7 @@ pub fn decor_to_dict_legacy(dict: &mut Dict, decor: DecorInline, hl_name: bool, 
     if (sh_sign.flags & K_SHIS_SIGN) != 0 {
         if sh_sign.text[0] != 0 {
             let mut buf = [0u8; SIGN_WIDTH * MAX_SCHAR_SIZE];
-            let len = describe_sign_text(buf.as_mut_ptr().cast(), sh_sign.text.as_ptr().cast_mut());
+            let len = describe_sign_text(&mut buf, &sh_sign.text);
             put_c(
                 dict,
                 c"sign_text",

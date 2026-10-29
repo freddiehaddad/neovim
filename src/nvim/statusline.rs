@@ -2267,12 +2267,13 @@ pub extern "C" fn build_stl_str_hl(
                     for i in 0..width {
                         stl_items!()[stl_st().curitem as usize].start = out_p.wrapping_add(signlen);
                         if fdc == 0 {
-                            let mut sattr = (*stcp).sattrs[i as usize];
+                            let sattr = (*stcp).sattrs[i as usize];
                             if sattr.text[0] != 0 && get_vim_var_nr(VV_VIRTNUM) == 0 {
-                                signlen += describe_sign_text(
-                                    buf_tmp.as_mut_ptr().wrapping_add(signlen),
-                                    sattr.text.as_mut_ptr(),
+                                let dst_slice = std::slice::from_raw_parts_mut(
+                                    buf_tmp.as_mut_ptr().wrapping_add(signlen).cast::<u8>(),
+                                    buf_tmp.len() - signlen,
                                 );
+                                signlen += describe_sign_text(dst_slice, &sattr.text);
                                 stl_items!()[stl_st().curitem as usize].minwid =
                                     -if (*stcp).sign_cul_id != 0 {
                                         (*stcp).sign_cul_id

@@ -29,7 +29,7 @@ use crate::ex_docmd::Exarg;
 use crate::extmark::{extmark_del, extmark_del_id, extmark_set};
 use crate::fold::fold_open_cursor;
 use crate::globals::*;
-use crate::grid::{Schar, schar_from_ascii, schar_from_cluster, schar_get};
+use crate::grid::{Schar, schar_from_ascii, schar_from_cluster};
 use crate::highlight_group::{get_highlight_name_ext, syn_check_group};
 use crate::insert::beginline;
 use crate::mark::setpcmark;
@@ -47,7 +47,7 @@ use crate::msgpack_rpc::packer::Integer;
 use crate::strings::{gettext, vim_snprintf, vim_strchr};
 use crate::window::buf_jump_open_win;
 use std::cmp::Ordering;
-use std::ffi::c_char;
+use std::ffi::CStr;
 use std::ptr;
 
 const SIGN_DEF_PRIO: i32 = 10;
@@ -112,14 +112,13 @@ fn sign_st() -> &'static mut SignModuleState {
     unsafe { &mut *SIGN_STATE.as_ptr() }
 }
 
-const CMDS: [*const c_char; 7] = [
-    c"define".as_ptr(),
-    c"undefine".as_ptr(),
-    c"list".as_ptr(),
-    c"place".as_ptr(),
-    c"unplace".as_ptr(),
-    c"jump".as_ptr(),
-    ptr::null(),
+const CMDS: [&CStr; 6] = [
+    c"define",
+    c"undefine",
+    c"list",
+    c"place",
+    c"unplace",
+    c"jump",
 ];
 
 #[inline]
@@ -169,14 +168,14 @@ fn group_get_ns(group: impl crate::strings::IntoCCharPtr) -> i64 {
     }
 }
 
-fn sign_get_name(sh: &DecorSignHighlight) -> *const c_char {
+fn sign_get_name(sh: &DecorSignHighlight) -> &CStr {
     let Some(ref name) = sh.sign_name else {
-        return c"".as_ptr();
+        return c"";
     };
     if !pmap_get_sign(name.as_ptr()).is_null() {
-        name.as_ptr()
+        name.as_c_str()
     } else {
-        c"[Deleted]".as_ptr()
+        c"[Deleted]"
     }
 }
 
@@ -369,9 +368,9 @@ pub fn buf_has_signs(buf: &FileBuf) -> bool {
 fn sign_list_placed(rbuf: *mut FileBuf, group: impl crate::strings::IntoCCharPtr) {
     let group = group.into_c_char_ptr();
     unsafe {
-        let mut lbuf = [0 as c_char; MSG_BUF_LEN];
-        let mut namebuf = [0 as c_char; MSG_BUF_LEN];
-        let mut groupbuf = [0 as c_char; MSG_BUF_LEN];
+        let mut lbuf = [0u8; MSG_BUF_LEN];
+        let mut namebuf = [0u8; MSG_BUF_LEN];
+        let mut groupbuf = [0u8; MSG_BUF_LEN];
         let mut buf = if !rbuf.is_null() {
             rbuf
         } else {
@@ -390,12 +389,12 @@ fn sign_list_placed(rbuf: *mut FileBuf, group: impl crate::strings::IntoCCharPtr
                     gettext(c"Untitled").cast_const()
                 };
                 vim_snprintf!(
-                    lbuf.as_mut_ptr(),
+                    lbuf.as_mut_ptr().cast(),
                     MSG_BUF_LEN,
                     gettext(c"Signs for %s:"),
                     fname,
                 );
-                msg_puts_hl(lbuf.as_ptr(), HLF_D, false);
+                msg_puts_hl(lbuf.as_ptr().cast(), HLF_D, false);
             }
 
             if ns >= 0 {
@@ -420,13 +419,13 @@ fn sign_list_placed(rbuf: *mut FileBuf, group: impl crate::strings::IntoCCharPtr
                     msg_putchar(b'\n' as i32);
 
                     for (i, &mark) in signs.iter().enumerate() {
-                        namebuf[0] = NUL;
-                        groupbuf[0] = NUL;
+                        namebuf[0] = 0;
+                        groupbuf[0] = 0;
 
                         let sh = decor_find_sign(mt_decor(mark)).unwrap();
                         if sh.sign_name.is_some() {
                             vim_snprintf!(
-                                namebuf.as_mut_ptr(),
+                                namebuf.as_mut_ptr().cast(),
                                 MSG_BUF_LEN,
                                 gettext(c"  name=%s"),
                                 sign_get_name(sh),
@@ -434,14 +433,14 @@ fn sign_list_placed(rbuf: *mut FileBuf, group: impl crate::strings::IntoCCharPtr
                         }
                         if mark.ns != 0 {
                             vim_snprintf!(
-                                groupbuf.as_mut_ptr(),
+                                groupbuf.as_mut_ptr().cast(),
                                 MSG_BUF_LEN,
                                 gettext(c"  group=%s"),
                                 describe_ns(mark.ns as i32, c"").as_ptr(),
                             );
                         }
                         vim_snprintf!(
-                            lbuf.as_mut_ptr(),
+                            lbuf.as_mut_ptr().cast(),
                             MSG_BUF_LEN,
                             gettext(c"    line=%d  id=%u%s%s  priority=%d"),
                             mark.pos.row + 1,
@@ -450,7 +449,7 @@ fn sign_list_placed(rbuf: *mut FileBuf, group: impl crate::strings::IntoCCharPtr
                             namebuf.as_ptr(),
                             i32::from(sh.priority),
                         );
-                        msg_puts(lbuf.as_ptr());
+                        msg_puts(lbuf.as_ptr().cast());
                         if i < signs.len() - 1 {
                             msg_putchar(b'\n' as i32);
                         }
@@ -466,23 +465,19 @@ fn sign_list_placed(rbuf: *mut FileBuf, group: impl crate::strings::IntoCCharPtr
     }
 }
 
-fn sign_cmd_idx(begin_cmd: impl crate::strings::IntoCCharPtr, end_cmd: *mut c_char) -> i32 {
+fn sign_cmd_idx<T>(begin_cmd: impl crate::strings::IntoCCharPtr, end_cmd: *mut T) -> i32 {
     let begin_cmd = begin_cmd.into_c_char_ptr();
+    let end_cmd = end_cmd.cast::<u8>();
     {
         let save = unsafe { *end_cmd };
         unsafe {
-            *end_cmd = NUL;
+            *end_cmd = 0;
         }
-        let mut idx: usize = 0;
-        loop {
-            let cmd = CMDS[idx];
-            if cmd.is_null()
-                || crate::memory::cstr_as_bytes(begin_cmd) == crate::memory::cstr_as_bytes(cmd)
-            {
-                break;
-            }
-            idx += 1;
-        }
+        let begin_bytes = crate::memory::cstr_as_bytes(begin_cmd);
+        let idx = CMDS
+            .iter()
+            .position(|cmd| cmd.to_bytes() == begin_bytes)
+            .unwrap_or(CMDS.len());
         unsafe {
             *end_cmd = save;
         }
@@ -490,11 +485,10 @@ fn sign_cmd_idx(begin_cmd: impl crate::strings::IntoCCharPtr, end_cmd: *mut c_ch
     }
 }
 
-pub fn describe_sign_text(buf: *mut c_char, sign_text: *mut Schar) -> usize {
+pub fn describe_sign_text(buf: &mut [u8], sign_text: &[Schar; SIGN_WIDTH]) -> usize {
     let mut p: usize = 0;
-    for i in 0..SIGN_WIDTH {
-        schar_get(buf.wrapping_add(p), unsafe { *sign_text.wrapping_add(i) });
-        let len = crate::memory::cstr_len(buf.wrapping_add(p));
+    for &sc in sign_text {
+        let len = crate::grid::schar_get_bytes(&mut buf[p..], sc);
         if len == 0 {
             break;
         }
@@ -503,7 +497,12 @@ pub fn describe_sign_text(buf: *mut c_char, sign_text: *mut Schar) -> usize {
     p
 }
 
-pub fn init_sign_text(sp: Option<&Sign>, sign_text: *mut Schar, text: *mut c_char) -> bool {
+pub fn init_sign_text(
+    sp: Option<&Sign>,
+    sign_text: *mut Schar,
+    text: impl crate::strings::IntoCCharPtr,
+) -> bool {
+    let text = text.into_c_char_ptr().cast_mut();
     let mut endp = text.wrapping_add(crate::memory::cstr_len(text));
     let mut s = if sp.is_some() { text } else { endp };
     while s.wrapping_add(1) < endp {
@@ -672,19 +671,19 @@ fn sign_list_defined(sp: &mut Sign) {
     }
     if sp.sn_text[0] != 0 {
         msg_puts(c" text=");
-        let mut buf = [0 as c_char; SIGN_WIDTH * MAX_SCHAR_SIZE];
-        describe_sign_text(buf.as_mut_ptr(), sp.sn_text.as_mut_ptr());
-        msg_outtrans(buf.as_ptr(), 0, false);
+        let mut buf = [0u8; SIGN_WIDTH * MAX_SCHAR_SIZE];
+        describe_sign_text(&mut buf, &sp.sn_text);
+        msg_outtrans(buf.as_ptr().cast(), 0, false);
     }
     if sp.sn_priority > 0 {
-        let mut lbuf = [0 as c_char; MSG_BUF_LEN];
+        let mut lbuf = [0u8; MSG_BUF_LEN];
         vim_snprintf!(
-            lbuf.as_mut_ptr(),
+            lbuf.as_mut_ptr().cast(),
             MSG_BUF_LEN,
             c" priority=%d",
             sp.sn_priority,
         );
-        msg_puts(lbuf.as_ptr());
+        msg_puts(lbuf.as_ptr().cast());
     }
     let args = [
         c" linehl=".as_ptr(),
@@ -853,15 +852,19 @@ fn sign_jump(id: i32, group: impl crate::strings::IntoCCharPtr, buf: &mut FileBu
     }
 }
 
-fn sign_define_cmd(name: impl crate::strings::IntoCCharPtr, mut cmdline: *mut c_char) {
+fn sign_define_cmd(
+    name: impl crate::strings::IntoCCharPtr,
+    cmdline_in: impl crate::strings::IntoCCharPtr,
+) {
     let name = name.into_c_char_ptr();
+    let mut cmdline = cmdline_in.into_c_char_ptr().cast_mut();
     {
-        let mut icon: *mut c_char = ptr::null_mut();
-        let mut text: *mut c_char = ptr::null_mut();
-        let mut linehl: *mut c_char = ptr::null_mut();
-        let mut texthl: *mut c_char = ptr::null_mut();
-        let mut culhl: *mut c_char = ptr::null_mut();
-        let mut numhl: *mut c_char = ptr::null_mut();
+        let mut icon = ptr::null_mut();
+        let mut text = ptr::null_mut();
+        let mut linehl = ptr::null_mut();
+        let mut texthl = ptr::null_mut();
+        let mut culhl = ptr::null_mut();
+        let mut numhl = ptr::null_mut();
         let mut prio: i32 = -1;
 
         loop {
@@ -992,19 +995,22 @@ fn sign_jump_cmd(
     }
 }
 
-fn parse_sign_cmd_args(
+fn parse_sign_cmd_args<T>(
     cmd: i32,
-    mut arg: *mut c_char,
-    name: *mut *mut c_char,
+    arg_in: *mut T,
+    name: *mut *mut T,
     id: &mut i32,
-    group: *mut *mut c_char,
+    group: *mut *mut T,
     prio: &mut i32,
     buf: *mut *mut FileBuf,
     lnum: &mut Linenr,
 ) -> bool {
+    let mut arg = arg_in.cast();
+    let name = name.cast();
+    let group = group.cast();
     unsafe {
         let arg1 = arg;
-        let mut filename: *mut c_char = ptr::null_mut();
+        let mut filename = ptr::null_mut();
         let mut lnum_arg = false;
 
         if ascii_isdigit(crate::memory::cstr_first_char(arg)) {
@@ -1135,8 +1141,8 @@ pub fn ex_sign(eap: &mut Exarg) {
     } else {
         let mut id: i32 = -1;
         let mut lnum: Linenr = -1;
-        let mut name: *mut c_char = ptr::null_mut();
-        let mut group: *mut c_char = ptr::null_mut();
+        let mut name = ptr::null_mut();
+        let mut group = ptr::null_mut();
         let mut prio: i32 = -1;
         let mut buf: *mut FileBuf = ptr::null_mut();
 
@@ -1172,9 +1178,9 @@ fn sign_get_info_dict(sp: &mut Sign) -> &'static mut TvDict {
         tv_dict_add_str(&mut *d, c"icon", icon.as_ptr());
     }
     if sp.sn_text[0] != 0 {
-        let mut buf = [0 as c_char; SIGN_WIDTH * MAX_SCHAR_SIZE];
-        describe_sign_text(buf.as_mut_ptr(), sp.sn_text.as_mut_ptr());
-        tv_dict_add_str(&mut *d, c"text", buf.as_ptr());
+        let mut buf = [0u8; SIGN_WIDTH * MAX_SCHAR_SIZE];
+        describe_sign_text(&mut buf, &sp.sn_text);
+        tv_dict_add_str(&mut *d, c"text", buf.as_ptr().cast());
     }
     if sp.sn_priority > 0 {
         tv_dict_add_nr(&mut *d, c"priority", i64::from(sp.sn_priority));
@@ -1307,71 +1313,62 @@ pub fn free_signs() {
     sign_st().sign_map = Vec::new();
 }
 
-fn get_nth_sign_name(idx: i32) -> *mut c_char {
-    if let Ok(idx_usize) = usize::try_from(idx)
-        && let Some(sp) = sign_st().sign_map.as_slice().get(idx_usize)
-    {
-        return sp.sn_name.as_ptr().cast_mut();
-    }
-    ptr::null_mut()
+fn get_nth_sign_name(idx: i32) -> Option<&'static CStr> {
+    let idx_usize = usize::try_from(idx).ok()?;
+    sign_st()
+        .sign_map
+        .as_slice()
+        .get(idx_usize)
+        .map(|sp| sp.sn_name.as_c_str())
 }
 
-fn get_nth_sign_group_name(idx: i32) -> *mut c_char {
-    if idx < 0 {
-        return ptr::null_mut();
-    }
-    {
-        let ns_slice = sign_st().sign_ns.as_slice();
-        ns_slice
-            .get(idx as usize)
-            .map_or(ptr::null_mut(), |&ns| describe_ns(ns as NS, c"").as_ptr().cast_mut())
-    }
+fn get_nth_sign_group_name(idx: i32) -> Option<&'static CStr> {
+    let idx_usize = usize::try_from(idx).ok()?;
+    let ns_slice = sign_st().sign_ns.as_slice();
+    ns_slice
+        .get(idx_usize)
+        .map(|&ns| describe_ns(ns as NS, c""))
 }
 
-pub fn get_sign_name(_xp: &mut ExpandCtx, idx: i32) -> *mut c_char {
+pub fn get_sign_name(_xp: &mut ExpandCtx, idx: i32) -> Option<&'static CStr> {
+    let i = usize::try_from(idx).ok()?;
     match sign_st().expand_what {
-        EXP_SUBCMD => CMDS[idx as usize].cast_mut(),
+        EXP_SUBCMD => CMDS.get(i).copied(),
         EXP_DEFINE => {
-            const DEFINE_ARG: [*const c_char; 8] = [
-                c"culhl=".as_ptr(),
-                c"icon=".as_ptr(),
-                c"linehl=".as_ptr(),
-                c"numhl=".as_ptr(),
-                c"text=".as_ptr(),
-                c"texthl=".as_ptr(),
-                c"priority=".as_ptr(),
-                ptr::null(),
+            const DEFINE_ARG: [&CStr; 7] = [
+                c"culhl=",
+                c"icon=",
+                c"linehl=",
+                c"numhl=",
+                c"text=",
+                c"texthl=",
+                c"priority=",
             ];
-            DEFINE_ARG[idx as usize].cast_mut()
+            DEFINE_ARG.get(i).copied()
         }
         EXP_PLACE => {
-            const PLACE_ARG: [*const c_char; 7] = [
-                c"line=".as_ptr(),
-                c"name=".as_ptr(),
-                c"group=".as_ptr(),
-                c"priority=".as_ptr(),
-                c"file=".as_ptr(),
-                c"buffer=".as_ptr(),
-                ptr::null(),
+            const PLACE_ARG: [&CStr; 6] = [
+                c"line=",
+                c"name=",
+                c"group=",
+                c"priority=",
+                c"file=",
+                c"buffer=",
             ];
-            PLACE_ARG[idx as usize].cast_mut()
+            PLACE_ARG.get(i).copied()
         }
         EXP_LIST | EXP_UNPLACE => {
-            const LIST_ARG: [*const c_char; 4] = [
-                c"group=".as_ptr(),
-                c"file=".as_ptr(),
-                c"buffer=".as_ptr(),
-                ptr::null(),
-            ];
-            LIST_ARG[idx as usize].cast_mut()
+            const LIST_ARG: [&CStr; 3] = [c"group=", c"file=", c"buffer="];
+            LIST_ARG.get(i).copied()
         }
         EXP_SIGN_NAMES => get_nth_sign_name(idx),
         EXP_SIGN_GROUPS => get_nth_sign_group_name(idx),
-        _ => ptr::null_mut(),
+        _ => None,
     }
 }
 
-pub fn set_context_in_sign_cmd(xp: &mut ExpandCtx, arg: *mut c_char) {
+pub fn set_context_in_sign_cmd(xp: &mut ExpandCtx, arg: impl crate::strings::IntoCCharPtr) {
+    let arg = arg.into_c_char_ptr().cast_mut();
     xp.xp_context = EXPAND_SIGN;
     sign_st().expand_what = EXP_SUBCMD;
     xp.xp_pattern = arg;
@@ -1384,7 +1381,7 @@ pub fn set_context_in_sign_cmd(xp: &mut ExpandCtx, arg: *mut c_char) {
     let cmd_idx = sign_cmd_idx(arg, end_subcmd);
     let begin_subcmd_args = skipwhite(end_subcmd);
 
-    let mut last: *mut c_char;
+    let mut last;
     let mut p = begin_subcmd_args;
     loop {
         p = skipwhite(p);
@@ -1462,12 +1459,12 @@ fn sign_define_from_dict(name: impl crate::strings::IntoCCharPtr, dict: Option<&
             }
         }
 
-        let mut icon: *mut c_char = ptr::null_mut();
-        let mut linehl: *mut c_char = ptr::null_mut();
-        let mut text: *mut c_char = ptr::null_mut();
-        let mut texthl: *mut c_char = ptr::null_mut();
-        let mut culhl: *mut c_char = ptr::null_mut();
-        let mut numhl: *mut c_char = ptr::null_mut();
+        let mut icon = ptr::null_mut();
+        let mut linehl = ptr::null_mut();
+        let mut text = ptr::null_mut();
+        let mut texthl = ptr::null_mut();
+        let mut culhl = ptr::null_mut();
+        let mut numhl = ptr::null_mut();
         let mut prio: i32 = -1;
 
         if dict.is_some() {
@@ -1557,7 +1554,7 @@ pub fn f_sign_getplaced(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalF
     let mut buf: *mut FileBuf = ptr::null_mut();
     let mut lnum: Linenr = 0;
     let mut sign_id: i32 = 0;
-    let mut group: *const c_char = ptr::null();
+    let mut group = ptr::null();
     let mut notanum = false;
 
     tv_list_alloc_ret(rettv, 0);
@@ -1666,7 +1663,7 @@ fn sign_place_from_dict(
         }
     }
 
-    let mut group: *mut c_char = ptr::null_mut();
+    let mut group = ptr::null_mut();
     if group_tv.is_none() {
         let di = tv_dict_find(dict, c"group", -1);
         if !di.is_null() {
@@ -1910,16 +1907,13 @@ mod tests {
     fn sign_cmd_idx_and_describe_sign_text_work() {
         let mut cmd = *b"define\0";
         assert_eq!(
-            sign_cmd_idx(
-                cmd.as_mut_ptr().cast(),
-                cmd.as_mut_ptr().wrapping_add(6).cast()
-            ),
+            sign_cmd_idx(cmd.as_mut_ptr().cast(), cmd.as_mut_ptr().wrapping_add(6)),
             SIGNCMD_DEFINE
         );
-        let mut st = [schar_from_ascii(b'>'), schar_from_ascii(b'>')];
-        let mut buf = [0 as c_char; 16];
-        let len = describe_sign_text(buf.as_mut_ptr(), st.as_mut_ptr());
+        let st = [schar_from_ascii(b'>'), schar_from_ascii(b'>')];
+        let mut buf = [0u8; 16];
+        let len = describe_sign_text(&mut buf, &st);
         assert_eq!(len, 2);
-        assert_eq!(crate::memory::cstr_as_bytes(buf.as_ptr()), b">>");
+        assert_eq!(&buf[..len], b">>");
     }
 }
