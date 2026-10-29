@@ -18,7 +18,7 @@ use crate::eval::{get_copy_id, partial_name};
 use crate::hashtab::{Hashitem, hashitem_empty};
 use crate::keycodes::{BS, CAR, NL, TAB};
 use crate::math::{FAIL, OK};
-use crate::mbyte::{utf_char2len, utf_printable, utf_ptr2char, utf_ptr2len};
+use crate::mbyte::{utf_char2len, utf_printable, utf_slice2char, utf_slice2len};
 use crate::memory::cstr_from_bytes;
 use crate::message::{emsg, internal_error, semsg};
 use crate::msgpack_rpc::packer::{
@@ -26,9 +26,10 @@ use crate::msgpack_rpc::packer::{
     mpack_integer, mpack_map, mpack_nil, mpack_str, mpack_uint64,
 };
 use crate::regexp::NUMBUFLEN;
-use crate::strings::{vim_snprintf, vim_snprintf_safelen};
+use crate::strings::vim_snprintf_safelen;
 use crate::testing::ga_concat_literal;
-use std::ffi::c_char;
+use std::ffi::CStr;
+use std::io::Write as _;
 
 pub(crate) const K_MP_NIL: usize = 0;
 pub(crate) const K_MP_BOOLEAN: usize = 1;
@@ -38,8 +39,8 @@ pub(crate) const K_MP_ARRAY: usize = 5;
 
 const FF: i32 = 0x0c;
 
-pub const ENCODE_BOOL_VAR_NAMES: [*const c_char; 2] = [c"v:false".as_ptr(), c"v:true".as_ptr()];
-pub const ENCODE_SPECIAL_VAR_NAMES: [*const c_char; 1] = [c"v:null".as_ptr()];
+pub const ENCODE_BOOL_VAR_NAMES: [&CStr; 2] = [c"v:false", c"v:true"];
+pub const ENCODE_SPECIAL_VAR_NAMES: [&CStr; 1] = [c"v:null"];
 
 struct EvalEncodeState {
     did_echo_string_emsg: bool,
@@ -309,35 +310,9 @@ pub fn encode_check_json_key(tv: &TypVal) -> bool {
     }
 }
 
-#[inline]
-fn buf_concat_cstr(gap: &mut Vec<u8>, s: impl crate::strings::IntoCCharPtr) {
-    let s = s.into_c_char_ptr();
-    {
-        if !s.is_null() {
-            gap.extend_from_slice(crate::memory::cstr_as_bytes(s));
-        }
-    }
-}
-
-#[inline]
-fn buf_concat_len(gap: &mut Vec<u8>, s: impl crate::strings::IntoCCharPtr, len: usize) {
-    let s = s.into_c_char_ptr();
-    {
-        if !s.is_null() && len > 0 {
-            gap.extend_from_slice(crate::memory::cstr_slice(s, len));
-        }
-    }
-}
-
-fn conv_error(
-    msg: &std::ffi::CStr,
-    mpstack: &[MPConvStackVal],
-    objname: impl crate::strings::IntoCCharPtr,
-) -> i32 {
-    let objname = objname.into_c_char_ptr();
+fn conv_error(msg: &CStr, mpstack: &[MPConvStackVal], objname: &CStr) -> i32 {
     unsafe {
         let mut msg_ga: Vec<u8> = Vec::with_capacity(80);
-        let mut iobuf = [0 as c_char; 1025];
 
         for (i, v) in mpstack.iter().enumerate() {
             if i != 0 {
@@ -356,8 +331,9 @@ fn conv_error(
                         vval: TypvalVval::String((&*hi_ptr).key_ptr()),
                     };
                     let key = encode_tv2string(&mut key_tv, None);
-                    vim_snprintf!(iobuf.as_mut_ptr(), iobuf.len(), c"key %s", key.as_ptr(),);
-                    buf_concat_cstr(&mut msg_ga, iobuf.as_ptr());
+                    ga_concat_literal(&mut msg_ga, b"key ");
+                    let key_bytes = key.as_bytes();
+                    msg_ga.extend_from_slice(&key_bytes[..key_bytes.len().min(1020)]);
                 }
                 MPConvStackData::List { list, li } | MPConvStackData::Pairs { list, li } => {
                     let is_list = matches!(v.data, MPConvStackData::List { .. });
@@ -379,21 +355,17 @@ fn conv_error(
                         || ((*prev_li).li_tv.v_type != VarType::VarList
                             && tv_list_len(((*prev_li).li_tv.vval.v_list()).as_ref()) <= 0)
                     {
-                        vim_snprintf!(iobuf.as_mut_ptr(), iobuf.len(), c"index %i", idx);
-                        buf_concat_cstr(&mut msg_ga, iobuf.as_ptr());
+                        let _ = write!(&mut msg_ga, "index {idx}");
                     } else {
                         let first_item = tv_list_first(((*prev_li).li_tv.vval.v_list()).as_ref());
                         assert!(!first_item.is_null());
                         let mut key_tv = (*first_item).li_tv;
                         let key = encode_tv2echo(&mut key_tv, None);
-                        vim_snprintf!(
-                            iobuf.as_mut_ptr(),
-                            iobuf.len(),
-                            c"key %s at index %i from special map",
-                            key.as_ptr(),
-                            idx,
-                        );
-                        buf_concat_cstr(&mut msg_ga, iobuf.as_ptr());
+                        let mut item_buf: Vec<u8> = Vec::new();
+                        item_buf.extend_from_slice(b"key ");
+                        item_buf.extend_from_slice(key.as_bytes());
+                        let _ = write!(&mut item_buf, " at index {idx} from special map");
+                        msg_ga.extend_from_slice(&item_buf[..item_buf.len().min(1024)]);
                     }
                 }
                 MPConvStackData::Partial { stage, .. } => match stage {
@@ -407,178 +379,148 @@ fn conv_error(
                 },
                 MPConvStackData::PartialList { arg, argv, .. } => {
                     let idx = (crate::memory::ptr_offset_from(arg, argv) as i32) - 1;
-                    vim_snprintf!(iobuf.as_mut_ptr(), iobuf.len(), c"argument %i", idx,);
-                    buf_concat_cstr(&mut msg_ga, iobuf.as_ptr());
+                    let _ = write!(&mut msg_ga, "argument {idx}");
                 }
             }
         }
+        let path_cstr = cstr_from_bytes(&msg_ga);
         let path_ptr = if mpstack.is_empty() {
             c"itself".as_ptr()
         } else {
-            msg_ga.push(0);
-            msg_ga.as_ptr().cast::<c_char>()
+            path_cstr.as_ptr()
         };
-        semsg!(msg.as_ptr(), objname, path_ptr);
+        semsg!(msg.as_ptr(), objname.as_ptr(), path_ptr);
         FAIL
     }
 }
 
-fn convert_to_single_quoted_string(
-    gap: &mut Vec<u8>,
-    buf: impl crate::strings::IntoCCharPtr,
-    len: usize,
-) {
-    let buf = buf.into_c_char_ptr();
-    {
-        if buf.is_null() {
-            ga_concat_literal(gap, b"''");
-        } else {
-            let quotes = {
-                let _d = (buf).cast::<u8>();
-                let _sz = len;
-                if _sz == 0 {
-                    0
-                } else {
-                    unsafe { std::slice::from_raw_parts(_d, _sz) }
-                        .iter()
-                        .filter(|&&_b| _b == (b'\'' as c_char) as u8)
-                        .count()
-                }
-            };
-            gap.reserve(2 + len + quotes);
-            gap.push(b'\'');
-            let bytes = crate::memory::cstr_slice(buf, len);
-            for &b in bytes {
-                if b == b'\'' {
-                    gap.push(b'\'');
-                }
-                gap.push(b);
-            }
+fn convert_to_single_quoted_string(gap: &mut Vec<u8>, buf: Option<&[u8]>) {
+    let Some(bytes) = buf else {
+        ga_concat_literal(gap, b"''");
+        return;
+    };
+    let quotes = bytes.iter().filter(|&&b| b == b'\'').count();
+    gap.reserve(2 + bytes.len() + quotes);
+    gap.push(b'\'');
+    for &b in bytes {
+        if b == b'\'' {
             gap.push(b'\'');
         }
+        gap.push(b);
     }
+    gap.push(b'\'');
 }
 
-fn convert_to_json_string(
-    gap: &mut Vec<u8>,
-    buf: impl crate::strings::IntoCCharPtr,
-    len: usize,
-) -> bool {
-    let buf = buf.into_c_char_ptr();
+fn convert_to_json_string(gap: &mut Vec<u8>, buf: Option<&[u8]>) -> bool {
     const XDIGITS: &[u8; 16] = b"0123456789ABCDEF";
 
-    {
-        if buf.is_null() {
-            ga_concat_literal(gap, b"\"\"");
-            return true;
-        }
+    let Some(bytes) = buf else {
+        ga_concat_literal(gap, b"\"\"");
+        return true;
+    };
 
-        let mut str_len = 0usize;
-        let mut i = 0usize;
-        while i < len {
-            let ptr = buf.wrapping_add(i);
-            let ch = utf_ptr2char(ptr);
-            let shift = if ch == 0 {
-                1usize
-            } else {
-                utf_ptr2len(ptr) as usize
-            };
-            assert!(shift > 0);
-            i += shift;
-            match ch {
-                BS | TAB | NL | FF | CAR | 0x22 | 0x5c => {
-                    str_len += 2;
-                }
-                _ => {
-                    if ch > 0x7F && shift == 1 {
-                        let start = i - shift;
-                        semsg!(
-                            c"E474: String \"%.*s\" contains byte that does not start any UTF-8 character",
-                            (len - start) as i32,
-                            buf.wrapping_add(start),
-                        );
-                        return false;
-                    } else if (SURROGATE_HI_START..=SURROGATE_HI_END).contains(&ch)
-                        || (SURROGATE_LO_START..=SURROGATE_LO_END).contains(&ch)
-                    {
-                        let start = i - shift;
-                        semsg!(
-                            c"E474: UTF-8 string contains code point which belongs to a surrogate pair: %.*s",
-                            (len - start) as i32,
-                            buf.wrapping_add(start),
-                        );
-                        return false;
-                    } else if ch >= 0x20 && utf_printable(ch) {
-                        str_len += shift;
-                    } else if ch >= SURROGATE_FIRST_CHAR {
-                        str_len += 12;
-                    } else {
-                        str_len += 6;
-                    }
+    let len = bytes.len();
+    let mut str_len = 0usize;
+    let mut i = 0usize;
+    while i < len {
+        let slice = &bytes[i..];
+        let ch = utf_slice2char(slice);
+        let shift = if ch == 0 { 1usize } else { utf_slice2len(slice) };
+        assert!(shift > 0);
+        i += shift;
+        match ch {
+            BS | TAB | NL | FF | CAR | 0x22 | 0x5c => {
+                str_len += 2;
+            }
+            _ => {
+                if ch > 0x7F && shift == 1 {
+                    let start = i - shift;
+                    let err_cstr = cstr_from_bytes(&bytes[start..]);
+                    semsg!(
+                        c"E474: String \"%s\" contains byte that does not start any UTF-8 character",
+                        err_cstr.as_ptr(),
+                    );
+                    return false;
+                } else if (SURROGATE_HI_START..=SURROGATE_HI_END).contains(&ch)
+                    || (SURROGATE_LO_START..=SURROGATE_LO_END).contains(&ch)
+                {
+                    let start = i - shift;
+                    let err_cstr = cstr_from_bytes(&bytes[start..]);
+                    semsg!(
+                        c"E474: UTF-8 string contains code point which belongs to a surrogate pair: %s",
+                        err_cstr.as_ptr(),
+                    );
+                    return false;
+                } else if ch >= 0x20 && utf_printable(ch) {
+                    str_len += shift;
+                } else if ch >= SURROGATE_FIRST_CHAR {
+                    str_len += 12;
+                } else {
+                    str_len += 6;
                 }
             }
         }
-
-        gap.push(b'"');
-        gap.reserve(str_len + 1);
-        i = 0;
-        while i < len {
-            let ptr = buf.wrapping_add(i);
-            let ch = utf_ptr2char(ptr);
-            let shift = if ch == 0 {
-                1usize
-            } else {
-                utf_char2len(ch) as usize
-            };
-            assert!(shift > 0);
-            match ch {
-                BS => ga_concat_literal(gap, b"\\b"),
-                TAB => ga_concat_literal(gap, b"\\t"),
-                NL => ga_concat_literal(gap, b"\\n"),
-                FF => ga_concat_literal(gap, b"\\f"),
-                CAR => ga_concat_literal(gap, b"\\r"),
-                0x22 => ga_concat_literal(gap, b"\\\""),
-                0x5c => ga_concat_literal(gap, b"\\\\"),
-                _ => {
-                    if ch >= 0x20 && utf_printable(ch) {
-                        buf_concat_len(gap, ptr, shift);
-                    } else if ch < SURROGATE_FIRST_CHAR {
-                        let esc = [
-                            b'\\',
-                            b'u',
-                            XDIGITS[((ch >> 12) & 0xF) as usize],
-                            XDIGITS[((ch >> 8) & 0xF) as usize],
-                            XDIGITS[((ch >> 4) & 0xF) as usize],
-                            XDIGITS[(ch & 0xF) as usize],
-                        ];
-                        ga_concat_literal(gap, &esc);
-                    } else {
-                        let tmp = ch - SURROGATE_FIRST_CHAR;
-                        let hi = SURROGATE_HI_START + ((tmp >> 10) & 0x3FF);
-                        let lo = SURROGATE_LO_END + (tmp & 0x3FF);
-                        let esc = [
-                            b'\\',
-                            b'u',
-                            XDIGITS[((hi >> 12) & 0xF) as usize],
-                            XDIGITS[((hi >> 8) & 0xF) as usize],
-                            XDIGITS[((hi >> 4) & 0xF) as usize],
-                            XDIGITS[(hi & 0xF) as usize],
-                            b'\\',
-                            b'u',
-                            XDIGITS[((lo >> 12) & 0xF) as usize],
-                            XDIGITS[((lo >> 8) & 0xF) as usize],
-                            XDIGITS[((lo >> 4) & 0xF) as usize],
-                            XDIGITS[(lo & 0xF) as usize],
-                        ];
-                        ga_concat_literal(gap, &esc);
-                    }
-                }
-            }
-            i += shift;
-        }
-        gap.push(b'"');
-        true
     }
+
+    gap.push(b'"');
+    gap.reserve(str_len + 1);
+    i = 0;
+    while i < len {
+        let slice = &bytes[i..];
+        let ch = utf_slice2char(slice);
+        let shift = if ch == 0 {
+            1usize
+        } else {
+            utf_char2len(ch) as usize
+        };
+        assert!(shift > 0);
+        match ch {
+            BS => ga_concat_literal(gap, b"\\b"),
+            TAB => ga_concat_literal(gap, b"\\t"),
+            NL => ga_concat_literal(gap, b"\\n"),
+            FF => ga_concat_literal(gap, b"\\f"),
+            CAR => ga_concat_literal(gap, b"\\r"),
+            0x22 => ga_concat_literal(gap, b"\\\""),
+            0x5c => ga_concat_literal(gap, b"\\\\"),
+            _ => {
+                if ch >= 0x20 && utf_printable(ch) {
+                    gap.extend_from_slice(&slice[..shift]);
+                } else if ch < SURROGATE_FIRST_CHAR {
+                    let esc = [
+                        b'\\',
+                        b'u',
+                        XDIGITS[((ch >> 12) & 0xF) as usize],
+                        XDIGITS[((ch >> 8) & 0xF) as usize],
+                        XDIGITS[((ch >> 4) & 0xF) as usize],
+                        XDIGITS[(ch & 0xF) as usize],
+                    ];
+                    ga_concat_literal(gap, &esc);
+                } else {
+                    let tmp = ch - SURROGATE_FIRST_CHAR;
+                    let hi = SURROGATE_HI_START + ((tmp >> 10) & 0x3FF);
+                    let lo = SURROGATE_LO_END + (tmp & 0x3FF);
+                    let esc = [
+                        b'\\',
+                        b'u',
+                        XDIGITS[((hi >> 12) & 0xF) as usize],
+                        XDIGITS[((hi >> 8) & 0xF) as usize],
+                        XDIGITS[((hi >> 4) & 0xF) as usize],
+                        XDIGITS[(hi & 0xF) as usize],
+                        b'\\',
+                        b'u',
+                        XDIGITS[((lo >> 12) & 0xF) as usize],
+                        XDIGITS[((lo >> 8) & 0xF) as usize],
+                        XDIGITS[((lo >> 4) & 0xF) as usize],
+                        XDIGITS[(lo & 0xF) as usize],
+                    ];
+                    ga_concat_literal(gap, &esc);
+                }
+            }
+        }
+        i += shift;
+    }
+    gap.push(b'"');
+    true
 }
 
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -721,9 +663,10 @@ impl EncodeBackend<'_> {
                     }
                     ga_concat_literal(gap, b"str2float('inf')");
                 } else {
-                    let mut numbuf = [0 as c_char; NUMBUFLEN];
-                    let len = vim_snprintf_safelen!(numbuf.as_mut_ptr(), numbuf.len(), c"%g", flt,);
-                    buf_concat_len(gap, numbuf.as_ptr(), len);
+                    let mut numbuf = [0u8; NUMBUFLEN];
+                    let len =
+                        vim_snprintf_safelen!(numbuf.as_mut_ptr().cast(), numbuf.len(), c"%g", flt);
+                    gap.extend_from_slice(&numbuf[..len]);
                 }
                 true
             }
@@ -738,9 +681,10 @@ impl EncodeBackend<'_> {
                     emsg(c"E474: Unable to represent infinity in JSON");
                     return false;
                 } else {
-                    let mut numbuf = [0 as c_char; NUMBUFLEN];
-                    let len = vim_snprintf_safelen!(numbuf.as_mut_ptr(), numbuf.len(), c"%g", flt,);
-                    buf_concat_len(gap, numbuf.as_ptr(), len);
+                    let mut numbuf = [0u8; NUMBUFLEN];
+                    let len =
+                        vim_snprintf_safelen!(numbuf.as_mut_ptr().cast(), numbuf.len(), c"%g", flt);
+                    gap.extend_from_slice(&numbuf[..len]);
                 }
                 true
             }
@@ -752,78 +696,53 @@ impl EncodeBackend<'_> {
     }
 
     #[inline]
-    fn conv_string(&mut self, buf: impl crate::strings::IntoCCharPtr, len: usize) -> bool {
-        let buf = buf.into_c_char_ptr();
-        {
-            match self {
-                Self::Text {
-                    gap,
-                    mode: TextEncodeMode::String | TextEncodeMode::Echo,
-                } => {
-                    convert_to_single_quoted_string(gap, buf, len);
-                    true
-                }
-                Self::Text {
-                    gap,
-                    mode: TextEncodeMode::Json,
-                } => convert_to_json_string(gap, buf, len),
-                Self::Msgpack { packer } => {
-                    mpack_bin(
-                        NvimString {
-                            data: buf.cast_mut(),
-                            size: len,
-                        },
-                        unsafe { &mut **packer },
-                    );
-                    true
-                }
+    fn conv_string(&mut self, buf: Option<&[u8]>) -> bool {
+        match self {
+            Self::Text {
+                gap,
+                mode: TextEncodeMode::String | TextEncodeMode::Echo,
+            } => {
+                convert_to_single_quoted_string(gap, buf);
+                true
+            }
+            Self::Text {
+                gap,
+                mode: TextEncodeMode::Json,
+            } => convert_to_json_string(gap, buf),
+            Self::Msgpack { packer } => {
+                let s = buf.map_or_else(NvimString::new, NvimString::from_bytes);
+                mpack_bin(s, unsafe { &mut **packer });
+                true
             }
         }
     }
 
     #[inline]
-    fn conv_str_string(&mut self, buf: impl crate::strings::IntoCCharPtr, len: usize) -> bool {
-        let buf = buf.into_c_char_ptr();
-        {
-            match self {
-                Self::Text { .. } => self.conv_string(buf, len),
-                Self::Msgpack { packer } => {
-                    mpack_str(
-                        NvimString {
-                            data: buf.cast_mut(),
-                            size: len,
-                        },
-                        unsafe { &mut **packer },
-                    );
-                    true
-                }
+    fn conv_str_string(&mut self, buf: Option<&[u8]>) -> bool {
+        match self {
+            Self::Text { .. } => self.conv_string(buf),
+            Self::Msgpack { packer } => {
+                let s = buf.map_or_else(NvimString::new, NvimString::from_bytes);
+                mpack_str(s, unsafe { &mut **packer });
+                true
             }
         }
     }
 
     #[inline]
-    fn conv_ext_string(
-        &mut self,
-        buf: impl crate::strings::IntoCCharPtr,
-        len: usize,
-        ext_type: i8,
-    ) -> bool {
-        let buf = buf.into_c_char_ptr();
-        {
-            match self {
-                Self::Text {
-                    mode: TextEncodeMode::Json,
-                    ..
-                } => {
-                    emsg(c"E474: Unable to convert EXT string to JSON");
-                    false
-                }
-                Self::Text { .. } => true,
-                Self::Msgpack { packer } => {
-                    let bytes = crate::memory::cstr_slice(buf, len);
-                    mpack_ext(bytes, ext_type, unsafe { &mut **packer });
-                    true
-                }
+    fn conv_ext_string(&mut self, bytes: &[u8], ext_type: i8) -> bool {
+        match self {
+            Self::Text {
+                mode: TextEncodeMode::Json,
+                ..
+            } => {
+                emsg(c"E474: Unable to convert EXT string to JSON");
+                false
+            }
+            Self::Text { .. } => true,
+            Self::Msgpack { packer } => {
+                mpack_ext(bytes, ext_type, unsafe { &mut **packer });
+                true
             }
         }
     }
@@ -840,18 +759,11 @@ impl EncodeBackend<'_> {
                 } else {
                     gap.reserve((2 + 2 * len + (len - 1) / 4) as usize);
                     ga_concat_literal(gap, b"0z");
-                    let mut numbuf = [0 as c_char; NUMBUFLEN];
                     for i in 0..len {
                         if i > 0 && (i & 3) == 0 {
                             gap.push(b'.');
                         }
-                        let nlen = vim_snprintf_safelen!(
-                            numbuf.as_mut_ptr(),
-                            numbuf.len(),
-                            c"%02X",
-                            tv_blob_get(blob.unwrap(), i) as i32,
-                        );
-                        buf_concat_len(gap, numbuf.as_ptr(), nlen);
+                        let _ = write!(gap, "{:02X}", tv_blob_get(blob.unwrap(), i));
                     }
                 }
             }
@@ -863,34 +775,21 @@ impl EncodeBackend<'_> {
                     ga_concat_literal(gap, b"[]");
                 } else {
                     gap.push(b'[');
-                    let mut numbuf = [0 as c_char; NUMBUFLEN];
                     for i in 0..len {
                         if i > 0 {
                             ga_concat_literal(gap, b", ");
                         }
-                        let nlen = vim_snprintf_safelen!(
-                            numbuf.as_mut_ptr(),
-                            numbuf.len(),
-                            c"%d",
-                            tv_blob_get(blob.unwrap(), i) as i32,
-                        );
-                        buf_concat_len(gap, numbuf.as_ptr(), nlen);
+                        let _ = write!(gap, "{}", tv_blob_get(blob.unwrap(), i));
                     }
                     gap.push(b']');
                 }
             }
             Self::Msgpack { packer } => {
-                let data = match blob {
-                    Some(b) if !b.bv_ga.is_empty() => b.bv_ga.as_ptr().cast_mut().cast::<c_char>(),
-                    _ => std::ptr::null_mut(),
+                let slice: &[u8] = match blob {
+                    Some(b) if !b.bv_ga.is_empty() => &b.bv_ga[..len as usize],
+                    _ => &[],
                 };
-                mpack_bin(
-                    NvimString {
-                        data,
-                        size: len as usize,
-                    },
-                    unsafe { &mut **packer },
-                );
+                mpack_bin(NvimString::from_bytes(slice), unsafe { &mut **packer });
             }
         }
     }
@@ -898,58 +797,44 @@ impl EncodeBackend<'_> {
     #[inline]
     fn conv_func_start(
         &mut self,
-        fun: impl crate::strings::IntoCCharPtr,
+        fun: Option<&[u8]>,
         prefix: &[u8],
         mpstack: &[MPConvStackVal],
-        objname: impl crate::strings::IntoCCharPtr,
+        objname: &CStr,
     ) -> i32 {
-        let fun = fun.into_c_char_ptr();
-        let objname = objname.into_c_char_ptr();
-        {
-            match self {
-                Self::Text {
-                    gap,
-                    mode: TextEncodeMode::String | TextEncodeMode::Echo,
-                } => {
-                    if fun.is_null() {
-                        internal_error(c"string(): NULL function name");
-                        ga_concat_literal(gap, b"function(NULL");
-                    } else {
-                        ga_concat_literal(gap, b"function(");
-                        let name_off = gap.len();
-                        ga_concat_literal(gap, prefix);
-                        let fun_len = crate::memory::cstr_len(fun);
-                        convert_to_single_quoted_string(gap, fun, fun_len);
-                        let data = gap.as_mut_ptr();
-                        unsafe {
-                            *data.wrapping_add(name_off) = b'\'';
-                        }
-                        if !prefix.is_empty() {
-                            unsafe {
-                                std::ptr::copy_nonoverlapping(
-                                    prefix.as_ptr(),
-                                    data.wrapping_add(name_off + 1),
-                                    prefix.len(),
-                                )
-                            };
-                        }
-                    }
-                    OK
+        match self {
+            Self::Text {
+                gap,
+                mode: TextEncodeMode::String | TextEncodeMode::Echo,
+            } => {
+                let Some(fun_bytes) = fun else {
+                    internal_error(c"string(): NULL function name");
+                    ga_concat_literal(gap, b"function(NULL");
+                    return OK;
+                };
+                ga_concat_literal(gap, b"function(");
+                let name_off = gap.len();
+                ga_concat_literal(gap, prefix);
+                convert_to_single_quoted_string(gap, Some(fun_bytes));
+                gap[name_off] = b'\'';
+                if !prefix.is_empty() {
+                    gap[name_off + 1..name_off + 1 + prefix.len()].copy_from_slice(prefix);
                 }
-                Self::Text {
-                    mode: TextEncodeMode::Json,
-                    ..
-                } => conv_error(
-                    c"E474: Error while dumping %s, %s: attempt to dump function reference",
-                    mpstack,
-                    objname,
-                ),
-                Self::Msgpack { .. } => conv_error(
-                    c"E5004: Error while dumping %s, %s: attempt to dump function reference",
-                    mpstack,
-                    objname,
-                ),
+                OK
             }
+            Self::Text {
+                mode: TextEncodeMode::Json,
+                ..
+            } => conv_error(
+                c"E474: Error while dumping %s, %s: attempt to dump function reference",
+                mpstack,
+                objname,
+            ),
+            Self::Msgpack { .. } => conv_error(
+                c"E5004: Error while dumping %s, %s: attempt to dump function reference",
+                mpstack,
+                objname,
+            ),
         }
     }
 
@@ -1067,9 +952,8 @@ impl EncodeBackend<'_> {
         val_copy_id: &mut i32,
         mpstack: &[MPConvStackVal],
         copy_id: i32,
-        objname: impl crate::strings::IntoCCharPtr,
+        objname: &CStr,
     ) -> i32 {
-        let objname = objname.into_c_char_ptr();
         if *val_copy_id != copy_id {
             *val_copy_id = copy_id;
             return NOTDONE;
@@ -1148,21 +1032,15 @@ fn convert_one_value(
     mpstack: &mut Vec<MPConvStackVal>,
     tv: *mut TypVal,
     copy_id: i32,
-    objname: impl crate::strings::IntoCCharPtr,
+    objname: &CStr,
 ) -> i32 {
-    let objname = objname.into_c_char_ptr();
     unsafe {
         backend.check_before();
         let tv_ref = &mut *tv;
         match tv_ref.v_type {
             VarType::VarString => {
-                let s = tv_ref.vval.v_string();
-                let len = if s.is_null() {
-                    0
-                } else {
-                    crate::memory::cstr_len(s)
-                };
-                if !backend.conv_string(s, len) {
+                let s = crate::memory::cstr_as_opt_bytes(tv_ref.vval.v_string());
+                if !backend.conv_string(s) {
                     return FAIL;
                 }
             }
@@ -1179,7 +1057,8 @@ fn convert_one_value(
                 backend.conv_blob(blob.as_ref(), tv_blob_len(blob.as_ref()));
             }
             VarType::VarFunc => {
-                if backend.conv_func_start(tv_ref.vval.v_string(), b"", mpstack, objname) == FAIL {
+                let fun = crate::memory::cstr_as_opt_bytes(tv_ref.vval.v_string());
+                if backend.conv_func_start(fun, b"", mpstack, objname) == FAIL {
                     return FAIL;
                 }
                 backend.conv_func_before_args(0);
@@ -1188,15 +1067,16 @@ fn convert_one_value(
             }
             VarType::VarPartial => {
                 let pt = tv_ref.vval.v_partial();
-                let fun = if pt.is_null() {
+                let fun_ptr = if pt.is_null() {
                     std::ptr::null_mut()
                 } else {
                     partial_name(pt.as_ref())
                 };
-                let prefix: &[u8] = if !fun.is_null()
+                let fun = crate::memory::cstr_as_opt_bytes(fun_ptr);
+                let prefix: &[u8] = if let Some(fb) = fun
                     && !pt.is_null()
                     && (*pt).pt_name.is_none()
-                    && ((crate::memory::cstr_first_byte(fun)).is_ascii_uppercase())
+                    && fb.first().is_some_and(u8::is_ascii_uppercase)
                 {
                     b"g:"
                 } else {
@@ -1338,10 +1218,7 @@ fn convert_one_value(
                                                 (val_di.di_tv.vval.v_list()).as_ref(),
                                             )
                                         {
-                                            if !backend.conv_str_string(
-                                                buf.as_ptr().cast::<c_char>(),
-                                                buf.len(),
-                                            ) {
+                                            if !backend.conv_str_string(Some(&buf)) {
                                                 return FAIL;
                                             }
                                             handled_special = true;
@@ -1439,11 +1316,7 @@ fn convert_one_value(
                                                 )
                                             {
                                                 let ext_type = first.li_tv.vval.v_number() as i8;
-                                                if !backend.conv_ext_string(
-                                                    buf.as_ptr().cast::<c_char>(),
-                                                    buf.len(),
-                                                    ext_type,
-                                                ) {
+                                                if !backend.conv_ext_string(&buf, ext_type) {
                                                     return FAIL;
                                                 }
                                                 handled_special = true;
@@ -1493,9 +1366,8 @@ fn convert_one_value(
 fn encode_vim_with_backend(
     backend: &mut EncodeBackend,
     top_tv: &mut TypVal,
-    objname: impl crate::strings::IntoCCharPtr,
+    objname: &CStr,
 ) -> bool {
-    let objname = objname.into_c_char_ptr();
     unsafe {
         let copy_id = get_copy_id();
         let mut mpstack: Vec<MPConvStackVal> = Vec::with_capacity(8);
@@ -1533,9 +1405,8 @@ fn encode_vim_with_backend(
                     {
                         *hi_ref = hi.wrapping_add(1);
                     }
-                    let key_ptr = di.di_key.as_ptr();
-                    let key_len = crate::memory::cstr_len(key_ptr);
-                    if !backend.conv_str_string(key_ptr, key_len) {
+                    let key_bytes = crate::memory::cstr_as_bytes(di.di_key.as_ptr());
+                    if !backend.conv_str_string(Some(key_bytes)) {
                         return false;
                     }
                     backend.conv_dict_after_key();
@@ -1704,21 +1575,20 @@ fn encode_vim_with_backend(
 }
 
 /// Convert Vimscript value to `:echo` output (`encode_vim_to_echo`).
-pub fn encode_vim_to_echo(gap: &mut Vec<u8>, tv: &mut TypVal, objname: &std::ffi::CStr) -> bool {
+pub fn encode_vim_to_echo(gap: &mut Vec<u8>, tv: &mut TypVal, objname: &CStr) -> bool {
     let mut backend = EncodeBackend::Text {
         gap,
         mode: TextEncodeMode::Echo,
     };
-    encode_vim_with_backend(&mut backend, tv, objname.as_ptr())
+    encode_vim_with_backend(&mut backend, tv, objname)
 }
 
 /// Convert Vimscript value to msgpack string (`encode_vim_to_msgpack`).
 pub fn encode_vim_to_msgpack(
     packer: &mut PackerBuffer,
     tv: &mut TypVal,
-    objname: impl crate::strings::IntoCCharPtr,
+    objname: &CStr,
 ) -> bool {
-    let objname = objname.into_c_char_ptr();
     let mut backend = EncodeBackend::Msgpack { packer };
     encode_vim_with_backend(&mut backend, tv, objname)
 }
@@ -1744,7 +1614,7 @@ pub fn encode_tv2echo(tv: &mut TypVal, len: Option<&mut usize>) -> std::ffi::CSt
     let mut ga: Vec<u8> = Vec::with_capacity(80);
     if tv.v_type == VarType::VarString || tv.v_type == VarType::VarFunc {
         if !tv.vval.v_string().is_null() {
-            buf_concat_cstr(&mut ga, tv.vval.v_string());
+            ga.extend_from_slice(crate::memory::cstr_as_bytes(tv.vval.v_string()));
         }
     } else {
         let eve_ret = encode_vim_to_echo(&mut ga, tv, c":echo argument");
@@ -1780,15 +1650,13 @@ mod tests {
 
     #[test]
     fn read_from_list_substitutes_nl_with_nul_and_joins_with_nl() {
-        let mut s1 = *b"a\nb\0";
-        let mut s2 = *b"c\0";
         let mut li2 = Listitem {
             li_next: std::ptr::null_mut(),
             li_prev: std::ptr::null_mut(),
             li_tv: TypVal {
                 v_type: VarType::VarString,
                 v_lock: VAR_UNLOCKED,
-                vval: TypvalVval::String(s2.as_mut_ptr().cast::<c_char>()),
+                vval: TypvalVval::String(c"c".as_ptr().cast_mut()),
             },
         };
         let mut li1 = Listitem {
@@ -1797,7 +1665,7 @@ mod tests {
             li_tv: TypVal {
                 v_type: VarType::VarString,
                 v_lock: VAR_UNLOCKED,
-                vval: TypvalVval::String(s1.as_mut_ptr().cast::<c_char>()),
+                vval: TypvalVval::String(c"a\nb".as_ptr().cast_mut()),
             },
         };
         li2.li_prev = &mut li1;

@@ -1822,7 +1822,10 @@ fn shada_pack_entry(
                 )
             };
             vardesc[prefix.len() + copy_len] = 0;
-            if !encode_vim_to_msgpack(&mut sbuf, &mut gv_val, vardesc.as_ptr()) {
+            let vardesc_cstr = unsafe {
+                std::ffi::CStr::from_ptr(vardesc.as_ptr())
+            };
+            if !encode_vim_to_msgpack(&mut sbuf, &mut gv_val, vardesc_cstr) {
                 ret = ShaDaWriteResult::SDWriteIgnError;
                 semsg!(gettext(c"E574: Failed to write variable %s"), gv_name_ptr);
                 return ret;

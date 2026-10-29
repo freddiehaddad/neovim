@@ -5732,12 +5732,13 @@ pub fn f_msgpackdump(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFunc
     let list = argvars[0].vval.v_list();
     let mut packer: PackerBuffer = packer_string_buffer();
     let msg = gettext(c"msgpackdump() argument, index %i");
-    let mut msgbuf = [0 as c_char; 31 * 4 + NUMBUFLEN];
+    let mut msgbuf = [0u8; 31 * 4 + NUMBUFLEN];
     for (idx, li) in (0_i32..).zip(crate::eval::typval::list_iter_mut(tv_list_first(unsafe {
         list.as_ref()
     }))) {
-        vim_snprintf!(msgbuf.as_mut_ptr(), msgbuf.len(), msg, idx);
-        if !encode_vim_to_msgpack(&mut packer, &mut li.li_tv, msgbuf.as_ptr()) {
+        vim_snprintf!(msgbuf.as_mut_ptr().cast(), msgbuf.len(), msg, idx);
+        let msg_cstr = std::ffi::CStr::from_bytes_until_nul(&msgbuf).unwrap_or(c"");
+        if !encode_vim_to_msgpack(&mut packer, &mut li.li_tv, msg_cstr) {
             break;
         }
     }
