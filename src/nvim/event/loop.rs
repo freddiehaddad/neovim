@@ -591,43 +591,45 @@ pub fn loop_init(loop_: &mut Loop) {
 }
 
 /// Process `Loop.uv` events with a timeout.
-fn loop_uv_run(loop_: &mut Loop, ms: i64) -> bool {
-    let old_rec = loop_.recursive;
-    loop_.recursive = old_rec + 1;
-    if old_rec != 0 {
-        std::process::abort(); // Should not re-enter uv_run
-    }
-
-    let mut mode: i32 = UV_RUN_ONCE;
-    let poll_timer = loop_poll_timer(loop_);
-    let timeout_expired = unsafe { *poll_timer.cast::<*mut bool>() };
+fn loop_uv_run(loop_: *mut Loop, ms: i64) -> bool {
     unsafe {
+        let old_rec = (*loop_).recursive;
+        (*loop_).recursive = old_rec + 1;
+        if old_rec != 0 {
+            std::process::abort(); // Should not re-enter uv_run
+        }
+
+        let mut mode: i32 = UV_RUN_ONCE;
+        let poll_timer = loop_poll_timer(&mut *loop_);
+        let timeout_expired = *poll_timer.cast::<*mut bool>();
         *timeout_expired = false;
+
+        if ms > 0 {
+            uv_timer_start(poll_timer, Some(timer_cb), ms as u64, ms as u64);
+        } else if ms == 0 {
+            mode = UV_RUN_NOWAIT;
+        }
+
+        uv_run((&raw mut (*loop_).uv).cast(), mode);
+
+        if ms > 0 {
+            uv_timer_stop(poll_timer);
+        }
+
+        (*loop_).recursive -= 1; // Can re-enter uv_run now
+        ptr::read_volatile(timeout_expired)
     }
-
-    if ms > 0 {
-        unsafe { uv_timer_start(poll_timer, Some(timer_cb), ms as u64, ms as u64) };
-    } else if ms == 0 {
-        mode = UV_RUN_NOWAIT;
-    }
-
-    unsafe { uv_run((&raw mut loop_.uv).cast(), mode) };
-
-    if ms > 0 {
-        unsafe { uv_timer_stop(poll_timer) };
-    }
-
-    loop_.recursive -= 1; // Can re-enter uv_run now
-    unsafe { ptr::read_volatile(timeout_expired) }
 }
 
 /// Processes one `Loop.uv` event (at most).
 /// Processes all `Loop.fast_events` events.
 /// Does NOT process `Loop.events`, that is an application-specific decision.
-pub fn loop_poll_events(loop_: &mut Loop, ms: i64) -> bool {
-    let timeout_expired = loop_uv_run(loop_, ms);
-    multiqueue_process_events(unsafe { &mut *loop_.fast_events });
-    timeout_expired
+pub fn loop_poll_events(loop_: *mut Loop, ms: i64) -> bool {
+    unsafe {
+        let timeout_expired = loop_uv_run(loop_, ms);
+        multiqueue_process_events(&mut *(*loop_).fast_events);
+        timeout_expired
+    }
 }
 
 /// Schedules a fast event from another thread.

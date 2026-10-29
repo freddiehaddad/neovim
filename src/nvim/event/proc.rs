@@ -144,13 +144,14 @@ pub fn libuv_proc_uv(proc_: &mut Proc) -> *mut uv_handle_t {
 }
 
 #[inline]
-fn loop_process_events(loop_: &mut Loop, multiqueue: Option<&mut MultiQueue>, timeout: i64) {
-    if let Some(multiqueue) = multiqueue
-        && !multiqueue_empty(multiqueue)
-    {
-        multiqueue_process_events(multiqueue);
-    } else {
-        loop_poll_events(loop_, timeout);
+fn loop_process_events(loop_: *mut Loop, multiqueue: *mut MultiQueue, timeout: i64) {
+    unsafe {
+        let has_events = !multiqueue.is_null() && !multiqueue_empty(&*multiqueue);
+        if has_events {
+            multiqueue_process_events(&mut *multiqueue);
+        } else {
+            loop_poll_events(loop_, timeout);
+        }
     }
 }
 
@@ -164,11 +165,7 @@ fn loop_process_events_until<F: FnMut() -> bool>(
     let mut remaining = timeout;
     let mut before = if remaining > 0 { os_hrtime() } else { 0 };
     while !cond() {
-        loop_process_events(
-            unsafe { &mut *loop_ },
-            unsafe { multiqueue.as_mut() },
-            remaining,
-        );
+        loop_process_events(loop_, multiqueue, remaining);
         if remaining == 0 {
             break;
         } else if remaining > 0 {
@@ -275,7 +272,7 @@ pub fn proc_teardown(loop_: &mut Loop) {
                     proc_close_handles(&mut *proc_);
                 }
             } else {
-                proc_stop(&mut *proc_);
+                proc_stop(proc_);
             }
         }
 
@@ -298,7 +295,7 @@ pub fn proc_wait(proc_: *mut Proc, ms: i32, mut events: *mut MultiQueue) -> i32 
     unsafe {
         if (*proc_).refcount == 0 {
             let status = (*proc_).status;
-            loop_process_events(&mut *(*proc_).loop_, (*proc_).events.as_mut(), 0);
+            loop_process_events((*proc_).loop_, (*proc_).events, 0);
             return status;
         }
 
@@ -314,13 +311,13 @@ pub fn proc_wait(proc_: *mut Proc, ms: i32, mut events: *mut MultiQueue) -> i32 
 
         if g_st().got_int {
             g_st().got_int = false;
-            proc_stop(&mut *proc_);
+            proc_stop(proc_);
             if ms == -1 {
                 loop_process_events_until((*proc_).loop_, events, -1, || {
                     ptr::read_volatile(&raw const (*proc_).refcount) == 1
                 });
             } else {
-                loop_process_events(&mut *(*proc_).loop_, events.as_mut(), 0);
+                loop_process_events((*proc_).loop_, events, 0);
             }
 
             (*proc_).status = -2;
@@ -340,34 +337,34 @@ pub fn proc_wait(proc_: *mut Proc, ms: i32, mut events: *mut MultiQueue) -> i32 
 }
 
 /// Ask a process to terminate and eventually kill if it doesn't respond
-pub fn proc_stop(proc_: &mut Proc) {
-    let exited = proc_.status >= 0;
-    if exited || proc_.stopped_time != 0 {
-        return;
-    }
-    proc_.stopped_time = os_hrtime();
-
-    match proc_.r#type {
-        K_PROC_TYPE_UV => {
-            proc_.exit_signal = SIGTERM as u8;
-            os_proc_tree_kill(proc_.pid, SIGTERM);
-        }
-        K_PROC_TYPE_PTY => {
-            proc_.exit_signal = SIGHUP as u8;
-            proc_close_streams(proc_);
-            pty_proc_close_master(unsafe { &mut *(&raw mut *proc_).cast() });
-        }
-        _ => unreachable!(),
-    }
-
+pub fn proc_stop(proc_: *mut Proc) {
     unsafe {
+        let exited = (*proc_).status >= 0;
+        if exited || (*proc_).stopped_time != 0 {
+            return;
+        }
+        (*proc_).stopped_time = os_hrtime();
+
+        match (*proc_).r#type {
+            K_PROC_TYPE_UV => {
+                (*proc_).exit_signal = SIGTERM as u8;
+                os_proc_tree_kill((*proc_).pid, SIGTERM);
+            }
+            K_PROC_TYPE_PTY => {
+                (*proc_).exit_signal = SIGHUP as u8;
+                proc_close_streams(&mut *proc_);
+                pty_proc_close_master(&mut *proc_.cast());
+            }
+            _ => unreachable!(),
+        }
+
         uv_timer_start(
-            loop_children_kill_timer(&mut *proc_.loop_),
+            loop_children_kill_timer(&mut *(*proc_).loop_),
             Some(children_kill_cb),
             KILL_TIMEOUT_MS,
             0,
-        )
-    };
+        );
+    }
 }
 
 unsafe extern "C" fn children_kill_cb(handle: *mut uv_timer_t) {

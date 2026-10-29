@@ -1150,7 +1150,7 @@ pub fn channel_term_close(chan: &mut Channel) {
         channel_decref(chan);
         return;
     }
-    proc_stop(&mut chan.uv.proc_);
+    proc_stop(&raw mut chan.uv.proc_);
     multiqueue_put_event(
         unsafe { &mut *chan.events },
         Event::ChannelTermDelayedFree(&raw mut *chan),

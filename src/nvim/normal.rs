@@ -6021,7 +6021,7 @@ fn nv_pcmark(cap: &mut Cmdarg) {
         get_changelist(curbuf_mut(), curwin_mut(), cap.count1)
     } else {
         flags |= KMARK_NO_CONTEXT | K_MARK_JUMP_LIST;
-        get_jumplist(curwin_mut(), cap.count1)
+        get_jumplist(curwin_ptr(), cap.count1)
     };
 
     if !fm.is_null() {

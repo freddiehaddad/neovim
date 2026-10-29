@@ -16,7 +16,7 @@ use crate::os::os_win_console::{BOOL, DWORD, HANDLE};
 #[cfg(windows)]
 pub type HPCON = *mut c_void;
 #[cfg(windows)]
-pub type HRESULT = i64;
+pub type HRESULT = i32;
 
 #[cfg(windows)]
 use crate::extmark::TriState;

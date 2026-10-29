@@ -960,7 +960,7 @@ fn do_os_system(
                     unsafe { std::slice::from_raw_parts(input, len) }.to_vec(),
                 );
                 if wstream_write(s_in, input_buffer) != 0 {
-                    proc_stop(proc_);
+                    proc_stop(&raw mut *proc_);
                     break 'end;
                 }
                 wstream_set_write_cb(s_in);

@@ -326,7 +326,8 @@ pub fn multiqueue_purge_events(this: &mut MultiQueue) {
 
 /// Return true if `this` has no queued items (`multiqueue_empty`).
 pub fn multiqueue_empty(this: &MultiQueue) -> bool {
-    this.items.is_empty()
+    std::mem::ManuallyDrop::new(unsafe { std::ptr::read_volatile(&raw const this.items) })
+        .is_empty()
 }
 
 /// Replace the parent of an empty queue `this` (`multiqueue_replace_parent`).

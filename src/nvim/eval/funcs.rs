@@ -3012,9 +3012,9 @@ pub fn f_getjumplist(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFunc
     if wp.is_null() {
         return;
     }
-    let wp = unsafe { &mut *wp };
 
-    cleanup_jumplist(&mut *wp, true);
+    cleanup_jumplist(wp, true);
+    let wp = unsafe { &mut *wp };
 
     let l = tv_list_alloc(wp.w_jumplistlen as isize);
     tv_list_append_list(rettv.vval.v_list_ref(), l);
@@ -4657,7 +4657,7 @@ pub fn f_jobstart(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDat
 
             buf.b_p_swf = 0;
             if buf.b_ml.ml_mfp.is_none() && !ml_open(&mut *buf) {
-                proc_stop(&mut (*chan).uv.proc_);
+                proc_stop(&raw mut (*chan).uv.proc_);
                 channel_decref(&mut *chan);
                 return;
             }
@@ -4782,7 +4782,7 @@ pub fn f_jobstop(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData
     if data.is_rpc {
         channel_close(data.id, K_CHANNEL_PART_RPC_CONST, &mut error);
     }
-    proc_stop(&mut data.uv.proc_);
+    proc_stop(&raw mut data.uv.proc_);
     rettv.vval = crate::eval::typval::TypvalVval::Number(1);
     if !error.is_null() {
         emsg(error);
