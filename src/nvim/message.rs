@@ -3021,7 +3021,7 @@ fn msg_puts_display(
                         && !g_st().msg_no_more
                     {
                         if do_more_prompt(NUL as i32) {
-                            s = dlg_st().confirm_buttons.as_ptr();
+                            s = dlg_st().confirm_buttons.as_ptr().cast();
                         }
                         if g_st().quit_more {
                             return;

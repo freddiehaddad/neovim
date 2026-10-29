@@ -3,7 +3,7 @@
 use crate::arglist::{Aentry, alist_name};
 use crate::autocmd::{EVENT_SESSIONWRITEPOST, EVENT_SESSIONWRITEPRE, apply_autocmds};
 use crate::buffer::{FileBuf, bt_help, bt_nofilename, bt_normal, bt_terminal, buflist_findnr};
-use crate::charset::{NUL, ascii_isdigit};
+use crate::charset::ascii_isdigit;
 use crate::errors::*;
 use crate::eval::typval::{VarType, tv_get_string};
 use crate::eval::vars::{VV_THIS_SESSION, get_globvar_dict, set_vim_var_string};
@@ -26,7 +26,7 @@ use crate::path::{add_pathsep, vim_full_name, vim_ispathsep};
 use crate::runtime::{DOSO_NONE, do_source};
 use crate::strings::{gettext, vim_strsave_escaped};
 use crate::window::{Frame, TabPageInfo, WinInfoInfo, tabpage_index};
-use std::ffi::{CString, c_char};
+use std::ffi::{CStr, CString};
 use std::ptr;
 
 use crate::api::win_config::FR_COL;
@@ -76,7 +76,7 @@ fn exses_st() -> &'static mut ExSessionState {
 }
 
 #[inline]
-fn cstr_to_str<'a>(p: *const c_char) -> &'a str {
+fn cstr_to_str<'a, S: crate::strings::IntoCCharPtr>(p: S) -> &'a str {
     unsafe { std::str::from_utf8_unchecked(crate::memory::cstr_as_bytes(p)) }
 }
 
@@ -247,7 +247,7 @@ fn ses_arglist(
     if !write_fmt(fd, format!("{}\n%argdel\n", cstr_to_str(cmd.as_ptr()))) {
         return false;
     }
-    let mut buf: Vec<c_char> = if fullname {
+    let mut buf: Vec<u8> = if fullname {
         vec![0; MAXPATHL]
     } else {
         Vec::new()
@@ -256,8 +256,8 @@ fn ses_arglist(
         let mut s = alist_name(entry);
         if !s.is_null() {
             if fullname {
-                vim_full_name(s, buf.as_mut_ptr(), MAXPATHL, false);
-                s = buf.as_mut_ptr();
+                vim_full_name(s, buf.as_mut_ptr().cast(), MAXPATHL, false);
+                s = buf.as_mut_ptr().cast();
             }
             let fname_esc = ses_escape_fname(s);
             if !write_fmt(fd, format!("$argadd {}\n", cstr_to_str(fname_esc.as_ptr()))) {
@@ -268,20 +268,20 @@ fn ses_arglist(
     true
 }
 
-fn ses_get_fname(buf: &mut FileBuf, flagp: &u32) -> *mut c_char {
+fn ses_get_fname<'a>(buf: &'a mut FileBuf, flagp: &u32) -> Option<&'a CStr> {
     if !buf.b_sfname.is_null()
         && ptr::eq(flagp, &raw const opt_vars().ssop_flags)
         && (opt_vars().ssop_flags & (K_OPT_SSOP_FLAG_CURDIR | K_OPT_SSOP_FLAG_SESDIR)) != 0
         && opt_vars().p_acd == 0
         && !exses_st().did_lcd
     {
-        return buf.b_sfname;
+        return crate::memory::cstr_as_opt_cstr(buf.b_sfname);
     }
-    buf.b_ffname
+    crate::memory::cstr_as_opt_cstr(buf.b_ffname)
 }
 
 fn ses_fname(fd: *mut FILE, buf: &mut FileBuf, flagp: &mut u32, add_eol: bool) -> bool {
-    let name = ses_get_fname(buf, flagp);
+    let name = ses_get_fname(buf, flagp).map_or(ptr::null(), CStr::as_ptr);
     if !ses_put_fname(fd, name, flagp) || (add_eol && !write_bytes(fd, b"\n")) {
         return false;
     }
@@ -291,23 +291,19 @@ fn ses_fname(fd: *mut FILE, buf: &mut FileBuf, flagp: &mut u32, add_eol: bool) -
 fn ses_escape_fname(name: impl crate::strings::IntoCCharPtr) -> CString {
     let name = name.into_c_char_ptr();
     {
-        let mut sname_vec: Vec<c_char> = home_replace_save(None, name)
-            .into_bytes_with_nul()
-            .into_iter()
-            .map(|b| b as c_char)
-            .collect();
+        let mut sname_vec: Vec<u8> = home_replace_save(None, name).into_bytes_with_nul();
 
-        let mut p = sname_vec.as_mut_ptr();
+        let mut p = sname_vec.as_mut_ptr().cast();
         while !crate::memory::cstr_is_empty(p) {
             if crate::memory::cstr_first_byte(p) == b'\\' {
                 unsafe {
-                    *p = b'/' as c_char;
+                    *p.cast::<u8>() = b'/';
                 }
             }
             p = p.wrapping_add(utfc_ptr2len(p) as usize);
         }
 
-        vim_strsave_fnameescape(sname_vec.as_ptr(), VSE_NONE)
+        vim_strsave_fnameescape(sname_vec.as_ptr().cast(), VSE_NONE)
     }
 }
 
@@ -363,18 +359,20 @@ fn put_view(
     }
 
     if add_edit && (!did_next || wp.w_arg_idx_invalid) {
-        let fname_esc = ses_escape_fname(ses_get_fname((*wp).buf_mut(), flagp));
+        let fname_esc = ses_escape_fname(
+            ses_get_fname((*wp).buf_mut(), flagp).map_or(ptr::null(), CStr::as_ptr),
+        );
         if bt_help(unsafe { (wp.w_buffer).as_ref() }) {
-            let mut curtag: *const c_char = c"".as_ptr();
+            let mut curtag: &CStr = c"";
             if 0 < wp.w_tagstackidx && wp.w_tagstackidx <= wp.w_tagstacklen {
                 curtag = wp.w_tagstack[(wp.w_tagstackidx - 1) as usize]
                     .tagname
-                    .as_ref()
-                    .map_or(c"".as_ptr(), |s| s.as_ptr());
+                    .as_deref()
+                    .unwrap_or(c"");
             }
 
             if !put_line(fd, c"enew | setl bt=help")
-                || !write_fmt(fd, format!("help {}", cstr_to_str(curtag)))
+                || !write_fmt(fd, format!("help {}", cstr_to_str(curtag.as_ptr())))
                 || !put_eol(fd)
             {
                 return false;
@@ -538,23 +536,16 @@ fn store_session_globals(fd: *mut FILE) -> bool {
                 && var_flavour(key_ptr) == VAR_FLAVOUR_SESSION
             {
                 let p = vim_strsave_escaped(tv_get_string(&this_var.di_tv), c"\\\"\n\r");
-                let mut p_vec: Vec<c_char> = p
-                    .into_bytes_with_nul()
-                    .into_iter()
-                    .map(|b| b as c_char)
-                    .collect();
-                let mut t = p_vec.as_mut_ptr();
-                while !crate::memory::cstr_is_empty(t) {
-                    if crate::memory::cstr_first_byte(t) == b'\n' {
-                        unsafe {
-                            *t = b'n' as c_char;
-                        }
-                    } else if crate::memory::cstr_first_byte(t) == b'\r' {
-                        unsafe {
-                            *t = b'r' as c_char;
-                        }
+                let mut p_vec: Vec<u8> = p.into_bytes_with_nul();
+                for b in &mut p_vec {
+                    if *b == 0 {
+                        break;
                     }
-                    t = t.wrapping_add(1);
+                    if *b == b'\n' {
+                        *b = b'n';
+                    } else if *b == b'\r' {
+                        *b = b'r';
+                    }
                 }
                 let quote = if this_var.di_tv.v_type == VarType::VarString {
                     '"'
@@ -566,7 +557,7 @@ fn store_session_globals(fd: *mut FILE) -> bool {
                     format!(
                         "let {} = {quote}{}{quote}",
                         cstr_to_str(key_ptr),
-                        cstr_to_str(p_vec.as_ptr())
+                        cstr_to_str(CStr::from_bytes_until_nul(&p_vec).unwrap_or(c""))
                     ),
                 ) || !put_eol(fd)
                 {
@@ -711,7 +702,10 @@ fn makeopens(fd: *mut FILE, dirnow: impl crate::strings::IntoCCharPtr) -> bool {
                     c"lua vim.api.nvim_create_autocmd('BufEnter', { once = true, buffer = vim.fn.bufadd([==[",
                     fd,
                 ) < 0
-                    || fputs(ses_get_fname( &mut *b, &opt_vars().ssop_flags), fd) < 0
+                    || fputs(
+                        ses_get_fname(&mut *b, &opt_vars().ssop_flags).unwrap_or(c""),
+                        fd,
+                    ) < 0
                     || fputs(
                         c"]==]), callback = function() vim.cmd.bcd({ [==[",
                         fd,
@@ -974,7 +968,7 @@ fn makeopens(fd: *mut FILE, dirnow: impl crate::strings::IntoCCharPtr) -> bool {
 }
 
 pub fn ex_loadview(eap: &mut Exarg) {
-    let Some(fname) = get_view_file(unsafe { *eap.arg }) else {
+    let Some(fname) = get_view_file(crate::memory::cstr_first_byte(eap.arg)) else {
         return;
     };
 
@@ -994,34 +988,34 @@ pub fn ex_mkrc(eap: &mut Exarg) {
 
     exses_st().did_lcd = false;
 
-    let fname: *mut c_char;
+    let fname: &CStr;
     if eap.cmdidx == CMD_MKVIEW
         && (crate::memory::cstr_is_empty(eap.arg)
-            || (ascii_isdigit(unsafe { *eap.arg } as i32)
+            || (ascii_isdigit(i32::from(crate::memory::cstr_first_byte(eap.arg)))
                 && crate::memory::cstr_byte_at(eap.arg, 1) == 0))
     {
         eap.forceit = 1;
-        let Some(vf) = get_view_file(unsafe { *eap.arg }) else {
+        let Some(vf) = get_view_file(crate::memory::cstr_first_byte(eap.arg)) else {
             return;
         };
-        fname = vf.as_ptr().cast_mut();
         view_file = Some(vf);
+        fname = view_file.as_deref().unwrap();
         using_vdir = true;
     } else if !crate::memory::cstr_is_empty(eap.arg) {
-        fname = eap.arg;
+        fname = crate::memory::cstr_from_ptr(eap.arg);
     } else if eap.cmdidx == CMD_MKVIMRC {
-        fname = c".nvimrc".as_ptr().cast_mut();
+        fname = c".nvimrc";
     } else if eap.cmdidx == CMD_MKSESSION {
-        fname = c"Session.vim".as_ptr().cast_mut();
+        fname = c"Session.vim";
     } else {
-        fname = c".exrc".as_ptr().cast_mut();
+        fname = c".exrc";
     }
 
     if using_vdir && !os_isdir(opt_vars().p_vdir) {
         vim_mkdir_emsg(opt_vars().p_vdir, 0o755);
     }
 
-    let fd = open_exfile(fname, eap.forceit, c"wb");
+    let fd = open_exfile(fname.as_ptr(), eap.forceit, c"wb");
     if !fd.is_null() {
         let mut failed = false;
         let flagp = if eap.cmdidx == CMD_MKVIEW {
@@ -1067,13 +1061,11 @@ pub fn ex_mkrc(eap: &mut Exarg) {
                     failed = true;
                 }
             if eap.cmdidx == CMD_MKSESSION {
-                let mut dirnow_vec: Vec<c_char> = vec![0; MAXPATHL];
-                let dirnow = dirnow_vec.as_mut_ptr();
+                let mut dirnow_vec: Vec<u8> = vec![0; MAXPATHL];
+                let dirnow = dirnow_vec.as_mut_ptr().cast();
 
                 if !os_dirname(dirnow, MAXPATHL) || os_chdir(dirnow) != 0 {
-                    unsafe {
-                        *dirnow = NUL;
-                    }
+                    dirnow_vec[0] = 0;
                 }
                 if !crate::memory::cstr_is_empty(dirnow)
                     && (opt_vars().ssop_flags & K_OPT_SSOP_FLAG_SESDIR) != 0
@@ -1135,9 +1127,9 @@ pub fn ex_mkrc(eap: &mut Exarg) {
         if failed {
             emsg(gettext(E_WRITE));
         } else if eap.cmdidx == CMD_MKSESSION {
-            let mut tbuf: Vec<c_char> = vec![0; MAXPATHL];
-            if vim_full_name(fname, tbuf.as_mut_ptr(), MAXPATHL, false) {
-                set_vim_var_string(VV_THIS_SESSION, tbuf.as_ptr(), -1);
+            let mut tbuf: Vec<u8> = vec![0; MAXPATHL];
+            if vim_full_name(fname.as_ptr(), tbuf.as_mut_ptr().cast(), MAXPATHL, false) {
+                set_vim_var_string(VV_THIS_SESSION, tbuf.as_ptr().cast(), -1);
             }
         }
     }
@@ -1155,66 +1147,54 @@ pub fn ex_mkrc(eap: &mut Exarg) {
     }
 }
 
-fn get_view_file(c: c_char) -> Option<CString> {
-    unsafe {
-        if curbuf_mut().b_ffname.is_null() {
-            emsg(gettext(E_NONAME));
-            return None;
-        }
-        let sname_cstr = home_replace_save(None, curbuf_mut().b_ffname);
-        let sname = sname_cstr.as_ptr();
-
-        let mut len: usize = 0;
-        let mut p = sname;
-        while !crate::memory::cstr_is_empty(p) {
-            if crate::memory::cstr_first_byte(p) == b'='
-                || vim_ispathsep(i32::from(crate::memory::cstr_first_byte(p)))
-            {
-                len += 1;
-            }
-            p = p.wrapping_add(1);
-        }
-        let sname_len = sname_cstr.as_bytes().len();
-        let vdir_len = crate::memory::cstr_len(opt_vars().p_vdir);
-        let mut retval_vec: Vec<c_char> = vec![0; sname_len + len + vdir_len + 9];
-        let retval = retval_vec.as_mut_ptr();
-        ptr::copy_nonoverlapping(opt_vars().p_vdir, retval, vdir_len + 1);
-        add_pathsep(retval);
-        let mut s = retval.wrapping_add(crate::memory::cstr_len(retval));
-        p = sname;
-        while !crate::memory::cstr_is_empty(p) {
-            if crate::memory::cstr_first_byte(p) == b'=' {
-                *s = b'=' as c_char;
-                *s.wrapping_add(1) = b'=' as c_char;
-                s = s.wrapping_add(2);
-            } else if vim_ispathsep(i32::from(crate::memory::cstr_first_byte(p))) {
-                *s = b'=' as c_char;
-                #[cfg(windows)]
-                {
-                    *s.wrapping_add(1) = if crate::memory::cstr_first_byte(p) == b':' {
-                        b'-' as c_char
-                    } else {
-                        b'+' as c_char
-                    };
-                }
-                #[cfg(not(windows))]
-                {
-                    *s.add(1) = b'+' as c_char;
-                }
-                s = s.wrapping_add(2);
-            } else {
-                *s = *p;
-                s = s.wrapping_add(1);
-            }
-            p = p.wrapping_add(1);
-        }
-        *s = b'=' as c_char;
-        *s.wrapping_add(1) = c;
-        s = s.wrapping_add(2);
-        crate::memory::cstr_ncpy(s, c".vim", 4);
-
-        Some(crate::memory::cstr_to_cstring(retval))
+fn get_view_file(c: u8) -> Option<CString> {
+    if curbuf_mut().b_ffname.is_null() {
+        emsg(gettext(E_NONAME));
+        return None;
     }
+    let sname_cstr = home_replace_save(None, curbuf_mut().b_ffname);
+    let sname_bytes = sname_cstr.as_bytes();
+
+    let mut len: usize = 0;
+    for &b in sname_bytes {
+        if b == b'=' || vim_ispathsep(i32::from(b)) {
+            len += 1;
+        }
+    }
+    let sname_len = sname_bytes.len();
+    let vdir_len = crate::memory::cstr_len(opt_vars().p_vdir);
+    let mut retval_vec: Vec<u8> = vec![0; sname_len + len + vdir_len + 9];
+    let retval = retval_vec.as_mut_ptr();
+    unsafe { ptr::copy_nonoverlapping(opt_vars().p_vdir.cast::<u8>(), retval, vdir_len + 1) };
+    add_pathsep(retval.cast());
+    let mut s_idx = crate::memory::cstr_len(retval.cast());
+    for &b in sname_bytes {
+        if b == b'=' {
+            retval_vec[s_idx] = b'=';
+            retval_vec[s_idx + 1] = b'=';
+            s_idx += 2;
+        } else if vim_ispathsep(i32::from(b)) {
+            retval_vec[s_idx] = b'=';
+            #[cfg(windows)]
+            {
+                retval_vec[s_idx + 1] = if b == b':' { b'-' } else { b'+' };
+            }
+            #[cfg(not(windows))]
+            {
+                retval_vec[s_idx + 1] = b'+';
+            }
+            s_idx += 2;
+        } else {
+            retval_vec[s_idx] = b;
+            s_idx += 1;
+        }
+    }
+    retval_vec[s_idx] = b'=';
+    retval_vec[s_idx + 1] = c;
+    s_idx += 2;
+    crate::memory::cstr_ncpy(retval.wrapping_add(s_idx).cast(), c".vim", 4);
+
+    Some(crate::memory::cstr_to_cstring(retval.cast()))
 }
 
 pub fn put_eol(fd: *mut FILE) -> bool {

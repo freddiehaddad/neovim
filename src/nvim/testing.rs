@@ -28,7 +28,7 @@ use crate::regexp::NUMBUFLEN;
 use crate::runtime::{ESTACK_NONE, estack_sfile, sourcing_lnum};
 use crate::strings::{vim_snprintf, vim_snprintf_safelen};
 use crate::viml::parser::expressions::{BS, CAR, ESC, NL, TAB};
-use std::ffi::c_char;
+use std::ffi::CStr;
 
 const EOF_VAL: i32 = -1;
 
@@ -297,10 +297,10 @@ fn assert_equal_common(argvars: &mut [TypVal], atype: AssertType) -> i32 {
 }
 
 fn assert_match_common(argvars: &mut [TypVal], atype: AssertType) -> i32 {
-    let mut buf1 = [0 as c_char; NUMBUFLEN];
-    let mut buf2 = [0 as c_char; NUMBUFLEN];
-    let pat = tv_get_string_buf_chk(&argvars[0], buf1.as_mut_ptr());
-    let text = tv_get_string_buf_chk(&argvars[1], buf2.as_mut_ptr());
+    let mut buf1 = [0u8; NUMBUFLEN];
+    let mut buf2 = [0u8; NUMBUFLEN];
+    let pat = tv_get_string_buf_chk(&argvars[0], buf1.as_mut_ptr().cast());
+    let text = tv_get_string_buf_chk(&argvars[1], buf2.as_mut_ptr().cast());
 
     if !pat.is_null()
         && !text.is_null()
@@ -414,30 +414,35 @@ pub fn f_assert_equal(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFun
 }
 
 fn assert_equalfile(argvars: &mut [TypVal]) -> i32 {
-    let mut buf1 = [0 as c_char; NUMBUFLEN];
-    let mut buf2 = [0 as c_char; NUMBUFLEN];
-    let fname1 = tv_get_string_buf_chk(&argvars[0], buf1.as_mut_ptr());
-    let fname2 = tv_get_string_buf_chk(&argvars[1], buf2.as_mut_ptr());
+    let mut buf1 = [0u8; NUMBUFLEN];
+    let mut buf2 = [0u8; NUMBUFLEN];
+    let fname1 = tv_get_string_buf_chk(&argvars[0], buf1.as_mut_ptr().cast());
+    let fname2 = tv_get_string_buf_chk(&argvars[1], buf2.as_mut_ptr().cast());
 
     if fname1.is_null() || fname2.is_null() {
         return 0;
     }
 
-    let mut iobuf = [0 as c_char; IOSIZE];
+    let mut iobuf = [0u8; IOSIZE];
     let mut iobuflen = 0usize;
     let fd1 = os_fopen(fname1, c"rb");
-    let mut line1 = [0 as c_char; 200];
-    let mut line2 = [0 as c_char; 200];
+    let mut line1 = [0u8; 200];
+    let mut line2 = [0u8; 200];
     let mut lineidx: usize = 0;
 
     if fd1.is_null() {
-        iobuflen = vim_snprintf_safelen!(iobuf.as_mut_ptr(), IOSIZE, E_CANT_READ_FILE_STR, fname1,);
+        iobuflen =
+            vim_snprintf_safelen!(iobuf.as_mut_ptr().cast(), IOSIZE, E_CANT_READ_FILE_STR, fname1);
     } else {
         let fd2 = os_fopen(fname2, c"rb");
         if fd2.is_null() {
             unsafe { fclose(fd1) };
-            iobuflen =
-                vim_snprintf_safelen!(iobuf.as_mut_ptr(), IOSIZE, E_CANT_READ_FILE_STR, fname2,);
+            iobuflen = vim_snprintf_safelen!(
+                iobuf.as_mut_ptr().cast(),
+                IOSIZE,
+                E_CANT_READ_FILE_STR,
+                fname2,
+            );
         } else {
             let mut linecount: i64 = 1;
             let mut count: i64 = 0;
@@ -446,20 +451,22 @@ fn assert_equalfile(argvars: &mut [TypVal]) -> i32 {
                 let c2 = unsafe { fgetc(fd2) };
                 if c1 == EOF_VAL {
                     if c2 != EOF_VAL {
-                        iobuflen = xstrlcpy(iobuf.as_mut_ptr(), c"first file is shorter", IOSIZE);
+                        iobuflen =
+                            xstrlcpy(iobuf.as_mut_ptr().cast(), c"first file is shorter", IOSIZE);
                     }
                     break;
                 } else if c2 == EOF_VAL {
-                    iobuflen = xstrlcpy(iobuf.as_mut_ptr(), c"second file is shorter", IOSIZE);
+                    iobuflen =
+                        xstrlcpy(iobuf.as_mut_ptr().cast(), c"second file is shorter", IOSIZE);
                     break;
                 } else {
-                    line1[lineidx] = c1 as c_char;
-                    line2[lineidx] = c2 as c_char;
+                    line1[lineidx] = c1 as u8;
+                    line2[lineidx] = c2 as u8;
                     lineidx += 1;
                     if c1 != c2 {
                         let msg = format!("difference at byte {count}, line {linecount}\0");
                         iobuflen =
-                            xstrlcpy(iobuf.as_mut_ptr(), msg.as_ptr().cast::<c_char>(), IOSIZE);
+                            xstrlcpy(iobuf.as_mut_ptr().cast(), msg.as_ptr().cast(), IOSIZE);
                         break;
                     }
                 }
@@ -486,15 +493,13 @@ fn assert_equalfile(argvars: &mut [TypVal]) -> i32 {
             buf_concat_cstr(&mut ga, tofree.as_ptr());
             ga_concat_literal(&mut ga, b": ");
         }
-        buf_concat_len(&mut ga, iobuf.as_ptr(), iobuflen);
+        ga_concat_literal(&mut ga, &iobuf[..iobuflen]);
         if lineidx > 0 {
-            line1[lineidx] = 0;
-            line2[lineidx] = 0;
             ga_concat_literal(&mut ga, b" after \"");
-            buf_concat_len(&mut ga, line1.as_ptr(), lineidx);
+            ga_concat_literal(&mut ga, &line1[..lineidx]);
             if line1[..lineidx] != line2[..lineidx] {
                 ga_concat_literal(&mut ga, b"\" vs \"");
-                buf_concat_len(&mut ga, line2.as_ptr(), lineidx);
+                ga_concat_literal(&mut ga, &line2[..lineidx]);
             }
             ga_concat_literal(&mut ga, b"\"");
         }
@@ -559,7 +564,7 @@ pub fn f_assert_exception(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: Eva
 pub fn f_assert_fails(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
     let save_trylevel = g_st().trylevel;
     let called_emsg_before = g_st().called_emsg;
-    let mut wrong_arg_msg: *const c_char = std::ptr::null();
+    let mut wrong_arg_msg: Option<&CStr> = None;
     let mut tofree: Option<std::ffi::CString> = None;
 
     if !tv_check_for_string_or_number_arg(argvars, 0)
@@ -592,11 +597,11 @@ pub fn f_assert_fails(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFun
         assert_error(&ga);
         rettv.vval = crate::eval::typval::TypvalVval::Number(1);
     } else if argvars[1].v_type != VarType::VarUnknown {
-        let mut buf = [0 as c_char; NUMBUFLEN];
-        let mut expected_str: *const c_char = std::ptr::null();
+        let mut buf = [0u8; NUMBUFLEN];
+        let mut expected_str: Option<&CStr> = None;
         let mut error_found = false;
         let mut error_found_index: usize = 1;
-        let mut actual: *mut c_char = unsafe { (&raw const g_st().emsg_assert_fails_msg).as_ref() }
+        let mut actual = unsafe { (&raw const g_st().emsg_assert_fails_msg).as_ref() }
             .unwrap()
             .as_ref()
             .map_or(c"[unknown]".as_ptr().cast_mut(), |s| s.as_ptr().cast_mut());
@@ -604,7 +609,7 @@ pub fn f_assert_fails(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFun
         let arg1 = &argvars[1];
         let mut valid_args = true;
         if arg1.v_type == VarType::VarString {
-            let expected = tv_get_string_buf_chk(arg1, buf.as_mut_ptr());
+            let expected = tv_get_string_buf_chk(arg1, buf.as_mut_ptr().cast());
             if expected.is_null() {
                 error_found = true;
             } else {
@@ -623,36 +628,36 @@ pub fn f_assert_fails(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFun
                 || tv_list_len(unsafe { list.as_ref() }) < 1
                 || tv_list_len(unsafe { list.as_ref() }) > 2
             {
-                wrong_arg_msg =
-                        c"E856: \"assert_fails()\" second argument must be a string or a list with one or two strings"
-                            .as_ptr();
+                wrong_arg_msg = Some(
+                    c"E856: \"assert_fails()\" second argument must be a string or a list with one or two strings",
+                );
                 valid_args = false;
             } else {
                 let first_tv = unsafe { &(*tv_list_first(list.as_ref())).li_tv };
-                let expected = tv_get_string_buf_chk(first_tv, buf.as_mut_ptr());
+                let expected = tv_get_string_buf_chk(first_tv, buf.as_mut_ptr().cast());
                 if expected.is_null() {
                     valid_args = false;
                 } else if pattern_match(expected, actual, false) == 0 {
                     error_found = true;
-                    expected_str = expected;
+                    expected_str = crate::memory::cstr_as_opt_cstr(expected);
                 } else if tv_list_len(unsafe { list.as_ref() }) == 2 {
                     let s = crate::memory::cstr_to_cstring(get_vim_var_str(VV_ERRMSG));
                     actual = s.as_ptr().cast_mut();
                     tofree = Some(s);
                     let last_tv = unsafe { &(*tv_list_last(list.as_ref())).li_tv };
-                    let expected2 = tv_get_string_buf_chk(last_tv, buf.as_mut_ptr());
+                    let expected2 = tv_get_string_buf_chk(last_tv, buf.as_mut_ptr().cast());
                     if expected2.is_null() {
                         valid_args = false;
                     } else if pattern_match(expected2, actual, false) == 0 {
                         error_found = true;
-                        expected_str = expected2;
+                        expected_str = crate::memory::cstr_as_opt_cstr(expected2);
                     }
                 }
             }
         } else {
-            wrong_arg_msg =
-                    c"E856: \"assert_fails()\" second argument must be a string or a list with one or two strings"
-                        .as_ptr();
+            wrong_arg_msg = Some(
+                c"E856: \"assert_fails()\" second argument must be a string or a list with one or two strings",
+            );
             valid_args = false;
         }
 
@@ -663,8 +668,7 @@ pub fn f_assert_fails(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFun
         {
             let arg3 = &argvars[3];
             if arg3.v_type != VarType::VarNumber {
-                wrong_arg_msg =
-                    c"E1115: \"assert_fails()\" fourth argument must be a number".as_ptr();
+                wrong_arg_msg = Some(c"E1115: \"assert_fails()\" fourth argument must be a number");
                 valid_args = false;
             } else if arg3.vval.v_number() >= 0 && {
                 let expected: i64 = g_st().emsg_assert_fails_lnum as _;
@@ -677,7 +681,7 @@ pub fn f_assert_fails(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFun
                 let arg4 = &argvars[4];
                 if arg4.v_type != VarType::VarString {
                     wrong_arg_msg =
-                        c"E1116: \"assert_fails()\" fifth argument must be a string".as_ptr();
+                        Some(c"E1116: \"assert_fails()\" fifth argument must be a string");
                     valid_args = false;
                 } else if !arg4.vval.v_string().is_null()
                     && pattern_match(
@@ -730,7 +734,7 @@ pub fn f_assert_fails(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFun
             fill_assert_error(
                 &mut ga,
                 &mut first[2],
-                expected_str,
+                expected_str.map_or(std::ptr::null(), CStr::as_ptr),
                 exp_ptr,
                 &mut actual_tv,
                 AssertType::Fails,
@@ -756,8 +760,8 @@ pub fn f_assert_fails(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFun
     g_st().emsg_assert_fails_msg = None;
     drop(tofree);
     set_vim_var_string(VV_ERRMSG, std::ptr::null(), 0);
-    if !wrong_arg_msg.is_null() {
-        emsg(wrong_arg_msg);
+    if let Some(msg) = wrong_arg_msg {
+        emsg(msg.as_ptr());
     }
 }
 
@@ -783,9 +787,9 @@ fn assert_inrange(argvars: &mut [TypVal]) -> i32 {
         if factual < flower || factual > fupper {
             let mut ga = Vec::new();
             prepare_assert_error(&mut ga);
-            let mut expected_str = [0 as c_char; 200];
+            let mut expected_str = [0u8; 200];
             vim_snprintf!(
-                expected_str.as_mut_ptr(),
+                expected_str.as_mut_ptr().cast(),
                 expected_str.len(),
                 c"range %g - %g,",
                 flower,
@@ -795,7 +799,7 @@ fn assert_inrange(argvars: &mut [TypVal]) -> i32 {
             fill_assert_error(
                 &mut ga,
                 &mut rest[0],
-                expected_str.as_ptr(),
+                CStr::from_bytes_until_nul(&expected_str).unwrap_or(c"").as_ptr(),
                 std::ptr::null_mut(),
                 &mut first[2],
                 AssertType::Other,
@@ -819,7 +823,7 @@ fn assert_inrange(argvars: &mut [TypVal]) -> i32 {
             fill_assert_error(
                 &mut ga,
                 &mut rest[0],
-                expected_str.as_ptr().cast::<c_char>(),
+                CStr::from_bytes_with_nul(expected_str.as_bytes()).unwrap_or(c"").as_ptr(),
                 std::ptr::null_mut(),
                 &mut first[2],
                 AssertType::Other,
