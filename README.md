@@ -28,7 +28,7 @@ It is a drop-in replacement for upstream Neovim, not a from-scratch rewrite with
 
 ## Performance
 
-Measured head-to-head against upstream `neovim/neovim` Nightly (`v0.13.0-dev`) on identical hardware using the built-in benchmark suite (`cargo xtask benchmark --release`):
+Measured head-to-head against upstream [`neovim/neovim@61e71ccf8a`](https://github.com/neovim/neovim/commit/61e71ccf8a) (`v0.13.0-dev`) on identical hardware using the built-in benchmark suite (`cargo xtask benchmark --release`):
 
 <p align="center">
   <img src=".github/benchmarks.svg" width="100%" alt="Performance comparison between the Rust port and upstream C Neovim">
