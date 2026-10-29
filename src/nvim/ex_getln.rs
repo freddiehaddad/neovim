@@ -4465,8 +4465,8 @@ fn restore_cmdline() {
 
 /// Paste a yank register into the command line.
 fn cmdline_paste(regname: i32, literally: bool, remcr: bool) -> bool {
-    let mut arg: *mut c_char = ptr::null_mut();
-    let mut owned: Option<Vec<c_char>> = None;
+    let mut arg: *mut u8 = ptr::null_mut();
+    let mut owned: Option<Vec<u8>> = None;
 
     if regname != CTRL_F_CONST
         && regname != CTRL_P
@@ -4514,17 +4514,17 @@ fn cmdline_paste(regname: i32, literally: bool, remcr: bool) -> bool {
             ) as usize;
             let matches = if opt_vars().p_ic != 0 {
                 crate::memory::cstr_prefix_bytes(w, len)
-                    .eq_ignore_ascii_case(crate::memory::cstr_prefix_bytes(arg, len))
+                    .eq_ignore_ascii_case(crate::memory::cstr_prefix_bytes(arg.cast(), len))
             } else {
                 crate::memory::cstr_prefix_bytes(w, len)
-                    == crate::memory::cstr_prefix_bytes(arg, len)
+                    == crate::memory::cstr_prefix_bytes(arg.cast(), len)
             };
             if matches {
                 p = p.wrapping_add(len);
             }
         }
 
-        cmdline_paste_str(p, literally);
+        cmdline_paste_str(p.cast_const().cast(), literally);
         return OK != 0;
     }
 

@@ -3085,12 +3085,12 @@ pub fn f_getpos(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData)
 }
 
 /// Convert from `BlockDef` to a byte vector.
-fn block_def2str(bd: &BlockDef) -> Vec<c_char> {
+fn block_def2str(bd: &BlockDef) -> Vec<u8> {
     let startspaces = bd.startspaces as usize;
     let endspaces = bd.endspaces as usize;
     let textlen = bd.textlen as usize;
     let size = startspaces + endspaces + textlen;
-    let mut data = vec![b' ' as c_char; size];
+    let mut data = vec![b' '; size];
     unsafe {
         ptr::copy(
             bd.textstart,
@@ -3267,7 +3267,11 @@ pub fn f_getregion(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDa
             let mut bd = BlockDef::new();
             block_prep(&mut oa, &mut bd, lnum, false);
             let akt = block_def2str(&bd);
-            tv_list_append_string(rettv.vval.v_list_ref(), akt.as_ptr(), akt.len() as isize);
+            tv_list_append_string(
+                rettv.vval.v_list_ref(),
+                akt.as_ptr().cast(),
+                akt.len() as isize,
+            );
         } else if region_type == MT_LINE_WISE || (p1.lnum < lnum && lnum < p2.lnum) {
             tv_list_append_string(
                 rettv.vval.v_list_ref(),
@@ -3292,7 +3296,11 @@ pub fn f_getregion(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDa
                 inclusive,
             );
             let akt = block_def2str(&bd);
-            tv_list_append_string(rettv.vval.v_list_ref(), akt.as_ptr(), akt.len() as isize);
+            tv_list_append_string(
+                rettv.vval.v_list_ref(),
+                akt.as_ptr().cast(),
+                akt.len() as isize,
+            );
         }
     }
 
@@ -3514,11 +3522,11 @@ pub fn f_getregtype(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncD
     }
 
     let mut reglen: Colnr = 0;
-    let mut buf = [0 as c_char; NUMBUFLEN + 2];
+    let mut buf = [0u8; NUMBUFLEN + 2];
     let reg_type = get_reg_type(regname, Some(&mut reglen));
-    format_reg_type(reg_type, reglen, buf.as_mut_ptr(), buf.len());
+    let len = format_reg_type(reg_type, reglen, &mut buf);
 
-    crate::eval::typval::tv_set_string(rettv, buf.as_ptr());
+    crate::eval::typval::tv_set_string_len(rettv, buf.as_ptr().cast(), len);
 }
 
 /// "gettagstack()" function
@@ -7681,10 +7689,9 @@ pub fn f_setreg(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData)
         if argvars[1].v_type == VarType::VarDict {
             let d = argvars[1].vval.v_dict();
             if tv_dict_len(d.as_ref()) == 0 {
-                let mut lstval: [*mut c_char; 2] = [ptr::null_mut(), ptr::null_mut()];
                 write_reg_contents_lst(
                     i32::from(regname as u8),
-                    lstval.as_mut_ptr(),
+                    &[] as &[&CStr],
                     false,
                     crate::register::MotionType::MtUnknown,
                     -1,
@@ -7747,35 +7754,26 @@ pub fn f_setreg(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData)
             let ll = (*regcontents).vval.v_list();
             let len = tv_list_len(ll.as_ref()) as usize;
 
-            let mut lstval: Vec<*const c_char> = Vec::with_capacity(len + 1);
-            let mut allocval: Vec<std::ffi::CString> = Vec::new();
+            let mut lstval: Vec<std::ffi::CString> = Vec::with_capacity(len);
 
             'free_lstval: {
                 for li in crate::eval::typval::list_iter_mut(tv_list_first(ll.as_ref())) {
-                    let mut buf = [0 as c_char; NUMBUFLEN];
-                    let mut val = tv_get_string_buf_chk(&li.li_tv, buf.as_mut_ptr());
+                    let mut buf = [0u8; NUMBUFLEN];
+                    let val = tv_get_string_buf_chk(&li.li_tv, buf.as_mut_ptr().cast());
                     if val.is_null() {
                         break 'free_lstval;
                     }
-                    if ptr::eq(val, buf.as_ptr()) {
-                        let copied = cstr_to_cstring(val);
-                        val = copied.as_ptr();
-                        allocval.push(copied);
-                    }
-                    lstval.push(val);
+                    lstval.push(cstr_to_cstring(val));
                 }
-                lstval.push(ptr::null());
 
                 write_reg_contents_lst(
                     i32::from(regname as u8),
-                    lstval.as_mut_ptr().cast::<*mut c_char>(),
+                    &lstval,
                     append,
                     yank_type,
                     block_len as Colnr,
                 );
             }
-
-            drop(allocval);
         } else if !regcontents.is_null() {
             let strval = tv_get_string_chk(&*regcontents);
             if strval.is_null() {

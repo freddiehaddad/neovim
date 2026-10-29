@@ -369,13 +369,13 @@ pub fn vim_strsave_escaped<S1: IntoCCharPtr, S2: IntoCCharPtr>(
     string: S1,
     esc_chars: S2,
 ) -> std::ffi::CString {
-    vim_strsave_escaped_ext(string, esc_chars, b'\\' as c_char, false)
+    vim_strsave_escaped_ext(string, esc_chars, b'\\', false)
 }
 
 pub fn vim_strsave_escaped_ext<S1: IntoCCharPtr, S2: IntoCCharPtr>(
     string: S1,
     esc_chars: S2,
-    cc: c_char,
+    cc: u8,
     bsl: bool,
 ) -> std::ffi::CString {
     let string = string.into_c_char_ptr();
@@ -410,7 +410,7 @@ pub fn vim_strsave_escaped_ext<S1: IntoCCharPtr, S2: IntoCCharPtr>(
         if !vim_strchr(esc_chars, (unsafe { *p } as u8) as i32).is_null()
             || (bsl && rem_backslash(p))
         {
-            escaped.push(cc as u8);
+            escaped.push(cc);
         }
         escaped.push(unsafe { *p } as u8);
         p = p.wrapping_add(1);
