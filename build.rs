@@ -47,6 +47,23 @@ fn main() {
     println!("cargo:rerun-if-env-changed=NVIM_HAVE_LIBINTL");
 
     let manifest_dir = PathBuf::from(env::var("CARGO_MANIFEST_DIR").unwrap());
+    let git_dir = manifest_dir.join(".git");
+    if git_dir.is_dir() {
+        let head_path = git_dir.join("HEAD");
+        if head_path.exists() {
+            println!("cargo:rerun-if-changed=.git/HEAD");
+            if let Ok(head) = std::fs::read_to_string(&head_path)
+                && let Some(ref_rel) = head.trim().strip_prefix("ref: ")
+            {
+                if git_dir.join(ref_rel).exists() {
+                    println!("cargo:rerun-if-changed=.git/{ref_rel}");
+                }
+            }
+        }
+        if git_dir.join("packed-refs").exists() {
+            println!("cargo:rerun-if-changed=.git/packed-refs");
+        }
+    }
     let cargo_toml = std::fs::read_to_string(manifest_dir.join("Cargo.toml")).unwrap_or_default();
 
     let ver_major = env::var("NVIM_VERSION_MAJOR")
