@@ -1,10 +1,7 @@
 //! VTerm keyboard event encoding (`src/nvim/vterm/keyboard.c`).
 
-use crate::input::NUL;
-use std::ffi::c_char;
-
+use crate::mbyte::utf_char2slice;
 use crate::terminal::Terminal;
-use crate::tui::termkey::termkey::fill_utf8;
 pub use crate::vterm::encoding::VTermEncodingInstance;
 use crate::vterm::mouse::{VTerm, VTermPos};
 use crate::vterm::screen::VTermScreen;
@@ -70,7 +67,7 @@ pub struct VTermStateTmp {
 #[repr(C)]
 pub struct VTermStateSelection {
     pub callbacks: Option<&'static crate::vterm::state::VTermSelectionCallbacks>,
-    pub buffer: Vec<c_char>,
+    pub buffer: Vec<u8>,
 }
 
 #[repr(C)]
@@ -100,7 +97,7 @@ pub struct VTermStateFull {
     pub mouse_buttons: i32,
     pub mouse_flags: i32,
     pub mouse_protocol: i32,
-    pub grapheme_buf: [c_char; 32],
+    pub grapheme_buf: [u8; 32],
     pub grapheme_len: usize,
     pub grapheme_last: u32,
     pub grapheme_state: i32,
@@ -183,7 +180,7 @@ struct KeycodeEntry {
 const KEYCODES: [KeycodeEntry; 15] = [
     KeycodeEntry {
         r#type: KeycodeType::None,
-        literal: NUL,
+        literal: 0,
         csinum: 0,
     }, // NONE
     KeycodeEntry {
@@ -261,7 +258,7 @@ const KEYCODES: [KeycodeEntry; 15] = [
 const KEYCODES_FN: [KeycodeEntry; 13] = [
     KeycodeEntry {
         r#type: KeycodeType::None,
-        literal: NUL,
+        literal: 0,
         csinum: 0,
     }, // F0
     KeycodeEntry {
@@ -532,11 +529,9 @@ pub fn vterm_keyboard_unichar(vt: &mut VTerm, mut c: u32, mut mod_: VTermModifie
     };
 
     if passthru {
-        let mut str_buf = [0 as c_char; 6];
-        let seqlen = fill_utf8(c as i32, str_buf.as_mut_ptr()) as usize;
-        let bytes: &[u8] =
-            unsafe { std::slice::from_raw_parts(str_buf.as_ptr().cast::<u8>(), seqlen) };
-        vterm_push_output_bytes_slice(vt, bytes);
+        let mut str_buf = [0u8; 6];
+        let seqlen = utf_char2slice(c as i32, &mut str_buf);
+        vterm_push_output_bytes_slice(vt, &str_buf[..seqlen]);
         return;
     }
 

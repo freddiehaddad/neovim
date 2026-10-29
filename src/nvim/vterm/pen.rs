@@ -414,16 +414,14 @@ fn lookup_colour_palette(state: &VTermStateFull, mut index: isize, col: &mut VTe
 fn lookup_colour(
     _state: &VTermStateFull,
     palette: i32,
-    args: *const i64,
-    argcount: i32,
+    args: &[i64],
     col: &mut VTermColor,
-) -> i32 {
+) -> usize {
+    let argcount = args.len();
     match palette {
         2 => {
-            let mut grouplen: i32 = 0;
-            while grouplen < argcount
-                && csi_arg_has_more(unsafe { *args.wrapping_add(grouplen as usize) })
-            {
+            let mut grouplen: usize = 0;
+            while grouplen < argcount && csi_arg_has_more(args[grouplen]) {
                 grouplen += 1;
             }
             grouplen = if grouplen < argcount {
@@ -433,26 +431,26 @@ fn lookup_colour(
             };
             let skip = if grouplen > 3 { 1 } else { 0 };
 
-            if argcount - skip < 3 {
+            if argcount.saturating_sub(skip) < 3 {
                 return argcount;
             }
 
             col.set_rgb(
-                csi_arg(unsafe { *args.wrapping_add(skip as usize) }) as u8,
-                csi_arg(unsafe { *args.wrapping_add((skip + 1) as usize) }) as u8,
-                csi_arg(unsafe { *args.wrapping_add((skip + 2) as usize) }) as u8,
+                csi_arg(args[skip]) as u8,
+                csi_arg(args[skip + 1]) as u8,
+                csi_arg(args[skip + 2]) as u8,
             );
 
             skip + 3
         }
         5 => {
-            if argcount == 0 || csi_arg_is_missing(unsafe { *args }) {
-                return i32::from(argcount != 0);
+            if argcount == 0 || csi_arg_is_missing(args[0]) {
+                return usize::from(argcount != 0);
             }
 
-            col.set_indexed(unsafe { *args } as u8);
+            col.set_indexed(args[0] as u8);
 
-            i32::from(argcount != 0)
+            usize::from(argcount != 0)
         }
         _ => 0,
     }
@@ -602,11 +600,12 @@ pub fn vterm_state_convert_color_to_rgb(state: &VTermStateFull, col: &mut VTermC
     col.set_type_byte(t);
 }
 
-pub fn vterm_state_setpen(state: &mut VTermStateFull, args: *const i64, argcount: i32) {
-    let mut argi: i32 = 0;
+pub fn vterm_state_setpen(state: &mut VTermStateFull, args: &[i64]) {
+    let argcount = args.len();
+    let mut argi: usize = 0;
 
     while argi < argcount {
-        let arg = csi_arg(unsafe { *args.wrapping_add(argi as usize) });
+        let arg = csi_arg(args[argi]);
         match arg {
             CSI_ARG_MISSING | 0 => {
                 vterm_state_resetpen(state);
@@ -634,9 +633,9 @@ pub fn vterm_state_setpen(state: &mut VTermStateFull, args: *const i64, argcount
             }
             4 => {
                 state.pen.set_underline(VTERM_UNDERLINE_SINGLE);
-                if csi_arg_has_more(unsafe { *args.wrapping_add(argi as usize) }) {
+                if csi_arg_has_more(args[argi]) && argi + 1 < argcount {
                     argi += 1;
-                    match csi_arg(unsafe { *args.wrapping_add(argi as usize) }) {
+                    match csi_arg(args[argi]) {
                         0 => state.pen.set_underline(0),
                         1 => state.pen.set_underline(VTERM_UNDERLINE_SINGLE),
                         2 => state.pen.set_underline(VTERM_UNDERLINE_DOUBLE),
@@ -708,15 +707,14 @@ pub fn vterm_state_setpen(state: &mut VTermStateFull, args: *const i64, argcount
                 set_pen_col_ansi(state, VTERM_ATTR_FOREGROUND, value);
             }
             38 => {
-                if argcount - argi < 1 {
+                if argi + 1 >= argcount {
                     return;
                 }
                 let mut fg = state.pen.fg;
                 argi += 1 + lookup_colour(
                     state,
-                    csi_arg(unsafe { *args.wrapping_add((argi + 1) as usize) }),
-                    args.wrapping_add((argi + 2) as usize),
-                    argcount - argi - 2,
+                    csi_arg(args[argi + 1]),
+                    &args[(argi + 2).min(argcount)..],
                     &mut fg,
                 );
                 state.pen.fg = fg;
@@ -731,15 +729,14 @@ pub fn vterm_state_setpen(state: &mut VTermStateFull, args: *const i64, argcount
                 set_pen_col_ansi(state, VTERM_ATTR_BACKGROUND, value);
             }
             48 => {
-                if argcount - argi < 1 {
+                if argi + 1 >= argcount {
                     return;
                 }
                 let mut bg = state.pen.bg;
                 argi += 1 + lookup_colour(
                     state,
-                    csi_arg(unsafe { *args.wrapping_add((argi + 1) as usize) }),
-                    args.wrapping_add((argi + 2) as usize),
-                    argcount - argi - 2,
+                    csi_arg(args[argi + 1]),
+                    &args[(argi + 2).min(argcount)..],
                     &mut bg,
                 );
                 state.pen.bg = bg;
@@ -780,8 +777,8 @@ pub fn vterm_state_setpen(state: &mut VTermStateFull, args: *const i64, argcount
             _ => {}
         }
 
-        loop {
-            let cur = unsafe { *args.wrapping_add(argi as usize) };
+        while argi < argcount {
+            let cur = args[argi];
             argi += 1;
             if !csi_arg_has_more(cur) {
                 break;

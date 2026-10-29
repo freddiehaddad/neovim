@@ -7,7 +7,7 @@ use crate::globals::*;
 use crate::highlight::{hl_apply_winblend, hl_combine_attr};
 use crate::mbyte::{
     mb_string2cells, utf_char2bytes, utf_char2len, utf_cluster_info_len, utf_cp_bounds,
-    utf_ptr2_str_char_info_len, utf_ptr2cells, utf_ptr2char, utf_ptr2len, utfc_ptr2len,
+    utf_ptr2_str_char_info_len, utf_ptr2cells, utf_slice2char, utf_slice2len, utfc_ptr2len,
 };
 use crate::msgpack_rpc::packer::ObjHandle;
 use crate::option_vars::*;
@@ -191,40 +191,42 @@ pub fn schar_from_str(str_: impl crate::strings::IntoCCharPtr) -> Schar {
     }
 }
 
-pub fn schar_from_buf(buf: impl crate::strings::IntoCCharPtr, len: usize) -> Schar {
-    let buf = buf.into_c_char_ptr();
-    {
-        assert!(len < MAX_SCHAR_SIZE);
-        if len <= 4 {
-            let mut sc: Schar = 0;
-            unsafe { ptr::copy_nonoverlapping(buf.cast::<u8>(), (&raw mut sc).cast::<u8>(), len) };
-            sc
+pub fn schar_from_bytes(bytes: &[u8]) -> Schar {
+    let len = bytes.len();
+    assert!(len < MAX_SCHAR_SIZE);
+    if len <= 4 {
+        let mut sc: Schar = 0;
+        unsafe { ptr::copy_nonoverlapping(bytes.as_ptr(), (&raw mut sc).cast::<u8>(), len) };
+        sc
+    } else {
+        let idx = if let Some(&existing_idx) = grid_st().glyph_cache_offsets.get(bytes) {
+            existing_idx
         } else {
-            let bytes = crate::memory::cstr_slice(buf, len);
-            let idx = if let Some(&existing_idx) = grid_st().glyph_cache_offsets.get(bytes) {
-                existing_idx
-            } else {
-                let new_idx = grid_st().glyph_cache_keys.len() as u32;
-                grid_st()
-                    .glyph_cache_keys
-                    .extend(bytes.iter().map(|&b| b as c_char));
-                grid_st().glyph_cache_keys.push(0);
-                grid_st()
-                    .glyph_cache_offsets
-                    .insert(bytes.to_vec(), new_idx);
-                new_idx
-            };
-            assert!(idx < 0xFF_FFFF);
-            #[cfg(target_endian = "big")]
-            {
-                idx + (0xFFu32 << 24)
-            }
-            #[cfg(not(target_endian = "big"))]
-            {
-                0xFF + (idx << 8)
-            }
+            let new_idx = grid_st().glyph_cache_keys.len() as u32;
+            grid_st()
+                .glyph_cache_keys
+                .extend(bytes.iter().map(|&b| b as c_char));
+            grid_st().glyph_cache_keys.push(0);
+            grid_st()
+                .glyph_cache_offsets
+                .insert(bytes.to_vec(), new_idx);
+            new_idx
+        };
+        assert!(idx < 0xFF_FFFF);
+        #[cfg(target_endian = "big")]
+        {
+            idx + (0xFFu32 << 24)
+        }
+        #[cfg(not(target_endian = "big"))]
+        {
+            0xFF + (idx << 8)
         }
     }
+}
+
+pub fn schar_from_buf(buf: impl crate::strings::IntoCCharPtr, len: usize) -> Schar {
+    let buf = buf.into_c_char_ptr();
+    schar_from_bytes(crate::memory::cstr_slice(buf, len))
 }
 
 pub fn schar_cache_clear_if_full() -> bool {
@@ -263,6 +265,10 @@ pub fn schar_get(mut buf_out: *mut c_char, sc: Schar) -> usize {
         *buf_out = NUL;
     }
     len
+}
+
+pub fn schar_get_bytes(buf_out: &mut [u8], sc: Schar) -> usize {
+    schar_get(buf_out.as_mut_ptr().cast::<c_char>(), sc)
 }
 
 /// Advance `buf_out`. Do NOT set final NUL (`schar_get_adv`).
@@ -306,9 +312,9 @@ fn schar_get_first_byte(sc: Schar) -> c_char {
 }
 
 pub fn schar_get_first_codepoint(sc: Schar) -> i32 {
-    let mut sc_buf = [0 as c_char; MAX_SCHAR_SIZE];
-    schar_get(sc_buf.as_mut_ptr(), sc);
-    utf_ptr2char(sc_buf.as_ptr())
+    let mut sc_buf = [0u8; MAX_SCHAR_SIZE];
+    schar_get_bytes(&mut sc_buf, sc);
+    utf_slice2char(&sc_buf)
 }
 
 pub fn schar_get_ascii(sc: Schar) -> c_char {
@@ -334,15 +340,15 @@ fn schar_in_arabic_block(sc: Schar) -> bool {
 
 #[inline]
 fn schar_get_first_two_codepoints(sc: Schar, c0: &mut i32, c1: &mut i32) {
-    let mut sc_buf = [0 as c_char; MAX_SCHAR_SIZE];
-    schar_get(sc_buf.as_mut_ptr(), sc);
+    let mut sc_buf = [0u8; MAX_SCHAR_SIZE];
+    schar_get_bytes(&mut sc_buf, sc);
 
-    *c0 = utf_ptr2char(sc_buf.as_ptr());
-    let len = utf_ptr2len(sc_buf.as_ptr());
+    *c0 = utf_slice2char(&sc_buf);
+    let len = utf_slice2len(&sc_buf);
     if *c0 == 0 {
         *c1 = 0;
     } else {
-        *c1 = utf_ptr2char(sc_buf.as_ptr().wrapping_add(len as usize));
+        *c1 = utf_slice2char(&sc_buf[len..]);
     }
 }
 

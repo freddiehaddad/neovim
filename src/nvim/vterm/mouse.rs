@@ -1,10 +1,8 @@
 //! VTerm mouse event encoding (`src/nvim/vterm/mouse.c`).
 
-use std::ffi::c_char;
-
 use crate::math::xctz;
+use crate::mbyte::utf_char2slice;
 use crate::terminal::Terminal;
-use crate::tui::termkey::termkey::fill_utf8;
 use crate::vterm::keyboard::{C1_CSI, VTermModifier, VTermStateFull};
 use crate::vterm::vterm::{VTermOutputCallback, vterm_push_output_ctrl_bytes};
 
@@ -31,7 +29,7 @@ pub struct VTermPos {
 #[derive(Clone, Copy)]
 pub struct VTermParserCsi {
     pub leaderlen: i32,
-    pub leader: [c_char; CSI_LEADER_MAX],
+    pub leader: [u8; CSI_LEADER_MAX],
     pub argi: i32,
     pub args: [i64; CSI_ARGS_MAX],
 }
@@ -69,7 +67,7 @@ impl VTermParserOsc {
 #[derive(Clone, Copy)]
 pub struct VTermParserDcs {
     pub commandlen: i32,
-    pub command: [c_char; CSI_LEADER_MAX],
+    pub command: [u8; CSI_LEADER_MAX],
 }
 
 impl VTermParserDcs {
@@ -93,7 +91,7 @@ pub struct VTermParser {
     pub state: i32,
     pub in_esc: u8,
     pub intermedlen: i32,
-    pub intermed: [c_char; INTERMED_MAX],
+    pub intermed: [u8; INTERMED_MAX],
     pub csi: VTermParserCsi,
     pub osc: VTermParserOsc,
     pub dcs: VTermParserDcs,
@@ -222,18 +220,9 @@ fn output_mouse(
                 code = 3;
             }
 
-            len += fill_utf8(
-                (code | modifiers) + 0x20,
-                utf8.as_mut_ptr().wrapping_add(len).cast::<c_char>(),
-            ) as usize;
-            len += fill_utf8(
-                col + 0x21,
-                utf8.as_mut_ptr().wrapping_add(len).cast::<c_char>(),
-            ) as usize;
-            len += fill_utf8(
-                row + 0x21,
-                utf8.as_mut_ptr().wrapping_add(len).cast::<c_char>(),
-            ) as usize;
+            len += utf_char2slice((code | modifiers) + 0x20, &mut utf8[len..]);
+            len += utf_char2slice(col + 0x21, &mut utf8[len..]);
+            len += utf_char2slice(row + 0x21, &mut utf8[len..]);
 
             vterm_push_output_ctrl_bytes(state.vt_mut(), C1_CSI, &utf8[..len]);
         }

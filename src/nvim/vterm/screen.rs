@@ -1,6 +1,5 @@
 //! VTerm screen buffer and damage management (`src/nvim/vterm/screen.c`).
 
-use std::ffi::c_char;
 use std::ptr;
 
 use crate::terminal::Terminal;
@@ -147,7 +146,7 @@ impl VTermScreenCellAttrs {
 #[derive(Clone, Copy, Default)]
 pub struct VTermScreenCell {
     pub schar: Schar,
-    pub width: c_char,
+    pub width: i8,
     pub attrs: VTermScreenCellAttrs,
     pub fg: VTermColor,
     pub bg: VTermColor,

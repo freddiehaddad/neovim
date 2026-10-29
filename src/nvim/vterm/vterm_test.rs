@@ -2,14 +2,13 @@
 
 use crate::terminal::Terminal;
 use crate::vterm::parser::{CSI_ARG_FLAG_MORE, CSI_ARG_MISSING, VTermStringFragment};
-use std::ffi::c_char;
 use std::io::Write;
 use std::ptr;
 use std::sync::Mutex;
 
 use crate::api::ui::MAX_SCHAR_SIZE;
-use crate::grid::{Schar, schar_get};
-use crate::mbyte::utf_ptr2_str_char_info;
+use crate::grid::{Schar, schar_get_bytes};
+use crate::mbyte::utf_slice2_char_info;
 use crate::vterm::keyboard::{VTermColor, VTermStateFull};
 use crate::vterm::mouse::VTermPos;
 use crate::vterm::pen::{
@@ -148,28 +147,22 @@ fn clear_test_output() {
 }
 
 fn push_frag_bytes(out: &mut Vec<u8>, frag: VTermStringFragment) {
-    let len = frag.len();
-    if len > 0 && !frag.str_.is_null() {
-        let slice = crate::memory::cstr_slice(frag.str_, len);
-        out.extend_from_slice(slice);
-    }
+    out.extend_from_slice(frag.as_bytes());
 }
 
-pub fn parser_text(bytes: *const c_char, len: usize, _user: *mut VTermStateFull) -> i32 {
+pub fn parser_text(bytes: &[u8], _user: *mut VTermStateFull) -> i32 {
     let mut out = b"text ".to_vec();
     let mut i = 0usize;
-    {
-        while i < len {
-            let b = crate::memory::cstr_byte_at(bytes, i);
-            if b < 0x20 || b == 0x7f || (0x80..0xa0).contains(&b) {
-                break;
-            }
-            if i > 0 {
-                out.push(b',');
-            }
-            let _ = write!(out, "{b:x}");
-            i += 1;
+    while i < bytes.len() {
+        let b = bytes[i];
+        if b < 0x20 || b == 0x7f || (0x80..0xa0).contains(&b) {
+            break;
         }
+        if i > 0 {
+            out.push(b',');
+        }
+        let _ = write!(out, "{b:x}");
+        i += 1;
     }
     out.push(b'\n');
     append_test_output(&out);
@@ -177,46 +170,38 @@ pub fn parser_text(bytes: *const c_char, len: usize, _user: *mut VTermStateFull)
 }
 
 pub fn parser_csi<T>(
-    leader: *const c_char,
-    args: *const i64,
-    argcount: i32,
-    intermed: *const c_char,
-    command: c_char,
+    leader: &[u8],
+    args: &[i64],
+    intermed: &[u8],
+    command: u8,
     _user: *mut T,
 ) -> i32 {
     let mut out = Vec::new();
-    let _ = write!(out, "csi {:02x}", command as u8);
-    {
-        if !leader.is_null() && unsafe { *leader } != 0 {
-            out.extend_from_slice(b" L=");
-            let mut i = 0usize;
-            while unsafe { *leader.wrapping_add(i) } != 0 {
-                let _ = write!(out, "{:02x}", crate::memory::cstr_byte_at(leader, i));
-                i += 1;
-            }
+    let _ = write!(out, "csi {command:02x}");
+    if !leader.is_empty() {
+        out.extend_from_slice(b" L=");
+        for &b in leader {
+            let _ = write!(out, "{b:02x}");
         }
-        for i in 0..(argcount as usize) {
-            let sep = if i > 0 { ',' } else { ' ' };
-            let a = unsafe { *args.wrapping_add(i) };
-            if a == CSI_ARG_MISSING {
-                let _ = write!(out, "{sep}*");
+    }
+    for (i, &a) in args.iter().enumerate() {
+        let sep = if i > 0 { ',' } else { ' ' };
+        if a == CSI_ARG_MISSING {
+            let _ = write!(out, "{sep}*");
+        } else {
+            let val = a & CSI_ARG_MASK;
+            let more = if (a & CSI_ARG_FLAG_MORE) != 0 {
+                "+"
             } else {
-                let val = a & CSI_ARG_MASK;
-                let more = if (a & CSI_ARG_FLAG_MORE) != 0 {
-                    "+"
-                } else {
-                    ""
-                };
-                let _ = write!(out, "{sep}{val}{more}");
-            }
+                ""
+            };
+            let _ = write!(out, "{sep}{val}{more}");
         }
-        if !intermed.is_null() && unsafe { *intermed } != 0 {
-            out.extend_from_slice(b" I=");
-            let mut i = 0usize;
-            while unsafe { *intermed.wrapping_add(i) } != 0 {
-                let _ = write!(out, "{:02x}", crate::memory::cstr_byte_at(intermed, i));
-                i += 1;
-            }
+    }
+    if !intermed.is_empty() {
+        out.extend_from_slice(b" I=");
+        for &b in intermed {
+            let _ = write!(out, "{b:02x}");
         }
     }
     out.push(b'\n');
@@ -242,19 +227,11 @@ pub fn parser_osc<T>(command: i32, frag: VTermStringFragment, _user: *mut T) -> 
     1
 }
 
-pub fn parser_dcs<T>(
-    command: *const c_char,
-    commandlen: usize,
-    frag: VTermStringFragment,
-    _user: *mut T,
-) -> i32 {
+pub fn parser_dcs<T>(command: &[u8], frag: VTermStringFragment, _user: *mut T) -> i32 {
     let mut out = b"dcs ".to_vec();
     if frag.initial() {
         out.push(b'[');
-        if commandlen > 0 && !command.is_null() {
-            let cmd = crate::memory::cstr_slice(command, commandlen);
-            out.extend_from_slice(cmd);
-        }
+        out.extend_from_slice(command);
     }
     push_frag_bytes(&mut out, frag);
     if frag.final_() {
@@ -334,21 +311,22 @@ pub fn selection_query(mask: VTermSelectionMask, _user: *mut Terminal) -> i32 {
 }
 
 fn format_schar(out: &mut Vec<u8>, schar: Schar) {
-    let mut buf = [0 as c_char; MAX_SCHAR_SIZE];
-    schar_get(buf.as_mut_ptr(), schar);
-    let mut ci = utf_ptr2_str_char_info(buf.as_ptr());
+    let mut buf = [0u8; MAX_SCHAR_SIZE];
+    let len = schar_get_bytes(&mut buf, schar);
+    let mut rest = &buf[..len];
     let mut did = false;
-    while unsafe { *ci.ptr } != 0 {
+    while !rest.is_empty() && rest[0] != 0 {
+        let chr = utf_slice2_char_info(rest);
         if did {
             out.push(b',');
         }
-        if ci.chr.len == 1 && ci.chr.value >= 0x80 {
-            let _ = write!(out, "??{:x}", ci.chr.value);
+        if chr.len == 1 && chr.value >= 0x80 {
+            let _ = write!(out, "??{:x}", chr.value);
         } else {
-            let _ = write!(out, "{:x}", ci.chr.value);
+            let _ = write!(out, "{:x}", chr.value);
         }
         did = true;
-        ci = utf_ptr2_str_char_info(ci.ptr.wrapping_add(ci.chr.len as usize));
+        rest = &rest[chr.len as usize..];
     }
 }
 
@@ -785,49 +763,46 @@ pub fn vterm_screen_get_attrs_extent(
 
 pub fn vterm_screen_get_text(
     screen: &VTermScreen,
-    buffer: impl crate::strings::IntoCCharPtr,
-    len: usize,
+    mut buffer: Option<&mut [u8]>,
     rect: VTermRect,
 ) -> usize {
-    let buffer = buffer.into_c_char_ptr().cast_mut();
     let mut outpos = 0usize;
     let mut padding = 0usize;
 
     macro_rules! put_bytes {
-        ($src:expr, $n:expr) => {{
-            let n: usize = $n;
-            if !buffer.is_null() && outpos + n <= len {
-                unsafe {
-                    ptr::copy_nonoverlapping($src, buffer.wrapping_add(outpos), n);
-                }
+        ($src:expr) => {{
+            let src: &[u8] = $src;
+            let n = src.len();
+            if let Some(ref mut dst) = buffer
+                && outpos + n <= dst.len()
+            {
+                dst[outpos..outpos + n].copy_from_slice(src);
             }
             outpos += n;
         }};
     }
 
-    {
-        for row in rect.start_row..rect.end_row {
-            for col in rect.start_col..rect.end_col {
-                let cell = getcell(screen, row, col);
-                let cell = unsafe { &mut *cell };
-                if cell.schar == 0 {
-                    padding += 1;
-                } else if cell.schar == u32::MAX {
-                    // Gap behind a double-width char
-                } else {
-                    while padding > 0 {
-                        put_bytes!(c" ".as_ptr(), 1);
-                        padding -= 1;
-                    }
-                    let mut buf = [0 as c_char; MAX_SCHAR_SIZE + 1];
-                    let thislen = schar_get(buf.as_mut_ptr(), cell.schar);
-                    put_bytes!(buf.as_ptr(), thislen);
+    for row in rect.start_row..rect.end_row {
+        for col in rect.start_col..rect.end_col {
+            let cell = getcell(screen, row, col);
+            let cell = unsafe { &mut *cell };
+            if cell.schar == 0 {
+                padding += 1;
+            } else if cell.schar == u32::MAX {
+                // Gap behind a double-width char
+            } else {
+                while padding > 0 {
+                    put_bytes!(b" ");
+                    padding -= 1;
                 }
+                let mut buf = [0u8; MAX_SCHAR_SIZE + 1];
+                let thislen = schar_get_bytes(&mut buf, cell.schar);
+                put_bytes!(&buf[..thislen]);
             }
-            if row < rect.end_row - 1 {
-                put_bytes!(c"\n".as_ptr(), 1);
-                padding = 0;
-            }
+        }
+        if row < rect.end_row - 1 {
+            put_bytes!(b"\n");
+            padding = 0;
         }
     }
 
@@ -856,7 +831,7 @@ pub fn vterm_state_set_bold_highbright(state: &mut VTermStateFull, bold_is_highb
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::mbyte::{utf_ptr2char, utf_ptr2len};
+    use crate::mbyte::{utf_slice2char, utf_slice2len};
     use crate::vterm::encoding::{VTermEncodingType, vterm_lookup_encoding};
     use crate::vterm::keyboard::{
         VTERM_KEY_BACKSPACE, VTERM_KEY_ENTER, VTERM_KEY_FUNCTION_0, VTERM_KEY_KP_0, VTERM_KEY_NONE,
@@ -892,10 +867,9 @@ mod tests {
         1
     }
 
-    fn parser_escape(bytes: *const c_char, _len: usize, _user: *mut VTermStateFull) -> i32 {
-        let slice = crate::memory::cstr_as_bytes(bytes);
+    fn parser_escape(bytes: &[u8], _user: *mut VTermStateFull) -> i32 {
         let mut out = b"escape ".to_vec();
-        out.extend_from_slice(slice);
+        out.extend_from_slice(bytes);
         out.push(b'\n');
         append_test_output(&out);
         1
@@ -1060,7 +1034,7 @@ mod tests {
     }
 
     fn push(input: &[u8], vt: &mut VTerm) {
-        vterm_input_write(vt, input.as_ptr().cast(), input.len());
+        vterm_input_write(vt, input);
     }
 
     fn expect(expected: &[u8]) {
@@ -1135,9 +1109,9 @@ mod tests {
             end_row,
             end_col,
         };
-        let len = vterm_screen_get_text(screen, ptr::null_mut(), 0, rect);
+        let len = vterm_screen_get_text(screen, None, rect);
         let mut buf = vec![0u8; len];
-        vterm_screen_get_text(screen, buf.as_mut_ptr().cast(), len, rect);
+        vterm_screen_get_text(screen, Some(&mut buf), rect);
         assert_eq!(buf, expected);
     }
 
@@ -1155,9 +1129,9 @@ mod tests {
             end_row,
             end_col,
         };
-        let len = vterm_screen_get_text(screen, ptr::null_mut(), 0, rect);
+        let len = vterm_screen_get_text(screen, None, rect);
         let mut buf = vec![0u8; len];
-        vterm_screen_get_text(screen, buf.as_mut_ptr().cast(), len, rect);
+        vterm_screen_get_text(screen, Some(&mut buf), rect);
         let mut actual = String::new();
         for (i, &b) in buf.iter().enumerate() {
             if i > 0 {
@@ -1181,14 +1155,14 @@ mod tests {
             vterm_screen_get_cell(screen, pos, &mut cell);
 
             let mut buf = [0u8; 32];
-            schar_get(buf.as_mut_ptr().cast(), cell.schar);
+            schar_get_bytes(&mut buf, cell.schar);
 
             let mut actual = String::from("{");
             let mut i = 0usize;
             while buf[i] > 0 {
-                let p = buf.as_ptr().wrapping_add(i).cast::<c_char>();
-                let ch = utf_ptr2char(p);
-                let chlen = utf_ptr2len(p) as usize;
+                let p = &buf[i..];
+                let ch = utf_slice2char(p);
+                let chlen = utf_slice2len(p);
                 if i > 0 {
                     actual.push(',');
                 }

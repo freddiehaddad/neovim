@@ -534,7 +534,8 @@ pub fn get_jumplist(win: *mut WinInfoInfo, mut count: i32) -> *mut Fmark {
         }
 
         loop {
-            if (*win).w_jumplistidx + count < 0 || (*win).w_jumplistidx + count >= (*win).w_jumplistlen
+            if (*win).w_jumplistidx + count < 0
+                || (*win).w_jumplistidx + count >= (*win).w_jumplistlen
             {
                 return ptr::null_mut();
             }
@@ -553,7 +554,8 @@ pub fn get_jumplist(win: *mut WinInfoInfo, mut count: i32) -> *mut Fmark {
             if (*jmp).fmark.fnum == 0 {
                 fname2fnum(jmp);
             }
-            if (*jmp).fmark.fnum != curbuf_mut().b_fnum && buflist_findnr((*jmp).fmark.fnum).is_null()
+            if (*jmp).fmark.fnum != curbuf_mut().b_fnum
+                && buflist_findnr((*jmp).fmark.fnum).is_null()
             {
                 count += if count < 0 { -1 } else { 1 };
                 continue;

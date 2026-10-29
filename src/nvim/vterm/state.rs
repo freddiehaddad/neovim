@@ -1,9 +1,7 @@
 //! VTerm terminal state machine (`src/nvim/vterm/state.c`).
 
-use crate::grid::{Schar, schar_from_ascii, schar_from_buf};
-use crate::mbyte::{
-    utf_char2bytes, utf_cluster_info_len, utf_iscomposing, utf_ptr2_str_char_info_len,
-};
+use crate::grid::{Schar, schar_from_ascii, schar_from_bytes};
+use crate::mbyte::{utf_char2slice, utf_cluster_cells, utf_iscomposing};
 use crate::regexp::GRAPHEME_STATE_INIT;
 use crate::terminal::Terminal;
 use crate::vterm::encoding::{VTermEncodingType, vterm_lookup_encoding};
@@ -27,7 +25,6 @@ use crate::vterm::screen::{
 use crate::vterm::vterm::{
     vterm_push_output_ctrl_bytes, vterm_push_output_str_bytes, vterm_scroll_rect,
 };
-use std::ffi::c_char;
 use std::ptr;
 
 pub type VTermSelectionMask = i32;
@@ -113,18 +110,8 @@ pub(crate) const CSI_ARG_MISSING: i32 = ((1u32 << 31) - 1) as i32;
 /// Primary Device Attributes (DA1) response.
 #[unsafe(no_mangle)]
 #[allow(non_upper_case_globals)]
-pub static vterm_primary_device_attr: crate::globals::GlobalState<[c_char; 9]> =
-    crate::globals::GlobalState::new([
-        b'6' as c_char,
-        b'1' as c_char,
-        b';' as c_char,
-        b'2' as c_char,
-        b'2' as c_char,
-        b';' as c_char,
-        b'5' as c_char,
-        b'2' as c_char,
-        0,
-    ]);
+pub static vterm_primary_device_attr: crate::globals::GlobalState<[u8; 9]> =
+    crate::globals::GlobalState::new(*b"61;22;52\0");
 
 #[repr(C)]
 pub struct VTermStateFallbacks {
@@ -541,7 +528,7 @@ fn set_lineinfo(state: &mut VTermStateFull, row: i32, force: i32, dwl: i32, dhl:
     }
 }
 
-fn on_text(bytes: *const c_char, len: usize, state: *mut VTermStateFull) -> i32 {
+fn on_text(bytes: &[u8], state: *mut VTermStateFull) -> i32 {
     unsafe {
         let state = &mut *state;
         let oldpos = state.pos;
@@ -554,7 +541,7 @@ fn on_text(bytes: *const c_char, len: usize, state: *mut VTermStateFull) -> i32 
 
         let mut encoding = if state.gsingle_set != 0 {
             &raw mut state.encoding[state.gsingle_set as usize]
-        } else if ((crate::memory::cstr_byte_at(bytes, eaten)) & 0x80) == 0 {
+        } else if (bytes.get(eaten).copied().unwrap_or(0) & 0x80) == 0 {
             &raw mut state.encoding[state.gl_set as usize]
         } else if ((state.vt_mut()).mode & VT_MODE_UTF8) != 0 {
             &raw mut state.encoding_utf8
@@ -567,13 +554,7 @@ fn on_text(bytes: *const c_char, len: usize, state: *mut VTermStateFull) -> i32 
         }
 
         let cp_limit = if state.gsingle_set != 0 { 1 } else { maxpoints };
-        let bytes_slice = crate::memory::cstr_slice(bytes, len);
-        (*encoding).decode(
-            &mut codepoints[..cp_limit],
-            &mut npoints,
-            bytes_slice,
-            &mut eaten,
-        );
+        (*encoding).decode(&mut codepoints[..cp_limit], &mut npoints, bytes, &mut eaten);
 
         if npoints == 0 {
             return eaten as i32;
@@ -607,10 +588,10 @@ fn on_text(bytes: *const c_char, len: usize, state: *mut VTermStateFull) -> i32 
         while i < npoints as usize {
             loop {
                 if grapheme_len < state.grapheme_buf.len() - 4 {
-                    grapheme_len += utf_char2bytes(
+                    grapheme_len += utf_char2slice(
                         codepoints[i] as i32,
-                        state.grapheme_buf.as_mut_ptr().wrapping_add(grapheme_len),
-                    ) as usize;
+                        &mut state.grapheme_buf[grapheme_len..],
+                    );
                 }
                 i += 1;
                 if i >= npoints as usize
@@ -624,10 +605,7 @@ fn on_text(bytes: *const c_char, len: usize, state: *mut VTermStateFull) -> i32 
                 }
             }
 
-            let mut scratch = grapheme_len as i32;
-            let ci = utf_ptr2_str_char_info_len(state.grapheme_buf.as_ptr(), scratch);
-            let cli = utf_cluster_info_len(ci, &mut scratch);
-            let width = cli.cells;
+            let width = utf_cluster_cells(&state.grapheme_buf[..grapheme_len]);
 
             if state.at_phantom != 0 || state.pos.col + width > thisrowwidth(state) {
                 linefeed(state);
@@ -647,7 +625,7 @@ fn on_text(bytes: *const c_char, len: usize, state: *mut VTermStateFull) -> i32 
                 scroll(state, rect, 0, -1);
             }
 
-            let sc = schar_from_buf(state.grapheme_buf.as_ptr(), grapheme_len);
+            let sc = schar_from_bytes(&state.grapheme_buf[..grapheme_len]);
             putglyph(state, sc, width, state.pos);
 
             if i == npoints as usize {
@@ -820,14 +798,15 @@ fn savecursor(state: &mut VTermStateFull, save: i32) {
     }
 }
 
-fn on_escape(bytes: *const c_char, len: usize, state: *mut VTermStateFull) -> i32 {
+fn on_escape(bytes: &[u8], state: *mut VTermStateFull) -> i32 {
     let state = unsafe { &mut *state };
-    match crate::memory::cstr_first_byte(bytes) {
+    let len = bytes.len();
+    match bytes.first().copied().unwrap_or(0) {
         b' ' => {
             if len != 2 {
                 return 0;
             }
-            match crate::memory::cstr_byte_at(bytes, 1) {
+            match bytes[1] {
                 b'F' => {
                     // S7C1T
                     (state.vt_mut()).mode &= !VT_MODE_CTRL8BIT;
@@ -844,7 +823,7 @@ fn on_escape(bytes: *const c_char, len: usize, state: *mut VTermStateFull) -> i3
             if len != 2 {
                 return 0;
             }
-            match crate::memory::cstr_byte_at(bytes, 1) {
+            match bytes[1] {
                 b'3' => {
                     // DECDHL top
                     if (state.mode & MODE_LEFTRIGHTMARGIN) == 0 {
@@ -888,11 +867,8 @@ fn on_escape(bytes: *const c_char, len: usize, state: *mut VTermStateFull) -> i3
             if len != 2 {
                 return 0;
             }
-            let setnum = ((crate::memory::cstr_first_byte(bytes)) - 0x28) as usize;
-            if let Some(newenc) = vterm_lookup_encoding(
-                VTermEncodingType::EncSingle94,
-                crate::memory::cstr_byte_at(bytes, 1),
-            ) {
+            let setnum = (bytes[0] - 0x28) as usize;
+            if let Some(newenc) = vterm_lookup_encoding(VTermEncodingType::EncSingle94, bytes[1]) {
                 state.encoding[setnum].init(newenc);
             }
             2
@@ -1206,753 +1182,741 @@ const fn intermed(i: i32, b: i32) -> i32 {
 }
 
 fn on_csi(
-    leader_ptr: *const c_char,
-    args: *const i64,
-    argcount: i32,
-    intermed_ptr: *const c_char,
-    command: c_char,
+    leader_slice: &[u8],
+    args: &[i64],
+    intermed_slice: &[u8],
+    command: u8,
     state: *mut VTermStateFull,
 ) -> i32 {
-    unsafe {
-        let state = &mut *state;
-        let mut leader_byte: i32 = 0;
-        let mut intermed_byte: i32 = 0;
-        let mut cancel_phantom: i32 = 1;
+    let state = unsafe { &mut *state };
+    let argcount = args.len() as i32;
+    let first_arg = args.first().copied().unwrap_or(CSI_ARG_MISSING as i64);
+    let mut leader_byte: i32 = 0;
+    let mut intermed_byte: i32 = 0;
+    let mut cancel_phantom: i32 = 1;
 
-        if !leader_ptr.is_null() && *leader_ptr != 0 {
-            if *leader_ptr.wrapping_add(1) != 0 {
-                return 0;
-            }
-            match crate::memory::cstr_first_byte(leader_ptr) {
-                b'?' | b'>' | b'<' | b'=' => {
-                    leader_byte = i32::from(crate::memory::cstr_first_byte(leader_ptr));
-                }
-                _ => return 0,
-            }
+    if !leader_slice.is_empty() {
+        if leader_slice.len() > 1 {
+            return 0;
         }
-
-        if !intermed_ptr.is_null() && *intermed_ptr != 0 {
-            if *intermed_ptr.wrapping_add(1) != 0 {
-                return 0;
+        match leader_slice[0] {
+            b'?' | b'>' | b'<' | b'=' => {
+                leader_byte = i32::from(leader_slice[0]);
             }
-            match crate::memory::cstr_first_byte(intermed_ptr) {
-                b' ' | b'!' | b'"' | b'$' | b'\'' => {
-                    intermed_byte = i32::from(crate::memory::cstr_first_byte(intermed_ptr));
-                }
-                _ => return 0,
-            }
+            _ => return 0,
         }
+    }
 
-        let oldpos = state.pos;
-        let cmd_val = (intermed_byte << 16) | (leader_byte << 8) | i32::from(command as u8);
+    if !intermed_slice.is_empty() {
+        if intermed_slice.len() > 1 {
+            return 0;
+        }
+        match intermed_slice[0] {
+            b' ' | b'!' | b'"' | b'$' | b'\'' => {
+                intermed_byte = i32::from(intermed_slice[0]);
+            }
+            _ => return 0,
+        }
+    }
 
-        const CMD_DECSED: i32 = leader(b'?' as i32, 0x4a);
-        const CMD_DECSEL: i32 = leader(b'?' as i32, 0x4b);
-        const CMD_DA2: i32 = leader(b'>' as i32, 0x63);
-        const CMD_DECSET: i32 = leader(b'?' as i32, 0x68);
-        const CMD_DECRST: i32 = leader(b'?' as i32, 0x6c);
-        const CMD_DECSGR: i32 = leader(b'?' as i32, 0x6d);
-        const CMD_DECDSR: i32 = leader(b'?' as i32, 0x6e);
-        const CMD_DECSTR: i32 = intermed(b'!' as i32, 0x70);
-        const CMD_DECRQM: i32 = leader(b'?' as i32, intermed(b'$' as i32, 0x70));
-        const CMD_XTVERSION: i32 = leader(b'>' as i32, 0x71);
-        const CMD_DECSCUSR: i32 = intermed(b' ' as i32, 0x71);
-        const CMD_DECSCA: i32 = intermed(b'"' as i32, 0x71);
-        const CMD_KITTY_QUERY: i32 = leader(b'?' as i32, 0x75);
-        const CMD_KITTY_PUSH: i32 = leader(b'>' as i32, 0x75);
-        const CMD_KITTY_POP: i32 = leader(b'<' as i32, 0x75);
-        const CMD_KITTY_SET: i32 = leader(b'=' as i32, 0x75);
-        const CMD_DECIC: i32 = intermed(b'\'' as i32, 0x7d);
-        const CMD_DECDC: i32 = intermed(b'\'' as i32, 0x7e);
+    let oldpos = state.pos;
+    let cmd_val = (intermed_byte << 16) | (leader_byte << 8) | i32::from(command);
 
-        match cmd_val {
-            0x40 => {
-                // ICH - ECMA-48 8.3.64
-                let count = csi_arg_count(*args);
-                if is_cursor_in_scrollregion(state) {
-                    let end_col = if (state.mode & MODE_LEFTRIGHTMARGIN) != 0 {
-                        scrollregion_right(state)
-                    } else {
-                        thisrowwidth(state)
-                    };
-                    let rect = VTermRect {
-                        start_row: state.pos.row,
-                        end_row: state.pos.row + 1,
-                        start_col: state.pos.col,
-                        end_col,
-                    };
-                    scroll(state, rect, 0, -count);
-                }
-            }
-            0x41 => {
-                // CUU - ECMA-48 8.3.22
-                let count = csi_arg_count(*args);
-                state.pos.row -= count;
-                state.at_phantom = 0;
-            }
-            0x42 => {
-                // CUD - ECMA-48 8.3.19
-                let count = csi_arg_count(*args);
-                state.pos.row += count;
-                state.at_phantom = 0;
-            }
-            0x43 => {
-                // CUF - ECMA-48 8.3.20
-                let count = csi_arg_count(*args);
-                state.pos.col += count;
-                state.at_phantom = 0;
-            }
-            0x44 => {
-                // CUB - ECMA-48 8.3.18
-                let count = csi_arg_count(*args);
-                state.pos.col -= count;
-                state.at_phantom = 0;
-            }
-            0x45 => {
-                // CNL - ECMA-48 8.3.12
-                let count = csi_arg_count(*args);
-                state.pos.col = 0;
-                state.pos.row += count;
-                state.at_phantom = 0;
-            }
-            0x46 => {
-                // CPL - ECMA-48 8.3.13
-                let count = csi_arg_count(*args);
-                state.pos.col = 0;
-                state.pos.row -= count;
-                state.at_phantom = 0;
-            }
-            0x47 => {
-                // CHA - ECMA-48 8.3.9
-                let val = csi_arg_or(*args, 1);
-                state.pos.col = val - 1;
-                state.at_phantom = 0;
-            }
-            0x48 => {
-                // CUP - ECMA-48 8.3.21
-                let row = csi_arg_or(*args, 1);
-                let col = if argcount < 2 || csi_arg_is_missing(*args.wrapping_add(1)) {
-                    1
+    const CMD_DECSED: i32 = leader(b'?' as i32, 0x4a);
+    const CMD_DECSEL: i32 = leader(b'?' as i32, 0x4b);
+    const CMD_DA2: i32 = leader(b'>' as i32, 0x63);
+    const CMD_DECSET: i32 = leader(b'?' as i32, 0x68);
+    const CMD_DECRST: i32 = leader(b'?' as i32, 0x6c);
+    const CMD_DECSGR: i32 = leader(b'?' as i32, 0x6d);
+    const CMD_DECDSR: i32 = leader(b'?' as i32, 0x6e);
+    const CMD_DECSTR: i32 = intermed(b'!' as i32, 0x70);
+    const CMD_DECRQM: i32 = leader(b'?' as i32, intermed(b'$' as i32, 0x70));
+    const CMD_XTVERSION: i32 = leader(b'>' as i32, 0x71);
+    const CMD_DECSCUSR: i32 = intermed(b' ' as i32, 0x71);
+    const CMD_DECSCA: i32 = intermed(b'"' as i32, 0x71);
+    const CMD_KITTY_QUERY: i32 = leader(b'?' as i32, 0x75);
+    const CMD_KITTY_PUSH: i32 = leader(b'>' as i32, 0x75);
+    const CMD_KITTY_POP: i32 = leader(b'<' as i32, 0x75);
+    const CMD_KITTY_SET: i32 = leader(b'=' as i32, 0x75);
+    const CMD_DECIC: i32 = intermed(b'\'' as i32, 0x7d);
+    const CMD_DECDC: i32 = intermed(b'\'' as i32, 0x7e);
+
+    match cmd_val {
+        0x40 => {
+            // ICH - ECMA-48 8.3.64
+            let count = csi_arg_count(first_arg);
+            if is_cursor_in_scrollregion(state) {
+                let end_col = if (state.mode & MODE_LEFTRIGHTMARGIN) != 0 {
+                    scrollregion_right(state)
                 } else {
-                    csi_arg(*args.wrapping_add(1))
+                    thisrowwidth(state)
                 };
-                state.pos.row = row - 1;
-                state.pos.col = col - 1;
-                if (state.mode & MODE_ORIGIN) != 0 {
-                    state.pos.row += state.scrollregion_top;
-                    state.pos.col += scrollregion_left(state);
-                }
-                state.at_phantom = 0;
-            }
-            0x49 => {
-                // CHT - ECMA-48 8.3.10
-                let count = csi_arg_count(*args);
-                tab(state, count, 1);
-            }
-            0x4a | CMD_DECSED => {
-                // ED / DECSED
-                let selective = i32::from(leader_byte == b'?' as i32);
-                match csi_arg(*args) {
-                    CSI_ARG_MISSING | 0 => {
-                        let mut rect = VTermRect {
-                            start_row: state.pos.row,
-                            end_row: state.pos.row + 1,
-                            start_col: state.pos.col,
-                            end_col: state.cols,
-                        };
-                        if rect.end_col > rect.start_col {
-                            erase(state, rect, selective);
-                        }
-
-                        rect.start_row = state.pos.row + 1;
-                        rect.end_row = state.rows;
-                        rect.start_col = 0;
-                        for row_ in rect.start_row..rect.end_row {
-                            set_lineinfo(state, row_, FORCE, DWL_OFF, DHL_OFF);
-                        }
-                        if rect.end_row > rect.start_row {
-                            erase(state, rect, selective);
-                        }
-                    }
-                    1 => {
-                        let mut rect = VTermRect {
-                            start_row: 0,
-                            end_row: state.pos.row,
-                            start_col: 0,
-                            end_col: state.cols,
-                        };
-                        for row_ in rect.start_row..rect.end_row {
-                            set_lineinfo(state, row_, FORCE, DWL_OFF, DHL_OFF);
-                        }
-                        if rect.end_col > rect.start_col {
-                            erase(state, rect, selective);
-                        }
-
-                        rect.start_row = state.pos.row;
-                        rect.end_row = state.pos.row + 1;
-                        rect.end_col = state.pos.col + 1;
-                        if rect.end_row > rect.start_row {
-                            erase(state, rect, selective);
-                        }
-                    }
-                    2 => {
-                        let rect = VTermRect {
-                            start_row: 0,
-                            end_row: state.rows,
-                            start_col: 0,
-                            end_col: state.cols,
-                        };
-                        for row_ in rect.start_row..rect.end_row {
-                            set_lineinfo(state, row_, FORCE, DWL_OFF, DHL_OFF);
-                        }
-                        erase(state, rect, selective);
-                    }
-                    3 => {
-                        if let Some(callbacks) = state.callbacks
-                            && let Some(cb) = callbacks.sb_clear
-                            && cb(state.screen_ptr()) != 0
-                        {
-                            return 1;
-                        }
-                    }
-                    _ => {}
-                }
-            }
-            0x4b | CMD_DECSEL => {
-                // EL / DECSEL
-                let selective = i32::from(leader_byte == b'?' as i32);
-                let mut rect = VTermRect {
+                let rect = VTermRect {
                     start_row: state.pos.row,
                     end_row: state.pos.row + 1,
-                    start_col: 0,
-                    end_col: 0,
+                    start_col: state.pos.col,
+                    end_col,
                 };
-
-                match csi_arg(*args) {
-                    CSI_ARG_MISSING | 0 => {
-                        rect.start_col = state.pos.col;
-                        rect.end_col = thisrowwidth(state);
-                    }
-                    1 => {
-                        rect.start_col = 0;
-                        rect.end_col = state.pos.col + 1;
-                    }
-                    2 => {
-                        rect.start_col = 0;
-                        rect.end_col = thisrowwidth(state);
-                    }
-                    _ => return 0,
-                }
-
-                if rect.end_col > rect.start_col {
-                    erase(state, rect, selective);
-                }
+                scroll(state, rect, 0, -count);
             }
-            0x4c => {
-                // IL - ECMA-48 8.3.67
-                let count = csi_arg_count(*args);
-                if is_cursor_in_scrollregion(state) {
-                    let rect = VTermRect {
-                        start_row: state.pos.row,
-                        end_row: scrollregion_bottom(state),
-                        start_col: scrollregion_left(state),
-                        end_col: scrollregion_right(state),
-                    };
-                    scroll(state, rect, -count, 0);
-                }
+        }
+        0x41 => {
+            // CUU - ECMA-48 8.3.22
+            let count = csi_arg_count(first_arg);
+            state.pos.row -= count;
+            state.at_phantom = 0;
+        }
+        0x42 => {
+            // CUD - ECMA-48 8.3.19
+            let count = csi_arg_count(first_arg);
+            state.pos.row += count;
+            state.at_phantom = 0;
+        }
+        0x43 => {
+            // CUF - ECMA-48 8.3.20
+            let count = csi_arg_count(first_arg);
+            state.pos.col += count;
+            state.at_phantom = 0;
+        }
+        0x44 => {
+            // CUB - ECMA-48 8.3.18
+            let count = csi_arg_count(first_arg);
+            state.pos.col -= count;
+            state.at_phantom = 0;
+        }
+        0x45 => {
+            // CNL - ECMA-48 8.3.12
+            let count = csi_arg_count(first_arg);
+            state.pos.col = 0;
+            state.pos.row += count;
+            state.at_phantom = 0;
+        }
+        0x46 => {
+            // CPL - ECMA-48 8.3.13
+            let count = csi_arg_count(first_arg);
+            state.pos.col = 0;
+            state.pos.row -= count;
+            state.at_phantom = 0;
+        }
+        0x47 => {
+            // CHA - ECMA-48 8.3.9
+            let val = csi_arg_or(first_arg, 1);
+            state.pos.col = val - 1;
+            state.at_phantom = 0;
+        }
+        0x48 => {
+            // CUP - ECMA-48 8.3.21
+            let row = csi_arg_or(first_arg, 1);
+            let col = if argcount < 2 || csi_arg_is_missing(args[1]) {
+                1
+            } else {
+                csi_arg(args[1])
+            };
+            state.pos.row = row - 1;
+            state.pos.col = col - 1;
+            if (state.mode & MODE_ORIGIN) != 0 {
+                state.pos.row += state.scrollregion_top;
+                state.pos.col += scrollregion_left(state);
             }
-            0x4d => {
-                // DL - ECMA-48 8.3.32
-                let count = csi_arg_count(*args);
-                if is_cursor_in_scrollregion(state) {
-                    let rect = VTermRect {
-                        start_row: state.pos.row,
-                        end_row: scrollregion_bottom(state),
-                        start_col: scrollregion_left(state),
-                        end_col: scrollregion_right(state),
-                    };
-                    scroll(state, rect, count, 0);
-                }
-            }
-            0x50 => {
-                // DCH - ECMA-48 8.3.26
-                let count = csi_arg_count(*args);
-                if is_cursor_in_scrollregion(state) {
-                    let end_col = if (state.mode & MODE_LEFTRIGHTMARGIN) != 0 {
-                        scrollregion_right(state)
-                    } else {
-                        thisrowwidth(state)
-                    };
-                    let rect = VTermRect {
+            state.at_phantom = 0;
+        }
+        0x49 => {
+            // CHT - ECMA-48 8.3.10
+            let count = csi_arg_count(first_arg);
+            tab(state, count, 1);
+        }
+        0x4a | CMD_DECSED => {
+            // ED / DECSED
+            let selective = i32::from(leader_byte == b'?' as i32);
+            match csi_arg(first_arg) {
+                CSI_ARG_MISSING | 0 => {
+                    let mut rect = VTermRect {
                         start_row: state.pos.row,
                         end_row: state.pos.row + 1,
                         start_col: state.pos.col,
-                        end_col,
+                        end_col: state.cols,
                     };
-                    scroll(state, rect, 0, count);
+                    if rect.end_col > rect.start_col {
+                        erase(state, rect, selective);
+                    }
+
+                    rect.start_row = state.pos.row + 1;
+                    rect.end_row = state.rows;
+                    rect.start_col = 0;
+                    for row_ in rect.start_row..rect.end_row {
+                        set_lineinfo(state, row_, FORCE, DWL_OFF, DHL_OFF);
+                    }
+                    if rect.end_row > rect.start_row {
+                        erase(state, rect, selective);
+                    }
                 }
+                1 => {
+                    let mut rect = VTermRect {
+                        start_row: 0,
+                        end_row: state.pos.row,
+                        start_col: 0,
+                        end_col: state.cols,
+                    };
+                    for row_ in rect.start_row..rect.end_row {
+                        set_lineinfo(state, row_, FORCE, DWL_OFF, DHL_OFF);
+                    }
+                    if rect.end_col > rect.start_col {
+                        erase(state, rect, selective);
+                    }
+
+                    rect.start_row = state.pos.row;
+                    rect.end_row = state.pos.row + 1;
+                    rect.end_col = state.pos.col + 1;
+                    if rect.end_row > rect.start_row {
+                        erase(state, rect, selective);
+                    }
+                }
+                2 => {
+                    let rect = VTermRect {
+                        start_row: 0,
+                        end_row: state.rows,
+                        start_col: 0,
+                        end_col: state.cols,
+                    };
+                    for row_ in rect.start_row..rect.end_row {
+                        set_lineinfo(state, row_, FORCE, DWL_OFF, DHL_OFF);
+                    }
+                    erase(state, rect, selective);
+                }
+                3 => {
+                    if let Some(callbacks) = state.callbacks
+                        && let Some(cb) = callbacks.sb_clear
+                        && cb(state.screen_ptr()) != 0
+                    {
+                        return 1;
+                    }
+                }
+                _ => {}
             }
-            0x53 => {
-                // SU - ECMA-48 8.3.147
-                let count = csi_arg_count(*args);
-                let rect = VTermRect {
-                    start_row: state.scrollregion_top,
-                    end_row: scrollregion_bottom(state),
-                    start_col: scrollregion_left(state),
-                    end_col: scrollregion_right(state),
-                };
-                scroll(state, rect, count, 0);
+        }
+        0x4b | CMD_DECSEL => {
+            // EL / DECSEL
+            let selective = i32::from(leader_byte == b'?' as i32);
+            let mut rect = VTermRect {
+                start_row: state.pos.row,
+                end_row: state.pos.row + 1,
+                start_col: 0,
+                end_col: 0,
+            };
+
+            match csi_arg(first_arg) {
+                CSI_ARG_MISSING | 0 => {
+                    rect.start_col = state.pos.col;
+                    rect.end_col = thisrowwidth(state);
+                }
+                1 => {
+                    rect.start_col = 0;
+                    rect.end_col = state.pos.col + 1;
+                }
+                2 => {
+                    rect.start_col = 0;
+                    rect.end_col = thisrowwidth(state);
+                }
+                _ => return 0,
             }
-            0x54 => {
-                // SD - ECMA-48 8.3.113
-                let count = csi_arg_count(*args);
+
+            if rect.end_col > rect.start_col {
+                erase(state, rect, selective);
+            }
+        }
+        0x4c => {
+            // IL - ECMA-48 8.3.67
+            let count = csi_arg_count(first_arg);
+            if is_cursor_in_scrollregion(state) {
                 let rect = VTermRect {
-                    start_row: state.scrollregion_top,
+                    start_row: state.pos.row,
                     end_row: scrollregion_bottom(state),
                     start_col: scrollregion_left(state),
                     end_col: scrollregion_right(state),
                 };
                 scroll(state, rect, -count, 0);
             }
-            0x58 => {
-                // ECH - ECMA-48 8.3.38
-                let count = csi_arg_count(*args);
-                let rw = thisrowwidth(state);
+        }
+        0x4d => {
+            // DL - ECMA-48 8.3.32
+            let count = csi_arg_count(first_arg);
+            if is_cursor_in_scrollregion(state) {
+                let rect = VTermRect {
+                    start_row: state.pos.row,
+                    end_row: scrollregion_bottom(state),
+                    start_col: scrollregion_left(state),
+                    end_col: scrollregion_right(state),
+                };
+                scroll(state, rect, count, 0);
+            }
+        }
+        0x50 => {
+            // DCH - ECMA-48 8.3.26
+            let count = csi_arg_count(first_arg);
+            if is_cursor_in_scrollregion(state) {
+                let end_col = if (state.mode & MODE_LEFTRIGHTMARGIN) != 0 {
+                    scrollregion_right(state)
+                } else {
+                    thisrowwidth(state)
+                };
                 let rect = VTermRect {
                     start_row: state.pos.row,
                     end_row: state.pos.row + 1,
                     start_col: state.pos.col,
-                    end_col: (state.pos.col + count).min(rw),
+                    end_col,
                 };
-                erase(state, rect, 0);
+                scroll(state, rect, 0, count);
             }
-            0x5a => {
-                // CBT - ECMA-48 8.3.7
-                let count = csi_arg_count(*args);
-                tab(state, count, -1);
+        }
+        0x53 => {
+            // SU - ECMA-48 8.3.147
+            let count = csi_arg_count(first_arg);
+            let rect = VTermRect {
+                start_row: state.scrollregion_top,
+                end_row: scrollregion_bottom(state),
+                start_col: scrollregion_left(state),
+                end_col: scrollregion_right(state),
+            };
+            scroll(state, rect, count, 0);
+        }
+        0x54 => {
+            // SD - ECMA-48 8.3.113
+            let count = csi_arg_count(first_arg);
+            let rect = VTermRect {
+                start_row: state.scrollregion_top,
+                end_row: scrollregion_bottom(state),
+                start_col: scrollregion_left(state),
+                end_col: scrollregion_right(state),
+            };
+            scroll(state, rect, -count, 0);
+        }
+        0x58 => {
+            // ECH - ECMA-48 8.3.38
+            let count = csi_arg_count(first_arg);
+            let rw = thisrowwidth(state);
+            let rect = VTermRect {
+                start_row: state.pos.row,
+                end_row: state.pos.row + 1,
+                start_col: state.pos.col,
+                end_col: (state.pos.col + count).min(rw),
+            };
+            erase(state, rect, 0);
+        }
+        0x5a => {
+            // CBT - ECMA-48 8.3.7
+            let count = csi_arg_count(first_arg);
+            tab(state, count, -1);
+        }
+        0x60 => {
+            // HPA - ECMA-48 8.3.57
+            let col = csi_arg_or(first_arg, 1);
+            state.pos.col = col - 1;
+            state.at_phantom = 0;
+        }
+        0x61 => {
+            // HPR - ECMA-48 8.3.59
+            let count = csi_arg_count(first_arg);
+            state.pos.col += count;
+            state.at_phantom = 0;
+        }
+        0x62 => {
+            // REP - ECMA-48 8.3.103
+            let row_width = thisrowwidth(state);
+            let count = csi_arg_count(first_arg);
+            let col = (state.pos.col + count).min(row_width);
+            let sc = schar_from_bytes(&state.grapheme_buf[..state.grapheme_len]);
+            while state.pos.col < col {
+                putglyph(state, sc, state.combine_width, state.pos);
+                state.pos.col += state.combine_width;
             }
-            0x60 => {
-                // HPA - ECMA-48 8.3.57
-                let col = csi_arg_or(*args, 1);
-                state.pos.col = col - 1;
-                state.at_phantom = 0;
+            if state.pos.col + state.combine_width >= row_width && (state.mode & MODE_AUTOWRAP) != 0
+            {
+                state.at_phantom = 1;
+                cancel_phantom = 0;
             }
-            0x61 => {
-                // HPR - ECMA-48 8.3.59
-                let count = csi_arg_count(*args);
-                state.pos.col += count;
-                state.at_phantom = 0;
+        }
+        0x63 => {
+            // DA - ECMA-48 8.3.24
+            let val = csi_arg_or(first_arg, 0);
+            if val == 0 {
+                let da_slice = unsafe { &*vterm_primary_device_attr.as_ptr() };
+                let end = da_slice
+                    .iter()
+                    .position(|&b| b == 0)
+                    .unwrap_or(da_slice.len());
+                let attr = &da_slice[..end];
+                let mut buf = Vec::with_capacity(attr.len() + 2);
+                buf.push(b'?');
+                buf.extend_from_slice(attr);
+                buf.push(b'c');
+                vterm_push_output_ctrl_bytes(state.vt_mut(), C1_CSI, &buf);
             }
-            0x62 => {
-                // REP - ECMA-48 8.3.103
-                let row_width = thisrowwidth(state);
-                let count = csi_arg_count(*args);
-                let col = (state.pos.col + count).min(row_width);
-                let sc = schar_from_buf(state.grapheme_buf.as_ptr(), state.grapheme_len);
-                while state.pos.col < col {
-                    putglyph(state, sc, state.combine_width, state.pos);
-                    state.pos.col += state.combine_width;
+        }
+        CMD_DA2 => {
+            // DEC secondary Device Attributes
+            vterm_push_output_ctrl_bytes(state.vt_mut(), C1_CSI, b">0;100;0c");
+        }
+        0x64 => {
+            // VPA - ECMA-48 8.3.158
+            let row = csi_arg_or(first_arg, 1);
+            state.pos.row = row - 1;
+            if (state.mode & MODE_ORIGIN) != 0 {
+                state.pos.row += state.scrollregion_top;
+            }
+            state.at_phantom = 0;
+        }
+        0x65 => {
+            // VPR - ECMA-48 8.3.160
+            let count = csi_arg_count(first_arg);
+            state.pos.row += count;
+            state.at_phantom = 0;
+        }
+        0x66 => {
+            // HVP - ECMA-48 8.3.63
+            let row = csi_arg_or(first_arg, 1);
+            let col = if argcount < 2 || csi_arg_is_missing(args[1]) {
+                1
+            } else {
+                csi_arg(args[1])
+            };
+            state.pos.row = row - 1;
+            state.pos.col = col - 1;
+            if (state.mode & MODE_ORIGIN) != 0 {
+                state.pos.row += state.scrollregion_top;
+                state.pos.col += scrollregion_left(state);
+            }
+            state.at_phantom = 0;
+        }
+        0x67 => {
+            // TBC - ECMA-48 8.3.154
+            let val = csi_arg_or(first_arg, 0);
+            match val {
+                0 => clear_col_tabstop(state, state.pos.col),
+                3 | 5 => {
+                    for col in 0..state.cols {
+                        clear_col_tabstop(state, col);
+                    }
                 }
-                if state.pos.col + state.combine_width >= row_width
-                    && (state.mode & MODE_AUTOWRAP) != 0
-                {
-                    state.at_phantom = 1;
-                    cancel_phantom = 0;
+                1 | 2 | 4 => {}
+                _ => return 0,
+            }
+        }
+        0x68 => {
+            // SM - ECMA-48 8.3.125
+            if !csi_arg_is_missing(first_arg) {
+                set_mode(state, csi_arg(first_arg), 1);
+            }
+        }
+        CMD_DECSET => {
+            // DEC private mode set
+            for &arg in args {
+                if !csi_arg_is_missing(arg) {
+                    set_dec_mode(state, csi_arg(arg), 1);
                 }
             }
-            0x63 => {
-                // DA - ECMA-48 8.3.24
-                let val = csi_arg_or(*args, 0);
-                if val == 0 {
-                    let attr = crate::memory::cstr_as_bytes(
-                        vterm_primary_device_attr.as_ptr().cast::<c_char>(),
+        }
+        0x6a => {
+            // HPB - ECMA-48 8.3.58
+            let count = csi_arg_count(first_arg);
+            state.pos.col -= count;
+            state.at_phantom = 0;
+        }
+        0x6b => {
+            // VPB - ECMA-48 8.3.159
+            let count = csi_arg_count(first_arg);
+            state.pos.row -= count;
+            state.at_phantom = 0;
+        }
+        0x6c => {
+            // RM - ECMA-48 8.3.106
+            if !csi_arg_is_missing(first_arg) {
+                set_mode(state, csi_arg(first_arg), 0);
+            }
+        }
+        CMD_DECRST => {
+            // DEC private mode reset
+            for &arg in args {
+                if !csi_arg_is_missing(arg) {
+                    set_dec_mode(state, csi_arg(arg), 0);
+                }
+            }
+        }
+        0x6d => {
+            // SGR - ECMA-48 8.3.117
+            vterm_state_setpen(state, args);
+        }
+        CMD_DECSGR => {
+            // DECSGR
+            for &arg in args {
+                match csi_arg(arg) {
+                    4 => vterm_state_setpen(state, &[73]),
+                    5 => vterm_state_setpen(state, &[74]),
+                    24 => vterm_state_setpen(state, &[75]),
+                    _ => {}
+                }
+            }
+        }
+        0x6e | CMD_DECDSR => {
+            // DSR / DECDSR
+            let val = csi_arg_or(first_arg, 0);
+            let qmark = if leader_byte == b'?' as i32 { "?" } else { "" };
+            let mut dark = false;
+
+            match val {
+                0..=4 => {}
+                5 => {
+                    let s = format!("{qmark}0n");
+                    vterm_push_output_ctrl_bytes(state.vt_mut(), C1_CSI, s.as_bytes());
+                }
+                6 => {
+                    let s = format!("{qmark}{};{}R", state.pos.row + 1, state.pos.col + 1);
+                    vterm_push_output_ctrl_bytes(state.vt_mut(), C1_CSI, s.as_bytes());
+                }
+                996 => {
+                    if let Some(callbacks) = state.callbacks
+                        && let Some(cb) = callbacks.theme
+                        && cb(&mut dark, state.screen_ptr()) != 0
+                    {
+                        let s: &[u8] = if dark { b"?997;1n" } else { b"?997;2n" };
+                        vterm_push_output_ctrl_bytes(state.vt_mut(), C1_CSI, s);
+                    }
+                }
+                _ => {}
+            }
+        }
+        CMD_DECSTR => {
+            // DECSTR - DEC soft terminal reset
+            vterm_state_reset(state, 0);
+        }
+        CMD_DECRQM => {
+            request_dec_mode(state, csi_arg(first_arg));
+        }
+        CMD_XTVERSION => {
+            // XTVERSION - xterm query version string
+            request_version_string(state);
+        }
+        CMD_DECSCUSR => {
+            // DECSCUSR - DEC set cursor shape
+            let val = csi_arg_or(first_arg, 1);
+            match val {
+                0 | 1 => {
+                    let _ = settermprop_bool(state, VTERM_PROP_CURSORBLINK, 1);
+                    let _ = settermprop_int(
+                        state,
+                        VTERM_PROP_CURSORSHAPE,
+                        VTERM_PROP_CURSORSHAPE_BLOCK,
                     );
-                    let mut buf = Vec::with_capacity(attr.len() + 2);
-                    buf.push(b'?');
-                    buf.extend_from_slice(attr);
-                    buf.push(b'c');
-                    vterm_push_output_ctrl_bytes(state.vt_mut(), C1_CSI, &buf);
                 }
-            }
-            CMD_DA2 => {
-                // DEC secondary Device Attributes
-                vterm_push_output_ctrl_bytes(state.vt_mut(), C1_CSI, b">0;100;0c");
-            }
-            0x64 => {
-                // VPA - ECMA-48 8.3.158
-                let row = csi_arg_or(*args, 1);
-                state.pos.row = row - 1;
-                if (state.mode & MODE_ORIGIN) != 0 {
-                    state.pos.row += state.scrollregion_top;
+                2 => {
+                    let _ = settermprop_bool(state, VTERM_PROP_CURSORBLINK, 0);
+                    let _ = settermprop_int(
+                        state,
+                        VTERM_PROP_CURSORSHAPE,
+                        VTERM_PROP_CURSORSHAPE_BLOCK,
+                    );
                 }
-                state.at_phantom = 0;
-            }
-            0x65 => {
-                // VPR - ECMA-48 8.3.160
-                let count = csi_arg_count(*args);
-                state.pos.row += count;
-                state.at_phantom = 0;
-            }
-            0x66 => {
-                // HVP - ECMA-48 8.3.63
-                let row = csi_arg_or(*args, 1);
-                let col = if argcount < 2 || csi_arg_is_missing(*args.wrapping_add(1)) {
-                    1
-                } else {
-                    csi_arg(*args.wrapping_add(1))
-                };
-                state.pos.row = row - 1;
-                state.pos.col = col - 1;
-                if (state.mode & MODE_ORIGIN) != 0 {
-                    state.pos.row += state.scrollregion_top;
-                    state.pos.col += scrollregion_left(state);
+                3 => {
+                    let _ = settermprop_bool(state, VTERM_PROP_CURSORBLINK, 1);
+                    let _ = settermprop_int(
+                        state,
+                        VTERM_PROP_CURSORSHAPE,
+                        VTERM_PROP_CURSORSHAPE_UNDERLINE,
+                    );
                 }
-                state.at_phantom = 0;
-            }
-            0x67 => {
-                // TBC - ECMA-48 8.3.154
-                let val = csi_arg_or(*args, 0);
-                match val {
-                    0 => clear_col_tabstop(state, state.pos.col),
-                    3 | 5 => {
-                        for col in 0..state.cols {
-                            clear_col_tabstop(state, col);
-                        }
-                    }
-                    1 | 2 | 4 => {}
-                    _ => return 0,
+                4 => {
+                    let _ = settermprop_bool(state, VTERM_PROP_CURSORBLINK, 0);
+                    let _ = settermprop_int(
+                        state,
+                        VTERM_PROP_CURSORSHAPE,
+                        VTERM_PROP_CURSORSHAPE_UNDERLINE,
+                    );
                 }
-            }
-            0x68 => {
-                // SM - ECMA-48 8.3.125
-                if !csi_arg_is_missing(*args) {
-                    set_mode(state, csi_arg(*args), 1);
+                5 => {
+                    let _ = settermprop_bool(state, VTERM_PROP_CURSORBLINK, 1);
+                    let _ = settermprop_int(
+                        state,
+                        VTERM_PROP_CURSORSHAPE,
+                        VTERM_PROP_CURSORSHAPE_BAR_LEFT,
+                    );
                 }
-            }
-            CMD_DECSET => {
-                // DEC private mode set
-                for i in 0..(argcount as usize) {
-                    if !csi_arg_is_missing(*args.wrapping_add(i)) {
-                        set_dec_mode(state, csi_arg(*args.wrapping_add(i)), 1);
-                    }
+                6 => {
+                    let _ = settermprop_bool(state, VTERM_PROP_CURSORBLINK, 0);
+                    let _ = settermprop_int(
+                        state,
+                        VTERM_PROP_CURSORSHAPE,
+                        VTERM_PROP_CURSORSHAPE_BAR_LEFT,
+                    );
                 }
-            }
-            0x6a => {
-                // HPB - ECMA-48 8.3.58
-                let count = csi_arg_count(*args);
-                state.pos.col -= count;
-                state.at_phantom = 0;
-            }
-            0x6b => {
-                // VPB - ECMA-48 8.3.159
-                let count = csi_arg_count(*args);
-                state.pos.row -= count;
-                state.at_phantom = 0;
-            }
-            0x6c => {
-                // RM - ECMA-48 8.3.106
-                if !csi_arg_is_missing(*args) {
-                    set_mode(state, csi_arg(*args), 0);
-                }
-            }
-            CMD_DECRST => {
-                // DEC private mode reset
-                for i in 0..(argcount as usize) {
-                    if !csi_arg_is_missing(*args.wrapping_add(i)) {
-                        set_dec_mode(state, csi_arg(*args.wrapping_add(i)), 0);
-                    }
-                }
-            }
-            0x6d => {
-                // SGR - ECMA-48 8.3.117
-                vterm_state_setpen(state, args, argcount);
-            }
-            CMD_DECSGR => {
-                // DECSGR
-                for argi in 0..(argcount as usize) {
-                    match csi_arg(*args.wrapping_add(argi)) {
-                        4 => {
-                            let arg: i64 = 73;
-                            vterm_state_setpen(state, &raw const arg, 1);
-                        }
-                        5 => {
-                            let arg: i64 = 74;
-                            vterm_state_setpen(state, &raw const arg, 1);
-                        }
-                        24 => {
-                            let arg: i64 = 75;
-                            vterm_state_setpen(state, &raw const arg, 1);
-                        }
-                        _ => {}
-                    }
-                }
-            }
-            0x6e | CMD_DECDSR => {
-                // DSR / DECDSR
-                let val = csi_arg_or(*args, 0);
-                let qmark = if leader_byte == b'?' as i32 { "?" } else { "" };
-                let mut dark = false;
-
-                match val {
-                    0..=4 => {}
-                    5 => {
-                        let s = format!("{qmark}0n");
-                        vterm_push_output_ctrl_bytes(state.vt_mut(), C1_CSI, s.as_bytes());
-                    }
-                    6 => {
-                        let s = format!("{qmark}{};{}R", state.pos.row + 1, state.pos.col + 1);
-                        vterm_push_output_ctrl_bytes(state.vt_mut(), C1_CSI, s.as_bytes());
-                    }
-                    996 => {
-                        if let Some(callbacks) = state.callbacks
-                            && let Some(cb) = callbacks.theme
-                            && cb(&mut dark, state.screen_ptr()) != 0
-                        {
-                            let s: &[u8] = if dark { b"?997;1n" } else { b"?997;2n" };
-                            vterm_push_output_ctrl_bytes(state.vt_mut(), C1_CSI, s);
-                        }
-                    }
-                    _ => {}
-                }
-            }
-            CMD_DECSTR => {
-                // DECSTR - DEC soft terminal reset
-                vterm_state_reset(state, 0);
-            }
-            CMD_DECRQM => {
-                request_dec_mode(state, csi_arg(*args));
-            }
-            CMD_XTVERSION => {
-                // XTVERSION - xterm query version string
-                request_version_string(state);
-            }
-            CMD_DECSCUSR => {
-                // DECSCUSR - DEC set cursor shape
-                let val = csi_arg_or(*args, 1);
-                match val {
-                    0 | 1 => {
-                        let _ = settermprop_bool(state, VTERM_PROP_CURSORBLINK, 1);
-                        let _ = settermprop_int(
-                            state,
-                            VTERM_PROP_CURSORSHAPE,
-                            VTERM_PROP_CURSORSHAPE_BLOCK,
-                        );
-                    }
-                    2 => {
-                        let _ = settermprop_bool(state, VTERM_PROP_CURSORBLINK, 0);
-                        let _ = settermprop_int(
-                            state,
-                            VTERM_PROP_CURSORSHAPE,
-                            VTERM_PROP_CURSORSHAPE_BLOCK,
-                        );
-                    }
-                    3 => {
-                        let _ = settermprop_bool(state, VTERM_PROP_CURSORBLINK, 1);
-                        let _ = settermprop_int(
-                            state,
-                            VTERM_PROP_CURSORSHAPE,
-                            VTERM_PROP_CURSORSHAPE_UNDERLINE,
-                        );
-                    }
-                    4 => {
-                        let _ = settermprop_bool(state, VTERM_PROP_CURSORBLINK, 0);
-                        let _ = settermprop_int(
-                            state,
-                            VTERM_PROP_CURSORSHAPE,
-                            VTERM_PROP_CURSORSHAPE_UNDERLINE,
-                        );
-                    }
-                    5 => {
-                        let _ = settermprop_bool(state, VTERM_PROP_CURSORBLINK, 1);
-                        let _ = settermprop_int(
-                            state,
-                            VTERM_PROP_CURSORSHAPE,
-                            VTERM_PROP_CURSORSHAPE_BAR_LEFT,
-                        );
-                    }
-                    6 => {
-                        let _ = settermprop_bool(state, VTERM_PROP_CURSORBLINK, 0);
-                        let _ = settermprop_int(
-                            state,
-                            VTERM_PROP_CURSORSHAPE,
-                            VTERM_PROP_CURSORSHAPE_BAR_LEFT,
-                        );
-                    }
-                    _ => {}
-                }
-            }
-            CMD_DECSCA => {
-                // DECSCA - DEC select character protection attribute
-                let val = csi_arg_or(*args, 0);
-                match val {
-                    0 | 2 => state.protected_cell = 0,
-                    1 => state.protected_cell = 1,
-                    _ => {}
-                }
-            }
-            0x72 => {
-                // DECSTBM - DEC custom
-                state.scrollregion_top = csi_arg_or(*args, 1) - 1;
-                state.scrollregion_bottom =
-                    if argcount < 2 || csi_arg_is_missing(*args.wrapping_add(1)) {
-                        -1
-                    } else {
-                        csi_arg(*args.wrapping_add(1))
-                    };
-                state.scrollregion_top = state.scrollregion_top.clamp(0, state.rows);
-                if state.scrollregion_bottom < -1 {
-                    state.scrollregion_bottom = -1;
-                }
-                if state.scrollregion_top == 0 && state.scrollregion_bottom == state.rows {
-                    state.scrollregion_bottom = -1;
-                } else if state.scrollregion_bottom > state.rows {
-                    state.scrollregion_bottom = state.rows;
-                }
-
-                if scrollregion_bottom(state) <= state.scrollregion_top {
-                    state.scrollregion_top = 0;
-                    state.scrollregion_bottom = -1;
-                }
-
-                state.pos.row = 0;
-                state.pos.col = 0;
-                if (state.mode & MODE_ORIGIN) != 0 {
-                    state.pos.row += state.scrollregion_top;
-                    state.pos.col += scrollregion_left(state);
-                }
-            }
-            0x73 => {
-                // DECSLRM - DEC custom
-                state.scrollregion_left = csi_arg_or(*args, 1) - 1;
-                state.scrollregion_right =
-                    if argcount < 2 || csi_arg_is_missing(*args.wrapping_add(1)) {
-                        -1
-                    } else {
-                        csi_arg(*args.wrapping_add(1))
-                    };
-                state.scrollregion_left = state.scrollregion_left.clamp(0, state.cols);
-                if state.scrollregion_right < -1 {
-                    state.scrollregion_right = -1;
-                }
-                if state.scrollregion_left == 0 && state.scrollregion_right == state.cols {
-                    state.scrollregion_right = -1;
-                } else if state.scrollregion_right > state.cols {
-                    state.scrollregion_right = state.cols;
-                }
-
-                if state.scrollregion_right > -1
-                    && state.scrollregion_right <= state.scrollregion_left
-                {
-                    state.scrollregion_left = 0;
-                    state.scrollregion_right = -1;
-                }
-
-                state.pos.row = 0;
-                state.pos.col = 0;
-                if (state.mode & MODE_ORIGIN) != 0 {
-                    state.pos.row += state.scrollregion_top;
-                    state.pos.col += scrollregion_left(state);
-                }
-            }
-            CMD_KITTY_QUERY => {
-                request_key_encoding_flags(state);
-            }
-            CMD_KITTY_PUSH => {
-                push_key_encoding_flags(state, csi_arg_or(*args, 0));
-            }
-            CMD_KITTY_POP => {
-                pop_key_encoding_flags(state, csi_arg_or(*args, 1));
-            }
-            CMD_KITTY_SET => {
-                let val = if argcount < 2 || csi_arg_is_missing(*args.wrapping_add(1)) {
-                    1
-                } else {
-                    csi_arg(*args.wrapping_add(1))
-                };
-                set_key_encoding_flags(state, csi_arg_or(*args, 0), val);
-            }
-            CMD_DECIC => {
-                // DECIC
-                let count = csi_arg_count(*args);
-                if is_cursor_in_scrollregion(state) {
-                    let rect = VTermRect {
-                        start_row: state.scrollregion_top,
-                        end_row: scrollregion_bottom(state),
-                        start_col: state.pos.col,
-                        end_col: scrollregion_right(state),
-                    };
-                    scroll(state, rect, 0, -count);
-                }
-            }
-            CMD_DECDC => {
-                // DECDC
-                let count = csi_arg_count(*args);
-                if is_cursor_in_scrollregion(state) {
-                    let rect = VTermRect {
-                        start_row: state.scrollregion_top,
-                        end_row: scrollregion_bottom(state),
-                        start_col: state.pos.col,
-                        end_col: scrollregion_right(state),
-                    };
-                    scroll(state, rect, 0, count);
-                }
-            }
-            _ => {
-                if let Some(fallbacks) = state.fallbacks
-                    && let Some(cb) = fallbacks.csi
-                    && cb(
-                        leader_ptr,
-                        args,
-                        argcount,
-                        intermed_ptr,
-                        command,
-                        state.term_ptr(),
-                    ) != 0
-                {
-                    return 1;
-                }
-                return 0;
+                _ => {}
             }
         }
-
-        if (state.mode & MODE_ORIGIN) != 0 {
-            let min_row = state.scrollregion_top;
-            let max_row = scrollregion_bottom(state) - 1;
-            let min_col = scrollregion_left(state);
-            let max_col = scrollregion_right(state) - 1;
-            if state.pos.row < min_row {
-                state.pos.row = min_row;
-            }
-            if state.pos.row > max_row {
-                state.pos.row = max_row;
-            }
-            if state.pos.col < min_col {
-                state.pos.col = min_col;
-            }
-            if state.pos.col > max_col {
-                state.pos.col = max_col;
-            }
-        } else {
-            let max_row = state.rows - 1;
-            if state.pos.row < 0 {
-                state.pos.row = 0;
-            }
-            if state.pos.row > max_row {
-                state.pos.row = max_row;
-            }
-            let max_col = thisrowwidth(state) - 1;
-            if state.pos.col < 0 {
-                state.pos.col = 0;
-            }
-            if state.pos.col > max_col {
-                state.pos.col = max_col;
+        CMD_DECSCA => {
+            // DECSCA - DEC select character protection attribute
+            let val = csi_arg_or(first_arg, 0);
+            match val {
+                0 | 2 => state.protected_cell = 0,
+                1 => state.protected_cell = 1,
+                _ => {}
             }
         }
+        0x72 => {
+            // DECSTBM - DEC custom
+            state.scrollregion_top = csi_arg_or(first_arg, 1) - 1;
+            state.scrollregion_bottom = if argcount < 2 || csi_arg_is_missing(args[1]) {
+                -1
+            } else {
+                csi_arg(args[1])
+            };
+            state.scrollregion_top = state.scrollregion_top.clamp(0, state.rows);
+            if state.scrollregion_bottom < -1 {
+                state.scrollregion_bottom = -1;
+            }
+            if state.scrollregion_top == 0 && state.scrollregion_bottom == state.rows {
+                state.scrollregion_bottom = -1;
+            } else if state.scrollregion_bottom > state.rows {
+                state.scrollregion_bottom = state.rows;
+            }
 
-        updatecursor(state, &oldpos, cancel_phantom);
+            if scrollregion_bottom(state) <= state.scrollregion_top {
+                state.scrollregion_top = 0;
+                state.scrollregion_bottom = -1;
+            }
 
-        1
+            state.pos.row = 0;
+            state.pos.col = 0;
+            if (state.mode & MODE_ORIGIN) != 0 {
+                state.pos.row += state.scrollregion_top;
+                state.pos.col += scrollregion_left(state);
+            }
+        }
+        0x73 => {
+            // DECSLRM - DEC custom
+            state.scrollregion_left = csi_arg_or(first_arg, 1) - 1;
+            state.scrollregion_right = if argcount < 2 || csi_arg_is_missing(args[1]) {
+                -1
+            } else {
+                csi_arg(args[1])
+            };
+            state.scrollregion_left = state.scrollregion_left.clamp(0, state.cols);
+            if state.scrollregion_right < -1 {
+                state.scrollregion_right = -1;
+            }
+            if state.scrollregion_left == 0 && state.scrollregion_right == state.cols {
+                state.scrollregion_right = -1;
+            } else if state.scrollregion_right > state.cols {
+                state.scrollregion_right = state.cols;
+            }
+
+            if state.scrollregion_right > -1 && state.scrollregion_right <= state.scrollregion_left
+            {
+                state.scrollregion_left = 0;
+                state.scrollregion_right = -1;
+            }
+
+            state.pos.row = 0;
+            state.pos.col = 0;
+            if (state.mode & MODE_ORIGIN) != 0 {
+                state.pos.row += state.scrollregion_top;
+                state.pos.col += scrollregion_left(state);
+            }
+        }
+        CMD_KITTY_QUERY => {
+            request_key_encoding_flags(state);
+        }
+        CMD_KITTY_PUSH => {
+            push_key_encoding_flags(state, csi_arg_or(first_arg, 0));
+        }
+        CMD_KITTY_POP => {
+            pop_key_encoding_flags(state, csi_arg_or(first_arg, 1));
+        }
+        CMD_KITTY_SET => {
+            let val = if argcount < 2 || csi_arg_is_missing(args[1]) {
+                1
+            } else {
+                csi_arg(args[1])
+            };
+            set_key_encoding_flags(state, csi_arg_or(first_arg, 0), val);
+        }
+        CMD_DECIC => {
+            // DECIC
+            let count = csi_arg_count(first_arg);
+            if is_cursor_in_scrollregion(state) {
+                let rect = VTermRect {
+                    start_row: state.scrollregion_top,
+                    end_row: scrollregion_bottom(state),
+                    start_col: state.pos.col,
+                    end_col: scrollregion_right(state),
+                };
+                scroll(state, rect, 0, -count);
+            }
+        }
+        CMD_DECDC => {
+            // DECDC
+            let count = csi_arg_count(first_arg);
+            if is_cursor_in_scrollregion(state) {
+                let rect = VTermRect {
+                    start_row: state.scrollregion_top,
+                    end_row: scrollregion_bottom(state),
+                    start_col: state.pos.col,
+                    end_col: scrollregion_right(state),
+                };
+                scroll(state, rect, 0, count);
+            }
+        }
+        _ => {
+            if let Some(fallbacks) = state.fallbacks
+                && let Some(cb) = fallbacks.csi
+                && cb(
+                    leader_slice,
+                    args,
+                    intermed_slice,
+                    command,
+                    state.term_ptr(),
+                ) != 0
+            {
+                return 1;
+            }
+            return 0;
+        }
     }
+
+    if (state.mode & MODE_ORIGIN) != 0 {
+        let min_row = state.scrollregion_top;
+        let max_row = scrollregion_bottom(state) - 1;
+        let min_col = scrollregion_left(state);
+        let max_col = scrollregion_right(state) - 1;
+        if state.pos.row < min_row {
+            state.pos.row = min_row;
+        }
+        if state.pos.row > max_row {
+            state.pos.row = max_row;
+        }
+        if state.pos.col < min_col {
+            state.pos.col = min_col;
+        }
+        if state.pos.col > max_col {
+            state.pos.col = max_col;
+        }
+    } else {
+        let max_row = state.rows - 1;
+        if state.pos.row < 0 {
+            state.pos.row = 0;
+        }
+        if state.pos.row > max_row {
+            state.pos.row = max_row;
+        }
+        let max_col = thisrowwidth(state) - 1;
+        if state.pos.col < 0 {
+            state.pos.col = 0;
+        }
+        if state.pos.col > max_col {
+            state.pos.col = max_col;
+        }
+    }
+
+    updatecursor(state, &oldpos, cancel_phantom);
+
+    1
 }
 
 #[inline]
@@ -1968,8 +1932,7 @@ const fn unbase64one(c: u8) -> u8 {
 }
 
 fn osc_selection(state: &mut VTermStateFull, frag: VTermStringFragment) {
-    let mut frag_str = frag.str_;
-    let mut frag_len = frag.len();
+    let mut frag_bytes = frag.as_bytes();
     let frag_initial = frag.initial();
     let frag_final = frag.final_();
 
@@ -1978,8 +1941,8 @@ fn osc_selection(state: &mut VTermStateFull, frag: VTermStringFragment) {
         set_tmp_selection_state(state, SELECTION_INITIAL);
     }
 
-    while tmp_selection_state(state) == 0 && frag_len != 0 {
-        match crate::memory::cstr_first_byte(frag_str) {
+    while tmp_selection_state(state) == 0 && !frag_bytes.is_empty() {
+        match frag_bytes[0] {
             b'c' => {
                 let m = tmp_selection_mask(state) | VTERM_SELECTION_CLIPBOARD;
                 set_tmp_selection_mask(state, m);
@@ -1997,8 +1960,7 @@ fn osc_selection(state: &mut VTermStateFull, frag: VTermStringFragment) {
                 set_tmp_selection_mask(state, m);
             }
             b'0'..=b'7' => {
-                let bit =
-                    VTERM_SELECTION_CUT0 << ((crate::memory::cstr_first_byte(frag_str)) - b'0');
+                let bit = VTERM_SELECTION_CUT0 << (frag_bytes[0] - b'0');
                 let m = tmp_selection_mask(state) | bit;
                 set_tmp_selection_mask(state, m);
             }
@@ -2011,14 +1973,13 @@ fn osc_selection(state: &mut VTermStateFull, frag: VTermStringFragment) {
             _ => {}
         }
 
-        frag_str = frag_str.wrapping_add(1);
-        frag_len -= 1;
+        frag_bytes = &frag_bytes[1..];
     }
 
     let sel_callbacks = state.selection.callbacks;
     let sel_user = state.term_ptr();
 
-    if frag_len == 0 {
+    if frag_bytes.is_empty() {
         if frag_final
             && let Some(sel_cbs) = sel_callbacks
             && let Some(set_cb) = sel_cbs.set
@@ -2036,7 +1997,7 @@ fn osc_selection(state: &mut VTermStateFull, frag: VTermStringFragment) {
     }
 
     if tmp_selection_state(state) == SELECTION_SELECTED {
-        if (crate::memory::cstr_first_byte(frag_str)) == b'?' {
+        if frag_bytes[0] == b'?' {
             set_tmp_selection_state(state, SELECTION_QUERY);
         } else {
             set_tmp_selection_state(state, SELECTION_SET_INITIAL);
@@ -2073,26 +2034,25 @@ fn osc_selection(state: &mut VTermStateFull, frag: VTermStringFragment) {
             set_tmp_selection_recvpartial(state, 0);
         }
 
-        while (buflen - bufcur) >= 3 && frag_len != 0 {
-            if (crate::memory::cstr_first_byte(frag_str)) == b'=' {
+        while (buflen - bufcur) >= 3 && !frag_bytes.is_empty() {
+            if frag_bytes[0] == b'=' {
                 if n == 2 {
-                    (&mut state.selection.buffer)[bufcur] = ((x >> 4) & 0xff) as c_char;
+                    state.selection.buffer[bufcur] = ((x >> 4) & 0xff) as u8;
                     bufcur += 1;
                 }
                 if n == 3 {
-                    (&mut state.selection.buffer)[bufcur] = ((x >> 10) & 0xff) as c_char;
-                    (&mut state.selection.buffer)[bufcur + 1] = ((x >> 2) & 0xff) as c_char;
+                    state.selection.buffer[bufcur] = ((x >> 10) & 0xff) as u8;
+                    state.selection.buffer[bufcur + 1] = ((x >> 2) & 0xff) as u8;
                     bufcur += 2;
                 }
 
-                while frag_len != 0 && (crate::memory::cstr_first_byte(frag_str)) == b'=' {
-                    frag_str = frag_str.wrapping_add(1);
-                    frag_len -= 1;
+                while !frag_bytes.is_empty() && frag_bytes[0] == b'=' {
+                    frag_bytes = &frag_bytes[1..];
                 }
 
                 n = 0;
             } else {
-                let b = unbase64one(crate::memory::cstr_first_byte(frag_str));
+                let b = unbase64one(frag_bytes[0]);
                 if b == 0xff {
                     set_tmp_selection_state(state, SELECTION_INVALID);
                     let err_frag =
@@ -2103,13 +2063,12 @@ fn osc_selection(state: &mut VTermStateFull, frag: VTermStringFragment) {
 
                 x = (x << 6) | u32::from(b);
                 n += 1;
-                frag_str = frag_str.wrapping_add(1);
-                frag_len -= 1;
+                frag_bytes = &frag_bytes[1..];
 
                 if n == 4 {
-                    (&mut state.selection.buffer)[bufcur] = ((x >> 16) & 0xff) as c_char;
-                    (&mut state.selection.buffer)[bufcur + 1] = ((x >> 8) & 0xff) as c_char;
-                    (&mut state.selection.buffer)[bufcur + 2] = (x & 0xff) as c_char;
+                    state.selection.buffer[bufcur] = ((x >> 16) & 0xff) as u8;
+                    state.selection.buffer[bufcur + 1] = ((x >> 8) & 0xff) as u8;
+                    state.selection.buffer[bufcur + 2] = (x & 0xff) as u8;
 
                     bufcur += 3;
                     x = 0;
@@ -2117,13 +2076,13 @@ fn osc_selection(state: &mut VTermStateFull, frag: VTermStringFragment) {
                 }
             }
 
-            if frag_len == 0 || (buflen - bufcur) < 3 {
+            if frag_bytes.is_empty() || (buflen - bufcur) < 3 {
                 if bufcur != 0 {
                     let chunk_frag = VTermStringFragment::new(
                         state.selection.buffer.as_ptr(),
                         bufcur,
                         tmp_selection_state(state) == SELECTION_SET_INITIAL,
-                        frag_final && frag_len == 0,
+                        frag_final && frag_bytes.is_empty(),
                         0 as VTermTerminator,
                     );
                     let _ = set_cb(i32::from(tmp_selection_mask(state)), chunk_frag, sel_user);
@@ -2173,20 +2132,13 @@ fn request_status_string(state: &mut VTermStateFull, frag: VTermStringFragment) 
     let vt = state.vt_mut();
     let tmp = (&raw mut state.tmp.words[0]).cast::<u8>();
 
-    let mut frag_str = frag.str_;
-    let mut frag_len = frag.len();
+    let mut frag_bytes = frag.as_bytes();
 
     if frag.initial() {
         unsafe {
             *tmp = 0;
-        }
-        unsafe {
             *tmp.wrapping_add(1) = 0;
-        }
-        unsafe {
             *tmp.wrapping_add(2) = 0;
-        }
-        unsafe {
             *tmp.wrapping_add(3) = 0;
         }
     }
@@ -2195,13 +2147,12 @@ fn request_status_string(state: &mut VTermStateFull, frag: VTermStringFragment) 
     while i < 3 && unsafe { *tmp.wrapping_add(i) } != 0 {
         i += 1;
     }
-    while i < 3 && frag_len != 0 {
+    while i < 3 && !frag_bytes.is_empty() {
         unsafe {
-            *tmp.wrapping_add(i) = crate::memory::cstr_first_byte(frag_str);
+            *tmp.wrapping_add(i) = frag_bytes[0];
         }
         i += 1;
-        frag_str = frag_str.wrapping_add(1);
-        frag_len -= 1;
+        frag_bytes = &frag_bytes[1..];
     }
     unsafe {
         *tmp.wrapping_add(i) = 0;
@@ -2284,22 +2235,14 @@ fn request_status_string(state: &mut VTermStateFull, frag: VTermStringFragment) 
     }
 }
 
-fn on_dcs(
-    command: *const c_char,
-    commandlen: usize,
-    frag: VTermStringFragment,
-    state: *mut VTermStateFull,
-) -> i32 {
+fn on_dcs(command: &[u8], frag: VTermStringFragment, state: *mut VTermStateFull) -> i32 {
     let state = unsafe { &mut *state };
-    if commandlen == 2
-        && (crate::memory::cstr_first_byte(command)) == b'$'
-        && (crate::memory::cstr_byte_at(command, 1)) == b'q'
-    {
+    if command == b"$q" {
         request_status_string(state, frag);
         return 1;
     } else if let Some(fallbacks) = state.fallbacks
         && let Some(cb) = fallbacks.dcs
-        && cb(command, commandlen, frag, state.term_ptr()) != 0
+        && cb(command, frag, state.term_ptr()) != 0
     {
         return 1;
     }
@@ -2657,7 +2600,7 @@ pub fn vterm_state_set_selection_callbacks(
             (*state.vt).outdata = user;
         }
     }
-    state.selection.buffer = vec![0 as c_char; buflen];
+    state.selection.buffer = vec![0u8; buflen];
 }
 
 #[cfg(test)]

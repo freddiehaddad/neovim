@@ -238,22 +238,10 @@ mod platform {
         fn uv_loop_init(loop_: *mut c_void) -> c_int;
         fn uv_loop_close(loop_: *mut c_void) -> c_int;
         fn uv_prepare_init(loop_: *mut c_void, prepare: *mut c_void) -> c_int;
-        fn uv_prepare_start(
-            prepare: *mut c_void,
-            cb: unsafe extern "C" fn(*mut c_void),
-        ) -> c_int;
+        fn uv_prepare_start(prepare: *mut c_void, cb: unsafe extern "C" fn(*mut c_void)) -> c_int;
         fn uv_prepare_stop(prepare: *mut c_void) -> c_int;
-        fn uv_tty_init(
-            loop_: *mut c_void,
-            tty: *mut c_void,
-            fd: c_int,
-            readable: c_int,
-        ) -> c_int;
-        fn uv_tty_get_winsize(
-            tty: *mut c_void,
-            width: *mut c_int,
-            height: *mut c_int,
-        ) -> c_int;
+        fn uv_tty_init(loop_: *mut c_void, tty: *mut c_void, fd: c_int, readable: c_int) -> c_int;
+        fn uv_tty_get_winsize(tty: *mut c_void, width: *mut c_int, height: *mut c_int) -> c_int;
         fn uv_tty_set_mode(tty: *mut c_void, mode: c_int) -> c_int;
         fn uv_read_start(
             stream: *mut c_void,
@@ -280,10 +268,7 @@ mod platform {
             arg: *mut c_void,
         );
         fn uv_is_closing(handle: *mut c_void) -> c_int;
-        fn uv_close(
-            handle: *mut c_void,
-            close_cb: Option<unsafe extern "C" fn(*mut c_void)>,
-        );
+        fn uv_close(handle: *mut c_void, close_cb: Option<unsafe extern "C" fn(*mut c_void)>);
         fn uv_run(loop_: *mut c_void, mode: c_int) -> c_int;
     }
 
@@ -311,11 +296,7 @@ mod platform {
         }
     }
 
-    unsafe extern "C" fn alloc_cb(
-        _handle: *mut c_void,
-        _suggested: usize,
-        buf: *mut uv_buf_t,
-    ) {
+    unsafe extern "C" fn alloc_cb(_handle: *mut c_void, _suggested: usize, buf: *mut uv_buf_t) {
         unsafe {
             let mut v = vec![0u8; BUF_SIZE];
             let ptr = v.as_mut_ptr();
@@ -325,11 +306,7 @@ mod platform {
         }
     }
 
-    unsafe extern "C" fn read_cb(
-        stream: *mut c_void,
-        cnt: isize,
-        buf: *const uv_buf_t,
-    ) {
+    unsafe extern "C" fn read_cb(stream: *mut c_void, cnt: isize, buf: *const uv_buf_t) {
         unsafe {
             if cnt <= 0 {
                 if !(*buf).base.is_null() {
@@ -350,7 +327,12 @@ mod platform {
             let mut out_tty = AlignedBuf::<512>([0; 512]);
             let mut req = AlignedBuf::<512>([0; 512]);
             uv_loop_init((&raw mut write_loop).cast());
-            uv_tty_init((&raw mut write_loop).cast(), (&raw mut out_tty).cast(), 1, 0);
+            uv_tty_init(
+                (&raw mut write_loop).cast(),
+                (&raw mut out_tty).cast(),
+                1,
+                0,
+            );
             let b = uv_buf_t {
                 len: cnt as c_ulong,
                 base: (*buf).base,

@@ -1326,8 +1326,7 @@ fn edit_stdin(parmp: &mut Mparm) -> bool {
 }
 
 fn command_line_scan(parmp: &mut Mparm) {
-    let raw_args =
-        unsafe { std::slice::from_raw_parts(parmp.argv, parmp.argc.max(0) as usize) };
+    let raw_args = unsafe { std::slice::from_raw_parts(parmp.argv, parmp.argc.max(0) as usize) };
     let mut arg_idx: usize = 1;
     let mut argv_idx: i32 = 1;
     let mut had_minmin = false;
@@ -1482,9 +1481,8 @@ fn command_line_scan(parmp: &mut Mparm) {
                     }
                     parmp.edit_type = EDIT_QF;
                     if (argv_idx as usize) < arg0.len() {
-                        parmp.use_ef = Some(crate::memory::cstr_from_bytes(
-                            &arg0[argv_idx as usize..],
-                        ));
+                        parmp.use_ef =
+                            Some(crate::memory::cstr_from_bytes(&arg0[argv_idx as usize..]));
                         argv_idx = -1;
                     } else if arg_idx + 1 < raw_args.len() {
                         want_argument = true;
@@ -1518,9 +1516,8 @@ fn command_line_scan(parmp: &mut Mparm) {
                     }
                     parmp.edit_type = EDIT_TAG;
                     if (argv_idx as usize) < arg0.len() {
-                        parmp.tagname = Some(crate::memory::cstr_from_bytes(
-                            &arg0[argv_idx as usize..],
-                        ));
+                        parmp.tagname =
+                            Some(crate::memory::cstr_from_bytes(&arg0[argv_idx as usize..]));
                         argv_idx = -1;
                     } else {
                         want_argument = true;
@@ -1554,9 +1551,9 @@ fn command_line_scan(parmp: &mut Mparm) {
                         if parmp.commands.len() >= MAX_ARG_CMDS {
                             mainerr(ERR_EXTRA_CMD, ptr::null(), ptr::null());
                         }
-                        parmp.commands.push(crate::memory::cstr_from_bytes(
-                            &arg0[argv_idx as usize..],
-                        ));
+                        parmp
+                            .commands
+                            .push(crate::memory::cstr_from_bytes(&arg0[argv_idx as usize..]));
                         argv_idx = -1;
                     } else {
                         want_argument = true;
@@ -1821,9 +1818,10 @@ fn init_params(paramp: &mut Mparm, argc: i32, argv: *mut *mut c_char) {
 }
 
 fn init_startuptime(paramp: &mut Mparm) {
-    let raw_args =
-        unsafe { std::slice::from_raw_parts(paramp.argv, paramp.argc.max(0) as usize) };
-    let args = raw_args.get(1..raw_args.len().saturating_sub(1)).unwrap_or(&[]);
+    let raw_args = unsafe { std::slice::from_raw_parts(paramp.argv, paramp.argc.max(0) as usize) };
+    let args = raw_args
+        .get(1..raw_args.len().saturating_sub(1))
+        .unwrap_or(&[]);
     let is_embed = args.iter().any(|&a| {
         crate::memory::cstr_as_opt_bytes(a).is_some_and(|b| b.eq_ignore_ascii_case(b"--embed"))
     });

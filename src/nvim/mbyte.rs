@@ -979,6 +979,29 @@ pub fn utf_ptr2_char_info_len(p_in: impl crate::strings::IntoCCharPtr, size: i32
     }
 }
 
+#[cfg(test)]
+#[inline]
+pub fn utf_slice2_char_info(bytes: &[u8]) -> CharInfo {
+    utf_ptr2_char_info_len(bytes.as_ptr().cast::<c_char>(), bytes.len() as i32)
+}
+
+#[inline]
+pub fn utf_cluster_cells(bytes: &[u8]) -> i32 {
+    let mut scratch = bytes.len() as i32;
+    let ci = utf_ptr2_str_char_info_len(bytes.as_ptr().cast::<c_char>(), scratch);
+    utf_cluster_info_len(ci, &mut scratch).cells
+}
+
+#[inline]
+pub fn utf_slice2char(bytes: &[u8]) -> i32 {
+    utf_ptr2char(bytes.as_ptr().cast::<c_char>())
+}
+
+#[inline]
+pub fn utf_slice2len(bytes: &[u8]) -> usize {
+    utf_ptr2len(bytes.as_ptr().cast::<c_char>()) as usize
+}
+
 #[inline]
 pub fn utf_ptr2_str_char_info_len(
     ptr: impl crate::strings::IntoCCharPtr,
@@ -1527,44 +1550,47 @@ pub const fn utf_char2len(c: i32) -> i32 {
     }
 }
 
-pub fn utf_char2bytes(c: i32, buf: *mut c_char) -> i32 {
-    unsafe {
-        let u = c as u32;
-        if c < 0x80 {
-            *buf = c as c_char;
-            1
-        } else if c < 0x800 {
-            *buf = (0xc0 + (u >> 6)) as u8 as c_char;
-            *buf.wrapping_add(1) = (0x80 + (u & 0x3f)) as u8 as c_char;
-            2
-        } else if c < 0x10000 {
-            *buf = (0xe0 + (u >> 12)) as u8 as c_char;
-            *buf.wrapping_add(1) = (0x80 + ((u >> 6) & 0x3f)) as u8 as c_char;
-            *buf.wrapping_add(2) = (0x80 + (u & 0x3f)) as u8 as c_char;
-            3
-        } else if c < 0x200000 {
-            *buf = (0xf0 + (u >> 18)) as u8 as c_char;
-            *buf.wrapping_add(1) = (0x80 + ((u >> 12) & 0x3f)) as u8 as c_char;
-            *buf.wrapping_add(2) = (0x80 + ((u >> 6) & 0x3f)) as u8 as c_char;
-            *buf.wrapping_add(3) = (0x80 + (u & 0x3f)) as u8 as c_char;
-            4
-        } else if c < 0x4000000 {
-            *buf = (0xf8 + (u >> 24)) as u8 as c_char;
-            *buf.wrapping_add(1) = (0x80 + ((u >> 18) & 0x3f)) as u8 as c_char;
-            *buf.wrapping_add(2) = (0x80 + ((u >> 12) & 0x3f)) as u8 as c_char;
-            *buf.wrapping_add(3) = (0x80 + ((u >> 6) & 0x3f)) as u8 as c_char;
-            *buf.wrapping_add(4) = (0x80 + (u & 0x3f)) as u8 as c_char;
-            5
-        } else {
-            *buf = (0xfc + (u >> 30)) as u8 as c_char;
-            *buf.wrapping_add(1) = (0x80 + ((u >> 24) & 0x3f)) as u8 as c_char;
-            *buf.wrapping_add(2) = (0x80 + ((u >> 18) & 0x3f)) as u8 as c_char;
-            *buf.wrapping_add(3) = (0x80 + ((u >> 12) & 0x3f)) as u8 as c_char;
-            *buf.wrapping_add(4) = (0x80 + ((u >> 6) & 0x3f)) as u8 as c_char;
-            *buf.wrapping_add(5) = (0x80 + (u & 0x3f)) as u8 as c_char;
-            6
-        }
+pub fn utf_char2slice(c: i32, buf: &mut [u8]) -> usize {
+    let u = c as u32;
+    if c < 0x80 {
+        buf[0] = c as u8;
+        1
+    } else if c < 0x800 {
+        buf[0] = (0xc0 + (u >> 6)) as u8;
+        buf[1] = (0x80 + (u & 0x3f)) as u8;
+        2
+    } else if c < 0x10000 {
+        buf[0] = (0xe0 + (u >> 12)) as u8;
+        buf[1] = (0x80 + ((u >> 6) & 0x3f)) as u8;
+        buf[2] = (0x80 + (u & 0x3f)) as u8;
+        3
+    } else if c < 0x200000 {
+        buf[0] = (0xf0 + (u >> 18)) as u8;
+        buf[1] = (0x80 + ((u >> 12) & 0x3f)) as u8;
+        buf[2] = (0x80 + ((u >> 6) & 0x3f)) as u8;
+        buf[3] = (0x80 + (u & 0x3f)) as u8;
+        4
+    } else if c < 0x4000000 {
+        buf[0] = (0xf8 + (u >> 24)) as u8;
+        buf[1] = (0x80 + ((u >> 18) & 0x3f)) as u8;
+        buf[2] = (0x80 + ((u >> 12) & 0x3f)) as u8;
+        buf[3] = (0x80 + ((u >> 6) & 0x3f)) as u8;
+        buf[4] = (0x80 + (u & 0x3f)) as u8;
+        5
+    } else {
+        buf[0] = (0xfc + (u >> 30)) as u8;
+        buf[1] = (0x80 + ((u >> 24) & 0x3f)) as u8;
+        buf[2] = (0x80 + ((u >> 18) & 0x3f)) as u8;
+        buf[3] = (0x80 + ((u >> 12) & 0x3f)) as u8;
+        buf[4] = (0x80 + ((u >> 6) & 0x3f)) as u8;
+        buf[5] = (0x80 + (u & 0x3f)) as u8;
+        6
     }
+}
+
+pub fn utf_char2bytes(c: i32, buf: *mut c_char) -> i32 {
+    let slice = unsafe { std::slice::from_raw_parts_mut(buf.cast::<u8>(), 6) };
+    utf_char2slice(c, slice) as i32
 }
 
 pub fn utf_iscomposing_legacy(c: i32) -> bool {
