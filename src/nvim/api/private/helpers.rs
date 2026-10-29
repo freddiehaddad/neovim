@@ -933,14 +933,14 @@ pub fn arena_string(arena: &mut Arena, str_: NvimString) -> NvimString {
 }
 
 #[inline]
-pub fn arena_string_opt(arena: Option<&mut Arena>, str_: NvimString) -> NvimString {
+pub fn arena_bytes_opt(arena: Option<&mut Arena>, bytes: &[u8]) -> NvimString {
     match arena {
-        Some(a) => arena_string(a, str_),
+        Some(a) => arena_bytes(a, bytes),
         None => {
-            if str_.size != 0 {
+            if !bytes.is_empty() {
                 NvimString {
-                    data: arena_memdupz_opt(None, str_.data, str_.size),
-                    size: str_.size,
+                    data: arena_memdupz_opt(None, bytes.as_ptr().cast::<c_char>(), bytes.len()),
+                    size: bytes.len(),
                 }
             } else {
                 NvimString {
@@ -950,6 +950,11 @@ pub fn arena_string_opt(arena: Option<&mut Arena>, str_: NvimString) -> NvimStri
             }
         }
     }
+}
+
+#[inline]
+pub fn arena_string_opt(arena: Option<&mut Arena>, str_: NvimString) -> NvimString {
+    arena_bytes_opt(arena, str_.as_bytes())
 }
 
 pub fn arena_take_arraybuilder(arena: &mut Arena, arr: &mut ArrayBuilder) -> Array {

@@ -16,7 +16,7 @@ use crate::api::private::validate::{
 };
 use crate::api::tabpage::Buffer;
 use crate::autocmd::{EVENT_CMDUNDEFINED, apply_autocmds, has_event};
-use crate::charset::{NUL, ascii_isupper, ascii_iswhite, getdigits_long, skiptowhite, skipwhite};
+use crate::charset::{NUL, ascii_isupper, getdigits_long, skiptowhite, skipwhite};
 use crate::ex_docmd::{
     ADDR_ARGUMENTS, ADDR_BUFFERS, ADDR_LINES, ADDR_LOADED_BUFFERS, ADDR_NONE, ADDR_OTHER,
     ADDR_QUICKFIX, ADDR_TABS, ADDR_WINDOWS, CMD_SIZE, CMD_USER, CMD_USER_BUF, CMOD_BROWSE,
@@ -1158,7 +1158,7 @@ pub fn nvim_cmd(
                 ea.do_ecmd_cmd = getargcmd(&mut ea.arg);
             }
 
-            let mut capture_local: Vec<c_char> = Vec::new();
+            let mut capture_local: Vec<u8> = Vec::new();
             let save_msg_silent = g_st().msg_silent;
             let save_redir_off = g_st().redir_off;
             let save_capture_ga = g_st().capture_ga;
@@ -1188,11 +1188,8 @@ pub fn nvim_cmd(
             });
 
             if !error_set(err) && opts.output && capture_local.len() > 1 {
-                retv = cbuf_to_arena_str(arena, capture_local.as_ptr(), capture_local.len());
-                if crate::memory::cstr_first_byte(retv.data) == b'\n' {
-                    retv.data = retv.data.wrapping_add(1);
-                    retv.size -= 1;
-                }
+                let slice = capture_local.strip_prefix(b"\n").unwrap_or(&capture_local);
+                retv = crate::api::private::helpers::arena_bytes(arena, slice);
             }
         }
 
@@ -1202,15 +1199,10 @@ pub fn nvim_cmd(
 }
 
 fn string_iswhite(str_val: NvimString) -> bool {
-    for i in 0..str_val.size {
-        let c = unsafe { *str_val.data.wrapping_add(i) };
-        if !ascii_iswhite(c) {
-            return false;
-        } else if c == NUL {
-            break;
-        }
-    }
-    true
+    str_val
+        .cstr_bytes()
+        .iter()
+        .all(|&b| b == b' ' || b == b'\t')
 }
 
 fn build_cmdline_str(
@@ -1732,8 +1724,7 @@ mod tests {
         assert!(!is_user_cmdidx(CMD_SIZE));
         assert!(ascii_isupper(b'A' as c_char));
         assert!(!ascii_isupper(b'a' as c_char));
-        assert!(ascii_iswhite(b' ' as c_char));
-        assert!(ascii_iswhite(b'\t' as c_char));
-        assert!(!ascii_iswhite(b'x' as c_char));
+        assert!(string_iswhite(NvimString::from_bytes(b" \t")));
+        assert!(!string_iswhite(NvimString::from_bytes(b" x")));
     }
 }

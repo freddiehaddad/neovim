@@ -2182,7 +2182,7 @@ pub fn execute_common(argvars: &mut [TypVal], rettv: &mut TypVal, arg_off: i32) 
         g_st().msg_silent += 1;
     }
 
-    let mut capture_local: Vec<c_char> = Vec::new();
+    let mut capture_local: Vec<u8> = Vec::new();
     g_st().capture_ga = &raw mut capture_local;
     g_st().redir_off = false;
     if !echo_output {
@@ -2214,11 +2214,7 @@ pub fn execute_common(argvars: &mut [TypVal], rettv: &mut TypVal, arg_off: i32) 
         g_st().msg_col = save_msg_col;
     }
 
-    crate::eval::typval::tv_set_string_len(
-        &mut *rettv,
-        capture_local.as_ptr().cast(),
-        capture_local.len(),
-    );
+    crate::eval::typval::tv_set_bytes(&mut *rettv, &capture_local);
 
     g_st().capture_ga = save_capture_ga;
 }

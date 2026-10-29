@@ -4020,7 +4020,7 @@ fn redir_write(str_: impl crate::strings::IntoCCharPtr, maxlen: isize) {
             if *s != NL as c_char && *s != CAR as c_char {
                 while msg_st().redir_col < g_st().msg_col {
                     if !g_st().capture_ga.is_null() {
-                        (*g_st().capture_ga).push(b' ' as c_char);
+                        (*g_st().capture_ga).push(b' ');
                     }
                     if g_st().redir_reg != 0 {
                         write_reg_contents(g_st().redir_reg, c" ", 1, 1);
@@ -4042,7 +4042,8 @@ fn redir_write(str_: impl crate::strings::IntoCCharPtr, maxlen: isize) {
                 maxlen as usize
             };
             if !g_st().capture_ga.is_null() && len > 0 {
-                (*g_st().capture_ga).extend_from_slice(std::slice::from_raw_parts(str_, len));
+                (*g_st().capture_ga)
+                    .extend_from_slice(std::slice::from_raw_parts(str_.cast::<u8>(), len));
             }
             if g_st().redir_reg != 0 {
                 write_reg_contents(g_st().redir_reg, s, len as isize, 1);

@@ -280,7 +280,7 @@ pub struct EditorState {
     pub redir_fd: Option<crate::os::fs::CFile>,
     pub redir_reg: i32,
     pub redir_vname: bool,
-    pub capture_ga: *mut Vec<c_char>,
+    pub capture_ga: *mut Vec<u8>,
     pub langmap_mapchar: [u8; 256],
     pub save_p_ls: i32,
     pub save_p_wmh: i32,

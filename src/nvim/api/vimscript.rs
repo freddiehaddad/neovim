@@ -2,9 +2,9 @@
 
 use crate::api::private::converter::{object_to_vim, vim_to_object};
 use crate::api::private::helpers::{
-    TryState, add_c, api_set_error, api_set_sctx, arena_array, arena_dict, arena_string, array_obj,
-    boolean_obj, cstr_as_string, dict_obj, error_set, float_obj, integer_obj, nil_obj, put_c,
-    string_obj, try_enter, try_leave,
+    TryState, add_c, api_set_error, api_set_sctx, arena_array, arena_bytes, arena_dict,
+    arena_string, array_obj, boolean_obj, bytes_to_string, cstr_as_string, dict_obj, error_set,
+    float_obj, integer_obj, nil_obj, put_c, string_obj, try_enter, try_leave,
 };
 use crate::api::private::validate::{
     Array, Dict, Error, ErrorType, KeyValuePair, NvimString, Object, ObjectType, api_err_exp,
@@ -29,7 +29,6 @@ use crate::viml::parser::expressions::{
 use crate::viml::parser::parser::{
     ParserHighlight, ParserInputReader, ParserLine, ParserPosition, ParserState,
 };
-use std::ffi::c_char;
 
 const API_INTEGER_MAX: u64 = i64::MAX as u64;
 
@@ -67,18 +66,7 @@ use crate::api::private::helpers::cstr_to_string;
 
 #[inline]
 fn cbuf_to_arena_obj(arena: &mut Arena, bytes: &[u8]) -> Object {
-    let ptr = if bytes.is_empty() {
-        std::ptr::null_mut()
-    } else {
-        bytes.as_ptr().cast::<c_char>().cast_mut()
-    };
-    string_obj(arena_string(
-        arena,
-        NvimString {
-            data: ptr,
-            size: bytes.len(),
-        },
-    ))
+    string_obj(arena_bytes(arena, bytes))
 }
 
 /// Executes Vimscript (multiline block of Ex commands), like anonymous
@@ -133,7 +121,7 @@ pub fn exec_impl(
     let save_redir_off = g_st().redir_off;
     let save_capture_ga = g_st().capture_ga;
     let save_msg_col = g_st().msg_col;
-    let mut capture_local: Vec<c_char> = Vec::new();
+    let mut capture_local: Vec<u8> = Vec::new();
     if opts.output {
         g_st().capture_ga = &raw mut capture_local;
     }
@@ -158,18 +146,11 @@ pub fn exec_impl(
     try_leave(&tstate, err);
 
     if !error_set(err) && opts.output && capture_local.len() > 1 {
-        let slice = if capture_local[0] == b'\n' as c_char {
-            &capture_local[1..]
-        } else {
-            &capture_local[..]
-        };
-        return crate::api::private::helpers::cbuf_to_string(slice.as_ptr(), slice.len());
+        let slice = capture_local.strip_prefix(b"\n").unwrap_or(&capture_local);
+        return bytes_to_string(slice);
     }
 
-    NvimString {
-        data: std::ptr::null_mut(),
-        size: 0,
-    }
+    NvimString::new()
 }
 
 /// Executes an Ex command.
@@ -556,7 +537,7 @@ pub fn nvim_parse_expression(
                     err,
                     ErrorType::ErrorTypeValidation,
                     c"Invalid flag: '%c' (%u)",
-                    i32::from(b as c_char),
+                    i32::from(b as i8),
                     u32::from(b),
                 );
                 return Dict::new();

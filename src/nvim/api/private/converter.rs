@@ -1,6 +1,6 @@
 //! Conversions between Vimscript `TypVal` and API `Object` (`src/nvim/api/private/converter.c`).
 
-use crate::api::private::helpers::{arena_array_opt, arena_dict_opt, nil_obj};
+use crate::api::private::helpers::{arena_array_opt, arena_bytes_opt, arena_dict_opt, nil_obj};
 use crate::api::private::validate::{
     Array, Dict, Error, NvimString, Object, ObjectData, ObjectType,
 };
@@ -14,37 +14,25 @@ use crate::eval::{get_copy_id, partial_name};
 use crate::hashtab::{Hashitem, hashitem_empty};
 use crate::lua::converter::LUA_NOREF;
 use crate::lua::executor::api_new_luaref;
-use crate::memory::{Arena, arena_memdupz_opt};
-use std::ffi::c_char;
+use crate::memory::Arena;
 
 pub(crate) const K_SPECIAL_VAR_NULL: i64 = 0;
 pub(crate) const K_BOOL_VAR_FALSE: i64 = 0;
 pub(crate) const K_BOOL_VAR_TRUE: i64 = 1;
 
 #[inline]
-fn cbuf_to_string_obj(
-    arena: Option<&mut Arena>,
-    reuse_strdata: bool,
-    data: impl crate::strings::IntoCCharPtr,
-    len: usize,
-) -> Object {
-    let data = data.into_c_char_ptr();
-    let ptr = if len == 0 || data.is_null() {
-        c"".as_ptr()
-    } else {
-        data
-    };
+fn cbuf_to_string_obj(arena: Option<&mut Arena>, reuse_strdata: bool, bytes: &[u8]) -> Object {
     let s = if reuse_strdata {
-        NvimString {
-            data: ptr.cast_mut(),
-            size: len,
+        if bytes.is_empty() {
+            NvimString {
+                data: c"".as_ptr().cast_mut(),
+                size: 0,
+            }
+        } else {
+            NvimString::from_bytes(bytes)
         }
     } else {
-        let mem = arena_memdupz_opt(arena, ptr, len);
-        NvimString {
-            data: mem,
-            size: len,
-        }
+        arena_bytes_opt(arena, bytes)
     };
     Object {
         obj_type: ObjectType::ObjectTypeString,
@@ -80,12 +68,8 @@ fn convert_one_value(
     match tv.v_type {
         VarType::VarString => {
             let s = tv.vval.v_string();
-            let len = if s.is_null() {
-                0
-            } else {
-                crate::memory::cstr_len(s)
-            };
-            stack.push(cbuf_to_string_obj(arena, reuse_strdata, s, len));
+            let bytes = crate::memory::cstr_as_bytes(s);
+            stack.push(cbuf_to_string_obj(arena, reuse_strdata, bytes));
         }
         VarType::VarNumber => {
             let n = tv.vval.v_number();
@@ -103,12 +87,12 @@ fn convert_one_value(
         }
         VarType::VarBlob => {
             let blob = tv.vval.v_blob();
-            let (data, len) = if blob.is_null() || unsafe { (*blob).bv_ga.is_empty() } {
-                (c"".as_ptr(), 0usize)
+            let bytes: &[u8] = if blob.is_null() {
+                &[]
             } else {
-                unsafe { ((*blob).bv_ga.as_ptr().cast::<c_char>(), (*blob).bv_ga.len()) }
+                unsafe { &(*blob).bv_ga }
             };
-            stack.push(cbuf_to_string_obj(arena, reuse_strdata, data, len));
+            stack.push(cbuf_to_string_obj(arena, reuse_strdata, bytes));
         }
         VarType::VarFunc => {
             let fun = tv.vval.v_string();
@@ -339,10 +323,8 @@ pub fn vim_to_object(
                 *todo -= 1;
 
                 let di = crate::eval::typval::tv_dict_hi2di(cur_hi);
-                let key_ptr = di.di_key.as_ptr();
-                let key_len = crate::memory::cstr_len(key_ptr);
-                let key_obj =
-                    cbuf_to_string_obj(arena.as_deref_mut(), reuse_strdata, key_ptr, key_len);
+                let key_bytes = crate::memory::cstr_as_bytes(di.di_key.as_ptr());
+                let key_obj = cbuf_to_string_obj(arena.as_deref_mut(), reuse_strdata, key_bytes);
 
                 let dict_obj = stack.last_mut().unwrap();
                 debug_assert_eq!(dict_obj.obj_type, ObjectType::ObjectTypeDict);
