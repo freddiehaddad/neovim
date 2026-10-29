@@ -23,7 +23,7 @@ use crate::channel::{
     TerminalOptions, channel_term_close, channel_term_read_pause, channel_term_resize,
     channel_term_resume, channel_term_write,
 };
-use crate::charset::{NUL, is_special};
+use crate::charset::is_special;
 use crate::context::{
     CtxSwitch, ctx_restore, ctx_switch, handle_get_buffer, handle_get_window, is_ctx_win,
 };
@@ -37,8 +37,8 @@ use crate::drawscreen::{
     update_screen,
 };
 use crate::eval::typval::{
-    tv_dict_add_nr, tv_dict_set_keys_readonly, tv_list_alloc, tv_list_append_list,
-    tv_list_append_string,
+    tv_dict_add_nr, tv_dict_set_keys_readonly, tv_list_alloc, tv_list_append_bytes,
+    tv_list_append_list,
 };
 use crate::eval::vars::{VV_TERMREQUEST, get_globvar_dict, set_vim_var_string};
 use crate::eval::{K_LIST_LEN_MAY_KNOW_CONST, eval_call_provider, get_v_event, restore_v_event};
@@ -53,7 +53,7 @@ use crate::event::time::{
 };
 use crate::ex_docmd::do_cmdline;
 use crate::globals::*;
-use crate::grid::schar_get_adv;
+use crate::grid::schar_get_bytes;
 use crate::highlight::HlAttrs;
 use crate::highlight::{
     HL_BG_INDEXED, HL_FG_INDEXED, hl_add_url, hl_combine_attr, hl_get_term_attr,
@@ -77,7 +77,7 @@ use crate::keycodes::{
     MOD_MASK_SHIFT, TAB, unsimplify_key,
 };
 use crate::mark::{K_MARK_ADJUST_TERM, mark_adjust_buf};
-use crate::mbyte::{mb_check_adjust_col, utf_ptr2char, utf_ptr2len};
+use crate::mbyte::{mb_check_adjust_col, utf_slice2char, utf_slice2len};
 use crate::memline::{ml_append_buf, ml_delete_buf, ml_replace_buf};
 use crate::mouse::{
     MSCR_DOWN, MSCR_LEFT, MSCR_RIGHT, MSCR_UP, do_mousescroll, mouse_find_win_inner,
@@ -130,7 +130,7 @@ use crate::vterm::vterm::{
     vterm_get_size, vterm_new, vterm_output_set_callback, vterm_set_size, vterm_set_utf8,
 };
 use crate::window::{Winopt, may_trigger_win_scrolled_resized, win_valid};
-use std::ffi::c_char;
+use std::ffi::CStr;
 use std::ptr;
 
 use crate::arglist::ML_EMPTY;
@@ -279,7 +279,7 @@ impl TermCursor {
 struct TermPending {
     resize: bool,
     cursor: bool,
-    send: Option<std::rc::Rc<std::cell::RefCell<Vec<c_char>>>>,
+    send: Option<std::rc::Rc<std::cell::RefCell<Vec<u8>>>>,
     events: *mut MultiQueue,
 }
 
@@ -304,7 +304,7 @@ impl Default for TermPending {
 pub struct Terminal {
     opts: TerminalOptions,
     vt: VTerm,
-    textbuf: [c_char; TEXTBUF_SIZE],
+    textbuf: [u8; TEXTBUF_SIZE],
     sb_buffer: Vec<Vec<VTermScreenCell>>,
     sb_allocated: bool,
     sb_size: usize,
@@ -329,7 +329,7 @@ pub struct Terminal {
     sync_flush_pending: bool,
     color_set: [bool; 16],
     selection: Vec<u8>,
-    termrequest_buffer: Vec<c_char>,
+    termrequest_buffer: Vec<u8>,
     termrequest_terminator: VTermTerminator,
     refcount: usize,
 }
@@ -414,22 +414,22 @@ fn refresh_timer_ptr() -> &'static mut TimeWatcher {
 #[inline]
 const fn cstr_slice_as_string(bytes: &'static [u8]) -> NvimString {
     NvimString {
-        data: bytes.as_ptr().cast::<c_char>().cast_mut(),
+        data: bytes.as_ptr().cast_mut().cast(),
         size: bytes.len() - 1,
     }
 }
 
 pub struct TermRequestEvent {
     pub buf_handle: ObjHandle,
-    pub sequence: Vec<c_char>,
-    pub pending_send: std::rc::Rc<std::cell::RefCell<Vec<c_char>>>,
+    pub sequence: Vec<u8>,
+    pub pending_send: std::rc::Rc<std::cell::RefCell<Vec<u8>>>,
     pub row: i32,
     pub col: i32,
     pub sb_deleted: usize,
     pub terminator: VTermTerminator,
 }
 
-pub fn emit_termrequest(mut req: Box<TermRequestEvent>) {
+pub fn emit_termrequest(req: Box<TermRequestEvent>) {
     unsafe {
         let buf_handle = req.buf_handle;
 
@@ -445,17 +445,17 @@ pub fn emit_termrequest(mut req: Box<TermRequestEvent>) {
         }
 
         let sequence_length = req.sequence.len();
-        let sequence = if sequence_length == 0 {
-            c"".as_ptr().cast_mut()
+        let sequence_ptr = if sequence_length == 0 {
+            c"".as_ptr()
         } else {
-            req.sequence.as_mut_ptr()
+            req.sequence.as_ptr().cast()
         };
         let row = req.row;
         let col = req.col;
         let sb_deleted = req.sb_deleted;
         let terminator = req.terminator;
 
-        set_vim_var_string(VV_TERMREQUEST, sequence, sequence_length as isize);
+        set_vim_var_string(VV_TERMREQUEST, sequence_ptr, sequence_length as isize);
 
         let mut cursor_items = [
             integer_obj(i64::from(row) - (term.sb_deleted.wrapping_sub(sb_deleted) as i64)),
@@ -467,10 +467,7 @@ pub fn emit_termrequest(mut req: Box<TermRequestEvent>) {
             capacity: 2,
         };
 
-        let termrequest = NvimString {
-            data: sequence,
-            size: sequence_length,
-        };
+        let termrequest = NvimString::from_bytes(&req.sequence);
         let term_obj = if terminator == VTERM_TERMINATOR_BEL {
             string_obj(cstr_slice_as_string(b"\x07\0"))
         } else {
@@ -523,7 +520,7 @@ pub fn emit_termrequest(mut req: Box<TermRequestEvent>) {
         {
             let pending_buf = pending_send.borrow();
             if !pending_buf.is_empty() {
-                terminal_send(term, pending_buf.as_ptr(), pending_buf.len());
+                terminal_send(term, &pending_buf);
             }
         }
         if let Some(ref cur_send) = term_pending_send
@@ -560,31 +557,24 @@ fn schedule_termrequest(term: &mut Terminal) {
     );
 }
 
-fn parse_osc8(str_: impl crate::strings::IntoCCharPtr, attr: &mut i32) -> i32 {
-    let str_ = str_.into_c_char_ptr();
-    {
-        let mut i: usize = 0;
-        while crate::memory::cstr_byte_at(str_, i) != 0 {
-            if crate::memory::cstr_byte_at(str_, i) == b';' {
-                break;
-            }
-            i += 1;
-        }
+fn parse_osc8(str_: &[u8], attr: &mut i32) -> i32 {
+    let str_len = str_.iter().position(|&b| b == 0).unwrap_or(str_.len());
+    let slice = &str_[..str_len];
+    let Some(semi_idx) = slice.iter().position(|&b| b == b';') else {
+        return 0;
+    };
 
-        if crate::memory::cstr_byte_at(str_, i) != b';' {
-            return 0;
-        }
-
-        i += 1;
-
-        if crate::memory::cstr_byte_at(str_, i) == 0 {
-            *attr = 0;
-            return 1;
-        }
-
-        *attr = hl_add_url(0, unsafe { std::ffi::CStr::from_ptr(str_.wrapping_add(i)) });
-        1
+    let url_start = semi_idx + 1;
+    if url_start >= slice.len() {
+        *attr = 0;
+        return 1;
     }
+
+    let Ok(url_cstr) = CStr::from_bytes_until_nul(&str_[url_start..]) else {
+        return 0;
+    };
+    *attr = hl_add_url(0, url_cstr);
+    1
 }
 
 fn on_osc(command: i32, frag: VTermStringFragment, term: *mut Terminal) -> i32 {
@@ -599,18 +589,20 @@ fn on_osc(command: i32, frag: VTermStringFragment, term: *mut Terminal) -> i32 {
 
     if frag.initial() {
         term.termrequest_buffer.clear();
-        let mut prefix = [0 as c_char; 32];
-        let n = vim_snprintf!(prefix.as_mut_ptr(), prefix.len(), c"\x1b]%d;", command,);
+        let mut prefix = [0u8; 32];
+        let n = vim_snprintf!(
+            prefix.as_mut_ptr().cast(),
+            prefix.len(),
+            c"\x1b]%d;",
+            command,
+        );
         if n > 0 {
             term.termrequest_buffer
                 .extend_from_slice(&prefix[..n as usize]);
         }
     }
     if !frag.is_empty() {
-        let bytes = frag.as_bytes();
-        let chars =
-            unsafe { std::slice::from_raw_parts(bytes.as_ptr().cast::<c_char>(), bytes.len()) };
-        term.termrequest_buffer.extend_from_slice(chars);
+        term.termrequest_buffer.extend_from_slice(frag.as_bytes());
     }
     if frag.final_() {
         term.termrequest_terminator = frag.terminator;
@@ -618,13 +610,11 @@ fn on_osc(command: i32, frag: VTermStringFragment, term: *mut Terminal) -> i32 {
             schedule_termrequest(term);
         }
         if command == 8 {
-            term.termrequest_buffer.push(NUL);
+            term.termrequest_buffer.push(0);
             let off = b"\x1b]8;".len();
             let mut attr: i32 = 0;
-            if parse_osc8(
-                term.termrequest_buffer.as_ptr().wrapping_add(off),
-                &mut attr,
-            ) != 0
+            if let Some(osc_tail) = term.termrequest_buffer.get(off..)
+                && parse_osc8(osc_tail, &mut attr) != 0
             {
                 let state = vterm_obtain_state(&mut term.vt);
                 let mut value = VTermValue::Number(attr);
@@ -646,20 +636,13 @@ fn on_dcs(command: &[u8], frag: VTermStringFragment, term: *mut Terminal) -> i32
 
     if frag.initial() {
         term.termrequest_buffer.clear();
-        term.termrequest_buffer
-            .extend_from_slice(&[b'\x1b' as c_char, b'P' as c_char]);
+        term.termrequest_buffer.extend_from_slice(b"\x1bP");
         if !command.is_empty() {
-            let cmd_chars = unsafe {
-                std::slice::from_raw_parts(command.as_ptr().cast::<c_char>(), command.len())
-            };
-            term.termrequest_buffer.extend_from_slice(cmd_chars);
+            term.termrequest_buffer.extend_from_slice(command);
         }
     }
     if !frag.is_empty() {
-        let bytes = frag.as_bytes();
-        let chars =
-            unsafe { std::slice::from_raw_parts(bytes.as_ptr().cast::<c_char>(), bytes.len()) };
-        term.termrequest_buffer.extend_from_slice(chars);
+        term.termrequest_buffer.extend_from_slice(frag.as_bytes());
     }
     if frag.final_() {
         term.termrequest_terminator = frag.terminator;
@@ -680,12 +663,9 @@ fn on_apc(frag: VTermStringFragment, term: *mut Terminal) -> i32 {
 
     if frag.initial() {
         term.termrequest_buffer.clear();
-        term.termrequest_buffer
-            .extend_from_slice(&[b'\x1b' as c_char, b'_' as c_char]);
+        term.termrequest_buffer.extend_from_slice(b"\x1b_");
     }
-    let bytes = frag.as_bytes();
-    let chars = unsafe { std::slice::from_raw_parts(bytes.as_ptr().cast::<c_char>(), bytes.len()) };
-    term.termrequest_buffer.extend_from_slice(chars);
+    term.termrequest_buffer.extend_from_slice(frag.as_bytes());
     if frag.final_() {
         term.termrequest_terminator = frag.terminator;
         schedule_termrequest(term);
@@ -714,7 +694,7 @@ pub fn terminal_teardown() {
 fn term_output_callback(s: &[u8], term: *mut Terminal) {
     unsafe {
         let term = &mut *term;
-        terminal_send(term, s.as_ptr().cast::<c_char>(), s.len());
+        terminal_send(term, s);
     }
 }
 
@@ -890,12 +870,16 @@ pub fn terminal_open(termpp: *mut *mut Terminal, buf: &mut FileBuf) {
 
         let state = vterm_obtain_state(&mut term.vt);
         for i in 0..16 {
-            let mut var = [0 as c_char; 64];
-            vim_snprintf!(var.as_mut_ptr(), var.len(), c"terminal_color_%d", i as i32,);
-            let name = get_config_string(buf, var.as_mut_ptr());
-            if !name.is_null() {
+            let mut var = [0u8; 64];
+            let n = vim_snprintf!(
+                var.as_mut_ptr().cast(),
+                var.len(),
+                c"terminal_color_%d",
+                i as i32,
+            ) as usize;
+            if let Some(name) = get_config_string(buf, &var[..n]) {
                 let mut dummy: i32 = 0;
-                let color_val = name_to_color(name, &mut dummy);
+                let color_val = name_to_color(name.as_ptr(), &mut dummy);
                 if color_val != -1 {
                     let color = VTermColor {
                         bytes: [
@@ -932,7 +916,7 @@ pub fn terminal_close(termpp: *mut *mut Terminal, status: i32) {
                 vterm_get_size(&term.vt, &mut height, &mut width);
                 if status != -1 && term.cursor.row == height - 1 {
                     fetch_row(term, term.cursor.row, width);
-                    if term.textbuf[0] != NUL {
+                    if term.textbuf[0] != 0 {
                         terminal_receive(term, b"\r\n");
                     }
                 }
@@ -1448,27 +1432,17 @@ pub fn terminal_destroy(termpp: *mut *mut Terminal) {
     }
 }
 
-fn terminal_send(term: &mut Terminal, data: impl crate::strings::IntoCCharPtr, size: usize) {
-    let data = data.into_c_char_ptr();
-    {
-        if term.closed {
-            return;
-        }
-        if let Some(ref send_buf) = term.pending.send {
-            if size > 0 {
-                send_buf
-                    .borrow_mut()
-                    .extend_from_slice(unsafe { std::slice::from_raw_parts(data, size) });
-            }
-            return;
-        }
-        let bytes = if size == 0 {
-            &[]
-        } else {
-            unsafe { std::slice::from_raw_parts(data.cast::<u8>(), size) }
-        };
-        channel_term_write(bytes, unsafe { &mut *term.opts.data });
+fn terminal_send(term: &mut Terminal, data: &[u8]) {
+    if term.closed {
+        return;
     }
+    if let Some(ref send_buf) = term.pending.send {
+        if !data.is_empty() {
+            send_buf.borrow_mut().extend_from_slice(data);
+        }
+        return;
+    }
+    channel_term_write(data, unsafe { &mut *term.opts.data });
 }
 
 fn is_filter_char(c: i32) -> bool {
@@ -1512,30 +1486,32 @@ pub fn terminal_paste(count: i32, y_array: *mut NvimString, y_size: usize) {
     if !cur_term.streamed_paste {
         vterm_keyboard_start_paste(&mut cur_term.vt);
     }
-    let mut buff: Vec<c_char> = Vec::with_capacity(unsafe { (*y_array).size });
+    let mut buff: Vec<u8> = Vec::with_capacity(unsafe { (*y_array).size });
     for _ in 0..count {
         for j in 0..y_size {
             if j > 0 {
                 let term_now = curbuf_mut().terminal_mut();
                 #[cfg(windows)]
-                terminal_send(term_now, c"\r\n", 2);
+                terminal_send(term_now, b"\r\n");
                 #[cfg(not(windows))]
-                terminal_send(term_now, c"\n", 1);
+                terminal_send(term_now, b"\n");
             }
             let item = unsafe { *y_array.wrapping_add(j) };
+            let item_bytes = item.cstr_bytes();
             buff.clear();
             buff.reserve(item.size);
-            let mut src = item.data;
-            while !crate::memory::cstr_is_empty(src) {
-                let len = utf_ptr2len(src) as usize;
-                let c = utf_ptr2char(src);
+            let mut pos = 0;
+            while pos < item_bytes.len() {
+                let rem = &item_bytes[pos..];
+                let len = utf_slice2len(rem).max(1);
+                let c = utf_slice2char(rem);
                 if !is_filter_char(c) {
-                    buff.extend_from_slice(unsafe { std::slice::from_raw_parts(src, len) });
+                    buff.extend_from_slice(&rem[..len]);
                 }
-                src = src.wrapping_add(len);
+                pos += len;
             }
             let term_now = curbuf_mut().terminal_mut();
-            terminal_send(term_now, buff.as_ptr(), buff.len());
+            terminal_send(term_now, &buff);
         }
     }
     let term_end = curbuf_mut().terminal_mut();
@@ -1756,7 +1732,7 @@ pub fn terminal_notify_theme(term: &mut Terminal, dark: bool) {
     } else {
         b"\x1b[?997;2n"
     };
-    terminal_send(term, seq.as_ptr().cast::<c_char>(), seq.len());
+    terminal_send(term, seq);
 }
 
 fn terminal_focus(term: &mut Terminal, focus: bool) {
@@ -1808,10 +1784,7 @@ fn buf_set_term_title(buf: *mut FileBuf, title: &[u8]) {
         dict_set_var(
             &mut *(*buf).b_vars(),
             cstr_slice_as_string(b"term_title\0"),
-            string_obj(NvimString {
-                data: title.as_ptr().cast::<c_char>().cast_mut(),
-                size: title.len(),
-            }),
+            string_obj(NvimString::from_bytes(title)),
             false,
             false,
             None,
@@ -1972,32 +1945,23 @@ fn term_sb_clear(term: *mut Terminal) -> i32 {
 }
 
 pub fn term_clipboard_set(mask: VTermSelectionMask, data: std::ffi::CString) {
-    let regname: c_char = match mask as u16 {
-        VTERM_SELECTION_CLIPBOARD => b'+' as c_char,
-        VTERM_SELECTION_PRIMARY => b'*' as c_char,
-        _ => b'+' as c_char,
+    let regname: &[u8] = match mask as u16 {
+        VTERM_SELECTION_CLIPBOARD => b"+",
+        VTERM_SELECTION_PRIMARY => b"*",
+        _ => b"+",
     };
 
     let lines = tv_list_alloc(K_LIST_LEN_MAY_KNOW_CONST);
-    let mut start = data.as_ptr();
-    loop {
-        let start_bytes = crate::memory::cstr_as_bytes(start);
-        if let Some(pos) = start_bytes.iter().position(|&b| b == b'\n') {
-            tv_list_append_string(&mut *lines, start, pos as isize);
-            start = start.wrapping_add(pos + 1);
-        } else {
-            break;
-        }
+    for line in data.as_bytes().split(|&b| b == b'\n') {
+        tv_list_append_bytes(&mut *lines, line);
     }
-    tv_list_append_string(&mut *lines, start, -1);
     drop(data);
 
     let args = tv_list_alloc(3);
     tv_list_append_list(&mut *args, lines);
 
-    let regtype: c_char = b'v' as c_char;
-    tv_list_append_string(&mut *args, &regtype, 1);
-    tv_list_append_string(&mut *args, &regname, 1);
+    tv_list_append_bytes(&mut *args, b"v");
+    tv_list_append_bytes(&mut *args, regname);
     eval_call_provider(c"clipboard", c"set", &mut *args, true);
 }
 
@@ -2249,28 +2213,23 @@ fn send_mouse_event(term: &mut Terminal, mut c: i32) -> bool {
 
 fn fetch_row(term: &mut Terminal, row: i32, end_col: i32) {
     let mut col: i32 = 0;
+    let mut pos: usize = 0;
     let mut line_len: usize = 0;
-    let textbuf_ptr = (&raw mut term.textbuf).cast::<c_char>();
-    let mut ptr = textbuf_ptr;
 
     while col < end_col {
         let mut cell = VTermScreenCell::default();
         fetch_cell(term, row, col, &mut cell);
         if cell.schar != 0 {
-            schar_get_adv(&mut ptr, cell.schar);
-            line_len = crate::memory::ptr_offset_from(ptr, textbuf_ptr) as usize;
+            pos += schar_get_bytes(&mut term.textbuf[pos..], cell.schar);
+            line_len = pos;
         } else {
-            unsafe {
-                *ptr = b' ' as c_char;
-            }
-            ptr = ptr.wrapping_add(1);
+            term.textbuf[pos] = b' ';
+            pos += 1;
         }
         col += i32::from(cell.width);
     }
 
-    unsafe {
-        *textbuf_ptr.wrapping_add(line_len) = NUL;
-    }
+    term.textbuf[line_len] = 0;
 }
 
 fn fetch_cell(term: &mut Terminal, row: i32, col: i32, cell: &mut VTermScreenCell) -> bool {
@@ -2496,7 +2455,7 @@ fn refresh_scrollback(term: &mut Terminal, buf: &mut FileBuf) {
     }
 
     old_height = old_height.min(buf.b_ml.ml_line_count);
-    let textbuf_ptr = (&raw mut term.textbuf).cast::<c_char>();
+    let textbuf_ptr = (&raw mut term.textbuf).cast();
     while term.sb_pending > 0 {
         fetch_row(term, -term.sb_pending, width);
         let buf_index = buf.b_ml.ml_line_count - old_height;
@@ -2533,7 +2492,7 @@ fn refresh_screen(term: &mut Terminal, buf: &mut FileBuf) {
         return;
     }
 
-    let textbuf_ptr = (&raw mut term.textbuf).cast::<c_char>();
+    let textbuf_ptr = (&raw mut term.textbuf).cast();
     let mut r = term.invalid_start;
     let mut linenr = row_to_linenr(term, r);
     while r < term.invalid_end {
@@ -2611,24 +2570,20 @@ fn is_focused(term: &mut Terminal) -> bool {
     (g_st().state_global & MODE_TERMINAL) != 0 && curbuf_mut().terminal == term
 }
 
-fn get_config_string(buf: &mut FileBuf, key: impl crate::strings::IntoCCharPtr) -> *mut c_char {
-    let key = key.into_c_char_ptr().cast_mut();
-    {
-        let mut err = Error::new();
-        let key_str = NvimString {
-            data: key,
-            size: crate::memory::cstr_len(key),
-        };
-        let mut obj = dict_get_value(Some(&*buf.b_vars()), key_str, None, &mut err);
+fn get_config_string(buf: &mut FileBuf, key: &[u8]) -> Option<std::ffi::CString> {
+    let mut err = Error::new();
+    let key_str = NvimString::from_bytes(key);
+    let mut obj = dict_get_value(Some(&*buf.b_vars()), key_str, None, &mut err);
+    api_clear_error(&mut err);
+    if obj.obj_type == ObjectType::ObjectTypeNil {
+        obj = dict_get_value(Some(&*get_globvar_dict()), key_str, None, &mut err);
         api_clear_error(&mut err);
-        if obj.obj_type == ObjectType::ObjectTypeNil {
-            obj = dict_get_value(Some(&*get_globvar_dict()), key_str, None, &mut err);
-            api_clear_error(&mut err);
-        }
-        if obj.obj_type == ObjectType::ObjectTypeString {
-            return obj.data.string().data;
-        }
-        api_free_object(obj);
-        ptr::null_mut()
     }
+    if obj.obj_type == ObjectType::ObjectTypeString {
+        let res = crate::memory::cstr_from_bytes(obj.data.string().cstr_bytes());
+        api_free_object(obj);
+        return Some(res);
+    }
+    api_free_object(obj);
+    None
 }
