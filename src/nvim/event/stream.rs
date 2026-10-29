@@ -268,10 +268,6 @@ pub fn stream_init(loop_: *mut Loop, stream: &mut Stream, fd: i32, has_uvstream:
     stream.pending_reqs = 0;
     stream.notify_write = false;
     stream.is_rstream = false;
-    #[cfg(windows)]
-    {
-        stream.close_console = false;
-    }
     stream.closed = false;
     stream.events = ptr::null_mut();
 }
@@ -330,7 +326,7 @@ pub fn stream_close_handle(stream: &mut Stream) {
     #[cfg(windows)]
     if stream.close_console {
         stream.pending_reqs += 1;
-        crate::os::pty_proc_win::pty_proc_close_console(stream);
+        crate::os::pty_proc_win::pty_proc_close_console(&raw mut *stream);
         stream.pending_reqs -= 1;
     }
     if unsafe { uv_is_closing(handle) } == 0 {

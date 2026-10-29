@@ -22,7 +22,6 @@ use crate::channel::{
     CallbackReader, STDERR_FILENO, STDIN_FILENO, STDOUT_FILENO, channel_connect,
     channel_from_stdio, channel_init, channel_teardown,
 };
-use crate::charset::ascii_isdigit;
 use crate::diff::{diff_win_options, diffopt_horizontal};
 use crate::drawscreen::{
     UPD_NOT_VALID, UPD_VALID, default_grid_alloc, redraw_all_later, redraw_later, screenclear,
@@ -295,15 +294,8 @@ fn to_slash_if_needed(p: *mut c_char) {
 }
 
 #[inline]
-fn strnicmp_ascii(a: impl crate::strings::IntoCCharPtr, b: &[u8]) -> bool {
-    let a = a.into_c_char_ptr();
-    {
-        if a.is_null() {
-            return false;
-        }
-        let bytes = crate::memory::cstr_as_bytes(a);
-        bytes.len() >= b.len() && bytes[..b.len()].eq_ignore_ascii_case(b)
-    }
+fn strnicmp_ascii(a: &[u8], b: &[u8]) -> bool {
+    a.len() >= b.len() && a[..b.len()].eq_ignore_ascii_case(b)
 }
 
 pub fn event_init() {
@@ -1116,22 +1108,19 @@ pub fn __asan_default_options() -> *const c_char {
     c"handle_abort=1,handle_sigill=1".as_ptr()
 }
 
-fn get_number_arg(p: impl crate::strings::IntoCCharPtr, idx: &mut i32, mut def: i32) -> i32 {
-    let p = p.into_c_char_ptr();
-    {
-        let mut i = *idx as usize;
-        if ascii_isdigit(crate::memory::cstr_char_at(p, i)) {
-            def = 0;
-            while ascii_isdigit(crate::memory::cstr_char_at(p, i)) {
-                def = def
-                    .wrapping_mul(10)
-                    .wrapping_add((crate::memory::cstr_byte_at(p, i) - b'0') as i32);
-                i += 1;
-            }
-            *idx = i as i32;
+fn get_number_arg(p: &[u8], idx: &mut i32, mut def: i32) -> i32 {
+    let mut i = *idx as usize;
+    if p.get(i).is_some_and(u8::is_ascii_digit) {
+        def = 0;
+        while let Some(&b) = p.get(i)
+            && b.is_ascii_digit()
+        {
+            def = def.wrapping_mul(10).wrapping_add(i32::from(b - b'0'));
+            i += 1;
         }
-        def
+        *idx = i as i32;
     }
+    def
 }
 
 fn server_connect(
@@ -1337,28 +1326,30 @@ fn edit_stdin(parmp: &mut Mparm) -> bool {
 }
 
 fn command_line_scan(parmp: &mut Mparm) {
-    let mut argc = parmp.argc - 1;
-    let mut argv = parmp.argv.wrapping_add(1);
+    let raw_args =
+        unsafe { std::slice::from_raw_parts(parmp.argv, parmp.argc.max(0) as usize) };
+    let mut arg_idx: usize = 1;
     let mut argv_idx: i32 = 1;
     let mut had_minmin = false;
 
-    while argc > 0 {
-        let arg0 = unsafe { *argv };
-        if crate::memory::cstr_first_byte(arg0) == b'+' && !had_minmin {
+    while arg_idx < raw_args.len() {
+        let arg0_ptr = raw_args[arg_idx];
+        let arg0 = crate::memory::cstr_as_bytes(arg0_ptr);
+        if arg0.first() == Some(&b'+') && !had_minmin {
             if parmp.commands.len() >= MAX_ARG_CMDS {
                 mainerr(ERR_EXTRA_CMD, ptr::null(), ptr::null());
             }
             argv_idx = -1;
-            if crate::memory::cstr_byte_at(arg0, 1) == 0 {
+            if arg0.len() == 1 {
                 parmp.commands.push(c"$".to_owned());
             } else {
                 parmp
                     .commands
-                    .push(crate::memory::cstr_to_cstring(arg0.wrapping_add(1)));
+                    .push(crate::memory::cstr_from_bytes(&arg0[1..]));
             }
-        } else if crate::memory::cstr_first_byte(arg0) == b'-' && !had_minmin {
+        } else if arg0.first() == Some(&b'-') && !had_minmin {
             let mut want_argument = false;
-            let c = crate::memory::cstr_byte_at(arg0, argv_idx as usize);
+            let c = arg0.get(argv_idx as usize).copied().unwrap_or(0);
             argv_idx += 1;
             match c {
                 0 => {
@@ -1368,7 +1359,7 @@ fn command_line_scan(parmp: &mut Mparm) {
                         parmp.no_swap_file = 1;
                     } else {
                         if parmp.edit_type > EDIT_STDIN {
-                            mainerr(ERR_TOO_MANY_ARGS, arg0, ptr::null());
+                            mainerr(ERR_TOO_MANY_ARGS, arg0_ptr, ptr::null());
                         }
                         parmp.had_stdin_file = true;
                         parmp.edit_type = EDIT_STDIN;
@@ -1376,20 +1367,14 @@ fn command_line_scan(parmp: &mut Mparm) {
                     argv_idx = -1;
                 }
                 b'-' => {
-                    let sub = arg0.wrapping_add(argv_idx as usize);
-                    if crate::memory::cstr_as_opt_bytes(sub)
-                        .is_some_and(|b| b.eq_ignore_ascii_case(b"help"))
-                    {
+                    let sub = arg0.get(argv_idx as usize..).unwrap_or(&[]);
+                    if sub.eq_ignore_ascii_case(b"help") {
                         usage();
                         os_exit(0);
-                    } else if crate::memory::cstr_as_opt_bytes(sub)
-                        .is_some_and(|b| b.eq_ignore_ascii_case(b"version"))
-                    {
+                    } else if sub.eq_ignore_ascii_case(b"version") {
                         version();
                         os_exit(0);
-                    } else if crate::memory::cstr_as_opt_bytes(sub)
-                        .is_some_and(|b| b.eq_ignore_ascii_case(b"api-info"))
-                    {
+                    } else if sub.eq_ignore_ascii_case(b"api-info") {
                         #[cfg(windows)]
                         {
                             unsafe { _setmode(STDOUT_FILENO, 0x8000) };
@@ -1402,13 +1387,9 @@ fn command_line_scan(parmp: &mut Mparm) {
                             },);
                         }
                         os_exit(0);
-                    } else if crate::memory::cstr_as_opt_bytes(sub)
-                        .is_some_and(|b| b.eq_ignore_ascii_case(b"headless"))
-                    {
+                    } else if sub.eq_ignore_ascii_case(b"headless") {
                         g_st().headless_mode = true;
-                    } else if crate::memory::cstr_as_opt_bytes(sub)
-                        .is_some_and(|b| b.eq_ignore_ascii_case(b"embed"))
-                    {
+                    } else if sub.eq_ignore_ascii_case(b"embed") {
                         g_st().embedded_mode = true;
                     } else if strnicmp_ascii(sub, b"listen") {
                         want_argument = true;
@@ -1416,7 +1397,7 @@ fn command_line_scan(parmp: &mut Mparm) {
                     } else if strnicmp_ascii(sub, b"literal") {
                         // Do nothing: file args are always literal.
                     } else if strnicmp_ascii(sub, b"remote") {
-                        parmp.remote = parmp.argc - argc;
+                        parmp.remote = arg_idx as i32;
                     } else if strnicmp_ascii(sub, b"server") {
                         want_argument = true;
                         argv_idx += 6;
@@ -1435,8 +1416,8 @@ fn command_line_scan(parmp: &mut Mparm) {
                     } else if strnicmp_ascii(sub, b"luamod-dev") {
                         g_st().nlua_disable_preload = true;
                     } else {
-                        if !crate::memory::cstr_is_empty(sub) {
-                            mainerr(ERR_OPT_UNKNOWN, arg0, ptr::null());
+                        if !sub.is_empty() {
+                            mainerr(ERR_OPT_UNKNOWN, arg0_ptr, ptr::null());
                         }
                         had_minmin = true;
                     }
@@ -1497,15 +1478,15 @@ fn command_line_scan(parmp: &mut Mparm) {
                 }
                 b'q' => {
                     if parmp.edit_type != EDIT_NONE {
-                        mainerr(ERR_TOO_MANY_ARGS, arg0, ptr::null());
+                        mainerr(ERR_TOO_MANY_ARGS, arg0_ptr, ptr::null());
                     }
                     parmp.edit_type = EDIT_QF;
-                    if crate::memory::cstr_byte_at(arg0, argv_idx as usize) != 0 {
-                        parmp.use_ef = Some(crate::memory::cstr_to_cstring(
-                            arg0.wrapping_add(argv_idx as usize),
+                    if (argv_idx as usize) < arg0.len() {
+                        parmp.use_ef = Some(crate::memory::cstr_from_bytes(
+                            &arg0[argv_idx as usize..],
                         ));
                         argv_idx = -1;
-                    } else if argc > 1 {
+                    } else if arg_idx + 1 < raw_args.len() {
                         want_argument = true;
                     }
                 }
@@ -1533,12 +1514,12 @@ fn command_line_scan(parmp: &mut Mparm) {
                 }
                 b't' => {
                     if parmp.edit_type != EDIT_NONE {
-                        mainerr(ERR_TOO_MANY_ARGS, arg0, ptr::null());
+                        mainerr(ERR_TOO_MANY_ARGS, arg0_ptr, ptr::null());
                     }
                     parmp.edit_type = EDIT_TAG;
-                    if crate::memory::cstr_byte_at(arg0, argv_idx as usize) != 0 {
-                        parmp.tagname = Some(crate::memory::cstr_to_cstring(
-                            arg0.wrapping_add(argv_idx as usize),
+                    if (argv_idx as usize) < arg0.len() {
+                        parmp.tagname = Some(crate::memory::cstr_from_bytes(
+                            &arg0[argv_idx as usize..],
                         ));
                         argv_idx = -1;
                     } else {
@@ -1551,17 +1532,17 @@ fn command_line_scan(parmp: &mut Mparm) {
                 }
                 b'V' => {
                     opt_vars().p_verbose = i64::from(get_number_arg(arg0, &mut argv_idx, 10));
-                    if crate::memory::cstr_byte_at(arg0, argv_idx as usize) != 0 {
+                    if (argv_idx as usize) < arg0.len() {
                         set_option_value_give_err(
                             K_OPT_VERBOSEFILE,
-                            cstr_as_obj(arg0.wrapping_add(argv_idx as usize)),
+                            cstr_as_obj(arg0_ptr.wrapping_add(argv_idx as usize)),
                             0,
                         );
-                        argv_idx = crate::memory::cstr_len(arg0) as i32;
+                        argv_idx = arg0.len() as i32;
                     }
                 }
                 b'w' => {
-                    if ascii_isdigit(crate::memory::cstr_char_at(arg0, argv_idx as usize)) {
+                    if arg0.get(argv_idx as usize).is_some_and(u8::is_ascii_digit) {
                         let n = get_number_arg(arg0, &mut argv_idx, 10);
                         set_option_value_give_err(K_OPT_WINDOW, integer_obj(OptInt::from(n)), 0);
                     } else {
@@ -1569,12 +1550,12 @@ fn command_line_scan(parmp: &mut Mparm) {
                     }
                 }
                 b'c' => {
-                    if crate::memory::cstr_byte_at(arg0, argv_idx as usize) != 0 {
+                    if (argv_idx as usize) < arg0.len() {
                         if parmp.commands.len() >= MAX_ARG_CMDS {
                             mainerr(ERR_EXTRA_CMD, ptr::null(), ptr::null());
                         }
-                        parmp.commands.push(crate::memory::cstr_to_cstring(
-                            arg0.wrapping_add(argv_idx as usize),
+                        parmp.commands.push(crate::memory::cstr_from_bytes(
+                            &arg0[argv_idx as usize..],
                         ));
                         argv_idx = -1;
                     } else {
@@ -1585,28 +1566,29 @@ fn command_line_scan(parmp: &mut Mparm) {
                     want_argument = true;
                 }
                 _ => {
-                    mainerr(ERR_OPT_UNKNOWN, arg0, ptr::null());
+                    mainerr(ERR_OPT_UNKNOWN, arg0_ptr, ptr::null());
                 }
             }
 
             if want_argument {
-                if crate::memory::cstr_byte_at(arg0, argv_idx as usize) != 0 {
-                    mainerr(ERR_OPT_GARBAGE, arg0, ptr::null());
+                if (argv_idx as usize) < arg0.len() {
+                    mainerr(ERR_OPT_GARBAGE, arg0_ptr, ptr::null());
                 }
 
-                argc -= 1;
-                if argc < 1 && c != b'S' {
-                    mainerr(ERR_ARG_MISSING, arg0, ptr::null());
+                arg_idx += 1;
+                if arg_idx >= raw_args.len() && c != b'S' {
+                    mainerr(ERR_ARG_MISSING, arg0_ptr, ptr::null());
                 }
-                argv = argv.wrapping_add(1);
                 argv_idx = -1;
 
-                let cur_arg = if argc >= 1 {
-                    unsafe { *argv }
+                let cur_arg = raw_args.get(arg_idx).copied().unwrap_or(ptr::null_mut());
+                let cur_bytes = if cur_arg.is_null() {
+                    &[][..]
                 } else {
-                    ptr::null_mut()
+                    crate::memory::cstr_as_bytes(cur_arg)
                 };
-                let prev_arg = unsafe { *argv.wrapping_sub(1) };
+                let prev_arg = arg0_ptr;
+                let prev_bytes = arg0;
 
                 match c {
                     b'c' | b'S' => {
@@ -1614,17 +1596,15 @@ fn command_line_scan(parmp: &mut Mparm) {
                             mainerr(ERR_EXTRA_CMD, ptr::null(), ptr::null());
                         }
                         if c == b'S' {
-                            let a: *const c_char = if argc < 1 {
-                                c"Session.vim".as_ptr()
-                            } else if crate::memory::cstr_first_byte(cur_arg) == b'-' {
-                                argc += 1;
-                                argv = argv.wrapping_sub(1);
-                                c"Session.vim".as_ptr()
+                            let a_bytes: &[u8] = if arg_idx >= raw_args.len() {
+                                b"Session.vim"
+                            } else if cur_bytes.first() == Some(&b'-') {
+                                arg_idx -= 1;
+                                b"Session.vim"
                             } else {
-                                cur_arg
+                                cur_bytes
                             };
 
-                            let a_bytes = crate::memory::cstr_as_bytes(a);
                             let mut s = Vec::with_capacity(3 + a_bytes.len());
                             s.extend_from_slice(b"so ");
                             s.extend_from_slice(a_bytes);
@@ -1632,27 +1612,29 @@ fn command_line_scan(parmp: &mut Mparm) {
                                 .commands
                                 .push(std::ffi::CString::new(s).unwrap_or_default());
                         } else {
-                            parmp.commands.push(crate::memory::cstr_to_cstring(cur_arg));
+                            parmp
+                                .commands
+                                .push(crate::memory::cstr_from_bytes(cur_bytes));
                         }
                     }
                     b'-' => {
-                        if crate::memory::cstr_as_opt_bytes(prev_arg) == Some(b"--cmd") {
+                        if prev_bytes == b"--cmd" {
                             if parmp.pre_commands.len() >= MAX_ARG_CMDS {
                                 mainerr(ERR_EXTRA_CMD, ptr::null(), ptr::null());
                             }
                             parmp
                                 .pre_commands
-                                .push(crate::memory::cstr_to_cstring(cur_arg));
-                        } else if crate::memory::cstr_as_opt_bytes(prev_arg) == Some(b"--listen") {
+                                .push(crate::memory::cstr_from_bytes(cur_bytes));
+                        } else if prev_bytes == b"--listen" {
                             to_slash_if_needed(cur_arg);
                             parmp.listen_addr = Some(crate::memory::cstr_to_cstring(cur_arg));
-                        } else if crate::memory::cstr_as_opt_bytes(prev_arg) == Some(b"--server") {
+                        } else if prev_bytes == b"--server" {
                             to_slash_if_needed(cur_arg);
                             parmp.server_addr = Some(crate::memory::cstr_to_cstring(cur_arg));
                         }
                     }
                     b'q' => {
-                        parmp.use_ef = Some(crate::memory::cstr_to_cstring(cur_arg));
+                        parmp.use_ef = Some(crate::memory::cstr_from_bytes(cur_bytes));
                     }
                     b'i' => {
                         set_option_value_give_err(K_OPT_SHADAFILE, cstr_as_obj(cur_arg), 0);
@@ -1670,11 +1652,10 @@ fn command_line_scan(parmp: &mut Mparm) {
                         {
                             set_option_value_give_err(K_OPT_SHADAFILE, cstr_as_obj(c"NONE"), 0);
                         }
-                        parmp.luaf = Some(crate::memory::cstr_to_cstring(cur_arg));
-                        argc -= 1;
-                        if argc >= 0 {
-                            parmp.lua_arg0 = parmp.argc - argc;
-                            argc = 0;
+                        parmp.luaf = Some(crate::memory::cstr_from_bytes(cur_bytes));
+                        if arg_idx < raw_args.len() {
+                            parmp.lua_arg0 = (arg_idx + 1) as i32;
+                            arg_idx = raw_args.len();
                         }
                     }
                     b's' => {
@@ -1689,10 +1670,10 @@ fn command_line_scan(parmp: &mut Mparm) {
                             fprintf!(log_get_stderr(), c"%s", g_st().iobuff.as_ptr(),);
                             os_exit(2);
                         }
-                        parmp.scriptin = Some(crate::memory::cstr_to_cstring(cur_arg));
+                        parmp.scriptin = Some(crate::memory::cstr_from_bytes(cur_bytes));
                     }
                     b't' => {
-                        parmp.tagname = Some(crate::memory::cstr_to_cstring(cur_arg));
+                        parmp.tagname = Some(crate::memory::cstr_from_bytes(cur_bytes));
                     }
                     b'u' => {
                         to_slash_if_needed(cur_arg);
@@ -1700,9 +1681,9 @@ fn command_line_scan(parmp: &mut Mparm) {
                     }
                     b'U' => {}
                     b'w' | b'W' => {
-                        if c == b'w' && ascii_isdigit(crate::memory::cstr_first_char(cur_arg)) {
+                        if c == b'w' && cur_bytes.first().is_some_and(u8::is_ascii_digit) {
                             argv_idx = 0;
-                            let n = get_number_arg(cur_arg, &mut argv_idx, 10);
+                            let n = get_number_arg(cur_bytes, &mut argv_idx, 10);
                             set_option_value_give_err(
                                 K_OPT_WINDOW,
                                 integer_obj(OptInt::from(n)),
@@ -1721,7 +1702,7 @@ fn command_line_scan(parmp: &mut Mparm) {
                                 fprintf!(log_get_stderr(), c"%s", g_st().iobuff.as_ptr(),);
                                 os_exit(2);
                             }
-                            parmp.scriptout = Some(crate::memory::cstr_to_cstring(cur_arg));
+                            parmp.scriptout = Some(crate::memory::cstr_from_bytes(cur_bytes));
                             parmp.scriptout_append = c == b'w';
                         }
                     }
@@ -1732,11 +1713,11 @@ fn command_line_scan(parmp: &mut Mparm) {
             argv_idx = -1;
 
             if parmp.edit_type > EDIT_STDIN {
-                mainerr(ERR_TOO_MANY_ARGS, arg0, ptr::null());
+                mainerr(ERR_TOO_MANY_ARGS, arg0_ptr, ptr::null());
             }
             parmp.edit_type = EDIT_FILE;
 
-            let mut p_vec: Vec<c_char> = crate::memory::cstr_to_cchar_vec(arg0);
+            let mut p_vec: Vec<c_char> = crate::memory::cstr_to_cchar_vec(arg0_ptr);
 
             #[cfg(windows)]
             {
@@ -1780,9 +1761,12 @@ fn command_line_scan(parmp: &mut Mparm) {
             );
         }
 
-        if argv_idx <= 0 || crate::memory::cstr_byte_at(unsafe { *argv }, argv_idx as usize) == 0 {
-            argc -= 1;
-            argv = argv.wrapping_add(1);
+        if argv_idx <= 0
+            || raw_args
+                .get(arg_idx)
+                .is_none_or(|&p| crate::memory::cstr_byte_at(p, argv_idx as usize) == 0)
+        {
+            arg_idx += 1;
             argv_idx = 1;
         }
     }
@@ -1837,21 +1821,18 @@ fn init_params(paramp: &mut Mparm, argc: i32, argv: *mut *mut c_char) {
 }
 
 fn init_startuptime(paramp: &mut Mparm) {
-    let mut is_embed = false;
-    for i in 1..(paramp.argc - 1) {
-        if crate::memory::cstr_as_opt_bytes(unsafe { *paramp.argv.wrapping_add(i as usize) })
-            .is_some_and(|b| b.eq_ignore_ascii_case(b"--embed"))
-        {
-            is_embed = true;
-            break;
-        }
-    }
-    for i in 1..(paramp.argc - 1) {
-        if crate::memory::cstr_as_opt_bytes(unsafe { *paramp.argv.wrapping_add(i as usize) })
+    let raw_args =
+        unsafe { std::slice::from_raw_parts(paramp.argv, paramp.argc.max(0) as usize) };
+    let args = raw_args.get(1..raw_args.len().saturating_sub(1)).unwrap_or(&[]);
+    let is_embed = args.iter().any(|&a| {
+        crate::memory::cstr_as_opt_bytes(a).is_some_and(|b| b.eq_ignore_ascii_case(b"--embed"))
+    });
+    for (idx, &arg) in args.iter().enumerate() {
+        if crate::memory::cstr_as_opt_bytes(arg)
             .is_some_and(|b| b.eq_ignore_ascii_case(b"--startuptime"))
         {
             time_init(
-                unsafe { *paramp.argv.wrapping_add((i + 1) as usize) },
+                raw_args[idx + 2],
                 if is_embed {
                     c"Embedded".as_ptr()
                 } else {
@@ -2626,7 +2607,7 @@ mod tests {
     #[test]
     fn get_number_arg_and_init_params_work() {
         let mut idx: i32 = 1;
-        let val = get_number_arg(c"o25x", &mut idx, 0);
+        let val = get_number_arg(b"o25x", &mut idx, 0);
         assert_eq!(val, 25);
         assert_eq!(idx, 3);
 
@@ -2636,5 +2617,51 @@ mod tests {
         assert_eq!(params.window_count, -1);
         assert_eq!(params.use_debug_break_level, -1);
         assert_eq!(params.lua_arg0, -1);
+    }
+
+    #[test]
+    fn command_line_scan_parses_flags_commands_and_lua_args() {
+        ensure_test_editor_init();
+        let mut c_args: Vec<std::ffi::CString> = [
+            "nvim",
+            "-dn",
+            "-O3",
+            "+",
+            "+set nu",
+            "-ccall Foo()",
+            "--cmd",
+            "let g:pre = 1",
+            "-S",
+            "-R",
+            "-l",
+            "script.lua",
+            "--unparsed-flag",
+            "arg2",
+        ]
+        .into_iter()
+        .map(|s| std::ffi::CString::new(s).unwrap())
+        .collect();
+        let mut c_argv: Vec<*mut c_char> =
+            c_args.iter_mut().map(|s| s.as_ptr().cast_mut()).collect();
+        let mut params = Mparm::new();
+        init_params(&mut params, c_argv.len() as i32, c_argv.as_mut_ptr());
+        command_line_scan(&mut params);
+
+        assert_eq!(params.diff_mode, 1);
+        assert_eq!(params.no_swap_file, 1);
+        assert_eq!(params.window_layout, WIN_VER);
+        assert_eq!(params.window_count, 3);
+        assert_eq!(
+            params.commands,
+            vec![
+                c"$".to_owned(),
+                c"set nu".to_owned(),
+                c"call Foo()".to_owned(),
+                c"so Session.vim".to_owned(),
+            ]
+        );
+        assert_eq!(params.pre_commands, vec![c"let g:pre = 1".to_owned()]);
+        assert_eq!(params.luaf.as_deref(), Some(c"script.lua"));
+        assert_eq!(params.lua_arg0, 12);
     }
 }

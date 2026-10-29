@@ -195,9 +195,9 @@ mod win_impl {
         }
     }
 
-    pub(crate) fn pty_proc_close_console(stream: &mut Stream) {
+    pub(crate) fn pty_proc_close_console(stream: *mut Stream) {
         unsafe {
-            let ptyproc = stream.internal_data.as_proc();
+            let ptyproc = (*stream).internal_data.as_proc();
             let proc_: *mut Proc = ptyproc;
             let hdr = proc_;
             let r_out = &raw mut (*proc_).out;
@@ -215,7 +215,9 @@ mod win_impl {
                 Some(os_conpty_free_thread),
                 Box::into_raw(conpty).cast(),
             );
-            while !(*r_fields).did_eof && WaitForSingleObject(tid as HANDLE, 0) == WAIT_TIMEOUT {
+            while !ptr::read_volatile(&raw const (*r_fields).did_eof)
+                && WaitForSingleObject(tid as HANDLE, 0) == WAIT_TIMEOUT
+            {
                 uv_run((*hdr).loop_.cast(), UV_RUN_ONCE);
             }
             uv_thread_detach(&raw mut tid);
