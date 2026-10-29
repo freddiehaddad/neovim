@@ -36,7 +36,7 @@ use crate::os::input::input_blocking;
 #[cfg(windows)]
 use crate::os::os_win_console::os_detach_ui_console;
 use crate::ui_client::{ui_client_attach_to_restarted_server, ui_client_event_raw_line};
-use std::ffi::c_char;
+use std::ffi::CStr;
 use std::ptr;
 
 pub type ClientType = i32;
@@ -267,8 +267,7 @@ fn find_rpc_channel(id: u64) -> *mut Channel {
     chan
 }
 
-pub fn rpc_send_event<S: crate::strings::IntoCCharPtr>(id: u64, name: S, args: Array) -> bool {
-    let name = name.into_c_char_ptr();
+pub fn rpc_send_event(id: u64, name: &CStr, args: Array) -> bool {
     let mut channel: *mut Channel = ptr::null_mut();
     if id != 0 {
         channel = find_rpc_channel(id);
@@ -288,12 +287,11 @@ pub fn rpc_send_event<S: crate::strings::IntoCCharPtr>(id: u64, name: S, args: A
 
 pub fn rpc_send_call(
     id: u64,
-    method_name: impl crate::strings::IntoCCharPtr,
+    method_name: &CStr,
     args: Array,
     result_mem: &mut ArenaMem,
     err: &mut Error,
 ) -> Object {
-    let method_name = method_name.into_c_char_ptr();
     unsafe {
         let mut channel = find_rpc_channel(id);
         if channel.is_null() {
@@ -522,8 +520,8 @@ fn handle_request(channel: &mut Channel, p: *mut Unpacker, args: Array) {
             let handler = (*p).handler;
             let msg_type = (*p).msg_type;
             let request_id = (*p).request_id;
-            let msg_ptr = (*p).unpack_error.msg_ptr();
-            send_error(channel, handler, msg_type, request_id, msg_ptr);
+            let msg = (*p).unpack_error.msg.take();
+            send_error(channel, handler, msg_type, request_id, msg);
             api_clear_error(&mut (*p).unpack_error);
             arena_mem_free(arena_finish(&mut (*p).arena));
             return;
@@ -688,32 +686,28 @@ fn send_error(
     handler: MsgpackRpcRequestHandler,
     r#type: MessageType,
     id: u32,
-    err: impl crate::strings::IntoCCharPtr,
+    err: Option<std::ffi::CString>,
 ) {
-    let err = err.into_c_char_ptr();
-    {
-        let mut e = Error::new();
-        api_set_error!(&mut e, ErrorType::ErrorTypeException, c"%s", err,);
-        let mut nil_obj = OBJECT_NIL;
-        serialize_response(chan, handler, r#type, id, &mut e, &mut nil_obj);
-        api_clear_error(&mut e);
-    }
+    let mut e = Error {
+        err_type: ErrorType::ErrorTypeException,
+        msg: err,
+    };
+    let mut nil_obj = OBJECT_NIL;
+    serialize_response(chan, handler, r#type, id, &mut e, &mut nil_obj);
+    api_clear_error(&mut e);
 }
 
-fn broadcast_event(name: impl crate::strings::IntoCCharPtr, args: Array) {
-    let name = name.into_c_char_ptr();
-    {
-        let mut chans = Vec::<*mut Channel>::new();
+fn broadcast_event(name: &CStr, args: Array) {
+    let mut chans = Vec::<*mut Channel>::new();
 
-        for &channel in g_st().channels.values() {
-            if unsafe { (*channel).is_rpc } {
-                chans.push(channel);
-            }
+    for &channel in g_st().channels.values() {
+        if unsafe { (*channel).is_rpc } {
+            chans.push(channel);
         }
+    }
 
-        if !chans.is_empty() {
-            serialize_request(chans.as_mut_ptr(), chans.len(), 0, name, args);
-        }
+    if !chans.is_empty() {
+        serialize_request(chans.as_mut_ptr(), chans.len(), 0, name, args);
     }
 }
 
@@ -813,10 +807,9 @@ fn serialize_request(
     chans: *mut *mut Channel,
     nchans: usize,
     request_id: u32,
-    method: impl crate::strings::IntoCCharPtr,
+    method: &CStr,
     args: Array,
 ) {
-    let method = method.into_c_char_ptr();
     let mut packer = PackerBuffer::new();
     packer_buffer_init_channels(chans, nchans, &mut packer);
 
@@ -944,42 +937,42 @@ pub fn rpc_set_client_info(id: u64, info: Dict) {
         (*ct).rpc.info = info;
 
         let r#type = get_client_info(&mut *chan, c"type");
-        (*ct).rpc.client_type = if r#type.is_null() {
-            K_CLIENT_TYPE_REMOTE
-        } else {
-            match crate::memory::cstr_as_bytes(r#type) {
-                b"remote" => K_CLIENT_TYPE_REMOTE,
-                b"msgpack-rpc" => K_CLIENT_TYPE_MSGPACK_RPC,
-                b"ui" => K_CLIENT_TYPE_UI,
-                b"embedder" => K_CLIENT_TYPE_EMBEDDER,
-                b"host" => K_CLIENT_TYPE_HOST,
-                b"plugin" => K_CLIENT_TYPE_PLUGIN,
-                _ => K_CLIENT_TYPE_UNKNOWN,
-            }
+        (*ct).rpc.client_type = match r#type.map(CStr::to_bytes) {
+            None => K_CLIENT_TYPE_REMOTE,
+            Some(b"remote") => K_CLIENT_TYPE_REMOTE,
+            Some(b"msgpack-rpc") => K_CLIENT_TYPE_MSGPACK_RPC,
+            Some(b"ui") => K_CLIENT_TYPE_UI,
+            Some(b"embedder") => K_CLIENT_TYPE_EMBEDDER,
+            Some(b"host") => K_CLIENT_TYPE_HOST,
+            Some(b"plugin") => K_CLIENT_TYPE_PLUGIN,
+            Some(_) => K_CLIENT_TYPE_UNKNOWN,
         };
 
         channel_event(&mut *chan, EVENT_CHANINFO);
     }
 }
 
-pub fn get_client_info(chan: &mut Channel, key: &std::ffi::CStr) -> *const c_char {
+pub fn get_client_info<'a>(chan: &'a mut Channel, key: &CStr) -> Option<&'a CStr> {
     let ct = chan;
     if !ct.is_rpc {
-        return ptr::null();
+        return None;
     }
     let key_bytes = key.to_bytes();
     let info = ct.rpc.info;
     for i in 0..info.size {
         let item = &info[i];
         if !item.key.data.is_null()
-            && crate::memory::cstr_as_bytes(item.key.data) == key_bytes
+            && item.key.cstr_bytes() == key_bytes
             && item.value.obj_type == ObjectType::ObjectTypeString
         {
-            return item.value.data.string().data;
+            let val_ptr = item.value.data.string().data;
+            if !val_ptr.is_null() {
+                return Some(unsafe { CStr::from_ptr(val_ptr) });
+            }
         }
     }
 
-    ptr::null()
+    None
 }
 
 pub fn rpc_free_all_mem() {

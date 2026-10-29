@@ -9351,7 +9351,7 @@ fn ex_restart(eap: &mut Exarg) {
         };
         #[cfg(not(windows))]
         let server_stopped = if let Some(ref la) = listen_arg {
-            server_stop(la.as_ptr().cast_mut(), true)
+            server_stop(la, true)
         } else {
             false
         };
@@ -9396,7 +9396,7 @@ fn ex_restart(eap: &mut Exarg) {
         if channel.is_null() {
             let _ = emsg(c"cannot create a channel job");
             let la_ptr = listen_arg.as_ref().map_or(ptr::null(), |s| s.as_ptr());
-            if server_stopped && server_start(la_ptr) != 0 {
+            if server_stopped && server_start(listen_arg.as_deref()) != 0 {
                 let _ = semsg!(c"couldn't resume listening on %s", la_ptr);
             }
             return;
@@ -9609,7 +9609,7 @@ fn ex_restart(eap: &mut Exarg) {
         }
 
         let la_ptr = listen_arg.as_ref().map_or(ptr::null(), |s| s.as_ptr());
-        if server_stopped && server_start(la_ptr) != 0 {
+        if server_stopped && server_start(listen_arg.as_deref()) != 0 {
             let _ = semsg!(c"couldn't resume listening on %s", la_ptr);
         }
     }

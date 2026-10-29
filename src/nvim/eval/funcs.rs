@@ -6799,7 +6799,7 @@ pub fn f_rpcnotify(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDa
 
     let ok = rpc_send_event(
         argvars[0].vval.v_number() as u64,
-        tv_get_string(&argvars[1]),
+        crate::memory::cstr_from_ptr(tv_get_string(&argvars[1])),
         args,
     );
 
@@ -6888,9 +6888,10 @@ pub fn f_rpcrequest(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncD
     let mut err = Error::new();
     let chan_id = argvars[0].vval.v_number() as u64;
     let method = tv_get_string(&argvars[1]);
+    let method_cstr = crate::memory::cstr_from_ptr(method);
 
     let mut res_mem: ArenaMem = ptr::null_mut();
-    let result = rpc_send_call(chan_id, method, args, &mut res_mem, &mut err);
+    let result = rpc_send_call(chan_id, method_cstr, args, &mut res_mem, &mut err);
     arena_mem_free(arena_finish(&mut arena));
 
     if l_provider_call_nesting != 0 {
@@ -6904,18 +6905,18 @@ pub fn f_rpcrequest(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncD
     }
 
     if err.err_type != ErrorType::ErrorTypeNone {
-        let mut name: *const c_char = ptr::null();
+        let mut name: Option<&std::ffi::CStr> = None;
         let chan = find_channel(chan_id);
         if !chan.is_null() {
             name = get_client_info(unsafe { &mut *chan }, c"name");
         }
-        if !name.is_null() {
+        if let Some(name) = name {
             semsg_multiline!(
                 c"rpc_error",
                 c"Invoking '%s' on channel %llu (%s):\n%s",
                 method,
                 chan_id,
-                name,
+                name.as_ptr(),
                 err.msg_ptr(),
             );
         } else {
@@ -7439,10 +7440,10 @@ pub fn f_serverstart(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFunc
         }
         to_slash_save(tv_get_string(&argvars[0])).unwrap_or_default()
     } else {
-        server_address_new(ptr::null())
+        server_address_new(None)
     };
 
-    let result = server_start(address.as_ptr());
+    let result = server_start(Some(&address));
     drop(address);
 
     if result != 0 {
@@ -7475,7 +7476,7 @@ pub fn f_serverstop(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncD
     rettv.v_type = VarType::VarNumber;
     rettv.vval = crate::eval::typval::TypvalVval::Number(0);
     if !argvars[0].vval.v_string().is_null() {
-        let rv = server_stop(argvars[0].vval.v_string(), false);
+        let rv = server_stop(crate::memory::cstr_from_ptr(argvars[0].vval.v_string()), false);
         rettv.vval = crate::eval::typval::TypvalVval::Number(Varnumber::from(rv));
     }
 }

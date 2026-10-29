@@ -623,7 +623,7 @@ pub fn channel_connect(
 ) -> u64 {
     let address = address.into_c_char_ptr();
     unsafe {
-        if !tcp && rpc && server_owns_pipe_address(address) {
+        if !tcp && rpc && server_owns_pipe_address(crate::memory::cstr_from_ptr(address)) {
             let channel = channel_alloc(K_CHANNEL_STREAM_INTERNAL);
             (*channel).internal.cb = LUA_NOREF;
             rpc_start(&mut *channel);

@@ -56,70 +56,67 @@ fn watchers_mut() -> &'static mut Vec<*mut SocketWatcher> {
     &mut srv_st().watchers
 }
 
-pub fn server_init(listen_addr: impl crate::strings::IntoCCharPtr) -> bool {
-    let mut listen_addr = listen_addr.into_c_char_ptr();
-    {
-        let mut ok = true;
-        let mut owned_addr: Option<std::ffi::CString> = None;
-        let mut user_arg: TriState = K_TRUE;
-        srv_st().watchers = Vec::new();
+pub fn server_init(listen_addr: Option<&CStr>) -> bool {
+    let mut ok = true;
+    let mut owned_addr: Option<std::ffi::CString> = None;
+    let mut user_arg: TriState = K_TRUE;
+    srv_st().watchers = Vec::new();
 
-        if listen_addr.is_null() || unsafe { *listen_addr } == 0 {
-            if os_env_exists(ENV_LISTEN, true) {
-                user_arg = K_FALSE;
-                let raw = os_getenv_cstr(ENV_LISTEN);
-                owned_addr = to_slash_save(raw.as_ref().map_or(ptr::null(), |c| c.as_ptr()));
-            } else {
-                user_arg = K_NONE;
-                owned_addr = Some(server_address_new(ptr::null()));
-            }
-            listen_addr = owned_addr.as_ref().unwrap().as_ptr();
+    if listen_addr.is_none_or(|s| s.to_bytes().is_empty()) {
+        if os_env_exists(ENV_LISTEN, true) {
+            user_arg = K_FALSE;
+            let raw = os_getenv_cstr(ENV_LISTEN);
+            owned_addr = to_slash_save(raw.as_ref().map_or(ptr::null(), |c| c.as_ptr()));
+        } else {
+            user_arg = K_NONE;
+            owned_addr = Some(server_address_new(None));
         }
-
-        let rv = server_start(listen_addr);
-
-        if os_env_exists(ENV_TEST_LOG, false) {
-            logmsg!(
-                LOGLVL_ERR,
-                ptr::null(),
-                c"server_init",
-                58,
-                true,
-                c"test log message",
-            );
-        }
-
-        if rv != 0 && user_arg != K_NONE {
-            let fmt = if user_arg == K_TRUE {
-                c"Failed to --listen: %s: \"%s\"".as_ptr()
-            } else {
-                c"Failed $NVIM_LISTEN_ADDRESS: %s: \"%s\"".as_ptr()
-            };
-            let reason = if rv < 0 {
-                unsafe { uv_strerror(rv) }
-            } else if rv == 1 {
-                c"empty address".as_ptr()
-            } else {
-                c"?".as_ptr()
-            };
-            vim_snprintf!(
-                ptr::addr_of_mut!(g_st().iobuff).cast(),
-                IOSIZE,
-                fmt,
-                reason,
-                listen_addr,
-            );
-            ok = false;
-        }
-
-        if os_env_exists(ENV_LISTEN, false) {
-            os_unsetenv(ENV_LISTEN);
-        }
-
-        drop(owned_addr);
-
-        ok
     }
+    let listen_addr = listen_addr
+        .filter(|s| !s.to_bytes().is_empty())
+        .or(owned_addr.as_deref());
+
+    let rv = server_start(listen_addr);
+
+    if os_env_exists(ENV_TEST_LOG, false) {
+        logmsg!(
+            LOGLVL_ERR,
+            ptr::null(),
+            c"server_init",
+            58,
+            true,
+            c"test log message",
+        );
+    }
+
+    if rv != 0 && user_arg != K_NONE {
+        let fmt = if user_arg == K_TRUE {
+            c"Failed to --listen: %s: \"%s\"".as_ptr()
+        } else {
+            c"Failed $NVIM_LISTEN_ADDRESS: %s: \"%s\"".as_ptr()
+        };
+        let reason = if rv < 0 {
+            unsafe { uv_strerror(rv) }
+        } else if rv == 1 {
+            c"empty address".as_ptr()
+        } else {
+            c"?".as_ptr()
+        };
+        vim_snprintf!(
+            ptr::addr_of_mut!(g_st().iobuff).cast(),
+            IOSIZE,
+            fmt,
+            reason,
+            listen_addr.map_or(ptr::null(), CStr::as_ptr),
+        );
+        ok = false;
+    }
+
+    if os_env_exists(ENV_LISTEN, false) {
+        os_unsetenv(ENV_LISTEN);
+    }
+
+    ok
 }
 
 fn set_vservername(srvs: &[*mut SocketWatcher]) {
@@ -138,71 +135,59 @@ pub fn server_teardown() {
     srv_st().watchers = Vec::new();
 }
 
-pub fn server_address_new(name: impl crate::strings::IntoCCharPtr) -> std::ffi::CString {
-    let name = name.into_c_char_ptr();
-    {
-        let mut fmt: [u8; ADDRESS_MAX_SIZE] = [0; ADDRESS_MAX_SIZE];
-        let cur_count = srv_st().server_addr_count;
-        srv_st().server_addr_count = srv_st().server_addr_count.wrapping_add(1);
+pub fn server_address_new(name: Option<&CStr>) -> std::ffi::CString {
+    let mut fmt: [u8; ADDRESS_MAX_SIZE] = [0; ADDRESS_MAX_SIZE];
+    let cur_count = srv_st().server_addr_count;
+    srv_st().server_addr_count = srv_st().server_addr_count.wrapping_add(1);
 
-        #[cfg(windows)]
-        let r = {
-            get_appname(true);
-            let app = if !name.is_null() {
-                name
-            } else {
-                ptr::addr_of!(g_st().name_buff).cast()
-            };
-            vim_snprintf!(
-                fmt.as_mut_ptr().cast(),
-                fmt.len(),
-                c"//./pipe/%s.%llu.%u",
-                app,
-                os_get_pid() as u64,
-                cur_count,
-            )
-        };
+    #[cfg(windows)]
+    let r = {
+        get_appname(true);
+        let app = name.map_or_else(|| ptr::addr_of!(g_st().name_buff).cast(), CStr::as_ptr);
+        vim_snprintf!(
+            fmt.as_mut_ptr().cast(),
+            fmt.len(),
+            c"//./pipe/%s.%llu.%u",
+            app,
+            os_get_pid() as u64,
+            cur_count,
+        )
+    };
 
-        #[cfg(not(windows))]
-        let r = {
-            let dir = stdpaths_get_xdg_var(XDGVarType::XDGRuntimeDir);
-            get_appname(true);
-            let app = if !name.is_null() {
-                name
-            } else {
-                ptr::addr_of!(g_st().name_buff).cast()
-            };
-            vim_snprintf!(
-                fmt.as_mut_ptr().cast(),
-                fmt.len(),
-                c"%s/%s.%llu.%u",
-                dir.as_ref().map_or(ptr::null(), |s| s.as_ptr()),
-                app,
-                os_get_pid() as u64,
-                cur_count,
-            )
-        };
+    #[cfg(not(windows))]
+    let r = {
+        let dir = stdpaths_get_xdg_var(XDGVarType::XDGRuntimeDir);
+        get_appname(true);
+        let app = name.map_or_else(|| ptr::addr_of!(g_st().name_buff).cast(), CStr::as_ptr);
+        vim_snprintf!(
+            fmt.as_mut_ptr().cast(),
+            fmt.len(),
+            c"%s/%s.%llu.%u",
+            dir.as_ref().map_or(ptr::null(), |s| s.as_ptr()),
+            app,
+            os_get_pid() as u64,
+            cur_count,
+        )
+    };
 
-        let addr_cstr = CStr::from_bytes_until_nul(&fmt).unwrap_or(c"");
-        if (r as usize) >= fmt.len() {
-            logmsg!(
-                LOGLVL_ERR,
-                ptr::null(),
-                c"server_address_new",
-                133,
-                true,
-                c"truncated server address: %.40s...",
-                addr_cstr.as_ptr(),
-            );
-        }
-        addr_cstr.to_owned()
+    let addr_cstr = CStr::from_bytes_until_nul(&fmt).unwrap_or(c"");
+    if (r as usize) >= fmt.len() {
+        logmsg!(
+            LOGLVL_ERR,
+            ptr::null(),
+            c"server_address_new",
+            133,
+            true,
+            c"truncated server address: %.40s...",
+            addr_cstr.as_ptr(),
+        );
     }
+    addr_cstr.to_owned()
 }
 
-pub fn server_owns_pipe_address(address: impl crate::strings::IntoCCharPtr) -> bool {
-    let address = address.into_c_char_ptr();
+pub fn server_owns_pipe_address(address: &CStr) -> bool {
     unsafe {
-        let path = fix_fname(address);
+        let path = fix_fname(address.as_ptr());
         for &watcher in watchers_mut().iter() {
             let addr = fix_fname((*watcher).addr.as_ptr());
             if path == addr {
@@ -213,10 +198,9 @@ pub fn server_owns_pipe_address(address: impl crate::strings::IntoCCharPtr) -> b
     }
 }
 
-pub fn server_start(addr: impl crate::strings::IntoCCharPtr) -> i32 {
-    let addr = addr.into_c_char_ptr();
+pub fn server_start(addr: Option<&CStr>) -> i32 {
     unsafe {
-        if addr.is_null() || *addr == 0 {
+        let Some(addr) = addr.filter(|s| !s.to_bytes().is_empty()) else {
             logmsg!(
                 LOGLVL_WRN,
                 ptr::null(),
@@ -226,22 +210,23 @@ pub fn server_start(addr: impl crate::strings::IntoCCharPtr) -> i32 {
                 c"Empty or NULL address",
             );
             return 1;
-        }
+        };
 
-        let isname = !crate::memory::cstr_as_bytes(addr)
+        let isname = !addr
+            .to_bytes()
             .iter()
             .any(|b| matches!(b, b':' | b'/' | b'\\'));
         let addr_gen = if isname {
-            Some(server_address_new(addr))
+            Some(server_address_new(Some(addr)))
         } else {
             None
         };
         let watcher = Box::into_raw(Box::new(SocketWatcher::new()));
-        let endpoint = addr_gen.as_ref().map_or(addr, |s| s.as_ptr());
+        let endpoint = addr_gen.as_deref().unwrap_or(addr);
         let mut result = socket_watcher_init(
             &mut *ptr::addr_of_mut!(g_st().main_loop).cast(),
             &mut *watcher,
-            endpoint,
+            endpoint.as_ptr(),
         );
         drop(addr_gen);
         if result < 0 {
@@ -297,12 +282,11 @@ pub fn server_start(addr: impl crate::strings::IntoCCharPtr) -> i32 {
     }
 }
 
-pub fn server_stop(endpoint: impl crate::strings::IntoCCharPtr, keep_vservername: bool) -> bool {
-    let endpoint = endpoint.into_c_char_ptr();
+pub fn server_stop(endpoint: &CStr, keep_vservername: bool) -> bool {
     unsafe {
         let mut addr: [u8; ADDRESS_MAX_SIZE] = [0; ADDRESS_MAX_SIZE];
 
-        xstrlcpy(addr.as_mut_ptr().cast(), endpoint, addr.len());
+        xstrlcpy(addr.as_mut_ptr().cast(), endpoint.as_ptr(), addr.len());
         to_slash(addr.as_mut_ptr().cast());
         let addr_cstr = CStr::from_bytes_until_nul(&addr).unwrap_or(c"");
         let addr_bytes = addr_cstr.to_bytes();

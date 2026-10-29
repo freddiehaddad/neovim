@@ -523,12 +523,7 @@ fn nvim_main_inner(argc: i32, argv: *mut *mut c_char) -> i32 {
     }
     assert!(g_st().ui_client_channel_id == 0 && !use_builtin_ui);
 
-    if !server_init(
-        params
-            .listen_addr
-            .as_ref()
-            .map_or(ptr::null(), |s| s.as_ptr()),
-    ) {
+    if !server_init(params.listen_addr.as_deref()) {
         #[cfg(windows)]
         if startup_stderr_fd >= 0 {
             unsafe { dup2(startup_stderr_fd, STDERR_FILENO) };

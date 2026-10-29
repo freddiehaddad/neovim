@@ -1669,14 +1669,15 @@ fn nlua_rpc(lstate: *mut lua_State, request: bool) -> i32 {
     }
 
     if !error_set(&err) {
+        let name_cstr = crate::memory::cstr_from_ptr(name);
         if request {
             let mut res_mem: ArenaMem = ptr::null_mut();
-            let mut result = rpc_send_call(chan_id, name, args, &mut res_mem, &mut err);
+            let mut result = rpc_send_call(chan_id, name_cstr, args, &mut res_mem, &mut err);
             if !error_set(&err) {
                 nlua_push_object(lstate, &raw mut result, 0);
                 arena_mem_free(res_mem);
             }
-        } else if !rpc_send_event(chan_id, name, args) {
+        } else if !rpc_send_event(chan_id, name_cstr, args) {
             let mut mbuf = [0u8; 64];
             let _ = write!(&mut mbuf[..], "Invalid channel: {chan_id}\0");
             api_set_error!(
