@@ -1121,7 +1121,9 @@ pub(crate) fn word_length(str_in: impl crate::strings::IntoCCharPtr) -> usize {
         let mut length: usize = 0;
 
         while !crate::memory::cstr_is_empty(p)
-            && (inquote || (crate::memory::cstr_first_byte(p) != b' ' && unsafe { *p } != TAB))
+            && (inquote
+                || (crate::memory::cstr_first_byte(p) != b' '
+                    && crate::memory::cstr_first_byte(p) != TAB))
         {
             if crate::memory::cstr_first_byte(p) == b'"' {
                 inquote = !inquote;

@@ -240,13 +240,13 @@ pub fn internal_format(
 
         if do_comments {
             let line = get_cursor_line_ptr();
-            leader_len = get_leader_len(line, ptr::null_mut(), false, true);
+            leader_len = get_leader_len(line, None, false, true);
             if leader_len == 0 && curbuf_mut().b_p_cin != 0 {
                 let comment_start = check_linecomment(line);
                 if comment_start != MAXCOL {
                     leader_len = get_leader_len(
                         line.wrapping_add(comment_start as usize),
-                        ptr::null_mut(),
+                        None,
                         false,
                         true,
                     );
@@ -552,9 +552,8 @@ fn fmt_check_par(
 ) -> bool {
     let ptr = ml_get(lnum);
     if do_comments {
-        let mut raw_flags = ptr::null_mut();
-        *leader_len = get_leader_len(ptr, &raw mut raw_flags, false, true);
-        *leader_flags = crate::memory::cstr_as_opt_cstr(raw_flags);
+        *leader_flags = None;
+        *leader_len = get_leader_len(ptr, Some(leader_flags), false, true);
     } else {
         *leader_len = 0;
         *leader_flags = None;
@@ -567,9 +566,9 @@ fn fmt_check_par(
         let flags_bytes = flags_cstr.to_bytes();
         let idx = flags_bytes
             .iter()
-            .position(|&b| b == b':' || b == COM_END as u8)
+            .position(|&b| b == b':' || b == COM_END)
             .unwrap_or(flags_bytes.len());
-        is_com_end = flags_bytes.get(idx) == Some(&(COM_END as u8));
+        is_com_end = flags_bytes.get(idx) == Some(&COM_END);
     }
 
     crate::memory::cstr_is_empty(skipwhite(ptr.wrapping_add(*leader_len as usize)))
@@ -602,13 +601,13 @@ fn same_leader(
             if b == b':' {
                 break;
             }
-            if b == COM_FIRST as u8 {
+            if b == COM_FIRST {
                 return leader2_len == 0;
             }
-            if b == COM_END as u8 {
+            if b == COM_END {
                 return false;
             }
-            if b == COM_START as u8 {
+            if b == COM_START {
                 let line_len = ml_get_len(lnum);
                 if line_len <= leader1_len {
                     return false;
@@ -620,7 +619,7 @@ fn same_leader(
                     if b2 == b':' {
                         break;
                     }
-                    if b2 == COM_MIDDLE as u8 {
+                    if b2 == COM_MIDDLE {
                         return true;
                     }
                 }
@@ -747,7 +746,7 @@ pub fn auto_format(trailblank: bool, prev_line: bool) {
 
     if has_format_option(K_FO_WRAP_COMS)
         && !has_format_option(K_FO_WRAP)
-        && get_leader_len(old, ptr::null_mut(), false, true) == 0
+        && get_leader_len(old, None, false, true) == 0
     {
         return;
     }

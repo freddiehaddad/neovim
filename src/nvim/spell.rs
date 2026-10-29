@@ -533,7 +533,7 @@ fn find_word(mip: &mut Matchinf, mode: i32) {
                 break;
             }
             let mut c = crate::memory::cstr_byte_at(ptr, wlen as usize) as i32;
-            if c == TAB as u8 as i32 {
+            if c == i32::from(TAB) {
                 c = b' ' as i32;
             }
             let mut lo = arridx;
@@ -562,7 +562,7 @@ fn find_word(mip: &mut Matchinf, mode: i32) {
                         flen = fold_more(mip);
                     }
                     let ch = *ptr.wrapping_add(wlen as usize);
-                    if ch != b' ' as c_char && ch != TAB {
+                    if ch != b' ' as c_char && ch as u8 != TAB {
                         break;
                     }
                     wlen += 1;

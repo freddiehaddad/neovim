@@ -3941,7 +3941,7 @@ fn eval_string(
                         p = p.wrapping_add(1);
                     }
                     b't' => {
-                        *end = TAB;
+                        *end.cast::<u8>() = TAB;
                         end = end.wrapping_add(1);
                         p = p.wrapping_add(1);
                     }

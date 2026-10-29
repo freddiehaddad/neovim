@@ -1545,7 +1545,7 @@ pub fn get_foldtext(
                         break;
                     }
                     p = p.wrapping_add((len - 1) as usize);
-                } else if unsafe { *p } == TAB {
+                } else if crate::memory::cstr_first_byte(p) == TAB {
                     unsafe {
                         *p.cast::<u8>() = b' ';
                     }

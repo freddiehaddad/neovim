@@ -978,7 +978,7 @@ pub fn pum_redraw() {
                     }
                     let w = ptr2cells(p.cast());
                     if !crate::memory::cstr_is_empty(p.cast())
-                        && unsafe { *p } != TAB as u8
+                        && unsafe { *p } != TAB
                         && totwidth + w <= pum().width
                     {
                         width += w;
@@ -1089,7 +1089,7 @@ pub fn pum_redraw() {
                         grid_col += width;
                     }
 
-                    if unsafe { *p } != TAB as u8 {
+                    if unsafe { *p } != TAB {
                         break;
                     }
 

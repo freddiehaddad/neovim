@@ -1812,7 +1812,9 @@ fn spell_read_aff(
                 items[itemcnt] = p;
                 itemcnt += 1;
                 if itemcnt == 2 && spell_info_item(items[0]) {
-                    while (crate::memory::cstr_first_byte(p)) >= b' ' || *p == TAB {
+                    while (crate::memory::cstr_first_byte(p)) >= b' '
+                        || crate::memory::cstr_first_byte(p) == TAB
+                    {
                         p = p.wrapping_add(1);
                     }
                 } else {

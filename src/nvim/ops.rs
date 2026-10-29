@@ -1920,20 +1920,18 @@ pub fn skip_comment(
     is_comment: &mut bool,
 ) -> *mut u8 {
     let mut line = line.into_c_char_ptr().cast_mut();
-    let mut comment_flags = ptr::null_mut();
-    let leader_offset = get_last_leader_offset(line, &raw mut comment_flags);
+    let mut comment_flags: Option<&'static std::ffi::CStr> = None;
+    let leader_offset = get_last_leader_offset(line, Some(&mut comment_flags));
 
     *is_comment = false;
-    if leader_offset != -1 {
-        while !crate::memory::cstr_is_empty(comment_flags) {
-            if unsafe { *comment_flags } == COM_END
-                || crate::memory::cstr_first_byte(comment_flags) == b':'
-            {
-                break;
-            }
-            comment_flags = comment_flags.wrapping_add(1);
-        }
-        if unsafe { *comment_flags } != COM_END {
+    if leader_offset != -1
+        && let Some(flags) = comment_flags
+    {
+        let end_idx = flags
+            .to_bytes()
+            .iter()
+            .position(|&b| b == COM_END || b == b':');
+        if end_idx.is_none_or(|i| flags.to_bytes()[i] != COM_END) {
             *is_comment = true;
         }
     }
@@ -1942,24 +1940,26 @@ pub fn skip_comment(
         return line.cast();
     }
 
-    let lead_len = get_leader_len(line, &raw mut comment_flags, false, include_space);
+    let lead_len = get_leader_len(line, Some(&mut comment_flags), false, include_space);
 
     if lead_len == 0 {
         return line.cast();
     }
 
-    while !crate::memory::cstr_is_empty(comment_flags) {
-        if unsafe { *comment_flags } == COM_END
-            || crate::memory::cstr_first_byte(comment_flags) == b':'
+    let mut is_end = false;
+    if let Some(flags) = comment_flags {
+        let end_idx = flags
+            .to_bytes()
+            .iter()
+            .position(|&b| b == COM_END || b == b':');
+        if let Some(i) = end_idx
+            && flags.to_bytes()[i] == COM_END
         {
-            break;
+            is_end = true;
         }
-        comment_flags = comment_flags.wrapping_add(1);
     }
 
-    if crate::memory::cstr_first_byte(comment_flags) == b':'
-        || crate::memory::cstr_is_empty(comment_flags)
-    {
+    if !is_end {
         line = line.wrapping_add(lead_len as usize);
     }
 

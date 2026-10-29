@@ -2092,7 +2092,7 @@ pub fn mark_mb_adjustpos(buf: *mut FileBuf, lp: &mut CursorPos) {
         }
         let p_at = p.wrapping_add(lp.col as usize);
         if lp.coladd == 1
-            && unsafe { *p_at } != TAB
+            && crate::memory::cstr_first_byte(p_at) != TAB
             && vim_isprintc(utf_ptr2char(p_at))
             && ptr2cells(p_at) > 1
         {

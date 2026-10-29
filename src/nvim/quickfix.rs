@@ -1896,7 +1896,7 @@ fn qf_parse_fmt_p(rmp: &mut Regmatch, midx: usize, fields: &mut Qffields) -> i32
     let mut match_ptr = rmp.startp[midx];
     while match_ptr != rmp.endp[midx] {
         fields.col += 1;
-        if unsafe { *match_ptr } == TAB {
+        if crate::memory::cstr_first_byte(match_ptr) == TAB {
             fields.col += 7;
             fields.col -= fields.col % 8;
         }
@@ -3216,7 +3216,7 @@ fn qf_screen_col_to_idx(vcol: Colnr) -> i32 {
     let mut col: Colnr = 0;
 
     while !crate::memory::cstr_is_empty(p) && col < vcol {
-        if unsafe { *p } == TAB {
+        if crate::memory::cstr_first_byte(p) == TAB {
             col += 8 - (col % 8);
         } else {
             col += ptr2cells(p);

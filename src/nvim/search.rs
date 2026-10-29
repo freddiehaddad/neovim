@@ -3603,7 +3603,7 @@ pub fn find_pattern_in_path(
                                         skipwhite(line.wrapping_add(1)),
                                         6,
                                     ) == &b"define"[..6]))
-                                    && get_leader_len(line, ptr::null_mut(), false, true) != 0
+                                    && get_leader_len(line, None, false, true) != 0
                                 {
                                     matched = false;
                                 }
@@ -3699,7 +3699,7 @@ pub fn find_pattern_in_path(
                                         p = find_word_end(p);
                                         if p > aux {
                                             if crate::memory::cstr_first_byte(aux) != b')'
-                                                && g_st().iobuff[(i - 1) as usize] != TAB
+                                                && g_st().iobuff[(i - 1) as usize] as u8 != TAB
                                             {
                                                 if g_st().iobuff[(i - 1) as usize] != b' ' as c_char
                                                 {

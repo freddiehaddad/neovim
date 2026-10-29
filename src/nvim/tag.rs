@@ -1525,12 +1525,12 @@ fn find_tagfunc_tags(
                 crate::memory::cstr_cpy(p.cast(), res_name.cast());
                 p = p.wrapping_add(crate::memory::cstr_len(p.cast()));
 
-                *p = TAB as u8;
+                *p = TAB;
                 p = p.wrapping_add(1);
                 crate::memory::cstr_cpy(p.cast(), res_fname.cast());
                 p = p.wrapping_add(crate::memory::cstr_len(p.cast()));
 
-                *p = TAB as u8;
+                *p = TAB;
                 p = p.wrapping_add(1);
                 crate::memory::cstr_cpy(p.cast(), res_cmd.cast());
                 p = p.wrapping_add(crate::memory::cstr_len(p.cast()));
@@ -1553,7 +1553,7 @@ fn find_tagfunc_tags(
                     p = p.wrapping_add(crate::memory::cstr_len(p.cast()));
 
                     if !res_kind.is_null() {
-                        *p = TAB as u8;
+                        *p = TAB;
                         p = p.wrapping_add(1);
                         crate::memory::cstr_cpy(p.cast(), res_kind.cast());
                         p = p.wrapping_add(crate::memory::cstr_len(p.cast()));
@@ -1576,7 +1576,7 @@ fn find_tagfunc_tags(
                                     && crate::memory::cstr_as_bytes(dict_key) != b"cmd"
                                     && crate::memory::cstr_as_bytes(dict_key) != b"kind"
                                 {
-                                    *p = TAB as u8;
+                                    *p = TAB;
                                     p = p.wrapping_add(1);
                                     crate::memory::cstr_cpy(p.cast(), dict_key);
                                     p = p.wrapping_add(crate::memory::cstr_len(p.cast()));
@@ -2187,7 +2187,7 @@ fn findtags_add_match(
             mfp_vec = Some(v);
 
             unsafe {
-                *tagpp.tagname_end = TAB as u8;
+                *tagpp.tagname_end = TAB;
             }
         } else if name_only {
             if st.get_searchpat {
@@ -2810,7 +2810,7 @@ fn parse_match(lbuf: impl crate::strings::IntoCCharPtr, tagp: &mut Tagptrs) -> b
                 tagp.command_end = p.wrapping_sub(1);
             }
             p = p.wrapping_add(2);
-            if unsafe { *p } == TAB as u8 {
+            if unsafe { *p } == TAB {
                 p = p.wrapping_add(1);
                 while ascii_isalpha(unsafe { *p }) || utfc_ptr2len(p.cast()) > 1 {
                     if crate::memory::cstr_prefix_bytes(p.cast(), 5) == &b"kind:"[..5] {

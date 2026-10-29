@@ -417,7 +417,7 @@ pub fn indent_size_no_ts(ptr: impl crate::strings::IntoCCharPtr) -> i32 {
             ptr = ptr.wrapping_add(1);
             if c == b' ' {
                 vcol += 1;
-            } else if c == TAB as u8 {
+            } else if c == TAB {
                 vcol += tab_size;
             } else {
                 return vcol;
@@ -447,7 +447,7 @@ pub fn indent_size_ts(ptr: impl crate::strings::IntoCCharPtr, ts: OptInt, vts: &
                     ptr = ptr.wrapping_add(1);
                     if c == b' ' {
                         cur_vcol += 1;
-                    } else if c == TAB as u8 {
+                    } else if c == TAB {
                         break;
                     } else {
                         return cur_vcol;
@@ -474,7 +474,7 @@ pub fn indent_size_ts(ptr: impl crate::strings::IntoCCharPtr, ts: OptInt, vts: &
                 if vcol == next_tab_vcol {
                     next_tab_vcol += tabstop_width;
                 }
-            } else if c == TAB as u8 {
+            } else if c == TAB {
                 vcol = next_tab_vcol;
                 next_tab_vcol += tabstop_width;
             } else {
@@ -504,7 +504,7 @@ pub fn set_indent(size: i32, flags: i32) -> bool {
             ind_done = 0;
 
             while todo > 0 && ascii_iswhite(crate::memory::cstr_first_char(p)) {
-                if unsafe { *p } == TAB {
+                if crate::memory::cstr_first_byte(p) == TAB {
                     tab_pad =
                         tabstop_padding(ind_done, curbuf_mut().b_p_ts, &curbuf_mut().b_p_vts_array);
                     if todo < tab_pad {
@@ -539,7 +539,7 @@ pub fn set_indent(size: i32, flags: i32) -> bool {
             if todo < tab_pad {
                 break;
             }
-            if unsafe { *p } != TAB {
+            if crate::memory::cstr_first_byte(p) != TAB {
                 doit = true;
             } else {
                 p = p.wrapping_add(1);
@@ -573,8 +573,8 @@ pub fn set_indent(size: i32, flags: i32) -> bool {
 
     let mut skipcols: i32 = 0;
     let mut newline_vec: Vec<u8>;
-    let newline;
-    let mut s;
+    let newline: *mut u8;
+    let mut s: *mut u8;
     if orig_char_len != -1 {
         let newline_size = orig_char_len
             .checked_add(size)
@@ -583,7 +583,7 @@ pub fn set_indent(size: i32, flags: i32) -> bool {
             .expect("newline_size overflow");
         debug_assert!(newline_size >= 0);
         newline_vec = vec![0u8; newline_size as usize];
-        newline = newline_vec.as_mut_ptr().cast();
+        newline = newline_vec.as_mut_ptr();
         todo = size - ind_done;
 
         ind_len = orig_char_len + todo;
@@ -593,7 +593,7 @@ pub fn set_indent(size: i32, flags: i32) -> bool {
 
         while orig_char_len > 0 {
             unsafe {
-                *s = *p;
+                *s = *p.cast::<u8>();
             }
             s = s.wrapping_add(1);
             p = p.wrapping_add(1);
@@ -610,7 +610,7 @@ pub fn set_indent(size: i32, flags: i32) -> bool {
             .checked_add(line_len as usize)
             .expect("newline_size overflow");
         newline_vec = vec![0u8; newline_size];
-        newline = newline_vec.as_mut_ptr().cast();
+        newline = newline_vec.as_mut_ptr();
         s = newline;
     }
 
@@ -620,7 +620,7 @@ pub fn set_indent(size: i32, flags: i32) -> bool {
             ind_done = 0;
 
             while todo > 0 && ascii_iswhite(crate::memory::cstr_first_char(p)) {
-                if unsafe { *p } == TAB {
+                if crate::memory::cstr_first_byte(p) == TAB {
                     tab_pad =
                         tabstop_padding(ind_done, curbuf_mut().b_p_ts, &curbuf_mut().b_p_vts_array);
                     if todo < tab_pad {
@@ -633,7 +633,7 @@ pub fn set_indent(size: i32, flags: i32) -> bool {
                     ind_done += 1;
                 }
                 unsafe {
-                    *s = *p;
+                    *s = *p.cast::<u8>();
                 }
                 s = s.wrapping_add(1);
                 p = p.wrapping_add(1);
@@ -668,18 +668,18 @@ pub fn set_indent(size: i32, flags: i32) -> bool {
 
     while todo > 0 {
         unsafe {
-            *s.cast::<u8>() = b' ';
+            *s = b' ';
         }
         s = s.wrapping_add(1);
         todo -= 1;
     }
-    unsafe { ptr::copy(p, s, line_len as usize) };
+    unsafe { ptr::copy(p.cast::<u8>(), s, line_len as usize) };
 
     if (flags & SIN_UNDO) == 0 || u_savesub(curwin_mut().w_cursor.lnum) {
         let old_offset = crate::memory::ptr_offset_from(p, oldline) as Colnr;
         let new_offset = crate::memory::ptr_offset_from(s, newline) as Colnr;
 
-        ml_replace(curwin_mut().w_cursor.lnum, newline, true);
+        ml_replace(curwin_mut().w_cursor.lnum, newline.cast(), true);
         if (flags & SIN_NOMARK) == 0 {
             extmark_splice_cols(
                 curbuf_mut(),
@@ -723,7 +723,7 @@ pub fn get_number_indent(lnum: Linenr) -> i32 {
     let mut lead_len: i32 = 0;
 
     if (g_st().state_global & MODE_INSERT) != 0 || has_format_option(K_FO_QCOMS) {
-        lead_len = get_leader_len(ml_get(lnum), ptr::null_mut(), false, true);
+        lead_len = get_leader_len(ml_get(lnum), None, false, true);
     }
 
     let mut regmatch = Regmatch {
@@ -1299,7 +1299,7 @@ pub fn copy_indent(size: i32, src: impl crate::strings::IntoCCharPtr) -> bool {
             let mut s = src;
 
             while todo > 0 && ascii_iswhite(crate::memory::cstr_first_char(s)) {
-                if unsafe { *s } == TAB {
+                if crate::memory::cstr_first_byte(s) == TAB {
                     tab_pad =
                         tabstop_padding(ind_done, curbuf_mut().b_p_ts, &curbuf_mut().b_p_vts_array);
                     if todo < tab_pad {
@@ -1332,7 +1332,7 @@ pub fn copy_indent(size: i32, src: impl crate::strings::IntoCCharPtr) -> bool {
 
                 if !p.is_null() {
                     unsafe {
-                        *p = TAB as u8;
+                        *p = TAB;
                     }
                     p = p.wrapping_add(1);
                 }
@@ -1350,7 +1350,7 @@ pub fn copy_indent(size: i32, src: impl crate::strings::IntoCCharPtr) -> bool {
                     ind_col += tab_pad;
                     if !p.is_null() {
                         unsafe {
-                            *p = TAB as u8;
+                            *p = TAB;
                         }
                         p = p.wrapping_add(1);
                     }

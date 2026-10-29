@@ -2891,7 +2891,7 @@ pub fn mb_check_adjust_col(win: &mut WinInfoInfo) {
 
         let cur_col = win.w_cursor.col as usize;
         if win.w_cursor.coladd == 1
-            && unsafe { *p.wrapping_add(cur_col) } != TAB
+            && crate::memory::cstr_byte_at(p, cur_col) != TAB
             && vim_isprintc(utf_ptr2char(p.wrapping_add(cur_col)))
             && ptr2cells(p.wrapping_add(cur_col)) > 1
         {

@@ -412,7 +412,7 @@ pub fn transstr_len(s: impl crate::strings::IntoCCharPtr, untab: bool) -> usize 
                     }
                 }
                 p = p.wrapping_add(l);
-            } else if unsafe { *p } == TAB && !untab {
+            } else if crate::memory::cstr_first_byte(p) == TAB && !untab {
                 len += 1;
                 p = p.wrapping_add(1);
             } else {
@@ -470,7 +470,7 @@ pub fn transstr_buf(
                     }
                 }
                 p = p.wrapping_add(l);
-            } else if unsafe { *p } == TAB && !untab {
+            } else if crate::memory::cstr_first_byte(p) == TAB && !untab {
                 unsafe {
                     *buf_p = *p;
                 }

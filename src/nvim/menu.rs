@@ -1319,14 +1319,17 @@ fn menu_namecmp(
     let mname = mname.into_c_char_ptr();
     unsafe {
         let mut i: usize = 0;
-        while crate::memory::cstr_byte_at(name, i) != 0 && *name.wrapping_add(i) != TAB {
+        while crate::memory::cstr_byte_at(name, i) != 0
+            && crate::memory::cstr_byte_at(name, i) != TAB
+        {
             if *name.wrapping_add(i) != *mname.wrapping_add(i) {
                 break;
             }
             i += 1;
         }
-        (crate::memory::cstr_byte_at(name, i) == 0 || *name.wrapping_add(i) == TAB)
-            && (crate::memory::cstr_byte_at(mname, i) == 0 || *mname.wrapping_add(i) == TAB)
+        (crate::memory::cstr_byte_at(name, i) == 0 || crate::memory::cstr_byte_at(name, i) == TAB)
+            && (crate::memory::cstr_byte_at(mname, i) == 0
+                || crate::memory::cstr_byte_at(mname, i) == TAB)
     }
 }
 
@@ -1456,7 +1459,7 @@ fn menu_text(
 ) -> std::ffi::CString {
     let str = str.into_c_char_ptr();
     {
-        let mut p = vim_strchr(str, i32::from(TAB as u8));
+        let mut p = vim_strchr(str, i32::from(TAB));
         let mut text_vec: Vec<u8> = if !p.is_null() {
             if let Some(actext_out) = actext {
                 *actext_out = Some(crate::memory::cstr_to_cstring(p.wrapping_add(1)));
@@ -1942,7 +1945,7 @@ fn menu_translate_tab_and_shift(arg_start: impl crate::strings::IntoCCharPtr) ->
                 arg = arg.wrapping_add(1);
             } else if crate::memory::cstr_prefix_bytes(arg, 5).eq_ignore_ascii_case(b"<TAB>") {
                 unsafe {
-                    *arg = TAB;
+                    *arg.cast::<u8>() = TAB;
                 }
                 crate::memory::cstr_move(arg.wrapping_add(1), arg.wrapping_add(5));
             }

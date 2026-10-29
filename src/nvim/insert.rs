@@ -1874,10 +1874,11 @@ pub fn insertchar(mut c: i32, flags: i32, second_indent: i32) {
 
     if g_st().ins_global.did_ai && c == g_st().ins_global.end_comment_pending {
         let mut lead_end = [0u8; COM_MAX_LEN];
-        let mut p = ptr::null_mut();
+        let mut flags_opt: Option<&'static CStr> = None;
         let line = get_cursor_line_ptr();
-        let mut i = get_leader_len(line, &raw mut p, false, true);
-        if i > 0 && crate::strings::vim_haschr(p, i32::from(COM_MIDDLE as u8)) {
+        let mut i = get_leader_len(line, Some(&mut flags_opt), false, true);
+        if i > 0 && crate::strings::vim_haschr(flags_opt, i32::from(COM_MIDDLE)) {
+            let mut p = flags_opt.map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut());
             while !crate::memory::cstr_is_empty(p)
                 && crate::memory::cstr_first_byte(p.wrapping_offset(-1)) != b':'
             {

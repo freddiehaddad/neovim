@@ -4303,7 +4303,9 @@ fn set_one_cmd_context(
         xp.xp_pattern = p.cast_mut();
         let len = crate::memory::cstr_len(buff);
         while !crate::memory::cstr_is_empty(p) && (p as usize) < (buff.wrapping_add(len) as usize) {
-            if crate::memory::cstr_first_byte(p) == b' ' || unsafe { *p } == TAB {
+            if crate::memory::cstr_first_byte(p) == b' '
+                || crate::memory::cstr_first_byte(p) == TAB
+            {
                 p = p.wrapping_add(1);
                 xp.xp_pattern = p.cast_mut();
             } else {

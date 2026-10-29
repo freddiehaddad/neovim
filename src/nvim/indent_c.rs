@@ -1808,11 +1808,12 @@ pub fn get_c_indent() -> i32 {
                         while !crate::memory::cstr_is_empty(p)
                             && crate::memory::cstr_first_byte(p) != b':'
                         {
-                            if *p == COM_START || *p == COM_END || *p == COM_MIDDLE {
-                                what = crate::memory::cstr_first_byte(p) as i32;
+                            let b = crate::memory::cstr_first_byte(p);
+                            if b == COM_START || b == COM_END || b == COM_MIDDLE {
+                                what = i32::from(b);
                                 p = p.wrapping_add(1);
-                            } else if *p == COM_LEFT || *p == COM_RIGHT {
-                                align = crate::memory::cstr_first_byte(p) as i32;
+                            } else if b == COM_LEFT || b == COM_RIGHT {
+                                align = i32::from(b);
                                 p = p.wrapping_add(1);
                             } else if ascii_isdigit(crate::memory::cstr_first_char(p))
                                 || crate::memory::cstr_first_byte(p) == b'-'
@@ -1831,7 +1832,7 @@ pub fn get_c_indent() -> i32 {
                             COM_MAX_LEN,
                             c",",
                         ) as i32;
-                        if what == COM_START as u8 as i32 {
+                        if what == i32::from(COM_START) {
                             crate::memory::cstr_cpy(
                                 (&raw mut lead_start).cast(),
                                 (&raw const lead_end).cast(),
@@ -1839,13 +1840,13 @@ pub fn get_c_indent() -> i32 {
                             lead_start_len = lead_end_len;
                             start_off = off;
                             start_align = align;
-                        } else if what == COM_MIDDLE as u8 as i32 {
+                        } else if what == i32::from(COM_MIDDLE) {
                             crate::memory::cstr_cpy(
                                 (&raw mut lead_middle).cast(),
                                 (&raw const lead_end).cast(),
                             );
                             lead_middle_len = lead_end_len;
-                        } else if what == COM_END as u8 as i32 {
+                        } else if what == i32::from(COM_END) {
                             if (crate::memory::cstr_prefix_bytes(theline, lead_middle_len as usize)
                                 == crate::memory::cstr_prefix_bytes(
                                     (&raw const lead_middle).cast::<c_char>(),
@@ -1892,7 +1893,7 @@ pub fn get_c_indent() -> i32 {
                                 }
                                 if start_off != 0 {
                                     amount += start_off;
-                                } else if start_align == COM_RIGHT as u8 as i32 {
+                                } else if start_align == i32::from(COM_RIGHT) {
                                     amount += vim_strsize((&raw const lead_start).cast())
                                         - vim_strsize((&raw const lead_middle).cast());
                                 }
@@ -1914,7 +1915,7 @@ pub fn get_c_indent() -> i32 {
                                 amount = get_indent_lnum(curwin_mut().w_cursor.lnum - 1);
                                 if off != 0 {
                                     amount += off;
-                                } else if align == COM_RIGHT as u8 as i32 {
+                                } else if align == i32::from(COM_RIGHT) {
                                     amount += vim_strsize((&raw const lead_start).cast())
                                         - vim_strsize((&raw const lead_middle).cast());
                                 }

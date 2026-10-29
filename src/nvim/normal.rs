@@ -3385,7 +3385,7 @@ pub fn find_decl(
                 }
                 break;
             }
-            if get_leader_len(get_cursor_line_ptr(), ptr::null_mut(), false, true) > 0 {
+            if get_leader_len(get_cursor_line_ptr(), None, false, true) > 0 {
                 curwin_mut().w_cursor.lnum += 1;
                 curwin_mut().w_cursor.col = 0;
                 continue;
