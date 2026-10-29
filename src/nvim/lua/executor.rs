@@ -1359,7 +1359,7 @@ unsafe extern "C-unwind" fn nlua_print(lstate: *mut lua_State) -> i32 {
     let nargs = unsafe { lua_gettop(lstate) };
     lua_getglobal(lstate, c"tostring");
     let mut errmsg_len: usize = 0;
-    let mut msg_vec: Vec<c_char> = Vec::with_capacity(80);
+    let mut msg_vec: Vec<u8> = Vec::with_capacity(80);
     let mut curargidx: i32 = 1;
     while curargidx <= nargs {
         unsafe { lua_pushvalue(lstate, -1) };
@@ -1369,32 +1369,33 @@ unsafe extern "C-unwind" fn nlua_print(lstate: *mut lua_State) -> i32 {
         {
             let errmsg = nlua_get_error(lstate, &mut errmsg_len);
             drop(msg_vec);
-            let mut buff = [0 as c_char; IOSIZE];
+            let mut buff = [0u8; IOSIZE];
             let fmt = gettext(c"E5114: Converting print argument #%i: %.*s");
             let len = vim_snprintf!(
-                buff.as_mut_ptr(),
+                buff.as_mut_ptr().cast(),
                 IOSIZE,
                 fmt,
                 curargidx,
                 errmsg_len as i32,
                 errmsg,
             ) as usize;
-            unsafe { lua_pushlstring(lstate, buff.as_ptr(), len) };
+            unsafe { lua_pushlstring(lstate, buff.as_ptr().cast(), len) };
             return unsafe { lua_error(lstate) };
         }
 
         let mut len: usize = 0;
         let s = unsafe { lua_tolstring(lstate, -1, &raw mut len) };
         if !s.is_null() && len > 0 {
-            msg_vec.extend_from_slice(unsafe { std::slice::from_raw_parts(s, len) });
+            msg_vec.extend_from_slice(crate::memory::cstr_slice(s, len));
         }
         if curargidx < nargs {
-            msg_vec.push(b' ' as c_char);
+            msg_vec.push(b' ');
         }
         lua_pop(lstate, 1);
         curargidx += 1;
     }
-    let msg_str = crate::api::private::helpers::cbuf_to_string(msg_vec.as_ptr(), msg_vec.len());
+    let msg_str =
+        crate::api::private::helpers::cbuf_to_string(msg_vec.as_ptr().cast(), msg_vec.len());
     drop(msg_vec);
 
     lua_getfield(lstate, LUA_REGISTRYINDEX, c"nvim.thread");
@@ -1772,36 +1773,24 @@ pub fn api_new_luaref(original_ref: LuaRef) -> LuaRef {
 }
 
 fn nlua_exec_typval_fmt(
-    fmt: &std::ffi::CStr,
-    body: impl crate::strings::IntoCCharPtr,
-    bodylen: usize,
+    prefix: &[u8],
+    body: &[u8],
+    suffix: &[u8],
     name: &std::ffi::CStr,
     args: *mut TypVal,
     argcount: i32,
     special: bool,
     ret_tv: &mut TypVal,
 ) {
-    let body = body.into_c_char_ptr();
-    let mut lcmd_buf: [c_char; IOSIZE] = [0; IOSIZE];
-    let buf_ptr = lcmd_buf.as_mut_ptr();
-    let mut lcmd = buf_ptr;
-    let mut lcmd_vec: Vec<c_char> = Vec::new();
-    let lcmd_len = vim_snprintf!(buf_ptr, IOSIZE, fmt.as_ptr(), bodylen as i32, body);
-    if lcmd_len as usize >= IOSIZE {
-        lcmd_vec.resize(lcmd_len as usize + 1, 0);
-        lcmd = lcmd_vec.as_mut_ptr();
-        vim_snprintf!(
-            lcmd,
-            lcmd_len as usize + 1,
-            fmt.as_ptr(),
-            bodylen as i32,
-            body
-        );
-    }
+    let body_end = body.iter().position(|&b| b == 0).unwrap_or(body.len());
+    let body = &body[..body_end];
+    let mut lcmd = Vec::with_capacity(prefix.len() + body.len() + suffix.len());
+    lcmd.extend_from_slice(prefix);
+    lcmd.extend_from_slice(body);
+    lcmd.extend_from_slice(suffix);
 
     nlua_exec_typval(
-        lcmd,
-        lcmd_len as usize,
+        &lcmd,
         name.as_ptr(),
         args,
         argcount,
@@ -1811,10 +1800,11 @@ fn nlua_exec_typval_fmt(
 }
 
 pub fn nlua_call_luaeval(str_: NvimString, arg: &mut TypVal, ret_tv: &mut TypVal) {
+    let body = crate::memory::cstr_slice(str_.data, str_.size);
     nlua_exec_typval_fmt(
-        c"local _A=select(1,...) return (%.*s)",
-        str_.data,
-        str_.size,
+        b"local _A=select(1,...) return (",
+        body,
+        b")",
         c"luaeval()",
         arg,
         1,
@@ -1831,15 +1821,9 @@ pub fn nlua_call_vlua(
     ret_tv: &mut TypVal,
 ) {
     let str_ = str_.into_c_char_ptr();
+    let body = crate::memory::cstr_slice(str_, len);
     nlua_exec_typval_fmt(
-        c"return %.*s(...)",
-        str_,
-        len,
-        c"v:lua",
-        args,
-        argcount,
-        false,
-        ret_tv,
+        b"return ", body, b"(...)", c"v:lua", args, argcount, false, ret_tv,
     );
 }
 
@@ -1860,41 +1844,42 @@ pub fn nlua_call_user_expand_func(xp: &mut ExpandCtx, ret_tv: &mut TypVal) {
 }
 
 fn nlua_exec_typval(
-    lcmd: impl crate::strings::IntoCCharPtr,
-    lcmd_len: usize,
+    lcmd: &[u8],
     name: impl crate::strings::IntoCCharPtr,
     args: *mut TypVal,
     argcount: i32,
     special: bool,
     mut ret_tv: Option<&mut TypVal>,
 ) {
-    let lcmd = lcmd.into_c_char_ptr();
     let name = name.into_c_char_ptr();
-    {
-        if check_secure() {
-            if ret_tv.is_some() {
-                ret_tv.as_deref_mut().unwrap().v_type = VarType::VarNumber;
-                ret_tv.as_deref_mut().unwrap().vval = crate::eval::typval::TypvalVval::Number(0);
-            }
-            return;
+    if check_secure() {
+        if let Some(ret_tv) = ret_tv.as_deref_mut() {
+            ret_tv.v_type = VarType::VarNumber;
+            ret_tv.vval = crate::eval::typval::TypvalVval::Number(0);
         }
+        return;
+    }
 
-        let lstate = nlua_st().global_lstate;
-        if luaL_loadbuffer(lstate, lcmd, lcmd_len, name) != 0 {
-            nlua_error(lstate, gettext(c"E5107: Lua: %.*s"));
-            return;
-        }
+    let lstate = nlua_st().global_lstate;
+    let lcmd_ptr = if lcmd.is_empty() {
+        c"".as_ptr()
+    } else {
+        lcmd.as_ptr().cast::<c_char>()
+    };
+    if luaL_loadbuffer(lstate, lcmd_ptr, lcmd.len(), name) != 0 {
+        nlua_error(lstate, gettext(c"E5107: Lua: %.*s"));
+        return;
+    }
 
-        push_all_typvals(lstate, args, argcount, special);
+    push_all_typvals(lstate, args, argcount, special);
 
-        if nlua_pcall(lstate, argcount, if ret_tv.is_some() { 1 } else { 0 }) != 0 {
-            nlua_error(lstate, gettext(c"E5108: Lua: %.*s"));
-            return;
-        }
+    if nlua_pcall(lstate, argcount, if ret_tv.is_some() { 1 } else { 0 }) != 0 {
+        nlua_error(lstate, gettext(c"E5108: Lua: %.*s"));
+        return;
+    }
 
-        if let Some(ret_tv) = ret_tv {
-            nlua_pop_typval(lstate, &raw mut *ret_tv);
-        }
+    if let Some(ret_tv) = ret_tv {
+        nlua_pop_typval(lstate, &raw mut *ret_tv);
     }
 }
 
@@ -1907,17 +1892,7 @@ pub fn nlua_exec_lines(lines: &[std::ffi::CString], name: impl crate::strings::I
         }
         code.extend_from_slice(line.to_bytes());
     }
-    let len = code.len();
-    code.push(0);
-    nlua_exec_typval(
-        code.as_ptr().cast(),
-        len,
-        name,
-        ptr::null_mut(),
-        0,
-        false,
-        None,
-    );
+    nlua_exec_typval(&code, name, ptr::null_mut(), 0, false, None);
 }
 
 pub fn nlua_exec_typval_callable(
@@ -1997,32 +1972,23 @@ pub fn nlua_call_typval<S: crate::strings::IntoCCharPtr>(
     rettv: Option<&mut TypVal>,
 ) {
     let func = func.into_c_char_ptr();
-    {
-        let mut argcount: i32 = 0;
-        let mut tv = argvars;
-        while unsafe { (*tv).v_type } != VarType::VarUnknown {
-            argcount += 1;
-            tv = tv.wrapping_add(1);
-        }
-
-        let mut buf = [0 as c_char; 256];
-        let len = vim_snprintf!(
-            buf.as_mut_ptr(),
-            buf.len(),
-            c"return require('%s').%s(...)",
-            module.as_ptr(),
-            func,
-        ) as usize;
-        nlua_exec_typval(
-            buf.as_ptr(),
-            len,
-            module.as_ptr(),
-            argvars,
-            argcount,
-            false,
-            (rettv.is_some()).then(|| rettv.unwrap()),
-        );
+    let mut argcount: i32 = 0;
+    let mut tv = argvars;
+    while unsafe { (*tv).v_type } != VarType::VarUnknown {
+        argcount += 1;
+        tv = tv.wrapping_add(1);
     }
+
+    let mod_bytes = module.to_bytes();
+    let func_bytes = crate::memory::cstr_as_bytes(func);
+    let mut buf = Vec::with_capacity(24 + mod_bytes.len() + func_bytes.len());
+    buf.extend_from_slice(b"return require('");
+    buf.extend_from_slice(mod_bytes);
+    buf.extend_from_slice(b"').");
+    buf.extend_from_slice(func_bytes);
+    buf.extend_from_slice(b"(...)");
+
+    nlua_exec_typval(&buf, module.as_ptr(), argvars, argcount, false, rettv);
 }
 
 pub fn nlua_call_excmd(
@@ -2220,32 +2186,18 @@ pub fn ex_lua(eap: &mut Exarg) {
         return;
     }
 
-    let code_cstr = if eap.cmdidx == CMD_EQUAL
-        || crate::memory::cstr_first_byte(raw_cstr.as_ptr()) == b'='
-    {
+    let raw_bytes = raw_cstr.to_bytes();
+    if eap.cmdidx == CMD_EQUAL || raw_bytes.first() == Some(&b'=') {
         let off: usize = if eap.cmdidx == CMD_EQUAL { 0 } else { 1 };
-        let body = unsafe {
-            std::slice::from_raw_parts(raw_cstr.as_ptr().wrapping_add(off).cast::<u8>(), len - off)
-        };
+        let body = &raw_bytes[off..];
         let mut buf = Vec::with_capacity(18 + body.len());
         buf.extend_from_slice(b"vim._print(true, ");
         buf.extend_from_slice(body);
         buf.push(b')');
-        len = buf.len();
-        std::ffi::CString::new(buf).unwrap()
+        nlua_exec_typval(&buf, c":lua", ptr::null_mut(), 0, false, None);
     } else {
-        raw_cstr
-    };
-
-    nlua_exec_typval(
-        code_cstr.as_ptr(),
-        len,
-        c":lua",
-        ptr::null_mut(),
-        0,
-        false,
-        None,
-    );
+        nlua_exec_typval(raw_bytes, c":lua", ptr::null_mut(), 0, false, None);
+    }
 }
 
 pub fn ex_luado(eap: &mut Exarg) {
@@ -2253,43 +2205,27 @@ pub fn ex_luado(eap: &mut Exarg) {
         emsg(gettext(c"cannot save undo information"));
         return;
     }
-    let cmd = eap.arg;
-    let cmd_len = crate::memory::cstr_len(cmd);
+    let cmd_bytes = crate::memory::cstr_as_bytes(eap.arg);
     let lstate = nlua_st().global_lstate;
 
     const DOSTART: &[u8] = b"return function(line, linenr) ";
     const DOEND: &[u8] = b" end";
-    let lcmd_len = cmd_len + DOSTART.len() + DOEND.len();
-    let mut lcmd_buf: [c_char; IOSIZE] = [0; IOSIZE];
-    let buf_ptr = lcmd_buf.as_mut_ptr();
-    let mut lcmd_vec: Vec<c_char> = Vec::new();
-    let lcmd = if lcmd_len < IOSIZE {
-        buf_ptr
-    } else {
-        lcmd_vec.resize(lcmd_len + 1, 0);
-        lcmd_vec.as_mut_ptr()
-    };
-    unsafe { ptr::copy_nonoverlapping(DOSTART.as_ptr(), lcmd.cast::<u8>(), DOSTART.len()) };
-    unsafe {
-        ptr::copy_nonoverlapping(
-            cmd.cast::<u8>(),
-            lcmd.cast::<u8>().wrapping_add(DOSTART.len()),
-            cmd_len,
-        )
-    };
-    unsafe {
-        ptr::copy_nonoverlapping(
-            DOEND.as_ptr(),
-            lcmd.cast::<u8>().wrapping_add(DOSTART.len() + cmd_len),
-            DOEND.len(),
-        )
-    };
+    let mut lcmd = Vec::with_capacity(cmd_bytes.len() + DOSTART.len() + DOEND.len());
+    lcmd.extend_from_slice(DOSTART);
+    lcmd.extend_from_slice(cmd_bytes);
+    lcmd.extend_from_slice(DOEND);
 
-    if luaL_loadbuffer(lstate, lcmd, lcmd_len, c":luado") != 0 {
+    if luaL_loadbuffer(
+        lstate,
+        lcmd.as_ptr().cast::<c_char>(),
+        lcmd.len(),
+        c":luado",
+    ) != 0
+    {
         nlua_error(lstate, gettext(c"E5109: Lua: %.*s"));
         return;
     }
-    drop(lcmd_vec);
+    drop(lcmd);
     if nlua_pcall(lstate, 0, 1) != 0 {
         nlua_error(lstate, gettext(c"E5110: Lua: %.*s"));
         return;
@@ -2318,18 +2254,22 @@ pub fn ex_luado(eap: &mut Exarg) {
         if unsafe { lua_isstring(lstate, -1) } != 0 {
             let mut new_line_len: usize = 0;
             let new_line = unsafe { lua_tolstring(lstate, -1, &raw mut new_line_len) };
-            let mut new_line_vec = vec![0 as c_char; new_line_len + 1];
+            let mut new_line_vec = vec![0u8; new_line_len + 1];
             if new_line_len > 0 {
-                unsafe {
-                    ptr::copy_nonoverlapping(new_line, new_line_vec.as_mut_ptr(), new_line_len)
-                };
+                new_line_vec[..new_line_len]
+                    .copy_from_slice(crate::memory::cstr_slice(new_line, new_line_len));
             }
             for b in &mut new_line_vec[..new_line_len] {
-                if *b == NUL {
-                    *b = b'\n' as c_char;
+                if *b == 0 {
+                    *b = b'\n';
                 }
             }
-            crate::memline::ml_replace_len(l, new_line_vec.as_mut_ptr(), new_line_len, true);
+            crate::memline::ml_replace_len(
+                l,
+                new_line_vec.as_mut_ptr().cast::<c_char>(),
+                new_line_len,
+                true,
+            );
             inserted_bytes(l, 0, old_line_len, new_line_len as i32);
         }
         lua_pop(lstate, 1);
