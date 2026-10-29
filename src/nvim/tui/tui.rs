@@ -34,9 +34,7 @@ use crate::event::wstream::uv_buf_t;
 use crate::file_search::NULL_STRING;
 use crate::fileio::{fopen, fwrite};
 use crate::globals::{DFLT_COLS, DFLT_ROWS, *};
-use crate::grid::{
-    Sattr, Schar, schar_cache_clear_if_full, schar_from_ascii, schar_get, schar_get_ascii,
-};
+use crate::grid::{Sattr, Schar, schar_cache_clear_if_full, schar_from_ascii, schar_get_ascii};
 use crate::highlight::{HLATTRS_INIT, HlAttrs};
 use crate::log::{LOGLVL_DBG, LOGLVL_ERR, LOGLVL_WRN, log_st, logmsg};
 use crate::lua::executor::{K_RET_OBJECT, nlua_exec};
@@ -46,7 +44,7 @@ use crate::msgpack_rpc::channel::rpc_send_event;
 use crate::option::OptInt;
 #[cfg(windows)]
 use crate::os::env::os_setenv;
-use crate::os::env::{os_env_exists, os_getenv_buf, os_getenv_cstr};
+use crate::os::env::{os_env_exists, os_getenv_cstr};
 #[cfg(not(windows))]
 use crate::os::fs::UV_EINTR;
 use crate::os::input::os_isatty;
@@ -148,7 +146,7 @@ enum FlushBufFinish {
 #[repr(C)]
 pub struct TUIData {
     pub loop_: *mut Loop,
-    pub buf: [c_char; OUTBUF_SIZE],
+    pub buf: [u8; OUTBUF_SIZE],
     pub bufpos: usize,
     pub input: TermInput,
     pub write_loop: [u64; 256],
@@ -363,13 +361,8 @@ fn tui_startup_delay_timer(tui: &mut TUIData) -> *mut uv_timer_t {
 }
 
 #[inline]
-fn cstr_contains(haystack: impl crate::strings::IntoCCharPtr, needle: &[u8]) -> bool {
-    let haystack = haystack.into_c_char_ptr();
-    if haystack.is_null() {
-        return false;
-    }
-    let bytes = crate::memory::cstr_as_bytes(haystack);
-    bytes.windows(needle.len()).any(|w| w == needle)
+fn slice_contains(haystack: Option<&[u8]>, needle: &[u8]) -> bool {
+    haystack.is_some_and(|bytes| bytes.windows(needle.len()).any(|w| w == needle))
 }
 
 pub fn tui_start(
@@ -405,14 +398,14 @@ pub fn tui_start(
 fn tui_request_term_mode(tui: &mut TUIData, mode: TermMode) {
     let s = format!("\x1b[?{mode}$p");
     assert!(!s.is_empty() && s.len() < 12);
-    out(tui, s.as_ptr().cast::<c_char>(), s.len());
+    out(tui, s.as_bytes());
 }
 
 fn tui_set_term_mode(tui: &mut TUIData, mode: TermMode, set: bool) {
     let ch = if set { 'h' } else { 'l' };
     let s = format!("\x1b[?{mode}{ch}");
     assert!(!s.is_empty() && s.len() < 12);
-    out(tui, s.as_ptr().cast::<c_char>(), s.len());
+    out(tui, s.as_bytes());
 }
 
 pub fn tui_handle_term_mode(tui: &mut TUIData, mode: TermMode, state: TermModeState) {
@@ -483,8 +476,7 @@ pub fn tui_handle_term_mode(tui: &mut TUIData, mode: TermMode, state: TermModeSt
 }
 
 fn tui_query_extended_underline(tui: &mut TUIData) {
-    let seq = b"\x1b[0m\x1b[4:3m\x1bP$qm\x1b\\";
-    out(tui, seq.as_ptr().cast::<c_char>(), seq.len());
+    out(tui, b"\x1b[0m\x1b[4:3m\x1bP$qm\x1b\\");
     tui.print_attr_id = -1;
 }
 
@@ -504,19 +496,16 @@ pub fn tui_handle_primary_device_attr(tui: &mut TUIData, action: PrimaryDeviceAt
 
 fn tui_query_kitty_keyboard(tui: &mut TUIData) {
     tui.input.primary_device_attr = Some(PrimaryDeviceAttrAction::SetKeyEncoding);
-    let seq = b"\x1b[?u\x1b[c";
-    out(tui, seq.as_ptr().cast::<c_char>(), seq.len());
+    out(tui, b"\x1b[?u\x1b[c");
 }
 
 pub fn tui_set_key_encoding(tui: &mut TUIData) {
     match tui.input.key_encoding {
         K_KEY_ENCODING_KITTY => {
-            let seq = b"\x1b[>3u";
-            out(tui, seq.as_ptr().cast::<c_char>(), seq.len());
+            out(tui, b"\x1b[>3u");
         }
         K_KEY_ENCODING_XTERM => {
-            let seq = b"\x1b[>4;2m";
-            out(tui, seq.as_ptr().cast::<c_char>(), seq.len());
+            out(tui, b"\x1b[>4;2m");
         }
         K_KEY_ENCODING_LEGACY => {}
         _ => {}
@@ -526,12 +515,10 @@ pub fn tui_set_key_encoding(tui: &mut TUIData) {
 fn tui_reset_key_encoding(tui: &mut TUIData) {
     match tui.input.key_encoding {
         K_KEY_ENCODING_KITTY => {
-            let seq = b"\x1b[<u";
-            out(tui, seq.as_ptr().cast::<c_char>(), seq.len());
+            out(tui, b"\x1b[<u");
         }
         K_KEY_ENCODING_XTERM => {
-            let seq = b"\x1b[>4;0m";
-            out(tui, seq.as_ptr().cast::<c_char>(), seq.len());
+            out(tui, b"\x1b[>4;0m");
         }
         K_KEY_ENCODING_LEGACY => {}
         _ => {}
@@ -539,8 +526,7 @@ fn tui_reset_key_encoding(tui: &mut TUIData) {
 }
 
 fn tui_query_bg_color_noflush(tui: &mut TUIData) {
-    let seq = b"\x1b]11;?\x07\x1b[5n";
-    out(tui, seq.as_ptr().cast::<c_char>(), seq.len());
+    out(tui, b"\x1b]11;?\x07\x1b[5n");
 }
 
 pub fn tui_query_bg_color(tui: &mut TUIData) {
@@ -884,15 +870,12 @@ fn terminfo_start(tui: &mut TUIData) {
     let konsolev_cstr = os_getenv_cstr(c"KONSOLE_VERSION");
     let term_program_version_cstr = os_getenv_cstr(c"TERM_PROGRAM_VERSION");
 
-    let colorterm = colorterm_cstr.as_ref().map_or(ptr::null(), |c| c.as_ptr());
-    let termprg = termprg_cstr.as_ref().map_or(ptr::null(), |c| c.as_ptr());
+    let colorterm = colorterm_cstr.as_deref().map(CStr::to_bytes);
+    let termprg = termprg_cstr.as_deref().map(CStr::to_bytes);
     let vte_version_env = vte_version_cstr
         .as_ref()
         .map_or(ptr::null(), |c| c.as_ptr());
     let konsolev_env = konsolev_cstr.as_ref().map_or(ptr::null(), |c| c.as_ptr());
-    let term_program_version_env = term_program_version_cstr
-        .as_ref()
-        .map_or(ptr::null(), |c| c.as_ptr());
 
     let mut vte_version_end = vte_version_env.cast_mut();
     let vtev = if !vte_version_env.is_null() {
@@ -900,9 +883,9 @@ fn terminfo_start(tui: &mut TUIData) {
     } else {
         0
     };
-    let iterm_env = cstr_contains(termprg, b"iTerm.app");
+    let iterm_env = slice_contains(termprg, b"iTerm.app");
     let nsterm =
-        cstr_contains(termprg, b"Apple_Terminal") || terminfo_is_term_family(term, c"nsterm");
+        slice_contains(termprg, b"Apple_Terminal") || terminfo_is_term_family(term, c"nsterm");
     let konsole = terminfo_is_term_family(term, c"konsole")
         || os_env_exists(c"KONSOLE_PROFILE_NAME", true)
         || os_env_exists(c"KONSOLE_DBUS_SESSION", true);
@@ -914,11 +897,11 @@ fn terminfo_start(tui: &mut TUIData) {
     } else {
         0
     };
-    let wezterm = crate::memory::cstr_as_opt_bytes(termprg) == Some(b"WezTerm");
-    let weztermv: *const c_char = if wezterm {
-        term_program_version_env
+    let wezterm = termprg == Some(b"WezTerm");
+    let weztermv = if wezterm {
+        term_program_version_cstr.as_deref().map(CStr::to_bytes)
     } else {
-        ptr::null()
+        None
     };
     let screen = terminfo_is_term_family(term, c"screen");
     let tmux = terminfo_is_term_family(term, c"tmux") || os_env_exists(c"TMUX", true);
@@ -1072,9 +1055,7 @@ fn terminfo_disable(tui: &mut TUIData) {
     }
     tui_set_term_mode(tui, K_TERM_MODE_BRACKETED_PASTE, false);
     out_len(tui, tui.terminfo_ext.disable_focus_reporting);
-
-    let da1 = b"\x1b[c";
-    out(tui, da1.as_ptr().cast::<c_char>(), da1.len());
+    out(tui, b"\x1b[c");
 
     flush_buf(tui, FlushBufFinish::FlushBufFinal);
 }
@@ -1345,8 +1326,7 @@ fn update_attrs(tui: &mut TUIData, attr_id: i32) {
         terminfo_out(tui, K_TERM_ENTER_SECURE_MODE);
     }
     if overline {
-        let seq = b"\x1b[53m";
-        out(tui, seq.as_ptr().cast::<c_char>(), seq.len());
+        out(tui, b"\x1b[53m");
     }
     if tui.ti.defs[K_TERM_SET_UNDERLINE_STYLE].is_some() {
         if undercurl {
@@ -1433,10 +1413,9 @@ fn update_attrs(tui: &mut TUIData, attr_id: i32) {
             let url_str = tui_st().urls.as_slice()[attrs.url as usize].to_string_lossy();
             let id: u64 = 0xE1EA_0000u64 + u64::from(attrs.url as u32);
             let formatted = format!("\x1b]8;id={id};{url_str}\x1b\\");
-            out(tui, formatted.as_ptr().cast::<c_char>(), formatted.len());
+            out(tui, formatted.as_bytes());
         } else {
-            let seq = b"\x1b]8;;\x1b\\";
-            out(tui, seq.as_ptr().cast::<c_char>(), seq.len());
+            out(tui, b"\x1b]8;;\x1b\\");
         }
         tui.url = attrs.url;
     }
@@ -1475,19 +1454,15 @@ fn final_column_wrap(tui: &mut TUIData) {
     }
 }
 
-fn print_cell(tui: &mut TUIData, buf: impl crate::strings::IntoCCharPtr, attr: Sattr) {
-    let buf = buf.into_c_char_ptr();
-    {
-        if !tui.immediate_wrap_after_last_column {
-            final_column_wrap(tui);
-        }
-        update_attrs(tui, attr);
-        let len = crate::memory::cstr_len(buf);
-        out(tui, buf, len);
-        tui.grid.col += 1;
-        if tui.immediate_wrap_after_last_column {
-            final_column_wrap(tui);
-        }
+fn print_cell(tui: &mut TUIData, bytes: &[u8], attr: Sattr) {
+    if !tui.immediate_wrap_after_last_column {
+        final_column_wrap(tui);
+    }
+    update_attrs(tui, attr);
+    out(tui, bytes);
+    tui.grid.col += 1;
+    if tui.immediate_wrap_after_last_column {
+        final_column_wrap(tui);
     }
 }
 
@@ -1515,8 +1490,7 @@ fn cursor_goto(tui: &mut TUIData, row: i32, col: i32) {
     }
 
     if tui.url >= 0 {
-        let seq = b"\x1b]8;;\x1b\\";
-        out(tui, seq.as_ptr().cast::<c_char>(), seq.len());
+        out(tui, b"\x1b]8;;\x1b\\");
         tui.url = -1;
         tui.print_attr_id = -1;
     }
@@ -1627,10 +1601,10 @@ fn print_cell_at_pos(tui: &mut TUIData, row: i32, col: i32, cell: UCell, is_doub
 
     cursor_goto(tui, row, col);
 
-    let mut buf = [0 as c_char; MAX_SCHAR_SIZE];
-    schar_get(buf.as_mut_ptr(), cell.data);
-    let c = utf_ptr2char(buf.as_ptr());
-    let mut is_ambiwidth = utf_ambiguous_width(buf.as_ptr());
+    let mut buf = [0u8; MAX_SCHAR_SIZE];
+    let len = crate::grid::schar_get_bytes(&mut buf, cell.data);
+    let c = utf_ptr2char(buf.as_ptr().cast::<c_char>());
+    let mut is_ambiwidth = utf_ambiguous_width(buf.as_ptr().cast::<c_char>());
     if is_doublewidth && (is_ambiwidth || utf_char2cells(c) == 1) {
         is_ambiwidth = true;
         update_attrs(tui, cell.attr);
@@ -1638,7 +1612,7 @@ fn print_cell_at_pos(tui: &mut TUIData, row: i32, col: i32, cell: UCell, is_doub
         cursor_goto(tui, row, col);
     }
 
-    print_cell(tui, buf.as_ptr(), cell.attr);
+    print_cell(tui, &buf[..len], cell.attr);
 
     if is_ambiwidth {
         tui.grid.row = -1;
@@ -2009,23 +1983,19 @@ pub fn tui_hl_attr_define(
 }
 
 pub fn tui_bell(tui: &mut TUIData) {
-    let seq = b"\x07";
-    out(tui, seq.as_ptr().cast::<c_char>(), seq.len());
+    out(tui, b"\x07");
 }
 
 pub fn tui_visual_bell(tui: &mut TUIData) {
     if tui.screen_or_tmux {
-        let seq = b"\x1bg";
-        out(tui, seq.as_ptr().cast::<c_char>(), seq.len());
+        out(tui, b"\x1bg");
     } else {
-        let on = b"\x1b[?5h";
-        out(tui, on.as_ptr().cast::<c_char>(), on.len());
+        out(tui, b"\x1b[?5h");
 
         flush_buf(tui, FlushBufFinish::FlushBufFinal);
         unsafe { uv_sleep(100) };
 
-        let off = b"\x1b[?5l";
-        out(tui, off.as_ptr().cast::<c_char>(), off.len());
+        out(tui, b"\x1b[?5l");
     }
     flush_buf(tui, FlushBufFinish::FlushBufFinal);
 }
@@ -2051,7 +2021,7 @@ pub fn tui_default_colors_set(
 
 pub fn tui_ui_send(tui: &mut TUIData, content: NvimString) {
     if !tui.invalid_regions.is_empty() || tui.bufpos > 0 {
-        out(tui, content.data, content.size);
+        out(tui, crate::memory::cstr_slice(content.data, content.size));
         return;
     }
     let mut req = [0u64; 64];
@@ -2243,8 +2213,7 @@ pub fn tui_set_title(tui: &mut TUIData, title: NvimString) {
     }
     if title.size > 0 && !too_long {
         if !tui.title_enabled {
-            let seq = b"\x1b[22;0t";
-            out(tui, seq.as_ptr().cast::<c_char>(), seq.len());
+            out(tui, b"\x1b[22;0t");
             tui.title_enabled = true;
         }
 
@@ -2252,11 +2221,10 @@ pub fn tui_set_title(tui: &mut TUIData, title: NvimString) {
             flush_buf(tui, FlushBufFinish::FlushBufFinal);
         }
         terminfo_out(tui, K_TERM_TO_STATUS_LINE);
-        out(tui, title.data, title.size);
+        out(tui, crate::memory::cstr_slice(title.data, title.size));
         terminfo_out(tui, K_TERM_FROM_STATUS_LINE);
     } else if tui.title_enabled {
-        let seq = b"\x1b[23;0t";
-        out(tui, seq.as_ptr().cast::<c_char>(), seq.len());
+        out(tui, b"\x1b[23;0t");
         tui.title_enabled = false;
     }
 }
@@ -2284,9 +2252,9 @@ pub fn tui_screenshot(tui: &mut TUIData, path: NvimString) {
                 let cells = &tui.grid.cells;
                 cells[i as usize][j as usize]
             };
-            let mut buf = [0 as c_char; MAX_SCHAR_SIZE];
-            schar_get(buf.as_mut_ptr(), cell.data);
-            print_cell(tui, buf.as_ptr(), cell.attr);
+            let mut buf = [0u8; MAX_SCHAR_SIZE];
+            let len = crate::grid::schar_get_bytes(&mut buf, cell.data);
+            print_cell(tui, &buf[..len], cell.attr);
         }
     }
     flush_buf(tui, FlushBufFinish::FlushBufFinal);
@@ -2446,12 +2414,10 @@ pub fn tui_set_size(tui: &mut TUIData, width: i32, height: i32) {
     ui_client_set_size(width, height);
 }
 
-fn parse_sscanf_int(val: impl crate::strings::IntoCCharPtr, out: &mut i32) -> bool {
-    let val = val.into_c_char_ptr();
-    if val.is_null() {
+fn parse_sscanf_int(bytes: Option<&[u8]>, out: &mut i32) -> bool {
+    let Some(bytes) = bytes else {
         return false;
-    }
-    let bytes = crate::memory::cstr_as_bytes(val);
+    };
     let mut idx = 0;
     while idx < bytes.len() && bytes[idx].is_ascii_whitespace() {
         idx += 1;
@@ -2492,11 +2458,11 @@ pub fn tui_guess_size(tui: &mut TUIData) {
     }
 
     if !got_size {
-        let mut lines_buf = [0 as c_char; 32];
-        let mut cols_buf = [0 as c_char; 32];
-        let lines = os_getenv_buf(c"LINES", lines_buf.as_mut_ptr(), lines_buf.len());
-        let columns = os_getenv_buf(c"COLUMNS", cols_buf.as_mut_ptr(), cols_buf.len());
-        if parse_sscanf_int(lines, &mut height) && parse_sscanf_int(columns, &mut width) {
+        let lines = os_getenv_cstr(c"LINES");
+        let columns = os_getenv_cstr(c"COLUMNS");
+        if parse_sscanf_int(lines.as_deref().map(CStr::to_bytes), &mut height)
+            && parse_sscanf_int(columns.as_deref().map(CStr::to_bytes), &mut width)
+        {
             got_size = true;
         }
     }
@@ -2514,24 +2480,25 @@ pub fn tui_guess_size(tui: &mut TUIData) {
     tui_set_size(tui, width, height);
 }
 
-fn out(tui: &mut TUIData, str_: *const c_char, len: usize) {
+fn out(tui: &mut TUIData, bytes: &[u8]) {
+    let len = bytes.len();
     let available = tui.buf.len() - tui.bufpos;
     if len > available {
         flush_buf(tui, FlushBufFinish::FlushBufPartial);
         if len > tui.buf.len() {
             tui.bufpos = len;
-            flush_buf_raw(tui, FlushBufFinish::FlushBufPartial, str_.cast_mut());
+            flush_buf_raw(tui, FlushBufFinish::FlushBufPartial, Some(bytes));
             return;
         }
     }
 
-    unsafe { ptr::copy_nonoverlapping(str_, tui.buf.as_mut_ptr().wrapping_add(tui.bufpos), len) };
+    tui.buf[tui.bufpos..tui.bufpos + len].copy_from_slice(bytes);
     tui.bufpos += len;
 }
 
 fn out_len(tui: &mut TUIData, bytes: Option<&[u8]>) {
     if let Some(bytes) = bytes {
-        out(tui, bytes.as_ptr().cast::<c_char>(), bytes.len());
+        out(tui, bytes);
     }
 }
 
@@ -2543,13 +2510,7 @@ fn out_printf_str(tui: &mut TUIData, limit: usize, formatted: &str) {
     }
     let bytes = formatted.as_bytes();
     let copy_len = bytes.len().min(limit.saturating_sub(1));
-    unsafe {
-        ptr::copy_nonoverlapping(
-            bytes.as_ptr().cast::<c_char>(),
-            tui.buf.as_mut_ptr().wrapping_add(tui.bufpos),
-            copy_len,
-        )
-    };
+    tui.buf[tui.bufpos..tui.bufpos + copy_len].copy_from_slice(&bytes[..copy_len]);
     if limit > 0 {
         tui.buf[tui.bufpos + copy_len] = 0;
     }
@@ -2631,11 +2592,8 @@ fn terminfo_set_str(tui: &mut TUIData, str_: TerminfoDef, val: &'static CStr) {
     tui.ti.defs[str_] = Some(std::borrow::Cow::Borrowed(val));
 }
 
-fn term_has_truecolor(tui: &mut TUIData, colorterm: impl crate::strings::IntoCCharPtr) -> bool {
-    let colorterm = colorterm.into_c_char_ptr();
-    if (crate::memory::cstr_as_opt_bytes(colorterm) == Some(b"truecolor"))
-        || (crate::memory::cstr_as_opt_bytes(colorterm) == Some(b"24bit"))
-    {
+fn term_has_truecolor(tui: &mut TUIData, colorterm: Option<&[u8]>) -> bool {
+    if colorterm == Some(b"truecolor") || colorterm == Some(b"24bit") {
         return true;
     }
 
@@ -2650,13 +2608,12 @@ fn term_has_truecolor(tui: &mut TUIData, colorterm: impl crate::strings::IntoCCh
 fn patch_terminfo_bugs(
     tui: &mut TUIData,
     term: Option<&[u8]>,
-    colorterm: impl crate::strings::IntoCCharPtr,
+    colorterm: Option<&[u8]>,
     vte_version: i32,
     konsolev: i32,
     iterm_env: bool,
     nsterm: bool,
 ) {
-    let colorterm = colorterm.into_c_char_ptr();
     let xterm_version_cstr = os_getenv_cstr(c"XTERM_VERSION");
     let xterm_version = xterm_version_cstr
         .as_ref()
@@ -2680,8 +2637,8 @@ fn patch_terminfo_bugs(
     let alacritty = terminfo_is_term_family(term, c"alacritty");
     let foot = terminfo_is_term_family(term, c"foot");
     let iterm_pretending_xterm = xterm && iterm_env;
-    let gnome_pretending_xterm = xterm && cstr_contains(colorterm, b"gnome-terminal");
-    let mate_pretending_xterm = xterm && cstr_contains(colorterm, b"mate-terminal");
+    let gnome_pretending_xterm = xterm && slice_contains(colorterm, b"gnome-terminal");
+    let mate_pretending_xterm = xterm && slice_contains(colorterm, b"mate-terminal");
     let true_xterm = xterm && !xterm_version.is_null() && !bsdvt;
     let cygwin = terminfo_is_term_family(term, c"cygwin");
     let ghostty = terminfo_is_term_family(term, c"xterm-ghostty");
@@ -2774,15 +2731,15 @@ fn patch_terminfo_bugs(
             || mate_pretending_xterm
             || gnome_pretending_xterm
             || tmux
-            || cstr_contains(colorterm, b"256")
-            || term.is_some_and(|t| t.windows(3).any(|w| w == b"256"))
+            || slice_contains(colorterm, b"256")
+            || slice_contains(term, b"256")
         {
             tui.ti.max_colors = 256;
             terminfo_set_str(tui, K_TERM_SET_A_FOREGROUND, XTERM_SETAF_256);
             terminfo_set_str(tui, K_TERM_SET_A_BACKGROUND, XTERM_SETAB_256);
         }
     }
-    if tui.ti.max_colors < 16 && !colorterm.is_null() {
+    if tui.ti.max_colors < 16 && colorterm.is_some() {
         tui.ti.max_colors = 16;
         terminfo_set_if_empty(tui, K_TERM_SET_A_FOREGROUND, XTERM_SETAF_16);
         terminfo_set_if_empty(tui, K_TERM_SET_A_BACKGROUND, XTERM_SETAB_16);
@@ -2808,16 +2765,16 @@ fn patch_terminfo_bugs(
             || foot
             || kitty
             || ghostty
-            || (linuxvt && (!xterm_version.is_null() || !colorterm.is_null())))
+            || (linuxvt && (!xterm_version.is_null() || colorterm.is_some())))
     {
         terminfo_set_str(tui, K_TERM_SET_CURSOR_STYLE, c"\x1b[%p1%d q");
         terminfo_set_str(tui, K_TERM_RESET_CURSOR_STYLE, c"\x1b[0 q");
     } else if linuxvt {
         terminfo_set_str(
-                tui,
-                K_TERM_SET_CURSOR_STYLE,
-                c"\x1b[?%?%p1%{2}%<%t%{8}%e%p1%{2}%=%t%{112}%e%p1%{3}%=%t%{4}%e%p1%{4}%=%t%{4}%e%p1%{5}%=%t%{2}%e%p1%{6}%=%t%{2}%e%{0}%;%dc",
-            );
+            tui,
+            K_TERM_SET_CURSOR_STYLE,
+            c"\x1b[?%?%p1%{2}%<%t%{8}%e%p1%{2}%=%t%{112}%e%p1%{3}%=%t%{4}%e%p1%{4}%=%t%{4}%e%p1%{5}%=%t%{2}%e%p1%{6}%=%t%{2}%e%{0}%;%dc",
+        );
         terminfo_set_str(tui, K_TERM_RESET_CURSOR_STYLE, c"\x1b[?c");
     } else if !bsdvt && xterm {
         terminfo_set_if_empty(tui, K_TERM_SET_CURSOR_STYLE, c"\x1b[%p1%d q");
@@ -2830,11 +2787,10 @@ fn augment_terminfo(
     term: Option<&[u8]>,
     vte_version: i32,
     konsolev: i32,
-    weztermv: impl crate::strings::IntoCCharPtr,
+    weztermv: Option<&[u8]>,
     iterm_env: bool,
     nsterm: bool,
 ) {
-    let weztermv = weztermv.into_c_char_ptr();
     {
         let xterm_version_cstr = os_getenv_cstr(c"XTERM_VERSION");
         let xterm_version = xterm_version_cstr
@@ -2904,7 +2860,7 @@ fn augment_terminfo(
             }
         }
         if let Some(ref set_cursor_color) = tui.ti.defs[K_TERM_SET_CURSOR_COLOR] {
-            tui.set_cursor_color_as_str = cstr_contains(set_cursor_color.as_ptr(), b"%s");
+            tui.set_cursor_color_as_str = slice_contains(Some(set_cursor_color.to_bytes()), b"%s");
             terminfo_set_if_empty(tui, K_TERM_RESET_CURSOR_COLOR, c"\x1b]112\x07");
         }
 
@@ -2926,8 +2882,7 @@ fn augment_terminfo(
         });
 
         if tui.ti.defs[K_TERM_SET_UNDERLINE_STYLE].is_none() {
-            let wezterm_ok = !weztermv.is_null()
-                && crate::memory::cstr_as_bytes(weztermv) > &b"20210203-095643"[..];
+            let wezterm_ok = weztermv.is_some_and(|v| v > &b"20210203-095643"[..]);
             if vte_version >= 5102 || konsolev >= 221170 || tui.ti.su || wezterm_ok {
                 tui_enable_extended_underline(tui);
             }
@@ -2949,112 +2904,101 @@ fn should_invisible(tui: &TUIData) -> bool {
 }
 
 fn flush_buf(tui: &mut TUIData, finish: FlushBufFinish) {
-    flush_buf_raw(tui, finish, ptr::null_mut());
+    flush_buf_raw(tui, finish, None);
 }
 
-fn flush_buf_raw(
-    tui: &mut TUIData,
-    finish: FlushBufFinish,
-    buf_to_flush: impl crate::strings::IntoCCharPtr,
-) {
-    let buf_to_flush = buf_to_flush.into_c_char_ptr().cast_mut();
+fn flush_buf_raw(tui: &mut TUIData, finish: FlushBufFinish, buf_to_flush: Option<&[u8]>) {
+    let should_be_invisible = should_invisible(tui);
+
+    if tui.bufpos == 0
+        && tui.is_invisible == should_be_invisible
+        && !(finish == FlushBufFinish::FlushBufFinal && tui.sync_output_active)
     {
-        let should_be_invisible = should_invisible(tui);
-
-        if tui.bufpos == 0
-            && tui.is_invisible == should_be_invisible
-            && !(finish == FlushBufFinish::FlushBufFinal && tui.sync_output_active)
-        {
-            return;
-        }
-
-        let mut req = [0u64; 64];
-        let mut pre = [0u8; 32];
-        let mut post = [0u8; 32];
-        let mut pre_len = 0usize;
-        let mut post_len = 0usize;
-        let mut null_params = [TPVAR::default(); 9];
-
-        if !tui.sync_output_active && tui.sync_output && tui.has_sync_mode {
-            let sync_start = b"\x1b[?2026h\0";
-            pre[..sync_start.len()].copy_from_slice(sync_start);
-            pre_len += sync_start.len() - 1;
-            tui.sync_output_active = true;
-        } else if !tui.sync_output_active && !tui.is_invisible {
-            tui.is_invisible = true;
-            if let Some(ref str_) = tui.ti.defs[K_TERM_CURSOR_INVISIBLE] {
-                pre_len += terminfo_fmt(&mut pre[pre_len..], str_.to_bytes(), &mut null_params);
-            }
-        }
-
-        if finish == FlushBufFinish::FlushBufFinal && tui.sync_output_active {
-            let sync_end = b"\x1b[?2026l\0";
-            post[..sync_end.len()].copy_from_slice(sync_end);
-            post_len += sync_end.len() - 1;
-            tui.sync_output_active = false;
-        }
-
-        if !tui.sync_output_active {
-            let mut str_: Option<&CStr> = None;
-            if tui.is_invisible && !should_be_invisible {
-                str_ = tui.ti.defs[K_TERM_CURSOR_NORMAL].as_deref();
-                tui.is_invisible = false;
-            } else if !tui.is_invisible && should_be_invisible {
-                str_ = tui.ti.defs[K_TERM_CURSOR_INVISIBLE].as_deref();
-                tui.is_invisible = true;
-            }
-            if let Some(str_) = str_ {
-                post_len += terminfo_fmt(&mut post[post_len..], str_.to_bytes(), &mut null_params);
-            }
-        }
-
-        let mid_base = if !buf_to_flush.is_null() {
-            buf_to_flush
-        } else {
-            tui.buf.as_mut_ptr()
-        };
-        let bufs = [
-            uv_buf_t::new(pre.as_mut_ptr().cast(), pre_len),
-            uv_buf_t::new(mid_base, tui.bufpos),
-            uv_buf_t::new(post.as_mut_ptr().cast(), post_len),
-        ];
-
-        if let Some(ref screenshot) = tui.screenshot {
-            let fp = screenshot.as_ptr();
-            for b in &bufs {
-                unsafe { fwrite(b.base.cast(), b.len as _, 1, fp) };
-            }
-        } else {
-            let mut nbufs = bufs.len();
-            while nbufs > 0 && bufs[nbufs - 1].len == 0 {
-                nbufs -= 1;
-            }
-            if nbufs > 0 {
-                let ret = unsafe {
-                    uv_write(
-                        req.as_mut_ptr().cast(),
-                        tui_output_handle(tui).cast(),
-                        bufs.as_ptr(),
-                        nbufs as u32,
-                        None,
-                    )
-                };
-                if ret != 0 && log_st().g_min_log_level <= LOGLVL_ERR {
-                    logmsg!(
-                        LOGLVL_ERR,
-                        ptr::null(),
-                        c"flush_buf",
-                        2660,
-                        true,
-                        c"uv_write failed: %s",
-                        unsafe { uv_strerror(ret) },
-                    );
-                }
-                unsafe { uv_run(tui_write_loop(tui), UV_RUN_DEFAULT) };
-            }
-        }
-        tui.bufpos = 0;
+        return;
     }
+
+    let mut req = [0u64; 64];
+    let mut pre = [0u8; 32];
+    let mut post = [0u8; 32];
+    let mut pre_len = 0usize;
+    let mut post_len = 0usize;
+    let mut null_params = [TPVAR::default(); 9];
+
+    if !tui.sync_output_active && tui.sync_output && tui.has_sync_mode {
+        let sync_start = b"\x1b[?2026h\0";
+        pre[..sync_start.len()].copy_from_slice(sync_start);
+        pre_len += sync_start.len() - 1;
+        tui.sync_output_active = true;
+    } else if !tui.sync_output_active && !tui.is_invisible {
+        tui.is_invisible = true;
+        if let Some(ref str_) = tui.ti.defs[K_TERM_CURSOR_INVISIBLE] {
+            pre_len += terminfo_fmt(&mut pre[pre_len..], str_.to_bytes(), &mut null_params);
+        }
+    }
+
+    if finish == FlushBufFinish::FlushBufFinal && tui.sync_output_active {
+        let sync_end = b"\x1b[?2026l\0";
+        post[..sync_end.len()].copy_from_slice(sync_end);
+        post_len += sync_end.len() - 1;
+        tui.sync_output_active = false;
+    }
+
+    if !tui.sync_output_active {
+        let mut str_: Option<&CStr> = None;
+        if tui.is_invisible && !should_be_invisible {
+            str_ = tui.ti.defs[K_TERM_CURSOR_NORMAL].as_deref();
+            tui.is_invisible = false;
+        } else if !tui.is_invisible && should_be_invisible {
+            str_ = tui.ti.defs[K_TERM_CURSOR_INVISIBLE].as_deref();
+            tui.is_invisible = true;
+        }
+        if let Some(str_) = str_ {
+            post_len += terminfo_fmt(&mut post[post_len..], str_.to_bytes(), &mut null_params);
+        }
+    }
+
+    let mid_base = buf_to_flush.map_or(tui.buf.as_mut_ptr(), |b| b.as_ptr().cast_mut());
+    let bufs = [
+        uv_buf_t::new(pre.as_mut_ptr().cast(), pre_len),
+        uv_buf_t::new(mid_base.cast(), tui.bufpos),
+        uv_buf_t::new(post.as_mut_ptr().cast(), post_len),
+    ];
+
+    if let Some(ref screenshot) = tui.screenshot {
+        let fp = screenshot.as_ptr();
+        for b in &bufs {
+            unsafe { fwrite(b.base.cast(), b.len as _, 1, fp) };
+        }
+    } else {
+        let mut nbufs = bufs.len();
+        while nbufs > 0 && bufs[nbufs - 1].len == 0 {
+            nbufs -= 1;
+        }
+        if nbufs > 0 {
+            let ret = unsafe {
+                uv_write(
+                    req.as_mut_ptr().cast(),
+                    tui_output_handle(tui).cast(),
+                    bufs.as_ptr(),
+                    nbufs as u32,
+                    None,
+                )
+            };
+            if ret != 0 && log_st().g_min_log_level <= LOGLVL_ERR {
+                logmsg!(
+                    LOGLVL_ERR,
+                    ptr::null(),
+                    c"flush_buf",
+                    2660,
+                    true,
+                    c"uv_write failed: %s",
+                    unsafe { uv_strerror(ret) },
+                );
+            }
+            unsafe { uv_run(tui_write_loop(tui), UV_RUN_DEFAULT) };
+        }
+    }
+    tui.bufpos = 0;
 }
 
 fn tui_get_stty_erase(input: &mut TermInput) -> *const c_char {
@@ -3193,8 +3137,8 @@ mod tests {
         assert!(lookup_termdef_field(b"key_f64").is_none());
 
         let mut v = 0;
-        assert!(parse_sscanf_int(c"  120cols", &mut v));
+        assert!(parse_sscanf_int(Some(b"  120cols"), &mut v));
         assert_eq!(v, 120);
-        assert!(!parse_sscanf_int(c"abc", &mut v));
+        assert!(!parse_sscanf_int(Some(b"abc"), &mut v));
     }
 }
