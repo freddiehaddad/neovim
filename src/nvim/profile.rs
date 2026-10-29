@@ -15,7 +15,7 @@ use crate::os::env::{ExpandCtx, expand_env_save_opt};
 use crate::os::fs::os_fopen;
 use crate::os::time::os_hrtime;
 use crate::runtime::{get_scriptname, script_id_valid, script_item, sourcing_lnum};
-use std::ffi::{CStr, CString, c_char};
+use std::ffi::{CStr, CString};
 
 pub type Proftime = u64;
 
@@ -103,10 +103,8 @@ pub struct Scriptitem {
 
 impl Scriptitem {
     #[inline]
-    pub fn name_ptr(&self) -> *mut c_char {
-        self.sn_name
-            .as_ref()
-            .map_or(std::ptr::null_mut(), |s| s.as_ptr().cast_mut())
+    pub fn name_cstr(&self) -> Option<&CStr> {
+        self.sn_name.as_deref()
     }
 }
 
@@ -152,10 +150,8 @@ pub struct Estack {
 
 impl Estack {
     #[inline]
-    pub fn name_ptr(&self) -> *mut c_char {
-        self.es_name
-            .as_ref()
-            .map_or(std::ptr::null_mut(), |s| s.as_ptr().cast_mut())
+    pub fn name_cstr(&self) -> Option<&CStr> {
+        self.es_name.as_deref()
     }
 }
 
@@ -413,11 +409,13 @@ pub fn ex_profile(eap: &mut Exarg) {
 }
 
 /// Command-line completion item getter for `:profile` (`get_profile_name`).
-pub fn get_profile_name(_xp: &mut ExpandCtx, idx: i32) -> *mut c_char {
-    if prof_st().pexpand_what == PEXP_SUBCMD && idx >= 0 && (idx as usize) < PEXPAND_CMDS.len() {
-        PEXPAND_CMDS[idx as usize].as_ptr().cast_mut()
+pub fn get_profile_name(_xp: &mut ExpandCtx, idx: i32) -> Option<&'static CStr> {
+    if prof_st().pexpand_what == PEXP_SUBCMD {
+        usize::try_from(idx)
+            .ok()
+            .and_then(|i| PEXPAND_CMDS.get(i).copied())
     } else {
-        std::ptr::null_mut()
+        None
     }
 }
 
@@ -749,7 +747,8 @@ fn script_dump_profile(fd: *mut FILE) {
     for id in 1..=crate::runtime::script_items_len() {
         let si = script_item(id);
         if si.sn_prof_on {
-            fprintf!(fd, c"SCRIPT  %s\n", (*si).name_ptr());
+            let si_name = si.name_cstr().map_or(std::ptr::null(), CStr::as_ptr);
+            fprintf!(fd, c"SCRIPT  %s\n", si_name);
             if si.sn_pr_count == 1 {
                 fprintf!(fd, c"Sourced 1 time\n");
             } else {
@@ -760,7 +759,7 @@ fn script_dump_profile(fd: *mut FILE) {
             fprintf!(fd, c"\n");
             fprintf!(fd, c"count  total (s)   self (s)\n");
 
-            let sfd = os_fopen((*si).name_ptr(), c"r");
+            let sfd = os_fopen(si_name, c"r");
             if sfd.is_null() {
                 fprintf!(fd, c"Cannot open file!\n");
             } else {
@@ -793,7 +792,9 @@ fn script_dump_profile(fd: *mut FILE) {
                     } else {
                         fprintf!(fd, c"                            ");
                     }
-                    fprintf!(fd, c"%s", iobuf.as_ptr().cast::<c_char>());
+                    if let Ok(line_cstr) = CStr::from_bytes_until_nul(&iobuf) {
+                        fprintf!(fd, c"%s", line_cstr.as_ptr());
+                    }
                     i += 1;
                 }
                 unsafe { fclose(sfd) };
@@ -893,9 +894,9 @@ pub fn time_pop(tp: Proftime) {
 
 fn time_diff(then: Proftime, now: Proftime) {
     let diff = profile_sub(now, then);
-    let s = format!("{:07.3}\0", (diff as f64) / 1.0e6);
+    let s = CString::new(format!("{:07.3}", (diff as f64) / 1.0e6)).unwrap();
     if let Some(ref tf) = g_st().time_fd {
-        fprintf!(tf.as_ptr(), c"%s", s.as_ptr().cast::<c_char>());
+        fprintf!(tf.as_ptr(), c"%s", s.as_ptr());
     }
 }
 

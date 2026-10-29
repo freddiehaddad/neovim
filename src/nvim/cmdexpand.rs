@@ -4601,7 +4601,13 @@ fn get_scriptnames_arg(_xp: &mut ExpandCtx, idx: i32) -> *mut c_char {
 
     let si = script_item(idx + 1);
     let name_buff = g_st().name_buff.as_mut_ptr();
-    home_replace(None, (*si).name_ptr(), name_buff, MAXPATHL, true);
+    home_replace(
+        None,
+        (*si).name_cstr().map_or(ptr::null(), CStr::as_ptr),
+        name_buff,
+        MAXPATHL,
+        true,
+    );
     name_buff
 }
 
@@ -4805,7 +4811,9 @@ fn expand_other(
         },
         ExpGen {
             context: EXPAND_HISTORY,
-            func: get_history_arg,
+            func: |xp, idx| {
+                get_history_arg(xp, idx).map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut())
+            },
             ic: true,
             escaped: true,
         },
@@ -4917,7 +4925,9 @@ fn expand_other(
         },
         ExpGen {
             context: EXPAND_PROFILE,
-            func: get_profile_name,
+            func: |xp, idx| {
+                get_profile_name(xp, idx).map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut())
+            },
             ic: true,
             escaped: true,
         },
@@ -4941,7 +4951,7 @@ fn expand_other(
         },
         ExpGen {
             context: EXPAND_USER,
-            func: get_users,
+            func: |xp, idx| get_users(xp, idx).map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut()),
             ic: true,
             escaped: false,
         },

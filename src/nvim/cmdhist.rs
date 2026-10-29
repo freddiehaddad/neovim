@@ -21,7 +21,8 @@ use crate::os::time::os_time;
 use crate::regexp::{
     NSUBEXP, NUMBUFLEN, RE_MAGIC, RE_STRING, Regmatch, vim_regcomp, vim_regexec, vim_regfree,
 };
-use std::ffi::{CStr, c_char};
+use std::ffi::CStr;
+use std::ptr;
 
 pub const HIST_DEFAULT: i32 = -2;
 pub const HIST_INVALID: i32 = -1;
@@ -86,10 +87,8 @@ impl Histentry {
     }
 
     #[inline]
-    pub fn hisstr_ptr(&self) -> *mut c_char {
-        self.hisstr
-            .as_ref()
-            .map_or(std::ptr::null_mut(), |s| s.as_ptr().cast_mut())
+    pub fn hisstr_cstr(&self) -> Option<&CStr> {
+        self.hisstr.as_deref()
     }
 
     #[inline]
@@ -148,12 +147,10 @@ pub const fn hist_char2type(c: i32) -> i32 {
 }
 
 /// Obtain possible first arguments of `:history` for completion (`get_history_arg`).
-pub fn get_history_arg(_xp: &mut ExpandCtx, idx: i32) -> *mut c_char {
-    if idx >= 0 && (idx as usize) < HISTORY_EXPAND_ARGS.len() {
-        HISTORY_EXPAND_ARGS[idx as usize].as_ptr().cast_mut()
-    } else {
-        std::ptr::null_mut()
-    }
+pub fn get_history_arg(_xp: &mut ExpandCtx, idx: i32) -> Option<&'static CStr> {
+    usize::try_from(idx)
+        .ok()
+        .and_then(|i| HISTORY_EXPAND_ARGS.get(i).copied())
 }
 
 /// Initialize or resize command-line history tables (`init_history`).
@@ -575,7 +572,7 @@ pub fn f_histget(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData
             tv_set_string(rettv, c"");
         } else {
             let entry = &hist_st().history[htype as usize][idx as usize];
-            tv_set_string(rettv, entry.hisstr_ptr());
+            tv_set_string(rettv, entry.hisstr_cstr().map_or(ptr::null(), CStr::as_ptr));
         }
     }
 }
@@ -678,7 +675,7 @@ pub fn ex_history(eap: &mut Exarg) {
                     i = 0;
                 }
                 let entry = &hist[i as usize];
-                let entry_ptr = entry.hisstr_ptr();
+                let entry_ptr = entry.hisstr_cstr().map_or(ptr::null(), CStr::as_ptr);
                 if !entry_ptr.is_null()
                     && entry.hisnum >= j
                     && entry.hisnum <= k

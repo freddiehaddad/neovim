@@ -2382,7 +2382,9 @@ fn command_line_next_histidx(s: &mut CommandLineState, next_match: bool) {
         if (s.c != K_UP && s.c != K_DOWN)
             || s.hiscnt == s.save_hiscnt
             || (crate::memory::cstr_prefix_bytes(
-                hist[s.hiscnt as usize].hisstr_ptr(),
+                hist[s.hiscnt as usize]
+                    .hisstr_cstr()
+                    .map_or(ptr::null(), CStr::as_ptr),
                 s.lookforlen as usize,
             ) == crate::memory::cstr_prefix_bytes(lookfor_ptr, s.lookforlen as usize))
         {
@@ -2433,7 +2435,9 @@ fn command_line_browse_history(s: &mut CommandLineState) -> i32 {
                 plen = s.lookforlen;
             } else {
                 let entry = &get_histentry(s.histype)[s.hiscnt as usize];
-                p = entry.hisstr_ptr();
+                p = entry
+                    .hisstr_cstr()
+                    .map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut());
                 plen = entry.hisstrlen() as i32;
                 sep = entry.sep as c_char;
             }

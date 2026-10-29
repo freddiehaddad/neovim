@@ -9,7 +9,7 @@ use crate::os::env::os_getenv_buf;
 use crate::strings::vim_snprintf;
 #[cfg(windows)]
 use std::ffi::c_void;
-use std::ffi::{CString, c_char};
+use std::ffi::{CStr, CString};
 
 use crate::event::r#loop::uv_uid_t;
 
@@ -46,15 +46,15 @@ fn users_st() -> &'static mut OsUsersState {
 ))]
 #[repr(C)]
 struct Passwd {
-    pw_name: *mut c_char,
-    pw_passwd: *mut c_char,
+    pw_name: *mut u8,
+    pw_passwd: *mut u8,
     pw_uid: u32,
     pw_gid: u32,
     pw_change: isize,
-    pw_class: *mut c_char,
-    pw_gecos: *mut c_char,
-    pw_dir: *mut c_char,
-    pw_shell: *mut c_char,
+    pw_class: *mut u8,
+    pw_gecos: *mut u8,
+    pw_dir: *mut u8,
+    pw_shell: *mut u8,
     pw_expire: isize,
 }
 
@@ -69,13 +69,13 @@ struct Passwd {
 ))]
 #[repr(C)]
 struct Passwd {
-    pw_name: *mut c_char,
-    pw_passwd: *mut c_char,
+    pw_name: *mut u8,
+    pw_passwd: *mut u8,
     pw_uid: u32,
     pw_gid: u32,
-    pw_gecos: *mut c_char,
-    pw_dir: *mut c_char,
-    pw_shell: *mut c_char,
+    pw_gecos: *mut u8,
+    pw_dir: *mut u8,
+    pw_shell: *mut u8,
 }
 
 #[cfg(unix)]
@@ -83,7 +83,7 @@ unsafe extern "C" {
     fn setpwent();
     fn getpwent() -> *mut Passwd;
     fn endpwent();
-    fn getpwnam(name: *const c_char) -> *mut Passwd;
+    fn getpwnam(name: *const u8) -> *mut Passwd;
     fn getpwuid(uid: u32) -> *mut Passwd;
 }
 
@@ -132,7 +132,7 @@ fn collect_usernames() -> Vec<CString> {
                 break;
             }
             let pw = &mut *pw;
-            add_user(&mut users, pw.pw_name);
+            add_user(&mut users, pw.pw_name.cast());
         }
         endpwent();
 
@@ -143,9 +143,9 @@ fn collect_usernames() -> Vec<CString> {
             let env_bytes = crate::memory::cstr_as_bytes(user_env);
             let found = users.iter().any(|u| u.as_bytes() == env_bytes);
             if !found {
-                let pw = getpwnam(user_env);
+                let pw = getpwnam(user_env.cast());
                 if !pw.is_null() {
-                    add_user(&mut users, (*pw).pw_name);
+                    add_user(&mut users, (*pw).pw_name.cast());
                 }
             }
         }
@@ -210,7 +210,7 @@ pub fn os_get_uname(uid: uv_uid_t, s: &mut [u8]) -> bool {
     unsafe {
         let pw = getpwuid(uid);
         if !pw.is_null() && !(*pw).pw_name.is_null() && *(*pw).pw_name != 0 {
-            xstrlcpy(s.as_mut_ptr().cast(), (*pw).pw_name, s.len());
+            xstrlcpy(s.as_mut_ptr().cast(), (*pw).pw_name.cast(), s.len());
             return true;
         }
     }
@@ -221,13 +221,13 @@ pub fn os_get_uname(uid: uv_uid_t, s: &mut [u8]) -> bool {
 
 /// Get the home directory for `name`, or `None` on failure (`os_get_userdir`).
 #[cfg_attr(not(unix), cfg(test))]
-pub fn os_get_userdir(name: Option<&std::ffi::CStr>) -> Option<CString> {
+pub fn os_get_userdir(name: Option<&CStr>) -> Option<CString> {
     #[cfg(unix)]
     unsafe {
         let name = name.filter(|s| !s.to_bytes().is_empty())?;
-        let pw = getpwnam(name.as_ptr());
+        let pw = getpwnam(name.as_ptr().cast());
         if !pw.is_null() && !(*pw).pw_dir.is_null() {
-            return Some(crate::memory::cstr_to_cstring((*pw).pw_dir));
+            return Some(crate::memory::cstr_to_cstring((*pw).pw_dir.cast()));
         }
     }
     #[cfg(not(unix))]
@@ -256,17 +256,10 @@ fn init_users() {
 ///
 /// # Safety
 /// Caller must ensure single-threaded access to user completion cache.
-pub fn get_users(_xp: &mut crate::os::env::ExpandCtx, idx: i32) -> *mut c_char {
-    if idx < 0 {
-        return std::ptr::null_mut();
-    }
-    {
-        init_users();
-        let users = &users_st().users;
-        users
-            .get(idx as usize)
-            .map_or(std::ptr::null_mut(), |s| s.as_ptr().cast_mut())
-    }
+pub fn get_users(_xp: &mut crate::os::env::ExpandCtx, idx: i32) -> Option<&'static CStr> {
+    let i = usize::try_from(idx).ok()?;
+    init_users();
+    users_st().users.get(i).map(CString::as_c_str)
 }
 
 /// Check whether `name` matches a cached username (`match_user`).

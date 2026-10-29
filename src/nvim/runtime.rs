@@ -358,7 +358,12 @@ pub fn script_id_valid(id: Scid) -> bool {
 
 #[inline]
 pub fn sourcing_name() -> *mut c_char {
-    rt_st().exestack.last().unwrap().name_ptr()
+    rt_st()
+        .exestack
+        .last()
+        .unwrap()
+        .name_cstr()
+        .map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut())
 }
 
 #[inline]
@@ -436,7 +441,7 @@ pub fn estack_sfile(which: EstackArg) -> Option<std::ffi::CString> {
                     entry.es_info.aucmd_sctx()
                 };
                 return if def_ctx.sc_sid > 0 {
-                    Some(cstr_to_cstring(script_item(def_ctx.sc_sid).name_ptr()))
+                    script_item(def_ctx.sc_sid).name_cstr().map(CStr::to_owned)
                 } else {
                     None
                 };
@@ -538,7 +543,13 @@ pub fn stacktrace_create() -> &'static mut TvList {
         let mut lnum = entry.es_lnum;
 
         if entry.es_type == ETYPE_SCRIPT {
-            stacktrace_push_item(&mut *l, None, ptr::null(), lnum, entry.name_ptr());
+            stacktrace_push_item(
+                &mut *l,
+                None,
+                ptr::null(),
+                lnum,
+                entry.name_cstr().map_or(ptr::null(), CStr::as_ptr),
+            );
         } else if entry.es_type == ETYPE_UFUNC {
             let fp = entry.es_info.ufunc();
             let sctx = unsafe { (*fp).uf_script_ctx };
@@ -563,7 +574,13 @@ pub fn stacktrace_create() -> &'static mut TvList {
                 std::borrow::Cow::Borrowed(c"")
             };
             lnum += sctx.sc_lnum;
-            stacktrace_push_item(&mut *l, None, entry.name_ptr(), lnum, filepath.as_ptr());
+            stacktrace_push_item(
+                &mut *l,
+                None,
+                entry.name_cstr().map_or(ptr::null(), CStr::as_ptr),
+                lnum,
+                filepath.as_ptr(),
+            );
         }
     }
     l
@@ -2940,7 +2957,7 @@ fn do_source_ext(
             estack_push(
                 ETYPE_SCRIPT,
                 if !si.is_null() {
-                    (*si).name_ptr()
+                    (*si).name_cstr().map_or(ptr::null(), CStr::as_ptr)
                 } else {
                     fname_exp
                 },
@@ -2949,7 +2966,13 @@ fn do_source_ext(
 
             if l_do_profiling == PROF_YES && !si.is_null() {
                 let mut forceit = false;
-                if !(*si).sn_prof_on && has_profiling(true, (*si).name_ptr(), Some(&mut forceit)) {
+                if !(*si).sn_prof_on
+                    && has_profiling(
+                        true,
+                        (*si).name_cstr().map_or(ptr::null(), CStr::as_ptr),
+                        Some(&mut forceit),
+                    )
+                {
                     profile_init(si);
                     (*si).sn_pr_force = forceit;
                 }
@@ -3146,7 +3169,9 @@ pub fn ex_scriptnames(eap: &mut Exarg) {
             emsg(gettext(E_INVARG));
         } else {
             if eap.addr_count > 0 {
-                eap.arg = script_item(eap.line2).name_ptr();
+                eap.arg = script_item(eap.line2)
+                    .name_cstr()
+                    .map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut());
             } else {
                 expand_env(eap.arg, namebuff, MAXPATHL as i32);
                 eap.arg = namebuff;
@@ -3200,8 +3225,13 @@ pub fn get_scriptname(script_ctx: Sctx, home_replace: bool) -> std::borrow::Cow<
             }
             SID_STR => gettext(c"anonymous :source"),
             _ => {
-                let sname = script_item(script_ctx.sc_sid).name_ptr();
-                if sname.is_null() {
+                if let Some(sname) = script_item(script_ctx.sc_sid).name_cstr() {
+                    if home_replace {
+                        return Cow::Owned(home_replace_save(None, sname.as_ptr()));
+                    } else {
+                        return Cow::Borrowed(sname);
+                    }
+                } else {
                     vim_snprintf!(
                         iobuff,
                         IOSIZE,
@@ -3209,10 +3239,6 @@ pub fn get_scriptname(script_ctx: Sctx, home_replace: bool) -> std::borrow::Cow<
                         script_ctx.sc_sid,
                     );
                     iobuff
-                } else if home_replace {
-                    return Cow::Owned(home_replace_save(None, sname));
-                } else {
-                    sname
                 }
             }
         };
