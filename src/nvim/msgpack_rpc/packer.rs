@@ -22,14 +22,6 @@ pub enum PackerData {
 
 impl PackerData {
     #[inline]
-    pub fn as_ui(self) -> &'static mut crate::msgpack_rpc::channel::RemoteUI {
-        match self {
-            Self::Ui(p) => unsafe { &mut *p },
-            _ => unreachable!(),
-        }
-    }
-
-    #[inline]
     pub fn as_file(self) -> &'static mut crate::os::fileio::FileDescriptor {
         match self {
             Self::File(p) => unsafe { &mut *p },

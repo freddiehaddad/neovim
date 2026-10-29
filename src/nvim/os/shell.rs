@@ -1124,7 +1124,7 @@ pub fn out_data_event(mut str_copy: Vec<c_char>, fd: i32) {
     msg_ext_no_fast();
     let str_arg = NvimString {
         data: str_copy.as_mut_ptr(),
-        size: str_copy.len(),
+        size: str_copy.len().saturating_sub(1),
     };
     msg_multiline(str_arg, hl, false, false, &mut need_clear);
     drop(str_copy);
@@ -1159,7 +1159,13 @@ fn out_data_append_to_screen(
             p = p.wrapping_add(i as usize);
         }
 
-        let str_copy = unsafe { std::slice::from_raw_parts(output, *count) }.to_vec();
+        if *count == 0 {
+            return;
+        }
+
+        let mut str_copy = Vec::with_capacity(*count + 1);
+        str_copy.extend_from_slice(unsafe { std::slice::from_raw_parts(output, *count) });
+        str_copy.push(0);
         if ui_has(K_UIMESSAGES) {
             let qc = loop_queues(&mut *main_loop_ptr());
             multiqueue_put_event(

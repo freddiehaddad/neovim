@@ -842,9 +842,40 @@ pub fn push_call(ui: &mut RemoteUI, name: &'static CStr, args: Array) {
 }
 
 pub(crate) fn ui_flush_callback(packer: &mut PackerBuffer) {
-    let ui = &mut *packer.anydata.as_ui();
-    ui_flush_buf(ui, true);
-    ui_alloc_buf(ui);
+    let crate::msgpack_rpc::packer::PackerData::Ui(ui) = packer.anydata else {
+        unreachable!()
+    };
+    unsafe {
+        if !packer.startptr.is_null() && packer.ptr != packer.startptr {
+            (*ui).incomplete_event = true;
+            if (*ui).cur_event.is_some() {
+                if let Some(off) = (*ui).ncalls_pos {
+                    let mut pos = packer.startptr.wrapping_add(off);
+                    mpack_w2(&raw mut pos, 1 + (*ui).ncalls);
+                }
+                (*ui).cur_event = None;
+                (*ui).ncalls_pos = None;
+                (*ui).ncalls = 0;
+            }
+            if let Some(off) = (*ui).nevents_pos {
+                let mut pos = packer.startptr.wrapping_add(off);
+                mpack_w2(&raw mut pos, (*ui).nevents);
+                (*ui).nevents = 0;
+                (*ui).nevents_pos = None;
+            }
+            let len = crate::memory::ptr_offset_from(packer.ptr, packer.startptr) as usize;
+            let mut vec = std::mem::take(&mut packer.owned_buf);
+            vec.truncate(len);
+            let buf = wstream_new_vec_buffer(vec);
+            rpc_write_raw((*ui).channel_id, buf);
+            (*ui).flushed_events = true;
+            (*ui).ncells_pending = 0;
+        }
+        packer.owned_buf = vec![0; UI_BUF_SIZE];
+        packer.startptr = packer.owned_buf.as_mut_ptr();
+        packer.ptr = packer.startptr;
+        packer.endptr = packer.startptr.wrapping_add(UI_BUF_SIZE);
+    }
 }
 
 // DLLEXPORT void remote_ui_grid_clear(RemoteUI *ui, Integer grid);

@@ -585,13 +585,9 @@ pub fn msg_multiline(
     }
 
     // Print the remainder or emit empty event if entire message is empty.
-    if !crate::memory::cstr_is_empty(chunk) || chunk == str_.data.cast_const() {
-        msg_outtrans_len(
-            chunk,
-            (str_.size - (crate::memory::ptr_offset_from(chunk, str_.data) as usize)) as i32,
-            hl_id,
-            hist,
-        );
+    let rem = str_.size - (crate::memory::ptr_offset_from(chunk, str_.data) as usize);
+    if rem > 0 || chunk == str_.data.cast_const() {
+        msg_outtrans_len(chunk, rem as i32, hl_id, hist);
     }
 }
 
