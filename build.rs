@@ -57,10 +57,9 @@ fn main() {
             println!("cargo:rerun-if-changed=.git/HEAD");
             if let Ok(head) = std::fs::read_to_string(&head_path)
                 && let Some(ref_rel) = head.trim().strip_prefix("ref: ")
+                && git_dir.join(ref_rel).exists()
             {
-                if git_dir.join(ref_rel).exists() {
-                    println!("cargo:rerun-if-changed=.git/{ref_rel}");
-                }
+                println!("cargo:rerun-if-changed=.git/{ref_rel}");
             }
         }
         if git_dir.join("packed-refs").exists() {
