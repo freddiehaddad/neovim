@@ -26,25 +26,28 @@ fn parse_nvim_metadata(cargo_toml: &str, key: &str) -> Option<String> {
 fn main() {
     println!("cargo:rerun-if-changed=Cargo.toml");
     println!("cargo:rerun-if-changed=deps.txt");
-    println!("cargo:rerun-if-env-changed=DEPS_PREFIX");
-    println!("cargo:rerun-if-env-changed=VTERM_TEST_FILE");
-    println!("cargo:rerun-if-env-changed=NVIM_VERSION_MAJOR");
-    println!("cargo:rerun-if-env-changed=NVIM_VERSION_MINOR");
-    println!("cargo:rerun-if-env-changed=NVIM_VERSION_PATCH");
-    println!("cargo:rerun-if-env-changed=NVIM_VERSION_PRERELEASE");
-    println!("cargo:rerun-if-env-changed=NVIM_API_LEVEL");
-    println!("cargo:rerun-if-env-changed=NVIM_API_LEVEL_COMPAT");
-    println!("cargo:rerun-if-env-changed=NVIM_API_PRERELEASE");
-    println!("cargo:rerun-if-env-changed=NVIM_VERSION_LONG");
-    println!("cargo:rerun-if-env-changed=NVIM_VERSION_BUILD");
-    println!("cargo:rerun-if-env-changed=NVIM_BUILD_TYPE");
-    println!("cargo:rerun-if-env-changed=NVIM_VERSION_CFLAGS");
-    println!("cargo:rerun-if-env-changed=NVIM_DEFAULT_VIM_DIR");
-    println!("cargo:rerun-if-env-changed=NVIM_DEFAULT_VIMRUNTIME_DIR");
-    println!("cargo:rerun-if-env-changed=NVIM_DEFAULT_LIB_DIR");
-    println!("cargo:rerun-if-env-changed=NVIM_EXITFREE");
-    println!("cargo:rerun-if-env-changed=NVIM_HAVE_UNIBILIUM");
-    println!("cargo:rerun-if-env-changed=NVIM_HAVE_LIBINTL");
+    for env_var in [
+        "DEPS_PREFIX",
+        "NVIM_VERSION_MAJOR",
+        "NVIM_VERSION_MINOR",
+        "NVIM_VERSION_PATCH",
+        "NVIM_VERSION_PRERELEASE",
+        "NVIM_API_LEVEL",
+        "NVIM_API_LEVEL_COMPAT",
+        "NVIM_API_PRERELEASE",
+        "NVIM_VERSION_LONG",
+        "NVIM_VERSION_BUILD",
+        "NVIM_BUILD_TYPE",
+        "NVIM_VERSION_CFLAGS",
+        "NVIM_DEFAULT_VIM_DIR",
+        "NVIM_DEFAULT_VIMRUNTIME_DIR",
+        "NVIM_DEFAULT_LIB_DIR",
+        "NVIM_EXITFREE",
+        "NVIM_HAVE_UNIBILIUM",
+        "NVIM_HAVE_LIBINTL",
+    ] {
+        println!("cargo:rerun-if-env-changed={env_var}");
+    }
 
     let manifest_dir = PathBuf::from(env::var("CARGO_MANIFEST_DIR").unwrap());
     let git_dir = manifest_dir.join(".git");
@@ -234,7 +237,6 @@ fn main() {
     } else if target_os != "windows" {
         println!("cargo:rustc-link-arg-bin=nvim=-rdynamic");
         println!("cargo:rustc-link-search=native={}", deps_lib.display());
-        let prefer_lua = env::var("CARGO_FEATURE_VENDOR_BIT").is_ok();
         let lua_entry = if prefer_lua && deps_lib.join("liblua.a").exists() {
             ("liblua.a", "static=lua", "lua5.1")
         } else {
