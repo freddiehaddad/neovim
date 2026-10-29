@@ -1,8 +1,8 @@
 //! Terminal UI functions invoked by the UI client process (`src/nvim/tui/tui.c`).
 
 use crate::api::private::helpers::{
-    api_clear_error, api_free_object, arena_array, array_obj, boolean_obj, cstr_as_obj, dict_obj,
-    static_cstr_as_obj, static_cstr_as_string, string_obj,
+    api_clear_error, api_free_object, arena_array, arena_bytes, array_obj, boolean_obj,
+    cstr_as_obj, dict_obj, static_cstr_as_obj, static_cstr_as_string, string_obj,
 };
 use crate::api::private::validate::{
     Array, Dict, Error, KeyValuePair, NvimString, Object, ObjectType,
@@ -38,8 +38,8 @@ use crate::grid::{Sattr, Schar, schar_cache_clear_if_full, schar_from_ascii, sch
 use crate::highlight::{HLATTRS_INIT, HlAttrs};
 use crate::log::{LOGLVL_DBG, LOGLVL_ERR, LOGLVL_WRN, log_st, logmsg};
 use crate::lua::executor::{K_RET_OBJECT, nlua_exec};
-use crate::mbyte::{utf_ambiguous_width, utf_char2cells, utf_ptr2char};
-use crate::memory::{Arena, arena_finish, arena_mem_free, arena_memdupz};
+use crate::mbyte::{utf_ambiguous_width, utf_char2cells, utf_slice2char};
+use crate::memory::{Arena, arena_finish, arena_mem_free};
 use crate::msgpack_rpc::channel::rpc_send_event;
 use crate::option::OptInt;
 #[cfg(windows)]
@@ -60,7 +60,7 @@ use crate::tui::ugrid::{
 use crate::ui_client::ui_client_set_size;
 #[cfg(unix)]
 use crate::ui_client::{ui_client_attach, ui_client_detach};
-use std::ffi::{CStr, c_char};
+use std::ffi::CStr;
 use std::ptr;
 
 #[cfg(windows)]
@@ -94,7 +94,7 @@ const EXIT_TIMEOUT_MS: i64 = 1000;
 const OUTBUF_SIZE: usize = 0xffff;
 const TOO_MANY_EVENTS: usize = 1_000_000;
 const TERMINFO_SEQ_LIMIT: usize = 128;
-const DEL: c_char = 0x7f;
+const DEL: u8 = 0x7f;
 
 #[cfg(unix)]
 use crate::event::r#loop::UV_TTY_MODE_NORMAL;
@@ -292,8 +292,8 @@ impl TUIData {
 
 struct TuiModuleState {
     cursor_style_enabled: bool,
-    stty_erase_buf: [c_char; 2],
-    stty_erase_ptr: *const c_char,
+    stty_erase_buf: [u8; 2],
+    stty_erase_inited: bool,
     urls: Vec<std::ffi::CString>,
 }
 
@@ -302,7 +302,7 @@ impl TuiModuleState {
         Self {
             cursor_style_enabled: false,
             stty_erase_buf: [0, 0],
-            stty_erase_ptr: ptr::null(),
+            stty_erase_inited: false,
             urls: Vec::new(),
         }
     }
@@ -322,7 +322,6 @@ use crate::event::r#loop::{uv_tty_get_winsize, uv_tty_reset_mode};
 
 use crate::api::ui::{K_LINE_FLAG_WRAP, MAX_SCHAR_SIZE};
 use crate::channel::STDOUT_FILENO;
-use crate::charset::NUL;
 use crate::drawline::{HL_OVERLINE, HL_STRIKETHROUGH, HL_UNDERLINE_MASK};
 use crate::eval::funcs::{
     HL_BLINK, HL_BOLD, HL_CONCEALED, HL_DIM, HL_INVERSE, HL_ITALIC, HL_STANDOUT, HL_UNDERCURL,
@@ -651,11 +650,7 @@ fn lookup_termdef_field(name: &[u8]) -> Option<TermdefFieldTarget> {
 }
 
 fn push_termdef_err(err_arena: &mut Arena, chunks: &mut Vec<Object>, msg: &str) {
-    let dup = arena_memdupz(err_arena, msg.as_ptr().cast::<c_char>(), msg.len());
-    let str_val = NvimString {
-        data: dup,
-        size: msg.len(),
-    };
+    let str_val = arena_bytes(err_arena, msg.as_bytes());
     let mut err = arena_array(err_arena, 2);
     *err.next_slot_mut() = string_obj(str_val);
     err.size += 1;
@@ -842,10 +837,9 @@ fn terminfo_start(tui: &mut TUIData) {
     let term_cstr = os_getenv_cstr(c"TERM");
     #[cfg(windows)]
     {
-        let mut guessed_term: *const c_char = ptr::null();
-        os_tty_guess_term(&raw mut guessed_term, tui.out_fd);
-        if term_cstr.is_none() && !guessed_term.is_null() {
-            term_cstr = Some(crate::memory::cstr_to_cstring(guessed_term));
+        let guessed_term = os_tty_guess_term(tui.out_fd);
+        if term_cstr.is_none() {
+            term_cstr = Some(guessed_term.to_owned());
             os_setenv(c"TERM", guessed_term, 1);
         }
     }
@@ -1603,8 +1597,8 @@ fn print_cell_at_pos(tui: &mut TUIData, row: i32, col: i32, cell: UCell, is_doub
 
     let mut buf = [0u8; MAX_SCHAR_SIZE];
     let len = crate::grid::schar_get_bytes(&mut buf, cell.data);
-    let c = utf_ptr2char(buf.as_ptr().cast::<c_char>());
-    let mut is_ambiwidth = utf_ambiguous_width(buf.as_ptr().cast::<c_char>());
+    let c = utf_slice2char(&buf[..len]);
+    let mut is_ambiwidth = utf_ambiguous_width(&buf[..len]);
     if is_doublewidth && (is_ambiwidth || utf_char2cells(c) == 1) {
         is_ambiwidth = true;
         update_attrs(tui, cell.attr);
@@ -1706,27 +1700,25 @@ pub fn tui_grid_cursor_goto(tui: &mut TUIData, _grid: Integer, row: Integer, col
     tui.col = col as i32;
 }
 
-fn tui_cursor_decode_shape(shape_str: impl crate::strings::IntoCCharPtr) -> CursorShape {
-    let shape_str = shape_str.into_c_char_ptr();
-    if crate::memory::cstr_as_opt_bytes(shape_str) == Some(b"block") {
-        CursorShape::ShapeBlock
-    } else if crate::memory::cstr_as_opt_bytes(shape_str) == Some(b"vertical") {
-        CursorShape::ShapeVer
-    } else if crate::memory::cstr_as_opt_bytes(shape_str) == Some(b"horizontal") {
-        CursorShape::ShapeHor
-    } else {
-        if log_st().g_min_log_level <= LOGLVL_WRN {
-            logmsg!(
-                LOGLVL_WRN,
-                ptr::null(),
-                c"tui_cursor_decode_shape",
-                1268,
-                true,
-                c"Unknown shape value '%s'",
-                shape_str,
-            );
+fn tui_cursor_decode_shape(shape_str: NvimString) -> CursorShape {
+    match shape_str.cstr_bytes() {
+        b"block" => CursorShape::ShapeBlock,
+        b"vertical" => CursorShape::ShapeVer,
+        b"horizontal" => CursorShape::ShapeHor,
+        _ => {
+            if log_st().g_min_log_level <= LOGLVL_WRN {
+                logmsg!(
+                    LOGLVL_WRN,
+                    ptr::null(),
+                    c"tui_cursor_decode_shape",
+                    1268,
+                    true,
+                    c"Unknown shape value '%s'",
+                    shape_str.data,
+                );
+            }
+            CursorShape::ShapeBlock
         }
-        CursorShape::ShapeBlock
     }
 }
 
@@ -1738,16 +1730,13 @@ fn decode_cursor_entry(args: Dict) -> Cursorentry {
     let mut r = (*shape_table_mut())[0];
     for i in 0..args.size {
         let item = args[i];
-        let key = item.key.data;
         let value = item.value;
-        if crate::memory::cstr_as_opt_bytes(key) == Some(b"cursor_shape") {
-            r.shape = tui_cursor_decode_shape(value.data.string().data);
-        } else if crate::memory::cstr_as_opt_bytes(key) == Some(b"blinkon") {
-            r.blinkon = value.data.integer() as i32;
-        } else if crate::memory::cstr_as_opt_bytes(key) == Some(b"blinkoff") {
-            r.blinkoff = value.data.integer() as i32;
-        } else if crate::memory::cstr_as_opt_bytes(key) == Some(b"attr_id") {
-            r.id = value.data.integer() as i32;
+        match item.key.cstr_bytes() {
+            b"cursor_shape" => r.shape = tui_cursor_decode_shape(value.data.string()),
+            b"blinkon" => r.blinkon = value.data.integer() as i32,
+            b"blinkoff" => r.blinkoff = value.data.integer() as i32,
+            b"attr_id" => r.id = value.data.integer() as i32,
+            _ => {}
         }
     }
     r
@@ -1946,21 +1935,20 @@ pub fn tui_grid_scroll(
     }
 }
 
-pub fn tui_add_url(_tui: &mut TUIData, url: impl crate::strings::IntoCCharPtr) -> i32 {
-    let url = url.into_c_char_ptr();
-    {
-        if url.is_null() {
-            return -1;
-        }
-
-        let url_cstr = crate::memory::cstr_from_ptr(url);
-        if let Some(pos) = tui_st().urls.iter().position(|u| u.as_c_str() == url_cstr) {
-            return pos as i32;
-        }
-        let idx = tui_st().urls.len() as i32;
-        tui_st().urls.push(url_cstr.to_owned());
-        idx
+pub fn tui_add_url(_tui: &mut TUIData, url: NvimString) -> i32 {
+    if url.data.is_null() {
+        return -1;
     }
+
+    let url_bytes = url.cstr_bytes();
+    if let Some(pos) = tui_st().urls.iter().position(|u| u.as_bytes() == url_bytes) {
+        return pos as i32;
+    }
+    let idx = tui_st().urls.len() as i32;
+    tui_st()
+        .urls
+        .push(crate::memory::cstr_from_bytes(url_bytes));
+    idx
 }
 
 pub fn tui_hl_attr_define(
@@ -3001,14 +2989,16 @@ fn flush_buf_raw(tui: &mut TUIData, finish: FlushBufFinish, buf_to_flush: Option
     tui.bufpos = 0;
 }
 
-fn tui_get_stty_erase(input: &mut TermInput) -> *const c_char {
+fn tui_init_stty_erase(input: &mut TermInput) {
     #[cfg(unix)]
     {
         let mut t = unix_termios::termios::new();
         if unsafe { unix_termios::tcgetattr(input.in_fd, &raw mut t) } != -1 {
-            tui_st().stty_erase_buf[0] = t.c_cc[unix_termios::VERASE] as c_char;
-            tui_st().stty_erase_buf[1] = NUL;
+            tui_st().stty_erase_buf[0] = t.c_cc[unix_termios::VERASE];
+            tui_st().stty_erase_buf[1] = 0;
             if log_st().g_min_log_level <= LOGLVL_DBG {
+                let erase_cstr =
+                    CStr::from_bytes_until_nul(&tui_st().stty_erase_buf).unwrap_or(c"");
                 logmsg!(
                     LOGLVL_DBG,
                     ptr::null(),
@@ -3016,7 +3006,7 @@ fn tui_get_stty_erase(input: &mut TermInput) -> *const c_char {
                     2684,
                     true,
                     c"stty/termios:erase=%s",
-                    (&raw const tui_st().stty_erase_buf).cast::<c_char>(),
+                    erase_cstr.as_ptr(),
                 );
             }
         }
@@ -3035,12 +3025,11 @@ fn tui_get_stty_erase(input: &mut TermInput) -> *const c_char {
             if unsafe { GetConsoleMode(tty_handle, &raw mut dw_mode) } != 0
                 && (dw_mode & ENABLE_VIRTUAL_TERMINAL_INPUT) != 0
             {
-                tui_st().stty_erase_buf[0] = 0x7f;
-                tui_st().stty_erase_buf[1] = NUL;
+                tui_st().stty_erase_buf[0] = DEL;
+                tui_st().stty_erase_buf[1] = 0;
             }
         }
     }
-    (&raw const tui_st().stty_erase_buf).cast::<c_char>()
 }
 
 pub(crate) fn tui_tk_ti_getstr<'a>(
@@ -3049,9 +3038,11 @@ pub(crate) fn tui_tk_ti_getstr<'a>(
     input: &mut TermInput,
 ) -> Option<&'a [u8]> {
     let val_ptr = value.map_or(ptr::null(), CStr::as_ptr);
-    if tui_st().stty_erase_ptr.is_null() {
-        tui_st().stty_erase_ptr = tui_get_stty_erase(input);
+    if !tui_st().stty_erase_inited {
+        tui_st().stty_erase_inited = true;
+        tui_init_stty_erase(input);
     }
+    let erase_byte = tui_st().stty_erase_buf[0];
 
     if name == "key_backspace" {
         if log_st().g_min_log_level <= LOGLVL_DBG {
@@ -3065,8 +3056,8 @@ pub(crate) fn tui_tk_ti_getstr<'a>(
                 val_ptr,
             );
         }
-        if unsafe { *tui_st().stty_erase_ptr } != 0 {
-            return Some(crate::memory::cstr_as_bytes(tui_st().stty_erase_ptr));
+        if erase_byte != 0 {
+            return Some(&tui_st().stty_erase_buf[..1]);
         }
     } else if name == "key_dc" {
         if log_st().g_min_log_level <= LOGLVL_DBG {
@@ -3081,14 +3072,10 @@ pub(crate) fn tui_tk_ti_getstr<'a>(
             );
         }
         if let Some(val_cstr) = value
-            && crate::memory::cstr_as_opt_bytes(tui_st().stty_erase_ptr)
-                == Some(val_cstr.to_bytes())
+            && erase_byte != 0
+            && val_cstr.to_bytes() == [erase_byte]
         {
-            return Some(if unsafe { *tui_st().stty_erase_ptr } == DEL {
-                b"\x08"
-            } else {
-                b"\x7f"
-            });
+            return Some(if erase_byte == DEL { b"\x08" } else { b"\x7f" });
         }
     } else if name == "key_mouse" {
         if log_st().g_min_log_level <= LOGLVL_DBG {

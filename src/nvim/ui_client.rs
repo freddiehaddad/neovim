@@ -359,7 +359,7 @@ pub fn ui_client_dict2hlattrs(d: Dict, rgb: bool) -> HlAttrs {
 
     let mut attrs = dict2hlattrs(&mut dict, rgb, None, None, &mut err);
     if (dict.is_set_highlight & (1u64 << KEYSET_OPTIDX_HIGHLIGHT_URL)) != 0 {
-        attrs.url = tui_add_url(tui_ptr(), dict.url.data);
+        attrs.url = tui_add_url(tui_ptr(), dict.url);
     }
     attrs
 }

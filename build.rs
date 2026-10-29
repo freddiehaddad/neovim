@@ -215,6 +215,27 @@ fn main() {
         println!("cargo:rustc-link-arg=/NODEFAULTLIB:libcmt");
         println!("cargo:rustc-link-arg=/NODEFAULTLIB:libucrt");
         println!("cargo:rustc-link-arg-bin=nvim=/STACK:8388608");
+        for sym in [
+            "block_autocmds",
+            "unblock_autocmds",
+            "nvim__id_float",
+            "tv_list_alloc",
+            "tv_list_free",
+            "curwin",
+            "starting",
+            "display_tick",
+            "test_disable_char_avail",
+            "find_window_by_handle",
+            "win_col_off",
+            "luaopen_base64",
+            "luaopen_spell",
+            "build_stl_str_hl",
+            "ui_call_set_title",
+            "ui_call_chdir",
+            "vterm_primary_device_attr",
+        ] {
+            println!("cargo:rustc-link-arg-bin=nvim=/EXPORT:{sym}");
+        }
         let manifest_path = manifest_dir
             .join("src")
             .join("nvim")

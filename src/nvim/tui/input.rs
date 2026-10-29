@@ -38,7 +38,6 @@ use crate::tui::tui::{
     TUIData, tui_enable_extended_underline, tui_handle_primary_device_attr, tui_handle_term_mode,
     tui_query_bg_color, tui_set_size,
 };
-use std::ffi::c_char;
 use std::ptr;
 
 use crate::channel::STDIN_FILENO;
@@ -294,10 +293,7 @@ pub fn tinput_done_event() {
 
 /// Send all pending input in key buffer to Nvim server.
 fn tinput_flush(input: &mut TermInput) {
-    let keys = NvimString {
-        data: input.key_buffer.as_mut_ptr().cast::<c_char>(),
-        size: input.key_buffer_len,
-    };
+    let keys = NvimString::from_bytes(&input.key_buffer[..input.key_buffer_len]);
     if input.paste != 0 {
         let mut items = [
             string_obj(keys),
@@ -622,14 +618,8 @@ fn handle_bracketed_paste(input: &mut TermInput, bytes: &[u8], incomplete: &mut 
 
 fn send_termresponse(response: &[u8]) {
     let mut items = [
-        string_obj(NvimString {
-            data: c"termresponse".as_ptr().cast_mut(),
-            size: 12,
-        }),
-        string_obj(NvimString {
-            data: response.as_ptr().cast::<c_char>().cast_mut(),
-            size: response.len(),
-        }),
+        string_obj(NvimString::from_bytes(b"termresponse")),
+        string_obj(NvimString::from_bytes(response)),
     ];
     let args = Array {
         items: items.as_mut_ptr(),

@@ -21,6 +21,14 @@ impl NvimString {
     }
 
     #[inline]
+    pub const fn from_bytes(bytes: &[u8]) -> Self {
+        Self {
+            data: bytes.as_ptr().cast::<c_char>().cast_mut(),
+            size: bytes.len(),
+        }
+    }
+
+    #[inline]
     pub fn as_bytes(&self) -> &[u8] {
         if self.is_empty() {
             &[]

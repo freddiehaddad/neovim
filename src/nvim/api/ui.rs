@@ -15,7 +15,7 @@ use crate::event::r#loop::{loop_poll_events, loop_queues};
 use crate::event::multiqueue::{multiqueue_empty, multiqueue_process_events};
 use crate::event::wstream::wstream_new_vec_buffer;
 use crate::globals::*;
-use crate::grid::{Sattr, Schar, schar_from_ascii, schar_get, schar_get_adv};
+use crate::grid::{Sattr, Schar, schar_from_ascii, schar_get_adv};
 use crate::highlight::{HlAttrs, hl_get_url, hlattrs2dict, syn_attr2entry};
 use crate::lua::converter::{Boolean, Float};
 use crate::mbyte::utf_ambiguous_width;
@@ -1291,10 +1291,13 @@ pub fn remote_ui_raw_line(
             for i in 0..count {
                 remote_ui_cursor_goto(ui, row, startcol + i as Integer);
                 remote_ui_highlight_set(ui, *attrs.wrapping_add(i));
-                let mut sc_buf: [c_char; MAX_SCHAR_SIZE] = [0; MAX_SCHAR_SIZE];
-                schar_get(sc_buf.as_mut_ptr(), *chunk.wrapping_add(i));
-                remote_ui_put(ui, sc_buf.as_ptr());
-                if utf_ambiguous_width(sc_buf.as_ptr()) {
+                let mut sc_buf = [0u8; MAX_SCHAR_SIZE];
+                let len = crate::grid::schar_get_bytes(&mut sc_buf, *chunk.wrapping_add(i));
+                remote_ui_put(
+                    ui,
+                    std::ffi::CStr::from_bytes_until_nul(&sc_buf).unwrap_or(c""),
+                );
+                if utf_ambiguous_width(&sc_buf[..len]) {
                     ui.client_col = -1;
                 }
             }

@@ -400,7 +400,7 @@ pub fn os_title_reset() {
 }
 
 #[cfg(windows)]
-pub fn os_tty_guess_term(term: *mut *const c_char, out_fd: i32) {
+pub fn os_tty_guess_term(out_fd: i32) -> &'static std::ffi::CStr {
     unsafe {
         let mut conemu_buf = [0 as c_char; 16];
         let conemu_env = os_getenv_buf(c"ConEmuANSI", conemu_buf.as_mut_ptr(), conemu_buf.len());
@@ -417,18 +417,16 @@ pub fn os_tty_guess_term(term: *mut *const c_char, out_fd: i32) {
             }
         }
 
-        if (*term).is_null() {
-            if vtp {
-                *term = c"vtpcon".as_ptr();
-            } else if conemu_ansi {
-                *term = c"conemu".as_ptr();
-            } else {
-                *term = c"win32con".as_ptr();
-            }
-        }
-
         if conemu_ansi {
             uv_tty_set_vterm_state(UV_TTY_SUPPORTED);
+        }
+
+        if vtp {
+            c"vtpcon"
+        } else if conemu_ansi {
+            c"conemu"
+        } else {
+            c"win32con"
         }
     }
 }

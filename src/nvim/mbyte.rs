@@ -2069,22 +2069,19 @@ pub fn utf_class_tab(c: i32, chartab: *const u64) -> i32 {
     2
 }
 
-pub fn utf_ambiguous_width(p: impl crate::strings::IntoCCharPtr) -> bool {
-    let p = p.into_c_char_ptr();
-    unsafe {
-        if crate::memory::cstr_is_empty(p) || crate::memory::cstr_byte_at(p, 1) == 0 {
-            return false;
-        }
-        let info = utf_ptr2_char_info(p);
-        if info.value >= 0x80 {
-            let prop = utf8proc_get_property(info.value);
-            if prop.ambiguous_width() || prop_is_emojilike(prop) {
-                return true;
-            }
-        }
-        let next = p.wrapping_add(info.len as usize).cast::<u8>();
-        *next == 0xef && *next.wrapping_add(1) == 0xb8 && *next.wrapping_add(2) == 0x8f
+pub fn utf_ambiguous_width(bytes: &[u8]) -> bool {
+    if bytes.len() < 2 || bytes[0] == 0 || bytes[1] == 0 {
+        return false;
     }
+    let c = utf_slice2char(bytes);
+    let len = utf_slice2len(bytes);
+    if c >= 0x80 {
+        let prop = utf8proc_get_property(c);
+        if prop.ambiguous_width() || prop_is_emojilike(prop) {
+            return true;
+        }
+    }
+    bytes.get(len..len + 3) == Some(&[0xef, 0xb8, 0x8f])
 }
 
 pub fn utf_fold(a: i32) -> i32 {
