@@ -23,7 +23,7 @@ use crate::memline::{ml_get_buf, ml_get_buf_len};
 use crate::message::semsg;
 use crate::option_vars::*;
 use crate::search::FORWARD;
-use std::ffi::{CString, c_char};
+use std::ffi::CString;
 
 pub const FUZZY_MATCH_MAX_LEN: usize = 1024;
 pub const FUZZY_SCORE_NONE: i32 = i32::MIN;
@@ -210,7 +210,13 @@ fn match_row(
     }
 }
 
-fn match_positions(needle: *const c_char, haystack: *const c_char, positions: *mut u32) -> f64 {
+fn match_positions(
+    needle: impl crate::strings::IntoCCharPtr,
+    haystack: impl crate::strings::IntoCCharPtr,
+    positions: *mut u32,
+) -> f64 {
+    let needle = needle.into_c_char_ptr();
+    let haystack = haystack.into_c_char_ptr();
     if needle.is_null() || haystack.is_null() || unsafe { *needle } == 0 {
         return SCORE_MIN;
     }
@@ -317,20 +323,20 @@ pub fn fuzzy_match(
         *out_score = 0;
 
         let mut save_pat = crate::memory::cstr_to_cstring(pat_arg).into_bytes_with_nul();
-        let mut pat = save_pat.as_mut_ptr().cast::<c_char>();
+        let mut pat = save_pat.as_mut_ptr();
         let mut p = pat;
 
         loop {
             if matchseq {
                 complete = true;
             } else {
-                p = skipwhite(p);
+                p = skipwhite(p.cast()).cast();
                 if unsafe { *p } == 0 {
                     break;
                 }
                 pat = p;
-                while unsafe { *p } != 0 && !ascii_iswhite(utf_ptr2char(p)) {
-                    p = p.wrapping_add(utf_ptr2len(p) as usize);
+                while unsafe { *p } != 0 && !ascii_iswhite(utf_ptr2char(p.cast())) {
+                    p = p.wrapping_add(utf_ptr2len(p.cast()) as usize);
                 }
                 if unsafe { *p } == 0 {
                     complete = true;
@@ -340,7 +346,7 @@ pub fn fuzzy_match(
                 }
             }
 
-            let mut pat_chars = mb_charlen(pat);
+            let mut pat_chars = mb_charlen(pat.cast());
             if pat_chars > max_matches {
                 pat_chars = max_matches;
             }
@@ -351,9 +357,12 @@ pub fn fuzzy_match(
             }
 
             let mut score = FUZZY_SCORE_NONE;
-            if has_match(pat, str_ptr) {
-                let fzy_score =
-                    match_positions(pat, str_ptr, matches.wrapping_add(num_matches as usize));
+            if has_match(pat.cast(), str_ptr) {
+                let fzy_score = match_positions(
+                    pat.cast(),
+                    str_ptr,
+                    matches.wrapping_add(num_matches as usize),
+                );
                 if fzy_score != SCORE_MIN {
                     score = if fzy_score == SCORE_MAX {
                         i32::MAX
@@ -454,7 +463,7 @@ fn fuzzy_match_in_list(
                 break;
             }
 
-            let mut itemstr: *mut c_char = std::ptr::null_mut();
+            let mut itemstr = std::ptr::null_mut();
             let mut rettv = TypVal {
                 v_type: VarType::VarUnknown,
                 v_lock: VAR_UNLOCKED,
@@ -509,7 +518,7 @@ fn fuzzy_match_in_list(
 
                 if retmatchpos {
                     let mut j = 0usize;
-                    let mut p: *const c_char = str_ptr;
+                    let mut p = str_ptr;
                     while *p != 0 && j < FUZZY_MATCH_MAX_LEN {
                         if !ascii_iswhite(utf_ptr2char(p)) || matchseq {
                             matchpos.push(matches[j] as i64);
@@ -596,7 +605,7 @@ fn do_fuzzymatch(argvars: &[TypVal], rettv: &mut TypVal, retmatchpos: bool) {
     }
 
     let mut cb = Callback::NONE;
-    let mut key: *const c_char = std::ptr::null();
+    let mut key = std::ptr::null();
     let mut matchseq = false;
     let mut max_matches: i32 = 0;
 
@@ -760,7 +769,7 @@ pub fn fuzzy_match_str_with_pos(
 
 /// Fuzzy match a word in line `*ptr` (`fuzzy_match_str_in_line`).
 pub fn fuzzy_match_str_in_line(
-    ptr: *mut *mut c_char,
+    ptr: &mut *mut u8,
     pat: impl crate::strings::IntoCCharPtr,
     len: &mut i32,
     current_pos: Option<&mut CursorPos>,
@@ -768,27 +777,27 @@ pub fn fuzzy_match_str_in_line(
 ) -> bool {
     let pat = pat.into_c_char_ptr();
     {
-        let mut str_cur = unsafe { *ptr };
+        let mut str_cur = *ptr;
         let str_begin = str_cur;
         let mut found = false;
 
         if str_cur.is_null() || pat.is_null() {
             return false;
         }
-        let line_end = find_line_end(str_cur);
+        let line_end = find_line_end(str_cur.cast()).cast::<u8>();
 
         while (str_cur as usize) < (line_end as usize) {
-            let start = find_word_start(str_cur);
+            let start = find_word_start(str_cur.cast()).cast::<u8>();
             if unsafe { *start } == 0 {
                 break;
             }
-            let end = find_word_end(start);
+            let end = find_word_end(start.cast()).cast::<u8>();
 
             let save_end = unsafe { *end };
             unsafe {
                 *end = 0;
             }
-            *score = fuzzy_match_str(start, pat);
+            *score = fuzzy_match_str(start.cast(), pat);
             unsafe {
                 *end = save_end;
             }
@@ -796,9 +805,7 @@ pub fn fuzzy_match_str_in_line(
             if *score != FUZZY_SCORE_NONE {
                 *len = ((end as usize) - (start as usize)) as i32;
                 found = true;
-                unsafe {
-                    *ptr = start;
-                }
+                *ptr = start;
                 if let Some(current_pos) = current_pos {
                     current_pos.col += ((end as usize) - (str_begin as usize)) as i32;
                 }
@@ -806,15 +813,13 @@ pub fn fuzzy_match_str_in_line(
             }
 
             str_cur = end;
-            while unsafe { *str_cur } != 0 && !vim_iswordp(str_cur) {
-                str_cur = str_cur.wrapping_add(utf_ptr2len(str_cur) as usize);
+            while unsafe { *str_cur } != 0 && !vim_iswordp(str_cur.cast()) {
+                str_cur = str_cur.wrapping_add(utf_ptr2len(str_cur.cast()) as usize);
             }
         }
 
         if !found {
-            unsafe {
-                *ptr = line_end;
-            }
+            *ptr = line_end;
         }
 
         found
@@ -829,7 +834,7 @@ pub fn search_for_fuzzy_match(
     dir: i32,
     start_pos: &CursorPos,
     len: &mut i32,
-    ptr: *mut *mut c_char,
+    ptr: &mut *mut u8,
     score: &mut i32,
 ) -> bool {
     let pattern = pattern.into_c_char_ptr();
@@ -865,7 +870,7 @@ pub fn search_for_fuzzy_match(
             }
 
             if current_pos.lnum >= 1 && current_pos.lnum <= buf.b_ml.ml_line_count {
-                *ptr = ml_get_buf(buf, current_pos.lnum);
+                *ptr = ml_get_buf(buf, current_pos.lnum).cast();
                 if !whole_line {
                     *ptr = (*ptr).wrapping_add(current_pos.col as usize);
                 }
@@ -887,8 +892,8 @@ pub fn search_for_fuzzy_match(
                         }
                     } else {
                         let line = *ptr;
-                        let p = skipwhite(line);
-                        if fuzzy_match_str(p, pattern) != FUZZY_SCORE_NONE {
+                        let p = skipwhite(line.cast()).cast::<u8>();
+                        if fuzzy_match_str(p.cast(), pattern) != FUZZY_SCORE_NONE {
                             found_new_match = true;
                             *pos = current_pos;
                             *ptr = p;

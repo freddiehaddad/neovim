@@ -14,7 +14,7 @@ use crate::os::fs::{os_errno, os_set_cloexec};
 use crate::strings::strerror;
 #[cfg(any(unix, test))]
 #[cfg(unix)]
-use std::ffi::{c_char, c_ulong, c_ushort};
+use std::ffi::{c_ulong, c_ushort};
 #[cfg(unix)]
 use std::ptr;
 
@@ -255,11 +255,11 @@ mod unix_impl {
     unsafe extern "C" {
         fn forkpty(
             amaster: *mut i32,
-            name: *mut c_char,
+            name: *mut u8,
             termp: *const termios,
             winp: *const winsize,
         ) -> i32;
-        fn ptsname(fd: i32) -> *mut c_char;
+        fn ptsname(fd: i32) -> *mut u8;
         fn cfsetispeed(termios_p: *mut termios, speed: speed_t) -> i32;
         fn cfsetospeed(termios_p: *mut termios, speed: speed_t) -> i32;
         pub fn tcgetattr(fd: i32, termios_p: *mut termios) -> i32;
@@ -267,7 +267,7 @@ mod unix_impl {
         fn killpg(pgrp: i32, sig: i32) -> i32;
         fn waitpid(pid: i32, wstatus: *mut i32, options: i32) -> i32;
         fn setsid() -> i32;
-        fn execvp(file: *const c_char, argv: *const *mut c_char) -> i32;
+        fn execvp(file: *const u8, argv: *const *mut u8) -> i32;
         fn _exit(status: i32) -> !;
         #[cfg(target_os = "linux")]
         fn poll(fds: *mut pollfd, nfds: c_ulong, timeout: i32) -> i32;
@@ -308,15 +308,15 @@ mod unix_impl {
             let prog = proc_get_exepath(&*proc_);
             debug_assert!(!(*hdr).env.is_null());
             let new_env = tv_dict_to_env(((*hdr).env).as_ref());
-            let mut new_env_ptrs: Vec<*mut c_char> = new_env
+            let mut new_env_ptrs: Vec<*mut u8> = new_env
                 .iter()
-                .map(|s| s.as_ptr().cast_mut())
+                .map(|s| s.as_ptr().cast_mut().cast())
                 .chain(std::iter::once(ptr::null_mut()))
                 .collect();
-            let argv_ptrs: Vec<*mut c_char> = (*hdr)
+            let argv_ptrs: Vec<*mut u8> = (*hdr)
                 .argv
                 .iter()
-                .map(|s| s.as_ptr().cast_mut())
+                .map(|s| s.as_ptr().cast_mut().cast())
                 .chain(std::iter::once(ptr::null_mut()))
                 .collect();
             let mut master: i32 = -1;
@@ -490,8 +490,8 @@ mod unix_impl {
     fn init_child(
         ptyproc: &mut PtyProc,
         prog: impl crate::strings::IntoCCharPtr,
-        argv_ptrs: *const *mut c_char,
-        new_env: *mut *mut c_char,
+        argv_ptrs: *const *mut u8,
+        new_env: *mut *mut u8,
     ) -> ! {
         let prog = prog.into_c_char_ptr();
         unsafe {
@@ -523,8 +523,8 @@ mod unix_impl {
                 }
             }
 
-            *os_environ_ptr() = new_env;
-            execvp(prog, argv_ptrs);
+            *os_environ_ptr() = new_env.cast();
+            execvp(prog.cast(), argv_ptrs);
             let err = os_errno();
             logmsg!(
                 LOGLVL_ERR,

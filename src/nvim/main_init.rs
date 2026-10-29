@@ -1742,9 +1742,13 @@ fn command_line_scan(parmp: &mut Mparm) {
             if parmp.diff_mode != 0
                 && os_isdir(p_vec.as_ptr())
                 && gargcount() > 0
-                && !os_isdir(alist_name(unsafe { &*garglist() }))
+                && !os_isdir(
+                    alist_name(unsafe { &*garglist() }).map_or(ptr::null(), CStr::as_ptr),
+                )
             {
-                let tail = path_tail(alist_name(unsafe { &*garglist() }));
+                let tail = path_tail(
+                    alist_name(unsafe { &*garglist() }).map_or(ptr::null(), CStr::as_ptr),
+                );
                 let joined =
                     concat_fnames(cstr_as_string(p_vec.as_ptr()), cstr_as_string(tail), true);
                 p_vec = joined
@@ -1802,9 +1806,8 @@ fn set_argf_var() {
     let list = tv_list_alloc(K_LIST_LEN_MAY_KNOW_CONST);
     let count = gargcount();
     for i in 0..count {
-        let fname = alist_name(unsafe { &*garglist().wrapping_add(i as usize) });
-        if !fname.is_null() {
-            let _ = vim_full_name(fname, g_st().name_buff.as_mut_ptr(), MAXPATHL, false);
+        if let Some(fname) = alist_name(unsafe { &*garglist().wrapping_add(i as usize) }) {
+            let _ = vim_full_name(fname.as_ptr(), g_st().name_buff.as_mut_ptr(), MAXPATHL, false);
             tv_list_append_string(&mut *list, g_st().name_buff.as_ptr(), -1);
         }
     }
@@ -1875,7 +1878,7 @@ fn init_path(exename: impl crate::strings::IntoCCharPtr) {
 }
 
 fn get_fname(_parmp: &mut Mparm) -> *mut c_char {
-    unsafe { alist_name(&*garglist()) }
+    unsafe { alist_name(&*garglist()).map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut()) }
 }
 
 fn set_window_layout(paramp: &mut Mparm) {
@@ -2143,6 +2146,7 @@ fn edit_buffers(parmp: &mut Mparm) {
             g_st().swap_exists_did_quit = false;
             let fname = if arg_idx < gargcount() {
                 alist_name(unsafe { &*garglist().wrapping_add(arg_idx as usize) })
+                    .map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut())
             } else {
                 ptr::null_mut()
             };

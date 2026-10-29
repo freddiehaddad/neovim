@@ -4957,7 +4957,9 @@ fn expand_other(
         },
         ExpGen {
             context: EXPAND_ARGLIST,
-            func: get_arglist_name,
+            func: |xp, idx| {
+                get_arglist_name(xp, idx).map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut())
+            },
             ic: true,
             escaped: false,
         },

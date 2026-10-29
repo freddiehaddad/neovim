@@ -2294,7 +2294,11 @@ fn ins_compl_files(
                 while ptr < line_end {
                     let mut score: i32 = 0;
                     let mut len: i32 = 0;
-                    if fuzzy_match_str_in_line(&raw mut ptr, leader, &mut len, None, &mut score) {
+                    let mut ptr_u8 = ptr.cast::<u8>();
+                    let matched =
+                        fuzzy_match_str_in_line(&mut ptr_u8, leader, &mut len, None, &mut score);
+                    ptr = ptr_u8.cast();
+                    if matched {
                         let end_ptr = if ctrl_x_mode_line_or_eval() {
                             find_line_end(ptr)
                         } else {
@@ -4604,6 +4608,7 @@ fn get_next_default_completion(st: &mut InsComplNextState, start_pos: &mut Curso
         g_st().msg_silent += 1;
 
         if in_fuzzy_collect {
+            let mut ptr_u8 = ptr.cast::<u8>();
             found_new_match = i32::from(search_for_fuzzy_match(
                 unsafe { &mut *st.ins_buf },
                 &mut *st.cur_match_pos_ptr(),
@@ -4611,9 +4616,10 @@ fn get_next_default_completion(st: &mut InsComplNextState, start_pos: &mut Curso
                 insexp().compl_direction,
                 start_pos,
                 &mut len,
-                &raw mut ptr,
+                &mut ptr_u8,
                 &mut score,
             ));
+            ptr = ptr_u8.cast();
         } else if ctrl_x_mode_whole_line()
             || ctrl_x_mode_eval()
             || (insexp().compl_cont_status & CONT_SOL) != 0

@@ -253,11 +253,11 @@ fn ses_arglist(
         Vec::new()
     };
     for entry in gap {
-        let mut s = alist_name(entry);
-        if !s.is_null() {
+        if let Some(s_cstr) = alist_name(entry) {
+            let mut s = s_cstr.as_ptr();
             if fullname {
                 vim_full_name(s, buf.as_mut_ptr().cast(), MAXPATHL, false);
-                s = buf.as_mut_ptr().cast();
+                s = buf.as_ptr().cast();
             }
             let fname_esc = ses_escape_fname(s);
             if !write_fmt(fd, format!("$argadd {}\n", cstr_to_str(fname_esc.as_ptr()))) {
