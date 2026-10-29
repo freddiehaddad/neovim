@@ -1,126 +1,127 @@
-<h1 align="center">
+<div align="center">
   <img src="https://raw.githubusercontent.com/neovim/neovim.github.io/master/static/logos/neovim-logo-300x87.png" alt="Neovim">
+  <h3>The editor you know, rebuilt in Rust.</h3>
 
-  <a href="https://neovim.io/doc/">Documentation</a>
-</h1>
+  [![Test](https://github.com/freddiehaddad/neovim/actions/workflows/test.yml/badge.svg)](https://github.com/freddiehaddad/neovim/actions/workflows/test.yml)
+  [![CodeQL](https://github.com/freddiehaddad/neovim/actions/workflows/codeql.yml/badge.svg)](https://github.com/freddiehaddad/neovim/actions/workflows/codeql.yml)
+  [![Downloads](https://img.shields.io/github/downloads/freddiehaddad/neovim/total.svg?maxAge=2592001)](https://github.com/freddiehaddad/neovim/releases/)
+</div>
 
-[![Test](https://github.com/freddiehaddad/neovim/actions/workflows/test.yml/badge.svg)](https://github.com/freddiehaddad/neovim/actions/workflows/test.yml)
-[![CodeQL](https://github.com/freddiehaddad/neovim/actions/workflows/codeql.yml/badge.svg)](https://github.com/freddiehaddad/neovim/actions/workflows/codeql.yml)
-[![Downloads](https://img.shields.io/github/downloads/freddiehaddad/neovim/total.svg?maxAge=2592001)](https://github.com/freddiehaddad/neovim/releases/)
+---
 
-This repository is a pure-Rust port of [Neovim](https://github.com/neovim/neovim), preserving full API, plugin, and runtime compatibility while replacing the legacy C codebase and CMake build system with Rust and Cargo:
+This is [Neovim](https://github.com/neovim/neovim) with its entire C codebase and CMake build system replaced by Rust and Cargo.
 
-- Simplify maintenance and encourage [contributions](CONTRIBUTING.md)
-- Memory-safe, modular Rust architecture with zero `.c`/`.h` source files in the tree
-- Enable [advanced UIs] without modifications to the core
-- Maximize [extensibility](https://neovim.io/doc/user/api-ui-events.html#api-ui-events)
+It is a drop-in replacement for upstream Neovim—not a from-scratch clone with missing features. Your `init.lua`, keymaps, colorschemes, LSP servers, and plugins work without changes.
 
-Features
---------
+### What stays the same
 
-- Modern [GUIs](https://github.com/neovim/neovim/wiki/Related-projects#gui)
-- [API access](https://github.com/neovim/neovim/wiki/Related-projects#api-clients)
-  from any language including C/C++, C#, Clojure, D, Elixir, Go, Haskell, Java/Kotlin,
-  JavaScript/Node.js, Julia, Lisp, Lua, Perl, Python, Racket, Ruby, Rust
-- Embedded, scriptable [terminal emulator](https://neovim.io/doc/user/terminal.html)
-- Asynchronous [job control](https://github.com/neovim/neovim/pull/2247)
-- [Shared data (shada)](https://github.com/neovim/neovim/pull/2506) among multiple editor instances
-- [XDG base directories](https://github.com/neovim/neovim/pull/3470) support
-- Compatible with most Vim and Neovim plugins, including Lua, Ruby, and Python plugins
+- **All your Lua and Vimscript plugins**: `lazy.nvim`, `telescope.nvim`, `nvim-treesitter`, `blink.cmp`, `gitsigns.nvim`, `mason.nvim`, and the rest of the ecosystem run unmodified on the same embedded LuaJIT runtime.
+- **Built-in LSP, Treesitter, and diagnostic engine**: Shares the exact `runtime/` Lua standard library (`vim.lsp`, `vim.treesitter`, `vim.diagnostic`) and tracks upstream `neovim/neovim` commits continuously.
+- **External GUIs and RPC clients**: 100% compatible with the Neovim Msgpack-RPC protocol (`neovide`, `nvim-qt`, `fvim`, `pynvim`, `neovim-node-client`, and remote plugins).
+- **Every Vim feature you rely on**: Macros, registers, marks, folds, diff mode, spell checking, quickfix, terminal buffers, and `:help`.
 
-See [`:help nvim-features`][nvim-features] for the full list, and [`:help news`][nvim-news] for noteworthy changes in the latest version!
+### What changed under the hood
 
-Install from package
---------------------
+- **Zero `.c` or `.h` files in the repository**: All 460K+ lines of the editor core (`src/nvim/`) plus formerly vendored C libraries (`libvterm`, `libtermkey`, `unibilium`, `libmpack`, `lua-cjson`, `LPeg`, `xdiff`, `xxd`, `tee`) are native Rust (`edition = "2024"`).
+- **Standard Cargo workflow**: No CMake, Ninja, or Luarocks bootstrap. `cargo xtask install` builds and installs the editor in one step.
+- **Validated against the full test suite**: Passes all 274 functional test suites, 131 legacy Vim test suites, and 1,000+ Rust unit tests across Linux, macOS, and Windows.
 
-Pre-built packages for Windows, macOS, and Linux are found on the
-[Releases](https://github.com/freddiehaddad/neovim/releases/) page.
+## Performance
 
-See [INSTALL.md](./INSTALL.md) for detailed installation instructions.
+Measured head-to-head against upstream `neovim/neovim` Nightly (`v0.13.0-dev`) on identical hardware using the built-in benchmark suite (`cargo xtask benchmark --release`):
 
-Install from source
--------------------
+<p align="center">
+  <img src=".github/benchmarks.svg" width="100%" alt="Performance comparison between the Rust port and upstream C Neovim">
+</p>
 
-See [BUILD.md](./BUILD.md) for detailed build instructions.
+<details>
+<summary><strong>View detailed benchmark numbers</strong></summary>
 
-The build uses standard Rust `cargo` and `cargo xtask` (which automatically fetches and builds bundled third-party C libraries in `.deps/` on first run):
+| Workload | Benchmark | Upstream C (`nightly`) | Rust Port (`--release`) | Result |
+|---|---|---:|---:|---|
+| **Cold startup** | `nvim --clean --headless +q` (median) | `31.4 ms` | **`16.7 ms`** | **1.88× faster** (`-47%`) |
+| **Screen layout & UTF-8 wrapping** | `screenpos_spec.lua` (24-test suite) | `36.8 s` | **`19.9 s`** | **1.85× faster** (`-46%`) |
+| — Long ASCII line `screenpos()` | `nobreakindent` / `breakindent` | `55.2 µs` / `81.3 µs` | **`23.8 µs` / `36.4 µs`** | **2.32× / 2.23× faster** |
+| — Long UTF-8 line `screenpos()` | 3-byte UTF-8 (`nobreakindent` / `breakindent`) | `167.0 µs` / `201.3 µs` | **`97.1 µs` / `121.0 µs`** | **1.72× / 1.66× faster** |
+| **Regex search** | `bench_regexp_spec.lua` (`regexpengine=1` / `0`) | `6.40 ms` / `7.94 ms` | **`3.48 ms` / `6.19 ms`** | **1.84× / 1.28× faster** |
+| **Virtual line cursor motion** | `extmark_spec.lua` (step over 2,000 virt lines) | `117 µs` | **`71 µs`** | **1.65× faster** (`-39%`) |
+| **Treesitter fold navigation** | `treesitter_spec.lua` (100 macro replays, 6k-line fold) | `60.9 ms` | **`43.1 ms`** | **1.41× faster** (`-29%`) |
+| **Treesitter redraw suite** | `treesitter_spec.lua` (8-test suite total) | `1,535 ms` | **`1,433 ms`** | **1.07× faster** (`-7%`) |
+| **Plugin autocmd lifecycle** | `autocmd_spec.lua` (8-test suite, 10k events) | `464 ms` | **`333 ms`** | **1.39× faster** (`-28%`) |
+| — Delete 10k autocmds | Same pattern / unique patterns | `24.4 ms` / `27.1 ms` | **`13.8 ms` / `15.3 ms`** | **1.76× / 1.78× faster** |
+| **Extmarks & inline diagnostics** | `extmark_spec.lua` (suite total) | `197 ms` | **`168 ms`** | **1.17× faster** (`-15%`) |
+| **Option & buffer config** | `option_spec.lua` (140,000 `vim.o` / `vim.opt` updates) | `609 ms` | **`539 ms`** | **1.13× faster** (`-11%`) |
+| **Full-screen Treesitter redraw** | `decor_spec.lua` (100×50 grid, median frame time) | `16.6 ms` | **`16.3 ms`** | **60+ FPS parity** |
+
+</details>
+
+## Quick Start
+
+### Install a pre-built release
+
+Pre-built archives and installers for Windows (`.zip`, `.msi`), macOS (`.tar.gz`), and Linux (`.tar.gz`, `.appimage`) are published on the [Releases](https://github.com/freddiehaddad/neovim/releases) page. See [INSTALL.md](./INSTALL.md) for platform instructions.
+
+### Build and install from source
+
+With Rust (`1.85+`) and a system C compiler installed (used once to build the bundled `libuv`, `LuaJIT`, `luv`, and `tree-sitter` archives in `.deps/`), building and installing is a single command:
+
 ```bash
 cargo xtask install
 ```
 
 To install to a custom prefix:
+
 ```bash
-cargo xtask install --prefix /full/path
+cargo xtask install --prefix /custom/path
 ```
 
-Useful `cargo xtask` commands:
+Common `cargo xtask` commands (see [BUILD.md](./BUILD.md) for full details):
 
-- `cargo xtask --help` lists all available build, lint, doc, package, and test subcommands.
-- `cargo xtask build --release` builds the release binary and stages runtime files in `target/nvim-build/`.
-- `cargo xtask dist` packages a distributable release archive (`.tar.gz` / `.zip`, plus `.appimage` on Linux and `.msi` on Windows) in `target/release/`.
+```bash
+cargo xtask build --release   # build optimized binaries and stage runtime in target/nvim-build/
+cargo xtask dist              # build release archives (.tar.gz / .zip / .appimage / .msi)
+cargo xtask unittest          # run Rust unit tests
+cargo xtask functionaltest    # run the Lua functional test suite
+cargo xtask oldtest           # run the legacy Vim test suite
+cargo xtask benchmark         # run the performance benchmark suite
+cargo xtask lint              # run clippy, stylua, error-code, and vimdoc linters
+```
 
-Transitioning from Vim
-----------------------
+## Project Layout
 
-See [`:help nvim-from-vim`](https://neovim.io/doc/user/nvim.html#nvim-from-vim) for instructions.
+```text
+├─ runtime/         Built-in Lua modules (vim.lsp, vim.treesitter, ...), syntax, and :help docs
+├─ src/
+│  ├─ nvim/         Neovim core in Rust
+│  │  ├─ api/       Nvim API & RPC endpoints (nvim_buf_*, nvim_win_*, nvim_extmark_*, ...)
+│  │  ├─ eval/      Vimscript evaluator & built-in functions
+│  │  ├─ event/     Async event loop & process/pty management (libuv)
+│  │  ├─ lua/       LuaJIT runtime bridge & Treesitter C API bindings
+│  │  ├─ msgpack_rpc/ Msgpack-RPC channel, packer, and unpacker
+│  │  ├─ os/        Platform filesystem, environment, signal, and shell abstractions
+│  │  ├─ tui/       Terminal UI renderer & termkey input driver
+│  │  ├─ viml/      Vimscript parser & expression lexer
+│  │  └─ vterm/     Rust port of libvterm
+│  ├─ cjson/        Rust port of lua-cjson
+│  ├─ lpeg/         Rust port of LPeg
+│  ├─ mpack/        Rust port of libmpack / lmpack
+│  ├─ unibilium/    Rust port of unibilium terminfo parser
+│  ├─ xdiff/        Rust port of git xdiff
+│  ├─ gen/          Documentation & metadata generators
+│  ├─ tee/          Rust tee helper binary
+│  ├─ xxd/          Rust xxd hex dump utility
+│  └─ xtask/        Cargo build, test, benchmark, lint, and packaging runner
+└─ test/            Functional, benchmark, and legacy Vim test suites
+```
 
-Performance
------------
+## Contributing & Maintenance
 
-Head-to-head comparison against upstream `neovim/neovim` Nightly (C) using the built-in benchmark suite (`cargo xtask benchmark --release`):
+- [BUILD.md](./BUILD.md) — Prerequisites, platform build instructions, and `cargo xtask` reference.
+- [CONTRIBUTING.md](./CONTRIBUTING.md) — Workflow, testing, linting, and pull request guidelines.
+- [MAINTAIN.md](./MAINTAIN.md) — Upstream `neovim/neovim` sync process and release packaging.
+- [AGENTS.md](./AGENTS.md) — Architecture, soundness invariants, and rules for AI coding agents.
 
-| Benchmark (`test/benchmark/`) | Upstream C (`nightly`) | Rust Port (`--release`, ThinLTO) | Comparison |
-|---|---:|---:|---|
-| **`autocmd_spec.lua` (suite total)** | `452.6 ms` | **`331.9 ms`** | **27% faster in Rust** |
-| — `nvim_del_autocmd` (10k, same pattern) | `24.21 ms` | **`13.76 ms`** | **43% faster in Rust** |
-| — `nvim_del_autocmd` (10k, unique patterns) | `27.67 ms` | **`15.35 ms`** | **45% faster in Rust** |
-| **`extmark_spec.lua` (suite total)** | `193.3 ms` | **`157.0 ms`** | **19% faster in Rust** |
-| — `nvim_buf_clear_namespace` (10k calls) | `0.582 ms` | **`0.544 ms`** | **7% faster in Rust** |
-| — `redraw` (2,000 virt lines, bottom) | `0.684 ms` | **`0.585 ms`** | **14% faster in Rust** |
-| — `redraw` (2,000 virt lines, top) | `0.733 ms` | **`0.598 ms`** | **18% faster in Rust** |
-| — cursor move across virt lines | `0.114 ms` | **`0.061 ms`** | **46% faster in Rust** |
-| **`option_spec.lua` (suite total, 7×20k)** | `599.8 ms` | **`532.1 ms`** | **11% faster in Rust** |
-| — `nvim_set_option_value` (median) | `0.0024 ms` | **`0.0024 ms`** | **Identical** |
-| **`bench_regexp_spec.lua`** | | | |
-| — `regexpengine=1` (backtracking) | `5.89 ms` | **`3.57 ms`** | **39% faster in Rust** |
-| — `regexpengine=0` (auto) | `7.35 ms` | **`5.52 ms`** | **25% faster in Rust** |
-| — `regexpengine=2` (NFA `re.freeze.txt`) | **`3,413 ms`** | `3,886 ms` | **12% slower in Rust** |
+## License
 
-Project layout
---------------
+Neovim contributions since [`b17d96`](https://github.com/neovim/neovim/commit/b17d9691a24099c9210289f16afb1a498a89d803) are licensed under the Apache 2.0 license, except for contributions ported from Vim. See [LICENSE.txt](./LICENSE.txt) for details.
 
-    ├─ runtime/         built-in plugins, syntax, and :help documentation
-    ├─ src/
-    │  ├─ cjson/        Rust port of lua-cjson
-    │  ├─ gen/          Lua documentation & runtime generators
-    │  ├─ lpeg/         Rust port of LPeg
-    │  ├─ mpack/        Rust port of libmpack / lmpack
-    │  ├─ nvim/         Neovim core Rust source code (see src/nvim/README.md)
-    │  │  ├─ api/       RPC & Lua API subsystem
-    │  │  ├─ eval/      Vimscript evaluation subsystem
-    │  │  ├─ event/     libuv event-loop subsystem
-    │  │  ├─ lua/       Lua integration & treesitter subsystem
-    │  │  ├─ msgpack_rpc/ Msgpack-RPC channel & unpacker subsystem
-    │  │  ├─ os/        low-level platform code
-    │  │  ├─ tui/       built-in terminal UI & termkey
-    │  │  ├─ viml/      Vimscript parser & expression compiler
-    │  │  └─ vterm/     Rust port of libvterm
-    │  ├─ tee/          Rust `tee` helper binary
-    │  ├─ unibilium/    Rust port of unibilium terminfo library
-    │  ├─ xdiff/        Rust port of git xdiff
-    │  ├─ xtask/        Cargo build, test, lint, and packaging automation
-    │  └─ xxd/          Rust `xxd` hex dump utility
-    └─ test/            functional and legacy tests (see test/README.md)
-
-License
--------
-
-Neovim contributions since [b17d96][license-commit] are licensed under the
-Apache 2.0 license, except for contributions ported from Vim. See [LICENSE.txt](./LICENSE.txt) for details.
-
-[license-commit]: https://github.com/neovim/neovim/commit/b17d9691a24099c9210289f16afb1a498a89d803
-[nvim-features]: https://neovim.io/doc/user/vim_diff.html#nvim-features
-[nvim-news]: https://neovim.io/doc/user/news.html
-[advanced UIs]: https://github.com/neovim/neovim/wiki/Related-projects#gui
-
-<!-- vim: set tw=80: -->

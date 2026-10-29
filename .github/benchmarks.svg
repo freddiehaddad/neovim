@@ -1,0 +1,231 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 880 620" width="100%" role="img" aria-label="Neovim Rust Port vs Upstream C Performance Benchmarks">
+  <defs>
+    <linearGradient id="rustBar" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#10b981"/>
+      <stop offset="100%" stop-color="#34d399"/>
+    </linearGradient>
+    <linearGradient id="cBar" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#475569"/>
+      <stop offset="100%" stop-color="#64748b"/>
+    </linearGradient>
+  </defs>
+  <style>
+    :root {
+      --bg: #0d1117;
+      --card: #161b22;
+      --border: #30363d;
+      --row-alt: #12171e;
+      --text-main: #e6edf3;
+      --text-sub: #8b949e;
+      --text-dim: #6e7681;
+      --badge-bg: rgba(16, 185, 129, 0.14);
+      --badge-border: rgba(52, 211, 153, 0.35);
+      --badge-text: #34d399;
+      --track: #21262d;
+    }
+    @media (prefers-color-scheme: light) {
+      :root {
+        --bg: #ffffff;
+        --card: #f6f8fa;
+        --border: #d0d7de;
+        --row-alt: #eef2f6;
+        --text-main: #1f2328;
+        --text-sub: #57606a;
+        --text-dim: #6e7781;
+        --badge-bg: rgba(16, 185, 129, 0.12);
+        --badge-border: rgba(5, 150, 105, 0.35);
+        --badge-text: #059669;
+        --track: #eaeef2;
+      }
+    }
+    .canvas { fill: var(--bg); }
+    .frame { fill: var(--card); stroke: var(--border); stroke-width: 1.2; }
+    .divider { stroke: var(--border); stroke-width: 1; stroke-opacity: 0.55; }
+    .title { font: 700 17px -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif; fill: var(--text-main); }
+    .subtitle { font: 400 12.5px -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif; fill: var(--text-sub); }
+    .legend { font: 600 12px -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif; fill: var(--text-main); }
+    .metric-title { font: 600 13.5px -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif; fill: var(--text-main); }
+    .metric-desc { font: 400 11.5px -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif; fill: var(--text-sub); }
+    .val-rust { font: 700 11.5px "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace; fill: var(--badge-text); }
+    .val-c { font: 500 11.5px "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace; fill: var(--text-sub); }
+    .badge-rect { fill: var(--badge-bg); stroke: var(--badge-border); stroke-width: 1; }
+    .badge-label { font: 700 12px "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace; fill: var(--badge-text); text-anchor: middle; }
+    .track { fill: var(--track); }
+
+    @keyframes grow {
+      0% { transform: scaleX(0); }
+      100% { transform: scaleX(1); }
+    }
+    @keyframes fadeIn {
+      0% { opacity: 0; transform: translateY(3px); }
+      100% { opacity: 1; transform: translateY(0); }
+    }
+    .bar {
+      transform-box: fill-box;
+      transform-origin: left center;
+      animation: grow 0.85s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+    }
+    .badge {
+      opacity: 0;
+      animation: fadeIn 0.45s ease-out forwards;
+    }
+    .d1 { animation-delay: 0.05s; } .b1 { animation-delay: 0.65s; }
+    .d2 { animation-delay: 0.12s; } .b2 { animation-delay: 0.72s; }
+    .d3 { animation-delay: 0.19s; } .b3 { animation-delay: 0.79s; }
+    .d4 { animation-delay: 0.26s; } .b4 { animation-delay: 0.86s; }
+    .d5 { animation-delay: 0.33s; } .b5 { animation-delay: 0.93s; }
+    .d6 { animation-delay: 0.40s; } .b6 { animation-delay: 1.00s; }
+    .d7 { animation-delay: 0.47s; } .b7 { animation-delay: 1.07s; }
+    .d8 { animation-delay: 0.54s; } .b8 { animation-delay: 1.14s; }
+  </style>
+
+  <rect class="canvas" width="880" height="620" rx="12"/>
+  <rect class="frame" x="8" y="8" width="864" height="604" rx="10"/>
+
+  <!-- Header -->
+  <text class="title" x="30" y="40">Real-World Editor Benchmarks — Rust Port vs. Upstream C</text>
+  <text class="subtitle" x="30" y="60">Relative execution time (shorter bar = faster). Measured on identical hardware via cargo xtask benchmark --release.</text>
+
+  <!-- Legend -->
+  <rect x="615" y="28" width="12" height="12" rx="3" fill="url(#rustBar)"/>
+  <text class="legend" x="633" y="38">Rust Port (Release)</text>
+  <rect x="760" y="28" width="12" height="12" rx="3" fill="url(#cBar)"/>
+  <text class="legend" x="778" y="38">Upstream C</text>
+
+  <line class="divider" x1="24" y1="76" x2="856" y2="76"/>
+
+  <!-- Row 1: Cold Startup -->
+  <g transform="translate(0, 86)">
+    <text class="metric-title" x="30" y="22">Cold Startup</text>
+    <text class="metric-desc" x="30" y="40">nvim --clean --headless +q (median)</text>
+    <rect class="track" x="285" y="10" width="340" height="13" rx="4"/>
+    <rect class="bar d1" x="285" y="10" width="181" height="13" rx="4" fill="url(#rustBar)"/>
+    <text class="val-rust" x="474" y="21">16.7 ms</text>
+    <rect class="track" x="285" y="29" width="340" height="13" rx="4"/>
+    <rect class="bar d1" x="285" y="29" width="340" height="13" rx="4" fill="url(#cBar)"/>
+    <text class="val-c" x="633" y="40">31.4 ms</text>
+    <g class="badge b1">
+      <rect class="badge-rect" x="728" y="12" width="118" height="28" rx="14"/>
+      <text class="badge-label" x="787" y="30">1.88× faster</text>
+    </g>
+  </g>
+  <line class="divider" x1="30" y1="146" x2="850" y2="146"/>
+
+  <!-- Row 2: Screen Layout & UTF-8 Wrapping -->
+  <g transform="translate(0, 152)">
+    <text class="metric-title" x="30" y="22">Screen Layout &amp; UTF-8 Wrapping</text>
+    <text class="metric-desc" x="30" y="40">screenpos_spec.lua (24-test suite)</text>
+    <rect class="track" x="285" y="10" width="340" height="13" rx="4"/>
+    <rect class="bar d2" x="285" y="10" width="184" height="13" rx="4" fill="url(#rustBar)"/>
+    <text class="val-rust" x="477" y="21">19.9 s</text>
+    <rect class="track" x="285" y="29" width="340" height="13" rx="4"/>
+    <rect class="bar d2" x="285" y="29" width="340" height="13" rx="4" fill="url(#cBar)"/>
+    <text class="val-c" x="633" y="40">36.8 s</text>
+    <g class="badge b2">
+      <rect class="badge-rect" x="728" y="12" width="118" height="28" rx="14"/>
+      <text class="badge-label" x="787" y="30">1.85× faster</text>
+    </g>
+  </g>
+  <line class="divider" x1="30" y1="212" x2="850" y2="212"/>
+
+  <!-- Row 3: Regex Search Engine -->
+  <g transform="translate(0, 218)">
+    <text class="metric-title" x="30" y="22">Regex Search Engine</text>
+    <text class="metric-desc" x="30" y="40">bench_regexp_spec.lua (backtracking)</text>
+    <rect class="track" x="285" y="10" width="340" height="13" rx="4"/>
+    <rect class="bar d3" x="285" y="10" width="185" height="13" rx="4" fill="url(#rustBar)"/>
+    <text class="val-rust" x="478" y="21">3.48 ms</text>
+    <rect class="track" x="285" y="29" width="340" height="13" rx="4"/>
+    <rect class="bar d3" x="285" y="29" width="340" height="13" rx="4" fill="url(#cBar)"/>
+    <text class="val-c" x="633" y="40">6.40 ms</text>
+    <g class="badge b3">
+      <rect class="badge-rect" x="728" y="12" width="118" height="28" rx="14"/>
+      <text class="badge-label" x="787" y="30">1.84× faster</text>
+    </g>
+  </g>
+  <line class="divider" x1="30" y1="278" x2="850" y2="278"/>
+
+  <!-- Row 4: Virtual Line Cursor Motion -->
+  <g transform="translate(0, 284)">
+    <text class="metric-title" x="30" y="22">Virtual Line Cursor Motion</text>
+    <text class="metric-desc" x="30" y="40">Cursor step across 2,000 LSP virtual lines</text>
+    <rect class="track" x="285" y="10" width="340" height="13" rx="4"/>
+    <rect class="bar d4" x="285" y="10" width="206" height="13" rx="4" fill="url(#rustBar)"/>
+    <text class="val-rust" x="499" y="21">71 µs</text>
+    <rect class="track" x="285" y="29" width="340" height="13" rx="4"/>
+    <rect class="bar d4" x="285" y="29" width="340" height="13" rx="4" fill="url(#cBar)"/>
+    <text class="val-c" x="633" y="40">117 µs</text>
+    <g class="badge b4">
+      <rect class="badge-rect" x="728" y="12" width="118" height="28" rx="14"/>
+      <text class="badge-label" x="787" y="30">1.65× faster</text>
+    </g>
+  </g>
+  <line class="divider" x1="30" y1="344" x2="850" y2="344"/>
+
+  <!-- Row 5: Treesitter Large-Fold Navigation -->
+  <g transform="translate(0, 350)">
+    <text class="metric-title" x="30" y="22">Treesitter Fold Navigation</text>
+    <text class="metric-desc" x="30" y="40">100 macro replays over 6,000-line fold</text>
+    <rect class="track" x="285" y="10" width="340" height="13" rx="4"/>
+    <rect class="bar d5" x="285" y="10" width="241" height="13" rx="4" fill="url(#rustBar)"/>
+    <text class="val-rust" x="534" y="21">43.1 ms</text>
+    <rect class="track" x="285" y="29" width="340" height="13" rx="4"/>
+    <rect class="bar d5" x="285" y="29" width="340" height="13" rx="4" fill="url(#cBar)"/>
+    <text class="val-c" x="633" y="40">60.9 ms</text>
+    <g class="badge b5">
+      <rect class="badge-rect" x="728" y="12" width="118" height="28" rx="14"/>
+      <text class="badge-label" x="787" y="30">1.41× faster</text>
+    </g>
+  </g>
+  <line class="divider" x1="30" y1="410" x2="850" y2="410"/>
+
+  <!-- Row 6: Plugin Autocmd Dispatch -->
+  <g transform="translate(0, 416)">
+    <text class="metric-title" x="30" y="22">Plugin Autocmd Lifecycle</text>
+    <text class="metric-desc" x="30" y="40">autocmd_spec.lua (create, exec &amp; delete 10k)</text>
+    <rect class="track" x="285" y="10" width="340" height="13" rx="4"/>
+    <rect class="bar d6" x="285" y="10" width="244" height="13" rx="4" fill="url(#rustBar)"/>
+    <text class="val-rust" x="537" y="21">333 ms</text>
+    <rect class="track" x="285" y="29" width="340" height="13" rx="4"/>
+    <rect class="bar d6" x="285" y="29" width="340" height="13" rx="4" fill="url(#cBar)"/>
+    <text class="val-c" x="633" y="40">464 ms</text>
+    <g class="badge b6">
+      <rect class="badge-rect" x="728" y="12" width="118" height="28" rx="14"/>
+      <text class="badge-label" x="787" y="30">1.39× faster</text>
+    </g>
+  </g>
+  <line class="divider" x1="30" y1="476" x2="850" y2="476"/>
+
+  <!-- Row 7: Extmarks & Virtual Lines -->
+  <g transform="translate(0, 482)">
+    <text class="metric-title" x="30" y="22">Extmarks &amp; Inline Diagnostics</text>
+    <text class="metric-desc" x="30" y="40">extmark_spec.lua (clear ns + 2k virt redraw)</text>
+    <rect class="track" x="285" y="10" width="340" height="13" rx="4"/>
+    <rect class="bar d7" x="285" y="10" width="290" height="13" rx="4" fill="url(#rustBar)"/>
+    <text class="val-rust" x="583" y="21">168 ms</text>
+    <rect class="track" x="285" y="29" width="340" height="13" rx="4"/>
+    <rect class="bar d7" x="285" y="29" width="340" height="13" rx="4" fill="url(#cBar)"/>
+    <text class="val-c" x="633" y="40">197 ms</text>
+    <g class="badge b7">
+      <rect class="badge-rect" x="728" y="12" width="118" height="28" rx="14"/>
+      <text class="badge-label" x="787" y="30">1.17× faster</text>
+    </g>
+  </g>
+  <line class="divider" x1="30" y1="542" x2="850" y2="542"/>
+
+  <!-- Row 8: Option Updates -->
+  <g transform="translate(0, 548)">
+    <text class="metric-title" x="30" y="22">Option &amp; Buffer Configuration</text>
+    <text class="metric-desc" x="30" y="40">option_spec.lua (140,000 vim.o / vim.opt sets)</text>
+    <rect class="track" x="285" y="10" width="340" height="13" rx="4"/>
+    <rect class="bar d8" x="285" y="10" width="301" height="13" rx="4" fill="url(#rustBar)"/>
+    <text class="val-rust" x="594" y="21">539 ms</text>
+    <rect class="track" x="285" y="29" width="340" height="13" rx="4"/>
+    <rect class="bar d8" x="285" y="29" width="340" height="13" rx="4" fill="url(#cBar)"/>
+    <text class="val-c" x="633" y="40">609 ms</text>
+    <g class="badge b8">
+      <rect class="badge-rect" x="728" y="12" width="118" height="28" rx="14"/>
+      <text class="badge-label" x="787" y="30">1.13× faster</text>
+    </g>
+  </g>
+</svg>

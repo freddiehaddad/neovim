@@ -12,9 +12,9 @@ describe('treesitter perf', function()
   end)
 
   it('can handle large folds', function()
-    n.command 'edit ./src/nvim/eval.c'
+    n.command 'edit ./src/nvim/eval.lua'
     exec_lua [[
-      local parser = vim.treesitter.get_parser(0, "c", {})
+      local parser = vim.treesitter.get_parser(0, "lua", {})
       vim.treesitter.highlighter.new(parser)
 
       local function keys(k)

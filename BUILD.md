@@ -1,170 +1,109 @@
-# Building Neovim (Rust)
+# Building from Source
 
-- **IMPORTANT**: Before upgrading to a new version, **always check for [breaking changes](https://neovim.io/doc/user/news.html#news-breaking).**
+Building the Rust port of Neovim requires a current Rust toolchain and a C compiler for the four external C libraries (`libuv`, `LuaJIT`, `luv`, and `tree-sitter`) that are fetched and built automatically on first run. No CMake, Ninja, or Luarocks setup is needed.
 
-## Quick start
+## Quick Start
 
-1. Install [build prerequisites](#build-prerequisites) on your system.
-2. Clone the repository:
-   ```bash
-   git clone https://github.com/freddiehaddad/neovim
-   cd neovim
-   ```
-3. Build and install:
-   ```bash
-   cargo xtask install
-   ```
-   - Default install location is `~/.local` on Unix and `%USERPROFILE%\.local\bin\nvim-win64` on Windows.
-   - To install to a custom directory:
-     ```bash
-     cargo xtask install --prefix /custom/path
-     ```
+```bash
+git clone https://github.com/freddiehaddad/neovim
+cd neovim
+cargo xtask install
+```
 
-**Notes**:
-- Running `cargo build` or any `cargo xtask` command automatically downloads and builds the bundled third-party C libraries (`libuv`, `LuaJIT`, `luv`, `tree-sitter`, and bundled tree-sitter parsers) into `.deps/` on first run.
-- `cargo xtask build` (or `cargo xtask build --release`) compiles the binaries and stages a complete runnable tree (including generated helptags and syntax files) in `target/nvim-build/`.
-- You can run the staged binary directly without installing:
+- **Default install prefix**: `~/.local` on Linux/macOS/BSD and `%USERPROFILE%\.local\bin\nvim-win64` on Windows.
+- **Custom install prefix**:
   ```bash
+  cargo xtask install --prefix /custom/path
+  ```
+- **Build without installing**:
+  ```bash
+  cargo xtask build --release
   ./target/nvim-build/bin/nvim
   ```
+  `cargo xtask build` compiles the workspace binaries (`nvim`, `nvim-tee`, `xxd`) and stages a complete runnable tree (including generated helptags and syntax files) in `target/nvim-build/`.
 
-## `cargo xtask` Reference
+## `cargo xtask` Commands
 
 | Command | Description |
 |---|---|
-| `cargo xtask deps [--force]` | Download and compile bundled C dependencies in `.deps/` |
-| `cargo xtask build [--release]` | Compile binaries and stage runtime in `target/nvim-build/` |
-| `cargo xtask install [--prefix <dir>]` | Build release and install Neovim, runtime, and locale `.mo` files |
-| `cargo xtask dist [--out-dir <dir>]` | Package release archives (`.tar.gz`/`.zip`, plus `.appimage`/`.msi`) in `target/release/` |
-| `cargo xtask doc` | Regenerate `:help` documentation files from source docstrings |
+| `cargo xtask build [--release]` | Build binaries and stage `runtime/` in `target/nvim-build/` |
+| `cargo xtask install [--prefix <dir>]` | Build `--release` and install Neovim, runtime files, and manpages |
+| `cargo xtask dist [--out-dir <dir>]` | Package release archives (`.tar.gz`/`.zip`, plus `.appimage` on Linux and `.msi` on Windows) |
+| `cargo xtask deps [--force]` | Download and compile bundled C libraries (`libuv`, `LuaJIT`, `luv`, `tree-sitter`) |
+| `cargo xtask doc` | Regenerate `:help` documentation and Lua `_meta` type definitions |
 | `cargo xtask lint` | Run all linters (`lintrust`, `lintlua`, `linterrcodes`, `lintdoc`) |
+| `cargo xtask format` | Format Rust (`cargo fmt`) and Lua (`stylua`) source files |
 | `cargo xtask unittest` | Run Rust unit tests (`cargo test`) |
-| `cargo xtask functionaltest [args...]` | Run Lua functional test suite |
-| `cargo xtask oldtest [args...]` | Run legacy Vim test suite |
-| `cargo xtask clean` / `distclean` | Clean `target/` (`distclean` also removes `.deps/`) |
+| `cargo xtask functionaltest [args...]` | Run the Lua functional test suite (or a single `_spec.lua` file) |
+| `cargo xtask oldtest [args...]` | Run the legacy Vim test suite (or a single `test_<name>`) |
+| `cargo xtask benchmark [--release]` | Run the performance benchmark suite in `test/benchmark/` |
+| `cargo xtask clean` / `distclean` | Remove `target/` (`distclean` also removes cached `.deps/`) |
 
-## Running tests
-
-See [runtime/doc/dev_test.txt](./runtime/doc/dev_test.txt) for details on running and writing tests:
+## Running Tests
 
 ```bash
 # Rust unit tests
 cargo test
 
-# Full functional test suite (or a single spec file)
+# Full functional test suite or a single spec file (add --release to test the optimized binary)
 cargo xtask functionaltest
-cargo xtask functionaltest test/functional/api/version_spec.lua
+cargo xtask functionaltest --release test/functional/api/version_spec.lua
 
-# Legacy Vim tests (all or a single test)
+# Legacy Vim test suite or a single test
 cargo xtask oldtest
-cargo xtask oldtest test_syntax
+cargo xtask oldtest --release test_syntax
+
+# Performance benchmarks
+cargo xtask benchmark --release
 ```
 
-## Build configurations
+## Build Options
 
-### Debug vs. Release
+- **Debug vs. Release**: `cargo build` and `cargo xtask build` default to the `dev` profile for fast incremental builds. Pass `--release` for full optimization (`opt-level = 3`, `lto = "thin"`, `codegen-units = 1`). `cargo xtask install` and `cargo xtask dist` build `--release` by default.
+- **PUC Lua 5.1 instead of LuaJIT**:
+  ```bash
+  cargo xtask build --prefer-lua
+  ```
+- **System libraries instead of bundled `.deps`**:
+  ```bash
+  USE_BUNDLED=0 cargo build
+  ```
 
-- **Debug** (default for `cargo build` / `cargo xtask build`): Fast incremental compilation with debug assertions and symbols.
-- **Release** (`cargo build --release` / `cargo xtask build --release`): Full optimizations (`opt-level = 3`). Used by `cargo xtask install` and `cargo xtask dist` by default (pass `--debug` to override).
+## Platform Prerequisites
 
-### PUC Lua
-
-To build against standard PUC Lua 5.1 instead of LuaJIT:
-```bash
-cargo xtask build --prefer-lua
-```
-
-### Using system libraries instead of `.deps`
-
-By default, `build.rs` and `cargo xtask` build and statically link the bundled libraries in `.deps/usr`. To skip building `.deps` and link against system-installed `libuv`, `luajit`, `luv`, and `tree-sitter`:
-```bash
-USE_BUNDLED=0 cargo build
-```
-
-## Building on Windows
+### Windows
 
 1. Install [Rust](https://rustup.rs/) (`x86_64-pc-windows-msvc` or `aarch64-pc-windows-msvc`).
-2. Install [Visual Studio](https://visualstudio.microsoft.com/downloads/) (or Build Tools for Visual Studio) with the **Desktop development with C++** workload.
-   - You do **not** need to open a special Developer Command Prompt—`build.rs` and `src/deps_build.rs` automatically locate `cl.exe` / `vcvars64.bat` via `vswhere.exe`.
-3. Ensure `curl.exe` and `tar.exe` are available in `PATH` (included by default in Windows 10/11).
-4. Build or install from PowerShell or Command Prompt:
+2. Install [Visual Studio](https://visualstudio.microsoft.com/downloads/) or Build Tools for Visual Studio with the **Desktop development with C++** workload.
+   - You do **not** need to open a Developer Command Prompt; `build.rs` locates `cl.exe` and `vcvars64.bat` automatically via `vswhere.exe`.
+3. Build or install from PowerShell or Command Prompt:
    ```pwsh
-   cargo xtask build --release
    cargo xtask install
    ```
-5. (Optional) To build the Windows `.msi` installer with `cargo xtask dist`, install the WiX CLI tool:
+4. *(Optional)* To package the `.msi` installer with `cargo xtask dist`, install the WiX CLI tool:
    ```pwsh
    dotnet tool install --global wix --version 5.0.2
    cargo xtask dist
    ```
 
-## Build prerequisites
+### Linux
 
-### General requirements
+Install Rust via [rustup](https://rustup.rs/) and your distribution's C toolchain + `gettext`:
 
-- **Rust toolchain** (Rust 1.85+ / Edition 2024, via [rustup](https://rustup.rs/))
-- A C compiler (`cc` / `gcc` / `clang` on Unix; MSVC `cl.exe` on Windows) and `make` (`gmake` on BSD) to compile the 4 bundled C dependencies (`libuv`, `LuaJIT`, `luv`, `tree-sitter`)
-- `curl`, `tar`, and `git`
-
-### Ubuntu / Debian
-
-```bash
-sudo apt-get install build-essential curl gettext git
-```
-
-### RHEL / Fedora
-
-```bash
-sudo dnf -y install gcc make gettext curl git
-```
-
-### Arch Linux
-
-```bash
-sudo pacman -S base-devel curl gettext git
-```
-
-### Alpine Linux
-
-```bash
-apk add build-base coreutils curl gettext-tiny-dev git
-```
+- **Ubuntu / Debian**: `sudo apt-get install build-essential curl gettext git`
+- **Fedora / RHEL**: `sudo dnf -y install gcc make gettext curl git`
+- **Arch Linux**: `sudo pacman -S base-devel curl gettext git`
+- **Alpine Linux**: `apk add build-base coreutils curl gettext-tiny-dev git`
 
 ### macOS
 
-1. Install Xcode Command Line Tools:
-   ```bash
-   xcode-select --install
-   ```
-2. Install Rust via `rustup`:
-   ```bash
-   curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
-   ```
-
-### FreeBSD
-
 ```bash
-sudo pkg install rust gmake curl gettext git
+xcode-select --install
+curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
 ```
 
-### OpenBSD
+### FreeBSD / OpenBSD
 
-```bash
-doas pkg_add rust gmake curl gettext-tools git
-```
+- **FreeBSD**: `sudo pkg install rust gmake curl gettext git`
+- **OpenBSD**: `doas pkg_add rust gmake curl gettext-tools git`
 
-- Requires the [Emscripten SDK](https://emscripten.org/docs/getting_started/downloads.html) (`emsdk`).
-- After installing and activating it, pass its sysroot to `-Demscripten-sysroot`, e.g. `$EMSDK/upstream/emscripten/cache/sysroot`.
-
-To build the WebAssembly target:
-
-```bash
-zig build nvim_bin \
-  -Dtarget=wasm32-emscripten \
-  -Demscripten-sysroot=$EMSDK/upstream/emscripten/cache/sysroot
-```
-
-This currently produces:
-
-- `nvim.wasm`, the WebAssembly module.
-- `nvim.js`, the JavaScript loader generated by Emscripten.
