@@ -4429,12 +4429,27 @@ pub fn set_ref_in_previous_funccal(copy_id: i32) -> bool {
     false
 }
 
+/// Set `copy_id` in the arguments of the deferred functions of `fc`.
+/// Returns `true` if setting references failed somehow.
+fn set_ref_in_defer(fc: &mut Funccall, copy_id: i32) -> bool {
+    for dr in &mut fc.fc_defer {
+        let argcount = dr.dr_argvars.len().saturating_sub(1);
+        for tv in dr.dr_argvars.iter_mut().take(argcount) {
+            if set_ref_in_item(tv, copy_id, ptr::null_mut(), ptr::null_mut()) {
+                return true;
+            }
+        }
+    }
+    false
+}
+
 fn set_ref_in_funccal(fc: &mut Funccall, copy_id: i32) -> bool {
     if fc.fc_copy_id != copy_id {
         fc.fc_copy_id = copy_id;
         if set_ref_in_ht(&raw mut fc.fc_l_vars.dv_hashtab, copy_id, ptr::null_mut())
             || set_ref_in_ht(&raw mut fc.fc_l_avars.dv_hashtab, copy_id, ptr::null_mut())
             || set_ref_in_list_items(&raw mut fc.fc_l_varlist, copy_id, ptr::null_mut())
+            || set_ref_in_defer(fc, copy_id)
             || set_ref_in_func(ptr::null_mut(), fc.fc_func, copy_id)
         {
             return true;

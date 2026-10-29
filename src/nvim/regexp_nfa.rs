@@ -2072,7 +2072,7 @@ fn post2nfa(
                 } else {
                     let e = pop!(p);
                     let s = alloc_state(states, NFA_SPLIT, e.start, None)?;
-                    push!(frag(Some(s), append(e.out, list1(NfaOutSlot::Out1(s)))));
+                    push!(frag(Some(s), append(list1(NfaOutSlot::Out1(s)), e.out)));
                 }
             }
             NFA_QUEST_NONGREEDY => {
@@ -2081,7 +2081,7 @@ fn post2nfa(
                 } else {
                     let e = pop!(p);
                     let s = alloc_state(states, NFA_SPLIT, None, e.start)?;
-                    push!(frag(Some(s), append(e.out, list1(NfaOutSlot::Out(s)))));
+                    push!(frag(Some(s), append(list1(NfaOutSlot::Out(s)), e.out)));
                 }
             }
             NFA_END_COLL | NFA_END_NEG_COLL => {
@@ -4012,14 +4012,13 @@ fn nfa_regmatch(
                         }
                     }
                     NFA_KWORD => {
-                        if vim_iswordp_buf(re_st().rex.input.cast(), &mut *re_st().rex.reg_buf) {
+                        if vim_iswordc_buf(curc, &mut *re_st().rex.reg_buf) {
                             add_state = t_st.out;
                             add_off = clen;
                         }
                     }
                     NFA_SKWORD => {
-                        if !ascii_isdigit(curc)
-                            && vim_iswordp_buf(re_st().rex.input.cast(), &mut *re_st().rex.reg_buf)
+                        if !ascii_isdigit(curc) && vim_iswordc_buf(curc, &mut *re_st().rex.reg_buf)
                         {
                             add_state = t_st.out;
                             add_off = clen;
@@ -4038,15 +4037,13 @@ fn nfa_regmatch(
                         }
                     }
                     NFA_PRINT => {
-                        if vim_isprintc(utf_ptr2char(re_st().rex.input.cast())) {
+                        if vim_isprintc(curc) {
                             add_state = t_st.out;
                             add_off = clen;
                         }
                     }
                     NFA_SPRINT => {
-                        if !ascii_isdigit(curc)
-                            && vim_isprintc(utf_ptr2char(re_st().rex.input.cast()))
-                        {
+                        if !ascii_isdigit(curc) && vim_isprintc(curc) {
                             add_state = t_st.out;
                             add_off = clen;
                         }

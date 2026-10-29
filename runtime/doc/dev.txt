@@ -12,7 +12,7 @@ Nvim applications or Nvim itself. See |dev-arch| for discussion of Nvim's
 architecture and internal concepts.
 
 Nvim is free and open source.  Everybody is encouraged to contribute.
-    https://github.com/freddiehaddad/neovim/blob/master/CONTRIBUTING.md
+    https://github.com/neovim/neovim/blob/master/CONTRIBUTING.md
 
                                       Type |gO| to see the table of contents.
 
@@ -314,9 +314,9 @@ a new EXX number: >
 To see existing error codes: >vim
     :exe 'help' | let g:errtags=sort(map(taglist('E\d\d\d\?\d\?'), 'v:val.name'), 'N') | new | put =g:errtags
 
-The `linterrcodes` target checks that all "EXX" codes are unique and
+The `linterrcodes` build target checks that all "EXX" codes are unique and
 have help tags. It runs in CI, but you can also run it locally: >
-    cargo xtask linterrcodes
+    make linterrcodes
 <
 
 ------------------------------------------------------------------------------
@@ -420,7 +420,7 @@ API PATTERNS                                                *dev-api-patterns*
     - |OptionSet| event
     - Scopes: global/buf/win/tab (can start as global, then "graduate" later)
     - UI: `:verbose set`, `:options`, etc.
-  - Alternatively if the editor |options| system absolutey doesn't fit: Expose
+  - Alternatively if the editor |options| system absolutely doesn't fit: Expose
     a `config(opts)` interface (example: |vim.diagnostic.config()|). If `opts`
     is omitted (or `nil`) it returns the current configuration.
 - "Enable" ("toggle") interface and behavior:
