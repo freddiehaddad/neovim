@@ -513,6 +513,12 @@ pub fn os_dirname(buf: *mut c_char, mut len: usize) -> bool {
     true
 }
 
+/// Get the current working directory as an owned `CString` (`os_dirname_cstr`).
+pub fn os_dirname_cstr() -> Option<std::ffi::CString> {
+    let mut cwd = [0 as c_char; MAXPATHL];
+    os_dirname(cwd.as_mut_ptr(), MAXPATHL).then(|| crate::memory::cstr_to_cstring(cwd.as_ptr()))
+}
+
 /// Check if the given path is a directory and not a symlink to a directory.
 pub fn os_isrealdir(name: impl crate::strings::IntoCCharPtr) -> bool {
     let name = name.into_c_char_ptr();

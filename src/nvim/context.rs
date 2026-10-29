@@ -28,7 +28,7 @@ use crate::msgpack_rpc::packer::ObjHandle;
 use crate::normal::Visualinfo;
 use crate::option::buf_copy_options;
 use crate::option_vars::*;
-use crate::os::fs::{MAXPATHL, os_chdir, os_dirname};
+use crate::os::fs::{os_chdir, os_dirname_cstr};
 use crate::register::{EMPTY_YANKREG, get_y_register};
 use crate::shada::{
     K_SHA_DA_FORCEIT, K_SHA_DA_NANOS, K_SHA_DA_NO_HISTORY, K_SHA_DA_NO_OPT, K_SHA_DA_WANT_INFO,
@@ -41,7 +41,6 @@ use crate::window::{
     win_append, win_find_by_handle, win_goto, win_init_empty, win_remove, win_valid,
 };
 use crate::winfloat::win_config_float;
-use std::ffi::c_char;
 use std::ptr;
 
 use crate::api::buffer::VIML_INTERNAL_CALL;
@@ -391,10 +390,7 @@ pub fn ctx_save(ctx: &mut Context, flags: CtxStateFlags) {
                 let mut opts = KeyDict_exec_opts { output: true };
                 let func_body = exec_impl(
                     VIML_INTERNAL_CALL,
-                    NvimString {
-                        data: cmd_vec.as_mut_ptr().cast::<c_char>(),
-                        size: cmd_len,
-                    },
+                    NvimString::from_bytes(&cmd_vec[..cmd_len]),
                     &mut opts,
                     &mut err,
                 );
@@ -519,10 +515,7 @@ fn array_to_string(array: Array, err: &mut Error) -> Vec<u8> {
 }
 
 pub fn ctx_to_dict(ctx: &mut Context, arena: &mut Arena) -> Dict {
-    let as_str = |v: &[u8]| NvimString {
-        data: v.as_ptr().cast::<c_char>().cast_mut(),
-        size: v.len(),
-    };
+    let as_str = NvimString::from_bytes;
     let mut rv = arena_dict(arena, 5);
     put_c(
         &mut rv,
@@ -653,11 +646,8 @@ fn ctx_dirs_save(
             cs.cs_tp_localdir = tp.tp_localdir.clone();
         }
 
-        let mut cwd = [0 as c_char; MAXPATHL];
-        if ((cs.cs_flags & K_CTX_KEEP_DIRS) != 0 || curwin_ptr() != (&raw mut *wp))
-            && os_dirname(cwd.as_mut_ptr(), MAXPATHL)
-        {
-            cs.cs_cwd = Some(crate::memory::cstr_to_cstring(cwd.as_ptr()));
+        if (cs.cs_flags & K_CTX_KEEP_DIRS) != 0 || curwin_ptr() != (&raw mut *wp) {
+            cs.cs_cwd = os_dirname_cstr();
         }
 
         if let Some(ref cs_cwd) = cs.cs_cwd
@@ -665,10 +655,8 @@ fn ctx_dirs_save(
         {
             let saved_cwd_bytes = cs_cwd.as_bytes().to_vec();
             do_autochdir();
-            let mut autocwd = [0 as c_char; MAXPATHL];
-            if os_dirname(autocwd.as_mut_ptr(), MAXPATHL) {
-                cs.cs_apply_acd =
-                    saved_cwd_bytes.as_slice() == crate::memory::cstr_as_bytes(autocwd.as_ptr());
+            if let Some(autocwd) = os_dirname_cstr() {
+                cs.cs_apply_acd = saved_cwd_bytes.as_slice() == autocwd.as_bytes();
             }
         }
     }

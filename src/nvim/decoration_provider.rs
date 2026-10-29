@@ -101,13 +101,8 @@ fn clear_ref(r: &mut LuaRef) {
     }
 }
 
-fn decor_provider_error(
-    provider: &mut DecorProvider,
-    name: impl crate::strings::IntoCCharPtr,
-    msg: impl crate::strings::IntoCCharPtr,
-) {
-    let name = name.into_c_char_ptr();
-    let msg = msg.into_c_char_ptr();
+fn decor_provider_error(provider: &mut DecorProvider, name: &std::ffi::CStr, msg: Option<&std::ffi::CStr>) {
+    let msg_ptr = msg.map_or(ptr::null(), std::ffi::CStr::as_ptr);
     let ns = describe_ns(provider.ns_id, c"(UNKNOWN PLUGIN)");
     logmsg!(
         LOGLVL_ERR,
@@ -116,11 +111,16 @@ fn decor_provider_error(
         31,
         true,
         c"Error in decoration provider \"%s\" (ns=%s):\n%s",
-        name,
+        name.as_ptr(),
         ns,
-        msg,
+        msg_ptr,
     );
-    msg_schedule_semsg_multiline!(c"Decoration provider \"%s\" (ns=%s):\n%s", name, ns, msg,);
+    msg_schedule_semsg_multiline!(
+        c"Decoration provider \"%s\" (ns=%s):\n%s",
+        name.as_ptr(),
+        ns,
+        msg_ptr,
+    );
 }
 
 /// Note we pass in a provider index as this function may cause `decor_prov_st().decor_providers` to be
@@ -164,7 +164,7 @@ fn decor_provider_invoke(
     }
 
     if error_set(&err) && provider.error_count < CB_MAX_ERROR {
-        decor_provider_error(&mut *provider, name.as_ptr(), err.msg_ptr());
+        decor_provider_error(&mut *provider, name, err.msg.as_deref());
         provider.error_count += 1;
 
         if provider.error_count >= CB_MAX_ERROR {

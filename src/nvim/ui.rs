@@ -51,7 +51,7 @@ use crate::ui_compositor::{
 };
 use crate::window::{win_set_inner_size, win_ui_flush};
 use crate::winfloat::win_config_float;
-use std::ffi::{CStr, c_char};
+use std::ffi::CStr;
 use std::ptr;
 
 const MAX_UI_COUNT: usize = 16;
@@ -71,7 +71,7 @@ const K_MOUSE_NORMAL: i32 = b'n' as i32;
 const K_MOUSE_RETURN: i32 = b'r' as i32;
 const K_MOUSE_INSERT: i32 = b'i' as i32;
 const K_MOUSE_COMMAND_CONST: i32 = b'c' as i32;
-const K_MOUSE_HELP: c_char = b'h' as c_char;
+const K_MOUSE_HELP: u8 = b'h';
 const MOUSE_A: &CStr = c"nvich";
 
 use crate::change::HLF_W;
@@ -429,13 +429,10 @@ pub fn ui_attach_impl(ui: &mut RemoteUI, chanid: u64) {
     ui_refresh_options();
     resettitle();
 
-    let mut cwd: [c_char; MAXPATHL] = [0; MAXPATHL];
+    let mut cwd: [u8; MAXPATHL] = [0; MAXPATHL];
     let mut cwdlen = MAXPATHL;
-    if unsafe { uv_cwd(cwd.as_mut_ptr(), &mut cwdlen) } == 0 {
-        ui_call_chdir(NvimString {
-            data: cwd.as_mut_ptr(),
-            size: cwdlen,
-        });
+    if unsafe { uv_cwd(cwd.as_mut_ptr().cast(), &mut cwdlen) } == 0 {
+        ui_call_chdir(NvimString::from_bytes(&cwd[..cwdlen]));
     }
 
     for i in K_UIGLOBAL_COUNT..K_UIEXT_COUNT {
@@ -687,11 +684,11 @@ pub fn ui_mouse_has(mode: i32) -> bool {
             if crate::strings::vim_haschr(MOUSE_A, mode) {
                 return true;
             }
-        } else if (p_byte as c_char) == K_MOUSE_HELP {
+        } else if p_byte == K_MOUSE_HELP {
             if mode != K_MOUSE_RETURN && curbuf_mut().b_help {
                 return true;
             }
-        } else if mode == (p_byte as c_char) as i32 {
+        } else if mode == i32::from(p_byte as i8) {
             return true;
         }
     }
@@ -828,13 +825,8 @@ pub fn ui_grid_resize(grid_handle: ObjHandle, width: i32, height: i32, err: &mut
     }
 }
 
-fn ui_attach_error(
-    ns_id: u32,
-    name: impl crate::strings::IntoCCharPtr,
-    msg: impl crate::strings::IntoCCharPtr,
-) {
-    let name = name.into_c_char_ptr();
-    let msg = msg.into_c_char_ptr();
+fn ui_attach_error(ns_id: u32, name: &CStr, msg: Option<&CStr>) {
+    let msg_ptr = msg.map_or(ptr::null(), CStr::as_ptr);
     let ns = describe_ns(ns_id as i32, c"(UNKNOWN PLUGIN)");
     logmsg!(
         LOGLVL_ERR,
@@ -843,15 +835,15 @@ fn ui_attach_error(
         785,
         true,
         c"Error in \"%s\" UI event handler (ns=%s):\n%s",
-        name,
+        name.as_ptr(),
         ns,
-        msg,
+        msg_ptr,
     );
     msg_schedule_semsg_multiline!(
         c"Error in \"%s\" UI event handler (ns=%s):\n%s",
-        name,
+        name.as_ptr(),
         ns,
-        msg,
+        msg_ptr,
     );
 }
 
@@ -885,7 +877,7 @@ pub fn ui_call_event(name: &'static std::ffi::CStr, args: Array) {
             handled = true;
         }
         if !matches!(err.err_type, ErrorType::ErrorTypeNone) {
-            ui_attach_error(ns_id, name.as_ptr(), err.msg_ptr());
+            ui_attach_error(ns_id, name, err.msg.as_deref());
             ui_remove_cb(ns_id, true);
         }
         api_clear_error(&mut err);

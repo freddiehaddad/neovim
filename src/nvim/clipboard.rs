@@ -2,7 +2,8 @@
 
 use crate::api::private::helpers::{api_clear_string, cstr_to_string};
 use crate::eval::typval::{
-    TvList, VarType, tv_list_alloc, tv_list_append_list, tv_list_append_string,
+    TvList, VarType, tv_list_alloc, tv_list_append_bytes, tv_list_append_list,
+    tv_list_append_string,
 };
 use crate::eval::{eval_call_provider, eval_has_provider};
 use crate::mcursor::mc_replaying;
@@ -12,7 +13,7 @@ use crate::register::{
     EMPTY_YANKREG, MotionType, PLUS_REGISTER, STAR_REGISTER, Yankreg, get_y_previous,
     get_y_register, update_yankreg_width,
 };
-use std::ffi::{CStr, c_char};
+use std::ffi::CStr;
 
 const K_OPT_CB_FLAG_UNNAMED: u32 = 0x01;
 const K_OPT_CB_FLAG_UNNAMEDPLUS: u32 = 0x02;
@@ -127,8 +128,7 @@ pub fn get_clipboard(mut name: i32, target: *mut *mut Yankreg, quiet: bool) -> b
         let reg = &mut *reg_ptr;
 
         let args = tv_list_alloc(1);
-        let regname = name as c_char;
-        tv_list_append_string(&mut *args, &regname, 1);
+        tv_list_append_bytes(&mut *args, &[name as u8]);
 
         let result = eval_call_provider(c"clipboard", c"get", &mut *args, false);
 
@@ -230,27 +230,26 @@ pub fn set_clipboard(mut name: i32, reg: &Yankreg) {
     let lines = tv_list_alloc((reg.y_array.len() + extra) as isize);
 
     for &item in &reg.y_array {
-        tv_list_append_string(&mut *lines, item.data, item.size as isize);
+        tv_list_append_bytes(&mut *lines, item.as_bytes());
     }
 
-    let regtype: c_char = match reg.y_type {
+    let regtype: u8 = match reg.y_type {
         MotionType::MtLineWise => {
             tv_list_append_string(&mut *lines, std::ptr::null(), 0);
-            b'V' as c_char
+            b'V'
         }
-        MotionType::MtCharWise => b'v' as c_char,
+        MotionType::MtCharWise => b'v',
         MotionType::MtBlockWise => {
             tv_list_append_string(&mut *lines, std::ptr::null(), 0);
-            b'b' as c_char
+            b'b'
         }
         MotionType::MtUnknown => std::process::abort(),
     };
 
     let args = tv_list_alloc(3);
     tv_list_append_list(&mut *args, lines);
-    tv_list_append_string(&mut *args, &regtype, 1);
-    let name_char = name as c_char;
-    tv_list_append_string(&mut *args, &name_char, 1);
+    tv_list_append_bytes(&mut *args, &[regtype]);
+    tv_list_append_bytes(&mut *args, &[name as u8]);
 
     let _ = eval_call_provider(c"clipboard", c"set", &mut *args, true);
 }
