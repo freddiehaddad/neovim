@@ -51,7 +51,7 @@ use crate::strings::{gettext, ngettext};
 use crate::textformat::{Oparg, has_format_option};
 use crate::undo::{u_clearline, u_save, u_savecommon, u_savesub};
 use crate::window::WinInfoInfo;
-use std::ffi::c_char;
+use std::ffi::CStr;
 use std::ptr;
 
 use crate::msgpack_rpc::packer::ObjHandle;
@@ -133,7 +133,7 @@ pub fn tabstop_set(
     var: impl crate::strings::IntoCCharPtr,
     array: &mut Vec<Colnr>,
     errbuf: Option<CharBuf>,
-) -> *const c_char {
+) -> Option<&'static CStr> {
     let mut var = var.into_c_char_ptr().cast_mut();
     {
         let mut valcount: usize = 1;
@@ -143,7 +143,7 @@ pub fn tabstop_set(
                 && crate::memory::cstr_byte_at(var, 1) == 0)
         {
             array.clear();
-            return ptr::null();
+            return None;
         }
 
         let mut cp = var;
@@ -152,10 +152,10 @@ pub fn tabstop_set(
                 let mut end = cp;
                 if getdigits(&raw mut end, false, 1) <= 0 {
                     if cp != end {
-                        return E_POSITIVE.as_ptr();
+                        return Some(E_POSITIVE);
                     }
                     var = cp;
-                    return opt_error(errbuf, E_INVARG2, var);
+                    return crate::memory::cstr_as_opt_cstr(opt_error(errbuf, E_INVARG2, var));
                 }
             }
 
@@ -165,14 +165,14 @@ pub fn tabstop_set(
             }
             if crate::memory::cstr_first_byte(cp) == b','
                 && cp > var
-                && unsafe { *cp.wrapping_sub(1) } != b',' as c_char
+                && crate::memory::cstr_first_byte(cp.wrapping_sub(1)) != b','
                 && crate::memory::cstr_byte_at(cp, 1) != 0
             {
                 valcount += 1;
                 cp = cp.wrapping_add(1);
                 continue;
             }
-            return opt_error(errbuf, E_INVARG2, var);
+            return crate::memory::cstr_as_opt_cstr(opt_error(errbuf, E_INVARG2, var));
         }
 
         let mut out = Vec::with_capacity(valcount);
@@ -182,7 +182,7 @@ pub fn tabstop_set(
             if n <= 0 || n > TABSTOP_MAX {
                 array.clear();
                 var = cp;
-                return opt_error(errbuf, E_INVARG2, var);
+                return crate::memory::cstr_as_opt_cstr(opt_error(errbuf, E_INVARG2, var));
             }
             out.push(n);
             while !crate::memory::cstr_is_empty(cp) && crate::memory::cstr_first_byte(cp) != b',' {
@@ -194,7 +194,7 @@ pub fn tabstop_set(
         }
 
         *array = out;
-        ptr::null()
+        None
     }
 }
 
@@ -413,11 +413,11 @@ pub fn indent_size_no_ts(ptr: impl crate::strings::IntoCCharPtr) -> i32 {
         let tab_size = opt_vars().dy_escape_width;
         let mut vcol: i32 = 0;
         loop {
-            let c = unsafe { *ptr };
+            let c = crate::memory::cstr_first_byte(ptr);
             ptr = ptr.wrapping_add(1);
-            if c == b' ' as c_char {
+            if c == b' ' {
                 vcol += 1;
-            } else if c == TAB {
+            } else if c == TAB as u8 {
                 vcol += tab_size;
             } else {
                 return vcol;
@@ -443,11 +443,11 @@ pub fn indent_size_ts(ptr: impl crate::strings::IntoCCharPtr, ts: OptInt, vts: &
                 debug_assert!(cur_vcol < vcol);
 
                 loop {
-                    let c = unsafe { *ptr };
+                    let c = crate::memory::cstr_first_byte(ptr);
                     ptr = ptr.wrapping_add(1);
-                    if c == b' ' as c_char {
+                    if c == b' ' {
                         cur_vcol += 1;
-                    } else if c == TAB {
+                    } else if c == TAB as u8 {
                         break;
                     } else {
                         return cur_vcol;
@@ -467,14 +467,14 @@ pub fn indent_size_ts(ptr: impl crate::strings::IntoCCharPtr, ts: OptInt, vts: &
 
         debug_assert!(tabstop_width != 0);
         loop {
-            let c = unsafe { *ptr };
+            let c = crate::memory::cstr_first_byte(ptr);
             ptr = ptr.wrapping_add(1);
-            if c == b' ' as c_char {
+            if c == b' ' {
                 vcol += 1;
                 if vcol == next_tab_vcol {
                     next_tab_vcol += tabstop_width;
                 }
-            } else if c == TAB {
+            } else if c == TAB as u8 {
                 vcol = next_tab_vcol;
                 next_tab_vcol += tabstop_width;
             } else {
@@ -572,9 +572,9 @@ pub fn set_indent(size: i32, flags: i32) -> bool {
     }
 
     let mut skipcols: i32 = 0;
-    let mut newline_vec: Vec<c_char>;
-    let newline: *mut c_char;
-    let mut s: *mut c_char;
+    let mut newline_vec: Vec<u8>;
+    let newline;
+    let mut s;
     if orig_char_len != -1 {
         let newline_size = orig_char_len
             .checked_add(size)
@@ -582,8 +582,8 @@ pub fn set_indent(size: i32, flags: i32) -> bool {
             .and_then(|v| v.checked_add(line_len))
             .expect("newline_size overflow");
         debug_assert!(newline_size >= 0);
-        newline_vec = vec![0 as c_char; newline_size as usize];
-        newline = newline_vec.as_mut_ptr();
+        newline_vec = vec![0u8; newline_size as usize];
+        newline = newline_vec.as_mut_ptr().cast();
         todo = size - ind_done;
 
         ind_len = orig_char_len + todo;
@@ -609,8 +609,8 @@ pub fn set_indent(size: i32, flags: i32) -> bool {
         let newline_size = (ind_len as usize)
             .checked_add(line_len as usize)
             .expect("newline_size overflow");
-        newline_vec = vec![0 as c_char; newline_size];
-        newline = newline_vec.as_mut_ptr();
+        newline_vec = vec![0u8; newline_size];
+        newline = newline_vec.as_mut_ptr().cast();
         s = newline;
     }
 
@@ -668,7 +668,7 @@ pub fn set_indent(size: i32, flags: i32) -> bool {
 
     while todo > 0 {
         unsafe {
-            *s = b' ' as c_char;
+            *s.cast::<u8>() = b' ';
         }
         s = s.wrapping_add(1);
         todo -= 1;
@@ -935,7 +935,7 @@ pub fn op_reindent(oap: &mut Oparg, how: Indenter) {
                 let copy_len = bytes.len().min(IOSIZE - 1);
                 unsafe {
                     ptr::copy_nonoverlapping(
-                        bytes.as_ptr().cast::<c_char>(),
+                        bytes.as_ptr().cast(),
                         g_st().iobuff.as_mut_ptr(),
                         copy_len,
                     )
@@ -1009,7 +1009,7 @@ pub fn op_reindent(oap: &mut Oparg, how: Indenter) {
         let copy_len = bytes.len().min(IOSIZE - 1);
         unsafe {
             ptr::copy_nonoverlapping(
-                bytes.as_ptr().cast::<c_char>(),
+                bytes.as_ptr().cast(),
                 g_st().iobuff.as_mut_ptr(),
                 copy_len,
             )
@@ -1121,11 +1121,14 @@ pub fn ins_try_si(c: i32) {
 /// Insert an indent (for `<Tab>` or `CTRL-T`) or delete an indent (for `CTRL-D`) (`change_indent`).
 pub fn change_indent(type_: i32, amount: i32, round: i32, call_changed_bytes: bool) {
     let mut orig_col: Colnr = 0;
-    let mut orig_line: Vec<c_char> = Vec::new();
+    let mut orig_line: Vec<u8> = Vec::new();
 
     if (g_st().state_global & VREPLACE_FLAG) != 0 {
         orig_line = unsafe {
-            std::slice::from_raw_parts(get_cursor_line_ptr(), get_cursor_line_len() as usize + 1)
+            std::slice::from_raw_parts(
+                get_cursor_line_ptr().cast::<u8>(),
+                get_cursor_line_len() as usize + 1,
+            )
         }
         .to_vec();
         orig_col = curwin_mut().w_cursor.col;
@@ -1207,10 +1210,10 @@ pub fn change_indent(type_: i32, amount: i32, round: i32, call_changed_bytes: bo
         if vcol != curwin_mut().w_virtcol {
             curwin_mut().w_cursor.col = new_cursor_col;
             let ptrlen = (curwin_mut().w_virtcol - vcol) as usize;
-            let mut ptr_vec = vec![b' ' as c_char; ptrlen + 1];
-            ptr_vec[ptrlen] = NUL;
+            let mut ptr_vec = vec![b' '; ptrlen + 1];
+            ptr_vec[ptrlen] = 0;
             new_cursor_col += ptrlen as i32;
-            ins_str(ptr_vec.as_mut_ptr(), ptrlen);
+            ins_str(ptr_vec.as_mut_ptr().cast(), ptrlen);
         }
 
         insstart_less = MAXCOL;
@@ -1255,7 +1258,7 @@ pub fn change_indent(type_: i32, amount: i32, round: i32, call_changed_bytes: bo
             unsafe { std::slice::from_raw_parts(get_cursor_line_ptr(), new_col as usize) }.to_vec();
         new_line.push(NUL);
 
-        ml_replace(curwin_mut().w_cursor.lnum, orig_line.as_mut_ptr(), true);
+        ml_replace(curwin_mut().w_cursor.lnum, orig_line.as_mut_ptr().cast(), true);
         curwin_mut().w_cursor.col = orig_col;
 
         g_st().curbuf_splice_pending += 1;
@@ -1281,9 +1284,9 @@ pub fn change_indent(type_: i32, amount: i32, round: i32, call_changed_bytes: bo
 pub fn copy_indent(size: i32, src: impl crate::strings::IntoCCharPtr) -> bool {
     let src = src.into_c_char_ptr();
     {
-        let mut p: *mut c_char = ptr::null_mut();
-        let mut line_vec: Vec<c_char> = Vec::new();
-        let mut line: *mut c_char = ptr::null_mut();
+        let mut p: *mut u8 = ptr::null_mut();
+        let mut line_vec: Vec<u8> = Vec::new();
+        let mut line: *mut u8 = ptr::null_mut();
         let mut ind_len: i32 = 0;
         let mut line_len: i32 = 0;
         let mut tab_pad: i32;
@@ -1314,7 +1317,7 @@ pub fn copy_indent(size: i32, src: impl crate::strings::IntoCCharPtr) -> bool {
 
                 if !p.is_null() {
                     unsafe {
-                        *p = *s;
+                        *p = *s.cast();
                     }
                     p = p.wrapping_add(1);
                 }
@@ -1329,7 +1332,7 @@ pub fn copy_indent(size: i32, src: impl crate::strings::IntoCCharPtr) -> bool {
 
                 if !p.is_null() {
                     unsafe {
-                        *p = TAB;
+                        *p = TAB as u8;
                     }
                     p = p.wrapping_add(1);
                 }
@@ -1347,7 +1350,7 @@ pub fn copy_indent(size: i32, src: impl crate::strings::IntoCCharPtr) -> bool {
                     ind_col += tab_pad;
                     if !p.is_null() {
                         unsafe {
-                            *p = TAB;
+                            *p = TAB as u8;
                         }
                         p = p.wrapping_add(1);
                     }
@@ -1360,7 +1363,7 @@ pub fn copy_indent(size: i32, src: impl crate::strings::IntoCCharPtr) -> bool {
 
                 if !p.is_null() {
                     unsafe {
-                        *p = b' ' as c_char;
+                        *p = b' ';
                     }
                     p = p.wrapping_add(1);
                 }
@@ -1372,14 +1375,14 @@ pub fn copy_indent(size: i32, src: impl crate::strings::IntoCCharPtr) -> bool {
                 let line_size = (ind_len as usize)
                     .checked_add(line_len as usize)
                     .expect("line_size overflow");
-                line_vec = vec![0 as c_char; line_size];
+                line_vec = vec![0u8; line_size];
                 line = line_vec.as_mut_ptr();
                 p = line;
             }
         }
 
-        unsafe { ptr::copy(get_cursor_line_ptr(), p, line_len as usize) };
-        ml_replace(curwin_mut().w_cursor.lnum, line, true);
+        unsafe { ptr::copy(get_cursor_line_ptr().cast::<u8>(), p, line_len as usize) };
+        ml_replace(curwin_mut().w_cursor.lnum, line.cast(), true);
         drop(line_vec);
         curwin_mut().w_cursor.col = ind_len;
         true
@@ -1400,7 +1403,7 @@ pub fn ex_retab(eap: &mut Exarg) {
         let mut num_spaces: i32 = 0;
         let mut start_col: i32 = 0;
         let mut start_vcol: i64 = 0;
-        let mut new_line: *mut c_char = ptr::dangling_mut::<c_char>();
+        let mut new_line = ptr::dangling_mut();
         let mut new_vts_array: Vec<Colnr> = Vec::new();
 
         let mut first_line: Linenr = 0;
@@ -1416,14 +1419,13 @@ pub fn ex_retab(eap: &mut Exarg) {
         }
 
         let ts_start = ptr;
-        let mut errbuf_storage = [0 as c_char; IOSIZE];
+        let mut errbuf_storage = [0u8; IOSIZE];
         let errbuf = CharBuf {
-            data: errbuf_storage.as_mut_ptr(),
+            data: errbuf_storage.as_mut_ptr().cast(),
             size: IOSIZE,
         };
-        let errmsg = tabstop_set(ptr, &mut new_vts_array, Some(errbuf));
-        if !errmsg.is_null() {
-            emsg(gettext(errmsg));
+        if let Some(errmsg) = tabstop_set(ptr, &mut new_vts_array, Some(errbuf)) {
+            emsg(gettext(errmsg.as_ptr()));
             return;
         }
         while ascii_isdigit(crate::memory::cstr_first_char(ptr))
@@ -1500,8 +1502,8 @@ pub fn ex_retab(eap: &mut Exarg) {
                                 emsg_text_too_long();
                                 break;
                             }
-                            let mut new_line_vec = vec![0 as c_char; new_len as usize];
-                            new_line = new_line_vec.as_mut_ptr();
+                            let mut new_line_vec = vec![0u8; new_len as usize];
+                            new_line = new_line_vec.as_mut_ptr().cast();
 
                             if start_col > 0 {
                                 ptr::copy(ptr, new_line, start_col as usize);
@@ -1513,11 +1515,8 @@ pub fn ex_retab(eap: &mut Exarg) {
                             );
                             ptr = new_line.wrapping_add(start_col as usize);
                             for c_idx in 0..len {
-                                *ptr.wrapping_add(c_idx as usize) = if c_idx < num_tabs {
-                                    b'\t' as c_char
-                                } else {
-                                    b' ' as c_char
-                                };
+                                *ptr.wrapping_add(c_idx as usize).cast::<u8>() =
+                                    if c_idx < num_tabs { b'\t' } else { b' ' };
                             }
                             if ml_replace(lnum, new_line, true) {
                                 new_line = curbuf_mut().b_ml.ml_line_ptr;
@@ -1878,7 +1877,7 @@ pub fn get_lisp_indent() -> i32 {
 fn lisp_match(p: impl crate::strings::IntoCCharPtr) -> bool {
     let p = p.into_c_char_ptr();
     {
-        let mut buf = [0 as c_char; 512];
+        let mut buf = [0u8; 512];
         let mut word = if !crate::memory::cstr_is_empty(curbuf_mut().b_p_lw) {
             curbuf_mut().b_p_lw
         } else {
@@ -1886,9 +1885,8 @@ fn lisp_match(p: impl crate::strings::IntoCCharPtr) -> bool {
         };
 
         while !crate::memory::cstr_is_empty(word) {
-            let len = copy_option_part(&raw mut word, buf.as_mut_ptr(), buf.len(), c",");
-            if (crate::memory::cstr_prefix_bytes(buf.as_ptr(), len)
-                == crate::memory::cstr_prefix_bytes(p, len))
+            let len = copy_option_part(&raw mut word, buf.as_mut_ptr().cast(), buf.len(), c",");
+            if (&buf[..len] == crate::memory::cstr_prefix_bytes(p, len))
                 && ascii_iswhite_or_nul(crate::memory::cstr_char_at(p, len))
             {
                 return true;
@@ -1964,7 +1962,7 @@ mod tests {
     #[test]
     fn tabstop_set_padding_and_at_work() {
         let mut vts: Vec<Colnr> = Vec::new();
-        assert!(tabstop_set(c"4,8", &mut vts, None).is_null());
+        assert!(tabstop_set(c"4,8", &mut vts, None).is_none());
         assert!(!vts.is_empty());
         assert_eq!(tabstop_count(&vts), 2);
         assert_eq!(tabstop_first(&vts), 4);

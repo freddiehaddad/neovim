@@ -3070,7 +3070,7 @@ pub fn validate_vartabstop(args: &mut Optset) -> *const c_char {
     let mut array: Vec<Colnr> = Vec::new();
     let errmsg = tabstop_set(value, &mut array, args.os_errbuf);
     args.os_prep = OptSetPrep::Tabstop(array);
-    errmsg
+    errmsg.map_or(ptr::null(), |s| s.as_ptr())
 }
 
 /// The 'vartabstop' or 'varsofttabstop' option is changed.
