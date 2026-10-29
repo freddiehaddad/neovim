@@ -1550,7 +1550,8 @@ pub fn f_call(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
         partial = argvars[0].vval.v_partial();
         func = partial_name(unsafe { partial.as_ref() });
     } else if nlua_is_table_from_lua(&argvars[0]) {
-        func = nlua_register_table_as_callable(&argvars[0]);
+        func = nlua_register_table_as_callable(&argvars[0])
+            .map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut());
         owned = true;
     } else {
         func = tv_get_string(&argvars[0]).cast_mut();

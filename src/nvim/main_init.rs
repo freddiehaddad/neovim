@@ -449,7 +449,10 @@ fn nvim_main_inner(argc: i32, argv: *mut *mut c_char) -> i32 {
     command_line_scan(&mut params);
     set_argf_var();
 
-    nlua_init(argv, argc, params.lua_arg0);
+    let argv_vec: Vec<std::ffi::CString> = (0..argc as usize)
+        .map(|i| crate::memory::cstr_to_cstring(unsafe { *argv.wrapping_add(i) }))
+        .collect();
+    nlua_init(&argv_vec, params.lua_arg0);
     time_msg_if_enabled(c"init lua interpreter");
 
     #[cfg(windows)]
@@ -2482,7 +2485,7 @@ fn print_mainerr(
 }
 
 fn version() {
-    nlua_init(ptr::null_mut(), 0, -1);
+    nlua_init(&[], -1);
     g_st().info_message = true;
     list_version();
     msg_putchar(b'\n' as i32);

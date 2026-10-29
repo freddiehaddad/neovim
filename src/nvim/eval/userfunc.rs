@@ -4531,7 +4531,7 @@ pub fn set_ref_in_func(
 }
 
 /// Registers a luaref as a lambda.
-pub fn register_luafunc(ref_: LuaRef) -> *mut c_char {
+pub fn register_luafunc(ref_: LuaRef) -> &'static std::ffi::CStr {
     let name = get_lambda_name();
     let fp = alloc_ufunc(name.data, name.size);
 
@@ -4544,7 +4544,7 @@ pub fn register_luafunc(ref_: LuaRef) -> *mut c_char {
 
     func_hashtab_add(&mut *fp);
 
-    uf2hikey(&*fp)
+    crate::memory::cstr_from_ptr(uf2hikey(&*fp))
 }
 
 #[inline]

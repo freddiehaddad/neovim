@@ -5190,10 +5190,8 @@ pub fn callback_from_typval(callback: &mut Callback, arg: &TypVal) -> bool {
             callback.data = crate::eval::typval::CallbackData::funcref(funcref);
         }
     } else if is_lua_tbl {
-        let name = nlua_register_table_as_callable(arg);
-        if !name.is_null() {
-            callback.data =
-                crate::eval::typval::CallbackData::funcref(crate::memory::cstr_to_cstring(name));
+        if let Some(name) = nlua_register_table_as_callable(arg) {
+            callback.data = crate::eval::typval::CallbackData::funcref(name.to_owned());
         } else {
             r = FAIL;
         }

@@ -23,7 +23,11 @@ impl NvimString {
     #[inline]
     pub const fn from_bytes(bytes: &[u8]) -> Self {
         Self {
-            data: bytes.as_ptr().cast::<c_char>().cast_mut(),
+            data: if bytes.is_empty() {
+                c"".as_ptr().cast_mut()
+            } else {
+                bytes.as_ptr().cast::<c_char>().cast_mut()
+            },
             size: bytes.len(),
         }
     }

@@ -737,13 +737,13 @@ pub fn nvim_ts_get_parser(lang: Option<&[u8]>) -> *const TSLanguage {
 
 fn load_language_from_object(
     lstate: *mut lua_State,
-    path: *const c_char,
-    lang_name: *const c_char,
-    symbol: *const c_char,
+    path: &std::ffi::CStr,
+    lang_name: &std::ffi::CStr,
+    symbol: &std::ffi::CStr,
 ) -> *const TSLanguage {
     #[cfg(target_os = "emscripten")]
     {
-        let static_lang = nvim_ts_get_parser(crate::memory::cstr_as_opt_bytes(symbol));
+        let static_lang = nvim_ts_get_parser(Some(symbol.to_bytes()));
         if !static_lang.is_null() {
             return static_lang;
         }
@@ -753,14 +753,14 @@ fn load_language_from_object(
     let mut lib = UvLib {
         _opaque: [ptr::null_mut(); 4],
     };
-    if unsafe { uv_dlopen(path, &mut lib) } != 0 {
+    if unsafe { uv_dlopen(path.as_ptr(), &mut lib) } != 0 {
         xstrlcpy(iobuff, unsafe { uv_dlerror(&lib) }, IOSIZE);
         unsafe { uv_dlclose(&mut lib) };
         unsafe {
             luaL_error(
                 lstate,
                 c"Failed to load parser for language '%s': uv_dlopen: %s".as_ptr(),
-                lang_name,
+                lang_name.as_ptr(),
                 iobuff,
             )
         };
@@ -771,7 +771,7 @@ fn load_language_from_object(
         symbol_buf.as_mut_ptr().cast(),
         symbol_buf.len(),
         c"tree_sitter_%s",
-        symbol,
+        symbol.as_ptr(),
     );
 
     let mut fn_ptr: *mut c_void = ptr::null_mut();
@@ -797,7 +797,7 @@ fn load_language_from_object(
             luaL_error(
                 lstate,
                 c"Failed to load parser %s: internal error".as_ptr(),
-                path,
+                path.as_ptr(),
             )
         };
     }
@@ -807,8 +807,8 @@ fn load_language_from_object(
 
 fn load_language_from_wasm(
     lstate: *mut lua_State,
-    _path: *const c_char,
-    _lang_name: *const c_char,
+    _path: &std::ffi::CStr,
+    _lang_name: &std::ffi::CStr,
 ) -> *const TSLanguage {
     unsafe {
         luaL_error(lstate, c"Not supported".as_ptr());
@@ -817,15 +817,15 @@ fn load_language_from_wasm(
 }
 
 fn add_language(lstate: *mut lua_State, is_wasm: bool) -> i32 {
-    let path = luaL_checkstring(lstate, 1);
-    let lang_name = luaL_checkstring(lstate, 2);
+    let path = crate::memory::cstr_from_ptr(luaL_checkstring(lstate, 1));
+    let lang_name = crate::memory::cstr_from_ptr(luaL_checkstring(lstate, 2));
     let mut symbol_name = lang_name;
 
     if !is_wasm && unsafe { lua_gettop(lstate) } >= 3 && !lua_isnil(lstate, 3) {
-        symbol_name = luaL_checkstring(lstate, 3);
+        symbol_name = crate::memory::cstr_from_ptr(luaL_checkstring(lstate, 3));
     }
 
-    if langs_has(crate::memory::cstr_as_opt_bytes(lang_name)) {
+    if langs_has(Some(lang_name.to_bytes())) {
         unsafe { lua_pushboolean(lstate, 1) };
         return 1;
     }
@@ -844,7 +844,7 @@ fn add_language(lstate: *mut lua_State, is_wasm: bool) -> i32 {
             luaL_error(
                 lstate,
                 c"ABI version mismatch for %s: supported between %d and %d, found %d".as_ptr(),
-                path,
+                path.as_ptr(),
                 TREE_SITTER_MIN_COMPATIBLE_LANGUAGE_VERSION as i32,
                 TREE_SITTER_LANGUAGE_VERSION as i32,
                 lang_version as i32,
@@ -853,7 +853,7 @@ fn add_language(lstate: *mut lua_State, is_wasm: bool) -> i32 {
     }
 
     ts_st().langs.insert(
-        crate::memory::cstr_as_bytes(lang_name).to_vec(),
+        lang_name.to_bytes().to_vec(),
         lang.cast_mut(),
     );
 
@@ -905,7 +905,7 @@ unsafe extern "C-unwind" fn tslua_inspect_lang(lstate: *mut lua_State) -> i32 {
                 if !named {
                     let mut buf = [0u8; 256];
                     vim_snprintf!(buf.as_mut_ptr().cast(), buf.len(), c"\"%s\"", name);
-                    lua_setfield(lstate, -2, buf.as_ptr().cast::<c_char>());
+                    lua_setfield(lstate, -2, buf.as_ptr().cast());
                 } else {
                     lua_setfield(lstate, -2, name);
                 }
@@ -1604,7 +1604,7 @@ unsafe extern "C-unwind" fn node_id(lstate: *mut lua_State) -> i32 {
         let node = node_check(lstate, 1);
         lua_pushlstring(
             lstate,
-            (&raw const node.id).cast::<c_char>(),
+            (&raw const node.id).cast(),
             size_of_val(&node.id),
         );
         1

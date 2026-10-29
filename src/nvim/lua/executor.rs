@@ -78,7 +78,7 @@ use crate::ui::K_UIGLOBAL_COUNT;
 use crate::ui::{ui_add_cb, ui_flush, ui_has, ui_remove_cb};
 use crate::undo::u_save;
 use crate::usercmd::{Ucmd, uc_mods, uc_split_args_iter};
-use std::ffi::{CStr, c_char, c_void};
+use std::ffi::{CStr, CString, c_void};
 use std::io::Write;
 use std::mem::size_of;
 use std::ptr;
@@ -350,7 +350,6 @@ pub(crate) fn nlua_st() -> &'static mut LuaExecutorState {
 use crate::api::buffer::LUA_INTERNAL_CALL;
 use crate::api::private::dispatch::nlua_add_api_functions;
 use crate::buffer::VAR_FIXED;
-use crate::charset::NUL;
 use crate::cmdexpand::{K_UICMDLINE, MB_MAXBYTES};
 use crate::eval::typval::K_CALLBACK_NONE_CONST;
 use crate::ex_docmd::{
@@ -482,9 +481,9 @@ fn nlua_push_eap(lstate: *mut lua_State, eap: &Exarg, cmod: &Cmdmod) {
         lua_setfield(lstate, -2, c"name");
     }
 
-    let mut mods_buf = [0 as c_char; 200];
-    uc_mods(mods_buf.as_mut_ptr(), cmod, false);
-    lua_pushstring(lstate, mods_buf.as_ptr());
+    let mut mods_buf = [0u8; 200];
+    uc_mods(mods_buf.as_mut_ptr().cast(), cmod, false);
+    lua_pushstring(lstate, mods_buf.as_ptr().cast());
     lua_setfield(lstate, -2, c"mods");
 
     nlua_push_cmdmod(lstate, cmod);
@@ -508,8 +507,8 @@ fn nlua_push_eap(lstate: *mut lua_State, eap: &Exarg, cmod: &Cmdmod) {
     unsafe { lua_pushinteger(lstate, eap.line2 as lua_Integer) };
     lua_setfield(lstate, -2, c"count");
 
-    let reg: [c_char; 2] = [eap.regname as c_char, NUL];
-    lua_pushstring(lstate, reg.as_ptr());
+    let reg: [u8; 2] = [eap.regname as u8, 0];
+    lua_pushstring(lstate, reg.as_ptr().cast());
     lua_setfield(lstate, -2, c"reg");
 
     if !eap.args.is_empty() {
@@ -526,12 +525,12 @@ fn nlua_push_eap(lstate: *mut lua_State, eap: &Exarg, cmod: &Cmdmod) {
             let mut end: usize = 0;
             let mut len: usize = 0;
             let mut i: i32 = 1;
-            let mut buf = vec![0 as c_char; length];
+            let mut buf = vec![0u8; length];
             let mut done = false;
             while !done {
-                done = uc_split_args_iter(eap.arg, length, &mut end, buf.as_mut_ptr(), &mut len);
+                done = uc_split_args_iter(eap.arg, length, &mut end, buf.as_mut_ptr().cast(), &mut len);
                 if len > 0 {
-                    unsafe { lua_pushlstring(lstate, buf.as_ptr(), len) };
+                    crate::lua::converter::lua_push_bytes(lstate, &buf[..len]);
                     unsafe { lua_rawseti(lstate, -2, i) };
                     i += 1;
                 }
@@ -545,7 +544,7 @@ pub fn get_global_lstate() -> *mut lua_State {
     nlua_st().global_lstate
 }
 
-fn nlua_get_error(lstate: *mut lua_State, len: &mut usize) -> *const c_char {
+fn nlua_get_error<'a>(lstate: *mut lua_State) -> Option<(&'a CStr, usize)> {
     unsafe {
         if lua_type(lstate, -1) != LUA_TSTRING {
             lua_getglobal(lstate, c"tostring");
@@ -556,14 +555,15 @@ fn nlua_get_error(lstate: *mut lua_State, len: &mut usize) -> *const c_char {
             }
             lua_replace(lstate, -2);
         }
-        lua_tolstring(lstate, -1, len)
+        let mut len: usize = 0;
+        let ptr = lua_tolstring(lstate, -1, &mut len);
+        (!ptr.is_null()).then(|| (CStr::from_ptr(ptr), len))
     }
 }
 
 pub fn nlua_error(lstate: *mut lua_State, msg: impl crate::strings::IntoCCharPtr) {
     let msg = msg.into_c_char_ptr();
-    let mut len: usize = 0;
-    let str_ = nlua_get_error(lstate, &mut len);
+    let (str_, len) = nlua_get_error(lstate).map_or((ptr::null(), 0), |(s, l)| (s.as_ptr(), l));
     msg_ext_no_fast();
     semsg_multiline!(c"lua_error", msg, len as i32, str_);
     lua_pop(lstate, 1);
@@ -641,13 +641,12 @@ unsafe extern "C-unwind" fn nlua_fast_cfpcall(
                 preserve_exit(E_OUTOFMEM);
             }
 
-            let mut len: usize = 0;
-            let error = nlua_get_error(lstate, &mut len);
+            let msg = nlua_get_error(lstate).map(|(s, _)| s.to_owned());
             let queues = loop_queues(&mut g_st().main_loop);
             put_event(
                 queues.events,
                 Event::NluaLuvError {
-                    msg: (!error.is_null()).then(|| crate::memory::cstr_to_cstring(error)),
+                    msg,
                     kind: K_CALLBACK,
                 },
             );
@@ -710,7 +709,7 @@ fn nlua_luv_thread_common_cfpcall(
             fprintf!(
                 log_get_stderr(),
                 c"%s\n",
-                (&raw const E_OUTOFMEM).cast::<c_char>(),
+                E_OUTOFMEM.as_ptr(),
             );
             unsafe { lua_close(lstate) };
             #[cfg(windows)]
@@ -722,14 +721,9 @@ fn nlua_luv_thread_common_cfpcall(
                 unsafe { pthread_exit(ptr::null_mut()) };
             }
         }
-        let mut len: usize = 0;
-        let error = nlua_get_error(lstate, &mut len);
+        let msg = nlua_get_error(lstate).map(|(s, _)| s.to_owned());
         let ev = Event::NluaLuvError {
-            msg: (!error.is_null()).then(|| {
-                let slice = crate::memory::cstr_slice(error, len);
-                let end = slice.iter().position(|&b| b == 0).unwrap_or(len);
-                std::ffi::CString::new(&slice[..end]).unwrap()
-            }),
+            msg,
             kind: if is_callback {
                 K_THREAD_CALLBACK
             } else {
@@ -784,20 +778,17 @@ unsafe extern "C-unwind" fn nlua_thr_api_nvim_get_runtime(lstate: *mut lua_State
     }
 }
 
-fn nlua_init_argv(lstate: *mut lua_State, argv: *mut *mut c_char, argc: i32, lua_arg0: i32) -> i32 {
+fn nlua_init_argv(lstate: *mut lua_State, argv: &[CString], lua_arg0: i32) -> i32 {
     let mut i: i32 = 0;
     lua_newtable(lstate);
 
+    let argc = argv.len() as i32;
     if lua_arg0 > 0 {
-        lua_pushstring(lstate, unsafe {
-            *argv.wrapping_add((lua_arg0 - 1) as usize)
-        });
+        lua_pushstring(lstate, argv[(lua_arg0 - 1) as usize].as_ptr());
         unsafe { lua_rawseti(lstate, -2, 0) };
 
         while i + lua_arg0 < argc {
-            lua_pushstring(lstate, unsafe {
-                *argv.wrapping_add((i + lua_arg0) as usize)
-            });
+            lua_pushstring(lstate, argv[(i + lua_arg0) as usize].as_ptr());
             unsafe { lua_rawseti(lstate, -2, i + 1) };
             i += 1;
         }
@@ -1246,7 +1237,7 @@ fn nlua_state_init(lstate: *mut lua_State) -> bool {
     nlua_init_packages(lstate)
 }
 
-pub fn nlua_init(argv: *mut *mut c_char, argc: i32, lua_arg0: i32) {
+pub fn nlua_init(argv: &[CString], lua_arg0: i32) {
     let lstate = unsafe { luaL_newstate() };
     if lstate.is_null() {
         fprintf!(
@@ -1271,7 +1262,7 @@ pub fn nlua_init(argv: *mut *mut c_char, argc: i32, lua_arg0: i32) {
     nlua_st().global_lstate = lstate;
     nlua_st().active_lstate = lstate;
     nlua_st().main_thread = unsafe { uv_thread_self() };
-    nlua_init_argv(lstate, argv, argc, lua_arg0);
+    nlua_init_argv(lstate, argv, lua_arg0);
 }
 
 unsafe extern "C-unwind" fn nlua_thread_acquire_vm() -> *mut lua_State {
@@ -1358,7 +1349,6 @@ pub fn nlua_print_event(text: NvimString) {
 unsafe extern "C-unwind" fn nlua_print(lstate: *mut lua_State) -> i32 {
     let nargs = unsafe { lua_gettop(lstate) };
     lua_getglobal(lstate, c"tostring");
-    let mut errmsg_len: usize = 0;
     let mut msg_vec: Vec<u8> = Vec::with_capacity(80);
     let mut curargidx: i32 = 1;
     while curargidx <= nargs {
@@ -1367,7 +1357,8 @@ unsafe extern "C-unwind" fn nlua_print(lstate: *mut lua_State) -> i32 {
         if unsafe { lua_pcall(lstate, 1, 1, 0) } != 0
             || unsafe { lua_type(lstate, -1) } != LUA_TSTRING
         {
-            let errmsg = nlua_get_error(lstate, &mut errmsg_len);
+            let (errmsg, errmsg_len) =
+                nlua_get_error(lstate).map_or((ptr::null(), 0), |(s, l)| (s.as_ptr(), l));
             drop(msg_vec);
             let mut buff = [0u8; IOSIZE];
             let fmt = gettext(c"E5114: Converting print argument #%i: %.*s");
@@ -1680,11 +1671,12 @@ fn nlua_rpc(lstate: *mut lua_State, request: bool) -> i32 {
         } else if !rpc_send_event(chan_id, name_cstr, args) {
             let mut mbuf = [0u8; 64];
             let _ = write!(&mut mbuf[..], "Invalid channel: {chan_id}\0");
+            let msg_cstr = CStr::from_bytes_until_nul(&mbuf).unwrap_or(c"");
             api_set_error!(
                 &mut err,
                 ErrorType::ErrorTypeValidation,
                 c"%s",
-                mbuf.as_ptr().cast::<c_char>(),
+                msg_cstr.as_ptr(),
             );
         }
     }
@@ -1865,7 +1857,7 @@ fn nlua_exec_typval(
     let lcmd_ptr = if lcmd.is_empty() {
         c"".as_ptr()
     } else {
-        lcmd.as_ptr().cast::<c_char>()
+        lcmd.as_ptr().cast()
     };
     if luaL_loadbuffer(lstate, lcmd_ptr, lcmd.len(), name) != 0 {
         nlua_error(lstate, gettext(c"E5107: Lua: %.*s"));
@@ -2218,7 +2210,7 @@ pub fn ex_luado(eap: &mut Exarg) {
 
     if luaL_loadbuffer(
         lstate,
-        lcmd.as_ptr().cast::<c_char>(),
+        lcmd.as_ptr().cast(),
         lcmd.len(),
         c":luado",
     ) != 0
@@ -2267,7 +2259,7 @@ pub fn ex_luado(eap: &mut Exarg) {
             }
             crate::memline::ml_replace_len(
                 l,
-                new_line_vec.as_mut_ptr().cast::<c_char>(),
+                new_line_vec.as_mut_ptr().cast(),
                 new_line_len,
                 true,
             );
@@ -2429,7 +2421,7 @@ pub fn nlua_is_table_from_lua(arg: &TypVal) -> bool {
     }
 }
 
-pub fn nlua_register_table_as_callable(arg: &TypVal) -> *mut c_char {
+pub fn nlua_register_table_as_callable(arg: &TypVal) -> Option<&'static CStr> {
     let table_ref = if arg.v_type == VarType::VarDict {
         unsafe { (*arg.vval.v_dict()).lua_table_ref }
     } else if arg.v_type == VarType::VarList {
@@ -2439,7 +2431,7 @@ pub fn nlua_register_table_as_callable(arg: &TypVal) -> *mut c_char {
     };
 
     if table_ref == LUA_NOREF {
-        return ptr::null_mut();
+        return None;
     }
 
     let lstate = nlua_st().global_lstate;
@@ -2449,14 +2441,14 @@ pub fn nlua_register_table_as_callable(arg: &TypVal) -> *mut c_char {
     if unsafe { lua_getmetatable(lstate, -1) } == 0 {
         lua_pop(lstate, 1);
         debug_assert_eq!(top, unsafe { lua_gettop(lstate) });
-        return ptr::null_mut();
+        return None;
     }
 
     lua_getfield(lstate, -1, c"__call");
     if !lua_isfunction(lstate, -1) {
         lua_pop(lstate, 3);
         debug_assert_eq!(top, unsafe { lua_gettop(lstate) });
-        return ptr::null_mut();
+        return None;
     }
     lua_pop(lstate, 2);
 
@@ -2465,18 +2457,18 @@ pub fn nlua_register_table_as_callable(arg: &TypVal) -> *mut c_char {
     lua_pop(lstate, 1);
     debug_assert_eq!(top, unsafe { lua_gettop(lstate) });
 
-    name
+    Some(name)
 }
 
-pub fn nlua_exec_on_key(c: i32, typed_buf: *mut c_char) -> bool {
+pub fn nlua_exec_on_key(c: i32, typed_buf: &mut [u8]) -> bool {
     static RECURSIVE: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
     if RECURSIVE.swap(true, std::sync::atomic::Ordering::Relaxed) {
         return false;
     }
 
-    let mut buf = [0 as c_char; MB_MAXBYTES * 3 + 4];
-    let buf_len = special_to_buf(c, g_st().mod_mask, false, buf.as_mut_ptr());
-    vim_unescape_ks(typed_buf);
+    let mut buf = [0u8; MB_MAXBYTES * 3 + 4];
+    let buf_len = special_to_buf(c, g_st().mod_mask, false, buf.as_mut_ptr().cast()) as usize;
+    vim_unescape_ks(typed_buf.as_mut_ptr().cast());
 
     let lstate = nlua_st().global_lstate;
     let top = unsafe { lua_gettop(lstate) };
@@ -2485,8 +2477,8 @@ pub fn nlua_exec_on_key(c: i32, typed_buf: *mut c_char) -> bool {
     lua_getfield(lstate, -1, c"_on_key");
     unsafe { luaL_checktype(lstate, -1, LUA_TFUNCTION) };
 
-    unsafe { lua_pushlstring(lstate, buf.as_ptr(), buf_len as usize) };
-    lua_pushstring(lstate, typed_buf);
+    crate::lua::converter::lua_push_bytes(lstate, &buf[..buf_len]);
+    lua_pushstring(lstate, typed_buf.as_ptr().cast());
 
     let save_got_int = g_st().got_int;
     g_st().got_int = false;
@@ -2601,8 +2593,8 @@ pub fn nlua_do_ucmd(cmd: &mut Ucmd, eap: &mut Exarg, preview: bool) -> i32 {
     } else {
         b'0'
     };
-    let nargs: [c_char; 2] = [narg_ch as c_char, NUL];
-    lua_pushstring(lstate, nargs.as_ptr());
+    let nargs: [u8; 2] = [narg_ch, 0];
+    lua_pushstring(lstate, nargs.as_ptr().cast());
     lua_setfield(lstate, -2, c"nargs");
 
     if preview {

@@ -245,7 +245,7 @@ struct InputModuleState {
     readbuf1: StuffBuf,
     readbuf2: StuffBuf,
     ungot: UngotKey,
-    on_key_buf: Vec<c_char>,
+    on_key_buf: Vec<u8>,
     on_key_ignore_len: usize,
     on_key_blocked: i32,
     typeahead_char: i32,
@@ -1280,12 +1280,9 @@ fn gotchars(chars: *const u8, len: usize) {
         }
 
         if buflen > inp_st().on_key_ignore_len {
-            let start_ptr = (&raw const inp_st().gotchars_state.buf)
-                .cast::<c_char>()
-                .wrapping_add(inp_st().on_key_ignore_len);
-            inp_st().on_key_buf.extend_from_slice(unsafe {
-                std::slice::from_raw_parts(start_ptr, buflen - inp_st().on_key_ignore_len)
-            });
+            let ignore_len = inp_st().on_key_ignore_len;
+            let chunk = &inp_st().gotchars_state.buf[ignore_len..buflen];
+            inp_st().on_key_buf.extend_from_slice(chunk);
             inp_st().on_key_ignore_len = 0;
         } else {
             inp_st().on_key_ignore_len -= buflen;
@@ -1792,8 +1789,8 @@ pub fn vgetc() -> i32 {
 
     g_st().may_garbage_collect = false;
 
-    inp_st().on_key_buf.push(NUL as c_char);
-    if inp_st().on_key_blocked == 0 && nlua_exec_on_key(c, inp_st().on_key_buf.as_mut_ptr()) {
+    inp_st().on_key_buf.push(0);
+    if inp_st().on_key_blocked == 0 && nlua_exec_on_key(c, &mut inp_st().on_key_buf) {
         if c == K_COMMAND {
             let _ = getcmdkeycmd(NUL, 0, false);
         } else if c == K_LUA {

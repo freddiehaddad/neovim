@@ -55,7 +55,7 @@ use crate::regexp::{
 use crate::runtime::script_autoload;
 use crate::viml::parser::parser::CONV_NONE;
 use crate::window::{WinInfoInfo, win_find_tabpage};
-use std::ffi::c_char;
+use std::ffi::CStr;
 use std::ptr;
 
 static REGEX_META: [luaL_Reg; 5] = [
@@ -90,11 +90,12 @@ fn regex_check(lstate: *mut lua_State) -> *mut *mut Regprog {
     luaL_checkudata(lstate, 1, c"nvim_regex").cast::<*mut Regprog>()
 }
 
-fn regex_match(lstate: *mut lua_State, prog: *mut *mut Regprog, str_: *const c_char) -> i32 {
+fn regex_match(lstate: *mut lua_State, prog: *mut *mut Regprog, str_: &CStr) -> i32 {
+    let str_ptr = str_.as_ptr();
     let mut rm: Regmatch = Regmatch::new();
     rm.regprog = unsafe { *prog };
     rm.rm_ic = false;
-    let matched = vim_regexec(&mut rm, str_, 0);
+    let matched = vim_regexec(&mut rm, str_ptr, 0);
     unsafe {
         *prog = rm.regprog;
     }
@@ -103,13 +104,13 @@ fn regex_match(lstate: *mut lua_State, prog: *mut *mut Regprog, str_: *const c_c
         unsafe {
             lua_pushinteger(
                 lstate,
-                ((rm.startp[0] as isize) - (str_ as isize)) as lua_Integer,
+                ((rm.startp[0] as isize) - (str_ptr as isize)) as lua_Integer,
             )
         };
         unsafe {
             lua_pushinteger(
                 lstate,
-                ((rm.endp[0] as isize) - (str_ as isize)) as lua_Integer,
+                ((rm.endp[0] as isize) - (str_ptr as isize)) as lua_Integer,
             )
         };
         return 2;
@@ -121,7 +122,7 @@ unsafe extern "C-unwind" fn regex_match_str(lstate: *mut lua_State) -> i32 {
     unsafe {
         let prog = regex_check(lstate);
         let str_ = luaL_checkstring(lstate, 2);
-        let nret = regex_match(lstate, prog, str_.cast_mut());
+        let nret = regex_match(lstate, prog, crate::memory::cstr_from_ptr(str_));
 
         if (*prog).is_null() {
             return luaL_error(lstate, c"regex: internal error".as_ptr());
@@ -183,7 +184,11 @@ unsafe extern "C-unwind" fn regex_match_line(lstate: *mut lua_State) -> i32 {
             *line.wrapping_add(end as usize) = NUL;
         }
 
-        let nret = regex_match(lstate, prog, line.wrapping_add(start as usize));
+        let nret = regex_match(
+            lstate,
+            prog,
+            crate::memory::cstr_from_ptr(line.wrapping_add(start as usize)),
+        );
 
         if end >= 0 {
             *line.wrapping_add(end as usize) = save;
@@ -729,7 +734,7 @@ unsafe extern "C-unwind" fn nlua_keyparse(lstate: *mut lua_State) -> i32 {
     }
 
     let escaped = vim_strsave_escape_ks(lua_tostring(lstate, 1));
-    let mut p: *const c_char = escaped.as_ptr();
+    let mut p = escaped.as_ptr();
 
     lua_newtable(lstate);
 
@@ -742,7 +747,7 @@ unsafe extern "C-unwind" fn nlua_keyparse(lstate: *mut lua_State) -> i32 {
 
         lua_newtable(lstate);
         let mut i: usize = 0;
-        while MOD_MASK_TABLE[i].name != b'A' as c_char {
+        while MOD_MASK_TABLE[i].name as u8 != b'A' {
             if (data.mods & i32::from(MOD_MASK_TABLE[i].mod_mask))
                 == i32::from(MOD_MASK_TABLE[i].mod_flag)
             {
