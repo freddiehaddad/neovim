@@ -1,7 +1,5 @@
 //! MessagePack primitive value packing and unpacking (`src/mpack/conv.c`).
 
-use std::ffi::c_char;
-
 use crate::mpack::mpack_core::{
     MpackSintmax, MpackToken, MpackTokenArray, MpackTokenBin, MpackTokenBoolean, MpackTokenChunk,
     MpackTokenData, MpackTokenExt, MpackTokenFloat, MpackTokenMap, MpackTokenNil, MpackTokenSint,
@@ -113,7 +111,7 @@ pub fn mpack_pack_number(v: f64) -> MpackToken {
     tok
 }
 
-pub fn mpack_pack_chunk(p: *const c_char, l: MpackUint32) -> MpackToken {
+pub fn mpack_pack_chunk(p: *const u8, l: MpackUint32) -> MpackToken {
     MpackToken {
         r#type: MpackTokenChunk,
         length: l,

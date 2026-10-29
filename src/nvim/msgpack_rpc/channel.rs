@@ -404,7 +404,7 @@ pub(crate) fn receive_msgpack(
         if c > 0 {
             let p: *mut Unpacker = channel.rpc.unpacker.as_deref_mut().unwrap();
             unsafe {
-                (*p).read_ptr = rbuf;
+                (*p).read_ptr = rbuf.cast::<u8>();
                 (*p).read_size = c;
             }
             parse_msgpack(channel);
@@ -668,7 +668,7 @@ pub fn internal_read_event(channel: &mut Channel, buffer: std::rc::Rc<WBuffer>) 
     unsafe {
         let p: *mut Unpacker = channel.rpc.unpacker.as_deref_mut().unwrap();
 
-        (*p).read_ptr = buffer.data_ptr();
+        (*p).read_ptr = buffer.data_ptr().cast::<u8>();
         (*p).read_size = buffer.size();
         if !unpacker_closed(&*p) {
             parse_msgpack(channel);

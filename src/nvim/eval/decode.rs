@@ -1148,7 +1148,7 @@ fn typval_parse_enter(parser: &mut MpackParser, node: &mut MpackNode) {
                 let data = (*parent).data[1].owned_bytes_mut();
                 let len = node.tok.length as usize;
                 if len > 0 {
-                    let chunk = crate::memory::cstr_slice(node.tok.data.chunk_ptr(), len);
+                    let chunk = node.tok.data.chunk_bytes(len);
                     data[(*parent).pos..((*parent).pos + len)].copy_from_slice(chunk);
                 }
             }
@@ -1287,11 +1287,7 @@ fn typval_parse_exit(_parser: &mut MpackParser, node: &mut MpackNode) {
 }
 
 /// Parse msgpack data into a `TypVal` using `parser` (`mpack_parse_typval`).
-pub fn mpack_parse_typval(
-    parser: &mut MpackParser,
-    data: &mut *const c_char,
-    size: &mut usize,
-) -> i32 {
+pub fn mpack_parse_typval(parser: &mut MpackParser, data: &mut *const u8, size: &mut usize) -> i32 {
     mpack_parse(
         parser,
         data,
@@ -1302,7 +1298,7 @@ pub fn mpack_parse_typval(
 }
 
 /// Unpack msgpack buffer `*data[..*size]` into `*ret` (`unpack_typval`).
-pub fn unpack_typval(data: &mut *const c_char, size: &mut usize, ret: &mut TypVal) -> i32 {
+pub fn unpack_typval(data: &mut *const u8, size: &mut usize, ret: &mut TypVal) -> i32 {
     ret.v_type = VarType::VarUnknown;
     let mut parser = MpackParser::new(0);
     mpack_parser_init(&mut parser, 0);

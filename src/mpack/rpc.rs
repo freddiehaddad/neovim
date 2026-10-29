@@ -1,7 +1,5 @@
 //! MessagePack-RPC session state machine (`src/mpack/rpc.c`).
 
-use std::ffi::c_char;
-
 use crate::mpack::mpack_core::{
     MPACK_EOF, MPACK_OK, MpackTokbuf, MpackToken, MpackTokenArray, MpackTokenUint, MpackUint32,
     mpack_read, mpack_tokbuf_init, mpack_write,
@@ -255,7 +253,7 @@ pub fn mpack_rpc_notify_tok(session: &mut MpackRpcSession, tok: &mut MpackToken)
 
 pub fn mpack_rpc_receive(
     session: &mut MpackRpcSession,
-    buf: &mut *const c_char,
+    buf: &mut *const u8,
     buflen: &mut usize,
     msg: &mut MpackRpcMessage,
 ) -> i32 {
@@ -276,7 +274,7 @@ pub fn mpack_rpc_receive(
 
 pub fn mpack_rpc_request(
     session: &mut MpackRpcSession,
-    buf: &mut *mut c_char,
+    buf: &mut *mut u8,
     buflen: &mut usize,
     data: MpackData,
 ) -> i32 {
@@ -299,7 +297,7 @@ pub fn mpack_rpc_request(
 
 pub fn mpack_rpc_reply(
     session: &mut MpackRpcSession,
-    buf: &mut *mut c_char,
+    buf: &mut *mut u8,
     buflen: &mut usize,
     id: MpackUint32,
 ) -> i32 {
@@ -319,7 +317,7 @@ pub fn mpack_rpc_reply(
 
 pub fn mpack_rpc_notify(
     session: &mut MpackRpcSession,
-    buf: &mut *mut c_char,
+    buf: &mut *mut u8,
     buflen: &mut usize,
 ) -> i32 {
     let mut status = MPACK_EOF;

@@ -3970,7 +3970,9 @@ fn shada_read_next_item(
                         }
                         gv.value = decode_string(binval.data, binval.size, is_blob, false);
                     } else {
-                        let status = unpack_typval(&mut read_ptr, &mut read_size, &mut gv.value);
+                        let mut u8_ptr = read_ptr.cast::<u8>();
+                        let status = unpack_typval(&mut u8_ptr, &mut read_size, &mut gv.value);
+                        read_ptr = u8_ptr.cast::<c_char>();
                         if status != MPACK_OK {
                             semsg!(
                                     gettext(

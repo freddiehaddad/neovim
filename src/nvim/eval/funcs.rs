@@ -5811,7 +5811,7 @@ fn msgpackparse_unpack_list(list: Option<&TvList>, ret_list: &mut TvList) {
             }
             buf_size += read_bytes;
 
-            let mut ptr_ = buf.cast::<c_char>().cast_const();
+            let mut ptr_ = buf.cast::<u8>().cast_const();
             while buf_size != 0 {
                 status = mpack_parse_typval(&mut parser, &mut ptr_, &mut buf_size);
                 if status == MPACK_OK {
@@ -5827,8 +5827,8 @@ fn msgpackparse_unpack_list(list: Option<&TvList>, ret_list: &mut TvList) {
             }
 
             if status == MPACK_EOF {
-                if buf_size != 0 && ptr_ > buf.cast::<c_char>().cast_const() {
-                    unsafe { ptr::copy(ptr_.cast_mut(), buf, buf_size) };
+                if buf_size != 0 && ptr_ > buf.cast::<u8>().cast_const() {
+                    unsafe { ptr::copy(ptr_.cast::<c_char>().cast_mut(), buf, buf_size) };
                 }
             } else if status != MPACK_OK {
                 break;
@@ -5850,7 +5850,7 @@ fn msgpackparse_unpack_blob(blob: Option<&TvBlob>, ret_list: &mut TvList) {
         return;
     }
 
-    let mut data = blob.unwrap().bv_ga.as_ptr().cast::<c_char>();
+    let mut data = blob.unwrap().bv_ga.as_ptr();
     let mut remaining = len as usize;
     while remaining != 0 {
         let mut tv = tv_initial_value();

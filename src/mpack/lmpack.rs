@@ -1,6 +1,6 @@
 //! Lua bindings for MessagePack (`src/mpack/lmpack.c`).
 
-use std::ffi::{CStr, c_char};
+use std::ffi::CStr;
 use std::mem::size_of;
 use std::ptr;
 
@@ -54,7 +54,7 @@ pub struct LmpackUnpacker {
     ext: i32,
     unpacking: i32,
     mtdict: i32,
-    string_buffer: Vec<c_char>,
+    string_buffer: Vec<u8>,
 }
 
 #[repr(C)]
@@ -320,7 +320,11 @@ fn lmpack_parse_exit(parser: &mut MpackParser, node: &mut MpackNode) {
 
         match node.tok.r#type {
             MpackTokenBin | MpackTokenStr | MpackTokenExt => {
-                lua_pushlstring(l, unpacker.string_buffer.as_ptr(), node.tok.length as usize);
+                lua_pushlstring(
+                    l,
+                    unpacker.string_buffer.as_ptr().cast(),
+                    node.tok.length as usize,
+                );
                 unpacker.string_buffer.clear();
                 if node.tok.r#type == MpackTokenExt && unpacker.ext != LUA_NOREF {
                     lmpack_geti(l, unpacker.reg, unpacker.ext);
@@ -378,7 +382,7 @@ fn lmpack_parse_exit(parser: &mut MpackParser, node: &mut MpackNode) {
 fn lmpack_unpacker_unpack_str(
     l: *mut lua_State,
     unpacker: &mut LmpackUnpacker,
-    str_ptr: &mut *const c_char,
+    str_ptr: &mut *const u8,
     len: &mut usize,
 ) -> i32 {
     unsafe {
@@ -427,7 +431,7 @@ unsafe extern "C-unwind" fn lmpack_unpacker_unpack(l: *mut lua_State) -> i32 {
         unpacker.lstate = l;
 
         let mut len: usize = 0;
-        let str_init = luaL_checklstring(l, 2, &mut len);
+        let str_init = luaL_checklstring(l, 2, &mut len).cast::<u8>();
         let mut str_ptr = str_init;
         let startpos = if argc == 3 {
             luaL_checknumber(l, 3)
@@ -558,7 +562,7 @@ fn lmpack_unparse_enter(parser: &mut MpackParser, node: &mut MpackNode) {
             lmpack_geti(l, packer.reg, parent.data[0].i() as i32);
 
             if parent.tok.r#type > MpackTokenMap {
-                let str_ptr = lua_tolstring(l, -1, ptr::null_mut());
+                let str_ptr = lua_tolstring(l, -1, ptr::null_mut()).cast::<u8>();
                 node.tok = mpack_pack_chunk(str_ptr, parent.tok.length);
                 lua_pop(l, 1);
                 return;
@@ -686,14 +690,14 @@ fn lmpack_unparse_enter(parser: &mut MpackParser, node: &mut MpackNode) {
                     node.tok = mpack_pack_nil();
                 }
                 _ => {
-                    let mut errmsg = [0 as c_char; 50];
+                    let mut errmsg = [0u8; 50];
                     vim_snprintf!(
-                        errmsg.as_mut_ptr(),
+                        errmsg.as_mut_ptr().cast(),
                         50,
                         c"can't serialize object of type %d",
                         r#type,
                     );
-                    luaL_error(l, errmsg.as_ptr());
+                    luaL_error(l, errmsg.as_ptr().cast());
                 }
             }
         }
@@ -726,7 +730,7 @@ unsafe extern "C-unwind" fn lmpack_packer_pack(l: *mut lua_State) -> i32 {
         packer.root = lmpack_ref(l, packer.reg);
         let mut buffer = luaL_Buffer::new();
         luaL_buffinit(l, &mut buffer);
-        let mut b = luaL_prepbuffer(&mut buffer);
+        let mut b = luaL_prepbuffer(&mut buffer).cast::<u8>();
         let mut bl = LUAL_BUFFERSIZE;
 
         if packer.packing != 0 {
@@ -755,7 +759,7 @@ unsafe extern "C-unwind" fn lmpack_packer_pack(l: *mut lua_State) -> i32 {
             luaL_addsize(&mut buffer, bl_init - bl);
 
             if bl == 0 {
-                b = luaL_prepbuffer(&mut buffer);
+                b = luaL_prepbuffer(&mut buffer).cast::<u8>();
                 bl = LUAL_BUFFERSIZE;
             }
 
@@ -834,7 +838,7 @@ unsafe extern "C-unwind" fn lmpack_session_receive(l: *mut lua_State) -> i32 {
         let mut rcount: i32 = 3;
         let session = lmpack_check_session(l, 1);
         let mut len: usize = 0;
-        let str_init = luaL_checklstring(l, 2, &mut len);
+        let str_init = luaL_checklstring(l, 2, &mut len).cast::<u8>();
         let mut str_ptr = str_init;
         let startpos = if argc == 3 {
             luaL_checknumber(l, 3)
@@ -953,7 +957,7 @@ unsafe extern "C-unwind" fn lmpack_session_request(l: *mut lua_State) -> i32 {
             return luaL_error(l, c"expecting 1 or 2 arguments".as_ptr());
         }
 
-        let mut buf = [0 as c_char; 16];
+        let mut buf = [0u8; 16];
         let mut b = buf.as_mut_ptr();
         let mut bl = buf.len();
         let session = lmpack_check_session(l, 1);
@@ -974,7 +978,7 @@ unsafe extern "C-unwind" fn lmpack_session_request(l: *mut lua_State) -> i32 {
         }
 
         debug_assert_eq!(result, MPACK_OK);
-        lua_pushlstring(l, buf.as_ptr(), buf.len() - bl);
+        lua_pushlstring(l, buf.as_ptr().cast(), buf.len() - bl);
         1
     }
 }
@@ -985,7 +989,7 @@ unsafe extern "C-unwind" fn lmpack_session_reply(l: *mut lua_State) -> i32 {
             return luaL_error(l, c"expecting exactly 2 arguments".as_ptr());
         }
 
-        let mut buf = [0 as c_char; 16];
+        let mut buf = [0u8; 16];
         let mut b = buf.as_mut_ptr();
         let mut bl = buf.len();
         let session = lmpack_check_session(l, 1);
@@ -998,7 +1002,7 @@ unsafe extern "C-unwind" fn lmpack_session_reply(l: *mut lua_State) -> i32 {
         );
         let result = mpack_rpc_reply(&mut session.session, &mut b, &mut bl, id as MpackUint32);
         debug_assert_eq!(result, MPACK_OK);
-        lua_pushlstring(l, buf.as_ptr(), buf.len() - bl);
+        lua_pushlstring(l, buf.as_ptr().cast(), buf.len() - bl);
         1
     }
 }
@@ -1009,13 +1013,13 @@ unsafe extern "C-unwind" fn lmpack_session_notify(l: *mut lua_State) -> i32 {
             return luaL_error(l, c"expecting exactly 1 argument".as_ptr());
         }
 
-        let mut buf = [0 as c_char; 16];
+        let mut buf = [0u8; 16];
         let mut b = buf.as_mut_ptr();
         let mut bl = buf.len();
         let session = lmpack_check_session(l, 1);
         let result = mpack_rpc_notify(&mut session.session, &mut b, &mut bl);
         debug_assert_eq!(result, MPACK_OK);
-        lua_pushlstring(l, buf.as_ptr(), buf.len() - bl);
+        lua_pushlstring(l, buf.as_ptr().cast(), buf.len() - bl);
         1
     }
 }
@@ -1036,7 +1040,7 @@ unsafe extern "C-unwind" fn lmpack_unpack(l: *mut lua_State) -> i32 {
         }
 
         let mut len: usize = 0;
-        let mut str_ptr = luaL_checklstring(l, 1, &mut len);
+        let mut str_ptr = luaL_checklstring(l, 1, &mut len).cast::<u8>();
 
         lua_newtable(l);
         let reg = luaL_ref(l, LUA_REGISTRYINDEX);
@@ -1108,7 +1112,7 @@ unsafe extern "C-unwind" fn lmpack_pack(l: *mut lua_State) -> i32 {
 
         let mut buffer = luaL_Buffer::new();
         luaL_buffinit(l, &mut buffer);
-        let mut b = luaL_prepbuffer(&mut buffer);
+        let mut b = luaL_prepbuffer(&mut buffer).cast::<u8>();
         let mut bl = LUAL_BUFFERSIZE;
 
         loop {
@@ -1130,7 +1134,7 @@ unsafe extern "C-unwind" fn lmpack_pack(l: *mut lua_State) -> i32 {
             luaL_addsize(&mut buffer, bl_init - bl);
 
             if bl == 0 {
-                b = luaL_prepbuffer(&mut buffer);
+                b = luaL_prepbuffer(&mut buffer).cast::<u8>();
                 bl = LUAL_BUFFERSIZE;
             }
 

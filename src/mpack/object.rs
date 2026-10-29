@@ -1,6 +1,5 @@
 //! MessagePack object tree parser and unparser (`src/mpack/object.c`).
 
-use std::ffi::c_char;
 use std::ptr;
 
 use crate::mpack::mpack_core::{
@@ -323,7 +322,7 @@ pub fn mpack_unparse_tok(
 
 pub fn mpack_parse(
     parser: &mut MpackParser,
-    buf: &mut *const c_char,
+    buf: &mut *const u8,
     buflen: &mut usize,
     enter_cb: MpackWalkCb,
     exit_cb: MpackWalkCb,
@@ -369,7 +368,7 @@ pub fn mpack_parse(
 
 pub fn mpack_unparse(
     parser: &mut MpackParser,
-    buf: &mut *mut c_char,
+    buf: &mut *mut u8,
     buflen: &mut usize,
     enter_cb: MpackWalkCb,
     exit_cb: MpackWalkCb,

@@ -8,8 +8,6 @@ pub mod rpc;
 
 #[cfg(test)]
 mod tests {
-    use std::ffi::c_char;
-
     use crate::mpack::conv::{
         mpack_pack_boolean, mpack_pack_number, mpack_unpack_boolean, mpack_unpack_number,
         mpack_unpack_sint, mpack_unpack_uint,
@@ -35,7 +33,7 @@ mod tests {
         let tn = mpack_pack_number(-1234.5);
         assert!((mpack_unpack_number(tn) - (-1234.5)).abs() < f64::EPSILON);
 
-        let mut wbuf = [0 as c_char; 32];
+        let mut wbuf = [0u8; 32];
         let mut wptr = wbuf.as_mut_ptr();
         let mut wlen = wbuf.len();
         let mut wtb = MpackTokbuf::new();
