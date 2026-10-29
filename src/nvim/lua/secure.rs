@@ -12,60 +12,53 @@ use std::ffi::CString;
 
 use crate::ex_docmd::Exarg;
 
-fn nlua_trust(
-    action: impl crate::strings::IntoCCharPtr,
-    path: impl crate::strings::IntoCCharPtr,
-) -> bool {
-    let action = action.into_c_char_ptr();
-    let path = path.into_c_char_ptr();
-    {
-        let lstate = get_global_lstate();
-        let top = unsafe { lua_gettop(lstate) };
+fn nlua_trust(action: &std::ffi::CStr, path: Option<&std::ffi::CStr>) -> bool {
+    let lstate = get_global_lstate();
+    let top = unsafe { lua_gettop(lstate) };
 
-        lua_getfield(lstate, LUA_GLOBALSINDEX, c"vim");
-        lua_getfield(lstate, -1, c"secure");
-        lua_getfield(lstate, -1, c"trust");
+    lua_getfield(lstate, LUA_GLOBALSINDEX, c"vim");
+    lua_getfield(lstate, -1, c"secure");
+    lua_getfield(lstate, -1, c"trust");
 
-        unsafe { lua_createtable(lstate, 0, 0) };
-        lua_pushstring(lstate, c"action");
-        lua_pushstring(lstate, action);
+    unsafe { lua_createtable(lstate, 0, 0) };
+    lua_pushstring(lstate, c"action");
+    lua_pushstring(lstate, action);
+    unsafe { lua_settable(lstate, -3) };
+    if let Some(path) = path {
+        lua_pushstring(lstate, c"path");
+        lua_pushstring(lstate, path);
         unsafe { lua_settable(lstate, -3) };
-        if path.is_null() {
-            lua_pushstring(lstate, c"bufnr");
-            unsafe { lua_pushnumber(lstate, 0.0) };
-            unsafe { lua_settable(lstate, -3) };
-        } else {
-            lua_pushstring(lstate, c"path");
-            lua_pushstring(lstate, path);
-            unsafe { lua_settable(lstate, -3) };
-        }
-
-        if nlua_pcall(lstate, 1, 2) != 0 {
-            nlua_error(lstate, c"vim.secure.trust: %.*s");
-            unsafe { lua_settop(lstate, top) };
-            return false;
-        }
-
-        let success = unsafe { lua_toboolean(lstate, -2) } != 0;
-        let msg = unsafe { lua_tolstring(lstate, -1, std::ptr::null_mut()) };
-        if !msg.is_null() {
-            if success {
-                let action_bytes = crate::memory::cstr_as_bytes(action);
-                if action_bytes == b"allow" {
-                    smsg!(0, c"Allowed in trust database: \"%s\"", msg);
-                } else if action_bytes == b"deny" {
-                    smsg!(0, c"Denied in trust database: \"%s\"", msg);
-                } else if action_bytes == b"remove" {
-                    smsg!(0, c"Removed from trust database: \"%s\"", msg);
-                }
-            } else {
-                semsg!(E_TRUSTFILE, msg);
-            }
-        }
-
-        unsafe { lua_settop(lstate, top) };
-        success
+    } else {
+        lua_pushstring(lstate, c"bufnr");
+        unsafe { lua_pushnumber(lstate, 0.0) };
+        unsafe { lua_settable(lstate, -3) };
     }
+
+    if nlua_pcall(lstate, 1, 2) != 0 {
+        nlua_error(lstate, c"vim.secure.trust: %.*s");
+        unsafe { lua_settop(lstate, top) };
+        return false;
+    }
+
+    let success = unsafe { lua_toboolean(lstate, -2) } != 0;
+    let msg = unsafe { lua_tolstring(lstate, -1, std::ptr::null_mut()) };
+    if !msg.is_null() {
+        if success {
+            let action_bytes = action.to_bytes();
+            if action_bytes == b"allow" {
+                smsg!(0, c"Allowed in trust database: \"%s\"", msg);
+            } else if action_bytes == b"deny" {
+                smsg!(0, c"Denied in trust database: \"%s\"", msg);
+            } else if action_bytes == b"remove" {
+                smsg!(0, c"Removed from trust database: \"%s\"", msg);
+            }
+        } else {
+            semsg!(E_TRUSTFILE, msg);
+        }
+    }
+
+    unsafe { lua_settop(lstate, top) };
+    success
 }
 
 /// `:trust` command implementation (`ex_trust`).
@@ -73,23 +66,25 @@ pub fn ex_trust(eap: &mut Exarg) {
     let arg = eap.arg;
     let p = skiptowhite(arg);
     let arg1_len = (p as usize) - (arg as usize);
-    let arg1 = CString::new(crate::memory::cstr_slice(arg, arg1_len)).unwrap();
-    let mut action = c"allow".as_ptr();
-    let mut path = skipwhite(p);
+    let arg1_bytes = crate::memory::cstr_slice(arg, arg1_len);
+    let mut action = c"allow";
+    let path_ptr = skipwhite(p);
 
-    let arg1_bytes = arg1.as_bytes();
     if arg1_bytes == b"++deny" {
-        action = c"deny".as_ptr();
+        action = c"deny";
     } else if arg1_bytes == b"++remove" {
-        action = c"remove".as_ptr();
+        action = c"remove";
     } else if !arg1_bytes.is_empty() {
+        let arg1 = CString::new(arg1_bytes).unwrap();
         semsg!(E_INVARG2, arg1.as_ptr());
         return;
     }
 
-    if unsafe { *path } == 0 {
-        path = std::ptr::null_mut();
-    }
+    let path = if unsafe { *path_ptr } == 0 {
+        None
+    } else {
+        Some(crate::memory::cstr_from_ptr(path_ptr))
+    };
 
     nlua_trust(action, path);
 }

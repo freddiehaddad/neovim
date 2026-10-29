@@ -90,38 +90,31 @@ fn regex_check(lstate: *mut lua_State) -> *mut *mut Regprog {
     luaL_checkudata(lstate, 1, c"nvim_regex").cast::<*mut Regprog>()
 }
 
-fn regex_match(
-    lstate: *mut lua_State,
-    prog: *mut *mut Regprog,
-    str_: impl crate::strings::IntoCCharPtr,
-) -> i32 {
-    let str_ = str_.into_c_char_ptr();
-    {
-        let mut rm: Regmatch = Regmatch::new();
-        rm.regprog = unsafe { *prog };
-        rm.rm_ic = false;
-        let matched = vim_regexec(&mut rm, str_, 0);
-        unsafe {
-            *prog = rm.regprog;
-        }
-
-        if matched {
-            unsafe {
-                lua_pushinteger(
-                    lstate,
-                    ((rm.startp[0] as isize) - (str_ as isize)) as lua_Integer,
-                )
-            };
-            unsafe {
-                lua_pushinteger(
-                    lstate,
-                    ((rm.endp[0] as isize) - (str_ as isize)) as lua_Integer,
-                )
-            };
-            return 2;
-        }
-        0
+fn regex_match(lstate: *mut lua_State, prog: *mut *mut Regprog, str_: *const c_char) -> i32 {
+    let mut rm: Regmatch = Regmatch::new();
+    rm.regprog = unsafe { *prog };
+    rm.rm_ic = false;
+    let matched = vim_regexec(&mut rm, str_, 0);
+    unsafe {
+        *prog = rm.regprog;
     }
+
+    if matched {
+        unsafe {
+            lua_pushinteger(
+                lstate,
+                ((rm.startp[0] as isize) - (str_ as isize)) as lua_Integer,
+            )
+        };
+        unsafe {
+            lua_pushinteger(
+                lstate,
+                ((rm.endp[0] as isize) - (str_ as isize)) as lua_Integer,
+            )
+        };
+        return 2;
+    }
+    0
 }
 
 unsafe extern "C-unwind" fn regex_match_str(lstate: *mut lua_State) -> i32 {

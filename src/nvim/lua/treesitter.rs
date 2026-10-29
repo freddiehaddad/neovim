@@ -1,7 +1,6 @@
 //! Lua bindings for Tree-sitter (`src/nvim/lua/treesitter.c`).
 
 use crate::buffer::FileBuf;
-use crate::charset::NUL;
 use crate::context::handle_get_buffer;
 use crate::cursor::Linenr;
 use crate::event::r#loop::{uv_dlclose, uv_dlerror, uv_dlopen, uv_dlsym};
@@ -69,12 +68,12 @@ const TSQUERY_ERROR_FIELD: TSQueryError = 3;
 const TSQUERY_ERROR_CAPTURE: TSQueryError = 4;
 const TSQUERY_ERROR_STRUCTURE: TSQueryError = 5;
 
-const TS_META_PARSER: *const c_char = c"treesitter_parser".as_ptr();
-const TS_META_TREE: *const c_char = c"treesitter_tree".as_ptr();
-const TS_META_NODE: *const c_char = c"treesitter_node".as_ptr();
-const TS_META_QUERY: *const c_char = c"treesitter_query".as_ptr();
-const TS_META_QUERYCURSOR: *const c_char = c"treesitter_querycursor".as_ptr();
-const TS_META_QUERYMATCH: *const c_char = c"treesitter_querymatch".as_ptr();
+const TS_META_PARSER: &std::ffi::CStr = c"treesitter_parser";
+const TS_META_TREE: &std::ffi::CStr = c"treesitter_tree";
+const TS_META_NODE: &std::ffi::CStr = c"treesitter_node";
+const TS_META_QUERY: &std::ffi::CStr = c"treesitter_query";
+const TS_META_QUERYCURSOR: &std::ffi::CStr = c"treesitter_querycursor";
+const TS_META_QUERYMATCH: &std::ffi::CStr = c"treesitter_querymatch";
 
 #[repr(C)]
 #[derive(Clone, Copy, Default)]
@@ -228,7 +227,7 @@ struct TSLuaParserCallbackPayload {
 
 struct TreesitterModuleState {
     langs: std::collections::BTreeMap<Vec<u8>, *mut TSLanguage>,
-    input_buf: [c_char; BUFSIZE],
+    input_buf: [u8; BUFSIZE],
 }
 
 impl TreesitterModuleState {
@@ -680,37 +679,22 @@ unsafe extern "C" {
 }
 
 #[inline]
-fn langs_has(lang_name: impl crate::strings::IntoCCharPtr) -> bool {
-    let lang_name = lang_name.into_c_char_ptr();
-    if lang_name.is_null() {
-        return false;
-    }
-    {
-        ts_st()
-            .langs
-            .contains_key(crate::memory::cstr_as_bytes(lang_name))
-    }
+fn langs_has(lang_name: Option<&[u8]>) -> bool {
+    lang_name.is_some_and(|name| ts_st().langs.contains_key(name))
 }
 
 #[inline]
-fn langs_get(lang_name: impl crate::strings::IntoCCharPtr) -> *mut TSLanguage {
-    let lang_name = lang_name.into_c_char_ptr();
-    if lang_name.is_null() {
-        return ptr::null_mut();
-    }
-    {
-        ts_st()
-            .langs
-            .get(crate::memory::cstr_as_bytes(lang_name))
-            .copied()
-            .unwrap_or(ptr::null_mut())
-    }
+fn langs_get(lang_name: Option<&[u8]>) -> *mut TSLanguage {
+    lang_name
+        .and_then(|name| ts_st().langs.get(name).copied())
+        .unwrap_or(ptr::null_mut())
 }
 
 unsafe extern "C-unwind" fn tslua_has_language(lstate: *mut lua_State) -> i32 {
     unsafe {
         let lang_name = luaL_checkstring(lstate, 1);
-        lua_pushboolean(lstate, i32::from(langs_has(lang_name)));
+        let has = langs_has(crate::memory::cstr_as_opt_bytes(lang_name));
+        lua_pushboolean(lstate, i32::from(has));
         1
     }
 }
@@ -732,13 +716,12 @@ unsafe extern "C" {
 }
 
 #[cfg(target_os = "emscripten")]
-pub fn nvim_ts_get_parser(lang: impl crate::strings::IntoCCharPtr) -> *const TSLanguage {
-    let lang = lang.into_c_char_ptr();
-    if lang.is_null() {
+pub fn nvim_ts_get_parser(lang: Option<&[u8]>) -> *const TSLanguage {
+    let Some(lang) = lang else {
         return ptr::null();
-    }
+    };
     unsafe {
-        match crate::memory::cstr_as_bytes(lang) {
+        match lang {
             b"lua" => tree_sitter_lua(),
             b"c" => tree_sitter_c(),
             b"diff" => tree_sitter_diff(),
@@ -754,77 +737,72 @@ pub fn nvim_ts_get_parser(lang: impl crate::strings::IntoCCharPtr) -> *const TSL
 
 fn load_language_from_object(
     lstate: *mut lua_State,
-    path: impl crate::strings::IntoCCharPtr,
-    lang_name: impl crate::strings::IntoCCharPtr,
-    symbol: impl crate::strings::IntoCCharPtr,
+    path: *const c_char,
+    lang_name: *const c_char,
+    symbol: *const c_char,
 ) -> *const TSLanguage {
-    let path = path.into_c_char_ptr();
-    let lang_name = lang_name.into_c_char_ptr();
-    let symbol = symbol.into_c_char_ptr();
+    #[cfg(target_os = "emscripten")]
     {
-        #[cfg(target_os = "emscripten")]
-        {
-            let static_lang = nvim_ts_get_parser(symbol);
-            if !static_lang.is_null() {
-                return static_lang;
-            }
+        let static_lang = nvim_ts_get_parser(crate::memory::cstr_as_opt_bytes(symbol));
+        if !static_lang.is_null() {
+            return static_lang;
         }
-
-        let iobuff = g_st().iobuff.as_mut_ptr();
-        let mut lib = UvLib {
-            _opaque: [ptr::null_mut(); 4],
-        };
-        if unsafe { uv_dlopen(path, &mut lib) } != 0 {
-            xstrlcpy(iobuff, unsafe { uv_dlerror(&lib) }, IOSIZE);
-            unsafe { uv_dlclose(&mut lib) };
-            unsafe {
-                luaL_error(
-                    lstate,
-                    c"Failed to load parser for language '%s': uv_dlopen: %s".as_ptr(),
-                    lang_name,
-                    iobuff,
-                )
-            };
-        }
-
-        let mut symbol_buf = [0 as c_char; 128];
-        vim_snprintf!(
-            symbol_buf.as_mut_ptr(),
-            symbol_buf.len(),
-            c"tree_sitter_%s",
-            symbol,
-        );
-
-        let mut fn_ptr: *mut c_void = ptr::null_mut();
-        if unsafe { uv_dlsym(&mut lib, symbol_buf.as_ptr(), &mut fn_ptr) } != 0 {
-            xstrlcpy(iobuff, unsafe { uv_dlerror(&lib) }, IOSIZE);
-            unsafe { uv_dlclose(&mut lib) };
-            unsafe {
-                luaL_error(
-                    lstate,
-                    c"Failed to load parser: uv_dlsym: %s".as_ptr(),
-                    iobuff,
-                )
-            };
-        }
-
-        let lang_parser: unsafe extern "C" fn() -> *mut TSLanguage =
-            unsafe { std::mem::transmute(fn_ptr) };
-        let lang = unsafe { lang_parser() };
-
-        if lang.is_null() {
-            unsafe { uv_dlclose(&mut lib) };
-            unsafe {
-                luaL_error(
-                    lstate,
-                    c"Failed to load parser %s: internal error".as_ptr(),
-                    path,
-                )
-            };
-        }
-
-        lang
     }
+
+    let iobuff = g_st().iobuff.as_mut_ptr();
+    let mut lib = UvLib {
+        _opaque: [ptr::null_mut(); 4],
+    };
+    if unsafe { uv_dlopen(path, &mut lib) } != 0 {
+        xstrlcpy(iobuff, unsafe { uv_dlerror(&lib) }, IOSIZE);
+        unsafe { uv_dlclose(&mut lib) };
+        unsafe {
+            luaL_error(
+                lstate,
+                c"Failed to load parser for language '%s': uv_dlopen: %s".as_ptr(),
+                lang_name,
+                iobuff,
+            )
+        };
+    }
+
+    let mut symbol_buf = [0u8; 128];
+    vim_snprintf!(
+        symbol_buf.as_mut_ptr().cast(),
+        symbol_buf.len(),
+        c"tree_sitter_%s",
+        symbol,
+    );
+
+    let mut fn_ptr: *mut c_void = ptr::null_mut();
+    if unsafe { uv_dlsym(&mut lib, symbol_buf.as_ptr().cast(), &mut fn_ptr) } != 0 {
+        xstrlcpy(iobuff, unsafe { uv_dlerror(&lib) }, IOSIZE);
+        unsafe { uv_dlclose(&mut lib) };
+        unsafe {
+            luaL_error(
+                lstate,
+                c"Failed to load parser: uv_dlsym: %s".as_ptr(),
+                iobuff,
+            )
+        };
+    }
+
+    let lang_parser: unsafe extern "C" fn() -> *mut TSLanguage =
+        unsafe { std::mem::transmute(fn_ptr) };
+    let lang = unsafe { lang_parser() };
+
+    if lang.is_null() {
+        unsafe { uv_dlclose(&mut lib) };
+        unsafe {
+            luaL_error(
+                lstate,
+                c"Failed to load parser %s: internal error".as_ptr(),
+                path,
+            )
+        };
+    }
+
+    lang
 }
 
 fn load_language_from_wasm(
@@ -847,7 +825,7 @@ fn add_language(lstate: *mut lua_State, is_wasm: bool) -> i32 {
         symbol_name = luaL_checkstring(lstate, 3);
     }
 
-    if langs_has(lang_name) {
+    if langs_has(crate::memory::cstr_as_opt_bytes(lang_name)) {
         unsafe { lua_pushboolean(lstate, 1) };
         return 1;
     }
@@ -898,7 +876,7 @@ unsafe extern "C-unwind" fn tslua_remove_lang(lstate: *mut lua_State) -> i32 {
 
 fn lang_check(lstate: *mut lua_State, index: i32) -> *mut TSLanguage {
     let lang_name = luaL_checkstring(lstate, index);
-    let lang = langs_get(lang_name);
+    let lang = langs_get(crate::memory::cstr_as_opt_bytes(lang_name));
     if lang.is_null() {
         unsafe { luaL_error(lstate, c"no such language: %s".as_ptr(), lang_name) };
     }
@@ -925,9 +903,9 @@ unsafe extern "C-unwind" fn tslua_inspect_lang(lstate: *mut lua_State) -> i32 {
                 let named = t != TSSYMBOL_TYPE_ANONYMOUS;
                 lua_pushboolean(lstate, i32::from(named));
                 if !named {
-                    let mut buf = [0 as c_char; 256];
-                    vim_snprintf!(buf.as_mut_ptr(), buf.len(), c"\"%s\"", name);
-                    lua_setfield(lstate, -2, buf.as_ptr());
+                    let mut buf = [0u8; 256];
+                    vim_snprintf!(buf.as_mut_ptr().cast(), buf.len(), c"\"%s\"", name);
+                    lua_setfield(lstate, -2, buf.as_ptr().cast::<c_char>());
                 } else {
                     lua_setfield(lstate, -2, name);
                 }
@@ -1066,7 +1044,7 @@ unsafe extern "C" fn input_cb(
 ) -> *const c_char {
     let bp = payload.cast::<FileBuf>();
     let bp = unsafe { &mut *bp };
-    let buf_ptr = (&raw mut ts_st().input_buf).cast::<c_char>();
+    let buf = &mut ts_st().input_buf;
 
     if (position.row as Linenr) >= bp.b_ml.ml_line_count {
         unsafe {
@@ -1086,13 +1064,11 @@ unsafe extern "C" fn input_cb(
     }
     let tocopy = (len - col).min(BUFSIZE);
 
-    unsafe { ptr::copy_nonoverlapping(line.wrapping_add(col), buf_ptr, tocopy) };
-    for i in 0..tocopy {
-        let p = buf_ptr.wrapping_add(i);
-        if crate::memory::cstr_first_byte(p) == b'\n' {
-            unsafe {
-                *p = NUL;
-            }
+    let line_bytes = crate::memory::cstr_slice(line.wrapping_add(col), tocopy);
+    buf[..tocopy].copy_from_slice(line_bytes);
+    for b in &mut buf[..tocopy] {
+        if *b == b'\n' {
+            *b = 0;
         }
     }
     unsafe {
@@ -1103,14 +1079,12 @@ unsafe extern "C" fn input_cb(
             || (bp.b_p_bin == 0 && bp.b_p_fixeol != 0)
             || (lnum != bp.b_no_eol_lnum && bp.b_p_eol != 0))
     {
-        unsafe {
-            *buf_ptr.wrapping_add(tocopy) = b'\n' as c_char;
-        }
+        buf[tocopy] = b'\n';
         unsafe {
             *bytes_read += 1;
         }
     }
-    buf_ptr
+    buf.as_ptr().cast::<c_char>()
 }
 
 fn push_ranges(lstate: *mut lua_State, ranges: *const TSRange, length: usize, include_bytes: bool) {
@@ -1215,14 +1189,9 @@ unsafe extern "C-unwind" fn parser_parse(lstate: *mut lua_State) -> i32 {
                 let bufnr = lua_tointeger(lstate, 3) as ObjHandle;
                 let buf = handle_get_buffer(bufnr);
                 if buf.is_null() {
-                    let mut ebuf = [0 as c_char; IOSIZE];
-                    vim_snprintf!(
-                        ebuf.as_mut_ptr(),
-                        IOSIZE,
-                        c"invalid buffer handle: %d",
-                        bufnr,
-                    );
-                    return luaL_argerror(lstate, 3, ebuf.as_ptr());
+                    let msg = format!("invalid buffer handle: {bufnr}\0");
+                    let msg_cstr = std::ffi::CStr::from_bytes_with_nul(msg.as_bytes()).unwrap();
+                    return luaL_argerror(lstate, 3, msg_cstr);
                 }
 
                 let timeout_ns = if lua_isnil(lstate, 5) {
@@ -2235,15 +2204,9 @@ unsafe extern "C-unwind" fn tslua_parse_query(lstate: *mut lua_State) -> i32 {
         let query = ts_query_new(lang, src, len as u32, &mut error_offset, &mut error_type);
 
         if query.is_null() {
-            let mut err_buf = [0 as c_char; IOSIZE];
-            query_err_string(
-                src,
-                error_offset as i32,
-                error_type,
-                err_buf.as_mut_ptr(),
-                err_buf.len(),
-            );
-            return luaL_error(lstate, c"%s".as_ptr(), err_buf.as_ptr());
+            let src_bytes = crate::memory::cstr_slice(src, len);
+            let err_cstr = query_err_string(src_bytes, error_offset as usize, error_type);
+            return luaL_error(lstate, c"%s".as_ptr(), err_cstr.as_ptr());
         }
 
         let ud = lua_newuserdata(lstate, size_of::<*mut TSQuery>()).cast::<*mut TSQuery>();
@@ -2254,117 +2217,100 @@ unsafe extern "C-unwind" fn tslua_parse_query(lstate: *mut lua_State) -> i32 {
     }
 }
 
-const fn query_err_to_string(error_type: TSQueryError) -> &'static std::ffi::CStr {
+const fn query_err_to_string(error_type: TSQueryError) -> &'static str {
     match error_type {
-        TSQUERY_ERROR_SYNTAX => c"Invalid syntax:\n",
-        TSQUERY_ERROR_NODE_TYPE => c"Invalid node type ",
-        TSQUERY_ERROR_FIELD => c"Invalid field name ",
-        TSQUERY_ERROR_CAPTURE => c"Invalid capture name ",
-        TSQUERY_ERROR_STRUCTURE => c"Impossible pattern:\n",
-        _ => c"error",
+        TSQUERY_ERROR_SYNTAX => "Invalid syntax:\n",
+        TSQUERY_ERROR_NODE_TYPE => "Invalid node type ",
+        TSQUERY_ERROR_FIELD => "Invalid field name ",
+        TSQUERY_ERROR_CAPTURE => "Invalid capture name ",
+        TSQUERY_ERROR_STRUCTURE => "Impossible pattern:\n",
+        _ => "error",
     }
 }
 
 fn query_err_string(
-    src: impl crate::strings::IntoCCharPtr,
-    error_offset: i32,
+    src: &[u8],
+    error_offset: usize,
     error_type: TSQueryError,
-    mut err_data: *mut c_char,
-    mut err_size: usize,
-) {
-    let src = src.into_c_char_ptr();
-    {
-        let mut line_start: i32 = 0;
-        let mut row: i32 = 0;
-        let mut error_line: *const c_char = ptr::null();
-        let mut error_line_len: i32 = 0;
+) -> std::ffi::CString {
+    use std::io::Write as _;
+    let mut line_start: usize = 0;
+    let mut row: usize = 0;
+    let mut error_line: Option<&[u8]> = None;
 
-        loop {
-            let src_tmp = src.wrapping_offset(line_start as isize);
-            let src_tmp_bytes = crate::memory::cstr_as_bytes(src_tmp);
-            let nl_pos = src_tmp_bytes.iter().position(|&b| b == b'\n');
-            let line_length = nl_pos.unwrap_or(src_tmp_bytes.len()) as i32;
-            let line_end = line_start + line_length;
-            if line_end > error_offset {
-                error_line = src_tmp;
-                error_line_len = line_length;
-                break;
-            }
-            line_start = line_end + 1;
-            row += 1;
-            if nl_pos.is_none() {
-                break;
-            }
+    loop {
+        let src_tmp = &src[line_start.min(src.len())..];
+        let nl_pos = src_tmp.iter().position(|&b| b == b'\n');
+        let line_length = nl_pos.unwrap_or(src_tmp.len());
+        let line_end = line_start + line_length;
+        if line_end > error_offset {
+            error_line = Some(&src_tmp[..line_length]);
+            break;
         }
-
-        let column = error_offset - line_start;
-        let type_msg = query_err_to_string(error_type);
-        vim_snprintf!(
-            err_data,
-            err_size,
-            c"Query error at %d:%d. %s",
-            row + 1,
-            column + 1,
-            type_msg,
-        );
-        let offset = crate::memory::cstr_len(err_data);
-        err_size = err_size.saturating_sub(offset);
-        err_data = err_data.wrapping_add(offset);
-
-        if error_type == TSQUERY_ERROR_NODE_TYPE
-            || error_type == TSQUERY_ERROR_FIELD
-            || error_type == TSQUERY_ERROR_CAPTURE
-        {
-            let suffix = src.wrapping_offset(error_offset as isize);
-            let is_anonymous = error_type == TSQUERY_ERROR_NODE_TYPE
-                && error_offset > 0
-                && unsafe { *suffix.wrapping_offset(-1) } == b'"' as c_char;
-            let mut suffix_len: usize = 0;
-            let mut c = crate::memory::cstr_byte_at(suffix, suffix_len);
-            if is_anonymous {
-                let mut backslashes: i32 = 0;
-                while c != b'"' || backslashes % 2 != 0 {
-                    if c == b'\\' {
-                        backslashes += 1;
-                    } else {
-                        backslashes = 0;
-                    }
-                    suffix_len += 1;
-                    c = crate::memory::cstr_byte_at(suffix, suffix_len);
-                }
-            } else {
-                while c.is_ascii_alphanumeric() || c == b'_' || c == b'-' || c == b'.' {
-                    suffix_len += 1;
-                    c = crate::memory::cstr_byte_at(suffix, suffix_len);
-                }
-            }
-            vim_snprintf!(
-                err_data,
-                err_size,
-                c"\"%.*s\":\n",
-                suffix_len as i32,
-                suffix,
-            );
-            let offset = crate::memory::cstr_len(err_data);
-            err_size = err_size.saturating_sub(offset);
-            err_data = err_data.wrapping_add(offset);
+        line_start = line_end + 1;
+        row += 1;
+        if nl_pos.is_none() {
+            break;
         }
-
-        if error_line.is_null() {
-            vim_snprintf!(err_data, err_size, c"Unexpected EOF\n");
-            return;
-        }
-
-        vim_snprintf!(
-            err_data,
-            err_size,
-            c"%.*s\n%*s^\n",
-            error_line_len,
-            error_line,
-            column,
-            c"",
-        );
     }
+
+    let column = error_offset.saturating_sub(line_start);
+    let type_msg = query_err_to_string(error_type);
+    let mut out = Vec::with_capacity(128);
+    let _ = write!(out, "Query error at {}:{}. {type_msg}", row + 1, column + 1);
+
+    if error_type == TSQUERY_ERROR_NODE_TYPE
+        || error_type == TSQUERY_ERROR_FIELD
+        || error_type == TSQUERY_ERROR_CAPTURE
+    {
+        let suffix = &src[error_offset.min(src.len())..];
+        let is_anonymous = error_type == TSQUERY_ERROR_NODE_TYPE
+            && error_offset > 0
+            && src.get(error_offset - 1) == Some(&b'"');
+        let mut suffix_len: usize = 0;
+        if is_anonymous {
+            let mut backslashes: i32 = 0;
+            while suffix_len < suffix.len() {
+                let c = suffix[suffix_len];
+                if c == b'"' && backslashes % 2 == 0 {
+                    break;
+                }
+                if c == b'\\' {
+                    backslashes += 1;
+                } else {
+                    backslashes = 0;
+                }
+                suffix_len += 1;
+            }
+        } else {
+            while suffix_len < suffix.len() {
+                let c = suffix[suffix_len];
+                if !(c.is_ascii_alphanumeric() || c == b'_' || c == b'-' || c == b'.') {
+                    break;
+                }
+                suffix_len += 1;
+            }
+        }
+        out.push(b'"');
+        out.extend_from_slice(&suffix[..suffix_len]);
+        out.extend_from_slice(b"\":\n");
+    }
+
+    if let Some(line) = error_line {
+        out.extend_from_slice(line);
+        out.push(b'\n');
+        out.resize(out.len() + column, b' ');
+        out.extend_from_slice(b"^\n");
+    } else {
+        out.extend_from_slice(b"Unexpected EOF\n");
+    }
+
+    if out.len() >= IOSIZE {
+        out.truncate(IOSIZE - 1);
+    }
+    let nul_pos = out.iter().position(|&b| b == 0).unwrap_or(out.len());
+    out.truncate(nul_pos);
+    std::ffi::CString::new(out).unwrap_or_default()
 }
 
 fn query_check(lstate: *mut lua_State, index: i32) -> *mut TSQuery {
@@ -2466,20 +2412,13 @@ unsafe extern "C-unwind" fn query_disable_pattern(lstate: *mut lua_State) -> i32
     }
 }
 
-fn build_meta(
-    lstate: *mut lua_State,
-    tname: impl crate::strings::IntoCCharPtr,
-    meta: *const luaL_Reg,
-) {
-    let tname = tname.into_c_char_ptr();
-    {
-        if luaL_newmetatable(lstate, tname) != 0 {
-            luaL_register(lstate, ptr::null(), meta);
-            unsafe { lua_pushvalue(lstate, -1) };
-            lua_setfield(lstate, -2, c"__index");
-        }
-        lua_pop(lstate, 1);
+fn build_meta(lstate: *mut lua_State, tname: &std::ffi::CStr, meta: *const luaL_Reg) {
+    if luaL_newmetatable(lstate, tname) != 0 {
+        luaL_register(lstate, ptr::null(), meta);
+        unsafe { lua_pushvalue(lstate, -1) };
+        lua_setfield(lstate, -2, c"__index");
     }
+    lua_pop(lstate, 1);
 }
 
 unsafe extern "C" fn ts_malloc(size: usize) -> *mut c_void {
