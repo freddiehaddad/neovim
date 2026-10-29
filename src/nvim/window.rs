@@ -1490,16 +1490,15 @@ pub fn do_window(mut nchar: i32, mut prenum: i32, mut xchar: i32) {
                 if nchar == b'i' as i32 || nchar == CTRL_I_CONST {
                     type_ = FIND_ANY;
                 }
-                let mut ptr: *mut c_char = ptr::null_mut();
-                let len = find_ident_under_cursor(&raw mut ptr, FIND_IDENT, None);
-                if len == 0 {
+                let ident = find_ident_under_cursor(FIND_IDENT, None);
+                if ident.is_empty() {
                     return;
                 }
-                let pat = std::ffi::CString::new(crate::memory::cstr_slice(ptr, len)).unwrap();
+                let pat = std::ffi::CString::new(ident).unwrap();
                 find_pattern_in_path(
                     pat.as_ptr().cast_mut(),
                     0,
-                    len,
+                    ident.len(),
                     true,
                     prenum == 0,
                     type_,

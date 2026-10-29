@@ -1471,18 +1471,21 @@ pub fn find_file_in_path_option(
 pub fn grab_file_name(count: i32, file_lnum: &mut Linenr) -> Option<std::ffi::CString> {
     let options = FNAME_MESS | FNAME_EXP | FNAME_REL | FNAME_UNESC;
     let fname = if g_st().visual_global.active {
-        let mut len: usize = 0;
-        let mut ptr: *mut c_char = ptr::null_mut();
-        if !get_visual_text(None, &mut ptr, &mut len) {
-            return None;
-        }
-        if crate::memory::cstr_byte_at(ptr, len) == b':'
-            && (crate::memory::cstr_byte_at(ptr, len + 1)).is_ascii_digit()
+        let (vis_cstr, len) = get_visual_text(None)?;
+        let vis_bytes = vis_cstr.to_bytes();
+        if vis_bytes.get(len) == Some(&b':')
+            && vis_bytes.get(len + 1).is_some_and(u8::is_ascii_digit)
         {
-            let mut p: *mut c_char = ptr.wrapping_add(len + 1);
+            let mut p = vis_cstr.as_ptr().wrapping_add(len + 1).cast_mut();
             *file_lnum = getdigits_int32(&raw mut p, false, 0);
         }
-        find_file_name_in_path(ptr, len, options, count as i64, curbuf_mut().b_ffname)
+        find_file_name_in_path(
+            vis_cstr.as_ptr().cast_mut(),
+            len,
+            options,
+            count as i64,
+            curbuf_mut().b_ffname,
+        )
     } else {
         file_name_at_cursor(options | FNAME_HYP, count, Some(&mut *file_lnum))
     }?;

@@ -12060,11 +12060,13 @@ pub fn eval_vars(
             } else {
                 FIND_STRING
             };
-            resultlen = find_ident_under_cursor(&raw mut result, find_type, None);
-            if resultlen == 0 {
+            let ident = find_ident_under_cursor(find_type, None);
+            if ident.is_empty() {
                 *errormsg = c"".as_ptr();
                 return None;
             }
+            result = ident.as_ptr().cast_mut().cast();
+            resultlen = ident.len();
         } else {
             match spec_idx {
                 SPEC_PERC => {

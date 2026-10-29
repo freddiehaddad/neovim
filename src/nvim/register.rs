@@ -975,8 +975,7 @@ pub fn get_spec_reg(
                 if !errmsg {
                     return false;
                 }
-                let cnt = find_ident_under_cursor(
-                    argp,
+                let ident = find_ident_under_cursor(
                     if regname == CTRL_W_CONST {
                         FIND_IDENT | FIND_STRING
                     } else {
@@ -984,12 +983,8 @@ pub fn get_spec_reg(
                     },
                     None,
                 );
-                if cnt != 0 {
-                    let mut v: Vec<c_char> = Vec::with_capacity(cnt + 1);
-                    v.extend_from_slice(std::slice::from_raw_parts(*argp, cnt));
-                    v.push(0);
-                    *argp = v.as_mut_ptr();
-                    *owned = Some(v);
+                if !ident.is_empty() {
+                    set_owned(argp, owned, Some(crate::memory::cstr_from_bytes(ident)));
                 } else {
                     *argp = ptr::null_mut();
                 }
