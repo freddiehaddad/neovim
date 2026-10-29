@@ -91,28 +91,28 @@ cargo xtask lint              # run clippy, stylua, error-code, and vimdoc linte
 ## Project Layout
 
 ```text
-├─ runtime/         Built-in Lua modules (vim.lsp, vim.treesitter, ...), syntax, and :help docs
+├─ runtime/            Built-in Lua modules (vim.lsp, vim.treesitter, ...), syntax, and :help docs
 ├─ src/
-│  ├─ nvim/         Neovim core in Rust
-│  │  ├─ api/       Nvim API & RPC endpoints (nvim_buf_*, nvim_win_*, nvim_extmark_*, ...)
-│  │  ├─ eval/      Vimscript evaluator & built-in functions
-│  │  ├─ event/     Async event loop & process/pty management (libuv)
-│  │  ├─ lua/       LuaJIT runtime bridge & Treesitter C API bindings
-│  │  ├─ msgpack_rpc/ Msgpack-RPC channel, packer, and unpacker
-│  │  ├─ os/        Platform filesystem, environment, signal, and shell abstractions
-│  │  ├─ tui/       Terminal UI renderer & termkey input driver
-│  │  ├─ viml/      Vimscript parser & expression lexer
-│  │  └─ vterm/     Rust port of libvterm
-│  ├─ cjson/        Rust port of lua-cjson
-│  ├─ lpeg/         Rust port of LPeg
-│  ├─ mpack/        Rust port of libmpack / lmpack
-│  ├─ unibilium/    Rust port of unibilium terminfo parser
-│  ├─ xdiff/        Rust port of git xdiff
-│  ├─ gen/          Documentation & metadata generators
-│  ├─ tee/          Rust tee helper binary
-│  ├─ xxd/          Rust xxd hex dump utility
-│  └─ xtask/        Cargo build, test, benchmark, lint, and packaging runner
-└─ test/            Functional, benchmark, and legacy Vim test suites
+│  ├─ nvim/            Neovim core in Rust
+│  │  ├─ api/          Nvim API & RPC endpoints (nvim_buf_*, nvim_win_*, nvim_extmark_*, ...)
+│  │  ├─ eval/         Vimscript evaluator & built-in functions
+│  │  ├─ event/        Async event loop & process/pty management (libuv)
+│  │  ├─ lua/          LuaJIT runtime bridge & Treesitter C API bindings
+│  │  ├─ msgpack_rpc/  Msgpack-RPC channel, packer, and unpacker
+│  │  ├─ os/           Platform filesystem, environment, signal, and shell abstractions
+│  │  ├─ tui/          Terminal UI renderer & termkey input driver
+│  │  ├─ viml/         Vimscript parser & expression lexer
+│  │  └─ vterm/        Rust port of libvterm
+│  ├─ cjson/           Rust port of lua-cjson
+│  ├─ lpeg/            Rust port of LPeg
+│  ├─ mpack/           Rust port of libmpack / lmpack
+│  ├─ unibilium/       Rust port of unibilium terminfo parser
+│  ├─ xdiff/           Rust port of git xdiff
+│  ├─ gen/             Documentation & metadata generators
+│  ├─ tee/             Rust tee helper binary
+│  ├─ xxd/             Rust xxd hex dump utility
+│  └─ xtask/           Cargo build, test, benchmark, lint, and packaging runner
+└─ test/               Functional, benchmark, and legacy Vim test suites
 ```
 
 ## Contributing & Maintenance
