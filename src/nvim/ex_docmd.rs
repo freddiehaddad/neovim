@@ -12037,7 +12037,7 @@ pub fn eval_vars(
     let srcstart = srcstart.into_c_char_ptr();
     unsafe {
         let mut result: *mut c_char = c"".as_ptr().cast_mut();
-        let mut resultbuf: Option<Vec<c_char>> = None;
+        let mut resultbuf: Option<Vec<u8>> = None;
         let mut resultlen: usize;
         let mut valid = VALID_HEAD | VALID_PATH;
         let mut tilde_file = false;
@@ -12153,12 +12153,8 @@ pub fn eval_vars(
                         *errormsg = c"".as_ptr();
                         return None;
                     };
-                    let mut v: Vec<c_char> = cfile
-                        .into_bytes_with_nul()
-                        .into_iter()
-                        .map(|b| b as c_char)
-                        .collect();
-                    result = v.as_mut_ptr();
+                    let mut v: Vec<u8> = cfile.into_bytes_with_nul();
+                    result = v.as_mut_ptr().cast();
                     resultbuf = Some(v);
                 }
                 SPEC_AFILE => {
@@ -12207,12 +12203,8 @@ pub fn eval_vars(
                         *errormsg = gettext(E_NO_SOURCE_FILE_NAME_TO_SUBSTITUTE_FOR_SFILE);
                         return None;
                     };
-                    let mut v: Vec<c_char> = sfile
-                        .into_bytes_with_nul()
-                        .into_iter()
-                        .map(|b| b as c_char)
-                        .collect();
-                    result = v.as_mut_ptr();
+                    let mut v: Vec<u8> = sfile.into_bytes_with_nul();
+                    result = v.as_mut_ptr().cast();
                     resultbuf = Some(v);
                 }
                 SPEC_STACK => {
@@ -12221,12 +12213,8 @@ pub fn eval_vars(
                         *errormsg = gettext(E_NO_CALL_STACK_TO_SUBSTITUTE_FOR_STACK);
                         return None;
                     };
-                    let mut v: Vec<c_char> = stack
-                        .into_bytes_with_nul()
-                        .into_iter()
-                        .map(|b| b as c_char)
-                        .collect();
-                    result = v.as_mut_ptr();
+                    let mut v: Vec<u8> = stack.into_bytes_with_nul();
+                    result = v.as_mut_ptr().cast();
                     resultbuf = Some(v);
                 }
                 SPEC_SCRIPT => {
@@ -12235,12 +12223,8 @@ pub fn eval_vars(
                         *errormsg = gettext(E_NO_SCRIPT_FILE_NAME_TO_SUBSTITUTE_FOR_SCRIPT);
                         return None;
                     };
-                    let mut v: Vec<c_char> = script
-                        .into_bytes_with_nul()
-                        .into_iter()
-                        .map(|b| b as c_char)
-                        .collect();
-                    result = v.as_mut_ptr();
+                    let mut v: Vec<u8> = script.into_bytes_with_nul();
+                    result = v.as_mut_ptr().cast();
                     resultbuf = Some(v);
                 }
                 SPEC_SLNUM => {
@@ -12289,15 +12273,17 @@ pub fn eval_vars(
                     resultlen = (s as usize) - (result as usize);
                 }
             } else if !skip_mod {
+                let mut res_u8 = result.cast::<u8>();
                 valid |= modify_fname(
                     src,
                     tilde_file,
                     usedlen,
-                    &raw mut result,
+                    &raw mut res_u8,
                     &mut resultbuf,
                     &mut resultlen,
                     use_shellslash,
                 );
+                result = res_u8.cast();
                 if result.is_null() {
                     *errormsg = c"".as_ptr();
                     return None;

@@ -1180,13 +1180,15 @@ pub fn home_replace(
         let homedir_env = homedir_env_cstr
             .as_ref()
             .map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut());
-        let mut homedir_env_mod = homedir_env;
-        let mut homedir_env_mod_vec: Vec<c_char>;
+        let mut homedir_env_mod = homedir_env.cast::<u8>();
+        let mut homedir_env_mod_vec: Vec<u8>;
 
-        if !homedir_env_mod.is_null() && crate::memory::cstr_first_byte(homedir_env_mod) == b'~' {
+        if !homedir_env_mod.is_null()
+            && crate::memory::cstr_first_byte(homedir_env_mod.cast()) == b'~'
+        {
             let mut usedlen: usize = 0;
-            let mut flen = crate::memory::cstr_len(homedir_env_mod);
-            let mut fbuf: Option<Vec<c_char>> = None;
+            let mut flen = crate::memory::cstr_len(homedir_env_mod.cast());
+            let mut fbuf: Option<Vec<u8>> = None;
             let _ = modify_fname(
                 c":p",
                 false,
@@ -1196,23 +1198,24 @@ pub fn home_replace(
                 &mut flen,
                 false,
             );
-            flen = crate::memory::cstr_len(homedir_env_mod);
-            assert_ne!(homedir_env_mod, homedir_env);
+            flen = crate::memory::cstr_len(homedir_env_mod.cast());
+            assert_ne!(homedir_env_mod, homedir_env.cast());
             if let Some(mod_vec) = fbuf {
                 homedir_env_mod_vec = mod_vec;
                 homedir_env_mod = homedir_env_mod_vec.as_mut_ptr();
             }
             if flen > 0
                 && vim_ispathsep(i32::from(crate::memory::cstr_byte_at(
-                    homedir_env_mod,
+                    homedir_env_mod.cast(),
                     flen - 1,
                 )))
             {
                 unsafe {
-                    *homedir_env_mod.wrapping_add(flen - 1) = NUL;
+                    *homedir_env_mod.wrapping_add(flen - 1) = 0;
                 }
             }
         }
+        let homedir_env_mod = homedir_env_mod.cast::<c_char>();
 
         let envlen = if homedir_env_mod.is_null() {
             0
