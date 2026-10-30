@@ -120,13 +120,13 @@ use crate::winfloat::{
     win_border_height, win_border_width, win_config_float, win_float_anchor_laststatus,
     win_float_find_altwin, win_float_update_statusline, win_new_float, win_reconfig_floats,
 };
-use std::ffi::{CStr, c_char};
+use std::ffi::CStr;
 use std::ptr;
 
 pub type WinKind = i32;
 pub(crate) const VALID_BOTLINE_AP: i32 = 0x40;
 
-const K_WIN_OPT_COUNT: usize = 53;
+pub(crate) const K_WIN_OPT_COUNT: usize = 53;
 
 #[repr(C)]
 #[derive(Clone, Copy)]
@@ -207,161 +207,7 @@ pub struct FcsChars {
     pub truncrl: u32,
 }
 
-#[repr(C)]
-pub struct Winopt {
-    pub wo_arab: i32,
-    pub wo_bri: i32,
-    pub wo_briopt: *mut c_char,
-    pub wo_diff: i32,
-    pub wo_fdc: *mut c_char,
-    pub wo_eiw: *mut c_char,
-    pub wo_fdc_save: *mut c_char,
-    pub wo_fen: i32,
-    pub wo_fen_save: i32,
-    pub wo_fdi: *mut c_char,
-    pub wo_fdl: i64,
-    pub wo_fdl_save: i64,
-    pub wo_fdm: *mut c_char,
-    pub wo_fdm_save: *mut c_char,
-    pub wo_fml: i64,
-    pub wo_fdn: i64,
-    pub wo_fde: crate::eval::typval::Callback,
-    pub wo_fdt: crate::eval::typval::Callback,
-    pub wo_fmr: *mut c_char,
-    pub wo_lbr: i32,
-    pub wo_list: i32,
-    pub wo_nu: i32,
-    pub wo_rnu: i32,
-    pub wo_ve: *mut c_char,
-    pub wo_ve_flags: u32,
-    pub wo_nuw: i64,
-    pub wo_wfb: i32,
-    pub wo_wfh: i32,
-    pub wo_wfw: i32,
-    pub wo_wp: i32,
-    pub wo_pvw: i32,
-    pub wo_lhi: i64,
-    pub wo_rl: i32,
-    pub wo_rlc: *mut c_char,
-    pub wo_scr: i64,
-    pub wo_sms: i32,
-    pub wo_spell: i32,
-    pub wo_cuc: i32,
-    pub wo_cul: i32,
-    pub wo_culopt: *mut c_char,
-    pub wo_cc: *mut c_char,
-    pub wo_sbr: *mut c_char,
-    pub wo_stc: *mut c_char,
-    pub wo_stl: *mut c_char,
-    pub wo_wbr: *mut c_char,
-    pub wo_scb: i32,
-    pub wo_diff_saved: i32,
-    pub wo_scb_save: i32,
-    pub wo_wrap: i32,
-    pub wo_wrap_save: i32,
-    pub wo_cocu: *mut c_char,
-    pub wo_cole: i64,
-    pub wo_crb: i32,
-    pub wo_crb_save: i32,
-    pub wo_scl: *mut c_char,
-    pub wo_siso: i64,
-    pub wo_so: i64,
-    pub wo_sop: i64,
-    pub wo_winhl: *mut c_char,
-    pub wo_lcs: *mut c_char,
-    pub wo_fcs: *mut c_char,
-    pub wo_winbl: i64,
-    pub wo_wrap_flags: u32,
-    pub wo_stl_flags: u32,
-    pub wo_wbr_flags: u32,
-    pub wo_fde_flags: u32,
-    pub wo_fdt_flags: u32,
-    pub wo_script_ctx: [crate::runtime::Sctx; K_WIN_OPT_COUNT],
-}
-
-impl Winopt {
-    pub const ZERO: Self = Self {
-        wo_arab: 0,
-        wo_bri: 0,
-        wo_briopt: ptr::null_mut(),
-        wo_diff: 0,
-        wo_fdc: ptr::null_mut(),
-        wo_eiw: ptr::null_mut(),
-        wo_fdc_save: ptr::null_mut(),
-        wo_fen: 0,
-        wo_fen_save: 0,
-        wo_fdi: ptr::null_mut(),
-        wo_fdl: 0,
-        wo_fdl_save: 0,
-        wo_fdm: ptr::null_mut(),
-        wo_fdm_save: ptr::null_mut(),
-        wo_fml: 0,
-        wo_fdn: 0,
-        wo_fde: crate::eval::typval::Callback::NONE,
-        wo_fdt: crate::eval::typval::Callback::NONE,
-        wo_fmr: ptr::null_mut(),
-        wo_lbr: 0,
-        wo_list: 0,
-        wo_nu: 0,
-        wo_rnu: 0,
-        wo_ve: ptr::null_mut(),
-        wo_ve_flags: 0,
-        wo_nuw: 0,
-        wo_wfb: 0,
-        wo_wfh: 0,
-        wo_wfw: 0,
-        wo_wp: 0,
-        wo_pvw: 0,
-        wo_lhi: 0,
-        wo_rl: 0,
-        wo_rlc: ptr::null_mut(),
-        wo_scr: 0,
-        wo_sms: 0,
-        wo_spell: 0,
-        wo_cuc: 0,
-        wo_cul: 0,
-        wo_culopt: ptr::null_mut(),
-        wo_cc: ptr::null_mut(),
-        wo_sbr: ptr::null_mut(),
-        wo_stc: ptr::null_mut(),
-        wo_stl: ptr::null_mut(),
-        wo_wbr: ptr::null_mut(),
-        wo_scb: 0,
-        wo_diff_saved: 0,
-        wo_scb_save: 0,
-        wo_wrap: 0,
-        wo_wrap_save: 0,
-        wo_cocu: ptr::null_mut(),
-        wo_cole: 0,
-        wo_crb: 0,
-        wo_crb_save: 0,
-        wo_scl: ptr::null_mut(),
-        wo_siso: 0,
-        wo_so: 0,
-        wo_sop: 0,
-        wo_winhl: ptr::null_mut(),
-        wo_lcs: ptr::null_mut(),
-        wo_fcs: ptr::null_mut(),
-        wo_winbl: 0,
-        wo_wrap_flags: 0,
-        wo_stl_flags: 0,
-        wo_wbr_flags: 0,
-        wo_fde_flags: 0,
-        wo_fdt_flags: 0,
-        wo_script_ctx: [crate::runtime::Sctx {
-            sc_sid: 0,
-            sc_seq: 0,
-            sc_lnum: 0,
-            sc_chan: 0,
-        }; K_WIN_OPT_COUNT],
-    };
-}
-
-impl Drop for Winopt {
-    fn drop(&mut self) {
-        crate::option::clear_winopt(self);
-    }
-}
+pub use crate::option_vars::Winopt;
 
 #[repr(C)]
 #[derive(Clone)]
@@ -1114,32 +960,32 @@ pub fn swbuf_goto_win_with_buf(buf: *mut FileBuf) -> *mut WinInfoInfo {
 }
 
 #[allow(non_snake_case)]
-fn do_window_newwindow(nchar: i32, Prenum: i32, cbuf: &mut [c_char; 40]) {
+fn do_window_newwindow(nchar: i32, Prenum: i32, cbuf: &mut [u8; 40]) {
     if Prenum != 0 {
         vim_snprintf!(
-            cbuf.as_mut_ptr(),
+            cbuf.as_mut_ptr().cast(),
             cbuf.len() - 5,
             c"%lld",
             i64::from(Prenum),
         );
     } else {
-        cbuf[0] = NUL;
+        cbuf[0] = 0;
     }
     if nchar == b'v' as i32 || nchar == CTRL_V_CONST {
         {
-            let _dst: *mut c_char = cbuf.as_mut_ptr();
+            let _dst = cbuf.as_mut_ptr();
             let _dsize: usize = cbuf.len();
-            let _dlen = crate::memory::cstr_len(_dst);
-            crate::memory::xstrlcpy(_dst.wrapping_add(_dlen), c"v", _dsize - _dlen);
+            let _dlen = crate::memory::cstr_len(_dst.cast());
+            crate::memory::xstrlcpy(_dst.wrapping_add(_dlen).cast(), c"v", _dsize - _dlen);
         };
     }
     {
-        let _dst: *mut c_char = cbuf.as_mut_ptr();
+        let _dst = cbuf.as_mut_ptr();
         let _dsize: usize = cbuf.len();
-        let _dlen = crate::memory::cstr_len(_dst);
-        crate::memory::xstrlcpy(_dst.wrapping_add(_dlen), c"new", _dsize - _dlen);
+        let _dlen = crate::memory::cstr_len(_dst.cast());
+        crate::memory::xstrlcpy(_dst.wrapping_add(_dlen).cast(), c"new", _dsize - _dlen);
     };
-    do_cmdline_cmd(cbuf.as_ptr());
+    do_cmdline_cmd(cbuf.as_ptr().cast());
 }
 
 fn do_window_gotofile(nchar: i32, prenum1: i32) {
@@ -1196,7 +1042,7 @@ fn do_window_gotofile(nchar: i32, prenum1: i32) {
 pub fn do_window(mut nchar: i32, mut prenum: i32, mut xchar: i32) {
     unsafe {
         let mut type_ = FIND_DEFINE;
-        let mut cbuf = [0 as c_char; 40];
+        let mut cbuf = [0u8; 40];
         let prenum1 = if prenum == 0 { 1 } else { prenum };
 
         match nchar {
@@ -1253,13 +1099,13 @@ pub fn do_window(mut nchar: i32, mut prenum: i32, mut xchar: i32) {
             }
             c if c == CTRL_Q_CONST || c == b'q' as i32 => {
                 reset_visual_and_resel();
-                cmd_with_count(c"quit", cbuf.as_mut_ptr(), cbuf.len(), i64::from(prenum));
-                do_cmdline_cmd(cbuf.as_ptr());
+                cmd_with_count(c"quit", &mut cbuf, i64::from(prenum));
+                do_cmdline_cmd(cbuf.as_ptr().cast());
             }
             c if c == CTRL_C_CONST || c == b'c' as i32 => {
                 reset_visual_and_resel();
-                cmd_with_count(c"close", cbuf.as_mut_ptr(), cbuf.len(), i64::from(prenum));
-                do_cmdline_cmd(cbuf.as_ptr());
+                cmd_with_count(c"close", &mut cbuf, i64::from(prenum));
+                do_cmdline_cmd(cbuf.as_ptr().cast());
             }
             c if c == CTRL_Z_CONST || c == b'z' as i32 => {
                 reset_visual_and_resel();
@@ -1281,8 +1127,8 @@ pub fn do_window(mut nchar: i32, mut prenum: i32, mut xchar: i32) {
             }
             c if c == CTRL_O || c == b'o' as i32 => {
                 reset_visual_and_resel();
-                cmd_with_count(c"only", cbuf.as_mut_ptr(), cbuf.len(), i64::from(prenum));
-                do_cmdline_cmd(cbuf.as_ptr());
+                cmd_with_count(c"only", &mut cbuf, i64::from(prenum));
+                do_cmdline_cmd(cbuf.as_ptr().cast());
             }
             c if c == CTRL_W_CONST || c == b'w' as i32 || c == b'W' as i32 => {
                 if one_window_macro() && prenum != 1 {
@@ -1589,10 +1435,17 @@ pub fn do_window(mut nchar: i32, mut prenum: i32, mut xchar: i32) {
     }
 }
 
-fn cmd_with_count(cmd: &std::ffi::CStr, bufp: *mut c_char, bufsize: usize, prenum: i64) {
-    let len = xstrlcpy(bufp, cmd.as_ptr(), bufsize);
+fn cmd_with_count(cmd: &std::ffi::CStr, cbuf: &mut [u8], prenum: i64) {
+    let bufp = cbuf.as_mut_ptr();
+    let bufsize = cbuf.len();
+    let len = xstrlcpy(bufp.cast(), cmd.as_ptr(), bufsize);
     if prenum > 0 && len < bufsize {
-        vim_snprintf!(bufp.wrapping_add(len), bufsize - len, c"%lld", prenum);
+        vim_snprintf!(
+            bufp.wrapping_add(len).cast(),
+            bufsize - len,
+            c"%lld",
+            prenum
+        );
     }
 }
 
@@ -3843,12 +3696,12 @@ fn do_autocmd_winclosed(win: &mut WinInfoInfo) {
         return;
     }
     win_st().winclosed_recursive = true;
-    let mut winid = [0 as c_char; NUMBUFLEN];
-    vim_snprintf!(winid.as_mut_ptr(), winid.len(), c"%d", win.handle,);
+    let mut winid = [0u8; NUMBUFLEN];
+    vim_snprintf!(winid.as_mut_ptr().cast(), winid.len(), c"%d", win.handle,);
     apply_autocmds_win(
         EVENT_WINCLOSED,
-        winid.as_mut_ptr(),
-        winid.as_mut_ptr(),
+        winid.as_ptr().cast(),
+        winid.as_ptr().cast(),
         false,
         win.w_buffer,
         Some(win),
@@ -4023,12 +3876,12 @@ pub fn win_close_othertab(
             free_tabpage(tp);
 
             if has_event(EVENT_TABCLOSED) {
-                let mut prev_idx = [0 as c_char; NUMBUFLEN];
-                vim_snprintf!(prev_idx.as_mut_ptr(), NUMBUFLEN, c"%i", free_tp_idx,);
+                let mut prev_idx = [0u8; NUMBUFLEN];
+                vim_snprintf!(prev_idx.as_mut_ptr().cast(), NUMBUFLEN, c"%i", free_tp_idx,);
                 apply_autocmds(
                     EVENT_TABCLOSED,
-                    prev_idx.as_mut_ptr(),
-                    prev_idx.as_mut_ptr(),
+                    prev_idx.as_ptr().cast(),
+                    prev_idx.as_ptr().cast(),
                     false,
                     if !bufref.br_buf.is_null() && bufref_valid(Some(&bufref)) {
                         bufref.br_buf
@@ -5606,8 +5459,8 @@ pub fn tabpage_move(nr: i32) {
         g_st().redraw_tabline = true;
 
         if has_event(EVENT_TABMOVED) {
-            let mut prev_idx = [0 as c_char; NUMBUFLEN];
-            vim_snprintf!(prev_idx.as_mut_ptr(), NUMBUFLEN, c"%i", old_nr);
+            let mut prev_idx = [0u8; NUMBUFLEN];
+            vim_snprintf!(prev_idx.as_mut_ptr().cast(), NUMBUFLEN, c"%i", old_nr);
             let mut data_items = [
                 KeyValuePair {
                     key: cstr_as_string(c"tabnr_old"),
@@ -5626,7 +5479,7 @@ pub fn tabpage_move(nr: i32) {
             let mut obj = dict_obj(data);
             aucmd_defer(
                 EVENT_TABMOVED,
-                prev_idx.as_mut_ptr(),
+                prev_idx.as_ptr().cast(),
                 ptr::null_mut(),
                 AUGROUP_ALL,
                 curbuf_mut(),
@@ -5986,17 +5839,17 @@ pub fn update_cwd(cause: CdCause) {
         scope = K_CD_SCOPE_GLOBAL;
     }
 
-    let mut cwd = [0 as c_char; MAXPATHL];
+    let mut cwd = [0u8; MAXPATHL];
     if !os_dirname(cwd.as_mut_ptr(), MAXPATHL) {
-        cwd[0] = NUL;
+        cwd[0] = 0;
     }
 
     if let Some(ref new_dir_cstr) = new_dir {
         let new_dir_ptr = new_dir_cstr.as_ptr().cast_mut();
-        if g_st().globaldir.is_none() && cwd[0] != NUL {
-            g_st().globaldir = Some(crate::memory::cstr_to_cstring(cwd.as_ptr()));
+        if g_st().globaldir.is_none() && cwd[0] != 0 {
+            g_st().globaldir = Some(crate::memory::cstr_to_cstring(cwd.as_ptr().cast()));
         }
-        let dir_differs = !path_equal(new_dir_ptr, cwd.as_ptr(), K_PATH_CMP_LITERAL);
+        let dir_differs = !path_equal(new_dir_ptr, cwd.as_ptr().cast(), K_PATH_CMP_LITERAL);
         if opt_vars().p_acd == 0 && dir_differs {
             do_autocmd_dirchanged(new_dir_ptr, scope, cause, true);
         }
@@ -6007,7 +5860,7 @@ pub fn update_cwd(cause: CdCause) {
         shorten_fnames(1);
     } else if let Some(gdir) = g_st().globaldir.take() {
         let gdir_ptr = gdir.as_ptr().cast_mut();
-        let dir_differs = !path_equal(gdir_ptr, cwd.as_ptr(), K_PATH_CMP_LITERAL);
+        let dir_differs = !path_equal(gdir_ptr, cwd.as_ptr().cast(), K_PATH_CMP_LITERAL);
         if opt_vars().p_acd == 0 && dir_differs {
             do_autocmd_dirchanged(gdir_ptr, K_CD_SCOPE_GLOBAL, cause, true);
         }
@@ -6507,10 +6360,10 @@ fn check_window_scroll_resize(
                 if d.is_null() {
                     break;
                 }
-                let mut winid = [0 as c_char; NUMBUFLEN];
-                let key_len = vim_snprintf!(winid.as_mut_ptr(), winid.len(), c"%d", wp.handle,);
+                let mut winid = [0u8; NUMBUFLEN];
+                let key_len = vim_snprintf!(winid.as_mut_ptr().cast(), winid.len(), c"%d", wp.handle,);
                 let _ = key_len;
-                if !tv_dict_add_dict(v_event.as_deref_mut().unwrap(), winid.as_ptr(), d) {
+                if !tv_dict_add_dict(v_event.as_deref_mut().unwrap(), winid.as_ptr().cast(), d) {
                     tv_dict_unref(d);
                     break;
                 }
@@ -6599,13 +6452,13 @@ pub fn may_trigger_win_scrolled_resized() {
 
     win_st().win_scrolled_resized_recursive = true;
 
-    let mut resize_winid = [0 as c_char; NUMBUFLEN];
+    let mut resize_winid = [0u8; NUMBUFLEN];
     let mut resize_win: *mut WinInfoInfo = ptr::null_mut();
     let mut resize_bufref: Bufref = Bufref::new();
     if trigger_resize {
         resize_win = first_size_win;
         vim_snprintf!(
-            resize_winid.as_mut_ptr(),
+            resize_winid.as_mut_ptr().cast(),
             resize_winid.len(),
             c"%d",
             unsafe { (*resize_win).handle },
@@ -6613,13 +6466,13 @@ pub fn may_trigger_win_scrolled_resized() {
         set_bufref(&mut resize_bufref, unsafe { (*resize_win).w_buffer });
     }
 
-    let mut scroll_winid = [0 as c_char; NUMBUFLEN];
+    let mut scroll_winid = [0u8; NUMBUFLEN];
     let mut scroll_win: *mut WinInfoInfo = ptr::null_mut();
     let mut scroll_bufref: Bufref = Bufref::new();
     if trigger_scroll {
         scroll_win = first_scroll_win;
         vim_snprintf!(
-            scroll_winid.as_mut_ptr(),
+            scroll_winid.as_mut_ptr().cast(),
             scroll_winid.len(),
             c"%d",
             unsafe { (*scroll_win).handle },
@@ -6645,8 +6498,8 @@ pub fn may_trigger_win_scrolled_resized() {
             };
             apply_autocmds_win(
                 EVENT_WINRESIZED,
-                resize_winid.as_mut_ptr(),
-                resize_winid.as_mut_ptr(),
+                resize_winid.as_ptr().cast(),
+                resize_winid.as_ptr().cast(),
                 false,
                 buf,
                 unsafe { win.as_ref() },
@@ -6675,8 +6528,8 @@ pub fn may_trigger_win_scrolled_resized() {
         };
         apply_autocmds_win(
             EVENT_WINSCROLLED,
-            scroll_winid.as_mut_ptr(),
-            scroll_winid.as_mut_ptr(),
+            scroll_winid.as_ptr().cast(),
+            scroll_winid.as_ptr().cast(),
             false,
             buf,
             unsafe { win.as_ref() },
@@ -7049,7 +6902,7 @@ fn frame_setwidth(curfrp: &mut Frame, mut width: i32, from_left: bool) {
     }
 }
 
-pub fn did_set_winminheight(_args: &mut Optset) -> *const c_char {
+pub fn did_set_winminheight(_args: &mut Optset) -> Option<&'static CStr> {
     let mut first = true;
     while opt_vars().p_wmh > 0 {
         let room = g_st().rows_global - opt_vars().p_ch as i32;
@@ -7063,10 +6916,10 @@ pub fn did_set_winminheight(_args: &mut Optset) -> *const c_char {
             first = false;
         }
     }
-    ptr::null()
+    None
 }
 
-pub fn did_set_winminwidth(_args: &mut Optset) -> *const c_char {
+pub fn did_set_winminwidth(_args: &mut Optset) -> Option<&'static CStr> {
     let mut first = true;
     while opt_vars().p_wmw > 0 {
         let room = g_st().columns_global;
@@ -7080,7 +6933,7 @@ pub fn did_set_winminwidth(_args: &mut Optset) -> *const c_char {
             first = false;
         }
     }
-    ptr::null()
+    None
 }
 
 pub fn win_drag_status_line(dragwin: &mut WinInfoInfo, mut offset: i32) {
@@ -8085,12 +7938,16 @@ fn frame_check_width(topfrp: &Frame, width: i32) -> bool {
     true
 }
 
-pub fn check_colorcolumn(cc: *mut c_char, mut wp: Option<&mut WinInfoInfo>) -> *const c_char {
+pub fn check_colorcolumn(
+    cc: impl crate::strings::IntoCCharPtr,
+    mut wp: Option<&mut WinInfoInfo>,
+) -> Option<&'static CStr> {
+    let cc = cc.into_c_char_ptr().cast_mut();
     if wp.is_some() && wp.as_deref_mut().unwrap().w_buffer.is_null() {
-        return ptr::null();
+        return None;
     }
 
-    let mut s: *mut c_char = EMPTY_STRING_OPTION.as_ptr().cast::<c_char>();
+    let mut s = EMPTY_STRING_OPTION.as_ptr().cast();
     if !cc.is_null() {
         s = cc;
     } else if wp.is_some() {
@@ -8116,7 +7973,7 @@ pub fn check_colorcolumn(cc: *mut c_char, mut wp: Option<&mut WinInfoInfo>) -> *
             };
             s = s.wrapping_add(1);
             if !ascii_isdigit(i32::from(crate::memory::cstr_first_byte(s))) {
-                return E_INVARG.as_ptr();
+                return Some(E_INVARG);
             }
             col *= getdigits_int(&raw mut s, true, 0);
             if tw == 0 {
@@ -8130,7 +7987,7 @@ pub fn check_colorcolumn(cc: *mut c_char, mut wp: Option<&mut WinInfoInfo>) -> *
         } else if ascii_isdigit(i32::from(crate::memory::cstr_first_byte(s))) {
             col = getdigits_int(&raw mut s, true, 0);
         } else {
-            return E_INVARG.as_ptr();
+            return Some(E_INVARG);
         }
         if !skip {
             color_cols[count] = col - 1;
@@ -8140,30 +7997,25 @@ pub fn check_colorcolumn(cc: *mut c_char, mut wp: Option<&mut WinInfoInfo>) -> *
             break;
         }
         if crate::memory::cstr_first_byte(s) != b',' {
-            return E_INVARG.as_ptr();
+            return Some(E_INVARG);
         }
         s = s.wrapping_add(1);
         if crate::memory::cstr_is_empty(s) {
-            return E_INVARG.as_ptr();
+            return Some(E_INVARG);
         }
     }
 
-    if wp.is_none() {
-        return ptr::null();
+    if let Some(wp) = wp {
+        wp.w_p_cc_cols.clear();
+        if count > 0 {
+            color_cols[..count].sort_unstable();
+            wp.w_p_cc_cols.extend_from_slice(&color_cols[..count]);
+            wp.w_p_cc_cols.dedup();
+            wp.w_p_cc_cols.push(-1);
+        }
     }
 
-    wp.as_deref_mut().unwrap().w_p_cc_cols.clear();
-    if count > 0 {
-        color_cols[..count].sort_unstable();
-        wp.as_deref_mut()
-            .unwrap()
-            .w_p_cc_cols
-            .extend_from_slice(&color_cols[..count]);
-        wp.as_deref_mut().unwrap().w_p_cc_cols.dedup();
-        wp.unwrap().w_p_cc_cols.push(-1);
-    }
-
-    ptr::null()
+    None
 }
 
 pub fn win_locked(wp: &mut WinInfoInfo) -> i32 {

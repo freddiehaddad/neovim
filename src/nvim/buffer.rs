@@ -1070,7 +1070,7 @@ pub fn open_buffer(read_stdin: bool, eap: Option<&Exarg>, flags_arg: i32) -> i32
             emsg(gettext(c"E83: Cannot allocate buffer, using other one..."));
             enter_buffer(g_st().curbuf);
             if old_tw != curbuf_mut().b_p_tw {
-                check_colorcolumn(ptr::null_mut(), Some(crate::globals::curwin_mut()));
+                check_colorcolumn(None::<&CStr>, Some(crate::globals::curwin_mut()));
             }
             return FAIL;
         }
@@ -1908,7 +1908,7 @@ pub fn handle_swap_exists(mut old_curbuf: Option<&mut Bufref>) {
         if !buf.is_null() {
             enter_buffer(buf);
             if old_tw != curbuf_mut().b_p_tw {
-                check_colorcolumn(ptr::null_mut(), Some(crate::globals::curwin_mut()));
+                check_colorcolumn(None::<&CStr>, Some(crate::globals::curwin_mut()));
             }
         }
 
@@ -2564,7 +2564,7 @@ pub fn set_curbuf(buf: *mut FileBuf, action: i32, update_jumplist: bool) {
         if (valid && buf != g_st().curbuf && !aborting()) || curwin_mut().w_buffer.is_null() {
             enter_buffer(if valid { buf } else { g_st().lastbuf });
             if old_tw != curbuf_mut().b_p_tw {
-                check_colorcolumn(ptr::null_mut(), Some(crate::globals::curwin_mut()));
+                check_colorcolumn(None::<&CStr>, Some(crate::globals::curwin_mut()));
             }
         }
 

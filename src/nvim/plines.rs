@@ -19,13 +19,13 @@ use crate::marktree::{
 use crate::mbyte::{
     ptr2cells, utf_cluster_info, utf_ptr2_str_char_info, utf_ptr2char, utfc_ptr2len,
 };
+pub use crate::mbyte::{CharInfo, ClusterInfo, StrCharInfo};
 use crate::memline::{ml_get_buf, ml_get_buf_len};
 use crate::r#move::{win_col_off, win_col_off2};
 use crate::option::get_showbreak_value;
 use crate::option_vars::*;
 use crate::state::{MODE_NORMAL, virtual_active};
 use crate::window::WinInfoInfo;
-use std::ffi::c_char;
 use std::ptr;
 
 use crate::drawscreen::GETVCOL_END_EXCL_LBR;
@@ -42,7 +42,7 @@ static INLINE_FILTER: [u32; K_MTMETA_COUNT] = [K_MTFILTER_SELECT, 0, 0, 0, 0];
 #[repr(C)]
 pub struct CharsizeArg {
     pub win: *mut WinInfoInfo,
-    pub line: *mut c_char,
+    pub line: *mut u8,
     pub use_tabstop: bool,
     pub indent_width: i32,
     pub virt_row: i32,
@@ -84,28 +84,6 @@ pub struct CharSize {
     pub tail: i32,
 }
 
-#[repr(C)]
-#[derive(Clone, Copy)]
-pub struct CharInfo {
-    pub value: i32,
-    pub len: i32,
-}
-
-#[repr(C)]
-#[derive(Clone, Copy)]
-pub struct StrCharInfo {
-    pub ptr: *const c_char,
-    pub chr: CharInfo,
-}
-
-#[repr(C)]
-#[derive(Clone, Copy)]
-pub struct ClusterInfo {
-    pub next: StrCharInfo,
-    pub cells: i32,
-    pub first_compose: bool,
-}
-
 #[inline]
 pub fn vim_isbreak(c: i32) -> bool {
     opt_vars().breakat_flags[(c as u8) as usize] != 0
@@ -129,7 +107,12 @@ pub(crate) fn win_charsize(
 }
 
 #[inline]
-pub fn win_linetabsize(wp: &mut WinInfoInfo, lnum: Linenr, line: *mut c_char, len: Colnr) -> i32 {
+pub fn win_linetabsize(
+    wp: &mut WinInfoInfo,
+    lnum: Linenr,
+    line: impl crate::strings::IntoCCharPtr,
+    len: Colnr,
+) -> i32 {
     let mut csarg = CharsizeArg::new();
     let cstype = init_charsize_arg(&mut csarg, wp, lnum, line);
     if cstype == K_CHARSIZE_FAST {
@@ -158,7 +141,7 @@ pub fn win_chartabsize(
     }
 }
 
-pub fn linetabsize_col(startvcol: i32, s: *mut c_char) -> i32 {
+pub fn linetabsize_col(startvcol: i32, s: impl crate::strings::IntoCCharPtr) -> i32 {
     let mut csarg = CharsizeArg::new();
     let cstype = init_charsize_arg(&mut csarg, curwin_mut(), 0, s);
     if cstype == K_CHARSIZE_FAST {
@@ -185,10 +168,10 @@ pub fn init_charsize_arg(
     csarg: &mut CharsizeArg,
     wp: &mut WinInfoInfo,
     lnum: Linenr,
-    line: *mut c_char,
+    line: impl crate::strings::IntoCCharPtr,
 ) -> CSType {
     csarg.win = (&raw mut *wp);
-    csarg.line = line;
+    csarg.line = line.into_c_char_ptr().cast_mut().cast();
     csarg.max_head_vcol = 0;
     csarg.cur_text_width_left = 0;
     csarg.cur_text_width_right = 0;
@@ -227,7 +210,7 @@ pub fn init_charsize_arg_skip_cur_text(
     csarg: &mut CharsizeArg,
     wp: &mut WinInfoInfo,
     lnum: Linenr,
-    line: *mut c_char,
+    line: impl crate::strings::IntoCCharPtr,
 ) -> CSType {
     let mut cstype = init_charsize_arg(csarg, wp, 0, line);
     csarg.skip_cur_text = true;
@@ -288,7 +271,7 @@ pub fn charsize_regular(
         let wp = unsafe { &mut *csarg.win };
         let buf = wp.w_buffer;
         let buf = unsafe { &mut *buf };
-        let line = csarg.line;
+        let line = csarg.line.cast();
         let use_tabstop = cur_char == TAB && csarg.use_tabstop;
         let mut mb_added = 0;
 
@@ -451,7 +434,7 @@ pub fn charsize_regular(
             && vim_isbreak(i32::from(crate::memory::cstr_byte_at(cur, 0)))
             && !vim_isbreak(i32::from(crate::memory::cstr_byte_at(cur, 1)))
         {
-            let mut t = csarg.line;
+            let mut t = csarg.line.cast();
             while vim_isbreak(i32::from(crate::memory::cstr_first_byte(t))) {
                 t = t.wrapping_add(1);
             }
@@ -524,7 +507,7 @@ pub fn charsize_regular(
 #[inline]
 fn charsize_fast_impl(
     wp: &mut WinInfoInfo,
-    _cur: *const c_char,
+    _cur: impl crate::strings::IntoCCharPtr,
     use_tabstop: bool,
     vcol: Colnr,
     cur_char: i32,
@@ -582,7 +565,7 @@ pub fn charsize_fast(
 
 pub fn charsize_nowrap(
     buf: &mut FileBuf,
-    _cur: *const c_char,
+    _cur: impl crate::strings::IntoCCharPtr,
     use_tabstop: bool,
     vcol: Colnr,
     cur_char: i32,
@@ -616,11 +599,11 @@ fn in_win_border(wp: &mut WinInfoInfo, vcol: Colnr) -> bool {
 }
 
 pub fn linesize_regular(csarg: &mut CharsizeArg, mut vcol_arg: i32, len: Colnr) -> i32 {
-    let line: *const c_char = csarg.line;
+    let line = csarg.line.cast_const();
     let mut vcol = i64::from(vcol_arg);
 
-    let mut ci = utf_ptr2_str_char_info(line);
-    while (crate::memory::ptr_offset_from(ci.ptr, line) as Colnr) < len
+    let mut ci = utf_ptr2_str_char_info(line.cast());
+    while (crate::memory::ptr_offset_from(ci.ptr.cast(), line) as Colnr) < len
         && !crate::memory::cstr_is_empty(ci.ptr)
     {
         let cli = utf_cluster_info(ci);
@@ -652,11 +635,11 @@ pub fn linesize_regular(csarg: &mut CharsizeArg, mut vcol_arg: i32, len: Colnr) 
 pub fn linesize_fast(csarg: &CharsizeArg, mut vcol_arg: i32, len: Colnr) -> i32 {
     let wp = csarg.win;
     let use_tabstop = csarg.use_tabstop;
-    let line: *const c_char = csarg.line;
+    let line = csarg.line.cast_const();
     let mut vcol = i64::from(vcol_arg);
 
-    let mut ci = utf_ptr2_str_char_info(line);
-    while (crate::memory::ptr_offset_from(ci.ptr, line) as Colnr) < len
+    let mut ci = utf_ptr2_str_char_info(line.cast());
+    while (crate::memory::ptr_offset_from(ci.ptr.cast(), line) as Colnr) < len
         && !crate::memory::cstr_is_empty(ci.ptr)
     {
         let cli = utf_cluster_info(ci);
@@ -994,7 +977,7 @@ pub fn plines_win_col(wp: &mut WinInfoInfo, lnum: Linenr, column: i64) -> i32 {
 
     let mut vcol: Colnr = 0;
     let mut ci = utf_ptr2_str_char_info(line);
-    let limit_ptr = (line as *const c_char).wrapping_add(column as usize);
+    let limit_ptr = line.cast_const().wrapping_add(column as usize);
     if cstype == K_CHARSIZE_FAST {
         let use_tabstop = csarg.use_tabstop;
         while !crate::memory::cstr_is_empty(ci.ptr) && ci.ptr < limit_ptr {

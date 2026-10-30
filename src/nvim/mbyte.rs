@@ -29,7 +29,6 @@ use crate::os::fs::os_errno;
 #[cfg(unix)]
 use crate::os::lang::nl_langinfo;
 use crate::os::lang::{LC_CTYPE, setlocale};
-use crate::plines::{CharInfo, ClusterInfo, StrCharInfo};
 use crate::strings::vim_strchr;
 use crate::utf8proc::{
     UTF8PROC_BOUNDCLASS_CONTROL, UTF8PROC_BOUNDCLASS_CR, UTF8PROC_BOUNDCLASS_EXTENDED_PICTOGRAPHIC,
@@ -42,6 +41,28 @@ use crate::utf8proc::{
 use crate::window::WinInfoInfo;
 use std::ffi::{CStr, c_char, c_void};
 use std::ptr;
+
+#[repr(C)]
+#[derive(Clone, Copy)]
+pub struct CharInfo {
+    pub value: i32,
+    pub len: i32,
+}
+
+#[repr(C)]
+#[derive(Clone, Copy)]
+pub struct StrCharInfo {
+    pub ptr: *const c_char,
+    pub chr: CharInfo,
+}
+
+#[repr(C)]
+#[derive(Clone, Copy)]
+pub struct ClusterInfo {
+    pub next: StrCharInfo,
+    pub cells: i32,
+    pub first_compose: bool,
+}
 
 pub type GraphemeState = i32;
 

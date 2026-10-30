@@ -1819,7 +1819,7 @@ pub fn did_set_cinoptions(args: &mut Optset) -> *const c_char {
 }
 
 pub fn validate_colorcolumn(args: &mut Optset) -> *const c_char {
-    check_colorcolumn(args.os_newval.data.string().data, None)
+    check_colorcolumn(args.os_newval.data.string().data, None).map_or(ptr::null(), |s| s.as_ptr())
 }
 
 /// The 'colorcolumn' option is changed.
@@ -1834,6 +1834,7 @@ pub fn did_set_colorcolumn(args: &mut Optset) -> *const c_char {
         })
         .as_mut()
     })
+    .map_or(ptr::null(), |s| s.as_ptr())
 }
 
 /// Validate the 'comments' option.
