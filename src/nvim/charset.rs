@@ -686,19 +686,19 @@ pub fn transchar_hex(buf: RawCCharPtrMut, c: i32) -> usize {
         i += 1;
         if c > 0xFF {
             if c > 0xFFFF {
-                *buf.wrapping_add(i) = nr2hex(uc >> 20) as u8;
+                *buf.wrapping_add(i) = nr2hex(uc >> 20);
                 i += 1;
-                *buf.wrapping_add(i) = nr2hex(uc >> 16) as u8;
+                *buf.wrapping_add(i) = nr2hex(uc >> 16);
                 i += 1;
             }
-            *buf.wrapping_add(i) = nr2hex(uc >> 12) as u8;
+            *buf.wrapping_add(i) = nr2hex(uc >> 12);
             i += 1;
-            *buf.wrapping_add(i) = nr2hex(uc >> 8) as u8;
+            *buf.wrapping_add(i) = nr2hex(uc >> 8);
             i += 1;
         }
-        *buf.wrapping_add(i) = nr2hex(uc >> 4) as u8;
+        *buf.wrapping_add(i) = nr2hex(uc >> 4);
         i += 1;
-        *buf.wrapping_add(i) = nr2hex(uc) as u8;
+        *buf.wrapping_add(i) = nr2hex(uc);
         i += 1;
         *buf.wrapping_add(i) = b'>';
         i += 1;
