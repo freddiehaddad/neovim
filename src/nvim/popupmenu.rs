@@ -626,16 +626,14 @@ fn pum_compute_text_attrs(
         } else {
             ins_compl_leader()
         };
-        if crate::memory::cstr_is_empty(leader) {
-            return None;
-        }
+        let leader = leader.filter(|s| !s.is_empty())?;
 
         let in_fuzzy = if (g_st().state_global & MODE_CMDLINE) != 0 {
             cmdline_compl_is_fuzzy()
         } else {
             (get_cot_flags() & K_OPT_COT_FLAG_FUZZY) != 0
         };
-        let leader_len = crate::memory::cstr_len(leader);
+        let leader_len = leader.to_bytes().len();
 
         let mut match_positions: Option<Vec<u32>> = None;
         let mut matched_len: i32 = -1;

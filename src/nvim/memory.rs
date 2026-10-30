@@ -378,16 +378,6 @@ pub fn cstr_move<S: crate::strings::IntoCCharPtr>(dst: *mut c_char, src: S) {
     }
 }
 
-/// Convert a NUL-terminated C string (including trailing NUL) into a `Vec<c_char>`.
-#[inline]
-pub fn cstr_to_cchar_vec<S: crate::strings::IntoCCharPtr>(s: S) -> Vec<c_char> {
-    let s = s.into_c_char_ptr();
-    unsafe {
-        let slice = CStr::from_ptr(s).to_bytes_with_nul();
-        std::slice::from_raw_parts(slice.as_ptr().cast::<c_char>(), slice.len()).to_vec()
-    }
-}
-
 /// View a NUL-terminated C string as a lossy UTF-8 string (`Cow<str>`).
 #[inline]
 pub fn cstr_lossy<'a, S: crate::strings::IntoCCharPtr>(s: S) -> std::borrow::Cow<'a, str> {

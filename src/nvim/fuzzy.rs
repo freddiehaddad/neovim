@@ -784,14 +784,14 @@ pub fn fuzzy_match_str_in_line(
         if str_cur.is_null() || pat.is_null() {
             return false;
         }
-        let line_end = find_line_end(str_cur.cast()).cast::<u8>();
+        let line_end = find_line_end(str_cur);
 
         while (str_cur as usize) < (line_end as usize) {
-            let start = find_word_start(str_cur.cast()).cast::<u8>();
+            let start = find_word_start(str_cur);
             if unsafe { *start } == 0 {
                 break;
             }
-            let end = find_word_end(start.cast()).cast::<u8>();
+            let end = find_word_end(start);
 
             let save_end = unsafe { *end };
             unsafe {

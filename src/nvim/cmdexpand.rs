@@ -2203,17 +2203,10 @@ pub fn cmdline_pum_cleanup(cclp: &mut CmdlineInfo) {
 }
 
 /// Returns the current cmdline completion pattern.
-pub fn cmdline_compl_pattern() -> *mut c_char {
+pub fn cmdline_compl_pattern() -> Option<&'static CStr> {
     unsafe {
         let xp = get_cmdline_info().xpc;
-        if false {
-            ptr::null_mut()
-        } else {
-            (*xp)
-                .xp_orig
-                .as_ref()
-                .map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut())
-        }
+        (*xp).xp_orig.as_deref()
     }
 }
 

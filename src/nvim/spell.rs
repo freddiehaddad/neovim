@@ -3191,7 +3191,7 @@ fn dump_word(
             p.cast(),
             crate::memory::cstr_len(p.cast()) as i32,
             opt_vars().p_ic != 0,
-            ptr::null_mut(),
+            ptr::null(),
             *dir.as_deref_mut().unwrap(),
             false,
             0,
