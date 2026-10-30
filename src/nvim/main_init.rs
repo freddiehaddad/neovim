@@ -2639,6 +2639,9 @@ mod tests {
 
     #[test]
     fn command_line_scan_parses_flags_commands_and_lua_args() {
+        let _guard = crate::globals::TEST_GLOBAL_LOCK
+            .lock()
+            .unwrap_or_else(|e| e.into_inner());
         ensure_test_editor_init();
         let mut c_args: Vec<std::ffi::CString> = [
             "nvim",

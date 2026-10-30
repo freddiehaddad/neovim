@@ -86,7 +86,7 @@ pub struct CharSize {
 
 #[inline]
 pub fn vim_isbreak(c: i32) -> bool {
-    opt_vars().breakat_flags[(c as u8) as usize] != 0
+    opt_vars().breakat_flags[(c as u8) as usize]
 }
 
 #[inline]

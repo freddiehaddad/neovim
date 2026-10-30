@@ -1584,19 +1584,12 @@ pub fn validate_backupext_or_patchmode(args: &mut Optset) -> Option<&CStr> {
 
 /// The 'breakat' option is changed.
 pub fn did_set_breakat(_args: &mut Optset) -> Option<&CStr> {
-    let flags_ptr = (&raw mut opt_vars().breakat_flags).cast::<u8>();
-    for i in 0..256 {
-        unsafe {
-            *flags_ptr.wrapping_add(i) = 0;
-        }
-    }
+    opt_vars().breakat_flags = [false; 256];
 
     if !opt_vars().p_breakat.is_null() {
         let p = opt_vars().p_breakat;
         for &p_byte in crate::memory::cstr_as_bytes(p) {
-            unsafe {
-                *flags_ptr.wrapping_add(p_byte as usize) = 1;
-            }
+            opt_vars().breakat_flags[p_byte as usize] = true;
         }
     }
 
