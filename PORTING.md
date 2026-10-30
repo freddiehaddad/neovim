@@ -89,13 +89,15 @@ Early in the port, hand-written `#[repr(C)]` definitions for `libuv` handles (`u
 ## Where Things Stand & What's Next
 
 Today, the repository contains **zero `.c` or `.h` files**:
-- **460,000+ lines of Rust** (`edition = "2024"`, ~83% in safe Rust outside `unsafe` blocks)
-- **405/405 functional and legacy test suites passing** in both `debug` and `--release` modes, plus **1,000+ native Rust unit tests**
+- **406,000+ lines of Rust** (`edition = "2024"`, down from 460K+ after idiomatization, with ~80% in safe Rust and `c_char` confined exclusively to the 3 external C FFI boundary modules)
+- **405/405 functional and legacy test suites passing** in both `debug` and `--release` modes, plus **257 native Rust unit test suites**
 - **1.1× to 2.3× faster** than upstream C Nightly across startup, UTF-8 screen layout, regex search, virtual line motion, and autocmd dispatch
-- **Continuously synced** with upstream `neovim/neovim` commits
+- **Continuously synced** 1:1 with upstream `neovim/neovim` commits leading up to the `0.13.0` release
 
-The journey is ongoing. Two C patterns still exist in parts of `src/nvim/` where C aliasing and lifetime semantics run deepest:
-1. **NUL-terminated `*const c_char` / `*mut c_char` pointers** (~6,000 occurrences, primarily around memline buffer lines returned by `ml_get` and Vimscript parser cursors).
-2. **Nullable raw struct pointers** (`*mut WinInfoInfo`, `*mut FileBuf`, `*mut TvDict`) across global window/buffer lists and re-entrant callback boundaries.
+### Post-0.13.0 Roadmap
 
-Rather than sweeping the codebase with automated regex passes, future idiomatization happens incrementally, one self-contained module at a time, backed by the full `--release` test suite at every step.
+While `0.13.0` is still under active development upstream, the codebase intentionally preserves upstream's 1:1 module and function structure so incoming PRs and bugfixes can be ported cleanly. Once `0.13.0` is released, two architectural refactors can eliminate the remaining C-style patterns (~20% of the codebase) without sacrificing `runtime/` or API compatibility:
+
+1. **Generational arena handles (`WinId`, `BufId`, `TabId`)**: Replace intrusive raw-pointer doubly-linked lists (`firstwin`, `firstbuf`, `curwin`, `curbuf`) with index-based handles so re-entrant autocommands and Lua callbacks can never invalidate a live reference.
+2. **Slice-based parser cursors**: Convert pointer-advancing parsers (`eval.rs`, `ex_docmd.rs`, `regexp.rs`) and `ml_get` buffer line accessors from raw byte pointers to safe `&[u8]` slice cursors.
+
