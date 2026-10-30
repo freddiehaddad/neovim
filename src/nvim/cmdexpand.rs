@@ -4944,7 +4944,9 @@ fn expand_other(
         },
         ExpGen {
             context: EXPAND_FUNCTIONS,
-            func: get_function_name,
+            func: |xp, idx| {
+                get_function_name(xp, idx).map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut())
+            },
             ic: false,
             escaped: true,
         },
@@ -4958,7 +4960,9 @@ fn expand_other(
         },
         ExpGen {
             context: EXPAND_EXPRESSION,
-            func: get_expr_name,
+            func: |xp, idx| {
+                get_expr_name(xp, idx).map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut())
+            },
             ic: false,
             escaped: true,
         },

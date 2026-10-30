@@ -1542,8 +1542,7 @@ pub unsafe extern "C-unwind" fn nlua_call(lstate: *mut lua_State) -> i32 {
         return unsafe { luaL_error(lstate, c"Function called with too many arguments".as_ptr()) };
     }
 
-    let func_lua = find_internal_func_lua(name);
-    if !func_lua.is_null() {
+    if let Some(func_lua) = find_internal_func_lua(name) {
         lua_getglobal(lstate, c"require");
         unsafe { lua_pushlstring(lstate, c"vim._core.vimfn".as_ptr(), 15) };
         if unsafe { lua_pcall(lstate, 1, 1, 0) } != 0 {
