@@ -423,7 +423,7 @@ pub fn set_context_in_user_cmdarg<T>(
             return set_context_in_map_cmd(
                 xp,
                 c"map",
-                arg.cast_mut().cast(),
+                arg.cast_mut(),
                 forceit,
                 false,
                 false,
