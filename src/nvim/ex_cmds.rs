@@ -777,7 +777,7 @@ pub fn ex_sort(eap: &mut Exarg) {
                     *s = NUL;
                 }
                 if s == p.wrapping_add(1) {
-                    if last_search_pat().is_null() {
+                    if last_search_pat().is_none() {
                         emsg(gettext(E_NOPREVRE));
                         break 'sortend;
                     }
@@ -1046,7 +1046,7 @@ pub fn ex_uniq(eap: &mut Exarg) {
                     *s = NUL;
                 }
                 if s == p.wrapping_add(1) {
-                    if last_search_pat().is_null() {
+                    if last_search_pat().is_none() {
                         emsg(gettext(E_NOPREVRE));
                         break 'uniqend;
                     }
@@ -5020,15 +5020,14 @@ pub fn ex_global(eap: &mut Exarg) {
         cmd = cmd.wrapping_add(1);
         pat = cmd;
         cmd = skip_regexp_ex(
-            cmd.cast(),
+            cmd,
             delim as i32,
             opt_vars().p_magic,
             true,
             None,
             None,
             None,
-        )
-        .cast();
+        );
         if unsafe { *cmd } == delim {
             unsafe {
                 *cmd = 0;

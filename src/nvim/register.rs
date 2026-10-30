@@ -958,10 +958,11 @@ pub fn get_spec_reg(
                 true
             }
             x if x == i32::from(b'/') => {
-                if last_search_pat().is_null() && errmsg {
+                if last_search_pat().is_none() && errmsg {
                     emsg(gettext(E_NOPREVRE));
                 }
-                *argp = last_search_pat().cast();
+                *argp = last_search_pat()
+                    .map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut().cast());
                 true
             }
             x if x == i32::from(b'.') => {
@@ -2607,7 +2608,7 @@ pub fn ex_display(eap: &mut Exarg) {
         }
     }
 
-    if !last_search_pat().is_null()
+    if last_search_pat().is_some()
         && (arg.is_null() || crate::strings::vim_haschr(arg, i32::from(b'/')))
         && !g_st().got_int
         && !message_filtered(last_search_pat())

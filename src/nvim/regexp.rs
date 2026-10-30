@@ -1662,15 +1662,16 @@ pub fn skip_regexp_err(startp: *mut c_char, delim: i32, magic: i32) -> *mut c_ch
 }
 
 /// `skip_regexp()` with extra arguments.
-pub fn skip_regexp_ex(
-    mut startp: *mut c_char,
+pub fn skip_regexp_ex<T>(
+    startp: *mut T,
     dirc: i32,
     magic: i32,
     in_place: bool,
-    mut copy_buf: Option<&mut Vec<c_char>>,
+    mut copy_buf: Option<&mut Vec<u8>>,
     mut dropped: Option<&mut i32>,
     mut magic_val: Option<&mut RegMagic>,
-) -> *mut c_char {
+) -> *mut T {
+    let mut startp: *mut c_char = startp.cast();
     let mut mymagic = if magic != 0 { MAGIC_ON } else { MAGIC_OFF };
     let mut p = startp;
     let mut startplen: usize = 0;
@@ -1702,9 +1703,9 @@ pub fn skip_regexp_ex(
                 {
                     let off = unsafe { p.offset_from(startp) } as usize;
                     buf.extend_from_slice(unsafe {
-                        std::slice::from_raw_parts(startp, startplen + 1)
+                        std::slice::from_raw_parts(startp.cast::<u8>(), startplen + 1)
                     });
-                    startp = buf.as_mut_ptr();
+                    startp = buf.as_mut_ptr().cast();
                     p = startp.wrapping_add(off);
                 }
                 if let Some(ref mut p) = dropped {
@@ -1731,7 +1732,7 @@ pub fn skip_regexp_ex(
     if let Some(ref mut p) = magic_val {
         **p = mymagic;
     }
-    p
+    p.cast()
 }
 
 pub(super) fn initchr(str_: impl crate::strings::IntoCCharPtr) {

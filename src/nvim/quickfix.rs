@@ -5399,7 +5399,7 @@ fn vgr_init_regmatch(regmatch: &mut Regmmatch, s: impl crate::strings::IntoCChar
         regmatch.regprog = ptr::null_mut();
 
         if crate::memory::cstr_is_empty(s) {
-            if last_search_pat().is_null() {
+            if last_search_pat().is_none() {
                 emsg(gettext(E_NOPREVRE));
                 return;
             }
