@@ -1,13 +1,12 @@
 //! API argument validation helpers (`src/nvim/api/private/validate.c`).
 
-use std::ffi::c_char;
-
 use crate::memory::realloc_items;
+use crate::strings::{RawCCharPtr, RawCCharPtrMut};
 
 #[repr(C)]
 #[derive(Clone, Copy, Debug)]
 pub struct NvimString {
-    pub data: *mut c_char,
+    pub data: RawCCharPtrMut,
     pub size: usize,
 }
 
@@ -26,7 +25,7 @@ impl NvimString {
             data: if bytes.is_empty() {
                 c"".as_ptr().cast_mut()
             } else {
-                bytes.as_ptr().cast::<c_char>().cast_mut()
+                bytes.as_ptr().cast_mut().cast()
             },
             size: bytes.len(),
         }
@@ -98,7 +97,7 @@ impl Error {
     }
 
     #[inline]
-    pub fn msg_ptr(&self) -> *mut c_char {
+    pub fn msg_ptr(&self) -> RawCCharPtrMut {
         self.msg
             .as_ref()
             .map_or(std::ptr::null_mut(), |s| s.as_ptr().cast_mut())
@@ -476,7 +475,7 @@ fn set_error_str(err: &mut Error, err_type: ErrorType, msg: &str) {
 }
 
 #[inline]
-fn cstr_lossy<'a>(ptr: *const c_char) -> std::borrow::Cow<'a, str> {
+fn cstr_lossy<'a>(ptr: RawCCharPtr) -> std::borrow::Cow<'a, str> {
     crate::memory::cstr_from_ptr(ptr).to_string_lossy()
 }
 

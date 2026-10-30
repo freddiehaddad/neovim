@@ -31,8 +31,9 @@ use crate::memory::{
 use crate::msgpack_rpc::packer::{Integer, ObjHandle};
 use crate::msgpack_rpc::unpacker::unpack;
 use crate::runtime::{Sctx, script_is_lua};
+use crate::strings::{RawCCharPtr, RawCCharPtrMut};
 use crate::window::{TabPageInfo, WinInfoInfo};
-use std::ffi::{CStr, c_char};
+use std::ffi::CStr;
 use std::mem::size_of;
 use std::ptr;
 
@@ -138,7 +139,7 @@ pub const fn luaref_obj(r: LuaRef) -> Object {
 }
 
 #[inline]
-pub const fn cbuf_as_string(data: *mut c_char, size: usize) -> NvimString {
+pub const fn cbuf_as_string(data: RawCCharPtrMut, size: usize) -> NvimString {
     NvimString { data, size }
 }
 
@@ -226,14 +227,14 @@ macro_rules! api_set_error {
     ($err:expr, $err_type:expr, $fmt:expr, $($arg:expr),+ $(,)?) => {{
         let err_ref: &mut $crate::api::private::validate::Error = $err;
         let et: $crate::api::private::validate::ErrorType = $err_type;
-        let fmt_ptr: *const std::ffi::c_char =
+        let fmt_ptr: $crate::strings::RawCCharPtr =
             $crate::strings::IntoCCharPtr::into_c_char_ptr($fmt);
         {
             let len = $crate::strings::vim_snprintf!(std::ptr::null_mut(), 0, fmt_ptr, $($arg),+);
             let bufsize = ((len.max(0) as usize) + 1).min(1024 * 1024);
-            let mut buf = vec![0 as std::ffi::c_char; bufsize];
-            $crate::strings::vim_snprintf!(buf.as_mut_ptr(), bufsize, fmt_ptr, $($arg),+);
-            err_ref.msg = Some($crate::memory::cstr_to_cstring(buf.as_ptr()));
+            let mut buf = vec![0u8; bufsize];
+            $crate::strings::vim_snprintf!(buf.as_mut_ptr().cast(), bufsize, fmt_ptr, $($arg),+);
+            err_ref.msg = Some($crate::memory::cstr_to_cstring(&buf));
             err_ref.err_type = et;
         }
     }};
@@ -306,14 +307,14 @@ pub trait IntoDictKey {
     fn into_dict_key(self) -> NvimString;
 }
 
-impl IntoDictKey for *const c_char {
+impl IntoDictKey for RawCCharPtr {
     #[inline]
     fn into_dict_key(self) -> NvimString {
         cstr_as_string(self)
     }
 }
 
-impl IntoDictKey for *mut c_char {
+impl IntoDictKey for RawCCharPtrMut {
     #[inline]
     fn into_dict_key(self) -> NvimString {
         cstr_as_string(self)
@@ -717,7 +718,7 @@ pub fn string_to_cstr(str_: NvimString) -> std::ffi::CString {
 
 pub fn bytes_to_string(bytes: &[u8]) -> NvimString {
     NvimString {
-        data: alloc_cstring_len(bytes.as_ptr().cast::<c_char>(), bytes.len()),
+        data: alloc_cstring_len(bytes, bytes.len()),
         size: bytes.len(),
     }
 }
@@ -917,7 +918,7 @@ pub fn arena_dict_opt(arena: Option<&mut Arena>, max_size: usize) -> Dict {
 pub fn arena_bytes(arena: &mut Arena, bytes: &[u8]) -> NvimString {
     if !bytes.is_empty() {
         NvimString {
-            data: arena_memdupz(arena, bytes.as_ptr().cast::<c_char>(), bytes.len()),
+            data: arena_memdupz(arena, bytes, bytes.len()),
             size: bytes.len(),
         }
     } else {
@@ -939,7 +940,7 @@ pub fn arena_bytes_opt(arena: Option<&mut Arena>, bytes: &[u8]) -> NvimString {
         None => {
             if !bytes.is_empty() {
                 NvimString {
-                    data: arena_memdupz_opt(None, bytes.as_ptr().cast::<c_char>(), bytes.len()),
+                    data: arena_memdupz_opt(None, bytes, bytes.len()),
                     size: bytes.len(),
                 }
             } else {
@@ -4354,9 +4355,7 @@ pub fn api_metadata() -> Object {
 
 pub fn api_metadata_raw() -> NvimString {
     let mut len: usize = 0;
-    let ptr = api_get_packed_metadata(&mut len)
-        .cast::<c_char>()
-        .cast_mut();
+    let ptr = api_get_packed_metadata(&mut len).cast_mut().cast();
     NvimString {
         data: ptr,
         size: len,
