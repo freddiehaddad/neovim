@@ -1837,7 +1837,7 @@ pub fn f_list2str(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDat
 
     for li in crate::eval::typval::list_iter_mut(unsafe { (*l).lv_first }) {
         let n = tv_get_number(&li.li_tv);
-        let buflen = utf_char2bytes(n as i32, buf.as_mut_ptr()) as usize;
+        let buflen = utf_char2bytes(n as i32, buf.as_mut_ptr().cast()) as usize;
         buf[buflen] = NUL;
         out.extend_from_slice(&buf[..buflen]);
     }

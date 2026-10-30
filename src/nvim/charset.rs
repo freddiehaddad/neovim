@@ -594,7 +594,7 @@ pub fn str_foldcase(
                         }
                     }
                 }
-                utf_char2bytes(lc, str_ptr(&mut vec, i));
+                utf_char2bytes(lc, str_ptr(&mut vec, i).cast());
             }
 
             i += utfc_ptr2len(str_ptr(&mut vec, i)) as usize;

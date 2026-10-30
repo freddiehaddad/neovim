@@ -4040,15 +4040,15 @@ fn eval_string<T>(
                                 iemsg(c"eval_string() used more space than allocated");
                             }
                         } else {
-                            let mut p_c = p.cast_const().cast();
-                            mb_copy_char(&raw mut p_c, (&raw mut end).cast());
-                            p = p_c.cast_mut().cast();
+                            let mut p_c = p.cast_const();
+                            mb_copy_char(&raw mut p_c, &raw mut end);
+                            p = p_c.cast_mut();
                         }
                     }
                     _ => {
-                        let mut p_const = p.cast_const().cast();
-                        mb_copy_char(&raw mut p_const, (&raw mut end).cast());
-                        p = p_const.cast_mut().cast();
+                        let mut p_const = p.cast_const();
+                        mb_copy_char(&raw mut p_const, &raw mut end);
+                        p = p_const.cast_mut();
                     }
                 }
             } else {
@@ -4063,9 +4063,9 @@ fn eval_string<T>(
                     }
                     p = p.wrapping_add(1);
                 }
-                let mut p_const = p.cast_const().cast();
-                mb_copy_char(&raw mut p_const, (&raw mut end).cast());
-                p = p_const.cast_mut().cast();
+                let mut p_const = p.cast_const();
+                mb_copy_char(&raw mut p_const, &raw mut end);
+                p = p_const.cast_mut();
             }
         }
         *end = 0;
@@ -4152,9 +4152,9 @@ fn eval_lit_string<T>(
                 }
                 p = p.wrapping_add(1);
             }
-            let mut p_const = p.cast_const().cast();
+            let mut p_const = p.cast_const();
             mb_copy_char(&raw mut p_const, &raw mut str_ptr);
-            p = p_const.cast_mut().cast();
+            p = p_const.cast_mut();
         }
         *str_ptr = NUL;
         crate::eval::typval::tv_set_string(rettv, buf_vec.as_ptr().cast());

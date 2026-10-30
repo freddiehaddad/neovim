@@ -2024,7 +2024,7 @@ fn expand_rtdir_int(
                         break;
                     }
                 }
-                s = mb_prevptr(match_ptr.cast(), s.cast()).cast();
+                s = mb_prevptr(match_ptr, s);
             }
             s = s.wrapping_add(1);
             let copy_len = (e as usize) - (s as usize);

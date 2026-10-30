@@ -64,6 +64,8 @@ unsafe extern "C" {
     pub fn strerror(errnum: i32) -> *mut c_char;
 }
 
+pub type RawCCharPtr = *const c_char;
+
 pub trait IntoCCharPtr {
     fn into_c_char_ptr(self) -> *const c_char;
 }
@@ -637,7 +639,7 @@ pub fn mb_strup_buf(src: *const c_char, dst: *mut c_char) -> usize {
         } else {
             ci.value
         };
-        i += utf_char2bytes(mb_toupper(c), dst.wrapping_add(i)) as usize;
+        i += utf_char2bytes(mb_toupper(c), dst.wrapping_add(i).cast()) as usize;
         p = p.wrapping_add(ci.len as usize);
     }
     unsafe {
@@ -660,7 +662,7 @@ pub fn strcase_save<S: IntoCCharPtr>(orig: S, upper: bool) -> std::ffi::CString 
         };
         let newc = if upper { mb_toupper(c) } else { mb_tolower(c) };
         let mut mb = [0 as c_char; MB_MAXBYTES];
-        let newl = utf_char2bytes(newc, mb.as_mut_ptr()) as usize;
+        let newl = utf_char2bytes(newc, mb.as_mut_ptr().cast()) as usize;
         res.extend_from_slice(&mb[..newl]);
         p = p.wrapping_add(char_info.len as usize);
     }
@@ -712,7 +714,7 @@ pub fn vim_strchr<S: IntoCCharPtr>(string: S, c: i32) -> *mut c_char {
             ptr::null_mut()
         } else {
             let mut u8char = [0 as c_char; MB_MAXBYTES + 1];
-            let len = utf_char2bytes(c, u8char.as_mut_ptr()) as usize;
+            let len = utf_char2bytes(c, u8char.as_mut_ptr().cast()) as usize;
             let needle = unsafe { std::slice::from_raw_parts(u8char.as_ptr().cast::<u8>(), len) };
             let hay = crate::memory::cstr_as_bytes(string);
             if let Some(pos) = hay.windows(len).position(|w| w == needle) {

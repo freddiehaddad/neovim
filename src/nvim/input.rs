@@ -1608,11 +1608,8 @@ fn add_byte_to_showcmd(byte: u8) {
     }
 
     if unsafe { *ptr } != NUL as u8 {
-        let mut cptr = ptr.cast();
-        let mb_ptr = mb_unescape(&raw mut cptr);
-        ptr = cptr.cast::<u8>();
-        if !mb_ptr.is_null() {
-            c = utf_ptr2char(mb_ptr);
+        if let Some(mb_cstr) = mb_unescape(&raw mut ptr) {
+            c = utf_ptr2char(mb_cstr);
         } else {
             c = unsafe { *ptr } as i32;
             ptr = ptr.wrapping_add(1);

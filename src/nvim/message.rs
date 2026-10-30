@@ -2451,20 +2451,19 @@ pub fn str2special<T>(
     replace_others: TriState,
     mut data: Option<&mut KeyChord>,
 ) -> &'static CStr {
-    let p = mb_unescape(sp.cast());
-    if !p.is_null() {
-        if data.is_some() {
-            data.as_deref_mut().unwrap().mods = 0;
-            data.as_deref_mut().unwrap().key = NvimString {
-                data: p.cast_mut(),
-                size: crate::memory::cstr_len(p),
+    if let Some(p) = mb_unescape(sp) {
+        if let Some(data) = data.as_deref_mut() {
+            data.mods = 0;
+            data.key = NvimString {
+                data: p.as_ptr().cast_mut(),
+                size: p.to_bytes().len(),
             };
-            data.as_deref_mut().unwrap().key_alt = NvimString {
+            data.key_alt = NvimString {
                 data: ptr::null_mut(),
                 size: 0,
             };
         }
-        return unsafe { CStr::from_ptr(p) };
+        return p;
     }
 
     let mut str_ = unsafe { (*sp).cast() };
@@ -2499,8 +2498,7 @@ pub fn str2special<T>(
         unsafe {
             *sp = str_.cast();
         }
-        let p = mb_unescape(sp.cast());
-        if !p.is_null() {
+        if let Some(p) = mb_unescape(sp) {
             c = utf_ptr2char(p);
         } else {
             unsafe {

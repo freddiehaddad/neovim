@@ -2174,19 +2174,18 @@ fn command_line_erase_chars(s: &mut CommandLineState) -> i32 {
         if getln_st().ccline.cmdpos > 0 {
             let mut j = getln_st().ccline.cmdpos;
             let mut p: *mut u8 = mb_prevptr(
-                getln_st().ccline.cmdbuff.cast(),
-                getln_st().ccline.cmdbuff.wrapping_add(j as usize).cast(),
-            )
-            .cast();
+                getln_st().ccline.cmdbuff,
+                getln_st().ccline.cmdbuff.wrapping_add(j as usize),
+            );
 
             if s.c == CTRL_W_CONST {
                 while p > getln_st().ccline.cmdbuff && ascii_isspace(*p as i32) {
-                    p = mb_prevptr(getln_st().ccline.cmdbuff.cast(), p.cast()).cast();
+                    p = mb_prevptr(getln_st().ccline.cmdbuff, p);
                 }
 
                 let cls = mb_get_class(p.cast());
                 while p > getln_st().ccline.cmdbuff && mb_get_class(p.cast()) == cls {
-                    p = mb_prevptr(getln_st().ccline.cmdbuff.cast(), p.cast()).cast();
+                    p = mb_prevptr(getln_st().ccline.cmdbuff, p);
                 }
 
                 if mb_get_class(p.cast()) != cls {
@@ -2946,7 +2945,7 @@ fn command_line_handle_key(s: &mut CommandLineState) -> i32 {
             put_on_cmdline(get_special_key_name(s.c, g_st().mod_mask), -1, true);
         } else {
             let iobuff_ptr = g_st().iobuff.as_mut_ptr();
-            let j = utf_char2bytes(s.c, iobuff_ptr);
+            let j = utf_char2bytes(s.c, iobuff_ptr.cast());
             *iobuff_ptr.wrapping_add(j as usize) = 0;
             put_on_cmdline(iobuff_ptr, j, true);
         }

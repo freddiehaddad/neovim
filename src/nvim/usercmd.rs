@@ -1579,9 +1579,7 @@ fn uc_split_args<T>(
                     *q.wrapping_add(3) = b'"';
                     q = q.wrapping_add(4);
                 } else {
-                    let mut q_c = q.cast();
-                    mb_copy_char(&raw mut p, &raw mut q_c);
-                    q = q_c.cast();
+                    mb_copy_char(&raw mut p, &raw mut q);
                 }
             }
         } else {
@@ -1598,11 +1596,7 @@ fn uc_split_args<T>(
                         q = q.wrapping_add(2);
                         p = p.wrapping_add(1);
                     } else {
-                        let mut p_c = p.cast();
-                        let mut q_c = q.cast();
-                        mb_copy_char(&raw mut p_c, &raw mut q_c);
-                        p = p_c.cast();
-                        q = q_c.cast();
+                        mb_copy_char(&raw mut p, &raw mut q);
                     }
                 }
                 if i != args.len() - 1 {

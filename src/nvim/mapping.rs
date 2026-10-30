@@ -1610,19 +1610,19 @@ pub fn check_abbr<T>(mut c: i32, ptr_arg: *mut T, col: i32, mincol: i32) -> bool
     let mut scol: i32;
     {
         let mut is_id = true;
-        let mut p: *mut u8 = mb_prevptr(ptr_arg.cast(), ptr_arg.wrapping_add(col as usize).cast()).cast();
+        let mut p: *mut u8 = mb_prevptr(ptr_arg, ptr_arg.wrapping_add(col as usize));
         let vim_abbr = if !vim_iswordp(p.cast()) {
             true
         } else {
             if (p as usize) > (ptr_arg as usize) {
-                is_id = vim_iswordp(mb_prevptr(ptr_arg.cast(), p.cast()));
+                is_id = vim_iswordp(mb_prevptr(ptr_arg, p).cast());
             }
             false
         };
         clen = 1;
         let min_ptr = ptr_arg.wrapping_add(mincol.max(0) as usize);
         while (p as usize) > (min_ptr as usize) {
-            p = mb_prevptr(ptr_arg.cast(), p.cast()).cast();
+            p = mb_prevptr(ptr_arg, p);
             if ascii_isspace(crate::memory::cstr_first_byte(p.cast()) as i32)
                 || (!vim_abbr && is_id != vim_iswordp(p.cast()))
             {
@@ -1983,11 +1983,8 @@ pub fn put_escstr(fd: *mut FILE, strstart: impl crate::strings::IntoCCharPtr, wh
         }
 
         while unsafe { *str_ptr } != 0 {
-            let mut p_in = str_ptr.cast();
-            let mut p = mb_unescape(&mut p_in);
-            str_ptr = p_in.cast();
-            if !p.is_null() {
-                for &p_byte in crate::memory::cstr_as_bytes(p) {
+            if let Some(p) = mb_unescape(&raw mut str_ptr) {
+                for &p_byte in p.to_bytes() {
                     if unsafe { fputc(p_byte as i32, fd) } < 0 {
                         return false;
                     }
@@ -2002,15 +1999,11 @@ pub fn put_escstr(fd: *mut FILE, strstart: impl crate::strings::IntoCCharPtr, wh
                     modifiers = i32::from(crate::memory::cstr_byte_at(str_ptr.cast(), 2));
                     str_ptr = str_ptr.wrapping_add(3);
 
-                    let mut mod_ptr = str_ptr.cast();
-                    p = mb_unescape(&mut mod_ptr);
-                    str_ptr = mod_ptr.cast();
-
-                    if p.is_null() {
-                        c = unsafe { *str_ptr } as i32;
-                    } else {
+                    if let Some(p) = mb_unescape(&raw mut str_ptr) {
                         c = utf_ptr2char(p);
                         str_ptr = str_ptr.wrapping_sub(1);
+                    } else {
+                        c = unsafe { *str_ptr } as i32;
                     }
                 }
                 if c == K_SPECIAL as i32 {

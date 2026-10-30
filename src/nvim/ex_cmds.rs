@@ -430,7 +430,7 @@ pub fn do_ascii(_eap: &mut Exarg) {
             }
             iobuff_len += 1;
         }
-        iobuff_len += utf_char2bytes(c, iobuff_ptr.wrapping_add(iobuff_len)) as usize;
+        iobuff_len += utf_char2bytes(c, iobuff_ptr.wrapping_add(iobuff_len).cast()) as usize;
 
         if let Some(dig) = get_digraph_for_char(c) {
             let fmt = if c < 0x10000 {

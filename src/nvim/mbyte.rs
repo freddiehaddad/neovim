@@ -39,7 +39,7 @@ use crate::utf8proc::{
     utf8proc_tolower, utf8proc_toupper,
 };
 use crate::window::WinInfoInfo;
-use std::ffi::{CStr, c_char, c_void};
+use std::ffi::{CStr, c_void};
 use std::ptr;
 
 #[repr(C)]
@@ -51,15 +51,15 @@ pub struct CharInfo {
 
 #[repr(C)]
 #[derive(Clone, Copy)]
-pub struct StrCharInfo {
-    pub ptr: *const c_char,
+pub struct StrCharInfo<P = crate::strings::RawCCharPtr> {
+    pub ptr: P,
     pub chr: CharInfo,
 }
 
 #[repr(C)]
 #[derive(Clone, Copy)]
-pub struct ClusterInfo {
-    pub next: StrCharInfo,
+pub struct ClusterInfo<P = crate::strings::RawCCharPtr> {
+    pub next: StrCharInfo<P>,
     pub cells: i32,
     pub first_compose: bool,
 }
@@ -173,7 +173,7 @@ struct ClInterval {
 struct CwInterval {
     first: i64,
     last: i64,
-    width: c_char,
+    width: i8,
 }
 
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -842,7 +842,7 @@ static ENC_ALIAS_TABLE: &[EncAliasEntry] = &[
 
 struct MbyteModuleState {
     cw_table: Vec<CwInterval>,
-    mb_unescape_buf: [c_char; 6],
+    mb_unescape_buf: [u8; 6],
     iconv_working: WorkingStatus,
 }
 
@@ -931,8 +931,8 @@ pub fn basechar_cells_impl(c: CharInfo) -> i32 {
 #[inline]
 pub fn mb_ptr_back<T, U>(s: *const T, p: *mut *mut U) {
     unsafe {
-        let prev = (*p).cast::<c_char>().wrapping_sub(1);
-        let step = 1 + utf_head_off(s.cast(), prev) as usize;
+        let prev = (*p).cast::<u8>().wrapping_sub(1);
+        let step = 1 + utf_head_off(s.cast(), prev.cast()) as usize;
         *p = (*p).cast::<u8>().wrapping_sub(step).cast();
     }
 }
@@ -1006,24 +1006,24 @@ pub fn utf_ptr2_char_info_len(p_in: impl crate::strings::IntoCCharPtr, size: i32
 #[cfg(test)]
 #[inline]
 pub fn utf_slice2_char_info(bytes: &[u8]) -> CharInfo {
-    utf_ptr2_char_info_len(bytes.as_ptr().cast::<c_char>(), bytes.len() as i32)
+    utf_ptr2_char_info_len(bytes, bytes.len() as i32)
 }
 
 #[inline]
 pub fn utf_cluster_cells(bytes: &[u8]) -> i32 {
     let mut scratch = bytes.len() as i32;
-    let ci = utf_ptr2_str_char_info_len(bytes.as_ptr().cast::<c_char>(), scratch);
+    let ci = utf_ptr2_str_char_info_len(bytes, scratch);
     utf_cluster_info_len(ci, &mut scratch).cells
 }
 
 #[inline]
 pub fn utf_slice2char(bytes: &[u8]) -> i32 {
-    utf_ptr2char(bytes.as_ptr().cast::<c_char>())
+    utf_ptr2char(bytes)
 }
 
 #[inline]
 pub fn utf_slice2len(bytes: &[u8]) -> usize {
-    utf_ptr2len(bytes.as_ptr().cast::<c_char>()) as usize
+    utf_ptr2len(bytes) as usize
 }
 
 #[inline]
@@ -1047,13 +1047,13 @@ pub fn utf_cluster_info(cur: StrCharInfo) -> ClusterInfo {
             first_compose: false,
         };
     }
-    let next = cur.ptr.wrapping_add(cur.chr.len as usize).cast::<u8>();
-    if unsafe { *next } < 0x80 {
+    let next = cur.ptr.wrapping_add(cur.chr.len as usize);
+    if unsafe { *next.cast::<u8>() } < 0x80 {
         return ClusterInfo {
             next: StrCharInfo {
-                ptr: next.cast::<c_char>(),
+                ptr: next,
                 chr: CharInfo {
-                    value: i32::from(unsafe { *next }),
+                    value: i32::from(unsafe { *next.cast::<u8>() }),
                     len: 1,
                 },
             },
@@ -1068,16 +1068,16 @@ pub fn utf_cluster_info(cur: StrCharInfo) -> ClusterInfo {
 #[inline]
 pub fn utf_cluster_info_len(cur: StrCharInfo, size: &mut i32) -> ClusterInfo {
     *size -= cur.chr.len;
-    let nextptr = cur.ptr.wrapping_add(cur.chr.len as usize).cast::<u8>();
+    let nextptr = cur.ptr.wrapping_add(cur.chr.len as usize);
     let nextval = if *size == 0 {
         -1
     } else {
-        i32::from(unsafe { *nextptr })
+        i32::from(unsafe { *nextptr.cast::<u8>() })
     };
     if nextval < 0x80 {
         return ClusterInfo {
             next: StrCharInfo {
-                ptr: nextptr.cast::<c_char>(),
+                ptr: nextptr,
                 chr: CharInfo {
                     value: nextval,
                     len: 1,
@@ -1134,12 +1134,12 @@ pub fn bomb_size() -> i32 {
     n
 }
 
-pub fn remove_bom(s: *mut c_char) {
+pub fn remove_bom(s: *mut u8) {
     unsafe {
-        let mut p = s.cast::<u8>();
+        let mut p = s;
         while *p != 0 {
             if *p == 0xef && *p.wrapping_add(1) == 0xbb && *p.wrapping_add(2) == 0xbf {
-                crate::memory::cstr_move(p.cast(), p.wrapping_add(3).cast::<c_char>());
+                crate::memory::cstr_move(p.cast(), p.wrapping_add(3).cast());
             } else {
                 p = p.wrapping_add(1);
             }
@@ -1380,7 +1380,7 @@ pub fn utf_ptr2char(p_in: impl crate::strings::IntoCCharPtr) -> i32 {
     }
 }
 
-fn utf_safe_read_char_adv(s: &mut *const c_char, n: &mut usize) -> i32 {
+fn utf_safe_read_char_adv<T>(s: &mut *const T, n: &mut usize) -> i32 {
     if *n == 0 {
         return 0;
     }
@@ -1389,16 +1389,16 @@ fn utf_safe_read_char_adv(s: &mut *const c_char, n: &mut usize) -> i32 {
     let k = usize::from(UTF8LEN_TAB_ZERO[b0 as usize]);
     if k == 1 {
         *n -= 1;
-        *s = (*s).wrapping_add(1);
+        *s = (*s).cast::<u8>().wrapping_add(1).cast();
         return i32::from(b0);
     }
 
     if k <= *n {
-        let c = utf_ptr2char(*s);
+        let c = utf_ptr2char((*s).cast());
         if c != i32::from(b0)
-            || (c == 0xC3 && unsafe { *(*s).wrapping_add(1).cast::<u8>() } == 0x83)
+            || (c == 0xC3 && unsafe { *(*s).cast::<u8>().wrapping_add(1) } == 0x83)
         {
-            *s = (*s).wrapping_add(k);
+            *s = (*s).cast::<u8>().wrapping_add(k).cast();
             *n -= k;
             return c;
         }
@@ -1416,10 +1416,11 @@ pub fn mb_ptr2char_adv<T>(pp: *mut *const T) -> i32 {
     }
 }
 
-pub fn mb_cptr2char_adv(pp: *mut *const c_char) -> i32 {
+pub fn mb_cptr2char_adv<T>(pp: *mut *const T) -> i32 {
     unsafe {
-        let c = utf_ptr2char(*pp);
-        *pp = (*pp).wrapping_add(utf_ptr2len(*pp) as usize);
+        let p: *const u8 = (*pp).cast();
+        let c = utf_ptr2char(p.cast());
+        *pp = p.wrapping_add(utf_ptr2len(p.cast()) as usize).cast();
         c
     }
 }
@@ -1523,7 +1524,7 @@ pub fn utfc_ptr2len(p: impl crate::strings::IntoCCharPtr) -> i32 {
 }
 
 pub fn utfc_slice2len(bytes: &[u8]) -> usize {
-    utfc_ptr2len_len(bytes.as_ptr().cast::<c_char>(), bytes.len() as i32) as usize
+    utfc_ptr2len_len(bytes, bytes.len() as i32) as usize
 }
 
 pub fn mb_copy_slice_char(src: &[u8], dst: &mut [u8]) -> usize {
@@ -1623,8 +1624,8 @@ pub fn utf_char2slice(c: i32, buf: &mut [u8]) -> usize {
     }
 }
 
-pub fn utf_char2bytes(c: i32, buf: *mut c_char) -> i32 {
-    let slice = unsafe { std::slice::from_raw_parts_mut(buf.cast::<u8>(), 6) };
+pub fn utf_char2bytes(c: i32, buf: *mut u8) -> i32 {
+    let slice = unsafe { std::slice::from_raw_parts_mut(buf, 6) };
     utf_char2slice(c, slice) as i32
 }
 
@@ -2175,7 +2176,7 @@ pub fn utf_strnicmp(
     {
         let mut c1: i32;
         let mut c2: i32;
-        let mut buffer = [0 as c_char; 6];
+        let mut buffer = [0u8; 6];
 
         loop {
             c1 = utf_safe_read_char_adv(&mut s1, &mut n1);
@@ -2201,10 +2202,10 @@ pub fn utf_strnicmp(
 
         if c1 != -1 && c2 == -1 {
             n1 = utf_char2bytes(utf_fold(c1), buffer.as_mut_ptr()) as usize;
-            s1 = buffer.as_ptr();
+            s1 = buffer.as_ptr().cast();
         } else if c2 != -1 && c1 == -1 {
             n2 = utf_char2bytes(utf_fold(c2), buffer.as_mut_ptr()) as usize;
-            s2 = buffer.as_ptr();
+            s2 = buffer.as_ptr().cast();
         }
 
         while n1 > 0
@@ -2418,7 +2419,7 @@ pub fn show_utf8() {
 
     let copy_len = out.len().min(IOSIZE - 1);
     let io_ptr = g_st().iobuff.as_mut_ptr();
-    unsafe { ptr::copy_nonoverlapping(out.as_ptr().cast::<c_char>(), io_ptr, copy_len) };
+    unsafe { ptr::copy_nonoverlapping(out.as_ptr(), io_ptr.cast::<u8>(), copy_len) };
     unsafe {
         *io_ptr.wrapping_add(copy_len) = NUL;
     }
@@ -2519,7 +2520,7 @@ pub fn utf_head_off(
         let mut q = start;
         while q < p {
             let len = utfc_ptr2len_len(
-                q.cast::<c_char>(),
+                q.cast(),
                 crate::memory::ptr_offset_from(safe_end, q) as i32,
             );
             if q.wrapping_add(len as usize) > p {
@@ -2550,7 +2551,7 @@ pub fn utf_cluster_info_impl(base: StrCharInfo, max_len: &mut i32) -> ClusterInf
         if i32::from(next_len) > *max_len {
             return ClusterInfo {
                 next: StrCharInfo {
-                    ptr: next.cast::<c_char>(),
+                    ptr: next.cast(),
                     chr: CharInfo { value: -1, len: 1 },
                 },
                 cells,
@@ -2562,7 +2563,7 @@ pub fn utf_cluster_info_impl(base: StrCharInfo, max_len: &mut i32) -> ClusterInf
         if next_code < 0 || !utf_iscomposing(prev_code, next_code, &mut state) {
             return ClusterInfo {
                 next: StrCharInfo {
-                    ptr: next.cast::<c_char>(),
+                    ptr: next.cast(),
                     chr: CharInfo {
                         value: next_code,
                         len: if next_code < 0 {
@@ -2600,7 +2601,7 @@ pub fn utf_cluster_info_impl(base: StrCharInfo, max_len: &mut i32) -> ClusterInf
         if *max_len > 0 && unsafe { *next } < 0x80 {
             return ClusterInfo {
                 next: StrCharInfo {
-                    ptr: next.cast::<c_char>(),
+                    ptr: next.cast(),
                     chr: CharInfo {
                         value: i32::from(unsafe { *next }),
                         len: 1,
@@ -2704,12 +2705,14 @@ pub fn utf_allow_break(cc: i32, ncc: i32) -> bool {
     utf_allow_break_after(cc) && utf_allow_break_before(ncc)
 }
 
-pub fn mb_copy_char(fp: *mut *const c_char, tp: *mut *mut c_char) {
+pub fn mb_copy_char<T, U>(fp: *mut *const T, tp: *mut *mut U) {
     unsafe {
-        let l = utfc_ptr2len(*fp) as usize;
-        ptr::copy(*fp, *tp, l);
-        *tp = (*tp).wrapping_add(l);
-        *fp = (*fp).wrapping_add(l);
+        let f = (*fp).cast::<u8>();
+        let t = (*tp).cast::<u8>();
+        let l = utfc_ptr2len(f.cast()) as usize;
+        ptr::copy(f, t, l);
+        *tp = t.wrapping_add(l).cast();
+        *fp = f.wrapping_add(l).cast();
     }
 }
 
@@ -2814,7 +2817,7 @@ pub fn utf_find_illegal() {
             let Some(ref tf) = tofree else {
                 break;
             };
-            p = tf.as_ptr().cast::<c_char>().cast_mut();
+            p = tf.as_ptr().cast_mut().cast();
         }
 
         while !crate::memory::cstr_is_empty(p) {
@@ -2828,7 +2831,7 @@ pub fn utf_find_illegal() {
                 } else {
                     len = crate::memory::ptr_offset_from(
                         p,
-                        tofree.as_ref().unwrap().as_ptr().cast::<c_char>(),
+                        tofree.as_ref().unwrap().as_ptr().cast(),
                     ) as i32;
                     let mut cur_p = get_cursor_pos_ptr();
                     while !crate::memory::cstr_is_empty(cur_p) && len > 0 {
@@ -2925,10 +2928,13 @@ pub fn mb_check_adjust_col(win: &mut WinInfoInfo) {
     }
 }
 
-pub fn mb_prevptr(line: *mut c_char, mut p: *mut c_char) -> *mut c_char {
-    if p > line {
-        let off = utf_head_off(line, p.wrapping_sub(1)) + 1;
-        p = p.wrapping_sub(off as usize);
+pub fn mb_prevptr<T>(line: *mut T, mut p: *mut T) -> *mut T {
+    let line_u8 = line.cast::<u8>();
+    let mut p_u8 = p.cast::<u8>();
+    if p_u8 > line_u8 {
+        let off = utf_head_off(line_u8.cast(), p_u8.wrapping_sub(1).cast()) + 1;
+        p_u8 = p_u8.wrapping_sub(off as usize);
+        p = p_u8.cast();
     }
     p
 }
@@ -2963,7 +2969,7 @@ pub fn mb_charlen_len(str_: impl crate::strings::IntoCCharPtr, len: i32) -> i32 
     }
 }
 
-pub fn mb_unescape(pp: *mut *const c_char) -> *const c_char {
+pub fn mb_unescape<T>(pp: *mut *const T) -> Option<&'static CStr> {
     unsafe {
         let mut buf_idx = 0usize;
         let str_ = (*pp).cast::<u8>();
@@ -2974,40 +2980,42 @@ pub fn mb_unescape(pp: *mut *const c_char) -> *const c_char {
                 && *str_.wrapping_add(str_idx + 1) == KS_SPECIAL
                 && *str_.wrapping_add(str_idx + 2) == KE_FILLER
             {
-                mbyte_st().mb_unescape_buf[buf_idx] = K_SPECIAL as c_char;
+                mbyte_st().mb_unescape_buf[buf_idx] = K_SPECIAL;
                 buf_idx += 1;
                 str_idx += 2;
             } else if *str_.wrapping_add(str_idx) == K_SPECIAL {
                 break;
             } else {
-                mbyte_st().mb_unescape_buf[buf_idx] = *str_.wrapping_add(str_idx) as c_char;
+                mbyte_st().mb_unescape_buf[buf_idx] = *str_.wrapping_add(str_idx);
                 buf_idx += 1;
             }
-            mbyte_st().mb_unescape_buf[buf_idx] = NUL;
+            mbyte_st().mb_unescape_buf[buf_idx] = 0;
 
-            if utf_ptr2len((&raw const mbyte_st().mb_unescape_buf).cast::<c_char>()) > 1 {
-                *pp = str_.wrapping_add(str_idx + 1).cast::<c_char>();
-                return (&raw const mbyte_st().mb_unescape_buf).cast::<c_char>();
+            if utf_ptr2len(&mbyte_st().mb_unescape_buf) > 1 {
+                *pp = str_.wrapping_add(str_idx + 1).cast();
+                return Some(CStr::from_ptr(mbyte_st().mb_unescape_buf.as_ptr().cast()));
             }
 
-            if (mbyte_st().mb_unescape_buf[0] as u8) < 128 {
+            if mbyte_st().mb_unescape_buf[0] < 128 {
                 break;
             }
             str_idx += 1;
         }
-        ptr::null()
+        None
     }
 }
 
-pub fn enc_skip(p: *mut c_char) -> *mut c_char {
+pub fn enc_skip<'a>(p: impl crate::strings::IntoCCharPtr) -> &'a CStr {
+    let p = p.into_c_char_ptr();
     let bytes = crate::memory::cstr_as_bytes(p);
-    if bytes.starts_with(b"2byte-") {
+    let skipped = if bytes.starts_with(b"2byte-") {
         p.wrapping_add(6)
     } else if bytes.starts_with(b"8bit-") {
         p.wrapping_add(5)
     } else {
         p
-    }
+    };
+    unsafe { CStr::from_ptr(skipped) }
 }
 
 fn enc_alias_search(name: impl crate::strings::IntoCCharPtr) -> i32 {
@@ -3033,72 +3041,72 @@ pub fn enc_canonize(enc: impl crate::strings::IntoCCharPtr) -> std::ffi::CString
                 .unwrap_or_default();
         }
 
-        let mut r_vec: Vec<c_char> = vec![0; enc_bytes.len() + 3];
+        let mut r_vec: Vec<u8> = vec![0; enc_bytes.len() + 3];
         let r = r_vec.as_mut_ptr();
         let mut p = r;
         for &b in enc_bytes {
             *p = if b == b'_' {
-                b'-' as c_char
+                b'-'
             } else {
-                tolower_asc(i32::from(b)) as u8 as c_char
+                tolower_asc(i32::from(b)) as u8
             };
             p = p.wrapping_add(1);
         }
-        *p = NUL;
+        *p = 0;
 
-        p = enc_skip(r);
+        p = enc_skip(&r_vec).as_ptr().cast_mut().cast();
 
-        let p_bytes = crate::memory::cstr_as_bytes(p);
+        let p_bytes = crate::memory::cstr_as_bytes(p.cast());
         if p_bytes.starts_with(b"microsoft-cp") {
-            crate::memory::cstr_move(p, p.wrapping_add(10));
+            crate::memory::cstr_move(p.cast(), p.wrapping_add(10).cast());
         }
 
-        let p_bytes = crate::memory::cstr_as_bytes(p);
+        let p_bytes = crate::memory::cstr_as_bytes(p.cast());
         if p_bytes.starts_with(b"iso8859") {
-            crate::memory::cstr_move(p.wrapping_add(4), p.wrapping_add(3));
-            *p.wrapping_add(3) = b'-' as c_char;
+            crate::memory::cstr_move(p.wrapping_add(4).cast(), p.wrapping_add(3).cast());
+            *p.wrapping_add(3) = b'-';
         }
 
-        let p_bytes = crate::memory::cstr_as_bytes(p);
+        let p_bytes = crate::memory::cstr_as_bytes(p.cast());
         if p_bytes.starts_with(b"iso-8859") && p_bytes.len() > 8 && p_bytes[8].is_ascii_digit() {
-            crate::memory::cstr_move(p.wrapping_add(9), p.wrapping_add(8));
-            *p.wrapping_add(8) = b'-' as c_char;
+            crate::memory::cstr_move(p.wrapping_add(9).cast(), p.wrapping_add(8).cast());
+            *p.wrapping_add(8) = b'-';
         }
 
-        let p_bytes = crate::memory::cstr_as_bytes(p);
+        let p_bytes = crate::memory::cstr_as_bytes(p.cast());
         if p_bytes.starts_with(b"latin-") {
-            crate::memory::cstr_move(p.wrapping_add(5), p.wrapping_add(6));
+            crate::memory::cstr_move(p.wrapping_add(5).cast(), p.wrapping_add(6).cast());
         }
 
-        if enc_canon_search(p) >= 0 {
+        if enc_canon_search(p.cast()) >= 0 {
             if p != r {
-                crate::memory::cstr_move(r, p);
+                crate::memory::cstr_move(r.cast(), p.cast());
             }
         } else {
-            let i = enc_alias_search(p);
+            let i = enc_alias_search(p.cast());
             if i >= 0 {
                 return ENC_CANON_TABLE[i as usize].name.to_owned();
             }
         }
-        crate::memory::cstr_to_cstring(r)
+        crate::memory::cstr_to_cstring(&r_vec)
     }
 }
 
 pub fn enc_locale() -> Option<std::ffi::CString> {
     #[cfg(unix)]
-    let mut s: *const c_char = unsafe { nl_langinfo(CODESET).cast() };
+    let mut s = unsafe { nl_langinfo(CODESET) };
     #[cfg(not(unix))]
-    let mut s: *const c_char = ptr::null();
+    let mut s = ptr::null();
 
-    let mut env_buf = [0 as c_char; 64];
+    let mut env_buf = [0u8; 64];
     if crate::memory::cstr_is_empty(s) {
         s = unsafe { setlocale(LC_CTYPE, ptr::null()).cast() };
         if crate::memory::cstr_is_empty(s) {
-            s = os_getenv_buf(c"LC_ALL", env_buf.as_mut_ptr(), env_buf.len());
+            s = os_getenv_buf(c"LC_ALL", env_buf.as_mut_ptr().cast(), env_buf.len());
             if s.is_null() {
-                s = os_getenv_buf(c"LC_CTYPE", env_buf.as_mut_ptr(), env_buf.len());
+                s = os_getenv_buf(c"LC_CTYPE", env_buf.as_mut_ptr().cast(), env_buf.len());
                 if s.is_null() {
-                    s = os_getenv_buf(c"LANG", env_buf.as_mut_ptr(), env_buf.len());
+                    s = os_getenv_buf(c"LANG", env_buf.as_mut_ptr().cast(), env_buf.len());
                 }
             }
         }
@@ -3108,32 +3116,30 @@ pub fn enc_locale() -> Option<std::ffi::CString> {
         return None;
     }
 
-    let mut buf = [0 as c_char; 50];
+    let mut buf = [0u8; 50];
     let p = vim_strchr(s, b'.' as i32);
     if !p.is_null() {
         if p.cast_const() > s.wrapping_add(2)
             && crate::memory::cstr_prefix_bytes(p.wrapping_add(1), 3).eq_ignore_ascii_case(b"EUC")
             && !(crate::memory::cstr_byte_at(p, 4)).is_ascii_alphanumeric()
             && crate::memory::cstr_byte_at(p, 4) != b'-'
-            && unsafe { *p.wrapping_sub(3) } == b'_' as c_char
+            && (unsafe { *p.wrapping_sub(3) } as u8) == b'_'
         {
-            unsafe {
-                ptr::copy_nonoverlapping(b"euc-".as_ptr().cast::<c_char>(), buf.as_mut_ptr(), 4)
-            };
+            buf[..4].copy_from_slice(b"euc-");
             let c2 = unsafe { *p.wrapping_sub(2) } as u8;
             let c1 = unsafe { *p.wrapping_sub(1) } as u8;
             buf[4] = if c2.is_ascii_alphanumeric() {
-                tolower_asc(i32::from(c2)) as u8 as c_char
+                tolower_asc(i32::from(c2)) as u8
             } else {
                 0
             };
             buf[5] = if c1.is_ascii_alphanumeric() {
-                tolower_asc(i32::from(c1)) as u8 as c_char
+                tolower_asc(i32::from(c1)) as u8
             } else {
                 0
             };
-            buf[6] = NUL;
-            return Some(enc_canonize(buf.as_ptr()));
+            buf[6] = 0;
+            return Some(enc_canonize(&buf));
         }
         s = p.wrapping_add(1);
     }
@@ -3142,17 +3148,17 @@ pub fn enc_locale() -> Option<std::ffi::CString> {
     while i < buf.len() - 1 && crate::memory::cstr_byte_at(s, i) != 0 {
         let ch = crate::memory::cstr_byte_at(s, i);
         if ch == b'_' || ch == b'-' {
-            buf[i] = b'-' as c_char;
+            buf[i] = b'-';
         } else if ch.is_ascii_alphanumeric() {
-            buf[i] = tolower_asc(i32::from(ch)) as u8 as c_char;
+            buf[i] = tolower_asc(i32::from(ch)) as u8;
         } else {
             break;
         }
         i += 1;
     }
-    buf[i] = NUL;
+    buf[i] = 0;
 
-    Some(enc_canonize(buf.as_ptr()))
+    Some(enc_canonize(&buf))
 }
 
 pub fn my_iconv_open(
@@ -3167,12 +3173,12 @@ pub fn my_iconv_open(
     }
     let mut fd = call_iconv_open(enc_skip(to), enc_skip(from));
     if fd != usize::MAX as *mut c_void && mbyte_st().iconv_working == WorkingStatus::KUnknown {
-        let mut tobuf = [0 as c_char; ICONV_TESTLEN];
+        let mut tobuf = [0u8; ICONV_TESTLEN];
         let mut p = tobuf.as_mut_ptr();
         let mut tolen = ICONV_TESTLEN;
         call_iconv(
             fd,
-            ptr::null_mut(),
+            ptr::null_mut::<*const u8>(),
             ptr::null_mut(),
             &raw mut p,
             &raw mut tolen,
@@ -3197,7 +3203,7 @@ fn iconv_string(
 ) -> Option<Vec<u8>> {
     let str_ = str_.into_c_char_ptr();
     {
-        let mut to: *mut c_char;
+        let mut to: *mut u8;
         let mut len = 0usize;
         let mut done = 0usize;
         let mut result_vec: Vec<u8> = Vec::new();
@@ -3211,19 +3217,19 @@ fn iconv_string(
                 result_vec.resize(len, 0);
             }
 
-            let result = result_vec.as_mut_ptr().cast::<c_char>();
+            let result = result_vec.as_mut_ptr();
             to = result.wrapping_add(done);
             let mut tolen = len - done - 2;
             if call_iconv(
                 fd,
-                &raw mut from,
+                (&raw mut from).cast(),
                 &raw mut fromlen,
                 &raw mut to,
                 &raw mut tolen,
             ) != usize::MAX
             {
                 unsafe {
-                    *to = NUL;
+                    *to = 0;
                 }
                 done = crate::memory::ptr_offset_from(to, result) as usize;
                 break;
@@ -3232,19 +3238,19 @@ fn iconv_string(
             let err = os_errno();
             if !vcp.vc_fail && unconvlenp.is_some() && err == ICONV_EINVAL {
                 unsafe {
-                    *to = NUL;
+                    *to = 0;
                 }
                 *unconvlenp.as_deref_mut().unwrap() = fromlen;
                 done = crate::memory::ptr_offset_from(to, result) as usize;
                 break;
             } else if !vcp.vc_fail && (err == ICONV_EILSEQ || err == ICONV_EINVAL) {
                 unsafe {
-                    *to = b'?' as c_char;
+                    *to = b'?';
                 }
                 to = to.wrapping_add(1);
                 if utf_ptr2cells(from) > 1 {
                     unsafe {
-                        *to = b'?' as c_char;
+                        *to = b'?';
                     }
                     to = to.wrapping_add(1);
                 }
@@ -3271,14 +3277,16 @@ pub fn f_iconv(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) 
     rettv.vval = crate::eval::typval::TypvalVval::String(ptr::null_mut());
 
     let str_ = tv_get_string(&argvars[0]);
-    let mut buf1 = [0 as c_char; NUMBUFLEN];
-    let from = enc_canonize(enc_skip(
-        tv_get_string_buf(&argvars[1], buf1.as_mut_ptr()).cast_mut(),
-    ));
-    let mut buf2 = [0 as c_char; NUMBUFLEN];
-    let to = enc_canonize(enc_skip(
-        tv_get_string_buf(&argvars[2], buf2.as_mut_ptr()).cast_mut(),
-    ));
+    let mut buf1 = [0u8; NUMBUFLEN];
+    let from = enc_canonize(enc_skip(tv_get_string_buf(
+        &argvars[1],
+        buf1.as_mut_ptr().cast(),
+    )));
+    let mut buf2 = [0u8; NUMBUFLEN];
+    let to = enc_canonize(enc_skip(tv_get_string_buf(
+        &argvars[2],
+        buf2.as_mut_ptr().cast(),
+    )));
     let mut vimconv = Vimconv {
         vc_type: CONV_NONE,
         vc_factor: 1,
@@ -3294,7 +3302,7 @@ pub fn f_iconv(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) 
     if vimconv.vc_type == CONV_NONE {
         crate::eval::typval::tv_set_string(rettv, str_);
     } else if let Some(conv_bytes) = string_convert(&vimconv, str_.cast_mut(), None) {
-        crate::eval::typval::tv_set_string(rettv, conv_bytes.as_ptr().cast());
+        crate::eval::typval::tv_set_string(rettv, &conv_bytes);
     }
 }
 
@@ -3379,7 +3387,7 @@ pub fn convert_setup_ext(
 
 pub fn string_convert_slice(vcp: &Vimconv, bytes: &[u8], lenp: &mut usize) -> Option<Vec<u8>> {
     *lenp = bytes.len();
-    string_convert(vcp, bytes.as_ptr().cast::<c_char>(), Some(lenp))
+    string_convert(vcp, bytes, Some(lenp))
 }
 
 pub fn string_convert(
@@ -3428,7 +3436,7 @@ pub fn string_convert_ext(
             }
             CONV_9_TO_UTF8 => {
                 let mut out: Vec<u8> = Vec::with_capacity(len * 3 + 1);
-                let mut ch_buf = [0 as c_char; MB_MAXCHAR as usize];
+                let mut ch_buf = [0u8; MB_MAXCHAR as usize];
                 for i in 0..len {
                     let c = match unsafe { *ptr.wrapping_add(i).cast::<u8>() } {
                         0xa4 => 0x20ac,
@@ -3442,9 +3450,7 @@ pub fn string_convert_ext(
                         b => i32::from(b),
                     };
                     let n = utf_char2bytes(c, ch_buf.as_mut_ptr()) as usize;
-                    out.extend_from_slice(unsafe {
-                        std::slice::from_raw_parts(ch_buf.as_ptr().cast::<u8>(), n)
-                    });
+                    out.extend_from_slice(&ch_buf[..n]);
                 }
                 if let Some(ref mut p) = lenp {
                     **p = out.len();
@@ -3612,7 +3618,7 @@ pub fn f_setcellwidths(argvars: &mut [TypVal], _rettv: &mut TypVal, _fptr: EvalF
                 table.push(CwInterval {
                     first: n1,
                     last: (*lili1).li_tv.vval.v_number(),
-                    width: (*lili2).li_tv.vval.v_number() as c_char,
+                    width: (*lili2).li_tv.vval.v_number() as i8,
                 });
             }
         }
@@ -3691,12 +3697,12 @@ mod tests {
             .lock()
             .unwrap_or_else(|e| e.into_inner());
         {
-            let mut buf = [0 as c_char; 8];
+            let mut buf = [0u8; 8];
             let len = utf_char2bytes(0x20ac, buf.as_mut_ptr());
             assert_eq!(len, 3);
-            assert_eq!(utf_ptr2len(buf.as_ptr()), 3);
-            assert_eq!(utf_ptr2char(buf.as_ptr()), 0x20ac);
-            assert!(utf_valid_string(buf.as_ptr(), ptr::null()));
+            assert_eq!(utf_ptr2len(&buf), 3);
+            assert_eq!(utf_ptr2char(&buf), 0x20ac);
+            assert!(utf_valid_string(&buf, ptr::null()));
             assert!(utf_printable(0x20ac));
             assert!(!utf_printable(0xd800));
             assert_eq!(enc_canon_props(c"utf-8"), ENC_UNICODE);
