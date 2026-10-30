@@ -131,7 +131,7 @@ pub fn os_localtime_r(clock: &time_t, result: *mut Tm) -> *mut Tm {
     #[cfg(unix)]
     unsafe {
         let mut tz_buf = [0u8; 64];
-        let tz_ptr = os_getenv_buf(c"TZ", tz_buf.as_mut_ptr().cast(), tz_buf.len());
+        let tz_ptr = os_getenv_buf(c"TZ", tz_buf.as_mut_ptr(), tz_buf.len());
         let tz_bytes = if tz_ptr.is_null() {
             &[][..]
         } else {

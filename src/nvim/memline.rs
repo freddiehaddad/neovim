@@ -472,7 +472,7 @@ pub fn ml_open(buf: &mut FileBuf) -> bool {
                 B0_UNAME_SIZE,
             ));
             b0p.b0_uname[B0_UNAME_SIZE - 1] = NUL;
-            os_get_hostname((&raw mut b0p.b0_hname).cast(), B0_HNAME_SIZE);
+            os_get_hostname(&raw mut b0p.b0_hname, B0_HNAME_SIZE);
             b0p.b0_hname[B0_HNAME_SIZE - 1] = NUL;
             long_to_char(os_get_pid(), (&raw mut b0p.b0_pid).cast());
         }
@@ -1888,7 +1888,7 @@ fn swapfile_unchanged(fname: impl crate::strings::IntoCCharPtr) -> bool {
             ret = false;
         } else {
             let mut hostname = [0 as c_char; B0_HNAME_SIZE];
-            os_get_hostname((&raw mut hostname).cast(), B0_HNAME_SIZE);
+            os_get_hostname(&raw mut hostname, B0_HNAME_SIZE);
             hostname[B0_HNAME_SIZE - 1] = NUL;
             b0.b0_hname[B0_HNAME_SIZE - 1] = NUL;
             if !crate::memory::cstr_as_bytes((&raw const b0.b0_hname).cast())

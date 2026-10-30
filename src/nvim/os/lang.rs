@@ -456,10 +456,10 @@ fn locale_candidates(locale: &str) -> Vec<String> {
 fn current_message_locale() -> Option<String> {
     let mut buf = [0u8; 256];
     for var in [c"LANGUAGE", c"LC_ALL", c"LC_MESSAGES", c"LANG"] {
-        let p = os_getenv_buf(var.as_ptr(), buf.as_mut_ptr().cast(), buf.len());
+        let p = os_getenv_buf(var.as_ptr(), buf.as_mut_ptr(), buf.len());
         if !p.is_null()
             && unsafe { *p } != 0
-            && let Ok(s) = crate::memory::cstr_from_ptr(p).to_str()
+            && let Ok(s) = crate::memory::cstr_from_ptr(p.cast()).to_str()
         {
             return Some(s.to_string());
         }
@@ -602,22 +602,22 @@ fn get_mess_env(
     }
     #[cfg(windows)]
     {
-        let mut p = os_getenv_buf(c"LC_ALL", buf.as_mut_ptr().cast(), buf.len());
+        let mut p = os_getenv_buf(c"LC_ALL", buf.as_mut_ptr(), buf.len());
         if !p.is_null() {
-            return p.cast();
+            return p;
         }
-        p = os_getenv_buf(c"LC_MESSAGES", buf.as_mut_ptr().cast(), buf.len());
+        p = os_getenv_buf(c"LC_MESSAGES", buf.as_mut_ptr(), buf.len());
         if !p.is_null() {
-            return p.cast();
+            return p;
         }
-        p = os_getenv_buf(c"LANG", buf.as_mut_ptr().cast(), buf.len());
-        if !p.is_null() && (crate::memory::cstr_first_byte(p)).is_ascii_digit() {
+        p = os_getenv_buf(c"LANG", buf.as_mut_ptr(), buf.len());
+        if !p.is_null() && (crate::memory::cstr_first_byte(p.cast())).is_ascii_digit() {
             p = ptr::null_mut();
         }
         if p.is_null() {
             return get_locale_val(LC_CTYPE);
         }
-        p.cast()
+        p
     }
 }
 

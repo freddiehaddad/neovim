@@ -681,7 +681,7 @@ pub fn ex_breaklist(_eap: &mut Exarg) {
             home_replace(
                 None,
                 bp.dbg_name.as_ptr(),
-                namebuf.as_mut_ptr().cast(),
+                namebuf.as_mut_ptr(),
                 MAXPATHL,
                 true,
             );

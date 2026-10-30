@@ -5274,7 +5274,7 @@ pub fn get_syntax_name(xp: &mut ExpandCtx, idx: i32) -> *mut c_char {
         }
         EXP_CLUSTER => {
             if (idx as usize) < win_s(curwin_mut()).b_syn_clusters.len() {
-                let xp_buf = xp.xp_buf.as_mut_ptr();
+                let xp_buf: *mut c_char = xp.xp_buf.as_mut_ptr().cast();
                 vim_snprintf!(
                     xp_buf,
                     EXPAND_BUF_LEN,

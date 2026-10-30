@@ -232,7 +232,7 @@ pub fn modify_fname(
                             dirnamelen = home_replace(
                                 None,
                                 s_cstr.as_ptr(),
-                                dirname.as_mut_ptr().cast(),
+                                dirname.as_mut_ptr(),
                                 MAXPATHL,
                                 true,
                             );
@@ -270,7 +270,7 @@ pub fn modify_fname(
                         dirnamelen = home_replace(
                             None,
                             p.cast_const().cast(),
-                            dirname.as_mut_ptr().cast(),
+                            dirname.as_mut_ptr(),
                             MAXPATHL,
                             true,
                         );

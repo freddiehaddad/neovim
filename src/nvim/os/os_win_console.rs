@@ -401,13 +401,9 @@ pub fn os_title_reset() {
 pub fn os_tty_guess_term(out_fd: i32) -> &'static std::ffi::CStr {
     unsafe {
         let mut conemu_buf = [0u8; 16];
-        let conemu_env = os_getenv_buf(
-            c"ConEmuANSI",
-            conemu_buf.as_mut_ptr().cast(),
-            conemu_buf.len(),
-        );
+        let conemu_env = os_getenv_buf(c"ConEmuANSI", conemu_buf.as_mut_ptr(), conemu_buf.len());
         let conemu_ansi =
-            !conemu_env.is_null() && crate::memory::cstr_as_bytes(conemu_env) == b"ON";
+            !conemu_env.is_null() && crate::memory::cstr_as_bytes(conemu_env.cast()) == b"ON";
         let mut vtp = false;
 
         let handle = _get_osfhandle(out_fd) as HANDLE;

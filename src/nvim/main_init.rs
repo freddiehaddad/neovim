@@ -1192,10 +1192,9 @@ fn remote_request(
                 os_exit(1);
             } else {
                 let mut nvim_env_buf = [0u8; MAXPATHL];
-                let nvim_env =
-                    os_getenv_buf(c"NVIM", nvim_env_buf.as_mut_ptr().cast(), nvim_env_buf.len());
+                let nvim_env = os_getenv_buf(c"NVIM", nvim_env_buf.as_mut_ptr(), nvim_env_buf.len());
                 if crate::memory::cstr_as_opt_bytes(server_addr)
-                    == crate::memory::cstr_as_opt_bytes(nvim_env)
+                    == crate::memory::cstr_as_opt_bytes(nvim_env.cast())
                 {
                     fprintf!(
                         stderr,
@@ -1733,8 +1732,7 @@ fn command_line_scan(parmp: &mut Mparm) {
             {
                 to_slash_if_needed(p_vec.as_mut_ptr());
                 if p_vec[0] == b'~' && p_vec.get(1) == Some(&b'/') {
-                    let homedir = os_homedir();
-                    let h_bytes = crate::memory::cstr_as_bytes(homedir);
+                    let h_bytes = os_homedir().map_or(&[][..], CStr::to_bytes);
                     let p_bytes = &p_vec[1..p_vec.len() - 1];
                     let mut expanded = Vec::with_capacity(h_bytes.len() + p_bytes.len() + 1);
                     expanded.extend_from_slice(h_bytes);

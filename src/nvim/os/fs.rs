@@ -661,12 +661,8 @@ fn is_executable_ext(
         xstrlcpy(buf.cast(), name, MAXPATHL);
         let buf_end = buf.wrapping_add(crate::memory::cstr_len(buf.cast()));
         let mut pathext_buf = [0u8; MAXPATHL];
-        let mut pathext: *const u8 = os_getenv_buf(
-            c"PATHEXT",
-            pathext_buf.as_mut_ptr().cast(),
-            pathext_buf.len(),
-        )
-        .cast();
+        let mut pathext: *const u8 =
+            os_getenv_buf(c"PATHEXT", pathext_buf.as_mut_ptr(), pathext_buf.len());
         if pathext.is_null() {
             pathext = c".com;.exe;.bat;.cmd".as_ptr().cast();
         }

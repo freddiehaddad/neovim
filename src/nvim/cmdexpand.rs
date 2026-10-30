@@ -70,9 +70,7 @@ use crate::option::{
     expand_string_setting, get_findfunc, set_context_in_set_cmd,
 };
 use crate::option_vars::*;
-use crate::os::env::{
-    ExpandCtx, env_name_len, expand_env_save_opt, get_env_name, home_replace, vim_getenv,
-};
+use crate::os::env::{env_name_len, expand_env_save_opt, get_env_name, home_replace, vim_getenv};
 #[cfg(not(windows))]
 use crate::os::fs::PATHSEP;
 #[cfg(windows)]
@@ -119,6 +117,90 @@ use std::ffi::{CStr, CString, c_char};
 use std::ptr;
 
 use crate::api::win_config::UIExtension;
+use crate::lua::converter::LuaRef;
+use crate::runtime::Sctx;
+
+pub(crate) const EXPAND_BUF_LEN: usize = 256;
+
+#[repr(C)]
+pub struct ExpandCtx {
+    pub xp_pattern: *mut c_char,
+    pub xp_context: i32,
+    pub xp_pattern_len: usize,
+    pub xp_prefix: i32,
+    pub xp_arg: *mut c_char,
+    pub xp_luaref: LuaRef,
+    pub xp_script_ctx: Sctx,
+    pub xp_backslash: i32,
+    #[cfg(not(windows))]
+    pub xp_shell: bool,
+    pub xp_numfiles: i32,
+    pub xp_col: i32,
+    pub xp_selected: i32,
+    pub xp_orig: Option<std::ffi::CString>,
+    pub xp_files: Vec<std::ffi::CString>,
+    pub xp_files_abbr: Vec<Option<std::ffi::CString>>,
+    pub xp_files_kind: Vec<Option<std::ffi::CString>>,
+    pub xp_files_menu: Vec<Option<std::ffi::CString>>,
+    pub xp_files_info: Vec<Option<std::ffi::CString>>,
+    pub xp_line: *mut c_char,
+    pub xp_buf: [u8; EXPAND_BUF_LEN],
+    pub xp_search_dir: i32,
+    pub xp_pre_incsearch_pos: CursorPos,
+}
+
+impl ExpandCtx {
+    pub const fn new() -> Self {
+        Self {
+            xp_pattern: ptr::null_mut(),
+            xp_context: 0,
+            xp_pattern_len: 0,
+            xp_prefix: XP_PREFIX_NONE,
+            xp_arg: ptr::null_mut(),
+            xp_luaref: 0,
+            xp_script_ctx: Sctx {
+                sc_sid: 0,
+                sc_seq: 0,
+                sc_lnum: 0,
+                sc_chan: 0,
+            },
+            xp_backslash: XP_BS_NONE,
+            #[cfg(not(windows))]
+            xp_shell: false,
+            xp_numfiles: -1,
+            xp_col: 0,
+            xp_selected: 0,
+            xp_orig: None,
+            xp_files: Vec::new(),
+            xp_files_abbr: Vec::new(),
+            xp_files_kind: Vec::new(),
+            xp_files_menu: Vec::new(),
+            xp_files_info: Vec::new(),
+            xp_line: ptr::null_mut(),
+            xp_buf: [0; EXPAND_BUF_LEN],
+            xp_search_dir: 0,
+            xp_pre_incsearch_pos: CursorPos {
+                lnum: 0,
+                col: 0,
+                coladd: 0,
+            },
+        }
+    }
+}
+
+impl Default for ExpandCtx {
+    #[inline]
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl Drop for ExpandCtx {
+    fn drop(&mut self) {
+        expand_cleanup(self);
+    }
+}
+
 pub type XpPrefix = i32;
 pub type CompleteListItemGetter = Option<fn(&mut ExpandCtx, i32) -> *mut c_char>;
 #[derive(Clone, Copy)]
@@ -4957,7 +5039,7 @@ fn expand_other(
         },
         ExpGen {
             context: EXPAND_ENV_VARS,
-            func: get_env_name,
+            func: |xp, idx| get_env_name(xp, idx).map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut()),
             ic: true,
             escaped: true,
         },

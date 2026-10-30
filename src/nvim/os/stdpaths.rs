@@ -75,7 +75,7 @@ pub fn get_appname(namelike: bool) -> &'static CStr {
     let name_buff = unsafe {
         std::slice::from_raw_parts_mut(g_st().name_buff.as_mut_ptr().cast::<u8>(), MAXPATHL)
     };
-    let env_val = os_getenv_buf(c"NVIM_APPNAME", name_buff.as_mut_ptr().cast(), MAXPATHL);
+    let env_val = os_getenv_buf(c"NVIM_APPNAME", name_buff.as_mut_ptr(), MAXPATHL);
     if env_val.is_null() {
         name_buff[..5].copy_from_slice(b"nvim\0");
     }
