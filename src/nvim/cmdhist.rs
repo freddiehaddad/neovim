@@ -690,7 +690,7 @@ pub fn ex_history(eap: &mut Exarg) {
                     if vim_strsize(entry_ptr) > g_st().columns_global - 10 {
                         trunc_string(
                             entry_ptr,
-                            iobuf.as_mut_ptr().wrapping_add(len).cast(),
+                            iobuf.as_mut_ptr().wrapping_add(len),
                             g_st().columns_global - 10,
                             (IOSIZE - len) as i32,
                         );

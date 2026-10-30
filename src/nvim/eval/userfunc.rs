@@ -1424,7 +1424,7 @@ pub fn call_user_func(
                         if vim_strsize(s) > MSG_BUF_CLEN {
                             trunc_string(
                                 s,
-                                buf.as_mut_ptr().cast(),
+                                buf.as_mut_ptr(),
                                 MSG_BUF_CLEN,
                                 MSG_BUF_LEN as i32,
                             );
@@ -1537,7 +1537,7 @@ pub fn call_user_func(
                 g_st().emsg_off -= 1;
                 let mut s = tf.as_ptr().cast_mut();
                 if vim_strsize(s) > MSG_BUF_CLEN {
-                    trunc_string(s, buf.as_mut_ptr().cast(), MSG_BUF_CLEN, MSG_BUF_LEN as i32);
+                    trunc_string(s, buf.as_mut_ptr(), MSG_BUF_CLEN, MSG_BUF_LEN as i32);
                     s = buf.as_mut_ptr().cast();
                 }
                 smsg!(0, gettext(c"%s returning %s"), sourcing_name(), s);

@@ -2178,7 +2178,7 @@ fn mapblock_fill_dict(
         );
     } else {
         let rhs = cstr_as_string(if compatible {
-            mp.m_orig_str.as_ptr()
+            mp.m_orig_str.as_c_str()
         } else {
             str2special_arena(mp.m_str.as_ptr(), false, K_NONE, arena)
         });

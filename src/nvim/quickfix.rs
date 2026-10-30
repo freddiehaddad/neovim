@@ -3769,7 +3769,7 @@ fn qf_msg(qi: &mut QfInfo, which: i32, lead: impl crate::strings::IntoCCharPtr) 
         }
         trunc_string(
             buf.as_ptr().cast(),
-            buf.as_mut_ptr().cast(),
+            buf.as_mut_ptr(),
             g_st().columns_global - 1,
             IOSIZE as i32,
         );

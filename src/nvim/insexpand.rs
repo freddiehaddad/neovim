@@ -6740,7 +6740,7 @@ pub fn ins_complete(c: i32, enable_pum: bool) -> bool {
 
     if !shortmess(K_SHM_COMPLETIONSCAN) && !insexp().compl_autocomplete {
         msg_progress(
-            ptr::null_mut(),
+            ptr::null_mut::<u8>(),
             c"nvim.completion",
             c"success",
             -1,
