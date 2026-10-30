@@ -17,7 +17,7 @@ Syncing with Upstream (`neovim/neovim`)
 
 This repository tracks upstream [`neovim/neovim`](https://github.com/neovim/neovim) to stay 100% feature-, runtime-, and bugfix-compatible.
 
-* **Last synced upstream commit**: `7fa72edcd4` (`master`)
+* **Last synced upstream commit**: `96c30ceef0` (`master`)
 
 ### 1. Inspecting new upstream commits
 
@@ -26,7 +26,7 @@ Ensure the `upstream` remote points to `https://github.com/neovim/neovim.git`:
 ```bash
 git remote add upstream https://github.com/neovim/neovim.git 2>/dev/null || true
 git fetch upstream master
-git log --oneline 7fa72edcd4..upstream/master
+git log --oneline 96c30ceef0..upstream/master
 ```
 
 ### 2. Mapping upstream files to this repository
