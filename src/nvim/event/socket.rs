@@ -141,16 +141,15 @@ fn connect_req_handle(req: *mut uv_connect_t) -> *mut uv_stream_t {
 
 #[inline]
 fn poll_main_loop_until<F: FnMut() -> bool>(timeout: i64, mut cond: F) {
-    let mut remaining = timeout;
-    let mut before = if remaining > 0 { os_hrtime() } else { 0 };
+    let timeout_ms = timeout;
+    let start = if timeout_ms > 0 { os_hrtime() } else { 0 };
+    let mut remaining = timeout_ms;
     while !cond() {
         loop_poll_events(&mut *main_loop_ptr(), remaining);
         if remaining == 0 {
             break;
         } else if remaining > 0 {
-            let now = os_hrtime();
-            remaining -= ((now - before) / 1_000_000) as i64;
-            before = now;
+            remaining = timeout_ms - ((os_hrtime() - start) / 1_000_000) as i64;
             if remaining <= 0 {
                 break;
             }

@@ -54,7 +54,7 @@ struct OsInputState {
     input_read_pos: usize,
     input_write_pos: usize,
     blocking: bool,
-    cursorhold_time: i32,
+    cursorhold_time: u64,
     cursorhold_tb_change_cnt: i32,
     breakcheck_count: i32,
     orig_num_clicks: i32,
@@ -200,13 +200,15 @@ pub fn input_get(
         }
     } else {
         let wait_start = os_hrtime();
-        osi_st().cursorhold_time = osi_st().cursorhold_time.min(opt_vars().p_ut as i32);
+        osi_st().cursorhold_time = osi_st()
+            .cursorhold_time
+            .min((opt_vars().p_ut as u64) * 1_000_000);
         let delay_pending = ins_compl_autocomplete_pending()
             && opt_vars().p_acl > 0
             && g_st().typebuf.tb_len == 0
             && !ins_compl_active()
             && (get_real_state() & MODE_INSERT) != 0;
-        let mut wait_time = opt_vars().p_ut - i64::from(osi_st().cursorhold_time);
+        let mut wait_time = opt_vars().p_ut - ((osi_st().cursorhold_time / 1_000_000) as i64);
         if delay_pending {
             let delay_left = opt_vars().p_acl - ins_compl_autocomplete_elapsed();
             wait_time = delay_left.max(0).min(wait_time);
@@ -245,7 +247,7 @@ pub fn input_get(
                 inbuf_poll(-1, events);
             }
         } else {
-            osi_st().cursorhold_time += ((os_hrtime() - wait_start) / 1_000_000) as i32;
+            osi_st().cursorhold_time += os_hrtime() - wait_start;
         }
     }
 
@@ -585,16 +587,15 @@ fn inbuf_poll(ms: i32, events: *mut MultiQueue) -> bool {
     }
 
     // LOOP_PROCESS_EVENTS_UNTIL(&main_loop, NULL, ms, os_input_ready(events) || input_unanswerable());
-    let mut remaining = i64::from(ms);
-    let mut before = if remaining > 0 { os_hrtime() } else { 0 };
+    let timeout_ms = i64::from(ms);
+    let start = if timeout_ms > 0 { os_hrtime() } else { 0 };
+    let mut remaining = timeout_ms;
     while !(os_input_ready(unsafe { events.as_ref() }) || input_unanswerable()) {
         loop_poll_events(&mut *main_loop_ptr(), remaining);
         if remaining == 0 {
             break;
         } else if remaining > 0 {
-            let now = os_hrtime();
-            remaining -= ((now - before) / 1_000_000) as i64;
-            before = now;
+            remaining = timeout_ms - ((os_hrtime() - start) / 1_000_000) as i64;
             if remaining <= 0 {
                 break;
             }

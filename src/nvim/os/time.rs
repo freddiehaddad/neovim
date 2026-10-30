@@ -88,9 +88,9 @@ pub fn os_now() -> u64 {
 
 /// Sleep for `ms` milliseconds while polling the main event loop (`os_delay`).
 pub fn os_delay(ms: u64, ignoreinput: bool) {
-    let clamped = ms.min(u64::from(i32::MAX as u32)) as i64;
-    let mut remaining = clamped;
-    let mut before = if remaining > 0 { os_hrtime() } else { 0 };
+    let timeout_ms = ms.min(u64::from(i32::MAX as u32)) as i64;
+    let start = if timeout_ms > 0 { os_hrtime() } else { 0 };
+    let mut remaining = timeout_ms;
 
     loop {
         let cond = if ignoreinput {
@@ -105,9 +105,7 @@ pub fn os_delay(ms: u64, ignoreinput: bool) {
         if remaining == 0 {
             break;
         } else if remaining > 0 {
-            let now = os_hrtime();
-            remaining -= ((now - before) / 1_000_000) as i64;
-            before = now;
+            remaining = timeout_ms - ((os_hrtime() - start) / 1_000_000) as i64;
             if remaining <= 0 {
                 break;
             }

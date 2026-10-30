@@ -3581,10 +3581,13 @@ pub fn f_wait(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
 
     ui_flush();
 
-    let mut remaining = i64::from(timeout);
-    let mut before = if remaining > 0 { os_hrtime() } else { 0 };
-    while !(!eval_expr_typval(&expr, false, &raw mut argv, 0, &mut exprval)
-        || tv_get_number_chk(&exprval, Some(&mut error)) != 0
+    let timeout_ms = i64::from(timeout);
+    let start = if timeout_ms > 0 { os_hrtime() } else { 0 };
+    let mut remaining = timeout_ms;
+    while !({
+        tv_clear(&mut exprval);
+        !eval_expr_typval(&expr, false, &raw mut argv, 0, &mut exprval)
+    } || tv_get_number_chk(&exprval, Some(&mut error)) != 0
         || g_st().called_emsg > called_emsg_before
         || error
         || g_st().got_int)
@@ -3598,9 +3601,7 @@ pub fn f_wait(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
         if remaining == 0 {
             break;
         } else if remaining > 0 {
-            let now = os_hrtime();
-            remaining -= ((now - before) / 1_000_000) as i64;
-            before = now;
+            remaining = timeout_ms - ((os_hrtime() - start) / 1_000_000) as i64;
             if remaining <= 0 {
                 break;
             }
@@ -3616,6 +3617,7 @@ pub fn f_wait(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
     } else if tv_get_number_chk(&exprval, Some(&mut error)) != 0 {
         rettv.vval = crate::eval::typval::TypvalVval::Number(0);
     }
+    tv_clear(&mut exprval);
 
     time_watcher_stop(unsafe { &mut *tw });
     time_watcher_close(unsafe { &mut *tw });
@@ -4834,12 +4836,13 @@ pub fn f_jobwait(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData
             }
         }
 
-        let mut remaining: i32 = -1;
-        let mut before: u64 = 0;
+        let mut timeout: i32 = -1;
+        let mut start: u64 = 0;
         if argvars[1].v_type == VarType::VarNumber && argvars[1].vval.v_number() >= 0 {
-            remaining = argvars[1].vval.v_number() as i32;
-            before = os_hrtime();
+            timeout = argvars[1].vval.v_number() as i32;
+            start = os_hrtime();
         }
+        let mut remaining: i32 = timeout;
 
         let busy = remaining != 0;
         if busy {
@@ -4859,9 +4862,7 @@ pub fn f_jobwait(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData
                 break;
             }
             if remaining > 0 {
-                let now = os_hrtime();
-                remaining = 0.min(remaining - ((now - before) / 1_000_000) as i32);
-                before = now;
+                remaining = 0.max(timeout - ((os_hrtime() - start) / 1_000_000) as i32);
             }
         }
 

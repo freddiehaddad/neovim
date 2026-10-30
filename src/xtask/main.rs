@@ -632,17 +632,22 @@ fn run_lua_tests(
         .env("TMPDIR", norm_slashes(&tmp_dir))
         .env("HISTFILE", "/dev/null")
         .env("SYSTEM_NAME", system_name())
+        .env("VIMRUNTIME", norm_slashes(&root.join("runtime")))
         .env("NVIM_TEST_SOURCE_DIR", norm_slashes(root))
         .env("NVIM_TEST_BUILD_DIR", norm_slashes(build_dir))
         .env_remove("XDG_DATA_DIRS")
         .env_remove("NVIM")
-        .env_remove("TMUX");
+        .env_remove("TMUX")
+        .env_remove("NoDefaultCurrentDirectoryInExePath");
     if !cfg!(target_os = "windows") {
         cmd.env("SHELL", "sh");
     } else if let Ok(path) = env::var("PATH") {
         let git_usr_bin = Path::new(r"C:\Program Files\Git\usr\bin");
         if git_usr_bin.is_dir() && !path.to_ascii_lowercase().contains(r"git\usr\bin") {
-            cmd.env("PATH", format!("{path};{}", git_usr_bin.display()));
+            cmd.env(
+                "PATH",
+                format!(r"C:\Windows\System32;{};{path}", git_usr_bin.display()),
+            );
         }
     }
 
@@ -1599,11 +1604,27 @@ fn main() -> ExitCode {
         "oldtest" => {
             let profile_dir = build_cargo_bins(&root, release, prefer_lua);
             let nvim_bin = stage_build_dir(&root, &profile_dir, &build_dir);
+            let norm_slashes = |p: &Path| p.to_string_lossy().replace('\\', "/");
             let mut cmd = Command::new(&nvim_bin);
             cmd.current_dir(&root)
-                .env("VIMRUNTIME", root.join("runtime"))
+                .env("VIMRUNTIME", norm_slashes(&root.join("runtime")))
+                .env("BUILD_DIR", norm_slashes(&build_dir))
+                .env("XDG_CONFIG_HOME", norm_slashes(&root))
+                .env("NVIM_TEST_ARG0", norm_slashes(&nvim_bin))
+                .env_remove("NoDefaultCurrentDirectoryInExePath")
                 .args(["--clean", "-l"])
                 .arg(root.join("test").join("old").join("runner.lua"));
+            if cfg!(target_os = "windows")
+                && let Ok(path) = env::var("PATH")
+            {
+                let git_usr_bin = Path::new(r"C:\Program Files\Git\usr\bin");
+                if git_usr_bin.is_dir() && !path.to_ascii_lowercase().contains(r"git\usr\bin") {
+                    cmd.env(
+                        "PATH",
+                        format!(r"C:\Windows\System32;{};{path}", git_usr_bin.display()),
+                    );
+                }
+            }
             for a in &extra_args {
                 cmd.arg(a);
             }

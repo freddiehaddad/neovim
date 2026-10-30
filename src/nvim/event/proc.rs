@@ -162,16 +162,15 @@ fn loop_process_events_until<F: FnMut() -> bool>(
     timeout: i64,
     mut cond: F,
 ) {
-    let mut remaining = timeout;
-    let mut before = if remaining > 0 { os_hrtime() } else { 0 };
+    let timeout_ms = timeout;
+    let start = if timeout_ms > 0 { os_hrtime() } else { 0 };
+    let mut remaining = timeout_ms;
     while !cond() {
         loop_process_events(loop_, multiqueue, remaining);
         if remaining == 0 {
             break;
         } else if remaining > 0 {
-            let now = os_hrtime();
-            remaining -= ((now - before) / 1_000_000) as i64;
-            before = now;
+            remaining = timeout_ms - ((os_hrtime() - start) / 1_000_000) as i64;
             if remaining <= 0 {
                 break;
             }

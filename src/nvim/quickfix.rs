@@ -3507,11 +3507,14 @@ fn qf_jump_newwin(mut qi: *mut QfInfo, dir: i32, errornr: i32, forceit: i32, new
             );
             if retval == QF_ABORT {
                 qi = ptr::null_mut();
-            } else if retval != OK {
+            }
+            if retval != OK {
                 if opened_window {
                     win_close(curwin_ptr(), true, false);
                 }
-                if (unsafe { &(*qfl).qf_items })[(qf_index - 1) as usize].qf_fnum != 0 {
+                if !qi.is_null()
+                    && (unsafe { &(*qfl).qf_items })[(qf_index - 1) as usize].qf_fnum != 0
+                {
                     qf_index = old_qf_index;
                 }
             }

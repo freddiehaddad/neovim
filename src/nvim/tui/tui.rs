@@ -1125,8 +1125,9 @@ pub fn tui_stop(tui: &mut TUIData) {
     let wait_start = os_hrtime();
     let events = loop_queues(unsafe { &mut *tui.loop_ }).events;
     let rs = &mut input.read_stream;
-    let mut remaining: i64 = EXIT_TIMEOUT_MS;
-    let mut before = if remaining > 0 { os_hrtime() } else { 0 };
+    let timeout_ms: i64 = EXIT_TIMEOUT_MS;
+    let start = if timeout_ms > 0 { os_hrtime() } else { 0 };
+    let mut remaining: i64 = timeout_ms;
     while !(unsafe { ptr::read_volatile(&raw const tui.stopped) }
         || unsafe { ptr::read_volatile(&raw const rs.did_eof) })
     {
@@ -1138,9 +1139,7 @@ pub fn tui_stop(tui: &mut TUIData) {
         if remaining == 0 {
             break;
         } else if remaining > 0 {
-            let now = os_hrtime();
-            remaining -= ((now - before) / 1_000_000) as i64;
-            before = now;
+            remaining = timeout_ms - ((os_hrtime() - start) / 1_000_000) as i64;
             if remaining <= 0 {
                 break;
             }

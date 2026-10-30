@@ -114,7 +114,9 @@ use crate::ui::{
     ui_call_win_hide, ui_call_win_pos, ui_call_win_viewport, ui_call_win_viewport_margins,
     ui_check_cursor_grid, ui_has,
 };
-use crate::ui_compositor::{ui_comp_layers_adjust, ui_comp_put_grid, ui_comp_remove_grid};
+use crate::ui_compositor::{
+    ui_comp_compose_grid, ui_comp_layers_adjust, ui_comp_put_grid, ui_comp_remove_grid,
+};
 use crate::undo::{buf_is_changed_fn, u_sync};
 use crate::winfloat::{
     win_border_height, win_border_width, win_config_float, win_float_anchor_laststatus,
@@ -1640,6 +1642,9 @@ pub fn ui_ext_win_position(wp: &mut WinInfoInfo, validate: bool) {
                 valid,
                 false,
             );
+            if resort {
+                ui_comp_compose_grid(&mut wp.w_grid_alloc);
+            }
             if ui_has(K_UIMULTIGRID) {
                 let anchor = cstr_as_string(FLOAT_ANCHOR_STR[c.anchor as usize].as_ptr());
                 ui_call_win_float_pos(

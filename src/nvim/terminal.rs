@@ -2580,9 +2580,9 @@ fn get_config_string(buf: &mut FileBuf, key: &[u8]) -> Option<std::ffi::CString>
         api_clear_error(&mut err);
     }
     if obj.obj_type == ObjectType::ObjectTypeString {
-        let res = crate::memory::cstr_from_bytes(obj.data.string().cstr_bytes());
-        api_free_object(obj);
-        return Some(res);
+        return Some(crate::memory::cstr_from_bytes(
+            obj.data.string().cstr_bytes(),
+        ));
     }
     api_free_object(obj);
     None

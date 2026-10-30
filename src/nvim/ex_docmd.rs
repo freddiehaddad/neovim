@@ -10968,8 +10968,9 @@ pub fn do_sleep(msec: i64, hide_cursor: bool) {
     ui_flush();
     let main_loop_ptr = (&raw mut g_st().main_loop).cast();
     let events = loop_queues(unsafe { &mut *main_loop_ptr }).events;
-    let mut remaining = msec;
-    let mut before = if remaining > 0 { os_hrtime() } else { 0 };
+    let timeout_ms = msec;
+    let start = if timeout_ms > 0 { os_hrtime() } else { 0 };
+    let mut remaining = timeout_ms;
     while !g_st().got_int {
         if !events.is_null() && !multiqueue_empty(unsafe { &*events }) {
             multiqueue_process_events(unsafe { &mut *events });
@@ -10979,9 +10980,7 @@ pub fn do_sleep(msec: i64, hide_cursor: bool) {
         if remaining == 0 {
             break;
         } else if remaining > 0 {
-            let now = os_hrtime();
-            remaining -= ((now - before) / 1_000_000) as i64;
-            before = now;
+            remaining = timeout_ms - ((os_hrtime() - start) / 1_000_000) as i64;
             if remaining <= 0 {
                 break;
             }
