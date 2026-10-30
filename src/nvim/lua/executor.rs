@@ -482,7 +482,7 @@ fn nlua_push_eap(lstate: *mut lua_State, eap: &Exarg, cmod: &Cmdmod) {
     }
 
     let mut mods_buf = [0u8; 200];
-    uc_mods(mods_buf.as_mut_ptr().cast(), cmod, false);
+    uc_mods(mods_buf.as_mut_ptr(), cmod, false);
     lua_pushstring(lstate, mods_buf.as_ptr().cast());
     lua_setfield(lstate, -2, c"mods");
 
@@ -528,7 +528,7 @@ fn nlua_push_eap(lstate: *mut lua_State, eap: &Exarg, cmod: &Cmdmod) {
             let mut buf = vec![0u8; length];
             let mut done = false;
             while !done {
-                done = uc_split_args_iter(eap.arg, length, &mut end, buf.as_mut_ptr().cast(), &mut len);
+                done = uc_split_args_iter(eap.arg, length, &mut end, buf.as_mut_ptr(), &mut len);
                 if len > 0 {
                     crate::lua::converter::lua_push_bytes(lstate, &buf[..len]);
                     unsafe { lua_rawseti(lstate, -2, i) };

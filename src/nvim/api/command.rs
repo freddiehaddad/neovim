@@ -347,7 +347,7 @@ pub fn nvim_parse_cmd(
         args = arena_array(arena, uc_nargs_upper_bound(ea.arg, length));
 
         while !done {
-            done = uc_split_args_iter(ea.arg, length, &mut end, buf.cast(), &mut len);
+            done = uc_split_args_iter(ea.arg, length, &mut end, buf, &mut len);
             if len > 0 {
                 add_c(&mut args, string_obj(cstrn_as_string(buf.cast(), len)));
                 buf = buf.wrapping_add(len + 1);
@@ -705,6 +705,7 @@ pub fn nvim_cmd(
             if !range_only {
                 let fullname = if is_user_cmdidx(ea.cmdidx) {
                     get_user_command_name(ea.useridx, ea.cmdidx)
+                        .map_or(ptr::null(), |s| s.as_ptr())
                 } else {
                     get_command_name(&mut crate::os::env::ExpandCtx::new(), ea.cmdidx)
                 };

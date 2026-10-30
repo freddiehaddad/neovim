@@ -4903,31 +4903,41 @@ fn expand_other(
         },
         ExpGen {
             context: EXPAND_USER_COMMANDS,
-            func: get_user_commands,
+            func: |xp, idx| {
+                get_user_commands(xp, idx).map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut())
+            },
             ic: false,
             escaped: true,
         },
         ExpGen {
             context: EXPAND_USER_ADDR_TYPE,
-            func: get_user_cmd_addr_type,
+            func: |xp, idx| {
+                get_user_cmd_addr_type(xp, idx).map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut())
+            },
             ic: false,
             escaped: true,
         },
         ExpGen {
             context: EXPAND_USER_CMD_FLAGS,
-            func: get_user_cmd_flags,
+            func: |xp, idx| {
+                get_user_cmd_flags(xp, idx).map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut())
+            },
             ic: false,
             escaped: true,
         },
         ExpGen {
             context: EXPAND_USER_NARGS,
-            func: get_user_cmd_nargs,
+            func: |xp, idx| {
+                get_user_cmd_nargs(xp, idx).map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut())
+            },
             ic: false,
             escaped: true,
         },
         ExpGen {
             context: EXPAND_USER_COMPLETE,
-            func: get_user_cmd_complete,
+            func: |xp, idx| {
+                get_user_cmd_complete(xp, idx).map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut())
+            },
             ic: false,
             escaped: true,
         },

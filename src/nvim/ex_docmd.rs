@@ -7659,7 +7659,7 @@ pub fn f_fullcommand(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFunc
         if ea.cmdidx < 0 {
             get_user_command_name(ea.useridx, ea.cmdidx)
         } else {
-            CMDNAMES[ea.cmdidx as usize].cmd_name.as_ptr()
+            Some(CMDNAMES[ea.cmdidx as usize].cmd_name)
         },
     );
 }
@@ -9019,7 +9019,7 @@ fn check_more(message: bool, forceit: bool) -> bool {
 
 pub fn get_command_name(_xp: &mut ExpandCtx, idx: i32) -> *mut c_char {
     if idx >= CMD_SIZE_I32 {
-        return expand_user_command_name(idx);
+        return expand_user_command_name(idx).map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut());
     }
     CMDNAMES[idx as usize].cmd_name.as_ptr().cast_mut()
 }
