@@ -1972,11 +1972,9 @@ pub fn event_name2nr_str(str_: NvimString) -> AuEvent {
 }
 
 pub fn event_nr2name(event: AuEvent) -> &'static std::ffi::CStr {
-    if event >= 0 && (event as usize) < NUM_EVENTS {
-        EVENT_NAMES[event as usize].name
-    } else {
-        c"Unknown"
-    }
+    EVENT_NAMES
+        .get(event as usize)
+        .map_or(c"Unknown", |e| e.name)
 }
 
 pub fn event_ignored(event: AuEvent, ei: impl crate::strings::IntoCCharPtr) -> bool {
