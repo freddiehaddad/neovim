@@ -1371,7 +1371,7 @@ pub fn set_context_in_sign_cmd(xp: &mut ExpandCtx, arg: impl crate::strings::Int
     let arg = arg.into_c_char_ptr().cast_mut();
     xp.xp_context = EXPAND_SIGN;
     sign_st().expand_what = EXP_SUBCMD;
-    xp.xp_pattern = arg;
+    xp.xp_pattern = arg.cast();
 
     let end_subcmd = skiptowhite(arg);
     if crate::memory::cstr_is_empty(end_subcmd) {
@@ -1394,7 +1394,7 @@ pub fn set_context_in_sign_cmd(xp: &mut ExpandCtx, arg: impl crate::strings::Int
 
     p = vim_strchr(last, b'=' as i32);
     if p.is_null() {
-        xp.xp_pattern = last;
+        xp.xp_pattern = last.cast();
         match cmd_idx {
             SIGNCMD_DEFINE => sign_st().expand_what = EXP_DEFINE,
             SIGNCMD_PLACE => {
@@ -1409,7 +1409,7 @@ pub fn set_context_in_sign_cmd(xp: &mut ExpandCtx, arg: impl crate::strings::Int
             _ => xp.xp_context = EXPAND_NOTHING,
         }
     } else {
-        xp.xp_pattern = p.wrapping_add(1);
+        xp.xp_pattern = p.wrapping_add(1).cast();
         match cmd_idx {
             SIGNCMD_DEFINE => {
                 if (crate::memory::cstr_prefix_bytes(last, 6) == &b"texthl"[..6])

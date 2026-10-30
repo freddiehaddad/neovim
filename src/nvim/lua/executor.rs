@@ -1823,8 +1823,8 @@ pub fn nlua_call_user_expand_func(xp: &mut ExpandCtx, ret_tv: &mut TypVal) {
     let lstate = nlua_st().global_lstate;
 
     nlua_pushref(lstate, xp.xp_luaref);
-    lua_pushstring(lstate, xp.xp_pattern);
-    lua_pushstring(lstate, xp.xp_line);
+    lua_pushstring(lstate, xp.xp_pattern.cast());
+    lua_pushstring(lstate, xp.xp_line.cast());
     unsafe { lua_pushinteger(lstate, xp.xp_col as lua_Integer) };
 
     if nlua_pcall(lstate, 3, 1) != 0 {
@@ -2351,7 +2351,7 @@ pub fn nlua_expand_pat(xp: &mut ExpandCtx) {
     let line_end = xp.xp_line.wrapping_add(xp.xp_col as usize);
     assert!(line_end >= pat);
     let patlen = crate::memory::ptr_offset_from(line_end, pat);
-    unsafe { lua_pushlstring(lstate, pat, patlen as usize) };
+    unsafe { lua_pushlstring(lstate, pat.cast(), patlen as usize) };
 
     if nlua_pcall(lstate, 1, 2) != 0 {
         nlua_error(lstate, gettext(c"vim._expand_pat: %.*s"));

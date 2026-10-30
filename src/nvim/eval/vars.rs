@@ -2446,7 +2446,7 @@ pub fn get_user_var_name(xp: &mut ExpandCtx, idx: i32) -> Option<&'static CStr> 
                 vars_st().hi = vars_st().hi.wrapping_add(1);
             }
             let hi_key = (&*vars_st().hi).key_cstr();
-            if b"g:" == crate::memory::cstr_prefix_bytes(xp.xp_pattern, 2) {
+            if b"g:" == crate::memory::cstr_prefix_bytes(xp.xp_pattern.cast(), 2) {
                 return Some(cat_prefix_varname(b'g' as i32, hi_key));
             }
             return hi_key;

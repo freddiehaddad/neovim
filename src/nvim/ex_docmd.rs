@@ -8583,13 +8583,9 @@ pub fn get_bad_opt(p: impl crate::strings::IntoCCharPtr, eap: &mut Exarg) -> boo
     }
 }
 
-fn get_bad_name(_xp: &mut ExpandCtx, idx: i32) -> *mut c_char {
+fn get_bad_name(_xp: &mut ExpandCtx, idx: i32) -> Option<&'static CStr> {
     const P_BAD_VALUES: [&CStr; 3] = [c"?", c"keep", c"drop"];
-    if idx >= 0 && (idx as usize) < P_BAD_VALUES.len() {
-        P_BAD_VALUES[idx as usize].as_ptr().cast_mut()
-    } else {
-        ptr::null_mut()
-    }
+    (idx >= 0).then(|| P_BAD_VALUES.get(idx as usize).copied()).flatten()
 }
 
 pub fn getargopt(eap: &mut Exarg) -> bool {
@@ -8681,7 +8677,7 @@ pub fn getargopt(eap: &mut Exarg) -> bool {
     true
 }
 
-fn get_argopt_name(_xp: &mut ExpandCtx, idx: i32) -> *mut c_char {
+fn get_argopt_name(_xp: &mut ExpandCtx, idx: i32) -> Option<&'static CStr> {
     const P_OPT_VALUES: [&CStr; 7] = [
         c"fileformat=",
         c"encoding=",
@@ -8691,11 +8687,7 @@ fn get_argopt_name(_xp: &mut ExpandCtx, idx: i32) -> *mut c_char {
         c"edit",
         c"p",
     ];
-    if idx >= 0 && (idx as usize) < P_OPT_VALUES.len() {
-        P_OPT_VALUES[idx as usize].as_ptr().cast_mut()
-    } else {
-        ptr::null_mut()
-    }
+    (idx >= 0).then(|| P_OPT_VALUES.get(idx as usize).copied()).flatten()
 }
 
 pub fn expand_argopt(
@@ -8706,27 +8698,30 @@ pub fn expand_argopt(
 ) -> bool {
     let pat = pat.into_c_char_ptr();
     {
-        if xp.xp_pattern > xp.xp_line && unsafe { *xp.xp_pattern.wrapping_sub(1) } == b'=' as c_char
+        if xp.xp_pattern > xp.xp_line && unsafe { *xp.xp_pattern.wrapping_sub(1) } == b'='
         {
             let mut cb: CompleteListItemGetter = None;
             let name_end = xp.xp_pattern.wrapping_sub(1);
             let diff = (name_end as usize) - (xp.xp_line as usize);
             if (diff >= 2
-                && (crate::memory::cstr_prefix_bytes(name_end.wrapping_sub(2), 2) == &b"ff"[..2]))
+                && (crate::memory::cstr_prefix_bytes(name_end.wrapping_sub(2).cast(), 2)
+                    == &b"ff"[..2]))
                 || (diff >= 10
-                    && (crate::memory::cstr_prefix_bytes(name_end.wrapping_sub(10), 10)
+                    && (crate::memory::cstr_prefix_bytes(name_end.wrapping_sub(10).cast(), 10)
                         == &b"fileformat"[..10]))
             {
                 cb = Some(get_fileformat_name);
             } else if (diff >= 3
-                && (crate::memory::cstr_prefix_bytes(name_end.wrapping_sub(3), 3) == &b"enc"[..3]))
+                && (crate::memory::cstr_prefix_bytes(name_end.wrapping_sub(3).cast(), 3)
+                    == &b"enc"[..3]))
                 || (diff >= 8
-                    && (crate::memory::cstr_prefix_bytes(name_end.wrapping_sub(8), 8)
+                    && (crate::memory::cstr_prefix_bytes(name_end.wrapping_sub(8).cast(), 8)
                         == &b"encoding"[..8]))
             {
                 cb = Some(get_encoding_name);
             } else if diff >= 3
-                && (crate::memory::cstr_prefix_bytes(name_end.wrapping_sub(3), 3) == &b"bad"[..3])
+                && (crate::memory::cstr_prefix_bytes(name_end.wrapping_sub(3).cast(), 3)
+                    == &b"bad"[..3])
             {
                 cb = Some(get_bad_name);
             }
@@ -8739,7 +8734,7 @@ pub fn expand_argopt(
         }
 
         if xp.xp_pattern_len == 2
-            && (crate::memory::cstr_prefix_bytes(xp.xp_pattern, xp.xp_pattern_len)
+            && (crate::memory::cstr_prefix_bytes(xp.xp_pattern.cast(), xp.xp_pattern_len)
                 == crate::memory::cstr_prefix_bytes(c"ff", xp.xp_pattern_len))
         {
             *matches = vec![c"fileformat=".to_owned()];
@@ -9017,11 +9012,11 @@ fn check_more(message: bool, forceit: bool) -> bool {
     true
 }
 
-pub fn get_command_name(_xp: &mut ExpandCtx, idx: i32) -> *mut c_char {
+pub fn get_command_name(_xp: &mut ExpandCtx, idx: i32) -> Option<&'static CStr> {
     if idx >= CMD_SIZE_I32 {
-        return expand_user_command_name(idx).map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut());
+        return expand_user_command_name(idx);
     }
-    CMDNAMES[idx as usize].cmd_name.as_ptr().cast_mut()
+    (idx >= 0).then(|| CMDNAMES[idx as usize].cmd_name)
 }
 
 fn ex_colorscheme(eap: &mut Exarg) {

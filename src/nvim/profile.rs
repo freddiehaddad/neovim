@@ -424,7 +424,7 @@ pub fn set_context_in_profile_cmd(xp: &mut ExpandCtx, arg: impl crate::strings::
     let arg = arg.into_c_char_ptr();
     xp.xp_context = EXPAND_PROFILE;
     prof_st().pexpand_what = PEXP_SUBCMD;
-    xp.xp_pattern = arg.cast_mut();
+    xp.xp_pattern = arg.cast_mut().cast();
 
     let end_subcmd = skiptowhite(arg);
     if unsafe { *end_subcmd } == 0 {
@@ -435,10 +435,10 @@ pub fn set_context_in_profile_cmd(xp: &mut ExpandCtx, arg: impl crate::strings::
     let sub_bytes = crate::memory::cstr_slice(arg, len);
     if sub_bytes == b"start" || sub_bytes == b"file" {
         xp.xp_context = EXPAND_FILES;
-        xp.xp_pattern = skipwhite(end_subcmd);
+        xp.xp_pattern = skipwhite(end_subcmd).cast();
     } else if sub_bytes == b"func" {
         xp.xp_context = EXPAND_USER_FUNC;
-        xp.xp_pattern = skipwhite(end_subcmd);
+        xp.xp_pattern = skipwhite(end_subcmd).cast();
     } else {
         xp.xp_context = EXPAND_NOTHING;
     }

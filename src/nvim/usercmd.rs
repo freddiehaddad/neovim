@@ -300,7 +300,7 @@ pub fn find_ucmd<T>(
                         xp.as_deref_mut().unwrap().xp_arg = uc
                             .uc_compl_arg
                             .as_ref()
-                            .map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut());
+                            .map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut().cast());
                         xp.as_deref_mut().unwrap().xp_script_ctx = uc.uc_script_ctx;
                         xp.as_deref_mut().unwrap().xp_script_ctx.sc_lnum += sourcing_lnum();
                     }

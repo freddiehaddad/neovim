@@ -3652,11 +3652,11 @@ pub fn f_charclass(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDa
     )));
 }
 
-pub fn get_encoding_name(_xp: &mut ExpandCtx, idx: i32) -> *mut c_char {
+pub fn get_encoding_name(_xp: &mut ExpandCtx, idx: i32) -> Option<&'static CStr> {
     if idx < 0 || (idx as usize) >= ENC_CANON_TABLE.len() {
-        return ptr::null_mut();
+        return None;
     }
-    ENC_CANON_TABLE[idx as usize].name.as_ptr().cast_mut()
+    Some(ENC_CANON_TABLE[idx as usize].name)
 }
 
 pub fn mb_strcmp_ic(

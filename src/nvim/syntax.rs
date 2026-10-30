@@ -5077,7 +5077,7 @@ pub fn reset_expand_highlight() {
 pub fn set_context_in_echohl_cmd(xp: &mut ExpandCtx, arg: impl crate::strings::IntoCCharPtr) {
     let arg = arg.into_c_char_ptr();
     xp.xp_context = EXPAND_HIGHLIGHT;
-    xp.xp_pattern = arg.cast_mut();
+    xp.xp_pattern = arg.cast_mut().cast();
     g_st().include_none = 1;
 }
 
@@ -5086,7 +5086,7 @@ pub fn set_context_in_syntax_cmd(xp: &mut ExpandCtx, arg: impl crate::strings::I
     {
         xp.xp_context = EXPAND_SYNTAX;
         syn_st().expand_what = EXP_SUBCMD;
-        xp.xp_pattern = arg.cast_mut();
+        xp.xp_pattern = arg.cast_mut().cast();
         g_st().include_link = 0;
         g_st().include_default = 0;
 
@@ -5099,8 +5099,8 @@ pub fn set_context_in_syntax_cmd(xp: &mut ExpandCtx, arg: impl crate::strings::I
             return;
         }
 
-        xp.xp_pattern = skipwhite(p);
-        if !crate::memory::cstr_is_empty(skiptowhite(xp.xp_pattern)) {
+        xp.xp_pattern = skipwhite(p).cast();
+        if !crate::memory::cstr_is_empty(skiptowhite(xp.xp_pattern.cast())) {
             xp.xp_context = EXPAND_NOTHING;
         } else {
             let n = crate::memory::ptr_offset_from(p, arg) as usize;

@@ -7655,7 +7655,7 @@ pub fn set_context_in_set_cmd(xp: &mut ExpandCtx, mut arg: *mut c_char, opt_flag
 
     xp.xp_context = EXPAND_SETTINGS;
     if crate::memory::cstr_is_empty(arg) {
-        xp.xp_pattern = arg;
+        xp.xp_pattern = arg.cast();
         return;
     }
     let argend = arg.wrapping_add(crate::memory::cstr_len(arg));
@@ -7663,7 +7663,7 @@ pub fn set_context_in_set_cmd(xp: &mut ExpandCtx, mut arg: *mut c_char, opt_flag
     if crate::memory::cstr_first_byte(p) == b' '
         && unsafe { *p.wrapping_offset(-1) } != b'\\' as c_char
     {
-        xp.xp_pattern = p.wrapping_add(1);
+        xp.xp_pattern = p.wrapping_add(1).cast();
         return;
     }
     while p > arg {
@@ -7690,7 +7690,7 @@ pub fn set_context_in_set_cmd(xp: &mut ExpandCtx, mut arg: *mut c_char, opt_flag
         xp.xp_prefix = XP_PREFIX_INV;
         p = p.wrapping_add(3);
     }
-    xp.xp_pattern = p;
+    xp.xp_pattern = p.cast();
     arg = p;
 
     let mut nextchar: c_char;
@@ -7779,9 +7779,9 @@ pub fn set_context_in_set_cmd(xp: &mut ExpandCtx, mut arg: *mut c_char, opt_flag
         opt_st().expand_option_idx = opt_idx;
     }
 
-    xp.xp_pattern = p.wrapping_add(1);
+    xp.xp_pattern = p.wrapping_add(1).cast();
     opt_st().expand_option_start_col =
-        crate::memory::ptr_offset_from(p.wrapping_add(1), xp.xp_line) as i32;
+        crate::memory::ptr_offset_from(p.wrapping_add(1), xp.xp_line.cast()) as i32;
 
     let opt_var = get_option(opt_idx).var;
     if opt_var == (&raw mut opt_vars().p_syn).cast::<c_void>() {
@@ -7806,7 +7806,7 @@ pub fn set_context_in_set_cmd(xp: &mut ExpandCtx, mut arg: *mut c_char, opt_flag
             .is_some()
     {
         xp.xp_context = EXPAND_STRING_SETTING;
-    } else if crate::memory::cstr_is_empty(xp.xp_pattern) {
+    } else if crate::memory::cstr_is_empty(xp.xp_pattern.cast()) {
         xp.xp_context = EXPAND_OLD_SETTING;
         return;
     } else {
@@ -7853,13 +7853,15 @@ pub fn set_context_in_set_cmd(xp: &mut ExpandCtx, mut arg: *mut c_char, opt_flag
         || (flags & K_OPT_FLAG_COLON) != 0
     {
         p = argend.wrapping_offset(-1);
-        while p > xp.xp_pattern {
+        while p.cast::<u8>() > xp.xp_pattern {
             if crate::memory::cstr_first_byte(p) == b' '
                 || crate::memory::cstr_first_byte(p) == b','
                 || (crate::memory::cstr_first_byte(p) == b':' && (flags & K_OPT_FLAG_COLON) != 0)
             {
                 let mut s = p;
-                while s > xp.xp_pattern && unsafe { *s.wrapping_offset(-1) } == b'\\' as c_char {
+                while s.cast::<u8>() > xp.xp_pattern
+                    && unsafe { *s.wrapping_offset(-1) } == b'\\' as c_char
+                {
                     s = s.wrapping_offset(-1);
                 }
                 #[cfg(windows)]
@@ -7878,7 +7880,7 @@ pub fn set_context_in_set_cmd(xp: &mut ExpandCtx, mut arg: *mut c_char, opt_flag
                     || (crate::memory::cstr_first_byte(p) == b':'
                         && (flags & K_OPT_FLAG_COLON) != 0)
                 {
-                    xp.xp_pattern = p.wrapping_add(1);
+                    xp.xp_pattern = p.wrapping_add(1).cast();
                     break;
                 }
             }
@@ -7887,11 +7889,11 @@ pub fn set_context_in_set_cmd(xp: &mut ExpandCtx, mut arg: *mut c_char, opt_flag
     }
 
     if (flags & K_OPT_FLAG_FLAG_LIST) != 0 {
-        xp.xp_pattern = argend;
+        xp.xp_pattern = argend.cast();
     }
 
     if get_option(opt_idx).var == (&raw mut opt_vars().p_sps).cast() {
-        if crate::memory::cstr_prefix_bytes(xp.xp_pattern, 5) == &b"file:"[..5] {
+        if crate::memory::cstr_prefix_bytes(xp.xp_pattern.cast(), 5) == &b"file:"[..5] {
             xp.xp_pattern = xp.xp_pattern.wrapping_add(5);
         } else if get_option(opt_st().expand_option_idx)
             .opt_expand_cb
@@ -8066,7 +8068,8 @@ pub fn expand_string_setting(
 
     let set_arg = xp
         .xp_line
-        .wrapping_add(opt_st().expand_option_start_col as usize);
+        .wrapping_add(opt_st().expand_option_start_col as usize)
+        .cast();
     let mut args = Optexpand {
         oe_varp: get_varp_scope(opt, opt_st().expand_option_flags).cast::<c_char>(),
         oe_idx: opt_st().expand_option_idx,
@@ -8150,7 +8153,7 @@ pub fn expand_setting_subtract(
 
         return true;
     } else if (option_flags & K_OPT_FLAG_FLAG_LIST) != 0 {
-        if !crate::memory::cstr_is_empty(xp.xp_pattern) {
+        if !crate::memory::cstr_is_empty(xp.xp_pattern.cast()) {
             return false;
         }
 

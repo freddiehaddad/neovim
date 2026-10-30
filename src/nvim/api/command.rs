@@ -370,6 +370,7 @@ pub fn nvim_parse_cmd(
         cmd.uc_name.as_ptr()
     } else {
         get_command_name(&mut crate::os::env::ExpandCtx::new(), ea.cmdidx)
+            .map_or(ptr::null(), |s| s.as_ptr())
     };
 
     result.is_set_cmd |= 1u64 << KEYSET_OPTIDX_CMD_CMD;
@@ -708,6 +709,7 @@ pub fn nvim_cmd(
                         .map_or(ptr::null(), |s| s.as_ptr())
                 } else {
                     get_command_name(&mut crate::os::env::ExpandCtx::new(), ea.cmdidx)
+                        .map_or(ptr::null(), |s| s.as_ptr())
                 };
                 let cmdname_bytes = crate::memory::cstr_as_bytes(cmdname);
                 let fullname_bytes = crate::memory::cstr_as_bytes(fullname);

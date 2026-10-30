@@ -2440,7 +2440,7 @@ pub fn set_context_in_highlight_cmd(xp: &mut ExpandCtx, arg: impl crate::strings
     let mut arg = arg.into_c_char_ptr();
     {
         xp.xp_context = EXPAND_HIGHLIGHT;
-        xp.xp_pattern = arg.cast_mut();
+        xp.xp_pattern = arg.cast_mut().cast();
         g_st().include_link = 2;
         g_st().include_default = 1;
 
@@ -2458,7 +2458,7 @@ pub fn set_context_in_highlight_cmd(xp: &mut ExpandCtx, arg: impl crate::strings
             == crate::memory::cstr_prefix_bytes(arg, p as usize - arg as usize)
         {
             arg = skipwhite(p);
-            xp.xp_pattern = arg.cast_mut();
+            xp.xp_pattern = arg.cast_mut().cast();
             p = skiptowhite(arg).cast_const();
         }
         if crate::memory::cstr_is_empty(p) {
@@ -2477,11 +2477,11 @@ pub fn set_context_in_highlight_cmd(xp: &mut ExpandCtx, arg: impl crate::strings
             || (crate::memory::cstr_prefix_bytes(c"clear", len)
                 == crate::memory::cstr_prefix_bytes(arg, len))
         {
-            xp.xp_pattern = skipwhite(p);
-            p = skiptowhite(xp.xp_pattern).cast_const();
+            xp.xp_pattern = skipwhite(p).cast();
+            p = skiptowhite(xp.xp_pattern.cast()).cast_const();
             if !crate::memory::cstr_is_empty(p) {
-                xp.xp_pattern = skipwhite(p);
-                p = skiptowhite(xp.xp_pattern).cast_const();
+                xp.xp_pattern = skipwhite(p).cast();
+                p = skiptowhite(xp.xp_pattern.cast()).cast_const();
             }
         }
         if !crate::memory::cstr_is_empty(p) {

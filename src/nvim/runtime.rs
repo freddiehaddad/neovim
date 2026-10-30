@@ -658,7 +658,7 @@ pub fn set_context_in_runtime_cmd(xp: &mut ExpandCtx, arg: impl crate::strings::
             arg = skipwhite(p);
         }
         xp.xp_context = EXPAND_RUNTIME;
-        xp.xp_pattern = arg.cast_mut();
+        xp.xp_pattern = arg.cast_mut().cast();
     }
 }
 

@@ -6232,7 +6232,7 @@ fn get_cmdline_compl_info(line: impl crate::strings::IntoCCharPtr, curs_col: Col
         set_compl_pattern_bytes(line, curs_col as usize);
         set_cmd_context(
             &mut insexp().compl_xp,
-            compl_pattern_ptr().cast(),
+            compl_pattern_ptr(),
             compl_pattern_len() as i32,
             curs_col,
             0,

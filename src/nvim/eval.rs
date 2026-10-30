@@ -1912,21 +1912,23 @@ pub fn set_context_for_expression(
     arg: impl crate::strings::IntoCCharPtr,
     cmdidx: Cmdidx,
 ) {
-    let mut arg = arg.into_c_char_ptr().cast_mut();
+    let mut arg: *mut u8 = arg.into_c_char_ptr().cast_mut().cast();
     let mut got_eq = false;
 
     if cmdidx == Cmdidx::CmdLet || cmdidx == Cmdidx::CmdConst {
         xp.xp_context = EXPAND_USER_VARS;
-        if !crate::memory::cstr_as_bytes(arg)
+        if !crate::memory::cstr_as_bytes(arg.cast())
             .iter()
             .any(|b| b"\"'+-*/%.=!?~|&$([<>,#".contains(b))
         {
-            let mut p = arg.wrapping_add(crate::memory::cstr_len(arg));
+            let mut p = arg.wrapping_add(crate::memory::cstr_len(arg.cast()));
             while (p as usize) >= (arg as usize) {
                 xp.xp_pattern = p;
-                p = p.wrapping_offset(-((utf_head_off(arg, p.wrapping_sub(1)) + 1) as isize));
+                p = p.wrapping_offset(
+                    -((utf_head_off(arg.cast(), p.wrapping_sub(1).cast()) + 1) as isize),
+                );
                 if (p as usize) >= (arg as usize)
-                    && ascii_iswhite(crate::memory::cstr_first_char(p))
+                    && ascii_iswhite(crate::memory::cstr_first_char(p.cast()))
                 {
                     break;
                 }
@@ -1941,15 +1943,15 @@ pub fn set_context_for_expression(
         };
     }
     while {
-        xp.xp_pattern = crate::memory::cstr_as_bytes(arg)
+        xp.xp_pattern = crate::memory::cstr_as_bytes(arg.cast())
             .iter()
             .position(|b| b"\"'+-*/%.=!?~|&$([<>,#".contains(b))
             .map_or(ptr::null_mut(), |i| arg.wrapping_add(i));
         !xp.xp_pattern.is_null()
     } {
-        let mut c = i32::from(crate::memory::cstr_first_byte(xp.xp_pattern));
+        let mut c = i32::from(crate::memory::cstr_first_byte(xp.xp_pattern.cast()));
         if c == b'&' as i32 {
-            c = i32::from(crate::memory::cstr_byte_at(xp.xp_pattern, 1));
+            c = i32::from(crate::memory::cstr_byte_at(xp.xp_pattern.cast(), 1));
             if c == b'&' as i32 {
                 xp.xp_pattern = xp.xp_pattern.wrapping_add(1);
                 xp.xp_context = if cmdidx != Cmdidx::CmdLet || got_eq {
@@ -1960,7 +1962,7 @@ pub fn set_context_for_expression(
             } else if c != b' ' as i32 {
                 xp.xp_context = EXPAND_SETTINGS;
                 if (c == b'l' as i32 || c == b'g' as i32)
-                    && crate::memory::cstr_byte_at(xp.xp_pattern, 2) == b':'
+                    && crate::memory::cstr_byte_at(xp.xp_pattern.cast(), 2) == b':'
                 {
                     xp.xp_pattern = xp.xp_pattern.wrapping_add(2);
                 }
@@ -1973,18 +1975,20 @@ pub fn set_context_for_expression(
         } else if (c == b'#' as i32 && xp.xp_context == EXPAND_EXPRESSION)
             || ((c == b'<' as i32 || c == b'#' as i32)
                 && xp.xp_context == EXPAND_FUNCTIONS
-                && vim_strchr(xp.xp_pattern, b'(' as i32).is_null())
+                && vim_strchr(xp.xp_pattern.cast(), b'(' as i32).is_null())
         {
             break;
         } else if cmdidx != Cmdidx::CmdLet || got_eq {
             if c == b'"' as i32 {
                 loop {
                     xp.xp_pattern = xp.xp_pattern.wrapping_add(1);
-                    c = i32::from(crate::memory::cstr_first_byte(xp.xp_pattern));
+                    c = i32::from(crate::memory::cstr_first_byte(xp.xp_pattern.cast()));
                     if c == NUL as i32 || c == b'"' as i32 {
                         break;
                     }
-                    if c == b'\\' as i32 && crate::memory::cstr_byte_at(xp.xp_pattern, 1) != 0 {
+                    if c == b'\\' as i32
+                        && crate::memory::cstr_byte_at(xp.xp_pattern.cast(), 1) != 0
+                    {
                         xp.xp_pattern = xp.xp_pattern.wrapping_add(1);
                     }
                 }
@@ -1992,14 +1996,14 @@ pub fn set_context_for_expression(
             } else if c == b'\'' as i32 {
                 loop {
                     xp.xp_pattern = xp.xp_pattern.wrapping_add(1);
-                    c = i32::from(crate::memory::cstr_first_byte(xp.xp_pattern));
+                    c = i32::from(crate::memory::cstr_first_byte(xp.xp_pattern.cast()));
                     if c == NUL as i32 || c == b'\'' as i32 {
                         break;
                     }
                 }
                 xp.xp_context = EXPAND_NOTHING;
             } else if c == b'|' as i32 {
-                if crate::memory::cstr_byte_at(xp.xp_pattern, 1) == b'|' {
+                if crate::memory::cstr_byte_at(xp.xp_pattern.cast(), 1) == b'|' {
                     xp.xp_pattern = xp.xp_pattern.wrapping_add(1);
                     xp.xp_context = EXPAND_EXPRESSION;
                 } else {
@@ -2012,10 +2016,10 @@ pub fn set_context_for_expression(
             xp.xp_context = EXPAND_EXPRESSION;
         }
         arg = xp.xp_pattern;
-        if !crate::memory::cstr_is_empty(arg) {
+        if !crate::memory::cstr_is_empty(arg.cast()) {
             loop {
                 arg = arg.wrapping_add(1);
-                c = i32::from(crate::memory::cstr_first_byte(arg));
+                c = i32::from(crate::memory::cstr_first_byte(arg.cast()));
                 if c == NUL as i32 || (c != b' ' as i32 && c != b'\t' as i32) {
                     break;
                 }
@@ -2025,11 +2029,11 @@ pub fn set_context_for_expression(
 
     if cmd_has_expr_args(cmdidx) && xp.xp_context == EXPAND_EXPRESSION {
         loop {
-            let n = skiptowhite(arg);
-            if n == arg || ascii_iswhite_or_nul(unsafe { *skipwhite(n) }) {
+            let n: *mut u8 = skiptowhite(arg.cast()).cast();
+            if n == arg || ascii_iswhite_or_nul(unsafe { *skipwhite(n.cast()) }) {
                 break;
             }
-            arg = skipwhite(n);
+            arg = skipwhite(n.cast()).cast();
         }
     }
 

@@ -453,7 +453,7 @@ pub fn get_function_name(xp: &mut ExpandCtx, idx: i32) -> Option<&'static CStr> 
     {
         if !name.is_empty()
             && name.to_bytes()[0] != b'<'
-            && (b"g:" == crate::memory::cstr_prefix_bytes(xp.xp_pattern, 2))
+            && (b"g:" == crate::memory::cstr_prefix_bytes(xp.xp_pattern.cast(), 2))
         {
             return Some(cat_prefix_varname(b'g' as i32, name.as_ptr()));
         }

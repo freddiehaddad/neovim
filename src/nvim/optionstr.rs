@@ -1333,19 +1333,15 @@ fn expand_set_opt_string(
 }
 
 /// Callback used by expand_set_opt_generic to also include the original value.
-fn expand_set_opt_callback(xp: &mut ExpandCtx, idx: i32) -> *mut c_char {
+fn expand_set_opt_callback(xp: &mut ExpandCtx, idx: i32) -> Option<&CStr> {
     if idx == 0 {
         if !optstr_st().set_opt_callback_orig_option.is_null() {
-            return optstr_st().set_opt_callback_orig_option;
+            return Some(unsafe { CStr::from_ptr(optstr_st().set_opt_callback_orig_option) });
         } else {
-            return c"".as_ptr().cast_mut();
+            return Some(c"");
         }
     }
-    if let Some(f) = optstr_st().set_opt_callback_func {
-        f(xp, idx - 1)
-    } else {
-        ptr::null_mut()
-    }
+    optstr_st().set_opt_callback_func?(xp, idx - 1)
 }
 
 /// Expand an option with a callback that iterates through a list of possible names.
@@ -1435,8 +1431,8 @@ fn completing_value_for_subopt(args: &mut Optexpand, name_suffix: &std::ffi::CSt
         let colon = (*args.oe_xp).xp_pattern.wrapping_sub(1);
         let len = name_suffix.to_bytes().len();
 
-        crate::memory::ptr_offset_from(colon, args.oe_set_arg) >= (len as isize)
-            && (crate::memory::cstr_prefix_bytes(colon.wrapping_sub(len), len)
+        crate::memory::ptr_offset_from(colon, args.oe_set_arg.cast()) >= (len as isize)
+            && (crate::memory::cstr_prefix_bytes(colon.wrapping_sub(len).cast(), len)
                 == crate::memory::cstr_prefix_bytes(name_suffix.as_ptr(), len))
     }
 }
@@ -2113,7 +2109,7 @@ pub fn expand_set_diffopt(args: &mut Optexpand, matches: &mut Vec<std::ffi::CStr
         let xp = args.oe_xp;
 
         if ((*xp).xp_pattern as usize) > (args.oe_set_arg as usize)
-            && *(*xp).xp_pattern.wrapping_sub(1) == b':' as c_char
+            && *(*xp).xp_pattern.wrapping_sub(1) == b':'
         {
             if completing_value_for_subopt(args, c"algorithm") {
                 return expand_set_opt_string(args, &OPT_DIP_ALGORITHM_VALUES, matches);
@@ -2201,21 +2197,17 @@ pub fn validate_eventignore(args: &mut Optset) -> *const c_char {
     ptr::null()
 }
 
-fn get_eventignore_name(xp: &mut ExpandCtx, idx: i32) -> *mut c_char {
-    let subtract = crate::memory::cstr_first_byte(xp.xp_pattern) == b'-';
+fn get_eventignore_name(xp: &mut ExpandCtx, idx: i32) -> Option<&'static CStr> {
+    let subtract = crate::memory::cstr_first_byte(xp.xp_pattern.cast()) == b'-';
     if !subtract && idx == 0 {
-        return c"all".as_ptr().cast_mut();
+        return Some(c"all");
     }
 
     let name = get_event_name_no_group(
         xp,
         idx - 1 + i32::from(subtract),
         optstr_st().expand_eiw,
-    )
-    .map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut());
-    if name.is_null() {
-        return ptr::null_mut();
-    }
+    )?;
 
     let io_buff = g_st().iobuff.as_mut_ptr();
     vim_snprintf!(
@@ -2227,9 +2219,9 @@ fn get_eventignore_name(xp: &mut ExpandCtx, idx: i32) -> *mut c_char {
         } else {
             c"".as_ptr()
         },
-        name,
+        name.as_ptr(),
     );
-    io_buff
+    Some(unsafe { CStr::from_ptr(io_buff) })
 }
 
 pub fn expand_set_eventignore(args: &mut Optexpand, matches: &mut Vec<std::ffi::CString>) -> bool {
@@ -2260,13 +2252,8 @@ pub fn did_set_fileformat(args: &mut Optset) -> *const c_char {
 }
 
 /// Function given to ExpandGeneric() to obtain the possible arguments of fileformat options.
-pub fn get_fileformat_name(_xp: &mut ExpandCtx, idx: i32) -> *mut c_char {
-    if idx < 0 {
-        return ptr::null_mut();
-    }
-    OPT_FF_VALUES
-        .get(idx as usize)
-        .map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut())
+pub fn get_fileformat_name(_xp: &mut ExpandCtx, idx: i32) -> Option<&'static CStr> {
+    (idx >= 0).then(|| OPT_FF_VALUES.get(idx as usize).copied()).flatten()
 }
 
 /// Validate the 'filetype', 'syntax' or 'keymap' option.
@@ -3205,13 +3192,7 @@ pub fn did_set_winhighlight(args: &mut Optset) -> *const c_char {
 }
 
 pub fn expand_set_winhighlight(args: &mut Optexpand, matches: &mut Vec<std::ffi::CString>) -> bool {
-    expand_set_opt_generic(
-        args,
-        Some(|xp, idx| {
-            get_highlight_name(xp, idx).map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut())
-        }),
-        matches,
-    )
+    expand_set_opt_generic(args, Some(get_highlight_name), matches)
 }
 
 /// Format an error naming an item (at most 63 bytes) and listing its valid values.
@@ -4098,19 +4079,17 @@ pub fn set_chars_option(
 }
 
 /// Function given to ExpandGeneric() to obtain possible arguments of the 'fillchars' option.
-pub fn get_fillchars_name(_xp: &mut ExpandCtx, idx: i32) -> *mut c_char {
-    if idx < 0 || (idx as usize) >= FCS_TAB.len() {
-        return ptr::null_mut();
-    }
-    FCS_TAB[idx as usize].name.as_ptr().cast_mut()
+pub fn get_fillchars_name(_xp: &mut ExpandCtx, idx: i32) -> Option<&'static CStr> {
+    (idx >= 0)
+        .then(|| FCS_TAB.get(idx as usize).map(|e| e.name))
+        .flatten()
 }
 
 /// Function given to ExpandGeneric() to obtain possible arguments of the 'listchars' option.
-pub fn get_listchars_name(_xp: &mut ExpandCtx, idx: i32) -> *mut c_char {
-    if idx < 0 || (idx as usize) >= LCS_TAB.len() {
-        return ptr::null_mut();
-    }
-    LCS_TAB[idx as usize].name.as_ptr().cast_mut()
+pub fn get_listchars_name(_xp: &mut ExpandCtx, idx: i32) -> Option<&'static CStr> {
+    (idx >= 0)
+        .then(|| LCS_TAB.get(idx as usize).map(|e| e.name))
+        .flatten()
 }
 
 /// Check all global and local values of 'listchars' and 'fillchars'.
@@ -4180,7 +4159,7 @@ pub fn expand_set_popupoption(args: &mut Optexpand, matches: &mut Vec<std::ffi::
         let xp = args.oe_xp;
 
         if ((*xp).xp_pattern as usize) > (args.oe_set_arg as usize)
-            && *(*xp).xp_pattern.wrapping_sub(1) == b':' as c_char
+            && *(*xp).xp_pattern.wrapping_sub(1) == b':'
         {
             if completing_value_for_subopt(args, c"border") {
                 return expand_set_opt_string(args, &OPT_PVP_BORDER_VALUES, matches);

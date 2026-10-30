@@ -1137,7 +1137,7 @@ pub fn set_context_in_menu_cmd(
             } else {
                 EXPAND_MENUS
             };
-            xp.xp_pattern = after_dot;
+            xp.xp_pattern = after_dot.cast();
             menu_st().expand_menu = menu_list;
         } else {
             xp.xp_context = EXPAND_NOTHING;
