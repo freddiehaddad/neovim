@@ -1,7 +1,5 @@
 //! Lua BitOp — a bit operations library for Lua 5.1/5.2 (`src/bit.c`).
 
-use std::ffi::c_char;
-#[cfg(feature = "vendor-bit")]
 #[cfg(feature = "vendor-bit")]
 use std::ptr;
 
@@ -20,7 +18,7 @@ pub const fn f64_to_ubits(n: f64) -> UBits {
 }
 
 #[inline]
-pub fn format_tohex(mut b: UBits, mut n: UBits) -> ([c_char; 8], usize) {
+pub fn format_tohex(mut b: UBits, mut n: UBits) -> ([u8; 8], usize) {
     let mut hexdigits: &[u8; 16] = b"0123456789abcdef";
     if (n as SBits) < 0 {
         n = (!n).wrapping_add(1);
@@ -30,11 +28,11 @@ pub fn format_tohex(mut b: UBits, mut n: UBits) -> ([c_char; 8], usize) {
         n = 8;
     }
     let len = n as usize;
-    let mut buf = [0 as c_char; 8];
+    let mut buf = [0u8; 8];
     let mut i = len;
     while i > 0 {
         i -= 1;
-        buf[i] = hexdigits[(b & 15) as usize] as c_char;
+        buf[i] = hexdigits[(b & 15) as usize];
         b >>= 4;
     }
     (buf, len)
@@ -164,7 +162,7 @@ mod lua_c_api {
                 barg(L, 2)
             };
             let (buf, len) = format_tohex(b, n);
-            lua_pushlstring(L, buf.as_ptr(), len);
+            lua_pushlstring(L, buf.as_ptr().cast(), len);
             1
         }
     }
@@ -258,11 +256,9 @@ mod tests {
         assert_eq!(f64_to_ubits(0x8000_0000u32 as f64) as SBits, -2_147_483_648);
 
         let (buf, len) = format_tohex(0xdead_beef, 8);
-        let bytes: Vec<u8> = buf[..len].iter().map(|&c| c as u8).collect();
-        assert_eq!(&bytes, b"deadbeef");
+        assert_eq!(&buf[..len], b"deadbeef");
 
         let (buf_up, len_up) = format_tohex(0xdead_beef, (-4i32) as u32);
-        let bytes_up: Vec<u8> = buf_up[..len_up].iter().map(|&c| c as u8).collect();
-        assert_eq!(&bytes_up, b"BEEF");
+        assert_eq!(&buf_up[..len_up], b"BEEF");
     }
 }

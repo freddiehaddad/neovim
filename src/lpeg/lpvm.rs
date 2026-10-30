@@ -1,6 +1,5 @@
 //! LPeg virtual machine (`src/lpeg/lpvm.c`).
 
-use std::ffi::c_char;
 use std::mem::size_of;
 use std::ptr;
 
@@ -19,6 +18,7 @@ use crate::lua::converter::{
     lua_pushlightuserdata, lua_remove, lua_replace, lua_settop, lua_toboolean, lua_tointeger,
     lua_touserdata, luaL_error,
 };
+use crate::strings::RawCCharPtr;
 
 const INITBACK: usize = MAXBACK as usize;
 
@@ -45,7 +45,7 @@ pub fn charinset(i: &Instruction, buff: *const LpegByte, mut c: LpegUint) -> i32
     }
 }
 
-fn utf8_decode(o: *const c_char, val: &mut i32) -> *const c_char {
+fn utf8_decode(o: RawCCharPtr, val: &mut i32) -> RawCCharPtr {
     const LIMITS: [LpegUint; 4] = [0xFF, 0x7F, 0x7FF, 0xFFFF];
     let mut s = o.cast::<u8>();
     unsafe {
@@ -71,14 +71,14 @@ fn utf8_decode(o: *const c_char, val: &mut i32) -> *const c_char {
             s = s.wrapping_add(count);
         }
         *val = res as i32;
-        s.wrapping_add(1).cast::<c_char>()
+        s.wrapping_add(1).cast()
     }
 }
 
 #[repr(C)]
 #[derive(Copy, Clone)]
 struct Stack {
-    s: *const c_char,
+    s: RawCCharPtr,
     p: *const Instruction,
     caplevel: i32,
 }
@@ -235,13 +235,13 @@ fn findopen_full(mut cap: *mut Capture, currindex: LpegIndex) -> *mut Capture {
 
 pub fn r#match(
     l: *mut lua_State,
-    o: *const c_char,
-    mut s: *const c_char,
-    e: *const c_char,
+    o: RawCCharPtr,
+    mut s: RawCCharPtr,
+    e: RawCCharPtr,
     op: *mut Instruction,
     mut capture: *mut Capture,
     ptop: i32,
-) -> *const c_char {
+) -> RawCCharPtr {
     unsafe {
         let mut stackbase = [Stack {
             s: ptr::null(),

@@ -1,6 +1,5 @@
 //! LPeg pattern trees and Lua API (`src/lpeg/lptree.c`).
 
-use std::ffi::c_char;
 use std::mem::{offset_of, size_of};
 use std::ptr;
 
@@ -31,6 +30,7 @@ use crate::lua::converter::{
     luaL_error, luaL_getmetatable, luaL_newmetatable, luaL_optinteger, luaL_register,
     luaL_typename,
 };
+use crate::strings::RawCCharPtr;
 
 const MAXLIM: lua_Integer = (i32::MAX / 100) as lua_Integer;
 
@@ -39,7 +39,7 @@ fn pattern_tree_ptr(p: &mut Pattern) -> &'static mut TTree {
     unsafe { &mut *(&raw mut p.tree).cast::<TTree>() }
 }
 
-fn val2str(l: *mut lua_State, idx: i32) -> *const c_char {
+fn val2str(l: *mut lua_State, idx: i32) -> RawCCharPtr {
     unsafe {
         let k = lua_tostring(l, idx);
         if !k.is_null() {
@@ -356,7 +356,7 @@ fn seqaux(tree: &mut TTree, sib: *const TTree, sibsize: i32) -> &'static mut TTr
     }
 }
 
-fn fillseq(mut tree: *mut TTree, tag: TTag, n: i32, s: *const c_char) {
+fn fillseq(mut tree: *mut TTree, tag: TTag, n: i32, s: RawCCharPtr) {
     unsafe {
         for i in 0..(n - 1) {
             (*tree).tag = TSEQ;
@@ -1367,7 +1367,7 @@ pub fn luaopen_lpeg(l: *mut lua_State) -> i32 {
         lua_setfield(l, -3, c"__index");
         lua_pushlstring(
             l,
-            LPEG_VERSION.as_ptr().cast::<c_char>(),
+            LPEG_VERSION.as_ptr().cast(),
             LPEG_VERSION.len(),
         );
         lua_setfield(l, -2, c"version");

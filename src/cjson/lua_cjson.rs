@@ -1,6 +1,6 @@
 //! JSON support for Lua (`src/cjson/lua_cjson.c`).
 
-use std::ffi::{CStr, c_char};
+use std::ffi::CStr;
 use std::mem::size_of;
 use std::ptr;
 
@@ -23,6 +23,7 @@ use crate::lua::converter::{
     luaL_checktype, luaL_error, luaL_getmetafield,
 };
 use crate::lua::executor::{nlua_get_empty_dict_ref, nlua_get_nil_ref, nlua_pushref};
+use crate::strings::{RawCCharPtr, RawCCharPtrMut};
 
 const CJSON_MODNAME: &[u8] = b"cjson";
 const CJSON_VERSION: &[u8] = b"2.1.0.11";
@@ -32,7 +33,7 @@ const DEFAULT_SPARSE_SAFE: i32 = 10;
 const DEFAULT_ENCODE_MAX_DEPTH: i32 = 1000;
 const DEFAULT_DECODE_MAX_DEPTH: i32 = 1000;
 const DEFAULT_ENCODE_NUMBER_PRECISION: i32 = 16;
-const DEFAULT_ENCODE_INDENT: *const c_char = ptr::null();
+const DEFAULT_ENCODE_INDENT: RawCCharPtr = ptr::null();
 const DEFAULT_ENCODE_SORT_KEYS: i32 = 0;
 
 const KEYBUF_DEFAULT_CAPACITY: usize = 32;
@@ -95,7 +96,7 @@ const JSON_TOKEN_TYPE_NAME: [&CStr; 15] = [
 #[derive(Copy, Clone)]
 enum KeyEntryRaw {
     Number(lua_Number),
-    String(*const c_char),
+    String(RawCCharPtr),
 }
 
 #[repr(C)]
@@ -163,24 +164,24 @@ const CH2TOKEN: [JsonTokenType; 256] = {
     tbl
 };
 
-const ESCAPE2CHAR: [c_char; 256] = {
-    let mut tbl = [0 as c_char; 256];
-    tbl[b'"' as usize] = b'"' as c_char;
-    tbl[b'\\' as usize] = b'\\' as c_char;
-    tbl[b'/' as usize] = b'/' as c_char;
-    tbl[b'b' as usize] = 0x08 as c_char;
-    tbl[b't' as usize] = b'\t' as c_char;
-    tbl[b'n' as usize] = b'\n' as c_char;
-    tbl[b'f' as usize] = 0x0c as c_char;
-    tbl[b'r' as usize] = b'\r' as c_char;
-    tbl[b'u' as usize] = b'u' as c_char;
+const ESCAPE2CHAR: [u8; 256] = {
+    let mut tbl = [0u8; 256];
+    tbl[b'"' as usize] = b'"';
+    tbl[b'\\' as usize] = b'\\';
+    tbl[b'/' as usize] = b'/';
+    tbl[b'b' as usize] = 0x08;
+    tbl[b't' as usize] = b'\t';
+    tbl[b'n' as usize] = b'\n';
+    tbl[b'f' as usize] = 0x0c;
+    tbl[b'r' as usize] = b'\r';
+    tbl[b'u' as usize] = b'u';
     tbl
 };
 
 #[repr(C)]
 struct JsonEncodeOptions {
-    char2escape: *const *const c_char,
-    indent: *const c_char,
+    char2escape: *const RawCCharPtr,
+    indent: RawCCharPtr,
     sort_keys: i32,
     keybuf: Keybuf,
 }
@@ -200,8 +201,8 @@ struct JsonOptions {
 
 #[repr(C)]
 struct JsonParse {
-    data: *const c_char,
-    ptr: *const c_char,
+    data: RawCCharPtr,
+    ptr: RawCCharPtr,
     tmp: *mut Strbuf,
     options: *mut JsonOptions,
     current_depth: i32,
@@ -211,14 +212,14 @@ struct JsonParse {
 enum JsonTokenValue {
     #[default]
     None,
-    String(*const c_char),
+    String(RawCCharPtr),
     Number(f64),
     Integer(lua_Integer),
     Boolean(i32),
 }
 
 impl JsonTokenValue {
-    const fn as_string(self) -> *const c_char {
+    const fn as_string(self) -> RawCCharPtr {
         match self {
             Self::String(s) => s,
             _ => ptr::null(),
@@ -273,47 +274,47 @@ impl Default for JsonToken {
     }
 }
 
-const fn init_char2escape() -> [*const c_char; 256] {
-    let mut table = [ptr::null(); 256];
-    table[0x00] = c"\\u0000".as_ptr();
-    table[0x01] = c"\\u0001".as_ptr();
-    table[0x02] = c"\\u0002".as_ptr();
-    table[0x03] = c"\\u0003".as_ptr();
-    table[0x04] = c"\\u0004".as_ptr();
-    table[0x05] = c"\\u0005".as_ptr();
-    table[0x06] = c"\\u0006".as_ptr();
-    table[0x07] = c"\\u0007".as_ptr();
-    table[0x08] = c"\\b".as_ptr();
-    table[0x09] = c"\\t".as_ptr();
-    table[0x0a] = c"\\n".as_ptr();
-    table[0x0b] = c"\\u000b".as_ptr();
-    table[0x0c] = c"\\f".as_ptr();
-    table[0x0d] = c"\\r".as_ptr();
-    table[0x0e] = c"\\u000e".as_ptr();
-    table[0x0f] = c"\\u000f".as_ptr();
-    table[0x10] = c"\\u0010".as_ptr();
-    table[0x11] = c"\\u0011".as_ptr();
-    table[0x12] = c"\\u0012".as_ptr();
-    table[0x13] = c"\\u0013".as_ptr();
-    table[0x14] = c"\\u0014".as_ptr();
-    table[0x15] = c"\\u0015".as_ptr();
-    table[0x16] = c"\\u0016".as_ptr();
-    table[0x17] = c"\\u0017".as_ptr();
-    table[0x18] = c"\\u0018".as_ptr();
-    table[0x19] = c"\\u0019".as_ptr();
-    table[0x1a] = c"\\u001a".as_ptr();
-    table[0x1b] = c"\\u001b".as_ptr();
-    table[0x1c] = c"\\u001c".as_ptr();
-    table[0x1d] = c"\\u001d".as_ptr();
-    table[0x1e] = c"\\u001e".as_ptr();
-    table[0x1f] = c"\\u001f".as_ptr();
-    table[b'"' as usize] = c"\\\"".as_ptr();
-    table[b'\\' as usize] = c"\\\\".as_ptr();
-    table[0x7f] = c"\\u007f".as_ptr();
+const fn init_char2escape() -> [RawCCharPtr; 256] {
+    let mut table: [RawCCharPtr; 256] = [ptr::null(); 256];
+    table[0x00] = c"\\u0000".as_ptr().cast();
+    table[0x01] = c"\\u0001".as_ptr().cast();
+    table[0x02] = c"\\u0002".as_ptr().cast();
+    table[0x03] = c"\\u0003".as_ptr().cast();
+    table[0x04] = c"\\u0004".as_ptr().cast();
+    table[0x05] = c"\\u0005".as_ptr().cast();
+    table[0x06] = c"\\u0006".as_ptr().cast();
+    table[0x07] = c"\\u0007".as_ptr().cast();
+    table[0x08] = c"\\b".as_ptr().cast();
+    table[0x09] = c"\\t".as_ptr().cast();
+    table[0x0a] = c"\\n".as_ptr().cast();
+    table[0x0b] = c"\\u000b".as_ptr().cast();
+    table[0x0c] = c"\\f".as_ptr().cast();
+    table[0x0d] = c"\\r".as_ptr().cast();
+    table[0x0e] = c"\\u000e".as_ptr().cast();
+    table[0x0f] = c"\\u000f".as_ptr().cast();
+    table[0x10] = c"\\u0010".as_ptr().cast();
+    table[0x11] = c"\\u0011".as_ptr().cast();
+    table[0x12] = c"\\u0012".as_ptr().cast();
+    table[0x13] = c"\\u0013".as_ptr().cast();
+    table[0x14] = c"\\u0014".as_ptr().cast();
+    table[0x15] = c"\\u0015".as_ptr().cast();
+    table[0x16] = c"\\u0016".as_ptr().cast();
+    table[0x17] = c"\\u0017".as_ptr().cast();
+    table[0x18] = c"\\u0018".as_ptr().cast();
+    table[0x19] = c"\\u0019".as_ptr().cast();
+    table[0x1a] = c"\\u001a".as_ptr().cast();
+    table[0x1b] = c"\\u001b".as_ptr().cast();
+    table[0x1c] = c"\\u001c".as_ptr().cast();
+    table[0x1d] = c"\\u001d".as_ptr().cast();
+    table[0x1e] = c"\\u001e".as_ptr().cast();
+    table[0x1f] = c"\\u001f".as_ptr().cast();
+    table[b'"' as usize] = c"\\\"".as_ptr().cast();
+    table[b'\\' as usize] = c"\\\\".as_ptr().cast();
+    table[0x7f] = c"\\u007f".as_ptr().cast();
     table
 }
 
-const CHAR2ESCAPE: [*const c_char; 256] = init_char2escape();
+const CHAR2ESCAPE: [RawCCharPtr; 256] = init_char2escape();
 
 use std::process::abort;
 
@@ -405,8 +406,8 @@ fn json_append_string_contents(
 
         let escape_table = ctx.opts_mut().char2escape;
         for i in 0..len {
-            let ch = *str_ptr.wrapping_add(i);
-            let escstr = *escape_table.wrapping_add((ch as u8) as usize);
+            let ch = *str_ptr.wrapping_add(i) as u8;
+            let escstr = *escape_table.wrapping_add(ch as usize);
             if !escstr.is_null() {
                 strbuf_append_string(json, escstr);
             } else {
@@ -418,9 +419,9 @@ fn json_append_string_contents(
 
 fn json_append_string(l: *mut lua_State, ctx: &mut JsonEncode, lindex: i32) {
     unsafe {
-        strbuf_append_char(&mut *ctx.json, b'"' as c_char);
+        strbuf_append_char(&mut *ctx.json, b'"');
         json_append_string_contents(l, ctx, lindex, false);
-        strbuf_append_char(&mut *ctx.json, b'"' as c_char);
+        strbuf_append_char(&mut *ctx.json, b'"');
     }
 }
 
@@ -474,7 +475,7 @@ fn json_check_encode_depth(l: *mut lua_State, ctx: &mut JsonEncode, current_dept
 }
 
 fn json_append_newline_and_indent(json: &mut Strbuf, ctx: &JsonEncode, depth: i32) {
-    strbuf_append_char(json, b'\n' as c_char);
+    strbuf_append_char(json, b'\n');
     for _ in 0..depth {
         strbuf_append_string(json, ctx.opts_mut().indent);
     }
@@ -491,7 +492,7 @@ fn json_append_array(
         let json = &mut *ctx.json;
         let mut has_items = false;
 
-        strbuf_append_char(json, b'[' as c_char);
+        strbuf_append_char(json, b'[');
 
         let mut comma: i32 = 0;
         for i in 1..=array_length {
@@ -499,7 +500,7 @@ fn json_append_array(
 
             let json_pos = strbuf_length(json) as i32;
             if comma > 0 {
-                strbuf_append_char(json, b',' as c_char);
+                strbuf_append_char(json, b',');
             }
             comma += 1;
 
@@ -528,7 +529,7 @@ fn json_append_array(
             json_append_newline_and_indent(json, ctx, current_depth - 1);
         }
 
-        strbuf_append_char(json, b']' as c_char);
+        strbuf_append_char(json, b']');
     }
 }
 
@@ -547,18 +548,18 @@ fn json_append_number(l: *mut lua_State, ctx: &mut JsonEncode, lindex: i32, use_
 
         let mut buf = [0u8; FPCONV_G_FMT_BUFSIZE];
         let len = fpconv_g_fmt(&mut buf, num, DEFAULT_ENCODE_NUMBER_PRECISION);
-        strbuf_append_mem(json, buf.as_ptr().cast::<c_char>(), len);
+        strbuf_append_mem(json, &buf, len);
     }
 }
 
 fn cmp_key_entries(ka: &KeyEntry, kb: &KeyEntry) -> std::cmp::Ordering {
     unsafe {
         let a = std::slice::from_raw_parts(
-            (*ka.buf).buf.as_ptr().wrapping_add(ka.offset).cast::<u8>(),
+            (*ka.buf).buf.as_ptr().wrapping_add(ka.offset),
             ka.length,
         );
         let b = std::slice::from_raw_parts(
-            (*kb.buf).buf.as_ptr().wrapping_add(kb.offset).cast::<u8>(),
+            (*kb.buf).buf.as_ptr().wrapping_add(kb.offset),
             kb.length,
         );
         a.cmp(b)
@@ -570,7 +571,7 @@ fn json_append_object(l: *mut lua_State, ctx: &mut JsonEncode, current_depth: i3
         let json = &mut *ctx.json;
         let mut has_items = false;
 
-        strbuf_append_char(json, b'{' as c_char);
+        strbuf_append_char(json, b'{');
 
         let mut comma: i32 = 0;
         lua_pushnil(l);
@@ -614,7 +615,7 @@ fn json_append_object(l: *mut lua_State, ctx: &mut JsonEncode, current_depth: i3
                 let current_key = keybuf.keys.as_slice()[i];
                 let json_pos = strbuf_length(json) as i32;
                 if comma > 0 {
-                    strbuf_append_char(json, b',' as c_char);
+                    strbuf_append_char(json, b',');
                 }
                 comma += 1;
 
@@ -623,16 +624,16 @@ fn json_append_object(l: *mut lua_State, ctx: &mut JsonEncode, current_depth: i3
                 }
 
                 strbuf_ensure_empty_length(json, current_key.length + 3);
-                strbuf_append_char_unsafe(json, b'"' as c_char);
+                strbuf_append_char_unsafe(json, b'"');
                 strbuf_append_mem_unsafe(
                     json,
-                    keybuf.buf.buf.as_ptr().wrapping_add(current_key.offset),
+                    &keybuf.buf.buf[current_key.offset..],
                     current_key.length,
                 );
                 strbuf_append_mem_unsafe(json, c"\":", 2);
 
                 if !ctx.opts_mut().indent.is_null() {
-                    strbuf_append_char(json, b' ' as c_char);
+                    strbuf_append_char(json, b' ');
                 }
 
                 match current_key.raw {
@@ -658,7 +659,7 @@ fn json_append_object(l: *mut lua_State, ctx: &mut JsonEncode, current_depth: i3
 
                 let json_pos = strbuf_length(json) as i32;
                 if comma > 0 {
-                    strbuf_append_char(json, b',' as c_char);
+                    strbuf_append_char(json, b',');
                 }
                 comma += 1;
 
@@ -668,17 +669,17 @@ fn json_append_object(l: *mut lua_State, ctx: &mut JsonEncode, current_depth: i3
 
                 let keytype = lua_type(l, -2);
                 if keytype == LUA_TNUMBER {
-                    strbuf_append_char(json, b'"' as c_char);
+                    strbuf_append_char(json, b'"');
                     json_append_number(l, ctx, -2, false);
                     strbuf_append_mem(json, c"\":", 2);
                 } else if keytype == LUA_TSTRING {
                     json_append_string(l, ctx, -2);
-                    strbuf_append_char(json, b':' as c_char);
+                    strbuf_append_char(json, b':');
                 } else {
                     json_encode_exception(l, ctx, -2, c"table key must be a number or string");
                 }
                 if !ctx.opts_mut().indent.is_null() {
-                    strbuf_append_char(json, b' ' as c_char);
+                    strbuf_append_char(json, b' ');
                 }
 
                 let err = json_append_data(l, ctx, current_depth);
@@ -697,7 +698,7 @@ fn json_append_object(l: *mut lua_State, ctx: &mut JsonEncode, current_depth: i3
             json_append_newline_and_indent(json, ctx, current_depth - 1);
         }
 
-        strbuf_append_char(json, b'}' as c_char);
+        strbuf_append_char(json, b'}');
     }
 }
 
@@ -892,7 +893,7 @@ fn hexdigit2int(hex: u8) -> i32 {
     -1
 }
 
-fn decode_hex4(hex: *const c_char) -> i32 {
+fn decode_hex4(hex: RawCCharPtr) -> i32 {
     let mut digit = [0_i32; 4];
     unsafe {
         for (i, d) in digit.iter_mut().enumerate() {
@@ -945,8 +946,8 @@ fn json_append_unicode_escape(json: &mut JsonParse) -> i32 {
             if (codepoint & 0x400) != 0 {
                 return -1;
             }
-            if *json.ptr.wrapping_add(escape_len) != b'\\' as c_char
-                || *json.ptr.wrapping_add(escape_len + 1) != b'u' as c_char
+            if crate::memory::cstr_byte_at(json.ptr, escape_len) != b'\\'
+                || crate::memory::cstr_byte_at(json.ptr, escape_len + 1) != b'u'
             {
                 return -1;
             }
@@ -970,7 +971,7 @@ fn json_append_unicode_escape(json: &mut JsonParse) -> i32 {
             return -1;
         }
 
-        strbuf_append_mem_unsafe(&mut *json.tmp, utf8.as_ptr().cast::<c_char>(), len);
+        strbuf_append_mem_unsafe(&mut *json.tmp, &utf8, len);
         json.ptr = json.ptr.wrapping_add(escape_len);
     }
 
@@ -987,14 +988,14 @@ fn json_set_token_error(token: &mut JsonToken, json: &JsonParse, errtype: &std::
 
 fn json_next_string_token(json: &mut JsonParse, token: &mut JsonToken) {
     unsafe {
-        debug_assert_eq!(*json.ptr, b'"' as c_char);
+        debug_assert_eq!(crate::memory::cstr_first_byte(json.ptr), b'"');
 
         json.ptr = json.ptr.wrapping_add(1);
         strbuf_reset(&mut *json.tmp);
 
         loop {
-            let mut ch = *json.ptr;
-            if ch == b'"' as c_char {
+            let mut ch = *json.ptr as u8;
+            if ch == b'"' {
                 break;
             }
             if ch == 0 {
@@ -1002,10 +1003,10 @@ fn json_next_string_token(json: &mut JsonParse, token: &mut JsonToken) {
                 return;
             }
 
-            if ch == b'\\' as c_char {
-                ch = *json.ptr.wrapping_add(1);
-                ch = ESCAPE2CHAR[(ch as u8) as usize];
-                if ch == b'u' as c_char {
+            if ch == b'\\' {
+                ch = *json.ptr.wrapping_add(1) as u8;
+                ch = ESCAPE2CHAR[ch as usize];
+                if ch == b'u' {
                     if json_append_unicode_escape(json) == 0 {
                         continue;
                     }
@@ -1032,7 +1033,7 @@ fn json_next_string_token(json: &mut JsonParse, token: &mut JsonToken) {
 }
 
 #[inline]
-fn starts_with_ignore_ascii_case_3(p: *const c_char, target: &[u8; 3]) -> bool {
+fn starts_with_ignore_ascii_case_3(p: RawCCharPtr, target: &[u8; 3]) -> bool {
     unsafe {
         let b0 = *p as u8;
         if b0 == 0 || (b0 | 0x20) != target[0] {
@@ -1050,19 +1051,19 @@ fn starts_with_ignore_ascii_case_3(p: *const c_char, target: &[u8; 3]) -> bool {
 fn json_is_invalid_number(json: &JsonParse) -> bool {
     unsafe {
         let mut p = json.ptr;
-        if *p == b'+' as c_char {
+        if crate::memory::cstr_first_byte(p) == b'+' {
             return true;
         }
-        if *p == b'-' as c_char {
+        if crate::memory::cstr_first_byte(p) == b'-' {
             p = p.wrapping_add(1);
         }
-        if *p == b'0' as c_char {
+        if crate::memory::cstr_first_byte(p) == b'0' {
             let ch2 = *p.wrapping_add(1) as u8;
             if (ch2 | 0x20) == b'x' || ch2.is_ascii_digit() {
                 return true;
             }
             return false;
-        } else if *p <= (b'9' as c_char) {
+        } else if crate::memory::cstr_first_byte(p) <= b'9' {
             return false;
         }
 
@@ -1080,11 +1081,11 @@ fn json_next_number_token(json: &mut JsonParse, token: &mut JsonToken) {
         while matches!(*s as u8, b' ' | b'\t' | b'\n' | b'\r' | 0x0b | 0x0c) {
             s = s.wrapping_add(1);
         }
-        let neg = if *s == b'-' as c_char {
+        let neg = if crate::memory::cstr_first_byte(s) == b'-' {
             s = s.wrapping_add(1);
             true
         } else {
-            if *s == b'+' as c_char {
+            if crate::memory::cstr_first_byte(s) == b'+' {
                 s = s.wrapping_add(1);
             }
             false
@@ -1111,7 +1112,7 @@ fn json_next_number_token(json: &mut JsonParse, token: &mut JsonToken) {
             }
             s = s.wrapping_add(1);
         }
-        let mut endptr: *mut c_char = if any {
+        let mut endptr: RawCCharPtrMut = if any {
             s.cast_mut()
         } else {
             json.ptr.cast_mut()
@@ -1176,7 +1177,7 @@ fn json_next_token(json: &mut JsonParse, token: &mut JsonToken) {
 
             if c1 == b'/' {
                 json.ptr = json.ptr.wrapping_add(2);
-                while *json.ptr != 0 && *json.ptr != b'\n' as c_char {
+                while *json.ptr != 0 && crate::memory::cstr_first_byte(json.ptr) != b'\n' {
                     json.ptr = json.ptr.wrapping_add(1);
                 }
             } else {
@@ -1186,7 +1187,9 @@ fn json_next_token(json: &mut JsonParse, token: &mut JsonToken) {
                         json_set_token_error(token, json, c"unclosed multi-line comment");
                         return;
                     }
-                    if *json.ptr == b'*' as c_char && *json.ptr.wrapping_add(1) == b'/' as c_char {
+                    if crate::memory::cstr_first_byte(json.ptr) == b'*'
+                        && crate::memory::cstr_byte_at(json.ptr, 1) == b'/'
+                    {
                         json.ptr = json.ptr.wrapping_add(2);
                         break;
                     }
@@ -1536,13 +1539,13 @@ pub unsafe extern "C-unwind" fn lua_cjson_new(l: *mut lua_State) -> i32 {
 
             lua_pushlstring(
                 l,
-                CJSON_MODNAME.as_ptr().cast::<c_char>(),
+                CJSON_MODNAME.as_ptr().cast(),
                 CJSON_MODNAME.len(),
             );
             lua_setfield(l, -2, c"_NAME");
             lua_pushlstring(
                 l,
-                CJSON_VERSION.as_ptr().cast::<c_char>(),
+                CJSON_VERSION.as_ptr().cast(),
                 CJSON_VERSION.len(),
             );
             lua_setfield(l, -2, c"_VERSION");

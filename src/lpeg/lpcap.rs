@@ -1,6 +1,5 @@
 //! Capture evaluation (`src/lpeg/lpcap.c`).
 
-use std::ffi::c_char;
 use std::ptr;
 
 use crate::lpeg::{
@@ -16,15 +15,16 @@ use crate::lua::converter::{
     lua_tostring, lua_touserdata, luaL_Buffer, luaL_addlstring, luaL_addvalue, luaL_buffinit,
     luaL_checkstack, luaL_error, luaL_prepbuffer, luaL_pushresult, luaL_typename,
 };
+use crate::strings::{RawCChar, RawCCharPtr, RawCCharPtrMut};
 
 const MAXRECLEVEL: i32 = 200;
 const MAXSTRCAPS: usize = 10;
 
 #[inline]
 #[allow(non_snake_case)]
-fn luaL_addchar(b: &mut luaL_Buffer, c: c_char) {
+fn luaL_addchar(b: &mut luaL_Buffer, c: RawCChar) {
     unsafe {
-        let buf_start = (&raw mut b.buffer).cast::<c_char>();
+        let buf_start: RawCCharPtrMut = (&raw mut b.buffer).cast();
         if b.p >= buf_start.wrapping_add(LUAL_BUFFERSIZE) {
             luaL_prepbuffer(b);
         }
@@ -340,7 +340,7 @@ pub fn finddyncap(mut cap: *mut Capture, last: *mut Capture) -> i32 {
     0
 }
 
-pub fn runtimecap(cs: &mut CapState, close: *mut Capture, s: *const c_char, rem: &mut i32) -> i32 {
+pub fn runtimecap(cs: &mut CapState, close: *mut Capture, s: RawCCharPtr, rem: &mut i32) -> i32 {
     unsafe {
         let l = cs.lstate;
         let otop = lua_gettop(l);
@@ -425,7 +425,7 @@ fn stringcap(b: &mut luaL_Buffer, cs: &mut CapState) {
         let mut i = 0usize;
         while i < len {
             let ch = *fmt.wrapping_add(i);
-            if ch != b'%' as c_char {
+            if ch as u8 != b'%' {
                 luaL_addchar(b, ch);
             } else {
                 i += 1;
@@ -601,7 +601,7 @@ fn pushcapture(cs: &mut CapState) -> i32 {
     }
 }
 
-pub fn getcaptures(l: *mut lua_State, s: *const c_char, r: *const c_char, ptop: i32) -> i32 {
+pub fn getcaptures(l: *mut lua_State, s: RawCCharPtr, r: RawCCharPtr, ptop: i32) -> i32 {
     unsafe {
         let capture = lua_touserdata(l, caplistidx(ptop)).cast::<Capture>();
         let mut n: i32 = 0;

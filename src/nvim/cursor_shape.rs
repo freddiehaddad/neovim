@@ -286,13 +286,12 @@ pub fn parse_shape_opt(what: i32) -> Option<&'static CStr> {
         let mut mode_idx = 0usize;
         while mode_idx < guicursor.len() {
             let rest = &guicursor[mode_idx..];
-            let Some(colon_rel) = rest.iter().position(|&b| b == b':') else {
+            let colon_rel = rest.iter().position(|&b| b == b':');
+            let comma_rel = rest.iter().position(|&b| b == b',');
+            let Some(colon_rel) = colon_rel.filter(|&col| comma_rel.is_none_or(|com| col < com))
+            else {
                 return Some(c"E545: Missing colon");
             };
-            let comma_rel = rest.iter().position(|&b| b == b',');
-            if comma_rel.is_some_and(|c| c < colon_rel) {
-                return Some(c"E545: Missing colon");
-            }
             if colon_rel == 0 {
                 return Some(c"E546: Illegal mode");
             }

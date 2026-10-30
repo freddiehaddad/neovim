@@ -1,12 +1,12 @@
 //! String buffer routines (`src/cjson/strbuf.c`).
 
-use std::ffi::c_char;
+use crate::strings::RawCCharPtrMut;
 
 pub const STRBUF_DEFAULT_SIZE: usize = 1023;
 
 #[repr(C)]
 pub struct Strbuf {
-    pub buf: Vec<c_char>,
+    pub buf: Vec<u8>,
 }
 
 impl Strbuf {
@@ -42,12 +42,12 @@ pub fn strbuf_length(s: &Strbuf) -> usize {
 }
 
 #[inline]
-pub fn strbuf_append_char(s: &mut Strbuf, c: c_char) {
+pub fn strbuf_append_char(s: &mut Strbuf, c: u8) {
     s.buf.push(c);
 }
 
 #[inline]
-pub fn strbuf_append_char_unsafe(s: &mut Strbuf, c: c_char) {
+pub fn strbuf_append_char_unsafe(s: &mut Strbuf, c: u8) {
     s.buf.push(c);
 }
 
@@ -55,9 +55,7 @@ pub fn strbuf_append_char_unsafe(s: &mut Strbuf, c: c_char) {
 pub fn strbuf_append_mem(s: &mut Strbuf, c: impl crate::strings::IntoCCharPtr, len: usize) {
     let c = c.into_c_char_ptr();
     if len > 0 {
-        unsafe {
-            s.buf.extend_from_slice(std::slice::from_raw_parts(c, len));
-        }
+        s.buf.extend_from_slice(crate::memory::cstr_slice(c, len));
     }
 }
 
@@ -65,9 +63,7 @@ pub fn strbuf_append_mem(s: &mut Strbuf, c: impl crate::strings::IntoCCharPtr, l
 pub fn strbuf_append_mem_unsafe(s: &mut Strbuf, c: impl crate::strings::IntoCCharPtr, len: usize) {
     let c = c.into_c_char_ptr();
     if len > 0 {
-        unsafe {
-            s.buf.extend_from_slice(std::slice::from_raw_parts(c, len));
-        }
+        s.buf.extend_from_slice(crate::memory::cstr_slice(c, len));
     }
 }
 
@@ -81,9 +77,9 @@ pub fn strbuf_ensure_null(s: &mut Strbuf) {
 }
 
 #[inline]
-pub fn strbuf_string(s: &mut Strbuf, len: &mut usize) -> *mut c_char {
+pub fn strbuf_string(s: &mut Strbuf, len: &mut usize) -> RawCCharPtrMut {
     *len = s.buf.len();
-    s.buf.as_mut_ptr()
+    s.buf.as_mut_ptr().cast()
 }
 
 pub fn strbuf_init(s: &mut Strbuf, len: usize) {
@@ -101,6 +97,6 @@ pub fn strbuf_append_string(s: &mut Strbuf, str_in: impl crate::strings::IntoCCh
     let str_in = str_in.into_c_char_ptr();
     {
         let bytes = crate::memory::cstr_as_bytes(str_in);
-        strbuf_append_mem(s, bytes.as_ptr().cast::<c_char>(), bytes.len());
+        strbuf_append_mem(s, bytes, bytes.len());
     }
 }

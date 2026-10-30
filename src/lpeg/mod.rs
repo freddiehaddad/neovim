@@ -6,11 +6,12 @@ pub mod lpcset;
 pub mod lptree;
 pub mod lpvm;
 
-use std::ffi::{CStr, c_char};
+use std::ffi::CStr;
 use std::mem::{offset_of, size_of};
 use std::ptr;
 
 use crate::lua::converter::{lua_Integer, lua_Number, lua_State, luaL_Reg};
+use crate::strings::RawCCharPtr;
 
 pub type LpegByte = u8;
 pub type LpegUint = u32;
@@ -153,7 +154,7 @@ pub struct CapState {
     pub lstate: *mut lua_State,
     pub ptop: i32,
     pub firstcap: i32,
-    pub s: *const c_char,
+    pub s: RawCCharPtr,
     pub valuecached: i32,
     pub reclevel: i32,
 }
