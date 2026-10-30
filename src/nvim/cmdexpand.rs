@@ -5219,33 +5219,19 @@ fn expand_from_context(
             return expand_tags(xp.xp_context == EXPAND_TAGS, pat, matches);
         }
         if xp.xp_context == EXPAND_COLORS {
-            let mut directories: [*mut c_char; 2] =
-                [c"colors".as_ptr().cast_mut(), ptr::null_mut()];
-            return expand_rtdir(pat, DIP_START + DIP_OPT, matches, directories.as_mut_ptr());
+            return expand_rtdir(pat, DIP_START + DIP_OPT, matches, &[c"colors"]);
         }
         if xp.xp_context == EXPAND_COMPILER {
-            let mut directories: [*mut c_char; 2] =
-                [c"compiler".as_ptr().cast_mut(), ptr::null_mut()];
-            return expand_rtdir(pat, 0, matches, directories.as_mut_ptr());
+            return expand_rtdir(pat, 0, matches, &[c"compiler"]);
         }
         if xp.xp_context == EXPAND_OWNSYNTAX {
-            let mut directories: [*mut c_char; 2] =
-                [c"syntax".as_ptr().cast_mut(), ptr::null_mut()];
-            return expand_rtdir(pat, 0, matches, directories.as_mut_ptr());
+            return expand_rtdir(pat, 0, matches, &[c"syntax"]);
         }
         if xp.xp_context == EXPAND_FILETYPE {
-            let mut directories: [*mut c_char; 4] = [
-                c"syntax".as_ptr().cast_mut(),
-                c"indent".as_ptr().cast_mut(),
-                c"ftplugin".as_ptr().cast_mut(),
-                ptr::null_mut(),
-            ];
-            return expand_rtdir(pat, 0, matches, directories.as_mut_ptr());
+            return expand_rtdir(pat, 0, matches, &[c"syntax", c"indent", c"ftplugin"]);
         }
         if xp.xp_context == EXPAND_KEYMAP {
-            let mut directories: [*mut c_char; 2] =
-                [c"keymap".as_ptr().cast_mut(), ptr::null_mut()];
-            return expand_rtdir(pat, 0, matches, directories.as_mut_ptr());
+            return expand_rtdir(pat, 0, matches, &[c"keymap"]);
         }
         if xp.xp_context == EXPAND_USER_LIST {
             return expand_user_list(xp, matches);

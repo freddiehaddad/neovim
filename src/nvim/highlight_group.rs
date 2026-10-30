@@ -1218,7 +1218,7 @@ pub fn do_highlight(line: impl crate::strings::IntoCCharPtr, forceit: bool, init
 
             if from_id > 0 && (!init || (*hlgroup).sg_set == 0) {
                 if to_id > 0 && !forceit && !init && hl_has_settings(from_id - 1, dodefault) {
-                    if sourcing_name().is_null() && !dodefault {
+                    if sourcing_name().is_none() && !dodefault {
                         emsg(gettext(E_GROUP_HAS_SETTINGS_HIGHLIGHT_LINK_IGNORED));
                     }
                 } else if (*hlgroup).sg_link != to_id

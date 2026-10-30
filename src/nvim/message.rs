@@ -1008,10 +1008,11 @@ pub fn reset_last_sourcing() {
 
 /// @return  true if "SOURCING_NAME" differs from "last_sourcing_name".
 fn other_sourcing_name() -> bool {
-    let sname = sourcing_name();
-    if have_sourcing_info() && !sname.is_null() {
+    if have_sourcing_info()
+        && let Some(sname) = sourcing_name()
+    {
         if let Some(ref last) = msg_st().last_sourcing_name {
-            return crate::memory::cstr_as_bytes(sname) != last.as_bytes();
+            return sname.to_bytes() != last.as_bytes();
         }
         return true;
     }
@@ -1020,15 +1021,17 @@ fn other_sourcing_name() -> bool {
 
 /// Get the message about the source, as used for an error message
 fn get_emsg_source() -> Option<std::ffi::CString> {
-    let mut sname = sourcing_name();
-    if have_sourcing_info() && !sname.is_null() && other_sourcing_name() {
+    if have_sourcing_info()
+        && let Some(mut sname) = sourcing_name()
+        && other_sourcing_name()
+    {
         let tofree = estack_sfile(ESTACK_NONE);
         if let Some(ref tf) = tofree {
-            sname = tf.as_ptr().cast_mut();
+            sname = tf.as_c_str();
         }
 
         let p = gettext(c"Error in %s:");
-        let buf_len = crate::memory::cstr_len(sname) + crate::memory::cstr_len(p) + 1;
+        let buf_len = sname.to_bytes().len() + crate::memory::cstr_len(p) + 1;
         let mut buf_vec: Vec<c_char> = vec![0; buf_len];
         vim_snprintf!(buf_vec.as_mut_ptr(), buf_len, p, sname);
         return Some(crate::memory::cstr_to_cstring(buf_vec.as_ptr()));
@@ -1040,7 +1043,7 @@ fn get_emsg_source() -> Option<std::ffi::CString> {
 fn get_emsg_lnum() -> Option<std::ffi::CString> {
     let sname = sourcing_name();
     let slnum = sourcing_lnum();
-    if !sname.is_null()
+    if sname.is_some()
         && (other_sourcing_name() || slnum != msg_st().last_sourcing_lnum)
         && slnum != 0
     {
@@ -1073,10 +1076,10 @@ pub fn msg_source(hl_id: i32) {
     }
 
     let sname = sourcing_name();
-    if sname.is_null() || other_sourcing_name() {
+    if sname.is_none() || other_sourcing_name() {
         msg_st().last_sourcing_name = None;
-        if !sname.is_null() {
-            msg_st().last_sourcing_name = Some(crate::memory::cstr_to_cstring(sname));
+        if let Some(sname) = sname {
+            msg_st().last_sourcing_name = Some(sname.to_owned());
             if redirecting() == 0 {
                 msg_putchar_hl(NL, hl_id);
             }
@@ -1137,11 +1140,7 @@ pub fn emsg_multiline(
                 g_st().emsg_assert_fails_msg = Some(crate::memory::cstr_to_cstring(s));
                 g_st().emsg_assert_fails_lnum = sourcing_lnum() as i64;
                 let sname = sourcing_name();
-                g_st().emsg_assert_fails_context = Some(if sname.is_null() {
-                    std::ffi::CString::default()
-                } else {
-                    crate::memory::cstr_to_cstring(sname)
-                });
+                g_st().emsg_assert_fails_context = Some(sname.unwrap_or_default().to_owned());
             }
 
             // set "v:errmsg", also when using ":silent! cmd"
@@ -1169,7 +1168,9 @@ pub fn emsg_multiline(
                 }
 
                 // Log (silent) errors as debug messages.
-                if !sname.is_null() && slnum != 0 {
+                if let Some(sname) = sname
+                    && slnum != 0
+                {
                     logmsg!(
                         LOGLVL_DBG,
                         ptr::null(),
@@ -1178,7 +1179,7 @@ pub fn emsg_multiline(
                         true,
                         c"(:silent) %s (%s (line %d))",
                         s,
-                        sname,
+                        sname.as_ptr(),
                         slnum,
                     );
                 } else {
@@ -1197,7 +1198,9 @@ pub fn emsg_multiline(
             }
 
             // Log editor errors as INFO.
-            if !sname.is_null() && slnum != 0 {
+            if let Some(sname) = sname
+                && slnum != 0
+            {
                 logmsg!(
                     LOGLVL_INF,
                     ptr::null(),
@@ -1206,7 +1209,7 @@ pub fn emsg_multiline(
                     true,
                     c"%s (%s (line %d))",
                     s,
-                    sname,
+                    sname.as_ptr(),
                     slnum,
                 );
             } else {
@@ -3298,10 +3301,8 @@ fn inc_msg_scrolled() {
         let sname = sourcing_name();
         let mut tofree_vec: Vec<c_char>;
 
-        let p = if sname.is_null() {
-            cstr_as_string(gettext(c"Unknown"))
-        } else {
-            let tofreesize = crate::memory::cstr_len(sname) + 40;
+        let p = if let Some(sname) = sname {
+            let tofreesize = sname.to_bytes().len() + 40;
             tofree_vec = vec![0; tofreesize];
             let tofree = tofree_vec.as_mut_ptr();
             let size = vim_snprintf_safelen!(
@@ -3312,6 +3313,8 @@ fn inc_msg_scrolled() {
                 i64::from(sourcing_lnum()),
             );
             NvimString { data: tofree, size }
+        } else {
+            cstr_as_string(gettext(c"Unknown"))
         };
         set_vim_var_string(VV_SCROLLSTART, p.data, p.size as isize);
     }

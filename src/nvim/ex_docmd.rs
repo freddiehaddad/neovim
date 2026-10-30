@@ -5028,7 +5028,7 @@ pub fn do_cmdline(
             breakpoint = func_breakpoint(&mut *fcp);
             dbg_tick = func_dbg_tick(&mut *fcp);
         } else if let Some(sp) = source_cookie {
-            fname = sourcing_name();
+            fname = sourcing_name().map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut());
             breakpoint = source_breakpoint(&mut *sp);
             dbg_tick = source_dbg_tick(&mut *sp);
         }
@@ -5202,7 +5202,7 @@ pub fn do_cmdline(
                 did_inc = true;
             }
 
-            if (opt_vars().p_verbose >= 15 && !sourcing_name().is_null())
+            if (opt_vars().p_verbose >= 15 && sourcing_name().is_some())
                 || opt_vars().p_verbose >= 16
             {
                 msg_verbose_cmd(*sourcing_lnum_ptr(), cmdline_copy);
@@ -12228,7 +12228,7 @@ pub fn eval_vars(
                     resultbuf = Some(v);
                 }
                 SPEC_SLNUM => {
-                    if sourcing_name().is_null() || *sourcing_lnum_ptr() == 0 {
+                    if sourcing_name().is_none() || *sourcing_lnum_ptr() == 0 {
                         *errormsg = gettext(E_NO_LINE_NUMBER_TO_USE_FOR_SLNUM);
                         return None;
                     }

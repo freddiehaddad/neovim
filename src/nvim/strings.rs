@@ -1351,6 +1351,13 @@ impl IntoFmtVal for &CStr {
     }
 }
 
+impl IntoFmtVal for Option<&CStr> {
+    #[inline]
+    fn into_fmt_val(self) -> FmtVal {
+        FmtVal::Ptr(self.map_or(ptr::null(), |s| s.as_ptr().cast()))
+    }
+}
+
 #[inline]
 fn fmt_arg_val(args: &[FmtVal], arg_idx: &mut i32) -> FmtVal {
     let idx = (*arg_idx - 1) as usize;

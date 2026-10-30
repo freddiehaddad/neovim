@@ -1540,7 +1540,7 @@ pub fn call_user_func(
             g_st().sandbox -= 1;
         }
 
-        if opt_vars().p_verbose >= 12 && !sourcing_name().is_null() {
+        if opt_vars().p_verbose >= 12 && sourcing_name().is_some() {
             g_st().no_wait_return += 1;
             verbose_enter_scroll();
 
@@ -3239,16 +3239,15 @@ pub fn ex_function(eap: &mut Exarg) {
         if fp.is_null() {
             if fudi.fd_dict.is_null() && !vim_strchr(name, AUTOLOAD_CHAR as i32).is_null() {
                 let mut j = FAIL;
-                let sname = sourcing_name();
-                if !sname.is_null() {
+                if let Some(sname) = sourcing_name() {
                     let sn = autoload_name(name, crate::memory::cstr_len(name));
                     p = vim_strchr(sn.as_ptr(), b'/' as i32);
                     let plen = crate::memory::cstr_len(p) as i32;
-                    let slen = crate::memory::cstr_len(sname) as i32;
+                    let slen = sname.to_bytes().len() as i32;
                     if slen > plen
                         && path_equal(
                             p,
-                            sname.wrapping_add((slen - plen) as usize),
+                            sname.as_ptr().wrapping_add((slen - plen) as usize),
                             K_PATH_CMP_LITERAL,
                         )
                     {
