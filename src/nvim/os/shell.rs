@@ -1284,6 +1284,9 @@ mod tests {
 
     #[test]
     fn shell_build_argv_and_argv_to_str() {
+        let _guard = crate::globals::TEST_GLOBAL_LOCK
+            .lock()
+            .unwrap_or_else(|e| e.into_inner());
         let save_sh = opt_vars().p_sh;
         let save_shcf = opt_vars().p_shcf;
         let save_sxq = opt_vars().p_sxq;

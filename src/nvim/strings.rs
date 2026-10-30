@@ -2617,7 +2617,7 @@ pub fn f_strgetchar(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncD
 pub fn f_stridx(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
     rettv.vval = crate::eval::typval::TypvalVval::Number(-1);
 
-    let mut buf = [0 as c_char; NUMBUFLEN];
+    let mut buf = [0u8; NUMBUFLEN];
     let needle = tv_get_string_chk(&argvars[1]);
     let mut haystack = tv_get_string_buf_chk(&argvars[0], buf.as_mut_ptr());
     let haystack_start = haystack;
@@ -2850,7 +2850,7 @@ pub fn f_strpart(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData
 }
 
 pub fn f_strridx(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
-    let mut buf = [0 as c_char; NUMBUFLEN];
+    let mut buf = [0u8; NUMBUFLEN];
     let needle = tv_get_string_chk(&argvars[1]);
     let haystack = tv_get_string_buf_chk(&argvars[0], buf.as_mut_ptr());
 
@@ -2990,8 +2990,8 @@ pub fn f_toupper(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData
 }
 
 pub fn f_tr(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
-    let mut buf = [0 as c_char; NUMBUFLEN];
-    let mut buf2 = [0 as c_char; NUMBUFLEN];
+    let mut buf = [0u8; NUMBUFLEN];
+    let mut buf2 = [0u8; NUMBUFLEN];
 
     let mut in_str = tv_get_string(&argvars[0]);
     let fromstr = tv_get_string_buf_chk(&argvars[1], buf.as_mut_ptr());
@@ -3061,8 +3061,8 @@ pub fn f_tr(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
 }
 
 pub fn f_trim(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
-    let mut buf1 = [0 as c_char; NUMBUFLEN];
-    let mut buf2 = [0 as c_char; NUMBUFLEN];
+    let mut buf1 = [0u8; NUMBUFLEN];
+    let mut buf2 = [0u8; NUMBUFLEN];
     let mut head = tv_get_string_buf_chk(&argvars[0], buf1.as_mut_ptr());
     let mut mask: *const c_char = ptr::null();
     let mut dir: i32 = 0;

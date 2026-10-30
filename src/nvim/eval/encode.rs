@@ -1404,7 +1404,7 @@ fn encode_vim_with_backend(
                     {
                         *hi_ref = hi.wrapping_add(1);
                     }
-                    let key_bytes = crate::memory::cstr_as_bytes(di.di_key.as_ptr());
+                    let key_bytes = crate::memory::cstr_as_bytes(&di.di_key);
                     if !backend.conv_str_string(Some(key_bytes)) {
                         return false;
                     }

@@ -1,6 +1,6 @@
 //! Vimscript `TypVal`, `TvList`, `TvDict`, `TvBlob`, and `Callback` operations (`src/nvim/eval/typval.c`).
 
-use crate::charset::{NUL, vim_str2nr};
+use crate::charset::vim_str2nr;
 use crate::eval::userfunc::{
     Funcexe, UserFunc, call_func, func_ref, func_unref, get_funccal_local_ht,
 };
@@ -33,8 +33,8 @@ use crate::mbyte::{Vimconv, mb_strcmp_ic, string_convert, utf_char2bytes, utfc_p
 use crate::memory::{cstr_from_bytes, cstr_to_cstring, xstrlcpy};
 use crate::message::{emsg, internal_error, semsg};
 use crate::os::input::{fast_breakcheck, line_breakcheck};
-use crate::strings::{strcoll, strtod, tr, vim_snprintf};
-use std::ffi::{CStr, c_char};
+use crate::strings::{RawCCharPtr, RawCCharPtrMut, strcoll, strtod, tr, vim_snprintf};
+use std::ffi::CStr;
 use std::ptr;
 
 use crate::api::private::helpers::{DI_FLAGS_FIX, DI_FLAGS_RO};
@@ -145,7 +145,7 @@ impl CallbackData {
     }
 
     #[inline]
-    pub fn as_funcref(&self) -> *mut c_char {
+    pub fn as_funcref(&self) -> RawCCharPtrMut {
         match self {
             Self::Funcref(s) | Self::Expr(s) => s.as_ptr().cast_mut(),
             _ => ptr::null_mut(),
@@ -234,7 +234,7 @@ pub enum TypvalVval {
     Bool(i32),
     Special(i32),
     Float(f64),
-    String(*mut c_char),
+    String(RawCCharPtrMut),
     List(*mut TvList),
     Dict(*mut TvDict),
     Blob(*mut TvBlob),
@@ -301,7 +301,7 @@ impl TypvalVval {
     }
 
     #[inline]
-    pub const fn v_string(self) -> *mut c_char {
+    pub const fn v_string(self) -> RawCCharPtrMut {
         match self {
             Self::String(p) => p,
             _ => ptr::null_mut(),
@@ -473,7 +473,7 @@ impl Drop for TvList {
 pub struct Dictitem {
     pub di_tv: TypVal,
     pub di_flags: u8,
-    pub di_key: Vec<c_char>,
+    pub di_key: Vec<u8>,
 }
 
 impl Dictitem {
@@ -654,15 +654,15 @@ struct ListSortItem {
     key: ListSortKey,
 }
 
-static TV_EMPTY_STRING_BYTE: c_char = 0;
-pub const TV_EMPTY_STRING: *const c_char = &raw const TV_EMPTY_STRING_BYTE;
+static TV_EMPTY_STRING_BYTE: u8 = 0;
+pub const TV_EMPTY_STRING: RawCCharPtr = (&raw const TV_EMPTY_STRING_BYTE).cast();
 
 pub(crate) struct TypvalModuleState {
     pub(crate) tv_in_free_unref_items: bool,
     tv_equal_recurse_limit: i32,
-    dict_numbuf: [c_char; NUMBUFLEN],
-    mybuf_chk: [c_char; NUMBUFLEN],
-    mybuf: [c_char; NUMBUFLEN],
+    dict_numbuf: [u8; NUMBUFLEN],
+    mybuf_chk: [u8; NUMBUFLEN],
+    mybuf: [u8; NUMBUFLEN],
 }
 
 impl TypvalModuleState {
@@ -732,18 +732,18 @@ pub fn tv_list_set_ret(tv: &mut TypVal, l: *mut TvList) {
 }
 
 #[inline]
-pub fn tv_alloc_string(s: impl crate::strings::IntoCCharPtr) -> *mut c_char {
+pub fn tv_alloc_string(s: impl crate::strings::IntoCCharPtr) -> RawCCharPtrMut {
     let s = s.into_c_char_ptr();
     crate::memory::cstr_to_cstring(s).into_raw()
 }
 
 #[inline]
-pub fn tv_alloc_string_bytes(bytes: &[u8]) -> *mut c_char {
+pub fn tv_alloc_string_bytes(bytes: &[u8]) -> RawCCharPtrMut {
     crate::memory::cstr_from_bytes(bytes).into_raw()
 }
 
 #[inline]
-pub fn tv_free_string(p: *mut c_char) {
+pub fn tv_free_string(p: RawCCharPtrMut) {
     if !p.is_null() {
         unsafe {
             drop(std::ffi::CString::from_raw(p));
@@ -752,7 +752,7 @@ pub fn tv_free_string(p: *mut c_char) {
 }
 
 #[inline]
-pub fn tv_take_string(p: *mut c_char) -> Option<std::ffi::CString> {
+pub fn tv_take_string(p: RawCCharPtrMut) -> Option<std::ffi::CString> {
     if p.is_null() {
         None
     } else {
@@ -1587,7 +1587,7 @@ fn tv_list2items(argvars: &mut [TypVal], rettv: &mut TypVal) {
 
 /// "items(string)" function.
 fn tv_string2items(argvars: &mut [TypVal], rettv: &mut TypVal) {
-    let mut p: *const c_char = argvars[0].vval.v_string();
+    let mut p: RawCCharPtr = argvars[0].vval.v_string();
 
     tv_list_alloc_ret(&mut *rettv, K_LIST_LEN_MAY_KNOW_CONST);
     if p.is_null() {
@@ -1726,7 +1726,7 @@ pub fn tv_list_slice_or_index(
 }
 
 fn list_join_inner(
-    gap: &mut Vec<c_char>,
+    gap: &mut Vec<u8>,
     l: &mut TvList,
     sep: impl crate::strings::IntoCCharPtr,
     join_vec: &mut Vec<std::ffi::CString>,
@@ -1762,13 +1762,11 @@ fn list_join_inner(
             if first {
                 first = false;
             } else if seplen > 0 {
-                gap.extend_from_slice(unsafe { std::slice::from_raw_parts(sep, seplen) });
+                gap.extend_from_slice(crate::memory::cstr_slice(sep, seplen));
             }
             let bytes = s.as_bytes();
             if !bytes.is_empty() {
-                gap.extend_from_slice(unsafe {
-                    std::slice::from_raw_parts(bytes.as_ptr().cast::<c_char>(), bytes.len())
-                });
+                gap.extend_from_slice(bytes);
             }
             line_breakcheck();
         }
@@ -1779,7 +1777,7 @@ fn list_join_inner(
 
 /// Join list into a string using given separator.
 pub fn tv_list_join(
-    gap: &mut Vec<c_char>,
+    gap: &mut Vec<u8>,
     l: Option<&mut TvList>,
     sep: impl crate::strings::IntoCCharPtr,
 ) -> bool {
@@ -1810,9 +1808,9 @@ pub fn f_join(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
     rettv.v_type = VarType::VarString;
 
     if !sep.is_null() {
-        let mut out: Vec<c_char> = Vec::with_capacity(80);
+        let mut out: Vec<u8> = Vec::with_capacity(80);
         tv_list_join(&mut out, unsafe { argvars[0].vval.v_list().as_mut() }, sep);
-        tv_set_string_len(rettv, out.as_ptr(), out.len());
+        tv_set_string_len(rettv, &out, out.len());
     } else {
         rettv.vval = crate::eval::typval::TypvalVval::String(ptr::null_mut());
     }
@@ -1832,17 +1830,17 @@ pub fn f_list2str(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDat
         return;
     }
 
-    let mut out: Vec<c_char> = Vec::with_capacity(80);
-    let mut buf: [c_char; MB_MAXBYTES + 1] = [0; MB_MAXBYTES + 1];
+    let mut out: Vec<u8> = Vec::with_capacity(80);
+    let mut buf: [u8; MB_MAXBYTES + 1] = [0; MB_MAXBYTES + 1];
 
     for li in crate::eval::typval::list_iter_mut(unsafe { (*l).lv_first }) {
         let n = tv_get_number(&li.li_tv);
-        let buflen = utf_char2bytes(n as i32, buf.as_mut_ptr().cast()) as usize;
-        buf[buflen] = NUL;
+        let buflen = utf_char2bytes(n as i32, buf.as_mut_ptr()) as usize;
+        buf[buflen] = 0;
         out.extend_from_slice(&buf[..buflen]);
     }
 
-    tv_set_string_len(rettv, out.as_ptr(), out.len());
+    tv_set_string_len(rettv, &out, out.len());
 }
 
 /// "remove({list})" function.
@@ -1988,8 +1986,8 @@ fn item_compare(si1: &ListSortItem, si2: &ListSortItem, keep_zero: bool, info: &
 
     let mut tofree1: Option<std::ffi::CString> = None;
     let mut tofree2: Option<std::ffi::CString> = None;
-    let mut p1: *mut c_char;
-    let mut p2: *mut c_char;
+    let mut p1: RawCCharPtrMut;
+    let mut p2: RawCCharPtrMut;
 
     if tv1.v_type == VarType::VarString {
         if tv2.v_type != VarType::VarString || info.item_compare_numeric {
@@ -2467,7 +2465,7 @@ pub fn tv_list_find_nr(
 }
 
 /// Get list item l[n] as a string.
-pub fn tv_list_find_str(l: Option<&mut TvList>, n: i32) -> *const c_char {
+pub fn tv_list_find_str(l: Option<&mut TvList>, n: i32) -> RawCCharPtr {
     let li = tv_list_find(l, n);
     if li.is_null() {
         semsg!(tr(E_LIST_INDEX_OUT_OF_RANGE_NR), i64::from(n));
@@ -2790,11 +2788,9 @@ pub fn tv_dict_item_alloc_len(
     let key = key.into_c_char_ptr();
     let mut key_vec = Vec::with_capacity(key_len + 1);
     if key_len > 0 {
-        unsafe {
-            key_vec.extend_from_slice(std::slice::from_raw_parts(key, key_len));
-        }
+        key_vec.extend_from_slice(crate::memory::cstr_slice(key, key_len));
     }
-    key_vec.push(NUL);
+    key_vec.push(0);
     Box::leak(Box::new(Dictitem {
         di_tv: TypVal {
             v_type: VarType::VarUnknown,
@@ -2825,16 +2821,14 @@ pub fn tv_dict_item_free(item: *mut Dictitem) {
 
 /// Make a copy of a dictionary item.
 pub fn tv_dict_item_copy(di: &mut Dictitem) -> &'static mut Dictitem {
-    let key_ptr = di.di_key.as_ptr();
-    let new_di = tv_dict_item_alloc(key_ptr);
+    let new_di = tv_dict_item_alloc(&di.di_key);
     tv_copy(&di.di_tv, &mut new_di.di_tv);
     new_di
 }
 
 /// Remove item from dictionary and free it.
 pub fn tv_dict_item_remove(dict: &mut TvDict, item: &mut Dictitem) {
-    let key_ptr = item.di_key.as_ptr();
-    let hi = hash_find(&dict.dv_hashtab, key_ptr);
+    let hi = hash_find(&dict.dv_hashtab, &item.di_key);
     if hashitem_empty(unsafe { &*hi }) {
         semsg!(tr(E_INTERN2), c"tv_dict_item_remove()");
     } else {
@@ -2985,7 +2979,7 @@ pub fn tv_dict_to_env(denv: Option<&TvDict>) -> Vec<std::ffi::CString> {
                 let var = tv_dict_hi2di(hi);
                 let str_ = tv_get_string(&var.di_tv);
                 debug_assert!(!str_.is_null());
-                let key_bytes = crate::memory::cstr_as_bytes(var.di_key.as_ptr());
+                let key_bytes = crate::memory::cstr_as_bytes(&var.di_key);
                 let val_bytes = crate::memory::cstr_as_bytes(str_);
                 let mut entry = Vec::with_capacity(key_bytes.len() + 1 + val_bytes.len());
                 entry.extend_from_slice(key_bytes);
@@ -3002,7 +2996,7 @@ pub fn tv_dict_to_env(denv: Option<&TvDict>) -> Vec<std::ffi::CString> {
 
 /// Get an owned `CString` item from a dictionary.
 pub fn tv_dict_get_cstring(d: Option<&TvDict>, key: &std::ffi::CStr) -> Option<std::ffi::CString> {
-    let mut numbuf: [c_char; NUMBUFLEN] = [0; NUMBUFLEN];
+    let mut numbuf: [u8; NUMBUFLEN] = [0; NUMBUFLEN];
     let s = tv_dict_get_string_buf(d, key, numbuf.as_mut_ptr());
     if s.is_null() {
         None
@@ -3015,7 +3009,7 @@ pub fn tv_dict_get_cstring(d: Option<&TvDict>, key: &std::ffi::CStr) -> Option<s
 pub fn tv_dict_get_string<S: crate::strings::IntoCCharPtr>(
     d: Option<&TvDict>,
     key: S,
-) -> *mut c_char {
+) -> RawCCharPtrMut {
     tv_dict_get_string_buf(d, key, tv_st().dict_numbuf.as_mut_ptr()).cast_mut()
 }
 
@@ -3023,8 +3017,8 @@ pub fn tv_dict_get_string<S: crate::strings::IntoCCharPtr>(
 pub fn tv_dict_get_string_buf<S: crate::strings::IntoCCharPtr>(
     d: Option<&TvDict>,
     key: S,
-    numbuf: *mut c_char,
-) -> *const c_char {
+    numbuf: *mut u8,
+) -> RawCCharPtr {
     let key = key.into_c_char_ptr();
     {
         let di = tv_dict_find(d, key, -1);
@@ -3041,9 +3035,9 @@ pub fn tv_dict_get_string_buf_chk(
     d: Option<&TvDict>,
     key: &std::ffi::CStr,
     key_len: isize,
-    numbuf: *mut c_char,
+    numbuf: *mut u8,
     def: impl crate::strings::IntoCCharPtr,
-) -> *const c_char {
+) -> RawCCharPtr {
     let def = def.into_c_char_ptr();
     {
         let di = tv_dict_find(d, key.as_ptr(), key_len);
@@ -3101,8 +3095,7 @@ pub fn tv_dict_wrong_func_name(
 /// Add item to dictionary.
 pub fn tv_dict_add(d: &mut TvDict, item: *mut Dictitem) -> bool {
     unsafe {
-        let key_ptr = (*item).di_key.as_mut_ptr();
-        if tv_dict_wrong_func_name(d, &mut (*item).di_tv, key_ptr) != 0 {
+        if tv_dict_wrong_func_name(d, &mut (*item).di_tv, &(*item).di_key) != 0 {
             return false;
         }
         hash_add(&mut d.dv_hashtab, &mut *item)
@@ -3298,7 +3291,7 @@ pub fn tv_dict_extend(d1: &mut TvDict, d2: &mut TvDict, action: impl crate::stri
             if !hashitem_empty(&*hi2) {
                 todo -= 1;
                 let di2 = tv_dict_hi2di(hi2);
-                let key2 = di2.di_key.as_ptr();
+                let key2: RawCCharPtr = di2.di_key.as_ptr().cast();
                 let di1 = tv_dict_find(Some(d1), key2, -1);
                 if d1.dv_scope != VAR_NO_SCOPE && !valid_varname(key2) {
                     break;
@@ -3310,7 +3303,7 @@ pub fn tv_dict_extend(d1: &mut TvDict, d2: &mut TvDict, action: impl crate::stri
                             hash_remove(&mut d2.dv_hashtab, &mut *hi2);
                             tv_dict_watcher_notify(
                                 d1,
-                                new_di.di_key.as_ptr(),
+                                &new_di.di_key,
                                 Some(&new_di.di_tv),
                                 None,
                             );
@@ -3322,7 +3315,7 @@ pub fn tv_dict_extend(d1: &mut TvDict, d2: &mut TvDict, action: impl crate::stri
                         } else if watched {
                             tv_dict_watcher_notify(
                                 d1,
-                                new_di.di_key.as_ptr(),
+                                &new_di.di_key,
                                 Some(&new_di.di_tv),
                                 None,
                             );
@@ -3352,7 +3345,7 @@ pub fn tv_dict_extend(d1: &mut TvDict, d2: &mut TvDict, action: impl crate::stri
                     if watched {
                         tv_dict_watcher_notify(
                             d1,
-                            (*di1).di_key.as_ptr(),
+                            &(*di1).di_key,
                             Some(&(*di1).di_tv),
                             Some(&oldtv),
                         );
@@ -3390,8 +3383,7 @@ pub fn tv_dict_equal(d1: Option<&TvDict>, d2: Option<&TvDict>, ic: bool) -> bool
         if !hashitem_empty(unsafe { &*hi }) {
             todo -= 1;
             let di1 = tv_dict_hi2di(hi);
-            let key1 = di1.di_key.as_ptr();
-            let di2 = tv_dict_find(Some(d2), key1, -1);
+            let di2 = tv_dict_find(Some(d2), &di1.di_key, -1);
             if di2.is_null() {
                 return false;
             }
@@ -3429,7 +3421,7 @@ pub fn tv_dict_copy(
                 break;
             }
             let di = tv_dict_hi2di(hi);
-            let key_ptr = di.di_key.as_mut_ptr();
+            let key_ptr: RawCCharPtrMut = di.di_key.as_mut_ptr().cast();
             let new_di = if let Some(conv) = conv.filter(|c| c.vc_type != CONV_NONE) {
                 let mut len = crate::memory::cstr_len(key_ptr);
                 if let Some(key) = string_convert(conv, key_ptr, Some(&mut len)) {
@@ -3791,7 +3783,7 @@ fn tv_dict2list(argvars: &mut [TypVal], rettv: &mut TypVal, what: DictListType) 
             if !hashitem_empty(&*hi) {
                 todo -= 1;
                 let di = tv_dict_hi2di(hi);
-                let key_ptr = di.di_key.as_ptr();
+                let key_ptr: RawCCharPtr = di.di_key.as_ptr().cast();
                 let mut tv_item = tv_initial_value();
 
                 match what {
@@ -4562,8 +4554,8 @@ pub fn tv_equal(tv1: &TypVal, tv2: &TypVal, ic: bool) -> bool {
         VarType::VarNumber => tv1.vval.v_number() == tv2.vval.v_number(),
         VarType::VarFloat => tv1.vval.v_float() == tv2.vval.v_float(),
         VarType::VarString => {
-            let mut buf1: [c_char; NUMBUFLEN] = [0; NUMBUFLEN];
-            let mut buf2: [c_char; NUMBUFLEN] = [0; NUMBUFLEN];
+            let mut buf1: [u8; NUMBUFLEN] = [0; NUMBUFLEN];
+            let mut buf2: [u8; NUMBUFLEN] = [0; NUMBUFLEN];
             let s1 = tv_get_string_buf(tv1, buf1.as_mut_ptr());
             let s2 = tv_get_string_buf(tv2, buf2.as_mut_ptr());
             mb_strcmp_ic(ic, s1, s2) == 0
@@ -4980,17 +4972,18 @@ pub fn tv_check_for_list_or_blob_arg(args: &[TypVal], idx: i32) -> bool {
 }
 
 /// Get the string value of a "stringish" Vimscript object.
-pub fn tv_get_string_buf_chk(tv: &TypVal, buf: *mut c_char) -> *const c_char {
+pub fn tv_get_string_buf_chk(tv: &TypVal, buf: *mut u8) -> RawCCharPtr {
+    let buf_c: RawCCharPtrMut = buf.cast();
     match tv.v_type {
         VarType::VarNumber => {
             use std::io::Write;
-            let mut slice = unsafe { std::slice::from_raw_parts_mut(buf.cast::<u8>(), NUMBUFLEN) };
+            let mut slice = unsafe { std::slice::from_raw_parts_mut(buf, NUMBUFLEN) };
             let _ = write!(slice, "{}\0", tv.vval.v_number());
-            buf
+            buf_c
         }
         VarType::VarFloat => {
-            vim_snprintf!(buf, NUMBUFLEN, c"%g", tv.vval.v_float());
-            buf
+            vim_snprintf!(buf_c, NUMBUFLEN, c"%g", tv.vval.v_float());
+            buf_c
         }
         VarType::VarString => {
             if !tv.vval.v_string().is_null() {
@@ -5001,19 +4994,19 @@ pub fn tv_get_string_buf_chk(tv: &TypVal, buf: *mut c_char) -> *const c_char {
         }
         VarType::VarBool => {
             xstrlcpy(
-                buf,
+                buf_c,
                 ENCODE_BOOL_VAR_NAMES[tv.vval.v_bool() as usize],
                 NUMBUFLEN,
             );
-            buf
+            buf_c
         }
         VarType::VarSpecial => {
             xstrlcpy(
-                buf,
+                buf_c,
                 ENCODE_SPECIAL_VAR_NAMES[tv.vval.v_special() as usize],
                 NUMBUFLEN,
             );
-            buf
+            buf_c
         }
         VarType::VarPartial
         | VarType::VarFunc
@@ -5028,17 +5021,17 @@ pub fn tv_get_string_buf_chk(tv: &TypVal, buf: *mut c_char) -> *const c_char {
 }
 
 /// Get the string value of a "stringish" Vimscript object.
-pub fn tv_get_string_chk(tv: &TypVal) -> *const c_char {
+pub fn tv_get_string_chk(tv: &TypVal) -> RawCCharPtr {
     tv_get_string_buf_chk(tv, tv_st().mybuf_chk.as_mut_ptr())
 }
 
 /// Get the string value of a "stringish" Vimscript object.
-pub fn tv_get_string(tv: &TypVal) -> *const c_char {
+pub fn tv_get_string(tv: &TypVal) -> RawCCharPtr {
     tv_get_string_buf(tv, tv_st().mybuf.as_mut_ptr())
 }
 
 /// Get the string value of a "stringish" Vimscript object.
-pub fn tv_get_string_buf(tv: &TypVal, buf: *mut c_char) -> *const c_char {
+pub fn tv_get_string_buf(tv: &TypVal, buf: *mut u8) -> RawCCharPtr {
     let res = tv_get_string_buf_chk(tv, buf);
     if !res.is_null() { res } else { c"".as_ptr() }
 }
@@ -5073,9 +5066,9 @@ pub fn check_repeat_count(slen: Varnumber, n: Varnumber) -> bool {
         return true;
     }
 
-    let mut buf: [c_char; NUMBUFLEN] = [0; NUMBUFLEN];
-    vim_snprintf!(buf.as_mut_ptr(), buf.len(), c"%lld", n);
-    semsg!(tr(E_VAL_TOO_LARGE), buf.as_ptr());
+    let mut buf: [u8; NUMBUFLEN] = [0; NUMBUFLEN];
+    vim_snprintf!(buf.as_mut_ptr().cast(), buf.len(), c"%lld", n);
+    semsg!(tr(E_VAL_TOO_LARGE), buf.as_ptr().cast::<()>());
     false
 }
 
@@ -5169,12 +5162,9 @@ mod tests {
             assert!(tv_list_equal(None, None, false));
             assert!(!tv_list_equal(Some(&*l2), None, false));
 
-            let mut joined: Vec<c_char> = Vec::new();
+            let mut joined: Vec<u8> = Vec::new();
             assert!(tv_list_join(&mut joined, Some(&mut *l2), c", "));
-            assert_eq!(
-                crate::memory::cstr_slice(joined.as_ptr(), joined.len()),
-                b"99, hello, world"
-            );
+            assert_eq!(joined.as_slice(), b"99, hello, world");
 
             let mut cat_tv = tv_initial_value();
             assert!(tv_list_concat(
@@ -5221,7 +5211,7 @@ mod tests {
             assert_eq!(tv_dict_get_number(Some(&*d), c"foo"), 42);
             assert_eq!(tv_dict_get_number(Some(&*d), c"missing"), 0);
 
-            let mut numbuf = [0 as c_char; NUMBUFLEN];
+            let mut numbuf = [0u8; NUMBUFLEN];
             assert_eq!(
                 crate::memory::cstr_as_bytes(tv_dict_get_string(Some(&*d), c"str")),
                 b"bar"
@@ -5292,7 +5282,7 @@ mod tests {
             // tv_get_number, tv_get_float, tv_get_string, tv_equal
             assert_eq!(tv_get_number(&tv), 5);
             assert_eq!(tv_get_float(&tv), 5.0);
-            let mut buf = [0 as c_char; NUMBUFLEN];
+            let mut buf = [0u8; NUMBUFLEN];
             assert_eq!(
                 crate::memory::cstr_as_bytes(tv_get_string_buf(&tv, buf.as_mut_ptr())),
                 b"5"

@@ -27,14 +27,7 @@ impl Hashitem {
         if self.hi_di.is_null() {
             None
         } else {
-            unsafe {
-                let di_key = &(*self.hi_di).di_key;
-                CStr::from_bytes_until_nul(std::slice::from_raw_parts(
-                    di_key.as_ptr().cast::<u8>(),
-                    di_key.len(),
-                ))
-                .ok()
-            }
+            unsafe { CStr::from_bytes_until_nul(&(*self.hi_di).di_key).ok() }
         }
     }
 }
@@ -194,7 +187,7 @@ pub fn hash_lookup(
 /// # Safety
 /// `ht` and `di` must be valid pointers, and `di` must outlive the entry in `ht`.
 pub fn hash_add(ht: &mut Hashtab, di: &mut crate::eval::typval::Dictitem) -> bool {
-    let key = di.di_key.as_mut_ptr();
+    let key: crate::strings::RawCCharPtr = di.di_key.as_ptr().cast();
     let len = crate::memory::cstr_len(key);
     let hash = hash_hash(key);
     let hi = hash_lookup(ht, key, len, hash);

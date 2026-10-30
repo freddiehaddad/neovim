@@ -4426,7 +4426,7 @@ pub fn create_environment(
                         if !crate::hashtab::hashitem_empty(unsafe { &*hi }) {
                             todo -= 1;
                             let var = tv_dict_hi2di(hi);
-                            let mut name = var.di_key.as_ptr();
+                            let mut name: crate::strings::RawCCharPtr = var.di_key.as_ptr().cast();
                             let mut namelen = crate::memory::cstr_len(name);
                             if namelen < MAXPATHL / MB_MAXBYTES {
                                 let namebuff = g_st().name_buff.as_mut_ptr();

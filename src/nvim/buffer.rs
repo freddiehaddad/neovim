@@ -2810,11 +2810,7 @@ pub fn buflist_new(
                 &mut *(&raw mut buf.b_bufvar).cast(),
                 VAR_SCOPE,
             );
-            buf.changedtick_di.di_key = cstr_to_cstring(c"changedtick")
-                .into_bytes_with_nul()
-                .into_iter()
-                .map(|b| b as _)
-                .collect();
+            buf.changedtick_di.di_key = b"changedtick\0".to_vec();
             buf_init_changedtick(&mut *buf);
         }
 
@@ -5023,7 +5019,7 @@ pub fn buf_set_changedtick(buf: &mut FileBuf, changedtick: Varnumber) {
         buf.b_locked += 1;
         tv_dict_watcher_notify(
             &mut *buf.b_vars(),
-            buf.changedtick_di.di_key.as_ptr(),
+            &buf.changedtick_di.di_key,
             Some(&buf.changedtick_di.di_tv),
             Some(&old_val),
         );

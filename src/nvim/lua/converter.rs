@@ -1447,7 +1447,7 @@ fn encode_vim_to_lua(lstate: *mut lua_State, top_tv: &mut TypVal) -> bool {
                     let di = crate::eval::typval::tv_dict_hi2di(*hi);
                     *todo -= 1;
                     *hi = (*hi).wrapping_add(1);
-                    let key_ptr = di.di_key.as_ptr();
+                    let key_ptr = di.di_key.as_ptr().cast();
                     let key_len = crate::memory::cstr_len(key_ptr);
                     lua_pushlstring(lstate, key_ptr, key_len);
                     &mut di.di_tv

@@ -132,8 +132,7 @@ fn filter_map_dict(
                 {
                     break;
                 }
-                let key_ptr = di.di_key.as_ptr();
-                set_vim_var_string(VV_KEY, key_ptr, -1);
+                set_vim_var_string(VV_KEY, &di.di_key, -1);
                 let mut newtv = TypVal {
                     v_type: VarType::VarUnknown,
                     v_lock: VAR_UNLOCKED,
@@ -151,9 +150,9 @@ fn filter_map_dict(
                     newtv.v_lock = VAR_UNLOCKED;
                     di.di_tv = newtv;
                 } else if filtermap == FilterMap::MapNew {
-                    let key_len = crate::memory::cstr_len(key_ptr);
+                    let key_len = crate::memory::cstr_len(&di.di_key);
                     let add_res =
-                        tv_dict_add_tv(unsafe { &mut *d_ret }, key_ptr, key_len, &mut newtv);
+                        tv_dict_add_tv(unsafe { &mut *d_ret }, &di.di_key, key_len, &mut newtv);
                     tv_clear(&mut newtv);
                     if !add_res {
                         break;

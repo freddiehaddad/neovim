@@ -1225,7 +1225,7 @@ fn var_shada_iter(
         i
     };
     let di = tv_dict_hi2di(&raw const harray[idx]);
-    *name = crate::memory::cstr_as_opt_cstr(di.di_key.as_ptr());
+    *name = crate::memory::cstr_as_opt_cstr(&di.di_key);
     tv_copy(&di.di_tv, rettv);
     idx += 1;
     while idx < hinum {

@@ -4,9 +4,9 @@ use crate::api::private::helpers::{
     HLF_E, api_clear_error, arena_array, cstr_as_string, cstr_to_string, tv_dict_is_watched,
 };
 use crate::charset::{
-    NL, NUL, VARNUMBER_MIN, ascii_isalnum, ascii_isalpha, ascii_isdigit, ascii_islower,
-    ascii_isupper, ascii_iswhite, ascii_iswhite_or_nul, ascii_isxdigit, hex2nr, skipdigits,
-    skiptowhite, skipwhite, vim_str2nr,
+    NUL, VARNUMBER_MIN, ascii_isalnum, ascii_isalpha, ascii_isdigit, ascii_islower, ascii_isupper,
+    ascii_iswhite, ascii_iswhite_or_nul, ascii_isxdigit, hex2nr, skipdigits, skiptowhite,
+    skipwhite, vim_str2nr,
 };
 use crate::eval::typval::{
     Callback, Dictitem, EvalFuncData, K_CALLBACK_EXPR, K_CALLBACK_FUNCREF, K_CALLBACK_LUA,
@@ -684,15 +684,14 @@ pub fn skip_expr<T>(pp: *mut *mut T, mut evalarg: Option<&mut Evalarg>) -> bool 
 /// Convert "tv" to a string.
 fn typval2string(tv: &mut TypVal, join_list: bool) -> Option<std::ffi::CString> {
     if join_list && tv.v_type == VarType::VarList {
-        let mut out = Vec::with_capacity(80);
+        let mut out: Vec<u8> = Vec::with_capacity(80);
         if !tv.vval.v_list().is_null() {
             tv_list_join(&mut out, unsafe { tv.vval.v_list().as_mut() }, c"\n");
             if tv_list_len(unsafe { tv.vval.v_list().as_ref() }) > 0 {
-                out.push(NL);
+                out.push(b'\n');
             }
         }
-        let bytes = crate::memory::cstr_slice(out.as_ptr(), out.len());
-        return Some(cstr_from_bytes(bytes));
+        return Some(cstr_from_bytes(&out));
     } else if tv.v_type == VarType::VarList || tv.v_type == VarType::VarDict {
         return Some(encode_tv2string(&mut *tv, None));
     }
@@ -1735,8 +1734,7 @@ pub fn set_var_lval<T>(
                     tv_dict_watcher_notify(&mut *dict, newkey_ptr, lp.ll_tv.as_ref(), None);
                 } else {
                     let di_ = lp.ll_di;
-                    let key_ptr = (*di_).di_key.as_ptr();
-                    tv_dict_watcher_notify(&mut *dict, key_ptr, lp.ll_tv.as_ref(), Some(&oldtv));
+                    tv_dict_watcher_notify(&mut *dict, &(*di_).di_key, lp.ll_tv.as_ref(), Some(&oldtv));
                     tv_clear(&mut oldtv);
                 }
             }

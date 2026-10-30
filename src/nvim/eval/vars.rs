@@ -593,9 +593,7 @@ pub fn evalvars_init() {
 
         let name_bytes = p.vv_name.to_bytes_with_nul();
         p.vv_di.di_key.clear();
-        p.vv_di.di_key.extend_from_slice(unsafe {
-            std::slice::from_raw_parts(name_bytes.as_ptr().cast(), name_bytes.len())
-        });
+        p.vv_di.di_key.extend_from_slice(name_bytes);
         if p.vv_di.di_tv.v_type != VarType::VarUnknown {
             hash_add(&mut vars_st().vimvardict.dv_hashtab, &mut p.vv_di);
         }
@@ -944,7 +942,7 @@ pub fn restore_vimvar(idx: i32, save_tv: &mut TypVal) {
             return;
         }
 
-        let hi = hash_find(&vars_st().vimvardict.dv_hashtab, (*p).vv_di.di_key.as_ptr());
+        let hi = hash_find(&vars_st().vimvardict.dv_hashtab, &(*p).vv_di.di_key);
         if hashitem_empty(&*hi) {
             internal_error(c"restore_vimvar()");
         } else {
@@ -1552,7 +1550,7 @@ pub fn list_hashtable_vars(ht: &mut Hashtab, prefix: &std::ffi::CStr, empty: i32
                 let _dlen = crate::memory::cstr_len(_dst);
                 crate::memory::xstrlcpy(
                     _dst.wrapping_add(_dlen),
-                    di.di_key.as_ptr(),
+                    &di.di_key,
                     _dsize - _dlen,
                 );
             };
@@ -2183,7 +2181,7 @@ fn do_unlet_var(lp: &mut Lval, name_end: *mut u8, eap: &mut Exarg, _deep: i32) -
 
         if watched {
             tv_copy(&di.di_tv, &mut oldtv);
-            key = Some(cstr_to_cstring(di.di_key.as_ptr()));
+            key = Some(cstr_to_cstring(&di.di_key));
         }
 
         tv_dict_item_remove(unsafe { &mut *d }, &mut *di);
@@ -3001,8 +2999,8 @@ fn list_one_var(v: &mut Dictitem, prefix: impl crate::strings::IntoCCharPtr, fir
         let s = encode_tv2echo(&mut v.di_tv, None);
         list_one_var_a(
             prefix,
-            v.di_key.as_ptr(),
-            crate::memory::cstr_len(v.di_key.as_ptr()) as isize,
+            &v.di_key,
+            crate::memory::cstr_len(&v.di_key) as isize,
             v.di_tv.v_type,
             s.as_ptr(),
             first,
@@ -3238,7 +3236,7 @@ pub fn set_var_const(
         if watched {
             tv_dict_watcher_notify(
                 &mut *dict,
-                (*di).di_key.as_ptr(),
+                &(*di).di_key,
                 Some(&(*di).di_tv),
                 Some(&oldtv),
             );
