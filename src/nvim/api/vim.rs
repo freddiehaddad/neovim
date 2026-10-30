@@ -2758,12 +2758,11 @@ pub fn nvim_eval_statusline(
         if !str_bytes.starts_with(b"%!") {
             let mut raw_errbuf = [0u8; ERR_BUFLEN];
             let errbuf = CharBuf {
-                data: raw_errbuf.as_mut_ptr().cast(),
+                data: raw_errbuf.as_mut_ptr(),
                 size: ERR_BUFLEN,
             };
-            let errmsg = check_stl_option(str_.data, Some(errbuf));
-            if !errmsg.is_null() {
-                api_set_error!(err, ErrorType::ErrorTypeValidation, c"%s", errmsg);
+            if let Some(errmsg) = check_stl_option(str_.data, Some(errbuf)) {
+                api_set_error!(err, ErrorType::ErrorTypeValidation, c"%s", errmsg.as_ptr());
                 return result;
             }
         }
@@ -2883,7 +2882,7 @@ pub fn nvim_eval_statusline(
         };
 
         result = arena_dict(arena, 3);
-        let buf_data = arena_alloc(arena, MAXPATHL, false).cast();
+        let buf_data = arena_alloc(arena, MAXPATHL, false).cast::<u8>();
         let buf = CharBuf {
             data: buf_data,
             size: MAXPATHL,
@@ -2994,7 +2993,7 @@ pub fn nvim_eval_statusline(
             }
             put_c(&mut result, c"highlights", array_obj(hl_values));
         }
-        put_c(&mut result, c"str", cstr_as_obj(buf_data));
+        put_c(&mut result, c"str", cstr_as_obj(buf_data.cast()));
 
         result
     }

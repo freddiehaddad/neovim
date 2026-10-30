@@ -3619,8 +3619,7 @@ pub fn f_setcellwidths(argvars: &mut [TypVal], _rettv: &mut TypVal, _fptr: EvalF
 
         let cw_table_save = std::mem::replace(&mut mbyte_st().cw_table, table);
 
-        let error = check_chars_options();
-        if !error.is_null() {
+        if let Some(error) = check_chars_options() {
             emsg(error);
             mbyte_st().cw_table = cw_table_save;
             return;

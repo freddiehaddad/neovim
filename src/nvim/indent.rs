@@ -155,7 +155,7 @@ pub fn tabstop_set(
                         return Some(E_POSITIVE);
                     }
                     var = cp;
-                    return crate::memory::cstr_as_opt_cstr(opt_error(errbuf, E_INVARG2, var));
+                    return opt_error(errbuf, E_INVARG2, var);
                 }
             }
 
@@ -172,7 +172,7 @@ pub fn tabstop_set(
                 cp = cp.wrapping_add(1);
                 continue;
             }
-            return crate::memory::cstr_as_opt_cstr(opt_error(errbuf, E_INVARG2, var));
+            return opt_error(errbuf, E_INVARG2, var);
         }
 
         let mut out = Vec::with_capacity(valcount);
@@ -182,7 +182,7 @@ pub fn tabstop_set(
             if n <= 0 || n > TABSTOP_MAX {
                 array.clear();
                 var = cp;
-                return crate::memory::cstr_as_opt_cstr(opt_error(errbuf, E_INVARG2, var));
+                return opt_error(errbuf, E_INVARG2, var);
             }
             out.push(n);
             while !crate::memory::cstr_is_empty(cp) && crate::memory::cstr_first_byte(cp) != b',' {
@@ -1423,7 +1423,7 @@ pub fn ex_retab(eap: &mut Exarg) {
         let ts_start = ptr;
         let mut errbuf_storage = [0u8; IOSIZE];
         let errbuf = CharBuf {
-            data: errbuf_storage.as_mut_ptr().cast(),
+            data: errbuf_storage.as_mut_ptr(),
             size: IOSIZE,
         };
         if let Some(errmsg) = tabstop_set(ptr, &mut new_vts_array, Some(errbuf)) {

@@ -2731,11 +2731,11 @@ pub fn did_set_langmap(args: &mut Optset) -> Option<&'static CStr> {
                 to = utf_ptr2char(p2);
             }
             if to == NUL as i32 {
-                return Some(crate::memory::cstr_from_ptr(opt_error(
+                return opt_error(
                     args.os_errbuf,
                     c"E357: 'langmap': Matching character missing for %s",
                     transchar(from),
-                )));
+                );
             }
 
             if from >= 256 {
@@ -2761,11 +2761,11 @@ pub fn did_set_langmap(args: &mut Optset) -> Option<&'static CStr> {
                     p = p2;
                     if !crate::memory::cstr_is_empty(p) {
                         if crate::memory::cstr_first_byte(p) != b',' {
-                            return Some(crate::memory::cstr_from_ptr(opt_error(
+                            return opt_error(
                                 args.os_errbuf,
                                 c"E358: 'langmap': Extra characters after semicolon: %s",
                                 p,
-                            )));
+                            );
                         }
                         p = p.wrapping_add(1);
                     }

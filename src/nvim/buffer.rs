@@ -4145,7 +4145,7 @@ pub fn col_print(buf: *mut c_char, buflen: usize, col: i32, vcol: i32) -> i32 {
 pub fn maketitle() {
     let mut title_str: *mut c_char = ptr::null_mut();
     let mut icon_str: *mut c_char = ptr::null_mut();
-    let mut buf = [0 as c_char; IOSIZE];
+    let mut buf = [0u8; IOSIZE];
     let outbuf = CharBuf {
         data: buf.as_mut_ptr(),
         size: IOSIZE,
@@ -4188,7 +4188,7 @@ pub fn maketitle() {
                     ptr::null_mut(),
                     ptr::null_mut(),
                 );
-                title_str = buf.as_mut_ptr();
+                title_str = buf.as_mut_ptr().cast();
             } else {
                 title_str = opt_vars().p_titlestring;
             }
@@ -4216,7 +4216,7 @@ pub fn maketitle() {
                 ptr::null_mut(),
                 ptr::null_mut(),
             );
-            title_str = buf.as_mut_ptr();
+            title_str = buf.as_mut_ptr().cast();
             #[cfg(windows)]
             {
                 opt_vars().p_ssl = p_ssl_save;
@@ -4226,7 +4226,7 @@ pub fn maketitle() {
     let mut mustset = value_change(title_str, &mut buf_st().lasttitle);
 
     if opt_vars().p_icon != 0 {
-        icon_str = buf.as_mut_ptr();
+        icon_str = buf.as_mut_ptr().cast();
         if !crate::memory::cstr_is_empty(opt_vars().p_iconstring) {
             if (g_st().stl_syntax & STL_IN_ICON) != 0 {
                 build_stl_str_hl(
@@ -4257,8 +4257,8 @@ pub fn maketitle() {
                     i32::from(utf_cp_bounds(name, name.wrapping_add(namelen as usize)).end_off);
                 name = name.wrapping_add(namelen as usize);
             }
-            crate::memory::cstr_cpy(buf.as_mut_ptr(), name);
-            trans_characters(buf.as_mut_ptr(), IOSIZE as i32);
+            crate::memory::cstr_cpy(buf.as_mut_ptr().cast(), name);
+            trans_characters(buf.as_mut_ptr().cast(), IOSIZE as i32);
         }
     }
 

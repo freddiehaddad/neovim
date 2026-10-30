@@ -2329,7 +2329,7 @@ pub fn diffopt_changed() -> bool {
     }
     if has_dip_key(v, KEYSET_OPTIDX_DIP_INLINE) {
         flags &= !ALL_INLINE;
-        match crate::memory::cstr_as_bytes(v.inline_.as_ptr()) {
+        match crate::memory::cstr_as_bytes(&v.inline_) {
             b"simple" => flags |= DIFF_INLINE_SIMPLE,
             b"char" => flags |= DIFF_INLINE_CHAR,
             b"word" => flags |= DIFF_INLINE_WORD,
@@ -2342,7 +2342,7 @@ pub fn diffopt_changed() -> bool {
         0
     };
     if has_dip_key(v, KEYSET_OPTIDX_DIP_ALGORITHM) {
-        match crate::memory::cstr_as_bytes(v.algorithm.as_ptr()) {
+        match crate::memory::cstr_as_bytes(&v.algorithm) {
             b"minimal" => algorithm |= XDF_NEED_MINIMAL,
             b"patience" => algorithm |= XDF_PATIENCE_DIFF,
             b"histogram" => algorithm |= XDF_HISTOGRAM_DIFF,

@@ -653,7 +653,7 @@ fn win_redr_stl_expr(wp: *mut WinInfoInfo, draw_winbar: bool, draw_ruler: bool, 
             build_stl_str_hl(
                 ewp,
                 CharBuf {
-                    data: buf.as_mut_ptr().cast(),
+                    data: buf.as_mut_ptr(),
                     size: buf.len(),
                 },
                 stl_cstr.as_ptr().cast_mut().cast(),
@@ -1200,7 +1200,7 @@ pub fn build_statuscol_str(
             let click_defs = clicks.entry(virtnum).or_default();
             stl_clear_click_defs(click_defs);
             let cdp = stl_alloc_click_defs(click_defs, width);
-            stl_fill_click_defs(cdp, clickrec, buf_data, width, false);
+            stl_fill_click_defs(cdp, clickrec, buf_data.cast(), width, false);
         }
 
         width
@@ -1511,7 +1511,7 @@ pub extern "C" fn build_stl_str_hl(
         let mut prevchar_isflag = true;
         let mut prevchar_isitem = false;
 
-        let mut out_p = out.data.cast::<u8>();
+        let mut out_p = out.data;
         let out_end_p = out_p.wrapping_add(out.size - 1);
 
         macro_rules! may_grow_stl_items_len {
@@ -1928,7 +1928,7 @@ pub extern "C" fn build_stl_str_hl(
                     }
                     if crate::memory::cstr_first_byte(fmt_p.cast()) == b'}' {
                         fmt_p = fmt_p.wrapping_add(1);
-                        if reevaluate && out_p > out.data.cast() {
+                        if reevaluate && out_p > out.data {
                             *out_p.wrapping_sub(1) = 0;
                         } else {
                             *out_p = 0;
@@ -2498,7 +2498,7 @@ pub extern "C" fn build_stl_str_hl(
         *out_p = 0;
         drop(owned_usefmt);
 
-        let mut width = vim_strsize(out.data);
+        let mut width = vim_strsize(out.data.cast());
         if maxwidth > 0 && width > maxwidth && (stcp.is_null() || width > MAX_STCWIDTH) {
             stl_truncate(
                 &mut width,
@@ -2508,7 +2508,7 @@ pub extern "C" fn build_stl_str_hl(
                 stl_items!(),
                 evalstart,
                 &mut stl_st().curitem,
-                out.data,
+                out.data.cast(),
                 &raw mut out_p,
             );
         } else if width < maxwidth {
@@ -2521,7 +2521,7 @@ pub extern "C" fn build_stl_str_hl(
                 stl_items!(),
                 evalstart,
                 stl_st().curitem,
-                out.data.cast(),
+                out.data,
                 &raw mut out_p,
             );
         }
@@ -2669,7 +2669,7 @@ mod tests {
                 let cells = build_stl_str_hl(
                     curwin_ptr(),
                     CharBuf {
-                        data: out_buf.as_mut_ptr().cast(),
+                        data: out_buf.as_mut_ptr(),
                         size: out_buf.len(),
                     },
                     pat_c.as_mut_ptr(),

@@ -239,7 +239,7 @@ pub fn schar_cache_clear() {
     grid_st().glyph_cache_keys.clear();
     grid_st().glyph_cache_offsets.clear();
 
-    if !check_chars_options().is_null() {
+    if check_chars_options().is_some() {
         std::process::abort();
     }
 }

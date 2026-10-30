@@ -3649,7 +3649,7 @@ fn set_option_from_tv(varname: impl crate::strings::IntoCCharPtr, varp: &mut Typ
     if !error {
         let mut errbuf_storage = [0u8; IOSIZE];
         let errbuf = CharBuf {
-            data: errbuf_storage.as_mut_ptr().cast(),
+            data: errbuf_storage.as_mut_ptr(),
             size: IOSIZE,
         };
         let errmsg = set_option_value(opt_idx, value, OPT_LOCAL, true, Some(errbuf));

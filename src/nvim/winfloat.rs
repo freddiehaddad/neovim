@@ -652,7 +652,7 @@ pub fn win_previewpopup_config(value: &std::ffi::CStr, config: &mut WinConfig) -
 
         // Use 'previewpopup' border if set, else fallback to 'winborder'.
         let border = if has_key(v.is_set_pvp, KEYSET_OPTIDX_PVP_BORDER) {
-            Some(crate::memory::cstr_as_bytes(v.border.as_ptr()))
+            Some(crate::memory::cstr_as_bytes(&v.border))
         } else {
             crate::memory::cstr_as_opt_bytes(opt_vars().p_winborder).filter(|b| !b.is_empty())
         };

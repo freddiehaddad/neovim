@@ -124,6 +124,41 @@ impl IntoCCharPtr for &c_char {
     }
 }
 
+impl IntoCCharPtr for &u8 {
+    #[inline]
+    fn into_c_char_ptr(self) -> *const c_char {
+        ptr::from_ref(self).cast()
+    }
+}
+
+impl IntoCCharPtr for &[u8] {
+    #[inline]
+    fn into_c_char_ptr(self) -> *const c_char {
+        self.as_ptr().cast()
+    }
+}
+
+impl IntoCCharPtr for &mut [u8] {
+    #[inline]
+    fn into_c_char_ptr(self) -> *const c_char {
+        self.as_ptr().cast()
+    }
+}
+
+impl<const N: usize> IntoCCharPtr for &[u8; N] {
+    #[inline]
+    fn into_c_char_ptr(self) -> *const c_char {
+        self.as_ptr().cast()
+    }
+}
+
+impl<const N: usize> IntoCCharPtr for &mut [u8; N] {
+    #[inline]
+    fn into_c_char_ptr(self) -> *const c_char {
+        self.as_ptr().cast()
+    }
+}
+
 #[inline]
 pub fn tr<S: IntoCCharPtr>(s: S) -> *mut c_char {
     gettext(s.into_c_char_ptr())
