@@ -48,8 +48,15 @@ use crate::regexp::{
 use crate::runtime::{DIP_ALL, DOSO_NONE, do_source, source_runtime};
 use crate::strings::{gettext, vim_snprintf, vim_strchr};
 use crate::window::WinInfoInfo;
-use std::ffi::c_char;
 use std::ptr;
+
+pub use crate::option_vars::Synblock;
+
+macro_rules! syn_getcurline {
+    () => {
+        ml_get_buf(syn_st().syn_buf_mut(), syn_st().current_lnum)
+    };
+}
 
 #[repr(C)]
 #[derive(Clone, Copy, Default)]
@@ -67,106 +74,6 @@ impl SynTime {
             slowest: 0,
             count: 0,
             match_: 0,
-        }
-    }
-}
-
-#[repr(C)]
-pub struct Synblock {
-    pub b_keywtab: std::collections::BTreeMap<Vec<u8>, Vec<Keyentry>>,
-    pub b_keywtab_ic: std::collections::BTreeMap<Vec<u8>, Vec<Keyentry>>,
-    pub b_syn_error: bool,
-    pub b_syn_slow: bool,
-    pub b_syn_ic: i32,
-    pub b_syn_foldlevel: i32,
-    pub b_syn_spell: i32,
-    pub b_syn_patterns: Vec<Synpat>,
-    pub b_syn_clusters: Vec<SynCluster>,
-    pub b_spell_cluster_id: i32,
-    pub b_nospell_cluster_id: i32,
-    pub b_syn_containedin: i32,
-    pub b_syn_sync_flags: i32,
-    pub b_syn_sync_id: i16,
-    pub b_syn_sync_minlines: i32,
-    pub b_syn_sync_maxlines: i32,
-    pub b_syn_sync_linebreaks: i32,
-    pub b_syn_linecont_pat: Option<std::ffi::CString>,
-    pub b_syn_linecont_prog: Option<Box<Regprog>>,
-    pub b_syn_linecont_time: SynTime,
-    pub b_syn_linecont_ic: i32,
-    pub b_syn_topgrp: i32,
-    pub b_syn_conceal: i32,
-    pub b_syn_folditems: i32,
-    pub b_sst_array: Vec<Synstate>,
-    pub b_sst_max: i32,
-    pub b_sst_search: usize,
-    pub b_sst_check_lnum: i32,
-    pub b_sst_lasttick: u64,
-    pub b_idlist_cache: Option<Box<IdlCache>>,
-    pub b_langp: Vec<crate::spellsuggest::Langp>,
-    pub b_spell_ismw: [bool; 256],
-    pub b_spell_ismw_mb: Option<std::ffi::CString>,
-    pub b_p_spc: *mut c_char,
-    pub b_cap_prog: Option<Box<Regprog>>,
-    pub b_p_spf: *mut c_char,
-    pub b_p_spl: *mut c_char,
-    pub b_p_spo: *mut c_char,
-    pub b_p_spo_flags: u32,
-    pub b_cjk: i32,
-    pub b_syn_chartab: [u64; 4],
-    pub b_syn_isk: Option<std::ffi::CString>,
-}
-
-impl Synblock {
-    pub const fn new() -> Self {
-        Self {
-            b_keywtab: std::collections::BTreeMap::new(),
-            b_keywtab_ic: std::collections::BTreeMap::new(),
-            b_syn_error: false,
-            b_syn_slow: false,
-            b_syn_ic: 0,
-            b_syn_foldlevel: 0,
-            b_syn_spell: 0,
-            b_syn_patterns: Vec::new(),
-            b_syn_clusters: Vec::new(),
-            b_spell_cluster_id: 0,
-            b_nospell_cluster_id: 0,
-            b_syn_containedin: 0,
-            b_syn_sync_flags: 0,
-            b_syn_sync_id: 0,
-            b_syn_sync_minlines: 0,
-            b_syn_sync_maxlines: 0,
-            b_syn_sync_linebreaks: 0,
-            b_syn_linecont_pat: None,
-            b_syn_linecont_prog: None,
-            b_syn_linecont_time: SynTime {
-                total: 0,
-                slowest: 0,
-                count: 0,
-                match_: 0,
-            },
-            b_syn_linecont_ic: 0,
-            b_syn_topgrp: 0,
-            b_syn_conceal: 0,
-            b_syn_folditems: 0,
-            b_sst_array: Vec::new(),
-            b_sst_max: 0,
-            b_sst_search: 0,
-            b_sst_check_lnum: 0,
-            b_sst_lasttick: 0,
-            b_idlist_cache: None,
-            b_langp: Vec::new(),
-            b_spell_ismw: [false; 256],
-            b_spell_ismw_mb: None,
-            b_p_spc: ptr::null_mut(),
-            b_cap_prog: None,
-            b_p_spf: ptr::null_mut(),
-            b_p_spl: ptr::null_mut(),
-            b_p_spo: ptr::null_mut(),
-            b_p_spo_flags: 0,
-            b_cjk: 0,
-            b_syn_chartab: [0; 4],
-            b_syn_isk: None,
         }
     }
 }
@@ -207,10 +114,10 @@ const SPO_RE_OFF: usize = 5;
 const SPO_LC_OFF: usize = 6;
 const SPO_COUNT: usize = 7;
 
-const SPTYPE_MATCH: c_char = 1;
-const SPTYPE_START: c_char = 2;
-const SPTYPE_END: c_char = 3;
-const SPTYPE_SKIP: c_char = 4;
+const SPTYPE_MATCH: u8 = 1;
+const SPTYPE_START: u8 = 2;
+const SPTYPE_END: u8 = 3;
+const SPTYPE_SKIP: u8 = 4;
 
 const NONE_IDX: i32 = -2;
 const KEYWORD_IDX: i32 = -1;
@@ -252,23 +159,23 @@ const EXP_SPELL: i32 = 2;
 const EXP_SYNC: i32 = 3;
 const EXP_CLUSTER: i32 = 4;
 
-const SYNTAX_FNAME: *const c_char = c"$VIMRUNTIME/syntax/%s.vim".as_ptr();
-const E_ILLEGAL_ARG: *const c_char = c"E390: Illegal argument: %s".as_ptr();
-const E_CONTAINS_ARGUMENT_NOT_ACCEPTED_HERE: *const c_char =
-    c"E395: Contains argument not accepted here".as_ptr();
-const E_INVALID_CCHAR_VALUE: *const c_char = c"E844: Invalid cchar value".as_ptr();
-const E_TRAILING_CHAR_AFTER_RSB_STR_STR: *const c_char =
-    c"E890: Trailing char after ']': %s]%s".as_ptr();
-const MSG_NO_ITEMS: *const c_char = c"No Syntax items defined for this buffer".as_ptr();
+const SYNTAX_FNAME: &std::ffi::CStr = c"$VIMRUNTIME/syntax/%s.vim";
+const E_ILLEGAL_ARG: &std::ffi::CStr = c"E390: Illegal argument: %s";
+const E_CONTAINS_ARGUMENT_NOT_ACCEPTED_HERE: &std::ffi::CStr =
+    c"E395: Contains argument not accepted here";
+const E_INVALID_CCHAR_VALUE: &std::ffi::CStr = c"E844: Invalid cchar value";
+const E_TRAILING_CHAR_AFTER_RSB_STR_STR: &std::ffi::CStr =
+    c"E890: Trailing char after ']': %s]%s";
+const MSG_NO_ITEMS: &std::ffi::CStr = c"No Syntax items defined for this buffer";
 
-const SPO_NAME_TAB: [*const c_char; SPO_COUNT] = [
-    c"ms=".as_ptr(),
-    c"me=".as_ptr(),
-    c"hs=".as_ptr(),
-    c"he=".as_ptr(),
-    c"rs=".as_ptr(),
-    c"re=".as_ptr(),
-    c"lc=".as_ptr(),
+const SPO_NAME_TAB: [&std::ffi::CStr; SPO_COUNT] = [
+    c"ms=",
+    c"me=",
+    c"hs=",
+    c"he=",
+    c"rs=",
+    c"re=",
+    c"lc=",
 ];
 
 use crate::charset::NUL;
@@ -320,7 +227,7 @@ pub struct Keyentry {
     pub next_list: SynIdList,
     pub flags: i32,
     pub k_char: i32,
-    pub keyword: Vec<c_char>,
+    pub keyword: std::ffi::CString,
 }
 
 #[repr(C)]
@@ -345,7 +252,7 @@ pub struct Synstate {
 
 #[repr(C)]
 pub struct Synpat {
-    sp_type: c_char,
+    sp_type: u8,
     sp_syncing: bool,
     sp_syn_match_id: i16,
     sp_off_flags: i16,
@@ -639,7 +546,7 @@ fn cur_state_at(idx: i32) -> &'static mut Stateitem {
 
 #[inline]
 fn ke2hikey(kp: &Keyentry) -> &std::ffi::CStr {
-    crate::memory::cstr_from_ptr(kp.keyword.as_ptr())
+    kp.keyword.as_c_str()
 }
 
 #[inline]
@@ -842,8 +749,8 @@ fn syn_sync(wp: &mut WinInfoInfo, mut start_lnum: Linenr, last_valid: *const Syn
         while start_lnum > 1 {
             let l = ml_get(start_lnum - 1);
             if crate::memory::cstr_is_empty(l)
-                || unsafe { *l.wrapping_offset((ml_get_len(start_lnum - 1) - 1) as isize) }
-                    != b'\\' as c_char
+                || crate::memory::cstr_byte_at(l, (ml_get_len(start_lnum - 1) - 1) as usize)
+                    != b'\\'
             {
                 break;
             }
@@ -941,7 +848,7 @@ fn syn_sync(wp: &mut WinInfoInfo, mut start_lnum: Linenr, last_valid: *const Syn
 
                         let prev_current_col = syn_st().current_col;
                         if !crate::memory::cstr_is_empty(
-                            syn_getcurline().wrapping_offset(syn_st().current_col as isize),
+                            syn_getcurline!().wrapping_offset(syn_st().current_col as isize),
                         ) {
                             syn_st().current_col += 1;
                         }
@@ -993,7 +900,7 @@ fn syn_sync(wp: &mut WinInfoInfo, mut start_lnum: Linenr, last_valid: *const Syn
     validate_current_state();
 }
 
-fn save_chartab(chartab: *mut c_char) {
+fn save_chartab(chartab: &mut [u8; 32]) {
     if syn_block_mut().b_syn_isk.is_none() {
         return;
     }
@@ -1001,7 +908,7 @@ fn save_chartab(chartab: *mut c_char) {
     unsafe {
         ptr::copy(
             (&raw const syn_st().syn_buf_mut().b_chartab).cast::<u8>(),
-            chartab.cast::<u8>(),
+            chartab.as_mut_ptr(),
             32,
         )
     };
@@ -1014,18 +921,15 @@ fn save_chartab(chartab: *mut c_char) {
     };
 }
 
-fn restore_chartab(chartab: impl crate::strings::IntoCCharPtr) {
-    let chartab = chartab.into_c_char_ptr();
-    {
-        if win_s(unsafe { &mut *syn_st().syn_win }).b_syn_isk.is_some() {
-            unsafe {
-                ptr::copy(
-                    chartab.cast::<u8>(),
-                    (&raw mut syn_st().syn_buf_mut().b_chartab).cast::<u8>(),
-                    32,
-                )
-            };
-        }
+fn restore_chartab(chartab: &[u8; 32]) {
+    if win_s(unsafe { &mut *syn_st().syn_win }).b_syn_isk.is_some() {
+        unsafe {
+            ptr::copy(
+                chartab.as_ptr(),
+                (&raw mut syn_st().syn_buf_mut().b_chartab).cast::<u8>(),
+                32,
+            )
+        };
     }
 }
 
@@ -1035,8 +939,8 @@ fn syn_match_linecont(lnum: Linenr) -> i32 {
     }
 
     let mut regmatch: Regmmatch = Regmmatch::new();
-    let mut buf_chartab = [0 as c_char; 32];
-    save_chartab(buf_chartab.as_mut_ptr());
+    let mut buf_chartab = [0u8; 32];
+    save_chartab(&mut buf_chartab);
 
     regmatch.rmm_ic = syn_block_mut().b_syn_linecont_ic;
     regmatch.regprog = crate::regexp::regprog_as_ptr(&syn_block_mut().b_syn_linecont_prog);
@@ -1047,7 +951,7 @@ fn syn_match_linecont(lnum: Linenr) -> i32 {
         &mut syn_block_mut().b_syn_linecont_time,
     );
 
-    restore_chartab(buf_chartab.as_ptr());
+    restore_chartab(&buf_chartab);
     i32::from(r)
 }
 
@@ -1510,7 +1414,7 @@ fn syn_finish_line(syncing: bool) -> bool {
 
             let prev_current_col = syn_st().current_col;
             if !crate::memory::cstr_is_empty(
-                syn_getcurline().wrapping_offset(syn_st().current_col as isize),
+                syn_getcurline!().wrapping_offset(syn_st().current_col as isize),
             ) {
                 syn_st().current_col += 1;
             }
@@ -1594,13 +1498,13 @@ fn syn_current_attr(
         let mut regmatch: Regmmatch = Regmmatch::new();
         let mut pos = Lpos { lnum: 0, col: 0 };
         let mut cur_extmatch: Option<std::rc::Rc<RegExtmatch>> = None;
-        let mut buf_chartab = [0 as c_char; 32];
+        let mut buf_chartab = [0u8; 32];
 
         let mut keep_next_list: bool;
         let mut zero_width_next_list = false;
         let mut zero_width_next_ga: Vec<i32> = Vec::new();
 
-        let mut line = syn_getcurline();
+        let mut line = syn_getcurline!();
         if crate::memory::cstr_is_empty(line.wrapping_offset(syn_st().current_col as isize))
             && syn_st().current_col != 0
         {
@@ -1633,7 +1537,7 @@ fn syn_current_attr(
         let do_keywords = !syncing
             && (!syn_block_mut().b_keywtab.is_empty() || !syn_block_mut().b_keywtab_ic.is_empty());
 
-        save_chartab(buf_chartab.as_mut_ptr());
+        save_chartab(&mut buf_chartab);
 
         loop {
             found_match = false;
@@ -1651,7 +1555,7 @@ fn syn_current_attr(
                 || (*cur_si).si_cont_list.is_some()
             {
                 if do_keywords {
-                    line = syn_getcurline();
+                    line = syn_getcurline!();
                     let cur_pos = line.wrapping_offset(syn_st().current_col as isize);
                     if vim_iswordp_buf(cur_pos, syn_st().syn_buf_mut())
                         && (syn_st().current_col == 0
@@ -1908,7 +1812,7 @@ fn syn_current_attr(
 
             if syn_st().current_next_list.is_some() && !keep_next_list {
                 if !found_match {
-                    line = syn_getcurline();
+                    line = syn_getcurline!();
                     if ((syn_st().current_next_flags & HL_SKIPWHITE) != 0
                         && ascii_iswhite(*line.wrapping_offset(syn_st().current_col as isize)))
                         || ((syn_st().current_next_flags & HL_SKIPEMPTY) != 0
@@ -1930,7 +1834,7 @@ fn syn_current_attr(
             }
         }
 
-        restore_chartab(buf_chartab.as_ptr());
+        restore_chartab(&buf_chartab);
 
         syn_st().current_attr = 0;
         syn_st().current_id = 0;
@@ -1993,7 +1897,7 @@ fn syn_current_attr(
             if !syncing && !keep_state {
                 check_state_ends();
                 if !cur_state_empty()
-                    && *syn_getcurline().wrapping_offset(syn_st().current_col as isize) != NUL
+                    && *syn_getcurline!().wrapping_offset(syn_st().current_col as isize) != NUL
                 {
                     syn_st().current_col += 1;
                     check_state_ends();
@@ -2009,7 +1913,7 @@ fn syn_current_attr(
         }
 
         if syn_st().current_next_list.is_some() {
-            line = syn_getcurline();
+            line = syn_getcurline!();
             if !crate::memory::cstr_is_empty(line.wrapping_offset(syn_st().current_col as isize))
                 && *line.wrapping_offset((syn_st().current_col + 1) as isize) == NUL
                 && (syn_st().current_next_flags & (HL_SKIPNL | HL_SKIPEMPTY)) == 0
@@ -2140,7 +2044,7 @@ fn check_state_ends() {
             syn_st().current_next_list = cur_si.si_next_list.clone();
             syn_st().current_next_flags = cur_si.si_flags;
             if (syn_st().current_next_flags & (HL_SKIPNL | HL_SKIPEMPTY)) == 0
-                && unsafe { *syn_getcurline().wrapping_offset(syn_st().current_col as isize) }
+                && unsafe { *syn_getcurline!().wrapping_offset(syn_st().current_col as isize) }
                     == NUL
             {
                 syn_st().current_next_list = None;
@@ -2171,7 +2075,7 @@ fn check_state_ends() {
                 check_keepend();
                 if (syn_st().current_next_flags & HL_HAS_EOL) != 0
                     && syn_st().keepend_level < 0
-                    && unsafe { *syn_getcurline().wrapping_offset(syn_st().current_col as isize) }
+                    && unsafe { *syn_getcurline!().wrapping_offset(syn_st().current_col as isize) }
                         == NUL
                 {
                     break;
@@ -2370,9 +2274,9 @@ fn find_endpos(
     let mut best_regmatch: Regmmatch = Regmmatch::new();
     let mut pos = Lpos { lnum: 0, col: 0 };
     let mut had_match = false;
-    let mut buf_chartab = [0 as c_char; 32];
+    let mut buf_chartab = [0u8; 32];
 
-    save_chartab(buf_chartab.as_mut_ptr());
+    save_chartab(&mut buf_chartab);
 
     loop {
         let mut best_idx: i32 = -1;
@@ -2483,7 +2387,7 @@ fn find_endpos(
         m_endpos.lnum = 0;
     }
 
-    restore_chartab(buf_chartab.as_ptr());
+    restore_chartab(&buf_chartab);
 
     g_st().re_extmatch_in = None;
 }
@@ -2588,11 +2492,6 @@ fn syn_add_start_off(
 }
 
 #[inline]
-fn syn_getcurline() -> *mut c_char {
-    ml_get_buf(syn_st().syn_buf_mut(), syn_st().current_lnum)
-}
-
-#[inline]
 fn syn_getcurline_len() -> Colnr {
     ml_get_buf_len(syn_st().syn_buf_mut(), syn_st().current_lnum)
 }
@@ -2672,18 +2571,31 @@ fn check_keyword_id(
             return 0;
         }
 
-        let mut keyword = [0 as c_char; MAXKEYWLEN + 1];
-        crate::memory::cstr_ncpy(keyword.as_mut_ptr(), kwp, kwlen as usize);
+        let mut keyword = [0u8; MAXKEYWLEN + 1];
+        crate::memory::cstr_ncpy(keyword.as_mut_ptr().cast(), kwp, kwlen as usize);
 
         let mut kp: *const Keyentry = std::ptr::null();
 
         if !syn_block_mut().b_keywtab.is_empty() {
-            kp = match_keyword(keyword.as_mut_ptr(), &syn_block_mut().b_keywtab, cur_si);
+            kp = match_keyword(
+                keyword.as_mut_ptr().cast(),
+                &syn_block_mut().b_keywtab,
+                cur_si,
+            );
         }
 
         if kp.is_null() && !syn_block_mut().b_keywtab_ic.is_empty() {
-            str_foldcase(kwp, kwlen, keyword.as_mut_ptr(), (MAXKEYWLEN + 1) as i32);
-            kp = match_keyword(keyword.as_mut_ptr(), &syn_block_mut().b_keywtab_ic, cur_si);
+            str_foldcase(
+                kwp,
+                kwlen,
+                keyword.as_mut_ptr().cast(),
+                (MAXKEYWLEN + 1) as i32,
+            );
+            kp = match_keyword(
+                keyword.as_mut_ptr().cast(),
+                &syn_block_mut().b_keywtab_ic,
+                cur_si,
+            );
         }
 
         if !kp.is_null() {
@@ -3061,15 +2973,15 @@ fn syn_cmd_onoff(eap: &mut Exarg, name: &std::ffi::CStr) {
     eap.nextcmd = check_nextcmd(eap.arg);
     if eap.skip == 0 {
         syn_st().did_syntax_onoff = true;
-        let mut buf = [0 as c_char; 100];
-        unsafe { ptr::copy_nonoverlapping(c"so ".as_ptr(), buf.as_mut_ptr(), 4) };
+        let mut buf = [0u8; 100];
+        buf[..3].copy_from_slice(b"so ");
         vim_snprintf!(
-            buf.as_mut_ptr().wrapping_add(3),
+            buf.as_mut_ptr().wrapping_add(3).cast(),
             100 - 3,
             SYNTAX_FNAME,
             name.as_ptr()
         );
-        do_cmdline_cmd(buf.as_ptr());
+        do_cmdline_cmd(buf.as_ptr().cast());
     }
 }
 
@@ -3202,22 +3114,22 @@ fn syn_match_msg() {
 
 fn syn_list_one(id: i32, syncing: bool, link_only: bool) {
     let mut did_header = false;
-    const NAMELIST1: [(i32, *const c_char); 10] = [
-        (HL_DISPLAY, c"display".as_ptr()),
-        (HL_CONTAINED, c"contained".as_ptr()),
-        (HL_ONELINE, c"oneline".as_ptr()),
-        (HL_KEEPEND, c"keepend".as_ptr()),
-        (HL_EXTEND, c"extend".as_ptr()),
-        (HL_EXCLUDENL, c"excludenl".as_ptr()),
-        (HL_TRANSP, c"transparent".as_ptr()),
-        (HL_FOLD, c"fold".as_ptr()),
-        (HL_CONCEAL, c"conceal".as_ptr()),
-        (HL_CONCEALENDS, c"concealends".as_ptr()),
+    const NAMELIST1: [(i32, &std::ffi::CStr); 10] = [
+        (HL_DISPLAY, c"display"),
+        (HL_CONTAINED, c"contained"),
+        (HL_ONELINE, c"oneline"),
+        (HL_KEEPEND, c"keepend"),
+        (HL_EXTEND, c"extend"),
+        (HL_EXCLUDENL, c"excludenl"),
+        (HL_TRANSP, c"transparent"),
+        (HL_FOLD, c"fold"),
+        (HL_CONCEAL, c"conceal"),
+        (HL_CONCEALENDS, c"concealends"),
     ];
-    const NAMELIST2: [(i32, *const c_char); 3] = [
-        (HL_SKIPWHITE, c"skipwhite".as_ptr()),
-        (HL_SKIPNL, c"skipnl".as_ptr()),
-        (HL_SKIPEMPTY, c"skipempty".as_ptr()),
+    const NAMELIST2: [(i32, &std::ffi::CStr); 3] = [
+        (HL_SKIPWHITE, c"skipwhite"),
+        (HL_SKIPNL, c"skipnl"),
+        (HL_SKIPEMPTY, c"skipempty"),
     ];
 
     let hl_id = HLF_D;
@@ -3320,7 +3232,7 @@ fn syn_list_one(id: i32, syncing: bool, link_only: bool) {
     }
 }
 
-fn syn_list_flags(nlist: &[(i32, *const c_char)], flags: i32, hl_id: i32) {
+fn syn_list_flags(nlist: &[(i32, &std::ffi::CStr)], flags: i32, hl_id: i32) {
     for &(key, value) in nlist {
         if (flags & key) != 0 {
             msg_puts_hl(value, hl_id, false);
@@ -3558,25 +3470,23 @@ fn add_keyword(
 ) {
     let name = name.into_c_char_ptr();
     {
-        let mut name_folded = [0 as c_char; MAXKEYWLEN + 1];
-        let (name_ic, name_iclen): (*const c_char, usize) = if win_s(curwin_mut()).b_syn_ic != 0 {
+        let mut name_folded = [0u8; MAXKEYWLEN + 1];
+        let (name_ic, name_iclen): (*const u8, usize) = if win_s(curwin_mut()).b_syn_ic != 0 {
             str_foldcase(
                 name,
                 namelen as i32,
-                name_folded.as_mut_ptr(),
+                name_folded.as_mut_ptr().cast(),
                 (MAXKEYWLEN + 1) as i32,
             );
             (
                 name_folded.as_ptr(),
-                crate::memory::cstr_len(name_folded.as_ptr()),
+                crate::memory::cstr_len(name_folded.as_ptr().cast()),
             )
         } else {
-            (name, namelen)
+            (name.cast(), namelen)
         };
 
-        let mut kw_vec = Vec::with_capacity(name_iclen + 1);
-        kw_vec.extend_from_slice(unsafe { std::slice::from_raw_parts(name_ic, name_iclen) });
-        kw_vec.push(NUL);
+        let kw_vec = unsafe { std::slice::from_raw_parts(name_ic, name_iclen) };
         if cont_in_list.is_some() {
             win_s(curwin_mut()).b_syn_containedin = 1;
         }
@@ -3589,7 +3499,7 @@ fn add_keyword(
             next_list: next_list.clone(),
             flags,
             k_char: conceal_char,
-            keyword: kw_vec,
+            keyword: std::ffi::CString::new(kw_vec).unwrap_or_default(),
         };
 
         let ht = if win_s(curwin_mut()).b_syn_ic != 0 {
@@ -3597,37 +3507,31 @@ fn add_keyword(
         } else {
             &mut win_s(curwin_mut()).b_keywtab
         };
-        let key_bytes = crate::memory::cstr_slice(name_ic, name_iclen).to_vec();
+        let key_bytes = crate::memory::cstr_slice(name_ic.cast(), name_iclen).to_vec();
         ht.entry(key_bytes).or_default().insert(0, kp);
     }
 }
 
-fn get_group_name(
-    arg: impl crate::strings::IntoCCharPtr,
-    name_end: *mut *mut c_char,
-) -> *mut c_char {
-    let arg = arg.into_c_char_ptr();
-    {
-        unsafe {
-            *name_end = skiptowhite(arg);
-        }
-        let rest = skipwhite(unsafe { *name_end });
-        if ends_excmd(crate::memory::cstr_first_char(arg)) != 0
-            || crate::memory::cstr_is_empty(rest)
-        {
-            return ptr::null_mut();
-        }
-        rest
+fn get_group_name<T>(arg: *mut T, name_end: *mut *mut T) -> *mut T {
+    unsafe {
+        *name_end = skiptowhite(arg.cast()).cast();
     }
+    let rest: *mut T = skipwhite(unsafe { (*name_end).cast() }).cast();
+    if ends_excmd(crate::memory::cstr_first_char(arg.cast())) != 0
+        || crate::memory::cstr_is_empty(rest.cast())
+    {
+        return ptr::null_mut();
+    }
+    rest
 }
 
-fn get_syn_options(
-    arg: impl crate::strings::IntoCCharPtr,
+fn get_syn_options<T>(
+    arg: *mut T,
     opt: &mut SynOptArg,
     conceal_char: &mut i32,
     skip: i32,
-) -> *mut c_char {
-    let mut arg = arg.into_c_char_ptr().cast_mut();
+) -> *mut T {
+    let mut arg: *mut u8 = arg.cast();
     {
         const FLAGTAB: &[(&[u8], i32, i32)] = &[
             (b"cCoOnNtTaAiInNeEdD\0", 0, HL_CONTAINED),
@@ -3650,7 +3554,7 @@ fn get_syn_options(
             (b"cCoOnNtTaAiInNeEdDiInN\0", 2, 0),
             (b"nNeExXtTgGrRoOuUpP\0", 3, 0),
         ];
-        const FIRST_LETTERS: *const c_char = c"cCoOkKeEtTsSgGdDfFnN".as_ptr();
+        const FIRST_LETTERS: &[u8] = b"cCoOkKeEtTsSgGdDfFnN";
 
         if arg.is_null() {
             return ptr::null_mut();
@@ -3661,9 +3565,8 @@ fn get_syn_options(
         }
 
         loop {
-            if crate::memory::cstr_is_empty(arg)
-                || !crate::memory::cstr_as_bytes(FIRST_LETTERS)
-                    .contains(&(crate::memory::cstr_first_byte(arg)))
+            if crate::memory::cstr_is_empty(arg.cast())
+                || !FIRST_LETTERS.contains(&(crate::memory::cstr_first_byte(arg.cast())))
             {
                 break;
             }
@@ -3675,7 +3578,7 @@ fn get_syn_options(
                 let mut i: usize = 0;
                 len = 0;
                 while p[i] != 0 {
-                    let ch = crate::memory::cstr_byte_at(arg, len);
+                    let ch = crate::memory::cstr_byte_at(arg.cast(), len);
                     if ch != p[i] && ch != p[i + 1] {
                         break;
                     }
@@ -3683,11 +3586,11 @@ fn get_syn_options(
                     len += 1;
                 }
                 if p[i] == 0
-                    && (ascii_iswhite(crate::memory::cstr_char_at(arg, len))
+                    && (ascii_iswhite(crate::memory::cstr_char_at(arg.cast(), len))
                         || if argtype > 0 {
-                            crate::memory::cstr_byte_at(arg, len) == b'='
+                            crate::memory::cstr_byte_at(arg.cast(), len) == b'='
                         } else {
-                            ends_excmd(crate::memory::cstr_char_at(arg, len)) != 0
+                            ends_excmd(crate::memory::cstr_char_at(arg.cast(), len)) != 0
                         })
                 {
                     if opt.keyword
@@ -3720,17 +3623,17 @@ fn get_syn_options(
                 if !get_id_list(&raw mut arg, 9, &mut opt.next_list, skip != 0) {
                     return ptr::null_mut();
                 }
-            } else if argtype == 11 && crate::memory::cstr_byte_at(arg, 5) == b'=' {
-                *conceal_char = utf_ptr2char(arg.wrapping_add(6));
-                arg = arg.wrapping_offset((utfc_ptr2len(arg.wrapping_add(6)) - 1) as isize);
+            } else if argtype == 11 && crate::memory::cstr_byte_at(arg.cast(), 5) == b'=' {
+                *conceal_char = utf_ptr2char(arg.wrapping_add(6).cast());
+                arg = arg.wrapping_offset((utfc_ptr2len(arg.wrapping_add(6).cast()) - 1) as isize);
                 if !vim_isprintc(*conceal_char) {
                     emsg(gettext(E_INVALID_CCHAR_VALUE));
                     return ptr::null_mut();
                 }
-                arg = skipwhite(arg.wrapping_add(7));
+                arg = skipwhite(arg.wrapping_add(7).cast()).cast();
             } else {
                 opt.flags |= flags;
-                arg = skipwhite(arg.wrapping_add(len));
+                arg = skipwhite(arg.wrapping_add(len).cast()).cast();
 
                 if flags == HL_SYNC_HERE || flags == HL_SYNC_THERE {
                     if opt.sync_idx.is_none() {
@@ -3738,12 +3641,12 @@ fn get_syn_options(
                         return ptr::null_mut();
                     }
                     let gname_start = arg;
-                    arg = skiptowhite(arg);
+                    arg = skiptowhite(arg.cast()).cast();
                     if gname_start == arg {
                         return ptr::null_mut();
                     }
                     let gname_slice = crate::memory::cstr_slice(
-                        gname_start,
+                        gname_start.cast(),
                         crate::memory::ptr_offset_from(arg, gname_start) as usize,
                     );
                     let gname = std::ffi::CString::new(gname_slice).unwrap();
@@ -3769,14 +3672,14 @@ fn get_syn_options(
                         }
                     }
 
-                    arg = skipwhite(arg);
+                    arg = skipwhite(arg.cast()).cast();
                 } else if flags == HL_FOLD && foldmethod_is_syntax(curwin_mut()) {
                     fold_update_all(curwin_mut());
                 }
             }
         }
 
-        arg
+        arg.cast()
     }
 }
 
@@ -3796,8 +3699,8 @@ fn syn_incl_toplevel(id: i32, flagsp: &mut i32) {
 fn syn_cmd_include(eap: &mut Exarg, _syncing: i32) {
     let mut arg = eap.arg;
     let mut sgl_id: i32 = 1;
-    let mut group_name_end: *mut c_char = ptr::null_mut();
-    let mut errormsg: *const c_char = std::ptr::null();
+    let mut group_name_end = ptr::null_mut();
+    let mut errormsg = std::ptr::null();
     let mut source = false;
 
     eap.nextcmd = find_nextcmd(arg);
@@ -3863,7 +3766,7 @@ fn syn_cmd_include(eap: &mut Exarg, _syncing: i32) {
 
 fn syn_cmd_keyword(eap: &mut Exarg, _syncing: i32) {
     let arg = eap.arg;
-    let mut group_name_end: *mut c_char = ptr::null_mut();
+    let mut group_name_end = ptr::null_mut();
     let mut conceal_char: i32 = NUL as i32;
 
     let mut rest = get_group_name(arg, &raw mut group_name_end);
@@ -3878,7 +3781,7 @@ fn syn_cmd_keyword(eap: &mut Exarg, _syncing: i32) {
             )
         };
         if syn_id != 0 {
-            let mut keyword_buf = vec![0 as c_char; crate::memory::cstr_len(rest) + 1];
+            let mut keyword_buf = vec![0u8; crate::memory::cstr_len(rest) + 1];
             let keyword_copy = keyword_buf.as_mut_ptr();
             let mut syn_opt_arg = SynOptArg {
                 flags: 0,
@@ -3906,13 +3809,13 @@ fn syn_cmd_keyword(eap: &mut Exarg, _syncing: i32) {
                         rest = rest.wrapping_add(1);
                     }
                     unsafe {
-                        *p = *rest;
+                        *p = *rest as u8;
                     }
                     p = p.wrapping_add(1);
                     rest = rest.wrapping_add(1);
                 }
                 unsafe {
-                    *p = NUL;
+                    *p = 0;
                 }
                 p = p.wrapping_add(1);
                 cnt += 1;
@@ -3926,18 +3829,18 @@ fn syn_cmd_keyword(eap: &mut Exarg, _syncing: i32) {
                 let mut kwlen: usize;
                 'kw_loop: while cnt > 0 {
                     cnt -= 1;
-                    p = vim_strchr(kw, b'[' as i32);
+                    p = vim_strchr(kw.cast(), b'[' as i32).cast();
                     loop {
                         if p.is_null() {
-                            kwlen = crate::memory::cstr_len(kw);
+                            kwlen = crate::memory::cstr_len(kw.cast());
                         } else {
                             unsafe {
-                                *p = NUL;
+                                *p = 0;
                             }
                             kwlen = crate::memory::ptr_offset_from(p, kw) as usize;
                         }
                         add_keyword(
-                            kw,
+                            kw.cast(),
                             kwlen,
                             syn_id,
                             syn_opt_arg.flags,
@@ -3948,16 +3851,19 @@ fn syn_cmd_keyword(eap: &mut Exarg, _syncing: i32) {
                         if p.is_null() {
                             break;
                         }
-                        if crate::memory::cstr_byte_at(p, 1) == 0 {
-                            semsg!(gettext(c"E789: Missing ']': %s"), kw);
+                        if crate::memory::cstr_byte_at(p.cast(), 1) == 0 {
+                            semsg!(
+                                gettext(c"E789: Missing ']': %s"),
+                                kw.cast::<std::ffi::c_void>()
+                            );
                             break 'kw_loop;
                         }
-                        if crate::memory::cstr_byte_at(p, 1) == b']' {
-                            if crate::memory::cstr_byte_at(p, 2) != 0 {
+                        if crate::memory::cstr_byte_at(p.cast(), 1) == b']' {
+                            if crate::memory::cstr_byte_at(p.cast(), 2) != 0 {
                                 semsg!(
                                     gettext(E_TRAILING_CHAR_AFTER_RSB_STR_STR),
-                                    kw,
-                                    p.wrapping_add(2)
+                                    kw.cast::<std::ffi::c_void>(),
+                                    p.wrapping_add(2).cast::<std::ffi::c_void>()
                                 );
                                 break 'kw_loop;
                             }
@@ -3965,7 +3871,7 @@ fn syn_cmd_keyword(eap: &mut Exarg, _syncing: i32) {
                             kwlen = 1;
                             break;
                         }
-                        let l = utfc_ptr2len(p.wrapping_add(1)) as usize;
+                        let l = utfc_ptr2len(p.wrapping_add(1).cast()) as usize;
                         unsafe { ptr::copy(p.wrapping_add(1), p, l) };
                         p = p.wrapping_add(l);
                     }
@@ -3987,7 +3893,7 @@ fn syn_cmd_keyword(eap: &mut Exarg, _syncing: i32) {
 
 fn syn_cmd_match(eap: &mut Exarg, syncing: i32) {
     let arg = eap.arg;
-    let mut group_name_end: *mut c_char = ptr::null_mut();
+    let mut group_name_end = ptr::null_mut();
     let mut item = Synpat::new();
     let mut conceal_char: i32 = NUL as i32;
 
@@ -4059,7 +3965,7 @@ fn syn_cmd_match(eap: &mut Exarg, syncing: i32) {
 
 fn syn_cmd_region(eap: &mut Exarg, syncing: i32) {
     let arg = eap.arg;
-    let mut group_name_end: *mut c_char = ptr::null_mut();
+    let mut group_name_end = ptr::null_mut();
     let mut key: Option<std::ffi::CString> = None;
     let mut pat_ptrs: [Vec<PatPtr>; 3] = [Vec::new(), Vec::new(), Vec::new()];
     let mut pat_count: i32 = 0;
@@ -4374,7 +4280,7 @@ fn syn_add_cluster(name: std::ffi::CString) -> i32 {
 
 fn syn_cmd_cluster(eap: &mut Exarg, _syncing: i32) {
     let arg = eap.arg;
-    let mut group_name_end: *mut c_char = ptr::null_mut();
+    let mut group_name_end = ptr::null_mut();
     let mut got_clstr = false;
 
     eap.nextcmd = find_nextcmd(arg);
@@ -4441,25 +4347,32 @@ fn syn_cmd_cluster(eap: &mut Exarg, _syncing: i32) {
     }
 }
 
-fn get_syn_pattern(arg: impl crate::strings::IntoCCharPtr, ci: &mut Synpat) -> *mut c_char {
-    let arg = arg.into_c_char_ptr().cast_mut();
+fn get_syn_pattern<T>(arg: *mut T, ci: &mut Synpat) -> *mut T {
+    let arg: *mut u8 = arg.cast();
     {
-        if crate::memory::cstr_is_empty(arg)
-            || crate::memory::cstr_byte_at(arg, 1) == 0
-            || crate::memory::cstr_byte_at(arg, 2) == 0
+        if crate::memory::cstr_is_empty(arg.cast())
+            || crate::memory::cstr_byte_at(arg.cast(), 1) == 0
+            || crate::memory::cstr_byte_at(arg.cast(), 2) == 0
         {
             return ptr::null_mut();
         }
 
-        let mut end = skip_regexp(arg.wrapping_add(1), crate::memory::cstr_first_char(arg), 1);
-        if unsafe { *end } != unsafe { *arg } {
-            semsg!(gettext(c"E401: Pattern delimiter not found: %s"), arg,);
+        let mut end = skip_regexp(
+            arg.wrapping_add(1).cast(),
+            crate::memory::cstr_first_char(arg.cast()),
+            1,
+        );
+        if unsafe { *end as u8 } != unsafe { *arg } {
+            semsg!(
+                gettext(c"E401: Pattern delimiter not found: %s"),
+                arg.cast::<std::ffi::c_void>(),
+            );
             return ptr::null_mut();
         }
         let pat_slice = unsafe {
             std::slice::from_raw_parts(
-                arg.wrapping_add(1).cast::<u8>(),
-                crate::memory::ptr_offset_from(end, arg) as usize - 1,
+                arg.wrapping_add(1),
+                crate::memory::ptr_offset_from(end, arg.cast()) as usize - 1,
             )
         };
         let pat_cstr = std::ffi::CString::new(pat_slice).unwrap();
@@ -4480,8 +4393,7 @@ fn get_syn_pattern(arg: impl crate::strings::IntoCCharPtr, ci: &mut Synpat) -> *
         loop {
             let mut idx: isize = SPO_COUNT as isize - 1;
             while idx >= 0 {
-                if crate::memory::cstr_prefix_bytes(end, 3)
-                    == crate::memory::cstr_prefix_bytes(SPO_NAME_TAB[idx as usize], 3)
+                if crate::memory::cstr_prefix_bytes(end, 3) == SPO_NAME_TAB[idx as usize].to_bytes()
                 {
                     break;
                 }
@@ -4537,10 +4449,13 @@ fn get_syn_pattern(arg: impl crate::strings::IntoCCharPtr, ci: &mut Synpat) -> *
         if ends_excmd(crate::memory::cstr_first_char(end)) == 0
             && !ascii_iswhite(crate::memory::cstr_first_char(end))
         {
-            semsg!(gettext(c"E402: Garbage after pattern: %s"), arg);
+            semsg!(
+                gettext(c"E402: Garbage after pattern: %s"),
+                arg.cast::<std::ffi::c_void>()
+            );
             return ptr::null_mut();
         }
-        skipwhite(end)
+        skipwhite(end).cast()
     }
 }
 
@@ -4688,9 +4603,10 @@ fn syn_cmd_sync(eap: &mut Exarg, _syncing: i32) {
     }
 }
 
-fn get_id_list(arg: *mut *mut c_char, keylen: i32, list: &mut SynIdList, skip: bool) -> bool {
+fn get_id_list<T>(arg: *mut *mut T, keylen: i32, list: &mut SynIdList, skip: bool) -> bool {
+    let arg = arg.cast::<*mut u8>();
     unsafe {
-        let mut p: *mut c_char = ptr::null_mut();
+        let mut p: *mut u8 = ptr::null_mut();
         let mut total_count: i32 = 0;
         let mut retval: Vec<i16> = Vec::new();
         let mut regmatch: Regmatch = Regmatch::new();
@@ -4698,82 +4614,91 @@ fn get_id_list(arg: *mut *mut c_char, keylen: i32, list: &mut SynIdList, skip: b
 
         let mut round: i32 = 1;
         while round <= 2 {
-            p = skipwhite((*arg).wrapping_offset(keylen as isize));
-            if crate::memory::cstr_first_byte(p) != b'=' {
-                semsg!(gettext(c"E405: Missing equal sign: %s"), *arg);
+            p = skipwhite((*arg).wrapping_offset(keylen as isize).cast()).cast();
+            if crate::memory::cstr_first_byte(p.cast()) != b'=' {
+                semsg!(
+                    gettext(c"E405: Missing equal sign: %s"),
+                    (*arg).cast::<std::ffi::c_void>()
+                );
                 break;
             }
-            p = skipwhite(p.wrapping_add(1));
-            if ends_excmd(crate::memory::cstr_first_char(p)) != 0 {
-                semsg!(gettext(c"E406: Empty argument: %s"), *arg);
+            p = skipwhite(p.wrapping_add(1).cast()).cast();
+            if ends_excmd(crate::memory::cstr_first_char(p.cast())) != 0 {
+                semsg!(
+                    gettext(c"E406: Empty argument: %s"),
+                    (*arg).cast::<std::ffi::c_void>()
+                );
                 break;
             }
 
             let mut count: i32 = 0;
             loop {
                 let mut end = p;
-                while !crate::memory::cstr_is_empty(end)
-                    && !ascii_iswhite(crate::memory::cstr_first_char(end))
-                    && crate::memory::cstr_first_byte(end) != b','
+                while !crate::memory::cstr_is_empty(end.cast())
+                    && !ascii_iswhite(crate::memory::cstr_first_char(end.cast()))
+                    && crate::memory::cstr_first_byte(end.cast()) != b','
                 {
                     end = end.wrapping_add(1);
                 }
                 let mut name_buf =
-                    vec![0 as c_char; crate::memory::ptr_offset_from(end, p) as usize + 3];
+                    vec![0u8; crate::memory::ptr_offset_from(end, p) as usize + 3];
                 let name = name_buf.as_mut_ptr();
                 crate::memory::cstr_ncpy(
-                    name.wrapping_add(1),
-                    p,
+                    name.wrapping_add(1).cast(),
+                    p.cast(),
                     crate::memory::ptr_offset_from(end, p) as usize,
                 );
                 let mut id: i32;
-                if (crate::memory::cstr_as_bytes(name.wrapping_add(1)) == b"ALLBUT")
-                    || (crate::memory::cstr_as_bytes(name.wrapping_add(1)) == b"ALL")
-                    || (crate::memory::cstr_as_bytes(name.wrapping_add(1)) == b"TOP")
-                    || (crate::memory::cstr_as_bytes(name.wrapping_add(1)) == b"CONTAINED")
+                if (crate::memory::cstr_as_bytes(name.wrapping_add(1).cast()) == b"ALLBUT")
+                    || (crate::memory::cstr_as_bytes(name.wrapping_add(1).cast()) == b"ALL")
+                    || (crate::memory::cstr_as_bytes(name.wrapping_add(1).cast()) == b"TOP")
+                    || (crate::memory::cstr_as_bytes(name.wrapping_add(1).cast()) == b"CONTAINED")
                 {
-                    if !(**arg as u8).eq_ignore_ascii_case(&b'C') {
-                        semsg!(gettext(c"E407: %s not allowed here"), name.wrapping_add(1));
+                    if !(**arg).eq_ignore_ascii_case(&b'C') {
+                        semsg!(
+                            gettext(c"E407: %s not allowed here"),
+                            name.wrapping_add(1).cast::<std::ffi::c_void>()
+                        );
                         failed = true;
                         break;
                     }
                     if count != 0 {
                         semsg!(
                             gettext(c"E408: %s must be first in contains list"),
-                            name.wrapping_add(1),
+                            name.wrapping_add(1).cast::<std::ffi::c_void>(),
                         );
                         failed = true;
                         break;
                     }
-                    id = if crate::memory::cstr_byte_at(name, 1) == b'A' {
+                    id = if crate::memory::cstr_byte_at(name.cast(), 1) == b'A' {
                         SYNID_ALLBUT as i32
-                    } else if crate::memory::cstr_byte_at(name, 1) == b'T' {
+                    } else if crate::memory::cstr_byte_at(name.cast(), 1) == b'T' {
                         SYNID_TOP as i32
                     } else {
                         SYNID_CONTAINED as i32
                     };
                     id += syn_st().current_syn_inc_tag;
-                } else if crate::memory::cstr_byte_at(name, 1) == b'@' {
+                } else if crate::memory::cstr_byte_at(name.cast(), 1) == b'@' {
                     if skip {
                         id = -1;
                     } else {
                         id = syn_check_cluster(
-                            name.wrapping_add(2),
+                            name.wrapping_add(2).cast(),
                             crate::memory::ptr_offset_from(end, p) as i32 - 1,
                         );
                     }
-                } else if !crate::memory::cstr_as_bytes(name.wrapping_add(1))
+                } else if !crate::memory::cstr_as_bytes(name.wrapping_add(1).cast())
                     .iter()
                     .any(|b| b"\\.*^$~[".contains(b))
                 {
                     id = syn_check_group(
-                        name.wrapping_add(1),
+                        name.wrapping_add(1).cast(),
                         crate::memory::ptr_offset_from(end, p) as usize,
                     );
                 } else {
-                    *name = b'^' as c_char;
-                    crate::memory::cstr_cat(name.wrapping_add(1), c"$");
-                    regmatch.regprog = vim_regcomp(name, RE_MAGIC);
+                    *name = b'^';
+                    crate::memory::cstr_cat(name.wrapping_add(1).cast(), c"$");
+                    regmatch.regprog = vim_regcomp(name.cast(), RE_MAGIC);
                     if regmatch.regprog.is_null() {
                         failed = true;
                         break;
@@ -4800,7 +4725,10 @@ fn get_id_list(arg: *mut *mut c_char, keylen: i32, list: &mut SynIdList, skip: b
                     vim_regfree(regmatch.regprog);
                 }
                 if id == 0 {
-                    semsg!(gettext(c"E409: Unknown group name: %s"), p);
+                    semsg!(
+                        gettext(c"E409: Unknown group name: %s"),
+                        p.cast::<std::ffi::c_void>()
+                    );
                     failed = true;
                     break;
                 }
@@ -4815,12 +4743,12 @@ fn get_id_list(arg: *mut *mut c_char, keylen: i32, list: &mut SynIdList, skip: b
                     }
                     count += 1;
                 }
-                p = skipwhite(end);
-                if crate::memory::cstr_first_byte(p) != b',' {
+                p = skipwhite(end.cast()).cast();
+                if crate::memory::cstr_first_byte(p.cast()) != b',' {
                     break;
                 }
-                p = skipwhite(p.wrapping_add(1));
-                if ends_excmd(crate::memory::cstr_first_char(p)) != 0 {
+                p = skipwhite(p.wrapping_add(1).cast()).cast();
+                if ends_excmd(crate::memory::cstr_first_char(p.cast())) != 0 {
                     break;
                 }
             }
@@ -5217,78 +5145,52 @@ pub fn set_context_in_syntax_cmd(xp: &mut ExpandCtx, arg: impl crate::strings::I
     }
 }
 
-pub fn get_syntax_name(xp: &mut ExpandCtx, idx: i32) -> *mut c_char {
+pub fn get_syntax_name(xp: &mut ExpandCtx, idx: i32) -> Option<&std::ffi::CStr> {
     if idx < 0 {
-        return ptr::null_mut();
+        return None;
     }
     let u = idx as usize;
     match syn_st().expand_what {
-        EXP_SUBCMD => {
-            if u >= SUBCOMMANDS.len() {
-                ptr::null_mut()
-            } else {
-                SUBCOMMANDS[u].0.as_ptr().cast_mut()
-            }
-        }
+        EXP_SUBCMD => SUBCOMMANDS.get(u).map(|&(name, _)| name),
         EXP_CASE => {
-            const CASE_ARGS: [*const c_char; 3] =
-                [c"match".as_ptr(), c"ignore".as_ptr(), std::ptr::null()];
-            if u >= CASE_ARGS.len() {
-                ptr::null_mut()
-            } else {
-                CASE_ARGS[u].cast_mut()
-            }
+            const CASE_ARGS: [&std::ffi::CStr; 2] = [c"match", c"ignore"];
+            CASE_ARGS.get(u).copied()
         }
         EXP_SPELL => {
-            const SPELL_ARGS: [*const c_char; 4] = [
-                c"toplevel".as_ptr(),
-                c"notoplevel".as_ptr(),
-                c"default".as_ptr(),
-                std::ptr::null(),
-            ];
-            if u >= SPELL_ARGS.len() {
-                ptr::null_mut()
-            } else {
-                SPELL_ARGS[u].cast_mut()
-            }
+            const SPELL_ARGS: [&std::ffi::CStr; 3] = [c"toplevel", c"notoplevel", c"default"];
+            SPELL_ARGS.get(u).copied()
         }
         EXP_SYNC => {
-            const SYNC_ARGS: [*const c_char; 11] = [
-                c"ccomment".as_ptr(),
-                c"clear".as_ptr(),
-                c"fromstart".as_ptr(),
-                c"linebreaks=".as_ptr(),
-                c"linecont".as_ptr(),
-                c"lines=".as_ptr(),
-                c"match".as_ptr(),
-                c"maxlines=".as_ptr(),
-                c"minlines=".as_ptr(),
-                c"region".as_ptr(),
-                std::ptr::null(),
+            const SYNC_ARGS: [&std::ffi::CStr; 10] = [
+                c"ccomment",
+                c"clear",
+                c"fromstart",
+                c"linebreaks=",
+                c"linecont",
+                c"lines=",
+                c"match",
+                c"maxlines=",
+                c"minlines=",
+                c"region",
             ];
-            if u >= SYNC_ARGS.len() {
-                ptr::null_mut()
-            } else {
-                SYNC_ARGS[u].cast_mut()
-            }
+            SYNC_ARGS.get(u).copied()
         }
         EXP_CLUSTER => {
             if (idx as usize) < win_s(curwin_mut()).b_syn_clusters.len() {
-                let xp_buf: *mut c_char = xp.xp_buf.as_mut_ptr().cast();
                 vim_snprintf!(
-                    xp_buf,
+                    xp.xp_buf.as_mut_ptr().cast(),
                     EXPAND_BUF_LEN,
                     c"@%s",
                     syn_clstr(&mut *win_s(curwin_mut()), idx as isize)
                         .scl_name
                         .as_ptr(),
                 );
-                xp_buf
+                Some(unsafe { std::ffi::CStr::from_ptr(xp.xp_buf.as_ptr().cast()) })
             } else {
-                ptr::null_mut()
+                None
             }
         }
-        _ => ptr::null_mut(),
+        _ => None,
     }
 }
 
@@ -5419,13 +5321,13 @@ fn syntime_clear() {
     }
 }
 
-pub fn get_syntime_arg(_xp: &mut ExpandCtx, idx: i32) -> *mut c_char {
+pub fn get_syntime_arg(_xp: &mut ExpandCtx, idx: i32) -> Option<&'static std::ffi::CStr> {
     match idx {
-        0 => c"on".as_ptr().cast_mut(),
-        1 => c"off".as_ptr().cast_mut(),
-        2 => c"clear".as_ptr().cast_mut(),
-        3 => c"report".as_ptr().cast_mut(),
-        _ => ptr::null_mut(),
+        0 => Some(c"on"),
+        1 => Some(c"off"),
+        2 => Some(c"clear"),
+        3 => Some(c"report"),
+        _ => None,
     }
 }
 
@@ -5520,14 +5422,14 @@ mod tests {
     #[test]
     fn get_syntime_arg_and_limit_pos_work() {
         assert_eq!(
-            crate::memory::cstr_as_bytes(get_syntime_arg(&mut crate::os::env::ExpandCtx::new(), 0)),
-            b"on"
+            get_syntime_arg(&mut crate::os::env::ExpandCtx::new(), 0),
+            Some(c"on")
         );
         assert_eq!(
-            crate::memory::cstr_as_bytes(get_syntime_arg(&mut crate::os::env::ExpandCtx::new(), 3)),
-            b"report"
+            get_syntime_arg(&mut crate::os::env::ExpandCtx::new(), 3),
+            Some(c"report")
         );
-        assert!(get_syntime_arg(&mut crate::os::env::ExpandCtx::new(), 4).is_null());
+        assert!(get_syntime_arg(&mut crate::os::env::ExpandCtx::new(), 4).is_none());
 
         let mut pos = Lpos { lnum: 5, col: 10 };
         let mut limit = Lpos { lnum: 5, col: 4 };

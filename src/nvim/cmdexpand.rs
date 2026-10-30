@@ -4973,13 +4973,17 @@ fn expand_other(
         },
         ExpGen {
             context: EXPAND_SYNTAX,
-            func: get_syntax_name,
+            func: |xp, idx| {
+                get_syntax_name(xp, idx).map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut())
+            },
             ic: true,
             escaped: true,
         },
         ExpGen {
             context: EXPAND_SYNTIME,
-            func: get_syntime_arg,
+            func: |xp, idx| {
+                get_syntime_arg(xp, idx).map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut())
+            },
             ic: true,
             escaped: true,
         },

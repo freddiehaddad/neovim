@@ -6,9 +6,111 @@ use std::ptr;
 use crate::eval::typval::Callback;
 use crate::option::OptInt;
 use crate::optionstr::{OptIndex, OptSchemaItem, OptSchemaKind};
+use crate::regexp::Regprog;
+use crate::syntax::{IdlCache, Keyentry, SynCluster, SynTime, Synpat, Synstate};
 use crate::window::K_WIN_OPT_COUNT;
 
 use crate::globals::GlobalState;
+
+#[repr(C)]
+pub struct Synblock {
+    pub b_keywtab: std::collections::BTreeMap<Vec<u8>, Vec<Keyentry>>,
+    pub b_keywtab_ic: std::collections::BTreeMap<Vec<u8>, Vec<Keyentry>>,
+    pub b_syn_error: bool,
+    pub b_syn_slow: bool,
+    pub b_syn_ic: i32,
+    pub b_syn_foldlevel: i32,
+    pub b_syn_spell: i32,
+    pub b_syn_patterns: Vec<Synpat>,
+    pub b_syn_clusters: Vec<SynCluster>,
+    pub b_spell_cluster_id: i32,
+    pub b_nospell_cluster_id: i32,
+    pub b_syn_containedin: i32,
+    pub b_syn_sync_flags: i32,
+    pub b_syn_sync_id: i16,
+    pub b_syn_sync_minlines: i32,
+    pub b_syn_sync_maxlines: i32,
+    pub b_syn_sync_linebreaks: i32,
+    pub b_syn_linecont_pat: Option<std::ffi::CString>,
+    pub b_syn_linecont_prog: Option<Box<Regprog>>,
+    pub b_syn_linecont_time: SynTime,
+    pub b_syn_linecont_ic: i32,
+    pub b_syn_topgrp: i32,
+    pub b_syn_conceal: i32,
+    pub b_syn_folditems: i32,
+    pub b_sst_array: Vec<Synstate>,
+    pub b_sst_max: i32,
+    pub b_sst_search: usize,
+    pub b_sst_check_lnum: i32,
+    pub b_sst_lasttick: u64,
+    pub b_idlist_cache: Option<Box<IdlCache>>,
+    pub b_langp: Vec<crate::spellsuggest::Langp>,
+    pub b_spell_ismw: [bool; 256],
+    pub b_spell_ismw_mb: Option<std::ffi::CString>,
+    pub b_p_spc: *mut c_char,
+    pub b_cap_prog: Option<Box<Regprog>>,
+    pub b_p_spf: *mut c_char,
+    pub b_p_spl: *mut c_char,
+    pub b_p_spo: *mut c_char,
+    pub b_p_spo_flags: u32,
+    pub b_cjk: i32,
+    pub b_syn_chartab: [u64; 4],
+    pub b_syn_isk: Option<std::ffi::CString>,
+}
+
+impl Synblock {
+    pub const fn new() -> Self {
+        Self {
+            b_keywtab: std::collections::BTreeMap::new(),
+            b_keywtab_ic: std::collections::BTreeMap::new(),
+            b_syn_error: false,
+            b_syn_slow: false,
+            b_syn_ic: 0,
+            b_syn_foldlevel: 0,
+            b_syn_spell: 0,
+            b_syn_patterns: Vec::new(),
+            b_syn_clusters: Vec::new(),
+            b_spell_cluster_id: 0,
+            b_nospell_cluster_id: 0,
+            b_syn_containedin: 0,
+            b_syn_sync_flags: 0,
+            b_syn_sync_id: 0,
+            b_syn_sync_minlines: 0,
+            b_syn_sync_maxlines: 0,
+            b_syn_sync_linebreaks: 0,
+            b_syn_linecont_pat: None,
+            b_syn_linecont_prog: None,
+            b_syn_linecont_time: SynTime {
+                total: 0,
+                slowest: 0,
+                count: 0,
+                match_: 0,
+            },
+            b_syn_linecont_ic: 0,
+            b_syn_topgrp: 0,
+            b_syn_conceal: 0,
+            b_syn_folditems: 0,
+            b_sst_array: Vec::new(),
+            b_sst_max: 0,
+            b_sst_search: 0,
+            b_sst_check_lnum: 0,
+            b_sst_lasttick: 0,
+            b_idlist_cache: None,
+            b_langp: Vec::new(),
+            b_spell_ismw: [false; 256],
+            b_spell_ismw_mb: None,
+            b_p_spc: ptr::null_mut(),
+            b_cap_prog: None,
+            b_p_spf: ptr::null_mut(),
+            b_p_spl: ptr::null_mut(),
+            b_p_spo: ptr::null_mut(),
+            b_p_spo_flags: 0,
+            b_cjk: 0,
+            b_syn_chartab: [0; 4],
+            b_syn_isk: None,
+        }
+    }
+}
 
 #[repr(C)]
 pub struct Winopt {
