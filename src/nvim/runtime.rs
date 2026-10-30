@@ -3465,7 +3465,7 @@ fn get_one_sourceline(sp: &mut SourceCookie) -> Option<Vec<u8>> {
                 unsafe {
                     *errno_ptr() = 0;
                 }
-                if unsafe { fgets(buf.as_mut_ptr().wrapping_add(start).cast(), 120, fp) }.is_null()
+                if unsafe { fgets(buf.as_mut_ptr().wrapping_add(start), 120, fp) }.is_null()
                 {
                     if unsafe { *errno_ptr() } == EINTR {
                         continue;

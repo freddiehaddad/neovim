@@ -378,7 +378,7 @@ fn arglist_del_files(alist_ga: &[*mut u8]) {
         if g_st().got_int {
             break;
         }
-        let Some(p) = file_pat_to_reg_pat(orig_p.cast(), ptr::null(), ptr::null_mut(), 0) else {
+        let Some(p) = file_pat_to_reg_pat(orig_p.cast(), ptr::null(), None, 0) else {
             break;
         };
         regmatch.regprog = vim_regcomp(

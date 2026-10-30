@@ -1219,7 +1219,7 @@ pub fn f_glob2regpat(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFunc
     let regpat = if pat.is_null() {
         None
     } else {
-        file_pat_to_reg_pat(pat, ptr::null(), ptr::null_mut(), 0)
+        file_pat_to_reg_pat(pat, ptr::null(), None, 0)
     };
     crate::eval::typval::tv_set_string(rettv, regpat.as_ref().map_or(ptr::null(), |s| s.as_ptr()));
 }

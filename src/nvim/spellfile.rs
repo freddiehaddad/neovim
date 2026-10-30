@@ -1770,7 +1770,7 @@ fn spell_read_aff(
             af_comp: std::collections::BTreeMap::new(),
         };
 
-        while !vim_fgets(rline.as_mut_ptr().cast(), MAXLINELEN as i32, fd) && !g_st().got_int {
+        while !vim_fgets(rline.as_mut_ptr(), MAXLINELEN as i32, fd) && !g_st().got_int {
             line_breakcheck();
             lnum += 1;
 
@@ -2966,13 +2966,13 @@ fn spell_read_dic(
 
         spin.si_msg_count = 999999;
 
-        if vim_fgets(line.as_mut_ptr().cast(), MAXLINELEN as i32, fd)
+        if vim_fgets(line.as_mut_ptr(), MAXLINELEN as i32, fd)
             || !ascii_isdigit(unsafe { *skipwhite(line.as_ptr().cast()) } as i32)
         {
             semsg!(gettext(c"E760: No word count in %s"), fname);
         }
 
-        while !vim_fgets(line.as_mut_ptr().cast(), MAXLINELEN as i32, fd) && !g_st().got_int {
+        while !vim_fgets(line.as_mut_ptr(), MAXLINELEN as i32, fd) && !g_st().got_int {
             line_breakcheck();
             lnum += 1;
             if line[0] == b'#' || line[0] == b'/' {
@@ -3635,7 +3635,7 @@ fn spell_read_wordfile(spin: &mut Spellinfo, fname: impl crate::strings::IntoCCh
         );
         spell_message(&*spin, g_st().iobuff.as_mut_ptr());
 
-        while !vim_fgets(rline.as_mut_ptr().cast(), MAXLINELEN as i32, fd) && !g_st().got_int {
+        while !vim_fgets(rline.as_mut_ptr(), MAXLINELEN as i32, fd) && !g_st().got_int {
             line_breakcheck();
             lnum += 1;
 
@@ -5365,7 +5365,7 @@ pub fn spell_add_word(
             let mut fpos_next: i64 = 0;
             fd = os_fopen(fname.cast(), c"r");
             if !fd.is_null() {
-                while !vim_fgets(line.as_mut_ptr().cast(), (MAXWLEN * 2) as i32, fd) {
+                while !vim_fgets(line.as_mut_ptr(), (MAXWLEN * 2) as i32, fd) {
                     let fpos = fpos_next;
                     fpos_next = vim_ftell(fd);
                     if fpos_next < 0 {

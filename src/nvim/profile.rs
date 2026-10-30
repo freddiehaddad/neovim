@@ -765,7 +765,7 @@ fn script_dump_profile(fd: *mut FILE) {
             } else {
                 let mut i: i32 = 0;
                 loop {
-                    if vim_fgets(iobuf.as_mut_ptr().cast(), IOSIZE as i32, sfd) {
+                    if vim_fgets(iobuf.as_mut_ptr(), IOSIZE as i32, sfd) {
                         break;
                     }
                     if iobuf[IOSIZE - 2] != 0 && iobuf[IOSIZE - 2] != NL as u8 {

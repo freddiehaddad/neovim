@@ -2341,14 +2341,14 @@ pub fn autocmd_register(
             let reg_prog = if is_buflocal {
                 None
             } else {
-                let mut allow_dirs_i8 = 0;
+                let mut allow_dirs_b = false;
                 let reg_pat = file_pat_to_reg_pat(
                     pat,
                     pat.wrapping_add(patlen as usize),
-                    &raw mut allow_dirs_i8,
+                    Some(&mut allow_dirs_b),
                     1,
                 );
-                allow_dirs = allow_dirs_i8 as u8;
+                allow_dirs = u8::from(allow_dirs_b);
                 let prog = match reg_pat {
                     Some(ref rp) => crate::regexp::vim_regcomp_box(
                         rp.as_ptr().cast_mut(),

@@ -1287,7 +1287,7 @@ fn qf_get_next_file_line(state: &mut Qfstate, fd: *mut FILE) -> i32 {
             let growbufsiz = state.growbuf.len();
             if unsafe {
                 fgets(
-                    state.growbuf.as_mut_ptr().wrapping_add(growbuflen).cast(),
+                    state.growbuf.as_mut_ptr().wrapping_add(growbuflen),
                     (growbufsiz - growbuflen) as i32,
                     fd,
                 )

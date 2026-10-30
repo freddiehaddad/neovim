@@ -3160,7 +3160,7 @@ pub fn buflist_findpat(
                 match_fnum = -1;
             }
         } else {
-            let Some(pat_cstr) = file_pat_to_reg_pat(pattern, pattern_end, ptr::null_mut(), 0)
+            let Some(pat_cstr) = file_pat_to_reg_pat(pattern, pattern_end, None, 0)
             else {
                 return -1;
             };

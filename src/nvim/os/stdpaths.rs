@@ -183,12 +183,7 @@ pub fn stdpaths_get_xdg_var(idx: XDGVarType) -> Option<CString> {
     } else if let Some(fb) = fallback {
         Some(expand_env_save(fb.as_ptr().cast_mut()))
     } else if idx == XDGVarType::XDGRuntimeDir {
-        let tempdir = vim_gettempdir();
-        let raw = if tempdir.is_null() {
-            b"/tmp/" as &[u8]
-        } else {
-            crate::memory::cstr_as_bytes(tempdir)
-        };
+        let raw = vim_gettempdir().map_or(b"/tmp/" as &[u8], |s| s.to_bytes());
         let trimmed_len = if raw.len() >= 2 { raw.len() - 1 } else { 0 };
         Some(cstr_from_bytes(&raw[..trimmed_len]))
     } else {

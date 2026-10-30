@@ -180,11 +180,11 @@ fn ucs2bytes(mut c: u32, pp: &mut *mut u8, flags: i32) -> bool {
 
 fn buf_write_convert_with_iconv(ip: &mut BwInfo, bufp: &mut *mut u8, lenp: &mut i32) -> i32 {
     let len = *lenp;
-    let mut from = (*bufp).cast_const().cast();
+    let mut from = (*bufp).cast_const();
     let mut fromlen = len as usize;
     let mut tolen = ip.bw_conv_buf.len();
     let conv_buf = ip.bw_conv_buf.as_mut_ptr();
-    let mut to = conv_buf.cast();
+    let mut to = conv_buf;
 
     if ip.bw_first != 0 {
         let save_len = tolen;
@@ -196,7 +196,7 @@ fn buf_write_convert_with_iconv(ip: &mut BwInfo, bufp: &mut *mut u8, lenp: &mut 
             &raw mut tolen,
         );
         if to.is_null() {
-            to = conv_buf.cast();
+            to = conv_buf;
             tolen = save_len;
         }
         ip.bw_first = 0;
@@ -1292,7 +1292,7 @@ pub fn buf_write(
         let msgname = fname;
 
         fname_msg_id(
-            msg_id.as_mut_ptr().cast(),
+            msg_id.as_mut_ptr(),
             msg_id.len(),
             c"nvim.bufwrite",
             buf,

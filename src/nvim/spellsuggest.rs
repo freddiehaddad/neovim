@@ -1039,7 +1039,7 @@ fn spell_suggest_file(su: &mut Suginfo, fname: impl crate::strings::IntoCCharPtr
             semsg!(gettext(E_NOTOPEN), fname);
             return;
         }
-        while !vim_fgets((&raw mut line).cast(), (MAXWLEN * 2) as i32, fd) && !g_st().got_int {
+        while !vim_fgets(line.as_mut_ptr(), (MAXWLEN * 2) as i32, fd) && !g_st().got_int {
             line_breakcheck();
             let mut p = vim_strchr((&raw const line).cast(), b'/' as i32);
             if p.is_null() {

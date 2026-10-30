@@ -764,7 +764,7 @@ fn do_path_expand(
         }
 
         let starts_with_dot = crate::memory::cstr_first_byte(s) == b'.';
-        let Some(pat) = file_pat_to_reg_pat(s, e, ptr::null_mut(), 0) else {
+        let Some(pat) = file_pat_to_reg_pat(s, e, None, 0) else {
             return 0;
         };
 
@@ -1078,7 +1078,7 @@ fn uniquefy_paths(
         let mut file_pattern = Vec::with_capacity(len + 2);
         file_pattern.push(b'*' as c_char);
         file_pattern.extend_from_slice(unsafe { std::slice::from_raw_parts(pattern, len + 1) });
-        let Some(pat) = file_pat_to_reg_pat(file_pattern.as_ptr(), ptr::null(), ptr::null_mut(), 0)
+        let Some(pat) = file_pat_to_reg_pat(file_pattern.as_ptr(), ptr::null(), None, 0)
         else {
             return;
         };

@@ -874,7 +874,7 @@ unsafe extern "system" {
     fn MultiByteToWideChar(
         CodePage: u32,
         dwFlags: u32,
-        lpMultiByteStr: *const c_char,
+        lpMultiByteStr: *const u8,
         cbMultiByte: i32,
         lpWideCharStr: *mut u16,
         cchWideChar: i32,
@@ -884,9 +884,9 @@ unsafe extern "system" {
         dwFlags: u32,
         lpWideCharStr: *const u16,
         cchWideChar: i32,
-        lpMultiByteStr: *mut c_char,
+        lpMultiByteStr: *mut u8,
         cbMultiByte: i32,
-        lpDefaultChar: *const c_char,
+        lpDefaultChar: *const u8,
         lpUsedDefaultChar: *mut i32,
     ) -> i32;
 }
@@ -2242,7 +2242,7 @@ pub fn utf8_to_utf16(
     utf8len: i32,
     utf16: &mut Vec<u16>,
 ) -> i32 {
-    let utf8 = utf8.into_c_char_ptr();
+    let utf8: *const u8 = utf8.into_c_char_ptr().cast();
     unsafe {
         utf16.clear();
         let mut bufsize = MultiByteToWideChar(CP_UTF8, 0, utf8, utf8len, ptr::null_mut(), 0);
@@ -2285,7 +2285,7 @@ pub fn utf16_to_utf8(
         return unsafe { uv_translate_sys_error(GetLastError() as i32) };
     }
 
-    let mut vec = vec![0 as c_char; (bufsize as usize) + 1];
+    let mut vec = vec![0u8; (bufsize as usize) + 1];
     bufsize = unsafe {
         WideCharToMultiByte(
             CP_UTF8,
@@ -2303,8 +2303,8 @@ pub fn utf16_to_utf8(
         return unsafe { uv_translate_sys_error(GetLastError() as i32) };
     }
 
-    vec[bufsize as usize] = NUL;
-    *utf8 = Some(crate::memory::cstr_to_cstring(vec.as_ptr()));
+    vec[bufsize as usize] = 0;
+    *utf8 = Some(crate::memory::cstr_to_cstring(vec.as_ptr().cast()));
     0
 }
 
@@ -3548,7 +3548,7 @@ fn first_list_number(l: &TvList) -> Varnumber {
 pub fn f_setcellwidths(argvars: &mut [TypVal], _rettv: &mut TypVal, _fptr: EvalFuncData) {
     unsafe {
         if argvars[0].v_type != VarType::VarList || argvars[0].vval.v_list().is_null() {
-            emsg((&raw const E_LISTREQ).cast::<c_char>());
+            emsg(crate::strings::gettext(E_LISTREQ));
             return;
         }
 

@@ -1035,7 +1035,7 @@ fn check_external_diff(diffio: &mut Diffio) -> bool {
                 } else {
                     let mut linebuf: [u8; LBUFLEN] = [0; LBUFLEN];
                     loop {
-                        if vim_fgets(linebuf.as_mut_ptr().cast(), LBUFLEN as i32, fd) {
+                        if vim_fgets(linebuf.as_mut_ptr(), LBUFLEN as i32, fd) {
                             break;
                         }
                         if linebuf.starts_with(b"1c1") || linebuf.starts_with(b"@@ -1 +1 @@") {
@@ -1251,10 +1251,7 @@ pub fn ex_diffpatch(eap: &mut Exarg) {
             {
                 dirbuf[0] = 0;
             } else {
-                let mut tempdir = vim_gettempdir();
-                if tempdir.is_null() {
-                    tempdir = c"/tmp".as_ptr();
-                }
+                let tempdir = vim_gettempdir().unwrap_or(c"/tmp");
                 let _ = crate::os::fs::os_chdir(tempdir);
                 shorten_fnames(1);
             }
@@ -1532,7 +1529,7 @@ fn extract_hunk_internal(dout: &mut Diffout, hunk: &mut Diffhunk, line_idx: &mut
 fn extract_hunk(fd: *mut FILE, hunk: &mut Diffhunk, diffstyle: &mut Diffstyle) -> bool {
     loop {
         let mut line: [u8; LBUFLEN] = [0; LBUFLEN];
-        if vim_fgets(line.as_mut_ptr().cast(), LBUFLEN as i32, fd) {
+        if vim_fgets(line.as_mut_ptr(), LBUFLEN as i32, fd) {
             return true;
         }
         if *diffstyle == Diffstyle::DiffNone {
@@ -1540,9 +1537,9 @@ fn extract_hunk(fd: *mut FILE, hunk: &mut Diffhunk, diffstyle: &mut Diffstyle) -
                 *diffstyle = Diffstyle::DiffEd;
             } else if line.starts_with(b"@@ ")
                 || (line.starts_with(b"--- ")
-                    && !vim_fgets(line.as_mut_ptr().cast(), LBUFLEN as i32, fd)
+                    && !vim_fgets(line.as_mut_ptr(), LBUFLEN as i32, fd)
                     && line.starts_with(b"+++ ")
-                    && !vim_fgets(line.as_mut_ptr().cast(), LBUFLEN as i32, fd)
+                    && !vim_fgets(line.as_mut_ptr(), LBUFLEN as i32, fd)
                     && line.starts_with(b"@@ "))
             {
                 *diffstyle = Diffstyle::DiffUnified;

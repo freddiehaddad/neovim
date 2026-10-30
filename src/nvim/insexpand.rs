@@ -2307,7 +2307,7 @@ fn ins_compl_files(
 
         while !g_st().got_int
             && !ins_compl_interrupted()
-            && !vim_fgets(buf.cast(), LSIZE as i32, fp)
+            && !vim_fgets(buf, LSIZE as i32, fp)
         {
             let mut ptr = buf;
             if cot_fuzzy() && leader_len > 0 {
