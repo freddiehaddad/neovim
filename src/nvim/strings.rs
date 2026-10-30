@@ -159,6 +159,20 @@ impl<const N: usize> IntoCCharPtr for &mut [u8; N] {
     }
 }
 
+impl IntoCCharPtr for &Vec<u8> {
+    #[inline]
+    fn into_c_char_ptr(self) -> *const c_char {
+        self.as_ptr().cast()
+    }
+}
+
+impl IntoCCharPtr for &mut Vec<u8> {
+    #[inline]
+    fn into_c_char_ptr(self) -> *const c_char {
+        self.as_ptr().cast()
+    }
+}
+
 #[inline]
 pub fn tr<S: IntoCCharPtr>(s: S) -> *mut c_char {
     gettext(s.into_c_char_ptr())

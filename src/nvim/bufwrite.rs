@@ -62,7 +62,7 @@ use std::ptr;
 
 use crate::api::private::helpers::HLF_E;
 use crate::arglist::ML_EMPTY;
-use crate::charset::{EOL_MAC, NUL};
+use crate::charset::EOL_MAC;
 use crate::eval::typval::K_CALLBACK_NONE_CONST;
 use crate::math::{FAIL, OK};
 use crate::optionstr::{K_OPT_BKC_FLAG_AUTO, K_OPT_BKC_FLAG_YES};
@@ -878,14 +878,13 @@ pub fn buf_get_backup_name<T>(
     backup_ext: impl crate::strings::IntoCCharPtr,
 ) -> Option<std::ffi::CString> {
     let fname = fname.into_c_char_ptr().cast_mut();
-    let dirp = dirp.cast();
     let backup_ext = backup_ext.into_c_char_ptr();
     {
         let mut backup: Option<std::ffi::CString> = None;
         let iobuf = g_st().iobuff.as_mut_ptr();
-        let dir_len = copy_option_part(dirp, iobuf, IOSIZE, c",");
+        let dir_len = copy_option_part(dirp, iobuf.cast(), IOSIZE, c",");
         let p = iobuf.wrapping_add(dir_len);
-        if unsafe { **dirp } == NUL && !os_isdir(iobuf) {
+        if unsafe { *(*dirp).cast::<u8>() } == 0 && !os_isdir(iobuf) {
             let mut failed_dir: Option<std::ffi::CString> = None;
             let ret = os_mkdir_recurse(iobuf, 0o755, &mut failed_dir, None);
             if ret != 0 {

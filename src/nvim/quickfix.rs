@@ -7557,7 +7557,7 @@ fn hgr_search_in_rtp(
         let mut p = opt_vars().p_rtp;
         let name_buff_ptr = g_st().name_buff.as_mut_ptr();
         while !crate::memory::cstr_is_empty(p) && !g_st().got_int {
-            copy_option_part(&raw mut p, name_buff_ptr, MAXPATHL, c",");
+            copy_option_part(&raw mut p, name_buff_ptr.cast(), MAXPATHL, c",");
             hgr_search_files_in_dir(qfl, name_buff_ptr, p_regmatch, lang);
         }
     }

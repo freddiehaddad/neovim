@@ -3653,7 +3653,7 @@ fn set_option_from_tv(varname: impl crate::strings::IntoCCharPtr, varp: &mut Typ
             size: IOSIZE,
         };
         let errmsg = set_option_value(opt_idx, value, OPT_LOCAL, true, Some(errbuf));
-        if !errmsg.is_null() {
+        if let Some(errmsg) = errmsg {
             emsg(errmsg);
         }
     }

@@ -141,7 +141,7 @@ use crate::window::{
     win_find_tabpage, win_new_screen_rows, win_setheight, win_setwidth,
 };
 use crate::winfloat::win_float_update_statusline;
-use std::ffi::{CStr, c_char, c_void};
+use std::ffi::{CStr, c_void};
 use std::ptr;
 
 pub type OptInt = i64;
@@ -475,22 +475,21 @@ const CTRL_C_CONST_CONST: OptInt = 3;
 #[cfg(unix)]
 pub(crate) const ROOT_UID: u32 = 0;
 
-const PATHSEPSTR: *const c_char = c"/".as_ptr();
+const PATHSEPSTR: &CStr = c"/";
 
-const SHM_ALL_ABBREVIATIONS: *const c_char = c"rmlw".as_ptr();
+const SHM_ALL_ABBREVIATIONS: &CStr = c"rmlw";
 
-const E_UNKNOWN_OPTION: *const c_char = c"E518: Unknown option".as_ptr();
-const E_NOT_ALLOWED_IN_MODELINE: *const c_char = c"E520: Not allowed in a modeline".as_ptr();
-const E_NOT_ALLOWED_IN_MODELINE_WHEN_MODELINEEXPR_IS_OFF: *const c_char =
-    c"E992: Not allowed in a modeline when 'modelineexpr' is off".as_ptr();
-const E_NUMBER_REQUIRED_AFTER_EQUAL: *const c_char = c"E521: Number required after =".as_ptr();
-const E_PREVIEW_WINDOW_ALREADY_EXISTS: *const c_char =
-    c"E590: A preview window already exists".as_ptr();
-const E_CANNOT_HAVE_NEGATIVE_OR_ZERO_NUMBER_OF_QUICKFIX: *const c_char =
-    c"E1542: Cannot have a negative or zero number of quickfix/location lists".as_ptr();
-const E_CANNOT_HAVE_MORE_THAN_HUNDRED_QUICKFIX: *const c_char =
-    c"E1543: Cannot have more than a hundred quickfix/location lists".as_ptr();
-const W_ARABIC: *const c_char = c"W17: Arabic requires UTF-8, do ':set encoding=utf-8'".as_ptr();
+const E_UNKNOWN_OPTION: &CStr = c"E518: Unknown option";
+const E_NOT_ALLOWED_IN_MODELINE: &CStr = c"E520: Not allowed in a modeline";
+const E_NOT_ALLOWED_IN_MODELINE_WHEN_MODELINEEXPR_IS_OFF: &CStr =
+    c"E992: Not allowed in a modeline when 'modelineexpr' is off";
+const E_NUMBER_REQUIRED_AFTER_EQUAL: &CStr = c"E521: Number required after =";
+const E_PREVIEW_WINDOW_ALREADY_EXISTS: &CStr = c"E590: A preview window already exists";
+const E_CANNOT_HAVE_NEGATIVE_OR_ZERO_NUMBER_OF_QUICKFIX: &CStr =
+    c"E1542: Cannot have a negative or zero number of quickfix/location lists";
+const E_CANNOT_HAVE_MORE_THAN_HUNDRED_QUICKFIX: &CStr =
+    c"E1543: Cannot have more than a hundred quickfix/location lists";
+const W_ARABIC: &CStr = c"W17: Arabic requires UTF-8, do ':set encoding=utf-8'";
 
 struct OptionModuleState {
     p_term: Option<std::ffi::CString>,
@@ -513,7 +512,7 @@ struct OptionModuleState {
     syn_recursive: i32,
     expand_option_idx: OptIndex,
     expand_option_start_col: i32,
-    expand_option_name: [c_char; 5],
+    expand_option_name: [u8; 5],
     expand_option_flags: i32,
     expand_option_append: bool,
 }
@@ -541,7 +540,7 @@ impl OptionModuleState {
             syn_recursive: 0,
             expand_option_idx: K_OPT_INVALID,
             expand_option_start_col: 0,
-            expand_option_name: [b't' as c_char, b'_' as c_char, 0, 0, 0],
+            expand_option_name: [b't', b'_', 0, 0, 0],
             expand_option_flags: 0,
             expand_option_append: false,
         }
@@ -733,9 +732,9 @@ fn set_init_default_shell() {
         let shell_ptr = shell.as_ptr();
         if crate::strings::vim_haschr(shell_ptr, b' ' as i32) {
             let len = shell.as_bytes().len() + 3;
-            let mut cmd = vec![0 as c_char; len];
-            vim_snprintf!(cmd.as_mut_ptr(), len, c"\"%s\"", shell_ptr);
-            set_string_default(K_OPT_SHELL, cmd.as_ptr());
+            let mut cmd = vec![0u8; len];
+            vim_snprintf!(cmd.as_mut_ptr().cast(), len, c"\"%s\"", shell_ptr);
+            set_string_default(K_OPT_SHELL, &cmd);
         } else {
             set_string_default(K_OPT_SHELL, shell_ptr);
         }
@@ -745,21 +744,16 @@ fn set_init_default_shell() {
 /// Set the default for 'backupskip' to include environment variables for temp files.
 fn set_init_default_backupskip() {
     #[cfg(unix)]
-    let names: [*const c_char; 4] = [
-        c"".as_ptr(),
-        c"TMPDIR".as_ptr(),
-        c"TEMP".as_ptr(),
-        c"TMP".as_ptr(),
-    ];
+    let names: [&CStr; 4] = [c"", c"TMPDIR", c"TEMP", c"TMP"];
     #[cfg(not(unix))]
-    let names: [*const c_char; 3] = [c"TMPDIR".as_ptr(), c"TEMP".as_ptr(), c"TMP".as_ptr()];
+    let names: [&CStr; 3] = [c"TMPDIR", c"TEMP", c"TMP"];
 
-    let mut buf: Vec<c_char> = Vec::new();
+    let mut buf: Vec<u8> = Vec::new();
     let opt_idx = K_OPT_BACKUPSKIP;
 
     for &name in &names {
         #[cfg(unix)]
-        let (p_owned, p, mut plen): (Option<std::ffi::CString>, *const c_char, usize) =
+        let (p_owned, p, mut plen): (Option<std::ffi::CString>, *const _, usize) =
             if crate::memory::cstr_is_empty(name) {
                 #[cfg(target_os = "macos")]
                 {
@@ -775,7 +769,7 @@ fn set_init_default_backupskip() {
                 (env, ptr, 0)
             };
         #[cfg(not(unix))]
-        let (p_owned, p, mut plen): (Option<std::ffi::CString>, *const c_char, usize) = {
+        let (p_owned, p, mut plen): (Option<std::ffi::CString>, *const _, usize) = {
             let env = vim_getenv(name);
             let ptr = env.as_ref().map_or(ptr::null(), |s| s.as_ptr());
             (env, ptr, 0)
@@ -793,17 +787,17 @@ fn set_init_default_backupskip() {
             }
 
             let itemsize = plen + usize::from(!has_trailing_path_sep) + 2;
-            let mut item = vec![0 as c_char; itemsize];
+            let mut item = vec![0u8; itemsize];
 
             let itemlen = vim_snprintf!(
-                item.as_mut_ptr(),
+                item.as_mut_ptr().cast(),
                 itemsize,
                 c"%s%s*",
                 p,
                 if has_trailing_path_sep {
                     c"".as_ptr()
                 } else {
-                    PATHSEPSTR
+                    PATHSEPSTR.as_ptr()
                 },
             ) as usize;
 
@@ -811,9 +805,9 @@ fn set_init_default_backupskip() {
                 if buf.is_empty() {
                     ptr::null()
                 } else {
-                    buf.as_ptr()
+                    buf.as_ptr().cast()
                 },
-                item.as_ptr(),
+                &item,
                 itemlen,
                 get_option(opt_idx).flags,
             )
@@ -822,15 +816,15 @@ fn set_init_default_backupskip() {
                 if !buf.is_empty() {
                     // Replace trailing NUL with ','
                     let last = buf.len() - 1;
-                    buf[last] = b',' as c_char;
+                    buf[last] = b',';
                 }
                 buf.extend_from_slice(&item[..itemlen]);
-                buf.push(NUL);
+                buf.push(0);
             }
         }
     }
     if !buf.is_empty() {
-        set_string_default(K_OPT_BACKUPSKIP, buf.as_ptr());
+        set_string_default(K_OPT_BACKUPSKIP, &buf);
     }
 }
 
@@ -841,24 +835,24 @@ fn set_init_default_cdpath() {
     };
     let cdpath = cdpath_cstr.as_ptr();
 
-    let mut buf_vec = vec![0 as c_char; 2 * cdpath_cstr.as_bytes().len() + 2];
+    let mut buf_vec = vec![0u8; 2 * cdpath_cstr.as_bytes().len() + 2];
     let buf = buf_vec.as_mut_ptr();
     unsafe {
-        *buf = b',' as c_char;
+        *buf = b',';
     }
     let mut j: usize = 1;
     let mut i: usize = 0;
     while crate::memory::cstr_byte_at(cdpath, i) != 0 {
-        let ch = unsafe { *cdpath.wrapping_add(i) };
-        if vim_ispathlistsep(ch as i32) {
+        let ch = crate::memory::cstr_byte_at(cdpath, i);
+        if vim_ispathlistsep(i32::from(ch)) {
             unsafe {
-                *buf.wrapping_add(j) = b',' as c_char;
+                *buf.wrapping_add(j) = b',';
             }
             j += 1;
         } else {
-            if ch == b' ' as c_char || ch == b',' as c_char {
+            if ch == b' ' || ch == b',' {
                 unsafe {
-                    *buf.wrapping_add(j) = b'\\' as c_char;
+                    *buf.wrapping_add(j) = b'\\';
                 }
                 j += 1;
             }
@@ -870,9 +864,9 @@ fn set_init_default_cdpath() {
         i += 1;
     }
     unsafe {
-        *buf.wrapping_add(j) = NUL;
+        *buf.wrapping_add(j) = 0;
     }
-    change_option_default(K_OPT_CDPATH, cstr_to_obj(buf));
+    change_option_default(K_OPT_CDPATH, cstr_to_obj(&buf_vec[..]));
 }
 
 /// Expand environment variables and things like "~" for the defaults.
@@ -882,13 +876,16 @@ fn set_init_expand_env() {
         if (opt.flags & K_OPT_FLAG_NO_DEF_EXP) != 0 {
             continue;
         }
-        let mut p: *mut c_char = ptr::null_mut();
+        let mut p: Option<&CStr> = None;
         if (opt.flags & K_OPT_FLAG_GETTEXT) != 0 && !opt.var.is_null() {
-            p = tr(unsafe { *(opt.var.cast::<*mut c_char>()) });
+            let tr_ptr = tr(unsafe { *(opt.var.cast::<*mut u8>()).cast::<*mut _>() });
+            if !tr_ptr.is_null() {
+                p = Some(unsafe { CStr::from_ptr(tr_ptr) });
+            }
         } else if (opt.flags & K_OPT_FLAG_EXPAND) != 0 {
             p = option_expand(opt_idx, opt.def_val.data.string().data);
         }
-        if !p.is_null() {
+        if let Some(p) = p {
             let ov = cstr_to_obj(p);
             set_option_varp(opt_idx, opt.var, ov);
             change_option_default(opt_idx, ov);
@@ -994,11 +991,9 @@ pub fn get_option_default(opt_idx: OptIndex, opt_flags: i32) -> Object {
     let mut def_val = opt.def_val;
     if option_has_type(opt_idx, ObjectType::ObjectTypeString)
         && (opt.flags & K_OPT_FLAG_NO_DEF_EXP) == 0
+        && let Some(s) = option_expand(opt_idx, def_val.data.string().data)
     {
-        let s = option_expand(opt_idx, def_val.data.string().data);
-        if !s.is_null() {
-            def_val = cstr_as_obj(s);
-        }
+        def_val = cstr_as_obj(s);
     }
     if optval_is_owned(opt_idx) {
         copy_object(def_val, None)
@@ -1071,7 +1066,7 @@ fn find_dup_item(
     newval: impl crate::strings::IntoCCharPtr,
     newvallen: usize,
     flags: u32,
-) -> *const c_char {
+) -> *const u8 {
     let origval = origval.into_c_char_ptr();
     let newval = newval.into_c_char_ptr();
     {
@@ -1091,13 +1086,13 @@ fn find_dup_item(
                     || crate::memory::cstr_byte_at(s, newvallen) == b','
                     || crate::memory::cstr_byte_at(s, newvallen) == 0)
             {
-                return s;
+                return s.cast();
             }
             if (s > origval.wrapping_add(1)
-                && unsafe { *s.wrapping_offset(-1) } == b'\\' as c_char
-                && unsafe { *s.wrapping_offset(-2) } != b',' as c_char)
+                && crate::memory::cstr_first_byte(s.wrapping_offset(-1)) == b'\\'
+                && crate::memory::cstr_first_byte(s.wrapping_offset(-2)) != b',')
                 || (s == origval.wrapping_add(1)
-                    && unsafe { *s.wrapping_offset(-1) } == b'\\' as c_char)
+                    && crate::memory::cstr_first_byte(s.wrapping_offset(-1)) == b'\\')
             {
                 bs += 1;
             } else {
@@ -1122,7 +1117,7 @@ pub fn free_all_options() {
             if is_callback_option(opt_idx) {
                 callback_free(unsafe { &mut *opt.var.cast::<Callback>() });
             } else if option_has_type(opt_idx, ObjectType::ObjectTypeString) {
-                crate::optionstr::clear_string_option(opt.var.cast::<*mut c_char>());
+                crate::optionstr::clear_string_option(opt.var.cast::<*mut u8>());
             }
         }
         optval_free(opt.def_val);
@@ -1178,11 +1173,11 @@ pub fn set_init_3() {
     parse_shape_opt(SHAPE_CURSOR);
 
     let mut len: usize = 0;
-    let mut name = [0 as c_char; MAXPATHL];
+    let mut name = [0u8; MAXPATHL];
     let p = invocation_path_tail(opt_vars().p_sh, Some(&mut len));
-    crate::memory::cstr_ncpy(name.as_mut_ptr(), p, len);
+    crate::memory::cstr_ncpy(name.as_mut_ptr().cast(), p, len);
     for (i, rule) in SHELL_RULES.iter().enumerate() {
-        if !c_str_contains(name.as_ptr(), rule.pat.to_bytes()) {
+        if !c_str_contains(&name, rule.pat.to_bytes()) {
             continue;
         }
         change_option_and_default_if_unset(K_OPT_SHELLCMDFLAG, rule.shcf);
@@ -1268,21 +1263,21 @@ pub fn ex_set(eap: &mut Exarg) {
 }
 
 /// Copy the new string value into allocated memory for the option.
-fn stropt_copy_value(
+fn stropt_copy_value<T>(
     origval: impl crate::strings::IntoCCharPtr,
-    argp: *mut *mut c_char,
+    argp: *mut *mut T,
     op: SetOp,
     flags: u32,
-) -> Vec<c_char> {
+) -> Vec<u8> {
     let origval = origval.into_c_char_ptr();
     {
-        let mut arg = unsafe { *argp };
+        let mut arg = unsafe { (*argp).cast_const().cast() };
 
         let mut newlen = crate::memory::cstr_len(arg) + 1;
         if op != OP_NONE {
             newlen += crate::memory::cstr_len(origval) + 1;
         }
-        let mut newval_vec: Vec<c_char> = vec![0; newlen];
+        let mut newval_vec: Vec<u8> = vec![0; newlen];
         let newval = newval_vec.as_mut_ptr();
         let mut s = newval;
 
@@ -1308,23 +1303,23 @@ fn stropt_copy_value(
             }
             let i = utfc_ptr2len(arg);
             if i > 1 {
-                unsafe { ptr::copy(arg, s, i as usize) };
+                unsafe { ptr::copy(arg.cast::<u8>(), s, i as usize) };
                 arg = arg.wrapping_add(i as usize);
                 s = s.wrapping_add(i as usize);
             } else {
                 unsafe {
-                    *s = *arg;
+                    *s = *arg as u8;
                 }
                 s = s.wrapping_add(1);
                 arg = arg.wrapping_add(1);
             }
         }
         unsafe {
-            *s = NUL;
+            *s = 0;
         }
 
         unsafe {
-            *argp = arg;
+            *argp = arg.cast_mut().cast();
         }
         newval_vec
     }
@@ -1334,29 +1329,28 @@ fn stropt_copy_value(
 fn stropt_expand_envvar(
     opt_idx: OptIndex,
     origval: impl crate::strings::IntoCCharPtr,
-    newval: &mut Vec<c_char>,
+    newval: &mut Vec<u8>,
     op: SetOp,
 ) {
     let origval = origval.into_c_char_ptr();
     {
-        let s = option_expand(opt_idx, newval.as_mut_ptr());
-        if s.is_null() {
+        let Some(s) = option_expand(opt_idx, newval.as_slice()) else {
             return;
-        }
+        };
 
-        let mut newlen = (crate::memory::cstr_len(s) as u32) + 1;
+        let mut newlen = (s.to_bytes().len() as u32) + 1;
         if op != OP_NONE {
             newlen += (crate::memory::cstr_len(origval) as u32) + 1;
         }
         *newval = vec![0; newlen as usize];
-        crate::memory::cstr_cpy(newval.as_mut_ptr(), s);
+        crate::memory::cstr_cpy(newval.as_mut_ptr().cast(), s);
     }
 }
 
 /// Concatenate the original and new values of a string option, adding a "," if needed.
 fn stropt_concat_with_comma(
     origval: impl crate::strings::IntoCCharPtr,
-    newval: *mut c_char,
+    newval: *mut u8,
     op: SetOp,
     flags: u32,
 ) {
@@ -1366,7 +1360,7 @@ fn stropt_concat_with_comma(
         let comma = usize::from(
             (flags & K_OPT_FLAG_COMMA) != 0
                 && !crate::memory::cstr_is_empty(origval)
-                && !crate::memory::cstr_is_empty(newval),
+                && !crate::memory::cstr_is_empty(newval.cast()),
         );
         if op == OP_ADDING {
             len = crate::memory::cstr_len(origval);
@@ -1382,15 +1376,15 @@ fn stropt_concat_with_comma(
                 ptr::copy(
                     newval,
                     newval.wrapping_add(len + comma),
-                    crate::memory::cstr_len(newval) + 1,
+                    crate::memory::cstr_len(newval.cast()) + 1,
                 )
             };
-            unsafe { ptr::copy(origval, newval, len) };
+            unsafe { ptr::copy(origval.cast::<u8>(), newval, len) };
         } else {
-            len = crate::memory::cstr_len(newval);
+            len = crate::memory::cstr_len(newval.cast());
             unsafe {
                 ptr::copy(
-                    origval,
+                    origval.cast::<u8>(),
                     newval.wrapping_add(len + comma),
                     crate::memory::cstr_len(origval) + 1,
                 )
@@ -1398,7 +1392,7 @@ fn stropt_concat_with_comma(
         }
         if comma != 0 {
             unsafe {
-                *newval.wrapping_add(len) = b',' as c_char;
+                *newval.wrapping_add(len) = b',';
             }
         }
     }
@@ -1407,7 +1401,7 @@ fn stropt_concat_with_comma(
 /// Remove a value from a string option.
 fn stropt_remove_val(
     origval: impl crate::strings::IntoCCharPtr,
-    newval: *mut c_char,
+    newval: *mut u8,
     flags: u32,
     strval: impl crate::strings::IntoCCharPtr,
     mut len: i32,
@@ -1415,7 +1409,7 @@ fn stropt_remove_val(
     let origval = origval.into_c_char_ptr();
     let mut strval = strval.into_c_char_ptr();
     {
-        crate::memory::cstr_cpy(newval, origval);
+        crate::memory::cstr_cpy(newval.cast(), origval);
         if !crate::memory::cstr_is_empty(strval) {
             if (flags & K_OPT_FLAG_COMMA) != 0 {
                 if strval == origval {
@@ -1431,7 +1425,7 @@ fn stropt_remove_val(
             let dst_off = crate::memory::ptr_offset_from(strval, origval) as usize;
             unsafe {
                 ptr::copy(
-                    src,
+                    src.cast::<u8>(),
                     newval.wrapping_add(dst_off),
                     crate::memory::cstr_len(src) + 1,
                 )
@@ -1446,7 +1440,7 @@ fn find_key_item(
     key: impl crate::strings::IntoCCharPtr,
     keylen: isize,
     itemlenp: &mut isize,
-) -> *mut c_char {
+) -> *mut u8 {
     let src = src.into_c_char_ptr().cast_mut();
     let key = key.into_c_char_ptr();
     {
@@ -1462,7 +1456,7 @@ fn find_key_item(
                     end = p.wrapping_add(crate::memory::cstr_len(p));
                 }
                 *itemlenp = crate::memory::ptr_offset_from(end, p);
-                return p;
+                return p.cast();
             }
             p = p.wrapping_add(1);
         }
@@ -1473,23 +1467,23 @@ fn find_key_item(
 /// Remove one item of length "itemlen" at position "item" from comma-separated string "str" in-place.
 fn remove_comma_item(
     str_arg: impl crate::strings::IntoCCharPtr,
-    item: *mut c_char,
+    item: *mut u8,
     itemlen: isize,
 ) {
     let str_arg = str_arg.into_c_char_ptr();
     unsafe {
-        if crate::memory::cstr_first_byte(item.wrapping_offset(itemlen)) == b',' {
+        if crate::memory::cstr_first_byte(item.wrapping_offset(itemlen).cast()) == b',' {
             let src = item.wrapping_offset(itemlen + 1);
-            ptr::copy(src, item, crate::memory::cstr_len(src) + 1);
-        } else if (item as *const c_char) > str_arg && *item.wrapping_offset(-1) == b',' as c_char {
+            ptr::copy(src, item, crate::memory::cstr_len(src.cast()) + 1);
+        } else if (item.cast_const()) > str_arg.cast::<u8>() && *item.wrapping_offset(-1) == b',' {
             let src = item.wrapping_offset(itemlen);
             ptr::copy(
                 src,
                 item.wrapping_offset(-1),
-                crate::memory::cstr_len(src) + 1,
+                crate::memory::cstr_len(src.cast()) + 1,
             );
         } else {
-            *item = NUL;
+            *item = 0;
         }
     }
 }
@@ -1511,12 +1505,12 @@ fn remove_key_item(
             if found.is_null() {
                 break;
             }
-            if ptr::eq(found, skip) {
+            if ptr::eq(found.cast_const(), skip.cast::<u8>()) {
                 let mut next = found.wrapping_offset(itemlen);
-                if crate::memory::cstr_first_byte(next) == b',' {
+                if crate::memory::cstr_first_byte(next.cast()) == b',' {
                     next = next.wrapping_add(1);
                 }
-                found = find_key_item(next, key, keylen, &mut itemlen);
+                found = find_key_item(next.cast(), key, keylen, &mut itemlen);
                 if found.is_null() {
                     break;
                 }
@@ -1528,21 +1522,21 @@ fn remove_key_item(
 }
 
 /// Append a comma-separated item to the end of "str" in-place.
-fn append_item(str_arg: *mut c_char, item: *mut c_char, item_len: isize) {
+fn append_item(str_arg: *mut u8, item: *mut u8, item_len: isize) {
     unsafe {
-        let mut len = crate::memory::cstr_len(str_arg) as isize;
+        let mut len = crate::memory::cstr_len(str_arg.cast()) as isize;
         if len > 0 {
-            *str_arg.wrapping_offset(len) = b',' as c_char;
+            *str_arg.wrapping_offset(len) = b',';
             len += 1;
         }
         ptr::copy(item, str_arg.wrapping_offset(len), item_len as usize);
-        *str_arg.wrapping_offset(len + item_len) = NUL;
+        *str_arg.wrapping_offset(len + item_len) = 0;
     }
 }
 
 /// Prepend a comma-separated item to the beginning of "str" in-place.
-fn prepend_item(str_arg: *mut c_char, item: *mut c_char, item_len: isize) {
-    let len = crate::memory::cstr_len(str_arg) as isize;
+fn prepend_item(str_arg: *mut u8, item: *mut u8, item_len: isize) {
+    let len = crate::memory::cstr_len(str_arg.cast()) as isize;
     let comma: isize = if len > 0 { 1 } else { 0 };
 
     unsafe {
@@ -1555,7 +1549,7 @@ fn prepend_item(str_arg: *mut c_char, item: *mut c_char, item_len: isize) {
     unsafe { ptr::copy(item, str_arg, item_len as usize) };
     if comma != 0 {
         unsafe {
-            *str_arg.wrapping_offset(item_len) = b',' as c_char;
+            *str_arg.wrapping_offset(item_len) = b',';
         }
     }
 }
@@ -1563,20 +1557,20 @@ fn prepend_item(str_arg: *mut c_char, item: *mut c_char, item_len: isize) {
 /// For a P_COMMA option: process "key:value" items in "newval" individually.
 fn stropt_handle_keymatch(
     origval: impl crate::strings::IntoCCharPtr,
-    newval: *mut c_char,
+    newval: *mut u8,
     op: SetOp,
     _flags: u32,
 ) -> bool {
     let origval = origval.into_c_char_ptr();
     {
-        if !crate::strings::vim_haschr(newval, b':' as i32)
-            && !crate::strings::vim_haschr(newval, b',' as i32)
+        if !crate::strings::vim_haschr(newval.cast(), b':' as i32)
+            && !crate::strings::vim_haschr(newval.cast(), b',' as i32)
         {
             return false;
         }
 
-        let newval_copy = crate::memory::cstr_to_cstring(newval);
-        crate::memory::cstr_cpy(newval, origval);
+        let newval_copy = crate::memory::cstr_to_cstring(newval.cast());
+        crate::memory::cstr_cpy(newval.cast(), origval);
 
         let mut item_start = newval_copy.as_ptr().cast_mut();
         loop {
@@ -1594,48 +1588,59 @@ fn stropt_handle_keymatch(
 
                     if op == OP_ADDING || op == OP_PREPENDING {
                         let mut old_itemlen: isize = 0;
-                        let found = find_key_item(newval, item_start, keylen, &mut old_itemlen);
+                        let found =
+                            find_key_item(newval.cast(), item_start, keylen, &mut old_itemlen);
                         if !found.is_null() {
                             if old_itemlen == item_len
-                                && (crate::memory::cstr_prefix_bytes(found, item_len as usize)
-                                    == crate::memory::cstr_prefix_bytes(
-                                        item_start,
-                                        item_len as usize,
-                                    ))
+                                && (crate::memory::cstr_prefix_bytes(
+                                    found.cast(),
+                                    item_len as usize,
+                                ) == crate::memory::cstr_prefix_bytes(
+                                    item_start,
+                                    item_len as usize,
+                                ))
                             {
-                                remove_key_item(newval, item_start, keylen, found);
+                                remove_key_item(newval.cast(), item_start, keylen, found.cast());
                             } else {
-                                remove_key_item(newval, item_start, keylen, ptr::null());
+                                remove_key_item(newval.cast(), item_start, keylen, ptr::null());
                                 if op == OP_PREPENDING {
-                                    prepend_item(newval, item_start, item_len);
+                                    prepend_item(newval, item_start.cast(), item_len);
                                 } else {
-                                    append_item(newval, item_start, item_len);
+                                    append_item(newval, item_start.cast(), item_len);
                                 }
                             }
                         } else if op == OP_PREPENDING {
-                            prepend_item(newval, item_start, item_len);
+                            prepend_item(newval, item_start.cast(), item_len);
                         } else {
-                            append_item(newval, item_start, item_len);
+                            append_item(newval, item_start.cast(), item_len);
                         }
                     } else if op == OP_REMOVING {
-                        remove_key_item(newval, item_start, keylen, ptr::null());
+                        remove_key_item(newval.cast(), item_start, keylen, ptr::null());
                     }
                 } else if op == OP_ADDING || op == OP_PREPENDING {
-                    let found =
-                        find_dup_item(newval, item_start, item_len as usize, K_OPT_FLAG_COMMA);
+                    let found = find_dup_item(
+                        newval.cast(),
+                        item_start,
+                        item_len as usize,
+                        K_OPT_FLAG_COMMA,
+                    );
                     if found.is_null() {
                         if op == OP_PREPENDING {
-                            prepend_item(newval, item_start, item_len);
+                            prepend_item(newval, item_start.cast(), item_len);
                         } else {
-                            append_item(newval, item_start, item_len);
+                            append_item(newval, item_start.cast(), item_len);
                         }
                     }
                 } else if op == OP_REMOVING {
-                    let found =
-                        find_dup_item(newval, item_start, item_len as usize, K_OPT_FLAG_COMMA)
-                            .cast_mut();
+                    let found = find_dup_item(
+                        newval.cast(),
+                        item_start,
+                        item_len as usize,
+                        K_OPT_FLAG_COMMA,
+                    )
+                    .cast_mut();
                     if !found.is_null() {
-                        remove_comma_item(newval, found, item_len);
+                        remove_comma_item(newval.cast(), found, item_len);
                     }
                 }
             }
@@ -1684,28 +1689,29 @@ fn stropt_remove_dupflags(newval: impl crate::strings::IntoCCharPtr, flags: u32)
 }
 
 /// Get the string value specified for a ":set" command.
-fn stropt_get_newval(
+fn stropt_get_newval<T>(
     opt_idx: OptIndex,
-    argp: *mut *mut c_char,
+    argp: *mut *mut T,
     varp: *mut c_void,
     origval: impl crate::strings::IntoCCharPtr,
     op_arg: &mut SetOp,
 ) -> std::ffi::CString {
     let origval = origval.into_c_char_ptr();
     {
-        let mut arg = unsafe { *argp };
+        let mut arg = unsafe { (*argp).cast::<u8>() };
         let mut op = *op_arg;
-        let mut save_arg: *mut c_char = ptr::null_mut();
-        let mut s: *const c_char = ptr::null();
+        let mut save_arg: *mut u8 = ptr::null_mut();
+        let mut s: *const u8 = ptr::null();
         let flags = get_option(opt_idx).flags;
 
         arg = arg.wrapping_add(1);
 
         if varp == (&raw mut opt_vars().p_kp).cast::<c_void>()
-            && (crate::memory::cstr_is_empty(arg) || crate::memory::cstr_first_byte(arg) == b' ')
+            && (crate::memory::cstr_is_empty(arg.cast())
+                || crate::memory::cstr_first_byte(arg.cast()) == b' ')
         {
             save_arg = arg;
-            arg = c":help".as_ptr().cast_mut();
+            arg = c":help".as_ptr().cast_mut().cast();
         }
 
         let mut newval_vec = stropt_copy_value(origval, &raw mut arg, op, flags);
@@ -1724,39 +1730,39 @@ fn stropt_get_newval(
         } else {
             let mut len: i32 = 0;
             if op == OP_REMOVING || (flags & K_OPT_FLAG_NO_DUP) != 0 {
-                len = crate::memory::cstr_len(newval) as i32;
-                s = find_dup_item(origval, newval, len as usize, flags);
+                len = crate::memory::cstr_len(newval.cast()) as i32;
+                s = find_dup_item(origval, newval.cast(), len as usize, flags);
 
                 if (op == OP_ADDING || op == OP_PREPENDING) && !s.is_null() {
                     op = OP_NONE;
-                    crate::memory::cstr_cpy(newval, origval);
+                    crate::memory::cstr_cpy(newval.cast(), origval);
                 }
 
                 if s.is_null() {
-                    s = origval.wrapping_add(crate::memory::cstr_len(origval));
+                    s = origval.wrapping_add(crate::memory::cstr_len(origval)).cast();
                 }
             }
 
             if op == OP_ADDING || op == OP_PREPENDING {
                 stropt_concat_with_comma(origval, newval, op, flags);
             } else if op == OP_REMOVING {
-                stropt_remove_val(origval, newval, flags, s, len);
+                stropt_remove_val(origval, newval, flags, s.cast(), len);
             }
         }
 
         if (flags & K_OPT_FLAG_FLAG_LIST) != 0 {
-            stropt_remove_dupflags(newval, flags);
+            stropt_remove_dupflags(newval.cast(), flags);
         }
 
         if !save_arg.is_null() {
             arg = save_arg;
         }
         unsafe {
-            *argp = arg;
+            *argp = arg.cast();
         }
         *op_arg = op;
 
-        crate::memory::cstr_to_cstring(newval)
+        crate::memory::cstr_to_cstring(newval.cast())
     }
 }
 
@@ -1777,13 +1783,13 @@ fn get_op(arg: impl crate::strings::IntoCCharPtr) -> SetOp {
     }
 }
 
-fn get_option_prefix(argp: *mut *mut c_char) -> SetPrefix {
+fn get_option_prefix<T>(argp: *mut *mut T) -> SetPrefix {
     unsafe {
-        if crate::memory::cstr_prefix_bytes(*argp, 2) == &b"no"[..2] {
-            *argp = (*argp).wrapping_add(2);
+        if crate::memory::cstr_prefix_bytes((*argp).cast(), 2) == &b"no"[..2] {
+            *argp = (*argp).cast::<u8>().wrapping_add(2).cast();
             PREFIX_NO
-        } else if crate::memory::cstr_prefix_bytes(*argp, 3) == &b"inv"[..3] {
-            *argp = (*argp).wrapping_add(3);
+        } else if crate::memory::cstr_prefix_bytes((*argp).cast(), 3) == &b"inv"[..3] {
+            *argp = (*argp).cast::<u8>().wrapping_add(3).cast();
             PREFIX_INV
         } else {
             PREFIX_NONE
@@ -1797,12 +1803,10 @@ fn validate_opt_idx(
     opt_flags: i32,
     flags: u32,
     prefix: SetPrefix,
-    errmsg: *mut *const c_char,
+    errmsg: &mut Option<&'static CStr>,
 ) -> bool {
     if !option_has_type(opt_idx, ObjectType::ObjectTypeBoolean) && prefix != PREFIX_NONE {
-        unsafe {
-            *errmsg = E_INVARG.as_ptr();
-        }
+        *errmsg = Some(E_INVARG);
         return false;
     }
 
@@ -1816,15 +1820,11 @@ fn validate_opt_idx(
 
     if (opt_flags & OPT_MODELINE) != 0 {
         if (flags & K_OPT_FLAG_SECURE) != 0 {
-            unsafe {
-                *errmsg = E_NOT_ALLOWED_IN_MODELINE;
-            }
+            *errmsg = Some(E_NOT_ALLOWED_IN_MODELINE);
             return false;
         }
         if (flags & K_OPT_FLAG_MLE) != 0 && opt_vars().p_mle == 0 {
-            unsafe {
-                *errmsg = E_NOT_ALLOWED_IN_MODELINE_WHEN_MODELINEEXPR_IS_OFF;
-            }
+            *errmsg = Some(E_NOT_ALLOWED_IN_MODELINE_WHEN_MODELINEEXPR_IS_OFF);
             return false;
         }
         if win.w_onebuf_opt.wo_diff != 0 && (opt_idx == K_OPT_FOLDMETHOD || opt_idx == K_OPT_WRAP) {
@@ -1833,9 +1833,7 @@ fn validate_opt_idx(
     }
 
     if g_st().sandbox != 0 && (flags & K_OPT_FLAG_SECURE) != 0 {
-        unsafe {
-            *errmsg = E_SANDBOX.as_ptr();
-        }
+        *errmsg = Some(E_SANDBOX);
         return false;
     }
 
@@ -1843,13 +1841,13 @@ fn validate_opt_idx(
 }
 
 /// Skip over the name of a TTY option or keycode option.
-fn find_tty_option_end(arg: impl crate::strings::IntoCCharPtr) -> *const c_char {
+fn find_tty_option_end(arg: impl crate::strings::IntoCCharPtr) -> *const u8 {
     let arg = arg.into_c_char_ptr();
     {
         if crate::memory::cstr_as_opt_bytes(arg) == Some(b"term") {
-            return arg.wrapping_add("term".len());
+            return arg.wrapping_add("term".len()).cast();
         } else if crate::memory::cstr_as_opt_bytes(arg) == Some(b"ttytype") {
-            return arg.wrapping_add("ttytype".len());
+            return arg.wrapping_add("ttytype".len()).cast();
         }
 
         let mut p = arg;
@@ -1877,7 +1875,7 @@ fn find_tty_option_end(arg: impl crate::strings::IntoCCharPtr) -> *const c_char 
             p = p.wrapping_add(1);
         }
 
-        if arg == p { ptr::null() } else { p }
+        if arg == p { ptr::null() } else { p.cast() }
     }
 }
 
@@ -1885,15 +1883,15 @@ fn find_tty_option_end(arg: impl crate::strings::IntoCCharPtr) -> *const c_char 
 pub fn find_option_end(
     arg: impl crate::strings::IntoCCharPtr,
     opt_idxp: &mut OptIndex,
-) -> *const c_char {
+) -> *const u8 {
     let arg = arg.into_c_char_ptr();
     {
-        let mut p = find_tty_option_end(arg);
+        let p = find_tty_option_end(arg);
         if !p.is_null() {
             *opt_idxp = K_OPT_INVALID;
             return p;
         }
-        p = arg;
+        let mut p = arg;
 
         if !ascii_isalpha(crate::memory::cstr_first_char(p)) {
             *opt_idxp = K_OPT_INVALID;
@@ -1904,27 +1902,27 @@ pub fn find_option_end(
         }
 
         *opt_idxp = find_option_len(arg, crate::memory::ptr_offset_from(p, arg) as usize);
-        p
+        p.cast()
     }
 }
 
 /// Get new option value from argp. Allocated Object must be freed by caller.
-pub fn get_option_newval(
+pub fn get_option_newval<T>(
     opt_idx: OptIndex,
     opt_flags: i32,
     prefix: SetPrefix,
-    argp: *mut *mut c_char,
+    argp: *mut *mut T,
     nextchar: i32,
     mut op: SetOp,
     varp: *mut c_void,
     mut oldval_override: Option<&mut Object>,
-    errmsg: *mut *const c_char,
+    errmsg: &mut Option<&'static CStr>,
 ) -> Object {
     unsafe {
         assert!(!varp.is_null());
 
         let opt = get_option(opt_idx);
-        let mut arg = *argp;
+        let mut arg: *const u8 = (*argp).cast_const().cast();
         let mut newval = nil_obj();
 
         if nextchar == b'&' as i32 {
@@ -1981,27 +1979,27 @@ pub fn get_option_newval(
                 arg = arg.wrapping_add(1);
                 if (varp.cast::<OptInt>() == &raw mut opt_vars().p_wc
                     || varp.cast::<OptInt>() == &raw mut opt_vars().p_wcm)
-                    && (crate::memory::cstr_first_byte(arg) == b'<'
-                        || crate::memory::cstr_first_byte(arg) == b'^'
-                        || (!crate::memory::cstr_is_empty(arg)
-                            && (crate::memory::cstr_byte_at(arg, 1) == 0
-                                || ascii_iswhite(crate::memory::cstr_char_at(arg, 1)))
-                            && !ascii_isdigit(crate::memory::cstr_first_char(arg))))
+                    && (crate::memory::cstr_first_byte(arg.cast()) == b'<'
+                        || crate::memory::cstr_first_byte(arg.cast()) == b'^'
+                        || (!crate::memory::cstr_is_empty(arg.cast())
+                            && (crate::memory::cstr_byte_at(arg.cast(), 1) == 0
+                                || ascii_iswhite(crate::memory::cstr_char_at(arg.cast(), 1)))
+                            && !ascii_isdigit(crate::memory::cstr_first_char(arg.cast()))))
                 {
-                    newval_num = OptInt::from(string_to_key(arg));
+                    newval_num = OptInt::from(string_to_key(arg.cast()));
                     if newval_num == 0 {
-                        *errmsg = E_INVARG.as_ptr();
+                        *errmsg = Some(E_INVARG);
                         if oldval_override.is_none() {
                             optval_free(oldval);
                         }
                         return newval;
                     }
-                } else if crate::memory::cstr_first_byte(arg) == b'-'
-                    || ascii_isdigit(crate::memory::cstr_first_char(arg))
+                } else if crate::memory::cstr_first_byte(arg.cast()) == b'-'
+                    || ascii_isdigit(crate::memory::cstr_first_char(arg.cast()))
                 {
                     let mut i: i32 = 0;
                     vim_str2nr(
-                        arg,
+                        arg.cast(),
                         None,
                         Some(&mut i),
                         STR2NR_ALL,
@@ -2012,17 +2010,17 @@ pub fn get_option_newval(
                         None,
                     );
                     if i == 0
-                        || (crate::memory::cstr_byte_at(arg, i as usize) != 0
-                            && !ascii_iswhite(crate::memory::cstr_char_at(arg, i as usize)))
+                        || (crate::memory::cstr_byte_at(arg.cast(), i as usize) != 0
+                            && !ascii_iswhite(crate::memory::cstr_char_at(arg.cast(), i as usize)))
                     {
-                        *errmsg = E_NUMBER_REQUIRED_AFTER_EQUAL;
+                        *errmsg = Some(E_NUMBER_REQUIRED_AFTER_EQUAL);
                         if oldval_override.is_none() {
                             optval_free(oldval);
                         }
                         return newval;
                     }
                 } else {
-                    *errmsg = E_NUMBER_REQUIRED_AFTER_EQUAL;
+                    *errmsg = Some(E_NUMBER_REQUIRED_AFTER_EQUAL);
                     if oldval_override.is_none() {
                         optval_free(oldval);
                     }
@@ -2060,67 +2058,67 @@ pub fn get_option_newval(
     }
 }
 
-fn do_one_set_option(
+fn do_one_set_option<'a, T>(
     opt_flags: i32,
-    argp: *mut *mut c_char,
+    argp: *mut *mut T,
     did_show: &mut bool,
     errbuf: Option<CharBuf>,
-) -> *const c_char {
+) -> Option<&'a CStr> {
     unsafe {
         let prefix = get_option_prefix(argp);
-        let arg = *argp;
+        let arg = (*argp).cast_const().cast::<u8>();
 
         let mut opt_idx: OptIndex = K_OPT_INVALID;
-        let option_end = find_option_end(arg, &mut opt_idx);
+        let option_end = find_option_end(arg.cast(), &mut opt_idx);
 
         if opt_idx != K_OPT_INVALID {
-            assert!(option_end >= arg as *const c_char);
-        } else if is_tty_option(arg) {
-            return ptr::null();
+            assert!(option_end >= arg);
+        } else if is_tty_option(arg.cast()) {
+            return None;
         } else {
-            return E_UNKNOWN_OPTION;
+            return Some(E_UNKNOWN_OPTION);
         }
 
         let afterchar = *option_end;
         let mut p = option_end.cast_mut();
 
-        while ascii_iswhite(crate::memory::cstr_first_char(p)) {
+        while ascii_iswhite(crate::memory::cstr_first_char(p.cast())) {
             p = p.wrapping_add(1);
         }
 
-        let op = get_op(p);
+        let op = get_op(p.cast());
         if op != OP_NONE {
             p = p.wrapping_add(1);
         }
 
-        let nextchar = crate::memory::cstr_first_byte(p) as i32;
+        let nextchar = crate::memory::cstr_first_byte(p.cast()) as i32;
         let opt = get_option(opt_idx);
         let flags = opt.flags;
         let varp = get_varp_scope(opt, opt_flags);
 
-        let mut errmsg: *const c_char = ptr::null();
+        let mut errmsg: Option<&'static CStr> = None;
         if !validate_opt_idx(curwin_mut(), opt_idx, opt_flags, flags, prefix, &mut errmsg) {
             return errmsg;
         }
 
         if crate::strings::vim_haschr(c"?=:!&<", nextchar) {
-            *argp = p;
+            *argp = p.cast();
 
             if nextchar == b'&' as i32
-                && crate::memory::cstr_byte_at(*argp, 1) == b'v'
-                && crate::memory::cstr_byte_at(*argp, 2) == b'i'
+                && crate::memory::cstr_byte_at((*argp).cast(), 1) == b'v'
+                && crate::memory::cstr_byte_at((*argp).cast(), 2) == b'i'
             {
-                if crate::memory::cstr_byte_at(*argp, 3) == b'm' {
-                    *argp = (*argp).wrapping_add(3);
+                if crate::memory::cstr_byte_at((*argp).cast(), 3) == b'm' {
+                    *argp = (*argp).cast::<u8>().wrapping_add(3).cast();
                 } else {
-                    *argp = (*argp).wrapping_add(2);
+                    *argp = (*argp).cast::<u8>().wrapping_add(2).cast();
                 }
             }
             if crate::strings::vim_haschr(c"?!&<", nextchar)
-                && crate::memory::cstr_byte_at(*argp, 1) != 0
-                && !ascii_iswhite(crate::memory::cstr_char_at(*argp, 1))
+                && crate::memory::cstr_byte_at((*argp).cast(), 1) != 0
+                && !ascii_iswhite(crate::memory::cstr_char_at((*argp).cast(), 1))
             {
-                return E_TRAILING.as_ptr();
+                return Some(E_TRAILING);
             }
         }
 
@@ -2154,25 +2152,25 @@ fn do_one_set_option(
                 }
             }
 
-            if nextchar != b'?' as i32 && nextchar != NUL as i32 && !ascii_iswhite(afterchar) {
-                return E_TRAILING.as_ptr();
+            if nextchar != b'?' as i32 && nextchar != 0 && !ascii_iswhite(afterchar) {
+                return Some(E_TRAILING);
             }
-            return ptr::null();
+            return None;
         }
 
         if option_has_type(opt_idx, ObjectType::ObjectTypeBoolean) {
             if crate::strings::vim_haschr(c"=:", nextchar) {
-                return E_INVARG.as_ptr();
+                return Some(E_INVARG);
             }
 
             if !crate::strings::vim_haschr(c"!&<", nextchar)
-                && nextchar != NUL as i32
+                && nextchar != 0
                 && !ascii_iswhite(afterchar)
             {
-                return E_TRAILING.as_ptr();
+                return Some(E_TRAILING);
             }
         } else if !crate::strings::vim_haschr(c"=:&<", nextchar) {
-            return E_INVARG.as_ptr();
+            return Some(E_INVARG);
         }
 
         let newval = get_option_newval(
@@ -2187,7 +2185,7 @@ fn do_one_set_option(
             &mut errmsg,
         );
 
-        if newval.obj_type == ObjectType::ObjectTypeNil || !errmsg.is_null() {
+        if newval.obj_type == ObjectType::ObjectTypeNil || errmsg.is_some() {
             return errmsg;
         }
 
@@ -2196,7 +2194,8 @@ fn do_one_set_option(
 }
 
 /// Parse 'arg' for option settings.
-pub fn do_set(mut arg: *mut c_char, opt_flags: i32) -> bool {
+pub fn do_set(arg: impl crate::strings::IntoCCharPtr, opt_flags: i32) -> bool {
+    let mut arg = arg.into_c_char_ptr().cast_mut();
     let mut did_show = false;
 
     if crate::memory::cstr_is_empty(arg) {
@@ -2239,7 +2238,7 @@ pub fn do_set(mut arg: *mut c_char, opt_flags: i32) -> bool {
                     }
                 }
 
-                if !errmsg.is_null() {
+                if let Some(errmsg) = errmsg {
                     let iobuf_ptr = g_st().iobuff.as_mut_ptr();
                     let i = (vim_snprintf!(iobuf_ptr, IOSIZE, c"%s", tr(errmsg)) + 2) as isize;
                     let arg_len = crate::memory::ptr_offset_from(arg, startarg);
@@ -2391,24 +2390,28 @@ pub fn set_options_bin(oldval: i32, newval: i32, opt_flags: i32) {
 }
 
 /// Expand environment variables for some string options.
-fn option_expand(opt_idx: OptIndex, val: impl crate::strings::IntoCCharPtr) -> *mut c_char {
+fn option_expand(
+    opt_idx: OptIndex,
+    val: impl crate::strings::IntoCCharPtr,
+) -> Option<&'static CStr> {
     let mut val = val.into_c_char_ptr();
     {
         let opt = get_option(opt_idx);
         if (opt.flags & K_OPT_FLAG_EXPAND) == 0 || is_option_hidden(opt_idx) {
-            return ptr::null_mut();
+            return None;
         }
 
         if val.is_null() {
-            val = unsafe { *(opt.var.cast::<*const c_char>()) };
+            val = unsafe { *(opt.var.cast::<*const u8>()).cast() };
         }
 
         if val.is_null() || crate::memory::cstr_len(val) > MAXPATHL {
-            return ptr::null_mut();
+            return None;
         }
 
-        let var = opt.var.cast::<*mut c_char>();
-        let esc = var == &raw mut opt_vars().p_tags || var == &raw mut opt_vars().p_path;
+        let var = opt.var.cast::<*mut u8>();
+        let esc = ptr::eq(var, (&raw mut opt_vars().p_tags).cast())
+            || ptr::eq(var, (&raw mut opt_vars().p_path).cast());
         let namebuf_ptr = g_st().name_buff.as_mut_ptr();
         expand_env_esc(
             val,
@@ -2420,17 +2423,17 @@ fn option_expand(opt_idx: OptIndex, val: impl crate::strings::IntoCCharPtr) -> *
                 ptr::null_mut()
             },
             false,
-            if var == &raw mut opt_vars().p_sps {
+            if ptr::eq(var, (&raw mut opt_vars().p_sps).cast()) {
                 c"file:".as_ptr().cast_mut()
             } else {
                 ptr::null_mut()
             },
         );
         if crate::memory::cstr_as_bytes(namebuf_ptr) == crate::memory::cstr_as_bytes(val) {
-            return ptr::null_mut();
+            return None;
         }
 
-        namebuf_ptr
+        Some(unsafe { CStr::from_ptr(namebuf_ptr) })
     }
 }
 
@@ -2501,7 +2504,7 @@ pub fn check_options() {
             && !opt.immutable
             && !opt.var.is_null()
         {
-            check_string_option(get_varp(&mut *opt).cast::<*mut c_char>());
+            check_string_option(get_varp(&mut *opt).cast::<*mut u8>());
         }
     }
 }
@@ -2567,8 +2570,8 @@ pub fn valid_name(val: impl crate::strings::IntoCCharPtr, allowed: &std::ffi::CS
     {
         let s = val;
         for &s_byte in crate::memory::cstr_as_bytes(s) {
-            if !ascii_isalnum(s_byte as c_char as i32)
-                && !crate::strings::vim_haschr(allowed.as_ptr(), s_byte as i32)
+            if !ascii_isalnum(i32::from(s_byte))
+                && !crate::strings::vim_haschr(allowed.as_ptr(), i32::from(s_byte))
             {
                 return false;
             }
@@ -2589,11 +2592,11 @@ pub fn parse_winhl_opt(
 ) -> bool {
     let winhl = winhl.into_c_char_ptr();
     {
-        let mut p: *const c_char = EMPTY_STRING_OPTION.as_ptr().cast();
+        let mut p = EMPTY_STRING_OPTION.as_ptr().cast_const().cast();
         if !winhl.is_null() {
             p = winhl;
         } else if wp.is_some() {
-            p = wp.as_deref_mut().unwrap().w_onebuf_opt.wo_winhl;
+            p = wp.as_deref_mut().unwrap().w_onebuf_opt.wo_winhl.cast_const();
         }
 
         if crate::memory::cstr_is_empty(p) {
@@ -2626,8 +2629,8 @@ pub fn parse_winhl_opt(
             }
         }
 
-        let mut key: *const c_char = ptr::null();
-        let mut val: *const c_char = ptr::null();
+        let mut key = ptr::null();
+        let mut val = ptr::null();
         let mut keylen: usize = 0;
         let mut vallen: usize = 0;
         while option_next_keyval(
@@ -2726,7 +2729,7 @@ pub fn apply_optionset_autocmd_now(
         return;
     }
 
-    let mut buf_type = [0 as c_char; 7];
+    let mut buf_type = [0u8; 7];
     let mut oldval_tv = opt_to_tv(oldval, false);
     let mut oldval_g_tv = opt_to_tv(oldval_g, false);
     let mut oldval_l_tv = opt_to_tv(oldval_l, false);
@@ -2735,7 +2738,7 @@ pub fn apply_optionset_autocmd_now(
     set_vim_var_tv(VV_OPTION_OLD, &mut oldval_tv);
     set_vim_var_tv(VV_OPTION_NEW, &mut newval_tv);
     let typelen = vim_snprintf_safelen!(
-        buf_type.as_mut_ptr(),
+        buf_type.as_mut_ptr().cast(),
         buf_type.len(),
         c"%s",
         if (opt_flags & OPT_LOCAL) != 0 {
@@ -2744,7 +2747,7 @@ pub fn apply_optionset_autocmd_now(
             c"global".as_ptr()
         },
     );
-    set_vim_var_string(VV_OPTION_TYPE, buf_type.as_ptr(), typelen as isize);
+    set_vim_var_string(VV_OPTION_TYPE, &buf_type, typelen as isize);
     if (opt_flags & OPT_LOCAL) != 0 {
         set_vim_var_string(VV_OPTION_COMMAND, c"setlocal", "setlocal".len() as isize);
         set_vim_var_tv(VV_OPTION_OLDLOCAL, &mut oldval_tv);
@@ -2823,7 +2826,7 @@ pub fn did_set_arabic(args: &mut Optset) -> Option<&CStr> {
 
         opt_vars().p_deco = 1;
 
-        errmsg = crate::memory::cstr_as_opt_cstr(set_option_value(
+        errmsg = set_option_value(
             K_OPT_KEYMAP,
             string_obj(NvimString {
                 data: c"arabic".as_ptr().cast_mut(),
@@ -2832,7 +2835,7 @@ pub fn did_set_arabic(args: &mut Optset) -> Option<&CStr> {
             OPT_LOCAL,
             true,
             args.os_errbuf,
-        ));
+        );
     } else {
         if opt_vars().p_tbidi == 0 && win.w_onebuf_opt.wo_rl != 0 {
             win.w_onebuf_opt.wo_rl = 0;
@@ -3125,7 +3128,7 @@ pub fn did_set_number_relativenumber(args: &mut Optset) -> Option<&CStr> {
         if !crate::memory::cstr_is_empty((*win).w_onebuf_opt.wo_stc) {
             (*win).w_nrwidth_line_count = 0;
         }
-        check_signcolumn(ptr::null::<c_char>(), win.as_mut());
+        check_signcolumn(None::<&CStr>, win.as_mut());
         None
     }
 }
@@ -3140,7 +3143,7 @@ pub fn did_set_numberwidth(args: &mut Optset) -> Option<&CStr> {
 
 /// Process the updated 'paste' option value.
 pub fn did_set_paste(_args: &mut Optset) -> Option<&CStr> {
-    let empty_opt = EMPTY_STRING_OPTION.as_ptr().cast::<c_char>();
+    let empty_opt = EMPTY_STRING_OPTION.as_ptr().cast();
     if opt_vars().p_paste != 0 {
         if opt_st().old_p_paste == 0 {
             for buf in for_all_buffers_mut() {
@@ -3264,7 +3267,7 @@ pub fn validate_previewwindow(args: &mut Optset) -> Option<&CStr> {
     };
     for wp in for_all_windows_in_tab_ptr(unsafe { &*tab }) {
         if !std::ptr::eq(wp, win) && wp.w_onebuf_opt.wo_pvw != 0 {
-            return Some(unsafe { CStr::from_ptr(E_PREVIEW_WINDOW_ALREADY_EXISTS) });
+            return Some(E_PREVIEW_WINDOW_ALREADY_EXISTS);
         }
     }
     None
@@ -3575,7 +3578,7 @@ fn do_syntax_autocmd(buf: &mut FileBuf, value_changed: bool) {
 }
 
 fn do_spelllang_source(win: &mut WinInfoInfo) {
-    let mut fname = [0 as c_char; 200];
+    let mut fname = [0u8; 200];
     let ws = win.w_s_ptr();
     let mut q = ws.b_p_spl;
 
@@ -3594,40 +3597,38 @@ fn do_spelllang_source(win: &mut WinInfoInfo) {
     }
     if p > q {
         vim_snprintf!(
-            fname.as_mut_ptr(),
+            fname.as_mut_ptr().cast(),
             fname.len(),
             c"spell/%.*s.*",
             crate::memory::ptr_offset_from(p, q) as i32,
             q,
         );
-        source_runtime_vim_lua(fname.as_mut_ptr(), DIP_ALL);
+        source_runtime_vim_lua(&fname, DIP_ALL);
     }
 }
 
 /// Check the bounds of numeric options.
-fn check_num_option_bounds(
+fn check_num_option_bounds<'a>(
     opt_idx: OptIndex,
     newval: *mut OptInt,
     win: &mut WinInfoInfo,
     errbuf: Option<CharBuf>,
-) -> *const c_char {
+) -> Option<&'a CStr> {
     unsafe {
-        let mut errmsg: *const c_char = ptr::null();
+        let mut errmsg: Option<&'a CStr> = None;
 
         match opt_idx {
             K_OPT_LINES => {
                 let min_r = min_rows_for_all_tabpages();
                 if *newval < OptInt::from(min_r) && g_st().full_screen {
-                    errmsg = opt_error_int(errbuf, c"E593: Need at least %d lines", min_r)
-                        .map_or(ptr::null(), |s| s.as_ptr());
+                    errmsg = opt_error_int(errbuf, c"E593: Need at least %d lines", min_r);
                     *newval = OptInt::from(min_r);
                 }
                 *newval = (*newval).min(OptInt::from(i32::MAX));
             }
             K_OPT_COLUMNS => {
                 if *newval < OptInt::from(MIN_COLUMNS) && g_st().full_screen {
-                    errmsg = opt_error_int(errbuf, c"E594: Need at least %d columns", MIN_COLUMNS)
-                        .map_or(ptr::null(), |s| s.as_ptr());
+                    errmsg = opt_error_int(errbuf, c"E594: Need at least %d columns", MIN_COLUMNS);
                     *newval = OptInt::from(MIN_COLUMNS);
                 }
                 *newval = (*newval).min(OptInt::from(i32::MAX));
@@ -3639,7 +3640,7 @@ fn check_num_option_bounds(
                 if (*newval < -100 || *newval >= OptInt::from(g_st().rows_global))
                     && g_st().full_screen
                 {
-                    errmsg = E_SCROLL.as_ptr();
+                    errmsg = Some(E_SCROLL);
                     *newval = 1;
                 }
             }
@@ -3649,7 +3650,7 @@ fn check_num_option_bounds(
                     && g_st().full_screen =>
             {
                 if *newval != 0 {
-                    errmsg = E_SCROLL.as_ptr();
+                    errmsg = Some(E_SCROLL);
                 }
                 *newval = OptInt::from(win_default_scroll(win));
             }
@@ -3661,16 +3662,16 @@ fn check_num_option_bounds(
 }
 
 /// Validate and bound check option value.
-fn validate_num_option(
+fn validate_num_option<'a>(
     opt_idx: OptIndex,
     newval: *mut OptInt,
     win: &mut WinInfoInfo,
     errbuf: Option<CharBuf>,
-) -> *const c_char {
+) -> Option<&'a CStr> {
     let value = unsafe { *newval };
 
     if value < OptInt::from(i32::MIN) || value > OptInt::from(i32::MAX) {
-        return E_INVARG.as_ptr();
+        return Some(E_INVARG);
     }
 
     const MAX_SEARCH_COUNT: OptInt = 9999;
@@ -3680,35 +3681,35 @@ fn validate_num_option(
         | K_OPT_SIDESCROLL | K_OPT_FOLDLEVEL | K_OPT_SHIFTWIDTH | K_OPT_TEXTWIDTH
         | K_OPT_WRITEDELAY | K_OPT_TIMEOUTLEN => {
             if value < 0 {
-                return E_POSITIVE.as_ptr();
+                return Some(E_POSITIVE);
             }
         }
         K_OPT_WINHEIGHT => {
             if value < 1 {
-                return E_POSITIVE.as_ptr();
+                return Some(E_POSITIVE);
             } else if opt_vars().p_wmh > value {
-                return E_WINHEIGHT.as_ptr();
+                return Some(E_WINHEIGHT);
             }
         }
         K_OPT_WINMINHEIGHT => {
             if value < 0 {
-                return E_POSITIVE.as_ptr();
+                return Some(E_POSITIVE);
             } else if value > opt_vars().p_wh {
-                return E_WINHEIGHT.as_ptr();
+                return Some(E_WINHEIGHT);
             }
         }
         K_OPT_WINWIDTH => {
             if value < 1 {
-                return E_POSITIVE.as_ptr();
+                return Some(E_POSITIVE);
             } else if opt_vars().p_wmw > value {
-                return E_WINWIDTH.as_ptr();
+                return Some(E_WINWIDTH);
             }
         }
         K_OPT_WINMINWIDTH => {
             if value < 0 {
-                return E_POSITIVE.as_ptr();
+                return Some(E_POSITIVE);
             } else if value > opt_vars().p_wiw {
-                return E_WINWIDTH.as_ptr();
+                return Some(E_WINWIDTH);
             }
         }
         K_OPT_MAXCOMBINE => unsafe {
@@ -3716,14 +3717,14 @@ fn validate_num_option(
         },
         K_OPT_CMDHEIGHT => {
             if value < 0 {
-                return E_POSITIVE.as_ptr();
+                return Some(E_POSITIVE);
             }
         }
         K_OPT_HISTORY => {
             if value < 0 {
-                return E_POSITIVE.as_ptr();
+                return Some(E_POSITIVE);
             } else if value > 10000 {
-                return E_INVARG.as_ptr();
+                return Some(E_INVARG);
             }
         }
         K_OPT_PYXVERSION => {
@@ -3732,85 +3733,85 @@ fn validate_num_option(
                     *newval = 3;
                 }
             } else if value != 3 {
-                return E_INVARG.as_ptr();
+                return Some(E_INVARG);
             }
         }
         K_OPT_REGEXPENGINE => {
             if !(0..=2).contains(&value) {
-                return E_INVARG.as_ptr();
+                return Some(E_INVARG);
             }
         }
         K_OPT_SCROLLOFF => {
             if value < 0 && g_st().full_screen {
-                return E_POSITIVE.as_ptr();
+                return Some(E_POSITIVE);
             }
         }
         K_OPT_SCROLLOFFPAD => {
             if value < 0 {
-                return E_INVARG.as_ptr();
+                return Some(E_INVARG);
             }
         }
         K_OPT_SIDESCROLLOFF => {
             if value < 0 && g_st().full_screen {
-                return E_POSITIVE.as_ptr();
+                return Some(E_POSITIVE);
             }
         }
         K_OPT_CMDWINHEIGHT => {
             if value < 1 {
-                return E_POSITIVE.as_ptr();
+                return Some(E_POSITIVE);
             }
         }
         K_OPT_CONCEALLEVEL => {
             if value < 0 {
-                return E_POSITIVE.as_ptr();
+                return Some(E_POSITIVE);
             } else if value > 3 {
-                return E_INVARG.as_ptr();
+                return Some(E_INVARG);
             }
         }
         K_OPT_NUMBERWIDTH => {
             if value < 1 {
-                return E_POSITIVE.as_ptr();
+                return Some(E_POSITIVE);
             } else if value > MAX_NUMBERWIDTH {
-                return E_INVARG.as_ptr();
+                return Some(E_INVARG);
             }
         }
         K_OPT_IMINSERT => {
             if !(0..=B_IMODE_LAST).contains(&value) {
-                return E_INVARG.as_ptr();
+                return Some(E_INVARG);
             }
         }
         K_OPT_IMSEARCH => {
             if !(-1..=B_IMODE_LAST).contains(&value) {
-                return E_INVARG.as_ptr();
+                return Some(E_INVARG);
             }
         }
         K_OPT_CHANNEL => {
-            return E_INVARG.as_ptr();
+            return Some(E_INVARG);
         }
         K_OPT_SCROLLBACK => {
             if !(-1..=SB_MAX).contains(&value) {
-                return E_INVARG.as_ptr();
+                return Some(E_INVARG);
             }
         }
         K_OPT_TABSTOP => {
             if value < 1 {
-                return E_POSITIVE.as_ptr();
+                return Some(E_POSITIVE);
             } else if value > OptInt::from(crate::indent::TABSTOP_MAX) {
-                return E_INVARG.as_ptr();
+                return Some(E_INVARG);
             }
         }
         K_OPT_CHISTORY | K_OPT_LHISTORY => {
             if value < 1 {
-                return E_CANNOT_HAVE_NEGATIVE_OR_ZERO_NUMBER_OF_QUICKFIX;
+                return Some(E_CANNOT_HAVE_NEGATIVE_OR_ZERO_NUMBER_OF_QUICKFIX);
             } else if value > 100 {
-                return E_CANNOT_HAVE_MORE_THAN_HUNDRED_QUICKFIX;
+                return Some(E_CANNOT_HAVE_MORE_THAN_HUNDRED_QUICKFIX);
             }
         }
         K_OPT_MAXSEARCHCOUNT => {
             if value <= 0 {
-                return E_POSITIVE.as_ptr();
+                return Some(E_POSITIVE);
             } else if value > MAX_SEARCH_COUNT {
-                return E_INVARG.as_ptr();
+                return Some(E_INVARG);
             }
         }
         _ => {}
@@ -3863,9 +3864,9 @@ pub fn get_tty_option(name: impl crate::strings::IntoCCharPtr) -> Object {
             if g_st().t_colors <= 1 {
                 cstr_to_obj(c"")
             } else {
-                let mut value = [0 as c_char; NUMBUFLEN];
-                vim_snprintf!(value.as_mut_ptr(), NUMBUFLEN, c"%d", g_st().t_colors);
-                cstr_to_obj(value.as_ptr())
+                let mut value = [0u8; NUMBUFLEN];
+                vim_snprintf!(value.as_mut_ptr().cast(), NUMBUFLEN, c"%d", g_st().t_colors);
+                cstr_to_obj(&value)
             }
         } else if crate::memory::cstr_as_opt_bytes(name) == Some(b"term") {
             cstr_to_obj(
@@ -5147,7 +5148,7 @@ pub fn optval_free_read(opt_idx: OptIndex, value: Object) {
 pub fn optval_free(o: Object) {
     match o.obj_type {
         ObjectType::ObjectTypeString => {
-            if o.data.string().data != EMPTY_STRING_OPTION.as_ptr().cast::<c_char>() {
+            if o.data.string().data != EMPTY_STRING_OPTION.as_ptr().cast() {
                 api_free_string(o.data.string());
             }
         }
@@ -5304,7 +5305,7 @@ pub fn opt_from_varp(opt_idx: OptIndex, varp: *mut c_void) -> Object {
         }
         ObjectType::ObjectTypeInteger => integer_obj(unsafe { *(varp.cast::<OptInt>()) }),
         ObjectType::ObjectTypeString => {
-            string_obj(cstr_as_string(unsafe { *(varp.cast::<*mut c_char>()) }))
+            string_obj(cstr_as_string(unsafe { *(varp.cast::<*mut u8>()).cast::<*mut _>() }))
         }
         _ => std::process::abort(),
     }
@@ -5334,10 +5335,10 @@ fn set_option_varp(opt_idx: OptIndex, varp: *mut c_void, value: Object) {
                     *(varp.cast::<i32>()) = K_NONE;
                 }
             } else if option_has_type(opt_idx, ObjectType::ObjectTypeString) {
-                let pp = varp.cast::<*mut c_char>();
+                let pp = varp.cast::<*mut u8>();
                 free_string_option(unsafe { *pp });
                 unsafe {
-                    *pp = EMPTY_STRING_OPTION.as_ptr().cast::<c_char>();
+                    *pp = EMPTY_STRING_OPTION.as_ptr().cast();
                 }
             } else if opt_idx == K_OPT_UNDOLEVELS {
                 unsafe {
@@ -5368,7 +5369,7 @@ fn set_option_varp(opt_idx: OptIndex, varp: *mut c_void, value: Object) {
         }
         ObjectType::ObjectTypeString => {
             assert!(option_has_type(opt_idx, ObjectType::ObjectTypeString));
-            let pp = varp.cast::<*mut c_char>();
+            let pp = varp.cast::<*mut u8>();
             free_string_option(unsafe { *pp });
             unsafe {
                 *pp = copy_option_val(value.data.string().data);
@@ -5614,33 +5615,36 @@ fn is_option_local_value_unset(opt_idx: OptIndex) -> bool {
 }
 
 /// Handle side-effects of setting an option.
-fn did_set_option(
+fn did_set_option<'a>(
     args: &mut Optset,
     set_sid: Scid,
     direct: bool,
     value_replaced: bool,
     value_untrusted: bool,
-) -> *const c_char {
+) -> Option<&'a CStr> {
     let opt_idx = args.os_idx;
     let varp = args.os_varp;
     let opt_flags = args.os_flags;
     let opt = get_option(opt_idx);
-    let mut errmsg: *const c_char = ptr::null();
+    let mut errmsg: Option<&'a CStr> = None;
 
     if direct {
         // Don't do any extra processing if setting directly.
     } else if (g_st().secure != 0 || g_st().sandbox != 0) && (opt.flags & K_OPT_FLAG_SECURE) != 0 {
-        errmsg = E_SECURE.as_ptr();
+        errmsg = Some(E_SECURE);
     } else if args.os_newval.obj_type == ObjectType::ObjectTypeString
         && !is_callback_option(opt_idx)
-        && check_illegal_path_names(unsafe { *(varp.cast::<*mut c_char>()) }, opt.flags)
+        && check_illegal_path_names(
+            unsafe { *(varp.cast::<*mut u8>()).cast::<*mut _>() },
+            opt.flags,
+        )
     {
-        errmsg = E_INVARG.as_ptr();
+        errmsg = Some(E_INVARG);
     } else if let Some(cb) = opt.opt_did_set_cb {
-        errmsg = cb(args).map_or(ptr::null(), |s| s.as_ptr());
+        errmsg = cb(args).map(|s| unsafe { CStr::from_ptr(s.as_ptr()) });
     }
 
-    if !errmsg.is_null() {
+    if errmsg.is_some() {
         set_option_varp(opt_idx, varp, args.os_oldval);
         optval_free(args.os_oldval);
         return errmsg;
@@ -5722,7 +5726,7 @@ fn did_set_option(
 
     check_redraw(opt.flags);
 
-    if errmsg.is_null() {
+    if errmsg.is_none() {
         opt.flags |= K_OPT_FLAG_WAS_SET;
 
         let flagsp = insecure_flag(Some(crate::globals::curwin_mut()), opt_idx, opt_flags);
@@ -5752,23 +5756,23 @@ fn did_set_option(
 }
 
 /// Validates an option value and prepares any data needed to apply it, without side effects.
-pub fn validate_and_prepare_option_value(args: &mut Optset) -> *const c_char {
+pub fn validate_and_prepare_option_value<'a>(args: &mut Optset) -> Option<&'a CStr> {
     let opt_idx = args.os_idx;
     let newval = &mut args.os_newval;
     let opt_flags = args.os_flags;
     let buf = args.os_buf;
     let win = args.os_win;
     let errbuf = args.os_errbuf;
-    let mut errmsg: *const c_char = ptr::null();
+    let mut errmsg: Option<&'a CStr> = None;
     let opt = get_option(opt_idx);
 
     if (opt_flags & OPT_LOCAL) != 0 && optval_is_unset_local(opt_idx, *newval) {
-        return ptr::null();
+        return None;
     }
 
     if newval.obj_type == ObjectType::ObjectTypeNil {
         if opt_flags == OPT_GLOBAL {
-            errmsg = tr(c"Cannot unset global option value");
+            errmsg = Some(unsafe { CStr::from_ptr(tr(c"Cannot unset global option value")) });
         } else {
             let varp =
                 get_varp_scope_from(opt, OPT_GLOBAL, unsafe { &mut *buf }, unsafe { &mut *win });
@@ -5793,9 +5797,9 @@ pub fn validate_and_prepare_option_value(args: &mut Optset) -> *const c_char {
                 optval_type_name(optval_type(*newval)),
                 rep.as_ptr(),
             );
-            errbuf.data.cast_const().cast()
+            Some(unsafe { CStr::from_ptr(errbuf.data.cast()) })
         } else {
-            c"".as_ptr()
+            Some(c"")
         };
     } else if newval.obj_type == ObjectType::ObjectTypeInteger {
         errmsg = validate_num_option(
@@ -5805,7 +5809,7 @@ pub fn validate_and_prepare_option_value(args: &mut Optset) -> *const c_char {
             errbuf,
         );
     }
-    if !errmsg.is_null() {
+    if errmsg.is_some() {
         return errmsg;
     }
 
@@ -5817,14 +5821,13 @@ pub fn validate_and_prepare_option_value(args: &mut Optset) -> *const c_char {
         let unchanged = option_equal(oldval, *newval);
         optval_free_read(opt_idx, oldval);
         if !unchanged {
-            return E_UNSUPPORTEDOPTION.as_ptr();
+            return Some(E_UNSUPPORTEDOPTION);
         }
     }
     let schema = opt.schema;
     if newval.obj_type == ObjectType::ObjectTypeString && !schema.is_empty() {
-        errmsg = opt_strings_check(newval.data.string().data, schema, errbuf)
-            .map_or(ptr::null(), |s| s.as_ptr());
-        if !errmsg.is_null() {
+        errmsg = opt_strings_check(newval.data.string().data, schema, errbuf);
+        if errmsg.is_some() {
             return errmsg;
         }
     }
@@ -5838,16 +5841,16 @@ pub fn validate_and_prepare_option_value(args: &mut Optset) -> *const c_char {
             get_varp_scope_from(opt, opt_flags, unsafe { &mut *buf }, unsafe { &mut *win })
         };
         args.os_oldval = opt_from_varp(opt_idx, args.os_varp);
-        errmsg = validate_cb(args).map_or(ptr::null(), |s| s.as_ptr());
+        let validate_err = validate_cb(args).map(|s| s.as_ptr());
         optval_free_read(opt_idx, args.os_oldval);
         args.os_oldval = nil_obj();
-        return errmsg;
+        return validate_err.map(|p| unsafe { CStr::from_ptr(p) });
     }
-    ptr::null()
+    None
 }
 
 /// Set the value of an option using an Object.
-fn set_option(
+fn set_option<'a>(
     opt_idx: OptIndex,
     mut value: Object,
     opt_flags: i32,
@@ -5855,10 +5858,10 @@ fn set_option(
     direct: bool,
     value_replaced: bool,
     errbuf: Option<CharBuf>,
-) -> *const c_char {
+) -> Option<&'a CStr> {
     assert!(opt_idx != K_OPT_INVALID);
 
-    let mut errmsg: *const c_char = ptr::null();
+    let mut errmsg: Option<&'a CStr> = None;
     let mut args = Optset {
         os_varp: ptr::null_mut(),
         os_idx: opt_idx,
@@ -5878,20 +5881,21 @@ fn set_option(
     if !direct {
         if (g_st().secure != 0 || g_st().sandbox != 0) && (opt.flags & K_OPT_FLAG_SECURE) != 0 {
             optval_free(value);
-            return E_SECURE.as_ptr();
+            return Some(E_SECURE);
         }
 
-        errmsg = validate_and_prepare_option_value(&mut args);
+        errmsg = validate_and_prepare_option_value(&mut args)
+            .map(|s| unsafe { CStr::from_ptr(s.as_ptr()) });
         value = args.os_newval;
 
-        if errmsg.is_null()
+        if errmsg.is_none()
             && value.obj_type == ObjectType::ObjectTypeString
             && (opt.flags & K_OPT_FLAG_FUNC) != 0
             && value.data.string().size > 0
         {
             let mut cb = Callback::NONE;
             if !option_set_callback_func(value.data.string().data, &mut cb) {
-                errmsg = E_INVARG.as_ptr();
+                errmsg = Some(E_INVARG);
             }
             callback_free(&mut cb);
         }
@@ -5900,11 +5904,10 @@ fn set_option(
             value.data.string().data,
             opt_dict_schema(opt_idx).unwrap().schema,
             errbuf,
-        )
-        .map_or(ptr::null(), |s| s.as_ptr());
+        );
     }
 
-    if !errmsg.is_null() {
+    if errmsg.is_some() {
         optval_free(value);
         return errmsg;
     }
@@ -5934,7 +5937,7 @@ fn set_option(
                     continue;
                 }
                 unsafe {
-                    *p = b'/' as c_char;
+                    *p.cast::<u8>() = b'/';
                 }
                 p = p.wrapping_add(1);
             }
@@ -5997,12 +6000,13 @@ fn set_option(
     args.os_newval = value;
     args.os_buf = g_st().curbuf;
     args.os_win = curwin_ptr();
-    errmsg = did_set_option(&mut args, set_sid, direct, value_replaced, value_untrusted);
+    errmsg = did_set_option(&mut args, set_sid, direct, value_replaced, value_untrusted)
+        .map(|s| unsafe { CStr::from_ptr(s.as_ptr()) });
     args.os_prep = crate::optionstr::OptSetPrep::None;
 
     g_st().secure = secure_saved;
 
-    if errmsg.is_null() && !direct {
+    if errmsg.is_none() && !direct {
         if starting_val() == 0 {
             apply_optionset_autocmd(
                 opt_idx,
@@ -6042,7 +6046,7 @@ pub fn set_option_direct(opt_idx: OptIndex, value: Object, opt_flags: i32, set_s
         true,
         None,
     );
-    assert!(errmsg.is_null());
+    assert!(errmsg.is_none());
 }
 
 /// Set option value directly for buffer / window, without processing any side effects.
@@ -6075,18 +6079,18 @@ pub fn set_option_direct_for(
 }
 
 /// Sets the value of an (non-tty) option.
-pub fn set_option_value(
+pub fn set_option_value<'a>(
     opt_idx: OptIndex,
     value: Object,
     opt_flags: i32,
     value_replaced: bool,
     errbuf: Option<CharBuf>,
-) -> *const c_char {
+) -> Option<&'a CStr> {
     assert!(opt_idx != K_OPT_INVALID);
 
     let flags = get_option(opt_idx).flags;
     if g_st().sandbox > 0 && (flags & K_OPT_FLAG_SECURE) != 0 {
-        return tr(E_SANDBOX);
+        return Some(unsafe { CStr::from_ptr(tr(E_SANDBOX)) });
     }
 
     set_option(
@@ -6101,7 +6105,7 @@ pub fn set_option_value(
 }
 
 #[inline]
-fn unset_option_local_value(opt_idx: OptIndex) -> *const c_char {
+fn unset_option_local_value(opt_idx: OptIndex) -> Option<&'static CStr> {
     assert!(option_is_global_local(opt_idx));
     set_option_value(opt_idx, unset_obj(), OPT_LOCAL, true, None)
 }
@@ -6115,7 +6119,7 @@ pub fn set_option_value_give_err(opt_idx: OptIndex, value: Object, opt_flags: i3
     };
     let errmsg = set_option_value(opt_idx, value, opt_flags, true, Some(errbuf));
 
-    if !errmsg.is_null() {
+    if let Some(errmsg) = errmsg {
         emsg(tr(errmsg));
     }
 }
@@ -6278,8 +6282,8 @@ pub fn set_option_value_for(
         size: IOSIZE,
     };
     let errmsg = set_option_value(opt_idx, value, opt_flags, value_replaced, Some(errbuf));
-    if !errmsg.is_null() {
-        api_set_error!(err, ErrorType::ErrorTypeException, c"%s", errmsg);
+    if let Some(errmsg) = errmsg {
+        api_set_error!(err, ErrorType::ErrorTypeException, c"%s", errmsg.as_ptr());
     }
 
     if switched {
@@ -6496,7 +6500,7 @@ pub fn makeset(fd: *mut FILE, opt_flags: i32, local_only: i32) -> bool {
                     let mut do_endif = false;
                     if opt_idx == K_OPT_SYNTAX || opt_idx == K_OPT_FILETYPE {
                         if fprintf!(fd, c"if &%s != '%s'", opt.fullname.as_ptr(), unsafe {
-                            *(varp.cast::<*mut c_char>())
+                            *(varp.cast::<*mut u8>())
                         },) < 0
                             || !put_eol(fd.cast())
                         {
@@ -6629,7 +6633,7 @@ fn put_set_value(
                 if !value_str.is_null() {
                     if (flags & K_OPT_FLAG_EXPAND) != 0 {
                         let size = crate::memory::cstr_len(value_str) + 1;
-                        let mut buf_vec = vec![0 as c_char; size];
+                        let mut buf_vec = vec![0u8; size];
                         let buf = buf_vec.as_mut_ptr();
                         home_replace(None, value_str, buf, size, false);
 
@@ -6637,24 +6641,24 @@ fn put_set_value(
                             && (flags & K_OPT_FLAG_COMMA) != 0
                             && crate::strings::vim_haschr(value_str, b',' as i32)
                         {
-                            let mut part_vec = vec![0 as c_char; size];
+                            let mut part_vec = vec![0u8; size];
                             let part = part_vec.as_mut_ptr();
                             if !put_eol(fd.cast()) {
                                 return false;
                             }
                             let mut p = buf;
-                            while !crate::memory::cstr_is_empty(p) {
+                            while !crate::memory::cstr_is_empty(p.cast()) {
                                 if fprintf!(fd, c"%s %s+=", cmd, name) < 0 {
                                     return false;
                                 }
                                 copy_option_part(&raw mut p, part, size, c",");
-                                if !put_escstr(fd.cast(), part, 2) || !put_eol(fd.cast()) {
+                                if !put_escstr(fd.cast(), &part_vec, 2) || !put_eol(fd.cast()) {
                                     return false;
                                 }
                             }
                             return true;
                         }
-                        if !put_escstr(fd.cast(), buf, 2) {
+                        if !put_escstr(fd.cast(), &buf_vec, 2) {
                             return false;
                         }
                     } else if !put_escstr(fd.cast(), value_str, 2) {
@@ -7168,11 +7172,11 @@ pub fn get_varp_from(p: &mut Vimoption, buf: &mut FileBuf, win: *mut WinInfoInfo
 }
 
 /// Get the value of 'equalprg', either the buffer-local one or the global one.
-pub fn get_equalprg() -> *mut c_char {
+pub fn get_equalprg() -> &'static CStr {
     if crate::memory::cstr_is_empty(curbuf_mut().b_p_ep) {
-        opt_vars().p_ep
+        unsafe { CStr::from_ptr(opt_vars().p_ep) }
     } else {
-        curbuf_mut().b_p_ep
+        unsafe { CStr::from_ptr(curbuf_mut().b_p_ep) }
     }
 }
 
@@ -7192,10 +7196,10 @@ pub fn win_copy_options(wp_from: &mut WinInfoInfo, wp_to: &mut WinInfoInfo) {
     didset_window_options(&mut *wp_to, true);
 }
 
-fn copy_option_val(val: impl crate::strings::IntoCCharPtr) -> *mut c_char {
+fn copy_option_val<R>(val: impl crate::strings::IntoCCharPtr) -> *mut R {
     let val = val.into_c_char_ptr();
-    let empty_opt = EMPTY_STRING_OPTION.as_ptr().cast::<c_char>();
-    if ptr::eq(val, empty_opt) {
+    let empty_opt = EMPTY_STRING_OPTION.as_ptr().cast::<R>();
+    if ptr::eq(val.cast::<R>(), empty_opt) {
         empty_opt
     } else {
         alloc_string_option(val)
@@ -7204,7 +7208,7 @@ fn copy_option_val(val: impl crate::strings::IntoCCharPtr) -> *mut c_char {
 
 /// Copy the options from one Winopt to another.
 pub fn copy_winopt(from: &mut Winopt, to: &mut Winopt) {
-    let empty_opt = EMPTY_STRING_OPTION.as_ptr().cast::<c_char>();
+    let empty_opt = EMPTY_STRING_OPTION.as_ptr().cast();
     to.wo_arab = from.wo_arab;
     to.wo_list = from.wo_list;
     to.wo_lcs = copy_option_val(from.wo_lcs);
@@ -7365,7 +7369,7 @@ pub fn didset_window_options(wp: &mut WinInfoInfo, valid_cursor: bool) {
     parse_winhl_opt(ptr::null(), Some(&mut *wp));
     check_blending(wp);
     set_winbar_win(wp, false, valid_cursor);
-    check_signcolumn(ptr::null::<c_char>(), Some(&mut *wp));
+    check_signcolumn(None::<&CStr>, Some(&mut *wp));
     wp.w_grid_alloc.blending = wp.w_onebuf_opt.wo_winbl > 0;
 }
 
@@ -7382,9 +7386,9 @@ fn copy_opt_insecure(bv: usize) -> u32 {
 /// Copy global option values to local options for one buffer.
 pub fn buf_copy_options(buf: &mut FileBuf, flags: i32) {
     let mut should_copy = true;
-    let mut save_p_isk: *mut c_char = ptr::null_mut();
+    let mut save_p_isk = ptr::null_mut();
     let mut did_isk = false;
-    let empty_opt = EMPTY_STRING_OPTION.as_ptr().cast::<c_char>();
+    let empty_opt = EMPTY_STRING_OPTION.as_ptr().cast();
 
     if !opt_vars().p_cpo.is_null() {
         if (!crate::strings::vim_haschr(opt_vars().p_cpo, K_CPO_BUFOPTGLOB)
@@ -7654,7 +7658,12 @@ pub fn set_imsearch_global(buf: &mut FileBuf) {
     opt_vars().p_imsearch = buf.b_p_imsearch;
 }
 
-pub fn set_context_in_set_cmd(xp: &mut ExpandCtx, mut arg: *mut c_char, opt_flags: i32) {
+pub fn set_context_in_set_cmd(
+    xp: &mut ExpandCtx,
+    arg: impl crate::strings::IntoCCharPtr,
+    opt_flags: i32,
+) {
+    let mut arg = arg.into_c_char_ptr().cast_mut();
     opt_st().expand_option_flags = opt_flags;
 
     xp.xp_context = EXPAND_SETTINGS;
@@ -7665,7 +7674,7 @@ pub fn set_context_in_set_cmd(xp: &mut ExpandCtx, mut arg: *mut c_char, opt_flag
     let argend = arg.wrapping_add(crate::memory::cstr_len(arg));
     let mut p = argend.wrapping_offset(-1);
     if crate::memory::cstr_first_byte(p) == b' '
-        && unsafe { *p.wrapping_offset(-1) } != b'\\' as c_char
+        && crate::memory::cstr_first_byte(p.wrapping_offset(-1)) != b'\\'
     {
         xp.xp_pattern = p.wrapping_add(1).cast();
         return;
@@ -7673,7 +7682,7 @@ pub fn set_context_in_set_cmd(xp: &mut ExpandCtx, mut arg: *mut c_char, opt_flag
     while p > arg {
         let mut s = p;
         if crate::memory::cstr_first_byte(p) == b' ' || crate::memory::cstr_first_byte(p) == b',' {
-            while s > arg && unsafe { *s.wrapping_offset(-1) } == b'\\' as c_char {
+            while s > arg && crate::memory::cstr_first_byte(s.wrapping_offset(-1)) == b'\\' {
                 s = s.wrapping_offset(-1);
             }
         }
@@ -7697,7 +7706,7 @@ pub fn set_context_in_set_cmd(xp: &mut ExpandCtx, mut arg: *mut c_char, opt_flag
     xp.xp_pattern = p.cast();
     arg = p;
 
-    let mut nextchar: c_char;
+    let mut nextchar: u8;
     let mut flags: u32 = 0;
     let mut opt_idx: OptIndex = 0;
     let mut is_term_option = false;
@@ -7715,10 +7724,10 @@ pub fn set_context_in_set_cmd(xp: &mut ExpandCtx, mut arg: *mut c_char, opt_flag
             xp.xp_context = EXPAND_NOTHING;
             return;
         }
-        nextchar = unsafe { *p };
+        nextchar = crate::memory::cstr_first_byte(p);
         is_term_option = true;
-        opt_st().expand_option_name[2] = key2termcap0(key) as c_char;
-        opt_st().expand_option_name[3] = key2termcap1(key) as c_char;
+        opt_st().expand_option_name[2] = key2termcap0(key) as u8;
+        opt_st().expand_option_name[3] = key2termcap1(key) as u8;
     } else if crate::memory::cstr_first_byte(p) == b't' && crate::memory::cstr_byte_at(p, 1) == b'_'
     {
         p = p.wrapping_add(2);
@@ -7729,10 +7738,10 @@ pub fn set_context_in_set_cmd(xp: &mut ExpandCtx, mut arg: *mut c_char, opt_flag
             return;
         }
         p = p.wrapping_add(1);
-        nextchar = unsafe { *p };
+        nextchar = crate::memory::cstr_first_byte(p);
         is_term_option = true;
-        opt_st().expand_option_name[2] = unsafe { *p.wrapping_offset(-2) };
-        opt_st().expand_option_name[3] = unsafe { *p.wrapping_offset(-1) };
+        opt_st().expand_option_name[2] = crate::memory::cstr_first_byte(p.wrapping_offset(-2));
+        opt_st().expand_option_name[3] = crate::memory::cstr_first_byte(p.wrapping_offset(-1));
     } else {
         while ascii_isalnum(crate::memory::cstr_first_char(p))
             || crate::memory::cstr_first_byte(p) == b'_'
@@ -7743,7 +7752,7 @@ pub fn set_context_in_set_cmd(xp: &mut ExpandCtx, mut arg: *mut c_char, opt_flag
         if crate::memory::cstr_is_empty(p) {
             return;
         }
-        nextchar = unsafe { *p };
+        nextchar = crate::memory::cstr_first_byte(p);
         opt_idx = find_option_len(arg, crate::memory::ptr_offset_from(p, arg) as usize);
         if opt_idx == K_OPT_INVALID || is_option_hidden(opt_idx) {
             xp.xp_context = EXPAND_NOTHING;
@@ -7758,21 +7767,19 @@ pub fn set_context_in_set_cmd(xp: &mut ExpandCtx, mut arg: *mut c_char, opt_flag
 
     opt_st().expand_option_append = false;
     let mut expand_option_subtract = false;
-    if (nextchar == b'-' as c_char || nextchar == b'+' as c_char || nextchar == b'^' as c_char)
+    if (nextchar == b'-' || nextchar == b'+' || nextchar == b'^')
         && crate::memory::cstr_byte_at(p, 1) == b'='
     {
-        if nextchar == b'-' as c_char {
+        if nextchar == b'-' {
             expand_option_subtract = true;
         }
-        if nextchar == b'+' as c_char || nextchar == b'^' as c_char {
+        if nextchar == b'+' || nextchar == b'^' {
             opt_st().expand_option_append = true;
         }
         p = p.wrapping_add(1);
-        nextchar = b'=' as c_char;
+        nextchar = b'=';
     }
-    if (nextchar != b'=' as c_char && nextchar != b':' as c_char)
-        || xp.xp_context == EXPAND_BOOL_SETTINGS
-    {
+    if (nextchar != b'=' && nextchar != b':') || xp.xp_context == EXPAND_BOOL_SETTINGS {
         xp.xp_context = EXPAND_UNSUCCESSFUL;
         return;
     }
@@ -7864,7 +7871,7 @@ pub fn set_context_in_set_cmd(xp: &mut ExpandCtx, mut arg: *mut c_char, opt_flag
             {
                 let mut s = p;
                 while s.cast::<u8>() > xp.xp_pattern
-                    && unsafe { *s.wrapping_offset(-1) } == b'\\' as c_char
+                    && crate::memory::cstr_first_byte(s.wrapping_offset(-1)) == b'\\'
                 {
                     s = s.wrapping_offset(-1);
                 }
@@ -7949,7 +7956,7 @@ pub fn expand_settings(
 ) -> bool {
     let fuzzystr = fuzzystr.into_c_char_ptr();
     {
-        let names: [*mut c_char; 1] = [c"all".as_ptr().cast_mut()];
+        let names: [&CStr; 1] = [c"all"];
         let ic = regmatch.rm_ic;
 
         matches.clear();
@@ -8000,23 +8007,23 @@ pub fn escape_option_str_cmdline(var_arg: impl crate::strings::IntoCCharPtr) -> 
     #[cfg(windows)]
     {
         let mut bytes = buf_cstr.into_bytes_with_nul();
-        let buf = bytes.as_mut_ptr().cast::<c_char>();
+        let buf = bytes.as_mut_ptr();
         let mut var = buf;
-        while !crate::memory::cstr_is_empty(var) {
-            if crate::memory::cstr_first_byte(var) == b'\\'
-                && crate::memory::cstr_byte_at(var, 1) == b'\\'
+        while !crate::memory::cstr_is_empty(var.cast()) {
+            if crate::memory::cstr_first_byte(var.cast()) == b'\\'
+                && crate::memory::cstr_byte_at(var.cast(), 1) == b'\\'
                 && opt_st().expand_option_idx != K_OPT_INVALID
                 && (get_option(opt_st().expand_option_idx).flags & K_OPT_FLAG_EXPAND) != 0
-                && vim_isfilec(crate::memory::cstr_byte_at(var, 2) as i32)
-                && (crate::memory::cstr_byte_at(var, 2) != b'\\'
-                    || (var == buf && crate::memory::cstr_byte_at(var, 4) != b'\\'))
+                && vim_isfilec(crate::memory::cstr_byte_at(var.cast(), 2) as i32)
+                && (crate::memory::cstr_byte_at(var.cast(), 2) != b'\\'
+                    || (var == buf && crate::memory::cstr_byte_at(var.cast(), 4) != b'\\'))
             {
                 let src = var.wrapping_add(1);
-                unsafe { ptr::copy(src, var, crate::memory::cstr_len(src) + 1) };
+                unsafe { ptr::copy(src, var, crate::memory::cstr_len(src.cast()) + 1) };
             }
-            var = var.wrapping_add(utfc_ptr2len(var) as usize);
+            var = var.wrapping_add(utfc_ptr2len(var.cast()) as usize);
         }
-        let len = crate::memory::cstr_len(buf);
+        let len = crate::memory::cstr_len(&bytes[..]);
         crate::memory::cstr_from_bytes(&bytes[..len])
     }
     #[cfg(not(windows))]
@@ -8030,7 +8037,7 @@ pub fn expand_old_setting(matches: &mut Vec<std::ffi::CString>) -> bool {
     matches.clear();
 
     if opt_st().expand_option_idx == K_OPT_INVALID {
-        opt_st().expand_option_idx = find_option((&raw const opt_st().expand_option_name).cast());
+        opt_st().expand_option_idx = find_option(&opt_st().expand_option_name);
     }
 
     let var = if opt_st().expand_option_idx != K_OPT_INVALID {
@@ -8112,41 +8119,42 @@ pub fn expand_setting_subtract(
             curbuf_mut(),
             curwin_ptr(),
         )
-        .cast::<*mut c_char>())
+        .cast::<*mut u8>())
     };
 
     let option_flags = get_option(opt_st().expand_option_idx).flags;
 
     if (option_flags & K_OPT_FLAG_COMMA) != 0 {
-        if crate::memory::cstr_is_empty(option_val) {
+        if crate::memory::cstr_is_empty(option_val.cast()) {
             return false;
         }
 
-        let mut option_copy = crate::memory::cstr_to_cstring(option_val).into_bytes_with_nul();
-        let mut next_val = option_copy.as_mut_ptr().cast::<c_char>();
+        let mut option_copy =
+            crate::memory::cstr_to_cstring(option_val.cast()).into_bytes_with_nul();
+        let mut next_val = option_copy.as_mut_ptr();
 
         matches.clear();
 
         loop {
             let item = next_val;
-            let mut comma = vim_strchr(next_val, b',' as i32);
+            let mut comma = vim_strchr(next_val.cast(), b',' as i32).cast::<u8>();
             while !comma.is_null()
                 && comma != next_val
-                && unsafe { *comma.wrapping_offset(-1) } == b'\\' as c_char
+                && unsafe { *comma.wrapping_offset(-1) } == b'\\'
             {
-                comma = vim_strchr(comma.wrapping_add(1), b',' as i32);
+                comma = vim_strchr(comma.wrapping_add(1).cast(), b',' as i32).cast::<u8>();
             }
             if !comma.is_null() {
                 unsafe {
-                    *comma = NUL;
+                    *comma = 0;
                 }
                 next_val = comma.wrapping_add(1);
             } else {
                 next_val = ptr::null_mut();
             }
 
-            if !crate::memory::cstr_is_empty(item) && vim_regexec(regmatch, item, 0) {
-                matches.push(escape_option_str_cmdline(item));
+            if !crate::memory::cstr_is_empty(item.cast()) && vim_regexec(regmatch, item.cast(), 0) {
+                matches.push(escape_option_str_cmdline(item.cast()));
             }
 
             if next_val.is_null() {
@@ -8160,7 +8168,7 @@ pub fn expand_setting_subtract(
             return false;
         }
 
-        let num_flags = crate::memory::cstr_len(option_val);
+        let num_flags = crate::memory::cstr_len(option_val.cast());
         if num_flags == 0 {
             return false;
         }
@@ -8168,12 +8176,12 @@ pub fn expand_setting_subtract(
         matches.clear();
         matches.reserve_exact(num_flags + 1);
         matches.push(crate::memory::cstr_from_bytes(unsafe {
-            std::slice::from_raw_parts(option_val.cast::<u8>(), num_flags)
+            std::slice::from_raw_parts(option_val, num_flags)
         }));
 
         if num_flags > 1 {
             let flag = option_val;
-            for &flag_byte in crate::memory::cstr_as_bytes(flag) {
+            for &flag_byte in crate::memory::cstr_as_bytes(flag.cast()) {
                 matches.push(crate::memory::cstr_from_bytes(&[flag_byte]));
             }
         }
@@ -8205,7 +8213,7 @@ fn optval_fmt(opt_idx: OptIndex, opt_flags: i32) {
     {
         home_replace(
             None,
-            unsafe { *(varp.cast::<*mut c_char>()) },
+            unsafe { *(varp.cast::<*mut u8>()).cast::<*mut _>() },
             namebuf_ptr,
             MAXPATHL,
             false,
@@ -8371,11 +8379,11 @@ pub fn get_bkc_flags(buf: &mut FileBuf) -> u32 {
 }
 
 /// Get the local or global value of 'formatlistpat'.
-pub fn get_flp_value(buf: &mut FileBuf) -> *mut c_char {
+pub fn get_flp_value<'a>(buf: &FileBuf) -> &'a CStr {
     if crate::memory::cstr_is_empty(buf.b_p_flp) {
-        opt_vars().p_flp
+        unsafe { CStr::from_ptr(opt_vars().p_flp) }
     } else {
-        buf.b_p_flp
+        unsafe { CStr::from_ptr(buf.b_p_flp) }
     }
 }
 
@@ -8390,15 +8398,15 @@ pub fn get_ve_flags(wp: &mut WinInfoInfo) -> u32 {
 }
 
 /// Get the local or global value of 'showbreak'.
-pub fn get_showbreak_value(win: &mut WinInfoInfo) -> *mut c_char {
+pub fn get_showbreak_value<'a>(win: &WinInfoInfo) -> &'a CStr {
     let sbr = win.w_onebuf_opt.wo_sbr;
     if crate::memory::cstr_is_empty(sbr) {
-        return opt_vars().p_sbr;
+        return unsafe { CStr::from_ptr(opt_vars().p_sbr) };
     }
     if crate::memory::cstr_as_bytes(sbr) == b"NONE" {
-        return EMPTY_STRING_OPTION.as_ptr().cast::<c_char>();
+        return c"";
     }
-    sbr
+    unsafe { CStr::from_ptr(sbr) }
 }
 
 /// Return the current end-of-line type: EOL_DOS, EOL_UNIX or EOL_MAC.
@@ -8452,14 +8460,14 @@ pub fn default_fileformat() -> i32 {
 
 /// Set the current end-of-line type to EOL_UNIX, EOL_MAC, or EOL_DOS.
 pub fn set_fileformat(eol_style: i32, opt_flags: i32) {
-    let p: *const c_char = match eol_style {
-        EOL_UNIX => c"unix".as_ptr(),
-        EOL_MAC => c"mac".as_ptr(),
-        EOL_DOS => c"dos".as_ptr(),
-        _ => ptr::null(),
+    let p: Option<&CStr> = match eol_style {
+        EOL_UNIX => Some(c"unix"),
+        EOL_MAC => Some(c"mac"),
+        EOL_DOS => Some(c"dos"),
+        _ => None,
     };
 
-    if !p.is_null() {
+    if let Some(p) = p {
         set_option_direct(K_OPT_FILEFORMAT, cstr_as_obj(p), opt_flags, 0);
     }
 
@@ -8469,7 +8477,7 @@ pub fn set_fileformat(eol_style: i32, opt_flags: i32) {
 }
 
 /// Skip to next part of an option argument: skip space and comma.
-pub fn skip_to_option_part(p: impl crate::strings::IntoCCharPtr) -> *mut c_char {
+pub fn skip_to_option_part<R>(p: impl crate::strings::IntoCCharPtr) -> *mut R {
     let mut p = p.into_c_char_ptr();
     {
         if crate::memory::cstr_first_byte(p) == b',' {
@@ -8478,34 +8486,37 @@ pub fn skip_to_option_part(p: impl crate::strings::IntoCCharPtr) -> *mut c_char 
         while crate::memory::cstr_first_byte(p) == b' ' {
             p = p.wrapping_add(1);
         }
-        p.cast_mut()
+        p.cast_mut().cast()
     }
 }
 
 /// Isolate one part of a string option separated by `sep_chars`.
-pub fn copy_option_part(
-    option: *mut *mut c_char,
-    buf: *mut c_char,
+pub fn copy_option_part<T>(
+    option: *mut *mut T,
+    buf: *mut u8,
     maxlen: usize,
     sep_chars: &std::ffi::CStr,
 ) -> usize {
     let mut len: usize = 0;
-    let mut p = unsafe { *option };
+    let mut p = unsafe { (*option).cast::<u8>() };
 
-    if crate::memory::cstr_first_byte(p) == b'.' {
+    if crate::memory::cstr_first_byte(p.cast()) == b'.' {
         unsafe {
             *buf.wrapping_add(len) = *p;
         }
         len += 1;
         p = p.wrapping_add(1);
     }
-    while !crate::memory::cstr_is_empty(p)
-        && !crate::strings::vim_haschr(sep_chars.as_ptr(), crate::memory::cstr_first_byte(p) as i32)
+    while !crate::memory::cstr_is_empty(p.cast())
+        && !crate::strings::vim_haschr(
+            sep_chars.as_ptr(),
+            crate::memory::cstr_first_byte(p.cast()) as i32,
+        )
     {
-        if crate::memory::cstr_first_byte(p) == b'\\'
+        if crate::memory::cstr_first_byte(p.cast()) == b'\\'
             && crate::strings::vim_haschr(
                 sep_chars.as_ptr(),
-                crate::memory::cstr_byte_at(p, 1) as i32,
+                crate::memory::cstr_byte_at(p.cast(), 1) as i32,
             )
         {
             p = p.wrapping_add(1);
@@ -8519,46 +8530,46 @@ pub fn copy_option_part(
         p = p.wrapping_add(1);
     }
     unsafe {
-        *buf.wrapping_add(len) = NUL;
+        *buf.wrapping_add(len) = 0;
     }
 
-    if !crate::memory::cstr_is_empty(p) && crate::memory::cstr_first_byte(p) != b',' {
+    if !crate::memory::cstr_is_empty(p.cast()) && crate::memory::cstr_first_byte(p.cast()) != b',' {
         p = p.wrapping_add(1);
     }
-    p = skip_to_option_part(p);
+    p = skip_to_option_part(p.cast());
 
     unsafe {
-        *option = p;
+        *option = p.cast();
     }
     len
 }
 
 /// Iterates comma-separated parts of option, splitting each part at its first ':' into key/value.
-pub fn option_next_keyval(
-    p: *mut *const c_char,
-    key: *mut *const c_char,
+pub fn option_next_keyval<T>(
+    p: *mut *const T,
+    key: *mut *const T,
     keylen: &mut usize,
-    val: *mut *const c_char,
+    val: *mut *const T,
     vallen: &mut usize,
 ) -> bool {
     unsafe {
-        let s = *p;
+        let s = (*p).cast();
         if crate::memory::cstr_is_empty(s) {
             return false;
         }
 
-        let comma = vim_strchr(s, b',' as i32);
+        let comma = vim_strchr(s, b',' as i32).cast_const();
         let end = if !comma.is_null() {
-            comma as *const c_char
+            comma
         } else {
             s.wrapping_add(crate::memory::cstr_len(s))
         };
-        let colon = vim_strchr(s, b':' as i32) as *const c_char;
+        let colon = vim_strchr(s, b':' as i32).cast_const();
 
-        *key = s;
+        *key = s.cast();
         if !colon.is_null() && colon < end {
             *keylen = crate::memory::ptr_offset_from(colon, s) as usize;
-            *val = colon.wrapping_add(1);
+            *val = colon.wrapping_add(1).cast();
             *vallen = crate::memory::ptr_offset_from(end, colon.wrapping_add(1)) as usize;
         } else {
             *keylen = crate::memory::ptr_offset_from(end, s) as usize;
@@ -8567,9 +8578,9 @@ pub fn option_next_keyval(
         }
 
         *p = if !comma.is_null() {
-            (comma as *const c_char).wrapping_add(1)
+            comma.wrapping_add(1).cast()
         } else {
-            end
+            end.cast()
         };
         true
     }

@@ -826,7 +826,7 @@ pub fn vim_findfile(search_ctx: Option<&mut FfSearchCtx>) -> Option<std::ffi::CS
                             file_path.size = len
                                 + copy_option_part(
                                     &raw mut suf,
-                                    file_path.data.wrapping_add(len),
+                                    file_path.data.wrapping_add(len).cast(),
                                     MAXPATHL - len,
                                     c",",
                                 );
@@ -1395,7 +1395,7 @@ pub fn find_file_in_path_option(
                         }
                         copy_option_part(
                             &raw mut suffix,
-                            name_buff.wrapping_add(l),
+                            name_buff.wrapping_add(l).cast(),
                             MAXPATHL - l,
                             c",",
                         );
@@ -1424,9 +1424,7 @@ pub fn find_file_in_path_option(
                     }
 
                     let mut buf = [0u8; MAXPATHL];
-                    let mut dir_ptr = ff_opt.dir.cast();
-                    copy_option_part(&raw mut dir_ptr, buf.as_mut_ptr().cast(), MAXPATHL, c" ,");
-                    ff_opt.dir = dir_ptr.cast();
+                    copy_option_part(&raw mut ff_opt.dir, buf.as_mut_ptr(), MAXPATHL, c" ,");
 
                     let r_ptr = vim_findfile_stopdir(buf.as_mut_ptr());
                     *search_ctx = vim_findfile_init(

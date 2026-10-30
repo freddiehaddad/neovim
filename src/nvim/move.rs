@@ -219,7 +219,7 @@ pub fn sms_marker_overlap(wp: &mut WinInfoInfo, mut extra2: i32) -> i32 {
     if extra2 == -1 {
         extra2 = win_col_off(wp) - win_col_off2(&mut *wp);
     }
-    if !crate::memory::cstr_is_empty(get_showbreak_value(&mut *wp)) {
+    if !crate::memory::cstr_is_empty(get_showbreak_value(&*wp)) {
         return 0;
     }
 

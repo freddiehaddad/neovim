@@ -1219,14 +1219,12 @@ pub fn open_line(
                             lead_len = 0;
                             break;
                         }
-                        let mut p_c = p.cast();
                         copy_option_part(
-                            &raw mut p_c,
-                            lead_middle.as_mut_ptr().cast(),
+                            &raw mut p,
+                            lead_middle.as_mut_ptr(),
                             COM_MAX_LEN,
                             c",",
                         );
-                        p = p_c.cast();
                         require_blank = false;
                     }
 
@@ -1236,14 +1234,12 @@ pub fn open_line(
                         }
                         p = p.wrapping_add(1);
                     }
-                    let mut p_c = p.cast();
                     lead_middle_len = copy_option_part(
-                        &raw mut p_c,
-                        lead_middle.as_mut_ptr().cast(),
+                        &raw mut p,
+                        lead_middle.as_mut_ptr(),
                         COM_MAX_LEN,
                         c",",
                     ) as i32;
-                    p = p_c.cast();
 
                     while !crate::memory::cstr_is_empty(p.cast()) && *p.wrapping_sub(1) != b':' {
                         if *p == COM_AUTO_END {
@@ -1251,10 +1247,9 @@ pub fn open_line(
                         }
                         p = p.wrapping_add(1);
                     }
-                    let mut p_c = p.cast();
                     let n = copy_option_part(
-                        &raw mut p_c,
-                        lead_end.as_mut_ptr().cast(),
+                        &raw mut p,
+                        lead_end.as_mut_ptr(),
                         COM_MAX_LEN,
                         c",",
                     );

@@ -1088,8 +1088,8 @@ fn handle_showbreak_and_filler(wp: &mut WinInfoInfo, wlv: &mut Winlinevars, gap_
         draw_col_fill(wlv, c, remaining, win_hl_attr(&mut *wp, HLF_DED));
     }
 
-    let sbr = get_showbreak_value(&mut *wp);
-    if !crate::memory::cstr_is_empty(sbr) && wlv.need_showbreak {
+    let sbr = get_showbreak_value(&*wp);
+    if !sbr.is_empty() && wlv.need_showbreak {
         let mut attr = hl_combine_attr(wlv.cul_attr, gap_decor_attr);
         attr = hl_combine_attr(attr, win_hl_attr(&mut *wp, HLF_AT));
         let vcol_before = wlv.vcol;
@@ -1097,7 +1097,7 @@ fn handle_showbreak_and_filler(wp: &mut WinInfoInfo, wlv: &mut Winlinevars, gap_
             &mut *wp,
             wlv,
             sbr,
-            crate::memory::cstr_len(sbr),
+            sbr.to_bytes().len(),
             attr,
             ptr::null(),
             true,
@@ -2820,7 +2820,7 @@ pub fn win_line(
                                 lcs_tab2 = wp.w_p_lcs_chars.leadtab2;
                                 lcs_tab3 = wp.w_p_lcs_chars.leadtab3;
                             }
-                            let sbr = get_showbreak_value(&mut *wp);
+                            let sbr = get_showbreak_value(&*wp);
 
                             if !crate::memory::cstr_is_empty(sbr)
                                 && wlv.vcol == wlv.vcol_sbr
@@ -3678,7 +3678,7 @@ fn wlv_put_linebuf(
 
     if wlv.row == 0
         && wp.w_skipcol > 0
-        && unsafe { *get_showbreak_value(&mut *wp) } == NUL
+        && get_showbreak_value(&*wp).is_empty()
         && !(wp.w_onebuf_opt.wo_list != 0 && wp.w_p_lcs_chars.prec != 0)
     {
         let mut off: i32 = 0;

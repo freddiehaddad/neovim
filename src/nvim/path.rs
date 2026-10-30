@@ -959,7 +959,7 @@ fn expand_path_option(
         let mut curdirlen: usize = 0;
 
         while !crate::memory::cstr_is_empty(path_option) {
-            let mut buflen = copy_option_part(&mut path_option, buf, MAXPATHL, c" ,");
+            let mut buflen = copy_option_part(&mut path_option, buf.cast(), MAXPATHL, c" ,");
 
             if crate::strings::vim_haschr(buf, b'`' as i32) {
                 continue;
@@ -2296,7 +2296,7 @@ pub fn match_suffix(fname: impl crate::strings::IntoCCharPtr) -> bool {
         let mut setsuflen: usize = 0;
         let mut setsuf = opt_vars().p_su;
         while !crate::memory::cstr_is_empty(setsuf) {
-            setsuflen = copy_option_part(&mut setsuf, suf_buf.as_mut_ptr(), MAXSUFLEN, c".,");
+            setsuflen = copy_option_part(&mut setsuf, suf_buf.as_mut_ptr().cast(), MAXSUFLEN, c".,");
             if setsuflen == 0 {
                 let tail = path_tail(fname);
                 if !crate::strings::vim_haschr(tail, b'.' as i32) {

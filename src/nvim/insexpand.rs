@@ -4102,7 +4102,7 @@ fn process_next_cpt_value(
 
             let iobuff_ptr = g_st().iobuff.as_mut_ptr();
             let mut cpt_ptr = st.e_cpt_ptr();
-            copy_option_part((&raw mut cpt_ptr).cast(), iobuff_ptr, IOSIZE, c",");
+            copy_option_part(&raw mut cpt_ptr, iobuff_ptr.cast(), IOSIZE, c",");
             st.e_cpt_idx = crate::memory::ptr_offset_from(cpt_ptr, st.e_cpt_copy.as_ptr()) as usize;
             *advance_cpt_idx = may_advance_cpt_index(cpt_ptr.cast());
 
@@ -5072,7 +5072,7 @@ fn prepare_cpt_compl_funcs() {
         }
 
         let iobuff_ptr = g_st().iobuff.as_mut_ptr();
-        let _ = copy_option_part((&raw mut p).cast(), iobuff_ptr, IOSIZE, c",");
+        let _ = copy_option_part(&raw mut p, iobuff_ptr.cast(), IOSIZE, c",");
         idx += 1;
     }
 }
@@ -7083,7 +7083,7 @@ fn cpt_compl_refresh() {
         }
 
         let iobuff_ptr = g_st().iobuff.as_mut_ptr();
-        let _ = copy_option_part((&raw mut p).cast(), iobuff_ptr, IOSIZE, c",");
+        let _ = copy_option_part(&raw mut p, iobuff_ptr.cast(), IOSIZE, c",");
         if may_advance_cpt_index(p.cast()) {
             let _ = advance_cpt_sources_index_safe();
         }

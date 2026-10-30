@@ -3538,7 +3538,7 @@ pub fn nv_screengo(oap: &mut Oparg, dir: i32, mut dist: i32, skip_conceal: bool)
     if curwin_mut().w_cursor.col > 0 && curwin_mut().w_onebuf_opt.wo_wrap != 0 {
         validate_virtcol(curwin_mut());
         let mut virtcol = curwin_mut().w_virtcol;
-        if virtcol > width1 && unsafe { *get_showbreak_value(curwin_mut()) } != NUL {
+        if virtcol > width1 && !get_showbreak_value(curwin_mut()).is_empty() {
             virtcol -= vim_strsize(get_showbreak_value(curwin_mut()));
         }
 

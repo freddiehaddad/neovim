@@ -682,9 +682,9 @@ fn is_executable_ext(
                 continue;
             }
 
-            let mut ext_end = ext.cast_mut().cast();
+            let mut ext_end = ext.cast_mut();
             let rem = MAXPATHL - ((buf_end as usize) - (buf as usize));
-            let ext_len = copy_option_part(&raw mut ext_end, buf_end.cast(), rem, ENV_SEPSTR);
+            let ext_len = copy_option_part(&raw mut ext_end, buf_end, rem, ENV_SEPSTR);
             if ext_len != 0 {
                 let in_pathext =
                     nameext_len == ext_len && mb_strnicmp(nameext, ext.cast(), ext_len) == 0;
@@ -694,7 +694,7 @@ fn is_executable_ext(
                     return true;
                 }
             }
-            ext = ext_end.cast();
+            ext = ext_end;
         }
         false
     }

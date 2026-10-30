@@ -2680,9 +2680,7 @@ pub fn get_tagfname(tnp: &mut Tagname, first: i32, buf: &mut [u8]) -> bool {
             unsafe {
                 *buf_ptr = 0;
             }
-            let mut np_c = tnp.tn_np.cast();
-            copy_option_part(&raw mut np_c, buf_ptr.cast(), MAXPATHL - 1, c" ,");
-            tnp.tn_np = np_c.cast();
+            copy_option_part(&raw mut tnp.tn_np, buf_ptr, MAXPATHL - 1, c" ,");
 
             let mut r_ptr = vim_findfile_stopdir(buf_ptr);
             let mut filename = path_tail(buf_ptr.cast()).cast::<u8>();

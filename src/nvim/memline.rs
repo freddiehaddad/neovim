@@ -1563,7 +1563,7 @@ pub fn recover_names(fname: *mut c_char, skip_curbuf: bool, ret_list: &mut TvLis
         };
         let mut dirp = opt_vars().p_dir;
         while !crate::memory::cstr_is_empty(dirp) {
-            dir_name.size = copy_option_part(&raw mut dirp, dir_name.data, 31000, c",");
+            dir_name.size = copy_option_part(&raw mut dirp, dir_name.data.cast(), 31000, c",");
 
             let mut names_vec: Vec<std::ffi::CString> = Vec::with_capacity(6);
             if crate::memory::cstr_first_byte(dir_name.data) == b'.'
@@ -3600,7 +3600,7 @@ fn findswapname(
         let dir_len = crate::memory::cstr_len(unsafe { *dirp }) + 1;
         let mut dir_name_vec: Vec<c_char> = vec![0; dir_len];
         let dir_name = dir_name_vec.as_mut_ptr();
-        copy_option_part(dirp, dir_name, dir_len, c",");
+        copy_option_part(dirp, dir_name.cast(), dir_len, c",");
 
         let mut fname_vec: Option<Vec<c_char>> = makeswapname(buf_fname, dir_name).map(|cstr| {
             cstr.into_bytes_with_nul()

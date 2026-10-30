@@ -593,7 +593,7 @@ pub fn nvim_set_option_value(
     }
 
     let mut merged_val = OBJECT_NIL;
-    let mut errmsg = ptr::null();
+    let mut errmsg = None;
     let option = get_option(opt_idx);
     let is_array = value.obj_type == ObjectType::ObjectTypeArray;
     let is_dict = value.obj_type == ObjectType::ObjectTypeDict;
@@ -705,8 +705,8 @@ pub fn nvim_set_option_value(
                 &mut errmsg,
             );
             optval_free(oldval);
-            if !errmsg.is_null() {
-                api_set_error!(err, ErrorType::ErrorTypeValidation, c"%s", errmsg);
+            if let Some(errmsg) = errmsg {
+                api_set_error!(err, ErrorType::ErrorTypeValidation, c"%s", errmsg.as_ptr());
                 optval_free(merged_val);
                 return OBJECT_NIL;
             }
@@ -733,10 +733,10 @@ pub fn nvim_set_option_value(
             os_win: win,
             os_buf: buf,
         };
-        errmsg = validate_and_prepare_option_value(&mut args);
+        let errmsg = validate_and_prepare_option_value(&mut args);
         merged_val = args.os_newval;
-        if !errmsg.is_null() {
-            api_set_error!(err, ErrorType::ErrorTypeException, c"%s", errmsg);
+        if let Some(errmsg) = errmsg {
+            api_set_error!(err, ErrorType::ErrorTypeException, c"%s", errmsg.as_ptr());
             optval_free(merged_val);
             return OBJECT_NIL;
         }

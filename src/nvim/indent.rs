@@ -801,7 +801,7 @@ pub fn get_breakindent_win(wp: &mut WinInfoInfo, line: impl crate::strings::Into
 
         let buf = wp.w_buffer;
         let buf = unsafe { &mut *buf };
-        let flp_val = crate::memory::cstr_from_ptr(get_flp_value(&mut *buf));
+        let flp_val = get_flp_value(&*buf);
         let line_cstr = crate::memory::cstr_from_ptr(line);
         if ind_st().prev_fnum != buf.b_fnum
             || ind_st().prev_ts != buf.b_p_ts
@@ -881,7 +881,7 @@ pub fn get_breakindent_win(wp: &mut WinInfoInfo, line: impl crate::strings::Into
         }
 
         if wp.w_briopt_sbr {
-            bri -= vim_strsize(get_showbreak_value(&mut *wp));
+            bri -= vim_strsize(get_showbreak_value(&*wp));
         }
 
         if bri < 0 {

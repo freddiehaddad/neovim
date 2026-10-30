@@ -338,7 +338,7 @@ pub fn charsize_regular(
             mb_added = 1;
         }
 
-        let sbr = get_showbreak_value(&mut *wp);
+        let sbr = get_showbreak_value(&*wp);
 
         let mut head = mb_added;
         if size > 0

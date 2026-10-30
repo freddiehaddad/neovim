@@ -1441,7 +1441,7 @@ fn add_pack_dir_to_rtp(fname: impl crate::strings::IntoCCharPtr, is_pack: bool) 
             let mut entry: *mut u8 = opt_vars().p_rtp.cast();
             while !crate::memory::cstr_is_empty(entry.cast()) {
                 let cur_entry = entry;
-                buf.size = copy_option_part((&raw mut entry).cast(), buf.data, MAXPATHL, c",");
+                buf.size = copy_option_part(&raw mut entry, buf.data.cast(), MAXPATHL, c",");
 
                 p_rtp_len += if crate::memory::cstr_byte_at(cur_entry.cast(), buf.size) == b',' {
                     buf.size + 1
@@ -1707,7 +1707,7 @@ fn add_pack_plugins(opt: bool, fnames: &[std::ffi::CString], all: bool, action: 
             let mut found = false;
             let mut p: *mut u8 = opt_vars().p_rtp.cast();
             while !crate::memory::cstr_is_empty(p.cast()) {
-                copy_option_part((&raw mut p).cast(), buf.as_mut_ptr().cast(), MAXPATHL, c",");
+                copy_option_part(&raw mut p, buf.as_mut_ptr(), MAXPATHL, c",");
                 if path_equal(buf.as_ptr().cast(), fname, K_PATH_CMP_LITERAL) {
                     found = true;
                     break;
