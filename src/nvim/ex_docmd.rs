@@ -6944,9 +6944,9 @@ pub fn parse_command_modifiers(
                     }
                 }
                 if skip_only {
-                    p = skip_vimgrep_pat(p, ptr::null_mut(), None);
+                    p = skip_vimgrep_pat(p, None, None);
                 } else {
-                    p = skip_vimgrep_pat(p, &raw mut reg_pat, None);
+                    p = skip_vimgrep_pat(p, Some(&mut reg_pat), None);
                 }
                 if crate::memory::cstr_is_empty(p) {
                     break;
@@ -8202,7 +8202,7 @@ fn skip_grep_pat(eap: &mut Exarg) -> *mut c_char {
             || eap.cmdidx == Cmdidx::CmdLvimgrepadd as i32
             || (eap.cmdidx >= 0 && grep_internal(eap.cmdidx) != 0))
     {
-        p = skip_vimgrep_pat(p, ptr::null_mut(), None);
+        p = skip_vimgrep_pat(p, None, None);
         if p.is_null() {
             p = eap.arg;
         }

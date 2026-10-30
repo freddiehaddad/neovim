@@ -3452,7 +3452,7 @@ fn set_context_in_filter_cmd(
     let mut arg = arg.into_c_char_ptr();
     {
         if !crate::memory::cstr_is_empty(arg) {
-            arg = skip_vimgrep_pat(arg.cast_mut(), ptr::null_mut(), None);
+            arg = skip_vimgrep_pat(arg.cast_mut(), None, None);
         }
         if crate::memory::cstr_is_empty(arg) {
             xp.xp_context = EXPAND_NOTHING;

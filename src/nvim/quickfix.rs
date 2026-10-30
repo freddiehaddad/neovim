@@ -5644,7 +5644,7 @@ fn vgr_process_args(eap: &mut Exarg, args: &mut VgrArgs) -> bool {
     };
 
     let mut spat: *mut c_char = ptr::null_mut();
-    let mut p = skip_vimgrep_pat(eap.arg, &raw mut spat, Some(&mut args.flags));
+    let mut p = skip_vimgrep_pat(eap.arg, Some(&mut spat), Some(&mut args.flags));
     if p.is_null() {
         emsg(gettext(E_INVALPAT));
         return false;
