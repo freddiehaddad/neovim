@@ -4331,7 +4331,7 @@ fn get_next_filename_completion() {
         }
         let last_sep = crate::memory::cstr_as_bytes(leader.cast())
             .iter()
-            .rposition(|&b| b == PATHSEP as u8)
+            .rposition(|&b| b == PATHSEP)
             .map_or(ptr::null_mut(), |i| leader.wrapping_add(i));
         if last_sep.is_null() {
             insexp().compl_pattern = Some(c"*".to_owned());

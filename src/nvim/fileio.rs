@@ -3458,7 +3458,7 @@ pub fn shorten_buf_fname(
         return false;
     }
 
-    let p = path_shorten_fname(buf.b_ffname, dirname);
+    let p = path_shorten_fname(buf.b_ffname, dirname.cast());
     let shorten = !crate::memory::cstr_is_empty(p);
     if shorten
         && !buf.b_sfname.is_null()

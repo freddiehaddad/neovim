@@ -3740,7 +3740,7 @@ fn syn_cmd_include(eap: &mut Exarg, _syncing: i32) {
         }
     } else {
         #[cfg(windows)]
-        path_to_slash(eap.arg);
+        path_to_slash(eap.arg.cast());
     }
 
     if syn_st().running_syn_inc_tag >= MAX_SYN_INC_TAG {

@@ -222,7 +222,7 @@ pub fn vim_findfile_init(
                 && crate::memory::cstr_byte_at(path, 1) == b':'
             {
                 let drive: [u8; 3] = [crate::memory::cstr_first_byte(path), b':', 0];
-                if !vim_full_name(drive.as_ptr().cast(), expand_ptr, MAXPATHL, true) {
+                if !vim_full_name(drive.as_ptr().cast(), expand_ptr.cast(), MAXPATHL, true) {
                     return None;
                 }
                 path = path.wrapping_add(2);
@@ -428,7 +428,7 @@ pub fn vim_findfile_init(
                         && crate::memory::cstr_first_byte(search_ctx.ffsc_fix_path.data) == b'.'
                         && crate::memory::cstr_byte_at(search_ctx.ffsc_fix_path.data, 1) == b'.'
                         && (len == 2
-                            || unsafe { *search_ctx.ffsc_fix_path.data.wrapping_add(2) } == PATHSEP)
+                            || crate::memory::cstr_byte_at(search_ctx.ffsc_fix_path.data, 2) == PATHSEP)
                     {
                         return None;
                     }
@@ -726,7 +726,7 @@ pub fn vim_findfile(search_ctx: Option<&mut FfSearchCtx>) -> Option<std::ffi::CS
                 } else {
                     expand_wildcards_vec(
                         if dirptrs[1].is_null() { 1 } else { 2 },
-                        dirptrs.as_mut_ptr(),
+                        dirptrs.as_mut_ptr().cast(),
                         &mut stackp.ffs_filearray,
                         EW_DIR | EW_ADDSLASH | EW_SILENT | EW_NOTWILD,
                     );
@@ -798,7 +798,7 @@ pub fn vim_findfile(search_ctx: Option<&mut FfSearchCtx>) -> Option<std::ffi::CS
                                 ff_push(search_ctx, stack_elem);
 
                                 if path_with_url(file_path.data) == 0 {
-                                    file_path.size = simplify_filename(file_path.data);
+                                    file_path.size = simplify_filename(file_path.data.cast());
                                 }
 
                                 let mut expand_buf: [u8; MAXPATHL] = [0; MAXPATHL];
@@ -1382,7 +1382,7 @@ pub fn find_file_in_path_option(
                             && (find_what == FINDFILE_BOTH
                                 || ((find_what == FINDFILE_DIR) == os_isdir(name_buff)))
                         {
-                            let slen = simplify_filename(name_buff);
+                            let slen = simplify_filename(name_buff.cast());
                             return Some(
                                 std::ffi::CString::new(unsafe {
                                     std::slice::from_raw_parts(name_buff.cast::<u8>(), slen)

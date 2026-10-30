@@ -663,7 +663,7 @@ pub fn expand_env_esc<T>(
                         }
                         var_cstr = vim_getenv(dst.cast());
                         if let Some(ref c) = var_cstr {
-                            to_slash(c.as_ptr().cast_mut());
+                            to_slash(c.as_ptr().cast_mut().cast());
                         }
                         var = var_cstr
                             .as_ref()
@@ -677,7 +677,7 @@ pub fn expand_env_esc<T>(
                         }
                         var_cstr = vim_getenv(dst.cast());
                         if let Some(ref c) = var_cstr {
-                            to_slash(c.as_ptr().cast_mut());
+                            to_slash(c.as_ptr().cast_mut().cast());
                         }
                         var = var_cstr
                             .as_ref()
@@ -962,7 +962,7 @@ pub fn vim_getenv(name: impl crate::strings::IntoCCharPtr) -> Option<std::ffi::C
                 || crate::memory::cstr_as_bytes(name).eq_ignore_ascii_case(b"VIM")
                 || crate::memory::cstr_as_bytes(name).eq_ignore_ascii_case(b"MYVIMRC"))
         {
-            to_slash(c.as_ptr().cast_mut());
+            to_slash(c.as_ptr().cast_mut().cast());
         }
         if kos_env_path.is_some() {
             return kos_env_path;
@@ -1099,7 +1099,7 @@ pub fn home_replace<T>(
             homedir_env_cstr = os_getenv_cstr(c"USERPROFILE");
         }
         if let Some(ref c) = homedir_env_cstr {
-            to_slash(c.as_ptr().cast_mut());
+            to_slash(c.as_ptr().cast_mut().cast());
         }
         let homedir_env = homedir_env_cstr
             .as_ref()

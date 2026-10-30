@@ -2867,7 +2867,7 @@ pub fn do_ecmd(
                     sfname = ffname;
                 }
                 if CASE_INSENSITIVE_FILENAME && !sfname.is_null() {
-                    path_fix_case(sfname);
+                    path_fix_case(sfname.cast());
                 }
 
                 if (flags & (ECMD_ADDBUF | ECMD_ALTBUF)) != 0

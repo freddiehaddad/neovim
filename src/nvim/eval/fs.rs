@@ -1912,7 +1912,7 @@ pub fn f_resolve(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData
         );
     }
 
-    simplify_filename(rettv.vval.v_string());
+    simplify_filename(rettv.vval.v_string().cast());
 }
 
 /// "simplify()" function

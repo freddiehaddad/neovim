@@ -4677,7 +4677,7 @@ pub fn f_jobstart(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDat
 
                 let namebuff = g_st().name_buff.as_mut_ptr();
                 let iobuff = g_st().iobuff.as_mut_ptr();
-                vim_full_name(cwd, namebuff, MAXPATHL, false);
+                vim_full_name(cwd, namebuff.cast(), MAXPATHL, false);
                 let len = home_replace(None, namebuff, iobuff, IOSIZE, true);
                 if len != 1
                     && (crate::memory::cstr_byte_at(iobuff, len - 1) == b'\\'

@@ -5400,7 +5400,7 @@ fn expand_shellcmd_onedir(
 ) {
     let mut pathed_pattern = pathed_pattern.into_c_char_ptr().cast_mut();
     let mut dir_matches: Vec<std::ffi::CString> = Vec::new();
-    if !expand_wildcards_vec(1, &raw mut pathed_pattern, &mut dir_matches, flags) {
+    if !expand_wildcards_vec(1, (&raw mut pathed_pattern).cast(), &mut dir_matches, flags) {
         return;
     }
 

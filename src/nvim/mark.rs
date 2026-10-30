@@ -897,7 +897,10 @@ fn fname2fnum(fm: *mut Xfmark) {
         }
 
         os_dirname(g_st().iobuff.as_mut_ptr(), IOSIZE);
-        let p = path_shorten_fname(g_st().name_buff.as_mut_ptr(), g_st().iobuff.as_mut_ptr());
+        let p = path_shorten_fname(
+            g_st().name_buff.as_mut_ptr(),
+            g_st().iobuff.as_mut_ptr().cast(),
+        );
 
         let _ = buflist_new(g_st().name_buff.as_mut_ptr(), p, 1, 0);
     }

@@ -1602,7 +1602,7 @@ pub fn recover_names(fname: *mut c_char, skip_curbuf: bool, ret_list: &mut TvLis
                     names_vec.iter().map(|s| s.as_ptr().cast_mut()).collect();
                 let _ = expand_wildcards_vec(
                     name_ptrs.len() as i32,
-                    name_ptrs.as_mut_ptr(),
+                    name_ptrs.as_mut_ptr().cast(),
                     &mut files,
                     EW_KEEPALL | EW_FILE | EW_SILENT,
                 );
@@ -3872,8 +3872,8 @@ fn fnamecmp_ino(
 
         let buf_c_ptr = (&raw mut buf_c).cast::<c_char>();
         let buf_s_ptr = (&raw mut buf_s).cast::<c_char>();
-        let retval_c = vim_full_name(fname_c, buf_c_ptr, MAXPATHL, true);
-        let retval_s = vim_full_name(fname_s, buf_s_ptr, MAXPATHL, true);
+        let retval_c = vim_full_name(fname_c, buf_c_ptr.cast(), MAXPATHL, true);
+        let retval_s = vim_full_name(fname_s, buf_s_ptr.cast(), MAXPATHL, true);
         if retval_c && retval_s {
             return crate::memory::cstr_as_bytes(buf_c_ptr)
                 != crate::memory::cstr_as_bytes(buf_s_ptr);

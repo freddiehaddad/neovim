@@ -65,6 +65,7 @@ unsafe extern "C" {
 }
 
 pub type RawCCharPtr = *const c_char;
+pub type RawCCharPtrMut = *mut c_char;
 
 pub trait IntoCCharPtr {
     fn into_c_char_ptr(self) -> *const c_char;

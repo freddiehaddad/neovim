@@ -1809,7 +1809,12 @@ fn set_argf_var() {
     let count = gargcount();
     for i in 0..count {
         if let Some(fname) = alist_name(unsafe { &*garglist().wrapping_add(i as usize) }) {
-            let _ = vim_full_name(fname.as_ptr(), g_st().name_buff.as_mut_ptr(), MAXPATHL, false);
+            let _ = vim_full_name(
+                fname.as_ptr(),
+                g_st().name_buff.as_mut_ptr().cast(),
+                MAXPATHL,
+                false,
+            );
             tv_list_append_string(&mut *list, g_st().name_buff.as_ptr(), -1);
         }
     }

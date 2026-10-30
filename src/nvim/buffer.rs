@@ -2812,7 +2812,7 @@ pub fn buflist_new(
         if let Some(ff_cstr) = ffname_cstr {
             debug_assert!(!sfname.is_null());
             let mut sf_vec = cstr_to_cstring(sfname).into_bytes_with_nul();
-            to_slash(sf_vec.as_mut_ptr().cast::<c_char>());
+            to_slash(sf_vec.as_mut_ptr());
             (*buf).set_ffname(Some(ff_cstr));
             (*buf).set_sfname(Some(std::ffi::CString::from_vec_with_nul(sf_vec).unwrap()));
         }
@@ -3818,8 +3818,8 @@ pub fn setfname(
             }
             let mut sf_vec = cstr_to_cstring(sfname).into_bytes_with_nul();
             if CASE_INSENSITIVE_FILENAME {
-                to_slash(sf_vec.as_mut_ptr().cast::<c_char>());
-                path_fix_case(sf_vec.as_mut_ptr().cast::<c_char>());
+                to_slash(sf_vec.as_mut_ptr());
+                path_fix_case(sf_vec.as_mut_ptr());
             }
             let sf_len = crate::memory::cstr_len(sf_vec.as_ptr().cast::<c_char>());
             let sfname_cstr = cstr_from_bytes(&sf_vec[..sf_len]);

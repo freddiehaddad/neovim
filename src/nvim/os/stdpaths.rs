@@ -175,7 +175,7 @@ pub fn stdpaths_get_xdg_var(idx: XDGVarType) -> Option<CString> {
 
     #[cfg(windows)]
     if let Some(ref ev) = env_val {
-        path_to_slash(ev.as_ptr().cast_mut());
+        path_to_slash(ev.as_ptr().cast_mut().cast());
     }
 
     let mut ret: Option<CString> = if env_val.is_some() {

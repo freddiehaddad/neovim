@@ -2659,7 +2659,7 @@ fn qf_get_fnum(
             fname
         };
         #[cfg(windows)]
-        path_to_slash(bufname_ptr);
+        path_to_slash(bufname_ptr.cast());
 
         let same_as_last = (&raw const qf_st().qf_last_bufname)
             .as_ref()
@@ -7516,10 +7516,14 @@ fn hgr_search_files_in_dir(
     {
         let mut fnames: Vec<std::ffi::CString> = Vec::new();
 
-        add_pathsep(dirname);
+        add_pathsep(dirname.cast());
         c_strcat(dirname, c"doc/*.\\(txt\\|??x\\)");
-        if gen_expand_wildcards_vec(1, &raw mut dirname, &mut fnames, EW_FILE | EW_SILENT)
-            && !fnames.is_empty()
+        if gen_expand_wildcards_vec(
+            1,
+            (&raw mut dirname).cast(),
+            &mut fnames,
+            EW_FILE | EW_SILENT,
+        ) && !fnames.is_empty()
         {
             for f_cstr in &fnames {
                 if g_st().got_int {

@@ -8403,7 +8403,7 @@ pub fn expand_filename(
                     cmdlinep,
                 );
             } else {
-                to_slash(eap.arg);
+                to_slash(eap.arg.cast());
             }
         }
         true
@@ -10076,7 +10076,7 @@ fn findfunc_find_file(
         *findarg.wrapping_add(findarg_len) = cc;
     }
     if let Some(ref rf) = ret_fname {
-        to_slash(rf.as_ptr().cast_mut());
+        to_slash(rf.as_ptr().cast_mut().cast());
     }
     ret_fname
 }
@@ -10949,7 +10949,7 @@ pub fn ex_cd(eap: &mut Exarg) {
 fn ex_pwd(_eap: &mut Exarg) {
     if os_dirname(g_st().name_buff.as_mut_ptr(), MAXPATHL) {
         #[cfg(windows)]
-        slash_adjust(g_st().name_buff.as_mut_ptr());
+        slash_adjust(g_st().name_buff.as_mut_ptr().cast());
         if opt_vars().p_verbose > 0 {
             let context = if let Some(reason) = g_st().last_chdir_reason {
                 reason.as_ptr()

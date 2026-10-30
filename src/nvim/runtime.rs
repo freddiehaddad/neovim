@@ -1135,7 +1135,7 @@ fn expand_rtp_entry(
 
         let mut files: Vec<std::ffi::CString> = Vec::new();
         let mut pat = [entry];
-        if gen_expand_wildcards_vec(1, pat.as_mut_ptr(), &mut files, EW_DIR | EW_NOBREAK) {
+        if gen_expand_wildcards_vec(1, pat.as_mut_ptr().cast(), &mut files, EW_DIR | EW_NOBREAK) {
             for file in &files {
                 push_path(
                     search_path,
@@ -1469,7 +1469,7 @@ fn add_pack_dir_to_rtp(fname: impl crate::strings::IntoCCharPtr, is_pack: bool) 
                 }
 
                 if insp.is_null() {
-                    add_pathsep(buf.data);
+                    add_pathsep(buf.data.cast());
                     let Some(rtp_ffname) = fix_fname(buf.data) else {
                         break 'block;
                     };
@@ -3168,7 +3168,7 @@ pub fn ex_scriptnames(eap: &mut Exarg) {
             } else {
                 expand_env(eap.arg, namebuff, MAXPATHL as i32);
                 eap.arg = namebuff;
-                to_slash(eap.arg);
+                to_slash(eap.arg.cast());
             }
             do_exedit(eap, ptr::null_mut());
         }

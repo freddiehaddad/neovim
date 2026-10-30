@@ -1510,7 +1510,7 @@ pub fn os_mkdir_recurse(
 /// Create the parent directory of a file if it does not exist.
 pub fn os_file_mkdir(fname: impl crate::strings::IntoCCharPtr, mode: i32) -> i32 {
     let fname = fname.into_c_char_ptr().cast_mut();
-    if !dir_of_file_exists(fname) {
+    if !dir_of_file_exists(fname.cast()) {
         let tail = path_tail_with_sep(fname);
         let last_char = tail
             .wrapping_add(crate::memory::cstr_len(tail))
