@@ -64,6 +64,7 @@ unsafe extern "C" {
     pub fn strerror(errnum: i32) -> *mut c_char;
 }
 
+pub type RawCChar = c_char;
 pub type RawCCharPtr = *const c_char;
 pub type RawCCharPtrMut = *mut c_char;
 

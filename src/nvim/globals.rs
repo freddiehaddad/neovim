@@ -1,7 +1,7 @@
 //! Global variables (`src/nvim/globals.h`).
 
 use crate::highlight::{HLF_COUNT, RgbValue};
-use std::ffi::c_char;
+use crate::strings::{RawCChar, RawCCharPtr, RawCCharPtrMut};
 use std::ptr;
 
 use crate::decoration::{DecorSignHighlight, DecorState, NS};
@@ -81,9 +81,9 @@ pub struct EditorState {
     pub cmdline_was_last_drawn: bool,
     pub exec_from_reg: bool,
     pub dollar_vcol: Colnr,
-    pub edit_submode: *const c_char,
-    pub edit_submode_pre: *const c_char,
-    pub edit_submode_extra: *mut c_char,
+    pub edit_submode: RawCCharPtr,
+    pub edit_submode_pre: RawCCharPtr,
+    pub edit_submode_extra: RawCCharPtrMut,
     pub edit_submode_highl: Hlf,
     pub cmdmsg_rl: bool,
     pub msg_col: i32,
@@ -234,10 +234,10 @@ pub struct EditorState {
     pub in_assert_fails: bool,
     pub swap_exists_action: i32,
     pub swap_exists_did_quit: bool,
-    pub iobuff: [c_char; IOSIZE],
-    pub name_buff: [c_char; MAXPATHL],
-    pub msg_buf: [c_char; MSG_BUF_LEN],
-    pub os_buf: [c_char; MAXPATHL],
+    pub iobuff: [RawCChar; IOSIZE],
+    pub name_buff: [RawCChar; MAXPATHL],
+    pub msg_buf: [RawCChar; MSG_BUF_LEN],
+    pub os_buf: [RawCChar; MAXPATHL],
     pub redrawing_disabled: i32,
     pub readonlymode: bool,
     pub recoverymode: bool,
@@ -380,7 +380,7 @@ pub struct EditorState {
     pub msg_grid_scroll_discount: i32,
     pub msg_listdo_overwrite: i32,
     pub ch_before_blocking_events: *mut MultiQueue,
-    pub showcmd_buf: [c_char; 51],
+    pub showcmd_buf: [RawCChar; 51],
     pub nvim_testing: bool,
     pub pum_grid: ScreenGrid,
     pub pum_want: PumWant,
@@ -668,10 +668,10 @@ impl EditorState {
             in_assert_fails: false,
             swap_exists_action: SEA_NONE,
             swap_exists_did_quit: false,
-            iobuff: [0 as c_char; IOSIZE],
-            name_buff: [0 as c_char; MAXPATHL],
-            msg_buf: [0 as c_char; MSG_BUF_LEN],
-            os_buf: [0 as c_char; MAXPATHL],
+            iobuff: [0; IOSIZE],
+            name_buff: [0; MAXPATHL],
+            msg_buf: [0; MSG_BUF_LEN],
+            os_buf: [0; MAXPATHL],
             redrawing_disabled: 0,
             readonlymode: false,
             recoverymode: false,
@@ -1342,7 +1342,7 @@ pub const HLF_NAMES: [Option<&std::ffi::CStr>; HLF_COUNT] = [
     Some(c"PreInsert"),
 ];
 #[inline]
-pub const fn hlf_name_ptr(idx: usize) -> *const c_char {
+pub const fn hlf_name_ptr(idx: usize) -> RawCCharPtr {
     match HLF_NAMES[idx] {
         Some(s) => s.as_ptr(),
         None => ptr::null(),

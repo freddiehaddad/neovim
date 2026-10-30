@@ -12,7 +12,8 @@ use crate::memory::cstr_from_bytes;
 use crate::option::{get_fileformat, skip_to_option_part};
 use crate::option_vars::*;
 use crate::path::path_has_wildcard;
-use std::ffi::{CString, c_char};
+use crate::strings::{RawCChar, RawCCharPtr, RawCCharPtrMut};
+use std::ffi::CString;
 use std::ptr;
 
 use crate::change::TAB;
@@ -21,8 +22,8 @@ use crate::keycodes::CAR;
 use crate::regexp::MAXCOL;
 pub type Uvarnumber = u64;
 
-pub(crate) const NUL: c_char = 0;
-pub(crate) const NL: c_char = b'\n' as c_char;
+pub(crate) const NUL: RawCChar = 0;
+pub(crate) const NL: RawCChar = b'\n' as RawCChar;
 
 pub trait AsciiInt {
     fn into_ascii_int(self) -> i32;
@@ -145,7 +146,7 @@ pub const fn to_special(a: i32, b: i32) -> i32 {
     }
 }
 
-pub(crate) const CTRL_V_CONST: c_char = 22;
+pub(crate) const CTRL_V_CONST: RawCChar = 22;
 
 pub(crate) const EOL_MAC: i32 = 2;
 pub(crate) const K_OPT_DY_FLAG_UHEX: u32 = 0x04;
@@ -299,7 +300,7 @@ pub fn parse_isopt(var: impl crate::strings::IntoCCharPtr, chartab: *mut u64) ->
             }
 
             let mut c = if ascii_isdigit(crate::memory::cstr_first_char(p)) {
-                getdigits_int((&raw mut p).cast::<*mut c_char>(), false, 0)
+                getdigits_int((&raw mut p).cast(), false, 0)
             } else {
                 mb_ptr2char_adv(&raw mut p)
             };
@@ -308,7 +309,7 @@ pub fn parse_isopt(var: impl crate::strings::IntoCCharPtr, chartab: *mut u64) ->
             if crate::memory::cstr_first_byte(p) == b'-' && crate::memory::cstr_byte_at(p, 1) != 0 {
                 p = p.wrapping_add(1);
                 c2 = if ascii_isdigit(crate::memory::cstr_first_char(p)) {
-                    getdigits_int((&raw mut p).cast::<*mut c_char>(), false, 0)
+                    getdigits_int((&raw mut p).cast(), false, 0)
                 } else {
                     mb_ptr2char_adv(&raw mut p)
                 };
@@ -359,7 +360,7 @@ pub fn parse_isopt(var: impl crate::strings::IntoCCharPtr, chartab: *mut u64) ->
     }
 }
 
-pub fn trans_characters(mut buf: *mut c_char, bufsize: i32) {
+pub fn trans_characters(mut buf: RawCCharPtrMut, bufsize: i32) {
     let mut len = crate::memory::cstr_len(buf) as i32;
     let mut room = bufsize - len;
 
@@ -406,8 +407,8 @@ pub fn transstr_len(s: impl crate::strings::IntoCCharPtr, untab: bool) -> usize 
                     let mut off: usize = 0;
                     while off < l {
                         let c = utf_ptr2char(p.wrapping_add(off));
-                        let mut hexbuf = [0 as c_char; 9];
-                        len += transchar_hex(hexbuf.as_mut_ptr(), c);
+                        let mut hexbuf = [0u8; 9];
+                        len += transchar_hex(hexbuf.as_mut_ptr().cast(), c);
                         off += utf_ptr2len(p.wrapping_add(off)) as usize;
                     }
                 }
@@ -432,7 +433,7 @@ pub fn transstr_len(s: impl crate::strings::IntoCCharPtr, untab: bool) -> usize 
 pub fn transstr_buf(
     s: impl crate::strings::IntoCCharPtr,
     slen: isize,
-    buf: *mut c_char,
+    buf: RawCCharPtrMut,
     buflen: usize,
     untab: bool,
 ) -> usize {
@@ -459,12 +460,12 @@ pub fn transstr_buf(
                     let mut off: usize = 0;
                     while off < l {
                         let c = utf_ptr2char(p.wrapping_add(off));
-                        let mut hexbuf = [0 as c_char; 9];
-                        let hexlen = transchar_hex(hexbuf.as_mut_ptr(), c);
+                        let mut hexbuf = [0u8; 9];
+                        let hexlen = transchar_hex(hexbuf.as_mut_ptr().cast(), c);
                         if buf_p.wrapping_add(hexlen) > buf_e {
                             break;
                         }
-                        unsafe { ptr::copy_nonoverlapping(hexbuf.as_ptr(), buf_p, hexlen) };
+                        unsafe { ptr::copy_nonoverlapping(hexbuf.as_ptr().cast(), buf_p, hexlen) };
                         buf_p = buf_p.wrapping_add(hexlen);
                         off += utf_ptr2len(p.wrapping_add(off)) as usize;
                     }
@@ -500,9 +501,9 @@ pub fn transstr(s: impl crate::strings::IntoCCharPtr, untab: bool) -> CString {
     let s = s.into_c_char_ptr();
     {
         let len = transstr_len(s, untab) + 1;
-        let mut buf = vec![0 as c_char; len];
-        let written = transstr_buf(s, -1, buf.as_mut_ptr(), len, untab);
-        cstr_from_bytes(crate::memory::cstr_slice(buf.as_ptr(), written))
+        let mut buf = vec![0u8; len];
+        let written = transstr_buf(s, -1, buf.as_mut_ptr().cast(), len, untab);
+        cstr_from_bytes(&buf[..written])
     }
 }
 
@@ -518,7 +519,7 @@ pub fn kv_transstr(str_: &mut Vec<u8>, s: impl crate::strings::IntoCCharPtr, unt
         transstr_buf(
             s,
             -1,
-            str_.as_mut_ptr().wrapping_add(old_len).cast::<c_char>(),
+            str_.as_mut_ptr().wrapping_add(old_len).cast(),
             len + 1,
             untab,
         );
@@ -530,18 +531,18 @@ pub fn kv_transstr(str_: &mut Vec<u8>, s: impl crate::strings::IntoCCharPtr, unt
 pub fn str_foldcase(
     str_: impl crate::strings::IntoCCharPtr,
     orglen: i32,
-    buf: *mut c_char,
+    buf: RawCCharPtrMut,
     buflen: i32,
 ) -> Option<CString> {
     let str_ = str_.into_c_char_ptr();
     {
-        let mut vec: Vec<c_char> = Vec::new();
+        let mut vec: Vec<u8> = Vec::new();
         let mut len = orglen;
 
         if buf.is_null() {
             vec.reserve_exact((len as usize) + 1);
-            vec.extend_from_slice(unsafe { std::slice::from_raw_parts(str_, len as usize) });
-            vec.push(NUL);
+            vec.extend_from_slice(crate::memory::cstr_slice(str_, len as usize));
+            vec.push(0);
         } else {
             if len >= buflen {
                 len = buflen - 1;
@@ -552,9 +553,9 @@ pub fn str_foldcase(
             }
         }
 
-        let str_ptr = |vec_ref: &mut Vec<c_char>, idx: usize| -> *mut c_char {
+        let str_ptr = |vec_ref: &mut Vec<u8>, idx: usize| -> RawCCharPtrMut {
             if buf.is_null() {
-                &raw mut vec_ref[idx]
+                (&raw mut vec_ref[idx]).cast()
             } else {
                 buf.wrapping_add(idx)
             }
@@ -601,21 +602,19 @@ pub fn str_foldcase(
         }
 
         if buf.is_null() {
-            let out_len = crate::memory::cstr_len(vec.as_ptr());
-            Some(cstr_from_bytes(unsafe {
-                std::slice::from_raw_parts(vec.as_ptr().cast::<u8>(), out_len)
-            }))
+            let out_len = crate::memory::cstr_len(&vec);
+            Some(cstr_from_bytes(&vec[..out_len]))
         } else {
             None
         }
     }
 }
 
-pub fn transchar(c: i32) -> *mut c_char {
+pub fn transchar(c: i32) -> RawCCharPtrMut {
     transchar_buf(Some(crate::globals::curbuf_mut()), c)
 }
 
-pub fn transchar_buf(buf: Option<&FileBuf>, mut c: i32) -> *mut c_char {
+pub fn transchar_buf(buf: Option<&FileBuf>, mut c: i32) -> RawCCharPtrMut {
     let charbuf_ptr = (&raw mut charset_st().transchar_charbuf).cast::<u8>();
     let mut i: usize = 0;
     if is_special(c) {
@@ -637,27 +636,27 @@ pub fn transchar_buf(buf: Option<&FileBuf>, mut c: i32) -> *mut c_char {
             *charbuf_ptr.wrapping_add(i + 1) = 0;
         }
     } else if c <= 0xFF {
-        transchar_nonprint(buf, charbuf_ptr.wrapping_add(i).cast::<c_char>(), c);
+        transchar_nonprint(buf, charbuf_ptr.wrapping_add(i).cast(), c);
     } else {
-        transchar_hex(charbuf_ptr.wrapping_add(i).cast::<c_char>(), c);
+        transchar_hex(charbuf_ptr.wrapping_add(i).cast(), c);
     }
-    charbuf_ptr.cast::<c_char>()
+    charbuf_ptr.cast()
 }
 
-pub fn transchar_byte(c: i32) -> *mut c_char {
+pub fn transchar_byte(c: i32) -> RawCCharPtrMut {
     transchar_byte_buf(Some(crate::globals::curbuf_mut()), c)
 }
 
-pub fn transchar_byte_buf(buf: Option<&FileBuf>, c: i32) -> *mut c_char {
+pub fn transchar_byte_buf(buf: Option<&FileBuf>, c: i32) -> RawCCharPtrMut {
     if c >= 0x80 {
-        let charbuf_ptr = (&raw mut charset_st().transchar_charbuf).cast::<c_char>();
+        let charbuf_ptr: RawCCharPtrMut = (&raw mut charset_st().transchar_charbuf).cast();
         transchar_nonprint(buf, charbuf_ptr, c);
         return charbuf_ptr;
     }
     transchar_buf(buf, c)
 }
 
-pub fn transchar_nonprint(buf: Option<&FileBuf>, charbuf: *mut c_char, mut c: i32) {
+pub fn transchar_nonprint(buf: Option<&FileBuf>, charbuf: RawCCharPtrMut, mut c: i32) {
     if c == i32::from(NL) {
         c = 0;
     } else if buf.is_some() && c == CAR && get_fileformat(buf.unwrap()) == EOL_MAC {
@@ -668,49 +667,47 @@ pub fn transchar_nonprint(buf: Option<&FileBuf>, charbuf: *mut c_char, mut c: i3
     if (opt_vars().dy_flags & K_OPT_DY_FLAG_UHEX) != 0 || c > 0x7f {
         transchar_hex(charbuf, c);
     } else {
+        let cb = charbuf.cast::<u8>();
         unsafe {
-            *charbuf = b'^' as c_char;
-        }
-        unsafe {
-            *charbuf.wrapping_add(1) = ((c as u8) ^ 0x40) as c_char;
-        }
-        unsafe {
-            *charbuf.wrapping_add(2) = NUL;
+            *cb = b'^';
+            *cb.wrapping_add(1) = (c as u8) ^ 0x40;
+            *cb.wrapping_add(2) = 0;
         }
     }
 }
 
-pub fn transchar_hex(buf: *mut c_char, c: i32) -> usize {
+pub fn transchar_hex(buf: RawCCharPtrMut, c: i32) -> usize {
     unsafe {
+        let buf = buf.cast::<u8>();
         let mut i: usize = 0;
         let uc = c as u32;
 
-        *buf.wrapping_add(i) = b'<' as c_char;
+        *buf.wrapping_add(i) = b'<';
         i += 1;
         if c > 0xFF {
             if c > 0xFFFF {
-                *buf.wrapping_add(i) = nr2hex(uc >> 20) as c_char;
+                *buf.wrapping_add(i) = nr2hex(uc >> 20) as u8;
                 i += 1;
-                *buf.wrapping_add(i) = nr2hex(uc >> 16) as c_char;
+                *buf.wrapping_add(i) = nr2hex(uc >> 16) as u8;
                 i += 1;
             }
-            *buf.wrapping_add(i) = nr2hex(uc >> 12) as c_char;
+            *buf.wrapping_add(i) = nr2hex(uc >> 12) as u8;
             i += 1;
-            *buf.wrapping_add(i) = nr2hex(uc >> 8) as c_char;
+            *buf.wrapping_add(i) = nr2hex(uc >> 8) as u8;
             i += 1;
         }
-        *buf.wrapping_add(i) = nr2hex(uc >> 4) as c_char;
+        *buf.wrapping_add(i) = nr2hex(uc >> 4) as u8;
         i += 1;
-        *buf.wrapping_add(i) = nr2hex(uc) as c_char;
+        *buf.wrapping_add(i) = nr2hex(uc) as u8;
         i += 1;
-        *buf.wrapping_add(i) = b'>' as c_char;
+        *buf.wrapping_add(i) = b'>';
         i += 1;
-        *buf.wrapping_add(i) = NUL;
+        *buf.wrapping_add(i) = 0;
         i
     }
 }
 
-pub fn rl_mirror_ascii(str_: *mut c_char, end: *mut c_char) {
+pub fn rl_mirror_ascii(str_: RawCCharPtrMut, end: RawCCharPtrMut) {
     let mut p1 = str_;
     let mut p2 = if !end.is_null() {
         end
@@ -799,8 +796,8 @@ pub fn vim_is_fname_char(c: i32) -> bool {
 }
 
 pub fn vim_isfilec_or_wc(c: i32) -> bool {
-    let buf: [c_char; 2] = [c as c_char, NUL];
-    vim_isfilec(c) || c == b']' as i32 || path_has_wildcard(buf.as_ptr(), true)
+    let buf: [u8; 2] = [c as u8, 0];
+    vim_isfilec(c) || c == b']' as i32 || path_has_wildcard(&buf, true)
 }
 
 pub fn vim_isprintc(c: i32) -> bool {
@@ -810,7 +807,7 @@ pub fn vim_isprintc(c: i32) -> bool {
     c > 0 && (c & 0x60) != 0 && c != 0x7f
 }
 
-pub fn skipwhite(p: impl crate::strings::IntoCCharPtr) -> *mut c_char {
+pub fn skipwhite(p: impl crate::strings::IntoCCharPtr) -> RawCCharPtrMut {
     let mut p = p.into_c_char_ptr();
     {
         while ascii_iswhite(crate::memory::cstr_first_char(p)) {
@@ -820,7 +817,7 @@ pub fn skipwhite(p: impl crate::strings::IntoCCharPtr) -> *mut c_char {
     }
 }
 
-pub fn skipwhite_len(p: impl crate::strings::IntoCCharPtr, mut len: usize) -> *mut c_char {
+pub fn skipwhite_len(p: impl crate::strings::IntoCCharPtr, mut len: usize) -> RawCCharPtrMut {
     let mut p = p.into_c_char_ptr();
     {
         while len > 0 && ascii_iswhite(crate::memory::cstr_first_char(p)) {
@@ -840,7 +837,7 @@ pub fn getwhitecols(p: impl crate::strings::IntoCCharPtr) -> isize {
     crate::memory::ptr_offset_from(skipwhite(p), p)
 }
 
-pub fn skipdigits(q: impl crate::strings::IntoCCharPtr) -> *mut c_char {
+pub fn skipdigits(q: impl crate::strings::IntoCCharPtr) -> RawCCharPtrMut {
     let q = q.into_c_char_ptr();
     {
         let mut p = q;
@@ -851,7 +848,7 @@ pub fn skipdigits(q: impl crate::strings::IntoCCharPtr) -> *mut c_char {
     }
 }
 
-pub fn skipbin(q: impl crate::strings::IntoCCharPtr) -> *const c_char {
+pub fn skipbin(q: impl crate::strings::IntoCCharPtr) -> RawCCharPtr {
     let q = q.into_c_char_ptr();
     {
         let mut p = q;
@@ -862,7 +859,7 @@ pub fn skipbin(q: impl crate::strings::IntoCCharPtr) -> *const c_char {
     }
 }
 
-pub fn skiphex(q: *mut c_char) -> *mut c_char {
+pub fn skiphex(q: RawCCharPtrMut) -> RawCCharPtrMut {
     let mut p = q;
     while ascii_isxdigit(crate::memory::cstr_first_char(p)) {
         p = p.wrapping_add(1);
@@ -870,7 +867,7 @@ pub fn skiphex(q: *mut c_char) -> *mut c_char {
     p
 }
 
-pub fn skiptodigit(q: *mut c_char) -> *mut c_char {
+pub fn skiptodigit(q: RawCCharPtrMut) -> RawCCharPtrMut {
     let mut p = q;
     while !crate::memory::cstr_is_empty(p) && !ascii_isdigit(crate::memory::cstr_first_char(p)) {
         p = p.wrapping_add(1);
@@ -878,7 +875,7 @@ pub fn skiptodigit(q: *mut c_char) -> *mut c_char {
     p
 }
 
-pub fn skiptobin(q: impl crate::strings::IntoCCharPtr) -> *const c_char {
+pub fn skiptobin(q: impl crate::strings::IntoCCharPtr) -> RawCCharPtr {
     let q = q.into_c_char_ptr();
     {
         let mut p = q;
@@ -890,7 +887,7 @@ pub fn skiptobin(q: impl crate::strings::IntoCCharPtr) -> *const c_char {
     }
 }
 
-pub fn skiptohex(q: *mut c_char) -> *mut c_char {
+pub fn skiptohex(q: RawCCharPtrMut) -> RawCCharPtrMut {
     let mut p = q;
     while !crate::memory::cstr_is_empty(p) && !ascii_isxdigit(crate::memory::cstr_first_char(p)) {
         p = p.wrapping_add(1);
@@ -898,7 +895,7 @@ pub fn skiptohex(q: *mut c_char) -> *mut c_char {
     p
 }
 
-pub fn skiptowhite(p: impl crate::strings::IntoCCharPtr) -> *mut c_char {
+pub fn skiptowhite(p: impl crate::strings::IntoCCharPtr) -> RawCCharPtrMut {
     let mut p = p.into_c_char_ptr();
     {
         while crate::memory::cstr_first_byte(p) != b' '
@@ -911,7 +908,7 @@ pub fn skiptowhite(p: impl crate::strings::IntoCCharPtr) -> *mut c_char {
     }
 }
 
-pub fn skiptowhite_esc(p: impl crate::strings::IntoCCharPtr) -> *mut c_char {
+pub fn skiptowhite_esc(p: impl crate::strings::IntoCCharPtr) -> RawCCharPtrMut {
     let mut p = p.into_c_char_ptr();
     {
         while crate::memory::cstr_first_byte(p) != b' '
@@ -929,7 +926,7 @@ pub fn skiptowhite_esc(p: impl crate::strings::IntoCCharPtr) -> *mut c_char {
     }
 }
 
-pub fn skip_to_newline(p: impl crate::strings::IntoCCharPtr) -> *mut c_char {
+pub fn skip_to_newline(p: impl crate::strings::IntoCCharPtr) -> RawCCharPtrMut {
     let p = p.into_c_char_ptr();
     {
         let _s = p;
@@ -942,7 +939,7 @@ pub fn skip_to_newline(p: impl crate::strings::IntoCCharPtr) -> *mut c_char {
     }
 }
 
-pub fn try_getdigits(pp: *mut *mut c_char, nr: &mut i64) -> bool {
+pub fn try_getdigits(pp: *mut RawCCharPtrMut, nr: &mut i64) -> bool {
     unsafe {
         let orig = *pp;
         let mut p = orig.cast::<u8>();
@@ -977,7 +974,7 @@ pub fn try_getdigits(pp: *mut *mut c_char, nr: &mut i64) -> bool {
             p = p.wrapping_add(1);
         }
 
-        *pp = p.cast::<c_char>();
+        *pp = p.cast();
         if neg {
             const MIN_MAG: u64 = (i64::MAX as u64) + 1;
             if overflow || acc > MIN_MAG {
@@ -1030,7 +1027,7 @@ pub fn parse_i64_prefix(bytes: &[u8]) -> i64 {
     if neg { acc.wrapping_neg() } else { acc }
 }
 
-pub fn getdigits(pp: *mut *mut c_char, strict: bool, def: i64) -> i64 {
+pub fn getdigits(pp: *mut RawCCharPtrMut, strict: bool, def: i64) -> i64 {
     let mut number: i64 = 0;
     let ok = try_getdigits(pp, &mut number);
     if strict && !ok {
@@ -1039,7 +1036,7 @@ pub fn getdigits(pp: *mut *mut c_char, strict: bool, def: i64) -> i64 {
     if ok { number } else { def }
 }
 
-pub fn getdigits_int(pp: *mut *mut c_char, strict: bool, def: i32) -> i32 {
+pub fn getdigits_int(pp: *mut RawCCharPtrMut, strict: bool, def: i32) -> i32 {
     let number = getdigits(pp, strict, i64::from(def));
     match i32::try_from(number) {
         Ok(v) => v,
@@ -1050,11 +1047,11 @@ pub fn getdigits_int(pp: *mut *mut c_char, strict: bool, def: i32) -> i32 {
     }
 }
 
-pub fn getdigits_long(pp: *mut *mut c_char, strict: bool, def: i64) -> i64 {
+pub fn getdigits_long(pp: *mut RawCCharPtrMut, strict: bool, def: i64) -> i64 {
     getdigits(pp, strict, def)
 }
 
-pub fn getdigits_int32(pp: *mut *mut c_char, strict: bool, def: i32) -> i32 {
+pub fn getdigits_int32(pp: *mut RawCCharPtrMut, strict: bool, def: i32) -> i32 {
     let number = getdigits(pp, strict, i64::from(def));
     match i32::try_from(number) {
         Ok(v) => v,
@@ -1086,7 +1083,7 @@ pub fn vim_slice2nr(
     overflow: Option<&mut bool>,
 ) {
     vim_str2nr(
-        bytes.as_ptr().cast::<c_char>(),
+        bytes,
         prep,
         len,
         what,
@@ -1112,7 +1109,7 @@ pub fn vim_str2nr(
     let start = start.into_c_char_ptr();
     {
         let mut ptr = start;
-        let string_ended = |p: *const c_char| -> bool {
+        let string_ended = |p: RawCCharPtr| -> bool {
             !(maxlen == 0 || (crate::memory::ptr_offset_from(p, start) as i32) < maxlen)
         };
         let mut pre: i32 = 0;
@@ -1352,7 +1349,7 @@ pub fn rem_backslash(str_: impl crate::strings::IntoCCharPtr) -> bool {
     }
 }
 
-pub fn backslash_halve(mut p: *mut c_char) {
+pub fn backslash_halve(mut p: RawCCharPtrMut) {
     unsafe {
         while !crate::memory::cstr_is_empty(p) && !rem_backslash(p) {
             p = p.wrapping_add(1);
