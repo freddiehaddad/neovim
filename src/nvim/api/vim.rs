@@ -2897,7 +2897,7 @@ pub fn nvim_eval_statusline(
         let width = build_stl_str_hl(
             wp,
             buf,
-            str_.data,
+            str_.data.cast(),
             -1,
             0,
             fillchar,
@@ -2932,7 +2932,7 @@ pub fn nvim_eval_statusline(
                 stc_hl_id,
             );
             if (*hltab).start.is_null()
-                || crate::memory::ptr_offset_from((*hltab).start, buf_data) != 0
+                || crate::memory::ptr_offset_from((*hltab).start, buf_data.cast()) != 0
             {
                 let mut hl_info = arena_dict(arena, 3);
                 put_c(&mut hl_info, c"start", integer_obj(0));
@@ -2965,9 +2965,9 @@ pub fn nvim_eval_statusline(
                     USER_HLS[((*sp).userhl - 1) as usize]
                 };
 
-                let combine: &'static CStr = if (*sp).item == i32::from(STL_SIGNCOL as u8) {
+                let combine: &'static CStr = if (*sp).item == i32::from(STL_SIGNCOL) {
                     syn_id2name(scl_hl_id)
-                } else if (*sp).item == i32::from(STL_FOLDCOL as u8) {
+                } else if (*sp).item == i32::from(STL_FOLDCOL) {
                     grpname
                 } else {
                     dfltname
@@ -2976,7 +2976,9 @@ pub fn nvim_eval_statusline(
                 put_c(
                     &mut hl_info,
                     c"start",
-                    integer_obj(crate::memory::ptr_offset_from((*sp).start, buf_data) as Integer),
+                    integer_obj(
+                        crate::memory::ptr_offset_from((*sp).start, buf_data.cast()) as Integer,
+                    ),
                 );
                 put_c(&mut hl_info, c"group", cstr_as_obj(grpname));
                 let diff_group = combine != grpname;

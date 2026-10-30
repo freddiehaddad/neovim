@@ -991,12 +991,12 @@ fn draw_statuscol(
     let mut cur_attr = num_attr;
 
     for sp in &stcp.hlrec {
-        let textlen = crate::memory::ptr_offset_from(sp.start, p);
+        let textlen = crate::memory::ptr_offset_from(sp.start.cast(), p);
         let translen = transstr_buf(p, textlen, transbuf_ptr, MAXPATHL, true);
         draw_col_buf(wp, wlv, transbuf_ptr, translen, cur_attr, fold_vcol, false);
-        let attr = if sp.item == i32::from(STL_SIGNCOL as u8) {
+        let attr = if sp.item == i32::from(STL_SIGNCOL) {
             scl_attr
-        } else if sp.item == i32::from(STL_FOLDCOL as u8) {
+        } else if sp.item == i32::from(STL_FOLDCOL) {
             0
         } else {
             num_attr
@@ -1009,12 +1009,12 @@ fn draw_statuscol(
                 0
             },
         );
-        fold_vcol = if sp.item == i32::from(STL_FOLDCOL as u8) {
+        fold_vcol = if sp.item == i32::from(STL_FOLDCOL) {
             (&raw const stcp.fold_vcol).cast::<Colnr>()
         } else {
             ptr::null()
         };
-        p = sp.start;
+        p = sp.start.cast();
     }
     let translen = transstr_buf(
         p,

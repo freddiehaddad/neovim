@@ -354,10 +354,10 @@ const MOUSESCROLL_HOR_DFLT: i64 = 6;
 
 const SCL_NO: i32 = -1;
 
-pub(crate) const STL_SEPARATE: c_char = b'=' as c_char;
-pub(crate) const STL_TRUNCMARK: c_char = b'<' as c_char;
-pub(crate) const STL_USER_HL: c_char = b'*' as c_char;
-pub(crate) const STL_HIGHLIGHT: c_char = b'#' as c_char;
+pub(crate) const STL_SEPARATE: u8 = b'=';
+pub(crate) const STL_TRUNCMARK: u8 = b'<';
+pub(crate) const STL_USER_HL: u8 = b'*';
+pub(crate) const STL_HIGHLIGHT: u8 = b'#';
 
 const CPT_ABBR: u32 = 0;
 const CPT_KIND: u32 = 1;
@@ -1095,24 +1095,24 @@ pub fn check_signcolumn(scl: *mut c_char, mut wp: Option<&mut WinInfoInfo>) -> b
 
 /// Check validity of string with the 'statusline' format until the end of the current scope.
 fn check_stl_str_adv_scope(
-    s: *mut *mut c_char,
+    s: *mut *mut u8,
     errbuf: Option<CharBuf>,
     scope_type: StlScopeType,
 ) -> *const c_char {
     unsafe {
-        while **s != NUL {
-            while **s != NUL && **s != b'%' as c_char {
+        while **s != 0 {
+            while **s != 0 && **s != b'%' {
                 *s = (*s).wrapping_add(1);
             }
-            if **s == NUL {
+            if **s == 0 {
                 break;
             }
             *s = (*s).wrapping_add(1);
-            if **s == b'%' as c_char || **s == STL_TRUNCMARK || **s == STL_SEPARATE {
+            if **s == b'%' || **s == STL_TRUNCMARK || **s == STL_SEPARATE {
                 *s = (*s).wrapping_add(1);
                 continue;
             }
-            if **s == b')' as c_char {
+            if **s == b')' {
                 *s = (*s).wrapping_add(1);
                 return if scope_type == StlScopeType::ItemGroup {
                     ptr::null()
@@ -1122,7 +1122,7 @@ fn check_stl_str_adv_scope(
             }
             if **s == STL_HIGHLIGHT {
                 *s = (*s).wrapping_add(1);
-                if **s == b'(' as c_char {
+                if **s == b'(' {
                     *s = (*s).wrapping_add(1);
                     let err = check_stl_str_adv_scope(s, errbuf, StlScopeType::KHighlightScope);
                     if err.is_null() {
@@ -1130,7 +1130,7 @@ fn check_stl_str_adv_scope(
                     } else {
                         return err;
                     }
-                } else if **s == b')' as c_char {
+                } else if **s == b')' {
                     *s = (*s).wrapping_add(1);
                     return if scope_type == StlScopeType::KHighlightScope {
                         ptr::null()
@@ -1138,15 +1138,15 @@ fn check_stl_str_adv_scope(
                         E_UNBALANCED_GROUPS.as_ptr()
                     };
                 }
-                while **s != NUL && **s != STL_HIGHLIGHT {
+                while **s != 0 && **s != STL_HIGHLIGHT {
                     *s = (*s).wrapping_add(1);
                 }
-                if **s != NUL {
+                if **s != 0 {
                     *s = (*s).wrapping_add(1);
                 }
                 continue;
             }
-            if **s == b'-' as c_char {
+            if **s == b'-' {
                 *s = (*s).wrapping_add(1);
             }
             while ascii_isdigit(**s as i32) {
@@ -1155,13 +1155,13 @@ fn check_stl_str_adv_scope(
             if **s == STL_USER_HL {
                 continue;
             }
-            if **s == b'.' as c_char {
+            if **s == b'.' {
                 *s = (*s).wrapping_add(1);
-                while **s != NUL && ascii_isdigit(**s as i32) {
+                while **s != 0 && ascii_isdigit(**s as i32) {
                     *s = (*s).wrapping_add(1);
                 }
             }
-            if **s == b'(' as c_char {
+            if **s == b'(' {
                 *s = (*s).wrapping_add(1);
                 let err = check_stl_str_adv_scope(s, errbuf, StlScopeType::ItemGroup);
                 if err.is_null() {
@@ -1170,26 +1170,23 @@ fn check_stl_str_adv_scope(
                     return err;
                 }
             }
-            if !crate::strings::vim_haschr(STL_ALL, **s as u8 as i32) {
-                return illegal_char(errbuf, **s as u8 as i32);
+            if !crate::strings::vim_haschr(STL_ALL, **s as i32) {
+                return illegal_char(errbuf, **s as i32);
             }
-            if **s == b'{' as c_char {
+            if **s == b'{' {
                 *s = (*s).wrapping_add(1);
-                let reevaluate = **s == b'%' as c_char;
+                let reevaluate = **s == b'%';
 
                 if reevaluate {
                     *s = (*s).wrapping_add(1);
-                    if **s == b'}' as c_char {
+                    if **s == b'}' {
                         return illegal_char(errbuf, b'}' as i32);
                     }
                 }
-                while (**s != b'}' as c_char
-                    || (reevaluate && *(*s).wrapping_sub(1) != b'%' as c_char))
-                    && **s != NUL
-                {
+                while (**s != b'}' || (reevaluate && *(*s).wrapping_sub(1) != b'%')) && **s != 0 {
                     *s = (*s).wrapping_add(1);
                 }
-                if **s != b'}' as c_char {
+                if **s != b'}' {
                     return E_UNCLOSED_EXPRESSION_SEQUENCE.as_ptr();
                 }
             }
@@ -1203,7 +1200,8 @@ fn check_stl_str_adv_scope(
 }
 
 /// Check validity of options with the 'statusline' format.
-pub fn check_stl_option(mut s: *mut c_char, errbuf: Option<CharBuf>) -> *const c_char {
+pub fn check_stl_option(s: *mut c_char, errbuf: Option<CharBuf>) -> *const c_char {
+    let mut s = s.cast::<u8>();
     check_stl_str_adv_scope(&raw mut s, errbuf, StlScopeType::TopLevel)
 }
 

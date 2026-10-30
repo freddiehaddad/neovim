@@ -56,7 +56,6 @@ use crate::strings::{tr, vim_snprintf, vim_snprintf_safelen};
 use crate::ui::{ui_call_msg_ruler, ui_call_tabline_update, ui_has};
 use crate::undo::buf_is_changed_fn;
 use crate::window::{WinInfoInfo, global_stl_height, lastwin_nofloating, tabline_height};
-use std::ffi::c_char;
 use std::ptr;
 
 use crate::ex_getln::Hlf;
@@ -79,43 +78,43 @@ const HLF_TPF: Hlf = 54;
 const HLF_WBR: Hlf = 65;
 const HLF_WBRNC: Hlf = 66;
 
-const STL_FILEPATH: c_char = b'f' as c_char;
-const STL_FULLPATH: c_char = b'F' as c_char;
-const STL_FILENAME: c_char = b't' as c_char;
-const STL_COLUMN: c_char = b'c' as c_char;
-const STL_VIRTCOL: c_char = b'v' as c_char;
-const STL_VIRTCOL_ALT: c_char = b'V' as c_char;
-const STL_LINE: c_char = b'l' as c_char;
-const STL_NUMLINES: c_char = b'L' as c_char;
-const STL_BUFNO: c_char = b'n' as c_char;
-const STL_KEYMAP: c_char = b'k' as c_char;
-const STL_OFFSET: c_char = b'o' as c_char;
-const STL_OFFSET_X: c_char = b'O' as c_char;
-const STL_BYTEVAL: c_char = b'b' as c_char;
-const STL_BYTEVAL_X: c_char = b'B' as c_char;
-const STL_ROFLAG: c_char = b'r' as c_char;
-const STL_ROFLAG_ALT: c_char = b'R' as c_char;
-const STL_HELPFLAG: c_char = b'h' as c_char;
-const STL_HELPFLAG_ALT: c_char = b'H' as c_char;
-const STL_FILETYPE: c_char = b'y' as c_char;
-const STL_FILETYPE_ALT: c_char = b'Y' as c_char;
-const STL_PREVIEWFLAG: c_char = b'w' as c_char;
-const STL_PREVIEWFLAG_ALT: c_char = b'W' as c_char;
-const STL_MODIFIED: c_char = b'm' as c_char;
-const STL_MODIFIED_ALT: c_char = b'M' as c_char;
-const STL_QUICKFIX: c_char = b'q' as c_char;
-const STL_PERCENTAGE: c_char = b'p' as c_char;
-const STL_ALTPERCENT: c_char = b'P' as c_char;
-const STL_ARGLISTSTAT: c_char = b'a' as c_char;
-const STL_PAGENUM: c_char = b'N' as c_char;
-const STL_SHOWCMD: c_char = b'S' as c_char;
-pub(crate) const STL_FOLDCOL: c_char = b'C' as c_char;
-pub(crate) const STL_SIGNCOL: c_char = b's' as c_char;
-const STL_VIM_EXPR: c_char = b'{' as c_char;
-const STL_HIGHLIGHT_COMB: c_char = b'$' as c_char;
-const STL_TABPAGENR: c_char = b'T' as c_char;
-const STL_TABCLOSENR: c_char = b'X' as c_char;
-const STL_CLICK_FUNC: c_char = b'@' as c_char;
+const STL_FILEPATH: u8 = b'f';
+const STL_FULLPATH: u8 = b'F';
+const STL_FILENAME: u8 = b't';
+const STL_COLUMN: u8 = b'c';
+const STL_VIRTCOL: u8 = b'v';
+const STL_VIRTCOL_ALT: u8 = b'V';
+const STL_LINE: u8 = b'l';
+const STL_NUMLINES: u8 = b'L';
+const STL_BUFNO: u8 = b'n';
+const STL_KEYMAP: u8 = b'k';
+const STL_OFFSET: u8 = b'o';
+const STL_OFFSET_X: u8 = b'O';
+const STL_BYTEVAL: u8 = b'b';
+const STL_BYTEVAL_X: u8 = b'B';
+const STL_ROFLAG: u8 = b'r';
+const STL_ROFLAG_ALT: u8 = b'R';
+const STL_HELPFLAG: u8 = b'h';
+const STL_HELPFLAG_ALT: u8 = b'H';
+const STL_FILETYPE: u8 = b'y';
+const STL_FILETYPE_ALT: u8 = b'Y';
+const STL_PREVIEWFLAG: u8 = b'w';
+const STL_PREVIEWFLAG_ALT: u8 = b'W';
+const STL_MODIFIED: u8 = b'm';
+const STL_MODIFIED_ALT: u8 = b'M';
+const STL_QUICKFIX: u8 = b'q';
+const STL_PERCENTAGE: u8 = b'p';
+const STL_ALTPERCENT: u8 = b'P';
+const STL_ARGLISTSTAT: u8 = b'a';
+const STL_PAGENUM: u8 = b'N';
+const STL_SHOWCMD: u8 = b'S';
+pub(crate) const STL_FOLDCOL: u8 = b'C';
+pub(crate) const STL_SIGNCOL: u8 = b's';
+const STL_VIM_EXPR: u8 = b'{';
+const STL_HIGHLIGHT_COMB: u8 = b'$';
+const STL_TABPAGENR: u8 = b'T';
+const STL_TABCLOSENR: u8 = b'X';
+const STL_CLICK_FUNC: u8 = b'@';
 
 #[repr(C)]
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -136,7 +135,7 @@ enum NumberBase {
 #[derive(Clone)]
 pub struct StlClickRecord {
     pub def: StlClickDefinition,
-    pub start: *const c_char,
+    pub start: *const u8,
 }
 
 impl StlClickRecord {
@@ -157,7 +156,7 @@ impl Default for StlClickRecord {
 #[repr(C)]
 #[derive(Clone, Copy)]
 pub struct StlHlrec {
-    pub start: *mut c_char,
+    pub start: *mut u8,
     pub userhl: i32,
     pub item: StlFlag,
 }
@@ -200,7 +199,7 @@ pub enum StlItemType {
 #[repr(C)]
 #[derive(Clone)]
 pub struct StlItem {
-    pub start: *mut c_char,
+    pub start: *mut u8,
     pub cmd: Option<std::ffi::CString>,
     pub minwid: i32,
     pub maxwid: i32,
@@ -432,7 +431,7 @@ pub fn stl_fill_click_defs(
     width: i32,
     tabline: bool,
 ) {
-    let mut buf = buf.into_c_char_ptr();
+    let mut buf: *const u8 = buf.into_c_char_ptr().cast();
     unsafe {
         if click_defs.is_null() {
             return;
@@ -449,7 +448,7 @@ pub fn stl_fill_click_defs(
         let mut i: usize = 0;
         while !(*click_recs.wrapping_add(i)).start.is_null() {
             len += vim_strnsize(
-                buf.cast_mut(),
+                buf.cast_mut().cast(),
                 crate::memory::ptr_offset_from((*click_recs.wrapping_add(i)).start, buf) as i32,
             );
             debug_assert!(len <= width);
@@ -487,9 +486,9 @@ fn win_redr_stl_expr(wp: *mut WinInfoInfo, draw_winbar: bool, draw_ruler: bool, 
         let maxwidth: i32;
         let mut group: Hlf = 0;
         let fillchar: Schar;
-        let mut buf: [c_char; MAXPATHL] = [0; MAXPATHL];
-        let mut transbuf: [c_char; MAXPATHL] = [0; MAXPATHL];
-        let mut stl: *mut c_char;
+        let mut buf: [u8; MAXPATHL] = [0; MAXPATHL];
+        let mut transbuf: [u8; MAXPATHL] = [0; MAXPATHL];
+        let mut stl: *mut u8;
         let opt_idx: OptIndex;
         let mut opt_scope: i32 = 0;
         let mut hltab: *mut StlHlrec = ptr::null_mut();
@@ -523,7 +522,7 @@ fn win_redr_stl_expr(wp: *mut WinInfoInfo, draw_winbar: bool, draw_ruler: bool, 
         }
 
         if wp.is_null() {
-            stl = opt_vars().p_tal;
+            stl = opt_vars().p_tal.cast();
             row = 0;
             fillchar = schar_from_ascii(b' ');
             group = HLF_TPF;
@@ -535,9 +534,9 @@ fn win_redr_stl_expr(wp: *mut WinInfoInfo, draw_winbar: bool, draw_ruler: bool, 
             let wp = &mut *wp;
             opt_idx = K_OPT_WINBAR;
             stl = if !crate::memory::cstr_is_empty(wp.w_onebuf_opt.wo_wbr) {
-                wp.w_onebuf_opt.wo_wbr
+                wp.w_onebuf_opt.wo_wbr.cast()
             } else {
-                opt_vars().p_wbr
+                opt_vars().p_wbr.cast()
             };
             opt_scope = if !crate::memory::cstr_is_empty(wp.w_onebuf_opt.wo_wbr) {
                 OPT_LOCAL
@@ -568,7 +567,7 @@ fn win_redr_stl_expr(wp: *mut WinInfoInfo, draw_winbar: bool, draw_ruler: bool, 
             stl_clear_click_defs(&mut wp.w_winbar_click_defs);
             click_defs = stl_alloc_click_defs(&mut wp.w_winbar_click_defs, maxwidth);
         } else if draw_ruler && ui_event {
-            stl = opt_vars().p_ruf;
+            stl = opt_vars().p_ruf.cast();
             opt_idx = K_OPT_RULERFORMAT;
             maxwidth = g_st().columns_global / 2;
             fillchar = schar_from_ascii(b' ');
@@ -576,22 +575,24 @@ fn win_redr_stl_expr(wp: *mut WinInfoInfo, draw_winbar: bool, draw_ruler: bool, 
             attr = hl_attr(group);
             click_defs = ptr::null_mut();
         } else if draw_ruler {
-            stl = opt_vars().p_ruf;
+            stl = opt_vars().p_ruf.cast();
             opt_idx = K_OPT_RULERFORMAT;
-            if crate::memory::cstr_first_byte(stl) == b'%' {
+            if crate::memory::cstr_first_byte(stl.cast()) == b'%' {
                 stl = stl.wrapping_add(1);
-                if crate::memory::cstr_first_byte(stl) == b'-' {
+                if crate::memory::cstr_first_byte(stl.cast()) == b'-' {
                     stl = stl.wrapping_add(1);
                 }
-                if crate::charset::parse_i64_prefix(crate::memory::cstr_as_bytes(stl)) as i32 != 0 {
-                    while ascii_isdigit(crate::memory::cstr_first_char(stl)) {
+                if crate::charset::parse_i64_prefix(crate::memory::cstr_as_bytes(stl.cast())) as i32
+                    != 0
+                {
+                    while ascii_isdigit(crate::memory::cstr_first_char(stl.cast())) {
                         stl = stl.wrapping_add(1);
                     }
                 }
                 let ch = *stl;
                 stl = stl.wrapping_add(1);
-                if ch != b'(' as c_char {
-                    stl = opt_vars().p_ruf;
+                if ch != b'(' {
+                    stl = opt_vars().p_ruf.cast();
                 }
             }
             row = g_st().rows_global - 1;
@@ -604,9 +605,9 @@ fn win_redr_stl_expr(wp: *mut WinInfoInfo, draw_winbar: bool, draw_ruler: bool, 
             click_defs = ptr::null_mut();
         } else {
             stl = if !crate::memory::cstr_is_empty((*wp).w_onebuf_opt.wo_stl) {
-                (*wp).w_onebuf_opt.wo_stl
+                (*wp).w_onebuf_opt.wo_stl.cast()
             } else {
-                opt_vars().p_stl
+                opt_vars().p_stl.cast()
             };
             opt_idx = K_OPT_STATUSLINE;
             opt_scope = if !crate::memory::cstr_is_empty((*wp).w_onebuf_opt.wo_stl) {
@@ -646,16 +647,16 @@ fn win_redr_stl_expr(wp: *mut WinInfoInfo, draw_winbar: bool, draw_ruler: bool, 
             let p_crb_save = ewp.w_onebuf_opt.wo_crb;
             ewp.w_onebuf_opt.wo_crb = 0;
 
-            let stl_cstr = crate::memory::cstr_to_cstring(stl);
+            let stl_cstr = crate::memory::cstr_to_cstring(stl.cast());
 
             let mut tabtab: *mut StlClickRecord = ptr::null_mut();
             build_stl_str_hl(
                 ewp,
                 CharBuf {
-                    data: buf.as_mut_ptr(),
+                    data: buf.as_mut_ptr().cast(),
                     size: buf.len(),
                 },
-                stl_cstr.as_ptr().cast_mut(),
+                stl_cstr.as_ptr().cast_mut().cast(),
                 opt_idx,
                 opt_scope,
                 fillchar,
@@ -669,12 +670,18 @@ fn win_redr_stl_expr(wp: *mut WinInfoInfo, draw_winbar: bool, draw_ruler: bool, 
                 },
                 ptr::null_mut(),
             );
-            stl_fill_click_defs(click_defs, tabtab, buf.as_ptr(), maxwidth, wp.is_null());
+            stl_fill_click_defs(
+                click_defs,
+                tabtab,
+                buf.as_ptr().cast(),
+                maxwidth,
+                wp.is_null(),
+            );
 
             drop(stl_cstr);
             ewp.w_onebuf_opt.wo_crb = p_crb_save;
 
-            let len = crate::memory::cstr_len(buf.as_ptr());
+            let len = crate::memory::cstr_len(buf.as_ptr().cast());
             let start_col = col;
 
             if !ui_event {
@@ -695,12 +702,17 @@ fn win_redr_stl_expr(wp: *mut WinInfoInfo, draw_winbar: bool, draw_ruler: bool, 
                 let src_p = if p >= buf.as_mut_ptr().wrapping_add(len) {
                     c"".as_ptr()
                 } else {
-                    p.cast_const()
+                    p.cast_const().cast()
                 };
-                let tsize =
-                    transstr_buf(src_p, textlen, transbuf.as_mut_ptr(), transbuf.len(), true);
+                let tsize = transstr_buf(
+                    src_p,
+                    textlen,
+                    transbuf.as_mut_ptr().cast(),
+                    transbuf.len(),
+                    true,
+                );
                 if !ui_event {
-                    col += grid_line_puts(col, transbuf.as_ptr(), tsize as i32, curattr);
+                    col += grid_line_puts(col, transbuf.as_ptr().cast(), tsize as i32, curattr);
                 } else {
                     let mut chunk = Array::new();
                     chunk.push(Object {
@@ -710,7 +722,7 @@ fn win_redr_stl_expr(wp: *mut WinInfoInfo, draw_winbar: bool, draw_ruler: bool, 
                     chunk.push(Object {
                         obj_type: ObjectType::ObjectTypeString,
                         data: ObjectData::String(crate::api::private::helpers::cbuf_to_string(
-                            transbuf.as_ptr(),
+                            transbuf.as_ptr().cast(),
                             tsize,
                         )),
                     });
@@ -732,7 +744,7 @@ fn win_redr_stl_expr(wp: *mut WinInfoInfo, draw_winbar: bool, draw_ruler: bool, 
                     curgroup = group;
                 } else if (*sp).userhl < 0 {
                     let new_attr = syn_id2attr(-(*sp).userhl);
-                    if (*sp).item == i32::from(STL_HIGHLIGHT_COMB as u8) {
+                    if (*sp).item == i32::from(STL_HIGHLIGHT_COMB) {
                         curattr = hl_combine_attr(curattr, new_attr);
                     } else {
                         curattr = new_attr;
@@ -745,15 +757,15 @@ fn win_redr_stl_expr(wp: *mut WinInfoInfo, draw_winbar: bool, draw_ruler: bool, 
                         } else {
                             &raw const g_st().highlight_user[0]
                         };
-                    let userbuf: [c_char; 5] = [
-                        b'U' as c_char,
-                        b's' as c_char,
-                        b'e' as c_char,
-                        b'r' as c_char,
-                        ((*sp).userhl as u8 + b'0') as c_char,
+                    let userbuf: [u8; 5] = [
+                        b'U',
+                        b's',
+                        b'e',
+                        b'r',
+                        (*sp).userhl as u8 + b'0',
                     ];
                     curattr = *userhl.wrapping_add(((*sp).userhl - 1) as usize);
-                    curgroup = syn_name2id_len(userbuf.as_ptr(), 5);
+                    curgroup = syn_name2id_len(userbuf.as_ptr().cast(), 5);
                 }
                 if curattr != attr {
                     curattr = hl_combine_attr(attr, curattr);
@@ -1162,7 +1174,7 @@ pub fn build_statuscol_str(
         let width = build_stl_str_hl(
             wp,
             buf,
-            stc.as_ptr().cast_mut(),
+            stc.as_ptr().cast_mut().cast(),
             K_OPT_STATUSCOLUMN,
             OPT_LOCAL,
             0,
@@ -1205,14 +1217,14 @@ fn stl_truncate(
     startitem: i32,
     curitem: &mut i32,
     start_p: impl crate::strings::IntoCCharPtr,
-    out_p: *mut *mut c_char,
+    out_p: *mut *mut u8,
 ) {
-    let start_p = start_p.into_c_char_ptr().cast_mut();
+    let start_p: *mut u8 = start_p.into_c_char_ptr().cast_mut().cast();
     unsafe {
         minwid = minwid.min(maxwid);
 
         let mut item_idx = startitem;
-        let mut trunc_p: *mut c_char;
+        let mut trunc_p: *mut u8;
 
         if startitem == *curitem {
             trunc_p = start_p;
@@ -1228,16 +1240,16 @@ fn stl_truncate(
             }
         }
 
-        if *width - vim_strsize(trunc_p) >= maxwid {
+        if *width - vim_strsize(trunc_p.cast()) >= maxwid {
             trunc_p = start_p;
             *width = 0;
             loop {
-                let char_cells = ptr2cells(trunc_p);
+                let char_cells = ptr2cells(trunc_p.cast());
                 if *width + char_cells >= maxwid {
                     break;
                 }
                 *width += char_cells;
-                trunc_p = trunc_p.wrapping_add(utfc_ptr2len(trunc_p) as usize);
+                trunc_p = trunc_p.wrapping_add(utfc_ptr2len(trunc_p.cast()) as usize);
             }
 
             for i in startitem..*curitem {
@@ -1252,14 +1264,14 @@ fn stl_truncate(
                 }
             }
 
-            *trunc_p = b'>' as c_char;
+            *trunc_p = b'>';
             trunc_p = trunc_p.wrapping_add(1);
             *out_p = trunc_p;
         } else {
             let mut trunc_len: i32 = 0;
             while *width >= maxwid {
-                *width -= ptr2cells(trunc_p.wrapping_add(trunc_len as usize));
-                trunc_len += utfc_ptr2len(trunc_p.wrapping_add(trunc_len as usize));
+                *width -= ptr2cells(trunc_p.wrapping_add(trunc_len as usize).cast());
+                trunc_len += utfc_ptr2len(trunc_p.wrapping_add(trunc_len as usize).cast());
             }
 
             let trunc_end_p = trunc_p.wrapping_add(trunc_len as usize);
@@ -1270,7 +1282,7 @@ fn stl_truncate(
                     crate::memory::ptr_offset_from(trunc_end_p, trunc_p.wrapping_add(1)) as usize,
                 );
 
-            *trunc_p = b'<' as c_char;
+            *trunc_p = b'<';
 
             let item_offset = (trunc_len - 1) as isize;
             for item in &mut stl_items[(item_idx as usize)..(*curitem as usize)] {
@@ -1287,9 +1299,9 @@ fn stl_truncate(
             if *width >= minwid {
                 break;
             }
-            schar_get_adv(out_p.cast(), fillchar);
+            schar_get_adv(out_p, fillchar);
         }
-        **out_p = NUL;
+        **out_p = 0;
     }
 }
 
@@ -1304,8 +1316,8 @@ fn stl_expand(
     stl_items: &mut [StlItem],
     startitem: i32,
     curitem: i32,
-    mut start_p: *mut c_char,
-    out_p: *mut *mut c_char,
+    mut start_p: *mut u8,
+    out_p: *mut *mut u8,
 ) {
     unsafe {
         let fillchar_bytes = schar_len(fillchar) as i32;
@@ -1338,11 +1350,11 @@ fn stl_expand(
 
                     let start = item.start;
                     let seploc = start.wrapping_add(dislocation as usize);
-                    let len = crate::memory::cstr_len(start) + 1;
+                    let len = crate::memory::cstr_len(start.cast()) + 1;
                     ptr::copy(start, seploc, len);
                     let mut s = start;
                     while s < seploc {
-                        schar_get_adv((&raw mut s).cast(), fillchar);
+                        schar_get_adv(&raw mut s, fillchar);
                     }
                 }
             }
@@ -1351,7 +1363,7 @@ fn stl_expand(
             *out_p = (*out_p).wrapping_add(added_bytes as usize);
         } else if padding == StlPadding::PaddingRight {
             while added_cells > 0 {
-                schar_get_adv(out_p.cast(), fillchar);
+                schar_get_adv(out_p, fillchar);
                 added_cells -= 1;
             }
             *width += added_bytes / fillchar_bytes;
@@ -1364,7 +1376,7 @@ fn stl_expand(
 
             let orig_added_cells = added_cells;
             while added_cells > 0 {
-                schar_get_adv((&raw mut start_p).cast(), fillchar);
+                schar_get_adv(&raw mut start_p, fillchar);
                 added_cells -= 1;
             }
 
@@ -1383,7 +1395,7 @@ fn stl_expand(
 pub extern "C" fn build_stl_str_hl(
     wp: *mut WinInfoInfo,
     out: CharBuf,
-    fmt: *mut c_char,
+    fmt: *mut u8,
     opt_idx: OptIndex,
     opt_scope: i32,
     mut fillchar: Schar,
@@ -1395,7 +1407,7 @@ pub extern "C" fn build_stl_str_hl(
 ) -> i32 {
     unsafe {
         let wp = &mut *wp;
-        let mut buf_tmp: [c_char; TMPLEN] = [0; TMPLEN];
+        let mut buf_tmp: [u8; TMPLEN] = [0; TMPLEN];
         let mut owned_usefmt: Option<std::ffi::CString> = None;
         let mut usefmt = fmt;
         let save_redraw_not_allowed = g_st().redraw_not_allowed;
@@ -1446,8 +1458,8 @@ pub extern "C" fn build_stl_str_hl(
             false
         };
 
-        if crate::memory::cstr_first_byte(fmt) == b'%'
-            && crate::memory::cstr_byte_at(fmt, 1) == b'!'
+        if crate::memory::cstr_first_byte(fmt.cast()) == b'%'
+            && crate::memory::cstr_byte_at(fmt.cast(), 1) == b'!'
         {
             let mut tv = TypVal {
                 v_type: VarType::VarNumber,
@@ -1461,8 +1473,10 @@ pub extern "C" fn build_stl_str_hl(
                 false,
             );
 
-            owned_usefmt = eval_to_string_safe(fmt.wrapping_add(2), use_sandbox, false);
-            usefmt = owned_usefmt.as_ref().map_or(fmt, |s| s.as_ptr().cast_mut());
+            owned_usefmt = eval_to_string_safe(fmt.wrapping_add(2).cast(), use_sandbox, false);
+            usefmt = owned_usefmt
+                .as_ref()
+                .map_or(fmt, |s| s.as_ptr().cast_mut().cast());
 
             do_unlet(c"g:statusline_winid", "g:statusline_winid".len(), true);
         }
@@ -1497,8 +1511,8 @@ pub extern "C" fn build_stl_str_hl(
         let mut prevchar_isflag = true;
         let mut prevchar_isitem = false;
 
-        let mut out_p = out.data;
-        let out_end_p = out.data.wrapping_add(out.size - 1);
+        let mut out_p = out.data.cast::<u8>();
+        let out_end_p = out_p.wrapping_add(out.size - 1);
 
         macro_rules! may_grow_stl_items_len {
             () => {
@@ -1513,16 +1527,16 @@ pub extern "C" fn build_stl_str_hl(
         }
 
         let mut fmt_p = usefmt;
-        while !crate::memory::cstr_is_empty(fmt_p) {
+        while !crate::memory::cstr_is_empty(fmt_p.cast()) {
             may_grow_stl_items_len!();
 
-            if crate::memory::cstr_first_byte(fmt_p) != b'%' {
+            if crate::memory::cstr_first_byte(fmt_p.cast()) != b'%' {
                 prevchar_isflag = false;
                 prevchar_isitem = false;
             }
 
-            while !crate::memory::cstr_is_empty(fmt_p)
-                && crate::memory::cstr_first_byte(fmt_p) != b'%'
+            while !crate::memory::cstr_is_empty(fmt_p.cast())
+                && crate::memory::cstr_first_byte(fmt_p.cast()) != b'%'
                 && out_p < out_end_p
             {
                 *out_p = *fmt_p;
@@ -1530,16 +1544,16 @@ pub extern "C" fn build_stl_str_hl(
                 fmt_p = fmt_p.wrapping_add(1);
             }
 
-            if crate::memory::cstr_is_empty(fmt_p) || out_p >= out_end_p {
+            if crate::memory::cstr_is_empty(fmt_p.cast()) || out_p >= out_end_p {
                 break;
             }
 
             fmt_p = fmt_p.wrapping_add(1);
-            if crate::memory::cstr_is_empty(fmt_p) {
+            if crate::memory::cstr_is_empty(fmt_p.cast()) {
                 break;
             }
 
-            if crate::memory::cstr_first_byte(fmt_p) == b'%' {
+            if crate::memory::cstr_first_byte(fmt_p.cast()) == b'%' {
                 *out_p = *fmt_p;
                 out_p = out_p.wrapping_add(1);
                 fmt_p = fmt_p.wrapping_add(1);
@@ -1564,7 +1578,7 @@ pub extern "C" fn build_stl_str_hl(
                 continue;
             }
 
-            if crate::memory::cstr_first_byte(fmt_p) == b')' {
+            if crate::memory::cstr_first_byte(fmt_p.cast()) == b')' {
                 fmt_p = fmt_p.wrapping_add(1);
                 if groupdepth < 1 {
                     continue;
@@ -1576,8 +1590,8 @@ pub extern "C" fn build_stl_str_hl(
                 }
 
                 let t = stl_items!()[gidx as usize].start;
-                *out_p = NUL;
-                let mut group_len = vim_strsize(t);
+                *out_p = 0;
+                let mut group_len = vim_strsize(t.cast());
 
                 if stl_st().curitem > gidx + 1 && stl_items!()[gidx as usize].minwid == 0 {
                     let mut group_start_userhl = 0;
@@ -1641,7 +1655,7 @@ pub extern "C" fn build_stl_str_hl(
                         stl_items!(),
                         gidx + 1,
                         &mut stl_st().curitem,
-                        t,
+                        t.cast(),
                         &raw mut out_p,
                     );
                 } else if minwid > group_len {
@@ -1674,18 +1688,20 @@ pub extern "C" fn build_stl_str_hl(
             let mut left_align_num = false;
             let mut left_align = false;
 
-            let zeropad = crate::memory::cstr_first_byte(fmt_p) == b'0';
+            let zeropad = crate::memory::cstr_first_byte(fmt_p.cast()) == b'0';
             if zeropad {
                 fmt_p = fmt_p.wrapping_add(1);
             }
 
-            if crate::memory::cstr_first_byte(fmt_p) == b'-' {
+            if crate::memory::cstr_first_byte(fmt_p.cast()) == b'-' {
                 fmt_p = fmt_p.wrapping_add(1);
                 left_align = true;
             }
 
-            if ascii_isdigit(crate::memory::cstr_first_char(fmt_p)) {
-                minwid = getdigits_int(&raw mut fmt_p, false, 0);
+            if ascii_isdigit(crate::memory::cstr_first_char(fmt_p.cast())) {
+                let mut fp = fmt_p.cast();
+                minwid = getdigits_int(&raw mut fp, false, 0);
+                fmt_p = fp.cast();
             }
 
             if *fmt_p == STL_USER_HL {
@@ -1727,7 +1743,7 @@ pub extern "C" fn build_stl_str_hl(
             if *fmt_p == STL_CLICK_FUNC {
                 fmt_p = fmt_p.wrapping_add(1);
                 let t = fmt_p;
-                while *fmt_p != STL_CLICK_FUNC && !crate::memory::cstr_is_empty(fmt_p) {
+                while *fmt_p != STL_CLICK_FUNC && !crate::memory::cstr_is_empty(fmt_p.cast()) {
                     fmt_p = fmt_p.wrapping_add(1);
                 }
                 if *fmt_p != STL_CLICK_FUNC {
@@ -1737,7 +1753,7 @@ pub extern "C" fn build_stl_str_hl(
                 stl_items!()[stl_st().curitem as usize].start = out_p;
                 stl_items!()[stl_st().curitem as usize].cmd = if !tabtab.is_null() {
                     let slice = crate::memory::cstr_slice(
-                        t,
+                        t.cast(),
                         crate::memory::ptr_offset_from(fmt_p, t) as usize,
                     );
                     Some(std::ffi::CString::new(slice).unwrap())
@@ -1750,10 +1766,12 @@ pub extern "C" fn build_stl_str_hl(
                 continue;
             }
 
-            if crate::memory::cstr_first_byte(fmt_p) == b'.' {
+            if crate::memory::cstr_first_byte(fmt_p.cast()) == b'.' {
                 fmt_p = fmt_p.wrapping_add(1);
-                if ascii_isdigit(crate::memory::cstr_first_char(fmt_p)) {
-                    maxwid = getdigits_int(&raw mut fmt_p, false, 50);
+                if ascii_isdigit(crate::memory::cstr_first_char(fmt_p.cast())) {
+                    let mut fp = fmt_p.cast();
+                    maxwid = getdigits_int(&raw mut fp, false, 50);
+                    fmt_p = fp.cast();
                     if maxwid <= 0 {
                         maxwid = 50;
                     }
@@ -1764,7 +1782,7 @@ pub extern "C" fn build_stl_str_hl(
                 minwid = -minwid;
             }
 
-            if crate::memory::cstr_first_byte(fmt_p) == b'(' {
+            if crate::memory::cstr_first_byte(fmt_p.cast()) == b'(' {
                 stl_groupitems!()[groupdepth] = stl_st().curitem;
                 groupdepth += 1;
                 stl_items!()[stl_st().curitem as usize].type_ = StlItemType::Group;
@@ -1776,7 +1794,7 @@ pub extern "C" fn build_stl_str_hl(
                 continue;
             }
 
-            if crate::memory::cstr_first_byte(fmt_p) == b'}' && evaldepth > 0 {
+            if crate::memory::cstr_first_byte(fmt_p.cast()) == b'}' && evaldepth > 0 {
                 fmt_p = fmt_p.wrapping_add(1);
                 evaldepth -= 1;
                 if groupdepth > 0 {
@@ -1802,7 +1820,7 @@ pub extern "C" fn build_stl_str_hl(
             }
 
             if *fmt_p == STL_HIGHLIGHT {
-                if crate::memory::cstr_byte_at(fmt_p, 1) == b'(' {
+                if crate::memory::cstr_byte_at(fmt_p.cast(), 1) == b'(' {
                     fmt_p = fmt_p.wrapping_add(2);
                     stl_groupitems!()[groupdepth] = stl_st().curitem;
                     groupdepth += 1;
@@ -1811,7 +1829,7 @@ pub extern "C" fn build_stl_str_hl(
                     stl_items!()[stl_st().curitem as usize].minwid = curr_hl_pos;
                     stl_st().curitem += 1;
                     continue;
-                } else if crate::memory::cstr_byte_at(fmt_p, 1) == b')' {
+                } else if crate::memory::cstr_byte_at(fmt_p.cast(), 1) == b')' {
                     fmt_p = fmt_p.wrapping_add(2);
                     if groupdepth < 1 {
                         continue;
@@ -1849,9 +1867,9 @@ pub extern "C" fn build_stl_str_hl(
 
             if !crate::strings::vim_haschr(
                 STL_ALL,
-                i32::from(crate::memory::cstr_first_byte(fmt_p)),
+                i32::from(crate::memory::cstr_first_byte(fmt_p.cast())),
             ) {
-                if crate::memory::cstr_is_empty(fmt_p) {
+                if crate::memory::cstr_is_empty(fmt_p.cast()) {
                     break;
                 }
                 fmt_p = fmt_p.wrapping_add(1);
@@ -1865,7 +1883,7 @@ pub extern "C" fn build_stl_str_hl(
             let mut itemisflag = false;
             let mut fillable = true;
             let mut num: i32 = -1;
-            let mut str: *mut c_char = ptr::null_mut();
+            let mut str: *mut u8 = ptr::null_mut();
             let mut owned_str: Option<std::ffi::CString> = None;
 
             let mut handle_stcsign = false;
@@ -1885,53 +1903,53 @@ pub extern "C" fn build_stl_str_hl(
                     }
                     trans_characters(name_buff, MAXPATHL as i32);
                     if opt != STL_FILENAME {
-                        str = name_buff;
+                        str = name_buff.cast();
                     } else {
-                        str = path_tail(name_buff);
+                        str = path_tail(name_buff).cast();
                     }
                 }
                 STL_VIM_EXPR => {
                     let block_start = fmt_p.wrapping_sub(1);
-                    let reevaluate = crate::memory::cstr_first_byte(fmt_p) == b'%';
+                    let reevaluate = crate::memory::cstr_first_byte(fmt_p.cast()) == b'%';
                     if reevaluate {
                         fmt_p = fmt_p.wrapping_add(1);
                     }
                     itemisflag = !zeropad;
 
                     let t = out_p;
-                    while (crate::memory::cstr_first_byte(fmt_p) != b'}'
-                        || (reevaluate && *fmt_p.wrapping_sub(1) != b'%' as c_char))
-                        && !crate::memory::cstr_is_empty(fmt_p)
+                    while (crate::memory::cstr_first_byte(fmt_p.cast()) != b'}'
+                        || (reevaluate && *fmt_p.wrapping_sub(1) != b'%'))
+                        && !crate::memory::cstr_is_empty(fmt_p.cast())
                         && out_p < out_end_p
                     {
                         *out_p = *fmt_p;
                         out_p = out_p.wrapping_add(1);
                         fmt_p = fmt_p.wrapping_add(1);
                     }
-                    if crate::memory::cstr_first_byte(fmt_p) == b'}' {
+                    if crate::memory::cstr_first_byte(fmt_p.cast()) == b'}' {
                         fmt_p = fmt_p.wrapping_add(1);
-                        if reevaluate && out_p > out.data {
-                            *out_p.wrapping_sub(1) = NUL;
+                        if reevaluate && out_p > out.data.cast() {
+                            *out_p.wrapping_sub(1) = 0;
                         } else {
-                            *out_p = NUL;
+                            *out_p = 0;
                         }
 
                         out_p = t;
 
                         vim_snprintf!(
-                            buf_tmp.as_mut_ptr(),
+                            buf_tmp.as_mut_ptr().cast(),
                             buf_tmp.len(),
                             c"%d",
                             curbuf_mut().b_fnum,
                         );
-                        set_internal_string_var(c"g:actual_curbuf", buf_tmp.as_mut_ptr());
+                        set_internal_string_var(c"g:actual_curbuf", buf_tmp.as_mut_ptr().cast());
                         vim_snprintf!(
-                            buf_tmp.as_mut_ptr(),
+                            buf_tmp.as_mut_ptr().cast(),
                             buf_tmp.len(),
                             c"%d",
                             curwin_mut().handle,
                         );
-                        set_internal_string_var(c"g:actual_curwin", buf_tmp.as_mut_ptr());
+                        set_internal_string_var(c"g:actual_curwin", buf_tmp.as_mut_ptr().cast());
 
                         let save_curbuf = g_st().curbuf;
                         let save_curwin = curwin_ptr();
@@ -1943,10 +1961,10 @@ pub extern "C" fn build_stl_str_hl(
                             g_st().visual_global.active = false;
                         }
 
-                        owned_str = eval_to_string_safe(out_p, use_sandbox, false);
+                        owned_str = eval_to_string_safe(out_p.cast(), use_sandbox, false);
                         str = owned_str
                             .as_ref()
-                            .map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut());
+                            .map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut().cast());
 
                         set_curwin(save_curwin);
                         g_st().curbuf = save_curbuf;
@@ -1955,30 +1973,32 @@ pub extern "C" fn build_stl_str_hl(
                         do_unlet(c"g:actual_curbuf", "g:actual_curbuf".len(), true);
                         do_unlet(c"g:actual_curwin", "g:actual_curwin".len(), true);
 
-                        if !zeropad && !crate::memory::cstr_is_empty(str) && *skipdigits(str) == NUL
+                        if !zeropad
+                            && !crate::memory::cstr_is_empty(str.cast())
+                            && *skipdigits(str.cast()) == NUL
                         {
-                            num =
-                                crate::charset::parse_i64_prefix(crate::memory::cstr_as_bytes(str))
-                                    as i32;
+                            num = crate::charset::parse_i64_prefix(crate::memory::cstr_as_bytes(
+                                str.cast(),
+                            )) as i32;
                             owned_str = None;
                             str = ptr::null_mut();
                             itemisflag = false;
                         }
 
                         if reevaluate
-                            && !crate::memory::cstr_is_empty(str)
-                            && crate::strings::vim_haschr(str, b'%' as i32)
+                            && !crate::memory::cstr_is_empty(str.cast())
+                            && crate::strings::vim_haschr(str.cast(), b'%' as i32)
                             && evaldepth < MAX_STL_EVAL_DEPTH
                         {
                             let parsed_usefmt =
                                 crate::memory::ptr_offset_from(block_start, usefmt) as usize;
-                            let str_bytes = crate::memory::cstr_as_bytes(str);
-                            let fmt_bytes = crate::memory::cstr_as_bytes(fmt_p);
+                            let str_bytes = crate::memory::cstr_as_bytes(str.cast());
+                            let fmt_bytes = crate::memory::cstr_as_bytes(fmt_p.cast());
                             let mut new_bytes = Vec::with_capacity(
                                 parsed_usefmt + str_bytes.len() + fmt_bytes.len() + 2,
                             );
                             new_bytes.extend_from_slice(std::slice::from_raw_parts(
-                                usefmt.cast::<u8>(),
+                                usefmt,
                                 parsed_usefmt,
                             ));
                             new_bytes.extend_from_slice(str_bytes);
@@ -1986,7 +2006,7 @@ pub extern "C" fn build_stl_str_hl(
                             new_bytes.extend_from_slice(fmt_bytes);
                             drop(owned_str);
                             owned_usefmt = Some(std::ffi::CString::new(new_bytes).unwrap());
-                            usefmt = owned_usefmt.as_ref().unwrap().as_ptr().cast_mut();
+                            usefmt = owned_usefmt.as_ref().unwrap().as_ptr().cast_mut().cast();
                             fmt_p = usefmt.wrapping_add(parsed_usefmt);
                             evaldepth += 1;
                             stl_items!()[stl_st().curitem as usize].type_ = StlItemType::Expression;
@@ -2059,7 +2079,7 @@ pub extern "C" fn build_stl_str_hl(
                     );
                 }
                 STL_ALTPERCENT => {
-                    get_rel_pos(&mut *wp, buf_tmp.as_mut_ptr(), TMPLEN as i32);
+                    get_rel_pos(&mut *wp, buf_tmp.as_mut_ptr().cast(), TMPLEN as i32);
                     str = buf_tmp.as_mut_ptr();
                 }
                 STL_SHOWCMD => {
@@ -2071,16 +2091,14 @@ pub extern "C" fn build_stl_str_hl(
                 }
                 STL_ARGLISTSTAT => {
                     fillable = false;
-                    buf_tmp[0] = NUL;
-                    if append_arg_number(&mut *wp, buf_tmp.as_mut_ptr(), buf_tmp.len()) > 0 {
+                    buf_tmp[0] = 0;
+                    if append_arg_number(&mut *wp, buf_tmp.as_mut_ptr().cast(), buf_tmp.len()) > 0 {
                         str = buf_tmp.as_mut_ptr();
                     }
                 }
                 STL_KEYMAP => {
                     fillable = false;
-                    let buf_slice =
-                        std::slice::from_raw_parts_mut(buf_tmp.as_mut_ptr().cast::<u8>(), TMPLEN);
-                    if get_keymap_str(&mut *wp, c"<%s>", buf_slice) > 0 {
+                    if get_keymap_str(&mut *wp, c"<%s>", &mut buf_tmp) > 0 {
                         str = buf_tmp.as_mut_ptr();
                     }
                 }
@@ -2121,9 +2139,9 @@ pub extern "C" fn build_stl_str_hl(
                     itemisflag = true;
                     if (*wp).buf_mut().b_p_ro != 0 {
                         str = if opt == STL_ROFLAG_ALT {
-                            c",RO".as_ptr().cast_mut()
+                            c",RO".as_ptr().cast_mut().cast()
                         } else {
-                            tr(c"[RO]")
+                            tr(c"[RO]").cast()
                         };
                     }
                 }
@@ -2131,9 +2149,9 @@ pub extern "C" fn build_stl_str_hl(
                     itemisflag = true;
                     if (*wp).buf_mut().b_help {
                         str = if opt == STL_HELPFLAG_ALT {
-                            c",HLP".as_ptr().cast_mut()
+                            c",HLP".as_ptr().cast_mut().cast()
                         } else {
-                            tr(c"[Help]")
+                            tr(c"[Help]").cast()
                         };
                     }
                 }
@@ -2144,7 +2162,7 @@ pub extern "C" fn build_stl_str_hl(
                     let ft = (*wp).buf_mut().b_p_ft;
                     if !crate::memory::cstr_is_empty(ft) && crate::memory::cstr_len(ft) < TMPLEN - 3
                     {
-                        vim_snprintf!(buf_tmp.as_mut_ptr(), buf_tmp.len(), c"[%s]", ft);
+                        vim_snprintf!(buf_tmp.as_mut_ptr().cast(), buf_tmp.len(), c"[%s]", ft);
                         str = buf_tmp.as_mut_ptr();
                     }
                 }
@@ -2153,10 +2171,10 @@ pub extern "C" fn build_stl_str_hl(
                     let ft = (*wp).buf_mut().b_p_ft;
                     if !crate::memory::cstr_is_empty(ft) && crate::memory::cstr_len(ft) < TMPLEN - 2
                     {
-                        vim_snprintf!(buf_tmp.as_mut_ptr(), buf_tmp.len(), c",%s", ft);
+                        vim_snprintf!(buf_tmp.as_mut_ptr().cast(), buf_tmp.len(), c",%s", ft);
                         let mut t = buf_tmp.as_mut_ptr();
-                        while !crate::memory::cstr_is_empty(t) {
-                            *t = (crate::memory::cstr_first_byte(t)).to_ascii_uppercase() as c_char;
+                        while *t != 0 {
+                            *t = (*t).to_ascii_uppercase();
                             t = t.wrapping_add(1);
                         }
                         str = buf_tmp.as_mut_ptr();
@@ -2166,18 +2184,18 @@ pub extern "C" fn build_stl_str_hl(
                     itemisflag = true;
                     if wp.w_onebuf_opt.wo_pvw != 0 {
                         str = if opt == STL_PREVIEWFLAG_ALT {
-                            c",PRV".as_ptr().cast_mut()
+                            c",PRV".as_ptr().cast_mut().cast()
                         } else {
-                            tr(c"[Preview]")
+                            tr(c"[Preview]").cast()
                         };
                     }
                 }
                 STL_QUICKFIX => {
                     if bt_quickfix((wp.w_buffer).as_ref()) {
                         str = if !wp.w_llist_ref.is_null() {
-                            tr(MSG_LOCLIST)
+                            tr(MSG_LOCLIST).cast()
                         } else {
-                            tr(MSG_QFLIST)
+                            tr(MSG_QFLIST).cast()
                         };
                     }
                 }
@@ -2187,18 +2205,18 @@ pub extern "C" fn build_stl_str_hl(
                         + i32::from(buf_is_changed_fn((*wp).buf_mut())) * 2
                         + i32::from((*wp).buf_mut().b_p_ma == 0) * 4;
                     str = match code {
-                        2 => c"[+]".as_ptr().cast_mut(),
-                        3 => c",+".as_ptr().cast_mut(),
-                        4 => c"[-]".as_ptr().cast_mut(),
-                        5 => c",-".as_ptr().cast_mut(),
-                        6 => c"[+-]".as_ptr().cast_mut(),
-                        7 => c",+-".as_ptr().cast_mut(),
+                        2 => c"[+]".as_ptr().cast_mut().cast(),
+                        3 => c",+".as_ptr().cast_mut().cast(),
+                        4 => c"[-]".as_ptr().cast_mut().cast(),
+                        5 => c",-".as_ptr().cast_mut().cast(),
+                        6 => c"[+-]".as_ptr().cast_mut().cast(),
+                        7 => c",+-".as_ptr().cast_mut().cast(),
                         _ => ptr::null_mut(),
                     };
                 }
                 STL_HIGHLIGHT_COMB | STL_HIGHLIGHT => {
                     let t = fmt_p;
-                    while *fmt_p != opt && !crate::memory::cstr_is_empty(fmt_p) {
+                    while *fmt_p != opt && !crate::memory::cstr_is_empty(fmt_p.cast()) {
                         fmt_p = fmt_p.wrapping_add(1);
                     }
                     if *fmt_p == opt {
@@ -2210,8 +2228,10 @@ pub extern "C" fn build_stl_str_hl(
                                 StlItemType::HighlightCombining;
                         }
                         stl_items!()[stl_st().curitem as usize].start = out_p;
-                        stl_items!()[stl_st().curitem as usize].minwid =
-                            -syn_name2id_len(t, crate::memory::ptr_offset_from(fmt_p, t) as usize);
+                        stl_items!()[stl_st().curitem as usize].minwid = -syn_name2id_len(
+                            t.cast(),
+                            crate::memory::ptr_offset_from(fmt_p, t) as usize,
+                        );
                         stl_st().curitem += 1;
                         fmt_p = fmt_p.wrapping_add(1);
                     }
@@ -2259,8 +2279,7 @@ pub extern "C" fn build_stl_str_hl(
                             };
                         let mut buflen: usize = 0;
                         for &fc in fold_buf.iter().take(fdc as usize) {
-                            buflen +=
-                                schar_get(buf_tmp.as_mut_ptr().wrapping_add(buflen).cast(), fc);
+                            buflen += schar_get(buf_tmp.as_mut_ptr().wrapping_add(buflen), fc);
                         }
                     }
 
@@ -2270,11 +2289,7 @@ pub extern "C" fn build_stl_str_hl(
                         if fdc == 0 {
                             let sattr = (*stcp).sattrs[i as usize];
                             if sattr.text[0] != 0 && get_vim_var_nr(VV_VIRTNUM) == 0 {
-                                let dst_slice = std::slice::from_raw_parts_mut(
-                                    buf_tmp.as_mut_ptr().wrapping_add(signlen).cast::<u8>(),
-                                    buf_tmp.len() - signlen,
-                                );
-                                signlen += describe_sign_text(dst_slice, &sattr.text);
+                                signlen += describe_sign_text(&mut buf_tmp[signlen..], &sattr.text);
                                 stl_items!()[stl_st().curitem as usize].minwid =
                                     -if (*stcp).sign_cul_id != 0 {
                                         (*stcp).sign_cul_id
@@ -2282,11 +2297,11 @@ pub extern "C" fn build_stl_str_hl(
                                         sattr.hl_id
                                     };
                             } else {
-                                buf_tmp[signlen] = b' ' as c_char;
+                                buf_tmp[signlen] = b' ';
                                 signlen += 1;
-                                buf_tmp[signlen] = b' ' as c_char;
+                                buf_tmp[signlen] = b' ';
                                 signlen += 1;
-                                buf_tmp[signlen] = NUL;
+                                buf_tmp[signlen] = 0;
                                 stl_items!()[stl_st().curitem as usize].minwid = 0;
                             }
                         }
@@ -2306,33 +2321,34 @@ pub extern "C" fn build_stl_str_hl(
             stl_items!()[stl_st().curitem as usize].start = out_p;
             stl_items!()[stl_st().curitem as usize].type_ = StlItemType::Normal;
 
-            if !crate::memory::cstr_is_empty(str) {
+            if !crate::memory::cstr_is_empty(str.cast()) {
                 let mut t = str;
                 if itemisflag {
-                    if !crate::memory::cstr_is_empty(t)
-                        && crate::memory::cstr_byte_at(t, 1) != 0
-                        && ((!prevchar_isitem && crate::memory::cstr_first_byte(t) == b',')
-                            || (prevchar_isflag && crate::memory::cstr_first_byte(t) == b' '))
+                    if !crate::memory::cstr_is_empty(t.cast())
+                        && crate::memory::cstr_byte_at(t.cast(), 1) != 0
+                        && ((!prevchar_isitem && crate::memory::cstr_first_byte(t.cast()) == b',')
+                            || (prevchar_isflag
+                                && crate::memory::cstr_first_byte(t.cast()) == b' '))
                     {
                         t = t.wrapping_add(1);
                     }
                     prevchar_isflag = true;
                 }
 
-                let mut l = vim_strsize(t);
+                let mut l = vim_strsize(t.cast());
                 if l > 0 {
                     prevchar_isitem = true;
                 }
 
                 if l > maxwid {
                     while l >= maxwid {
-                        l -= ptr2cells(t);
-                        t = t.wrapping_add(utfc_ptr2len(t) as usize);
+                        l -= ptr2cells(t.cast());
+                        t = t.wrapping_add(utfc_ptr2len(t.cast()) as usize);
                     }
                     if out_p >= out_end_p {
                         break;
                     }
-                    *out_p = b'<' as c_char;
+                    *out_p = b'<';
                     out_p = out_p.wrapping_add(1);
                 }
 
@@ -2340,12 +2356,12 @@ pub extern "C" fn build_stl_str_hl(
                     while l < minwid && out_p < out_end_p {
                         if l + 1 == minwid
                             && fillchar == schar_from_ascii(b'-')
-                            && ascii_isdigit(crate::memory::cstr_first_char(t))
+                            && ascii_isdigit(crate::memory::cstr_first_char(t.cast()))
                         {
-                            *out_p = b' ' as c_char;
+                            *out_p = b' ';
                             out_p = out_p.wrapping_add(1);
                         } else {
-                            schar_get_adv((&raw mut out_p).cast(), fillchar);
+                            schar_get_adv(&raw mut out_p, fillchar);
                         }
                         l += 1;
                     }
@@ -2365,13 +2381,13 @@ pub extern "C" fn build_stl_str_hl(
                     minwid = -minwid;
                 }
 
-                while !crate::memory::cstr_is_empty(t) && out_p < out_end_p {
+                while !crate::memory::cstr_is_empty(t.cast()) && out_p < out_end_p {
                     if fillable
-                        && crate::memory::cstr_first_byte(t) == b' '
-                        && (!ascii_isdigit(crate::memory::cstr_char_at(t, 1))
+                        && crate::memory::cstr_first_byte(t.cast()) == b' '
+                        && (!ascii_isdigit(crate::memory::cstr_char_at(t.cast(), 1))
                             || fillchar != schar_from_ascii(b'-'))
                     {
-                        schar_get_adv((&raw mut out_p).cast(), fillchar);
+                        schar_get_adv(&raw mut out_p, fillchar);
                     } else {
                         *out_p = *t;
                         out_p = out_p.wrapping_add(1);
@@ -2386,7 +2402,7 @@ pub extern "C" fn build_stl_str_hl(
                 }
 
                 while l < minwid && out_p < out_end_p {
-                    schar_get_adv((&raw mut out_p).cast(), fillchar);
+                    schar_get_adv(&raw mut out_p, fillchar);
                     l += 1;
                 }
             } else if num >= 0 {
@@ -2395,27 +2411,27 @@ pub extern "C" fn build_stl_str_hl(
                 }
                 prevchar_isitem = true;
 
-                let mut nstr: [c_char; 20] = [0; 20];
+                let mut nstr: [u8; 20] = [0; 20];
                 let mut t = nstr.as_mut_ptr();
                 if opt == STL_VIRTCOL_ALT {
-                    *t = b'-' as c_char;
+                    *t = b'-';
                     t = t.wrapping_add(1);
                     minwid -= 1;
                 }
-                *t = b'%' as c_char;
+                *t = b'%';
                 t = t.wrapping_add(1);
                 if zeropad {
-                    *t = b'0' as c_char;
+                    *t = b'0';
                     t = t.wrapping_add(1);
                 }
-                *t = b'*' as c_char;
+                *t = b'*';
                 t = t.wrapping_add(1);
                 *t = if base == NumberBase::NumBaseHexadecimal {
-                    b'X' as c_char
+                    b'X'
                 } else {
-                    b'd' as c_char
+                    b'd'
                 };
-                *t.wrapping_add(1) = NUL;
+                *t.wrapping_add(1) = 0;
 
                 let mut num_chars: i32 = 1;
                 let mut n_tmp = num;
@@ -2438,24 +2454,24 @@ pub extern "C" fn build_stl_str_hl(
                     }
                     let base_ch = *t;
                     t = t.wrapping_add(1);
-                    *t = b'>' as c_char;
-                    *t.wrapping_add(1) = b'%' as c_char;
+                    *t = b'>';
+                    *t.wrapping_add(1) = b'%';
                     *t.wrapping_add(2) = base_ch;
-                    *t.wrapping_add(3) = NUL;
+                    *t.wrapping_add(3) = 0;
 
                     out_p = out_p.wrapping_add(vim_snprintf_safelen!(
-                        out_p,
+                        out_p.cast(),
                         remaining_buf_len,
-                        nstr.as_ptr(),
+                        nstr.as_ptr().cast(),
                         0_i32,
                         num,
                         n,
                     ));
                 } else {
                     out_p = out_p.wrapping_add(vim_snprintf_safelen!(
-                        out_p,
+                        out_p.cast(),
                         remaining_buf_len,
-                        nstr.as_ptr(),
+                        nstr.as_ptr().cast(),
                         minwid,
                         num,
                     ));
@@ -2464,7 +2480,7 @@ pub extern "C" fn build_stl_str_hl(
                 stl_items!()[stl_st().curitem as usize].type_ = StlItemType::NormalEmpty;
             }
 
-            if num >= 0 || (!itemisflag && !crate::memory::cstr_is_empty(str)) {
+            if num >= 0 || (!itemisflag && !crate::memory::cstr_is_empty(str.cast())) {
                 prevchar_isflag = false;
             }
 
@@ -2479,7 +2495,7 @@ pub extern "C" fn build_stl_str_hl(
             }
         }
 
-        *out_p = NUL;
+        *out_p = 0;
         drop(owned_usefmt);
 
         let mut width = vim_strsize(out.data);
@@ -2505,7 +2521,7 @@ pub extern "C" fn build_stl_str_hl(
                 stl_items!(),
                 evalstart,
                 stl_st().curitem,
-                out.data,
+                out.data.cast(),
                 &raw mut out_p,
             );
         }
@@ -2524,9 +2540,9 @@ pub extern "C" fn build_stl_str_hl(
                     stl_hltab!()[sp_idx].start = item.start;
                     stl_hltab!()[sp_idx].userhl = item.minwid;
                     stl_hltab!()[sp_idx].item = match item.type_ {
-                        StlItemType::HighlightSign => i32::from(STL_SIGNCOL as u8),
-                        StlItemType::HighlightFold => i32::from(STL_FOLDCOL as u8),
-                        StlItemType::HighlightCombining => i32::from(STL_HIGHLIGHT_COMB as u8),
+                        StlItemType::HighlightSign => i32::from(STL_SIGNCOL),
+                        StlItemType::HighlightFold => i32::from(STL_FOLDCOL),
+                        StlItemType::HighlightCombining => i32::from(STL_HIGHLIGHT_COMB),
                         _ => 0,
                     };
                     sp_idx += 1;
@@ -2648,15 +2664,15 @@ mod tests {
                     }
                 };
 
-                let mut out_buf = [b' ' as c_char; 120];
+                let mut out_buf = [b' '; 120];
                 let mut pat_c = CString::new(pat).unwrap().into_bytes_with_nul();
                 let cells = build_stl_str_hl(
                     curwin_ptr(),
                     CharBuf {
-                        data: out_buf.as_mut_ptr(),
+                        data: out_buf.as_mut_ptr().cast(),
                         size: out_buf.len(),
                     },
-                    pat_c.as_mut_ptr().cast(),
+                    pat_c.as_mut_ptr(),
                     K_OPT_INVALID,
                     0,
                     fillchar,
@@ -2666,7 +2682,7 @@ mod tests {
                     ptr::null_mut(),
                     ptr::null_mut(),
                 );
-                let got = crate::memory::cstr_from_ptr(out_buf.as_ptr())
+                let got = crate::memory::cstr_from_ptr(out_buf.as_ptr().cast())
                     .to_str()
                     .unwrap();
                 assert_eq!(got, expected, "pat={pat:?}");

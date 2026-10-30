@@ -4178,7 +4178,7 @@ pub fn maketitle() {
                 build_stl_str_hl(
                     curwin_ptr(),
                     outbuf,
-                    opt_vars().p_titlestring,
+                    opt_vars().p_titlestring.cast(),
                     K_OPT_TITLESTRING,
                     0,
                     0,
@@ -4201,7 +4201,8 @@ pub fn maketitle() {
             }
             let default_titlestring = c"%t%( %M%)%( (%{expand('%:p:~:h')})%)%a - Nvim"
                 .as_ptr()
-                .cast_mut();
+                .cast_mut()
+                .cast();
             build_stl_str_hl(
                 curwin_ptr(),
                 outbuf,
@@ -4231,7 +4232,7 @@ pub fn maketitle() {
                 build_stl_str_hl(
                     curwin_ptr(),
                     outbuf,
-                    opt_vars().p_iconstring,
+                    opt_vars().p_iconstring.cast(),
                     K_OPT_ICONSTRING,
                     0,
                     0,
