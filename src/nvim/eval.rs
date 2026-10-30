@@ -4197,7 +4197,7 @@ pub fn partial_name(pt: Option<&TvPartial>) -> *mut c_char {
             }
             if !pt.pt_func.is_null() {
                 let uf = pt.pt_func.cast::<UserFunc>();
-                return (*uf).uf_name.as_mut_ptr();
+                return (*uf).uf_name.as_ptr().cast_mut();
             }
         }
         c"".as_ptr().cast_mut()

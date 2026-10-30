@@ -448,17 +448,16 @@ pub fn get_function_name(xp: &mut ExpandCtx, idx: i32) -> *mut c_char {
     if idx == 0 {
         funcs_st().get_func_name_intidx = -1;
     }
-    if funcs_st().get_func_name_intidx < 0 {
-        let name = get_user_func_name(xp, idx);
-        if !name.is_null() {
-            if !crate::memory::cstr_is_empty(name)
-                && crate::memory::cstr_first_byte(name) != b'<'
-                && (b"g:" == crate::memory::cstr_prefix_bytes(xp.xp_pattern, 2))
-            {
-                return cat_prefix_varname(b'g' as i32, name);
-            }
-            return name;
+    if funcs_st().get_func_name_intidx < 0
+        && let Some(name) = get_user_func_name(xp, idx)
+    {
+        if !name.is_empty()
+            && name.to_bytes()[0] != b'<'
+            && (b"g:" == crate::memory::cstr_prefix_bytes(xp.xp_pattern, 2))
+        {
+            return cat_prefix_varname(b'g' as i32, name.as_ptr());
         }
+        return name.as_ptr().cast_mut();
     }
 
     funcs_st().get_func_name_intidx += 1;
@@ -2768,7 +2767,7 @@ pub fn f_get(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
                         && pt.pt_name.is_none()
                         && !pt.pt_func.is_null()
                     {
-                        name = printable_func_name(&mut *pt.pt_func);
+                        name = printable_func_name(&mut *pt.pt_func).as_ptr().cast_mut();
                     }
                     crate::eval::typval::tv_set_string(rettv, name);
                     rettv.v_type = if crate::memory::cstr_first_byte(what) == b'f' {

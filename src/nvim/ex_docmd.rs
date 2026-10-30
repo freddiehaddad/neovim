@@ -5024,7 +5024,7 @@ pub fn do_cmdline(
             if g_st().ex_nesting_level == func_level(&mut *fcp) {
                 g_st().ex_nesting_level += 1;
             }
-            fname = func_name(&mut *fcp);
+            fname = func_name(&mut *fcp).as_ptr().cast_mut();
             breakpoint = func_breakpoint(&mut *fcp);
             dbg_tick = func_dbg_tick(&mut *fcp);
         } else if let Some(sp) = source_cookie {
