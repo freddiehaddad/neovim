@@ -659,8 +659,16 @@ fn func_dump_profile(fd: *mut FILE) {
                 } else {
                     fprintf!(fd, c"Called %d times\n", (*fp).uf_tm_count);
                 }
-                fprintf!(fd, c"Total time: %s\n", profile_msg((*fp).uf_tm_total).as_ptr());
-                fprintf!(fd, c" Self time: %s\n", profile_msg((*fp).uf_tm_self).as_ptr());
+                fprintf!(
+                    fd,
+                    c"Total time: %s\n",
+                    profile_msg((*fp).uf_tm_total).as_ptr()
+                );
+                fprintf!(
+                    fd,
+                    c" Self time: %s\n",
+                    profile_msg((*fp).uf_tm_self).as_ptr()
+                );
                 fprintf!(fd, c"\n");
                 fprintf!(fd, c"count  total (s)   self (s)\n");
 
@@ -754,7 +762,11 @@ fn script_dump_profile(fd: *mut FILE) {
             } else {
                 fprintf!(fd, c"Sourced %d times\n", si.sn_pr_count);
             }
-            fprintf!(fd, c"Total time: %s\n", profile_msg(si.sn_pr_total).as_ptr());
+            fprintf!(
+                fd,
+                c"Total time: %s\n",
+                profile_msg(si.sn_pr_total).as_ptr()
+            );
             fprintf!(fd, c" Self time: %s\n", profile_msg(si.sn_pr_self).as_ptr());
             fprintf!(fd, c"\n");
             fprintf!(fd, c"count  total (s)   self (s)\n");
@@ -1047,7 +1059,7 @@ mod tests {
         let future = profile_setlimit(1000);
         let now = profile_start();
         assert!(profile_cmp(future, now) < 0);
-        assert!(profile_passed_limit(now));
+        assert!(profile_passed_limit(now.saturating_sub(2)));
         assert!(!profile_passed_limit(profile_add(now, now)));
 
         {

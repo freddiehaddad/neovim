@@ -39,6 +39,14 @@ use crate::ex_eval::{ExCleanup, aborting, enter_cleanup, leave_cleanup};
 use crate::ex_getln::text_or_buf_locked;
 use crate::extmark::extmark_free_all;
 use crate::file_search::vim_chdirfile;
+#[cfg(any(
+    target_os = "freebsd",
+    target_os = "netbsd",
+    target_os = "openbsd",
+    target_os = "dragonfly",
+    target_os = "macos"
+))]
+use crate::fileio::is_dev_fd_file;
 use crate::fileio::{
     READ_BUFFER, READ_DUMMY, READ_FIFO, READ_NEW, READ_NOFILE, READ_NOWINENTER, READ_STDIN,
     buf_check_timestamp, file_pat_to_reg_pat, prep_exarg, readfile, shorten_fnames,
@@ -3165,8 +3173,7 @@ pub fn buflist_findpat(
                 match_fnum = -1;
             }
         } else {
-            let Some(pat_cstr) = file_pat_to_reg_pat(pattern, pattern_end, None, 0)
-            else {
+            let Some(pat_cstr) = file_pat_to_reg_pat(pattern, pattern_end, None, 0) else {
                 return -1;
             };
             let mut pat_vec: Vec<u8> = pat_cstr.into_bytes_with_nul();
@@ -3188,10 +3195,8 @@ pub fn buflist_findpat(
                     }
 
                     let mut regmatch: Regmatch = Regmatch::new();
-                    regmatch.regprog = vim_regcomp(
-                        p.cast(),
-                        if opt_vars().p_magic != 0 { RE_MAGIC } else { 0 },
-                    );
+                    regmatch.regprog =
+                        vim_regcomp(p.cast(), if opt_vars().p_magic != 0 { RE_MAGIC } else { 0 });
 
                     for buf in for_all_buffers_rev_ptr() {
                         if regmatch.regprog.is_null() {

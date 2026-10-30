@@ -121,10 +121,10 @@ impl IntoCCharPtr for Option<&std::ffi::CString> {
     }
 }
 
-impl IntoCCharPtr for &RawCChar {
+impl IntoCCharPtr for &i8 {
     #[inline]
     fn into_c_char_ptr(self) -> RawCCharPtr {
-        self
+        ptr::from_ref(self).cast()
     }
 }
 
@@ -1033,7 +1033,8 @@ pub fn parse_fmt_types(
         while !crate::memory::cstr_is_empty(p) {
             if crate::memory::cstr_first_byte(p) != b'%' {
                 p = p.wrapping_add(1);
-                while !crate::memory::cstr_is_empty(p) && crate::memory::cstr_first_byte(p) != b'%' {
+                while !crate::memory::cstr_is_empty(p) && crate::memory::cstr_first_byte(p) != b'%'
+                {
                     p = p.wrapping_add(1);
                 }
             } else {

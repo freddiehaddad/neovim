@@ -212,8 +212,7 @@ pub fn os_expand_wildcards(
 
         if g_st().secure != 0 {
             for i in 0..(num_pat as usize) {
-                if crate::strings::vim_haschr((*pat.add(i)).cast(), b'`' as i32) && check_secure()
-                {
+                if crate::strings::vim_haschr((*pat.add(i)).cast(), b'`' as i32) && check_secure() {
                     return false;
                 }
             }
@@ -260,7 +259,7 @@ pub fn os_expand_wildcards(
 
         for i in 0..(num_pat as usize) {
             len += 1;
-            let p_i = *pat.add(i);
+            let p_i = (*pat.add(i)).cast();
             let mut j = 0;
             while crate::memory::cstr_byte_at(p_i, j) != 0 {
                 if crate::strings::vim_haschr(
@@ -374,16 +373,16 @@ pub fn os_expand_wildcards(
         }
 
         if ampersand {
-            crate::memory::cstr_cat(command, c"&");
+            crate::memory::cstr_cat(command.cast(), c"&");
         }
 
         if shell_style == STYLE_PRINT {
-            extra_shell_arg = c"-G".as_ptr().cast_mut();
+            extra_shell_arg = c"-G".as_ptr().cast_mut().cast();
         } else if shell_style == STYLE_GLOB && !have_dollars(num_pat, pat) {
-            extra_shell_arg = c"-f".as_ptr().cast_mut();
+            extra_shell_arg = c"-f".as_ptr().cast_mut().cast();
         }
 
-        let res = call_shell(command, shellopts, extra_shell_arg);
+        let res = call_shell(command.cast(), shellopts, extra_shell_arg.cast());
 
         if ampersand {
             os_delay(10, true);
@@ -815,11 +814,7 @@ pub fn get_cmd_output(
 }
 
 /// os_system - synchronously execute a command in the shell
-pub fn os_system(
-    argv: Vec<std::ffi::CString>,
-    input: &[u8],
-    output: Option<&mut Vec<u8>>,
-) -> i32 {
+pub fn os_system(argv: Vec<std::ffi::CString>, input: &[u8], output: Option<&mut Vec<u8>>) -> i32 {
     do_os_system(argv, input, output, true, false)
 }
 
@@ -994,9 +989,7 @@ fn out_data_decide_throttle(size: usize) -> bool {
         msg_puts(c"...\n");
     }
     msg_putchar(b'\r' as i32);
-    msg_puts(
-        std::ffi::CStr::from_bytes_until_nul(&sh_st().throttle_pulse_msg).unwrap_or(c""),
-    );
+    msg_puts(std::ffi::CStr::from_bytes_until_nul(&sh_st().throttle_pulse_msg).unwrap_or(c""));
     msg_putchar(b'\r' as i32);
     ui_flush();
     true

@@ -420,7 +420,7 @@ mod unix_impl {
     pub fn pty_proc_tty_name(ptyproc: &mut PtyProc) -> Option<&std::ffi::CStr> {
         unsafe {
             let ptail = pty_proc_unix_tail(ptyproc);
-            crate::memory::cstr_as_opt_cstr(ptsname((*ptail).tty_fd))
+            crate::memory::cstr_as_opt_cstr(ptsname((*ptail).tty_fd).cast())
         }
     }
 

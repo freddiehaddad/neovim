@@ -862,7 +862,7 @@ pub fn nlua_state_add_stdlib(lstate: *mut lua_State, is_thread: bool) {
     lua_setfield(lstate, -2, c"json");
 
     #[cfg(feature = "vendor-bit")]
-    {
+    unsafe {
         let top = lua_gettop(lstate);
         let _ = crate::bit::nvim_luaopen_bit(lstate);
         crate::lua::converter::lua_settop(lstate, top);

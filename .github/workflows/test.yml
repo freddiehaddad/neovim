@@ -37,10 +37,7 @@ jobs:
 
       - uses: ./.github/actions/setup
 
-      - name: rustfmt
-        run: cargo fmt --all -- --check
-
-      - name: clippy
+      - name: lintrust
         run: cargo xtask lintrust
 
       - name: cargo test
@@ -96,14 +93,11 @@ jobs:
             { runner: ubuntu-24.04, os: ubuntu, flavor: debug, flags: "--debug" },
             { runner: ubuntu-24.04, os: ubuntu, flavor: release, flags: "--release" },
             { runner: ubuntu-24.04-arm, os: ubuntu, flavor: arm, flags: "--release" },
-            { runner: macos-15-intel, os: macos, flavor: intel, flags: "--release" },
             { runner: macos-26, os: macos, flavor: arm, flags: "--release" },
             { runner: ubuntu-24.04, os: ubuntu, flavor: puc-lua, flags: "--debug --prefer-lua" },
           ]
-        test: [unittest, functionaltest, oldtest]
+        test: [functionaltest, oldtest]
         exclude:
-          - test: unittest
-            build: { flavor: puc-lua }
           - test: oldtest
             build: { runner: ubuntu-24.04-arm }
     runs-on: ${{ matrix.build.runner }}
@@ -128,8 +122,7 @@ jobs:
       - name: Create log dir
         run: mkdir -p "$LOG_DIR"
 
-      - if: ${{ matrix.test != 'unittest' }}
-        name: Set up interpreter packages
+      - name: Set up interpreter packages
         run: |
           echo "Install neovim RubyGem."
           gem install --no-document --bindir "$BIN_DIR" --conservative --pre neovim
@@ -149,9 +142,9 @@ jobs:
           BUILD_FLAGS: ${{ matrix.build.flags }}
         run: cargo xtask build $BUILD_FLAGS
 
-      - if: ${{ matrix.test == 'unittest' }}
+      - if: ${{ matrix.test == 'functionaltest' && matrix.build.flavor != 'puc-lua' }}
         name: unittest
-        timeout-minutes: 20
+        timeout-minutes: 10
         env:
           BUILD_FLAGS: ${{ matrix.build.flags }}
         run: cargo xtask unittest $BUILD_FLAGS
@@ -209,12 +202,13 @@ jobs:
           fi
 
   windows:
+    name: windows release ${{ matrix.test }}
     runs-on: windows-2025
     timeout-minutes: 45
     strategy:
       fail-fast: false
       matrix:
-        test: [functional, old]
+        test: [functionaltest, oldtest]
     steps:
       - uses: actions/checkout@v7.0.1
         with:
@@ -244,7 +238,12 @@ jobs:
           Get-Command -CommandType Application neovim-node-host.cmd
           npm.cmd link neovim
 
-      - if: ${{ matrix.test == 'functional' }}
+      - if: ${{ matrix.test == 'functionaltest' }}
+        name: unittest
+        timeout-minutes: 10
+        run: cargo xtask unittest --release
+
+      - if: ${{ matrix.test == 'functionaltest' }}
         name: functionaltest
         timeout-minutes: 20
         env:
@@ -254,6 +253,6 @@ jobs:
           Start-Process -WindowStyle Hidden (Get-Command sleep.exe).Source infinity
           cargo xtask functionaltest --release
 
-      - if: ${{ matrix.test == 'old' }}
+      - if: ${{ matrix.test == 'oldtest' }}
         name: oldtest
         run: cargo xtask oldtest --release

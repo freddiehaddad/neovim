@@ -19,7 +19,14 @@ use crate::change::{HLF_W, appended_lines_mark, save_file_ff, unchanged};
 #[cfg(windows)]
 use crate::charset::vim_isfilec;
 use crate::charset::{EOL_MAC, ascii_isspace};
-#[cfg(test)]
+#[cfg(any(
+    target_os = "freebsd",
+    target_os = "openbsd",
+    target_os = "netbsd",
+    target_os = "dragonfly",
+    target_os = "macos",
+    test
+))]
 use crate::charset::{ascii_isdigit, skipdigits};
 use crate::context::{CtxSwitch, ctx_restore, ctx_switch};
 use crate::cursor::{Colnr, CursorPos, Linenr, check_cursor, check_cursor_lnum};
@@ -65,6 +72,14 @@ use crate::option::{
 };
 use crate::option_vars::*;
 use crate::os::env::{expand_env, home_replace, home_replace_save, os_env_exists};
+#[cfg(any(
+    target_os = "freebsd",
+    target_os = "openbsd",
+    target_os = "netbsd",
+    target_os = "dragonfly",
+    target_os = "macos"
+))]
+use crate::os::fs::s_ischr;
 use crate::os::fs::{
     Directory, FileInfo, TEMP_FILE_PATH_MAXLEN, UV_ENOENT, VimAcl, os_closedir, os_copy,
     os_dirname, os_errno, os_file_is_writable, os_file_owned, os_fileinfo, os_fileinfo_fd,
@@ -390,7 +405,12 @@ pub fn call_iconv_open(
     tocode: impl crate::strings::IntoCCharPtr,
     fromcode: impl crate::strings::IntoCCharPtr,
 ) -> *mut c_void {
-    unsafe { c_iconv_open(tocode.into_c_char_ptr().cast(), fromcode.into_c_char_ptr().cast()) }
+    unsafe {
+        c_iconv_open(
+            tocode.into_c_char_ptr().cast(),
+            fromcode.into_c_char_ptr().cast(),
+        )
+    }
 }
 
 use crate::os::fs::{s_isdir, s_isfifo, s_isreg, s_issock};
@@ -1273,7 +1293,7 @@ pub fn readfile(
                 target_os = "dragonfly",
                 target_os = "macos"
             ))]
-            let is_chr_dev = s_ischr(perm) && is_dev_fd_file(fname.cast());
+            let is_chr_dev = s_ischr(perm as u64) && is_dev_fd_file(fname.cast());
             #[cfg(not(any(
                 target_os = "freebsd",
                 target_os = "openbsd",
@@ -1303,7 +1323,12 @@ pub fn readfile(
                     }
                     retval = NOTDONE;
                 } else {
-                    filemess(g_st().curbuf, fname.cast(), tr(c"is not a file"), ptr::null());
+                    filemess(
+                        g_st().curbuf,
+                        fname.cast(),
+                        tr(c"is not a file"),
+                        ptr::null(),
+                    );
                 }
                 msg_end();
                 g_st().msg_scroll = msg_save;
@@ -2678,7 +2703,7 @@ pub fn readfile(
                             target_os = "dragonfly",
                             target_os = "macos"
                         ))]
-                        if s_ischr(perm) {
+                        if s_ischr(perm as u64) {
                             buflen += vim_snprintf!(
                                 iobuf_ptr.offset(buflen as isize),
                                 (IOSIZE as i32 - buflen) as usize,
@@ -2950,7 +2975,14 @@ pub fn readfile(
 }
 
 /// Returns true if the file name argument is of the form "/dev/fd/\d\+".
-#[cfg(test)]
+#[cfg(any(
+    target_os = "freebsd",
+    target_os = "openbsd",
+    target_os = "netbsd",
+    target_os = "dragonfly",
+    target_os = "macos",
+    test
+))]
 pub fn is_dev_fd_file(fname: impl crate::strings::IntoCCharPtr) -> bool {
     let fname = fname.into_c_char_ptr().cast_mut();
     {
@@ -4387,7 +4419,11 @@ fn vim_mktempdir() {
             continue;
         }
 
-        if after_pathsep(tmp.as_ptr().cast(), tmp.as_ptr().wrapping_add(tmplen).cast()) == 0 {
+        if after_pathsep(
+            tmp.as_ptr().cast(),
+            tmp.as_ptr().wrapping_add(tmplen).cast(),
+        ) == 0
+        {
             tmplen += vim_snprintf!(
                 tmp.as_mut_ptr().wrapping_add(tmplen).cast(),
                 tmp.len() - tmplen,
@@ -4413,7 +4449,11 @@ fn vim_mktempdir() {
         #[cfg(not(unix))]
         let valid = isdir && owned;
         if valid {
-            if after_pathsep(tmp.as_ptr().cast(), tmp.as_ptr().wrapping_add(tmplen).cast()) == 0 {
+            if after_pathsep(
+                tmp.as_ptr().cast(),
+                tmp.as_ptr().wrapping_add(tmplen).cast(),
+            ) == 0
+            {
                 tmplen += vim_snprintf!(
                     tmp.as_mut_ptr().wrapping_add(tmplen).cast(),
                     tmp.len() - tmplen,

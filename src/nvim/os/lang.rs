@@ -13,6 +13,8 @@ use crate::mbyte::{Vimconv, convert_setup, mb_strnicmp, string_convert};
 use crate::memory::xstrlcpy;
 use crate::message::{semsg, smsg};
 use crate::option::set_helplang_default;
+#[cfg(target_os = "macos")]
+use crate::os::env::os_env_exists;
 use crate::os::env::{ExpandCtx, os_getenv_buf, os_setenv};
 #[cfg(unix)]
 use crate::os::shell::get_cmd_output;
@@ -338,11 +340,9 @@ fn convert_mo_bytes_to_utf8(bytes: &[u8], charset: Option<&[u8]>) -> Vec<u8> {
         let mut vc = Vimconv::new();
         if convert_setup(&mut vc, cs_cstr.as_ptr().cast_mut(), c"utf-8") && vc.vc_type != 0 {
             let mut len = bytes.len();
-            if let Some(mut slice) = string_convert(
-                &vc,
-                bytes.as_ptr().cast_mut().cast(),
-                Some(&mut len),
-            ) {
+            if let Some(mut slice) =
+                string_convert(&vc, bytes.as_ptr().cast_mut().cast(), Some(&mut len))
+            {
                 slice.truncate(len);
                 return slice;
             }
@@ -593,9 +593,7 @@ pub fn get_mess_lang() -> Option<&'static CStr> {
     }
 }
 
-fn get_mess_env(
-    #[cfg_attr(not(windows), allow(unused_variables))] buf: &mut [u8; 64],
-) -> *mut u8 {
+fn get_mess_env(#[cfg_attr(not(windows), allow(unused_variables))] buf: &mut [u8; 64]) -> *mut u8 {
     #[cfg(not(windows))]
     {
         get_locale_val(LC_MESSAGES)
@@ -805,8 +803,8 @@ pub fn lang_init() {
     unsafe {
         if !os_env_exists(c"LANG", true) {
             let _ = os_setenv(c"LANG", c"C.UTF-8", 1);
-            let _ = setlocale(LC_ALL, c"C.UTF-8");
-            let _ = setlocale(LC_NUMERIC, c"C");
+            let _ = setlocale(LC_ALL, c"C.UTF-8".as_ptr().cast());
+            let _ = setlocale(LC_NUMERIC, c"C".as_ptr().cast());
         }
     }
 }

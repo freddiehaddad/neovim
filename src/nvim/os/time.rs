@@ -133,7 +133,7 @@ pub fn os_localtime_r(clock: &time_t, result: *mut Tm) -> *mut Tm {
         let tz_bytes = if tz_ptr.is_null() {
             &[][..]
         } else {
-            crate::memory::cstr_as_bytes(tz_ptr)
+            crate::memory::cstr_as_bytes(tz_ptr.cast())
         };
         let cache = &mut ostime_st().tz_cache;
         let cache_len = cache.iter().position(|&b| b == 0).unwrap_or(cache.len());

@@ -770,15 +770,9 @@ fn set_b0_fname(b0p: &mut ZeroBlock, buf: &mut FileBuf) {
         }
         let mut file_info = FileInfo::new();
         if os_fileinfo(buf.b_ffname, &mut file_info) {
-            long_to_char(
-                i64::from(file_info.stat.st_mtim.tv_sec),
-                &mut b0p.b0_mtime,
-            );
-            long_to_char(
-                os_fileinfo_inode(&file_info) as i64,
-                &mut b0p.b0_ino,
-            );
             buf_store_file_info(buf, &mut file_info);
+            long_to_char(buf.b_mtime, &mut b0p.b0_mtime);
+            long_to_char(os_fileinfo_inode(&file_info) as i64, &mut b0p.b0_ino);
             buf.b_mtime_read = buf.b_mtime;
             buf.b_mtime_read_ns = buf.b_mtime_ns;
         } else {
@@ -1519,7 +1513,11 @@ fn ml_recover_theend(
 }
 
 /// Enumerate swapfiles for `fname`, appending each found path to `ret_list`.
-pub fn recover_names(fname: impl crate::strings::IntoCCharPtr, skip_curbuf: bool, ret_list: &mut TvList) {
+pub fn recover_names(
+    fname: impl crate::strings::IntoCCharPtr,
+    skip_curbuf: bool,
+    ret_list: &mut TvList,
+) {
     let fname = fname.into_c_char_ptr().cast_mut();
     unsafe {
         #[cfg(unix)]
@@ -1584,8 +1582,10 @@ pub fn recover_names(fname: impl crate::strings::IntoCCharPtr, skip_curbuf: bool
 
             let mut files: Vec<std::ffi::CString> = Vec::new();
             if !names_vec.is_empty() {
-                let mut name_ptrs: Vec<*mut u8> =
-                    names_vec.iter().map(|s| s.as_ptr().cast_mut().cast()).collect();
+                let mut name_ptrs: Vec<*mut u8> = names_vec
+                    .iter()
+                    .map(|s| s.as_ptr().cast_mut().cast())
+                    .collect();
                 let _ = expand_wildcards_vec(
                     name_ptrs.len() as i32,
                     name_ptrs.as_mut_ptr(),
@@ -1699,24 +1699,9 @@ pub fn swapfile_dict(fname: impl crate::strings::IntoCCharPtr, d: &mut TvDict) {
                     tv_dict_add_str_len(d, c"error", c"Magic number mismatch", 21);
                 } else {
                     tv_dict_add_str_len(d, c"version", &b0.b0_version, 10);
-                    tv_dict_add_str_len(
-                        d,
-                        c"user",
-                        &b0.b0_uname,
-                        B0_UNAME_SIZE as i32,
-                    );
-                    tv_dict_add_str_len(
-                        d,
-                        c"host",
-                        &b0.b0_hname,
-                        B0_HNAME_SIZE as i32,
-                    );
-                    tv_dict_add_str_len(
-                        d,
-                        c"fname",
-                        &b0.b0_fname,
-                        B0_FNAME_SIZE_ORG as i32,
-                    );
+                    tv_dict_add_str_len(d, c"user", &b0.b0_uname, B0_UNAME_SIZE as i32);
+                    tv_dict_add_str_len(d, c"host", &b0.b0_hname, B0_HNAME_SIZE as i32);
+                    tv_dict_add_str_len(d, c"fname", &b0.b0_fname, B0_FNAME_SIZE_ORG as i32);
 
                     tv_dict_add_nr(d, c"pid", i64::from(swapfile_proc_running(&b0, fname)));
                     tv_dict_add_nr(d, c"mtime", char_to_long(&b0.b0_mtime));
@@ -3344,7 +3329,7 @@ pub fn resolve_symlink(fname: impl crate::strings::IntoCCharPtr, buf: RawCCharPt
                 return false;
             }
 
-            let ret = readlink(tmp_ptr, buf, MAXPATHL - 1);
+            let ret = readlink(tmp_ptr.cast(), buf.cast(), MAXPATHL - 1);
             if ret <= 0 {
                 let err = std::io::Error::last_os_error().raw_os_error().unwrap_or(0);
                 if err == EINVAL || err == ENOENT {
@@ -3369,7 +3354,7 @@ pub fn resolve_symlink(fname: impl crate::strings::IntoCCharPtr, buf: RawCCharPt
             }
         }
 
-        vim_full_name(tmp_ptr, buf, MAXPATHL, true)
+        vim_full_name(tmp_ptr, buf.cast(), MAXPATHL, true)
     }
 }
 
@@ -3553,7 +3538,12 @@ fn do_swapexists(buf: &mut FileBuf, fname: impl crate::strings::IntoCCharPtr) ->
 
         set_vim_var_string(VV_SWAPNAME, ptr::null(), -1);
 
-        match get_vim_var_str(VV_SWAPCHOICE).to_bytes().first().copied().unwrap_or(0) {
+        match get_vim_var_str(VV_SWAPCHOICE)
+            .to_bytes()
+            .first()
+            .copied()
+            .unwrap_or(0)
+        {
             b'o' => SEA_CHOICE_READONLY,
             b'e' => SEA_CHOICE_EDIT,
             b'r' => SEA_CHOICE_RECOVER,
@@ -3637,11 +3627,7 @@ fn findswapname(
                             }
                         } else {
                             expand_env(&b0.b0_fname, namebuff_ptr, MAXPATHL as i32);
-                            if fnamecmp_ino(
-                                buf.b_ffname,
-                                namebuff_ptr,
-                                char_to_long(&b0.b0_ino),
-                            ) {
+                            if fnamecmp_ino(buf.b_ffname, namebuff_ptr, char_to_long(&b0.b0_ino)) {
                                 differ = true;
                             }
                         }

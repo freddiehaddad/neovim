@@ -393,6 +393,7 @@ pub fn luaL_checkstack<S: crate::strings::IntoCCharPtr>(lstate: *mut lua_State, 
 
 #[cfg(feature = "vendor-bit")]
 #[inline]
+#[allow(non_snake_case)]
 pub fn luaL_typerror<S: crate::strings::IntoCCharPtr>(
     lstate: *mut lua_State,
     narg: i32,

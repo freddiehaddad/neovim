@@ -636,21 +636,19 @@ pub fn unpacker_parse_redraw(p: &mut Unpacker) -> bool {
     let mut data = p.read_ptr;
     let mut size = p.read_size;
 
-    if p.state == 10 {
-        if !next_type(
-            p,
-            &mut data,
-            &mut size,
-            &mut tok,
-            MpackTokenType::MpackTokenArray,
-        ) {
-            return false;
+    if p.state == 10 || p.state == 11 {
+        if p.state == 10 {
+            if !next_type(
+                p,
+                &mut data,
+                &mut size,
+                &mut tok,
+                MpackTokenType::MpackTokenArray,
+            ) {
+                return false;
+            }
+            p.nevents = tok.length as i32;
         }
-        p.nevents = tok.length as i32;
-        p.state = 11;
-    }
-
-    if p.state == 11 {
         if !next_type(
             p,
             &mut data,
@@ -924,13 +922,7 @@ pub fn unpack_uint_or_sint(tok: MpackToken, res: &mut Integer) -> bool {
 pub fn unpack_skip(data: &mut *const u8, size: &mut usize) -> i32 {
     let mut parser = MpackParser::new(0);
     mpack_parser_init(&mut parser, 0);
-    mpack_parse(
-        &mut parser,
-        data,
-        size,
-        Some(parse_nop),
-        Some(parse_nop),
-    )
+    mpack_parse(&mut parser, data, size, Some(parse_nop), Some(parse_nop))
 }
 
 /// Append raw msgpack key-value bytes to `AdditionalDataBuilder` (`push_additional_data`).
@@ -994,8 +986,10 @@ pub fn unpack_keydict(
                 if status != 0 {
                     return false;
                 }
-                let skipped =
-                    std::slice::from_raw_parts(item_start, (*data as usize) - (item_start as usize));
+                let skipped = std::slice::from_raw_parts(
+                    item_start,
+                    (*data as usize) - (item_start as usize),
+                );
                 push_additional_data(ad, skipped);
                 continue;
             };

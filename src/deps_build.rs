@@ -197,12 +197,31 @@ impl CompilerEnv {
             vcvars.display()
         );
 
-        let cmd_str = format!("call \"{}\" >nul && set", vcvars.display());
-        let env_out = Command::new("cmd.exe")
-            .args(["/d", "/c", &cmd_str])
-            .output()
-            .expect("failed to run vcvars64.bat");
-        assert!(env_out.status.success(), "vcvars64.bat failed");
+        #[cfg(windows)]
+        let env_out = {
+            use std::os::windows::process::CommandExt;
+            let raw_cmd = format!("\"call \"{}\" >nul && set\"", vcvars.display());
+            Command::new("cmd.exe")
+                .arg("/d")
+                .arg("/s")
+                .arg("/c")
+                .raw_arg(&raw_cmd)
+                .output()
+                .expect("failed to run vcvars64.bat")
+        };
+        #[cfg(not(windows))]
+        let env_out = {
+            let cmd_str = format!("call \"{}\" >nul && set", vcvars.display());
+            Command::new("cmd.exe")
+                .args(["/d", "/c", &cmd_str])
+                .output()
+                .expect("failed to run vcvars64.bat")
+        };
+        assert!(
+            env_out.status.success(),
+            "vcvars64.bat failed: {}",
+            String::from_utf8_lossy(&env_out.stderr)
+        );
         let mut vars = Vec::new();
         for line in String::from_utf8_lossy(&env_out.stdout).lines() {
             if let Some((k, v)) = line.split_once('=') {

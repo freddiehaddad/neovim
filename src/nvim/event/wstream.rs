@@ -4,7 +4,9 @@ use crate::event::r#loop::{
     Loop, uv_fs_get_result, uv_fs_req_cleanup, uv_fs_t, uv_handle_get_loop, uv_write,
 };
 use crate::event::stream::{Stream, stream_close_handle, stream_init};
-use std::ffi::{c_ulong, c_void};
+#[cfg(windows)]
+use std::ffi::c_ulong;
+use std::ffi::c_void;
 
 use crate::os::fs::UV_UNKNOWN;
 

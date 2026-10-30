@@ -2519,10 +2519,8 @@ pub fn utf_head_off(
 
         let mut q = start;
         while q < p {
-            let len = utfc_ptr2len_len(
-                q.cast(),
-                crate::memory::ptr_offset_from(safe_end, q) as i32,
-            );
+            let len =
+                utfc_ptr2len_len(q.cast(), crate::memory::ptr_offset_from(safe_end, q) as i32);
             if q.wrapping_add(len as usize) > p {
                 return crate::memory::ptr_offset_from(p, q) as i32;
             }
@@ -2829,10 +2827,9 @@ pub fn utf_find_illegal() {
                     curwin_mut().w_cursor.col +=
                         crate::memory::ptr_offset_from(p, get_cursor_pos_ptr()) as Colnr;
                 } else {
-                    len = crate::memory::ptr_offset_from(
-                        p,
-                        tofree.as_ref().unwrap().as_ptr().cast(),
-                    ) as i32;
+                    len =
+                        crate::memory::ptr_offset_from(p, tofree.as_ref().unwrap().as_ptr().cast())
+                            as i32;
                     let mut cur_p = get_cursor_pos_ptr();
                     while !crate::memory::cstr_is_empty(cur_p) && len > 0 {
                         len -= 1;
@@ -3094,9 +3091,9 @@ pub fn enc_canonize(enc: impl crate::strings::IntoCCharPtr) -> std::ffi::CString
 
 pub fn enc_locale() -> Option<std::ffi::CString> {
     #[cfg(unix)]
-    let mut s = unsafe { nl_langinfo(CODESET) };
+    let mut s: crate::strings::RawCCharPtr = unsafe { nl_langinfo(CODESET).cast() };
     #[cfg(not(unix))]
-    let mut s = ptr::null();
+    let mut s: crate::strings::RawCCharPtr = ptr::null();
 
     let mut env_buf = [0u8; 64];
     if crate::memory::cstr_is_empty(s) {

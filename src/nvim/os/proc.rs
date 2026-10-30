@@ -7,10 +7,10 @@ use crate::eval::funcs::PROCESS_ALL_ACCESS;
 use crate::event::r#loop::uv_kill;
 #[cfg(windows)]
 use crate::memory::Arena;
-#[cfg(target_os = "windows")]
-use std::ffi::c_void;
 #[cfg(windows)]
 use std::ffi::CStr;
+#[cfg(target_os = "windows")]
+use std::ffi::c_void;
 
 #[cfg(target_os = "windows")]
 use crate::api::private::validate::{Dict, NvimString};
@@ -170,6 +170,73 @@ pub fn os_proc_children(ppid: i32) -> Result<Vec<i32>, i32> {
             }
         }
         CloseHandle(h);
+    }
+
+    #[cfg(target_os = "macos")]
+    unsafe {
+        unsafe extern "C" {
+            fn sysctl(
+                name: *mut i32,
+                namelen: u32,
+                oldp: *mut std::ffi::c_void,
+                oldlenp: *mut usize,
+                newp: *mut std::ffi::c_void,
+                newlen: usize,
+            ) -> i32;
+        }
+        const CTL_KERN: i32 = 1;
+        const KERN_PROC: i32 = 14;
+        const KERN_PROC_ALL: i32 = 0;
+        const KINFO_PROC_SIZE: usize = 648;
+        const KP_PID_OFFSET: usize = 40;
+        const KP_PPID_OFFSET: usize = 560;
+
+        let mut name = [CTL_KERN, KERN_PROC, KERN_PROC_ALL, 0];
+        let mut len: usize = 0;
+        if sysctl(
+            name.as_mut_ptr(),
+            3,
+            std::ptr::null_mut(),
+            &mut len,
+            std::ptr::null_mut(),
+            0,
+        ) != 0
+        {
+            return Err(2);
+        }
+
+        let mut buf = vec![0u8; len];
+        if sysctl(
+            name.as_mut_ptr(),
+            3,
+            buf.as_mut_ptr().cast(),
+            &mut len,
+            std::ptr::null_mut(),
+            0,
+        ) != 0
+        {
+            return Err(2);
+        }
+
+        let mut exists = false;
+        let p_count = len / KINFO_PROC_SIZE;
+        for i in 0..p_count {
+            let entry = &buf[i * KINFO_PROC_SIZE..(i + 1) * KINFO_PROC_SIZE];
+            let pid =
+                i32::from_ne_bytes(entry[KP_PID_OFFSET..KP_PID_OFFSET + 4].try_into().unwrap());
+            let parent_pid = i32::from_ne_bytes(
+                entry[KP_PPID_OFFSET..KP_PPID_OFFSET + 4]
+                    .try_into()
+                    .unwrap(),
+            );
+            exists = exists || pid == ppid;
+            if parent_pid == ppid {
+                temp.push(pid);
+            }
+        }
+        if !exists {
+            return Err(1);
+        }
     }
 
     #[cfg(target_os = "linux")]

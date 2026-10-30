@@ -601,7 +601,7 @@ fn run_lua_tests(
     extra_args: &[String],
 ) {
     let xdg_dir = build_dir.join("Xtest_xdg");
-    let tmp_dir = build_dir.join("Xtest_tmpdir");
+    let tmp_dir = root.join("Xtest_tmpdir");
     if xdg_dir.exists() {
         let _ = fs::remove_dir_all(&xdg_dir);
     }
@@ -1099,8 +1099,7 @@ fn run_lintcommit(root: &Path) {
             .expect("git merge-base failed");
         format!("{ancestor}..HEAD")
     };
-    let commits_str =
-        git_out(&["rev-list", "--no-merges", &range]).expect("git rev-list failed");
+    let commits_str = git_out(&["rev-list", "--no-merges", &range]).expect("git rev-list failed");
 
     let mut failed = 0usize;
     for commit_id in commits_str.split_whitespace() {
@@ -1505,21 +1504,25 @@ fn main() -> ExitCode {
             }
         }
         "lintrust" => {
+            let cargo = env::var("CARGO").unwrap_or_else(|_| "cargo".to_string());
+            let mut fmt_cmd = Command::new(&cargo);
+            fmt_cmd
+                .current_dir(&root)
+                .args(["fmt", "--all", "--", "--check"]);
+            run_status(&mut fmt_cmd, "cargo fmt --check");
+
             let deps_prefix = default_deps_prefix(&root);
             deps_build::ensure_deps(&root, &deps_prefix, prefer_lua, false);
-            let cargo = env::var("CARGO").unwrap_or_else(|_| "cargo".to_string());
             let mut cmd = Command::new(cargo);
             cmd.current_dir(&root).args([
                 "clippy",
                 "--workspace",
                 "--all-targets",
+                "--all-features",
                 "--",
                 "-D",
                 "warnings",
             ]);
-            if prefer_lua {
-                cmd.args(["--features", "vendor-bit"]);
-            }
             run_status(&mut cmd, "cargo clippy");
         }
         "formatrust" => {
@@ -1588,7 +1591,10 @@ fn main() -> ExitCode {
             deps_build::ensure_deps(&root, &deps_prefix, prefer_lua, false);
             let cargo = env::var("CARGO").unwrap_or_else(|_| "cargo".to_string());
             let mut cmd = Command::new(cargo);
-            cmd.current_dir(&root).arg("test");
+            cmd.current_dir(&root).args(["test", "--lib"]);
+            if release {
+                cmd.arg("--release");
+            }
             if prefer_lua {
                 cmd.args(["--features", "vendor-bit"]);
             }

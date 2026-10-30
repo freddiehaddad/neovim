@@ -140,7 +140,7 @@ fn collect_usernames() -> Vec<CString> {
         let user_env = os_getenv_buf(c"USER", user_buf.as_mut_ptr(), user_buf.len());
 
         if !user_env.is_null() && *user_env != 0 {
-            let env_bytes = crate::memory::cstr_as_bytes(user_env);
+            let env_bytes = crate::memory::cstr_as_bytes(user_env.cast());
             let found = users.iter().any(|u| u.as_bytes() == env_bytes);
             if !found {
                 let pw = getpwnam(user_env.cast());

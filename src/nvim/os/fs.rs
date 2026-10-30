@@ -452,6 +452,18 @@ pub const fn s_isreg(m: u64) -> bool {
     (m & S_IFMT) == S_IFREG
 }
 
+#[cfg(any(
+    target_os = "freebsd",
+    target_os = "openbsd",
+    target_os = "netbsd",
+    target_os = "dragonfly",
+    target_os = "macos"
+))]
+#[inline]
+pub const fn s_ischr(m: u64) -> bool {
+    (m & S_IFMT) == 0o020000
+}
+
 #[inline]
 pub const fn s_isblk(m: u64) -> bool {
     cfg!(unix) && (m & S_IFMT) == S_IFBLK
@@ -751,7 +763,10 @@ fn is_executable_in_path(
             let e = {
                 let _s = p;
                 let _b = crate::memory::cstr_as_bytes(_s.cast());
-                let _off = _b.iter().position(|&_x| _x == ENV_SEPCHAR).unwrap_or(_b.len());
+                let _off = _b
+                    .iter()
+                    .position(|&_x| _x == ENV_SEPCHAR)
+                    .unwrap_or(_b.len());
                 _s.wrapping_add(_off).cast_mut()
             };
             crate::memory::cstr_ncpy(buf.cast(), p.cast(), (e as usize) - (p as usize));
@@ -2091,10 +2106,7 @@ mod tests {
                 }
             }
             assert_eq!(os_write(fd, &[], false), 0);
-            assert_eq!(
-                os_write(fd, &payload, false),
-                payload.len() as isize
-            );
+            assert_eq!(os_write(fd, &payload, false), payload.len() as isize);
             assert_eq!(os_fchown(fd, uv_uid_t::MAX, uv_gid_t::MAX), 0);
 
             let mut fi_fd = FileInfo::new();
@@ -2119,10 +2131,7 @@ mod tests {
             );
             assert!(!eof);
             assert_eq!(rbuf, payload);
-            assert_eq!(
-                os_read(rfd, &mut eof, &mut rbuf[..16], false),
-                0
-            );
+            assert_eq!(os_read(rfd, &mut eof, &mut rbuf[..16], false), 0);
             assert!(eof);
             assert_eq!(os_close(rfd), 0);
 

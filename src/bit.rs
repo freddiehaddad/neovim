@@ -45,10 +45,10 @@ mod lua_c_api {
     #[inline]
     fn barg(lstate: *mut lua_State, idx: i32) -> UBits {
         unsafe {
-            let n = lua_tonumber(L, idx);
+            let n = lua_tonumber(lstate, idx);
             let b = f64_to_ubits(n);
-            if b == 0 && lua_isnumber(L, idx) == 0 {
-                luaL_typerror(L, idx, c"number");
+            if b == 0 && lua_isnumber(lstate, idx) == 0 {
+                luaL_typerror(lstate, idx, c"number".as_ptr());
             }
             b
         }
@@ -57,112 +57,100 @@ mod lua_c_api {
     #[inline]
     fn bret(lstate: *mut lua_State, b: UBits) -> i32 {
         unsafe {
-            lua_pushnumber(L, f64::from(b as SBits));
+            lua_pushnumber(lstate, f64::from(b as SBits));
             1
         }
     }
 
-    fn bit_tobit(lstate: *mut lua_State) -> i32 {
-        unsafe { bret(L, barg(L, 1)) }
+    unsafe extern "C-unwind" fn bit_tobit(lstate: *mut lua_State) -> i32 {
+        bret(lstate, barg(lstate, 1))
     }
 
-    fn bit_bnot(lstate: *mut lua_State) -> i32 {
-        unsafe { bret(L, !barg(L, 1)) }
+    unsafe extern "C-unwind" fn bit_bnot(lstate: *mut lua_State) -> i32 {
+        bret(lstate, !barg(lstate, 1))
     }
 
-    fn bit_band(lstate: *mut lua_State) -> i32 {
+    unsafe extern "C-unwind" fn bit_band(lstate: *mut lua_State) -> i32 {
         unsafe {
-            let mut b = barg(L, 1);
-            let mut i = lua_gettop(L);
+            let mut b = barg(lstate, 1);
+            let mut i = lua_gettop(lstate);
             while i > 1 {
-                b &= barg(L, i);
+                b &= barg(lstate, i);
                 i -= 1;
             }
-            bret(L, b)
+            bret(lstate, b)
         }
     }
 
-    fn bit_bor(lstate: *mut lua_State) -> i32 {
+    unsafe extern "C-unwind" fn bit_bor(lstate: *mut lua_State) -> i32 {
         unsafe {
-            let mut b = barg(L, 1);
-            let mut i = lua_gettop(L);
+            let mut b = barg(lstate, 1);
+            let mut i = lua_gettop(lstate);
             while i > 1 {
-                b |= barg(L, i);
+                b |= barg(lstate, i);
                 i -= 1;
             }
-            bret(L, b)
+            bret(lstate, b)
         }
     }
 
-    fn bit_bxor(lstate: *mut lua_State) -> i32 {
+    unsafe extern "C-unwind" fn bit_bxor(lstate: *mut lua_State) -> i32 {
         unsafe {
-            let mut b = barg(L, 1);
-            let mut i = lua_gettop(L);
+            let mut b = barg(lstate, 1);
+            let mut i = lua_gettop(lstate);
             while i > 1 {
-                b ^= barg(L, i);
+                b ^= barg(lstate, i);
                 i -= 1;
             }
-            bret(L, b)
+            bret(lstate, b)
         }
     }
 
-    fn bit_lshift(lstate: *mut lua_State) -> i32 {
-        unsafe {
-            let b = barg(L, 1);
-            let n = barg(L, 2) & 31;
-            bret(L, b.wrapping_shl(n))
-        }
+    unsafe extern "C-unwind" fn bit_lshift(lstate: *mut lua_State) -> i32 {
+        let b = barg(lstate, 1);
+        let n = barg(lstate, 2) & 31;
+        bret(lstate, b.wrapping_shl(n))
     }
 
-    fn bit_rshift(lstate: *mut lua_State) -> i32 {
-        unsafe {
-            let b = barg(L, 1);
-            let n = barg(L, 2) & 31;
-            bret(L, b.wrapping_shr(n))
-        }
+    unsafe extern "C-unwind" fn bit_rshift(lstate: *mut lua_State) -> i32 {
+        let b = barg(lstate, 1);
+        let n = barg(lstate, 2) & 31;
+        bret(lstate, b.wrapping_shr(n))
     }
 
-    fn bit_arshift(lstate: *mut lua_State) -> i32 {
-        unsafe {
-            let b = barg(L, 1);
-            let n = barg(L, 2) & 31;
-            bret(L, ((b as SBits).wrapping_shr(n)) as UBits)
-        }
+    unsafe extern "C-unwind" fn bit_arshift(lstate: *mut lua_State) -> i32 {
+        let b = barg(lstate, 1);
+        let n = barg(lstate, 2) & 31;
+        bret(lstate, ((b as SBits).wrapping_shr(n)) as UBits)
     }
 
-    fn bit_rol(lstate: *mut lua_State) -> i32 {
-        unsafe {
-            let b = barg(L, 1);
-            let n = barg(L, 2) & 31;
-            bret(L, b.rotate_left(n))
-        }
+    unsafe extern "C-unwind" fn bit_rol(lstate: *mut lua_State) -> i32 {
+        let b = barg(lstate, 1);
+        let n = barg(lstate, 2) & 31;
+        bret(lstate, b.rotate_left(n))
     }
 
-    fn bit_ror(lstate: *mut lua_State) -> i32 {
-        unsafe {
-            let b = barg(L, 1);
-            let n = barg(L, 2) & 31;
-            bret(L, b.rotate_right(n))
-        }
+    unsafe extern "C-unwind" fn bit_ror(lstate: *mut lua_State) -> i32 {
+        let b = barg(lstate, 1);
+        let n = barg(lstate, 2) & 31;
+        bret(lstate, b.rotate_right(n))
     }
 
-    fn bit_bswap(lstate: *mut lua_State) -> i32 {
-        unsafe {
-            let b = barg(L, 1);
-            bret(L, b.swap_bytes())
-        }
+    unsafe extern "C-unwind" fn bit_bswap(lstate: *mut lua_State) -> i32 {
+        let b = barg(lstate, 1);
+        bret(lstate, b.swap_bytes())
     }
 
-    fn bit_tohex(lstate: *mut lua_State) -> i32 {
+    unsafe extern "C-unwind" fn bit_tohex(lstate: *mut lua_State) -> i32 {
         unsafe {
-            let b = barg(L, 1);
-            let n = if lua_type(L, 2) == LUA_TNONE {
+            let b = barg(lstate, 1);
+            let n = if lua_type(lstate, 2) == LUA_TNONE {
                 8
             } else {
-                barg(L, 2)
+                barg(lstate, 2)
             };
             let (buf, len) = format_tohex(b, n);
-            lua_pushlstring(L, buf.as_ptr().cast(), len);
+            lua_pushlstring(lstate, buf.as_ptr().cast(), len);
             1
         }
     }
@@ -224,8 +212,8 @@ mod lua_c_api {
 
     pub fn nvim_luaopen_bit(lstate: *mut lua_State) -> i32 {
         unsafe {
-            lua_pushnumber(L, 1_437_217_655.0);
-            let b = barg(L, -1);
+            lua_pushnumber(lstate, 1_437_217_655.0);
+            let b = barg(lstate, -1);
             if b != 1_437_217_655 {
                 let mut msg = c"compiled with incompatible luaconf.h".as_ptr();
                 if cfg!(windows) && b == 1_610_612_736 {
@@ -234,9 +222,9 @@ mod lua_c_api {
                 if b == 1_127_743_488 {
                     msg = c"not compiled with SWAPPED_DOUBLE".as_ptr();
                 }
-                luaL_error(L, c"bit library self-test failed (%s)".as_ptr(), msg);
+                luaL_error(lstate, c"bit library self-test failed (%s)".as_ptr(), msg);
             }
-            luaL_register(L, c"bit", BIT_FUNCS.as_ptr());
+            luaL_register(lstate, c"bit".as_ptr(), BIT_FUNCS.as_ptr());
             1
         }
     }
