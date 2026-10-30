@@ -8541,7 +8541,9 @@ pub fn get_bad_opt(p: impl crate::strings::IntoCCharPtr, eap: &mut Exarg) -> boo
 
 fn get_bad_name(_xp: &mut ExpandCtx, idx: i32) -> Option<&'static CStr> {
     const P_BAD_VALUES: [&CStr; 3] = [c"?", c"keep", c"drop"];
-    (idx >= 0).then(|| P_BAD_VALUES.get(idx as usize).copied()).flatten()
+    (idx >= 0)
+        .then(|| P_BAD_VALUES.get(idx as usize).copied())
+        .flatten()
 }
 
 pub fn getargopt(eap: &mut Exarg) -> bool {
@@ -8643,7 +8645,9 @@ fn get_argopt_name(_xp: &mut ExpandCtx, idx: i32) -> Option<&'static CStr> {
         c"edit",
         c"p",
     ];
-    (idx >= 0).then(|| P_OPT_VALUES.get(idx as usize).copied()).flatten()
+    (idx >= 0)
+        .then(|| P_OPT_VALUES.get(idx as usize).copied())
+        .flatten()
 }
 
 pub fn expand_argopt(
@@ -8654,8 +8658,7 @@ pub fn expand_argopt(
 ) -> bool {
     let pat = pat.into_c_char_ptr();
     {
-        if xp.xp_pattern > xp.xp_line && unsafe { *xp.xp_pattern.wrapping_sub(1) } == b'='
-        {
+        if xp.xp_pattern > xp.xp_line && unsafe { *xp.xp_pattern.wrapping_sub(1) } == b'=' {
             let mut cb: CompleteListItemGetter = None;
             let name_end = xp.xp_pattern.wrapping_sub(1);
             let diff = (name_end as usize) - (xp.xp_line as usize);
@@ -9338,10 +9341,7 @@ fn ex_restart(eap: &mut Exarg) {
             true,
             true,
             K_CHANNEL_STDIN_PIPE_CONST,
-            (&raw const g_st().globaldir)
-                .as_ref()
-                .unwrap()
-                .as_deref(),
+            (&raw const g_st().globaldir).as_ref().unwrap().as_deref(),
             0,
             0,
             env,
@@ -12289,15 +12289,7 @@ pub fn expand_sfile(arg: impl crate::strings::IntoCCharPtr) -> Option<std::ffi::
             } else {
                 let mut srclen: usize = 0;
                 let mut errormsg: RawCCharPtr = ptr::null();
-                let repl = eval_vars(
-                    p,
-                    &result_vec,
-                    &mut srclen,
-                    None,
-                    &mut errormsg,
-                    None,
-                    true,
-                );
+                let repl = eval_vars(p, &result_vec, &mut srclen, None, &mut errormsg, None, true);
                 if !errormsg.is_null() {
                     if !crate::memory::cstr_is_empty(errormsg) {
                         let _ = emsg(errormsg);
@@ -12423,10 +12415,7 @@ fn ex_filetype(eap: &mut Exarg) {
     }
 }
 
-pub fn ex_errmsg(
-    msg: &std::ffi::CStr,
-    arg: impl crate::strings::IntoCCharPtr,
-) -> RawCCharPtrMut {
+pub fn ex_errmsg(msg: &std::ffi::CStr, arg: impl crate::strings::IntoCCharPtr) -> RawCCharPtrMut {
     let arg = arg.into_c_char_ptr();
     let buf: RawCCharPtrMut = (&raw mut docmd_st().ex_error_buf).cast();
     let _ = vim_snprintf!(buf, MSG_BUF_LEN, gettext(msg.as_ptr()), arg);

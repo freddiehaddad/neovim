@@ -628,9 +628,10 @@ fn same_leader(
         }
     }
 
-    let line1 =
-        unsafe { std::slice::from_raw_parts(ml_get(lnum).cast::<u8>(), ml_get_len(lnum) as usize + 1) }
-            .to_vec();
+    let line1 = unsafe {
+        std::slice::from_raw_parts(ml_get(lnum).cast::<u8>(), ml_get_len(lnum) as usize + 1)
+    }
+    .to_vec();
     let mut idx1: i32 = 0;
     while ascii_iswhite(i32::from(line1[idx1 as usize])) {
         idx1 += 1;
@@ -669,12 +670,7 @@ fn paragraph_start(lnum: Linenr) -> bool {
         return true;
     }
     let do_comments = has_format_option(K_FO_QCOMS);
-    if fmt_check_par(
-        lnum - 1,
-        &mut leader_len,
-        &mut leader_flags,
-        do_comments,
-    ) {
+    if fmt_check_par(lnum - 1, &mut leader_len, &mut leader_flags, do_comments) {
         return true;
     }
 

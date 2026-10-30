@@ -248,10 +248,7 @@ pub fn free_items<T>(items: *mut T) {
 }
 
 /// Allocate `len + 1` bytes, copy `data[..len]`, and NUL-terminate.
-pub fn alloc_cstring_len(
-    data: impl crate::strings::IntoCCharPtr,
-    len: usize,
-) -> RawCCharPtrMut {
+pub fn alloc_cstring_len(data: impl crate::strings::IntoCCharPtr, len: usize) -> RawCCharPtrMut {
     let data = data.into_c_char_ptr();
     let Some(total_size) = len.checked_add(1) else {
         preserve_exit(c"Nvim: Data too large to fit into virtual memory space\n");

@@ -2251,12 +2251,13 @@ pub fn oneright() -> bool {
     if virtual_active(curwin_mut()) {
         let prevpos = curwin_mut().w_cursor;
         let ptr = get_cursor_pos_ptr();
-        let step =
-            if crate::memory::cstr_first_byte(ptr) != TAB as u8 && vim_isprintc(utf_ptr2char(ptr)) {
-                ptr2cells(ptr)
-            } else {
-                1
-            };
+        let step = if crate::memory::cstr_first_byte(ptr) != TAB as u8
+            && vim_isprintc(utf_ptr2char(ptr))
+        {
+            ptr2cells(ptr)
+        } else {
+            1
+        };
         coladvance(curwin_mut(), getviscol() + step);
         curwin_mut().w_set_curswant = true;
         return prevpos.col != curwin_mut().w_cursor.col
@@ -3720,10 +3721,9 @@ fn ins_tab() -> bool {
             if i > 0 {
                 if (g_st().state_global & VREPLACE_FLAG) == 0 {
                     let newp_len = (curbuf_mut().b_ml.ml_line_textlen - i) as usize;
-                    let col = crate::memory::ptr_offset_from(
-                        ptr.cast(),
-                        curbuf_mut().b_ml.ml_line_ptr,
-                    ) as usize;
+                    let col =
+                        crate::memory::ptr_offset_from(ptr.cast(), curbuf_mut().b_ml.ml_line_ptr)
+                            as usize;
                     let mut new_line = Vec::with_capacity(newp_len.saturating_sub(1));
                     if col > 0 {
                         new_line.extend_from_slice(unsafe {

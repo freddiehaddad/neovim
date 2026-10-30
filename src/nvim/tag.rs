@@ -1300,8 +1300,10 @@ fn prepare_pats(pats: &mut Pat, has_re: bool) {
     }
 
     if has_re {
-        pats.regmatch.regprog =
-            vim_regcomp(pats.pat.cast(), if opt_vars().p_magic != 0 { RE_MAGIC } else { 0 });
+        pats.regmatch.regprog = vim_regcomp(
+            pats.pat.cast(),
+            if opt_vars().p_magic != 0 { RE_MAGIC } else { 0 },
+        );
     } else {
         pats.regmatch.regprog = ptr::null_mut();
     }
@@ -1841,7 +1843,11 @@ fn findtags_hdr_parse(st: &mut FindtagsState) -> bool {
         unsafe {
             *p = 0;
         }
-        convert_setup(&mut st.vimconv, lbuf.wrapping_add(20).cast(), opt_vars().p_enc);
+        convert_setup(
+            &mut st.vimconv,
+            lbuf.wrapping_add(20).cast(),
+            opt_vars().p_enc,
+        );
     }
 
     false
@@ -1938,11 +1944,7 @@ fn findtags_parse_line(
             }
 
             let mut tagcmp = if margs.sortic {
-                tag_strnicmp(
-                    tagpp.tagname.cast(),
-                    st.orgpat.head.cast(),
-                    cmplen as usize,
-                )
+                tag_strnicmp(tagpp.tagname.cast(), st.orgpat.head.cast(), cmplen as usize)
             } else {
                 crate::memory::cstr_prefix_bytes(tagpp.tagname.cast(), cmplen as usize).cmp(
                     crate::memory::cstr_prefix_bytes(st.orgpat.head.cast(), cmplen as usize),
@@ -1984,8 +1986,7 @@ fn findtags_parse_line(
                         tagpp.tagname.cast(),
                     )));
                 } else {
-                    sinfo_p.high_char =
-                        crate::memory::cstr_first_byte(tagpp.tagname.cast()) as i32;
+                    sinfo_p.high_char = crate::memory::cstr_first_byte(tagpp.tagname.cast()) as i32;
                 }
                 return TagmatchStatus::TagMatchNext;
             }
@@ -1993,12 +1994,7 @@ fn findtags_parse_line(
             return TagmatchStatus::TagMatchStop;
         } else if st.state == TagsearchState::TsSkipBack {
             assert!(cmplen >= 0);
-            if mb_strnicmp(
-                tagpp.tagname.cast(),
-                st.orgpat.head.cast(),
-                cmplen as usize,
-            ) != 0
-            {
+            if mb_strnicmp(tagpp.tagname.cast(), st.orgpat.head.cast(), cmplen as usize) != 0 {
                 st.state = TagsearchState::TsStepForward;
             } else {
                 sinfo_p.curr_offset = sinfo_p.curr_offset_used;
@@ -2006,12 +2002,7 @@ fn findtags_parse_line(
             return TagmatchStatus::TagMatchNext;
         } else if st.state == TagsearchState::TsStepForward {
             assert!(cmplen >= 0);
-            if mb_strnicmp(
-                tagpp.tagname.cast(),
-                st.orgpat.head.cast(),
-                cmplen as usize,
-            ) != 0
-            {
+            if mb_strnicmp(tagpp.tagname.cast(), st.orgpat.head.cast(), cmplen as usize) != 0 {
                 return if unsafe { vim_ftell(st.fp_ptr()) } > sinfo_p.match_offset {
                     TagmatchStatus::TagMatchStop
                 } else {
@@ -2020,12 +2011,7 @@ fn findtags_parse_line(
             }
         } else {
             assert!(cmplen >= 0);
-            if mb_strnicmp(
-                tagpp.tagname.cast(),
-                st.orgpat.head.cast(),
-                cmplen as usize,
-            ) != 0
-            {
+            if mb_strnicmp(tagpp.tagname.cast(), st.orgpat.head.cast(), cmplen as usize) != 0 {
                 return TagmatchStatus::TagMatchNext;
             }
         }
@@ -2092,10 +2078,9 @@ fn findtags_match_tag(
         }
         match_ = vim_regexec(&mut st.orgpat.regmatch, tagpp.tagname.cast(), 0);
         if match_ {
-            margs.matchoff = crate::memory::ptr_offset_from(
-                st.orgpat.regmatch.startp[0].cast(),
-                tagpp.tagname,
-            ) as i32;
+            margs.matchoff =
+                crate::memory::ptr_offset_from(st.orgpat.regmatch.startp[0].cast(), tagpp.tagname)
+                    as i32;
             if st.orgpat.regmatch.rm_ic {
                 st.orgpat.regmatch.rm_ic = false;
                 margs.match_no_ic = vim_regexec(&mut st.orgpat.regmatch, tagpp.tagname.cast(), 0);
@@ -3335,7 +3320,12 @@ pub fn tag_listfiles_extra(idx: usize) -> Option<(&'static CStr, &'static CStr)>
         .tag_listfiles_extra
         .as_slice()
         .get(idx)
-        .map(|(k, f)| (CStr::from_bytes_with_nul(k).unwrap_or_default(), f.as_c_str()))
+        .map(|(k, f)| {
+            (
+                CStr::from_bytes_with_nul(k).unwrap_or_default(),
+                f.as_c_str(),
+            )
+        })
 }
 
 pub fn expand_tags(

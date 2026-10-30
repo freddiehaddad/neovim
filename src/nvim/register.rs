@@ -921,15 +921,14 @@ pub fn get_spec_reg(
     unsafe {
         *argp = ptr::null_mut();
         *owned = None;
-        let set_owned = |argp: *mut *mut u8,
-                         owned: &mut Option<Vec<u8>>,
-                         cstr: Option<std::ffi::CString>| {
-            if let Some(s) = cstr {
-                let mut v: Vec<u8> = s.into_bytes_with_nul();
-                *argp = v.as_mut_ptr();
-                *owned = Some(v);
-            }
-        };
+        let set_owned =
+            |argp: *mut *mut u8, owned: &mut Option<Vec<u8>>, cstr: Option<std::ffi::CString>| {
+                if let Some(s) = cstr {
+                    let mut v: Vec<u8> = s.into_bytes_with_nul();
+                    *argp = v.as_mut_ptr();
+                    *owned = Some(v);
+                }
+            };
         match regname {
             x if x == i32::from(b'%') => {
                 if errmsg {
@@ -961,8 +960,7 @@ pub fn get_spec_reg(
                 if last_search_pat().is_none() && errmsg {
                     emsg(gettext(E_NOPREVRE));
                 }
-                *argp = last_search_pat()
-                    .map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut().cast());
+                *argp = last_search_pat().map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut().cast());
                 true
             }
             x if x == i32::from(b'.') => {
@@ -1092,12 +1090,11 @@ fn yank_copy_line(
     if exclude_trailing_space {
         let mut s = bd.textlen + bd.endspaces;
         while s > 0 && ascii_iswhite(unsafe { *bd.textstart.wrapping_add((s - 1) as usize) }) {
-            s = s
-                - utf_head_off(
+            s =
+                s - utf_head_off(
                     bd.textstart.cast(),
                     bd.textstart.wrapping_add((s - 1) as usize).cast(),
-                )
-                - 1;
+                ) - 1;
             pnew = pnew.wrapping_sub(1);
         }
     }
@@ -1203,7 +1200,11 @@ pub fn op_yank_reg(oap: &mut Oparg, message: bool, mut reg: *mut Yankreg, append
                 let last_old = *curr_reg.y_array.last().unwrap();
                 let first_new = new_reg.y_array[0];
                 let mut pnew = vec![0u8; last_old.size + first_new.size + 1];
-                ptr::copy_nonoverlapping(last_old.data.cast::<u8>(), pnew.as_mut_ptr(), last_old.size);
+                ptr::copy_nonoverlapping(
+                    last_old.data.cast::<u8>(),
+                    pnew.as_mut_ptr(),
+                    last_old.size,
+                );
                 ptr::copy_nonoverlapping(
                     first_new.data.cast::<u8>(),
                     pnew.as_mut_ptr().wrapping_add(last_old.size),
@@ -1747,10 +1748,8 @@ pub fn do_put(regname: i32, mut reg: *mut Yankreg, mut dir: i32, mut count: i32,
 
                     let tail_len = plen - ((p as usize) - (p_orig as usize));
                     let mut tail_vec: Vec<u8> = Vec::with_capacity(tail_len + 1);
-                    tail_vec.extend_from_slice(std::slice::from_raw_parts(
-                        p.cast::<u8>(),
-                        tail_len,
-                    ));
+                    tail_vec
+                        .extend_from_slice(std::slice::from_raw_parts(p.cast::<u8>(), tail_len));
                     tail_vec.push(0);
                     ml_append(
                         curwin_mut().w_cursor.lnum,
@@ -2159,8 +2158,7 @@ pub fn do_put(regname: i32, mut reg: *mut Yankreg, mut dir: i32, mut count: i32,
                             );
                             ml_replace(lnum, newp.cast(), true);
 
-                            first_byte_off =
-                                utf_head_off(newp.cast(), ptr_.wrapping_sub(1).cast());
+                            first_byte_off = utf_head_off(newp.cast(), ptr_.wrapping_sub(1).cast());
                             drop(newp_vec);
 
                             if lnum == curwin_mut().w_cursor.lnum {

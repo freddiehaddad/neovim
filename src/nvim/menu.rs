@@ -390,22 +390,23 @@ pub fn ex_menu(eap: &mut Exarg) {
             return;
         }
 
-        let map_buf_owned = if crate::memory::cstr_as_bytes(map_to.cast()).eq_ignore_ascii_case(b"<nop>") {
-            map_to = c"".as_ptr().cast_mut().cast();
-            None
-        } else if (modes & MENU_TIP_MODE) == 0 {
-            replace_termcodes(
-                map_to.cast(),
-                crate::memory::cstr_len(map_to.cast()),
-                false,
-                0,
-                REPTERM_DO_LT,
-                None,
-                opt_vars().p_cpo,
-            )
-        } else {
-            None
-        };
+        let map_buf_owned =
+            if crate::memory::cstr_as_bytes(map_to.cast()).eq_ignore_ascii_case(b"<nop>") {
+                map_to = c"".as_ptr().cast_mut().cast();
+                None
+            } else if (modes & MENU_TIP_MODE) == 0 {
+                replace_termcodes(
+                    map_to.cast(),
+                    crate::memory::cstr_len(map_to.cast()),
+                    false,
+                    0,
+                    REPTERM_DO_LT,
+                    None,
+                    opt_vars().p_cpo,
+                )
+            } else {
+                None
+            };
         if let Some(ref mb) = map_buf_owned {
             map_to = mb.as_ptr().cast_mut().cast();
         }
@@ -468,8 +469,7 @@ fn add_menu_path(
 
         while *name != 0 {
             let next_name = menu_name_skip(name);
-            let map_to =
-                menutrans_lookup(name, crate::memory::cstr_len(name.cast()) as i32);
+            let map_to = menutrans_lookup(name, crate::memory::cstr_len(name.cast()) as i32);
             let en_name = if !map_to.is_null() {
                 let orig = name;
                 name = map_to;
@@ -1868,10 +1868,7 @@ pub fn ex_menutranslate(eap: &mut Exarg) {
 
 /// Find the character just after one part of a menu name (`menu_skip_part`).
 fn menu_skip_part(mut p: *mut u8) -> *mut u8 {
-    while unsafe { *p } != 0
-        && unsafe { *p } != b'.'
-        && !ascii_iswhite(i32::from(unsafe { *p }))
-    {
+    while unsafe { *p } != 0 && unsafe { *p } != b'.' && !ascii_iswhite(i32::from(unsafe { *p })) {
         if (unsafe { *p } == b'\\' || unsafe { *p } == CTRL_V_CONST as u8)
             && unsafe { *p.wrapping_add(1) } != 0
         {

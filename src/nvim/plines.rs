@@ -16,10 +16,10 @@ use crate::marktree::{
     K_MTMETA_COUNT, K_MTMETA_INLINE, K_MTMETA_LINES, MarkTreeIter, marktree_itr_current,
     marktree_itr_get_filter, marktree_itr_next_filter, mt_decor, mt_invalid, mt_right,
 };
+pub use crate::mbyte::{CharInfo, ClusterInfo, StrCharInfo};
 use crate::mbyte::{
     ptr2cells, utf_cluster_info, utf_ptr2_str_char_info, utf_ptr2char, utfc_ptr2len,
 };
-pub use crate::mbyte::{CharInfo, ClusterInfo, StrCharInfo};
 use crate::memline::{ml_get_buf, ml_get_buf_len};
 use crate::r#move::{win_col_off, win_col_off2};
 use crate::option::get_showbreak_value;

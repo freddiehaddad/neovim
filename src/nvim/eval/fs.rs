@@ -206,7 +206,8 @@ pub fn modify_fname(
                 // Need full path first (use expand_env() to remove a "~/")
                 if !has_fullname && !has_homerelative {
                     if crate::memory::cstr_first_byte((*fnamep).cast()) == b'~' {
-                        let exp = expand_env_save((*fnamep).cast_const().cast()).into_bytes_with_nul();
+                        let exp =
+                            expand_env_save((*fnamep).cast_const().cast()).into_bytes_with_nul();
                         p = exp.as_ptr().cast_mut();
                         pbuf = Some(exp);
                     } else if let Some(full) = FullName_save((*fnamep).cast_const().cast(), false) {
@@ -254,9 +255,7 @@ pub fn modify_fname(
                             p = p.wrapping_add(dirnamelen);
                             if vim_ispathsep(crate::memory::cstr_first_byte(p.cast()) as i32) {
                                 while !crate::memory::cstr_is_empty(p.cast())
-                                    && vim_ispathsep(
-                                        crate::memory::cstr_first_byte(p.cast()) as i32
-                                    )
+                                    && vim_ispathsep(crate::memory::cstr_first_byte(p.cast()) as i32)
                                 {
                                     p = p.wrapping_add(1);
                                 }
@@ -787,7 +786,11 @@ pub fn f_fnamemodify(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFunc
         #[cfg(not(windows))]
         let initial_cstr = cstr_to_cstring(fname.cast());
         len = initial_cstr.as_bytes().len();
-        set_fname_buf(&raw mut fname, &mut fbuf, initial_cstr.into_bytes_with_nul());
+        set_fname_buf(
+            &raw mut fname,
+            &mut fbuf,
+            initial_cstr.into_bytes_with_nul(),
+        );
         if !crate::memory::cstr_is_empty(mods) {
             let mut usedlen: usize = 0;
             modify_fname(
@@ -1579,8 +1582,7 @@ fn read_file_or_blob(argvars: &mut [TypVal], rettv: &mut TypVal, always_blob: bo
 
                     // Finished a line.  Remove CRs before NL.
                     if readlen > 0 && !binary {
-                        while len > 0
-                            && crate::memory::cstr_byte_at(start.cast(), len - 1) == b'\r'
+                        while len > 0 && crate::memory::cstr_byte_at(start.cast(), len - 1) == b'\r'
                         {
                             len -= 1;
                         }
@@ -1596,11 +1598,7 @@ fn read_file_or_blob(argvars: &mut [TypVal], rettv: &mut TypVal, always_blob: bo
                         tv_list_append_string(&mut *l, start.cast(), len as isize);
                     } else {
                         prev.extend_from_slice(std::slice::from_raw_parts(start, len));
-                        tv_list_append_string(
-                            &mut *l,
-                            prev.as_ptr().cast(),
-                            prev.len() as isize,
-                        );
+                        tv_list_append_string(&mut *l, prev.as_ptr().cast(), prev.len() as isize);
                         prev.clear();
                     }
 
@@ -1791,7 +1789,9 @@ pub fn f_resolve(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData
                 } else {
                     buf
                 };
-                q = path_next_component(start_comp.cast()).cast_mut().cast::<u8>();
+                q = path_next_component(start_comp.cast())
+                    .cast_mut()
+                    .cast::<u8>();
                 if !crate::memory::cstr_is_empty(q.cast()) {
                     let head_bytes = crate::memory::cstr_as_bytes(q.sub(1).cast());
                     let mut new_rem = Vec::with_capacity(
@@ -1839,7 +1839,9 @@ pub fn f_resolve(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData
             let remain = rem_v.as_mut_ptr();
 
             // Append the first path component of "remain" to "p".
-            q = path_next_component(remain.add(1).cast()).cast_mut().cast::<u8>();
+            q = path_next_component(remain.add(1).cast())
+                .cast_mut()
+                .cast::<u8>();
             len = (q as usize).wrapping_sub(remain as usize) as isize
                 - isize::from(!crate::memory::cstr_is_empty(q.cast()));
             let p_len = crate::memory::cstr_len(p.cast());
@@ -1869,9 +1871,7 @@ pub fn f_resolve(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData
                         || vim_ispathsep(crate::memory::cstr_byte_at(p.cast(), 1) as i32)
                         || (crate::memory::cstr_byte_at(p.cast(), 1) == b'.'
                             && (crate::memory::cstr_byte_at(p.cast(), 2) == 0
-                                || vim_ispathsep(
-                                    crate::memory::cstr_byte_at(p.cast(), 2) as i32
-                                )))))
+                                || vim_ispathsep(crate::memory::cstr_byte_at(p.cast(), 2) as i32)))))
             {
                 // Prepend "./".
                 let p_len = crate::memory::cstr_len(p.cast());
@@ -1920,10 +1920,7 @@ pub fn f_simplify(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDat
     let p = tv_get_string(&argvars[0]);
     let mut v = cstr_to_cstring(p).into_bytes_with_nul();
     simplify_filename(v.as_mut_ptr().cast()); // Simplify in place.
-    crate::eval::typval::tv_set_string(
-        rettv,
-        CStr::from_bytes_until_nul(&v).unwrap_or_default(),
-    );
+    crate::eval::typval::tv_set_string(rettv, CStr::from_bytes_until_nul(&v).unwrap_or_default());
 }
 
 /// "tempname()" function

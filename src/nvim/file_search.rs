@@ -428,7 +428,8 @@ pub fn vim_findfile_init(
                         && crate::memory::cstr_first_byte(search_ctx.ffsc_fix_path.data) == b'.'
                         && crate::memory::cstr_byte_at(search_ctx.ffsc_fix_path.data, 1) == b'.'
                         && (len == 2
-                            || crate::memory::cstr_byte_at(search_ctx.ffsc_fix_path.data, 2) == PATHSEP)
+                            || crate::memory::cstr_byte_at(search_ctx.ffsc_fix_path.data, 2)
+                                == PATHSEP)
                     {
                         return None;
                     }
@@ -1817,7 +1818,13 @@ pub fn do_autocmd_dirchanged(
             _ => std::process::abort(),
         }
 
-        apply_autocmds(event, buf.as_mut_ptr().cast(), new_dir, false, g_st().curbuf);
+        apply_autocmds(
+            event,
+            buf.as_mut_ptr().cast(),
+            new_dir,
+            false,
+            g_st().curbuf,
+        );
 
         restore_v_event(&mut *dict, &mut save_v_event);
 

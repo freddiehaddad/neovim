@@ -6366,7 +6366,8 @@ fn check_window_scroll_resize(
                     break;
                 }
                 let mut winid = [0u8; NUMBUFLEN];
-                let key_len = vim_snprintf!(winid.as_mut_ptr().cast(), winid.len(), c"%d", wp.handle,);
+                let key_len =
+                    vim_snprintf!(winid.as_mut_ptr().cast(), winid.len(), c"%d", wp.handle,);
                 let _ = key_len;
                 if !tv_dict_add_dict(v_event.as_deref_mut().unwrap(), winid.as_ptr().cast(), d) {
                     tv_dict_unref(d);

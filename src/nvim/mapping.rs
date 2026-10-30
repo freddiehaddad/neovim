@@ -651,11 +651,7 @@ fn str_to_mapargs(
             return 1;
         }
         let mut lhs_to_replace = [0u8; 256];
-        crate::memory::cstr_ncpy(
-            lhs_to_replace.as_mut_ptr().cast(),
-            to_parse,
-            orig_lhs_len,
-        );
+        crate::memory::cstr_ncpy(lhs_to_replace.as_mut_ptr().cast(), to_parse, orig_lhs_len);
 
         let orig_rhs_len = crate::memory::cstr_len(rhs_start);
         if !set_maparg_lhs_rhs(

@@ -1141,14 +1141,7 @@ fn server_connect(
         let mut error = None;
         let server_addr_cstr = crate::memory::cstr_from_ptr(server_addr);
         let is_tcp = socket_address_tcp_host_end(server_addr_cstr.to_bytes()).is_some();
-        let chan = channel_connect(
-            is_tcp,
-            server_addr_cstr,
-            true,
-            on_data,
-            500,
-            &mut error,
-        );
+        let chan = channel_connect(is_tcp, server_addr_cstr, true, on_data, 500, &mut error);
         if let Some(err) = error {
             *errmsg = Some(err);
             return 0;
@@ -1192,7 +1185,8 @@ fn remote_request(
                 os_exit(1);
             } else {
                 let mut nvim_env_buf = [0u8; MAXPATHL];
-                let nvim_env = os_getenv_buf(c"NVIM", nvim_env_buf.as_mut_ptr(), nvim_env_buf.len());
+                let nvim_env =
+                    os_getenv_buf(c"NVIM", nvim_env_buf.as_mut_ptr(), nvim_env_buf.len());
                 if crate::memory::cstr_as_opt_bytes(server_addr)
                     == crate::memory::cstr_as_opt_bytes(nvim_env.cast())
                 {
@@ -1635,10 +1629,12 @@ fn command_line_scan(parmp: &mut Mparm) {
                                 .push(crate::memory::cstr_from_bytes(cur_bytes));
                         } else if prev_bytes == b"--listen" {
                             to_slash_if_needed(cur_arg);
-                            parmp.listen_addr = Some(crate::memory::cstr_to_cstring(cur_arg.cast()));
+                            parmp.listen_addr =
+                                Some(crate::memory::cstr_to_cstring(cur_arg.cast()));
                         } else if prev_bytes == b"--server" {
                             to_slash_if_needed(cur_arg);
-                            parmp.server_addr = Some(crate::memory::cstr_to_cstring(cur_arg.cast()));
+                            parmp.server_addr =
+                                Some(crate::memory::cstr_to_cstring(cur_arg.cast()));
                         }
                     }
                     b'q' => {
@@ -1745,9 +1741,7 @@ fn command_line_scan(parmp: &mut Mparm) {
             if parmp.diff_mode != 0
                 && os_isdir(p_vec.as_ptr().cast())
                 && gargcount() > 0
-                && !os_isdir(
-                    alist_name(unsafe { &*garglist() }).map_or(ptr::null(), CStr::as_ptr),
-                )
+                && !os_isdir(alist_name(unsafe { &*garglist() }).map_or(ptr::null(), CStr::as_ptr))
             {
                 let tail = path_tail(
                     alist_name(unsafe { &*garglist() }).map_or(ptr::null(), CStr::as_ptr),

@@ -1465,11 +1465,7 @@ fn find_key_item(
 }
 
 /// Remove one item of length "itemlen" at position "item" from comma-separated string "str" in-place.
-fn remove_comma_item(
-    str_arg: impl crate::strings::IntoCCharPtr,
-    item: *mut u8,
-    itemlen: isize,
-) {
+fn remove_comma_item(str_arg: impl crate::strings::IntoCCharPtr, item: *mut u8, itemlen: isize) {
     let str_arg = str_arg.into_c_char_ptr();
     unsafe {
         if crate::memory::cstr_first_byte(item.wrapping_offset(itemlen).cast()) == b',' {
@@ -1739,7 +1735,9 @@ fn stropt_get_newval<T>(
                 }
 
                 if s.is_null() {
-                    s = origval.wrapping_add(crate::memory::cstr_len(origval)).cast();
+                    s = origval
+                        .wrapping_add(crate::memory::cstr_len(origval))
+                        .cast();
                 }
             }
 
@@ -2596,7 +2594,12 @@ pub fn parse_winhl_opt(
         if !winhl.is_null() {
             p = winhl;
         } else if wp.is_some() {
-            p = wp.as_deref_mut().unwrap().w_onebuf_opt.wo_winhl.cast_const();
+            p = wp
+                .as_deref_mut()
+                .unwrap()
+                .w_onebuf_opt
+                .wo_winhl
+                .cast_const();
         }
 
         if crate::memory::cstr_is_empty(p) {
@@ -5304,9 +5307,9 @@ pub fn opt_from_varp(opt_idx: OptIndex, varp: *mut c_void) -> Object {
             })))
         }
         ObjectType::ObjectTypeInteger => integer_obj(unsafe { *(varp.cast::<OptInt>()) }),
-        ObjectType::ObjectTypeString => {
-            string_obj(cstr_as_string(unsafe { *(varp.cast::<*mut u8>()).cast::<*mut _>() }))
-        }
+        ObjectType::ObjectTypeString => string_obj(cstr_as_string(unsafe {
+            *(varp.cast::<*mut u8>()).cast::<*mut _>()
+        })),
         _ => std::process::abort(),
     }
 }

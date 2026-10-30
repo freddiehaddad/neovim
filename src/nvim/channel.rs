@@ -1193,7 +1193,9 @@ pub fn channel_info(id: u64, arena: &mut Arena) -> Dict {
                 let ph = proc_ptr;
                 if (*ph).r#type == K_PROC_TYPE_PTY {
                     let s = match pty_proc_tty_name(&mut *proc_ptr.cast()) {
-                        Some(name) => crate::api::private::helpers::arena_bytes(arena, name.to_bytes()),
+                        Some(name) => {
+                            crate::api::private::helpers::arena_bytes(arena, name.to_bytes())
+                        }
                         None => NvimString::from_bytes(b""),
                     };
                     put_c(

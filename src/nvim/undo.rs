@@ -641,12 +641,8 @@ pub fn u_get_undo_file_name(
                 let mut has_directory = os_isdir(dir_name.as_ptr().cast());
                 if !has_directory && crate::memory::cstr_is_empty(dirp) && !reading {
                     let mut failed_dir: Option<std::ffi::CString> = None;
-                    let ret = os_mkdir_recurse(
-                        dir_name.as_ptr().cast(),
-                        0o755,
-                        &mut failed_dir,
-                        None,
-                    );
+                    let ret =
+                        os_mkdir_recurse(dir_name.as_ptr().cast(), 0o755, &mut failed_dir, None);
                     if ret != 0 {
                         semsg!(
                             gettext(c"E5003: Unable to create directory \"%s\" for undo file: %s",),

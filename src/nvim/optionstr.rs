@@ -1345,7 +1345,9 @@ fn expand_set_opt_string(
 fn expand_set_opt_callback(xp: &mut ExpandCtx, idx: i32) -> Option<&CStr> {
     if idx == 0 {
         if !optstr_st().set_opt_callback_orig_option.is_null() {
-            return Some(unsafe { CStr::from_ptr(optstr_st().set_opt_callback_orig_option.cast()) });
+            return Some(unsafe {
+                CStr::from_ptr(optstr_st().set_opt_callback_orig_option.cast())
+            });
         } else {
             return Some(c"");
         }
@@ -2205,11 +2207,7 @@ fn get_eventignore_name(xp: &mut ExpandCtx, idx: i32) -> Option<&'static CStr> {
         return Some(c"all");
     }
 
-    let name = get_event_name_no_group(
-        xp,
-        idx - 1 + i32::from(subtract),
-        optstr_st().expand_eiw,
-    )?;
+    let name = get_event_name_no_group(xp, idx - 1 + i32::from(subtract), optstr_st().expand_eiw)?;
 
     let io_buff = g_st().iobuff.as_mut_ptr();
     vim_snprintf!(
@@ -2255,7 +2253,9 @@ pub fn did_set_fileformat(args: &mut Optset) -> Option<&CStr> {
 
 /// Function given to ExpandGeneric() to obtain the possible arguments of fileformat options.
 pub fn get_fileformat_name(_xp: &mut ExpandCtx, idx: i32) -> Option<&'static CStr> {
-    (idx >= 0).then(|| OPT_FF_VALUES.get(idx as usize).copied()).flatten()
+    (idx >= 0)
+        .then(|| OPT_FF_VALUES.get(idx as usize).copied())
+        .flatten()
 }
 
 /// Validate the 'filetype', 'syntax' or 'keymap' option.
@@ -2975,9 +2975,7 @@ fn did_set_statustabline_rulerformat<'a>(
             win_config_float(&mut *win, (*win).w_config.clone());
         }
 
-        if rulerformat
-            && !ui_has(K_UIMESSAGES)
-            && crate::memory::cstr_first_byte(s.cast()) == b'%'
+        if rulerformat && !ui_has(K_UIMESSAGES) && crate::memory::cstr_first_byte(s.cast()) == b'%'
         {
             s = s.wrapping_add(1);
             if crate::memory::cstr_first_byte(s.cast()) == b'-' {

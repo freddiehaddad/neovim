@@ -485,17 +485,11 @@ fn parse_json_number(
     }
 
     if p == ints {
-        json_err(
-            c"E474: Missing number after minus sign: %s",
-            &buf[s..],
-        );
+        json_err(c"E474: Missing number after minus sign: %s", &buf[s..]);
         *pos = p;
         return false;
     } else if fracs == Some(p) || (fracs.is_some() && exps_s == fracs.map(|f| f + 1)) {
-        json_err(
-            c"E474: Missing number after decimal dot: %s",
-            &buf[s..],
-        );
+        json_err(c"E474: Missing number after decimal dot: %s", &buf[s..]);
         *pos = p;
         return false;
     } else if exps == Some(p) {
@@ -611,10 +605,7 @@ pub fn json_decode_string(buf: &[u8], rettv: &mut TypVal) -> bool {
                     }
                     let last_container = *container_stack.last().unwrap();
                     if buf[p] == b'}' && last_container.container.v_type != VarType::VarDict {
-                        json_err(
-                            c"E474: Closing list with curly bracket: %s",
-                            &buf[p..],
-                        );
+                        json_err(c"E474: Closing list with curly bracket: %s", &buf[p..]);
                         return fail_cleanup(stack);
                     } else if buf[p] == b']' && last_container.container.v_type != VarType::VarList
                     {
@@ -680,10 +671,7 @@ pub fn json_decode_string(buf: &[u8], rettv: &mut TypVal) -> bool {
                     } else if last_container.container.v_type == VarType::VarDict
                         && last_container.stack_index + 1 != stack.len()
                     {
-                        json_err(
-                            c"E474: Using comma in place of colon: %s",
-                            &buf[p..],
-                        );
+                        json_err(c"E474: Using comma in place of colon: %s", &buf[p..]);
                         return fail_cleanup(stack);
                     } else if is_empty_cont {
                         json_err(c"E474: Leading comma: %s", &buf[p..]);
@@ -700,10 +688,7 @@ pub fn json_decode_string(buf: &[u8], rettv: &mut TypVal) -> bool {
                     }
                     let last_container = *container_stack.last().unwrap();
                     if last_container.container.v_type != VarType::VarDict {
-                        json_err(
-                            c"E474: Using colon not in dictionary: %s",
-                            &buf[p..],
-                        );
+                        json_err(c"E474: Using colon not in dictionary: %s", &buf[p..]);
                         return fail_cleanup(stack);
                     } else if last_container.stack_index + 2 != stack.len() {
                         json_err(c"E474: Unexpected colon: %s", &buf[p..]);

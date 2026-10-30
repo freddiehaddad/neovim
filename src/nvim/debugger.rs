@@ -693,7 +693,14 @@ pub fn ex_breaklist(_eap: &mut Exarg) {
                 namebuf.as_ptr().cast()
             };
             let lnum = bp.dbg_lnum;
-            smsg!(0, c"%3d  %s %s  line %ld", bp.dbg_nr, kind, name, i64::from(lnum));
+            smsg!(
+                0,
+                c"%3d  %s %s  line %ld",
+                bp.dbg_nr,
+                kind,
+                name,
+                i64::from(lnum)
+            );
         } else {
             smsg!(0, c"%3d  expr %s", bp.dbg_nr, bp.dbg_name.as_ptr());
         }

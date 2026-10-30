@@ -170,11 +170,7 @@ pub fn socket_address_tcp_host_end(address: &[u8]) -> Option<usize> {
     address.iter().rposition(|&b| b == b':').filter(|&i| i != 0)
 }
 
-pub fn socket_watcher_init(
-    loop_: &mut Loop,
-    watcher: &mut SocketWatcher,
-    endpoint: &CStr,
-) -> i32 {
+pub fn socket_watcher_init(loop_: &mut Loop, watcher: &mut SocketWatcher, endpoint: &CStr) -> i32 {
     xstrlcpy(
         watcher.addr.as_mut_ptr().cast(),
         endpoint.as_ptr(),
@@ -242,8 +238,7 @@ pub fn socket_watcher_init(
             );
             return retval;
         }
-        watcher.tcp_addrinfo =
-            unsafe { *getaddrinfo_req_addrinfo_ptr((&raw mut request).cast()) };
+        watcher.tcp_addrinfo = unsafe { *getaddrinfo_req_addrinfo_ptr((&raw mut request).cast()) };
 
         unsafe { uv_tcp_init((&raw mut loop_.uv).cast(), uv_ptr.cast()) };
         unsafe { uv_tcp_nodelay(uv_ptr.cast(), 1) };
@@ -320,12 +315,7 @@ pub fn socket_watcher_start(watcher: &mut SocketWatcher, backlog: i32) -> i32 {
             }
             uv_freeaddrinfo(watcher.tcp_addrinfo.cast());
         } else {
-            result = uv_pipe_bind2(
-                uv_ptr.cast(),
-                addr,
-                addr_len,
-                UV_PIPE_NO_TRUNCATE,
-            );
+            result = uv_pipe_bind2(uv_ptr.cast(), addr, addr_len, UV_PIPE_NO_TRUNCATE);
 
             // If bind failed with EACCES/EADDRINUSE, check if socket is stale
             if result == UV_EACCES || result == UV_EADDRINUSE {
@@ -359,12 +349,7 @@ pub fn socket_watcher_start(watcher: &mut SocketWatcher, backlog: i32) -> i32 {
                         *watcher.stream_ptr().cast::<*mut SocketWatcher>() = (&raw mut *watcher);
 
                         // Retry bind with fresh handle
-                        result = uv_pipe_bind2(
-                            uv_ptr.cast(),
-                            addr,
-                            addr_len,
-                            UV_PIPE_NO_TRUNCATE,
-                        );
+                        result = uv_pipe_bind2(uv_ptr.cast(), addr, addr_len, UV_PIPE_NO_TRUNCATE);
                     }
                 } else {
                     logmsg!(
@@ -472,7 +457,7 @@ pub fn socket_connect(
     loop_: &mut Loop,
     stream: &mut RStream,
     is_tcp: bool,
-    address: & std::ffi::CStr,
+    address: &std::ffi::CStr,
     timeout: i32,
     error: &mut Option<&'static std::ffi::CStr>,
 ) -> bool {
@@ -566,9 +551,7 @@ pub fn socket_connect(
                         cur_addrinfo = (*cur_addrinfo).ai_next;
                         continue;
                     } else {
-                        *error = Some(crate::memory::cstr_from_ptr(gettext(
-                            c"connection refused",
-                        )));
+                        *error = Some(crate::memory::cstr_from_ptr(gettext(c"connection refused")));
                         break;
                     }
                 }

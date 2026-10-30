@@ -757,13 +757,7 @@ fn win_redr_stl_expr(wp: *mut WinInfoInfo, draw_winbar: bool, draw_ruler: bool, 
                         } else {
                             &raw const g_st().highlight_user[0]
                         };
-                    let userbuf: [u8; 5] = [
-                        b'U',
-                        b's',
-                        b'e',
-                        b'r',
-                        (*sp).userhl as u8 + b'0',
-                    ];
+                    let userbuf: [u8; 5] = [b'U', b's', b'e', b'r', (*sp).userhl as u8 + b'0'];
                     curattr = *userhl.wrapping_add(((*sp).userhl - 1) as usize);
                     curgroup = syn_name2id_len(userbuf.as_ptr().cast(), 5);
                 }

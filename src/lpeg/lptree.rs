@@ -1365,11 +1365,7 @@ pub fn luaopen_lpeg(l: *mut lua_State) -> i32 {
         luaL_register(l, c"lpeg", PATTREG.as_ptr());
         lua_pushvalue(l, -1);
         lua_setfield(l, -3, c"__index");
-        lua_pushlstring(
-            l,
-            LPEG_VERSION.as_ptr().cast(),
-            LPEG_VERSION.len(),
-        );
+        lua_pushlstring(l, LPEG_VERSION.as_ptr().cast(), LPEG_VERSION.len());
         lua_setfield(l, -2, c"version");
         1
     }

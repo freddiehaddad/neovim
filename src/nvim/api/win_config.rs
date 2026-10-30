@@ -1192,7 +1192,10 @@ pub fn nvim_win_get_config(win: Window, arena: &mut Arena, err: &mut Error) -> K
             let mut border = arena_array(arena, 8);
             for i in 0..8 {
                 let bchars = &config.border_chars[i];
-                let blen = bchars.iter().position(|&b| b == 0).unwrap_or(MAX_SCHAR_SIZE);
+                let blen = bchars
+                    .iter()
+                    .position(|&b| b == 0)
+                    .unwrap_or(MAX_SCHAR_SIZE);
                 let s = NvimString::from_bytes(&bchars[..blen]);
                 let hi_id = config.border_hl_ids[i];
                 let hi_name = syn_id2name(hi_id);
@@ -1550,11 +1553,7 @@ fn generate_api_error(wp: Option<&WinInfoInfo>, attribute: &std::ffi::CStr, err:
 
 /// Parses a border style name or custom (comma-separated) style.
 // DLLEXPORT bool parse_winborder(WinConfig *fconfig, char *border_opt, Error *err);
-pub fn parse_winborder(
-    fconfig: Option<&mut WinConfig>,
-    opt_bytes: &[u8],
-    err: &mut Error,
-) -> bool {
+pub fn parse_winborder(fconfig: Option<&mut WinConfig>, opt_bytes: &[u8], err: &mut Error) -> bool {
     if fconfig.is_none() {
         return false;
     }

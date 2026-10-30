@@ -268,8 +268,10 @@ fn skip_string<T>(p: *const T) -> *const T {
                     p = p.wrapping_add(3);
                     while !crate::memory::cstr_is_empty(p.cast()) {
                         if crate::memory::cstr_first_byte(p.cast()) == b')'
-                            && (crate::memory::cstr_prefix_bytes(p.wrapping_add(1).cast(), delim_len)
-                                == crate::memory::cstr_prefix_bytes(delim.cast(), delim_len))
+                            && (crate::memory::cstr_prefix_bytes(
+                                p.wrapping_add(1).cast(),
+                                delim_len,
+                            ) == crate::memory::cstr_prefix_bytes(delim.cast(), delim_len))
                             && crate::memory::cstr_byte_at(p.cast(), delim_len + 1) == b'"'
                         {
                             p = p.wrapping_add(delim_len + 1);
@@ -634,7 +636,12 @@ fn cin_isscopedecl(p: impl crate::strings::IntoCCharPtr) -> bool {
         let mut found = false;
         let mut cinsd = curbuf_mut().b_p_cinsd;
         while !crate::memory::cstr_is_empty(cinsd) {
-            let len = copy_option_part(&raw mut cinsd, cinsd_buf.as_mut_ptr().cast(), cinsd_len, c",");
+            let len = copy_option_part(
+                &raw mut cinsd,
+                cinsd_buf.as_mut_ptr().cast(),
+                cinsd_len,
+                c",",
+            );
             if crate::memory::cstr_prefix_bytes(s, len)
                 == crate::memory::cstr_prefix_bytes(cinsd_buf.as_ptr().cast(), len)
             {
@@ -899,11 +906,7 @@ fn cin_islinecomment(p: impl crate::strings::IntoCCharPtr) -> bool {
     let p = p.into_c_char_ptr();
     crate::memory::cstr_first_byte(p) == b'/' && crate::memory::cstr_byte_at(p, 1) == b'/'
 }
-fn cin_isterminated(
-    s: impl crate::strings::IntoCCharPtr,
-    incl_open: bool,
-    incl_comma: bool,
-) -> u8 {
+fn cin_isterminated(s: impl crate::strings::IntoCCharPtr, incl_open: bool, incl_comma: bool) -> u8 {
     let mut s = s.into_c_char_ptr();
     {
         let mut found_start: u8 = 0;
@@ -3175,7 +3178,8 @@ pub fn in_cinkeys(keytyped: i32, when: i32, line_is_empty: bool) -> bool {
                     unsafe {
                         *p.wrapping_add(curwin_mut().w_cursor.col as usize - 1) = b' ';
                     }
-                    let i = cin_iscase(p.cast(), false) || cin_isscopedecl(p.cast()) || cin_islabel();
+                    let i =
+                        cin_iscase(p.cast(), false) || cin_isscopedecl(p.cast()) || cin_islabel();
                     p = get_cursor_line_ptr().cast();
                     unsafe {
                         *p.wrapping_add(curwin_mut().w_cursor.col as usize - 1) = b':';

@@ -733,7 +733,10 @@ pub fn sb_add_lit(buf: &mut Vec<u8>, str_: impl crate::strings::IntoCCharPtr, le
             }
 
             if crate::memory::cstr_is_empty(s)
-                && matches!(crate::memory::cstr_first_byte(s.wrapping_sub(1)), b'0' | b'^')
+                && matches!(
+                    crate::memory::cstr_first_byte(s.wrapping_sub(1)),
+                    b'0' | b'^'
+                )
             {
                 s = s.wrapping_sub(1);
             }
@@ -827,9 +830,9 @@ pub fn stuff_readbuff_len(s: impl crate::strings::IntoCCharPtr, len: isize) {
     let s = s.into_c_char_ptr();
     {
         if g_st().add_last_insert == 1 && len > 0 {
-            g_st()
-                .last_insert_ga
-                .extend_from_slice(unsafe { std::slice::from_raw_parts(s.cast::<u8>(), len as usize) });
+            g_st().last_insert_ga.extend_from_slice(unsafe {
+                std::slice::from_raw_parts(s.cast::<u8>(), len as usize)
+            });
         }
         add_buff(&mut inp_st().readbuf1, s, len);
     }

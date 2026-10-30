@@ -548,7 +548,9 @@ pub fn ui_client_attach_to_restarted_server(error_restart: bool) {
         for i in 0..cmdargs.size {
             let item = cmdargs[i];
             if item.obj_type == ObjectType::ObjectTypeString {
-                argv.push(crate::memory::cstr_from_bytes(item.data.string().cstr_bytes()));
+                argv.push(crate::memory::cstr_from_bytes(
+                    item.data.string().cstr_bytes(),
+                ));
             } else {
                 argv.push(CString::default());
             }
@@ -561,14 +563,7 @@ pub fn ui_client_attach_to_restarted_server(error_restart: bool) {
         let is_tcp = socket_address_tcp_host_end(first_arg_cstr.to_bytes()).is_some();
         let mut err: Option<&CStr> = None;
         let on_data = CallbackReader::none();
-        let id = channel_connect(
-            is_tcp,
-            first_arg_cstr,
-            true,
-            on_data,
-            50,
-            &mut err,
-        );
+        let id = channel_connect(is_tcp, first_arg_cstr, true, on_data, 50, &mut err);
         if let Some(err_cstr) = err {
             logmsg!(
                 LOGLVL_ERR,

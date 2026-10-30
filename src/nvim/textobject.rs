@@ -1455,12 +1455,7 @@ pub fn current_par(oap: &mut Oparg, count: i32, include: bool, type_: i32) -> bo
 }
 
 /// Search quote char from string `line[col]` (`find_next_quote`).
-fn find_next_quote(
-    line_bytes: &[u8],
-    mut col: i32,
-    quotechar: i32,
-    escape: Option<&[u8]>,
-) -> i32 {
+fn find_next_quote(line_bytes: &[u8], mut col: i32, quotechar: i32, escape: Option<&[u8]>) -> i32 {
     loop {
         let Some(&b) = line_bytes.get(col as usize) else {
             return -1;
@@ -1498,9 +1493,7 @@ fn find_prev_quote(
         col_start -= utf_head_off(line_ptr, line_ptr.wrapping_add(col_start as usize));
         let mut n = 0;
         if let Some(esc) = escape {
-            while col_start - n > 0
-                && esc.contains(&line_bytes[(col_start - n - 1) as usize])
-            {
+            while col_start - n > 0 && esc.contains(&line_bytes[(col_start - n - 1) as usize]) {
                 n += 1;
             }
         }
@@ -1615,7 +1608,8 @@ pub fn current_quote(oap: &mut Oparg, count: i32, include: bool, quotechar: i32)
 
     let line_bytes = crate::memory::cstr_as_bytes(line);
     let qe_bytes = crate::memory::cstr_as_opt_bytes(curbuf_mut().b_p_qe);
-    if !vis_empty && i32::from(line_bytes.get(col_start as usize).copied().unwrap_or(0)) == quotechar
+    if !vis_empty
+        && i32::from(line_bytes.get(col_start as usize).copied().unwrap_or(0)) == quotechar
     {
         if vis_bef_curs {
             col_start = find_next_quote(line_bytes, col_start + 1, quotechar, None);

@@ -1789,8 +1789,7 @@ pub fn searchc(cap: &mut Cmdarg, mut t_cmd: bool) -> bool {
                     )
                 };
             } else {
-                srch().lastc_bytelen =
-                    utf_char2bytes(c, (&raw mut srch().lastc_bytes).cast());
+                srch().lastc_bytelen = utf_char2bytes(c, (&raw mut srch().lastc_bytes).cast());
             }
         }
     } else {
@@ -1896,11 +1895,9 @@ fn find_rawstring_end(
 
         let delim_len =
             (crate::memory::ptr_offset_from(p, linep) as usize) - (startpos.col as usize) - 1;
-        let delim_copy = crate::memory::cstr_slice(
-            linep.wrapping_add((startpos.col + 1) as usize),
-            delim_len,
-        )
-        .to_vec();
+        let delim_copy =
+            crate::memory::cstr_slice(linep.wrapping_add((startpos.col + 1) as usize), delim_len)
+                .to_vec();
         let mut found = false;
         for lnum in startpos.lnum..=endpos.lnum {
             let line = ml_get(lnum);
@@ -2040,7 +2037,9 @@ pub fn findmatchlimit(
                         {
                             hash_dir = 1;
                         }
-                    } else if *linep.wrapping_add(srch().findmatch_pos.col as usize).cast::<u8>()
+                    } else if *linep
+                        .wrapping_add(srch().findmatch_pos.col as usize)
+                        .cast::<u8>()
                         == b'/'
                     {
                         if *linep
@@ -2061,7 +2060,9 @@ pub fn findmatchlimit(
                             backwards = true;
                             srch().findmatch_pos.col -= 1;
                         }
-                    } else if *linep.wrapping_add(srch().findmatch_pos.col as usize).cast::<u8>()
+                    } else if *linep
+                        .wrapping_add(srch().findmatch_pos.col as usize)
+                        .cast::<u8>()
                         == b'*'
                     {
                         if *linep
@@ -2288,7 +2289,9 @@ pub fn findmatchlimit(
                             .wrapping_add((srch().findmatch_pos.col - 1) as usize)
                             .cast::<u8>()
                             == b'*'
-                        && *linep.wrapping_add(srch().findmatch_pos.col as usize).cast::<u8>()
+                        && *linep
+                            .wrapping_add(srch().findmatch_pos.col as usize)
+                            .cast::<u8>()
                             == b'/'
                         && (comment_col == MAXCOL || srch().findmatch_pos.col < comment_col)
                     {
@@ -2299,13 +2302,18 @@ pub fn findmatchlimit(
                             .wrapping_add((srch().findmatch_pos.col - 1) as usize)
                             .cast::<u8>()
                             == b'/'
-                        && *linep.wrapping_add(srch().findmatch_pos.col as usize).cast::<u8>()
+                        && *linep
+                            .wrapping_add(srch().findmatch_pos.col as usize)
+                            .cast::<u8>()
                             == b'*'
                     {
                         in_block_comment = false;
                     }
                 } else if !in_block_comment
-                    && *linep.wrapping_add(srch().findmatch_pos.col as usize).cast::<u8>() == b'/'
+                    && *linep
+                        .wrapping_add(srch().findmatch_pos.col as usize)
+                        .cast::<u8>()
+                        == b'/'
                     && *linep
                         .wrapping_add((srch().findmatch_pos.col + 1) as usize)
                         .cast::<u8>()
@@ -2319,7 +2327,10 @@ pub fn findmatchlimit(
                         .wrapping_add((srch().findmatch_pos.col - 1) as usize)
                         .cast::<u8>()
                         == b'*'
-                    && *linep.wrapping_add(srch().findmatch_pos.col as usize).cast::<u8>() == b'/'
+                    && *linep
+                        .wrapping_add(srch().findmatch_pos.col as usize)
+                        .cast::<u8>()
+                        == b'/'
                 {
                     in_block_comment = false;
                 }
@@ -2356,7 +2367,9 @@ pub fn findmatchlimit(
                         .wrapping_add((srch().findmatch_pos.col - 1) as usize)
                         .cast::<u8>()
                         == b'R'
-                        && *linep.wrapping_add(srch().findmatch_pos.col as usize).cast::<u8>()
+                        && *linep
+                            .wrapping_add(srch().findmatch_pos.col as usize)
+                            .cast::<u8>()
                             == b'"'
                         && !vim_strchr(
                             linep.wrapping_add((srch().findmatch_pos.col + 1) as usize),
@@ -2382,7 +2395,10 @@ pub fn findmatchlimit(
                 } else if crate::memory::cstr_first_byte(
                     linep.wrapping_add((srch().findmatch_pos.col - 1) as usize),
                 ) == b'/'
-                    && *linep.wrapping_add(srch().findmatch_pos.col as usize).cast::<u8>() == b'*'
+                    && *linep
+                        .wrapping_add(srch().findmatch_pos.col as usize)
+                        .cast::<u8>()
+                        == b'*'
                     && (srch().findmatch_pos.col == 1
                         || *linep
                             .wrapping_add((srch().findmatch_pos.col - 2) as usize)
@@ -2396,7 +2412,10 @@ pub fn findmatchlimit(
                 } else if crate::memory::cstr_first_byte(
                     linep.wrapping_add((srch().findmatch_pos.col - 1) as usize),
                 ) == b'*'
-                    && *linep.wrapping_add(srch().findmatch_pos.col as usize).cast::<u8>() == b'/'
+                    && *linep
+                        .wrapping_add(srch().findmatch_pos.col as usize)
+                        .cast::<u8>()
+                        == b'/'
                 {
                     if count > 0 {
                         srch().findmatch_pos = match_pos;

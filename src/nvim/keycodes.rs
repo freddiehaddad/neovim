@@ -2504,8 +2504,8 @@ pub fn find_special_key(
             last_dash = bp;
             if (bp.wrapping_add(1) as usize) <= (end as usize) {
                 let end_minus_bp = end as usize - bp as usize;
-                let l = utfc_ptr2len_len(bp.wrapping_add(1).cast(), (end_minus_bp + 1) as i32)
-                    as usize;
+                let l =
+                    utfc_ptr2len_len(bp.wrapping_add(1).cast(), (end_minus_bp + 1) as i32) as usize;
                 if end_minus_bp > l
                     && !(in_string && crate::memory::cstr_byte_at(bp.cast(), 1) == b'"')
                     && crate::memory::cstr_byte_at(bp.cast(), l + 1) == b'>'
@@ -2817,9 +2817,8 @@ pub fn replace_termcodes(
                 {
                     (
                         8,
-                        get_var_value(c"g:mapleader").map_or(std::ptr::null_mut(), |s| {
-                            s.as_ptr().cast_mut().cast()
-                        }),
+                        get_var_value(c"g:mapleader")
+                            .map_or(std::ptr::null_mut(), |s| s.as_ptr().cast_mut().cast()),
                     )
                 } else if rem >= 13
                     && crate::memory::cstr_prefix_bytes(src.cast(), 13)
@@ -2827,23 +2826,20 @@ pub fn replace_termcodes(
                 {
                     (
                         13,
-                        get_var_value(c"g:maplocalleader").map_or(std::ptr::null_mut(), |s| {
-                            s.as_ptr().cast_mut().cast()
-                        }),
+                        get_var_value(c"g:maplocalleader")
+                            .map_or(std::ptr::null_mut(), |s| s.as_ptr().cast_mut().cast()),
                     )
                 } else {
                     (0, std::ptr::null_mut())
                 };
 
                 if len != 0 {
-                    let mut s: *const u8 = if p.is_null()
-                        || *p == 0
-                        || crate::memory::cstr_len(p.cast()) > 8 * 6
-                    {
-                        c"\\".as_ptr().cast()
-                    } else {
-                        p
-                    };
+                    let mut s: *const u8 =
+                        if p.is_null() || *p == 0 || crate::memory::cstr_len(p.cast()) > 8 * 6 {
+                            c"\\".as_ptr().cast()
+                        } else {
+                            p
+                        };
                     while *s != 0 {
                         *result.wrapping_add(dlen) = *s;
                         dlen += 1;
@@ -2894,8 +2890,7 @@ pub fn replace_termcodes(
         *result.wrapping_add(dlen) = 0;
 
         Some(crate::memory::cstr_from_bytes(std::slice::from_raw_parts(
-            result,
-            dlen,
+            result, dlen,
         )))
     }
 }

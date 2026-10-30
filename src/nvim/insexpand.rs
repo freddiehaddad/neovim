@@ -2305,10 +2305,7 @@ fn ins_compl_files(
             continue;
         }
 
-        while !g_st().got_int
-            && !ins_compl_interrupted()
-            && !vim_fgets(buf, LSIZE as i32, fp)
-        {
+        while !g_st().got_int && !ins_compl_interrupted() && !vim_fgets(buf, LSIZE as i32, fp) {
             let mut ptr = buf;
             if cot_fuzzy() && leader_len > 0 {
                 let line_end = find_line_end(ptr);
@@ -5038,7 +5035,8 @@ fn strip_caret_numbers_in_place(str_ptr: *mut u8) {
 }
 
 fn prepare_cpt_compl_funcs() {
-    let mut cpt_vec: Vec<u8> = crate::memory::cstr_to_cstring(curbuf_mut().b_p_cpt).into_bytes_with_nul();
+    let mut cpt_vec: Vec<u8> =
+        crate::memory::cstr_to_cstring(curbuf_mut().b_p_cpt).into_bytes_with_nul();
     let cpt = cpt_vec.as_mut_ptr();
     strip_caret_numbers_in_place(cpt);
 
@@ -7040,7 +7038,8 @@ fn get_cpt_func_completion_matches(cb: &mut Callback) {
 
 fn cpt_compl_refresh() {
     ins_compl_make_linear();
-    let mut cpt_vec: Vec<u8> = crate::memory::cstr_to_cstring(curbuf_mut().b_p_cpt).into_bytes_with_nul();
+    let mut cpt_vec: Vec<u8> =
+        crate::memory::cstr_to_cstring(curbuf_mut().b_p_cpt).into_bytes_with_nul();
     let cpt = cpt_vec.as_mut_ptr();
     strip_caret_numbers_in_place(cpt);
 

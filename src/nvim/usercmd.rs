@@ -333,7 +333,10 @@ pub fn find_ucmd<T>(
     }
 
     if found || possible {
-        return p.cast::<u8>().wrapping_offset((matchlen - len) as isize).cast();
+        return p
+            .cast::<u8>()
+            .wrapping_offset((matchlen - len) as isize)
+            .cast();
     }
     p
 }
@@ -805,11 +808,7 @@ fn uc_list(name: impl crate::strings::IntoCCharPtr, name_len: usize) {
                     let bytes = cmd_compl.to_bytes();
                     let copy_len = bytes.len().min(IOSIZE - 1 - len);
                     unsafe {
-                        ptr::copy_nonoverlapping(
-                            bytes.as_ptr(),
-                            iobuff.wrapping_add(len),
-                            copy_len,
-                        )
+                        ptr::copy_nonoverlapping(bytes.as_ptr(), iobuff.wrapping_add(len), copy_len)
                     };
                     len += copy_len;
                 }

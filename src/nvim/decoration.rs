@@ -1787,7 +1787,11 @@ pub fn decor_to_dict_legacy(dict: &mut Dict, decor: DecorInline, hl_name: bool, 
     } else if (sh_hl.flags & K_SHCONCEAL) != 0 {
         let mut buf = [0u8; MAX_SCHAR_SIZE];
         let len = schar_get_bytes(&mut buf, sh_hl.text[0]);
-        put_c(dict, c"conceal", string_obj(arena_bytes(arena, &buf[..len])));
+        put_c(
+            dict,
+            c"conceal",
+            string_obj(arena_bytes(arena, &buf[..len])),
+        );
     }
 
     if (sh_hl.flags & K_SHCONCEAL_LINES) != 0 {

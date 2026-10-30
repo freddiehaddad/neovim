@@ -431,8 +431,12 @@ fn assert_equalfile(argvars: &mut [TypVal]) -> i32 {
     let mut lineidx: usize = 0;
 
     if fd1.is_null() {
-        iobuflen =
-            vim_snprintf_safelen!(iobuf.as_mut_ptr().cast(), IOSIZE, E_CANT_READ_FILE_STR, fname1);
+        iobuflen = vim_snprintf_safelen!(
+            iobuf.as_mut_ptr().cast(),
+            IOSIZE,
+            E_CANT_READ_FILE_STR,
+            fname1
+        );
     } else {
         let fd2 = os_fopen(fname2, c"rb");
         if fd2.is_null() {
@@ -465,8 +469,7 @@ fn assert_equalfile(argvars: &mut [TypVal]) -> i32 {
                     lineidx += 1;
                     if c1 != c2 {
                         let msg = format!("difference at byte {count}, line {linecount}\0");
-                        iobuflen =
-                            xstrlcpy(iobuf.as_mut_ptr().cast(), msg.as_ptr().cast(), IOSIZE);
+                        iobuflen = xstrlcpy(iobuf.as_mut_ptr().cast(), msg.as_ptr().cast(), IOSIZE);
                         break;
                     }
                 }
@@ -799,7 +802,9 @@ fn assert_inrange(argvars: &mut [TypVal]) -> i32 {
             fill_assert_error(
                 &mut ga,
                 &mut rest[0],
-                CStr::from_bytes_until_nul(&expected_str).unwrap_or(c"").as_ptr(),
+                CStr::from_bytes_until_nul(&expected_str)
+                    .unwrap_or(c"")
+                    .as_ptr(),
                 std::ptr::null_mut(),
                 &mut first[2],
                 AssertType::Other,
@@ -823,7 +828,9 @@ fn assert_inrange(argvars: &mut [TypVal]) -> i32 {
             fill_assert_error(
                 &mut ga,
                 &mut rest[0],
-                CStr::from_bytes_with_nul(expected_str.as_bytes()).unwrap_or(c"").as_ptr(),
+                CStr::from_bytes_with_nul(expected_str.as_bytes())
+                    .unwrap_or(c"")
+                    .as_ptr(),
                 std::ptr::null_mut(),
                 &mut first[2],
                 AssertType::Other,

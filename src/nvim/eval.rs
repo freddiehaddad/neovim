@@ -1494,9 +1494,12 @@ pub fn get_lval<T>(
                 return ptr::null_mut();
             }
 
-            if let Some(cstr) =
-                make_expanded_name(name.cast(), expr_start.cast_mut(), expr_end.cast_mut(), p.cast())
-            {
+            if let Some(cstr) = make_expanded_name(
+                name.cast(),
+                expr_start.cast_mut(),
+                expr_end.cast_mut(),
+                p.cast(),
+            ) {
                 lp.ll_name_len = cstr.as_bytes().len();
                 lp.ll_exp_name = Some(cstr);
                 lp.ll_name = lp.ll_exp_name.as_ref().unwrap().as_ptr().cast();
@@ -1640,8 +1643,11 @@ pub fn set_var_lval<T>(
                     false,
                 ) {
                     if (di.is_null()
-                        || (!var_check_ro(i32::from((*di).di_flags), lp.ll_name.cast(), TV_CSTRING)
-                            && !tv_check_lock(&(*di).di_tv, lp.ll_name.cast(), TV_CSTRING)))
+                        || (!var_check_ro(
+                            i32::from((*di).di_flags),
+                            lp.ll_name.cast(),
+                            TV_CSTRING,
+                        ) && !tv_check_lock(&(*di).di_tv, lp.ll_name.cast(), TV_CSTRING)))
                         && eexe_mod_op(&mut tv, &*rettv, crate::memory::cstr_from_ptr(op))
                     {
                         set_var(lp.ll_name.cast(), lp.ll_name_len, &mut tv, false);
@@ -1734,7 +1740,12 @@ pub fn set_var_lval<T>(
                     tv_dict_watcher_notify(&mut *dict, newkey_ptr, lp.ll_tv.as_ref(), None);
                 } else {
                     let di_ = lp.ll_di;
-                    tv_dict_watcher_notify(&mut *dict, &(*di_).di_key, lp.ll_tv.as_ref(), Some(&oldtv));
+                    tv_dict_watcher_notify(
+                        &mut *dict,
+                        &(*di_).di_key,
+                        lp.ll_tv.as_ref(),
+                        Some(&oldtv),
+                    );
                     tv_clear(&mut oldtv);
                 }
             }
@@ -3005,7 +3016,14 @@ fn eval7<T>(
                         None,
                     )
                 } else if evaluate {
-                    eval_variable(s.cast(), len, Some(&mut *rettv), ptr::null_mut(), true, false)
+                    eval_variable(
+                        s.cast(),
+                        len,
+                        Some(&mut *rettv),
+                        ptr::null_mut(),
+                        true,
+                        false,
+                    )
                 } else {
                     check_vars(s.cast(), len as usize);
                     if rettv.v_type == VarType::VarUnknown
@@ -3747,12 +3765,7 @@ pub fn eval_option<T>(arg: *mut *const T, rettv: Option<&mut TypVal>, evaluate: 
 }
 
 /// Allocate a variable for a number constant. Also deals with "0z" for blob.
-fn eval_number<T>(
-    arg: *mut *mut T,
-    rettv: &mut TypVal,
-    evaluate: bool,
-    want_string: bool,
-) -> bool {
+fn eval_number<T>(arg: *mut *mut T, rettv: &mut TypVal, evaluate: bool, want_string: bool) -> bool {
     let arg: *mut *mut u8 = arg.cast();
     unsafe {
         let mut p = skipdigits((*arg).wrapping_add(1).cast());
@@ -3857,12 +3870,7 @@ fn eval_number<T>(
 }
 
 /// Evaluate a string constant and put the result in "rettv".
-fn eval_string<T>(
-    arg: *mut *mut T,
-    rettv: &mut TypVal,
-    evaluate: bool,
-    interpolate: bool,
-) -> bool {
+fn eval_string<T>(arg: *mut *mut T, rettv: &mut TypVal, evaluate: bool, interpolate: bool) -> bool {
     let arg: *mut *mut u8 = arg.cast();
     unsafe {
         let arg_end = (*arg).wrapping_add(crate::memory::cstr_len((*arg).cast()));
@@ -5163,8 +5171,7 @@ fn get_system_output_as_rettv(argvars: &mut [TypVal], rettv: &mut TypVal, retlis
         if argvars[1].v_type != VarType::VarUnknown && argvars[2].v_type != VarType::VarUnknown {
             keepempty = tv_get_number(&argvars[2]) as i32;
         }
-        rettv.vval =
-            crate::eval::typval::TypvalVval::List(string_to_list(&res, keepempty != 0));
+        rettv.vval = crate::eval::typval::TypvalVval::List(string_to_list(&res, keepempty != 0));
         tv_list_ref(unsafe { rettv.vval.v_list().as_mut() });
         rettv.v_type = VarType::VarList;
     } else {
@@ -5290,7 +5297,9 @@ pub fn callback_call(
         }
         K_CALLBACK_PARTIAL => {
             partial = callback.data.as_partial();
-            name = partial_name(unsafe { partial.as_ref() }).as_ptr().cast_mut();
+            name = partial_name(unsafe { partial.as_ref() })
+                .as_ptr()
+                .cast_mut();
         }
         K_CALLBACK_LUA => {
             let mut arena = Arena {
@@ -5962,9 +5971,7 @@ pub fn get_id_len<T>(arg: *mut *const T) -> i32 {
         while eval_isnamec(i32::from(crate::memory::cstr_first_byte(p.cast()))) {
             if crate::memory::cstr_first_byte(p.cast()) == b':' {
                 let len = ((p as usize).wrapping_sub(*arg as usize)) as i32;
-                if len > 1
-                    || (len == 1 && vim_strchr(NAMESPACE_CHAR, i32::from(**arg)).is_null())
-                {
+                if len > 1 || (len == 1 && vim_strchr(NAMESPACE_CHAR, i32::from(**arg)).is_null()) {
                     break;
                 }
             }
@@ -6104,7 +6111,9 @@ pub fn find_name_end<T>(
                 if crate::memory::cstr_is_empty(p.cast()) {
                     break;
                 }
-            } else if br_nest == 0 && mb_nest == 0 && crate::memory::cstr_first_byte(p.cast()) == b':'
+            } else if br_nest == 0
+                && mb_nest == 0
+                && crate::memory::cstr_first_byte(p.cast()) == b':'
             {
                 let len = ((p as usize).wrapping_sub(arg as usize)) as i32;
                 if (len > 1 && *p.wrapping_sub(1) != b'}')
@@ -6172,9 +6181,7 @@ fn make_expanded_name(
             *in_end = 0;
         }
 
-        if let Some(temp_result) =
-            eval_to_string(expr_start.wrapping_add(1).cast(), false, false)
-        {
+        if let Some(temp_result) = eval_to_string(expr_start.wrapping_add(1).cast(), false, false) {
             let retvalsize = (expr_start as usize).wrapping_sub(in_start as usize)
                 + temp_result.as_bytes().len()
                 + (in_end as usize).wrapping_sub(expr_end as usize)
@@ -6457,9 +6464,19 @@ pub fn handle_subscript<T>(
                 selfdict = ptr::null_mut();
             } else if **arg == b'-' {
                 if crate::memory::cstr_byte_at((*arg).cast(), 2) == b'{' {
-                    ret = eval_lambda(arg.cast::<*mut u8>(), rettv, evalarg.as_deref_mut(), verbose);
+                    ret = eval_lambda(
+                        arg.cast::<*mut u8>(),
+                        rettv,
+                        evalarg.as_deref_mut(),
+                        verbose,
+                    );
                 } else {
-                    ret = eval_method(arg.cast::<*mut u8>(), rettv, evalarg.as_deref_mut(), verbose);
+                    ret = eval_method(
+                        arg.cast::<*mut u8>(),
+                        rettv,
+                        evalarg.as_deref_mut(),
+                        verbose,
+                    );
                 }
             } else {
                 tv_dict_unref(selfdict);
@@ -6471,7 +6488,12 @@ pub fn handle_subscript<T>(
                 } else {
                     selfdict = ptr::null_mut();
                 }
-                if !eval_index(arg.cast::<*mut u8>(), rettv, evalarg.as_deref_mut(), verbose) {
+                if !eval_index(
+                    arg.cast::<*mut u8>(),
+                    rettv,
+                    evalarg.as_deref_mut(),
+                    verbose,
+                ) {
                     tv_clear(rettv);
                     ret = false;
                 }

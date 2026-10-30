@@ -974,11 +974,7 @@ fn list_script_vars(first: &mut i32) {
 }
 
 /// Evaluate one Vim expression {expr} in string "p" and append the resulting string to "gap".
-pub fn eval_one_expr_in_str<T>(
-    p: *const T,
-    gap: &mut Vec<u8>,
-    evaluate: bool,
-) -> *mut T {
+pub fn eval_one_expr_in_str<T>(p: *const T, gap: &mut Vec<u8>, evaluate: bool) -> *mut T {
     let p = p.cast::<u8>();
     {
         let block_start: *mut u8 = skipwhite(p.wrapping_add(1).cast()).cast();
@@ -1548,11 +1544,7 @@ pub fn list_hashtable_vars(ht: &mut Hashtab, prefix: &std::ffi::CStr, empty: i32
                 let _dst = buf.as_mut_ptr().cast();
                 let _dsize: usize = IOSIZE;
                 let _dlen = crate::memory::cstr_len(_dst);
-                crate::memory::xstrlcpy(
-                    _dst.wrapping_add(_dlen),
-                    &di.di_key,
-                    _dsize - _dlen,
-                );
+                crate::memory::xstrlcpy(_dst.wrapping_add(_dlen), &di.di_key, _dsize - _dlen);
             };
             if message_filtered(buf.as_ptr().cast()) {
                 hi = hi.wrapping_add(1);
@@ -1644,8 +1636,14 @@ fn list_arg_vars<T>(eap: &mut Exarg, arg: *const T, first: &mut i32) -> *const T
                     if let Some(ref tf) = tofree {
                         name = tf.as_ptr().cast();
                     }
-                    if !eval_variable(name.cast(), len, Some(&mut tv), ptr::null_mut(), true, false)
-                    {
+                    if !eval_variable(
+                        name.cast(),
+                        len,
+                        Some(&mut tv),
+                        ptr::null_mut(),
+                        true,
+                        false,
+                    ) {
                         error = true;
                     } else {
                         let arg_subsc = arg;
@@ -2009,8 +2007,7 @@ fn ex_let_one<T>(
             || crate::memory::cstr_first_byte(arg.cast()) == b'{'
         {
             let mut lv: Lval = Lval::new();
-            let p: *mut u8 =
-                get_lval(arg, Some(tv), &mut lv, false, false, 0, FNE_CHECK_START);
+            let p: *mut u8 = get_lval(arg, Some(tv), &mut lv, false, false, 0, FNE_CHECK_START);
             if !p.is_null() && !lv.ll_name.is_null() {
                 if !endchars.is_null()
                     && !crate::strings::vim_haschr(
@@ -3234,12 +3231,7 @@ pub fn set_var_const(
         }
 
         if watched {
-            tv_dict_watcher_notify(
-                &mut *dict,
-                &(*di).di_key,
-                Some(&(*di).di_tv),
-                Some(&oldtv),
-            );
+            tv_dict_watcher_notify(&mut *dict, &(*di).di_key, Some(&(*di).di_tv), Some(&oldtv));
             tv_clear(&mut oldtv);
         }
 

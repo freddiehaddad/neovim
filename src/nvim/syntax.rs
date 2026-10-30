@@ -164,19 +164,11 @@ const E_ILLEGAL_ARG: &std::ffi::CStr = c"E390: Illegal argument: %s";
 const E_CONTAINS_ARGUMENT_NOT_ACCEPTED_HERE: &std::ffi::CStr =
     c"E395: Contains argument not accepted here";
 const E_INVALID_CCHAR_VALUE: &std::ffi::CStr = c"E844: Invalid cchar value";
-const E_TRAILING_CHAR_AFTER_RSB_STR_STR: &std::ffi::CStr =
-    c"E890: Trailing char after ']': %s]%s";
+const E_TRAILING_CHAR_AFTER_RSB_STR_STR: &std::ffi::CStr = c"E890: Trailing char after ']': %s]%s";
 const MSG_NO_ITEMS: &std::ffi::CStr = c"No Syntax items defined for this buffer";
 
-const SPO_NAME_TAB: [&std::ffi::CStr; SPO_COUNT] = [
-    c"ms=",
-    c"me=",
-    c"hs=",
-    c"he=",
-    c"rs=",
-    c"re=",
-    c"lc=",
-];
+const SPO_NAME_TAB: [&std::ffi::CStr; SPO_COUNT] =
+    [c"ms=", c"me=", c"hs=", c"he=", c"rs=", c"re=", c"lc="];
 
 use crate::charset::NUL;
 use crate::sign::EXP_SUBCMD;
@@ -4641,8 +4633,7 @@ fn get_id_list<T>(arg: *mut *mut T, keylen: i32, list: &mut SynIdList, skip: boo
                 {
                     end = end.wrapping_add(1);
                 }
-                let mut name_buf =
-                    vec![0u8; crate::memory::ptr_offset_from(end, p) as usize + 3];
+                let mut name_buf = vec![0u8; crate::memory::ptr_offset_from(end, p) as usize + 3];
                 let name = name_buf.as_mut_ptr();
                 crate::memory::cstr_ncpy(
                     name.wrapping_add(1).cast(),

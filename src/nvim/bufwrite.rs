@@ -711,9 +711,7 @@ fn emit_err(e: &mut BwError, msg_id: impl crate::strings::IntoCCharPtr) {
                 );
             }
         } else if e.arg != 0 {
-            let _ = vim_snprintf!(errmsg_ptr, IOSIZE, msg_ptr, unsafe {
-                uv_strerror(e.arg)
-            });
+            let _ = vim_snprintf!(errmsg_ptr, IOSIZE, msg_ptr, unsafe { uv_strerror(e.arg) });
         } else {
             xstrlcpy(errmsg_ptr, msg_ptr, IOSIZE);
         }
@@ -1070,10 +1068,8 @@ fn buf_write_make_backup(
                                     file_info_old.stat.st_gid as uv_gid_t,
                                 ) != 0
                             {
-                                let _ = os_setperm(
-                                    bk_ptr.cast(),
-                                    (perm & 0o707) | ((perm & 0o7) << 3),
-                                );
+                                let _ =
+                                    os_setperm(bk_ptr.cast(), (perm & 0o707) | ((perm & 0o7) << 3));
                             }
                             let _ = os_file_settime(
                                 bk_ptr.cast(),
@@ -1899,11 +1895,7 @@ pub fn buf_write(
                         let iobuf = g_st().iobuff.as_mut_ptr();
                         let iobuf_append = |src: *const _| {
                             let dlen = crate::memory::cstr_len(iobuf);
-                            crate::memory::xstrlcpy(
-                                iobuf.wrapping_add(dlen),
-                                src,
-                                IOSIZE - dlen,
-                            );
+                            crate::memory::xstrlcpy(iobuf.wrapping_add(dlen), src, IOSIZE - dlen);
                         };
                         add_quoted_fname(iobuf, IOSIZE, buf, fname);
                         let mut insert_space = false;

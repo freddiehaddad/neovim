@@ -343,8 +343,7 @@ fn one_function_arg<T>(
         let len = crate::memory::ptr_offset_from(p, arg);
         if arg == p
             || (crate::memory::cstr_first_byte(arg.cast())).is_ascii_digit()
-            || (len == 9
-                && (crate::memory::cstr_prefix_bytes(arg.cast(), 9) == &b"firstline"[..9]))
+            || (len == 9 && (crate::memory::cstr_prefix_bytes(arg.cast(), 9) == &b"firstline"[..9]))
             || (len == 8 && (crate::memory::cstr_prefix_bytes(arg.cast(), 8) == &b"lastline"[..8]))
         {
             if !skip {
@@ -412,8 +411,7 @@ fn get_function_args<T>(
                 break;
             }
 
-            if crate::memory::cstr_first_byte(skipwhite(p.cast())) == b'='
-                && default_args.is_some()
+            if crate::memory::cstr_first_byte(skipwhite(p.cast())) == b'=' && default_args.is_some()
             {
                 let mut rettv: TypVal = TypVal::new();
 
@@ -695,7 +693,12 @@ pub fn deref_func_name<T>(
             }
         }
 
-        let v = find_var(name.cast(), *lenp as usize, ptr::null_mut(), no_autoload as i32);
+        let v = find_var(
+            name.cast(),
+            *lenp as usize,
+            ptr::null_mut(),
+            no_autoload as i32,
+        );
         if v.is_null() {
             return name.cast_mut().cast();
         }
@@ -1012,7 +1015,12 @@ fn cat_func_name<T>(buf: *mut T, bufsize: usize, fp: &UserFunc) -> i32 {
     debug_assert!(uflen > 0);
 
     let len = if !func_is_global(fp) && uflen > 3 {
-        vim_snprintf!(buf, bufsize, c"<SNR>%s", uf2hikey(fp).as_ptr().wrapping_add(3))
+        vim_snprintf!(
+            buf,
+            bufsize,
+            c"<SNR>%s",
+            uf2hikey(fp).as_ptr().wrapping_add(3)
+        )
     } else {
         vim_snprintf!(buf, bufsize, c"%s", uf2hikey(fp))
     };
@@ -1422,12 +1430,7 @@ pub fn call_user_func(
                         let mut s = tf.as_ptr().cast_mut();
                         let mut buf = [0u8; MSG_BUF_LEN];
                         if vim_strsize(s) > MSG_BUF_CLEN {
-                            trunc_string(
-                                s,
-                                buf.as_mut_ptr(),
-                                MSG_BUF_CLEN,
-                                MSG_BUF_LEN as i32,
-                            );
+                            trunc_string(s, buf.as_mut_ptr(), MSG_BUF_CLEN, MSG_BUF_LEN as i32);
                             s = buf.as_mut_ptr().cast();
                         }
                         msg_puts(s);
@@ -1978,11 +1981,7 @@ pub fn call_func(
                     fp = find_func(rfname.cast());
                 }
                 if fp.is_null()
-                    && script_autoload(
-                        rfname.cast(),
-                        crate::memory::cstr_len(rfname.cast()),
-                        true,
-                    )
+                    && script_autoload(rfname.cast(), crate::memory::cstr_len(rfname.cast()), true)
                     && !aborting()
                 {
                     fp = find_func(rfname.cast());
@@ -2018,13 +2017,8 @@ pub fn call_func(
                     );
                 }
             } else if !funcexe.fe_basetv.is_null() {
-                error = call_internal_method(
-                    fname.cast(),
-                    argcount,
-                    argvars,
-                    rettv,
-                    funcexe.fe_basetv,
-                );
+                error =
+                    call_internal_method(fname.cast(), argcount, argvars, rettv, funcexe.fe_basetv);
             } else {
                 error = call_internal_func(fname.cast(), argcount, argvars, rettv);
             }
@@ -2602,10 +2596,7 @@ fn list_one_function<T>(
     let name = name.into_c_char_ptr();
     {
         if ends_excmd(crate::memory::cstr_first_char(skipwhite(p.cast()))) == 0 {
-            semsg!(
-                gettext(E_TRAILING_ARG),
-                p.cast::<std::ffi::c_void>()
-            );
+            semsg!(gettext(E_TRAILING_ARG), p.cast::<std::ffi::c_void>());
             return ptr::null_mut();
         }
 
@@ -3267,9 +3258,12 @@ pub fn ex_function(eap: &mut Exarg) {
             }
 
             uf_st().func_nr += 1;
-            namelen =
-                vim_snprintf!(numbuf.as_mut_ptr().cast(), NUMBUFLEN, c"%d", uf_st().func_nr)
-                    as usize;
+            namelen = vim_snprintf!(
+                numbuf.as_mut_ptr().cast(),
+                NUMBUFLEN,
+                c"%d",
+                uf_st().func_nr
+            ) as usize;
             let nm = cstr_from_bytes(&numbuf[..namelen]);
             name = nm.as_ptr().cast_mut();
             name_owned = Some(nm);

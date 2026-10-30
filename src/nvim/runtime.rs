@@ -67,9 +67,9 @@ use crate::os::fs::{PATHSEP, errno_ptr, os_file_is_readable, os_isdir, os_open, 
 use crate::os::input::line_breakcheck;
 use crate::os::stdpaths::{XDGVarType, get_appname, stdpaths_get_xdg_var};
 use crate::path::{
-    ENV_SEPCHAR, EW_DIR, EW_FILE, EW_NOBREAK, K_PATH_CMP_LITERAL, add_pathsep,
-    after_pathsep, append_path, fix_fname, gen_expand_wildcards_vec, get_past_head, path_cmp,
-    path_equal, path_tail, path_with_extension, to_slash, vim_ispathsep, vim_ispathsep_nocolon,
+    ENV_SEPCHAR, EW_DIR, EW_FILE, EW_NOBREAK, K_PATH_CMP_LITERAL, add_pathsep, after_pathsep,
+    append_path, fix_fname, gen_expand_wildcards_vec, get_past_head, path_cmp, path_equal,
+    path_tail, path_with_extension, to_slash, vim_ispathsep, vim_ispathsep_nocolon,
 };
 use crate::profile::{
     Estack, Proftime, Scriptitem, prof_child_enter, prof_child_exit, profile_add, profile_end,
@@ -1029,8 +1029,7 @@ fn runtime_get_named_common(
                 ) as usize;
                 if size < buf_len && os_file_is_readable(buf.cast()) {
                     to_slash(buf.cast());
-                    let astr =
-                        arena_string_opt(arena.as_deref_mut(), cstr_as_string(buf.cast()));
+                    let astr = arena_string_opt(arena.as_deref_mut(), cstr_as_string(buf.cast()));
                     add_c(&mut rv, string_obj(astr));
                     if !all {
                         return rv;
@@ -1223,7 +1222,13 @@ fn runtime_search_path_build() -> RuntimeSearchPath {
 
         let pos_in_rtp = (cur_entry as usize) - (opt_vars().p_rtp as usize);
 
-        expand_rtp_entry(&mut search_path, &mut rtp_used, buf.cast(), false, pos_in_rtp);
+        expand_rtp_entry(
+            &mut search_path,
+            &mut rtp_used,
+            buf.cast(),
+            false,
+            pos_in_rtp,
+        );
 
         if let Some(h) = pack_used.get_mut(crate::memory::cstr_as_bytes(buf.cast())) {
             *h += 1;
@@ -2010,12 +2015,12 @@ fn expand_rtdir_int(
                 }
             }
 
-            let mut match_pathsep_cnt =
-                if (e as usize) > (s as usize) && *e.wrapping_sub(1) == b'/' {
-                    -1
-                } else {
-                    0
-                };
+            let mut match_pathsep_cnt = if (e as usize) > (s as usize) && *e.wrapping_sub(1) == b'/'
+            {
+                -1
+            } else {
+                0
+            };
             s = e;
             while (s as usize) > (match_ptr as usize) {
                 if vim_ispathsep(crate::memory::cstr_first_byte(s.cast()) as i32) {
@@ -3465,8 +3470,7 @@ fn get_one_sourceline(sp: &mut SourceCookie) -> Option<Vec<u8>> {
                 unsafe {
                     *errno_ptr() = 0;
                 }
-                if unsafe { fgets(buf.as_mut_ptr().wrapping_add(start), 120, fp) }.is_null()
-                {
+                if unsafe { fgets(buf.as_mut_ptr().wrapping_add(start), 120, fp) }.is_null() {
                     if unsafe { *errno_ptr() } == EINTR {
                         continue;
                     }

@@ -6,10 +6,7 @@ use crate::strings::{RawCCharPtrMut, strtod};
 
 pub const FPCONV_G_FMT_BUFSIZE: usize = 32;
 
-pub fn fpconv_strtod(
-    nptr: impl crate::strings::IntoCCharPtr,
-    endptr: *mut RawCCharPtrMut,
-) -> f64 {
+pub fn fpconv_strtod(nptr: impl crate::strings::IntoCCharPtr, endptr: *mut RawCCharPtrMut) -> f64 {
     let nptr = nptr.into_c_char_ptr();
     strtod(nptr, endptr)
 }

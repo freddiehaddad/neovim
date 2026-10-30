@@ -149,10 +149,7 @@ fn copy_confirm_hotkeys(
             dlg_st().confirm_buttons[msg_pos + 1] = b' ';
             msg_pos += 2;
 
-            hk_pos += hotkeys[hk_pos..]
-                .iter()
-                .position(|&x| x == 0)
-                .unwrap_or(0);
+            hk_pos += hotkeys[hk_pos..].iter().position(|&x| x == 0).unwrap_or(0);
             let nlen = copy_char(
                 btn_bytes.get(pos + 1..).unwrap_or(&[]),
                 &mut hotkeys[hk_pos..],
@@ -179,11 +176,8 @@ fn copy_confirm_hotkeys(
                 dlg_st().confirm_buttons[msg_pos] = DLG_HOTKEY_CHAR;
                 msg_pos += 1;
             } else if pos < btn_bytes.len() {
-                dlg_st().confirm_buttons[msg_pos] = if default_button_idx == 1 {
-                    b'['
-                } else {
-                    b'('
-                };
+                dlg_st().confirm_buttons[msg_pos] =
+                    if default_button_idx == 1 { b'[' } else { b'(' };
                 msg_pos += 1;
                 let clen = copy_char(
                     &btn_bytes[pos..],
@@ -191,11 +185,8 @@ fn copy_confirm_hotkeys(
                     false,
                 );
                 msg_pos += clen;
-                dlg_st().confirm_buttons[msg_pos] = if default_button_idx == 1 {
-                    b']'
-                } else {
-                    b')'
-                };
+                dlg_st().confirm_buttons[msg_pos] =
+                    if default_button_idx == 1 { b']' } else { b')' };
                 msg_pos += 1;
 
                 let hlen = copy_char(&btn_bytes[pos..], &mut hotkeys[hk_pos..], true);
@@ -368,8 +359,7 @@ pub fn do_dialog(
                 break;
             }
 
-            let btn_cstr =
-                CStr::from_bytes_until_nul(&dlg_st().confirm_buttons).unwrap_or(c"");
+            let btn_cstr = CStr::from_bytes_until_nul(&dlg_st().confirm_buttons).unwrap_or(c"");
             let mut c = prompt_for_input(btn_cstr, HLF_M, true, None);
             match c {
                 CAR | 0 => {

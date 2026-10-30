@@ -784,7 +784,8 @@ pub fn string_to_array(input: NvimString, crlf: bool, arena: &mut Arena) -> Arra
         }
         let s = arena_bytes(arena, &bytes[start..start + line_len]);
         if line_len > 0 {
-            let out_slice = unsafe { std::slice::from_raw_parts_mut(s.data.cast::<u8>(), line_len) };
+            let out_slice =
+                unsafe { std::slice::from_raw_parts_mut(s.data.cast::<u8>(), line_len) };
             for b in out_slice {
                 if *b == 0 {
                     *b = b'\n';
@@ -1493,12 +1494,7 @@ pub fn set_mark(
         coladd: 0,
     };
     let mark_char = name.as_bytes().first().copied().unwrap_or(0) as i32;
-    let res = setmark_pos(
-        mark_char,
-        &mut pos,
-        unsafe { (*buf).b_fnum },
-        None,
-    );
+    let res = setmark_pos(mark_char, &mut pos, unsafe { (*buf).b_fnum }, None);
     if !res {
         if deleting {
             api_set_error!(
@@ -1519,11 +1515,7 @@ pub fn set_mark(
     res
 }
 
-pub fn get_default_stl_hl(
-    wp: *mut WinInfoInfo,
-    use_winbar: bool,
-    stc_hl_id: i32,
-) -> &'static CStr {
+pub fn get_default_stl_hl(wp: *mut WinInfoInfo, use_winbar: bool, stc_hl_id: i32) -> &'static CStr {
     if wp.is_null() {
         c"TabLineFill"
     } else if use_winbar {

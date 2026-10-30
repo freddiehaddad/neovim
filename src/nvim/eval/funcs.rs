@@ -1539,7 +1539,9 @@ pub fn f_call(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
         argvars[0].vval.v_string()
     } else if argvars[0].v_type == VarType::VarPartial {
         partial = argvars[0].vval.v_partial();
-        partial_name(unsafe { partial.as_ref() }).as_ptr().cast_mut()
+        partial_name(unsafe { partial.as_ref() })
+            .as_ptr()
+            .cast_mut()
     } else if nlua_is_table_from_lua(&argvars[0]) {
         owned = true;
         nlua_register_table_as_callable(&argvars[0])
@@ -7055,10 +7057,7 @@ pub fn f_screenstring(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFun
         buf.as_mut_ptr(),
         grid_getchar(unsafe { &*grid }, row, col, None),
     );
-    crate::eval::typval::tv_set_string(
-        rettv,
-        CStr::from_bytes_until_nul(&buf).unwrap_or_default(),
-    );
+    crate::eval::typval::tv_set_string(rettv, CStr::from_bytes_until_nul(&buf).unwrap_or_default());
 }
 
 /// "search()" function
@@ -7490,7 +7489,10 @@ pub fn f_serverstop(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncD
     rettv.v_type = VarType::VarNumber;
     rettv.vval = crate::eval::typval::TypvalVval::Number(0);
     if !argvars[0].vval.v_string().is_null() {
-        let rv = server_stop(crate::memory::cstr_from_ptr(argvars[0].vval.v_string()), false);
+        let rv = server_stop(
+            crate::memory::cstr_from_ptr(argvars[0].vval.v_string()),
+            false,
+        );
         rettv.vval = crate::eval::typval::TypvalVval::Number(Varnumber::from(rv));
     }
 }

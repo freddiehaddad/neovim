@@ -3301,24 +3301,14 @@ pub fn tv_dict_extend(d1: &mut TvDict, d2: &mut TvDict, action: impl crate::stri
                         let new_di = di2;
                         if tv_dict_add(d1, new_di) {
                             hash_remove(&mut d2.dv_hashtab, &mut *hi2);
-                            tv_dict_watcher_notify(
-                                d1,
-                                &new_di.di_key,
-                                Some(&new_di.di_tv),
-                                None,
-                            );
+                            tv_dict_watcher_notify(d1, &new_di.di_key, Some(&new_di.di_tv), None);
                         }
                     } else {
                         let new_di = tv_dict_item_copy(&mut *di2);
                         if !tv_dict_add(d1, new_di) {
                             tv_dict_item_free(new_di);
                         } else if watched {
-                            tv_dict_watcher_notify(
-                                d1,
-                                &new_di.di_key,
-                                Some(&new_di.di_tv),
-                                None,
-                            );
+                            tv_dict_watcher_notify(d1, &new_di.di_key, Some(&new_di.di_tv), None);
                         }
                     }
                 } else if crate::memory::cstr_first_byte(action) == b'e' {

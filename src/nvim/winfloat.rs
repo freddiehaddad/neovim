@@ -486,7 +486,9 @@ pub fn win_float_special(enter: bool, new_buf: bool, kind: WinKind) -> *mut WinI
     config.style = K_WIN_STYLE_MINIMAL;
     let mut err = error_init();
     let preview = kind == K_WIN_PREVIEW;
-    if preview && !win_previewpopup_config(crate::memory::cstr_from_ptr(opt_vars().p_pvp), &mut config) {
+    if preview
+        && !win_previewpopup_config(crate::memory::cstr_from_ptr(opt_vars().p_pvp), &mut config)
+    {
         emsg(gettext(E_INVARG));
         return ptr::null_mut();
     }

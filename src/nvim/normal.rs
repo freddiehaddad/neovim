@@ -2805,9 +2805,15 @@ pub fn clear_showcmd() {
             vim_snprintf!(sc_buf, SHOWCMD_BUFLEN, c"%lld", lines as i64,);
         } else {
             let (mut s, e) = if cursor_bot {
-                (ml_get_pos(&g_st().visual_global.start), get_cursor_pos_ptr())
+                (
+                    ml_get_pos(&g_st().visual_global.start),
+                    get_cursor_pos_ptr(),
+                )
             } else {
-                (get_cursor_pos_ptr(), ml_get_pos(&g_st().visual_global.start))
+                (
+                    get_cursor_pos_ptr(),
+                    ml_get_pos(&g_st().visual_global.start),
+                )
             };
             let mut bytes: i32 = 0;
             let mut chars: i32 = 0;
@@ -4559,8 +4565,7 @@ pub fn get_visual_text(cap: Option<&mut Cmdarg>) -> Option<(&'static CStr, usize
             len = 0;
         }
         if len > 0 {
-            len =
-                len.wrapping_add_signed((utfc_ptr2len(p.wrapping_add(len - 1)) - 1) as isize);
+            len = len.wrapping_add_signed((utfc_ptr2len(p.wrapping_add(len - 1)) - 1) as isize);
         }
         (p, len)
     };
@@ -5429,7 +5434,12 @@ fn buf_has_cstyle_comments() -> bool {
     let mut part_buf: [u8; COM_MAX_LEN] = [0; COM_MAX_LEN];
     let mut list = curbuf_mut().b_p_com;
     while !crate::memory::cstr_is_empty(list) {
-        copy_option_part(&raw mut list, part_buf.as_mut_ptr().cast(), COM_MAX_LEN, c",");
+        copy_option_part(
+            &raw mut list,
+            part_buf.as_mut_ptr().cast(),
+            COM_MAX_LEN,
+            c",",
+        );
         let string = vim_strchr(part_buf.as_ptr().cast(), b':' as i32);
         if !string.is_null()
             && crate::memory::cstr_byte_at(string, 1) == b'/'
@@ -5687,7 +5697,10 @@ fn nv_replace(cap: &mut Cmdarg) {
                     curwin_mut().w_cursor.col += 1;
                 }
             } else if cap.nchar_len != 0 {
-                ins_char_bytes(cap.nchar_composing.as_mut_ptr().cast(), cap.nchar_len as usize);
+                ins_char_bytes(
+                    cap.nchar_composing.as_mut_ptr().cast(),
+                    cap.nchar_len as usize,
+                );
             } else {
                 ins_char(cap.nchar);
             }

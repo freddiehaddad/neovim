@@ -5,8 +5,8 @@ use crate::buffer::FileBuf;
 use crate::charset::skipwhite;
 #[cfg(unix)]
 use crate::charset::vim_isfilec;
-pub use crate::cmdexpand::ExpandCtx;
 pub(crate) use crate::cmdexpand::EXPAND_BUF_LEN;
+pub use crate::cmdexpand::ExpandCtx;
 use crate::eval::fs::modify_fname;
 use crate::eval::skip_expr;
 use crate::eval::vars::{VV_PROGPATH, get_vim_var_str};
@@ -513,7 +513,8 @@ pub fn init_homedir() {
             var = g_st().iobuff.as_mut_ptr().cast();
         }
 
-        if (crate::memory::cstr_is_empty(var.cast())) && os_dirname(&raw mut g_st().os_buf, MAXPATHL)
+        if (crate::memory::cstr_is_empty(var.cast()))
+            && os_dirname(&raw mut g_st().os_buf, MAXPATHL)
         {
             var = (&raw mut g_st().os_buf).cast();
         }
@@ -1245,7 +1246,11 @@ pub fn home_replace_save(
 pub fn get_env_name(xp: &mut ExpandCtx, idx: i32) -> Option<&CStr> {
     assert!(idx >= 0);
     if let Some(envname) = os_getenvname_at_index(idx as usize) {
-        xstrlcpy(xp.xp_buf.as_mut_ptr().cast(), envname.as_ptr(), EXPAND_BUF_LEN);
+        xstrlcpy(
+            xp.xp_buf.as_mut_ptr().cast(),
+            envname.as_ptr(),
+            EXPAND_BUF_LEN,
+        );
         return Some(unsafe { CStr::from_ptr(xp.xp_buf.as_ptr().cast()) });
     }
     None

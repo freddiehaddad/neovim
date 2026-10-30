@@ -22,7 +22,6 @@ use crate::charset::{
     ascii_isalpha, ascii_isdigit, ascii_isspace, ascii_iswhite, is_special, skipwhite, vim_is_idc,
     vim_isprintc, vim_iswordc, vim_str2nr,
 };
-use crate::keycodes::NUL;
 use crate::cmdexpand::{
     CTRL_N, CTRL_P, CmdlineColorChunk, CmdlineInfo, ColoredCmdline, EXPAND_NOTHING,
     EXPAND_UNSUCCESSFUL, K_OPT_BO_FLAG_WILDMODE, K_UICMDLINE, SEARCH_NOOF, SEARCH_OPT, SEARCH_PEEK,
@@ -77,6 +76,7 @@ use crate::input::{
 };
 use crate::input_cmdatom::{atom_cmdline_set, atom_payload_end, atom_payload_start};
 use crate::insert::get_literal;
+use crate::keycodes::NUL;
 use crate::keycodes::{
     CAR, ESC, K_BS, K_C_END, K_C_HOME, K_C_LEFT, K_C_RIGHT, K_COMMAND, K_DEL, K_DOWN, K_END,
     K_HOME, K_IGNORE, K_INS, K_KDEL, K_KEND, K_KENTER, K_KHOME, K_KINS, K_KPAGEDOWN, K_KPAGEUP,
@@ -4902,10 +4902,8 @@ fn get_cmdline_str() -> Option<std::ffi::CString> {
     if p.is_null() {
         return None;
     }
-    let slice = crate::memory::cstr_slice(
-        unsafe { (*p).cmdbuff.cast() },
-        unsafe { (*p).cmdlen } as usize,
-    );
+    let slice = crate::memory::cstr_slice(unsafe { (*p).cmdbuff.cast() }, unsafe { (*p).cmdlen }
+        as usize);
     let len = slice.iter().position(|&b| b == 0).unwrap_or(slice.len());
     Some(crate::memory::cstr_from_bytes(&slice[..len]))
 }

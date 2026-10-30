@@ -1460,10 +1460,8 @@ pub fn do_highlight(line: impl crate::strings::IntoCCharPtr, forceit: bool, init
                             while i >= 0 {
                                 let cname = COLOR_NAMES[i as usize].as_ptr();
                                 if off == crate::memory::cstr_first_byte(cname)
-                                    && mb_stricmp(
-                                        arg[1..].as_ptr().cast(),
-                                        cname.wrapping_add(1),
-                                    ) == 0
+                                    && mb_stricmp(arg[1..].as_ptr().cast(), cname.wrapping_add(1))
+                                        == 0
                                 {
                                     break;
                                 }
@@ -1994,13 +1992,15 @@ pub fn highlight_color(
                 if !(0..=0xffffff).contains(&n) {
                     return None;
                 }
-                let hex_arr: &mut [u8; 8] =
-                    (&mut hlg_st().highlight_color_name[..8]).try_into().unwrap();
+                let hex_arr: &mut [u8; 8] = (&mut hlg_st().highlight_color_name[..8])
+                    .try_into()
+                    .unwrap();
                 write_hex6(hex_arr, n);
                 return CStr::from_bytes_until_nul(&hlg_st().highlight_color_name).ok();
             }
-            let hex_arr: &mut [u8; 8] =
-                (&mut hlg_st().highlight_color_name[..8]).try_into().unwrap();
+            let hex_arr: &mut [u8; 8] = (&mut hlg_st().highlight_color_name[..8])
+                .try_into()
+                .unwrap();
             if fg {
                 return coloridx_to_name(g.sg_rgb_fg_idx, g.sg_rgb_fg, hex_arr);
             } else if sp {
@@ -3384,8 +3384,14 @@ mod tests {
         let mut hexbuf = [0u8; 8];
         {
             assert!(coloridx_to_name(K_COLOR_IDX_NONE, 0, &mut hexbuf).is_none());
-            assert_eq!(coloridx_to_name(K_COLOR_IDX_FG, 0, &mut hexbuf), Some(c"fg"));
-            assert_eq!(coloridx_to_name(K_COLOR_IDX_BG, 0, &mut hexbuf), Some(c"bg"));
+            assert_eq!(
+                coloridx_to_name(K_COLOR_IDX_FG, 0, &mut hexbuf),
+                Some(c"fg")
+            );
+            assert_eq!(
+                coloridx_to_name(K_COLOR_IDX_BG, 0, &mut hexbuf),
+                Some(c"bg")
+            );
             assert_eq!(
                 coloridx_to_name(K_COLOR_IDX_HEX, 0x12abef, &mut hexbuf),
                 Some(c"#12abef")

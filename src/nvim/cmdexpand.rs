@@ -2008,14 +2008,13 @@ pub fn nextwild(xp: &mut ExpandCtx, type_arg: i32, options: i32, escape: bool) -
     if wild_navigate {
         p = expand_one(xp, ptr::null_mut(), None, 0, type_arg);
     } else {
-        let tmp =
-            if cmdline_fuzzy_completion_supported(xp) || xp.xp_context == EXPAND_PATTERN_IN_BUF {
-                cstr_from_bytes(unsafe {
-                    std::slice::from_raw_parts(xp.xp_pattern, xp.xp_pattern_len)
-                })
-            } else {
-                addstar(xp.xp_pattern.cast(), xp.xp_pattern_len, xp.xp_context)
-            };
+        let tmp = if cmdline_fuzzy_completion_supported(xp)
+            || xp.xp_context == EXPAND_PATTERN_IN_BUF
+        {
+            cstr_from_bytes(unsafe { std::slice::from_raw_parts(xp.xp_pattern, xp.xp_pattern_len) })
+        } else {
+            addstar(xp.xp_pattern.cast(), xp.xp_pattern_len, xp.xp_context)
+        };
         let use_options = options
             | WILD_USE_COMPLETESLASH
             | WILD_HOME_REPLACE
@@ -2024,10 +2023,7 @@ pub fn nextwild(xp: &mut ExpandCtx, type_arg: i32, options: i32, escape: bool) -
             | if escape { WILD_ESCAPE } else { 0 }
             | if opt_vars().p_wic != 0 { WILD_ICASE } else { 0 };
         let orig = cstr_from_bytes(unsafe {
-            std::slice::from_raw_parts(
-                ccline.cmdbuff.wrapping_add(i as usize),
-                xp.xp_pattern_len,
-            )
+            std::slice::from_raw_parts(ccline.cmdbuff.wrapping_add(i as usize), xp.xp_pattern_len)
         });
         p = expand_one(
             xp,
@@ -3431,10 +3427,7 @@ fn set_context_for_wildcard_arg(
 }
 
 /// Set the completion context for the "++opt=arg" argument. Always returns NULL.
-fn set_context_in_argopt(
-    xp: &mut ExpandCtx,
-    arg: impl crate::strings::IntoCCharPtr,
-) -> *const u8 {
+fn set_context_in_argopt(xp: &mut ExpandCtx, arg: impl crate::strings::IntoCCharPtr) -> *const u8 {
     let arg: *const u8 = arg.into_c_char_ptr().cast();
     {
         let p = vim_strchr(arg.cast(), b'=' as i32);
@@ -4235,10 +4228,7 @@ fn set_context_by_cmdname(
 }
 
 /// Parse one command from `buff` and set completion context in `xp`.
-fn set_one_cmd_context(
-    xp: &mut ExpandCtx,
-    buff: impl crate::strings::IntoCCharPtr,
-) -> *const u8 {
+fn set_one_cmd_context(xp: &mut ExpandCtx, buff: impl crate::strings::IntoCCharPtr) -> *const u8 {
     let buff: *const u8 = buff.into_c_char_ptr().cast();
     {
         let mut ea: Exarg = Exarg::new();
@@ -4253,8 +4243,10 @@ fn set_one_cmd_context(
         ea.argt = 0;
 
         let mut cmd = buff;
-        while crate::strings::vim_haschr(c" \t:|", crate::memory::cstr_first_byte(cmd.cast()) as i32)
-        {
+        while crate::strings::vim_haschr(
+            c" \t:|",
+            crate::memory::cstr_first_byte(cmd.cast()) as i32,
+        ) {
             cmd = cmd.wrapping_add(1);
         }
         xp.xp_pattern = cmd.cast_mut();
@@ -4777,11 +4769,7 @@ fn get_healthcheck_names(_xp: &mut ExpandCtx, idx: i32) -> Option<&'static CStr>
 }
 
 /// Completes arg1 via Lua.
-fn get_arg1_from_lua(
-    lua: &std::ffi::CStr,
-    xp: &mut ExpandCtx,
-    idx: i32,
-) -> Option<&'static CStr> {
+fn get_arg1_from_lua(lua: &std::ffi::CStr, xp: &mut ExpandCtx, idx: i32) -> Option<&'static CStr> {
     unsafe {
         let prompt_id = get_cmdline_last_prompt_id();
         let last_line_ptr = &raw const cmdexp().arg1_lua_last_xp_line;
@@ -5537,11 +5525,7 @@ fn expand_shellcmd(
 }
 
 /// Call "user_expand_func()" to invoke a user defined Vim script function.
-fn call_user_expand_func<F, R>(
-    user_expand_func: F,
-    xp: *mut ExpandCtx,
-    default: R,
-) -> R
+fn call_user_expand_func<F, R>(user_expand_func: F, xp: *mut ExpandCtx, default: R) -> R
 where
     F: FnOnce(*const u8, i32, *mut TypVal) -> R,
 {
@@ -5597,9 +5581,11 @@ fn expand_user_defined(
         let fuzzy = cmdline_fuzzy_complete(pat);
         matches.clear();
 
-        let Some(retstr_cstr) =
-            call_user_expand_func(|name, argc, argv| call_func_retstr(name.cast(), argc, argv), xp, None)
-        else {
+        let Some(retstr_cstr) = call_user_expand_func(
+            |name, argc, argv| call_func_retstr(name.cast(), argc, argv),
+            xp,
+            None,
+        ) else {
             return false;
         };
         let mut retstr_bytes = retstr_cstr.into_bytes_with_nul();
@@ -5963,12 +5949,11 @@ fn wildmenu_process_key_filenames(cclp: &mut CmdlineInfo, mut key: i32, xp: &mut
                 cclp.cmdbuff.wrapping_add(j as usize).cast(),
             );
             #[cfg(windows)]
-            let is_sep = vim_ispathsep(crate::memory::cstr_char_at(
-                cclp.cmdbuff.cast(),
-                j as usize,
-            )) && !crate::strings::vim_haschr(c" *?[{`$%#", unsafe {
-                *cclp.cmdbuff.wrapping_add((j + 1) as usize)
-            } as i32);
+            let is_sep =
+                vim_ispathsep(crate::memory::cstr_char_at(cclp.cmdbuff.cast(), j as usize))
+                    && !crate::strings::vim_haschr(c" *?[{`$%#", unsafe {
+                        *cclp.cmdbuff.wrapping_add((j + 1) as usize)
+                    } as i32);
             #[cfg(not(windows))]
             let is_sep =
                 vim_ispathsep(crate::memory::cstr_char_at(cclp.cmdbuff.cast(), j as usize));
@@ -5985,16 +5970,12 @@ fn wildmenu_process_key_filenames(cclp: &mut CmdlineInfo, mut key: i32, xp: &mut
 
         if !found {
             j = i;
-        } else if crate::memory::cstr_prefix_bytes(
-            cclp.cmdbuff.wrapping_add(j as usize).cast(),
-            4,
-        ) == &upseg[..4]
+        } else if crate::memory::cstr_prefix_bytes(cclp.cmdbuff.wrapping_add(j as usize).cast(), 4)
+            == &upseg[..4]
         {
             j += 4;
-        } else if crate::memory::cstr_prefix_bytes(
-            cclp.cmdbuff.wrapping_add(j as usize).cast(),
-            3,
-        ) == &upseg[1..4]
+        } else if crate::memory::cstr_prefix_bytes(cclp.cmdbuff.wrapping_add(j as usize).cast(), 3)
+            == &upseg[1..4]
             && j == i
         {
             j += 3;
@@ -6180,9 +6161,7 @@ pub fn f_getcompletion(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFu
             crate::memory::ptr_offset_from(xpc.xp_pattern, pattern_start) as usize;
     }
     let pat = if cmdline_fuzzy_completion_supported(&xpc) {
-        cstr_from_bytes(unsafe {
-            std::slice::from_raw_parts(xpc.xp_pattern, xpc.xp_pattern_len)
-        })
+        cstr_from_bytes(unsafe { std::slice::from_raw_parts(xpc.xp_pattern, xpc.xp_pattern_len) })
     } else {
         addstar(xpc.xp_pattern.cast(), xpc.xp_pattern_len, xpc.xp_context)
     };

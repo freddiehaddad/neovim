@@ -1997,7 +1997,14 @@ pub fn nvim_get_mode(arena: &mut Arena) -> Dict {
     let len = get_mode(&mut mode);
     let blocked = input_blocking();
 
-    put_c(&mut rv, c"mode", string_obj( crate::api::private::helpers::arena_bytes(arena, &mode[..len])));
+    put_c(
+        &mut rv,
+        c"mode",
+        string_obj(crate::api::private::helpers::arena_bytes(
+            arena,
+            &mode[..len],
+        )),
+    );
     put_c(&mut rv, c"blocking", boolean_obj(blocked));
     rv
 }
@@ -2976,7 +2983,7 @@ pub fn nvim_eval_statusline(
                     &mut hl_info,
                     c"start",
                     integer_obj(
-                        crate::memory::ptr_offset_from((*sp).start, buf_data.cast()) as Integer,
+                        crate::memory::ptr_offset_from((*sp).start, buf_data.cast()) as Integer
                     ),
                 );
                 put_c(&mut hl_info, c"group", cstr_as_obj(grpname));

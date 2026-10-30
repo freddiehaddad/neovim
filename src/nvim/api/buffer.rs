@@ -3,8 +3,8 @@
 use crate::api::deprecated::KeyDict_empty;
 use crate::api::private::helpers::{
     MAXLNUM, OBJECT_NIL, add_c, api_clear_error, api_set_error, arena_array, arena_bytes,
-    arena_dict, boolean_obj, buf_get_text, cstr_as_string, dict_get_value, dict_set_var,
-    error_set, find_buffer_by_handle, has_key, integer_obj, normalize_index, put_c, set_mark,
+    arena_dict, boolean_obj, buf_get_text, cstr_as_string, dict_get_value, dict_set_var, error_set,
+    find_buffer_by_handle, has_key, integer_obj, normalize_index, put_c, set_mark,
     static_cstr_as_obj, string_obj, try_wrap, try_wrap_err,
 };
 use crate::api::private::validate::{
@@ -1787,7 +1787,8 @@ fn push_linestr(
         if !s.is_empty() {
             str_val = arena_bytes(arena, s);
             if replace_nl {
-                let slice = unsafe { std::slice::from_raw_parts_mut(str_val.data.cast::<u8>(), s.len()) };
+                let slice =
+                    unsafe { std::slice::from_raw_parts_mut(str_val.data.cast::<u8>(), s.len()) };
                 for b in slice {
                     if *b == b'\n' {
                         *b = 0;

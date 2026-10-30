@@ -1284,11 +1284,8 @@ fn nfa_regatom_collection(
     let p = re_st().regparse;
     let endp = skip_anyof(p).cast_const();
     if unsafe { *endp } == b']' {
-        let result = nfa_recognize_char_class(
-            re_st().regparse,
-            endp,
-            i32::from(*extra == NFA_ADD_NL),
-        );
+        let result =
+            nfa_recognize_char_class(re_st().regparse, endp, i32::from(*extra == NFA_ADD_NL));
         if result != FAIL {
             if (NFA_FIRST_NL..=NFA_LAST_NL).contains(&result) {
                 emit_fn(result - NFA_ADD_NL);

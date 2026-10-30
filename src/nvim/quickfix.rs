@@ -1037,7 +1037,8 @@ fn efm_to_regpat(
                     return false;
                 }
             } else {
-                if crate::memory::cstr_first_byte(efmp.cast()) == b'\\' && efmp.wrapping_add(1) < end
+                if crate::memory::cstr_first_byte(efmp.cast()) == b'\\'
+                    && efmp.wrapping_add(1) < end
                 {
                     efmp = efmp.wrapping_add(1);
                 } else if crate::strings::vim_haschr(
@@ -1778,8 +1779,7 @@ fn qf_parse_fmt_f(rmp: &mut Regmatch, midx: usize, fields: &mut Qffields, prefix
         *rmp.endp[midx] = c;
     }
 
-    if crate::strings::vim_haschr(c"OPQ", prefix)
-        && !os_path_exists(fields.namebuf.as_ptr().cast())
+    if crate::strings::vim_haschr(c"OPQ", prefix) && !os_path_exists(fields.namebuf.as_ptr().cast())
     {
         return QF_FAIL;
     }
@@ -1791,9 +1791,9 @@ fn qf_parse_fmt_b(rmp: &mut Regmatch, midx: usize, fields: &mut Qffields) -> i32
     if rmp.startp[midx].is_null() {
         return QF_FAIL;
     }
-    let bnr = crate::charset::parse_i64_prefix(crate::memory::cstr_as_bytes(
-        rmp.startp[midx].cast(),
-    )) as i32;
+    let bnr =
+        crate::charset::parse_i64_prefix(crate::memory::cstr_as_bytes(rmp.startp[midx].cast()))
+            as i32;
     if buflist_findnr(bnr).is_null() {
         return QF_FAIL;
     }
@@ -1805,9 +1805,9 @@ fn qf_parse_fmt_n(rmp: &mut Regmatch, midx: usize, fields: &mut Qffields) -> i32
     if rmp.startp[midx].is_null() {
         return QF_FAIL;
     }
-    fields.enr = crate::charset::parse_i64_prefix(crate::memory::cstr_as_bytes(
-        rmp.startp[midx].cast(),
-    )) as i32;
+    fields.enr =
+        crate::charset::parse_i64_prefix(crate::memory::cstr_as_bytes(rmp.startp[midx].cast()))
+            as i32;
     QF_OK
 }
 
@@ -1815,9 +1815,9 @@ fn qf_parse_fmt_l(rmp: &mut Regmatch, midx: usize, fields: &mut Qffields) -> i32
     if rmp.startp[midx].is_null() {
         return QF_FAIL;
     }
-    fields.lnum = crate::charset::parse_i64_prefix(crate::memory::cstr_as_bytes(
-        rmp.startp[midx].cast(),
-    )) as Linenr;
+    fields.lnum =
+        crate::charset::parse_i64_prefix(crate::memory::cstr_as_bytes(rmp.startp[midx].cast()))
+            as Linenr;
     QF_OK
 }
 
@@ -1825,9 +1825,9 @@ fn qf_parse_fmt_e(rmp: &mut Regmatch, midx: usize, fields: &mut Qffields) -> i32
     if rmp.startp[midx].is_null() {
         return QF_FAIL;
     }
-    fields.end_lnum = crate::charset::parse_i64_prefix(crate::memory::cstr_as_bytes(
-        rmp.startp[midx].cast(),
-    )) as Linenr;
+    fields.end_lnum =
+        crate::charset::parse_i64_prefix(crate::memory::cstr_as_bytes(rmp.startp[midx].cast()))
+            as Linenr;
     QF_OK
 }
 
@@ -1835,9 +1835,9 @@ fn qf_parse_fmt_c(rmp: &mut Regmatch, midx: usize, fields: &mut Qffields) -> i32
     if rmp.startp[midx].is_null() {
         return QF_FAIL;
     }
-    fields.col = crate::charset::parse_i64_prefix(crate::memory::cstr_as_bytes(
-        rmp.startp[midx].cast(),
-    )) as i32;
+    fields.col =
+        crate::charset::parse_i64_prefix(crate::memory::cstr_as_bytes(rmp.startp[midx].cast()))
+            as i32;
     QF_OK
 }
 
@@ -1845,9 +1845,9 @@ fn qf_parse_fmt_k(rmp: &mut Regmatch, midx: usize, fields: &mut Qffields) -> i32
     if rmp.startp[midx].is_null() {
         return QF_FAIL;
     }
-    fields.end_col = crate::charset::parse_i64_prefix(crate::memory::cstr_as_bytes(
-        rmp.startp[midx].cast(),
-    )) as i32;
+    fields.end_col =
+        crate::charset::parse_i64_prefix(crate::memory::cstr_as_bytes(rmp.startp[midx].cast()))
+            as i32;
     QF_OK
 }
 
@@ -1921,9 +1921,9 @@ fn qf_parse_fmt_v(rmp: &mut Regmatch, midx: usize, fields: &mut Qffields) -> i32
     if rmp.startp[midx].is_null() {
         return QF_FAIL;
     }
-    fields.col = crate::charset::parse_i64_prefix(crate::memory::cstr_as_bytes(
-        rmp.startp[midx].cast(),
-    )) as i32;
+    fields.col =
+        crate::charset::parse_i64_prefix(crate::memory::cstr_as_bytes(rmp.startp[midx].cast()))
+            as i32;
     fields.use_viscol = true;
     QF_OK
 }
@@ -2125,7 +2125,8 @@ fn qf_parse_file_pfx(
         if crate::memory::cstr_is_empty(fields.namebuf.as_ptr().cast())
             || os_path_exists(fields.namebuf.as_ptr().cast())
         {
-            if !crate::memory::cstr_is_empty(fields.namebuf.as_ptr().cast()) && idx == i32::from(b'P')
+            if !crate::memory::cstr_is_empty(fields.namebuf.as_ptr().cast())
+                && idx == i32::from(b'P')
             {
                 qf_push_dir(fields.namebuf.as_ptr().cast(), &mut qfl.qf_file_stack, true);
             } else if idx == i32::from(b'Q') {
@@ -3528,9 +3529,7 @@ fn qf_jump_newwin(mut qi: *mut QfInfo, dir: i32, errornr: i32, forceit: i32, new
             (*qfl).qf_index = qf_index;
         }
     }
-    if opt_vars().p_swb != old_swb
-        && opt_vars().p_swb == EMPTY_STRING_OPTION.as_ptr().cast()
-    {
+    if opt_vars().p_swb != old_swb && opt_vars().p_swb == EMPTY_STRING_OPTION.as_ptr().cast() {
         opt_vars().p_swb = old_swb;
         opt_vars().swb_flags = old_swb_flags;
     }
@@ -4463,7 +4462,13 @@ fn qf_buf_add_line(
         }
 
         gap.push(0);
-        if !ml_append_buf(&mut *buf, lnum, gap.as_mut_ptr().cast(), gap.len() as Colnr, false) {
+        if !ml_append_buf(
+            &mut *buf,
+            lnum,
+            gap.as_mut_ptr().cast(),
+            gap.len() as Colnr,
+            false,
+        ) {
             return false;
         }
 
@@ -5801,9 +5806,8 @@ fn vgr_process_files(
                             && (crate::memory::cstr_as_bytes(dirname_start.as_ptr().cast())
                                 != crate::memory::cstr_as_bytes(dirname_now.as_ptr().cast()))
                         {
-                            *target_dir = Some(crate::memory::cstr_to_cstring(
-                                dirname_now.as_ptr().cast(),
-                            ));
+                            *target_dir =
+                                Some(crate::memory::cstr_to_cstring(dirname_now.as_ptr().cast()));
                         }
 
                         let mut aco: CtxSwitch = CtxSwitch::new();

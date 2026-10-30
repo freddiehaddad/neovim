@@ -824,7 +824,11 @@ pub fn hl_add_font_idx(font_name: Option<&[u8]>) -> i32 {
     if font_bytes.is_empty() {
         return -1;
     }
-    if let Some(pos) = hl_st().fonts.iter().position(|f| f.as_bytes() == font_bytes) {
+    if let Some(pos) = hl_st()
+        .fonts
+        .iter()
+        .position(|f| f.as_bytes() == font_bytes)
+    {
         return pos as i32;
     }
     let idx = hl_st().fonts.len() as i32;

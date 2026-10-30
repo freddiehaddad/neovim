@@ -705,8 +705,7 @@ pub fn nvim_cmd(
 
             if !range_only {
                 let fullname = if is_user_cmdidx(ea.cmdidx) {
-                    get_user_command_name(ea.useridx, ea.cmdidx)
-                        .map_or(ptr::null(), |s| s.as_ptr())
+                    get_user_command_name(ea.useridx, ea.cmdidx).map_or(ptr::null(), |s| s.as_ptr())
                 } else {
                     get_command_name(&mut crate::os::env::ExpandCtx::new(), ea.cmdidx)
                         .map_or(ptr::null(), |s| s.as_ptr())
@@ -1207,11 +1206,7 @@ fn string_iswhite(str_val: NvimString) -> bool {
         .all(|&b| b == b' ' || b == b'\t')
 }
 
-fn build_cmdline_str(
-    cmdline_buf: &mut Vec<u8>,
-    eap: &mut Exarg,
-    args: Array,
-) {
+fn build_cmdline_str(cmdline_buf: &mut Vec<u8>, eap: &mut Exarg, args: Array) {
     cmdline_buf.clear();
     cmdline_buf.reserve(32);
 

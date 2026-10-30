@@ -554,14 +554,10 @@ fn json_append_number(l: *mut lua_State, ctx: &mut JsonEncode, lindex: i32, use_
 
 fn cmp_key_entries(ka: &KeyEntry, kb: &KeyEntry) -> std::cmp::Ordering {
     unsafe {
-        let a = std::slice::from_raw_parts(
-            (*ka.buf).buf.as_ptr().wrapping_add(ka.offset),
-            ka.length,
-        );
-        let b = std::slice::from_raw_parts(
-            (*kb.buf).buf.as_ptr().wrapping_add(kb.offset),
-            kb.length,
-        );
+        let a =
+            std::slice::from_raw_parts((*ka.buf).buf.as_ptr().wrapping_add(ka.offset), ka.length);
+        let b =
+            std::slice::from_raw_parts((*kb.buf).buf.as_ptr().wrapping_add(kb.offset), kb.length);
         a.cmp(b)
     }
 }
@@ -1537,17 +1533,9 @@ pub unsafe extern "C-unwind" fn lua_cjson_new(l: *mut lua_State) -> i32 {
             json_create_config(l);
             compat_lua_l_setfuncs(l, &reg, 1);
 
-            lua_pushlstring(
-                l,
-                CJSON_MODNAME.as_ptr().cast(),
-                CJSON_MODNAME.len(),
-            );
+            lua_pushlstring(l, CJSON_MODNAME.as_ptr().cast(), CJSON_MODNAME.len());
             lua_setfield(l, -2, c"_NAME");
-            lua_pushlstring(
-                l,
-                CJSON_VERSION.as_ptr().cast(),
-                CJSON_VERSION.len(),
-            );
+            lua_pushlstring(l, CJSON_VERSION.as_ptr().cast(), CJSON_VERSION.len());
             lua_setfield(l, -2, c"_VERSION");
         }
 

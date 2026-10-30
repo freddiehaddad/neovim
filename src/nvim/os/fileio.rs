@@ -318,12 +318,7 @@ pub fn file_read(fp: *mut FileDescriptor, ret_buf: &mut [u8]) -> isize {
                 }
             } else {
                 let write_slice = &mut fp.buffer[fp.write_pos..fp.write_pos + ARENA_BLOCK_SIZE];
-                let r_ret = os_read(
-                    fp.fd,
-                    &mut fp.eof,
-                    write_slice,
-                    fp.non_blocking,
-                );
+                let r_ret = os_read(fp.fd, &mut fp.eof, write_slice, fp.non_blocking);
                 if r_ret < 0 {
                     return r_ret;
                 }

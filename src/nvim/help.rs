@@ -76,10 +76,7 @@ pub fn ex_help(eap: &mut Exarg) {
 
             // remove trailing blanks
             let mut end = slice.iter().position(|&b| b == 0).unwrap_or(full_len);
-            while end > 1
-                && ascii_iswhite(i32::from(slice[end - 1]))
-                && slice[end - 2] != b'\\'
-            {
+            while end > 1 && ascii_iswhite(i32::from(slice[end - 1])) && slice[end - 2] != b'\\' {
                 end -= 1;
                 slice[end] = 0;
             }
@@ -325,11 +322,7 @@ fn help_compare(str1: &[u8], str2: &[u8]) -> std::cmp::Ordering {
 }
 
 /// Find all help tags matching `arg`, sort them and return in `matches` (`find_help_tags`).
-pub fn find_help_tags(
-    arg: &CStr,
-    matches: &mut Vec<std::ffi::CString>,
-    keep_lang: bool,
-) -> bool {
+pub fn find_help_tags(arg: &CStr, matches: &mut Vec<std::ffi::CString>, keep_lang: bool) -> bool {
     let mut tv_args = [
         TypVal {
             v_type: VarType::VarString,

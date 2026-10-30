@@ -279,7 +279,13 @@ pub fn mc_showcmd(buf: &mut [u8]) -> usize {
     } else {
         c"".as_ptr()
     };
-    vim_snprintf!(buf.as_mut_ptr().cast(), buf.len(), c"%s%zu\xc3\x97 ", prefix, count) as usize
+    vim_snprintf!(
+        buf.as_mut_ptr().cast(),
+        buf.len(),
+        c"%s%zu\xc3\x97 ",
+        prefix,
+        count
+    ) as usize
 }
 
 pub fn mc_replaying() -> bool {
@@ -1465,13 +1471,7 @@ fn mc_zq_first(
     ltoreq(start, s) && ltoreq(s, end_bound)
 }
 
-fn mc_zq_run(
-    keys: &CStr,
-    search: bool,
-    motion_type: i32,
-    end: CursorPos,
-    first: CursorPos,
-) -> i32 {
+fn mc_zq_run(keys: &CStr, search: bool, motion_type: i32, end: CursorPos, first: CursorPos) -> i32 {
     let wrap = end.lnum == MAXLNUM;
     let mut wrapped = false;
     let mut placed: i32 = 0;
@@ -1595,13 +1595,7 @@ pub fn mc_zq(oap: &mut Oparg, cap: &mut Cmdarg, origin: CursorPos) {
             placed = mc_zq_run(&keys_cstr, search, oap.motion_type, bounds[1], first);
         }
     } else if !blockwise {
-        if mc_zq_first(
-            &keys_cstr,
-            search,
-            oap.motion_type,
-            &bounds,
-            &mut first,
-        ) {
+        if mc_zq_first(&keys_cstr, search, oap.motion_type, &bounds, &mut first) {
             placed = mc_zq_run(&keys_cstr, search, oap.motion_type, bounds[1], first);
         }
     } else {

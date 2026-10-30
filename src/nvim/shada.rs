@@ -1440,7 +1440,9 @@ fn shada_read(sd_reader: &mut FileDescriptor, flags: i32) {
                         .unwrap_or_default()
                         .into_bytes_with_nul();
                     let final_sub = regtilde(sub_bytes.as_mut_ptr(), opt_vars().p_magic, false)
-                        .or_else(|| Some(crate::memory::cstr_to_cstring(sub_bytes.as_ptr().cast())));
+                        .or_else(|| {
+                            Some(crate::memory::cstr_to_cstring(sub_bytes.as_ptr().cast()))
+                        });
                     sub_set_replacement(SubReplacementString {
                         sub: final_sub,
                         timestamp: cur_entry.timestamp,
@@ -1510,12 +1512,7 @@ fn shada_read(sd_reader: &mut FileDescriptor, flags: i32) {
                 ShadaEntryType::SDItemJump | ShadaEntryType::SDItemGlobalMark => {
                     let fm_mark = cur_entry.data.filemark().mark;
                     let fm_name = cur_entry.data.filemark().name;
-                    let fname_cstr = cur_entry
-                        .data
-                        .filemark()
-                        .fname
-                        .as_deref()
-                        .unwrap_or(c"");
+                    let fname_cstr = cur_entry.data.filemark().fname.as_deref().unwrap_or(c"");
                     let buf = find_buffer(&mut fname_bufs, fname_cstr);
                     if !buf.is_null() {
                         cur_entry.data.filemark_mut().fname = None;
@@ -1609,12 +1606,7 @@ fn shada_read(sd_reader: &mut FileDescriptor, flags: i32) {
                     shada_free_shada_entry(&mut cur_entry);
                 }
                 ShadaEntryType::SDItemChange | ShadaEntryType::SDItemLocalMark => {
-                    let fname_cstr = cur_entry
-                        .data
-                        .filemark()
-                        .fname
-                        .as_deref()
-                        .unwrap_or(c"");
+                    let fname_cstr = cur_entry.data.filemark().fname.as_deref().unwrap_or(c"");
                     let fname_ptr = fname_cstr.as_ptr();
                     if get_old_files && !oldfiles_set.contains(&PathKey(fname_ptr.cast())) {
                         crate::eval::typval::tv_list_append_string(
@@ -1818,8 +1810,8 @@ fn shada_pack_entry(
                 )
             };
             vardesc[prefix.len() + copy_len] = 0;
-            let vardesc_cstr = CStr::from_bytes_with_nul(&vardesc[..=prefix.len() + copy_len])
-                .unwrap_or_default();
+            let vardesc_cstr =
+                CStr::from_bytes_with_nul(&vardesc[..=prefix.len() + copy_len]).unwrap_or_default();
             if !encode_vim_to_msgpack(&mut sbuf, &mut gv_val, vardesc_cstr) {
                 ret = ShaDaWriteResult::SDWriteIgnError;
                 semsg!(gettext(c"E574: Failed to write variable %s"), gv_name_ptr);
@@ -3253,7 +3245,9 @@ pub fn shada_write_file(file: impl crate::strings::IntoCCharPtr, mut nomerge: bo
             if error != 0 {
                 semsg!(
                     gettext(c"E886: System error while opening ShaDa file %s for writing: %s",),
-                    CStr::from_bytes_with_nul(&fname_bytes).unwrap_or_default().as_ptr(),
+                    CStr::from_bytes_with_nul(&fname_bytes)
+                        .unwrap_or_default()
+                        .as_ptr(),
                     unsafe { uv_strerror(error) },
                 );
             } else {
@@ -3271,7 +3265,11 @@ pub fn shada_write_file(file: impl crate::strings::IntoCCharPtr, mut nomerge: bo
         let fname_cstr = CStr::from_bytes_with_nul(&fname_bytes).unwrap_or_default();
         if opt_vars().p_verbose > 1 {
             verbose_enter();
-            smsg!(0, gettext(c"Writing ShaDa file \"%s\""), fname_cstr.as_ptr());
+            smsg!(
+                0,
+                gettext(c"Writing ShaDa file \"%s\""),
+                fname_cstr.as_ptr()
+            );
             verbose_leave();
         }
 

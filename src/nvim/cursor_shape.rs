@@ -340,10 +340,9 @@ pub fn parse_shape_opt(what: i32) -> Option<&'static CStr> {
                 while p_idx < comma_idx {
                     let rem = &guicursor[p_idx..comma_idx];
                     let first_byte = rem[0];
-                    let len = if rem
-                        .get(..3)
-                        .is_some_and(|s| s.eq_ignore_ascii_case(b"ver") || s.eq_ignore_ascii_case(b"hor"))
-                    {
+                    let len = if rem.get(..3).is_some_and(|s| {
+                        s.eq_ignore_ascii_case(b"ver") || s.eq_ignore_ascii_case(b"hor")
+                    }) {
                         3usize
                     } else if rem
                         .get(..9)
@@ -366,10 +365,7 @@ pub fn parse_shape_opt(what: i32) -> Option<&'static CStr> {
 
                     if len != 0 {
                         p_idx += len;
-                        if !guicursor
-                            .get(p_idx)
-                            .is_some_and(u8::is_ascii_digit)
-                        {
+                        if !guicursor.get(p_idx).is_some_and(u8::is_ascii_digit) {
                             return Some(c"E548: Digit expected");
                         }
                         let mut n: i64 = 0;
@@ -399,7 +395,10 @@ pub fn parse_shape_opt(what: i32) -> Option<&'static CStr> {
                                 tbl[idx].blinkoff = n;
                             }
                         }
-                    } else if rem.get(..5).is_some_and(|s| s.eq_ignore_ascii_case(b"block")) {
+                    } else if rem
+                        .get(..5)
+                        .is_some_and(|s| s.eq_ignore_ascii_case(b"block"))
+                    {
                         if round == 2 {
                             tbl[idx].shape = CursorShape::ShapeBlock;
                         }
@@ -413,17 +412,13 @@ pub fn parse_shape_opt(what: i32) -> Option<&'static CStr> {
                             .map(|s| p_idx + s);
                         let mut saved_hl_id = first_byte as i32;
                         if let Some(s_idx) = slash_idx {
-                            saved_hl_id = syn_check_group(
-                                guicursor_ptr.wrapping_add(p_idx),
-                                s_idx - p_idx,
-                            );
+                            saved_hl_id =
+                                syn_check_group(guicursor_ptr.wrapping_add(p_idx), s_idx - p_idx);
                             p_idx = s_idx + 1;
                         }
                         if round == 2 {
-                            tbl[idx].id = syn_check_group(
-                                guicursor_ptr.wrapping_add(p_idx),
-                                end_idx - p_idx,
-                            );
+                            tbl[idx].id =
+                                syn_check_group(guicursor_ptr.wrapping_add(p_idx), end_idx - p_idx);
                             tbl[idx].id_lm = tbl[idx].id;
                             if slash_idx.is_some() {
                                 tbl[idx].id = saved_hl_id;

@@ -1169,18 +1169,17 @@ pub fn ex_catch(eap: &mut Exarg) {
         }
     }
 
-    let (pat, end) =
-        if ends_excmd(i32::from(crate::memory::cstr_first_byte(eap.arg))) != 0 {
-            eap.nextcmd = find_nextcmd(eap.arg);
-            (c".*".as_ptr().cast_mut(), ptr::null_mut())
-        } else {
-            let pat = eap.arg.wrapping_add(1);
-            let end = skip_regexp_err(pat, i32::from(crate::memory::cstr_first_byte(eap.arg)), 1);
-            if end.is_null() {
-                give_up = true;
-            }
-            (pat, end)
-        };
+    let (pat, end) = if ends_excmd(i32::from(crate::memory::cstr_first_byte(eap.arg))) != 0 {
+        eap.nextcmd = find_nextcmd(eap.arg);
+        (c".*".as_ptr().cast_mut(), ptr::null_mut())
+    } else {
+        let pat = eap.arg.wrapping_add(1);
+        let end = skip_regexp_err(pat, i32::from(crate::memory::cstr_first_byte(eap.arg)), 1);
+        if end.is_null() {
+            give_up = true;
+        }
+        (pat, end)
+    };
 
     if !give_up {
         let mut caught = false;

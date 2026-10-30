@@ -773,7 +773,13 @@ fn get_line_number_str(wp: &mut WinInfoInfo, lnum: Linenr, buf: &mut [u8]) {
         }
     }
 
-    vim_snprintf!(buf.as_mut_ptr().cast(), buf.len(), fmt, number_width(&mut *wp), num);
+    vim_snprintf!(
+        buf.as_mut_ptr().cast(),
+        buf.len(),
+        fmt,
+        number_width(&mut *wp),
+        num
+    );
 }
 
 fn use_cursor_line_nr(wp: &mut WinInfoInfo, wlv: &Winlinevars) -> bool {
@@ -2557,20 +2563,18 @@ pub fn win_line(
                                 let mut spell_hlf: Hlf = HLF_COUNT;
                                 v1 -= mb_l - 1;
 
-                                let p =
-                                    if (crate::memory::ptr_offset_from(prev_ptr, line) as i32)
-                                        - nextlinecol
-                                        >= 0
-                                    {
-                                        nextline_ptr.wrapping_add(
-                                            ((crate::memory::ptr_offset_from(prev_ptr, line)
-                                                as i32)
-                                                - nextlinecol)
-                                                as usize,
-                                        )
-                                    } else {
-                                        prev_ptr.cast_mut().cast()
-                                    };
+                                let p = if (crate::memory::ptr_offset_from(prev_ptr, line) as i32)
+                                    - nextlinecol
+                                    >= 0
+                                {
+                                    nextline_ptr.wrapping_add(
+                                        ((crate::memory::ptr_offset_from(prev_ptr, line) as i32)
+                                            - nextlinecol)
+                                            as usize,
+                                    )
+                                } else {
+                                    prev_ptr.cast_mut().cast()
+                                };
                                 spv.spv_cap_col -=
                                     crate::memory::ptr_offset_from(prev_ptr, line) as i32;
                                 let tmplen = spell_check(
@@ -2727,8 +2731,9 @@ pub fn win_line(
                             in_multispace = mb_c == b' ' as i32
                                 && (crate::memory::cstr_first_byte(ptr) == b' '
                                     || (prev_ptr > line.cast_const()
-                                        && crate::memory::cstr_first_byte(prev_ptr.wrapping_sub(1))
-                                            == b' '));
+                                        && crate::memory::cstr_first_byte(
+                                            prev_ptr.wrapping_sub(1),
+                                        ) == b' '));
                             if !in_multispace {
                                 multispace_pos = 0;
                             }
@@ -3524,7 +3529,8 @@ pub fn win_line(
                     || wlv.filler_todo > 0
                     || (wp.w_onebuf_opt.wo_list != 0 && wp.w_p_lcs_chars.eol != 0 && lcs_eol_todo)
                     || (wlv.n_extra != 0
-                        && (wlv.sc_extra != 0 || !crate::memory::cstr_is_empty(wlv.p_extra.cast())))
+                        && (wlv.sc_extra != 0
+                            || !crate::memory::cstr_is_empty(wlv.p_extra.cast())))
                     || (may_have_inline_virt
                         && has_more_inline_virt(&wlv, crate::memory::ptr_offset_from(ptr, line))))
             {

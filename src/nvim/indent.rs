@@ -1010,11 +1010,7 @@ pub fn op_reindent(oap: &mut Oparg, how: Indenter) {
         let bytes = msg_str.as_bytes();
         let copy_len = bytes.len().min(IOSIZE - 1);
         unsafe {
-            ptr::copy_nonoverlapping(
-                bytes.as_ptr().cast(),
-                g_st().iobuff.as_mut_ptr(),
-                copy_len,
-            )
+            ptr::copy_nonoverlapping(bytes.as_ptr().cast(), g_st().iobuff.as_mut_ptr(), copy_len)
         };
         g_st().iobuff[copy_len] = NUL;
         msg_progress(
@@ -1260,7 +1256,11 @@ pub fn change_indent(type_: i32, amount: i32, round: i32, call_changed_bytes: bo
             unsafe { std::slice::from_raw_parts(get_cursor_line_ptr(), new_col as usize) }.to_vec();
         new_line.push(NUL);
 
-        ml_replace(curwin_mut().w_cursor.lnum, orig_line.as_mut_ptr().cast(), true);
+        ml_replace(
+            curwin_mut().w_cursor.lnum,
+            orig_line.as_mut_ptr().cast(),
+            true,
+        );
         curwin_mut().w_cursor.col = orig_col;
 
         g_st().curbuf_splice_pending += 1;

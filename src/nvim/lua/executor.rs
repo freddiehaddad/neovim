@@ -706,11 +706,7 @@ fn nlua_luv_thread_common_cfpcall(
     let status = unsafe { lua_pcall(lstate, nargs, nresult, 0) };
     if status != 0 {
         if status == LUA_ERRMEM && (flags & LUVF_CALLBACK_NOEXIT) == 0 {
-            fprintf!(
-                log_get_stderr(),
-                c"%s\n",
-                E_OUTOFMEM.as_ptr(),
-            );
+            fprintf!(log_get_stderr(), c"%s\n", E_OUTOFMEM.as_ptr(),);
             unsafe { lua_close(lstate) };
             #[cfg(windows)]
             {
@@ -2207,13 +2203,7 @@ pub fn ex_luado(eap: &mut Exarg) {
     lcmd.extend_from_slice(cmd_bytes);
     lcmd.extend_from_slice(DOEND);
 
-    if luaL_loadbuffer(
-        lstate,
-        lcmd.as_ptr().cast(),
-        lcmd.len(),
-        c":luado",
-    ) != 0
-    {
+    if luaL_loadbuffer(lstate, lcmd.as_ptr().cast(), lcmd.len(), c":luado") != 0 {
         nlua_error(lstate, gettext(c"E5109: Lua: %.*s"));
         return;
     }
@@ -2256,12 +2246,7 @@ pub fn ex_luado(eap: &mut Exarg) {
                     *b = b'\n';
                 }
             }
-            crate::memline::ml_replace_len(
-                l,
-                new_line_vec.as_mut_ptr().cast(),
-                new_line_len,
-                true,
-            );
+            crate::memline::ml_replace_len(l, new_line_vec.as_mut_ptr().cast(), new_line_len, true);
             inserted_bytes(l, 0, old_line_len, new_line_len as i32);
         }
         lua_pop(lstate, 1);

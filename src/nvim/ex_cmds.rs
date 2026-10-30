@@ -817,8 +817,7 @@ pub fn ex_sort(eap: &mut Exarg) {
                         crate::memory::ptr_offset_from(regmatch.startp[0], s.cast()) as Colnr;
                     end_col = crate::memory::ptr_offset_from(regmatch.endp[0], s.cast()) as Colnr;
                 } else {
-                    start_col =
-                        crate::memory::ptr_offset_from(regmatch.endp[0], s.cast()) as Colnr;
+                    start_col = crate::memory::ptr_offset_from(regmatch.endp[0], s.cast()) as Colnr;
                 }
             } else if !regmatch.regprog.is_null() {
                 end_col = 0;
@@ -1100,8 +1099,7 @@ pub fn ex_uniq(eap: &mut Exarg) {
                         crate::memory::ptr_offset_from(regmatch.startp[0], s.cast()) as Colnr;
                     end_col = crate::memory::ptr_offset_from(regmatch.endp[0], s.cast()) as Colnr;
                 } else {
-                    start_col =
-                        crate::memory::ptr_offset_from(regmatch.endp[0], s.cast()) as Colnr;
+                    start_col = crate::memory::ptr_offset_from(regmatch.endp[0], s.cast()) as Colnr;
                 }
             } else if !regmatch.regprog.is_null() {
                 end_col = 0;
@@ -3889,11 +3887,7 @@ fn sub_grow_buf(new_start: &mut SubBuf, new_start_size: &mut usize, mut needed_s
 }
 
 /// Parse `cmd` string for `:substitute`'s `{flags}` and update `subflags_arg` accordingly.
-fn sub_parse_flags<T>(
-    cmd: *mut T,
-    subflags_arg: &mut Subflags,
-    which_pat: &mut i32,
-) -> *mut T {
+fn sub_parse_flags<T>(cmd: *mut T, subflags_arg: &mut Subflags, which_pat: &mut i32) -> *mut T {
     let mut cmd = cmd.cast::<u8>();
     {
         if crate::memory::cstr_first_byte(cmd.cast()) == b'&' {
@@ -3956,8 +3950,7 @@ fn skip_substitute<T>(start: *mut T, delimiter: i32) -> *mut T {
             p = p.wrapping_add(1);
             break;
         }
-        if crate::memory::cstr_first_byte(p.cast()) == b'\\' && unsafe { *p.wrapping_add(1) } != 0
-        {
+        if crate::memory::cstr_first_byte(p.cast()) == b'\\' && unsafe { *p.wrapping_add(1) } != 0 {
             p = p.wrapping_add(1);
         }
         p = p.wrapping_add(utfc_ptr2len(p.cast()) as usize);
@@ -4274,7 +4267,10 @@ fn do_sub(eap: &mut Exarg, tm: Proftime, cmdpreview_ns: i32, cmdpreview_bufnr: O
                         && regmatch.endpos[0].lnum == 0
                         && matchcol == regmatch.endpos[0].col
                     {
-                        if crate::memory::cstr_byte_at(sub_firstline.data().cast(), matchcol as usize) == 0
+                        if crate::memory::cstr_byte_at(
+                            sub_firstline.data().cast(),
+                            matchcol as usize,
+                        ) == 0
                         {
                             skip_match = true;
                         } else {
@@ -4679,7 +4675,10 @@ fn do_sub(eap: &mut Exarg, tm: Proftime, cmdpreview_ns: i32, cmdpreview_bufnr: O
                     || got_quit
                     || lnum > line2
                     || !(excmds_st().subflags.do_all || do_again)
-                    || (crate::memory::cstr_byte_at(sub_firstline.data().cast(), matchcol as usize) == 0
+                    || (crate::memory::cstr_byte_at(
+                        sub_firstline.data().cast(),
+                        matchcol as usize,
+                    ) == 0
                         && nmatch <= 1
                         && re_multiline(unsafe { &*regmatch.regprog }) == 0);
                 nmatch = -1;

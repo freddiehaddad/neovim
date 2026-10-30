@@ -278,8 +278,7 @@ fn filter_map_string(
             vval: TypvalVval::Number(0),
         };
         let mut rem = false;
-        if !filter_map_one(&mut tv, expr, filtermap, &mut newtv, &mut rem) || g_st().did_emsg != 0
-        {
+        if !filter_map_one(&mut tv, expr, filtermap, &mut newtv, &mut rem) || g_st().did_emsg != 0 {
             tv_clear(&mut newtv);
             tv_clear(&mut tv);
             break;
@@ -648,12 +647,7 @@ pub fn f_count(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) 
     rettv.vval = crate::eval::typval::TypvalVval::Number(n);
 }
 
-fn extend_dict(
-    argvars: &mut [TypVal],
-    arg_errmsg: &CStr,
-    is_new: bool,
-    rettv: &mut TypVal,
-) {
+fn extend_dict(argvars: &mut [TypVal], arg_errmsg: &CStr, is_new: bool, rettv: &mut TypVal) {
     {
         let mut d1 = argvars[0].vval.v_dict();
         if d1.is_null() {
@@ -709,12 +703,7 @@ fn extend_dict(
     }
 }
 
-fn extend_list(
-    argvars: &mut [TypVal],
-    arg_errmsg: &CStr,
-    is_new: bool,
-    rettv: &mut TypVal,
-) {
+fn extend_list(argvars: &mut [TypVal], arg_errmsg: &CStr, is_new: bool, rettv: &mut TypVal) {
     {
         let mut error = false;
         let mut l1 = argvars[0].vval.v_list();

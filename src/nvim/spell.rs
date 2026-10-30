@@ -1346,7 +1346,11 @@ pub fn spell_cat_line(buf: *mut u8, line: impl crate::strings::IntoCCharPtr, max
         let n = crate::memory::ptr_offset_from(p, line) as i32 + 1;
         if n < maxlen - 1 {
             unsafe { ptr::write_bytes(buf, b' ', n as usize) };
-            xstrlcpy(buf.wrapping_add(n as usize).cast(), p, (maxlen - n) as usize);
+            xstrlcpy(
+                buf.wrapping_add(n as usize).cast(),
+                p,
+                (maxlen - n) as usize,
+            );
         }
     }
 }
@@ -1828,7 +1832,8 @@ pub fn parse_spelllang(wp: &mut WinInfoInfo) -> Option<&'static std::ffi::CStr> 
                     if matched {
                         let mut region_mask = REGION_ALL;
                         if !filename && !region.is_null() {
-                            let c = find_region((&raw const slang.sl_regions).cast(), region.cast());
+                            let c =
+                                find_region((&raw const slang.sl_regions).cast(), region.cast());
                             if c == REGION_ALL {
                                 if slang.sl_add {
                                     if slang.sl_regions[0] != 0 {
@@ -2350,12 +2355,8 @@ pub fn ex_spellrepall(_eap: &mut Exarg) {
     let frompatsize = repl_from_len + 7;
     let mut frompat_vec: Vec<u8> = vec![0; frompatsize];
     let frompat = frompat_vec.as_mut_ptr();
-    let frompatlen = vim_snprintf!(
-        frompat.cast(),
-        frompatsize,
-        c"\\V\\<%s\\>",
-        repl_from_ptr,
-    ) as usize;
+    let frompatlen =
+        vim_snprintf!(frompat.cast(), frompatsize, c"\\V\\<%s\\>", repl_from_ptr,) as usize;
     opt_vars().p_ws = 0;
     g_st().sub_nsubs = 0;
     g_st().sub_nlines = 0;
@@ -3319,7 +3320,10 @@ fn dump_prefixes(
         lnum
     }
 }
-pub fn spell_to_word_end(start: impl crate::strings::IntoCCharPtr, win: &mut WinInfoInfo) -> *mut u8 {
+pub fn spell_to_word_end(
+    start: impl crate::strings::IntoCCharPtr,
+    win: &mut WinInfoInfo,
+) -> *mut u8 {
     let mut p: *mut u8 = start.into_c_char_ptr().cast_mut().cast();
     while !crate::memory::cstr_is_empty(p.cast()) && spell_iswordp(p.cast(), &*win) {
         mb_u8ptr_adv(&mut p);

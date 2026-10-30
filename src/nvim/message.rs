@@ -716,9 +716,7 @@ pub fn msg_multihl(
         } else {
             msg_multiline(chunk.text, chunk.hl_id, true, false, &mut need_clear);
         }
-        assert!(
-            !ui_has(K_UIMESSAGES) || kind.is_null() || msg_st().msg_ext_kind == kind.cast()
-        );
+        assert!(!ui_has(K_UIMESSAGES) || kind.is_null() || msg_st().msg_ext_kind == kind.cast());
     }
 
     let has_chunks = !active_msg.is_empty();
@@ -1668,12 +1666,11 @@ pub fn did_set_messagesopt(_args: &mut Optset) -> Option<&'static CStr> {
 
     msg_st().msg_hit_enter = v.hit_enter;
     msg_st().msg_wait = v.wait as i32;
-    msg_st().progress_msg_target =
-        if crate::memory::cstr_as_opt_bytes(&v.progress) == Some(b"c") {
-            PROGRESS_TARGET_CMD
-        } else {
-            0
-        };
+    msg_st().progress_msg_target = if crate::memory::cstr_as_opt_bytes(&v.progress) == Some(b"c") {
+        PROGRESS_TARGET_CMD
+    } else {
+        0
+    };
     msg_st().msg_hist_max = v.history as i32;
     msg_hist_clear(msg_st().msg_hist_max);
     None
@@ -2434,7 +2431,9 @@ pub fn str2special_arena(
         while !crate::memory::cstr_is_empty(p) {
             let s = str2special(&raw mut p, replace_spaces, replace_others, None);
             let s_bytes = s.to_bytes();
-            unsafe { ptr::copy_nonoverlapping(s_bytes.as_ptr(), buf.wrapping_add(pos), s_bytes.len()) };
+            unsafe {
+                ptr::copy_nonoverlapping(s_bytes.as_ptr(), buf.wrapping_add(pos), s_bytes.len())
+            };
             pos += s_bytes.len();
         }
         unsafe {

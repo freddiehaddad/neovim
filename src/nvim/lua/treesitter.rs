@@ -143,9 +143,8 @@ pub struct TSParseOptions {
 #[derive(Clone, Copy)]
 pub struct TSLogger {
     pub payload: *mut c_void,
-    pub log: Option<
-        unsafe extern "C" fn(payload: *mut c_void, log_type: TSLogType, buffer: *const u8),
-    >,
+    pub log:
+        Option<unsafe extern "C" fn(payload: *mut c_void, log_type: TSLogType, buffer: *const u8)>,
 }
 
 #[repr(C)]
@@ -852,10 +851,9 @@ fn add_language(lstate: *mut lua_State, is_wasm: bool) -> i32 {
         };
     }
 
-    ts_st().langs.insert(
-        lang_name.to_bytes().to_vec(),
-        lang.cast_mut(),
-    );
+    ts_st()
+        .langs
+        .insert(lang_name.to_bytes().to_vec(), lang.cast_mut());
 
     unsafe { lua_pushboolean(lstate, 1) };
     1
@@ -1605,11 +1603,7 @@ unsafe extern "C-unwind" fn node_eq(lstate: *mut lua_State) -> i32 {
 unsafe extern "C-unwind" fn node_id(lstate: *mut lua_State) -> i32 {
     unsafe {
         let node = node_check(lstate, 1);
-        lua_pushlstring(
-            lstate,
-            (&raw const node.id).cast(),
-            size_of_val(&node.id),
-        );
+        lua_pushlstring(lstate, (&raw const node.id).cast(), size_of_val(&node.id));
         1
     }
 }
@@ -2204,8 +2198,13 @@ unsafe extern "C-unwind" fn tslua_parse_query(lstate: *mut lua_State) -> i32 {
         g_st().tslua_query_parse_count += 1;
         let mut error_offset: u32 = 0;
         let mut error_type: TSQueryError = TSQUERY_ERROR_NONE;
-        let query =
-            ts_query_new(lang, src.cast(), len as u32, &mut error_offset, &mut error_type);
+        let query = ts_query_new(
+            lang,
+            src.cast(),
+            len as u32,
+            &mut error_offset,
+            &mut error_type,
+        );
 
         if query.is_null() {
             let src_bytes = crate::memory::cstr_slice(src, len);

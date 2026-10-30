@@ -2060,7 +2060,7 @@ pub fn do_autocmd(eap: &mut Exarg, arg_in: impl crate::strings::IntoCCharPtr, fo
         arg_augroup_get(&raw mut arg)
     };
 
-        let pat = arg_event_skip(arg, group != AUGROUP_ALL);
+    let pat = arg_event_skip(arg, group != AUGROUP_ALL);
     if pat.is_null() {
         return;
     }
@@ -3531,18 +3531,16 @@ pub fn expand_get_augroup_name(_xp: &mut ExpandCtx, idx: i32) -> Option<&'static
     augroup_name(idx + 1)
 }
 
-pub fn aucmd_set_expand_context<T>(
-    xp: &mut ExpandCtx,
-    mut arg: *mut T,
-    doautocmd: bool,
-) -> *mut T {
+pub fn aucmd_set_expand_context<T>(xp: &mut ExpandCtx, mut arg: *mut T, doautocmd: bool) -> *mut T {
     au_st().autocmd_include_groups = false;
     let mut p = arg;
     let mut group = arg_augroup_get(&raw mut arg);
 
     if crate::memory::cstr_is_empty(arg.cast())
         && group != AUGROUP_ALL
-        && !ascii_iswhite(crate::memory::cstr_first_char(arg.cast::<u8>().wrapping_sub(1).cast()))
+        && !ascii_iswhite(crate::memory::cstr_first_char(
+            arg.cast::<u8>().wrapping_sub(1).cast(),
+        ))
     {
         arg = p;
         group = AUGROUP_ALL;

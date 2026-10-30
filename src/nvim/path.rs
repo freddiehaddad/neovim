@@ -241,12 +241,7 @@ pub fn path_equal<S1: crate::strings::IntoCCharPtr, S2: crate::strings::IntoCCha
         if !id_ok1 && !id_ok2 && (flags & K_PATH_CMP_FULL) != 0 {
             vim_full_name(&expanded_s1, full1.as_mut_ptr(), MAXPATHL, false);
             vim_full_name(s2, full2.as_mut_ptr(), MAXPATHL, false);
-            return path_cmp(
-                opt_vars().p_fic != 0,
-                &full1,
-                &full2,
-                MAXPATHL,
-            ) == 0;
+            return path_cmp(opt_vars().p_fic != 0, &full1, &full2, MAXPATHL) == 0;
         }
         false
     }
@@ -586,9 +581,7 @@ pub fn add_pathsep(p: *mut u8) -> bool {
         if plen > MAXPATHL - pathsep_len {
             return false;
         }
-        unsafe {
-            ptr::copy_nonoverlapping(PATHSEPSTR.as_ptr(), p.wrapping_add(plen), pathsep_len)
-        };
+        unsafe { ptr::copy_nonoverlapping(PATHSEPSTR.as_ptr(), p.wrapping_add(plen), pathsep_len) };
     }
     true
 }
@@ -1416,8 +1409,7 @@ pub fn gen_expand_wildcards_vec(
                 if has_env_var(p) || crate::memory::cstr_first_byte(p) == b'~' {
                     drop(p_owned);
                     file.clear();
-                    let res =
-                        os_expand_wildcards(num_pat, pat.cast(), file, flags | EW_KEEPDOLLAR);
+                    let res = os_expand_wildcards(num_pat, pat.cast(), file, flags | EW_KEEPDOLLAR);
                     path_st().expand_recursive = false;
                     return res;
                 }
@@ -1707,7 +1699,8 @@ pub fn simplify_filename(filename: *mut u8) -> usize {
 
         let mut p = filename;
         #[cfg(windows)]
-        if !crate::memory::cstr_is_empty(p.cast()) && crate::memory::cstr_byte_at(p.cast(), 1) == b':'
+        if !crate::memory::cstr_is_empty(p.cast())
+            && crate::memory::cstr_byte_at(p.cast(), 1) == b':'
         {
             p = p.wrapping_add(2);
         }
@@ -2362,10 +2355,7 @@ pub fn append_path(
         }
 
         if current_length > 0
-            && !vim_ispathsep_nocolon(crate::memory::cstr_char_at(
-                path.cast(),
-                current_length - 1,
-            ))
+            && !vim_ispathsep_nocolon(crate::memory::cstr_char_at(path.cast(), current_length - 1))
         {
             let pathsep_len = PATHSEPSTR.len() - 1;
             if current_length + pathsep_len + 1 > max_len {
@@ -2494,11 +2484,7 @@ pub fn path_is_absolute(fname: impl crate::strings::IntoCCharPtr) -> bool {
     }
 }
 
-pub fn path_guess_exepath(
-    argv0: impl crate::strings::IntoCCharPtr,
-    buf: *mut u8,
-    bufsize: usize,
-) {
+pub fn path_guess_exepath(argv0: impl crate::strings::IntoCCharPtr, buf: *mut u8, bufsize: usize) {
     let argv0 = argv0.into_c_char_ptr();
     {
         let path_cstr = os_getenv_cstr(c"PATH");
@@ -2527,11 +2513,7 @@ pub fn path_guess_exepath(
                     let _dst = buf;
                     let _dsize: usize = bufsize;
                     let _dlen = crate::memory::cstr_len(_dst.cast());
-                    crate::memory::xstrlcpy(
-                        _dst.wrapping_add(_dlen).cast(),
-                        argv0,
-                        _dsize - _dlen,
-                    );
+                    crate::memory::xstrlcpy(_dst.wrapping_add(_dlen).cast(), argv0, _dsize - _dlen);
                 };
             } else {
                 let path = path_cstr.as_ptr();
@@ -2710,9 +2692,7 @@ mod tests {
             assert!(path_try_shorten_fname(ptr::null_mut::<u8>()).is_null());
             let mut cwd_buf = [0u8; MAXPATHL];
             assert!(os_dirname(cwd_buf.as_mut_ptr(), MAXPATHL));
-            let cwd_str = crate::memory::cstr_from_ptr(&cwd_buf)
-                .to_str()
-                .unwrap();
+            let cwd_str = crate::memory::cstr_from_ptr(&cwd_buf).to_str().unwrap();
             let mut in_cwd = CString::new(format!("{cwd_str}/subdir/file.txt"))
                 .unwrap()
                 .into_bytes_with_nul();
@@ -2844,10 +2824,7 @@ mod tests {
                 out.as_mut_ptr(),
                 MAXPATHL
             ));
-            assert_eq!(
-                crate::memory::cstr_from_ptr(&out).to_str().unwrap(),
-                cwd
-            );
+            assert_eq!(crate::memory::cstr_from_ptr(&out).to_str().unwrap(), cwd);
 
             let mut rel_c = CString::new(rel_dir.clone()).unwrap().into_bytes_with_nul();
             assert!(path_full_dir_name(
@@ -2905,9 +2882,7 @@ mod tests {
                 format!("{rel_dir}/camelcase")
             };
             assert_eq!(
-                crate::memory::cstr_from_ptr(&case_buf)
-                    .to_str()
-                    .unwrap(),
+                crate::memory::cstr_from_ptr(&case_buf).to_str().unwrap(),
                 expected_case
             );
 

@@ -868,9 +868,7 @@ pub fn alist_name(aep: &Aentry) -> Option<&'static CStr> {
     unsafe {
         let bp = buflist_findnr(aep.ae_fnum);
         if bp.is_null() || (*bp).b_fname.is_null() {
-            aep.ae_fname
-                .as_ref()
-                .map(|s| CStr::from_ptr(s.as_ptr()))
+            aep.ae_fname.as_ref().map(|s| CStr::from_ptr(s.as_ptr()))
         } else {
             Some(CStr::from_ptr((*bp).b_fname))
         }

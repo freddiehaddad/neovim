@@ -2300,9 +2300,12 @@ fn spell_read_aff(
                             let mut upper = false;
                             if aff_entry.ae_chop.is_some()
                                 && aff_entry.ae_add.is_some()
-                                && *(*aff_entry).chop_ptr().wrapping_add(
-                                    utfc_ptr2len((*aff_entry).chop_ptr().cast()) as usize,
-                                ) == 0
+                                && *(*aff_entry)
+                                    .chop_ptr()
+                                    .wrapping_add(
+                                        utfc_ptr2len((*aff_entry).chop_ptr().cast()) as usize
+                                    )
+                                    == 0
                             {
                                 let c = utf_ptr2char((*aff_entry).chop_ptr().cast());
                                 let c_up = spell_toupper(c);
@@ -2500,7 +2503,8 @@ fn spell_read_aff(
                     if do_sal {
                         if crate::memory::cstr_as_bytes(items[1].cast()) == b"followup" {
                             spin.si_followup = i32::from(sal_to_bool(items[2].cast()));
-                        } else if crate::memory::cstr_as_bytes(items[1].cast()) == b"collapse_result"
+                        } else if crate::memory::cstr_as_bytes(items[1].cast())
+                            == b"collapse_result"
                         {
                             spin.si_collapse = i32::from(sal_to_bool(items[2].cast()));
                         } else if crate::memory::cstr_as_bytes(items[1].cast()) == b"remove_accents"
@@ -2616,12 +2620,7 @@ fn spell_read_aff(
     }
 }
 
-fn is_aff_rule(
-    items: &[*mut u8],
-    itemcnt: i32,
-    rulename: &std::ffi::CStr,
-    mincount: i32,
-) -> bool {
+fn is_aff_rule(items: &[*mut u8], itemcnt: i32, rulename: &std::ffi::CStr, mincount: i32) -> bool {
     crate::memory::cstr_as_bytes(items[0].cast()) == rulename.to_bytes()
         && (itemcnt == mincount
             || (itemcnt > mincount && unsafe { *items[mincount as usize] } == b'#'))
@@ -2796,8 +2795,7 @@ fn process_compflags(
                     };
                     bytes.push(id as u8);
                 }
-                if aff.af_flagtype == AFT_NUM
-                    && crate::memory::cstr_first_byte(cur.cast()) == b','
+                if aff.af_flagtype == AFT_NUM && crate::memory::cstr_first_byte(cur.cast()) == b','
                 {
                     cur = cur.wrapping_add(1);
                 }
@@ -5130,10 +5128,7 @@ fn mkspell(fnames: &[std::ffi::CString], ascii: bool, over_write: bool, added_wo
     } else if !over_write && os_path_exists(wfname.cast()) {
         emsg(gettext(E_EXISTS));
     } else if os_isdir(wfname.cast()) {
-        semsg!(
-            gettext(E_ISADIR2),
-            wfname.cast::<std::ffi::c_void>(),
-        );
+        semsg!(gettext(E_ISADIR2), wfname.cast::<std::ffi::c_void>(),);
     } else {
         let fname = fname_buf.as_mut_ptr();
 

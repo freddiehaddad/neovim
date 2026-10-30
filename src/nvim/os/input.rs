@@ -326,7 +326,9 @@ pub fn os_isatty(fd: i32) -> bool {
 }
 
 pub fn input_available() -> usize {
-    osi_st().input_write_pos.saturating_sub(osi_st().input_read_pos)
+    osi_st()
+        .input_write_pos
+        .saturating_sub(osi_st().input_read_pos)
 }
 
 fn input_space() -> usize {
@@ -343,7 +345,9 @@ pub fn input_enqueue_raw(data: &[u8]) {
         st.input_write_pos = available;
     }
 
-    let to_write = data.len().min(INPUT_BUFFER_SIZE.saturating_sub(st.input_write_pos));
+    let to_write = data
+        .len()
+        .min(INPUT_BUFFER_SIZE.saturating_sub(st.input_write_pos));
     let wpos = st.input_write_pos;
     st.input_buffer[wpos..wpos + to_write].copy_from_slice(&data[..to_write]);
     st.input_write_pos = wpos + to_write;

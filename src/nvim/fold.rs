@@ -1298,11 +1298,9 @@ fn fold_create_markers(wp: &mut WinInfoInfo, start: CursorPos, end: CursorPos) {
         start,
         crate::memory::cstr_slice(wp.w_onebuf_opt.wo_fmr, fold_st().foldstartmarkerlen),
     );
-    fold_add_marker(
-        unsafe { &mut *buf },
-        end,
-        unsafe { std::slice::from_raw_parts(fold_st().foldendmarker, fold_st().foldendmarkerlen) },
-    );
+    fold_add_marker(unsafe { &mut *buf }, end, unsafe {
+        std::slice::from_raw_parts(fold_st().foldendmarker, fold_st().foldendmarkerlen)
+    });
 
     changed_lines(unsafe { &mut *buf }, start.lnum, 0, end.lnum, 0, false);
 
@@ -1337,7 +1335,13 @@ fn fold_add_marker(buf: &mut FileBuf, pos: CursorPos, marker: &[u8]) {
         newline_vec[line_len + markerlen] = 0;
         markerlen
     } else {
-        unsafe { ptr::copy_nonoverlapping(cms.cast::<u8>(), newline.wrapping_add(line_len), cms_len + 1) };
+        unsafe {
+            ptr::copy_nonoverlapping(
+                cms.cast::<u8>(),
+                newline.wrapping_add(line_len),
+                cms_len + 1,
+            )
+        };
         let p_off = (p as usize) - (cms as usize);
         newline_vec[line_len + p_off..line_len + p_off + markerlen].copy_from_slice(marker);
         let tail_len = crate::memory::cstr_len(p.wrapping_add(2));
@@ -1379,11 +1383,9 @@ fn delete_fold_markers(
         fp.fd_top + lnum_off,
         crate::memory::cstr_slice(wp.w_onebuf_opt.wo_fmr, fold_st().foldstartmarkerlen),
     );
-    fold_del_marker(
-        wp.buf_mut(),
-        fp.fd_top + lnum_off + fp.fd_len - 1,
-        unsafe { std::slice::from_raw_parts(fold_st().foldendmarker, fold_st().foldendmarkerlen) },
-    );
+    fold_del_marker(wp.buf_mut(), fp.fd_top + lnum_off + fp.fd_len - 1, unsafe {
+        std::slice::from_raw_parts(fold_st().foldendmarker, fold_st().foldendmarkerlen)
+    });
 }
 
 fn fold_del_marker(buf: &mut FileBuf, lnum: Linenr, marker_slice: &[u8]) {

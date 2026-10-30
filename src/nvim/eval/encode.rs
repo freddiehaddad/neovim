@@ -162,10 +162,7 @@ pub fn encode_list_write(mut list: Option<&mut TvList>, buf: &[u8]) {
         if line_end_idx != line_start_idx {
             let line_length = line_end_idx - line_start_idx;
             let mut line_buf = vec![0u8; line_length];
-            for (dst_b, &src_b) in line_buf
-                .iter_mut()
-                .zip(&buf[line_start_idx..line_end_idx])
-            {
+            for (dst_b, &src_b) in line_buf.iter_mut().zip(&buf[line_start_idx..line_end_idx]) {
                 *dst_b = if src_b == 0 { b'\n' } else { src_b };
             }
             crate::eval::typval::tv_list_append_bytes(list.as_deref_mut().unwrap(), &line_buf);
@@ -429,7 +426,11 @@ fn convert_to_json_string(gap: &mut Vec<u8>, buf: Option<&[u8]>) -> bool {
     while i < len {
         let slice = &bytes[i..];
         let ch = utf_slice2char(slice);
-        let shift = if ch == 0 { 1usize } else { utf_slice2len(slice) };
+        let shift = if ch == 0 {
+            1usize
+        } else {
+            utf_slice2len(slice)
+        };
         assert!(shift > 0);
         i += shift;
         match ch {
@@ -1583,11 +1584,7 @@ pub fn encode_vim_to_echo(gap: &mut Vec<u8>, tv: &mut TypVal, objname: &CStr) ->
 }
 
 /// Convert Vimscript value to msgpack string (`encode_vim_to_msgpack`).
-pub fn encode_vim_to_msgpack(
-    packer: &mut PackerBuffer,
-    tv: &mut TypVal,
-    objname: &CStr,
-) -> bool {
+pub fn encode_vim_to_msgpack(packer: &mut PackerBuffer, tv: &mut TypVal, objname: &CStr) -> bool {
     let mut backend = EncodeBackend::Msgpack { packer };
     encode_vim_with_backend(&mut backend, tv, objname)
 }

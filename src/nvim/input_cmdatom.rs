@@ -579,7 +579,9 @@ fn atom_from_cmdline(
         ..CmdSpec::default()
     };
     atom.keys = Some(std::ffi::CString::new(sb).unwrap());
-    atom.text = cmdline.map(CStr::to_owned).or_else(|| Some(std::ffi::CString::default()));
+    atom.text = cmdline
+        .map(CStr::to_owned)
+        .or_else(|| Some(std::ffi::CString::default()));
     atom
 }
 
@@ -1860,8 +1862,7 @@ fn atom_capture_cmd(ca: &mut Cmdarg, old: &mut CmdFrame, is_root: bool) -> bool 
             && (ca.cmdchar == b'/' as i32 || ca.cmdchar == b'?' as i32)
             && !(vis && unchanged)
         {
-            let mut atom =
-                atom_from_cmdline(K_AMOTION, ca, ca.searchbuf_cstr(), old.visual.active);
+            let mut atom = atom_from_cmdline(K_AMOTION, ca, ca.searchbuf_cstr(), old.visual.active);
             atom.origin = old.origin;
             atom_push(false, &mut atom);
         } else if (root.cmdline.is_some() && (ca.cmdchar == b':' as i32 || ca.cmdchar == K_COMMAND))

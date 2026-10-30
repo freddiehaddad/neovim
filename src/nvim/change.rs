@@ -1219,12 +1219,7 @@ pub fn open_line(
                             lead_len = 0;
                             break;
                         }
-                        copy_option_part(
-                            &raw mut p,
-                            lead_middle.as_mut_ptr(),
-                            COM_MAX_LEN,
-                            c",",
-                        );
+                        copy_option_part(&raw mut p, lead_middle.as_mut_ptr(), COM_MAX_LEN, c",");
                         require_blank = false;
                     }
 
@@ -1234,12 +1229,9 @@ pub fn open_line(
                         }
                         p = p.wrapping_add(1);
                     }
-                    lead_middle_len = copy_option_part(
-                        &raw mut p,
-                        lead_middle.as_mut_ptr(),
-                        COM_MAX_LEN,
-                        c",",
-                    ) as i32;
+                    lead_middle_len =
+                        copy_option_part(&raw mut p, lead_middle.as_mut_ptr(), COM_MAX_LEN, c",")
+                            as i32;
 
                     while !crate::memory::cstr_is_empty(p.cast()) && *p.wrapping_sub(1) != b':' {
                         if *p == COM_AUTO_END {
@@ -1247,12 +1239,7 @@ pub fn open_line(
                         }
                         p = p.wrapping_add(1);
                     }
-                    let n = copy_option_part(
-                        &raw mut p,
-                        lead_end.as_mut_ptr(),
-                        COM_MAX_LEN,
-                        c",",
-                    );
+                    let n = copy_option_part(&raw mut p, lead_end.as_mut_ptr(), COM_MAX_LEN, c",");
 
                     if g_st().ins_global.end_comment_pending == -1 {
                         g_st().ins_global.end_comment_pending = i32::from(lead_end[n - 1]);
@@ -1562,7 +1549,8 @@ pub fn open_line(
                 newcol = lead_len;
 
                 if newindent != 0 || g_st().ins_global.did_si {
-                    while lead_len != 0 && ascii_iswhite(crate::memory::cstr_first_char(leader.cast()))
+                    while lead_len != 0
+                        && ascii_iswhite(crate::memory::cstr_first_char(leader.cast()))
                     {
                         lead_len -= 1;
                         newcol -= 1;
@@ -1616,8 +1604,8 @@ pub fn open_line(
 
         if lead_len > 0 {
             if (flags & OPENLINE_COM_LIST) != 0 && second_line_indent > 0 {
-                let padding =
-                    second_line_indent - (newindent + crate::memory::cstr_len(leader.cast()) as i32);
+                let padding = second_line_indent
+                    - (newindent + crate::memory::cstr_len(leader.cast()) as i32);
                 for _ in 0..padding {
                     crate::memory::cstr_cat(leader.cast(), c" ");
                     less_cols -= 1;
@@ -1965,13 +1953,16 @@ pub fn get_leader_len(
             let mut found_one = false;
             let mut list = curbuf_mut().b_p_com;
             while !crate::memory::cstr_is_empty(list) {
-                if !got_com
-                    && let Some(flags_out) = flags.as_deref_mut()
-                {
+                if !got_com && let Some(flags_out) = flags.as_deref_mut() {
                     *flags_out = crate::memory::cstr_as_opt_cstr(list);
                 }
                 let prev_list = list;
-                copy_option_part(&raw mut list, part_buf.as_mut_ptr().cast(), COM_MAX_LEN, c",");
+                copy_option_part(
+                    &raw mut list,
+                    part_buf.as_mut_ptr().cast(),
+                    COM_MAX_LEN,
+                    c",",
+                );
                 let mut string = vim_strchr(part_buf.as_ptr().cast(), b':' as i32).cast::<u8>();
                 if string.is_null() {
                     continue;
@@ -2045,9 +2036,7 @@ pub fn get_leader_len(
             }
 
             if middle_match_len != 0 {
-                if !got_com
-                    && let Some(flags_out) = flags.as_deref_mut()
-                {
+                if !got_com && let Some(flags_out) = flags.as_deref_mut() {
                     *flags_out = crate::memory::cstr_as_opt_cstr(saved_flags.cast());
                 }
                 i += middle_match_len;
@@ -2100,7 +2089,12 @@ pub fn get_last_leader_offset(
             while !crate::memory::cstr_is_empty(list) {
                 let flags_save = list;
 
-                copy_option_part(&raw mut list, part_buf.as_mut_ptr().cast(), COM_MAX_LEN, c",");
+                copy_option_part(
+                    &raw mut list,
+                    part_buf.as_mut_ptr().cast(),
+                    COM_MAX_LEN,
+                    c",",
+                );
                 let mut string = vim_strchr(part_buf.as_ptr().cast(), b':' as i32).cast::<u8>();
                 if string.is_null() {
                     continue;

@@ -242,11 +242,7 @@ fn validate_option_value_args(
     }
 }
 
-fn do_ft_buf(
-    filetype: Option<&CStr>,
-    aco: &mut CtxSwitch,
-    err: &mut Error,
-) -> *mut FileBuf {
+fn do_ft_buf(filetype: Option<&CStr>, aco: &mut CtxSwitch, err: &mut Error) -> *mut FileBuf {
     unsafe {
         let Some(filetype) = filetype else {
             return ptr::null_mut();
