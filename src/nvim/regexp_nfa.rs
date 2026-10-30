@@ -1109,13 +1109,12 @@ fn nfa_regatom_percent(mut c: i32, save_prev_at_start: i32) -> bool {
             true
         }
         b'#' => {
-            if crate::memory::cstr_first_byte(re_st().regparse) == b'='
-                && (crate::memory::cstr_byte_at(re_st().regparse, 1)) >= 48
-                && (crate::memory::cstr_byte_at(re_st().regparse, 1)) <= 50
+            if unsafe { *re_st().regparse } == b'='
+                && (b'0'..=b'2').contains(&unsafe { *re_st().regparse.wrapping_add(1) })
             {
                 semsg!(
                     tr(E_ATOM_ENGINE_MUST_BE_AT_START_OF_PATTERN),
-                    crate::memory::cstr_char_at(re_st().regparse, 1),
+                    i32::from(unsafe { *re_st().regparse.wrapping_add(1) }),
                 );
                 return false;
             }
@@ -1282,11 +1281,11 @@ fn nfa_regatom_collection(
     startc: &mut i32,
     c: &mut i32,
 ) -> i32 {
-    let p = re_st().regparse.cast::<u8>();
-    let endp = skip_anyof(p.cast()).cast::<u8>();
+    let p = re_st().regparse;
+    let endp = skip_anyof(p).cast_const();
     if unsafe { *endp } == b']' {
         let result = nfa_recognize_char_class(
-            re_st().regparse.cast(),
+            re_st().regparse,
             endp,
             i32::from(*extra == NFA_ADD_NL),
         );
@@ -1298,34 +1297,34 @@ fn nfa_regatom_collection(
             } else {
                 emit_fn(result);
             }
-            re_st().regparse = endp.cast();
-            mb_ptr_adv(&raw mut re_st().regparse);
+            re_st().regparse = endp.cast_mut();
+            mb_ptr_adv(&mut re_st().regparse);
             return OK;
         }
 
         let mut negated = false;
-        if crate::memory::cstr_first_byte(re_st().regparse) == b'^' {
+        if unsafe { *re_st().regparse } == b'^' {
             negated = true;
-            mb_ptr_adv(&raw mut re_st().regparse);
+            mb_ptr_adv(&mut re_st().regparse);
             emit_fn(NFA_START_NEG_COLL);
         } else {
             emit_fn(NFA_START_COLL);
         }
-        if crate::memory::cstr_first_byte(re_st().regparse) == b'-' {
+        if unsafe { *re_st().regparse } == b'-' {
             *startc = b'-' as i32;
             emit_fn(*startc);
             emit_fn(NFA_CONCAT);
-            mb_ptr_adv(&raw mut re_st().regparse);
+            mb_ptr_adv(&mut re_st().regparse);
         }
 
         let mut emit_range = false;
-        while (re_st().regparse.cast::<u8>() as *const u8) < endp {
+        while (re_st().regparse as *const u8) < endp {
             let oldstartc = *startc;
             let mut range_endpoint = false;
             *startc = -1;
             let mut got_coll_char = false;
 
-            if crate::memory::cstr_first_byte(re_st().regparse) == b'[' {
+            if unsafe { *re_st().regparse } == b'[' {
                 let mut equiclass: i32 = 0;
                 let mut collclass: i32 = 0;
                 let charclass = get_char_class(&raw mut re_st().regparse);
@@ -1377,36 +1376,36 @@ fn nfa_regatom_collection(
                 }
             }
 
-            if crate::memory::cstr_first_byte(re_st().regparse) == b'-' && oldstartc != -1 {
+            if unsafe { *re_st().regparse } == b'-' && oldstartc != -1 {
                 emit_range = true;
                 *startc = oldstartc;
-                mb_ptr_adv(&raw mut re_st().regparse);
+                mb_ptr_adv(&mut re_st().regparse);
                 continue;
             }
 
-            if crate::memory::cstr_first_byte(re_st().regparse) == b'\\'
-                && (re_st().regparse.wrapping_add(1).cast::<u8>() as *const u8) <= endp
+            if unsafe { *re_st().regparse } == b'\\'
+                && (re_st().regparse.wrapping_add(1) as *const u8) <= endp
                 && (crate::strings::vim_haschr(
                     REGEXP_INRANGE,
-                    crate::memory::cstr_byte_at(re_st().regparse, 1) as i32,
+                    i32::from(unsafe { *re_st().regparse.wrapping_add(1) }),
                 ) || (re_st().reg_cpo_lit == 0
                     && crate::strings::vim_haschr(
                         REGEXP_ABBR,
-                        crate::memory::cstr_byte_at(re_st().regparse, 1) as i32,
+                        i32::from(unsafe { *re_st().regparse.wrapping_add(1) }),
                     )))
             {
-                mb_ptr_adv(&raw mut re_st().regparse);
-                if crate::memory::cstr_first_byte(re_st().regparse) == b'n' {
+                mb_ptr_adv(&mut re_st().regparse);
+                if unsafe { *re_st().regparse } == b'n' {
                     *startc = if re_st().reg_string != 0
                         || emit_range
-                        || crate::memory::cstr_byte_at(re_st().regparse, 1) == b'-'
+                        || unsafe { *re_st().regparse.wrapping_add(1) } == b'-'
                     {
                         NL
                     } else {
                         NFA_NEWL
                     };
                 } else if matches!(
-                    crate::memory::cstr_first_byte(re_st().regparse),
+                    unsafe { *re_st().regparse },
                     b'd' | b'o' | b'x' | b'u' | b'U'
                 ) {
                     *startc = coll_get_char();
@@ -1418,13 +1417,12 @@ fn nfa_regatom_collection(
                     got_coll_char = true;
                     mb_ptr_back(*old_regparse, &raw mut re_st().regparse);
                 } else {
-                    *startc =
-                        backslash_trans(crate::memory::cstr_first_byte(re_st().regparse) as i32);
+                    *startc = backslash_trans(i32::from(unsafe { *re_st().regparse }));
                 }
             }
 
             if *startc == -1 {
-                *startc = utf_ptr2char(re_st().regparse);
+                *startc = utf_ptr2char(re_st().regparse.cast());
             }
 
             if emit_range {
@@ -1462,15 +1460,15 @@ fn nfa_regatom_collection(
                 emit_fn(NFA_CONCAT);
             } else {
                 emit_fn(*startc);
-                if utf_ptr2len(re_st().regparse) == utfc_ptr2len(re_st().regparse) {
+                if utf_ptr2len(re_st().regparse.cast()) == utfc_ptr2len(re_st().regparse.cast()) {
                     emit_fn(NFA_CONCAT);
                 }
             }
 
-            let plen = utfc_ptr2len(re_st().regparse);
-            if !range_endpoint && utf_ptr2len(re_st().regparse) != plen {
-                let mut i = utf_ptr2len(re_st().regparse);
-                *c = utf_ptr2char(re_st().regparse.wrapping_add(i as usize));
+            let plen = utfc_ptr2len(re_st().regparse.cast());
+            if !range_endpoint && utf_ptr2len(re_st().regparse.cast()) != plen {
+                let mut i = utf_ptr2len(re_st().regparse.cast());
+                *c = utf_ptr2char(re_st().regparse.wrapping_add(i as usize).cast());
                 loop {
                     if *c == 0 {
                         emit_fn(1);
@@ -1482,22 +1480,22 @@ fn nfa_regatom_collection(
                     if i >= plen {
                         break;
                     }
-                    *c = utf_ptr2char(re_st().regparse.wrapping_add(i as usize));
+                    *c = utf_ptr2char(re_st().regparse.wrapping_add(i as usize).cast());
                 }
                 emit_fn(NFA_COMPOSING);
                 emit_fn(NFA_CONCAT);
             }
-            mb_ptr_adv(&raw mut re_st().regparse);
+            mb_ptr_adv(&mut re_st().regparse);
         }
 
         mb_ptr_back(*old_regparse, &raw mut re_st().regparse);
-        if crate::memory::cstr_first_byte(re_st().regparse) == b'-' {
+        if unsafe { *re_st().regparse } == b'-' {
             emit_fn(b'-' as i32);
             emit_fn(NFA_CONCAT);
         }
 
-        re_st().regparse = endp.cast();
-        mb_ptr_adv(&raw mut re_st().regparse);
+        re_st().regparse = endp.cast_mut();
+        mb_ptr_adv(&mut re_st().regparse);
 
         if negated {
             emit_fn(NFA_END_NEG_COLL);
@@ -4699,7 +4697,7 @@ fn nfa_regtry(
                     let lpos = subs.synt.list.line()[i];
                     if !lpos.start.is_null() && !lpos.end.is_null() {
                         extmatch.matches[i] = cstring_from_bytes(
-                            lpos.start.cast(),
+                            lpos.start,
                             lpos.end.offset_from(lpos.start) as usize,
                         );
                     }

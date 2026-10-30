@@ -6916,12 +6916,12 @@ pub fn do_string_sub(
                     &mut regmatch,
                     sub,
                     expr,
-                    buf.as_mut_ptr().wrapping_add(cur_len).cast(),
+                    buf.as_mut_ptr().wrapping_add(cur_len),
                     sublen,
                     REGSUB_COPY | REGSUB_MAGIC,
                 );
                 buf.truncate(cur_len + (sublen as usize) - 1);
-                tail = regmatch.endp[0];
+                tail = regmatch.endp[0].cast();
                 if crate::memory::cstr_is_empty(tail) {
                     break;
                 }

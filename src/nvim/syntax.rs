@@ -4358,11 +4358,11 @@ fn get_syn_pattern<T>(arg: *mut T, ci: &mut Synpat) -> *mut T {
         }
 
         let mut end = skip_regexp(
-            arg.wrapping_add(1).cast(),
+            arg.wrapping_add(1),
             crate::memory::cstr_first_char(arg.cast()),
             1,
         );
-        if unsafe { *end as u8 } != unsafe { *arg } {
+        if unsafe { *end } != unsafe { *arg } {
             semsg!(
                 gettext(c"E401: Pattern delimiter not found: %s"),
                 arg.cast::<std::ffi::c_void>(),
@@ -4372,7 +4372,7 @@ fn get_syn_pattern<T>(arg: *mut T, ci: &mut Synpat) -> *mut T {
         let pat_slice = unsafe {
             std::slice::from_raw_parts(
                 arg.wrapping_add(1),
-                crate::memory::ptr_offset_from(end, arg.cast()) as usize - 1,
+                crate::memory::ptr_offset_from(end, arg) as usize - 1,
             )
         };
         let pat_cstr = std::ffi::CString::new(pat_slice).unwrap();
@@ -4393,7 +4393,8 @@ fn get_syn_pattern<T>(arg: *mut T, ci: &mut Synpat) -> *mut T {
         loop {
             let mut idx: isize = SPO_COUNT as isize - 1;
             while idx >= 0 {
-                if crate::memory::cstr_prefix_bytes(end, 3) == SPO_NAME_TAB[idx as usize].to_bytes()
+                if crate::memory::cstr_prefix_bytes(end.cast(), 3)
+                    == SPO_NAME_TAB[idx as usize].to_bytes()
                 {
                     break;
                 }
@@ -4403,7 +4404,7 @@ fn get_syn_pattern<T>(arg: *mut T, ci: &mut Synpat) -> *mut T {
                 let base_idx = idx as usize;
                 let p = &raw mut ci.sp_offsets[base_idx];
                 if base_idx != SPO_LC_OFF {
-                    match crate::memory::cstr_byte_at(end, 3) {
+                    match crate::memory::cstr_byte_at(end.cast(), 3) {
                         b's' | b'b' => {}
                         b'e' => idx += SPO_COUNT as isize,
                         _ => idx = -1,
@@ -4414,7 +4415,7 @@ fn get_syn_pattern<T>(arg: *mut T, ci: &mut Synpat) -> *mut T {
                     if base_idx == SPO_LC_OFF {
                         end = end.wrapping_add(3);
                         unsafe {
-                            *p = getdigits_int(&raw mut end, true, 0);
+                            *p = getdigits_int((&raw mut end).cast(), true, 0);
                         }
 
                         if (ci.sp_off_flags & (1 << SPO_MS_OFF)) == 0 {
@@ -4423,19 +4424,19 @@ fn get_syn_pattern<T>(arg: *mut T, ci: &mut Synpat) -> *mut T {
                         }
                     } else {
                         end = end.wrapping_add(4);
-                        if crate::memory::cstr_first_byte(end) == b'+' {
+                        if crate::memory::cstr_first_byte(end.cast()) == b'+' {
                             end = end.wrapping_add(1);
                             unsafe {
-                                *p = getdigits_int(&raw mut end, true, 0);
+                                *p = getdigits_int((&raw mut end).cast(), true, 0);
                             }
-                        } else if crate::memory::cstr_first_byte(end) == b'-' {
+                        } else if crate::memory::cstr_first_byte(end.cast()) == b'-' {
                             end = end.wrapping_add(1);
                             unsafe {
-                                *p = -getdigits_int(&raw mut end, true, 0);
+                                *p = -getdigits_int((&raw mut end).cast(), true, 0);
                             }
                         }
                     }
-                    if crate::memory::cstr_first_byte(end) != b',' {
+                    if crate::memory::cstr_first_byte(end.cast()) != b',' {
                         break;
                     }
                     end = end.wrapping_add(1);
@@ -4446,8 +4447,8 @@ fn get_syn_pattern<T>(arg: *mut T, ci: &mut Synpat) -> *mut T {
             }
         }
 
-        if ends_excmd(crate::memory::cstr_first_char(end)) == 0
-            && !ascii_iswhite(crate::memory::cstr_first_char(end))
+        if ends_excmd(crate::memory::cstr_first_char(end.cast())) == 0
+            && !ascii_iswhite(crate::memory::cstr_first_char(end.cast()))
         {
             semsg!(
                 gettext(c"E402: Garbage after pattern: %s"),
@@ -4455,7 +4456,7 @@ fn get_syn_pattern<T>(arg: *mut T, ci: &mut Synpat) -> *mut T {
             );
             return ptr::null_mut();
         }
-        skipwhite(end).cast()
+        skipwhite(end.cast()).cast()
     }
 }
 

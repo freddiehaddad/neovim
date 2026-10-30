@@ -742,7 +742,8 @@ pub fn get_number_indent(lnum: Linenr) -> i32 {
             0,
         ) {
             pos.lnum = lnum;
-            pos.col = crate::memory::ptr_offset_from(regmatch.endp[0], ml_get(lnum)) as Colnr;
+            pos.col =
+                crate::memory::ptr_offset_from(regmatch.endp[0], ml_get(lnum).cast()) as Colnr;
             pos.coladd = 0;
         }
         vim_regfree(regmatch.regprog);
@@ -854,8 +855,9 @@ pub fn get_breakindent_win(wp: &mut WinInfoInfo, line: impl crate::strings::Into
                             let end_ptr = regmatch.endp[0];
                             let mut indent: i32 = 0;
                             while ptr_cur < end_ptr {
-                                indent += win_chartabsize(wp, ptr_cur, indent);
-                                ptr_cur = ptr_cur.wrapping_add(utfc_ptr2len(ptr_cur) as usize);
+                                indent += win_chartabsize(wp, ptr_cur.cast(), indent);
+                                ptr_cur =
+                                    ptr_cur.wrapping_add(utfc_ptr2len(ptr_cur.cast()) as usize);
                             }
                             ind_st().prev_indent = indent;
                         }

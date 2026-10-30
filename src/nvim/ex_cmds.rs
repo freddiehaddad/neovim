@@ -813,10 +813,12 @@ pub fn ex_sort(eap: &mut Exarg) {
             let mut end_col: Colnr = len;
             if !regmatch.regprog.is_null() && vim_regexec(&mut regmatch, s, 0) {
                 if excmds_st().sort_rx {
-                    start_col = crate::memory::ptr_offset_from(regmatch.startp[0], s) as Colnr;
-                    end_col = crate::memory::ptr_offset_from(regmatch.endp[0], s) as Colnr;
+                    start_col =
+                        crate::memory::ptr_offset_from(regmatch.startp[0], s.cast()) as Colnr;
+                    end_col = crate::memory::ptr_offset_from(regmatch.endp[0], s.cast()) as Colnr;
                 } else {
-                    start_col = crate::memory::ptr_offset_from(regmatch.endp[0], s) as Colnr;
+                    start_col =
+                        crate::memory::ptr_offset_from(regmatch.endp[0], s.cast()) as Colnr;
                 }
             } else if !regmatch.regprog.is_null() {
                 end_col = 0;
@@ -1094,10 +1096,12 @@ pub fn ex_uniq(eap: &mut Exarg) {
             let mut end_col: Colnr = len;
             if !regmatch.regprog.is_null() && vim_regexec(&mut regmatch, s, 0) {
                 if excmds_st().sort_rx {
-                    start_col = crate::memory::ptr_offset_from(regmatch.startp[0], s) as Colnr;
-                    end_col = crate::memory::ptr_offset_from(regmatch.endp[0], s) as Colnr;
+                    start_col =
+                        crate::memory::ptr_offset_from(regmatch.startp[0], s.cast()) as Colnr;
+                    end_col = crate::memory::ptr_offset_from(regmatch.endp[0], s.cast()) as Colnr;
                 } else {
-                    start_col = crate::memory::ptr_offset_from(regmatch.endp[0], s) as Colnr;
+                    start_col =
+                        crate::memory::ptr_offset_from(regmatch.endp[0], s.cast()) as Colnr;
                 }
             } else if !regmatch.regprog.is_null() {
                 end_col = 0;
@@ -4489,7 +4493,7 @@ fn do_sub(eap: &mut Exarg, tm: Proftime, cmdpreview_ns: i32, cmdpreview_bufnr: O
                             &mut regmatch,
                             rel_lnum,
                             sub,
-                            sub_firstline.data().cast(),
+                            sub_firstline.data(),
                             0,
                             REGSUB_BACKSLASH
                                 | if opt_vars().p_magic != 0 {
@@ -4547,7 +4551,7 @@ fn do_sub(eap: &mut Exarg, tm: Proftime, cmdpreview_ns: i32, cmdpreview_bufnr: O
                             &mut regmatch,
                             rel_lnum,
                             sub,
-                            new_end.cast(),
+                            new_end,
                             sublen as Colnr,
                             REGSUB_COPY
                                 | REGSUB_BACKSLASH
@@ -5409,7 +5413,7 @@ pub fn skip_vimgrep_pat<T>(
             **s = p.wrapping_add(1).cast();
         }
         let c = (crate::memory::cstr_first_byte(p.cast())) as i32;
-        p = skip_regexp(p.wrapping_add(1).cast(), c, 1).cast();
+        p = skip_regexp(p.wrapping_add(1), c, 1);
         if (crate::memory::cstr_first_byte(p.cast())) as i32 != c {
             return ptr::null_mut();
         }

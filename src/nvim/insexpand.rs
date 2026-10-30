@@ -2356,15 +2356,15 @@ fn ins_compl_files(
                     buf.cast(),
                     crate::memory::ptr_offset_from(ptr, buf) as Colnr,
                 ) {
-                    ptr = regmatch.startp[0].cast();
+                    ptr = regmatch.startp[0];
                     ptr = if ctrl_x_mode_line_or_eval() {
                         find_line_end(ptr)
                     } else {
                         find_word_end(ptr)
                     };
                     let mut add_r = ins_compl_add_infercase(
-                        regmatch.startp[0],
-                        crate::memory::ptr_offset_from(ptr.cast(), regmatch.startp[0]) as i32,
+                        regmatch.startp[0].cast(),
+                        crate::memory::ptr_offset_from(ptr, regmatch.startp[0]) as i32,
                         opt_vars().p_ic != 0,
                         file,
                         *dir,
@@ -2377,7 +2377,7 @@ fn ins_compl_files(
                             file,
                             &raw mut ptr,
                             *dir,
-                            regmatch.startp[0],
+                            regmatch.startp[0].cast(),
                         ) {
                             OK
                         } else {

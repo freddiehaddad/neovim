@@ -1407,10 +1407,11 @@ fn utf_safe_read_char_adv(s: &mut *const c_char, n: &mut usize) -> i32 {
     -1
 }
 
-pub fn mb_ptr2char_adv(pp: *mut *const c_char) -> i32 {
+pub fn mb_ptr2char_adv<T>(pp: *mut *const T) -> i32 {
     unsafe {
-        let c = utf_ptr2char(*pp);
-        *pp = (*pp).wrapping_add(utfc_ptr2len(*pp) as usize);
+        let p: *const u8 = (*pp).cast();
+        let c = utf_ptr2char(p.cast());
+        *pp = p.wrapping_add(utfc_ptr2len(p.cast()) as usize).cast();
         c
     }
 }

@@ -1439,10 +1439,8 @@ fn shada_read(sd_reader: &mut FileDescriptor, flags: i32) {
                         .take()
                         .unwrap_or_default()
                         .into_bytes_with_nul();
-                    let final_sub =
-                        regtilde(sub_bytes.as_mut_ptr().cast(), opt_vars().p_magic, false).or_else(
-                            || Some(crate::memory::cstr_to_cstring(sub_bytes.as_ptr().cast())),
-                        );
+                    let final_sub = regtilde(sub_bytes.as_mut_ptr(), opt_vars().p_magic, false)
+                        .or_else(|| Some(crate::memory::cstr_to_cstring(sub_bytes.as_ptr().cast())));
                     sub_set_replacement(SubReplacementString {
                         sub: final_sub,
                         timestamp: cur_entry.timestamp,

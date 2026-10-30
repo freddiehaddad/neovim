@@ -3410,7 +3410,7 @@ pub fn find_pattern_in_path(
 
                 let mut new_fname_cstr = if find_substr(inc_opt, b"\\zs") {
                     find_file_name_in_path(
-                        incl_regmatch.startp[0],
+                        incl_regmatch.startp[0].cast(),
                         crate::memory::ptr_offset_from(
                             incl_regmatch.endp[0],
                             incl_regmatch.startp[0],
@@ -3421,7 +3421,7 @@ pub fn find_pattern_in_path(
                     )
                 } else {
                     file_name_in_line(
-                        incl_regmatch.endp[0],
+                        incl_regmatch.endp[0].cast(),
                         0,
                         FNAME_EXP | FNAME_INCL | FNAME_REL,
                         1,
@@ -3500,13 +3500,13 @@ pub fn find_pattern_in_path(
                             msg_outtrans(nf.as_ptr(), HLF_D, false);
                         } else {
                             if find_substr(inc_opt, b"\\zs") {
-                                p = incl_regmatch.startp[0];
+                                p = incl_regmatch.startp[0].cast();
                                 i = crate::memory::ptr_offset_from(
                                     incl_regmatch.endp[0],
                                     incl_regmatch.startp[0],
                                 ) as i32;
                             } else {
-                                p = incl_regmatch.endp[0];
+                                p = incl_regmatch.endp[0].cast();
                                 while !crate::memory::cstr_is_empty(p)
                                     && !vim_isfilec(i32::from(crate::memory::cstr_first_byte(p)))
                                 {
@@ -3521,7 +3521,7 @@ pub fn find_pattern_in_path(
                             }
 
                             if i == 0 {
-                                p = incl_regmatch.endp[0];
+                                p = incl_regmatch.endp[0].cast();
                                 i = crate::memory::cstr_len(p) as i32;
                             } else if p > line {
                                 if crate::memory::cstr_first_byte(p.wrapping_sub(1)) == b'"'
@@ -3607,7 +3607,7 @@ pub fn find_pattern_in_path(
                 loop {
                     define_matched = false;
                     if !def_regmatch.regprog.is_null() && vim_regexec(&mut def_regmatch, line, 0) {
-                        p = def_regmatch.endp[0];
+                        p = def_regmatch.endp[0].cast();
                         while !crate::memory::cstr_is_empty(p)
                             && !vim_iswordc(i32::from(crate::memory::cstr_first_byte(p)))
                         {
@@ -3640,7 +3640,7 @@ pub fn find_pattern_in_path(
                             )
                         {
                             matched = true;
-                            startp = regmatch.startp[0];
+                            startp = regmatch.startp[0].cast();
                             if skip_comments {
                                 if (crate::memory::cstr_first_byte(line) != b'#'
                                     || !(crate::memory::cstr_prefix_bytes(

@@ -1767,10 +1767,10 @@ fn qf_parse_fmt_f(rmp: &mut Regmatch, midx: usize, fields: &mut Qffields, prefix
 
     let c = unsafe { *rmp.endp[midx] };
     unsafe {
-        *rmp.endp[midx] = NUL;
+        *rmp.endp[midx] = 0;
     }
     expand_env(
-        rmp.startp[midx],
+        rmp.startp[midx].cast(),
         fields.namebuf.as_mut_ptr(),
         CMDBUFFSIZE as i32,
     );
@@ -1791,8 +1791,9 @@ fn qf_parse_fmt_b(rmp: &mut Regmatch, midx: usize, fields: &mut Qffields) -> i32
     if rmp.startp[midx].is_null() {
         return QF_FAIL;
     }
-    let bnr =
-        crate::charset::parse_i64_prefix(crate::memory::cstr_as_bytes(rmp.startp[midx])) as i32;
+    let bnr = crate::charset::parse_i64_prefix(crate::memory::cstr_as_bytes(
+        rmp.startp[midx].cast(),
+    )) as i32;
     if buflist_findnr(bnr).is_null() {
         return QF_FAIL;
     }
@@ -1804,8 +1805,9 @@ fn qf_parse_fmt_n(rmp: &mut Regmatch, midx: usize, fields: &mut Qffields) -> i32
     if rmp.startp[midx].is_null() {
         return QF_FAIL;
     }
-    fields.enr =
-        crate::charset::parse_i64_prefix(crate::memory::cstr_as_bytes(rmp.startp[midx])) as i32;
+    fields.enr = crate::charset::parse_i64_prefix(crate::memory::cstr_as_bytes(
+        rmp.startp[midx].cast(),
+    )) as i32;
     QF_OK
 }
 
@@ -1813,8 +1815,9 @@ fn qf_parse_fmt_l(rmp: &mut Regmatch, midx: usize, fields: &mut Qffields) -> i32
     if rmp.startp[midx].is_null() {
         return QF_FAIL;
     }
-    fields.lnum =
-        crate::charset::parse_i64_prefix(crate::memory::cstr_as_bytes(rmp.startp[midx])) as Linenr;
+    fields.lnum = crate::charset::parse_i64_prefix(crate::memory::cstr_as_bytes(
+        rmp.startp[midx].cast(),
+    )) as Linenr;
     QF_OK
 }
 
@@ -1822,8 +1825,9 @@ fn qf_parse_fmt_e(rmp: &mut Regmatch, midx: usize, fields: &mut Qffields) -> i32
     if rmp.startp[midx].is_null() {
         return QF_FAIL;
     }
-    fields.end_lnum =
-        crate::charset::parse_i64_prefix(crate::memory::cstr_as_bytes(rmp.startp[midx])) as Linenr;
+    fields.end_lnum = crate::charset::parse_i64_prefix(crate::memory::cstr_as_bytes(
+        rmp.startp[midx].cast(),
+    )) as Linenr;
     QF_OK
 }
 
@@ -1831,8 +1835,9 @@ fn qf_parse_fmt_c(rmp: &mut Regmatch, midx: usize, fields: &mut Qffields) -> i32
     if rmp.startp[midx].is_null() {
         return QF_FAIL;
     }
-    fields.col =
-        crate::charset::parse_i64_prefix(crate::memory::cstr_as_bytes(rmp.startp[midx])) as i32;
+    fields.col = crate::charset::parse_i64_prefix(crate::memory::cstr_as_bytes(
+        rmp.startp[midx].cast(),
+    )) as i32;
     QF_OK
 }
 
@@ -1840,8 +1845,9 @@ fn qf_parse_fmt_k(rmp: &mut Regmatch, midx: usize, fields: &mut Qffields) -> i32
     if rmp.startp[midx].is_null() {
         return QF_FAIL;
     }
-    fields.end_col =
-        crate::charset::parse_i64_prefix(crate::memory::cstr_as_bytes(rmp.startp[midx])) as i32;
+    fields.end_col = crate::charset::parse_i64_prefix(crate::memory::cstr_as_bytes(
+        rmp.startp[midx].cast(),
+    )) as i32;
     QF_OK
 }
 
@@ -1849,7 +1855,7 @@ fn qf_parse_fmt_t(rmp: &mut Regmatch, midx: usize, fields: &mut Qffields) -> i32
     if rmp.startp[midx].is_null() {
         return QF_FAIL;
     }
-    fields.type_ = unsafe { *rmp.startp[midx].cast::<u8>() };
+    fields.type_ = unsafe { *rmp.startp[midx] };
     QF_OK
 }
 
@@ -1874,7 +1880,11 @@ fn qf_parse_fmt_m(rmp: &mut Regmatch, midx: usize, fields: &mut Qffields) -> i32
     if len >= fields.errmsg.len() {
         fields.errmsg.resize(len + 1, 0);
     }
-    xstrlcpy(fields.errmsg.as_mut_ptr().cast(), rmp.startp[midx], len + 1);
+    xstrlcpy(
+        fields.errmsg.as_mut_ptr().cast(),
+        rmp.startp[midx].cast(),
+        len + 1,
+    );
     QF_OK
 }
 
@@ -1896,7 +1906,7 @@ fn qf_parse_fmt_p(rmp: &mut Regmatch, midx: usize, fields: &mut Qffields) -> i32
     let mut match_ptr = rmp.startp[midx];
     while match_ptr != rmp.endp[midx] {
         fields.col += 1;
-        if crate::memory::cstr_first_byte(match_ptr) == TAB {
+        if unsafe { *match_ptr } == TAB {
             fields.col += 7;
             fields.col -= fields.col % 8;
         }
@@ -1911,8 +1921,9 @@ fn qf_parse_fmt_v(rmp: &mut Regmatch, midx: usize, fields: &mut Qffields) -> i32
     if rmp.startp[midx].is_null() {
         return QF_FAIL;
     }
-    fields.col =
-        crate::charset::parse_i64_prefix(crate::memory::cstr_as_bytes(rmp.startp[midx])) as i32;
+    fields.col = crate::charset::parse_i64_prefix(crate::memory::cstr_as_bytes(
+        rmp.startp[midx].cast(),
+    )) as i32;
     fields.use_viscol = true;
     QF_OK
 }
@@ -1929,7 +1940,11 @@ fn qf_parse_fmt_s(rmp: &mut Regmatch, midx: usize, fields: &mut Qffields) -> i32
         let _dst: *mut _ = pat_ptr.cast();
         let _dsize: usize = len + 4;
         let _dlen = crate::memory::cstr_len(_dst);
-        crate::memory::xstrlcpy(_dst.wrapping_add(_dlen), rmp.startp[midx], _dsize - _dlen);
+        crate::memory::xstrlcpy(
+            _dst.wrapping_add(_dlen),
+            rmp.startp[midx].cast(),
+            _dsize - _dlen,
+        );
     };
     unsafe {
         *pat_ptr.wrapping_add(len + 3) = b'\\';
@@ -1950,7 +1965,11 @@ fn qf_parse_fmt_o(rmp: &mut Regmatch, midx: usize, fields: &mut Qffields) -> i32
         let _dst: *mut _ = mod_ptr;
         let _dsize: usize = dsize;
         let _dlen = crate::memory::cstr_len(_dst);
-        crate::memory::xstrlcpy(_dst.wrapping_add(_dlen), rmp.startp[midx], _dsize - _dlen);
+        crate::memory::xstrlcpy(
+            _dst.wrapping_add(_dlen),
+            rmp.startp[midx].cast(),
+            _dsize - _dlen,
+        );
     };
     QF_OK
 }
@@ -7465,8 +7484,8 @@ fn hgr_search_file(
                     line,
                     lnum,
                     0,
-                    (crate::memory::ptr_offset_from(p_regmatch.startp[0], line) as i32) + 1,
-                    (crate::memory::ptr_offset_from(p_regmatch.endp[0], line) as i32) + 1,
+                    (crate::memory::ptr_offset_from(p_regmatch.startp[0], line.cast()) as i32) + 1,
+                    (crate::memory::ptr_offset_from(p_regmatch.endp[0], line.cast()) as i32) + 1,
                     0,
                     ptr::null_mut(),
                     0,

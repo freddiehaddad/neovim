@@ -3024,9 +3024,7 @@ fn jumpto_tag(lbuf_arg: impl crate::strings::IntoCCharPtr, forceit: i32, keep_he
                 if crate::memory::cstr_first_byte(pbuf.cast()) == b'/'
                     || crate::memory::cstr_first_byte(pbuf.cast()) == b'?'
                 {
-                    str_ = skip_regexp(pbuf.wrapping_add(1).cast(), *pbuf as i32, 0)
-                        .wrapping_add(1)
-                        .cast();
+                    str_ = skip_regexp(pbuf.wrapping_add(1), *pbuf as i32, 0).wrapping_add(1);
                 }
                 if str_ > pbuf_end.wrapping_sub(1) {
                     let mut pbuflen = crate::memory::ptr_offset_from(pbuf_end, pbuf) as usize;
@@ -3288,7 +3286,7 @@ fn find_extra(pp: *mut *mut u8) -> bool {
         } else if crate::memory::cstr_first_byte(str_.cast()) == b'/'
             || crate::memory::cstr_first_byte(str_.cast()) == b'?'
         {
-            str_ = skip_regexp(str_.wrapping_add(1).cast(), unsafe { *str_ } as i32, 0).cast();
+            str_ = skip_regexp(str_.wrapping_add(1), unsafe { *str_ } as i32, 0);
             if unsafe { *str_ } != first_char {
                 str_ = ptr::null_mut();
             } else {

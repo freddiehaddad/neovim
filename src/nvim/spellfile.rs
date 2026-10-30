@@ -2722,18 +2722,18 @@ fn get_affitem(flagtype: i32, pp: *mut *mut u8) -> u32 {
                 res = ZERO_FLAG as i32;
             }
         } else {
-            let mut cp = (*pp).cast_const().cast();
+            let mut cp = (*pp).cast_const();
             res = mb_ptr2char_adv(&raw mut cp);
-            *pp = cp.cast_mut().cast();
+            *pp = cp.cast_mut();
             if flagtype == AFT_LONG
                 || (flagtype == AFT_CAPLONG && res >= b'A' as i32 && res <= b'Z' as i32)
             {
                 if **pp == 0 {
                     return 0;
                 }
-                let mut cp2 = (*pp).cast_const().cast();
+                let mut cp2 = (*pp).cast_const();
                 res = mb_ptr2char_adv(&raw mut cp2) + (res << 16);
-                *pp = cp2.cast_mut().cast();
+                *pp = cp2.cast_mut();
             }
         }
         res as u32
