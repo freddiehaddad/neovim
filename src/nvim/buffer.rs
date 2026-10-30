@@ -101,7 +101,9 @@ use crate::runtime::{ETYPE_MODELINE, estack_pop, estack_push};
 use crate::spell::parse_spelllang;
 use crate::state::{MAP_ALL_MODES, MODE_INSERT};
 use crate::statusline::build_stl_str_hl;
-use crate::strings::{gettext, ngettext, vim_snprintf, vim_snprintf_safelen, vim_strchr};
+use crate::strings::{
+    RawCCharPtr, RawCCharPtrMut, gettext, ngettext, vim_snprintf, vim_snprintf_safelen, vim_strchr,
+};
 use crate::syntax::{Synblock, reset_synblock, syntax_clear};
 use crate::terminal::{Terminal, terminal_check_size, terminal_close, terminal_running};
 use crate::ui::{ui_call_set_icon, ui_call_set_title, ui_has};
@@ -115,7 +117,7 @@ use crate::window::{
     win_split, win_valid, win_valid_any_tab, window_layout_lock, window_layout_unlock,
 };
 use crate::winfloat::{win_float_update_preview, win_set_minimal_style};
-use std::ffi::{CStr, c_char};
+use std::ffi::CStr;
 use std::ptr;
 
 pub(crate) const BCO_ENTER: i32 = 1;
@@ -191,9 +193,9 @@ pub struct FileBuf {
     pub b_locked: i32,
     pub b_locked_split: i32,
     pub b_ro_locked: i32,
-    pub b_ffname: *mut c_char,
-    pub b_sfname: *mut c_char,
-    pub b_fname: *mut c_char,
+    pub b_ffname: RawCCharPtrMut,
+    pub b_sfname: RawCCharPtrMut,
+    pub b_fname: RawCCharPtrMut,
     pub b_ffname_cstr: Option<std::ffi::CString>,
     pub b_sfname_cstr: Option<std::ffi::CString>,
     pub file_id_valid: bool,
@@ -264,29 +266,29 @@ pub struct FileBuf {
     pub b_p_ac: i32,
     pub b_p_ai: i32,
     pub b_p_ai_nopaste: i32,
-    pub b_p_bkc: *mut c_char,
+    pub b_p_bkc: RawCCharPtrMut,
     pub b_bkc_flags: u32,
     pub b_p_ci: i32,
     pub b_p_bin: i32,
     pub b_p_bomb: i32,
-    pub b_p_bh: *mut c_char,
-    pub b_p_bt: *mut c_char,
+    pub b_p_bh: RawCCharPtrMut,
+    pub b_p_bt: RawCCharPtrMut,
     pub b_p_busy: i64,
     pub b_has_qf_entry: i32,
     pub b_p_bl: i32,
     pub b_p_channel: i64,
     pub b_p_cin: i32,
-    pub b_p_cino: *mut c_char,
-    pub b_p_cink: *mut c_char,
-    pub b_p_cinw: *mut c_char,
-    pub b_p_cinsd: *mut c_char,
-    pub b_p_com: *mut c_char,
-    pub b_p_cms: *mut c_char,
-    pub b_p_cot: *mut c_char,
+    pub b_p_cino: RawCCharPtrMut,
+    pub b_p_cink: RawCCharPtrMut,
+    pub b_p_cinw: RawCCharPtrMut,
+    pub b_p_cinsd: RawCCharPtrMut,
+    pub b_p_com: RawCCharPtrMut,
+    pub b_p_cms: RawCCharPtrMut,
+    pub b_p_cot: RawCCharPtrMut,
     pub b_cot_flags: u32,
-    pub b_p_cpt: *mut c_char,
+    pub b_p_cpt: RawCCharPtrMut,
     #[cfg(windows)]
-    pub b_p_csl: *mut c_char,
+    pub b_p_csl: RawCCharPtrMut,
     pub b_p_cpt_flags: u32,
     pub b_p_cpt_cb: Vec<crate::eval::typval::Callback>,
     pub b_p_cfu: crate::eval::typval::Callback,
@@ -299,46 +301,46 @@ pub struct FileBuf {
     pub b_p_et: i32,
     pub b_p_et_nobin: i32,
     pub b_p_et_nopaste: i32,
-    pub b_p_fenc: *mut c_char,
-    pub b_p_ff: *mut c_char,
-    pub b_p_ft: *mut c_char,
+    pub b_p_fenc: RawCCharPtrMut,
+    pub b_p_ff: RawCCharPtrMut,
+    pub b_p_ft: RawCCharPtrMut,
     pub b_p_follow: i32,
-    pub b_p_fo: *mut c_char,
-    pub b_p_flp: *mut c_char,
+    pub b_p_fo: RawCCharPtrMut,
+    pub b_p_flp: RawCCharPtrMut,
     pub b_p_inf: i32,
-    pub b_p_isk: *mut c_char,
-    pub b_p_def: *mut c_char,
-    pub b_p_inc: *mut c_char,
+    pub b_p_isk: RawCCharPtrMut,
+    pub b_p_def: RawCCharPtrMut,
+    pub b_p_inc: RawCCharPtrMut,
     pub b_p_inex: crate::eval::typval::Callback,
     pub b_p_inex_flags: u32,
     pub b_p_inde: crate::eval::typval::Callback,
     pub b_p_inde_flags: u32,
-    pub b_p_indk: *mut c_char,
-    pub b_p_fp: *mut c_char,
+    pub b_p_indk: RawCCharPtrMut,
+    pub b_p_fp: RawCCharPtrMut,
     pub b_p_fex: crate::eval::typval::Callback,
     pub b_p_fex_flags: u32,
     pub b_p_fs: i32,
-    pub b_p_kp: *mut c_char,
+    pub b_p_kp: RawCCharPtrMut,
     pub b_p_lisp: i32,
-    pub b_p_lop: *mut c_char,
-    pub b_p_menc: *mut c_char,
-    pub b_p_mps: *mut c_char,
+    pub b_p_lop: RawCCharPtrMut,
+    pub b_p_menc: RawCCharPtrMut,
+    pub b_p_mps: RawCCharPtrMut,
     pub b_p_ml: i32,
     pub b_p_ml_nobin: i32,
     pub b_p_ma: i32,
-    pub b_p_nf: *mut c_char,
+    pub b_p_nf: RawCCharPtrMut,
     pub b_p_pi: i32,
-    pub b_p_qe: *mut c_char,
+    pub b_p_qe: RawCCharPtrMut,
     pub b_p_ro: i32,
     pub b_p_sw: i64,
     pub b_p_scbk: i64,
     pub b_p_si: i32,
     pub b_p_sts: i64,
     pub b_p_sts_nopaste: i64,
-    pub b_p_sua: *mut c_char,
+    pub b_p_sua: RawCCharPtrMut,
     pub b_p_swf: i32,
     pub b_p_smc: i64,
-    pub b_p_syn: *mut c_char,
+    pub b_p_syn: RawCCharPtrMut,
     pub b_p_ts: i64,
     pub b_p_tw: i64,
     pub b_p_tw_nobin: i64,
@@ -346,29 +348,29 @@ pub struct FileBuf {
     pub b_p_wm: i64,
     pub b_p_wm_nobin: i64,
     pub b_p_wm_nopaste: i64,
-    pub b_p_vsts: *mut c_char,
+    pub b_p_vsts: RawCCharPtrMut,
     pub b_p_vsts_array: Vec<i32>,
     pub b_p_vsts_nopaste: Option<std::ffi::CString>,
-    pub b_p_vts: *mut c_char,
+    pub b_p_vts: RawCCharPtrMut,
     pub b_p_vts_array: Vec<i32>,
-    pub b_p_keymap: *mut c_char,
-    pub b_p_gefm: *mut c_char,
-    pub b_p_gp: *mut c_char,
-    pub b_p_mp: *mut c_char,
-    pub b_p_efm: *mut c_char,
-    pub b_p_ep: *mut c_char,
-    pub b_p_path: *mut c_char,
+    pub b_p_keymap: RawCCharPtrMut,
+    pub b_p_gefm: RawCCharPtrMut,
+    pub b_p_gp: RawCCharPtrMut,
+    pub b_p_mp: RawCCharPtrMut,
+    pub b_p_efm: RawCCharPtrMut,
+    pub b_p_ep: RawCCharPtrMut,
+    pub b_p_path: RawCCharPtrMut,
     pub b_p_ar: i32,
-    pub b_p_tags: *mut c_char,
-    pub b_p_tc: *mut c_char,
+    pub b_p_tags: RawCCharPtrMut,
+    pub b_p_tc: RawCCharPtrMut,
     pub b_tc_flags: u32,
-    pub b_p_dict: *mut c_char,
-    pub b_p_dia: *mut c_char,
-    pub b_p_tsr: *mut c_char,
+    pub b_p_dict: RawCCharPtrMut,
+    pub b_p_dia: RawCCharPtrMut,
+    pub b_p_tsr: RawCCharPtrMut,
     pub b_p_tsrfu: crate::eval::typval::Callback,
     pub b_p_ul: i64,
     pub b_p_udf: i32,
-    pub b_p_lw: *mut c_char,
+    pub b_p_lw: RawCCharPtrMut,
     pub b_ind_level: i32,
     pub b_ind_open_imag: i32,
     pub b_ind_no_brace: i32,
@@ -1369,15 +1371,15 @@ pub fn close_buffer(
         let the_curtab = g_st().curtab;
 
         if buf.terminal.is_null() {
-            let bh0 = *buf.b_p_bh;
-            if bh0 == b'd' as c_char {
+            let bh0 = crate::memory::cstr_first_byte(buf.b_p_bh);
+            if bh0 == b'd' {
                 del_buf = true;
                 unload_buf = true;
-            } else if bh0 == b'w' as c_char {
+            } else if bh0 == b'w' {
                 del_buf = true;
                 unload_buf = true;
                 wipe_buf = true;
-            } else if bh0 == b'u' as c_char {
+            } else if bh0 == b'u' {
                 unload_buf = true;
             }
         }
@@ -1930,15 +1932,16 @@ pub fn handle_swap_exists(mut old_curbuf: Option<&mut Bufref>) {
 /// Delete or unload buffer(s).
 pub fn do_bufdel(
     command: i32,
-    mut arg: *mut c_char,
+    arg: impl crate::strings::IntoCCharPtr,
     addr_count: i32,
     start_bnr: i32,
     end_bnr: i32,
     forceit: i32,
-) -> *mut c_char {
+) -> RawCCharPtrMut {
+    let mut arg = arg.into_c_char_ptr().cast_mut();
     let mut do_current = 0;
     let mut deleted: i32 = 0;
-    let mut errormsg: *mut c_char = ptr::null_mut();
+    let mut errormsg: RawCCharPtrMut = ptr::null_mut();
     let mut bnr: i32;
 
     if addr_count == 0 {
@@ -2724,11 +2727,13 @@ fn buf_init_changedtick(buf: &mut FileBuf) {
 
 /// Add a file name to the buffer list.
 pub fn buflist_new(
-    ffname_arg: *mut c_char,
-    sfname_arg: *mut c_char,
+    ffname_arg: impl crate::strings::IntoCCharPtr,
+    sfname_arg: impl crate::strings::IntoCCharPtr,
     lnum: Linenr,
     flags: i32,
 ) -> *mut FileBuf {
+    let ffname_arg = ffname_arg.into_c_char_ptr().cast_mut();
+    let sfname_arg = sfname_arg.into_c_char_ptr().cast_mut();
     unsafe {
         let mut ffname = ffname_arg;
         let mut sfname = sfname_arg;
@@ -2805,7 +2810,11 @@ pub fn buflist_new(
                 &mut *(&raw mut buf.b_bufvar).cast(),
                 VAR_SCOPE,
             );
-            buf.changedtick_di.di_key = b"changedtick\0".iter().map(|&b| b as c_char).collect();
+            buf.changedtick_di.di_key = cstr_to_cstring(c"changedtick")
+                .into_bytes_with_nul()
+                .into_iter()
+                .map(|b| b as _)
+                .collect();
             buf_init_changedtick(&mut *buf);
         }
 
@@ -3164,31 +3173,29 @@ pub fn buflist_findpat(
             else {
                 return -1;
             };
-            let mut pat_vec: Vec<c_char> = pat_cstr
-                .into_bytes_with_nul()
-                .into_iter()
-                .map(|b| b as c_char)
-                .collect();
+            let mut pat_vec: Vec<u8> = pat_cstr.into_bytes_with_nul();
             let pat = pat_vec.as_mut_ptr();
-            let patend = pat.wrapping_add(crate::memory::cstr_len(pat).saturating_sub(1));
-            let toggledollar = patend > pat && crate::memory::cstr_first_byte(patend) == b'$';
+            let patend = pat.wrapping_add(crate::memory::cstr_len(&pat_vec).saturating_sub(1));
+            let toggledollar = patend > pat && unsafe { *patend } == b'$';
 
             let mut find_listed = 1;
             loop {
                 for attempt in 0..=3 {
                     if toggledollar {
                         unsafe {
-                            *patend = if attempt < 2 { NUL } else { b'$' as c_char };
+                            *patend = if attempt < 2 { 0 } else { b'$' };
                         }
                     }
                     let mut p = pat;
-                    if crate::memory::cstr_first_byte(p) == b'^' && (attempt & 1) == 0 {
+                    if unsafe { *p } == b'^' && (attempt & 1) == 0 {
                         p = p.wrapping_add(1);
                     }
 
                     let mut regmatch: Regmatch = Regmatch::new();
-                    regmatch.regprog =
-                        vim_regcomp(p, if opt_vars().p_magic != 0 { RE_MAGIC } else { 0 });
+                    regmatch.regprog = vim_regcomp(
+                        p.cast(),
+                        if opt_vars().p_magic != 0 { RE_MAGIC } else { 0 },
+                    );
 
                     for buf in for_all_buffers_rev_ptr() {
                         if regmatch.regprog.is_null() {
@@ -3268,7 +3275,7 @@ pub fn expand_bufnames(
         let mut regmatch: Regmatch = Regmatch::new();
 
         if !fuzzy {
-            let patc: *const c_char = if crate::memory::cstr_first_byte(pat) == b'^'
+            let patc: RawCCharPtr = if crate::memory::cstr_first_byte(pat) == b'^'
                 && crate::memory::cstr_byte_at(pat, 1) != 0
             {
                 let pc = cstr_to_cstring(pat.wrapping_add(1));
@@ -3297,7 +3304,7 @@ pub fn expand_bufnames(
                 continue;
             }
 
-            let mut p: *mut c_char = ptr::null_mut();
+            let mut p: RawCCharPtrMut = ptr::null_mut();
             if !fuzzy {
                 p = buflist_match(&mut regmatch, &mut *buf, opt_vars().p_wic != 0);
             } else {
@@ -3377,7 +3384,7 @@ pub fn expand_bufnames(
     }
 }
 
-fn buflist_match(rmp: &mut Regmatch, buf: &mut FileBuf, ignore_case: bool) -> *mut c_char {
+fn buflist_match(rmp: &mut Regmatch, buf: &mut FileBuf, ignore_case: bool) -> RawCCharPtrMut {
     let mut match_ = fname_match(rmp, buf.b_sfname, ignore_case);
     if match_.is_null() && !rmp.regprog.is_null() {
         match_ = fname_match(rmp, buf.b_ffname, ignore_case);
@@ -3389,9 +3396,9 @@ fn fname_match(
     rmp: &mut Regmatch,
     name: impl crate::strings::IntoCCharPtr,
     ignore_case: bool,
-) -> *mut c_char {
+) -> RawCCharPtrMut {
     let name = name.into_c_char_ptr().cast_mut();
-    let mut match_: *mut c_char = ptr::null_mut();
+    let mut match_: RawCCharPtrMut = ptr::null_mut();
 
     if name.is_null() || rmp.regprog.is_null() {
         return ptr::null_mut();
@@ -3721,7 +3728,7 @@ pub fn buflist_list(eap: &mut Exarg) {
         let mut i = 40 - vim_strsize(iobuff_ptr);
         loop {
             unsafe {
-                *iobuff_ptr.wrapping_add(len) = b' ' as c_char;
+                *iobuff_ptr.wrapping_add(len).cast::<u8>() = b' ';
             }
             len += 1;
             i -= 1;
@@ -3757,14 +3764,14 @@ pub fn buflist_list(eap: &mut Exarg) {
 }
 
 /// Get file name and line number for file `fnum`.
-pub fn buflist_name_nr(fnum: i32, fname: *mut *mut c_char, lnum: &mut Linenr) -> bool {
+pub fn buflist_name_nr<T>(fnum: i32, fname: *mut *mut T, lnum: &mut Linenr) -> bool {
     unsafe {
         let buf = buflist_findnr(fnum);
         if buf.is_null() || (*buf).b_fname.is_null() {
             return false;
         }
 
-        *fname = (*buf).b_fname;
+        *fname = (*buf).b_fname.cast();
         *lnum = buflist_findlnum(&mut *buf);
 
         true
@@ -3774,10 +3781,12 @@ pub fn buflist_name_nr(fnum: i32, fname: *mut *mut c_char, lnum: &mut Linenr) ->
 /// Set the file name for `buf` to `ffname_arg`, short file name to `sfname_arg`.
 pub fn setfname(
     buf: &mut FileBuf,
-    ffname_arg: *mut c_char,
-    sfname_arg: *mut c_char,
+    ffname_arg: impl crate::strings::IntoCCharPtr,
+    sfname_arg: impl crate::strings::IntoCCharPtr,
     message: bool,
 ) -> bool {
+    let ffname_arg = ffname_arg.into_c_char_ptr().cast_mut();
+    let sfname_arg = sfname_arg.into_c_char_ptr().cast_mut();
     unsafe {
         let mut ffname = ffname_arg;
         let mut sfname = sfname_arg;
@@ -3821,7 +3830,7 @@ pub fn setfname(
                 to_slash(sf_vec.as_mut_ptr());
                 path_fix_case(sf_vec.as_mut_ptr());
             }
-            let sf_len = crate::memory::cstr_len(sf_vec.as_ptr().cast::<c_char>());
+            let sf_len = crate::memory::cstr_len(&sf_vec);
             let sfname_cstr = cstr_from_bytes(&sf_vec[..sf_len]);
             buf.set_ffname(Some(ffname_cstr));
             buf.set_sfname(Some(sfname_cstr));
@@ -3850,7 +3859,7 @@ pub fn buf_set_name(fnum: i32, name: &std::ffi::CStr) {
         (*buf).clear_fnames();
         let name_cstr = name.to_owned();
         let mut ffname = name_cstr.as_ptr().cast_mut();
-        let mut sfname: *mut c_char = ptr::null_mut();
+        let mut sfname: RawCCharPtrMut = ptr::null_mut();
         let ffname_cstr = fname_expand(buf, &raw mut ffname, &raw mut sfname);
         let sfname_cstr = if sfname.is_null() {
             None
@@ -3881,7 +3890,11 @@ pub fn buf_name_changed(buf: &mut FileBuf) {
 }
 
 /// Set alternate file name for current window.
-pub fn setaltfname(ffname: *mut c_char, sfname: *mut c_char, lnum: Linenr) -> *mut FileBuf {
+pub fn setaltfname(
+    ffname: impl crate::strings::IntoCCharPtr,
+    sfname: impl crate::strings::IntoCCharPtr,
+    lnum: Linenr,
+) -> *mut FileBuf {
     let buf = buflist_new(ffname, sfname, lnum, 0);
     if !buf.is_null() && (g_st().cmdmod.cmod_flags & CMOD_KEEPALT) == 0 {
         curwin_mut().w_alt_fnum = unsafe { (*buf).b_fnum };
@@ -3890,8 +3903,8 @@ pub fn setaltfname(ffname: *mut c_char, sfname: *mut c_char, lnum: Linenr) -> *m
 }
 
 /// Get alternate file name for current window.
-pub fn getaltfname(errmsg: bool) -> *mut c_char {
-    let mut fname: *mut c_char = ptr::null_mut();
+pub fn getaltfname(errmsg: bool) -> RawCCharPtrMut {
+    let mut fname: RawCCharPtrMut = ptr::null_mut();
     let mut dummy: Linenr = 0;
 
     if !buflist_name_nr(0, &raw mut fname, &mut dummy) {
@@ -3904,9 +3917,9 @@ pub fn getaltfname(errmsg: bool) -> *mut c_char {
 }
 
 /// Add a file name to the buflist and return its number.
-pub fn buflist_add(fname: *mut c_char, flags: i32) -> i32 {
+pub fn buflist_add(fname: impl crate::strings::IntoCCharPtr, flags: i32) -> i32 {
     unsafe {
-        let buf = buflist_new(fname, ptr::null_mut(), 0, flags);
+        let buf = buflist_new(fname, ptr::null_mut::<u8>().cast(), 0, flags);
         if !buf.is_null() { (*buf).b_fnum } else { 0 }
     }
 }
@@ -3977,8 +3990,8 @@ fn buf_same_file_id(buf: &mut FileBuf, file_id: *mut FileID) -> bool {
 
 /// Print info about the current buffer.
 pub fn fileinfo(fullname: i32, shorthelp: i32, dont_truncate: bool) {
-    let mut buffer_vec = vec![0 as c_char; IOSIZE];
-    let buffer = buffer_vec.as_mut_ptr();
+    let mut buffer_vec = vec![0u8; IOSIZE];
+    let buffer: RawCCharPtrMut = buffer_vec.as_mut_ptr().cast();
     let mut bufferlen = 0usize;
 
     if fullname > 1 {
@@ -3986,7 +3999,7 @@ pub fn fileinfo(fullname: i32, shorthelp: i32, dont_truncate: bool) {
     }
 
     unsafe {
-        *buffer.wrapping_add(bufferlen) = b'"' as c_char;
+        *buffer.wrapping_add(bufferlen).cast::<u8>() = b'"';
     }
     bufferlen += 1;
 
@@ -4106,7 +4119,7 @@ pub fn fileinfo(fullname: i32, shorthelp: i32, dont_truncate: bool) {
         );
         validate_virtcol(curwin_mut());
         bufferlen += col_print(
-            buffer.wrapping_add(bufferlen),
+            buffer.wrapping_add(bufferlen).cast(),
             IOSIZE - bufferlen,
             curwin_mut().w_cursor.col + 1,
             curwin_mut().w_virtcol + 1,
@@ -4115,7 +4128,7 @@ pub fn fileinfo(fullname: i32, shorthelp: i32, dont_truncate: bool) {
 
     append_arg_number(
         curwin_mut(),
-        buffer.wrapping_add(bufferlen),
+        buffer.wrapping_add(bufferlen).cast(),
         IOSIZE - bufferlen,
     );
 
@@ -4133,18 +4146,18 @@ pub fn fileinfo(fullname: i32, shorthelp: i32, dont_truncate: bool) {
     }
 }
 
-pub fn col_print(buf: *mut c_char, buflen: usize, col: i32, vcol: i32) -> i32 {
+pub fn col_print(buf: *mut u8, buflen: usize, col: i32, vcol: i32) -> i32 {
     if col == vcol {
-        vim_snprintf_safelen!(buf, buflen, c"%d", col) as i32
+        vim_snprintf_safelen!(buf.cast(), buflen, c"%d", col) as i32
     } else {
-        vim_snprintf_safelen!(buf, buflen, c"%d-%d", col, vcol) as i32
+        vim_snprintf_safelen!(buf.cast(), buflen, c"%d-%d", col, vcol) as i32
     }
 }
 
 /// Put the title name in the title bar and icon of the window.
 pub fn maketitle() {
-    let mut title_str: *mut c_char = ptr::null_mut();
-    let mut icon_str: *mut c_char = ptr::null_mut();
+    let mut title_str: RawCCharPtrMut = ptr::null_mut();
+    let mut icon_str: RawCCharPtrMut = ptr::null_mut();
     let mut buf = [0u8; IOSIZE];
     let outbuf = CharBuf {
         data: buf.as_mut_ptr(),
@@ -4313,7 +4326,7 @@ pub fn free_titles() {
 }
 
 /// Get relative cursor position in window into `buf[]`.
-pub fn get_rel_pos(wp: &mut WinInfoInfo, buf: *mut c_char, buflen: i32) -> i32 {
+pub fn get_rel_pos(wp: &mut WinInfoInfo, buf: *mut u8, buflen: i32) -> i32 {
     if buflen < 3 {
         return 0;
     }
@@ -4326,7 +4339,7 @@ pub fn get_rel_pos(wp: &mut WinInfoInfo, buf: *mut c_char, buflen: i32) -> i32 {
     let below = wp.buf_mut().b_ml.ml_line_count - wp.w_botline + 1;
     if below <= 0 {
         return vim_snprintf_safelen!(
-            buf,
+            buf.cast(),
             buflen as usize,
             c"%s",
             if above == 0 {
@@ -4338,17 +4351,22 @@ pub fn get_rel_pos(wp: &mut WinInfoInfo, buf: *mut c_char, buflen: i32) -> i32 {
     }
 
     if above <= 0 {
-        return vim_snprintf_safelen!(buf, buflen as usize, c"%s", gettext(c"Top"),) as i32;
+        return vim_snprintf_safelen!(buf.cast(), buflen as usize, c"%s", gettext(c"Top"),) as i32;
     }
 
     let perc = calc_percentage(i64::from(above), i64::from(above + below));
-    let mut tmp = [0 as c_char; 8];
-    vim_snprintf!(tmp.as_mut_ptr(), tmp.len(), gettext(c"%d%%"), perc);
-    vim_snprintf_safelen!(buf, buflen as usize, gettext(c"%3s"), tmp.as_ptr()) as i32
+    let mut tmp = [0u8; 8];
+    vim_snprintf!(tmp.as_mut_ptr().cast(), tmp.len(), gettext(c"%d%%"), perc);
+    vim_snprintf_safelen!(
+        buf.cast(),
+        buflen as usize,
+        gettext(c"%3s"),
+        tmp.as_ptr().cast::<()>(),
+    ) as i32
 }
 
 /// Append `(2 of 8)` to `buf[]`, if editing more than one file.
-pub fn append_arg_number(wp: &mut WinInfoInfo, buf: *mut c_char, buflen: usize) -> i32 {
+pub fn append_arg_number(wp: &mut WinInfoInfo, buf: *mut u8, buflen: usize) -> i32 {
     let argcount = crate::arglist::argcount();
     if argcount <= 1 {
         return 0;
@@ -4360,14 +4378,14 @@ pub fn append_arg_number(wp: &mut WinInfoInfo, buf: *mut c_char, buflen: usize) 
         gettext(c" (%d of %d)")
     };
 
-    vim_snprintf_safelen!(buf, buflen, msg, wp.w_arg_idx + 1, argcount) as i32
+    vim_snprintf_safelen!(buf.cast(), buflen, msg, wp.w_arg_idx + 1, argcount) as i32
 }
 
 /// Make `*ffname` a full file name, set `*sfname` to `*ffname` if not NULL.
-pub fn fname_expand(
+pub fn fname_expand<T, U>(
     buf: *mut FileBuf,
-    ffname: *mut *mut c_char,
-    sfname: *mut *mut c_char,
+    ffname: *mut *mut T,
+    sfname: *mut *mut U,
 ) -> Option<std::ffi::CString> {
     unsafe {
         #[cfg(not(windows))]
@@ -4376,28 +4394,26 @@ pub fn fname_expand(
             return None;
         }
         if (*sfname).is_null() {
-            *sfname = *ffname;
+            *sfname = (*ffname).cast();
         }
-        let Some(mut full_cstr) = fix_fname(*ffname) else {
+        let ffname_ptr: RawCCharPtr = (*ffname).cast();
+        let Some(mut full_cstr) = fix_fname(ffname_ptr) else {
             *ffname = ptr::null_mut();
             *sfname = ptr::null_mut();
             return None;
         };
         if os_isdir(full_cstr.as_ptr()) {
-            let mut name_vec: Vec<c_char> = cstr_to_cstring(*sfname)
-                .into_bytes_with_nul()
-                .into_iter()
-                .map(|b| b as c_char)
-                .collect();
-            let name = name_vec.as_mut_ptr();
+            let sfname_ptr: RawCCharPtr = (*sfname).cast();
+            let mut name_vec: Vec<u8> = cstr_to_cstring(sfname_ptr).into_bytes_with_nul();
+            let name: RawCCharPtrMut = name_vec.as_mut_ptr().cast();
             let name_len = name_vec.len() - 1;
             if name_len > 0
                 && after_pathsep(name, name.wrapping_add(name_len)) != 0
                 && name.wrapping_add(name_len) > get_past_head(name)
             {
-                *path_tail_with_sep(name) = NUL;
+                *path_tail_with_sep(name) = 0;
             }
-            let full = fix_fname(name);
+            let full = fix_fname(&name_vec);
             drop(name_vec);
             if let Some(dir_full) = full {
                 full_cstr = dir_full;
@@ -4411,10 +4427,10 @@ pub fn fname_expand(
             && let Some(rfname_cstr) = os_resolve_shortcut(full_cstr.as_ptr())
         {
             full_cstr = rfname_cstr;
-            *sfname = full_cstr.as_ptr().cast_mut();
+            *sfname = full_cstr.as_ptr().cast_mut().cast();
         }
 
-        *ffname = full_cstr.as_ptr().cast_mut();
+        *ffname = full_cstr.as_ptr().cast_mut().cast();
         Some(full_cstr)
     }
 }
@@ -4646,7 +4662,7 @@ pub fn do_modelines(flags: i32) {
 }
 
 fn chk_modeline(lnum: Linenr, flags: i32) -> bool {
-    let mut e: *mut c_char;
+    let mut e: RawCCharPtrMut;
     let mut retval = true;
 
     let mut prev: i32 = -1;
@@ -4664,8 +4680,8 @@ fn chk_modeline(lnum: Linenr, flags: i32) -> bool {
                 && crate::memory::cstr_byte_at(s, 1) == b'i'
                 && crate::memory::cstr_byte_at(s, 2) == b'm'
             {
-                let s3 = unsafe { *s.wrapping_add(3) };
-                if s3 == b'<' as c_char || s3 == b'=' as c_char || s3 == b'>' as c_char {
+                let s3 = crate::memory::cstr_byte_at(s, 3);
+                if s3 == b'<' || s3 == b'=' || s3 == b'>' {
                     e = s.wrapping_add(4);
                 } else {
                     e = s.wrapping_add(3);
@@ -4682,11 +4698,11 @@ fn chk_modeline(lnum: Linenr, flags: i32) -> bool {
                     && (crate::memory::cstr_first_byte(s) != b'V'
                         || (crate::memory::cstr_prefix_bytes(skipwhite(e.wrapping_add(1)), 3)
                             == &b"set"[..3]))
-                    && (s3 == b':' as c_char
-                        || (vim_version >= vers && (s3 as u8).is_ascii_digit())
-                        || (vim_version < vers && s3 == b'<' as c_char)
-                        || (vim_version > vers && s3 == b'>' as c_char)
-                        || (vim_version == vers && s3 == b'=' as c_char))
+                    && (s3 == b':'
+                        || (vim_version >= vers && s3.is_ascii_digit())
+                        || (vim_version < vers && s3 == b'<')
+                        || (vim_version > vers && s3 == b'>')
+                        || (vim_version == vers && s3 == b'='))
                 {
                     break;
                 }
@@ -4709,12 +4725,8 @@ fn chk_modeline(lnum: Linenr, flags: i32) -> bool {
 
     let len = crate::memory::ptr_offset_from(line_end, s) as usize;
     let linecopy_cstr = cstr_from_bytes(crate::memory::cstr_slice(s, len));
-    let mut linecopy_vec: Vec<c_char> = linecopy_cstr
-        .into_bytes_with_nul()
-        .into_iter()
-        .map(|b| b as c_char)
-        .collect();
-    s = linecopy_vec.as_mut_ptr();
+    let mut linecopy_vec: Vec<u8> = linecopy_cstr.into_bytes_with_nul();
+    s = linecopy_vec.as_mut_ptr().cast();
     line_end = s.wrapping_add(linecopy_vec.len() - 1);
 
     estack_push(ETYPE_MODELINE, c"modelines", lnum);
@@ -4860,7 +4872,7 @@ pub fn buf_hide(buf: &FileBuf) -> bool {
 }
 
 /// Return special buffer name or NULL when the buffer has a normal file name.
-pub fn buf_spname(buf: &FileBuf) -> *mut c_char {
+pub fn buf_spname(buf: &FileBuf) -> RawCCharPtrMut {
     if bt_quickfix(Some(buf)) {
         if buf.b_fnum == qf_stack_get_bufnr() {
             return gettext(MSG_QFLIST);
@@ -4886,7 +4898,7 @@ pub fn buf_spname(buf: &FileBuf) -> *mut c_char {
 }
 
 /// Get `buf->b_fname`, use `"[No Name]"` if it is NULL.
-pub fn buf_get_fname(buf: &FileBuf) -> *mut c_char {
+pub fn buf_get_fname(buf: &FileBuf) -> RawCCharPtrMut {
     if buf.b_fname.is_null() {
         gettext(c"[No Name]")
     } else {
