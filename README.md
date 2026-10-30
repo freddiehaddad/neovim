@@ -39,20 +39,20 @@ Measured head-to-head against upstream [`neovim/neovim@61e71ccf8a`](https://gith
 
 | Workload | Suite | Upstream C | Rust Port | Speedup |
 |---|---|---:|---:|---:|
-| Cold startup (headless median) | Startup | 31.4 ms | 16.7 ms | 1.88x |
-| Screen layout & wrapping (24 tests) | screenpos | 36.8 s | 19.9 s | 1.85x |
-| Long ASCII line layout (median) | screenpos | 55.2 µs | 23.8 µs | 2.32x |
-| Long UTF-8 line layout (median) | screenpos | 167.0 µs | 97.1 µs | 1.72x |
-| Regex search (backtracking) | regexp | 6.40 ms | 3.48 ms | 1.84x |
-| Regex search (auto engine) | regexp | 7.94 ms | 6.19 ms | 1.28x |
-| Cursor motion over 2k virtual lines | extmark | 117 µs | 71 µs | 1.65x |
-| Treesitter fold navigation (100 macros) | treesitter | 60.9 ms | 43.1 ms | 1.41x |
-| Treesitter redraw suite (8 tests) | treesitter | 1,535 ms | 1,433 ms | 1.07x |
-| Autocmd lifecycle suite (10k events) | autocmd | 464 ms | 333 ms | 1.39x |
-| Delete 10k autocmds (unique patterns) | autocmd | 27.1 ms | 15.3 ms | 1.78x |
-| Extmark & virtual line suite | extmark | 197 ms | 168 ms | 1.17x |
-| Option updates (140k calls) | option | 609 ms | 539 ms | 1.13x |
-| Full-screen Treesitter redraw (100x50) | decor | 16.6 ms | 16.3 ms | 1.02x |
+| Cold startup (headless median) | Startup | 31.4 ms | 16.8 ms | 1.87x |
+| Screen layout & wrapping (24 tests) | screenpos | 36.8 s | 20.5 s | 1.80x |
+| Long ASCII line layout (median) | screenpos | 55.2 µs | 24.2 µs | 2.28x |
+| Long UTF-8 line layout (median) | screenpos | 167.0 µs | 79.4 µs | 2.10x |
+| Regex search (backtracking) | regexp | 6.40 ms | 3.75 ms | 1.71x |
+| Regex search (auto engine) | regexp | 7.94 ms | 5.96 ms | 1.33x |
+| Cursor motion over 2k virtual lines | extmark | 117 µs | 72 µs | 1.63x |
+| Treesitter fold navigation (100 macros) | treesitter | 60.9 ms | 42.0 ms | 1.45x |
+| Treesitter redraw suite (8 tests) | treesitter | 1,535 ms | 1,507 ms | 1.02x |
+| Autocmd lifecycle suite (10k events) | autocmd | 464 ms | 343 ms | 1.35x |
+| Delete 10k autocmds (unique patterns) | autocmd | 27.1 ms | 17.7 ms | 1.53x |
+| Extmark & virtual line suite | extmark | 197 ms | 173 ms | 1.14x |
+| Option updates (140k calls) | option | 609 ms | 536 ms | 1.14x |
+| Full-screen Treesitter redraw (100x50) | decor | 16.6 ms | 16.0 ms | 1.04x |
 
 </details>
 
