@@ -1470,7 +1470,7 @@ pub fn get_lval(
         *lp = Lval::new();
 
         if skip {
-            lp.ll_name = name;
+            lp.ll_name = name.cast();
             return find_name_end(
                 name,
                 ptr::null_mut(),
@@ -1500,7 +1500,7 @@ pub fn get_lval(
             {
                 lp.ll_name_len = cstr.as_bytes().len();
                 lp.ll_exp_name = Some(cstr);
-                lp.ll_name = lp.ll_exp_name.as_ref().unwrap().as_ptr();
+                lp.ll_name = lp.ll_exp_name.as_ref().unwrap().as_ptr().cast();
             } else {
                 lp.ll_exp_name = None;
                 lp.ll_name = ptr::null();
@@ -1514,7 +1514,7 @@ pub fn get_lval(
                 lp.ll_name_len = 0;
             }
         } else {
-            lp.ll_name = name;
+            lp.ll_name = name.cast();
             lp.ll_name_len = (p as usize).wrapping_sub(lp.ll_name as usize);
         }
 
@@ -1527,7 +1527,7 @@ pub fn get_lval(
         let mut ht: *mut Hashtab = ptr::null_mut();
 
         let v = find_var(
-            lp.ll_name,
+            lp.ll_name.cast(),
             lp.ll_name_len,
             if (flags & GLV_READ_ONLY) != 0 {
                 ptr::null_mut()
@@ -1540,7 +1540,7 @@ pub fn get_lval(
             semsg!(
                 gettext(c"E121: Undefined variable: %.*s"),
                 lp.ll_name_len as i32,
-                lp.ll_name,
+                lp.ll_name.cast::<c_char>(),
             );
         }
         if v.is_null() {
@@ -1590,7 +1590,7 @@ pub fn set_var_lval(
                     *endp = cc;
                     return;
                 }
-                if value_check_lock((*lp.ll_blob).bv_lock, lp.ll_name, TV_CSTRING) {
+                if value_check_lock((*lp.ll_blob).bv_lock, lp.ll_name.cast(), TV_CSTRING) {
                     *endp = cc;
                     return;
                 }
@@ -1631,7 +1631,7 @@ pub fn set_var_lval(
 
                 let mut di: *mut Dictitem = ptr::null_mut();
                 if eval_variable(
-                    lp.ll_name,
+                    lp.ll_name.cast(),
                     lp.ll_name_len as i32,
                     Some(&mut tv),
                     &raw mut di,
@@ -1639,16 +1639,16 @@ pub fn set_var_lval(
                     false,
                 ) {
                     if (di.is_null()
-                        || (!var_check_ro(i32::from((*di).di_flags), lp.ll_name, TV_CSTRING)
-                            && !tv_check_lock(&(*di).di_tv, lp.ll_name, TV_CSTRING)))
+                        || (!var_check_ro(i32::from((*di).di_flags), lp.ll_name.cast(), TV_CSTRING)
+                            && !tv_check_lock(&(*di).di_tv, lp.ll_name.cast(), TV_CSTRING)))
                         && eexe_mod_op(&mut tv, &*rettv, crate::memory::cstr_from_ptr(op))
                     {
-                        set_var(lp.ll_name, lp.ll_name_len, &mut tv, false);
+                        set_var(lp.ll_name.cast(), lp.ll_name_len, &mut tv, false);
                     }
                     tv_clear(&mut tv);
                 }
             } else {
-                set_var_const(lp.ll_name, lp.ll_name_len, rettv, copy, is_const);
+                set_var_const(lp.ll_name.cast(), lp.ll_name_len, rettv, copy, is_const);
             }
             *endp = cc;
         } else if value_check_lock(
@@ -1657,7 +1657,7 @@ pub fn set_var_lval(
             } else {
                 (*lp.tv_mut().vval.v_dict()).dv_lock
             },
-            lp.ll_name,
+            lp.ll_name.cast(),
             TV_CSTRING,
         ) {
             // Skip
@@ -1674,7 +1674,7 @@ pub fn set_var_lval(
                 lp.ll_n2,
                 lp.ll_empty2,
                 op,
-                lp.ll_name,
+                lp.ll_name.cast(),
             );
         } else {
             let mut oldtv = tv_initial_value();
@@ -4136,7 +4136,7 @@ fn eval_lit_string(
 pub fn eval_interp_string(arg: *mut *mut c_char, rettv: &mut TypVal, evaluate: bool) -> bool {
     unsafe {
         let mut ret: bool;
-        let mut buf: Vec<c_char> = if evaluate {
+        let mut buf: Vec<u8> = if evaluate {
             Vec::with_capacity(80)
         } else {
             Vec::new()
@@ -4160,7 +4160,10 @@ pub fn eval_interp_string(arg: *mut *mut c_char, rettv: &mut TypVal, evaluate: b
                 if !tv.vval.v_string().is_null() {
                     let len = crate::memory::cstr_len(tv.vval.v_string());
                     if len > 0 {
-                        buf.extend_from_slice(std::slice::from_raw_parts(tv.vval.v_string(), len));
+                        buf.extend_from_slice(std::slice::from_raw_parts(
+                            tv.vval.v_string().cast::<u8>(),
+                            len,
+                        ));
                     }
                 }
                 tv_clear(&mut tv);
@@ -4179,7 +4182,7 @@ pub fn eval_interp_string(arg: *mut *mut c_char, rettv: &mut TypVal, evaluate: b
         }
 
         if ret && evaluate {
-            crate::eval::typval::tv_set_string_len(rettv, buf.as_ptr(), buf.len());
+            crate::eval::typval::tv_set_string_len(rettv, buf.as_ptr().cast(), buf.len());
         } else {
             rettv.v_type = VarType::VarString;
             rettv.vval = crate::eval::typval::TypvalVval::String(ptr::null_mut());

@@ -1248,9 +1248,9 @@ pub fn atom_map_start(lhs: impl crate::strings::IntoCCharPtr, len: usize, peeked
             atom_composite_end();
         }
         let op = get_vim_var_str(VV_OP);
-        if get_real_state() == MODE_OP_PENDING && unsafe { *op } != 0 {
+        if get_real_state() == MODE_OP_PENDING && !op.is_empty() {
             assert!(unsafe { *lhs.wrapping_add(len) } == 0);
-            let mut full_bytes = Vec::from(crate::memory::cstr_as_bytes(op));
+            let mut full_bytes = Vec::from(op.to_bytes());
             full_bytes.extend_from_slice(crate::memory::cstr_slice(lhs, len));
             let full = cstr_from_bytes(&full_bytes);
             atom_composite_start(full.as_ptr(), full.as_bytes().len());

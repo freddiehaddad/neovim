@@ -2815,12 +2815,22 @@ pub fn replace_termcodes(
                     && crate::memory::cstr_prefix_bytes(src.cast(), 8)
                         .eq_ignore_ascii_case(b"<Leader>")
                 {
-                    (8, get_var_value(c"g:mapleader").cast())
+                    (
+                        8,
+                        get_var_value(c"g:mapleader").map_or(std::ptr::null_mut(), |s| {
+                            s.as_ptr().cast_mut().cast()
+                        }),
+                    )
                 } else if rem >= 13
                     && crate::memory::cstr_prefix_bytes(src.cast(), 13)
                         .eq_ignore_ascii_case(b"<LocalLeader>")
                 {
-                    (13, get_var_value(c"g:maplocalleader").cast())
+                    (
+                        13,
+                        get_var_value(c"g:maplocalleader").map_or(std::ptr::null_mut(), |s| {
+                            s.as_ptr().cast_mut().cast()
+                        }),
+                    )
                 } else {
                     (0, std::ptr::null_mut())
                 };

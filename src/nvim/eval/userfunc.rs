@@ -2366,9 +2366,9 @@ pub fn trans_function_name<T>(
         if let Some(ref exp_name) = lv.ll_exp_name {
             len = exp_name.as_bytes().len() as i32;
             if lead <= 2
-                && lv.ll_name == exp_name.as_ptr()
+                && lv.ll_name == exp_name.as_ptr().cast()
                 && lv.ll_name_len >= 2
-                && (crate::memory::cstr_prefix_bytes(lv.ll_name, 2) == &b"s:"[..2])
+                && (crate::memory::cstr_prefix_bytes(lv.ll_name.cast(), 2) == &b"s:"[..2])
             {
                 lv.ll_name = lv.ll_name.wrapping_add(2);
                 lv.ll_name_len -= 2;
@@ -2377,8 +2377,8 @@ pub fn trans_function_name<T>(
             }
         } else {
             if lead == 2
-                || (crate::memory::cstr_first_byte(lv.ll_name) == b'g'
-                    && crate::memory::cstr_byte_at(lv.ll_name, 1) == b':')
+                || (crate::memory::cstr_first_byte(lv.ll_name.cast()) == b'g'
+                    && crate::memory::cstr_byte_at(lv.ll_name.cast(), 1) == b':')
             {
                 lv.ll_name = lv.ll_name.wrapping_add(2);
                 lv.ll_name_len = lv.ll_name_len.wrapping_sub(2);
@@ -2411,7 +2411,9 @@ pub fn trans_function_name<T>(
                 ) as usize;
                 lead += sid_buflen as i32;
             }
-        } else if (flags & TFN_INT) == 0 && builtin_function(lv.ll_name, lv.ll_name_len as i32) {
+        } else if (flags & TFN_INT) == 0
+            && builtin_function(lv.ll_name.cast(), lv.ll_name_len as i32)
+        {
             semsg!(
                 gettext(c"E128: Function name must start with a capital or \"s:\": %s"),
                 start,

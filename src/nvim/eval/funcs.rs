@@ -455,7 +455,7 @@ pub fn get_function_name(xp: &mut ExpandCtx, idx: i32) -> *mut c_char {
             && name.to_bytes()[0] != b'<'
             && (b"g:" == crate::memory::cstr_prefix_bytes(xp.xp_pattern, 2))
         {
-            return cat_prefix_varname(b'g' as i32, name.as_ptr());
+            return cat_prefix_varname(b'g' as i32, name.as_ptr()).as_ptr().cast_mut();
         }
         return name.as_ptr().cast_mut();
     }
@@ -501,6 +501,7 @@ pub fn get_expr_name(xp: &mut ExpandCtx, idx: i32) -> *mut c_char {
     }
     funcs_st().get_expr_name_intidx += 1;
     get_user_var_name(xp, funcs_st().get_expr_name_intidx)
+        .map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut())
 }
 
 const INTERNAL_FUNC_NAME_MAP: &[(&[u8], i32)] = &[
@@ -3461,7 +3462,7 @@ fn getreg_get_regname(argvars: &mut [TypVal]) -> i32 {
         }
         s
     } else {
-        get_vim_var_str(VV_REG)
+        get_vim_var_str(VV_REG).as_ptr()
     };
     if unsafe { *strregname } == 0 {
         b'"' as i32
@@ -4237,7 +4238,7 @@ pub fn f_islocked(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDat
                 end,
             );
         } else if lv.ll_tv.is_null() {
-            let di = find_var(lv.ll_name, lv.ll_name_len, ptr::null_mut(), 1);
+            let di = find_var(lv.ll_name.cast(), lv.ll_name_len, ptr::null_mut(), 1);
             if !di.is_null() {
                 let di = unsafe { &mut *di };
                 rettv.vval = crate::eval::typval::TypvalVval::Number(Varnumber::from(

@@ -3576,7 +3576,7 @@ fn do_swapexists(buf: &mut FileBuf, fname: impl crate::strings::IntoCCharPtr) ->
 
         set_vim_var_string(VV_SWAPNAME, ptr::null(), -1);
 
-        match unsafe { *get_vim_var_str(VV_SWAPCHOICE) } as u8 {
+        match get_vim_var_str(VV_SWAPCHOICE).to_bytes().first().copied().unwrap_or(0) {
             b'o' => SEA_CHOICE_READONLY,
             b'e' => SEA_CHOICE_EDIT,
             b'r' => SEA_CHOICE_RECOVER,

@@ -5039,12 +5039,7 @@ pub fn ex_ownsyntax(eap: &mut Exarg) {
         new_s_ptr.b_syn_isk = None;
     }
 
-    let raw_old = get_var_value(c"b:current_syntax");
-    let old_value = if raw_old.is_null() {
-        None
-    } else {
-        Some(crate::memory::cstr_to_cstring(raw_old))
-    };
+    let old_value = get_var_value(c"b:current_syntax").map(ToOwned::to_owned);
 
     apply_autocmds(
         EVENT_SYNTAX,
@@ -5054,8 +5049,7 @@ pub fn ex_ownsyntax(eap: &mut Exarg) {
         g_st().curbuf,
     );
 
-    let new_value = get_var_value(c"b:current_syntax");
-    if !new_value.is_null() {
+    if let Some(new_value) = get_var_value(c"b:current_syntax") {
         set_internal_string_var(c"w:current_syntax", new_value);
     }
 

@@ -723,9 +723,8 @@ pub fn ex_compiler(eap: &mut Exarg) {
     if eap.forceit != 0 {
         do_cmdline_cmd(c"command -nargs=* -keepscript CompilerSet set <args>");
     } else {
-        let p = get_var_value(c"g:current_compiler");
-        if !p.is_null() {
-            old_cur_comp = Some(crate::memory::cstr_to_cstring(p));
+        if let Some(p) = get_var_value(c"g:current_compiler") {
+            old_cur_comp = Some(p.to_owned());
         }
         do_cmdline_cmd(c"command -nargs=* -keepscript CompilerSet setlocal <args>");
     }
@@ -740,8 +739,7 @@ pub fn ex_compiler(eap: &mut Exarg) {
 
     do_cmdline_cmd(c":delcommand CompilerSet");
 
-    let p = get_var_value(c"g:current_compiler");
-    if !p.is_null() {
+    if let Some(p) = get_var_value(c"g:current_compiler") {
         set_internal_string_var(c"b:current_compiler", p);
     }
 

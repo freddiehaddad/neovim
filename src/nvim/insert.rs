@@ -391,7 +391,7 @@ fn insert_enter(s: &mut InsertState) {
         }
 
         if !equalpos(curwin_mut().w_cursor, save_cursor)
-            && unsafe { *get_vim_var_str(VV_CHAR) } == NUL
+            && get_vim_var_str(VV_CHAR).is_empty()
             && save_cursor.lnum <= curbuf_mut().b_ml.ml_line_count
         {
             let save_state = g_st().state_global;

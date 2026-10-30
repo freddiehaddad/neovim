@@ -526,14 +526,14 @@ pub fn f_assert_notequal(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: Eval
 pub fn f_assert_exception(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
     let error = tv_get_string_chk(&argvars[0]);
     let v_exc = get_vim_var_str(VV_EXCEPTION);
-    if unsafe { *v_exc } == 0 {
+    if v_exc.is_empty() {
         let mut ga = Vec::new();
         prepare_assert_error(&mut ga);
         ga_concat_literal(&mut ga, b"v:exception is not set");
         assert_error(&ga);
         rettv.vval = crate::eval::typval::TypvalVval::Number(1);
     } else if !error.is_null() {
-        let exc_bytes = crate::memory::cstr_as_bytes(v_exc);
+        let exc_bytes = v_exc.to_bytes();
         let err_bytes = crate::memory::cstr_as_bytes(error);
         let found = if err_bytes.is_empty() {
             true

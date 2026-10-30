@@ -856,9 +856,8 @@ pub fn syn_init_cmdline_highlight(reset: bool, init: bool) {
 }
 
 pub fn init_highlight(both: bool, reset: bool) {
-    let p = get_var_value(c"g:colors_name");
-    if !p.is_null() {
-        let copy_p = crate::memory::cstr_to_cstring(p);
+    if let Some(p) = get_var_value(c"g:colors_name") {
+        let copy_p = p.to_owned();
         let okay = load_colors(copy_p.as_ptr().cast_mut());
         if okay {
             return;
