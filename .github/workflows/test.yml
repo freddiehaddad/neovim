@@ -52,6 +52,7 @@ jobs:
     steps:
       - uses: actions/checkout@v7.0.1
         with:
+          fetch-depth: 0
           persist-credentials: false
 
       - uses: ./.github/actions/setup
@@ -92,12 +93,12 @@ jobs:
       matrix:
         build:
           [
-            { runner: ubuntu-24.04, os: ubuntu, flavor: debug, flags: "" },
+            { runner: ubuntu-24.04, os: ubuntu, flavor: debug, flags: "--debug" },
             { runner: ubuntu-24.04, os: ubuntu, flavor: release, flags: "--release" },
             { runner: ubuntu-24.04-arm, os: ubuntu, flavor: arm, flags: "--release" },
             { runner: macos-15-intel, os: macos, flavor: intel, flags: "--release" },
             { runner: macos-26, os: macos, flavor: arm, flags: "--release" },
-            { runner: ubuntu-24.04, os: ubuntu, flavor: puc-lua, flags: "--prefer-lua" },
+            { runner: ubuntu-24.04, os: ubuntu, flavor: puc-lua, flags: "--debug --prefer-lua" },
           ]
         test: [unittest, functionaltest, oldtest]
         exclude:

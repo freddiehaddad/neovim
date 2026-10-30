@@ -961,6 +961,7 @@ fn validate_commit_msg(commit_message: &str) -> Option<String> {
         "perf",
         "refactor",
         "revert",
+        "sync",
         "test",
         "vim-patch",
     ];
@@ -1089,13 +1090,17 @@ fn run_lintcommit(root: &Path) {
             .then(|| String::from_utf8_lossy(&out.stdout).trim().to_string())
     };
 
-    let branch = git_out(&["rev-parse", "--abbrev-ref", "HEAD"])
-        .expect("git rev-parse --abbrev-ref HEAD failed");
-    let ancestor = git_out(&["merge-base", "origin/master", &branch])
-        .or_else(|| git_out(&["merge-base", "upstream/master", &branch]))
-        .expect("git merge-base failed");
+    let range = if git_out(&["rev-parse", "--verify", "--quiet", "HEAD^2"]).is_some() {
+        "HEAD^1..HEAD^2".to_string()
+    } else {
+        let ancestor = git_out(&["merge-base", "origin/master", "HEAD"])
+            .or_else(|| git_out(&["merge-base", "upstream/master", "HEAD"]))
+            .or_else(|| git_out(&["merge-base", "master", "HEAD"]))
+            .expect("git merge-base failed");
+        format!("{ancestor}..HEAD")
+    };
     let commits_str =
-        git_out(&["rev-list", &format!("{ancestor}..{branch}")]).expect("git rev-list failed");
+        git_out(&["rev-list", "--no-merges", &range]).expect("git rev-list failed");
 
     let mut failed = 0usize;
     for commit_id in commits_str.split_whitespace() {

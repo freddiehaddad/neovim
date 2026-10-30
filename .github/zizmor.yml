@@ -3,9 +3,6 @@ rules:
     ignore:
       - release.yml
       - test.yml
-  dangerous-triggers:
-    ignore:
-      - labeler_pr.yml
   unpinned-uses:
     config:
       policies:

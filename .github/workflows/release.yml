@@ -1,7 +1,5 @@
 name: release
 on:
-  schedule:
-    - cron: '5 5 * * *'
   workflow_dispatch:
     inputs:
       tag_name:
@@ -25,7 +23,7 @@ jobs:
       - if: github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && github.event.inputs.tag_name != 'nightly')
         run: echo 'appimage_tag=latest' >> $GITHUB_OUTPUT
         id: build_release
-      - if: github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && github.event.inputs.tag_name == 'nightly')
+      - if: github.event_name == 'workflow_dispatch' && github.event.inputs.tag_name == 'nightly'
         run: echo 'appimage_tag=nightly' >> $GITHUB_OUTPUT
         id: build_nightly
       - name: Export build information
@@ -38,11 +36,11 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        runner: [ ubuntu-22.04, ubuntu-22.04-arm ]
+        runner: [ ubuntu-24.04, ubuntu-24.04-arm ]
         include:
-          - runner: ubuntu-22.04
+          - runner: ubuntu-24.04
             arch: x86_64
-          - runner: ubuntu-22.04-arm
+          - runner: ubuntu-24.04-arm
             arch: arm64
     runs-on: ${{ matrix.runner }}
     outputs:
@@ -169,9 +167,6 @@ jobs:
         env:
           TAG_NAME: ${{ github.event.inputs.tag_name }}
         run: echo "TAG_NAME=${TAG_NAME}" >> $GITHUB_ENV
-
-      - if: github.event_name == 'schedule'
-        run: echo 'TAG_NAME=nightly' >> $GITHUB_ENV
 
       - if: github.event_name == 'push'
         run: |
