@@ -676,7 +676,7 @@ fn put_reedit_in_typebuf(silent: i32) {
     }
 
     let mut buf: [u8; 11] = [
-        K_SPECIAL, KS_EXTRA, KE_COMMAND, b's', b't', b'a', b'r', b't', b'i', CAR as u8, 0,
+        K_SPECIAL, KS_EXTRA, KE_COMMAND, b's', b't', b'a', b'r', b't', b'i', CAR, 0,
     ];
     if g_st().restart_edit == i32::from(b'R') {
         buf[8] = b'r';
@@ -1573,7 +1573,7 @@ pub fn do_put(regname: i32, mut reg: *mut Yankreg, mut dir: i32, mut count: i32,
                 } else {
                     stuff_readbuff_len(c"put! _", 6);
                 }
-                stuffchar_readbuff(i32::from(CAR as u8));
+                stuffchar_readbuff(i32::from(CAR));
                 g_st().add_last_insert = save_add_last_insert;
             }
 
@@ -2799,7 +2799,8 @@ fn str_to_reg(
         if yank_type == MotionType::MtUnknown {
             yank_type = if str_list.is_some()
                 || (len > 0
-                    && (*str_.wrapping_add(len - 1) == NL || *str_.wrapping_add(len - 1) == CAR))
+                    && (*str_.wrapping_add(len - 1) == NL
+                        || crate::memory::cstr_byte_at(str_, len - 1) == CAR))
             {
                 MotionType::MtLineWise
             } else {

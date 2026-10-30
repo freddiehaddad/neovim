@@ -4355,7 +4355,7 @@ fn set_one_cmd_context(
             && crate::memory::cstr_first_byte(arg.cast()) == b'+'
         {
             p = arg.wrapping_add(1);
-            arg = skip_cmd_arg(arg.cast_mut().cast(), false).cast();
+            arg = skip_cmd_arg(arg.cast_mut(), false);
 
             if crate::memory::cstr_is_empty(arg.cast()) {
                 return p;

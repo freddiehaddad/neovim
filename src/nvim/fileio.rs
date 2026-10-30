@@ -2389,13 +2389,13 @@ pub fn readfile(
                                 break;
                             }
                             let c = *ptr;
-                            if c != 0 && c != CAR as u8 && c != b'\n' {
+                            if c != 0 && c != CAR && c != b'\n' {
                                 continue;
                             }
                             if c == 0 {
                                 *ptr = b'\n';
                             } else if c == b'\n' {
-                                *ptr = CAR as u8;
+                                *ptr = CAR;
                             } else {
                                 if skip_count == 0 {
                                     *ptr = 0;
@@ -2457,7 +2457,7 @@ pub fn readfile(
                                 let mut len =
                                     (crate::memory::ptr_offset_from(ptr, line_start) + 1) as Colnr;
                                 if fileformat == EOL_DOS {
-                                    if ptr > line_start && *ptr.wrapping_sub(1) == CAR as u8 {
+                                    if ptr > line_start && *ptr.wrapping_sub(1) == CAR {
                                         *ptr.wrapping_sub(1) = 0;
                                         len -= 1;
                                     } else if ff_error != EOL_DOS {

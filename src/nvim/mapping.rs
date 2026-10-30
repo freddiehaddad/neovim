@@ -692,7 +692,7 @@ fn map_add(
 ) {
     let keys = keys.into_c_char_ptr();
     {
-        if unsafe { *keys } == CTRL_C_CONST {
+        if crate::memory::cstr_first_byte(keys) == CTRL_C_CONST {
             if local {
                 buf.b_mapped_ctrl_c |= mode;
             } else {
@@ -1065,7 +1065,7 @@ fn buf_do_map(
                         if !keyround1_simplified {
                             retval = 2;
                         }
-                    } else if *lhs == CTRL_C_CONST as u8 {
+                    } else if *lhs == CTRL_C_CONST {
                         if local {
                             buf.b_mapped_ctrl_c &= !mode;
                         } else {

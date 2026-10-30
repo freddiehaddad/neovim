@@ -3488,7 +3488,7 @@ fn get_one_sourceline(sp: &mut SourceCookie) -> Option<Vec<u8>> {
         {
             if (len == 1 || (len >= 2 && buf[len - 2] == b'\n'))
                 && sp.fileformat == EOL_DOS
-                && buf[len - 1] == CTRL_Z_CONST as u8
+                && buf[len - 1] == CTRL_Z_CONST
             {
                 buf.truncate(len - 1);
                 break;

@@ -581,11 +581,11 @@ fn add_menu_path(
                         match 1 << i {
                             MENU_VISUAL_MODE | MENU_SELECT_MODE | MENU_OP_PENDING_MODE
                             | MENU_CMDLINE_MODE => {
-                                c = CTRL_C_CONST as u8;
+                                c = CTRL_C_CONST;
                             }
                             MENU_INSERT_MODE => {
                                 c = CTRL_BSL_CONST;
-                                d = CTRL_O as u8;
+                                d = CTRL_O;
                             }
                             _ => {}
                         }
@@ -599,9 +599,9 @@ fn add_menu_path(
                             bytes.push(d);
                         }
                         bytes.extend_from_slice(call_bytes);
-                        if c == CTRL_C_CONST as u8 {
+                        if c == CTRL_C_CONST {
                             bytes.push(CTRL_BSL_CONST);
-                            bytes.push(CTRL_G as u8);
+                            bytes.push(CTRL_G);
                         }
                         (*menu).strings[i] = Some(std::ffi::CString::new(bytes).unwrap());
                     } else {
