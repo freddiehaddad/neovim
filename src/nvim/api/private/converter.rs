@@ -115,13 +115,9 @@ fn convert_one_value(
         }
         VarType::VarPartial => {
             let pt = tv.vval.v_partial();
-            let fun = if pt.is_null() {
-                std::ptr::null()
-            } else {
-                partial_name(unsafe { pt.as_ref() })
-            };
             let obj = {
-                if !fun.is_null() {
+                if !pt.is_null() {
+                    let fun = partial_name(unsafe { pt.as_ref() });
                     let fp = find_func(fun);
                     if !fp.is_null() && (unsafe { (*fp).uf_flags } & FC_LUAREF) != 0 {
                         Object {

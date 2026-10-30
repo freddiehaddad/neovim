@@ -1115,12 +1115,8 @@ fn lua_convert_one_value(
             }
             VarType::VarPartial => {
                 let pt = tv_ref.vval.v_partial();
-                let fun = if pt.is_null() {
-                    std::ptr::null_mut()
-                } else {
-                    partial_name(pt.as_ref())
-                };
-                if !fun.is_null() {
+                if !pt.is_null() {
+                    let fun = partial_name(pt.as_ref());
                     let fp = find_func(fun);
                     if !fp.is_null() && ((*fp).uf_flags & FC_LUAREF) != 0 {
                         nlua_pushref(lstate, (*fp).uf_luaref);

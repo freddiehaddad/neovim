@@ -2074,7 +2074,7 @@ fn item_compare2(
             .as_ref()
             .map_or(ptr::null(), |s| s.as_ptr())
     } else {
-        partial_name(unsafe { partial.as_ref() })
+        partial_name(unsafe { partial.as_ref() }).as_ptr()
     };
 
     let mut argv: [TypVal; 3] = [tv_initial_value(); 3];
@@ -4060,9 +4060,9 @@ fn nothing_convert_one_value(
             VarType::VarPartial => {
                 let pt = tv.vval.v_partial();
                 let fun = if pt.is_null() {
-                    ptr::null_mut()
+                    ptr::null()
                 } else {
-                    partial_name(pt.as_ref())
+                    partial_name(pt.as_ref()).as_ptr()
                 };
                 if nothing_conv_func_start(tv, fun) != NOTDONE {
                     return true;

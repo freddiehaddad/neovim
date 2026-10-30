@@ -1539,7 +1539,7 @@ pub fn f_call(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
         argvars[0].vval.v_string()
     } else if argvars[0].v_type == VarType::VarPartial {
         partial = argvars[0].vval.v_partial();
-        partial_name(unsafe { partial.as_ref() })
+        partial_name(unsafe { partial.as_ref() }).as_ptr().cast_mut()
     } else if nlua_is_table_from_lua(&argvars[0]) {
         owned = true;
         nlua_register_table_as_callable(&argvars[0])
@@ -2521,7 +2521,7 @@ fn common_function(argvars: &mut [TypVal], rettv: &mut TypVal, is_funcref: bool)
         } else if argvars[0].v_type == VarType::VarPartial && !argvars[0].vval.v_partial().is_null()
         {
             arg_pt = argvars[0].vval.v_partial();
-            partial_name(arg_pt.as_ref())
+            partial_name(arg_pt.as_ref()).as_ptr().cast_mut()
         } else {
             use_string = true;
             tv_get_string(&argvars[0]).cast_mut()
@@ -2750,7 +2750,6 @@ pub fn f_get(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
                     || crate::memory::cstr_as_bytes(what) == b"name"
                 {
                     let mut name = partial_name(Some(&*pt));
-                    debug_assert!(!name.is_null());
                     if crate::memory::cstr_first_byte(what) == b'f' {
                         func_ref(name);
                     }
@@ -2758,7 +2757,7 @@ pub fn f_get(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
                         && pt.pt_name.is_none()
                         && !pt.pt_func.is_null()
                     {
-                        name = printable_func_name(&mut *pt.pt_func).as_ptr().cast_mut();
+                        name = printable_func_name(&mut *pt.pt_func);
                     }
                     crate::eval::typval::tv_set_string(rettv, name);
                     rettv.v_type = if crate::memory::cstr_first_byte(what) == b'f' {
@@ -6554,7 +6553,7 @@ pub fn f_reduce(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData)
     let func_name = if argvars[1].v_type == VarType::VarFunc {
         argvars[1].vval.v_string().cast_const()
     } else if argvars[1].v_type == VarType::VarPartial {
-        partial_name(unsafe { argvars[1].vval.v_partial().as_ref() })
+        partial_name(unsafe { argvars[1].vval.v_partial().as_ref() }).as_ptr()
     } else {
         tv_get_string(&argvars[1])
     };

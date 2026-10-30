@@ -2458,7 +2458,9 @@ fn dis_msg(p: impl crate::strings::IntoCCharPtr, skip_esc: bool) {
     {
         let mut n = g_st().columns_global - 6;
         while !crate::memory::cstr_is_empty(p)
-            && !(unsafe { *p } == ESC && skip_esc && crate::memory::cstr_byte_at(p, 1) == 0)
+            && !(crate::memory::cstr_first_byte(p) == ESC
+                && skip_esc
+                && crate::memory::cstr_byte_at(p, 1) == 0)
         {
             n -= ptr2cells(p);
             if n < 0 {

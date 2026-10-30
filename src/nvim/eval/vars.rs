@@ -993,7 +993,7 @@ pub fn eval_one_expr_in_str<T>(
             );
             return ptr::null_mut();
         }
-        if !skip_expr((&raw mut block_end).cast(), None) {
+        if !skip_expr(&raw mut block_end, None) {
             return ptr::null_mut();
         }
         block_end = skipwhite(block_end.cast()).cast();
@@ -1523,9 +1523,9 @@ fn skip_var_one<T>(arg: *const T) -> *const T {
             if crate::memory::cstr_first_byte(arg.cast()) == b'$'
                 || crate::memory::cstr_first_byte(arg.cast()) == b'&'
             {
-                arg.wrapping_add(1).cast()
+                arg.wrapping_add(1)
             } else {
-                arg.cast()
+                arg
             },
             ptr::null_mut(),
             ptr::null_mut(),
@@ -1618,12 +1618,11 @@ fn list_arg_vars<T>(eap: &mut Exarg, arg: *const T, first: &mut i32) -> *const T
         while ends_excmd(crate::memory::cstr_first_char(arg.cast())) == 0 && !g_st().got_int {
             if error || eap.skip != 0 {
                 arg = find_name_end(
-                    arg.cast(),
+                    arg,
                     ptr::null_mut(),
                     ptr::null_mut(),
                     FNE_INCL_BR | FNE_CHECK_START,
-                )
-                .cast();
+                );
                 if !ascii_iswhite(crate::memory::cstr_first_char(arg.cast()))
                     && ends_excmd(crate::memory::cstr_first_char(arg.cast())) == 0
                 {
@@ -1635,7 +1634,7 @@ fn list_arg_vars<T>(eap: &mut Exarg, arg: *const T, first: &mut i32) -> *const T
                 let name_start = arg;
                 let mut name = arg;
                 let mut tofree: Option<std::ffi::CString> = None;
-                let len = get_name_len((&raw mut arg).cast(), &mut tofree, true, true);
+                let len = get_name_len(&raw mut arg, &mut tofree, true, true);
                 if len <= 0 {
                     if len < 0 && !aborting() {
                         g_st().emsg_severe = true;
@@ -1653,7 +1652,7 @@ fn list_arg_vars<T>(eap: &mut Exarg, arg: *const T, first: &mut i32) -> *const T
                     } else {
                         let arg_subsc = arg;
                         if !handle_subscript(
-                            (&raw mut arg).cast(),
+                            &raw mut arg,
                             &mut tv,
                             Some(&mut g_st().evalarg_evaluate),
                             true,
@@ -1733,7 +1732,7 @@ fn ex_let_env(
         arg = arg.wrapping_add(1);
         let name = arg;
         let mut arg_const = arg.cast_const();
-        let len = get_env_len((&raw mut arg_const).cast()) as usize;
+        let len = get_env_len(&raw mut arg_const) as usize;
         arg = arg_const.cast_mut();
         if len == 0 {
             semsg!(gettext(E_INVARG2), name.wrapping_sub(1));
@@ -1801,9 +1800,7 @@ fn ex_let_option(
 
         let mut arg_const = arg.cast_const();
         let p: *mut u8 =
-            find_option_var_end((&raw mut arg_const).cast(), &mut opt_idx, &mut opt_flags)
-                .cast_mut()
-                .cast();
+            find_option_var_end(&raw mut arg_const, &mut opt_idx, &mut opt_flags).cast_mut();
         let arg_name = arg_const.cast_mut();
 
         if p.is_null()
@@ -2015,7 +2012,7 @@ fn ex_let_one<T>(
         {
             let mut lv: Lval = Lval::new();
             let p: *mut u8 =
-                get_lval(arg.cast(), Some(tv), &mut lv, false, false, 0, FNE_CHECK_START).cast();
+                get_lval(arg, Some(tv), &mut lv, false, false, 0, FNE_CHECK_START);
             if !p.is_null() && !lv.ll_name.is_null() {
                 if !endchars.is_null()
                     && !crate::strings::vim_haschr(
@@ -2025,7 +2022,7 @@ fn ex_let_one<T>(
                 {
                     emsg(gettext(E_LETUNEXP));
                 } else {
-                    set_var_lval(&mut lv, p.cast(), tv, copy, is_const, op);
+                    set_var_lval(&mut lv, p, tv, copy, is_const, op);
                     arg_end = p;
                 }
             }
@@ -2086,7 +2083,7 @@ fn ex_unletlock(
                 lv.ll_tv = ptr::null_mut();
                 arg = arg.wrapping_add(1);
                 let mut arg_const = arg.cast_const();
-                if get_env_len((&raw mut arg_const).cast()) == 0 {
+                if get_env_len(&raw mut arg_const) == 0 {
                     semsg!(gettext(E_INVARG2), arg.wrapping_sub(1));
                     return;
                 }
@@ -2097,15 +2094,14 @@ fn ex_unletlock(
                 name_end = arg;
             } else {
                 name_end = get_lval(
-                    arg.cast(),
+                    arg,
                     None,
                     &mut lv,
                     true,
                     eap.skip != 0 || error,
                     glv_flags,
                     FNE_CHECK_START,
-                )
-                .cast();
+                );
                 if lv.ll_name.is_null() {
                     error = true;
                 }
@@ -2850,7 +2846,7 @@ fn find_var_ht_dict<T>(
             return ptr::null_mut();
         }
         if name_len == 1 || crate::memory::cstr_byte_at(name.cast(), 1) != b':' {
-            if crate::memory::cstr_first_byte(name.cast()) == b':' || *name == AUTOLOAD_CHAR as u8 {
+            if crate::memory::cstr_first_byte(name.cast()) == b':' || *name == AUTOLOAD_CHAR {
                 return ptr::null_mut();
             }
             *varname = name.cast();
@@ -2874,7 +2870,7 @@ fn find_var_ht_dict<T>(
             *d = get_globvar_dict();
         } else if name_len > 2
             && (!c_memchr(name.wrapping_add(2), b':', name_len - 2).is_null()
-                || !c_memchr(name.wrapping_add(2), AUTOLOAD_CHAR as u8, name_len - 2).is_null())
+                || !c_memchr(name.wrapping_add(2), AUTOLOAD_CHAR, name_len - 2).is_null())
         {
             return ptr::null_mut();
         }
@@ -3377,7 +3373,7 @@ pub fn valid_varname(varname: impl crate::strings::IntoCCharPtr) -> bool {
         while !crate::memory::cstr_is_empty(p) {
             if !eval_isnamec1(crate::memory::cstr_first_byte(p) as i32)
                 && (p == varname || !ascii_isdigit(crate::memory::cstr_first_char(p)))
-                && unsafe { *p } != AUTOLOAD_CHAR
+                && crate::memory::cstr_first_byte(p) != AUTOLOAD_CHAR
             {
                 semsg!(gettext(E_ILLVAR), varname);
                 return false;
@@ -3829,7 +3825,7 @@ pub fn var_redir_start(name: impl crate::strings::IntoCCharPtr, append: bool) ->
         if append {
             set_var_lval(
                 &mut *lval_ptr,
-                vars_st().redir_endp.cast(),
+                vars_st().redir_endp,
                 &mut tv,
                 true,
                 false,
@@ -3838,7 +3834,7 @@ pub fn var_redir_start(name: impl crate::strings::IntoCCharPtr, append: bool) ->
         } else {
             set_var_lval(
                 &mut *lval_ptr,
-                vars_st().redir_endp.cast(),
+                vars_st().redir_endp,
                 &mut tv,
                 true,
                 false,
@@ -3908,7 +3904,7 @@ pub fn var_redir_stop() {
                 if !vars_st().redir_endp.is_null() && !(*lval_ptr).ll_name.is_null() {
                     set_var_lval(
                         &mut *lval_ptr,
-                        vars_st().redir_endp.cast(),
+                        vars_st().redir_endp,
                         &mut tv,
                         false,
                         false,

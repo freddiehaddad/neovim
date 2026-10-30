@@ -930,7 +930,7 @@ pub fn mc_ins_cascade() {
                     ins.size - skip,
                 )
             });
-            keys.push(ESC as u8);
+            keys.push(ESC);
             mc_st().mc_ins_span.done_len = ins.size;
             mc_ins_span_push(std::ffi::CString::new(keys).unwrap(), None);
             mc_ins_preview_rebase();
@@ -994,7 +994,7 @@ fn mc_ins_span_flush(ins: &NvimString, commit: bool) {
         keys.extend_from_slice(&ins_bytes[done..]);
     }
     if !commit {
-        keys.push(ESC as u8);
+        keys.push(ESC);
     }
     let text = if commit && dlen > 1 {
         Some(std::ffi::CString::new(&ins_bytes[done..done + dlen - 1]).unwrap())
@@ -1253,7 +1253,7 @@ pub fn mc_ins_commit() -> bool {
             size: ins_cstr.as_bytes().len(),
         };
         if ins.size > mc_st().mc_ins_span.done_len
-            && unsafe { *ins.data.wrapping_add(ins.size - 1) } == ESC
+            && unsafe { *ins.data.wrapping_add(ins.size - 1).cast::<u8>() } == ESC
         {
             mc_ins_span_flush(&ins, true);
         }

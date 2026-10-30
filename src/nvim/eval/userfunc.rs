@@ -421,7 +421,7 @@ fn get_function_args<T>(
                 p = skipwhite(p.cast()).wrapping_add(1).cast();
                 p = skipwhite(p.cast()).cast();
                 let expr = p;
-                if eval1((&raw mut p).cast(), &mut rettv, None) {
+                if eval1(&raw mut p, &mut rettv, None) {
                     while p > expr && ascii_iswhite(unsafe { *p.wrapping_sub(1) } as i32) {
                         p = p.wrapping_sub(1);
                     }
@@ -611,7 +611,7 @@ pub fn get_lambda_tv<T>(
 
         *arg_u8 = skipwhite((*arg_u8).wrapping_add(1).cast()).cast();
         let start = *arg_u8;
-        ret = skip_expr(arg.cast(), evalarg);
+        ret = skip_expr(arg, evalarg);
         let end = *arg_u8;
         if !ret {
             eval_st().eval_lavars_used = old_eval_lavars;
@@ -725,8 +725,8 @@ pub fn deref_func_name<T>(
                 }
             }
             let s = partial_name(unsafe { pt.as_ref() });
-            *lenp = crate::memory::cstr_len(s) as i32;
-            return s.cast();
+            *lenp = s.to_bytes().len() as i32;
+            return s.as_ptr().cast_mut().cast();
         }
 
         name.cast_mut().cast()
@@ -781,7 +781,7 @@ fn get_func_arguments<T>(
             break;
         }
         if !eval1(
-            (&raw mut argp).cast(),
+            &raw mut argp,
             unsafe { &mut *argvars.wrapping_add(*argcount as usize) },
             evalarg.as_deref_mut(),
         ) {
@@ -1735,7 +1735,7 @@ fn builtin_function(name: impl crate::strings::IntoCCharPtr, len: i32) -> bool {
         } else {
             crate::memory::cstr_slice(name, len as usize)
         };
-        !bytes.contains(&(AUTOLOAD_CHAR as u8))
+        !bytes.contains(&AUTOLOAD_CHAR)
     }
 }
 
@@ -2235,7 +2235,7 @@ pub fn trans_function_name<T>(
             && *((*pp).cast::<u8>()).wrapping_add(2) == KE_SNR
         {
             *pp = ((*pp).cast::<u8>()).wrapping_add(3).cast();
-            len = get_id_len(pp.cast()) + 3;
+            len = get_id_len(pp.cast::<*const T>()) + 3;
             return Some(cstr_from_bytes(std::slice::from_raw_parts(
                 start,
                 len as usize,
@@ -2248,7 +2248,7 @@ pub fn trans_function_name<T>(
         }
 
         let end: *const u8 = get_lval(
-            start.cast_mut().cast(),
+            start.cast_mut(),
             None,
             &mut lv,
             false,
@@ -2256,8 +2256,7 @@ pub fn trans_function_name<T>(
             flags | GLV_READ_ONLY,
             if lead > 2 { 0 } else { FNE_CHECK_START },
         )
-        .cast_const()
-        .cast();
+        .cast_const();
         if end == start {
             if !skip {
                 emsg(gettext(c"E129: Function name required"));
@@ -2270,7 +2269,7 @@ pub fn trans_function_name<T>(
                     semsg!(gettext(E_INVARG2), start);
                 }
             } else {
-                *pp = find_name_end(start.cast(), ptr::null_mut(), ptr::null_mut(), FNE_INCL_BR)
+                *pp = find_name_end(start, ptr::null_mut(), ptr::null_mut(), FNE_INCL_BR)
                     .cast_mut()
                     .cast();
             }
@@ -3696,7 +3695,7 @@ fn ex_call_inner<T>(
             }
 
             if !handle_subscript(
-                arg.cast(),
+                arg.cast::<*const T>(),
                 &mut rettv,
                 Some(&mut g_st().evalarg_evaluate),
                 true,

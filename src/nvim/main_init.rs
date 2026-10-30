@@ -446,7 +446,7 @@ fn nvim_main_inner(argc: i32, argv: *mut *mut u8) -> i32 {
 
     event_init();
     early_init(&mut params);
-    set_argv_var(argv.cast(), argc);
+    set_argv_var(argv, argc);
     check_and_set_isatty(&mut params);
     command_line_scan(&mut params);
     set_argf_var();

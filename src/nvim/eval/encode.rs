@@ -1071,12 +1071,7 @@ fn convert_one_value(
             }
             VarType::VarPartial => {
                 let pt = tv_ref.vval.v_partial();
-                let fun_ptr = if pt.is_null() {
-                    std::ptr::null_mut()
-                } else {
-                    partial_name(pt.as_ref())
-                };
-                let fun = crate::memory::cstr_as_opt_bytes(fun_ptr);
+                let fun = (!pt.is_null()).then(|| partial_name(pt.as_ref()).to_bytes());
                 let prefix: &[u8] = if let Some(fb) = fun
                     && !pt.is_null()
                     && (*pt).pt_name.is_none()

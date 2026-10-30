@@ -589,9 +589,8 @@ pub fn expand_env_esc<T>(
                 && crate::memory::cstr_byte_at(src.cast(), 1) == b'='
             {
                 let var = src;
-                let mut src_c = src.wrapping_add(2).cast();
-                let _ = skip_expr(&raw mut src_c, None);
-                src = src_c.cast();
+                src = src.wrapping_add(2);
+                let _ = skip_expr(&raw mut src, None);
                 if crate::memory::cstr_first_byte(src.cast()) == b'`' {
                     src = src.wrapping_add(1);
                 }
