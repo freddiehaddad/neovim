@@ -19,8 +19,8 @@ use crate::plines::{
 };
 use crate::regexp::MAXCOL;
 use crate::state::{MODE_INSERT, MODE_TERMINAL, virtual_active};
+use crate::strings::RawCCharPtrMut;
 use crate::window::WinInfoInfo;
-use std::ffi::c_char;
 use std::ptr;
 
 pub type Colnr = i32;
@@ -531,12 +531,12 @@ pub fn pchar_cursor(c: u8) {
 }
 
 /// Return pointer to cursor line (`get_cursor_line_ptr`).
-pub fn get_cursor_line_ptr() -> *mut c_char {
+pub fn get_cursor_line_ptr() -> RawCCharPtrMut {
     ml_get_buf(crate::globals::curbuf_mut(), curwin_mut().w_cursor.lnum)
 }
 
 /// Return pointer to cursor position (`get_cursor_pos_ptr`).
-pub fn get_cursor_pos_ptr() -> *mut c_char {
+pub fn get_cursor_pos_ptr() -> RawCCharPtrMut {
     ml_get_buf(crate::globals::curbuf_mut(), curwin_mut().w_cursor.lnum)
         .wrapping_add(curwin_mut().w_cursor.col as usize)
 }

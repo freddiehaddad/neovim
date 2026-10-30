@@ -3087,8 +3087,7 @@ fn ins_bs(c: i32, mut mode: i32, inserted_space_p: &mut i32) -> bool {
                     let ptr = ml_get_buf(crate::globals::curbuf_mut(), curwin_mut().w_cursor.lnum);
                     let len = get_cursor_line_len();
                     if len > 0 && crate::memory::cstr_byte_at(ptr, (len - 1) as usize) == b' ' {
-                        let new_line =
-                            unsafe { std::slice::from_raw_parts(ptr, (len - 1) as usize) }.to_vec();
+                        let new_line = crate::memory::cstr_slice(ptr, (len - 1) as usize).to_vec();
                         ml_replace_dirty_line(curbuf_mut(), &new_line, false);
                     }
                 }
@@ -3728,12 +3727,12 @@ fn ins_tab() -> bool {
                     let mut new_line = Vec::with_capacity(newp_len.saturating_sub(1));
                     if col > 0 {
                         new_line.extend_from_slice(unsafe {
-                            std::slice::from_raw_parts(ptr.wrapping_sub(col).cast(), col)
+                            std::slice::from_raw_parts(ptr.wrapping_sub(col), col)
                         });
                     }
                     new_line.extend_from_slice(unsafe {
                         std::slice::from_raw_parts(
-                            ptr.wrapping_offset(i as isize).cast(),
+                            ptr.wrapping_offset(i as isize),
                             newp_len.saturating_sub(col + 1),
                         )
                     });

@@ -2512,9 +2512,9 @@ pub fn check_overwrite(
                     dir[1] = 0;
                 } else {
                     let mut p = opt_vars().p_dir;
-                    copy_option_part(&raw mut p, dir.as_mut_ptr().cast(), MAXPATHL, c",");
+                    copy_option_part(&raw mut p, dir.as_mut_ptr(), MAXPATHL, c",");
                 }
-                if let Some(swapname) = makeswapname(fname, dir.as_mut_ptr().cast())
+                if let Some(swapname) = makeswapname(fname, &dir)
                     && os_path_exists(swapname.as_ptr())
                 {
                     if opt_vars().p_confirm != 0 || (g_st().cmdmod.cmod_flags & CMOD_CONFIRM) != 0 {
@@ -4385,10 +4385,10 @@ fn do_sub(eap: &mut Exarg, tm: Proftime, cmdpreview_ns: i32, cmdpreview_bufnr: O
                             opt_vars().p_lz = save_p_lz;
                             g_st().redrawing_disabled = temp;
 
-                            if !orig_line.is_null() {
+                            if let Some(ref orig_vec) = orig_line.vec {
                                 crate::memline::ml_replace_len(
                                     lnum,
-                                    orig_line.data().cast(),
+                                    orig_vec,
                                     orig_line.size,
                                     true,
                                 );
