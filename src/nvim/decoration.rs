@@ -9,23 +9,26 @@ use crate::api::ui::MAX_SCHAR_SIZE;
 use crate::buffer::{FileBuf, buf_meta_total};
 use crate::change::changed_lines_invalidate_buf;
 use crate::cursor::{Colnr, Lpos};
-use crate::decoration_provider::decor_providers_invoke_conceal_line;
+use crate::decoration_provider::decor_providers_invoke_conceal;
 use crate::drawscreen::{conceal_cursor_line, redraw_buf_line_later, redraw_buf_range_later};
 use crate::extmark::{K_FALSE, K_NONE, K_TRUE, TriState, extmark_set};
 use crate::fold::{has_any_folding, has_folding};
 use crate::globals::*;
-use crate::grid::{Schar, schar_from_char, schar_get_bytes, schar_get_first_codepoint, schar_high};
+use crate::grid::{
+    Schar, schar_from_ascii, schar_from_char, schar_get_bytes, schar_get_first_codepoint,
+    schar_high,
+};
 use crate::highlight::{hl_add_url, hl_combine_attr};
 use crate::highlight_group::{syn_id2attr, syn_id2name};
 use crate::indent::tabstop_padding;
 use crate::marktree::{
-    DECOR_HIGHLIGHT_INLINE_INIT, DecorHighlightInline, DecorInlineData, K_MTMETA_CONCEAL_LINES,
-    K_MTMETA_COUNT, K_MTMETA_LINES, K_MTMETA_SIGN_TEXT, MT_FLAG_DECOR_CONCEAL_LINES,
-    MT_FLAG_DECOR_EXT, MT_FLAG_DECOR_HL, MT_FLAG_DECOR_SIGNTEXT, MTKey, MTPair, MarkTreeIter,
-    marktree_get_altpos, marktree_itr_current, marktree_itr_get, marktree_itr_get_filter,
-    marktree_itr_get_overlap, marktree_itr_next, marktree_itr_next_filter,
-    marktree_itr_step_out_filter, marktree_itr_step_overlap, mt_decor, mt_decor_any, mt_decor_sign,
-    mt_end, mt_invalid,
+    DECOR_HIGHLIGHT_INLINE_INIT, DecorHighlightInline, DecorInlineData, K_MTMETA_CONCEAL,
+    K_MTMETA_CONCEAL_LINES, K_MTMETA_COUNT, K_MTMETA_LINES, K_MTMETA_SIGN_TEXT,
+    MT_FLAG_DECOR_CONCEAL, MT_FLAG_DECOR_CONCEAL_LINES, MT_FLAG_DECOR_EXT, MT_FLAG_DECOR_HL,
+    MT_FLAG_DECOR_SIGNTEXT, MTKey, MTPair, MarkTreeIter, marktree_get_altpos, marktree_itr_current,
+    marktree_itr_get, marktree_itr_get_filter, marktree_itr_get_overlap, marktree_itr_next,
+    marktree_itr_next_filter, marktree_itr_step_out_filter, marktree_itr_step_overlap, mt_decor,
+    mt_decor_any, mt_decor_sign, mt_end, mt_invalid,
 };
 use crate::mbyte::{utf_ptr2cells, utfc_slice2len};
 use crate::memory::Arena;
@@ -70,6 +73,7 @@ pub(crate) const K_SHSPELL_OFF: u16 = 32;
 pub(crate) const K_SHCONCEAL: u16 = 64;
 pub(crate) const K_SHCONCEAL_LINES: u16 = 128;
 pub(crate) const K_SHCONCEAL_OFF: u16 = 256;
+pub(crate) const K_SHCONCEAL_CONT: u16 = 512;
 
 pub(crate) const K_VTIS_LINES: u8 = 1;
 pub(crate) const K_VTHIDE: u8 = 2;
@@ -236,9 +240,11 @@ pub struct DecorState {
     pub conceal: i32,
     pub conceal_char: u32,
     pub conceal_attr: i32,
+    pub conceal_slot_i: i32,
     pub spell: i32,
     pub running_decor_provider: bool,
     pub itr_valid: bool,
+    pub conceal_only: bool,
 }
 
 impl DecorState {
@@ -261,9 +267,11 @@ impl DecorState {
             conceal: 0,
             conceal_char: 0,
             conceal_attr: 0,
+            conceal_slot_i: 0,
             spell: 0,
             running_decor_provider: false,
             itr_valid: false,
+            conceal_only: false,
         }
     }
 }
@@ -436,10 +444,9 @@ pub(crate) const SCL_NUM: i32 = -2;
 
 pub(crate) const K_MTFILTER_SELECT: u32 = u32::MAX;
 
-static CONCEAL_FILTER: [u32; K_MTMETA_COUNT] = [0, 0, 0, 0, K_MTFILTER_SELECT];
-static SIGN_FILTER: [u32; K_MTMETA_COUNT] = [0, 0, K_MTFILTER_SELECT, K_MTFILTER_SELECT, 0];
-static SIGNTEXT_FILTER: [u32; K_MTMETA_COUNT] = [0, 0, 0, K_MTFILTER_SELECT, 0];
-static LINES_FILTER: [u32; K_MTMETA_COUNT] = [0, K_MTFILTER_SELECT, 0, 0, 0];
+static SIGN_FILTER: [u32; K_MTMETA_COUNT] = [0, 0, K_MTFILTER_SELECT, K_MTFILTER_SELECT, 0, 0];
+static SIGNTEXT_FILTER: [u32; K_MTMETA_COUNT] = [0, 0, 0, K_MTFILTER_SELECT, 0, 0];
+static LINES_FILTER: [u32; K_MTMETA_COUNT] = [0, K_MTFILTER_SELECT, 0, 0, 0, 0];
 
 #[repr(C)]
 #[derive(Clone, Copy)]
@@ -456,7 +463,7 @@ pub struct SignItem<'a> {
 
 struct DecorationModuleState {
     decor_freelist: u32,
-    to_free_virt: Vec<DecorVirtText>,
+    to_free_virt: Vec<*mut DecorVirtText>,
     to_free_sh: u32,
     sign_add_id: i32,
 }
@@ -478,11 +485,6 @@ static DECOR_MOD_STATE: GlobalState<DecorationModuleState> =
 #[inline]
 fn decor_st() -> &'static mut DecorationModuleState {
     unsafe { &mut *DECOR_MOD_STATE.as_ptr() }
-}
-
-#[inline]
-const fn mt_conceal_lines(key: MTKey) -> bool {
-    (key.flags & MT_FLAG_DECOR_CONCEAL_LINES) != 0
 }
 
 #[inline]
@@ -584,6 +586,9 @@ pub fn decor_redraw_sh(buf: &mut FileBuf, row1: i32, row2: i32, sh: DecorSignHig
         && row2 >= row1
     {
         redraw_buf_range_later(buf, row1 + 1, row2 + 1);
+        if (sh.flags & (K_SHCONCEAL | K_SHCONCEAL_OFF)) != 0 {
+            changed_lines_invalidate_buf(buf, row1 + 1, 0, row2 + 2, 0);
+        }
     }
     if (sh.flags & K_SHCONCEAL_LINES) != 0 {
         for wp in for_all_windows_mut() {
@@ -721,7 +726,7 @@ pub fn decor_free(decor: DecorInline) {
 
     if g_st().decor_state.running_decor_provider {
         if !vt.is_null() {
-            decor_st().to_free_virt.push(*unsafe { Box::from_raw(vt) });
+            decor_st().to_free_virt.push(vt);
         }
         while idx != DECOR_ID_INVALID {
             let sh = &mut (&mut g_st().decor_items)[idx as usize];
@@ -764,9 +769,55 @@ pub fn decor_state_invalidate(buf: &mut FileBuf) {
     }
 }
 
+pub fn conceal_replacement(wp: &WinInfoInfo, is_start: bool, cchar: Schar) -> Schar {
+    if !is_start || wp.w_onebuf_opt.wo_cole == 3 || (cchar == 0 && wp.w_onebuf_opt.wo_cole != 1) {
+        return 0;
+    }
+    if cchar != 0 {
+        return cchar;
+    }
+    if wp.w_p_lcs_chars.conceal != 0 {
+        wp.w_p_lcs_chars.conceal
+    } else {
+        schar_from_ascii(b' ')
+    }
+}
+
+pub fn decor_conceal_char(wp: &WinInfoInfo, state: &DecorState) -> Schar {
+    conceal_replacement(wp, state.conceal > 1, state.conceal_char)
+}
+
+pub fn decor_extconceal_char(
+    wp: &WinInfoInfo,
+    state: &DecorState,
+    col: i32,
+    mut attr: Option<&mut i32>,
+) -> Schar {
+    if let Some(ref mut a) = attr {
+        **a = 0;
+    }
+    if state.conceal_slot_i < 0 {
+        return 0;
+    }
+    let r = (&state.slots)[state.conceal_slot_i as usize].range();
+    let is_start = r.start_row == state.row
+        && r.start_col == col
+        && (r.data.sh().flags & K_SHCONCEAL_CONT) == 0;
+    let replacement = conceal_replacement(wp, is_start, r.data.sh().text[0]);
+    if let Some(a) = attr
+        && replacement != 0
+        && r.data.sh().text[0] != 0
+    {
+        *a = r.attr_id;
+    }
+    replacement
+}
+
 pub fn decor_check_to_be_deleted() {
     assert!(!g_st().decor_state.running_decor_provider);
-    decor_st().to_free_virt.clear();
+    for vt in decor_st().to_free_virt.drain(..) {
+        drop(unsafe { Box::from_raw(vt) });
+    }
     decor_free_sh(decor_st().to_free_sh);
     decor_st().to_free_sh = DECOR_ID_INVALID;
     g_st().decor_state.win = ptr::null_mut();
@@ -871,7 +922,7 @@ pub fn decor_redraw_start(wp: &mut WinInfoInfo, top_row: i32, state: &mut DecorS
 
     while marktree_itr_step_overlap(unsafe { &(*buf).b_marktree }, &mut state.itr, &mut pair) {
         let m = pair.start;
-        if mt_invalid(m) || !mt_decor_any(m) {
+        if mt_invalid(m) || !mt_decor_any(m) || !ns_in_win(m.ns, wp) {
             continue;
         }
 
@@ -924,6 +975,10 @@ pub fn decor_redraw_line(wp: &mut WinInfoInfo, row: i32, state: &mut DecorState)
     state.row = row;
     state.col_last = -1;
     state.eol_col = -1;
+    state.conceal = 0;
+    state.conceal_slot_i = -1;
+    state.conceal_char = 0;
+    state.conceal_attr = 0;
 }
 
 pub fn decor_has_more_decorations(state: &mut DecorState, row: i32) -> bool {
@@ -949,7 +1004,12 @@ fn decor_range_add_from_inline(
     mark_id: u32,
 ) {
     if decor.is_ext() {
-        for vt in virt_text_iter_ptr(decor.data.ext().vt) {
+        let vt_start = if state.conceal_only {
+            ptr::null_mut()
+        } else {
+            decor.data.ext().vt
+        };
+        for vt in virt_text_iter_ptr(vt_start) {
             decor_range_add_virt(state, start_row, start_col, end_row, end_col, vt, owned);
         }
         let mut idx = decor.data.ext().sh_idx;
@@ -1051,7 +1111,9 @@ pub fn decor_range_add_sh(
     mark_id: u32,
     subpriority: DecorPriority,
 ) {
-    if (sh.flags & K_SHIS_SIGN) != 0 {
+    if (sh.flags & K_SHIS_SIGN) != 0
+        || (state.conceal_only && (sh.flags & (K_SHCONCEAL | K_SHCONCEAL_OFF)) == 0)
+    {
         return;
     }
 
@@ -1084,7 +1146,7 @@ pub fn decor_range_add_sh(
         );
     }
 
-    if (sh.flags & K_SHUIWATCHED) != 0 {
+    if (sh.flags & K_SHUIWATCHED) != 0 && !state.conceal_only {
         decor_range_insert(
             state,
             DecorRange {
@@ -1156,6 +1218,11 @@ pub fn decor_redraw_col_impl(
         let buf = &mut *buf;
         let row = state.row;
         let mut col_last = max_col_last;
+
+        if !state.itr_valid {
+            marktree_itr_get(&buf.b_marktree, row, state.col_last + 1, &mut state.itr);
+            state.itr_valid = true;
+        }
 
         loop {
             let mark = marktree_itr_current(&buf.b_marktree, &state.itr);
@@ -1237,6 +1304,7 @@ pub fn decor_redraw_col_impl(
         let mut attr: i32 = 0;
         let mut hl_eol_attr: i32 = 0;
         let mut conceal: i32 = 0;
+        let mut conceal_slot_i: i32 = -1;
         let mut conceal_char: Schar = 0;
         let mut conceal_attr: i32 = 0;
         let mut spell: TriState = K_NONE;
@@ -1265,7 +1333,13 @@ pub fn decor_redraw_col_impl(
 
                 if r.data.is_sh() && (r.data.sh().flags & K_SHCONCEAL) != 0 {
                     conceal = 1;
-                    if r.start_row == row && r.start_col == col {
+                    if !r.owned {
+                        conceal_slot_i = index;
+                    }
+                    if r.start_row == row
+                        && r.start_col == col
+                        && (r.data.sh().flags & K_SHCONCEAL_CONT) == 0
+                    {
                         conceal = 2;
                         conceal_char = r.data.sh().text[0];
                         col_last = col_last.min(r.start_col);
@@ -1275,6 +1349,9 @@ pub fn decor_redraw_col_impl(
 
                 if r.data.is_sh() && (r.data.sh().flags & K_SHCONCEAL_OFF) != 0 {
                     conceal = 0;
+                    if !r.owned {
+                        conceal_slot_i = -1;
+                    }
                 }
 
                 if r.data.is_sh() {
@@ -1317,11 +1394,49 @@ pub fn decor_redraw_col_impl(
         state.current = attr;
         state.current_hl_eol = hl_eol_attr;
         state.conceal = conceal;
+        state.conceal_slot_i = conceal_slot_i;
         state.conceal_char = conceal_char;
         state.conceal_attr = conceal_attr;
         state.spell = spell;
         attr
     }
+}
+
+fn decor_row_has_mark(wp: &mut WinInfoInfo, row: i32, meta: usize, flag: u32) -> bool {
+    if buf_meta_total((*wp).buf_mut(), meta) == 0 {
+        return false;
+    }
+    let mut filter = [0u32; K_MTMETA_COUNT];
+    filter[meta] = K_MTFILTER_SELECT;
+
+    let mut pair: MTPair = MTPair::new();
+    let mut itr = MarkTreeIter::new();
+    let b = &(*wp).buf_mut().b_marktree;
+    marktree_itr_get_overlap(b, row, 0, &mut itr);
+    while marktree_itr_step_overlap(b, &mut itr, &mut pair) {
+        if (pair.start.flags & flag) != 0 && ns_in_win(pair.start.ns, &mut *wp) {
+            return true;
+        }
+    }
+
+    marktree_itr_step_out_filter(b, &mut itr, &filter);
+
+    while itr.x.is_some() {
+        let mark = marktree_itr_current(b, &itr);
+        if mark.pos.row > row {
+            break;
+        }
+        if (mark.flags & flag) != 0 && ns_in_win(mark.ns, &mut *wp) {
+            return true;
+        }
+        marktree_itr_next_filter(b, &mut itr, row + 1, 0, &filter);
+    }
+
+    false
+}
+
+pub fn decor_row_has_conceal(wp: &mut WinInfoInfo, row: i32) -> bool {
+    decor_row_has_mark(wp, row, K_MTMETA_CONCEAL, MT_FLAG_DECOR_CONCEAL)
 }
 
 pub fn decor_conceal_line(wp: &mut WinInfoInfo, row: i32, check_cursor: bool) -> bool {
@@ -1335,34 +1450,8 @@ pub fn decor_conceal_line(wp: &mut WinInfoInfo, row: i32, check_cursor: bool) ->
         return false;
     }
 
-    if buf_meta_total((*wp).buf_mut(), K_MTMETA_CONCEAL_LINES) == 0 {
-        return decor_providers_invoke_conceal_line(&mut *wp, row);
-    }
-
-    let mut pair: MTPair = MTPair::new();
-    let mut itr = MarkTreeIter::new();
-    let b = &(*wp).buf_mut().b_marktree;
-    marktree_itr_get_overlap(b, row, 0, &mut itr);
-    while marktree_itr_step_overlap(b, &mut itr, &mut pair) {
-        if mt_conceal_lines(pair.start) && ns_in_win(pair.start.ns, &mut *wp) {
-            return true;
-        }
-    }
-
-    marktree_itr_step_out_filter(b, &mut itr, &CONCEAL_FILTER);
-
-    while itr.x.is_some() {
-        let mark = marktree_itr_current(b, &itr);
-        if mark.pos.row > row {
-            break;
-        }
-        if mt_conceal_lines(mark) && ns_in_win(mark.ns, &mut *wp) {
-            return true;
-        }
-        marktree_itr_next_filter(b, &mut itr, row + 1, 0, &CONCEAL_FILTER);
-    }
-
-    decor_providers_invoke_conceal_line(&mut *wp, row)
+    decor_providers_invoke_conceal(&mut *wp, row, true);
+    decor_row_has_mark(wp, row, K_MTMETA_CONCEAL_LINES, MT_FLAG_DECOR_CONCEAL_LINES)
 }
 
 pub fn win_lines_concealed(wp: &mut WinInfoInfo) -> bool {

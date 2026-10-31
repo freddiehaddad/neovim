@@ -14,13 +14,13 @@ use crate::buffer::FileBuf;
 use crate::charset::transstr;
 use crate::decoration::{
     DECOR_ID_INVALID, DECOR_SIGN_HIGHLIGHT_INIT, DecorInline, DecorPriority, DecorVirtText,
-    DecorVirtTextData, HLGroupID, K_HL_MODE_UNKNOWN, K_SHCONCEAL, K_SHCONCEAL_LINES,
-    K_SHCONCEAL_OFF, K_SHHL_EOL, K_SHIS_SIGN, K_SHSPELL_OFF, K_SHSPELL_ON, K_SHUIWATCHED,
-    K_SHUIWATCHED_OVERLAY, K_VLLEFTCOL, K_VLOVERFLOW_AUTO, K_VLOVERFLOW_SCROLL, K_VLOVERFLOW_TRUNC,
-    K_VLOVERFLOW_WRAP, K_VPOS_END_OF_LINE, K_VPOS_END_OF_LINE_RIGHT_ALIGN, K_VPOS_INLINE,
-    K_VPOS_OVERLAY, K_VPOS_RIGHT_ALIGN, K_VPOS_WIN_COL, K_VTHIDE, K_VTIS_LINES, K_VTLINES_ABOVE,
-    K_VTREPEAT_LINEBREAK, NS, VirtLine, VirtText, VirtTextChunk, decor_free, decor_put_sh,
-    decor_put_vt, decor_range_add_sh, decor_range_add_virt, decor_sh_from_inline,
+    DecorVirtTextData, HLGroupID, K_HL_MODE_UNKNOWN, K_SHCONCEAL, K_SHCONCEAL_CONT,
+    K_SHCONCEAL_LINES, K_SHCONCEAL_OFF, K_SHHL_EOL, K_SHIS_SIGN, K_SHSPELL_OFF, K_SHSPELL_ON,
+    K_SHUIWATCHED, K_SHUIWATCHED_OVERLAY, K_VLLEFTCOL, K_VLOVERFLOW_AUTO, K_VLOVERFLOW_SCROLL,
+    K_VLOVERFLOW_TRUNC, K_VLOVERFLOW_WRAP, K_VPOS_END_OF_LINE, K_VPOS_END_OF_LINE_RIGHT_ALIGN,
+    K_VPOS_INLINE, K_VPOS_OVERLAY, K_VPOS_RIGHT_ALIGN, K_VPOS_WIN_COL, K_VTHIDE, K_VTIS_LINES,
+    K_VTLINES_ABOVE, K_VTREPEAT_LINEBREAK, NS, VirtLine, VirtText, VirtTextChunk, decor_free,
+    decor_put_sh, decor_put_vt, decor_range_add_sh, decor_range_add_virt, decor_sh_from_inline,
     decor_to_dict_legacy, hl_group_name,
 };
 use crate::decoration_provider::{
@@ -41,9 +41,9 @@ use crate::highlight::OptionalKeys;
 use crate::lua::converter::{Boolean, LUA_NOREF, LuaRef};
 use crate::marktree::{
     DECOR_HIGHLIGHT_INLINE_INIT, DECOR_PRIORITY_BASE, DecorExt, DecorInlineData,
-    MT_FLAG_DECOR_CONCEAL_LINES, MT_FLAG_DECOR_HL, MT_FLAG_DECOR_SIGNHL, MT_FLAG_DECOR_SIGNTEXT,
-    MT_FLAG_DECOR_VIRT_LINES, MT_FLAG_DECOR_VIRT_TEXT_INLINE, MTPair, mt_decor, mt_inspect,
-    mt_invalid, mt_invalidate, mt_no_undo, mt_paired, mt_right,
+    MT_FLAG_DECOR_CONCEAL, MT_FLAG_DECOR_CONCEAL_LINES, MT_FLAG_DECOR_HL, MT_FLAG_DECOR_SIGNHL,
+    MT_FLAG_DECOR_SIGNTEXT, MT_FLAG_DECOR_VIRT_LINES, MT_FLAG_DECOR_VIRT_TEXT_INLINE, MTPair,
+    mt_decor, mt_inspect, mt_invalid, mt_invalidate, mt_no_undo, mt_paired, mt_right,
 };
 use crate::mbyte::{mb_string2cells, utf_cluster_info, utf_ptr2_str_char_info};
 use crate::memline::ml_get_buf_len;
@@ -56,7 +56,7 @@ use std::ptr;
 
 use crate::cursor::{Colnr, Linenr};
 
-const SET_EXTMARK_TABLE_SIZE: usize = 36;
+const SET_EXTMARK_TABLE_SIZE: usize = 37;
 
 const KEYSET_OPTIDX_GET_EXTMARK_HL_NAME: u64 = 2;
 const KEYSET_OPTIDX_GET_EXTMARKS_TYPE: u64 = 1;
@@ -145,6 +145,7 @@ pub struct KeyDict_set_extmark {
     pub undo_restore: Boolean,
     pub url: NvimString,
     pub scoped: Boolean,
+    pub _conceal_continuation: Boolean,
     pub _subpriority: Integer,
 }
 
@@ -161,6 +162,7 @@ pub struct KeyDict_set_decoration_provider {
     pub _on_hl_def: LuaRef,
     pub _on_spell_nav: LuaRef,
     pub _on_conceal_line: LuaRef,
+    pub _on_conceal: LuaRef,
 }
 
 #[repr(C)]
@@ -597,11 +599,12 @@ pub fn nvim_buf_get_extmarks(
 /// @param line  Line where to place the mark, 0-based. |api-indexing|
 /// @param col  Column where to place the mark, 0-based. |api-indexing|
 /// @param opts  Optional parameters:
-///               - conceal: (boolean|string)
-///                   - string: Single char or empty string, enables conceal similar to |:syn-conceal|.
-///                     Non-empty char is used as |:syn-cchar|. Highlighted with "hl_group" if
-///                     defined, else defaults to |hl-Conceal|.
-///                   - boolean: true is equivalent to "", false removes any existing conceal.
+///               - conceal: (boolean|string) Conceals the range ("extmark-conceal") like
+///                 |:syn-conceal|: a single char behaves like |:syn-cchar| (highlighted with
+///                 "hl_group", default |hl-Conceal|); empty string or `true` conceals without
+///                 cchar; `false` reveals text that lower-priority conceal hides. Lines 'wrap' at
+///                 their (non-ephemeral) concealed width (takes precedence over legacy
+///                 |:syn-conceal|, |matchadd()|).
 ///               - conceal_lines: (string) Line-level conceal. When set to an empty string (other
 ///                 values reserved for future use), the lines in the extmark range are not drawn;
 ///                 the next non-concealed line is drawn in their place. Requires 'conceallevel' >=
@@ -870,6 +873,19 @@ pub fn nvim_buf_set_extmark(
                     hl.conceal_char = schar_from_cluster(ci, cli);
                 }
             }
+        }
+
+        if opts._conceal_continuation {
+            if (hl.flags & K_SHCONCEAL) == 0 {
+                api_set_error!(
+                    err,
+                    ErrorType::ErrorTypeValidation,
+                    c"%s",
+                    c"_conceal_continuation requires conceal",
+                );
+                break 'error;
+            }
+            hl.flags |= K_SHCONCEAL_CONT;
         }
 
         if has_key(mask, KEYSET_OPTIDX_SET_EXTMARK_CONCEAL_LINES) {
@@ -1186,7 +1202,7 @@ pub fn nvim_buf_set_extmark(
                 break 'error;
             }
 
-            let mut decor_flags: u16 = 0;
+            let mut decor_flags: u32 = 0;
             let mut decor_alloc: *mut DecorVirtText = ptr::null_mut();
             if !virt_text.data.virt_text().is_empty() {
                 if virt_text.pos == K_VPOS_INLINE {
@@ -1229,6 +1245,9 @@ pub fn nvim_buf_set_extmark(
                 }
             }
 
+            if (hl.flags & K_SHCONCEAL) != 0 {
+                decor_flags |= MT_FLAG_DECOR_CONCEAL;
+            }
             if (hl.flags & K_SHCONCEAL_LINES) != 0 {
                 decor_flags |= MT_FLAG_DECOR_CONCEAL_LINES;
             }
@@ -1437,7 +1456,7 @@ pub fn nvim_set_decoration_provider(
 
     redraw_all_later(UPD_NOT_VALID);
 
-    let pairs: [(*mut LuaRef, *mut LuaRef); 9] = [
+    let pairs: [(*mut LuaRef, *mut LuaRef); 10] = [
         (&raw mut opts.on_start, &raw mut p.redraw_start),
         (&raw mut opts.on_buf, &raw mut p.redraw_buf),
         (&raw mut opts.on_win, &raw mut p.redraw_win),
@@ -1447,6 +1466,7 @@ pub fn nvim_set_decoration_provider(
         (&raw mut opts._on_hl_def, &raw mut p.hl_def),
         (&raw mut opts._on_spell_nav, &raw mut p.spell_nav),
         (&raw mut opts._on_conceal_line, &raw mut p.conceal_line),
+        (&raw mut opts._on_conceal, &raw mut p.conceal),
     ];
 
     for (src, dst) in pairs {
@@ -1463,6 +1483,43 @@ pub fn nvim_set_decoration_provider(
     p.state = K_DECOR_PROVIDER_ACTIVE;
     p.hl_valid += 1;
     p.hl_cached = false;
+}
+
+/// @nodoc
+/// Enables (or disables) the `_on_conceal` decoration providers for `buf`: measuring a row runs
+/// them first, so rows not yet drawn are measured concealed. Each enable needs one disable.
+// DLLEXPORT void nvim__buf_set_conceal_provider(Buffer buf, Boolean enabled, Error *err)
+//   FUNC_API_LUA_ONLY;
+pub fn nvim_buf_set_conceal_provider(buf: Buffer, enabled: Boolean, err: &mut Error) {
+    let Some(b) = crate::api::private::helpers::find_buffer_by_handle_mut(buf, err) else {
+        return;
+    };
+    let count = b.b_conceal_providers + if enabled { 1 } else { -1 };
+    if count < 0 {
+        api_set_error!(
+            err,
+            ErrorType::ErrorTypeValidation,
+            c"%s",
+            c"Conceal provider is not enabled",
+        );
+        return;
+    }
+    b.b_conceal_providers = count;
+    if count != if enabled { 1 } else { 0 } {
+        return;
+    }
+    let b_ptr: *mut FileBuf = &raw mut *b;
+    for tp in for_all_tabpages_ptr() {
+        for wp in win_iter_mut(if ptr::eq(tp, g_st().curtab) {
+            g_st().firstwin
+        } else {
+            tp.tp_firstwin
+        }) {
+            if wp.w_buffer == b_ptr {
+                changed_window_setting(wp);
+            }
+        }
+    }
 }
 
 fn extmark_get_index_from_obj(

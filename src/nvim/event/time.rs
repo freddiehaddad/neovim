@@ -56,6 +56,9 @@ pub fn time_watcher_init(loop_: &mut Loop, watcher: &mut TimeWatcher, data: Time
 
 pub fn time_watcher_start(watcher: &mut TimeWatcher, timeout: u64, repeat: u64) {
     unsafe {
+        crate::event::r#loop::uv_update_time(crate::event::r#loop::uv_handle_get_loop(
+            (&raw const watcher.uv).cast(),
+        ));
         uv_timer_start(
             (&raw mut watcher.uv).cast(),
             Some(time_watcher_cb),

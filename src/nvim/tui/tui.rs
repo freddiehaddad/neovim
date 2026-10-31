@@ -1126,23 +1126,21 @@ pub fn tui_stop(tui: &mut TUIData) {
     let events = loop_queues(unsafe { &mut *tui.loop_ }).events;
     let rs = &mut input.read_stream;
     let timeout_ms: i64 = EXIT_TIMEOUT_MS;
-    let start = if timeout_ms > 0 { os_hrtime() } else { 0 };
+    let start = if timeout_ms >= 0 { os_hrtime() } else { 0 };
     let mut remaining: i64 = timeout_ms;
+    let mut expired = false;
     while !(unsafe { ptr::read_volatile(&raw const tui.stopped) }
         || unsafe { ptr::read_volatile(&raw const rs.did_eof) })
+        && !expired
     {
         if !events.is_null() && !multiqueue_empty(unsafe { &*events }) {
             multiqueue_process_events(unsafe { &mut *events });
         } else {
             loop_poll_events(unsafe { &mut *tui.loop_ }, remaining);
         }
-        if remaining == 0 {
-            break;
-        } else if remaining > 0 {
+        if timeout_ms >= 0 {
             remaining = timeout_ms - ((os_hrtime() - start) / 1_000_000) as i64;
-            if remaining <= 0 {
-                break;
-            }
+            expired = remaining <= 0;
         }
     }
     if !tui.stopped

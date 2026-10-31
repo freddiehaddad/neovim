@@ -5,6 +5,7 @@ use crate::buffer::{
     FileBuf, K_UIMESSAGES, MAXLNUM, STL_IN_ICON, STL_IN_TITLE, VALID_TOPLINE, buf_meta_total,
     maketitle,
 };
+use crate::change::{changed_lines_invalidate_win, changed_topline_skipcol};
 use crate::charset::{NUL, vim_isprintc, vim_strsize};
 use crate::cmdexpand::{K_UICMDLINE, cmdline_pum_display};
 use crate::context::ctx_saved_curwin;
@@ -15,8 +16,8 @@ use crate::decoration::{
     decor_virt_lines, win_lines_concealed,
 };
 use crate::decoration_provider::{
-    decor_providers_invoke_buf, decor_providers_invoke_end, decor_providers_invoke_win,
-    decor_providers_start,
+    decor_providers_invoke_buf, decor_providers_invoke_conceal, decor_providers_invoke_end,
+    decor_providers_invoke_win, decor_providers_start,
 };
 use crate::diff::diff_redraw;
 use crate::digraph::{HLF_CM, get_keymap_str};
@@ -58,7 +59,10 @@ use crate::msgpack_rpc::packer::{Integer, ObjHandle};
 use crate::normal::{clear_showcmd, do_check_scrollbind};
 use crate::option::{OptInt, get_ve_flags, shortmess};
 use crate::option_vars::*;
-use crate::plines::{getvcols, getvvcol, plines_m_win, plines_win, win_get_fill, win_may_fill};
+use crate::plines::{
+    getvcols, getvvcol, has_extconceal, linetabsize_disp_eol, plines_m_win, plines_win,
+    win_get_fill, win_may_fill,
+};
 use crate::popupmenu::{pum_check_clear, pum_drawn, pum_invalidate, pum_redraw};
 use crate::profile::profile_setlimit;
 use crate::regexp::{CTRL_V_CONST, MAXCOL, re_multiline, vim_regfree};
@@ -168,6 +172,7 @@ struct DrawscreenState {
     msg_grid_invalid: bool,
     resizing_autocmd: bool,
     conceal_cursor_used: bool,
+    conceal_visual: [Linenr; 2],
     default_grid_resizing: bool,
     still_may_intro: bool,
     win_update_recursive: bool,
@@ -181,6 +186,7 @@ impl DrawscreenState {
             msg_grid_invalid: false,
             resizing_autocmd: false,
             conceal_cursor_used: false,
+            conceal_visual: [0, 0],
             default_grid_resizing: false,
             still_may_intro: true,
             win_update_recursive: false,
@@ -220,18 +226,70 @@ fn w_lines_at(wp: &mut WinInfoInfo, idx: usize) -> &mut Wline {
     &mut wp.w_lines[idx]
 }
 
+/// Redraws the cursor line of `wp` after 'concealcursor' revealed or concealed it again.
+pub fn conceal_redraw_cursor_line(wp: &mut WinInfoInfo) {
+    let cursor_lnum = wp.w_cursor.lnum;
+    conceal_reveal_changed(wp, cursor_lnum, cursor_lnum);
+    if decor_conceal_line(wp, cursor_lnum - 1, true) {
+        changed_window_setting(wp);
+    }
+}
+
 pub fn conceal_check_cursor_line() {
+    conceal_check_visual();
+
     let should_conceal = conceal_cursor_line(curwin_mut());
     if curwin_mut().w_onebuf_opt.wo_cole <= 0 || ds_st().conceal_cursor_used == should_conceal {
         return;
     }
 
-    redraw_winline(crate::globals::curwin_mut(), curwin_mut().w_cursor.lnum);
-
-    if decor_conceal_line(curwin_mut(), curwin_mut().w_cursor.lnum - 1, true) {
-        changed_window_setting(curwin_mut());
-    }
+    conceal_redraw_cursor_line(crate::globals::curwin_mut());
     curs_columns(curwin_mut(), 1);
+}
+
+/// Redraws the lines that entered or left the Visual area since the last check: 'concealcursor'
+/// reveals the area (see conceal_cursor_reveals_line()).
+pub fn conceal_check_visual() {
+    let old = ds_st().conceal_visual;
+    let cur = if g_st().visual_global.active {
+        [
+            g_st()
+                .visual_global
+                .start
+                .lnum
+                .min(curwin_mut().w_cursor.lnum),
+            g_st()
+                .visual_global
+                .start
+                .lnum
+                .max(curwin_mut().w_cursor.lnum),
+        ]
+    } else {
+        [0, 0]
+    };
+    ds_st().conceal_visual = cur;
+
+    if old[0] == 0 && cur[0] == 0 {
+        return;
+    }
+    for tp in for_all_tabpages_ptr() {
+        for wp in for_all_windows_in_tab_mut(&*tp) {
+            if !ptr::eq(wp.w_buffer, g_st().curbuf) {
+                continue;
+            }
+            if old[0] == 0 {
+                conceal_reveal_changed(wp, cur[0], cur[1]);
+            } else if cur[0] == 0 {
+                conceal_reveal_changed(wp, old[0], old[1]);
+            } else {
+                for i in 0..2 {
+                    if cur[i] != old[i] {
+                        conceal_reveal_changed(wp, cur[i].min(old[i]), cur[i].max(old[i]));
+                    }
+                }
+            }
+        }
+    }
 }
 
 pub fn default_grid_alloc() -> bool {
@@ -1468,6 +1526,12 @@ fn win_update(wp: &mut WinInfoInfo) {
                 wp.w_skipcol = w - add;
             }
         }
+        if wp.w_skipcol > 0 && wp.w_cursor.lnum != wp.w_topline {
+            let tl = wp.w_topline;
+            if linetabsize_disp_eol(&mut *wp, tl) <= wp.w_skipcol {
+                wp.w_skipcol = 0;
+            }
+        }
 
         let nrwidth_before = wp.w_nrwidth;
         let nrwidth_new = if wp.w_onebuf_opt.wo_nu != 0
@@ -2110,6 +2174,10 @@ fn win_update(wp: &mut WinInfoInfo) {
                             && (foldinfo.fi_lines == 0
                                 || wp.w_onebuf_opt.wo_fdt.cb_type() == K_CALLBACK_NONE_CONST);
 
+                        if display_buf_line {
+                            decor_providers_invoke_conceal(wp, lnum - 1, false);
+                        }
+
                         let mut zero_spv = Spellvars::default();
                         row = win_line(
                             wp,
@@ -2745,6 +2813,40 @@ pub fn conceal_cursor_line(wp: &WinInfoInfo) -> bool {
         return false;
     };
     crate::strings::vim_haschr(wp.w_onebuf_opt.wo_cocu, c)
+}
+
+/// Redraws lines `line1` to `line2` of `wp` and invalidates their heights, after 'concealcursor'
+/// revealed or concealed them again.
+pub fn conceal_reveal_changed(wp: &mut WinInfoInfo, line1: Linenr, line2: Linenr) {
+    redraw_win_range_later(wp, line1, line2);
+    if has_extconceal(wp) {
+        changed_lines_invalidate_win(wp, line1, 0, line2 + 1, 0);
+        changed_topline_skipcol(wp, line1, line2);
+    }
+}
+
+/// Whether 'concealcursor' reveals line `lnum` in window `wp`: the cursor line outside the
+/// listed modes, and every line of the Visual area unless "v" is listed. Drawing and height
+/// calculations must ask this the same way, or they disagree about how tall a concealed line is.
+pub fn conceal_cursor_reveals_line(wp: &WinInfoInfo, lnum: Linenr) -> bool {
+    if ptr::eq(wp, curwin_ptr()) && lnum == wp.w_cursor.lnum && !conceal_cursor_line(wp) {
+        return true;
+    }
+    g_st().visual_global.active
+        && ptr::eq(wp.w_buffer, curwin_mut().w_buffer)
+        && lnum
+            >= g_st()
+                .visual_global
+                .start
+                .lnum
+                .min(curwin_mut().w_cursor.lnum)
+        && lnum
+            <= g_st()
+                .visual_global
+                .start
+                .lnum
+                .max(curwin_mut().w_cursor.lnum)
+        && !crate::strings::vim_haschr(wp.w_onebuf_opt.wo_cocu, i32::from(b'v'))
 }
 
 pub fn win_cursorline_standout(wp: &WinInfoInfo) -> bool {

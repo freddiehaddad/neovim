@@ -167,6 +167,7 @@ unsafe extern "C" {
     pub fn uv_loop_close(loop_: *mut uv_loop_t) -> i32;
     pub fn uv_run(loop_: *mut uv_loop_t, mode: i32) -> i32;
     pub fn uv_stop(loop_: *mut uv_loop_t);
+    pub fn uv_update_time(loop_: *mut uv_loop_t);
     pub fn uv_walk(loop_: *mut uv_loop_t, walk_cb: uv_walk_cb, arg: *mut c_void);
 
     pub fn uv_mutex_init(handle: *mut uv_mutex_t) -> i32;

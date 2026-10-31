@@ -157,7 +157,7 @@ pub fn extmark_set(
     end_row: i32,
     end_col: Colnr,
     decor: DecorInline,
-    decor_flags: u16,
+    decor_flags: u32,
     right_gravity: bool,
     end_right_gravity: bool,
     no_undo: bool,
