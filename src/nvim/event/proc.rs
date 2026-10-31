@@ -163,17 +163,14 @@ fn loop_process_events_until<F: FnMut() -> bool>(
     mut cond: F,
 ) {
     let timeout_ms = timeout;
-    let start = if timeout_ms > 0 { os_hrtime() } else { 0 };
+    let start = if timeout_ms >= 0 { os_hrtime() } else { 0 };
     let mut remaining = timeout_ms;
-    while !cond() {
+    let mut expired = false;
+    while !cond() && !expired {
         loop_process_events(loop_, multiqueue, remaining);
-        if remaining == 0 {
-            break;
-        } else if remaining > 0 {
+        if timeout_ms >= 0 {
             remaining = timeout_ms - ((os_hrtime() - start) / 1_000_000) as i64;
-            if remaining <= 0 {
-                break;
-            }
+            expired = remaining <= 0;
         }
     }
 }
@@ -357,6 +354,7 @@ pub fn proc_stop(proc_: *mut Proc) {
             _ => unreachable!(),
         }
 
+        crate::event::r#loop::uv_update_time((&raw mut (*(*proc_).loop_).uv).cast());
         uv_timer_start(
             loop_children_kill_timer(&mut *(*proc_).loop_),
             Some(children_kill_cb),

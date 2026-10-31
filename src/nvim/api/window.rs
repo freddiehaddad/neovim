@@ -605,6 +605,7 @@ pub fn nvim_win_text_height(
         &mut end_vcol,
         Some(&mut fill),
         max,
+        false,
     );
     if !has_key(mask, KEYSET_OPTIDX_WIN_TEXT_HEIGHT_END_ROW) {
         let end_fill = i64::from(win_get_fill(&mut *w, line_count + 1));

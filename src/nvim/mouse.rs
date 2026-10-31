@@ -50,8 +50,8 @@ use crate::ops::OP_NOP;
 use crate::option::get_scrolloff_value;
 use crate::option_vars::*;
 use crate::plines::{
-    CSType, CharsizeArg, getvcol, getvcols, init_charsize_arg, plines_win, plines_win_nofill,
-    win_charsize, win_chartabsize, win_get_fill,
+    CSType, CharsizeArg, disp_vcol2vcol, getvcol, getvcols, init_charsize_arg, plines_win,
+    plines_win_nofill, win_charsize, win_chartabsize, win_get_fill,
 };
 use crate::popupmenu::pum_visible;
 use crate::register::{
@@ -1509,6 +1509,10 @@ pub fn jump_to_mouse(mut flags: i32, inclusive: *mut bool, which_button: i32) ->
 
     let old_curwin = curwin_ptr();
     let old_cursor = curwin_mut().w_cursor;
+    let mut resolved: *mut WinInfoInfo = ptr::null_mut();
+    let mut lnum: Linenr = 0;
+    let mut vcol: Colnr = 0;
+    let mut mouse_fold_flags: i32 = 0;
     if !keep_focus {
         if mouse_st().on_winbar {
             return IN_OTHER_WIN | MOUSE_WINBAR;
@@ -1540,7 +1544,7 @@ pub fn jump_to_mouse(mut flags: i32, inclusive: *mut bool, which_button: i32) ->
                 }
             }
 
-            if g_st().visual_global.active
+            let stop_visual = g_st().visual_global.active
                 && (wp.w_buffer != curwin_mut().w_buffer
                     || (mouse_st().status_line_offset == 0
                         && mouse_st().sep_line_offset == 0
@@ -1549,8 +1553,19 @@ pub fn jump_to_mouse(mut flags: i32, inclusive: *mut bool, which_button: i32) ->
                         } else {
                             col >= fdc
                         })
-                        && (flags & MOUSE_MAY_STOP_VIS) != 0))
-            {
+                        && (flags & MOUSE_MAY_STOP_VIS) != 0));
+            if mouse_st().status_line_offset == 0 && mouse_st().sep_line_offset == 0 {
+                resolved = wp;
+                g_st().mouse_past_bottom = mouse_resolve(
+                    &mut *wp,
+                    row,
+                    col,
+                    &mut lnum,
+                    &mut vcol,
+                    &mut mouse_fold_flags,
+                );
+            }
+            if stop_visual {
                 end_visual_mode();
                 redraw_curbuf_later(UPD_INVERTED);
             }
@@ -1573,8 +1588,6 @@ pub fn jump_to_mouse(mut flags: i32, inclusive: *mut bool, which_button: i32) ->
                 }
                 return IN_SEP_LINE | CURSOR_MOVED;
             }
-
-            curwin_mut().w_cursor.lnum = curwin_mut().w_topline;
         }
     } else if mouse_st().status_line_offset != 0 {
         if which_button == MOUSE_LEFT && !mouse_st().dragwin.is_null() {
@@ -1697,18 +1710,18 @@ pub fn jump_to_mouse(mut flags: i32, inclusive: *mut bool, which_button: i32) ->
         }
     }
 
-    let mut col_from_screen: Colnr = -1;
-    let mut mouse_fold_flags: i32 = 0;
-    mouse_check_grid(&mut col_from_screen, &mut mouse_fold_flags);
-
-    if mouse_comp_pos(
-        curwin_mut(),
-        &mut row,
-        &mut col,
-        &mut curwin_mut().w_cursor.lnum,
-    ) {
-        g_st().mouse_past_bottom = true;
+    if resolved.is_null() || resolved != curwin_ptr() || lnum > curbuf_mut().b_ml.ml_line_count {
+        mouse_fold_flags = 0;
+        g_st().mouse_past_bottom = mouse_resolve(
+            curwin_mut(),
+            row,
+            col,
+            &mut lnum,
+            &mut vcol,
+            &mut mouse_fold_flags,
+        );
     }
+    curwin_mut().w_cursor.lnum = lnum;
 
     if (flags & MOUSE_MAY_VIS) != 0 && !g_st().visual_global.active {
         g_st().visual_global.start = old_cursor;
@@ -1722,13 +1735,9 @@ pub fn jump_to_mouse(mut flags: i32, inclusive: *mut bool, which_button: i32) ->
         }
     }
 
-    if col_from_screen >= 0 {
-        col = col_from_screen;
-    }
-
-    curwin_mut().w_curswant = col;
+    curwin_mut().w_curswant = vcol;
     curwin_mut().w_set_curswant = false;
-    if !coladvance(curwin_mut(), col) {
+    if !coladvance(curwin_mut(), vcol) {
         if !inclusive.is_null() {
             unsafe {
                 *inclusive = true;
@@ -1922,7 +1931,7 @@ pub fn mouse_comp_pos(
     col -= win_col_off(&raw mut *win);
     col = col.max(0);
 
-    *colp = col;
+    *colp = disp_vcol2vcol(&mut *win, lnum, col);
     *rowp = row;
     *lnump = lnum;
     retval
@@ -2129,19 +2138,21 @@ fn find_longest_lnum() -> Linenr {
 }
 
 /// Check clicked cell on its grid
-fn mouse_check_grid(vcolp: &mut Colnr, flagsp: &mut i32) {
+fn mouse_check_grid(wp: &mut WinInfoInfo, vcolp: &mut Colnr, flagsp: &mut i32) {
     let mut click_grid = g_st().mouse_grid;
     let mut click_row = g_st().mouse_row;
     let mut click_col = g_st().mouse_col;
 
-    if mouse_find_win_inner(&mut click_grid, &mut click_row, &mut click_col) != curwin_ptr()
-        || curwin_mut().w_redr_type != 0
+    if !ptr::eq(
+        mouse_find_win_inner(&mut click_grid, &mut click_row, &mut click_col),
+        wp,
+    ) || wp.w_redr_type != 0
     {
         return;
     }
     let mut start_row: i32 = 0;
     let mut start_col: i32 = 0;
-    let gp = unsafe { &*grid_adjust(&mut curwin_mut().w_grid, &mut start_row, &mut start_col) };
+    let gp = unsafe { &*grid_adjust(&mut wp.w_grid, &mut start_row, &mut start_col) };
     if gp.handle != click_grid || gp.chars.is_empty() {
         return;
     }
@@ -2163,6 +2174,28 @@ fn mouse_check_grid(vcolp: &mut Colnr, flagsp: &mut i32) {
     } else if col_from_screen == -3 {
         *flagsp |= MOUSE_FOLD_CLOSE;
     }
+}
+
+/// Resolves a click at `row`/`col` of `wp` to a buffer line and vcol, as `wp` is drawn.
+///
+/// @return  Whether the click is below the last line.
+fn mouse_resolve(
+    wp: &mut WinInfoInfo,
+    mut row: i32,
+    mut col: i32,
+    lnump: &mut Linenr,
+    vcolp: &mut Colnr,
+    flagsp: &mut i32,
+) -> bool {
+    let mut col_from_screen: Colnr = -1;
+    mouse_check_grid(wp, &mut col_from_screen, flagsp);
+    let past_bottom = mouse_comp_pos(wp, &mut row, &mut col, lnump);
+    *vcolp = if col_from_screen >= 0 {
+        disp_vcol2vcol(wp, *lnump, col_from_screen)
+    } else {
+        col
+    };
+    past_bottom
 }
 
 /// "getmousepos()" function

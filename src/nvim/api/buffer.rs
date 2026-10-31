@@ -1607,7 +1607,7 @@ pub fn nvim_buf_stats(buf: Buffer, arena: &mut Arena, err: &mut Error) -> Dict {
         return Dict::new();
     };
 
-    let mut rv = arena_dict(arena, 7);
+    let mut rv = arena_dict(arena, 8);
     put_c(
         &mut rv,
         c"flush_count",
@@ -1637,6 +1637,11 @@ pub fn nvim_buf_stats(buf: Buffer, arena: &mut Arena, err: &mut Error) -> Dict {
         &mut rv,
         c"virt_blocks",
         integer_obj(b.b_marktree.meta_root[K_MTMETA_LINES] as Integer),
+    );
+    put_c(
+        &mut rv,
+        c"conceal_providers",
+        integer_obj(i64::from(b.b_conceal_providers)),
     );
 
     let uhp = b.b_u_curhead.or(b.b_u_newhead);

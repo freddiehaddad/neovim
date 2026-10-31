@@ -38,7 +38,7 @@ use crate::os::fs::{MAXPATHL, os_dirname};
 use crate::os::input::os_breakcheck;
 use crate::os::time::{Timestamp, os_time};
 use crate::path::{K_PATH_CMP_LITERAL, path_equal, path_shorten_fname, vim_ispathsep_nocolon};
-use crate::plines::linetabsize_eol;
+use crate::plines::linetabsize_disp_eol;
 use crate::quickfix::qf_mark_adjust;
 use crate::strings::gettext;
 use crate::textformat::Oparg;
@@ -824,7 +824,7 @@ pub fn mark_view_restore(fm: Option<&Fmark>) {
             set_topline(curwin_mut(), topline);
             curwin_mut().w_skipcol = if fm.view.skipcol > 0
                 && !has_folding(curwin_ptr(), topline, None, ptr::null_mut())
-                && fm.view.skipcol < linetabsize_eol(curwin_mut(), topline)
+                && fm.view.skipcol < linetabsize_disp_eol(curwin_mut(), topline)
             {
                 fm.view.skipcol
             } else {

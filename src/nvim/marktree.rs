@@ -18,50 +18,54 @@ pub const K_MTMETA_INLINE: usize = 0;
 pub const K_MTMETA_LINES: usize = 1;
 pub const K_MTMETA_SIGN_HL: usize = 2;
 pub const K_MTMETA_SIGN_TEXT: usize = 3;
-pub const K_MTMETA_CONCEAL_LINES: usize = 4;
-pub const K_MTMETA_COUNT: usize = 5;
+pub const K_MTMETA_CONCEAL: usize = 4;
+pub const K_MTMETA_CONCEAL_LINES: usize = 5;
+pub const K_MTMETA_COUNT: usize = 6;
 
 pub type MetaFilter = [u32; K_MTMETA_COUNT];
 
-pub const MT_FLAG_REAL: u16 = 1 << 0;
-pub const MT_FLAG_END: u16 = 1 << 1;
-pub const MT_FLAG_PAIRED: u16 = 1 << 2;
-pub const MT_FLAG_ORPHANED: u16 = 1 << 3;
-pub const MT_FLAG_NO_UNDO: u16 = 1 << 4;
-pub const MT_FLAG_INVALIDATE: u16 = 1 << 5;
-pub const MT_FLAG_INVALID: u16 = 1 << 6;
-pub const MT_FLAG_DECOR_EXT: u16 = 1 << 7;
-pub const MT_FLAG_DECOR_HL: u16 = 1 << 8;
-pub const MT_FLAG_DECOR_SIGNTEXT: u16 = 1 << 9;
-pub const MT_FLAG_DECOR_SIGNHL: u16 = 1 << 10;
-pub const MT_FLAG_DECOR_VIRT_LINES: u16 = 1 << 11;
-pub const MT_FLAG_DECOR_VIRT_TEXT_INLINE: u16 = 1 << 12;
-pub const MT_FLAG_DECOR_CONCEAL_LINES: u16 = 1 << 13;
-pub const MT_FLAG_RIGHT_GRAVITY: u16 = 1 << 14;
-pub const MT_FLAG_LAST: u16 = 1 << 15;
+pub const MT_FLAG_REAL: u32 = 1 << 0;
+pub const MT_FLAG_END: u32 = 1 << 1;
+pub const MT_FLAG_PAIRED: u32 = 1 << 2;
+pub const MT_FLAG_ORPHANED: u32 = 1 << 3;
+pub const MT_FLAG_NO_UNDO: u32 = 1 << 4;
+pub const MT_FLAG_INVALIDATE: u32 = 1 << 5;
+pub const MT_FLAG_INVALID: u32 = 1 << 6;
+pub const MT_FLAG_DECOR_EXT: u32 = 1 << 7;
+pub const MT_FLAG_DECOR_HL: u32 = 1 << 8;
+pub const MT_FLAG_DECOR_SIGNTEXT: u32 = 1 << 9;
+pub const MT_FLAG_DECOR_SIGNHL: u32 = 1 << 10;
+pub const MT_FLAG_DECOR_VIRT_LINES: u32 = 1 << 11;
+pub const MT_FLAG_DECOR_VIRT_TEXT_INLINE: u32 = 1 << 12;
+pub const MT_FLAG_DECOR_CONCEAL: u32 = 1 << 13;
+pub const MT_FLAG_DECOR_CONCEAL_LINES: u32 = 1 << 14;
+pub const MT_FLAG_RIGHT_GRAVITY: u32 = 1 << 15;
+pub const MT_FLAG_LAST: u32 = 1 << 16;
 
-pub const MT_FLAG_DECOR_MASK: u16 = MT_FLAG_DECOR_EXT
+pub const MT_FLAG_DECOR_MASK: u32 = MT_FLAG_DECOR_EXT
     | MT_FLAG_DECOR_HL
     | MT_FLAG_DECOR_SIGNTEXT
     | MT_FLAG_DECOR_SIGNHL
     | MT_FLAG_DECOR_VIRT_LINES
     | MT_FLAG_DECOR_VIRT_TEXT_INLINE;
 
-pub const MT_FLAG_EXTERNAL_MASK: u16 = MT_FLAG_DECOR_MASK
+pub const MT_FLAG_EXTERNAL_MASK: u32 = MT_FLAG_DECOR_MASK
     | MT_FLAG_NO_UNDO
     | MT_FLAG_INVALIDATE
     | MT_FLAG_INVALID
+    | MT_FLAG_DECOR_CONCEAL
     | MT_FLAG_DECOR_CONCEAL_LINES;
 
 pub const MARKTREE_END_FLAG: u64 = 1;
 pub const DECOR_PRIORITY_BASE: u16 = 0x1000;
 
 const META_MAP: [u32; K_MTMETA_COUNT] = [
-    MT_FLAG_DECOR_VIRT_TEXT_INLINE as u32,
-    MT_FLAG_DECOR_VIRT_LINES as u32,
-    MT_FLAG_DECOR_SIGNHL as u32,
-    MT_FLAG_DECOR_SIGNTEXT as u32,
-    MT_FLAG_DECOR_CONCEAL_LINES as u32,
+    MT_FLAG_DECOR_VIRT_TEXT_INLINE,
+    MT_FLAG_DECOR_VIRT_LINES,
+    MT_FLAG_DECOR_SIGNHL,
+    MT_FLAG_DECOR_SIGNTEXT,
+    MT_FLAG_DECOR_CONCEAL,
+    MT_FLAG_DECOR_CONCEAL_LINES,
 ];
 
 #[repr(C)]
@@ -135,7 +139,7 @@ pub struct MTKey {
     pub pos: MTPos,
     pub ns: u32,
     pub id: u32,
-    pub flags: u16,
+    pub flags: u32,
     pub decor_data: DecorInlineData,
 }
 
@@ -366,7 +370,7 @@ pub const fn mt_flags(
     no_undo: bool,
     invalidate: bool,
     decor_ext: bool,
-) -> u16 {
+) -> u32 {
     (if right_gravity {
         MT_FLAG_RIGHT_GRAVITY
     } else {
@@ -436,7 +440,7 @@ fn key_cmp(a: MTKey, b: MTKey) -> i32 {
     if cmp_col != 0 {
         return cmp_col;
     }
-    const CMP_MASK: u16 = MT_FLAG_RIGHT_GRAVITY | MT_FLAG_END | MT_FLAG_REAL | MT_FLAG_LAST;
+    const CMP_MASK: u32 = MT_FLAG_RIGHT_GRAVITY | MT_FLAG_END | MT_FLAG_REAL | MT_FLAG_LAST;
     let af = a.flags & CMP_MASK;
     let bf = b.flags & CMP_MASK;
     i32::from(af > bf) - i32::from(af < bf)
@@ -815,6 +819,7 @@ fn meta_describe_key_inc(meta_inc: &mut [u32; K_MTMETA_COUNT], key: MTKey) {
         meta_inc[K_MTMETA_LINES] += u32::from((key.flags & MT_FLAG_DECOR_VIRT_LINES) != 0);
         meta_inc[K_MTMETA_SIGN_HL] += u32::from((key.flags & MT_FLAG_DECOR_SIGNHL) != 0);
         meta_inc[K_MTMETA_SIGN_TEXT] += u32::from((key.flags & MT_FLAG_DECOR_SIGNTEXT) != 0);
+        meta_inc[K_MTMETA_CONCEAL] += u32::from((key.flags & MT_FLAG_DECOR_CONCEAL) != 0);
         meta_inc[K_MTMETA_CONCEAL_LINES] +=
             u32::from((key.flags & MT_FLAG_DECOR_CONCEAL_LINES) != 0);
     }
@@ -2006,7 +2011,7 @@ fn marktree_itr_check_filter(
         }
 
         let k = *rawkey(b, itr);
-        if !mt_end(k) && (u32::from(k.flags) & key_filter) != 0 {
+        if !mt_end(k) && (k.flags & key_filter) != 0 {
             return true;
         }
 

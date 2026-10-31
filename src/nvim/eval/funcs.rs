@@ -3584,8 +3584,9 @@ pub fn f_wait(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
     ui_flush();
 
     let timeout_ms = i64::from(timeout);
-    let start = if timeout_ms > 0 { os_hrtime() } else { 0 };
+    let start = if timeout_ms >= 0 { os_hrtime() } else { 0 };
     let mut remaining = timeout_ms;
+    let mut expired = false;
     while !({
         tv_clear(&mut exprval);
         !eval_expr_typval(&expr, false, &raw mut argv, 0, &mut exprval)
@@ -3593,6 +3594,7 @@ pub fn f_wait(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
         || g_st().called_emsg > called_emsg_before
         || error
         || g_st().got_int)
+        && !expired
     {
         let events = loop_queues(unsafe { &mut *main_loop_ptr }).events;
         if !events.is_null() && !multiqueue_empty(unsafe { &*events }) {
@@ -3600,13 +3602,9 @@ pub fn f_wait(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
         } else {
             loop_poll_events(unsafe { &mut *main_loop_ptr }, remaining);
         }
-        if remaining == 0 {
-            break;
-        } else if remaining > 0 {
+        if timeout_ms >= 0 {
             remaining = timeout_ms - ((os_hrtime() - start) / 1_000_000) as i64;
-            if remaining <= 0 {
-                break;
-            }
+            expired = remaining <= 0;
         }
     }
 

@@ -30,8 +30,8 @@ use crate::cursor::{Colnr, CursorPos, Linenr, check_cursor, check_cursor_lnum, e
 use crate::decoration::decor_conceal_line;
 use crate::diff::{diff_clear, diffopt_closeoff};
 use crate::drawscreen::{
-    FR_LEAF, FR_ROW, UPD_NOT_VALID, UPD_SOME_VALID, UPD_VALID, comp_col, redraw_all_later,
-    redraw_later, redraw_winline, showmode, status_redraw_all,
+    FR_LEAF, FR_ROW, UPD_NOT_VALID, UPD_SOME_VALID, UPD_VALID, comp_col, conceal_cursor_line,
+    conceal_redraw_cursor_line, redraw_all_later, redraw_later, showmode, status_redraw_all,
 };
 use crate::errors::*;
 use crate::eval::typval::{
@@ -1716,6 +1716,7 @@ pub fn ui_ext_win_viewport(wp: &mut WinInfoInfo) {
                 &mut vcole,
                 None,
                 i64::MAX,
+                true,
             );
         } else if cur_topline > last_topline
             || (cur_topline == last_topline && i64::from(wp.w_skipcol) > last_skipcol)
@@ -1735,6 +1736,7 @@ pub fn ui_ext_win_viewport(wp: &mut WinInfoInfo) {
                 &mut vcole,
                 None,
                 i64::MAX,
+                true,
             );
         }
         delta += i64::from(last_topfill);
@@ -5495,8 +5497,6 @@ pub fn tabpage_move(nr: i32) {
 }
 
 pub fn win_goto(wp: *mut WinInfoInfo) {
-    let owp = curwin_ptr();
-
     if text_or_buf_locked() {
         beep_flush();
         return;
@@ -5515,13 +5515,6 @@ pub fn win_goto(wp: *mut WinInfoInfo) {
     }
 
     win_enter(wp, true);
-
-    if win_valid(owp) && unsafe { (*owp).w_onebuf_opt.wo_cole } > 0 && g_st().msg_scrolled == 0 {
-        redraw_winline(unsafe { &mut *owp }, unsafe { (*owp).w_cursor.lnum });
-    }
-    if curwin_mut().w_onebuf_opt.wo_cole > 0 && g_st().msg_scrolled == 0 {
-        redraw_winline(crate::globals::curwin_mut(), curwin_mut().w_cursor.lnum);
-    }
 }
 
 pub fn win_find_tabpage(win: *const WinInfoInfo) -> *mut TabPageInfo {
@@ -5820,6 +5813,17 @@ fn win_enter_ext(wp: *mut WinInfoInfo, flags: i32) {
         && !curwin_mut().w_floating
     {
         win_setwidth(opt_vars().p_wiw as i32);
+    }
+
+    if !curwin_invalid
+        && win_valid(g_st().prevwin)
+        && crate::globals::prevwin_mut().w_onebuf_opt.wo_cole > 0
+        && !conceal_cursor_line(crate::globals::prevwin_mut())
+    {
+        conceal_redraw_cursor_line(crate::globals::prevwin_mut());
+    }
+    if curwin_mut().w_onebuf_opt.wo_cole > 0 && !conceal_cursor_line(curwin_mut()) {
+        conceal_redraw_cursor_line(curwin_mut());
     }
 
     setmouse();

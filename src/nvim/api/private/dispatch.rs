@@ -36,8 +36,9 @@ use crate::api::events::{nvim_error_event, nvim_ui_term_event};
 use crate::api::extmark::{
     KeyDict_get_extmark, KeyDict_get_extmarks, KeyDict_ns_opts, KeyDict_set_decoration_provider,
     KeyDict_set_extmark, nvim_buf_clear_namespace, nvim_buf_debug_extmarks, nvim_buf_del_extmark,
-    nvim_buf_get_extmark_by_id, nvim_buf_get_extmarks, nvim_buf_set_extmark, nvim_create_namespace,
-    nvim_get_namespaces, nvim_ns_get, nvim_ns_set, nvim_set_decoration_provider,
+    nvim_buf_get_extmark_by_id, nvim_buf_get_extmarks, nvim_buf_set_conceal_provider,
+    nvim_buf_set_extmark, nvim_create_namespace, nvim_get_namespaces, nvim_ns_get, nvim_ns_set,
+    nvim_set_decoration_provider,
 };
 use crate::api::options::{
     KeyDict_option, nvim_get_all_options_info, nvim_get_option_info2, nvim_get_option_value,
@@ -2803,7 +2804,7 @@ pub fn key_dict_runtime_get_field(key: &[u8]) -> Option<&'static KeySetLink> {
     (hash >= 0).then(|| &RUNTIME_TABLE[hash as usize])
 }
 
-pub static SET_DECORATION_PROVIDER_TABLE: [KeySetLink; 10] = [
+pub static SET_DECORATION_PROVIDER_TABLE: [KeySetLink; 11] = [
     KeySetLink {
         str: Some(c"on_buf"),
         ptr_off: offset_of!(KeyDict_set_decoration_provider, on_buf),
@@ -2868,6 +2869,13 @@ pub static SET_DECORATION_PROVIDER_TABLE: [KeySetLink; 10] = [
         is_hlgroup: false,
     },
     KeySetLink {
+        str: Some(c"_on_conceal"),
+        ptr_off: offset_of!(KeyDict_set_decoration_provider, _on_conceal),
+        key_type: ObjectType::ObjectTypeLuaRef as i32,
+        opt_index: 10,
+        is_hlgroup: false,
+    },
+    KeySetLink {
         str: None,
         ptr_off: 0,
         key_type: ObjectType::ObjectTypeNil as i32,
@@ -2887,6 +2895,7 @@ pub fn set_decoration_provider_hash(key: &[u8]) -> i32 {
         b"_on_hl_def" => 6,
         b"_on_spell_nav" => 7,
         b"_on_conceal_line" => 8,
+        b"_on_conceal" => 9,
         _ => -1,
     }
 }
@@ -2896,7 +2905,7 @@ pub fn key_dict_set_decoration_provider_get_field(key: &[u8]) -> Option<&'static
     (hash >= 0).then(|| &SET_DECORATION_PROVIDER_TABLE[hash as usize])
 }
 
-pub static SET_EXTMARK_TABLE: [KeySetLink; 36] = [
+pub static SET_EXTMARK_TABLE: [KeySetLink; 37] = [
     KeySetLink {
         str: Some(c"id"),
         ptr_off: offset_of!(KeyDict_set_extmark, id),
@@ -3143,6 +3152,13 @@ pub static SET_EXTMARK_TABLE: [KeySetLink; 36] = [
         is_hlgroup: false,
     },
     KeySetLink {
+        str: Some(c"_conceal_continuation"),
+        ptr_off: offset_of!(KeyDict_set_extmark, _conceal_continuation),
+        key_type: ObjectType::ObjectTypeBoolean as i32,
+        opt_index: 36,
+        is_hlgroup: false,
+    },
+    KeySetLink {
         str: None,
         ptr_off: 0,
         key_type: ObjectType::ObjectTypeNil as i32,
@@ -3188,6 +3204,7 @@ pub fn set_extmark_hash(key: &[u8]) -> i32 {
         b"cursorline_hl_group" => 32,
         b"virt_lines_overflow" => 33,
         b"virt_text_repeat_linebreak" => 34,
+        b"_conceal_continuation" => 35,
         _ => -1,
     }
 }
@@ -18972,6 +18989,42 @@ extern "C-unwind" fn nlua_api_nvim_set_decoration_provider(lstate: *mut lua_Stat
     nlua_finish_api_call(lstate, &mut arena, &mut err, err_param, 0)
 }
 
+extern "C-unwind" fn nlua_api_nvim_buf_set_conceal_provider(lstate: *mut lua_State) -> i32 {
+    let mut err = Error::new();
+    let mut arena: Arena = Default::default();
+    let mut err_param: Option<&'static std::ffi::CStr> = None;
+    let arg2: Boolean;
+    let arg1: Buffer;
+    'exit_0: {
+        if nlua_gettop(lstate) != 2 {
+            api_set_error_str(
+                &mut err,
+                ErrorType::ErrorTypeValidation,
+                c"Expected 2 arguments",
+            );
+            break 'exit_0;
+        }
+        if !nlua_is_deferred_safe() {
+            return nlua_fast_api_disabled_error(lstate, c"nvim__buf_set_conceal_provider");
+        }
+        arg2 = nlua_pop_boolean(lstate, &mut arena, &mut err);
+        if err.err_type != ErrorType::ErrorTypeNone {
+            err_param = Some(c"enabled");
+            break 'exit_0;
+        }
+        arg1 = nlua_pop_Buffer(lstate, &mut arena, &mut err);
+        if err.err_type != ErrorType::ErrorTypeNone {
+            err_param = Some(c"buf");
+            break 'exit_0;
+        }
+        let save_active_lstate = nlua_st().active_lstate;
+        nlua_st().active_lstate = lstate;
+        nvim_buf_set_conceal_provider(arg1, arg2, &mut err);
+        nlua_st().active_lstate = save_active_lstate;
+    }
+    nlua_finish_api_call(lstate, &mut arena, &mut err, err_param, 0)
+}
+
 extern "C-unwind" fn nlua_api_nvim_buf_debug_extmarks(lstate: *mut lua_State) -> i32 {
     let mut err = Error::new();
     let mut arena: Arena = Default::default();
@@ -23908,6 +23961,8 @@ pub fn nlua_add_api_functions(lstate: *mut lua_State) {
         lua_setfield(lstate, -2, c"nvim_buf_clear_namespace");
         lua_pushcclosure(lstate, Some(nlua_api_nvim_set_decoration_provider), 0);
         lua_setfield(lstate, -2, c"nvim_set_decoration_provider");
+        lua_pushcclosure(lstate, Some(nlua_api_nvim_buf_set_conceal_provider), 0);
+        lua_setfield(lstate, -2, c"nvim__buf_set_conceal_provider");
         lua_pushcclosure(lstate, Some(nlua_api_nvim_buf_debug_extmarks), 0);
         lua_setfield(lstate, -2, c"nvim__buf_debug_extmarks");
         lua_pushcclosure(lstate, Some(nlua_api_nvim_ns_set), 0);
