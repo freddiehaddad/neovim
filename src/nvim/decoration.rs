@@ -456,7 +456,7 @@ pub struct SignItem<'a> {
 
 struct DecorationModuleState {
     decor_freelist: u32,
-    to_free_virt: Vec<DecorVirtText>,
+    to_free_virt: Vec<*mut DecorVirtText>,
     to_free_sh: u32,
     sign_add_id: i32,
 }
@@ -721,7 +721,7 @@ pub fn decor_free(decor: DecorInline) {
 
     if g_st().decor_state.running_decor_provider {
         if !vt.is_null() {
-            decor_st().to_free_virt.push(*unsafe { Box::from_raw(vt) });
+            decor_st().to_free_virt.push(vt);
         }
         while idx != DECOR_ID_INVALID {
             let sh = &mut (&mut g_st().decor_items)[idx as usize];
@@ -766,7 +766,9 @@ pub fn decor_state_invalidate(buf: &mut FileBuf) {
 
 pub fn decor_check_to_be_deleted() {
     assert!(!g_st().decor_state.running_decor_provider);
-    decor_st().to_free_virt.clear();
+    for vt in decor_st().to_free_virt.drain(..) {
+        drop(unsafe { Box::from_raw(vt) });
+    }
     decor_free_sh(decor_st().to_free_sh);
     decor_st().to_free_sh = DECOR_ID_INVALID;
     g_st().decor_state.win = ptr::null_mut();

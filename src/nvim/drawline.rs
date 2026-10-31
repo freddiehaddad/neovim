@@ -2858,7 +2858,8 @@ pub fn win_line(
                                         len = len + schar_len(lcs_tab3) - tab2_len;
                                     }
                                     if wlv.n_extra > 0 {
-                                        len += (wlv.n_extra - tab_len) as usize;
+                                        len = len
+                                            .wrapping_add_signed((wlv.n_extra - tab_len) as isize);
                                     }
                                     let mut p = get_extra_buf(len + 1);
                                     ptr::write_bytes(p, b' ', len);

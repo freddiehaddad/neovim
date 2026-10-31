@@ -573,8 +573,9 @@ unsafe extern "C" fn bg_query_timer_cb(handle: *mut uv_timer_t) {
     }
 }
 
-fn handle_focus_event(_input: &mut TermInput, bytes: &[u8]) -> usize {
+fn handle_focus_event(input: &mut TermInput, bytes: &[u8]) -> usize {
     if bytes.len() >= 3 && (&bytes[..3] == b"\x1b[I" || &bytes[..3] == b"\x1b[O") {
+        tinput_flush(input);
         let focus_gained = bytes[2] == b'I';
         let mut items = [boolean_obj(focus_gained)];
         let args = Array {

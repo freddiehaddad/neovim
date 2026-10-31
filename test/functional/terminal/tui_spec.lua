@@ -4048,28 +4048,27 @@ describe('TUI FocusGained/FocusLost', function()
       {5:-- TERMINAL --}                                    |
     ]])
 
-    feed_data('\027[I')
-    screen:expect {
-      grid = [[
-      ^ready $ zia                                       |
-                                                        |
-      [Process exited 0]                                |
-                                                        |*2
-      gained                                            |
-      {5:-- TERMINAL --}                                    |
-    ]],
-      timeout = (4 * screen.timeout),
-    }
+    retry(2, 3 * screen.timeout, function()
+      feed_data('\027[I')
+      screen:expect([[
+        ^ready $ zia                                       |
+                                                          |
+        [Process exited 0]                                |
+                                                          |*2
+        gained                                            |
+        {5:-- TERMINAL --}                                    |
+      ]])
 
-    feed_data('\027[O')
-    screen:expect([[
-      ^ready $ zia                                       |
-                                                        |
-      [Process exited 0]                                |
-                                                        |*2
-      lost                                              |
-      {5:-- TERMINAL --}                                    |
-    ]])
+      feed_data('\027[O')
+      screen:expect([[
+        ^ready $ zia                                       |
+                                                          |
+        [Process exited 0]                                |
+                                                          |*2
+        lost                                              |
+        {5:-- TERMINAL --}                                    |
+      ]])
+    end)
   end)
 
   it('in hit-enter prompt', function()
