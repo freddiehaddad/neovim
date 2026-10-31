@@ -14,8 +14,8 @@ use crate::r#move::{changed_cline_bef_curs, set_valid_virtcol, validate_virtcol,
 use crate::option::{get_sidescrolloff_value, get_ve_flags};
 use crate::option_vars::*;
 use crate::plines::{
-    CSType, CharSize, CharsizeArg, getvcol, getvvcol, init_charsize_arg, linetabsize,
-    linetabsize_eol, win_charsize,
+    CSType, CharSize, CharsizeArg, disp_vcol2vcol, getvcol, getvvcol, init_charsize_arg,
+    linetabsize, linetabsize_disp_eol, vcol2disp_vcol, win_charsize,
 };
 use crate::regexp::MAXCOL;
 use crate::state::{MODE_INSERT, MODE_TERMINAL, virtual_active};
@@ -167,11 +167,8 @@ fn coladvance2(
             || ((get_ve_flags(&mut *wp) & K_OPT_VE_FLAG_ONEMORE) != 0 && wcol < MAXCOL),
     );
 
-    let line = ml_get_buf(wp.buf_mut(), pos.lnum);
-    let linelen = ml_get_buf_len(wp.buf_mut(), pos.lnum);
-
     if wcol == MAXCOL {
-        idx = linelen - 1 + one_more;
+        idx = ml_get_buf_len(wp.buf_mut(), pos.lnum) - 1 + one_more;
         col = wcol;
 
         if (addspaces || finetune) && !g_st().visual_global.active {
@@ -190,18 +187,21 @@ fn coladvance2(
             && wcol >= width
             && width > 0
         {
-            csize = linetabsize_eol(&mut *wp, pos.lnum);
+            csize = linetabsize_disp_eol(&mut *wp, pos.lnum);
             if csize > 0 {
                 csize -= 1;
             }
 
-            if wcol / width > csize / width
-                && ((g_st().state_global & MODE_INSERT) == 0 || wcol > csize + 1)
+            let disp_wcol = vcol2disp_vcol(&mut *wp, pos.lnum, wcol);
+            if disp_wcol / width > csize / width
+                && ((g_st().state_global & MODE_INSERT) == 0 || disp_wcol > csize + 1)
             {
-                wcol = (csize / width + 1) * width - 1;
+                wcol = disp_vcol2vcol(&mut *wp, pos.lnum, (csize / width + 1) * width - 1);
             }
         }
 
+        let line = ml_get_buf(wp.buf_mut(), pos.lnum);
+        let linelen = ml_get_buf_len(wp.buf_mut(), pos.lnum);
         let mut csarg = CharsizeArg::new();
         let cstype: CSType = init_charsize_arg(&mut csarg, &mut *wp, pos.lnum, line);
         let mut ci = utf_ptr2_str_char_info(line);

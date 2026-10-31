@@ -66,8 +66,8 @@ use crate::os::fileio::{
     file_try_read_buffered,
 };
 use crate::os::fs::{
-    CASE_INSENSITIVE_FILENAME, FileInfo, UV_ENOENT, os_fileinfo, os_getperm, os_isdir,
-    os_mkdir_recurse, os_remove,
+    CASE_INSENSITIVE_FILENAME, FileInfo, UV_ENOENT, os_fileinfo, os_fileinfo_link, os_getperm,
+    os_isdir, os_mkdir_recurse, os_remove,
 };
 use crate::os::stdpaths::stdpaths_user_state_subpath;
 use crate::os::time::{Timestamp, os_time};
@@ -3127,6 +3127,62 @@ fn shada_write(
     }
 }
 
+/// Creates the first available `{fname}.tmp.a…z` file. If all exist (old failed writes), deletes
+/// the oldest and reuses its name.
+fn shada_open_tmp(
+    fname_bytes: &[u8],
+    sd_writer: &mut FileDescriptor,
+    perm: i32,
+) -> Option<Vec<u8>> {
+    let fname = fname_bytes.as_ptr().cast();
+    let tn = modname(fname, c".tmp.a", false)?;
+    let mut tempname_bytes = tn.into_bytes_with_nul();
+    let flags = K_FILE_CREATE_ONLY | K_FILE_NO_SYMLINK;
+    let last_idx = tempname_bytes.len() - 2;
+    let mut oldest: u8 = 0;
+    let mut oldest_mtime: std::ffi::c_long = 0;
+    for c in b'a'..=b'z' {
+        tempname_bytes[last_idx] = c;
+        let error = file_open(sd_writer, tempname_bytes.as_mut_ptr().cast(), flags, perm);
+        if error == 0 {
+            return Some(tempname_bytes);
+        } else if error != UV_EEXIST && error != UV_ELOOP {
+            semsg!(
+                gettext(
+                    c"E886: System error while opening temporary ShaDa file %s for writing: %s",
+                ),
+                CStr::from_bytes_with_nul(&tempname_bytes)
+                    .unwrap_or_default()
+                    .as_ptr(),
+                unsafe { uv_strerror(error) },
+            );
+            return None;
+        }
+        let mut info = FileInfo::new();
+        if os_fileinfo_link(tempname_bytes.as_ptr().cast(), &mut info)
+            && (oldest == 0 || info.stat.st_mtim.tv_sec < oldest_mtime)
+        {
+            oldest = c;
+            oldest_mtime = info.stat.st_mtim.tv_sec;
+        }
+    }
+    if oldest != 0 {
+        tempname_bytes[last_idx] = oldest;
+        if os_remove(tempname_bytes.as_ptr().cast()) == 0
+            && file_open(sd_writer, tempname_bytes.as_mut_ptr().cast(), flags, perm) == 0
+        {
+            return Some(tempname_bytes);
+        }
+    }
+    semsg!(
+        gettext(c"E138: All %s.tmp.X files exist, cannot write ShaDa file!"),
+        CStr::from_bytes_with_nul(fname_bytes)
+            .unwrap_or_default()
+            .as_ptr(),
+    );
+    None
+}
+
 /// Write ShaDa file to a given location (`shada_write_file`).
 pub fn shada_write_file(file: impl crate::strings::IntoCCharPtr, mut nomerge: bool) -> bool {
     let file = file.into_c_char_ptr();
@@ -3144,7 +3200,7 @@ pub fn shada_write_file(file: impl crate::strings::IntoCCharPtr, mut nomerge: bo
         let mut did_open_reader = false;
 
         if !nomerge {
-            let mut error = file_open(&mut sd_reader, fname.cast(), K_FILE_READ_ONLY, 0);
+            let error = file_open(&mut sd_reader, fname.cast(), K_FILE_READ_ONLY, 0);
             if error != 0 {
                 if error != UV_ENOENT {
                     semsg!(
@@ -3158,55 +3214,17 @@ pub fn shada_write_file(file: impl crate::strings::IntoCCharPtr, mut nomerge: bo
                 nomerge = true;
             } else {
                 did_open_reader = true;
-                if let Some(tn) = modname(fname.cast(), c".tmp.a", false) {
-                    tempname_bytes = tn.into_bytes_with_nul();
-                    let tempname = tempname_bytes.as_mut_ptr();
-                    let mut perm = os_getperm(fname.cast());
-                    perm = if perm >= 0 {
-                        (perm & 0o777) | 0o600
-                    } else {
-                        0o600
-                    };
-                    loop {
-                        error = file_open(
-                            &mut sd_writer,
-                            tempname.cast(),
-                            K_FILE_CREATE_ONLY | K_FILE_NO_SYMLINK,
-                            perm,
-                        );
-                        if error != 0 {
-                            if error == UV_EEXIST || error == UV_ELOOP {
-                                let last_idx = tempname_bytes.len() - 2;
-                                if tempname_bytes[last_idx] == b'z' {
-                                    semsg!(
-                                        gettext(
-                                            c"E138: All %s.tmp.X files exist, cannot write ShaDa file!",
-                                        ),
-                                        CStr::from_bytes_with_nul(&fname_bytes).unwrap_or_default().as_ptr(),
-                                    );
-                                    if did_open_reader {
-                                        close_file(&mut sd_reader);
-                                    }
-                                    return false;
-                                }
-                                tempname_bytes[last_idx] += 1;
-                                continue;
-                            } else {
-                                semsg!(
-                                    gettext(
-                                        c"E886: System error while opening temporary ShaDa file %s for writing: %s",
-                                    ),
-                                    CStr::from_bytes_with_nul(&tempname_bytes).unwrap_or_default().as_ptr(),
-                                    unsafe { uv_strerror(error) },
-                                );
-                            }
-                        } else {
-                            did_open_writer = true;
-                        }
-                        break;
-                    }
+            }
+            if !nomerge {
+                let mut perm = os_getperm(fname.cast());
+                perm = if perm >= 0 {
+                    (perm & 0o777) | 0o600
                 } else {
-                    nomerge = true;
+                    0o600
+                };
+                if let Some(tn) = shada_open_tmp(&fname_bytes, &mut sd_writer, perm) {
+                    tempname_bytes = tn;
+                    did_open_writer = true;
                 }
             }
         }

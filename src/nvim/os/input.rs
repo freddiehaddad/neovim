@@ -592,17 +592,14 @@ fn inbuf_poll(ms: i32, events: *mut MultiQueue) -> bool {
 
     // LOOP_PROCESS_EVENTS_UNTIL(&main_loop, NULL, ms, os_input_ready(events) || input_unanswerable());
     let timeout_ms = i64::from(ms);
-    let start = if timeout_ms > 0 { os_hrtime() } else { 0 };
+    let start = if timeout_ms >= 0 { os_hrtime() } else { 0 };
     let mut remaining = timeout_ms;
-    while !(os_input_ready(unsafe { events.as_ref() }) || input_unanswerable()) {
+    let mut expired = false;
+    while !(os_input_ready(unsafe { events.as_ref() }) || input_unanswerable()) && !expired {
         loop_poll_events(&mut *main_loop_ptr(), remaining);
-        if remaining == 0 {
-            break;
-        } else if remaining > 0 {
+        if timeout_ms >= 0 {
             remaining = timeout_ms - ((os_hrtime() - start) / 1_000_000) as i64;
-            if remaining <= 0 {
-                break;
-            }
+            expired = remaining <= 0;
         }
     }
 

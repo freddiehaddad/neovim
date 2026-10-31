@@ -41,6 +41,7 @@ pub struct DecorProvider {
     pub hl_def: LuaRef,
     pub spell_nav: LuaRef,
     pub conceal_line: LuaRef,
+    pub conceal: LuaRef,
     pub hl_valid: i32,
     pub hl_cached: bool,
     pub error_count: u8,
@@ -86,8 +87,9 @@ const fn decor_provider_init(ns_id: NS) -> DecorProvider {
         redraw_end: LUA_NOREF,
         hl_def: LUA_NOREF,
         spell_nav: LUA_NOREF,
-        conceal_line: -1,
-        hl_valid: 0,
+        conceal_line: LUA_NOREF,
+        conceal: LUA_NOREF,
+        hl_valid: -1,
         hl_cached: false,
         error_count: 0,
     }
@@ -212,14 +214,23 @@ pub fn decor_providers_invoke_spell(
     }
 }
 
-/// Return whether a provider placed any marks in the callback (`decor_providers_invoke_conceal_line`).
-pub fn decor_providers_invoke_conceal_line(wp: &mut WinInfoInfo, row: i32) -> bool {
-    let keys = wp.buf_mut().b_marktree.n_keys;
+/// Invokes the `_on_conceal_line` (if `lines`) or `_on_conceal` callback for buffer row `row` (`decor_providers_invoke_conceal`).
+pub fn decor_providers_invoke_conceal(wp: &mut WinInfoInfo, row: i32, lines: bool) {
+    if !lines
+        && (row < 0
+            || wp.w_onebuf_opt.wo_cole < 1
+            || wp.buf_mut().b_conceal_providers == 0
+            || (wp.w_onebuf_opt.wo_wrap == 0 && !crate::decoration::decor_row_has_conceal(wp, row)))
+    {
+        return;
+    }
+    let running = g_st().decor_state.running_decor_provider;
+    g_st().decor_state.running_decor_provider = running || g_st().updating_screen;
     let mut i = 0usize;
     while i < providers_mut().len() {
         let p = &providers_mut()[i];
-        if p.state != K_DECOR_PROVIDER_DISABLED && p.conceal_line != LUA_NOREF {
-            let conceal_line = p.conceal_line;
+        let ref_ = if lines { p.conceal_line } else { p.conceal };
+        if p.state != K_DECOR_PROVIDER_DISABLED && ref_ != LUA_NOREF {
             let mut args_buf = [
                 integer_obj(wp.handle as Integer),
                 integer_obj(wp.buf_mut().b_fnum as Integer),
@@ -230,11 +241,18 @@ pub fn decor_providers_invoke_conceal_line(wp: &mut WinInfoInfo, row: i32) -> bo
                 size: 3,
                 capacity: 0,
             };
-            decor_provider_invoke(i as i32, c"conceal_line", conceal_line, args, true, None);
+            decor_provider_invoke(
+                i as i32,
+                if lines { c"conceal_line" } else { c"conceal" },
+                ref_,
+                args,
+                true,
+                None,
+            );
         }
         i += 1;
     }
-    wp.buf_mut().b_marktree.n_keys > keys
+    g_st().decor_state.running_decor_provider = running;
 }
 
 /// For each provider invoke the 'start' callback (`decor_providers_start`).
@@ -486,6 +504,7 @@ pub fn decor_provider_clear(mut p: Option<&mut DecorProvider>) {
     clear_ref(&mut p.as_deref_mut().unwrap().redraw_end);
     clear_ref(&mut p.as_deref_mut().unwrap().spell_nav);
     clear_ref(&mut p.as_deref_mut().unwrap().conceal_line);
+    clear_ref(&mut p.as_deref_mut().unwrap().conceal);
     p.unwrap().state = K_DECOR_PROVIDER_DISABLED;
 }
 

@@ -1,6 +1,7 @@
 //! Functions for drawing window lines on the screen (`src/nvim/drawline.c`).
 //! This is the middle level, `drawscreen.rs` is the top and `grid.rs` the lower level.
 
+#[cfg(debug_assertions)]
 use crate::api::ui::MAX_SCHAR_SIZE;
 use crate::api::vim::{HLF_CLN, HLF_CLS, HLF_LNA, HLF_LNB, HLF_N, HLF_SC, SIGN_SHOW_MAX};
 use crate::autocmd::HLF_8;
@@ -15,10 +16,10 @@ use crate::decoration::{
     DecorRange, DecorVirtText, K_VLLEFTCOL, K_VLOVERFLOW_AUTO, K_VLOVERFLOW_SCROLL,
     K_VPOS_END_OF_LINE, K_VPOS_END_OF_LINE_RIGHT_ALIGN, K_VPOS_INLINE, K_VPOS_RIGHT_ALIGN,
     K_VPOS_WIN_COL, K_VTREPEAT_LINEBREAK, NS, SCL_NUM, SignTextAttrs, VirtLines, VirtText,
-    VirtTextChunk, decor_has_more_decorations, decor_init_draw_col, decor_recheck_draw_col,
-    decor_redraw_col, decor_redraw_eol, decor_redraw_line, decor_redraw_signs,
-    decor_virt_line_rows, decor_virt_lines, decor_virt_pos, decor_virt_pos_kind,
-    next_virt_text_chunk,
+    VirtTextChunk, conceal_replacement, decor_conceal_char, decor_extconceal_char,
+    decor_has_more_decorations, decor_init_draw_col, decor_recheck_draw_col, decor_redraw_col,
+    decor_redraw_eol, decor_redraw_line, decor_redraw_signs, decor_virt_line_rows,
+    decor_virt_lines, decor_virt_pos, decor_virt_pos_kind, next_virt_text_chunk,
 };
 use crate::decoration_provider::{decor_providers_invoke_line, decor_providers_invoke_range};
 use crate::diff::{
@@ -26,17 +27,19 @@ use crate::diff::{
     diff_check_with_linestatus, diff_find_change,
 };
 use crate::drawscreen::{
-    SIGN_WIDTH, Spellvars, WinExtmark, compute_foldcolumn, conceal_cursor_line, number_width,
-    win_draw_end,
+    SIGN_WIDTH, Spellvars, WinExtmark, compute_foldcolumn, conceal_cursor_line,
+    conceal_cursor_reveals_line, number_width, win_draw_end,
 };
 use crate::eval::typval::K_CALLBACK_NONE_CONST;
 use crate::ex_getln::{Disptick, Hlf};
 use crate::extmark::{K_FALSE, K_TRUE, TriState};
 use crate::fold::get_foldtext;
 use crate::globals::*;
+#[cfg(debug_assertions)]
+use crate::grid::schar_get;
 use crate::grid::{
-    GridView, Schar, grid_adjust, grid_put_linebuf, linebuf_mirror, schar_from_ascii,
-    schar_from_char, schar_from_cluster, schar_get, schar_get_adv, schar_get_ascii,
+    GridView, Schar, grid_adjust, grid_put_linebuf, linebuf_mirror, schar_cells, schar_from_ascii,
+    schar_from_char, schar_from_cluster, schar_get_adv, schar_get_ascii, schar_get_first_codepoint,
     schar_invisible, schar_len,
 };
 use crate::highlight::{
@@ -56,14 +59,18 @@ use crate::mbyte::{
 };
 use crate::memline::{gchar_pos, ml_get_buf, ml_get_buf_len};
 use crate::memory::xstrlcpy;
-use crate::r#move::{set_empty_rows, validate_virtcol, win_col_off, win_col_off2};
+use crate::r#move::{
+    cursor_disp_vcol, set_empty_rows, validate_virtcol, win_col_off, win_col_off2,
+};
 use crate::option::get_showbreak_value;
 use crate::option_vars::*;
 use crate::optionstr::CharBuf;
 use crate::os::fs::MAXPATHL;
 use crate::plines::{
-    CSType, CharInfo, CharSize, CharsizeArg, StrCharInfo, getvcol, getvvcol, init_charsize_arg,
-    init_charsize_arg_skip_cur_text, vim_isbreak, win_charsize,
+    CharInfo, CharSize, CharsizeArg, ConcealSpans, GETVCOL_DISP, StrCharInfo,
+    conceal_spans_collect, getvcol, getvvcol, init_charsize_arg, init_charsize_arg_extconceal,
+    init_charsize_arg_skip_cur_text, line_has_extconceal, linetabsize_disp_eol, vcol2disp_vcol,
+    vim_isbreak, win_charsize,
 };
 use crate::quickfix::qf_current_entry;
 use crate::regexp::{CTRL_V_CONST, MAXCOL};
@@ -139,6 +146,7 @@ struct Winlinevars<'a> {
     boguscols: i32,
     old_boguscols: i32,
     vcol_off_co: i32,
+    extconceal_off: i32,
     off: i32,
     cul_attr: i32,
     line_attr: i32,
@@ -148,7 +156,6 @@ struct Winlinevars<'a> {
     sign_cul_attr: i32,
     fromcol: i32,
     tocol: i32,
-    vcol_sbr: Colnr,
     need_showbreak: bool,
     char_attr: i32,
     n_extra: i32,
@@ -167,7 +174,6 @@ struct Winlinevars<'a> {
     virt_below_skip: i32,
     filler_lines_skip: i32,
     sattrs: [SignTextAttrs; SIGN_SHOW_MAX],
-    need_lbr: bool,
     virt_inline: &'a [VirtTextChunk],
     virt_inline_i: usize,
     virt_inline_hl_mode: HlMode,
@@ -276,14 +282,14 @@ fn advance_color_col(wlv: &mut Winlinevars<'_>, vcol: i32) {
     }
 }
 
-/// Used when 'cursorlineopt' contains "screenline": compute the margins between
-/// which the highlighting is used.
-fn margin_columns_win(wp: &mut WinInfoInfo, left_col: &mut i32, right_col: &mut i32) {
+/// Used when 'cursorlineopt' contains "screenline": compute the margins between which the
+/// highlighting is used, for the cursor at displayed vcol `vcol`.
+fn margin_columns_win(wp: &mut WinInfoInfo, vcol: Colnr, left_col: &mut i32, right_col: &mut i32) {
     let cur_col_off = win_col_off(wp);
     let width1 = wp.w_view_width - cur_col_off;
     let width2 = width1 + win_col_off2(&mut *wp);
 
-    if dl_st().saved_w_virtcol == wp.w_virtcol
+    if dl_st().saved_w_virtcol == vcol
         && dl_st().margin_prev_wp == wp
         && dl_st().prev_width1 == width1
         && dl_st().prev_width2 == width2
@@ -296,11 +302,11 @@ fn margin_columns_win(wp: &mut WinInfoInfo, left_col: &mut i32, right_col: &mut 
     *left_col = 0;
     *right_col = width1;
 
-    if wp.w_virtcol >= width1 && width2 > 0 {
-        *right_col = width1 + ((wp.w_virtcol - width1) / width2 + 1) * width2;
+    if vcol >= width1 && width2 > 0 {
+        *right_col = width1 + ((vcol - width1) / width2 + 1) * width2;
     }
-    if wp.w_virtcol >= width1 && width2 > 0 {
-        *left_col = (wp.w_virtcol - width1) / width2 * width2 + width1;
+    if vcol >= width1 && width2 > 0 {
+        *left_col = (vcol - width1) / width2 * width2 + width1;
     }
 
     dl_st().prev_left_col = *left_col;
@@ -308,7 +314,7 @@ fn margin_columns_win(wp: &mut WinInfoInfo, left_col: &mut i32, right_col: &mut 
     dl_st().margin_prev_wp = wp;
     dl_st().prev_width1 = width1;
     dl_st().prev_width2 = width2;
-    dl_st().saved_w_virtcol = wp.w_virtcol;
+    dl_st().saved_w_virtcol = vcol;
 }
 
 /// Put a single char from an UTF-8 buffer into a line buffer.
@@ -1108,7 +1114,6 @@ fn handle_showbreak_and_filler(wp: &mut WinInfoInfo, wlv: &mut Winlinevars, gap_
             ptr::null(),
             true,
         );
-        wlv.vcol_sbr = wlv.vcol;
 
         if wlv.fromcol >= vcol_before && wlv.fromcol < wlv.vcol {
             wlv.fromcol = wlv.vcol;
@@ -1268,7 +1273,6 @@ fn handle_inline_virtual_text(wlv: &mut Winlinevars, v: isize, selected: bool) {
 fn win_line_start(wp: &mut WinInfoInfo, wlv: &mut Winlinevars) {
     wlv.col = 0;
     wlv.off = 0;
-    wlv.need_lbr = false;
     for i in 0..wp.w_view_width as usize {
         g_st().linebuf_char[i] = schar_from_ascii(b' ');
         g_st().linebuf_attr[i] = 0;
@@ -1283,6 +1287,14 @@ fn fix_for_boguscols(wlv: &mut Winlinevars) {
     wlv.col -= wlv.boguscols;
     wlv.old_boguscols = wlv.boguscols;
     wlv.boguscols = 0;
+}
+
+/// A TAB drawn with tab stops, and not itself concealed, absorbs the cells hidden before it (see
+/// CharsizeArg.extconceal_off), but keeps its own cell (see CharSize.hidden).
+fn tab_absorb_extconceal(wlv: &mut Winlinevars) {
+    wlv.n_extra += wlv.extconceal_off;
+    wlv.extconceal_off = wlv.n_extra.min(0);
+    wlv.n_extra = wlv.n_extra.max(0);
 }
 
 fn get_rightmost_vcol(wp: &mut WinInfoInfo, color_cols: &[i32]) -> i32 {
@@ -1312,6 +1324,103 @@ fn schar_get_single_width(mb_schar: Schar) -> i32 {
     }
     let _ = mb_schar;
     1
+}
+
+/// Advance to the first displayed character, retaining partially visible cells. Re-reads `line`,
+/// which the `_on_conceal` provider may free (see init_charsize_arg_extconceal()).
+fn win_line_skip_columns(
+    wp: &mut WinInfoInfo,
+    wlv: &mut Winlinevars,
+    line: &mut *mut std::ffi::c_char,
+    start_vcol: i32,
+    leadcol: Colnr,
+    in_multispace: &mut bool,
+    multispace_pos: &mut usize,
+) -> *const std::ffi::c_char {
+    let mut csarg = CharsizeArg::new();
+    let mut spans = ConcealSpans::new();
+    let cstype = if wp.w_onebuf_opt.wo_wrap != 0 && unsafe { **line } != NUL {
+        init_charsize_arg_extconceal(&mut csarg, wp, wlv.lnum, &mut spans)
+    } else {
+        init_charsize_arg(&mut csarg, wp, wlv.lnum, *line)
+    };
+    csarg.max_head_vcol = start_vcol;
+    *line = csarg.line.cast();
+    let mut ptr = (*line).cast_const();
+    let mut prev_ptr = ptr;
+    let mut cs = CharSize::default();
+
+    let mut vcol = wlv.vcol;
+    let mut ci = utf_ptr2_str_char_info(ptr);
+    while vcol - csarg.extconceal_off < start_vcol {
+        let cli = utf_cluster_info(ci);
+        cs = win_charsize(cstype, vcol, ci.ptr, ci.chr.value, &mut csarg, cli.cells);
+        vcol += cs.width;
+        prev_ptr = ci.ptr;
+        if crate::memory::cstr_is_empty(prev_ptr) {
+            break;
+        }
+        ci = cli.next;
+        if wp.w_onebuf_opt.wo_list != 0 {
+            *in_multispace = crate::memory::cstr_first_byte(prev_ptr) == b' '
+                && (crate::memory::cstr_first_byte(ci.ptr) == b' '
+                    || (prev_ptr > (*line).cast_const()
+                        && crate::memory::cstr_first_byte(prev_ptr.wrapping_sub(1)) == b' '));
+            if !*in_multispace {
+                *multispace_pos = 0;
+            } else if ci.ptr >= (*line).cast_const().wrapping_add(leadcol as usize)
+                && !wp.w_p_lcs_chars.multispace.is_empty()
+            {
+                *multispace_pos += 1;
+                if *multispace_pos >= wp.w_p_lcs_chars.multispace.len() {
+                    *multispace_pos = 0;
+                }
+            } else if ci.ptr < (*line).cast_const().wrapping_add(leadcol as usize)
+                && !wp.w_p_lcs_chars.leadmultispace.is_empty()
+            {
+                *multispace_pos += 1;
+                if *multispace_pos >= wp.w_p_lcs_chars.leadmultispace.len() {
+                    *multispace_pos = 0;
+                }
+            }
+        }
+    }
+    wlv.vcol = vcol - csarg.extconceal_off;
+    wlv.extconceal_off = csarg.extconceal_off;
+    ptr = ci.ptr;
+    let charsize = cs.width - cs.hidden;
+    let head = cs.head;
+
+    if wlv.vcol < start_vcol
+        && (wp.w_onebuf_opt.wo_cuc != 0
+            || !wlv.color_cols.is_empty()
+            || virtual_active(wp)
+            || (g_st().visual_global.active && wp.w_buffer == curwin_mut().w_buffer)
+            || (wlv.foldinfo.fi_level != 0 && wlv.foldinfo.fi_lines > 0))
+    {
+        wlv.vcol = start_vcol;
+    }
+
+    if wlv.vcol > start_vcol {
+        wlv.vcol -= charsize;
+        wlv.extconceal_off -= cs.hidden;
+        ptr = prev_ptr;
+    }
+
+    if start_vcol > wlv.vcol {
+        wlv.skip_cells = start_vcol - wlv.vcol - head;
+    }
+
+    if wlv.tocol <= wlv.vcol {
+        wlv.fromcol = 0;
+    } else if wlv.fromcol >= 0 && wlv.fromcol < wlv.vcol {
+        wlv.fromcol = wlv.vcol;
+    }
+
+    if wp.w_onebuf_opt.wo_wrap != 0 {
+        wlv.need_showbreak = true;
+    }
+    ptr
 }
 
 /// Display line "lnum" of window "wp" on the screen.
@@ -1377,6 +1486,12 @@ pub fn win_line(
 
         let mut search_attr_from_match = false;
         let mut has_decor = false;
+        let mut conceal_spans = ConcealSpans::new();
+        let cursor_vcol = if lnum == wp.w_cursor.lnum && !has_fold {
+            cursor_disp_vcol(wp)
+        } else {
+            wp.w_virtcol
+        };
 
         let mut saved_search_attr: i32 = 0;
         let mut saved_area_attr: i32 = 0;
@@ -1415,6 +1530,7 @@ pub fn win_line(
             boguscols: 0,
             old_boguscols: 0,
             vcol_off_co: 0,
+            extconceal_off: 0,
             off: 0,
             cul_attr: 0,
             line_attr: 0,
@@ -1424,7 +1540,6 @@ pub fn win_line(
             sign_cul_attr: 0,
             fromcol: -10,
             tocol: MAXCOL,
-            vcol_sbr: -1,
             need_showbreak: false,
             char_attr: 0,
             n_extra: 0,
@@ -1446,7 +1561,6 @@ pub fn win_line(
                 text: [0, 0],
                 hl_id: 0,
             }; SIGN_SHOW_MAX],
-            need_lbr: false,
             virt_inline: &[],
             virt_inline_i: 0,
             virt_inline_hl_mode: 0,
@@ -1505,8 +1619,10 @@ pub fn win_line(
                 lnum_in_visual_area = lnum >= (*top).lnum && lnum <= (*bot).lnum;
                 if g_st().visual_global.mode == CTRL_V_CONST {
                     if lnum_in_visual_area {
-                        wlv.fromcol = wp.w_old_cursor_fcol;
-                        wlv.tocol = wp.w_old_cursor_lcol;
+                        let fcol = wp.w_old_cursor_fcol;
+                        let lcol = wp.w_old_cursor_lcol;
+                        wlv.fromcol = vcol2disp_vcol(&mut *wp, lnum, fcol);
+                        wlv.tocol = vcol2disp_vcol(&mut *wp, lnum, lcol);
                     }
                 } else {
                     if lnum > (*top).lnum && lnum <= (*bot).lnum {
@@ -1515,7 +1631,14 @@ pub fn win_line(
                         if g_st().visual_global.mode == b'V' as i32 {
                             wlv.fromcol = 0;
                         } else {
-                            getvvcol(&mut *wp, &mut *top, Some(&mut wlv.fromcol), None, None, 0);
+                            getvvcol(
+                                &mut *wp,
+                                &mut *top,
+                                Some(&mut wlv.fromcol),
+                                None,
+                                None,
+                                GETVCOL_DISP,
+                            );
                             if gchar_pos(&mut *top) == i32::from(NUL) {
                                 wlv.tocol = wlv.fromcol + 1;
                             }
@@ -1533,9 +1656,23 @@ pub fn win_line(
                         } else {
                             let mut pos = *bot;
                             if crate::memory::cstr_first_byte(opt_vars().p_sel) == b'e' {
-                                getvvcol(&mut *wp, &mut pos, Some(&mut wlv.tocol), None, None, 0);
+                                getvvcol(
+                                    &mut *wp,
+                                    &mut pos,
+                                    Some(&mut wlv.tocol),
+                                    None,
+                                    None,
+                                    GETVCOL_DISP,
+                                );
                             } else {
-                                getvvcol(&mut *wp, &mut pos, None, None, Some(&mut wlv.tocol), 0);
+                                getvvcol(
+                                    &mut *wp,
+                                    &mut pos,
+                                    None,
+                                    None,
+                                    Some(&mut wlv.tocol),
+                                    GETVCOL_DISP,
+                                );
                                 wlv.tocol += 1;
                             }
                         }
@@ -1559,7 +1696,7 @@ pub fn win_line(
                         Some(&mut wlv.fromcol),
                         None,
                         None,
-                        0,
+                        GETVCOL_DISP,
                     );
                 } else {
                     wlv.fromcol = 0;
@@ -1570,7 +1707,14 @@ pub fn win_line(
                         col: g_st().search_global.match_endcol,
                         coladd: 0,
                     };
-                    getvcol(curwin_mut(), &mut pos, Some(&mut wlv.tocol), None, None, 0);
+                    getvcol(
+                        curwin_mut(),
+                        &mut pos,
+                        Some(&mut wlv.tocol),
+                        None,
+                        None,
+                        GETVCOL_DISP,
+                    );
                 }
                 if wlv.fromcol == wlv.tocol && g_st().search_global.match_endcol != 0 {
                     wlv.tocol = wlv.fromcol + 1;
@@ -1646,7 +1790,12 @@ pub fn win_line(
             if !cul_screenline {
                 apply_cursorline_highlight(wp, &mut wlv);
             } else {
-                margin_columns_win(&mut *wp, &mut left_curline_col, &mut right_curline_col);
+                margin_columns_win(
+                    &mut *wp,
+                    cursor_vcol,
+                    &mut left_curline_col,
+                    &mut right_curline_col,
+                );
             }
             area_highlighting = true;
         }
@@ -1812,81 +1961,15 @@ pub fn win_line(
         if has_foldtext {
             wlv.vcol = start_vcol;
         } else if start_vcol > 0 && col_rows == 0 {
-            let mut prev_ptr = ptr;
-            let mut cs = CharSize::default();
-
-            let mut csarg = CharsizeArg::new();
-            let cstype: CSType = init_charsize_arg(&mut csarg, wp, lnum, line);
-            csarg.max_head_vcol = start_vcol;
-            let mut vcol = wlv.vcol;
-            let mut ci = utf_ptr2_str_char_info(ptr);
-            while vcol < start_vcol {
-                let cli = utf_cluster_info(ci);
-                cs = win_charsize(cstype, vcol, ci.ptr, ci.chr.value, &mut csarg, cli.cells);
-                vcol += cs.width;
-                prev_ptr = ci.ptr;
-                if crate::memory::cstr_is_empty(prev_ptr) {
-                    break;
-                }
-                ci = cli.next;
-                if wp.w_onebuf_opt.wo_list != 0 {
-                    in_multispace = crate::memory::cstr_first_byte(prev_ptr) == b' '
-                        && (crate::memory::cstr_first_byte(ci.ptr) == b' '
-                            || (prev_ptr > line.cast_const()
-                                && crate::memory::cstr_first_byte(prev_ptr.wrapping_sub(1))
-                                    == b' '));
-                    if !in_multispace {
-                        multispace_pos = 0;
-                    } else if ci.ptr >= line.cast_const().wrapping_add(leadcol as usize)
-                        && !wp.w_p_lcs_chars.multispace.is_empty()
-                    {
-                        multispace_pos += 1;
-                        if multispace_pos >= wp.w_p_lcs_chars.multispace.len() {
-                            multispace_pos = 0;
-                        }
-                    } else if ci.ptr < line.cast_const().wrapping_add(leadcol as usize)
-                        && !wp.w_p_lcs_chars.leadmultispace.is_empty()
-                    {
-                        multispace_pos += 1;
-                        if multispace_pos >= wp.w_p_lcs_chars.leadmultispace.len() {
-                            multispace_pos = 0;
-                        }
-                    }
-                }
-            }
-            wlv.vcol = vcol;
-            ptr = ci.ptr;
-            let charsize = cs.width;
-            let head = cs.head;
-
-            if wlv.vcol < start_vcol
-                && (wp.w_onebuf_opt.wo_cuc != 0
-                    || !wlv.color_cols.is_empty()
-                    || virtual_active(wp)
-                    || (g_st().visual_global.active && wp.w_buffer == curwin_mut().w_buffer)
-                    || has_fold)
-            {
-                wlv.vcol = start_vcol;
-            }
-
-            if wlv.vcol > start_vcol {
-                wlv.vcol -= charsize;
-                ptr = prev_ptr;
-            }
-
-            if start_vcol > wlv.vcol {
-                wlv.skip_cells = start_vcol - wlv.vcol - head;
-            }
-
-            if wlv.tocol <= wlv.vcol {
-                wlv.fromcol = 0;
-            } else if wlv.fromcol >= 0 && wlv.fromcol < wlv.vcol {
-                wlv.fromcol = wlv.vcol;
-            }
-
-            if wp.w_onebuf_opt.wo_wrap != 0 {
-                wlv.need_showbreak = true;
-            }
+            ptr = win_line_skip_columns(
+                &mut *wp,
+                &mut wlv,
+                &mut line,
+                start_vcol,
+                leadcol,
+                &mut in_multispace,
+                &mut multispace_pos,
+            );
             if spv.spv_has_spell {
                 let linecol = crate::memory::ptr_offset_from(ptr, line) as Colnr;
                 let mut spell_hlf: Hlf = HLF_COUNT;
@@ -1934,6 +2017,10 @@ pub fn win_line(
             has_decor = true;
             extra_check = true;
         }
+        if wp.w_onebuf_opt.wo_lbr != 0 && line_has_extconceal(&mut *wp, lnum) {
+            let len = ml_get_buf_len(wp.buf_mut(), lnum);
+            conceal_spans_collect(&mut *wp, lnum - 1, len, &mut conceal_spans);
+        }
 
         if wlv.fromcol >= wlv.tocol {
             wlv.fromcol = -1;
@@ -1976,17 +2063,30 @@ pub fn win_line(
 
         let may_have_inline_virt =
             !has_foldtext && buf_meta_total(wp.buf_mut(), K_MTMETA_INLINE) > 0;
+        let conceal_enabled =
+            wp.w_onebuf_opt.wo_cole > 0 && !conceal_cursor_reveals_line(&*wp, lnum);
         let mut has_virt_line = false;
         let mut virt_line_flags: i32 = 0;
         let mut virt_line_index: i32 = 0;
         let mut virt_line_start_row: i32 = 0;
         let mut virt_line_skip_cells: i32 = 0;
+        let mut conceal_tab_vcol: Colnr = -1;
+        let mut prefix_vcol: Colnr = -1;
+        let mut prefix_width: i32 = 0;
+        let mut disp_len: i32 = -1;
 
         loop {
             let mut has_match_conc: i32 = 0;
             let mut decor_conceal: i32 = 0;
+            let mut conceal_replacement_extra: i32 = 0;
+            let mut conceal_lbr_body: i32 = 0;
+            let mut conceal_lbr_tail: i32 = 0;
+            let mut conceal_reflow = false;
+            let mut extconceal_char: Schar = 0;
+            let mut extconceal_attr: i32 = 0;
 
             let mut did_decrement_ptr = false;
+            let mut cell_hidden = false;
 
             if check_decor_providers
                 && (crate::memory::ptr_offset_from(ptr, line) as i32) >= decor_provider_end_col
@@ -2089,6 +2189,7 @@ pub fn win_line(
                 } else {
                     gap_attr_save
                 };
+                prefix_vcol = wlv.vcol;
                 if !wp.w_briopt_sbr {
                     handle_breakindent(wp, &mut wlv, gap_decor_attr);
                 }
@@ -2096,6 +2197,7 @@ pub fn win_line(
                 if wp.w_briopt_sbr {
                     handle_breakindent(wp, &mut wlv, gap_decor_attr);
                 }
+                prefix_width = wlv.vcol - prefix_vcol;
 
                 wlv.col = wlv.off;
                 draw_cols = false;
@@ -2128,7 +2230,7 @@ pub fn win_line(
                     apply_cursorline_highlight(wp, &mut wlv);
                 }
 
-                if g_st().dollar_vcol >= 0 && in_curline && wlv.vcol >= wp.w_virtcol {
+                if g_st().dollar_vcol >= 0 && in_curline && wlv.vcol >= cursor_vcol {
                     draw_virt_text(wp, &mut *buf, win_col_offset, &mut wlv.col, wlv.row);
                     wlv_put_linebuf(wp, &wlv, wlv.col, false, bg_attr, 0);
                     if wp.w_onebuf_opt.wo_cuc != 0 {
@@ -2474,9 +2576,33 @@ pub fn win_line(
                         mb_schar_width = cli.cells;
                         unprintable_ascii = mb_c < 0x80 && !vim_isprintc(mb_c);
                     }
-                    if wlv.col >= view_width - 1 && mb_schar_width == 2 && !unprintable_ascii {
+                    conceal_reflow =
+                        is_wrapped && conceal_enabled && g_st().decor_state.conceal_slot_i >= 0;
+                    if conceal_reflow {
+                        extconceal_char = decor_extconceal_char(
+                            &*wp,
+                            &g_st().decor_state,
+                            crate::memory::ptr_offset_from(ptr, line) as i32,
+                            Some(&mut extconceal_attr),
+                        );
+                    }
+                    let extconceal = conceal_enabled
+                        && g_st().decor_state.conceal_slot_i >= 0
+                        && (is_wrapped || g_st().decor_state.conceal != 0);
+                    let disp_char = if !extconceal {
+                        mb_schar
+                    } else if conceal_reflow {
+                        extconceal_char
+                    } else {
+                        decor_conceal_char(&*wp, &g_st().decor_state)
+                    };
+                    if wlv.col >= view_width - 1 && disp_char != 0 && schar_cells(disp_char) == 2 {
+                        if extconceal && mb_c == i32::from(TAB) {
+                            conceal_tab_vcol = wlv.vcol;
+                        }
                         mb_schar = schar_from_ascii(b'>');
                         mb_schar_width = 1;
+                        unprintable_ascii = false;
                         mb_l = 1;
                         multi_attr = win_hl_attr(&mut *wp, HLF_AT);
                         ptr = ptr.wrapping_sub(1);
@@ -2657,72 +2783,94 @@ pub fn win_line(
                             decor_attr
                         };
 
-                        if wp.w_onebuf_opt.wo_lbr != 0
-                            && !wlv.need_lbr
-                            && mb_schar != 0
-                            && !vim_isbreak(i32::from(crate::memory::cstr_first_byte(ptr)))
-                        {
-                            wlv.need_lbr = true;
+                        let mut lbr_char = mb_c;
+                        if extconceal {
+                            lbr_char = if disp_char == 0 {
+                                0
+                            } else {
+                                schar_get_first_codepoint(disp_char)
+                            };
                         }
                         if wp.w_onebuf_opt.wo_lbr != 0
-                            && mb_c > 0
-                            && mb_c < 128
-                            && wlv.need_lbr
-                            && vim_isbreak(mb_c)
-                            && !vim_isbreak(i32::from(crate::memory::cstr_first_byte(ptr)))
+                            && lbr_char > 0
+                            && lbr_char < 128
+                            && vim_isbreak(lbr_char)
                         {
                             let mb_off = utf_head_off(line, ptr.wrapping_sub(1));
                             let p = ptr.wrapping_sub((mb_off + 1) as usize);
 
-                            let mut csarg = CharsizeArg::new();
-                            let cstype =
-                                init_charsize_arg_skip_cur_text(&mut csarg, wp, lnum, line);
-                            let cs_ci = utf_ptr2_str_char_info(p);
-                            let cs_cli = utf_cluster_info(cs_ci);
-                            wlv.n_extra = win_charsize(
-                                cstype,
-                                wlv.vcol,
-                                p,
-                                cs_ci.chr.value,
-                                &mut csarg,
-                                cs_cli.cells,
-                            )
-                            .width
-                                - 1;
+                            let has_conceal = !conceal_spans.is_empty();
+                            if has_conceal
+                                || !vim_isbreak(i32::from(crate::memory::cstr_first_byte(ptr)))
+                            {
+                                let mut csarg = CharsizeArg::new();
+                                let mut cstype =
+                                    init_charsize_arg_skip_cur_text(&mut csarg, wp, lnum, line);
+                                if has_conceal {
+                                    csarg.extconceal = &raw const conceal_spans;
+                                    csarg.extconceal_off = wlv.extconceal_off;
+                                    cstype = false;
+                                }
+                                let lbr_ci = utf_ptr2_str_char_info(p);
+                                let lbr_cli = utf_cluster_info(lbr_ci);
+                                let lbr_size = win_charsize(
+                                    cstype,
+                                    wlv.vcol + csarg.extconceal_off,
+                                    p,
+                                    lbr_ci.chr.value,
+                                    &mut csarg,
+                                    lbr_cli.cells,
+                                );
+                                if lbr_size.linebreak {
+                                    wlv.n_extra = lbr_size.width - 1;
+                                    conceal_lbr_body = lbr_size.body;
+                                    conceal_lbr_tail = lbr_size.tail;
 
-                            if mb_c != i32::from(TAB) {
-                                if on_last_col || attr_has_line_deco(search_attr) {
-                                    search_attr = 0;
-                                }
-                                if has_decor {
-                                    decor_attr = gap_attr_save;
-                                }
-                                if attr_has_line_deco(decor_attr) {
-                                    decor_attr = 0;
-                                }
-                                if attr_has_line_deco(area_attr) {
-                                    area_attr = 0;
-                                }
-                            }
+                                    if mb_c != i32::from(TAB) {
+                                        if on_last_col || attr_has_line_deco(search_attr) {
+                                            search_attr = 0;
+                                        }
+                                        if has_decor {
+                                            decor_attr = gap_attr_save;
+                                        }
+                                        if attr_has_line_deco(decor_attr) {
+                                            decor_attr = 0;
+                                        }
+                                        if attr_has_line_deco(area_attr) {
+                                            area_attr = 0;
+                                        }
+                                    }
 
-                            if mb_c == i32::from(TAB) && wlv.n_extra + wlv.col > view_width {
-                                wlv.n_extra = tabstop_padding(
-                                    wlv.vcol,
-                                    wp.buf_mut().b_p_ts,
-                                    &wp.buf_mut().b_p_vts_array,
-                                ) - 1;
-                            }
-                            wlv.sc_extra =
-                                schar_from_ascii(if mb_off > 0 { MB_FILLER_CHAR } else { b' ' });
-                            wlv.sc_final = 0;
-                            if mb_c < 128 && ascii_iswhite(mb_c) {
-                                if mb_c == i32::from(TAB) {
-                                    fix_for_boguscols(&mut wlv);
-                                }
-                                if wp.w_onebuf_opt.wo_list == 0 {
-                                    mb_schar = schar_from_ascii(b' ');
-                                    mb_schar_width = 1;
-                                    unprintable_ascii = false;
+                                    if mb_c == i32::from(TAB) && wlv.n_extra + wlv.col > view_width
+                                    {
+                                        wlv.n_extra = tabstop_padding(
+                                            wlv.vcol + wlv.extconceal_off,
+                                            wp.buf_mut().b_p_ts,
+                                            &wp.buf_mut().b_p_vts_array,
+                                        ) - 1;
+                                    }
+                                    wlv.sc_extra = schar_from_ascii(if mb_off > 0 {
+                                        MB_FILLER_CHAR
+                                    } else {
+                                        b' '
+                                    });
+                                    wlv.sc_final = 0;
+                                    if mb_c < 128 && ascii_iswhite(mb_c) {
+                                        if mb_c == i32::from(TAB) {
+                                            fix_for_boguscols(&mut wlv);
+                                            if !extconceal
+                                                && (wp.w_onebuf_opt.wo_list == 0
+                                                    || wp.w_p_lcs_chars.tab1 != 0)
+                                            {
+                                                tab_absorb_extconceal(&mut wlv);
+                                            }
+                                        }
+                                        if wp.w_onebuf_opt.wo_list == 0 {
+                                            mb_schar = schar_from_ascii(b' ');
+                                            mb_schar_width = 1;
+                                            unprintable_ascii = false;
+                                        }
+                                    }
                                 }
                             }
                         }
@@ -2825,14 +2973,16 @@ pub fn win_line(
                                 lcs_tab2 = wp.w_p_lcs_chars.leadtab2;
                                 lcs_tab3 = wp.w_p_lcs_chars.leadtab3;
                             }
-                            let sbr = get_showbreak_value(&*wp);
-
-                            if !crate::memory::cstr_is_empty(sbr)
-                                && wlv.vcol == wlv.vcol_sbr
+                            if wlv.vcol == prefix_vcol + prefix_width
                                 && wp.w_onebuf_opt.wo_wrap != 0
                             {
-                                vcol_adjusted = wlv.vcol - mb_charlen(sbr);
+                                vcol_adjusted = prefix_vcol;
                             }
+                            if conceal_tab_vcol >= 0 {
+                                vcol_adjusted = conceal_tab_vcol;
+                                conceal_tab_vcol = -1;
+                            }
+                            vcol_adjusted += wlv.extconceal_off;
                             tab_len = tabstop_padding(
                                 vcol_adjusted,
                                 wp.buf_mut().b_p_ts,
@@ -2844,8 +2994,8 @@ pub fn win_line(
                             } else {
                                 let saved_nextra = wlv.n_extra;
 
-                                if wlv.vcol_off_co > 0 {
-                                    tab_len += wlv.vcol_off_co;
+                                if wlv.vcol_off_co + wlv.extconceal_off > 0 {
+                                    tab_len += wlv.vcol_off_co + wlv.extconceal_off;
                                 }
                                 if lcs_tab1 != 0 && wlv.old_boguscols > 0 && wlv.n_extra > tab_len {
                                     tab_len += wlv.n_extra - tab_len;
@@ -2858,7 +3008,8 @@ pub fn win_line(
                                         len = len + schar_len(lcs_tab3) - tab2_len;
                                     }
                                     if wlv.n_extra > 0 {
-                                        len += (wlv.n_extra - tab_len) as usize;
+                                        len = len
+                                            .wrapping_add_signed((wlv.n_extra - tab_len) as isize);
                                     }
                                     let mut p = get_extra_buf(len + 1);
                                     ptr::write_bytes(p, b' ', len);
@@ -2878,15 +3029,18 @@ pub fn win_line(
                                             slen as i32 - if saved_nextra > 0 { 1 } else { 0 };
                                     }
 
-                                    if wlv.vcol_off_co > 0 {
-                                        wlv.n_extra -= wlv.vcol_off_co;
+                                    if wlv.vcol_off_co + wlv.extconceal_off > 0 {
+                                        wlv.n_extra -= wlv.vcol_off_co + wlv.extconceal_off;
                                     }
                                 }
                             }
 
                             {
-                                let vc_saved = wlv.vcol_off_co;
+                                let vc_saved = wlv.vcol_off_co + wlv.extconceal_off;
                                 fix_for_boguscols(&mut wlv);
+                                if !extconceal {
+                                    tab_absorb_extconceal(&mut wlv);
+                                }
                                 if wlv.n_extra == tab_len + vc_saved
                                     && wp.w_onebuf_opt.wo_list != 0
                                     && wp.w_p_lcs_chars.tab1 != 0
@@ -2997,61 +3151,78 @@ pub fn win_line(
                         }
                     }
 
-                    if wp.w_onebuf_opt.wo_cole > 0
-                        && (!ptr::eq(wp, curwin_ptr())
-                            || lnum != wp.w_cursor.lnum
-                            || conceal_cursor_line(&*wp))
-                        && ((syntax_flags & HL_CONCEAL) != 0
+                    if conceal_enabled
+                        && !(extconceal && did_decrement_ptr)
+                        && (conceal_reflow
+                            || (syntax_flags & HL_CONCEAL) != 0
                             || has_match_conc > 0
                             || decor_conceal > 0)
-                        && !(lnum_in_visual_area
-                            && !crate::strings::vim_haschr(wp.w_onebuf_opt.wo_cocu, b'v' as i32))
                     {
                         let syntax_conceal = (syntax_flags & HL_CONCEAL) != 0;
                         wlv.char_attr = conceal_attr;
-                        if ((prev_syntax_id != syntax_seqnr && syntax_conceal)
+                        let decor_cchar = !(has_match_conc != 0 && match_conc != 0)
+                            && decor_conceal != 0
+                            && g_st().decor_state.conceal_char != 0;
+                        let cchar = if has_match_conc != 0 && match_conc != 0 {
+                            schar_from_char(match_conc)
+                        } else if decor_cchar {
+                            g_st().decor_state.conceal_char
+                        } else if syntax_conceal && syn_get_sub_char() != i32::from(NUL) {
+                            schar_from_char(syn_get_sub_char())
+                        } else {
+                            0
+                        };
+                        let is_start = (prev_syntax_id != syntax_seqnr && syntax_conceal)
                             || has_match_conc > 1
-                            || decor_conceal > 1)
-                            && ((syntax_conceal && syn_get_sub_char() != i32::from(NUL))
-                                || (has_match_conc != 0 && match_conc != 0)
-                                || (decor_conceal != 0 && g_st().decor_state.conceal_char != 0)
-                                || wp.w_onebuf_opt.wo_cole == 1)
-                            && wp.w_onebuf_opt.wo_cole != 3
-                        {
-                            if mb_schar_width > 1 {
+                            || decor_conceal > 1;
+                        let replacement = if conceal_reflow {
+                            extconceal_char
+                        } else {
+                            conceal_replacement(&*wp, is_start, cchar)
+                        };
+                        if replacement != 0 {
+                            if extconceal && conceal_lbr_body > 0 {
+                                wlv.n_extra = conceal_lbr_body - 1;
+                            } else if mb_schar_width > 1 {
                                 wlv.n_extra += 1;
                             }
 
-                            if has_match_conc != 0 && match_conc != 0 {
-                                mb_schar = schar_from_char(match_conc);
-                            } else if decor_conceal != 0 && g_st().decor_state.conceal_char != 0 {
-                                mb_schar = g_st().decor_state.conceal_char;
-                                if g_st().decor_state.conceal_attr != 0 {
-                                    wlv.char_attr = g_st().decor_state.conceal_attr;
-                                }
-                            } else if syntax_conceal && syn_get_sub_char() != i32::from(NUL) {
-                                mb_schar = schar_from_char(syn_get_sub_char());
-                            } else if wp.w_p_lcs_chars.conceal != 0 {
-                                mb_schar = wp.w_p_lcs_chars.conceal;
-                            } else {
-                                mb_schar = schar_from_ascii(b' ');
+                            mb_schar = replacement;
+                            if (decor_cchar
+                                || (conceal_reflow && g_st().decor_state.conceal_char != 0))
+                                && g_st().decor_state.conceal_attr != 0
+                            {
+                                wlv.char_attr = g_st().decor_state.conceal_attr;
+                            } else if conceal_reflow && extconceal_attr != 0 {
+                                wlv.char_attr = extconceal_attr;
                             }
 
-                            let mut sc_buf = [0u8; MAX_SCHAR_SIZE];
-                            schar_get(sc_buf.as_mut_ptr(), mb_schar);
-                            mb_schar_width = utf_ptr2cells(sc_buf.as_ptr().cast());
+                            mb_schar_width = schar_cells(mb_schar);
+                            if conceal_reflow
+                                || (decor_conceal > 0 && g_st().decor_state.conceal_slot_i >= 0)
+                            {
+                                conceal_replacement_extra = mb_schar_width - 1;
+                            }
 
                             prev_syntax_id = syntax_seqnr;
 
+                            if conceal_reflow {
+                                wlv.extconceal_off += wlv.n_extra - conceal_replacement_extra;
+                            } else {
+                                if wlv.n_extra > 0 {
+                                    wlv.vcol_off_co += wlv.n_extra;
+                                }
+                                wlv.vcol += wlv.n_extra;
+                                if is_wrapped && wlv.n_extra > 0 {
+                                    wlv.boguscols += wlv.n_extra;
+                                    wlv.col += wlv.n_extra;
+                                }
+                            }
+                            wlv.n_extra = if extconceal { conceal_lbr_tail } else { 0 };
                             if wlv.n_extra > 0 {
-                                wlv.vcol_off_co += wlv.n_extra;
+                                wlv.sc_extra = schar_from_ascii(b' ');
+                                wlv.sc_final = 0;
                             }
-                            wlv.vcol += wlv.n_extra;
-                            if is_wrapped && wlv.n_extra > 0 {
-                                wlv.boguscols += wlv.n_extra;
-                                wlv.col += wlv.n_extra;
-                            }
-                            wlv.n_extra = 0;
                             wlv.n_attr = 0;
                         } else if wlv.skip_cells == 0 {
                             is_concealing = true;
@@ -3067,16 +3238,17 @@ pub fn win_line(
                     }
                 }
 
+                let skip_cells = if conceal_reflow { 0 } else { wlv.skip_cells };
                 if !did_wcol
                     && wlv.filler_todo <= 0
                     && in_curline
                     && conceal_cursor_line(&*wp)
-                    && (wlv.vcol + wlv.skip_cells >= wp.w_virtcol || mb_schar == 0)
+                    && (wlv.vcol + skip_cells >= cursor_vcol || mb_schar == 0)
                 {
                     wp.w_wcol = wlv.col - wlv.boguscols;
-                    wp.w_wcol_conceal_off = wlv.vcol_off_co + wlv.skip_cells;
-                    if wlv.vcol + wlv.skip_cells < wp.w_virtcol {
-                        wp.w_wcol += wp.w_virtcol - wlv.vcol - wlv.skip_cells;
+                    wp.w_wcol_conceal_off = wlv.vcol_off_co + skip_cells;
+                    if wlv.vcol + skip_cells < cursor_vcol {
+                        wp.w_wcol += cursor_vcol - wlv.vcol - skip_cells;
                     }
                     wp.w_wrow = wlv.row;
                     did_wcol = true;
@@ -3177,6 +3349,9 @@ pub fn win_line(
                 }
 
                 if mb_schar == 0 {
+                    if in_curline && wlv.col >= view_width {
+                        wp.w_wcol = wp.w_wcol.min(view_width - 1);
+                    }
                     wlv.vcol = wlv
                         .vcol
                         .max(start_vcol + wlv.col - win_col_off(&raw mut *wp));
@@ -3421,8 +3596,13 @@ pub fn win_line(
                         g_st().linebuf_attr[wlv.off as usize] =
                             g_st().linebuf_attr[(wlv.off - 1) as usize];
 
-                        wlv.vcol += 1;
-                        g_st().linebuf_vcol[wlv.off as usize] = wlv.vcol;
+                        if conceal_replacement_extra > 0 && !conceal_reflow {
+                            g_st().linebuf_vcol[wlv.off as usize] = wlv.vcol;
+                            wlv.vcol_off_co -= conceal_replacement_extra;
+                        } else {
+                            wlv.vcol += 1;
+                            g_st().linebuf_vcol[wlv.off as usize] = wlv.vcol;
+                        }
 
                         if wlv.tocol == wlv.vcol {
                             wlv.tocol += 1;
@@ -3430,6 +3610,12 @@ pub fn win_line(
                     }
                     wlv.off += 1;
                     wlv.col += 1;
+                } else if wp.w_onebuf_opt.wo_cole > 0 && is_concealing && conceal_reflow {
+                    wlv.skip_cells -= 1;
+                    wlv.extconceal_off += 1 + i32::from(mb_schar_width > 1) + wlv.n_extra.max(0);
+                    wlv.n_extra = 0;
+                    wlv.n_attr = 0;
+                    cell_hidden = true;
                 } else if wp.w_onebuf_opt.wo_cole > 0 && is_concealing {
                     let concealed_wide = mb_schar_width > 1;
 
@@ -3474,7 +3660,7 @@ pub fn win_line(
                     wlv.skipped_cells = 0;
                 }
 
-                if wlv.filler_todo <= 0 {
+                if wlv.filler_todo <= 0 && !cell_hidden {
                     wlv.vcol += 1;
                 }
 
@@ -3507,6 +3693,17 @@ pub fn win_line(
                             decor_provider_end_col - 1,
                         );
                         decor_need_recheck = true;
+                        if conceal_enabled && g_st().decor_state.conceal_slot_i >= 0 {
+                            if disp_len < 0 {
+                                let col = crate::memory::ptr_offset_from(ptr, line);
+                                disp_len = linetabsize_disp_eol(&mut *wp, lnum);
+                                line = ml_get_buf(wp.buf_mut(), lnum);
+                                ptr = line.wrapping_offset(col);
+                            }
+                            if wlv.vcol >= disp_len {
+                                ptr = ptr.wrapping_add(crate::memory::cstr_len(ptr));
+                            }
+                        }
                     } else if !is_wrapped {
                         decor_recheck_draw_col(-1, true, &mut g_st().decor_state);
                         decor_redraw_col(

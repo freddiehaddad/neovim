@@ -125,10 +125,11 @@ use crate::mouse::{
     MSCR_DOWN, MSCR_LEFT, MSCR_RIGHT, MSCR_UP, do_mouse, nv_mouse, nv_mousescroll, setmouse,
 };
 use crate::r#move::{
-    adjust_skipcol, changed_window_setting, cursor_correct, do_check_cursorbind, pagescroll,
-    scroll_cursor_bot, scroll_cursor_halfway, scroll_cursor_top, scroll_redraw, scrolldown,
-    scrollup, update_curswant, update_curswant_force, update_topline, validate_botline_win,
-    validate_cheight, validate_cursor, validate_virtcol, win_col_off, win_col_off2,
+    adjust_skipcol, changed_window_setting, cursor_correct, cursor_disp_vcol, do_check_cursorbind,
+    pagescroll, scroll_cursor_bot, scroll_cursor_halfway, scroll_cursor_top, scroll_redraw,
+    scrolldown, scrollup, update_curswant, update_curswant_force, update_topline,
+    validate_botline_win, validate_cheight, validate_cursor, validate_virtcol, win_col_off,
+    win_col_off2,
 };
 use crate::ops::{
     OP_CHANGE, OP_COLON, OP_DELETE, OP_FOLD, OP_FORMAT, OP_LOWER, OP_LSHIFT, OP_MCURSOR, OP_NOP,
@@ -145,7 +146,9 @@ use crate::optionstr::OptIndex;
 use crate::os::input::line_breakcheck;
 use crate::os::time::{os_time, time_t};
 use crate::plines::{
-    getvcol, getvcols, getvvcol, linetabsize, plines_m_win_fill, plines_win, win_get_fill,
+    CharsizeArg, ConcealSpans, conceal_disp_byte, disp_vcol2vcol, getvcol, getvcols, getvvcol,
+    init_charsize_arg_extconceal, linetabsize, linetabsize_disp, plines_m_win_fill, plines_win,
+    vcol2disp_vcol, win_get_fill,
 };
 use crate::profile::{time_finish, time_msg};
 use crate::quickfix::qf_view_result;
@@ -3437,12 +3440,18 @@ pub fn find_decl(
 }
 
 pub fn nv_screengo(oap: &mut Oparg, dir: i32, mut dist: i32, skip_conceal: bool) -> bool {
-    let mut linelen = linetabsize(curwin_mut(), curwin_mut().w_cursor.lnum);
+    let mut linelen = linetabsize_disp(curwin_mut(), curwin_mut().w_cursor.lnum);
     let mut retval = true;
     let mut atend = false;
 
     oap.motion_type = MT_CHAR_WISE;
     oap.inclusive = curwin_mut().w_curswant == MAXCOL;
+
+    let mut want = vcol2disp_vcol(
+        curwin_mut(),
+        curwin_mut().w_cursor.lnum,
+        curwin_mut().w_curswant,
+    );
 
     let col_off1 = win_col_off(curwin_ptr());
     let col_off2 = col_off1 - win_col_off2(curwin_mut());
@@ -3455,17 +3464,16 @@ pub fn nv_screengo(oap: &mut Oparg, dir: i32, mut dist: i32, skip_conceal: bool)
 
     if curwin_mut().w_view_width != 0 {
         let mut n: i32;
-        if curwin_mut().w_curswant == MAXCOL {
+        if want == MAXCOL {
             atend = true;
             validate_virtcol(curwin_mut());
+            let virtcol = cursor_disp_vcol(curwin_mut());
             if width1 <= 0 {
-                curwin_mut().w_curswant = 0;
+                want = 0;
             } else {
-                curwin_mut().w_curswant = width1 - 1;
-                if curwin_mut().w_virtcol > curwin_mut().w_curswant {
-                    curwin_mut().w_curswant +=
-                        ((curwin_mut().w_virtcol - curwin_mut().w_curswant - 1) / width2 + 1)
-                            * width2;
+                want = width1 - 1;
+                if virtcol > want {
+                    want += ((virtcol - want - 1) / width2 + 1) * width2;
                 }
             }
         } else {
@@ -3474,13 +3482,13 @@ pub fn nv_screengo(oap: &mut Oparg, dir: i32, mut dist: i32, skip_conceal: bool)
             } else {
                 n = width1;
             }
-            curwin_mut().w_curswant = curwin_mut().w_curswant.min(n - 1);
+            want = want.min(n - 1);
         }
 
         while dist > 0 {
             dist -= 1;
             if dir == BACKWARD {
-                if curwin_mut().w_curswant >= width1
+                if want >= width1
                     && !has_folding(
                         curwin_ptr(),
                         curwin_mut().w_cursor.lnum,
@@ -3488,7 +3496,7 @@ pub fn nv_screengo(oap: &mut Oparg, dir: i32, mut dist: i32, skip_conceal: bool)
                         ptr::null_mut(),
                     )
                 {
-                    curwin_mut().w_curswant -= width2;
+                    want -= width2;
                 } else {
                     if curwin_mut().w_cursor.lnum <= 1 {
                         retval = false;
@@ -3496,11 +3504,11 @@ pub fn nv_screengo(oap: &mut Oparg, dir: i32, mut dist: i32, skip_conceal: bool)
                     }
                     cursor_up_inner(curwin_mut(), 1, skip_conceal);
 
-                    linelen = linetabsize(curwin_mut(), curwin_mut().w_cursor.lnum);
+                    linelen = linetabsize_disp(curwin_mut(), curwin_mut().w_cursor.lnum);
                     if linelen > width1 {
                         let w = (((linelen - width1 - 1) / width2) + 1) * width2;
-                        assert!(w <= 0 || curwin_mut().w_curswant <= i32::MAX - w);
-                        curwin_mut().w_curswant += w;
+                        assert!(w <= 0 || want <= i32::MAX - w);
+                        want += w;
                     }
                 }
             } else {
@@ -3509,7 +3517,7 @@ pub fn nv_screengo(oap: &mut Oparg, dir: i32, mut dist: i32, skip_conceal: bool)
                 } else {
                     n = width1;
                 }
-                if curwin_mut().w_curswant + width2 < n
+                if want + width2 < n
                     && !has_folding(
                         curwin_ptr(),
                         curwin_mut().w_cursor.lnum,
@@ -3517,61 +3525,55 @@ pub fn nv_screengo(oap: &mut Oparg, dir: i32, mut dist: i32, skip_conceal: bool)
                         ptr::null_mut(),
                     )
                 {
-                    curwin_mut().w_curswant += width2;
+                    want += width2;
                 } else {
                     if curwin_mut().w_cursor.lnum >= curwin_mut().buf_mut().b_ml.ml_line_count {
                         retval = false;
                         break;
                     }
                     cursor_down_inner(curwin_mut(), 1, skip_conceal);
-                    curwin_mut().w_curswant %= width2;
+                    want %= width2;
 
-                    if curwin_mut().w_curswant >= width1 {
-                        curwin_mut().w_curswant -= width2;
+                    if want >= width1 {
+                        want -= width2;
                     }
-                    linelen = linetabsize(curwin_mut(), curwin_mut().w_cursor.lnum);
+                    linelen = linetabsize_disp(curwin_mut(), curwin_mut().w_cursor.lnum);
                 }
             }
         }
     }
 
-    if virtual_active(curwin_mut()) && atend {
-        coladvance(curwin_mut(), MAXCOL);
+    let want_vcol = if virtual_active(curwin_mut()) && atend {
+        MAXCOL
     } else {
-        coladvance(curwin_mut(), curwin_mut().w_curswant);
-    }
+        disp_vcol2vcol(curwin_mut(), curwin_mut().w_cursor.lnum, want)
+    };
+    coladvance(curwin_mut(), want_vcol);
 
     if curwin_mut().w_cursor.col > 0 && curwin_mut().w_onebuf_opt.wo_wrap != 0 {
         validate_virtcol(curwin_mut());
-        let mut virtcol = curwin_mut().w_virtcol;
+        let mut virtcol = cursor_disp_vcol(curwin_mut());
         if virtcol > width1 && !get_showbreak_value(curwin_mut()).is_empty() {
             virtcol -= vim_strsize(get_showbreak_value(curwin_mut()));
         }
 
         let c = utf_ptr2char(get_cursor_pos_ptr());
-        if dir == FORWARD
-            && virtcol < curwin_mut().w_curswant
-            && curwin_mut().w_curswant <= width1
-            && !vim_isprintc(c)
-            && c > 255
-        {
+        if dir == FORWARD && virtcol < want && want <= width1 && !vim_isprintc(c) && c > 255 {
             oneright();
         }
 
-        if virtcol > curwin_mut().w_curswant
-            && (if curwin_mut().w_curswant < width1 {
-                curwin_mut().w_curswant > width1 / 2
+        if virtcol > want
+            && (if want < width1 {
+                want > width1 / 2
             } else {
-                (curwin_mut().w_curswant - width1) % width2 > width2 / 2
+                (want - width1) % width2 > width2 / 2
             })
         {
             curwin_mut().w_cursor.col -= 1;
         }
     }
 
-    if atend {
-        curwin_mut().w_curswant = MAXCOL;
-    }
+    curwin_mut().w_curswant = if atend { MAXCOL } else { want_vcol };
     adjust_skipcol();
 
     retval
@@ -6286,9 +6288,10 @@ pub fn nv_g_home_m_cmd(cap: &mut Cmdarg) {
         let width2 = width1 + win_col_off2(curwin_mut());
 
         validate_virtcol(curwin_mut());
+        let disp_vcol = cursor_disp_vcol(curwin_mut());
         i = 0;
-        if curwin_mut().w_virtcol >= width1 && width2 > 0 {
-            i = (curwin_mut().w_virtcol - width1) / width2 * width2 + width1;
+        if disp_vcol >= width1 && width2 > 0 {
+            i = (disp_vcol - width1) / width2 * width2 + width1;
         }
 
         if curwin_mut().w_skipcol > 0 && curwin_mut().w_cursor.lnum == curwin_mut().w_topline {
@@ -6310,11 +6313,26 @@ pub fn nv_g_home_m_cmd(cap: &mut Cmdarg) {
             })
             / 2;
     }
-    coladvance(curwin_mut(), i);
+    coladvance(
+        curwin_mut(),
+        disp_vcol2vcol(curwin_mut(), curwin_mut().w_cursor.lnum, i),
+    );
     if flag {
+        let mut csarg = CharsizeArg::new();
+        let mut spans = ConcealSpans::new();
+        init_charsize_arg_extconceal(
+            &mut csarg,
+            curwin_mut(),
+            curwin_mut().w_cursor.lnum,
+            &mut spans,
+        );
         loop {
             i = gchar_cursor();
-            if !(ascii_iswhite(i) && oneright()) {
+            csarg.line = get_cursor_line_ptr().cast();
+            if !(i != i32::from(NUL)
+                && ascii_iswhite_or_nul(conceal_disp_byte(&csarg, curwin_mut().w_cursor.col))
+                && oneright())
+            {
                 break;
             }
         }
@@ -6373,16 +6391,20 @@ fn nv_g_dollar_cmd(cap: &mut Cmdarg) {
             let width2 = width1 + win_col_off2(curwin_mut());
 
             validate_virtcol(curwin_mut());
+            let disp_vcol = cursor_disp_vcol(curwin_mut());
             i = width1 - 1;
-            if curwin_mut().w_virtcol >= width1 {
-                i += ((curwin_mut().w_virtcol - width1) / width2 + 1) * width2;
+            if disp_vcol >= width1 {
+                i += ((disp_vcol - width1) / width2 + 1) * width2;
             }
-            coladvance(curwin_mut(), i);
+            coladvance(
+                curwin_mut(),
+                disp_vcol2vcol(curwin_mut(), curwin_mut().w_cursor.lnum, i),
+            );
 
             update_curswant_force();
             if curwin_mut().w_cursor.col > 0
                 && curwin_mut().w_onebuf_opt.wo_wrap != 0
-                && curwin_mut().w_virtcol > i
+                && cursor_disp_vcol(curwin_mut()) > i
             {
                 curwin_mut().w_cursor.col -= 1;
             }

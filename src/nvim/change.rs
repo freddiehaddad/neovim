@@ -53,7 +53,7 @@ use crate::r#move::{
 };
 use crate::option::{copy_option_part, get_ve_flags};
 use crate::option_vars::*;
-use crate::plines::{getvcol, linetabsize_eol, win_chartabsize};
+use crate::plines::{getvcol, linetabsize_disp_eol, win_chartabsize};
 use crate::search::{BACKWARD, FORWARD, findmatch, linewhite, showmatch};
 use crate::spell::spell_check_window;
 use crate::state::{MODE_INSERT, REPLACE_FLAG, VREPLACE_FLAG, virtual_active};
@@ -209,7 +209,7 @@ pub fn changed_internal(buf: &mut FileBuf) {
 }
 
 /// Invalidate a window's `w_valid` flags and `w_lines[]` entries after changing lines.
-fn changed_lines_invalidate_win(
+pub fn changed_lines_invalidate_win(
     wp: &mut WinInfoInfo,
     lnum: Linenr,
     col: Colnr,
@@ -259,6 +259,16 @@ fn changed_lines_invalidate_win(
                 wl.wl_valid = false;
             }
         }
+    }
+}
+
+pub fn changed_topline_skipcol(wp: &mut WinInfoInfo, line1: Linenr, line2: Linenr) {
+    if wp.w_skipcol > 0
+        && wp.w_topline >= line1
+        && wp.w_topline <= line2
+        && linetabsize_disp_eol(wp, wp.w_topline) <= wp.w_skipcol + sms_marker_overlap(wp, -1)
+    {
+        wp.w_skipcol = 0;
     }
 }
 
@@ -378,15 +388,10 @@ fn changed_common(buf: &mut FileBuf, mut lnum: Linenr, col: Colnr, lnume: Linenr
 
             let mut last = lnume + xtra - 1;
 
-            if wp.w_skipcol > 0
-                && (last < wp.w_topline
-                    || (wp.w_topline >= lnum
-                        && wp.w_topline < lnume
-                        && linetabsize_eol(wp, wp.w_topline)
-                            <= wp.w_skipcol + sms_marker_overlap(&mut *(wp), -1)))
-            {
+            if last < wp.w_topline {
                 wp.w_skipcol = 0;
             }
+            changed_topline_skipcol(&mut *wp, lnum, lnume - 1);
 
             fold_update(&mut *(wp), lnum, last);
 

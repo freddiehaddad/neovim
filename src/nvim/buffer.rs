@@ -441,6 +441,7 @@ pub struct FileBuf {
     pub b_mapped_ctrl_c: i32,
     pub b_marktree: crate::marktree::MarkTree,
     pub b_extmark_ns: std::collections::BTreeMap<u32, u32>,
+    pub b_conceal_providers: i32,
     pub b_prev_line_count: i32,
     pub update_channels: Vec<u64>,
     pub update_callbacks: Vec<BufUpdateCallbacks>,
@@ -735,6 +736,7 @@ impl FileBuf {
             b_mapped_ctrl_c: 0,
             b_marktree: crate::marktree::MarkTree::new(),
             b_extmark_ns: std::collections::BTreeMap::new(),
+            b_conceal_providers: 0,
             b_prev_line_count: 0,
             update_channels: Vec::new(),
             update_callbacks: Vec::new(),
@@ -1833,6 +1835,7 @@ fn free_buffer_stuff(buf: &mut FileBuf, free_flags: i32) {
     buf.b_ucmds.clear();
     extmark_free_all(buf);
     mc_buf_free(buf);
+    buf.b_conceal_providers = 0;
     map_clear_mode(buf, MAP_ALL_MODES, true, false);
     map_clear_mode(buf, MAP_ALL_MODES, true, true);
     buf.b_start_fenc = None;

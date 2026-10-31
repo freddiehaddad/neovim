@@ -1434,8 +1434,21 @@ pub fn os_rename(
     let new_path = new_path.into_c_char_ptr();
     unsafe {
         let mut req: uv_fs_buf_t = [0; 80];
-        let r = uv_fs_rename(ptr::null_mut(), &raw mut req, path, new_path, ptr::null());
+        #[cfg_attr(not(windows), allow(unused_mut))]
+        let mut r = uv_fs_rename(ptr::null_mut(), &raw mut req, path, new_path, ptr::null());
         uv_fs_req_cleanup((&raw mut req).cast());
+        #[cfg(windows)]
+        {
+            const UV_EPERM: i32 = -4048;
+            const UV_EBUSY: i32 = -4082;
+            let mut ms: u64 = 1;
+            while (r == UV_EPERM || r == UV_EBUSY) && ms <= 64 {
+                crate::os::time::os_sleep(ms);
+                r = uv_fs_rename(ptr::null_mut(), &raw mut req, path, new_path, ptr::null());
+                uv_fs_req_cleanup((&raw mut req).cast());
+                ms *= 4;
+            }
+        }
         r == 0
     }
 }
