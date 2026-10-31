@@ -333,6 +333,7 @@ pub fn copy_dir_all(src: &Path, dst: &Path) -> io::Result<()> {
         if file_type.is_dir() {
             copy_dir_all(&entry.path(), &dst_path)?;
         } else {
+            let _ = fs::remove_file(&dst_path);
             fs::copy(entry.path(), dst_path)?;
         }
     }

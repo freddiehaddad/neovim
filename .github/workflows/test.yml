@@ -250,8 +250,13 @@ jobs:
           TEST_TIMEOUT: 600
         run: |
           $ErrorActionPreference = 'Continue'
-          Start-Process -WindowStyle Hidden (Get-Command sleep.exe).Source infinity
-          cargo xtask functionaltest --release
+          $sleepProc = Start-Process -PassThru -WindowStyle Hidden (Get-Command sleep.exe).Source infinity
+          try {
+            cargo xtask functionaltest --release
+            if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          } finally {
+            if ($sleepProc) { Stop-Process -Id $sleepProc.Id -Force -ErrorAction SilentlyContinue }
+          }
 
       - if: ${{ matrix.test == 'oldtest' }}
         name: oldtest

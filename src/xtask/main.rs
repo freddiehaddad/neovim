@@ -116,23 +116,30 @@ fn stage_build_dir(root: &Path, profile_dir: &Path, build_dir: &Path) -> PathBuf
         let src = profile_dir.join(format!("{bin}{sfx}"));
         if src.exists() {
             let dst = bin_dir.join(format!("{bin}{sfx}"));
+            let _ = fs::remove_file(&dst);
             let _ = fs::copy(&src, &dst);
         }
     }
     let shell_src = profile_dir.join(format!("shell-test{sfx}"));
     if shell_src.exists() {
-        let _ = fs::copy(&shell_src, bin_dir.join(format!("pwsh-test{sfx}")));
+        let dst = bin_dir.join(format!("pwsh-test{sfx}"));
+        let _ = fs::remove_file(&dst);
+        let _ = fs::copy(&shell_src, dst);
     }
 
     if cfg!(target_os = "windows") {
         let pdb = profile_dir.join("nvim.pdb");
         if pdb.exists() {
-            let _ = fs::copy(&pdb, bin_dir.join("nvim.pdb"));
+            let dst = bin_dir.join("nvim.pdb");
+            let _ = fs::remove_file(&dst);
+            let _ = fs::copy(&pdb, dst);
         }
         for dep_bin in ["lua51.dll", "win32yank.exe"] {
             let src = deps_prefix.join("bin").join(dep_bin);
             if src.exists() {
-                let _ = fs::copy(&src, bin_dir.join(dep_bin));
+                let dst = bin_dir.join(dep_bin);
+                let _ = fs::remove_file(&dst);
+                let _ = fs::copy(&src, dst);
             }
         }
     }
@@ -489,14 +496,18 @@ fn install_prefix(root: &Path, profile_dir: &Path, build_dir: &Path, prefix: &Pa
     for bin in ["nvim", "tee", "xxd"] {
         let src = build_dir.join("bin").join(format!("{bin}{sfx}"));
         if src.exists() {
-            fs::copy(&src, dst_bin.join(format!("{bin}{sfx}"))).unwrap();
+            let dst = dst_bin.join(format!("{bin}{sfx}"));
+            let _ = fs::remove_file(&dst);
+            fs::copy(&src, dst).unwrap();
         }
     }
     if cfg!(target_os = "windows") {
         for f in ["nvim.pdb", "lua51.dll", "win32yank.exe"] {
             let src = build_dir.join("bin").join(f);
             if src.exists() {
-                fs::copy(&src, dst_bin.join(f)).unwrap();
+                let dst = dst_bin.join(f);
+                let _ = fs::remove_file(&dst);
+                fs::copy(&src, dst).unwrap();
             }
         }
     }
@@ -593,6 +604,48 @@ fn create_symlink_or_junction(src: &Path, dst: &Path) {
     }
 }
 
+fn has_spec_files(dir: &Path) -> bool {
+    let Ok(entries) = fs::read_dir(dir) else {
+        return false;
+    };
+    for entry in entries.flatten() {
+        let path = entry.path();
+        if path.is_dir() {
+            if has_spec_files(&path) {
+                return true;
+            }
+        } else if path
+            .file_name()
+            .and_then(|n| n.to_str())
+            .is_some_and(|n| n.ends_with("_spec.lua"))
+        {
+            return true;
+        }
+    }
+    false
+}
+
+fn functional_test_groups(root: &Path) -> Vec<String> {
+    let func_dir = root.join("test").join("functional");
+    let Ok(entries) = fs::read_dir(&func_dir) else {
+        return vec!["test/functional".to_string()];
+    };
+    let mut groups = Vec::new();
+    for entry in entries.flatten() {
+        let path = entry.path();
+        let Some(name) = path.file_name().and_then(|n| n.to_str()) else {
+            continue;
+        };
+        if (path.is_dir() && has_spec_files(&path))
+            || (path.is_file() && name.ends_with("_spec.lua"))
+        {
+            groups.push(format!("test/functional/{name}"));
+        }
+    }
+    groups.sort();
+    groups
+}
+
 fn run_lua_tests(
     root: &Path,
     build_dir: &Path,
@@ -620,85 +673,105 @@ fn run_lua_tests(
         .map(PathBuf::from)
         .unwrap_or_else(|_| build_dir.join("nvim.log"));
 
-    let test_path = env::var("TEST_FILE").unwrap_or_else(|_| format!("test/{test_type}"));
+    let has_positional = extra_args.iter().any(|arg| !arg.starts_with('-'));
+    let targets: Vec<String> = if has_positional {
+        vec![String::new()]
+    } else if let Ok(tf) = env::var("TEST_FILE")
+        && !tf.is_empty()
+    {
+        vec![tf]
+    } else if test_type == "functional" {
+        functional_test_groups(root)
+    } else {
+        vec![format!("test/{test_type}")]
+    };
 
     let norm_slashes = |p: &Path| p.to_string_lossy().replace('\\', "/");
-    let mut cmd = Command::new(nvim_bin);
-    cmd.current_dir(&xdg_dir)
-        .env("NVIM_TEST", "1")
-        .env("LC_ALL", "en_US.UTF-8")
-        .env("NVIM_LOG_FILE", &log_file)
-        .env("NVIM_PRG", norm_slashes(nvim_bin))
-        .env("TMPDIR", norm_slashes(&tmp_dir))
-        .env("HISTFILE", "/dev/null")
-        .env("SYSTEM_NAME", system_name())
-        .env("VIMRUNTIME", norm_slashes(&root.join("runtime")))
-        .env("NVIM_TEST_SOURCE_DIR", norm_slashes(root))
-        .env("NVIM_TEST_BUILD_DIR", norm_slashes(build_dir))
-        .env_remove("XDG_DATA_DIRS")
-        .env_remove("NVIM")
-        .env_remove("TMUX")
-        .env_remove("NoDefaultCurrentDirectoryInExePath");
-    if !cfg!(target_os = "windows") {
-        cmd.env("SHELL", "sh");
-    } else if let Ok(path) = env::var("PATH") {
-        let git_usr_bin = Path::new(r"C:\Program Files\Git\usr\bin");
-        if git_usr_bin.is_dir() && !path.to_ascii_lowercase().contains(r"git\usr\bin") {
-            cmd.env(
-                "PATH",
-                format!(r"C:\Windows\System32;{};{path}", git_usr_bin.display()),
-            );
+    let mut failed_code: Option<i32> = None;
+
+    for target in &targets {
+        if tmp_dir.exists() {
+            let _ = fs::remove_dir_all(&tmp_dir);
+        }
+        fs::create_dir_all(&tmp_dir).unwrap();
+
+        let mut cmd = Command::new(nvim_bin);
+        cmd.current_dir(&xdg_dir)
+            .env("NVIM_TEST", "1")
+            .env("LC_ALL", "en_US.UTF-8")
+            .env("NVIM_LOG_FILE", &log_file)
+            .env("NVIM_PRG", norm_slashes(nvim_bin))
+            .env("TMPDIR", norm_slashes(&tmp_dir))
+            .env("HISTFILE", "/dev/null")
+            .env("SYSTEM_NAME", system_name())
+            .env("VIMRUNTIME", norm_slashes(&root.join("runtime")))
+            .env("NVIM_TEST_SOURCE_DIR", norm_slashes(root))
+            .env("NVIM_TEST_BUILD_DIR", norm_slashes(build_dir))
+            .env_remove("XDG_DATA_DIRS")
+            .env_remove("NVIM")
+            .env_remove("TMUX")
+            .env_remove("NoDefaultCurrentDirectoryInExePath");
+        if !cfg!(target_os = "windows") {
+            cmd.env("SHELL", "sh");
+        } else if let Ok(path) = env::var("PATH") {
+            let git_usr_bin = Path::new(r"C:\Program Files\Git\usr\bin");
+            if git_usr_bin.is_dir() && !path.to_ascii_lowercase().contains(r"git\usr\bin") {
+                cmd.env(
+                    "PATH",
+                    format!(r"C:\Windows\System32;{};{path}", git_usr_bin.display()),
+                );
+            }
+        }
+
+        cmd.arg("-l")
+            .arg(root.join("test").join("runner.lua"))
+            .arg(format!("-X{}", xdg_dir.display()))
+            .arg("-v")
+            .arg("--summary-file=-")
+            .arg(format!(
+                "--helper={}",
+                root.join("test")
+                    .join(test_type)
+                    .join("preload.lua")
+                    .display()
+            ))
+            .arg(format!(
+                "--lpath={}/?.lua",
+                build_dir.to_string_lossy().replace('\\', "/")
+            ));
+
+        if let Ok(tag) = env::var("TEST_TAG")
+            && !tag.is_empty()
+        {
+            cmd.args(["--tags", &tag]);
+        }
+        if let Ok(filter) = env::var("TEST_FILTER")
+            && !filter.is_empty()
+        {
+            cmd.args(["--filter", &filter]);
+        }
+        if let Ok(filter_out) = env::var("TEST_FILTER_OUT")
+            && !filter_out.is_empty()
+        {
+            cmd.args(["--filter-out", &filter_out]);
+        }
+        for arg in extra_args {
+            cmd.arg(arg);
+        }
+        if !target.is_empty() {
+            cmd.arg(target);
+        }
+
+        let status = cmd.status().expect("failed to execute test runner");
+        if !status.success() && failed_code.is_none() {
+            failed_code = Some(status.code().unwrap_or(1));
         }
     }
 
-    cmd.arg("-l")
-        .arg(root.join("test").join("runner.lua"))
-        .arg(format!("-X{}", xdg_dir.display()))
-        .arg("-v")
-        .arg("--summary-file=-")
-        .arg(format!(
-            "--helper={}",
-            root.join("test")
-                .join(test_type)
-                .join("preload.lua")
-                .display()
-        ))
-        .arg(format!(
-            "--lpath={}/?.lua",
-            build_dir.to_string_lossy().replace('\\', "/")
-        ));
-
-    if let Ok(tag) = env::var("TEST_TAG")
-        && !tag.is_empty()
-    {
-        cmd.args(["--tags", &tag]);
-    }
-    if let Ok(filter) = env::var("TEST_FILTER")
-        && !filter.is_empty()
-    {
-        cmd.args(["--filter", &filter]);
-    }
-    if let Ok(filter_out) = env::var("TEST_FILTER_OUT")
-        && !filter_out.is_empty()
-    {
-        cmd.args(["--filter-out", &filter_out]);
-    }
-    let mut has_positional = false;
-    for arg in extra_args {
-        if !arg.starts_with('-') {
-            has_positional = true;
-        }
-        cmd.arg(arg);
-    }
-    if !has_positional {
-        cmd.arg(&test_path);
-    }
-
-    let status = cmd.status().expect("failed to execute test runner");
     let _ = fs::remove_dir_all(&xdg_dir);
     let _ = fs::remove_dir_all(&tmp_dir);
-    if !status.success() {
-        std::process::exit(status.code().unwrap_or(1));
+    if let Some(code) = failed_code {
+        std::process::exit(code);
     }
 }
 
