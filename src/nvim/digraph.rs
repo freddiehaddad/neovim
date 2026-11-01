@@ -1938,9 +1938,9 @@ fn get_digraph_chars(arg: &TypVal, char1: &mut i32, char2: &mut i32) -> bool {
     let mut p = chars.map_or(std::ptr::null(), std::ffi::CStr::as_ptr);
 
     if !crate::memory::cstr_is_empty(p) {
-        *char1 = mb_cptr2char_adv(&raw mut p);
+        *char1 = mb_cptr2char_adv(&mut p);
         if !crate::memory::cstr_is_empty(p) {
-            *char2 = mb_cptr2char_adv(&raw mut p);
+            *char2 = mb_cptr2char_adv(&mut p);
             if crate::memory::cstr_is_empty(p) {
                 if check_digraph_chars_valid(*char1, *char2) {
                     return true;
@@ -1965,7 +1965,7 @@ fn digraph_set_common(argchars: &TypVal, argdigraph: &TypVal) -> bool {
         return false;
     };
     let mut p = digraph.as_ptr();
-    let n = mb_cptr2char_adv(&raw mut p);
+    let n = mb_cptr2char_adv(&mut p);
     if !crate::memory::cstr_is_empty(p) {
         semsg!(
             gettext(E_DIGRAPH_ARGUMENT_MUST_BE_ONE_CHARACTER_STR),

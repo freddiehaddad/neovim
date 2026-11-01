@@ -1397,8 +1397,8 @@ fn set_sofo(
         let mut p = from;
         let mut s = to;
         while !crate::memory::cstr_is_empty(p) && !crate::memory::cstr_is_empty(s) {
-            let c = mb_cptr2char_adv(&raw mut p);
-            let i = mb_cptr2char_adv(&raw mut s);
+            let c = mb_cptr2char_adv(&mut p);
+            let i = mb_cptr2char_adv(&mut s);
             if c >= 256 {
                 gap[(c & 0xff) as usize].push((c, i));
             } else {
@@ -1447,7 +1447,7 @@ fn mb_str2wide(s: impl crate::strings::IntoCCharPtr) -> Vec<i32> {
         let mut res = Vec::with_capacity(mb_charlen(s) as usize + 1);
         let mut p = s;
         while !crate::memory::cstr_is_empty(p) {
-            res.push(mb_ptr2char_adv(&raw mut p));
+            res.push(mb_ptr2char_adv(&mut p));
         }
         res.push(0);
         res
@@ -2458,7 +2458,7 @@ fn spell_read_aff(
                         let si_map = &mut spin.si_map;
                         let mut p_m = items[1].cast_const().cast();
                         while !crate::memory::cstr_is_empty(p_m) {
-                            let c = mb_ptr2char_adv(&raw mut p_m);
+                            let c = mb_ptr2char_adv(&mut p_m);
                             let in_map = if si_map.is_empty() {
                                 false
                             } else {
@@ -2702,18 +2702,14 @@ fn get_affitem(flagtype: i32, pp: *mut *mut u8) -> u32 {
                 res = ZERO_FLAG as i32;
             }
         } else {
-            let mut cp = (*pp).cast_const();
-            res = mb_ptr2char_adv(&raw mut cp);
-            *pp = cp.cast_mut();
+            res = mb_ptr2char_adv(&mut *pp);
             if flagtype == AFT_LONG
                 || (flagtype == AFT_CAPLONG && res >= b'A' as i32 && res <= b'Z' as i32)
             {
                 if **pp == 0 {
                     return 0;
                 }
-                let mut cp2 = (*pp).cast_const();
-                res = mb_ptr2char_adv(&raw mut cp2) + (res << 16);
-                *pp = cp2.cast_mut();
+                res = mb_ptr2char_adv(&mut *pp) + (res << 16);
             }
         }
         res as u32
@@ -2815,13 +2811,13 @@ fn flag_in_afflist(flagtype: i32, afflist: impl crate::strings::IntoCCharPtr, fl
         match flagtype {
             AFT_CHAR => !vim_strchr(afflist, flag as i32).is_null(),
             AFT_CAPLONG | AFT_LONG => {
-                let mut p = afflist.cast_const();
+                let mut p = afflist;
                 while !crate::memory::cstr_is_empty(p) {
-                    let mut n = mb_ptr2char_adv(&raw mut p) as u32;
+                    let mut n = mb_ptr2char_adv(&mut p) as u32;
                     if (flagtype == AFT_LONG || (n >= b'A' as u32 && n <= b'Z' as u32))
                         && !crate::memory::cstr_is_empty(p)
                     {
-                        n = (mb_ptr2char_adv(&raw mut p) as u32) + (n << 16);
+                        n = (mb_ptr2char_adv(&mut p) as u32) + (n << 16);
                     }
                     if n == flag {
                         return true;
@@ -5569,7 +5565,7 @@ fn set_spell_charflags(
             }
 
             if !crate::memory::cstr_is_empty(p) {
-                let c = mb_ptr2char_adv(&raw mut p);
+                let c = mb_ptr2char_adv(&mut p);
                 new_st.st_fold[i + 128] = c as u8;
                 if (i + 128) as i32 != c && new_st.st_isu[i + 128] && c < 256 {
                     new_st.st_upper[c as usize] = (i + 128) as u8;
@@ -5640,7 +5636,7 @@ fn set_map_str(lp: &mut Slang, map: impl crate::strings::IntoCCharPtr) {
 
         let mut p = map;
         while !crate::memory::cstr_is_empty(p) {
-            let c = mb_cptr2char_adv(&raw mut p);
+            let c = mb_cptr2char_adv(&mut p);
             if c == b'/' as i32 {
                 headc = 0;
             } else {

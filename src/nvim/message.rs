@@ -2451,7 +2451,7 @@ pub fn str2special<T>(
     replace_others: TriState,
     mut data: Option<&mut KeyChord>,
 ) -> &'static CStr {
-    if let Some(p) = mb_unescape(sp) {
+    if let Some(p) = mb_unescape(unsafe { &mut *sp.cast::<*const u8>() }) {
         if let Some(data) = data.as_deref_mut() {
             data.mods = 0;
             data.key = NvimString {
@@ -2498,7 +2498,7 @@ pub fn str2special<T>(
         unsafe {
             *sp = str_.cast();
         }
-        if let Some(p) = mb_unescape(sp) {
+        if let Some(p) = mb_unescape(unsafe { &mut *sp.cast::<*const u8>() }) {
             c = utf_ptr2char(p);
         } else {
             unsafe {

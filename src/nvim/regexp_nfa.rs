@@ -1412,7 +1412,7 @@ fn nfa_regatom_collection(
                         return FAIL;
                     }
                     got_coll_char = true;
-                    mb_ptr_back(*old_regparse, &raw mut re_st().regparse);
+                    mb_ptr_back(*old_regparse, &mut re_st().regparse);
                 } else {
                     *startc = backslash_trans(i32::from(unsafe { *re_st().regparse }));
                 }
@@ -1485,7 +1485,7 @@ fn nfa_regatom_collection(
             mb_ptr_adv(&mut re_st().regparse);
         }
 
-        mb_ptr_back(*old_regparse, &raw mut re_st().regparse);
+        mb_ptr_back(*old_regparse, &mut re_st().regparse);
         if unsafe { *re_st().regparse } == b'-' {
             emit_fn(b'-' as i32);
             emit_fn(NFA_CONCAT);

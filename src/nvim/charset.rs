@@ -302,7 +302,7 @@ pub fn parse_isopt(var: impl crate::strings::IntoCCharPtr, chartab: *mut u64) ->
             let mut c = if ascii_isdigit(crate::memory::cstr_first_char(p)) {
                 getdigits_int(&mut p, false, 0)
             } else {
-                mb_ptr2char_adv(&raw mut p)
+                mb_ptr2char_adv(&mut p)
             };
             let mut c2: i32 = -1;
 
@@ -311,7 +311,7 @@ pub fn parse_isopt(var: impl crate::strings::IntoCCharPtr, chartab: *mut u64) ->
                 c2 = if ascii_isdigit(crate::memory::cstr_first_char(p)) {
                     getdigits_int(&mut p, false, 0)
                 } else {
-                    mb_ptr2char_adv(&raw mut p)
+                    mb_ptr2char_adv(&mut p)
                 };
             }
 

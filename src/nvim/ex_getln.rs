@@ -4601,7 +4601,7 @@ pub fn cmdline_paste_str(s: impl crate::strings::IntoCCharPtr, literally: bool) 
                 if cv == CTRL_V_CONST && crate::memory::cstr_byte_at(s, 1) != 0 {
                     s = s.wrapping_add(1);
                 }
-                let c = mb_cptr2char_adv(&raw mut s);
+                let c = mb_cptr2char_adv(&mut s);
                 if cv == CTRL_V_CONST
                     || c == ESC
                     || c == CTRL_C_CONST

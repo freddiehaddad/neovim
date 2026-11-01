@@ -2406,8 +2406,8 @@ pub(super) fn cstrncmp(
             let mut junk2: i32 = 0;
 
             while (unsafe { str1.offset_from(s1) } as i32) < *n {
-                c1 = mb_ptr2char_adv(&raw mut str1);
-                c2 = mb_ptr2char_adv(&raw mut str2);
+                c1 = mb_ptr2char_adv(&mut str1);
+                c2 = mb_ptr2char_adv(&mut str2);
 
                 if c1 != c2 && (!re_st().rex.reg_ic || utf_fold(c1) != utf_fold(c2)) {
                     mb_decompose(c1, &mut c11, &mut junk, &mut junk2);

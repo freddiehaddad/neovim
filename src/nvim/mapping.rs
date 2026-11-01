@@ -1979,7 +1979,7 @@ pub fn put_escstr(fd: *mut FILE, strstart: impl crate::strings::IntoCCharPtr, wh
         }
 
         while unsafe { *str_ptr } != 0 {
-            if let Some(p) = mb_unescape(&raw mut str_ptr) {
+            if let Some(p) = mb_unescape(&mut str_ptr) {
                 for &p_byte in p.to_bytes() {
                     if unsafe { fputc(p_byte as i32, fd) } < 0 {
                         return false;
@@ -1995,7 +1995,7 @@ pub fn put_escstr(fd: *mut FILE, strstart: impl crate::strings::IntoCCharPtr, wh
                     modifiers = i32::from(crate::memory::cstr_byte_at(str_ptr.cast(), 2));
                     str_ptr = str_ptr.wrapping_add(3);
 
-                    if let Some(p) = mb_unescape(&raw mut str_ptr) {
+                    if let Some(p) = mb_unescape(&mut str_ptr) {
                         c = utf_ptr2char(p);
                         str_ptr = str_ptr.wrapping_sub(1);
                     } else {

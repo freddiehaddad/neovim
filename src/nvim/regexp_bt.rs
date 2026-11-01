@@ -1408,9 +1408,7 @@ fn regatom(flagp: &mut i32) -> *mut u8 {
                             endc = get_coll_element(&raw mut re_st().regparse);
                         }
                         if endc == 0 {
-                            let mut rp_const = re_st().regparse.cast_const();
-                            endc = mb_ptr2char_adv(&raw mut rp_const);
-                            re_st().regparse = rp_const.cast_mut();
+                            endc = mb_ptr2char_adv(&mut re_st().regparse);
                         }
                         if endc == b'\\' as i32 && re_st().reg_cpo_lit == 0 {
                             endc = coll_get_char();
@@ -3835,10 +3833,7 @@ fn regmatch(mut scan: *mut u8, tm: Option<Proftime>, mut timed_out: Option<&mut 
                                                     );
                                             reg_breakcheck();
                                         } else {
-                                            mb_ptr_back(
-                                                re_st().rex.line,
-                                                &raw mut re_st().rex.input,
-                                            );
+                                            mb_ptr_back(re_st().rex.line, &mut re_st().rex.input);
                                         }
                                     } else {
                                         if rst.count == rst.minval

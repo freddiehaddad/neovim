@@ -929,12 +929,14 @@ pub fn basechar_cells_impl(c: CharInfo) -> i32 {
 }
 
 #[inline]
-pub fn mb_ptr_back<T, U>(s: *const T, p: *mut *mut U) {
-    unsafe {
-        let prev = (*p).cast::<u8>().wrapping_sub(1);
-        let step = 1 + utf_head_off(s.cast(), prev.cast()) as usize;
-        *p = (*p).cast::<u8>().wrapping_sub(step).cast();
-    }
+pub fn mb_ptr_back<S: crate::charset::RawByteCursor, P: crate::charset::RawByteCursor>(
+    s: S,
+    p: &mut P,
+) {
+    let cur = p.as_byte_ptr();
+    let prev = cur.wrapping_sub(1);
+    let step = 1 + utf_head_off(s.as_byte_ptr().cast(), prev.cast()) as usize;
+    *p = P::from_byte_ptr(cur.wrapping_sub(step));
 }
 
 #[inline]
@@ -1407,22 +1409,18 @@ fn utf_safe_read_char_adv<T>(s: &mut *const T, n: &mut usize) -> i32 {
     -1
 }
 
-pub fn mb_ptr2char_adv<T>(pp: *mut *const T) -> i32 {
-    unsafe {
-        let p: *const u8 = (*pp).cast();
-        let c = utf_ptr2char(p.cast());
-        *pp = p.wrapping_add(utfc_ptr2len(p.cast()) as usize).cast();
-        c
-    }
+pub fn mb_ptr2char_adv<P: crate::charset::RawByteCursor>(pp: &mut P) -> i32 {
+    let p = pp.as_byte_ptr();
+    let c = utf_ptr2char(p.cast());
+    *pp = P::from_byte_ptr(p.wrapping_add(utfc_ptr2len(p.cast()) as usize));
+    c
 }
 
-pub fn mb_cptr2char_adv<T>(pp: *mut *const T) -> i32 {
-    unsafe {
-        let p: *const u8 = (*pp).cast();
-        let c = utf_ptr2char(p.cast());
-        *pp = p.wrapping_add(utf_ptr2len(p.cast()) as usize).cast();
-        c
-    }
+pub fn mb_cptr2char_adv<P: crate::charset::RawByteCursor>(pp: &mut P) -> i32 {
+    let p = pp.as_byte_ptr();
+    let c = utf_ptr2char(p.cast());
+    *pp = P::from_byte_ptr(p.wrapping_add(utf_ptr2len(p.cast()) as usize));
+    c
 }
 
 pub fn utf_iscomposing_first(c: i32) -> bool {
@@ -2966,10 +2964,10 @@ pub fn mb_charlen_len(str_: impl crate::strings::IntoCCharPtr, len: i32) -> i32 
     }
 }
 
-pub fn mb_unescape<T>(pp: *mut *const T) -> Option<&'static CStr> {
+pub fn mb_unescape<P: crate::charset::RawByteCursor>(pp: &mut P) -> Option<&'static CStr> {
     unsafe {
         let mut buf_idx = 0usize;
-        let str_ = (*pp).cast::<u8>();
+        let str_ = pp.as_byte_ptr();
         let mut str_idx = 0usize;
 
         while *str_.wrapping_add(str_idx) != 0 && buf_idx < 4 {
@@ -2989,7 +2987,7 @@ pub fn mb_unescape<T>(pp: *mut *const T) -> Option<&'static CStr> {
             mbyte_st().mb_unescape_buf[buf_idx] = 0;
 
             if utf_ptr2len(&mbyte_st().mb_unescape_buf) > 1 {
-                *pp = str_.wrapping_add(str_idx + 1).cast();
+                *pp = P::from_byte_ptr(str_.wrapping_add(str_idx + 1));
                 return Some(CStr::from_ptr(mbyte_st().mb_unescape_buf.as_ptr().cast()));
             }
 

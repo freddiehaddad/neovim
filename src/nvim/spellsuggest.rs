@@ -3309,7 +3309,7 @@ fn spell_edit_score(
         let mut badlen: usize = 0;
         let mut p = badword;
         while !crate::memory::cstr_is_empty(p) {
-            wbadword[badlen] = mb_cptr2char_adv(&raw mut p);
+            wbadword[badlen] = mb_cptr2char_adv(&mut p);
             badlen += 1;
         }
         wbadword[badlen] = 0;
@@ -3317,7 +3317,7 @@ fn spell_edit_score(
         let mut goodlen: usize = 0;
         p = goodword;
         while !crate::memory::cstr_is_empty(p) {
-            wgoodword[goodlen] = mb_cptr2char_adv(&raw mut p);
+            wgoodword[goodlen] = mb_cptr2char_adv(&mut p);
             goodlen += 1;
         }
         wgoodword[goodlen] = 0;
@@ -3391,14 +3391,14 @@ fn spell_edit_score_limit_w(
         let mut bi: usize = 0;
         let mut p = badword;
         while !crate::memory::cstr_is_empty(p) {
-            wbadword[bi] = mb_cptr2char_adv(&raw mut p);
+            wbadword[bi] = mb_cptr2char_adv(&mut p);
             bi += 1;
         }
         wbadword[bi] = 0;
         let mut gi: usize = 0;
         p = goodword;
         while !crate::memory::cstr_is_empty(p) {
-            wgoodword[gi] = mb_cptr2char_adv(&raw mut p);
+            wgoodword[gi] = mb_cptr2char_adv(&mut p);
             gi += 1;
         }
         wgoodword[gi] = 0;

@@ -2655,13 +2655,13 @@ pub fn f_strlen(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData)
 fn strchar_common(argvars: &mut [TypVal], rettv: &mut TypVal, skipcc: bool) {
     let mut s = tv_get_string(&argvars[0]).as_ptr();
     let mut len: Varnumber = 0;
-    let func_mb_ptr2char_adv: fn(*mut RawCCharPtr) -> i32 = if skipcc {
+    let func_mb_ptr2char_adv: fn(&mut RawCCharPtr) -> i32 = if skipcc {
         mb_ptr2char_adv
     } else {
         mb_cptr2char_adv
     };
     while !crate::memory::cstr_is_empty(s) {
-        func_mb_ptr2char_adv(&raw mut s);
+        func_mb_ptr2char_adv(&mut s);
         len += 1;
     }
     rettv.vval = crate::eval::typval::TypvalVval::Number(len);
@@ -2701,13 +2701,13 @@ pub fn f_strutf16len(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFunc
 
     let mut s = tv_get_string(&argvars[0]).as_ptr();
     let mut len: Varnumber = 0;
-    let func_mb_ptr2char_adv: fn(*mut RawCCharPtr) -> i32 = if countcc != 0 {
+    let func_mb_ptr2char_adv: fn(&mut RawCCharPtr) -> i32 = if countcc != 0 {
         mb_cptr2char_adv
     } else {
         mb_ptr2char_adv
     };
     while !crate::memory::cstr_is_empty(s) {
-        let ch = func_mb_ptr2char_adv(&raw mut s);
+        let ch = func_mb_ptr2char_adv(&mut s);
         if ch > 0xFFFF {
             len += 1;
         }

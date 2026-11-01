@@ -750,7 +750,7 @@ pub fn sb_add_lit(buf: &mut Vec<u8>, str_: impl crate::strings::IntoCCharPtr, le
                 break;
             }
 
-            let c = mb_cptr2char_adv(&raw mut s);
+            let c = mb_cptr2char_adv(&mut s);
             if c < b' ' as i32
                 || c == DEL
                 || (crate::memory::cstr_is_empty(s) && (c == b'0' as i32 || c == b'^' as i32))
@@ -790,7 +790,7 @@ pub fn sb_add_spec(buf: &mut Vec<u8>, s: impl crate::strings::IntoCCharPtr) {
                 buf.extend_from_slice(unsafe { std::slice::from_raw_parts(s.cast::<u8>(), 3) });
                 s = s.wrapping_add(3);
             } else {
-                let c = mb_cptr2char_adv(&raw mut s);
+                let c = mb_cptr2char_adv(&mut s);
                 sb_add_char(buf, c);
             }
         }
@@ -850,7 +850,7 @@ pub fn stuff_readbuff_special(s: impl crate::strings::IntoCCharPtr) {
                 stuff_readbuff_len(s, 3);
                 s = s.wrapping_add(3);
             } else {
-                let mut c = mb_cptr2char_adv(&raw mut s);
+                let mut c = mb_cptr2char_adv(&mut s);
                 if c == CAR || c == NL || c == ESC {
                     c = b' ' as i32;
                 }
@@ -886,7 +886,7 @@ pub fn stuffescaped(arg: impl crate::strings::IntoCCharPtr, literally: bool) {
             }
 
             if !crate::memory::cstr_is_empty(arg) {
-                let c = mb_cptr2char_adv(&raw mut arg);
+                let c = mb_cptr2char_adv(&mut arg);
                 if literally && ((c < b' ' as i32 && c != TAB) || c == DEL) {
                     stuffchar_readbuff(CTRL_V_CONST);
                 }
@@ -1611,7 +1611,7 @@ fn add_byte_to_showcmd(byte: u8) {
     }
 
     if unsafe { *ptr } != NUL as u8 {
-        if let Some(mb_cstr) = mb_unescape(&raw mut ptr) {
+        if let Some(mb_cstr) = mb_unescape(&mut ptr) {
             c = utf_ptr2char(mb_cstr);
         } else {
             c = unsafe { *ptr } as i32;

@@ -999,7 +999,7 @@ fn ins_compl_infercase_gettext(
         {
             let mut p = str_ptr;
             for item in &mut wca {
-                *item = mb_ptr2char_adv(&raw mut p);
+                *item = mb_ptr2char_adv(&mut p);
             }
         }
 
@@ -1007,7 +1007,7 @@ fn ins_compl_infercase_gettext(
         {
             let mut p = insexp().compl_orig_text.data.cast_const();
             for i in 0..(min_len as usize) {
-                let c = mb_ptr2char_adv(&raw mut p);
+                let c = mb_ptr2char_adv(&mut p);
                 if mb_islower(c) {
                     has_lower = true;
                     if mb_isupper(wca[i]) {
@@ -1025,7 +1025,7 @@ fn ins_compl_infercase_gettext(
             let mut was_letter = false;
             let mut p = insexp().compl_orig_text.data.cast_const();
             for i in 0..(min_len as usize) {
-                let c = mb_ptr2char_adv(&raw mut p);
+                let c = mb_ptr2char_adv(&mut p);
                 if was_letter && mb_isupper(c) && mb_islower(wca[i]) {
                     for item in &mut wca[(compl_char_len as usize)..] {
                         *item = mb_toupper(*item);
@@ -1040,7 +1040,7 @@ fn ins_compl_infercase_gettext(
         {
             let mut p = insexp().compl_orig_text.data.cast_const();
             for item in &mut wca[..(min_len as usize)] {
-                let c = mb_ptr2char_adv(&raw mut p);
+                let c = mb_ptr2char_adv(&mut p);
                 if mb_islower(c) {
                     *item = mb_tolower(*item);
                 } else if mb_isupper(c) {
@@ -2543,7 +2543,7 @@ pub fn ins_compl_bs() -> i32 {
 
     let mut line = get_cursor_line_ptr();
     let mut p = line.wrapping_add(curwin_mut().w_cursor.col as usize);
-    mb_ptr_back(line, &raw mut p);
+    mb_ptr_back(line, &mut p);
     let p_off = crate::memory::ptr_offset_from(p, line);
 
     if (p_off as i32) - insexp().compl_col < 0
@@ -6181,9 +6181,9 @@ fn get_filename_compl_info(
         if startcol > 0 {
             let mut p = line.wrapping_add(startcol as usize);
 
-            mb_ptr_back(line, &raw mut p);
+            mb_ptr_back(line, &mut p);
             while p > line && vim_isfilec(utf_ptr2char(p)) {
-                mb_ptr_back(line, &raw mut p);
+                mb_ptr_back(line, &mut p);
             }
             let mut p_is_filec = false;
             #[cfg(windows)]

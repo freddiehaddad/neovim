@@ -2266,7 +2266,7 @@ pub fn spell_casefold(
                 }
                 return false;
             }
-            let mut c = mb_cptr2char_adv(&raw mut p);
+            let mut c = mb_cptr2char_adv(&mut p);
             if c == 0x03a3 || c == 0x03c2 {
                 if p == end || !spell_iswordp(p, wp) {
                     c = 0x03c2;
@@ -2422,7 +2422,7 @@ pub fn onecap_copy(word: impl crate::strings::IntoCCharPtr, wcopy: *mut u8, uppe
     let word = word.into_c_char_ptr();
     {
         let mut p = word;
-        let mut c = mb_cptr2char_adv(&raw mut p);
+        let mut c = mb_cptr2char_adv(&mut p);
         c = if upper {
             spell_toupper(c)
         } else {
@@ -2438,7 +2438,7 @@ pub fn allcap_copy(word: impl crate::strings::IntoCCharPtr, wcopy: *mut u8) {
         let mut d = wcopy;
         let mut s = word;
         while !crate::memory::cstr_is_empty(s) {
-            let mut c = mb_cptr2char_adv(&raw mut s);
+            let mut c = mb_cptr2char_adv(&mut s);
             if c == 0xdf {
                 c = b'S' as i32;
                 if crate::memory::ptr_offset_from(d, wcopy) as usize >= MAXWLEN - 1 {
@@ -2549,7 +2549,7 @@ fn spell_soundfold_sofo(
         let mut prevc: i32 = 0;
         let mut s = inword;
         while !crate::memory::cstr_is_empty(s) {
-            let mut c = mb_cptr2char_adv(&raw mut s);
+            let mut c = mb_cptr2char_adv(&mut s);
             if utf_class(c) == 0 {
                 c = b' ' as i32;
             } else if (0..256).contains(&c) {
@@ -2586,7 +2586,7 @@ fn spell_soundfold_wsal(
         let mut s = inword;
         while !crate::memory::cstr_is_empty(s) {
             let t = s;
-            let mut c = mb_cptr2char_adv(&raw mut s);
+            let mut c = mb_cptr2char_adv(&mut s);
             if slang.sl_rem_accents {
                 if utf_class(c) == 0 {
                     if did_white {
