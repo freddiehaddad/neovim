@@ -488,7 +488,6 @@ fn shift_block(oap: &mut Oparg, amount: i32) {
     let old_line_len = get_cursor_line_len();
 
     let mut newp_vec: Vec<u8>;
-    let newp: *mut u8;
     let startcol: i32;
     let oldlen: i32;
     let newlen: i32;
@@ -548,25 +547,19 @@ fn shift_block(oap: &mut Oparg, amount: i32) {
             + tabs
             + spaces
             + (old_line_len - (crate::memory::ptr_offset_from(bd.textstart.cast(), oldp) as i32));
+        let textcol = bd.textcol as usize;
+        let tabs_len = tabs as usize;
+        let spaces_len = spaces as usize;
+        let prefix_len = textcol + tabs_len + spaces_len;
         newp_vec = vec![0u8; (new_line_len as usize) + 1];
-        newp = newp_vec.as_mut_ptr();
-        unsafe { ptr::copy(oldp.cast::<u8>(), newp, bd.textcol as usize) };
+        newp_vec[..textcol].copy_from_slice(crate::memory::cstr_slice(oldp, textcol));
         startcol = bd.textcol;
         oldlen = (crate::memory::ptr_offset_from(bd.textstart, old_textstart) as i32) + col_pre;
         newlen = tabs + spaces;
-        unsafe { ptr::write_bytes(newp.wrapping_add(bd.textcol as usize), b'\t', tabs as usize) };
-        unsafe {
-            ptr::write_bytes(
-                newp.wrapping_add((bd.textcol + tabs) as usize),
-                b' ',
-                spaces as usize,
-            )
-        };
-        crate::memory::cstr_cpy(
-            newp.wrapping_add((bd.textcol + tabs + spaces) as usize)
-                .cast(),
-            bd.textstart.cast_const().cast(),
-        );
+        newp_vec[textcol..textcol + tabs_len].fill(b'\t');
+        newp_vec[textcol + tabs_len..prefix_len].fill(b' ');
+        let tail = crate::memory::cstr_as_bytes(bd.textstart.cast());
+        newp_vec[prefix_len..prefix_len + tail.len()].copy_from_slice(tail);
         debug_assert_eq!(newlen - oldlen, new_line_len - old_line_len);
     } else {
         let mut non_white = bd.textstart;
@@ -638,21 +631,25 @@ fn shift_block(oap: &mut Oparg, amount: i32) {
             + fill
             + (old_line_len - (crate::memory::ptr_offset_from(non_white.cast(), oldp) as i32));
 
+        let fixed_usize = fixedlen as usize;
+        let fill_usize = fill as usize;
+        let prefix_len = fixed_usize + fill_usize;
         newp_vec = vec![0u8; (new_line_len as usize) + 1];
-        newp = newp_vec.as_mut_ptr();
         startcol = fixedlen;
         oldlen = bd.textcol + (crate::memory::ptr_offset_from(non_white, bd.textstart) as i32)
             - fixedlen;
         newlen = fill;
-        unsafe { ptr::copy(oldp.cast::<u8>(), newp, fixedlen as usize) };
-        unsafe { ptr::write_bytes(newp.wrapping_add(fixedlen as usize), b' ', fill as usize) };
-        crate::memory::cstr_cpy(
-            newp.wrapping_add((fixedlen + fill) as usize).cast(),
-            non_white.cast_const().cast(),
-        );
+        newp_vec[..fixed_usize].copy_from_slice(crate::memory::cstr_slice(oldp, fixed_usize));
+        newp_vec[fixed_usize..prefix_len].fill(b' ');
+        let tail = crate::memory::cstr_as_bytes(non_white.cast());
+        newp_vec[prefix_len..prefix_len + tail.len()].copy_from_slice(tail);
         debug_assert_eq!(newlen - oldlen, new_line_len - old_line_len);
     }
-    ml_replace(curwin_mut().w_cursor.lnum, newp.cast(), true);
+    ml_replace(
+        curwin_mut().w_cursor.lnum,
+        newp_vec.as_mut_ptr().cast(),
+        true,
+    );
     drop(newp_vec);
     changed_bytes(curwin_mut().w_cursor.lnum, bd.textcol);
     extmark_splice_cols(
@@ -676,6 +673,7 @@ fn block_insert(
     bdp: &mut BlockDef,
 ) {
     let s = s.into_c_char_ptr();
+    let s_slice = crate::memory::cstr_slice(s, slen);
     {
         let mut ts_val: i32;
         let mut count: i32 = 0;
@@ -739,33 +737,24 @@ fn block_insert(
                 + (count as usize)
                 + 1;
             let mut newp_vec = vec![0u8; alloc_len];
-            let newp: *mut u8 = newp_vec.as_mut_ptr();
+            let offset_usize = offset as usize;
+            let spaces_usize = spaces as usize;
 
-            unsafe { ptr::copy(oldp.cast::<u8>(), newp, offset as usize) };
-            oldp = oldp.wrapping_add(offset as usize);
+            newp_vec[..offset_usize].copy_from_slice(crate::memory::cstr_slice(oldp, offset_usize));
+            oldp = oldp.wrapping_add(offset_usize);
             let startcol = offset;
 
-            unsafe { ptr::write_bytes(newp.wrapping_add(offset as usize), b' ', spaces as usize) };
-
-            unsafe {
-                ptr::copy(
-                    s.cast::<u8>(),
-                    newp.wrapping_add((offset + spaces) as usize),
-                    slen,
-                )
-            };
+            newp_vec[offset_usize..offset_usize + spaces_usize].fill(b' ');
+            newp_vec[offset_usize + spaces_usize..offset_usize + spaces_usize + slen]
+                .copy_from_slice(s_slice);
             offset += slen as i32;
 
             let mut skipped: i32 = 0;
             if spaces > 0 && bdp.is_short == 0 {
                 if crate::memory::cstr_first_byte(oldp) == b'\t' {
-                    unsafe {
-                        ptr::write_bytes(
-                            newp.wrapping_add((offset + spaces) as usize),
-                            b' ',
-                            (ts_val - spaces) as usize,
-                        )
-                    };
+                    let pad_start = (offset + spaces) as usize;
+                    let pad_len = (ts_val - spaces) as usize;
+                    newp_vec[pad_start..pad_start + pad_len].fill(b' ');
                     oldp = oldp.wrapping_add(1);
                     count += 1;
                     skipped = 1;
@@ -777,9 +766,10 @@ fn block_insert(
             if spaces > 0 {
                 offset += count;
             }
-            crate::memory::cstr_cpy(newp.wrapping_add(offset as usize).cast(), oldp);
+            let tail = crate::memory::cstr_as_bytes(oldp);
+            newp_vec[offset as usize..offset as usize + tail.len()].copy_from_slice(tail);
 
-            ml_replace(lnum, newp.cast(), true);
+            ml_replace(lnum, newp_vec.as_mut_ptr().cast(), true);
             drop(newp_vec);
             extmark_splice_cols(
                 curbuf_mut(),
@@ -859,7 +849,7 @@ pub fn op_delete(oap: &mut Oparg) -> bool {
     if oap.motion_type != MT_LINE_WISE
         && oap.line_count == 1
         && oap.op_type == OP_DELETE
-        && unsafe { *ml_get(oap.start.lnum) } == NUL
+        && crate::memory::cstr_is_empty(ml_get(oap.start.lnum))
     {
         if g_st().virtual_op != 0 {
             only_setmarks = true;
@@ -925,22 +915,16 @@ pub fn op_delete(oap: &mut Oparg) -> bool {
 
                 let n = bd.textlen - bd.startspaces - bd.endspaces;
                 let oldp = ml_get(lnum);
-                let mut newp_vec = vec![0u8; ((ml_get_len(lnum) - n) as usize) + 1];
-                let newp: *mut u8 = newp_vec.as_mut_ptr();
-                unsafe { ptr::copy(oldp.cast::<u8>(), newp, bd.textcol as usize) };
-                unsafe {
-                    ptr::write_bytes(
-                        newp.wrapping_add(bd.textcol as usize),
-                        b' ',
-                        (bd.startspaces + bd.endspaces) as usize,
-                    )
-                };
-                crate::memory::cstr_cpy(
-                    newp.wrapping_add((bd.textcol + bd.startspaces + bd.endspaces) as usize)
-                        .cast(),
+                let textcol = bd.textcol as usize;
+                let pad_len = (bd.startspaces + bd.endspaces) as usize;
+                let tail = crate::memory::cstr_as_bytes(
                     oldp.wrapping_add((bd.textcol + bd.textlen) as usize),
                 );
-                ml_replace(lnum, newp.cast(), true);
+                let mut newp_vec = vec![0u8; ((ml_get_len(lnum) - n) as usize) + 1];
+                newp_vec[..textcol].copy_from_slice(crate::memory::cstr_slice(oldp, textcol));
+                newp_vec[textcol..textcol + pad_len].fill(b' ');
+                newp_vec[textcol + pad_len..textcol + pad_len + tail.len()].copy_from_slice(tail);
+                ml_replace(lnum, newp_vec.as_mut_ptr().cast(), true);
                 drop(newp_vec);
 
                 extmark_splice_cols(
