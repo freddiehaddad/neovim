@@ -7,7 +7,7 @@ use crate::eval::typval::{
     EvalFuncData, Listitem, TV_TRANSLATE, TvBlob, TvDict, TvList, TypVal, TypvalVval, VAR_LOCKED,
     VAR_UNLOCKED, VarType, tv_blob_copy, tv_blob_get, tv_blob_len, tv_blob_remove,
     tv_check_for_string_or_list_or_blob_arg, tv_clear, tv_copy, tv_dict_add_tv, tv_dict_alloc_ret,
-    tv_dict_copy, tv_dict_extend, tv_dict_item_remove, tv_dict_remove, tv_dict_unref, tv_equal,
+    tv_dict_copy, tv_dict_extend, tv_dict_item_free, tv_dict_remove, tv_dict_unref, tv_equal,
     tv_get_bool_chk, tv_get_number_chk, tv_get_string, tv_get_string_chk, tv_list_alloc_ret,
     tv_list_append_owned_tv, tv_list_append_tv, tv_list_copy, tv_list_extend, tv_list_find,
     tv_list_first, tv_list_insert_tv, tv_list_item_remove, tv_list_len, tv_list_remove,
@@ -21,7 +21,7 @@ use crate::eval::vars::{
 use crate::eval::{eval_expr_typval, get_copy_id, tv_blob_set_ret};
 use crate::ex_docmd::do_cmdline_cmd;
 use crate::globals::*;
-use crate::hashtab::{hash_lock, hash_unlock, hashitem_empty};
+use crate::hashtab::{hash_lock, hash_remove, hash_unlock, hashitem_empty};
 use crate::mbyte::{mb_strnicmp, utf_ptr2len, utfc_slice2len};
 use crate::message::{emsg, semsg};
 use crate::strings::reverse_text;
@@ -163,7 +163,10 @@ fn filter_map_dict(
                     {
                         break;
                     }
-                    tv_dict_item_remove(d.as_deref_mut().unwrap(), &mut *di);
+                    hash_remove(&mut d.as_deref_mut().unwrap().dv_hashtab, unsafe {
+                        &mut *hi
+                    });
+                    tv_dict_item_free(&raw mut *di);
                 }
             }
             hi = hi.wrapping_add(1);
