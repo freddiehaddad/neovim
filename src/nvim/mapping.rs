@@ -2417,11 +2417,15 @@ pub fn f_mapset(argvars: &mut [TypVal], _rettv: &mut TypVal, _fptr: EvalFuncData
             let d = argvars[0].vval.v_dict();
             let which = tv_dict_get_string(d.as_ref(), c"mode");
             let is_abbr = tv_dict_get_bool(d.as_ref(), c"abbr", -1) as i32;
-            if which.is_null() || is_abbr < 0 {
+            let Some(which) = which else {
+                emsg(gettext(E_ENTRIES_MISSING_IN_MAPSET_DICT_ARGUMENT));
+                return;
+            };
+            if is_abbr < 0 {
                 emsg(gettext(E_ENTRIES_MISSING_IN_MAPSET_DICT_ARGUMENT));
                 return;
             }
-            (which.cast_const(), is_abbr, d)
+            (which.as_ptr(), is_abbr, d)
         } else {
             let which = tv_get_string_buf_chk(&argvars[0], buf.as_mut_ptr().cast());
             if which.is_null() {
@@ -2440,24 +2444,24 @@ pub fn f_mapset(argvars: &mut [TypVal], _rettv: &mut TypVal, _fptr: EvalFuncData
             return;
         }
 
-        let lhs = tv_dict_get_string(d.as_ref(), c"lhs");
-        let lhsraw = tv_dict_get_string(d.as_ref(), c"lhsraw");
-        let lhsrawalt = tv_dict_get_string(d.as_ref(), c"lhsrawalt");
-        let mut orig_rhs = tv_dict_get_string(d.as_ref(), c"rhs").cast_const();
+        let lhs = crate::eval::typval::tv_dict_get_cstring(d.as_ref(), c"lhs");
+        let lhsraw = crate::eval::typval::tv_dict_get_cstring(d.as_ref(), c"lhsraw");
+        let lhsrawalt = crate::eval::typval::tv_dict_get_cstring(d.as_ref(), c"lhsrawalt");
+        let mut orig_rhs = crate::eval::typval::tv_dict_get_cstring(d.as_ref(), c"rhs");
         let mut rhs_lua: LuaRef = LUA_NOREF;
         let callback_di = tv_dict_find(d.as_ref(), c"callback", 8);
         if !callback_di.is_null() && (*callback_di).di_tv.v_type == VarType::VarFunc {
             let fp = find_func((*callback_di).di_tv.vval.v_string());
             if !fp.is_null() && ((*fp).uf_flags & FC_LUAREF) != 0 {
                 rhs_lua = api_new_luaref((*fp).uf_luaref);
-                orig_rhs = c"".as_ptr();
+                orig_rhs = Some(std::ffi::CString::default());
             }
         }
-        if lhs.is_null() || lhsraw.is_null() || orig_rhs.is_null() {
+        let (Some(lhs), Some(lhsraw), Some(orig_rhs)) = (lhs, lhsraw, orig_rhs) else {
             emsg(gettext(E_ENTRIES_MISSING_IN_MAPSET_DICT_ARGUMENT));
             api_free_luaref(rhs_lua);
             return;
-        }
+        };
 
         let mut noremap = if tv_dict_get_number(d.as_ref(), c"noremap") != 0 {
             REMAP_NONE
@@ -2479,8 +2483,8 @@ pub fn f_mapset(argvars: &mut [TypVal], _rettv: &mut TypVal, _fptr: EvalFuncData
         let buffer = tv_dict_get_number(d.as_ref(), c"buffer") != 0;
 
         set_maparg_rhs(
-            orig_rhs,
-            crate::memory::cstr_len(orig_rhs),
+            orig_rhs.as_c_str(),
+            orig_rhs.as_bytes().len(),
             rhs_lua,
             sid,
             opt_vars().p_cpo,
@@ -2489,8 +2493,8 @@ pub fn f_mapset(argvars: &mut [TypVal], _rettv: &mut TypVal, _fptr: EvalFuncData
 
         let mut unmap_args = MapArguments::new();
         set_maparg_lhs_rhs(
-            lhs,
-            crate::memory::cstr_len(lhs),
+            lhs.as_c_str(),
+            lhs.as_bytes().len(),
             c"",
             0,
             LUA_NOREF,
@@ -2506,7 +2510,7 @@ pub fn f_mapset(argvars: &mut [TypVal], _rettv: &mut TypVal, _fptr: EvalFuncData
             curbuf_mut(),
         );
 
-        let alt = (!lhsrawalt.is_null()).then(|| {
+        let alt = lhsrawalt.is_some().then(|| {
             std::rc::Rc::new(MapAltLink {
                 keys: [std::cell::Cell::new(None), std::cell::Cell::new(None)],
             })
@@ -2514,7 +2518,7 @@ pub fn f_mapset(argvars: &mut [TypVal], _rettv: &mut TypVal, _fptr: EvalFuncData
         map_add(
             curbuf_mut(),
             buffer,
-            lhsraw,
+            lhsraw.as_c_str(),
             &args,
             noremap,
             mode,
@@ -2524,11 +2528,11 @@ pub fn f_mapset(argvars: &mut [TypVal], _rettv: &mut TypVal, _fptr: EvalFuncData
             false,
             alt.clone(),
         );
-        if !lhsrawalt.is_null() {
+        if let Some(ref lhsrawalt) = lhsrawalt {
             map_add(
                 curbuf_mut(),
                 buffer,
-                lhsrawalt,
+                lhsrawalt.as_c_str(),
                 &args,
                 noremap,
                 mode,

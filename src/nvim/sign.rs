@@ -1451,33 +1451,47 @@ pub fn set_context_in_sign_cmd(xp: &mut ExpandCtx, arg: impl crate::strings::Int
 
 fn sign_define_from_dict(name: impl crate::strings::IntoCCharPtr, dict: Option<&TvDict>) -> i32 {
     let mut name = name.into_c_char_ptr();
+    let name_owned: Option<std::ffi::CString>;
     {
         if name.is_null() {
-            name = tv_dict_get_string(dict, c"name");
-            if crate::memory::cstr_is_empty(name) {
+            name_owned = crate::eval::typval::tv_dict_get_cstring(dict, c"name");
+            let Some(ref dict_name) = name_owned else {
+                return -1;
+            };
+            if dict_name.as_bytes().is_empty() {
                 return -1;
             }
+            name = dict_name.as_ptr();
         }
 
-        let mut icon = ptr::null_mut();
-        let mut linehl = ptr::null_mut();
-        let mut text = ptr::null_mut();
-        let mut texthl = ptr::null_mut();
-        let mut culhl = ptr::null_mut();
-        let mut numhl = ptr::null_mut();
+        let mut icon = None;
+        let mut linehl = None;
+        let mut text = None;
+        let mut texthl = None;
+        let mut culhl = None;
+        let mut numhl = None;
         let mut prio: i32 = -1;
 
         if dict.is_some() {
-            icon = tv_dict_get_string(dict, c"icon");
-            linehl = tv_dict_get_string(dict, c"linehl");
-            text = tv_dict_get_string(dict, c"text");
-            texthl = tv_dict_get_string(dict, c"texthl");
-            culhl = tv_dict_get_string(dict, c"culhl");
-            numhl = tv_dict_get_string(dict, c"numhl");
+            icon = crate::eval::typval::tv_dict_get_cstring(dict, c"icon");
+            linehl = crate::eval::typval::tv_dict_get_cstring(dict, c"linehl");
+            text = crate::eval::typval::tv_dict_get_cstring(dict, c"text");
+            texthl = crate::eval::typval::tv_dict_get_cstring(dict, c"texthl");
+            culhl = crate::eval::typval::tv_dict_get_cstring(dict, c"culhl");
+            numhl = crate::eval::typval::tv_dict_get_cstring(dict, c"numhl");
             prio = tv_dict_get_number_def(dict, c"priority", -1) as i32;
         }
 
-        if sign_define_by_name(name, icon, text, linehl, texthl, culhl, numhl, prio) {
+        if sign_define_by_name(
+            name,
+            icon.as_deref(),
+            text.as_deref(),
+            linehl.as_deref(),
+            texthl.as_deref(),
+            culhl.as_deref(),
+            numhl.as_deref(),
+            prio,
+        ) {
             0
         } else {
             -1
@@ -1828,7 +1842,7 @@ fn sign_unplace_from_dict(group_tv: Option<&TypVal>, dict: Option<&TvDict>) -> i
     let mut group = if let Some(group_tv) = group_tv {
         tv_get_string(group_tv).cast_mut()
     } else {
-        tv_dict_get_string(dict, c"group")
+        tv_dict_get_string(dict, c"group").map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut())
     };
     if !group.is_null() && crate::memory::cstr_is_empty(group) {
         group = ptr::null_mut();

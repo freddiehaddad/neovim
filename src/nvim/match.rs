@@ -1073,7 +1073,7 @@ pub fn f_setmatches(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncD
             }
 
             let mut group_buf = [0u8; NUMBUFLEN];
-            let group = tv_dict_get_string_buf(d.as_ref(), c"group", group_buf.as_mut_ptr().cast());
+            let group = tv_dict_get_string_buf(d.as_ref(), c"group", &mut group_buf);
             let priority = tv_dict_get_number(d.as_ref(), c"priority") as i32;
             let id = tv_dict_get_number(d.as_ref(), c"id") as i32;
             let conceal_di = tv_dict_find(d.as_ref(), c"conceal", 7);

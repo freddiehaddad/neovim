@@ -5686,11 +5686,10 @@ pub fn expand_process_user_list(
                 p = cstr_to_cstring(tv.vval.v_string());
             } else if tv.v_type == VarType::VarDict && !tv.vval.v_dict().is_null() {
                 let d = tv.vval.v_dict();
-                let word = tv_dict_get_string(unsafe { d.as_ref() }, c"word");
-                if word.is_null() {
+                let Some(word) = tv_dict_get_string(unsafe { d.as_ref() }, c"word") else {
                     continue;
-                }
-                p = cstr_to_cstring(word);
+                };
+                p = word.to_owned();
                 abbr = crate::eval::typval::tv_dict_get_cstring(unsafe { d.as_ref() }, c"abbr");
                 kind = crate::eval::typval::tv_dict_get_cstring(unsafe { d.as_ref() }, c"kind");
                 menu = crate::eval::typval::tv_dict_get_cstring(unsafe { d.as_ref() }, c"menu");

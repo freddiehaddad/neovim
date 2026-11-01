@@ -30,7 +30,7 @@ use crate::hashtab::{
 use crate::lua::converter::{LUA_NOREF, LuaRef};
 use crate::lua::executor::{api_free_luaref, api_new_luaref, nlua_funcref_str};
 use crate::mbyte::{Vimconv, mb_strcmp_ic, string_convert, utf_char2bytes, utfc_ptr2len};
-use crate::memory::{cstr_from_bytes, cstr_to_cstring, xstrlcpy};
+use crate::memory::{cstr_from_bytes, xstrlcpy};
 use crate::message::{emsg, internal_error, semsg};
 use crate::os::input::{fast_breakcheck, line_breakcheck};
 use crate::strings::{RawCCharPtr, RawCCharPtrMut, strcoll, strtod, tr, vim_snprintf};
@@ -2465,13 +2465,15 @@ pub fn tv_list_find_nr(
 }
 
 /// Get list item l[n] as a string.
-pub fn tv_list_find_str(l: Option<&mut TvList>, n: i32) -> RawCCharPtr {
+pub fn tv_list_find_str(l: Option<&mut TvList>, n: i32) -> Option<&'static std::ffi::CStr> {
     let li = tv_list_find(l, n);
     if li.is_null() {
         semsg!(tr(E_LIST_INDEX_OUT_OF_RANGE_NR), i64::from(n));
-        return ptr::null();
+        return None;
     }
-    tv_get_string(unsafe { &(*li).li_tv })
+    Some(crate::memory::cstr_from_ptr(tv_get_string(unsafe {
+        &(*li).li_tv
+    })))
 }
 
 fn tv_list_find_index(mut l: Option<&mut TvList>, idx: &mut i32) -> *mut Listitem {
@@ -2997,56 +2999,49 @@ pub fn tv_dict_to_env(denv: Option<&TvDict>) -> Vec<std::ffi::CString> {
 /// Get an owned `CString` item from a dictionary.
 pub fn tv_dict_get_cstring(d: Option<&TvDict>, key: &std::ffi::CStr) -> Option<std::ffi::CString> {
     let mut numbuf: [u8; NUMBUFLEN] = [0; NUMBUFLEN];
-    let s = tv_dict_get_string_buf(d, key, numbuf.as_mut_ptr());
-    if s.is_null() {
-        None
-    } else {
-        Some(cstr_to_cstring(s))
-    }
+    tv_dict_get_string_buf(d, key, &mut numbuf).map(std::ffi::CStr::to_owned)
 }
 
 /// Get a string item from a dictionary.
 pub fn tv_dict_get_string<S: crate::strings::IntoCCharPtr>(
     d: Option<&TvDict>,
     key: S,
-) -> RawCCharPtrMut {
-    tv_dict_get_string_buf(d, key, tv_st().dict_numbuf.as_mut_ptr()).cast_mut()
+) -> Option<&std::ffi::CStr> {
+    tv_dict_get_string_buf(d, key, &mut tv_st().dict_numbuf)
 }
 
 /// Get a string item from a dictionary.
-pub fn tv_dict_get_string_buf<S: crate::strings::IntoCCharPtr>(
-    d: Option<&TvDict>,
+pub fn tv_dict_get_string_buf<'a, S: crate::strings::IntoCCharPtr>(
+    d: Option<&'a TvDict>,
     key: S,
-    numbuf: *mut u8,
-) -> RawCCharPtr {
+    numbuf: &'a mut [u8; NUMBUFLEN],
+) -> Option<&'a std::ffi::CStr> {
     let key = key.into_c_char_ptr();
-    {
-        let di = tv_dict_find(d, key, -1);
-        if di.is_null() {
-            return ptr::null();
-        }
-        let di = unsafe { &mut *di };
-        tv_get_string_buf(&di.di_tv, numbuf)
+    let di = tv_dict_find(d, key, -1);
+    if di.is_null() {
+        return None;
     }
+    let di = unsafe { &*di };
+    Some(crate::memory::cstr_from_ptr(tv_get_string_buf(
+        &di.di_tv,
+        numbuf.as_mut_ptr(),
+    )))
 }
 
 /// Get a string item from a dictionary.
-pub fn tv_dict_get_string_buf_chk(
-    d: Option<&TvDict>,
+pub fn tv_dict_get_string_buf_chk<'a>(
+    d: Option<&'a TvDict>,
     key: &std::ffi::CStr,
     key_len: isize,
-    numbuf: *mut u8,
-    def: impl crate::strings::IntoCCharPtr,
-) -> RawCCharPtr {
-    let def = def.into_c_char_ptr();
-    {
-        let di = tv_dict_find(d, key.as_ptr(), key_len);
-        if di.is_null() {
-            return def;
-        }
-        let di = unsafe { &mut *di };
-        tv_get_string_buf_chk(&di.di_tv, numbuf)
+    numbuf: &'a mut [u8; NUMBUFLEN],
+    def: Option<&'a std::ffi::CStr>,
+) -> Option<&'a std::ffi::CStr> {
+    let di = tv_dict_find(d, key.as_ptr(), key_len);
+    if di.is_null() {
+        return def;
     }
+    let di = unsafe { &*di };
+    crate::memory::cstr_as_opt_cstr(tv_get_string_buf_chk(&di.di_tv, numbuf.as_mut_ptr()))
 }
 
 /// Get a function from a dictionary.
@@ -5138,14 +5133,8 @@ mod tests {
             tv_list_insert_tv(l2, &mut tv_ins, first2);
             assert_eq!(tv_list_len_inline(Some(&*l2)), 3);
             assert_eq!(tv_list_find_nr(Some(&mut *l2), 0, None), 99);
-            assert_eq!(
-                crate::memory::cstr_as_bytes(tv_list_find_str(Some(&mut *l2), 1)),
-                b"hello"
-            );
-            assert_eq!(
-                crate::memory::cstr_as_bytes(tv_list_find_str(Some(&mut *l2), 2)),
-                b"world"
-            );
+            assert_eq!(tv_list_find_str(Some(&mut *l2), 1), Some(c"hello"));
+            assert_eq!(tv_list_find_str(Some(&mut *l2), 2), Some(c"world"));
 
             // copy, extend, concat, join, equal
             let l2_copy = tv_list_copy(None, Some(&mut *l2), true, 0);
@@ -5204,22 +5193,13 @@ mod tests {
             assert_eq!(tv_dict_get_number(Some(&*d), c"missing"), 0);
 
             let mut numbuf = [0u8; NUMBUFLEN];
-            assert_eq!(
-                crate::memory::cstr_as_bytes(tv_dict_get_string(Some(&*d), c"str")),
-                b"bar"
-            );
+            assert_eq!(tv_dict_get_string(Some(&*d), c"str"), Some(c"bar"));
             let saved = tv_dict_get_cstring(Some(&*d), c"foo").unwrap();
             assert_eq!(saved.as_bytes(), b"42");
 
             assert_eq!(
-                crate::memory::cstr_as_bytes(tv_dict_get_string_buf_chk(
-                    Some(&*d),
-                    c"missing",
-                    7,
-                    numbuf.as_mut_ptr(),
-                    c"def"
-                )),
-                b"def"
+                tv_dict_get_string_buf_chk(Some(&*d), c"missing", 7, &mut numbuf, Some(c"def")),
+                Some(c"def")
             );
 
             // Copy, equal, extend, readonly, clear

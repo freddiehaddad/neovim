@@ -3453,7 +3453,8 @@ fn ins_compl_add_tv(tv: &mut TypVal, dir: Direction, fast: bool) -> i32 {
 
     if tv.v_type == VAR_DICT && !tv.vval.v_dict().is_null() {
         let d = tv.vval.v_dict();
-        word = tv_dict_get_string(unsafe { d.as_ref() }, c"word").cast();
+        word = tv_dict_get_string(unsafe { d.as_ref() }, c"word")
+            .map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut().cast());
         cptext[CPT_ABBR] = crate::eval::typval::tv_dict_get_cstring(unsafe { d.as_ref() }, c"abbr");
         cptext[CPT_MENU] = crate::eval::typval::tv_dict_get_cstring(unsafe { d.as_ref() }, c"menu");
         cptext[CPT_KIND] = crate::eval::typval::tv_dict_get_cstring(unsafe { d.as_ref() }, c"kind");
@@ -3475,7 +3476,7 @@ fn ins_compl_add_tv(tv: &mut TypVal, dir: Direction, fast: bool) -> i32 {
         dup = tv_dict_get_number(unsafe { d.as_ref() }, c"dup") != 0;
         empty = tv_dict_get_number(unsafe { d.as_ref() }, c"empty") != 0;
         preselect = tv_dict_get_number(unsafe { d.as_ref() }, c"preselect") != 0;
-        if !tv_dict_get_string(unsafe { d.as_ref() }, c"equal").is_null()
+        if tv_dict_get_string(unsafe { d.as_ref() }, c"equal").is_some()
             && tv_dict_get_number(unsafe { d.as_ref() }, c"equal") != 0
         {
             flags |= CP_EQUAL;

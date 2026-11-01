@@ -12066,13 +12066,13 @@ pub fn eval_vars(
                                 *usedlen = 1;
                                 return None;
                             }
-                            result =
+                            let Some(oldfile) =
                                 tv_list_find_str(get_vim_var_list(VV_OLDFILES).as_mut(), i - 1)
-                                    .cast_mut();
-                            if result.is_null() {
+                            else {
                                 *errormsg = Some(c"");
                                 return None;
-                            }
+                            };
+                            result = oldfile.as_ptr().cast_mut();
                         } else {
                             if i == 0 && crate::memory::cstr_byte_at(src, 1) == b'<' && *usedlen > 1
                             {

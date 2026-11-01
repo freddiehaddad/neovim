@@ -3669,23 +3669,22 @@ fn tagstack_push_items(wp: &mut WinInfoInfo, l: Option<&TvList>) {
                     Some(&mut fnum),
                     None,
                     false,
-                ) {
-                    let tagname = tv_dict_get_string(unsafe { itemdict.as_ref() }, c"tagname");
-                    if !tagname.is_null() {
-                        if mark.col > 0 {
-                            mark.col -= 1;
-                        }
-                        let ud_ptr = tv_dict_get_string(unsafe { itemdict.as_ref() }, c"user_data");
-                        tagstack_push_item(
-                            wp,
-                            Some(crate::memory::cstr_to_cstring(tagname)),
-                            tv_dict_get_number(unsafe { itemdict.as_ref() }, c"bufnr") as i32,
-                            tv_dict_get_number(unsafe { itemdict.as_ref() }, c"matchnr") as i32 - 1,
-                            mark,
-                            fnum,
-                            (!ud_ptr.is_null()).then(|| crate::memory::cstr_to_cstring(ud_ptr)),
-                        );
+                ) && let Some(tagname) =
+                    tv_dict_get_string(unsafe { itemdict.as_ref() }, c"tagname")
+                {
+                    if mark.col > 0 {
+                        mark.col -= 1;
                     }
+                    let ud_ptr = tv_dict_get_string(unsafe { itemdict.as_ref() }, c"user_data");
+                    tagstack_push_item(
+                        wp,
+                        Some(tagname.to_owned()),
+                        tv_dict_get_number(unsafe { itemdict.as_ref() }, c"bufnr") as i32,
+                        tv_dict_get_number(unsafe { itemdict.as_ref() }, c"matchnr") as i32 - 1,
+                        mark,
+                        fnum,
+                        ud_ptr.map(std::ffi::CStr::to_owned),
+                    );
                 }
             }
         }

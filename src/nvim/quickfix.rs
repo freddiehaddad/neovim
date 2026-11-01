@@ -6606,11 +6606,9 @@ fn qf_add_entry_from_dict(
             .as_ref()
             .map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut()),
         nr,
-        if type_.is_null() {
-            0
-        } else {
-            unsafe { *type_.cast::<u8>() }
-        },
+        type_
+            .and_then(|s| s.to_bytes().first().copied())
+            .unwrap_or(0),
         Some(&user_data),
         u8::from(valid),
     );

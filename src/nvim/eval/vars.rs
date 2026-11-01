@@ -910,7 +910,7 @@ pub fn get_spellword<'a>(list: &'a mut TvList, ret_word: &mut Option<&'a CStr>) 
         ));
         return -1;
     }
-    *ret_word = crate::memory::cstr_as_opt_cstr(tv_list_find_str(Some(&mut *list), 0));
+    *ret_word = tv_list_find_str(Some(&mut *list), 0);
     if ret_word.is_none() {
         return -1;
     }

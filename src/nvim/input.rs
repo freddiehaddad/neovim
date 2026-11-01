@@ -1879,15 +1879,11 @@ fn getchar_common(argvars: &mut [TypVal], rettv: &mut TypVal, mut allow_number: 
 
             simplify = tv_dict_get_bool(d.as_ref(), c"simplify", 1) != 0;
 
-            let cursor_str = tv_dict_get_string(d.as_ref(), c"cursor");
-            if !cursor_str.is_null() {
-                if crate::memory::cstr_as_bytes(cursor_str) != b"hide"
-                    && crate::memory::cstr_as_bytes(cursor_str) != b"keep"
-                    && crate::memory::cstr_as_bytes(cursor_str) != b"msg"
-                {
+            if let Some(cursor_str) = tv_dict_get_string(d.as_ref(), c"cursor") {
+                if cursor_str != c"hide" && cursor_str != c"keep" && cursor_str != c"msg" {
                     semsg!(gettext(E_INVARG_NVAL), c"cursor", cursor_str,);
                 } else {
-                    cursor_flag = crate::memory::cstr_first_byte(cursor_str);
+                    cursor_flag = cursor_str.to_bytes()[0];
                 }
             }
         }

@@ -3122,7 +3122,7 @@ fn getregionpos(
         }
 
         let is_select_exclusive: bool;
-        let mut type_str;
+        let type_str;
         let mut default_type = [b'v', 0];
         if argvars[2].v_type == VarType::VarDict {
             let d = argvars[2].vval.v_dict();
@@ -3131,10 +3131,11 @@ fn getregionpos(
                 c"exclusive",
                 i32::from(crate::memory::cstr_first_byte(opt_vars().p_sel) == b'e'),
             ) != 0;
-            type_str = tv_dict_get_string(d.as_ref(), c"type");
-            if type_str.is_null() {
-                type_str = default_type.as_mut_ptr().cast();
-            }
+            type_str = if let Some(s) = tv_dict_get_string(d.as_ref(), c"type") {
+                s.as_ptr().cast_mut()
+            } else {
+                default_type.as_mut_ptr().cast()
+            };
         } else {
             is_select_exclusive = crate::memory::cstr_first_byte(opt_vars().p_sel) == b'e';
             type_str = default_type.as_mut_ptr().cast();
@@ -4515,8 +4516,7 @@ pub fn f_jobstart(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDat
             clear_env = tv_dict_get_number(job_opts.as_ref(), c"clear_env") != 0;
             overlapped = tv_dict_get_number(job_opts.as_ref(), c"overlapped") != 0;
 
-            let s = tv_dict_get_string(job_opts.as_ref(), c"stdin");
-            if !s.is_null() {
+            if let Some(s) = tv_dict_get_string(job_opts.as_ref(), c"stdin") {
                 if crate::memory::cstr_prefix_bytes(s, NUMBUFLEN)
                     == crate::memory::cstr_prefix_bytes(c"null", NUMBUFLEN)
                 {
@@ -4553,9 +4553,10 @@ pub fn f_jobstart(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDat
                 return;
             }
 
-            let new_cwd = tv_dict_get_string(job_opts.as_ref(), c"cwd");
-            if !crate::memory::cstr_is_empty(new_cwd) {
-                cwd = new_cwd;
+            if let Some(new_cwd) = tv_dict_get_string(job_opts.as_ref(), c"cwd")
+                && !new_cwd.to_bytes().is_empty()
+            {
+                cwd = new_cwd.as_ptr();
                 if !os_isdir(cwd) {
                     semsg!(gettext(E_INVARG2), c"expected valid directory",);
                     return;
@@ -4615,8 +4616,10 @@ pub fn f_jobstart(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDat
         }
 
         if pty {
-            if term_name.is_null() {
-                term_name = tv_dict_get_string(job_opts.as_ref(), c"TERM");
+            if term_name.is_null()
+                && let Some(tn) = tv_dict_get_string(job_opts.as_ref(), c"TERM")
+            {
+                term_name = tn.as_ptr();
             }
             if term_name.is_null() {
                 term_name = c"ansi".as_ptr();
@@ -7567,8 +7570,7 @@ pub fn f_setcharsearch(argvars: &mut [TypVal], _rettv: &mut TypVal, _fptr: EvalF
         return;
     }
 
-    let csearch = tv_dict_get_string(unsafe { d.as_ref() }, c"char");
-    if !csearch.is_null() {
+    if let Some(csearch) = tv_dict_get_string(unsafe { d.as_ref() }, c"char") {
         let c = utf_ptr2char(csearch);
         set_last_csearch(c, csearch, utfc_ptr2len(csearch));
     }
@@ -7715,8 +7717,8 @@ pub fn f_setreg(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData)
                 regcontents = &raw const (*di).di_tv;
             }
 
-            let mut stropt = tv_dict_get_string(d.as_ref(), c"regtype");
-            if !stropt.is_null() {
+            if let Some(s) = tv_dict_get_string(d.as_ref(), c"regtype") {
+                let mut stropt = s.as_ptr().cast_mut();
                 let ret = get_yank_type(&raw mut stropt, &mut yank_type, &mut block_len);
                 stropt = stropt.wrapping_add(1);
                 if !ret || !crate::memory::cstr_is_empty(stropt) {
@@ -7726,9 +7728,8 @@ pub fn f_setreg(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData)
             }
 
             if regname == b'"' {
-                stropt = tv_dict_get_string(d.as_ref(), c"points_to");
-                if !stropt.is_null() {
-                    pointreg = *stropt.cast::<u8>();
+                if let Some(s) = tv_dict_get_string(d.as_ref(), c"points_to") {
+                    pointreg = *s.as_ptr().cast::<u8>();
                     regname = pointreg;
                 }
             } else if tv_dict_get_bool(d.as_ref(), c"isunnamed", -1) > 0 {

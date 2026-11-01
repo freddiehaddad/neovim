@@ -5384,52 +5384,45 @@ pub fn get_user_input(argvars: &[TypVal], rettv: &mut TypVal, inputdialog: bool,
         let mut defstr_buf: [u8; NUMBUFLEN] = [0; NUMBUFLEN];
         let mut cancelreturn_buf: [u8; NUMBUFLEN] = [0; NUMBUFLEN];
         let mut xp_name_buf: [u8; NUMBUFLEN] = [0; NUMBUFLEN];
-        let def: [u8; 1] = [0];
         if argvars[0].v_type == VarType::VarDict {
             if argvars[1].v_type != VarType::VarUnknown {
                 emsg(gettext(c"E5050: {opts} must be the only argument"));
                 return;
             }
             let dict = argvars[0].vval.v_dict();
-            prompt = tv_dict_get_string_buf_chk(
-                dict.as_ref(),
-                c"prompt",
-                6,
-                prompt_buf.as_mut_ptr().cast(),
-                c"",
-            )
-            .cast();
-            if prompt.is_null() {
+            let Some(prompt_cstr) =
+                tv_dict_get_string_buf_chk(dict.as_ref(), c"prompt", 6, &mut prompt_buf, Some(c""))
+            else {
                 return;
-            }
-            defstr = tv_dict_get_string_buf_chk(
+            };
+            prompt = prompt_cstr.as_ptr().cast();
+            let Some(defstr_cstr) = tv_dict_get_string_buf_chk(
                 dict.as_ref(),
                 c"default",
                 7,
-                defstr_buf.as_mut_ptr().cast(),
-                c"",
-            )
-            .cast();
-            if defstr.is_null() {
+                &mut defstr_buf,
+                Some(c""),
+            ) else {
                 return;
-            }
+            };
+            defstr = defstr_cstr.as_ptr().cast();
             let cancelreturn_di = tv_dict_find(dict.as_ref(), c"cancelreturn", 12);
             if !cancelreturn_di.is_null() {
                 cancelreturn = &raw mut (*cancelreturn_di).di_tv;
             }
-            xp_name = tv_dict_get_string_buf_chk(
-                dict.as_ref(),
-                c"completion",
-                10,
-                xp_name_buf.as_mut_ptr().cast(),
-                def.as_ptr().cast(),
-            )
-            .cast();
-            if xp_name.is_null() {
-                return;
-            }
-            if xp_name == def.as_ptr() {
+            if tv_dict_find(dict.as_ref(), c"completion", 10).is_null() {
                 xp_name = ptr::null();
+            } else {
+                let Some(xp_cstr) = tv_dict_get_string_buf_chk(
+                    dict.as_ref(),
+                    c"completion",
+                    10,
+                    &mut xp_name_buf,
+                    None,
+                ) else {
+                    return;
+                };
+                xp_name = xp_cstr.as_ptr().cast();
             }
             if !tv_dict_get_callback(dict.as_mut(), c"highlight", 9, &mut input_callback) {
                 return;
