@@ -171,7 +171,6 @@ use crate::api::ui::NO_SCREEN;
 use crate::api::vim::ERR_BUFLEN;
 use crate::api::win_config::K_CTX_NO_DISPLAY;
 use crate::buffer::{BCO_ENTER, BCO_NOHELP};
-use crate::charset::NUL;
 use crate::drawline::{
     K_OPT_CULOPT_FLAG_LINE, K_OPT_CULOPT_FLAG_NUMBER, K_OPT_CULOPT_FLAG_SCREENLINE,
     K_OPT_FLAG_INSECURE,
@@ -2237,27 +2236,25 @@ pub fn do_set(arg: impl crate::strings::IntoCCharPtr, opt_flags: i32) -> bool {
                 }
 
                 if let Some(errmsg) = errmsg {
-                    let iobuf_ptr = g_st().iobuff.as_mut_ptr();
-                    let i = (vim_snprintf!(iobuf_ptr, IOSIZE, c"%s", tr(errmsg)) + 2) as isize;
-                    let arg_len = crate::memory::ptr_offset_from(arg, startarg);
-                    if (i + arg_len) < IOSIZE as isize {
-                        xstrlcpy(
-                            iobuf_ptr.wrapping_offset(i - 2),
-                            c": ",
-                            (IOSIZE as isize - i + 2) as usize,
-                        );
-                        assert!(arg >= startarg);
-                        unsafe {
-                            ptr::copy(startarg, iobuf_ptr.wrapping_offset(i), arg_len as usize)
-                        };
-                        unsafe {
-                            *iobuf_ptr.wrapping_offset(i + arg_len) = NUL;
-                        }
+                    let iobuf = g_st().iobuff_bytes_mut();
+                    let msg_bytes = tr(errmsg).to_bytes();
+                    let mut pos = msg_bytes.len().min(IOSIZE - 1);
+                    iobuf[..pos].copy_from_slice(&msg_bytes[..pos]);
+                    assert!(arg >= startarg);
+                    let arg_len = crate::memory::ptr_offset_from(arg, startarg) as usize;
+                    if pos + 2 + arg_len < IOSIZE {
+                        iobuf[pos..pos + 2].copy_from_slice(b": ");
+                        pos += 2;
+                        let arg_slice =
+                            unsafe { std::slice::from_raw_parts(startarg.cast::<u8>(), arg_len) };
+                        iobuf[pos..pos + arg_len].copy_from_slice(arg_slice);
+                        pos += arg_len;
                     }
-                    trans_characters(&mut g_st().iobuff);
+                    iobuf[pos] = 0;
+                    trans_characters(iobuf);
 
                     g_st().no_wait_return += 1;
-                    emsg(iobuf_ptr);
+                    emsg(g_st().iobuff.as_ptr());
                     g_st().no_wait_return -= 1;
 
                     return false;

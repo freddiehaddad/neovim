@@ -6,7 +6,8 @@ use crate::globals::*;
 use crate::mbyte::{
     UTF8LEN_TAB, mb_islower, mb_isupper, mb_ptr2char_adv, mb_tolower, utf_char2bytes,
     utf_char2cells, utf_char2len, utf_class_tab, utf_cluster_info, utf_printable,
-    utf_ptr2_str_char_info, utf_ptr2char, utf_ptr2len, utfc_ptr2len,
+    utf_ptr2_str_char_info, utf_ptr2char, utf_ptr2len, utf_slice2char, utf_slice2len, utfc_ptr2len,
+    utfc_slice2len,
 };
 use crate::memory::cstr_from_bytes;
 use crate::option::{get_fileformat, skip_to_option_part};
@@ -360,78 +361,65 @@ pub fn parse_isopt(var: impl crate::strings::IntoCCharPtr, chartab: *mut u64) ->
     }
 }
 
-pub fn trans_characters<T>(buf_slice: &mut [T]) {
-    const { assert!(size_of::<T>() == 1) };
-    let mut buf: RawCCharPtrMut = buf_slice.as_mut_ptr().cast();
-    let bufsize = buf_slice.len() as i32;
-    let mut len = crate::memory::cstr_len(buf) as i32;
-    let mut room = bufsize - len;
+pub fn trans_characters(buf: &mut [u8]) {
+    let mut len = buf.iter().position(|&b| b == 0).unwrap_or(buf.len());
+    let mut pos = 0usize;
 
-    while !crate::memory::cstr_is_empty(buf) {
-        let mut trs_len = utfc_ptr2len(buf);
-        if trs_len > 1 {
-            len -= trs_len;
-        } else {
-            let trs = transchar_byte(i32::from(crate::memory::cstr_first_byte(buf)));
+    while pos < len {
+        let mut trs_len = utfc_slice2len(&buf[pos..len]);
+        if trs_len <= 1 {
+            let trs = transchar_byte(i32::from(buf[pos]));
             let trs_bytes = trs.to_bytes();
-            trs_len = trs_bytes.len() as i32;
+            trs_len = trs_bytes.len();
 
             if trs_len > 1 {
-                room -= trs_len - 1;
-                if room <= 0 {
+                let extra = trs_len - 1;
+                if len + extra >= buf.len() {
                     return;
                 }
-                unsafe {
-                    ptr::copy(
-                        buf.wrapping_add(1),
-                        buf.wrapping_add(trs_len as usize),
-                        len as usize,
-                    )
-                };
+                buf.copy_within(pos + 1..=len, pos + trs_len);
+                len += extra;
             }
-            unsafe { ptr::copy(trs.as_ptr(), buf, trs_len as usize) };
-            len -= 1;
+            buf[pos..pos + trs_len].copy_from_slice(trs_bytes);
         }
-        buf = buf.wrapping_add(trs_len as usize);
+        pos += trs_len;
     }
 }
 
 pub fn transstr_len(s: impl crate::strings::IntoCCharPtr, untab: bool) -> usize {
     let s = s.into_c_char_ptr();
-    {
-        let mut p = s;
-        let mut len: usize = 0;
+    let mut bytes = crate::memory::cstr_as_bytes(s);
+    let mut len: usize = 0;
 
-        while !crate::memory::cstr_is_empty(p) {
-            let l = utfc_ptr2len(p) as usize;
-            if l > 1 {
-                if vim_isprintc(utf_ptr2char(p)) {
-                    len += l;
-                } else {
-                    let mut off: usize = 0;
-                    while off < l {
-                        let c = utf_ptr2char(p.wrapping_add(off));
-                        let mut hexbuf = [0u8; 9];
-                        len += transchar_hex(&mut hexbuf, c);
-                        off += utf_ptr2len(p.wrapping_add(off)) as usize;
-                    }
-                }
-                p = p.wrapping_add(l);
-            } else if crate::memory::cstr_first_byte(p) == TAB && !untab {
-                len += 1;
-                p = p.wrapping_add(1);
+    while !bytes.is_empty() {
+        let l = utfc_slice2len(bytes);
+        if l > 1 {
+            if vim_isprintc(utf_slice2char(bytes)) {
+                len += l;
             } else {
-                let c = crate::memory::cstr_first_byte(p);
-                p = p.wrapping_add(1);
-                len += if c < 0x80 {
-                    ascii2cells(i32::from(c)) as usize
-                } else {
-                    4
-                };
+                let mut off: usize = 0;
+                while off < l {
+                    let c = utf_slice2char(&bytes[off..]);
+                    let mut hexbuf = [0u8; 9];
+                    len += transchar_hex(&mut hexbuf, c);
+                    off += utf_slice2len(&bytes[off..]);
+                }
             }
+            bytes = &bytes[l..];
+        } else if bytes[0] == TAB && !untab {
+            len += 1;
+            bytes = &bytes[1..];
+        } else {
+            let c = bytes[0];
+            bytes = &bytes[1..];
+            len += if c < 0x80 {
+                ascii2cells(i32::from(c)) as usize
+            } else {
+                4
+            };
         }
-        len
     }
+    len
 }
 
 pub fn transstr_buf(
@@ -441,65 +429,61 @@ pub fn transstr_buf(
     untab: bool,
 ) -> usize {
     let s = s.into_c_char_ptr();
-    {
-        let buflen = buf_slice.len();
-        let buf: RawCCharPtrMut = buf_slice.as_mut_ptr().cast();
-        let mut p = s;
-        let mut buf_p = buf;
-        let buf_e = buf_p.wrapping_add(buflen - 1);
-
-        while (slen < 0 || crate::memory::ptr_offset_from(p, s) < slen)
-            && !crate::memory::cstr_is_empty(p)
-            && buf_p < buf_e
-        {
-            let l = utfc_ptr2len(p) as usize;
-            if l > 1 {
-                if buf_p.wrapping_add(l) > buf_e {
-                    break;
-                }
-
-                if vim_isprintc(utf_ptr2char(p)) {
-                    unsafe { ptr::copy(p, buf_p, l) };
-                    buf_p = buf_p.wrapping_add(l);
-                } else {
-                    let mut off: usize = 0;
-                    while off < l {
-                        let c = utf_ptr2char(p.wrapping_add(off));
-                        let mut hexbuf = [0u8; 9];
-                        let hexlen = transchar_hex(&mut hexbuf, c);
-                        if buf_p.wrapping_add(hexlen) > buf_e {
-                            break;
-                        }
-                        unsafe { ptr::copy_nonoverlapping(hexbuf.as_ptr().cast(), buf_p, hexlen) };
-                        buf_p = buf_p.wrapping_add(hexlen);
-                        off += utf_ptr2len(p.wrapping_add(off)) as usize;
-                    }
-                }
-                p = p.wrapping_add(l);
-            } else if crate::memory::cstr_first_byte(p) == TAB && !untab {
-                unsafe {
-                    *buf_p = *p;
-                }
-                buf_p = buf_p.wrapping_add(1);
-                p = p.wrapping_add(1);
-            } else {
-                let c = crate::memory::cstr_first_byte(p);
-                p = p.wrapping_add(1);
-                let tb = transchar_byte(i32::from(c));
-                let tb_len = tb.to_bytes().len();
-                if buf_p.wrapping_add(tb_len) > buf_e {
-                    break;
-                }
-                unsafe { ptr::copy(tb.as_ptr(), buf_p, tb_len) };
-                buf_p = buf_p.wrapping_add(tb_len);
-            }
-        }
-        unsafe {
-            *buf_p = NUL;
-        }
-        assert!(buf_p <= buf_e);
-        crate::memory::ptr_offset_from(buf_p, buf) as usize
+    let max_out = buf_slice.len().saturating_sub(1);
+    let mut out = 0usize;
+    if slen == 0 || s.is_null() {
+        buf_slice[0] = 0;
+        return 0;
     }
+    let full_bytes = crate::memory::cstr_as_bytes(s);
+    let mut bytes = if slen < 0 {
+        full_bytes
+    } else {
+        &full_bytes[..(slen as usize).min(full_bytes.len())]
+    };
+
+    while !bytes.is_empty() && out < max_out {
+        let l = utfc_slice2len(bytes);
+        if l > 1 {
+            if out + l > max_out {
+                break;
+            }
+
+            if vim_isprintc(utf_slice2char(bytes)) {
+                buf_slice[out..out + l].copy_from_slice(&bytes[..l]);
+                out += l;
+            } else {
+                let mut off: usize = 0;
+                while off < l {
+                    let c = utf_slice2char(&bytes[off..]);
+                    let mut hexbuf = [0u8; 9];
+                    let hexlen = transchar_hex(&mut hexbuf, c);
+                    if out + hexlen > max_out {
+                        break;
+                    }
+                    buf_slice[out..out + hexlen].copy_from_slice(&hexbuf[..hexlen]);
+                    out += hexlen;
+                    off += utf_slice2len(&bytes[off..]);
+                }
+            }
+            bytes = &bytes[l..];
+        } else if bytes[0] == TAB && !untab {
+            buf_slice[out] = bytes[0];
+            out += 1;
+            bytes = &bytes[1..];
+        } else {
+            let c = bytes[0];
+            bytes = &bytes[1..];
+            let tb = transchar_byte(i32::from(c)).to_bytes();
+            if out + tb.len() > max_out {
+                break;
+            }
+            buf_slice[out..out + tb.len()].copy_from_slice(tb);
+            out += tb.len();
+        }
+    }
+    buf_slice[out] = 0;
+    out
 }
 
 pub fn transstr(s: impl crate::strings::IntoCCharPtr, untab: bool) -> CString {

@@ -874,6 +874,16 @@ impl EditorState {
             tabpage_move_disallowed: 0,
         }
     }
+
+    #[inline]
+    pub fn iobuff_bytes_mut(&mut self) -> &mut [u8; IOSIZE] {
+        unsafe { &mut *(&raw mut self.iobuff).cast::<[u8; IOSIZE]>() }
+    }
+
+    #[inline]
+    pub fn name_buff_bytes_mut(&mut self) -> &mut [u8; MAXPATHL] {
+        unsafe { &mut *(&raw mut self.name_buff).cast::<[u8; MAXPATHL]>() }
+    }
 }
 
 pub static EDITOR_STATE: GlobalState<EditorState> = GlobalState::new(EditorState::new());

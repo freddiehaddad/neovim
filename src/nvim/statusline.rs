@@ -384,7 +384,7 @@ pub fn get_trans_bufname(buf: &mut FileBuf) {
     } else {
         home_replace(Some(&*buf), buf.b_fname, name_buff, MAXPATHL, true);
     }
-    trans_characters(&mut g_st().name_buff);
+    trans_characters(g_st().name_buff_bytes_mut());
 }
 
 /// Return true if the status line of window `wp` is connected to the status
@@ -1883,7 +1883,7 @@ pub extern "C" fn build_stl_str_hl(
                         };
                         home_replace((wp.w_buffer).as_ref(), t, name_buff, MAXPATHL, true);
                     }
-                    trans_characters(&mut g_st().name_buff);
+                    trans_characters(g_st().name_buff_bytes_mut());
                     if opt != STL_FILENAME {
                         str = name_buff.cast();
                     } else {
