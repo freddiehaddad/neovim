@@ -327,6 +327,11 @@ impl TypvalVval {
     }
 
     #[inline]
+    pub fn v_list_opt(self) -> Option<&'static mut TvList> {
+        unsafe { self.v_list().as_mut() }
+    }
+
+    #[inline]
     pub const fn v_dict(self) -> *mut TvDict {
         match self {
             Self::Dict(p) => p,
@@ -918,6 +923,41 @@ pub fn tv_list_first(l: Option<&TvList>) -> *mut Listitem {
 #[inline]
 pub fn tv_list_last(l: Option<&TvList>) -> *mut Listitem {
     tv_list_last_inline(l)
+}
+
+pub struct TvListIter<'a> {
+    cur: *const Listitem,
+    last: *const Listitem,
+    _marker: std::marker::PhantomData<&'a Listitem>,
+}
+
+impl<'a> Iterator for TvListIter<'a> {
+    type Item = &'a Listitem;
+
+    #[inline]
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.cur.is_null() {
+            return None;
+        }
+        let item = unsafe { &*self.cur };
+        if ptr::eq(self.cur, self.last) {
+            self.cur = ptr::null();
+        } else {
+            self.cur = item.li_next;
+        }
+        Some(item)
+    }
+}
+
+#[inline]
+pub fn tv_list_iter(l: Option<&TvList>) -> TvListIter<'_> {
+    let cur = tv_list_first_inline(l);
+    let last = l.map_or(ptr::null(), |l| l.lv_last);
+    TvListIter {
+        cur,
+        last,
+        _marker: std::marker::PhantomData,
+    }
 }
 
 #[inline]

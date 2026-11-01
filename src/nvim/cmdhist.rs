@@ -106,14 +106,12 @@ impl Default for Histentry {
 use crate::globals::IOSIZE;
 
 #[inline]
-fn clear_hist_entry(hisptr: *mut Histentry) {
-    unsafe {
-        *hisptr = Histentry::new();
-    }
+fn clear_hist_entry(hisptr: &mut Histentry) {
+    *hisptr = Histentry::new();
 }
 
 #[inline]
-fn hist_free_entry(hisptr: *mut Histentry) {
+fn hist_free_entry(hisptr: &mut Histentry) {
     clear_hist_entry(hisptr);
 }
 
@@ -124,9 +122,7 @@ pub fn get_hislen() -> i32 {
 
 /// Return a slice of a specified history table (`get_histentry`).
 pub fn get_histentry(hist_type: i32) -> &'static [Histentry] {
-    unsafe { (&raw const hist_st().history[hist_type as usize]).as_ref() }
-        .unwrap()
-        .as_slice()
+    hist_st().history[hist_type as usize].as_slice()
 }
 
 /// Return the current index for `hist_type` (`get_hisidx`).
@@ -187,10 +183,10 @@ pub fn init_history() {
             }
 
             for i in 0..i1 {
-                hist_free_entry(&raw mut hist_st().history[hist_type][i as usize]);
+                hist_free_entry(&mut hist_st().history[hist_type][i as usize]);
             }
             for i in (i1 + l1)..i2 {
-                hist_free_entry(&raw mut hist_st().history[hist_type][i as usize]);
+                hist_free_entry(&mut hist_st().history[hist_type][i as usize]);
             }
         }
 
@@ -303,7 +299,7 @@ pub fn add_to_history(
     if histype == HIST_SEARCH && in_map {
         if g_st().maptick == hist_st().last_maptick && hist_st().hisidx[HIST_SEARCH as usize] >= 0 {
             let sidx = hist_st().hisidx[HIST_SEARCH as usize] as usize;
-            hist_free_entry(&raw mut hist_st().history[HIST_SEARCH as usize][sidx]);
+            hist_free_entry(&mut hist_st().history[HIST_SEARCH as usize][sidx]);
             hist_st().hisnum[histype as usize] -= 1;
             hist_st().hisidx[HIST_SEARCH as usize] -= 1;
             if hist_st().hisidx[HIST_SEARCH as usize] < 0 {
@@ -409,67 +405,63 @@ pub fn clr_history(histype: i32) -> bool {
 }
 
 fn del_history_entry(histype: i32, str_ptr: &CStr) -> i32 {
-    unsafe {
-        let hislen = hist_st().hislen;
-        if hislen == 0
-            || histype < 0
-            || (histype as usize) >= HIST_COUNT
-            || str_ptr.to_bytes().is_empty()
-            || hist_st().hisidx[histype as usize] < 0
-        {
-            return 0;
-        }
-
-        let htype = histype as usize;
-        let idx = hist_st().hisidx[htype];
-        let mut regmatch = Regmatch {
-            regprog: vim_regcomp(str_ptr.as_ptr(), RE_MAGIC + RE_STRING),
-            startp: [std::ptr::null_mut(); NSUBEXP],
-            endp: [std::ptr::null_mut(); NSUBEXP],
-            rm_matchcol: 0,
-            rm_ic: false,
-        };
-        if regmatch.regprog.is_null() {
-            return 0;
-        }
-
-        let mut found = false;
-        let mut i = idx;
-        let mut last = idx;
-        loop {
-            let hisptr = &raw mut hist_st().history[htype][i as usize];
-            let Some(ref hisstr) = (*hisptr).hisstr else {
-                break;
-            };
-            if vim_regexec(&mut regmatch, hisstr.as_ptr(), 0) {
-                found = true;
-                hist_free_entry(hisptr);
-            } else {
-                if i != last {
-                    hist_st().history[htype][last as usize] = (*hisptr).clone();
-                    clear_hist_entry(hisptr);
-                }
-                last -= 1;
-                if last < 0 {
-                    last += hislen;
-                }
-            }
-            i -= 1;
-            if i < 0 {
-                i += hislen;
-            }
-            if i == idx {
-                break;
-            }
-        }
-
-        if hist_st().history[htype][idx as usize].hisstr.is_none() {
-            hist_st().hisidx[htype] = -1;
-        }
-
-        vim_regfree(regmatch.regprog);
-        i32::from(found)
+    let hislen = hist_st().hislen;
+    if hislen == 0
+        || histype < 0
+        || (histype as usize) >= HIST_COUNT
+        || str_ptr.to_bytes().is_empty()
+        || hist_st().hisidx[histype as usize] < 0
+    {
+        return 0;
     }
+
+    let htype = histype as usize;
+    let idx = hist_st().hisidx[htype];
+    let mut regmatch = Regmatch {
+        regprog: vim_regcomp(str_ptr.as_ptr(), RE_MAGIC + RE_STRING),
+        startp: [std::ptr::null_mut(); NSUBEXP],
+        endp: [std::ptr::null_mut(); NSUBEXP],
+        rm_matchcol: 0,
+        rm_ic: false,
+    };
+    if regmatch.regprog.is_null() {
+        return 0;
+    }
+
+    let mut found = false;
+    let mut i = idx;
+    let mut last = idx;
+    while let Some(ref hisstr) = hist_st().history[htype][i as usize].hisstr {
+        let hisstr_ptr = hisstr.as_ptr();
+        if vim_regexec(&mut regmatch, hisstr_ptr, 0) {
+            found = true;
+            hist_free_entry(&mut hist_st().history[htype][i as usize]);
+        } else {
+            if i != last {
+                hist_st().history[htype][last as usize] =
+                    hist_st().history[htype][i as usize].clone();
+                clear_hist_entry(&mut hist_st().history[htype][i as usize]);
+            }
+            last -= 1;
+            if last < 0 {
+                last += hislen;
+            }
+        }
+        i -= 1;
+        if i < 0 {
+            i += hislen;
+        }
+        if i == idx {
+            break;
+        }
+    }
+
+    if hist_st().history[htype][idx as usize].hisstr.is_none() {
+        hist_st().hisidx[htype] = -1;
+    }
+
+    vim_regfree(regmatch.regprog);
+    i32::from(found)
 }
 
 fn del_history_idx(histype: i32, idx_arg: i32) -> i32 {
@@ -480,7 +472,7 @@ fn del_history_idx(histype: i32, idx_arg: i32) -> i32 {
     let htype = histype as usize;
     let idx = hist_st().hisidx[htype];
     let hislen = hist_st().hislen;
-    hist_free_entry(&raw mut hist_st().history[htype][i as usize]);
+    hist_free_entry(&mut hist_st().history[htype][i as usize]);
 
     if histype == HIST_SEARCH && g_st().maptick == hist_st().last_maptick && i == idx {
         hist_st().last_maptick = -1;
@@ -491,7 +483,7 @@ fn del_history_idx(histype: i32, idx_arg: i32) -> i32 {
         hist_st().history[htype][i as usize] = hist_st().history[htype][j as usize].clone();
         i = j;
     }
-    clear_hist_entry(&raw mut hist_st().history[htype][idx as usize]);
+    clear_hist_entry(&mut hist_st().history[htype][idx as usize]);
     i -= 1;
     if i < 0 {
         i += hislen;
@@ -625,8 +617,8 @@ pub fn ex_history(eap: &mut Exarg) {
         }
     }
 
-    if !get_list_range(&mut end, &mut hisidx1, &mut hisidx2) || unsafe { *end } != 0 {
-        if unsafe { *end } != 0 {
+    if !get_list_range(&mut end, &mut hisidx1, &mut hisidx2) || !crate::memory::cstr_is_empty(end) {
+        if !crate::memory::cstr_is_empty(end) {
             semsg!(E_TRAILING_ARG, end);
         } else {
             semsg!(E_VAL_TOO_LARGE, arg);
@@ -738,7 +730,7 @@ pub fn hist_iter(
 
     *hist = history[hiter].clone();
     if zero {
-        clear_hist_entry(&raw mut history[hiter]);
+        clear_hist_entry(&mut history[hiter]);
     }
     if hiter == last_idx {
         return None;
