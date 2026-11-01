@@ -7,7 +7,7 @@ use crate::buffer::{
 };
 use crate::buffer_updates::buf_updates_send_changes;
 use crate::charset::{
-    NUL, ascii_isdigit, ascii_iswhite, getdigits_int, getwhitecols_curline, skipwhite, vim_strnsize,
+    ascii_isdigit, ascii_iswhite, getdigits_int, getwhitecols_curline, skipwhite, vim_strnsize,
 };
 use crate::context::INIT_FMARKV;
 use crate::cursor::{
@@ -35,7 +35,7 @@ use crate::insexpand::ins_compl_active;
 use crate::mark::{JUMPLISTSIZE, mark_adjust, mark_col_adjust, mark_view_make, reset_fmark};
 use crate::marktree::{K_MTMETA_INLINE, K_MTMETA_LINES};
 use crate::mbyte::{
-    mb_adjust_cursor, ptr2cells, utf_char2bytes, utf_composinglike, utf_head_off,
+    mb_adjust_cursor, ptr2cells, utf_char2slice, utf_composinglike, utf_head_off,
     utf_iscomposing_first, utf_ptr2char, utf_ptr2len, utfc_ptr2len, utfc_ptr2len_len,
 };
 use crate::mcursor::mc_replaying;
@@ -345,13 +345,7 @@ fn changed_common(buf: &mut FileBuf, mut lnum: Linenr, col: Colnr, lnume: Linenr
 
                 if buf.b_changelistlen == JUMPLISTSIZE {
                     buf.b_changelistlen = JUMPLISTSIZE - 1;
-                    unsafe {
-                        ptr::copy(
-                            buf.b_changelist.as_ptr().wrapping_add(1),
-                            buf.b_changelist.as_mut_ptr(),
-                            (JUMPLISTSIZE - 1) as usize,
-                        )
-                    };
+                    buf.b_changelist.rotate_left(1);
                     for_all_tab_windows(|wp| {
                         if wp.w_buffer == (&raw mut *buf) && wp.w_changelistidx > 0 {
                             wp.w_changelistidx -= 1;
@@ -634,7 +628,7 @@ pub fn file_ff_differs(buf: &mut FileBuf, ignore_empty: bool) -> bool {
     if ignore_empty
         && (buf.b_flags & BF_NEW) != 0
         && buf.b_ml.ml_line_count == 1
-        && unsafe { *ml_get_buf(buf, 1) } == NUL
+        && crate::memory::cstr_is_empty(ml_get_buf(buf, 1))
     {
         return false;
     }
@@ -679,7 +673,7 @@ pub fn ins_bytes_len(p: impl crate::strings::IntoCCharPtr, len: usize) {
 /// Insert or replace a single character at the cursor position.
 pub fn ins_char(c: i32) {
     let mut buf: [u8; MB_MAXCHAR + 1] = [0; MB_MAXCHAR + 1];
-    let n = utf_char2bytes(c, buf.as_mut_ptr().cast()) as usize;
+    let n = utf_char2slice(c, &mut buf);
 
     if buf[0] == 0 {
         buf[0] = b'\n';
@@ -737,33 +731,17 @@ pub fn ins_char_bytes(buf: impl crate::strings::IntoCCharPtr, charlen: usize) {
             replace_push(oldp.wrapping_add(col), oldlen);
         }
 
+        let old_slice = crate::memory::cstr_slice(oldp, linelen);
+        let buf_slice = crate::memory::cstr_slice(buf, charlen);
         let mut newp_vec = vec![0u8; linelen + newlen - oldlen];
-        let newp = newp_vec.as_mut_ptr();
-
-        if col > 0 {
-            unsafe { ptr::copy_nonoverlapping(oldp.cast::<u8>(), newp, col) };
-        }
-
-        let p = newp.wrapping_add(col);
+        newp_vec[..col].copy_from_slice(&old_slice[..col]);
         if linelen > col + oldlen {
-            unsafe {
-                ptr::copy_nonoverlapping(
-                    oldp.wrapping_add(col + oldlen).cast::<u8>(),
-                    p.wrapping_add(newlen),
-                    linelen - col - oldlen,
-                )
-            };
+            newp_vec[col + newlen..].copy_from_slice(&old_slice[col + oldlen..]);
         }
+        newp_vec[col..col + charlen].copy_from_slice(buf_slice);
+        newp_vec[col + charlen..col + newlen].fill(b' ');
 
-        unsafe { ptr::copy_nonoverlapping(buf.cast::<u8>(), p, charlen) };
-
-        for i in charlen..newlen {
-            unsafe {
-                *p.wrapping_add(i) = b' ';
-            }
-        }
-
-        ml_replace(lnum, newp.cast(), true);
+        ml_replace(lnum, newp_vec.as_mut_ptr().cast(), true);
         drop(newp_vec);
         inserted_bytes(lnum, col as Colnr, oldlen as i32, newlen as i32);
 
@@ -783,7 +761,7 @@ pub fn ins_char_bytes(buf: impl crate::strings::IntoCCharPtr, charlen: usize) {
 
 /// Insert a string at the cursor position.
 pub fn ins_str(s: impl crate::strings::IntoCCharPtr, slen: usize) {
-    let s = s.into_c_char_ptr().cast_mut();
+    let s = s.into_c_char_ptr();
     {
         let lnum = curwin_mut().w_cursor.lnum;
 
@@ -794,23 +772,16 @@ pub fn ins_str(s: impl crate::strings::IntoCCharPtr, slen: usize) {
         let col = curwin_mut().w_cursor.col;
         let oldp = ml_get(lnum);
         let oldlen = ml_get_len(lnum);
+        let col_usize = col as usize;
+        let old_slice = crate::memory::cstr_slice(oldp, oldlen as usize + 1);
+        let s_slice = crate::memory::cstr_slice(s, slen);
 
         let mut newp_vec = vec![0u8; oldlen as usize + slen + 1];
-        let newp = newp_vec.as_mut_ptr();
-        if col > 0 {
-            unsafe { ptr::copy_nonoverlapping(oldp.cast::<u8>(), newp, col as usize) };
-        }
-        unsafe { ptr::copy_nonoverlapping(s.cast::<u8>(), newp.wrapping_add(col as usize), slen) };
-        let bytes = oldlen - col + 1;
-        debug_assert!(bytes >= 0);
-        unsafe {
-            ptr::copy_nonoverlapping(
-                oldp.wrapping_add(col as usize).cast::<u8>(),
-                newp.wrapping_add(col as usize + slen),
-                bytes as usize,
-            )
-        };
-        ml_replace(lnum, newp.cast(), true);
+        newp_vec[..col_usize].copy_from_slice(&old_slice[..col_usize]);
+        newp_vec[col_usize..col_usize + slen].copy_from_slice(s_slice);
+        newp_vec[col_usize + slen..].copy_from_slice(&old_slice[col_usize..]);
+
+        ml_replace(lnum, newp_vec.as_mut_ptr().cast(), true);
         drop(newp_vec);
         inserted_bytes(lnum, col, 0, slen as i32);
         curwin_mut().w_cursor.col += slen as Colnr;
@@ -907,30 +878,25 @@ pub fn del_bytes(mut count: Colnr, fixpos_arg: bool, use_delcombine: bool) -> bo
     }
     let newlen = oldlen - count;
 
-    let alloc_newp = ml_line_alloced() == 0;
-    let mut newp_vec: Vec<u8> = Vec::new();
-    let newp: *mut u8 = if !alloc_newp {
+    if ml_line_alloced() == 0 {
+        let old_slice = crate::memory::cstr_slice(oldp, (col + count + movelen) as usize);
+        let mut newp_vec = vec![0u8; newlen as usize + 1];
+        newp_vec[..col as usize].copy_from_slice(&old_slice[..col as usize]);
+        newp_vec[col as usize..col as usize + movelen as usize]
+            .copy_from_slice(&old_slice[(col + count) as usize..]);
+        ml_replace(lnum, newp_vec.as_mut_ptr().cast(), true);
+        drop(newp_vec);
+    } else {
         ml_add_deleted_len(curbuf_mut().b_ml.ml_line_ptr, oldlen as isize);
-        oldp.cast()
-    } else {
-        newp_vec = vec![0u8; newlen as usize + 1];
-        let p = newp_vec.as_mut_ptr();
-        unsafe { ptr::copy_nonoverlapping(oldp.cast::<u8>(), p, col as usize) };
-        p
-    };
-    unsafe {
-        ptr::copy(
-            oldp.wrapping_add((col + count) as usize).cast::<u8>(),
-            newp.wrapping_add(col as usize),
-            movelen as usize,
-        )
-    };
-    if alloc_newp {
-        ml_replace(lnum, newp.cast(), true);
-    } else {
+        unsafe {
+            ptr::copy(
+                oldp.wrapping_add((col + count) as usize).cast::<u8>(),
+                oldp.wrapping_add(col as usize).cast::<u8>(),
+                movelen as usize,
+            );
+        }
         curbuf_mut().b_ml.ml_line_textlen = newlen + 1;
     }
-    drop(newp_vec);
 
     inserted_bytes(lnum, col, count, 0);
 
@@ -1883,9 +1849,7 @@ pub fn truncate_line(fixpos: i32) {
         vec![0]
     } else {
         let mut v = Vec::with_capacity(col as usize + 1);
-        v.extend_from_slice(unsafe {
-            std::slice::from_raw_parts(old_line.cast::<u8>(), col as usize)
-        });
+        v.extend_from_slice(crate::memory::cstr_slice(old_line, col as usize));
         v.push(0);
         v
     };
