@@ -2481,9 +2481,11 @@ pub fn path_is_absolute(fname: impl crate::strings::IntoCCharPtr) -> bool {
     }
 }
 
-pub fn path_guess_exepath(argv0: impl crate::strings::IntoCCharPtr, buf: *mut u8, bufsize: usize) {
+pub fn path_guess_exepath(argv0: impl crate::strings::IntoCCharPtr, buf_slice: &mut [u8]) {
     let argv0 = argv0.into_c_char_ptr();
     {
+        let buf = buf_slice.as_mut_ptr();
+        let bufsize = buf_slice.len();
         let path_cstr = os_getenv_cstr(c"PATH");
         let argv0_bytes = crate::memory::cstr_as_bytes(argv0);
 
@@ -2884,13 +2886,13 @@ mod tests {
             );
 
             // path_guess_exepath
-            path_guess_exepath(c"./nvim", out.as_mut_ptr(), MAXPATHL);
+            path_guess_exepath(c"./nvim", &mut out);
             assert_eq!(
                 crate::memory::cstr_from_ptr(&out).to_str().unwrap(),
                 format!("{cwd}/./nvim")
             );
 
-            path_guess_exepath(c"23u0293_not_in_path", out.as_mut_ptr(), MAXPATHL);
+            path_guess_exepath(c"23u0293_not_in_path", &mut out);
             assert_eq!(
                 crate::memory::cstr_from_ptr(&out).to_str().unwrap(),
                 "23u0293_not_in_path"

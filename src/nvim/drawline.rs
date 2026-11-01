@@ -990,7 +990,6 @@ fn draw_statuscol(
 
     let mut p = buf_ptr;
     let mut transbuf = [0u8; MAXPATHL];
-    let transbuf_ptr = transbuf.as_mut_ptr().cast();
     let mut fold_vcol: *const Colnr = ptr::null();
     let len = crate::memory::cstr_len(&buf);
     let hlf = if use_cursor_line_highlight(wp, wlv.lnum) {
@@ -1004,8 +1003,16 @@ fn draw_statuscol(
 
     for sp in &stcp.hlrec {
         let textlen = crate::memory::ptr_offset_from(sp.start, p);
-        let translen = transstr_buf(p.cast(), textlen, transbuf_ptr, MAXPATHL, true);
-        draw_col_buf(wp, wlv, transbuf_ptr, translen, cur_attr, fold_vcol, false);
+        let translen = transstr_buf(p.cast(), textlen, &mut transbuf, true);
+        draw_col_buf(
+            wp,
+            wlv,
+            transbuf.as_ptr().cast(),
+            translen,
+            cur_attr,
+            fold_vcol,
+            false,
+        );
         let attr = if sp.item == i32::from(STL_SIGNCOL) {
             scl_attr
         } else if sp.item == i32::from(STL_FOLDCOL) {
@@ -1031,11 +1038,18 @@ fn draw_statuscol(
     let translen = transstr_buf(
         p.cast(),
         crate::memory::ptr_offset_from(buf_ptr.wrapping_add(len), p),
-        transbuf_ptr,
-        MAXPATHL,
+        &mut transbuf,
         true,
     );
-    draw_col_buf(wp, wlv, transbuf_ptr, translen, cur_attr, fold_vcol, false);
+    draw_col_buf(
+        wp,
+        wlv,
+        transbuf.as_ptr().cast(),
+        translen,
+        cur_attr,
+        fold_vcol,
+        false,
+    );
     draw_col_fill(wlv, schar_from_ascii(b' '), stcp.width - width, cur_attr);
 }
 

@@ -360,7 +360,10 @@ pub fn parse_isopt(var: impl crate::strings::IntoCCharPtr, chartab: *mut u64) ->
     }
 }
 
-pub fn trans_characters(mut buf: RawCCharPtrMut, bufsize: i32) {
+pub fn trans_characters<T>(buf_slice: &mut [T]) {
+    const { assert!(size_of::<T>() == 1) };
+    let mut buf: RawCCharPtrMut = buf_slice.as_mut_ptr().cast();
+    let bufsize = buf_slice.len() as i32;
     let mut len = crate::memory::cstr_len(buf) as i32;
     let mut room = bufsize - len;
 
@@ -434,12 +437,13 @@ pub fn transstr_len(s: impl crate::strings::IntoCCharPtr, untab: bool) -> usize 
 pub fn transstr_buf(
     s: impl crate::strings::IntoCCharPtr,
     slen: isize,
-    buf: RawCCharPtrMut,
-    buflen: usize,
+    buf_slice: &mut [u8],
     untab: bool,
 ) -> usize {
     let s = s.into_c_char_ptr();
     {
+        let buflen = buf_slice.len();
+        let buf: RawCCharPtrMut = buf_slice.as_mut_ptr().cast();
         let mut p = s;
         let mut buf_p = buf;
         let buf_e = buf_p.wrapping_add(buflen - 1);
@@ -503,7 +507,7 @@ pub fn transstr(s: impl crate::strings::IntoCCharPtr, untab: bool) -> CString {
     {
         let len = transstr_len(s, untab) + 1;
         let mut buf = vec![0u8; len];
-        let written = transstr_buf(s, -1, buf.as_mut_ptr().cast(), len, untab);
+        let written = transstr_buf(s, -1, &mut buf, untab);
         cstr_from_bytes(&buf[..written])
     }
 }
@@ -517,13 +521,7 @@ pub fn kv_transstr(str_: &mut Vec<u8>, s: impl crate::strings::IntoCCharPtr, unt
         let len = transstr_len(s, untab);
         let old_len = str_.len();
         str_.resize(old_len + len + 1, 0);
-        transstr_buf(
-            s,
-            -1,
-            str_.as_mut_ptr().wrapping_add(old_len).cast(),
-            len + 1,
-            untab,
-        );
+        transstr_buf(s, -1, &mut str_[old_len..], untab);
         str_.truncate(old_len + len);
         len
     }

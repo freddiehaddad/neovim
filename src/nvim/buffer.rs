@@ -4277,7 +4277,7 @@ pub fn maketitle() {
                 name = name.wrapping_add(namelen as usize);
             }
             crate::memory::cstr_cpy(buf.as_mut_ptr().cast(), name);
-            trans_characters(buf.as_mut_ptr().cast(), IOSIZE as i32);
+            trans_characters(&mut buf);
         }
     }
 

@@ -384,7 +384,7 @@ pub fn get_trans_bufname(buf: &mut FileBuf) {
     } else {
         home_replace(Some(&*buf), buf.b_fname, name_buff, MAXPATHL, true);
     }
-    trans_characters(name_buff, MAXPATHL as i32);
+    trans_characters(&mut g_st().name_buff);
 }
 
 /// Return true if the status line of window `wp` is connected to the status
@@ -703,13 +703,7 @@ fn win_redr_stl_expr(wp: *mut WinInfoInfo, draw_winbar: bool, draw_ruler: bool, 
                 } else {
                     p.cast_const().cast()
                 };
-                let tsize = transstr_buf(
-                    src_p,
-                    textlen,
-                    transbuf.as_mut_ptr().cast(),
-                    transbuf.len(),
-                    true,
-                );
+                let tsize = transstr_buf(src_p, textlen, &mut transbuf, true);
                 if !ui_event {
                     col += grid_line_puts(col, transbuf.as_ptr().cast(), tsize as i32, curattr);
                 } else {
@@ -1893,7 +1887,7 @@ pub extern "C" fn build_stl_str_hl(
                         };
                         home_replace((wp.w_buffer).as_ref(), t, name_buff, MAXPATHL, true);
                     }
-                    trans_characters(name_buff, MAXPATHL as i32);
+                    trans_characters(&mut g_st().name_buff);
                     if opt != STL_FILENAME {
                         str = name_buff.cast();
                     } else {

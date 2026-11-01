@@ -2254,7 +2254,7 @@ pub fn do_set(arg: impl crate::strings::IntoCCharPtr, opt_flags: i32) -> bool {
                             *iobuf_ptr.wrapping_offset(i + arg_len) = NUL;
                         }
                     }
-                    trans_characters(iobuf_ptr, IOSIZE as i32);
+                    trans_characters(&mut g_st().iobuff);
 
                     g_st().no_wait_return += 1;
                     emsg(iobuf_ptr);
