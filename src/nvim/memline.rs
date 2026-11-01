@@ -1398,17 +1398,14 @@ pub fn ml_recover(checkext: bool) {
         }
 
         if orig_file_status != OK || curbuf_mut().b_ml.ml_line_count != lnum * 2 + 1 {
-            if !(curbuf_mut().b_ml.ml_line_count == 2 && *ml_get(1) == NUL) {
+            if !(curbuf_mut().b_ml.ml_line_count == 2 && ml_get_slice(1).is_empty()) {
                 changed_internal(curbuf_mut());
                 buf_inc_changedtick(curbuf_mut());
             }
         } else {
             for i_lnum in 1..=lnum {
-                let p_line = crate::memory::cstr_to_cstring(ml_get(i_lnum));
-                let cmp = crate::memory::cstr_as_bytes(p_line.as_ptr())
-                    .cmp(crate::memory::cstr_as_bytes(ml_get(i_lnum + lnum)))
-                    as i32;
-                if cmp != 0 {
+                let p_line = ml_get_slice(i_lnum).to_vec();
+                if p_line.as_slice() != ml_get_slice(i_lnum + lnum) {
                     changed_internal(curbuf_mut());
                     buf_inc_changedtick(curbuf_mut());
                     break;
@@ -2010,6 +2007,31 @@ pub fn ml_get_buf(buf: &mut FileBuf, lnum: Linenr) -> RawCCharPtrMut {
     ml_get_buf_impl(buf, lnum, false)
 }
 
+/// Return the bytes (excluding NUL) of a line in `curbuf`.
+#[inline]
+pub fn ml_get_slice(lnum: Linenr) -> &'static [u8] {
+    ml_get_buf_slice(curbuf_mut(), lnum)
+}
+
+/// Return the bytes (excluding NUL) of a line in `buf`.
+#[inline]
+pub fn ml_get_buf_slice(buf: &mut FileBuf, lnum: Linenr) -> &'static [u8] {
+    let ptr = ml_get_buf(buf, lnum).cast::<u8>();
+    if unsafe { *ptr } == 0 {
+        return &[];
+    }
+    assert!(buf.b_ml.ml_line_textlen > 0);
+    unsafe { std::slice::from_raw_parts(ptr, (buf.b_ml.ml_line_textlen - 1) as usize) }
+}
+
+/// Return the bytes (excluding NUL) starting at position `pos` in `curbuf`.
+#[inline]
+pub fn ml_get_pos_slice(pos: &CursorPos) -> &'static [u8] {
+    let line = ml_get_buf_slice(curbuf_mut(), pos.lnum);
+    let col = (pos.col.max(0) as usize).min(line.len());
+    &line[col..]
+}
+
 /// Like `ml_get_buf`, but allow the line to be mutated in place.
 pub fn ml_get_buf_mut(buf: &mut FileBuf, lnum: Linenr) -> RawCCharPtrMut {
     ml_get_buf_impl(buf, lnum, true)
@@ -2032,20 +2054,15 @@ pub fn ml_get_pos_len(pos: &mut CursorPos) -> Colnr {
 
 /// Return length (excluding NUL) of the given line in `buf`.
 pub fn ml_get_buf_len(buf: &mut FileBuf, lnum: Linenr) -> Colnr {
-    let line = ml_get_buf(buf, lnum);
-    if crate::memory::cstr_is_empty(line) {
-        return 0;
-    }
-    assert!(buf.b_ml.ml_line_textlen > 0);
-    buf.b_ml.ml_line_textlen - 1
+    ml_get_buf_slice(buf, lnum).len() as Colnr
 }
 
 /// Gets the charwise NL-joined text of range `[start, end)` as a `Vec<u8>`.
 pub fn ml_region_text(buf: &mut FileBuf, start: CursorPos, end: CursorPos) -> Vec<u8> {
     let mut sb = Vec::<u8>::new();
     for lnum in start.lnum..=end.lnum {
-        let line = ml_get_buf(buf, lnum);
-        let len = ml_get_buf_len(buf, lnum);
+        let line = ml_get_buf_slice(buf, lnum);
+        let len = line.len() as Colnr;
         let from = if lnum == start.lnum {
             start.col.min(len).max(0)
         } else {
@@ -2056,13 +2073,7 @@ pub fn ml_region_text(buf: &mut FileBuf, start: CursorPos, end: CursorPos) -> Ve
         } else {
             len
         };
-        let slice = unsafe {
-            std::slice::from_raw_parts(
-                line.wrapping_add(from as usize).cast::<u8>(),
-                (to - from) as usize,
-            )
-        };
-        sb.extend_from_slice(slice);
+        sb.extend_from_slice(&line[from as usize..to as usize]);
         if lnum < end.lnum {
             sb.push(NL as u8);
         }
@@ -4262,4 +4273,16 @@ pub fn decl(lp: &mut CursorPos) -> i32 {
         r = dec(lp);
     }
     r
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn ml_get_buf_slice_returns_empty_when_unallocated() {
+        let mut buf = FileBuf::new();
+        assert_eq!(ml_get_buf_slice(&mut buf, 1), b"");
+        assert_eq!(ml_get_buf_len(&mut buf, 1), 0);
+    }
 }

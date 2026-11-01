@@ -24,7 +24,7 @@ use crate::cmdexpand::{
 };
 use crate::cursor::{
     Colnr, CursorPos, Linenr, check_cursor, dec_cursor, equalpos, get_cursor_line_len,
-    get_cursor_line_ptr, get_cursor_pos_len, get_cursor_pos_ptr, inc_cursor,
+    get_cursor_line_ptr, get_cursor_pos_slice, inc_cursor,
 };
 use crate::drawscreen::{
     K_SHM_COMPLETIONMENU, conceal_cursor_line, redraw_winline, setcursor, showmode, update_screen,
@@ -5366,9 +5366,10 @@ pub fn ins_compl_delete(new_leader: bool) {
     let mut remaining_vec: Option<Vec<u8>> = None;
     if curwin_mut().w_cursor.lnum > insexp().compl_lnum {
         if curwin_mut().w_cursor.col < get_cursor_line_len() {
-            let len = get_cursor_pos_len() as usize;
-            let mut v = vec![0u8; len + 1];
-            unsafe { ptr::copy_nonoverlapping(get_cursor_pos_ptr().cast(), v.as_mut_ptr(), len) };
+            let rem = get_cursor_pos_slice();
+            let mut v = Vec::with_capacity(rem.len() + 1);
+            v.extend_from_slice(rem);
+            v.push(0);
             remaining_vec = Some(v);
         }
 

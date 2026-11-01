@@ -1331,12 +1331,12 @@ fn schar_get_single_width(mb_schar: Schar) -> i32 {
 fn win_line_skip_columns(
     wp: &mut WinInfoInfo,
     wlv: &mut Winlinevars,
-    line: &mut *mut std::ffi::c_char,
+    line: &mut crate::strings::RawCCharPtrMut,
     start_vcol: i32,
     leadcol: Colnr,
     in_multispace: &mut bool,
     multispace_pos: &mut usize,
-) -> *const std::ffi::c_char {
+) -> crate::strings::RawCCharPtr {
     let mut csarg = CharsizeArg::new();
     let mut spans = ConcealSpans::new();
     let cstype = if wp.w_onebuf_opt.wo_wrap != 0 && unsafe { **line } != NUL {

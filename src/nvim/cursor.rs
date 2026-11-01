@@ -8,7 +8,8 @@ use crate::globals::*;
 use crate::mark::mark_mb_adjustpos;
 use crate::mbyte::{utf_cluster_info, utf_head_off, utf_ptr2_str_char_info, utf_ptr2char};
 use crate::memline::{
-    dec, inc, ml_get_buf, ml_get_buf_len, ml_get_buf_mut, ml_get_len, ml_replace,
+    dec, inc, ml_get_buf, ml_get_buf_len, ml_get_buf_mut, ml_get_buf_slice, ml_get_len,
+    ml_get_pos_slice, ml_replace,
 };
 use crate::r#move::{changed_cline_bef_curs, set_valid_virtcol, validate_virtcol, win_col_off};
 use crate::option::{get_sidescrolloff_value, get_ve_flags};
@@ -539,6 +540,19 @@ pub fn get_cursor_line_ptr() -> RawCCharPtrMut {
 pub fn get_cursor_pos_ptr() -> RawCCharPtrMut {
     ml_get_buf(crate::globals::curbuf_mut(), curwin_mut().w_cursor.lnum)
         .wrapping_add(curwin_mut().w_cursor.col as usize)
+}
+
+/// Return the bytes (excluding the NUL) of the cursor line.
+#[inline]
+pub fn get_cursor_line_slice() -> &'static [u8] {
+    ml_get_buf_slice(crate::globals::curbuf_mut(), curwin_mut().w_cursor.lnum)
+}
+
+/// Return the bytes (excluding the NUL) starting at the cursor position.
+#[inline]
+pub fn get_cursor_pos_slice() -> &'static [u8] {
+    let cursor = curwin_mut().w_cursor;
+    ml_get_pos_slice(&cursor)
 }
 
 /// Return length (excluding the NUL) of the cursor line (`get_cursor_line_len`).

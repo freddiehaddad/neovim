@@ -10,7 +10,7 @@ use crate::charset::{
 };
 use crate::cursor::{
     Colnr, CursorPos, Linenr, check_cursor, check_cursor_col, coladvance, dec_cursor, gchar_cursor,
-    get_cursor_line_len, get_cursor_line_ptr, get_cursor_pos_len, get_cursor_pos_ptr, inc_cursor,
+    get_cursor_line_len, get_cursor_line_ptr, get_cursor_pos_ptr, get_cursor_pos_slice, inc_cursor,
     pchar_cursor,
 };
 use crate::drawscreen::{UPD_INVERTED, UPD_VALID, redraw_curbuf_later};
@@ -450,12 +450,10 @@ pub fn internal_format(
         startcol = startcol.max(0);
 
         if (g_st().state_global & VREPLACE_FLAG) != 0 {
-            let pos_len = get_cursor_pos_len() as usize;
-            let keep_len = (startcol as usize).min(pos_len);
+            let rem = get_cursor_pos_slice();
+            let keep_len = (startcol as usize).min(rem.len());
             saved_text.reserve_exact(keep_len + 1);
-            saved_text.extend_from_slice(unsafe {
-                std::slice::from_raw_parts(get_cursor_pos_ptr().cast::<u8>(), keep_len)
-            });
+            saved_text.extend_from_slice(&rem[..keep_len]);
             saved_text.push(0);
             curwin_mut().w_cursor.col = orig_col;
 

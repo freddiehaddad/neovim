@@ -12,7 +12,7 @@ use crate::charset::{
 };
 use crate::cursor::{
     Colnr, CursorPos, Linenr, check_cursor, coladvance, get_cursor_line_len, get_cursor_line_ptr,
-    lt,
+    get_cursor_line_slice, lt,
 };
 use crate::drawscreen::{UPD_INVERTED, redraw_curbuf_later};
 use crate::errors::*;
@@ -27,7 +27,7 @@ use crate::insert::{
     backspace_until_column, beginline, get_nolist_virtcol, replace_join, replace_push_nul,
 };
 use crate::mbyte::{utf_cluster_info, utf_ptr2_char_info, utf_ptr2_str_char_info, utfc_ptr2len};
-use crate::memline::{ml_get, ml_get_buf, ml_get_len, ml_get_pos, ml_replace};
+use crate::memline::{ml_get, ml_get_buf, ml_get_len, ml_get_pos_slice, ml_replace};
 use crate::message::{emsg, msg_progress};
 use crate::r#move::{changed_cline_bef_curs, win_col_off, win_col_off2};
 use crate::ops::shift_line;
@@ -749,7 +749,7 @@ pub fn get_number_indent(lnum: Linenr) -> i32 {
         vim_regfree(regmatch.regprog);
     }
 
-    if pos.lnum == 0 || crate::memory::cstr_is_empty(ml_get_pos(&pos)) {
+    if pos.lnum == 0 || ml_get_pos_slice(&pos).is_empty() {
         return -1;
     }
     let mut col: Colnr = 0;
@@ -1252,9 +1252,8 @@ pub fn change_indent(type_: i32, amount: i32, round: i32, call_changed_bytes: bo
 
     if (g_st().state_global & VREPLACE_FLAG) != 0 {
         let new_col = curwin_mut().w_cursor.col;
-        let mut new_line =
-            unsafe { std::slice::from_raw_parts(get_cursor_line_ptr(), new_col as usize) }.to_vec();
-        new_line.push(NUL);
+        let mut new_line = get_cursor_line_slice()[..new_col as usize].to_vec();
+        new_line.push(0);
 
         ml_replace(
             curwin_mut().w_cursor.lnum,
@@ -1266,7 +1265,7 @@ pub fn change_indent(type_: i32, amount: i32, round: i32, call_changed_bytes: bo
         g_st().curbuf_splice_pending += 1;
 
         backspace_until_column(0);
-        ins_bytes(new_line.as_mut_ptr());
+        ins_bytes(&new_line);
 
         g_st().curbuf_splice_pending -= 1;
 
