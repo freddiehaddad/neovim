@@ -5,13 +5,11 @@ use crate::change::{
     OPENLINE_DO_COM, OPENLINE_FORMAT, OPENLINE_KEEPTRAIL, OPENLINE_MARKFIX, del_bytes, del_char,
     get_leader_len, ins_bytes, ins_str, open_line,
 };
-use crate::charset::{
-    NUL, ascii_isspace, ascii_iswhite, char2cells, getwhitecols_curline, skipwhite,
-};
+use crate::charset::{ascii_isspace, ascii_iswhite, char2cells, getwhitecols_curline, skipwhite};
 use crate::cursor::{
     Colnr, CursorPos, Linenr, check_cursor, check_cursor_col, coladvance, dec_cursor, gchar_cursor,
-    get_cursor_line_len, get_cursor_line_ptr, get_cursor_pos_ptr, get_cursor_pos_slice, inc_cursor,
-    pchar_cursor,
+    get_cursor_line_len, get_cursor_line_ptr, get_cursor_line_slice, get_cursor_pos_ptr,
+    get_cursor_pos_slice, inc_cursor, pchar_cursor,
 };
 use crate::drawscreen::{UPD_INVERTED, UPD_VALID, redraw_curbuf_later};
 use crate::eval::eval_expr_option_number;
@@ -626,10 +624,7 @@ fn same_leader(
         }
     }
 
-    let line1 = unsafe {
-        std::slice::from_raw_parts(ml_get(lnum).cast::<u8>(), ml_get_len(lnum) as usize + 1)
-    }
-    .to_vec();
+    let line1 = crate::memory::cstr_slice(ml_get(lnum), ml_get_len(lnum) as usize + 1).to_vec();
     let mut idx1: i32 = 0;
     while ascii_iswhite(i32::from(line1[idx1 as usize])) {
         idx1 += 1;
@@ -732,7 +727,7 @@ pub fn auto_format(trailblank: bool, prev_line: bool) {
         && (g_st().state_global & MODE_INSERT) != 0
     {
         let line = get_cursor_line_ptr();
-        if whitechar(unsafe { *line.wrapping_add((pos.col - 1) as usize) } as i32) {
+        if whitechar(crate::memory::cstr_char_at(line, (pos.col - 1) as usize)) {
             curwin_mut().w_cursor = pos;
             return;
         }
@@ -765,13 +760,10 @@ pub fn auto_format(trailblank: bool, prev_line: bool) {
     }
 
     if !wasatend && has_format_option(K_FO_WHITE_PAR) {
-        let linep = get_cursor_line_ptr();
         let len = get_cursor_line_len();
         if curwin_mut().w_cursor.col == len {
             let mut pline = Vec::with_capacity(len as usize + 2);
-            pline.extend_from_slice(unsafe {
-                std::slice::from_raw_parts(linep.cast::<u8>(), len as usize)
-            });
+            pline.extend_from_slice(get_cursor_line_slice());
             pline.push(b' ');
             pline.push(0);
             ml_replace(curwin_mut().w_cursor.lnum, pline.as_mut_ptr().cast(), true);
@@ -1007,7 +999,9 @@ pub fn format_lines(line_count: Linenr, avoid_fex: bool) {
                 && prev_is_end_par
                 && curwin_mut().w_cursor.lnum < curbuf_mut().b_ml.ml_line_count
             {
-                if do_second_indent && unsafe { *ml_get(curwin_mut().w_cursor.lnum + 1) } != NUL {
+                if do_second_indent
+                    && !crate::memory::cstr_is_empty(ml_get(curwin_mut().w_cursor.lnum + 1))
+                {
                     if leader_len == 0 && next_leader_len == 0 {
                         second_indent = get_indent_lnum(curwin_mut().w_cursor.lnum + 1);
                     } else {
