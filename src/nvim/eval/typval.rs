@@ -345,6 +345,11 @@ impl TypvalVval {
     }
 
     #[inline]
+    pub fn v_dict_opt(self) -> Option<&'static mut TvDict> {
+        unsafe { self.v_dict().as_mut() }
+    }
+
+    #[inline]
     pub fn v_dict_mut(&mut self) -> &mut *mut TvDict {
         if !matches!(self, Self::Dict(_)) {
             *self = Self::Dict(ptr::null_mut());
@@ -2485,6 +2490,16 @@ pub fn tv_list_find(mut l: Option<&mut TvList>, mut n: i32) -> *mut Listitem {
     l.unwrap().lv_idx_item = item;
 
     item
+}
+
+/// Locate item with a given index in a list and return a mutable reference if present.
+pub fn tv_list_find_opt(l: Option<&mut TvList>, n: i32) -> Option<&'static mut Listitem> {
+    let li = tv_list_find(l, n);
+    if li.is_null() {
+        None
+    } else {
+        Some(unsafe { &mut *li })
+    }
 }
 
 /// Get list item l[n] as a number.

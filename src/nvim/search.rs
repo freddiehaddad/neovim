@@ -15,9 +15,9 @@ use crate::drawscreen::{
 };
 use crate::errors::*;
 use crate::eval::typval::{
-    Dictitem, EvalFuncData, Listitem, TvDict, TypVal, VarType, Varnumber,
-    tv_check_for_nonnull_dict_arg, tv_dict_add_nr, tv_dict_alloc_ret, tv_dict_find,
-    tv_dict_get_bool, tv_get_number_chk, tv_get_string_chk, tv_list_find, tv_list_len,
+    EvalFuncData, TypVal, VarType, Varnumber, tv_check_for_nonnull_dict_arg, tv_dict_add_nr,
+    tv_dict_alloc_ret, tv_dict_find_opt, tv_dict_get_bool, tv_get_number_chk, tv_get_string_chk,
+    tv_list_find_opt, tv_list_len,
 };
 use crate::eval::vars::{VV_SEARCHFORWARD, set_vim_var_nr};
 use crate::ex_cmds::{HLF_R, RE_BOTH, RE_SUBST, SEARCH_HIS, getfile, prepare_tagpreview};
@@ -52,8 +52,9 @@ use crate::memline::{decl, inc, incl, ml_get, ml_get_buf, ml_get_buf_len, ml_get
 use crate::memory::xstrlcpy;
 use crate::message::{
     emsg, give_warning, iemsg, messaging, msg, msg_check, msg_clr_eos, msg_end, msg_ext_set_kind,
-    msg_home_replace, msg_outtrans, msg_prt_line, msg_putchar, msg_puts, msg_puts_hl,
-    msg_puts_title, msg_start, msg_strtrunc, msg_trunc, semsg, smsg, verbose_enter, verbose_leave,
+    msg_home_replace, msg_outtrans, msg_outtrans_len, msg_prt_line, msg_putchar, msg_puts,
+    msg_puts_hl, msg_puts_title, msg_start, msg_strtrunc, msg_trunc, semsg, smsg, verbose_enter,
+    verbose_leave,
 };
 use crate::mouse::setmouse;
 use crate::r#move::validate_cursor;
@@ -61,7 +62,7 @@ use crate::normal::{
     FM_FORWARD, K_CPO_MATCH, K_OPT_FDO_FLAG_SEARCH, K_SHM_SEARCHCOUNT, SEARCH_ECHO, SEARCH_MARK,
     SEARCH_REV, may_start_select,
 };
-use crate::option::{OptInt, shortmess};
+use crate::option::shortmess;
 use crate::option_vars::*;
 use crate::os::fs::os_fopen;
 use crate::os::input::{fast_breakcheck, line_breakcheck};
@@ -414,9 +415,7 @@ pub fn search_regcomp(
 
 /// Get search pattern used by `search_regcomp()`.
 pub fn get_search_pat() -> Option<&'static CStr> {
-    unsafe { (&raw const srch().mr_pattern).as_ref() }
-        .unwrap()
-        .as_deref()
+    srch().mr_pattern.as_deref()
 }
 
 pub fn save_re_pat(idx: i32, pat: impl crate::strings::IntoCCharPtr, patlen: usize, magic: i32) {
@@ -595,7 +594,7 @@ pub fn pat_has_uppercase(pat: impl crate::strings::IntoCCharPtr) -> bool {
 }
 
 pub fn last_csearch() -> &'static CStr {
-    unsafe { CStr::from_ptr((&raw const srch().lastc_bytes).cast()) }
+    CStr::from_bytes_until_nul(&srch().lastc_bytes).unwrap_or(c"")
 }
 
 pub fn last_csearch_forward() -> i32 {
@@ -607,18 +606,14 @@ pub fn last_csearch_until() -> i32 {
 }
 
 pub fn set_last_csearch(c: i32, s: impl crate::strings::IntoCCharPtr, len: i32) {
-    let s: *const u8 = s.into_c_char_ptr().cast();
+    let s = s.into_c_char_ptr();
     {
         srch().lastc[0] = c as u8;
         srch().lastc_bytelen = len;
         if len != 0 {
-            unsafe {
-                ptr::copy_nonoverlapping(
-                    s,
-                    (&raw mut srch().lastc_bytes).cast::<u8>(),
-                    len as usize,
-                )
-            };
+            let n = len as usize;
+            let bytes = crate::memory::cstr_slice(s, n);
+            srch().lastc_bytes[..n].copy_from_slice(bytes);
         } else {
             srch().lastc_bytes = [0; MAX_SCHAR_SIZE + 1];
         }
@@ -1183,91 +1178,95 @@ pub fn parse_search_pattern_offset<T>(
     dircp: *mut *mut T,
     offset: &mut SearchOffset,
 ) -> i32 {
-    let pat: *mut *mut u8 = pat.cast();
-    let searchstr: *mut *mut u8 = searchstr.cast();
-    let dircp: *mut *mut u8 = dircp.cast();
-    unsafe {
-        if (*pat).is_null() || **pat == 0 {
-            return 0;
-        }
-
-        let mut cmdlen: i32 = 0;
-        let had_copy = !strcopy.is_empty();
-
-        *searchstr = *pat;
-        *searchstrlen = *patlen;
-        *dircp = ptr::null_mut();
-
-        let mut p = skip_regexp_ex(
-            *pat,
-            search_delim,
-            opt_vars().p_magic,
-            true,
-            Some(strcopy),
-            None,
-            None,
-        );
-        if !had_copy && !strcopy.is_empty() {
-            let new_ptr = strcopy.as_mut_ptr();
-            let len = crate::memory::cstr_len(new_ptr.cast());
-            cmdlen += (*patlen).wrapping_sub(len) as i32;
-            *pat = new_ptr;
-            *patlen = len;
-            *searchstr = new_ptr;
-            *searchstrlen = len;
-        }
-        if i32::from(crate::memory::cstr_first_byte(p.cast())) == search_delim {
-            *searchstrlen = crate::memory::ptr_offset_from(p, *pat) as usize;
-            *dircp = p;
-            *p = 0;
-            p = p.wrapping_add(1);
-        }
-
-        offset.line = false;
-        offset.end = false;
-        offset.off = 0;
-        if crate::memory::cstr_first_byte(p.cast()) == b'+'
-            || crate::memory::cstr_first_byte(p.cast()) == b'-'
-            || ascii_isdigit(crate::memory::cstr_first_char(p.cast()))
-        {
-            offset.line = true;
-        } else if (options & SEARCH_OPT) != 0
-            && (crate::memory::cstr_first_byte(p.cast()) == b'e'
-                || crate::memory::cstr_first_byte(p.cast()) == b's'
-                || crate::memory::cstr_first_byte(p.cast()) == b'b')
-        {
-            if crate::memory::cstr_first_byte(p.cast()) == b'e' {
-                offset.end = true;
-            }
-            p = p.wrapping_add(1);
-        }
-        if ascii_isdigit(crate::memory::cstr_first_char(p.cast()))
-            || crate::memory::cstr_first_byte(p.cast()) == b'+'
-            || crate::memory::cstr_first_byte(p.cast()) == b'-'
-        {
-            if ascii_isdigit(crate::memory::cstr_first_char(p.cast()))
-                || ascii_isdigit(crate::memory::cstr_char_at(p.cast(), 1))
-            {
-                offset.off =
-                    crate::charset::parse_i64_prefix(crate::memory::cstr_as_bytes(p.cast())) as _;
-            } else if crate::memory::cstr_first_byte(p.cast()) == b'-' {
-                offset.off = -1;
-            } else {
-                offset.off = 1;
-            }
-            p = p.wrapping_add(1);
-            while ascii_isdigit(crate::memory::cstr_first_char(p.cast())) {
-                p = p.wrapping_add(1);
-            }
-        }
-
-        let consumed = crate::memory::ptr_offset_from(p, *pat) as usize;
-        cmdlen += consumed as i32;
-        *patlen = (*patlen).wrapping_sub(consumed);
-        *pat = p;
-
-        cmdlen
+    let (pat, searchstr, dircp) = unsafe {
+        (
+            &mut *pat.cast::<crate::strings::RawCCharPtrMut>(),
+            &mut *searchstr.cast::<crate::strings::RawCCharPtrMut>(),
+            &mut *dircp.cast::<crate::strings::RawCCharPtrMut>(),
+        )
+    };
+    if crate::memory::cstr_is_empty(*pat) {
+        return 0;
     }
+
+    let mut cmdlen: i32 = 0;
+    let had_copy = !strcopy.is_empty();
+
+    *searchstr = *pat;
+    *searchstrlen = *patlen;
+    *dircp = ptr::null_mut();
+
+    let mut p = skip_regexp_ex(
+        *pat,
+        search_delim,
+        opt_vars().p_magic,
+        true,
+        Some(strcopy),
+        None,
+        None,
+    );
+    if !had_copy && !strcopy.is_empty() {
+        let new_ptr: crate::strings::RawCCharPtrMut = strcopy.as_mut_ptr().cast();
+        let len = crate::memory::cstr_len(new_ptr);
+        cmdlen += (*patlen).wrapping_sub(len) as i32;
+        *pat = new_ptr;
+        *patlen = len;
+        *searchstr = new_ptr;
+        *searchstrlen = len;
+    }
+    if i32::from(crate::memory::cstr_first_byte(p)) == search_delim {
+        *searchstrlen = crate::memory::ptr_offset_from(p, *pat) as usize;
+        *dircp = p;
+        unsafe {
+            *p = 0;
+        }
+        p = p.wrapping_add(1);
+    }
+
+    offset.line = false;
+    offset.end = false;
+    offset.off = 0;
+    if crate::memory::cstr_first_byte(p.cast()) == b'+'
+        || crate::memory::cstr_first_byte(p.cast()) == b'-'
+        || ascii_isdigit(crate::memory::cstr_first_char(p.cast()))
+    {
+        offset.line = true;
+    } else if (options & SEARCH_OPT) != 0
+        && (crate::memory::cstr_first_byte(p.cast()) == b'e'
+            || crate::memory::cstr_first_byte(p.cast()) == b's'
+            || crate::memory::cstr_first_byte(p.cast()) == b'b')
+    {
+        if crate::memory::cstr_first_byte(p.cast()) == b'e' {
+            offset.end = true;
+        }
+        p = p.wrapping_add(1);
+    }
+    if ascii_isdigit(crate::memory::cstr_first_char(p.cast()))
+        || crate::memory::cstr_first_byte(p.cast()) == b'+'
+        || crate::memory::cstr_first_byte(p.cast()) == b'-'
+    {
+        if ascii_isdigit(crate::memory::cstr_first_char(p.cast()))
+            || ascii_isdigit(crate::memory::cstr_char_at(p.cast(), 1))
+        {
+            offset.off =
+                crate::charset::parse_i64_prefix(crate::memory::cstr_as_bytes(p.cast())) as _;
+        } else if crate::memory::cstr_first_byte(p.cast()) == b'-' {
+            offset.off = -1;
+        } else {
+            offset.off = 1;
+        }
+        p = p.wrapping_add(1);
+        while ascii_isdigit(crate::memory::cstr_first_char(p.cast())) {
+            p = p.wrapping_add(1);
+        }
+    }
+
+    let consumed = crate::memory::ptr_offset_from(p, *pat) as usize;
+    cmdlen += consumed as i32;
+    *patlen = (*patlen).wrapping_sub(consumed);
+    *pat = p;
+
+    cmdlen
 }
 
 pub fn do_search(
@@ -1454,51 +1453,39 @@ pub fn do_search(
             msgbuf_vec[msgbuflen] = 0;
 
             if !g_st().cmd_silent {
-                let mut msgbuf = msgbuf_vec.as_mut_ptr();
                 ui_busy_start();
-                unsafe {
-                    *msgbuf.wrapping_add(0) = dirc as u8;
-                }
+                msgbuf_vec[0] = dirc as u8;
+                let p_bytes = crate::memory::cstr_slice(p, plen).to_vec();
                 if utf_iscomposing_first(utf_ptr2char(p)) {
-                    unsafe {
-                        *msgbuf.wrapping_add(1) = b' ';
-                    }
-                    unsafe { ptr::copy(p.cast(), msgbuf.wrapping_add(2), plen) };
+                    msgbuf_vec[1] = b' ';
+                    msgbuf_vec[2..2 + plen].copy_from_slice(&p_bytes);
                 } else {
-                    unsafe { ptr::copy(p.cast(), msgbuf.wrapping_add(1), plen) };
+                    msgbuf_vec[1..1 + plen].copy_from_slice(&p_bytes);
                 }
                 if off_len > 0 {
-                    unsafe { ptr::copy(off_buf_ptr, msgbuf.wrapping_add(plen + 1), off_len) };
+                    msgbuf_vec[plen + 1..plen + 1 + off_len].copy_from_slice(&off_buf[..off_len]);
                 }
 
-                if let Some(trunc) = msg_strtrunc(msgbuf.cast(), 1) {
+                if let Some(trunc) = msg_strtrunc(msgbuf_vec.as_ptr().cast(), 1) {
                     msgbuflen = trunc.as_bytes().len();
                     msgbuf_vec = trunc.into_bytes_with_nul();
-                    msgbuf = msgbuf_vec.as_mut_ptr();
                 }
 
                 if curwin_mut().w_onebuf_opt.wo_rl != 0
                     && crate::memory::cstr_first_byte(curwin_mut().w_onebuf_opt.wo_rlc) == b's'
                 {
-                    let rev = reverse_text(msgbuf.cast());
+                    let rev = reverse_text(msgbuf_vec.as_ptr().cast());
                     msgbuflen = rev.as_bytes().len();
                     msgbuf_vec = rev.into_bytes_with_nul();
-                    msgbuf = msgbuf_vec.as_mut_ptr();
-                    let mut r = msgbuf;
-                    while crate::memory::cstr_first_byte(r.cast()) == b' ' {
-                        r = r.wrapping_add(1);
-                    }
-                    let pat_len =
-                        crate::memory::ptr_offset_from(msgbuf.wrapping_add(msgbuflen), r) as usize;
-                    unsafe { ptr::copy(r, msgbuf, pat_len) };
-                    let r_off = crate::memory::ptr_offset_from(r, msgbuf) as usize;
-                    if r_off >= pat_len {
-                        unsafe { ptr::write_bytes(r, b' ', pat_len) };
-                    } else {
-                        unsafe { ptr::write_bytes(msgbuf.wrapping_add(pat_len), b' ', r_off) };
-                    }
+                    let r_off = msgbuf_vec[..msgbuflen]
+                        .iter()
+                        .position(|&b| b != b' ')
+                        .unwrap_or(msgbuflen);
+                    let pat_len = msgbuflen - r_off;
+                    msgbuf_vec.copy_within(r_off..msgbuflen, 0);
+                    msgbuf_vec[pat_len..msgbuflen].fill(b' ');
                 }
-                msg_outtrans(msgbuf.cast(), 0, false);
+                msg_outtrans(msgbuf_vec.as_ptr().cast(), 0, false);
                 msg_clr_eos();
                 msg_check();
 
@@ -1648,7 +1635,7 @@ pub fn do_search(
                 &mut pos,
                 &mut curwin_mut().w_cursor,
                 show_top_bot_msg,
-                msgbuf_vec.as_mut_ptr().cast(),
+                &mut msgbuf_vec,
                 msgbuflen,
                 count != 1
                     || has_offset
@@ -1780,14 +1767,9 @@ pub fn searchc(cap: &mut Cmdarg, mut t_cmd: bool) -> bool {
             set_csearch_direction(dir);
             set_csearch_until(i32::from(t_cmd));
             if cap.nchar_len != 0 {
+                let n = cap.nchar_len as usize;
                 srch().lastc_bytelen = cap.nchar_len;
-                unsafe {
-                    ptr::copy_nonoverlapping(
-                        cap.nchar_composing.as_ptr(),
-                        (&raw mut srch().lastc_bytes).cast::<u8>(),
-                        cap.nchar_len as usize,
-                    )
-                };
+                srch().lastc_bytes[..n].copy_from_slice(&cap.nchar_composing[..n]);
             } else {
                 srch().lastc_bytelen = utf_char2bytes(c, (&raw mut srch().lastc_bytes).cast());
             }
@@ -1971,7 +1953,7 @@ pub fn findmatchlimit(
     flags: i32,
     maxtravel: i64,
 ) -> *mut CursorPos {
-    unsafe {
+    {
         let mut findc: i32 = 0;
         let mut count: i32 = 0;
         let mut backwards = false;
@@ -2037,46 +2019,42 @@ pub fn findmatchlimit(
                         {
                             hash_dir = 1;
                         }
-                    } else if *linep
-                        .wrapping_add(srch().findmatch_pos.col as usize)
-                        .cast::<u8>()
+                    } else if crate::memory::cstr_byte_at(linep, srch().findmatch_pos.col as usize)
                         == b'/'
                     {
-                        if *linep
-                            .wrapping_add((srch().findmatch_pos.col + 1) as usize)
-                            .cast::<u8>()
-                            == b'*'
+                        if crate::memory::cstr_byte_at(
+                            linep,
+                            (srch().findmatch_pos.col + 1) as usize,
+                        ) == b'*'
                         {
                             comment_dir = FORWARD;
                             backwards = false;
                             srch().findmatch_pos.col += 1;
                         } else if srch().findmatch_pos.col > 0
-                            && *linep
-                                .wrapping_add((srch().findmatch_pos.col - 1) as usize)
-                                .cast::<u8>()
-                                == b'*'
+                            && crate::memory::cstr_byte_at(
+                                linep,
+                                (srch().findmatch_pos.col - 1) as usize,
+                            ) == b'*'
                         {
                             comment_dir = BACKWARD;
                             backwards = true;
                             srch().findmatch_pos.col -= 1;
                         }
-                    } else if *linep
-                        .wrapping_add(srch().findmatch_pos.col as usize)
-                        .cast::<u8>()
+                    } else if crate::memory::cstr_byte_at(linep, srch().findmatch_pos.col as usize)
                         == b'*'
                     {
-                        if *linep
-                            .wrapping_add((srch().findmatch_pos.col + 1) as usize)
-                            .cast::<u8>()
-                            == b'/'
+                        if crate::memory::cstr_byte_at(
+                            linep,
+                            (srch().findmatch_pos.col + 1) as usize,
+                        ) == b'/'
                         {
                             comment_dir = BACKWARD;
                             backwards = true;
                         } else if srch().findmatch_pos.col > 0
-                            && *linep
-                                .wrapping_add((srch().findmatch_pos.col - 1) as usize)
-                                .cast::<u8>()
-                                == b'/'
+                            && crate::memory::cstr_byte_at(
+                                linep,
+                                (srch().findmatch_pos.col - 1) as usize,
+                            ) == b'/'
                         {
                             comment_dir = FORWARD;
                             backwards = false;
@@ -2105,7 +2083,7 @@ pub fn findmatchlimit(
                             utfc_ptr2len(linep.wrapping_add(srch().findmatch_pos.col as usize));
                     }
                     if findc == 0 {
-                        if !cpo_match && *skipwhite(linep).cast::<u8>() == b'#' {
+                        if !cpo_match && crate::memory::cstr_first_byte(skipwhite(linep)) == b'#' {
                             hash_dir = 1;
                         } else {
                             return ptr::null_mut();
@@ -2285,52 +2263,38 @@ pub fn findmatchlimit(
                 if backwards {
                     if !in_block_comment
                         && srch().findmatch_pos.col > 0
-                        && *linep
-                            .wrapping_add((srch().findmatch_pos.col - 1) as usize)
-                            .cast::<u8>()
-                            == b'*'
-                        && *linep
-                            .wrapping_add(srch().findmatch_pos.col as usize)
-                            .cast::<u8>()
+                        && crate::memory::cstr_byte_at(
+                            linep,
+                            (srch().findmatch_pos.col - 1) as usize,
+                        ) == b'*'
+                        && crate::memory::cstr_byte_at(linep, srch().findmatch_pos.col as usize)
                             == b'/'
                         && (comment_col == MAXCOL || srch().findmatch_pos.col < comment_col)
                     {
                         in_block_comment = true;
                     } else if in_block_comment
                         && srch().findmatch_pos.col > 0
-                        && *linep
-                            .wrapping_add((srch().findmatch_pos.col - 1) as usize)
-                            .cast::<u8>()
-                            == b'/'
-                        && *linep
-                            .wrapping_add(srch().findmatch_pos.col as usize)
-                            .cast::<u8>()
+                        && crate::memory::cstr_byte_at(
+                            linep,
+                            (srch().findmatch_pos.col - 1) as usize,
+                        ) == b'/'
+                        && crate::memory::cstr_byte_at(linep, srch().findmatch_pos.col as usize)
                             == b'*'
                     {
                         in_block_comment = false;
                     }
                 } else if !in_block_comment
-                    && *linep
-                        .wrapping_add(srch().findmatch_pos.col as usize)
-                        .cast::<u8>()
-                        == b'/'
-                    && *linep
-                        .wrapping_add((srch().findmatch_pos.col + 1) as usize)
-                        .cast::<u8>()
+                    && crate::memory::cstr_byte_at(linep, srch().findmatch_pos.col as usize) == b'/'
+                    && crate::memory::cstr_byte_at(linep, (srch().findmatch_pos.col + 1) as usize)
                         == b'*'
                     && (comment_col == MAXCOL || srch().findmatch_pos.col < comment_col)
                 {
                     in_block_comment = true;
                 } else if in_block_comment
                     && srch().findmatch_pos.col > 0
-                    && *linep
-                        .wrapping_add((srch().findmatch_pos.col - 1) as usize)
-                        .cast::<u8>()
+                    && crate::memory::cstr_byte_at(linep, (srch().findmatch_pos.col - 1) as usize)
                         == b'*'
-                    && *linep
-                        .wrapping_add(srch().findmatch_pos.col as usize)
-                        .cast::<u8>()
-                        == b'/'
+                    && crate::memory::cstr_byte_at(linep, srch().findmatch_pos.col as usize) == b'/'
                 {
                     in_block_comment = false;
                 }
@@ -2352,10 +2316,10 @@ pub fn findmatchlimit(
                     if crate::memory::cstr_first_byte(
                         linep.wrapping_add(srch().findmatch_pos.col as usize),
                     ) == b'*'
-                        && *linep
-                            .wrapping_add((srch().findmatch_pos.col + 1) as usize)
-                            .cast::<u8>()
-                            == b'/'
+                        && crate::memory::cstr_byte_at(
+                            linep,
+                            (srch().findmatch_pos.col + 1) as usize,
+                        ) == b'/'
                     {
                         srch().findmatch_pos.col += 1;
                         return &raw mut srch().findmatch_pos;
@@ -2363,13 +2327,9 @@ pub fn findmatchlimit(
                 } else if srch().findmatch_pos.col == 0 {
                     continue;
                 } else if raw_string {
-                    if *linep
-                        .wrapping_add((srch().findmatch_pos.col - 1) as usize)
-                        .cast::<u8>()
+                    if crate::memory::cstr_byte_at(linep, (srch().findmatch_pos.col - 1) as usize)
                         == b'R'
-                        && *linep
-                            .wrapping_add(srch().findmatch_pos.col as usize)
-                            .cast::<u8>()
+                        && crate::memory::cstr_byte_at(linep, srch().findmatch_pos.col as usize)
                             == b'"'
                         && !vim_strchr(
                             linep.wrapping_add((srch().findmatch_pos.col + 1) as usize),
@@ -2395,15 +2355,12 @@ pub fn findmatchlimit(
                 } else if crate::memory::cstr_first_byte(
                     linep.wrapping_add((srch().findmatch_pos.col - 1) as usize),
                 ) == b'/'
-                    && *linep
-                        .wrapping_add(srch().findmatch_pos.col as usize)
-                        .cast::<u8>()
-                        == b'*'
+                    && crate::memory::cstr_byte_at(linep, srch().findmatch_pos.col as usize) == b'*'
                     && (srch().findmatch_pos.col == 1
-                        || *linep
-                            .wrapping_add((srch().findmatch_pos.col - 2) as usize)
-                            .cast::<u8>()
-                            != b'*')
+                        || crate::memory::cstr_byte_at(
+                            linep,
+                            (srch().findmatch_pos.col - 2) as usize,
+                        ) != b'*')
                     && srch().findmatch_pos.col < comment_col
                 {
                     count += 1;
@@ -2412,18 +2369,15 @@ pub fn findmatchlimit(
                 } else if crate::memory::cstr_first_byte(
                     linep.wrapping_add((srch().findmatch_pos.col - 1) as usize),
                 ) == b'*'
-                    && *linep
-                        .wrapping_add(srch().findmatch_pos.col as usize)
-                        .cast::<u8>()
-                        == b'/'
+                    && crate::memory::cstr_byte_at(linep, srch().findmatch_pos.col as usize) == b'/'
                 {
                     if count > 0 {
                         srch().findmatch_pos = match_pos;
                     } else if srch().findmatch_pos.col > 1
-                        && *linep
-                            .wrapping_add((srch().findmatch_pos.col - 2) as usize)
-                            .cast::<u8>()
-                            == b'/'
+                        && crate::memory::cstr_byte_at(
+                            linep,
+                            (srch().findmatch_pos.col - 2) as usize,
+                        ) == b'/'
                         && srch().findmatch_pos.col <= comment_col
                     {
                         srch().findmatch_pos.col -= 2;
@@ -2468,7 +2422,9 @@ pub fn findmatchlimit(
 
                 if do_quotes == 0 {
                     inquote = false;
-                    if ptr_line > linep && *ptr_line.wrapping_sub(1).cast::<u8>() == b'\\' {
+                    if ptr_line > linep
+                        && crate::memory::cstr_first_byte(ptr_line.wrapping_sub(1)) == b'\\'
+                    {
                         do_quotes = 1;
                         if start_in_quotes == K_NONE {
                             inquote = at_start != 0;
@@ -2482,12 +2438,10 @@ pub fn findmatchlimit(
                     if srch().findmatch_pos.lnum > 1 {
                         ptr_line = ml_get(srch().findmatch_pos.lnum - 1);
                         if !crate::memory::cstr_is_empty(ptr_line)
-                            && *ptr_line
-                                .wrapping_add(
-                                    (ml_get_len(srch().findmatch_pos.lnum - 1) - 1) as usize,
-                                )
-                                .cast::<u8>()
-                                == b'\\'
+                            && crate::memory::cstr_byte_at(
+                                ptr_line,
+                                (ml_get_len(srch().findmatch_pos.lnum - 1) - 1) as usize,
+                            ) == b'\\'
                         {
                             do_quotes = 1;
                             if start_in_quotes == K_NONE {
@@ -2510,9 +2464,7 @@ pub fn findmatchlimit(
             let c = utf_ptr2char(linep.wrapping_add(srch().findmatch_pos.col as usize));
             if c == i32::from(NUL) {
                 if srch().findmatch_pos.col == 0
-                    || *linep
-                        .wrapping_add((srch().findmatch_pos.col - 1) as usize)
-                        .cast::<u8>()
+                    || crate::memory::cstr_byte_at(linep, (srch().findmatch_pos.col - 1) as usize)
                         != b'\\'
                 {
                     inquote = false;
@@ -2538,22 +2490,22 @@ pub fn findmatchlimit(
                 {
                     if backwards {
                         if srch().findmatch_pos.col > 1 {
-                            if *linep
-                                .wrapping_add((srch().findmatch_pos.col - 2) as usize)
-                                .cast::<u8>()
-                                == b'\''
+                            if crate::memory::cstr_byte_at(
+                                linep,
+                                (srch().findmatch_pos.col - 2) as usize,
+                            ) == b'\''
                             {
                                 srch().findmatch_pos.col -= 2;
                                 skipped_single_quote = true;
-                            } else if *linep
-                                .wrapping_add((srch().findmatch_pos.col - 2) as usize)
-                                .cast::<u8>()
-                                == b'\\'
+                            } else if crate::memory::cstr_byte_at(
+                                linep,
+                                (srch().findmatch_pos.col - 2) as usize,
+                            ) == b'\\'
                                 && srch().findmatch_pos.col > 2
-                                && *linep
-                                    .wrapping_add((srch().findmatch_pos.col - 3) as usize)
-                                    .cast::<u8>()
-                                    == b'\''
+                                && crate::memory::cstr_byte_at(
+                                    linep,
+                                    (srch().findmatch_pos.col - 3) as usize,
+                                ) == b'\''
                             {
                                 srch().findmatch_pos.col -= 3;
                                 skipped_single_quote = true;
@@ -2562,22 +2514,25 @@ pub fn findmatchlimit(
                     } else if !crate::memory::cstr_is_empty(
                         linep.wrapping_add((srch().findmatch_pos.col + 1) as usize),
                     ) {
-                        if *linep
-                            .wrapping_add((srch().findmatch_pos.col + 1) as usize)
-                            .cast::<u8>()
-                            == b'\\'
-                            && *linep.wrapping_add((srch().findmatch_pos.col + 2) as usize) != NUL
-                            && *linep
-                                .wrapping_add((srch().findmatch_pos.col + 3) as usize)
-                                .cast::<u8>()
-                                == b'\''
+                        if crate::memory::cstr_byte_at(
+                            linep,
+                            (srch().findmatch_pos.col + 1) as usize,
+                        ) == b'\\'
+                            && crate::memory::cstr_byte_at(
+                                linep,
+                                (srch().findmatch_pos.col + 2) as usize,
+                            ) != 0
+                            && crate::memory::cstr_byte_at(
+                                linep,
+                                (srch().findmatch_pos.col + 3) as usize,
+                            ) == b'\''
                         {
                             srch().findmatch_pos.col += 3;
                             skipped_single_quote = true;
-                        } else if *linep
-                            .wrapping_add((srch().findmatch_pos.col + 2) as usize)
-                            .cast::<u8>()
-                            == b'\''
+                        } else if crate::memory::cstr_byte_at(
+                            linep,
+                            (srch().findmatch_pos.col + 2) as usize,
+                        ) == b'\''
                         {
                             srch().findmatch_pos.col += 2;
                             skipped_single_quote = true;
@@ -2636,16 +2591,8 @@ pub fn findmatchlimit(
 
 pub fn showmatch(c: i32) {
     let mut vcol: Colnr = 0;
-    let so: *mut OptInt = if curwin_mut().w_onebuf_opt.wo_so >= 0 {
-        &raw mut curwin_mut().w_onebuf_opt.wo_so
-    } else {
-        &raw mut opt_vars().p_so
-    };
-    let siso: *mut OptInt = if curwin_mut().w_onebuf_opt.wo_siso >= 0 {
-        &raw mut curwin_mut().w_onebuf_opt.wo_siso
-    } else {
-        &raw mut opt_vars().p_siso
-    };
+    let use_win_so = curwin_mut().w_onebuf_opt.wo_so >= 0;
+    let use_win_siso = curwin_mut().w_onebuf_opt.wo_siso >= 0;
 
     let mut p = curbuf_mut().b_p_mps;
     while !crate::memory::cstr_is_empty(p) {
@@ -2693,8 +2640,16 @@ pub fn showmatch(c: i32) {
 
     let mpos = *lpos;
     let save_cursor = curwin_mut().w_cursor;
-    let save_so = unsafe { *so };
-    let save_siso = unsafe { *siso };
+    let save_so = if use_win_so {
+        curwin_mut().w_onebuf_opt.wo_so
+    } else {
+        opt_vars().p_so
+    };
+    let save_siso = if use_win_siso {
+        curwin_mut().w_onebuf_opt.wo_siso
+    } else {
+        opt_vars().p_siso
+    };
     if g_st().dollar_vcol >= 0 && g_st().dollar_vcol == curwin_mut().w_virtcol {
         g_st().dollar_vcol = -1;
     }
@@ -2705,11 +2660,15 @@ pub fn showmatch(c: i32) {
     g_st().state_global = MODE_SHOWMATCH;
     ui_cursor_shape();
     curwin_mut().w_cursor = mpos;
-    unsafe {
-        *so = 0;
+    if use_win_so {
+        curwin_mut().w_onebuf_opt.wo_so = 0;
+    } else {
+        opt_vars().p_so = 0;
     }
-    unsafe {
-        *siso = 0;
+    if use_win_siso {
+        curwin_mut().w_onebuf_opt.wo_siso = 0;
+    } else {
+        opt_vars().p_siso = 0;
     }
     show_cursor_info_later(false);
     update_screen();
@@ -2723,11 +2682,15 @@ pub fn showmatch(c: i32) {
         os_delay((opt_vars().p_mat as u64) * 100 + 9, false);
     }
     curwin_mut().w_cursor = save_cursor;
-    unsafe {
-        *so = save_so;
+    if use_win_so {
+        curwin_mut().w_onebuf_opt.wo_so = save_so;
+    } else {
+        opt_vars().p_so = save_so;
     }
-    unsafe {
-        *siso = save_siso;
+    if use_win_siso {
+        curwin_mut().w_onebuf_opt.wo_siso = save_siso;
+    } else {
+        opt_vars().p_siso = save_siso;
     }
     g_st().state_global = save_state;
     ui_cursor_shape();
@@ -2981,71 +2944,65 @@ fn cmdline_search_stat(
     pos: &mut CursorPos,
     cursor_pos: &mut CursorPos,
     show_top_bot_msg: bool,
-    msgbuf: impl crate::strings::IntoCCharPtr,
+    msgbuf: &mut [u8],
     msgbuflen: usize,
     recompute: bool,
     maxcount: i32,
     timeout: i32,
 ) {
-    let msgbuf = msgbuf.into_c_char_ptr().cast_mut();
+    let mut stat = Searchstat::default();
+
+    update_search_stat(
+        dirc, pos, cursor_pos, &mut stat, recompute, maxcount, timeout,
+    );
+    if stat.cur <= 0 {
+        return;
+    }
+
+    let mut t = [0u8; SEARCH_STAT_BUF_LEN];
+    let t_ptr: *mut _ = t.as_mut_ptr().cast();
+    let mut len: usize;
+
+    if curwin_mut().w_onebuf_opt.wo_rl != 0
+        && crate::memory::cstr_first_byte(curwin_mut().w_onebuf_opt.wo_rlc) == b's'
     {
-        let mut stat = Searchstat::default();
-
-        update_search_stat(
-            dirc, pos, cursor_pos, &mut stat, recompute, maxcount, timeout,
-        );
-        if stat.cur <= 0 {
-            return;
-        }
-
-        let mut t = [0u8; SEARCH_STAT_BUF_LEN];
-        let t_ptr: *mut _ = t.as_mut_ptr().cast();
-        let mut len: usize;
-
-        if curwin_mut().w_onebuf_opt.wo_rl != 0
-            && crate::memory::cstr_first_byte(curwin_mut().w_onebuf_opt.wo_rlc) == b's'
-        {
-            if stat.incomplete == 1 {
-                len = vim_snprintf!(t_ptr, SEARCH_STAT_BUF_LEN, c"[?/??]") as usize;
-            } else if stat.cnt > maxcount && stat.cur > maxcount {
-                len = vim_snprintf!(t_ptr, SEARCH_STAT_BUF_LEN, c"[>%d/>%d]", maxcount, maxcount,)
-                    as usize;
-            } else if stat.cnt > maxcount {
-                len = vim_snprintf!(t_ptr, SEARCH_STAT_BUF_LEN, c"[>%d/%d]", maxcount, stat.cur,)
-                    as usize;
-            } else {
-                len = vim_snprintf!(t_ptr, SEARCH_STAT_BUF_LEN, c"[%d/%d]", stat.cnt, stat.cur,)
-                    as usize;
-            }
-        } else if stat.incomplete == 1 {
+        if stat.incomplete == 1 {
             len = vim_snprintf!(t_ptr, SEARCH_STAT_BUF_LEN, c"[?/??]") as usize;
         } else if stat.cnt > maxcount && stat.cur > maxcount {
             len = vim_snprintf!(t_ptr, SEARCH_STAT_BUF_LEN, c"[>%d/>%d]", maxcount, maxcount,)
                 as usize;
         } else if stat.cnt > maxcount {
-            len = vim_snprintf!(t_ptr, SEARCH_STAT_BUF_LEN, c"[%d/>%d]", stat.cur, maxcount,)
+            len = vim_snprintf!(t_ptr, SEARCH_STAT_BUF_LEN, c"[>%d/%d]", maxcount, stat.cur,)
                 as usize;
         } else {
             len =
-                vim_snprintf!(t_ptr, SEARCH_STAT_BUF_LEN, c"[%d/%d]", stat.cur, stat.cnt,) as usize;
+                vim_snprintf!(t_ptr, SEARCH_STAT_BUF_LEN, c"[%d/%d]", stat.cnt, stat.cur,) as usize;
         }
-
-        if show_top_bot_msg && len + 2 < SEARCH_STAT_BUF_LEN {
-            unsafe { ptr::copy(t.as_ptr(), t.as_mut_ptr().wrapping_add(2), len) };
-            t[0] = b'W';
-            t[1] = b' ';
-            len += 2;
-        }
-
-        if len > msgbuflen {
-            len = msgbuflen;
-        }
-        unsafe { ptr::copy(t.as_ptr().cast(), msgbuf.wrapping_add(msgbuflen - len), len) };
-
-        g_st().msg_ext_overwrite = true;
-        msg_ext_set_kind(c"search_count");
-        give_warning(msgbuf, false, false);
+    } else if stat.incomplete == 1 {
+        len = vim_snprintf!(t_ptr, SEARCH_STAT_BUF_LEN, c"[?/??]") as usize;
+    } else if stat.cnt > maxcount && stat.cur > maxcount {
+        len = vim_snprintf!(t_ptr, SEARCH_STAT_BUF_LEN, c"[>%d/>%d]", maxcount, maxcount,) as usize;
+    } else if stat.cnt > maxcount {
+        len = vim_snprintf!(t_ptr, SEARCH_STAT_BUF_LEN, c"[%d/>%d]", stat.cur, maxcount,) as usize;
+    } else {
+        len = vim_snprintf!(t_ptr, SEARCH_STAT_BUF_LEN, c"[%d/%d]", stat.cur, stat.cnt,) as usize;
     }
+
+    if show_top_bot_msg && len + 2 < SEARCH_STAT_BUF_LEN {
+        t.copy_within(0..len, 2);
+        t[0] = b'W';
+        t[1] = b' ';
+        len += 2;
+    }
+
+    if len > msgbuflen {
+        len = msgbuflen;
+    }
+    msgbuf[msgbuflen - len..msgbuflen].copy_from_slice(&t[..len]);
+
+    g_st().msg_ext_overwrite = true;
+    msg_ext_set_kind(c"search_count");
+    give_warning(msgbuf.as_ptr().cast(), false, false);
 }
 
 fn update_search_stat(
@@ -3176,137 +3133,127 @@ fn update_search_stat(
 }
 
 pub fn f_searchcount(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
-    unsafe {
-        let mut pos = curwin_mut().w_cursor;
-        let mut pattern = ptr::null_mut();
-        let mut maxcount = opt_vars().p_msc as i32;
-        let mut timeout = SEARCH_STAT_DEF_TIMEOUT;
-        let mut recompute = true;
-        let mut stat = Searchstat::default();
+    let mut pos = curwin_mut().w_cursor;
+    let mut pattern = ptr::null_mut();
+    let mut maxcount = opt_vars().p_msc as i32;
+    let mut timeout = SEARCH_STAT_DEF_TIMEOUT;
+    let mut recompute = true;
+    let mut stat = Searchstat::default();
 
-        tv_dict_alloc_ret(rettv);
+    tv_dict_alloc_ret(rettv);
 
-        if shortmess(K_SHM_SEARCHCOUNT) {
-            recompute = true;
+    if shortmess(K_SHM_SEARCHCOUNT) {
+        recompute = true;
+    }
+
+    if argvars[0].v_type != VarType::VarUnknown {
+        let mut error = false;
+
+        if !tv_check_for_nonnull_dict_arg(argvars, 0) {
+            return;
         }
-
-        if argvars[0].v_type != VarType::VarUnknown {
-            let mut error = false;
-
-            if !tv_check_for_nonnull_dict_arg(argvars, 0) {
+        let dict = argvars[0].vval.v_dict_opt();
+        if let Some(di) = tv_dict_find_opt(dict.as_deref(), c"timeout", -1) {
+            timeout = tv_get_number_chk(&di.di_tv, Some(&mut error)) as i32;
+            if error {
                 return;
             }
-            let dict: *mut TvDict = argvars[0].vval.v_dict();
-            let mut di: *mut Dictitem = tv_dict_find(dict.as_ref(), c"timeout", -1);
-            if !di.is_null() {
-                timeout = tv_get_number_chk(&(*di).di_tv, Some(&mut error)) as i32;
+        }
+        if let Some(di) = tv_dict_find_opt(dict.as_deref(), c"maxcount", -1) {
+            maxcount = tv_get_number_chk(&di.di_tv, Some(&mut error)) as i32;
+            if error {
+                return;
+            }
+        }
+        recompute = tv_dict_get_bool(dict.as_deref(), c"recompute", i32::from(recompute)) != 0;
+        if let Some(di) = tv_dict_find_opt(dict.as_deref(), c"pattern", -1) {
+            let Some(pat) = tv_get_string_chk(&di.di_tv) else {
+                return;
+            };
+            pattern = pat.as_ptr().cast_mut();
+        }
+        if let Some(di) = tv_dict_find_opt(dict.as_deref(), c"pos", -1) {
+            if di.di_tv.v_type != VarType::VarList {
+                semsg!(tr(E_INVARG2), c"pos");
+                return;
+            }
+            if tv_list_len(di.di_tv.vval.v_list_opt().as_deref()) != 3 {
+                semsg!(tr(E_INVARG2), c"List format should be [lnum, col, off]",);
+                return;
+            }
+            if let Some(li) = tv_list_find_opt(di.di_tv.vval.v_list_opt(), 0) {
+                pos.lnum = tv_get_number_chk(&li.li_tv, Some(&mut error)) as Linenr;
                 if error {
                     return;
                 }
             }
-            di = tv_dict_find(dict.as_ref(), c"maxcount", -1);
-            if !di.is_null() {
-                maxcount = tv_get_number_chk(&(*di).di_tv, Some(&mut error)) as i32;
+            if let Some(li) = tv_list_find_opt(di.di_tv.vval.v_list_opt(), 1) {
+                pos.col = tv_get_number_chk(&li.li_tv, Some(&mut error)) as Colnr - 1;
                 if error {
                     return;
                 }
             }
-            recompute = tv_dict_get_bool(dict.as_ref(), c"recompute", i32::from(recompute)) != 0;
-            di = tv_dict_find(dict.as_ref(), c"pattern", -1);
-            if !di.is_null() {
-                let Some(pat) = tv_get_string_chk(&(*di).di_tv) else {
+            if let Some(li) = tv_list_find_opt(di.di_tv.vval.v_list_opt(), 2) {
+                pos.coladd = tv_get_number_chk(&li.li_tv, Some(&mut error)) as Colnr;
+                if error {
                     return;
-                };
-                pattern = pat.as_ptr().cast_mut();
-            }
-            di = tv_dict_find(dict.as_ref(), c"pos", -1);
-            if !di.is_null() {
-                let di = &mut *di;
-                if di.di_tv.v_type != VarType::VarList {
-                    semsg!(tr(E_INVARG2), c"pos");
-                    return;
-                }
-                if tv_list_len((di.di_tv.vval.v_list()).as_ref()) != 3 {
-                    semsg!(tr(E_INVARG2), c"List format should be [lnum, col, off]",);
-                    return;
-                }
-                let mut li: *mut Listitem = tv_list_find((di.di_tv.vval.v_list()).as_mut(), 0);
-                if !li.is_null() {
-                    pos.lnum = tv_get_number_chk(&(*li).li_tv, Some(&mut error)) as Linenr;
-                    if error {
-                        return;
-                    }
-                }
-                li = tv_list_find((di.di_tv.vval.v_list()).as_mut(), 1);
-                if !li.is_null() {
-                    pos.col = tv_get_number_chk(&(*li).li_tv, Some(&mut error)) as Colnr - 1;
-                    if error {
-                        return;
-                    }
-                }
-                li = tv_list_find((di.di_tv.vval.v_list()).as_mut(), 2);
-                if !li.is_null() {
-                    pos.coladd = tv_get_number_chk(&(*li).li_tv, Some(&mut error)) as Colnr;
-                    if error {
-                        return;
-                    }
                 }
             }
         }
-
-        save_last_search_pattern();
-        save_incsearch_state();
-        let mut do_update = true;
-        if !pattern.is_null() {
-            if crate::memory::cstr_is_empty(pattern) {
-                do_update = false;
-            } else {
-                srch().spats[srch().last_idx as usize].pat =
-                    Some(crate::memory::cstr_to_cstring(pattern));
-            }
-        }
-        if do_update
-            && srch().spats[srch().last_idx as usize]
-                .pat_ptr()
-                .is_some_and(|s| !s.is_empty())
-        {
-            let cursor_pos = pos;
-            update_search_stat(
-                0,
-                &mut pos,
-                &mut { cursor_pos },
-                &mut stat,
-                recompute,
-                maxcount,
-                timeout,
-            );
-
-            tv_dict_add_nr(
-                rettv.vval.v_dict_ref(),
-                c"current",
-                Varnumber::from(stat.cur),
-            );
-            tv_dict_add_nr(rettv.vval.v_dict_ref(), c"total", Varnumber::from(stat.cnt));
-            tv_dict_add_nr(
-                rettv.vval.v_dict_ref(),
-                c"exact_match",
-                Varnumber::from(stat.exact_match),
-            );
-            tv_dict_add_nr(
-                rettv.vval.v_dict_ref(),
-                c"incomplete",
-                Varnumber::from(stat.incomplete),
-            );
-            tv_dict_add_nr(
-                rettv.vval.v_dict_ref(),
-                c"maxcount",
-                Varnumber::from(stat.last_maxcount),
-            );
-        }
-
-        restore_last_search_pattern();
-        restore_incsearch_state();
     }
+
+    save_last_search_pattern();
+    save_incsearch_state();
+    let mut do_update = true;
+    if !pattern.is_null() {
+        if crate::memory::cstr_is_empty(pattern) {
+            do_update = false;
+        } else {
+            srch().spats[srch().last_idx as usize].pat =
+                Some(crate::memory::cstr_to_cstring(pattern));
+        }
+    }
+    if do_update
+        && srch().spats[srch().last_idx as usize]
+            .pat_ptr()
+            .is_some_and(|s| !s.is_empty())
+    {
+        let cursor_pos = pos;
+        update_search_stat(
+            0,
+            &mut pos,
+            &mut { cursor_pos },
+            &mut stat,
+            recompute,
+            maxcount,
+            timeout,
+        );
+
+        tv_dict_add_nr(
+            rettv.vval.v_dict_ref(),
+            c"current",
+            Varnumber::from(stat.cur),
+        );
+        tv_dict_add_nr(rettv.vval.v_dict_ref(), c"total", Varnumber::from(stat.cnt));
+        tv_dict_add_nr(
+            rettv.vval.v_dict_ref(),
+            c"exact_match",
+            Varnumber::from(stat.exact_match),
+        );
+        tv_dict_add_nr(
+            rettv.vval.v_dict_ref(),
+            c"incomplete",
+            Varnumber::from(stat.incomplete),
+        );
+        tv_dict_add_nr(
+            rettv.vval.v_dict_ref(),
+            c"maxcount",
+            Varnumber::from(stat.last_maxcount),
+        );
+    }
+
+    restore_last_search_pattern();
+    restore_incsearch_state();
 }
 
 fn get_line_and_copy<T>(lnum: Linenr, buf: *mut T) -> *mut T {
@@ -3330,7 +3277,7 @@ pub fn find_pattern_in_path(
     silent: bool,
 ) {
     let ptr_pat = ptr_pat.into_c_char_ptr();
-    unsafe {
+    {
         let mut max_path_depth: i32 = 50;
         let mut match_count: i32 = 1;
 
@@ -3555,10 +3502,7 @@ pub fn find_pattern_in_path(
                                     i += 1;
                                 }
                             }
-                            let save_char = *p.wrapping_add(i as usize);
-                            *p.wrapping_add(i as usize) = NUL;
-                            msg_outtrans(p, HLF_D, false);
-                            *p.wrapping_add(i as usize) = save_char;
+                            msg_outtrans_len(p, i, HLF_D, false);
                         }
 
                         if new_fname_cstr.is_none() && action == ACTION_SHOW_ALL {
@@ -3733,8 +3677,11 @@ pub fn find_pattern_in_path(
                                 i = crate::memory::ptr_offset_from(p, aux) as i32;
 
                                 if compl_status_adding() && i == ins_compl_len() {
-                                    let iobuff_ptr = g_st().iobuff.as_mut_ptr();
-                                    ptr::copy_nonoverlapping(aux, iobuff_ptr, i as usize);
+                                    crate::memory::cstr_ncpy(
+                                        g_st().iobuff.as_mut_ptr(),
+                                        aux,
+                                        i as usize,
+                                    );
 
                                     if depth < 0 {
                                         if lnum >= end_lnum {
@@ -3783,16 +3730,16 @@ pub fn find_pattern_in_path(
                                             if copy_len >= IOSIZE - (i as usize) {
                                                 copy_len = IOSIZE - (i as usize) - 1;
                                             }
-                                            ptr::copy_nonoverlapping(
+                                            crate::memory::cstr_ncpy(
+                                                g_st().iobuff.as_mut_ptr().wrapping_add(i as usize),
                                                 aux,
-                                                iobuff_ptr.wrapping_add(i as usize),
                                                 copy_len,
                                             );
                                             i += copy_len as i32;
                                             cont_s_ipos = true;
                                         }
                                         g_st().iobuff[i as usize] = NUL;
-                                        aux = iobuff_ptr;
+                                        aux = g_st().iobuff.as_mut_ptr();
 
                                         if i == ins_compl_len() {
                                             skip_add = true;
@@ -3838,21 +3785,23 @@ pub fn find_pattern_in_path(
                         }
                         did_show = true;
                         if !g_st().got_int {
+                            let fp_arg = if depth == -1 {
+                                ptr::null_mut()
+                            } else {
+                                files[depth as usize].fp_ptr()
+                            };
+                            let lnum_arg = if depth == -1 {
+                                &mut lnum
+                            } else {
+                                &mut files[depth as usize].lnum
+                            };
                             show_pat_in_path(
-                                line,
+                                &mut file_line_vec,
                                 type_,
                                 true,
                                 action,
-                                if depth == -1 {
-                                    ptr::null_mut()
-                                } else {
-                                    files[depth as usize].fp_ptr()
-                                },
-                                if depth == -1 {
-                                    &raw mut lnum
-                                } else {
-                                    &raw mut files[depth as usize].lnum
-                                },
+                                fp_arg,
+                                lnum_arg,
                                 match_count,
                             );
                             match_count += 1;
@@ -3871,21 +3820,23 @@ pub fn find_pattern_in_path(
                             {
                                 emsg(tr(c"E387: Match is on current line"));
                             } else if action == ACTION_SHOW {
+                                let fp_arg = if depth == -1 {
+                                    ptr::null_mut()
+                                } else {
+                                    files[depth as usize].fp_ptr()
+                                };
+                                let lnum_arg = if depth == -1 {
+                                    &mut lnum
+                                } else {
+                                    &mut files[depth as usize].lnum
+                                };
                                 show_pat_in_path(
-                                    line,
+                                    &mut file_line_vec,
                                     type_,
                                     did_show,
                                     action,
-                                    if depth == -1 {
-                                        ptr::null_mut()
-                                    } else {
-                                        files[depth as usize].fp_ptr()
-                                    },
-                                    if depth == -1 {
-                                        &raw mut lnum
-                                    } else {
-                                        &raw mut files[depth as usize].lnum
-                                    },
+                                    fp_arg,
+                                    lnum_arg,
                                     1,
                                 );
                                 did_show = true;
@@ -3909,7 +3860,7 @@ pub fn find_pattern_in_path(
                                         if l_g_do_tagpreview != 0 {
                                             if !win_valid(curwin_save)
                                                 || !getfile_success(getfile(
-                                                    (*curwin_save).buf_mut().b_fnum,
+                                                    unsafe { (*curwin_save).buf_mut().b_fnum },
                                                     ptr::null_mut(),
                                                     ptr::null_mut(),
                                                     true,
@@ -3971,7 +3922,7 @@ pub fn find_pattern_in_path(
                         && action == ACTION_EXPAND
                         && !compl_status_sol()
                         && !crate::memory::cstr_is_empty(startp)
-                        && *startp.wrapping_add(utfc_ptr2len(startp) as usize) != NUL
+                        && crate::memory::cstr_byte_at(startp, utfc_ptr2len(startp) as usize) != 0
                     {
                         p = startp.wrapping_add(utfc_ptr2len(startp) as usize);
                         continue;
@@ -4011,13 +3962,13 @@ pub fn find_pattern_in_path(
             if depth >= 0 {
                 files[depth as usize].lnum += 1;
                 i = crate::memory::cstr_len(line) as i32;
-                if i > 0 && *line.wrapping_add((i - 1) as usize).cast::<u8>() == b'\n' {
+                if i > 0 && file_line_vec[(i - 1) as usize] == b'\n' {
                     i -= 1;
-                    *line.wrapping_add(i as usize) = NUL;
+                    file_line_vec[i as usize] = 0;
                 }
-                if i > 0 && *line.wrapping_add((i - 1) as usize).cast::<u8>() == b'\r' {
+                if i > 0 && file_line_vec[(i - 1) as usize] == b'\r' {
                     i -= 1;
-                    *line.wrapping_add(i as usize) = NUL;
+                    file_line_vec[i as usize] = 0;
                 }
             } else if already.is_null() {
                 lnum += 1;
@@ -4061,80 +4012,65 @@ pub fn find_pattern_in_path(
 }
 
 fn show_pat_in_path(
-    line: impl crate::strings::IntoCCharPtr,
+    line_buf: &mut [u8],
     type_: i32,
     did_show: bool,
     action: i32,
     fp: *mut FILE,
-    lnum: *mut Linenr,
+    lnum: &mut Linenr,
     count: i32,
 ) {
-    let mut line = line.into_c_char_ptr().cast_mut();
-    {
-        if did_show {
-            msg_putchar(b'\n' as i32);
-        } else if g_st().msg_silent == 0 {
-            gotocmdline(true);
-        }
-        if g_st().got_int {
-            return;
-        }
-        let mut linelen = crate::memory::cstr_len(line);
-        loop {
-            let mut p = if linelen > 0 {
-                line.wrapping_add(linelen - 1)
-            } else {
-                line.wrapping_sub(1)
-            };
-            if !fp.is_null() {
-                if p >= line && crate::memory::cstr_first_byte(p) == b'\n' {
-                    p = p.wrapping_sub(1);
-                }
-                if p >= line && crate::memory::cstr_first_byte(p) == b'\r' {
-                    p = p.wrapping_sub(1);
-                }
-                unsafe {
-                    *p.wrapping_add(1) = NUL;
-                }
+    let mut line: crate::strings::RawCCharPtrMut = line_buf.as_mut_ptr().cast();
+    if did_show {
+        msg_putchar(b'\n' as i32);
+    } else if g_st().msg_silent == 0 {
+        gotocmdline(true);
+    }
+    if g_st().got_int {
+        return;
+    }
+    let mut linelen = crate::memory::cstr_len(line);
+    loop {
+        if !fp.is_null() {
+            if linelen > 0 && line_buf[linelen - 1] == b'\n' {
+                linelen -= 1;
             }
-            if action == ACTION_SHOW_ALL {
-                let iobuff_ptr = g_st().iobuff.as_mut_ptr();
-                vim_snprintf!(iobuff_ptr, IOSIZE, c"%3d: ", count);
-                msg_puts(iobuff_ptr);
-                vim_snprintf!(iobuff_ptr, IOSIZE, c"%4d", unsafe { *lnum });
-                msg_puts_hl(iobuff_ptr, HLF_N, false);
-                msg_puts(c" ");
+            if linelen > 0 && line_buf[linelen - 1] == b'\r' {
+                linelen -= 1;
             }
-            msg_prt_line(line, false);
+            line_buf[linelen] = 0;
+        }
+        let has_trailing_bsl =
+            linelen > 0 && crate::memory::cstr_byte_at(line, linelen - 1) == b'\\';
+        if action == ACTION_SHOW_ALL {
+            let iobuff_ptr = g_st().iobuff.as_mut_ptr();
+            vim_snprintf!(iobuff_ptr, IOSIZE, c"%3d: ", count);
+            msg_puts(iobuff_ptr);
+            vim_snprintf!(iobuff_ptr, IOSIZE, c"%4d", *lnum);
+            msg_puts_hl(iobuff_ptr, HLF_N, false);
+            msg_puts(c" ");
+        }
+        msg_prt_line(line, false);
 
-            if g_st().got_int
-                || type_ != FIND_DEFINE
-                || p < line
-                || crate::memory::cstr_first_byte(p) != b'\\'
-            {
+        if g_st().got_int || type_ != FIND_DEFINE || !has_trailing_bsl {
+            break;
+        }
+
+        if !fp.is_null() {
+            if vim_fgets(line, LSIZE as i32, fp) {
                 break;
             }
-
-            if !fp.is_null() {
-                if vim_fgets(line, LSIZE as i32, fp) {
-                    break;
-                }
-                linelen = crate::memory::cstr_len(line);
-                unsafe {
-                    *lnum += 1;
-                }
-            } else {
-                unsafe {
-                    *lnum += 1;
-                }
-                if unsafe { *lnum } > curbuf_mut().b_ml.ml_line_count {
-                    break;
-                }
-                line = ml_get(unsafe { *lnum });
-                linelen = ml_get_len(unsafe { *lnum }) as usize;
+            linelen = crate::memory::cstr_len(line);
+            *lnum += 1;
+        } else {
+            *lnum += 1;
+            if *lnum > curbuf_mut().b_ml.ml_line_count {
+                break;
             }
-            msg_putchar(b'\n' as i32);
+            line = ml_get(*lnum);
+            linelen = ml_get_len(*lnum) as usize;
         }
+        msg_putchar(b'\n' as i32);
     }
 }
 
