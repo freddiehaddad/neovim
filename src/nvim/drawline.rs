@@ -3040,7 +3040,7 @@ pub fn win_line(
                                         if lcs_tab3 != 0 && i == tab_len - 1 {
                                             lcs = lcs_tab3;
                                         }
-                                        let slen = schar_get_adv(&raw mut p, lcs);
+                                        let slen = schar_get_adv(&mut p, lcs);
                                         wlv.n_extra +=
                                             slen as i32 - if saved_nextra > 0 { 1 } else { 0 };
                                     }

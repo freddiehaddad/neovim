@@ -257,7 +257,7 @@ pub fn schar_high(sc: Schar) -> bool {
 
 /// Sets final NUL (`schar_get`).
 pub fn schar_get(mut buf_out: *mut u8, sc: Schar) -> usize {
-    let len = schar_get_adv(&raw mut buf_out, sc);
+    let len = schar_get_adv(&mut buf_out, sc);
     unsafe {
         *buf_out = 0;
     }
@@ -269,7 +269,7 @@ pub fn schar_get_bytes(buf_out: &mut [u8], sc: Schar) -> usize {
 }
 
 /// Advance `buf_out`. Do NOT set final NUL (`schar_get_adv`).
-pub fn schar_get_adv(buf_out: *mut *mut u8, sc: Schar) -> usize {
+pub fn schar_get_adv(buf_out: &mut *mut u8, sc: Schar) -> usize {
     unsafe {
         let len: usize;
         if schar_high(sc) {

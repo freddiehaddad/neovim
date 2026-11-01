@@ -85,7 +85,7 @@ struct ContainerStackItem {
 }
 
 #[inline]
-pub(crate) fn mpack_w(b: *mut *mut u8, byte: u8) {
+pub(crate) fn mpack_w(b: &mut *mut u8, byte: u8) {
     unsafe {
         **b = byte;
         *b = (*b).wrapping_add(1);
@@ -93,7 +93,7 @@ pub(crate) fn mpack_w(b: *mut *mut u8, byte: u8) {
 }
 
 #[inline]
-pub fn mpack_w2(b: *mut *mut u8, v: u32) {
+pub fn mpack_w2(b: &mut *mut u8, v: u32) {
     let bytes = (v as u16).to_be_bytes();
     unsafe {
         std::ptr::copy_nonoverlapping(bytes.as_ptr(), *b, 2);
@@ -102,7 +102,7 @@ pub fn mpack_w2(b: *mut *mut u8, v: u32) {
 }
 
 #[inline]
-fn mpack_w4(b: *mut *mut u8, v: u32) {
+fn mpack_w4(b: &mut *mut u8, v: u32) {
     let bytes = v.to_be_bytes();
     unsafe {
         std::ptr::copy_nonoverlapping(bytes.as_ptr(), *b, 4);
@@ -111,7 +111,7 @@ fn mpack_w4(b: *mut *mut u8, v: u32) {
 }
 
 #[inline]
-fn mpack_w8(b: *mut *mut u8, v: u64) {
+fn mpack_w8(b: &mut *mut u8, v: u64) {
     let bytes = v.to_be_bytes();
     unsafe {
         std::ptr::copy_nonoverlapping(bytes.as_ptr(), *b, 8);
@@ -120,7 +120,7 @@ fn mpack_w8(b: *mut *mut u8, v: u64) {
 }
 
 #[inline]
-pub(crate) fn mpack_uint(buf: *mut *mut u8, val: u32) {
+pub(crate) fn mpack_uint(buf: &mut *mut u8, val: u32) {
     if val > 0xffff {
         mpack_w(buf, 0xce);
         mpack_w4(buf, val);
@@ -136,17 +136,17 @@ pub(crate) fn mpack_uint(buf: *mut *mut u8, val: u32) {
 }
 
 #[inline]
-pub(crate) fn mpack_nil(buf: *mut *mut u8) {
+pub(crate) fn mpack_nil(buf: &mut *mut u8) {
     mpack_w(buf, 0xc0);
 }
 
 #[inline]
-pub(crate) fn mpack_bool(buf: *mut *mut u8, val: bool) {
+pub(crate) fn mpack_bool(buf: &mut *mut u8, val: bool) {
     mpack_w(buf, 0xc2 | u8::from(val));
 }
 
 #[inline]
-pub(crate) fn mpack_array(buf: *mut *mut u8, len: u32) {
+pub(crate) fn mpack_array(buf: &mut *mut u8, len: u32) {
     if len < 0x10 {
         mpack_w(buf, 0x90 | (len as u8));
     } else if len < 0x10000 {
@@ -159,7 +159,7 @@ pub(crate) fn mpack_array(buf: *mut *mut u8, len: u32) {
 }
 
 #[inline]
-pub(crate) fn mpack_map(buf: *mut *mut u8, len: u32) {
+pub(crate) fn mpack_map(buf: &mut *mut u8, len: u32) {
     if len < 0x10 {
         mpack_w(buf, 0x80 | (len as u8));
     } else if len < 0x10000 {
@@ -189,8 +189,8 @@ pub fn mpack_check_buffer(packer: &mut PackerBuffer) {
 /// Pack a 64-bit unsigned integer into `*ptr` (`mpack_uint64`).
 ///
 /// # Safety
-/// `ptr` and `*ptr` must be valid writable pointers with sufficient space.
-pub fn mpack_uint64(ptr: *mut *mut u8, i: u64) {
+/// `*ptr` must be a valid writable pointer with sufficient space.
+pub fn mpack_uint64(ptr: &mut *mut u8, i: u64) {
     if i > 0x0fff_ffff {
         mpack_w(ptr, 0xcf);
         mpack_w8(ptr, i);
@@ -202,8 +202,8 @@ pub fn mpack_uint64(ptr: *mut *mut u8, i: u64) {
 /// Pack a signed 64-bit integer into `*ptr` (`mpack_integer`).
 ///
 /// # Safety
-/// `ptr` and `*ptr` must be valid writable pointers with sufficient space.
-pub fn mpack_integer(ptr: *mut *mut u8, i: Integer) {
+/// `*ptr` must be a valid writable pointer with sufficient space.
+pub fn mpack_integer(ptr: &mut *mut u8, i: Integer) {
     if i >= 0 {
         mpack_uint64(ptr, i as u64);
     } else if i < -0x8000_0000 {
@@ -226,8 +226,8 @@ pub fn mpack_integer(ptr: *mut *mut u8, i: Integer) {
 /// Pack an IEEE 754 `f64` into `*ptr` (`mpack_float8`).
 ///
 /// # Safety
-/// `ptr` and `*ptr` must be valid writable pointers with sufficient space.
-pub fn mpack_float8(ptr: *mut *mut u8, i: f64) {
+/// `*ptr` must be a valid writable pointer with sufficient space.
+pub fn mpack_float8(ptr: &mut *mut u8, i: f64) {
     mpack_w(ptr, 0xcb);
     mpack_w8(ptr, i.to_bits());
 }

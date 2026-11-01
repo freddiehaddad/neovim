@@ -813,11 +813,11 @@ fn serialize_request(
     let mut packer = PackerBuffer::new();
     packer_buffer_init_channels(chans, nchans, &mut packer);
 
-    mpack_array(&raw mut packer.ptr, if request_id != 0 { 4 } else { 3 });
-    mpack_w(&raw mut packer.ptr, if request_id != 0 { 0 } else { 2 });
+    mpack_array(&mut packer.ptr, if request_id != 0 { 4 } else { 3 });
+    mpack_w(&mut packer.ptr, if request_id != 0 { 0 } else { 2 });
 
     if request_id != 0 {
-        mpack_uint(&raw mut packer.ptr, request_id);
+        mpack_uint(&mut packer.ptr, request_id);
     }
 
     mpack_str(cstr_as_string(method), &mut packer);
@@ -868,17 +868,17 @@ pub fn serialize_response(
     let mut ch_ptr = &raw mut *channel;
     packer_buffer_init_channels(&raw mut ch_ptr, 1, &mut packer);
 
-    mpack_array(&raw mut packer.ptr, 4);
-    mpack_w(&raw mut packer.ptr, 1);
-    mpack_uint(&raw mut packer.ptr, response_id);
+    mpack_array(&mut packer.ptr, 4);
+    mpack_w(&mut packer.ptr, 1);
+    mpack_uint(&mut packer.ptr, response_id);
 
     if err.err_type != ErrorType::ErrorTypeNone {
-        mpack_array(&raw mut packer.ptr, 2);
-        mpack_integer(&raw mut packer.ptr, err.err_type as Integer);
+        mpack_array(&mut packer.ptr, 2);
+        mpack_integer(&mut packer.ptr, err.err_type as Integer);
         mpack_str(cstr_as_string(err.msg_cstr()), &mut packer);
-        mpack_nil(&raw mut packer.ptr);
+        mpack_nil(&mut packer.ptr);
     } else {
-        mpack_nil(&raw mut packer.ptr);
+        mpack_nil(&mut packer.ptr);
         mpack_object(arg, &mut packer);
     }
 

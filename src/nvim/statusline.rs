@@ -1286,7 +1286,7 @@ fn stl_truncate(
             if *width >= minwid {
                 break;
             }
-            schar_get_adv(out_p, fillchar);
+            schar_get_adv(&mut *out_p, fillchar);
         }
         **out_p = 0;
     }
@@ -1304,7 +1304,7 @@ fn stl_expand(
     startitem: i32,
     curitem: i32,
     mut start_p: *mut u8,
-    out_p: *mut *mut u8,
+    out_p: &mut *mut u8,
 ) {
     unsafe {
         let fillchar_bytes = schar_len(fillchar) as i32;
@@ -1341,7 +1341,7 @@ fn stl_expand(
                     ptr::copy(start, seploc, len);
                     let mut s = start;
                     while s < seploc {
-                        schar_get_adv(&raw mut s, fillchar);
+                        schar_get_adv(&mut s, fillchar);
                     }
                 }
             }
@@ -1363,7 +1363,7 @@ fn stl_expand(
 
             let orig_added_cells = added_cells;
             while added_cells > 0 {
-                schar_get_adv(&raw mut start_p, fillchar);
+                schar_get_adv(&mut start_p, fillchar);
                 added_cells -= 1;
             }
 
@@ -1656,7 +1656,7 @@ pub extern "C" fn build_stl_str_hl(
                         gidx + 1,
                         stl_st().curitem,
                         t,
-                        &raw mut out_p,
+                        &mut out_p,
                     );
                 }
 
@@ -2343,7 +2343,7 @@ pub extern "C" fn build_stl_str_hl(
                             *out_p = b' ';
                             out_p = out_p.wrapping_add(1);
                         } else {
-                            schar_get_adv(&raw mut out_p, fillchar);
+                            schar_get_adv(&mut out_p, fillchar);
                         }
                         l += 1;
                     }
@@ -2369,7 +2369,7 @@ pub extern "C" fn build_stl_str_hl(
                         && (!ascii_isdigit(crate::memory::cstr_char_at(t.cast(), 1))
                             || fillchar != schar_from_ascii(b'-'))
                     {
-                        schar_get_adv(&raw mut out_p, fillchar);
+                        schar_get_adv(&mut out_p, fillchar);
                     } else {
                         *out_p = *t;
                         out_p = out_p.wrapping_add(1);
@@ -2384,7 +2384,7 @@ pub extern "C" fn build_stl_str_hl(
                 }
 
                 while l < minwid && out_p < out_end_p {
-                    schar_get_adv(&raw mut out_p, fillchar);
+                    schar_get_adv(&mut out_p, fillchar);
                     l += 1;
                 }
             } else if num >= 0 {
@@ -2504,7 +2504,7 @@ pub extern "C" fn build_stl_str_hl(
                 evalstart,
                 stl_st().curitem,
                 out.data,
-                &raw mut out_p,
+                &mut out_p,
             );
         }
 
