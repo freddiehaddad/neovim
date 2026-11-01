@@ -1441,6 +1441,7 @@ pub fn decor_row_has_conceal(wp: &mut WinInfoInfo, row: i32) -> bool {
 
 pub fn decor_conceal_line(wp: &mut WinInfoInfo, row: i32, check_cursor: bool) -> bool {
     if row < 0
+        || row >= wp.buf_mut().b_ml.ml_line_count
         || wp.w_onebuf_opt.wo_cole < 2
         || (!check_cursor
             && ptr::eq(wp, curwin_ptr())
