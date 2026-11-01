@@ -308,11 +308,6 @@ fn tb_buf_ptr() -> *mut u8 {
     g_st().typebuf.tb_buf.as_mut_ptr()
 }
 
-#[inline]
-fn tb_noremap_ptr() -> *mut u8 {
-    g_st().typebuf.tb_noremap.as_mut_ptr()
-}
-
 use crate::api::buffer::LUA_INTERNAL_CALL;
 use crate::cmdexpand::{CTRL_N, CTRL_P, MB_MAXBYTES};
 use crate::keycodes::{k_second, k_third};
@@ -448,7 +443,7 @@ fn add_buff(buf: &mut StuffBuf, s: impl crate::strings::IntoCCharPtr, mut slen: 
             return;
         }
         let slen_u = slen as usize;
-        let slice = unsafe { std::slice::from_raw_parts(s.cast::<u8>(), slen_u) };
+        let slice = crate::memory::cstr_slice(s, slen_u);
         let insert = buf.insert;
         buf.keys.splice(insert..insert, slice.iter().copied());
         buf.insert += slen_u;
@@ -664,7 +659,7 @@ pub fn prep_redo_visual(keys: impl crate::strings::IntoCCharPtr, len: usize, spe
                 .redobuff
                 .cur
                 .body
-                .extend_from_slice(unsafe { std::slice::from_raw_parts(keys.cast::<u8>(), len) });
+                .extend_from_slice(crate::memory::cstr_slice(keys, len));
         }
         redo_prefix(&spec, &mut inp_st().redobuff.cur.body, false);
         redo_chars(&spec, &mut inp_st().redobuff.cur.body, false);
@@ -709,7 +704,7 @@ pub fn redo_append_str<S: crate::strings::IntoCCharPtr>(s: S, len: isize) {
                     .redobuff
                     .cur
                     .body
-                    .extend_from_slice(unsafe { std::slice::from_raw_parts(s.cast::<u8>(), slen) });
+                    .extend_from_slice(crate::memory::cstr_slice(s, slen));
             }
         }
     }
@@ -718,51 +713,50 @@ pub fn redo_append_str<S: crate::strings::IntoCCharPtr>(s: S, len: isize) {
 /// Appends `str` to `buf` literally, escaping special characters with CTRL-V.
 pub fn sb_add_lit(buf: &mut Vec<u8>, str_: impl crate::strings::IntoCCharPtr, len: i32) {
     let str_ = str_.into_c_char_ptr();
-    unsafe {
-        let mut s = str_;
-        while if len < 0 {
-            !crate::memory::cstr_is_empty(s)
+    let mut s = str_;
+    while if len < 0 {
+        !crate::memory::cstr_is_empty(s)
+    } else {
+        crate::memory::ptr_offset_from(s, str_) < len as isize
+    } {
+        let start = s;
+        while (b' '..DEL as u8).contains(&crate::memory::cstr_first_byte(s))
+            && (len < 0 || crate::memory::ptr_offset_from(s, str_) < len as isize)
+        {
+            s = s.wrapping_add(1);
+        }
+
+        if crate::memory::cstr_is_empty(s)
+            && matches!(
+                crate::memory::cstr_first_byte(s.wrapping_sub(1)),
+                b'0' | b'^'
+            )
+        {
+            s = s.wrapping_sub(1);
+        }
+        if s > start {
+            let n = crate::memory::ptr_offset_from(s, start) as usize;
+            buf.extend_from_slice(crate::memory::cstr_slice(start, n));
+        }
+
+        if crate::memory::cstr_is_empty(s)
+            || (len >= 0 && crate::memory::ptr_offset_from(s, str_) >= len as isize)
+        {
+            break;
+        }
+
+        let c = mb_cptr2char_adv(&mut s);
+        if c < b' ' as i32
+            || c == DEL
+            || (crate::memory::cstr_is_empty(s) && (c == b'0' as i32 || c == b'^' as i32))
+        {
+            sb_add_char(buf, CTRL_V_CONST);
+        }
+
+        if crate::memory::cstr_is_empty(s) && c == b'0' as i32 {
+            buf.extend_from_slice(b"048");
         } else {
-            s.offset_from(str_) < len as isize
-        } {
-            let start = s;
-            while (b' '..DEL as u8).contains(&crate::memory::cstr_first_byte(s))
-                && (len < 0 || s.offset_from(str_) < len as isize)
-            {
-                s = s.wrapping_add(1);
-            }
-
-            if crate::memory::cstr_is_empty(s)
-                && matches!(
-                    crate::memory::cstr_first_byte(s.wrapping_sub(1)),
-                    b'0' | b'^'
-                )
-            {
-                s = s.wrapping_sub(1);
-            }
-            if s > start {
-                let n = s.offset_from(start) as usize;
-                buf.extend_from_slice(std::slice::from_raw_parts(start.cast::<u8>(), n));
-            }
-
-            if crate::memory::cstr_is_empty(s) || (len >= 0 && s.offset_from(str_) >= len as isize)
-            {
-                break;
-            }
-
-            let c = mb_cptr2char_adv(&mut s);
-            if c < b' ' as i32
-                || c == DEL
-                || (crate::memory::cstr_is_empty(s) && (c == b'0' as i32 || c == b'^' as i32))
-            {
-                sb_add_char(buf, CTRL_V_CONST);
-            }
-
-            if crate::memory::cstr_is_empty(s) && c == b'0' as i32 {
-                buf.extend_from_slice(b"048");
-            } else {
-                sb_add_char(buf, c);
-            }
+            sb_add_char(buf, c);
         }
     }
 }
@@ -787,7 +781,7 @@ pub fn sb_add_spec(buf: &mut Vec<u8>, s: impl crate::strings::IntoCCharPtr) {
                 && crate::memory::cstr_byte_at(s, 1) != 0
                 && crate::memory::cstr_byte_at(s, 2) != 0
             {
-                buf.extend_from_slice(unsafe { std::slice::from_raw_parts(s.cast::<u8>(), 3) });
+                buf.extend_from_slice(crate::memory::cstr_slice(s, 3));
                 s = s.wrapping_add(3);
             } else {
                 let c = mb_cptr2char_adv(&mut s);
@@ -830,9 +824,9 @@ pub fn stuff_readbuff_len(s: impl crate::strings::IntoCCharPtr, len: isize) {
     let s = s.into_c_char_ptr();
     {
         if g_st().add_last_insert == 1 && len > 0 {
-            g_st().last_insert_ga.extend_from_slice(unsafe {
-                std::slice::from_raw_parts(s.cast::<u8>(), len as usize)
-            });
+            g_st()
+                .last_insert_ga
+                .extend_from_slice(crate::memory::cstr_slice(s, len as usize));
         }
         add_buff(&mut inp_st().readbuf1, s, len);
     }
@@ -882,7 +876,7 @@ pub fn stuffescaped(arg: impl crate::strings::IntoCCharPtr, literally: bool) {
                 arg = arg.wrapping_add(1);
             }
             if arg > start {
-                stuff_readbuff_len(start, unsafe { arg.offset_from(start) });
+                stuff_readbuff_len(start, crate::memory::ptr_offset_from(arg, start));
             }
 
             if !crate::memory::cstr_is_empty(arg) {
@@ -899,16 +893,15 @@ pub fn stuffescaped(arg: impl crate::strings::IntoCCharPtr, literally: bool) {
 /// Dot-repeat `"."` command.
 pub fn start_redo(count: i32, old_redo: bool) -> bool {
     let rd = if old_redo {
-        &raw mut inp_st().redobuff.old
+        &mut inp_st().redobuff.old
     } else {
-        &raw mut inp_st().redobuff.cur
+        &mut inp_st().redobuff.cur
     };
-    let rd = unsafe { &mut *rd };
     if rd.body.is_empty() && rd.regname == 0 && rd.count == 0 {
         return false;
     }
 
-    let mut spec = (*rd).without_body();
+    let mut spec = rd.without_body();
     if spec.regname >= b'1' as i32 && spec.regname < b'9' as i32 {
         spec.regname += 1;
     }
@@ -1001,118 +994,105 @@ pub fn ins_typebuf(
     nottyped: bool,
     silent: bool,
 ) -> bool {
-    let str_ = str_.into_c_char_ptr().cast_mut();
-    unsafe {
-        init_typebuf();
-        g_st().typebuf.tb_change_cnt = g_st().typebuf.tb_change_cnt.wrapping_add(1);
-        if g_st().typebuf.tb_change_cnt == 0 {
-            g_st().typebuf.tb_change_cnt = 1;
-        }
-        state_no_longer_safe(Some(c"ins_typebuf()"));
-
-        let addlen = crate::memory::cstr_len(str_) as i32;
-
-        if offset == 0 && addlen <= g_st().typebuf.tb_off {
-            g_st().typebuf.tb_off -= addlen;
-            ptr::copy(
-                str_.cast::<u8>(),
-                tb_buf_ptr().wrapping_add(g_st().typebuf.tb_off as usize),
-                addlen as usize,
-            );
-        } else if g_st().typebuf.tb_len == 0
-            && g_st().typebuf.tb_buflen >= addlen + (3 * (MAXMAPLEN + 4)) as i32
-        {
-            g_st().typebuf.tb_off =
-                (g_st().typebuf.tb_buflen - addlen - (3 * (MAXMAPLEN + 4)) as i32) / 2;
-            ptr::copy(
-                str_.cast::<u8>(),
-                tb_buf_ptr().wrapping_add(g_st().typebuf.tb_off as usize),
-                addlen as usize,
-            );
-        } else {
-            let newoff = (MAXMAPLEN + 4) as i32;
-            let extra = addlen + newoff + (4 * (MAXMAPLEN + 4)) as i32;
-            if g_st().typebuf.tb_len > i32::MAX - extra {
-                emsg(gettext(E_COMMAND_TOO_COMPLEX));
-                setcursor();
-                return false;
-            }
-            let newlen = g_st().typebuf.tb_len + extra;
-            let mut s1_vec = vec![0u8; newlen as usize];
-            let mut s2_vec = vec![0u8; newlen as usize];
-            let s1 = s1_vec.as_mut_ptr();
-            let s2 = s2_vec.as_mut_ptr();
-            g_st().typebuf.tb_buflen = newlen;
-
-            ptr::copy(
-                tb_buf_ptr().wrapping_add(g_st().typebuf.tb_off as usize),
-                s1.wrapping_add(newoff as usize),
-                offset as usize,
-            );
-            ptr::copy(
-                str_.cast::<u8>(),
-                s1.wrapping_add((newoff + offset) as usize),
-                addlen as usize,
-            );
-            let bytes = g_st().typebuf.tb_len - offset + 1;
-            assert!(bytes > 0);
-            ptr::copy(
-                tb_buf_ptr().wrapping_add((g_st().typebuf.tb_off + offset) as usize),
-                s1.wrapping_add((newoff + offset + addlen) as usize),
-                bytes as usize,
-            );
-            g_st().typebuf.tb_buf = s1_vec;
-
-            ptr::copy(
-                tb_noremap_ptr().wrapping_add(g_st().typebuf.tb_off as usize),
-                s2.wrapping_add(newoff as usize),
-                offset as usize,
-            );
-            ptr::copy(
-                tb_noremap_ptr().wrapping_add((g_st().typebuf.tb_off + offset) as usize),
-                s2.wrapping_add((newoff + offset + addlen) as usize),
-                (g_st().typebuf.tb_len - offset) as usize,
-            );
-            g_st().typebuf.tb_noremap = s2_vec;
-
-            g_st().typebuf.tb_off = newoff;
-        }
-        g_st().typebuf.tb_len += addlen;
-
-        let val = if noremap == REMAP_SCRIPT {
-            RM_SCRIPT
-        } else if noremap == REMAP_SKIP {
-            RM_ABBR
-        } else {
-            RM_NONE
-        };
-
-        let mut nrm = if noremap == REMAP_SKIP {
-            1
-        } else if noremap < 0 {
-            addlen
-        } else {
-            noremap
-        };
-        for i in 0..addlen {
-            nrm -= 1;
-            *tb_noremap_ptr().wrapping_add((g_st().typebuf.tb_off + i + offset) as usize) =
-                if nrm >= 0 { val } else { RM_YES };
-        }
-
-        if nottyped || g_st().typebuf.tb_maplen > offset {
-            g_st().typebuf.tb_maplen += addlen;
-        }
-        if silent || g_st().typebuf.tb_silent > offset {
-            g_st().typebuf.tb_silent += addlen;
-            g_st().cmd_silent = true;
-        }
-        if g_st().typebuf.tb_no_abbr_cnt != 0 && offset == 0 {
-            g_st().typebuf.tb_no_abbr_cnt += addlen;
-        }
-
-        true
+    let str_ = str_.into_c_char_ptr();
+    init_typebuf();
+    g_st().typebuf.tb_change_cnt = g_st().typebuf.tb_change_cnt.wrapping_add(1);
+    if g_st().typebuf.tb_change_cnt == 0 {
+        g_st().typebuf.tb_change_cnt = 1;
     }
+    state_no_longer_safe(Some(c"ins_typebuf()"));
+
+    let addlen = crate::memory::cstr_len(str_) as i32;
+    let add_usize = addlen as usize;
+    let str_slice = crate::memory::cstr_slice(str_, add_usize);
+
+    if offset == 0 && addlen <= g_st().typebuf.tb_off {
+        g_st().typebuf.tb_off -= addlen;
+        let off = g_st().typebuf.tb_off as usize;
+        g_st().typebuf.tb_buf[off..off + add_usize].copy_from_slice(str_slice);
+    } else if g_st().typebuf.tb_len == 0
+        && g_st().typebuf.tb_buflen >= addlen + (3 * (MAXMAPLEN + 4)) as i32
+    {
+        g_st().typebuf.tb_off =
+            (g_st().typebuf.tb_buflen - addlen - (3 * (MAXMAPLEN + 4)) as i32) / 2;
+        let off = g_st().typebuf.tb_off as usize;
+        g_st().typebuf.tb_buf[off..off + add_usize].copy_from_slice(str_slice);
+    } else {
+        let newoff = (MAXMAPLEN + 4) as i32;
+        let extra = addlen + newoff + (4 * (MAXMAPLEN + 4)) as i32;
+        if g_st().typebuf.tb_len > i32::MAX - extra {
+            emsg(gettext(E_COMMAND_TOO_COMPLEX));
+            setcursor();
+            return false;
+        }
+        let newlen = g_st().typebuf.tb_len + extra;
+        let mut s1_vec = vec![0u8; newlen as usize];
+        let mut s2_vec = vec![0u8; newlen as usize];
+        g_st().typebuf.tb_buflen = newlen;
+
+        let tb_off = g_st().typebuf.tb_off as usize;
+        let off_usize = offset as usize;
+        let newoff_usize = newoff as usize;
+        let bytes = (g_st().typebuf.tb_len - offset + 1) as usize;
+        assert!(bytes > 0);
+        let tail_noremap = (g_st().typebuf.tb_len - offset) as usize;
+
+        s1_vec[newoff_usize..newoff_usize + off_usize]
+            .copy_from_slice(&g_st().typebuf.tb_buf[tb_off..tb_off + off_usize]);
+        s1_vec[newoff_usize + off_usize..newoff_usize + off_usize + add_usize]
+            .copy_from_slice(str_slice);
+        s1_vec[newoff_usize + off_usize + add_usize..newoff_usize + off_usize + add_usize + bytes]
+            .copy_from_slice(
+                &g_st().typebuf.tb_buf[tb_off + off_usize..tb_off + off_usize + bytes],
+            );
+        g_st().typebuf.tb_buf = s1_vec;
+
+        s2_vec[newoff_usize..newoff_usize + off_usize]
+            .copy_from_slice(&g_st().typebuf.tb_noremap[tb_off..tb_off + off_usize]);
+        s2_vec[newoff_usize + off_usize + add_usize
+            ..newoff_usize + off_usize + add_usize + tail_noremap]
+            .copy_from_slice(
+                &g_st().typebuf.tb_noremap[tb_off + off_usize..tb_off + off_usize + tail_noremap],
+            );
+        g_st().typebuf.tb_noremap = s2_vec;
+
+        g_st().typebuf.tb_off = newoff;
+    }
+    g_st().typebuf.tb_len += addlen;
+
+    let val = if noremap == REMAP_SCRIPT {
+        RM_SCRIPT
+    } else if noremap == REMAP_SKIP {
+        RM_ABBR
+    } else {
+        RM_NONE
+    };
+
+    let mut nrm = if noremap == REMAP_SKIP {
+        1
+    } else if noremap < 0 {
+        addlen
+    } else {
+        noremap
+    };
+    let start_idx = (g_st().typebuf.tb_off + offset) as usize;
+    for i in 0..add_usize {
+        nrm -= 1;
+        g_st().typebuf.tb_noremap[start_idx + i] = if nrm >= 0 { val } else { RM_YES };
+    }
+
+    if nottyped || g_st().typebuf.tb_maplen > offset {
+        g_st().typebuf.tb_maplen += addlen;
+    }
+    if silent || g_st().typebuf.tb_silent > offset {
+        g_st().typebuf.tb_silent += addlen;
+        g_st().cmd_silent = true;
+    }
+    if g_st().typebuf.tb_no_abbr_cnt != 0 && offset == 0 {
+        g_st().typebuf.tb_no_abbr_cnt += addlen;
+    }
+
+    true
 }
 
 /// Re-queues key `c`: puts a key obtained by `vgetc()` back into typeahead.
@@ -1160,40 +1140,33 @@ pub fn del_typebuf(len: i32, offset: i32) {
     {
         g_st().typebuf.tb_off += len;
     } else {
-        let i = g_st().typebuf.tb_off + offset;
+        let i = (g_st().typebuf.tb_off + offset) as usize;
+        let off_usize = offset as usize;
         if g_st().typebuf.tb_off > MAXMAPLEN as i32 {
-            unsafe {
-                ptr::copy(
-                    tb_buf_ptr().wrapping_add(g_st().typebuf.tb_off as usize),
-                    tb_buf_ptr().wrapping_add(MAXMAPLEN),
-                    offset as usize,
-                )
-            };
-            unsafe {
-                ptr::copy(
-                    tb_noremap_ptr().wrapping_add(g_st().typebuf.tb_off as usize),
-                    tb_noremap_ptr().wrapping_add(MAXMAPLEN),
-                    offset as usize,
-                )
-            };
+            let tb_off = g_st().typebuf.tb_off as usize;
+            g_st()
+                .typebuf
+                .tb_buf
+                .copy_within(tb_off..tb_off + off_usize, MAXMAPLEN);
+            g_st()
+                .typebuf
+                .tb_noremap
+                .copy_within(tb_off..tb_off + off_usize, MAXMAPLEN);
             g_st().typebuf.tb_off = MAXMAPLEN as i32;
         }
-        let bytes = g_st().typebuf.tb_len - offset + 1;
+        let bytes = (g_st().typebuf.tb_len - offset + 1) as usize;
         assert!(bytes > 0);
-        unsafe {
-            ptr::copy(
-                tb_buf_ptr().wrapping_add((i + len) as usize),
-                tb_buf_ptr().wrapping_add((g_st().typebuf.tb_off + offset) as usize),
-                bytes as usize,
-            )
-        };
-        unsafe {
-            ptr::copy(
-                tb_noremap_ptr().wrapping_add((i + len) as usize),
-                tb_noremap_ptr().wrapping_add((g_st().typebuf.tb_off + offset) as usize),
-                (g_st().typebuf.tb_len - offset) as usize,
-            )
-        };
+        let src_start = i + len as usize;
+        let dst_start = (g_st().typebuf.tb_off + offset) as usize;
+        g_st()
+            .typebuf
+            .tb_buf
+            .copy_within(src_start..src_start + bytes, dst_start);
+        let noremap_bytes = (g_st().typebuf.tb_len - offset) as usize;
+        g_st()
+            .typebuf
+            .tb_noremap
+            .copy_within(src_start..src_start + noremap_bytes, dst_start);
     }
 
     if g_st().typebuf.tb_maplen > offset {
@@ -1602,19 +1575,19 @@ fn add_byte_to_showcmd(byte: u8) {
     let mut c: i32 = NUL;
 
     let mut ptr = (&raw const inp_st().showcmd_state.buf).cast::<u8>();
-    if unsafe { *ptr } == K_SPECIAL
-        && unsafe { *ptr.wrapping_add(1) } == KS_MODIFIER
+    if crate::memory::cstr_first_byte(ptr.cast()) == K_SPECIAL
+        && crate::memory::cstr_byte_at(ptr.cast(), 1) == KS_MODIFIER
         && crate::memory::cstr_byte_at(ptr.cast(), 2) != 0_u8
     {
         modifiers = i32::from(crate::memory::cstr_byte_at(ptr.cast(), 2));
         ptr = ptr.wrapping_add(3);
     }
 
-    if unsafe { *ptr } != NUL as u8 {
+    if !crate::memory::cstr_is_empty(ptr.cast()) {
         if let Some(mb_cstr) = mb_unescape(&mut ptr) {
             c = utf_ptr2char(mb_cstr);
         } else {
-            c = unsafe { *ptr } as i32;
+            c = i32::from(crate::memory::cstr_first_byte(ptr.cast()));
             ptr = ptr.wrapping_add(1);
         }
         if c <= 0x7f {
@@ -1635,8 +1608,8 @@ fn add_byte_to_showcmd(byte: u8) {
     if c != NUL {
         add_to_showcmd(c);
     }
-    while unsafe { *ptr } != NUL as u8 {
-        add_to_showcmd(unsafe { *ptr } as i32);
+    while !crate::memory::cstr_is_empty(ptr.cast()) {
+        add_to_showcmd(i32::from(crate::memory::cstr_first_byte(ptr.cast())));
         ptr = ptr.wrapping_add(1);
     }
 }
@@ -2022,16 +1995,14 @@ pub fn f_getcharmod(_argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFunc
     rettv.vval = crate::eval::typval::TypvalVval::Number(Varnumber::from(g_st().mod_mask));
 }
 
-fn put_string_in_typebuf(offset: i32, slen: i32, string: *mut u8, new_slen: i32) -> bool {
+fn put_string_in_typebuf(offset: i32, slen: i32, string: &mut [u8], new_slen: i32) -> bool {
     let extra = new_slen - slen;
-    unsafe {
-        *string.wrapping_add(new_slen as usize) = NUL as u8;
-    }
+    string[new_slen as usize] = NUL as u8;
     if extra < 0 {
         del_typebuf(-extra, offset);
     } else if extra > 0
         && !ins_typebuf(
-            string.wrapping_add(slen as usize).cast(),
+            string[slen as usize..].as_ptr().cast(),
             REMAP_YES,
             offset,
             false,
@@ -2040,32 +2011,27 @@ fn put_string_in_typebuf(offset: i32, slen: i32, string: *mut u8, new_slen: i32)
     {
         return false;
     }
-    unsafe {
-        ptr::copy(
-            string,
-            tb_buf_ptr().wrapping_add((g_st().typebuf.tb_off + offset) as usize),
-            new_slen as usize,
-        )
-    };
+    let dst = (g_st().typebuf.tb_off + offset) as usize;
+    let new_usize = new_slen as usize;
+    g_st().typebuf.tb_buf[dst..dst + new_usize].copy_from_slice(&string[..new_usize]);
     true
 }
 
 fn at_ins_compl_key() -> bool {
-    unsafe {
-        let p = tb_buf_ptr().wrapping_add(g_st().typebuf.tb_off as usize);
-        let mut c = *p as i32;
+    let off = g_st().typebuf.tb_off as usize;
+    let tb_buf = &g_st().typebuf.tb_buf[off..];
+    let mut c = i32::from(tb_buf[0]);
 
-        if g_st().typebuf.tb_len > 3
-            && c == K_SPECIAL as i32
-            && *p.wrapping_add(1) == KS_MODIFIER
-            && (*p.wrapping_add(2) & (MOD_MASK_CTRL as u8)) != 0
-        {
-            c = (*p.wrapping_add(3) & 0x1f) as i32;
-        }
-        !ctrl_x_mode_eval()
-            && ((ctrl_x_mode_not_default() && vim_is_ctrl_x_key(c))
-                || (compl_status_local() && (c == CTRL_N || c == CTRL_P)))
+    if g_st().typebuf.tb_len > 3
+        && c == K_SPECIAL as i32
+        && tb_buf[1] == KS_MODIFIER
+        && (tb_buf[2] & (MOD_MASK_CTRL as u8)) != 0
+    {
+        c = i32::from(tb_buf[3] & 0x1f);
     }
+    !ctrl_x_mode_eval()
+        && ((ctrl_x_mode_not_default() && vim_is_ctrl_x_key(c))
+            || (compl_status_local() && (c == CTRL_N || c == CTRL_P)))
 }
 
 fn check_simplify_modifier(max_offset: i32) -> i32 {
@@ -2077,16 +2043,19 @@ fn check_simplify_modifier(max_offset: i32) -> i32 {
         if offset + 3 >= g_st().typebuf.tb_len {
             break;
         }
-        let tp = tb_buf_ptr().wrapping_add((g_st().typebuf.tb_off + offset) as usize);
-        if unsafe { *tp } == K_SPECIAL && unsafe { *tp.wrapping_add(1) } == KS_MODIFIER {
-            let mut modifier = i32::from(crate::memory::cstr_byte_at(tp.cast(), 2));
-            let c = i32::from(crate::memory::cstr_byte_at(tp.cast(), 3));
+        let tp_idx = (g_st().typebuf.tb_off + offset) as usize;
+        if g_st().typebuf.tb_buf[tp_idx] == K_SPECIAL
+            && g_st().typebuf.tb_buf[tp_idx + 1] == KS_MODIFIER
+        {
+            let orig_mod = i32::from(g_st().typebuf.tb_buf[tp_idx + 2]);
+            let mut modifier = orig_mod;
+            let c = i32::from(g_st().typebuf.tb_buf[tp_idx + 3]);
             let new_c = merge_modifiers(c, &mut modifier);
 
             if new_c != c {
                 if offset == 0 {
                     g_st().vgetc_char = c;
-                    g_st().vgetc_mod_mask = i32::from(crate::memory::cstr_byte_at(tp.cast(), 2));
+                    g_st().vgetc_mod_mask = orig_mod;
                 }
                 let mut new_string = [0u8; MB_MAXBYTES + 1];
                 let len = if is_special(new_c) {
@@ -2098,14 +2067,12 @@ fn check_simplify_modifier(max_offset: i32) -> i32 {
                     utf_char2bytes(new_c, new_string.as_mut_ptr().cast())
                 };
                 if modifier == 0 {
-                    if !put_string_in_typebuf(offset, 4, new_string.as_mut_ptr(), len) {
+                    if !put_string_in_typebuf(offset, 4, &mut new_string, len) {
                         return -1;
                     }
                 } else {
-                    unsafe {
-                        *tp.wrapping_add(2) = modifier as u8;
-                    }
-                    if !put_string_in_typebuf(offset + 3, 1, new_string.as_mut_ptr(), len) {
+                    g_st().typebuf.tb_buf[tp_idx + 2] = modifier as u8;
+                    if !put_string_in_typebuf(offset + 3, 1, &mut new_string, len) {
                         return -1;
                     }
                 }
@@ -2116,9 +2083,9 @@ fn check_simplify_modifier(max_offset: i32) -> i32 {
     0
 }
 
-fn char_iter(itp: *mut *const u8, nomap: i32) -> i32 {
-    let mut it = unsafe { *itp };
-    let mut c = unsafe { *it } as i32;
+fn char_iter(itp: &mut *const u8, nomap: i32) -> i32 {
+    let mut it = *itp;
+    let mut c = i32::from(crate::memory::cstr_first_byte(it.cast()));
     if c == NUL {
         return 0;
     }
@@ -2132,14 +2099,14 @@ fn char_iter(itp: *mut *const u8, nomap: i32) -> i32 {
 
             loop {
                 it = it.wrapping_add(1);
-                buf[i as usize] = unsafe { *it };
+                buf[i as usize] = crate::memory::cstr_first_byte(it.cast());
                 if buf[i as usize] == K_SPECIAL {
                     it = it.wrapping_add(1);
-                    if unsafe { *it } == NUL as u8 {
+                    if crate::memory::cstr_is_empty(it.cast()) {
                         break;
                     }
                     it = it.wrapping_add(1);
-                    if unsafe { *it } == NUL as u8 {
+                    if crate::memory::cstr_is_empty(it.cast()) {
                         break;
                     }
                 }
@@ -2153,23 +2120,19 @@ fn char_iter(itp: *mut *const u8, nomap: i32) -> i32 {
             }
 
             if i != mblen {
-                unsafe {
-                    *itp = it;
-                }
+                *itp = it;
                 return 0;
             }
 
             c = utf_ptr2char(buf.as_ptr().cast());
             if c == buf[0] as i32 {
-                it = unsafe { *itp };
+                it = *itp;
             }
         }
     }
 
     it = it.wrapping_add(1);
-    unsafe {
-        *itp = it;
-    }
+    *itp = it;
     c
 }
 
@@ -2183,23 +2146,20 @@ fn handle_mapping(keylenp: &mut i32, timedout: &bool, mapdepth: &mut i32, advanc
     let local_state = get_real_state();
     let mut is_plug_map = false;
 
-    let tb_start = tb_buf_ptr().wrapping_add(g_st().typebuf.tb_off as usize);
+    let tb_off = g_st().typebuf.tb_off as usize;
+    let tb_start = tb_buf_ptr().wrapping_add(tb_off);
     if g_st().typebuf.tb_len >= 3
-        && unsafe { *tb_start } == K_SPECIAL
-        && unsafe { *tb_start.wrapping_add(1) } == KS_EXTRA
-        && unsafe { *tb_start.wrapping_add(2) } == KE_PLUG
+        && g_st().typebuf.tb_buf[tb_off..tb_off + 3] == [K_SPECIAL, KS_EXTRA, KE_PLUG]
     {
         is_plug_map = true;
     }
 
-    let mut tb_b1 = unsafe { *tb_start } as i32;
+    let mut tb_b1 = i32::from(g_st().typebuf.tb_buf[tb_off]);
     if g_st().no_mapping == 0
         && (g_st().no_zero_mapping == 0 || tb_b1 != b'0' as i32)
         && (g_st().typebuf.tb_maplen == 0
             || is_plug_map
-            || (unsafe { *tb_noremap_ptr().wrapping_add(g_st().typebuf.tb_off as usize) }
-                & (RM_NONE | RM_ABBR))
-                == 0)
+            || (g_st().typebuf.tb_noremap[tb_off] & (RM_NONE | RM_ABBR)) == 0)
         && !(opt_vars().p_paste != 0 && (g_st().state_global & (MODE_INSERT | MODE_CMDLINE)) != 0)
         && !(g_st().state_global == MODE_HITRETURN && (tb_b1 == CAR || tb_b1 == b' ' as i32))
         && g_st().state_global != MODE_ASKMORE
@@ -2213,7 +2173,7 @@ fn handle_mapping(keylenp: &mut i32, timedout: &bool, mapdepth: &mut i32, advanc
             nolmaplen = 2;
             tb_iter = tb_iter.wrapping_add(1);
         } else {
-            tb_c1 = char_iter(&raw mut tb_iter, 0);
+            tb_c1 = char_iter(&mut tb_iter, 0);
             if tb_c1 == 0 {
                 if *timedout {
                     *keylenp = 0;
@@ -2242,22 +2202,23 @@ fn handle_mapping(keylenp: &mut i32, timedout: &bool, mapdepth: &mut i32, advanc
             .iter()
             .chain(get_maphash_list(local_state, tb_b1))
         {
-            let mut key_iter: *const u8 = cand.m_keys.as_ptr().cast::<u8>();
+            let m_keys_start = cand.m_keys.as_ptr().cast::<u8>();
+            let mut key_iter: *const u8 = m_keys_start;
 
-            if char_iter(&raw mut key_iter, 0) == tb_c1
+            if char_iter(&mut key_iter, 0) == tb_c1
                 && (cand.m_mode & local_state) != 0
                 && ((cand.m_mode & MODE_LANGMAP) == 0 || g_st().typebuf.tb_maplen == 0)
             {
                 let mut nomap = nolmaplen;
                 let mut modifiers: i32 = 0;
                 let mut tmp_tb_iter = tb_iter;
-                let mut mlen =
-                    unsafe { key_iter.offset_from(cand.m_keys.as_ptr().cast::<u8>()) } as i32;
-                let mut tb_mlen = (unsafe { tmp_tb_iter.offset_from(tb_buf_ptr()) } as i32)
+                let mut mlen = crate::memory::ptr_offset_from(key_iter, m_keys_start) as i32;
+                let mut tb_mlen = (crate::memory::ptr_offset_from(tmp_tb_iter, tb_buf_ptr())
+                    as i32)
                     - g_st().typebuf.tb_off;
 
                 loop {
-                    let mut c2 = char_iter(&raw mut tmp_tb_iter, nomap);
+                    let mut c2 = char_iter(&mut tmp_tb_iter, nomap);
                     if c2 == 0 {
                         break;
                     }
@@ -2278,14 +2239,13 @@ fn handle_mapping(keylenp: &mut i32, timedout: &bool, mapdepth: &mut i32, advanc
                         modifiers = 0;
                     }
 
-                    let key_char = char_iter(&raw mut key_iter, tb_nomap);
+                    let key_char = char_iter(&mut key_iter, tb_nomap);
                     if key_char != c2 {
                         break;
                     }
 
-                    mlen =
-                        unsafe { key_iter.offset_from(cand.m_keys.as_ptr().cast::<u8>()) } as i32;
-                    tb_mlen = (unsafe { tmp_tb_iter.offset_from(tb_buf_ptr()) } as i32)
+                    mlen = crate::memory::ptr_offset_from(key_iter, m_keys_start) as i32;
+                    tb_mlen = (crate::memory::ptr_offset_from(tmp_tb_iter, tb_buf_ptr()) as i32)
                         - g_st().typebuf.tb_off;
                 }
 
@@ -2293,27 +2253,19 @@ fn handle_mapping(keylenp: &mut i32, timedout: &bool, mapdepth: &mut i32, advanc
                 if mlen == keylen
                     || (mlen == g_st().typebuf.tb_len && g_st().typebuf.tb_len < keylen)
                 {
-                    let mut s = tb_noremap_ptr().wrapping_add(g_st().typebuf.tb_off as usize);
-                    let m_keys_u8 = cand.m_keys.as_ptr().cast::<u8>();
-                    if unsafe { *s } == RM_SCRIPT
-                        && (unsafe { *m_keys_u8 } != K_SPECIAL
-                            || unsafe { *m_keys_u8.wrapping_add(1) } != KS_EXTRA
-                            || unsafe { *m_keys_u8.wrapping_add(2) } != KE_SNR)
+                    let noremap_slice = &g_st().typebuf.tb_noremap[tb_off..tb_off + mlen as usize];
+                    let m_keys_bytes = cand.m_keys.as_bytes();
+                    if noremap_slice[0] == RM_SCRIPT
+                        && !m_keys_bytes.starts_with(&[K_SPECIAL, KS_EXTRA, KE_SNR])
                     {
                         continue;
                     }
 
-                    let mut n = mlen;
-                    while {
-                        n -= 1;
-                        n >= 0
-                    } {
-                        if (unsafe { *s } & (RM_NONE | RM_ABBR)) != 0 {
-                            break;
-                        }
-                        s = s.wrapping_add(1);
-                    }
-                    if !is_plug_map && n >= 0 {
+                    if !is_plug_map
+                        && noremap_slice
+                            .iter()
+                            .any(|&b| (b & (RM_NONE | RM_ABBR)) != 0)
+                    {
                         continue;
                     }
 
@@ -2348,9 +2300,7 @@ fn handle_mapping(keylenp: &mut i32, timedout: &bool, mapdepth: &mut i32, advanc
         if g_st().no_mapping == 0 || g_st().allow_keys != 0 {
             if tb_b1 == K_SPECIAL as i32
                 && (g_st().typebuf.tb_len < 2
-                    || (unsafe {
-                        *tb_buf_ptr().wrapping_add((g_st().typebuf.tb_off + 1) as usize)
-                    } == KS_MODIFIER
+                    || (g_st().typebuf.tb_buf[tb_off + 1] == KS_MODIFIER
                         && g_st().typebuf.tb_len < 4))
             {
                 keylen = KEYLEN_PART_KEY;
@@ -2537,426 +2487,397 @@ pub fn check_end_reg_executing(advance: bool) {
 }
 
 fn vgetorpeek(advance: bool) -> i32 {
-    unsafe {
-        let mut c: i32;
-        let mut timedout = false;
-        let mut mapdepth: i32 = 0;
-        let mut mode_deleted = false;
+    let mut c: i32;
+    let mut timedout = false;
+    let mut mapdepth: i32 = 0;
+    let mut mode_deleted = false;
 
-        if g_st().vgetc_busy > 0 && g_st().ex_normal_busy == 0 {
-            return NUL;
-        }
+    if g_st().vgetc_busy > 0 && g_st().ex_normal_busy == 0 {
+        return NUL;
+    }
 
-        g_st().vgetc_busy += 1;
+    g_st().vgetc_busy += 1;
 
-        if advance {
-            g_st().key_stuffed = 0;
-            g_st().typebuf_was_empty = false;
-        }
+    if advance {
+        g_st().key_stuffed = 0;
+        g_st().typebuf_was_empty = false;
+    }
 
-        init_typebuf();
-        start_stuff();
-        check_end_reg_executing(advance);
-        loop {
-            if inp_st().typeahead_char != 0 {
-                c = inp_st().typeahead_char;
-                if advance {
-                    inp_st().typeahead_char = 0;
-                }
-            } else {
-                c = read_readbuffers(advance);
+    init_typebuf();
+    start_stuff();
+    check_end_reg_executing(advance);
+    loop {
+        if inp_st().typeahead_char != 0 {
+            c = inp_st().typeahead_char;
+            if advance {
+                inp_st().typeahead_char = 0;
             }
-            if c != NUL && !g_st().got_int {
-                if advance {
-                    g_st().key_stuffed = 1;
-                }
-                if g_st().typebuf.tb_no_abbr_cnt == 0 {
-                    g_st().typebuf.tb_no_abbr_cnt = 1;
-                }
-            } else {
-                loop {
-                    check_end_reg_executing(advance);
-                    if g_st().typebuf.tb_maplen != 0 {
-                        line_breakcheck();
-                    } else {
-                        if ((g_st().mapped_ctrl_c | curbuf_mut().b_mapped_ctrl_c)
-                            & get_real_state())
-                            != 0
-                        {
-                            g_st().ctrl_c_interrupts = false;
-                        }
-                        os_breakcheck();
-                        g_st().ctrl_c_interrupts = true;
-                    }
-                    let mut keylen: i32 = 0;
-                    if g_st().got_int {
-                        c = inchar(tb_buf_ptr(), g_st().typebuf.tb_buflen - 1, 0);
-                        if (c != 0 || g_st().typebuf.tb_maplen != 0)
-                            && (g_st().state_global & (MODE_INSERT | MODE_CMDLINE)) != 0
-                        {
-                            c = ESC;
-                        } else {
-                            c = CTRL_C_CONST;
-                        }
-                        flush_buffers(FLUSH_INPUT);
-
-                        if advance {
-                            *tb_buf_ptr() = c as u8;
-                            gotchars(tb_buf_ptr(), 1);
-                        }
-                        g_st().cmd_silent = false;
-
-                        break;
-                    } else if g_st().typebuf.tb_len > 0 {
-                        let result = handle_mapping(&mut keylen, &timedout, &mut mapdepth, advance);
-
-                        if result == MapResult::MapResultRetry as i32 {
-                            continue;
-                        }
-
-                        if result == MapResult::MapResultFail as i32 {
-                            atom_composite_abort();
-                            c = -1;
-                            break;
-                        }
-
-                        if result == MapResult::MapResultGet as i32 {
-                            c = *tb_buf_ptr().wrapping_add(g_st().typebuf.tb_off as usize) as i32;
-                            if advance {
-                                g_st().cmd_silent = g_st().typebuf.tb_silent > 0;
-                                if g_st().typebuf.tb_maplen > 0 {
-                                    g_st().key_typed = false;
-                                } else {
-                                    g_st().key_typed = true;
-                                    gotchars(
-                                        tb_buf_ptr().wrapping_add(g_st().typebuf.tb_off as usize),
-                                        1,
-                                    );
-                                }
-                                inp_st().key_noremap = *tb_noremap_ptr()
-                                    .wrapping_add(g_st().typebuf.tb_off as usize)
-                                    as i32;
-                                del_typebuf(1, 0);
-                            }
-                            break;
-                        }
-                    }
-
-                    c = 0;
-                    let mut new_wcol = curwin_mut().w_wcol;
-                    let mut new_wrow = curwin_mut().w_wrow;
-                    if advance
-                        && g_st().typebuf.tb_len == 1
-                        && *tb_buf_ptr().wrapping_add(g_st().typebuf.tb_off as usize) == ESC as u8
-                        && g_st().no_mapping == 0
-                        && g_st().ex_normal_busy == 0
-                        && g_st().typebuf.tb_maplen == 0
-                        && (g_st().state_global & MODE_INSERT) != 0
-                        && (opt_vars().p_timeout != 0
-                            || (keylen == KEYLEN_PART_KEY && opt_vars().p_ttimeout != 0))
-                        && {
-                            c = inchar(
-                                tb_buf_ptr().wrapping_add(
-                                    (g_st().typebuf.tb_off + g_st().typebuf.tb_len) as usize,
-                                ),
-                                3,
-                                25,
-                            );
-                            c == 0
-                        }
+        } else {
+            c = read_readbuffers(advance);
+        }
+        if c != NUL && !g_st().got_int {
+            if advance {
+                g_st().key_stuffed = 1;
+            }
+            if g_st().typebuf.tb_no_abbr_cnt == 0 {
+                g_st().typebuf.tb_no_abbr_cnt = 1;
+            }
+        } else {
+            loop {
+                check_end_reg_executing(advance);
+                if g_st().typebuf.tb_maplen != 0 {
+                    line_breakcheck();
+                } else {
+                    if ((g_st().mapped_ctrl_c | curbuf_mut().b_mapped_ctrl_c) & get_real_state())
+                        != 0
                     {
-                        if g_st().mode_displayed {
-                            unshowmode(true);
-                            mode_deleted = true;
-                        }
-                        validate_cursor(curwin_mut());
-                        let old_wcol = curwin_mut().w_wcol;
-                        let old_wrow = curwin_mut().w_wrow;
-
-                        if curwin_mut().w_cursor.col != 0 {
-                            let mut col: Colnr = 0;
-                            if curwin_mut().w_wcol > 0 {
-                                if g_st().ins_global.did_ai
-                                    && crate::memory::cstr_is_empty(skipwhite(
-                                        get_cursor_line_ptr()
-                                            .wrapping_add(curwin_mut().w_cursor.col as usize),
-                                    ))
-                                {
-                                    curwin_mut().w_wcol = 0;
-                                    let ptr = get_cursor_line_ptr();
-                                    let endptr =
-                                        ptr.wrapping_add(curwin_mut().w_cursor.col as usize);
-
-                                    let mut csarg = CharsizeArg::new();
-                                    let cstype: CSType = init_charsize_arg(
-                                        &mut csarg,
-                                        curwin_mut(),
-                                        curwin_mut().w_cursor.lnum,
-                                        ptr,
-                                    );
-                                    let mut ci: StrCharInfo = utf_ptr2_str_char_info(ptr);
-                                    let mut vcol: i32 = 0;
-                                    while ci.ptr < endptr.cast_const() {
-                                        if !ascii_iswhite(ci.chr.value) {
-                                            curwin_mut().w_wcol = vcol;
-                                        }
-                                        let cli: ClusterInfo = utf_cluster_info(ci);
-                                        vcol += win_charsize(
-                                            cstype,
-                                            vcol,
-                                            ci.ptr.cast_mut(),
-                                            ci.chr.value,
-                                            &mut csarg,
-                                            cli.cells,
-                                        )
-                                        .width;
-                                        ci = cli.next;
-                                    }
-
-                                    curwin_mut().w_wrow = curwin_mut().w_cline_row
-                                        + curwin_mut().w_wcol / curwin_mut().w_view_width;
-                                    curwin_mut().w_wcol %= curwin_mut().w_view_width;
-                                    curwin_mut().w_wcol += win_col_off(curwin_ptr());
-                                    col = 0;
-                                } else {
-                                    curwin_mut().w_wcol -= 1;
-                                    col = curwin_mut().w_cursor.col - 1;
-                                }
-                            } else if curwin_mut().w_onebuf_opt.wo_wrap != 0
-                                && curwin_mut().w_wrow != 0
-                            {
-                                curwin_mut().w_wrow -= 1;
-                                curwin_mut().w_wcol = curwin_mut().w_view_width - 1;
-                                col = curwin_mut().w_cursor.col - 1;
-                            }
-                            if col > 0 && curwin_mut().w_wcol > 0 {
-                                let ptr = get_cursor_line_ptr();
-                                col -= utf_head_off(ptr, ptr.wrapping_add(col as usize));
-                                if utf_ptr2cells(ptr.wrapping_add(col as usize)) > 1 {
-                                    curwin_mut().w_wcol -= 1;
-                                }
-                            }
-                        }
-                        setcursor();
-                        ui_flush();
-                        new_wcol = curwin_mut().w_wcol;
-                        new_wrow = curwin_mut().w_wrow;
-                        curwin_mut().w_wcol = old_wcol;
-                        curwin_mut().w_wrow = old_wrow;
+                        g_st().ctrl_c_interrupts = false;
                     }
-                    if c < 0 {
+                    os_breakcheck();
+                    g_st().ctrl_c_interrupts = true;
+                }
+                let mut keylen: i32 = 0;
+                if g_st().got_int {
+                    c = inchar(tb_buf_ptr(), g_st().typebuf.tb_buflen - 1, 0);
+                    if (c != 0 || g_st().typebuf.tb_maplen != 0)
+                        && (g_st().state_global & (MODE_INSERT | MODE_CMDLINE)) != 0
+                    {
+                        c = ESC;
+                    } else {
+                        c = CTRL_C_CONST;
+                    }
+                    flush_buffers(FLUSH_INPUT);
+
+                    if advance {
+                        g_st().typebuf.tb_buf[0] = c as u8;
+                        gotchars(tb_buf_ptr(), 1);
+                    }
+                    g_st().cmd_silent = false;
+
+                    break;
+                } else if g_st().typebuf.tb_len > 0 {
+                    let result = handle_mapping(&mut keylen, &timedout, &mut mapdepth, advance);
+
+                    if result == MapResult::MapResultRetry as i32 {
                         continue;
                     }
 
-                    for n in 1..=c {
-                        *tb_noremap_ptr().wrapping_add((g_st().typebuf.tb_off + n) as usize) =
-                            RM_YES;
+                    if result == MapResult::MapResultFail as i32 {
+                        atom_composite_abort();
+                        c = -1;
+                        break;
                     }
-                    g_st().typebuf.tb_len += c;
 
-                    if g_st().typebuf.tb_len >= g_st().typebuf.tb_maplen + MAXMAPLEN as i32 {
+                    if result == MapResult::MapResultGet as i32 {
+                        let tb_off = g_st().typebuf.tb_off as usize;
+                        c = i32::from(g_st().typebuf.tb_buf[tb_off]);
+                        if advance {
+                            g_st().cmd_silent = g_st().typebuf.tb_silent > 0;
+                            if g_st().typebuf.tb_maplen > 0 {
+                                g_st().key_typed = false;
+                            } else {
+                                g_st().key_typed = true;
+                                gotchars(tb_buf_ptr().wrapping_add(tb_off), 1);
+                            }
+                            inp_st().key_noremap = i32::from(g_st().typebuf.tb_noremap[tb_off]);
+                            del_typebuf(1, 0);
+                        }
+                        break;
+                    }
+                }
+
+                c = 0;
+                let mut new_wcol = curwin_mut().w_wcol;
+                let mut new_wrow = curwin_mut().w_wrow;
+                if advance
+                    && g_st().typebuf.tb_len == 1
+                    && g_st().typebuf.tb_buf[g_st().typebuf.tb_off as usize] == ESC as u8
+                    && g_st().no_mapping == 0
+                    && g_st().ex_normal_busy == 0
+                    && g_st().typebuf.tb_maplen == 0
+                    && (g_st().state_global & MODE_INSERT) != 0
+                    && (opt_vars().p_timeout != 0
+                        || (keylen == KEYLEN_PART_KEY && opt_vars().p_ttimeout != 0))
+                    && {
+                        c = inchar(
+                            tb_buf_ptr().wrapping_add(
+                                (g_st().typebuf.tb_off + g_st().typebuf.tb_len) as usize,
+                            ),
+                            3,
+                            25,
+                        );
+                        c == 0
+                    }
+                {
+                    if g_st().mode_displayed {
+                        unshowmode(true);
+                        mode_deleted = true;
+                    }
+                    validate_cursor(curwin_mut());
+                    let old_wcol = curwin_mut().w_wcol;
+                    let old_wrow = curwin_mut().w_wrow;
+
+                    if curwin_mut().w_cursor.col != 0 {
+                        let mut col: Colnr = 0;
+                        if curwin_mut().w_wcol > 0 {
+                            if g_st().ins_global.did_ai
+                                && crate::memory::cstr_is_empty(skipwhite(
+                                    get_cursor_line_ptr()
+                                        .wrapping_add(curwin_mut().w_cursor.col as usize),
+                                ))
+                            {
+                                curwin_mut().w_wcol = 0;
+                                let ptr = get_cursor_line_ptr();
+                                let endptr = ptr.wrapping_add(curwin_mut().w_cursor.col as usize);
+
+                                let mut csarg = CharsizeArg::new();
+                                let cstype: CSType = init_charsize_arg(
+                                    &mut csarg,
+                                    curwin_mut(),
+                                    curwin_mut().w_cursor.lnum,
+                                    ptr,
+                                );
+                                let mut ci: StrCharInfo = utf_ptr2_str_char_info(ptr);
+                                let mut vcol: i32 = 0;
+                                while ci.ptr < endptr.cast_const() {
+                                    if !ascii_iswhite(ci.chr.value) {
+                                        curwin_mut().w_wcol = vcol;
+                                    }
+                                    let cli: ClusterInfo = utf_cluster_info(ci);
+                                    vcol += win_charsize(
+                                        cstype,
+                                        vcol,
+                                        ci.ptr.cast_mut(),
+                                        ci.chr.value,
+                                        &mut csarg,
+                                        cli.cells,
+                                    )
+                                    .width;
+                                    ci = cli.next;
+                                }
+
+                                curwin_mut().w_wrow = curwin_mut().w_cline_row
+                                    + curwin_mut().w_wcol / curwin_mut().w_view_width;
+                                curwin_mut().w_wcol %= curwin_mut().w_view_width;
+                                curwin_mut().w_wcol += win_col_off(curwin_ptr());
+                                col = 0;
+                            } else {
+                                curwin_mut().w_wcol -= 1;
+                                col = curwin_mut().w_cursor.col - 1;
+                            }
+                        } else if curwin_mut().w_onebuf_opt.wo_wrap != 0 && curwin_mut().w_wrow != 0
+                        {
+                            curwin_mut().w_wrow -= 1;
+                            curwin_mut().w_wcol = curwin_mut().w_view_width - 1;
+                            col = curwin_mut().w_cursor.col - 1;
+                        }
+                        if col > 0 && curwin_mut().w_wcol > 0 {
+                            let ptr = get_cursor_line_ptr();
+                            col -= utf_head_off(ptr, ptr.wrapping_add(col as usize));
+                            if utf_ptr2cells(ptr.wrapping_add(col as usize)) > 1 {
+                                curwin_mut().w_wcol -= 1;
+                            }
+                        }
+                    }
+                    setcursor();
+                    ui_flush();
+                    new_wcol = curwin_mut().w_wcol;
+                    new_wrow = curwin_mut().w_wrow;
+                    curwin_mut().w_wcol = old_wcol;
+                    curwin_mut().w_wrow = old_wrow;
+                }
+                if c < 0 {
+                    continue;
+                }
+
+                for n in 1..=c {
+                    g_st().typebuf.tb_noremap[(g_st().typebuf.tb_off + n) as usize] = RM_YES;
+                }
+                g_st().typebuf.tb_len += c;
+
+                if g_st().typebuf.tb_len >= g_st().typebuf.tb_maplen + MAXMAPLEN as i32 {
+                    timedout = true;
+                    continue;
+                }
+
+                if g_st().ex_normal_busy > 0 {
+                    if g_st().typebuf.tb_len > 0 {
                         timedout = true;
                         continue;
                     }
 
-                    if g_st().ex_normal_busy > 0 {
-                        if g_st().typebuf.tb_len > 0 {
-                            timedout = true;
-                            continue;
-                        }
+                    c = if (g_st().state_global & MODE_CMDLINE) != 0
+                        || (g_st().cmdwin_type > 0 && inp_st().vgetorpeek_tc == ESC)
+                    {
+                        CTRL_C_CONST
+                    } else {
+                        ESC
+                    };
+                    inp_st().vgetorpeek_tc = c;
 
-                        c = if (g_st().state_global & MODE_CMDLINE) != 0
-                            || (g_st().cmdwin_type > 0 && inp_st().vgetorpeek_tc == ESC)
+                    if advance {
+                        g_st().typebuf_was_empty = true;
+                    }
+                    g_st().typebuf.tb_no_abbr_cnt = 0;
+                    break;
+                }
+
+                if ((g_st().state_global & MODE_INSERT) != 0 || opt_vars().p_lz != 0)
+                    && (g_st().state_global & MODE_CMDLINE) == 0
+                    && advance
+                    && g_st().must_redraw != 0
+                    && !g_st().need_wait_return
+                {
+                    update_screen();
+                    setcursor();
+                }
+
+                let mut showcmd_idx: i32 = 0;
+                let mut showing_partial = false;
+                if g_st().typebuf.tb_len > 0 && advance {
+                    if ((g_st().state_global & (MODE_NORMAL | MODE_INSERT)) != 0
+                        || g_st().state_global == MODE_LANGMAP)
+                        && g_st().state_global != MODE_HITRETURN
+                    {
+                        let last_idx = (g_st().typebuf.tb_off + g_st().typebuf.tb_len - 1) as usize;
+                        if (g_st().state_global & MODE_INSERT) != 0
+                            && utf_ptr2cells(tb_buf_ptr().wrapping_add(last_idx).cast()) == 1
                         {
-                            CTRL_C_CONST
-                        } else {
-                            ESC
-                        };
-                        inp_st().vgetorpeek_tc = c;
-
-                        if advance {
-                            g_st().typebuf_was_empty = true;
+                            edit_putchar(i32::from(g_st().typebuf.tb_buf[last_idx]), false);
+                            setcursor();
+                            showing_partial = true;
                         }
-                        g_st().typebuf.tb_no_abbr_cnt = 0;
-                        break;
+                        let old_wcol = curwin_mut().w_wcol;
+                        let old_wrow = curwin_mut().w_wrow;
+                        curwin_mut().w_wcol = new_wcol;
+                        curwin_mut().w_wrow = new_wrow;
+                        push_showcmd();
+                        if g_st().typebuf.tb_len > SHOWCMD_COLS {
+                            showcmd_idx = g_st().typebuf.tb_len - SHOWCMD_COLS;
+                        }
+                        while showcmd_idx < g_st().typebuf.tb_len {
+                            let idx = (g_st().typebuf.tb_off + showcmd_idx) as usize;
+                            add_byte_to_showcmd(g_st().typebuf.tb_buf[idx]);
+                            showcmd_idx += 1;
+                        }
+                        curwin_mut().w_wcol = old_wcol;
+                        curwin_mut().w_wrow = old_wrow;
                     }
 
-                    if ((g_st().state_global & MODE_INSERT) != 0 || opt_vars().p_lz != 0)
-                        && (g_st().state_global & MODE_CMDLINE) == 0
-                        && advance
-                        && g_st().must_redraw != 0
-                        && !g_st().need_wait_return
+                    if (g_st().state_global & MODE_CMDLINE) != 0
+                        && !get_cmdline_info().cmdbuff.is_null()
+                        && g_st().cmdline_star == 0
                     {
-                        update_screen();
+                        let p = tb_buf_ptr()
+                            .wrapping_add(
+                                (g_st().typebuf.tb_off + g_st().typebuf.tb_len - 1) as usize,
+                            )
+                            .cast();
+                        if utf_ptr2cells(p) == 1 && (crate::memory::cstr_first_byte(p)) < 128 {
+                            putcmdline(crate::memory::cstr_first_byte(p), false);
+                            showing_partial = true;
+                        }
+                    }
+                }
+
+                if g_st().typebuf.tb_len == 0 {
+                    timedout = false;
+                }
+
+                let mut wait_time: i64 = 0;
+                if advance {
+                    if g_st().typebuf.tb_len == 0
+                        || !(opt_vars().p_timeout != 0
+                            || (opt_vars().p_ttimeout != 0 && keylen == KEYLEN_PART_KEY))
+                    {
+                        wait_time = -1;
+                    } else if keylen == KEYLEN_PART_KEY && opt_vars().p_ttm >= 0 {
+                        wait_time = opt_vars().p_ttm;
+                    } else {
+                        wait_time = opt_vars().p_tm;
+                    }
+                }
+
+                let wait_tb_len = g_st().typebuf.tb_len;
+                c = inchar(
+                    tb_buf_ptr()
+                        .wrapping_add((g_st().typebuf.tb_off + g_st().typebuf.tb_len) as usize),
+                    g_st().typebuf.tb_buflen - g_st().typebuf.tb_off - g_st().typebuf.tb_len - 1,
+                    wait_time,
+                );
+
+                if showcmd_idx != 0 {
+                    pop_showcmd();
+                }
+                if showing_partial {
+                    if (g_st().state_global & MODE_INSERT) != 0 {
+                        edit_unputchar();
+                    }
+                    if (g_st().state_global & MODE_CMDLINE) != 0
+                        && !get_cmdline_info().cmdbuff.is_null()
+                    {
+                        unputcmdline();
+                    } else {
                         setcursor();
                     }
+                }
 
-                    let mut showcmd_idx: i32 = 0;
-                    let mut showing_partial = false;
-                    if g_st().typebuf.tb_len > 0 && advance {
-                        if ((g_st().state_global & (MODE_NORMAL | MODE_INSERT)) != 0
-                            || g_st().state_global == MODE_LANGMAP)
-                            && g_st().state_global != MODE_HITRETURN
-                        {
-                            if (g_st().state_global & MODE_INSERT) != 0
-                                && utf_ptr2cells(
-                                    tb_buf_ptr()
-                                        .wrapping_add(
-                                            (g_st().typebuf.tb_off + g_st().typebuf.tb_len - 1)
-                                                as usize,
-                                        )
-                                        .cast(),
-                                ) == 1
-                            {
-                                edit_putchar(
-                                    *tb_buf_ptr().wrapping_add(
-                                        (g_st().typebuf.tb_off + g_st().typebuf.tb_len - 1)
-                                            as usize,
-                                    ) as i32,
-                                    false,
-                                );
-                                setcursor();
-                                showing_partial = true;
-                            }
-                            let old_wcol = curwin_mut().w_wcol;
-                            let old_wrow = curwin_mut().w_wrow;
-                            curwin_mut().w_wcol = new_wcol;
-                            curwin_mut().w_wrow = new_wrow;
-                            push_showcmd();
-                            if g_st().typebuf.tb_len > SHOWCMD_COLS {
-                                showcmd_idx = g_st().typebuf.tb_len - SHOWCMD_COLS;
-                            }
-                            while showcmd_idx < g_st().typebuf.tb_len {
-                                add_byte_to_showcmd(
-                                    *tb_buf_ptr().wrapping_add(
-                                        (g_st().typebuf.tb_off + showcmd_idx) as usize,
-                                    ),
-                                );
-                                showcmd_idx += 1;
-                            }
-                            curwin_mut().w_wcol = old_wcol;
-                            curwin_mut().w_wrow = old_wrow;
-                        }
-
-                        if (g_st().state_global & MODE_CMDLINE) != 0
-                            && !get_cmdline_info().cmdbuff.is_null()
-                            && g_st().cmdline_star == 0
-                        {
-                            let p = tb_buf_ptr()
-                                .wrapping_add(
-                                    (g_st().typebuf.tb_off + g_st().typebuf.tb_len - 1) as usize,
-                                )
-                                .cast();
-                            if utf_ptr2cells(p) == 1 && (crate::memory::cstr_first_byte(p)) < 128 {
-                                putcmdline(crate::memory::cstr_first_byte(p), false);
-                                showing_partial = true;
-                            }
-                        }
+                if c < 0 {
+                    continue;
+                }
+                if c == NUL {
+                    if !advance {
+                        break;
                     }
-
-                    if g_st().typebuf.tb_len == 0 {
-                        timedout = false;
-                    }
-
-                    let mut wait_time: i64 = 0;
-                    if advance {
-                        if g_st().typebuf.tb_len == 0
-                            || !(opt_vars().p_timeout != 0
-                                || (opt_vars().p_ttimeout != 0 && keylen == KEYLEN_PART_KEY))
-                        {
-                            wait_time = -1;
-                        } else if keylen == KEYLEN_PART_KEY && opt_vars().p_ttm >= 0 {
-                            wait_time = opt_vars().p_ttm;
-                        } else {
-                            wait_time = opt_vars().p_tm;
-                        }
-                    }
-
-                    let wait_tb_len = g_st().typebuf.tb_len;
-                    c = inchar(
-                        tb_buf_ptr()
-                            .wrapping_add((g_st().typebuf.tb_off + g_st().typebuf.tb_len) as usize),
-                        g_st().typebuf.tb_buflen
-                            - g_st().typebuf.tb_off
-                            - g_st().typebuf.tb_len
-                            - 1,
-                        wait_time,
-                    );
-
-                    if showcmd_idx != 0 {
-                        pop_showcmd();
-                    }
-                    if showing_partial {
-                        if (g_st().state_global & MODE_INSERT) != 0 {
-                            edit_unputchar();
-                        }
-                        if (g_st().state_global & MODE_CMDLINE) != 0
-                            && !get_cmdline_info().cmdbuff.is_null()
-                        {
-                            unputcmdline();
-                        } else {
-                            setcursor();
-                        }
-                    }
-
-                    if c < 0 {
+                    if wait_tb_len > 0 {
+                        timedout = true;
                         continue;
                     }
-                    if c == NUL {
-                        if !advance {
-                            break;
-                        }
-                        if wait_tb_len > 0 {
-                            timedout = true;
-                            continue;
-                        }
-                    } else {
-                        while *tb_buf_ptr()
-                            .wrapping_add((g_st().typebuf.tb_off + g_st().typebuf.tb_len) as usize)
-                            != NUL as u8
-                        {
-                            *tb_noremap_ptr().wrapping_add(
-                                (g_st().typebuf.tb_off + g_st().typebuf.tb_len) as usize,
-                            ) = RM_YES;
-                            g_st().typebuf.tb_len += 1;
-                        }
+                } else {
+                    while g_st().typebuf.tb_buf
+                        [(g_st().typebuf.tb_off + g_st().typebuf.tb_len) as usize]
+                        != NUL as u8
+                    {
+                        let idx = (g_st().typebuf.tb_off + g_st().typebuf.tb_len) as usize;
+                        g_st().typebuf.tb_noremap[idx] = RM_YES;
+                        g_st().typebuf.tb_len += 1;
                     }
                 }
             }
-
-            if !(c < 0 || (advance && c == NUL)) {
-                break;
-            }
         }
 
-        if advance
-            && opt_vars().p_smd != 0
-            && g_st().msg_silent == 0
-            && (g_st().state_global & MODE_INSERT) != 0
-        {
-            if c == ESC && !mode_deleted && g_st().no_mapping == 0 && g_st().mode_displayed {
-                if g_st().typebuf.tb_len != 0 && !g_st().key_typed {
-                    g_st().redraw_cmdline = true;
-                } else {
-                    unshowmode(false);
-                }
-            } else if c != ESC && mode_deleted {
-                if g_st().typebuf.tb_len != 0 && !g_st().key_typed {
-                    g_st().redraw_cmdline = true;
-                } else {
-                    showmode();
-                }
-            }
+        if !(c < 0 || (advance && c == NUL)) {
+            break;
         }
-
-        if timedout && c == ESC {
-            gotchars_ignore();
-        }
-
-        g_st().vgetc_busy -= 1;
-
-        c
     }
+
+    if advance
+        && opt_vars().p_smd != 0
+        && g_st().msg_silent == 0
+        && (g_st().state_global & MODE_INSERT) != 0
+    {
+        if c == ESC && !mode_deleted && g_st().no_mapping == 0 && g_st().mode_displayed {
+            if g_st().typebuf.tb_len != 0 && !g_st().key_typed {
+                g_st().redraw_cmdline = true;
+            } else {
+                unshowmode(false);
+            }
+        } else if c != ESC && mode_deleted {
+            if g_st().typebuf.tb_len != 0 && !g_st().key_typed {
+                g_st().redraw_cmdline = true;
+            } else {
+                showmode();
+            }
+        }
+    }
+
+    if timedout && c == ESC {
+        gotchars_ignore();
+    }
+
+    g_st().vgetc_busy -= 1;
+
+    c
 }
 
 fn inchar(buf: *mut u8, maxlen: i32, wait_time: i64) -> i32 {
