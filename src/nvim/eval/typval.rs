@@ -145,10 +145,10 @@ impl CallbackData {
     }
 
     #[inline]
-    pub fn as_funcref(&self) -> RawCCharPtrMut {
+    pub fn as_funcref(&self) -> Option<&std::ffi::CStr> {
         match self {
-            Self::Funcref(s) | Self::Expr(s) => s.as_ptr().cast_mut(),
-            _ => ptr::null_mut(),
+            Self::Funcref(s) | Self::Expr(s) => Some(s.as_c_str()),
+            _ => None,
         }
     }
 
@@ -2528,10 +2528,7 @@ pub fn tv_callback_equal(cb1: &Callback, cb2: &Callback) -> bool {
         return false;
     }
     match cb1.cb_type() {
-        K_CALLBACK_FUNCREF | K_CALLBACK_EXPR => {
-            crate::memory::cstr_as_opt_bytes(cb1.data.as_funcref())
-                == crate::memory::cstr_as_opt_bytes(cb2.data.as_funcref())
-        }
+        K_CALLBACK_FUNCREF | K_CALLBACK_EXPR => cb1.data.as_funcref() == cb2.data.as_funcref(),
         K_CALLBACK_PARTIAL => cb1.data.as_partial() == cb2.data.as_partial(),
         K_CALLBACK_LUA => cb1.data.as_luaref() == cb2.data.as_luaref(),
         K_CALLBACK_NONE_CONST => true,
@@ -2593,7 +2590,7 @@ pub fn callback_copy(dest: &mut Callback, src: &Callback) {
         }
         K_CALLBACK_FUNCREF => {
             let funcref = src.data.as_funcref();
-            dest.data = CallbackData::funcref(crate::memory::cstr_to_cstring(funcref));
+            dest.data = CallbackData::funcref(funcref.unwrap_or(c"").to_owned());
             func_ref(funcref);
         }
         K_CALLBACK_LUA => {
@@ -2601,7 +2598,7 @@ pub fn callback_copy(dest: &mut Callback, src: &Callback) {
             dest.data = CallbackData::lua(new_ref);
         }
         K_CALLBACK_EXPR => {
-            dest.data = CallbackData::expr(crate::memory::cstr_to_cstring(src.data.as_funcref()));
+            dest.data = CallbackData::expr(src.data.as_funcref().unwrap_or(c"").to_owned());
         }
         _ => {
             dest.data = CallbackData::NONE;
@@ -2621,7 +2618,7 @@ pub fn callback_to_string(cb: &mut Callback) -> std::ffi::CString {
 
         match cb.cb_type() {
             K_CALLBACK_FUNCREF => {
-                let s = crate::memory::cstr_as_bytes(cb.data.as_funcref());
+                let s = cb.data.as_funcref().unwrap_or(c"").to_bytes();
                 let prefix = b"<vim function: ";
                 let suffix = b">";
                 let copy_len = s.len().min(MSGLEN - prefix.len() - suffix.len());

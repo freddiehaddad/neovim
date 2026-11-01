@@ -5275,9 +5275,9 @@ pub fn callback_call(
     let mut name;
     match callback.cb_type() {
         K_CALLBACK_FUNCREF => {
-            name = callback.data.as_funcref();
-            let len = crate::memory::cstr_len(name) as i32;
-            if len >= 6 && crate::memory::cstr_slice(name, 6) == b"v:lua." {
+            let funcref = callback.data.as_funcref().unwrap_or(c"");
+            name = funcref.as_ptr().cast_mut();
+            if funcref.to_bytes().starts_with(b"v:lua.") {
                 name = name.wrapping_add(6);
                 if check_luafunc_name(name, false) == 0 {
                     return false;
