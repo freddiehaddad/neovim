@@ -4648,7 +4648,8 @@ fn qf_id2nr(qi: &QfInfo, qfid: u32) -> i32 {
     INVALID_QFIDX
 }
 
-fn qf_restore_list(qi: &mut QfInfo, save_qfid: u32) -> bool {
+fn qf_restore_list(qi: *mut QfInfo, save_qfid: u32) -> bool {
+    let qi = unsafe { &mut *qi };
     if qf_get_curlist(&mut *qi).qf_id == save_qfid {
         return true;
     }
@@ -4661,7 +4662,7 @@ fn qf_restore_list(qi: &mut QfInfo, save_qfid: u32) -> bool {
     true
 }
 
-fn qf_jump_first(qi: &mut QfInfo, save_qfid: u32, forceit: i32) {
+fn qf_jump_first(qi: *mut QfInfo, save_qfid: u32, forceit: i32) {
     if !qf_restore_list(qi, save_qfid) {
         return;
     }
@@ -4670,8 +4671,8 @@ fn qf_jump_first(qi: &mut QfInfo, save_qfid: u32, forceit: i32) {
         return;
     }
 
-    if !qf_list_empty(Some(&*(qf_get_curlist(&mut *qi)))) {
-        qf_jump(&raw mut *qi, 0, 0, forceit);
+    if !qf_list_empty(Some(unsafe { &*(qf_get_curlist(&mut *qi)) })) {
+        qf_jump(qi, 0, 0, forceit);
     }
 }
 
@@ -4825,7 +4826,7 @@ pub fn ex_make(eap: &mut Exarg) {
             );
         }
         if res > 0 && eap.forceit == 0 && qflist_valid(wp, save_qfid) {
-            qf_jump_first(unsafe { &mut *qi }, save_qfid, 0);
+            qf_jump_first(qi, save_qfid, 0);
         }
     }
 
@@ -5401,7 +5402,7 @@ pub fn ex_cfile(eap: &mut Exarg) {
         && (eap.cmdidx == CMD_CFILE || eap.cmdidx == CMD_LFILE)
         && qflist_valid(wp, save_qfid)
     {
-        qf_jump_first(unsafe { &mut *qi }, save_qfid, eap.forceit);
+        qf_jump_first(qi, save_qfid, eap.forceit);
     }
 
     decr_quickfix_busy();
@@ -5478,7 +5479,7 @@ fn vgr_load_dummy_buf(
 
 fn vgr_qflist_valid(
     wp: *mut WinInfoInfo,
-    qi: &mut QfInfo,
+    qi: *mut QfInfo,
     qfid: u32,
     title: impl crate::strings::IntoCCharPtr,
 ) -> bool {
@@ -5488,7 +5489,7 @@ fn vgr_qflist_valid(
             emsg(gettext(E_CURRENT_LOCATION_LIST_WAS_CHANGED));
             return false;
         }
-        qf_new_list(qi, title);
+        qf_new_list(unsafe { &mut *qi }, title);
         return true;
     }
     if !qf_restore_list(qi, qfid) {
@@ -5625,7 +5626,7 @@ fn vgr_match_buflines(
 }
 
 fn vgr_jump_to_match(
-    qi: &mut QfInfo,
+    qi: *mut QfInfo,
     forceit: i32,
     redraw_for_dummy: &mut bool,
     first_match_buf: *mut FileBuf,
@@ -5633,7 +5634,7 @@ fn vgr_jump_to_match(
 ) {
     let target_dir = target_dir.into_c_char_ptr().cast_mut();
     let buf = g_st().curbuf;
-    qf_jump(&raw mut *qi, 0, 0, forceit);
+    qf_jump(qi, 0, 0, forceit);
     if buf != g_st().curbuf {
         *redraw_for_dummy = false;
     }
@@ -5699,7 +5700,7 @@ fn vgr_process_args(eap: &mut Exarg, args: &mut VgrArgs) -> bool {
 
 fn vgr_process_files(
     wp: *mut WinInfoInfo,
-    qi: &mut QfInfo,
+    qi: *mut QfInfo,
     cmd_args: &mut VgrArgs,
     redraw_for_dummy: &mut bool,
     first_match_buf: *mut *mut FileBuf,
@@ -5872,7 +5873,7 @@ pub fn ex_vimgrep(eap: &mut Exarg) {
         let mut first_match_buf: *mut FileBuf = ptr::null_mut();
         let status = vgr_process_files(
             wp,
-            unsafe { &mut *qi },
+            qi,
             &mut args,
             &mut redraw_for_dummy,
             &raw mut first_match_buf,
@@ -5899,11 +5900,11 @@ pub fn ex_vimgrep(eap: &mut Exarg) {
                 );
             }
 
-            if qflist_valid(wp, save_qfid) && qf_restore_list(unsafe { &mut *qi }, save_qfid) {
+            if qflist_valid(wp, save_qfid) && qf_restore_list(qi, save_qfid) {
                 if !qf_list_empty(Some(&*(qf_get_curlist(unsafe { &mut *qi })))) {
                     if (args.flags & VGR_NOJUMP) == 0 {
                         vgr_jump_to_match(
-                            unsafe { &mut *qi },
+                            qi,
                             eap.forceit,
                             &mut redraw_for_dummy,
                             first_match_buf,
@@ -6934,7 +6935,7 @@ fn qf_setprop_context(qfl: &mut QfList, di: &mut Dictitem) -> bool {
     true
 }
 
-fn qf_setprop_curidx(qi: &mut QfInfo, qfl: &mut QfList, di: &Dictitem) -> bool {
+fn qf_setprop_curidx(qi: *mut QfInfo, qfl: &mut QfList, di: &Dictitem) -> bool {
     let mut newidx: i32;
 
     if di.di_tv.v_type == VarType::VarString
@@ -6960,8 +6961,10 @@ fn qf_setprop_curidx(qi: &mut QfInfo, qfl: &mut QfList, di: &Dictitem) -> bool {
         return false;
     }
     qfl.qf_index = newidx;
+    let qfl_id = qfl.qf_id;
 
-    if (&qi.qf_lists)[qi.qf_curlist as usize].qf_id == qfl.qf_id {
+    let qi = unsafe { &mut *qi };
+    if (&qi.qf_lists)[qi.qf_curlist as usize].qf_id == qfl_id {
         qf_win_pos_update(&mut *qi, old_qfidx);
     }
     true
@@ -7006,8 +7009,9 @@ fn qf_set_properties(
         }
         di = tv_dict_find(Some(what), c"idx", 3);
         if !di.is_null() {
-            let qfl = qf_get_list(&mut *qi, qf_idx);
-            retval = qf_setprop_curidx(qi, qfl, unsafe { &*di });
+            let qi_ptr: *mut QfInfo = &raw mut *qi;
+            let qfl = qf_get_list(unsafe { &mut *qi_ptr }, qf_idx);
+            retval = qf_setprop_curidx(qi_ptr, qfl, unsafe { &*di });
         }
         di = tv_dict_find(Some(what), c"quickfixtextfunc", 16);
         if !di.is_null() {
@@ -7333,7 +7337,7 @@ pub fn ex_cbuffer(eap: &mut Exarg) {
             && (eap.cmdidx == CMD_CBUFFER || eap.cmdidx == CMD_LBUFFER)
             && qflist_valid(wp, save_qfid)
         {
-            qf_jump_first(&mut *qi, save_qfid, eap.forceit);
+            qf_jump_first(qi, save_qfid, eap.forceit);
         }
 
         decr_quickfix_busy();
@@ -7412,7 +7416,7 @@ pub fn cexpr_core(eap: &Exarg, tv: &mut TypVal) -> bool {
             && (eap.cmdidx == CMD_CEXPR || eap.cmdidx == CMD_LEXPR)
             && qflist_valid(wp, save_qfid)
         {
-            qf_jump_first(unsafe { &mut *qi }, save_qfid, eap.forceit);
+            qf_jump_first(qi, save_qfid, eap.forceit);
         }
         decr_quickfix_busy();
         return true;
