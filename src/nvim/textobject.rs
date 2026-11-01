@@ -13,7 +13,7 @@ use crate::indent::inindent;
 use crate::insert::oneleft;
 use crate::mark::setpcmark;
 use crate::mbyte::{mb_prevptr, utf_class, utf_head_off, utfc_ptr2len, utfc_slice2len};
-use crate::memline::{dec, decl, gchar_pos, inc, incl, ml_get, ml_get_len, ml_get_pos};
+use crate::memline::{dec, decl, gchar_pos, inc, incl, ml_get, ml_get_len};
 use crate::r#move::adjust_skipcol;
 use crate::normal::{FM_FORWARD, lineempty, unadjust_for_sel};
 use crate::option_vars::*;
@@ -1088,7 +1088,7 @@ fn in_html_tag(end_tag: bool) -> bool {
         if inc(&mut pos) < 0 {
             return false;
         }
-        let c = i32::from(unsafe { *ml_get_pos(&pos) } as u8);
+        let c = gchar_pos(&mut pos);
         if c == b'>' as i32 {
             break;
         }
@@ -1509,6 +1509,13 @@ fn find_prev_quote(
 /// Find quote under the cursor, cursor at end (`current_quote`).
 pub fn current_quote(oap: &mut Oparg, count: i32, include: bool, quotechar: i32) -> bool {
     let line = get_cursor_line_ptr();
+    let line_bytes = crate::memory::cstr_as_bytes(line);
+    let byte_at = |idx: i32| -> i32 {
+        usize::try_from(idx)
+            .ok()
+            .and_then(|i| line_bytes.get(i).copied())
+            .map_or(0, i32::from)
+    };
     let mut col_end: i32;
     let mut col_start: i32 = curwin_mut().w_cursor.col;
     let mut inclusive = false;
@@ -1525,12 +1532,7 @@ pub fn current_quote(oap: &mut Oparg, count: i32, include: bool, quotechar: i32)
                 inc_cursor();
             }
             if restore_vis_bef {
-                unsafe {
-                    ptr::swap(
-                        &raw mut curwin_mut().w_cursor,
-                        &raw mut g_st().visual_global.start,
-                    )
-                };
+                std::mem::swap(&mut curwin_mut().w_cursor, &mut g_st().visual_global.start);
             }
         }
         false
@@ -1553,12 +1555,7 @@ pub fn current_quote(oap: &mut Oparg, count: i32, include: bool, quotechar: i32)
             }
             vis_empty = equalpos(g_st().visual_global.start, curwin_mut().w_cursor);
             if !vis_bef_curs && !vis_empty {
-                unsafe {
-                    ptr::swap(
-                        &raw mut curwin_mut().w_cursor,
-                        &raw mut g_st().visual_global.start,
-                    )
-                };
+                std::mem::swap(&mut curwin_mut().w_cursor, &mut g_st().visual_global.start);
                 vis_bef_curs = true;
                 restore_vis_bef = true;
             }
@@ -1568,36 +1565,30 @@ pub fn current_quote(oap: &mut Oparg, count: i32, include: bool, quotechar: i32)
     if !vis_empty {
         let mut i: i32;
         if vis_bef_curs {
-            inside_quotes = g_st().visual_global.start.col > 0
-                && i32::from(unsafe {
-                    *line.wrapping_add((g_st().visual_global.start.col - 1) as usize)
-                } as u8)
-                    == quotechar
-                && unsafe { *line.wrapping_add(curwin_mut().w_cursor.col as usize) } != NUL
-                && i32::from(
-                    unsafe { *line.wrapping_add((curwin_mut().w_cursor.col + 1) as usize) } as u8,
-                ) == quotechar;
-            i = g_st().visual_global.start.col;
-            col_end = curwin_mut().w_cursor.col;
+            let vcol = g_st().visual_global.start.col;
+            let ccol = curwin_mut().w_cursor.col;
+            inside_quotes = vcol > 0
+                && byte_at(vcol - 1) == quotechar
+                && byte_at(ccol) != 0
+                && byte_at(ccol + 1) == quotechar;
+            i = vcol;
+            col_end = ccol;
         } else {
-            inside_quotes = curwin_mut().w_cursor.col > 0
-                && i32::from(
-                    unsafe { *line.wrapping_add((curwin_mut().w_cursor.col - 1) as usize) } as u8,
-                ) == quotechar
-                && unsafe { *line.wrapping_add(g_st().visual_global.start.col as usize) } != NUL
-                && i32::from(unsafe {
-                    *line.wrapping_add((g_st().visual_global.start.col + 1) as usize)
-                } as u8)
-                    == quotechar;
-            i = curwin_mut().w_cursor.col;
-            col_end = g_st().visual_global.start.col;
+            let vcol = g_st().visual_global.start.col;
+            let ccol = curwin_mut().w_cursor.col;
+            inside_quotes = ccol > 0
+                && byte_at(ccol - 1) == quotechar
+                && byte_at(vcol) != 0
+                && byte_at(vcol + 1) == quotechar;
+            i = ccol;
+            col_end = vcol;
         }
 
         while i <= col_end {
-            if crate::memory::cstr_byte_at(line, i as usize) == 0 {
+            let ch = byte_at(i);
+            if ch == 0 {
                 break;
             }
-            let ch = i32::from(crate::memory::cstr_byte_at(line, i as usize));
             i += 1;
             if ch == quotechar {
                 selected_quote = true;
@@ -1606,11 +1597,8 @@ pub fn current_quote(oap: &mut Oparg, count: i32, include: bool, quotechar: i32)
         }
     }
 
-    let line_bytes = crate::memory::cstr_as_bytes(line);
     let qe_bytes = crate::memory::cstr_as_opt_bytes(curbuf_mut().b_p_qe);
-    if !vis_empty
-        && i32::from(line_bytes.get(col_start as usize).copied().unwrap_or(0)) == quotechar
-    {
+    if !vis_empty && byte_at(col_start) == quotechar {
         if vis_bef_curs {
             col_start = find_next_quote(line_bytes, col_start + 1, quotechar, None);
             if col_start < 0 {
@@ -1623,18 +1611,16 @@ pub fn current_quote(oap: &mut Oparg, count: i32, include: bool, quotechar: i32)
             }
         } else {
             col_end = find_prev_quote(line_bytes, col_start, quotechar, None);
-            if i32::from(line_bytes.get(col_end as usize).copied().unwrap_or(0)) != quotechar {
+            if byte_at(col_end) != quotechar {
                 return abort_search(did_exclusive_adj, restore_vis_bef);
             }
             col_start = find_prev_quote(line_bytes, col_end, quotechar, qe_bytes);
-            if i32::from(line_bytes.get(col_start as usize).copied().unwrap_or(0)) != quotechar {
+            if byte_at(col_start) != quotechar {
                 col_start = col_end;
                 col_end = curwin_mut().w_cursor.col;
             }
         }
-    } else if i32::from(line_bytes.get(col_start as usize).copied().unwrap_or(0)) == quotechar
-        || !vis_empty
-    {
+    } else if byte_at(col_start) == quotechar || !vis_empty {
         let mut first_col = col_start;
 
         if !vis_empty {
@@ -1661,7 +1647,7 @@ pub fn current_quote(oap: &mut Oparg, count: i32, include: bool, quotechar: i32)
         }
     } else {
         col_start = find_prev_quote(line_bytes, col_start, quotechar, qe_bytes);
-        if i32::from(line_bytes.get(col_start as usize).copied().unwrap_or(0)) != quotechar {
+        if byte_at(col_start) != quotechar {
             col_start = find_next_quote(line_bytes, col_start, quotechar, None);
             if col_start < 0 {
                 return abort_search(did_exclusive_adj, restore_vis_bef);
@@ -1675,20 +1661,12 @@ pub fn current_quote(oap: &mut Oparg, count: i32, include: bool, quotechar: i32)
     }
 
     if include {
-        if ascii_iswhite(i32::from(
-            unsafe { *line.wrapping_add((col_end + 1) as usize) } as u8,
-        )) {
-            while ascii_iswhite(i32::from(
-                unsafe { *line.wrapping_add((col_end + 1) as usize) } as u8,
-            )) {
+        if ascii_iswhite(byte_at(col_end + 1)) {
+            while ascii_iswhite(byte_at(col_end + 1)) {
                 col_end += 1;
             }
         } else {
-            while col_start > 0
-                && ascii_iswhite(i32::from(
-                    unsafe { *line.wrapping_add((col_start - 1) as usize) } as u8,
-                ))
-            {
+            while col_start > 0 && ascii_iswhite(byte_at(col_start - 1)) {
                 col_start -= 1;
             }
         }
@@ -1699,19 +1677,13 @@ pub fn current_quote(oap: &mut Oparg, count: i32, include: bool, quotechar: i32)
     }
     curwin_mut().w_cursor.col = col_start;
     if g_st().visual_global.active {
+        let vcol = g_st().visual_global.start.col;
         if vis_empty
             || (vis_bef_curs
                 && !selected_quote
                 && (inside_quotes
-                    || (i32::from(unsafe {
-                        *line.wrapping_add(g_st().visual_global.start.col as usize)
-                    } as u8)
-                        != quotechar
-                        && (g_st().visual_global.start.col == 0
-                            || i32::from(unsafe {
-                                *line.wrapping_add((g_st().visual_global.start.col - 1) as usize)
-                            } as u8)
-                                != quotechar))))
+                    || (byte_at(vcol) != quotechar
+                        && (vcol == 0 || byte_at(vcol - 1) != quotechar))))
         {
             g_st().visual_global.start = curwin_mut().w_cursor;
             redraw_curbuf_later(UPD_INVERTED);
@@ -1731,18 +1703,11 @@ pub fn current_quote(oap: &mut Oparg, count: i32, include: bool, quotechar: i32)
                 dec_cursor();
             }
         } else {
+            let vcol = g_st().visual_global.start.col;
             if inside_quotes
                 || (!selected_quote
-                    && i32::from(unsafe {
-                        *line.wrapping_add(g_st().visual_global.start.col as usize)
-                    } as u8)
-                        != quotechar
-                    && (crate::memory::cstr_is_empty(
-                        line.wrapping_add(g_st().visual_global.start.col as usize),
-                    ) || i32::from(unsafe {
-                        *line.wrapping_add((g_st().visual_global.start.col + 1) as usize)
-                    } as u8)
-                        != quotechar))
+                    && byte_at(vcol) != quotechar
+                    && (byte_at(vcol) == 0 || byte_at(vcol + 1) != quotechar))
             {
                 dec_cursor();
                 g_st().visual_global.start = curwin_mut().w_cursor;
