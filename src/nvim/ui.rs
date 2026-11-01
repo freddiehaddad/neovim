@@ -23,6 +23,7 @@ use crate::api::ui::{
 use crate::api::win_config::UIExtension;
 use crate::autocmd::do_autocmd_uienter;
 use crate::buffer::resettitle;
+use crate::context::{CONTEXT_INIT, K_CTX_COUNT, ctx_free, ctx_load, ctx_save};
 use crate::cursor_shape::{Cursorentry, cursor_get_mode_idx, mode_style_array, shape_table_mut};
 use crate::drawscreen::{DEFAULT_GRID_HANDLE, conceal_check_cursor_line, screen_resize};
 use crate::event::r#loop::uv_cwd;
@@ -848,6 +849,8 @@ fn ui_attach_error(ns_id: u32, name: &CStr, msg: Option<&CStr>) {
 }
 
 pub fn ui_call_event(name: &'static std::ffi::CStr, args: Array) {
+    let mut ctx = CONTEXT_INIT;
+    ctx_save(&mut ctx, K_CTX_COUNT);
     let save_expr_map_lock = g_st().expr_map_lock;
     let save_textlock = g_st().textlock;
     g_st().expr_map_lock = 0;
@@ -884,6 +887,8 @@ pub fn ui_call_event(name: &'static std::ffi::CStr, args: Array) {
     }
     g_st().expr_map_lock = save_expr_map_lock;
     g_st().textlock = save_textlock;
+    ctx_load(&mut ctx, K_CTX_COUNT, 0);
+    ctx_free(&mut ctx);
 
     if !handled {
         let uis_ptr = &ui_state().uis;

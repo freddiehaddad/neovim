@@ -17,7 +17,9 @@ use crate::cursor::{Colnr, CursorPos, check_cursor, check_pos, equalpos};
 use crate::eval::encode::encode_vim_list_to_buf;
 use crate::eval::typval::{TypVal, VarType, tv_clear};
 use crate::eval::userfunc::func_tbl_get;
-use crate::eval::vars::vars_clear;
+use crate::eval::vars::{
+    VV_COUNT, VV_COUNT1, VV_PREVCOUNT, get_vim_var_nr, set_vim_var_nr, vars_clear,
+};
 use crate::ex_docmd::do_cmdline_cmd;
 use crate::extmark::{extmark_del_id, extmark_get_pos, extmark_set_pos};
 use crate::fileio::shorten_fnames;
@@ -127,6 +129,7 @@ pub(crate) const K_CTX_FUNCS: CtxStateFlags = 32;
 pub(crate) const K_CTX_CURSOR: CtxStateFlags = 64;
 pub(crate) const K_CTX_MARKS: CtxStateFlags = 128;
 pub(crate) const K_CTX_VISUAL: CtxStateFlags = 256;
+pub(crate) const K_CTX_COUNT: CtxStateFlags = 512;
 
 pub(crate) const K_CTX_MERGE_REG: CtxLoadFlags = 1;
 
@@ -149,6 +152,9 @@ pub struct Context {
     pub last_change: Fmark,
     pub last_insert: Fmark,
     pub pos_marks: [u32; 6],
+    pub count: i64,
+    pub count1: i64,
+    pub prevcount: i64,
     pub buf: ObjHandle,
     pub regs: Vec<u8>,
     pub jumps: Vec<u8>,
@@ -199,6 +205,9 @@ pub const CONTEXT_INIT: Context = Context {
     last_change: INIT_FMARK,
     last_insert: INIT_FMARK,
     pos_marks: [0; 6],
+    count: 0,
+    count1: 0,
+    prevcount: 0,
     buf: 0,
     regs: Vec::new(),
     jumps: Vec::new(),
@@ -309,9 +318,11 @@ pub fn ctx_free(ctx: &mut Context) {
 }
 
 pub fn ctx_save(ctx: &mut Context, flags: CtxStateFlags) {
-    assert!(ctx.buf == 0 || ctx.buf == curbuf_mut().b_fnum);
-    ctx.buf = curbuf_mut().b_fnum;
-    ctx.pos = curwin_mut().w_cursor;
+    if (flags & (K_CTX_CURSOR | K_CTX_VISUAL | K_CTX_MARKS)) != 0 {
+        assert!(ctx.buf == 0 || ctx.buf == curbuf_mut().b_fnum);
+        ctx.buf = curbuf_mut().b_fnum;
+        ctx.pos = curwin_mut().w_cursor;
+    }
 
     if (flags & K_CTX_CURSOR) != 0 {
         ctx.curswant = if curwin_mut().w_set_curswant {
@@ -319,6 +330,12 @@ pub fn ctx_save(ctx: &mut Context, flags: CtxStateFlags) {
         } else {
             curwin_mut().w_curswant
         };
+    }
+
+    if (flags & K_CTX_COUNT) != 0 {
+        ctx.count = get_vim_var_nr(VV_COUNT);
+        ctx.count1 = get_vim_var_nr(VV_COUNT1);
+        ctx.prevcount = get_vim_var_nr(VV_PREVCOUNT);
     }
 
     if (flags & K_CTX_VISUAL) != 0 {
@@ -413,6 +430,12 @@ pub fn ctx_load(ctx: &mut Context, flags: CtxStateFlags, loadflags: CtxLoadFlags
         } else {
             curwin_mut().w_set_curswant = true;
         }
+    }
+
+    if (flags & K_CTX_COUNT) != 0 {
+        set_vim_var_nr(VV_COUNT, ctx.count);
+        set_vim_var_nr(VV_COUNT1, ctx.count1);
+        set_vim_var_nr(VV_PREVCOUNT, ctx.prevcount);
     }
 
     let buf = handle_get_buffer(ctx.buf);
