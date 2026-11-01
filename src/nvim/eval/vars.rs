@@ -2050,7 +2050,7 @@ pub fn ex_lockvar(eap: &mut Exarg) {
     if eap.forceit != 0 {
         deep = -1;
     } else if ascii_isdigit(crate::memory::cstr_first_char(arg)) {
-        deep = getdigits_int(&raw mut arg, false, -1);
+        deep = getdigits_int(&mut arg, false, -1);
         arg = skipwhite(arg);
     }
 

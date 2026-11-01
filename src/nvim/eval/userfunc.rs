@@ -2511,7 +2511,7 @@ pub fn save_function_name<T>(
 
     if crate::memory::cstr_prefix_bytes(p.cast(), 8) == &b"<lambda>"[..8] {
         p = p.wrapping_add(8);
-        getdigits((&raw mut p).cast(), false, 0);
+        getdigits(&mut p, false, 0);
         saved = Some(cstr_from_bytes(crate::memory::cstr_slice(
             unsafe { (*name).cast() },
             crate::memory::ptr_offset_from(p, unsafe { (*name).cast() }) as usize,

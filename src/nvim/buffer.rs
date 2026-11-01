@@ -1992,7 +1992,7 @@ pub fn do_bufdel(
                     }
                     arg = p;
                 } else {
-                    bnr = getdigits_int(&raw mut arg, false, 0);
+                    bnr = getdigits_int(&mut arg, false, 0);
                 }
             }
             os_breakcheck();
@@ -4700,7 +4700,7 @@ fn chk_modeline(lnum: Linenr, flags: i32) -> bool {
                     e = s.wrapping_add(3);
                 }
                 let mut vers: i64 = 0;
-                if !try_getdigits(&raw mut e, &mut vers) {
+                if !try_getdigits(&mut e, &mut vers) {
                     prev = crate::memory::cstr_first_byte(s) as i32;
                     s = s.wrapping_add(1);
                     continue;

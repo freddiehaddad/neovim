@@ -1607,7 +1607,7 @@ pub fn parse_cino(buf: &mut FileBuf) {
             p = p.wrapping_add(1);
         }
         let digits_start = p;
-        let mut n: i64 = getdigits_int(&raw mut p, true, 0) as i64;
+        let mut n: i64 = getdigits_int(&mut p, true, 0) as i64;
         let mut divider: i32 = 0;
         if crate::memory::cstr_first_byte(p) == b'.' {
             p = p.wrapping_add(1);
@@ -1824,7 +1824,7 @@ pub fn get_c_indent() -> i32 {
                             } else if ascii_isdigit(crate::memory::cstr_first_char(p))
                                 || crate::memory::cstr_first_byte(p) == b'-'
                             {
-                                off = getdigits_int(&raw mut p, true, 0);
+                                off = getdigits_int(&mut p, true, 0);
                             } else {
                                 p = p.wrapping_add(1);
                             }

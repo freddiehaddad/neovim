@@ -5821,7 +5821,7 @@ fn parse_count(
             || crate::memory::cstr_is_empty(p)
             || ascii_iswhite(unsafe { *p })
         {
-            let n = getdigits_int32(&raw mut eap.arg, false, i32::MAX);
+            let n = getdigits_int32(&mut eap.arg, false, i32::MAX);
             eap.arg = skipwhite(eap.arg);
 
             if !eap.args.is_empty() {
@@ -7925,7 +7925,7 @@ pub fn get_address(
                     }
                     _ => {
                         if ascii_isdigit(*cmd) {
-                            lnum = getdigits(&raw mut cmd, false, 0) as Linenr;
+                            lnum = getdigits(&mut cmd, false, 0) as Linenr;
                         }
                     }
                 }
@@ -7963,7 +7963,7 @@ pub fn get_address(
                     let n = if !ascii_isdigit(*cmd) {
                         1
                     } else {
-                        let parsed = getdigits_int32(&raw mut cmd, false, MAXLNUM);
+                        let parsed = getdigits_int32(&mut cmd, false, MAXLNUM);
                         if parsed == MAXLNUM {
                             *errormsg = Some(gettext(E_LINE_NUMBER_OUT_OF_RANGE));
                             cmd = ptr::null_mut();
@@ -8716,7 +8716,7 @@ fn get_tabpage_arg(eap: &mut Exarg) -> i32 {
             }
 
             let p_save = p;
-            tab_number = getdigits(&raw mut p, false, i64::from(tab_number)) as i32;
+            tab_number = getdigits(&mut p, false, i64::from(tab_number)) as i32;
 
             if relative == 0 {
                 if crate::memory::cstr_as_bytes(p) == b"$" {
@@ -10172,7 +10172,7 @@ fn ex_tabnext(eap: &mut Exarg) {
         if !crate::memory::cstr_is_empty(eap.arg) {
             let mut p = eap.arg;
             let p_save = p;
-            tab_number = getdigits(&raw mut p, false, 0) as i32;
+            tab_number = getdigits(&mut p, false, 0) as i32;
             if p == p_save
                 || crate::memory::cstr_first_byte(p_save) == b'-'
                 || crate::memory::cstr_first_byte(p_save) == b'+'
@@ -10990,10 +10990,10 @@ fn ex_winsize(eap: &mut Exarg) {
         let _ = semsg!(gettext(E_INVARG2), arg);
         return;
     }
-    let w = getdigits_int(&raw mut arg, false, 10);
+    let w = getdigits_int(&mut arg, false, 10);
     arg = skipwhite(arg);
     let p = arg;
-    let h = getdigits_int(&raw mut arg, false, 10);
+    let h = getdigits_int(&mut arg, false, 10);
     if !crate::memory::cstr_is_empty(p) && crate::memory::cstr_is_empty(arg) {
         screen_resize(w, h);
     } else {
@@ -11277,7 +11277,7 @@ fn ex_later(eap: &mut Exarg) {
     if crate::memory::cstr_is_empty(p) {
         count = 1;
     } else if ascii_isdigit(unsafe { *p }) {
-        count = getdigits_int(&raw mut p, false, 0);
+        count = getdigits_int(&mut p, false, 0);
         match crate::memory::cstr_first_byte(p) {
             b's' => {
                 p = p.wrapping_add(1);
@@ -11796,7 +11796,7 @@ fn ex_findpat(eap: &mut Exarg) {
 
     let mut n: i32 = 1;
     if ascii_isdigit(unsafe { *eap.arg }) {
-        n = getdigits_int(&raw mut eap.arg, false, 0);
+        n = getdigits_int(&mut eap.arg, false, 0);
         eap.arg = skipwhite(eap.arg);
     }
     if crate::memory::cstr_first_byte(eap.arg) == b'/' {
@@ -12055,7 +12055,7 @@ pub fn eval_vars(
                         if crate::memory::cstr_first_byte(s) == b'<' {
                             s = s.wrapping_add(1);
                         }
-                        let i = getdigits_int(&raw mut s, false, 0);
+                        let i = getdigits_int(&mut s, false, 0);
                         if s == src.wrapping_add(2) && crate::memory::cstr_byte_at(src, 1) == b'-' {
                             s = s.wrapping_sub(1);
                         }

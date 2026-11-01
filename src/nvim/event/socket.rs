@@ -183,7 +183,7 @@ pub fn socket_watcher_init(loop_: &mut Loop, watcher: &mut SocketWatcher, endpoi
         let mut port_scan = port;
         let mut iport: i64 = 0;
 
-        let ok = try_getdigits(&raw mut port_scan, &mut iport);
+        let ok = try_getdigits(&mut port_scan, &mut iport);
         if !ok || iport < 0 || iport > i64::from(u16::MAX) {
             logmsg!(
                 LOGLVL_ERR,

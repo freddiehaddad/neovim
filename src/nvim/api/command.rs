@@ -741,7 +741,7 @@ pub fn nvim_cmd(
                         count_value = first_arg.data.integer();
                     } else if first_arg.obj_type == ObjectType::ObjectTypeString {
                         let mut endptr = first_arg.data.string().data.cast_const();
-                        let val = getdigits_long((&raw mut endptr).cast(), false, 0);
+                        let val = getdigits_long(&mut endptr, false, 0);
                         if *endptr == 0 && first_arg.data.string().size > 0 {
                             is_numeric = true;
                             {

@@ -3149,7 +3149,7 @@ fn getregionpos(
         } else if *type_str == CTRL_V_CONST {
             let mut p = type_str.wrapping_add(1);
             if !crate::memory::cstr_is_empty(p) {
-                block_width = getdigits_int(&raw mut p, false, 0);
+                block_width = getdigits_int(&mut p, false, 0);
                 if block_width <= 0 || !crate::memory::cstr_is_empty(p) {
                     semsg!(gettext(E_INVARG_NVAL), c"type", type_str);
                     return false;
@@ -7657,7 +7657,7 @@ fn get_yank_type<T>(
             *yank_type = crate::register::MotionType::MtBlockWise;
             if ascii_isdigit(crate::memory::cstr_char_at(stropt.cast(), 1)) {
                 stropt = stropt.wrapping_add(1);
-                *block_len = getdigits_int((&raw mut stropt).cast(), false, 0) - 1;
+                *block_len = getdigits_int(&mut stropt, false, 0) - 1;
                 stropt = stropt.wrapping_sub(1);
             }
         }

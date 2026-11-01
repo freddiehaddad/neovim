@@ -4110,7 +4110,7 @@ fn do_sub(eap: &mut Exarg, tm: Proftime, cmdpreview_ns: i32, cmdpreview_bufnr: O
     cmd = skipwhite(cmd);
     if ascii_isdigit(crate::memory::cstr_first_char(cmd)) {
         let count_arg = cmd;
-        i = getdigits_int(&raw mut cmd, false, i32::MAX);
+        i = getdigits_int(&mut cmd, false, i32::MAX);
         if i <= 0 && eap.skip == 0 && excmds_st().subflags.do_error {
             emsg(gettext(E_ZEROCOUNT));
             return 0;

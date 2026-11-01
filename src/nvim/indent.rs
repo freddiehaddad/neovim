@@ -150,7 +150,7 @@ pub fn tabstop_set(
         while !crate::memory::cstr_is_empty(cp) {
             if cp == var || crate::memory::cstr_first_byte(cp.wrapping_sub(1)) == b',' {
                 let mut end = cp;
-                if getdigits(&raw mut end, false, 1) <= 0 {
+                if getdigits(&mut end, false, 1) <= 0 {
                     if cp != end {
                         return Some(E_POSITIVE);
                     }

@@ -1772,7 +1772,7 @@ pub fn putdigraph(str_: impl crate::strings::IntoCCharPtr) {
             emsg(gettext(E_NUMBER_EXP));
             return;
         }
-        let n = getdigits_int(&raw mut str, true, 0);
+        let n = getdigits_int(&mut str, true, 0);
 
         registerdigraph(i32::from(char1), i32::from(char2), n);
     }

@@ -1014,7 +1014,7 @@ fn parse_sign_cmd_args<T>(
         let mut lnum_arg = false;
 
         if ascii_isdigit(crate::memory::cstr_first_char(arg)) {
-            *id = getdigits_int(&raw mut arg, true, 0);
+            *id = getdigits_int(&mut arg, true, 0);
             if !ascii_iswhite(crate::memory::cstr_first_char(arg))
                 && !crate::memory::cstr_is_empty(arg)
             {
@@ -1074,7 +1074,7 @@ fn parse_sign_cmd_args<T>(
             } else if crate::memory::cstr_prefix_bytes(arg, 7) == &b"buffer="[..7] {
                 arg = arg.wrapping_add(7);
                 filename = arg;
-                *buf = buflist_findnr(getdigits_int(&raw mut arg, true, 0));
+                *buf = buflist_findnr(getdigits_int(&mut arg, true, 0));
                 if !crate::memory::cstr_is_empty(skipwhite(arg)) {
                     semsg!(gettext(E_TRAILING_ARG), arg);
                 }

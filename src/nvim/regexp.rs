@@ -1994,11 +1994,11 @@ pub(super) fn read_limits(minval: &mut i32, maxval: &mut i32) -> bool {
         reverse = true;
     }
     let first_char = re_st().regparse;
-    *minval = getdigits_int((&raw mut re_st().regparse).cast(), false, 0);
+    *minval = getdigits_int(&mut re_st().regparse, false, 0);
     if crate::memory::cstr_first_byte(re_st().regparse.cast()) == b',' {
         re_st().regparse = re_st().regparse.wrapping_add(1);
         if ascii_isdigit(crate::memory::cstr_first_byte(re_st().regparse.cast()) as i32) {
-            *maxval = getdigits_int((&raw mut re_st().regparse).cast(), false, MAX_LIMIT);
+            *maxval = getdigits_int(&mut re_st().regparse, false, MAX_LIMIT);
         } else {
             *maxval = MAX_LIMIT;
         }

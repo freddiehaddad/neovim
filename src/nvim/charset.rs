@@ -300,7 +300,7 @@ pub fn parse_isopt(var: impl crate::strings::IntoCCharPtr, chartab: *mut u64) ->
             }
 
             let mut c = if ascii_isdigit(crate::memory::cstr_first_char(p)) {
-                getdigits_int((&raw mut p).cast(), false, 0)
+                getdigits_int(&mut p, false, 0)
             } else {
                 mb_ptr2char_adv(&raw mut p)
             };
@@ -309,7 +309,7 @@ pub fn parse_isopt(var: impl crate::strings::IntoCCharPtr, chartab: *mut u64) ->
             if crate::memory::cstr_first_byte(p) == b'-' && crate::memory::cstr_byte_at(p, 1) != 0 {
                 p = p.wrapping_add(1);
                 c2 = if ascii_isdigit(crate::memory::cstr_first_char(p)) {
-                    getdigits_int((&raw mut p).cast(), false, 0)
+                    getdigits_int(&mut p, false, 0)
                 } else {
                     mb_ptr2char_adv(&raw mut p)
                 };
@@ -925,10 +925,63 @@ pub fn skip_to_newline(p: impl crate::strings::IntoCCharPtr) -> RawCCharPtrMut {
     }
 }
 
-pub fn try_getdigits(pp: *mut RawCCharPtrMut, nr: &mut i64) -> bool {
+pub trait RawByteCursor: Copy {
+    fn as_byte_ptr(self) -> *const u8;
+    fn from_byte_ptr(p: *const u8) -> Self;
+}
+
+impl RawByteCursor for *const u8 {
+    #[inline]
+    fn as_byte_ptr(self) -> *const u8 {
+        self
+    }
+
+    #[inline]
+    fn from_byte_ptr(p: *const u8) -> Self {
+        p
+    }
+}
+
+impl RawByteCursor for *mut u8 {
+    #[inline]
+    fn as_byte_ptr(self) -> *const u8 {
+        self
+    }
+
+    #[inline]
+    fn from_byte_ptr(p: *const u8) -> Self {
+        p.cast_mut()
+    }
+}
+
+impl RawByteCursor for *const i8 {
+    #[inline]
+    fn as_byte_ptr(self) -> *const u8 {
+        self.cast()
+    }
+
+    #[inline]
+    fn from_byte_ptr(p: *const u8) -> Self {
+        p.cast()
+    }
+}
+
+impl RawByteCursor for *mut i8 {
+    #[inline]
+    fn as_byte_ptr(self) -> *const u8 {
+        self.cast()
+    }
+
+    #[inline]
+    fn from_byte_ptr(p: *const u8) -> Self {
+        p.cast_mut().cast()
+    }
+}
+
+pub fn try_getdigits<P: RawByteCursor>(pp: &mut P, nr: &mut i64) -> bool {
     unsafe {
         let orig = *pp;
-        let mut p = orig.cast::<u8>();
+        let mut p = orig.as_byte_ptr();
 
         while matches!(*p, b' ' | b'\t' | b'\n' | 0x0b | 0x0c | b'\r') {
             p = p.wrapping_add(1);
@@ -960,7 +1013,7 @@ pub fn try_getdigits(pp: *mut RawCCharPtrMut, nr: &mut i64) -> bool {
             p = p.wrapping_add(1);
         }
 
-        *pp = p.cast();
+        *pp = P::from_byte_ptr(p);
         if neg {
             const MIN_MAG: u64 = (i64::MAX as u64) + 1;
             if overflow || acc > MIN_MAG {
@@ -1013,7 +1066,7 @@ pub fn parse_i64_prefix(bytes: &[u8]) -> i64 {
     if neg { acc.wrapping_neg() } else { acc }
 }
 
-pub fn getdigits(pp: *mut RawCCharPtrMut, strict: bool, def: i64) -> i64 {
+pub fn getdigits<P: RawByteCursor>(pp: &mut P, strict: bool, def: i64) -> i64 {
     let mut number: i64 = 0;
     let ok = try_getdigits(pp, &mut number);
     if strict && !ok {
@@ -1022,7 +1075,7 @@ pub fn getdigits(pp: *mut RawCCharPtrMut, strict: bool, def: i64) -> i64 {
     if ok { number } else { def }
 }
 
-pub fn getdigits_int(pp: *mut RawCCharPtrMut, strict: bool, def: i32) -> i32 {
+pub fn getdigits_int<P: RawByteCursor>(pp: &mut P, strict: bool, def: i32) -> i32 {
     let number = getdigits(pp, strict, i64::from(def));
     match i32::try_from(number) {
         Ok(v) => v,
@@ -1033,11 +1086,11 @@ pub fn getdigits_int(pp: *mut RawCCharPtrMut, strict: bool, def: i32) -> i32 {
     }
 }
 
-pub fn getdigits_long(pp: *mut RawCCharPtrMut, strict: bool, def: i64) -> i64 {
+pub fn getdigits_long<P: RawByteCursor>(pp: &mut P, strict: bool, def: i64) -> i64 {
     getdigits(pp, strict, def)
 }
 
-pub fn getdigits_int32(pp: *mut RawCCharPtrMut, strict: bool, def: i32) -> i32 {
+pub fn getdigits_int32<P: RawByteCursor>(pp: &mut P, strict: bool, def: i32) -> i32 {
     let number = getdigits(pp, strict, i64::from(def));
     match i32::try_from(number) {
         Ok(v) => v,

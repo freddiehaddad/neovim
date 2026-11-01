@@ -1371,9 +1371,7 @@ pub fn open_line(
                         } else if ascii_isdigit(crate::memory::cstr_first_char(p.cast()))
                             || crate::memory::cstr_first_byte(p.cast()) == b'-'
                         {
-                            let mut p_c = p.cast();
-                            off = getdigits_int(&raw mut p_c, true, 0);
-                            p = p_c.cast();
+                            off = getdigits_int(&mut p, true, 0);
                         } else {
                             p = p.wrapping_add(1);
                         }

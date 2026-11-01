@@ -280,7 +280,7 @@ pub fn ex_menu(eap: &mut Exarg) {
     if ascii_iswhite(crate::memory::cstr_first_char(p)) {
         i = 0;
         while i < MENUDEPTH && !ascii_iswhite(crate::memory::cstr_first_char(arg)) {
-            pri_tab[i] = getdigits_int(&raw mut arg, false, 0);
+            pri_tab[i] = getdigits_int(&mut arg, false, 0);
             if pri_tab[i] == 0 {
                 pri_tab[i] = 500;
             }

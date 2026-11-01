@@ -560,9 +560,9 @@ pub fn spell_check_sps(
             let mut f: i32 = 0;
             if val.is_null() {
                 if keylen > 0 && ascii_isdigit(crate::memory::cstr_first_char(key)) {
-                    let mut s = key.cast_mut();
-                    limit = getdigits_int(&raw mut s, true, 0);
-                    if s.cast_const() != key.wrapping_add(keylen) {
+                    let mut s = key;
+                    limit = getdigits_int(&mut s, true, 0);
+                    if s != key.wrapping_add(keylen) {
                         f = -1;
                     }
                 } else if option_slice_eq(key, keylen, c"best") {

@@ -3588,10 +3588,10 @@ fn parse_diff_ed(line: impl crate::strings::IntoCCharPtr, hunk: &mut Diffhunk) -
     let line = line.into_c_char_ptr().cast_mut();
     {
         let mut p = line;
-        let f1 = getdigits_int32(&raw mut p, true, 0);
+        let f1 = getdigits_int32(&mut p, true, 0);
         let l1 = if crate::memory::cstr_first_byte(p) == b',' {
             p = p.wrapping_add(1);
-            getdigits_int(&raw mut p, true, 0)
+            getdigits_int(&mut p, true, 0)
         } else {
             f1
         };
@@ -3603,10 +3603,10 @@ fn parse_diff_ed(line: impl crate::strings::IntoCCharPtr, hunk: &mut Diffhunk) -
         }
         let difftype = crate::memory::cstr_first_byte(p);
         p = p.wrapping_add(1);
-        let f2 = getdigits_int(&raw mut p, true, 0);
+        let f2 = getdigits_int(&mut p, true, 0);
         let l2 = if crate::memory::cstr_first_byte(p) == b',' {
             p = p.wrapping_add(1);
-            getdigits_int(&raw mut p, true, 0)
+            getdigits_int(&mut p, true, 0)
         } else {
             f2
         };
@@ -3640,10 +3640,10 @@ fn parse_diff_unified(line: impl crate::strings::IntoCCharPtr, hunk: &mut Diffhu
             && crate::memory::cstr_byte_at(p, 3) == b'-'
         {
             p = p.wrapping_add(4);
-            let mut oldline = getdigits_int32(&raw mut p, true, 0);
+            let mut oldline = getdigits_int32(&mut p, true, 0);
             let oldcount = if crate::memory::cstr_first_byte(p) == b',' {
                 p = p.wrapping_add(1);
-                getdigits_int(&raw mut p, true, 0)
+                getdigits_int(&mut p, true, 0)
             } else {
                 1
             };
@@ -3651,10 +3651,10 @@ fn parse_diff_unified(line: impl crate::strings::IntoCCharPtr, hunk: &mut Diffhu
                 && crate::memory::cstr_byte_at(p, 1) == b'+'
             {
                 p = p.wrapping_add(2);
-                let mut newline = getdigits_int(&raw mut p, true, 0);
+                let mut newline = getdigits_int(&mut p, true, 0);
                 let newcount = if crate::memory::cstr_first_byte(p) == b',' {
                     p = p.wrapping_add(1);
-                    getdigits_int(&raw mut p, true, 0)
+                    getdigits_int(&mut p, true, 0)
                 } else {
                     1
                 };

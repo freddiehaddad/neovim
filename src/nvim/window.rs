@@ -7985,7 +7985,7 @@ pub fn check_colorcolumn(
             if !ascii_isdigit(i32::from(crate::memory::cstr_first_byte(s))) {
                 return Some(E_INVARG);
             }
-            col *= getdigits_int(&raw mut s, true, 0);
+            col *= getdigits_int(&mut s, true, 0);
             if tw == 0 {
                 skip = true;
             } else {
@@ -7995,7 +7995,7 @@ pub fn check_colorcolumn(
                 }
             }
         } else if ascii_isdigit(i32::from(crate::memory::cstr_first_byte(s))) {
-            col = getdigits_int(&raw mut s, true, 0);
+            col = getdigits_int(&mut s, true, 0);
         } else {
             return Some(E_INVARG);
         }

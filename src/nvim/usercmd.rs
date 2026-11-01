@@ -1049,16 +1049,16 @@ fn uc_scan_attr<T>(
             if vallen == 1 && crate::memory::cstr_first_byte(val.cast()) == b'%' {
                 *argt |= EX_DFLALL;
             } else if !val.is_null() {
-                let mut p = val.cast();
+                let mut p = val;
                 if *def >= 0 {
                     emsg(gettext(c"E177: Count cannot be specified twice"));
                     return false;
                 }
 
-                *def = getdigits_int(&raw mut p, true, 0);
+                *def = getdigits_int(&mut p, true, 0);
                 *argt |= EX_ZEROR;
 
-                if p != val.wrapping_add(vallen).cast() || vallen == 0 {
+                if p != val.wrapping_add(vallen) || vallen == 0 {
                     emsg(gettext(c"E178: Invalid default value for count"));
                     return false;
                 }
@@ -1075,15 +1075,15 @@ fn uc_scan_attr<T>(
             }
 
             if !val.is_null() {
-                let mut p = val.cast();
+                let mut p = val;
                 if *def >= 0 {
                     emsg(gettext(c"E177: Count cannot be specified twice"));
                     return false;
                 }
 
-                *def = getdigits_int(&raw mut p, true, 0);
+                *def = getdigits_int(&mut p, true, 0);
 
-                if p != val.wrapping_add(vallen).cast() {
+                if p != val.wrapping_add(vallen) {
                     emsg(gettext(c"E178: Invalid default value for count"));
                     return false;
                 }

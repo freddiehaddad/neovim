@@ -871,9 +871,9 @@ fn terminfo_start(tui: &mut TUIData) {
         .map_or(ptr::null(), |c| c.as_ptr());
     let konsolev_env = konsolev_cstr.as_ref().map_or(ptr::null(), |c| c.as_ptr());
 
-    let mut vte_version_end = vte_version_env.cast_mut();
+    let mut vte_version_end = vte_version_env;
     let vtev = if !vte_version_env.is_null() {
-        getdigits_int(&raw mut vte_version_end, false, 0)
+        getdigits_int(&mut vte_version_end, false, 0)
     } else {
         0
     };
@@ -883,9 +883,9 @@ fn terminfo_start(tui: &mut TUIData) {
     let konsole = terminfo_is_term_family(term, c"konsole")
         || os_env_exists(c"KONSOLE_PROFILE_NAME", true)
         || os_env_exists(c"KONSOLE_DBUS_SESSION", true);
-    let mut konsolev_end = konsolev_env.cast_mut();
+    let mut konsolev_end = konsolev_env;
     let konsolev = if !konsolev_env.is_null() {
-        getdigits_int(&raw mut konsolev_end, false, 0)
+        getdigits_int(&mut konsolev_end, false, 0)
     } else if konsole {
         1
     } else {

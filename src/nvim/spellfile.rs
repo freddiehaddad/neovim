@@ -1671,7 +1671,7 @@ pub fn spell_check_msm(value: impl crate::strings::IntoCCharPtr, apply: bool) ->
     if !ascii_isdigit(crate::memory::cstr_first_char(p)) {
         return false;
     }
-    let start = (getdigits_int(&raw mut p, true, 0) * 10) / ((SBLOCKSIZE / 102) as i32);
+    let start = (getdigits_int(&mut p, true, 0) * 10) / ((SBLOCKSIZE / 102) as i32);
     if crate::memory::cstr_first_byte(p) != b',' {
         return false;
     }
@@ -1679,7 +1679,7 @@ pub fn spell_check_msm(value: impl crate::strings::IntoCCharPtr, apply: bool) ->
     if !ascii_isdigit(crate::memory::cstr_first_char(p)) {
         return false;
     }
-    let incr = (getdigits_int(&raw mut p, true, 0) * 102) / ((SBLOCKSIZE / 10) as i32);
+    let incr = (getdigits_int(&mut p, true, 0) * 102) / ((SBLOCKSIZE / 10) as i32);
     if crate::memory::cstr_first_byte(p) != b',' {
         return false;
     }
@@ -1687,7 +1687,7 @@ pub fn spell_check_msm(value: impl crate::strings::IntoCCharPtr, apply: bool) ->
     if !ascii_isdigit(crate::memory::cstr_first_char(p)) {
         return false;
     }
-    let added = getdigits_int(&raw mut p, true, 0) * 1024;
+    let added = getdigits_int(&mut p, true, 0) * 1024;
     if !crate::memory::cstr_is_empty(p) {
         return false;
     }
@@ -2714,9 +2714,7 @@ fn get_affitem(flagtype: i32, pp: *mut *mut u8) -> u32 {
                 *pp = (*pp).wrapping_add(1);
                 return 0;
             }
-            let mut q = (*pp).cast();
-            res = getdigits_int(&raw mut q, true, 0);
-            *pp = q.cast();
+            res = getdigits_int(&mut *pp, true, 0);
             if res == 0 {
                 res = ZERO_FLAG as i32;
             }
@@ -2851,7 +2849,7 @@ fn flag_in_afflist(flagtype: i32, afflist: impl crate::strings::IntoCCharPtr, fl
             AFT_NUM => {
                 let mut p = afflist;
                 while !crate::memory::cstr_is_empty(p) {
-                    let digits = getdigits_int(&raw mut p, true, 0);
+                    let digits = getdigits_int(&mut p, true, 0);
                     debug_assert!(digits >= 0);
                     let mut n = digits as u32;
                     if n == 0 {

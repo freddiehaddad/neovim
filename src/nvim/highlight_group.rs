@@ -1565,9 +1565,8 @@ pub fn do_highlight(line: impl crate::strings::IntoCCharPtr, forceit: bool, init
                     // Ignored for now
                 } else if key_bytes == b"BLEND" {
                     if &arg[..arg_len] != b"NONE" {
-                        let mut arg_end = arg.as_mut_ptr().cast();
-                        hl_table_at(idx as usize).sg_blend =
-                            getdigits_int(&raw mut arg_end, false, 0);
+                        let mut arg_end = arg.as_ptr();
+                        hl_table_at(idx as usize).sg_blend = getdigits_int(&mut arg_end, false, 0);
                     } else {
                         hl_table_at(idx as usize).sg_blend = -1;
                     }

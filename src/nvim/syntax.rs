@@ -4407,7 +4407,7 @@ fn get_syn_pattern<T>(arg: *mut T, ci: &mut Synpat) -> *mut T {
                     if base_idx == SPO_LC_OFF {
                         end = end.wrapping_add(3);
                         unsafe {
-                            *p = getdigits_int((&raw mut end).cast(), true, 0);
+                            *p = getdigits_int(&mut end, true, 0);
                         }
 
                         if (ci.sp_off_flags & (1 << SPO_MS_OFF)) == 0 {
@@ -4419,12 +4419,12 @@ fn get_syn_pattern<T>(arg: *mut T, ci: &mut Synpat) -> *mut T {
                         if crate::memory::cstr_first_byte(end.cast()) == b'+' {
                             end = end.wrapping_add(1);
                             unsafe {
-                                *p = getdigits_int((&raw mut end).cast(), true, 0);
+                                *p = getdigits_int(&mut end, true, 0);
                             }
                         } else if crate::memory::cstr_first_byte(end.cast()) == b'-' {
                             end = end.wrapping_add(1);
                             unsafe {
-                                *p = -getdigits_int((&raw mut end).cast(), true, 0);
+                                *p = -getdigits_int(&mut end, true, 0);
                             }
                         }
                     }
@@ -4509,7 +4509,7 @@ fn syn_cmd_sync(eap: &mut Exarg, _syncing: i32) {
                 illegal = true;
                 break;
             }
-            let n: Linenr = getdigits_int32(&raw mut arg_end, false, 0);
+            let n: Linenr = getdigits_int32(&mut arg_end, false, 0);
             if eap.skip == 0 {
                 if crate::memory::cstr_byte_at(key, 4) == b'B' {
                     win_s(curwin_mut()).b_syn_sync_linebreaks = n;

@@ -1474,8 +1474,8 @@ pub fn grab_file_name(count: i32, file_lnum: &mut Linenr) -> Option<std::ffi::CS
         if vis_bytes.get(len) == Some(&b':')
             && vis_bytes.get(len + 1).is_some_and(u8::is_ascii_digit)
         {
-            let mut p = vis_cstr.as_ptr().wrapping_add(len + 1).cast_mut();
-            *file_lnum = getdigits_int32(&raw mut p, false, 0);
+            let mut p = vis_cstr.as_ptr().wrapping_add(len + 1);
+            *file_lnum = getdigits_int32(&mut p, false, 0);
         }
         find_file_name_in_path(
             vis_cstr.as_ptr().cast_mut(),
@@ -1615,7 +1615,7 @@ pub fn file_name_in_line(
                 }
                 p = skipwhite(p);
                 if (crate::memory::cstr_first_byte(p)).is_ascii_digit() {
-                    *file_lnum = getdigits_long(&raw mut p, false, 0) as Linenr;
+                    *file_lnum = getdigits_long(&mut p, false, 0) as Linenr;
                 }
             }
         }

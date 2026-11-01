@@ -3093,7 +3093,7 @@ pub fn prepare_yankreg_from_object(reg: &mut Yankreg, regtype: NvimString, _line
             return false;
         }
         let mut p = regtype.data.wrapping_add(1);
-        reg.y_width = getdigits_int(&raw mut p, false, 1) - 1;
+        reg.y_width = getdigits_int(&mut p, false, 1) - 1;
         if regtype.size > (p as usize) - (regtype.data as usize) {
             return false;
         }

@@ -3743,8 +3743,8 @@ pub fn aupat_get_buflocal_nr(pat: impl crate::strings::IntoCCharPtr, patlen: i32
 
             if skipdigits(pat.wrapping_add(8)) == pat.wrapping_add((patlen - 1) as usize).cast_mut()
             {
-                let mut p = pat.wrapping_add(8).cast_mut();
-                return getdigits_int(&raw mut p, false, 0);
+                let mut p = pat.wrapping_add(8);
+                return getdigits_int(&mut p, false, 0);
             }
         }
 

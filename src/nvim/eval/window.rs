@@ -323,8 +323,8 @@ fn get_winnr(tp: &mut TabPageInfo, argvar: &mut TypVal) -> i32 {
                     nr = 0;
                 }
             } else {
-                let mut endp = arg.as_ptr().cast_mut();
-                let mut count = getdigits_int(&raw mut endp, false, 0);
+                let mut endp = arg.as_ptr();
+                let mut count = getdigits_int(&mut endp, false, 0);
                 if count <= 0 {
                     count = 1;
                 }
