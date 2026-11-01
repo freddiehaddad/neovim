@@ -1064,7 +1064,7 @@ pub fn curs_columns(wp: &mut WinInfoInfo, may_scroll: i32) {
         }
 
         extra = (prev_skipcol - wp.w_skipcol) / width2;
-        if !wp.w_grid.target.is_null() {
+        if !wp.w_grid.target.is_null() && wp.w_redr_type < UPD_NOT_VALID {
             win_scroll_lines(wp, 0, extra);
         }
     } else if wp.w_onebuf_opt.wo_sms == 0 {
