@@ -1118,7 +1118,7 @@ pub fn ins_typebuf(
 /// Re-queues key `c`: puts a key obtained by `vgetc()` back into typeahead.
 pub fn requeue_key(c: i32, modifiers: i32, extra_consumed: i32, recorded: bool) {
     let mut buf = [0u8; MB_MAXBYTES * 3 + 4];
-    let len = special_to_buf(c, modifiers, true, buf.as_mut_ptr().cast()) as usize;
+    let len = special_to_buf(c, modifiers, true, &mut buf) as usize;
     assert!(len < buf.len());
     buf[len] = 0;
     ins_typebuf(

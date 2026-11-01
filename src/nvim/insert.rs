@@ -2203,22 +2203,15 @@ fn stop_insert(end_insert_pos: *mut CursorPos, esc: i32, nomove: i32) {
 /// Set the last inserted text to a single character.
 pub fn set_last_insert(c: i32) {
     let mut buf = [0u8; MB_MAXBYTES * 3 + 5];
-    let mut s = buf.as_mut_ptr();
+    let mut len = 0usize;
     if c < b' ' as i32 || c == DEL {
-        unsafe {
-            *s = CTRL_V_CONST as u8;
-        }
-        s = s.wrapping_add(1);
+        buf[len] = CTRL_V_CONST as u8;
+        len += 1;
     }
-    s = add_char2buf(c, s);
-    unsafe {
-        *s = ESC as u8;
-    }
-    s = s.wrapping_add(1);
-    unsafe {
-        *s = 0;
-    }
-    ins_st().last_insert = Some(crate::memory::cstr_to_cstring(buf.as_ptr().cast()));
+    len += add_char2buf(c, &mut buf[len..]);
+    buf[len] = ESC as u8;
+    len += 1;
+    ins_st().last_insert = Some(crate::memory::cstr_from_bytes(&buf[..len]));
     ins_st().last_insert_skip = 0;
 }
 

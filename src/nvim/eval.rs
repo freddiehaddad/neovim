@@ -3888,7 +3888,7 @@ fn eval_string<T>(arg: *mut *mut T, rettv: &mut TypVal, evaluate: bool, interpol
                     }
                     let mut p_const: *const u8 = p;
                     if find_special_key(
-                        &raw mut p_const,
+                        &mut p_const,
                         (arg_end as usize).wrapping_sub(p as usize),
                         &mut modifiers,
                         flags,
@@ -4023,10 +4023,12 @@ fn eval_string<T>(arg: *mut *mut T, rettv: &mut TypVal, evaluate: bool, interpol
                             flags |= FSK_SIMPLIFY;
                         }
                         let mut p_const: *const u8 = p;
+                        let rem_buf = (buf_ptr as usize + len).saturating_sub(end as usize);
+                        let end_slice = std::slice::from_raw_parts_mut(end, rem_buf);
                         let spec_len = trans_special(
-                            &raw mut p_const,
+                            &mut p_const,
                             (arg_end as usize).wrapping_sub(p as usize),
-                            end,
+                            end_slice,
                             flags,
                             false,
                             None,

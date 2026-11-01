@@ -2297,7 +2297,7 @@ fn find_key_len(arg_arg: impl crate::strings::IntoCCharPtr, len: usize, has_lt: 
             let mut modifiers: i32 = 0;
             let mut arg_u8 = arg.cast::<u8>();
             key = find_special_key(
-                &raw mut arg_u8,
+                &mut arg_u8,
                 len + 1,
                 &mut modifiers,
                 FSK_KEYCODE | FSK_KEEP_X_KEY | FSK_SIMPLIFY,

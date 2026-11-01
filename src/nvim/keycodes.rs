@@ -8,7 +8,8 @@ use crate::errors::{E_INVARG, E_USINGSID};
 use crate::eval::vars::{Scid, get_var_value};
 use crate::globals::*;
 use crate::mbyte::{
-    utf_char2bytes, utf_char2len, utf_ptr2char, utf_ptr2len, utfc_ptr2len, utfc_ptr2len_len,
+    utf_char2bytes, utf_char2len, utf_char2slice, utf_ptr2char, utf_slice2char, utf_slice2len,
+    utfc_ptr2len, utfc_ptr2len_len,
 };
 use crate::message::emsg;
 use crate::strings::vim_snprintf;
@@ -2351,14 +2352,7 @@ pub fn trans_special_slice(
     did_simplify: Option<&mut bool>,
 ) -> Option<(usize, usize)> {
     let mut p = src.as_ptr();
-    let dlen = trans_special(
-        &raw mut p,
-        src.len(),
-        dst.as_mut_ptr(),
-        flags,
-        escape_ks,
-        did_simplify,
-    ) as usize;
+    let dlen = trans_special(&mut p, src.len(), dst, flags, escape_ks, did_simplify) as usize;
     if dlen == 0 {
         None
     } else {
@@ -2368,9 +2362,9 @@ pub fn trans_special_slice(
 
 /// Try translating a `<>` name ("keycode") (`trans_special`).
 pub fn trans_special(
-    srcp: *mut *const u8,
+    srcp: &mut *const u8,
     src_len: usize,
-    dst: *mut u8,
+    dst: &mut [u8],
     flags: i32,
     escape_ks: bool,
     did_simplify: Option<&mut bool>,
@@ -2386,47 +2380,29 @@ pub fn trans_special(
 
 /// Put the character sequence for `key` with `modifiers` into `dst` and return
 /// the resulting length (`special_to_buf`).
-pub fn special_to_buf(key: i32, modifiers: i32, escape_ks: bool, dst: *mut u8) -> u32 {
-    let mut dlen: u32 = 0;
+pub fn special_to_buf(key: i32, modifiers: i32, escape_ks: bool, dst: &mut [u8]) -> u32 {
+    let mut dlen: usize = 0;
 
     // Put the appropriate modifier in a string.
     if modifiers != 0 {
-        unsafe {
-            *dst.wrapping_add(dlen as usize) = K_SPECIAL;
-        }
-        dlen += 1;
-        unsafe {
-            *dst.wrapping_add(dlen as usize) = KS_MODIFIER;
-        }
-        dlen += 1;
-        unsafe {
-            *dst.wrapping_add(dlen as usize) = modifiers as u8;
-        }
-        dlen += 1;
+        dst[dlen..dlen + 3].copy_from_slice(&[K_SPECIAL, KS_MODIFIER, modifiers as u8]);
+        dlen += 3;
     }
 
     if is_special(key) {
-        unsafe {
-            *dst.wrapping_add(dlen as usize) = K_SPECIAL;
-        }
-        dlen += 1;
-        unsafe {
-            *dst.wrapping_add(dlen as usize) = key2termcap0(key) as u8;
-        }
-        dlen += 1;
-        unsafe {
-            *dst.wrapping_add(dlen as usize) = key2termcap1(key) as u8;
-        }
-        dlen += 1;
+        dst[dlen..dlen + 3].copy_from_slice(&[
+            K_SPECIAL,
+            key2termcap0(key) as u8,
+            key2termcap1(key) as u8,
+        ]);
+        dlen += 3;
     } else if escape_ks {
-        let after = add_char2buf(key, dst.wrapping_add(dlen as usize));
-        debug_assert!(after as usize >= dst as usize);
-        dlen = (after as usize - dst as usize) as u32;
+        dlen += add_char2buf(key, &mut dst[dlen..]);
     } else {
-        dlen += utf_char2bytes(key, dst.wrapping_add(dlen as usize).cast()) as u32;
+        dlen += utf_char2slice(key, &mut dst[dlen..]);
     }
 
-    dlen
+    dlen as u32
 }
 
 /// Try to include modifiers (except alt/meta) in the key (`extract_modifiers`).
@@ -2473,7 +2449,7 @@ fn extract_modifiers(
 
 /// Try translating a `<>` name (`find_special_key`).
 pub fn find_special_key(
-    srcp: *mut *const u8,
+    srcp: &mut *const u8,
     src_len: usize,
     modp: &mut i32,
     flags: i32,
@@ -2483,7 +2459,7 @@ pub fn find_special_key(
         return 0;
     }
 
-    let mut src = unsafe { *srcp };
+    let mut src = *srcp;
     if crate::memory::cstr_first_byte(src.cast()) != b'<' {
         return 0;
     }
@@ -2652,9 +2628,7 @@ pub fn find_special_key(
                 }
 
                 *modp = modifiers;
-                unsafe {
-                    *srcp = end_of_name;
-                }
+                *srcp = end_of_name;
                 return key;
             }
         }
@@ -2675,30 +2649,28 @@ pub fn find_special_key_in_table(c: i32) -> i32 {
 /// Find the special key with the given name (`get_special_key_code`).
 pub fn get_special_key_code(name: impl crate::strings::IntoCCharPtr) -> i32 {
     let name = name.into_c_char_ptr();
+    if crate::memory::cstr_first_byte(name) == b't'
+        && crate::memory::cstr_byte_at(name, 1) == b'_'
+        && crate::memory::cstr_byte_at(name, 2) != 0
+        && crate::memory::cstr_byte_at(name, 3) != 0
     {
-        if crate::memory::cstr_first_byte(name) == b't'
-            && crate::memory::cstr_byte_at(name, 1) == b'_'
-            && unsafe { *name.wrapping_add(2) } != 0
-            && unsafe { *name.wrapping_add(3) } != 0
-        {
-            return termcap2key(
-                i32::from(crate::memory::cstr_byte_at(name, 2)),
-                i32::from(crate::memory::cstr_byte_at(name, 3)),
-            );
-        }
+        return termcap2key(
+            i32::from(crate::memory::cstr_byte_at(name, 2)),
+            i32::from(crate::memory::cstr_byte_at(name, 3)),
+        );
+    }
 
-        let mut len = 0usize;
-        while ascii_isident(crate::memory::cstr_char_at(name, len)) {
-            len += 1;
-        }
+    let mut len = 0usize;
+    while ascii_isident(crate::memory::cstr_char_at(name, len)) {
+        len += 1;
+    }
 
-        let slice = crate::memory::cstr_slice(name, len);
-        let idx = get_special_key_code_hash(slice);
-        if idx >= 0 {
-            KEY_NAMES_TABLE[idx as usize].key
-        } else {
-            0
-        }
+    let slice = crate::memory::cstr_slice(name, len);
+    let idx = get_special_key_code_hash(slice);
+    if idx >= 0 {
+        KEY_NAMES_TABLE[idx as usize].key
+    } else {
+        0
     }
 }
 
@@ -2797,7 +2769,7 @@ pub fn replace_termcodes(
                 let slen = trans_special(
                     &mut src,
                     rem,
-                    result.wrapping_add(dlen),
+                    &mut temp_buf[dlen..],
                     fsk_flags,
                     true,
                     (did_simplify.is_some()).then(|| &mut *did_simplify.as_deref_mut().unwrap()),
@@ -2896,67 +2868,41 @@ pub fn replace_termcodes(
     }
 }
 
-/// Add character `c` to buffer `s`, escaping `K_SPECIAL` (`add_char2buf`).
-pub fn add_char2buf(c: i32, s: *mut u8) -> *mut u8 {
-    let mut s = s;
+/// Add character `c` to buffer `dst`, escaping `K_SPECIAL` (`add_char2buf`).
+pub fn add_char2buf(c: i32, dst: &mut [u8]) -> usize {
     let mut temp = [0u8; MB_MAXBYTES + 1];
-    let len = utf_char2bytes(c, temp.as_mut_ptr().cast()) as usize;
+    let len = utf_char2slice(c, &mut temp);
+    let mut out = 0usize;
     for &b in &temp[..len] {
         if b == K_SPECIAL {
-            unsafe {
-                *s = K_SPECIAL;
-            }
-            s = s.wrapping_add(1);
-            unsafe {
-                *s = KS_SPECIAL;
-            }
-            s = s.wrapping_add(1);
-            unsafe {
-                *s = KE_FILLER;
-            }
-            s = s.wrapping_add(1);
+            dst[out..out + 3].copy_from_slice(&[K_SPECIAL, KS_SPECIAL, KE_FILLER]);
+            out += 3;
         } else {
-            unsafe {
-                *s = b;
-            }
-            s = s.wrapping_add(1);
+            dst[out] = b;
+            out += 1;
         }
     }
-    s
+    out
 }
 
 /// Copy `p` to an owned `CString`, escaping `K_SPECIAL` (`vim_strsave_escape_ks`).
 pub fn vim_strsave_escape_ks(p: impl crate::strings::IntoCCharPtr) -> std::ffi::CString {
-    let p: *const u8 = p.into_c_char_ptr().cast();
-    unsafe {
-        let mut res = vec![0u8; crate::memory::cstr_len(p.cast()) * 4 + 1];
-        let mut d = res.as_mut_ptr();
-        let mut s = p;
-        while *s != 0 {
-            if crate::memory::cstr_first_byte(s.cast()) == K_SPECIAL
-                && *s.wrapping_add(1) != 0
-                && *s.wrapping_add(2) != 0
-            {
-                // Copy special key unmodified.
-                *d = *s;
-                d = d.wrapping_add(1);
-                s = s.wrapping_add(1);
-                *d = *s;
-                d = d.wrapping_add(1);
-                s = s.wrapping_add(1);
-                *d = *s;
-                d = d.wrapping_add(1);
-                s = s.wrapping_add(1);
-            } else {
-                // Add character, possibly multi-byte to destination, escaping
-                // K_SPECIAL. Be careful, it can be an illegal byte!
-                d = add_char2buf(utf_ptr2char(s.cast()), d);
-                s = s.wrapping_add(utf_ptr2len(s.cast()) as usize);
-            }
+    let bytes = crate::memory::cstr_as_bytes(p.into_c_char_ptr());
+    let mut res = vec![0u8; bytes.len() * 4 + 1];
+    let mut d = 0usize;
+    let mut s = 0usize;
+    while s < bytes.len() {
+        let rest = &bytes[s..];
+        if rest[0] == K_SPECIAL && rest.len() >= 3 {
+            res[d..d + 3].copy_from_slice(&rest[..3]);
+            d += 3;
+            s += 3;
+        } else {
+            d += add_char2buf(utf_slice2char(rest), &mut res[d..]);
+            s += utf_slice2len(rest);
         }
-        *d = 0;
-        crate::memory::cstr_to_cstring(res.as_ptr().cast())
     }
+    crate::memory::cstr_from_bytes(&res[..d])
 }
 
 /// Remove escaping from `K_SPECIAL` characters in-place (`vim_unescape_ks`).
