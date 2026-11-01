@@ -108,7 +108,7 @@ pub fn adjust_clipboard_name(name: &mut i32, quiet: bool, writing: bool) -> *mut
 }
 
 /// Read clipboard contents into `*target` (`get_clipboard`).
-pub fn get_clipboard(mut name: i32, target: *mut *mut Yankreg, quiet: bool) -> bool {
+pub fn get_clipboard(mut name: i32, target: &mut *mut Yankreg, quiet: bool) -> bool {
     unsafe {
         let implicit = name == 0;
         let mut errmsg = true;
@@ -132,7 +132,7 @@ pub fn get_clipboard(mut name: i32, target: *mut *mut Yankreg, quiet: bool) -> b
 
         let result = eval_call_provider(c"clipboard", c"get", &mut *args, false);
 
-        let fail_cleanup = |reg: &mut Yankreg, errmsg: bool, target: *mut *mut Yankreg| -> bool {
+        let fail_cleanup = |reg: &mut Yankreg, errmsg: bool, target: &mut *mut Yankreg| -> bool {
             *reg = EMPTY_YANKREG;
             if errmsg {
                 emsg(c"clipboard: provider returned invalid data");

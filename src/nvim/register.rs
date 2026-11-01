@@ -472,7 +472,7 @@ pub fn update_yankreg_width(reg: &mut Yankreg) {
 pub fn get_yank_register(regname: i32, mode: i32) -> &'static mut Yankreg {
     let mut reg: *mut Yankreg = ptr::null_mut();
 
-    if (mode == YREG_PASTE || mode == YREG_PUT) && get_clipboard(regname, &raw mut reg, false) {
+    if (mode == YREG_PASTE || mode == YREG_PUT) && get_clipboard(regname, &mut reg, false) {
         return unsafe { &mut *reg };
     } else if mode == YREG_PUT && (regname == i32::from(b'*') || regname == i32::from(b'+')) {
         return &mut reg_st().empty_reg;
@@ -2514,7 +2514,7 @@ pub fn ex_display(eap: &mut Exarg) {
             regs.wrapping_add(i as usize)
         };
 
-        get_clipboard(name, &raw mut yb, true);
+        get_clipboard(name, &mut yb, true);
 
         if name == mb_tolower(g_st().redir_reg)
             || (g_st().redir_reg == i32::from(b'"') && ptr::eq(yb, reg_st().y_previous))

@@ -3792,7 +3792,7 @@ fn eval_number<T>(arg: *mut *mut T, rettv: &mut TypVal, evaluate: bool, want_str
         }
         if get_float {
             let mut f: TvFloat = 0.0;
-            *arg = (*arg).wrapping_add(string2float((*arg).cast(), &raw mut f));
+            *arg = (*arg).wrapping_add(string2float((*arg).cast(), &mut f));
             if evaluate {
                 rettv.v_type = VarType::VarFloat;
                 rettv.vval = crate::eval::typval::TypvalVval::Float(f);
@@ -4942,7 +4942,7 @@ fn eval_lit_dict<T>(arg: *mut *mut T, rettv: &mut TypVal, evalarg: Option<&mut E
 }
 
 /// Convert the string to a floating point number.
-pub fn string2float(text: impl crate::strings::IntoCCharPtr, ret_value: *mut TvFloat) -> usize {
+pub fn string2float(text: impl crate::strings::IntoCCharPtr, ret_value: &mut TvFloat) -> usize {
     let text = text.into_c_char_ptr();
     {
         let b0 = (crate::memory::cstr_first_byte(text)).to_ascii_lowercase();
@@ -4957,30 +4957,22 @@ pub fn string2float(text: impl crate::strings::IntoCCharPtr, ret_value: *mut TvF
             0
         };
         if b0 == b'i' && b1 == b'n' && b2 == b'f' {
-            unsafe {
-                *ret_value = f64::INFINITY;
-            }
+            *ret_value = f64::INFINITY;
             return 3;
         }
         if b0 == b'-' && b1 == b'i' && b2 == b'n' {
             let b3 = (crate::memory::cstr_byte_at(text, 3)).to_ascii_lowercase();
             if b3 == b'f' {
-                unsafe {
-                    *ret_value = f64::NEG_INFINITY;
-                }
+                *ret_value = f64::NEG_INFINITY;
                 return 4;
             }
         }
         if b0 == b'n' && b1 == b'a' && b2 == b'n' {
-            unsafe {
-                *ret_value = f64::NAN;
-            }
+            *ret_value = f64::NAN;
             return 3;
         }
         let mut s = ptr::null_mut();
-        unsafe {
-            *ret_value = strtod(text, &raw mut s);
-        }
+        *ret_value = strtod(text, &raw mut s);
         (s as usize).wrapping_sub(text as usize)
     }
 }
@@ -7518,13 +7510,13 @@ mod tests {
     #[test]
     fn test_string2float() {
         let mut val: TvFloat = 0.0;
-        assert_eq!(string2float(c"1.5", &raw mut val), 3);
+        assert_eq!(string2float(c"1.5", &mut val), 3);
         assert_eq!(val, 1.5);
-        assert_eq!(string2float(c"inf", &raw mut val), 3);
+        assert_eq!(string2float(c"inf", &mut val), 3);
         assert!(val.is_infinite() && val.is_sign_positive());
-        assert_eq!(string2float(c"-inf", &raw mut val), 4);
+        assert_eq!(string2float(c"-inf", &mut val), 4);
         assert!(val.is_infinite() && val.is_sign_negative());
-        assert_eq!(string2float(c"nan", &raw mut val), 3);
+        assert_eq!(string2float(c"nan", &mut val), 3);
         assert!(val.is_nan());
     }
 
