@@ -159,7 +159,7 @@ fn just_calc_size() -> *mut u8 {
 
 #[inline]
 fn op_fn(p: *const u8) -> i32 {
-    unsafe { *p as i32 }
+    i32::from(crate::memory::cstr_first_byte(p.cast()))
 }
 
 #[inline]
@@ -175,12 +175,8 @@ fn operand_fn(p: *mut u8) -> *mut u8 {
 
 #[inline]
 fn operand_min(p: *const u8) -> i64 {
-    unsafe {
-        ((*p.wrapping_add(3) as i64) << 24)
-            + ((*p.wrapping_add(4) as i64) << 16)
-            + ((*p.wrapping_add(5) as i64) << 8)
-            + (*p.wrapping_add(6) as i64)
-    }
+    let b = crate::memory::cstr_slice(p.wrapping_add(3).cast(), 4);
+    i64::from(i32::from_be_bytes([b[0], b[1], b[2], b[3]]))
 }
 
 #[inline]
@@ -190,7 +186,7 @@ fn operand_max(p: *const u8) -> i64 {
 
 #[inline]
 fn operand_cmp(p: *const u8) -> u8 {
-    unsafe { *p.wrapping_add(7) }
+    crate::memory::cstr_byte_at(p.cast(), 7)
 }
 
 #[inline]
@@ -890,7 +886,7 @@ fn regatom(flagp: &mut i32) -> *mut u8 {
                 c = getchr();
                 goto_multibyte = true;
             } else {
-                let idx = unsafe { p.offset_from(CLASSCHARS.as_ptr()) } as usize;
+                let idx = crate::memory::ptr_offset_from(p, CLASSCHARS.as_ptr()) as usize;
                 ret = regnode(CLASSCODES[idx] + extra);
                 *flagp |= HASWIDTH | SIMPLE;
                 return ret;
@@ -939,7 +935,7 @@ fn regatom(flagp: &mut i32) -> *mut u8 {
                 c = getchr();
                 goto_multibyte = true;
             } else {
-                let idx = unsafe { p.offset_from(CLASSCHARS.as_ptr()) } as usize;
+                let idx = crate::memory::ptr_offset_from(p, CLASSCHARS.as_ptr()) as usize;
                 ret = regnode(CLASSCODES[idx] + extra);
                 *flagp |= HASWIDTH | SIMPLE;
                 return ret;
@@ -1128,12 +1124,12 @@ fn regatom(flagp: &mut i32) -> *mut u8 {
                 b'^' => return regnode(RE_BOF),
                 b'$' => return regnode(RE_EOF),
                 b'#' => {
-                    if unsafe { *re_st().regparse } == b'='
-                        && (b'0'..=b'2').contains(&unsafe { *re_st().regparse.wrapping_add(1) })
+                    if re_st().regparse_byte() == b'='
+                        && (b'0'..=b'2').contains(&re_st().regparse_byte_at(1))
                     {
                         semsg!(
                             tr(E_ATOM_ENGINE_MUST_BE_AT_START_OF_PATTERN),
-                            i32::from(unsafe { *re_st().regparse.wrapping_add(1) }),
+                            i32::from(re_st().regparse_byte_at(1)),
                         );
                         return ptr::null_mut();
                     }
@@ -1321,14 +1317,16 @@ fn regatom(flagp: &mut i32) -> *mut u8 {
                             } else {
                                 if cur {
                                     let mut vcol: Colnr = 0;
+                                    let mut cursor = crate::globals::curwin_mut().w_cursor;
                                     getvvcol(
-                                        unsafe { &mut *(crate::globals::curwin_ptr()) },
-                                        &mut crate::globals::curwin_mut().w_cursor,
+                                        crate::globals::curwin_mut(),
+                                        &mut cursor,
                                         None,
                                         None,
                                         Some(&mut vcol),
                                         0,
                                     );
+                                    crate::globals::curwin_mut().w_cursor = cursor;
                                     vcol += 1;
                                     n = vcol as u32;
                                 }
@@ -1365,7 +1363,7 @@ fn regatom(flagp: &mut i32) -> *mut u8 {
 
     if goto_collection {
         let lp = skip_anyof(re_st().regparse);
-        if unsafe { *lp } == b']' {
+        if crate::memory::cstr_first_byte(lp.cast()) == b']' {
             let mut startc: i32 = -1;
             if extra == 0 {
                 let cl = bt_recognize_char_class(re_st().regparse, lp);
@@ -1378,33 +1376,32 @@ fn regatom(flagp: &mut i32) -> *mut u8 {
                 }
             }
 
-            if unsafe { *re_st().regparse } == b'^' {
+            if re_st().regparse_byte() == b'^' {
                 ret = regnode(ANYBUT + extra);
                 re_st().regparse = re_st().regparse.wrapping_add(1);
             } else {
                 ret = regnode(ANYOF + extra);
             }
 
-            if unsafe { *re_st().regparse } == b']' || unsafe { *re_st().regparse } == b'-' {
-                startc = i32::from(unsafe { *re_st().regparse });
+            if re_st().regparse_byte() == b']' || re_st().regparse_byte() == b'-' {
+                startc = i32::from(re_st().regparse_byte());
                 regc(startc);
                 re_st().regparse = re_st().regparse.wrapping_add(1);
             }
 
-            while unsafe { *re_st().regparse } != 0 && unsafe { *re_st().regparse } != b']' {
-                if unsafe { *re_st().regparse } == b'-' {
+            while re_st().regparse_byte() != 0 && re_st().regparse_byte() != b']' {
+                if re_st().regparse_byte() == b'-' {
                     re_st().regparse = re_st().regparse.wrapping_add(1);
-                    if unsafe { *re_st().regparse } == b']'
-                        || unsafe { *re_st().regparse } == 0
+                    if re_st().regparse_byte() == b']'
+                        || re_st().regparse_byte() == 0
                         || startc == -1
-                        || (unsafe { *re_st().regparse } == b'\\'
-                            && unsafe { *re_st().regparse.wrapping_add(1) } == b'n')
+                        || (re_st().regparse_byte() == b'\\' && re_st().regparse_byte_at(1) == b'n')
                     {
                         regc(b'-' as i32);
                         startc = b'-' as i32;
                     } else {
                         let mut endc: i32 = 0;
-                        if unsafe { *re_st().regparse } == b'[' {
+                        if re_st().regparse_byte() == b'[' {
                             endc = get_coll_element(&raw mut re_st().regparse);
                         }
                         if endc == 0 {
@@ -1440,18 +1437,18 @@ fn regatom(flagp: &mut i32) -> *mut u8 {
                         }
                         startc = -1;
                     }
-                } else if unsafe { *re_st().regparse } == b'\\'
+                } else if re_st().regparse_byte() == b'\\'
                     && (crate::strings::vim_haschr(
                         REGEXP_INRANGE,
-                        i32::from(unsafe { *re_st().regparse.wrapping_add(1) }),
+                        i32::from(re_st().regparse_byte_at(1)),
                     ) || (re_st().reg_cpo_lit == 0
                         && crate::strings::vim_haschr(
                             REGEXP_ABBR,
-                            i32::from(unsafe { *re_st().regparse.wrapping_add(1) }),
+                            i32::from(re_st().regparse_byte_at(1)),
                         )))
                 {
                     re_st().regparse = re_st().regparse.wrapping_add(1);
-                    if unsafe { *re_st().regparse } == b'n' {
+                    if re_st().regparse_byte() == b'n' {
                         if ret != just_calc_size() && unsafe { *ret } == ANYOF as u8 {
                             unsafe {
                                 *ret = (ANYOF + ADD_NL) as u8;
@@ -1460,10 +1457,7 @@ fn regatom(flagp: &mut i32) -> *mut u8 {
                         }
                         re_st().regparse = re_st().regparse.wrapping_add(1);
                         startc = -1;
-                    } else if matches!(
-                        unsafe { *re_st().regparse },
-                        b'd' | b'o' | b'x' | b'u' | b'U'
-                    ) {
+                    } else if matches!(re_st().regparse_byte(), b'd' | b'o' | b'x' | b'u' | b'U') {
                         startc = coll_get_char();
                         if startc == i32::MAX {
                             emsg(tr(E_UNICODE_VAL_TOO_LARGE));
@@ -1476,11 +1470,11 @@ fn regatom(flagp: &mut i32) -> *mut u8 {
                             regmbc(startc);
                         }
                     } else {
-                        startc = backslash_trans(i32::from(unsafe { *re_st().regparse }));
+                        startc = backslash_trans(i32::from(re_st().regparse_byte()));
                         re_st().regparse = re_st().regparse.wrapping_add(1);
                         regc(startc);
                     }
-                } else if unsafe { *re_st().regparse } == b'[' {
+                } else if re_st().regparse_byte() == b'[' {
                     let mut c_class = get_char_class(&raw mut re_st().regparse);
                     startc = -1;
                     match c_class {
@@ -1493,7 +1487,7 @@ fn regatom(flagp: &mut i32) -> *mut u8 {
                                 if c_class != 0 {
                                     regmbc(c_class);
                                 } else {
-                                    startc = i32::from(unsafe { *re_st().regparse });
+                                    startc = i32::from(re_st().regparse_byte());
                                     re_st().regparse = re_st().regparse.wrapping_add(1);
                                     regc(startc);
                                 }
@@ -1616,14 +1610,14 @@ fn regatom(flagp: &mut i32) -> *mut u8 {
                         len -= 1;
                         len >= 0
                     } {
-                        regc(i32::from(unsafe { *re_st().regparse }));
+                        regc(i32::from(re_st().regparse_byte()));
                         re_st().regparse = re_st().regparse.wrapping_add(1);
                     }
                 }
             }
             regc(NUL as i32);
             re_st().prevchr_len = 1;
-            if unsafe { *re_st().regparse } != b']' {
+            if re_st().regparse_byte() != b']' {
                 emsg(tr(E_TOOMSBRA));
                 g_st().rc_did_emsg = true;
                 return ptr::null_mut();
@@ -2059,11 +2053,7 @@ fn reg(paren: i32, flagp: &mut i32) -> *mut u8 {
     }
 
     if paren == REG_PAREN {
-        unsafe {
-            *(&raw mut re_st().had_endbrace)
-                .cast::<u8>()
-                .wrapping_add(parno as usize) = 1;
-        }
+        re_st().had_endbrace[parno as usize] = 1;
     }
 
     re_st().bt_reg_parse_depth -= 1;
@@ -2163,7 +2153,8 @@ pub(super) fn bt_regcomp(expr: *mut u8, re_flags: i32) -> Option<BtRegprog> {
                 scan = regnext(scan);
             }
             if !longest.is_null() {
-                r.regmust_off = Some(unsafe { longest.offset_from(r.program.as_ptr()) } as usize);
+                r.regmust_off =
+                    Some(crate::memory::ptr_offset_from(longest, r.program.as_ptr()) as usize);
             }
             r.regmlen = len;
         }
@@ -2175,7 +2166,7 @@ fn reg_save(save: &mut Regsave) {
     let len = re_st().backpos.len() as i32;
     if reg_multi() {
         save.rs_u = crate::regexp::RegPos::Pos(Lpos {
-            col: unsafe { re_st().rex.input.offset_from(re_st().rex.line) } as Colnr,
+            col: re_st().rex.input_col(),
             lnum: re_st().rex.lnum,
         });
     } else {
@@ -2211,7 +2202,7 @@ fn reg_save_equal(save: &Regsave) -> bool {
 fn save_se_multi(savep: &mut SaveSe, posp: &mut Lpos) {
     savep.se_u = crate::regexp::RegPos::Pos(*posp);
     posp.lnum = re_st().rex.lnum;
-    posp.col = unsafe { re_st().rex.input.offset_from(re_st().rex.line) } as Colnr;
+    posp.col = re_st().rex.input_col();
 }
 
 fn save_se_one(savep: &mut SaveSe, pp: *mut *mut u8) {
@@ -2606,35 +2597,41 @@ fn save_subexpr(bp: &mut Regbehind) {
     if re_st().rex.need_clear_subexpr != 0 {
         return;
     }
-    for i in 0..NSUBEXP {
-        if reg_multi() {
-            bp.save_start[i].se_u =
-                crate::regexp::RegPos::Pos(unsafe { *re_st().rex.reg_startpos.wrapping_add(i) });
-            bp.save_end[i].se_u =
-                crate::regexp::RegPos::Pos(unsafe { *re_st().rex.reg_endpos.wrapping_add(i) });
-        } else {
-            bp.save_start[i].se_u =
-                crate::regexp::RegPos::Ptr(unsafe { *re_st().rex.reg_startp.wrapping_add(i) });
-            bp.save_end[i].se_u =
-                crate::regexp::RegPos::Ptr(unsafe { *re_st().rex.reg_endp.wrapping_add(i) });
+    if reg_multi() {
+        let startpos = re_st().rex.startpos_slice_mut();
+        let endpos = re_st().rex.endpos_slice_mut();
+        for i in 0..NSUBEXP {
+            bp.save_start[i].se_u = crate::regexp::RegPos::Pos(startpos[i]);
+            bp.save_end[i].se_u = crate::regexp::RegPos::Pos(endpos[i]);
+        }
+    } else {
+        let startp = re_st().rex.startp_slice_mut();
+        let endp = re_st().rex.endp_slice_mut();
+        for i in 0..NSUBEXP {
+            bp.save_start[i].se_u = crate::regexp::RegPos::Ptr(startp[i]);
+            bp.save_end[i].se_u = crate::regexp::RegPos::Ptr(endp[i]);
         }
     }
 }
 
 fn restore_subexpr(bp: &mut Regbehind) {
-    unsafe {
-        re_st().rex.need_clear_subexpr = bp.save_need_clear_subexpr;
-        if re_st().rex.need_clear_subexpr != 0 {
-            return;
-        }
+    re_st().rex.need_clear_subexpr = bp.save_need_clear_subexpr;
+    if re_st().rex.need_clear_subexpr != 0 {
+        return;
+    }
+    if reg_multi() {
+        let startpos = re_st().rex.startpos_slice_mut();
+        let endpos = re_st().rex.endpos_slice_mut();
         for i in 0..NSUBEXP {
-            if reg_multi() {
-                *re_st().rex.reg_startpos.wrapping_add(i) = bp.save_start[i].se_u.pos();
-                *re_st().rex.reg_endpos.wrapping_add(i) = bp.save_end[i].se_u.pos();
-            } else {
-                *re_st().rex.reg_startp.wrapping_add(i) = bp.save_start[i].se_u.ptr();
-                *re_st().rex.reg_endp.wrapping_add(i) = bp.save_end[i].se_u.ptr();
-            }
+            startpos[i] = bp.save_start[i].se_u.pos();
+            endpos[i] = bp.save_end[i].se_u.pos();
+        }
+    } else {
+        let startp = re_st().rex.startp_slice_mut();
+        let endp = re_st().rex.endp_slice_mut();
+        for i in 0..NSUBEXP {
+            startp[i] = bp.save_start[i].se_u.ptr();
+            endp[i] = bp.save_end[i].se_u.ptr();
         }
     }
 }
@@ -3903,69 +3900,70 @@ fn regtry(
     tm: Option<Proftime>,
     timed_out: Option<&mut i32>,
 ) -> i32 {
-    unsafe {
-        re_st().rex.input = re_st().rex.line.wrapping_add(col as usize);
-        re_st().rex.need_clear_subexpr = 1;
-        re_st().rex.need_clear_zsubexpr = i32::from(prog.reghasz == REX_SET as u8);
+    re_st().rex.input = re_st().rex.line.wrapping_add(col as usize);
+    re_st().rex.need_clear_subexpr = 1;
+    re_st().rex.need_clear_zsubexpr = i32::from(prog.reghasz == REX_SET as u8);
 
-        if !regmatch(
-            prog.program.as_mut_ptr().wrapping_add(1),
-            tm,
-            (timed_out.is_some()).then(|| &mut *timed_out.unwrap()),
-        ) {
-            return 0;
+    if !regmatch(
+        prog.program.as_mut_ptr().wrapping_add(1),
+        tm,
+        (timed_out.is_some()).then(|| &mut *timed_out.unwrap()),
+    ) {
+        return 0;
+    }
+
+    cleanup_subexpr();
+    if reg_multi() {
+        let startpos = re_st().rex.startpos_slice_mut();
+        let endpos = re_st().rex.endpos_slice_mut();
+        if startpos[0].lnum < 0 {
+            startpos[0].lnum = 0;
+            startpos[0].col = col;
         }
-
-        cleanup_subexpr();
-        if reg_multi() {
-            if (*re_st().rex.reg_startpos).lnum < 0 {
-                (*re_st().rex.reg_startpos).lnum = 0;
-                (*re_st().rex.reg_startpos).col = col;
-            }
-            if (*re_st().rex.reg_endpos).lnum < 0 {
-                (*re_st().rex.reg_endpos).lnum = re_st().rex.lnum;
-                (*re_st().rex.reg_endpos).col =
-                    re_st().rex.input.offset_from(re_st().rex.line) as Colnr;
-            } else {
-                re_st().rex.lnum = (*re_st().rex.reg_endpos).lnum;
-            }
+        if endpos[0].lnum < 0 {
+            endpos[0].lnum = re_st().rex.lnum;
+            endpos[0].col = re_st().rex.input_col();
         } else {
-            if (*re_st().rex.reg_startp).is_null() {
-                *re_st().rex.reg_startp = re_st().rex.line.wrapping_add(col as usize);
-            }
-            if (*re_st().rex.reg_endp).is_null() {
-                *re_st().rex.reg_endp = re_st().rex.input;
-            }
+            re_st().rex.lnum = endpos[0].lnum;
         }
+    } else {
+        let startp = re_st().rex.startp_slice_mut();
+        let endp = re_st().rex.endp_slice_mut();
+        if startp[0].is_null() {
+            startp[0] = re_st().rex.line.wrapping_add(col as usize);
+        }
+        if endp[0].is_null() {
+            endp[0] = re_st().rex.input;
+        }
+    }
 
-        g_st().re_extmatch_out = None;
+    g_st().re_extmatch_out = None;
 
-        if prog.reghasz == REX_SET as u8 {
-            cleanup_zsubexpr();
-            let mut extmatch = RegExtmatch::default();
-            for i in 0..NSUBEXP {
-                if reg_multi() {
-                    let sz = re_st().reg_startzpos[i];
-                    let ez = re_st().reg_endzpos[i];
-                    if sz.lnum >= 0 && ez.lnum == sz.lnum && ez.col >= sz.col {
-                        extmatch.matches[i] = cstring_from_bytes(
-                            reg_getline(sz.lnum).wrapping_add(sz.col as usize),
-                            (ez.col - sz.col) as usize,
-                        );
-                    }
-                } else {
-                    let szp = re_st().reg_startzp[i];
-                    let ezp = re_st().reg_endzp[i];
-                    if !szp.is_null() && !ezp.is_null() {
-                        extmatch.matches[i] =
-                            cstring_from_bytes(szp, ezp.offset_from(szp) as usize);
-                    }
+    if prog.reghasz == REX_SET as u8 {
+        cleanup_zsubexpr();
+        let mut extmatch = RegExtmatch::default();
+        for i in 0..NSUBEXP {
+            if reg_multi() {
+                let sz = re_st().reg_startzpos[i];
+                let ez = re_st().reg_endzpos[i];
+                if sz.lnum >= 0 && ez.lnum == sz.lnum && ez.col >= sz.col {
+                    extmatch.matches[i] = cstring_from_bytes(
+                        reg_getline(sz.lnum).wrapping_add(sz.col as usize),
+                        (ez.col - sz.col) as usize,
+                    );
+                }
+            } else {
+                let szp = re_st().reg_startzp[i];
+                let ezp = re_st().reg_endzp[i];
+                if !szp.is_null() && !ezp.is_null() {
+                    extmatch.matches[i] =
+                        cstring_from_bytes(szp, crate::memory::ptr_offset_from(ezp, szp) as usize);
                 }
             }
-            g_st().re_extmatch_out = Some(std::rc::Rc::new(extmatch));
         }
-        1 + re_st().rex.lnum
+        g_st().re_extmatch_out = Some(std::rc::Rc::new(extmatch));
     }
+    1 + re_st().rex.lnum
 }
 
 fn bt_regexec_both(
@@ -3974,166 +3972,164 @@ fn bt_regexec_both(
     tm: Option<Proftime>,
     mut timed_out: Option<&mut i32>,
 ) -> i32 {
-    unsafe {
-        let mut col = startcol;
-        let mut retval: i32 = 0;
+    let mut col = startcol;
+    let mut retval: i32 = 0;
 
-        if re_st().regstack.capacity() == 0 {
-            re_st().regstack.reserve((REGSTACK_INITIAL as usize) / 8);
-        }
+    if re_st().regstack.capacity() == 0 {
+        re_st().regstack.reserve((REGSTACK_INITIAL as usize) / 8);
+    }
 
-        if re_st().backpos.capacity() == 0 {
-            re_st().backpos.reserve(BACKPOS_INITIAL as usize);
-        }
+    if re_st().backpos.capacity() == 0 {
+        re_st().backpos.reserve(BACKPOS_INITIAL as usize);
+    }
 
-        let prog: *mut BtRegprog = if reg_multi() {
-            let p = re_st().rex.mmatch_mut().prog_mut().bt_mut();
-            line = reg_getline(0).cast();
-            re_st().rex.reg_startpos = (&raw mut re_st().rex.mmatch_mut().startpos).cast();
-            re_st().rex.reg_endpos = (&raw mut re_st().rex.mmatch_mut().endpos).cast();
-            p
+    let prog: *mut BtRegprog = if reg_multi() {
+        let p = re_st().rex.mmatch_mut().prog_mut().bt_mut();
+        line = reg_getline(0).cast();
+        re_st().rex.reg_startpos = (&raw mut re_st().rex.mmatch_mut().startpos).cast();
+        re_st().rex.reg_endpos = (&raw mut re_st().rex.mmatch_mut().endpos).cast();
+        p
+    } else {
+        let p = re_st().rex.match_mut().prog_mut().bt_mut();
+        re_st().rex.reg_startp = (&raw mut re_st().rex.match_mut().startp).cast();
+        re_st().rex.reg_endp = (&raw mut re_st().rex.match_mut().endp).cast();
+        p
+    };
+    if prog.is_null() || line.is_null() {
+        iemsg(tr(E_NULL));
+        return finish_bt_regexec(retval, col);
+    }
+    let prog = unsafe { &mut *prog };
+
+    if prog_magic_wrong() {
+        return finish_bt_regexec(retval, col);
+    }
+
+    if re_st().rex.reg_maxcol > 0 && col >= re_st().rex.reg_maxcol {
+        return finish_bt_regexec(retval, col);
+    }
+
+    if (prog.regflags & RF_ICASE) != 0 {
+        re_st().rex.reg_ic = true;
+    } else if (prog.regflags & RF_NOICASE) != 0 {
+        re_st().rex.reg_ic = false;
+    }
+
+    if (prog.regflags & RF_ICOMBINE) != 0 {
+        re_st().rex.reg_icombine = true;
+    }
+
+    if let Some(off) = prog.regmust_off {
+        let regmust = prog.program.as_ptr().wrapping_add(off).cast();
+        let c = utf_ptr2char(regmust);
+        let mut s = line.wrapping_add(col as usize);
+        if !re_st().rex.reg_ic {
+            loop {
+                s = vim_strchr(s.cast(), c).cast();
+                if s.is_null() {
+                    break;
+                }
+                let mut len = prog.regmlen;
+                if cstrncmp(s.cast(), regmust.cast_mut(), &mut len) == 0 {
+                    break;
+                }
+                mb_ptr_adv(&raw mut s);
+            }
         } else {
-            let p = (*re_st().rex.match_mut().regprog).bt_mut();
-            re_st().rex.reg_startp = (&raw mut re_st().rex.match_mut().startp).cast();
-            re_st().rex.reg_endp = (&raw mut re_st().rex.match_mut().endp).cast();
-            p
-        };
-        if prog.is_null() || line.is_null() {
-            iemsg(tr(E_NULL));
-            return finish_bt_regexec(retval, col);
-        }
-        let prog = &mut *prog;
-
-        if prog_magic_wrong() {
-            return finish_bt_regexec(retval, col);
-        }
-
-        if re_st().rex.reg_maxcol > 0 && col >= re_st().rex.reg_maxcol {
-            return finish_bt_regexec(retval, col);
-        }
-
-        if (prog.regflags & RF_ICASE) != 0 {
-            re_st().rex.reg_ic = true;
-        } else if (prog.regflags & RF_NOICASE) != 0 {
-            re_st().rex.reg_ic = false;
-        }
-
-        if (prog.regflags & RF_ICOMBINE) != 0 {
-            re_st().rex.reg_icombine = true;
-        }
-
-        if let Some(off) = prog.regmust_off {
-            let regmust = prog.program.as_ptr().wrapping_add(off).cast();
-            let c = utf_ptr2char(regmust);
-            let mut s = line.wrapping_add(col as usize);
-            if !re_st().rex.reg_ic {
-                loop {
-                    s = vim_strchr(s.cast(), c).cast();
-                    if s.is_null() {
-                        break;
-                    }
-                    let mut len = prog.regmlen;
-                    if cstrncmp(s.cast(), regmust.cast_mut(), &mut len) == 0 {
-                        break;
-                    }
-                    mb_ptr_adv(&raw mut s);
+            loop {
+                s = cstrchr(s.cast(), c).cast();
+                if s.is_null() {
+                    break;
                 }
-            } else {
-                loop {
-                    s = cstrchr(s.cast(), c).cast();
-                    if s.is_null() {
-                        break;
-                    }
-                    let mut len = prog.regmlen;
-                    if cstrncmp(s.cast(), regmust.cast_mut(), &mut len) == 0 {
-                        break;
-                    }
-                    mb_ptr_adv(&raw mut s);
+                let mut len = prog.regmlen;
+                if cstrncmp(s.cast(), regmust.cast_mut(), &mut len) == 0 {
+                    break;
                 }
-            }
-            if s.is_null() {
-                return finish_bt_regexec(retval, col);
+                mb_ptr_adv(&raw mut s);
             }
         }
+        if s.is_null() {
+            return finish_bt_regexec(retval, col);
+        }
+    }
 
-        re_st().rex.line = line;
-        re_st().rex.lnum = 0;
-        re_st().reg_toolong = 0;
+    re_st().rex.line = line;
+    re_st().rex.lnum = 0;
+    re_st().reg_toolong = 0;
 
-        if prog.reganch != 0 {
-            let c = utf_ptr2char(re_st().rex.line.wrapping_add(col as usize).cast());
-            if prog.regstart == NUL as i32
-                || prog.regstart == c
-                || (re_st().rex.reg_ic
-                    && (utf_fold(prog.regstart) == utf_fold(c)
-                        || (c < 255
-                            && prog.regstart < 255
-                            && mb_tolower(prog.regstart) == mb_tolower(c))))
-            {
-                retval = regtry(
-                    &mut *prog,
-                    col,
-                    tm,
-                    (timed_out.is_some()).then(|| &mut *timed_out.as_deref_mut().unwrap()),
+    if prog.reganch != 0 {
+        let c = utf_ptr2char(re_st().rex.line.wrapping_add(col as usize).cast());
+        if prog.regstart == NUL as i32
+            || prog.regstart == c
+            || (re_st().rex.reg_ic
+                && (utf_fold(prog.regstart) == utf_fold(c)
+                    || (c < 255
+                        && prog.regstart < 255
+                        && mb_tolower(prog.regstart) == mb_tolower(c))))
+        {
+            retval = regtry(
+                &mut *prog,
+                col,
+                tm,
+                (timed_out.is_some()).then(|| &mut *timed_out.as_deref_mut().unwrap()),
+            );
+        } else {
+            retval = 0;
+        }
+    } else {
+        let mut tm_count: i32 = 0;
+        while !g_st().got_int {
+            if prog.regstart != NUL as i32 {
+                let s = cstrchr(
+                    re_st().rex.line.wrapping_add(col as usize).cast(),
+                    prog.regstart,
                 );
-            } else {
-                retval = 0;
-            }
-        } else {
-            let mut tm_count: i32 = 0;
-            while !g_st().got_int {
-                if prog.regstart != NUL as i32 {
-                    let s = cstrchr(
-                        re_st().rex.line.wrapping_add(col as usize).cast(),
-                        prog.regstart,
-                    );
-                    if s.is_null() {
-                        retval = 0;
-                        break;
-                    }
-                    col = s.cast::<u8>().offset_from(re_st().rex.line) as Colnr;
-                }
-
-                if re_st().rex.reg_maxcol > 0 && col >= re_st().rex.reg_maxcol {
+                if s.is_null() {
                     retval = 0;
                     break;
                 }
+                col = crate::memory::ptr_offset_from(s, re_st().rex.line) as Colnr;
+            }
 
-                retval = regtry(
-                    &mut *prog,
-                    col,
-                    tm,
-                    (timed_out.is_some()).then(|| &mut *timed_out.as_deref_mut().unwrap()),
-                );
-                if retval > 0 {
-                    break;
-                }
+            if re_st().rex.reg_maxcol > 0 && col >= re_st().rex.reg_maxcol {
+                retval = 0;
+                break;
+            }
 
-                if re_st().rex.lnum != 0 {
-                    re_st().rex.lnum = 0;
-                    re_st().rex.line = reg_getline(0).cast();
-                }
-                if *re_st().rex.line.wrapping_add(col as usize) == NUL {
-                    break;
-                }
-                col += utfc_ptr2len(re_st().rex.line.wrapping_add(col as usize).cast());
-                if let Some(tm_val) = tm {
-                    tm_count += 1;
-                    if tm_count == 20 {
-                        tm_count = 0;
-                        if profile_passed_limit(tm_val) {
-                            if let Some(ref mut p) = timed_out {
-                                **p = 1;
-                            }
-                            break;
+            retval = regtry(
+                &mut *prog,
+                col,
+                tm,
+                (timed_out.is_some()).then(|| &mut *timed_out.as_deref_mut().unwrap()),
+            );
+            if retval > 0 {
+                break;
+            }
+
+            if re_st().rex.lnum != 0 {
+                re_st().rex.lnum = 0;
+                re_st().rex.line = reg_getline(0).cast();
+            }
+            if crate::memory::cstr_byte_at(re_st().rex.line.cast(), col as usize) == NUL {
+                break;
+            }
+            col += utfc_ptr2len(re_st().rex.line.wrapping_add(col as usize).cast());
+            if let Some(tm_val) = tm {
+                tm_count += 1;
+                if tm_count == 20 {
+                    tm_count = 0;
+                    if profile_passed_limit(tm_val) {
+                        if let Some(ref mut p) = timed_out {
+                            **p = 1;
                         }
+                        break;
                     }
                 }
             }
         }
-
-        finish_bt_regexec(retval, col)
     }
+
+    finish_bt_regexec(retval, col)
 }
 
 fn finish_bt_regexec(retval: i32, col: Colnr) -> i32 {
@@ -4175,7 +4171,7 @@ pub(super) fn bt_regexec_nl(rmp: &mut Regmatch, line: *mut u8, col: Colnr, line_
     re_st().rex.reg_win = ptr::null_mut();
     re_st().rex.reg_ic = rmp.rm_ic;
     re_st().rex.reg_icombine = false;
-    re_st().rex.reg_nobreak = (unsafe { (*rmp.regprog).re_flags } & (RE_NOBREAK as u32)) != 0;
+    re_st().rex.reg_nobreak = (rmp.prog_mut().re_flags & (RE_NOBREAK as u32)) != 0;
     re_st().rex.reg_maxcol = 0;
 
     bt_regexec_both(line, col, None, None)

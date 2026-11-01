@@ -866,7 +866,7 @@ fn nfa_regatom() -> bool {
                 c = getchr();
                 goto_multibyte = true;
             } else {
-                let idx = unsafe { p.offset_from(CLASSCHARS.as_ptr()) } as usize;
+                let idx = crate::memory::ptr_offset_from(p, CLASSCHARS.as_ptr()) as usize;
                 emit_fn(NFA_CLASSCODES[idx]);
                 if extra == NFA_ADD_NL {
                     emit_fn(NFA_NEWL);
@@ -923,7 +923,7 @@ fn nfa_regatom() -> bool {
                 old_regparse = re_st().regparse.cast();
                 c = getchr();
             } else {
-                let idx = unsafe { p.offset_from(CLASSCHARS.as_ptr()) } as usize;
+                let idx = crate::memory::ptr_offset_from(p, CLASSCHARS.as_ptr()) as usize;
                 emit_fn(NFA_CLASSCODES[idx]);
                 if extra == NFA_ADD_NL {
                     emit_fn(NFA_NEWL);
@@ -964,7 +964,7 @@ fn nfa_regatom() -> bool {
             };
             let start_ptr = prev_sub.as_ptr().cast::<u8>();
             let mut lp = start_ptr;
-            while unsafe { *lp } != NUL {
+            while crate::memory::cstr_first_byte(lp.cast()) != NUL {
                 emit_fn(utf_ptr2char(lp.cast()));
                 if lp != start_ptr {
                     emit_fn(NFA_CONCAT);
@@ -1109,12 +1109,12 @@ fn nfa_regatom_percent(mut c: i32, save_prev_at_start: i32) -> bool {
             true
         }
         b'#' => {
-            if unsafe { *re_st().regparse } == b'='
-                && (b'0'..=b'2').contains(&unsafe { *re_st().regparse.wrapping_add(1) })
+            if re_st().regparse_byte() == b'='
+                && (b'0'..=b'2').contains(&re_st().regparse_byte_at(1))
             {
                 semsg!(
                     tr(E_ATOM_ENGINE_MUST_BE_AT_START_OF_PATTERN),
-                    i32::from(unsafe { *re_st().regparse.wrapping_add(1) }),
+                    i32::from(re_st().regparse_byte_at(1)),
                 );
                 return false;
             }
@@ -1231,14 +1231,16 @@ fn nfa_regatom_percent(mut c: i32, save_prev_at_start: i32) -> bool {
                 } else {
                     if cur {
                         let mut vcol: Colnr = 0;
+                        let mut cursor = crate::globals::curwin_mut().w_cursor;
                         getvvcol(
-                            unsafe { &mut *(crate::globals::curwin_ptr()) },
-                            &mut crate::globals::curwin_mut().w_cursor,
+                            crate::globals::curwin_mut(),
+                            &mut cursor,
                             None,
                             None,
                             Some(&mut vcol),
                             0,
                         );
+                        crate::globals::curwin_mut().w_cursor = cursor;
                         vcol += 1;
                         n = i64::from(vcol);
                     }
@@ -1283,7 +1285,7 @@ fn nfa_regatom_collection(
 ) -> i32 {
     let p = re_st().regparse;
     let endp = skip_anyof(p).cast_const();
-    if unsafe { *endp } == b']' {
+    if crate::memory::cstr_first_byte(endp.cast()) == b']' {
         let result =
             nfa_recognize_char_class(re_st().regparse, endp, i32::from(*extra == NFA_ADD_NL));
         if result != FAIL {
@@ -1300,14 +1302,14 @@ fn nfa_regatom_collection(
         }
 
         let mut negated = false;
-        if unsafe { *re_st().regparse } == b'^' {
+        if re_st().regparse_byte() == b'^' {
             negated = true;
             mb_ptr_adv(&mut re_st().regparse);
             emit_fn(NFA_START_NEG_COLL);
         } else {
             emit_fn(NFA_START_COLL);
         }
-        if unsafe { *re_st().regparse } == b'-' {
+        if re_st().regparse_byte() == b'-' {
             *startc = b'-' as i32;
             emit_fn(*startc);
             emit_fn(NFA_CONCAT);
@@ -1321,7 +1323,7 @@ fn nfa_regatom_collection(
             *startc = -1;
             let mut got_coll_char = false;
 
-            if unsafe { *re_st().regparse } == b'[' {
+            if re_st().regparse_byte() == b'[' {
                 let mut equiclass: i32 = 0;
                 let mut collclass: i32 = 0;
                 let charclass = get_char_class(&raw mut re_st().regparse);
@@ -1373,38 +1375,35 @@ fn nfa_regatom_collection(
                 }
             }
 
-            if unsafe { *re_st().regparse } == b'-' && oldstartc != -1 {
+            if re_st().regparse_byte() == b'-' && oldstartc != -1 {
                 emit_range = true;
                 *startc = oldstartc;
                 mb_ptr_adv(&mut re_st().regparse);
                 continue;
             }
 
-            if unsafe { *re_st().regparse } == b'\\'
+            if re_st().regparse_byte() == b'\\'
                 && (re_st().regparse.wrapping_add(1) as *const u8) <= endp
                 && (crate::strings::vim_haschr(
                     REGEXP_INRANGE,
-                    i32::from(unsafe { *re_st().regparse.wrapping_add(1) }),
+                    i32::from(re_st().regparse_byte_at(1)),
                 ) || (re_st().reg_cpo_lit == 0
                     && crate::strings::vim_haschr(
                         REGEXP_ABBR,
-                        i32::from(unsafe { *re_st().regparse.wrapping_add(1) }),
+                        i32::from(re_st().regparse_byte_at(1)),
                     )))
             {
                 mb_ptr_adv(&mut re_st().regparse);
-                if unsafe { *re_st().regparse } == b'n' {
+                if re_st().regparse_byte() == b'n' {
                     *startc = if re_st().reg_string != 0
                         || emit_range
-                        || unsafe { *re_st().regparse.wrapping_add(1) } == b'-'
+                        || re_st().regparse_byte_at(1) == b'-'
                     {
                         NL
                     } else {
                         NFA_NEWL
                     };
-                } else if matches!(
-                    unsafe { *re_st().regparse },
-                    b'd' | b'o' | b'x' | b'u' | b'U'
-                ) {
+                } else if matches!(re_st().regparse_byte(), b'd' | b'o' | b'x' | b'u' | b'U') {
                     *startc = coll_get_char();
                     if *startc == i32::MAX {
                         emsg(tr(E_UNICODE_VAL_TOO_LARGE));
@@ -1414,7 +1413,7 @@ fn nfa_regatom_collection(
                     got_coll_char = true;
                     mb_ptr_back(*old_regparse, &mut re_st().regparse);
                 } else {
-                    *startc = backslash_trans(i32::from(unsafe { *re_st().regparse }));
+                    *startc = backslash_trans(i32::from(re_st().regparse_byte()));
                 }
             }
 
@@ -1486,7 +1485,7 @@ fn nfa_regatom_collection(
         }
 
         mb_ptr_back(*old_regparse, &mut re_st().regparse);
-        if unsafe { *re_st().regparse } == b'-' {
+        if re_st().regparse_byte() == b'-' {
             emit_fn(b'-' as i32);
             emit_fn(NFA_CONCAT);
         }
@@ -1820,11 +1819,7 @@ fn nfa_reg(paren: i32) -> bool {
     }
 
     if paren == REG_PAREN {
-        unsafe {
-            *(&raw mut re_st().had_endbrace)
-                .cast::<u8>()
-                .wrapping_add(parno as usize) = 1;
-        }
+        re_st().had_endbrace[parno as usize] = 1;
         emit_fn(NFA_MOPEN + parno);
     } else if paren == REG_ZPAREN {
         emit_fn(NFA_ZOPEN + parno);
@@ -1986,13 +1981,8 @@ fn nfa_max_width(states: &[NfaState], startstate: Option<usize>, depth: i32) -> 
     -1
 }
 
-fn post2nfa(
-    states: &mut [NfaState],
-    postfix: *mut i32,
-    end: *mut i32,
-    nfa_calc_size: bool,
-) -> Option<usize> {
-    if postfix.is_null() {
+fn post2nfa(states: &mut [NfaState], postfix: &[i32], nfa_calc_size: bool) -> Option<usize> {
+    if postfix.is_empty() {
         return None;
     }
 
@@ -2020,9 +2010,9 @@ fn post2nfa(
         }};
     }
 
-    let mut p = postfix;
-    while p < end {
-        match unsafe { *p } {
+    let mut idx = 0;
+    while idx < postfix.len() {
+        match postfix[idx] {
             NFA_CONCAT => {
                 if !nfa_calc_size {
                     let e2 = pop!(p);
@@ -2115,8 +2105,8 @@ fn post2nfa(
                 }
             }
             NFA_OPT_CHARS => {
-                p = p.wrapping_add(1);
-                let mut n = unsafe { *p };
+                idx += 1;
+                let mut n = postfix[idx];
                 if nfa_calc_size {
                     re_st().nstate += n;
                 } else {
@@ -2144,7 +2134,7 @@ fn post2nfa(
             | NFA_PREV_ATOM_JUST_BEFORE
             | NFA_PREV_ATOM_JUST_BEFORE_NEG
             | NFA_PREV_ATOM_LIKE_PATTERN => {
-                let op = unsafe { *p };
+                let op = postfix[idx];
                 let before = op == NFA_PREV_ATOM_JUST_BEFORE || op == NFA_PREV_ATOM_JUST_BEFORE_NEG;
                 let pattern = op == NFA_PREV_ATOM_LIKE_PATTERN;
                 let (start_state, end_state) = match op {
@@ -2158,8 +2148,8 @@ fn post2nfa(
                 };
                 let mut n: i32 = 0;
                 if before {
-                    p = p.wrapping_add(1);
-                    n = unsafe { *p };
+                    idx += 1;
+                    n = postfix[idx];
                 }
                 if nfa_calc_size {
                     re_st().nstate += if pattern { 4 } else { 2 };
@@ -2229,9 +2219,9 @@ fn post2nfa(
             }
             NFA_LNUM | NFA_LNUM_GT | NFA_LNUM_LT | NFA_VCOL | NFA_VCOL_GT | NFA_VCOL_LT
             | NFA_COL | NFA_COL_GT | NFA_COL_LT | NFA_MARK | NFA_MARK_GT | NFA_MARK_LT => {
-                let op = unsafe { *p };
-                p = p.wrapping_add(1);
-                let n = unsafe { *p };
+                let op = postfix[idx];
+                idx += 1;
+                let n = postfix[idx];
                 if nfa_calc_size {
                     re_st().nstate += 1;
                 } else {
@@ -2249,7 +2239,7 @@ fn post2nfa(
                 }
             }
         }
-        p = p.wrapping_add(1);
+        idx += 1;
     }
 
     if nfa_calc_size {
@@ -2484,10 +2474,7 @@ fn has_state_with_pos(
     subs: &mut Regsubs,
     pim: Option<&NfaPim>,
 ) -> bool {
-    let tp = l.t.as_mut_ptr();
-    for i in 0..l.n as usize {
-        let thread = tp.wrapping_add(i);
-        let thread = unsafe { &mut *thread };
+    for thread in &mut l.t[..l.n as usize] {
         if thread.state == Some(state)
             && sub_equal(&mut thread.subs.norm, &mut subs.norm)
             && (re_st().rex.nfa_has_zsubexpr == 0
@@ -2944,10 +2931,7 @@ fn addstate_here(
         return r;
     }
     if count == 1 {
-        let tp = l.t.as_mut_ptr();
-        unsafe {
-            *tp.wrapping_add(listidx as usize) = *tp.wrapping_add((l.n - 1) as usize);
-        }
+        l.t[listidx as usize] = l.t[(l.n - 1) as usize];
     } else if count > 1 {
         if (l.n + count) as usize > l.t.len() {
             let newlen = l.t.len() * 3 / 2 + 50;
@@ -2958,21 +2942,14 @@ fn addstate_here(
             }
             l.t.resize(newlen, NfaThread::new());
         }
-        let tp = l.t.as_mut_ptr();
-        unsafe {
-            ptr::copy(
-                tp.wrapping_add(listidx as usize + 1),
-                tp.wrapping_add((listidx + count) as usize),
-                (l.n - listidx - 1) as usize,
-            )
-        };
-        unsafe {
-            ptr::copy(
-                tp.wrapping_add((l.n - 1) as usize),
-                tp.wrapping_add(listidx as usize),
-                count as usize,
-            )
-        };
+        l.t.copy_within(
+            (listidx as usize + 1)..(l.n as usize),
+            (listidx + count) as usize,
+        );
+        l.t.copy_within(
+            ((l.n - 1) as usize)..((l.n - 1 + count) as usize),
+            listidx as usize,
+        );
     }
     l.n -= 1;
     *ip = listidx - 1;
@@ -3127,7 +3104,7 @@ fn match_backref(sub: &mut Regsub, subidx: i32, bytelen: &mut i32) -> bool {
             *bytelen = 0;
             return true;
         }
-        let mut len = unsafe { lpos.end.offset_from(lpos.start) } as i32;
+        let mut len = crate::memory::ptr_offset_from(lpos.end, lpos.start) as i32;
         if cstrncmp(lpos.start.cast(), re_st().rex.input.cast(), &mut len) == 0 {
             *bytelen = len;
             return true;
@@ -3137,54 +3114,35 @@ fn match_backref(sub: &mut Regsub, subidx: i32, bytelen: &mut i32) -> bool {
 }
 
 fn match_zref(subidx: i32, bytelen: &mut i32) -> bool {
-    unsafe {
-        cleanup_zsubexpr();
-        let idx = subidx as usize;
-        let ext_in = &raw const g_st().re_extmatch_in;
-        let Some(ref em) = *ext_in else {
-            *bytelen = 0;
-            return true;
-        };
-        let Some(ref m_cstr) = em.matches[idx] else {
-            *bytelen = 0;
-            return true;
-        };
-        let m = m_cstr.as_ptr();
-        let mut len = m_cstr.as_bytes().len() as i32;
-        if cstrncmp(m, re_st().rex.input.cast(), &mut len) == 0 {
-            *bytelen = len;
-            return true;
-        }
-        false
+    cleanup_zsubexpr();
+    let idx = subidx as usize;
+    let Some(ref em) = g_st().re_extmatch_in else {
+        *bytelen = 0;
+        return true;
+    };
+    let Some(ref m_cstr) = em.matches[idx] else {
+        *bytelen = 0;
+        return true;
+    };
+    let m = m_cstr.as_ptr();
+    let mut len = m_cstr.as_bytes().len() as i32;
+    if cstrncmp(m, re_st().rex.input.cast(), &mut len) == 0 {
+        *bytelen = len;
+        return true;
+    }
+    false
+}
+
+fn nfa_save_listids(prog: &mut NfaRegprog, list: &mut [i32]) {
+    for (dst, st) in list.iter_mut().zip(&mut prog.state[..prog.nstate as usize]) {
+        *dst = st.lastlist[1];
+        st.lastlist[1] = 0;
     }
 }
 
-fn nfa_save_listids(prog: &mut NfaRegprog, list: *mut i32) {
-    unsafe {
-        let mut p = prog.state.as_mut_ptr();
-        let mut i = prog.nstate;
-        while {
-            i -= 1;
-            i >= 0
-        } {
-            *list.wrapping_add(i as usize) = (*p).lastlist[1];
-            (*p).lastlist[1] = 0;
-            p = p.wrapping_add(1);
-        }
-    }
-}
-
-fn nfa_restore_listids(prog: &mut NfaRegprog, list: *const i32) {
-    unsafe {
-        let mut p = prog.state.as_mut_ptr();
-        let mut i = prog.nstate;
-        while {
-            i -= 1;
-            i >= 0
-        } {
-            (*p).lastlist[1] = *list.wrapping_add(i as usize);
-            p = p.wrapping_add(1);
-        }
+fn nfa_restore_listids(prog: &mut NfaRegprog, list: &[i32]) {
+    for (st, &src) in prog.state[..prog.nstate as usize].iter_mut().zip(list) {
+        st.lastlist[1] = src;
     }
 }
 
@@ -3207,7 +3165,7 @@ fn recursive_regmatch(
     m: &mut Regsubs,
     listids: &mut Vec<i32>,
 ) -> i32 {
-    let save_reginput_col = unsafe { re_st().rex.input.offset_from(re_st().rex.line) } as usize;
+    let save_reginput_col = re_st().rex.input_off();
     let save_reglnum = re_st().rex.lnum;
     let save_nfa_match = nfa_st().nfa_match;
     let save_nfa_listid = re_st().rex.nfa_listid;
@@ -3234,7 +3192,7 @@ fn recursive_regmatch(
             endpos.se_u = pim.end;
         } else if reg_multi() {
             endpos.se_u = crate::regexp::RegPos::Pos(Lpos {
-                col: unsafe { re_st().rex.input.offset_from(re_st().rex.line) } as Colnr,
+                col: re_st().rex.input_col(),
                 lnum: re_st().rex.lnum,
             });
         } else {
@@ -3253,9 +3211,7 @@ fn recursive_regmatch(
             }
             re_st().rex.input = re_st().rex.line;
         } else {
-            if reg_multi()
-                && (unsafe { re_st().rex.input.offset_from(re_st().rex.line) } as i32) < st.val
-            {
+            if reg_multi() && re_st().rex.input_col() < st.val {
                 re_st().rex.lnum -= 1;
                 re_st().rex.line = reg_getline(re_st().rex.lnum).cast();
                 if re_st().rex.line.is_null() {
@@ -3269,7 +3225,7 @@ fn recursive_regmatch(
                         .wrapping_add(reg_getline_len(re_st().rex.lnum) as usize);
                 }
             }
-            if (unsafe { re_st().rex.input.offset_from(re_st().rex.line) } as i32) >= st.val {
+            if re_st().rex.input_col() >= st.val {
                 re_st().rex.input = re_st().rex.input.wrapping_sub(st.val as usize);
                 re_st().rex.input =
                     re_st().rex.input.wrapping_sub(utf_head_off(
@@ -3287,7 +3243,7 @@ fn recursive_regmatch(
         if listids.len() < nstate_len {
             listids.resize(nstate_len, 0);
         }
-        nfa_save_listids(&mut *prog, listids.as_mut_ptr());
+        nfa_save_listids(&mut *prog, listids);
         need_restore = true;
     } else {
         re_st().nfa_ll_index += 1;
@@ -3300,7 +3256,7 @@ fn recursive_regmatch(
     let result = nfa_regmatch(&mut *prog, st.out, &mut *submatch, &mut *m);
 
     if need_restore {
-        nfa_restore_listids(&mut *prog, listids.as_ptr());
+        nfa_restore_listids(&mut *prog, listids);
     } else {
         re_st().nfa_ll_index -= 1;
         re_st().rex.nfa_alt_listid = re_st().rex.nfa_listid;
@@ -3372,7 +3328,7 @@ fn skip_to_start(c: i32, colp: &mut Colnr) -> bool {
     if s.is_null() {
         return false;
     }
-    *colp = unsafe { s.cast::<u8>().offset_from(re_st().rex.line) } as Colnr;
+    *colp = crate::memory::ptr_offset_from(s, re_st().rex.line) as Colnr;
     true
 }
 
@@ -3386,7 +3342,7 @@ fn find_match_text(startcol: &mut Colnr, regstart: i32, match_text: *const u8) -
             .rex
             .line
             .wrapping_add((col + regstart_len2) as usize);
-        while unsafe { *s1 } != NUL {
+        while crate::memory::cstr_first_byte(s1.cast()) != NUL {
             let c1_len = utf_ptr2len(s1.cast()) as usize;
             let c1 = utf_ptr2char(s1.cast());
             let c2_len = utf_ptr2len(s2.cast()) as usize;
@@ -3401,25 +3357,17 @@ fn find_match_text(startcol: &mut Colnr, regstart: i32, match_text: *const u8) -
         if matched && !utf_iscomposing_legacy(utf_ptr2char(s2.cast())) {
             cleanup_subexpr();
             if reg_multi() {
-                unsafe {
-                    (*re_st().rex.reg_startpos).lnum = re_st().rex.lnum;
-                }
-                unsafe {
-                    (*re_st().rex.reg_startpos).col = col;
-                }
-                unsafe {
-                    (*re_st().rex.reg_endpos).lnum = re_st().rex.lnum;
-                }
-                unsafe {
-                    (*re_st().rex.reg_endpos).col = s2.offset_from(re_st().rex.line) as Colnr;
-                }
+                let startpos = re_st().rex.startpos_slice_mut();
+                let endpos = re_st().rex.endpos_slice_mut();
+                startpos[0].lnum = re_st().rex.lnum;
+                startpos[0].col = col;
+                endpos[0].lnum = re_st().rex.lnum;
+                endpos[0].col = crate::memory::ptr_offset_from(s2, re_st().rex.line) as Colnr;
             } else {
-                unsafe {
-                    *re_st().rex.reg_startp = re_st().rex.line.wrapping_add(col as usize);
-                }
-                unsafe {
-                    *re_st().rex.reg_endp = s2;
-                }
+                let startp = re_st().rex.startp_slice_mut();
+                let endp = re_st().rex.endp_slice_mut();
+                startp[0] = re_st().rex.line.wrapping_add(col as usize);
+                endp[0] = s2;
             }
             *startcol = col;
             return 1;
@@ -4614,97 +4562,98 @@ fn nfa_regtry(
     tm: Option<Proftime>,
     timed_out: Option<&mut i32>,
 ) -> i32 {
-    unsafe {
-        let mut subs = Regsubs::new();
-        let mut m = Regsubs::new();
-        let start = prog.start;
+    let mut subs = Regsubs::new();
+    let mut m = Regsubs::new();
+    let start = prog.start;
 
-        re_st().rex.input = re_st().rex.line.wrapping_add(col as usize);
-        nfa_st().nfa_time_limit = tm;
-        nfa_st().nfa_timed_out = timed_out.map_or(ptr::null_mut(), |p| &raw mut *p);
-        nfa_st().nfa_time_count = 0;
+    re_st().rex.input = re_st().rex.line.wrapping_add(col as usize);
+    nfa_st().nfa_time_limit = tm;
+    nfa_st().nfa_timed_out = timed_out.map_or(ptr::null_mut(), |p| &raw mut *p);
+    nfa_st().nfa_time_count = 0;
 
-        clear_sub(&mut subs.norm);
-        clear_sub(&mut m.norm);
-        clear_sub(&mut subs.synt);
-        clear_sub(&mut m.synt);
+    clear_sub(&mut subs.norm);
+    clear_sub(&mut m.norm);
+    clear_sub(&mut subs.synt);
+    clear_sub(&mut m.synt);
 
-        let result = nfa_regmatch(&mut *prog, start, &mut subs, &mut m);
-        if result == 0 {
-            return 0;
-        } else if result == NFA_TOO_EXPENSIVE {
-            return result;
+    let result = nfa_regmatch(&mut *prog, start, &mut subs, &mut m);
+    if result == 0 {
+        return 0;
+    } else if result == NFA_TOO_EXPENSIVE {
+        return result;
+    }
+
+    cleanup_subexpr();
+    if reg_multi() {
+        let startpos = re_st().rex.startpos_slice_mut();
+        let endpos = re_st().rex.endpos_slice_mut();
+        let norm_multi = subs.norm.list.multi();
+        for (i, item) in norm_multi[..subs.norm.in_use as usize].iter().enumerate() {
+            startpos[i].lnum = item.start_lnum;
+            startpos[i].col = item.start_col;
+            endpos[i].lnum = item.end_lnum;
+            endpos[i].col = item.end_col;
         }
-
-        cleanup_subexpr();
-        if reg_multi() {
-            let norm_multi = subs.norm.list.multi();
-            for (i, item) in norm_multi[..subs.norm.in_use as usize].iter().enumerate() {
-                (*re_st().rex.reg_startpos.wrapping_add(i)).lnum = item.start_lnum;
-                (*re_st().rex.reg_startpos.wrapping_add(i)).col = item.start_col;
-                (*re_st().rex.reg_endpos.wrapping_add(i)).lnum = item.end_lnum;
-                (*re_st().rex.reg_endpos.wrapping_add(i)).col = item.end_col;
-            }
-            if !re_st().rex.reg_mmatch.is_null() {
-                re_st().rex.mmatch_mut().rmm_matchcol = subs.norm.orig_start_col;
-            }
-            if (*re_st().rex.reg_startpos).lnum < 0 {
-                (*re_st().rex.reg_startpos).lnum = 0;
-                (*re_st().rex.reg_startpos).col = col;
-            }
-            if (*re_st().rex.reg_endpos).lnum < 0 {
-                (*re_st().rex.reg_endpos).lnum = re_st().rex.lnum;
-                (*re_st().rex.reg_endpos).col =
-                    re_st().rex.input.offset_from(re_st().rex.line) as Colnr;
-            } else {
-                re_st().rex.lnum = (*re_st().rex.reg_endpos).lnum;
-            }
+        if !re_st().rex.reg_mmatch.is_null() {
+            re_st().rex.mmatch_mut().rmm_matchcol = subs.norm.orig_start_col;
+        }
+        if startpos[0].lnum < 0 {
+            startpos[0].lnum = 0;
+            startpos[0].col = col;
+        }
+        if endpos[0].lnum < 0 {
+            endpos[0].lnum = re_st().rex.lnum;
+            endpos[0].col = re_st().rex.input_col();
         } else {
-            let norm_line = subs.norm.list.line();
-            for (i, item) in norm_line[..subs.norm.in_use as usize].iter().enumerate() {
-                *re_st().rex.reg_startp.wrapping_add(i) = item.start;
-                *re_st().rex.reg_endp.wrapping_add(i) = item.end;
-            }
-            if (*re_st().rex.reg_startp).is_null() {
-                *re_st().rex.reg_startp = re_st().rex.line.wrapping_add(col as usize);
-            }
-            if (*re_st().rex.reg_endp).is_null() {
-                *re_st().rex.reg_endp = re_st().rex.input;
-            }
+            re_st().rex.lnum = endpos[0].lnum;
         }
+    } else {
+        let startp = re_st().rex.startp_slice_mut();
+        let endp = re_st().rex.endp_slice_mut();
+        let norm_line = subs.norm.list.line();
+        for (i, item) in norm_line[..subs.norm.in_use as usize].iter().enumerate() {
+            startp[i] = item.start;
+            endp[i] = item.end;
+        }
+        if startp[0].is_null() {
+            startp[0] = re_st().rex.line.wrapping_add(col as usize);
+        }
+        if endp[0].is_null() {
+            endp[0] = re_st().rex.input;
+        }
+    }
 
-        g_st().re_extmatch_out = None;
+    g_st().re_extmatch_out = None;
 
-        if prog.reghasz == REX_SET {
-            cleanup_zsubexpr();
-            let mut extmatch = RegExtmatch::default();
-            for i in 1..subs.synt.in_use as usize {
-                if reg_multi() {
-                    let mpos = subs.synt.list.multi()[i];
-                    if mpos.start_lnum >= 0
-                        && mpos.start_lnum == mpos.end_lnum
-                        && mpos.end_col >= mpos.start_col
-                    {
-                        extmatch.matches[i] = cstring_from_bytes(
-                            reg_getline(mpos.start_lnum).wrapping_add(mpos.start_col as usize),
-                            (mpos.end_col - mpos.start_col) as usize,
-                        );
-                    }
-                } else {
-                    let lpos = subs.synt.list.line()[i];
-                    if !lpos.start.is_null() && !lpos.end.is_null() {
-                        extmatch.matches[i] = cstring_from_bytes(
-                            lpos.start,
-                            lpos.end.offset_from(lpos.start) as usize,
-                        );
-                    }
+    if prog.reghasz == REX_SET {
+        cleanup_zsubexpr();
+        let mut extmatch = RegExtmatch::default();
+        for i in 1..subs.synt.in_use as usize {
+            if reg_multi() {
+                let mpos = subs.synt.list.multi()[i];
+                if mpos.start_lnum >= 0
+                    && mpos.start_lnum == mpos.end_lnum
+                    && mpos.end_col >= mpos.start_col
+                {
+                    extmatch.matches[i] = cstring_from_bytes(
+                        reg_getline(mpos.start_lnum).wrapping_add(mpos.start_col as usize),
+                        (mpos.end_col - mpos.start_col) as usize,
+                    );
+                }
+            } else {
+                let lpos = subs.synt.list.line()[i];
+                if !lpos.start.is_null() && !lpos.end.is_null() {
+                    extmatch.matches[i] = cstring_from_bytes(
+                        lpos.start,
+                        crate::memory::ptr_offset_from(lpos.end, lpos.start) as usize,
+                    );
                 }
             }
-            g_st().re_extmatch_out = Some(std::rc::Rc::new(extmatch));
         }
-
-        1 + re_st().rex.lnum
+        g_st().re_extmatch_out = Some(std::rc::Rc::new(extmatch));
     }
+
+    1 + re_st().rex.lnum
 }
 
 fn nfa_regexec_both(
@@ -4713,96 +4662,94 @@ fn nfa_regexec_both(
     tm: Option<Proftime>,
     timed_out: Option<&mut i32>,
 ) -> i32 {
-    unsafe {
-        let mut retval: i32 = 0;
-        let mut col = startcol;
+    let mut retval: i32 = 0;
+    let mut col = startcol;
 
-        let prog: *mut NfaRegprog = if reg_multi() {
-            let p = re_st().rex.mmatch_mut().prog_mut().nfa_mut();
-            line = reg_getline(0).cast();
-            re_st().rex.reg_startpos = (&raw mut re_st().rex.mmatch_mut().startpos).cast();
-            re_st().rex.reg_endpos = (&raw mut re_st().rex.mmatch_mut().endpos).cast();
-            p
-        } else {
-            let p = (*re_st().rex.match_mut().regprog).nfa_mut();
-            re_st().rex.reg_startp = (&raw mut re_st().rex.match_mut().startp).cast();
-            re_st().rex.reg_endp = (&raw mut re_st().rex.match_mut().endp).cast();
-            p
-        };
-        if prog.is_null() || line.is_null() {
-            iemsg(tr(E_NULL));
-            return finish_nfa_regexec(retval, col);
-        }
-        let prog = &mut *prog;
+    let prog: *mut NfaRegprog = if reg_multi() {
+        let p = re_st().rex.mmatch_mut().prog_mut().nfa_mut();
+        line = reg_getline(0).cast();
+        re_st().rex.reg_startpos = (&raw mut re_st().rex.mmatch_mut().startpos).cast();
+        re_st().rex.reg_endpos = (&raw mut re_st().rex.mmatch_mut().endpos).cast();
+        p
+    } else {
+        let p = re_st().rex.match_mut().prog_mut().nfa_mut();
+        re_st().rex.reg_startp = (&raw mut re_st().rex.match_mut().startp).cast();
+        re_st().rex.reg_endp = (&raw mut re_st().rex.match_mut().endp).cast();
+        p
+    };
+    if prog.is_null() || line.is_null() {
+        iemsg(tr(E_NULL));
+        return finish_nfa_regexec(retval, col);
+    }
+    let prog = unsafe { &mut *prog };
 
-        if (prog.regflags & RF_ICASE) != 0 {
-            re_st().rex.reg_ic = true;
-        } else if (prog.regflags & RF_NOICASE) != 0 {
-            re_st().rex.reg_ic = false;
-        }
+    if (prog.regflags & RF_ICASE) != 0 {
+        re_st().rex.reg_ic = true;
+    } else if (prog.regflags & RF_NOICASE) != 0 {
+        re_st().rex.reg_ic = false;
+    }
 
-        if (prog.regflags & RF_ICOMBINE) != 0 {
-            re_st().rex.reg_icombine = true;
-        }
+    if (prog.regflags & RF_ICOMBINE) != 0 {
+        re_st().rex.reg_icombine = true;
+    }
 
-        re_st().rex.line = line;
-        re_st().rex.lnum = 0;
+    re_st().rex.line = line;
+    re_st().rex.lnum = 0;
 
-        re_st().rex.nfa_has_zend = prog.has_zend;
-        re_st().rex.nfa_has_backref = prog.has_backref;
-        re_st().rex.nfa_nsubexpr = prog.nsubexp;
-        re_st().rex.nfa_listid = 1;
-        re_st().rex.nfa_alt_listid = 2;
+    re_st().rex.nfa_has_zend = prog.has_zend;
+    re_st().rex.nfa_has_backref = prog.has_backref;
+    re_st().rex.nfa_nsubexpr = prog.nsubexp;
+    re_st().rex.nfa_listid = 1;
+    re_st().rex.nfa_alt_listid = 2;
 
-        if prog.reganch != 0 && col > 0 {
+    if prog.reganch != 0 && col > 0 {
+        return 0;
+    }
+
+    re_st().rex.need_clear_subexpr = 1;
+    if prog.reghasz == REX_SET {
+        re_st().rex.nfa_has_zsubexpr = 1;
+        re_st().rex.need_clear_zsubexpr = 1;
+    } else {
+        re_st().rex.nfa_has_zsubexpr = 0;
+        re_st().rex.need_clear_zsubexpr = 0;
+    }
+
+    if prog.regstart != NUL as i32 {
+        if !skip_to_start(prog.regstart, &mut col) {
             return 0;
         }
-
-        re_st().rex.need_clear_subexpr = 1;
-        if prog.reghasz == REX_SET {
-            re_st().rex.nfa_has_zsubexpr = 1;
-            re_st().rex.need_clear_zsubexpr = 1;
-        } else {
-            re_st().rex.nfa_has_zsubexpr = 0;
-            re_st().rex.need_clear_zsubexpr = 0;
-        }
-
-        if prog.regstart != NUL as i32 {
-            if !skip_to_start(prog.regstart, &mut col) {
-                return 0;
+        if let Some(ref mt) = prog.match_text
+            && !mt.as_bytes().is_empty()
+            && !re_st().rex.reg_icombine
+        {
+            retval = find_match_text(&mut col, prog.regstart, mt.as_ptr().cast::<u8>());
+            if reg_multi() {
+                re_st().rex.mmatch_mut().rmm_matchcol = col;
+            } else {
+                re_st().rex.match_mut().rm_matchcol = col;
             }
-            if let Some(ref mt) = prog.match_text
-                && !mt.as_bytes().is_empty()
-                && !re_st().rex.reg_icombine
-            {
-                retval = find_match_text(&mut col, prog.regstart, mt.as_ptr().cast::<u8>());
-                if reg_multi() {
-                    re_st().rex.mmatch_mut().rmm_matchcol = col;
-                } else {
-                    re_st().rex.match_mut().rm_matchcol = col;
-                }
-                return retval;
-            }
+            return retval;
         }
-
-        if re_st().rex.reg_maxcol > 0 && col >= re_st().rex.reg_maxcol {
-            return finish_nfa_regexec(retval, col);
-        }
-
-        re_st().nstate = 0;
-        for st in &mut (&mut prog.state)[..prog.nstate as usize] {
-            st.lastlist[0] = 0;
-            st.lastlist[1] = 0;
-        }
-
-        retval = nfa_regtry(
-            &mut *prog,
-            col,
-            tm,
-            (timed_out.is_some()).then(|| &mut *timed_out.unwrap()),
-        );
-        finish_nfa_regexec(retval, col)
     }
+
+    if re_st().rex.reg_maxcol > 0 && col >= re_st().rex.reg_maxcol {
+        return finish_nfa_regexec(retval, col);
+    }
+
+    re_st().nstate = 0;
+    for st in &mut (&mut prog.state)[..prog.nstate as usize] {
+        st.lastlist[0] = 0;
+        st.lastlist[1] = 0;
+    }
+
+    retval = nfa_regtry(
+        &mut *prog,
+        col,
+        tm,
+        (timed_out.is_some()).then(|| &mut *timed_out.unwrap()),
+    );
+    finish_nfa_regexec(retval, col)
 }
 
 fn finish_nfa_regexec(retval: i32, col: Colnr) -> i32 {
@@ -4836,9 +4783,8 @@ pub(super) fn nfa_regcomp(expr: *mut u8, re_flags: i32) -> Option<NfaRegprog> {
         return cleanup_nfa_regcomp(None);
     }
 
-    let postfix = re_st().post_vec.as_ptr().cast_mut();
-    let post_end_ptr = postfix.wrapping_add(re_st().post_vec.len());
-    post2nfa(&mut [], postfix, post_end_ptr, true);
+    let postfix = std::mem::take(&mut re_st().post_vec);
+    post2nfa(&mut [], &postfix, true);
 
     let mut prog = NfaRegprog {
         regflags: 0,
@@ -4857,7 +4803,8 @@ pub(super) fn nfa_regcomp(expr: *mut u8, re_flags: i32) -> Option<NfaRegprog> {
         state: vec![NfaState::new(); re_st().nstate as usize],
     };
 
-    prog.start = post2nfa(&mut prog.state, postfix, post_end_ptr, false);
+    prog.start = post2nfa(&mut prog.state, &postfix, false);
+    re_st().post_vec = postfix;
     if prog.start.is_none() {
         return cleanup_nfa_regcomp(None);
     }
@@ -4896,7 +4843,7 @@ pub(super) fn nfa_regexec_nl(rmp: &mut Regmatch, line: *mut u8, col: Colnr, line
     re_st().rex.reg_win = ptr::null_mut();
     re_st().rex.reg_ic = rmp.rm_ic;
     re_st().rex.reg_icombine = false;
-    re_st().rex.reg_nobreak = (unsafe { (*rmp.regprog).re_flags } & (RE_NOBREAK as u32)) != 0;
+    re_st().rex.reg_nobreak = (rmp.prog_mut().re_flags & (RE_NOBREAK as u32)) != 0;
     re_st().rex.reg_maxcol = 0;
     nfa_regexec_both(line, col, None, None)
 }
