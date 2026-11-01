@@ -409,6 +409,18 @@ impl Qfstate {
             g_st().iobuff.as_mut_ptr().cast()
         }
     }
+
+    #[inline]
+    fn linebuf_slice_mut(&mut self) -> &mut [u8] {
+        let len = self.linelen;
+        if self.use_growbuf {
+            let cap = self.growbuf.len();
+            &mut self.growbuf[..(len + 1).min(cap)]
+        } else {
+            let n = (len + 1).min(IOSIZE);
+            unsafe { std::slice::from_raw_parts_mut(g_st().iobuff.as_mut_ptr().cast::<u8>(), n) }
+        }
+    }
 }
 
 impl Default for Qfstate {
@@ -1375,20 +1387,17 @@ fn qf_get_nextline(state: &mut Qfstate) -> i32 {
         return status;
     }
 
-    let linebuf = state.linebuf_ptr();
-    if state.linelen > 0 && unsafe { *linebuf.wrapping_add(state.linelen - 1) } == b'\n' {
-        unsafe {
-            *linebuf.wrapping_add(state.linelen - 1) = 0;
-        }
+    let linelen = state.linelen;
+    let linebuf = state.linebuf_slice_mut();
+    if linelen > 0 && linebuf.get(linelen - 1) == Some(&b'\n') {
+        linebuf[linelen - 1] = 0;
         #[cfg(windows)]
-        if state.linelen > 1 && unsafe { *linebuf.wrapping_add(state.linelen - 2) } == b'\r' {
-            unsafe {
-                *linebuf.wrapping_add(state.linelen - 2) = 0;
-            }
+        if linelen > 1 && linebuf.get(linelen - 2) == Some(&b'\r') {
+            linebuf[linelen - 2] = 0;
         }
     }
 
-    remove_bom(linebuf.cast());
+    remove_bom(linebuf);
 
     QF_OK
 }

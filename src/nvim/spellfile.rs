@@ -3812,28 +3812,18 @@ fn wordtree_alloc(spin: &mut Spellinfo) -> Option<usize> {
     Some(get_wordnode(spin))
 }
 
-fn valid_spell_word(
-    word: impl crate::strings::IntoCCharPtr,
-    end: impl crate::strings::IntoCCharPtr,
-) -> bool {
-    let word = word.into_c_char_ptr();
-    let end = end.into_c_char_ptr();
-    {
-        if !utf_valid_string(word, end) {
+fn valid_spell_word(bytes: &[u8]) -> bool {
+    if !utf_valid_string(bytes) {
+        return false;
+    }
+    let mut i = 0usize;
+    while i < bytes.len() && bytes[i] != 0 {
+        if bytes[i] < b' ' || (bytes[i] == b'/' && bytes.get(i + 1).is_none_or(|&b| b == 0)) {
             return false;
         }
-        let mut p = word;
-        while !crate::memory::cstr_is_empty(p) && p < end {
-            if (crate::memory::cstr_first_byte(p)) < b' '
-                || (crate::memory::cstr_first_byte(p) == b'/'
-                    && crate::memory::cstr_byte_at(p, 1) == 0)
-            {
-                return false;
-            }
-            p = p.wrapping_add(utfc_ptr2len(p) as usize);
-        }
-        true
+        i += crate::mbyte::utfc_slice2len(&bytes[i..]);
     }
+    true
 }
 
 fn store_word(
@@ -3847,12 +3837,13 @@ fn store_word(
     let word = word.into_c_char_ptr();
     let pfxlist = pfxlist.into_c_char_ptr();
     {
-        let len = crate::memory::cstr_len(word) as i32;
+        let word_bytes = crate::memory::cstr_as_bytes(word);
+        let len = word_bytes.len() as i32;
         let ct = captype(word, Some(word.wrapping_offset(len as isize).cast()));
         let mut foldword = [0u8; MAXWLEN];
         let mut res = true;
 
-        if !valid_spell_word(word, word.wrapping_offset(len as isize)) {
+        if !valid_spell_word(word_bytes) {
             return false;
         }
 
@@ -5278,7 +5269,12 @@ pub fn spell_add_word(
         let mut fnamebuf_arr = [0u8; MAXPATHL];
         let mut line = [0u8; MAXWLEN * 2];
 
-        if !valid_spell_word(word, word.wrapping_offset(len as isize)) {
+        let word_bytes = if len <= 0 || word.is_null() {
+            &[][..]
+        } else {
+            std::slice::from_raw_parts(word.cast::<u8>(), len as usize)
+        };
+        if !valid_spell_word(word_bytes) {
             emsg(gettext(E_ILLEGAL_CHARACTER_IN_WORD));
             return;
         }

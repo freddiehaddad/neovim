@@ -120,15 +120,14 @@ unsafe extern "system" {
 #[inline]
 fn env_name_valid(name: impl crate::strings::IntoCCharPtr) -> bool {
     let name = name.into_c_char_ptr();
+    let bytes = crate::memory::cstr_as_bytes(name);
+    #[cfg(windows)]
     {
-        #[cfg(windows)]
-        {
-            !crate::memory::cstr_is_empty(name) && utf_valid_string(name, ptr::null())
-        }
-        #[cfg(not(windows))]
-        {
-            !crate::memory::cstr_is_empty(name)
-        }
+        !bytes.is_empty() && utf_valid_string(bytes)
+    }
+    #[cfg(not(windows))]
+    {
+        !bytes.is_empty()
     }
 }
 

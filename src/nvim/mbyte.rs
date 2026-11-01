@@ -8,8 +8,8 @@ use crate::cursor::{Colnr, CursorPos, get_cursor_pos_ptr};
 use crate::drawscreen::{UPD_NOT_VALID, redraw_all_later};
 use crate::errors::*;
 use crate::eval::typval::{
-    EvalFuncData, Listitem, TvList, TypVal, VarType, Varnumber, tv_check_for_string_arg,
-    tv_get_string, tv_get_string_buf, tv_list_alloc, tv_list_alloc_ret, tv_list_append_list,
+    EvalFuncData, TypVal, VarType, Varnumber, tv_check_for_string_arg, tv_get_string,
+    tv_get_string_buf, tv_list_alloc, tv_list_alloc_ret, tv_list_append_list,
     tv_list_append_number, tv_list_first, tv_list_len,
 };
 #[cfg(windows)]
@@ -1197,15 +1197,16 @@ pub fn bomb_size() -> i32 {
     n
 }
 
-pub fn remove_bom(s: *mut u8) {
-    unsafe {
-        let mut p = s;
-        while *p != 0 {
-            if *p == 0xef && *p.wrapping_add(1) == 0xbb && *p.wrapping_add(2) == 0xbf {
-                crate::memory::cstr_move(p.cast(), p.wrapping_add(3).cast());
-            } else {
-                p = p.wrapping_add(1);
-            }
+pub fn remove_bom(buf: &mut [u8]) {
+    let mut len = buf.iter().position(|&b| b == 0).unwrap_or(buf.len());
+    let mut i = 0usize;
+    while i < len {
+        if buf[i..len].starts_with(&[0xef, 0xbb, 0xbf]) {
+            buf.copy_within(i + 3..len, i);
+            len -= 3;
+            buf[len] = 0;
+        } else {
+            i += 1;
         }
     }
 }
@@ -2782,39 +2783,39 @@ pub fn utf_find_illegal() {
 
     curwin_mut().w_cursor.coladd = 0;
     'search: loop {
-        let mut p = get_cursor_pos_ptr();
-        if vimconv.vc_type != CONV_NONE {
-            tofree = string_convert(&vimconv, p, None);
+        let cursor_slice = crate::cursor::get_cursor_pos_slice();
+        let search_bytes: &[u8] = if vimconv.vc_type != CONV_NONE {
+            tofree = string_convert(&vimconv, get_cursor_pos_ptr(), None);
             let Some(ref tf) = tofree else {
                 break;
             };
-            p = tf.as_ptr().cast_mut().cast();
-        }
+            let nul_pos = tf.iter().position(|&b| b == 0).unwrap_or(tf.len());
+            &tf[..nul_pos]
+        } else {
+            cursor_slice
+        };
 
-        while !crate::memory::cstr_is_empty(p) {
-            let mut len = utf_ptr2len(p);
-            if unsafe { *p.cast::<u8>() } >= 0x80
-                && (len == 1 || utf_char2len(utf_ptr2char(p)) != len)
-            {
+        let mut idx = 0usize;
+        while idx < search_bytes.len() && search_bytes[idx] != 0 {
+            let rest = &search_bytes[idx..];
+            let len = utf_slice2len(rest);
+            if rest[0] >= 0x80 && (len == 1 || utf_char2len(utf_slice2char(rest)) as usize != len) {
                 if vimconv.vc_type == CONV_NONE {
-                    curwin_mut().w_cursor.col +=
-                        crate::memory::ptr_offset_from(p, get_cursor_pos_ptr()) as Colnr;
+                    curwin_mut().w_cursor.col += idx as Colnr;
                 } else {
-                    len =
-                        crate::memory::ptr_offset_from(p, tofree.as_ref().unwrap().as_ptr().cast())
-                            as i32;
-                    let mut cur_p = get_cursor_pos_ptr();
-                    while !crate::memory::cstr_is_empty(cur_p) && len > 0 {
-                        len -= 1;
-                        let l = utf_ptr2len(cur_p);
-                        curwin_mut().w_cursor.col += l;
-                        cur_p = cur_p.wrapping_add(l as usize);
+                    let mut rem = idx as i32;
+                    let mut cur_idx = 0usize;
+                    while cur_idx < cursor_slice.len() && cursor_slice[cur_idx] != 0 && rem > 0 {
+                        rem -= 1;
+                        let l = utf_slice2len(&cursor_slice[cur_idx..]);
+                        curwin_mut().w_cursor.col += l as Colnr;
+                        cur_idx += l;
                     }
                 }
                 curwin_mut().w_set_curswant = true;
                 break 'search;
             }
-            p = p.wrapping_add(len as usize);
+            idx += len;
         }
         if curwin_mut().w_cursor.lnum == curbuf_mut().b_ml.ml_line_count {
             curwin_mut().w_cursor = pos;
@@ -2831,40 +2832,19 @@ pub fn utf_find_illegal() {
     }
 }
 
-pub fn utf_valid_string(
-    s: impl crate::strings::IntoCCharPtr,
-    end: impl crate::strings::IntoCCharPtr,
-) -> bool {
-    let s = s.into_c_char_ptr();
-    let end = end.into_c_char_ptr();
-    unsafe {
-        let mut p = s.cast::<u8>();
-        let end_u8 = end.cast::<u8>();
-
-        while if end_u8.is_null() {
-            *p != 0
-        } else {
-            p < end_u8
-        } {
-            let mut l = usize::from(UTF8LEN_TAB_ZERO[*p as usize]);
-            if l == 0 {
-                return false;
-            }
-            if !end_u8.is_null() && p.wrapping_add(l) > end_u8 {
-                return false;
-            }
-            p = p.wrapping_add(1);
-            l -= 1;
-            while l > 0 {
-                if (*p & 0xc0) != 0x80 {
-                    return false;
-                }
-                p = p.wrapping_add(1);
-                l -= 1;
-            }
+pub fn utf_valid_string(bytes: &[u8]) -> bool {
+    let mut i = 0usize;
+    while i < bytes.len() {
+        let l = usize::from(UTF8LEN_TAB_ZERO[bytes[i] as usize]);
+        if l == 0 || i + l > bytes.len() {
+            return false;
         }
-        true
+        if !bytes[i + 1..i + l].iter().all(|&b| (b & 0xc0) == 0x80) {
+            return false;
+        }
+        i += l;
     }
+    true
 }
 
 pub fn mb_adjust_cursor() {
@@ -2977,15 +2957,12 @@ pub fn mb_unescape<P: crate::charset::RawByteCursor>(pp: &mut P) -> Option<&'sta
 
 pub fn enc_skip<'a>(p: impl crate::strings::IntoCCharPtr) -> &'a CStr {
     let p = p.into_c_char_ptr();
-    let bytes = crate::memory::cstr_as_bytes(p);
-    let skipped = if bytes.starts_with(b"2byte-") {
-        p.wrapping_add(6)
-    } else if bytes.starts_with(b"8bit-") {
-        p.wrapping_add(5)
-    } else {
-        p
-    };
-    unsafe { CStr::from_ptr(skipped) }
+    let bytes = crate::memory::cstr_as_bytes_with_nul(p);
+    let skipped = bytes
+        .strip_prefix(b"2byte-")
+        .or_else(|| bytes.strip_prefix(b"8bit-"))
+        .unwrap_or(bytes);
+    CStr::from_bytes_with_nul(skipped).unwrap_or(c"")
 }
 
 fn enc_alias_search(name: impl crate::strings::IntoCCharPtr) -> i32 {
@@ -3497,96 +3474,87 @@ fn cw_value(c: i32) -> i32 {
         .map_or(0, |idx| i32::from(table[idx].width))
 }
 
-fn first_list_number(l: &TvList) -> Varnumber {
-    unsafe {
-        let li = tv_list_first(Some(l));
-        (*li).li_tv.vval.v_number()
-    }
-}
-
 pub fn f_setcellwidths(argvars: &mut [TypVal], _rettv: &mut TypVal, _fptr: EvalFuncData) {
-    unsafe {
-        if argvars[0].v_type != VarType::VarList || argvars[0].vval.v_list().is_null() {
-            emsg(crate::strings::gettext(E_LISTREQ));
-            return;
-        }
+    if argvars[0].v_type != VarType::VarList || argvars[0].vval.v_list().is_null() {
+        emsg(crate::strings::gettext(E_LISTREQ));
+        return;
+    }
 
-        let l = argvars[0].vval.v_list();
-        let table_size = tv_list_len(l.as_ref()) as usize;
-        let mut table: Vec<CwInterval> = Vec::with_capacity(table_size);
-        if table_size != 0 {
-            let mut ptrs: Vec<*const TvList> = Vec::with_capacity(table_size);
-            for (item, li) in (0_i32..).zip(crate::eval::typval::list_iter_mut((*l).lv_first)) {
-                let li_tv = &li.li_tv;
-                if li_tv.v_type != VarType::VarList || li_tv.vval.v_list().is_null() {
-                    semsg!(E_LIST_ITEM_NR_IS_NOT_LIST, item);
-                    return;
+    let l = argvars[0].vval.v_list_ref();
+    let table_size = tv_list_len(Some(&*l)) as usize;
+    let mut table: Vec<CwInterval> = Vec::with_capacity(table_size);
+    if table_size != 0 {
+        for (item, li) in (0_i32..).zip(crate::eval::typval::list_iter_mut(l.lv_first)) {
+            let li_tv = &li.li_tv;
+            if li_tv.v_type != VarType::VarList || li_tv.vval.v_list().is_null() {
+                semsg!(E_LIST_ITEM_NR_IS_NOT_LIST, item);
+                return;
+            }
+
+            let li_l = li_tv.vval.v_list_ref();
+            let mut i = 0;
+            let mut n1: Varnumber = 0;
+            let mut n2: Varnumber = 0;
+            let mut n3: Varnumber = 0;
+            for lili in crate::eval::typval::list_iter_ptr(tv_list_first(Some(&*li_l))) {
+                let lili_tv = &lili.li_tv;
+                if lili_tv.v_type != VarType::VarNumber {
+                    break;
                 }
-
-                let li_l = li_tv.vval.v_list();
-                ptrs.push(li_l);
-                let mut lili: *const Listitem = tv_list_first(li_l.as_ref());
-                let mut i = 0;
-                let mut n1: Varnumber = 0;
-                while !lili.is_null() {
-                    let lili_tv = &(*lili).li_tv;
-                    if lili_tv.v_type != VarType::VarNumber {
-                        break;
+                let val = lili_tv.vval.v_number();
+                if i == 0 {
+                    n1 = val;
+                    if n1 < 0x80 {
+                        emsg(E_ONLY_VALUES_OF_0X80_AND_HIGHER_SUPPORTED);
+                        return;
                     }
-                    if i == 0 {
-                        n1 = lili_tv.vval.v_number();
-                        if n1 < 0x80 {
-                            emsg(E_ONLY_VALUES_OF_0X80_AND_HIGHER_SUPPORTED);
-                            return;
-                        }
-                    } else if i == 1 && lili_tv.vval.v_number() < n1 {
+                } else if i == 1 {
+                    n2 = val;
+                    if n2 < n1 {
                         semsg!(E_LIST_ITEM_NR_RANGE_INVALID, item);
                         return;
-                    } else if i == 2 && (lili_tv.vval.v_number() < 1 || lili_tv.vval.v_number() > 2)
-                    {
+                    }
+                } else if i == 2 {
+                    n3 = val;
+                    if !(1..=2).contains(&n3) {
                         semsg!(E_LIST_ITEM_NR_CELL_WIDTH_INVALID, item);
                         return;
                     }
-                    lili = (*lili).li_next;
-                    i += 1;
                 }
-
-                if i != 3 {
-                    semsg!(E_LIST_ITEM_NR_DOES_NOT_CONTAIN_3_NUMBERS, item);
-                    return;
-                }
+                i += 1;
             }
 
-            ptrs.sort_by_key(|&a| first_list_number(&*a));
+            if i != 3 {
+                semsg!(E_LIST_ITEM_NR_DOES_NOT_CONTAIN_3_NUMBERS, item);
+                return;
+            }
+            table.push(CwInterval {
+                first: n1,
+                last: n2,
+                width: n3 as i8,
+            });
+        }
 
-            for (idx, &li_l) in ptrs.iter().enumerate() {
-                let lili0 = tv_list_first(li_l.as_ref());
-                let n1 = (*lili0).li_tv.vval.v_number();
-                if idx > 0 && n1 <= table[idx - 1].last {
-                    semsg!(E_OVERLAPPING_RANGES_FOR_NR, n1 as usize);
-                    return;
-                }
-                let lili1 = (*lili0).li_next;
-                let lili2 = (*lili1).li_next;
-                table.push(CwInterval {
-                    first: n1,
-                    last: (*lili1).li_tv.vval.v_number(),
-                    width: (*lili2).li_tv.vval.v_number() as i8,
-                });
+        table.sort_by_key(|entry| entry.first);
+
+        for pair in table.windows(2) {
+            if pair[1].first <= pair[0].last {
+                semsg!(E_OVERLAPPING_RANGES_FOR_NR, pair[1].first as usize);
+                return;
             }
         }
-
-        let cw_table_save = std::mem::replace(&mut mbyte_st().cw_table, table);
-
-        if let Some(error) = check_chars_options() {
-            emsg(error);
-            mbyte_st().cw_table = cw_table_save;
-            return;
-        }
-
-        changed_window_setting_all();
-        redraw_all_later(UPD_NOT_VALID);
     }
+
+    let cw_table_save = std::mem::replace(&mut mbyte_st().cw_table, table);
+
+    if let Some(error) = check_chars_options() {
+        emsg(error);
+        mbyte_st().cw_table = cw_table_save;
+        return;
+    }
+
+    changed_window_setting_all();
+    redraw_all_later(UPD_NOT_VALID);
 }
 
 pub fn f_getcellwidths(_argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
@@ -3676,7 +3644,7 @@ mod tests {
                     len: 3
                 }
             );
-            assert!(utf_valid_string(&buf, ptr::null()));
+            assert!(utf_valid_string(&buf[..3]));
             assert!(utf_printable(0x20ac));
             assert!(!utf_printable(0xd800));
             assert_eq!(enc_canon_props(c"utf-8"), ENC_UNICODE);
