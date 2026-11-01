@@ -16,9 +16,9 @@ use crate::eval::typval::{
 use crate::ex_docmd::find_cmdline_var;
 use crate::math::{xisinf, xisnan};
 use crate::mbyte::{
-    mb_copy_char, mb_cptr2char_adv, mb_ptr2char_adv, mb_string2cells, mb_tolower, mb_toupper,
-    utf_char2bytes, utf_head_off, utf_ptr2_str_char_info, utf_ptr2cells, utf_ptr2char, utf_ptr2len,
-    utfc_ptr2len,
+    mb_cptr2char_adv, mb_ptr2char_adv, mb_string2cells, mb_tolower, mb_toupper, utf_char2bytes,
+    utf_char2slice, utf_head_off, utf_ptr2_str_char_info, utf_ptr2cells, utf_ptr2char, utf_ptr2len,
+    utf_slice2_char_info, utfc_ptr2len, utfc_slice2len,
 };
 use crate::memory::xstrlcpy;
 use crate::message::{emsg, semsg};
@@ -445,40 +445,23 @@ pub fn vim_strsave_escaped_ext<S1: IntoCCharPtr, S2: IntoCCharPtr>(
 ) -> std::ffi::CString {
     let string = string.into_c_char_ptr();
     let esc_chars = esc_chars.into_c_char_ptr();
-    let mut length: usize = 0;
-    let mut p = string;
-    while !crate::memory::cstr_is_empty(p) {
-        let l = utfc_ptr2len(p) as usize;
+    let bytes = crate::memory::cstr_as_bytes(string);
+    let esc_bytes = crate::memory::cstr_as_bytes(esc_chars);
+    let mut escaped = Vec::with_capacity(bytes.len() + 8);
+    let mut i = 0usize;
+    while i < bytes.len() {
+        let l = utfc_slice2len(&bytes[i..]);
         if l > 1 {
-            length += l;
-            p = p.wrapping_add(l);
+            escaped.extend_from_slice(&bytes[i..i + l]);
+            i += l;
             continue;
         }
-        if !vim_strchr(esc_chars, (unsafe { *p } as u8) as i32).is_null()
-            || (bsl && rem_backslash(p))
-        {
-            length += 1;
-        }
-        length += 1;
-        p = p.wrapping_add(1);
-    }
-
-    let mut escaped = Vec::with_capacity(length);
-    p = string;
-    while !crate::memory::cstr_is_empty(p) {
-        let l = utfc_ptr2len(p) as usize;
-        if l > 1 {
-            escaped.extend_from_slice(unsafe { std::slice::from_raw_parts(p.cast::<u8>(), l) });
-            p = p.wrapping_add(l);
-            continue;
-        }
-        if !vim_strchr(esc_chars, (unsafe { *p } as u8) as i32).is_null()
-            || (bsl && rem_backslash(p))
-        {
+        let b = bytes[i];
+        if esc_bytes.contains(&b) || (bsl && rem_backslash(string.wrapping_add(i))) {
             escaped.push(cc);
         }
-        escaped.push(unsafe { *p } as u8);
-        p = p.wrapping_add(1);
+        escaped.push(b);
+        i += 1;
     }
 
     crate::memory::cstr_from_bytes(&escaped)
@@ -512,109 +495,63 @@ pub fn vim_strsave_shellescape<S: IntoCCharPtr>(
     do_special: bool,
     do_newline: bool,
 ) -> std::ffi::CString {
-    unsafe {
-        let string = string.into_c_char_ptr();
-        let csh_like = csh_like_shell() != 0;
-        let fish_like = fish_like_shell();
-        #[cfg(windows)]
-        let use_double_quote = opt_vars().p_ssl == 0;
-        #[cfg(not(windows))]
-        let use_double_quote = false;
+    let string = string.into_c_char_ptr();
+    let bytes = crate::memory::cstr_as_bytes(string);
+    let csh_like = csh_like_shell() != 0;
+    let fish_like = fish_like_shell();
+    #[cfg(windows)]
+    let use_double_quote = opt_vars().p_ssl == 0;
+    #[cfg(not(windows))]
+    let use_double_quote = false;
 
-        let mut length = crate::memory::cstr_len(string) + 3;
-        let mut p = string;
-        while !crate::memory::cstr_is_empty(p) {
-            if use_double_quote {
-                if crate::memory::cstr_first_byte(p) == b'"' {
-                    length += 1;
-                }
-            } else if crate::memory::cstr_first_byte(p) == b'\'' {
-                length += 3;
+    let quote_byte = if use_double_quote { b'"' } else { b'\'' };
+    let mut escaped = Vec::with_capacity(bytes.len() + 3);
+    escaped.push(quote_byte);
+
+    let mut i = 0usize;
+    while i < bytes.len() {
+        let b = bytes[i];
+        if use_double_quote {
+            if b == b'"' {
+                escaped.extend_from_slice(b"\"\"");
+                i += 1;
+                continue;
             }
-            if (crate::memory::cstr_first_byte(p) == b'\n' && (csh_like || do_newline))
-                || (crate::memory::cstr_first_byte(p) == b'!' && (csh_like || do_special))
-            {
-                length += 1;
-                if csh_like && do_special {
-                    length += 1;
-                }
+        } else if b == b'\'' {
+            escaped.extend_from_slice(b"'\\''");
+            i += 1;
+            continue;
+        }
+        if (b == b'\n' && (csh_like || do_newline)) || (b == b'!' && (csh_like || do_special)) {
+            escaped.push(b'\\');
+            if csh_like && do_special {
+                escaped.push(b'\\');
             }
-            let mut l: usize = 0;
-            if do_special && find_cmdline_var(p, &mut l) >= 0 {
-                length += 1;
-                p = p.wrapping_add(l - 1);
-            }
-            if crate::memory::cstr_first_byte(p) == b'\\' && fish_like {
-                length += 1;
-            }
-            p = p.wrapping_add(utfc_ptr2len(p) as usize);
+            escaped.push(b);
+            i += 1;
+            continue;
+        }
+        let mut l: usize = 0;
+        if do_special && find_cmdline_var(string.wrapping_add(i), &mut l) >= 0 {
+            escaped.push(b'\\');
+            escaped.extend_from_slice(&bytes[i..i + l]);
+            i += l;
+            continue;
+        }
+        if b == b'\\' && fish_like {
+            escaped.push(b'\\');
+            escaped.push(b);
+            i += 1;
+            continue;
         }
 
-        let mut escaped_vec = vec![0u8; length];
-        let escaped_string = escaped_vec.as_mut_ptr();
-        let mut d = escaped_string;
-
-        *d = if use_double_quote { b'"' } else { b'\'' };
-        d = d.wrapping_add(1);
-
-        p = string;
-        while !crate::memory::cstr_is_empty(p) {
-            if use_double_quote {
-                if crate::memory::cstr_first_byte(p) == b'"' {
-                    *d = b'"';
-                    *d.wrapping_add(1) = b'"';
-                    d = d.wrapping_add(2);
-                    p = p.wrapping_add(1);
-                    continue;
-                }
-            } else if crate::memory::cstr_first_byte(p) == b'\'' {
-                *d = b'\'';
-                *d.wrapping_add(1) = b'\\';
-                *d.wrapping_add(2) = b'\'';
-                *d.wrapping_add(3) = b'\'';
-                d = d.wrapping_add(4);
-                p = p.wrapping_add(1);
-                continue;
-            }
-            if (crate::memory::cstr_first_byte(p) == b'\n' && (csh_like || do_newline))
-                || (crate::memory::cstr_first_byte(p) == b'!' && (csh_like || do_special))
-            {
-                *d = b'\\';
-                d = d.wrapping_add(1);
-                if csh_like && do_special {
-                    *d = b'\\';
-                    d = d.wrapping_add(1);
-                }
-                *d = *p as u8;
-                d = d.wrapping_add(1);
-                p = p.wrapping_add(1);
-                continue;
-            }
-            let mut l: usize = 0;
-            if do_special && find_cmdline_var(p, &mut l) >= 0 {
-                *d = b'\\';
-                d = d.wrapping_add(1);
-                ptr::copy_nonoverlapping(p.cast::<u8>(), d, l);
-                d = d.wrapping_add(l);
-                p = p.wrapping_add(l);
-                continue;
-            }
-            if crate::memory::cstr_first_byte(p) == b'\\' && fish_like {
-                *d = b'\\';
-                *d.wrapping_add(1) = *p as u8;
-                d = d.wrapping_add(2);
-                p = p.wrapping_add(1);
-                continue;
-            }
-
-            mb_copy_char(&mut p, &mut d);
-        }
-
-        *d = if use_double_quote { b'"' } else { b'\'' };
-        *d.wrapping_add(1) = 0;
-        let out_len = crate::memory::ptr_offset_from(d, escaped_string) as usize + 1;
-        crate::memory::cstr_from_bytes(&escaped_vec[..out_len])
+        let clen = utfc_slice2len(&bytes[i..]);
+        escaped.extend_from_slice(&bytes[i..i + clen]);
+        i += clen;
     }
+
+    escaped.push(quote_byte);
+    crate::memory::cstr_from_bytes(&escaped)
 }
 
 #[cfg(windows)]
@@ -638,22 +575,23 @@ pub fn mb_strup_buf(src: RawCCharPtr, dst: RawCCharPtrMut) -> usize {
 }
 
 pub fn strcase_save<S: IntoCCharPtr>(orig: S, upper: bool) -> std::ffi::CString {
-    let mut p = orig.into_c_char_ptr();
-    let orig_len = crate::memory::cstr_len(p);
-    let mut res = Vec::<u8>::with_capacity(orig_len + 1);
+    let bytes = crate::memory::cstr_as_bytes(orig.into_c_char_ptr());
+    let mut res = Vec::<u8>::with_capacity(bytes.len() + 1);
+    let mut i = 0usize;
 
-    while !crate::memory::cstr_is_empty(p) {
-        let char_info = utf_ptr2_str_char_info(p).chr;
+    while i < bytes.len() {
+        let rest = &bytes[i..];
+        let char_info = utf_slice2_char_info(rest);
         let c = if char_info.value < 0 {
-            (unsafe { *p } as u8) as i32
+            i32::from(rest[0])
         } else {
             char_info.value
         };
         let newc = if upper { mb_toupper(c) } else { mb_tolower(c) };
         let mut mb = [0u8; MB_MAXBYTES];
-        let newl = utf_char2bytes(newc, mb.as_mut_ptr()) as usize;
+        let newl = utf_char2slice(newc, &mut mb);
         res.extend_from_slice(&mb[..newl]);
-        p = p.wrapping_add(char_info.len as usize);
+        i += char_info.len as usize;
     }
 
     crate::memory::cstr_from_bytes(&res)
@@ -687,29 +625,21 @@ pub fn vim_haschr<S: IntoCCharPtr>(string: S, c: i32) -> bool {
 
 pub fn vim_strchr<S: IntoCCharPtr>(string: S, c: i32) -> RawCCharPtrMut {
     let string = string.into_c_char_ptr();
-    {
-        if string.is_null() || c <= 0 {
-            ptr::null_mut()
-        } else if c < 0x80 {
-            let mut p = string;
-            while !crate::memory::cstr_is_empty(p) {
-                if (unsafe { *p } as u8) as i32 == c {
-                    return p.cast_mut();
-                }
-                p = p.wrapping_add(1);
-            }
-            ptr::null_mut()
-        } else {
-            let mut u8char = [0u8; MB_MAXBYTES + 1];
-            let len = utf_char2bytes(c, u8char.as_mut_ptr()) as usize;
-            let needle = &u8char[..len];
-            let hay = crate::memory::cstr_as_bytes(string);
-            if let Some(pos) = hay.windows(len).position(|w| w == needle) {
-                string.wrapping_add(pos).cast_mut()
-            } else {
-                ptr::null_mut()
-            }
-        }
+    if string.is_null() || c <= 0 {
+        return ptr::null_mut();
+    }
+    let hay = crate::memory::cstr_as_bytes(string);
+    if c < 0x80 {
+        hay.iter()
+            .position(|&b| i32::from(b) == c)
+            .map_or(ptr::null_mut(), |pos| string.wrapping_add(pos).cast_mut())
+    } else {
+        let mut u8char = [0u8; MB_MAXBYTES + 1];
+        let len = utf_char2slice(c, &mut u8char);
+        let needle = &u8char[..len];
+        hay.windows(len)
+            .position(|w| w == needle)
+            .map_or(ptr::null_mut(), |pos| string.wrapping_add(pos).cast_mut())
     }
 }
 
@@ -2324,21 +2254,15 @@ pub fn vim_snprintf_typval_only(
 }
 
 pub fn reverse_text<S: IntoCCharPtr>(s: S) -> std::ffi::CString {
-    let s = s.into_c_char_ptr();
-    let len = crate::memory::cstr_len(s);
+    let bytes = crate::memory::cstr_as_bytes(s.into_c_char_ptr());
+    let len = bytes.len();
     let mut rev = vec![0u8; len];
     let mut s_i: usize = 0;
     let mut rev_i: usize = len;
     while s_i < len {
-        let mb_len = utfc_ptr2len(s.wrapping_add(s_i)) as usize;
+        let mb_len = utfc_slice2len(&bytes[s_i..]);
         rev_i -= mb_len;
-        unsafe {
-            ptr::copy(
-                s.wrapping_add(s_i).cast::<u8>(),
-                rev.as_mut_ptr().wrapping_add(rev_i),
-                mb_len,
-            )
-        };
+        rev[rev_i..rev_i + mb_len].copy_from_slice(&bytes[s_i..s_i + mb_len]);
         s_i += mb_len;
     }
     crate::memory::cstr_from_bytes(&rev)
