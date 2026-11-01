@@ -743,15 +743,14 @@ fn pum_align_order(order: &mut [i32; 3]) {
 }
 
 #[inline]
-fn pum_get_item(index: i32, type_: i32) -> *mut u8 {
+fn pum_get_item(index: i32, type_: i32) -> Option<&'static std::ffi::CStr> {
     let item = unsafe { &*pum().array.wrapping_add(index as usize) };
-    let opt = match type_ {
+    match type_ {
         CPT_ABBR => item.text_cstr(),
         CPT_KIND => item.kind_cstr(),
         CPT_MENU => item.extra_cstr(),
         _ => None,
-    };
-    opt.map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut().cast())
+    }
 }
 
 #[inline]
@@ -964,12 +963,13 @@ pub fn pum_redraw() {
                 attr = pum_user_attr_combine(idx, item_type, attr);
             }
             let mut width: i32 = 0;
-            let mut s: *mut u8 = ptr::null_mut();
-            let mut p = pum_get_item(idx, item_type);
+            let mut s: *const u8 = ptr::null();
+            let item_cstr = pum_get_item(idx, item_type);
 
-            let next_isempty = j + 1 >= 3 || pum_get_item(idx, order[j + 1]).is_null();
+            let next_isempty = j + 1 >= 3 || pum_get_item(idx, order[j + 1]).is_none();
 
-            if !p.is_null() {
+            if let Some(item_cstr) = item_cstr {
+                let mut p: *const u8 = item_cstr.as_ptr().cast();
                 loop {
                     if s.is_null() {
                         s = p;
@@ -985,19 +985,12 @@ pub fn pum_redraw() {
                     }
                     let width_limit = pum().width;
 
-                    let saved = unsafe { *p };
-                    if saved != 0 {
-                        unsafe {
-                            *p = 0;
-                        }
-                    }
-                    let mut st_bytes = transstr(s.cast(), true).into_bytes_with_nul();
+                    let seg_len = crate::memory::ptr_offset_from(p, s) as usize;
+                    let seg_cstr = crate::memory::cstr_from_bytes(unsafe {
+                        std::slice::from_raw_parts(s, seg_len)
+                    });
+                    let mut st_bytes = transstr(seg_cstr.as_c_str(), true).into_bytes_with_nul();
                     let st = st_bytes.as_mut_ptr();
-                    if saved != 0 {
-                        unsafe {
-                            *p = saved;
-                        }
-                    }
 
                     let attrs = if item_type == CPT_ABBR {
                         pum_compute_text_attrs(st.cast(), hlf, unsafe {
@@ -1099,7 +1092,7 @@ pub fn pum_redraw() {
                         grid_col += 2;
                     }
                     totwidth += 2;
-                    s = ptr::null_mut();
+                    s = ptr::null();
                     width = 0;
                     p = p.wrapping_add(utfc_ptr2len(p.cast()) as usize);
                 }
@@ -1115,7 +1108,7 @@ pub fn pum_redraw() {
 
             if j == 2
                 || (next_isempty
-                    && (j == 1 || (j == 0 && pum_get_item(idx, order[j + 2]).is_null())))
+                    && (j == 1 || (j == 0 && pum_get_item(idx, order[j + 2]).is_none())))
                 || basic_width + n >= pum().width
             {
                 break;

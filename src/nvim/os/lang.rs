@@ -468,9 +468,9 @@ fn current_message_locale() -> Option<String> {
     let p = get_locale_val(LC_MESSAGES);
     #[cfg(windows)]
     let p = get_locale_val(LC_CTYPE);
-    if !p.is_null()
-        && unsafe { *p } != 0
-        && let Ok(s) = crate::memory::cstr_from_ptr(p.cast()).to_str()
+    if let Some(p) = p
+        && !p.is_empty()
+        && let Ok(s) = p.to_str()
     {
         return Some(s.to_string());
     }
@@ -565,18 +565,23 @@ use crate::diff::K_SHELL_OPT_SILENT;
 use crate::os::fs::MAXPATHL;
 
 #[inline]
-fn get_locale_val(what: i32) -> *mut u8 {
-    unsafe { setlocale(what, ptr::null()) }
+fn get_locale_val(what: i32) -> Option<&'static CStr> {
+    let p = unsafe { setlocale(what, ptr::null()) };
+    if p.is_null() {
+        None
+    } else {
+        Some(unsafe { CStr::from_ptr(p.cast()) })
+    }
 }
 
 #[inline]
-fn is_valid_mess_lang(lang: impl crate::strings::IntoCCharPtr) -> bool {
-    let lang = lang.into_c_char_ptr();
-    if lang.is_null() {
+fn is_valid_mess_lang(lang: Option<&CStr>) -> bool {
+    let Some(lang) = lang else {
         return false;
-    }
-    (crate::memory::cstr_first_byte(lang)).is_ascii_alphabetic()
-        && (crate::memory::cstr_byte_at(lang, 1)).is_ascii_alphabetic()
+    };
+    let bytes = lang.to_bytes();
+    bytes.first().is_some_and(u8::is_ascii_alphabetic)
+        && bytes.get(1).is_some_and(u8::is_ascii_alphabetic)
 }
 
 /// Obtain the current messages language. Used to set the default for `'helplang'`.
@@ -586,14 +591,12 @@ pub fn get_mess_lang() -> Option<&'static CStr> {
     #[cfg(windows)]
     let p = get_locale_val(LC_COLLATE);
 
-    if is_valid_mess_lang(p.cast()) {
-        Some(unsafe { CStr::from_ptr(p.cast()) })
-    } else {
-        None
-    }
+    p.filter(|&s| is_valid_mess_lang(Some(s)))
 }
 
-fn get_mess_env(#[cfg_attr(not(windows), allow(unused_variables))] buf: &mut [u8; 64]) -> *mut u8 {
+fn get_mess_env(
+    #[cfg_attr(not(windows), allow(unused_variables))] buf: &mut [u8; 64],
+) -> Option<&CStr> {
     #[cfg(not(windows))]
     {
         get_locale_val(LC_MESSAGES)
@@ -602,11 +605,11 @@ fn get_mess_env(#[cfg_attr(not(windows), allow(unused_variables))] buf: &mut [u8
     {
         let mut p = os_getenv_buf(c"LC_ALL", buf.as_mut_ptr(), buf.len());
         if !p.is_null() {
-            return p;
+            return Some(unsafe { CStr::from_ptr(p.cast()) });
         }
         p = os_getenv_buf(c"LC_MESSAGES", buf.as_mut_ptr(), buf.len());
         if !p.is_null() {
-            return p;
+            return Some(unsafe { CStr::from_ptr(p.cast()) });
         }
         p = os_getenv_buf(c"LANG", buf.as_mut_ptr(), buf.len());
         if !p.is_null() && (crate::memory::cstr_first_byte(p.cast())).is_ascii_digit() {
@@ -615,24 +618,24 @@ fn get_mess_env(#[cfg_attr(not(windows), allow(unused_variables))] buf: &mut [u8
         if p.is_null() {
             return get_locale_val(LC_CTYPE);
         }
-        p
+        Some(unsafe { CStr::from_ptr(p.cast()) })
     }
 }
 
 /// Set the `v:lang`, `v:lc_time`, `v:collate`, and `v:ctype` variables.
 pub fn set_lang_var() {
     let mut buf = [0u8; 64];
-    let mut loc: *const u8 = get_locale_val(LC_CTYPE);
-    set_vim_var_string(VV_CTYPE, loc.cast(), -1);
+    let mut loc = get_locale_val(LC_CTYPE);
+    set_vim_var_string(VV_CTYPE, loc, -1);
 
     loc = get_mess_env(&mut buf);
-    set_vim_var_string(VV_LANG, loc.cast(), -1);
+    set_vim_var_string(VV_LANG, loc, -1);
 
     loc = get_locale_val(LC_TIME);
-    set_vim_var_string(VV_LC_TIME, loc.cast(), -1);
+    set_vim_var_string(VV_LC_TIME, loc, -1);
 
     loc = get_locale_val(LC_COLLATE);
-    set_vim_var_string(VV_COLLATE, loc.cast(), -1);
+    set_vim_var_string(VV_COLLATE, loc, -1);
 }
 
 /// Setup to use the current locale.
@@ -700,14 +703,13 @@ pub fn ex_language(eap: &mut Exarg) {
 
     if crate::memory::cstr_is_empty(name) {
         let mut mess_buf = [0u8; 64];
-        let mut p_val = if what == VIM_LC_MESSAGES {
+        let p_val = if what == VIM_LC_MESSAGES {
             get_mess_env(&mut mess_buf)
         } else {
-            unsafe { setlocale(what, ptr::null()) }
-        };
-        if crate::memory::cstr_is_empty(p_val.cast()) {
-            p_val = c"Unknown".as_ptr().cast_mut().cast();
+            get_locale_val(what)
         }
+        .filter(|s| !s.is_empty())
+        .unwrap_or(c"Unknown");
         let _ = smsg!(0, gettext(c"Current %slanguage: \"%s\""), whatstr, p_val,);
     } else {
         #[cfg(windows)]
@@ -815,10 +817,10 @@ mod tests {
 
     #[test]
     fn is_valid_mess_lang_and_get_lang_arg_work() {
-        assert!(!is_valid_mess_lang(ptr::null()));
-        assert!(!is_valid_mess_lang(c"C"));
-        assert!(!is_valid_mess_lang(c"C.UTF-8"));
-        assert!(is_valid_mess_lang(c"en_US.UTF-8"));
+        assert!(!is_valid_mess_lang(None));
+        assert!(!is_valid_mess_lang(Some(c"C")));
+        assert!(!is_valid_mess_lang(Some(c"C.UTF-8")));
+        assert!(is_valid_mess_lang(Some(c"en_US.UTF-8")));
 
         assert_eq!(
             get_lang_arg(&mut crate::os::env::ExpandCtx::new(), 0),

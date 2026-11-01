@@ -269,8 +269,9 @@ pub fn input_get(
     }
 
     // If there are events, return the keys directly
-    if maxlen != 0 && pending_events(unsafe { events.as_ref() }) {
-        return push_event_key(buf, maxlen);
+    if maxlen > 0 && pending_events(unsafe { events.as_ref() }) {
+        let out_slice = unsafe { std::slice::from_raw_parts_mut(buf, maxlen as usize) };
+        return push_event_key(out_slice);
     }
 
     0
@@ -668,25 +669,21 @@ fn process_ctrl_c() {
 }
 
 /// Pushes bytes from the "event" key sequence (KE_EVENT) partially between calls to input_get when
-/// `maxlen < 3`.
-fn push_event_key(buf: *mut u8, maxlen: i32) -> i32 {
+/// `buf.len() < 3`.
+fn push_event_key(buf: &mut [u8]) -> i32 {
     const KEY: [u8; 3] = [K_SPECIAL, KS_EXTRA, KE_EVENT];
-    {
-        let mut buf_idx: i32 = 0;
+    let mut buf_idx: usize = 0;
 
-        loop {
-            unsafe {
-                *buf.wrapping_add(buf_idx as usize) = KEY[osi_st().push_event_key_idx];
-            }
-            buf_idx += 1;
-            osi_st().push_event_key_idx = (osi_st().push_event_key_idx + 1) % 3;
-            if osi_st().push_event_key_idx == 0 || buf_idx >= maxlen {
-                break;
-            }
+    while buf_idx < buf.len() {
+        buf[buf_idx] = KEY[osi_st().push_event_key_idx];
+        buf_idx += 1;
+        osi_st().push_event_key_idx = (osi_st().push_event_key_idx + 1) % 3;
+        if osi_st().push_event_key_idx == 0 {
+            break;
         }
-
-        buf_idx
     }
+
+    buf_idx as i32
 }
 
 /// Check if there's pending input already in typebuf or `events`
@@ -714,10 +711,10 @@ mod tests {
 
         osi_st().push_event_key_idx = 0;
         let mut buf = [0u8; 3];
-        assert_eq!(push_event_key(buf.as_mut_ptr(), 2), 2);
+        assert_eq!(push_event_key(&mut buf[..2]), 2);
         assert_eq!(buf[0], K_SPECIAL);
         assert_eq!(buf[1], KS_EXTRA);
-        assert_eq!(push_event_key(buf.as_mut_ptr().wrapping_add(2), 2), 1);
+        assert_eq!(push_event_key(&mut buf[2..]), 1);
         assert_eq!(buf[2], KE_EVENT);
 
         assert_eq!(parse_mouse_coords(b"<12,34>rest"), Some((12, 34, 7)));
