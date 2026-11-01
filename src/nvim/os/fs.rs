@@ -821,6 +821,16 @@ impl CFile {
     pub fn as_ptr(&self) -> *mut crate::fileio::FILE {
         self.0.as_ptr()
     }
+
+    #[inline]
+    pub fn seek(&self, offset: crate::fileio::Off, whence: i32) -> i32 {
+        unsafe { crate::fileio::vim_fseek(self.0.as_ptr(), offset, whence) }
+    }
+
+    #[inline]
+    pub fn tell(&self) -> crate::fileio::Off {
+        unsafe { crate::fileio::vim_ftell(self.0.as_ptr()) }
+    }
 }
 
 impl Drop for CFile {
