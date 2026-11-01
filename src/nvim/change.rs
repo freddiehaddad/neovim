@@ -57,7 +57,7 @@ use crate::plines::{getvcol, linetabsize_disp_eol, win_chartabsize};
 use crate::search::{BACKWARD, FORWARD, findmatch, linewhite, showmatch};
 use crate::spell::spell_check_window;
 use crate::state::{MODE_INSERT, REPLACE_FLAG, VREPLACE_FLAG, virtual_active};
-use crate::strings::{concat_str, tr, vim_strchr};
+use crate::strings::{concat_str, tr};
 use crate::textformat::{comp_textwidth, has_format_option};
 use crate::ui::{ui_active, ui_has};
 use crate::undo::{curbuf_is_changed_fn, u_clearline, u_save_cursor, u_savedel};
@@ -1904,133 +1904,125 @@ pub fn get_leader_len(
     include_space: bool,
 ) -> i32 {
     let line = line.into_c_char_ptr();
-    {
-        let mut got_com = false;
-        let mut part_buf: [u8; COM_MAX_LEN] = [0; COM_MAX_LEN];
-        let mut middle_match_len: usize = 0;
-        let mut saved_flags: *mut u8 = ptr::null_mut();
+    let line_bytes = crate::memory::cstr_as_bytes(line);
+    let mut got_com = false;
+    let mut part_buf: [u8; COM_MAX_LEN] = [0; COM_MAX_LEN];
+    let mut middle_match_len: usize = 0;
+    let mut saved_flags: *mut u8 = ptr::null_mut();
 
-        let mut result: usize = 0;
-        let mut i: usize = 0;
-        while ascii_iswhite(crate::memory::cstr_char_at(line, i)) {
+    let mut result: usize = 0;
+    let mut i: usize = 0;
+    while i < line_bytes.len() && ascii_iswhite(line_bytes[i]) {
+        i += 1;
+    }
+
+    while i < line_bytes.len() {
+        let mut found_one = false;
+        let mut part_flags_range: std::ops::Range<usize> = 0..0;
+        let mut list = curbuf_mut().b_p_com;
+        while !crate::memory::cstr_is_empty(list) {
+            if !got_com && let Some(flags_out) = flags.as_deref_mut() {
+                *flags_out = crate::memory::cstr_as_opt_cstr(list);
+            }
+            let prev_list = list;
+            let part_len = copy_option_part(
+                &raw mut list,
+                part_buf.as_mut_ptr().cast(),
+                COM_MAX_LEN,
+                c",",
+            );
+            let part = &part_buf[..part_len];
+            let Some(colon_idx) = part.iter().position(|&b| b == b':') else {
+                part_flags_range = 0..part_len;
+                continue;
+            };
+            part_flags_range = 0..colon_idx;
+            let part_flags = &part[..colon_idx];
+            let mut string = &part[colon_idx + 1..];
+
+            if middle_match_len != 0
+                && !part_flags.contains(&COM_MIDDLE)
+                && !part_flags.contains(&COM_END)
+            {
+                break;
+            }
+
+            if got_com && !part_flags.contains(&COM_NEST) {
+                continue;
+            }
+
+            if backward && part_flags.contains(&COM_NOBACK) {
+                continue;
+            }
+
+            if string.first().is_some_and(|&b| ascii_iswhite(b)) {
+                if i == 0 || !ascii_iswhite(line_bytes[i - 1]) {
+                    continue;
+                }
+                while let Some((&b, rest)) = string.split_first() {
+                    if !ascii_iswhite(b) {
+                        break;
+                    }
+                    string = rest;
+                }
+            }
+            if !line_bytes[i..].starts_with(string) {
+                continue;
+            }
+            let j = string.len();
+
+            if part_flags.contains(&COM_BLANK)
+                && line_bytes.get(i + j).is_some_and(|&b| !ascii_iswhite(b))
+            {
+                continue;
+            }
+
+            if part_flags.contains(&COM_MIDDLE) {
+                if middle_match_len == 0 {
+                    middle_match_len = j;
+                    saved_flags = prev_list.cast();
+                }
+                continue;
+            }
+            if middle_match_len != 0 && j > middle_match_len {
+                middle_match_len = 0;
+            }
+
+            if middle_match_len == 0 {
+                i += j;
+            }
+            found_one = true;
+            break;
+        }
+
+        if middle_match_len != 0 {
+            if !got_com && let Some(flags_out) = flags.as_deref_mut() {
+                *flags_out = crate::memory::cstr_as_opt_cstr(saved_flags.cast());
+            }
+            i += middle_match_len;
+            found_one = true;
+        }
+
+        if !found_one {
+            break;
+        }
+
+        result = i;
+
+        while i < line_bytes.len() && ascii_iswhite(line_bytes[i]) {
             i += 1;
         }
 
-        while crate::memory::cstr_byte_at(line, i) != 0 {
-            let mut found_one = false;
-            let mut list = curbuf_mut().b_p_com;
-            while !crate::memory::cstr_is_empty(list) {
-                if !got_com && let Some(flags_out) = flags.as_deref_mut() {
-                    *flags_out = crate::memory::cstr_as_opt_cstr(list);
-                }
-                let prev_list = list;
-                copy_option_part(
-                    &raw mut list,
-                    part_buf.as_mut_ptr().cast(),
-                    COM_MAX_LEN,
-                    c",",
-                );
-                let mut string = vim_strchr(part_buf.as_ptr().cast(), b':' as i32).cast::<u8>();
-                if string.is_null() {
-                    continue;
-                }
-                unsafe {
-                    *string = 0;
-                }
-                string = string.wrapping_add(1);
-
-                if middle_match_len != 0
-                    && !crate::strings::vim_haschr(part_buf.as_ptr().cast(), i32::from(COM_MIDDLE))
-                    && !crate::strings::vim_haschr(part_buf.as_ptr().cast(), i32::from(COM_END))
-                {
-                    break;
-                }
-
-                if got_com
-                    && !crate::strings::vim_haschr(part_buf.as_ptr().cast(), i32::from(COM_NEST))
-                {
-                    continue;
-                }
-
-                if backward
-                    && crate::strings::vim_haschr(part_buf.as_ptr().cast(), i32::from(COM_NOBACK))
-                {
-                    continue;
-                }
-
-                if ascii_iswhite(crate::memory::cstr_first_char(string.cast())) {
-                    if i == 0 || !ascii_iswhite(crate::memory::cstr_char_at(line, i - 1)) {
-                        continue;
-                    }
-                    while ascii_iswhite(crate::memory::cstr_first_char(string.cast())) {
-                        string = string.wrapping_add(1);
-                    }
-                }
-                let mut j: usize = 0;
-                while crate::memory::cstr_byte_at(string.cast(), j) != 0
-                    && unsafe { *string.wrapping_add(j) }
-                        == crate::memory::cstr_byte_at(line, i + j)
-                {
-                    j += 1;
-                }
-                if crate::memory::cstr_byte_at(string.cast(), j) != 0 {
-                    continue;
-                }
-
-                if crate::strings::vim_haschr(part_buf.as_ptr().cast(), i32::from(COM_BLANK))
-                    && !ascii_iswhite(crate::memory::cstr_char_at(line, i + j))
-                    && crate::memory::cstr_byte_at(line, i + j) != 0
-                {
-                    continue;
-                }
-
-                if crate::strings::vim_haschr(part_buf.as_ptr().cast(), i32::from(COM_MIDDLE)) {
-                    if middle_match_len == 0 {
-                        middle_match_len = j;
-                        saved_flags = prev_list.cast();
-                    }
-                    continue;
-                }
-                if middle_match_len != 0 && j > middle_match_len {
-                    middle_match_len = 0;
-                }
-
-                if middle_match_len == 0 {
-                    i += j;
-                }
-                found_one = true;
-                break;
-            }
-
-            if middle_match_len != 0 {
-                if !got_com && let Some(flags_out) = flags.as_deref_mut() {
-                    *flags_out = crate::memory::cstr_as_opt_cstr(saved_flags.cast());
-                }
-                i += middle_match_len;
-                found_one = true;
-            }
-
-            if !found_one {
-                break;
-            }
-
+        if include_space {
             result = i;
-
-            while ascii_iswhite(crate::memory::cstr_char_at(line, i)) {
-                i += 1;
-            }
-
-            if include_space {
-                result = i;
-            }
-
-            got_com = true;
-            if !crate::strings::vim_haschr(part_buf.as_ptr().cast(), i32::from(COM_NEST)) {
-                break;
-            }
         }
-        result as i32
+
+        got_com = true;
+        if !part_buf[part_flags_range].contains(&COM_NEST) {
+            break;
+        }
     }
+    result as i32
 }
 
 /// Return the offset at which the last comment in `line` starts, or -1 if none.
@@ -2039,141 +2031,139 @@ pub fn get_last_leader_offset(
     mut flags: Option<&mut Option<&'static CStr>>,
 ) -> i32 {
     let line = line.into_c_char_ptr();
-    {
-        let mut result: i32 = -1;
-        let mut lower_check_bound: i32 = 0;
-        let mut com_leader: *mut u8 = ptr::null_mut();
-        let mut com_flags: *mut u8 = ptr::null_mut();
-        let mut part_buf: [u8; COM_MAX_LEN] = [0; COM_MAX_LEN];
+    let line_bytes = crate::memory::cstr_as_bytes(line);
+    let mut result: i32 = -1;
+    let mut lower_check_bound: i32 = 0;
+    let mut com_leader_range: std::ops::Range<usize> = 0..0;
+    let mut com_flags: *mut u8 = ptr::null_mut();
+    let mut part_buf: [u8; COM_MAX_LEN] = [0; COM_MAX_LEN];
 
-        let mut i = crate::memory::cstr_len(line) as i32;
-        while {
-            i -= 1;
-            i >= lower_check_bound
-        } {
-            let mut found_one = false;
+    let mut i = line_bytes.len() as i32;
+    while {
+        i -= 1;
+        i >= lower_check_bound
+    } {
+        let i_usize = i as usize;
+        let mut found_one = false;
+        let mut part_flags_range: std::ops::Range<usize> = 0..0;
+        let mut list = curbuf_mut().b_p_com;
+        while !crate::memory::cstr_is_empty(list) {
+            let flags_save = list;
+
+            let part_len = copy_option_part(
+                &raw mut list,
+                part_buf.as_mut_ptr().cast(),
+                COM_MAX_LEN,
+                c",",
+            );
+            let part = &part_buf[..part_len];
+            let Some(colon_idx) = part.iter().position(|&b| b == b':') else {
+                continue;
+            };
+            part_flags_range = 0..colon_idx;
+            com_leader_range = (colon_idx + 1)..part_len;
+            let part_flags = &part[..colon_idx];
+            let mut string = &part[colon_idx + 1..];
+
+            if string.first().is_some_and(|&b| ascii_iswhite(b)) {
+                if i == 0 || !ascii_iswhite(line_bytes[i_usize - 1]) {
+                    continue;
+                }
+                while let Some((&b, rest)) = string.split_first() {
+                    if !ascii_iswhite(b) {
+                        break;
+                    }
+                    string = rest;
+                }
+            }
+            if !line_bytes[i_usize..].starts_with(string) {
+                continue;
+            }
+            let j = string.len();
+
+            if part_flags.contains(&COM_BLANK)
+                && line_bytes
+                    .get(i_usize + j)
+                    .is_some_and(|&b| !ascii_iswhite(b))
+            {
+                continue;
+            }
+
+            if part_flags.contains(&COM_MIDDLE)
+                && line_bytes[..i_usize].iter().any(|&b| !ascii_iswhite(b))
+            {
+                continue;
+            }
+
+            found_one = true;
+            if let Some(flags_out) = flags.as_deref_mut() {
+                *flags_out = crate::memory::cstr_as_opt_cstr(flags_save);
+            }
+            com_flags = flags_save.cast();
+            break;
+        }
+
+        if found_one {
+            let mut part_buf2: [u8; COM_MAX_LEN] = [0; COM_MAX_LEN];
+
+            result = i;
+            if part_buf[part_flags_range].contains(&COM_NEST) {
+                continue;
+            }
+
+            lower_check_bound = i;
+
+            let mut com_leader = &part_buf[com_leader_range.clone()];
+            while let Some((&b, rest)) = com_leader.split_first() {
+                if !ascii_iswhite(b) {
+                    break;
+                }
+                com_leader = rest;
+            }
+            let len1 = com_leader.len() as i32;
+
             let mut list = curbuf_mut().b_p_com;
             while !crate::memory::cstr_is_empty(list) {
                 let flags_save = list;
 
-                copy_option_part(
+                let part2_len = copy_option_part(
                     &raw mut list,
-                    part_buf.as_mut_ptr().cast(),
+                    part_buf2.as_mut_ptr().cast(),
                     COM_MAX_LEN,
                     c",",
                 );
-                let mut string = vim_strchr(part_buf.as_ptr().cast(), b':' as i32).cast::<u8>();
-                if string.is_null() {
+                if flags_save.cast::<u8>() == com_flags {
                     continue;
                 }
-                unsafe {
-                    *string = 0;
-                }
-                string = string.wrapping_add(1);
-                com_leader = string;
-
-                if ascii_iswhite(crate::memory::cstr_first_char(string.cast())) {
-                    if i == 0 || !ascii_iswhite(unsafe { *line.wrapping_add((i - 1) as usize) }) {
-                        continue;
+                let part2 = &part_buf2[..part2_len];
+                let Some(colon_idx) = part2.iter().position(|&b| b == b':') else {
+                    continue;
+                };
+                let mut string = &part2[colon_idx + 1..];
+                while let Some((&b, rest)) = string.split_first() {
+                    if !ascii_iswhite(b) {
+                        break;
                     }
-                    while ascii_iswhite(crate::memory::cstr_first_char(string.cast())) {
-                        string = string.wrapping_add(1);
-                    }
+                    string = rest;
                 }
-                let mut j: usize = 0;
-                while crate::memory::cstr_byte_at(string.cast(), j) != 0
-                    && unsafe { *string.wrapping_add(j) }
-                        == crate::memory::cstr_byte_at(line, i as usize + j)
-                {
-                    j += 1;
-                }
-                if crate::memory::cstr_byte_at(string.cast(), j) != 0 {
+                let len2 = string.len() as i32;
+                if len2 == 0 {
                     continue;
                 }
 
-                if crate::strings::vim_haschr(part_buf.as_ptr().cast(), i32::from(COM_BLANK))
-                    && !ascii_iswhite(crate::memory::cstr_char_at(line, i as usize + j))
-                    && crate::memory::cstr_byte_at(line, i as usize + j) != 0
-                {
-                    continue;
-                }
-
-                if crate::strings::vim_haschr(part_buf.as_ptr().cast(), i32::from(COM_MIDDLE)) {
-                    let mut k: i32 = 0;
-                    while k <= i && ascii_iswhite(crate::memory::cstr_char_at(line, k as usize)) {
-                        k += 1;
-                    }
-                    if k < i {
-                        continue;
-                    }
-                }
-
-                found_one = true;
-                if let Some(flags_out) = flags.as_deref_mut() {
-                    *flags_out = crate::memory::cstr_as_opt_cstr(flags_save);
-                }
-                com_flags = flags_save.cast();
-                break;
-            }
-
-            if found_one {
-                let mut part_buf2: [u8; COM_MAX_LEN] = [0; COM_MAX_LEN];
-
-                result = i;
-                if crate::strings::vim_haschr(part_buf.as_ptr().cast(), i32::from(COM_NEST)) {
-                    continue;
-                }
-
-                lower_check_bound = i;
-
-                while ascii_iswhite(crate::memory::cstr_first_char(com_leader.cast())) {
-                    com_leader = com_leader.wrapping_add(1);
-                }
-                let len1 = crate::memory::cstr_len(com_leader.cast()) as i32;
-
-                let mut list = curbuf_mut().b_p_com;
-                while !crate::memory::cstr_is_empty(list) {
-                    let flags_save = list;
-
-                    copy_option_part(
-                        &raw mut list,
-                        part_buf2.as_mut_ptr().cast(),
-                        COM_MAX_LEN,
-                        c",",
-                    );
-                    if flags_save.cast::<u8>() == com_flags {
-                        continue;
-                    }
-                    let mut string =
-                        vim_strchr(part_buf2.as_ptr().cast(), b':' as i32).cast::<u8>();
-                    if string.is_null() {
-                        continue;
-                    }
-                    string = string.wrapping_add(1);
-                    while ascii_iswhite(crate::memory::cstr_first_char(string.cast())) {
-                        string = string.wrapping_add(1);
-                    }
-                    let len2 = crate::memory::cstr_len(string.cast()) as i32;
-                    if len2 == 0 {
-                        continue;
-                    }
-
-                    let mut off = len2.min(i);
-                    while off > 0 && off + len1 > len2 {
-                        off -= 1;
-                        let cmp_len = (len2 - off) as usize;
-                        if unsafe {
-                            std::slice::from_raw_parts(string.wrapping_add(off as usize), cmp_len)
-                        } == unsafe { std::slice::from_raw_parts(com_leader, cmp_len) }
-                        {
-                            lower_check_bound = lower_check_bound.min(i - off);
-                        }
+                let mut off = len2.min(i);
+                while off > 0 && off + len1 > len2 {
+                    off -= 1;
+                    let off_usize = off as usize;
+                    let cmp_len = (len2 - off) as usize;
+                    if string[off_usize..off_usize + cmp_len] == com_leader[..cmp_len] {
+                        lower_check_bound = lower_check_bound.min(i - off);
                     }
                 }
             }
         }
-        result
     }
+    result
 }
 
 #[cfg(test)]
