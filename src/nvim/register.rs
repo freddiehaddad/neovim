@@ -589,7 +589,7 @@ pub fn do_record(c: i32) -> bool {
         let dict = get_v_event(&mut save_v_event);
 
         let mut p_vec = get_recorded().into_bytes_with_nul();
-        vim_unescape_ks(p_vec.as_mut_ptr().cast());
+        vim_unescape_ks(&mut p_vec);
         tv_dict_add_str(
             &mut *dict,
             c"regcontents",

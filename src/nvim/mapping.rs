@@ -829,7 +829,7 @@ fn buf_do_map(
                             lhs.cast(),
                             len as usize,
                         );
-                        let keys_unescaped_len = vim_unescape_ks(keys_unescaped.as_mut_ptr());
+                        let keys_unescaped_len = vim_unescape_ks(&mut keys_unescaped);
                         let mut p = keys_unescaped.as_ptr();
                         let end_p = p.wrapping_add(keys_unescaped_len);
 
@@ -1645,8 +1645,8 @@ pub fn check_abbr<T>(mut c: i32, ptr_arg: *mut T, col: i32, mincol: i32) -> bool
 
             if cand.m_keys.as_bytes().contains(&K_SPECIAL) {
                 q_vec = cand.m_keys.as_bytes_with_nul().to_vec();
+                qlen = vim_unescape_ks(&mut q_vec) as i32;
                 q = q_vec.as_mut_ptr();
-                qlen = vim_unescape_ks(q) as i32;
             }
             let match_found = (cand.m_mode & g_st().state_global) != 0
                 && qlen == len
@@ -1733,7 +1733,7 @@ pub fn eval_map_expr(mp: &Mapblock, c: i32) -> Option<CString> {
 
     if luaref == LUA_NOREF {
         expr_bytes.extend_from_slice(mp.m_str.to_bytes_with_nul());
-        vim_unescape_ks(expr_bytes.as_mut_ptr());
+        vim_unescape_ks(&mut expr_bytes);
     }
 
     g_st().expr_map_lock += 1;

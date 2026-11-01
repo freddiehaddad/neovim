@@ -2452,7 +2452,7 @@ pub fn nlua_exec_on_key(c: i32, typed_buf: &mut [u8]) -> bool {
 
     let mut buf = [0u8; MB_MAXBYTES * 3 + 4];
     let buf_len = special_to_buf(c, g_st().mod_mask, false, &mut buf) as usize;
-    vim_unescape_ks(typed_buf.as_mut_ptr().cast());
+    vim_unescape_ks(typed_buf);
 
     let lstate = nlua_st().global_lstate;
     let top = unsafe { lua_gettop(lstate) };

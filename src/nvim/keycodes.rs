@@ -8,11 +8,10 @@ use crate::errors::{E_INVARG, E_USINGSID};
 use crate::eval::vars::{Scid, get_var_value};
 use crate::globals::*;
 use crate::mbyte::{
-    utf_char2bytes, utf_char2len, utf_char2slice, utf_ptr2char, utf_slice2char, utf_slice2len,
-    utfc_ptr2len, utfc_ptr2len_len,
+    utf_char2len, utf_char2slice, utf_ptr2char, utf_slice2char, utf_slice2len, utfc_ptr2len,
+    utfc_ptr2len_len, utfc_slice2len,
 };
 use crate::message::emsg;
-use crate::strings::vim_snprintf;
 use std::ffi::CStr;
 
 pub const NUL: u8 = 0;
@@ -2155,188 +2154,176 @@ pub fn get_special_key(
     mut modifiers: i32,
     mut data: Option<&mut KeyChord>,
 ) -> &'static CStr {
-    unsafe {
-        let string = (*SPECIAL_KEY_STRING.as_ptr()).as_mut_ptr();
-        let mut is_ascii_ctrl = false;
+    let string_buf = unsafe { &mut *SPECIAL_KEY_STRING.as_ptr() };
+    let string = string_buf.as_mut_ptr();
+    let mut is_ascii_ctrl = false;
 
-        *string = b'<';
-        let mut idx: usize = 1;
+    string_buf[0] = b'<';
+    let mut idx: usize = 1;
 
-        // Key that stands for a normal character.
-        if is_special(c) && key2termcap0(c) == KS_KEY as i32 {
-            c = key2termcap1(c);
-        }
+    // Key that stands for a normal character.
+    if is_special(c) && key2termcap0(c) == KS_KEY as i32 {
+        c = key2termcap1(c);
+    }
 
-        // Translate shifted special keys into unshifted keys and set modifier.
-        // Same for CTRL and ALT modifiers.
-        c = unsimplify_key(c, &mut modifiers);
+    // Translate shifted special keys into unshifted keys and set modifier.
+    // Same for CTRL and ALT modifiers.
+    c = unsimplify_key(c, &mut modifiers);
 
-        // try to find the key in the special key table
-        let table_idx = find_special_key_in_table(c);
+    // try to find the key in the special key table
+    let table_idx = find_special_key_in_table(c);
 
-        // When not a known special key, and not a printable character, try to
-        // extract modifiers.
-        if c > 0 && utf_char2len(c) == 1 && table_idx < 0 && !vim_isprintc(c) && c < b' ' as i32 {
-            c += b'@' as i32;
-            modifiers |= i32::from(MOD_MASK_CTRL);
-            is_ascii_ctrl = true;
-        }
+    // When not a known special key, and not a printable character, try to
+    // extract modifiers.
+    if c > 0 && utf_char2len(c) == 1 && table_idx < 0 && !vim_isprintc(c) && c < b' ' as i32 {
+        c += b'@' as i32;
+        modifiers |= i32::from(MOD_MASK_CTRL);
+        is_ascii_ctrl = true;
+    }
 
-        if data.is_some() {
-            data.as_deref_mut().unwrap().mods = 0;
-        }
+    if let Some(ref mut d) = data {
+        d.mods = 0;
+    }
 
-        // translate the modifier into a string
-        let mut i = 0;
-        while MOD_MASK_TABLE[i].name != b'A' {
-            let mask = i32::from(MOD_MASK_TABLE[i].mod_mask);
-            let flag = i32::from(MOD_MASK_TABLE[i].mod_flag);
-            if (modifiers & mask) == flag {
-                *string.wrapping_add(idx) = MOD_MASK_TABLE[i].name;
-                idx += 1;
-                *string.wrapping_add(idx) = b'-';
-                idx += 1;
+    // translate the modifier into a string
+    let mut i = 0;
+    while MOD_MASK_TABLE[i].name != b'A' {
+        let mask = i32::from(MOD_MASK_TABLE[i].mod_mask);
+        let flag = i32::from(MOD_MASK_TABLE[i].mod_flag);
+        if (modifiers & mask) == flag {
+            string_buf[idx] = MOD_MASK_TABLE[i].name;
+            idx += 1;
+            string_buf[idx] = b'-';
+            idx += 1;
 
-                if data.is_some() {
-                    data.as_deref_mut().unwrap().mods |= flag;
-                }
+            if let Some(ref mut d) = data {
+                d.mods |= flag;
             }
-            i += 1;
         }
+        i += 1;
+    }
 
-        if table_idx < 0 {
-            // unknown special key, may output t_xx
-            if is_special(c) {
-                if data.is_some() {
-                    data.as_deref_mut().unwrap().key_alt = NvimString {
-                        data: std::ptr::null_mut(),
-                        size: 0,
-                    };
-                    data.as_deref_mut().unwrap().key = NvimString {
-                        data: string.wrapping_add(idx).cast(),
-                        size: 4,
-                    };
-                }
+    if table_idx < 0 {
+        // unknown special key, may output t_xx
+        if is_special(c) {
+            if let Some(ref mut d) = data {
+                d.key_alt = NvimString {
+                    data: std::ptr::null_mut(),
+                    size: 0,
+                };
+                d.key = NvimString {
+                    data: string.wrapping_add(idx).cast(),
+                    size: 4,
+                };
+            }
 
-                *string.wrapping_add(idx) = b't';
-                idx += 1;
-                *string.wrapping_add(idx) = b'_';
-                idx += 1;
-                *string.wrapping_add(idx) = key2termcap0(c) as u8;
-                idx += 1;
-                *string.wrapping_add(idx) = key2termcap1(c) as u8;
-                idx += 1;
-            } else {
-                // Not a special key, only modifiers, output directly.
-                let len = utf_char2len(c);
-                if len == 1 && vim_isprintc(c) {
-                    if data.is_some() {
-                        if (b'A' as i32..=b'Z' as i32).contains(&c) {
-                            data.as_deref_mut().unwrap().key_mem = c as u8 + 32;
-                            data.as_deref_mut().unwrap().key = NvimString {
-                                data: std::ptr::addr_of_mut!(data.as_deref_mut().unwrap().key_mem)
-                                    .cast(),
-                                size: 1,
-                            };
-                            if !is_ascii_ctrl {
-                                data.as_deref_mut().unwrap().mods |= i32::from(MOD_MASK_SHIFT);
-                            }
-                            data.as_deref_mut().unwrap().key_alt = NvimString {
-                                data: string.wrapping_add(idx).cast(),
-                                size: len as usize,
-                            };
-                        } else {
-                            data.as_deref_mut().unwrap().key_alt = NvimString {
-                                data: std::ptr::null_mut(),
-                                size: 0,
-                            };
-                            data.as_deref_mut().unwrap().key = NvimString {
-                                data: string.wrapping_add(idx).cast(),
-                                size: len as usize,
-                            };
+            string_buf[idx..idx + 4].copy_from_slice(&[
+                b't',
+                b'_',
+                key2termcap0(c) as u8,
+                key2termcap1(c) as u8,
+            ]);
+            idx += 4;
+        } else {
+            // Not a special key, only modifiers, output directly.
+            let len = utf_char2len(c);
+            if len == 1 && vim_isprintc(c) {
+                if let Some(ref mut d) = data {
+                    if (b'A' as i32..=b'Z' as i32).contains(&c) {
+                        d.key_mem = c as u8 + 32;
+                        d.key = NvimString {
+                            data: (&raw mut d.key_mem).cast(),
+                            size: 1,
+                        };
+                        if !is_ascii_ctrl {
+                            d.mods |= i32::from(MOD_MASK_SHIFT);
                         }
-                    }
-
-                    *string.wrapping_add(idx) = c as u8;
-                    idx += 1;
-                } else if len > 1 {
-                    if data.is_some() {
-                        data.as_deref_mut().unwrap().key = NvimString {
+                        d.key_alt = NvimString {
                             data: string.wrapping_add(idx).cast(),
                             size: len as usize,
                         };
-                        data.as_deref_mut().unwrap().key_alt = NvimString {
+                    } else {
+                        d.key_alt = NvimString {
                             data: std::ptr::null_mut(),
                             size: 0,
                         };
-                    }
-
-                    idx += utf_char2bytes(c, string.wrapping_add(idx).cast()) as usize;
-                } else {
-                    let tc = transchar(c);
-                    let mut s: *const u8 = tc.as_ptr().cast();
-
-                    if data.is_some() {
-                        data.as_deref_mut().unwrap().key_mem = c as u8;
-                        data.as_deref_mut().unwrap().key = NvimString {
-                            data: std::ptr::addr_of_mut!(data.as_deref_mut().unwrap().key_mem)
-                                .cast(),
-                            size: 1,
-                        };
-                        data.as_deref_mut().unwrap().key_alt = NvimString {
+                        d.key = NvimString {
                             data: string.wrapping_add(idx).cast(),
-                            size: tc.to_bytes().len(),
+                            size: len as usize,
                         };
-                    }
-
-                    while *s != 0 {
-                        *string.wrapping_add(idx) = *s;
-                        idx += 1;
-                        s = s.wrapping_add(1);
                     }
                 }
-            }
-        } else {
-            // use name of special key
-            let entry = &KEY_NAMES_TABLE[table_idx as usize];
-            let s_bytes = entry.name.to_bytes();
-            let s_str = NvimString {
-                data: entry.name.as_ptr().cast_mut(),
-                size: s_bytes.len(),
-            };
 
-            if data.is_some() {
-                if (0..=0x7f).contains(&c) {
-                    data.as_deref_mut().unwrap().key_mem = c as u8;
-                    data.as_deref_mut().unwrap().key = NvimString {
-                        data: std::ptr::addr_of_mut!(data.as_deref_mut().unwrap().key_mem).cast(),
-                        size: 1,
+                string_buf[idx] = c as u8;
+                idx += 1;
+            } else if len > 1 {
+                if let Some(ref mut d) = data {
+                    d.key = NvimString {
+                        data: string.wrapping_add(idx).cast(),
+                        size: len as usize,
                     };
-                    data.as_deref_mut().unwrap().key_alt = s_str;
-                } else {
-                    data.as_deref_mut().unwrap().key = s_str;
-                    data.unwrap().key_alt = NvimString {
+                    d.key_alt = NvimString {
                         data: std::ptr::null_mut(),
                         size: 0,
                     };
                 }
-            }
 
-            if s_bytes.len() + idx + 2 <= MAX_KEY_NAME_LEN {
-                std::ptr::copy_nonoverlapping(
-                    entry.name.as_ptr().cast::<u8>(),
-                    string.wrapping_add(idx),
-                    s_bytes.len(),
-                );
-                idx += s_bytes.len();
+                idx += utf_char2slice(c, &mut string_buf[idx..]);
+            } else {
+                let tc_bytes = transchar(c).to_bytes();
+
+                if let Some(ref mut d) = data {
+                    d.key_mem = c as u8;
+                    d.key = NvimString {
+                        data: (&raw mut d.key_mem).cast(),
+                        size: 1,
+                    };
+                    d.key_alt = NvimString {
+                        data: string.wrapping_add(idx).cast(),
+                        size: tc_bytes.len(),
+                    };
+                }
+
+                string_buf[idx..idx + tc_bytes.len()].copy_from_slice(tc_bytes);
+                idx += tc_bytes.len();
             }
         }
-        *string.wrapping_add(idx) = b'>';
-        idx += 1;
-        *string.wrapping_add(idx) = 0;
+    } else {
+        // use name of special key
+        let entry = &KEY_NAMES_TABLE[table_idx as usize];
+        let s_bytes = entry.name.to_bytes();
+        let s_str = NvimString {
+            data: entry.name.as_ptr().cast_mut(),
+            size: s_bytes.len(),
+        };
 
-        CStr::from_ptr(string.cast())
+        if let Some(ref mut d) = data {
+            if (0..=0x7f).contains(&c) {
+                d.key_mem = c as u8;
+                d.key = NvimString {
+                    data: (&raw mut d.key_mem).cast(),
+                    size: 1,
+                };
+                d.key_alt = s_str;
+            } else {
+                d.key = s_str;
+                d.key_alt = NvimString {
+                    data: std::ptr::null_mut(),
+                    size: 0,
+                };
+            }
+        }
+
+        if s_bytes.len() + idx + 2 <= MAX_KEY_NAME_LEN {
+            string_buf[idx..idx + s_bytes.len()].copy_from_slice(s_bytes);
+            idx += s_bytes.len();
+        }
     }
+    string_buf[idx] = b'>';
+    idx += 1;
+    string_buf[idx] = 0;
+
+    CStr::from_bytes_until_nul(string_buf).unwrap_or(c"")
 }
 
 /// Return string representing the key "chord" (key + modifiers) (`get_special_key_name`).
@@ -2696,176 +2683,132 @@ pub fn replace_termcodes(
     mut did_simplify: Option<&mut bool>,
     cpo_val: impl crate::strings::IntoCCharPtr,
 ) -> Option<std::ffi::CString> {
-    let from: *const u8 = from.into_c_char_ptr().cast();
+    let from = from.into_c_char_ptr();
     let cpo_val = cpo_val.into_c_char_ptr();
-    unsafe {
-        let mut dlen: usize = 0;
-        let end_exclusive = from.wrapping_add(from_len);
+    let from_slice = crate::memory::cstr_slice(from, from_len);
+    let mut dlen: usize = 0;
 
-        // backslash is a special character
-        let do_backslash = !crate::strings::vim_haschr(cpo_val, K_CPO_BSLASH);
-        let do_special = (flags & REPTERM_NO_SPECIAL) == 0;
+    // backslash is a special character
+    let do_backslash = !crate::strings::vim_haschr(cpo_val, K_CPO_BSLASH);
+    let do_special = (flags & REPTERM_NO_SPECIAL) == 0;
 
-        // Allocate space for the translation. Worst case a single character is
-        // replaced by 6 bytes (shifted special key), plus a NUL at the end.
-        let buf_len: usize = if buf_limit { 128 } else { from_len * 6 + 1 };
-        let mut temp_buf: Vec<u8> = vec![0; buf_len];
-        let result: *mut u8 = temp_buf.as_mut_ptr();
+    // Allocate space for the translation. Worst case a single character is
+    // replaced by 6 bytes (shifted special key), plus a NUL at the end.
+    let buf_len: usize = if buf_limit { 128 } else { from_len * 6 + 1 };
+    let mut temp_buf: Vec<u8> = vec![0; buf_len];
 
-        let mut src = from;
+    let mut pos = 0usize;
 
-        // Copy each byte from *from to result[dlen]
-        while (src as usize) < (end_exclusive as usize) {
-            if buf_limit && dlen + 64 > buf_len {
-                return None;
-            }
-            let rem = (end_exclusive as usize) - (src as usize);
+    while pos < from_slice.len() {
+        if buf_limit && dlen + 64 > buf_len {
+            return None;
+        }
+        let rest = &from_slice[pos..];
 
-            // Check for special <> keycodes, like "<C-S-LeftMouse>"
-            if do_special
-                && ((flags & REPTERM_DO_LT) != 0
-                    || (rem >= 4 && crate::memory::cstr_slice(src.cast(), 4) != b"<lt>"))
-            {
-                // Change <SID>Func to K_SNR <script-nr> _Func. This name is used
-                // for script-local user functions.
-                if rem >= 5
-                    && crate::memory::cstr_prefix_bytes(src.cast(), 5)
-                        .eq_ignore_ascii_case(b"<SID>")
-                {
-                    if sid_arg < 0 || (sid_arg == 0 && g_st().current_sctx.sc_sid <= 0) {
-                        emsg(E_USINGSID);
+        // Check for special <> keycodes, like "<C-S-LeftMouse>"
+        if do_special
+            && ((flags & REPTERM_DO_LT) != 0 || (rest.len() >= 4 && &rest[..4] != b"<lt>"))
+        {
+            // Change <SID>Func to K_SNR <script-nr> _Func. This name is used
+            // for script-local user functions.
+            if rest.len() >= 5 && rest[..5].eq_ignore_ascii_case(b"<SID>") {
+                if sid_arg < 0 || (sid_arg == 0 && g_st().current_sctx.sc_sid <= 0) {
+                    emsg(E_USINGSID);
+                } else {
+                    let sid: Scid = if sid_arg != 0 {
+                        sid_arg
                     } else {
-                        let sid: Scid = if sid_arg != 0 {
-                            sid_arg
-                        } else {
-                            g_st().current_sctx.sc_sid
-                        };
-                        src = src.wrapping_add(5);
-                        *result.wrapping_add(dlen) = K_SPECIAL;
-                        dlen += 1;
-                        *result.wrapping_add(dlen) = KS_EXTRA;
-                        dlen += 1;
-                        *result.wrapping_add(dlen) = KE_SNR;
-                        dlen += 1;
-                        vim_snprintf!(
-                            result.wrapping_add(dlen).cast(),
-                            buf_len - dlen,
-                            c"%d",
-                            sid as i32,
-                        );
-                        dlen += crate::memory::cstr_len(result.wrapping_add(dlen).cast());
-                        *result.wrapping_add(dlen) = b'_';
-                        dlen += 1;
-                        continue;
-                    }
-                }
-
-                let fsk_flags = FSK_KEYCODE
-                    | if (flags & REPTERM_NO_SIMPLIFY) != 0 {
-                        0
-                    } else {
-                        FSK_SIMPLIFY
+                        g_st().current_sctx.sc_sid
                     };
-                let slen = trans_special(
-                    &mut src,
-                    rem,
-                    &mut temp_buf[dlen..],
-                    fsk_flags,
-                    true,
-                    (did_simplify.is_some()).then(|| &mut *did_simplify.as_deref_mut().unwrap()),
-                ) as usize;
-                if slen != 0 {
-                    dlen += slen;
+                    pos += 5;
+                    temp_buf[dlen..dlen + 3].copy_from_slice(&[K_SPECIAL, KS_EXTRA, KE_SNR]);
+                    dlen += 3;
+                    let sid_str = (sid as i32).to_string();
+                    let sid_bytes = sid_str.as_bytes();
+                    temp_buf[dlen..dlen + sid_bytes.len()].copy_from_slice(sid_bytes);
+                    dlen += sid_bytes.len();
+                    temp_buf[dlen] = b'_';
+                    dlen += 1;
                     continue;
                 }
             }
 
-            if do_special {
-                // Replace <Leader> by the value of "mapleader".
-                // Replace <LocalLeader> by the value of "maplocalleader".
-                // If "mapleader" or "maplocalleader" isn't set use a backslash.
-                let (len, p): (usize, *mut u8) = if rem >= 8
-                    && crate::memory::cstr_prefix_bytes(src.cast(), 8)
-                        .eq_ignore_ascii_case(b"<Leader>")
-                {
-                    (
-                        8,
-                        get_var_value(c"g:mapleader")
-                            .map_or(std::ptr::null_mut(), |s| s.as_ptr().cast_mut().cast()),
-                    )
-                } else if rem >= 13
-                    && crate::memory::cstr_prefix_bytes(src.cast(), 13)
-                        .eq_ignore_ascii_case(b"<LocalLeader>")
-                {
-                    (
-                        13,
-                        get_var_value(c"g:maplocalleader")
-                            .map_or(std::ptr::null_mut(), |s| s.as_ptr().cast_mut().cast()),
-                    )
+            let fsk_flags = FSK_KEYCODE
+                | if (flags & REPTERM_NO_SIMPLIFY) != 0 {
+                    0
                 } else {
-                    (0, std::ptr::null_mut())
+                    FSK_SIMPLIFY
                 };
-
-                if len != 0 {
-                    let mut s: *const u8 =
-                        if p.is_null() || *p == 0 || crate::memory::cstr_len(p.cast()) > 8 * 6 {
-                            c"\\".as_ptr().cast()
-                        } else {
-                            p
-                        };
-                    while *s != 0 {
-                        *result.wrapping_add(dlen) = *s;
-                        dlen += 1;
-                        s = s.wrapping_add(1);
-                    }
-                    src = src.wrapping_add(len);
-                    continue;
-                }
-            }
-
-            // Remove CTRL-V and ignore the next character.
-            // For "from" side the CTRL-V at the end is included, for the "to"
-            // part it is removed.
-            // If 'cpoptions' does not contain 'B', also accept a backslash.
-            let key = *src;
-            if key == CTRL_V_CONST || (do_backslash && key == b'\\') {
-                src = src.wrapping_add(1); // skip CTRL-V or backslash
-                if (src as usize) >= (end_exclusive as usize) {
-                    if (flags & REPTERM_FROM_PART) != 0 {
-                        *result.wrapping_add(dlen) = key;
-                        dlen += 1;
-                    }
-                    break;
-                }
-            }
-
-            // skip multibyte char correctly
-            let rem_after = (end_exclusive as usize) - (src as usize);
-            let mut i = utfc_ptr2len_len(src.cast(), rem_after as i32) as isize;
-            while i > 0 {
-                // If the character is K_SPECIAL, replace it with K_SPECIAL
-                // KS_SPECIAL KE_FILLER.
-                if crate::memory::cstr_first_byte(src.cast()) == K_SPECIAL {
-                    *result.wrapping_add(dlen) = K_SPECIAL;
-                    dlen += 1;
-                    *result.wrapping_add(dlen) = KS_SPECIAL;
-                    dlen += 1;
-                    *result.wrapping_add(dlen) = KE_FILLER;
-                    dlen += 1;
-                } else {
-                    *result.wrapping_add(dlen) = *src;
-                    dlen += 1;
-                }
-                src = src.wrapping_add(1);
-                i -= 1;
+            if let Some((consumed, slen)) = trans_special_slice(
+                rest,
+                &mut temp_buf[dlen..],
+                fsk_flags,
+                true,
+                did_simplify.as_deref_mut(),
+            ) {
+                pos += consumed;
+                dlen += slen;
+                continue;
             }
         }
-        *result.wrapping_add(dlen) = 0;
 
-        Some(crate::memory::cstr_from_bytes(std::slice::from_raw_parts(
-            result, dlen,
-        )))
+        if do_special {
+            // Replace <Leader> by the value of "mapleader".
+            // Replace <LocalLeader> by the value of "maplocalleader".
+            // If "mapleader" or "maplocalleader" isn't set use a backslash.
+            let (len, leader_opt) =
+                if rest.len() >= 8 && rest[..8].eq_ignore_ascii_case(b"<Leader>") {
+                    (8, get_var_value(c"g:mapleader"))
+                } else if rest.len() >= 13 && rest[..13].eq_ignore_ascii_case(b"<LocalLeader>") {
+                    (13, get_var_value(c"g:maplocalleader"))
+                } else {
+                    (0, None)
+                };
+
+            if len != 0 {
+                let leader_bytes = leader_opt
+                    .map(CStr::to_bytes)
+                    .filter(|b| !b.is_empty() && b.len() <= 8 * 6)
+                    .unwrap_or(b"\\");
+                temp_buf[dlen..dlen + leader_bytes.len()].copy_from_slice(leader_bytes);
+                dlen += leader_bytes.len();
+                pos += len;
+                continue;
+            }
+        }
+
+        // Remove CTRL-V and ignore the next character.
+        // For "from" side the CTRL-V at the end is included, for the "to"
+        // part it is removed.
+        // If 'cpoptions' does not contain 'B', also accept a backslash.
+        let key = rest[0];
+        if key == CTRL_V_CONST || (do_backslash && key == b'\\') {
+            pos += 1; // skip CTRL-V or backslash
+            if pos >= from_slice.len() {
+                if (flags & REPTERM_FROM_PART) != 0 {
+                    temp_buf[dlen] = key;
+                    dlen += 1;
+                }
+                break;
+            }
+        }
+
+        // skip multibyte char correctly
+        let after_rest = &from_slice[pos..];
+        let char_len = utfc_slice2len(after_rest).max(1).min(after_rest.len());
+        for &b in &after_rest[..char_len] {
+            if b == K_SPECIAL {
+                temp_buf[dlen..dlen + 3].copy_from_slice(&[K_SPECIAL, KS_SPECIAL, KE_FILLER]);
+                dlen += 3;
+            } else {
+                temp_buf[dlen] = b;
+                dlen += 1;
+            }
+        }
+        pos += char_len;
     }
+
+    Some(crate::memory::cstr_from_bytes(&temp_buf[..dlen]))
 }
 
 /// Add character `c` to buffer `dst`, escaping `K_SPECIAL` (`add_char2buf`).
@@ -2906,28 +2849,26 @@ pub fn vim_strsave_escape_ks(p: impl crate::strings::IntoCCharPtr) -> std::ffi::
 }
 
 /// Remove escaping from `K_SPECIAL` characters in-place (`vim_unescape_ks`).
-pub fn vim_unescape_ks(p: *mut u8) -> usize {
-    unsafe {
-        let mut s = p;
-        let mut d = p;
+pub fn vim_unescape_ks(buf: &mut [u8]) -> usize {
+    let len = buf.iter().position(|&b| b == NUL).unwrap_or(buf.len());
+    let mut s = 0usize;
+    let mut d = 0usize;
 
-        while *s != NUL {
-            if *s == K_SPECIAL
-                && *s.wrapping_add(1) == KS_SPECIAL
-                && *s.wrapping_add(2) == KE_FILLER
-            {
-                *d = K_SPECIAL;
-                d = d.wrapping_add(1);
-                s = s.wrapping_add(3);
-            } else {
-                *d = *s;
-                d = d.wrapping_add(1);
-                s = s.wrapping_add(1);
-            }
+    while s < len {
+        if buf[s..len].starts_with(&[K_SPECIAL, KS_SPECIAL, KE_FILLER]) {
+            buf[d] = K_SPECIAL;
+            d += 1;
+            s += 3;
+        } else {
+            buf[d] = buf[s];
+            d += 1;
+            s += 1;
         }
-        *d = NUL;
-        (d as usize) - (p as usize)
     }
+    if d < buf.len() {
+        buf[d] = NUL;
+    }
+    d
 }
 
 #[cfg(test)]
@@ -2971,7 +2912,7 @@ mod tests {
     #[test]
     fn vim_unescape_ks_unescapes_in_place() {
         let mut buf = [K_SPECIAL, KS_SPECIAL, KE_FILLER, b'a', 0];
-        let len = vim_unescape_ks(buf.as_mut_ptr());
+        let len = vim_unescape_ks(&mut buf);
         assert_eq!(len, 2);
         assert_eq!(buf[0], K_SPECIAL);
         assert_eq!(buf[1], b'a');
