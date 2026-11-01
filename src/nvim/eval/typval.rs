@@ -309,6 +309,11 @@ impl TypvalVval {
     }
 
     #[inline]
+    pub fn v_string_cstr(self) -> Option<&'static CStr> {
+        crate::memory::cstr_as_opt_cstr(self.v_string())
+    }
+
+    #[inline]
     pub const fn v_list(self) -> *mut TvList {
         match self {
             Self::List(p) => p,
@@ -2915,6 +2920,20 @@ pub fn tv_dict_find<S: crate::strings::IntoCCharPtr>(
             return ptr::null_mut();
         }
         tv_dict_hi2di(hi)
+    }
+}
+
+/// Find item in dictionary and return a mutable reference if present.
+pub fn tv_dict_find_opt<S: crate::strings::IntoCCharPtr>(
+    d: Option<&TvDict>,
+    key: S,
+    len: isize,
+) -> Option<&'static mut Dictitem> {
+    let di = tv_dict_find(d, key, len);
+    if di.is_null() {
+        None
+    } else {
+        Some(unsafe { &mut *di })
     }
 }
 
