@@ -2257,9 +2257,7 @@ fn parse_sort_uniq_args(argvars: &mut [TypVal], info: &mut Sortinfo) -> bool {
             info.item_compare_ic = 1;
         } else if argvars[1].v_type != VarType::VarNumber {
             let s = tv_get_string(&argvars[1]);
-            if !s.is_null() {
-                info.item_compare_func = Some(crate::memory::cstr_to_cstring(s));
-            }
+            info.item_compare_func = Some(s.to_owned());
         } else if nr != 0 {
             emsg(tr(E_INVARG));
             return false;
@@ -2471,9 +2469,7 @@ pub fn tv_list_find_str(l: Option<&mut TvList>, n: i32) -> Option<&'static std::
         semsg!(tr(E_LIST_INDEX_OUT_OF_RANGE_NR), i64::from(n));
         return None;
     }
-    Some(crate::memory::cstr_from_ptr(tv_get_string(unsafe {
-        &(*li).li_tv
-    })))
+    Some(tv_get_string(unsafe { &(*li).li_tv }))
 }
 
 fn tv_list_find_index(mut l: Option<&mut TvList>, idx: &mut i32) -> *mut Listitem {
@@ -2980,9 +2976,8 @@ pub fn tv_dict_to_env(denv: Option<&TvDict>) -> Vec<std::ffi::CString> {
                 todo -= 1;
                 let var = tv_dict_hi2di(hi);
                 let str_ = tv_get_string(&var.di_tv);
-                debug_assert!(!str_.is_null());
                 let key_bytes = crate::memory::cstr_as_bytes(&var.di_key);
-                let val_bytes = crate::memory::cstr_as_bytes(str_);
+                let val_bytes = str_.to_bytes();
                 let mut entry = Vec::with_capacity(key_bytes.len() + 1 + val_bytes.len());
                 entry.extend_from_slice(key_bytes);
                 entry.push(b'=');
@@ -5013,8 +5008,8 @@ pub fn tv_get_string_chk(tv: &TypVal) -> Option<&std::ffi::CStr> {
 }
 
 /// Get the string value of a "stringish" Vimscript object.
-pub fn tv_get_string(tv: &TypVal) -> RawCCharPtr {
-    tv_get_string_buf(tv, &mut tv_st().mybuf).as_ptr()
+pub fn tv_get_string(tv: &TypVal) -> &std::ffi::CStr {
+    tv_get_string_buf(tv, &mut tv_st().mybuf)
 }
 
 /// Get the string value of a "stringish" Vimscript object.

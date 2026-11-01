@@ -448,12 +448,7 @@ fn filter_map(argvars: &mut [TypVal], rettv: &mut TypVal, filtermap: FilterMap) 
             filter_map_blob(arg0.vval.v_blob(), filtermap, expr, arg_errmsg, rettv);
         }
         VarType::VarString => {
-            filter_map_string(
-                crate::memory::cstr_as_bytes(tv_get_string(arg0)),
-                filtermap,
-                expr,
-                rettv,
-            );
+            filter_map_string(tv_get_string(arg0).to_bytes(), filtermap, expr, rettv);
         }
         VarType::VarList => {
             filter_map_list(

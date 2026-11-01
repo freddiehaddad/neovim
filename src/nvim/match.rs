@@ -912,7 +912,7 @@ fn matchadd_dict_arg(
 
         let di = tv_dict_find(tv.vval.v_dict().as_ref(), c"conceal", 7);
         if !di.is_null() {
-            *conceal_char = crate::memory::cstr_as_opt_cstr(tv_get_string(&(*di).di_tv));
+            *conceal_char = Some(tv_get_string(&(*di).di_tv));
         }
 
         let di = tv_dict_find(tv.vval.v_dict().as_ref(), c"window", 6);
@@ -1078,7 +1078,7 @@ pub fn f_setmatches(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncD
             let id = tv_dict_get_number(d.as_ref(), c"id") as i32;
             let conceal_di = tv_dict_find(d.as_ref(), c"conceal", 7);
             let conceal = if !conceal_di.is_null() {
-                tv_get_string(&(*conceal_di).di_tv)
+                tv_get_string(&(*conceal_di).di_tv).as_ptr()
             } else {
                 ptr::null()
             };

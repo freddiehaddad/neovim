@@ -7577,7 +7577,7 @@ pub fn cmd_exists(name: impl crate::strings::IntoCCharPtr) -> i32 {
 }
 
 pub fn f_fullcommand(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
-    let mut name = tv_get_string(&argvars[0]).cast_mut();
+    let mut name = tv_get_string(&argvars[0]).as_ptr().cast_mut();
 
     rettv.v_type = VarType::VarString;
     rettv.vval = crate::eval::typval::TypvalVval::String(ptr::null_mut());

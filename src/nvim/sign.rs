@@ -1839,7 +1839,7 @@ fn sign_unplace_from_dict(group_tv: Option<&TypVal>, dict: Option<&TvDict>) -> i
     let mut id: i32 = 0;
     let mut buf: *mut FileBuf = ptr::null_mut();
     let mut group = if let Some(group_tv) = group_tv {
-        tv_get_string(group_tv).cast_mut()
+        tv_get_string(group_tv).as_ptr().cast_mut()
     } else {
         tv_dict_get_string(dict, c"group").map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut())
     };

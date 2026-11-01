@@ -2396,7 +2396,7 @@ pub fn get_vim_var_dict(idx: VimVarIndex) -> *mut TvDict {
 }
 
 pub fn get_vim_var_str(idx: VimVarIndex) -> &'static CStr {
-    crate::memory::cstr_from_ptr(tv_get_string(get_vim_var_tv(idx)))
+    tv_get_string(get_vim_var_tv(idx))
 }
 
 pub fn get_vim_var_partial(idx: VimVarIndex) -> *mut TvPartial {
@@ -2920,9 +2920,7 @@ pub fn get_var_value(name: &std::ffi::CStr) -> Option<&'static CStr> {
     if v.is_null() {
         return None;
     }
-    Some(crate::memory::cstr_from_ptr(tv_get_string(unsafe {
-        &(*v).di_tv
-    })))
+    Some(tv_get_string(unsafe { &(*v).di_tv }))
 }
 
 /// Allocate a new hashtab for a sourced script.

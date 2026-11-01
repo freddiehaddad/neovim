@@ -705,22 +705,18 @@ fn findfilendir(argvars: &mut [TypVal], rettv: &mut TypVal, find_what: i32) {
         tv_list_alloc_ret(&mut *rettv, K_LIST_LEN_UNKNOWN);
     }
 
-    if !crate::memory::cstr_is_empty(fname) && !error {
+    if !fname.is_empty() && !error {
         let mut file_to_find: Option<std::ffi::CString> = None;
         let mut search_ctx: Option<FfSearchCtx> = None;
 
         loop {
             fresult = find_file_in_path_option(
                 if first {
-                    fname.cast_mut()
+                    fname.as_ptr().cast_mut()
                 } else {
                     ptr::null_mut()
                 },
-                if first {
-                    crate::memory::cstr_len(fname)
-                } else {
-                    0
-                },
+                if first { fname.to_bytes().len() } else { 0 },
                 0,
                 i32::from(first),
                 path,
@@ -1129,7 +1125,7 @@ pub fn f_glob(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
         if rettv.v_type == VarType::VarString {
             if let Some(exp) = expand_one(
                 &mut xpc,
-                tv_get_string(&argvars[0]).cast_mut(),
+                tv_get_string(&argvars[0]).as_ptr().cast_mut(),
                 None,
                 options,
                 WILD_ALL,
@@ -1141,7 +1137,7 @@ pub fn f_glob(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
         } else {
             expand_one(
                 &mut xpc,
-                tv_get_string(&argvars[0]).cast_mut(),
+                tv_get_string(&argvars[0]).as_ptr().cast_mut(),
                 None,
                 options,
                 WILD_ALL_KEEP,
@@ -1193,7 +1189,7 @@ pub fn f_globpath(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDat
     {
         let mut ga: Vec<std::ffi::CString> = Vec::new();
         globpath(
-            tv_get_string(&argvars[0]).cast_mut(),
+            tv_get_string(&argvars[0]).as_ptr().cast_mut(),
             file.as_ptr().cast_mut(),
             &mut ga,
             flags,
@@ -1442,8 +1438,11 @@ pub fn f_readdir(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData
         return;
     }
 
-    let path = tv_get_string(&argvars[0]);
-    let expr = (&raw mut argvars[1]);
+    let [arg0, arg1, ..] = argvars else {
+        unreachable!()
+    };
+    let path = tv_get_string(arg0);
+    let expr = &raw mut *arg1;
     let mut entries: Vec<std::ffi::CString> = Vec::new();
     let ret = readdir_core(&mut entries, path, unsafe { expr.as_mut() });
     if ret {
@@ -1520,7 +1519,7 @@ fn read_file_or_blob(argvars: &mut [TypVal], rettv: &mut TypVal, always_blob: bo
                     size = tv_get_number(&argvars[2]);
                 }
             } else {
-                let arg1 = crate::memory::cstr_as_bytes(tv_get_string(&argvars[1]));
+                let arg1 = tv_get_string(&argvars[1]).to_bytes();
                 if arg1 == b"b" {
                     binary = true;
                 } else if arg1 == b"B" {

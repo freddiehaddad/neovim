@@ -79,7 +79,7 @@ pub fn f_rpcstart(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDat
 
     if argsl > 0 && !args.is_null() {
         for li in crate::eval::typval::list_iter_mut(unsafe { (*args).lv_first }) {
-            argv.push(crate::memory::cstr_to_cstring(tv_get_string(&li.li_tv)));
+            argv.push(tv_get_string(&li.li_tv).to_owned());
         }
     }
 

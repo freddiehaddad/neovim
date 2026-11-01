@@ -1547,7 +1547,7 @@ pub fn f_call(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
         nlua_register_table_as_callable(&argvars[0])
             .map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut())
     } else {
-        tv_get_string(&argvars[0]).cast_mut()
+        tv_get_string(&argvars[0]).as_ptr().cast_mut()
     };
 
     if crate::memory::cstr_is_empty(func) {
@@ -2219,7 +2219,7 @@ pub fn f_execute(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData
 /// "exists()" function
 pub fn f_exists(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
     let mut n: i32 = 0;
-    let mut p = tv_get_string(&argvars[0]);
+    let mut p = tv_get_string(&argvars[0]).as_ptr();
     if crate::memory::cstr_first_byte(p) == b'$' {
         if os_env_exists(p.wrapping_add(1), false) {
             n = 1;
@@ -2269,7 +2269,7 @@ pub fn f_expand(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData)
         tv_list_set_ret(rettv, ptr::null_mut());
     }
 
-    let s = tv_get_string(&argvars[0]);
+    let s = tv_get_string(&argvars[0]).as_ptr();
     if crate::memory::cstr_first_byte(s) == b'%'
         || crate::memory::cstr_first_byte(s) == b'#'
         || crate::memory::cstr_first_byte(s) == b'<'
@@ -2338,7 +2338,7 @@ pub fn f_menu_get(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDat
         let strmodes = tv_get_string(&argvars[1]);
         modes = get_menu_cmd_modes(strmodes, false, None, None);
     }
-    menu_get(tv_get_string(&argvars[0]).cast_mut(), modes, {
+    menu_get(tv_get_string(&argvars[0]).as_ptr().cast_mut(), modes, {
         rettv.vval.v_list_ref()
     });
 }
@@ -2523,7 +2523,7 @@ fn common_function(argvars: &mut [TypVal], rettv: &mut TypVal, is_funcref: bool)
             partial_name(arg_pt.as_ref()).as_ptr().cast_mut()
         } else {
             use_string = true;
-            tv_get_string(&argvars[0]).cast_mut()
+            tv_get_string(&argvars[0]).as_ptr().cast_mut()
         };
 
         if (use_string && !crate::strings::vim_haschr(s, AUTOLOAD_CHAR)) || is_funcref {
@@ -2549,9 +2549,9 @@ fn common_function(argvars: &mut [TypVal], rettv: &mut TypVal, is_funcref: bool)
                 semsg!(
                     gettext(E_INVARG2),
                     if use_string {
-                        tv_get_string(&argvars[0])
+                        tv_get_string(&argvars[0]).as_ptr()
                     } else {
-                        s
+                        s.cast_const()
                     },
                 );
             } else if !trans_name.is_null()
@@ -3632,7 +3632,8 @@ pub fn f_gettext(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData
 pub fn f_has(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
     let mut x = false;
     let mut n = false;
-    let name = tv_get_string(&argvars[0]);
+    let name_cstr = tv_get_string(&argvars[0]);
+    let name = name_cstr.as_ptr();
 
     if crate::memory::cstr_prefix_bytes(name, 5).eq_ignore_ascii_case(b"patch") {
         x = true;
@@ -4207,7 +4208,7 @@ pub fn f_islocked(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDat
     let mut lv: Lval = Lval::new();
     rettv.vval = crate::eval::typval::TypvalVval::Number(-1);
     let end = get_lval(
-        tv_get_string(&argvars[0]).cast_mut(),
+        tv_get_string(&argvars[0]).as_ptr().cast_mut(),
         None,
         &mut lv,
         false,
@@ -5134,9 +5135,10 @@ fn find_some_match(argvars: &mut [TypVal], rettv: &mut TypVal, type_: SomeMatchT
                 }
                 li = tv_list_first(l.as_ref());
             } else {
-                str_ = tv_get_string(&argvars[0]).cast_mut();
+                let s = tv_get_string(&argvars[0]);
+                str_ = s.as_ptr().cast_mut();
                 expr = str_;
-                len = crate::memory::cstr_len(str_) as i64;
+                len = s.to_bytes().len() as i64;
             }
 
             let mut patbuf = [0u8; NUMBUFLEN];
@@ -5690,7 +5692,7 @@ pub fn f_state(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) 
     let mut len = 0usize;
     let mut include = ptr::null();
     if argvars[0].v_type != VarType::VarUnknown {
-        include = tv_get_string(&argvars[0]);
+        include = tv_get_string(&argvars[0]).as_ptr();
     }
 
     if !(stuff_empty() && g_st().typebuf.tb_len == 0 && using_script() == 0) {
@@ -5744,9 +5746,7 @@ pub fn f_msgpackdump(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFunc
         }
     }
     let data = packer_take_string(&mut packer);
-    if argvars[1].v_type != VarType::VarUnknown
-        && (crate::memory::cstr_as_opt_bytes(tv_get_string(&argvars[1])) == Some(b"B"))
-    {
+    if argvars[1].v_type != VarType::VarUnknown && tv_get_string(&argvars[1]).to_bytes() == b"B" {
         let b = &mut *tv_blob_alloc_ret(rettv);
         if !data.is_empty() {
             b.bv_ga.extend_from_slice(&data);
@@ -6371,7 +6371,7 @@ fn repeat_string(str_tv: &mut TypVal, n: Varnumber, rettv: &mut TypVal) {
         return;
     }
     let p = tv_get_string(&*str_tv);
-    let slen = crate::memory::cstr_len(p);
+    let slen = p.to_bytes().len();
     if slen == 0 || n <= 0 {
         return;
     }
@@ -6381,7 +6381,7 @@ fn repeat_string(str_tv: &mut TypVal, n: Varnumber, rettv: &mut TypVal) {
     let len = slen * (n as usize);
     let mut r_vec = vec![0u8; len];
     let r = r_vec.as_mut_ptr();
-    unsafe { ptr::copy(p.cast(), r, slen) };
+    unsafe { ptr::copy(p.as_ptr().cast(), r, slen) };
     let mut done = slen;
     while done < len {
         let copy_len = done.min(len - done);
@@ -6454,7 +6454,7 @@ fn reduce_list(argvars: &mut [TypVal], rettv: &mut TypVal) {
 fn reduce_string(argvars: &mut [TypVal], rettv: &mut TypVal) {
     let expr = &argvars[1];
     {
-        let mut p = tv_get_string(&argvars[0]);
+        let mut p = tv_get_string(&argvars[0]).as_ptr();
         let mut len: i32;
         let called_emsg_start = g_st().called_emsg;
 
@@ -6561,7 +6561,7 @@ pub fn f_reduce(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData)
     } else if argvars[1].v_type == VarType::VarPartial {
         partial_name(unsafe { argvars[1].vval.v_partial().as_ref() }).as_ptr()
     } else {
-        tv_get_string(&argvars[1])
+        tv_get_string(&argvars[1]).as_ptr()
     };
     if crate::memory::cstr_is_empty(func_name) {
         emsg(gettext(E_MISSING_FUNCTION_ARGUMENT));
@@ -6577,13 +6577,13 @@ pub fn f_reduce(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData)
     }
 }
 
-fn get_search_arg(varp: &mut TypVal, mut flagsp: Option<&mut i32>) -> i32 {
+fn get_search_arg(varp: &TypVal, mut flagsp: Option<&mut i32>) -> i32 {
     let mut dir = FORWARD;
     if varp.v_type == VarType::VarUnknown {
         return FORWARD;
     }
     let mut nbuf = [0u8; NUMBUFLEN];
-    let Some(flags_cstr) = tv_get_string_buf_chk(&*varp, &mut nbuf) else {
+    let Some(flags_cstr) = tv_get_string_buf_chk(varp, &mut nbuf) else {
         return 0;
     };
     let mut flags = flags_cstr.as_ptr();
@@ -6633,7 +6633,7 @@ fn search_cmn(argvars: &mut [TypVal], match_pos: Option<&mut CursorPos>, flagsp:
 
     'theend: {
         let pat = tv_get_string(&argvars[0]);
-        let dir = get_search_arg(&mut argvars[1], Some(&mut *flagsp));
+        let dir = get_search_arg(&argvars[1], Some(&mut *flagsp));
         if dir == 0 {
             break 'theend;
         }
@@ -6689,7 +6689,8 @@ fn search_cmn(argvars: &mut [TypVal], match_pos: Option<&mut CursorPos>, flagsp:
             sa_wrapped: 0,
         };
 
-        let patlen = crate::memory::cstr_len(pat);
+        let patlen = pat.to_bytes().len();
+        let pat_ptr = pat.as_ptr().cast_mut();
         let mut subpatnum: i32;
 
         loop {
@@ -6699,7 +6700,7 @@ fn search_cmn(argvars: &mut [TypVal], match_pos: Option<&mut CursorPos>, flagsp:
                 unsafe { &mut *(pos.cast()) },
                 None,
                 dir,
-                pat.cast_mut(),
+                pat_ptr,
                 patlen,
                 1,
                 options,
@@ -6805,7 +6806,7 @@ pub fn f_rpcnotify(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDa
 
     let ok = rpc_send_event(
         argvars[0].vval.v_number() as u64,
-        crate::memory::cstr_from_ptr(tv_get_string(&argvars[1])),
+        tv_get_string(&argvars[1]),
         args,
     );
 
@@ -7107,7 +7108,7 @@ fn searchpair_cmn(argvars: &mut [TypVal], match_pos: Option<&mut CursorPos>) -> 
         let mpat = mpat.as_ptr();
         let epat = epat.as_ptr();
 
-        let dir = get_search_arg(&mut argvars[3], Some(&mut flags));
+        let dir = get_search_arg(&argvars[3], Some(&mut flags));
         if dir == 0 {
             break 'theend;
         }
@@ -8103,7 +8104,7 @@ pub fn f_spellsuggest(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFun
             maxcount = 25;
         }
 
-        ga = spell_suggest_list(str_.cast_mut(), maxcount, need_capital, false);
+        ga = spell_suggest_list(str_.as_ptr().cast_mut(), maxcount, need_capital, false);
     }
 
     tv_list_alloc_ret(rettv, ga.len() as isize);
@@ -8125,7 +8126,7 @@ pub fn f_split(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) 
     let save_cpo = opt_vars().p_cpo;
     opt_vars().p_cpo = EMPTY_STRING_OPTION.as_ptr().cast();
 
-    let mut str_ = tv_get_string(&argvars[0]);
+    let mut str_ = tv_get_string(&argvars[0]).as_ptr();
     let mut pat = ptr::null();
     let mut patbuf = [0u8; NUMBUFLEN];
     if argvars[1].v_type != VarType::VarUnknown {
@@ -8280,7 +8281,7 @@ pub fn f_str2float(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDa
 /// "strftime({format}[, {time}])" function
 pub fn f_strftime(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
     rettv.v_type = VarType::VarString;
-    let mut p = tv_get_string(&argvars[0]).cast_mut();
+    let mut p = tv_get_string(&argvars[0]).as_ptr().cast_mut();
     let seconds: time_t = if argvars[1].v_type == VarType::VarUnknown {
         os_time() as time_t
     } else {
@@ -8705,16 +8706,16 @@ pub fn f_tagfiles(_argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDa
 pub fn f_taglist(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
     let tag_pattern = tv_get_string(&argvars[0]);
     rettv.vval = crate::eval::typval::TypvalVval::Number(0);
-    if crate::memory::cstr_is_empty(tag_pattern) {
+    if tag_pattern.is_empty() {
         return;
     }
     let mut fname = ptr::null();
     if argvars[1].v_type != VarType::VarUnknown {
-        fname = tv_get_string(&argvars[1]);
+        fname = tv_get_string(&argvars[1]).as_ptr();
     }
     get_tags(
         &mut *tv_list_alloc_ret(rettv, K_LIST_LEN_UNKNOWN_CONST),
-        tag_pattern.cast_mut(),
+        tag_pattern.as_ptr().cast_mut(),
         fname.cast_mut(),
     );
 }

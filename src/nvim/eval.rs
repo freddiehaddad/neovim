@@ -644,7 +644,7 @@ pub fn eval_to_string_skip(
     if !eval0(arg, &mut tv, Some(&mut *eap), &mut evalarg) || skip {
         retval = None;
     } else {
-        retval = Some(cstr_to_cstring(tv_get_string(&tv)));
+        retval = Some(tv_get_string(&tv).to_owned());
         tv_clear(&mut tv);
     }
     if skip {
@@ -693,7 +693,7 @@ fn typval2string(tv: &mut TypVal, join_list: bool) -> Option<std::ffi::CString> 
     } else if tv.v_type == VarType::VarList || tv.v_type == VarType::VarDict {
         return Some(encode_tv2string(&mut *tv, None));
     }
-    Some(cstr_to_cstring(tv_get_string(&*tv)))
+    Some(tv_get_string(&*tv).to_owned())
 }
 
 /// Top level evaluation function, returning a string.
@@ -888,7 +888,7 @@ pub fn call_func_retstr(
         return None;
     }
 
-    let retval = cstr_to_cstring(tv_get_string(&rettv));
+    let retval = tv_get_string(&rettv).to_owned();
     tv_clear(&mut rettv);
     Some(retval)
 }
@@ -1091,7 +1091,7 @@ fn get_lval_dict_item<T, U>(
         let p = (*key_end).cast();
 
         if len == -1 {
-            key = tv_get_string(&*var1).cast_mut();
+            key = tv_get_string(&*var1).as_ptr().cast_mut();
         }
         lp.ll_list = ptr::null_mut();
 
@@ -3610,7 +3610,8 @@ fn eval_index_inner(
             | VarType::VarUnknown => {}
             VarType::VarNumber | VarType::VarString => {
                 let s = tv_get_string(&*rettv);
-                let len = crate::memory::cstr_len(s) as Varnumber;
+                let s_bytes = s.to_bytes();
+                let len = s_bytes.len() as Varnumber;
                 let v: Option<std::ffi::CString> = if exclusive {
                     if is_range {
                         string_slice(s, n1, n2, exclusive)
@@ -3627,24 +3628,17 @@ fn eval_index_inner(
                     if n2 < 0 {
                         n2 += len;
                     } else if n2 >= len {
-                        n2 = len;
+                        n2 = len - 1;
                     }
                     if n1 >= len || n2 < 0 || n1 > n2 {
                         None
                     } else {
-                        Some(cstr_from_bytes(unsafe {
-                            std::slice::from_raw_parts(
-                                s.wrapping_add(n1 as usize).cast::<u8>(),
-                                (n2 - n1 + 1) as usize,
-                            )
-                        }))
+                        Some(cstr_from_bytes(&s_bytes[n1 as usize..=n2 as usize]))
                     }
                 } else if n1 >= len || n1 < 0 {
                     None
                 } else {
-                    Some(cstr_from_bytes(unsafe {
-                        std::slice::from_raw_parts(s.wrapping_add(n1 as usize).cast::<u8>(), 1)
-                    }))
+                    Some(cstr_from_bytes(&s_bytes[n1 as usize..=n1 as usize]))
                 };
                 tv_clear(rettv);
                 if let Some(ref c) = v {
@@ -5622,7 +5616,9 @@ pub fn save_tv_as_string(tv: &mut TypVal, endnl: bool, crlf: bool) -> Option<Vec
         unsafe { (*list).lv_first }
     };
     while !li.is_null() {
-        total_len += crate::memory::cstr_len(tv_get_string(&*tv_list_item_tv(unsafe { &mut *li })))
+        total_len += tv_get_string(&*tv_list_item_tv(unsafe { &mut *li }))
+            .to_bytes()
+            .len()
             + sep_len;
         li = unsafe { (*li).li_next };
     }
@@ -5639,7 +5635,7 @@ pub fn save_tv_as_string(tv: &mut TypVal, endnl: bool, crlf: bool) -> Option<Vec
     };
     while !li.is_null() {
         let s = tv_get_string(&*tv_list_item_tv(unsafe { &mut *li }));
-        for &s_byte in crate::memory::cstr_as_bytes(s) {
+        for &s_byte in s.to_bytes() {
             ret.push(if s_byte == b'\n' { 0 } else { s_byte });
         }
         if endnl || !tv_list_item_next(unsafe { &*li }).is_null() {
@@ -6739,17 +6735,15 @@ pub fn ex_execute(eap: &mut Exarg) {
                 } else {
                     encode_tv2string(&mut rettv, None)
                 });
-                argstr_owned.as_ref().map_or(c"".as_ptr(), |s| s.as_ptr())
+                argstr_owned.as_deref().unwrap_or(c"")
             };
             if has_arg {
                 buf.push(b' ');
             }
             has_arg = true;
-            let len = crate::memory::cstr_len(argstr);
-            if len > 0 {
-                buf.extend_from_slice(unsafe {
-                    std::slice::from_raw_parts(argstr.cast::<u8>(), len)
-                });
+            let bytes = argstr.to_bytes();
+            if !bytes.is_empty() {
+                buf.extend_from_slice(bytes);
             }
             drop(argstr_owned);
         }

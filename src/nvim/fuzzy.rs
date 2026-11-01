@@ -626,7 +626,7 @@ fn do_fuzzymatch(argvars: &[TypVal], rettv: &mut TypVal, retmatchpos: bool) {
                 semsg!(E_INVARG_NVAL, c"key", tv_get_string(&di_key.di_tv),);
                 return;
             }
-            key = tv_get_string(&di_key.di_tv);
+            key = tv_get_string(&di_key.di_tv).as_ptr();
         } else if !tv_dict_get_callback(unsafe { d.as_mut() }, c"text_cb", -1, &mut cb) {
             semsg!(E_INVARGVAL, c"text_cb");
             return;
@@ -661,7 +661,7 @@ fn do_fuzzymatch(argvars: &[TypVal], rettv: &mut TypVal, retmatchpos: bool) {
 
     fuzzy_match_in_list(
         unsafe { arg0.vval.v_list().as_ref() },
-        tv_get_string(arg1).cast_mut(),
+        tv_get_string(arg1).as_ptr().cast_mut(),
         matchseq,
         key,
         &mut cb,

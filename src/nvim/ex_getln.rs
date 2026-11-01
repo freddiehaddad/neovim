@@ -5344,9 +5344,7 @@ pub fn script_get(eap: &mut Exarg, lenp: &mut usize) -> Option<std::ffi::CString
     for li in crate::eval::typval::list_iter_mut(tv_list_first(unsafe { l.as_ref() })) {
         if eap.skip == 0 {
             let s = tv_get_string(&li.li_tv);
-            if !s.is_null() {
-                buf.extend_from_slice(crate::memory::cstr_as_bytes(s));
-            }
+            buf.extend_from_slice(s.to_bytes());
             buf.push(b'\n');
         }
     }

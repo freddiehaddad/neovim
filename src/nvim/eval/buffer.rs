@@ -484,12 +484,12 @@ pub fn f_prompt_appendbuf(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: Eva
 
 /// `bufadd(expr)` function (`f_bufadd`).
 pub fn f_bufadd(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
-    let name = tv_get_string(&argvars[0]).cast_mut();
+    let name = tv_get_string(&argvars[0]);
     rettv.vval = crate::eval::typval::TypvalVval::Number(buflist_add(
-        if crate::memory::cstr_is_empty(name) {
+        if name.is_empty() {
             ptr::null_mut()
         } else {
-            name
+            name.as_ptr().cast_mut()
         },
         0,
     ) as Varnumber);
@@ -995,7 +995,7 @@ pub fn f_prompt_setprompt(argvars: &mut [TypVal], _rettv: &mut TypVal, _fptr: Ev
     let buf = unsafe { &mut *buf };
 
     let new_prompt = tv_get_string(&argvars[1]);
-    let new_prompt_len = crate::memory::cstr_len(new_prompt) as i32;
+    let new_prompt_len = new_prompt.to_bytes().len() as i32;
 
     if bt_prompt(Some(&*buf)) && buf.b_ml.ml_mfp.is_some() {
         if buf.b_prompt_start.mark.lnum < 1
@@ -1032,7 +1032,13 @@ pub fn f_prompt_setprompt(argvars: &mut [TypVal], _rettv: &mut TypVal, _fptr: Ev
             } == old_prompt_bytes;
 
         if !prefix_matches {
-            ml_replace_buf(&mut *buf, prompt_lno, new_prompt.cast_mut(), true, false);
+            ml_replace_buf(
+                &mut *buf,
+                prompt_lno,
+                new_prompt.as_ptr().cast_mut(),
+                true,
+                false,
+            );
             extmark_splice_cols(
                 &mut *buf,
                 prompt_lno - 1,

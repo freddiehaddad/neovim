@@ -2533,7 +2533,7 @@ pub fn f_charidx(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData
 
 pub fn f_str2list(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
     tv_list_alloc_ret(rettv, K_LIST_LEN_UNKNOWN_CONST);
-    let mut p = tv_get_string(&argvars[0]);
+    let mut p = tv_get_string(&argvars[0]).as_ptr();
     while !crate::memory::cstr_is_empty(p) {
         tv_list_append_number(rettv.vval.v_list_ref(), Varnumber::from(utf_ptr2char(p)));
         p = p.wrapping_add(utf_ptr2len(p) as usize);
@@ -2647,13 +2647,13 @@ pub fn f_string(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData)
 }
 
 pub fn f_strlen(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
-    rettv.vval = crate::eval::typval::TypvalVval::Number(crate::memory::cstr_len(tv_get_string(
-        &argvars[0],
-    )) as Varnumber);
+    rettv.vval = crate::eval::typval::TypvalVval::Number(
+        tv_get_string(&argvars[0]).to_bytes().len() as Varnumber,
+    );
 }
 
 fn strchar_common(argvars: &mut [TypVal], rettv: &mut TypVal, skipcc: bool) {
-    let mut s = tv_get_string(&argvars[0]);
+    let mut s = tv_get_string(&argvars[0]).as_ptr();
     let mut len: Varnumber = 0;
     let func_mb_ptr2char_adv: fn(*mut RawCCharPtr) -> i32 = if skipcc {
         mb_ptr2char_adv
@@ -2699,7 +2699,7 @@ pub fn f_strutf16len(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFunc
         countcc = tv_get_bool(&argvars[1]);
     }
 
-    let mut s = tv_get_string(&argvars[0]);
+    let mut s = tv_get_string(&argvars[0]).as_ptr();
     let mut len: Varnumber = 0;
     let func_mb_ptr2char_adv: fn(*mut RawCCharPtr) -> i32 = if countcc != 0 {
         mb_cptr2char_adv
@@ -2723,7 +2723,7 @@ pub fn f_strdisplaywidth(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: Eval
         col = tv_get_number(&argvars[1]) as i32;
     }
     rettv.vval = crate::eval::typval::TypvalVval::Number(Varnumber::from(
-        linetabsize_col(col, s.cast_mut()) - col,
+        linetabsize_col(col, s.as_ptr().cast_mut()) - col,
     ));
 }
 
@@ -2733,8 +2733,9 @@ pub fn f_strwidth(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDat
 }
 
 pub fn f_strcharpart(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
-    let p = tv_get_string(&argvars[0]);
-    let slen = crate::memory::cstr_len(p);
+    let p_cstr = tv_get_string(&argvars[0]);
+    let p = p_cstr.as_ptr();
+    let slen = p_cstr.to_bytes().len();
 
     let mut nbyte: i32 = 0;
     let mut skipcc: Varnumber = 0;
@@ -2800,8 +2801,9 @@ pub fn f_strcharpart(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFunc
 
 pub fn f_strpart(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
     let mut error = false;
-    let p = tv_get_string(&argvars[0]);
-    let slen = crate::memory::cstr_len(p) as Varnumber;
+    let p_cstr = tv_get_string(&argvars[0]);
+    let p = p_cstr.as_ptr();
+    let slen = p_cstr.to_bytes().len() as Varnumber;
 
     let mut n = tv_get_number_chk(&argvars[1], Some(&mut error));
     let mut len = if error {
@@ -2987,7 +2989,7 @@ pub fn f_tr(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
     let mut buf = [0u8; NUMBUFLEN];
     let mut buf2 = [0u8; NUMBUFLEN];
 
-    let mut in_str = tv_get_string(&argvars[0]);
+    let mut in_str = tv_get_string(&argvars[0]).as_ptr();
     let fromstr = tv_get_string_buf_chk(&argvars[1], &mut buf);
     let tostr = tv_get_string_buf_chk(&argvars[2], &mut buf2);
 

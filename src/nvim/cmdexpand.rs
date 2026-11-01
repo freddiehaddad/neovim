@@ -6078,10 +6078,10 @@ pub fn f_getcompletion(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFu
         }
         return;
     }
-    let pattern: *const u8 = tv_get_string(&argvars[0]).cast();
+    let pattern: *const u8 = tv_get_string(&argvars[0]).as_ptr().cast();
     let mut pattern_start = pattern;
 
-    if crate::memory::cstr_as_bytes(type_str) == b"cmdline" {
+    if type_str.to_bytes() == b"cmdline" {
         let cmdline_len = crate::memory::cstr_len(pattern.cast()) as i32;
         set_cmd_context(
             &mut xpc,
@@ -6105,18 +6105,18 @@ pub fn f_getcompletion(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFu
                 return;
             }
             EXPAND_USER_DEFINED => {
-                if !(crate::memory::cstr_prefix_bytes(type_str, 7) == &b"custom,"[..7]) {
+                if !type_str.to_bytes().starts_with(b"custom,") {
                     semsg!(gettext(E_INVARG2), type_str);
                     return;
                 }
-                xpc.xp_arg = type_str.wrapping_add(7).cast_mut().cast();
+                xpc.xp_arg = type_str.as_ptr().wrapping_add(7).cast_mut().cast();
             }
             EXPAND_USER_LIST => {
-                if !(crate::memory::cstr_prefix_bytes(type_str, 11) == &b"customlist,"[..11]) {
+                if !type_str.to_bytes().starts_with(b"customlist,") {
                     semsg!(gettext(E_INVARG2), type_str);
                     return;
                 }
-                xpc.xp_arg = type_str.wrapping_add(11).cast_mut().cast();
+                xpc.xp_arg = type_str.as_ptr().wrapping_add(11).cast_mut().cast();
             }
             EXPAND_MENUS => {
                 let pat_p = xpc.xp_pattern;
@@ -6195,10 +6195,10 @@ pub fn f_getcompletiontype(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: Ev
     let pat = tv_get_string(&argvars[0]);
     let mut xpc: ExpandCtx = ExpandCtx::new();
 
-    let cmdline_len = crate::memory::cstr_len(pat) as i32;
+    let cmdline_len = pat.to_bytes().len() as i32;
     set_cmd_context(
         &mut xpc,
-        pat.cast_mut(),
+        pat.as_ptr().cast_mut(),
         cmdline_len,
         cmdline_len,
         false as i32,
