@@ -3,6 +3,10 @@ rules:
     ignore:
       - release.yml
       - test.yml
+  self-repository:
+    ignore:
+      - release.yml
+      - test.yml
   unpinned-uses:
     config:
       policies:
