@@ -136,7 +136,7 @@ struct BuiltinModule {
 
 // NB: vim._init_packages and vim.inspect must be first and second respectively,
 // otherwise --luamod-dev won't work properly.
-const BUILTIN_MODULES: [BuiltinModule; 34] = [
+const BUILTIN_MODULES: [BuiltinModule; 35] = [
     BuiltinModule {
         name: c"vim._init_packages",
         chunk_name: c"@vim/_init_packages",
@@ -181,6 +181,11 @@ const BUILTIN_MODULES: [BuiltinModule; 34] = [
         name: c"vim.tty",
         chunk_name: c"@vim/tty",
         data: include_bytes!("../../../runtime/lua/vim/tty.lua"),
+    },
+    BuiltinModule {
+        name: c"vim.uri",
+        chunk_name: c"@vim/uri",
+        data: include_bytes!("../../../runtime/lua/vim/uri.lua"),
     },
     BuiltinModule {
         name: c"vim._core.cmdwin",

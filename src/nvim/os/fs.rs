@@ -1660,7 +1660,7 @@ pub fn os_fileinfo(path: impl crate::strings::IntoCCharPtr, file_info: &mut File
 pub fn os_fileinfo2(path: impl crate::strings::IntoCCharPtr, info: &mut FileInfo) -> bool {
     let path = path.into_c_char_ptr();
     *info = FileInfo::new();
-    if path_with_url(path) != 0 {
+    if path_with_url(path) {
         return true;
     }
     #[cfg(windows)]

@@ -619,6 +619,18 @@ describe('vim.fs', function()
 
     it('works with a filename argument', function()
       eq(test_source_path, exec_lua([[return vim.fs.root(..., 'Cargo.toml')]], nvim_prog))
+      eq_paths(
+        test_source_path,
+        exec_lua([[return vim.fs.root(vim.uri.from_fname(...), 'Cargo.toml')]], nvim_prog)
+      )
+      -- Scheme is case-insensitive.
+      eq_paths(
+        test_source_path,
+        exec_lua(
+          [[return vim.fs.root(vim.uri.from_fname(...):gsub('^file:', 'FILE:'), 'Cargo.toml')]],
+          nvim_prog
+        )
+      )
     end)
 
     it('works with a relative path', function()
@@ -642,9 +654,9 @@ describe('vim.fs', function()
       eq_paths(test_source_path, exec_lua([[return vim.fs.root(0, 'Cargo.toml')]]))
     end)
 
-    it('returns CWD (absolute path) if no match is found', function()
+    it('returns CWD (absolute path) for a URL', function()
       assert(n.fn.isabsolutepath(test_source_path) == 1)
-      eq_paths(test_source_path, exec_lua([[return vim.fs.root('file://bogus', 'Cargo.toml')]]))
+      eq_paths(test_source_path, exec_lua([[return vim.fs.root('foo://bogus', 'Cargo.toml')]]))
     end)
   end)
 
@@ -927,6 +939,13 @@ describe('vim.fs', function()
         eq('/foo/../.', vim.fs.abspath('/foo/../.'))
         eq('/foo/bar', vim.fs.abspath('/foo/bar'))
       end
+      eq('fugitive:///repo/.git//0/a', vim.fs.abspath('fugitive:///repo/.git//0/a'))
+      eq('deno:/https/deno.land/a', vim.fs.abspath('deno:/https/deno.land/a'))
+      -- Drive letter, not a URL scheme.
+      eq(
+        { false, false },
+        { vim._core.path_is_url([[C:\foo\bar]]), vim._core.path_is_url('C:/foo') }
+      )
     end)
 
     it('with `cwd`', function()

@@ -81,7 +81,7 @@ pub fn find_buffer(avar: &mut TypVal) -> *mut FileBuf {
             let target = crate::memory::cstr_as_bytes(avar.vval.v_string());
             for bp in for_all_buffers_ptr() {
                 if !bp.b_fname.is_null()
-                    && (path_with_url(bp.b_fname) != 0 || bt_nofilename(Some(&*bp)))
+                    && (path_with_url(bp.b_fname) || bt_nofilename(Some(&*bp)))
                     && crate::memory::cstr_as_bytes(bp.b_fname) == target
                 {
                     buf = bp;

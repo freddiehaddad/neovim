@@ -33,11 +33,11 @@ use crate::lua::converter::{
     LUA_MULTRET, LUA_REGISTRYINDEX, LUA_TSTRING, lua_Integer, lua_State, lua_concat,
     lua_createtable, lua_error, lua_getfield, lua_getglobal, lua_gettop, lua_isnil,
     lua_isnoneornil, lua_istable, lua_newtable, lua_newuserdata, lua_next, lua_objlen, lua_pcall,
-    lua_pop, lua_pushcfunction, lua_pushinteger, lua_pushlstring, lua_pushnil, lua_pushnumber,
-    lua_pushstring, lua_pushvalue, lua_rawseti, lua_setfield, lua_setmetatable, lua_toboolean,
-    lua_tolstring, lua_tostring, lua_type, luaL_Reg, luaL_argerror, luaL_checkinteger,
-    luaL_checklstring, luaL_checkstring, luaL_checkudata, luaL_error, luaL_newmetatable,
-    luaL_register, luaL_where, nlua_pop_typval, nlua_push_typval,
+    lua_pop, lua_pushboolean, lua_pushcfunction, lua_pushinteger, lua_pushlstring, lua_pushnil,
+    lua_pushnumber, lua_pushstring, lua_pushvalue, lua_rawseti, lua_setfield, lua_setmetatable,
+    lua_toboolean, lua_tolstring, lua_tostring, lua_type, luaL_Reg, luaL_argerror,
+    luaL_checkinteger, luaL_checklstring, luaL_checkstring, luaL_checkudata, luaL_error,
+    luaL_newmetatable, luaL_register, luaL_where, nlua_pop_typval, nlua_push_typval,
 };
 use crate::lua::spell::luaopen_spell;
 use crate::lua::xdiff::nlua_xdl_diff;
@@ -48,6 +48,7 @@ use crate::mbyte::{
 use crate::memline::{ml_get_buf, ml_get_buf_len};
 use crate::message::str2special;
 use crate::msgpack_rpc::packer::ObjHandle;
+use crate::path::path_with_url;
 use crate::regexp::{
     RE_AUTO, RE_MAGIC, RE_NOBREAK, RE_STRICT, Regmatch, Regprog, vim_regcomp, vim_regexec,
     vim_regfree,
@@ -783,6 +784,16 @@ unsafe extern "C-unwind" fn nlua_keyparse(lstate: *mut lua_State) -> i32 {
     1
 }
 
+unsafe extern "C-unwind" fn nlua_path_is_url(lstate: *mut lua_State) -> i32 {
+    unsafe {
+        lua_pushboolean(
+            lstate,
+            i32::from(path_with_url(luaL_checkstring(lstate, 1))),
+        );
+    }
+    1
+}
+
 fn nlua_state_add_internal(lstate: *mut lua_State) {
     lua_pushcfunction(lstate, Some(nlua_getvar));
     lua_setfield(lstate, -2, c"_getvar");
@@ -868,6 +879,11 @@ pub fn nlua_state_add_stdlib(lstate: *mut lua_State, is_thread: bool) {
 
     let _ = unsafe { lua_cjson_new(lstate) };
     lua_setfield(lstate, -2, c"json");
+
+    lua_getfield(lstate, -1, c"_core");
+    lua_pushcfunction(lstate, Some(nlua_path_is_url));
+    lua_setfield(lstate, -2, c"path_is_url");
+    lua_pop(lstate, 1);
 
     #[cfg(feature = "vendor-bit")]
     unsafe {

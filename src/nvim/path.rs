@@ -100,9 +100,6 @@ const SPECIAL_WILDCHAR: &CStr = c"`'{";
 #[cfg(windows)]
 const FNAME_ILLEGAL: &[u8] = b"\"*?><|";
 
-const URL_SLASH: i32 = 1;
-const URL_BACKSLASH: i32 = 2;
-
 pub const EW_DIR: i32 = 0x01;
 pub const EW_FILE: i32 = 0x02;
 pub const EW_NOTFOUND: i32 = 0x04;
@@ -215,7 +212,7 @@ pub fn path_equal<S1: crate::strings::IntoCCharPtr, S2: crate::strings::IntoCCha
         debug_assert!((flags & K_PATH_CMP_LITERAL) == 0 || flags == K_PATH_CMP_LITERAL);
 
         if flags == K_PATH_CMP_LITERAL {
-            let is_url = path_with_url(s1) != 0 || path_with_url(s2) != 0;
+            let is_url = path_with_url(s1) || path_with_url(s2);
             return (!is_url || crate::memory::cstr_len(s1) == crate::memory::cstr_len(s2))
                 && path_cmp(opt_vars().p_fic != 0, s1, s2, MAXPATHL) == 0;
         }
@@ -988,7 +985,7 @@ fn expand_path_option(
                     curdirlen = c_len;
                 }
                 buflen = curdirlen;
-            } else if path_with_url(buf.cast()) != 0 {
+            } else if path_with_url(buf.cast()) {
                 continue;
             } else if !path_is_absolute(buf.cast()) {
                 if curdirlen == 0 {
@@ -1575,7 +1572,7 @@ fn expand_backtick(
 
 #[cfg(windows)]
 pub fn slash_adjust(p: *mut u8) {
-    if path_with_url(p.cast()) != 0 {
+    if path_with_url(p.cast()) {
         return;
     }
 
@@ -1622,7 +1619,7 @@ pub fn path_to_backslash<T>(p: *mut T) -> *mut T {
 
 #[cfg(windows)]
 pub fn path_to_slash(p: *mut u8) -> *mut u8 {
-    if !p.is_null() && path_with_url(p.cast_const().cast()) == 0 {
+    if !p.is_null() && !path_with_url(p.cast_const().cast()) {
         let _len = crate::memory::cstr_len(p.cast());
         for _b in unsafe { std::slice::from_raw_parts_mut(p, _len) } {
             if *_b == b'\\' {
@@ -1858,48 +1855,34 @@ pub fn path_has_drive_letter(p: impl crate::strings::IntoCCharPtr, path_len: usi
     }
 }
 
-pub fn path_is_url(p: impl crate::strings::IntoCCharPtr) -> i32 {
+pub fn path_is_url(p: impl crate::strings::IntoCCharPtr) -> bool {
     let p = p.into_c_char_ptr();
-    {
-        if crate::memory::cstr_first_byte(p) == b':' && crate::memory::cstr_byte_at(p, 1) == b'/' {
-            URL_SLASH
-        } else if crate::memory::cstr_first_byte(p) == b':'
-            && crate::memory::cstr_byte_at(p, 1) == b'\\'
-            && crate::memory::cstr_byte_at(p, 2) == b'\\'
-        {
-            URL_BACKSLASH
-        } else {
-            0
-        }
-    }
+    crate::memory::cstr_first_byte(p) == b':' && crate::memory::cstr_byte_at(p, 1) == b'/'
 }
 
-pub fn path_with_url(fname: impl crate::strings::IntoCCharPtr) -> i32 {
+pub fn path_with_url(fname: impl crate::strings::IntoCCharPtr) -> bool {
     let fname = fname.into_c_char_ptr();
-    {
-        if !(crate::memory::cstr_first_byte(fname)).is_ascii_alphabetic() {
-            return 0;
-        }
-
-        if path_has_drive_letter(fname, crate::memory::cstr_len(fname)) {
-            return 0;
-        }
-
-        let mut p = fname.wrapping_add(1);
-        while {
-            let b = crate::memory::cstr_first_byte(p);
-            b.is_ascii_alphanumeric() || b == b'+' || b == b'-' || b == b'.'
-        } {
-            p = p.wrapping_add(1);
-        }
-
-        let prev = unsafe { *p.wrapping_sub(1) } as u8;
-        if prev == b'+' || prev == b'-' || prev == b'.' {
-            return 0;
-        }
-
-        path_is_url(p)
+    let bytes = crate::memory::cstr_as_bytes(fname);
+    if !bytes.first().is_some_and(u8::is_ascii_alphabetic) {
+        return false;
     }
+
+    if path_has_drive_letter(fname, bytes.len()) {
+        return false;
+    }
+
+    let mut i: usize = 1;
+    while i < bytes.len()
+        && (bytes[i].is_ascii_alphanumeric() || matches!(bytes[i], b'+' | b'-' | b'.'))
+    {
+        i += 1;
+    }
+
+    if matches!(bytes[i - 1], b'+' | b'-' | b'.') {
+        return false;
+    }
+
+    bytes[i..].starts_with(b":/")
 }
 
 pub fn path_with_extension(
@@ -1924,7 +1907,7 @@ pub fn path_with_extension(
 #[allow(non_snake_case)]
 pub fn vim_isAbsName(name: impl crate::strings::IntoCCharPtr) -> bool {
     let name = name.into_c_char_ptr();
-    path_with_url(name) != 0 || path_is_absolute(name)
+    path_with_url(name) || path_is_absolute(name)
 }
 
 pub fn vim_full_name(
@@ -1948,7 +1931,7 @@ pub fn vim_full_name(
             return false;
         }
 
-        if path_with_url(fname) != 0 {
+        if path_with_url(fname) {
             xstrlcpy(buf.cast(), fname, len);
             return true;
         }
@@ -2744,16 +2727,19 @@ mod tests {
         assert!(path_with_extension(c"/some/path/file.LUA", c"lua"));
         opt_vars().p_fic = saved_fic;
 
-        assert_eq!(path_with_url(c"test://xyz/foo/b0"), 1);
-        assert_eq!(path_with_url(c"test:\\\\xyz\\foo\\b0"), 2);
-        assert_eq!(path_with_url(c"test123://xyz/foo/b0"), 1);
-        assert_eq!(path_with_url(c"test_abc://xyz/foo/b2"), 0);
-        assert_eq!(path_with_url(c"test+abc-123.ghi://xyz/foo/b1"), 1);
-        assert_eq!(path_with_url(c"-test://xyz/foo/b4"), 0);
-        assert_eq!(path_with_url(c"test-://xyz/foo/b5"), 0);
-        assert_eq!(path_with_url(c"test-C:/xyz/foo/b5"), 1);
-        assert_eq!(path_with_url(c"c:/xyz/foo/b5"), 0);
-        assert_eq!(path_with_url(c"C:/xyz/foo/b5"), 0);
+        assert!(path_with_url(c"test://xyz/foo/b0"));
+        assert!(!path_with_url(c"test:\\\\xyz\\foo\\b0"));
+        assert!(path_with_url(c"test123://xyz/foo/b0"));
+        assert!(!path_with_url(c"test123:\\\\xyz\\foo\\b0"));
+        assert!(!path_with_url(c"test_abc://xyz/foo/b2"));
+        assert!(path_with_url(c"test+abc-123.ghi://xyz/foo/b1"));
+        assert!(!path_with_url(c"test+abc-123.ghi:\\\\xyz\\foo\\b1"));
+        assert!(!path_with_url(c"-test://xyz/foo/b4"));
+        assert!(!path_with_url(c"test-://xyz/foo/b5"));
+        assert!(path_with_url(c"test-C:/xyz/foo/b5"));
+        assert!(!path_with_url(c"c:/xyz/foo/b5"));
+        assert!(!path_with_url(c"C:/xyz/foo/b5"));
+        assert!(!path_with_url(c"C:\\xyz\\foo\\b5"));
     }
 
     #[test]

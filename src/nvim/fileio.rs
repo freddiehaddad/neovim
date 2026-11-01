@@ -3484,7 +3484,7 @@ pub fn shorten_buf_fname(
     let dirname = dirname.into_c_char_ptr().cast_mut();
     if buf.b_fname.is_null()
         || bt_nofilename(Some(&*buf))
-        || path_with_url(buf.b_fname) != 0
+        || path_with_url(buf.b_fname)
         || !(force != 0 || buf.b_sfname.is_null() || path_is_absolute(buf.b_sfname))
     {
         return false;

@@ -717,7 +717,7 @@ pub fn vim_findfile(search_ctx: Option<&mut FfSearchCtx>) -> Option<std::ffi::CS
                     }
                 }
 
-                if path_with_url(dirptrs[0]) != 0 {
+                if path_with_url(dirptrs[0]) {
                     stackp.ffs_filearray = vec![crate::memory::cstr_from_bytes(unsafe {
                         std::slice::from_raw_parts(
                             dirptrs[0].cast::<u8>(),
@@ -749,7 +749,7 @@ pub fn vim_findfile(search_ctx: Option<&mut FfSearchCtx>) -> Option<std::ffi::CS
                 if crate::memory::cstr_is_empty(rest_of_wildcards.data) {
                     for i in stackp.ffs_filearray_cur..stackp.ffs_filearray.len() {
                         let entry = stackp.ffs_filearray.as_slice()[i].as_ptr().cast_mut();
-                        if path_with_url(entry) == 0 && !os_isdir(entry) {
+                        if !path_with_url(entry) && !os_isdir(entry) {
                             continue;
                         }
                         let mut len = stackp.ffs_filearray.as_slice()[i].as_bytes().len();
@@ -781,7 +781,7 @@ pub fn vim_findfile(search_ctx: Option<&mut FfSearchCtx>) -> Option<std::ffi::CS
                         };
                         loop {
                             let vis_idx = search_ctx.ffsc_visited_list.unwrap();
-                            if (path_with_url(file_path.data) != 0
+                            if (path_with_url(file_path.data)
                                 || (os_path_exists(file_path.data)
                                     && (search_ctx.ffsc_find_what == FINDFILE_BOTH
                                         || ((search_ctx.ffsc_find_what == FINDFILE_DIR)
@@ -798,7 +798,7 @@ pub fn vim_findfile(search_ctx: Option<&mut FfSearchCtx>) -> Option<std::ffi::CS
                                 stackp.ffs_filearray_cur = i + 1;
                                 ff_push(search_ctx, stack_elem);
 
-                                if path_with_url(file_path.data) == 0 {
+                                if !path_with_url(file_path.data) {
                                     file_path.size = simplify_filename(file_path.data.cast());
                                 }
 
@@ -1059,7 +1059,7 @@ fn ff_check_visited(
         let mut expand_buf: [u8; MAXPATHL] = [0; MAXPATHL];
         let mut expand_size: usize = 0;
 
-        if path_with_url(fname) != 0 {
+        if path_with_url(fname) {
             crate::memory::cstr_ncpy(expand_buf.as_mut_ptr().cast(), fname, fnamelen);
             expand_size = fnamelen;
             url = true;
@@ -1284,7 +1284,7 @@ pub fn find_file_in_path_option(
         let mut file_name: Option<std::ffi::CString> = None;
         let name_buff = g_st().name_buff.as_mut_ptr();
 
-        if !rel_fname.is_null() && path_with_url(rel_fname) != 0 {
+        if !rel_fname.is_null() && path_with_url(rel_fname) {
             rel_fname = ptr::null_mut();
         }
 
@@ -1340,7 +1340,7 @@ pub fn find_file_in_path_option(
 
         if vim_isAbsName(ftf) || rel_to_curdir || is_mswin_abs {
             if first == i32::from(true) {
-                if path_with_url(ftf) != 0 {
+                if path_with_url(ftf) {
                     return Some(
                         std::ffi::CString::new(unsafe {
                             std::slice::from_raw_parts(ftf.cast::<u8>(), ff_opt.file_to_findlen)
@@ -1545,7 +1545,7 @@ pub fn file_name_in_line(
             if head_off > 0 {
                 ptr = ptr.wrapping_sub(head_off + 1);
             } else if vim_isfilec(i32::from(unsafe { *ptr.wrapping_sub(1) } as u8))
-                || ((options & FNAME_HYP) != 0 && path_is_url(ptr.wrapping_sub(1)) != 0)
+                || ((options & FNAME_HYP) != 0 && path_is_url(ptr.wrapping_sub(1)))
             {
                 ptr = ptr.wrapping_sub(1);
             } else {
@@ -1561,7 +1561,7 @@ pub fn file_name_in_line(
         while vim_isfilec(i32::from(crate::memory::cstr_byte_at(ptr, len)))
             || (crate::memory::cstr_byte_at(ptr, len) == b'\\'
                 && crate::memory::cstr_byte_at(ptr, len + 1) == b' ')
-            || ((options & FNAME_HYP) != 0 && path_is_url(ptr.wrapping_add(len)) != 0)
+            || ((options & FNAME_HYP) != 0 && path_is_url(ptr.wrapping_add(len)))
             || (is_url
                 && crate::strings::vim_haschr(
                     c":?&=",
@@ -1570,7 +1570,7 @@ pub fn file_name_in_line(
         {
             let b = crate::memory::cstr_byte_at(ptr, len);
             if b.is_ascii_alphabetic() {
-                if in_type && path_is_url(ptr.wrapping_add(len + 1)) != 0 {
+                if in_type && path_is_url(ptr.wrapping_add(len + 1)) {
                     is_url = true;
                 }
             } else {
