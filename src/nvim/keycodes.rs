@@ -2272,7 +2272,8 @@ pub fn get_special_key(
 
                     idx += utf_char2bytes(c, string.wrapping_add(idx).cast()) as usize;
                 } else {
-                    let mut s: *const u8 = transchar(c).cast();
+                    let tc = transchar(c);
+                    let mut s: *const u8 = tc.as_ptr().cast();
 
                     if data.is_some() {
                         data.as_deref_mut().unwrap().key_mem = c as u8;
@@ -2283,7 +2284,7 @@ pub fn get_special_key(
                         };
                         data.as_deref_mut().unwrap().key_alt = NvimString {
                             data: string.wrapping_add(idx).cast(),
-                            size: crate::memory::cstr_len(s.cast()),
+                            size: tc.to_bytes().len(),
                         };
                     }
 

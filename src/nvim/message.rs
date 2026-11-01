@@ -2285,7 +2285,7 @@ pub fn msg_outtrans_len(
                 str_ = str_.wrapping_add(mb_l as usize);
             } else {
                 let s = transchar_byte_buf(None, i32::from(crate::memory::cstr_first_byte(str_)));
-                if crate::memory::cstr_byte_at(s, 1) != 0 {
+                if s.to_bytes().len() > 1 {
                     if str_ > plain_start {
                         msg_puts_len(
                             plain_start,
@@ -2296,7 +2296,7 @@ pub fn msg_outtrans_len(
                     }
                     plain_start = str_.wrapping_add(1);
                     msg_puts_hl(s, if hl_id == 0 { HLF_8 } else { hl_id }, false);
-                    retval += crate::memory::cstr_len(s) as i32;
+                    retval += s.to_bytes().len() as i32;
                 } else {
                     retval += 1;
                 }
@@ -2369,7 +2369,8 @@ pub fn msg_outtrans_special(
                 str2special(&raw mut str_, from, K_FALSE, None).as_ptr()
             };
             if !crate::memory::cstr_is_empty(text) && crate::memory::cstr_byte_at(text, 1) == 0 {
-                text = transchar_byte_buf(None, i32::from(crate::memory::cstr_first_byte(text)));
+                text = transchar_byte_buf(None, i32::from(crate::memory::cstr_first_byte(text)))
+                    .as_ptr();
             }
             let len = vim_strsize(text);
             if maxlen > 0 && retval + len >= maxlen {
@@ -2696,7 +2697,7 @@ pub fn msg_prt_line(s: impl crate::strings::IntoCCharPtr, mut list: bool) {
                         let n = ascii2cells(c);
                         if n > 1 {
                             n_extra = n - 1;
-                            p_extra = transchar_byte_buf(None, i32::from(c as u8)).cast();
+                            p_extra = transchar_byte_buf(None, i32::from(c as u8)).as_ptr().cast();
                             sc = schar_from_ascii(crate::memory::cstr_first_byte(p_extra.cast()));
                             p_extra = p_extra.wrapping_add(1);
                             hl_id = HLF_0;

@@ -2917,14 +2917,15 @@ pub fn add_to_showcmd(c: i32) -> bool {
     let mut mbyte_buf: [u8; MB_MAXCHAR + 1] = [0; MB_MAXCHAR + 1];
     let p = if c <= 0x7f || !vim_isprintc(c) {
         let tc = transchar(c);
-        if crate::memory::cstr_first_byte(tc) == b' ' {
-            crate::memory::cstr_cpy(tc, c"<20>");
+        if tc.to_bytes() == b" " {
+            c"<20>".as_ptr()
+        } else {
+            tc.as_ptr()
         }
-        tc
     } else {
         let len = utf_char2bytes(c, mbyte_buf.as_mut_ptr().cast()) as usize;
         mbyte_buf[len] = 0;
-        mbyte_buf.as_mut_ptr().cast()
+        mbyte_buf.as_ptr().cast()
     };
 
     let old_len = crate::memory::cstr_len(sc_buf);

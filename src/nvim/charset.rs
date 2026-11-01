@@ -370,7 +370,8 @@ pub fn trans_characters(mut buf: RawCCharPtrMut, bufsize: i32) {
             len -= trs_len;
         } else {
             let trs = transchar_byte(i32::from(crate::memory::cstr_first_byte(buf)));
-            trs_len = crate::memory::cstr_len(trs) as i32;
+            let trs_bytes = trs.to_bytes();
+            trs_len = trs_bytes.len() as i32;
 
             if trs_len > 1 {
                 room -= trs_len - 1;
@@ -385,7 +386,7 @@ pub fn trans_characters(mut buf: RawCCharPtrMut, bufsize: i32) {
                     )
                 };
             }
-            unsafe { ptr::copy(trs, buf, trs_len as usize) };
+            unsafe { ptr::copy(trs.as_ptr(), buf, trs_len as usize) };
             len -= 1;
         }
         buf = buf.wrapping_add(trs_len as usize);
@@ -408,7 +409,7 @@ pub fn transstr_len(s: impl crate::strings::IntoCCharPtr, untab: bool) -> usize 
                     while off < l {
                         let c = utf_ptr2char(p.wrapping_add(off));
                         let mut hexbuf = [0u8; 9];
-                        len += transchar_hex(hexbuf.as_mut_ptr().cast(), c);
+                        len += transchar_hex(&mut hexbuf, c);
                         off += utf_ptr2len(p.wrapping_add(off)) as usize;
                     }
                 }
@@ -461,7 +462,7 @@ pub fn transstr_buf(
                     while off < l {
                         let c = utf_ptr2char(p.wrapping_add(off));
                         let mut hexbuf = [0u8; 9];
-                        let hexlen = transchar_hex(hexbuf.as_mut_ptr().cast(), c);
+                        let hexlen = transchar_hex(&mut hexbuf, c);
                         if buf_p.wrapping_add(hexlen) > buf_e {
                             break;
                         }
@@ -481,11 +482,11 @@ pub fn transstr_buf(
                 let c = crate::memory::cstr_first_byte(p);
                 p = p.wrapping_add(1);
                 let tb = transchar_byte(i32::from(c));
-                let tb_len = crate::memory::cstr_len(tb);
+                let tb_len = tb.to_bytes().len();
                 if buf_p.wrapping_add(tb_len) > buf_e {
                     break;
                 }
-                unsafe { ptr::copy(tb, buf_p, tb_len) };
+                unsafe { ptr::copy(tb.as_ptr(), buf_p, tb_len) };
                 buf_p = buf_p.wrapping_add(tb_len);
             }
         }
@@ -610,53 +611,46 @@ pub fn str_foldcase(
     }
 }
 
-pub fn transchar(c: i32) -> RawCCharPtrMut {
+pub fn transchar(c: i32) -> &'static std::ffi::CStr {
     transchar_buf(Some(crate::globals::curbuf_mut()), c)
 }
 
-pub fn transchar_buf(buf: Option<&FileBuf>, mut c: i32) -> RawCCharPtrMut {
-    let charbuf_ptr = (&raw mut charset_st().transchar_charbuf).cast::<u8>();
+pub fn transchar_buf(buf: Option<&FileBuf>, mut c: i32) -> &'static std::ffi::CStr {
+    let charbuf = &mut charset_st().transchar_charbuf;
     let mut i: usize = 0;
     if is_special(c) {
-        unsafe {
-            *charbuf_ptr = b'~';
-        }
-        unsafe {
-            *charbuf_ptr.wrapping_add(1) = b'@';
-        }
+        charbuf[0] = b'~';
+        charbuf[1] = b'@';
         i = 2;
         c = i32::from(k_second(c));
     }
 
     if c <= 0xFF && vim_isprintc(c) {
-        unsafe {
-            *charbuf_ptr.wrapping_add(i) = c as u8;
-        }
-        unsafe {
-            *charbuf_ptr.wrapping_add(i + 1) = 0;
-        }
+        charbuf[i] = c as u8;
+        charbuf[i + 1] = 0;
     } else if c <= 0xFF {
-        transchar_nonprint(buf, charbuf_ptr.wrapping_add(i).cast(), c);
+        transchar_nonprint(buf, &mut charbuf[i..], c);
     } else {
-        transchar_hex(charbuf_ptr.wrapping_add(i).cast(), c);
+        transchar_hex(&mut charbuf[i..], c);
     }
-    charbuf_ptr.cast()
+    std::ffi::CStr::from_bytes_until_nul(&charset_st().transchar_charbuf).unwrap_or(c"")
 }
 
-pub fn transchar_byte(c: i32) -> RawCCharPtrMut {
+pub fn transchar_byte(c: i32) -> &'static std::ffi::CStr {
     transchar_byte_buf(Some(crate::globals::curbuf_mut()), c)
 }
 
-pub fn transchar_byte_buf(buf: Option<&FileBuf>, c: i32) -> RawCCharPtrMut {
+pub fn transchar_byte_buf(buf: Option<&FileBuf>, c: i32) -> &'static std::ffi::CStr {
     if c >= 0x80 {
-        let charbuf_ptr: RawCCharPtrMut = (&raw mut charset_st().transchar_charbuf).cast();
-        transchar_nonprint(buf, charbuf_ptr, c);
-        return charbuf_ptr;
+        let charbuf = &mut charset_st().transchar_charbuf;
+        transchar_nonprint(buf, charbuf, c);
+        return std::ffi::CStr::from_bytes_until_nul(&charset_st().transchar_charbuf)
+            .unwrap_or(c"");
     }
     transchar_buf(buf, c)
 }
 
-pub fn transchar_nonprint(buf: Option<&FileBuf>, charbuf: RawCCharPtrMut, mut c: i32) {
+pub fn transchar_nonprint(buf: Option<&FileBuf>, charbuf: &mut [u8], mut c: i32) {
     if c == i32::from(NL) {
         c = 0;
     } else if buf.is_some() && c == CAR && get_fileformat(buf.unwrap()) == EOL_MAC {
@@ -667,44 +661,38 @@ pub fn transchar_nonprint(buf: Option<&FileBuf>, charbuf: RawCCharPtrMut, mut c:
     if (opt_vars().dy_flags & K_OPT_DY_FLAG_UHEX) != 0 || c > 0x7f {
         transchar_hex(charbuf, c);
     } else {
-        let cb = charbuf.cast::<u8>();
-        unsafe {
-            *cb = b'^';
-            *cb.wrapping_add(1) = (c as u8) ^ 0x40;
-            *cb.wrapping_add(2) = 0;
-        }
+        charbuf[0] = b'^';
+        charbuf[1] = (c as u8) ^ 0x40;
+        charbuf[2] = 0;
     }
 }
 
-pub fn transchar_hex(buf: RawCCharPtrMut, c: i32) -> usize {
-    unsafe {
-        let buf = buf.cast::<u8>();
-        let mut i: usize = 0;
-        let uc = c as u32;
+pub fn transchar_hex(buf: &mut [u8], c: i32) -> usize {
+    let mut i: usize = 0;
+    let uc = c as u32;
 
-        *buf.wrapping_add(i) = b'<';
-        i += 1;
-        if c > 0xFF {
-            if c > 0xFFFF {
-                *buf.wrapping_add(i) = nr2hex(uc >> 20);
-                i += 1;
-                *buf.wrapping_add(i) = nr2hex(uc >> 16);
-                i += 1;
-            }
-            *buf.wrapping_add(i) = nr2hex(uc >> 12);
+    buf[i] = b'<';
+    i += 1;
+    if c > 0xFF {
+        if c > 0xFFFF {
+            buf[i] = nr2hex(uc >> 20);
             i += 1;
-            *buf.wrapping_add(i) = nr2hex(uc >> 8);
+            buf[i] = nr2hex(uc >> 16);
             i += 1;
         }
-        *buf.wrapping_add(i) = nr2hex(uc >> 4);
+        buf[i] = nr2hex(uc >> 12);
         i += 1;
-        *buf.wrapping_add(i) = nr2hex(uc);
+        buf[i] = nr2hex(uc >> 8);
         i += 1;
-        *buf.wrapping_add(i) = b'>';
-        i += 1;
-        *buf.wrapping_add(i) = 0;
-        i
     }
+    buf[i] = nr2hex(uc >> 4);
+    i += 1;
+    buf[i] = nr2hex(uc);
+    i += 1;
+    buf[i] = b'>';
+    i += 1;
+    buf[i] = 0;
+    i
 }
 
 pub fn rl_mirror_ascii(str_: RawCCharPtrMut, end: RawCCharPtrMut) {

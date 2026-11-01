@@ -1786,7 +1786,7 @@ pub fn do_put(regname: i32, mut reg: *mut Yankreg, mut dir: i32, mut count: i32,
                 semsg!(
                     gettext(c"E353: Nothing in register %s"),
                     if regname == 0 {
-                        c"\"".as_ptr()
+                        c"\""
                     } else {
                         transchar(regname)
                     },

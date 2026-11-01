@@ -367,11 +367,7 @@ pub fn do_ascii(_eap: &mut Exarg) {
         let mut buf1: [u8; 20] = [0; 20];
         if vim_isprintc(c) && (c < b' ' as i32 || c > b'~' as i32) {
             let mut buf3: [u8; 7] = [0; 7];
-            transchar_nonprint(
-                Some(crate::globals::curbuf_mut()),
-                buf3.as_mut_ptr().cast(),
-                c,
-            );
+            transchar_nonprint(Some(crate::globals::curbuf_mut()), &mut buf3, c);
             vim_snprintf!(buf1.as_mut_ptr().cast(), 20, c"  <%s>", buf3.as_ptr());
         } else {
             buf1[0] = 0;

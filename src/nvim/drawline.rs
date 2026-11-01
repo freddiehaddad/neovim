@@ -2542,15 +2542,15 @@ pub fn win_line(
                     let mut unprintable_ascii = false;
 
                     if mb_c < 0 || (mb_l >= 1 && mb_c == 0) || (mb_l > 1 && !vim_isprintc(mb_c)) {
-                        let extra_ptr = wlv.extra.as_mut_ptr();
                         transchar_hex(
-                            extra_ptr.cast(),
+                            &mut wlv.extra,
                             if mb_c < 0 {
                                 i32::from(crate::memory::cstr_first_byte(ptr))
                             } else {
                                 mb_c
                             },
                         );
+                        let extra_ptr = wlv.extra.as_mut_ptr();
                         if wp.w_onebuf_opt.wo_rl != 0 {
                             rl_mirror_ascii(extra_ptr.cast(), ptr::null_mut());
                         }
