@@ -1935,7 +1935,10 @@ pub fn free_all_autocmds() {
     au_st().map_augroup_id_to_name = std::collections::BTreeMap::new();
 }
 
-pub fn event_name2nr<T>(start: impl crate::strings::IntoCCharPtr, end: *mut *mut T) -> AuEvent {
+pub fn event_name2nr<P: crate::charset::RawByteCursor>(
+    start: impl crate::strings::IntoCCharPtr,
+    end: &mut P,
+) -> AuEvent {
     let start = start.into_c_char_ptr();
     {
         let mut p = start;
@@ -1951,9 +1954,7 @@ pub fn event_name2nr<T>(start: impl crate::strings::IntoCCharPtr, end: *mut *mut
         if crate::memory::cstr_first_byte(p) == b',' {
             p = p.wrapping_add(1);
         }
-        unsafe {
-            *end = p.cast_mut().cast();
-        }
+        *end = P::from_byte_ptr(p.cast());
         if hash_idx < 0 {
             return NUM_EVENTS as AuEvent;
         }
@@ -1992,7 +1993,7 @@ pub fn event_ignored(event: AuEvent, ei: impl crate::strings::IntoCCharPtr) -> b
             ignored = ptr::eq(ei.cast_const(), opt_vars().p_ei.cast_const())
                 || EVENT_NAMES[event as usize].event <= 0;
             ei = ei.wrapping_add(3 + usize::from(crate::memory::cstr_byte_at(ei, 3) == b','));
-        } else if event_name2nr(ei, &raw mut ei) == event {
+        } else if event_name2nr(ei, &mut ei) == event {
             if unignore {
                 return false;
             }
@@ -2014,7 +2015,7 @@ pub fn check_ei(ei: impl crate::strings::IntoCCharPtr, win: bool) -> bool {
             if crate::memory::cstr_first_byte(ei) == b'-' {
                 ei = ei.wrapping_add(1);
             }
-            let event = event_name2nr(ei, &raw mut ei);
+            let event = event_name2nr(ei, &mut ei);
             if event == NUM_EVENTS as AuEvent || (win && EVENT_NAMES[event as usize].event > 0) {
                 return false;
             }
@@ -2131,7 +2132,7 @@ pub fn do_autocmd(eap: &mut Exarg, arg_in: impl crate::strings::IntoCCharPtr, fo
             {
                 au_show_for_all_events(group, pat);
             } else {
-                let event = event_name2nr(arg, &raw mut arg);
+                let event = event_name2nr(arg, &mut arg);
                 assert!((event as usize) < NUM_EVENTS);
                 au_show_for_event(group, event, pat);
             }
@@ -2149,7 +2150,7 @@ pub fn do_autocmd(eap: &mut Exarg, arg_in: impl crate::strings::IntoCCharPtr, fo
                 && crate::memory::cstr_first_byte(arg) != b'|'
                 && !ascii_iswhite(crate::memory::cstr_first_char(arg))
             {
-                let event = event_name2nr(arg, &raw mut arg);
+                let event = event_name2nr(arg, &mut arg);
                 assert!((event as usize) < NUM_EVENTS);
                 if !do_autocmd_event(
                     event,
@@ -2477,7 +2478,7 @@ pub fn do_doautocmd(
             && ends_excmd(i32::from(unsafe { *arg.cast::<u8>() })) == 0
             && !ascii_iswhite(crate::memory::cstr_first_char(arg))
         {
-            let ev = event_name2nr(arg, &raw mut arg);
+            let ev = event_name2nr(arg, &mut arg);
             if apply_autocmds_group(
                 ev,
                 fname,
@@ -2509,7 +2510,7 @@ pub fn ex_doautoall(eap: &mut Exarg) {
     let mut retval = OK;
     let mut aco: CtxSwitch = CtxSwitch::new();
     let mut arg = eap.arg;
-    let call_do_modelines = check_nomodeline(&raw mut arg);
+    let call_do_modelines = check_nomodeline(&mut arg);
     let mut bufref: Bufref = Bufref::new();
     let mut did_aucmd = false;
 
@@ -2548,16 +2549,14 @@ pub fn ex_doautoall(eap: &mut Exarg) {
     }
 }
 
-pub fn check_nomodeline<T>(argp: *mut *mut T) -> bool {
-    unsafe {
-        let cur: *const _ = (*argp).cast();
-        let bytes = crate::memory::cstr_as_bytes(cur);
-        if bytes.starts_with(b"<nomodeline>") {
-            *argp = skipwhite(cur.wrapping_add(12)).cast();
-            return false;
-        }
-        true
+pub fn check_nomodeline<P: crate::charset::RawByteCursor>(argp: &mut P) -> bool {
+    let cur = argp.as_byte_ptr();
+    let bytes = crate::memory::cstr_as_bytes(cur.cast());
+    if bytes.starts_with(b"<nomodeline>") {
+        *argp = P::from_byte_ptr(skipwhite(cur.wrapping_add(12).cast()).cast());
+        return false;
     }
+    true
 }
 
 pub fn aucmd_defer(
@@ -3641,8 +3640,8 @@ pub fn get_event_name_no_group(_xp: &mut ExpandCtx, idx: i32, win: bool) -> Opti
 
 pub fn autocmd_supported(event: impl crate::strings::IntoCCharPtr) -> bool {
     let event = event.into_c_char_ptr();
-    let mut p: *mut u8 = ptr::null_mut();
-    event_name2nr(event, &raw mut p) != NUM_EVENTS as AuEvent
+    let mut p: *const u8 = ptr::null();
+    event_name2nr(event, &mut p) != NUM_EVENTS as AuEvent
 }
 
 pub fn au_exists(arg: impl crate::strings::IntoCCharPtr) -> bool {
@@ -3682,7 +3681,7 @@ pub fn au_exists(arg: impl crate::strings::IntoCCharPtr) -> bool {
         };
 
         let pattern = p;
-        let event = event_name2nr(event_name, &raw mut p);
+        let event = event_name2nr(event_name, &mut p);
         if event != NUM_EVENTS as AuEvent {
             let acs = &mut au_st().autocmds[event as usize];
             if !acs.is_empty() {
@@ -3816,7 +3815,7 @@ fn arg_event_skip(arg: impl crate::strings::IntoCCharPtr, have_group: bool) -> *
                 && crate::memory::cstr_first_byte(pat) != b'|'
                 && !ascii_iswhite(crate::memory::cstr_first_char(pat))
             {
-                if (event_name2nr(pat, &raw mut p) as usize) >= NUM_EVENTS {
+                if (event_name2nr(pat, &mut p) as usize) >= NUM_EVENTS {
                     if have_group {
                         semsg!(tr(c"E216: No such event: %s"), pat);
                     } else {
@@ -3991,8 +3990,8 @@ mod tests {
 
     #[test]
     fn event_name_lookup_and_span_pattern_work() {
-        let mut end: *mut u8 = ptr::null_mut();
-        let ev = event_name2nr(c"BufReadPost,BufEnter", &raw mut end);
+        let mut end: *const u8 = ptr::null();
+        let ev = event_name2nr(c"BufReadPost,BufEnter", &mut end);
         assert_eq!(ev, EVENT_BUFREADPOST);
         assert_eq!(crate::memory::cstr_as_bytes(end.cast()), b"BufEnter");
         assert_eq!(

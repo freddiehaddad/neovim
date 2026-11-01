@@ -641,7 +641,7 @@ pub fn do_mouse(
                     }
                     let mut reg: *mut Yankreg = ptr::null_mut();
                     if (g_st().state_global & REPLACE_FLAG) != 0
-                        && !yank_register_mline(regname, &raw mut reg)
+                        && !yank_register_mline(regname, &mut reg)
                     {
                         insert_reg(regname, reg, true);
                     } else {
@@ -1013,7 +1013,7 @@ pub fn do_mouse(
                 regname = b'*' as i32;
             }
             let mut reg: *mut Yankreg = ptr::null_mut();
-            if yank_register_mline(regname, &raw mut reg) {
+            if yank_register_mline(regname, &mut reg) {
                 if g_st().mouse_past_bottom {
                     dir = FORWARD;
                 }

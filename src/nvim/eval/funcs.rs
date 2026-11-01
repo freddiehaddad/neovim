@@ -1710,7 +1710,7 @@ fn get_col(argvars: &mut [TypVal], rettv: &mut TypVal, charcol: bool) {
         let mut wp = curwin_ptr();
         if argvars[1].v_type != VarType::VarUnknown {
             let mut tp: *mut TabPageInfo = ptr::null_mut();
-            wp = win_id2wp_tp(tv_get_number(&argvars[1]) as i32, &raw mut tp);
+            wp = win_id2wp_tp(tv_get_number(&argvars[1]) as i32, Some(&mut tp));
             if wp.is_null() || tp.is_null() {
                 return;
             }
@@ -5037,7 +5037,7 @@ pub fn f_line(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
     if argvars[1].v_type != VarType::VarUnknown {
         let id = tv_get_number(&argvars[1]) as i32;
         let mut tp: *mut TabPageInfo = ptr::null_mut();
-        let wp = win_id2wp_tp(id, &raw mut tp);
+        let wp = win_id2wp_tp(id, Some(&mut tp));
         if !wp.is_null() && !tp.is_null() {
             if crate::memory::cstr_first_byte(opt_vars().p_spk) != b'c'
                 || (unsafe { (*wp).w_onebuf_opt.wo_diff } != 0
@@ -8835,7 +8835,7 @@ pub fn f_virtcol(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData
     'theend: {
         if argvars[1].v_type != VarType::VarUnknown && argvars[2].v_type != VarType::VarUnknown {
             let mut tp: *mut TabPageInfo = ptr::null_mut();
-            wp = win_id2wp_tp(tv_get_number(&argvars[2]) as i32, &raw mut tp);
+            wp = win_id2wp_tp(tv_get_number(&argvars[2]) as i32, Some(&mut tp));
             if wp.is_null() || tp.is_null() {
                 break 'theend;
             }

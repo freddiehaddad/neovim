@@ -3650,7 +3650,7 @@ pub fn qf_list(eap: &mut Exarg) {
     }
     let mut idx1: i32 = 1;
     let mut idx2: i32 = -1;
-    if !get_list_range(&raw mut arg, &mut idx1, &mut idx2) || !crate::memory::cstr_is_empty(arg) {
+    if !get_list_range(&mut arg, &mut idx1, &mut idx2) || !crate::memory::cstr_is_empty(arg) {
         semsg!(gettext(E_TRAILING_ARG), arg);
         return;
     }

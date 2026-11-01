@@ -500,7 +500,7 @@ pub fn get_yank_register(regname: i32, mode: i32) -> &'static mut Yankreg {
     unsafe { &mut *reg }
 }
 
-pub fn yank_register_mline(regname: i32, reg: *mut *mut Yankreg) -> bool {
+pub fn yank_register_mline(regname: i32, reg: &mut *mut Yankreg) -> bool {
     unsafe {
         *reg = ptr::null_mut();
         if regname != 0 && !valid_yank_reg(regname, false) {
@@ -510,7 +510,7 @@ pub fn yank_register_mline(regname: i32, reg: *mut *mut Yankreg) -> bool {
             return false;
         }
         *reg = get_yank_register(regname, YREG_PASTE);
-        (*(*reg)).y_type == MotionType::MtLineWise
+        (**reg).y_type == MotionType::MtLineWise
     }
 }
 

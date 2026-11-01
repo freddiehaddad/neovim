@@ -5121,17 +5121,20 @@ pub fn get_cmdline_firstc() -> i32 {
 }
 
 /// Get indices that specify a range within a list from a string.
-pub fn get_list_range<T>(str: *mut *mut T, num1: &mut i32, num2: &mut i32) -> bool {
-    let str = str.cast::<*mut u8>();
+pub fn get_list_range<P: crate::charset::RawByteCursor>(
+    str_p: &mut P,
+    num1: &mut i32,
+    num2: &mut i32,
+) -> bool {
     unsafe {
         let mut len: i32 = 0;
         let mut first = false;
         let mut num: Varnumber = 0;
 
-        *str = skipwhite((*str).cast()).cast();
-        if **str == b'-' || ascii_isdigit(**str as i32) {
+        let mut p: *const u8 = skipwhite(str_p.as_byte_ptr().cast()).cast();
+        if *p == b'-' || ascii_isdigit(*p as i32) {
             vim_str2nr(
-                (*str).cast(),
+                p.cast(),
                 None,
                 Some(&mut len),
                 0,
@@ -5141,19 +5144,20 @@ pub fn get_list_range<T>(str: *mut *mut T, num1: &mut i32, num2: &mut i32) -> bo
                 false,
                 None,
             );
-            *str = (*str).wrapping_add(len as usize);
+            p = p.wrapping_add(len as usize);
             if num > i32::MAX as Varnumber {
+                *str_p = P::from_byte_ptr(p);
                 return false;
             }
 
             *num1 = num as i32;
             first = true;
         }
-        *str = skipwhite((*str).cast()).cast();
-        if **str == b',' {
-            *str = skipwhite((*str).wrapping_add(1).cast()).cast();
+        p = skipwhite(p.cast()).cast();
+        if *p == b',' {
+            p = skipwhite(p.wrapping_add(1).cast()).cast();
             vim_str2nr(
-                (*str).cast(),
+                p.cast(),
                 None,
                 Some(&mut len),
                 0,
@@ -5164,18 +5168,21 @@ pub fn get_list_range<T>(str: *mut *mut T, num1: &mut i32, num2: &mut i32) -> bo
                 None,
             );
             if len > 0 {
-                *str = skipwhite((*str).wrapping_add(len as usize).cast()).cast();
+                p = skipwhite(p.wrapping_add(len as usize).cast()).cast();
                 if num > i32::MAX as Varnumber {
+                    *str_p = P::from_byte_ptr(p);
                     return false;
                 }
 
                 *num2 = num as i32;
             } else if !first {
+                *str_p = P::from_byte_ptr(p);
                 return false;
             }
         } else if first {
             *num2 = *num1;
         }
+        *str_p = P::from_byte_ptr(p);
         true
     }
 }

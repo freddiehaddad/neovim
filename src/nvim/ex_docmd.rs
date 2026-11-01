@@ -8805,7 +8805,7 @@ fn ex_autocmd(eap: &mut Exarg) {
 
 fn ex_doautocmd(eap: &mut Exarg) {
     let mut arg = eap.arg;
-    let call_do_modelines = check_nomodeline(&raw mut arg);
+    let call_do_modelines = check_nomodeline(&mut arg);
     let mut did_aucmd = false;
 
     do_doautocmd(arg, false, Some(&mut did_aucmd));
