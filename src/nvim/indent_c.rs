@@ -95,69 +95,52 @@ use crate::keycodes::ctrl_chr;
 /// Return MAXCOL if not, otherwise return the column.
 pub fn check_linecomment(line: impl crate::strings::IntoCCharPtr) -> i32 {
     let line = line.into_c_char_ptr();
-    {
-        let mut p = line;
-        if curbuf_mut().b_p_lisp != 0 {
-            if crate::strings::vim_haschr(p, b';' as i32) {
-                let mut in_str = false;
-                while {
-                    p = crate::memory::cstr_as_bytes(p)
-                        .iter()
-                        .position(|&b| b == b'"' || b == b';')
-                        .map_or(std::ptr::null(), |i| p.wrapping_add(i));
-                    !p.is_null()
-                } {
-                    if crate::memory::cstr_first_byte(p) == b'"' {
-                        if in_str {
-                            if crate::memory::cstr_first_byte(p.wrapping_sub(1)) != b'\\' {
-                                in_str = false;
-                            }
-                        } else if p == line
-                            || (crate::memory::ptr_offset_from(p, line) >= 2
-                                && unsafe { *p.wrapping_sub(1).cast::<u8>() } != b'\\'
-                                && unsafe { *p.wrapping_sub(2).cast::<u8>() } != b'#')
-                        {
-                            in_str = true;
+    let bytes = crate::memory::cstr_as_bytes(line);
+    if curbuf_mut().b_p_lisp != 0 {
+        if bytes.contains(&b';') {
+            let mut in_str = false;
+            let mut idx = 0usize;
+            while let Some(rel) = bytes[idx..].iter().position(|&b| b == b'"' || b == b';') {
+                idx += rel;
+                if bytes[idx] == b'"' {
+                    if in_str {
+                        if bytes[idx - 1] != b'\\' {
+                            in_str = false;
                         }
-                    } else if !in_str
-                        && (crate::memory::ptr_offset_from(p, line) < 2
-                            || (crate::memory::cstr_first_byte(p.wrapping_sub(1)) != b'\\'
-                                && unsafe { *p.wrapping_sub(2).cast::<u8>() } != b'#'))
-                        && is_pos_in_string(line, crate::memory::ptr_offset_from(p, line) as Colnr)
-                            == 0
+                    } else if idx == 0
+                        || (idx >= 2 && bytes[idx - 1] != b'\\' && bytes[idx - 2] != b'#')
                     {
-                        break;
+                        in_str = true;
                     }
-                    p = p.wrapping_add(1);
-                }
-            } else {
-                p = std::ptr::null();
-            }
-        } else {
-            while !crate::memory::cstr_is_empty(p) {
-                p = skip_string(p);
-                if crate::memory::cstr_is_empty(p) {
-                    break;
-                }
-                if crate::memory::cstr_first_byte(p) == b'/'
-                    && crate::memory::cstr_byte_at(p, 1) == b'/'
-                    && (p == line
-                        || crate::memory::cstr_first_byte(p.wrapping_sub(1)) != b'*'
-                        || crate::memory::cstr_byte_at(p, 2) != b'*')
+                } else if !in_str
+                    && (idx < 2 || (bytes[idx - 1] != b'\\' && bytes[idx - 2] != b'#'))
+                    && is_pos_in_string(line, idx as Colnr) == 0
                 {
-                    break;
+                    return idx as i32;
                 }
-                p = p.wrapping_add(1);
-            }
-            if crate::memory::cstr_is_empty(p) {
-                p = std::ptr::null();
+                idx += 1;
             }
         }
-        if p.is_null() {
-            return MAXCOL;
-        }
-        crate::memory::ptr_offset_from(p, line) as i32
+        return MAXCOL;
     }
+
+    let mut p = line;
+    while !crate::memory::cstr_is_empty(p) {
+        p = skip_string(p);
+        if crate::memory::cstr_is_empty(p) {
+            break;
+        }
+        if crate::memory::cstr_first_byte(p) == b'/'
+            && crate::memory::cstr_byte_at(p, 1) == b'/'
+            && (p == line
+                || crate::memory::cstr_first_byte(p.wrapping_sub(1)) != b'*'
+                || crate::memory::cstr_byte_at(p, 2) != b'*')
+        {
+            return crate::memory::ptr_offset_from(p, line) as i32;
+        }
+        p = p.wrapping_add(1);
+    }
+    MAXCOL
 }
 fn ind_find_start_comment() -> *mut CursorPos {
     find_start_comment(curbuf_mut().b_ind_maxcomment)
@@ -395,47 +378,43 @@ fn find_line_comment() -> *mut CursorPos {
 }
 fn cin_has_js_key(text: impl crate::strings::IntoCCharPtr) -> bool {
     let text = text.into_c_char_ptr();
-    {
-        let mut s: *const u8 = skipwhite(text).cast();
-        let mut quote: u8 = 0;
-        if crate::memory::cstr_first_byte(s.cast()) == b'\''
-            || crate::memory::cstr_first_byte(s.cast()) == b'"'
-        {
-            quote = unsafe { *s };
-            s = s.wrapping_add(1);
-        }
-        if !vim_is_idc(crate::memory::cstr_first_byte(s.cast()) as i32) {
-            return false;
-        }
-        while vim_is_idc(crate::memory::cstr_first_byte(s.cast()) as i32) {
-            s = s.wrapping_add(1);
-        }
-        if !crate::memory::cstr_is_empty(s.cast()) && unsafe { *s } == quote {
-            s = s.wrapping_add(1);
-        }
-        s = cin_skipcomment(s);
-        crate::memory::cstr_first_byte(s.cast()) == b':'
-            && crate::memory::cstr_byte_at(s.cast(), 1) != b':'
+    let mut s: *const u8 = skipwhite(text).cast();
+    let mut quote: u8 = 0;
+    let first = crate::memory::cstr_first_byte(s.cast());
+    if first == b'\'' || first == b'"' {
+        quote = first;
+        s = s.wrapping_add(1);
     }
+    if !vim_is_idc(crate::memory::cstr_first_byte(s.cast()) as i32) {
+        return false;
+    }
+    while vim_is_idc(crate::memory::cstr_first_byte(s.cast()) as i32) {
+        s = s.wrapping_add(1);
+    }
+    if !crate::memory::cstr_is_empty(s.cast()) && crate::memory::cstr_first_byte(s.cast()) == quote
+    {
+        s = s.wrapping_add(1);
+    }
+    s = cin_skipcomment(s);
+    crate::memory::cstr_first_byte(s.cast()) == b':'
+        && crate::memory::cstr_byte_at(s.cast(), 1) != b':'
 }
-fn cin_islabel_skip<T>(s: *mut *const T) -> bool {
-    unsafe {
-        if !vim_is_idc(crate::memory::cstr_first_byte((*s).cast()) as i32) {
-            return false;
-        }
-        while vim_is_idc(crate::memory::cstr_first_byte((*s).cast()) as i32) {
-            *s = (*s)
-                .cast::<u8>()
-                .wrapping_add(utfc_ptr2len((*s).cast()) as usize)
-                .cast();
-        }
-        *s = cin_skipcomment(*s);
-        if crate::memory::cstr_first_byte((*s).cast()) == b':' {
-            *s = (*s).cast::<u8>().wrapping_add(1).cast();
-            crate::memory::cstr_first_byte((*s).cast()) != b':'
-        } else {
-            false
-        }
+fn cin_islabel_skip<T>(s: &mut *const T) -> bool {
+    if !vim_is_idc(crate::memory::cstr_first_byte((*s).cast()) as i32) {
+        return false;
+    }
+    while vim_is_idc(crate::memory::cstr_first_byte((*s).cast()) as i32) {
+        *s = (*s)
+            .cast::<u8>()
+            .wrapping_add(utfc_ptr2len((*s).cast()) as usize)
+            .cast();
+    }
+    *s = cin_skipcomment(*s);
+    if crate::memory::cstr_first_byte((*s).cast()) == b':' {
+        *s = (*s).cast::<u8>().wrapping_add(1).cast();
+        crate::memory::cstr_first_byte((*s).cast()) != b':'
+    } else {
+        false
     }
 }
 fn cin_islabel() -> bool {
@@ -446,7 +425,7 @@ fn cin_islabel() -> bool {
     if cin_isscopedecl(s) {
         return false;
     }
-    if !cin_islabel_skip(&raw mut s) {
+    if !cin_islabel_skip(&mut s) {
         return false;
     }
     if !ind_find_start_cors(None).is_null() {
@@ -472,7 +451,7 @@ fn cin_islabel() -> bool {
         if cin_isterminated(line, true, false) != 0
             || cin_isscopedecl(line)
             || cin_iscase(line, true)
-            || (cin_islabel_skip(&raw mut line) && cin_nocode(line))
+            || (cin_islabel_skip(&mut line) && cin_nocode(line))
         {
             return true;
         }
@@ -507,7 +486,9 @@ fn cin_is_compound_init(s: impl crate::strings::IntoCCharPtr) -> bool {
                 p = r;
             } else if (crate::memory::cstr_prefix_bytes(p, 6) == &b"return"[..6])
                 && !vim_is_idc(crate::memory::cstr_byte_at(p, 6) as i32)
-                && (p == s || (p > s && !vim_is_idc(unsafe { *p.wrapping_sub(1) } as u8 as i32)))
+                && (p == s
+                    || (p > s
+                        && !vim_is_idc(crate::memory::cstr_first_byte(p.wrapping_sub(1)) as i32)))
             {
                 r = cin_skipcomment(p.wrapping_add(6));
                 p = r;
@@ -1139,7 +1120,7 @@ fn cin_is_if_for_while_before_offset(
             return 0;
         }
         if offset == 0
-            || !vim_is_idc(unsafe { *line.wrapping_add((offset - 1) as usize) } as u8 as i32)
+            || !vim_is_idc(crate::memory::cstr_byte_at(line, (offset - 1) as usize) as i32)
         {
             *poffset = offset;
             return 1;
@@ -1505,23 +1486,23 @@ fn find_match_char(c: u8, ind_maxparen: i32) -> *mut CursorPos {
     trypos
 }
 fn find_match_paren_after_brace(ind_maxparen: i32) -> *mut CursorPos {
-    unsafe {
-        let mut trypos = find_match_paren(ind_maxparen);
-        if trypos.is_null() {
-            return ptr::null_mut();
-        }
-        let trypos_brace = find_start_brace();
-        if !trypos_brace.is_null()
-            && (if (*trypos).lnum != (*trypos_brace).lnum {
-                (*trypos).lnum < (*trypos_brace).lnum
-            } else {
-                (*trypos).col < (*trypos_brace).col
-            })
-        {
+    let mut trypos = find_match_paren(ind_maxparen);
+    if trypos.is_null() {
+        return ptr::null_mut();
+    }
+    let trypos_brace = find_start_brace();
+    if !trypos_brace.is_null() {
+        let tp = unsafe { *trypos };
+        let tb = unsafe { *trypos_brace };
+        if if tp.lnum != tb.lnum {
+            tp.lnum < tb.lnum
+        } else {
+            tp.col < tb.col
+        } {
             trypos = ptr::null_mut();
         }
-        trypos
     }
+    trypos
 }
 fn corr_ind_maxparen(startpos: &CursorPos) -> i32 {
     let n = startpos.lnum - curwin_mut().w_cursor.lnum;
@@ -3171,18 +3152,19 @@ pub fn in_cinkeys(keytyped: i32, when: i32, line_is_empty: bool) -> bool {
                     return true;
                 }
                 p = get_cursor_line_ptr().cast();
-                if curwin_mut().w_cursor.col > 2
-                    && unsafe { *p.wrapping_add(curwin_mut().w_cursor.col as usize - 1) } == b':'
-                    && unsafe { *p.wrapping_add(curwin_mut().w_cursor.col as usize - 2) } == b':'
+                let col_usize = curwin_mut().w_cursor.col as usize;
+                if col_usize > 2
+                    && crate::memory::cstr_byte_at(p.cast(), col_usize - 1) == b':'
+                    && crate::memory::cstr_byte_at(p.cast(), col_usize - 2) == b':'
                 {
                     unsafe {
-                        *p.wrapping_add(curwin_mut().w_cursor.col as usize - 1) = b' ';
+                        *p.wrapping_add(col_usize - 1) = b' ';
                     }
                     let i =
                         cin_iscase(p.cast(), false) || cin_isscopedecl(p.cast()) || cin_islabel();
                     p = get_cursor_line_ptr().cast();
                     unsafe {
-                        *p.wrapping_add(curwin_mut().w_cursor.col as usize - 1) = b':';
+                        *p.wrapping_add(col_usize - 1) = b':';
                     }
                     if i {
                         return true;
@@ -3251,24 +3233,31 @@ pub fn in_cinkeys(keytyped: i32, when: i32, line_is_empty: bool) -> bool {
                     {
                         matched = true;
                     }
-                } else if keytyped == unsafe { *p.wrapping_sub(1) } as u8 as i32
-                    || (icase
-                        && (0..256).contains(&keytyped)
-                        && (keytyped as u8)
-                            .eq_ignore_ascii_case(&(unsafe { *p.wrapping_sub(1) } as u8)))
-                {
-                    let line = get_cursor_pos_ptr();
-                    if (curwin_mut().w_cursor.col as usize == word_len
-                        || !vim_iswordc(unsafe { *line.wrapping_sub(word_len + 1) } as u8 as i32))
-                        && (if icase {
-                            mb_strnicmp(line.wrapping_sub(word_len), look, word_len)
-                        } else {
-                            crate::memory::cstr_prefix_bytes(line.wrapping_sub(word_len), word_len)
-                                .cmp(crate::memory::cstr_prefix_bytes(look, word_len))
-                                as i32
-                        }) == 0
+                } else {
+                    let prev_b = crate::memory::cstr_first_byte(p.wrapping_sub(1));
+                    if keytyped == i32::from(prev_b)
+                        || (icase
+                            && (0..256).contains(&keytyped)
+                            && (keytyped as u8).eq_ignore_ascii_case(&prev_b))
                     {
-                        matched = true;
+                        let line = get_cursor_pos_ptr();
+                        if (curwin_mut().w_cursor.col as usize == word_len
+                            || !vim_iswordc(i32::from(crate::memory::cstr_first_byte(
+                                line.wrapping_sub(word_len + 1),
+                            ))))
+                            && (if icase {
+                                mb_strnicmp(line.wrapping_sub(word_len), look, word_len)
+                            } else {
+                                crate::memory::cstr_prefix_bytes(
+                                    line.wrapping_sub(word_len),
+                                    word_len,
+                                )
+                                .cmp(crate::memory::cstr_prefix_bytes(look, word_len))
+                                    as i32
+                            }) == 0
+                        {
+                            matched = true;
+                        }
                     }
                 }
                 if matched
