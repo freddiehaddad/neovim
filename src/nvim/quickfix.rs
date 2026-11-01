@@ -4568,8 +4568,9 @@ fn qf_fill_buffer(qfl: Option<&mut QfList>, buf: &mut FileBuf, old_count: usize,
             let mut qftf_str = ptr::null_mut();
 
             if !qftf_li.is_null() && !invalid_val {
-                qftf_str = tv_get_string_chk(unsafe { &(*qftf_li).li_tv }).cast_mut();
-                if qftf_str.is_null() {
+                if let Some(s) = tv_get_string_chk(unsafe { &(*qftf_li).li_tv }) {
+                    qftf_str = s.as_ptr().cast_mut();
+                } else {
                     invalid_val = true;
                 }
             }
@@ -7749,15 +7750,12 @@ fn set_qf_ll_list(wp: *mut WinInfoInfo, args: &mut [TypVal], rettv: &mut TypVal)
                 emsg(gettext(E_STRING_REQUIRED));
                 return;
             }
-            let act = tv_get_string_chk(&*action_arg);
-            if (crate::memory::cstr_first_byte(act) == b'a'
-                || crate::memory::cstr_first_byte(act) == b'r'
-                || crate::memory::cstr_first_byte(act) == b'u'
-                || crate::memory::cstr_first_byte(act) == b' '
-                || crate::memory::cstr_first_byte(act) == b'f')
-                && crate::memory::cstr_byte_at(act, 1) == 0
-            {
-                action = *act.cast::<u8>();
+            let Some(act) = tv_get_string_chk(&*action_arg) else {
+                return;
+            };
+            let act_bytes = act.to_bytes();
+            if matches!(act_bytes, b"a" | b"r" | b"u" | b" " | b"f") {
+                action = act_bytes[0];
             } else {
                 semsg!(gettext(E_INVACT), act);
                 return;
@@ -7767,10 +7765,10 @@ fn set_qf_ll_list(wp: *mut WinInfoInfo, args: &mut [TypVal], rettv: &mut TypVal)
             let what_arg = &mut *what_arg;
             if what_arg.v_type != VarType::VarUnknown {
                 if what_arg.v_type == VarType::VarString {
-                    title = tv_get_string_chk(&*what_arg);
-                    if title.is_null() {
+                    let Some(t) = tv_get_string_chk(&*what_arg) else {
                         return;
-                    }
+                    };
+                    title = t.as_ptr();
                 } else if what_arg.v_type == VarType::VarDict && !what_arg.vval.v_dict().is_null() {
                     what = what_arg.vval.v_dict();
                 } else {

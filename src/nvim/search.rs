@@ -3214,10 +3214,10 @@ pub fn f_searchcount(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFunc
             recompute = tv_dict_get_bool(dict.as_ref(), c"recompute", i32::from(recompute)) != 0;
             di = tv_dict_find(dict.as_ref(), c"pattern", -1);
             if !di.is_null() {
-                pattern = tv_get_string_chk(&(*di).di_tv).cast_mut();
-                if pattern.is_null() {
+                let Some(pat) = tv_get_string_chk(&(*di).di_tv) else {
                     return;
-                }
+                };
+                pattern = pat.as_ptr().cast_mut();
             }
             di = tv_dict_find(dict.as_ref(), c"pos", -1);
             if !di.is_null() {

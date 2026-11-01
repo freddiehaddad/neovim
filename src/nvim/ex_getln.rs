@@ -4013,10 +4013,9 @@ fn color_cmdline(colored_ccline: &mut CmdlineInfo) -> bool {
                 }
                 prev_end = end;
                 let last_li = tv_list_last(unsafe { l.as_ref() });
-                let group = tv_get_string_chk(unsafe { &(*last_li).li_tv });
-                if group.is_null() {
+                let Some(group) = tv_get_string_chk(unsafe { &(*last_li).li_tv }) else {
                     break 'color_cmdline_error;
-                }
+                };
                 ccline_colors.colors.push(CmdlineColorChunk {
                     start: start as i32,
                     end: end as i32,

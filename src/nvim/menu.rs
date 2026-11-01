@@ -2042,23 +2042,22 @@ pub fn f_menu_info(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDa
     unsafe {
         let retdict = tv_dict_alloc_ret(rettv);
 
-        let menu_name = tv_get_string_chk(&argvars[0]);
-        if menu_name.is_null() {
+        let Some(menu_name) = tv_get_string_chk(&argvars[0]) else {
             return;
-        }
+        };
 
         let which = if argvars[1].v_type != VarType::VarUnknown {
-            tv_get_string_chk(&argvars[1])
+            let Some(w) = tv_get_string_chk(&argvars[1]) else {
+                return;
+            };
+            w
         } else {
-            c"".as_ptr()
+            c""
         };
-        if which.is_null() {
-            return;
-        }
 
         let modes = get_menu_cmd_modes(
-            which,
-            crate::memory::cstr_first_byte(which) == b'!',
+            which.as_ptr(),
+            which.to_bytes().first() == Some(&b'!'),
             None,
             None,
         );

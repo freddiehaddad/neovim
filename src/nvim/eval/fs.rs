@@ -775,7 +775,8 @@ pub fn f_fnamemodify(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFunc
     let mut fbuf: Option<Vec<u8>> = None;
     let mut len: usize = 0;
     let mut buf = [0u8; NUMBUFLEN];
-    let mut fname = tv_get_string_chk(&argvars[0]).cast_mut().cast::<u8>();
+    let mut fname = tv_get_string_chk(&argvars[0])
+        .map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut().cast::<u8>());
     let mods = tv_get_string_buf_chk(&argvars[1], &mut buf)
         .map_or(std::ptr::null(), std::ffi::CStr::as_ptr);
     if mods.is_null() || fname.is_null() {
@@ -1219,12 +1220,8 @@ pub fn f_globpath(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDat
 
 /// "glob2regpat()" function
 pub fn f_glob2regpat(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
-    let pat = tv_get_string_chk(&argvars[0]); // NULL on type error
-    let regpat = if pat.is_null() {
-        None
-    } else {
-        file_pat_to_reg_pat(pat, ptr::null(), None, 0)
-    };
+    let regpat = tv_get_string_chk(&argvars[0])
+        .and_then(|pat| file_pat_to_reg_pat(pat, ptr::null(), None, 0));
     crate::eval::typval::tv_set_string(rettv, regpat.as_ref().map_or(ptr::null(), |s| s.as_ptr()));
 }
 
@@ -1385,17 +1382,16 @@ pub fn f_pathshorten(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFunc
         }
     }
 
-    let p = tv_get_string_chk(&argvars[0]);
-    if p.is_null() {
-        rettv.v_type = VarType::VarString;
-        rettv.vval = crate::eval::typval::TypvalVval::String(ptr::null_mut());
-    } else {
-        let mut v = cstr_to_cstring(p).into_bytes_with_nul();
+    if let Some(p) = tv_get_string_chk(&argvars[0]) {
+        let mut v = p.to_owned().into_bytes_with_nul();
         shorten_dir_len(v.as_mut_ptr().cast(), trim_len);
         crate::eval::typval::tv_set_string(
             rettv,
             CStr::from_bytes_until_nul(&v).unwrap_or_default(),
         );
+    } else {
+        rettv.v_type = VarType::VarString;
+        rettv.vval = crate::eval::typval::TypvalVval::String(ptr::null_mut());
     }
 }
 
@@ -1941,11 +1937,10 @@ fn write_list(fp: &mut FileDescriptor, list: Option<&TvList>, binary: bool) -> b
         let mut error: i32 = 0;
         let mut li = tv_list_first(list);
         'outer: while !li.is_null() {
-            let s = tv_get_string_chk(&(*li).li_tv);
-            if s.is_null() {
+            let Some(s_cstr) = tv_get_string_chk(&(*li).li_tv) else {
                 return false;
-            }
-            let mut hunk_start = s;
+            };
+            let mut hunk_start = s_cstr.as_ptr();
             let mut p = hunk_start;
             loop {
                 if crate::memory::cstr_is_empty(p) || *p == NL {
@@ -2069,11 +2064,10 @@ pub fn f_writefile(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDa
     let mut do_fsync = opt_vars().p_fs != 0;
     let mut mkdir_p = false;
     if argvars[2].v_type != VarType::VarUnknown {
-        let flags = tv_get_string_chk(&argvars[2]);
-        if flags.is_null() {
+        let Some(flags_cstr) = tv_get_string_chk(&argvars[2]) else {
             return;
-        }
-        let mut p = flags;
+        };
+        let mut p = flags_cstr.as_ptr();
         while !crate::memory::cstr_is_empty(p) {
             match crate::memory::cstr_first_byte(p) {
                 b'b' => binary = true,

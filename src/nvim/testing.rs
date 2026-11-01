@@ -368,7 +368,7 @@ fn assert_append_cmd_or_arg(
 }
 
 fn assert_beeps(argvars: &mut [TypVal], no_beep: bool) -> i32 {
-    let cmd = tv_get_string_chk(&argvars[0]);
+    let cmd = tv_get_string_chk(&argvars[0]).map_or(std::ptr::null(), std::ffi::CStr::as_ptr);
     let mut ret: i32 = 0;
 
     let beeps = g_st().did_beep;
@@ -534,9 +534,9 @@ pub fn f_assert_exception(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: Eva
         ga_concat_literal(&mut ga, b"v:exception is not set");
         assert_error(&ga);
         rettv.vval = crate::eval::typval::TypvalVval::Number(1);
-    } else if !error.is_null() {
+    } else if let Some(error) = error {
         let exc_bytes = v_exc.to_bytes();
-        let err_bytes = crate::memory::cstr_as_bytes(error);
+        let err_bytes = error.to_bytes();
         let found = if err_bytes.is_empty() {
             true
         } else {
@@ -585,7 +585,7 @@ pub fn f_assert_fails(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFun
     g_st().in_assert_fails = true;
     g_st().no_wait_return += 1;
 
-    let cmd = tv_get_string_chk(&argvars[0]);
+    let cmd = tv_get_string_chk(&argvars[0]).map_or(std::ptr::null(), std::ffi::CStr::as_ptr);
     do_cmdline_cmd(cmd);
 
     g_st().trylevel = save_trylevel;

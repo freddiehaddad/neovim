@@ -506,9 +506,8 @@ pub fn f_histadd(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData
     if check_secure() {
         return;
     }
-    let str_ptr = tv_get_string_chk(&argvars[0]);
-    let histype = if !str_ptr.is_null() {
-        get_histtype(crate::memory::cstr_as_bytes(str_ptr), false)
+    let histype = if let Some(str_ptr) = tv_get_string_chk(&argvars[0]) {
+        get_histtype(str_ptr.to_bytes(), false)
     } else {
         HIST_INVALID
     };
@@ -529,11 +528,8 @@ pub fn f_histadd(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData
 
 /// `"histdel()"` function (`f_histdel`).
 pub fn f_histdel(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
-    let str_ptr = tv_get_string_chk(&argvars[0]);
-    let n = if str_ptr.is_null() {
-        0
-    } else {
-        let htype = get_histtype(crate::memory::cstr_as_bytes(str_ptr), false);
+    let n = if let Some(str_ptr) = tv_get_string_chk(&argvars[0]) {
+        let htype = get_histtype(str_ptr.to_bytes(), false);
         let arg1 = &argvars[1];
         if arg1.v_type == VarType::VarUnknown {
             i32::from(clr_history(htype))
@@ -544,40 +540,40 @@ pub fn f_histdel(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData
             let pat = tv_get_string_buf(arg1, &mut buf);
             del_history_entry(htype, pat)
         }
+    } else {
+        0
     };
     rettv.vval = crate::eval::typval::TypvalVval::Number(n as i64);
 }
 
 /// `"histget()"` function (`f_histget`).
 pub fn f_histget(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
-    let str_ptr = tv_get_string_chk(&argvars[0]);
-    if str_ptr.is_null() {
+    let Some(str_ptr) = tv_get_string_chk(&argvars[0]) else {
         tv_set_string(rettv, std::ptr::null());
+        return;
+    };
+    let htype = get_histtype(str_ptr.to_bytes(), false);
+    let arg1 = &argvars[1];
+    let req_idx = if arg1.v_type == VarType::VarUnknown {
+        get_history_idx(htype)
     } else {
-        let htype = get_histtype(crate::memory::cstr_as_bytes(str_ptr), false);
-        let arg1 = &argvars[1];
-        let req_idx = if arg1.v_type == VarType::VarUnknown {
-            get_history_idx(htype)
-        } else {
-            tv_get_number_chk(arg1, None) as i32
-        };
-        let idx = calc_hist_idx(htype, req_idx);
-        if idx < 0 {
-            tv_set_string(rettv, c"");
-        } else {
-            let entry = &hist_st().history[htype as usize][idx as usize];
-            tv_set_string(rettv, entry.hisstr_cstr().map_or(ptr::null(), CStr::as_ptr));
-        }
+        tv_get_number_chk(arg1, None) as i32
+    };
+    let idx = calc_hist_idx(htype, req_idx);
+    if idx < 0 {
+        tv_set_string(rettv, c"");
+    } else {
+        let entry = &hist_st().history[htype as usize][idx as usize];
+        tv_set_string(rettv, entry.hisstr_cstr().map_or(ptr::null(), CStr::as_ptr));
     }
 }
 
 /// `"histnr()"` function (`f_histnr`).
 pub fn f_histnr(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
-    let histname = tv_get_string_chk(&argvars[0]);
-    let htype = if histname.is_null() {
-        HIST_INVALID
+    let htype = if let Some(histname) = tv_get_string_chk(&argvars[0]) {
+        get_histtype(histname.to_bytes(), false)
     } else {
-        get_histtype(crate::memory::cstr_as_bytes(histname), false)
+        HIST_INVALID
     };
     rettv.vval = crate::eval::typval::TypvalVval::Number(if htype != HIST_INVALID {
         get_history_idx(htype) as i64

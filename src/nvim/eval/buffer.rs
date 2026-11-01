@@ -568,11 +568,9 @@ pub fn f_bufnr(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) 
         && argvars[1].v_type != VarType::VarUnknown
         && tv_get_bool_chk(&argvars[1], Some(&mut error)) != 0
         && !error
+        && let Some(name) = tv_get_string_chk(&argvars[0])
     {
-        let name = tv_get_string_chk(&argvars[0]);
-        if !name.is_null() {
-            buf = buflist_new(name.cast_mut(), ptr::null_mut(), 1, 0);
-        }
+        buf = buflist_new(name, ptr::null_mut(), 1, 0);
     }
 
     if !buf.is_null() {

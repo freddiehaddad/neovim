@@ -1782,7 +1782,7 @@ pub fn f_confirm(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData
     let mut error = false;
 
     let message = tv_get_string_chk(&argvars[0]);
-    if message.is_null() {
+    if message.is_none() {
         error = true;
     }
     if argvars[1].v_type != VarType::VarUnknown {
@@ -1817,11 +1817,11 @@ pub fn f_confirm(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData
         buttons = gettext(c"&Ok").as_ptr().cast();
     }
 
-    if !error {
+    if !error && let Some(message) = message {
         rettv.vval = crate::eval::typval::TypvalVval::Number(Varnumber::from(do_dialog(
             type_,
             ptr::null(),
-            message,
+            message.as_ptr(),
             buttons.cast(),
             def,
             ptr::null(),
@@ -1982,11 +1982,10 @@ pub fn f_dictwatcheradd(argvars: &mut [TypVal], _rettv: &mut TypVal, _fptr: Eval
         return;
     }
 
-    let key_pattern = tv_get_string_chk(&argvars[1]);
-    if key_pattern.is_null() {
+    let Some(key_pattern) = tv_get_string_chk(&argvars[1]) else {
         return;
-    }
-    let key_pattern_len = crate::memory::cstr_len(key_pattern);
+    };
+    let key_pattern_len = key_pattern.to_bytes().len();
 
     let mut callback = Callback::NONE;
     if !callback_from_typval(&mut callback, &argvars[2]) {
@@ -1996,7 +1995,7 @@ pub fn f_dictwatcheradd(argvars: &mut [TypVal], _rettv: &mut TypVal, _fptr: Eval
 
     tv_dict_watcher_add(
         unsafe { argvars[0].vval.v_dict().as_mut() },
-        key_pattern,
+        key_pattern.as_ptr(),
         key_pattern_len,
         callback,
     );
@@ -2016,10 +2015,9 @@ pub fn f_dictwatcherdel(argvars: &mut [TypVal], _rettv: &mut TypVal, _fptr: Eval
         return;
     }
 
-    let key_pattern = tv_get_string_chk(&argvars[1]);
-    if key_pattern.is_null() {
+    let Some(key_pattern) = tv_get_string_chk(&argvars[1]) else {
         return;
-    }
+    };
 
     let mut callback = Callback::NONE;
     if !callback_from_typval(&mut callback, &argvars[2]) {
@@ -2028,8 +2026,8 @@ pub fn f_dictwatcherdel(argvars: &mut [TypVal], _rettv: &mut TypVal, _fptr: Eval
 
     if !tv_dict_watcher_remove(
         unsafe { argvars[0].vval.v_dict().as_mut() },
-        key_pattern,
-        crate::memory::cstr_len(key_pattern),
+        key_pattern.as_ptr(),
+        key_pattern.to_bytes().len(),
         &callback,
     ) {
         emsg(c"Couldn't find a watcher matching key and callback");
@@ -2105,7 +2103,7 @@ pub fn f_getenv(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData)
 
 /// "eval()" function
 pub fn f_eval(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
-    let mut s = tv_get_string_chk(&argvars[0]).cast_mut();
+    let mut s = tv_get_string_chk(&argvars[0]).map_or(ptr::null_mut(), |c| c.as_ptr().cast_mut());
     if !s.is_null() {
         s = skipwhite(s);
     }
@@ -3447,19 +3445,18 @@ pub fn f_getregionpos(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFun
 /// Common between `getreg()`, `getreginfo()` and `getregtype()`.
 fn getreg_get_regname(argvars: &mut [TypVal]) -> i32 {
     let strregname = if argvars[0].v_type != VarType::VarUnknown {
-        let s = tv_get_string_chk(&argvars[0]);
-        if s.is_null() {
+        let Some(s) = tv_get_string_chk(&argvars[0]) else {
             return 0;
-        }
+        };
         s
     } else {
-        get_vim_var_str(VV_REG).as_ptr()
+        get_vim_var_str(VV_REG)
     };
-    if unsafe { *strregname } == 0 {
-        b'"' as i32
-    } else {
-        i32::from(crate::memory::cstr_first_byte(strregname))
-    }
+    strregname
+        .to_bytes()
+        .first()
+        .copied()
+        .map_or(b'"' as i32, i32::from)
 }
 
 /// "getreg()" function
@@ -5086,10 +5083,9 @@ pub fn f_localtime(_argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncD
 
 /// "luaeval()" function
 pub fn f_luaeval(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
-    let str_ = tv_get_string_chk(&argvars[0]);
-    if str_.is_null() {
+    let Some(str_) = tv_get_string_chk(&argvars[0]) else {
         return;
-    }
+    };
     nlua_call_luaeval(cstr_as_string(str_), &mut argvars[1], rettv);
 }
 
@@ -7080,10 +7076,10 @@ pub fn f_searchdecl(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncD
             thisblock = tv_get_bool_chk(&argvars[2], Some(&mut error)) as i32;
         }
     }
-    if !error && !name.is_null() {
+    if !error && let Some(name) = name {
         rettv.vval = crate::eval::typval::TypvalVval::Number(Varnumber::from(!find_decl(
-            name.cast_mut(),
-            crate::memory::cstr_len(name),
+            name.as_ptr().cast_mut(),
+            name.to_bytes().len(),
             locally != 0,
             thisblock != 0,
             SEARCH_KEEP,
@@ -7104,12 +7100,10 @@ fn searchpair_cmn(argvars: &mut [TypVal], match_pos: Option<&mut CursorPos>) -> 
         let spat = tv_get_string_chk(&argvars[0]);
         let mpat = tv_get_string_buf_chk(&argvars[1], &mut nbuf1);
         let epat = tv_get_string_buf_chk(&argvars[2], &mut nbuf2);
-        let (Some(mpat), Some(epat)) = (mpat, epat) else {
+        let (Some(spat), Some(mpat), Some(epat)) = (spat, mpat, epat) else {
             break 'theend;
         };
-        if spat.is_null() {
-            break 'theend;
-        }
+        let spat = spat.as_ptr();
         let mpat = mpat.as_ptr();
         let epat = epat.as_ptr();
 
@@ -7502,10 +7496,10 @@ pub fn f_serverstop(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncD
 fn set_position(argvars: &mut [TypVal], rettv: &mut TypVal, charpos: bool) {
     let mut curswant: Colnr = -1;
     rettv.vval = crate::eval::typval::TypvalVval::Number(-1);
-    let name = tv_get_string_chk(&argvars[0]);
-    if name.is_null() {
+    let Some(name_cstr) = tv_get_string_chk(&argvars[0]) else {
         return;
-    }
+    };
+    let name = name_cstr.as_ptr();
 
     let mut pos = CursorPos {
         lnum: 0,
@@ -7617,10 +7611,9 @@ pub fn f_setenv(argvars: &mut [TypVal], _rettv: &mut TypVal, _fptr: EvalFuncData
 pub fn f_setfperm(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
     rettv.vval = crate::eval::typval::TypvalVval::Number(0);
 
-    let fname = tv_get_string_chk(&argvars[0]);
-    if fname.is_null() {
+    let Some(fname) = tv_get_string_chk(&argvars[0]) else {
         return;
-    }
+    };
     let mut modebuf = [0u8; NUMBUFLEN];
     let Some(mode_str) = tv_get_string_buf_chk(&argvars[1], &mut modebuf) else {
         return;
@@ -7684,11 +7677,10 @@ pub fn f_setreg(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData)
 
         rettv.vval = crate::eval::typval::TypvalVval::Number(1);
 
-        let strregname = tv_get_string_chk(&argvars[0]);
-        if strregname.is_null() {
+        let Some(strregname) = tv_get_string_chk(&argvars[0]) else {
             return;
-        }
-        let mut regname = *strregname.cast::<u8>();
+        };
+        let mut regname = strregname.to_bytes().first().copied().unwrap_or(0);
         if regname == 0 || regname == b'@' {
             regname = b'"';
         }
@@ -7742,10 +7734,10 @@ pub fn f_setreg(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData)
                 return;
             }
 
-            let mut stropt = tv_get_string_chk(&argvars[2]).cast_mut();
-            if stropt.is_null() {
+            let Some(stropt_cstr) = tv_get_string_chk(&argvars[2]) else {
                 return;
-            }
+            };
+            let mut stropt = stropt_cstr.as_ptr().cast_mut();
             while !crate::memory::cstr_is_empty(stropt) {
                 match crate::memory::cstr_first_byte(stropt) {
                     b'a' | b'A' => append = true,
@@ -7782,14 +7774,13 @@ pub fn f_setreg(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData)
                 );
             }
         } else if !regcontents.is_null() {
-            let strval = tv_get_string_chk(&*regcontents);
-            if strval.is_null() {
+            let Some(strval) = tv_get_string_chk(&*regcontents) else {
                 return;
-            }
+            };
             write_reg_contents_ex(
                 i32::from(regname),
                 strval,
-                crate::memory::cstr_len(strval) as isize,
+                strval.to_bytes().len() as isize,
                 append,
                 yank_type,
                 block_len as Colnr,
@@ -7828,16 +7819,12 @@ pub fn f_settagstack(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFunc
     } else if !tv_check_for_string_arg(argvars, 2) {
         return;
     } else {
-        let actstr = tv_get_string_chk(&argvars[2]);
-        if actstr.is_null() {
+        let Some(actstr) = tv_get_string_chk(&argvars[2]) else {
             return;
-        }
-        if (crate::memory::cstr_first_byte(actstr) == b'r'
-            || crate::memory::cstr_first_byte(actstr) == b'a'
-            || crate::memory::cstr_first_byte(actstr) == b't')
-            && crate::memory::cstr_byte_at(actstr, 1) == 0
-        {
-            action = unsafe { *actstr.cast::<u8>() };
+        };
+        let bytes = actstr.to_bytes();
+        if matches!(bytes, b"r" | b"a" | b"t") {
+            action = bytes[0];
         } else {
             semsg!(gettext(E_INVACT2), actstr);
             return;
@@ -8044,9 +8031,9 @@ pub fn f_spellbadword(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFun
             curwin_mut().w_set_curswant = true;
         }
     } else if !crate::memory::cstr_is_empty(curbuf_mut().b_s.b_p_spl) {
-        let mut str_ = tv_get_string_chk(&argvars[0]);
         let mut capcol: i32 = -1;
-        if !str_.is_null() {
+        if let Some(str_cstr) = tv_get_string_chk(&argvars[0]) {
+            let mut str_ = str_cstr.as_ptr();
             while !crate::memory::cstr_is_empty(str_) {
                 len = spell_check(
                     curwin_mut(),
@@ -8237,10 +8224,10 @@ pub fn f_stdpath(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData
     rettv.v_type = VarType::VarString;
     rettv.vval = crate::eval::typval::TypvalVval::String(ptr::null_mut());
 
-    let p = tv_get_string_chk(&argvars[0]);
-    if p.is_null() {
+    let Some(p_cstr) = tv_get_string_chk(&argvars[0]) else {
         return;
-    }
+    };
+    let p = p_cstr.as_ptr();
 
     if crate::memory::cstr_as_opt_bytes(p) == Some(b"config") {
         if let Some(s) = get_xdg_home(XDGVarType::XDGConfigHome) {
@@ -8425,28 +8412,33 @@ pub fn f_substitute(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncD
     let mut subbuf = [0u8; NUMBUFLEN];
     let mut flagsbuf = [0u8; NUMBUFLEN];
 
-    let str_ = tv_get_string_chk(&argvars[0]);
-    let pat =
-        tv_get_string_buf_chk(&argvars[1], &mut patbuf).map_or(ptr::null(), std::ffi::CStr::as_ptr);
+    let [arg0, arg1, arg2, arg3, ..] = argvars else {
+        unreachable!()
+    };
+    let str_ = tv_get_string_chk(arg0);
+    let pat = tv_get_string_buf_chk(arg1, &mut patbuf).map_or(ptr::null(), std::ffi::CStr::as_ptr);
     let mut sub = ptr::null();
-    let flg = tv_get_string_buf_chk(&argvars[3], &mut flagsbuf)
-        .map_or(ptr::null(), std::ffi::CStr::as_ptr);
+    let flg =
+        tv_get_string_buf_chk(arg3, &mut flagsbuf).map_or(ptr::null(), std::ffi::CStr::as_ptr);
 
     let mut expr: *mut TypVal = ptr::null_mut();
-    if tv_is_func(&argvars[2]) {
-        expr = &raw mut argvars[2];
+    if tv_is_func(arg2) {
+        expr = &raw mut *arg2;
     } else {
-        sub = tv_get_string_buf_chk(&argvars[2], &mut subbuf)
-            .map_or(ptr::null(), std::ffi::CStr::as_ptr);
+        sub = tv_get_string_buf_chk(arg2, &mut subbuf).map_or(ptr::null(), std::ffi::CStr::as_ptr);
     }
 
     rettv.v_type = VarType::VarString;
-    if str_.is_null() || pat.is_null() || (sub.is_null() && expr.is_null()) || flg.is_null() {
+    let Some(str_) = str_ else {
+        rettv.vval = crate::eval::typval::TypvalVval::String(ptr::null_mut());
+        return;
+    };
+    if pat.is_null() || (sub.is_null() && expr.is_null()) || flg.is_null() {
         rettv.vval = crate::eval::typval::TypvalVval::String(ptr::null_mut());
     } else {
         let sub_res = do_string_sub(
-            str_.cast_mut(),
-            crate::memory::cstr_len(str_),
+            str_.as_ptr().cast_mut(),
+            str_.to_bytes().len(),
             pat.cast_mut(),
             sub.cast_mut(),
             unsafe { expr.as_ref() },

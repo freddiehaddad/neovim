@@ -758,7 +758,7 @@ pub fn tv_str(
             *idxp += 1;
             let tv = tvs.wrapping_add(idx);
             if (*tv).v_type == VarType::VarString || (*tv).v_type == VarType::VarNumber {
-                s = tv_get_string_chk(&*tv);
+                s = tv_get_string_chk(&*tv).map_or(ptr::null(), std::ffi::CStr::as_ptr);
                 *tofree = None;
             } else {
                 let encoded = encode_tv2echo(&mut *tv, None);
@@ -2401,9 +2401,13 @@ fn byteidx_common(argvars: &mut [TypVal], rettv: &mut TypVal, comp: bool) {
 
         let str_ = tv_get_string_chk(&argvars[0]);
         let mut idx = tv_get_number_chk(&argvars[1], None);
-        if str_.is_null() || idx < 0 {
+        let Some(str_cstr) = str_ else {
+            return;
+        };
+        if idx < 0 {
             return;
         }
+        let str_ = str_cstr.as_ptr();
 
         let mut utf16idx: Varnumber = 0;
         if argvars[2].v_type != VarType::VarUnknown {
@@ -2467,9 +2471,13 @@ pub fn f_charidx(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData
 
         let str_ = tv_get_string_chk(&argvars[0]);
         let mut idx = tv_get_number_chk(&argvars[1], None);
-        if str_.is_null() || idx < 0 {
+        let Some(str_cstr) = str_ else {
+            return;
+        };
+        if idx < 0 {
             return;
         }
+        let str_ = str_cstr.as_ptr();
 
         let mut countcc: Varnumber = 0;
         let mut utf16idx: Varnumber = 0;
@@ -2566,17 +2574,17 @@ pub fn f_str2nr(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData)
 pub fn f_strgetchar(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
     rettv.vval = crate::eval::typval::TypvalVval::Number(-1);
 
-    let str_ = tv_get_string_chk(&argvars[0]);
-    if str_.is_null() {
+    let Some(str_cstr) = tv_get_string_chk(&argvars[0]) else {
         return;
-    }
+    };
     let mut error = false;
     let mut charidx = tv_get_number_chk(&argvars[1], Some(&mut error));
     if error {
         return;
     }
 
-    let len = crate::memory::cstr_len(str_);
+    let str_ = str_cstr.as_ptr();
+    let len = str_cstr.to_bytes().len();
     let mut byteidx: usize = 0;
     while charidx >= 0 && byteidx < len {
         if charidx == 0 {
@@ -2598,9 +2606,9 @@ pub fn f_stridx(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData)
     let Some(haystack_cstr) = tv_get_string_buf_chk(&argvars[0], &mut buf) else {
         return;
     };
-    if needle.is_null() {
+    let Some(needle) = needle else {
         return;
-    }
+    };
     let mut haystack = haystack_cstr.as_ptr();
     let haystack_start = haystack;
 
@@ -2617,7 +2625,7 @@ pub fn f_stridx(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData)
     }
 
     let hay_bytes = crate::memory::cstr_as_bytes(haystack);
-    let needle_bytes = crate::memory::cstr_as_bytes(needle);
+    let needle_bytes = needle.to_bytes();
     if needle_bytes.is_empty() {
         rettv.vval = crate::eval::typval::TypvalVval::Number(crate::memory::ptr_offset_from(
             haystack,
@@ -2837,12 +2845,12 @@ pub fn f_strridx(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData
     let Some(haystack) = haystack else {
         return;
     };
-    if needle.is_null() {
+    let Some(needle) = needle else {
         return;
-    }
+    };
 
     let hay_bytes = haystack.to_bytes();
-    let needle_bytes = crate::memory::cstr_as_bytes(needle);
+    let needle_bytes = needle.to_bytes();
     let haystack_len = hay_bytes.len();
     let end_idx: isize = if argvars[2].v_type != VarType::VarUnknown {
         let idx = tv_get_number_chk(&argvars[2], None) as isize;
@@ -2903,9 +2911,13 @@ pub fn f_utf16idx(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDat
 
         let str_ = tv_get_string_chk(&argvars[0]);
         let mut idx = tv_get_number_chk(&argvars[1], None);
-        if str_.is_null() || idx < 0 {
+        let Some(str_cstr) = str_ else {
+            return;
+        };
+        if idx < 0 {
             return;
         }
+        let str_ = str_cstr.as_ptr();
 
         let mut countcc: Varnumber = 0;
         let mut charidx: Varnumber = 0;

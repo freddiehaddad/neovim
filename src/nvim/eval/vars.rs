@@ -1749,7 +1749,7 @@ fn ex_let_env(
             unsafe {
                 *name.wrapping_add(len) = 0;
             }
-            let mut p = tv_get_string_chk(&*tv);
+            let mut p = tv_get_string_chk(&*tv).map_or(ptr::null(), std::ffi::CStr::as_ptr);
             if !p.is_null()
                 && !op.is_null()
                 && crate::memory::cstr_first_byte(op) == b'.'
@@ -1952,7 +1952,7 @@ fn ex_let_register(
             emsg(gettext(E_LETUNEXP));
         } else {
             let mut ptofree: Option<std::ffi::CString> = None;
-            let mut p = tv_get_string_chk(&*tv);
+            let mut p = tv_get_string_chk(&*tv).map_or(ptr::null(), std::ffi::CStr::as_ptr);
             if !p.is_null() && !op.is_null() && crate::memory::cstr_first_byte(op) == b'.' {
                 let reg_c = if crate::memory::cstr_first_byte(arg.cast()) == b'@' {
                     b'"' as i32
@@ -3484,7 +3484,7 @@ fn getwinvar(argvars: &mut [TypVal], rettv: &mut TypVal, off: usize) {
         g_st().curtab
     };
     let win = find_win_by_nr(&argvars[off], tp);
-    let varname = tv_get_string_chk(&argvars[off + 1]);
+    let varname = tv_get_string_chk(&argvars[off + 1]).map_or(ptr::null(), std::ffi::CStr::as_ptr);
 
     get_var_from(
         varname,
@@ -3667,7 +3667,7 @@ fn setwinvar(argvars: &mut [TypVal], off: usize) {
         g_st().curtab
     };
     let win = find_win_by_nr(&argvars[off], tp);
-    let varname = tv_get_string_chk(&argvars[off + 1]);
+    let varname = tv_get_string_chk(&argvars[off + 1]).map_or(ptr::null(), std::ffi::CStr::as_ptr);
     let varp = (&raw mut argvars[off + 2]);
 
     if win.is_null() || varname.is_null() {
@@ -3917,7 +3917,7 @@ pub fn var_redir_stop() {
 
 /// "gettabvar()" function.
 pub fn f_gettabvar(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
-    let varname = tv_get_string_chk(&argvars[1]);
+    let varname = tv_get_string_chk(&argvars[1]).map_or(ptr::null(), std::ffi::CStr::as_ptr);
     let tp = find_tabpage(tv_get_number_chk(&argvars[0], None) as i32);
     let mut win: *mut WinInfoInfo = ptr::null_mut();
 
@@ -3953,7 +3953,7 @@ pub fn f_getwinvar(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDa
 
 /// "getbufvar()" function.
 pub fn f_getbufvar(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
-    let varname = tv_get_string_chk(&argvars[1]);
+    let varname = tv_get_string_chk(&argvars[1]).map_or(ptr::null(), std::ffi::CStr::as_ptr);
     let buf = tv_get_buf_from_arg(&mut argvars[0]);
 
     get_var_from(
@@ -3973,11 +3973,17 @@ pub fn f_settabvar(argvars: &mut [TypVal], _rettv: &mut TypVal, _fptr: EvalFuncD
         return;
     }
 
-    let tp = find_tabpage(tv_get_number_chk(&argvars[0], None) as i32);
-    let varname = tv_get_string_chk(&argvars[1]);
-    let varp = (&raw mut argvars[2]);
+    let [arg0, arg1, arg2, ..] = argvars else {
+        unreachable!()
+    };
+    let tp = find_tabpage(tv_get_number_chk(arg0, None) as i32);
+    let varname = tv_get_string_chk(arg1);
+    let varp = &raw mut *arg2;
 
-    if varname.is_null() || tp.is_null() {
+    let Some(varname) = varname else {
+        return;
+    };
+    if tp.is_null() {
         return;
     }
 
@@ -3985,13 +3991,11 @@ pub fn f_settabvar(argvars: &mut [TypVal], _rettv: &mut TypVal, _fptr: EvalFuncD
     let save_lu_tp = g_st().lastused_tabpage;
     goto_tabpage_tp(tp, false, false);
 
-    let varname_len = crate::memory::cstr_len(varname);
+    let varname_len = varname.to_bytes().len();
     let mut tabvarname = Vec::with_capacity(varname_len + 3);
     tabvarname.push(b't');
     tabvarname.push(b':');
-    tabvarname.extend_from_slice(unsafe {
-        std::slice::from_raw_parts(varname.cast::<u8>(), varname_len + 1)
-    });
+    tabvarname.extend_from_slice(varname.to_bytes_with_nul());
     set_var(
         tabvarname.as_ptr().cast(),
         varname_len + 2,
@@ -4022,7 +4026,7 @@ pub fn f_setbufvar(argvars: &mut [TypVal], _rettv: &mut TypVal, _fptr: EvalFuncD
     if check_secure() || !tv_check_str_or_nr(&argvars[0]) {
         return;
     }
-    let varname = tv_get_string_chk(&argvars[1]);
+    let varname = tv_get_string_chk(&argvars[1]).map_or(ptr::null(), std::ffi::CStr::as_ptr);
     let buf = tv_get_buf(&mut argvars[0], 0);
     let varp = (&raw mut argvars[2]);
 

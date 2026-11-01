@@ -1526,10 +1526,10 @@ pub fn f_sign_define(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFunc
 
     rettv.vval = crate::eval::typval::TypvalVval::Number(-1);
 
-    let name = tv_get_string_chk(&argvars[0]).cast_mut();
-    if name.is_null() {
+    let Some(name_cstr) = tv_get_string_chk(&argvars[0]) else {
         return;
-    }
+    };
+    let name = name_cstr.as_ptr().cast_mut();
 
     if !tv_check_for_opt_dict_arg(argvars, 1) {
         return;
@@ -1600,12 +1600,11 @@ pub fn f_sign_getplaced(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalF
             }
             let di_group = tv_dict_find(unsafe { dict.as_ref() }, c"group", -1);
             if !di_group.is_null() {
-                group = tv_get_string_chk(unsafe { &(*di_group).di_tv });
-                if group.is_null() {
+                let Some(g) = tv_get_string_chk(unsafe { &(*di_group).di_tv }) else {
                     return;
-                }
-                if crate::memory::cstr_is_empty(group) {
-                    group = ptr::null();
+                };
+                if !g.is_empty() {
+                    group = g.as_ptr();
                 }
             }
         }
@@ -1633,13 +1632,14 @@ pub fn f_sign_jump(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDa
         return;
     }
 
-    let mut group = tv_get_string_chk(&argvars[1]).cast_mut();
-    if group.is_null() {
+    let Some(group_cstr) = tv_get_string_chk(&argvars[1]) else {
         return;
-    }
-    if crate::memory::cstr_is_empty(group) {
-        group = ptr::null_mut();
-    }
+    };
+    let group = if group_cstr.is_empty() {
+        ptr::null_mut()
+    } else {
+        group_cstr.as_ptr().cast_mut()
+    };
 
     let buf = get_buf_arg(&mut argvars[2]);
     if buf.is_null() {
@@ -1685,12 +1685,11 @@ fn sign_place_from_dict(
         }
     }
     if let Some(group_tv) = group_tv {
-        group = tv_get_string_chk(group_tv).cast_mut();
-        if group.is_null() {
+        let Some(g) = tv_get_string_chk(group_tv) else {
             return -1;
-        }
-        if crate::memory::cstr_is_empty(group) {
-            group = ptr::null_mut();
+        };
+        if !g.is_empty() {
+            group = g.as_ptr().cast_mut();
         }
     }
 
@@ -1703,10 +1702,10 @@ fn sign_place_from_dict(
     let Some(name_tv) = name_tv else {
         return -1;
     };
-    let name = tv_get_string_chk(name_tv).cast_mut();
-    if name.is_null() {
+    let Some(name_cstr) = tv_get_string_chk(name_tv) else {
         return -1;
-    }
+    };
+    let name = name_cstr.as_ptr().cast_mut();
 
     if buf_tv.is_none() {
         let di = tv_dict_find(dict, c"buffer", -1);
@@ -1803,8 +1802,9 @@ fn sign_undefine_multiple(l: Option<&TvList>, retlist: &mut TvList) {
     }
     for li in crate::eval::typval::list_iter_mut(l.unwrap().lv_first) {
         let mut retval: i32 = -1;
-        let name = tv_get_string_chk(&li.li_tv);
-        if !name.is_null() && sign_undefine_by_name(name) {
+        if let Some(name) = tv_get_string_chk(&li.li_tv)
+            && sign_undefine_by_name(name.as_ptr())
+        {
             retval = 0;
         }
         tv_list_append_number(retlist, i64::from(retval));
@@ -1826,11 +1826,10 @@ pub fn f_sign_undefine(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFu
         free_signs();
         rettv.vval = crate::eval::typval::TypvalVval::Number(0);
     } else {
-        let name = tv_get_string_chk(&argvars[0]);
-        if name.is_null() {
+        let Some(name) = tv_get_string_chk(&argvars[0]) else {
             return;
-        }
-        if sign_undefine_by_name(name) {
+        };
+        if sign_undefine_by_name(name.as_ptr()) {
             rettv.vval = crate::eval::typval::TypvalVval::Number(0);
         }
     }

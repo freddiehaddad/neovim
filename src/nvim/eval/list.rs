@@ -621,7 +621,7 @@ pub fn f_count(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) 
     if !error && arg0.v_type == VarType::VarString {
         n = count_string(
             crate::memory::cstr_as_opt_bytes(arg0.vval.v_string()),
-            crate::memory::cstr_as_opt_bytes(tv_get_string_chk(arg1)),
+            tv_get_string_chk(arg1).map(CStr::to_bytes),
             ic,
         );
     } else if !error && arg0.v_type == VarType::VarList {
@@ -672,17 +672,17 @@ fn extend_dict(argvars: &mut [TypVal], arg_errmsg: &CStr, is_new: bool, rettv: &
 
         let d2 = argvars[1].vval.v_dict();
         if !d2.is_null() {
-            let mut action = c"force".as_ptr();
+            let mut action = c"force";
             let arg2 = &argvars[2];
             if arg2.v_type != VarType::VarUnknown {
-                action = tv_get_string_chk(arg2);
-                if action.is_null() {
+                let Some(act) = tv_get_string_chk(arg2) else {
                     if is_new {
                         tv_dict_unref(d1);
                     }
                     return;
-                }
-                let action_bytes = crate::memory::cstr_as_bytes(action);
+                };
+                action = act;
+                let action_bytes = action.to_bytes();
                 if action_bytes != b"keep" && action_bytes != b"force" && action_bytes != b"error" {
                     if is_new {
                         tv_dict_unref(d1);
@@ -691,7 +691,7 @@ fn extend_dict(argvars: &mut [TypVal], arg_errmsg: &CStr, is_new: bool, rettv: &
                     return;
                 }
             }
-            tv_dict_extend(unsafe { &mut *d1 }, unsafe { &mut *d2 }, action);
+            tv_dict_extend(unsafe { &mut *d1 }, unsafe { &mut *d2 }, action.as_ptr());
         }
 
         if is_new {

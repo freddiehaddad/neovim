@@ -3482,7 +3482,7 @@ fn ins_compl_add_tv(tv: &mut TypVal, dir: Direction, fast: bool) -> i32 {
             flags |= CP_EQUAL;
         }
     } else {
-        word = tv_get_string_chk(&*tv).cast();
+        word = tv_get_string_chk(&*tv).map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut().cast());
     }
     if word.is_null() || (!empty && crate::memory::cstr_is_empty(word.cast())) {
         tv_clear(&mut user_data);

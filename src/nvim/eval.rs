@@ -3670,10 +3670,10 @@ fn eval_index_inner(
             }
             VarType::VarDict => {
                 if key.is_null() {
-                    key = tv_get_string_chk(var1.unwrap());
-                    if key.is_null() {
+                    let Some(k) = tv_get_string_chk(var1.unwrap()) else {
                         return false;
-                    }
+                    };
+                    key = k.as_ptr();
                 }
 
                 let item = tv_dict_find(unsafe { rettv.vval.v_dict().as_ref() }, key, keylen);
@@ -5056,10 +5056,11 @@ pub fn tv_to_argv(
         &mut *tv_list_first(argl.as_ref())
     }));
     let mut exe_resolved: Option<std::ffi::CString> = None;
-    if arg0.is_null() || !os_can_exe(arg0, Some(&mut exe_resolved), true) {
-        if !arg0.is_null()
-            && let Some(executable) = executable
-        {
+    let Some(arg0) = arg0 else {
+        return Vec::new();
+    };
+    if !os_can_exe(arg0, Some(&mut exe_resolved), true) {
+        if let Some(executable) = executable {
             let mut buf = [0u8; IOSIZE];
             vim_snprintf!(
                 buf.as_mut_ptr().cast(),
@@ -5082,14 +5083,13 @@ pub fn tv_to_argv(
     })
     .enumerate()
     {
-        let a = tv_get_string_chk(&*tv_list_item_tv(arg));
-        if a.is_null() {
+        let Some(a) = tv_get_string_chk(&*tv_list_item_tv(arg)) else {
             return Vec::new();
-        }
+        };
         argv.push(if i == 0 {
             exe_cstr.clone()
         } else {
-            crate::memory::cstr_to_cstring(a)
+            a.to_owned()
         });
     }
     if let Some(cmd_out) = cmd {
@@ -5581,12 +5581,7 @@ pub fn save_tv_as_string(tv: &mut TypVal, endnl: bool, crlf: bool) -> Option<Vec
     }
 
     if tv.v_type != VarType::VarList && tv.v_type != VarType::VarNumber {
-        let ret = tv_get_string_chk(&*tv);
-        if !ret.is_null() {
-            return Some(crate::memory::cstr_as_bytes(ret).to_vec());
-        } else {
-            return None;
-        }
+        return tv_get_string_chk(&*tv).map(|ret| ret.to_bytes().to_vec());
     }
 
     if tv.v_type == VarType::VarNumber {
@@ -5784,10 +5779,10 @@ pub fn var2fpos(
             return &raw mut eval_st().var2_fpos_pos;
         }
 
-        let name = tv_get_string_chk(tv);
-        if name.is_null() {
+        let Some(name_cstr) = tv_get_string_chk(tv) else {
             return ptr::null_mut();
-        }
+        };
+        let name = name_cstr.as_ptr();
 
         eval_st().var2_fpos_pos.lnum = 0;
         if crate::memory::cstr_first_byte(name) == b'.' {

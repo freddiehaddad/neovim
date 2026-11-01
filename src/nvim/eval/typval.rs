@@ -1800,14 +1800,14 @@ pub fn f_join(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
         return;
     }
     let sep = if argvars[1].v_type == VarType::VarUnknown {
-        c" ".as_ptr()
+        Some(c" ")
     } else {
         tv_get_string_chk(&argvars[1])
     };
 
     rettv.v_type = VarType::VarString;
 
-    if !sep.is_null() {
+    if let Some(sep) = sep {
         let mut out: Vec<u8> = Vec::with_capacity(80);
         tv_list_join(&mut out, unsafe { argvars[0].vval.v_list().as_mut() }, sep);
         tv_set_string_len(rettv, &out, out.len());
@@ -3847,21 +3847,21 @@ pub fn tv_dict_remove(
             semsg!(tr(E_TOOMANYARG), c"remove()");
         } else {
             let d = argvars[0].vval.v_dict();
-            if !d.is_null() && !value_check_lock((*d).dv_lock, arg_errmsg, TV_TRANSLATE) {
-                let key = tv_get_string_chk(&argvars[1]);
-                if !key.is_null() {
-                    let di = tv_dict_find(d.as_ref(), key, -1);
-                    if di.is_null() {
-                        semsg!(tr(E_DICTKEY), key);
-                    } else if !var_check_fixed(i32::from((*di).di_flags), arg_errmsg, TV_TRANSLATE)
-                        && !var_check_ro(i32::from((*di).di_flags), arg_errmsg, TV_TRANSLATE)
-                    {
-                        *rettv = (*di).di_tv;
-                        (*di).di_tv = tv_initial_value();
-                        tv_dict_item_remove(&mut *d, &mut *di);
-                        if tv_dict_is_watched_inline(d.as_ref()) {
-                            tv_dict_watcher_notify(&mut *d, key, None, Some(&*rettv));
-                        }
+            if !d.is_null()
+                && !value_check_lock((*d).dv_lock, arg_errmsg, TV_TRANSLATE)
+                && let Some(key) = tv_get_string_chk(&argvars[1])
+            {
+                let di = tv_dict_find(d.as_ref(), key, -1);
+                if di.is_null() {
+                    semsg!(tr(E_DICTKEY), key);
+                } else if !var_check_fixed(i32::from((*di).di_flags), arg_errmsg, TV_TRANSLATE)
+                    && !var_check_ro(i32::from((*di).di_flags), arg_errmsg, TV_TRANSLATE)
+                {
+                    *rettv = (*di).di_tv;
+                    (*di).di_tv = tv_initial_value();
+                    tv_dict_item_remove(&mut *d, &mut *di);
+                    if tv_dict_is_watched_inline(d.as_ref()) {
+                        tv_dict_watcher_notify(&mut *d, key, None, Some(&*rettv));
                     }
                 }
             }
@@ -5008,8 +5008,8 @@ pub fn tv_get_string_buf_chk<'a>(
 }
 
 /// Get the string value of a "stringish" Vimscript object.
-pub fn tv_get_string_chk(tv: &TypVal) -> RawCCharPtr {
-    tv_get_string_buf_chk(tv, &mut tv_st().mybuf_chk).map_or(ptr::null(), std::ffi::CStr::as_ptr)
+pub fn tv_get_string_chk(tv: &TypVal) -> Option<&std::ffi::CStr> {
+    tv_get_string_buf_chk(tv, &mut tv_st().mybuf_chk)
 }
 
 /// Get the string value of a "stringish" Vimscript object.

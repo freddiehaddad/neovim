@@ -6073,7 +6073,7 @@ pub fn f_getcompletion(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFu
     }
 
     if argvars[0].v_type != VarType::VarString {
-        if !tv_get_string_chk(&argvars[0]).is_null() {
+        if tv_get_string_chk(&argvars[0]).is_some() {
             emsg(gettext(E_INVARG));
         }
         return;

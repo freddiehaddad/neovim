@@ -305,11 +305,8 @@ fn get_winnr(tp: &mut TabPageInfo, argvar: &mut TypVal) -> i32 {
     };
     if argvar.v_type != VarType::VarUnknown {
         let mut invalid_arg = false;
-        let arg = tv_get_string_chk(&*argvar);
-        if arg.is_null() {
-            nr = 0;
-        } else {
-            let bytes = crate::memory::cstr_as_bytes(arg);
+        if let Some(arg) = tv_get_string_chk(&*argvar) {
+            let bytes = arg.to_bytes();
             if bytes == b"$" {
                 twin = if ptr::eq(tp, g_st().curtab) {
                     g_st().lastwin
@@ -326,7 +323,7 @@ fn get_winnr(tp: &mut TabPageInfo, argvar: &mut TypVal) -> i32 {
                     nr = 0;
                 }
             } else {
-                let mut endp = arg.cast_mut();
+                let mut endp = arg.as_ptr().cast_mut();
                 let mut count = getdigits_int(&raw mut endp, false, 0);
                 if count <= 0 {
                     count = 1;
@@ -348,10 +345,11 @@ fn get_winnr(tp: &mut TabPageInfo, argvar: &mut TypVal) -> i32 {
                     invalid_arg = true;
                 }
             }
-        }
-
-        if invalid_arg {
-            semsg!(gettext(E_INVEXPR2), arg);
+            if invalid_arg {
+                semsg!(gettext(E_INVEXPR2), arg);
+                nr = 0;
+            }
+        } else {
             nr = 0;
         }
     } else if !win_has_winnr(unsafe { &mut *twin }, tp) {
@@ -531,9 +529,8 @@ pub fn f_tabpagenr(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDa
     let mut nr: i32 = 0;
 
     if argvars[0].v_type != VarType::VarUnknown {
-        let arg = tv_get_string_chk(&argvars[0]);
-        if !arg.is_null() {
-            let bytes = crate::memory::cstr_as_bytes(arg);
+        if let Some(arg) = tv_get_string_chk(&argvars[0]) {
+            let bytes = arg.to_bytes();
             if bytes == b"$" {
                 nr = tabpage_index(ptr::null_mut()) - 1;
             } else if bytes == b"#" {
