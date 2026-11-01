@@ -2483,7 +2483,7 @@ pub fn win_scroll_lines(wp: &mut WinInfoInfo, row: i32, line_count: i32) {
     let checked_width = (unsafe { (*grid).cols } - col).min(wp.w_view_width);
     let checked_height = (unsafe { (*grid).rows } - row_off).min(wp.w_view_height);
 
-    if row + line_count.abs() >= checked_height {
+    if checked_width <= 0 || row + line_count.abs() >= checked_height {
         return;
     }
 
