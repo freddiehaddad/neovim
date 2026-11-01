@@ -646,7 +646,11 @@ pub fn ml_open_file(buf: &mut FileBuf) {
             let sp = buf_spname(buf);
             semsg!(
                 tr(c"E303: Unable to open swap file for \"%s\", recovery impossible"),
-                if !sp.is_null() { sp } else { buf.b_fname },
+                if let Some(sp) = sp {
+                    sp.as_ptr()
+                } else {
+                    buf.b_fname.cast_const()
+                },
             );
             g_st().no_wait_return -= 1;
         }
@@ -1074,8 +1078,7 @@ pub fn ml_recover(checkext: bool) {
         home_replace(None, mf_fname_ptr, namebuff_ptr, MAXPATHL, true);
         smsg!(0, tr(c"Using swap file \"%s\""), namebuff_ptr);
 
-        let sp = buf_spname(&*(g_st().curbuf));
-        if !sp.is_null() {
+        if let Some(sp) = buf_spname(&*(g_st().curbuf)) {
             xstrlcpy(namebuff_ptr, sp, MAXPATHL);
         } else {
             home_replace(None, curbuf_mut().b_ffname, namebuff_ptr, MAXPATHL, true);

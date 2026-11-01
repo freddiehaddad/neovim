@@ -2282,12 +2282,12 @@ pub fn f_expand(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData)
             g_st().emsg_off += 1;
         }
         let mut len: usize = 0;
-        let mut errormsg = ptr::null();
+        let mut errormsg = None;
         let result = eval_vars(s.cast_mut(), s, &mut len, None, &mut errormsg, None, false);
         if opt_vars().p_verbose == 0 {
             g_st().emsg_off -= 1;
-        } else if !errormsg.is_null() {
-            emsg(errormsg);
+        } else if let Some(msg) = errormsg {
+            emsg(msg);
         }
         if rettv.v_type == VarType::VarList {
             tv_list_alloc_ret(rettv, isize::from(result.is_some()));
@@ -2349,7 +2349,7 @@ pub fn f_menu_get(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDat
 
 /// "expandcmd()" function
 pub fn f_expandcmd(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
-    let mut errormsg = ptr::null();
+    let mut errormsg = None;
     let mut emsgoff = true;
 
     if argvars[1].v_type == VarType::VarDict
@@ -2385,9 +2385,10 @@ pub fn f_expandcmd(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDa
     }
     if !expand_filename(&mut eap, &raw mut cmdstr, &mut errormsg)
         && !emsgoff
-        && !crate::memory::cstr_is_empty(errormsg)
+        && let Some(msg) = errormsg
+        && !msg.to_bytes().is_empty()
     {
-        emsg(errormsg);
+        emsg(msg);
     }
     if emsgoff {
         g_st().emsg_off -= 1;

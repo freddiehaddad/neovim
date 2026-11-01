@@ -1948,11 +1948,11 @@ pub fn do_bufdel(
     start_bnr: i32,
     end_bnr: i32,
     forceit: i32,
-) -> RawCCharPtrMut {
+) -> Option<&'static std::ffi::CStr> {
     let mut arg = arg.into_c_char_ptr().cast_mut();
     let mut do_current = 0;
     let mut deleted: i32 = 0;
-    let mut errormsg: RawCCharPtrMut = ptr::null_mut();
+    let mut errormsg: Option<&'static std::ffi::CStr> = None;
     let mut bnr: i32;
 
     if addr_count == 0 {
@@ -1960,7 +1960,7 @@ pub fn do_bufdel(
     } else {
         if addr_count == 2 {
             if !crate::memory::cstr_is_empty(arg) {
-                return ex_errmsg(E_TRAILING_ARG, arg);
+                return Some(ex_errmsg(E_TRAILING_ARG, arg));
             }
             bnr = start_bnr;
         } else {
@@ -2025,7 +2025,7 @@ pub fn do_bufdel(
                     IOSIZE,
                 );
             }
-            errormsg = iobuff_ptr;
+            errormsg = Some(crate::memory::cstr_from_ptr(iobuff_ptr));
         } else if i64::from(deleted) >= opt_vars().p_report {
             if command == DOBUF_UNLOAD {
                 smsg!(
@@ -3660,9 +3660,8 @@ pub fn buflist_list(eap: &mut Exarg) {
             continue;
         }
 
-        let name = buf_spname(&*(buf));
         let namebuff_ptr = g_st().name_buff.as_mut_ptr();
-        if !name.is_null() {
+        if let Some(name) = buf_spname(&*(buf)) {
             xstrlcpy(namebuff_ptr, name, MAXPATHL);
         } else {
             home_replace(Some(&*buf), buf.b_fname, namebuff_ptr, MAXPATHL, true);
@@ -4007,8 +4006,7 @@ pub fn fileinfo(fullname: i32, shorthelp: i32, dont_truncate: bool) {
     }
     bufferlen += 1;
 
-    let mut name = buf_spname(unsafe { &*(g_st().curbuf) });
-    if !name.is_null() {
+    if let Some(name) = buf_spname(unsafe { &*(g_st().curbuf) }) {
         bufferlen += vim_snprintf_safelen!(
             buffer.wrapping_add(bufferlen),
             IOSIZE - bufferlen,
@@ -4016,7 +4014,7 @@ pub fn fileinfo(fullname: i32, shorthelp: i32, dont_truncate: bool) {
             name,
         );
     } else {
-        name = if fullname == 0 && !curbuf_mut().b_fname.is_null() {
+        let name = if fullname == 0 && !curbuf_mut().b_fname.is_null() {
             curbuf_mut().b_fname
         } else {
             curbuf_mut().b_ffname
@@ -4263,10 +4261,11 @@ pub fn maketitle() {
                 icon_str = opt_vars().p_iconstring;
             }
         } else {
-            let mut name = buf_spname(unsafe { &*(g_st().curbuf) });
-            if name.is_null() {
-                name = path_tail(curbuf_mut().b_ffname);
-            }
+            let mut name = if let Some(sp) = buf_spname(unsafe { &*(g_st().curbuf) }) {
+                sp.as_ptr().cast_mut()
+            } else {
+                path_tail(curbuf_mut().b_ffname)
+            };
             let mut namelen = crate::memory::cstr_len(name) as i32;
             if namelen > 100 {
                 namelen -= 100;
@@ -4876,37 +4875,37 @@ pub fn buf_hide(buf: &FileBuf) -> bool {
 }
 
 /// Return special buffer name or NULL when the buffer has a normal file name.
-pub fn buf_spname(buf: &FileBuf) -> RawCCharPtrMut {
+pub fn buf_spname(buf: &FileBuf) -> Option<&std::ffi::CStr> {
     if bt_quickfix(Some(buf)) {
         if buf.b_fnum == qf_stack_get_bufnr() {
-            return gettext(MSG_QFLIST).as_ptr().cast_mut();
+            return Some(gettext(MSG_QFLIST));
         }
-        return gettext(MSG_LOCLIST).as_ptr().cast_mut();
+        return Some(gettext(MSG_LOCLIST));
     }
     if bt_nofilename(Some(buf)) {
         if !buf.b_fname.is_null() {
-            return buf.b_fname;
+            return Some(crate::memory::cstr_from_ptr(buf.b_fname));
         }
         if bt_cmdwin(buf) {
-            return gettext(c"[Command Line]").as_ptr().cast_mut();
+            return Some(gettext(c"[Command Line]"));
         }
         if bt_prompt(Some(buf)) {
-            return gettext(c"[Prompt]").as_ptr().cast_mut();
+            return Some(gettext(c"[Prompt]"));
         }
-        return gettext(c"[Scratch]").as_ptr().cast_mut();
+        return Some(gettext(c"[Scratch]"));
     }
     if buf.b_fname.is_null() {
-        return buf_get_fname(buf);
+        return Some(buf_get_fname(buf));
     }
-    ptr::null_mut()
+    None
 }
 
 /// Get `buf->b_fname`, use `"[No Name]"` if it is NULL.
-pub fn buf_get_fname(buf: &FileBuf) -> RawCCharPtrMut {
+pub fn buf_get_fname(buf: &FileBuf) -> &std::ffi::CStr {
     if buf.b_fname.is_null() {
-        gettext(c"[No Name]").as_ptr().cast_mut()
+        gettext(c"[No Name]")
     } else {
-        buf.b_fname
+        crate::memory::cstr_from_ptr(buf.b_fname)
     }
 }
 

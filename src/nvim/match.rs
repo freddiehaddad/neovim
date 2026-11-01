@@ -1303,7 +1303,7 @@ pub fn ex_match(eap: &mut Exarg) {
                 if !crate::memory::cstr_is_empty(end)
                     && ends_excmd(i32::from(unsafe { *skipwhite(end.wrapping_add(1)) })) == 0
                 {
-                    eap.errmsg = ex_errmsg(E_TRAILING_ARG, end);
+                    eap.errmsg = Some(ex_errmsg(E_TRAILING_ARG, end));
                     return;
                 }
                 if unsafe { *end } != unsafe { *p } {

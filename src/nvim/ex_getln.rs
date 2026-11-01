@@ -502,7 +502,7 @@ pub fn parse_pattern_and_range(
     is_magic: &mut bool,
 ) -> bool {
     let mut delim_optional = false;
-    let mut dummy = ptr::null();
+    let mut dummy = None;
     let mut magic: RegMagic = 0;
 
     *skiplen = 0;
@@ -520,7 +520,7 @@ pub fn parse_pattern_and_range(
 
     let mut dummy_cmdmod: Cmdmod = Cmdmod::new();
     // Skip over command modifiers
-    parse_command_modifiers(&mut ea, &raw mut dummy, &mut dummy_cmdmod, true);
+    parse_command_modifiers(&mut ea, &mut dummy, &mut dummy_cmdmod, true);
 
     // Skip over the range to find the command.
     let cmd = skip_range(ea.cmd, None);
@@ -648,7 +648,7 @@ pub fn parse_pattern_and_range(
     let save_cursor = curwin_mut().w_cursor;
     curwin_mut().w_cursor = *incsearch_start;
 
-    parse_cmd_address(&mut ea, &raw mut dummy, true);
+    parse_cmd_address(&mut ea, &mut dummy, true);
 
     if ea.addr_count > 0 {
         // Allow for reverse match.
@@ -3232,7 +3232,7 @@ fn cmdpreview_may_show(_s: &mut CommandLineState) -> bool {
     let mut cmdline_vec: Vec<u8> =
         crate::memory::cstr_as_bytes_with_nul(getln_st().ccline.cmdbuff.cast()).to_vec();
     let mut cmdline = cmdline_vec.as_mut_ptr().cast();
-    let mut errormsg = ptr::null();
+    let mut errormsg = None;
     g_st().emsg_off += 1;
     let parsed = parse_cmdline(
         &raw mut cmdline,

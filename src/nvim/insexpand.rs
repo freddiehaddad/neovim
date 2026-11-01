@@ -4030,11 +4030,11 @@ fn process_next_cpt_value(
             if !shortmess(K_SHM_COMPLETIONSCAN) && !insexp().compl_autocomplete {
                 let iobuff_ptr = g_st().iobuff.as_mut_ptr();
                 let name = if (*st.ins_buf).b_fname.is_null() {
-                    buf_spname(&*(st.ins_buf))
+                    buf_spname(&*(st.ins_buf)).map_or(ptr::null(), |s| s.as_ptr())
                 } else if (*st.ins_buf).b_sfname.is_null() {
-                    (*st.ins_buf).b_fname
+                    (*st.ins_buf).b_fname.cast_const()
                 } else {
-                    (*st.ins_buf).b_sfname
+                    (*st.ins_buf).b_sfname.cast_const()
                 };
                 vim_snprintf!(iobuff_ptr, IOSIZE, gettext(c"Scanning: %s"), name);
                 msg_progress(

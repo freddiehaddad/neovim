@@ -829,7 +829,7 @@ pub fn ex_if(eap: &mut Exarg) {
     let cstack = eap.cstack_mut();
 
     if cstack.cs_idx == (CSTACK_LEN - 1) as i32 {
-        eap.errmsg = gettext(c"E579: :if nesting too deep").as_ptr().cast_mut();
+        eap.errmsg = Some(gettext(c"E579: :if nesting too deep"));
     } else {
         cstack.cs_idx += 1;
         let idx = cstack.cs_idx as usize;
@@ -855,7 +855,7 @@ pub fn ex_endif(eap: &mut Exarg) {
     if cstack.cs_idx < 0
         || (cstack.cs_flags[cstack.cs_idx as usize] & (CSF_WHILE | CSF_FOR | CSF_TRY)) != 0
     {
-        eap.errmsg = gettext(c"E580: :endif without :if").as_ptr().cast_mut();
+        eap.errmsg = Some(gettext(c"E580: :endif without :if"));
     } else {
         if (cstack.cs_flags[cstack.cs_idx as usize] & CSF_TRUE) == 0 && dbg_check_skipped(eap) {
             do_intthrow(cstack);
@@ -872,23 +872,23 @@ pub fn ex_else(eap: &mut Exarg) {
         || (cstack.cs_flags[cstack.cs_idx as usize] & (CSF_WHILE | CSF_FOR | CSF_TRY)) != 0
     {
         if eap.cmdidx == CMD_ELSE {
-            eap.errmsg = gettext(c"E581: :else without :if").as_ptr().cast_mut();
+            eap.errmsg = Some(gettext(c"E581: :else without :if"));
             return;
         }
-        eap.errmsg = gettext(c"E582: :elseif without :if").as_ptr().cast_mut();
+        eap.errmsg = Some(gettext(c"E582: :elseif without :if"));
         skip = true;
     } else if (cstack.cs_flags[cstack.cs_idx as usize] & CSF_ELSE) != 0 {
         if eap.cmdidx == CMD_ELSE {
-            eap.errmsg = gettext(E_MULTIPLE_ELSE).as_ptr().cast_mut();
+            eap.errmsg = Some(gettext(E_MULTIPLE_ELSE));
             return;
         }
-        eap.errmsg = gettext(c"E584: :elseif after :else").as_ptr().cast_mut();
+        eap.errmsg = Some(gettext(c"E584: :elseif after :else"));
         skip = true;
     }
 
     let idx = cstack.cs_idx as usize;
     if skip || (cstack.cs_flags[idx] & CSF_TRUE) != 0 {
-        if eap.errmsg.is_null() {
+        if eap.errmsg.is_none() {
             cstack.cs_flags[idx] = CSF_TRUE;
         }
         skip = true;
@@ -919,7 +919,7 @@ pub fn ex_else(eap: &mut Exarg) {
             } else {
                 cstack.cs_flags[idx] = 0;
             }
-        } else if eap.errmsg.is_null() {
+        } else if eap.errmsg.is_none() {
             cstack.cs_flags[idx] = CSF_TRUE;
         }
     } else {
@@ -932,9 +932,7 @@ pub fn ex_while(eap: &mut Exarg) {
     let cstack = eap.cstack_mut();
 
     if cstack.cs_idx == (CSTACK_LEN - 1) as i32 {
-        eap.errmsg = gettext(c"E585: :while/:for nesting too deep")
-            .as_ptr()
-            .cast_mut();
+        eap.errmsg = Some(gettext(c"E585: :while/:for nesting too deep"));
     } else {
         if (cstack.cs_lflags & CSL_HAD_LOOP) == 0 {
             cstack.cs_idx += 1;
@@ -993,9 +991,7 @@ pub fn ex_continue(eap: &mut Exarg) {
     let cstack = eap.cstack_mut();
 
     if cstack.cs_looplevel <= 0 || cstack.cs_idx < 0 {
-        eap.errmsg = gettext(c"E586: :continue without :while or :for")
-            .as_ptr()
-            .cast_mut();
+        eap.errmsg = Some(gettext(c"E586: :continue without :while or :for"));
     } else {
         let idx = cleanup_conditionals(&mut *cstack, CSF_WHILE | CSF_FOR, 0);
         assert!(idx >= 0);
@@ -1015,9 +1011,7 @@ pub fn ex_break(eap: &mut Exarg) {
     let cstack = eap.cstack_mut();
 
     if cstack.cs_looplevel <= 0 || cstack.cs_idx < 0 {
-        eap.errmsg = gettext(c"E587: :break without :while or :for")
-            .as_ptr()
-            .cast_mut();
+        eap.errmsg = Some(gettext(c"E587: :break without :while or :for"));
     } else {
         let idx = cleanup_conditionals(&mut *cstack, CSF_WHILE | CSF_FOR, 1);
         if idx >= 0 && (cstack.cs_flags[idx as usize] & (CSF_WHILE | CSF_FOR)) == 0 {
@@ -1036,31 +1030,27 @@ pub fn ex_endwhile(eap: &mut Exarg) {
     };
 
     if cstack.cs_looplevel <= 0 || cstack.cs_idx < 0 {
-        eap.errmsg = gettext(err).as_ptr().cast_mut();
+        eap.errmsg = Some(gettext(err));
     } else {
         let mut fl = cstack.cs_flags[cstack.cs_idx as usize];
         if (fl & csf) == 0 {
             if (fl & CSF_WHILE) != 0 {
-                eap.errmsg = gettext(c"E732: Using :endfor with :while")
-                    .as_ptr()
-                    .cast_mut();
+                eap.errmsg = Some(gettext(c"E732: Using :endfor with :while"));
             } else if (fl & CSF_FOR) != 0 {
-                eap.errmsg = gettext(c"E733: Using :endwhile with :for")
-                    .as_ptr()
-                    .cast_mut();
+                eap.errmsg = Some(gettext(c"E733: Using :endwhile with :for"));
             }
         }
         if (fl & (CSF_WHILE | CSF_FOR)) == 0 {
             if (fl & CSF_TRY) == 0 {
-                eap.errmsg = gettext(E_ENDIF).as_ptr().cast_mut();
+                eap.errmsg = Some(gettext(E_ENDIF));
             } else if (fl & CSF_FINALLY) != 0 {
-                eap.errmsg = gettext(E_ENDTRY).as_ptr().cast_mut();
+                eap.errmsg = Some(gettext(E_ENDTRY));
             }
             let mut idx = cstack.cs_idx;
             while idx > 0 {
                 fl = cstack.cs_flags[idx as usize];
                 if (fl & CSF_TRY) != 0 && (fl & CSF_FINALLY) == 0 {
-                    eap.errmsg = gettext(err).as_ptr().cast_mut();
+                    eap.errmsg = Some(gettext(err));
                     return;
                 }
                 if (fl & csf) != 0 {
@@ -1125,7 +1115,7 @@ pub fn ex_try(eap: &mut Exarg) {
     let cstack = eap.cstack_mut();
 
     if cstack.cs_idx == (CSTACK_LEN - 1) as i32 {
-        eap.errmsg = gettext(c"E601: :try nesting too deep").as_ptr().cast_mut();
+        eap.errmsg = Some(gettext(c"E601: :try nesting too deep"));
     } else {
         cstack.cs_idx += 1;
         cstack.cs_trylevel += 1;
@@ -1153,11 +1143,11 @@ pub fn ex_catch(eap: &mut Exarg) {
     let cstack = eap.cstack_mut();
 
     if cstack.cs_trylevel <= 0 || cstack.cs_idx < 0 {
-        eap.errmsg = gettext(c"E603: :catch without :try").as_ptr().cast_mut();
+        eap.errmsg = Some(gettext(c"E603: :catch without :try"));
         give_up = true;
     } else {
         if (cstack.cs_flags[cstack.cs_idx as usize] & CSF_TRY) == 0 {
-            eap.errmsg = get_end_emsg(&*cstack).as_ptr().cast_mut();
+            eap.errmsg = Some(get_end_emsg(&*cstack));
             skip = true;
         }
         idx = cstack.cs_idx;
@@ -1168,7 +1158,7 @@ pub fn ex_catch(eap: &mut Exarg) {
             idx -= 1;
         }
         if (cstack.cs_flags[idx as usize] & CSF_FINALLY) != 0 {
-            eap.errmsg = gettext(c"E604: :catch after :finally").as_ptr().cast_mut();
+            eap.errmsg = Some(gettext(c"E604: :catch after :finally"));
             give_up = true;
         } else {
             let mut looplevel = cstack.cs_looplevel;
@@ -1289,17 +1279,17 @@ pub fn ex_finally(eap: &mut Exarg) {
         idx -= 1;
     }
     if cstack.cs_trylevel <= 0 || idx < 0 {
-        eap.errmsg = gettext(c"E606: :finally without :try").as_ptr().cast_mut();
+        eap.errmsg = Some(gettext(c"E606: :finally without :try"));
         return;
     }
 
     if (cstack.cs_flags[cstack.cs_idx as usize] & CSF_TRY) == 0 {
-        eap.errmsg = get_end_emsg(&*cstack).as_ptr().cast_mut();
+        eap.errmsg = Some(get_end_emsg(&*cstack));
         pending = CSTP_ERROR;
     }
 
     if (cstack.cs_flags[idx as usize] & CSF_FINALLY) != 0 {
-        eap.errmsg = gettext(E_MULTIPLE_FINALLY).as_ptr().cast_mut();
+        eap.errmsg = Some(gettext(E_MULTIPLE_FINALLY));
         return;
     }
     let mut looplevel = cstack.cs_looplevel;
@@ -1365,7 +1355,7 @@ pub fn ex_endtry(eap: &mut Exarg) {
         idx -= 1;
     }
     if cstack.cs_trylevel <= 0 || idx < 0 {
-        eap.errmsg = gettext(c"E602: :endtry without :try").as_ptr().cast_mut();
+        eap.errmsg = Some(gettext(c"E602: :endtry without :try"));
         return;
     }
 
@@ -1375,7 +1365,7 @@ pub fn ex_endtry(eap: &mut Exarg) {
         || (cstack.cs_flags[cstack.cs_idx as usize] & CSF_TRUE) == 0;
 
     if (cstack.cs_flags[cstack.cs_idx as usize] & CSF_TRY) == 0 {
-        eap.errmsg = get_end_emsg(&*cstack).as_ptr().cast_mut();
+        eap.errmsg = Some(get_end_emsg(&*cstack));
         let mut looplevel = cstack.cs_looplevel;
         rewind_conditionals(cstack, idx, CSF_WHILE | CSF_FOR, &mut looplevel);
         cstack.cs_looplevel = looplevel;

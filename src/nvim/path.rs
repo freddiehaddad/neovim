@@ -2224,7 +2224,7 @@ pub fn expand_wildcards_eval(
     let mut eval_pat: Option<std::ffi::CString> = None;
     let mut exp_pat_owned: Option<std::ffi::CString> = None;
     let mut exp_pat = unsafe { *pat };
-    let mut ignored_msg: RawCCharPtr = ptr::null();
+    let mut ignored_msg = None;
     let mut usedlen: usize = 0;
     let is_cur_alt_file = crate::memory::cstr_first_byte(exp_pat.cast()) == b'%'
         || crate::memory::cstr_first_byte(exp_pat.cast()) == b'#';

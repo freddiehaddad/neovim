@@ -303,7 +303,7 @@ pub fn nvim_parse_cmd(
     let mut cmod: Cmdmod = Cmdmod::new();
     let mut cmdline = arena_memdupz(arena, str_val.data, str_val.size);
     let mut cmdline_buf: Vec<u8> = Vec::new();
-    let mut errormsg = ptr::null();
+    let mut errormsg = None;
 
     if !parse_cmdline(
         &mut cmdline,
@@ -313,12 +313,12 @@ pub fn nvim_parse_cmd(
         &mut errormsg,
         false,
     ) {
-        if !errormsg.is_null() {
+        if let Some(msg) = errormsg {
             api_set_error!(
                 err,
                 ErrorType::ErrorTypeException,
                 c"Parsing command-line: %s",
-                errormsg,
+                msg,
             );
         } else {
             api_set_error!(err, ErrorType::ErrorTypeException, c"Parsing command-line",);
@@ -628,7 +628,7 @@ pub fn nvim_cmd(
         let mut cmod: Cmdmod = Cmdmod::new();
         let mut cmdline_buf: Vec<u8> = Vec::new();
         let mut cmdline;
-        let mut errormsg = ptr::null();
+        let mut errormsg = None;
         let mut args = Array::new();
         let mut retv = NvimString {
             data: ptr::null_mut(),
@@ -866,11 +866,7 @@ pub fn nvim_cmd(
                     err,
                     ErrorType::ErrorTypeException,
                     c"%s",
-                    if !errormsg.is_null() {
-                        errormsg
-                    } else {
-                        c"Parsing command-line".as_ptr()
-                    },
+                    errormsg.unwrap_or(c"Parsing command-line"),
                 );
                 break 'end;
             }
@@ -879,7 +875,7 @@ pub fn nvim_cmd(
                 ea.argt = EX_RANGE | EX_SBOXOK;
             }
 
-            if has_key(mask, KEYSET_OPTIDX_CMD_RANGE) && !invalid_range(&mut ea).is_null() {
+            if has_key(mask, KEYSET_OPTIDX_CMD_RANGE) && invalid_range(&mut ea).is_some() {
                 api_err_invalid(err, c"range", c"", 0, true);
                 break 'end;
             }

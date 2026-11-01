@@ -2241,7 +2241,7 @@ fn parse_diffanchors(
         }
         g_st().curbuf = buf;
         set_curwin(bufwin);
-        let mut errormsg = ptr::null();
+        let mut errormsg = None;
         let lnum = get_address(
             ptr::null_mut(),
             &raw mut dia,
@@ -2254,8 +2254,8 @@ fn parse_diffanchors(
         );
         g_st().curbuf = orig_curbuf;
         set_curwin(orig_curwin);
-        if !errormsg.is_null() {
-            emsg(errormsg);
+        if let Some(msg) = errormsg {
+            emsg(msg);
         }
         if dia.is_null() {
             return false;

@@ -3692,7 +3692,7 @@ fn syn_cmd_include(eap: &mut Exarg, _syncing: i32) {
     let mut arg = eap.arg;
     let mut sgl_id: i32 = 1;
     let mut group_name_end = ptr::null_mut();
-    let mut errormsg = std::ptr::null();
+    let mut errormsg = None;
     let mut source = false;
 
     eap.nextcmd = find_nextcmd(arg);
@@ -3725,8 +3725,8 @@ fn syn_cmd_include(eap: &mut Exarg, _syncing: i32) {
     {
         source = true;
         if !expand_filename(eap, eap.cmdlinep, &mut errormsg) {
-            if !errormsg.is_null() {
-                emsg(errormsg);
+            if let Some(msg) = errormsg {
+                emsg(msg);
             }
             return;
         }

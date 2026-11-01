@@ -385,7 +385,11 @@ pub fn check_changed_any(hidden: bool, unload: bool) -> bool {
                     let sp = buf_spname(&*(buf));
                     semsg!(
                         gettext(c"E162: No write since last change for buffer \"%s\""),
-                        if !sp.is_null() { sp } else { (*buf).b_fname },
+                        if let Some(sp) = sp {
+                            sp.as_ptr()
+                        } else {
+                            (*buf).b_fname.cast_const()
+                        },
                     )
                 };
                 if shown && g_st().msg_didany {
