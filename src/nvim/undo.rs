@@ -42,7 +42,6 @@ use crate::input::beep_flush;
 use crate::input_cmdatom::{atom_did_global_op, atom_origin_pos};
 use crate::insert::beginline;
 use crate::mark::{Fmark, mark_adjust, setpcmark};
-use crate::mbyte::utfc_ptr2len;
 use crate::mcursor::mc_undo_time;
 #[cfg(unix)]
 use crate::memline::resolve_symlink;
@@ -171,8 +170,8 @@ pub fn uhp_ref(buf: &FileBuf, uh: usize) -> &UHeader {
 }
 
 #[inline]
-pub fn uhp_mut<'a>(buf: &mut FileBuf, uh: usize) -> &'a mut UHeader {
-    unsafe { &mut *buf.b_u_headers.as_mut_ptr().wrapping_add(uh) }
+pub fn uhp_mut(buf: &mut FileBuf, uh: usize) -> &mut UHeader {
+    &mut buf.b_u_headers[uh]
 }
 
 fn u_alloc_header(buf: &mut FileBuf) -> usize {
@@ -343,11 +342,9 @@ fn get_undolevel(buf: &mut FileBuf) -> OptInt {
 }
 
 #[inline]
-fn zero_fmark_additional_data(fmarks: *mut Fmark) {
-    for i in 0..NMARKS {
-        unsafe {
-            (*fmarks.wrapping_add(i)).additional_data = None;
-        }
+fn zero_fmark_additional_data(fmarks: &mut [Fmark; NMARKS]) {
+    for fm in fmarks {
+        fm.additional_data = None;
     }
 }
 
@@ -463,7 +460,7 @@ pub fn u_savecommon(
                 0
             });
 
-        zero_fmark_additional_data(unsafe { &mut *(&raw mut buf.b_namedm).cast::<Fmark>() });
+        zero_fmark_additional_data(&mut buf.b_namedm);
         uhp_mut(buf, uhp).uh_namedm = buf.b_namedm.clone();
         uhp_mut(buf, uhp).uh_visual = buf.b_visual;
 
@@ -483,19 +480,17 @@ pub fn u_savecommon(
                 let newhead = buf.b_u_newhead.unwrap();
                 let limit = uhp_ref(buf, newhead).uh_entries.len().min(10);
                 for i in 0..limit {
-                    let uep: *mut UEntry =
-                        &raw mut uhp_mut(buf, newhead).uh_entries.as_mut_slice()[i];
-                    let uep = unsafe { &mut *uep };
+                    let uep = &uhp_ref(buf, newhead).uh_entries[i];
+                    let ue_size = uep.ue_size();
+                    let ue_top = uep.ue_top;
 
-                    if u_entry_resized(buf, &*uep)
-                        || ((*uep).ue_size() > 1
-                            && top >= uep.ue_top
-                            && top + 2 <= uep.ue_top + (*uep).ue_size() + 1)
+                    if u_entry_resized(buf, uep)
+                        || (ue_size > 1 && top >= ue_top && top + 2 <= ue_top + ue_size + 1)
                     {
                         break;
                     }
 
-                    if (*uep).ue_size() == 1 && uep.ue_top == top {
+                    if ue_size == 1 && ue_top == top {
                         if i > 0 {
                             u_getbot(buf);
                             buf.b_u_synced = false;
@@ -504,13 +499,14 @@ pub fn u_savecommon(
                             uhp_mut(buf, newhead).uh_entries.insert(0, entry);
                         }
 
+                        let line_count = buf.b_ml.ml_line_count;
                         let first_uep = &mut uhp_mut(buf, newhead).uh_entries.as_mut_slice()[0];
                         if newbot != 0 {
                             first_uep.ue_bot = newbot;
-                        } else if bot > buf.b_ml.ml_line_count {
+                        } else if bot > line_count {
                             first_uep.ue_bot = 0;
                         } else {
-                            first_uep.ue_lcount = buf.b_ml.ml_line_count;
+                            first_uep.ue_lcount = line_count;
                             uhp_mut(buf, newhead).uh_getbot_entry = true;
                         }
                         return true;
@@ -561,7 +557,7 @@ pub fn u_savecommon(
     true
 }
 
-fn u_entry_resized(buf: &mut FileBuf, uep: &UEntry) -> bool {
+fn u_entry_resized(buf: &FileBuf, uep: &UEntry) -> bool {
     let newhead = uhp_ref(buf, buf.b_u_newhead.unwrap());
     if !newhead.uh_getbot_entry || !ptr::eq(uep, newhead.uh_entries.as_ptr()) {
         uep.ue_top + uep.ue_size() + 1
@@ -614,22 +610,19 @@ pub fn u_get_undo_file_name(
         let mut undo_file_name: Option<std::ffi::CString> = None;
 
         let ffname_len = crate::memory::cstr_len(ffname);
+        let ffname_slice = crate::memory::cstr_slice(ffname, ffname_len);
         let mut dirp = opt_vars().p_udir;
         while !crate::memory::cstr_is_empty(dirp) {
             let mut dir_len =
                 copy_option_part(&raw mut dirp, dir_name.as_mut_ptr().cast(), MAXPATHL, c",");
             if dir_len == 1 && dir_name[0] == b'.' {
-                let mut ufn_vec: Vec<u8> = vec![0; ffname_len + 6];
-                let ufn = ufn_vec.as_mut_ptr().cast();
-                unsafe { ptr::copy(ffname, ufn, ffname_len + 1) };
-                let tail = path_tail(ufn);
-                let tail_len = ffname_len - (crate::memory::ptr_offset_from(tail, ufn) as usize);
-                unsafe { ptr::copy(tail, tail.wrapping_add(1), tail_len + 1) };
-                unsafe {
-                    *tail.cast::<u8>() = b'.';
-                }
-                unsafe { ptr::copy(c".un~".as_ptr(), tail.wrapping_add(tail_len + 1), 5) };
-                undo_file_name = Some(crate::memory::cstr_to_cstring(ufn));
+                let tail_off = crate::memory::ptr_offset_from(path_tail(ffname), ffname) as usize;
+                let mut ufn_vec: Vec<u8> = Vec::with_capacity(ffname_len + 5);
+                ufn_vec.extend_from_slice(&ffname_slice[..tail_off]);
+                ufn_vec.push(b'.');
+                ufn_vec.extend_from_slice(&ffname_slice[tail_off..]);
+                ufn_vec.extend_from_slice(b".un~");
+                undo_file_name = Some(std::ffi::CString::new(ufn_vec).unwrap_or_default());
             } else {
                 dir_name[dir_len] = 0;
 
@@ -655,22 +648,13 @@ pub fn u_get_undo_file_name(
                 }
                 if has_directory {
                     if munged_vec.is_empty() {
-                        munged_vec = vec![0; ffname_len + 1];
-                        unsafe {
-                            ptr::copy_nonoverlapping(
-                                ffname.cast::<u8>(),
-                                munged_vec.as_mut_ptr(),
-                                ffname_len,
-                            )
-                        };
-                        let mut p = munged_vec.as_mut_ptr().cast();
-                        while !crate::memory::cstr_is_empty(p) {
-                            if vim_ispathsep(crate::memory::cstr_first_char(p)) {
-                                unsafe {
-                                    *p.cast::<u8>() = b'%';
-                                }
+                        munged_vec = crate::memory::cstr_slice(ffname, ffname_len + 1).to_vec();
+                        let mut idx = 0usize;
+                        while idx < ffname_len {
+                            if vim_ispathsep(i32::from(munged_vec[idx])) {
+                                munged_vec[idx] = b'%';
                             }
-                            p = p.wrapping_add(utfc_ptr2len(p) as usize);
+                            idx += crate::mbyte::utfc_slice2len(&munged_vec[idx..ffname_len]);
                         }
                     }
                     let dir_str = NvimString::from_bytes(&dir_name[..dir_len]);
@@ -2035,7 +2019,7 @@ fn u_undoredo(undo: bool, do_buf_event: bool) {
     }) | (old_flags & UH_RELOAD);
     setpcmark();
 
-    zero_fmark_additional_data(unsafe { &mut *(&raw mut curbuf_mut().b_namedm).cast::<Fmark>() });
+    zero_fmark_additional_data(&mut curbuf_mut().b_namedm);
     let namedm = curbuf_mut().b_namedm.clone();
     let visualinfo = curbuf_mut().b_visual;
     curbuf_mut().b_op_start.lnum = curbuf_mut().b_ml.ml_line_count;
@@ -2440,13 +2424,7 @@ pub fn ex_undolist(_eap: &mut Exarg) {
         if uh_prev.is_none() && uh_walk != nomark && uh_walk != mark {
             vim_snprintf!(iobuf_ptr, IOSIZE, c"%6d %7d  ", uh_seq, changes,);
             let cur_len = crate::memory::cstr_len(iobuf_ptr);
-            let iobuf_slice = unsafe {
-                std::slice::from_raw_parts_mut(
-                    iobuf_ptr.wrapping_add(cur_len).cast::<u8>(),
-                    IOSIZE - cur_len,
-                )
-            };
-            undo_fmt_time(iobuf_slice, uh_time);
+            undo_fmt_time(&mut g_st().iobuff_bytes_mut()[cur_len..], uh_time);
             if uh_save_nr > 0 {
                 while crate::memory::cstr_len(iobuf_ptr) < 33 {
                     let dlen = crate::memory::cstr_len(iobuf_ptr);
@@ -2742,14 +2720,17 @@ pub fn u_forget_unchanged(buf: &mut FileBuf) {
     if uhp_ref(&*buf, uhp).uh_entries.is_empty() || buf.b_u_curhead.is_some() {
         return;
     };
-    let uep = &mut uhp_mut(&mut *buf, uhp).uh_entries.as_mut_slice()[0];
-    if u_entry_resized(&mut *buf, uep) {
+    let (ue_top, ue_size, resized) = {
+        let uep = &uhp_ref(buf, uhp).uh_entries[0];
+        (uep.ue_top, uep.ue_size(), u_entry_resized(buf, uep))
+    };
+    if resized {
         return;
     }
-    for i in 0..uep.ue_size() {
-        if crate::memory::cstr_as_bytes(uep.ue_array.as_slice()[i as usize].as_ptr())
-            != crate::memory::cstr_as_bytes(ml_get_buf(buf, uep.ue_top + 1 + i))
-        {
+    for i in 0..ue_size {
+        let line_ptr = ml_get_buf(buf, ue_top + 1 + i);
+        let saved_bytes = uhp_ref(buf, uhp).uh_entries[0].ue_array[i as usize].as_bytes();
+        if saved_bytes != crate::memory::cstr_as_bytes(line_ptr) {
             return;
         }
     }
@@ -2947,31 +2928,27 @@ pub fn f_undofile(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDat
 
 /// `"undotree(expr)"` function.
 pub fn f_undotree(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
-    unsafe {
-        tv_dict_alloc_ret(rettv);
+    let dict = tv_dict_alloc_ret(rettv);
 
-        let tv = (&raw mut argvars[0]);
-        let buf = if (*tv).v_type == VarType::VarUnknown {
-            g_st().curbuf
-        } else {
-            get_buf_arg(&mut *tv)
-        };
-        if buf.is_null() {
-            return;
-        }
-        let buf = &mut *buf;
-
-        let dict = rettv.vval.v_dict();
-
-        tv_dict_add_nr(&mut *dict, c"synced", Varnumber::from(buf.b_u_synced));
-        tv_dict_add_nr(&mut *dict, c"seq_last", buf.b_u_seq_last as Varnumber);
-        tv_dict_add_nr(&mut *dict, c"save_last", buf.b_u_save_nr_last as Varnumber);
-        tv_dict_add_nr(&mut *dict, c"seq_cur", buf.b_u_seq_cur as Varnumber);
-        tv_dict_add_nr(&mut *dict, c"time_cur", buf.b_u_time_cur as Varnumber);
-        tv_dict_add_nr(&mut *dict, c"save_cur", buf.b_u_save_nr_cur as Varnumber);
-
-        tv_dict_add_list(&mut *dict, c"entries", u_eval_tree(buf, buf.b_u_oldhead));
+    let tv = &mut argvars[0];
+    let buf = if tv.v_type == VarType::VarUnknown {
+        g_st().curbuf
+    } else {
+        get_buf_arg(tv)
+    };
+    if buf.is_null() {
+        return;
     }
+    let buf = unsafe { &mut *buf };
+
+    tv_dict_add_nr(dict, c"synced", Varnumber::from(buf.b_u_synced));
+    tv_dict_add_nr(dict, c"seq_last", buf.b_u_seq_last as Varnumber);
+    tv_dict_add_nr(dict, c"save_last", buf.b_u_save_nr_last as Varnumber);
+    tv_dict_add_nr(dict, c"seq_cur", buf.b_u_seq_cur as Varnumber);
+    tv_dict_add_nr(dict, c"time_cur", buf.b_u_time_cur as Varnumber);
+    tv_dict_add_nr(dict, c"save_cur", buf.b_u_save_nr_cur as Varnumber);
+
+    tv_dict_add_list(dict, c"entries", u_eval_tree(buf, buf.b_u_oldhead));
 }
 
 /// Drops named mark `idx` from the pending undo snapshot.
