@@ -231,14 +231,14 @@ fn coladvance2(
         {
             if crate::memory::cstr_byte_at(line, idx as usize) == 0 {
                 let correct = wcol - col;
-                let newline_size = (idx as usize)
-                    .checked_add(correct as usize)
+                let idx_usize = idx as usize;
+                let correct_usize = correct as usize;
+                let newline_size = idx_usize
+                    .checked_add(correct_usize)
                     .expect("STRICT_ADD overflow");
                 let mut newline = vec![0u8; newline_size + 1];
-                unsafe {
-                    ptr::copy_nonoverlapping(line.cast::<u8>(), newline.as_mut_ptr(), idx as usize)
-                };
-                newline[idx as usize..idx as usize + correct as usize].fill(b' ');
+                newline[..idx_usize].copy_from_slice(crate::memory::cstr_slice(line, idx_usize));
+                newline[idx_usize..idx_usize + correct_usize].fill(b' ');
 
                 ml_replace(pos.lnum, newline.as_mut_ptr().cast(), true);
                 inserted_bytes(pos.lnum, idx, 0, correct);
@@ -250,25 +250,21 @@ fn coladvance2(
                     return false;
                 }
 
+                let idx_usize = idx as usize;
+                let csize_usize = csize as usize;
                 let alloc_n = ((linelen - 1) as usize)
-                    .checked_add(csize as usize)
+                    .checked_add(csize_usize)
                     .expect("STRICT_ADD overflow");
                 let mut newline = vec![0u8; alloc_n + 1];
-                unsafe {
-                    ptr::copy_nonoverlapping(line.cast::<u8>(), newline.as_mut_ptr(), idx as usize)
-                };
-                newline[idx as usize..(idx + csize) as usize].fill(b' ');
+                let line_slice = crate::memory::cstr_slice(line, linelen as usize);
+                newline[..idx_usize].copy_from_slice(&line_slice[..idx_usize]);
+                newline[idx_usize..idx_usize + csize_usize].fill(b' ');
                 let rest_n = (linelen as usize)
-                    .checked_sub(idx as usize)
+                    .checked_sub(idx_usize)
                     .and_then(|v| v.checked_sub(1))
                     .expect("STRICT_SUB underflow");
-                unsafe {
-                    ptr::copy_nonoverlapping(
-                        line.wrapping_add(idx as usize + 1).cast::<u8>(),
-                        newline.as_mut_ptr().wrapping_add((idx + csize) as usize),
-                        rest_n,
-                    )
-                };
+                newline[idx_usize + csize_usize..idx_usize + csize_usize + rest_n]
+                    .copy_from_slice(&line_slice[idx_usize + 1..idx_usize + 1 + rest_n]);
 
                 ml_replace(pos.lnum, newline.as_mut_ptr().cast(), true);
                 inserted_bytes(pos.lnum, idx, 1, csize);
@@ -355,21 +351,14 @@ pub fn check_pos(buf: &mut FileBuf, pos: &mut CursorPos) {
 
 /// Make sure `win->w_cursor.lnum` is valid (`check_cursor_lnum`).
 pub fn check_cursor_lnum(win: &mut WinInfoInfo) {
-    let buf = win.w_buffer;
-    let buf = unsafe { &mut *buf };
-    if win.w_cursor.lnum > buf.b_ml.ml_line_count
-        && !has_folding(
-            win,
-            buf.b_ml.ml_line_count,
-            Some(&mut win.w_cursor.lnum),
-            ptr::null_mut(),
-        )
+    let line_count = win.buf_mut().b_ml.ml_line_count;
+    let mut cursor_lnum = win.w_cursor.lnum;
+    if cursor_lnum > line_count
+        && !has_folding(win, line_count, Some(&mut cursor_lnum), ptr::null_mut())
     {
-        win.w_cursor.lnum = buf.b_ml.ml_line_count;
+        cursor_lnum = line_count;
     }
-    if win.w_cursor.lnum <= 0 {
-        win.w_cursor.lnum = 1;
-    }
+    win.w_cursor.lnum = cursor_lnum.max(1);
 }
 
 /// Make sure `win->w_cursor.col` is valid (`check_cursor_col`).
