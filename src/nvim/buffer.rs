@@ -4129,18 +4129,13 @@ pub fn fileinfo(fullname: i32, shorthelp: i32, dont_truncate: bool) {
         );
         validate_virtcol(curwin_mut());
         bufferlen += col_print(
-            buffer.wrapping_add(bufferlen).cast(),
-            IOSIZE - bufferlen,
+            &mut buffer_vec[bufferlen..],
             curwin_mut().w_cursor.col + 1,
             curwin_mut().w_virtcol + 1,
         ) as usize;
     }
 
-    append_arg_number(
-        curwin_mut(),
-        buffer.wrapping_add(bufferlen).cast(),
-        IOSIZE - bufferlen,
-    );
+    append_arg_number(curwin_mut(), &mut buffer_vec[bufferlen..]);
 
     if dont_truncate {
         msg_start();
@@ -4156,11 +4151,11 @@ pub fn fileinfo(fullname: i32, shorthelp: i32, dont_truncate: bool) {
     }
 }
 
-pub fn col_print(buf: *mut u8, buflen: usize, col: i32, vcol: i32) -> i32 {
+pub fn col_print(buf: &mut [u8], col: i32, vcol: i32) -> i32 {
     if col == vcol {
-        vim_snprintf_safelen!(buf.cast(), buflen, c"%d", col) as i32
+        vim_snprintf_safelen!(buf.as_mut_ptr().cast(), buf.len(), c"%d", col) as i32
     } else {
-        vim_snprintf_safelen!(buf.cast(), buflen, c"%d-%d", col, vcol) as i32
+        vim_snprintf_safelen!(buf.as_mut_ptr().cast(), buf.len(), c"%d-%d", col, vcol) as i32
     }
 }
 
@@ -4337,8 +4332,8 @@ pub fn free_titles() {
 }
 
 /// Get relative cursor position in window into `buf[]`.
-pub fn get_rel_pos(wp: &mut WinInfoInfo, buf: *mut u8, buflen: i32) -> i32 {
-    if buflen < 3 {
+pub fn get_rel_pos(wp: &mut WinInfoInfo, buf: &mut [u8]) -> i32 {
+    if buf.len() < 3 {
         return 0;
     }
 
@@ -4350,8 +4345,8 @@ pub fn get_rel_pos(wp: &mut WinInfoInfo, buf: *mut u8, buflen: i32) -> i32 {
     let below = wp.buf_mut().b_ml.ml_line_count - wp.w_botline + 1;
     if below <= 0 {
         return vim_snprintf_safelen!(
-            buf.cast(),
-            buflen as usize,
+            buf.as_mut_ptr().cast(),
+            buf.len(),
             c"%s",
             if above == 0 {
                 gettext(c"All")
@@ -4362,22 +4357,23 @@ pub fn get_rel_pos(wp: &mut WinInfoInfo, buf: *mut u8, buflen: i32) -> i32 {
     }
 
     if above <= 0 {
-        return vim_snprintf_safelen!(buf.cast(), buflen as usize, c"%s", gettext(c"Top"),) as i32;
+        return vim_snprintf_safelen!(buf.as_mut_ptr().cast(), buf.len(), c"%s", gettext(c"Top"),)
+            as i32;
     }
 
     let perc = calc_percentage(i64::from(above), i64::from(above + below));
     let mut tmp = [0u8; 8];
     vim_snprintf!(tmp.as_mut_ptr().cast(), tmp.len(), gettext(c"%d%%"), perc);
     vim_snprintf_safelen!(
-        buf.cast(),
-        buflen as usize,
+        buf.as_mut_ptr().cast(),
+        buf.len(),
         gettext(c"%3s"),
         tmp.as_ptr().cast::<()>(),
     ) as i32
 }
 
 /// Append `(2 of 8)` to `buf[]`, if editing more than one file.
-pub fn append_arg_number(wp: &mut WinInfoInfo, buf: *mut u8, buflen: usize) -> i32 {
+pub fn append_arg_number(wp: &mut WinInfoInfo, buf: &mut [u8]) -> i32 {
     let argcount = crate::arglist::argcount();
     if argcount <= 1 {
         return 0;
@@ -4389,7 +4385,13 @@ pub fn append_arg_number(wp: &mut WinInfoInfo, buf: *mut u8, buflen: usize) -> i
         gettext(c" (%d of %d)")
     };
 
-    vim_snprintf_safelen!(buf.cast(), buflen, msg, wp.w_arg_idx + 1, argcount) as i32
+    vim_snprintf_safelen!(
+        buf.as_mut_ptr().cast(),
+        buf.len(),
+        msg,
+        wp.w_arg_idx + 1,
+        argcount
+    ) as i32
 }
 
 /// Make `*ffname` a full file name, set `*sfname` to `*ffname` if not NULL.

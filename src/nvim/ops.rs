@@ -3101,7 +3101,6 @@ pub fn cursor_pos_info(mut dict: Option<&mut TvDict>) {
     let mut buf1 = [0u8; 50];
     let buf1_ptr = buf1.as_mut_ptr();
     let mut buf2 = [0u8; 40];
-    let buf2_ptr = buf2.as_mut_ptr();
     let mut byte_count: Varnumber = 0;
     let mut bom_count: Varnumber = 0;
     let mut byte_count_cursor: Varnumber = 0;
@@ -3316,17 +3315,11 @@ pub fn cursor_pos_info(mut dict: Option<&mut TvDict>) {
                 let p = get_cursor_line_ptr();
                 validate_virtcol(curwin_mut());
                 col_print(
-                    buf1_ptr.cast(),
-                    buf1.len(),
+                    &mut buf1,
                     curwin_mut().w_cursor.col + 1,
                     curwin_mut().w_virtcol + 1,
                 );
-                col_print(
-                    buf2_ptr.cast(),
-                    buf2.len(),
-                    get_cursor_line_len(),
-                    linetabsize_str(p),
-                );
+                col_print(&mut buf2, get_cursor_line_len(), linetabsize_str(p));
                 let buf1_cstr = std::ffi::CStr::from_bytes_until_nul(&buf1).unwrap_or_default();
                 let buf2_cstr = std::ffi::CStr::from_bytes_until_nul(&buf2).unwrap_or_default();
 

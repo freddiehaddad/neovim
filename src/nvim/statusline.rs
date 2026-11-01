@@ -2071,7 +2071,7 @@ pub extern "C" fn build_stl_str_hl(
                     );
                 }
                 STL_ALTPERCENT => {
-                    get_rel_pos(&mut *wp, buf_tmp.as_mut_ptr().cast(), TMPLEN as i32);
+                    get_rel_pos(&mut *wp, &mut buf_tmp);
                     str = buf_tmp.as_mut_ptr();
                 }
                 STL_SHOWCMD => {
@@ -2084,7 +2084,7 @@ pub extern "C" fn build_stl_str_hl(
                 STL_ARGLISTSTAT => {
                     fillable = false;
                     buf_tmp[0] = 0;
-                    if append_arg_number(&mut *wp, buf_tmp.as_mut_ptr().cast(), buf_tmp.len()) > 0 {
+                    if append_arg_number(&mut *wp, &mut buf_tmp) > 0 {
                         str = buf_tmp.as_mut_ptr();
                     }
                 }
