@@ -3022,10 +3022,7 @@ pub fn tv_dict_get_string_buf<'a, S: crate::strings::IntoCCharPtr>(
         return None;
     }
     let di = unsafe { &*di };
-    Some(crate::memory::cstr_from_ptr(tv_get_string_buf(
-        &di.di_tv,
-        numbuf.as_mut_ptr(),
-    )))
+    Some(tv_get_string_buf(&di.di_tv, numbuf))
 }
 
 /// Get a string item from a dictionary.
@@ -3041,7 +3038,7 @@ pub fn tv_dict_get_string_buf_chk<'a>(
         return def;
     }
     let di = unsafe { &*di };
-    crate::memory::cstr_as_opt_cstr(tv_get_string_buf_chk(&di.di_tv, numbuf.as_mut_ptr()))
+    tv_get_string_buf_chk(&di.di_tv, numbuf)
 }
 
 /// Get a function from a dictionary.
@@ -4543,8 +4540,8 @@ pub fn tv_equal(tv1: &TypVal, tv2: &TypVal, ic: bool) -> bool {
         VarType::VarString => {
             let mut buf1: [u8; NUMBUFLEN] = [0; NUMBUFLEN];
             let mut buf2: [u8; NUMBUFLEN] = [0; NUMBUFLEN];
-            let s1 = tv_get_string_buf(tv1, buf1.as_mut_ptr());
-            let s2 = tv_get_string_buf(tv2, buf2.as_mut_ptr());
+            let s1 = tv_get_string_buf(tv1, &mut buf1);
+            let s2 = tv_get_string_buf(tv2, &mut buf2);
             mb_strcmp_ic(ic, s1, s2) == 0
         }
         VarType::VarBool => tv1.vval.v_bool() == tv2.vval.v_bool(),
@@ -4959,24 +4956,27 @@ pub fn tv_check_for_list_or_blob_arg(args: &[TypVal], idx: i32) -> bool {
 }
 
 /// Get the string value of a "stringish" Vimscript object.
-pub fn tv_get_string_buf_chk(tv: &TypVal, buf: *mut u8) -> RawCCharPtr {
-    let buf_c: RawCCharPtrMut = buf.cast();
+pub fn tv_get_string_buf_chk<'a>(
+    tv: &'a TypVal,
+    buf: &'a mut [u8; NUMBUFLEN],
+) -> Option<&'a std::ffi::CStr> {
+    let buf_c: RawCCharPtrMut = buf.as_mut_ptr().cast();
     match tv.v_type {
         VarType::VarNumber => {
             use std::io::Write;
-            let mut slice = unsafe { std::slice::from_raw_parts_mut(buf, NUMBUFLEN) };
+            let mut slice = &mut buf[..];
             let _ = write!(slice, "{}\0", tv.vval.v_number());
-            buf_c
+            Some(crate::memory::cstr_from_ptr(buf_c))
         }
         VarType::VarFloat => {
             vim_snprintf!(buf_c, NUMBUFLEN, c"%g", tv.vval.v_float());
-            buf_c
+            Some(crate::memory::cstr_from_ptr(buf_c))
         }
         VarType::VarString => {
             if !tv.vval.v_string().is_null() {
-                tv.vval.v_string()
+                Some(crate::memory::cstr_from_ptr(tv.vval.v_string()))
             } else {
-                c"".as_ptr()
+                Some(c"")
             }
         }
         VarType::VarBool => {
@@ -4985,7 +4985,7 @@ pub fn tv_get_string_buf_chk(tv: &TypVal, buf: *mut u8) -> RawCCharPtr {
                 ENCODE_BOOL_VAR_NAMES[tv.vval.v_bool() as usize],
                 NUMBUFLEN,
             );
-            buf_c
+            Some(crate::memory::cstr_from_ptr(buf_c))
         }
         VarType::VarSpecial => {
             xstrlcpy(
@@ -4993,7 +4993,7 @@ pub fn tv_get_string_buf_chk(tv: &TypVal, buf: *mut u8) -> RawCCharPtr {
                 ENCODE_SPECIAL_VAR_NAMES[tv.vval.v_special() as usize],
                 NUMBUFLEN,
             );
-            buf_c
+            Some(crate::memory::cstr_from_ptr(buf_c))
         }
         VarType::VarPartial
         | VarType::VarFunc
@@ -5002,25 +5002,24 @@ pub fn tv_get_string_buf_chk(tv: &TypVal, buf: *mut u8) -> RawCCharPtr {
         | VarType::VarBlob
         | VarType::VarUnknown => {
             emsg(tr(str_error(tv.v_type)));
-            ptr::null()
+            None
         }
     }
 }
 
 /// Get the string value of a "stringish" Vimscript object.
 pub fn tv_get_string_chk(tv: &TypVal) -> RawCCharPtr {
-    tv_get_string_buf_chk(tv, tv_st().mybuf_chk.as_mut_ptr())
+    tv_get_string_buf_chk(tv, &mut tv_st().mybuf_chk).map_or(ptr::null(), std::ffi::CStr::as_ptr)
 }
 
 /// Get the string value of a "stringish" Vimscript object.
 pub fn tv_get_string(tv: &TypVal) -> RawCCharPtr {
-    tv_get_string_buf(tv, tv_st().mybuf.as_mut_ptr())
+    tv_get_string_buf(tv, &mut tv_st().mybuf).as_ptr()
 }
 
 /// Get the string value of a "stringish" Vimscript object.
-pub fn tv_get_string_buf(tv: &TypVal, buf: *mut u8) -> RawCCharPtr {
-    let res = tv_get_string_buf_chk(tv, buf);
-    if !res.is_null() { res } else { c"".as_ptr() }
+pub fn tv_get_string_buf<'a>(tv: &'a TypVal, buf: &'a mut [u8; NUMBUFLEN]) -> &'a std::ffi::CStr {
+    tv_get_string_buf_chk(tv, buf).unwrap_or(c"")
 }
 
 /// Return true when "tv" is not falsy.
@@ -5255,10 +5254,7 @@ mod tests {
             assert_eq!(tv_get_number(&tv), 5);
             assert_eq!(tv_get_float(&tv), 5.0);
             let mut buf = [0u8; NUMBUFLEN];
-            assert_eq!(
-                crate::memory::cstr_as_bytes(tv_get_string_buf(&tv, buf.as_mut_ptr())),
-                b"5"
-            );
+            assert_eq!(tv_get_string_buf(&tv, &mut buf), c"5");
 
             let tv_flt = TypVal {
                 v_type: VarType::VarFloat,

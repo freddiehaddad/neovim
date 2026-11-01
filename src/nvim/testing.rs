@@ -299,11 +299,10 @@ fn assert_equal_common(argvars: &mut [TypVal], atype: AssertType) -> i32 {
 fn assert_match_common(argvars: &mut [TypVal], atype: AssertType) -> i32 {
     let mut buf1 = [0u8; NUMBUFLEN];
     let mut buf2 = [0u8; NUMBUFLEN];
-    let pat = tv_get_string_buf_chk(&argvars[0], buf1.as_mut_ptr().cast());
-    let text = tv_get_string_buf_chk(&argvars[1], buf2.as_mut_ptr().cast());
+    let pat = tv_get_string_buf_chk(&argvars[0], &mut buf1);
+    let text = tv_get_string_buf_chk(&argvars[1], &mut buf2);
 
-    if !pat.is_null()
-        && !text.is_null()
+    if let (Some(pat), Some(text)) = (pat, text)
         && (pattern_match(pat, text, false) != 0) != (atype == AssertType::Match)
     {
         let mut ga = Vec::new();
@@ -416,12 +415,12 @@ pub fn f_assert_equal(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFun
 fn assert_equalfile(argvars: &mut [TypVal]) -> i32 {
     let mut buf1 = [0u8; NUMBUFLEN];
     let mut buf2 = [0u8; NUMBUFLEN];
-    let fname1 = tv_get_string_buf_chk(&argvars[0], buf1.as_mut_ptr().cast());
-    let fname2 = tv_get_string_buf_chk(&argvars[1], buf2.as_mut_ptr().cast());
+    let fname1 = tv_get_string_buf_chk(&argvars[0], &mut buf1);
+    let fname2 = tv_get_string_buf_chk(&argvars[1], &mut buf2);
 
-    if fname1.is_null() || fname2.is_null() {
+    let (Some(fname1), Some(fname2)) = (fname1, fname2) else {
         return 0;
-    }
+    };
 
     let mut iobuf = [0u8; IOSIZE];
     let mut iobuflen = 0usize;
@@ -601,6 +600,7 @@ pub fn f_assert_fails(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFun
         rettv.vval = crate::eval::typval::TypvalVval::Number(1);
     } else if argvars[1].v_type != VarType::VarUnknown {
         let mut buf = [0u8; NUMBUFLEN];
+        let mut buf2 = [0u8; NUMBUFLEN];
         let mut expected_str: Option<&CStr> = None;
         let mut error_found = false;
         let mut error_found_index: usize = 1;
@@ -612,18 +612,17 @@ pub fn f_assert_fails(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFun
         let arg1 = &argvars[1];
         let mut valid_args = true;
         if arg1.v_type == VarType::VarString {
-            let expected = tv_get_string_buf_chk(arg1, buf.as_mut_ptr().cast());
-            if expected.is_null() {
-                error_found = true;
-            } else {
+            if let Some(expected) = tv_get_string_buf_chk(arg1, &mut buf) {
                 let act_bytes = crate::memory::cstr_as_bytes(actual);
-                let exp_bytes = crate::memory::cstr_as_bytes(expected);
+                let exp_bytes = expected.to_bytes();
                 let contains = if exp_bytes.is_empty() {
                     true
                 } else {
                     act_bytes.windows(exp_bytes.len()).any(|w| w == exp_bytes)
                 };
                 error_found = !contains;
+            } else {
+                error_found = true;
             }
         } else if arg1.v_type == VarType::VarList {
             let list = arg1.vval.v_list();
@@ -637,24 +636,28 @@ pub fn f_assert_fails(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFun
                 valid_args = false;
             } else {
                 let first_tv = unsafe { &(*tv_list_first(list.as_ref())).li_tv };
-                let expected = tv_get_string_buf_chk(first_tv, buf.as_mut_ptr().cast());
-                if expected.is_null() {
-                    valid_args = false;
-                } else if pattern_match(expected, actual, false) == 0 {
-                    error_found = true;
-                    expected_str = crate::memory::cstr_as_opt_cstr(expected);
-                } else if tv_list_len(unsafe { list.as_ref() }) == 2 {
-                    let s = crate::memory::cstr_to_cstring(get_vim_var_str(VV_ERRMSG));
-                    actual = s.as_ptr().cast_mut();
-                    tofree = Some(s);
-                    let last_tv = unsafe { &(*tv_list_last(list.as_ref())).li_tv };
-                    let expected2 = tv_get_string_buf_chk(last_tv, buf.as_mut_ptr().cast());
-                    if expected2.is_null() {
-                        valid_args = false;
-                    } else if pattern_match(expected2, actual, false) == 0 {
+                let expected = tv_get_string_buf_chk(first_tv, &mut buf);
+                if let Some(expected) = expected {
+                    if pattern_match(expected, actual, false) == 0 {
                         error_found = true;
-                        expected_str = crate::memory::cstr_as_opt_cstr(expected2);
+                        expected_str = Some(expected);
+                    } else if tv_list_len(unsafe { list.as_ref() }) == 2 {
+                        let s = crate::memory::cstr_to_cstring(get_vim_var_str(VV_ERRMSG));
+                        actual = s.as_ptr().cast_mut();
+                        tofree = Some(s);
+                        let last_tv = unsafe { &(*tv_list_last(list.as_ref())).li_tv };
+                        let expected2 = tv_get_string_buf_chk(last_tv, &mut buf2);
+                        if let Some(expected2) = expected2 {
+                            if pattern_match(expected2, actual, false) == 0 {
+                                error_found = true;
+                                expected_str = Some(expected2);
+                            }
+                        } else {
+                            valid_args = false;
+                        }
                     }
+                } else {
+                    valid_args = false;
                 }
             }
         } else {

@@ -5428,28 +5428,27 @@ pub fn get_user_input(argvars: &[TypVal], rettv: &mut TypVal, inputdialog: bool,
                 return;
             }
         } else {
-            prompt = tv_get_string_buf_chk(&argvars[0], prompt_buf.as_mut_ptr().cast()).cast();
-            if prompt.is_null() {
+            let Some(prompt_cstr) = tv_get_string_buf_chk(&argvars[0], &mut prompt_buf) else {
                 return;
-            }
+            };
+            prompt = prompt_cstr.as_ptr().cast();
             if argvars[1].v_type != VarType::VarUnknown {
-                defstr = tv_get_string_buf_chk(&argvars[1], defstr_buf.as_mut_ptr().cast()).cast();
-                if defstr.is_null() {
+                let Some(defstr_cstr) = tv_get_string_buf_chk(&argvars[1], &mut defstr_buf) else {
                     return;
-                }
+                };
+                defstr = defstr_cstr.as_ptr().cast();
                 if argvars[2].v_type != VarType::VarUnknown {
-                    let strarg2 =
-                        tv_get_string_buf_chk(&argvars[2], cancelreturn_buf.as_mut_ptr().cast());
-                    if strarg2.is_null() {
+                    let Some(strarg2) = tv_get_string_buf_chk(&argvars[2], &mut cancelreturn_buf)
+                    else {
                         return;
-                    }
+                    };
                     if inputdialog {
                         cancelreturn_strarg2.v_type = VarType::VarString;
                         cancelreturn_strarg2.vval =
-                            crate::eval::typval::TypvalVval::String(strarg2.cast_mut());
+                            crate::eval::typval::TypvalVval::String(strarg2.as_ptr().cast_mut());
                         cancelreturn = &raw mut cancelreturn_strarg2;
                     } else {
-                        xp_name = strarg2.cast();
+                        xp_name = strarg2.as_ptr().cast();
                     }
                 }
             }

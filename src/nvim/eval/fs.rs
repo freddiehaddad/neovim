@@ -562,12 +562,12 @@ pub fn f_delete(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData)
 
     let mut nbuf = [0u8; NUMBUFLEN];
     let flags = if argvars[1].v_type != VarType::VarUnknown {
-        tv_get_string_buf(&argvars[1], nbuf.as_mut_ptr().cast())
+        tv_get_string_buf(&argvars[1], &mut nbuf)
     } else {
-        c"".as_ptr()
+        c""
     };
 
-    let flags_bytes = crate::memory::cstr_as_bytes(flags);
+    let flags_bytes = flags.to_bytes();
     if flags_bytes.is_empty() {
         // delete a file
         rettv.vval =
@@ -688,17 +688,16 @@ fn findfilendir(argvars: &mut [TypVal], rettv: &mut TypVal, find_what: i32) {
 
     let mut pathbuf = [0u8; NUMBUFLEN];
     if argvars[1].v_type != VarType::VarUnknown {
-        let p = tv_get_string_buf_chk(&argvars[1], pathbuf.as_mut_ptr().cast());
-        if p.is_null() {
-            error = true;
-        } else {
-            if !crate::memory::cstr_is_empty(p) {
-                path = p.cast_mut();
+        if let Some(p) = tv_get_string_buf_chk(&argvars[1], &mut pathbuf) {
+            if !p.to_bytes().is_empty() {
+                path = p.as_ptr().cast_mut();
             }
 
             if argvars[2].v_type != VarType::VarUnknown {
                 count = tv_get_number_chk(&argvars[2], Some(&mut error)) as i32;
             }
+        } else {
+            error = true;
         }
     }
 
@@ -777,7 +776,8 @@ pub fn f_fnamemodify(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFunc
     let mut len: usize = 0;
     let mut buf = [0u8; NUMBUFLEN];
     let mut fname = tv_get_string_chk(&argvars[0]).cast_mut().cast::<u8>();
-    let mods = tv_get_string_buf_chk(&argvars[1], buf.as_mut_ptr().cast());
+    let mods = tv_get_string_buf_chk(&argvars[1], &mut buf)
+        .map_or(std::ptr::null(), std::ffi::CStr::as_ptr);
     if mods.is_null() || fname.is_null() {
         fname = ptr::null_mut();
     } else {
@@ -1187,12 +1187,13 @@ pub fn f_globpath(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDat
     }
 
     let mut buf1 = [0u8; NUMBUFLEN];
-    let file = tv_get_string_buf_chk(&argvars[1], buf1.as_mut_ptr().cast());
-    if !file.is_null() && !error {
+    if let Some(file) = tv_get_string_buf_chk(&argvars[1], &mut buf1)
+        && !error
+    {
         let mut ga: Vec<std::ffi::CString> = Vec::new();
         globpath(
             tv_get_string(&argvars[0]).cast_mut(),
-            file.cast_mut(),
+            file.as_ptr().cast_mut(),
             &mut ga,
             flags,
             false,
@@ -1298,10 +1299,11 @@ pub fn f_mkdir(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) 
     }
 
     let mut buf = [0u8; NUMBUFLEN];
-    let dir = tv_get_string_buf(&argvars[0], buf.as_mut_ptr().cast());
-    if crate::memory::cstr_is_empty(dir) {
+    let dir = tv_get_string_buf(&argvars[0], &mut buf);
+    if dir.to_bytes().is_empty() {
         return;
     }
+    let dir = dir.as_ptr();
 
     if crate::memory::cstr_is_empty(path_tail(dir)) {
         // Remove trailing slashes.
@@ -1703,7 +1705,7 @@ pub fn f_rename(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData)
         let mut buf = [0u8; NUMBUFLEN];
         rettv.vval = crate::eval::typval::TypvalVval::Number(Varnumber::from(vim_rename(
             tv_get_string(&argvars[0]),
-            tv_get_string_buf(&argvars[1], buf.as_mut_ptr().cast()),
+            tv_get_string_buf(&argvars[1], &mut buf),
         )));
     }
 }
@@ -2090,19 +2092,19 @@ pub fn f_writefile(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDa
     }
 
     let mut buf = [0u8; NUMBUFLEN];
-    let fname = tv_get_string_buf_chk(&argvars[1], buf.as_mut_ptr().cast());
-    if fname.is_null() {
+    let Some(fname) = tv_get_string_buf_chk(&argvars[1], &mut buf) else {
         return;
-    }
+    };
 
     if defer && !can_add_defer() {
         return;
     }
 
     let mut fp = FileDescriptor::new();
-    if crate::memory::cstr_is_empty(fname) {
+    if fname.to_bytes().is_empty() {
         emsg(gettext(c"E482: Can't open file with an empty name"));
     } else {
+        let fname = fname.as_ptr();
         let open_flags = (if append {
             K_FILE_APPEND
         } else {

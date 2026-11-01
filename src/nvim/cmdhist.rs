@@ -517,19 +517,13 @@ pub fn f_histadd(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData
     }
 
     let mut buf = [0u8; NUMBUFLEN];
-    let entry_str = tv_get_string_buf(&argvars[1], buf.as_mut_ptr().cast());
-    if unsafe { *entry_str } == 0 {
+    let entry_str = tv_get_string_buf(&argvars[1], &mut buf);
+    if entry_str.to_bytes().is_empty() {
         return;
     }
 
     init_history();
-    add_to_history(
-        histype,
-        entry_str,
-        crate::memory::cstr_len(entry_str),
-        false,
-        0,
-    );
+    add_to_history(histype, entry_str, entry_str.to_bytes().len(), false, 0);
     rettv.vval = crate::eval::typval::TypvalVval::Number(1);
 }
 
@@ -547,8 +541,8 @@ pub fn f_histdel(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData
             del_history_idx(htype, tv_get_number(arg1) as i32)
         } else {
             let mut buf = [0u8; NUMBUFLEN];
-            let pat = tv_get_string_buf(arg1, buf.as_mut_ptr().cast());
-            del_history_entry(htype, crate::memory::cstr_from_ptr(pat))
+            let pat = tv_get_string_buf(arg1, &mut buf);
+            del_history_entry(htype, pat)
         }
     };
     rettv.vval = crate::eval::typval::TypvalVval::Number(n as i64);

@@ -3275,15 +3275,9 @@ pub fn f_iconv(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) 
 
     let str_ = tv_get_string(&argvars[0]);
     let mut buf1 = [0u8; NUMBUFLEN];
-    let from = enc_canonize(enc_skip(tv_get_string_buf(
-        &argvars[1],
-        buf1.as_mut_ptr().cast(),
-    )));
+    let from = enc_canonize(enc_skip(tv_get_string_buf(&argvars[1], &mut buf1)));
     let mut buf2 = [0u8; NUMBUFLEN];
-    let to = enc_canonize(enc_skip(tv_get_string_buf(
-        &argvars[2],
-        buf2.as_mut_ptr().cast(),
-    )));
+    let to = enc_canonize(enc_skip(tv_get_string_buf(&argvars[2], &mut buf2)));
     let mut vimconv = Vimconv {
         vc_type: CONV_NONE,
         vc_factor: 1,

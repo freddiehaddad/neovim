@@ -2120,9 +2120,9 @@ pub fn f_hasmapto(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDat
     let mut abbr = false;
     let mut buf = [0u8; NUMBUFLEN];
     let mode = if argvars[1].v_type == VarType::VarUnknown {
-        c"nvo".as_ptr()
+        c"nvo"
     } else {
-        let m = tv_get_string_buf(&argvars[1], buf.as_mut_ptr().cast());
+        let m = tv_get_string_buf(&argvars[1], &mut buf);
         if argvars[2].v_type != VarType::VarUnknown {
             abbr = tv_get_bool(&argvars[2]) != 0;
         }
@@ -2242,7 +2242,8 @@ fn get_maparg(argvars: &mut [TypVal], rettv: &mut TypVal, exact: i32) {
     let mut get_dict = false;
 
     let which = if argvars[1].v_type != VarType::VarUnknown {
-        let w = tv_get_string_buf_chk(&argvars[1], buf.as_mut_ptr().cast());
+        let w = tv_get_string_buf_chk(&argvars[1], &mut buf)
+            .map_or(ptr::null(), std::ffi::CStr::as_ptr);
         if argvars[2].v_type != VarType::VarUnknown {
             abbr = tv_get_bool(&argvars[2]) != 0;
             if argvars[3].v_type != VarType::VarUnknown {
@@ -2427,16 +2428,15 @@ pub fn f_mapset(argvars: &mut [TypVal], _rettv: &mut TypVal, _fptr: EvalFuncData
             }
             (which.as_ptr(), is_abbr, d)
         } else {
-            let which = tv_get_string_buf_chk(&argvars[0], buf.as_mut_ptr().cast());
-            if which.is_null() {
+            let Some(which) = tv_get_string_buf_chk(&argvars[0], &mut buf) else {
                 return;
-            }
+            };
             let is_abbr = tv_get_bool(&argvars[1]) as i32;
             if !tv_check_for_dict_arg(argvars, 2) {
                 return;
             }
             let d = argvars[2].vval.v_dict();
-            (which, is_abbr, d)
+            (which.as_ptr(), is_abbr, d)
         };
         let mode = get_map_mode_string(which, is_abbr != 0);
         if mode == 0 {

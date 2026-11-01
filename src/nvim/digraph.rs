@@ -1934,8 +1934,8 @@ fn printdigraph(dp: &DigraphEntry, previous: *mut DigrResult) {
 /// Get the two digraph characters from a typval (`get_digraph_chars`).
 fn get_digraph_chars(arg: &TypVal, char1: &mut i32, char2: &mut i32) -> bool {
     let mut buf_chars = [0u8; NUMBUFLEN];
-    let chars = tv_get_string_buf_chk(arg, buf_chars.as_mut_ptr().cast());
-    let mut p = chars;
+    let chars = tv_get_string_buf_chk(arg, &mut buf_chars);
+    let mut p = chars.map_or(std::ptr::null(), std::ffi::CStr::as_ptr);
 
     if !crate::memory::cstr_is_empty(p) {
         *char1 = mb_cptr2char_adv(&raw mut p);
@@ -1961,11 +1961,10 @@ fn digraph_set_common(argchars: &TypVal, argdigraph: &TypVal) -> bool {
     }
 
     let mut buf_digraph = [0u8; NUMBUFLEN];
-    let digraph = tv_get_string_buf_chk(argdigraph, buf_digraph.as_mut_ptr().cast());
-    if digraph.is_null() {
+    let Some(digraph) = tv_get_string_buf_chk(argdigraph, &mut buf_digraph) else {
         return false;
-    }
-    let mut p = digraph;
+    };
+    let mut p = digraph.as_ptr();
     let n = mb_cptr2char_adv(&raw mut p);
     if !crate::memory::cstr_is_empty(p) {
         semsg!(

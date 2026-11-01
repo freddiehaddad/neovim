@@ -2595,13 +2595,16 @@ pub fn f_stridx(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData)
 
     let mut buf = [0u8; NUMBUFLEN];
     let needle = tv_get_string_chk(&argvars[1]);
-    let mut haystack = tv_get_string_buf_chk(&argvars[0], buf.as_mut_ptr());
-    let haystack_start = haystack;
-    if needle.is_null() || haystack.is_null() {
+    let Some(haystack_cstr) = tv_get_string_buf_chk(&argvars[0], &mut buf) else {
+        return;
+    };
+    if needle.is_null() {
         return;
     }
+    let mut haystack = haystack_cstr.as_ptr();
+    let haystack_start = haystack;
 
-    let hay_len = crate::memory::cstr_len(haystack);
+    let hay_len = haystack_cstr.to_bytes().len();
     if argvars[2].v_type != VarType::VarUnknown {
         let mut error = false;
         let start_idx = tv_get_number_chk(&argvars[2], Some(&mut error)) as isize;
@@ -2828,14 +2831,17 @@ pub fn f_strpart(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData
 pub fn f_strridx(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
     let mut buf = [0u8; NUMBUFLEN];
     let needle = tv_get_string_chk(&argvars[1]);
-    let haystack = tv_get_string_buf_chk(&argvars[0], buf.as_mut_ptr());
+    let haystack = tv_get_string_buf_chk(&argvars[0], &mut buf);
 
     rettv.vval = crate::eval::typval::TypvalVval::Number(-1);
-    if needle.is_null() || haystack.is_null() {
+    let Some(haystack) = haystack else {
+        return;
+    };
+    if needle.is_null() {
         return;
     }
 
-    let hay_bytes = crate::memory::cstr_as_bytes(haystack);
+    let hay_bytes = haystack.to_bytes();
     let needle_bytes = crate::memory::cstr_as_bytes(needle);
     let haystack_len = hay_bytes.len();
     let end_idx: isize = if argvars[2].v_type != VarType::VarUnknown {
@@ -2970,14 +2976,16 @@ pub fn f_tr(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
     let mut buf2 = [0u8; NUMBUFLEN];
 
     let mut in_str = tv_get_string(&argvars[0]);
-    let fromstr = tv_get_string_buf_chk(&argvars[1], buf.as_mut_ptr());
-    let tostr = tv_get_string_buf_chk(&argvars[2], buf2.as_mut_ptr());
+    let fromstr = tv_get_string_buf_chk(&argvars[1], &mut buf);
+    let tostr = tv_get_string_buf_chk(&argvars[2], &mut buf2);
 
     rettv.v_type = VarType::VarString;
     rettv.vval = crate::eval::typval::TypvalVval::String(ptr::null_mut());
-    if fromstr.is_null() || tostr.is_null() {
+    let (Some(fromstr), Some(tostr)) = (fromstr, tostr) else {
         return;
-    }
+    };
+    let fromstr = fromstr.as_ptr();
+    let tostr = tostr.as_ptr();
     let mut out: Vec<u8> = Vec::with_capacity(80);
 
     let mut first = true;
@@ -3039,24 +3047,26 @@ pub fn f_tr(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
 pub fn f_trim(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
     let mut buf1 = [0u8; NUMBUFLEN];
     let mut buf2 = [0u8; NUMBUFLEN];
-    let mut head = tv_get_string_buf_chk(&argvars[0], buf1.as_mut_ptr());
+    let head_opt = tv_get_string_buf_chk(&argvars[0], &mut buf1);
     let mut mask: RawCCharPtr = ptr::null();
     let mut dir: i32 = 0;
 
     rettv.v_type = VarType::VarString;
     rettv.vval = crate::eval::typval::TypvalVval::String(ptr::null_mut());
-    if head.is_null() {
+    let Some(head_cstr) = head_opt else {
         return;
-    }
+    };
+    let mut head = head_cstr.as_ptr();
 
     if !tv_check_for_opt_string_arg(argvars, 1) {
         return;
     }
 
     if argvars[1].v_type == VarType::VarString {
-        mask = tv_get_string_buf_chk(&argvars[1], buf2.as_mut_ptr());
-        if crate::memory::cstr_is_empty(mask) {
-            mask = ptr::null();
+        if let Some(m) = tv_get_string_buf_chk(&argvars[1], &mut buf2)
+            && !m.to_bytes().is_empty()
+        {
+            mask = m.as_ptr();
         }
 
         if argvars[2].v_type != VarType::VarUnknown {

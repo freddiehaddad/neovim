@@ -1786,18 +1786,19 @@ pub fn f_confirm(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData
         error = true;
     }
     if argvars[1].v_type != VarType::VarUnknown {
-        buttons = tv_get_string_buf_chk(&argvars[1], buf.as_mut_ptr().cast()).cast();
-        if buttons.is_null() {
+        if let Some(b) = tv_get_string_buf_chk(&argvars[1], &mut buf) {
+            buttons = b.as_ptr().cast();
+        } else {
+            buttons = ptr::null();
             error = true;
         }
         if argvars[2].v_type != VarType::VarUnknown {
             def = tv_get_number_chk(&argvars[2], Some(&mut error)) as i32;
             if argvars[3].v_type != VarType::VarUnknown {
-                let typestr = tv_get_string_buf_chk(&argvars[3], buf2.as_mut_ptr().cast());
-                if typestr.is_null() {
-                    error = true;
-                } else {
-                    match toupper_asc(i32::from(crate::memory::cstr_first_byte(typestr))) as u8 {
+                if let Some(typestr) = tv_get_string_buf_chk(&argvars[3], &mut buf2) {
+                    match toupper_asc(i32::from(typestr.to_bytes().first().copied().unwrap_or(0)))
+                        as u8
+                    {
                         b'E' => type_ = VIM_ERROR,
                         b'Q' => type_ = VIM_QUESTION,
                         b'I' => type_ = VIM_INFO,
@@ -1805,6 +1806,8 @@ pub fn f_confirm(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData
                         b'G' => type_ = VIM_GENERIC,
                         _ => {}
                     }
+                } else {
+                    error = true;
                 }
             }
         }
@@ -2085,7 +2088,7 @@ pub fn f_escape(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData)
     let mut buf = [0u8; NUMBUFLEN];
     let escaped = vim_strsave_escaped(
         tv_get_string(&argvars[0]),
-        tv_get_string_buf(&argvars[1], buf.as_mut_ptr().cast()),
+        tv_get_string_buf(&argvars[1], &mut buf),
     );
     crate::eval::typval::tv_set_string_len(rettv, escaped.as_ptr(), escaped.as_bytes().len());
 }
@@ -2135,13 +2138,9 @@ pub fn get_list_line(
         return None;
     }
     let mut buf = [0u8; NUMBUFLEN];
-    let s = tv_get_string_buf_chk(unsafe { &(*item).li_tv }, buf.as_mut_ptr().cast());
+    let s = tv_get_string_buf_chk(unsafe { &(*item).li_tv }, &mut buf);
     p.li = unsafe { (*item).li_next };
-    if s.is_null() {
-        None
-    } else {
-        Some(cstr_to_cstring(s))
-    }
+    s.map(std::ffi::CStr::to_owned)
 }
 
 pub fn execute_common(argvars: &mut [TypVal], rettv: &mut TypVal, arg_off: i32) {
@@ -2160,17 +2159,16 @@ pub fn execute_common(argvars: &mut [TypVal], rettv: &mut TypVal, arg_off: i32) 
     let off = arg_off as usize;
     if argvars[off + 1].v_type != VarType::VarUnknown {
         let mut buf = [0u8; NUMBUFLEN];
-        let s = tv_get_string_buf_chk(&argvars[off + 1], buf.as_mut_ptr().cast());
-        if s.is_null() {
+        let Some(s) = tv_get_string_buf_chk(&argvars[off + 1], &mut buf) else {
             return;
-        }
-        if crate::memory::cstr_is_empty(s) {
+        };
+        if s.to_bytes().is_empty() {
             echo_output = true;
         }
         if crate::memory::cstr_prefix_bytes(s, 6) == &b"silent"[..6] {
             g_st().msg_silent += 1;
         }
-        if crate::memory::cstr_as_bytes(s) == b"silent!" {
+        if s == c"silent!" {
             g_st().emsg_silent = 1;
             g_st().emsg_noredir = true;
         }
@@ -2468,9 +2466,9 @@ pub fn f_feedkeys(argvars: &mut [TypVal], _rettv: &mut TypVal, _fptr: EvalFuncDa
     }
     let keys = tv_get_string(&argvars[0]);
     let mut nbuf = [0u8; NUMBUFLEN];
-    let mut flags = ptr::null();
+    let mut flags = None;
     if argvars[1].v_type != VarType::VarUnknown {
-        flags = tv_get_string_buf(&argvars[1], nbuf.as_mut_ptr().cast());
+        flags = Some(tv_get_string_buf(&argvars[1], &mut nbuf));
     }
     nvim_feedkeys(cstr_as_string(keys), cstr_as_string(flags), true);
 }
@@ -4907,13 +4905,10 @@ pub fn f_json_decode(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFunc
         };
         owned_buf = buf;
         json_slice = &owned_buf;
+    } else if let Some(s) = tv_get_string_buf_chk(&argvars[0], &mut numbuf) {
+        json_slice = s.to_bytes();
     } else {
-        let s = tv_get_string_buf_chk(&argvars[0], numbuf.as_mut_ptr().cast());
-        if !s.is_null() {
-            json_slice = crate::memory::cstr_as_bytes(s);
-        } else {
-            return;
-        }
+        return;
     }
     if !json_decode_string(json_slice, rettv) {
         let cstr = crate::memory::cstr_from_bytes(json_slice);
@@ -5149,10 +5144,10 @@ fn find_some_match(argvars: &mut [TypVal], rettv: &mut TypVal, type_: SomeMatchT
             }
 
             let mut patbuf = [0u8; NUMBUFLEN];
-            let pat = tv_get_string_buf_chk(&argvars[1], patbuf.as_mut_ptr().cast());
-            if pat.is_null() {
+            let Some(pat_cstr) = tv_get_string_buf_chk(&argvars[1], &mut patbuf) else {
                 break 'theend;
-            }
+            };
+            let pat = pat_cstr.as_ptr();
 
             if argvars[2].v_type != VarType::VarUnknown {
                 let mut error = false;
@@ -5443,7 +5438,7 @@ pub fn f_matchbufline(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFun
         }
 
         let mut patbuf = [0u8; NUMBUFLEN];
-        let pat = tv_get_string_buf(&argvars[1], patbuf.as_mut_ptr().cast());
+        let pat = tv_get_string_buf(&argvars[1], &mut patbuf);
 
         let did_emsg_before = g_st().did_emsg;
         let mut slnum = tv_get_lnum_buf(&argvars[2], buf.as_ref());
@@ -5544,10 +5539,9 @@ pub fn f_matchstrlist(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFun
     }
 
     let mut patbuf = [0u8; NUMBUFLEN];
-    let pat = tv_get_string_buf_chk(&argvars[1], patbuf.as_mut_ptr().cast());
-    if pat.is_null() {
+    let Some(pat) = tv_get_string_buf_chk(&argvars[1], &mut patbuf) else {
         return;
-    }
+    };
 
     let save_cpo = opt_vars().p_cpo;
     opt_vars().p_cpo = EMPTY_STRING_OPTION.as_ptr().cast();
@@ -5969,16 +5963,17 @@ pub fn f_printf(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData)
 
     let saved_did_emsg = g_st().did_emsg;
     g_st().did_emsg = 0;
+    let (arg0, rest_args) = argvars.split_first_mut().unwrap();
     let mut buf = [0u8; NUMBUFLEN];
-    let fmt = tv_get_string_buf(&argvars[0], buf.as_mut_ptr().cast());
-    let len = vim_snprintf_typval_only(ptr::null_mut(), 0, fmt, (&raw mut argvars[1]));
+    let fmt = tv_get_string_buf(arg0, &mut buf);
+    let len = vim_snprintf_typval_only(ptr::null_mut(), 0, fmt, rest_args.as_mut_ptr());
     if g_st().did_emsg == 0 {
         let mut s = vec![0u8; (len as usize) + 1];
         vim_snprintf_typval_only(
             s.as_mut_ptr().cast(),
             (len as usize) + 1,
             fmt,
-            (&raw mut argvars[1]),
+            rest_args.as_mut_ptr(),
         );
         crate::eval::typval::tv_set_string_len(rettv, s.as_ptr().cast(), len as usize);
     }
@@ -6592,10 +6587,10 @@ fn get_search_arg(varp: &mut TypVal, mut flagsp: Option<&mut i32>) -> i32 {
         return FORWARD;
     }
     let mut nbuf = [0u8; NUMBUFLEN];
-    let mut flags = tv_get_string_buf_chk(&*varp, nbuf.as_mut_ptr().cast());
-    if flags.is_null() {
+    let Some(flags_cstr) = tv_get_string_buf_chk(&*varp, &mut nbuf) else {
         return 0;
-    }
+    };
+    let mut flags = flags_cstr.as_ptr();
     while !crate::memory::cstr_is_empty(flags) {
         match crate::memory::cstr_first_byte(flags) {
             b'b' => dir = BACKWARD,
@@ -7107,11 +7102,16 @@ fn searchpair_cmn(argvars: &mut [TypVal], match_pos: Option<&mut CursorPos>) -> 
         let mut nbuf1 = [0u8; NUMBUFLEN];
         let mut nbuf2 = [0u8; NUMBUFLEN];
         let spat = tv_get_string_chk(&argvars[0]);
-        let mpat = tv_get_string_buf_chk(&argvars[1], nbuf1.as_mut_ptr().cast());
-        let epat = tv_get_string_buf_chk(&argvars[2], nbuf2.as_mut_ptr().cast());
-        if spat.is_null() || mpat.is_null() || epat.is_null() {
+        let mpat = tv_get_string_buf_chk(&argvars[1], &mut nbuf1);
+        let epat = tv_get_string_buf_chk(&argvars[2], &mut nbuf2);
+        let (Some(mpat), Some(epat)) = (mpat, epat) else {
+            break 'theend;
+        };
+        if spat.is_null() {
             break 'theend;
         }
+        let mpat = mpat.as_ptr();
+        let epat = epat.as_ptr();
 
         let dir = get_search_arg(&mut argvars[3], Some(&mut flags));
         if dir == 0 {
@@ -7599,7 +7599,7 @@ pub fn f_setcursorcharpos(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: Eva
 pub fn f_setenv(argvars: &mut [TypVal], _rettv: &mut TypVal, _fptr: EvalFuncData) {
     let mut namebuf = [0u8; NUMBUFLEN];
     let mut valbuf = [0u8; NUMBUFLEN];
-    let name = tv_get_string_buf(&argvars[0], namebuf.as_mut_ptr().cast());
+    let name = tv_get_string_buf(&argvars[0], &mut namebuf);
 
     if check_secure() {
         return;
@@ -7609,10 +7609,7 @@ pub fn f_setenv(argvars: &mut [TypVal], _rettv: &mut TypVal, _fptr: EvalFuncData
     {
         vim_unsetenv_ext(name);
     } else {
-        vim_setenv_ext(
-            name,
-            tv_get_string_buf(&argvars[1], valbuf.as_mut_ptr().cast()),
-        );
+        vim_setenv_ext(name, tv_get_string_buf(&argvars[1], &mut valbuf));
     }
 }
 
@@ -7625,11 +7622,10 @@ pub fn f_setfperm(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDat
         return;
     }
     let mut modebuf = [0u8; NUMBUFLEN];
-    let mode_str = tv_get_string_buf_chk(&argvars[1], modebuf.as_mut_ptr().cast());
-    if mode_str.is_null() {
+    let Some(mode_str) = tv_get_string_buf_chk(&argvars[1], &mut modebuf) else {
         return;
-    }
-    if crate::memory::cstr_len(mode_str) != 9 {
+    };
+    if mode_str.to_bytes().len() != 9 {
         semsg!(gettext(E_INVARG2), mode_str);
         return;
     }
@@ -7637,7 +7633,7 @@ pub fn f_setfperm(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDat
     let mut mask: i32 = 1;
     let mut mode: i32 = 0;
     for i in (0..9).rev() {
-        if crate::memory::cstr_byte_at(mode_str, i) != b'-' {
+        if mode_str.to_bytes()[i] != b'-' {
             mode |= mask;
         }
         mask <<= 1;
@@ -7771,11 +7767,10 @@ pub fn f_setreg(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData)
             'free_lstval: {
                 for li in crate::eval::typval::list_iter_mut(tv_list_first(ll.as_ref())) {
                     let mut buf = [0u8; NUMBUFLEN];
-                    let val = tv_get_string_buf_chk(&li.li_tv, buf.as_mut_ptr().cast());
-                    if val.is_null() {
+                    let Some(val) = tv_get_string_buf_chk(&li.li_tv, &mut buf) else {
                         break 'free_lstval;
-                    }
-                    lstval.push(cstr_to_cstring(val));
+                    };
+                    lstval.push(val.to_owned());
                 }
 
                 write_reg_contents_lst(
@@ -8147,8 +8142,9 @@ pub fn f_split(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) 
     let mut pat = ptr::null();
     let mut patbuf = [0u8; NUMBUFLEN];
     if argvars[1].v_type != VarType::VarUnknown {
-        pat = tv_get_string_buf_chk(&argvars[1], patbuf.as_mut_ptr().cast());
-        if pat.is_null() {
+        if let Some(p) = tv_get_string_buf_chk(&argvars[1], &mut patbuf) {
+            pat = p.as_ptr();
+        } else {
             typeerr = true;
         }
         if argvars[2].v_type != VarType::VarUnknown {
@@ -8361,8 +8357,10 @@ pub fn f_strptime(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDat
 
     let mut tmval = Tm { _fields: [0; 16] };
     tmval._fields[8] = -1; // tm_isdst = -1
-    let mut fmt = tv_get_string_buf(&argvars[0], fmt_buf.as_mut_ptr().cast()).cast_mut();
-    let str_ = tv_get_string_buf(&argvars[1], str_buf.as_mut_ptr().cast());
+    let mut fmt = tv_get_string_buf(&argvars[0], &mut fmt_buf)
+        .as_ptr()
+        .cast_mut();
+    let str_ = tv_get_string_buf(&argvars[1], &mut str_buf);
 
     let mut conv = Vimconv::new();
     conv.vc_type = CONV_NONE;
@@ -8380,13 +8378,7 @@ pub fn f_strptime(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDat
     } else {
         fmt_owned = None;
     }
-    if fmt.is_null()
-        || !os_strptime(
-            crate::memory::cstr_from_ptr(str_),
-            crate::memory::cstr_from_ptr(fmt),
-            &raw mut tmval,
-        )
-    {
+    if fmt.is_null() || !os_strptime(str_, crate::memory::cstr_from_ptr(fmt), &raw mut tmval) {
         rettv.vval = crate::eval::typval::TypvalVval::Number(0);
     } else {
         let t = unsafe { mktime(&raw mut tmval) };
@@ -8434,15 +8426,18 @@ pub fn f_substitute(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncD
     let mut flagsbuf = [0u8; NUMBUFLEN];
 
     let str_ = tv_get_string_chk(&argvars[0]);
-    let pat = tv_get_string_buf_chk(&argvars[1], patbuf.as_mut_ptr().cast());
+    let pat =
+        tv_get_string_buf_chk(&argvars[1], &mut patbuf).map_or(ptr::null(), std::ffi::CStr::as_ptr);
     let mut sub = ptr::null();
-    let flg = tv_get_string_buf_chk(&argvars[3], flagsbuf.as_mut_ptr().cast());
+    let flg = tv_get_string_buf_chk(&argvars[3], &mut flagsbuf)
+        .map_or(ptr::null(), std::ffi::CStr::as_ptr);
 
     let mut expr: *mut TypVal = ptr::null_mut();
     if tv_is_func(&argvars[2]) {
         expr = &raw mut argvars[2];
     } else {
-        sub = tv_get_string_buf_chk(&argvars[2], subbuf.as_mut_ptr().cast());
+        sub = tv_get_string_buf_chk(&argvars[2], &mut subbuf)
+            .map_or(ptr::null(), std::ffi::CStr::as_ptr);
     }
 
     rettv.v_type = VarType::VarString;
@@ -8513,8 +8508,8 @@ pub fn f_syn_idattr(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncD
     let what = tv_get_string(&argvars[1]);
     let mut modec: i32 = if argvars[2].v_type != VarType::VarUnknown {
         let mut modebuf = [0u8; NUMBUFLEN];
-        let mode = tv_get_string_buf(&argvars[2], modebuf.as_mut_ptr().cast());
-        let mc = tolower_asc(i32::from(crate::memory::cstr_first_byte(mode)));
+        let mode = tv_get_string_buf(&argvars[2], &mut modebuf);
+        let mc = tolower_asc(i32::from(mode.to_bytes().first().copied().unwrap_or(0)));
         if mc != b'c' as i32 && mc != b'g' as i32 {
             0
         } else {

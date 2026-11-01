@@ -123,7 +123,7 @@ fn tv_op_string(tv1: &mut TypVal, tv2: &TypVal) -> bool {
 
     {
         let mut numbuf = [0u8; NUMBUFLEN];
-        let s2 = tv_get_string_buf(tv2, numbuf.as_mut_ptr().cast());
+        let s2 = tv_get_string_buf(tv2, &mut numbuf);
         if grow_string_tv(&mut *tv1, s2) {
             return true;
         }

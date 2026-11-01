@@ -3551,9 +3551,11 @@ fn opt_from_tv(
             };
         } else if option_has_str {
             if tv.v_type != VarType::VarBool && tv.v_type != VarType::VarSpecial {
-                let strval = tv_get_string_buf_chk(&*tv, nbuf.as_mut_ptr().cast());
-                err = strval.is_null();
-                value = string_obj(cstr_to_string(strval));
+                let strval = tv_get_string_buf_chk(&*tv, &mut nbuf);
+                err = strval.is_none();
+                value = string_obj(cstr_to_string(
+                    strval.map_or(ptr::null(), std::ffi::CStr::as_ptr),
+                ));
             } else {
                 err = true;
                 emsg(gettext(E_STRING_REQUIRED));

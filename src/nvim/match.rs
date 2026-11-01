@@ -900,7 +900,7 @@ pub fn get_search_match_hl(
 }
 
 fn matchadd_dict_arg(
-    tv: &mut TypVal,
+    tv: &TypVal,
     conceal_char: &mut Option<&'static std::ffi::CStr>,
     win: *mut *mut WinInfoInfo,
 ) -> bool {
@@ -1114,8 +1114,8 @@ pub fn f_setmatches(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncD
 pub fn f_matchadd(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
     let mut grpbuf = [0u8; NUMBUFLEN];
     let mut patbuf = [0u8; NUMBUFLEN];
-    let grp = tv_get_string_buf_chk(&argvars[0], grpbuf.as_mut_ptr().cast());
-    let pat = tv_get_string_buf_chk(&argvars[1], patbuf.as_mut_ptr().cast());
+    let grp = tv_get_string_buf_chk(&argvars[0], &mut grpbuf);
+    let pat = tv_get_string_buf_chk(&argvars[1], &mut patbuf);
     let mut prio: i32 = 10;
     let mut id: i32 = -1;
     let mut error = false;
@@ -1124,15 +1124,15 @@ pub fn f_matchadd(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDat
 
     rettv.vval = crate::eval::typval::TypvalVval::Number(-1);
 
-    if grp.is_null() || pat.is_null() {
+    let (Some(grp), Some(pat)) = (grp, pat) else {
         return;
-    }
+    };
     if argvars[2].v_type != VarType::VarUnknown {
         prio = tv_get_number_chk(&argvars[2], Some(&mut error)) as i32;
         if argvars[3].v_type != VarType::VarUnknown {
             id = tv_get_number_chk(&argvars[3], Some(&mut error)) as i32;
             if argvars[4].v_type != VarType::VarUnknown
-                && !matchadd_dict_arg(&mut argvars[4], &mut conceal_char, &raw mut win)
+                && !matchadd_dict_arg(&argvars[4], &mut conceal_char, &raw mut win)
             {
                 return;
             }
@@ -1162,10 +1162,9 @@ pub fn f_matchaddpos(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFunc
     rettv.vval = crate::eval::typval::TypvalVval::Number(-1);
 
     let mut buf = [0u8; NUMBUFLEN];
-    let group = tv_get_string_buf_chk(&argvars[0], buf.as_mut_ptr().cast());
-    if group.is_null() {
+    let Some(group) = tv_get_string_buf_chk(&argvars[0], &mut buf) else {
         return;
-    }
+    };
 
     if argvars[1].v_type != VarType::VarList {
         semsg!(gettext(E_LISTARG), c"matchaddpos()",);
@@ -1188,7 +1187,7 @@ pub fn f_matchaddpos(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFunc
         if argvars[3].v_type != VarType::VarUnknown {
             id = tv_get_number_chk(&argvars[3], Some(&mut error)) as i32;
             if argvars[4].v_type != VarType::VarUnknown
-                && !matchadd_dict_arg(&mut argvars[4], &mut conceal_char, &raw mut win)
+                && !matchadd_dict_arg(&argvars[4], &mut conceal_char, &raw mut win)
             {
                 return;
             }

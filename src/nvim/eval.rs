@@ -550,7 +550,7 @@ fn eval_expr_func(expr: &TypVal, argv: *mut TypVal, argc: i32, rettv: &mut TypVa
     let s = if expr.v_type == VarType::VarFunc {
         expr.vval.v_string().cast_const()
     } else {
-        tv_get_string_buf_chk(expr, buf.as_mut_ptr().cast())
+        tv_get_string_buf_chk(expr, &mut buf).map_or(ptr::null(), std::ffi::CStr::as_ptr)
     };
     if crate::memory::cstr_is_empty(s) {
         return false;
@@ -577,12 +577,10 @@ fn eval_expr_func(expr: &TypVal, argv: *mut TypVal, argc: i32, rettv: &mut TypVa
 /// Evaluate an expression, which is a string.
 fn eval_expr_string(expr: &TypVal, rettv: &mut TypVal) -> bool {
     let mut buf = [0u8; NUMBUFLEN];
-    let mut s = tv_get_string_buf_chk(expr, buf.as_mut_ptr().cast()).cast_mut();
-    if s.is_null() {
+    let Some(s_cstr) = tv_get_string_buf_chk(expr, &mut buf) else {
         return false;
-    }
-
-    s = skipwhite(s);
+    };
+    let mut s = skipwhite(s_cstr.as_ptr().cast_mut());
     if !eval1_emsg(&raw mut s, rettv, None) {
         return false;
     }
@@ -2616,13 +2614,13 @@ pub fn grow_string_tv(tv1: &mut TypVal, s2: impl crate::strings::IntoCCharPtr) -
 fn eval_concat_str(tv1: &mut TypVal, tv2: &mut TypVal) -> bool {
     let mut buf1 = [0u8; NUMBUFLEN];
     let mut buf2 = [0u8; NUMBUFLEN];
-    let s1 = tv_get_string_buf(&*tv1, buf1.as_mut_ptr().cast());
-    let s2 = tv_get_string_buf_chk(&*tv2, buf2.as_mut_ptr().cast());
-    if s2.is_null() {
+    let s1 = tv_get_string_buf(&*tv1, &mut buf1).as_ptr();
+    let Some(s2_cstr) = tv_get_string_buf_chk(&*tv2, &mut buf2) else {
         tv_clear(tv1);
         tv_clear(tv2);
         return false;
-    }
+    };
+    let s2 = s2_cstr.as_ptr();
 
     if grow_string_tv(tv1, s2) {
         return true;
@@ -4862,14 +4860,14 @@ fn eval_dict<T>(
                 return FAIL;
             }
             if evaluate {
-                key = tv_get_string_buf_chk(&tvkey, buf.as_mut_ptr().cast()).cast_mut();
-                if key.is_null() {
+                let Some(key_cstr) = tv_get_string_buf_chk(&tvkey, &mut buf) else {
                     tv_clear(&mut tvkey);
                     if !d.is_null() {
                         tv_dict_free(d);
                     }
                     return FAIL;
-                }
+                };
+                key = key_cstr.as_ptr().cast_mut();
             }
 
             *arg = skipwhite((*arg).wrapping_add(1).cast()).cast();
@@ -7438,8 +7436,8 @@ pub fn typval_compare(typ1: &mut TypVal, typ2: &mut TypVal, expr_type: Exprtype,
     } else {
         let mut buf1 = [0u8; NUMBUFLEN];
         let mut buf2 = [0u8; NUMBUFLEN];
-        let s1 = tv_get_string_buf(&*typ1, buf1.as_mut_ptr().cast());
-        let s2 = tv_get_string_buf(&*typ2, buf2.as_mut_ptr().cast());
+        let s1 = tv_get_string_buf(&*typ1, &mut buf1);
+        let s2 = tv_get_string_buf(&*typ2, &mut buf2);
         let i = if expr_type != EXPR_MATCH && expr_type != EXPR_NOMATCH {
             mb_strcmp_ic(ic, s1, s2)
         } else {
