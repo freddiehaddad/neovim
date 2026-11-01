@@ -8,7 +8,7 @@ use crate::autocmd::HLF_8;
 use crate::buffer::{FileBuf, bt_quickfix, buf_meta_total};
 use crate::change::TAB;
 use crate::charset::{
-    K_OPT_DY_FLAG_UHEX, NUL, ascii_isdigit, ascii_iswhite, rl_mirror_ascii, skiptowhite, skipwhite,
+    K_OPT_DY_FLAG_UHEX, NUL, ascii_isdigit, ascii_iswhite, rl_mirror_ascii, skipwhite,
     transchar_buf, transchar_hex, transstr_buf, vim_isprintc,
 };
 use crate::cursor::{Colnr, CursorPos, Linenr, VALID_VIRTCOL, get_cursor_rel_lnum, ltoreq};
@@ -868,11 +868,20 @@ fn draw_lnum_col(wp: &mut WinInfoInfo, wlv: &mut Winlinevars) {
                         }
                     }
                 }
-                let buf_ptr = buf.as_mut_ptr().cast();
                 if wp.w_onebuf_opt.wo_rl != 0 {
-                    let num = skipwhite(buf_ptr);
-                    rl_mirror_ascii(num, skiptowhite(num));
+                    let len = buf.iter().position(|&b| b == 0).unwrap_or(buf.len());
+                    let start = buf[..len]
+                        .iter()
+                        .position(|&b| b != b' ' && b != b'\t')
+                        .unwrap_or(len);
+                    let end = start
+                        + buf[start..len]
+                            .iter()
+                            .position(|&b| b == b' ' || b == b'\t')
+                            .unwrap_or(len - start);
+                    rl_mirror_ascii(&mut buf[start..end]);
                 }
+                let buf_ptr = buf.as_mut_ptr().cast();
                 draw_col_buf(
                     &mut *wp,
                     wlv,
@@ -2564,10 +2573,10 @@ pub fn win_line(
                                 mb_c
                             },
                         );
-                        let extra_ptr = wlv.extra.as_mut_ptr();
                         if wp.w_onebuf_opt.wo_rl != 0 {
-                            rl_mirror_ascii(extra_ptr.cast(), ptr::null_mut());
+                            rl_mirror_ascii(&mut wlv.extra);
                         }
+                        let extra_ptr = wlv.extra.as_mut_ptr();
 
                         wlv.p_extra = extra_ptr.wrapping_add(1);
                         mb_schar = schar_from_ascii(wlv.extra[0]);
@@ -3119,21 +3128,20 @@ pub fn win_line(
                             wlv.n_attr = 1;
                             mb_schar_width = schar_get_single_width(mb_schar);
                         } else if mb_schar != 0 {
-                            let extra_ptr = wlv.extra.as_mut_ptr();
                             xstrlcpy(
-                                extra_ptr.cast(),
+                                wlv.extra.as_mut_ptr().cast(),
                                 transchar_buf(wp.w_buffer.as_ref(), mb_c),
                                 wlv.extra.len(),
                             );
-                            wlv.p_extra = extra_ptr;
                             if wlv.n_extra == 0 {
                                 wlv.n_extra = opt_vars().dy_escape_width - 1;
                             }
                             if (opt_vars().dy_flags & K_OPT_DY_FLAG_UHEX) != 0
                                 && wp.w_onebuf_opt.wo_rl != 0
                             {
-                                rl_mirror_ascii(wlv.p_extra.cast(), ptr::null_mut());
+                                rl_mirror_ascii(&mut wlv.extra);
                             }
+                            wlv.p_extra = wlv.extra.as_mut_ptr();
                             wlv.sc_extra = 0;
                             wlv.sc_final = 0;
                             mb_schar = schar_from_ascii(*wlv.p_extra);

@@ -2577,12 +2577,7 @@ fn check_keyword_id(
         }
 
         if kp.is_null() && !syn_block_mut().b_keywtab_ic.is_empty() {
-            str_foldcase(
-                kwp,
-                kwlen,
-                keyword.as_mut_ptr().cast(),
-                (MAXKEYWLEN + 1) as i32,
-            );
+            str_foldcase(kwp, kwlen, Some(&mut keyword));
             kp = match_keyword(
                 keyword.as_mut_ptr().cast(),
                 &syn_block_mut().b_keywtab_ic,
@@ -3464,12 +3459,7 @@ fn add_keyword(
     {
         let mut name_folded = [0u8; MAXKEYWLEN + 1];
         let (name_ic, name_iclen): (*const u8, usize) = if win_s(curwin_mut()).b_syn_ic != 0 {
-            str_foldcase(
-                name,
-                namelen as i32,
-                name_folded.as_mut_ptr().cast(),
-                (MAXKEYWLEN + 1) as i32,
-            );
+            str_foldcase(name, namelen as i32, Some(&mut name_folded));
             (
                 name_folded.as_ptr(),
                 crate::memory::cstr_len(name_folded.as_ptr().cast()),

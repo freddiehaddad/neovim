@@ -4,10 +4,9 @@ use crate::buffer::FileBuf;
 use crate::cursor::get_cursor_line_ptr;
 use crate::globals::*;
 use crate::mbyte::{
-    UTF8LEN_TAB, mb_islower, mb_isupper, mb_ptr2char_adv, mb_tolower, utf_char2bytes,
-    utf_char2cells, utf_char2len, utf_class_tab, utf_cluster_info, utf_printable,
-    utf_ptr2_str_char_info, utf_ptr2char, utf_ptr2len, utf_slice2char, utf_slice2len, utfc_ptr2len,
-    utfc_slice2len,
+    UTF8LEN_TAB, mb_islower, mb_isupper, mb_ptr2char_adv, mb_tolower, utf_char2cells, utf_char2len,
+    utf_char2slice, utf_class_tab, utf_cluster_info, utf_printable, utf_ptr2_str_char_info,
+    utf_ptr2char, utf_slice2char, utf_slice2len, utfc_slice2len,
 };
 use crate::memory::cstr_from_bytes;
 use crate::option::{get_fileformat, skip_to_option_part};
@@ -514,82 +513,91 @@ pub fn kv_transstr(str_: &mut Vec<u8>, s: impl crate::strings::IntoCCharPtr, unt
 pub fn str_foldcase(
     str_: impl crate::strings::IntoCCharPtr,
     orglen: i32,
-    buf: RawCCharPtrMut,
-    buflen: i32,
+    mut buf: Option<&mut [u8]>,
 ) -> Option<CString> {
     let str_ = str_.into_c_char_ptr();
-    {
-        let mut vec: Vec<u8> = Vec::new();
-        let mut len = orglen;
+    let src = crate::memory::cstr_slice(str_, orglen.max(0) as usize);
+    let mut vec: Vec<u8> = Vec::new();
+    let mut len: usize;
 
-        if buf.is_null() {
-            vec.reserve_exact((len as usize) + 1);
-            vec.extend_from_slice(crate::memory::cstr_slice(str_, len as usize));
-            vec.push(0);
-        } else {
-            if len >= buflen {
-                len = buflen - 1;
-            }
-            unsafe { ptr::copy(str_, buf, len as usize) };
-            unsafe {
-                *buf.wrapping_add(len as usize) = NUL;
-            }
-        }
+    if let Some(ref mut b) = buf {
+        let max_len = b.len().saturating_sub(1);
+        len = src.len().min(max_len);
+        b[..len].copy_from_slice(&src[..len]);
+        b[len] = 0;
+    } else {
+        len = src.len();
+        vec.reserve_exact(len + 1);
+        vec.extend_from_slice(src);
+        vec.push(0);
+    }
 
-        let str_ptr = |vec_ref: &mut Vec<u8>, idx: usize| -> RawCCharPtrMut {
-            if buf.is_null() {
-                (&raw mut vec_ref[idx]).cast()
-            } else {
-                buf.wrapping_add(idx)
-            }
+    let mut i: usize = 0;
+    loop {
+        let cur_slice: &[u8] = match buf {
+            Some(ref b) => &b[..len],
+            None => &vec[..len],
         };
+        if i >= len || cur_slice[i] == 0 {
+            break;
+        }
+        let rest = &cur_slice[i..];
+        let c = utf_slice2char(rest);
+        let olen = utf_slice2len(rest);
+        let mut lc = mb_tolower(c);
 
-        let mut i: usize = 0;
-        while !crate::memory::cstr_is_empty(str_ptr(&mut vec, i)) {
-            let p_cur = str_ptr(&mut vec, i);
-            let c = utf_ptr2char(p_cur);
-            let olen = utf_ptr2len(p_cur);
-            let mut lc = mb_tolower(c);
-
-            if (c < 0x80 || olen > 1) && c != lc {
-                let mut nlen = utf_char2len(lc);
-                if olen != nlen {
-                    if nlen > olen {
-                        if buf.is_null() {
-                            vec.resize(vec.len() + (nlen - olen) as usize, 0);
-                        } else if len + nlen - olen >= buflen {
+        if (c < 0x80 || olen > 1) && c != lc {
+            let mut nlen = utf_char2len(lc) as usize;
+            if olen != nlen {
+                if nlen > olen {
+                    let extra = nlen - olen;
+                    if let Some(ref b) = buf {
+                        if len + extra >= b.len() {
                             lc = c;
                             nlen = olen;
                         }
-                    }
-
-                    if olen != nlen {
-                        let base = str_ptr(&mut vec, i);
-                        let src = base.wrapping_add(olen as usize);
-                        let dst = base.wrapping_add(nlen as usize);
-                        let tail_len = crate::memory::cstr_len(src) + 1;
-                        unsafe { ptr::copy(src, dst, tail_len) };
-                        if buf.is_null() {
-                            if nlen < olen {
-                                vec.truncate(vec.len() - (olen - nlen) as usize);
-                            }
-                        } else {
-                            len += nlen - olen;
-                        }
+                    } else {
+                        vec.resize(vec.len() + extra, 0);
                     }
                 }
-                utf_char2bytes(lc, str_ptr(&mut vec, i).cast());
+
+                if olen != nlen {
+                    match buf {
+                        Some(ref mut b) => {
+                            b.copy_within(i + olen..=len, i + nlen);
+                        }
+                        None => {
+                            vec.copy_within(i + olen..=len, i + nlen);
+                            if nlen < olen {
+                                vec.truncate(vec.len() - (olen - nlen));
+                            }
+                        }
+                    }
+                    len = (len as isize + nlen as isize - olen as isize) as usize;
+                }
             }
-
-            i += utfc_ptr2len(str_ptr(&mut vec, i)) as usize;
+            match buf {
+                Some(ref mut b) => {
+                    utf_char2slice(lc, &mut b[i..]);
+                }
+                None => {
+                    utf_char2slice(lc, &mut vec[i..]);
+                }
+            }
         }
 
-        if buf.is_null() {
-            let out_len = crate::memory::cstr_len(&vec);
-            Some(cstr_from_bytes(&vec[..out_len]))
-        } else {
-            None
-        }
+        let updated_slice: &[u8] = match buf {
+            Some(ref b) => &b[i..len],
+            None => &vec[i..len],
+        };
+        i += utfc_slice2len(updated_slice);
+    }
+
+    if buf.is_none() {
+        let out_len = vec.iter().position(|&b| b == 0).unwrap_or(len);
+        Some(cstr_from_bytes(&vec[..out_len]))
+    } else {
+        None
     }
 }
 
@@ -677,19 +685,9 @@ pub fn transchar_hex(buf: &mut [u8], c: i32) -> usize {
     i
 }
 
-pub fn rl_mirror_ascii(str_: RawCCharPtrMut, end: RawCCharPtrMut) {
-    let mut p1 = str_;
-    let mut p2 = if !end.is_null() {
-        end
-    } else {
-        str_.wrapping_add(crate::memory::cstr_len(str_))
-    }
-    .wrapping_sub(1);
-    while p1 < p2 {
-        unsafe { ptr::swap(p1, p2) };
-        p1 = p1.wrapping_add(1);
-        p2 = p2.wrapping_sub(1);
-    }
+pub fn rl_mirror_ascii(buf: &mut [u8]) {
+    let end = buf.iter().position(|&b| b == 0).unwrap_or(buf.len());
+    buf[..end].reverse();
 }
 
 pub fn char2cells(c: i32) -> i32 {
@@ -880,20 +878,16 @@ pub fn skiptowhite(p: impl crate::strings::IntoCCharPtr) -> RawCCharPtrMut {
 
 pub fn skiptowhite_esc(p: impl crate::strings::IntoCCharPtr) -> RawCCharPtrMut {
     let mut p = p.into_c_char_ptr();
-    {
-        while crate::memory::cstr_first_byte(p) != b' '
-            && crate::memory::cstr_first_byte(p) != b'\t'
-            && !crate::memory::cstr_is_empty(p)
+    while !matches!(crate::memory::cstr_first_byte(p), b' ' | b'\t' | 0) {
+        if (crate::memory::cstr_first_byte(p) == b'\\'
+            || crate::memory::cstr_first_char(p) == i32::from(CTRL_V_CONST))
+            && crate::memory::cstr_byte_at(p, 1) != 0
         {
-            if (crate::memory::cstr_first_byte(p) == b'\\' || unsafe { *p } == CTRL_V_CONST)
-                && crate::memory::cstr_byte_at(p, 1) != 0
-            {
-                p = p.wrapping_add(1);
-            }
             p = p.wrapping_add(1);
         }
-        p.cast_mut()
+        p = p.wrapping_add(1);
     }
+    p.cast_mut()
 }
 
 pub fn skip_to_newline(p: impl crate::strings::IntoCCharPtr) -> RawCCharPtrMut {

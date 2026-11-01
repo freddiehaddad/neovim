@@ -6039,8 +6039,7 @@ fn get_normal_compl_info(
                 insexp().compl_pattern = str_foldcase(
                     line.wrapping_add(insexp().compl_col as usize),
                     insexp().compl_length,
-                    ptr::null_mut(),
-                    0,
+                    None,
                 );
             } else {
                 set_compl_pattern_bytes(
@@ -6157,8 +6156,7 @@ fn get_wholeline_compl_info(line: impl crate::strings::IntoCCharPtr, curs_col: C
             insexp().compl_pattern = str_foldcase(
                 line.wrapping_add(insexp().compl_col as usize),
                 insexp().compl_length,
-                ptr::null_mut(),
-                0,
+                None,
             );
         } else {
             set_compl_pattern_bytes(
