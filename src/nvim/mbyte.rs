@@ -893,7 +893,7 @@ unsafe extern "system" {
 
 use crate::api::ui::MAX_SCHAR_SIZE;
 use crate::change::TAB;
-use crate::charset::{NL, NUL};
+use crate::charset::NL;
 use crate::fileio::{
     ENC_2BYTE, ENC_2WORD, ENC_4BYTE, ENC_ENDIAN_L, ENC_LATIN1, ENC_UNICODE, ICONV_EINVAL,
 };
@@ -2311,26 +2311,30 @@ pub fn mb_utflen(
     codeunits: &mut usize,
 ) {
     let s = s.into_c_char_ptr();
-    {
-        let mut count = 0usize;
-        let mut extra = 0usize;
-        let mut i = 0usize;
-        while i < len {
-            let clen = utf_ptr2len_len(s.wrapping_add(i), (len - i) as i32) as usize;
-            let c = if clen > 1 {
-                utf_ptr2char(s.wrapping_add(i))
-            } else {
-                i32::from(unsafe { *s.wrapping_add(i).cast::<u8>() })
-            };
-            count += 1;
-            if c > 0xFFFF {
-                extra += 1;
-            }
-            i += clen;
+    let bytes = if len == 0 || s.is_null() {
+        &[][..]
+    } else {
+        unsafe { std::slice::from_raw_parts(s.cast::<u8>(), len) }
+    };
+    let mut count = 0usize;
+    let mut extra = 0usize;
+    let mut i = 0usize;
+    while i < bytes.len() {
+        let rest = &bytes[i..];
+        let clen = utf_slice2len_incomplete(rest);
+        let c = if clen > 1 {
+            utf_ptr2char(s.wrapping_add(i))
+        } else {
+            i32::from(rest[0])
+        };
+        count += 1;
+        if c > 0xFFFF {
+            extra += 1;
         }
-        *codepoints += count;
-        *codeunits += count + extra;
+        i += clen;
     }
+    *codepoints += count;
+    *codeunits += count + extra;
 }
 
 pub fn mb_utf_index_to_bytes(
@@ -2340,30 +2344,34 @@ pub fn mb_utf_index_to_bytes(
     use_utf16_units: bool,
 ) -> isize {
     let s = s.into_c_char_ptr();
-    {
-        if index == 0 {
-            return 0;
-        }
-        let mut count = 0usize;
-        let mut i = 0usize;
-        while i < len {
-            let clen = utf_ptr2len_len(s.wrapping_add(i), (len - i) as i32) as usize;
-            let c = if clen > 1 {
-                utf_ptr2char(s.wrapping_add(i))
-            } else {
-                i32::from(unsafe { *s.wrapping_add(i).cast::<u8>() })
-            };
-            count += 1;
-            if use_utf16_units && c > 0xFFFF {
-                count += 1;
-            }
-            if count >= index {
-                return (i + clen).min(len) as isize;
-            }
-            i += clen;
-        }
-        -1
+    if index == 0 {
+        return 0;
     }
+    let bytes = if len == 0 || s.is_null() {
+        &[][..]
+    } else {
+        unsafe { std::slice::from_raw_parts(s.cast::<u8>(), len) }
+    };
+    let mut count = 0usize;
+    let mut i = 0usize;
+    while i < bytes.len() {
+        let rest = &bytes[i..];
+        let clen = utf_slice2len_incomplete(rest);
+        let c = if clen > 1 {
+            utf_ptr2char(s.wrapping_add(i))
+        } else {
+            i32::from(rest[0])
+        };
+        count += 1;
+        if use_utf16_units && c > 0xFFFF {
+            count += 1;
+        }
+        if count >= index {
+            return (i + clen).min(len) as isize;
+        }
+        i += clen;
+    }
+    -1
 }
 
 pub fn mb_strnicmp(
@@ -2386,24 +2394,24 @@ pub fn mb_stricmp(
 }
 
 pub fn show_utf8() {
-    let line = get_cursor_pos_ptr();
-    let len = utfc_ptr2len(line);
+    let line = crate::cursor::get_cursor_pos_slice();
+    let len = utfc_slice2len(line);
     if len == 0 {
         msg(c"NUL", 0);
         return;
     }
 
     let mut out = String::new();
-    let mut clen = 0;
-    for i in 0..len as usize {
+    let mut clen = 0usize;
+    for i in 0..len {
         if clen == 0 {
             if i > 0 {
                 out.push_str("+ ");
             }
-            clen = utf_ptr2len(line.wrapping_add(i));
+            clen = utf_slice2len(&line[i..]);
         }
-        let b = unsafe { *line.wrapping_add(i) };
-        let byte_val: u8 = if b == NL { 0 } else { b as u8 };
+        let b = line[i];
+        let byte_val: u8 = if b == NL as u8 { 0 } else { b };
         use std::fmt::Write as _;
         let _ = write!(out, "{byte_val:02x} ");
         clen -= 1;
@@ -2413,12 +2421,8 @@ pub fn show_utf8() {
     }
 
     let copy_len = out.len().min(IOSIZE - 1);
-    let io_ptr = g_st().iobuff.as_mut_ptr();
-    unsafe { ptr::copy_nonoverlapping(out.as_ptr(), io_ptr.cast::<u8>(), copy_len) };
-    unsafe {
-        *io_ptr.wrapping_add(copy_len) = NUL;
-    }
-    msg(io_ptr, 0);
+    let msg_cstr = crate::memory::cstr_from_bytes(&out.as_bytes()[..copy_len]);
+    msg(msg_cstr.as_c_str(), 0);
 }
 
 #[inline]
@@ -3023,65 +3027,53 @@ fn enc_alias_search(name: impl crate::strings::IntoCCharPtr) -> i32 {
 
 pub fn enc_canonize(enc: impl crate::strings::IntoCCharPtr) -> std::ffi::CString {
     let enc = enc.into_c_char_ptr();
-    unsafe {
-        let enc_bytes = crate::memory::cstr_as_bytes(enc);
-        if enc_bytes == b"default" {
-            return (&raw const g_st().fenc_default)
-                .as_ref()
-                .unwrap()
-                .clone()
-                .unwrap_or_default();
-        }
+    let enc_bytes = crate::memory::cstr_as_bytes(enc);
+    if enc_bytes == b"default" {
+        return g_st().fenc_default.clone().unwrap_or_default();
+    }
 
-        let mut r_vec: Vec<u8> = vec![0; enc_bytes.len() + 3];
-        let r = r_vec.as_mut_ptr();
-        let mut p = r;
-        for &b in enc_bytes {
-            *p = if b == b'_' {
+    let mut r_vec: Vec<u8> = enc_bytes
+        .iter()
+        .map(|&b| {
+            if b == b'_' {
                 b'-'
             } else {
                 tolower_asc(i32::from(b)) as u8
-            };
-            p = p.wrapping_add(1);
-        }
-        *p = 0;
-
-        p = enc_skip(&r_vec).as_ptr().cast_mut().cast();
-
-        let p_bytes = crate::memory::cstr_as_bytes(p.cast());
-        if p_bytes.starts_with(b"microsoft-cp") {
-            crate::memory::cstr_move(p.cast(), p.wrapping_add(10).cast());
-        }
-
-        let p_bytes = crate::memory::cstr_as_bytes(p.cast());
-        if p_bytes.starts_with(b"iso8859") {
-            crate::memory::cstr_move(p.wrapping_add(4).cast(), p.wrapping_add(3).cast());
-            *p.wrapping_add(3) = b'-';
-        }
-
-        let p_bytes = crate::memory::cstr_as_bytes(p.cast());
-        if p_bytes.starts_with(b"iso-8859") && p_bytes.len() > 8 && p_bytes[8].is_ascii_digit() {
-            crate::memory::cstr_move(p.wrapping_add(9).cast(), p.wrapping_add(8).cast());
-            *p.wrapping_add(8) = b'-';
-        }
-
-        let p_bytes = crate::memory::cstr_as_bytes(p.cast());
-        if p_bytes.starts_with(b"latin-") {
-            crate::memory::cstr_move(p.wrapping_add(5).cast(), p.wrapping_add(6).cast());
-        }
-
-        if enc_canon_search(p.cast()) >= 0 {
-            if p != r {
-                crate::memory::cstr_move(r.cast(), p.cast());
             }
-        } else {
-            let i = enc_alias_search(p.cast());
-            if i >= 0 {
-                return ENC_CANON_TABLE[i as usize].name.to_owned();
-            }
-        }
-        crate::memory::cstr_to_cstring(&r_vec)
+        })
+        .collect();
+
+    if r_vec.starts_with(b"2byte-") {
+        r_vec.drain(..6);
+    } else if r_vec.starts_with(b"8bit-") {
+        r_vec.drain(..5);
     }
+
+    if r_vec.starts_with(b"microsoft-cp") {
+        r_vec.drain(..10);
+    }
+
+    if r_vec.starts_with(b"iso8859") {
+        r_vec.insert(3, b'-');
+    }
+
+    if r_vec.starts_with(b"iso-8859") && r_vec.get(8).is_some_and(u8::is_ascii_digit) {
+        r_vec.insert(8, b'-');
+    }
+
+    if r_vec.starts_with(b"latin-") {
+        r_vec.remove(5);
+    }
+
+    let r_cstr = crate::memory::cstr_from_bytes(&r_vec);
+    if enc_canon_search(r_cstr.as_c_str()) >= 0 {
+        return r_cstr;
+    }
+    let i = enc_alias_search(r_cstr.as_c_str());
+    if i >= 0 {
+        return ENC_CANON_TABLE[i as usize].name.to_owned();
+    }
+    r_cstr
 }
 
 pub fn enc_locale() -> Option<std::ffi::CString> {
@@ -3401,12 +3393,12 @@ pub fn string_convert_ext(
         if len == 0 {
             return Some(vec![0]);
         }
+        let src = unsafe { std::slice::from_raw_parts(ptr.cast::<u8>(), len) };
 
         match vcp.vc_type {
             CONV_TO_UTF8 => {
                 let mut out: Vec<u8> = Vec::with_capacity(len * 2 + 1);
-                for i in 0..len {
-                    let c = unsafe { *ptr.wrapping_add(i).cast::<u8>() };
+                for &c in src {
                     if c < 0x80 {
                         out.push(c);
                     } else {
@@ -3423,8 +3415,8 @@ pub fn string_convert_ext(
             CONV_9_TO_UTF8 => {
                 let mut out: Vec<u8> = Vec::with_capacity(len * 3 + 1);
                 let mut ch_buf = [0u8; MB_MAXCHAR as usize];
-                for i in 0..len {
-                    let c = match unsafe { *ptr.wrapping_add(i).cast::<u8>() } {
+                for &b in src {
+                    let c = match b {
                         0xa4 => 0x20ac,
                         0xa6 => 0x0160,
                         0xa8 => 0x0161,
@@ -3435,7 +3427,7 @@ pub fn string_convert_ext(
                         0xbe => 0x0178,
                         b => i32::from(b),
                     };
-                    let n = utf_char2bytes(c, ch_buf.as_mut_ptr()) as usize;
+                    let n = utf_char2slice(c, &mut ch_buf);
                     out.extend_from_slice(&ch_buf[..n]);
                 }
                 if let Some(ref mut p) = lenp {
@@ -3448,11 +3440,12 @@ pub fn string_convert_ext(
                 let mut out: Vec<u8> = Vec::with_capacity(len + 1);
                 let mut i = 0usize;
                 while i < len {
-                    let l = utf_ptr2len_len(ptr.wrapping_add(i), (len - i) as i32);
+                    let rest = &src[i..];
+                    let l = utf_slice2len_incomplete(rest) as i32;
                     if l == 0 {
                         out.push(0);
                     } else if l == 1 {
-                        let b = unsafe { *ptr.wrapping_add(i).cast::<u8>() };
+                        let b = rest[0];
                         let l_w = usize::from(UTF8LEN_TAB_ZERO[b as usize]);
                         if l_w == 0 {
                             return None;
@@ -3465,7 +3458,7 @@ pub fn string_convert_ext(
                         }
                         out.push(b);
                     } else {
-                        let mut c = utf_ptr2char(ptr.wrapping_add(i));
+                        let mut c = utf_slice2char(rest);
                         if vcp.vc_type == CONV_TO_LATIN9 {
                             c = match c {
                                 0x20ac => 0xa4,
