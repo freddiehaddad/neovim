@@ -221,31 +221,23 @@ struct Affentry {
 
 impl Affentry {
     #[inline]
-    fn chop_ptr(&self) -> *mut u8 {
-        self.ae_chop
-            .as_ref()
-            .map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut().cast())
+    fn chop_cstr(&self) -> Option<&std::ffi::CStr> {
+        self.ae_chop.as_deref()
     }
 
     #[inline]
-    fn add_ptr(&self) -> *mut u8 {
-        self.ae_add
-            .as_ref()
-            .map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut().cast())
+    fn add_cstr(&self) -> Option<&std::ffi::CStr> {
+        self.ae_add.as_deref()
     }
 
     #[inline]
-    fn flags_ptr(&self) -> *mut u8 {
-        self.ae_flags
-            .as_ref()
-            .map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut().cast())
+    fn flags_cstr(&self) -> Option<&std::ffi::CStr> {
+        self.ae_flags.as_deref()
     }
 
     #[inline]
-    fn cond_ptr(&self) -> *mut u8 {
-        self.ae_cond
-            .as_ref()
-            .map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut().cast())
+    fn cond_cstr(&self) -> Option<&std::ffi::CStr> {
+        self.ae_cond.as_deref()
     }
 }
 
@@ -2255,10 +2247,12 @@ fn spell_read_aff(
                     }
 
                     if spin.si_ascii == 0
-                        || !(!crate::memory::cstr_as_bytes((*aff_entry).chop_ptr().cast())
-                            .is_ascii()
-                            || !crate::memory::cstr_as_bytes((*aff_entry).add_ptr().cast())
-                                .is_ascii())
+                        || ((*aff_entry)
+                            .chop_cstr()
+                            .is_none_or(|s| s.to_bytes().is_ascii())
+                            && (*aff_entry)
+                                .add_cstr()
+                                .is_none_or(|s| s.to_bytes().is_ascii()))
                     {
                         (*cur_aff).ah_entries.insert(0, aff_entry_val);
                         let aff_entry: *mut Affentry = (*cur_aff).ah_entries.as_mut_ptr();
@@ -2298,34 +2292,30 @@ fn spell_read_aff(
                             && aff_entry.ae_flags.is_none()
                         {
                             let mut upper = false;
-                            if aff_entry.ae_chop.is_some()
-                                && aff_entry.ae_add.is_some()
-                                && *(*aff_entry)
-                                    .chop_ptr()
-                                    .wrapping_add(
-                                        utfc_ptr2len((*aff_entry).chop_ptr().cast()) as usize
-                                    )
-                                    == 0
+                            if let (Some(chop), Some(add)) =
+                                (aff_entry.chop_cstr(), aff_entry.add_cstr())
+                                && chop.to_bytes().len() == utfc_ptr2len(chop.as_ptr()) as usize
                             {
-                                let c = utf_ptr2char((*aff_entry).chop_ptr().cast());
+                                let c = utf_ptr2char(chop.as_ptr());
                                 let c_up = spell_toupper(c);
                                 if c_up != c
-                                    && (aff_entry.ae_cond.is_none()
-                                        || utf_ptr2char((*aff_entry).cond_ptr().cast()) == c)
+                                    && aff_entry
+                                        .cond_cstr()
+                                        .is_none_or(|cond| utf_ptr2char(cond.as_ptr()) == c)
                                 {
-                                    let add_ptr = (*aff_entry).add_ptr();
-                                    let mut p_end = add_ptr
-                                        .wrapping_add(crate::memory::cstr_len(add_ptr.cast()));
+                                    let add_bytes = add.to_bytes();
+                                    let add_ptr: *mut u8 = add.as_ptr().cast_mut().cast();
+                                    let mut p_end = add_ptr.wrapping_add(add_bytes.len());
                                     mb_ptr_back(add_ptr, &mut p_end);
                                     if utf_ptr2char(p_end.cast()) == c_up {
                                         upper = true;
-                                        aff_entry.ae_chop = None;
                                         let new_add_len =
                                             crate::memory::ptr_offset_from(p_end, add_ptr) as usize;
-                                        let new_add_slice =
-                                            std::slice::from_raw_parts(add_ptr, new_add_len);
-                                        aff_entry.ae_add =
-                                            Some(std::ffi::CString::new(new_add_slice).unwrap());
+                                        let new_add =
+                                            std::ffi::CString::new(&add_bytes[..new_add_len])
+                                                .unwrap();
+                                        aff_entry.ae_chop = None;
+                                        aff_entry.ae_add = Some(new_add);
 
                                         if aff_entry.ae_cond.is_some() {
                                             let mut buf = [0u8; MAXLINELEN];
@@ -2356,14 +2346,7 @@ fn spell_read_aff(
                                 let prefcond = &mut spin.si_prefcond;
                                 let mut idx = prefcond.len() as i32 - 1;
                                 while idx >= 0 {
-                                    let p_cond = prefcond[idx as usize]
-                                        .as_ref()
-                                        .map_or(ptr::null(), |s| s.as_ptr());
-                                    if crate::memory::cstr_as_opt_bytes(p_cond)
-                                        == crate::memory::cstr_as_opt_bytes(
-                                            (*aff_entry).cond_ptr().cast(),
-                                        )
-                                    {
+                                    if prefcond[idx as usize].as_deref() == aff_entry.cond_cstr() {
                                         break;
                                     }
                                     idx -= 1;
@@ -3305,35 +3288,35 @@ fn store_aff_word(
                     for ae_ref in &ah.ah_entries {
                         let ae: *mut Affentry = (&raw const *ae_ref).cast_mut();
                         let ae = unsafe { &mut *ae };
-                        let ae_chop = (*ae).chop_ptr();
-                        let ae_add = (*ae).add_ptr();
-                        let ae_flags = (*ae).flags_ptr();
+                        let ae_chop = (*ae).chop_cstr();
+                        let ae_add = (*ae).add_cstr();
+                        let ae_flags = (*ae).flags_cstr();
                         if (xht.is_some()
                             || affile.af_pfxpostpone == 0
-                            || !ae_chop.is_null()
-                            || !ae_flags.is_null())
-                            && (ae_chop.is_null()
-                                || crate::memory::cstr_len(ae_chop.cast()) < wordlen)
+                            || ae_chop.is_some()
+                            || ae_flags.is_some())
+                            && ae_chop.is_none_or(|c| c.to_bytes().len() < wordlen)
                             && (ae.ae_prog.is_none()
                                 || vim_regexec_prog(ae.ae_prog.as_deref(), false, word.cast(), 0))
                             && (((condit & CONDIT_CFIX) == 0)
                                 == ((condit & CONDIT_AFF) == 0
-                                    || ae_flags.is_null()
-                                    || !flag_in_afflist(
-                                        affile.af_flagtype,
-                                        ae_flags.cast(),
-                                        affile.af_circumfix,
-                                    )))
+                                    || ae_flags.is_none_or(|fl| {
+                                        !flag_in_afflist(
+                                            affile.af_flagtype,
+                                            fl.as_ptr(),
+                                            affile.af_circumfix,
+                                        )
+                                    })))
                         {
                             if xht.is_none() {
-                                if ae_add.is_null() {
-                                    newword[0] = 0;
+                                if let Some(ae_add) = ae_add {
+                                    xstrlcpy(newword.as_mut_ptr().cast(), ae_add, MAXWLEN);
                                 } else {
-                                    xstrlcpy(newword.as_mut_ptr().cast(), ae_add.cast(), MAXWLEN);
+                                    newword[0] = 0;
                                 }
                                 let mut p = word;
-                                if !ae_chop.is_null() {
-                                    let mut i = mb_charlen(ae_chop.cast());
+                                if let Some(ae_chop) = ae_chop {
+                                    let mut i = mb_charlen(ae_chop);
                                     while i > 0 {
                                         mb_ptr_adv(&mut p);
                                         i -= 1;
@@ -3351,11 +3334,11 @@ fn store_aff_word(
                                 };
                             } else {
                                 xstrlcpy(newword.as_mut_ptr().cast(), word.cast(), MAXWLEN);
-                                if !ae_chop.is_null() {
+                                if let Some(ae_chop) = ae_chop {
                                     let mut p = newword.as_mut_ptr().wrapping_add(
                                         crate::memory::cstr_len(newword.as_ptr().cast()),
                                     );
-                                    let mut i = mb_charlen(ae_chop.cast());
+                                    let mut i = mb_charlen(ae_chop);
                                     while i > 0 {
                                         mb_ptr_back(newword.as_ptr(), &mut p);
                                         i -= 1;
@@ -3364,14 +3347,14 @@ fn store_aff_word(
                                         *p = 0;
                                     }
                                 }
-                                if !ae_add.is_null() {
+                                if let Some(ae_add) = ae_add {
                                     {
                                         let _dst = newword.as_mut_ptr();
                                         let _dsize: usize = MAXWLEN;
                                         let _dlen = crate::memory::cstr_len(_dst.cast());
                                         crate::memory::xstrlcpy(
                                             _dst.wrapping_add(_dlen).cast(),
-                                            ae_add.cast(),
+                                            ae_add,
                                             _dsize - _dlen,
                                         );
                                     };
@@ -3383,13 +3366,13 @@ fn store_aff_word(
                             let mut use_pfxlen = pfxlen;
                             let mut need_affix = false;
                             let mut use_condit = condit | CONDIT_COMB | CONDIT_AFF;
-                            if !ae_flags.is_null() {
-                                use_flags |= get_affix_flags(affile, ae_flags.cast());
+                            if let Some(ae_flags) = ae_flags {
+                                use_flags |= get_affix_flags(affile, ae_flags);
 
                                 if affile.af_needaffix != 0
                                     && flag_in_afflist(
                                         affile.af_flagtype,
-                                        ae_flags.cast(),
+                                        ae_flags,
                                         affile.af_needaffix,
                                     )
                                 {
@@ -3399,7 +3382,7 @@ fn store_aff_word(
                                 if affile.af_circumfix != 0
                                     && flag_in_afflist(
                                         affile.af_flagtype,
-                                        ae_flags.cast(),
+                                        ae_flags,
                                         affile.af_circumfix,
                                     )
                                 {
@@ -3415,7 +3398,7 @@ fn store_aff_word(
                                     if affile.af_pfxpostpone != 0 {
                                         if !get_pfxlist(
                                             affile,
-                                            ae_flags.cast(),
+                                            ae_flags,
                                             store_afflist.as_mut_ptr().cast(),
                                             &mut listlen,
                                         ) {
@@ -3460,7 +3443,7 @@ fn store_aff_word(
                                     if spin.si_compflags.is_some() {
                                         if !get_compflags(
                                             affile,
-                                            ae_flags.cast(),
+                                            ae_flags,
                                             use_pfxlist.cast(),
                                             &mut listlen,
                                         ) {
@@ -3549,13 +3532,15 @@ fn store_aff_word(
                                 retval = false;
                             }
 
-                            if (condit & CONDIT_SUF) != 0 && !ae_flags.is_null() {
+                            if (condit & CONDIT_SUF) != 0
+                                && let Some(ae_flags) = ae_flags
+                            {
                                 let next_condit =
                                     use_condit & if xht.is_none() { !0 } else { !CONDIT_SUF };
                                 if !store_aff_word(
                                     spin,
                                     newword.as_mut_ptr().cast(),
-                                    ae_flags.cast(),
+                                    ae_flags,
                                     affile,
                                     &affile.af_suff,
                                     xht,
@@ -3581,11 +3566,11 @@ fn store_aff_word(
                                     use_flags,
                                     use_pfxlist.cast(),
                                     pfxlen,
-                                ) || (!ae_flags.is_null()
-                                    && !store_aff_word(
+                                ) || ae_flags.is_some_and(|fl| {
+                                    !store_aff_word(
                                         spin,
                                         newword.as_mut_ptr().cast(),
-                                        ae_flags.cast(),
+                                        fl,
                                         affile,
                                         xht_ref,
                                         None,
@@ -3593,7 +3578,8 @@ fn store_aff_word(
                                         use_flags,
                                         use_pfxlist.cast(),
                                         pfxlen,
-                                    )))
+                                    )
+                                }))
                             {
                                 retval = false;
                             }
