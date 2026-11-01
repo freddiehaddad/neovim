@@ -1578,7 +1578,7 @@ fn uc_split_args<T>(
                     *q.wrapping_add(3) = b'"';
                     q = q.wrapping_add(4);
                 } else {
-                    mb_copy_char(&raw mut p, &raw mut q);
+                    mb_copy_char(&mut p, &mut q);
                 }
             }
         } else {
@@ -1595,7 +1595,7 @@ fn uc_split_args<T>(
                         q = q.wrapping_add(2);
                         p = p.wrapping_add(1);
                     } else {
-                        mb_copy_char(&raw mut p, &raw mut q);
+                        mb_copy_char(&mut p, &mut q);
                     }
                 }
                 if i != args.len() - 1 {

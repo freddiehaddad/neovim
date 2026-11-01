@@ -145,7 +145,7 @@ use crate::mark::{
 };
 use crate::r#match::ex_match;
 use crate::math::{FAIL, OK};
-use crate::mbyte::{get_encoding_name, mb_copy_char, utf_head_off, utfc_ptr2len};
+use crate::mbyte::{get_encoding_name, utf_head_off_slice, utfc_ptr2len, utfc_slice2len};
 use crate::memline::{goto_byte, ml_clearmarked, ml_preserve, ml_recover, ml_setmarked};
 use crate::memory::{ArenaMem, arena_mem_free, cstr_from_bytes, cstr_to_cstring, xstrlcpy};
 use crate::menu::{SaveState, ex_emenu, ex_menu, ex_menutranslate};
@@ -7306,43 +7306,36 @@ pub fn checkforcmd<T>(pp: *mut *mut T, cmd: &std::ffi::CStr, len: i32) -> bool {
 
 fn append_command(cmd: impl crate::strings::IntoCCharPtr) {
     let cmd = cmd.into_c_char_ptr();
-    {
-        let iobuf_ptr = g_st().iobuff.as_mut_ptr();
-        let len = crate::memory::cstr_len(iobuf_ptr);
-        let mut s = cmd;
-        let mut d: RawCCharPtrMut;
-
-        if len > IOSIZE - 100 {
-            d = iobuf_ptr.wrapping_add(IOSIZE - 100);
-            d = d.wrapping_sub(utf_head_off(iobuf_ptr, d) as usize);
-            crate::memory::cstr_cpy(d, c"...");
-        }
-        {
-            let _dst = iobuf_ptr;
-            let _dsize: usize = IOSIZE;
-            let _dlen = crate::memory::cstr_len(_dst);
-            crate::memory::xstrlcpy(_dst.wrapping_add(_dlen), c": ", _dsize - _dlen);
-        };
-        d = iobuf_ptr.wrapping_add(crate::memory::cstr_len(iobuf_ptr));
-        while !crate::memory::cstr_is_empty(s) && ((d as usize) - (iobuf_ptr as usize) + 5 < IOSIZE)
-        {
-            if (crate::memory::cstr_first_byte(s)) == 0xc2
-                && (crate::memory::cstr_byte_at(s, 1)) == 0xa0
-            {
-                s = s.wrapping_add(2);
-                crate::memory::cstr_cpy(d, c"<a0>");
-                d = d.wrapping_add(4);
-            } else if (d as usize) - (iobuf_ptr as usize) + (utfc_ptr2len(s) as usize) + 1 >= IOSIZE
-            {
+    let iobuf =
+        unsafe { std::slice::from_raw_parts_mut(g_st().iobuff.as_mut_ptr().cast::<u8>(), IOSIZE) };
+    let mut d = iobuf.iter().position(|&b| b == 0).unwrap_or(IOSIZE);
+    if d > IOSIZE - 100 {
+        d = IOSIZE - 100;
+        d -= utf_head_off_slice(iobuf, d) as usize;
+        iobuf[d..d + 3].copy_from_slice(b"...");
+        d += 3;
+    }
+    if d + 2 < IOSIZE {
+        iobuf[d..d + 2].copy_from_slice(b": ");
+        d += 2;
+    }
+    let mut s = crate::memory::cstr_as_bytes(cmd);
+    while !s.is_empty() && d + 5 < IOSIZE {
+        if s.starts_with(&[0xc2, 0xa0]) {
+            s = &s[2..];
+            iobuf[d..d + 4].copy_from_slice(b"<a0>");
+            d += 4;
+        } else {
+            let l = utfc_slice2len(s);
+            if d + l + 1 >= IOSIZE {
                 break;
-            } else {
-                mb_copy_char(&raw mut s, &raw mut d);
             }
-        }
-        unsafe {
-            *d = NUL;
+            iobuf[d..d + l].copy_from_slice(&s[..l]);
+            d += l;
+            s = &s[l..];
         }
     }
+    iobuf[d] = 0;
 }
 
 fn one_letter_cmd(p: impl crate::strings::IntoCCharPtr, idx: &mut Cmdidx) -> i32 {

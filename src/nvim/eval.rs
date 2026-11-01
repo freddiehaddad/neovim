@@ -4038,15 +4038,11 @@ fn eval_string<T>(arg: *mut *mut T, rettv: &mut TypVal, evaluate: bool, interpol
                                 iemsg(c"eval_string() used more space than allocated");
                             }
                         } else {
-                            let mut p_c = p.cast_const();
-                            mb_copy_char(&raw mut p_c, &raw mut end);
-                            p = p_c.cast_mut();
+                            mb_copy_char(&mut p, &mut end);
                         }
                     }
                     _ => {
-                        let mut p_const = p.cast_const();
-                        mb_copy_char(&raw mut p_const, &raw mut end);
-                        p = p_const.cast_mut();
+                        mb_copy_char(&mut p, &mut end);
                     }
                 }
             } else {
@@ -4061,9 +4057,7 @@ fn eval_string<T>(arg: *mut *mut T, rettv: &mut TypVal, evaluate: bool, interpol
                     }
                     p = p.wrapping_add(1);
                 }
-                let mut p_const = p.cast_const();
-                mb_copy_char(&raw mut p_const, &raw mut end);
-                p = p_const.cast_mut();
+                mb_copy_char(&mut p, &mut end);
             }
         }
         *end = 0;
@@ -4150,9 +4144,7 @@ fn eval_lit_string<T>(
                 }
                 p = p.wrapping_add(1);
             }
-            let mut p_const = p.cast_const();
-            mb_copy_char(&raw mut p_const, &raw mut str_ptr);
-            p = p_const.cast_mut();
+            mb_copy_char(&mut p, &mut str_ptr);
         }
         *str_ptr = NUL;
         crate::eval::typval::tv_set_string(rettv, buf_vec.as_ptr().cast());

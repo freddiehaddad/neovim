@@ -607,7 +607,7 @@ pub fn vim_strsave_shellescape<S: IntoCCharPtr>(
                 continue;
             }
 
-            mb_copy_char(&raw mut p, &raw mut d);
+            mb_copy_char(&mut p, &mut d);
         }
 
         *d = if use_double_quote { b'"' } else { b'\'' };

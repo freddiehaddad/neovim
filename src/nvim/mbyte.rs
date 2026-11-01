@@ -1008,8 +1008,11 @@ pub fn utf_slice2_char_info(bytes: &[u8]) -> CharInfo {
 
 #[inline]
 pub fn utf_cluster_cells(bytes: &[u8]) -> i32 {
+    if bytes.is_empty() {
+        return opt_vars().dy_escape_width;
+    }
+    let ci = utf_ptr2_str_char_info_len(bytes, bytes.len() as i32);
     let mut scratch = bytes.len() as i32;
-    let ci = utf_ptr2_str_char_info_len(bytes, scratch);
     utf_cluster_info_len(ci, &mut scratch).cells
 }
 
@@ -1218,19 +1221,17 @@ pub fn mb_get_class(p: impl crate::strings::IntoCCharPtr) -> i32 {
 
 pub fn mb_get_class_tab(p: impl crate::strings::IntoCCharPtr, chartab: *const u64) -> i32 {
     let p = p.into_c_char_ptr();
-    {
-        let b0 = unsafe { *p.cast::<u8>() };
-        if UTF8LEN_TAB[b0 as usize] == 1 {
-            if b0 == 0 || ascii_iswhite(i32::from(b0)) {
-                return 0;
-            }
-            if vim_iswordc_tab(i32::from(b0), chartab) {
-                return 2;
-            }
-            return 1;
+    let b0 = crate::memory::cstr_first_byte(p);
+    if UTF8LEN_TAB[b0 as usize] == 1 {
+        if b0 == 0 || ascii_iswhite(i32::from(b0)) {
+            return 0;
         }
-        utf_class_tab(utf_ptr2char(p), chartab)
+        if vim_iswordc_tab(i32::from(b0), chartab) {
+            return 2;
+        }
+        return 1;
     }
+    utf_class_tab(utf_ptr2char(p), chartab)
 }
 
 #[inline]
@@ -1280,12 +1281,10 @@ pub fn ptr2cells(p_in: impl crate::strings::IntoCCharPtr) -> i32 {
 
 pub fn utf_ptr2cells(p_in: impl crate::strings::IntoCCharPtr) -> i32 {
     let p_in = p_in.into_c_char_ptr();
-    {
-        if unsafe { *p_in.cast::<u8>() } < 0x80 {
-            return 1;
-        }
-        ptr2cells(p_in)
+    if crate::memory::cstr_first_byte(p_in) < 0x80 {
+        return 1;
     }
+    ptr2cells(p_in)
 }
 
 pub fn utf_slice2_char_info_impl(bytes: &[u8]) -> i32 {
@@ -1321,10 +1320,6 @@ pub fn utf_slice2_char_info_impl(bytes: &[u8]) -> i32 {
         code_point = (code_point << 6).wrapping_add(u32::from(cur));
     }
     code_point.wrapping_add(corr) as i32
-}
-
-pub fn utf_ptr2_char_info_impl(p: *const u8, len: usize) -> i32 {
-    utf_slice2_char_info_impl(unsafe { std::slice::from_raw_parts(p, len) })
 }
 
 pub fn mb_string2cells(str_: impl crate::strings::IntoCCharPtr) -> usize {
@@ -1476,33 +1471,26 @@ pub fn utf_ptr2len_len(p: impl crate::strings::IntoCCharPtr, size: i32) -> i32 {
 }
 
 pub fn utfc_ptr2len(p: impl crate::strings::IntoCCharPtr) -> i32 {
-    let p = p.into_c_char_ptr();
-    {
-        let b0 = unsafe { *p.cast::<u8>() };
-        if b0 == 0 {
-            return 0;
-        }
-        if b0 < 0x80 && unsafe { *p.wrapping_add(1).cast::<u8>() } < 0x80 {
-            return 1;
-        }
+    let p = p.into_c_char_ptr().cast::<u8>();
+    let first = unsafe { raw_utf8_prefix(p) };
+    let b0 = first[0];
+    if b0 == 0 {
+        return 0;
+    }
+    let mut len = utf_slice2len(first);
+    if len == 1 && b0 >= 0x80 {
+        return 1;
+    }
 
-        let mut len = utf_ptr2len(p);
-        if len == 1 && b0 >= 0x80 {
-            return 1;
+    let mut prev = first;
+    let mut state: GraphemeState = GRAPHEME_STATE_INIT;
+    loop {
+        let next = unsafe { raw_utf8_prefix(p.wrapping_add(len)) };
+        if next[0] < 0x80 || !utf_composinglike_slice(prev, next, Some(&mut state)) {
+            return len as i32;
         }
-
-        let mut prevlen = 0usize;
-        let mut state: GraphemeState = GRAPHEME_STATE_INIT;
-        loop {
-            let next_ptr = p.wrapping_add(len as usize);
-            if unsafe { *next_ptr.cast::<u8>() } < 0x80
-                || !utf_composinglike(p.wrapping_add(prevlen), next_ptr, Some(&mut state))
-            {
-                return len;
-            }
-            prevlen = len as usize;
-            len += utf_ptr2len(next_ptr);
-        }
+        prev = next;
+        len += utf_slice2len(next);
     }
 }
 
@@ -2529,7 +2517,7 @@ pub fn utf_cluster_info_impl(base: StrCharInfo, max_len: &mut i32) -> ClusterInf
     let mut prev_code = base.chr.value;
     let mut next = base.ptr.wrapping_add(base.chr.len as usize).cast::<u8>();
     let mut state: GraphemeState = GRAPHEME_STATE_INIT;
-    assert!(unsafe { *next } >= 0x80 && *max_len > 0);
+    assert!(*max_len > 0);
     let mut cluster_len = base.chr.len;
 
     let mut check_emoji = cells == 1
@@ -2537,7 +2525,32 @@ pub fn utf_cluster_info_impl(base: StrCharInfo, max_len: &mut i32) -> ClusterInf
         && prop_is_emojilike(utf8proc_get_property(base.chr.value));
 
     loop {
-        let next_len = UTF8LEN_TAB[unsafe { *next } as usize];
+        let chunk = unsafe { raw_utf8_prefix_len(next, (*max_len).max(0) as usize) };
+        let Some(&b0) = chunk.first() else {
+            return ClusterInfo {
+                next: StrCharInfo {
+                    ptr: next.cast(),
+                    chr: CharInfo { value: -1, len: 1 },
+                },
+                cells,
+                first_compose,
+            };
+        };
+        if b0 < 0x80 {
+            return ClusterInfo {
+                next: StrCharInfo {
+                    ptr: next.cast(),
+                    chr: CharInfo {
+                        value: i32::from(b0),
+                        len: 1,
+                    },
+                },
+                cells,
+                first_compose,
+            };
+        }
+
+        let next_len = UTF8LEN_TAB[b0 as usize];
         if i32::from(next_len) > *max_len {
             return ClusterInfo {
                 next: StrCharInfo {
@@ -2549,7 +2562,11 @@ pub fn utf_cluster_info_impl(base: StrCharInfo, max_len: &mut i32) -> ClusterInf
             };
         }
 
-        let next_code = utf_ptr2_char_info_impl(next, usize::from(next_len));
+        let next_code = if chunk.len() < usize::from(next_len) {
+            -1
+        } else {
+            utf_slice2_char_info_impl(chunk)
+        };
         if next_code < 0 || !utf_iscomposing(prev_code, next_code, &mut state) {
             return ClusterInfo {
                 next: StrCharInfo {
@@ -2588,19 +2605,6 @@ pub fn utf_cluster_info_impl(base: StrCharInfo, max_len: &mut i32) -> ClusterInf
         prev_code = next_code;
         next = next.wrapping_add(usize::from(next_len));
         *max_len -= i32::from(next_len);
-        if *max_len > 0 && unsafe { *next } < 0x80 {
-            return ClusterInfo {
-                next: StrCharInfo {
-                    ptr: next.cast(),
-                    chr: CharInfo {
-                        value: i32::from(unsafe { *next }),
-                        len: 1,
-                    },
-                },
-                cells,
-                first_compose,
-            };
-        }
     }
 }
 
@@ -2695,15 +2699,16 @@ pub fn utf_allow_break(cc: i32, ncc: i32) -> bool {
     utf_allow_break_after(cc) && utf_allow_break_before(ncc)
 }
 
-pub fn mb_copy_char<T, U>(fp: *mut *const T, tp: *mut *mut U) {
-    unsafe {
-        let f = (*fp).cast::<u8>();
-        let t = (*tp).cast::<u8>();
-        let l = utfc_ptr2len(f.cast()) as usize;
-        ptr::copy(f, t, l);
-        *tp = t.wrapping_add(l).cast();
-        *fp = f.wrapping_add(l).cast();
-    }
+pub fn mb_copy_char<F: crate::charset::RawByteCursor, T: crate::charset::RawByteCursor>(
+    fp: &mut F,
+    tp: &mut T,
+) {
+    let f = fp.as_byte_ptr();
+    let t = tp.as_byte_ptr().cast_mut();
+    let l = utfc_ptr2len(f.cast()) as usize;
+    unsafe { ptr::copy(f, t, l) };
+    *tp = T::from_byte_ptr(t.wrapping_add(l));
+    *fp = F::from_byte_ptr(f.wrapping_add(l));
 }
 
 pub fn mb_off_next(
