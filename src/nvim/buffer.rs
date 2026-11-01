@@ -4264,19 +4264,20 @@ pub fn maketitle() {
                 icon_str = opt_vars().p_iconstring;
             }
         } else {
-            let mut name = if let Some(sp) = buf_spname(unsafe { &*(g_st().curbuf) }) {
-                sp.as_ptr().cast_mut()
+            let name_bytes = if let Some(sp) = buf_spname(unsafe { &*(g_st().curbuf) }) {
+                sp.to_bytes()
             } else {
-                path_tail(curbuf_mut().b_ffname)
+                crate::memory::cstr_as_bytes(path_tail(curbuf_mut().b_ffname))
             };
-            let mut namelen = crate::memory::cstr_len(name) as i32;
-            if namelen > 100 {
-                namelen -= 100;
-                namelen +=
-                    i32::from(utf_cp_bounds(name, name.wrapping_add(namelen as usize)).end_off);
-                name = name.wrapping_add(namelen as usize);
+            let mut off = 0usize;
+            if name_bytes.len() > 100 {
+                off = name_bytes.len() - 100;
+                off = (off as isize + isize::from(utf_cp_bounds(name_bytes, off).end_off)) as usize;
             }
-            crate::memory::cstr_cpy(buf.as_mut_ptr().cast(), name);
+            let tail = &name_bytes[off..];
+            let copy_len = tail.len().min(buf.len() - 1);
+            buf[..copy_len].copy_from_slice(&tail[..copy_len]);
+            buf[copy_len] = 0;
             trans_characters(&mut buf);
         }
     }

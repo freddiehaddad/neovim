@@ -2647,7 +2647,8 @@ pub fn ml_add_deleted_len_buf(
         if g_st().inhibit_delete_count != 0 {
             return;
         }
-        let maxlen = crate::memory::cstr_len(ptr) as isize;
+        let bytes = crate::memory::cstr_as_bytes(ptr);
+        let maxlen = bytes.len() as isize;
         if len == -1 || len > maxlen {
             len = maxlen;
         }
@@ -2655,7 +2656,7 @@ pub fn ml_add_deleted_len_buf(
         buf.deleted_bytes2 += (len as usize) + 1;
         if buf.update_need_codepoints {
             mb_utflen(
-                ptr,
+                bytes,
                 len as usize,
                 &mut buf.deleted_codepoints,
                 &mut buf.deleted_codeunits,

@@ -2312,28 +2312,17 @@ pub fn utf16_to_utf8(
     0
 }
 
-pub fn mb_utflen(
-    s: impl crate::strings::IntoCCharPtr,
-    len: usize,
-    codepoints: &mut usize,
-    codeunits: &mut usize,
-) {
-    let s = s.into_c_char_ptr();
-    let bytes = if len == 0 || s.is_null() {
-        &[][..]
-    } else {
-        unsafe { std::slice::from_raw_parts(s.cast::<u8>(), len) }
-    };
+pub fn mb_utflen(bytes: &[u8], len: usize, codepoints: &mut usize, codeunits: &mut usize) {
+    let target = len.min(bytes.len());
     let mut count = 0usize;
     let mut extra = 0usize;
     let mut i = 0usize;
-    while i < bytes.len() {
-        let rest = &bytes[i..];
-        let clen = utf_slice2len_incomplete(rest);
+    while i < target {
+        let clen = utf_slice2len_incomplete(&bytes[i..target]);
         let c = if clen > 1 {
-            utf_ptr2char(s.wrapping_add(i))
+            utf_slice2char(&bytes[i..])
         } else {
-            i32::from(rest[0])
+            i32::from(bytes[i])
         };
         count += 1;
         if c > 0xFFFF {
@@ -2345,28 +2334,18 @@ pub fn mb_utflen(
     *codeunits += count + extra;
 }
 
-pub fn mb_utf_index_to_bytes(
-    s: impl crate::strings::IntoCCharPtr,
-    len: usize,
-    index: usize,
-    use_utf16_units: bool,
-) -> isize {
-    let s = s.into_c_char_ptr();
+pub fn mb_utf_index_to_bytes(bytes: &[u8], index: usize, use_utf16_units: bool) -> isize {
     if index == 0 {
         return 0;
     }
-    let bytes = if len == 0 || s.is_null() {
-        &[][..]
-    } else {
-        unsafe { std::slice::from_raw_parts(s.cast::<u8>(), len) }
-    };
+    let len = bytes.len();
     let mut count = 0usize;
     let mut i = 0usize;
-    while i < bytes.len() {
+    while i < len {
         let rest = &bytes[i..];
         let clen = utf_slice2len_incomplete(rest);
         let c = if clen > 1 {
-            utf_ptr2char(s.wrapping_add(i))
+            utf_slice2char(rest)
         } else {
             i32::from(rest[0])
         };
@@ -2741,7 +2720,7 @@ pub fn mb_off_next(
     }
 }
 
-pub fn utf_cp_bounds_slice(bytes: &[u8], idx: usize) -> CharBoundsOff {
+pub fn utf_cp_bounds(bytes: &[u8], idx: usize) -> CharBoundsOff {
     if bytes.get(idx).is_none_or(|&b| b < 0x80) {
         return CharBoundsOff {
             begin_off: 0,
@@ -2785,39 +2764,6 @@ pub fn utf_cp_bounds_slice(bytes: &[u8], idx: usize) -> CharBoundsOff {
         begin_off: back as i8,
         end_off: (cp_len - back) as i8,
     }
-}
-
-pub fn utf_cp_bounds_len(
-    base: impl crate::strings::IntoCCharPtr,
-    p_in: impl crate::strings::IntoCCharPtr,
-    p_len: i32,
-) -> CharBoundsOff {
-    let base = base.into_c_char_ptr().cast::<u8>();
-    let p = p_in.into_c_char_ptr().cast::<u8>();
-    assert!(base <= p && p_len > 0);
-    if unsafe { *p } < 0x80 {
-        return CharBoundsOff {
-            begin_off: 0,
-            end_off: 1,
-        };
-    }
-    let idx = (p as usize) - (base as usize);
-    let max_tail = (p_len as usize).min(MB_MAXCHAR as usize);
-    let mut tail_len = 1usize;
-    while tail_len < max_tail && unsafe { *p.wrapping_add(tail_len) } != 0 {
-        tail_len += 1;
-    }
-    let bytes = unsafe { std::slice::from_raw_parts(base, idx + tail_len) };
-    utf_cp_bounds_slice(bytes, idx)
-}
-
-pub fn utf_cp_bounds(
-    base: impl crate::strings::IntoCCharPtr,
-    p_in: impl crate::strings::IntoCCharPtr,
-) -> CharBoundsOff {
-    let base = base.into_c_char_ptr();
-    let p_in = p_in.into_c_char_ptr();
-    utf_cp_bounds_len(base, p_in, i32::MAX)
 }
 
 pub fn utf_find_illegal() {
@@ -3786,7 +3732,7 @@ mod tests {
             }
 
             let cp_str = c"iÀⱠ𐀀i";
-            let b0 = utf_cp_bounds_len(cp_str.as_ptr(), cp_str.as_ptr().wrapping_add(2), 9);
+            let b0 = utf_cp_bounds(&cp_str.to_bytes()[..11], 2);
             assert_eq!((b0.begin_off, b0.end_off), (1, 1));
         }
     }

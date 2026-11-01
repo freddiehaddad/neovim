@@ -43,7 +43,7 @@ use crate::lua::spell::luaopen_spell;
 use crate::lua::xdiff::nlua_xdl_diff;
 use crate::mbyte::{
     Vimconv, convert_setup_ext, enc_canonize, enc_skip, mb_stricmp, mb_utf_index_to_bytes,
-    mb_utflen, string_convert, utf_cp_bounds_len, utf_ptr2len_len,
+    mb_utflen, string_convert, utf_cp_bounds, utf_ptr2len_len,
 };
 use crate::memline::{ml_get_buf, ml_get_buf_len};
 use crate::message::str2special;
@@ -237,7 +237,12 @@ pub unsafe extern "C-unwind" fn nlua_str_utfindex(lstate: *mut lua_State) -> i32
 
     let mut codepoints: usize = 0;
     let mut codeunits: usize = 0;
-    mb_utflen(s1, idx as usize, &mut codepoints, &mut codeunits);
+    let s1_bytes = if s1_len == 0 || s1.is_null() {
+        &[][..]
+    } else {
+        unsafe { std::slice::from_raw_parts(s1.cast::<u8>(), s1_len) }
+    };
+    mb_utflen(s1_bytes, idx as usize, &mut codepoints, &mut codeunits);
 
     unsafe { lua_pushinteger(lstate, codepoints as lua_Integer) };
     unsafe { lua_pushinteger(lstate, codeunits as lua_Integer) };
@@ -273,10 +278,9 @@ unsafe extern "C-unwind" fn nlua_str_utf_start(lstate: *mut lua_State) -> i32 {
         if offset <= 0 || (offset as usize) > s1_len {
             return luaL_error(lstate, c"index out of range".as_ptr());
         }
+        let s1_bytes = std::slice::from_raw_parts(s1.cast::<u8>(), s1_len);
         let off = (offset as usize) - 1;
-        let head_off = -i32::from(
-            utf_cp_bounds_len(s1, s1.wrapping_add(off), (s1_len - off) as i32).begin_off,
-        );
+        let head_off = -i32::from(utf_cp_bounds(s1_bytes, off).begin_off);
         lua_pushinteger(lstate, head_off as lua_Integer);
         1
     }
@@ -290,10 +294,9 @@ unsafe extern "C-unwind" fn nlua_str_utf_end(lstate: *mut lua_State) -> i32 {
         if offset <= 0 || (offset as usize) > s1_len {
             return luaL_error(lstate, c"index out of range".as_ptr());
         }
+        let s1_bytes = std::slice::from_raw_parts(s1.cast::<u8>(), s1_len);
         let off = (offset as usize) - 1;
-        let tail_off =
-            i32::from(utf_cp_bounds_len(s1, s1.wrapping_add(off), (s1_len - off) as i32).end_off)
-                - 1;
+        let tail_off = i32::from(utf_cp_bounds(s1_bytes, off).end_off) - 1;
         lua_pushinteger(lstate, tail_off as lua_Integer);
         1
     }
@@ -314,7 +317,12 @@ pub unsafe extern "C-unwind" fn nlua_str_byteindex(lstate: *mut lua_State) -> i3
             use_utf16 = lua_toboolean(lstate, 3) != 0;
         }
 
-        let byteidx = mb_utf_index_to_bytes(s1, s1_len, idx as usize, use_utf16);
+        let s1_bytes = if s1_len == 0 || s1.is_null() {
+            &[][..]
+        } else {
+            std::slice::from_raw_parts(s1.cast::<u8>(), s1_len)
+        };
+        let byteidx = mb_utf_index_to_bytes(s1_bytes, idx as usize, use_utf16);
         if byteidx == -1 {
             lua_pushnil(lstate);
             return 1;

@@ -392,28 +392,22 @@ pub fn line_do_arabic_shape(buf: *mut Schar, cols: i32) {
                 schar_get(scbuf.as_mut_ptr(), unsafe { *buf.wrapping_add(i as usize) });
 
                 let mut scbuf_new = [0u8; MAX_SCHAR_SIZE];
-                let mut len = utf_char2bytes(c0new, scbuf_new.as_mut_ptr().cast()) as usize;
+                let mut len = crate::mbyte::utf_char2slice(c0new, &mut scbuf_new);
                 if c1new != 0 {
-                    len += utf_char2bytes(c1new, scbuf_new.as_mut_ptr().wrapping_add(len).cast())
-                        as usize;
+                    len += crate::mbyte::utf_char2slice(c1new, &mut scbuf_new[len..]);
                 }
 
                 let off = (utf_char2len(c0) + if c1 != 0 { utf_char2len(c1) } else { 0 }) as usize;
-                let mut rest = crate::memory::cstr_len(scbuf.as_ptr().wrapping_add(off).cast());
+                let rest_slice = &scbuf[off..];
+                let mut rest = rest_slice
+                    .iter()
+                    .position(|&b| b == 0)
+                    .unwrap_or(rest_slice.len());
                 if rest + len + 1 > MAX_SCHAR_SIZE {
-                    let bounds = utf_cp_bounds(
-                        scbuf.as_ptr().wrapping_add(off).cast(),
-                        scbuf.as_ptr().wrapping_add(off + rest - 1).cast(),
-                    );
+                    let bounds = utf_cp_bounds(&rest_slice[..rest], rest - 1);
                     rest = (rest as isize - (isize::from(bounds.begin_off) + 1)) as usize;
                 }
-                unsafe {
-                    ptr::copy_nonoverlapping(
-                        scbuf.as_ptr().wrapping_add(off),
-                        scbuf_new.as_mut_ptr().wrapping_add(len),
-                        rest,
-                    )
-                };
+                scbuf_new[len..len + rest].copy_from_slice(&rest_slice[..rest]);
                 unsafe {
                     *buf.wrapping_add(i as usize) =
                         schar_from_buf(scbuf_new.as_ptr().cast(), len + rest);
