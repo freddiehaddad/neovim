@@ -24,8 +24,8 @@ use crate::context::{CtxSwitch, ctx_restore, ctx_switch};
 use crate::cursor::{
     Colnr, CursorPos, K_OPT_VE_FLAG_ALL, Linenr, VALID_VIRTCOL, char_before_cursor, check_cursor,
     check_cursor_col, check_visual_pos, coladvance, dec_cursor, equalpos, gchar_cursor,
-    get_cursor_line_len, get_cursor_line_ptr, get_cursor_pos_len, get_cursor_pos_ptr, getviscol,
-    inc_cursor, lt,
+    get_cursor_line_len, get_cursor_line_ptr, get_cursor_line_slice, get_cursor_pos_len,
+    get_cursor_pos_ptr, getviscol, inc_cursor, lt,
 };
 use crate::decoration::{decor_conceal_line, win_lines_concealed};
 use crate::digraph::{digraph_get, do_digraph};
@@ -101,9 +101,9 @@ use crate::mapping::{check_abbr, map_to_exists_mode};
 use crate::mark::{mark_view_make, reset_fmark};
 use crate::marktree::K_MTMETA_INLINE;
 use crate::mbyte::{
-    GraphemeState, mb_adjust_cursor, mb_get_class, ptr2cells, utf_char2bytes, utf_char2len,
-    utf_cluster_info, utf_composinglike, utf_head_off, utf_ptr2_str_char_info, utf_ptr2char,
-    utf_ptr2len, utfc_ptr2len,
+    mb_adjust_cursor, mb_get_class, ptr2cells, utf_char2bytes, utf_char2len, utf_cluster_info,
+    utf_composinglike, utf_head_off, utf_ptr2_str_char_info, utf_ptr2char, utf_ptr2len,
+    utfc_ptr2len,
 };
 use crate::mcursor::{mc_ins_cascade, mc_ins_cascade_restart, mc_ins_join, mc_ins_replaying};
 use crate::memline::{
@@ -1560,21 +1560,16 @@ fn init_prompt(cmdchar_todo: i32) {
         .w_cursor
         .lnum
         .max(curbuf_mut().b_prompt_start.mark.lnum);
-    let text = ml_get(curbuf_mut().b_prompt_start.mark.lnum);
-    let text_len = ml_get_len(curbuf_mut().b_prompt_start.mark.lnum);
+    let prompt_lnum = curbuf_mut().b_prompt_start.mark.lnum;
+    let text = ml_get(prompt_lnum);
+    let text_len = ml_get_len(prompt_lnum);
+    let text_bytes = crate::memory::cstr_slice(text, text_len as usize);
+    let mark_col = curbuf_mut().b_prompt_start.mark.col;
 
-    if curbuf_mut().b_prompt_start.mark.lnum == curwin_mut().w_cursor.lnum
-        && (curbuf_mut().b_prompt_start.mark.col < prompt_len
-            || curbuf_mut().b_prompt_start.mark.col > text_len
-            || unsafe {
-                std::slice::from_raw_parts(
-                    text.wrapping_offset(
-                        (curbuf_mut().b_prompt_start.mark.col - prompt_len) as isize,
-                    )
-                    .cast::<u8>(),
-                    prompt_len as usize,
-                )
-            } != prompt_bytes)
+    if prompt_lnum == curwin_mut().w_cursor.lnum
+        && (mark_col < prompt_len
+            || mark_col > text_len
+            || &text_bytes[(mark_col - prompt_len) as usize..mark_col as usize] != prompt_bytes)
     {
         if crate::memory::cstr_is_empty(text) {
             ml_replace(curbuf_mut().b_prompt_start.mark.lnum, prompt.as_ptr(), true);
@@ -2520,7 +2515,7 @@ pub fn replace_push(str_: impl crate::strings::IntoCCharPtr, len: usize) {
             return;
         }
         let pos = stack.len() - off;
-        let slice = unsafe { std::slice::from_raw_parts(str_.cast::<u8>(), len) };
+        let slice = crate::memory::cstr_slice(str_, len);
         stack.splice(pos..pos, slice.iter().copied());
     }
 }
@@ -2625,86 +2620,84 @@ fn replace_do_bs(limit_col: i32) {
 }
 
 fn ins_reg() {
-    unsafe {
-        let mut need_redraw = false;
-        let mut literally: i32 = 0;
-        let vis_active = g_st().visual_global.active;
+    let mut need_redraw = false;
+    let mut literally: i32 = 0;
+    let vis_active = g_st().visual_global.active;
 
-        ins_st().pc_status = PC_STATUS_UNSET;
-        if redrawing() && !char_avail() {
-            ins_redraw(false);
-            edit_putchar(b'"' as i32, true);
-            add_to_showcmd_c(CTRL_R_CONST);
-        }
+    ins_st().pc_status = PC_STATUS_UNSET;
+    if redrawing() && !char_avail() {
+        ins_redraw(false);
+        edit_putchar(b'"' as i32, true);
+        add_to_showcmd_c(CTRL_R_CONST);
+    }
 
-        g_st().no_mapping += 1;
-        g_st().allow_keys += 1;
-        let mut regname = plain_vgetc();
+    g_st().no_mapping += 1;
+    g_st().allow_keys += 1;
+    let mut regname = plain_vgetc();
+    langmap_adjust(&mut regname, true);
+    if regname == CTRL_R_CONST || regname == CTRL_O || regname == CTRL_P {
+        literally = regname;
+        add_to_showcmd_c(literally);
+        regname = plain_vgetc();
         langmap_adjust(&mut regname, true);
-        if regname == CTRL_R_CONST || regname == CTRL_O || regname == CTRL_P {
-            literally = regname;
-            add_to_showcmd_c(literally);
-            regname = plain_vgetc();
-            langmap_adjust(&mut regname, true);
-        }
-        g_st().no_mapping -= 1;
-        g_st().allow_keys -= 1;
+    }
+    g_st().no_mapping -= 1;
+    g_st().allow_keys -= 1;
 
-        g_st().no_u_sync += 1;
-        if regname == b'=' as i32 {
-            let curpos = curwin_mut().w_cursor;
-            g_st().u_sync_once = 2;
-            regname = get_expr_register();
-            curwin_mut().w_cursor = curpos;
-            check_cursor(curwin_mut());
-        }
-        if regname == NUL as i32 || !valid_yank_reg(regname, false) {
+    g_st().no_u_sync += 1;
+    if regname == b'=' as i32 {
+        let curpos = curwin_mut().w_cursor;
+        g_st().u_sync_once = 2;
+        regname = get_expr_register();
+        curwin_mut().w_cursor = curpos;
+        check_cursor(curwin_mut());
+    }
+    if regname == NUL as i32 || !valid_yank_reg(regname, false) {
+        vim_beep(K_OPT_BO_FLAG_REGISTER);
+        need_redraw = true;
+    } else {
+        let reg: *mut Yankreg = get_yank_register(regname, YREG_PASTE);
+
+        if literally == CTRL_O || literally == CTRL_P {
+            redo_append_char(CTRL_R_CONST);
+            redo_append_char(literally);
+            redo_append_char(regname);
+
+            do_put(
+                regname,
+                ptr::null_mut(),
+                BACKWARD,
+                1,
+                (if literally == CTRL_P {
+                    PUT_FIXINDENT
+                } else {
+                    0
+                }) | PUT_CURSEND,
+            );
+        } else if unsafe { (*reg).y_array.len() } > 1 && is_literal_register(regname) {
+            redo_append_char(CTRL_R_CONST);
+            redo_append_char(regname);
+            do_put(regname, ptr::null_mut(), BACKWARD, 1, PUT_CURSEND);
+        } else if !insert_reg(regname, ptr::null_mut(), literally != 0) {
             vim_beep(K_OPT_BO_FLAG_REGISTER);
             need_redraw = true;
-        } else {
-            let reg: *mut Yankreg = get_yank_register(regname, YREG_PASTE);
-
-            if literally == CTRL_O || literally == CTRL_P {
-                redo_append_char(CTRL_R_CONST);
-                redo_append_char(literally);
-                redo_append_char(regname);
-
-                do_put(
-                    regname,
-                    ptr::null_mut(),
-                    BACKWARD,
-                    1,
-                    (if literally == CTRL_P {
-                        PUT_FIXINDENT
-                    } else {
-                        0
-                    }) | PUT_CURSEND,
-                );
-            } else if (*reg).y_array.len() > 1 && is_literal_register(regname) {
-                redo_append_char(CTRL_R_CONST);
-                redo_append_char(regname);
-                do_put(regname, ptr::null_mut(), BACKWARD, 1, PUT_CURSEND);
-            } else if !insert_reg(regname, ptr::null_mut(), literally != 0) {
-                vim_beep(K_OPT_BO_FLAG_REGISTER);
-                need_redraw = true;
-            } else if g_st().ins_global.stop_insert_mode {
-                need_redraw = true;
-            }
+        } else if g_st().ins_global.stop_insert_mode {
+            need_redraw = true;
         }
-        g_st().no_u_sync -= 1;
-        if g_st().u_sync_once == 1 {
-            g_st().ins_global.need_undo = true;
-        }
-        g_st().u_sync_once = 0;
+    }
+    g_st().no_u_sync -= 1;
+    if g_st().u_sync_once == 1 {
+        g_st().ins_global.need_undo = true;
+    }
+    g_st().u_sync_once = 0;
 
-        if need_redraw || stuff_empty() {
-            edit_unputchar();
-        }
-        clear_showcmd();
+    if need_redraw || stuff_empty() {
+        edit_unputchar();
+    }
+    clear_showcmd();
 
-        if !vis_active && g_st().visual_global.active {
-            end_visual_mode();
-        }
+    if !vis_active && g_st().visual_global.active {
+        end_visual_mode();
     }
 }
 
@@ -2968,7 +2961,7 @@ fn ins_shift(c: i32, lastc: i32) {
         );
     }
 
-    if g_st().ins_global.did_ai && unsafe { *skipwhite(get_cursor_line_ptr()) } != NUL {
+    if g_st().ins_global.did_ai && !crate::memory::cstr_is_empty(skipwhite(get_cursor_line_ptr())) {
         g_st().ins_global.did_ai = false;
     }
     g_st().ins_global.did_si = false;
@@ -3257,11 +3250,8 @@ fn ins_bs(c: i32, mut mode: i32, inserted_space_p: &mut i32) -> bool {
                     let mut has_composing = false;
                     if opt_vars().p_deco != 0 {
                         let p0 = get_cursor_pos_ptr();
-                        has_composing = utf_composinglike(
-                            p0,
-                            p0.wrapping_add(utf_ptr2len(p0) as usize),
-                            unsafe { (ptr::null_mut::<GraphemeState>()).as_mut() },
-                        );
+                        has_composing =
+                            utf_composinglike(p0, p0.wrapping_add(utf_ptr2len(p0) as usize), None);
                     }
                     del_char(false);
                     if has_composing {
@@ -3613,10 +3603,8 @@ fn ins_tab() -> bool {
             || get_sts_value() > 0
             || (opt_vars().p_sta != 0 && ind))
     {
-        let mut pos: CursorPos;
-        let cursor: *mut CursorPos;
-        let mut saved_line_vec: Vec<u8>;
-        let mut saved_line: *mut u8 = ptr::null_mut();
+        let mut cursor_pos = curwin_mut().w_cursor;
+        let mut saved_line_vec: Vec<u8> = Vec::new();
         let mut ptr: *mut u8;
         let mut vcol: Colnr = 0;
         let mut want_vcol: Colnr = 0;
@@ -3624,19 +3612,13 @@ fn ins_tab() -> bool {
         let save_list = curwin_mut().w_onebuf_opt.wo_list;
 
         if (g_st().state_global & VREPLACE_FLAG) != 0 {
-            pos = curwin_mut().w_cursor;
-            cursor = &raw mut pos;
-            let line_len = get_cursor_line_len() as usize;
-            saved_line_vec = unsafe {
-                std::slice::from_raw_parts(get_cursor_line_ptr().cast::<u8>(), line_len + 1)
-            }
-            .to_vec();
-            saved_line_vec[line_len] = 0;
-            saved_line = saved_line_vec.as_mut_ptr();
-            ptr = saved_line.wrapping_offset(pos.col as isize);
+            saved_line_vec = get_cursor_line_slice().to_vec();
+            saved_line_vec.push(0);
+            ptr = saved_line_vec
+                .as_mut_ptr()
+                .wrapping_offset(cursor_pos.col as isize);
         } else {
             ptr = get_cursor_pos_ptr().cast();
-            cursor = &raw mut curwin_mut().w_cursor;
         }
 
         if !crate::strings::vim_haschr(opt_vars().p_cpo, K_CPO_LISTWM) {
@@ -3644,7 +3626,11 @@ fn ins_tab() -> bool {
         }
 
         let mut fpos = curwin_mut().w_cursor;
-        while fpos.col > 0 && ascii_iswhite(i32::from(unsafe { *ptr.wrapping_offset(-1) })) {
+        while fpos.col > 0
+            && ascii_iswhite(crate::memory::cstr_first_char(
+                ptr.wrapping_offset(-1).cast(),
+            ))
+        {
             fpos.col -= 1;
             ptr = ptr.wrapping_offset(-1);
         }
@@ -3660,26 +3646,29 @@ fn ins_tab() -> bool {
         getvcol(curwin_mut(), &mut fpos, Some(&mut vcol), None, None, 0);
         getvcol(
             curwin_mut(),
-            unsafe { &mut *cursor },
+            &mut cursor_pos,
             Some(&mut want_vcol),
             None,
             None,
             0,
         );
+        if (g_st().state_global & VREPLACE_FLAG) == 0 {
+            curwin_mut().w_cursor = cursor_pos;
+        }
 
         let tab = c"\t".as_ptr().cast_mut();
         let tab_v = b'\t' as i32;
         let mut csarg = CharsizeArg::new();
         let mut cstype = init_charsize_arg(&mut csarg, curwin_mut(), 0, tab);
 
-        while ascii_iswhite(i32::from(unsafe { *ptr })) {
+        while ascii_iswhite(crate::memory::cstr_first_char(ptr.cast())) {
             let i = win_charsize(cstype, vcol, tab, tab_v, &mut csarg, 1).width;
             if vcol + i > want_vcol {
                 break;
             }
-            if unsafe { *ptr } != TAB as u8 {
+            if crate::memory::cstr_first_byte(ptr.cast()) != b'\t' {
                 unsafe {
-                    *ptr = TAB as u8;
+                    *ptr = b'\t';
                 }
                 if change_col < 0 {
                     change_col = fpos.col;
@@ -3698,7 +3687,7 @@ fn ins_tab() -> bool {
         if change_col >= 0 {
             let mut repl_off: i32 = 0;
             cstype = init_charsize_arg(&mut csarg, curwin_mut(), 0, ptr.cast());
-            while vcol < want_vcol && unsafe { *ptr } == b' ' {
+            while vcol < want_vcol && crate::memory::cstr_first_byte(ptr.cast()) == b' ' {
                 vcol += win_charsize(cstype, vcol, ptr.cast(), b' ' as i32, &mut csarg, 1).width;
                 ptr = ptr.wrapping_add(1);
                 repl_off += 1;
@@ -3710,35 +3699,33 @@ fn ins_tab() -> bool {
             }
             fpos.col += repl_off;
 
-            let i = unsafe { (*cursor).col } - fpos.col;
+            let i = cursor_pos.col - fpos.col;
             if i > 0 {
                 if (g_st().state_global & VREPLACE_FLAG) == 0 {
                     let newp_len = (curbuf_mut().b_ml.ml_line_textlen - i) as usize;
                     let col =
                         crate::memory::ptr_offset_from(ptr.cast(), curbuf_mut().b_ml.ml_line_ptr)
                             as usize;
+                    let line_slice = crate::memory::cstr_slice(
+                        curbuf_mut().b_ml.ml_line_ptr,
+                        curbuf_mut().b_ml.ml_line_textlen as usize,
+                    );
+                    let tail_len = newp_len.saturating_sub(col + 1);
                     let mut new_line = Vec::with_capacity(newp_len.saturating_sub(1));
-                    if col > 0 {
-                        new_line.extend_from_slice(unsafe {
-                            std::slice::from_raw_parts(ptr.wrapping_sub(col), col)
-                        });
-                    }
-                    new_line.extend_from_slice(unsafe {
-                        std::slice::from_raw_parts(
-                            ptr.wrapping_offset(i as isize),
-                            newp_len.saturating_sub(col + 1),
-                        )
-                    });
+                    new_line.extend_from_slice(&line_slice[..col]);
+                    new_line.extend_from_slice(
+                        &line_slice[col + i as usize..col + i as usize + tail_len],
+                    );
                     ml_replace_dirty_line(curbuf_mut(), &new_line, true);
                     inserted_bytes(
                         fpos.lnum,
                         change_col,
-                        unsafe { (*cursor).col } - change_col,
+                        cursor_pos.col - change_col,
                         fpos.col - change_col,
                     );
                 } else {
-                    let rem = crate::memory::cstr_len(ptr.wrapping_offset(i as isize).cast()) + 1;
-                    unsafe { ptr::copy(ptr.wrapping_offset(i as isize), ptr, rem) };
+                    let col = fpos.col as usize;
+                    saved_line_vec.copy_within(col + i as usize.., col);
                 }
                 if (g_st().state_global & REPLACE_FLAG) != 0
                     && (g_st().state_global & VREPLACE_FLAG) == 0
@@ -3748,15 +3735,16 @@ fn ins_tab() -> bool {
                     }
                 }
             }
-            unsafe {
-                (*cursor).col -= i;
+            cursor_pos.col -= i;
+            if (g_st().state_global & VREPLACE_FLAG) == 0 {
+                curwin_mut().w_cursor.col = cursor_pos.col;
             }
 
             if (g_st().state_global & VREPLACE_FLAG) != 0 {
                 backspace_until_column(change_col);
                 ins_bytes_len(
-                    saved_line.wrapping_offset(change_col as isize).cast(),
-                    (unsafe { (*cursor).col } - change_col) as usize,
+                    saved_line_vec[change_col as usize..].as_ptr().cast(),
+                    (cursor_pos.col - change_col) as usize,
                 );
             }
         }
