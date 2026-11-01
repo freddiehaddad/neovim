@@ -43,7 +43,7 @@ use std::ffi::{CStr, c_void};
 use std::ptr;
 
 #[repr(C)]
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct CharInfo {
     pub value: i32,
     pub len: i32,
@@ -940,28 +940,31 @@ pub fn mb_ptr_back<S: crate::charset::RawByteCursor, P: crate::charset::RawByteC
 }
 
 #[inline]
+unsafe fn raw_utf8_prefix_len(p: *const u8, max_size: usize) -> &'static [u8] {
+    if max_size == 0 {
+        return &[];
+    }
+    let b0 = unsafe { *p };
+    if b0 < 0x80 {
+        return unsafe { std::slice::from_raw_parts(p, 1) };
+    }
+    let max_len = usize::from(UTF8LEN_TAB[b0 as usize]).min(max_size);
+    let mut n = 1;
+    while n < max_len && unsafe { *p.wrapping_add(n) } != 0 {
+        n += 1;
+    }
+    unsafe { std::slice::from_raw_parts(p, n) }
+}
+
+#[inline]
+unsafe fn raw_utf8_prefix(p: *const u8) -> &'static [u8] {
+    unsafe { raw_utf8_prefix_len(p, MB_MAXCHAR as usize) }
+}
+
+#[inline]
 pub fn utf_ptr2_char_info(p_in: impl crate::strings::IntoCCharPtr) -> CharInfo {
     let p_in = p_in.into_c_char_ptr();
-    {
-        let p = p_in.cast::<u8>();
-        let first = unsafe { *p };
-        if first < 0x80 {
-            CharInfo {
-                value: i32::from(first),
-                len: 1,
-            }
-        } else {
-            let mut len = i32::from(UTF8LEN_TAB[first as usize]);
-            let code_point = utf_ptr2_char_info_impl(p, len as usize);
-            if code_point < 0 {
-                len = 1;
-            }
-            CharInfo {
-                value: code_point,
-                len,
-            }
-        }
-    }
+    utf_slice2_char_info(unsafe { raw_utf8_prefix(p_in.cast()) })
 }
 
 #[inline]
@@ -976,39 +979,31 @@ pub fn utf_ptr2_str_char_info(ptr: impl crate::strings::IntoCCharPtr) -> StrChar
 #[inline]
 pub fn utf_ptr2_char_info_len(p_in: impl crate::strings::IntoCCharPtr, size: i32) -> CharInfo {
     let p_in = p_in.into_c_char_ptr();
-    {
-        let p = p_in.cast::<u8>();
-        assert!(size >= 0);
-        if size == 0 {
-            return CharInfo { value: -1, len: 1 };
-        }
-        let first = unsafe { *p };
-        if first < 0x80 {
-            CharInfo {
-                value: i32::from(first),
-                len: 1,
-            }
-        } else {
-            let mut len = i32::from(UTF8LEN_TAB[first as usize]);
-            if len > size {
-                return CharInfo { value: -1, len: 1 };
-            }
-            let code_point = utf_ptr2_char_info_impl(p, len as usize);
-            if code_point < 0 {
-                len = 1;
-            }
-            CharInfo {
-                value: code_point,
-                len,
-            }
-        }
-    }
+    assert!(size >= 0);
+    utf_slice2_char_info(unsafe { raw_utf8_prefix_len(p_in.cast(), size as usize) })
 }
 
-#[cfg(test)]
 #[inline]
 pub fn utf_slice2_char_info(bytes: &[u8]) -> CharInfo {
-    utf_ptr2_char_info_len(bytes, bytes.len() as i32)
+    let Some(&first) = bytes.first() else {
+        return CharInfo { value: -1, len: 1 };
+    };
+    if first < 0x80 {
+        CharInfo {
+            value: i32::from(first),
+            len: 1,
+        }
+    } else {
+        let len = usize::from(UTF8LEN_TAB[first as usize]);
+        let Some(chunk) = bytes.get(..len) else {
+            return CharInfo { value: -1, len: 1 };
+        };
+        let code_point = utf_slice2_char_info_impl(chunk);
+        CharInfo {
+            value: code_point,
+            len: if code_point < 0 { 1 } else { len as i32 },
+        }
+    }
 }
 
 #[inline]
@@ -1020,12 +1015,78 @@ pub fn utf_cluster_cells(bytes: &[u8]) -> i32 {
 
 #[inline]
 pub fn utf_slice2char(bytes: &[u8]) -> i32 {
-    utf_ptr2char(bytes)
+    let Some(&b0) = bytes.first() else {
+        return 0;
+    };
+    if b0 < 0x80 {
+        return i32::from(b0);
+    }
+    let len = usize::from(UTF8LEN_TAB[b0 as usize]);
+    if len < 2 {
+        return i32::from(b0);
+    }
+    let Some(s) = bytes.get(..len) else {
+        return i32::from(b0);
+    };
+    if !s[1..].iter().all(|&b| (b & 0xC0) == 0x80) {
+        return i32::from(b0);
+    }
+    let v0 = u32::from(s[0]);
+    let v1 = u32::from(s[1]);
+    match len {
+        2 => ((v0 << 6) + v1 - ((0xC0 << 6) + 0x80)) as i32,
+        3 => {
+            let v2 = u32::from(s[2]);
+            ((v0 << 12) + (v1 << 6) + v2 - ((0xE0 << 12) + (0x80 << 6) + 0x80)) as i32
+        }
+        4 => {
+            let v2 = u32::from(s[2]);
+            let v3 = u32::from(s[3]);
+            ((v0 << 18) + (v1 << 12) + (v2 << 6) + v3
+                - ((0xF0 << 18) + (0x80 << 12) + (0x80 << 6) + 0x80)) as i32
+        }
+        5 => {
+            let v2 = u32::from(s[2]);
+            let v3 = u32::from(s[3]);
+            let v4 = u32::from(s[4]);
+            ((v0 << 24) + (v1 << 18) + (v2 << 12) + (v3 << 6) + v4
+                - ((0xF8 << 24) + (0x80 << 18) + (0x80 << 12) + (0x80 << 6) + 0x80))
+                as i32
+        }
+        _ => {
+            let v2 = u32::from(s[2]);
+            let v3 = u32::from(s[3]);
+            let v4 = u32::from(s[4]);
+            let v5 = u32::from(s[5]);
+            ((v0 << 30)
+                .wrapping_add(v1 << 24)
+                .wrapping_add(v2 << 18)
+                .wrapping_add(v3 << 12)
+                .wrapping_add(v4 << 6)
+                .wrapping_add(v5)
+                .wrapping_sub((0x80 << 24) + (0x80 << 18) + (0x80 << 12) + (0x80 << 6) + 0x80))
+                as i32
+        }
+    }
 }
 
 #[inline]
 pub fn utf_slice2len(bytes: &[u8]) -> usize {
-    utf_ptr2len(bytes) as usize
+    let Some(&b0) = bytes.first() else {
+        return 0;
+    };
+    if b0 == 0 {
+        return 0;
+    }
+    let len = usize::from(UTF8LEN_TAB[b0 as usize]);
+    if bytes
+        .get(1..len)
+        .is_some_and(|tail| tail.iter().all(|&b| (b & 0xc0) == 0x80))
+    {
+        len
+    } else {
+        1
+    }
 }
 
 #[inline]
@@ -1226,7 +1287,7 @@ pub fn utf_ptr2cells(p_in: impl crate::strings::IntoCCharPtr) -> i32 {
     }
 }
 
-pub fn utf_ptr2_char_info_impl(p: *const u8, len: usize) -> i32 {
+pub fn utf_slice2_char_info_impl(bytes: &[u8]) -> i32 {
     const CORRECTIONS: [u32; 7] = [
         1u32 << 31,
         1u32 << 31,
@@ -1241,50 +1302,28 @@ pub fn utf_ptr2_char_info_impl(p: *const u8, len: usize) -> i32 {
         ),
     ];
 
-    let corr = CORRECTIONS[len];
-    let mut cur = unsafe { *p.wrapping_add(1) };
-    let mut code_point = (u32::from(unsafe { *p }) << 6).wrapping_add(u32::from(cur));
-    if (cur & 0xC0) != 0x80 {
+    let len = bytes.len();
+    let Some(corr) = CORRECTIONS.get(len).copied() else {
+        return -1;
+    };
+    let Some((&b0, tail)) = bytes.split_first() else {
+        return -1;
+    };
+    if len < 2 {
         return -1;
     }
-    if (len as u32) < 3 {
-        return code_point.wrapping_add(corr) as i32;
+    let mut code_point = u32::from(b0);
+    for &cur in tail {
+        if (cur & 0xC0) != 0x80 {
+            return -1;
+        }
+        code_point = (code_point << 6).wrapping_add(u32::from(cur));
     }
-
-    cur = unsafe { *p.wrapping_add(2) };
-    code_point = (code_point << 6).wrapping_add(u32::from(cur));
-    if (cur & 0xC0) != 0x80 {
-        return -1;
-    }
-    if (len as u32) == 3 {
-        return code_point.wrapping_add(corr) as i32;
-    }
-
-    cur = unsafe { *p.wrapping_add(3) };
-    code_point = (code_point << 6).wrapping_add(u32::from(cur));
-    if (cur & 0xC0) != 0x80 {
-        return -1;
-    }
-    if (len as u32) == 4 {
-        return code_point.wrapping_add(corr) as i32;
-    }
-
-    cur = unsafe { *p.wrapping_add(4) };
-    code_point = (code_point << 6).wrapping_add(u32::from(cur));
-    if (cur & 0xC0) != 0x80 {
-        return -1;
-    }
-    if (len as u32) == 5 {
-        return code_point.wrapping_add(corr) as i32;
-    }
-
-    cur = unsafe { *p.wrapping_add(5) };
-    code_point = (code_point << 6).wrapping_add(u32::from(cur));
-    if (cur & 0xC0) != 0x80 {
-        return -1;
-    }
-
     code_point.wrapping_add(corr) as i32
+}
+
+pub fn utf_ptr2_char_info_impl(p: *const u8, len: usize) -> i32 {
+    utf_slice2_char_info_impl(unsafe { std::slice::from_raw_parts(p, len) })
 }
 
 pub fn mb_string2cells(str_: impl crate::strings::IntoCCharPtr) -> usize {
@@ -1320,66 +1359,7 @@ pub fn mb_string2cells_len(str_: impl crate::strings::IntoCCharPtr, size: usize)
 
 pub fn utf_ptr2char(p_in: impl crate::strings::IntoCCharPtr) -> i32 {
     let p_in = p_in.into_c_char_ptr();
-    {
-        let p = p_in.cast::<u8>();
-        let v0 = u32::from(unsafe { *p });
-        if v0 < 0x80 {
-            return v0 as i32;
-        }
-
-        let len = UTF8LEN_TAB[v0 as usize];
-        if len < 2 {
-            return v0 as i32;
-        }
-
-        let v1 = u32::from(unsafe { *p.wrapping_add(1) });
-        if (v1 & 0xC0) != 0x80 {
-            return v0 as i32;
-        }
-        if len == 2 {
-            return ((v0 << 6) + v1 - ((0xC0 << 6) + 0x80)) as i32;
-        }
-
-        let v2 = u32::from(unsafe { *p.wrapping_add(2) });
-        if (v2 & 0xC0) != 0x80 {
-            return v0 as i32;
-        }
-        if len == 3 {
-            return ((v0 << 12) + (v1 << 6) + v2 - ((0xE0 << 12) + (0x80 << 6) + 0x80)) as i32;
-        }
-
-        let v3 = u32::from(unsafe { *p.wrapping_add(3) });
-        if (v3 & 0xC0) != 0x80 {
-            return v0 as i32;
-        }
-        if len == 4 {
-            return ((v0 << 18) + (v1 << 12) + (v2 << 6) + v3
-                - ((0xF0 << 18) + (0x80 << 12) + (0x80 << 6) + 0x80)) as i32;
-        }
-
-        let v4 = u32::from(unsafe { *p.wrapping_add(4) });
-        if (v4 & 0xC0) != 0x80 {
-            return v0 as i32;
-        }
-        if len == 5 {
-            return ((v0 << 24) + (v1 << 18) + (v2 << 12) + (v3 << 6) + v4
-                - ((0xF8 << 24) + (0x80 << 18) + (0x80 << 12) + (0x80 << 6) + 0x80))
-                as i32;
-        }
-
-        let v5 = u32::from(unsafe { *p.wrapping_add(5) });
-        if (v5 & 0xC0) != 0x80 {
-            return v0 as i32;
-        }
-        ((v0 << 30)
-            .wrapping_add(v1 << 24)
-            .wrapping_add(v2 << 18)
-            .wrapping_add(v3 << 12)
-            .wrapping_add(v4 << 6)
-            .wrapping_add(v5)
-            .wrapping_sub((0x80 << 24) + (0x80 << 18) + (0x80 << 12) + (0x80 << 6) + 0x80))
-            as i32
-    }
+    utf_slice2char(unsafe { raw_utf8_prefix(p_in.cast()) })
 }
 
 fn utf_safe_read_char_adv<T>(s: &mut *const T, n: &mut usize) -> i32 {
@@ -1427,6 +1407,18 @@ pub fn utf_iscomposing_first(c: i32) -> bool {
     c >= 128 && !utf8proc_grapheme_break(b' ' as i32, c)
 }
 
+pub fn utf_composinglike_slice(p1: &[u8], p2: &[u8], state: Option<&mut GraphemeState>) -> bool {
+    if p2.first().is_none_or(|&b| b < 128) {
+        return false;
+    }
+    let first = utf_slice2char(p1);
+    let second = utf_slice2char(p2);
+    if !utf8proc_grapheme_break_stateful(first, second, state) {
+        return true;
+    }
+    arabic_combine(first, second)
+}
+
 pub fn utf_composinglike(
     p1: impl crate::strings::IntoCCharPtr,
     p2: impl crate::strings::IntoCCharPtr,
@@ -1434,16 +1426,12 @@ pub fn utf_composinglike(
 ) -> bool {
     let p1 = p1.into_c_char_ptr();
     let p2 = p2.into_c_char_ptr();
-    {
-        if unsafe { *p2.cast::<u8>() } < 128 {
-            return false;
-        }
-        let first = utf_ptr2char(p1);
-        let second = utf_ptr2char(p2);
-        if !utf8proc_grapheme_break_stateful(first, second, state) {
-            return true;
-        }
-        arabic_combine(first, second)
+    unsafe {
+        utf_composinglike_slice(
+            raw_utf8_prefix(p1.cast()),
+            raw_utf8_prefix(p2.cast()),
+            state,
+        )
     }
 }
 
@@ -1453,41 +1441,39 @@ pub fn utf_iscomposing(c1: i32, c2: i32, state: &mut GraphemeState) -> bool {
 
 pub fn utf_ptr2len(p_in: impl crate::strings::IntoCCharPtr) -> i32 {
     let p_in = p_in.into_c_char_ptr();
-    {
-        let p = p_in.cast::<u8>();
-        if unsafe { *p } == 0 {
-            return 0;
-        }
-        let len = i32::from(UTF8LEN_TAB[unsafe { *p } as usize]);
-        for i in 1..len as usize {
-            if (unsafe { *p.wrapping_add(i) } & 0xc0) != 0x80 {
-                return 1;
-            }
-        }
-        len
-    }
+    utf_slice2len(unsafe { raw_utf8_prefix(p_in.cast()) }) as i32
 }
 
 pub fn utf_byte2len(b: i32) -> i32 {
     i32::from(UTF8LEN_TAB[(b as u8) as usize])
 }
 
-pub fn utf_ptr2len_len(p: impl crate::strings::IntoCCharPtr, size: i32) -> i32 {
-    let p = p.into_c_char_ptr();
-    {
-        let bytes = p.cast::<u8>();
-        let len = i32::from(UTF8LEN_TAB[unsafe { *bytes } as usize]);
-        if len == 1 {
-            return 1;
-        }
-        let m = len.min(size);
-        for i in 1..m as usize {
-            if (unsafe { *bytes.wrapping_add(i) } & 0xc0) != 0x80 {
-                return 1;
-            }
-        }
-        len
+#[inline]
+fn utf_slice2len_incomplete(bytes: &[u8]) -> usize {
+    let Some(&b0) = bytes.first() else {
+        return 1;
+    };
+    let len = usize::from(UTF8LEN_TAB[b0 as usize]);
+    if len == 1 {
+        return 1;
     }
+    let m = len.min(bytes.len());
+    if bytes[1..m].iter().all(|&b| (b & 0xc0) == 0x80) {
+        len
+    } else {
+        1
+    }
+}
+
+pub fn utf_ptr2len_len(p: impl crate::strings::IntoCCharPtr, size: i32) -> i32 {
+    let bytes = p.into_c_char_ptr().cast::<u8>();
+    let len = usize::from(UTF8LEN_TAB[unsafe { *bytes } as usize]);
+    if size <= 0 || len == 1 {
+        return len as i32;
+    }
+    let m = len.min(size as usize);
+    let slice = unsafe { std::slice::from_raw_parts(bytes, m) };
+    utf_slice2len_incomplete(slice) as i32
 }
 
 pub fn utfc_ptr2len(p: impl crate::strings::IntoCCharPtr) -> i32 {
@@ -1522,7 +1508,39 @@ pub fn utfc_ptr2len(p: impl crate::strings::IntoCCharPtr) -> i32 {
 }
 
 pub fn utfc_slice2len(bytes: &[u8]) -> usize {
-    utfc_ptr2len_len(bytes, bytes.len() as i32) as usize
+    let Some(&b0) = bytes.first() else {
+        return 0;
+    };
+    if b0 == 0 {
+        return 0;
+    }
+    if b0 < 0x80 && bytes.get(1).is_none_or(|&b1| b1 < 0x80) {
+        return 1;
+    }
+
+    let mut len = utf_slice2len_incomplete(bytes);
+    if (len == 1 && b0 >= 0x80) || len > bytes.len() {
+        return 1;
+    }
+
+    let mut prevlen = 0usize;
+    let mut state: GraphemeState = GRAPHEME_STATE_INIT;
+    while len < bytes.len() {
+        let next_bytes = &bytes[len..];
+        if next_bytes[0] < 0x80 {
+            break;
+        }
+        let len_next_char = utf_slice2len_incomplete(next_bytes);
+        if len_next_char > next_bytes.len() {
+            break;
+        }
+        if !utf_composinglike_slice(&bytes[prevlen..], next_bytes, Some(&mut state)) {
+            break;
+        }
+        prevlen = len;
+        len += len_next_char;
+    }
+    len
 }
 
 pub fn mb_copy_slice_char(src: &[u8], dst: &mut [u8]) -> usize {
@@ -1532,40 +1550,19 @@ pub fn mb_copy_slice_char(src: &[u8], dst: &mut [u8]) -> usize {
 }
 
 pub fn utfc_ptr2len_len(p: impl crate::strings::IntoCCharPtr, size: i32) -> i32 {
-    let p = p.into_c_char_ptr();
-    {
-        if size < 1 || crate::memory::cstr_is_empty(p) {
-            return 0;
-        }
-        let b0 = unsafe { *p.cast::<u8>() };
-        if b0 < 0x80 && (size == 1 || unsafe { *p.wrapping_add(1).cast::<u8>() } < 0x80) {
-            return 1;
-        }
-
-        let mut len = utf_ptr2len_len(p, size);
-        if (len == 1 && b0 >= 0x80) || len > size {
-            return 1;
-        }
-
-        let mut prevlen = 0usize;
-        let mut state: GraphemeState = GRAPHEME_STATE_INIT;
-        while len < size {
-            let next_ptr = p.wrapping_add(len as usize);
-            if unsafe { *next_ptr.cast::<u8>() } < 0x80 {
-                break;
-            }
-            let len_next_char = utf_ptr2len_len(next_ptr, size - len);
-            if len_next_char > size - len {
-                break;
-            }
-            if !utf_composinglike(p.wrapping_add(prevlen), next_ptr, Some(&mut state)) {
-                break;
-            }
-            prevlen = len as usize;
-            len += len_next_char;
-        }
-        len
+    let p = p.into_c_char_ptr().cast::<u8>();
+    if size < 1 {
+        return 0;
     }
+    let b0 = unsafe { *p };
+    if b0 == 0 {
+        return 0;
+    }
+    if b0 < 0x80 && (size == 1 || unsafe { *p.wrapping_add(1) } < 0x80) {
+        return 1;
+    }
+    let slice = unsafe { std::slice::from_raw_parts(p, size as usize) };
+    utfc_slice2len(slice) as i32
 }
 
 pub const fn utf_char2len(c: i32) -> i32 {
@@ -3691,6 +3688,27 @@ mod tests {
             assert_eq!(len, 3);
             assert_eq!(utf_ptr2len(&buf), 3);
             assert_eq!(utf_ptr2char(&buf), 0x20ac);
+            assert_eq!(utf_slice2len(&buf[..3]), 3);
+            assert_eq!(utf_slice2char(&buf[..3]), 0x20ac);
+            // Truncated non-NUL-terminated multibyte slices must not overread or panic:
+            assert_eq!(utf_slice2len(&[]), 0);
+            assert_eq!(utf_slice2char(&[]), 0);
+            assert_eq!(utf_slice2len(&[0xe2]), 1);
+            assert_eq!(utf_slice2char(&[0xe2]), 0xe2);
+            assert_eq!(utf_slice2len(&[0xe2, 0x82]), 1);
+            assert_eq!(utf_slice2char(&[0xe2, 0x82]), 0xe2);
+            assert_eq!(utfc_slice2len(&[0xe2, 0x82]), 1);
+            assert_eq!(
+                utf_slice2_char_info(&[0xe2, 0x82]),
+                CharInfo { value: -1, len: 1 }
+            );
+            assert_eq!(
+                utf_slice2_char_info(&buf[..3]),
+                CharInfo {
+                    value: 0x20ac,
+                    len: 3
+                }
+            );
             assert!(utf_valid_string(&buf, ptr::null()));
             assert!(utf_printable(0x20ac));
             assert!(!utf_printable(0xd800));
