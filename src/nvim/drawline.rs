@@ -2858,11 +2858,13 @@ pub fn win_line(
                                     if mb_c < 128 && ascii_iswhite(mb_c) {
                                         if mb_c == i32::from(TAB) {
                                             fix_for_boguscols(&mut wlv);
-                                            if !extconceal
-                                                && (wp.w_onebuf_opt.wo_list == 0
-                                                    || wp.w_p_lcs_chars.tab1 != 0)
-                                            {
+                                            if !extconceal && wp.w_onebuf_opt.wo_list == 0 {
                                                 tab_absorb_extconceal(&mut wlv);
+                                            } else if !extconceal
+                                                && wp.w_p_lcs_chars.tab1 != 0
+                                                && wlv.extconceal_off > 0
+                                            {
+                                                wlv.n_extra += wlv.extconceal_off;
                                             }
                                         }
                                         if wp.w_onebuf_opt.wo_list == 0 {
