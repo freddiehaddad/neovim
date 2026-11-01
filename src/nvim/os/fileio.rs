@@ -170,7 +170,7 @@ pub fn file_open_buffer(ret_fp: &mut FileDescriptor, data: &[u8]) {
     ret_fp.bytes_read = 0;
 }
 
-/// Close `fp` and free its buffer (`file_close`).
+/// Close file and free its buffer. Idempotent: closing it again does nothing (`file_close`).
 ///
 /// # Safety
 /// `fp` must be a valid writable pointer to an initialized `FileDescriptor`.
@@ -185,6 +185,7 @@ pub fn file_close(fp: &mut FileDescriptor, do_fsync: bool) -> i32 {
         file_flush(fp)
     };
     let close_error = os_close(fp.fd);
+    fp.fd = -1;
     fp.buffer = Vec::new();
     fp.read_pos = 0;
     fp.write_pos = 0;

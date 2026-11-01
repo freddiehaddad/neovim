@@ -61,19 +61,18 @@ use crate::option::copy_option_part;
 use crate::option_vars::*;
 use crate::os::env::{expand_env, home_replace, home_replace_save, os_get_pid};
 use crate::os::fileio::{
-    FileDescriptor, K_FILE_CREATE, K_FILE_CREATE_ONLY, K_FILE_NO_SYMLINK, K_FILE_READ_ONLY,
-    K_FILE_TRUNCATE, file_close, file_flush, file_open, file_open_buffer, file_read, file_skip,
-    file_try_read_buffered,
+    FileDescriptor, K_FILE_CREATE_ONLY, K_FILE_NO_SYMLINK, K_FILE_READ_ONLY, file_close,
+    file_flush, file_open, file_open_buffer, file_read, file_skip, file_try_read_buffered,
 };
 use crate::os::fs::{
-    CASE_INSENSITIVE_FILENAME, FileInfo, UV_ENOENT, os_fileinfo, os_fileinfo_link, os_getperm,
-    os_isdir, os_mkdir_recurse, os_remove,
+    CASE_INSENSITIVE_FILENAME, FileInfo, UV_ENOENT, os_file_mkdir, os_fileinfo, os_fileinfo_link,
+    os_getperm, os_remove,
 };
 use crate::os::stdpaths::stdpaths_user_state_subpath;
 use crate::os::time::{Timestamp, os_time};
 use crate::path::{
     K_PATH_CMP_LITERAL, concat_fnames_cstr, path_cmp, path_equal, path_fold_char,
-    path_tail_with_sep, path_try_shorten_fname, vim_ispathsep, vim_ispathsep_nocolon,
+    path_try_shorten_fname, vim_ispathsep, vim_ispathsep_nocolon,
 };
 use crate::regexp::{K_MARK_BUF_LOCAL, regtilde};
 use crate::register::{
@@ -246,6 +245,7 @@ enum ShaDaWriteResult {
     SDWriteIgnError,
 }
 
+const K_SDREAD_HEADER: u32 = 1 << (ShadaEntryType::SDItemHeader as u32);
 const K_SDREAD_UNDISABLEABLE_DATA: u32 = (1 << (ShadaEntryType::SDItemSearchPattern as u32))
     | (1 << (ShadaEntryType::SDItemSubString as u32))
     | (1 << (ShadaEntryType::SDItemJump as u32));
@@ -981,7 +981,7 @@ fn sd_reader_skip(sd_reader: &mut FileDescriptor, offset: usize) -> ShaDaReadRes
     ShaDaReadResult::SDReadStatusSuccess
 }
 
-fn close_file(cookie: &mut FileDescriptor) {
+fn close_file(cookie: &mut FileDescriptor) -> i32 {
     let error = file_close(cookie, opt_vars().p_fs != 0);
     if error != 0 {
         semsg!(
@@ -989,6 +989,7 @@ fn close_file(cookie: &mut FileDescriptor) {
             unsafe { uv_strerror(error) },
         );
     }
+    error
 }
 
 fn shada_read_file(file: impl crate::strings::IntoCCharPtr, flags: i32) -> bool {
@@ -2082,6 +2083,7 @@ fn shada_read_when_writing(
 ) -> ShaDaWriteResult {
     let mut ret = ShaDaWriteResult::SDWriteSuccessful;
     let mut entry = MISSING_ENTRY;
+    let mut has_header = false;
 
     loop {
         let srni_ret = shada_read_next_item(sd_reader, &mut entry, srni_flags, max_kbyte);
@@ -2092,7 +2094,13 @@ fn shada_read_when_writing(
             ShaDaReadResult::SDReadStatusSuccess => {}
             ShaDaReadResult::SDReadStatusFinished => std::process::abort(),
             ShaDaReadResult::SDReadStatusNotShaDa => {
-                return ShaDaWriteResult::SDWriteReadNotShada;
+                // Damage after a valid header (e.g. truncated by a crash), so we know it is a
+                // (partial) ShaDa file. Keep the entries gathered so far and replace the file.
+                return if has_header {
+                    ret
+                } else {
+                    ShaDaWriteResult::SDWriteReadNotShada
+                };
             }
             ShaDaReadResult::SDReadStatusReadError => {
                 return ret;
@@ -2115,7 +2123,11 @@ fn shada_read_when_writing(
 
         match entry.entry_type {
             ShadaEntryType::SDItemMissing => {}
-            ShadaEntryType::SDItemHeader | ShadaEntryType::SDItemBufferList => {
+            ShadaEntryType::SDItemHeader => {
+                has_header = true;
+                shada_free_shada_entry(&mut entry);
+            }
+            ShadaEntryType::SDItemBufferList => {
                 std::process::abort();
             }
             ShadaEntryType::SDItemUnknown => {
@@ -2631,7 +2643,8 @@ fn shada_write(
             }
         }
 
-        let srni_flags: u32 = K_SDREAD_UNDISABLEABLE_DATA
+        let srni_flags: u32 = K_SDREAD_HEADER
+            | K_SDREAD_UNDISABLEABLE_DATA
             | K_SDREAD_UNKNOWN
             | if dump_history { K_SDREAD_HISTORY } else { 0 }
             | if dump_registers {
@@ -3123,6 +3136,9 @@ fn shada_write(
         }
         wms.file_marks.clear();
         crate::msgpack_rpc::packer::packer_flush_buffer(&mut packer);
+        if packer.anyint != 0 {
+            ret = ShaDaWriteResult::SDWriteFailed;
+        }
         ret
     }
 }
@@ -3184,7 +3200,7 @@ fn shada_open_tmp(
 }
 
 /// Write ShaDa file to a given location (`shada_write_file`).
-pub fn shada_write_file(file: impl crate::strings::IntoCCharPtr, mut nomerge: bool) -> bool {
+pub fn shada_write_file(file: impl crate::strings::IntoCCharPtr, nomerge: bool) -> bool {
     let file = file.into_c_char_ptr();
     {
         let Some(fname_cstr) = shada_filename(file) else {
@@ -3193,92 +3209,44 @@ pub fn shada_write_file(file: impl crate::strings::IntoCCharPtr, mut nomerge: bo
         let mut fname_bytes = fname_cstr.into_bytes_with_nul();
         let fname = fname_bytes.as_mut_ptr();
 
-        let mut tempname_bytes: Vec<u8> = Vec::new();
         let mut sd_writer = FileDescriptor::new();
         let mut sd_reader = FileDescriptor::new();
-        let mut did_open_writer = false;
         let mut did_open_reader = false;
 
         if !nomerge {
             let error = file_open(&mut sd_reader, fname.cast(), K_FILE_READ_ONLY, 0);
-            if error != 0 {
-                if error != UV_ENOENT {
-                    semsg!(
-                        gettext(
-                            c"E886: System error while opening ShaDa file %s for reading to merge before writing it: %s",
-                        ),
-                        CStr::from_bytes_with_nul(&fname_bytes).unwrap_or_default().as_ptr(),
-                        unsafe { uv_strerror(error) },
-                    );
-                }
-                nomerge = true;
-            } else {
+            if error == 0 {
                 did_open_reader = true;
-            }
-            if !nomerge {
-                let mut perm = os_getperm(fname.cast());
-                perm = if perm >= 0 {
-                    (perm & 0o777) | 0o600
-                } else {
-                    0o600
-                };
-                if let Some(tn) = shada_open_tmp(&fname_bytes, &mut sd_writer, perm) {
-                    tempname_bytes = tn;
-                    did_open_writer = true;
-                }
-            }
-        }
-
-        if nomerge {
-            let tail = path_tail_with_sep(fname.cast()).cast::<u8>();
-            if tail != fname {
-                let tail_save = unsafe { *tail };
-                unsafe {
-                    *tail = 0;
-                }
-                if !os_isdir(fname.cast()) {
-                    let mut failed_dir: Option<std::ffi::CString> = None;
-                    let ret = os_mkdir_recurse(fname.cast(), 0o700, &mut failed_dir, None);
-                    if ret != 0 {
-                        semsg!(
-                            gettext(
-                                c"E886: Failed to create directory %s for writing ShaDa file: %s",
-                            ),
-                            failed_dir.as_ref().map_or(ptr::null(), |s| s.as_ptr()),
-                            unsafe { uv_strerror(ret) },
-                        );
-                        return false;
-                    }
-                }
-                unsafe {
-                    *tail = tail_save;
-                }
-            }
-            let error = file_open(
-                &mut sd_writer,
-                fname.cast(),
-                K_FILE_CREATE | K_FILE_TRUNCATE,
-                0o600,
-            );
-            if error != 0 {
+            } else if error != UV_ENOENT {
                 semsg!(
-                    gettext(c"E886: System error while opening ShaDa file %s for writing: %s",),
+                    gettext(
+                        c"E886: System error while opening ShaDa file %s for reading to merge before writing it: %s",
+                    ),
                     CStr::from_bytes_with_nul(&fname_bytes)
                         .unwrap_or_default()
                         .as_ptr(),
                     unsafe { uv_strerror(error) },
                 );
-            } else {
-                did_open_writer = true;
             }
         }
 
-        if !did_open_writer {
+        let mut perm = os_getperm(fname.cast());
+        perm = if perm >= 0 {
+            (perm & 0o777) | 0o600
+        } else {
+            0o600
+        };
+        let tempname_opt = if os_file_mkdir(fname.cast(), 0o700) == 0 {
+            shada_open_tmp(&fname_bytes, &mut sd_writer, perm)
+        } else {
+            None
+        };
+        let Some(tempname_bytes) = tempname_opt else {
             if did_open_reader {
                 close_file(&mut sd_reader);
             }
             return false;
-        }
+        };
 
         let fname_cstr = CStr::from_bytes_with_nul(&fname_bytes).unwrap_or_default();
         if opt_vars().p_verbose > 1 {
@@ -3291,54 +3259,39 @@ pub fn shada_write_file(file: impl crate::strings::IntoCCharPtr, mut nomerge: bo
             verbose_leave();
         }
 
-        let sw_ret = shada_write(&mut sd_writer, unsafe {
-            (if nomerge {
-                ptr::null_mut()
-            } else {
-                &mut sd_reader
-            })
-            .as_mut()
-        });
+        let sw_ret = shada_write(&mut sd_writer, did_open_reader.then_some(&mut sd_reader));
         assert!(sw_ret != ShaDaWriteResult::SDWriteIgnError);
-        if !nomerge {
-            let tempname_cstr = CStr::from_bytes_with_nul(&tempname_bytes).unwrap_or_default();
-            let tempname = tempname_cstr.as_ptr();
-            let fname = fname_cstr.as_ptr();
-            if did_open_reader {
-                close_file(&mut sd_reader);
-            }
-            let mut did_remove = false;
-            if sw_ret == ShaDaWriteResult::SDWriteSuccessful {
-                let mut old_info = FileInfo::new();
-                let is_dir = (old_info.stat.st_mode & S_IFMT) == S_IFDIR;
-                #[cfg(unix)]
-                let unix_not_writable = |info: &FileInfo| -> bool {
-                    let uid = unsafe { getuid() };
-                    let gid = unsafe { getgid() };
-                    uid != ROOT_UID
-                        && !(if info.stat.st_uid == u64::from(uid) {
-                            (info.stat.st_mode & 0o200) != 0
-                        } else if info.stat.st_gid == u64::from(gid) {
-                            (info.stat.st_mode & 0o020) != 0
-                        } else {
-                            (info.stat.st_mode & 0o002) != 0
-                        })
-                };
-                #[cfg(not(unix))]
-                let unix_not_writable = |_info: &FileInfo| -> bool { false };
+        if did_open_reader {
+            close_file(&mut sd_reader);
+        }
+        let tempname_cstr = CStr::from_bytes_with_nul(&tempname_bytes).unwrap_or_default();
+        let tempname = tempname_cstr.as_ptr();
+        let fname = fname_cstr.as_ptr();
+        let mut did_remove = false;
+        if sw_ret == ShaDaWriteResult::SDWriteSuccessful {
+            let mut can_rename = true;
+            let mut old_info = FileInfo::new();
+            #[cfg(unix)]
+            let unix_not_writable = |info: &FileInfo| -> bool {
+                let uid = unsafe { getuid() };
+                let gid = unsafe { getgid() };
+                uid != ROOT_UID
+                    && !(if info.stat.st_uid == u64::from(uid) {
+                        (info.stat.st_mode & 0o200) != 0
+                    } else if info.stat.st_gid == u64::from(gid) {
+                        (info.stat.st_mode & 0o020) != 0
+                    } else {
+                        (info.stat.st_mode & 0o002) != 0
+                    })
+            };
+            #[cfg(not(unix))]
+            let unix_not_writable = |_info: &FileInfo| -> bool { false };
 
-                let has_info = os_fileinfo(fname, &mut old_info);
-                if !has_info
-                    || (old_info.stat.st_mode & S_IFMT) == S_IFDIR
-                    || is_dir
-                    || unix_not_writable(&old_info)
-                {
+            if os_fileinfo(fname, &mut old_info) {
+                if (old_info.stat.st_mode & S_IFMT) == S_IFDIR || unix_not_writable(&old_info) {
                     semsg!(gettext(c"E137: ShaDa file is not writable: %s"), fname,);
+                    can_rename = false;
                 } else {
-                    #[cfg(unix)]
-                    let mut chown_ok = true;
-                    #[cfg(not(unix))]
-                    let chown_ok = true;
                     #[cfg(unix)]
                     {
                         if unsafe { getuid() } == ROOT_UID
@@ -3354,45 +3307,45 @@ pub fn shada_write_file(file: impl crate::strings::IntoCCharPtr, mut nomerge: bo
                                     tempname,
                                     unsafe { uv_strerror(fchown_ret) },
                                 );
-                                chown_ok = false;
+                                can_rename = false;
                             }
                         }
                     }
-                    if chown_ok {
-                        if vim_rename(tempname, fname) == -1 {
-                            semsg!(
-                                gettext(c"E136: Can't rename ShaDa file from %s to %s!"),
-                                tempname,
-                                fname,
-                            );
-                        } else {
-                            did_remove = true;
-                            os_remove(tempname);
-                        }
-                    }
                 }
-            } else if sw_ret == ShaDaWriteResult::SDWriteReadNotShada {
-                semsg!(
-                    gettext(c"E136: Did not rename %s because %s does not look like a ShaDa file",),
-                    tempname,
-                    fname,
-                );
-            } else {
-                semsg!(
-                    gettext(
-                        c"E136: Did not rename %s to %s because there were errors during writing it",
-                    ),
-                    tempname,
-                    fname,
-                );
             }
-            if !did_remove {
-                semsg!(
-                    gettext(c"E136: Do not forget to remove %s or rename it manually to %s.",),
-                    tempname,
-                    fname,
-                );
+            if can_rename && close_file(&mut sd_writer) == 0 {
+                if vim_rename(tempname, fname) == -1 {
+                    semsg!(
+                        gettext(c"E136: Can't rename ShaDa file from %s to %s!"),
+                        tempname,
+                        fname,
+                    );
+                } else {
+                    did_remove = true;
+                    os_remove(tempname);
+                }
             }
+        } else if sw_ret == ShaDaWriteResult::SDWriteReadNotShada {
+            semsg!(
+                gettext(c"E136: Did not rename %s because %s does not look like a ShaDa file",),
+                tempname,
+                fname,
+            );
+        } else {
+            semsg!(
+                gettext(
+                    c"E136: Did not rename %s to %s because there were errors during writing it",
+                ),
+                tempname,
+                fname,
+            );
+        }
+        if !did_remove {
+            semsg!(
+                gettext(c"E136: Do not forget to remove %s or rename it manually to %s.",),
+                tempname,
+                fname,
+            );
         }
         close_file(&mut sd_writer);
 
@@ -3686,7 +3639,11 @@ fn shada_read_next_item(
 
         let parse_ok: bool = 'parse_item: {
             match entry_type {
-                ShadaEntryType::SDItemHeader => {}
+                ShadaEntryType::SDItemHeader => {
+                    if unpack_skip(&mut read_ptr, &mut read_size) != MPACK_OK {
+                        break 'parse_item false;
+                    }
+                }
                 ShadaEntryType::SDItemSearchPattern => {
                     let it = entry.data.search_pattern_mut();
                     if !unpack_keydict(
