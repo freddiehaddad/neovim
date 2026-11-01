@@ -4369,9 +4369,8 @@ pub fn create_environment(
                     #[cfg(windows)]
                     {
                         if namelen < MAXPATHL / MB_MAXBYTES {
-                            let namebuff = g_st().name_buff.as_mut_ptr();
-                            namelen = mb_strup_buf(name, namebuff);
-                            name = namebuff;
+                            namelen = mb_strup_buf(name, g_st().name_buff_bytes_mut());
+                            name = g_st().name_buff.as_ptr();
                         }
                     }
                     let _ = namelen;
@@ -4429,9 +4428,8 @@ pub fn create_environment(
                             let mut name: crate::strings::RawCCharPtr = var.di_key.as_ptr().cast();
                             let mut namelen = crate::memory::cstr_len(name);
                             if namelen < MAXPATHL / MB_MAXBYTES {
-                                let namebuff = g_st().name_buff.as_mut_ptr();
-                                namelen = mb_strup_buf(name, namebuff);
-                                name = namebuff;
+                                namelen = mb_strup_buf(name, g_st().name_buff_bytes_mut());
+                                name = g_st().name_buff.as_ptr();
                             }
                             let dv = tv_dict_find(Some(&*env), name, namelen as isize);
                             if !dv.is_null() {

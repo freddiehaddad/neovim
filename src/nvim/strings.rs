@@ -16,9 +16,9 @@ use crate::eval::typval::{
 use crate::ex_docmd::find_cmdline_var;
 use crate::math::{xisinf, xisnan};
 use crate::mbyte::{
-    mb_cptr2char_adv, mb_ptr2char_adv, mb_string2cells, mb_tolower, mb_toupper, utf_char2bytes,
-    utf_char2slice, utf_head_off, utf_ptr2_str_char_info, utf_ptr2cells, utf_ptr2char, utf_ptr2len,
-    utf_slice2_char_info, utfc_ptr2len, utfc_slice2len,
+    mb_cptr2char_adv, mb_ptr2char_adv, mb_string2cells, mb_tolower, mb_toupper, utf_char2slice,
+    utf_head_off_slice, utf_ptr2cells, utf_ptr2char, utf_ptr2len, utf_slice2_char_info,
+    utf_slice2char, utf_slice2len, utfc_ptr2len, utfc_slice2len,
 };
 use crate::memory::xstrlcpy;
 use crate::message::{emsg, semsg};
@@ -555,23 +555,23 @@ pub fn vim_strsave_shellescape<S: IntoCCharPtr>(
 }
 
 #[cfg(windows)]
-pub fn mb_strup_buf(src: RawCCharPtr, dst: RawCCharPtrMut) -> usize {
-    let mut i: usize = 0;
-    let mut p = src;
-    while !crate::memory::cstr_is_empty(p) {
-        let ci = utf_ptr2_str_char_info(p).chr;
+pub fn mb_strup_buf(src: impl IntoCCharPtr, dst: &mut [u8]) -> usize {
+    let bytes = crate::memory::cstr_as_bytes(src.into_c_char_ptr());
+    let mut out = 0usize;
+    let mut i = 0usize;
+    while i < bytes.len() {
+        let rest = &bytes[i..];
+        let ci = utf_slice2_char_info(rest);
         let c = if ci.value < 0 {
-            (unsafe { *p } as u8) as i32
+            i32::from(rest[0])
         } else {
             ci.value
         };
-        i += utf_char2bytes(mb_toupper(c), dst.wrapping_add(i).cast()) as usize;
-        p = p.wrapping_add(ci.len as usize);
+        out += utf_char2slice(mb_toupper(c), &mut dst[out..]);
+        i += ci.len as usize;
     }
-    unsafe {
-        *dst.wrapping_add(i) = NUL;
-    }
-    i
+    dst[out] = 0;
+    out
 }
 
 pub fn strcase_save<S: IntoCCharPtr>(orig: S, upper: bool) -> std::ffi::CString {
@@ -661,12 +661,13 @@ pub fn concat_str<S1: IntoCCharPtr, S2: IntoCCharPtr>(str1: S1, str2: S2) -> std
 pub fn tv_nr(tvs: *mut TypVal, idxp: &mut i32) -> Varnumber {
     let idx = (*idxp - 1) as usize;
     let mut n: Varnumber = 0;
-    if unsafe { (*tvs.wrapping_add(idx)).v_type } == VarType::VarUnknown {
+    let tv = unsafe { &*tvs.wrapping_add(idx) };
+    if tv.v_type == VarType::VarUnknown {
         emsg(gettext(E_PRINTF));
     } else {
         *idxp += 1;
         let mut err = false;
-        n = tv_get_number_chk(unsafe { &*tvs.wrapping_add(idx) }, Some(&mut err));
+        n = tv_get_number_chk(tv, Some(&mut err));
         if err {
             n = 0;
         }
@@ -715,12 +716,11 @@ pub fn tv_ptr(tvs: *const TypVal, idxp: &mut i32) -> *const c_void {
 pub fn tv_float(tvs: *mut TypVal, idxp: &mut i32) -> TvFloat {
     let idx = (*idxp - 1) as usize;
     let mut f: TvFloat = 0.0;
-    if unsafe { (*tvs.wrapping_add(idx)).v_type } == VarType::VarUnknown {
+    let tv = unsafe { &*tvs.wrapping_add(idx) };
+    if tv.v_type == VarType::VarUnknown {
         emsg(gettext(E_PRINTF));
     } else {
         *idxp += 1;
-        let tv = tvs.wrapping_add(idx);
-        let tv = unsafe { &mut *tv };
         if tv.v_type == VarType::VarFloat {
             f = tv.vval.v_float();
         } else if tv.v_type == VarType::VarNumber {
@@ -2297,57 +2297,58 @@ pub fn strrep<S1: IntoCCharPtr, S2: IntoCCharPtr, S3: IntoCCharPtr>(
 }
 
 fn byteidx_common(argvars: &mut [TypVal], rettv: &mut TypVal, comp: bool) {
-    unsafe {
-        rettv.vval = crate::eval::typval::TypvalVval::Number(-1);
+    rettv.vval = crate::eval::typval::TypvalVval::Number(-1);
 
-        let str_ = tv_get_string_chk(&argvars[0]);
-        let mut idx = tv_get_number_chk(&argvars[1], None);
-        let Some(str_cstr) = str_ else {
-            return;
-        };
-        if idx < 0 {
-            return;
-        }
-        let str_ = str_cstr.as_ptr();
-
-        let mut utf16idx: Varnumber = 0;
-        if argvars[2].v_type != VarType::VarUnknown {
-            let mut error = false;
-            utf16idx = tv_get_bool_chk(&argvars[2], Some(&mut error));
-            if error {
-                return;
-            }
-            if !(0..=1).contains(&utf16idx) {
-                semsg!(gettext(E_USING_NUMBER_AS_BOOL_NR), utf16idx,);
-                return;
-            }
-        }
-
-        let ptr2len: fn(RawCCharPtr) -> i32 = if comp { utf_ptr2len } else { utfc_ptr2len };
-
-        let mut t = str_;
-        while idx > 0 {
-            if crate::memory::cstr_is_empty(t) {
-                return;
-            }
-            if utf16idx != 0 {
-                let clen = ptr2len(t);
-                let c = if clen > 1 { utf_ptr2char(t) } else { *t as i32 };
-                if c > 0xFFFF {
-                    idx -= 1;
-                }
-                if idx > 0 {
-                    t = t.wrapping_add(clen as usize);
-                }
-            } else {
-                t = t.wrapping_add(ptr2len(t) as usize);
-            }
-            idx -= 1;
-        }
-        rettv.vval = crate::eval::typval::TypvalVval::Number(
-            crate::memory::ptr_offset_from(t, str_) as Varnumber,
-        );
+    let str_ = tv_get_string_chk(&argvars[0]);
+    let mut idx = tv_get_number_chk(&argvars[1], None);
+    let Some(str_cstr) = str_ else {
+        return;
+    };
+    if idx < 0 {
+        return;
     }
+    let bytes = str_cstr.to_bytes();
+
+    let mut utf16idx: Varnumber = 0;
+    if argvars[2].v_type != VarType::VarUnknown {
+        let mut error = false;
+        utf16idx = tv_get_bool_chk(&argvars[2], Some(&mut error));
+        if error {
+            return;
+        }
+        if !(0..=1).contains(&utf16idx) {
+            semsg!(gettext(E_USING_NUMBER_AS_BOOL_NR), utf16idx,);
+            return;
+        }
+    }
+
+    let slice2len: fn(&[u8]) -> usize = if comp { utf_slice2len } else { utfc_slice2len };
+
+    let mut off = 0usize;
+    while idx > 0 {
+        if off >= bytes.len() {
+            return;
+        }
+        let rest = &bytes[off..];
+        if utf16idx != 0 {
+            let clen = slice2len(rest);
+            let c = if clen > 1 {
+                utf_slice2char(rest)
+            } else {
+                i32::from(rest[0])
+            };
+            if c > 0xFFFF {
+                idx -= 1;
+            }
+            if idx > 0 {
+                off += clen;
+            }
+        } else {
+            off += slice2len(rest);
+        }
+        idx -= 1;
+    }
+    rettv.vval = crate::eval::typval::TypvalVval::Number(off as Varnumber);
 }
 
 pub fn f_byteidx(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
@@ -2359,77 +2360,77 @@ pub fn f_byteidxcomp(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFunc
 }
 
 pub fn f_charidx(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
-    unsafe {
-        rettv.vval = crate::eval::typval::TypvalVval::Number(-1);
+    rettv.vval = crate::eval::typval::TypvalVval::Number(-1);
 
-        if !tv_check_for_string_arg(argvars, 0)
-            || !tv_check_for_number_arg(argvars, 1)
-            || !tv_check_for_opt_bool_arg(argvars, 2)
-            || (argvars[2].v_type != VarType::VarUnknown && !tv_check_for_opt_bool_arg(argvars, 3))
-        {
-            return;
-        }
-
-        let str_ = tv_get_string_chk(&argvars[0]);
-        let mut idx = tv_get_number_chk(&argvars[1], None);
-        let Some(str_cstr) = str_ else {
-            return;
-        };
-        if idx < 0 {
-            return;
-        }
-        let str_ = str_cstr.as_ptr();
-
-        let mut countcc: Varnumber = 0;
-        let mut utf16idx: Varnumber = 0;
-        if argvars[2].v_type != VarType::VarUnknown {
-            countcc = tv_get_bool(&argvars[2]);
-            if argvars[3].v_type != VarType::VarUnknown {
-                utf16idx = tv_get_bool(&argvars[3]);
-            }
-        }
-
-        let ptr2len: fn(RawCCharPtr) -> i32 = if countcc != 0 {
-            utf_ptr2len
-        } else {
-            utfc_ptr2len
-        };
-
-        let mut p = str_;
-        let mut len: i32 = 0;
-        while if utf16idx != 0 {
-            idx >= 0
-        } else {
-            p <= str_.wrapping_add(idx as usize)
-        } {
-            if crate::memory::cstr_is_empty(p) {
-                if if utf16idx != 0 {
-                    idx == 0
-                } else {
-                    p == str_.wrapping_add(idx as usize)
-                } {
-                    rettv.vval = crate::eval::typval::TypvalVval::Number(Varnumber::from(len));
-                }
-                return;
-            }
-            if utf16idx != 0 {
-                idx -= 1;
-                let clen = ptr2len(p);
-                let c = if clen > 1 { utf_ptr2char(p) } else { *p as i32 };
-                if c > 0xFFFF {
-                    idx -= 1;
-                }
-            }
-            p = p.wrapping_add(ptr2len(p) as usize);
-            len += 1;
-        }
-
-        rettv.vval = crate::eval::typval::TypvalVval::Number(if len > 0 {
-            Varnumber::from(len - 1)
-        } else {
-            0
-        });
+    if !tv_check_for_string_arg(argvars, 0)
+        || !tv_check_for_number_arg(argvars, 1)
+        || !tv_check_for_opt_bool_arg(argvars, 2)
+        || (argvars[2].v_type != VarType::VarUnknown && !tv_check_for_opt_bool_arg(argvars, 3))
+    {
+        return;
     }
+
+    let str_ = tv_get_string_chk(&argvars[0]);
+    let mut idx = tv_get_number_chk(&argvars[1], None);
+    let Some(str_cstr) = str_ else {
+        return;
+    };
+    if idx < 0 {
+        return;
+    }
+    let bytes = str_cstr.to_bytes();
+
+    let mut countcc: Varnumber = 0;
+    let mut utf16idx: Varnumber = 0;
+    if argvars[2].v_type != VarType::VarUnknown {
+        countcc = tv_get_bool(&argvars[2]);
+        if argvars[3].v_type != VarType::VarUnknown {
+            utf16idx = tv_get_bool(&argvars[3]);
+        }
+    }
+
+    let slice2len: fn(&[u8]) -> usize = if countcc != 0 {
+        utf_slice2len
+    } else {
+        utfc_slice2len
+    };
+
+    let mut off = 0usize;
+    let mut len: i32 = 0;
+    while if utf16idx != 0 {
+        idx >= 0
+    } else {
+        off <= idx as usize
+    } {
+        if off >= bytes.len() {
+            if if utf16idx != 0 {
+                idx == 0
+            } else {
+                off == idx as usize
+            } {
+                rettv.vval = crate::eval::typval::TypvalVval::Number(Varnumber::from(len));
+            }
+            return;
+        }
+        let rest = &bytes[off..];
+        if utf16idx != 0 {
+            idx -= 1;
+            let clen = slice2len(rest);
+            let c = if clen > 1 {
+                utf_slice2char(rest)
+            } else {
+                i32::from(rest[0])
+            };
+            if c > 0xFFFF {
+                idx -= 1;
+            }
+        }
+        off += slice2len(rest);
+        len += 1;
+    }
+
+    rettv.vval =
+        crate::eval::typval::TypvalVval::Number(if len > 0 { Varnumber::from(len - 1) } else { 0 });
 }
 
 pub fn f_str2list(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
@@ -2801,75 +2802,78 @@ pub fn f_strtrans(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDat
 }
 
 pub fn f_utf16idx(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
-    unsafe {
-        rettv.vval = crate::eval::typval::TypvalVval::Number(-1);
+    rettv.vval = crate::eval::typval::TypvalVval::Number(-1);
 
-        if !tv_check_for_string_arg(argvars, 0)
-            || !tv_check_for_opt_number_arg(argvars, 1)
-            || !tv_check_for_opt_bool_arg(argvars, 2)
-            || (argvars[2].v_type != VarType::VarUnknown && !tv_check_for_opt_bool_arg(argvars, 3))
-        {
-            return;
+    if !tv_check_for_string_arg(argvars, 0)
+        || !tv_check_for_opt_number_arg(argvars, 1)
+        || !tv_check_for_opt_bool_arg(argvars, 2)
+        || (argvars[2].v_type != VarType::VarUnknown && !tv_check_for_opt_bool_arg(argvars, 3))
+    {
+        return;
+    }
+
+    let str_ = tv_get_string_chk(&argvars[0]);
+    let mut idx = tv_get_number_chk(&argvars[1], None);
+    let Some(str_cstr) = str_ else {
+        return;
+    };
+    if idx < 0 {
+        return;
+    }
+    let bytes = str_cstr.to_bytes();
+
+    let mut countcc: Varnumber = 0;
+    let mut charidx: Varnumber = 0;
+    if argvars[2].v_type != VarType::VarUnknown {
+        countcc = tv_get_bool(&argvars[2]);
+        if argvars[3].v_type != VarType::VarUnknown {
+            charidx = tv_get_bool(&argvars[3]);
         }
+    }
 
-        let str_ = tv_get_string_chk(&argvars[0]);
-        let mut idx = tv_get_number_chk(&argvars[1], None);
-        let Some(str_cstr) = str_ else {
-            return;
-        };
-        if idx < 0 {
-            return;
-        }
-        let str_ = str_cstr.as_ptr();
+    let slice2len: fn(&[u8]) -> usize = if countcc != 0 {
+        utf_slice2len
+    } else {
+        utfc_slice2len
+    };
 
-        let mut countcc: Varnumber = 0;
-        let mut charidx: Varnumber = 0;
-        if argvars[2].v_type != VarType::VarUnknown {
-            countcc = tv_get_bool(&argvars[2]);
-            if argvars[3].v_type != VarType::VarUnknown {
-                charidx = tv_get_bool(&argvars[3]);
+    let mut off = 0usize;
+    let mut len: i32 = 0;
+    let mut utf16idx: i32 = 0;
+    while if charidx != 0 {
+        idx >= 0
+    } else {
+        off <= idx as usize
+    } {
+        if off >= bytes.len() {
+            if if charidx != 0 {
+                idx == 0
+            } else {
+                off == idx as usize
+            } {
+                rettv.vval = crate::eval::typval::TypvalVval::Number(Varnumber::from(len));
             }
+            return;
         }
-
-        let ptr2len: fn(RawCCharPtr) -> i32 = if countcc != 0 {
-            utf_ptr2len
+        let rest = &bytes[off..];
+        utf16idx = len;
+        let clen = slice2len(rest);
+        let c = if clen > 1 {
+            utf_slice2char(rest)
         } else {
-            utfc_ptr2len
+            i32::from(rest[0])
         };
-
-        let mut p = str_;
-        let mut len: i32 = 0;
-        let mut utf16idx: i32 = 0;
-        while if charidx != 0 {
-            idx >= 0
-        } else {
-            p <= str_.wrapping_add(idx as usize)
-        } {
-            if crate::memory::cstr_is_empty(p) {
-                if if charidx != 0 {
-                    idx == 0
-                } else {
-                    p == str_.wrapping_add(idx as usize)
-                } {
-                    rettv.vval = crate::eval::typval::TypvalVval::Number(Varnumber::from(len));
-                }
-                return;
-            }
-            utf16idx = len;
-            let clen = ptr2len(p);
-            let c = if clen > 1 { utf_ptr2char(p) } else { *p as i32 };
-            if c > 0xFFFF {
-                len += 1;
-            }
-            p = p.wrapping_add(clen as usize);
-            if charidx != 0 {
-                idx -= 1;
-            }
+        if c > 0xFFFF {
             len += 1;
         }
-
-        rettv.vval = crate::eval::typval::TypvalVval::Number(Varnumber::from(utf16idx));
+        off += clen;
+        if charidx != 0 {
+            idx -= 1;
+        }
+        len += 1;
     }
+
+    rettv.vval = crate::eval::typval::TypvalVval::Number(Varnumber::from(utf16idx));
 }
 
 pub fn f_tolower(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
@@ -2963,7 +2967,7 @@ pub fn f_trim(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
     let mut buf1 = [0u8; NUMBUFLEN];
     let mut buf2 = [0u8; NUMBUFLEN];
     let head_opt = tv_get_string_buf_chk(&argvars[0], &mut buf1);
-    let mut mask: RawCCharPtr = ptr::null();
+    let mut mask: Option<&[u8]> = None;
     let mut dir: i32 = 0;
 
     rettv.v_type = VarType::VarString;
@@ -2971,7 +2975,7 @@ pub fn f_trim(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
     let Some(head_cstr) = head_opt else {
         return;
     };
-    let mut head = head_cstr.as_ptr();
+    let bytes = head_cstr.to_bytes();
 
     if !tv_check_for_opt_string_arg(argvars, 1) {
         return;
@@ -2981,7 +2985,7 @@ pub fn f_trim(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
         if let Some(m) = tv_get_string_buf_chk(&argvars[1], &mut buf2)
             && !m.to_bytes().is_empty()
         {
-            mask = m.as_ptr();
+            mask = Some(m.to_bytes());
         }
 
         if argvars[2].v_type != VarType::VarUnknown {
@@ -2997,58 +3001,47 @@ pub fn f_trim(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
         }
     }
 
-    if dir == 0 || dir == 1 {
-        while !crate::memory::cstr_is_empty(head) {
-            let c1 = utf_ptr2char(head);
-            if mask.is_null() {
-                if c1 > b' ' as i32 && c1 != 0xa0 {
-                    break;
+    let matches_mask = |c1: i32| -> bool {
+        if let Some(m) = mask {
+            let mut i = 0usize;
+            while i < m.len() {
+                if c1 == utf_slice2char(&m[i..]) {
+                    return true;
                 }
-            } else {
-                let mut p = mask;
-                while !crate::memory::cstr_is_empty(p) {
-                    if c1 == utf_ptr2char(p) {
-                        break;
-                    }
-                    p = p.wrapping_add(utfc_ptr2len(p) as usize);
-                }
-                if crate::memory::cstr_is_empty(p) {
-                    break;
-                }
+                i += utfc_slice2len(&m[i..]);
             }
-            head = head.wrapping_add(utfc_ptr2len(head) as usize);
+            false
+        } else {
+            c1 <= b' ' as i32 || c1 == 0xa0
+        }
+    };
+
+    let mut start = 0usize;
+    if dir == 0 || dir == 1 {
+        while start < bytes.len() {
+            let rest = &bytes[start..];
+            let c1 = utf_slice2char(rest);
+            if !matches_mask(c1) {
+                break;
+            }
+            start += utfc_slice2len(rest);
         }
     }
 
-    let mut tail = head.wrapping_add(crate::memory::cstr_len(head));
+    let tail_slice = &bytes[start..];
+    let mut end = tail_slice.len();
     if dir == 0 || dir == 2 {
-        while tail > head {
-            let prev = tail.wrapping_sub((utf_head_off(head, tail.wrapping_sub(1)) + 1) as usize);
-            let c1 = utf_ptr2char(prev);
-            if mask.is_null() {
-                if c1 > b' ' as i32 && c1 != 0xa0 {
-                    break;
-                }
-            } else {
-                let mut p = mask;
-                while !crate::memory::cstr_is_empty(p) {
-                    if c1 == utf_ptr2char(p) {
-                        break;
-                    }
-                    p = p.wrapping_add(utfc_ptr2len(p) as usize);
-                }
-                if crate::memory::cstr_is_empty(p) {
-                    break;
-                }
+        while end > 0 {
+            let prev = end - (utf_head_off_slice(tail_slice, end - 1) as usize + 1);
+            let c1 = utf_slice2char(&tail_slice[prev..]);
+            if !matches_mask(c1) {
+                break;
             }
-            tail = prev;
+            end = prev;
         }
     }
-    crate::eval::typval::tv_set_string_len(
-        rettv,
-        head,
-        crate::memory::ptr_offset_from(tail, head) as usize,
-    );
+    let trimmed = &tail_slice[..end];
+    crate::eval::typval::tv_set_string_len(rettv, trimmed, trimmed.len());
 }
 
 #[cfg(test)]
