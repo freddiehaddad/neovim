@@ -3207,7 +3207,7 @@ pub fn buflist_findpat(
                         }
                         if buf.b_p_bl == find_listed
                             && (!diffmode || diff_mode_buf(buf))
-                            && !buflist_match(&mut regmatch, &mut *buf, false).is_null()
+                            && buflist_match(&mut regmatch, &mut *buf, false).is_some()
                         {
                             if curtab_only {
                                 let mut found_window = false;
@@ -3308,30 +3308,30 @@ pub fn expand_bufnames(
                 continue;
             }
 
-            let mut p: RawCCharPtrMut = ptr::null_mut();
+            let mut p = None;
             if !fuzzy {
                 p = buflist_match(&mut regmatch, &mut *buf, opt_vars().p_wic != 0);
             } else {
                 score = fuzzy_match_str(buf.b_sfname, pat);
-                if score != FUZZY_SCORE_NONE {
-                    p = buf.b_sfname;
+                if score != FUZZY_SCORE_NONE && !buf.b_sfname.is_null() {
+                    p = Some(crate::memory::cstr_from_ptr(buf.b_sfname));
                 }
-                if p.is_null() {
+                if p.is_none() {
                     score = fuzzy_match_str(buf.b_ffname, pat);
-                    if score != FUZZY_SCORE_NONE {
-                        p = buf.b_ffname;
+                    if score != FUZZY_SCORE_NONE && !buf.b_ffname.is_null() {
+                        p = Some(crate::memory::cstr_from_ptr(buf.b_ffname));
                     }
                 }
             }
 
-            if p.is_null() {
+            let Some(p) = p else {
                 continue;
-            }
+            };
 
             let p_cstr = if (options & WILD_HOME_REPLACE) != 0 {
                 home_replace_save(Some(&*buf), p)
             } else {
-                cstr_to_cstring(p)
+                p.to_owned()
             };
 
             if !fuzzy {
@@ -3388,9 +3388,13 @@ pub fn expand_bufnames(
     }
 }
 
-fn buflist_match(rmp: &mut Regmatch, buf: &mut FileBuf, ignore_case: bool) -> RawCCharPtrMut {
+fn buflist_match(
+    rmp: &mut Regmatch,
+    buf: &mut FileBuf,
+    ignore_case: bool,
+) -> Option<&'static std::ffi::CStr> {
     let mut match_ = fname_match(rmp, buf.b_sfname, ignore_case);
-    if match_.is_null() && !rmp.regprog.is_null() {
+    if match_.is_none() && !rmp.regprog.is_null() {
         match_ = fname_match(rmp, buf.b_ffname, ignore_case);
     }
     match_
@@ -3400,21 +3404,21 @@ fn fname_match(
     rmp: &mut Regmatch,
     name: impl crate::strings::IntoCCharPtr,
     ignore_case: bool,
-) -> RawCCharPtrMut {
+) -> Option<&'static std::ffi::CStr> {
     let name = name.into_c_char_ptr().cast_mut();
-    let mut match_: RawCCharPtrMut = ptr::null_mut();
+    let mut match_ = None;
 
     if name.is_null() || rmp.regprog.is_null() {
-        return ptr::null_mut();
+        return None;
     }
 
     rmp.rm_ic = opt_vars().p_fic != 0 || ignore_case;
     if vim_regexec(rmp, name, 0) {
-        match_ = name;
+        match_ = Some(crate::memory::cstr_from_ptr(name));
     } else if !rmp.regprog.is_null() {
         let p = home_replace_save(None, name);
         if vim_regexec(rmp, p.as_ptr().cast_mut(), 0) {
-            match_ = name;
+            match_ = Some(crate::memory::cstr_from_ptr(name));
         }
     }
 
@@ -3767,14 +3771,18 @@ pub fn buflist_list(eap: &mut Exarg) {
 }
 
 /// Get file name and line number for file `fnum`.
-pub fn buflist_name_nr<T>(fnum: i32, fname: *mut *mut T, lnum: &mut Linenr) -> bool {
+pub fn buflist_name_nr(
+    fnum: i32,
+    fname: &mut Option<&'static std::ffi::CStr>,
+    lnum: &mut Linenr,
+) -> bool {
     unsafe {
         let buf = buflist_findnr(fnum);
         if buf.is_null() || (*buf).b_fname.is_null() {
             return false;
         }
 
-        *fname = (*buf).b_fname.cast();
+        *fname = Some(crate::memory::cstr_from_ptr((*buf).b_fname));
         *lnum = buflist_findlnum(&mut *buf);
 
         true
@@ -3906,15 +3914,15 @@ pub fn setaltfname(
 }
 
 /// Get alternate file name for current window.
-pub fn getaltfname(errmsg: bool) -> RawCCharPtrMut {
-    let mut fname: RawCCharPtrMut = ptr::null_mut();
+pub fn getaltfname(errmsg: bool) -> Option<&'static std::ffi::CStr> {
+    let mut fname = None;
     let mut dummy: Linenr = 0;
 
-    if !buflist_name_nr(0, &raw mut fname, &mut dummy) {
+    if !buflist_name_nr(0, &mut fname, &mut dummy) {
         if errmsg {
             emsg(gettext(E_NOALT));
         }
-        return ptr::null_mut();
+        return None;
     }
     fname
 }

@@ -639,21 +639,21 @@ pub fn path_has_wildcard(p: impl crate::strings::IntoCCharPtr, all: bool) -> boo
     }
 }
 
-fn scandir_next_with_dots(dir: Option<&mut Directory>) -> RawCCharPtr {
+fn scandir_next_with_dots(dir: Option<&mut Directory>) -> Option<&std::ffi::CStr> {
     let Some(dir) = dir else {
         path_st().scandir_count = 0;
-        return ptr::null();
+        return None;
     };
 
     path_st().scandir_count += 1;
     if path_st().scandir_count == 1 || path_st().scandir_count == 2 {
-        return if path_st().scandir_count == 1 {
-            c".".as_ptr()
+        return Some(if path_st().scandir_count == 1 {
+            c"."
         } else {
-            c"..".as_ptr()
-        };
+            c".."
+        });
     }
-    os_scandir_next(dir).map_or(ptr::null(), |s| s.as_ptr())
+    os_scandir_next(dir)
 }
 
 fn path_expand(
@@ -810,17 +810,14 @@ fn do_path_expand(
         if os_file_is_readable(dirpath) && os_scandir(&mut dir, dirpath) {
             scandir_next_with_dots(None);
             while !g_st().got_int {
-                let name = scandir_next_with_dots(Some(&mut dir));
-                if name.is_null() {
+                let Some(name) = scandir_next_with_dots(Some(&mut dir)) else {
                     break;
-                }
+                };
+                let name_bytes = name.to_bytes();
                 len = crate::memory::ptr_offset_from(s, buf) as usize;
-                let dot_ok = crate::memory::cstr_first_byte(name) != b'.'
+                let dot_ok = name_bytes.first() != Some(&b'.')
                     || starts_with_dot
-                    || ((flags & EW_DODOT) != 0
-                        && crate::memory::cstr_byte_at(name, 1) != 0
-                        && (crate::memory::cstr_byte_at(name, 1) != b'.'
-                            || crate::memory::cstr_byte_at(name, 2) != 0));
+                    || ((flags & EW_DODOT) != 0 && name_bytes != b"." && name_bytes != b"..");
                 let reg_ok = (!regmatch.regprog.is_null() && vim_regexec(&mut regmatch, name, 0))
                     || ((flags & EW_NOTWILD) != 0
                         && path_cmp(

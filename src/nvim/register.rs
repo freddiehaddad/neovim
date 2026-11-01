@@ -938,7 +938,8 @@ pub fn get_spec_reg(
                 true
             }
             x if x == i32::from(b'#') => {
-                *argp = getaltfname(errmsg).cast();
+                *argp =
+                    getaltfname(errmsg).map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut().cast());
                 true
             }
             x if x == i32::from(b'=') => {
@@ -2600,9 +2601,9 @@ pub fn ex_display(eap: &mut Exarg) {
     }
 
     if (arg.is_null() || crate::strings::vim_haschr(arg, i32::from(b'#'))) && !g_st().got_int {
-        let mut fname = ptr::null_mut();
+        let mut fname = None;
         let mut dummy: Linenr = 0;
-        if buflist_name_nr(0, &raw mut fname, &mut dummy) && !message_filtered(fname) {
+        if buflist_name_nr(0, &mut fname, &mut dummy) && !message_filtered(fname) {
             msg_puts(c"\n  c  \"#   ");
             dis_msg(fname, false);
         }
