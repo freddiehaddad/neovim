@@ -2104,10 +2104,7 @@ pub(super) fn reg_prev_class() -> i32 {
     if re_st().rex.input > re_st().rex.line {
         let prev = re_st().rex.input.wrapping_sub(1);
         let head = prev.wrapping_sub(utf_head_off(re_st().rex.line.cast(), prev.cast()) as usize);
-        return mb_get_class_tab(
-            head.cast(),
-            (&raw const re_st().rex.buf_mut().b_chartab).cast(),
-        );
+        return mb_get_class_tab(head.cast(), &re_st().rex.buf_mut().b_chartab);
     }
     -1
 }

@@ -3855,7 +3855,7 @@ fn nfa_regmatch(
                         if curc != NUL as i32 {
                             let this_class = mb_get_class_tab(
                                 re_st().rex.input.cast(),
-                                (&raw const re_st().rex.buf_mut().b_chartab).cast(),
+                                &re_st().rex.buf_mut().b_chartab,
                             );
                             if this_class > 1 && reg_prev_class() != this_class {
                                 add_here = true;
@@ -3867,7 +3867,7 @@ fn nfa_regmatch(
                         if re_st().rex.input != re_st().rex.line {
                             let this_class = mb_get_class_tab(
                                 re_st().rex.input.cast(),
-                                (&raw const re_st().rex.buf_mut().b_chartab).cast(),
+                                &re_st().rex.buf_mut().b_chartab,
                             );
                             let prev_class = reg_prev_class();
                             if this_class != prev_class && prev_class != 0 && prev_class != 1 {

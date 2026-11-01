@@ -14,7 +14,6 @@ use crate::option_vars::*;
 use crate::path::path_has_wildcard;
 use crate::strings::{RawCChar, RawCCharPtr, RawCCharPtrMut};
 use std::ffi::CString;
-use std::ptr;
 
 use crate::change::TAB;
 use crate::eval::typval::Varnumber;
@@ -191,27 +190,21 @@ fn charset_st() -> &'static mut CharsetModuleState {
 }
 
 #[inline]
-fn set_chartab(chartab: *mut u64, c: i32) {
-    unsafe {
-        let idx = ((c as u32) >> 6) as usize;
-        *chartab.wrapping_add(idx) |= 1u64 << (c & 0x3f);
-    }
+fn set_chartab(chartab: &mut [u64; 4], c: i32) {
+    let idx = ((c as u32) >> 6) as usize;
+    chartab[idx] |= 1u64 << (c & 0x3f);
 }
 
 #[inline]
-fn reset_chartab(chartab: *mut u64, c: i32) {
-    unsafe {
-        let idx = ((c as u32) >> 6) as usize;
-        *chartab.wrapping_add(idx) &= !(1u64 << (c & 0x3f));
-    }
+fn reset_chartab(chartab: &mut [u64; 4], c: i32) {
+    let idx = ((c as u32) >> 6) as usize;
+    chartab[idx] &= !(1u64 << (c & 0x3f));
 }
 
 #[inline]
-fn get_chartab(chartab: *const u64, c: i32) -> u64 {
-    unsafe {
-        let idx = ((c as u32) >> 6) as usize;
-        *chartab.wrapping_add(idx) & (1u64 << (c & 0x3f))
-    }
+fn get_chartab(chartab: &[u64; 4], c: i32) -> u64 {
+    let idx = ((c as u32) >> 6) as usize;
+    chartab[idx] & (1u64 << (c & 0x3f))
 }
 
 #[inline]
@@ -245,9 +238,9 @@ pub fn buf_init_isk_chartab(buf: &mut FileBuf) -> bool {
     let save_chartab = buf.b_chartab;
     buf.b_chartab = [0; 4];
     if buf.b_p_lisp != 0 {
-        set_chartab(buf.b_chartab.as_mut_ptr(), b'-' as i32);
+        set_chartab(&mut buf.b_chartab, b'-' as i32);
     }
-    if !parse_isopt(buf.b_p_isk, buf.b_chartab.as_mut_ptr()) {
+    if !parse_isopt(buf.b_p_isk, Some(&mut buf.b_chartab)) {
         buf.b_chartab = save_chartab;
         return false;
     }
@@ -257,10 +250,7 @@ pub fn buf_init_isk_chartab(buf: &mut FileBuf) -> bool {
 pub fn init_isf_chartab() -> bool {
     let save_chartab = charset_st().isf_chartab;
     charset_st().isf_chartab = [0, 0, 0xFFFF_FFFF_0000_0000, 0xFFFF_FFFF_FFFF_FFFF];
-    if !parse_isopt(
-        opt_vars().p_isf,
-        (&raw mut charset_st().isf_chartab).cast::<u64>(),
-    ) {
+    if !parse_isopt(opt_vars().p_isf, Some(&mut charset_st().isf_chartab)) {
         charset_st().isf_chartab = save_chartab;
         return false;
     }
@@ -270,10 +260,7 @@ pub fn init_isf_chartab() -> bool {
 pub fn init_isi_chartab() -> bool {
     let save_chartab = charset_st().isi_chartab;
     charset_st().isi_chartab = [0; 4];
-    if !parse_isopt(
-        opt_vars().p_isi,
-        (&raw mut charset_st().isi_chartab).cast::<u64>(),
-    ) {
+    if !parse_isopt(opt_vars().p_isi, Some(&mut charset_st().isi_chartab)) {
         charset_st().isi_chartab = save_chartab;
         return false;
     }
@@ -282,10 +269,13 @@ pub fn init_isi_chartab() -> bool {
 
 pub fn check_isopt(var: impl crate::strings::IntoCCharPtr) -> bool {
     let var = var.into_c_char_ptr();
-    parse_isopt(var, ptr::null_mut())
+    parse_isopt(var, None)
 }
 
-pub fn parse_isopt(var: impl crate::strings::IntoCCharPtr, chartab: *mut u64) -> bool {
+pub fn parse_isopt(
+    var: impl crate::strings::IntoCCharPtr,
+    mut chartab: Option<&mut [u64; 4]>,
+) -> bool {
     let var = var.into_c_char_ptr();
     {
         let mut p = var;
@@ -330,9 +320,9 @@ pub fn parse_isopt(var: impl crate::strings::IntoCCharPtr, chartab: *mut u64) ->
                 return false;
             }
 
-            if chartab.is_null() {
+            let Some(ref mut tab) = chartab else {
                 continue;
-            }
+            };
 
             if c2 == -1 {
                 if c == b'@' as i32 {
@@ -347,9 +337,9 @@ pub fn parse_isopt(var: impl crate::strings::IntoCCharPtr, chartab: *mut u64) ->
             while c <= c2 {
                 if !do_isalpha || mb_islower(c) || mb_isupper(c) {
                     if tilde {
-                        reset_chartab(chartab, c);
+                        reset_chartab(tab, c);
                     } else {
-                        set_chartab(chartab, c);
+                        set_chartab(tab, c);
                     }
                 }
                 c += 1;
@@ -719,14 +709,14 @@ pub fn vim_strnsize(s: impl crate::strings::IntoCCharPtr, mut len: i32) -> i32 {
 }
 
 pub fn vim_is_idc(c: i32) -> bool {
-    c > 0 && c < 0x100 && get_chartab((&raw const charset_st().isi_chartab).cast::<u64>(), c) != 0
+    c > 0 && c < 0x100 && get_chartab(&charset_st().isi_chartab, c) != 0
 }
 
 pub fn vim_iswordc(c: i32) -> bool {
     vim_iswordc_buf(c, curbuf_mut())
 }
 
-pub fn vim_iswordc_tab(c: i32, chartab: *const u64) -> bool {
+pub fn vim_iswordc_tab(c: i32, chartab: &[u64; 4]) -> bool {
     if c >= 0x100 {
         utf_class_tab(c, chartab) >= 2
     } else {
@@ -735,7 +725,7 @@ pub fn vim_iswordc_tab(c: i32, chartab: *const u64) -> bool {
 }
 
 pub fn vim_iswordc_buf(c: i32, buf: &mut FileBuf) -> bool {
-    vim_iswordc_tab(c, buf.b_chartab.as_ptr())
+    vim_iswordc_tab(c, &buf.b_chartab)
 }
 
 pub fn vim_iswordp(p: impl crate::strings::IntoCCharPtr) -> bool {
@@ -755,8 +745,7 @@ pub fn vim_iswordp_buf(p: impl crate::strings::IntoCCharPtr, buf: &mut FileBuf) 
 }
 
 pub fn vim_isfilec(c: i32) -> bool {
-    c >= 0x100
-        || (c > 0 && get_chartab((&raw const charset_st().isf_chartab).cast::<u64>(), c) != 0)
+    c >= 0x100 || (c > 0 && get_chartab(&charset_st().isf_chartab, c) != 0)
 }
 
 pub fn vim_is_fname_char(c: i32) -> bool {

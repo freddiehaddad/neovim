@@ -2786,7 +2786,7 @@ fn syn_cmd_iskeyword(eap: &mut Exarg, _syncing: i32) {
         let isk = crate::memory::cstr_to_cstring(arg);
         let isk_ptr = isk.as_ptr().cast_mut();
         win_s(curwin_mut()).b_syn_isk = Some(isk);
-        parse_isopt(isk_ptr, (&raw mut win_s(curwin_mut()).b_syn_chartab).cast());
+        parse_isopt(isk_ptr, Some(&mut win_s(curwin_mut()).b_syn_chartab));
     }
     redraw_later(Some(crate::globals::curwin_mut()), UPD_NOT_VALID);
 }

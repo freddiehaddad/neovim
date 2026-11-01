@@ -1216,10 +1216,10 @@ pub fn remove_bom(buf: &mut [u8]) {
 
 pub fn mb_get_class(p: impl crate::strings::IntoCCharPtr) -> i32 {
     let p = p.into_c_char_ptr();
-    mb_get_class_tab(p, curbuf_mut().b_chartab.as_ptr())
+    mb_get_class_tab(p, &curbuf_mut().b_chartab)
 }
 
-pub fn mb_get_class_tab(p: impl crate::strings::IntoCCharPtr, chartab: *const u64) -> i32 {
+pub fn mb_get_class_tab(p: impl crate::strings::IntoCCharPtr, chartab: &[u64; 4]) -> i32 {
     let p = p.into_c_char_ptr();
     let b0 = crate::memory::cstr_first_byte(p);
     if UTF8LEN_TAB[b0 as usize] == 1 {
@@ -1683,10 +1683,10 @@ pub fn utf_printable(c: i32) -> bool {
 }
 
 pub fn utf_class(c: i32) -> i32 {
-    utf_class_tab(c, curbuf_mut().b_chartab.as_ptr())
+    utf_class_tab(c, &curbuf_mut().b_chartab)
 }
 
-pub fn utf_class_tab(c: i32, chartab: *const u64) -> i32 {
+pub fn utf_class_tab(c: i32, chartab: &[u64; 4]) -> i32 {
     const CLASSES: &[ClInterval] = &[
         ClInterval {
             first: 0x037e,

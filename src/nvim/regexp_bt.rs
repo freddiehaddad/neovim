@@ -2831,7 +2831,7 @@ fn regmatch(mut scan: *mut u8, tm: Option<Proftime>, mut timed_out: Option<&mut 
                             } else {
                                 let this_class = mb_get_class_tab(
                                     re_st().rex.input.cast(),
-                                    (&raw const re_st().rex.buf_mut().b_chartab).cast(),
+                                    &re_st().rex.buf_mut().b_chartab,
                                 );
                                 if this_class <= 1 || reg_prev_class() == this_class {
                                     status = RA_NOMATCH;
@@ -2844,7 +2844,7 @@ fn regmatch(mut scan: *mut u8, tm: Option<Proftime>, mut timed_out: Option<&mut 
                             } else {
                                 let this_class = mb_get_class_tab(
                                     re_st().rex.input.cast(),
-                                    (&raw const re_st().rex.buf_mut().b_chartab).cast(),
+                                    &re_st().rex.buf_mut().b_chartab,
                                 );
                                 let prev_class = reg_prev_class();
                                 if this_class == prev_class || prev_class == 0 || prev_class == 1 {
