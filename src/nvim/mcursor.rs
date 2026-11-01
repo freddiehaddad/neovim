@@ -12,8 +12,8 @@ use crate::buffer::{FileBuf, MAXLNUM, buf_get_changedtick, bufref_valid};
 use crate::charset::to_special;
 use crate::clipboard::set_clipboard;
 use crate::context::{
-    CONTEXT_INIT, Context, INIT_POS, K_CTX_CURSOR, K_CTX_MARKS, K_CTX_MERGE_REG, K_CTX_REGS,
-    K_CTX_VISUAL, ctx_free, ctx_load, ctx_save, handle_get_buffer,
+    CONTEXT_INIT, Context, INIT_POS, K_CTX_COUNT, K_CTX_CURSOR, K_CTX_MARKS, K_CTX_MERGE_REG,
+    K_CTX_REGS, K_CTX_VISUAL, ctx_free, ctx_load, ctx_save, handle_get_buffer,
 };
 use crate::cursor::{
     Colnr, CursorPos, Linenr, check_cursor, check_cursor_col, check_pos, equalpos, getvpos, lt,
@@ -306,7 +306,11 @@ fn mc_sandbox_enter(sb: &mut McSandbox, save_regs: bool) {
     sb.primary = CONTEXT_INIT;
     ctx_save(
         &mut sb.primary,
-        K_CTX_CURSOR | K_CTX_VISUAL | K_CTX_MARKS | if save_regs { K_CTX_REGS } else { 0 },
+        K_CTX_CURSOR
+            | K_CTX_VISUAL
+            | K_CTX_MARKS
+            | K_CTX_COUNT
+            | if save_regs { K_CTX_REGS } else { 0 },
     );
     sb.cursor_mark = 0;
     mc_track_upd(curbuf_mut(), &mut sb.cursor_mark, sb.primary.pos);
@@ -331,6 +335,7 @@ fn mc_sandbox_leave(sb: &mut McSandbox) {
     if !sb.primary.regs.is_empty() {
         ctx_load(&mut sb.primary, K_CTX_REGS, 0);
     }
+    ctx_load(&mut sb.primary, K_CTX_COUNT, 0);
     restore_redobuff(&mut sb.redo);
     restore_search_patterns();
     g_st().visual_global = sb.visual;
