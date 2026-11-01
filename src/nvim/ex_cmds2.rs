@@ -211,7 +211,7 @@ pub fn dialog_changed(buf: &mut FileBuf, checkall: bool) {
         let fname = if !buf.b_fname.is_null() {
             buf.b_fname.cast_const()
         } else {
-            gettext(c"Untitled")
+            gettext(c"Untitled").as_ptr()
         };
         vim_snprintf!(
             buff.as_mut_ptr().cast(),

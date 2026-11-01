@@ -1529,7 +1529,7 @@ fn get_deleted_augroup() -> &'static CStr {
     if let Some(del) = au_st().deleted_augroup {
         del
     } else {
-        let del = unsafe { CStr::from_ptr(tr(c"--Deleted--")) };
+        let del = tr(c"--Deleted--");
         au_st().deleted_augroup = Some(del);
         del
     }

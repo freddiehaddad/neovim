@@ -3261,8 +3261,9 @@ pub fn var_check_ro(
             return false;
         }
         if name_len == TV_TRANSLATE {
-            name = gettext(name);
-            name_len = crate::memory::cstr_len(name);
+            let tr_name = gettext(name);
+            name = tr_name.as_ptr();
+            name_len = tr_name.to_bytes().len();
         } else if name_len == TV_CSTRING {
             name_len = crate::memory::cstr_len(name);
         }
@@ -3285,8 +3286,9 @@ pub fn var_check_lock(
         }
 
         if name_len == TV_TRANSLATE {
-            name = gettext(name);
-            name_len = crate::memory::cstr_len(name);
+            let tr_name = gettext(name);
+            name = tr_name.as_ptr();
+            name_len = tr_name.to_bytes().len();
         } else if name_len == TV_CSTRING {
             name_len = crate::memory::cstr_len(name);
         }
@@ -3310,8 +3312,9 @@ pub fn var_check_fixed(
     {
         if (flags as u8 & DI_FLAGS_FIX) != 0 {
             if name_len == TV_TRANSLATE {
-                name = gettext(name);
-                name_len = crate::memory::cstr_len(name);
+                let tr_name = gettext(name);
+                name = tr_name.as_ptr();
+                name_len = tr_name.to_bytes().len();
             } else if name_len == TV_CSTRING {
                 name_len = crate::memory::cstr_len(name);
             }

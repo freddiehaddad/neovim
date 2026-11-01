@@ -2656,9 +2656,9 @@ fn check_readonly(forceit: &mut i32, buf: &mut FileBuf) -> bool {
         {
             let mut buff: [u8; DIALOG_MSG_SIZE] = [0; DIALOG_MSG_SIZE];
             let fname = if !buf.b_fname.is_null() {
-                buf.b_fname
+                buf.b_fname.cast_const()
             } else {
-                gettext(c"Untitled")
+                gettext(c"Untitled").as_ptr()
             };
             if buf.b_p_ro != 0 {
                 vim_snprintf!(

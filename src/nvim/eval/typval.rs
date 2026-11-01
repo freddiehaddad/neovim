@@ -4455,8 +4455,9 @@ pub fn value_check_lock(
                     emsg(tr(error_message));
                 } else {
                     if name_len == TV_TRANSLATE {
-                        name = tr(name);
-                        name_len = crate::memory::cstr_len(name);
+                        let tr_name = tr(name);
+                        name = tr_name.as_ptr();
+                        name_len = tr_name.to_bytes().len();
                     } else if name_len == TV_CSTRING {
                         name_len = crate::memory::cstr_len(name);
                     }
@@ -4473,8 +4474,9 @@ pub fn value_check_lock(
                     emsg(tr(error_message));
                 } else {
                     if name_len == TV_TRANSLATE {
-                        name = tr(name);
-                        name_len = crate::memory::cstr_len(name);
+                        let tr_name = tr(name);
+                        name = tr_name.as_ptr();
+                        name_len = tr_name.to_bytes().len();
                     } else if name_len == TV_CSTRING {
                         name_len = crate::memory::cstr_len(name);
                     }

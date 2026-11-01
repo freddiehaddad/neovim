@@ -178,19 +178,19 @@ impl IntoCCharPtr for &mut Vec<u8> {
 }
 
 #[inline]
-pub fn tr<S: IntoCCharPtr>(s: S) -> RawCCharPtrMut {
+pub fn tr<S: IntoCCharPtr>(s: S) -> &'static CStr {
     gettext(s.into_c_char_ptr())
 }
 
 #[inline]
-pub fn gettext<S: IntoCCharPtr>(msgid: S) -> RawCCharPtrMut {
+pub fn gettext<S: IntoCCharPtr>(msgid: S) -> &'static CStr {
     let msgid = msgid.into_c_char_ptr();
     if crate::os::lang::HAVE_LIBINTL
         && let Some(tr) = crate::os::lang::c_gettext(msgid)
     {
-        return tr.as_ptr().cast_mut().cast();
+        return tr;
     }
-    msgid.cast_mut()
+    crate::memory::cstr_from_ptr(msgid)
 }
 
 pub trait IntoNgettextCount {
@@ -244,19 +244,19 @@ pub fn ngettext<S1: IntoCCharPtr, S2: IntoCCharPtr, N: IntoNgettextCount>(
     msgid1: S1,
     msgid2: S2,
     n: N,
-) -> RawCCharPtrMut {
+) -> &'static CStr {
     let msgid1 = msgid1.into_c_char_ptr();
     let msgid2 = msgid2.into_c_char_ptr();
     let count = n.into_ngettext_count();
     if crate::os::lang::HAVE_LIBINTL
         && let Some(tr) = crate::os::lang::c_ngettext(msgid1, count)
     {
-        return tr.as_ptr().cast_mut().cast();
+        return tr;
     }
     if count == 1 {
-        msgid1.cast_mut()
+        crate::memory::cstr_from_ptr(msgid1)
     } else {
-        msgid2.cast_mut()
+        crate::memory::cstr_from_ptr(msgid2)
     }
 }
 
@@ -883,22 +883,22 @@ pub fn format_typeof(type_: impl crate::strings::IntoCCharPtr) -> i32 {
     }
 }
 
-fn format_typename(type_: impl crate::strings::IntoCCharPtr) -> RawCCharPtr {
+fn format_typename(type_: impl crate::strings::IntoCCharPtr) -> &'static CStr {
     let type_ = type_.into_c_char_ptr();
     match format_typeof(type_) {
-        TYPE_INT => c"int".as_ptr().cast(),
-        TYPE_LONGINT => c"long int".as_ptr().cast(),
-        TYPE_LONGLONGINT => c"long long int".as_ptr().cast(),
-        TYPE_UNSIGNEDINT => c"unsigned int".as_ptr().cast(),
-        TYPE_SIGNEDSIZET => c"signed size_t".as_ptr().cast(),
-        TYPE_UNSIGNEDLONGINT => c"unsigned long int".as_ptr().cast(),
-        TYPE_UNSIGNEDLONGLONGINT => c"unsigned long long int".as_ptr().cast(),
-        TYPE_SIZET => c"size_t".as_ptr().cast(),
+        TYPE_INT => c"int",
+        TYPE_LONGINT => c"long int",
+        TYPE_LONGLONGINT => c"long long int",
+        TYPE_UNSIGNEDINT => c"unsigned int",
+        TYPE_SIGNEDSIZET => c"signed size_t",
+        TYPE_UNSIGNEDLONGINT => c"unsigned long int",
+        TYPE_UNSIGNEDLONGLONGINT => c"unsigned long long int",
+        TYPE_SIZET => c"size_t",
         TYPE_POINTER => gettext(c"pointer"),
         TYPE_PERCENT => gettext(c"percent"),
-        TYPE_CHAR => c"char".as_ptr().cast(),
+        TYPE_CHAR => c"char",
         TYPE_STRING => gettext(c"string"),
-        TYPE_FLOAT => c"float".as_ptr().cast(),
+        TYPE_FLOAT => c"float",
         _ => gettext(c"unknown"),
     }
 }

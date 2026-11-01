@@ -386,7 +386,7 @@ fn sign_list_placed(rbuf: *mut FileBuf, group: impl crate::strings::IntoCCharPtr
                 let fname = if !(*buf).b_fname.is_null() {
                     (*buf).b_fname.cast_const()
                 } else {
-                    gettext(c"Untitled").cast_const()
+                    gettext(c"Untitled").as_ptr()
                 };
                 vim_snprintf!(
                     lbuf.as_mut_ptr().cast(),

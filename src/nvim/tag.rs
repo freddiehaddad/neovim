@@ -863,9 +863,9 @@ pub fn do_tag(
                     {
                         let iobuf_ptr = g_st().iobuff.as_mut_ptr();
                         let more_str = if tag_st().do_tag_max_num_matches != MAXCOL {
-                            gettext(c" or more").cast_const()
+                            gettext(c" or more")
                         } else {
-                            c"".as_ptr()
+                            c""
                         };
                         vim_snprintf!(
                             iobuf_ptr,

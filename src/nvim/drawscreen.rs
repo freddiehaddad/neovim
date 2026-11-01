@@ -988,33 +988,35 @@ pub fn showmode() -> i32 {
 
         if do_mode {
             msg_puts_hl(c"--", hl_id, false);
-            if !g_st().edit_submode.is_null() && !shortmess(K_SHM_COMPLETIONMENU) {
+            if let Some(submode) = g_st().edit_submode
+                && !shortmess(K_SHM_COMPLETIONMENU)
+            {
                 length = if ui_has(K_UIMESSAGES) {
                     i32::MAX
                 } else {
                     (g_st().rows_global - g_st().msg_row) * g_st().columns_global - 3
                 };
-                if !g_st().edit_submode_extra.is_null() {
-                    length -= vim_strsize(g_st().edit_submode_extra);
+                if let Some(extra) = g_st().edit_submode_extra {
+                    length -= vim_strsize(extra);
                 }
                 if length > 0 {
-                    if !g_st().edit_submode_pre.is_null() {
-                        length -= vim_strsize(g_st().edit_submode_pre);
+                    if let Some(pre) = g_st().edit_submode_pre {
+                        length -= vim_strsize(pre);
                     }
-                    if length - vim_strsize(g_st().edit_submode) > 0 {
-                        if !g_st().edit_submode_pre.is_null() {
-                            msg_puts_hl(g_st().edit_submode_pre, hl_id, false);
+                    if length - vim_strsize(submode) > 0 {
+                        if let Some(pre) = g_st().edit_submode_pre {
+                            msg_puts_hl(pre, hl_id, false);
                         }
-                        msg_puts_hl(g_st().edit_submode, hl_id, false);
+                        msg_puts_hl(submode, hl_id, false);
                     }
-                    if !g_st().edit_submode_extra.is_null() {
+                    if let Some(extra) = g_st().edit_submode_extra {
                         msg_puts_hl(c" ", hl_id, false);
                         let sub_id = if g_st().edit_submode_highl < HLF_COUNT {
                             g_st().edit_submode_highl
                         } else {
                             hl_id
                         };
-                        msg_puts_hl(g_st().edit_submode_extra, sub_id, false);
+                        msg_puts_hl(extra, sub_id, false);
                     }
                 }
             } else {
@@ -1090,7 +1092,7 @@ pub fn showmode() -> i32 {
 
             need_clear = true;
         }
-        if g_st().reg_recording != 0 && g_st().edit_submode.is_null() {
+        if g_st().reg_recording != 0 && g_st().edit_submode.is_none() {
             recording_mode(hl_id);
             need_clear = true;
         }

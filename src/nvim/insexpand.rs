@@ -680,8 +680,8 @@ pub fn ins_ctrl_x() {
             insexp().compl_cont_status = 0;
         }
         insexp().ctrl_x_mode = CTRL_X_NOT_DEFINED_YET;
-        g_st().edit_submode = gettext(ctrl_x_msg(insexp().ctrl_x_mode));
-        g_st().edit_submode_pre = ptr::null();
+        g_st().edit_submode = Some(gettext(ctrl_x_msg(insexp().ctrl_x_mode)));
+        g_st().edit_submode_pre = None;
         g_st().redraw_mode = true;
     } else {
         insexp().ctrl_x_mode = CTRL_X_CMDLINE_CTRL_X;
@@ -812,7 +812,7 @@ pub fn check_compl_option(dict_opt: bool) -> bool {
     };
     if empty {
         insexp().ctrl_x_mode = CTRL_X_NORMAL;
-        g_st().edit_submode = ptr::null();
+        g_st().edit_submode = None;
         emsg(gettext(if dict_opt {
             c"'dictionary' option is empty".as_ptr()
         } else {
@@ -2468,7 +2468,7 @@ pub fn ins_compl_clear() {
     insexp().compl_curr_buf = ptr::null_mut();
     insexp().compl_pattern = None;
     api_clear_string(&mut insexp().compl_leader);
-    g_st().edit_submode_extra = ptr::null_mut();
+    g_st().edit_submode_extra = None;
     let extmarks = &mut insexp().compl_orig_extmarks;
     extmarks.clear();
     api_clear_string(&mut insexp().compl_orig_text);
@@ -2791,11 +2791,11 @@ fn set_ctrl_x_mode(c: i32) -> bool {
         CTRL_E | CTRL_Y => {
             insexp().ctrl_x_mode = CTRL_X_SCROLL;
             if (g_st().state_global & REPLACE_FLAG) == 0 {
-                g_st().edit_submode = gettext(c" (insert) Scroll (^E/^Y)");
+                g_st().edit_submode = Some(gettext(c" (insert) Scroll (^E/^Y)"));
             } else {
-                g_st().edit_submode = gettext(c" (replace) Scroll (^E/^Y)");
+                g_st().edit_submode = Some(gettext(c" (replace) Scroll (^E/^Y)"));
             }
-            g_st().edit_submode_pre = ptr::null();
+            g_st().edit_submode_pre = None;
             g_st().redraw_mode = true;
         }
         CTRL_L_CONST => {
@@ -2841,7 +2841,7 @@ fn set_ctrl_x_mode(c: i32) -> bool {
         }
         CTRL_Z_CONST => {
             insexp().ctrl_x_mode = CTRL_X_NORMAL;
-            g_st().edit_submode = ptr::null();
+            g_st().edit_submode = None;
             g_st().redraw_mode = true;
             retval = true;
         }
@@ -2852,7 +2852,7 @@ fn set_ctrl_x_mode(c: i32) -> bool {
                 insexp().compl_cont_status &= !CONT_LOCAL;
             }
             insexp().ctrl_x_mode = CTRL_X_NORMAL;
-            g_st().edit_submode = ptr::null();
+            g_st().edit_submode = None;
             g_st().redraw_mode = true;
         }
         _ => {
@@ -2864,7 +2864,7 @@ fn set_ctrl_x_mode(c: i32) -> bool {
                 }
             }
             insexp().ctrl_x_mode = CTRL_X_NORMAL;
-            g_st().edit_submode = ptr::null();
+            g_st().edit_submode = None;
             g_st().redraw_mode = true;
         }
     }
@@ -2977,8 +2977,8 @@ fn ins_compl_stop(c: i32, prev_mode: i32, mut retval: bool) -> bool {
         }
         insexp().ctrl_x_mode = CTRL_X_NORMAL;
         insexp().compl_enter_selects = false;
-        if !g_st().edit_submode.is_null() {
-            g_st().edit_submode = ptr::null();
+        if g_st().edit_submode.is_some() {
+            g_st().edit_submode = None;
             g_st().redraw_mode = true;
         }
         insexp().compl_autocomplete = false;
@@ -3016,7 +3016,7 @@ pub fn ins_compl_prep(c: i32) -> bool {
     let prev_mode = insexp().ctrl_x_mode;
 
     if c != CTRL_R_CONST && vim_is_ctrl_x_key(c) {
-        g_st().edit_submode_extra = ptr::null_mut();
+        g_st().edit_submode_extra = None;
     }
 
     if c == K_SELECT
@@ -3064,7 +3064,7 @@ pub fn ins_compl_prep(c: i32) -> bool {
             } else {
                 CTRL_X_FINISHED
             };
-            g_st().edit_submode = ptr::null();
+            g_st().edit_submode = None;
         }
         g_st().redraw_mode = true;
     }
@@ -6350,7 +6350,7 @@ fn get_userdefined_compl_info(
                 return false;
             }
             insexp().ctrl_x_mode = CTRL_X_NORMAL;
-            g_st().edit_submode = ptr::null();
+            g_st().edit_submode = None;
             if !shortmess(K_SHM_COMPLETIONMENU) {
                 msg_clr_cmdline();
             }
@@ -6526,7 +6526,7 @@ fn ins_compl_start() -> bool {
 
         if compl_status_adding() {
             if !shortmess(K_SHM_COMPLETIONMENU) {
-                g_st().edit_submode_pre = gettext(c" Adding");
+                g_st().edit_submode_pre = Some(gettext(c" Adding"));
             }
             if ctrl_x_mode_line_or_eval() {
                 let old = curbuf_mut().b_p_com;
@@ -6540,15 +6540,15 @@ fn ins_compl_start() -> bool {
                 insexp().compl_lnum = curwin_mut().w_cursor.lnum;
             }
         } else {
-            g_st().edit_submode_pre = ptr::null();
+            g_st().edit_submode_pre = None;
             insexp().compl_startpos.col = insexp().compl_col;
         }
 
         if !shortmess(K_SHM_COMPLETIONMENU) && !insexp().compl_autocomplete {
             if (insexp().compl_cont_status & CONT_LOCAL) != 0 {
-                g_st().edit_submode = gettext(ctrl_x_msg(CTRL_X_LOCAL_MSG));
+                g_st().edit_submode = Some(gettext(ctrl_x_msg(CTRL_X_LOCAL_MSG)));
             } else {
-                g_st().edit_submode = gettext(ctrl_x_msg(insexp().ctrl_x_mode));
+                g_st().edit_submode = Some(gettext(ctrl_x_msg(insexp().ctrl_x_mode)));
             }
         }
 
@@ -6590,10 +6590,10 @@ fn ins_compl_start() -> bool {
         }
 
         if !shortmess(K_SHM_COMPLETIONMENU) && !insexp().compl_autocomplete {
-            g_st().edit_submode_extra = gettext(c"-- Searching...");
+            g_st().edit_submode_extra = Some(gettext(c"-- Searching..."));
             g_st().edit_submode_highl = HLF_COUNT;
             showmode();
-            g_st().edit_submode_extra = ptr::null_mut();
+            g_st().edit_submode_extra = None;
             ui_flush();
         }
 
@@ -6604,25 +6604,25 @@ fn ins_compl_start() -> bool {
 
 fn ins_compl_show_statusmsg() {
     if compl_next_idx(0) == Some(0) {
-        g_st().edit_submode_extra = if compl_status_adding() && insexp().compl_length > 1 {
+        g_st().edit_submode_extra = Some(if compl_status_adding() && insexp().compl_length > 1 {
             gettext(c"Hit end of paragraph")
         } else {
             gettext(c"Pattern not found")
-        };
+        });
         g_st().edit_submode_highl = HLF_E;
     }
 
-    if g_st().edit_submode_extra.is_null() {
+    if g_st().edit_submode_extra.is_none() {
         let curr_idx = insexp().compl_curr_idx.unwrap();
         let curr = compl_at(curr_idx);
         if match_at_original_text(&*curr) {
-            g_st().edit_submode_extra = gettext(c"Back at original");
+            g_st().edit_submode_extra = Some(gettext(c"Back at original"));
             g_st().edit_submode_highl = HLF_W;
         } else if (insexp().compl_cont_status & CONT_S_IPOS) != 0 {
-            g_st().edit_submode_extra = gettext(c"Word from other line");
+            g_st().edit_submode_extra = Some(gettext(c"Word from other line"));
             g_st().edit_submode_highl = HLF_COUNT;
         } else if compl_next_idx(curr_idx) == compl_prev_idx(curr_idx) {
-            g_st().edit_submode_extra = gettext(c"The only match");
+            g_st().edit_submode_extra = Some(gettext(c"The only match"));
             g_st().edit_submode_highl = HLF_COUNT;
             curr.cp_number = 1;
         } else {
@@ -6632,7 +6632,8 @@ fn ins_compl_show_statusmsg() {
 
             let curr = compl_at(curr_idx);
             if curr.cp_number != -1 {
-                let match_ref_ptr = insexp().match_ref.as_mut_ptr().cast();
+                let match_ref_ptr: crate::strings::RawCCharPtrMut =
+                    insexp().match_ref.as_mut_ptr().cast();
                 if insexp().compl_matches > 0 {
                     vim_snprintf!(
                         match_ref_ptr,
@@ -6644,7 +6645,7 @@ fn ins_compl_show_statusmsg() {
                 } else {
                     vim_snprintf!(match_ref_ptr, 81, gettext(c"match %d"), curr.cp_number,);
                 }
-                g_st().edit_submode_extra = match_ref_ptr;
+                g_st().edit_submode_extra = Some(crate::memory::cstr_from_ptr(match_ref_ptr));
                 g_st().edit_submode_highl = HLF_R;
                 if g_st().dollar_vcol >= 0 {
                     curs_columns(curwin_mut(), 0);
@@ -6655,12 +6656,12 @@ fn ins_compl_show_statusmsg() {
 
     g_st().redraw_mode = true;
     if !shortmess(K_SHM_COMPLETIONMENU) {
-        if !g_st().edit_submode_extra.is_null() {
+        if let Some(extra) = g_st().edit_submode_extra {
             if opt_vars().p_smd == 0 {
                 g_st().msg_hist_off = true;
                 msg_ext_set_kind(c"completion");
                 msg(
-                    g_st().edit_submode_extra,
+                    extra,
                     if g_st().edit_submode_highl < HLF_COUNT {
                         g_st().edit_submode_highl + 1
                     } else {

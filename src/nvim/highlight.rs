@@ -1775,7 +1775,7 @@ fn hl_inspect_impl(arr: &mut Array, attr: i32, arena: &mut Arena) {
             item = arena_dict(arena, 4);
             put_c(&mut item, c"kind", cstr_as_obj(c"ui"));
             let ui_name = if e.id1 == -1 {
-                c"Normal".as_ptr()
+                Some(c"Normal")
             } else {
                 hlf_name_ptr(e.id1 as usize)
             };

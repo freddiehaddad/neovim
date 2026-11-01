@@ -832,7 +832,7 @@ pub fn redraw_ruler() {
         return;
     }
 
-    if wp.w_status_height == 0 && !is_stl_global && !g_st().edit_submode.is_null() {
+    if wp.w_status_height == 0 && !is_stl_global && g_st().edit_submode.is_some() {
         return;
     }
 
@@ -2135,7 +2135,7 @@ pub extern "C" fn build_stl_str_hl(
                         str = if opt == STL_ROFLAG_ALT {
                             c",RO".as_ptr().cast_mut().cast()
                         } else {
-                            tr(c"[RO]").cast()
+                            tr(c"[RO]").as_ptr().cast_mut().cast()
                         };
                     }
                 }
@@ -2145,7 +2145,7 @@ pub extern "C" fn build_stl_str_hl(
                         str = if opt == STL_HELPFLAG_ALT {
                             c",HLP".as_ptr().cast_mut().cast()
                         } else {
-                            tr(c"[Help]").cast()
+                            tr(c"[Help]").as_ptr().cast_mut().cast()
                         };
                     }
                 }
@@ -2180,16 +2180,16 @@ pub extern "C" fn build_stl_str_hl(
                         str = if opt == STL_PREVIEWFLAG_ALT {
                             c",PRV".as_ptr().cast_mut().cast()
                         } else {
-                            tr(c"[Preview]").cast()
+                            tr(c"[Preview]").as_ptr().cast_mut().cast()
                         };
                     }
                 }
                 STL_QUICKFIX => {
                     if bt_quickfix((wp.w_buffer).as_ref()) {
                         str = if !wp.w_llist_ref.is_null() {
-                            tr(MSG_LOCLIST).cast()
+                            tr(MSG_LOCLIST).as_ptr().cast_mut().cast()
                         } else {
-                            tr(MSG_QFLIST).cast()
+                            tr(MSG_QFLIST).as_ptr().cast_mut().cast()
                         };
                     }
                 }

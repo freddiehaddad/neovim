@@ -3312,9 +3312,9 @@ fn qf_jump_print_msg(
     }
     let iobuff_ptr = g_st().iobuff.as_mut_ptr();
     let deleted_str = if qf_ptr.qf_cleared != 0 {
-        gettext(c" (line deleted)").cast_const()
+        gettext(c" (line deleted)")
     } else {
-        c"".as_ptr()
+        c""
     };
     let iobufflen = vim_snprintf_safelen!(
         iobuff_ptr,

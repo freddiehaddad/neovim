@@ -1048,7 +1048,7 @@ fn insert_handle_key(s: &mut InsertState) -> i32 {
 
             if g_st().pum_want.active {
                 if pum_visible() {
-                    g_st().edit_submode_extra = ptr::null_mut();
+                    g_st().edit_submode_extra = None;
                     insert_do_complete(&mut *s);
                     if g_st().pum_want.finish {
                         ins_compl_prep(CTRL_Y);

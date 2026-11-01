@@ -1,7 +1,7 @@
 //! Global variables (`src/nvim/globals.h`).
 
 use crate::highlight::{HLF_COUNT, RgbValue};
-use crate::strings::{RawCChar, RawCCharPtr, RawCCharPtrMut};
+use crate::strings::RawCChar;
 use std::ptr;
 
 use crate::decoration::{DecorSignHighlight, DecorState, NS};
@@ -81,9 +81,9 @@ pub struct EditorState {
     pub cmdline_was_last_drawn: bool,
     pub exec_from_reg: bool,
     pub dollar_vcol: Colnr,
-    pub edit_submode: RawCCharPtr,
-    pub edit_submode_pre: RawCCharPtr,
-    pub edit_submode_extra: RawCCharPtrMut,
+    pub edit_submode: Option<&'static std::ffi::CStr>,
+    pub edit_submode_pre: Option<&'static std::ffi::CStr>,
+    pub edit_submode_extra: Option<&'static std::ffi::CStr>,
     pub edit_submode_highl: Hlf,
     pub cmdmsg_rl: bool,
     pub msg_col: i32,
@@ -424,9 +424,9 @@ impl EditorState {
             cmdline_was_last_drawn: false,
             exec_from_reg: false,
             dollar_vcol: -1,
-            edit_submode: ptr::null(),
-            edit_submode_pre: ptr::null(),
-            edit_submode_extra: ptr::null_mut(),
+            edit_submode: None,
+            edit_submode_pre: None,
+            edit_submode_extra: None,
             edit_submode_highl: 0,
             cmdmsg_rl: false,
             msg_col: 0,
@@ -1342,11 +1342,8 @@ pub const HLF_NAMES: [Option<&std::ffi::CStr>; HLF_COUNT] = [
     Some(c"PreInsert"),
 ];
 #[inline]
-pub const fn hlf_name_ptr(idx: usize) -> RawCCharPtr {
-    match HLF_NAMES[idx] {
-        Some(s) => s.as_ptr(),
-        None => ptr::null(),
-    }
+pub const fn hlf_name_ptr(idx: usize) -> Option<&'static std::ffi::CStr> {
+    HLF_NAMES[idx]
 }
 #[allow(non_upper_case_globals)]
 #[unsafe(no_mangle)]

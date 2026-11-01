@@ -878,9 +878,9 @@ fn set_init_expand_env() {
         }
         let mut p: Option<&CStr> = None;
         if (opt.flags & K_OPT_FLAG_GETTEXT) != 0 && !opt.var.is_null() {
-            let tr_ptr = tr(unsafe { *(opt.var.cast::<*mut u8>()).cast::<*mut _>() });
-            if !tr_ptr.is_null() {
-                p = Some(unsafe { CStr::from_ptr(tr_ptr) });
+            let var_ptr = unsafe { *(opt.var.cast::<*const u8>()) };
+            if !var_ptr.is_null() {
+                p = Some(tr(var_ptr.cast()));
             }
         } else if (opt.flags & K_OPT_FLAG_EXPAND) != 0 {
             p = option_expand(opt_idx, opt.def_val.data.string().data);
@@ -5775,7 +5775,7 @@ pub fn validate_and_prepare_option_value<'a>(args: &mut Optset) -> Option<&'a CS
 
     if newval.obj_type == ObjectType::ObjectTypeNil {
         if opt_flags == OPT_GLOBAL {
-            errmsg = Some(unsafe { CStr::from_ptr(tr(c"Cannot unset global option value")) });
+            errmsg = Some(tr(c"Cannot unset global option value"));
         } else {
             let varp =
                 get_varp_scope_from(opt, OPT_GLOBAL, unsafe { &mut *buf }, unsafe { &mut *win });
@@ -6093,7 +6093,7 @@ pub fn set_option_value<'a>(
 
     let flags = get_option(opt_idx).flags;
     if g_st().sandbox > 0 && (flags & K_OPT_FLAG_SECURE) != 0 {
-        return Some(unsafe { CStr::from_ptr(tr(E_SANDBOX)) });
+        return Some(tr(E_SANDBOX));
     }
 
     set_option(

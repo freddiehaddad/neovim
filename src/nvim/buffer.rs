@@ -4041,27 +4041,27 @@ pub fn fileinfo(fullname: i32, shorthelp: i32, dont_truncate: bool) {
     let is_changed = curbuf_is_changed();
     let mod_str = if is_changed {
         if shortmess(K_SHM_MOD) {
-            c" [+]".as_ptr()
+            c" [+]"
         } else {
             gettext(c" [Modified]")
         }
     } else {
-        c" ".as_ptr()
+        c" "
     };
     let notedited_str = if (curbuf_mut().b_flags & BF_NOTEDITED) != 0 && !dontwrite {
         gettext(c"[Not edited]")
     } else {
-        c"".as_ptr()
+        c""
     };
     let new_str = if (curbuf_mut().b_flags & BF_NEW) != 0 && !dontwrite {
         gettext(c"[New]")
     } else {
-        c"".as_ptr()
+        c""
     };
     let readerr_str = if (curbuf_mut().b_flags & BF_READERR) != 0 {
         gettext(c"[Read errors]")
     } else {
-        c"".as_ptr()
+        c""
     };
     let ro_str = if curbuf_mut().b_p_ro != 0 {
         if shortmess(K_SHM_RO) {
@@ -4070,7 +4070,7 @@ pub fn fileinfo(fullname: i32, shorthelp: i32, dont_truncate: bool) {
             gettext(c"[readonly]")
         }
     } else {
-        c"".as_ptr()
+        c""
     };
     let sep_str =
         if is_changed || (curbuf_mut().b_flags & BF_WRITE_MASK) != 0 || curbuf_mut().b_p_ro != 0 {
@@ -4879,21 +4879,21 @@ pub fn buf_hide(buf: &FileBuf) -> bool {
 pub fn buf_spname(buf: &FileBuf) -> RawCCharPtrMut {
     if bt_quickfix(Some(buf)) {
         if buf.b_fnum == qf_stack_get_bufnr() {
-            return gettext(MSG_QFLIST);
+            return gettext(MSG_QFLIST).as_ptr().cast_mut();
         }
-        return gettext(MSG_LOCLIST);
+        return gettext(MSG_LOCLIST).as_ptr().cast_mut();
     }
     if bt_nofilename(Some(buf)) {
         if !buf.b_fname.is_null() {
             return buf.b_fname;
         }
         if bt_cmdwin(buf) {
-            return gettext(c"[Command Line]");
+            return gettext(c"[Command Line]").as_ptr().cast_mut();
         }
         if bt_prompt(Some(buf)) {
-            return gettext(c"[Prompt]");
+            return gettext(c"[Prompt]").as_ptr().cast_mut();
         }
-        return gettext(c"[Scratch]");
+        return gettext(c"[Scratch]").as_ptr().cast_mut();
     }
     if buf.b_fname.is_null() {
         return buf_get_fname(buf);
@@ -4904,7 +4904,7 @@ pub fn buf_spname(buf: &FileBuf) -> RawCCharPtrMut {
 /// Get `buf->b_fname`, use `"[No Name]"` if it is NULL.
 pub fn buf_get_fname(buf: &FileBuf) -> RawCCharPtrMut {
     if buf.b_fname.is_null() {
-        gettext(c"[No Name]")
+        gettext(c"[No Name]").as_ptr().cast_mut()
     } else {
         buf.b_fname
     }

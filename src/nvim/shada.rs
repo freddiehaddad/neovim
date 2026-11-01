@@ -1004,28 +1004,28 @@ fn shada_read_file(file: impl crate::strings::IntoCCharPtr, flags: i32) -> bool 
 
         if opt_vars().p_verbose > 1 {
             verbose_enter();
-            let empty = c"".as_ptr();
+            let empty = c"";
             smsg!(
                 0,
                 gettext(c"Reading ShaDa file \"%s\"%s%s%s%s"),
                 fname,
                 if (flags & K_SHA_DA_WANT_INFO) != 0 {
-                    gettext(c" info").cast_const()
+                    gettext(c" info")
                 } else {
                     empty
                 },
                 if (flags & K_SHA_DA_WANT_MARKS) != 0 {
-                    gettext(c" marks").cast_const()
+                    gettext(c" marks")
                 } else {
                     empty
                 },
                 if (flags & K_SHA_DA_GET_OLDFILES) != 0 {
-                    gettext(c" oldfiles").cast_const()
+                    gettext(c" oldfiles")
                 } else {
                     empty
                 },
                 if of_ret != 0 {
-                    gettext(c" FAILED").cast_const()
+                    gettext(c" FAILED")
                 } else {
                     empty
                 },

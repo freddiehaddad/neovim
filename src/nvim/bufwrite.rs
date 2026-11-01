@@ -1893,7 +1893,7 @@ pub fn buf_write(
                     }
                     if !filtering {
                         let iobuf = g_st().iobuff.as_mut_ptr();
-                        let iobuf_append = |src: *const _| {
+                        let iobuf_append = |src: &std::ffi::CStr| {
                             let dlen = crate::memory::cstr_len(iobuf);
                             crate::memory::xstrlcpy(iobuf.wrapping_add(dlen), src, IOSIZE - dlen);
                         };

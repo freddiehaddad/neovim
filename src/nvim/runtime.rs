@@ -3204,7 +3204,7 @@ pub fn get_scriptname(script_ctx: Sctx, home_replace: bool) -> std::borrow::Cow<
     use std::borrow::Cow;
     {
         let iobuff = g_st().iobuff.as_mut_ptr();
-        let ptr = match script_ctx.sc_sid {
+        let cstr = match script_ctx.sc_sid {
             SID_MODELINE => gettext(c"modeline"),
             SID_CMDARG => gettext(c"--cmd argument"),
             SID_CARG => gettext(c"-c argument"),
@@ -3219,7 +3219,7 @@ pub fn get_scriptname(script_ctx: Sctx, home_replace: bool) -> std::borrow::Cow<
                     gettext(c"API client (channel id %llu)"),
                     script_ctx.sc_chan,
                 );
-                iobuff
+                crate::memory::cstr_from_ptr(iobuff)
             }
             SID_STR => gettext(c"anonymous :source"),
             _ => {
@@ -3236,11 +3236,11 @@ pub fn get_scriptname(script_ctx: Sctx, home_replace: bool) -> std::borrow::Cow<
                         gettext(c"anonymous :source (script id %d)"),
                         script_ctx.sc_sid,
                     );
-                    iobuff
+                    crate::memory::cstr_from_ptr(iobuff)
                 }
             }
         };
-        Cow::Borrowed(crate::memory::cstr_from_ptr(ptr))
+        Cow::Borrowed(cstr)
     }
 }
 

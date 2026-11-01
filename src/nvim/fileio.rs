@@ -3105,30 +3105,30 @@ fn readfile_charconvert(
     let fname = fname.into_c_char_ptr();
     let fenc = fenc.into_c_char_ptr();
     {
-        let mut errmsg: *mut u8 = ptr::null_mut();
+        let mut errmsg: Option<&std::ffi::CStr> = None;
 
         let mut tmpname = vim_tempname();
         match tmpname {
             None => {
-                errmsg = tr(c"Can't find temp file for conversion").cast();
+                errmsg = Some(tr(c"Can't find temp file for conversion"));
             }
             Some(ref tn) => {
                 unsafe { close(*fdp) };
                 *fdp = -1;
                 if !eval_charconvert(fenc, c"utf-8", fname, tn.as_ptr()) {
-                    errmsg = tr(c"Conversion with 'charconvert' failed").cast();
+                    errmsg = Some(tr(c"Conversion with 'charconvert' failed"));
                 }
-                if errmsg.is_null() {
+                if errmsg.is_none() {
                     *fdp = os_open(tn.as_ptr(), O_RDONLY, 0);
                     if *fdp < 0 {
-                        errmsg = tr(c"can't read output of 'charconvert'").cast();
+                        errmsg = Some(tr(c"can't read output of 'charconvert'"));
                     }
                 }
             }
         }
 
-        if !errmsg.is_null() {
-            msg(errmsg.cast(), 0);
+        if let Some(errmsg) = errmsg {
+            msg(errmsg, 0);
             if let Some(ref tn) = tmpname {
                 os_remove(tn.as_ptr());
                 tmpname = None;
@@ -3994,8 +3994,8 @@ pub fn buf_check_timestamp(buf: &mut FileBuf) -> i32 {
     const RELOAD_DETECT: i32 = 2;
 
     let mut retval: i32 = 0;
-    let mut mesg: *mut u8 = ptr::null_mut();
-    let mut mesg2: *mut u8 = c"".as_ptr().cast_mut().cast();
+    let mut mesg: Option<&std::ffi::CStr> = None;
+    let mut mesg2: &std::ffi::CStr = c"";
     let mut helpmesg = false;
     let mut reload: i32 = RELOAD_NONE;
     let mut can_reload = false;
@@ -4093,28 +4093,27 @@ pub fn buf_check_timestamp(buf: &mut FileBuf) -> i32 {
             if !n {
                 if crate::memory::cstr_first_byte(reason) == b'd' {
                     if prev_b_mtime != -1 {
-                        mesg = tr(c"E211: File \"%s\" no longer available").cast();
+                        mesg = Some(tr(c"E211: File \"%s\" no longer available"));
                     }
                 } else {
                     helpmesg = true;
                     can_reload = true;
 
                     if crate::memory::cstr_byte_at(reason, 2) == b'n' {
-                        mesg = tr(
+                        mesg = Some(tr(
                             c"W12: Warning: File \"%s\" has changed and the buffer was changed in Vim as well",
-                        )
-                        .cast();
-                        mesg2 = tr(c"See \":help W12\" for more info.").cast();
+                        ));
+                        mesg2 = tr(c"See \":help W12\" for more info.");
                     } else if crate::memory::cstr_byte_at(reason, 1) == b'h' {
-                        mesg = tr(c"W11: Warning: File \"%s\" has changed since editing started")
-                            .cast();
-                        mesg2 = tr(c"See \":help W11\" for more info.").cast();
+                        mesg = Some(tr(
+                            c"W11: Warning: File \"%s\" has changed since editing started",
+                        ));
+                        mesg2 = tr(c"See \":help W11\" for more info.");
                     } else if crate::memory::cstr_first_byte(reason) == b'm' {
-                        mesg = tr(
+                        mesg = Some(tr(
                             c"W16: Warning: Mode of file \"%s\" has changed since editing started",
-                        )
-                        .cast();
-                        mesg2 = tr(c"See \":help W16\" for more info.").cast();
+                        ));
+                        mesg2 = tr(c"See \":help W16\" for more info.");
                     } else {
                         buf.b_mtime_read = buf.b_mtime;
                         buf.b_mtime_read_ns = buf.b_mtime_ns;
@@ -4127,26 +4126,25 @@ pub fn buf_check_timestamp(buf: &mut FileBuf) -> i32 {
         && os_path_exists(buf.b_ffname)
     {
         retval = 1;
-        mesg = tr(c"W13: Warning: File \"%s\" has been created after editing started").cast();
+        mesg = Some(tr(
+            c"W13: Warning: File \"%s\" has been created after editing started",
+        ));
         buf.b_flags |= BF_NEW_W;
         can_reload = true;
     }
 
-    if !mesg.is_null() {
+    if let Some(mesg) = mesg {
         let path = home_replace_save(Some(buf), buf.b_fname);
         if !helpmesg {
-            mesg2 = c"".as_ptr().cast_mut().cast();
+            mesg2 = c"";
         }
-        let tbufsize = path.as_bytes().len()
-            + crate::memory::cstr_len(mesg.cast())
-            + crate::memory::cstr_len(mesg2.cast())
-            + 3;
+        let tbufsize = path.as_bytes().len() + mesg.to_bytes().len() + mesg2.to_bytes().len() + 3;
         let mut tbuf_vec = vec![0u8; tbufsize];
         let tbuf = tbuf_vec.as_mut_ptr();
-        let tbuflen = vim_snprintf!(tbuf.cast(), tbufsize, mesg.cast(), path.as_ptr());
+        let tbuflen = vim_snprintf!(tbuf.cast(), tbufsize, mesg, path.as_ptr());
         set_vim_var_string(VV_WARNINGMSG, tbuf.cast(), tbuflen as isize);
         if can_reload {
-            if !crate::memory::cstr_is_empty(mesg2.cast()) {
+            if !mesg2.to_bytes().is_empty() {
                 vim_snprintf!(
                     tbuf.wrapping_offset(tbuflen as isize).cast(),
                     tbufsize - (tbuflen as usize),
@@ -4171,7 +4169,7 @@ pub fn buf_check_timestamp(buf: &mut FileBuf) -> i32 {
             || (g_st().state_global & MODE_CMDLINE) != 0
             || fio_st().already_warned
         {
-            if !crate::memory::cstr_is_empty(mesg2.cast()) {
+            if !mesg2.to_bytes().is_empty() {
                 vim_snprintf!(
                     tbuf.wrapping_offset(tbuflen as isize).cast(),
                     tbufsize - (tbuflen as usize),
@@ -4185,8 +4183,8 @@ pub fn buf_check_timestamp(buf: &mut FileBuf) -> i32 {
             if !g_st().autocmd_busy {
                 msg_start();
                 msg_puts_hl(tbuf.cast(), HLF_E, true);
-                if !crate::memory::cstr_is_empty(mesg2.cast()) {
-                    msg_puts_hl(mesg2.cast(), HLF_W, true);
+                if !mesg2.to_bytes().is_empty() {
+                    msg_puts_hl(mesg2, HLF_W, true);
                 }
                 msg_clr_eos();
                 msg_end();

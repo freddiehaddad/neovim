@@ -1811,7 +1811,7 @@ pub fn f_confirm(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData
     }
 
     if crate::memory::cstr_is_empty(buttons.cast()) {
-        buttons = gettext(c"&Ok").cast();
+        buttons = gettext(c"&Ok").as_ptr().cast();
     }
 
     if !error {

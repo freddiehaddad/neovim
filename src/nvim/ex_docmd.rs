@@ -5835,7 +5835,7 @@ fn parse_count(eap: &mut Exarg, errormsg: *mut RawCCharPtr, validate: bool) -> b
             if n <= 0 && (eap.argt & EX_ZEROR) == 0 {
                 if !errormsg.is_null() {
                     unsafe {
-                        *errormsg = gettext(E_ZEROCOUNT);
+                        *errormsg = gettext(E_ZEROCOUNT).as_ptr();
                     }
                 }
                 return false;
@@ -5923,7 +5923,7 @@ pub fn parse_cmdline(
 
             let mut p = find_excmd_after_range(eap);
             if p.is_null() {
-                *errormsg = gettext(E_AMBIGUOUS_USE_OF_USER_DEFINED_COMMAND);
+                *errormsg = gettext(E_AMBIGUOUS_USE_OF_USER_DEFINED_COMMAND).as_ptr();
                 break 'end;
             }
 
@@ -6018,11 +6018,11 @@ pub fn parse_cmdline(
             }
 
             if (eap.argt & EX_BANG) == 0 && eap.forceit != 0 {
-                *errormsg = gettext(E_NOBANG);
+                *errormsg = gettext(E_NOBANG).as_ptr();
                 break 'end;
             }
             if (eap.argt & EX_RANGE) == 0 && eap.addr_count > 0 {
-                *errormsg = gettext(E_NORANGE);
+                *errormsg = gettext(E_NORANGE).as_ptr();
                 break 'end;
             }
             if (eap.argt & EX_DFLALL) != 0 && eap.addr_count == 0 {
@@ -6164,11 +6164,11 @@ pub fn execute_cmd(eap: &mut Exarg, cmod: &mut Cmdmod, preview: bool) -> i32 {
             && !(!curbuf_mut().terminal.is_null()
                 && (eap.cmdidx == Cmdidx::CmdPut as i32 || eap.cmdidx == Cmdidx::CmdIput as i32))
         {
-            errormsg = gettext(E_MODIFIABLE);
+            errormsg = gettext(E_MODIFIABLE).as_ptr();
             break 'end;
         }
         if eap.cmdidx >= 0 && text_locked() && (eap.argt & EX_LOCK_OK) == 0 {
-            errormsg = gettext(get_text_locked_msg());
+            errormsg = gettext(get_text_locked_msg()).as_ptr();
             break 'end;
         }
         if (eap.argt & EX_BUFLOCK_OK) == 0
@@ -6468,7 +6468,7 @@ fn do_one_cmd(
 
         if p.is_null() {
             if ea.skip == 0 {
-                errormsg = gettext(E_AMBIGUOUS_USE_OF_USER_DEFINED_COMMAND);
+                errormsg = gettext(E_AMBIGUOUS_USE_OF_USER_DEFINED_COMMAND).as_ptr();
             }
             break 'doend;
         }
@@ -6505,7 +6505,7 @@ fn do_one_cmd(
 
         if ea.skip == 0 {
             if g_st().sandbox != 0 && (ea.argt & EX_SBOXOK) == 0 {
-                errormsg = gettext(E_SANDBOX);
+                errormsg = gettext(E_SANDBOX).as_ptr();
                 break 'doend;
             }
             if curbuf_mut().b_p_ma == 0
@@ -6513,12 +6513,12 @@ fn do_one_cmd(
                 && !(!curbuf_mut().terminal.is_null()
                     && (ea.cmdidx == Cmdidx::CmdPut as i32 || ea.cmdidx == Cmdidx::CmdIput as i32))
             {
-                errormsg = gettext(E_MODIFIABLE);
+                errormsg = gettext(E_MODIFIABLE).as_ptr();
                 break 'doend;
             }
 
             if ea.cmdidx >= 0 && text_locked() && (ea.argt & EX_LOCK_OK) == 0 {
-                errormsg = gettext(get_text_locked_msg());
+                errormsg = gettext(get_text_locked_msg()).as_ptr();
                 break 'doend;
             }
 
@@ -6533,13 +6533,13 @@ fn do_one_cmd(
             }
 
             if !ni && (ea.argt & EX_RANGE) == 0 && ea.addr_count > 0 {
-                errormsg = gettext(E_NORANGE);
+                errormsg = gettext(E_NORANGE).as_ptr();
                 break 'doend;
             }
         }
 
         if !ni && (ea.argt & EX_BANG) == 0 && ea.forceit != 0 {
-            errormsg = gettext(E_NOBANG);
+            errormsg = gettext(E_NOBANG).as_ptr();
             break 'doend;
         }
 
@@ -6547,7 +6547,7 @@ fn do_one_cmd(
             if g_st().global_busy == 0 && ea.line1 > ea.line2 {
                 if g_st().msg_silent == 0 {
                     if (flags & DOCMD_VERBOSE) != 0 || g_st().silent_mode {
-                        errormsg = gettext(c"E493: Backwards range given");
+                        errormsg = gettext(c"E493: Backwards range given").as_ptr();
                         break 'doend;
                     }
                     if ask_yesno(gettext(c"Backwards range given, OK to swap")) != b'y' as i32 {
@@ -6599,7 +6599,7 @@ fn do_one_cmd(
                 && crate::memory::cstr_byte_at(ea.arg, 1) == b'+'
             {
                 if !getargopt(&mut ea) && !ni {
-                    errormsg = gettext(E_INVARG);
+                    errormsg = gettext(E_INVARG).as_ptr();
                     break 'doend;
                 }
             }
@@ -6609,7 +6609,7 @@ fn do_one_cmd(
             if crate::memory::cstr_first_byte(ea.arg) == b'>' {
                 ea.arg = ea.arg.wrapping_add(1);
                 if crate::memory::cstr_first_byte(ea.arg) != b'>' {
-                    errormsg = gettext(c"E494: Use w or w>>");
+                    errormsg = gettext(c"E494: Use w or w>>").as_ptr();
                     break 'doend;
                 }
                 ea.arg = skipwhite(ea.arg.wrapping_add(1));
@@ -6689,7 +6689,7 @@ fn do_one_cmd(
         }
 
         if !ni && (ea.argt & EX_NEEDARG) != 0 && crate::memory::cstr_is_empty(ea.arg) {
-            errormsg = gettext(E_ARGREQ);
+            errormsg = gettext(E_ARGREQ).as_ptr();
             break 'doend;
         }
 
@@ -6769,7 +6769,7 @@ fn ex_range_without_command(eap: &mut Exarg) -> RawCCharPtrMut {
         eap.line2 = eap.line2.min(curbuf_mut().b_ml.ml_line_count);
 
         if eap.line2 < 0 {
-            errormsg = gettext(E_INVRANGE);
+            errormsg = gettext(E_INVRANGE).as_ptr().cast_mut();
         } else {
             if eap.line2 == 0 {
                 curwin_mut().w_cursor.lnum = 1;
@@ -6992,7 +6992,7 @@ pub fn parse_command_modifiers(
                         } else {
                             if tabnr < 0 || tabnr > current_tab_nr(ptr::null_mut()) {
                                 unsafe {
-                                    *errormsg = gettext(E_INVRANGE);
+                                    *errormsg = gettext(E_INVRANGE).as_ptr();
                                 }
                                 return false;
                             }
@@ -7194,12 +7194,12 @@ pub fn parse_cmd_address(eap: &mut Exarg, errormsg: *mut RawCCharPtr, silent: bo
                                         current_tab_nr(ptr::null_mut())
                                     };
                                 } else {
-                                    *errormsg = gettext(E_INVRANGE);
+                                    *errormsg = gettext(E_INVRANGE).as_ptr();
                                     break 'theend;
                                 }
                             }
                             ADDR_TABS_RELATIVE | ADDR_UNSIGNED | ADDR_QUICKFIX => {
-                                *errormsg = gettext(E_INVRANGE);
+                                *errormsg = gettext(E_INVRANGE).as_ptr();
                                 break 'theend;
                             }
                             ADDR_ARGUMENTS => {
@@ -7224,7 +7224,7 @@ pub fn parse_cmd_address(eap: &mut Exarg, errormsg: *mut RawCCharPtr, silent: bo
                         eap.addr_count += 1;
                     } else if crate::memory::cstr_first_byte(eap.cmd) == b'*' {
                         if eap.addr_type != ADDR_LINES {
-                            *errormsg = gettext(E_INVRANGE);
+                            *errormsg = gettext(E_INVRANGE).as_ptr();
                             break 'theend;
                         }
 
@@ -7695,9 +7695,9 @@ pub fn skip_range(
 
 fn addr_error(addr_type: CmdAddr) -> RawCCharPtr {
     if addr_type == ADDR_NONE {
-        gettext(E_NORANGE)
+        gettext(E_NORANGE).as_ptr()
     } else {
-        gettext(E_INVRANGE)
+        gettext(E_INVRANGE).as_ptr()
     }
 }
 
@@ -7884,7 +7884,7 @@ pub fn get_address(
                         {
                             RE_SEARCH
                         } else {
-                            *errormsg = gettext(E_BACKSLASH);
+                            *errormsg = gettext(E_BACKSLASH).as_ptr();
                             cmd = ptr::null_mut();
                             break 'error;
                         };
@@ -7971,7 +7971,7 @@ pub fn get_address(
                     } else {
                         let parsed = getdigits_int32(&raw mut cmd, false, MAXLNUM);
                         if parsed == MAXLNUM {
-                            *errormsg = gettext(E_LINE_NUMBER_OUT_OF_RANGE);
+                            *errormsg = gettext(E_LINE_NUMBER_OUT_OF_RANGE).as_ptr();
                             cmd = ptr::null_mut();
                             break 'error;
                         }
@@ -7979,7 +7979,7 @@ pub fn get_address(
                     };
 
                     if addr_type == ADDR_TABS_RELATIVE {
-                        *errormsg = gettext(E_INVRANGE);
+                        *errormsg = gettext(E_INVRANGE).as_ptr();
                         cmd = ptr::null_mut();
                         break 'error;
                     } else if addr_type == ADDR_LOADED_BUFFERS || addr_type == ADDR_BUFFERS {
@@ -7999,7 +7999,7 @@ pub fn get_address(
                             lnum -= n;
                         } else {
                             if lnum >= 0 && n >= i32::MAX - lnum {
-                                *errormsg = gettext(E_LINE_NUMBER_OUT_OF_RANGE);
+                                *errormsg = gettext(E_LINE_NUMBER_OUT_OF_RANGE).as_ptr();
                                 cmd = ptr::null_mut();
                                 break 'error;
                             }
@@ -8036,7 +8036,9 @@ fn get_flags(eap: &mut Exarg) {
 
 pub fn ex_ni(eap: &mut Exarg) {
     if eap.skip == 0 {
-        eap.errmsg = gettext(c"E319: The command is not available in this version");
+        eap.errmsg = gettext(c"E319: The command is not available in this version")
+            .as_ptr()
+            .cast_mut();
     }
 }
 
@@ -8052,7 +8054,7 @@ fn ex_script_ni(eap: &mut Exarg) {
 pub fn invalid_range(eap: &mut Exarg) -> RawCCharPtrMut {
     unsafe {
         if eap.line1 < 0 || eap.line2 < 0 || eap.line1 > eap.line2 {
-            return gettext(E_INVRANGE);
+            return gettext(E_INVRANGE).as_ptr().cast_mut();
         }
 
         if (eap.argt & EX_RANGE) != 0 {
@@ -8064,66 +8066,66 @@ pub fn invalid_range(eap: &mut Exarg) -> RawCCharPtrMut {
                             || eap.cmdidx == Cmdidx::CmdDiffput as i32,
                     );
                     if eap.line2 > curbuf_mut().b_ml.ml_line_count + extra {
-                        return gettext(E_INVRANGE);
+                        return gettext(E_INVRANGE).as_ptr().cast_mut();
                     }
                 }
                 ADDR_ARGUMENTS => {
                     let ac = argcount();
                     if eap.line2 > ac + i32::from(ac == 0) {
-                        return gettext(E_INVRANGE);
+                        return gettext(E_INVRANGE).as_ptr().cast_mut();
                     }
                 }
                 ADDR_BUFFERS => {
                     if eap.line1 < 1 || eap.line2 > get_highest_fnum() {
-                        return gettext(E_INVRANGE);
+                        return gettext(E_INVRANGE).as_ptr().cast_mut();
                     }
                 }
                 ADDR_LOADED_BUFFERS => {
                     let mut buf = g_st().firstbuf;
                     while (*buf).b_ml.ml_mfp.is_none() {
                         if (*buf).b_next.is_null() {
-                            return gettext(E_INVRANGE);
+                            return gettext(E_INVRANGE).as_ptr().cast_mut();
                         }
                         buf = (*buf).b_next;
                     }
                     if eap.line1 < (*buf).b_fnum {
-                        return gettext(E_INVRANGE);
+                        return gettext(E_INVRANGE).as_ptr().cast_mut();
                     }
                     buf = g_st().lastbuf;
                     while (*buf).b_ml.ml_mfp.is_none() {
                         if (*buf).b_prev.is_null() {
-                            return gettext(E_INVRANGE);
+                            return gettext(E_INVRANGE).as_ptr().cast_mut();
                         }
                         buf = (*buf).b_prev;
                     }
                     if eap.line2 > (*buf).b_fnum {
-                        return gettext(E_INVRANGE);
+                        return gettext(E_INVRANGE).as_ptr().cast_mut();
                     }
                 }
                 ADDR_WINDOWS => {
                     if eap.line2 > current_win_nr(ptr::null(), Some(&*eap)) {
-                        return gettext(E_INVRANGE);
+                        return gettext(E_INVRANGE).as_ptr().cast_mut();
                     }
                 }
                 ADDR_TABS => {
                     if eap.line2 > current_tab_nr(ptr::null_mut()) {
-                        return gettext(E_INVRANGE);
+                        return gettext(E_INVRANGE).as_ptr().cast_mut();
                     }
                 }
                 ADDR_TABS_RELATIVE | ADDR_OTHER => {}
                 ADDR_QUICKFIX => {
                     if eap.line2 <= 0 {
                         if eap.addr_count == 0 {
-                            return gettext(E_NO_ERRORS);
+                            return gettext(E_NO_ERRORS).as_ptr().cast_mut();
                         }
-                        return gettext(E_INVRANGE);
+                        return gettext(E_INVRANGE).as_ptr().cast_mut();
                     }
                 }
                 ADDR_QUICKFIX_VALID
                     if (eap.line2 != 1 && (eap.line2 as usize) > qf_get_valid_size(&mut *eap))
                         || eap.line2 < 0 =>
                 {
-                    return gettext(E_INVRANGE);
+                    return gettext(E_INVRANGE).as_ptr().cast_mut();
                 }
                 _ => {}
             }
@@ -8766,7 +8768,7 @@ fn get_tabpage_arg(eap: &mut Exarg) -> i32 {
             }
         } else if eap.addr_count > 0 {
             if unaccept_arg0 != 0 && eap.line2 == 0 {
-                eap.errmsg = gettext(E_INVRANGE);
+                eap.errmsg = gettext(E_INVRANGE).as_ptr().cast_mut();
                 tab_number = 0;
             } else {
                 tab_number = eap.line2;
@@ -8780,7 +8782,7 @@ fn get_tabpage_arg(eap: &mut Exarg) -> i32 {
                     if crate::memory::cstr_first_byte(cmdp) == b'-' {
                         tab_number -= 1;
                         if tab_number < unaccept_arg0 {
-                            eap.errmsg = gettext(E_INVRANGE);
+                            eap.errmsg = gettext(E_INVRANGE).as_ptr().cast_mut();
                         }
                     }
                 }
@@ -8803,7 +8805,7 @@ fn get_tabpage_arg(eap: &mut Exarg) -> i32 {
 fn ex_autocmd(eap: &mut Exarg) {
     if g_st().secure != 0 {
         g_st().secure = 2;
-        eap.errmsg = gettext(E_CURDIR);
+        eap.errmsg = gettext(E_CURDIR).as_ptr().cast_mut();
     } else if eap.cmdidx == Cmdidx::CmdAutocmd as i32 {
         do_autocmd(eap, eap.arg, eap.forceit);
     } else {
@@ -9910,7 +9912,7 @@ fn ex_recover(eap: &mut Exarg) {
 }
 
 fn ex_wrongmodifier(eap: &mut Exarg) {
-    eap.errmsg = gettext(E_INVCMD);
+    eap.errmsg = gettext(E_INVCMD).as_ptr().cast_mut();
 }
 
 fn call_findfunc(pat: impl crate::strings::IntoCCharPtr, cmdcomplete: BoolVarValue) -> *mut TvList {
@@ -10195,7 +10197,7 @@ fn ex_tabnext(eap: &mut Exarg) {
         } else {
             tab_number = eap.line2;
             if tab_number < 1 {
-                eap.errmsg = gettext(E_INVRANGE);
+                eap.errmsg = gettext(E_INVRANGE).as_ptr().cast_mut();
                 return;
             }
         }
@@ -10619,7 +10621,9 @@ pub fn do_exedit(eap: &mut Exarg, old_curwin: *mut WinInfoInfo) {
 }
 
 fn ex_nogui(eap: &mut Exarg) {
-    eap.errmsg = gettext(c"E25: Nvim does not have a built-in GUI");
+    eap.errmsg = gettext(c"E25: Nvim does not have a built-in GUI")
+        .as_ptr()
+        .cast_mut();
 }
 
 fn ex_popup(eap: &mut Exarg) {
@@ -12090,7 +12094,8 @@ pub fn eval_vars(
                             let buf = buflist_findnr(i);
                             if buf.is_null() {
                                 *errormsg =
-                                    gettext(c"E194: No alternate file name to substitute for '#'");
+                                    gettext(c"E194: No alternate file name to substitute for '#'")
+                                        .as_ptr();
                                 return None;
                             }
                             let buf = &mut *buf;
@@ -12132,14 +12137,16 @@ pub fn eval_vars(
                         .as_ref()
                         .map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut());
                     if result.is_null() {
-                        *errormsg = gettext(E_NO_AUTOCOMMAND_FILE_NAME_TO_SUBSTITUTE_FOR_AFILE);
+                        *errormsg =
+                            gettext(E_NO_AUTOCOMMAND_FILE_NAME_TO_SUBSTITUTE_FOR_AFILE).as_ptr();
                         return None;
                     }
                     result = path_try_shorten_fname(result);
                 }
                 SPEC_ABUF => {
                     if g_st().autocmd_bufnr <= 0 {
-                        *errormsg = gettext(E_NO_AUTOCOMMAND_BUFFER_NUMBER_TO_SUBSTITUTE_FOR_ABUF);
+                        *errormsg =
+                            gettext(E_NO_AUTOCOMMAND_BUFFER_NUMBER_TO_SUBSTITUTE_FOR_ABUF).as_ptr();
                         return None;
                     }
                     let _ =
@@ -12153,14 +12160,15 @@ pub fn eval_vars(
                         .as_ref()
                         .map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut());
                     if result.is_null() {
-                        *errormsg = gettext(E_NO_AUTOCOMMAND_MATCH_NAME_TO_SUBSTITUTE_FOR_AMATCH);
+                        *errormsg =
+                            gettext(E_NO_AUTOCOMMAND_MATCH_NAME_TO_SUBSTITUTE_FOR_AMATCH).as_ptr();
                         return None;
                     }
                 }
                 SPEC_SFILE => {
                     use_shellslash = true;
                     let Some(sfile) = estack_sfile(ESTACK_SFILE) else {
-                        *errormsg = gettext(E_NO_SOURCE_FILE_NAME_TO_SUBSTITUTE_FOR_SFILE);
+                        *errormsg = gettext(E_NO_SOURCE_FILE_NAME_TO_SUBSTITUTE_FOR_SFILE).as_ptr();
                         return None;
                     };
                     let mut v: Vec<u8> = sfile.into_bytes_with_nul();
@@ -12170,7 +12178,7 @@ pub fn eval_vars(
                 SPEC_STACK => {
                     use_shellslash = true;
                     let Some(stack) = estack_sfile(ESTACK_STACK) else {
-                        *errormsg = gettext(E_NO_CALL_STACK_TO_SUBSTITUTE_FOR_STACK);
+                        *errormsg = gettext(E_NO_CALL_STACK_TO_SUBSTITUTE_FOR_STACK).as_ptr();
                         return None;
                     };
                     let mut v: Vec<u8> = stack.into_bytes_with_nul();
@@ -12180,7 +12188,8 @@ pub fn eval_vars(
                 SPEC_SCRIPT => {
                     use_shellslash = true;
                     let Some(script) = estack_sfile(ESTACK_SCRIPT) else {
-                        *errormsg = gettext(E_NO_SCRIPT_FILE_NAME_TO_SUBSTITUTE_FOR_SCRIPT);
+                        *errormsg =
+                            gettext(E_NO_SCRIPT_FILE_NAME_TO_SUBSTITUTE_FOR_SCRIPT).as_ptr();
                         return None;
                     };
                     let mut v: Vec<u8> = script.into_bytes_with_nul();
@@ -12189,7 +12198,7 @@ pub fn eval_vars(
                 }
                 SPEC_SLNUM => {
                     if sourcing_name().is_none() || *sourcing_lnum_ptr() == 0 {
-                        *errormsg = gettext(E_NO_LINE_NUMBER_TO_USE_FOR_SLNUM);
+                        *errormsg = gettext(E_NO_LINE_NUMBER_TO_USE_FOR_SLNUM).as_ptr();
                         return None;
                     }
                     let _ =
@@ -12199,7 +12208,7 @@ pub fn eval_vars(
                 SPEC_SFLNUM => {
                     let sflnum = g_st().current_sctx.sc_lnum + *sourcing_lnum_ptr();
                     if sflnum == 0 {
-                        *errormsg = gettext(E_NO_LINE_NUMBER_TO_USE_FOR_SFLNUM);
+                        *errormsg = gettext(E_NO_LINE_NUMBER_TO_USE_FOR_SFLNUM).as_ptr();
                         return None;
                     }
                     let _ = vim_snprintf!(strbuf.as_mut_ptr().cast(), 30, c"%d", sflnum);
@@ -12207,7 +12216,7 @@ pub fn eval_vars(
                 }
                 SPEC_SID => {
                     if g_st().current_sctx.sc_sid <= 0 {
-                        *errormsg = gettext(E_USINGSID);
+                        *errormsg = gettext(E_USINGSID).as_ptr();
                         return None;
                     }
                     let _ = vim_snprintf!(
@@ -12256,9 +12265,10 @@ pub fn eval_vars(
             if empty_is_error {
                 if valid != VALID_HEAD + VALID_PATH {
                     *errormsg =
-                        gettext(c"E499: Empty file name for '%' or '#', only works with \":p:h\"");
+                        gettext(c"E499: Empty file name for '%' or '#', only works with \":p:h\"")
+                            .as_ptr();
                 } else {
-                    *errormsg = gettext(c"E500: Evaluates to an empty string");
+                    *errormsg = gettext(c"E500: Evaluates to an empty string").as_ptr();
                 }
             }
             None
