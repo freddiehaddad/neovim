@@ -5584,8 +5584,7 @@ fn vgr_match_buflines(
                     spat,
                     false,
                     &mut score,
-                    matches.as_mut_ptr(),
-                    FUZZY_MATCH_MAX_LEN as i32,
+                    &mut matches,
                 ) {
                     if qf_add_entry(
                         qfl,

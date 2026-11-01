@@ -16,8 +16,8 @@ use crate::eval::typval::{
 use crate::globals::*;
 use crate::insexpand::{ctrl_x_mode_whole_line, find_line_end, find_word_end, find_word_start};
 use crate::mbyte::{
-    mb_charlen, mb_islower, mb_isupper, mb_tolower, mb_toupper, utf_ptr2char, utf_ptr2len,
-    utfc_ptr2len,
+    mb_islower, mb_isupper, mb_tolower, mb_toupper, utf_ptr2char, utf_ptr2len, utf_slice2char,
+    utf_slice2len, utfc_slice2len,
 };
 use crate::memline::{ml_get_buf, ml_get_buf_len};
 use crate::message::semsg;
@@ -70,44 +70,38 @@ struct MatchStruct {
     match_bonus: [f64; MATCH_MAX_LEN],
 }
 
-fn has_match(
-    needle: impl crate::strings::IntoCCharPtr,
-    haystack: impl crate::strings::IntoCCharPtr,
-) -> bool {
-    let needle = needle.into_c_char_ptr();
-    let haystack = haystack.into_c_char_ptr();
-    {
-        if needle.is_null() || haystack.is_null() || unsafe { *needle } == 0 {
+fn has_match(needle: &[u8], haystack: &[u8]) -> bool {
+    if needle.is_empty() || haystack.is_empty() {
+        return false;
+    }
+
+    let mut n_idx = 0usize;
+    let mut h_idx = 0usize;
+
+    while n_idx < needle.len() && needle[n_idx] != 0 {
+        let n_rest = &needle[n_idx..];
+        let n_char = utf_slice2char(n_rest);
+        let n_upper = mb_toupper(n_char);
+        let mut found = false;
+
+        while h_idx < haystack.len() && haystack[h_idx] != 0 {
+            let h_rest = &haystack[h_idx..];
+            let h_char = utf_slice2char(h_rest);
+            h_idx += utfc_slice2len(h_rest);
+            if h_char == n_char || h_char == n_upper {
+                found = true;
+                break;
+            }
+        }
+
+        if !found {
             return false;
         }
 
-        let mut n_ptr = needle;
-        let mut h_ptr = haystack;
-
-        while unsafe { *n_ptr } != 0 {
-            let n_char = utf_ptr2char(n_ptr);
-            let n_upper = mb_toupper(n_char);
-            let mut found = false;
-
-            while unsafe { *h_ptr } != 0 {
-                let h_char = utf_ptr2char(h_ptr);
-                if h_char == n_char || h_char == n_upper {
-                    found = true;
-                    h_ptr = h_ptr.wrapping_add(utfc_ptr2len(h_ptr) as usize);
-                    break;
-                }
-                h_ptr = h_ptr.wrapping_add(utfc_ptr2len(h_ptr) as usize);
-            }
-
-            if !found {
-                return false;
-            }
-
-            n_ptr = n_ptr.wrapping_add(utfc_ptr2len(n_ptr) as usize);
-        }
-
-        true
+        n_idx += utfc_slice2len(n_rest);
     }
+
+    true
 }
 
 fn compute_bonus_codepoint(last_c: i32, c: i32) -> f64 {
@@ -128,47 +122,41 @@ fn compute_bonus_codepoint(last_c: i32, c: i32) -> f64 {
     0.0
 }
 
-fn setup_match_struct(
-    match_st: &mut MatchStruct,
-    needle: impl crate::strings::IntoCCharPtr,
-    haystack: impl crate::strings::IntoCCharPtr,
-) {
-    let needle = needle.into_c_char_ptr();
-    let haystack = haystack.into_c_char_ptr();
-    {
-        let mut i = 0usize;
-        let mut p = needle;
-        while unsafe { *p } != 0 && i < MATCH_MAX_LEN {
-            let c = utf_ptr2char(p);
-            match_st.lower_needle[i] = mb_tolower(c);
-            i += 1;
-            p = p.wrapping_add(utf_ptr2len(p) as usize);
-        }
-        match_st.needle_len = i;
-
-        i = 0;
-        p = haystack;
-        let mut prev_c = b'/' as i32;
-        while unsafe { *p } != 0 && i < MATCH_MAX_LEN {
-            let c = utf_ptr2char(p);
-            match_st.lower_haystack[i] = mb_tolower(c);
-            match_st.match_bonus[i] = compute_bonus_codepoint(prev_c, c);
-            prev_c = c;
-            p = p.wrapping_add(utf_ptr2len(p) as usize);
-            i += 1;
-        }
-        match_st.haystack_len = i;
+fn setup_match_struct(match_st: &mut MatchStruct, needle: &[u8], haystack: &[u8]) {
+    let mut i = 0usize;
+    let mut off = 0usize;
+    while off < needle.len() && needle[off] != 0 && i < MATCH_MAX_LEN {
+        let rest = &needle[off..];
+        let c = utf_slice2char(rest);
+        match_st.lower_needle[i] = mb_tolower(c);
+        i += 1;
+        off += utf_slice2len(rest);
     }
+    match_st.needle_len = i;
+
+    i = 0;
+    off = 0;
+    let mut prev_c = b'/' as i32;
+    while off < haystack.len() && haystack[off] != 0 && i < MATCH_MAX_LEN {
+        let rest = &haystack[off..];
+        let c = utf_slice2char(rest);
+        match_st.lower_haystack[i] = mb_tolower(c);
+        match_st.match_bonus[i] = compute_bonus_codepoint(prev_c, c);
+        prev_c = c;
+        off += utf_slice2len(rest);
+        i += 1;
+    }
+    match_st.haystack_len = i;
 }
 
 #[inline]
 fn match_row(
     match_st: &MatchStruct,
     row: usize,
-    curr_d: *mut f64,
-    curr_m: *mut f64,
-    last_d: *const f64,
-    last_m: *const f64,
+    curr_d: &mut [f64],
+    curr_m: &mut [f64],
+    last_d: &[f64],
+    last_m: &[f64],
 ) {
     let n = match_st.needle_len;
     let m = match_st.haystack_len;
@@ -185,39 +173,30 @@ fn match_row(
     let mut prev_d = SCORE_MIN;
 
     for j in 0..m {
-        unsafe {
-            if match_st.lower_needle[i] == match_st.lower_haystack[j] {
-                let mut score = SCORE_MIN;
-                if i == 0 {
-                    score = ((j as f64) * SCORE_GAP_LEADING) + match_st.match_bonus[j];
-                } else if j > 0 {
-                    score =
-                        (prev_m + match_st.match_bonus[j]).max(prev_d + SCORE_MATCH_CONSECUTIVE);
-                }
-                prev_d = *last_d.wrapping_add(j);
-                prev_m = *last_m.wrapping_add(j);
-                *curr_d.wrapping_add(j) = score;
-                prev_score = score.max(prev_score + gap_score);
-                *curr_m.wrapping_add(j) = prev_score;
-            } else {
-                prev_d = *last_d.wrapping_add(j);
-                prev_m = *last_m.wrapping_add(j);
-                *curr_d.wrapping_add(j) = SCORE_MIN;
-                prev_score += gap_score;
-                *curr_m.wrapping_add(j) = prev_score;
+        if match_st.lower_needle[i] == match_st.lower_haystack[j] {
+            let mut score = SCORE_MIN;
+            if i == 0 {
+                score = ((j as f64) * SCORE_GAP_LEADING) + match_st.match_bonus[j];
+            } else if j > 0 {
+                score = (prev_m + match_st.match_bonus[j]).max(prev_d + SCORE_MATCH_CONSECUTIVE);
             }
+            prev_d = last_d[j];
+            prev_m = last_m[j];
+            curr_d[j] = score;
+            prev_score = score.max(prev_score + gap_score);
+            curr_m[j] = prev_score;
+        } else {
+            prev_d = last_d[j];
+            prev_m = last_m[j];
+            curr_d[j] = SCORE_MIN;
+            prev_score += gap_score;
+            curr_m[j] = prev_score;
         }
     }
 }
 
-fn match_positions(
-    needle: impl crate::strings::IntoCCharPtr,
-    haystack: impl crate::strings::IntoCCharPtr,
-    positions: *mut u32,
-) -> f64 {
-    let needle = needle.into_c_char_ptr();
-    let haystack = haystack.into_c_char_ptr();
-    if needle.is_null() || haystack.is_null() || unsafe { *needle } == 0 {
+fn match_positions(needle: &[u8], haystack: &[u8], positions: &mut [u32]) -> f64 {
+    if needle.is_empty() || haystack.is_empty() {
         return SCORE_MIN;
     }
 
@@ -235,74 +214,166 @@ fn match_positions(
 
     if m > MATCH_MAX_LEN || n > m {
         return SCORE_MIN;
-    } else if n == m {
-        let mut equal = true;
-        for i in 0..n {
-            if match_st.lower_needle[i] != match_st.lower_haystack[i] {
-                equal = false;
-                break;
-            }
+    } else if n == m && match_st.lower_needle[..n] == match_st.lower_haystack[..n] {
+        for (i, slot) in positions.iter_mut().take(n).enumerate() {
+            *slot = i as u32;
         }
-        if equal {
-            if !positions.is_null() {
-                for i in 0..n {
-                    unsafe {
-                        *positions.wrapping_add(i) = i as u32;
-                    }
-                }
-            }
-            return SCORE_MAX;
-        }
+        return SCORE_MAX;
     }
 
     if n > (usize::MAX / std::mem::size_of::<f64>()) / MATCH_MAX_LEN / 2 {
         return SCORE_MIN;
     }
 
-    let mut block = vec![0.0f64; MATCH_MAX_LEN * n * 2];
-    let d_base = block.as_mut_ptr();
-    let m_base = d_base.wrapping_add(MATCH_MAX_LEN * n);
+    let mut d_table = vec![0.0f64; MATCH_MAX_LEN * n];
+    let mut m_table = vec![0.0f64; MATCH_MAX_LEN * n];
+    let zero_row = [0.0f64; MATCH_MAX_LEN];
 
-    match_row(&match_st, 0, d_base, m_base, d_base, m_base);
+    match_row(
+        &match_st,
+        0,
+        &mut d_table[..MATCH_MAX_LEN],
+        &mut m_table[..MATCH_MAX_LEN],
+        &zero_row,
+        &zero_row,
+    );
     for i in 1..n {
         let row_off = i * MATCH_MAX_LEN;
+        let (d_prev, d_curr) = d_table.split_at_mut(row_off);
+        let (m_prev, m_curr) = m_table.split_at_mut(row_off);
         let prev_off = (i - 1) * MATCH_MAX_LEN;
         match_row(
             &match_st,
             i,
-            d_base.wrapping_add(row_off),
-            m_base.wrapping_add(row_off),
-            d_base.wrapping_add(prev_off),
-            m_base.wrapping_add(prev_off),
+            &mut d_curr[..MATCH_MAX_LEN],
+            &mut m_curr[..MATCH_MAX_LEN],
+            &d_prev[prev_off..prev_off + MATCH_MAX_LEN],
+            &m_prev[prev_off..prev_off + MATCH_MAX_LEN],
         );
     }
 
-    if !positions.is_null() {
-        let mut match_required = false;
-        let mut j = (m as isize) - 1;
-        for i in (0..n).rev() {
-            while j >= 0 {
-                let ju = j as usize;
-                let dij = unsafe { *d_base.wrapping_add(i * MATCH_MAX_LEN + ju) };
-                let mij = unsafe { *m_base.wrapping_add(i * MATCH_MAX_LEN + ju) };
-                if dij != SCORE_MIN && (match_required || dij == mij) {
-                    match_required = i > 0
-                        && ju > 0
-                        && mij
-                            == unsafe { *d_base.wrapping_add((i - 1) * MATCH_MAX_LEN + (ju - 1)) }
-                                + SCORE_MATCH_CONSECUTIVE;
-                    unsafe {
-                        *positions.wrapping_add(i) = ju as u32;
-                    }
-                    j -= 1;
-                    break;
+    let mut match_required = false;
+    let mut j = (m as isize) - 1;
+    for i in (0..n).rev() {
+        while j >= 0 {
+            let ju = j as usize;
+            let dij = d_table[i * MATCH_MAX_LEN + ju];
+            let mij = m_table[i * MATCH_MAX_LEN + ju];
+            if dij != SCORE_MIN && (match_required || dij == mij) {
+                match_required = i > 0
+                    && ju > 0
+                    && mij == d_table[(i - 1) * MATCH_MAX_LEN + (ju - 1)] + SCORE_MATCH_CONSECUTIVE;
+                if let Some(slot) = positions.get_mut(i) {
+                    *slot = ju as u32;
                 }
                 j -= 1;
+                break;
             }
+            j -= 1;
         }
     }
 
-    unsafe { *m_base.wrapping_add((n - 1) * MATCH_MAX_LEN + (m - 1)) }
+    m_table[(n - 1) * MATCH_MAX_LEN + (m - 1)]
+}
+
+fn mb_charlen_slice(bytes: &[u8]) -> usize {
+    let mut count = 0usize;
+    let mut i = 0usize;
+    while i < bytes.len() && bytes[i] != 0 {
+        i += utfc_slice2len(&bytes[i..]);
+        count += 1;
+    }
+    count
+}
+
+pub fn fuzzy_match_slice(
+    str_bytes: &[u8],
+    pat_bytes: &[u8],
+    matchseq: bool,
+    out_score: &mut i32,
+    matches: &mut [u32],
+) -> bool {
+    let max_matches = matches.len() as i32;
+    let mut complete = false;
+    let mut num_matches: i32 = 0;
+
+    *out_score = 0;
+
+    let mut p_idx = 0usize;
+
+    loop {
+        let pat_slice: &[u8] = if matchseq {
+            complete = true;
+            pat_bytes
+        } else {
+            while p_idx < pat_bytes.len() && ascii_iswhite(i32::from(pat_bytes[p_idx])) {
+                p_idx += 1;
+            }
+            if p_idx >= pat_bytes.len() || pat_bytes[p_idx] == 0 {
+                break;
+            }
+            let start = p_idx;
+            while p_idx < pat_bytes.len()
+                && pat_bytes[p_idx] != 0
+                && !ascii_iswhite(utf_slice2char(&pat_bytes[p_idx..]))
+            {
+                p_idx += utf_slice2len(&pat_bytes[p_idx..]);
+            }
+            if p_idx >= pat_bytes.len() || pat_bytes[p_idx] == 0 {
+                complete = true;
+            }
+            &pat_bytes[start..p_idx]
+        };
+
+        let mut pat_chars = mb_charlen_slice(pat_slice) as i32;
+        if pat_chars > max_matches {
+            pat_chars = max_matches;
+        }
+        if num_matches > max_matches - pat_chars {
+            num_matches = 0;
+            *out_score = FUZZY_SCORE_NONE;
+            break;
+        }
+
+        let mut score = FUZZY_SCORE_NONE;
+        if has_match(pat_slice, str_bytes) {
+            let fzy_score =
+                match_positions(pat_slice, str_bytes, &mut matches[num_matches as usize..]);
+            if fzy_score != SCORE_MIN {
+                score = if fzy_score == SCORE_MAX {
+                    i32::MAX
+                } else if fzy_score < 0.0 {
+                    (fzy_score * SCORE_SCALE - 0.5).ceil() as i32
+                } else {
+                    (fzy_score * SCORE_SCALE + 0.5).floor() as i32
+                };
+            }
+        }
+
+        if score == FUZZY_SCORE_NONE {
+            num_matches = 0;
+            *out_score = FUZZY_SCORE_NONE;
+            break;
+        }
+
+        if score > 0 && *out_score > i32::MAX - score {
+            *out_score = i32::MAX;
+        } else if score < 0 && *out_score < i32::MIN + 1 - score {
+            *out_score = i32::MIN + 1;
+        } else {
+            *out_score += score;
+        }
+
+        num_matches += pat_chars;
+
+        if complete || num_matches >= max_matches {
+            break;
+        }
+
+        p_idx += 1;
+    }
+
+    num_matches != 0
 }
 
 /// Fuzzy match `pat_arg` in `str` (`fuzzy_match`).
@@ -311,94 +382,11 @@ pub fn fuzzy_match(
     pat_arg: impl crate::strings::IntoCCharPtr,
     matchseq: bool,
     out_score: &mut i32,
-    matches: *mut u32,
-    max_matches: i32,
+    matches: &mut [u32],
 ) -> bool {
-    let str_ptr = str_ptr.into_c_char_ptr();
-    let pat_arg = pat_arg.into_c_char_ptr();
-    {
-        let mut complete = false;
-        let mut num_matches: i32 = 0;
-
-        *out_score = 0;
-
-        let mut save_pat = crate::memory::cstr_to_cstring(pat_arg).into_bytes_with_nul();
-        let mut pat = save_pat.as_mut_ptr();
-        let mut p = pat;
-
-        loop {
-            if matchseq {
-                complete = true;
-            } else {
-                p = skipwhite(p.cast()).cast();
-                if unsafe { *p } == 0 {
-                    break;
-                }
-                pat = p;
-                while unsafe { *p } != 0 && !ascii_iswhite(utf_ptr2char(p.cast())) {
-                    p = p.wrapping_add(utf_ptr2len(p.cast()) as usize);
-                }
-                if unsafe { *p } == 0 {
-                    complete = true;
-                }
-                unsafe {
-                    *p = 0;
-                }
-            }
-
-            let mut pat_chars = mb_charlen(pat.cast());
-            if pat_chars > max_matches {
-                pat_chars = max_matches;
-            }
-            if num_matches > max_matches - pat_chars {
-                num_matches = 0;
-                *out_score = FUZZY_SCORE_NONE;
-                break;
-            }
-
-            let mut score = FUZZY_SCORE_NONE;
-            if has_match(pat.cast(), str_ptr) {
-                let fzy_score = match_positions(
-                    pat.cast(),
-                    str_ptr,
-                    matches.wrapping_add(num_matches as usize),
-                );
-                if fzy_score != SCORE_MIN {
-                    score = if fzy_score == SCORE_MAX {
-                        i32::MAX
-                    } else if fzy_score < 0.0 {
-                        (fzy_score * SCORE_SCALE - 0.5).ceil() as i32
-                    } else {
-                        (fzy_score * SCORE_SCALE + 0.5).floor() as i32
-                    };
-                }
-            }
-
-            if score == FUZZY_SCORE_NONE {
-                num_matches = 0;
-                *out_score = FUZZY_SCORE_NONE;
-                break;
-            }
-
-            if score > 0 && *out_score > i32::MAX - score {
-                *out_score = i32::MAX;
-            } else if score < 0 && *out_score < i32::MIN + 1 - score {
-                *out_score = i32::MIN + 1;
-            } else {
-                *out_score += score;
-            }
-
-            num_matches += pat_chars;
-
-            if complete || num_matches >= max_matches {
-                break;
-            }
-
-            p = p.wrapping_add(1);
-        }
-
-        num_matches != 0
-    }
+    let str_bytes = crate::memory::cstr_as_bytes(str_ptr.into_c_char_ptr());
+    let pat_bytes = crate::memory::cstr_as_bytes(pat_arg.into_c_char_ptr());
+    fuzzy_match_slice(str_bytes, pat_bytes, matchseq, out_score, matches)
 }
 
 fn fuzzy_match_item_compare(
@@ -505,14 +493,7 @@ fn fuzzy_match_in_list(
 
             let mut score: i32 = 0;
             if !itemstr.is_null()
-                && fuzzy_match(
-                    itemstr,
-                    str_ptr,
-                    matchseq,
-                    &mut score,
-                    matches.as_mut_ptr(),
-                    FUZZY_MATCH_MAX_LEN as i32,
-                )
+                && fuzzy_match(itemstr, str_ptr, matchseq, &mut score, &mut matches)
             {
                 let itemstr_copy = crate::memory::cstr_to_cstring(itemstr);
                 let mut matchpos: Vec<i64> = Vec::new();
@@ -716,14 +697,7 @@ pub fn fuzzy_match_str(
 
     let mut score = FUZZY_SCORE_NONE;
     let mut matchpos = [0u32; FUZZY_MATCH_MAX_LEN];
-    fuzzy_match(
-        str_ptr,
-        pat,
-        true,
-        &mut score,
-        matchpos.as_mut_ptr(),
-        FUZZY_MATCH_MAX_LEN as i32,
-    );
+    fuzzy_match(str_ptr, pat, true, &mut score, &mut matchpos);
     score
 }
 
@@ -741,14 +715,7 @@ pub fn fuzzy_match_str_with_pos(
 
         let mut score = FUZZY_SCORE_NONE;
         let mut matches = [0u32; FUZZY_MATCH_MAX_LEN];
-        if !fuzzy_match(
-            str_ptr,
-            pat,
-            false,
-            &mut score,
-            matches.as_mut_ptr(),
-            FUZZY_MATCH_MAX_LEN as i32,
-        ) || score == FUZZY_SCORE_NONE
+        if !fuzzy_match(str_ptr, pat, false, &mut score, &mut matches) || score == FUZZY_SCORE_NONE
         {
             return None;
         }
