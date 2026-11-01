@@ -455,7 +455,7 @@ pub fn win_float_find_altwin(win: &WinInfoInfo, tp: Option<&TabPageInfo>) -> *mu
 #[inline]
 fn win_float_special_fail(wp: *mut WinInfoInfo, err: &mut Error) -> *mut WinInfoInfo {
     if error_set(err) {
-        emsg(err.msg_ptr());
+        emsg(err.msg_cstr());
         api_clear_error(err);
     }
     if !wp.is_null() {

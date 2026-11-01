@@ -502,7 +502,7 @@ fn parse_msgpack(channel: &mut Channel) {
         }
 
         if unpacker_closed(&*p) {
-            let msg_cstr = crate::memory::cstr_from_ptr((*p).unpack_error.msg_ptr());
+            let msg_cstr = (*p).unpack_error.msg_cstr().unwrap_or(c"");
             chan_close_on_err(channel, msg_cstr, LOGLVL_INF);
             api_clear_error(&mut (*p).unpack_error);
         }
@@ -840,7 +840,7 @@ pub fn serialize_response(
             .is_some_and(|f| f as *const () == handle_nvim_paste as *const ());
 
         if is_paste {
-            semsg!(c"paste: %s", err.msg_ptr());
+            semsg!(c"paste: %s", err.msg_cstr());
             api_clear_error(err);
         } else {
             let mut items = [
@@ -850,7 +850,7 @@ pub fn serialize_response(
                 },
                 Object {
                     obj_type: ObjectType::ObjectTypeString,
-                    data: ObjectData::String(cstr_as_string(err.msg_ptr())),
+                    data: ObjectData::String(cstr_as_string(err.msg_cstr())),
                 },
             ];
             let args = Array {
@@ -875,7 +875,7 @@ pub fn serialize_response(
     if err.err_type != ErrorType::ErrorTypeNone {
         mpack_array(&raw mut packer.ptr, 2);
         mpack_integer(&raw mut packer.ptr, err.err_type as Integer);
-        mpack_str(cstr_as_string(err.msg_ptr()), &mut packer);
+        mpack_str(cstr_as_string(err.msg_cstr()), &mut packer);
         mpack_nil(&raw mut packer.ptr);
     } else {
         mpack_nil(&raw mut packer.ptr);

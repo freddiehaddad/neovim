@@ -1109,7 +1109,7 @@ pub fn nvim_call_atomic(
             add_c(
                 &mut errval,
                 string_obj(copy_string(
-                    cstr_as_string(nested_error.msg_ptr()),
+                    cstr_as_string(nested_error.msg_cstr()),
                     Some(arena),
                 )),
             );

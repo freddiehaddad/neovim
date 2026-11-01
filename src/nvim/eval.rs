@@ -5319,7 +5319,7 @@ pub fn callback_call(
             eval_st().callback_depth -= 1;
             let ok = err.err_type == ErrorType::ErrorTypeNone;
             if !ok {
-                semsg_multiline!(c"emsg", c"E5108: %s", err.msg_ptr());
+                semsg_multiline!(c"emsg", c"E5108: %s", err.msg_cstr());
                 api_clear_error(&mut err);
             } else {
                 object_to_vim(

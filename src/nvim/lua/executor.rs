@@ -759,7 +759,7 @@ unsafe extern "C-unwind" fn nlua_thr_api_nvim_get_runtime(lstate: *mut lua_State
         let pat = nlua_pop_array_opt(lstate, None, &mut err);
         if error_set(&err) {
             luaL_where(lstate, 1);
-            lua_pushstring(lstate, err.msg_ptr());
+            lua_pushstring(lstate, err.msg_cstr());
             api_clear_error(&mut err);
             lua_concat(lstate, 2);
             return lua_error(lstate);
@@ -1611,7 +1611,7 @@ pub unsafe extern "C-unwind" fn nlua_call(lstate: *mut lua_State) -> i32 {
         tv_clear(&mut vim_args[i]);
     }
     if error_set(&err) {
-        lua_pushstring(lstate, err.msg_ptr());
+        lua_pushstring(lstate, err.msg_cstr());
         api_clear_error(&mut err);
         return unsafe { lua_error(lstate) };
     }
@@ -1679,7 +1679,7 @@ fn nlua_rpc(lstate: *mut lua_State, request: bool) -> i32 {
     arena_mem_free(arena_finish(&mut arena));
 
     if error_set(&err) {
-        lua_pushstring(lstate, err.msg_ptr());
+        lua_pushstring(lstate, err.msg_cstr());
         api_clear_error(&mut err);
         return unsafe { lua_error(lstate) };
     }

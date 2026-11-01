@@ -15553,7 +15553,7 @@ fn nlua_finish_api_call(
                 lua_pushstring(lstate, err_param);
                 lua_pushstring(lstate, c"': ");
             }
-            lua_pushstring(lstate, err.msg_ptr());
+            lua_pushstring(lstate, err.msg_cstr());
             api_clear_error(err);
             lua_concat(lstate, if err_param.is_some() { 5 } else { 2 });
             return lua_error(lstate);

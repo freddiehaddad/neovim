@@ -468,7 +468,7 @@ pub unsafe extern "C-unwind" fn nlua_xdl_diff(lstate: *mut lua_State) -> i32 {
 
     if priv_state.err.err_type != ErrorType::ErrorTypeNone {
         unsafe { luaL_where(lstate, 1) };
-        lua_pushstring(lstate, priv_state.err.msg_ptr());
+        lua_pushstring(lstate, priv_state.err.msg_cstr());
         api_clear_error(&mut priv_state.err);
         unsafe { lua_concat(lstate, 2) };
         return unsafe { lua_error(lstate) };

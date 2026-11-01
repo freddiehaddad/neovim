@@ -97,10 +97,8 @@ impl Error {
     }
 
     #[inline]
-    pub fn msg_ptr(&self) -> RawCCharPtrMut {
-        self.msg
-            .as_ref()
-            .map_or(std::ptr::null_mut(), |s| s.as_ptr().cast_mut())
+    pub fn msg_cstr(&self) -> Option<&std::ffi::CStr> {
+        self.msg.as_deref()
     }
 }
 

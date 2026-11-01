@@ -1239,7 +1239,7 @@ fn remote_request(
         let o = nlua_exec(s, ptr::null(), a, K_RET_OBJECT, None, &mut err);
         drop(args_vec);
         if err.err_type != ErrorType::ErrorTypeNone {
-            fprintf!(stderr, c"%s\n", err.msg_ptr());
+            fprintf!(stderr, c"%s\n", err.msg_cstr());
             os_exit(2);
         }
 

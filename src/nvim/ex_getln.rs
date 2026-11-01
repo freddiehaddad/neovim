@@ -1217,7 +1217,7 @@ fn command_line_enter(
                     msg_putchar(b'\n' as i32);
                 }
                 g_st().msg_scroll = 1;
-                msg_puts_hl(err.msg_ptr(), HLF_E, true);
+                msg_puts_hl(err.msg_cstr(), HLF_E, true);
                 api_clear_error(&mut err);
                 redrawcmd();
             }
@@ -1376,7 +1376,7 @@ fn command_line_enter(
             if !ui_has(K_UIMESSAGES) {
                 msg_putchar(b'\n' as i32);
             }
-            emsg(err.msg_ptr());
+            emsg(err.msg_cstr());
             g_st().did_emsg = 0;
             api_clear_error(&mut err);
         }
@@ -3356,7 +3356,7 @@ fn do_autocmd_cmdlinechanged(firstc: i32) {
                 msg_putchar(b'\n' as i32);
             }
             g_st().msg_scroll = 1;
-            msg_puts_hl(err.msg_ptr(), HLF_E, true);
+            msg_puts_hl(err.msg_cstr(), HLF_E, true);
             api_clear_error(&mut err);
             redrawcmd();
         }
@@ -4037,7 +4037,7 @@ fn color_cmdline(colored_ccline: &mut CmdlineInfo) -> bool {
         if error_set(&err) {
             g_st().msg_scroll = 1;
             msg_putchar(b'\n' as i32);
-            smsg!(HLF_E, gettext(err_errmsg), err.msg_ptr());
+            smsg!(HLF_E, gettext(err_errmsg), err.msg_cstr());
             printed_errmsg = true;
             api_clear_error(&mut err);
         }

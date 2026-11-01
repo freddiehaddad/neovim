@@ -9513,7 +9513,7 @@ fn ex_restart(eap: &mut Exarg) {
             nvim_command(cstr_as_string(quit_cmd), &mut err);
 
             if error_set(&err) {
-                let _ = emsg(err.msg_ptr());
+                let _ = emsg(err.msg_cstr());
                 api_clear_error(&mut err);
             } else if !g_st().exiting {
                 let _ = semsg!(E_RESTART_FAILED_CMD_NO_QUIT, quit_cmd);
@@ -9523,7 +9523,7 @@ fn ex_restart(eap: &mut Exarg) {
 
         set_vim_var_string(VV_EXITREASON, ptr::null(), -1);
         if error_set(&err) {
-            let _ = emsg(err.msg_ptr());
+            let _ = emsg(err.msg_cstr());
             api_clear_error(&mut err);
         }
         arena_mem_free(result_mem);
@@ -10332,7 +10332,7 @@ fn ex_detach(eap: &mut Exarg) {
         let mut err = error_init();
         ui_detach_channel(g_st().current_ui, &mut err);
         if error_set(&err) {
-            let _ = emsg(err.msg_ptr());
+            let _ = emsg(err.msg_cstr());
             api_clear_error(&mut err);
             return;
         }
@@ -10365,7 +10365,7 @@ fn ex_connect(eap: &mut Exarg) {
     );
 
     if error_set(&err) {
-        let _ = emsg(err.msg_ptr());
+        let _ = emsg(err.msg_cstr());
         api_clear_error(&mut err);
         return;
     }

@@ -817,7 +817,7 @@ pub fn pum_redraw() {
             &mut err,
         ) {
             if err.err_type != ErrorType::ErrorTypeNone {
-                emsg(err.msg_ptr());
+                emsg(err.msg_cstr());
             }
             api_clear_error(&mut err);
             return;
@@ -1265,7 +1265,7 @@ fn pum_preview_set_text(
         );
         g_st().textlock = original_textlock;
         if err.err_type != ErrorType::ErrorTypeNone {
-            emsg(err.msg_ptr());
+            emsg(err.msg_cstr());
             api_clear_error(&mut err);
         }
         arena_mem_free(arena_finish(&mut arena));

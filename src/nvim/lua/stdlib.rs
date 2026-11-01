@@ -338,7 +338,7 @@ pub unsafe extern "C-unwind" fn nlua_regex(lstate: *mut lua_State) -> i32 {
         if err.err_type != ErrorType::ErrorTypeNone {
             luaL_where(lstate, 1);
             lua_pushlstring(lstate, b"couldn't parse regex: ".as_ptr().cast(), 22);
-            lua_pushstring(lstate, err.msg_ptr());
+            lua_pushstring(lstate, err.msg_cstr());
             lua_concat(lstate, 3);
             api_clear_error(&mut err);
             return lua_error(lstate);
@@ -395,7 +395,7 @@ fn nlua_get_var_scope(lstate: *mut lua_State) -> *mut TvDict {
         if err.err_type != ErrorType::ErrorTypeNone {
             luaL_where(lstate, 1);
             lua_pushlstring(lstate, b"scoped variable: ".as_ptr().cast(), 17);
-            lua_pushstring(lstate, err.msg_ptr());
+            lua_pushstring(lstate, err.msg_cstr());
             lua_concat(lstate, 3);
             api_clear_error(&mut err);
             lua_error(lstate);
@@ -421,7 +421,7 @@ pub unsafe extern "C-unwind" fn nlua_setvar(lstate: *mut lua_State) -> i32 {
         let mut di = dict_check_writable(&mut *dict, key, del, &mut err);
         if err.err_type != ErrorType::ErrorTypeNone {
             luaL_where(lstate, 1);
-            lua_pushstring(lstate, err.msg_ptr());
+            lua_pushstring(lstate, err.msg_cstr());
             lua_concat(lstate, 2);
             api_clear_error(&mut err);
             lua_error(lstate);
@@ -718,7 +718,7 @@ unsafe extern "C-unwind" fn nlua_with(lstate: *mut lua_State) -> i32 {
             return lua_error(lstate);
         } else if err.err_type != ErrorType::ErrorTypeNone {
             luaL_where(lstate, 1);
-            lua_pushstring(lstate, err.msg_ptr());
+            lua_pushstring(lstate, err.msg_cstr());
             lua_concat(lstate, 2);
             api_clear_error(&mut err);
             return lua_error(lstate);

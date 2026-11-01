@@ -3251,7 +3251,7 @@ pub fn map_execute_lua(may_repeat: bool, discard: bool) -> bool {
         Some(&mut err),
     );
     if err.err_type != ErrorType::ErrorTypeNone {
-        semsg_multiline!(c"emsg", c"E5108: %s", err.msg_ptr());
+        semsg_multiline!(c"emsg", c"E5108: %s", err.msg_cstr());
         api_clear_error(&mut err);
     }
 

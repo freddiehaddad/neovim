@@ -1761,7 +1761,7 @@ pub fn eval_map_expr(mp: &Mapblock, c: i32) -> Option<CString> {
         }
         api_free_object(ret);
         if err.err_type != ErrorType::ErrorTypeNone {
-            semsg_multiline!(c"emsg", c"E5108: %s", err.msg_ptr());
+            semsg_multiline!(c"emsg", c"E5108: %s", err.msg_cstr());
             api_clear_error(&mut err);
         }
     } else {

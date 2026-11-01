@@ -829,7 +829,7 @@ fn mc_ins_preview_replace(start: CursorPos, end: CursorPos, text: &NvimString) {
                 747,
                 true,
                 c"preview replace failed: %s",
-                err.msg_ptr(),
+                err.msg_cstr(),
             );
         }
         api_clear_error(&mut err);

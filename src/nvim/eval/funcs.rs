@@ -1329,7 +1329,7 @@ pub fn api_wrapper(argvars: &mut [TypVal], rettv: &mut TypVal, fptr: EvalFuncDat
     let mut result = fn_ptr(VIML_INTERNAL_CALL, args, &mut arena, &mut err);
 
     if err.err_type != ErrorType::ErrorTypeNone {
-        semsg_multiline!(c"emsg", E_API_ERROR, err.msg_ptr());
+        semsg_multiline!(c"emsg", E_API_ERROR, err.msg_cstr());
     } else {
         object_to_vim_take_luaref(&mut result, &mut *rettv, true, &mut err);
     }
@@ -1387,7 +1387,7 @@ pub fn lua_wrapper(argvars: &mut [TypVal], rettv: &mut TypVal, fptr: EvalFuncDat
     );
 
     if err.err_type != ErrorType::ErrorTypeNone {
-        semsg_multiline!(c"emsg", E_API_ERROR, err.msg_ptr());
+        semsg_multiline!(c"emsg", E_API_ERROR, err.msg_cstr());
     } else {
         object_to_vim_take_luaref(&mut result, &mut *rettv, true, &mut err);
     }
@@ -6924,7 +6924,7 @@ pub fn f_rpcrequest(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncD
                 method,
                 chan_id,
                 name.as_ptr(),
-                err.msg_ptr(),
+                err.msg_cstr(),
             );
         } else {
             semsg_multiline!(
@@ -6932,7 +6932,7 @@ pub fn f_rpcrequest(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncD
                 c"Invoking '%s' on channel %llu:\n%s",
                 method,
                 chan_id,
-                err.msg_ptr(),
+                err.msg_cstr(),
             );
         }
     } else {

@@ -2804,10 +2804,11 @@ pub fn validate_spellcapcheck(args: &mut Optset) -> Option<&CStr> {
     g_st().suppress_errthrow = save_suppress_errthrow;
     args.os_prep = OptSetPrep::SpellcapProg(prog);
     if err.err_type != ErrorType::ErrorTypeNone {
-        let msg = if crate::memory::cstr_prefix_bytes(err.msg_ptr(), 4) == &b"Vim:"[..4] {
-            err.msg_ptr().wrapping_add(4)
+        let msg_cstr = err.msg_cstr().unwrap_or(c"");
+        let msg = if msg_cstr.to_bytes().starts_with(b"Vim:") {
+            msg_cstr.as_ptr().wrapping_add(4)
         } else {
-            err.msg_ptr()
+            msg_cstr.as_ptr()
         };
         let err_out = opt_error(args.os_errbuf, c"%s", msg);
         api_clear_error(&mut err);

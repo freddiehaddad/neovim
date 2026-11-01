@@ -883,7 +883,7 @@ pub fn window_layout_locked(cmd: Cmdidx) -> bool {
     let mut err = ERROR_INIT;
     let locked = window_layout_locked_err(cmd, &mut err);
     if error_set(&err) {
-        emsg(gettext(err.msg_ptr()));
+        emsg(gettext(err.msg_cstr()));
         api_clear_error(&mut err);
     }
     locked
@@ -1420,7 +1420,7 @@ pub fn do_window(mut nchar: i32, mut prenum: i32, mut xchar: i32) {
                         config.external = true;
                         let mut err = ERROR_INIT;
                         if win_new_float(curwin_ptr(), false, config, &mut err).is_null() {
-                            emsg(err.msg_ptr());
+                            emsg(err.msg_cstr());
                             api_clear_error(&mut err);
                             beep_flush();
                         }
@@ -1769,7 +1769,7 @@ pub fn check_split_disallowed(wp: *const WinInfoInfo) -> bool {
     let mut err = ERROR_INIT;
     let ok = check_split_disallowed_err(wp, &mut err);
     if error_set(&err) {
-        emsg(gettext(err.msg_ptr()));
+        emsg(gettext(err.msg_cstr()));
         api_clear_error(&mut err);
     }
     ok
