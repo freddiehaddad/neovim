@@ -5318,7 +5318,7 @@ pub fn get_syntime_arg(_xp: &mut ExpandCtx, idx: i32) -> Option<&'static std::ff
 }
 
 fn syn_compare_syntime(s1: &TimeEntry, s2: &TimeEntry) -> std::cmp::Ordering {
-    profile_cmp(s1.total, s2.total).cmp(&0)
+    s2.total.cmp(&s1.total)
 }
 
 fn syntime_report() {

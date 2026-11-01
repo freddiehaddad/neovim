@@ -302,11 +302,7 @@ const fn profile_equal(tm1: Proftime, tm2: Proftime) -> bool {
 
 /// Converts time duration `tm` to a signed integer (`profile_signed`).
 pub const fn profile_signed(tm: Proftime) -> i64 {
-    if tm <= (i64::MAX as u64) {
-        tm as i64
-    } else {
-        -((u64::MAX - tm) as i64)
-    }
+    tm as i64
 }
 
 /// Compares profiling times (`profile_cmp`).
@@ -519,11 +515,11 @@ fn prof_sort_list(
 }
 
 fn prof_total_cmp(&s1: &*mut UserFunc, &s2: &*mut UserFunc) -> std::cmp::Ordering {
-    unsafe { profile_cmp((*s1).uf_tm_total, (*s2).uf_tm_total).cmp(&0) }
+    unsafe { (*s2).uf_tm_total.cmp(&(*s1).uf_tm_total) }
 }
 
 fn prof_self_cmp(&s1: &*mut UserFunc, &s2: &*mut UserFunc) -> std::cmp::Ordering {
-    unsafe { profile_cmp((*s1).uf_tm_self, (*s2).uf_tm_self).cmp(&0) }
+    unsafe { (*s2).uf_tm_self.cmp(&(*s1).uf_tm_self) }
 }
 
 /// Start profiling function `fp` (`func_do_profile`).
@@ -1019,6 +1015,8 @@ mod tests {
         assert_eq!(profile_self(10, 20, 50), 10);
         assert_eq!(profile_cmp(10, 20), 1);
         assert_eq!(profile_cmp(20, 10), -1);
+        assert_eq!(profile_cmp(10, 11), 1);
+        assert_eq!(profile_cmp(11, 10), -1);
         assert_eq!(profile_cmp(10, 10), 0);
         assert_eq!(profile_cmp(profile_zero(), profile_zero()), 0);
         {
