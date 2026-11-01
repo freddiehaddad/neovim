@@ -753,63 +753,62 @@ pub fn infinity_str(
 }
 
 pub fn format_typeof(type_: impl crate::strings::IntoCCharPtr) -> i32 {
-    let mut type_ = type_.into_c_char_ptr();
-    {
-        let mut length_modifier: u8 = 0;
-        let first = unsafe { *type_ } as u8;
-        if matches!(first, b'h' | b'l' | b'z') {
-            length_modifier = first;
-            type_ = type_.wrapping_add(1);
-            if length_modifier == b'l' && (unsafe { *type_ } as u8) == b'l' {
-                length_modifier = b'L';
-                type_ = type_.wrapping_add(1);
-            }
+    let bytes = crate::memory::cstr_as_bytes(type_.into_c_char_ptr());
+    let mut idx = 0usize;
+    let mut length_modifier: u8 = 0;
+    let first = bytes.first().copied().unwrap_or(0);
+    if matches!(first, b'h' | b'l' | b'z') {
+        length_modifier = first;
+        idx += 1;
+        if length_modifier == b'l' && bytes.get(idx) == Some(&b'l') {
+            length_modifier = b'L';
+            idx += 1;
         }
-        let mut fmt_spec = unsafe { *type_ } as u8;
-        match fmt_spec {
-            b'i' => fmt_spec = b'd',
-            b'*' => {
-                fmt_spec = b'd';
-                length_modifier = b'h';
-            }
-            b'D' => {
-                fmt_spec = b'd';
-                length_modifier = b'l';
-            }
-            b'U' => {
-                fmt_spec = b'u';
-                length_modifier = b'l';
-            }
-            b'O' => {
-                fmt_spec = b'o';
-                length_modifier = b'l';
-            }
-            _ => {}
+    }
+    let mut fmt_spec = bytes.get(idx).copied().unwrap_or(0);
+    match fmt_spec {
+        b'i' => fmt_spec = b'd',
+        b'*' => {
+            fmt_spec = b'd';
+            length_modifier = b'h';
         }
+        b'D' => {
+            fmt_spec = b'd';
+            length_modifier = b'l';
+        }
+        b'U' => {
+            fmt_spec = b'u';
+            length_modifier = b'l';
+        }
+        b'O' => {
+            fmt_spec = b'o';
+            length_modifier = b'l';
+        }
+        _ => {}
+    }
 
-        match fmt_spec {
-            b'%' => TYPE_PERCENT,
-            b'c' => TYPE_CHAR,
-            b's' | b'S' => TYPE_STRING,
-            b'p' => TYPE_POINTER,
-            b'b' | b'B' => TYPE_UNSIGNEDLONGLONGINT,
-            b'd' => match length_modifier {
-                0 | b'h' => TYPE_INT,
-                b'l' => TYPE_LONGINT,
-                b'L' => TYPE_LONGLONGINT,
-                b'z' => TYPE_SIGNEDSIZET,
-                _ => TYPE_UNKNOWN,
-            },
-            b'u' | b'o' | b'x' | b'X' => match length_modifier {
-                0 | b'h' => TYPE_UNSIGNEDINT,
-                b'l' => TYPE_UNSIGNEDLONGINT,
-                b'L' => TYPE_UNSIGNEDLONGLONGINT,
-                b'z' => TYPE_SIZET,
-                _ => TYPE_UNKNOWN,
-            },
-            b'f' | b'F' | b'e' | b'E' | b'g' | b'G' => TYPE_FLOAT,
+    match fmt_spec {
+        b'%' => TYPE_PERCENT,
+        b'c' => TYPE_CHAR,
+        b's' | b'S' => TYPE_STRING,
+        b'p' => TYPE_POINTER,
+        b'b' | b'B' => TYPE_UNSIGNEDLONGLONGINT,
+        b'd' => match length_modifier {
+            0 | b'h' => TYPE_INT,
+            b'l' => TYPE_LONGINT,
+            b'L' => TYPE_LONGLONGINT,
+            b'z' => TYPE_SIGNEDSIZET,
             _ => TYPE_UNKNOWN,
-        }
+        },
+        b'u' | b'o' | b'x' | b'X' => match length_modifier {
+            0 | b'h' => TYPE_UNSIGNEDINT,
+            b'l' => TYPE_UNSIGNEDLONGINT,
+            b'L' => TYPE_UNSIGNEDLONGLONGINT,
+            b'z' => TYPE_SIZET,
+            _ => TYPE_UNKNOWN,
+        },
+        b'f' | b'F' | b'e' | b'E' | b'g' | b'G' => TYPE_FLOAT,
+        _ => TYPE_UNKNOWN,
     }
 }
 
@@ -839,93 +838,87 @@ fn adjust_types(
     type_: impl crate::strings::IntoCCharPtr,
 ) -> bool {
     let type_ = type_.into_c_char_ptr();
-    {
-        if arg <= 0 {
-            semsg!(gettext(E_INVALID_FORMAT_SPECIFIER), type_);
-            return false;
-        }
+    if arg <= 0 {
+        semsg!(gettext(E_INVALID_FORMAT_SPECIFIER), type_);
+        return false;
+    }
 
-        if (arg as usize) > ap_types.len() {
-            ap_types.resize(arg as usize, ptr::null());
-        }
+    if (arg as usize) > ap_types.len() {
+        ap_types.resize(arg as usize, ptr::null());
+    }
 
-        let prev = ap_types[(arg - 1) as usize];
-        if !prev.is_null() {
-            if crate::memory::cstr_first_byte(prev) == b'*'
-                || crate::memory::cstr_first_byte(type_) == b'*'
-            {
-                let mut pt = type_;
-                if crate::memory::cstr_first_byte(pt) == b'*' {
-                    pt = prev;
-                }
-                if crate::memory::cstr_first_byte(pt) != b'*'
-                    && !matches!(unsafe { *pt } as u8, b'd' | b'i')
-                {
-                    semsg!(
-                        gettext(E_POSITIONAL_FIELD_SPEC_REUSED),
-                        arg,
-                        format_typename(prev),
-                        format_typename(type_),
-                    );
-                    return false;
-                }
-            } else if format_typeof(type_) != format_typeof(prev) {
+    let prev = ap_types[(arg - 1) as usize];
+    if !prev.is_null() {
+        if crate::memory::cstr_first_byte(prev) == b'*'
+            || crate::memory::cstr_first_byte(type_) == b'*'
+        {
+            let mut pt = type_;
+            if crate::memory::cstr_first_byte(pt) == b'*' {
+                pt = prev;
+            }
+            if !matches!(crate::memory::cstr_first_byte(pt), b'*' | b'd' | b'i') {
                 semsg!(
-                    gettext(E_POSITIONAL_TYPE_INCONSISTENT),
+                    gettext(E_POSITIONAL_FIELD_SPEC_REUSED),
                     arg,
-                    format_typename(type_),
                     format_typename(prev),
+                    format_typename(type_),
                 );
                 return false;
             }
+        } else if format_typeof(type_) != format_typeof(prev) {
+            semsg!(
+                gettext(E_POSITIONAL_TYPE_INCONSISTENT),
+                arg,
+                format_typename(type_),
+                format_typename(prev),
+            );
+            return false;
         }
-
-        ap_types[(arg - 1) as usize] = type_;
-        true
     }
+
+    ap_types[(arg - 1) as usize] = type_;
+    true
 }
 
 pub fn format_overflow_error(pstart: impl crate::strings::IntoCCharPtr) {
     let pstart = pstart.into_c_char_ptr();
-    {
-        let mut p = pstart;
-        while ascii_isdigit(unsafe { *p }) {
-            p = p.wrapping_add(1);
-        }
-        semsg!(
-            gettext(E_VAL_TOO_LARGE_LEN),
-            crate::memory::ptr_offset_from(p, pstart) as i32,
-            pstart,
-        );
-    }
+    let bytes = crate::memory::cstr_as_bytes(pstart);
+    let dig_len = bytes.iter().take_while(|&&b| b.is_ascii_digit()).count() as i32;
+    semsg!(gettext(E_VAL_TOO_LARGE_LEN), dig_len, pstart);
 }
 
 pub fn get_unsigned_int(
     pstart: impl crate::strings::IntoCCharPtr,
-    p: *mut RawCCharPtr,
+    p: &mut RawCCharPtr,
     uj: &mut u32,
     overflow_err: bool,
 ) -> bool {
     let pstart = pstart.into_c_char_ptr();
-    unsafe {
-        *uj = ((**p as u8) - b'0') as u32;
-        *p = (*p).wrapping_add(1);
+    let bytes = crate::memory::cstr_as_bytes(*p);
+    let Some(&b0) = bytes.first() else {
+        *uj = 0;
+        return true;
+    };
+    *uj = u32::from(b0.wrapping_sub(b'0'));
+    let mut adv = 1usize;
 
-        while ascii_isdigit(**p) && *uj < MAX_ALLOWED_STRING_WIDTH {
-            *uj = 10 * (*uj) + (((**p as u8) - b'0') as u32);
-            *p = (*p).wrapping_add(1);
+    while let Some(&b) = bytes.get(adv) {
+        if !b.is_ascii_digit() || *uj >= MAX_ALLOWED_STRING_WIDTH {
+            break;
         }
-
-        if *uj > MAX_ALLOWED_STRING_WIDTH {
-            if overflow_err {
-                format_overflow_error(pstart);
-                return false;
-            } else {
-                *uj = MAX_ALLOWED_STRING_WIDTH;
-            }
-        }
-        true
+        *uj = 10 * (*uj) + u32::from(b - b'0');
+        adv += 1;
     }
+    *p = (*p).wrapping_add(adv);
+
+    if *uj > MAX_ALLOWED_STRING_WIDTH {
+        if overflow_err {
+            format_overflow_error(pstart);
+            return false;
+        }
+        *uj = MAX_ALLOWED_STRING_WIDTH;
+    }
+    true
 }
 
 pub fn parse_fmt_types(
@@ -934,102 +927,132 @@ pub fn parse_fmt_types(
     tvs: *mut TypVal,
 ) -> bool {
     let fmt = fmt.into_c_char_ptr();
-    {
-        if fmt.is_null() {
-            return true;
-        }
-        let mut ap_types: Vec<RawCCharPtr> = Vec::new();
-        let mut p = fmt;
-        let mut any_pos = false;
-        let mut any_arg = false;
+    if fmt.is_null() {
+        return true;
+    }
+    let mut ap_types: Vec<RawCCharPtr> = Vec::new();
+    let mut p = fmt;
+    let mut any_pos = false;
+    let mut any_arg = false;
 
-        macro_rules! check_pos_arg {
-            () => {
-                if any_pos && any_arg {
-                    semsg!(gettext(E_CANNOT_MIX_POSITIONAL), fmt);
-                    *num_posarg = 0;
-                    return false;
-                }
-            };
-        }
-
-        macro_rules! fail {
-            () => {
+    macro_rules! check_pos_arg {
+        () => {
+            if any_pos && any_arg {
+                semsg!(gettext(E_CANNOT_MIX_POSITIONAL), fmt);
                 *num_posarg = 0;
                 return false;
-            };
-        }
+            }
+        };
+    }
 
-        while !crate::memory::cstr_is_empty(p) {
-            if crate::memory::cstr_first_byte(p) != b'%' {
+    macro_rules! fail {
+        () => {
+            *num_posarg = 0;
+            return false;
+        };
+    }
+
+    while !crate::memory::cstr_is_empty(p) {
+        if crate::memory::cstr_first_byte(p) != b'%' {
+            p = p.wrapping_add(1);
+            while !crate::memory::cstr_is_empty(p) && crate::memory::cstr_first_byte(p) != b'%' {
                 p = p.wrapping_add(1);
-                while !crate::memory::cstr_is_empty(p) && crate::memory::cstr_first_byte(p) != b'%'
-                {
-                    p = p.wrapping_add(1);
+            }
+        } else {
+            let mut pos_arg: i32 = -1;
+            let pstart = p.wrapping_add(1);
+            p = p.wrapping_add(1);
+
+            let mut ptype = p;
+            while crate::memory::cstr_first_byte(ptype).is_ascii_digit() {
+                ptype = ptype.wrapping_add(1);
+            }
+
+            if crate::memory::cstr_first_byte(ptype) == b'$' {
+                if crate::memory::cstr_first_byte(p) == b'0' {
+                    semsg!(gettext(E_INVALID_FORMAT_SPECIFIER), fmt);
+                    fail!();
                 }
-            } else {
-                let mut pos_arg: i32 = -1;
-                let pstart = p.wrapping_add(1);
+                let mut uj: u32 = 0;
+                if !get_unsigned_int(pstart, &mut p, &mut uj, !tvs.is_null()) {
+                    fail!();
+                }
+                pos_arg = uj as i32;
+                any_pos = true;
+                check_pos_arg!();
                 p = p.wrapping_add(1);
+            }
 
-                let mut ptype = p;
-                while ascii_isdigit(unsafe { *ptype }) {
-                    ptype = ptype.wrapping_add(1);
-                }
+            while matches!(
+                crate::memory::cstr_first_byte(p),
+                b'0' | b'-' | b'+' | b' ' | b'#' | b'\''
+            ) {
+                p = p.wrapping_add(1);
+            }
 
-                if crate::memory::cstr_first_byte(ptype) == b'$' {
-                    if crate::memory::cstr_first_byte(p) == b'0' {
+            let arg = p;
+            if crate::memory::cstr_first_byte(arg) == b'*' {
+                p = p.wrapping_add(1);
+                if crate::memory::cstr_first_byte(p).is_ascii_digit() {
+                    let mut uj: u32 = 0;
+                    if !get_unsigned_int(arg.wrapping_add(1), &mut p, &mut uj, !tvs.is_null()) {
+                        fail!();
+                    }
+                    if crate::memory::cstr_first_byte(p) != b'$' {
                         semsg!(gettext(E_INVALID_FORMAT_SPECIFIER), fmt);
                         fail!();
                     }
-                    let mut uj: u32 = 0;
-                    if !get_unsigned_int(pstart, &raw mut p, &mut uj, !tvs.is_null()) {
-                        fail!();
-                    }
-                    pos_arg = uj as i32;
+                    p = p.wrapping_add(1);
                     any_pos = true;
                     check_pos_arg!();
-                    p = p.wrapping_add(1);
+                    if !adjust_types(&mut ap_types, uj as i32, arg) {
+                        fail!();
+                    }
+                } else {
+                    any_arg = true;
+                    check_pos_arg!();
                 }
-
-                while matches!(
-                    unsafe { *p } as u8,
-                    b'0' | b'-' | b'+' | b' ' | b'#' | b'\''
-                ) {
-                    p = p.wrapping_add(1);
+            } else if crate::memory::cstr_first_byte(p).is_ascii_digit() {
+                let digstart = p;
+                let mut uj: u32 = 0;
+                if !get_unsigned_int(digstart, &mut p, &mut uj, !tvs.is_null()) {
+                    fail!();
                 }
+                if crate::memory::cstr_first_byte(p) == b'$' {
+                    semsg!(gettext(E_INVALID_FORMAT_SPECIFIER), fmt);
+                    fail!();
+                }
+            }
 
+            if crate::memory::cstr_first_byte(p) == b'.' {
+                p = p.wrapping_add(1);
                 let arg = p;
                 if crate::memory::cstr_first_byte(arg) == b'*' {
                     p = p.wrapping_add(1);
-                    if ascii_isdigit(unsafe { *p }) {
+                    if crate::memory::cstr_first_byte(p).is_ascii_digit() {
                         let mut uj: u32 = 0;
-                        if !get_unsigned_int(
-                            arg.wrapping_add(1),
-                            &raw mut p,
-                            &mut uj,
-                            !tvs.is_null(),
-                        ) {
+                        if !get_unsigned_int(arg.wrapping_add(1), &mut p, &mut uj, !tvs.is_null()) {
                             fail!();
                         }
-                        if crate::memory::cstr_first_byte(p) != b'$' {
+                        if crate::memory::cstr_first_byte(p) == b'$' {
+                            any_pos = true;
+                            check_pos_arg!();
+                            p = p.wrapping_add(1);
+                            if !adjust_types(&mut ap_types, uj as i32, arg) {
+                                fail!();
+                            }
+                        } else {
                             semsg!(gettext(E_INVALID_FORMAT_SPECIFIER), fmt);
-                            fail!();
-                        }
-                        p = p.wrapping_add(1);
-                        any_pos = true;
-                        check_pos_arg!();
-                        if !adjust_types(&mut ap_types, uj as i32, arg) {
                             fail!();
                         }
                     } else {
                         any_arg = true;
                         check_pos_arg!();
                     }
-                } else if ascii_isdigit(unsafe { *p }) {
+                } else if crate::memory::cstr_first_byte(p).is_ascii_digit() {
                     let digstart = p;
                     let mut uj: u32 = 0;
-                    if !get_unsigned_int(digstart, &raw mut p, &mut uj, !tvs.is_null()) {
+                    if !get_unsigned_int(digstart, &mut p, &mut uj, !tvs.is_null()) {
                         fail!();
                     }
                     if crate::memory::cstr_first_byte(p) == b'$' {
@@ -1037,111 +1060,65 @@ pub fn parse_fmt_types(
                         fail!();
                     }
                 }
+            }
 
-                if crate::memory::cstr_first_byte(p) == b'.' {
-                    p = p.wrapping_add(1);
-                    let arg = p;
-                    if crate::memory::cstr_first_byte(arg) == b'*' {
-                        p = p.wrapping_add(1);
-                        if ascii_isdigit(unsafe { *p }) {
-                            let mut uj: u32 = 0;
-                            if !get_unsigned_int(
-                                arg.wrapping_add(1),
-                                &raw mut p,
-                                &mut uj,
-                                !tvs.is_null(),
-                            ) {
-                                fail!();
-                            }
-                            if crate::memory::cstr_first_byte(p) == b'$' {
-                                any_pos = true;
-                                check_pos_arg!();
-                                p = p.wrapping_add(1);
-                                if !adjust_types(&mut ap_types, uj as i32, arg) {
-                                    fail!();
-                                }
-                            } else {
-                                semsg!(gettext(E_INVALID_FORMAT_SPECIFIER), fmt);
-                                fail!();
-                            }
-                        } else {
-                            any_arg = true;
-                            check_pos_arg!();
-                        }
-                    } else if ascii_isdigit(unsafe { *p }) {
-                        let digstart = p;
-                        let mut uj: u32 = 0;
-                        if !get_unsigned_int(digstart, &raw mut p, &mut uj, !tvs.is_null()) {
-                            fail!();
-                        }
-                        if crate::memory::cstr_first_byte(p) == b'$' {
-                            semsg!(gettext(E_INVALID_FORMAT_SPECIFIER), fmt);
-                            fail!();
-                        }
-                    }
-                }
+            if pos_arg != -1 {
+                any_pos = true;
+                check_pos_arg!();
+                ptype = p;
+            }
 
-                if pos_arg != -1 {
-                    any_pos = true;
-                    check_pos_arg!();
-                    ptype = p;
-                }
-
-                if matches!(unsafe { *p } as u8, b'h' | b'l' | b'z') {
-                    let lm = unsafe { *p } as u8;
-                    p = p.wrapping_add(1);
-                    if lm == b'l' && (unsafe { *p } as u8) == b'l' {
-                        p = p.wrapping_add(1);
-                    }
-                }
-
-                match unsafe { *p } as u8 {
-                    b'i' | b'*' | b'd' | b'u' | b'o' | b'D' | b'U' | b'O' | b'x' | b'X' | b'b'
-                    | b'B' | b'c' | b's' | b'S' | b'p' | b'f' | b'F' | b'e' | b'E' | b'g'
-                    | b'G' => {
-                        if pos_arg != -1 {
-                            if !adjust_types(&mut ap_types, pos_arg, ptype) {
-                                fail!();
-                            }
-                        } else {
-                            any_arg = true;
-                            check_pos_arg!();
-                        }
-                    }
-                    _ => {
-                        if pos_arg != -1 {
-                            semsg!(gettext(E_CANNOT_MIX_POSITIONAL), fmt);
-                            fail!();
-                        }
-                    }
-                }
-
-                if !crate::memory::cstr_is_empty(p) {
+            if matches!(crate::memory::cstr_first_byte(p), b'h' | b'l' | b'z') {
+                let lm = crate::memory::cstr_first_byte(p);
+                p = p.wrapping_add(1);
+                if lm == b'l' && crate::memory::cstr_first_byte(p) == b'l' {
                     p = p.wrapping_add(1);
                 }
+            }
+
+            match crate::memory::cstr_first_byte(p) {
+                b'i' | b'*' | b'd' | b'u' | b'o' | b'D' | b'U' | b'O' | b'x' | b'X' | b'b'
+                | b'B' | b'c' | b's' | b'S' | b'p' | b'f' | b'F' | b'e' | b'E' | b'g' | b'G' => {
+                    if pos_arg != -1 {
+                        if !adjust_types(&mut ap_types, pos_arg, ptype) {
+                            fail!();
+                        }
+                    } else {
+                        any_arg = true;
+                        check_pos_arg!();
+                    }
+                }
+                _ => {
+                    if pos_arg != -1 {
+                        semsg!(gettext(E_CANNOT_MIX_POSITIONAL), fmt);
+                        fail!();
+                    }
+                }
+            }
+
+            if !crate::memory::cstr_is_empty(p) {
+                p = p.wrapping_add(1);
             }
         }
-
-        *num_posarg = ap_types.len() as i32;
-        for (arg_idx, &ap_type) in ap_types.iter().enumerate() {
-            if ap_type.is_null() {
-                semsg!(gettext(E_FMT_ARG_NR_UNUSED), (arg_idx + 1) as i32, fmt,);
-                fail!();
-            }
-            if !tvs.is_null()
-                && unsafe { (*tvs.wrapping_add(arg_idx)).v_type } == VarType::VarUnknown
-            {
-                semsg!(
-                    gettext(E_POSITIONAL_OUT_OF_BOUNDS),
-                    (arg_idx + 1) as i32,
-                    fmt,
-                );
-                fail!();
-            }
-        }
-
-        true
     }
+
+    *num_posarg = ap_types.len() as i32;
+    for (arg_idx, &ap_type) in ap_types.iter().enumerate() {
+        if ap_type.is_null() {
+            semsg!(gettext(E_FMT_ARG_NR_UNUSED), (arg_idx + 1) as i32, fmt,);
+            fail!();
+        }
+        if !tvs.is_null() && unsafe { (*tvs.wrapping_add(arg_idx)).v_type } == VarType::VarUnknown {
+            semsg!(
+                gettext(E_POSITIONAL_OUT_OF_BOUNDS),
+                (arg_idx + 1) as i32,
+                fmt,
+            );
+            fail!();
+        }
+    }
+
+    true
 }
 
 const E_TOO_MANY_ARGS: &CStr = c"E767: Too many arguments to printf()";
@@ -1400,7 +1377,7 @@ fn vim_vsnprintf_typval_inner(
                 if crate::memory::cstr_first_byte(ptype) == b'$' {
                     let digstart = p;
                     let mut uj: u32 = 0;
-                    if !get_unsigned_int(digstart, &raw mut p, &mut uj, !tvs.is_null()) {
+                    if !get_unsigned_int(digstart, &mut p, &mut uj, !tvs.is_null()) {
                         had_error = true;
                         break 'fmt_loop;
                     }
@@ -1444,7 +1421,7 @@ fn vim_vsnprintf_typval_inner(
 
                     if ascii_isdigit(*p) {
                         let mut uj: u32 = 0;
-                        if !get_unsigned_int(digstart, &raw mut p, &mut uj, !tvs.is_null()) {
+                        if !get_unsigned_int(digstart, &mut p, &mut uj, !tvs.is_null()) {
                             had_error = true;
                             break 'fmt_loop;
                         }
@@ -1477,7 +1454,7 @@ fn vim_vsnprintf_typval_inner(
                 } else if ascii_isdigit(*p) {
                     let digstart = p;
                     let mut uj: u32 = 0;
-                    if !get_unsigned_int(digstart, &raw mut p, &mut uj, !tvs.is_null()) {
+                    if !get_unsigned_int(digstart, &mut p, &mut uj, !tvs.is_null()) {
                         had_error = true;
                         break 'fmt_loop;
                     }
@@ -1491,7 +1468,7 @@ fn vim_vsnprintf_typval_inner(
                     if ascii_isdigit(*p) {
                         let digstart = p;
                         let mut uj: u32 = 0;
-                        if !get_unsigned_int(digstart, &raw mut p, &mut uj, !tvs.is_null()) {
+                        if !get_unsigned_int(digstart, &mut p, &mut uj, !tvs.is_null()) {
                             had_error = true;
                             break 'fmt_loop;
                         }
@@ -1502,7 +1479,7 @@ fn vim_vsnprintf_typval_inner(
 
                         if ascii_isdigit(*p) {
                             let mut uj: u32 = 0;
-                            if !get_unsigned_int(digstart, &raw mut p, &mut uj, !tvs.is_null()) {
+                            if !get_unsigned_int(digstart, &mut p, &mut uj, !tvs.is_null()) {
                                 had_error = true;
                                 break 'fmt_loop;
                             }
