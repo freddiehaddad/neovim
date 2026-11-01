@@ -9,7 +9,7 @@ use crate::eval::eval_to_string;
 use crate::eval::typval::{
     EvalFuncData, TvList, TypVal, VarType, tv_check_for_opt_bool_arg, tv_get_bool,
     tv_get_string_buf_chk, tv_get_string_chk, tv_list_alloc, tv_list_alloc_ret,
-    tv_list_append_list, tv_list_first, tv_list_len,
+    tv_list_append_list, tv_list_len,
 };
 use crate::ex_docmd::{Exarg, do_cmdline_cmd};
 use crate::ex_getln::putcmdline;
@@ -1807,9 +1807,9 @@ pub fn listdigraphs(use_headers: bool) {
             printdigraph(
                 &tmp,
                 if use_headers {
-                    &raw mut previous
+                    Some(&mut previous)
                 } else {
-                    ptr::null_mut()
+                    None
                 },
             );
         }
@@ -1824,7 +1824,7 @@ pub fn listdigraphs(use_headers: bool) {
             digraph_header(gettext(c"Custom"));
         }
         previous = -1;
-        printdigraph(dp, ptr::null_mut());
+        printdigraph(dp, None);
         fast_breakcheck();
     }
 }
@@ -1869,7 +1869,7 @@ pub fn digraph_getlist_common(list_all: bool, rettv: &mut TypVal) {
     }
 }
 
-fn printdigraph(dp: &DigraphEntry, previous: *mut DigrResult) {
+fn printdigraph(dp: &DigraphEntry, previous: Option<&mut DigrResult>) {
     let mut buf = [0u8; 30];
     let list_width: i32 = 13;
 
@@ -1877,12 +1877,12 @@ fn printdigraph(dp: &DigraphEntry, previous: *mut DigrResult) {
         return;
     }
 
-    if !previous.is_null() {
+    if let Some(previous) = previous {
         for i in 0..HEADER_TABLE.len() {
             let Some(header) = HEADER_TABLE[i].dg_header else {
                 break;
             };
-            if unsafe { *previous } < HEADER_TABLE[i].dg_start
+            if *previous < HEADER_TABLE[i].dg_start
                 && dp.result >= HEADER_TABLE[i].dg_start
                 && dp.result < HEADER_TABLE[i + 1].dg_start
             {
@@ -1890,9 +1890,7 @@ fn printdigraph(dp: &DigraphEntry, previous: *mut DigrResult) {
                 break;
             }
         }
-        unsafe {
-            *previous = dp.result;
-        }
+        *previous = dp.result;
     }
     if g_st().msg_col > g_st().columns_global - list_width {
         msg_putchar(b'\n' as i32);
@@ -2036,15 +2034,13 @@ pub fn f_digraph_setlist(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: Eval
         return;
     }
 
-    let pl = argvars[0].vval.v_list();
-    if pl.is_null() {
+    let Some(pl) = argvars[0].vval.v_list_opt() else {
         rettv.vval = crate::eval::typval::TypvalVval::Bool(K_BOOL_VAR_TRUE_CONST);
         return;
-    }
+    };
 
-    let mut pli = tv_list_first(unsafe { pl.as_ref() });
-    while !pli.is_null() {
-        let tv = unsafe { &(*pli).li_tv };
+    for li in crate::eval::typval::tv_list_iter(Some(pl)) {
+        let tv = &li.li_tv;
         if tv.v_type != VarType::VarList {
             emsg(gettext(
                 E_DIGRAPH_SETLIST_ARGUMENT_MUST_BE_LIST_OF_LISTS_WITH_TWO_ITEMS,
@@ -2052,28 +2048,25 @@ pub fn f_digraph_setlist(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: Eval
             return;
         }
 
-        let l = tv.vval.v_list();
-        if l.is_null() || tv_list_len(unsafe { l.as_ref() }) != 2 {
+        let Some(l) = tv.vval.v_list_opt() else {
+            emsg(gettext(
+                E_DIGRAPH_SETLIST_ARGUMENT_MUST_BE_LIST_OF_LISTS_WITH_TWO_ITEMS,
+            ));
+            return;
+        };
+        if tv_list_len(Some(l)) != 2 {
             emsg(gettext(
                 E_DIGRAPH_SETLIST_ARGUMENT_MUST_BE_LIST_OF_LISTS_WITH_TWO_ITEMS,
             ));
             return;
         }
 
-        let first = tv_list_first(unsafe { l.as_ref() });
-        let second = if ptr::eq(first, unsafe { (*l).lv_last }) {
-            ptr::null_mut()
-        } else {
-            unsafe { (*first).li_next }
-        };
-        if !digraph_set_common(unsafe { &(*first).li_tv }, unsafe { &(*second).li_tv }) {
+        let mut inner = crate::eval::typval::tv_list_iter(Some(l));
+        let first = inner.next().unwrap();
+        let second = inner.next().unwrap();
+        if !digraph_set_common(&first.li_tv, &second.li_tv) {
             return;
         }
-        pli = if ptr::eq(pli, unsafe { (*pl).lv_last }) {
-            ptr::null_mut()
-        } else {
-            unsafe { (*pli).li_next }
-        };
     }
 
     rettv.vval = crate::eval::typval::TypvalVval::Bool(K_BOOL_VAR_TRUE_CONST);

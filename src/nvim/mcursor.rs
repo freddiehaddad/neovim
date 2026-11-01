@@ -935,12 +935,7 @@ pub fn mc_ins_cascade() {
                 keys.extend_from_slice(vsel.to_bytes());
                 skip = 2;
             }
-            keys.extend_from_slice(unsafe {
-                std::slice::from_raw_parts(
-                    ins.data.wrapping_add(skip).cast::<u8>(),
-                    ins.size - skip,
-                )
-            });
+            keys.extend_from_slice(&ins.as_bytes()[skip..]);
             keys.push(ESC);
             mc_st().mc_ins_span.done_len = ins.size;
             mc_ins_span_push(std::ffi::CString::new(keys).unwrap(), None);
@@ -1058,7 +1053,7 @@ fn mc_reg_gather() {
     primary.pos = curwin_mut().w_cursor;
     primary.regs = shada_encode_regs(false, mc_st().mc_start.time);
 
-    let mut order: Vec<*mut Context> = Vec::new();
+    let mut order: Vec<&mut Context> = Vec::new();
     order.push(&mut primary);
     for ctx in cursors_mut().iter_mut() {
         if !ctx.regs.is_empty() && handle_get_buffer(ctx.buf) == g_st().curbuf {
@@ -1068,21 +1063,19 @@ fn mc_reg_gather() {
     if order.len() == 1 {
         return;
     }
-    order.sort_by(|&a, &b| {
-        let ca = unsafe { &*a };
-        let cb = unsafe { &*b };
-        ca.pos
+    order.sort_by(|a, b| {
+        a.pos
             .lnum
-            .cmp(&cb.pos.lnum)
-            .then_with(|| ca.pos.col.cmp(&cb.pos.col))
+            .cmp(&b.pos.lnum)
+            .then_with(|| a.pos.col.cmp(&b.pos.col))
     });
 
     let mut save = CONTEXT_INIT;
     ctx_save(&mut save, K_CTX_REGS);
 
     let mut joined: [Vec<u8>; MC_REGS.len()] = [const { Vec::new() }; MC_REGS.len()];
-    for &ctx_ptr in &order {
-        ctx_load(unsafe { &mut *ctx_ptr }, K_CTX_REGS, 0);
+    for ctx in order {
+        ctx_load(ctx, K_CTX_REGS, 0);
         let mut idx = 0;
         while MC_REGS[idx] != 0 {
             if gather[idx] {
@@ -1263,9 +1256,7 @@ pub fn mc_ins_commit() -> bool {
             data: ins_cstr.as_ptr().cast_mut(),
             size: ins_cstr.as_bytes().len(),
         };
-        if ins.size > mc_st().mc_ins_span.done_len
-            && unsafe { *ins.data.wrapping_add(ins.size - 1).cast::<u8>() } == ESC
-        {
+        if ins.size > mc_st().mc_ins_span.done_len && ins.as_bytes().last() == Some(&ESC) {
             mc_ins_span_flush(&ins, true);
         }
     }
