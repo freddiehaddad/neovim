@@ -3733,8 +3733,7 @@ fn regmatch(mut scan: *mut u8, tm: Option<Proftime>, mut timed_out: Option<&mut 
                                 if limit > 0
                                     && i64::from(
                                         (if rp_pos.lnum < bpos.lnum {
-                                            crate::memory::cstr_len(re_st().rex.line.cast())
-                                                as Colnr
+                                            reg_getline_len(re_st().rex.lnum)
                                         } else {
                                             bpos.col
                                         }) - rp_pos.col,
@@ -3749,8 +3748,7 @@ fn regmatch(mut scan: *mut u8, tm: Option<Proftime>, mut timed_out: Option<&mut 
                                     } else {
                                         reg_restore((*rp).rs_un.regsave_mut());
                                         (*rp).rs_un.regsave_mut().rs_u.pos_mut().col =
-                                            crate::memory::cstr_len(re_st().rex.line.cast())
-                                                as Colnr;
+                                            reg_getline_len(re_st().rex.lnum);
                                     }
                                 } else {
                                     let line = reg_getline(rp_pos.lnum);
