@@ -3,8 +3,8 @@
 use crate::autocmd::{EVENT_SYNTAX, apply_autocmds};
 use crate::buffer::{FileBuf, MAXLNUM, buf_get_changedtick};
 use crate::charset::{
-    ascii_isalpha, ascii_isdigit, ascii_iswhite, check_isopt, getdigits_int, getdigits_int32,
-    parse_isopt, skiptowhite, skipwhite, str_foldcase, vim_isprintc, vim_iswordp_buf,
+    ascii_isalpha, ascii_iswhite, check_isopt, getdigits_int, getdigits_int32, parse_isopt,
+    skiptowhite, skipwhite, str_foldcase, vim_isprintc, vim_iswordp_buf,
 };
 use crate::cmdexpand::{EXPAND_HIGHLIGHT, EXPAND_NOTHING, EXPAND_SYNTAX, HLF_D};
 use crate::cursor::{Colnr, CursorPos, Linenr, Lpos};
@@ -4313,21 +4313,15 @@ fn syn_cmd_cluster(eap: &mut Exarg, _syncing: i32) {
 
 fn get_syn_pattern<T>(arg: *mut T, ci: &mut Synpat) -> *mut T {
     let arg: *mut u8 = arg.cast();
+    let arg_bytes = crate::memory::cstr_as_bytes(arg.cast());
     {
-        if crate::memory::cstr_is_empty(arg.cast())
-            || crate::memory::cstr_byte_at(arg.cast(), 1) == 0
-            || crate::memory::cstr_byte_at(arg.cast(), 2) == 0
-        {
+        if arg_bytes.len() < 3 {
             return ptr::null_mut();
         }
 
-        let mut end = skip_regexp(
-            arg.wrapping_add(1),
-            crate::memory::cstr_first_char(arg.cast()),
-            1,
-        );
-        if crate::memory::cstr_first_byte(end.cast()) != crate::memory::cstr_first_byte(arg.cast())
-        {
+        let delim = arg_bytes[0];
+        let mut end = skip_regexp(arg.wrapping_add(1), delim as i32, 1);
+        if crate::memory::cstr_first_byte(end.cast()) != delim {
             semsg!(
                 gettext(c"E401: Pattern delimiter not found: %s"),
                 arg.cast::<std::ffi::c_void>(),
@@ -4354,11 +4348,10 @@ fn get_syn_pattern<T>(arg: *mut T, ci: &mut Synpat) -> *mut T {
 
         end = end.wrapping_add(1);
         loop {
+            let end_bytes = crate::memory::cstr_as_bytes(end.cast());
             let mut idx: isize = SPO_COUNT as isize - 1;
             while idx >= 0 {
-                if crate::memory::cstr_prefix_bytes(end.cast(), 3)
-                    == SPO_NAME_TAB[idx as usize].to_bytes()
-                {
+                if end_bytes.starts_with(SPO_NAME_TAB[idx as usize].to_bytes()) {
                     break;
                 }
                 idx -= 1;
@@ -4366,7 +4359,7 @@ fn get_syn_pattern<T>(arg: *mut T, ci: &mut Synpat) -> *mut T {
             if idx >= 0 {
                 let base_idx = idx as usize;
                 if base_idx != SPO_LC_OFF {
-                    match crate::memory::cstr_byte_at(end.cast(), 3) {
+                    match end_bytes.get(3).copied().unwrap_or(0) {
                         b's' | b'b' => {}
                         b'e' => idx += SPO_COUNT as isize,
                         _ => idx = -1,
@@ -4376,10 +4369,9 @@ fn get_syn_pattern<T>(arg: *mut T, ci: &mut Synpat) -> *mut T {
                     ci.sp_off_flags |= 1 << (idx as usize);
                     if base_idx == SPO_LC_OFF {
                         end = end.wrapping_add(3);
-                        let end_bytes = crate::memory::cstr_as_bytes(end.cast());
-                        let mut rem = end_bytes;
+                        let mut rem = &end_bytes[3..];
                         let val = getdigits_int(&mut rem, true, 0);
-                        end = end.wrapping_add(end_bytes.len() - rem.len());
+                        end = end.wrapping_add((end_bytes.len() - 3) - rem.len());
                         ci.sp_offsets[base_idx] = val;
 
                         if (ci.sp_off_flags & (1 << SPO_MS_OFF)) == 0 {
@@ -4388,18 +4380,15 @@ fn get_syn_pattern<T>(arg: *mut T, ci: &mut Synpat) -> *mut T {
                         }
                     } else {
                         end = end.wrapping_add(4);
-                        if crate::memory::cstr_first_byte(end.cast()) == b'+' {
-                            end = end.wrapping_add(1);
-                            let end_bytes = crate::memory::cstr_as_bytes(end.cast());
-                            let mut rem = end_bytes;
+                        let mut rem = &end_bytes[4..];
+                        if let Some(after_plus) = rem.strip_prefix(b"+") {
+                            rem = after_plus;
                             ci.sp_offsets[base_idx] = getdigits_int(&mut rem, true, 0);
-                            end = end.wrapping_add(end_bytes.len() - rem.len());
-                        } else if crate::memory::cstr_first_byte(end.cast()) == b'-' {
-                            end = end.wrapping_add(1);
-                            let end_bytes = crate::memory::cstr_as_bytes(end.cast());
-                            let mut rem = end_bytes;
+                            end = end.wrapping_add((end_bytes.len() - 4) - rem.len());
+                        } else if let Some(after_minus) = rem.strip_prefix(b"-") {
+                            rem = after_minus;
                             ci.sp_offsets[base_idx] = -getdigits_int(&mut rem, true, 0);
-                            end = end.wrapping_add(end_bytes.len() - rem.len());
+                            end = end.wrapping_add((end_bytes.len() - 4) - rem.len());
                         }
                     }
                     if crate::memory::cstr_first_byte(end.cast()) != b',' {
@@ -4464,33 +4453,33 @@ fn syn_cmd_sync(eap: &mut Exarg, _syncing: i32) {
             } else if eap.skip == 0 {
                 win_s(curwin_mut()).b_syn_sync_id = syn_name2id(c"Comment") as i16;
             }
-        } else if (crate::memory::cstr_prefix_bytes(key, 5) == &b"LINES"[..5])
-            || (crate::memory::cstr_prefix_bytes(key, 8) == &b"MINLINES"[..8])
-            || (crate::memory::cstr_prefix_bytes(key, 8) == &b"MAXLINES"[..8])
-            || (crate::memory::cstr_prefix_bytes(key, 10) == &b"LINEBREAKS"[..10])
-        {
-            arg_end = (if crate::memory::cstr_byte_at(key, 4) == b'S' {
-                key.wrapping_add(6)
-            } else if crate::memory::cstr_first_byte(key) == b'L' {
-                key.wrapping_add(11)
+        } else if key_owned.as_ref().is_some_and(|k| {
+            let kb = k.to_bytes();
+            kb.starts_with(b"LINES")
+                || kb.starts_with(b"MINLINES")
+                || kb.starts_with(b"MAXLINES")
+                || kb.starts_with(b"LINEBREAKS")
+        }) {
+            let key_bytes = key_owned.as_ref().unwrap().to_bytes();
+            let val_off = if key_bytes.get(4) == Some(&b'S') {
+                6
+            } else if key_bytes[0] == b'L' {
+                11
             } else {
-                key.wrapping_add(9)
-            })
-            .cast_mut();
-            if crate::memory::cstr_first_byte(arg_end.wrapping_sub(1)) != b'='
-                || !ascii_isdigit(crate::memory::cstr_first_char(arg_end))
+                9
+            };
+            if key_bytes.get(val_off - 1) != Some(&b'=')
+                || !key_bytes.get(val_off).is_some_and(u8::is_ascii_digit)
             {
                 illegal = true;
                 break;
             }
-            let arg_bytes = crate::memory::cstr_as_bytes(arg_end);
-            let mut rem = arg_bytes;
+            let mut rem = &key_bytes[val_off..];
             let n: Linenr = getdigits_int32(&mut rem, false, 0);
-            arg_end = arg_end.wrapping_add(arg_bytes.len() - rem.len());
             if eap.skip == 0 {
-                if crate::memory::cstr_byte_at(key, 4) == b'B' {
+                if key_bytes.get(4) == Some(&b'B') {
                     win_s(curwin_mut()).b_syn_sync_linebreaks = n;
-                } else if crate::memory::cstr_byte_at(key, 1) == b'A' {
+                } else if key_bytes.get(1) == Some(&b'A') {
                     win_s(curwin_mut()).b_syn_sync_maxlines = n;
                 } else {
                     win_s(curwin_mut()).b_syn_sync_minlines = n;

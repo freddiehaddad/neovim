@@ -1033,59 +1033,59 @@ pub fn set_context_in_menu_cmd(
 
         xp.xp_context = EXPAND_UNSUCCESSFUL;
 
-        let mut p = arg;
-        while !crate::memory::cstr_is_empty(p) {
-            if !ascii_isdigit(crate::memory::cstr_first_char(p))
-                && crate::memory::cstr_first_byte(p) != b'.'
-            {
-                break;
-            }
-            p = p.wrapping_add(1);
-        }
+        let arg_bytes = crate::memory::cstr_as_bytes(arg);
+        let mut p_idx = arg_bytes
+            .iter()
+            .take_while(|&&b| b.is_ascii_digit() || b == b'.')
+            .count();
 
-        if !ascii_iswhite(crate::memory::cstr_first_char(p)) {
-            if (crate::memory::cstr_prefix_bytes(arg, 6) == &b"enable"[..6])
-                && (crate::memory::cstr_byte_at(arg, 6) == 0
-                    || ascii_iswhite(crate::memory::cstr_char_at(arg, 6)))
-            {
-                p = arg.wrapping_add(6);
-            } else if (crate::memory::cstr_prefix_bytes(arg, 7) == &b"disable"[..7])
-                && (crate::memory::cstr_byte_at(arg, 7) == 0
-                    || ascii_iswhite(crate::memory::cstr_char_at(arg, 7)))
-            {
-                p = arg.wrapping_add(7);
-            } else {
-                p = arg;
-            }
-        }
-
-        while !crate::memory::cstr_is_empty(p) && ascii_iswhite(crate::memory::cstr_first_char(p)) {
-            p = p.wrapping_add(1);
-        }
-
-        let mut after_dot = p;
-        arg = p;
-
-        while !crate::memory::cstr_is_empty(p) && !ascii_iswhite(crate::memory::cstr_first_char(p))
+        if !arg_bytes
+            .get(p_idx)
+            .is_some_and(|&b| ascii_iswhite(b as i32))
         {
-            if (crate::memory::cstr_first_byte(p) == b'\\' || *p == CTRL_V_CONST)
-                && crate::memory::cstr_byte_at(p, 1) != 0
+            if arg_bytes.starts_with(b"enable")
+                && arg_bytes.get(6).is_none_or(|&b| ascii_iswhite(b as i32))
             {
-                p = p.wrapping_add(1);
-            } else if crate::memory::cstr_first_byte(p) == b'.' {
-                after_dot = p.wrapping_add(1);
+                p_idx = 6;
+            } else if arg_bytes.starts_with(b"disable")
+                && arg_bytes.get(7).is_none_or(|&b| ascii_iswhite(b as i32))
+            {
+                p_idx = 7;
+            } else {
+                p_idx = 0;
             }
-            p = p.wrapping_add(1);
         }
 
-        let expand_menus = !((crate::memory::cstr_first_byte(cmd) == b't'
-            && crate::memory::cstr_byte_at(cmd, 1) == b'e')
-            || crate::memory::cstr_first_byte(cmd) == b'p');
-        menu_st().expand_emenu = crate::memory::cstr_first_byte(cmd) == b'e';
-        if expand_menus && ascii_iswhite(crate::memory::cstr_first_char(p)) {
+        while p_idx < arg_bytes.len() && ascii_iswhite(arg_bytes[p_idx] as i32) {
+            p_idx += 1;
+        }
+
+        let base_arg = arg;
+        let mut after_dot = base_arg.wrapping_add(p_idx);
+        arg = after_dot;
+
+        while p_idx < arg_bytes.len() && !ascii_iswhite(arg_bytes[p_idx] as i32) {
+            if (arg_bytes[p_idx] == b'\\' || arg_bytes[p_idx] == CTRL_V_CONST as u8)
+                && p_idx + 1 < arg_bytes.len()
+            {
+                p_idx += 1;
+            } else if arg_bytes[p_idx] == b'.' {
+                after_dot = base_arg.wrapping_add(p_idx + 1);
+            }
+            p_idx += 1;
+        }
+
+        let cmd_bytes = crate::memory::cstr_as_bytes(cmd);
+        let expand_menus = !(cmd_bytes.starts_with(b"te") || cmd_bytes.first() == Some(&b'p'));
+        menu_st().expand_emenu = cmd_bytes.first() == Some(&b'e');
+        if expand_menus
+            && arg_bytes
+                .get(p_idx)
+                .is_some_and(|&b| ascii_iswhite(b as i32))
+        {
             return;
         }
-        if crate::memory::cstr_is_empty(p) {
+        if p_idx == arg_bytes.len() {
             menu_st().expand_modes = get_menu_cmd_modes(cmd, forceit, None, Some(&mut unmenu));
             if !unmenu {
                 menu_st().expand_modes = MENU_ALL_MODES;
