@@ -24,7 +24,7 @@ use crate::api::win_config::UIExtension;
 use crate::autocmd::do_autocmd_uienter;
 use crate::buffer::resettitle;
 use crate::context::{CONTEXT_INIT, K_CTX_COUNT, ctx_free, ctx_load, ctx_save};
-use crate::cursor_shape::{Cursorentry, cursor_get_mode_idx, mode_style_array, shape_table_mut};
+use crate::cursor_shape::{cursor_get_mode_idx, mode_style_array, shape_table_mut};
 use crate::drawscreen::{DEFAULT_GRID_HANDLE, conceal_check_cursor_line, screen_resize};
 use crate::event::r#loop::uv_cwd;
 use crate::event::multiqueue::{Event, multiqueue_free, multiqueue_put_event};
@@ -162,6 +162,11 @@ fn ui_state() -> &'static mut UiState {
     unsafe { &mut *UI_STATE.as_ptr() }
 }
 
+#[inline]
+fn ui_iter_mut() -> impl Iterator<Item = &'static mut RemoteUI> {
+    ui_state().uis.iter().map(|&p| unsafe { &mut *p })
+}
+
 pub fn ui_init() {
     g_st().default_grid.handle = 1;
     g_st().msg_grid_adj.target = &raw mut g_st().default_grid;
@@ -180,9 +185,7 @@ pub fn ui_rgb_attached() -> bool {
     if opt_vars().p_tgc != 0 {
         return true;
     }
-    let uis_ptr = &ui_state().uis;
-    for &ui_ptr in uis_ptr {
-        let ui = unsafe { &mut *ui_ptr };
+    for ui in ui_iter_mut() {
         let is_tui = ui.stdin_tty || ui.stdout_tty;
         if !is_tui && ui.rgb {
             return true;
@@ -192,9 +195,7 @@ pub fn ui_rgb_attached() -> bool {
 }
 
 pub fn ui_gui_attached() -> bool {
-    let uis_ptr = &ui_state().uis;
-    for &ui_ptr in uis_ptr {
-        let ui = unsafe { &mut *ui_ptr };
+    for ui in ui_iter_mut() {
         let is_tui = ui.stdin_tty || ui.stdout_tty;
         if !is_tui {
             return true;
@@ -204,9 +205,7 @@ pub fn ui_gui_attached() -> bool {
 }
 
 pub fn ui_override() -> bool {
-    let uis_ptr = &ui_state().uis;
-    for &ui_ptr in uis_ptr {
-        let ui = unsafe { &mut *ui_ptr };
+    for ui in ui_iter_mut() {
         if ui.r#override {
             return true;
         }
@@ -229,9 +228,7 @@ pub fn ui_refresh() {
     let active = ui_active() != 0;
     let mut ext_widgets = [active; K_UIEXT_COUNT];
     let inclusive = ui_override();
-    let uis_ptr = &ui_state().uis;
-    for &ui_ptr in uis_ptr {
-        let ui = unsafe { &mut *ui_ptr };
+    for ui in ui_iter_mut() {
         width = width.min(ui.width);
         height = height.min(ui.height);
         for (j, widget) in ext_widgets.iter_mut().enumerate().take(K_UIEXT_COUNT) {
@@ -243,21 +240,17 @@ pub fn ui_refresh() {
     ui_state().cursor_col = 0;
     ui_state().pending_cursor_update = true;
 
-    let ui_ext_ptr = (&raw mut ui_state().ui_ext).cast::<bool>();
-    let ui_cb_ext_ptr = (&raw const ui_state().ui_cb_ext).cast::<bool>();
-    let had_message = unsafe { *ui_ext_ptr.wrapping_add(K_UIMESSAGES) };
+    let had_message = ui_state().ui_ext[K_UIMESSAGES];
 
     for (i, &widget) in ext_widgets.iter().enumerate().take(K_UIEXT_COUNT) {
-        let val = widget | unsafe { *ui_cb_ext_ptr.wrapping_add(i) };
-        unsafe {
-            *ui_ext_ptr.wrapping_add(i) = val;
-        }
+        let val = widget | ui_state().ui_cb_ext[i];
+        ui_state().ui_ext[i] = val;
         if i < K_UIGLOBAL_COUNT {
             ui_call_option_set(cstr_as_string(UI_EXT_NAMES[i].as_ptr()), boolean_obj(val));
         }
     }
 
-    if had_message != unsafe { *ui_ext_ptr.wrapping_add(K_UIMESSAGES) } {
+    if had_message != ui_state().ui_ext[K_UIMESSAGES] {
         if g_st().ui_refresh_cmdheight {
             set_option_value(
                 K_OPT_CMDHEIGHT,
@@ -298,9 +291,7 @@ pub fn ui_refresh() {
 
 pub fn ui_pum_get_height() -> i32 {
     let mut pum_height: i32 = 0;
-    let uis_ptr = &ui_state().uis;
-    for &ui_ptr in uis_ptr {
-        let ui = unsafe { &mut *ui_ptr };
+    for ui in ui_iter_mut() {
         let ui_pum_height = ui.pum_nlines;
         if ui_pum_height != 0 {
             pum_height = if pum_height != 0 {
@@ -314,9 +305,7 @@ pub fn ui_pum_get_height() -> i32 {
 }
 
 pub fn ui_pum_get_pos(pwidth: &mut f64, pheight: &mut f64, prow: &mut f64, pcol: &mut f64) -> bool {
-    let uis_ptr = &ui_state().uis;
-    for &ui_ptr in uis_ptr {
-        let ui = unsafe { &mut *ui_ptr };
+    for ui in ui_iter_mut() {
         if !ui.pum_pos {
             continue;
         }
@@ -404,9 +393,7 @@ pub fn vim_beep(val: u32) {
 }
 
 pub fn do_autocmd_uienter_all() {
-    let uis_ptr = &ui_state().uis;
-    for &ui_ptr in uis_ptr {
-        let ui = unsafe { &mut *ui_ptr };
+    for ui in ui_iter_mut() {
         do_autocmd_uienter(ui.channel_id, true);
     }
 }
@@ -624,12 +611,7 @@ pub fn ui_flush() {
         } else {
             ui_state().ui_mode_idx
         };
-        let full_name = unsafe {
-            *(&raw const (*shape_table_mut()))
-                .cast::<Cursorentry>()
-                .wrapping_add(idx as usize)
-        }
-        .full_name;
+        let full_name = (*shape_table_mut())[idx as usize].full_name;
         ui_call_mode_change(cstr_as_string(full_name.as_ptr()), Integer::from(idx));
         ui_state().pending_mode_update = false;
         ui_state().ui_flush_cursor_was_obscured = cursor_obscured;
@@ -727,9 +709,9 @@ fn ui_cursor_is_behind_floatwin() -> bool {
         };
 
     let top_grid = ui_comp_get_grid_at_coord(crow, ccol);
-    top_grid != &raw mut curwin_mut().w_grid_alloc
-        && top_grid != &raw mut g_st().default_grid
-        && unsafe { (*top_grid).zindex } >= curwin_mut().w_grid_alloc.zindex + 50
+    !ptr::eq(top_grid, &raw const curwin_mut().w_grid_alloc)
+        && !ptr::eq(top_grid, &raw const g_st().default_grid)
+        && top_grid.zindex >= curwin_mut().w_grid_alloc.zindex + 50
 }
 
 pub fn ui_has(ext: UIExtension) -> bool {
@@ -737,11 +719,9 @@ pub fn ui_has(ext: UIExtension) -> bool {
 }
 
 pub fn ui_array(arena: &mut Arena) -> Array {
-    let uis_ptr = &ui_state().uis;
-    let mut all_uis = arena_array(arena, uis_ptr.len());
+    let mut all_uis = arena_array(arena, ui_state().uis.len());
 
-    for &ui_ptr in uis_ptr {
-        let ui = unsafe { &mut *ui_ptr };
+    for ui in ui_iter_mut() {
         let mut info = arena_dict(arena, 10 + K_UIEXT_COUNT);
         let mut put_info = |k: &std::ffi::CStr, v: Object| {
             *info.next_slot_mut() = KeyValuePair {
@@ -800,8 +780,7 @@ pub fn ui_grid_resize(grid_handle: ObjHandle, width: i32, height: i32, err: &mut
         return;
     }
 
-    let wp = get_win_by_grid_handle(grid_handle);
-    if wp.is_null() {
+    let Some(wp) = (unsafe { get_win_by_grid_handle(grid_handle).as_mut() }) else {
         api_set_error!(
             err,
             ErrorType::ErrorTypeValidation,
@@ -809,8 +788,7 @@ pub fn ui_grid_resize(grid_handle: ObjHandle, width: i32, height: i32, err: &mut
             i64::from(grid_handle),
         );
         return;
-    }
-    let wp = unsafe { &mut *wp };
+    };
 
     if wp.w_floating {
         if width != wp.w_width || height != wp.w_height {
@@ -891,24 +869,20 @@ pub fn ui_call_event(name: &'static std::ffi::CStr, args: Array) {
     ctx_free(&mut ctx);
 
     if !handled {
-        let uis_ptr = &ui_state().uis;
-        for &ui_ptr in uis_ptr {
-            remote_ui_event(unsafe { &mut *ui_ptr }, name, args);
+        for ui in ui_iter_mut() {
+            remote_ui_event(ui, name, args);
         }
     }
 }
 
 fn ui_cb_update_ext() {
     ui_state().ui_cb_ext = [false; K_UIEXT_COUNT];
-    let ui_cb_ext_ptr = (&raw mut ui_state().ui_cb_ext).cast::<bool>();
 
     let cbs_ptr = &ui_state().ui_event_cbs;
     for i in 0..K_UIGLOBAL_COUNT {
         for event_cb in cbs_ptr.values() {
             if event_cb.ext_widgets[i] {
-                unsafe {
-                    *ui_cb_ext_ptr.wrapping_add(i) = true;
-                }
+                ui_state().ui_cb_ext[i] = true;
                 break;
             }
         }
@@ -916,22 +890,19 @@ fn ui_cb_update_ext() {
 }
 
 pub fn ui_add_cb(ns_id: u32, cb: LuaRef, ext_widgets: &[bool; K_UIGLOBAL_COUNT]) {
-    unsafe {
-        let mut event_cb = UIEventCallback {
-            cb,
-            errors: 0,
-            ext_widgets: *ext_widgets,
-        };
-        if event_cb.ext_widgets[K_UIMESSAGES] {
-            event_cb.ext_widgets[K_UICMDLINE] = true;
-        }
-
-        let cbs_ptr = &raw mut ui_state().ui_event_cbs;
-        (*cbs_ptr).insert(ns_id, event_cb);
-
-        ui_cb_update_ext();
-        ui_refresh();
+    let mut event_cb = UIEventCallback {
+        cb,
+        errors: 0,
+        ext_widgets: *ext_widgets,
+    };
+    if event_cb.ext_widgets[K_UIMESSAGES] {
+        event_cb.ext_widgets[K_UICMDLINE] = true;
     }
+
+    ui_state().ui_event_cbs.insert(ns_id, event_cb);
+
+    ui_cb_update_ext();
+    ui_refresh();
 }
 
 pub fn ui_remove_cb(ns_id: u32, checkerr: bool) {
@@ -1023,9 +994,7 @@ const fn tab_obj(t: ObjHandle) -> Object {
 macro_rules! ui_call_loop {
     ($cond:expr, $funname:literal, |$ui:ident| $call:expr) => {{
         let mut any_call = false;
-        let uis_ptr = &raw const ui_state().uis;
-        for &_ui_ptr in unsafe { &*uis_ptr } {
-            let $ui = unsafe { &mut *_ui_ptr };
+        for $ui in ui_iter_mut() {
             if $cond {
                 $call;
                 any_call = true;

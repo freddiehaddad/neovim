@@ -6895,7 +6895,7 @@ pub fn f_rpcrequest(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncD
 
 fn screenchar_adjust(row: &mut i32, col: &mut i32) -> &'static ScreenGrid {
     msg_scroll_flush();
-    let grid = unsafe { &*ui_comp_get_grid_at_coord(*row, *col) };
+    let grid = ui_comp_get_grid_at_coord(*row, *col);
     *row -= grid.comp_row;
     *col -= grid.comp_col;
     grid

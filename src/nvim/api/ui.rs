@@ -20,7 +20,7 @@ use crate::highlight::{HlAttrs, hl_get_url, hlattrs2dict, syn_attr2entry};
 use crate::lua::converter::{Boolean, Float};
 use crate::mbyte::utf_ambiguous_width;
 use crate::memory::{Arena, arena_finish, arena_mem_free};
-use crate::msgpack_rpc::channel::{RemoteUI, find_channel, rpc_write_raw};
+use crate::msgpack_rpc::channel::{RemoteUI, find_channel_opt, rpc_write_raw};
 use crate::msgpack_rpc::packer::{
     Integer, ObjHandle, PackerBuffer, mpack_array, mpack_bool, mpack_object_array, mpack_uint,
     mpack_w,
@@ -154,11 +154,8 @@ pub fn remote_ui_disconnect(channel_id: u64, err: &mut Error, send_error_exit: b
     let mut ui_box = api_ui_st().connected_uis.remove(&channel_id);
     let ui_detached = ui_box.as_deref_mut().unwrap_or(ui);
     ui_detach_impl(ui_detached, channel_id);
-    let chan = find_channel(channel_id);
-    if !chan.is_null() {
-        unsafe {
-            (*chan).rpc.has_ui = false;
-        }
+    if let Some(chan) = find_channel_opt(channel_id) {
+        chan.rpc.has_ui = false;
     }
     drop(ui_box);
 }
@@ -170,8 +167,7 @@ pub fn remote_ui_disconnect(channel_id: u64, err: &mut Error, send_error_exit: b
 /// @param[out] err Error details, if any.
 // DLLEXPORT void ui_detach_channel(uint64_t chan, Error *err);
 pub fn ui_detach_channel(chan: u64, err: &mut Error) {
-    let c = find_channel(chan);
-    if c.is_null() {
+    let Some(c) = find_channel_opt(chan) else {
         api_set_error!(
             err,
             ErrorType::ErrorTypeValidation,
@@ -179,8 +175,7 @@ pub fn ui_detach_channel(chan: u64, err: &mut Error) {
             E_INVCHAN.as_ptr()
         );
         return;
-    }
-    let c = unsafe { &mut *c };
+    };
     #[cfg(windows)]
     let detach_stdio = c.streamtype == K_CHANNEL_STREAM_STDIO;
     c.detach = true;
@@ -370,11 +365,8 @@ pub fn nvim_ui_attach(
     g_st().current_ui = channel_id;
     ui_attach_impl(ui, channel_id);
 
-    let chan = find_channel(channel_id);
-    if !chan.is_null() {
-        unsafe {
-            (*chan).rpc.has_ui = true;
-        }
+    if let Some(chan) = find_channel_opt(channel_id) {
+        chan.rpc.has_ui = true;
     }
 
     may_trigger_vim_suspend_resume(false);
@@ -446,8 +438,7 @@ pub fn remote_ui_connect(channel_id: u64, server_addr: &[u8], err: &mut Error) {
 // DLLEXPORT void remote_ui_restart(String listen_addr);
 pub fn remote_ui_restart(listen_addr: NvimString) {
     for ui in api_ui_st().connected_uis.values_mut() {
-        let chan = find_channel(ui.channel_id);
-        let detach_val = !chan.is_null() && unsafe { (*chan).detach };
+        let detach_val = find_channel_opt(ui.channel_id).is_some_and(|c| c.detach);
         let mut cfg_items: [KeyValuePair; 1] = [KeyValuePair {
             key: cstr_as_string(c"detach"),
             value: boolean_obj(detach_val),

@@ -33,8 +33,8 @@ use crate::memory::{Arena, arena_finish, arena_mem_free};
 use crate::message::semsg;
 pub use crate::msgpack_rpc::channel::Channel;
 use crate::msgpack_rpc::channel::{
-    ChannelPart, ChannelStreamType, RpcState, channel_instream, find_channel, rpc_close, rpc_init,
-    rpc_start,
+    ChannelPart, ChannelStreamType, RpcState, channel_instream_mut, find_channel, find_channel_opt,
+    rpc_close, rpc_init, rpc_start,
 };
 use crate::msgpack_rpc::packer::Integer;
 use crate::msgpack_rpc::server::server_owns_pipe_address;
@@ -208,7 +208,7 @@ use crate::api::private::helpers::add_c;
 pub fn channel_teardown() {
     let all_chans: Vec<*mut Channel> = g_st().channels.values().copied().collect();
     for chan in all_chans {
-        channel_close(unsafe { (*chan).id }, K_CHANNEL_PART_ALL, None);
+        channel_close(Channel::from_cb_ptr(chan).id, K_CHANNEL_PART_ALL, None);
     }
 }
 
@@ -226,8 +226,7 @@ pub fn channel_close(
     part: ChannelPart,
     error: Option<&mut Option<&'static CStr>>,
 ) -> bool {
-    let chan = find_channel(id);
-    if chan.is_null() {
+    let Some(chan) = find_channel_opt(id) else {
         if id < chan_st().next_chan_id {
             return true;
         }
@@ -235,8 +234,7 @@ pub fn channel_close(
             *err = Some(E_INVCHAN);
         }
         return false;
-    }
-    let chan = unsafe { &mut *chan };
+    };
 
     let mut close_main = false;
     if part == K_CHANNEL_PART_RPC_CONST || part == K_CHANNEL_PART_ALL {
@@ -596,64 +594,60 @@ pub fn channel_connect(
     timeout: i32,
     error: &mut Option<&'static CStr>,
 ) -> u64 {
-    unsafe {
-        if !tcp && rpc && server_owns_pipe_address(address) {
-            let channel = channel_alloc(K_CHANNEL_STREAM_INTERNAL);
-            (*channel).internal.cb = LUA_NOREF;
-            rpc_start(&mut *channel);
-            channel_create_event(&mut *channel);
-            return (*channel).id;
-        }
-
-        let channel = channel_alloc(K_CHANNEL_STREAM_SOCKET);
-        let socket_stream = &mut (*channel).socket;
-        let connected = socket_connect(
-            &mut g_st().main_loop,
-            socket_stream,
-            tcp,
-            address,
-            timeout,
-            error,
-        );
-
-        if !connected {
-            channel_decref(&mut *channel);
-            return 0;
-        }
-
-        socket_stream.s.internal_data = StreamInternalData::Channel(channel);
-        wstream_init(&mut socket_stream.s, 0);
-        rstream_init(socket_stream);
-
-        if rpc {
-            rpc_start(&mut *channel);
-        } else {
-            (*channel).on_data = on_output;
-            callback_reader_start(&mut (*channel).on_data, c"data");
-            rstream_start(socket_stream, StreamCbData::ChannelData(channel));
-        }
-
+    if !tcp && rpc && server_owns_pipe_address(address) {
+        let channel = Channel::from_cb_ptr(channel_alloc(K_CHANNEL_STREAM_INTERNAL));
+        channel.internal.cb = LUA_NOREF;
+        rpc_start(&mut *channel);
         channel_create_event(&mut *channel);
-        (*channel).id
+        return channel.id;
     }
+
+    let channel_ptr = channel_alloc(K_CHANNEL_STREAM_SOCKET);
+    let channel = Channel::from_cb_ptr(channel_ptr);
+    let connected = socket_connect(
+        &mut g_st().main_loop,
+        &mut channel.socket,
+        tcp,
+        address,
+        timeout,
+        error,
+    );
+
+    if !connected {
+        channel_decref(&mut *channel);
+        return 0;
+    }
+
+    channel.socket.s.internal_data = StreamInternalData::Channel(channel_ptr);
+    wstream_init(&mut channel.socket.s, 0);
+    rstream_init(&mut channel.socket);
+
+    if rpc {
+        rpc_start(&mut *channel);
+    } else {
+        channel.on_data = on_output;
+        callback_reader_start(&mut channel.on_data, c"data");
+        rstream_start(&mut channel.socket, StreamCbData::ChannelData(channel_ptr));
+    }
+
+    channel_create_event(&mut *channel);
+    channel.id
 }
 
 /// Creates an RPC channel from a tcp/pipe socket connection.
 pub fn channel_from_connection(watcher: &mut SocketWatcher) {
-    unsafe {
-        let channel = channel_alloc(K_CHANNEL_STREAM_SOCKET);
-        let socket_stream = &mut (*channel).socket;
-        let result = socket_watcher_accept(watcher, socket_stream);
-        if result != 0 {
-            channel_destroy_early(&mut *channel);
-            return;
-        }
-        socket_stream.s.internal_data = StreamInternalData::Channel(channel);
-        wstream_init(&mut socket_stream.s, 0);
-        rstream_init(socket_stream);
-        rpc_start(&mut *channel);
-        channel_create_event(&mut *channel);
+    let channel_ptr = channel_alloc(K_CHANNEL_STREAM_SOCKET);
+    let channel = Channel::from_cb_ptr(channel_ptr);
+    let result = socket_watcher_accept(watcher, &mut channel.socket);
+    if result != 0 {
+        channel_destroy_early(&mut *channel);
+        return;
     }
+    channel.socket.s.internal_data = StreamInternalData::Channel(channel_ptr);
+    wstream_init(&mut channel.socket.s, 0);
+    rstream_init(&mut channel.socket);
+    rpc_start(&mut *channel);
+    channel_create_event(&mut *channel);
 }
 
 /// Creates an API channel from stdin/stdout. Used when embedding Nvim.
@@ -677,7 +671,8 @@ pub fn channel_from_stdio(
     }
     chan_st().did_stdio = true;
 
-    let channel = channel_alloc(K_CHANNEL_STREAM_STDIO);
+    let channel_ptr = channel_alloc(K_CHANNEL_STREAM_STDIO);
+    let channel = Channel::from_cb_ptr(channel_ptr);
     let mut stdin_dup_fd = STDIN_FILENO;
     let mut stdout_dup_fd = STDOUT_FILENO;
 
@@ -696,86 +691,87 @@ pub fn channel_from_stdio(
         let _ = unsafe { dup2(STDERR_FILENO, STDIN_FILENO) };
     }
 
-    let stdio_in = unsafe { &mut (*channel).stdio_in };
-    let stdio_out = unsafe { &mut (*channel).stdio_out };
-    {
-        rstream_init_fd((&raw mut g_st().main_loop).cast(), stdio_in, stdin_dup_fd);
-        wstream_init_fd(&mut g_st().main_loop, stdio_out, stdout_dup_fd, 0);
-    }
+    rstream_init_fd(
+        (&raw mut g_st().main_loop).cast(),
+        &mut channel.stdio_in,
+        stdin_dup_fd,
+    );
+    wstream_init_fd(
+        &mut g_st().main_loop,
+        &mut channel.stdio_out,
+        stdout_dup_fd,
+        0,
+    );
 
     if rpc {
-        rpc_start(unsafe { &mut *channel });
+        rpc_start(&mut *channel);
     } else {
-        unsafe {
-            (*channel).on_data = on_output;
-        }
-        callback_reader_start(unsafe { &mut (*channel).on_data }, c"stdin");
-        rstream_start(stdio_in, StreamCbData::ChannelData(channel));
+        channel.on_data = on_output;
+        callback_reader_start(&mut channel.on_data, c"stdin");
+        rstream_start(
+            &mut channel.stdio_in,
+            StreamCbData::ChannelData(channel_ptr),
+        );
     }
 
-    unsafe { (*channel).id }
+    channel.id
 }
 
 pub fn channel_send(id: u64, data: Vec<u8>, error: &mut Option<&'static CStr>) -> usize {
-    unsafe {
-        let chan = find_channel(id);
-        let len = data.len();
+    let len = data.len();
+    let Some(chan) = find_channel_opt(id) else {
+        *error = Some(crate::memory::cstr_from_ptr(gettext(E_INVCHAN)));
+        return 0;
+    };
 
-        if chan.is_null() {
-            *error = Some(crate::memory::cstr_from_ptr(gettext(E_INVCHAN)));
-            return 0;
-        }
-
-        if (*chan).streamtype == K_CHANNEL_STREAM_STDERR {
-            if (*chan).err_closed {
-                *error = Some(crate::memory::cstr_from_ptr(gettext(
-                    c"Can't send data to closed stream",
-                )));
-                return 0;
-            }
-            let wres = os_write(STDERR_FILENO, &data, false);
-            return if wres >= 0 { wres as usize } else { 0 };
-        }
-
-        if (*chan).streamtype == K_CHANNEL_STREAM_INTERNAL {
-            if (*chan).is_rpc {
-                *error = Some(crate::memory::cstr_from_ptr(gettext(
-                    c"Can't send raw data to rpc channel",
-                )));
-                return 0;
-            }
-            let internal = &mut (*chan).internal;
-            if (*chan).term.is_null() || internal.closed {
-                *error = Some(crate::memory::cstr_from_ptr(gettext(
-                    c"Can't send data to closed stream",
-                )));
-                return 0;
-            }
-            terminal_receive(&mut *(*chan).term, &data);
-            return len;
-        }
-
-        let in_stream = channel_instream(&mut *chan);
-        if (*in_stream).closed {
+    if chan.streamtype == K_CHANNEL_STREAM_STDERR {
+        if chan.err_closed {
             *error = Some(crate::memory::cstr_from_ptr(gettext(
                 c"Can't send data to closed stream",
             )));
             return 0;
         }
+        let wres = os_write(STDERR_FILENO, &data, false);
+        return if wres >= 0 { wres as usize } else { 0 };
+    }
 
-        if (*chan).is_rpc {
+    if chan.streamtype == K_CHANNEL_STREAM_INTERNAL {
+        if chan.is_rpc {
             *error = Some(crate::memory::cstr_from_ptr(gettext(
                 c"Can't send raw data to rpc channel",
             )));
             return 0;
         }
-
-        let buf = wstream_new_vec_buffer(data);
-        if wstream_write(&mut *in_stream, buf) == 0 {
-            len
-        } else {
-            0
+        if chan.term.is_null() || chan.internal.closed {
+            *error = Some(crate::memory::cstr_from_ptr(gettext(
+                c"Can't send data to closed stream",
+            )));
+            return 0;
         }
+        terminal_receive(chan.term_mut(), &data);
+        return len;
+    }
+
+    let in_stream = channel_instream_mut(&mut *chan);
+    if in_stream.closed {
+        *error = Some(crate::memory::cstr_from_ptr(gettext(
+            c"Can't send data to closed stream",
+        )));
+        return 0;
+    }
+
+    if chan.is_rpc {
+        *error = Some(crate::memory::cstr_from_ptr(gettext(
+            c"Can't send raw data to rpc channel",
+        )));
+        return 0;
+    }
+
+    let buf = wstream_new_vec_buffer(data);
+    if wstream_write(in_stream, buf) == 0 {
+        len
+    } else {
+        0
     }
 }
 
@@ -806,7 +802,7 @@ fn on_channel_output(
 ) -> usize {
     let count = buf.len();
     if !chan.term.is_null() {
-        terminal_receive(unsafe { &mut *chan.term }, buf);
+        terminal_receive(chan.term_mut(), buf);
     }
 
     let reader = if is_stderr {
@@ -838,10 +834,7 @@ fn on_channel_output(
 fn schedule_channel_event(chan: &mut Channel) {
     if !chan.callback_scheduled {
         if !chan.callback_busy {
-            multiqueue_put_event(
-                unsafe { &mut *chan.events },
-                Event::ChannelCallback(&raw mut *chan),
-            );
+            multiqueue_put_event(chan.events_mut(), Event::ChannelCallback(&raw mut *chan));
             channel_incref(chan);
         }
         chan.callback_scheduled = true;
