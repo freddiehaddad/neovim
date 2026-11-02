@@ -1699,8 +1699,9 @@ pub fn os_fileinfo2(path: impl crate::strings::IntoCCharPtr, info: &mut FileInfo
 
     #[cfg(windows)]
     {
-        let p0 = crate::memory::cstr_first_byte(p);
-        let p1 = crate::memory::cstr_byte_at(p, 1);
+        let p_bytes = crate::memory::cstr_as_bytes(p);
+        let p0 = p_bytes.first().copied().unwrap_or(0);
+        let p1 = p_bytes.get(1).copied().unwrap_or(0);
         if leading_slashes == 0 && p0.is_ascii_alphabetic() && p1 == b':' {
             info.r#type = K_PATH_DRIVE;
             p = path_skip_sep(p.wrapping_add(2), false);
@@ -1714,13 +1715,13 @@ pub fn os_fileinfo2(path: impl crate::strings::IntoCCharPtr, info: &mut FileInfo
             info.r#type = K_PATH_DEVICE;
             info.prefix_off = leading_slashes - 2;
             p = path_skip_sep(p.wrapping_add(2), false);
-            let p_bytes = [
-                (crate::memory::cstr_first_byte(p)).to_ascii_lowercase(),
-                (crate::memory::cstr_byte_at(p, 1)).to_ascii_lowercase(),
-                (crate::memory::cstr_byte_at(p, 2)).to_ascii_lowercase(),
-            ];
-            if &p_bytes == b"unc"
-                && vim_ispathsep_nocolon(i32::from(crate::memory::cstr_byte_at(p, 3)))
+            let p_bytes = crate::memory::cstr_as_bytes(p);
+            if p_bytes
+                .get(..3)
+                .is_some_and(|s| s.eq_ignore_ascii_case(b"unc"))
+                && p_bytes
+                    .get(3)
+                    .is_some_and(|&b| vim_ispathsep_nocolon(i32::from(b)))
             {
                 info.r#type = K_PATH_DEVICE_UNC;
                 p = path_skip_sep(p.wrapping_add(4), false);
@@ -1731,8 +1732,7 @@ pub fn os_fileinfo2(path: impl crate::strings::IntoCCharPtr, info: &mut FileInfo
                 return true;
             }
             info.root_off = (p as usize) - (path as usize);
-            if (crate::memory::cstr_first_byte(p)).is_ascii_alphabetic()
-                && (crate::memory::cstr_byte_at(p, 1)) == b':'
+            if p_bytes.first().is_some_and(u8::is_ascii_alphabetic) && p_bytes.get(1) == Some(&b':')
             {
                 p = p.wrapping_add(2);
             }

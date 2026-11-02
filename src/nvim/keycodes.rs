@@ -1,9 +1,7 @@
 //! Keycode definitions and `<key>` notation translation (`src/nvim/keycodes.c`).
 
 use crate::api::private::validate::NvimString;
-use crate::charset::{
-    ascii_isalpha, ascii_isdigit, is_special, transchar, vim_isprintc, vim_str2nr,
-};
+use crate::charset::{ascii_isalpha, is_special, transchar, vim_isprintc, vim_str2nr};
 use crate::errors::{E_INVARG, E_USINGSID};
 use crate::eval::vars::{Scid, get_var_value};
 use crate::globals::*;
@@ -2446,58 +2444,59 @@ pub fn find_special_key(
         return 0;
     }
 
-    let mut src = *srcp;
-    if crate::memory::cstr_first_byte(src.cast()) != b'<' {
+    let base = *srcp;
+    let bytes = unsafe { std::slice::from_raw_parts(base, src_len) };
+    if bytes[0] != b'<' {
         return 0;
     }
-    let end = src.wrapping_add(src_len - 1);
+    let end_idx = src_len - 1;
     let in_string = (flags & FSK_IN_STRING) != 0;
-    if (src as usize) < (end as usize) && crate::memory::cstr_byte_at(src.cast(), 1) == b'*' {
+    let mut src_idx = 0usize;
+    if src_idx < end_idx && bytes.get(1) == Some(&b'*') {
         // <*xxx>: do not simplify
-        src = src.wrapping_add(1);
+        src_idx = 1;
     }
 
     // Find end of modifier list
-    let mut last_dash = src;
-    let mut bp = src.wrapping_add(1);
-    while (bp as usize) <= (end as usize)
-        && (crate::memory::cstr_first_byte(bp.cast()) == b'-'
-            || ascii_isident(crate::memory::cstr_first_char(bp.cast())))
+    let mut last_dash_idx = src_idx;
+    let mut bp_idx = src_idx + 1;
+    while bp_idx <= end_idx
+        && bytes[bp_idx] != 0
+        && (bytes[bp_idx] == b'-' || ascii_isident(bytes[bp_idx] as i32))
     {
-        if crate::memory::cstr_first_byte(bp.cast()) == b'-' {
-            last_dash = bp;
-            if (bp.wrapping_add(1) as usize) <= (end as usize) {
-                let end_minus_bp = end as usize - bp as usize;
-                let l =
-                    utfc_ptr2len_len(bp.wrapping_add(1).cast(), (end_minus_bp + 1) as i32) as usize;
+        if bytes[bp_idx] == b'-' {
+            last_dash_idx = bp_idx;
+            if bp_idx < end_idx {
+                let end_minus_bp = end_idx - bp_idx;
+                let l = utfc_ptr2len_len(
+                    base.wrapping_add(bp_idx + 1).cast(),
+                    (end_minus_bp + 1) as i32,
+                ) as usize;
                 if end_minus_bp > l
-                    && !(in_string && crate::memory::cstr_byte_at(bp.cast(), 1) == b'"')
-                    && crate::memory::cstr_byte_at(bp.cast(), l + 1) == b'>'
+                    && !(in_string && bytes.get(bp_idx + 1) == Some(&b'"'))
+                    && bytes.get(bp_idx + l + 1) == Some(&b'>')
                 {
-                    bp = bp.wrapping_add(l);
+                    bp_idx += l;
                 } else if end_minus_bp > 2
                     && in_string
-                    && crate::memory::cstr_byte_at(bp.cast(), 1) == b'\\'
-                    && crate::memory::cstr_byte_at(bp.cast(), 2) == b'"'
-                    && crate::memory::cstr_byte_at(bp.cast(), 3) == b'>'
+                    && bytes.get(bp_idx + 1..bp_idx + 4) == Some(b"\\\">")
                 {
-                    bp = bp.wrapping_add(2);
+                    bp_idx += 2;
                 }
             }
         }
-        if (bp as usize) <= (end as usize) {
-            let end_minus_bp = end as usize - bp as usize;
-            if end_minus_bp > 3
-                && crate::memory::cstr_first_byte(bp.cast()) == b't'
-                && crate::memory::cstr_byte_at(bp.cast(), 1) == b'_'
-            {
-                bp = bp.wrapping_add(3); // skip t_xx, xx may be '-' or '>'
+        if bp_idx <= end_idx {
+            let end_minus_bp = end_idx - bp_idx;
+            if end_minus_bp > 3 && bytes[bp_idx..].starts_with(b"t_") {
+                bp_idx += 3; // skip t_xx, xx may be '-' or '>'
             } else if end_minus_bp > 4
-                && crate::memory::cstr_prefix_bytes(bp.cast(), 5).eq_ignore_ascii_case(b"char-")
+                && bytes
+                    .get(bp_idx..bp_idx + 5)
+                    .is_some_and(|s| s.eq_ignore_ascii_case(b"char-"))
             {
                 let mut l: i32 = 0;
                 vim_str2nr(
-                    bp.wrapping_add(5).cast(),
+                    base.wrapping_add(bp_idx + 5).cast(),
                     None,
                     Some(&mut l),
                     STR2NR_ALL,
@@ -2511,37 +2510,40 @@ pub fn find_special_key(
                     emsg(E_INVARG);
                     return 0;
                 }
-                bp = bp.wrapping_add(l as usize + 5);
+                bp_idx += l as usize + 5;
                 break;
             }
         }
-        bp = bp.wrapping_add(1);
+        bp_idx += 1;
     }
 
-    if (bp as usize) <= (end as usize) && crate::memory::cstr_first_byte(bp.cast()) == b'>' {
+    if bp_idx <= end_idx && bytes[bp_idx] == b'>' {
         // found matching '>'
-        let end_of_name = bp.wrapping_add(1);
+        let end_of_name = base.wrapping_add(bp_idx + 1);
 
         // Which modifiers are given?
         let mut modifiers: i32 = 0;
-        bp = src.wrapping_add(1);
-        while (bp as usize) < (last_dash as usize) {
-            if crate::memory::cstr_first_byte(bp.cast()) != b'-' {
-                let bit = name_to_mod_mask(i32::from(crate::memory::cstr_first_byte(bp.cast())));
+        bp_idx = src_idx + 1;
+        while bp_idx < last_dash_idx {
+            if bytes[bp_idx] != b'-' {
+                let bit = name_to_mod_mask(i32::from(bytes[bp_idx]));
                 if bit == 0 {
                     break; // Illegal modifier name
                 }
                 modifiers |= bit;
             }
-            bp = bp.wrapping_add(1);
+            bp_idx += 1;
         }
 
         // Legal modifier name.
-        if (bp as usize) >= (last_dash as usize) {
+        if bp_idx >= last_dash_idx {
+            let last_dash = base.wrapping_add(last_dash_idx);
+            let after_dash = &bytes[last_dash_idx + 1..];
             let mut key: i32;
-            if crate::memory::cstr_prefix_bytes(last_dash.wrapping_add(1).cast(), 5)
-                .eq_ignore_ascii_case(b"char-")
-                && ascii_isdigit(crate::memory::cstr_char_at(last_dash.cast(), 6))
+            if after_dash
+                .get(..5)
+                .is_some_and(|s| s.eq_ignore_ascii_case(b"char-"))
+                && after_dash.get(5).is_some_and(u8::is_ascii_digit)
             {
                 // <Char-123> or <Char-033> or <Char-0x33>
                 let mut l: i32 = 0;
@@ -2567,10 +2569,7 @@ pub fn find_special_key(
                 let l: usize;
 
                 // Modifier with single letter, or special key name.
-                if in_string
-                    && crate::memory::cstr_byte_at(last_dash.cast(), 1) == b'\\'
-                    && crate::memory::cstr_byte_at(last_dash.cast(), 2) == b'"'
-                {
+                if in_string && after_dash.starts_with(b"\\\"") {
                     // Special case for a double-quoted string
                     off = 2;
                     l = 2;
@@ -2578,7 +2577,7 @@ pub fn find_special_key(
                     off = 1;
                     l = utfc_ptr2len(last_dash.wrapping_add(1).cast()) as usize;
                 }
-                if modifiers != 0 && crate::memory::cstr_byte_at(last_dash.cast(), l + 1) == b'>' {
+                if modifiers != 0 && after_dash.get(l) == Some(&b'>') {
                     key = utf_ptr2char(last_dash.wrapping_add(off).cast());
                 } else {
                     key = get_special_key_code(last_dash.wrapping_add(off).cast());

@@ -936,7 +936,6 @@ pub fn parse_fmt_types(
         return true;
     }
     let mut ap_types: Vec<RawCCharPtr> = Vec::new();
-    let mut p = fmt;
     let mut any_pos = false;
     let mut any_arg = false;
 
@@ -957,24 +956,28 @@ pub fn parse_fmt_types(
         };
     }
 
-    while !crate::memory::cstr_is_empty(p) {
-        if crate::memory::cstr_first_byte(p) != b'%' {
-            p = p.wrapping_add(1);
-            while !crate::memory::cstr_is_empty(p) && crate::memory::cstr_first_byte(p) != b'%' {
-                p = p.wrapping_add(1);
+    let fmt_bytes = crate::memory::cstr_as_bytes(fmt);
+    let mut idx = 0usize;
+    while idx < fmt_bytes.len() {
+        if fmt_bytes[idx] != b'%' {
+            idx += 1;
+            while idx < fmt_bytes.len() && fmt_bytes[idx] != b'%' {
+                idx += 1;
             }
         } else {
             let mut pos_arg: i32 = -1;
-            let pstart = p.wrapping_add(1);
-            p = p.wrapping_add(1);
+            idx += 1;
+            let mut p = fmt.wrapping_add(idx);
+            let pstart = p;
 
-            let mut ptype = p;
-            while crate::memory::cstr_first_byte(ptype).is_ascii_digit() {
-                ptype = ptype.wrapping_add(1);
-            }
+            let dig_len = fmt_bytes[idx..]
+                .iter()
+                .take_while(|b| b.is_ascii_digit())
+                .count();
+            let mut ptype = p.wrapping_add(dig_len);
 
-            if crate::memory::cstr_first_byte(ptype) == b'$' {
-                if crate::memory::cstr_first_byte(p) == b'0' {
+            if fmt_bytes.get(idx + dig_len) == Some(&b'$') {
+                if fmt_bytes.get(idx) == Some(&b'0') {
                     semsg!(gettext(E_INVALID_FORMAT_SPECIFIER), fmt);
                     fail!();
                 }
@@ -986,28 +989,32 @@ pub fn parse_fmt_types(
                 any_pos = true;
                 check_pos_arg!();
                 p = p.wrapping_add(1);
+                idx = (p as usize) - (fmt as usize);
             }
 
-            while matches!(
-                crate::memory::cstr_first_byte(p),
-                b'0' | b'-' | b'+' | b' ' | b'#' | b'\''
-            ) {
-                p = p.wrapping_add(1);
+            while idx < fmt_bytes.len()
+                && matches!(fmt_bytes[idx], b'0' | b'-' | b'+' | b' ' | b'#' | b'\'')
+            {
+                idx += 1;
             }
+            p = fmt.wrapping_add(idx);
 
             let arg = p;
-            if crate::memory::cstr_first_byte(arg) == b'*' {
-                p = p.wrapping_add(1);
-                if crate::memory::cstr_first_byte(p).is_ascii_digit() {
+            if fmt_bytes.get(idx) == Some(&b'*') {
+                idx += 1;
+                p = fmt.wrapping_add(idx);
+                if fmt_bytes.get(idx).is_some_and(u8::is_ascii_digit) {
                     let mut uj: u32 = 0;
                     if !get_unsigned_int(arg.wrapping_add(1), &mut p, &mut uj, !tvs.is_null()) {
                         fail!();
                     }
-                    if crate::memory::cstr_first_byte(p) != b'$' {
+                    idx = (p as usize) - (fmt as usize);
+                    if fmt_bytes.get(idx) != Some(&b'$') {
                         semsg!(gettext(E_INVALID_FORMAT_SPECIFIER), fmt);
                         fail!();
                     }
-                    p = p.wrapping_add(1);
+                    idx += 1;
+                    p = fmt.wrapping_add(idx);
                     any_pos = true;
                     check_pos_arg!();
                     if !adjust_types(&mut ap_types, uj as i32, arg) {
@@ -1017,32 +1024,37 @@ pub fn parse_fmt_types(
                     any_arg = true;
                     check_pos_arg!();
                 }
-            } else if crate::memory::cstr_first_byte(p).is_ascii_digit() {
+            } else if fmt_bytes.get(idx).is_some_and(u8::is_ascii_digit) {
                 let digstart = p;
                 let mut uj: u32 = 0;
                 if !get_unsigned_int(digstart, &mut p, &mut uj, !tvs.is_null()) {
                     fail!();
                 }
-                if crate::memory::cstr_first_byte(p) == b'$' {
+                idx = (p as usize) - (fmt as usize);
+                if fmt_bytes.get(idx) == Some(&b'$') {
                     semsg!(gettext(E_INVALID_FORMAT_SPECIFIER), fmt);
                     fail!();
                 }
             }
 
-            if crate::memory::cstr_first_byte(p) == b'.' {
-                p = p.wrapping_add(1);
+            if fmt_bytes.get(idx) == Some(&b'.') {
+                idx += 1;
+                p = fmt.wrapping_add(idx);
                 let arg = p;
-                if crate::memory::cstr_first_byte(arg) == b'*' {
-                    p = p.wrapping_add(1);
-                    if crate::memory::cstr_first_byte(p).is_ascii_digit() {
+                if fmt_bytes.get(idx) == Some(&b'*') {
+                    idx += 1;
+                    p = fmt.wrapping_add(idx);
+                    if fmt_bytes.get(idx).is_some_and(u8::is_ascii_digit) {
                         let mut uj: u32 = 0;
                         if !get_unsigned_int(arg.wrapping_add(1), &mut p, &mut uj, !tvs.is_null()) {
                             fail!();
                         }
-                        if crate::memory::cstr_first_byte(p) == b'$' {
+                        idx = (p as usize) - (fmt as usize);
+                        if fmt_bytes.get(idx) == Some(&b'$') {
                             any_pos = true;
                             check_pos_arg!();
-                            p = p.wrapping_add(1);
+                            idx += 1;
+                            p = fmt.wrapping_add(idx);
                             if !adjust_types(&mut ap_types, uj as i32, arg) {
                                 fail!();
                             }
@@ -1054,13 +1066,14 @@ pub fn parse_fmt_types(
                         any_arg = true;
                         check_pos_arg!();
                     }
-                } else if crate::memory::cstr_first_byte(p).is_ascii_digit() {
+                } else if fmt_bytes.get(idx).is_some_and(u8::is_ascii_digit) {
                     let digstart = p;
                     let mut uj: u32 = 0;
                     if !get_unsigned_int(digstart, &mut p, &mut uj, !tvs.is_null()) {
                         fail!();
                     }
-                    if crate::memory::cstr_first_byte(p) == b'$' {
+                    idx = (p as usize) - (fmt as usize);
+                    if fmt_bytes.get(idx) == Some(&b'$') {
                         semsg!(gettext(E_INVALID_FORMAT_SPECIFIER), fmt);
                         fail!();
                     }
@@ -1070,18 +1083,19 @@ pub fn parse_fmt_types(
             if pos_arg != -1 {
                 any_pos = true;
                 check_pos_arg!();
-                ptype = p;
+                ptype = fmt.wrapping_add(idx);
             }
 
-            if matches!(crate::memory::cstr_first_byte(p), b'h' | b'l' | b'z') {
-                let lm = crate::memory::cstr_first_byte(p);
-                p = p.wrapping_add(1);
-                if lm == b'l' && crate::memory::cstr_first_byte(p) == b'l' {
-                    p = p.wrapping_add(1);
+            if let Some(&lm) = fmt_bytes.get(idx)
+                && matches!(lm, b'h' | b'l' | b'z')
+            {
+                idx += 1;
+                if lm == b'l' && fmt_bytes.get(idx) == Some(&b'l') {
+                    idx += 1;
                 }
             }
 
-            match crate::memory::cstr_first_byte(p) {
+            match fmt_bytes.get(idx).copied().unwrap_or(0) {
                 b'i' | b'*' | b'd' | b'u' | b'o' | b'D' | b'U' | b'O' | b'x' | b'X' | b'b'
                 | b'B' | b'c' | b's' | b'S' | b'p' | b'f' | b'F' | b'e' | b'E' | b'g' | b'G' => {
                     if pos_arg != -1 {
@@ -1101,8 +1115,8 @@ pub fn parse_fmt_types(
                 }
             }
 
-            if !crate::memory::cstr_is_empty(p) {
-                p = p.wrapping_add(1);
+            if idx < fmt_bytes.len() {
+                idx += 1;
             }
         }
     }
