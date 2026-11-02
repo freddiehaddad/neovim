@@ -267,6 +267,14 @@ impl LineGetter {
         }
     }
 
+    #[inline]
+    pub fn as_source_mut(self) -> Option<&'static mut crate::runtime::SourceCookie> {
+        match self.inner() {
+            Self::Source(p) => unsafe { p.as_mut() },
+            _ => None,
+        }
+    }
+
     pub fn call(self, c: i32, indent: i32, do_concat: bool) -> Option<std::ffi::CString> {
         match self {
             Self::None => None,
