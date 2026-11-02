@@ -923,12 +923,16 @@ fn fname_trans_sid(
                 ) as usize;
             }
         }
-        let fnamelen = fname_buflen + crate::memory::cstr_len(script_name.cast());
+        let script_bytes = crate::memory::cstr_as_bytes_with_nul(script_name.cast());
+        let fnamelen = fname_buflen + script_bytes.len() - 1;
         if fnamelen < FLEN_FIXED {
-            crate::memory::cstr_cpy(
-                fname_buf.wrapping_add(fname_buflen).cast(),
-                script_name.cast(),
-            );
+            unsafe {
+                ptr::copy_nonoverlapping(
+                    script_bytes.as_ptr(),
+                    fname_buf.wrapping_add(fname_buflen),
+                    script_bytes.len(),
+                );
+            }
             fname_buf
         } else {
             let mut fname_vec = vec![0u8; fnamelen + 1];
@@ -4006,7 +4010,7 @@ pub fn get_return_cmd(rettv: Option<TypVal>) -> std::ffi::CString {
     xstrlcpy(iobuff_ptr.wrapping_add(8), s, IOSIZE - 8);
     let mut iobuff_len = 8 + slen;
     if iobuff_len >= IOSIZE {
-        crate::memory::cstr_cpy(iobuff_ptr.wrapping_add(IOSIZE - 4), c"...");
+        xstrlcpy(iobuff_ptr.wrapping_add(IOSIZE - 4), c"...", 4);
         iobuff_len = IOSIZE - 1;
     }
     drop(tofree);

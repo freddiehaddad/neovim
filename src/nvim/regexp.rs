@@ -2257,15 +2257,13 @@ pub(super) fn match_with_backref(
     *bytelen = 0;
     loop {
         if re_st().reg_tofree.is_empty() || re_st().rex.line != re_st().reg_tofree.as_mut_ptr() {
-            let len = crate::memory::cstr_len(re_st().rex.line.cast()) + 51;
+            let line_bytes = crate::memory::cstr_as_bytes_with_nul(re_st().rex.line.cast());
+            let len = line_bytes.len() - 1 + 51;
             let off = re_st().rex.input_off();
             if re_st().reg_tofree.len() < len {
                 re_st().reg_tofree.resize(len, 0);
             }
-            crate::memory::cstr_cpy(
-                re_st().reg_tofree.as_mut_ptr().cast(),
-                re_st().rex.line.cast(),
-            );
+            re_st().reg_tofree[..line_bytes.len()].copy_from_slice(line_bytes);
             re_st().rex.line = re_st().reg_tofree.as_mut_ptr();
             re_st().rex.input = re_st().rex.line.wrapping_add(off);
         }
@@ -2664,9 +2662,11 @@ fn vim_regsub_both<T>(
         {
             if copy {
                 if let Some(ref eval_cstr) = *eval_slot {
-                    let eval_len = eval_cstr.to_bytes().len();
+                    let eval_bytes = eval_cstr.to_bytes_with_nul();
+                    let eval_len = eval_bytes.len() - 1;
                     if eval_len < destlen as usize {
-                        crate::memory::cstr_cpy(dest.cast(), eval_cstr.as_ptr());
+                        let dst_slice = std::slice::from_raw_parts_mut(dest, eval_bytes.len());
+                        dst_slice.copy_from_slice(eval_bytes);
                         dst = dst.wrapping_add(eval_len);
                         *eval_slot = None;
                     }

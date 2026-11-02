@@ -1111,9 +1111,8 @@ fn suggest_try_special(su: &mut Suginfo) {
     }
 }
 fn suggest_try_change(su: &mut Suginfo) {
-    let mut fword: [u8; MAXWLEN] = [0; MAXWLEN];
-    crate::memory::cstr_cpy((&raw mut fword).cast(), (&raw const su.su_fbadword).cast());
-    let mut n = crate::memory::cstr_len((&raw const fword).cast()) as i32;
+    let mut fword: [u8; MAXWLEN] = su.su_fbadword;
+    let mut n = crate::memory::cstr_len(&fword) as i32;
     let p = su.su_badptr.wrapping_add(su.su_badlen as usize);
     spell_casefold(
         curwin_mut(),
@@ -1421,16 +1420,10 @@ fn suggest_trie_walk(su: &mut Suginfo, lp: &Langp, fword_buf: &mut [u8; MAXWLEN]
                         }
                     }
                     if soundfold {
-                        crate::memory::cstr_cpy(
-                            preword
-                                .as_mut_ptr()
-                                .wrapping_add(stack[udepth].ts_prewordlen as usize)
-                                .cast(),
-                            tword
-                                .as_ptr()
-                                .wrapping_add(stack[udepth].ts_splitoff as usize)
-                                .cast(),
-                        );
+                        let pw_off = stack[udepth].ts_prewordlen as usize;
+                        let tw_off = stack[udepth].ts_splitoff as usize;
+                        let tw_bytes = crate::memory::cstr_as_bytes_with_nul(&tword[tw_off..]);
+                        preword[pw_off..pw_off + tw_bytes.len()].copy_from_slice(tw_bytes);
                     } else if (flags & WF_KEEPCAP) != 0 {
                         find_keepcap_word(
                             slang,
@@ -2654,10 +2647,7 @@ fn add_sound_suggest(
                 }
                 while byts[(n + i) as usize] == 0 {
                     if i > i32::from(byts[n as usize]) {
-                        crate::memory::cstr_cpy(
-                            theword.as_mut_ptr().wrapping_add(wlen).cast(),
-                            c"BAD",
-                        );
+                        theword[wlen..wlen + 4].copy_from_slice(b"BAD\0");
                         wlen += 3;
                         break 'badword;
                     }

@@ -1443,10 +1443,11 @@ fn command_line_handle_ctrl_bsl(s: &mut CommandLineState) -> i32 {
             g_st().textlock -= 1;
 
             if let Some(p) = p {
-                let len = p.as_bytes().len() as i32;
+                let bytes = p.as_bytes_with_nul();
+                let len = (bytes.len() - 1) as i32;
                 realloc_cmdbuff(len + 1);
                 getln_st().ccline.cmdlen = len;
-                crate::memory::cstr_cpy(getln_st().ccline.cmdbuff.cast(), p.as_ptr());
+                getln_st().ccline.cmdbuff_vec[..bytes.len()].copy_from_slice(bytes);
 
                 getln_st().ccline.cmdpos = getln_st().ccline.cmdlen.min(getln_st().new_cmdpos);
 
@@ -2449,7 +2450,8 @@ fn command_line_browse_history(s: &mut CommandLineState) -> i32 {
             getln_st().ccline.cmdpos = len;
         } else {
             alloc_cmdbuff(plen);
-            crate::memory::cstr_cpy(getln_st().ccline.cmdbuff.cast(), p.cast());
+            let p_bytes = crate::memory::cstr_as_bytes_with_nul(p.cast());
+            getln_st().ccline.cmdbuff_vec[..p_bytes.len()].copy_from_slice(p_bytes);
             getln_st().ccline.cmdlen = plen;
             getln_st().ccline.cmdpos = plen;
         }
@@ -4896,10 +4898,11 @@ fn set_cmdline_str(str: impl crate::strings::IntoCCharPtr, pos: i32) -> i32 {
         return 1;
     };
 
-    let len = crate::memory::cstr_len(str) as i32;
+    let bytes = crate::memory::cstr_as_bytes_with_nul(str);
+    let len = (bytes.len() - 1) as i32;
     realloc_cmdbuff(len + 1);
     p.cmdlen = len;
-    crate::memory::cstr_cpy(p.cmdbuff.cast(), str);
+    p.cmdbuff_vec[..bytes.len()].copy_from_slice(bytes);
 
     p.cmdpos = if pos < 0 || pos > p.cmdlen {
         p.cmdlen

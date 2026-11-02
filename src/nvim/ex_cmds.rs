@@ -868,7 +868,6 @@ pub fn ex_sort(eap: &mut Exarg) {
         let mut sortbuf2_vec = vec![0u8; maxlen as usize + 1];
 
         nrs_vec.sort_by(|a, b| sort_compare(a, b, &mut sortbuf1_vec, &mut sortbuf2_vec).cmp(&0));
-        let sortbuf1 = sortbuf1_vec.as_mut_ptr();
 
         if excmds_st().sort_abort {
             break 'sortend;
@@ -888,9 +887,10 @@ pub fn ex_sort(eap: &mut Exarg) {
             let s = ml_get(get_lnum);
             let bytelen: Colnr = ml_get_len(get_lnum) + 1;
             old_count += bytelen as Bcount;
-            if !unique || i == 0 || string_compare(s, sortbuf1.cast()) != 0 {
-                crate::memory::cstr_cpy(sortbuf1.cast(), s);
-                if !ml_append(lnum, sortbuf1.cast(), 0, false) {
+            if !unique || i == 0 || string_compare(s, sortbuf1_vec.as_ptr().cast()) != 0 {
+                let s_bytes = crate::memory::cstr_as_bytes_with_nul(s);
+                sortbuf1_vec[..s_bytes.len()].copy_from_slice(s_bytes);
+                if !ml_append(lnum, sortbuf1_vec.as_mut_ptr().cast(), 0, false) {
                     break;
                 }
                 lnum += 1;
@@ -1040,7 +1040,6 @@ pub fn ex_uniq(eap: &mut Exarg) {
         }
 
         let mut sortbuf1_vec = vec![0u8; maxlen as usize + 1];
-        let sortbuf1 = sortbuf1_vec.as_mut_ptr();
 
         let mut match_continue = false;
         let mut next_is_unmatch = false;
@@ -1074,7 +1073,10 @@ pub fn ex_uniq(eap: &mut Exarg) {
             }
 
             let mut is_match = if i > 0 {
-                string_compare(s.wrapping_add(start_col as usize), sortbuf1.cast()) == 0
+                string_compare(
+                    s.wrapping_add(start_col as usize),
+                    sortbuf1_vec.as_ptr().cast(),
+                ) == 0
             } else {
                 false
             };
@@ -1088,7 +1090,9 @@ pub fn ex_uniq(eap: &mut Exarg) {
                 if is_match {
                     delete_lnum = get_lnum;
                 } else {
-                    crate::memory::cstr_cpy(sortbuf1.cast(), s.wrapping_add(start_col as usize));
+                    let s_bytes =
+                        crate::memory::cstr_as_bytes_with_nul(s.wrapping_add(start_col as usize));
+                    sortbuf1_vec[..s_bytes.len()].copy_from_slice(s_bytes);
                 }
             } else if keep_only_not_unique {
                 if is_match {
@@ -1103,7 +1107,9 @@ pub fn ex_uniq(eap: &mut Exarg) {
                         delete_lnum = get_lnum;
                     }
                     match_continue = false;
-                    crate::memory::cstr_cpy(sortbuf1.cast(), s.wrapping_add(start_col as usize));
+                    let s_bytes =
+                        crate::memory::cstr_as_bytes_with_nul(s.wrapping_add(start_col as usize));
+                    sortbuf1_vec[..s_bytes.len()].copy_from_slice(s_bytes);
                 }
             } else if is_match {
                 if !match_continue {
@@ -1117,7 +1123,9 @@ pub fn ex_uniq(eap: &mut Exarg) {
                     delete_lnum = get_lnum;
                 }
                 match_continue = false;
-                crate::memory::cstr_cpy(sortbuf1.cast(), s.wrapping_add(start_col as usize));
+                let s_bytes =
+                    crate::memory::cstr_as_bytes_with_nul(s.wrapping_add(start_col as usize));
+                sortbuf1_vec[..s_bytes.len()].copy_from_slice(s_bytes);
             }
 
             if end_col > 0 {
@@ -4605,10 +4613,16 @@ fn do_sub(eap: &mut Exarg, tm: Proftime, cmdpreview_ns: i32, cmdpreview_bufnr: O
                     || regmatch.startpos[0].lnum > 0
                 {
                     if !new_start.is_null() {
-                        crate::memory::cstr_cpy(
-                            new_start.data().wrapping_add(new_start.size).cast(),
+                        let tail = crate::memory::cstr_as_bytes_with_nul(
                             sub_firstline.data().wrapping_add(copycol as usize).cast(),
                         );
+                        unsafe {
+                            ptr::copy_nonoverlapping(
+                                tail.as_ptr(),
+                                new_start.data().wrapping_add(new_start.size),
+                                tail.len(),
+                            );
+                        }
                         new_start.size += sub_firstline.size - copycol as usize;
                         matchcol = sub_firstline.size as Colnr - matchcol;
                         prev_matchcol = sub_firstline.size as Colnr - prev_matchcol;
@@ -4816,7 +4830,7 @@ pub fn do_sub_msg(count_only: bool) -> bool {
     {
         let msg_buf_ptr = g_st().msg_buf.as_mut_ptr();
         if g_st().got_int {
-            crate::memory::cstr_cpy(msg_buf_ptr, gettext(c"(Interrupted) "));
+            xstrlcpy(msg_buf_ptr, gettext(c"(Interrupted) "), MSG_BUF_LEN);
         } else {
             g_st().msg_buf[0] = NUL;
         }

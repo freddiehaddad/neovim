@@ -2920,10 +2920,12 @@ pub fn do_addsub(op_type: i32, pos: &mut CursorPos, mut length: i32, prenum1: Li
             *ptr_line = 0;
             let mut buf1len = crate::memory::ptr_offset_from(ptr_line, buf1) as i32;
 
-            crate::memory::cstr_cpy(buf1.wrapping_add(buf1len as usize).cast(), buf2_ptr.cast());
+            let buf2_bytes = crate::memory::cstr_as_bytes_with_nul(buf2_ptr.cast());
+            buf1_vec[buf1len as usize..buf1len as usize + buf2_bytes.len()]
+                .copy_from_slice(buf2_bytes);
             buf1len += buf2len;
 
-            ins_str(buf1.cast(), buf1len as usize);
+            ins_str(buf1_vec.as_ptr().cast(), buf1len as usize);
             drop(buf1_vec);
 
             endpos = curwin_mut().w_cursor;

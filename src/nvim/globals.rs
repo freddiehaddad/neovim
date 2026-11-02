@@ -380,7 +380,7 @@ pub struct EditorState {
     pub msg_grid_scroll_discount: i32,
     pub msg_listdo_overwrite: i32,
     pub ch_before_blocking_events: *mut MultiQueue,
-    pub showcmd_buf: [RawCChar; 51],
+    pub showcmd_buf: [u8; crate::normal::SHOWCMD_BUFLEN],
     pub nvim_testing: bool,
     pub pum_grid: ScreenGrid,
     pub pum_want: PumWant,
@@ -849,7 +849,7 @@ impl EditorState {
             msg_grid_scroll_discount: 0,
             msg_listdo_overwrite: 0,
             ch_before_blocking_events: ptr::null_mut(),
-            showcmd_buf: [0; 51],
+            showcmd_buf: [0; crate::normal::SHOWCMD_BUFLEN],
             nvim_testing: false,
             pum_grid: SCREEN_GRID_INIT,
             pum_want: PumWant {

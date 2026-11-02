@@ -1154,8 +1154,7 @@ pub fn spell_move_to(
     let mut found_len: usize = 0;
     let mut attr: Hlf = HLF_COUNT;
     let has_syntax = syntax_present(&mut *wp);
-    let mut buf_vec: Vec<u8>;
-    let mut buf: *mut u8 = ptr::null_mut();
+    let mut buf_vec: Vec<u8> = Vec::new();
     let mut buflen: usize = 0;
     let mut skip: i32 = 0;
     let mut capcol: Colnr = -1;
@@ -1175,7 +1174,6 @@ pub fn spell_move_to(
             if buflen < len + MAXWLEN + 2 {
                 buflen = len + MAXWLEN + 2;
                 buf_vec = vec![0; buflen];
-                buf = buf_vec.as_mut_ptr();
             }
             if lnum == 1 {
                 capcol = 0;
@@ -1190,7 +1188,9 @@ pub fn spell_move_to(
                 line = ml_get_buf(wp.buf_mut(), lnum);
             }
             let empty_line = crate::memory::cstr_is_empty(skipwhite(line));
-            crate::memory::cstr_cpy(buf.cast(), line);
+            let line_bytes = crate::memory::cstr_as_bytes_with_nul(line);
+            buf_vec[..line_bytes.len()].copy_from_slice(line_bytes);
+            let buf = buf_vec.as_mut_ptr();
             if lnum < wp.buf_mut().b_ml.ml_line_count {
                 spell_cat_line(
                     buf.wrapping_add(crate::memory::cstr_len(buf.cast())),
@@ -1354,7 +1354,8 @@ fn spell_load_lang(lang: impl crate::strings::IntoCCharPtr) {
             sl_loaded: false,
             sl_nobreak: 0,
         };
-        crate::memory::cstr_cpy((&raw mut sl.sl_lang).cast(), lang);
+        let lang_bytes = crate::memory::cstr_as_bytes_with_nul(lang);
+        sl.sl_lang[..lang_bytes.len()].copy_from_slice(lang_bytes);
         curbuf_mut().b_locked += 1;
         for round in 1..=2 {
             vim_snprintf!(
@@ -1420,15 +1421,10 @@ fn spell_load_lang(lang: impl crate::strings::IntoCCharPtr) {
                 );
             }
         } else if sl.sl_loaded {
-            let fn_ptr = (&raw mut fname_enc).cast::<u8>();
-            crate::memory::cstr_cpy(
-                fn_ptr
-                    .wrapping_add(crate::memory::cstr_len(fn_ptr.cast()) - 3)
-                    .cast(),
-                c"add.spl",
-            );
+            let fn_len = crate::memory::cstr_len(&fname_enc);
+            fname_enc[fn_len - 3..fn_len + 5].copy_from_slice(b"add.spl\0");
             do_in_runtimepath(
-                fn_ptr.cast(),
+                (&raw mut fname_enc).cast(),
                 DIP_ALL,
                 &mut RuntimeCallback::SpellLoad(&mut sl),
             );
@@ -1855,7 +1851,7 @@ pub fn parse_spelllang(wp: &mut WinInfoInfo) -> Option<&'static std::ffi::CStr> 
                     int_wordlist_spl(spf_ptr);
                 } else {
                     let len = copy_option_part(&raw mut spf, spf_ptr.cast(), MAXPATHL - 4, c",");
-                    crate::memory::cstr_cpy(spf_ptr.wrapping_add(len).cast(), c".spl");
+                    spf_name[len..len + 5].copy_from_slice(b".spl\0");
                     let mut c = 0;
                     while c < ga.len() {
                         if (*ga[c].lp_slang).sl_fname.as_ref().is_some_and(|p| {
@@ -1890,7 +1886,7 @@ pub fn parse_spelllang(wp: &mut WinInfoInfo) -> Option<&'static std::ffi::CStr> 
                 if slang.is_null() {
                     let lang_ptr = (&raw mut lang).cast::<u8>();
                     if cur_round == 0 {
-                        crate::memory::cstr_cpy(lang_ptr.cast(), c"internal wordlist");
+                        lang[..18].copy_from_slice(b"internal wordlist\0");
                     } else {
                         xstrlcpy(lang_ptr.cast(), path_tail(spf_ptr.cast()), MAXWLEN + 1);
                         let p = vim_strchr(lang_ptr.cast(), b'.' as i32);
@@ -2444,7 +2440,9 @@ pub fn make_case_word(fword: impl crate::strings::IntoCCharPtr, cword: *mut u8, 
         } else if (flags & WF_ONECAP) != 0 {
             onecap_copy(fword, cword, true);
         } else {
-            crate::memory::cstr_cpy(cword.cast(), fword);
+            let fword_bytes = crate::memory::cstr_as_bytes_with_nul(fword);
+            let dst = unsafe { std::slice::from_raw_parts_mut(cword, fword_bytes.len()) };
+            dst.copy_from_slice(fword_bytes);
         }
     }
 }

@@ -2096,7 +2096,7 @@ fn spell_read_aff(
                             ah_follows: 0,
                             ah_entries: Vec::new(),
                         };
-                        crate::memory::cstr_cpy(new_ah.ah_key.as_mut_ptr().cast(), items[1].cast());
+                        new_ah.ah_key[..key_bytes.len()].copy_from_slice(key_bytes);
                         cur_aff = &raw mut *tp.entry(key_bytes.to_vec()).or_insert(new_ah);
                     }
 
@@ -3585,12 +3585,9 @@ fn spell_read_wordfile(spin: &mut Spellinfo, fname: impl crate::strings::IntoCCh
                                 line.cast::<std::ffi::c_void>(),
                             );
                         } else {
-                            spin.si_region_count =
-                                (crate::memory::cstr_len(line.cast()) / 2) as i32;
-                            crate::memory::cstr_cpy(
-                                (&raw mut spin.si_region_name).cast(),
-                                line.cast(),
-                            );
+                            let line_bytes = crate::memory::cstr_as_bytes_with_nul(line.cast());
+                            spin.si_region_count = ((line_bytes.len() - 1) / 2) as i32;
+                            spin.si_region_name[..line_bytes.len()].copy_from_slice(line_bytes);
                             spin.si_region = (1 << spin.si_region_count) - 1;
                         }
                     }

@@ -6002,7 +6002,7 @@ fn get_normal_compl_info(
             ) as usize
                 + prefixlen;
             let mut pat_vec: Vec<u8> = vec![0; n];
-            crate::memory::cstr_cpy(pat_vec.as_mut_ptr().cast(), prefix);
+            pat_vec[..prefixlen].copy_from_slice(crate::memory::cstr_slice(prefix, prefixlen));
             quote_meta(
                 pat_vec.as_mut_ptr().wrapping_add(prefixlen),
                 line.wrapping_add(insexp().compl_col as usize),
@@ -6055,7 +6055,7 @@ fn get_normal_compl_info(
                     ) as usize
                         + 2;
                     let mut pat_vec: Vec<u8> = vec![0; n];
-                    crate::memory::cstr_cpy(pat_vec.as_mut_ptr().cast(), c"\\<");
+                    pat_vec[..2].copy_from_slice(b"\\<");
                     quote_meta(
                         pat_vec.as_mut_ptr().wrapping_add(2),
                         line.wrapping_add(insexp().compl_col as usize),

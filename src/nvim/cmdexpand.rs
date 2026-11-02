@@ -2275,7 +2275,6 @@ fn redraw_wildmenu(xp: &ExpandCtx, matches: &[CString], mut match_idx: i32, show
     let num_matches = matches.len() as i32;
 
     let mut buf_vec = vec![0u8; (g_st().columns_global as usize) * MB_MAXBYTES + 1];
-    let buf = buf_vec.as_mut_ptr();
 
     if match_idx == -1 {
         match_idx = 0;
@@ -2334,7 +2333,7 @@ fn redraw_wildmenu(xp: &ExpandCtx, matches: &[CString], mut match_idx: i32, show
         buf_vec[0] = 0;
         len = 0;
     } else {
-        crate::memory::cstr_cpy(buf.cast(), c"< ");
+        buf_vec[..3].copy_from_slice(b"< \0");
         len = 2;
     }
     clen = len as i32;

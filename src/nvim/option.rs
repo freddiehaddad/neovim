@@ -1292,7 +1292,8 @@ fn stropt_expand_envvar(
             newlen += (crate::memory::cstr_len(origval) as u32) + 1;
         }
         *newval = vec![0; newlen as usize];
-        crate::memory::cstr_cpy(newval.as_mut_ptr().cast(), s);
+        let s_bytes = crate::memory::cstr_as_bytes_with_nul(s);
+        newval[..s_bytes.len()].copy_from_slice(s_bytes);
     }
 }
 

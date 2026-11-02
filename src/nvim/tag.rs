@@ -1560,14 +1560,14 @@ impl Drop for FindtagsState {
 
 fn findtags_in_help_init(st: &mut FindtagsState) -> bool {
     if st.is_txt {
-        crate::memory::cstr_cpy(st.help_lang.as_mut_ptr().cast(), c"en");
+        st.help_lang[..3].copy_from_slice(b"en\0");
     } else {
         let i = crate::memory::cstr_len(st.tag_fname.as_ptr().cast());
         if i > 3 && st.tag_fname[i - 3] == b'-' {
             st.help_lang[..2].copy_from_slice(&st.tag_fname[i - 2..i]);
             st.help_lang[2] = 0;
         } else {
-            crate::memory::cstr_cpy(st.help_lang.as_mut_ptr().cast(), c"en");
+            st.help_lang[..3].copy_from_slice(b"en\0");
         }
     }
 
@@ -1985,7 +1985,8 @@ fn findtags_string_convert(st: &mut FindtagsState) {
     if len > st.lbuf.len() {
         st.lbuf.resize(len, 0);
     }
-    crate::memory::cstr_cpy(st.lbuf.as_mut_ptr().cast(), conv_line.as_ptr().cast());
+    let conv_bytes = crate::memory::cstr_as_bytes_with_nul(conv_line.as_ptr().cast());
+    st.lbuf[..conv_bytes.len()].copy_from_slice(conv_bytes);
 }
 
 fn findtags_add_match(
@@ -2032,10 +2033,8 @@ fn findtags_add_match(
             let mut v = vec![0u8; mfp_size];
             v[..len].copy_from_slice(tagname_slice);
             v[len] = b'@';
-            crate::memory::cstr_cpy(
-                v[len + 1..].as_mut_ptr().cast(),
-                st.help_lang.as_ptr().cast(),
-            );
+            let lang_bytes = crate::memory::cstr_as_bytes_with_nul(st.help_lang.as_ptr().cast());
+            v[len + 1..len + 1 + lang_bytes.len()].copy_from_slice(lang_bytes);
             let heur = help_heuristic(
                 tagname_slice,
                 if margs.match_re { margs.matchoff } else { 0 },
@@ -2078,16 +2077,16 @@ fn findtags_add_match(
                 }
             }
         } else {
-            let tag_fname_len = crate::memory::cstr_len(tag_fname_ptr.cast());
-            let len = tag_fname_len + crate::memory::cstr_len(lbuf_ptr.cast()) + 3;
+            let tag_fname_bytes = crate::memory::cstr_as_bytes(tag_fname_ptr.cast());
+            let lbuf_bytes = crate::memory::cstr_as_bytes(lbuf_ptr.cast());
+            let tag_fname_len = tag_fname_bytes.len();
+            let len = tag_fname_len + lbuf_bytes.len() + 3;
             let mut v = vec![0u8; 1 + len + 1];
             v[0] = (mtt + 1) as u8;
-            crate::memory::cstr_cpy(v[1..].as_mut_ptr().cast(), tag_fname_ptr.cast());
+            v[1..1 + tag_fname_len].copy_from_slice(tag_fname_bytes);
             v[tag_fname_len + 1] = TAG_SEP;
-            crate::memory::cstr_cpy(
-                v[1 + tag_fname_len + 1..].as_mut_ptr().cast(),
-                lbuf_ptr.cast(),
-            );
+            v[1 + tag_fname_len + 1..1 + tag_fname_len + 1 + lbuf_bytes.len()]
+                .copy_from_slice(lbuf_bytes);
             mfp_vec = Some(v);
         }
 
@@ -2477,7 +2476,9 @@ pub fn get_tagfname(tnp: &mut Tagname, first: i32, buf: &mut [u8]) -> bool {
             }
             tnp.tn_hf_idx += 1;
             xstrlcpy(buf_ptr.cast(), opt_vars().p_hf, MAXPATHL - 4);
-            crate::memory::cstr_cpy(path_tail(buf_ptr.cast()), c"tags");
+            let tail_off =
+                crate::memory::ptr_offset_from(path_tail(buf_ptr.cast()), buf_ptr.cast()) as usize;
+            buf[tail_off..tail_off + 5].copy_from_slice(b"tags\0");
             simplify_filename(buf_ptr.cast());
 
             let buf_bytes = crate::memory::cstr_as_bytes(buf_ptr.cast());
@@ -2552,7 +2553,8 @@ pub fn get_tagfname(tnp: &mut Tagname, first: i32, buf: &mut [u8]) -> bool {
         }
     }
 
-    crate::memory::cstr_cpy(buf_ptr.cast(), fname.as_ref().unwrap().as_ptr());
+    let fname_bytes = fname.as_ref().unwrap().to_bytes_with_nul();
+    buf[..fname_bytes.len()].copy_from_slice(fname_bytes);
     true
 }
 
@@ -3049,8 +3051,8 @@ fn expand_tag_fname(
             let p = path_tail(tag_fname);
             if p != tag_fname {
                 let mut retval = [0u8; MAXPATHL];
-                crate::memory::cstr_cpy(retval.as_mut_ptr().cast(), tag_fname);
                 let off = crate::memory::ptr_offset_from(p, tag_fname) as usize;
+                retval[..off].copy_from_slice(crate::memory::cstr_slice(tag_fname, off));
                 xstrlcpy(
                     retval.as_mut_ptr().wrapping_add(off).cast(),
                     fname.as_ptr(),

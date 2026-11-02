@@ -1802,18 +1802,9 @@ fn qf_parse_fmt_s(rmp: &mut Regmatch, midx: usize, fields: &mut Qffields) -> i32
     }
     let len = (crate::memory::ptr_offset_from(rmp.endp[midx], rmp.startp[midx]) as usize)
         .min(CMDBUFFSIZE - 5);
-    let pat_ptr = fields.pattern.as_mut_ptr();
-    crate::memory::cstr_cpy(pat_ptr.cast(), c"^\\V");
-    {
-        let _dst: *mut _ = pat_ptr.cast();
-        let _dsize: usize = len + 4;
-        let _dlen = crate::memory::cstr_len(_dst);
-        crate::memory::xstrlcpy(
-            _dst.wrapping_add(_dlen),
-            rmp.startp[midx].cast(),
-            _dsize - _dlen,
-        );
-    };
+    fields.pattern[..3].copy_from_slice(b"^\\V");
+    fields.pattern[3..3 + len]
+        .copy_from_slice(crate::memory::cstr_slice(rmp.startp[midx].cast(), len));
     fields.pattern[len + 3..len + 6].copy_from_slice(b"\\$\0");
     QF_OK
 }

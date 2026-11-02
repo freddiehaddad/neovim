@@ -2722,15 +2722,16 @@ pub fn f_foldtext(_argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDa
         }
         let count = foldend - foldstart + 1;
         let txt = ngettext(c"+-%s%3d line: ", c"+-%s%3d lines: ", count as u64);
-        let s_len = crate::memory::cstr_len(s);
+        let s_bytes = crate::memory::cstr_as_bytes_with_nul(s);
+        let s_len = s_bytes.len() - 1;
         let len = crate::memory::cstr_len(txt) + crate::memory::cstr_len(dashes) + 20 + s_len;
         let mut r_vec = vec![0u8; len];
-        let r = r_vec.as_mut_ptr().cast();
-        vim_snprintf!(r, len, txt, dashes, count);
-        let r_len = crate::memory::cstr_len(r);
-        crate::memory::cstr_cpy(r_vec[r_len..].as_mut_ptr().cast(), s);
+        vim_snprintf!(r_vec.as_mut_ptr().cast(), len, txt, dashes, count);
+        let r_len = crate::memory::cstr_len(&r_vec);
+        r_vec[r_len..r_len + s_bytes.len()].copy_from_slice(s_bytes);
         foldtext_cleanup(&mut r_vec[r_len..]);
-        crate::eval::typval::tv_set_string_len(rettv, r, crate::memory::cstr_len(r));
+        let final_len = crate::memory::cstr_len(&r_vec);
+        crate::eval::typval::tv_set_string_len(rettv, r_vec.as_ptr().cast(), final_len);
     }
 }
 

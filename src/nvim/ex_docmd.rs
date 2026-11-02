@@ -8360,15 +8360,25 @@ fn repl_cmdline(
         let mut i = offset;
         new_buf[..i].copy_from_slice(crate::memory::cstr_slice(old_cmdline, i));
         new_buf[i..(i + len)].copy_from_slice(crate::memory::cstr_slice(repl, len));
-        let new_cmdline: RawCCharPtrMut = new_buf.as_mut_ptr().cast();
         i += len;
-        crate::memory::cstr_cpy(new_cmdline.wrapping_add(i), src.wrapping_add(srclen));
+        new_buf[i..(i + tail_len)].copy_from_slice(crate::memory::cstr_slice(
+            src.wrapping_add(srclen),
+            tail_len,
+        ));
+        new_buf[i + tail_len] = 0;
+        let nextcmd_off = if !eap.nextcmd.is_null() {
+            let nc_off = i + tail_len + 1;
+            new_buf[nc_off..(nc_off + nextcmd_len)]
+                .copy_from_slice(crate::memory::cstr_slice(eap.nextcmd, nextcmd_len));
+            new_buf[nc_off + nextcmd_len] = 0;
+            Some(nc_off)
+        } else {
+            None
+        };
+        let new_cmdline: RawCCharPtrMut = new_buf.as_mut_ptr().cast();
         src = new_cmdline.wrapping_add(i);
-
-        if !eap.nextcmd.is_null() {
-            i = crate::memory::cstr_len(new_cmdline) + 1;
-            crate::memory::cstr_cpy(new_cmdline.wrapping_add(i), eap.nextcmd);
-            eap.nextcmd = new_cmdline.wrapping_add(i);
+        if let Some(nc_off) = nextcmd_off {
+            eap.nextcmd = new_cmdline.wrapping_add(nc_off);
         }
         eap.cmd = new_cmdline.wrapping_add((eap.cmd as usize).wrapping_sub(old_cmdline as usize));
         eap.arg = new_cmdline.wrapping_add((eap.arg as usize).wrapping_sub(old_cmdline as usize));
