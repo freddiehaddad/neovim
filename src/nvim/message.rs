@@ -552,7 +552,7 @@ pub fn msg_multiline(
         if check_int && g_st().got_int {
             return;
         }
-        let b = unsafe { *s.cast::<u8>() };
+        let b = crate::memory::cstr_first_byte(s);
         if b == b'\n' || i32::from(b) == TAB || b == b'\r' || b == BELL as u8 {
             // Print all chars before the delimiter
             msg_outtrans_len(
@@ -774,10 +774,7 @@ pub fn msg_keep(
         msg_st().msg_keep_entered += 1;
 
         // Add message to history unless it's a multihl, repeated kept or truncated message.
-        let keep_msg_ptr = unsafe { (&raw const g_st().keep_msg).as_ref() }
-            .unwrap()
-            .as_ref()
-            .map_or(ptr::null(), |k| k.as_ptr());
+        let keep_msg_ptr = g_st().keep_msg.as_ref().map_or(ptr::null(), |k| k.as_ptr());
         if msg_st().is_multihl == 0
             && (s != keep_msg_ptr
                 || (crate::memory::cstr_first_byte(s) != b'<'
@@ -879,116 +876,107 @@ pub fn trunc_string<T>(
 ) {
     let s: *const u8 = s.into_c_char_ptr().cast();
     let buf: *mut u8 = buf.cast();
-    {
-        let mut room = room_in - 3; // "..." takes 3 chars
-        let mut len: i32 = 0;
-        let mut e: i32 = 0;
+    let same_buf = ptr::eq(s, buf);
+    let mut room = room_in - 3; // "..." takes 3 chars
+    let mut len: i32 = 0;
+    let mut e: i32 = 0;
 
-        if crate::memory::cstr_is_empty(s.cast()) {
-            if buflen > 0 {
-                unsafe {
-                    *buf = 0;
-                }
+    if crate::memory::cstr_is_empty(s.cast()) {
+        if buflen > 0 {
+            crate::memory::cstr_ncpy(buf.cast(), c"", 0);
+        }
+        return;
+    }
+
+    if room_in < 3 {
+        room = 0;
+    }
+    let mut half = room / 2;
+
+    // First part: Start of the string.
+    while len < half && e < buflen {
+        let ch = crate::memory::cstr_byte_at(s.cast(), e as usize);
+        if ch == 0 {
+            // text fits without truncating!
+            if !same_buf {
+                let out = unsafe { std::slice::from_raw_parts_mut(buf, buflen as usize) };
+                out[..=e as usize]
+                    .copy_from_slice(crate::memory::cstr_slice(s.cast(), e as usize + 1));
             }
             return;
         }
-
-        if room_in < 3 {
-            room = 0;
+        let mut n = ptr2cells(s.wrapping_add(e as usize).cast());
+        if len + n > half {
+            break;
         }
-        let mut half = room / 2;
-
-        // First part: Start of the string.
-        while len < half && e < buflen {
-            if crate::memory::cstr_byte_at(s.cast(), e as usize) == 0 {
-                // text fits without truncating!
-                unsafe {
-                    *buf.wrapping_add(e as usize) = 0;
-                }
-                return;
-            }
-            let mut n = ptr2cells(s.wrapping_add(e as usize).cast());
-            if len + n > half {
-                break;
-            }
-            len += n;
-            unsafe {
-                *buf.wrapping_add(e as usize) = *s.wrapping_add(e as usize);
-            }
-            n = utfc_ptr2len(s.wrapping_add(e as usize).cast());
-            while {
-                n -= 1;
-                n > 0
-            } {
-                e += 1;
-                if e == buflen {
-                    break;
-                }
-                unsafe {
-                    *buf.wrapping_add(e as usize) = *s.wrapping_add(e as usize);
-                }
-            }
+        len += n;
+        n = utfc_ptr2len(s.wrapping_add(e as usize).cast());
+        while {
+            n -= 1;
+            n > 0
+        } {
             e += 1;
-        }
-
-        // Last part: End of the string.
-        let mut i = crate::memory::cstr_len(s.cast()) as i32;
-        half = i;
-        loop {
-            half = half - utf_head_off(s.cast(), s.wrapping_add((half - 1) as usize).cast()) - 1;
-            let n = ptr2cells(s.wrapping_add(half as usize).cast());
-            if len + n > room || half == 0 {
+            if e == buflen {
                 break;
             }
-            len += n;
-            i = half;
         }
+        e += 1;
+    }
 
-        if i <= e + 3 {
-            // text fits without truncating
-            if !ptr::eq(s, buf) {
-                len = crate::memory::cstr_len(s.cast()) as i32;
-                if len >= buflen {
-                    len = buflen - 1;
-                }
-                len = len - e + 1;
-                if len < 1 {
-                    unsafe {
-                        *buf.wrapping_add((e - 1) as usize) = 0;
-                    }
-                } else {
-                    unsafe {
-                        ptr::copy(
-                            s.wrapping_add(e as usize),
-                            buf.wrapping_add(e as usize),
-                            len as usize,
-                        )
-                    };
-                }
-            }
-        } else if e + 3 < buflen {
-            // set the middle and copy the last part
-            unsafe { ptr::copy(b"...".as_ptr(), buf.wrapping_add(e as usize), 3) };
-            len = crate::memory::cstr_len(s.wrapping_add(i as usize).cast()) as i32 + 1;
-            if len >= buflen - e - 3 {
-                len = buflen - e - 3 - 1;
-            }
-            unsafe {
-                ptr::copy(
-                    s.wrapping_add(i as usize),
-                    buf.wrapping_add((e + 3) as usize),
-                    len as usize,
-                )
-            };
-            unsafe {
-                *buf.wrapping_add((e + 3 + len - 1) as usize) = 0;
-            }
-        } else {
-            // can't fit in the "...", just truncate it
-            unsafe {
-                *buf.wrapping_add((buflen - 1) as usize) = 0;
+    // Last part: End of the string.
+    let s_len = crate::memory::cstr_len(s.cast()) as i32;
+    let mut i = s_len;
+    half = i;
+    loop {
+        half = half - utf_head_off(s.cast(), s.wrapping_add((half - 1) as usize).cast()) - 1;
+        let n = ptr2cells(s.wrapping_add(half as usize).cast());
+        if len + n > room || half == 0 {
+            break;
+        }
+        len += n;
+        i = half;
+    }
+
+    let out = if buflen > 0 {
+        unsafe { std::slice::from_raw_parts_mut(buf, buflen as usize) }
+    } else {
+        &mut []
+    };
+    let copy_e = (e as usize).min(out.len());
+    if !same_buf && copy_e > 0 {
+        out[..copy_e].copy_from_slice(crate::memory::cstr_slice(s.cast(), copy_e));
+    }
+
+    if i <= e + 3 {
+        // text fits without truncating
+        if !same_buf {
+            len = s_len.min(buflen - 1) - e + 1;
+            if len < 1 {
+                out[(e - 1).min(buflen - 1) as usize] = 0;
+            } else {
+                let ue = e as usize;
+                let ulen = len as usize;
+                out[ue..ue + ulen]
+                    .copy_from_slice(crate::memory::cstr_slice(s.wrapping_add(ue).cast(), ulen));
             }
         }
+    } else if e + 3 < buflen {
+        // set the middle and copy the last part
+        let ue = e as usize;
+        out[ue..ue + 3].copy_from_slice(b"...");
+        len = (s_len - i + 1).min(buflen - e - 3 - 1);
+        let ulen = len as usize;
+        let ui = i as usize;
+        if same_buf {
+            out.copy_within(ui..ui + ulen, ue + 3);
+        } else {
+            let tail = crate::memory::cstr_slice(s.wrapping_add(ui).cast(), ulen);
+            out[ue + 3..ue + 3 + ulen].copy_from_slice(tail);
+        }
+        out[ue + 3 + ulen - 1] = 0;
+    } else {
+        // can't fit in the "...", just truncate it
+        out[(buflen - 1) as usize] = 0;
     }
 }
 
@@ -1125,11 +1113,7 @@ pub fn emsg_multiline(
                 return true;
             }
 
-            if g_st().in_assert_fails
-                && unsafe { (&raw const g_st().emsg_assert_fails_msg).as_ref() }
-                    .unwrap()
-                    .is_none()
-            {
+            if g_st().in_assert_fails && g_st().emsg_assert_fails_msg.is_none() {
                 g_st().emsg_assert_fails_msg = Some(crate::memory::cstr_to_cstring(s));
                 g_st().emsg_assert_fails_lnum = sourcing_lnum() as i64;
                 let sname = sourcing_name();
@@ -1446,11 +1430,11 @@ fn msg_hist_add(s: impl crate::strings::IntoCCharPtr, len: i32, hl_id: i32) {
             len as usize
         };
         // Remove leading and trailing newlines.
-        while size > 0 && unsafe { *s.cast::<u8>() } == b'\n' {
+        while size > 0 && crate::memory::cstr_first_byte(s) == b'\n' {
             size -= 1;
             s = s.wrapping_add(1);
         }
-        while size > 0 && unsafe { *s.wrapping_add(size - 1).cast::<u8>() } == b'\n' {
+        while size > 0 && crate::memory::cstr_byte_at(s, size - 1) == b'\n' {
             size -= 1;
         }
         if size == 0 {
@@ -2583,7 +2567,9 @@ pub fn msg_prt_line(s: impl crate::strings::IntoCCharPtr, mut list: bool) {
             // find start of trailing whitespace
             if curwin_mut().w_p_lcs_chars.trail != 0 {
                 trail = s.wrapping_add(crate::memory::cstr_len(s));
-                while trail > s && ascii_iswhite(unsafe { *trail.wrapping_sub(1) } as i32) {
+                while trail > s
+                    && ascii_iswhite(crate::memory::cstr_first_char(trail.wrapping_sub(1)))
+                {
                     trail = trail.wrapping_sub(1);
                 }
             }
@@ -2632,8 +2618,9 @@ pub fn msg_prt_line(s: impl crate::strings::IntoCCharPtr, mut list: bool) {
                     {
                         schar_get(buf.as_mut_ptr(), curwin_mut().w_p_lcs_chars.nbsp);
                     } else {
-                        unsafe { ptr::copy(s.cast(), buf.as_mut_ptr(), l as usize) };
-                        buf[l as usize] = 0;
+                        let ul = l as usize;
+                        buf[..ul].copy_from_slice(crate::memory::cstr_slice(s, ul));
+                        buf[ul] = 0;
                     }
                     msg_puts(buf.as_ptr().cast());
                     s = s.wrapping_add(l as usize);
@@ -2652,7 +2639,8 @@ pub fn msg_prt_line(s: impl crate::strings::IntoCCharPtr, mut list: bool) {
                     if list {
                         in_multispace = c == b' ' as i32
                             && (crate::memory::cstr_first_byte(s) == b' '
-                                || (col > 0 && unsafe { *s.wrapping_sub(2).cast::<u8>() } == b' '));
+                                || (col > 0
+                                    && crate::memory::cstr_first_byte(s.wrapping_sub(2)) == b' '));
                         if !in_multispace {
                             multispace_pos = 0;
                         }
@@ -2776,7 +2764,7 @@ pub fn msg_puts<S: crate::strings::IntoCCharPtr>(s: S) {
 pub fn msg_puts_title(s: impl crate::strings::IntoCCharPtr) {
     let mut s = s.into_c_char_ptr();
     {
-        if ui_has(K_UIMESSAGES) && unsafe { *s.cast::<u8>() } == b'\n' {
+        if ui_has(K_UIMESSAGES) && crate::memory::cstr_first_byte(s) == b'\n' {
             s = s.wrapping_add(1);
         }
         msg_puts_hl(s, HLF_T, false);
@@ -2929,33 +2917,21 @@ fn msg_puts_display(
             } else {
                 xstrnlen(str_, maxlen as usize)
             };
-            if len > 0 {
-                msg_st().msg_ext_last_chunk.extend_from_slice(unsafe {
-                    std::slice::from_raw_parts(str_.cast::<u8>(), len)
-                });
+            let str_slice = crate::memory::cstr_slice(str_, len);
+            if !str_slice.is_empty() {
+                msg_st().msg_ext_last_chunk.extend_from_slice(str_slice);
             }
 
-            let lastline = {
-                let _s = (str_).cast::<u8>();
-                let _sz = len;
-                if _sz == 0 {
-                    std::ptr::null()
-                } else {
-                    unsafe { std::slice::from_raw_parts(_s, _sz) }
-                        .iter()
-                        .rposition(|&_b| _b == b'\n')
-                        .map_or(std::ptr::null(), |_i| _s.wrapping_add(_i))
-                }
-            };
-            let p = if !lastline.is_null() {
-                lastline.wrapping_add(1).cast()
+            let lastline_idx = str_slice.iter().rposition(|&b| b == b'\n');
+            let p = if let Some(idx) = lastline_idx {
+                str_.wrapping_add(idx + 1)
             } else {
                 str_
             };
             let col =
                 mb_string2cells_len(p, len - (crate::memory::ptr_offset_from(p, str_) as usize))
                     as i32;
-            g_st().msg_col = (if !lastline.is_null() {
+            g_st().msg_col = (if lastline_idx.is_some() {
                 0
             } else {
                 g_st().msg_col
@@ -3034,7 +3010,7 @@ fn msg_puts_display(
 
             if g_st().msg_row != msg_row_pending
                 && (crate::memory::cstr_first_byte(s) >= 0x20
-                    || i32::from(unsafe { *s.cast::<u8>() }) == TAB)
+                    || i32::from(crate::memory::cstr_first_byte(s)) == TAB)
             {
                 if msg_row_pending >= 0 {
                     msg_line_flush();
@@ -3065,7 +3041,7 @@ fn msg_puts_display(
                 g_st().msg_didout = true;
                 g_st().msg_col += cw;
             } else {
-                let c = unsafe { *s.cast::<u8>() };
+                let c = crate::memory::cstr_first_byte(s);
                 s = s.wrapping_add(1);
                 if c == b'\n' {
                     g_st().msg_didout = false;
@@ -3495,22 +3471,19 @@ fn msg_puts_printf(str_: impl crate::strings::IntoCCharPtr, maxlen: isize) {
             && !crate::memory::cstr_is_empty(s)
         {
             let len = utf_ptr2len(s) as usize;
+            let first = crate::memory::cstr_first_byte(s);
             if !(g_st().silent_mode && opt_vars().p_verbose == 0) {
-                let mut p = buf.as_mut_ptr();
-                if unsafe { *s.cast::<u8>() } == b'\n'
+                let mut pos = 0usize;
+                if first == b'\n'
                     && !g_st().info_message
                     && !g_st().silent_mode
                     && !g_st().headless_mode
                 {
-                    unsafe {
-                        *p = b'\r';
-                    }
-                    p = p.wrapping_add(1);
+                    buf[pos] = b'\r';
+                    pos += 1;
                 }
-                unsafe { ptr::copy_nonoverlapping(s.cast(), p, len) };
-                unsafe {
-                    *p.wrapping_add(len) = 0;
-                }
+                buf[pos..pos + len].copy_from_slice(crate::memory::cstr_slice(s, len));
+                buf[pos + len] = 0;
                 if g_st().info_message {
                     printf!(c"%s", buf.as_ptr());
                 } else {
@@ -3519,7 +3492,7 @@ fn msg_puts_printf(str_: impl crate::strings::IntoCCharPtr, maxlen: isize) {
             }
 
             let cw = utf_char2cells(utf_ptr2char(s));
-            if matches!(unsafe { *s.cast::<u8>() }, b'\r' | b'\n') {
+            if matches!(first, b'\r' | b'\n') {
                 g_st().msg_col = 0;
                 g_st().msg_didout = false;
             } else {
@@ -4284,9 +4257,7 @@ mod tests {
             );
 
             let mut inplace = [0u8; 40];
-            unsafe {
-                ptr::copy_nonoverlapping(c_s.as_ptr().cast(), inplace.as_mut_ptr(), s.len() + 1)
-            };
+            inplace[..s.len() + 1].copy_from_slice(c_s.as_bytes_with_nul());
             trunc_string(inplace.as_ptr().cast(), inplace.as_mut_ptr(), room, 40);
             assert_eq!(
                 CStr::from_bytes_until_nul(&inplace)

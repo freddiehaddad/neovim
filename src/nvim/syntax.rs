@@ -571,13 +571,13 @@ pub fn syntax_start(wp: &mut WinInfoInfo, lnum: Linenr) {
 
     if syn_st().syn_block != win_s(wp)
         || syn_st().syn_buf != wp.w_buffer
-        || syn_st().changedtick_last != buf_get_changedtick(unsafe { &*syn_st().syn_buf })
+        || syn_st().changedtick_last != buf_get_changedtick(syn_st().syn_buf_mut())
     {
         invalidate_current_state();
         syn_st().syn_buf = wp.w_buffer;
         syn_st().syn_block = win_s(wp);
     }
-    syn_st().changedtick_last = buf_get_changedtick(unsafe { &*syn_st().syn_buf });
+    syn_st().changedtick_last = buf_get_changedtick(syn_st().syn_buf_mut());
     syn_st().syn_win = (&raw mut *wp);
 
     syn_stack_alloc();
@@ -892,36 +892,18 @@ fn syn_sync(wp: &mut WinInfoInfo, mut start_lnum: Linenr, last_valid: *const Syn
     validate_current_state();
 }
 
-fn save_chartab(chartab: &mut [u8; 32]) {
+fn save_chartab(chartab: &mut [u64; 4]) {
     if syn_block_mut().b_syn_isk.is_none() {
         return;
     }
 
-    unsafe {
-        ptr::copy(
-            (&raw const syn_st().syn_buf_mut().b_chartab).cast::<u8>(),
-            chartab.as_mut_ptr(),
-            32,
-        )
-    };
-    unsafe {
-        ptr::copy(
-            (&raw const win_s(&mut *syn_st().syn_win).b_syn_chartab).cast::<u8>(),
-            (&raw mut syn_st().syn_buf_mut().b_chartab).cast::<u8>(),
-            32,
-        )
-    };
+    *chartab = syn_st().syn_buf_mut().b_chartab;
+    syn_st().syn_buf_mut().b_chartab = win_s(unsafe { &mut *syn_st().syn_win }).b_syn_chartab;
 }
 
-fn restore_chartab(chartab: &[u8; 32]) {
+fn restore_chartab(chartab: &[u64; 4]) {
     if win_s(unsafe { &mut *syn_st().syn_win }).b_syn_isk.is_some() {
-        unsafe {
-            ptr::copy(
-                chartab.as_ptr(),
-                (&raw mut syn_st().syn_buf_mut().b_chartab).cast::<u8>(),
-                32,
-            )
-        };
+        syn_st().syn_buf_mut().b_chartab = *chartab;
     }
 }
 
@@ -931,7 +913,7 @@ fn syn_match_linecont(lnum: Linenr) -> i32 {
     }
 
     let mut regmatch: Regmmatch = Regmmatch::new();
-    let mut buf_chartab = [0u8; 32];
+    let mut buf_chartab = [0u64; 4];
     save_chartab(&mut buf_chartab);
 
     regmatch.rmm_ic = syn_block_mut().b_syn_linecont_ic;
@@ -1294,12 +1276,10 @@ fn syn_stack_equal(sp: &Synstate) -> bool {
         return false;
     }
 
-    let bp = sp.sst_stack.as_ptr();
-
     let mut i = cur_state_len() - 1;
     while i >= 0 {
         let cur_si = cur_state_at(i);
-        let b = unsafe { &*bp.wrapping_offset(i as isize) };
+        let b = &sp.sst_stack[i as usize];
         if b.bs_idx != cur_si.si_idx {
             break;
         }
@@ -1490,7 +1470,7 @@ fn syn_current_attr(
         let mut regmatch: Regmmatch = Regmmatch::new();
         let mut pos = Lpos { lnum: 0, col: 0 };
         let mut cur_extmatch: Option<std::rc::Rc<RegExtmatch>> = None;
-        let mut buf_chartab = [0u8; 32];
+        let mut buf_chartab = [0u64; 4];
 
         let mut keep_next_list: bool;
         let mut zero_width_next_list = false;
@@ -2036,8 +2016,9 @@ fn check_state_ends() {
             syn_st().current_next_list = cur_si.si_next_list.clone();
             syn_st().current_next_flags = cur_si.si_flags;
             if (syn_st().current_next_flags & (HL_SKIPNL | HL_SKIPEMPTY)) == 0
-                && unsafe { *syn_getcurline!().wrapping_offset(syn_st().current_col as isize) }
-                    == NUL
+                && crate::memory::cstr_is_empty(
+                    syn_getcurline!().wrapping_offset(syn_st().current_col as isize),
+                )
             {
                 syn_st().current_next_list = None;
             }
@@ -2067,8 +2048,9 @@ fn check_state_ends() {
                 check_keepend();
                 if (syn_st().current_next_flags & HL_HAS_EOL) != 0
                     && syn_st().keepend_level < 0
-                    && unsafe { *syn_getcurline!().wrapping_offset(syn_st().current_col as isize) }
-                        == NUL
+                    && crate::memory::cstr_is_empty(
+                        syn_getcurline!().wrapping_offset(syn_st().current_col as isize),
+                    )
                 {
                     break;
                 }
@@ -2266,7 +2248,7 @@ fn find_endpos(
     let mut best_regmatch: Regmmatch = Regmmatch::new();
     let mut pos = Lpos { lnum: 0, col: 0 };
     let mut had_match = false;
-    let mut buf_chartab = [0u8; 32];
+    let mut buf_chartab = [0u64; 4];
 
     save_chartab(&mut buf_chartab);
 
@@ -3468,7 +3450,7 @@ fn add_keyword(
             (name.cast(), namelen)
         };
 
-        let kw_vec = unsafe { std::slice::from_raw_parts(name_ic, name_iclen) };
+        let kw_vec = crate::memory::cstr_slice(name_ic.cast(), name_iclen);
         if cont_in_list.is_some() {
             win_s(curwin_mut()).b_syn_containedin = 1;
         }
@@ -4344,19 +4326,18 @@ fn get_syn_pattern<T>(arg: *mut T, ci: &mut Synpat) -> *mut T {
             crate::memory::cstr_first_char(arg.cast()),
             1,
         );
-        if unsafe { *end } != unsafe { *arg } {
+        if crate::memory::cstr_first_byte(end.cast()) != crate::memory::cstr_first_byte(arg.cast())
+        {
             semsg!(
                 gettext(c"E401: Pattern delimiter not found: %s"),
                 arg.cast::<std::ffi::c_void>(),
             );
             return ptr::null_mut();
         }
-        let pat_slice = unsafe {
-            std::slice::from_raw_parts(
-                arg.wrapping_add(1),
-                crate::memory::ptr_offset_from(end, arg) as usize - 1,
-            )
-        };
+        let pat_slice = crate::memory::cstr_slice(
+            arg.wrapping_add(1).cast(),
+            crate::memory::ptr_offset_from(end, arg) as usize - 1,
+        );
         let pat_cstr = std::ffi::CString::new(pat_slice).unwrap();
 
         let cpo_save = opt_vars().p_cpo;
@@ -4384,7 +4365,6 @@ fn get_syn_pattern<T>(arg: *mut T, ci: &mut Synpat) -> *mut T {
             }
             if idx >= 0 {
                 let base_idx = idx as usize;
-                let p = &raw mut ci.sp_offsets[base_idx];
                 if base_idx != SPO_LC_OFF {
                     match crate::memory::cstr_byte_at(end.cast(), 3) {
                         b's' | b'b' => {}
@@ -4396,26 +4376,21 @@ fn get_syn_pattern<T>(arg: *mut T, ci: &mut Synpat) -> *mut T {
                     ci.sp_off_flags |= 1 << (idx as usize);
                     if base_idx == SPO_LC_OFF {
                         end = end.wrapping_add(3);
-                        unsafe {
-                            *p = getdigits_int(&mut end, true, 0);
-                        }
+                        let val = getdigits_int(&mut end, true, 0);
+                        ci.sp_offsets[base_idx] = val;
 
                         if (ci.sp_off_flags & (1 << SPO_MS_OFF)) == 0 {
                             ci.sp_off_flags |= 1 << SPO_MS_OFF;
-                            ci.sp_offsets[SPO_MS_OFF] = unsafe { *p };
+                            ci.sp_offsets[SPO_MS_OFF] = val;
                         }
                     } else {
                         end = end.wrapping_add(4);
                         if crate::memory::cstr_first_byte(end.cast()) == b'+' {
                             end = end.wrapping_add(1);
-                            unsafe {
-                                *p = getdigits_int(&mut end, true, 0);
-                            }
+                            ci.sp_offsets[base_idx] = getdigits_int(&mut end, true, 0);
                         } else if crate::memory::cstr_first_byte(end.cast()) == b'-' {
                             end = end.wrapping_add(1);
-                            unsafe {
-                                *p = -getdigits_int(&mut end, true, 0);
-                            }
+                            ci.sp_offsets[base_idx] = -getdigits_int(&mut end, true, 0);
                         }
                     }
                     if crate::memory::cstr_first_byte(end.cast()) != b',' {
@@ -4531,18 +4506,16 @@ fn syn_cmd_sync(eap: &mut Exarg, _syncing: i32) {
                 crate::memory::cstr_first_char(next_arg),
                 1,
             );
-            if unsafe { *arg_end } != unsafe { *next_arg } {
+            if crate::memory::cstr_first_byte(arg_end) != crate::memory::cstr_first_byte(next_arg) {
                 illegal = true;
                 break;
             }
 
             if eap.skip == 0 {
-                let pat_slice = unsafe {
-                    std::slice::from_raw_parts(
-                        next_arg.wrapping_add(1).cast::<u8>(),
-                        crate::memory::ptr_offset_from(arg_end, next_arg) as usize - 1,
-                    )
-                };
+                let pat_slice = crate::memory::cstr_slice(
+                    next_arg.wrapping_add(1),
+                    crate::memory::ptr_offset_from(arg_end, next_arg) as usize - 1,
+                );
                 let pat_cstr = std::ffi::CString::new(pat_slice).unwrap();
                 win_s(curwin_mut()).b_syn_linecont_ic = win_s(curwin_mut()).b_syn_ic;
 
@@ -4786,52 +4759,49 @@ fn idl_collect(list: &[i16], ga: &mut Vec<i16>, seen: &mut Vec<i16>) -> bool {
     true
 }
 
-fn idl_get_entry(list: &SynIdList) -> *mut IdlEntry {
-    unsafe {
-        let cache = (*syn_st().syn_block)
-            .b_idlist_cache
-            .get_or_insert_with(|| Box::new(IdlCache::default()));
-        let last = cache.last as usize;
-        if syn_id_list_eq(&cache.ent[last].idl_key, list) {
-            return &raw mut cache.ent[last];
-        }
-        for i in 0..IDL_CACHE_SIZE {
-            if syn_id_list_eq(&cache.ent[i].idl_key, list) {
-                cache.last = i as i32;
-                return &raw mut cache.ent[i];
-            }
-        }
-
-        let round = cache.round as usize;
-        cache.last = cache.round;
-        let e = &raw mut cache.ent[round];
-        let e = &mut *e;
-        cache.round = (cache.round + 1) % (IDL_CACHE_SIZE as i32);
-        e.idl_ids.clear();
-        e.idl_key = list.clone();
-        e.idl_marker = 0;
-        e.idl_usable = true;
-
-        let mut slice: &[i16] = list.as_deref().unwrap_or(&[]);
-        if let Some(&first) = slice.first()
-            && (SYNID_ALLBUT..SYNID_CLUSTER).contains(&first)
-        {
-            e.idl_marker = first;
-            slice = &slice[1..];
-        }
-
-        let mut ga: Vec<i16> = Vec::with_capacity(50);
-        let mut seen: Vec<i16> = Vec::with_capacity(10);
-        if !idl_collect(slice, &mut ga, &mut seen) {
-            e.idl_usable = false;
-            return e;
-        }
-        if !ga.is_empty() {
-            ga.sort_unstable();
-            e.idl_ids = ga;
-        }
-        e
+fn idl_get_entry(list: &SynIdList) -> &'static mut IdlEntry {
+    let cache = syn_block_mut()
+        .b_idlist_cache
+        .get_or_insert_with(|| Box::new(IdlCache::default()));
+    let last = cache.last as usize;
+    if syn_id_list_eq(&cache.ent[last].idl_key, list) {
+        return &mut cache.ent[last];
     }
+    for i in 0..IDL_CACHE_SIZE {
+        if syn_id_list_eq(&cache.ent[i].idl_key, list) {
+            cache.last = i as i32;
+            return &mut cache.ent[i];
+        }
+    }
+
+    let round = cache.round as usize;
+    cache.last = cache.round;
+    let e = &mut cache.ent[round];
+    cache.round = (cache.round + 1) % (IDL_CACHE_SIZE as i32);
+    e.idl_ids.clear();
+    e.idl_key = list.clone();
+    e.idl_marker = 0;
+    e.idl_usable = true;
+
+    let mut slice: &[i16] = list.as_deref().unwrap_or(&[]);
+    if let Some(&first) = slice.first()
+        && (SYNID_ALLBUT..SYNID_CLUSTER).contains(&first)
+    {
+        e.idl_marker = first;
+        slice = &slice[1..];
+    }
+
+    let mut ga: Vec<i16> = Vec::with_capacity(50);
+    let mut seen: Vec<i16> = Vec::with_capacity(10);
+    if !idl_collect(slice, &mut ga, &mut seen) {
+        e.idl_usable = false;
+        return e;
+    }
+    if !ga.is_empty() {
+        ga.sort_unstable();
+        e.idl_ids = ga;
+    }
+    e
 }
 
 fn idl_contains(e: &IdlEntry, id: i16) -> bool {
@@ -4852,8 +4822,9 @@ fn in_id_list(mut cur_si: *mut Stateitem, list: &SynIdList, ssp: &mut SpSyn, fla
         while (unsafe { (*cur_si).si_flags } & HL_TRANS_CONT) != 0 && cur_si > cur_state_at(0) {
             cur_si = cur_si.wrapping_sub(1);
         }
-        if unsafe { (*cur_si).si_idx } >= 0 {
-            let c_spp = syn_items(syn_block_mut(), unsafe { (*cur_si).si_idx } as isize);
+        let si_idx = unsafe { (*cur_si).si_idx };
+        if si_idx >= 0 {
+            let c_spp = syn_items(syn_block_mut(), si_idx as isize);
             if in_id_list(
                 ptr::null_mut(),
                 &ssp.cont_in_list,
@@ -4877,9 +4848,9 @@ fn in_id_list(mut cur_si: *mut Stateitem, list: &SynIdList, ssp: &mut SpSyn, fla
     let toplevel = (flags & HL_CONTAINED) == 0 || (flags & HL_INCLUDED_TOPLEVEL) != 0;
 
     let e = idl_get_entry(list);
-    if !e.is_null() && unsafe { (*e).idl_usable } {
-        let retval = if unsafe { (*e).idl_marker } != 0 {
-            let item = unsafe { (*e).idl_marker };
+    if e.idl_usable {
+        let retval = if e.idl_marker != 0 {
+            let item = e.idl_marker;
             if item < SYNID_TOP {
                 if (item - SYNID_ALLBUT) as i32 != ssp.inc_tag {
                     return 0;
@@ -4895,11 +4866,7 @@ fn in_id_list(mut cur_si: *mut Stateitem, list: &SynIdList, ssp: &mut SpSyn, fla
         } else {
             true
         };
-        return i32::from(if idl_contains(unsafe { &*e }, id) {
-            retval
-        } else {
-            !retval
-        });
+        return i32::from(if idl_contains(e, id) { retval } else { !retval });
     }
 
     let mut slice: &[i16] = list_rc;
@@ -5010,15 +4977,13 @@ pub fn ex_syntax(eap: &mut Exarg) {
 pub fn ex_ownsyntax(eap: &mut Exarg) {
     if curwin_mut().w_s_owned.is_none() {
         let mut new_s = Box::new(Synblock::new());
-        let new_s_ptr: *mut Synblock = &raw mut *new_s;
-        let new_s_ptr = unsafe { &mut *new_s_ptr };
+        clear_string_option(&raw mut new_s.b_p_spc);
+        clear_string_option(&raw mut new_s.b_p_spf);
+        clear_string_option(&raw mut new_s.b_p_spl);
+        clear_string_option(&raw mut new_s.b_p_spo);
+        new_s.b_syn_isk = None;
         curwin_mut().w_s_owned = Some(new_s);
         curwin_mut().w_onebuf_opt.wo_spell = 0;
-        clear_string_option(&raw mut new_s_ptr.b_p_spc);
-        clear_string_option(&raw mut new_s_ptr.b_p_spf);
-        clear_string_option(&raw mut new_s_ptr.b_p_spl);
-        clear_string_option(&raw mut new_s_ptr.b_p_spo);
-        new_s_ptr.b_syn_isk = None;
     }
 
     let old_value = get_var_value(c"b:current_syntax").map(ToOwned::to_owned);
@@ -5161,7 +5126,7 @@ pub fn get_syntax_name(xp: &mut ExpandCtx, idx: i32) -> Option<&std::ffi::CStr> 
                         .scl_name
                         .as_ptr(),
                 );
-                Some(unsafe { std::ffi::CStr::from_ptr(xp.xp_buf.as_ptr().cast()) })
+                Some(crate::memory::cstr_from_ptr(&xp.xp_buf[..]))
             } else {
                 None
             }

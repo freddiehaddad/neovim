@@ -13,13 +13,13 @@ use crate::charset::{
 };
 use crate::cursor::{Colnr, CursorPos, Linenr, VALID_VIRTCOL, get_cursor_rel_lnum, ltoreq};
 use crate::decoration::{
-    DecorRange, DecorVirtText, K_VLLEFTCOL, K_VLOVERFLOW_AUTO, K_VLOVERFLOW_SCROLL,
-    K_VPOS_END_OF_LINE, K_VPOS_END_OF_LINE_RIGHT_ALIGN, K_VPOS_INLINE, K_VPOS_RIGHT_ALIGN,
-    K_VPOS_WIN_COL, K_VTREPEAT_LINEBREAK, NS, SCL_NUM, SignTextAttrs, VirtLines, VirtText,
-    VirtTextChunk, conceal_replacement, decor_conceal_char, decor_extconceal_char,
-    decor_has_more_decorations, decor_init_draw_col, decor_recheck_draw_col, decor_redraw_col,
-    decor_redraw_eol, decor_redraw_line, decor_redraw_signs, decor_virt_line_rows,
-    decor_virt_lines, decor_virt_pos, decor_virt_pos_kind, next_virt_text_chunk,
+    DecorRange, K_VLLEFTCOL, K_VLOVERFLOW_AUTO, K_VLOVERFLOW_SCROLL, K_VPOS_END_OF_LINE,
+    K_VPOS_END_OF_LINE_RIGHT_ALIGN, K_VPOS_INLINE, K_VPOS_RIGHT_ALIGN, K_VPOS_WIN_COL,
+    K_VTREPEAT_LINEBREAK, NS, SCL_NUM, SignTextAttrs, VirtLines, VirtText, VirtTextChunk,
+    conceal_replacement, decor_conceal_char, decor_extconceal_char, decor_has_more_decorations,
+    decor_init_draw_col, decor_recheck_draw_col, decor_redraw_col, decor_redraw_eol,
+    decor_redraw_line, decor_redraw_signs, decor_virt_line_rows, decor_virt_lines, decor_virt_pos,
+    decor_virt_pos_kind, next_virt_text_chunk,
 };
 use crate::decoration_provider::{decor_providers_invoke_line, decor_providers_invoke_range};
 use crate::diff::{
@@ -338,17 +338,13 @@ fn draw_virt_text(
 
     for i in 0..end {
         let slot_idx = (&g_st().decor_state.ranges_i)[i as usize] as usize;
-        let item: *mut DecorRange = (&mut g_st().decor_state.slots)[slot_idx].range_mut();
-        let item = unsafe { &mut *item };
+        let item_ptr: *mut DecorRange = (&mut g_st().decor_state.slots)[slot_idx].range_mut();
+        let item = unsafe { &mut *item_ptr };
         if !(item.start_row == g_st().decor_state.row && decor_virt_pos(&*item)) {
             continue;
         }
 
-        let mut vt: *mut DecorVirtText = ptr::null_mut();
-        if item.data.is_vt() {
-            debug_assert!(!item.data.vt().is_null());
-            vt = item.data.vt();
-        }
+        let mut vt_opt = item.data.vt_opt();
         if decor_virt_pos(&*item) && item.draw_col == -1 {
             let mut updated = true;
             let pos = decor_virt_pos_kind(&*item);
@@ -358,26 +354,19 @@ fn draw_virt_text(
                 if total_width_of_eol_right_aligned_virt_text == 0 {
                     for j in i..end {
                         let lookahead_idx = (&g_st().decor_state.ranges_i)[j as usize] as usize;
-                        let lookahead_item: *mut DecorRange =
-                            (&mut g_st().decor_state.slots)[lookahead_idx].range_mut();
-                        let lookahead_item = unsafe { &mut *lookahead_item };
+                        let lookahead_item = (&g_st().decor_state.slots)[lookahead_idx].range();
 
                         if lookahead_item.start_row != g_st().decor_state.row
-                            || !decor_virt_pos(&*lookahead_item)
+                            || !decor_virt_pos(lookahead_item)
                             || lookahead_item.draw_col != -1
                         {
                             continue;
                         }
 
-                        let mut lookahead_vt: *mut DecorVirtText = ptr::null_mut();
-                        if lookahead_item.data.is_vt() {
-                            debug_assert!(!lookahead_item.data.vt().is_null());
-                            lookahead_vt = lookahead_item.data.vt();
-                        }
-
-                        if decor_virt_pos_kind(&*lookahead_item) == K_VPOS_END_OF_LINE_RIGHT_ALIGN {
-                            total_width_of_eol_right_aligned_virt_text +=
-                                unsafe { (*lookahead_vt).width } + 1;
+                        if decor_virt_pos_kind(lookahead_item) == K_VPOS_END_OF_LINE_RIGHT_ALIGN
+                            && let Some(lookahead_vt) = lookahead_item.data.vt_opt()
+                        {
+                            total_width_of_eol_right_aligned_virt_text += lookahead_vt.width + 1;
                         }
                     }
 
@@ -394,12 +383,12 @@ fn draw_virt_text(
 
                 item.draw_col = g_st().decor_state.eol_col + eol_offset;
             } else if pos == K_VPOS_RIGHT_ALIGN {
-                right_pos -= unsafe { (*vt).width };
+                right_pos -= vt_opt.as_ref().unwrap().width;
                 item.draw_col = right_pos;
             } else if pos == K_VPOS_END_OF_LINE && do_eol {
                 item.draw_col = g_st().decor_state.eol_col;
             } else if pos == K_VPOS_WIN_COL {
-                item.draw_col = (col_off + unsafe { (*vt).col }).max(0);
+                item.draw_col = (col_off + vt_opt.as_ref().unwrap().col).max(0);
             } else {
                 updated = false;
             }
@@ -420,8 +409,7 @@ fn draw_virt_text(
             };
             g_st().win_extmark_arr.push(m);
         }
-        if !vt.is_null() {
-            let vt = unsafe { &mut *vt };
+        if let Some(ref mut vt) = vt_opt {
             let vcol = item.draw_col - col_off;
             let col = draw_virt_text_item(
                 buf,
@@ -439,7 +427,7 @@ fn draw_virt_text(
             }
             *end_col = (*end_col).max(col);
         }
-        if vt.is_null() || (unsafe { (*vt).flags } & K_VTREPEAT_LINEBREAK) == 0 {
+        if vt_opt.is_none_or(|vt| (vt.flags & K_VTREPEAT_LINEBREAK) == 0) {
             item.draw_col = i32::MIN;
         }
     }
@@ -804,7 +792,7 @@ fn get_line_number_attr(wp: &mut WinInfoInfo, wlv: &mut Winlinevars) -> i32 {
         if wlv.prev_num_attr == -1 {
             decor_redraw_signs(
                 wp,
-                unsafe { &mut *(wp.w_buffer) },
+                wp.w_buffer,
                 wlv.lnum - 2,
                 ptr::null_mut(),
                 None,
@@ -1158,7 +1146,7 @@ fn apply_cursorline_highlight(wp: &mut WinInfoInfo, wlv: &mut Winlinevars) {
     if ae.rgb_fg_color == -1 && ae.cterm_fg_color == 0 {
         wlv.line_attr_lowprio = wlv.cul_attr;
     } else if (g_st().state_global & MODE_INSERT) == 0
-        && bt_quickfix(unsafe { wp.w_buffer.as_ref() })
+        && bt_quickfix(Some(wp.buf_mut()))
         && qf_current_entry(wp) == wlv.lnum
     {
         wlv.line_attr = hl_combine_attr(wlv.cul_attr, wlv.line_attr);
@@ -1199,8 +1187,10 @@ fn has_more_inline_virt(wlv: &Winlinevars, v: isize) -> bool {
             let item = (&g_st().decor_state.slots)[slot_idx].range();
             if item.start_row != g_st().decor_state.row
                 || !item.data.is_vt()
-                || unsafe { (*item.data.vt()).pos } != K_VPOS_INLINE
-                || unsafe { (*item.data.vt()).width } == 0
+                || item
+                    .data
+                    .vt_opt()
+                    .is_none_or(|vt| vt.pos != K_VPOS_INLINE || vt.width == 0)
             {
                 continue;
             }
@@ -1362,7 +1352,7 @@ fn win_line_skip_columns(
 ) -> crate::strings::RawCCharPtr {
     let mut csarg = CharsizeArg::new();
     let mut spans = ConcealSpans::new();
-    let cstype = if wp.w_onebuf_opt.wo_wrap != 0 && unsafe { **line } != NUL {
+    let cstype = if wp.w_onebuf_opt.wo_wrap != 0 && !crate::memory::cstr_is_empty(*line) {
         init_charsize_arg_extconceal(&mut csarg, wp, wlv.lnum, &mut spans)
     } else {
         init_charsize_arg(&mut csarg, wp, wlv.lnum, *line)

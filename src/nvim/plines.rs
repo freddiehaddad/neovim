@@ -90,6 +90,16 @@ impl CharsizeArg {
             extconceal: ptr::null(),
         }
     }
+
+    #[inline]
+    pub fn win_mut(&self) -> &'static mut WinInfoInfo {
+        unsafe { &mut *self.win }
+    }
+
+    #[inline]
+    pub fn extconceal_opt(&self) -> Option<&'static ConcealSpans> {
+        unsafe { self.extconceal.as_ref() }
+    }
 }
 
 impl Default for CharsizeArg {
@@ -154,13 +164,11 @@ pub fn win_chartabsize(
 ) -> i32 {
     let p = p.into_c_char_ptr();
     {
-        let buf = wp.w_buffer;
         if crate::memory::cstr_first_char(p) == TAB
             && (wp.w_onebuf_opt.wo_list == 0 || wp.w_p_lcs_chars.tab1 != 0)
         {
-            return tabstop_padding(col, unsafe { (*buf).b_p_ts }, unsafe {
-                &(*buf).b_p_vts_array
-            });
+            let buf = wp.buf_mut();
+            return tabstop_padding(col, buf.b_p_ts, &buf.b_p_vts_array);
         }
         ptr2cells(p)
     }
@@ -293,10 +301,9 @@ fn inline_virt_text_width(
     row: i32,
     col: i32,
 ) -> i32 {
-    let buf = wp.w_buffer;
     let mut width: i32 = 0;
     loop {
-        let mark = marktree_itr_current(unsafe { &(*buf).b_marktree }, iter);
+        let mark = marktree_itr_current(&wp.buf_mut().b_marktree, iter);
         if mark.pos.row != row || mark.pos.col > col {
             break;
         } else if mark.pos.col == col && !mt_invalid(mark) && ns_in_win(mark.ns, &mut *wp) {
@@ -311,13 +318,7 @@ fn inline_virt_text_width(
                 }
             }
         }
-        marktree_itr_next_filter(
-            unsafe { &(*buf).b_marktree },
-            iter,
-            row + 1,
-            0,
-            &INLINE_FILTER,
-        );
+        marktree_itr_next_filter(&wp.buf_mut().b_marktree, iter, row + 1, 0, &INLINE_FILTER);
     }
     width
 }
@@ -390,13 +391,11 @@ fn conceal_span_hidden(span: Option<&ConcealSpan>, col: i32, width: i32) -> i32 
 }
 
 pub fn conceal_disp_byte(csarg: &CharsizeArg, col: i32) -> i32 {
-    let span = if !csarg.extconceal.is_null() {
-        conceal_span_at(unsafe { &*csarg.extconceal }, col)
-    } else {
-        None
-    };
+    let span = csarg
+        .extconceal_opt()
+        .and_then(|spans| conceal_span_at(spans, col));
     let Some(span) = span else {
-        return i32::from(unsafe { *csarg.line.wrapping_add(col as usize) });
+        return i32::from(crate::memory::cstr_byte_at(csarg.line.cast(), col as usize));
     };
     let replacement = conceal_span_char(span, col);
     if replacement == 0 {
@@ -434,9 +433,8 @@ pub fn charsize_regular(
         csarg.cur_text_width_left = 0;
         csarg.cur_text_width_right = 0;
 
-        let wp = unsafe { &mut *csarg.win };
-        let buf = wp.w_buffer;
-        let buf = unsafe { &mut *buf };
+        let wp = csarg.win_mut();
+        let buf = wp.buf_mut();
         let line = csarg.line.cast();
         let use_tabstop = cur_char == TAB && csarg.use_tabstop;
         let mut mb_added = 0;
@@ -501,11 +499,7 @@ pub fn charsize_regular(
         let body = size;
         let mut hidden = 0;
         let mut lbr_char = i32::from(crate::memory::cstr_byte_at(cur, 0));
-        let spans = if !csarg.extconceal.is_null() {
-            Some(unsafe { &*csarg.extconceal })
-        } else {
-            None
-        };
+        let spans = csarg.extconceal_opt();
         if let Some(spans) = spans {
             let col = crate::memory::ptr_offset_from(cur, line) as i32;
             let own = body - csarg.cur_text_width_left - csarg.cur_text_width_right;
@@ -811,7 +805,7 @@ pub fn charsize_fast(
     let cur = cur.into_c_char_ptr();
     {
         charsize_fast_impl(
-            unsafe { &mut *csarg.win },
+            csarg.win_mut(),
             cur,
             csarg.use_tabstop,
             vcol,
@@ -1040,7 +1034,6 @@ pub fn linesize_regular(csarg: &mut CharsizeArg, mut vcol_arg: i32, len: Colnr) 
 }
 
 pub fn linesize_fast(csarg: &CharsizeArg, mut vcol_arg: i32, len: Colnr) -> i32 {
-    let wp = csarg.win;
     let use_tabstop = csarg.use_tabstop;
     let line = csarg.line.cast_const();
     let mut vcol = i64::from(vcol_arg);
@@ -1052,7 +1045,7 @@ pub fn linesize_fast(csarg: &CharsizeArg, mut vcol_arg: i32, len: Colnr) -> i32 
         let cli = utf_cluster_info(ci);
         vcol += i64::from(
             charsize_fast_impl(
-                unsafe { &mut *wp },
+                csarg.win_mut(),
                 ci.ptr,
                 use_tabstop,
                 vcol_arg,
@@ -1271,45 +1264,18 @@ pub fn getvcols(
     right: &mut Colnr,
     flags: i32,
 ) {
+    let wp = unsafe { &mut *wp };
     let mut from1: Colnr = 0;
     let mut from2: Colnr = 0;
     let mut to1: Colnr = 0;
     let mut to2: Colnr = 0;
 
     if lt(*pos1, *pos2) {
-        getvvcol(
-            unsafe { &mut *(wp) },
-            pos1,
-            Some(&mut from1),
-            None,
-            Some(&mut to1),
-            flags,
-        );
-        getvvcol(
-            unsafe { &mut *(wp) },
-            pos2,
-            Some(&mut from2),
-            None,
-            Some(&mut to2),
-            flags,
-        );
+        getvvcol(wp, pos1, Some(&mut from1), None, Some(&mut to1), flags);
+        getvvcol(wp, pos2, Some(&mut from2), None, Some(&mut to2), flags);
     } else {
-        getvvcol(
-            unsafe { &mut *(wp) },
-            pos2,
-            Some(&mut from1),
-            None,
-            Some(&mut to1),
-            flags,
-        );
-        getvvcol(
-            unsafe { &mut *(wp) },
-            pos1,
-            Some(&mut from2),
-            None,
-            Some(&mut to2),
-            flags,
-        );
+        getvvcol(wp, pos2, Some(&mut from1), None, Some(&mut to1), flags);
+        getvvcol(wp, pos1, Some(&mut from2), None, Some(&mut to2), flags);
     }
 
     *left = from1.min(from2);
@@ -1335,8 +1301,8 @@ pub fn win_get_fill(wp: &mut WinInfoInfo, lnum: Linenr) -> i32 {
 }
 
 pub fn plines_win(wp: *mut WinInfoInfo, lnum: Linenr, limit_winheight: bool) -> i32 {
-    plines_win_nofill(unsafe { &mut *(wp) }, lnum, limit_winheight)
-        + win_get_fill(unsafe { &mut *wp }, lnum)
+    let wp = unsafe { &mut *wp };
+    plines_win_nofill(wp, lnum, limit_winheight) + win_get_fill(wp, lnum)
 }
 
 pub fn plines_win_nofill(wp: &mut WinInfoInfo, lnum: Linenr, limit_winheight: bool) -> i32 {
@@ -1358,7 +1324,7 @@ pub fn plines_win_nofold(wp: &mut WinInfoInfo, lnum: Linenr) -> i32 {
     let mut csarg = CharsizeArg::new();
     let mut spans = ConcealSpans::new();
     let cstype = init_charsize_arg_extconceal(&mut csarg, &mut *wp, lnum, &mut spans);
-    if unsafe { *csarg.line } == 0 && csarg.virt_row < 0 {
+    if crate::memory::cstr_is_empty(csarg.line.cast()) && csarg.virt_row < 0 {
         return 1;
     }
 

@@ -159,6 +159,14 @@ impl DecorRangeData {
     }
 
     #[inline]
+    pub fn vt_opt(&self) -> Option<&'static mut DecorVirtText> {
+        match self {
+            Self::Vt(vt) | Self::VirtLines(vt) => unsafe { vt.as_mut() },
+            _ => None,
+        }
+    }
+
+    #[inline]
     pub const fn ui(&self) -> DecorRangeUI {
         match self {
             Self::Ui(ui) => *ui,
@@ -911,16 +919,15 @@ pub fn decor_virt_pos_kind(decor: &DecorRange) -> VirtTextPos {
 }
 
 pub fn decor_redraw_start(wp: &mut WinInfoInfo, top_row: i32, state: &mut DecorState) -> bool {
-    let buf = wp.w_buffer;
     state.top_row = top_row;
     state.itr_valid = true;
 
-    if !marktree_itr_get_overlap(unsafe { &(*buf).b_marktree }, top_row, 0, &mut state.itr) {
+    if !marktree_itr_get_overlap(&wp.buf_mut().b_marktree, top_row, 0, &mut state.itr) {
         return false;
     }
     let mut pair: MTPair = MTPair::new();
 
-    while marktree_itr_step_overlap(unsafe { &(*buf).b_marktree }, &mut state.itr, &mut pair) {
+    while marktree_itr_step_overlap(&wp.buf_mut().b_marktree, &mut state.itr, &mut pair) {
         let m = pair.start;
         if mt_invalid(m) || !mt_decor_any(m) || !ns_in_win(m.ns, wp) {
             continue;
@@ -1079,14 +1086,15 @@ pub fn decor_range_add_virt(
     vt: *mut DecorVirtText,
     owned: bool,
 ) {
-    let is_lines = (unsafe { (*vt).flags } & K_VTIS_LINES) != 0;
+    let vt_ref = unsafe { &*vt };
+    let is_lines = (vt_ref.flags & K_VTIS_LINES) != 0;
     let range = DecorRange {
         start_row,
         start_col,
         end_row,
         end_col,
         ordering: 0,
-        priority_internal: DecorPriorityInternal::from(unsafe { (*vt).priority }) << 16,
+        priority_internal: DecorPriorityInternal::from(vt_ref.priority) << 16,
         owned,
         data: if is_lines {
             DecorRangeData::VirtLines(vt)
@@ -1715,7 +1723,7 @@ pub fn decor_virt_line_rows(
         return 1;
     }
     let vt = &vl.line;
-    let buf = wp.w_buffer;
+    let buf = wp.buf_mut();
     let mut vcol: i32 = 0;
     let mut row_cells: i32 = 0;
     let mut row: i32 = 0;
@@ -1728,9 +1736,7 @@ pub fn decor_virt_line_rows(
         while off < bytes.len() {
             let bytes_to_next_char = utfc_slice2len(&bytes[off..]);
             let cells = if bytes[off] == b'\t' {
-                tabstop_padding(vcol, unsafe { (*buf).b_p_ts }, unsafe {
-                    &(*buf).b_p_vts_array
-                })
+                tabstop_padding(vcol, buf.b_p_ts, &buf.b_p_vts_array)
             } else {
                 utf_ptr2cells(text.as_ptr().wrapping_add(off))
             };
@@ -1833,16 +1839,16 @@ pub fn decor_to_dict_legacy(dict: &mut Dict, decor: DecorInline, hl_name: bool, 
     let inline_sh;
     let mut sh_hl = &DECOR_SIGN_HIGHLIGHT_INIT;
     let mut sh_sign = &DECOR_SIGN_HIGHLIGHT_INIT;
-    let mut virt_text: *mut DecorVirtText = ptr::null_mut();
-    let mut virt_lines: *mut DecorVirtText = ptr::null_mut();
+    let mut virt_text: Option<&mut DecorVirtText> = None;
+    let mut virt_lines: Option<&mut DecorVirtText> = None;
     let mut priority: i32 = -1;
 
     if decor.is_ext() {
         for vt in virt_text_iter_ptr(decor.data.ext().vt) {
             if (vt.flags & K_VTIS_LINES) != 0 {
-                virt_lines = vt;
+                virt_lines = Some(vt);
             } else {
-                virt_text = vt;
+                virt_text = Some(vt);
             }
         }
 
@@ -1902,8 +1908,7 @@ pub fn decor_to_dict_legacy(dict: &mut Dict, decor: DecorInline, hl_name: bool, 
         put_c(dict, c"url", cstr_as_obj(url.as_ptr()));
     }
 
-    if !virt_text.is_null() {
-        let virt_text = unsafe { &mut *virt_text };
+    if let Some(virt_text) = virt_text {
         if virt_text.hl_mode != 0 {
             let mode_str = HL_MODE_STR[virt_text.hl_mode as usize].as_ptr();
             put_c(dict, c"hl_mode", cstr_as_obj(mode_str));
@@ -1933,8 +1938,7 @@ pub fn decor_to_dict_legacy(dict: &mut Dict, decor: DecorInline, hl_name: bool, 
         priority = i32::from(virt_text.priority);
     }
 
-    if !virt_lines.is_null() {
-        let virt_lines = unsafe { &mut *virt_lines };
+    if let Some(virt_lines) = virt_lines {
         let vl_vec = virt_lines.data.virt_lines();
         let mut all_chunks = arena_array(arena, vl_vec.len());
         let mut virt_lines_flags: i32 = 0;

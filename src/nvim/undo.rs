@@ -33,7 +33,7 @@ use crate::extmark::{
 use crate::fileio::getuid;
 use crate::fileio::{
     EOF, O_RDONLY, Off, fdopen, feof, fflush, fgetc, fileno, fread, fwrite, get2c, get4c,
-    get8ctime, read_eintr, vim_ftell,
+    get8ctime, read_eintr,
 };
 use crate::fold::fold_open_cursor;
 use crate::globals::IOSIZE;
@@ -474,43 +474,40 @@ pub fn u_savecommon(
             return true;
         }
 
-        if size == 1 {
-            let head_uep = u_get_headentry(buf);
-            if !head_uep.is_null() {
-                let newhead = buf.b_u_newhead.unwrap();
-                let limit = uhp_ref(buf, newhead).uh_entries.len().min(10);
-                for i in 0..limit {
-                    let uep = &uhp_ref(buf, newhead).uh_entries[i];
-                    let ue_size = uep.ue_size();
-                    let ue_top = uep.ue_top;
+        if size == 1 && u_get_headentry(buf).is_some() {
+            let newhead = buf.b_u_newhead.unwrap();
+            let limit = uhp_ref(buf, newhead).uh_entries.len().min(10);
+            for i in 0..limit {
+                let uep = &uhp_ref(buf, newhead).uh_entries[i];
+                let ue_size = uep.ue_size();
+                let ue_top = uep.ue_top;
 
-                    if u_entry_resized(buf, uep)
-                        || (ue_size > 1 && top >= ue_top && top + 2 <= ue_top + ue_size + 1)
-                    {
-                        break;
+                if u_entry_resized(buf, uep)
+                    || (ue_size > 1 && top >= ue_top && top + 2 <= ue_top + ue_size + 1)
+                {
+                    break;
+                }
+
+                if ue_size == 1 && ue_top == top {
+                    if i > 0 {
+                        u_getbot(buf);
+                        buf.b_u_synced = false;
+
+                        let entry = uhp_mut(buf, newhead).uh_entries.remove(i);
+                        uhp_mut(buf, newhead).uh_entries.insert(0, entry);
                     }
 
-                    if ue_size == 1 && ue_top == top {
-                        if i > 0 {
-                            u_getbot(buf);
-                            buf.b_u_synced = false;
-
-                            let entry = uhp_mut(buf, newhead).uh_entries.remove(i);
-                            uhp_mut(buf, newhead).uh_entries.insert(0, entry);
-                        }
-
-                        let line_count = buf.b_ml.ml_line_count;
-                        let first_uep = &mut uhp_mut(buf, newhead).uh_entries.as_mut_slice()[0];
-                        if newbot != 0 {
-                            first_uep.ue_bot = newbot;
-                        } else if bot > line_count {
-                            first_uep.ue_bot = 0;
-                        } else {
-                            first_uep.ue_lcount = line_count;
-                            uhp_mut(buf, newhead).uh_getbot_entry = true;
-                        }
-                        return true;
+                    let line_count = buf.b_ml.ml_line_count;
+                    let first_uep = &mut uhp_mut(buf, newhead).uh_entries.as_mut_slice()[0];
+                    if newbot != 0 {
+                        first_uep.ue_bot = newbot;
+                    } else if bot > line_count {
+                        first_uep.ue_bot = 0;
+                    } else {
+                        first_uep.ue_lcount = line_count;
+                        uhp_mut(buf, newhead).uh_getbot_entry = true;
                     }
+                    return true;
                 }
             }
         }
@@ -686,9 +683,8 @@ fn corruption_error(mesg: &std::ffi::CStr, file_name: impl crate::strings::IntoC
 
 fn serialize_header(bi: &mut Bufinfo, hash: *mut u8) -> bool {
     let buf = unsafe { &mut *bi.bi_buf };
-    let fp = bi.bi_fp.as_ptr();
 
-    if unsafe { fwrite(UF_START_MAGIC.as_ptr().cast(), UF_START_MAGIC_LEN, 1, fp) } != 1 {
+    if !bi.bi_fp.write_all(&UF_START_MAGIC[..UF_START_MAGIC_LEN]) {
         return false;
     }
 
@@ -738,54 +734,52 @@ fn serialize_header(bi: &mut Bufinfo, hash: *mut u8) -> bool {
 }
 
 fn serialize_uhp(bi: &mut Bufinfo, uhp: usize) -> bool {
-    unsafe {
-        if !undo_write_bytes(bi, UF_HEADER_MAGIC as u64, 2) {
+    if !undo_write_bytes(bi, UF_HEADER_MAGIC as u64, 2) {
+        return false;
+    }
+
+    let buf = unsafe { &mut *bi.bi_buf };
+    put_header_ptr(bi, uhp_ref(buf, uhp).uh_next);
+    put_header_ptr(bi, uhp_ref(buf, uhp).uh_prev);
+    put_header_ptr(bi, uhp_ref(buf, uhp).uh_alt_next);
+    put_header_ptr(bi, uhp_ref(buf, uhp).uh_alt_prev);
+    undo_write_bytes(bi, uhp_ref(buf, uhp).uh_seq as u64, 4);
+    serialize_pos(bi, uhp_ref(buf, uhp).uh_cursor);
+    undo_write_bytes(bi, uhp_ref(buf, uhp).uh_cursor_vcol as u64, 4);
+    undo_write_bytes(bi, uhp_ref(buf, uhp).uh_flags as u64, 2);
+    for i in 0..NMARKS {
+        serialize_pos(bi, uhp_ref(buf, uhp).uh_namedm[i].mark);
+    }
+    serialize_visualinfo(bi, &mut uhp_mut(buf, uhp).uh_visual);
+    let mut time_buf = (uhp_ref(buf, uhp).uh_time as u64).to_be_bytes();
+    undo_write(bi, time_buf.as_mut_ptr(), time_buf.len());
+
+    undo_write_bytes(bi, 4, 1);
+    undo_write_bytes(bi, UHP_SAVE_NR as u64, 1);
+    undo_write_bytes(bi, uhp_ref(buf, uhp).uh_save_nr as u64, 4);
+
+    undo_write_bytes(bi, 0, 1);
+
+    let entries_len = uhp_ref(buf, uhp).uh_entries.len();
+    for i in 0..entries_len {
+        undo_write_bytes(bi, UF_ENTRY_MAGIC as u64, 2);
+        let uep = &uhp_ref(buf, uhp).uh_entries[i];
+        if !serialize_uep(bi, uep) {
             return false;
         }
-
-        let buf = bi.bi_buf;
-        put_header_ptr(bi, uhp_ref(&*buf, uhp).uh_next);
-        put_header_ptr(bi, uhp_ref(&*buf, uhp).uh_prev);
-        put_header_ptr(bi, uhp_ref(&*buf, uhp).uh_alt_next);
-        put_header_ptr(bi, uhp_ref(&*buf, uhp).uh_alt_prev);
-        undo_write_bytes(bi, uhp_ref(&*buf, uhp).uh_seq as u64, 4);
-        serialize_pos(bi, uhp_ref(&*buf, uhp).uh_cursor);
-        undo_write_bytes(bi, uhp_ref(&*buf, uhp).uh_cursor_vcol as u64, 4);
-        undo_write_bytes(bi, uhp_ref(&*buf, uhp).uh_flags as u64, 2);
-        for i in 0..NMARKS {
-            serialize_pos(bi, uhp_ref(&*buf, uhp).uh_namedm[i].mark);
-        }
-        serialize_visualinfo(bi, &mut uhp_mut(&mut *buf, uhp).uh_visual);
-        let mut time_buf = (uhp_ref(&*buf, uhp).uh_time as u64).to_be_bytes();
-        undo_write(bi, time_buf.as_mut_ptr(), time_buf.len());
-
-        undo_write_bytes(bi, 4, 1);
-        undo_write_bytes(bi, UHP_SAVE_NR as u64, 1);
-        undo_write_bytes(bi, uhp_ref(&*buf, uhp).uh_save_nr as u64, 4);
-
-        undo_write_bytes(bi, 0, 1);
-
-        let entries_len = uhp_ref(&*buf, uhp).uh_entries.len();
-        for i in 0..entries_len {
-            undo_write_bytes(bi, UF_ENTRY_MAGIC as u64, 2);
-            let uep = &uhp_ref(&*buf, uhp).uh_entries[i];
-            if !serialize_uep(bi, uep) {
-                return false;
-            }
-        }
-        undo_write_bytes(bi, UF_ENTRY_END_MAGIC as u64, 2);
-
-        let extmark_len = uhp_ref(&*buf, uhp).uh_extmark.len();
-        for i in 0..extmark_len {
-            let item = uhp_ref(&*buf, uhp).uh_extmark[i];
-            if !serialize_extmark(bi, item) {
-                return false;
-            }
-        }
-        undo_write_bytes(bi, UF_ENTRY_END_MAGIC as u64, 2);
-
-        true
     }
+    undo_write_bytes(bi, UF_ENTRY_END_MAGIC as u64, 2);
+
+    let extmark_len = uhp_ref(buf, uhp).uh_extmark.len();
+    for i in 0..extmark_len {
+        let item = uhp_ref(buf, uhp).uh_extmark[i];
+        if !serialize_extmark(bi, item) {
+            return false;
+        }
+    }
+    undo_write_bytes(bi, UF_ENTRY_END_MAGIC as u64, 2);
+
+    true
 }
 
 fn unserialize_uhp(
@@ -1311,7 +1305,7 @@ pub fn u_read_undo(
                 };
 
                 let mut magic_buf = [0u8; UF_START_MAGIC_LEN];
-                if unsafe { fread(magic_buf.as_mut_ptr().cast(), UF_START_MAGIC_LEN, 1, fp) } != 1
+                if !undo_read(&mut bi, magic_buf.as_mut_ptr(), UF_START_MAGIC_LEN)
                     || magic_buf != UF_START_MAGIC[..UF_START_MAGIC_LEN]
                 {
                     semsg!(gettext(c"E823: Not an undo file: %s"), file_name);
@@ -1329,7 +1323,7 @@ pub fn u_read_undo(
                     break 'error;
                 }
                 let line_count = undo_read_4c(&mut bi) as Linenr;
-                if unsafe { std::slice::from_raw_parts(hash, UNDO_HASH_SIZE) } != read_hash
+                if crate::memory::cstr_slice(hash.cast(), UNDO_HASH_SIZE) != read_hash
                     || line_count != curbuf_mut().b_ml.ml_line_count
                 {
                     if opt_vars().p_verbose > 0 || !name.is_null() {
@@ -1545,7 +1539,7 @@ fn undo_read_len(
     {
         let len = undo_read_4c(bi);
         let fp = bi.bi_fp.as_ptr();
-        let pos = unsafe { vim_ftell(fp) };
+        let pos = bi.bi_fp.tell();
         if len < 0 || (bi.bi_fsize > 0 && (pos < 0 || (len as Off) > bi.bi_fsize - pos)) {
             corruption_error(
                 if unsafe { feof(fp) } != 0 {
@@ -2581,32 +2575,34 @@ fn u_unch_branch(buf: &mut FileBuf, uhp: Option<usize>) {
     }
 }
 
-fn u_get_headentry(buf: &mut FileBuf) -> *mut UEntry {
+fn u_get_headentry(buf: &mut FileBuf) -> Option<&mut UEntry> {
     let Some(newhead) = buf.b_u_newhead else {
         iemsg(gettext(E_UNDO_LIST_CORRUPT));
-        return ptr::null_mut();
+        return None;
     };
     if uhp_ref(buf, newhead).uh_entries.is_empty() {
         iemsg(gettext(E_UNDO_LIST_CORRUPT));
-        return ptr::null_mut();
+        return None;
     }
-    &raw mut uhp_mut(buf, newhead).uh_entries.as_mut_slice()[0]
+    Some(&mut uhp_mut(buf, newhead).uh_entries[0])
 }
 
 fn u_getbot(buf: &mut FileBuf) {
-    let uep = u_get_headentry(buf);
-    if uep.is_null() {
+    if u_get_headentry(buf).is_none() {
         return;
     }
-    let uep = unsafe { &mut *uep };
 
     let newhead = buf.b_u_newhead.unwrap();
+
     if uhp_ref(buf, newhead).uh_getbot_entry {
-        let extra = buf.b_ml.ml_line_count - uep.ue_lcount;
-        uep.ue_bot = uep.ue_top + (*uep).ue_size() + 1 + extra;
-        if uep.ue_bot < 1 || uep.ue_bot > buf.b_ml.ml_line_count {
+        let line_count = buf.b_ml.ml_line_count;
+        let uep = &mut uhp_mut(buf, newhead).uh_entries[0];
+        let extra = line_count - uep.ue_lcount;
+        uep.ue_bot = uep.ue_top + uep.ue_size() + 1 + extra;
+        if uep.ue_bot < 1 || uep.ue_bot > line_count {
+            let ue_top = uep.ue_top;
             iemsg(gettext(E_UNDO_LINE_MISSING));
-            uep.ue_bot = uep.ue_top + 1;
+            uhp_mut(buf, newhead).uh_entries[0].ue_bot = ue_top + 1;
         }
 
         uhp_mut(buf, newhead).uh_getbot_entry = false;
