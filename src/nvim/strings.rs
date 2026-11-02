@@ -2554,7 +2554,8 @@ pub fn f_strdisplaywidth(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: Eval
 
 pub fn f_strwidth(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
     let s = tv_get_string(&argvars[0]);
-    rettv.vval = crate::eval::typval::TypvalVval::Number(mb_string2cells(s) as Varnumber);
+    rettv.vval =
+        crate::eval::typval::TypvalVval::Number(mb_string2cells(s.to_bytes()) as Varnumber);
 }
 
 pub fn f_strcharpart(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {

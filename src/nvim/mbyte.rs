@@ -1161,9 +1161,7 @@ pub fn utf_cluster_info_len(cur: StrCharInfo, size: &mut i32) -> ClusterInfo {
     utf_cluster_info_impl(cur, size)
 }
 
-fn enc_canon_search(name: impl crate::strings::IntoCCharPtr) -> i32 {
-    let name = name.into_c_char_ptr();
-    let bytes = crate::memory::cstr_as_bytes(name);
+fn enc_canon_search(bytes: &[u8]) -> i32 {
     for (i, entry) in ENC_CANON_TABLE.iter().enumerate() {
         if bytes == entry.name.to_bytes() {
             return i as i32;
@@ -1172,21 +1170,17 @@ fn enc_canon_search(name: impl crate::strings::IntoCCharPtr) -> i32 {
     -1
 }
 
-pub fn enc_canon_props(name: impl crate::strings::IntoCCharPtr) -> i32 {
-    let name = name.into_c_char_ptr();
-    {
-        let i = enc_canon_search(name);
-        if i >= 0 {
-            return ENC_CANON_TABLE[i as usize].prop;
-        }
-        let bytes = crate::memory::cstr_as_bytes(name);
-        if bytes.starts_with(b"2byte-") {
-            ENC_DBCS
-        } else if bytes.starts_with(b"8bit-") || bytes.starts_with(b"iso-8859-") {
-            ENC_8BIT
-        } else {
-            0
-        }
+pub fn enc_canon_props(bytes: &[u8]) -> i32 {
+    let i = enc_canon_search(bytes);
+    if i >= 0 {
+        return ENC_CANON_TABLE[i as usize].prop;
+    }
+    if bytes.starts_with(b"2byte-") {
+        ENC_DBCS
+    } else if bytes.starts_with(b"8bit-") || bytes.starts_with(b"iso-8859-") {
+        ENC_8BIT
+    } else {
+        0
     }
 }
 
@@ -1353,29 +1347,36 @@ pub fn utf_slice2_char_info_impl(bytes: &[u8]) -> i32 {
     code_point.wrapping_add(corr) as i32
 }
 
-pub fn mb_string2cells(str_: impl crate::strings::IntoCCharPtr) -> usize {
-    let str_ = str_.into_c_char_ptr();
-    {
-        let mut clen = 0usize;
-        let mut ci = utf_ptr2_str_char_info(str_);
-        while !crate::memory::cstr_is_empty(ci.ptr) {
-            let cli = utf_cluster_info(ci);
-            clen += if ci.chr.value < 0x80 {
-                1
-            } else {
-                cli.cells as usize
-            };
-            ci = cli.next;
-        }
-        clen
+pub fn mb_string2cells(bytes: &[u8]) -> usize {
+    let bytes = match bytes.iter().position(|&b| b == 0) {
+        Some(pos) => &bytes[..pos],
+        None => bytes,
+    };
+    let mut clen = 0usize;
+    let mut len = bytes.len() as i32;
+    if len <= 0 {
+        return 0;
     }
+    let mut ci = utf_ptr2_str_char_info_len(bytes.as_ptr().cast(), len);
+    while len > 0 {
+        let cli = utf_cluster_info_len(ci, &mut len);
+        clen += if ci.chr.value < 0x80 {
+            1
+        } else {
+            cli.cells as usize
+        };
+        ci = cli.next;
+    }
+    clen
 }
 
-pub fn mb_string2cells_len(str_: impl crate::strings::IntoCCharPtr, size: usize) -> usize {
-    let str_ = str_.into_c_char_ptr();
+pub fn mb_string2cells_len(bytes: &[u8]) -> usize {
     let mut clen = 0usize;
-    let mut len = size as i32;
-    let mut ci = utf_ptr2_str_char_info_len(str_, len);
+    let mut len = bytes.len() as i32;
+    if len <= 0 {
+        return 0;
+    }
+    let mut ci = utf_ptr2_str_char_info_len(bytes.as_ptr().cast(), len);
     while len > 0 {
         let cli = utf_cluster_info_len(ci, &mut len);
         clen += cli.cells as usize;
@@ -2801,7 +2802,7 @@ pub fn utf_find_illegal() {
     };
     let mut tofree: Option<Vec<u8>> = None;
 
-    if (enc_canon_props(curbuf_mut().b_p_fenc) & ENC_8BIT) != 0 {
+    if (enc_canon_props(crate::memory::cstr_as_bytes(curbuf_mut().b_p_fenc)) & ENC_8BIT) != 0 {
         convert_setup(&mut vimconv, opt_vars().p_enc, curbuf_mut().b_p_fenc);
     }
 
@@ -2915,25 +2916,7 @@ pub fn mb_prevptr<T>(line: *mut T, mut p: *mut T) -> *mut T {
     p
 }
 
-pub fn mb_charlen(str_: impl crate::strings::IntoCCharPtr) -> i32 {
-    let str_ = str_.into_c_char_ptr();
-    if str_.is_null() {
-        return 0;
-    }
-    let mut rem = crate::memory::cstr_as_bytes(str_);
-    let mut count = 0;
-    while !rem.is_empty() {
-        let l = utfc_slice2len(rem).max(1);
-        rem = &rem[l..];
-        count += 1;
-    }
-    count
-}
-
-pub fn mb_charlen_len(str_: impl crate::strings::IntoCCharPtr, len: i32) -> i32 {
-    let str_ = str_.into_c_char_ptr();
-    let max_len = len.max(0) as usize;
-    let mut rem = crate::memory::cstr_slice(str_, crate::memory::xstrnlen(str_, max_len));
+pub fn mb_charlen(mut rem: &[u8]) -> i32 {
     let mut count = 0;
     while !rem.is_empty() {
         let l = utfc_slice2len(rem).max(1);
@@ -2987,9 +2970,7 @@ pub fn enc_skip<'a>(p: impl crate::strings::IntoCCharPtr) -> &'a CStr {
     CStr::from_bytes_with_nul(skipped).unwrap_or(c"")
 }
 
-fn enc_alias_search(name: impl crate::strings::IntoCCharPtr) -> i32 {
-    let name = name.into_c_char_ptr();
-    let bytes = crate::memory::cstr_as_bytes(name);
+fn enc_alias_search(bytes: &[u8]) -> i32 {
     for entry in ENC_ALIAS_TABLE {
         if bytes == entry.name.to_bytes() {
             return entry.canon as i32;
@@ -3039,10 +3020,10 @@ pub fn enc_canonize(enc: impl crate::strings::IntoCCharPtr) -> std::ffi::CString
     }
 
     let r_cstr = crate::memory::cstr_from_bytes(&r_vec);
-    if enc_canon_search(r_cstr.as_c_str()) >= 0 {
+    if enc_canon_search(r_cstr.as_bytes()) >= 0 {
         return r_cstr;
     }
-    let i = enc_alias_search(r_cstr.as_c_str());
+    let i = enc_alias_search(r_cstr.as_bytes());
     if i >= 0 {
         return ENC_CANON_TABLE[i as usize].name.to_owned();
     }
@@ -3295,8 +3276,8 @@ pub fn convert_setup_ext(
             return true;
         }
 
-        let from_prop = enc_canon_props(from);
-        let to_prop = enc_canon_props(to);
+        let from_prop = enc_canon_props(crate::memory::cstr_as_bytes(from));
+        let to_prop = enc_canon_props(crate::memory::cstr_as_bytes(to));
         let from_is_utf8 = if from_unicode_is_utf8 {
             (from_prop & ENC_UNICODE) != 0
         } else {
@@ -3673,7 +3654,7 @@ mod tests {
             assert!(utf_valid_string(&buf[..3]));
             assert!(utf_printable(0x20ac));
             assert!(!utf_printable(0xd800));
-            assert_eq!(enc_canon_props(c"utf-8"), ENC_UNICODE);
+            assert_eq!(enc_canon_props(b"utf-8"), ENC_UNICODE);
 
             assert_eq!(utf_fold(0xddfb), 0xddfb);
             assert_eq!(utf_fold(0xd800), 0xd800);
@@ -3695,10 +3676,7 @@ mod tests {
             ] {
                 assert_eq!(utf_ptr2cells(s.as_ptr()), exp_cells);
                 assert_eq!(utf_slice2cells(s.to_bytes()), exp_cells);
-                assert_eq!(
-                    mb_string2cells_len(s.as_ptr(), s.to_bytes().len()),
-                    exp_cells as usize
-                );
+                assert_eq!(mb_string2cells_len(s.to_bytes()), exp_cells as usize);
             }
             assert_eq!(utf_ptr2cells(c"\xff"), 4);
 

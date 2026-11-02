@@ -5611,7 +5611,7 @@ fn nv_replace(cap: &mut Cmdarg) {
     }
 
     if (get_cursor_pos_len() as usize) < (cap.count1 as u32 as usize)
-        || mb_charlen(get_cursor_pos_ptr()) < cap.count1
+        || mb_charlen(crate::cursor::get_cursor_pos_slice()) < cap.count1
     {
         clearopbeep(cap.oap_mut());
         return;

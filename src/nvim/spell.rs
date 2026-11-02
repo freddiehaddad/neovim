@@ -21,9 +21,9 @@ use crate::globals::*;
 use crate::insexpand::{ins_compl_add_infercase, ins_compl_check_keys, ins_compl_interrupted};
 use crate::log::logmsg;
 use crate::mbyte::{
-    mb_charlen_len, mb_cptr2char_adv, mb_get_class, mb_islower, mb_isupper, mb_ptr_adv,
-    mb_ptr_back, mb_stricmp, mb_strnicmp, mb_toupper, utf_char2bytes, utf_class, utf_fold,
-    utf_head_off, utf_ptr2char, utfc_ptr2len,
+    mb_charlen, mb_cptr2char_adv, mb_get_class, mb_islower, mb_isupper, mb_ptr_adv, mb_ptr_back,
+    mb_stricmp, mb_strnicmp, mb_toupper, utf_char2bytes, utf_class, utf_fold, utf_head_off,
+    utf_ptr2char, utfc_ptr2len,
 };
 use crate::memline::{
     ml_append, ml_close, ml_delete, ml_get_buf, ml_get_buf_len, ml_open, ml_open_file, ml_replace,
@@ -653,13 +653,14 @@ fn find_word(mip: &mut Matchinf, mode: i32) {
                 if (flags >> 24) == 0 || wlen - mip.mi_compoff < slang.sl_compminlen {
                     continue;
                 }
-                if slang.sl_compminlen > 0
-                    && mb_charlen_len(
+                if slang.sl_compminlen > 0 {
+                    let word_b = crate::memory::cstr_as_bytes(
                         mip.mi_word.wrapping_add(mip.mi_compoff as usize).cast(),
-                        wlen - mip.mi_compoff,
-                    ) < slang.sl_compminlen
-                {
-                    continue;
+                    );
+                    let max_n = (wlen - mip.mi_compoff).max(0) as usize;
+                    if mb_charlen(&word_b[..max_n.min(word_b.len())]) < slang.sl_compminlen {
+                        continue;
+                    }
                 }
                 if !word_ends
                     && mip.mi_complen + mip.mi_compextra + 2 > slang.sl_compmax

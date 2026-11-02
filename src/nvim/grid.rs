@@ -1238,7 +1238,7 @@ fn grid_draw_bordertext(
         };
         let mut text = text_cstr.as_ptr().cast_mut();
         if overflow > 0 {
-            let cells = mb_string2cells(text) as i32;
+            let cells = mb_string2cells(text_cstr.to_bytes()) as i32;
             if overflow >= cells {
                 overflow -= cells;
                 continue;

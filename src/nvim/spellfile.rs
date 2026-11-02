@@ -1126,16 +1126,16 @@ fn read_sal_section(fd: *mut FILE, slang: &mut Slang) -> i32 {
             return ccnt;
         }
 
-        let buf_cstr = crate::memory::cstr_until_nul(&buf);
-        let sm_lead_w = mb_str2wide(buf_cstr);
-        let sm_leadlen = mb_charlen(buf_cstr);
+        let buf_bytes = crate::memory::cstr_until_nul(&buf).to_bytes();
+        let sm_lead_w = mb_str2wide(buf_bytes);
+        let sm_leadlen = mb_charlen(buf_bytes);
         let sm_oneof_w = if let Some(off) = sm_oneof_off {
-            mb_str2wide(crate::memory::cstr_until_nul(&buf[off..]))
+            mb_str2wide(crate::memory::cstr_until_nul(&buf[off..]).to_bytes())
         } else {
             Vec::new()
         };
         let sm_to_w = match sm_to {
-            Some(ref s) => mb_str2wide(crate::memory::cstr_until_nul(s)),
+            Some(ref s) => mb_str2wide(crate::memory::cstr_until_nul(s).to_bytes()),
             None => Vec::new(),
         };
         let sm_rules = crate::memory::cstring_until_nul(&buf[sm_rules_off..]);
@@ -1152,7 +1152,7 @@ fn read_sal_section(fd: *mut FILE, slang: &mut Slang) -> i32 {
         gap.push(Salitem {
             sm_leadlen: 0,
             sm_rules: std::ffi::CString::default(),
-            sm_lead_w: mb_str2wide(c""),
+            sm_lead_w: mb_str2wide(b""),
             sm_oneof_w: Vec::new(),
             sm_to_w: Vec::new(),
         });
@@ -1415,10 +1415,8 @@ fn set_sal_first(lp: &mut Slang) {
     }
 }
 
-fn mb_str2wide(s: impl crate::strings::IntoCCharPtr) -> Vec<i32> {
-    let s = s.into_c_char_ptr();
-    let mut res = Vec::with_capacity(mb_charlen(s) as usize + 1);
-    let mut rem = crate::memory::cstr_as_bytes(s);
+fn mb_str2wide(mut rem: &[u8]) -> Vec<i32> {
+    let mut res = Vec::with_capacity(mb_charlen(rem) as usize + 1);
     while !rem.is_empty() {
         res.push(mb_ptr2char_adv(&mut rem));
     }
@@ -3216,7 +3214,7 @@ fn store_aff_word(
                                 }
                                 let mut p = word;
                                 if let Some(ae_chop) = ae_chop {
-                                    let mut i = mb_charlen(ae_chop);
+                                    let mut i = mb_charlen(crate::memory::cstr_as_bytes(ae_chop));
                                     while i > 0 {
                                         mb_ptr_adv(&mut p);
                                         i -= 1;
@@ -3238,7 +3236,7 @@ fn store_aff_word(
                                     let nw_bytes =
                                         crate::memory::cstr_as_bytes(newword.as_ptr().cast());
                                     let mut end_idx = nw_bytes.len();
-                                    let mut i = mb_charlen(ae_chop);
+                                    let mut i = mb_charlen(crate::memory::cstr_as_bytes(ae_chop));
                                     while i > 0 {
                                         crate::mbyte::mb_idx_back(nw_bytes, &mut end_idx);
                                         i -= 1;

@@ -870,7 +870,7 @@ pub fn nvim_strwidth(text: NvimString, err: &mut Error) -> Integer {
     ) {
         return 0;
     }
-    mb_string2cells(text.data) as Integer
+    mb_string2cells(text.as_bytes()) as Integer
 }
 
 /// Gets the paths contained in |runtime-search-path|.

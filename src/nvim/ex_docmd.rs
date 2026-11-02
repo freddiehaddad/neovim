@@ -8195,7 +8195,7 @@ pub fn expand_filename(
     errormsgp: &mut Option<&'static std::ffi::CStr>,
 ) -> bool {
     let mut p = skip_grep_pat(&mut *eap);
-    let mut has_wildcards = path_has_wildcard(p, true);
+    let mut has_wildcards = path_has_wildcard(crate::memory::cstr_as_bytes(p), true);
 
     while !crate::memory::cstr_is_empty(p) {
         if crate::memory::cstr_as_bytes(p).starts_with(b"`=") {
@@ -8294,7 +8294,10 @@ pub fn expand_filename(
                     true,
                     ptr::null_mut(),
                 );
-                has_wildcards = path_has_wildcard(g_st().name_buff.as_ptr(), true);
+                has_wildcards = path_has_wildcard(
+                    crate::memory::cstr_as_bytes(g_st().name_buff.as_ptr()),
+                    true,
+                );
                 p = g_st().name_buff.as_mut_ptr();
             } else {
                 p = ptr::null_mut();

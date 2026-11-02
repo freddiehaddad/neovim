@@ -1013,7 +1013,8 @@ pub fn pum_redraw() {
                         let st_slice = &st_bytes[..st_bytes.len().saturating_sub(1)];
                         let mut rt_bytes = reverse_text(st_slice).into_bytes_with_nul();
                         let mut rt_idx = 0usize;
-                        let mut cells = mb_string2cells(rt_bytes.as_ptr().cast()) as i32;
+                        let mut cells =
+                            mb_string2cells(&rt_bytes[..rt_bytes.len().saturating_sub(1)]) as i32;
                         let pad = if next_isempty { 0 } else { 2 };
                         if width_limit - totwidth < cells + pad {
                             need_fcs_trunc = true;
@@ -1050,7 +1051,8 @@ pub fn pum_redraw() {
 
                         grid_col -= width;
                     } else {
-                        let mut cells = mb_string2cells(st.cast()) as i32;
+                        let mut cells =
+                            mb_string2cells(&st_bytes[..st_bytes.len().saturating_sub(1)]) as i32;
                         let pad = if next_isempty { 0 } else { 2 };
                         if width_limit - totwidth < cells + pad {
                             need_fcs_trunc = true;

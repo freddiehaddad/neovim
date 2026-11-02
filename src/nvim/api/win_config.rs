@@ -1353,7 +1353,7 @@ pub fn parse_bordertext(
             return;
         }
         let text_cstr = transstr(bordertext.data.string().data, true);
-        *width = mb_string2cells(text_cstr.as_ptr()) as i32;
+        *width = mb_string2cells(text_cstr.as_bytes()) as i32;
         chunks.clear();
         chunks.push(VirtTextChunk {
             text: Some(text_cstr),
@@ -1468,7 +1468,7 @@ pub fn parse_border_style(style: Object, fconfig: Option<&mut WinConfig>, err: &
                 );
                 return;
             }
-            if string.size != 0 && mb_string2cells_len(string.data, string.size) > 1 {
+            if string.size != 0 && mb_string2cells_len(string.as_bytes()) > 1 {
                 api_err_exp(err, c"border", c"only one-cell chars", ptr::null());
                 return;
             }

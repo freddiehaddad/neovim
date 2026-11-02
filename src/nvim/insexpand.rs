@@ -6103,8 +6103,7 @@ fn get_filename_compl_info(
             {
                 if p_idx > 0
                     && path_has_drive_letter(
-                        line.wrapping_add(p_idx - 1),
-                        (startcol as usize) - (p_idx - 1),
+                        &line_bytes[p_idx - 1..(startcol as usize).min(line_bytes.len())],
                     )
                 {
                     p_idx -= if p_idx == 1 { 1 } else { 2 };

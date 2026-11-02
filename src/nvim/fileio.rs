@@ -3374,7 +3374,7 @@ pub fn get_fio_flags(name: impl crate::strings::IntoCCharPtr) -> i32 {
                 opt_vars().p_enc
             };
         }
-        let prop = enc_canon_props(name);
+        let prop = enc_canon_props(crate::memory::cstr_as_bytes(name));
         if (prop & ENC_UNICODE) != 0 {
             if (prop & ENC_2BYTE) != 0 {
                 if (prop & ENC_ENDIAN_L) != 0 {

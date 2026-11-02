@@ -356,9 +356,7 @@ pub fn path_head_length() -> i32 {
     }
 }
 
-pub fn is_path_head(path: impl crate::strings::IntoCCharPtr) -> bool {
-    let path = path.into_c_char_ptr();
-    let bytes = crate::memory::cstr_as_bytes(path);
+pub fn is_path_head(bytes: &[u8]) -> bool {
     #[cfg(windows)]
     {
         bytes.first().is_some_and(u8::is_ascii_alphabetic) && bytes.get(1) == Some(&b':')
@@ -376,7 +374,7 @@ pub fn get_past_head(path: impl crate::strings::IntoCCharPtr) -> RawCCharPtrMut 
     #[cfg(not(windows))]
     let retval = path;
     #[cfg(windows)]
-    if is_path_head(path) {
+    if is_path_head(crate::memory::cstr_as_bytes(path)) {
         retval = path.wrapping_add(2);
     }
     path_skip_sep(retval, false)
@@ -610,9 +608,7 @@ pub fn save_abs_path(name: impl crate::strings::IntoCCharPtr) -> Option<std::ffi
     to_slash_save(name)
 }
 
-pub fn path_has_wildcard(p: impl crate::strings::IntoCCharPtr, all: bool) -> bool {
-    let p = p.into_c_char_ptr();
-    let bytes = crate::memory::cstr_as_bytes(p);
+pub fn path_has_wildcard(bytes: &[u8], all: bool) -> bool {
     let wildcards = if all {
         PATH_ALL_WILDCARDS.to_bytes()
     } else {
@@ -832,7 +828,7 @@ fn do_path_expand(
                     }
 
                     vim_snprintf!(buf.wrapping_add(len), buflen - len, c"%s", path_end);
-                    if path_has_wildcard(path_end, false) {
+                    if path_has_wildcard(crate::memory::cstr_as_bytes(path_end), false) {
                         if path_st().stardepth < 100 {
                             path_st().stardepth += 1;
                             do_path_expand(gap, buf, len + 1, flags, false);
@@ -1398,7 +1394,8 @@ pub fn gen_expand_wildcards_vec(
                 }
             }
 
-            if path_has_wildcard(p, false) || (flags & EW_ICASE) != 0 {
+            if path_has_wildcard(crate::memory::cstr_as_bytes(p), false) || (flags & EW_ICASE) != 0
+            {
                 if (flags & (EW_PATH | EW_CDPATH)) != 0
                     && !path_is_absolute(p)
                     && !{
@@ -1816,9 +1813,8 @@ pub fn simplify_filename(filename: *mut u8) -> usize {
     }
 }
 
-pub fn path_has_drive_letter(p: impl crate::strings::IntoCCharPtr, path_len: usize) -> bool {
-    let p = p.into_c_char_ptr();
-    let bytes = crate::memory::cstr_as_bytes(p);
+pub fn path_has_drive_letter(bytes: &[u8]) -> bool {
+    let path_len = bytes.len();
     path_len >= 2
         && bytes.first().is_some_and(u8::is_ascii_alphabetic)
         && matches!(bytes.get(1), Some(b':' | b'|'))
@@ -1829,9 +1825,8 @@ pub fn path_has_drive_letter(p: impl crate::strings::IntoCCharPtr, path_len: usi
             ))
 }
 
-pub fn path_is_url(p: impl crate::strings::IntoCCharPtr) -> bool {
-    let p = p.into_c_char_ptr();
-    crate::memory::cstr_as_bytes(p).starts_with(b":/")
+pub fn path_is_url(bytes: &[u8]) -> bool {
+    bytes.starts_with(b":/")
 }
 
 pub fn path_with_url(fname: impl crate::strings::IntoCCharPtr) -> bool {
@@ -1841,7 +1836,7 @@ pub fn path_with_url(fname: impl crate::strings::IntoCCharPtr) -> bool {
         return false;
     }
 
-    if path_has_drive_letter(fname, bytes.len()) {
+    if path_has_drive_letter(bytes) {
         return false;
     }
 
@@ -2163,7 +2158,9 @@ pub fn path_shorten_fname<T>(full_path: *mut T, dir_name: *mut u8) -> *mut T {
             return ptr::null_mut();
         }
 
-        if len == path_head_length() as usize && is_path_head(dir_name) {
+        if len == path_head_length() as usize
+            && is_path_head(crate::memory::cstr_as_bytes(dir_name))
+        {
             return full_u8.wrapping_add(len).cast();
         }
 

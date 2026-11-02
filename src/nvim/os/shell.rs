@@ -152,7 +152,7 @@ fn save_patterns(num_pat: i32, pat: *mut *mut u8, file: &mut Vec<std::ffi::CStri
 fn have_wildcard(num: i32, file: *mut *mut u8) -> bool {
     unsafe {
         for i in 0..(num as usize) {
-            if path_has_wildcard((*file.add(i)).cast(), true) {
+            if path_has_wildcard(crate::memory::cstr_as_bytes((*file.add(i)).cast()), true) {
                 return true;
             }
         }

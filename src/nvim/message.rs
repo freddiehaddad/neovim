@@ -2931,9 +2931,10 @@ fn msg_puts_display(
             } else {
                 str_
             };
-            let col =
-                mb_string2cells_len(p, len - (crate::memory::ptr_offset_from(p, str_) as usize))
-                    as i32;
+            let col = mb_string2cells_len(crate::memory::cstr_slice(
+                p,
+                len - (crate::memory::ptr_offset_from(p, str_) as usize),
+            )) as i32;
             g_st().msg_col = (if lastline_idx.is_some() {
                 0
             } else {

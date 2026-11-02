@@ -453,7 +453,7 @@ pub fn update_yankreg_width(reg: &mut Yankreg) {
     if reg.y_type == MotionType::MtBlockWise {
         let mut maxlen: usize = 0;
         for &item in &reg.y_array {
-            let rowlen = mb_string2cells_len(item.data, item.size);
+            let rowlen = mb_string2cells_len(item.as_bytes());
             maxlen = maxlen.max(rowlen);
         }
         assert!(maxlen <= i32::MAX as usize);
@@ -863,7 +863,7 @@ pub fn insert_reg(regname: i32, mut reg: *mut Yankreg, literally_arg: bool) -> b
                         if !u_save_cursor() {
                             return false;
                         }
-                        del_chars(mb_charlen(reg_ref.y_array[0].data), 1);
+                        del_chars(mb_charlen(reg_ref.y_array[0].as_bytes()), 1);
                         let curpos = curwin_mut().w_cursor;
                         if !oneright() {
                             dir = FORWARD;
@@ -2819,7 +2819,7 @@ fn str_to_reg(
             let slice = crate::memory::cstr_slice(start, rem);
             let line_len = slice.iter().position(|&b| b == b'\n').unwrap_or(rem);
             if yank_type == MotionType::MtBlockWise {
-                let charlen = mb_string2cells_len(start, line_len);
+                let charlen = mb_string2cells_len(&slice[..line_len]);
                 maxlen = maxlen.max(charlen);
             }
 

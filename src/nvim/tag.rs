@@ -3032,7 +3032,7 @@ fn expand_tag_fname(
         let mut fname = to_slash_save(fname_arg).unwrap_or_default();
 
         if expand
-            && path_has_wildcard(fname.as_ptr(), true)
+            && path_has_wildcard(fname.as_bytes(), true)
             && !crate::strings::vim_haschr(fname.as_ptr(), b'`' as i32)
         {
             xpc.xp_context = EXPAND_FILES;

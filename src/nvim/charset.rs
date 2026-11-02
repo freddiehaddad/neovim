@@ -747,10 +747,7 @@ pub fn vim_is_fname_char(c: i32) -> bool {
 }
 
 pub fn vim_isfilec_or_wc(c: i32) -> bool {
-    let buf: [u8; 2] = [c as u8, 0];
-    vim_isfilec(c)
-        || c == b']' as i32
-        || path_has_wildcard(crate::memory::cstr_until_nul(&buf), true)
+    vim_isfilec(c) || c == b']' as i32 || path_has_wildcard(&[c as u8], true)
 }
 
 pub fn vim_isprintc(c: i32) -> bool {

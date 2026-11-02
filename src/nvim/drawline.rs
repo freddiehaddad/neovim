@@ -1256,9 +1256,10 @@ fn handle_inline_virtual_text(wlv: &mut Winlinevars, v: isize, selected: bool) {
                 wlv.sc_extra = 0;
                 wlv.sc_final = 0;
                 wlv.extra_attr = attr;
-                wlv.n_attr = mb_charlen(text);
+                wlv.n_attr = mb_charlen(crate::memory::cstr_as_bytes(text));
                 if wlv.skip_cells > 0 {
-                    let virt_text_width = mb_string2cells(wlv.p_extra.cast()) as i32;
+                    let virt_text_width =
+                        mb_string2cells(crate::memory::cstr_as_bytes(wlv.p_extra.cast())) as i32;
                     if virt_text_width > wlv.skip_cells {
                         let mut skip_cells_remaining = wlv.skip_cells;
                         while skip_cells_remaining > 0 {

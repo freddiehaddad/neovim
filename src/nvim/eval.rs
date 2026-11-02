@@ -127,7 +127,7 @@ use crate::mbyte::{
     Vimconv, mb_charlen, mb_copy_char, mb_strcmp_ic, string_convert, utf_char2bytes, utf_head_off,
     utfc_ptr2len,
 };
-use crate::memline::{ml_get_buf, ml_get_buf_len};
+use crate::memline::ml_get_buf_len;
 use crate::memory::{Arena, arena_finish, arena_mem_free, cstr_from_bytes, cstr_to_cstring};
 use crate::msgpack_rpc::channel::find_channel;
 use crate::ops::set_ref_in_opfunc;
@@ -5618,7 +5618,10 @@ pub fn var2fpos(
                 return ptr::null_mut();
             }
             let len = if charcol {
-                mb_charlen(ml_get_buf(&mut *bp, eval_st().var2_fpos_pos.lnum))
+                mb_charlen(crate::memline::ml_get_buf_slice(
+                    &mut *bp,
+                    eval_st().var2_fpos_pos.lnum,
+                ))
             } else {
                 ml_get_buf_len(&mut *bp, eval_st().var2_fpos_pos.lnum)
             };
@@ -5721,7 +5724,7 @@ pub fn var2fpos(
             } else {
                 eval_st().var2_fpos_pos.lnum = wp.w_cursor.lnum;
                 eval_st().var2_fpos_pos.col = if charcol {
-                    mb_charlen(ml_get_buf(&mut *bp, wp.w_cursor.lnum))
+                    mb_charlen(crate::memline::ml_get_buf_slice(&mut *bp, wp.w_cursor.lnum))
                 } else {
                     ml_get_buf_len(&mut *bp, wp.w_cursor.lnum)
                 };

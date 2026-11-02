@@ -1637,7 +1637,7 @@ pub fn parse_virt_text(chunks: Array, err: &mut Error, width: *mut i32, untab: b
                 },
                 untab,
             );
-            w += mb_string2cells(text_cstr.as_ptr()) as i32;
+            w += mb_string2cells(text_cstr.as_bytes()) as i32;
 
             virt_text.push(VirtTextChunk {
                 text: Some(text_cstr),

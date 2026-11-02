@@ -1362,10 +1362,10 @@ fn suggest_trie_walk(su: &mut Suginfo, lp: &Langp, fword_buf: &mut [u8; MAXWLEN]
                             }
                             if slang.sl_compminlen > 0
                                 && mb_charlen(
-                                    tword
-                                        .as_ptr()
-                                        .wrapping_add(stack[udepth].ts_splitoff as usize)
-                                        .cast(),
+                                    crate::memory::cstr_until_nul(
+                                        &tword[stack[udepth].ts_splitoff as usize..],
+                                    )
+                                    .to_bytes(),
                                 ) < slang.sl_compminlen
                             {
                                 continue;
@@ -1591,10 +1591,10 @@ fn suggest_trie_walk(su: &mut Suginfo, lp: &Langp, fword_buf: &mut [u8; MAXWLEN]
                                 >= slang.sl_compminlen
                             && (slang.sl_compminlen == 0
                                 || mb_charlen(
-                                    tword
-                                        .as_ptr()
-                                        .wrapping_add(stack[udepth].ts_splitoff as usize)
-                                        .cast(),
+                                    crate::memory::cstr_until_nul(
+                                        &tword[stack[udepth].ts_splitoff as usize..],
+                                    )
+                                    .to_bytes(),
                                 ) >= slang.sl_compminlen)
                             && (slang.sl_compsylmax < MAXWLEN as i32
                                 || i32::from(

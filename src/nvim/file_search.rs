@@ -1495,7 +1495,7 @@ pub fn file_name_in_line(
             if head_off > 0 {
                 idx = idx.saturating_sub(head_off + 1);
             } else if vim_isfilec(i32::from(line_bytes[idx - 1]))
-                || ((options & FNAME_HYP) != 0 && path_is_url(line.wrapping_add(idx - 1)))
+                || ((options & FNAME_HYP) != 0 && path_is_url(&line_bytes[idx - 1..]))
             {
                 idx -= 1;
             } else {
@@ -1505,7 +1505,7 @@ pub fn file_name_in_line(
 
         let ptr = line.wrapping_add(idx);
         let ptr_bytes = &line_bytes[idx..];
-        let mut len = if path_has_drive_letter(ptr, ptr_bytes.len()) {
+        let mut len = if path_has_drive_letter(ptr_bytes) {
             2
         } else {
             0
@@ -1513,12 +1513,12 @@ pub fn file_name_in_line(
         while len < ptr_bytes.len()
             && (vim_isfilec(i32::from(ptr_bytes[len]))
                 || ptr_bytes[len..].starts_with(b"\\ ")
-                || ((options & FNAME_HYP) != 0 && path_is_url(ptr.wrapping_add(len)))
+                || ((options & FNAME_HYP) != 0 && path_is_url(&ptr_bytes[len..]))
                 || (is_url && matches!(ptr_bytes[len], b':' | b'?' | b'&' | b'=')))
         {
             let b = ptr_bytes[len];
             if b.is_ascii_alphabetic() {
-                if in_type && path_is_url(ptr.wrapping_add(len + 1)) {
+                if in_type && path_is_url(&ptr_bytes[len + 1..]) {
                     is_url = true;
                 }
             } else {
@@ -1617,11 +1617,12 @@ pub fn find_file_name_in_path(
             && crate::memory::cstr_slice(ptr, 6) == b"file:/"
             && !vim_ispathsep(i32::from(crate::memory::cstr_slice(ptr, 7)[6]))
         {
-            let off = if path_has_drive_letter(ptr.wrapping_add(6), len - 6) {
-                6
-            } else {
-                5
-            };
+            let off =
+                if path_has_drive_letter(crate::memory::cstr_slice(ptr.wrapping_add(6), len - 6)) {
+                    6
+                } else {
+                    5
+                };
             ptr = ptr.wrapping_add(off);
             len -= off;
         }
