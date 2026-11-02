@@ -5041,59 +5041,53 @@ pub fn set_context_in_echohl_cmd(xp: &mut ExpandCtx, arg: impl crate::strings::I
 
 pub fn set_context_in_syntax_cmd(xp: &mut ExpandCtx, arg: impl crate::strings::IntoCCharPtr) {
     let arg = arg.into_c_char_ptr();
-    {
-        xp.xp_context = EXPAND_SYNTAX;
-        syn_st().expand_what = EXP_SUBCMD;
-        xp.xp_pattern = arg.cast_mut().cast();
-        g_st().include_link = 0;
-        g_st().include_default = 0;
+    xp.xp_context = EXPAND_SYNTAX;
+    syn_st().expand_what = EXP_SUBCMD;
+    xp.xp_pattern = arg.cast_mut().cast();
+    g_st().include_link = 0;
+    g_st().include_default = 0;
 
-        if crate::memory::cstr_is_empty(arg) {
-            return;
-        }
+    let bytes = crate::memory::cstr_as_bytes(arg);
+    if bytes.is_empty() {
+        return;
+    }
 
-        let p = skiptowhite(arg);
-        if crate::memory::cstr_is_empty(p) {
-            return;
-        }
+    let p_rem = crate::charset::skiptowhite_slice(bytes);
+    if p_rem.is_empty() {
+        return;
+    }
 
-        xp.xp_pattern = skipwhite(p).cast();
-        if !crate::memory::cstr_is_empty(skiptowhite(xp.xp_pattern.cast())) {
-            xp.xp_context = EXPAND_NOTHING;
-        } else {
-            let n = crate::memory::ptr_offset_from(p, arg) as usize;
-            if crate::memory::cstr_prefix_bytes(arg, n)
-                .eq_ignore_ascii_case(crate::memory::cstr_prefix_bytes(c"case", n))
-            {
-                syn_st().expand_what = EXP_CASE;
-            } else if crate::memory::cstr_prefix_bytes(arg, n)
-                .eq_ignore_ascii_case(crate::memory::cstr_prefix_bytes(c"spell", n))
-            {
-                syn_st().expand_what = EXP_SPELL;
-            } else if crate::memory::cstr_prefix_bytes(arg, n)
-                .eq_ignore_ascii_case(crate::memory::cstr_prefix_bytes(c"sync", n))
-            {
-                syn_st().expand_what = EXP_SYNC;
-            } else if crate::memory::cstr_prefix_bytes(arg, n)
-                .eq_ignore_ascii_case(crate::memory::cstr_prefix_bytes(c"list", n))
-            {
-                let p2 = skipwhite(p);
-                if crate::memory::cstr_first_byte(p2) == b'@' {
-                    syn_st().expand_what = EXP_CLUSTER;
-                } else {
-                    xp.xp_context = EXPAND_HIGHLIGHT;
-                }
-            } else if crate::memory::cstr_prefix_bytes(arg, n)
-                .eq_ignore_ascii_case(crate::memory::cstr_prefix_bytes(c"keyword", n))
-                || crate::memory::cstr_prefix_bytes(arg, n)
-                    .eq_ignore_ascii_case(crate::memory::cstr_prefix_bytes(c"region", n))
-                || crate::memory::cstr_prefix_bytes(arg, n)
-                    .eq_ignore_ascii_case(crate::memory::cstr_prefix_bytes(c"match", n))
-            {
-                xp.xp_context = EXPAND_HIGHLIGHT;
+    let pat_rem = crate::charset::skipwhite_slice(p_rem);
+    xp.xp_pattern = arg
+        .wrapping_add(bytes.len() - pat_rem.len())
+        .cast_mut()
+        .cast();
+    if !crate::charset::skiptowhite_slice(pat_rem).is_empty() {
+        xp.xp_context = EXPAND_NOTHING;
+    } else {
+        let subcmd = &bytes[..bytes.len() - p_rem.len()];
+        let prefix_ic = |s: &[u8], target: &[u8]| {
+            s.len() <= target.len() && s.eq_ignore_ascii_case(&target[..s.len()])
+        };
+        if prefix_ic(subcmd, b"case") {
+            syn_st().expand_what = EXP_CASE;
+        } else if prefix_ic(subcmd, b"spell") {
+            syn_st().expand_what = EXP_SPELL;
+        } else if prefix_ic(subcmd, b"sync") {
+            syn_st().expand_what = EXP_SYNC;
+        } else if prefix_ic(subcmd, b"list") {
+            if pat_rem.first() == Some(&b'@') {
+                syn_st().expand_what = EXP_CLUSTER;
             } else {
-                xp.xp_context = EXPAND_NOTHING;
+                xp.xp_context = EXPAND_HIGHLIGHT;
             }
+        } else if prefix_ic(subcmd, b"keyword")
+            || prefix_ic(subcmd, b"region")
+            || prefix_ic(subcmd, b"match")
+        {
+            xp.xp_context = EXPAND_HIGHLIGHT;
+        } else {
+            xp.xp_context = EXPAND_NOTHING;
         }
     }
 }

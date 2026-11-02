@@ -31,7 +31,7 @@ use crate::state::{
     MODE_ASKMORE, MODE_CMDLINE, MODE_HITRETURN, MODE_INSERT, MODE_LANGMAP, MODE_NORMAL,
     MODE_TERMINAL, MODE_VISUAL, get_real_state,
 };
-use crate::strings::{gettext, vim_strchr};
+use crate::strings::gettext;
 use crate::ui::ui_call_update_menu;
 use std::ffi::CStr;
 use std::ptr;
@@ -1306,18 +1306,17 @@ fn menu_namecmp(
     name: impl crate::strings::IntoCCharPtr,
     mname: impl crate::strings::IntoCCharPtr,
 ) -> bool {
-    let name = name.into_c_char_ptr();
-    let mname = mname.into_c_char_ptr();
-    let mut i: usize = 0;
-    while crate::memory::cstr_byte_at(name, i) != 0 && crate::memory::cstr_byte_at(name, i) != TAB {
-        if crate::memory::cstr_byte_at(name, i) != crate::memory::cstr_byte_at(mname, i) {
-            break;
-        }
-        i += 1;
-    }
-    (crate::memory::cstr_byte_at(name, i) == 0 || crate::memory::cstr_byte_at(name, i) == TAB)
-        && (crate::memory::cstr_byte_at(mname, i) == 0
-            || crate::memory::cstr_byte_at(mname, i) == TAB)
+    let name_bytes = crate::memory::cstr_as_bytes(name.into_c_char_ptr());
+    let mname_bytes = crate::memory::cstr_as_bytes(mname.into_c_char_ptr());
+    let n_end = name_bytes
+        .iter()
+        .position(|&b| b == TAB)
+        .unwrap_or(name_bytes.len());
+    let m_end = mname_bytes
+        .iter()
+        .position(|&b| b == TAB)
+        .unwrap_or(mname_bytes.len());
+    name_bytes[..n_end] == mname_bytes[..m_end]
 }
 
 /// Return the `MENU_MODES` specified by menu command `cmd` (`get_menu_cmd_modes`).
@@ -1444,43 +1443,33 @@ fn menu_text(
     mut mnemonic: Option<&mut i32>,
     actext: Option<&mut Option<std::ffi::CString>>,
 ) -> std::ffi::CString {
-    let str = str.into_c_char_ptr();
-    {
-        let mut p = vim_strchr(str, i32::from(TAB));
-        let mut text_vec: Vec<u8> = if !p.is_null() {
-            if let Some(actext_out) = actext {
-                *actext_out = Some(crate::memory::cstr_to_cstring(p.wrapping_add(1)));
-            }
-            let len = crate::memory::ptr_offset_from(p, str) as usize;
-            let mut v = Vec::with_capacity(len + 1);
-            v.extend_from_slice(crate::memory::cstr_slice(str, len));
-            v.push(0);
-            v
-        } else {
-            let mut v = crate::memory::cstr_as_bytes(str).to_vec();
-            v.push(0);
-            v
-        };
-        let text = text_vec.as_mut_ptr().cast();
-
-        p = text;
-        while !p.is_null() {
-            p = vim_strchr(p, b'&' as i32);
-            if !p.is_null() {
-                if crate::memory::cstr_byte_at(p, 1) == 0 {
-                    break;
-                }
-                if crate::memory::cstr_byte_at(p, 1) != b'&'
-                    && let Some(ref mut mnemonic) = mnemonic
-                {
-                    **mnemonic = i32::from(crate::memory::cstr_byte_at(p, 1));
-                }
-                crate::memory::cstr_move(p, p.wrapping_add(1));
-                p = p.wrapping_add(1);
-            }
+    let full_bytes = crate::memory::cstr_as_bytes(str.into_c_char_ptr());
+    let src = if let Some(tab_pos) = full_bytes.iter().position(|&b| b == TAB) {
+        if let Some(actext_out) = actext {
+            *actext_out = Some(crate::memory::cstr_from_bytes(&full_bytes[tab_pos + 1..]));
         }
-        crate::memory::cstr_to_cstring(text)
+        &full_bytes[..tab_pos]
+    } else {
+        full_bytes
+    };
+
+    let mut out = Vec::with_capacity(src.len());
+    let mut idx = 0usize;
+    while idx < src.len() {
+        if src[idx] == b'&' && idx + 1 < src.len() {
+            if src[idx + 1] != b'&'
+                && let Some(ref mut mnemonic) = mnemonic
+            {
+                **mnemonic = i32::from(src[idx + 1]);
+            }
+            out.push(src[idx + 1]);
+            idx += 2;
+        } else {
+            out.push(src[idx]);
+            idx += 1;
+        }
     }
+    crate::memory::cstr_from_bytes(&out)
 }
 
 /// Return true if `name` can be a menu in the MenuBar (`menu_is_menubar`).

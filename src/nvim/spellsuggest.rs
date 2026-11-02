@@ -3043,184 +3043,140 @@ fn soundalike_score(
     goodstart: impl crate::strings::IntoCCharPtr,
     badstart: impl crate::strings::IntoCCharPtr,
 ) -> i32 {
-    let mut goodsound = goodstart.into_c_char_ptr();
-    let mut badsound = badstart.into_c_char_ptr();
+    let mut goodsound = crate::memory::cstr_as_bytes(goodstart.into_c_char_ptr());
+    let mut badsound = crate::memory::cstr_as_bytes(badstart.into_c_char_ptr());
     let mut score: i32 = 0;
-    if (crate::memory::cstr_first_byte(badsound) == b'*'
-        || crate::memory::cstr_first_byte(goodsound) == b'*')
-        && crate::memory::cstr_first_byte(badsound) != crate::memory::cstr_first_byte(goodsound)
-    {
-        if (crate::memory::cstr_is_empty(badsound)
-            && crate::memory::cstr_byte_at(goodsound, 1) == 0)
-            || (crate::memory::cstr_is_empty(goodsound)
-                && crate::memory::cstr_byte_at(badsound, 1) == 0)
+    let b0 = badsound.first().copied().unwrap_or(0);
+    let g0 = goodsound.first().copied().unwrap_or(0);
+    if (b0 == b'*' || g0 == b'*') && b0 != g0 {
+        if (badsound.is_empty() && goodsound.len() == 1)
+            || (goodsound.is_empty() && badsound.len() == 1)
         {
             return SCORE_DEL;
         }
-        if crate::memory::cstr_is_empty(badsound) || crate::memory::cstr_is_empty(goodsound) {
+        if badsound.is_empty() || goodsound.is_empty() {
             return SCORE_MAXMAX;
         }
-        if crate::memory::cstr_byte_at(badsound, 1) == crate::memory::cstr_byte_at(goodsound, 1)
-            || (crate::memory::cstr_byte_at(badsound, 1) != 0
-                && crate::memory::cstr_byte_at(goodsound, 1) != 0
-                && crate::memory::cstr_byte_at(badsound, 2)
-                    == crate::memory::cstr_byte_at(goodsound, 2))
+        let b1 = badsound.get(1).copied().unwrap_or(0);
+        let g1 = goodsound.get(1).copied().unwrap_or(0);
+        if b1 == g1
+            || (b1 != 0
+                && g1 != 0
+                && badsound.get(2).copied().unwrap_or(0) == goodsound.get(2).copied().unwrap_or(0))
         {
             // handle like a substitute
         } else {
             score = 2 * SCORE_DEL / 3;
-            if crate::memory::cstr_first_byte(badsound) == b'*' {
-                badsound = badsound.wrapping_add(1);
+            if b0 == b'*' {
+                badsound = &badsound[1..];
             } else {
-                goodsound = goodsound.wrapping_add(1);
+                goodsound = &goodsound[1..];
             }
         }
     }
-    let goodlen = crate::memory::cstr_len(goodsound) as i32;
-    let badlen = crate::memory::cstr_len(badsound) as i32;
+    let goodlen = goodsound.len() as i32;
+    let badlen = badsound.len() as i32;
     let n = goodlen - badlen;
     if !(-2..=2).contains(&n) {
         return SCORE_MAXMAX;
     }
-    let mut pl = if n > 0 { goodsound } else { badsound };
-    let mut ps = if n > 0 { badsound } else { goodsound };
-    while crate::memory::cstr_first_byte(pl) == crate::memory::cstr_first_byte(ps)
-        && !crate::memory::cstr_is_empty(pl)
-    {
-        pl = pl.wrapping_add(1);
-        ps = ps.wrapping_add(1);
-    }
+    let (pl_full, ps_full) = if n > 0 {
+        (goodsound, badsound)
+    } else {
+        (badsound, goodsound)
+    };
+    let common = pl_full
+        .iter()
+        .zip(ps_full)
+        .take_while(|(a, b)| a == b)
+        .count();
+    let pl = &pl_full[common..];
+    let ps = &ps_full[common..];
     match n {
         -2 | 2 => {
-            pl = pl.wrapping_add(1);
-            while crate::memory::cstr_first_byte(pl) == crate::memory::cstr_first_byte(ps) {
-                pl = pl.wrapping_add(1);
-                ps = ps.wrapping_add(1);
-            }
-            if crate::memory::cstr_as_bytes(pl.wrapping_add(1)) == crate::memory::cstr_as_bytes(ps)
-            {
+            let pl1 = &pl[1..];
+            let c2 = pl1.iter().zip(ps).take_while(|(a, b)| a == b).count();
+            if pl1[c2 + 1..] == ps[c2..] {
                 return score + SCORE_DEL * 2;
             }
         }
         -1 | 1 => {
-            let mut pl2 = pl.wrapping_add(1);
-            let mut ps2 = ps;
-            while crate::memory::cstr_first_byte(pl2) == crate::memory::cstr_first_byte(ps2) {
-                if crate::memory::cstr_is_empty(pl2) {
-                    return score + SCORE_DEL;
-                }
-                pl2 = pl2.wrapping_add(1);
-                ps2 = ps2.wrapping_add(1);
+            let pl1 = &pl[1..];
+            if pl1 == ps {
+                return score + SCORE_DEL;
             }
-            if crate::memory::cstr_first_byte(pl2) == crate::memory::cstr_byte_at(ps2, 1)
-                && crate::memory::cstr_byte_at(pl2, 1) == crate::memory::cstr_first_byte(ps2)
-                && (crate::memory::cstr_as_bytes(pl2.wrapping_add(2))
-                    == crate::memory::cstr_as_bytes(ps2.wrapping_add(2)))
-            {
+            let c2 = pl1.iter().zip(ps).take_while(|(a, b)| a == b).count();
+            let pl2 = &pl1[c2..];
+            let ps2 = &ps[c2..];
+            if pl2.len() >= 2 && pl2[0] == ps2[1] && pl2[1] == ps2[0] && pl2[2..] == ps2[2..] {
                 return score + SCORE_DEL + SCORE_SWAP;
             }
-            if crate::memory::cstr_as_bytes(pl2.wrapping_add(1))
-                == crate::memory::cstr_as_bytes(ps2.wrapping_add(1))
-            {
+            if pl2[1..] == ps2[1..] {
                 return score + SCORE_DEL + SCORE_SUBST;
             }
-            if crate::memory::cstr_first_byte(pl) == crate::memory::cstr_byte_at(ps, 1)
-                && crate::memory::cstr_byte_at(pl, 1) == crate::memory::cstr_first_byte(ps)
-            {
-                pl2 = pl.wrapping_add(2);
-                ps2 = ps.wrapping_add(2);
-                while crate::memory::cstr_first_byte(pl2) == crate::memory::cstr_first_byte(ps2) {
-                    pl2 = pl2.wrapping_add(1);
-                    ps2 = ps2.wrapping_add(1);
-                }
-                if crate::memory::cstr_as_bytes(pl2.wrapping_add(1))
-                    == crate::memory::cstr_as_bytes(ps2)
-                {
+            if ps.len() >= 2 && pl[0] == ps[1] && pl[1] == ps[0] {
+                let pl2 = &pl[2..];
+                let ps2 = &ps[2..];
+                let c3 = pl2.iter().zip(ps2).take_while(|(a, b)| a == b).count();
+                if pl2[c3 + 1..] == ps2[c3..] {
                     return score + SCORE_SWAP + SCORE_DEL;
                 }
             }
-            pl2 = pl.wrapping_add(1);
-            ps2 = ps.wrapping_add(1);
-            while crate::memory::cstr_first_byte(pl2) == crate::memory::cstr_first_byte(ps2) {
-                pl2 = pl2.wrapping_add(1);
-                ps2 = ps2.wrapping_add(1);
-            }
-            if crate::memory::cstr_as_bytes(pl2.wrapping_add(1))
-                == crate::memory::cstr_as_bytes(ps2)
-            {
-                return score + SCORE_SUBST + SCORE_DEL;
+            if !ps.is_empty() {
+                let pl2 = &pl[1..];
+                let ps2 = &ps[1..];
+                let c4 = pl2.iter().zip(ps2).take_while(|(a, b)| a == b).count();
+                if pl2[c4 + 1..] == ps2[c4..] {
+                    return score + SCORE_SUBST + SCORE_DEL;
+                }
             }
         }
         0 => {
-            if crate::memory::cstr_is_empty(pl) {
+            if pl.is_empty() {
                 return score;
             }
-            if crate::memory::cstr_first_byte(pl) == crate::memory::cstr_byte_at(ps, 1)
-                && crate::memory::cstr_byte_at(pl, 1) == crate::memory::cstr_first_byte(ps)
-            {
-                let mut pl2 = pl.wrapping_add(2);
-                let mut ps2 = ps.wrapping_add(2);
-                while crate::memory::cstr_first_byte(pl2) == crate::memory::cstr_first_byte(ps2) {
-                    if crate::memory::cstr_is_empty(pl2) {
-                        return score + SCORE_SWAP;
-                    }
-                    pl2 = pl2.wrapping_add(1);
-                    ps2 = ps2.wrapping_add(1);
+            if pl.len() >= 2 && pl[0] == ps[1] && pl[1] == ps[0] {
+                if pl[2..] == ps[2..] {
+                    return score + SCORE_SWAP;
                 }
-                if crate::memory::cstr_first_byte(pl2) == crate::memory::cstr_byte_at(ps2, 1)
-                    && crate::memory::cstr_byte_at(pl2, 1) == crate::memory::cstr_first_byte(ps2)
-                    && (crate::memory::cstr_as_bytes(pl2.wrapping_add(2))
-                        == crate::memory::cstr_as_bytes(ps2.wrapping_add(2)))
-                {
+                let c2 = pl[2..]
+                    .iter()
+                    .zip(&ps[2..])
+                    .take_while(|(a, b)| a == b)
+                    .count();
+                let pl2 = &pl[2 + c2..];
+                let ps2 = &ps[2 + c2..];
+                if pl2.len() >= 2 && pl2[0] == ps2[1] && pl2[1] == ps2[0] && pl2[2..] == ps2[2..] {
                     return score + SCORE_SWAP + SCORE_SWAP;
                 }
-                if crate::memory::cstr_as_bytes(pl2.wrapping_add(1))
-                    == crate::memory::cstr_as_bytes(ps2.wrapping_add(1))
-                {
+                if pl2[1..] == ps2[1..] {
                     return score + SCORE_SWAP + SCORE_SUBST;
                 }
             }
-            let mut pl2 = pl.wrapping_add(1);
-            let mut ps2 = ps.wrapping_add(1);
-            while crate::memory::cstr_first_byte(pl2) == crate::memory::cstr_first_byte(ps2) {
-                if crate::memory::cstr_is_empty(pl2) {
-                    return score + SCORE_SUBST;
-                }
-                pl2 = pl2.wrapping_add(1);
-                ps2 = ps2.wrapping_add(1);
+            if pl[1..] == ps[1..] {
+                return score + SCORE_SUBST;
             }
-            if crate::memory::cstr_first_byte(pl2) == crate::memory::cstr_byte_at(ps2, 1)
-                && crate::memory::cstr_byte_at(pl2, 1) == crate::memory::cstr_first_byte(ps2)
-                && (crate::memory::cstr_as_bytes(pl2.wrapping_add(2))
-                    == crate::memory::cstr_as_bytes(ps2.wrapping_add(2)))
-            {
+            let c2 = pl[1..]
+                .iter()
+                .zip(&ps[1..])
+                .take_while(|(a, b)| a == b)
+                .count();
+            let pl2 = &pl[1 + c2..];
+            let ps2 = &ps[1 + c2..];
+            if pl2.len() >= 2 && pl2[0] == ps2[1] && pl2[1] == ps2[0] && pl2[2..] == ps2[2..] {
                 return score + SCORE_SUBST + SCORE_SWAP;
             }
-            if crate::memory::cstr_as_bytes(pl2.wrapping_add(1))
-                == crate::memory::cstr_as_bytes(ps2.wrapping_add(1))
-            {
+            if pl2[1..] == ps2[1..] {
                 return score + SCORE_SUBST + SCORE_SUBST;
             }
-            pl2 = pl;
-            ps2 = ps.wrapping_add(1);
-            while crate::memory::cstr_first_byte(pl2) == crate::memory::cstr_first_byte(ps2) {
-                pl2 = pl2.wrapping_add(1);
-                ps2 = ps2.wrapping_add(1);
-            }
-            if crate::memory::cstr_as_bytes(pl2.wrapping_add(1))
-                == crate::memory::cstr_as_bytes(ps2)
-            {
+            let ps1 = &ps[1..];
+            let c3 = pl.iter().zip(ps1).take_while(|(a, b)| a == b).count();
+            if pl[c3 + 1..] == ps1[c3..] {
                 return score + SCORE_INS + SCORE_DEL;
             }
-            pl2 = pl.wrapping_add(1);
-            ps2 = ps;
-            while crate::memory::cstr_first_byte(pl2) == crate::memory::cstr_first_byte(ps2) {
-                pl2 = pl2.wrapping_add(1);
-                ps2 = ps2.wrapping_add(1);
-            }
-            if crate::memory::cstr_as_bytes(pl2)
-                == crate::memory::cstr_as_bytes(ps2.wrapping_add(1))
-            {
+            let pl1 = &pl[1..];
+            let c4 = pl1.iter().zip(ps).take_while(|(a, b)| a == b).count();
+            if pl1[c4..] == ps[c4 + 1..] {
                 return score + SCORE_INS + SCORE_DEL;
             }
         }

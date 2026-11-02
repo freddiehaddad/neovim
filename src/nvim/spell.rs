@@ -933,43 +933,34 @@ pub fn match_compoundrule(slang: &mut Slang, compflags: *const u8) -> bool {
         return false;
     };
     let comp_slice = crate::memory::cstr_as_bytes(compflags.cast());
-    let mut p = rules.as_ptr().cast_mut();
-    while !crate::memory::cstr_is_empty(p) {
-        let mut i = 0usize;
-        loop {
-            let c = comp_slice.get(i).copied().unwrap_or(0);
-            if c == 0 {
-                return true;
-            }
-            if crate::memory::cstr_first_byte(p) == b'/' || crate::memory::cstr_is_empty(p) {
+    for rule in rules.to_bytes().split(|&b| b == b'/') {
+        if rule.is_empty() && !comp_slice.is_empty() {
+            continue;
+        }
+        let mut p = rule;
+        let mut matched_all = true;
+        for &c in comp_slice {
+            let Some((&b0, rest)) = p.split_first() else {
+                matched_all = false;
                 break;
-            }
-            if crate::memory::cstr_first_byte(p) == b'[' {
-                let mut matched = false;
-                p = p.wrapping_add(1);
-                while crate::memory::cstr_first_byte(p) != b']' && !crate::memory::cstr_is_empty(p)
-                {
-                    if crate::memory::cstr_first_byte(p) == c {
-                        matched = true;
-                    }
-                    p = p.wrapping_add(1);
-                }
-                if !matched {
+            };
+            if b0 == b'[' {
+                let end_br = rest.iter().position(|&b| b == b']').unwrap_or(rest.len());
+                if !rest[..end_br].contains(&c) {
+                    matched_all = false;
                     break;
                 }
-            } else if crate::memory::cstr_first_byte(p) != c {
+                p = &rest[(end_br + 1).min(rest.len())..];
+            } else if b0 != c {
+                matched_all = false;
                 break;
+            } else {
+                p = rest;
             }
-            if !crate::memory::cstr_is_empty(p) {
-                p = p.wrapping_add(1);
-            }
-            i += 1;
         }
-        p = vim_strchr(p, b'/' as i32);
-        if p.is_null() {
-            break;
+        if matched_all {
+            return true;
         }
-        p = p.wrapping_add(1);
     }
     false
 }
