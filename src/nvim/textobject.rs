@@ -1052,35 +1052,37 @@ pub fn current_block(
 /// Return true if the cursor is on a `<aaa>` tag (or `</aaa>` when `end_tag` is true) (`in_html_tag`).
 fn in_html_tag(end_tag: bool) -> bool {
     let line = get_cursor_line_ptr();
-    let mut p = line.wrapping_add(curwin_mut().w_cursor.col as usize);
+    let line_bytes = crate::memory::cstr_as_bytes_with_nul(line);
+    let mut idx = (curwin_mut().w_cursor.col as usize).min(line_bytes.len().saturating_sub(1));
     let mut lc: i32 = i32::from(NUL);
 
-    while p > line {
-        if crate::memory::cstr_first_byte(p) == b'<' {
+    while idx > 0 {
+        if line_bytes[idx] == b'<' {
             break;
         }
-        let off = utf_head_off(line, p.wrapping_sub(1)) + 1;
-        p = p.wrapping_sub(off as usize);
-        if crate::memory::cstr_first_byte(p) == b'>' {
+        let off = utf_head_off(line, line.wrapping_add(idx - 1)) as usize + 1;
+        idx = idx.saturating_sub(off);
+        if line_bytes[idx] == b'>' {
             break;
         }
     }
-    if crate::memory::cstr_first_byte(p) != b'<' {
+    if line_bytes[idx] != b'<' {
         return false;
     }
 
     let mut pos = CursorPos {
         lnum: curwin_mut().w_cursor.lnum,
-        col: crate::memory::ptr_offset_from(p, line) as Colnr,
+        col: idx as Colnr,
         coladd: 0,
     };
 
-    p = p.wrapping_add(utfc_ptr2len(p) as usize);
+    idx += utfc_ptr2len(line.wrapping_add(idx)) as usize;
+    let next_b = line_bytes.get(idx).copied().unwrap_or(0);
     if end_tag {
-        return crate::memory::cstr_first_byte(p) == b'/';
+        return next_b == b'/';
     }
 
-    if crate::memory::cstr_first_byte(p) == b'/' {
+    if next_b == b'/' {
         return false;
     }
 
@@ -1168,21 +1170,19 @@ pub fn current_tagblock(oap: &mut Oparg, count_arg: i32, include: bool) -> bool 
 
         inc_cursor();
         let p = get_cursor_pos_ptr();
-        let mut cp = p;
-        while !crate::memory::cstr_is_empty(cp)
-            && crate::memory::cstr_first_byte(cp) != b'>'
-            && !ascii_iswhite(i32::from(crate::memory::cstr_first_byte(cp)))
+        let p_bytes = crate::memory::cstr_as_bytes(p);
+        let mut len = 0usize;
+        while len < p_bytes.len() && p_bytes[len] != b'>' && !ascii_iswhite(i32::from(p_bytes[len]))
         {
-            cp = cp.wrapping_add(utfc_ptr2len(cp) as usize);
+            len += utfc_ptr2len(p.wrapping_add(len)) as usize;
         }
-        let len = crate::memory::ptr_offset_from(cp, p) as usize;
         if len == 0 {
             curwin_mut().w_cursor = old_pos;
             opt_vars().p_ws = save_p_ws;
             return retval;
         }
 
-        let tag_bytes = crate::memory::cstr_slice(p, len);
+        let tag_bytes = &p_bytes[..len];
         let mut spat = Vec::with_capacity(len + 39);
         spat.extend_from_slice(b"<");
         spat.extend_from_slice(tag_bytes);

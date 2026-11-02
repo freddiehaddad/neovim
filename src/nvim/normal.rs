@@ -2549,35 +2549,30 @@ fn find_is_eval_item(
     dir: i32,
 ) -> bool {
     let ptr = ptr.into_c_char_ptr();
-    {
-        if (crate::memory::cstr_first_byte(ptr) == b']' && dir == BACKWARD)
-            || (crate::memory::cstr_first_byte(ptr) == b'[' && dir == FORWARD)
-        {
-            *bnp += 1;
-        }
-        if *bnp > 0 {
-            if (crate::memory::cstr_first_byte(ptr) == b'[' && dir == BACKWARD)
-                || (crate::memory::cstr_first_byte(ptr) == b']' && dir == FORWARD)
-            {
-                *bnp -= 1;
-            }
-            return true;
-        }
-
-        if crate::memory::cstr_first_byte(ptr) == b'.' {
-            return true;
-        }
-
-        let gt_off: isize = if dir == BACKWARD { 0 } else { 1 };
-        let dash_off: isize = if dir == BACKWARD { -1 } else { 0 };
-        if crate::memory::cstr_first_byte(ptr.wrapping_offset(gt_off)) == b'>'
-            && crate::memory::cstr_first_byte(ptr.wrapping_offset(dash_off)) == b'-'
-        {
-            *colp += dir;
-            return true;
-        }
-        false
+    let b0 = unsafe { *ptr as u8 };
+    if (b0 == b']' && dir == BACKWARD) || (b0 == b'[' && dir == FORWARD) {
+        *bnp += 1;
     }
+    if *bnp > 0 {
+        if (b0 == b'[' && dir == BACKWARD) || (b0 == b']' && dir == FORWARD) {
+            *bnp -= 1;
+        }
+        return true;
+    }
+
+    if b0 == b'.' {
+        return true;
+    }
+
+    let gt_off: isize = if dir == BACKWARD { 0 } else { 1 };
+    let dash_off: isize = if dir == BACKWARD { -1 } else { 0 };
+    if unsafe {
+        *ptr.wrapping_offset(gt_off) as u8 == b'>' && *ptr.wrapping_offset(dash_off) as u8 == b'-'
+    } {
+        *colp += dir;
+        return true;
+    }
+    false
 }
 
 pub fn find_ident_under_cursor(find_type: i32, offset: Option<&mut i32>) -> &'static [u8] {
@@ -2610,13 +2605,12 @@ pub fn find_ident_at_pos(
     let mut bn: i32;
 
     let mut ptr = ml_get_buf(wp.buf_mut(), lnum);
+    let line_bytes = crate::memory::cstr_as_bytes_with_nul(ptr);
     let mut i = if (find_type & FIND_IDENT) != 0 { 0 } else { 1 };
     while i < 2 {
         col = startcol;
-        while crate::memory::cstr_byte_at(ptr, col as usize) != 0 {
-            if (find_type & FIND_EVAL) != 0
-                && crate::memory::cstr_byte_at(ptr, col as usize) == b']'
-            {
+        while line_bytes.get(col as usize).copied().unwrap_or(0) != 0 {
+            if (find_type & FIND_EVAL) != 0 && line_bytes[col as usize] == b']' {
                 break;
             }
             this_class = mb_get_class(ptr.wrapping_add(col as usize));
@@ -2626,9 +2620,10 @@ pub fn find_ident_at_pos(
             col += utfc_ptr2len(ptr.wrapping_add(col as usize));
         }
 
-        bn = i32::from(crate::memory::cstr_byte_at(ptr, col as usize) == b']');
+        let at_rbracket = line_bytes.get(col as usize) == Some(&b']');
+        bn = i32::from(at_rbracket);
 
-        if (find_type & FIND_EVAL) != 0 && crate::memory::cstr_byte_at(ptr, col as usize) == b']' {
+        if (find_type & FIND_EVAL) != 0 && at_rbracket {
             this_class = mb_get_class(c"a");
         } else {
             this_class = mb_get_class(ptr.wrapping_add(col as usize));
@@ -2659,7 +2654,7 @@ pub fn find_ident_at_pos(
         i += 1;
     }
 
-    if crate::memory::cstr_byte_at(ptr, col as usize) == 0 || (i == 0 && this_class != 2) {
+    if line_bytes.get(col as usize).copied().unwrap_or(0) == 0 || (i == 0 && this_class != 2) {
         if (find_type & FIND_STRING) != 0 {
             emsg(tr(c"E348: No string under cursor"));
         } else {
@@ -5415,17 +5410,16 @@ fn buf_has_cstyle_comments() -> bool {
     let mut part_buf: [u8; COM_MAX_LEN] = [0; COM_MAX_LEN];
     let mut list = curbuf_mut().b_p_com;
     while !crate::memory::cstr_is_empty(list) {
-        copy_option_part(
+        let len = copy_option_part(
             &raw mut list,
             part_buf.as_mut_ptr().cast(),
             COM_MAX_LEN,
             c",",
         );
-        let string = vim_strchr(part_buf.as_ptr().cast(), b':' as i32);
-        if !string.is_null()
-            && crate::memory::cstr_byte_at(string, 1) == b'/'
-            && (crate::memory::cstr_byte_at(string, 2) == b'/'
-                || crate::memory::cstr_byte_at(string, 2) == b'*')
+        let part_slice = &part_buf[..len];
+        if let Some(colon_pos) = part_slice.iter().position(|&b| b == b':')
+            && let Some(after) = part_slice.get(colon_pos + 1..)
+            && (after.starts_with(b"//") || after.starts_with(b"/*"))
         {
             return true;
         }

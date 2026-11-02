@@ -2605,6 +2605,7 @@ pub fn do_addsub(op_type: i32, pos: &mut CursorPos, mut length: i32, prenum1: Li
         curwin_mut().w_cursor = *pos;
         let ptr_line = ml_get(pos.lnum);
         let linelen = ml_get_len(pos.lnum);
+        let line_bytes = std::slice::from_raw_parts(ptr_line.cast::<u8>(), linelen as usize + 1);
         let mut col = pos.col;
 
         if col + i32::from(save_coladd != 0) >= linelen {
@@ -2618,24 +2619,14 @@ pub fn do_addsub(op_type: i32, pos: &mut CursorPos, mut length: i32, prenum1: Li
 
         if !g_st().visual_global.active {
             if do_bin {
-                while col > 0
-                    && ascii_isbdigit(i32::from(crate::memory::cstr_byte_at(
-                        ptr_line,
-                        col as usize,
-                    )))
-                {
+                while col > 0 && ascii_isbdigit(i32::from(line_bytes[col as usize])) {
                     col -= 1;
                     col -= utf_head_off(ptr_line, ptr_line.wrapping_add(col as usize));
                 }
             }
 
             if do_hex {
-                while col > 0
-                    && ascii_isxdigit(i32::from(crate::memory::cstr_byte_at(
-                        ptr_line,
-                        col as usize,
-                    )))
-                {
+                while col > 0 && ascii_isxdigit(i32::from(line_bytes[col as usize])) {
                     col -= 1;
                     col -= utf_head_off(ptr_line, ptr_line.wrapping_add(col as usize));
                 }
@@ -2643,20 +2634,14 @@ pub fn do_addsub(op_type: i32, pos: &mut CursorPos, mut length: i32, prenum1: Li
             if do_bin
                 && do_hex
                 && !(col > 0
-                    && (crate::memory::cstr_byte_at(ptr_line, col as usize) == b'X'
-                        || crate::memory::cstr_byte_at(ptr_line, col as usize) == b'x')
-                    && crate::memory::cstr_byte_at(ptr_line, (col - 1) as usize) == b'0'
+                    && matches!(line_bytes[col as usize], b'X' | b'x')
+                    && line_bytes[(col - 1) as usize] == b'0'
                     && utf_head_off(ptr_line, ptr_line.wrapping_add((col - 1) as usize)) == 0
-                    && ascii_isxdigit(i32::from(*ptr_line.wrapping_add((col + 1) as usize) as u8)))
+                    && ascii_isxdigit(i32::from(line_bytes[(col + 1) as usize])))
             {
                 col = curwin_mut().w_cursor.col;
 
-                while col > 0
-                    && ascii_isdigit(i32::from(crate::memory::cstr_byte_at(
-                        ptr_line,
-                        col as usize,
-                    )))
-                {
+                while col > 0 && ascii_isdigit(i32::from(line_bytes[col as usize])) {
                     col -= 1;
                     col -= utf_head_off(ptr_line, ptr_line.wrapping_add(col as usize));
                 }
@@ -2664,45 +2649,32 @@ pub fn do_addsub(op_type: i32, pos: &mut CursorPos, mut length: i32, prenum1: Li
 
             if (do_hex
                 && col > 0
-                && (crate::memory::cstr_byte_at(ptr_line, col as usize) == b'X'
-                    || crate::memory::cstr_byte_at(ptr_line, col as usize) == b'x')
-                && crate::memory::cstr_byte_at(ptr_line, (col - 1) as usize) == b'0'
+                && matches!(line_bytes[col as usize], b'X' | b'x')
+                && line_bytes[(col - 1) as usize] == b'0'
                 && utf_head_off(ptr_line, ptr_line.wrapping_add((col - 1) as usize)) == 0
-                && ascii_isxdigit(i32::from(*ptr_line.wrapping_add((col + 1) as usize) as u8)))
+                && ascii_isxdigit(i32::from(line_bytes[(col + 1) as usize])))
                 || (do_bin
                     && col > 0
-                    && (crate::memory::cstr_byte_at(ptr_line, col as usize) == b'B'
-                        || crate::memory::cstr_byte_at(ptr_line, col as usize) == b'b')
-                    && crate::memory::cstr_byte_at(ptr_line, (col - 1) as usize) == b'0'
+                    && matches!(line_bytes[col as usize], b'B' | b'b')
+                    && line_bytes[(col - 1) as usize] == b'0'
                     && utf_head_off(ptr_line, ptr_line.wrapping_add((col - 1) as usize)) == 0
-                    && ascii_isbdigit(i32::from(*ptr_line.wrapping_add((col + 1) as usize) as u8)))
+                    && ascii_isbdigit(i32::from(line_bytes[(col + 1) as usize])))
             {
                 col -= 1;
                 col -= utf_head_off(ptr_line, ptr_line.wrapping_add(col as usize));
             } else {
                 col = pos.col;
 
-                while crate::memory::cstr_byte_at(ptr_line, col as usize) != 0
-                    && !ascii_isdigit(i32::from(crate::memory::cstr_byte_at(
-                        ptr_line,
-                        col as usize,
-                    )))
-                    && !(do_alpha
-                        && ascii_isalpha(i32::from(crate::memory::cstr_byte_at(
-                            ptr_line,
-                            col as usize,
-                        ))))
+                while line_bytes[col as usize] != 0
+                    && !ascii_isdigit(i32::from(line_bytes[col as usize]))
+                    && !(do_alpha && ascii_isalpha(i32::from(line_bytes[col as usize])))
                 {
                     col += 1;
                 }
 
                 while col > 0
-                    && ascii_isdigit(i32::from(*ptr_line.wrapping_add((col - 1) as usize) as u8))
-                    && !(do_alpha
-                        && ascii_isalpha(i32::from(crate::memory::cstr_byte_at(
-                            ptr_line,
-                            col as usize,
-                        ))))
+                    && ascii_isdigit(i32::from(line_bytes[(col - 1) as usize]))
+                    && !(do_alpha && ascii_isalpha(i32::from(line_bytes[col as usize])))
                 {
                     col -= 1;
                 }
@@ -2710,17 +2682,10 @@ pub fn do_addsub(op_type: i32, pos: &mut CursorPos, mut length: i32, prenum1: Li
         }
 
         if visual {
-            while crate::memory::cstr_byte_at(ptr_line, col as usize) != 0
+            while line_bytes[col as usize] != 0
                 && length > 0
-                && !ascii_isdigit(i32::from(crate::memory::cstr_byte_at(
-                    ptr_line,
-                    col as usize,
-                )))
-                && !(do_alpha
-                    && ascii_isalpha(i32::from(crate::memory::cstr_byte_at(
-                        ptr_line,
-                        col as usize,
-                    ))))
+                && !ascii_isdigit(i32::from(line_bytes[col as usize]))
+                && !(do_alpha && ascii_isalpha(i32::from(line_bytes[col as usize])))
             {
                 let mb_len = utfc_ptr2len(ptr_line.wrapping_add(col as usize));
                 col += mb_len;
@@ -2733,13 +2698,11 @@ pub fn do_addsub(op_type: i32, pos: &mut CursorPos, mut length: i32, prenum1: Li
             }
 
             if col > pos.col
-                && crate::memory::cstr_byte_at(ptr_line, (col - 1) as usize) == b'-'
+                && line_bytes[(col - 1) as usize] == b'-'
                 && utf_head_off(ptr_line, ptr_line.wrapping_add((col - 1) as usize)) == 0
                 && !do_unsigned
             {
-                if do_blank
-                    && col >= 2
-                    && !ascii_iswhite(i32::from(*ptr_line.wrapping_add((col - 2) as usize) as u8))
+                if do_blank && col >= 2 && !ascii_iswhite(i32::from(line_bytes[(col - 2) as usize]))
                 {
                     blank_unsigned = true;
                 } else {
@@ -2749,7 +2712,7 @@ pub fn do_addsub(op_type: i32, pos: &mut CursorPos, mut length: i32, prenum1: Li
             }
         }
 
-        let mut firstdigit = i32::from(crate::memory::cstr_byte_at(ptr_line, col as usize));
+        let mut firstdigit = i32::from(line_bytes[col as usize]);
         if !ascii_isdigit(firstdigit) && !(do_alpha && ascii_isalpha(firstdigit)) {
             beep_flush();
             if visual {
@@ -2789,14 +2752,12 @@ pub fn do_addsub(op_type: i32, pos: &mut CursorPos, mut length: i32, prenum1: Li
             curwin_mut().w_cursor.col = col;
         } else {
             if col > 0
-                && crate::memory::cstr_byte_at(ptr_line, (col - 1) as usize) == b'-'
+                && line_bytes[(col - 1) as usize] == b'-'
                 && utf_head_off(ptr_line, ptr_line.wrapping_add((col - 1) as usize)) == 0
                 && !visual
                 && !do_unsigned
             {
-                if do_blank
-                    && col >= 2
-                    && !ascii_iswhite(i32::from(*ptr_line.wrapping_add((col - 2) as usize) as u8))
+                if do_blank && col >= 2 && !ascii_iswhite(i32::from(line_bytes[(col - 2) as usize]))
                 {
                     blank_unsigned = true;
                 } else {
