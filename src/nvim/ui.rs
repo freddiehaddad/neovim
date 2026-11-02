@@ -833,6 +833,8 @@ pub fn ui_call_event(name: &'static std::ffi::CStr, args: Array) {
     let save_textlock = g_st().textlock;
     g_st().expr_map_lock = 0;
     g_st().textlock = 0;
+    // Caller may still be using `IObuff`, e.g. as the message being shown.
+    let save_iobuff = g_st().iobuff;
 
     let mut handled = false;
     let fast = g_st().msg_ext_fast && name == c"msg_show";
@@ -865,6 +867,7 @@ pub fn ui_call_event(name: &'static std::ffi::CStr, args: Array) {
     }
     g_st().expr_map_lock = save_expr_map_lock;
     g_st().textlock = save_textlock;
+    g_st().iobuff = save_iobuff;
     ctx_load(&mut ctx, K_CTX_COUNT, 0);
     ctx_free(&mut ctx);
 
