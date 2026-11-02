@@ -2209,38 +2209,46 @@ pub fn f_execute(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData
 /// "exists()" function
 pub fn f_exists(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
     let mut n: i32 = 0;
-    let mut p = tv_get_string(&argvars[0]).as_ptr();
-    if crate::memory::cstr_first_byte(p) == b'$' {
-        if os_env_exists(p.wrapping_add(1), false) {
-            n = 1;
-        } else {
-            let exp = expand_env_save(p.cast_mut());
-            if crate::memory::cstr_first_byte(exp.as_ptr()) != b'$' {
+    let p_cstr = tv_get_string(&argvars[0]);
+    let p_bytes = p_cstr.to_bytes();
+    let mut p = p_cstr.as_ptr();
+    match p_bytes.first() {
+        Some(&b'$') => {
+            if os_env_exists(p.wrapping_add(1), false) {
                 n = 1;
+            } else {
+                let exp = expand_env_save(p.cast_mut());
+                if exp.to_bytes().first() != Some(&b'$') {
+                    n = 1;
+                }
             }
         }
-    } else if crate::memory::cstr_first_byte(p) == b'&' || crate::memory::cstr_first_byte(p) == b'+'
-    {
-        n = i32::from(eval_option(&raw mut p, None, true));
-        if !crate::memory::cstr_is_empty(skipwhite(p)) {
-            n = 0;
+        Some(&b'&' | &b'+') => {
+            n = i32::from(eval_option(&raw mut p, None, true));
+            if !crate::charset::skipwhite_slice(crate::memory::cstr_as_bytes(p)).is_empty() {
+                n = 0;
+            }
         }
-    } else if crate::memory::cstr_first_byte(p) == b'*' {
-        n = i32::from(if crate::memory::cstr_as_bytes(p).starts_with(b"*v:lua.") {
-            nlua_func_exists(p.wrapping_add(7))
-        } else {
-            function_exists(p.wrapping_add(1), false)
-        });
-    } else if crate::memory::cstr_first_byte(p) == b':' {
-        n = cmd_exists(p.wrapping_add(1));
-    } else if crate::memory::cstr_first_byte(p) == b'#' {
-        if crate::memory::cstr_byte_at(p, 1) == b'#' {
-            n = i32::from(autocmd_supported(p.wrapping_add(2)));
-        } else {
-            n = i32::from(au_exists(p.wrapping_add(1)));
+        Some(&b'*') => {
+            n = i32::from(if p_bytes.starts_with(b"*v:lua.") {
+                nlua_func_exists(p.wrapping_add(7))
+            } else {
+                function_exists(p.wrapping_add(1), false)
+            });
         }
-    } else {
-        n = i32::from(var_exists(p));
+        Some(&b':') => {
+            n = cmd_exists(p.wrapping_add(1));
+        }
+        Some(&b'#') => {
+            if p_bytes.get(1) == Some(&b'#') {
+                n = i32::from(autocmd_supported(p.wrapping_add(2)));
+            } else {
+                n = i32::from(au_exists(p.wrapping_add(1)));
+            }
+        }
+        _ => {
+            n = i32::from(var_exists(p));
+        }
     }
     rettv.vval = crate::eval::typval::TypvalVval::Number(Varnumber::from(n));
 }
@@ -3622,85 +3630,73 @@ pub fn f_has(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
     let mut n = false;
     let name_cstr = tv_get_string(&argvars[0]);
     let name = name_cstr.as_ptr();
+    let name_bytes = name_cstr.to_bytes();
 
-    if crate::memory::cstr_prefix_bytes(name, 5).eq_ignore_ascii_case(b"patch") {
+    if name_bytes.len() >= 5 && name_bytes[..5].eq_ignore_ascii_case(b"patch") {
         x = true;
-        if crate::memory::cstr_byte_at(name, 5) == b'-'
-            && crate::memory::cstr_len(name) >= 11
-            && (crate::memory::cstr_byte_at(name, 6) >= b'1'
-                && crate::memory::cstr_byte_at(name, 6) <= b'9')
+        if name_bytes.get(5) == Some(&b'-')
+            && name_bytes.len() >= 11
+            && matches!(name_bytes[6], b'1'..=b'9')
         {
-            let s6 = name.wrapping_add(6);
-            let dlen = crate::memory::cstr_as_bytes(s6)
-                .iter()
-                .take_while(|b| b.is_ascii_digit())
-                .count();
-            let end = s6.wrapping_add(dlen);
-            let major = std::str::from_utf8(crate::memory::cstr_slice(s6, dlen))
+            let s6 = &name_bytes[6..];
+            let dlen = s6.iter().take_while(|b| b.is_ascii_digit()).count();
+            let end = &s6[dlen..];
+            let major = std::str::from_utf8(&s6[..dlen])
                 .unwrap_or("")
                 .parse::<i32>()
                 .unwrap_or(0);
-            if crate::memory::cstr_first_byte(end) == b'.'
-                && ascii_isdigit(crate::memory::cstr_char_at(end, 1))
-                && crate::memory::cstr_byte_at(end, 2) == b'.'
-                && ascii_isdigit(crate::memory::cstr_char_at(end, 3))
+            if end.first() == Some(&b'.')
+                && end.get(1).is_some_and(u8::is_ascii_digit)
+                && end.get(2) == Some(&b'.')
+                && end.get(3).is_some_and(u8::is_ascii_digit)
             {
-                let minor = crate::charset::parse_i64_prefix(crate::memory::cstr_as_bytes(
-                    end.wrapping_add(1),
-                )) as i32;
+                let minor = crate::charset::parse_i64_prefix(&end[1..]) as i32;
                 n = has_vim_patch(
-                    crate::charset::parse_i64_prefix(crate::memory::cstr_as_bytes(
-                        end.wrapping_add(3),
-                    )) as i32,
+                    crate::charset::parse_i64_prefix(&end[3..]) as i32,
                     major * 100 + minor,
                 );
             }
-        } else if ascii_isdigit(crate::memory::cstr_char_at(name, 5)) {
-            n = has_vim_patch(
-                crate::charset::parse_i64_prefix(crate::memory::cstr_as_bytes(name.wrapping_add(5)))
-                    as i32,
-                0,
-            );
+        } else if name_bytes.get(5).is_some_and(u8::is_ascii_digit) {
+            n = has_vim_patch(crate::charset::parse_i64_prefix(&name_bytes[5..]) as i32, 0);
         }
-    } else if crate::memory::cstr_prefix_bytes(name, 5).eq_ignore_ascii_case(b"nvim-") {
+    } else if name_bytes.len() >= 5 && name_bytes[..5].eq_ignore_ascii_case(b"nvim-") {
         x = true;
-        n = has_nvim_version(crate::memory::cstr_as_bytes(name.wrapping_add(5)));
-    } else if crate::memory::cstr_as_bytes(name).eq_ignore_ascii_case(b"vim_starting") {
+        n = has_nvim_version(&name_bytes[5..]);
+    } else if name_bytes.eq_ignore_ascii_case(b"vim_starting") {
         x = true;
         n = starting_val() != 0;
-    } else if crate::memory::cstr_as_bytes(name).eq_ignore_ascii_case(b"ttyin") {
+    } else if name_bytes.eq_ignore_ascii_case(b"ttyin") {
         x = true;
         n = g_st().stdin_isatty;
-    } else if crate::memory::cstr_as_bytes(name).eq_ignore_ascii_case(b"ttyout") {
+    } else if name_bytes.eq_ignore_ascii_case(b"ttyout") {
         x = true;
         n = g_st().stdout_isatty;
-    } else if crate::memory::cstr_as_bytes(name).eq_ignore_ascii_case(b"multi_byte_encoding") {
+    } else if name_bytes.eq_ignore_ascii_case(b"multi_byte_encoding") {
         x = true;
         n = true;
-    } else if crate::memory::cstr_as_bytes(name).eq_ignore_ascii_case(b"gui_running") {
+    } else if name_bytes.eq_ignore_ascii_case(b"gui_running") {
         x = true;
         n = ui_gui_attached();
-    } else if crate::memory::cstr_as_bytes(name).eq_ignore_ascii_case(b"syntax_items") {
+    } else if name_bytes.eq_ignore_ascii_case(b"syntax_items") {
         x = true;
         n = syntax_present(curwin_mut());
-    } else if crate::memory::cstr_as_bytes(name).eq_ignore_ascii_case(b"wsl") {
+    } else if name_bytes.eq_ignore_ascii_case(b"wsl") {
         x = true;
         n = has_wsl();
     }
 
-    if !x && eval_has_static_feature(name) {
+    if !x && eval_has_static_feature(name_bytes) {
         x = true;
         n = true;
     }
 
     if !x {
         let save_shell_error = get_vim_var_nr(VV_SHELL_ERROR) as i32;
-        if crate::memory::cstr_as_bytes(name).eq_ignore_ascii_case(b"clipboard_working")
-            || (cfg!(not(windows))
-                && crate::memory::cstr_as_bytes(name).eq_ignore_ascii_case(b"unnamedplus"))
+        if name_bytes.eq_ignore_ascii_case(b"clipboard_working")
+            || (cfg!(not(windows)) && name_bytes.eq_ignore_ascii_case(b"unnamedplus"))
         {
             n = eval_has_provider(c"clipboard", true);
-        } else if crate::memory::cstr_as_bytes(name).eq_ignore_ascii_case(b"pythonx") {
+        } else if name_bytes.eq_ignore_ascii_case(b"pythonx") {
             n = eval_has_provider(c"python3", true);
         } else if eval_has_provider(name, true) {
             n = true;
@@ -3831,27 +3827,19 @@ static EVAL_HAS_LIST: &[&CStr] = &[
     c"nvim",
 ];
 
-fn eval_has_static_feature(name: impl crate::strings::IntoCCharPtr) -> bool {
-    let name = name.into_c_char_ptr();
+fn eval_has_static_feature(name: &[u8]) -> bool {
+    if EVAL_HAS_LIST
+        .iter()
+        .any(|&feat| name.eq_ignore_ascii_case(feat.to_bytes()))
     {
-        for &feat in EVAL_HAS_LIST {
-            if crate::memory::cstr_as_bytes(name)
-                .eq_ignore_ascii_case(crate::memory::cstr_as_bytes(feat.as_ptr()))
-            {
-                return true;
-            }
-        }
-        let flags = NVIM_BUILD_HAS_FLAGS;
-        ((flags & (1 << 0)) != 0 && crate::memory::cstr_as_bytes(name).eq_ignore_ascii_case(b"acl"))
-            || ((flags & (1 << 1)) != 0
-                && crate::memory::cstr_as_bytes(name).eq_ignore_ascii_case(b"terminfo"))
-            || ((flags & (1 << 2)) != 0
-                && crate::memory::cstr_as_bytes(name).eq_ignore_ascii_case(b"xattr"))
-            || ((flags & (1 << 3)) != 0
-                && crate::memory::cstr_as_bytes(name).eq_ignore_ascii_case(b"termux"))
-            || ((flags & (1 << 4)) != 0
-                && crate::memory::cstr_as_bytes(name).eq_ignore_ascii_case(b"gettext"))
+        return true;
     }
+    let flags = NVIM_BUILD_HAS_FLAGS;
+    ((flags & (1 << 0)) != 0 && name.eq_ignore_ascii_case(b"acl"))
+        || ((flags & (1 << 1)) != 0 && name.eq_ignore_ascii_case(b"terminfo"))
+        || ((flags & (1 << 2)) != 0 && name.eq_ignore_ascii_case(b"xattr"))
+        || ((flags & (1 << 3)) != 0 && name.eq_ignore_ascii_case(b"termux"))
+        || ((flags & (1 << 4)) != 0 && name.eq_ignore_ascii_case(b"gettext"))
 }
 
 fn has_wsl() -> bool {
@@ -8159,39 +8147,43 @@ pub fn f_stdpath(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData
     let Some(p_cstr) = tv_get_string_chk(&argvars[0]) else {
         return;
     };
-    let p = p_cstr.as_ptr();
-
-    if crate::memory::cstr_as_opt_bytes(p) == Some(b"config") {
-        if let Some(s) = get_xdg_home(XDGVarType::XDGConfigHome) {
-            crate::eval::typval::tv_set_string(rettv, s.as_ptr());
+    match p_cstr.to_bytes() {
+        b"config" => {
+            if let Some(s) = get_xdg_home(XDGVarType::XDGConfigHome) {
+                crate::eval::typval::tv_set_string(rettv, s.as_ptr());
+            }
         }
-    } else if crate::memory::cstr_as_opt_bytes(p) == Some(b"data") {
-        if let Some(s) = get_xdg_home(XDGVarType::XDGDataHome) {
-            crate::eval::typval::tv_set_string(rettv, s.as_ptr());
+        b"data" => {
+            if let Some(s) = get_xdg_home(XDGVarType::XDGDataHome) {
+                crate::eval::typval::tv_set_string(rettv, s.as_ptr());
+            }
         }
-    } else if crate::memory::cstr_as_opt_bytes(p) == Some(b"cache") {
-        if let Some(s) = get_xdg_home(XDGVarType::XDGCacheHome) {
-            crate::eval::typval::tv_set_string(rettv, s.as_ptr());
+        b"cache" => {
+            if let Some(s) = get_xdg_home(XDGVarType::XDGCacheHome) {
+                crate::eval::typval::tv_set_string(rettv, s.as_ptr());
+            }
         }
-    } else if crate::memory::cstr_as_opt_bytes(p) == Some(b"state") {
-        if let Some(s) = get_xdg_home(XDGVarType::XDGStateHome) {
-            crate::eval::typval::tv_set_string(rettv, s.as_ptr());
+        b"state" => {
+            if let Some(s) = get_xdg_home(XDGVarType::XDGStateHome) {
+                crate::eval::typval::tv_set_string(rettv, s.as_ptr());
+            }
         }
-    } else if crate::memory::cstr_as_opt_bytes(p) == Some(b"log") {
-        if let Some(state_home) = get_xdg_home(XDGVarType::XDGStateHome) {
-            let log_dir = concat_fnames_cstr(state_home.as_ptr(), c"logs", true);
-            crate::eval::typval::tv_set_string(rettv, log_dir.as_ptr());
+        b"log" => {
+            if let Some(state_home) = get_xdg_home(XDGVarType::XDGStateHome) {
+                let log_dir = concat_fnames_cstr(state_home.as_ptr(), c"logs", true);
+                crate::eval::typval::tv_set_string(rettv, log_dir.as_ptr());
+            }
         }
-    } else if crate::memory::cstr_as_opt_bytes(p) == Some(b"run") {
-        if let Some(s) = stdpaths_get_xdg_var(XDGVarType::XDGRuntimeDir) {
-            crate::eval::typval::tv_set_string(rettv, s.as_ptr());
+        b"run" => {
+            if let Some(s) = stdpaths_get_xdg_var(XDGVarType::XDGRuntimeDir) {
+                crate::eval::typval::tv_set_string(rettv, s.as_ptr());
+            }
         }
-    } else if crate::memory::cstr_as_opt_bytes(p) == Some(b"config_dirs") {
-        get_xdg_var_list(XDGVarType::XDGConfigDirs, rettv);
-    } else if crate::memory::cstr_as_opt_bytes(p) == Some(b"data_dirs") {
-        get_xdg_var_list(XDGVarType::XDGDataDirs, rettv);
-    } else {
-        semsg!(gettext(c"E6100: \"%s\" is not a valid stdpath"), p);
+        b"config_dirs" => get_xdg_var_list(XDGVarType::XDGConfigDirs, rettv),
+        b"data_dirs" => get_xdg_var_list(XDGVarType::XDGDataDirs, rettv),
+        _ => {
+            semsg!(gettext(c"E6100: \"%s\" is not a valid stdpath"), p_cstr);
+        }
     }
 }
 
@@ -14788,8 +14780,8 @@ mod tests {
         );
         assert_eq!(find_internal_func_hash(b"not_a_builtin_fn"), -1);
         assert!(find_internal_func(c"not_a_builtin_fn").is_null());
-        assert!(eval_has_static_feature(c"nvim"));
-        assert!(eval_has_static_feature(c"AUTOCMD"));
-        assert!(!eval_has_static_feature(c"not_a_feature"));
+        assert!(eval_has_static_feature(b"nvim"));
+        assert!(eval_has_static_feature(b"AUTOCMD"));
+        assert!(!eval_has_static_feature(b"not_a_feature"));
     }
 }

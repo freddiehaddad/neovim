@@ -6,9 +6,7 @@ use crate::api::private::helpers::{
 };
 use crate::api::private::validate::{Object, ObjectType};
 use crate::buffer::{DO_NOT_FREE_CNT, FileBuf, NOTDONE, VAR_FIXED, VAR_SCOPE};
-use crate::charset::{
-    ascii_isdigit, ascii_isupper, ascii_iswhite, getdigits_int, skiptowhite, skipwhite,
-};
+use crate::charset::{ascii_isdigit, ascii_iswhite, getdigits_int, skiptowhite, skipwhite};
 use crate::cmdexpand::Cmdidx;
 use crate::context::{CtxSwitch, ctx_restore, ctx_switch};
 use crate::drawscreen::{UPD_SOME_VALID, redraw_all_later};
@@ -520,15 +518,6 @@ pub(crate) fn eval_msgpack_type_lists_mut() -> &'static mut [*const TvList; NUM_
 }
 
 #[inline]
-fn c_memchr<T>(s: *const T, c: u8, n: usize) -> *const T {
-    let p = s.cast::<u8>();
-    crate::memory::cstr_slice(p.cast(), n)
-        .iter()
-        .position(|&b| b == c)
-        .map_or(ptr::null(), |i| p.wrapping_add(i).cast())
-}
-
-#[inline]
 pub fn tv_init(tv: Option<&mut TypVal>) {
     if let Some(tv) = tv {
         *tv = TypVal::new();
@@ -1004,57 +993,52 @@ pub fn eval_one_expr_in_str<T>(p: *const T, gap: &mut Vec<u8>, evaluate: bool) -
 /// Evaluate all the Vim expressions {expr} in "str" and return the resulting string as an owned `CString`.
 fn eval_all_expr_in_str(str_arg: impl crate::strings::IntoCCharPtr) -> Option<std::ffi::CString> {
     let str_arg: *const u8 = str_arg.into_c_char_ptr().cast();
-    {
-        let mut buf: Vec<u8> = Vec::with_capacity(80);
-        let mut p = str_arg;
+    let full_bytes = crate::memory::cstr_as_bytes(str_arg.cast());
+    let mut rem = full_bytes;
+    let mut buf: Vec<u8> = Vec::with_capacity(80);
 
-        while !crate::memory::cstr_is_empty(p.cast()) {
-            let mut escaped_brace = false;
+    while !rem.is_empty() {
+        let mut escaped_brace = false;
+        let lit_len = rem.iter().take_while(|&&b| b != b'{' && b != b'}').count();
+        let after_lit = &rem[lit_len..];
 
-            let lit_start = p;
-            while crate::memory::cstr_first_byte(p.cast()) != b'{'
-                && crate::memory::cstr_first_byte(p.cast()) != b'}'
-                && !crate::memory::cstr_is_empty(p.cast())
-            {
-                p = p.wrapping_add(1);
-            }
+        let copy_len = if !after_lit.is_empty() && after_lit.get(1) == Some(&after_lit[0]) {
+            escaped_brace = true;
+            lit_len + 1
+        } else if after_lit.first() == Some(&b'}') {
+            semsg!(
+                gettext(E_STRAY_CLOSING_CURLY_STR),
+                str_arg.cast::<std::ffi::c_void>()
+            );
+            return None;
+        } else {
+            lit_len
+        };
 
-            if !crate::memory::cstr_is_empty(p.cast())
-                && crate::memory::cstr_first_byte(p.cast())
-                    == crate::memory::cstr_byte_at(p.cast(), 1)
-            {
-                p = p.wrapping_add(1);
-                escaped_brace = true;
-            } else if crate::memory::cstr_first_byte(p.cast()) == b'}' {
-                semsg!(
-                    gettext(E_STRAY_CLOSING_CURLY_STR),
-                    str_arg.cast::<std::ffi::c_void>()
-                );
-                return None;
-            }
+        if copy_len > 0 {
+            buf.extend_from_slice(&rem[..copy_len]);
+        }
+        rem = &rem[copy_len..];
 
-            let lit_len = crate::memory::ptr_offset_from(p, lit_start) as usize;
-            if lit_len > 0 {
-                buf.extend_from_slice(crate::memory::cstr_slice(lit_start.cast(), lit_len));
-            }
-
-            if crate::memory::cstr_is_empty(p.cast()) {
-                break;
-            }
-
-            if escaped_brace {
-                p = p.wrapping_add(1);
-                continue;
-            }
-
-            p = eval_one_expr_in_str(p, &mut buf, true);
-            if p.is_null() {
-                return None;
-            }
+        if rem.is_empty() {
+            break;
         }
 
-        Some(cstr_from_bytes(&buf))
+        if escaped_brace {
+            rem = &rem[1..];
+            continue;
+        }
+
+        let p = str_arg.wrapping_add(full_bytes.len() - rem.len());
+        let next_p = eval_one_expr_in_str(p, &mut buf, true);
+        if next_p.is_null() {
+            return None;
+        }
+        let consumed = (next_p as usize).wrapping_sub(str_arg as usize);
+        rem = &full_bytes[consumed.min(full_bytes.len())..];
     }
+
+    Some(cstr_from_bytes(&buf))
 }
 
 /// Get a list of lines from a HERE document.
@@ -2810,8 +2794,9 @@ fn find_var_ht_dict<T>(
         if name_len == 0 {
             return ptr::null_mut();
         }
-        if name_len == 1 || crate::memory::cstr_byte_at(name.cast(), 1) != b':' {
-            if crate::memory::cstr_first_byte(name.cast()) == b':' || *name == AUTOLOAD_CHAR {
+        let name_slice = crate::memory::cstr_slice(name.cast(), name_len);
+        if name_len == 1 || name_slice.get(1) != Some(&b':') {
+            if matches!(name_slice[0], b':' | AUTOLOAD_CHAR) {
                 return ptr::null_mut();
             }
             *varname = name.cast();
@@ -2831,38 +2816,35 @@ fn find_var_ht_dict<T>(
         }
 
         *varname = name.wrapping_add(2).cast();
-        if crate::memory::cstr_first_byte(name.cast()) == b'g' {
+        let scope_b = name_slice[0];
+        if scope_b == b'g' {
             *d = get_globvar_dict();
-        } else if name_len > 2
-            && (!c_memchr(name.wrapping_add(2), b':', name_len - 2).is_null()
-                || !c_memchr(name.wrapping_add(2), AUTOLOAD_CHAR, name_len - 2).is_null())
+        } else if name_slice[2..]
+            .iter()
+            .any(|&b| b == b':' || b == AUTOLOAD_CHAR)
         {
             return ptr::null_mut();
         }
 
-        if crate::memory::cstr_first_byte(name.cast()) == b'b' {
-            *d = curbuf_mut().b_vars();
-        } else if crate::memory::cstr_first_byte(name.cast()) == b'w' {
-            *d = curwin_mut().w_vars();
-        } else if crate::memory::cstr_first_byte(name.cast()) == b't' {
-            *d = curtab_mut().tp_vars();
-        } else if crate::memory::cstr_first_byte(name.cast()) == b'v' {
-            *d = get_vimvar_dict();
-        } else if crate::memory::cstr_first_byte(name.cast()) == b'a' {
-            *d = get_funccal_args_dict();
-        } else if crate::memory::cstr_first_byte(name.cast()) == b'l' {
-            *d = get_funccal_local_dict();
-        } else if crate::memory::cstr_first_byte(name.cast()) == b's'
-            && (g_st().current_sctx.sc_sid > 0
+        match scope_b {
+            b'b' => *d = curbuf_mut().b_vars(),
+            b'w' => *d = curwin_mut().w_vars(),
+            b't' => *d = curtab_mut().tp_vars(),
+            b'v' => *d = get_vimvar_dict(),
+            b'a' => *d = get_funccal_args_dict(),
+            b'l' => *d = get_funccal_local_dict(),
+            b's' if (g_st().current_sctx.sc_sid > 0
                 || g_st().current_sctx.sc_sid == SID_STR
                 || g_st().current_sctx.sc_sid == SID_LUA)
-            && g_st().current_sctx.sc_sid <= crate::runtime::script_items_len()
-        {
-            nlua_set_sctx(&mut g_st().current_sctx);
-            if g_st().current_sctx.sc_sid == SID_STR || g_st().current_sctx.sc_sid == SID_LUA {
-                new_script_item(None, &mut g_st().current_sctx.sc_sid);
+                && g_st().current_sctx.sc_sid <= crate::runtime::script_items_len() =>
+            {
+                nlua_set_sctx(&mut g_st().current_sctx);
+                if g_st().current_sctx.sc_sid == SID_STR || g_st().current_sctx.sc_sid == SID_LUA {
+                    new_script_item(None, &mut g_st().current_sctx.sc_sid);
+                }
+                *d = &raw mut script_sv(g_st().current_sctx.sc_sid).sv_dict;
             }
-            *d = &raw mut script_sv(g_st().current_sctx.sc_sid).sv_dict;
+            _ => {}
         }
 
         if !(*d).is_null() {
@@ -3285,34 +3267,31 @@ pub fn var_check_fixed(
 /// Check if name is a valid name to assign funcref to.
 pub fn var_wrong_func_name(name: impl crate::strings::IntoCCharPtr, new_var: bool) -> bool {
     let name = name.into_c_char_ptr();
+    let bytes = crate::memory::cstr_as_bytes(name);
+    let has_colon = bytes.get(1) == Some(&b':');
+    let first_after_scope = if has_colon {
+        bytes.get(2).copied().unwrap_or(0)
+    } else {
+        bytes.first().copied().unwrap_or(0)
+    };
+    if !(has_colon && matches!(bytes[0], b'w' | b'b' | b's' | b't'))
+        && !first_after_scope.is_ascii_uppercase()
+        && !bytes.contains(&b'#')
     {
-        let first_after_scope = if !crate::memory::cstr_is_empty(name)
-            && crate::memory::cstr_byte_at(name, 1) == b':'
-        {
-            crate::memory::cstr_char_at(name, 2)
-        } else {
-            crate::memory::cstr_first_char(name)
-        };
-        if !(crate::strings::vim_haschr(c"wbst", crate::memory::cstr_first_byte(name) as i32)
-            && crate::memory::cstr_byte_at(name, 1) == b':')
-            && !ascii_isupper(first_after_scope)
-            && !crate::strings::vim_haschr(name, b'#' as i32)
-        {
-            semsg!(
-                gettext(c"E704: Funcref variable name must start with a capital: %s"),
-                name,
-            );
-            return true;
-        }
-        if new_var && function_exists(name, false) {
-            semsg!(
-                gettext(c"E705: Variable name conflicts with existing function: %s"),
-                name,
-            );
-            return true;
-        }
-        false
+        semsg!(
+            gettext(c"E704: Funcref variable name must start with a capital: %s"),
+            name,
+        );
+        return true;
     }
+    if new_var && function_exists(name, false) {
+        semsg!(
+            gettext(c"E705: Variable name conflicts with existing function: %s"),
+            name,
+        );
+        return true;
+    }
+    false
 }
 
 /// Check if a variable name is valid.

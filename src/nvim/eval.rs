@@ -5,8 +5,7 @@ use crate::api::private::helpers::{
 };
 use crate::charset::{
     NUL, VARNUMBER_MIN, ascii_isalnum, ascii_isalpha, ascii_isdigit, ascii_islower, ascii_isupper,
-    ascii_iswhite, ascii_iswhite_or_nul, ascii_isxdigit, hex2nr, skipdigits, skiptowhite,
-    skipwhite, vim_str2nr,
+    ascii_iswhite, ascii_iswhite_or_nul, hex2nr, skipdigits, skiptowhite, skipwhite,
 };
 use crate::eval::typval::{
     Callback, Dictitem, EvalFuncData, K_CALLBACK_EXPR, K_CALLBACK_FUNCREF, K_CALLBACK_LUA,
@@ -3750,51 +3749,46 @@ pub fn eval_option<T>(arg: *mut *const T, rettv: Option<&mut TypVal>, evaluate: 
 fn eval_number<T>(arg: *mut *mut T, rettv: &mut TypVal, evaluate: bool, want_string: bool) -> bool {
     let arg: *mut *mut u8 = arg.cast();
     unsafe {
-        let mut p = skipdigits((*arg).wrapping_add(1).cast());
+        let arg_ptr = *arg;
+        let arg_bytes = crate::memory::cstr_as_bytes(arg_ptr.cast());
         let mut get_float = false;
 
-        if !want_string
-            && crate::memory::cstr_first_byte(p) == b'.'
-            && ascii_isdigit(crate::memory::cstr_char_at(p, 1))
-        {
-            get_float = true;
-            p = skipdigits(p.wrapping_add(2));
-            if crate::memory::cstr_first_byte(p) == b'e'
-                || crate::memory::cstr_first_byte(p) == b'E'
-            {
-                p = p.wrapping_add(1);
-                if crate::memory::cstr_first_byte(p) == b'-'
-                    || crate::memory::cstr_first_byte(p) == b'+'
+        if !want_string && !arg_bytes.is_empty() {
+            let mut rem = crate::charset::skipdigits_slice(&arg_bytes[1..]);
+            if rem.first() == Some(&b'.') && rem.get(1).is_some_and(u8::is_ascii_digit) {
+                get_float = true;
+                rem = crate::charset::skipdigits_slice(&rem[2..]);
+                if matches!(rem.first(), Some(&b'e' | &b'E')) {
+                    rem = &rem[1..];
+                    if matches!(rem.first(), Some(&b'-' | &b'+')) {
+                        rem = &rem[1..];
+                    }
+                    if !rem.first().is_some_and(u8::is_ascii_digit) {
+                        get_float = false;
+                    } else {
+                        rem = crate::charset::skipdigits_slice(&rem[1..]);
+                    }
+                }
+                if rem
+                    .first()
+                    .is_some_and(|&b| b.is_ascii_alphabetic() || b == b'.')
                 {
-                    p = p.wrapping_add(1);
-                }
-                if !ascii_isdigit(crate::memory::cstr_first_char(p)) {
                     get_float = false;
-                } else {
-                    p = skipdigits(p.wrapping_add(1));
                 }
-            }
-            if ascii_isalpha(crate::memory::cstr_first_char(p))
-                || crate::memory::cstr_first_byte(p) == b'.'
-            {
-                get_float = false;
             }
         }
         if get_float {
             let mut f: TvFloat = 0.0;
-            *arg = (*arg).wrapping_add(string2float((*arg).cast(), &mut f));
+            *arg = arg_ptr.wrapping_add(string2float(arg_ptr.cast(), &mut f));
             if evaluate {
                 rettv.v_type = VarType::VarFloat;
                 rettv.vval = crate::eval::typval::TypvalVval::Float(f);
             }
-        } else if **arg == b'0'
-            && (crate::memory::cstr_byte_at((*arg).cast(), 1) == b'z'
-                || crate::memory::cstr_byte_at((*arg).cast(), 1) == b'Z')
-        {
+        } else if arg_bytes.starts_with(b"0z") || arg_bytes.starts_with(b"0Z") {
             let mut bytes: Vec<u8> = Vec::new();
-            let mut bp = (*arg).wrapping_add(2);
-            while ascii_isxdigit(crate::memory::cstr_first_char(bp.cast())) {
-                if !ascii_isxdigit(crate::memory::cstr_char_at(bp.cast(), 1)) {
+            let mut rem = &arg_bytes[2..];
+            while rem.first().is_some_and(u8::is_ascii_hexdigit) {
+                if !rem.get(1).is_some_and(u8::is_ascii_hexdigit) {
                     if evaluate {
                         emsg(gettext(
                             c"E973: Blob literal should have an even number of hex characters",
@@ -3803,35 +3797,33 @@ fn eval_number<T>(arg: *mut *mut T, rettv: &mut TypVal, evaluate: bool, want_str
                     return false;
                 }
                 if evaluate {
-                    let byte = ((hex2nr(i32::from(crate::memory::cstr_first_byte(bp.cast()))) << 4)
-                        + hex2nr(i32::from(crate::memory::cstr_byte_at(bp.cast(), 1))))
-                        as u8;
+                    let byte = ((hex2nr(i32::from(rem[0])) << 4) + hex2nr(i32::from(rem[1]))) as u8;
                     bytes.push(byte);
                 }
-                if crate::memory::cstr_byte_at(bp.cast(), 2) == b'.'
-                    && ascii_isxdigit(crate::memory::cstr_char_at(bp.cast(), 3))
-                {
-                    bp = bp.wrapping_add(1);
-                }
-                bp = bp.wrapping_add(2);
+                let step =
+                    if rem.get(2) == Some(&b'.') && rem.get(3).is_some_and(u8::is_ascii_hexdigit) {
+                        3
+                    } else {
+                        2
+                    };
+                rem = &rem[step..];
             }
             if evaluate {
                 let blob = tv_blob_alloc();
                 blob.bv_ga = bytes;
                 tv_blob_set_ret(rettv, blob);
             }
-            *arg = bp;
+            *arg = arg_ptr.wrapping_add(arg_bytes.len() - rem.len());
         } else {
             let mut len: i32 = 0;
             let mut n: Varnumber = 0;
-            vim_str2nr(
-                (*arg).cast(),
+            crate::charset::vim_slice2nr(
+                arg_bytes,
                 None,
                 Some(&mut len),
                 STR2NR_ALL,
                 Some(&mut n),
                 None,
-                0,
                 true,
                 None,
             );
@@ -3841,7 +3833,7 @@ fn eval_number<T>(arg: *mut *mut T, rettv: &mut TypVal, evaluate: bool, want_str
                 }
                 return false;
             }
-            *arg = (*arg).wrapping_add(len as usize);
+            *arg = arg_ptr.wrapping_add(len as usize);
             if evaluate {
                 rettv.v_type = VarType::VarNumber;
                 rettv.vval = crate::eval::typval::TypvalVval::Number(n);
@@ -5973,95 +5965,90 @@ pub fn find_name_end<T>(
             *expr_end = ptr::null();
         }
 
+        let bytes = crate::memory::cstr_as_bytes(arg.cast());
         if (flags & FNE_CHECK_START) != 0
-            && !eval_isnamec1(i32::from(crate::memory::cstr_first_byte(arg.cast())))
-            && crate::memory::cstr_first_byte(arg.cast()) != b'{'
+            && !bytes
+                .first()
+                .is_some_and(|&b0| eval_isnamec1(i32::from(b0)) || b0 == b'{')
         {
             return arg.cast();
         }
 
         let mut mb_nest: i32 = 0;
         let mut br_nest: i32 = 0;
+        let mut idx = 0usize;
 
-        let mut p = arg;
-        while !crate::memory::cstr_is_empty(p.cast())
-            && (eval_isnamec(i32::from(crate::memory::cstr_first_byte(p.cast())))
-                || crate::memory::cstr_first_byte(p.cast()) == b'{'
+        while idx < bytes.len() {
+            let b0 = bytes[idx];
+            if !(eval_isnamec(i32::from(b0))
+                || b0 == b'{'
                 || ((flags & FNE_INCL_BR) != 0
-                    && (crate::memory::cstr_first_byte(p.cast()) == b'['
-                        || (crate::memory::cstr_first_byte(p.cast()) == b'.'
-                            && eval_isdictc(i32::from(crate::memory::cstr_byte_at(p.cast(), 1))))))
+                    && (b0 == b'['
+                        || (b0 == b'.'
+                            && bytes
+                                .get(idx + 1)
+                                .is_some_and(|&b1| eval_isdictc(i32::from(b1))))))
                 || mb_nest != 0
                 || br_nest != 0)
-        {
-            if crate::memory::cstr_first_byte(p.cast()) == b'\'' {
-                p = p.wrapping_add(1);
-                while !crate::memory::cstr_is_empty(p.cast())
-                    && crate::memory::cstr_first_byte(p.cast()) != b'\''
-                {
-                    p = p.wrapping_add(utfc_ptr2len(p.cast()) as usize);
+            {
+                break;
+            }
+
+            if b0 == b'\'' {
+                idx += 1;
+                while idx < bytes.len() && bytes[idx] != b'\'' {
+                    idx += crate::mbyte::utfc_slice2len(&bytes[idx..]).max(1);
                 }
-                if crate::memory::cstr_is_empty(p.cast()) {
+                if idx >= bytes.len() {
                     break;
                 }
-            } else if crate::memory::cstr_first_byte(p.cast()) == b'"' {
-                p = p.wrapping_add(1);
-                while !crate::memory::cstr_is_empty(p.cast())
-                    && crate::memory::cstr_first_byte(p.cast()) != b'"'
-                {
-                    if crate::memory::cstr_first_byte(p.cast()) == b'\\'
-                        && crate::memory::cstr_byte_at(p.cast(), 1) != 0
-                    {
-                        p = p.wrapping_add(1);
+            } else if b0 == b'"' {
+                idx += 1;
+                while idx < bytes.len() && bytes[idx] != b'"' {
+                    if bytes[idx] == b'\\' && idx + 1 < bytes.len() {
+                        idx += 1;
                     }
-                    p = p.wrapping_add(utfc_ptr2len(p.cast()) as usize);
+                    idx += crate::mbyte::utfc_slice2len(&bytes[idx..]).max(1);
                 }
-                if crate::memory::cstr_is_empty(p.cast()) {
+                if idx >= bytes.len() {
                     break;
                 }
             } else if br_nest == 0
                 && mb_nest == 0
-                && crate::memory::cstr_first_byte(p.cast()) == b':'
+                && b0 == b':'
+                && ((idx > 1 && bytes[idx - 1] != b'}')
+                    || (idx == 1 && !NAMESPACE_CHAR.to_bytes().contains(&bytes[0])))
             {
-                let len = ((p as usize).wrapping_sub(arg as usize)) as i32;
-                if (len > 1 && *p.wrapping_sub(1) != b'}')
-                    || (len == 1
-                        && vim_strchr(
-                            NAMESPACE_CHAR,
-                            i32::from(crate::memory::cstr_first_byte(arg.cast())),
-                        )
-                        .is_null())
-                {
-                    break;
-                }
+                break;
             }
 
+            let cur_b = bytes[idx];
             if mb_nest == 0 {
-                if crate::memory::cstr_first_byte(p.cast()) == b'[' {
+                if cur_b == b'[' {
                     br_nest += 1;
-                } else if crate::memory::cstr_first_byte(p.cast()) == b']' {
+                } else if cur_b == b']' {
                     br_nest -= 1;
                 }
             }
 
             if br_nest == 0 {
-                if crate::memory::cstr_first_byte(p.cast()) == b'{' {
+                if cur_b == b'{' {
                     mb_nest += 1;
                     if !expr_start.is_null() && (*expr_start).is_null() {
-                        *expr_start = p;
+                        *expr_start = arg.wrapping_add(idx);
                     }
-                } else if crate::memory::cstr_first_byte(p.cast()) == b'}' {
+                } else if cur_b == b'}' {
                     mb_nest -= 1;
                     if !expr_start.is_null() && mb_nest == 0 && (*expr_end).is_null() {
-                        *expr_end = p;
+                        *expr_end = arg.wrapping_add(idx);
                     }
                 }
             }
 
-            p = p.wrapping_add(utfc_ptr2len(p.cast()) as usize);
+            idx += crate::mbyte::utfc_slice2len(&bytes[idx..]).max(1);
         }
 
-        p.cast()
+        arg.wrapping_add(idx.min(bytes.len())).cast()
     }
 }
 
@@ -7051,37 +7038,59 @@ pub fn eval_call_provider(
 /// Checks if provider for feature `feat` is enabled.
 pub fn eval_has_provider(feat: impl crate::strings::IntoCCharPtr, throw_if_fast: bool) -> bool {
     let feat = feat.into_c_char_ptr();
-    {
-        if !(crate::memory::cstr_as_opt_bytes(feat) == Some(b"clipboard"))
-            && !(crate::memory::cstr_as_opt_bytes(feat) == Some(b"python3"))
-            && !(crate::memory::cstr_as_opt_bytes(feat) == Some(b"python3_compiled"))
-            && !(crate::memory::cstr_as_opt_bytes(feat) == Some(b"python3_dynamic"))
-            && !(crate::memory::cstr_as_opt_bytes(feat) == Some(b"perl"))
-            && !(crate::memory::cstr_as_opt_bytes(feat) == Some(b"ruby"))
-            && !(crate::memory::cstr_as_opt_bytes(feat) == Some(b"node"))
-        {
-            return false;
-        }
+    let feat_bytes = crate::memory::cstr_as_bytes(feat);
+    if !matches!(
+        feat_bytes,
+        b"clipboard"
+            | b"python3"
+            | b"python3_compiled"
+            | b"python3_dynamic"
+            | b"perl"
+            | b"ruby"
+            | b"node"
+    ) {
+        return false;
+    }
 
-        if throw_if_fast && !nlua_is_deferred_safe() {
-            semsg!(E_FAST_API_DISABLED, c"Vimscript function",);
-            return false;
-        }
+    if throw_if_fast && !nlua_is_deferred_safe() {
+        semsg!(E_FAST_API_DISABLED, c"Vimscript function",);
+        return false;
+    }
 
-        let mut name = [0u8; 32];
-        vim_snprintf!(name.as_mut_ptr().cast(), name.len(), c"%s", feat);
-        {
-            let _len = crate::memory::cstr_len(name.as_ptr().cast());
-            for _b in &mut name[.._len] {
-                if *_b == b'_' {
-                    *_b = 0;
-                }
-            }
-        };
+    let mut name = [0u8; 32];
+    let prefix_len = feat_bytes
+        .iter()
+        .position(|&b| b == b'_')
+        .unwrap_or(feat_bytes.len())
+        .min(name.len() - 1);
+    name[..prefix_len].copy_from_slice(&feat_bytes[..prefix_len]);
+    name[prefix_len] = 0;
 
-        let mut buf = [0u8; 256];
-        let mut tv = tv_initial_value();
-        let mut len = vim_snprintf!(
+    let mut buf = [0u8; 256];
+    let mut tv = tv_initial_value();
+    let mut len = vim_snprintf!(
+        buf.as_mut_ptr().cast(),
+        buf.len(),
+        c"g:loaded_%s_provider",
+        name.as_ptr(),
+    );
+    if !eval_variable(
+        buf.as_ptr().cast(),
+        len,
+        Some(&mut tv),
+        ptr::null_mut(),
+        false,
+        true,
+    ) {
+        len = vim_snprintf!(
+            buf.as_mut_ptr().cast(),
+            buf.len(),
+            c"provider#%s#bogus",
+            name.as_ptr(),
+        );
+        script_autoload(buf.as_ptr().cast(), len as usize, false);
+
+        len = vim_snprintf!(
             buf.as_mut_ptr().cast(),
             buf.len(),
             c"g:loaded_%s_provider",
@@ -7095,67 +7104,44 @@ pub fn eval_has_provider(feat: impl crate::strings::IntoCCharPtr, throw_if_fast:
             false,
             true,
         ) {
-            len = vim_snprintf!(
-                buf.as_mut_ptr().cast(),
-                buf.len(),
-                c"provider#%s#bogus",
-                name.as_ptr(),
-            );
-            script_autoload(buf.as_ptr().cast(), len as usize, false);
-
-            len = vim_snprintf!(
-                buf.as_mut_ptr().cast(),
-                buf.len(),
-                c"g:loaded_%s_provider",
-                name.as_ptr(),
-            );
-            if !eval_variable(
-                buf.as_ptr().cast(),
-                len,
-                Some(&mut tv),
-                ptr::null_mut(),
-                false,
-                true,
-            ) {
-                vim_snprintf!(
-                    buf.as_mut_ptr().cast(),
-                    buf.len(),
-                    c"provider#%s#Call",
-                    name.as_ptr(),
-                );
-                if !find_func(buf.as_ptr().cast()).is_null() && opt_vars().p_lpl != 0 {
-                    semsg!(
-                        c"provider: %s: missing required variable g:loaded_%s_provider",
-                        name.as_ptr(),
-                        name.as_ptr(),
-                    );
-                }
-                return false;
-            }
-        }
-
-        let mut ok = tv.v_type == VarType::VarNumber && tv.vval.v_number() == 2;
-
-        if ok {
             vim_snprintf!(
                 buf.as_mut_ptr().cast(),
                 buf.len(),
                 c"provider#%s#Call",
                 name.as_ptr(),
             );
-            if find_func(buf.as_ptr().cast()).is_null() {
+            if !find_func(buf.as_ptr().cast()).is_null() && opt_vars().p_lpl != 0 {
                 semsg!(
-                    c"provider: %s: g:loaded_%s_provider=2 but %s is not defined",
+                    c"provider: %s: missing required variable g:loaded_%s_provider",
                     name.as_ptr(),
                     name.as_ptr(),
-                    buf.as_ptr(),
                 );
-                ok = false;
             }
+            return false;
         }
-
-        ok
     }
+
+    let mut ok = tv.v_type == VarType::VarNumber && tv.vval.v_number() == 2;
+
+    if ok {
+        vim_snprintf!(
+            buf.as_mut_ptr().cast(),
+            buf.len(),
+            c"provider#%s#Call",
+            name.as_ptr(),
+        );
+        if find_func(buf.as_ptr().cast()).is_null() {
+            semsg!(
+                c"provider: %s: g:loaded_%s_provider=2 but %s is not defined",
+                name.as_ptr(),
+                name.as_ptr(),
+                buf.as_ptr(),
+            );
+            ok = false;
+        }
+    }
+
+    ok
 }
 
 /// Gets the current user-input in prompt buffer `buf`, or `None` if buffer is not a prompt buffer.

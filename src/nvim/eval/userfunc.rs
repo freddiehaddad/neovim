@@ -346,48 +346,42 @@ fn one_function_arg<T>(
     skip: bool,
 ) -> *mut T {
     let arg = arg.cast::<u8>();
+    let bytes = crate::memory::cstr_as_bytes(arg.cast());
+    let len = bytes
+        .iter()
+        .take_while(|&&b| b.is_ascii_alphanumeric() || b == b'_')
+        .count();
+    let arg_slice = &bytes[..len];
+    if len == 0
+        || arg_slice[0].is_ascii_digit()
+        || arg_slice == b"firstline"
+        || arg_slice == b"lastline"
     {
-        let mut p = arg;
-
-        while ascii_isalnum(crate::memory::cstr_first_char(p.cast()))
-            || crate::memory::cstr_first_byte(p.cast()) == b'_'
-        {
-            p = p.wrapping_add(1);
+        if !skip {
+            semsg!(
+                gettext(c"E125: Illegal argument: %s"),
+                arg.cast::<std::ffi::c_void>()
+            );
         }
-        let len = crate::memory::ptr_offset_from(p, arg);
-        if arg == p
-            || (crate::memory::cstr_first_byte(arg.cast())).is_ascii_digit()
-            || (len == 9 && (crate::memory::cstr_prefix_bytes(arg.cast(), 9) == &b"firstline"[..9]))
-            || (len == 8 && (crate::memory::cstr_prefix_bytes(arg.cast(), 8) == &b"lastline"[..8]))
-        {
-            if !skip {
-                semsg!(
-                    gettext(c"E125: Illegal argument: %s"),
-                    arg.cast::<std::ffi::c_void>()
-                );
-            }
-            return arg.cast();
-        }
-
-        if let Some(newargs) = newargs {
-            let arg_slice = crate::memory::cstr_slice(arg.cast(), len as usize);
-            let arg_copy = std::ffi::CString::new(arg_slice).unwrap();
-
-            // Check for duplicate argument name.
-            for existing in newargs.iter() {
-                if existing.as_bytes() == arg_copy.as_bytes() {
-                    semsg!(
-                        gettext(c"E853: Duplicate argument name: %s"),
-                        arg_copy.as_ptr(),
-                    );
-                    return arg.cast();
-                }
-            }
-            newargs.push(arg_copy);
-        }
-
-        p.cast()
+        return arg.cast();
     }
+
+    if let Some(newargs) = newargs {
+        let arg_copy = std::ffi::CString::new(arg_slice).unwrap();
+
+        for existing in newargs.iter() {
+            if existing.as_bytes() == arg_copy.as_bytes() {
+                semsg!(
+                    gettext(c"E853: Duplicate argument name: %s"),
+                    arg_copy.as_ptr(),
+                );
+                return arg.cast();
+            }
+        }
+        newargs.push(arg_copy);
+    }
+
+    arg.wrapping_add(len).cast()
 }
 
 /// Get function arguments.
@@ -409,10 +403,7 @@ fn get_function_args<T>(
 
     let mut any_default = false;
     while crate::memory::cstr_first_byte(p.cast()) != endchar {
-        if crate::memory::cstr_first_byte(p.cast()) == b'.'
-            && crate::memory::cstr_byte_at(p.cast(), 1) == b'.'
-            && crate::memory::cstr_byte_at(p.cast(), 2) == b'.'
-        {
+        if crate::memory::cstr_as_bytes(p.cast()).starts_with(b"...") {
             if let Some(ref mut p) = varargs {
                 **p = 1;
             }
@@ -2454,46 +2445,27 @@ pub fn get_scriptlocal_funcname(
     funcname: impl crate::strings::IntoCCharPtr,
 ) -> Option<std::ffi::CString> {
     let funcname = funcname.into_c_char_ptr();
-    {
-        if funcname.is_null() {
-            return None;
-        }
-
-        if !(crate::memory::cstr_prefix_bytes(funcname, 2) == &b"s:"[..2])
-            && !(crate::memory::cstr_prefix_bytes(funcname, 5) == &b"<SID>"[..5])
-        {
-            return None;
-        }
-
-        if !crate::runtime::script_id_valid(g_st().current_sctx.sc_sid) {
-            emsg(gettext(E_USINGSID));
-            return None;
-        }
-
-        let mut sid_buf = [0u8; 25];
-        let sid_buflen = vim_snprintf!(
-            sid_buf.as_mut_ptr().cast(),
-            sid_buf.len(),
-            c"<SNR>%d_",
-            g_st().current_sctx.sc_sid,
-        ) as usize;
-        let off = if crate::memory::cstr_first_byte(funcname) == b's' {
-            2
-        } else {
-            5
-        };
-        let newnamesize = sid_buflen + crate::memory::cstr_len(funcname.wrapping_add(off)) + 1;
-        let mut newname = vec![0u8; newnamesize];
-        vim_snprintf!(
-            newname.as_mut_ptr().cast(),
-            newnamesize,
-            c"%s%s",
-            sid_buf.as_ptr(),
-            funcname.wrapping_add(off),
-        );
-
-        Some(cstr_to_cstring(newname.as_ptr().cast()))
+    if funcname.is_null() {
+        return None;
     }
+
+    let bytes = crate::memory::cstr_as_bytes(funcname);
+    let rest = if let Some(r) = bytes.strip_prefix(b"s:") {
+        r
+    } else {
+        bytes.strip_prefix(b"<SID>")?
+    };
+
+    if !crate::runtime::script_id_valid(g_st().current_sctx.sc_sid) {
+        emsg(gettext(E_USINGSID));
+        return None;
+    }
+
+    let prefix = format!("<SNR>{}_", g_st().current_sctx.sc_sid);
+    let mut newname = Vec::with_capacity(prefix.len() + rest.len());
+    newname.extend_from_slice(prefix.as_bytes());
+    newname.extend_from_slice(rest);
+    std::ffi::CString::new(newname).ok()
 }
 
 /// Call `trans_function_name()`, except that a lambda is returned as-is.
