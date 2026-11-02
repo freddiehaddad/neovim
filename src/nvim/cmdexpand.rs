@@ -5736,9 +5736,8 @@ fn cmdline_del(cclp: &mut CmdlineInfo, from: i32) {
 
 /// Handle a key pressed when the wild menu for the menu names (EXPAND_MENUNAMES) is displayed.
 fn wildmenu_process_key_menunames(cclp: &mut CmdlineInfo, mut key: i32, xp: &mut ExpandCtx) -> i32 {
-    if key == K_DOWN
-        && cclp.cmdpos > 0
-        && crate::memory::cstr_byte_at(cclp.cmdbuff.cast(), (cclp.cmdpos - 1) as usize) == b'.'
+    let cmd_slice = &cclp.cmdbuff_vec[..cclp.cmdlen as usize];
+    if key == K_DOWN && cclp.cmdpos > 0 && cmd_slice.get((cclp.cmdpos - 1) as usize) == Some(&b'.')
     {
         key = opt_vars().p_wc as i32;
         g_st().key_typed = true;
@@ -5751,15 +5750,11 @@ fn wildmenu_process_key_menunames(cclp: &mut CmdlineInfo, mut key: i32, xp: &mut
             j -= 1;
             j > 0
         } {
-            if crate::memory::cstr_byte_at(cclp.cmdbuff.cast(), j as usize) == b' '
-                && crate::memory::cstr_byte_at(cclp.cmdbuff.cast(), (j - 1) as usize) != b'\\'
-            {
+            if cmd_slice[j as usize] == b' ' && cmd_slice[(j - 1) as usize] != b'\\' {
                 i = j + 1;
                 break;
             }
-            if crate::memory::cstr_byte_at(cclp.cmdbuff.cast(), j as usize) == b'.'
-                && crate::memory::cstr_byte_at(cclp.cmdbuff.cast(), (j - 1) as usize) != b'\\'
-            {
+            if cmd_slice[j as usize] == b'.' && cmd_slice[(j - 1) as usize] != b'\\' {
                 if found {
                     i = j + 1;
                     break;
@@ -5782,13 +5777,14 @@ fn wildmenu_process_key_menunames(cclp: &mut CmdlineInfo, mut key: i32, xp: &mut
 /// Handle a key pressed when the wild menu for file/dir/shellcmd names is displayed.
 fn wildmenu_process_key_filenames(cclp: &mut CmdlineInfo, mut key: i32, xp: &mut ExpandCtx) -> i32 {
     let upseg: [u8; 5] = [PATHSEP, b'.', b'.', PATHSEP, 0];
+    let cmd_slice = &cclp.cmdbuff_vec[..=cclp.cmdlen as usize];
 
     if key == K_DOWN
         && cclp.cmdpos > 0
-        && crate::memory::cstr_byte_at(cclp.cmdbuff.cast(), (cclp.cmdpos - 1) as usize) == PATHSEP
+        && cmd_slice[(cclp.cmdpos - 1) as usize] == PATHSEP
         && (cclp.cmdpos < 3
-            || crate::memory::cstr_byte_at(cclp.cmdbuff.cast(), (cclp.cmdpos - 2) as usize) != b'.'
-            || crate::memory::cstr_byte_at(cclp.cmdbuff.cast(), (cclp.cmdpos - 3) as usize) != b'.')
+            || cmd_slice[(cclp.cmdpos - 2) as usize] != b'.'
+            || cmd_slice[(cclp.cmdpos - 3) as usize] != b'.')
     {
         key = opt_vars().p_wc as i32;
         g_st().key_typed = true;
@@ -5807,18 +5803,15 @@ fn wildmenu_process_key_filenames(cclp: &mut CmdlineInfo, mut key: i32, xp: &mut
                 cclp.cmdbuff.cast(),
                 cclp.cmdbuff.wrapping_add(j as usize).cast(),
             );
-            if vim_ispathsep(crate::memory::cstr_byte_at(cclp.cmdbuff.cast(), j as usize)) {
+            if vim_ispathsep(cmd_slice[j as usize]) {
                 found = true;
                 break;
             }
         }
         if found
-            && crate::memory::cstr_byte_at(cclp.cmdbuff.cast(), (j - 1) as usize) == b'.'
-            && crate::memory::cstr_byte_at(cclp.cmdbuff.cast(), (j - 2) as usize) == b'.'
-            && (vim_ispathsep(crate::memory::cstr_byte_at(
-                cclp.cmdbuff.cast(),
-                (j - 3) as usize,
-            )) || j == i + 2)
+            && cmd_slice[(j - 1) as usize] == b'.'
+            && cmd_slice[(j - 2) as usize] == b'.'
+            && (vim_ispathsep(cmd_slice[(j - 3) as usize]) || j == i + 2)
         {
             cmdline_del(cclp, j - 2);
             key = opt_vars().p_wc as i32;
@@ -5838,15 +5831,10 @@ fn wildmenu_process_key_filenames(cclp: &mut CmdlineInfo, mut key: i32, xp: &mut
                 cclp.cmdbuff.wrapping_add(j as usize).cast(),
             );
             #[cfg(windows)]
-            let is_sep =
-                vim_ispathsep(crate::memory::cstr_byte_at(cclp.cmdbuff.cast(), j as usize))
-                    && !crate::strings::vim_haschr(
-                        c" *?[{`$%#",
-                        crate::memory::cstr_byte_at(cclp.cmdbuff.cast(), (j + 1) as usize),
-                    );
+            let is_sep = vim_ispathsep(cmd_slice[j as usize])
+                && !b" *?[{`$%#".contains(&cmd_slice[(j + 1) as usize]);
             #[cfg(not(windows))]
-            let is_sep =
-                vim_ispathsep(crate::memory::cstr_byte_at(cclp.cmdbuff.cast(), j as usize));
+            let is_sep = vim_ispathsep(cmd_slice[j as usize]);
 
             if is_sep {
                 if found {

@@ -11972,7 +11972,8 @@ pub fn eval_vars(
                     use_shellslash = true;
                 }
                 SPEC_HASH => {
-                    if crate::memory::cstr_byte_at(src, 1) == b'#' {
+                    let src_bytes = crate::memory::cstr_as_bytes(src);
+                    if src_bytes.get(1) == Some(&b'#') {
                         arg_all_cstr = Some(arg_all());
                         result = arg_all_cstr.as_ref().unwrap().as_ptr().cast_mut();
                         *usedlen = 2;
@@ -11982,20 +11983,17 @@ pub fn eval_vars(
                         skip_mod = true;
                     } else {
                         use_shellslash = true;
-                        let mut s = src.wrapping_add(1);
-                        if crate::memory::cstr_first_byte(s) == b'<' {
-                            s = s.wrapping_add(1);
-                        }
-                        let s_bytes = crate::memory::cstr_as_bytes(s);
-                        let mut rem = s_bytes;
+                        let is_lt = src_bytes.get(1) == Some(&b'<');
+                        let s_start = 1 + usize::from(is_lt);
+                        let mut rem = src_bytes.get(s_start..).unwrap_or(&[]);
                         let i = getdigits_int(&mut rem, false, 0);
-                        s = s.wrapping_add(s_bytes.len() - rem.len());
-                        if s == src.wrapping_add(2) && crate::memory::cstr_byte_at(src, 1) == b'-' {
-                            s = s.wrapping_sub(1);
+                        let mut end_idx = src_bytes.len() - rem.len();
+                        if end_idx == 2 && src_bytes.get(1) == Some(&b'-') {
+                            end_idx = 1;
                         }
-                        *usedlen = (s as usize) - (src as usize);
+                        *usedlen = end_idx;
 
-                        if crate::memory::cstr_byte_at(src, 1) == b'<' && i != 0 {
+                        if is_lt && i != 0 {
                             if *usedlen < 2 {
                                 *usedlen = 1;
                                 return None;
@@ -12008,8 +12006,7 @@ pub fn eval_vars(
                             };
                             result = oldfile.as_ptr().cast_mut();
                         } else {
-                            if i == 0 && crate::memory::cstr_byte_at(src, 1) == b'<' && *usedlen > 1
-                            {
+                            if i == 0 && is_lt && *usedlen > 1 {
                                 *usedlen = 1;
                             }
                             let buf = buflist_findnr(i);

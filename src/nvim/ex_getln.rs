@@ -2927,28 +2927,25 @@ fn empty_pattern(p: impl crate::strings::IntoCCharPtr, len: usize, delim: i32) -
 
 fn empty_pattern_magic(
     p: impl crate::strings::IntoCCharPtr,
-    mut len: usize,
+    len: usize,
     magic_val: RegMagic,
 ) -> bool {
-    let p = p.into_c_char_ptr();
+    let mut slice = crate::memory::cstr_slice(p.into_c_char_ptr(), len);
+    while slice.len() >= 2
+        && slice[slice.len() - 2] == b'\\'
+        && matches!(
+            slice[slice.len() - 1],
+            b'm' | b'M' | b'v' | b'V' | b'c' | b'C' | b'Z'
+        )
     {
-        while len >= 2
-            && crate::memory::cstr_byte_at(p, len - 2) == b'\\'
-            && crate::strings::vim_haschr(
-                c"mMvVcCZ",
-                (crate::memory::cstr_byte_at(p, len - 1)) as i32,
-            )
-        {
-            len -= 2;
-        }
-
-        len == 0
-            || (len > 1
-                && crate::memory::cstr_byte_at(p, len - 1) == b'|'
-                && ((crate::memory::cstr_byte_at(p, len - 2) == b'\\' && magic_val == MAGIC_ON)
-                    || (crate::memory::cstr_byte_at(p, len - 2) != b'\\'
-                        && magic_val == MAGIC_ALL)))
+        slice = &slice[..slice.len() - 2];
     }
+
+    slice.is_empty()
+        || (slice.len() > 1
+            && slice[slice.len() - 1] == b'|'
+            && ((slice[slice.len() - 2] == b'\\' && magic_val == MAGIC_ON)
+                || (slice[slice.len() - 2] != b'\\' && magic_val == MAGIC_ALL)))
 }
 
 pub fn cmdpreview_get_bufnr() -> ObjHandle {

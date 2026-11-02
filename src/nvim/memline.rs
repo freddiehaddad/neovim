@@ -1571,10 +1571,9 @@ pub fn recover_names(
     while !crate::memory::cstr_is_empty(dirp) {
         dir_name.size = copy_option_part(&raw mut dirp, dir_name.data.cast(), 31000, c",");
 
+        let dir_bytes = dir_name.as_bytes();
         let mut names_vec: Vec<std::ffi::CString> = Vec::with_capacity(6);
-        if crate::memory::cstr_first_byte(dir_name.data) == b'.'
-            && crate::memory::cstr_byte_at(dir_name.data, 1) == 0
-        {
+        if dir_bytes == b"." {
             if fname.is_null() {
                 names_vec.push(c"*.sw?".to_owned());
                 names_vec.push(c".*.sw?".to_owned());
@@ -1589,9 +1588,8 @@ pub fn recover_names(
         } else {
             let p = dir_name.data.wrapping_add(dir_name.size);
             let tail = if after_pathsep(dir_name.data, p) != 0
-                && dir_name.size > 1
-                && crate::memory::cstr_byte_at(dir_name.data, dir_name.size - 1)
-                    == crate::memory::cstr_byte_at(dir_name.data, dir_name.size - 2)
+                && dir_bytes.len() > 1
+                && dir_bytes[dir_bytes.len() - 1] == dir_bytes[dir_bytes.len() - 2]
             {
                 make_percent_swname(dir_name.data, p, fname_res)
             } else {
@@ -3369,23 +3367,15 @@ pub fn makeswapname(
             }
         }
 
-        let len = crate::memory::cstr_len(dir_name);
+        let dir_bytes = crate::memory::cstr_as_bytes(dir_name);
+        let len = dir_bytes.len();
         let s = dir_name.wrapping_add(len);
-        if after_pathsep(dir_name, s) != 0
-            && len > 1
-            && crate::memory::cstr_byte_at(dir_name, len - 1)
-                == crate::memory::cstr_byte_at(dir_name, len - 2)
-        {
+        if after_pathsep(dir_name, s) != 0 && len > 1 && dir_bytes[len - 1] == dir_bytes[len - 2] {
             let sw = make_percent_swname(dir_name, s, fname_res)?;
             return modname(sw.as_ptr(), c".swp", false);
         }
 
-        let r = modname(
-            fname_res,
-            c".swp",
-            crate::memory::cstr_first_byte(dir_name) == b'.'
-                && crate::memory::cstr_byte_at(dir_name, 1) == 0,
-        )?;
+        let r = modname(fname_res, c".swp", dir_bytes == b".")?;
 
         get_file_in_dir(r.as_ptr().cast_mut(), dir_name)
     }
@@ -3399,17 +3389,18 @@ pub fn get_file_in_dir(
     let fname = fname.into_c_char_ptr().cast_mut();
     let dname = dname.into_c_char_ptr().cast_mut();
     let tail = cstr_as_string(path_tail(fname));
+    let dname_bytes = crate::memory::cstr_as_bytes(dname);
 
-    if crate::memory::cstr_first_byte(dname) == b'.' && crate::memory::cstr_byte_at(dname, 1) == 0 {
+    if dname_bytes == b"." {
         let n = crate::memory::ptr_offset_from(tail.data, fname) as usize + tail.size;
         return Some(
             std::ffi::CString::new(crate::memory::cstr_slice(fname, n)).unwrap_or_default(),
         );
     }
 
-    let dname_len = crate::memory::cstr_len(dname);
-    let retval = if crate::memory::cstr_first_byte(dname) == b'.'
-        && vim_ispathsep(crate::memory::cstr_byte_at(dname, 1) as i32)
+    let dname_len = dname_bytes.len();
+    let retval = if dname_bytes.first() == Some(&b'.')
+        && dname_bytes.get(1).is_some_and(|&b| vim_ispathsep(b))
     {
         if tail.data == fname {
             concat_fnames(
