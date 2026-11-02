@@ -745,7 +745,7 @@ fn report_pending(action: i32, pending: i32, value: PendingVal) {
                     mesg,
                     gettext(c"Exception"),
                 );
-                mesg_owned = Some(concat_str(ptr::addr_of!(g_st().iobuff).cast(), c": %s"));
+                mesg_owned = Some(concat_str(g_st().iobuff_bytes(), b": %s"));
                 mesg = mesg_owned.as_deref().unwrap_or(c"");
                 excp.value.as_c_str()
             } else if (pending & CSTP_ERROR) != 0 && (pending & CSTP_INTERRUPT) != 0 {

@@ -1605,7 +1605,10 @@ pub fn open_line(
                     ptr::copy(prompt_line.wrapping_add(prompt_len), prompt_line, rem_len);
                     g_st().cmdmod.cmod_flags |= CMOD_LOCKMARKS;
                     ml_replace(curwin_mut().w_cursor.lnum, prompt_line, true);
-                    prompt_moved = Some(concat_str(prompt, p_extra.cast()));
+                    prompt_moved = Some(concat_str(
+                        crate::memory::cstr_as_bytes(prompt),
+                        crate::memory::cstr_as_bytes(p_extra.cast()),
+                    ));
                     p_extra = prompt_moved
                         .as_ref()
                         .map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut().cast());

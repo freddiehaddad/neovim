@@ -4424,7 +4424,7 @@ fn nv_ident(cap: &mut Cmdarg) {
         let p = if kp_ex {
             vim_strsave_fnameescape(ptr_cstr.as_ptr(), VSE_NONE)
         } else {
-            vim_strsave_shellescape(&ptr_cstr, true, true)
+            vim_strsave_shellescape(ptr_cstr.as_bytes(), true, true)
         };
         let p_bytes = p.to_bytes_with_nul();
         let plen = p_bytes.len() - 1;

@@ -2757,7 +2757,7 @@ fn vim_regsub_both<T>(
                         mb_ptr_adv(&mut s);
                     }
                     let final_cstr = if had_backslash && (flags & REGSUB_BACKSLASH) != 0 {
-                        vim_strsave_escaped(eval_bytes.as_ptr().cast(), c"\\")
+                        vim_strsave_escaped(&eval_bytes, b"\\")
                     } else {
                         CStr::from_bytes_with_nul(&eval_bytes)
                             .unwrap_or_default()

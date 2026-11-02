@@ -2079,8 +2079,8 @@ pub fn f_empty(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) 
 pub fn f_escape(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
     let mut buf = [0u8; NUMBUFLEN];
     let escaped = vim_strsave_escaped(
-        tv_get_string(&argvars[0]),
-        tv_get_string_buf(&argvars[1], &mut buf),
+        tv_get_string(&argvars[0]).to_bytes(),
+        tv_get_string_buf(&argvars[1], &mut buf).to_bytes(),
     );
     crate::eval::typval::tv_set_string_len(rettv, escaped.as_ptr(), escaped.as_bytes().len());
 }
@@ -7773,7 +7773,12 @@ pub fn f_shellescape(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFunc
     let do_special = non_zero_arg(&argvars[1]);
     crate::eval::typval::tv_set_string(
         rettv,
-        vim_strsave_shellescape(tv_get_string(&argvars[0]), do_special, do_special).as_ptr(),
+        vim_strsave_shellescape(
+            tv_get_string(&argvars[0]).to_bytes(),
+            do_special,
+            do_special,
+        )
+        .as_ptr(),
     );
     rettv.v_type = VarType::VarString;
 }

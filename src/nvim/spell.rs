@@ -2253,7 +2253,7 @@ pub fn check_need_cap(wp: &mut WinInfoInfo, lnum: Linenr, col: Colnr) -> bool {
             if crate::memory::cstr_is_empty(skipwhite(line.cast())) {
                 need_cap = true;
             } else {
-                line_copy = Some(concat_str(line.cast(), c" "));
+                line_copy = Some(concat_str(crate::memory::cstr_as_bytes(line.cast()), b" "));
                 line = line_copy
                     .as_ref()
                     .map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut().cast());
@@ -3281,7 +3281,7 @@ pub fn compile_cap_prog(
     {
         let mut rp: Option<Box<Regprog>> = None;
         if !crate::memory::cstr_is_empty(value) {
-            let re = concat_str(c"^", value);
+            let re = concat_str(b"^", crate::memory::cstr_as_bytes(value));
             rp = crate::regexp::vim_regcomp_box(re.as_ptr(), RE_MAGIC);
             if rp.is_none() {
                 return Some(E_INVARG);

@@ -730,7 +730,7 @@ pub fn expand_env_esc<T>(
                 let var_bytes = crate::memory::cstr_as_bytes(var.cast());
                 let esc_bytes = crate::memory::cstr_as_bytes(esc_chars);
                 if var_bytes.iter().any(|b| esc_bytes.contains(b)) {
-                    var_cstr = Some(vim_strsave_escaped(var.cast(), esc_chars));
+                    var_cstr = Some(vim_strsave_escaped(var_bytes, esc_bytes));
                     var = var_cstr
                         .as_ref()
                         .map_or(ptr::null_mut(), |c| c.as_ptr().cast_mut().cast());

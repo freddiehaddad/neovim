@@ -340,6 +340,15 @@ pub fn cstr_from_ptr<'a, S: crate::strings::IntoCCharPtr>(s: S) -> &'a CStr {
     }
 }
 
+/// View a byte slice up to the first NUL byte (or the whole slice if no NUL is present).
+#[inline]
+pub fn bytes_until_nul(bytes: &[u8]) -> &[u8] {
+    match bytes.iter().position(|&b| b == 0) {
+        Some(pos) => &bytes[..pos],
+        None => bytes,
+    }
+}
+
 /// View a byte slice up to the first NUL byte as a `&CStr` (or `c""` if no NUL is present).
 #[inline]
 pub fn cstr_until_nul(bytes: &[u8]) -> &CStr {

@@ -383,23 +383,18 @@ fn write_fmt_to_c_buf(dst: &mut [u8], args: std::fmt::Arguments<'_>) -> usize {
     written
 }
 
-pub fn vim_strsave_escaped<S1: IntoCCharPtr, S2: IntoCCharPtr>(
-    string: S1,
-    esc_chars: S2,
-) -> std::ffi::CString {
-    vim_strsave_escaped_ext(string, esc_chars, b'\\', false)
+pub fn vim_strsave_escaped(bytes: &[u8], esc_bytes: &[u8]) -> std::ffi::CString {
+    vim_strsave_escaped_ext(bytes, esc_bytes, b'\\', false)
 }
 
-pub fn vim_strsave_escaped_ext<S1: IntoCCharPtr, S2: IntoCCharPtr>(
-    string: S1,
-    esc_chars: S2,
+pub fn vim_strsave_escaped_ext(
+    bytes: &[u8],
+    esc_bytes: &[u8],
     cc: u8,
     bsl: bool,
 ) -> std::ffi::CString {
-    let string = string.into_c_char_ptr();
-    let esc_chars = esc_chars.into_c_char_ptr();
-    let bytes = crate::memory::cstr_as_bytes(string);
-    let esc_bytes = crate::memory::cstr_as_bytes(esc_chars);
+    let bytes = crate::memory::bytes_until_nul(bytes);
+    let esc_bytes = crate::memory::bytes_until_nul(esc_bytes);
     let mut escaped = Vec::with_capacity(bytes.len() + 8);
     let mut i = 0usize;
     while i < bytes.len() {
@@ -443,13 +438,12 @@ pub fn vim_strnsave_unquoted(bytes: &[u8]) -> std::ffi::CString {
     crate::memory::cstr_from_bytes(&ret)
 }
 
-pub fn vim_strsave_shellescape<S: IntoCCharPtr>(
-    string: S,
+pub fn vim_strsave_shellescape(
+    bytes: &[u8],
     do_special: bool,
     do_newline: bool,
 ) -> std::ffi::CString {
-    let string = string.into_c_char_ptr();
-    let bytes = crate::memory::cstr_as_bytes(string);
+    let bytes = crate::memory::bytes_until_nul(bytes);
     let csh_like = csh_like_shell() != 0;
     let fish_like = fish_like_shell();
     #[cfg(windows)]
@@ -485,7 +479,7 @@ pub fn vim_strsave_shellescape<S: IntoCCharPtr>(
             continue;
         }
         let mut l: usize = 0;
-        if do_special && find_cmdline_var(string.wrapping_add(i), &mut l) >= 0 {
+        if do_special && find_cmdline_var(&bytes[i..], &mut l) >= 0 {
             escaped.push(b'\\');
             escaped.extend_from_slice(&bytes[i..i + l]);
             i += l;
@@ -548,13 +542,8 @@ pub fn strcase_save(bytes: &[u8], upper: bool) -> std::ffi::CString {
     crate::memory::cstr_from_bytes(&res)
 }
 
-pub fn del_trailing_spaces(ptr: RawCCharPtrMut) {
-    let len = crate::memory::cstr_len(ptr);
-    if len == 0 {
-        return;
-    }
-    let slice = unsafe { std::slice::from_raw_parts_mut(ptr.cast::<u8>(), len + 1) };
-    let mut q = len;
+pub fn del_trailing_spaces(slice: &mut [u8]) {
+    let mut q = crate::memory::bytes_until_nul(slice).len();
     while q > 1 {
         q -= 1;
         if ascii_iswhite(slice[q]) && slice[q - 1] != b'\\' && slice[q - 1] != CTRL_V {
@@ -596,9 +585,9 @@ pub fn sort_strings(files: &mut [std::ffi::CString]) {
     }
 }
 
-pub fn concat_str<S1: IntoCCharPtr, S2: IntoCCharPtr>(str1: S1, str2: S2) -> std::ffi::CString {
-    let b1 = crate::memory::cstr_as_bytes(str1.into_c_char_ptr());
-    let b2 = crate::memory::cstr_as_bytes(str2.into_c_char_ptr());
+pub fn concat_str(b1: &[u8], b2: &[u8]) -> std::ffi::CString {
+    let b1 = crate::memory::bytes_until_nul(b1);
+    let b2 = crate::memory::bytes_until_nul(b2);
     let mut dest = Vec::with_capacity(b1.len() + b2.len());
     dest.extend_from_slice(b1);
     dest.extend_from_slice(b2);
@@ -2980,7 +2969,7 @@ mod tests {
         let rep = strrep(b"foo bar foo", b"foo", b"baz").unwrap();
         assert_eq!(rep.to_str().unwrap(), "baz bar baz");
 
-        let cat = concat_str(c"hello ", c"world");
+        let cat = concat_str(b"hello ", b"world");
         assert_eq!(cat.to_str().unwrap(), "hello world");
 
         assert_eq!(format_typeof(c"lld"), TYPE_LONGLONGINT);
@@ -3040,11 +3029,11 @@ mod tests {
                 crate::mbyte::K_OPT_CMP_FLAG_INTERNAL | crate::mbyte::K_OPT_CMP_FLAG_KEEPASCII;
 
             for (s, esc, expected) in [
-                (c"abcd", c"abcd", "\\a\\b\\c\\d"),
-                (c"abcd", c"ab", "\\a\\bcd"),
-                (c"text \n text", c"", "text \n text"),
-                (c"", c"\r", ""),
-                (c"some text", c"a", "some text"),
+                (b"abcd" as &[u8], b"abcd" as &[u8], "\\a\\b\\c\\d"),
+                (b"abcd", b"ab", "\\a\\bcd"),
+                (b"text \n text", b"", "text \n text"),
+                (b"", b"\r", ""),
+                (b"some text", b"a", "some text"),
             ] {
                 let res = vim_strsave_escaped(s, esc);
                 assert_eq!(res.to_str().unwrap(), expected);

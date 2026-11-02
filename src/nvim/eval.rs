@@ -2587,7 +2587,10 @@ pub fn grow_string_tv(tv1: &mut TypVal, s2: impl crate::strings::IntoCCharPtr) -
             return false;
         }
 
-        let joined = concat_str(tv1.vval.v_string(), s2);
+        let joined = concat_str(
+            crate::memory::cstr_as_bytes(tv1.vval.v_string()),
+            crate::memory::cstr_as_bytes(s2),
+        );
         crate::eval::typval::tv_set_string(tv1, joined.as_ptr());
         true
     }
@@ -2609,7 +2612,10 @@ fn eval_concat_str(tv1: &mut TypVal, tv2: &mut TypVal) -> bool {
         return true;
     }
 
-    let p = concat_str(s1, s2);
+    let p = concat_str(
+        crate::memory::cstr_as_bytes(s1),
+        crate::memory::cstr_as_bytes(s2),
+    );
     crate::eval::typval::tv_set_string(tv1, p.as_ptr());
 
     true

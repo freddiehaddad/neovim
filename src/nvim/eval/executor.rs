@@ -113,7 +113,7 @@ fn tv_op_string(tv1: &mut TypVal, tv2: &TypVal) -> bool {
         }
 
         let tvs = tv_get_string(&*tv1);
-        let s = concat_str(tvs, s2);
+        let s = concat_str(tvs.to_bytes(), s2.to_bytes());
         crate::eval::typval::tv_set_string(tv1, s.as_ptr());
     }
 

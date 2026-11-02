@@ -8259,7 +8259,10 @@ pub fn expand_filename(
                     esc_chars,
                     i32::from(crate::memory::cstr_first_byte(l)),
                 ) {
-                    repl_cstr = vim_strsave_escaped(&repl_cstr, esc_chars);
+                    repl_cstr = vim_strsave_escaped(
+                        repl_cstr.as_bytes(),
+                        crate::memory::cstr_as_bytes(esc_chars),
+                    );
                     break;
                 }
                 l = l.wrapping_add(1);
@@ -8271,7 +8274,7 @@ pub fn expand_filename(
             || eap.cmdidx == Cmdidx::CmdTerminal as i32)
             && repl_cstr.as_bytes().contains(&b'!')
         {
-            repl_cstr = vim_strsave_escaped(&repl_cstr, c"!");
+            repl_cstr = vim_strsave_escaped(repl_cstr.as_bytes(), b"!");
         }
 
         p = repl_cmdline(eap, p, srclen, repl_cstr.as_ptr().cast_mut(), cmdlinep);
@@ -8470,7 +8473,8 @@ pub fn separate_nextcmd(eap: &mut Exarg) {
     }
 
     if (eap.argt & EX_NOTRLCOM) == 0 {
-        del_trailing_spaces(eap.arg);
+        let arg_len = crate::memory::cstr_len(eap.arg);
+        del_trailing_spaces(unsafe { std::slice::from_raw_parts_mut(eap.arg.cast(), arg_len + 1) });
     }
 }
 
@@ -11906,8 +11910,7 @@ const SPEC_AMATCH: isize = 12;
 const SPEC_SFLNUM: isize = 13;
 const SPEC_SID: isize = 14;
 
-pub fn find_cmdline_var(src: impl crate::strings::IntoCCharPtr, usedlen: &mut usize) -> isize {
-    let src = src.into_c_char_ptr();
+pub fn find_cmdline_var(src_bytes: &[u8], usedlen: &mut usize) -> isize {
     const SPEC_STR: [&CStr; 15] = [
         c"%",
         c"#",
@@ -11926,7 +11929,6 @@ pub fn find_cmdline_var(src: impl crate::strings::IntoCCharPtr, usedlen: &mut us
         c"<SID>",
     ];
 
-    let src_bytes = crate::memory::cstr_as_bytes(src);
     for (i, s) in SPEC_STR.iter().enumerate() {
         let s_bytes = s.to_bytes();
         if src_bytes.starts_with(s_bytes) {
@@ -11963,7 +11965,7 @@ pub fn eval_vars(
             *escaped = i32::from(false);
         }
 
-        let spec_idx = find_cmdline_var(src, &mut *usedlen);
+        let spec_idx = find_cmdline_var(crate::memory::cstr_as_bytes(src), &mut *usedlen);
         if spec_idx < 0 {
             *usedlen = 1;
             return None;
@@ -12818,10 +12820,10 @@ mod tests {
     #[test]
     fn find_cmdline_var_matches_special_variables() {
         let mut usedlen = 0usize;
-        assert_eq!(find_cmdline_var(c"<cword>", &mut usedlen), SPEC_CWORD);
+        assert_eq!(find_cmdline_var(b"<cword>", &mut usedlen), SPEC_CWORD);
         assert_eq!(usedlen, 7);
-        assert_eq!(find_cmdline_var(c"%:p", &mut usedlen), SPEC_PERC);
+        assert_eq!(find_cmdline_var(b"%:p", &mut usedlen), SPEC_PERC);
         assert_eq!(usedlen, 1);
-        assert_eq!(find_cmdline_var(c"foo", &mut usedlen), -1);
+        assert_eq!(find_cmdline_var(b"foo", &mut usedlen), -1);
     }
 }

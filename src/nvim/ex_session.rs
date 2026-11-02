@@ -509,7 +509,7 @@ fn store_session_globals(fd: &CFile) -> bool {
             || this_var.di_tv.v_type == VarType::VarString)
             && var_flavour(key_cstr) == VAR_FLAVOUR_SESSION
         {
-            let p = vim_strsave_escaped(tv_get_string(&this_var.di_tv), c"\\\"\n\r");
+            let p = vim_strsave_escaped(tv_get_string(&this_var.di_tv).to_bytes(), b"\\\"\n\r");
             let mut p_vec: Vec<u8> = p.into_bytes_with_nul();
             for b in &mut p_vec {
                 if *b == 0 {

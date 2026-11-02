@@ -1226,14 +1226,20 @@ pub fn ex_diffpatch(eap: &mut Exarg) {
         {
             fullname = crate::path::FullName_save(eap.arg, false);
             esc_name = Some(vim_strsave_shellescape(
-                fullname.as_ref().map_or(eap.arg, |s| s.as_ptr().cast_mut()),
+                fullname
+                    .as_ref()
+                    .map_or_else(|| crate::memory::cstr_as_bytes(eap.arg), |s| s.as_bytes()),
                 true,
                 true,
             ));
         }
         #[cfg(not(unix))]
         {
-            esc_name = Some(vim_strsave_shellescape(eap.arg, true, true));
+            esc_name = Some(vim_strsave_shellescape(
+                crate::memory::cstr_as_bytes(eap.arg),
+                true,
+                true,
+            ));
         }
         let esc_ptr = esc_name.as_ref().map_or(c"".as_ptr(), |s| s.as_ptr());
         let buflen = crate::memory::cstr_len(tmp_orig)

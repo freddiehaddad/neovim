@@ -4644,40 +4644,39 @@ pub fn vim_strsave_fnameescape(
     what: i32,
 ) -> std::ffi::CString {
     let fname = fname.into_c_char_ptr();
+    let fname_bytes = crate::memory::cstr_as_bytes(fname);
     #[cfg(windows)]
     let mut p = {
         let mut buf: [u8; 32] = [0; 32];
         let mut j: usize = 0;
         let chars = if what == VSE_BUFFER {
-            BUFFER_ESC_CHARS.as_ptr()
+            BUFFER_ESC_CHARS.to_bytes()
         } else {
-            PATH_ESC_CHARS.as_ptr()
+            PATH_ESC_CHARS.to_bytes()
         };
-        let cp = chars;
-        for &cp_byte in crate::memory::cstr_as_bytes(cp) {
+        for &cp_byte in chars {
             if (cp_byte != b'[' && cp_byte != b'{' && cp_byte != b'!')
-                || !vim_isfilec((cp_byte) as i32)
+                || !vim_isfilec(i32::from(cp_byte))
             {
                 buf[j] = cp_byte;
                 j += 1;
             }
         }
-        buf[j] = 0;
-        vim_strsave_escaped(fname, buf.as_ptr().cast())
+        vim_strsave_escaped(fname_bytes, &buf[..j])
     };
 
     #[cfg(not(windows))]
     let mut p = {
         let chars = if what == VSE_SHELL {
-            SHELL_ESC_CHARS
+            SHELL_ESC_CHARS.to_bytes()
         } else if what == VSE_BUFFER {
-            BUFFER_ESC_CHARS
+            BUFFER_ESC_CHARS.to_bytes()
         } else {
-            PATH_ESC_CHARS
+            PATH_ESC_CHARS.to_bytes()
         };
-        let mut res = vim_strsave_escaped(fname, chars);
+        let mut res = vim_strsave_escaped(fname_bytes, chars);
         if what == VSE_SHELL && csh_like_shell() != 0 {
-            res = vim_strsave_escaped(&res, c"!");
+            res = vim_strsave_escaped(res.as_bytes(), b"!");
         }
         res
     };

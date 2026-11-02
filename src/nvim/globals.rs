@@ -876,6 +876,11 @@ impl EditorState {
     }
 
     #[inline]
+    pub fn iobuff_bytes(&self) -> &[u8; IOSIZE] {
+        unsafe { &*(&raw const self.iobuff).cast::<[u8; IOSIZE]>() }
+    }
+
+    #[inline]
     pub fn iobuff_bytes_mut(&mut self) -> &mut [u8; IOSIZE] {
         unsafe { &mut *(&raw mut self.iobuff).cast::<[u8; IOSIZE]>() }
     }

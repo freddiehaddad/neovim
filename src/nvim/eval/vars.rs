@@ -1857,7 +1857,10 @@ fn ex_let_option(
 
                 if !curval_data.is_null() && !newval_data.is_null() {
                     let newval_old = newval;
-                    let joined = concat_str(curval_data, newval_data);
+                    let joined = concat_str(
+                        crate::memory::cstr_as_bytes(curval_data),
+                        crate::memory::cstr_as_bytes(newval_data),
+                    );
                     newval = crate::api::private::helpers::cstr_to_obj(joined.as_ptr());
                     optval_free(newval_old);
                 }

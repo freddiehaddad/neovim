@@ -2114,7 +2114,7 @@ fn ins_compl_dictionaries(
         }
 
         if ctrl_x_mode_line_or_eval() {
-            let pat_esc = vim_strsave_escaped(pat, c"\\");
+            let pat_esc = vim_strsave_escaped(crate::memory::cstr_as_bytes(pat), b"\\");
             let len = pat_esc.as_bytes().len() + 10;
             let mut ptr_vec = vec![0u8; len];
             let ptr = ptr_vec.as_mut_ptr();

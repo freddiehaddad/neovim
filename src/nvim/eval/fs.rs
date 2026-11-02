@@ -469,15 +469,11 @@ pub fn modify_fname(
                 .get(*usedlen..)
                 .is_some_and(|r| r.starts_with(b":S"))
             {
-                // vim_strsave_shellescape() needs a NUL terminated string.
-                let saved_b = *(*fnamep).wrapping_add(*fnamelen);
-                if saved_b != 0 {
-                    *(*fnamep).wrapping_add(*fnamelen) = 0;
-                }
-                let esc = vim_strsave_shellescape((*fnamep).cast_const().cast(), false, false);
-                if saved_b != 0 {
-                    *(*fnamep).wrapping_add(*fnamelen) = saved_b;
-                }
+                let esc = vim_strsave_shellescape(
+                    crate::memory::cstr_slice((*fnamep).cast(), *fnamelen),
+                    false,
+                    false,
+                );
                 *fnamelen = esc.as_bytes().len();
                 set_fname_buf(fnamep, bufp, esc.into_bytes_with_nul());
                 *usedlen += 2;

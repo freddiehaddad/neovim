@@ -1871,20 +1871,20 @@ fn wildescape(
         {
             for file_slot in files.iter_mut() {
                 if (xp.xp_backslash & XP_BS_THREE) != 0 {
-                    let pat = if (xp.xp_backslash & XP_BS_COMMA) != 0 {
-                        c" ,".as_ptr()
+                    let pat: &[u8] = if (xp.xp_backslash & XP_BS_COMMA) != 0 {
+                        b" ,"
                     } else {
-                        c" ".as_ptr()
+                        b" "
                     };
-                    *file_slot = vim_strsave_escaped(file_slot.as_ptr(), pat);
+                    *file_slot = vim_strsave_escaped(file_slot.as_bytes(), pat);
                     #[cfg(windows)]
                     {
-                        *file_slot = vim_strsave_escaped(file_slot.as_ptr(), c" ");
+                        *file_slot = vim_strsave_escaped(file_slot.as_bytes(), b" ");
                     }
                 } else if (xp.xp_backslash & XP_BS_COMMA) != 0
                     && file_slot.as_bytes().contains(&b',')
                 {
-                    *file_slot = vim_strsave_escaped(file_slot.as_ptr(), c",");
+                    *file_slot = vim_strsave_escaped(file_slot.as_bytes(), b",");
                 }
 
                 #[cfg(windows)]
@@ -1914,7 +1914,7 @@ fn wildescape(
             }
         } else if xp.xp_context == EXPAND_TAGS {
             for file_slot in files.iter_mut() {
-                *file_slot = vim_strsave_escaped(file_slot.as_ptr(), c"\\|\"");
+                *file_slot = vim_strsave_escaped(file_slot.as_bytes(), b"\\|\"");
             }
         }
     }
@@ -5211,7 +5211,7 @@ pub fn expand_generic(
             }
 
             let mut item_cstr = if escaped {
-                vim_strsave_escaped(str_item, c" \t\\.")
+                vim_strsave_escaped(str_item.to_bytes(), b" \t\\.")
             } else {
                 str_item.to_owned()
             };

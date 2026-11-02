@@ -7749,7 +7749,10 @@ pub fn expand_settings(
 /// Escape an option value that can be used on the command-line with :set.
 pub fn escape_option_str_cmdline(var_arg: impl crate::strings::IntoCCharPtr) -> std::ffi::CString {
     let var_arg = var_arg.into_c_char_ptr();
-    let buf_cstr = vim_strsave_escaped(var_arg, ESCAPE_CHARS);
+    let buf_cstr = vim_strsave_escaped(
+        crate::memory::cstr_as_bytes(var_arg),
+        ESCAPE_CHARS.to_bytes(),
+    );
 
     #[cfg(windows)]
     {

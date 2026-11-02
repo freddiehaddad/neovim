@@ -425,13 +425,13 @@ pub fn f_prompt_appendbuf(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: Eva
                     let li = tv_list_first(l.as_ref());
                     let li = &mut *li;
                     let str_ = tv_get_string(&li.li_tv);
-                    let new_str = concat_str(text, str_);
+                    let new_str = concat_str(crate::memory::cstr_as_bytes(text), str_.to_bytes());
                     crate::eval::typval::tv_set_string(&mut li.li_tv, new_str.as_ptr());
                     did_concat = true;
                 }
             } else if lines.v_type == VarType::VarString {
                 let str_ = tv_get_string(&*lines);
-                let new_str = concat_str(text, str_);
+                let new_str = concat_str(crate::memory::cstr_as_bytes(text), str_.to_bytes());
                 crate::eval::typval::tv_set_string(&mut *lines, new_str.as_ptr());
             }
         }

@@ -1461,8 +1461,8 @@ pub fn do_bang(addr_count: i32, eap: &mut Exarg, forceit: bool, do_in: bool, do_
                 break 'theend;
             }
 
-            let prev_ptr = excmds_st().prevcmd.as_ref().unwrap().as_ptr();
-            let cmd = vim_strsave_escaped(prev_ptr.cast_mut(), c"%#");
+            let prev_bytes = excmds_st().prevcmd.as_ref().unwrap().as_bytes();
+            let cmd = vim_strsave_escaped(prev_bytes, b"%#");
             redo_append_lit(cmd.as_ptr().cast_mut(), -1);
             redo_append_str(c"\n", 1);
             g_st().bangredo = false;
@@ -4230,8 +4230,10 @@ fn do_sub(eap: &mut Exarg, tm: Proftime, cmdpreview_ns: i32, cmdpreview_bufnr: O
                                 orig_line =
                                     SubBuf::from_cbuf(lnum_slice.as_ptr().cast(), lnum_slice.len());
                                 let new_line = concat_str(
-                                    new_start.data().cast(),
-                                    sub_firstline.data().wrapping_add(copycol as usize).cast(),
+                                    crate::memory::cstr_as_bytes(new_start.data().cast()),
+                                    crate::memory::cstr_as_bytes(
+                                        sub_firstline.data().wrapping_add(copycol as usize).cast(),
+                                    ),
                                 );
                                 let new_line_size =
                                     new_start.size + (sub_firstline.size - copycol as usize);

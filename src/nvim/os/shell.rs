@@ -1216,8 +1216,8 @@ fn shell_xescape_xquote(cmd: impl crate::strings::IntoCCharPtr) -> std::ffi::CSt
         let sxq_bytes = crate::memory::cstr_as_bytes(opt_vars().p_sxq);
         let owned_ecmd = if !crate::memory::cstr_is_empty(opt_vars().p_sxe) && sxq_bytes == b"(" {
             Some(vim_strsave_escaped_ext(
-                cmd,
-                opt_vars().p_sxe,
+                crate::memory::cstr_as_bytes(cmd),
+                crate::memory::cstr_as_bytes(opt_vars().p_sxe),
                 b'^' as _,
                 false,
             ))
