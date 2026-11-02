@@ -934,6 +934,11 @@ pub fn lastwin_mut() -> &'static mut WinInfoInfo {
     unsafe { &mut *g_st().lastwin }
 }
 
+#[inline]
+pub fn prevwin_opt() -> Option<&'static mut WinInfoInfo> {
+    unsafe { g_st().prevwin.as_mut() }
+}
+
 pub struct BufMutIter(*mut FileBuf);
 
 impl Iterator for BufMutIter {
@@ -1085,6 +1090,30 @@ pub fn for_all_windows_in_tab_ptr(tp: &TabPageInfo) -> WinPtrIter {
     } else {
         tp.tp_firstwin
     })
+}
+
+pub struct WinRevPtrIter(*mut WinInfoInfo);
+
+impl Iterator for WinRevPtrIter {
+    type Item = &'static mut WinInfoInfo;
+
+    #[inline]
+    fn next(&mut self) -> Option<Self::Item> {
+        let cur = self.0;
+        if cur.is_null() {
+            None
+        } else {
+            unsafe {
+                self.0 = (*cur).w_prev;
+                Some(&mut *cur)
+            }
+        }
+    }
+}
+
+#[inline]
+pub fn for_all_windows_rev_ptr() -> WinRevPtrIter {
+    WinRevPtrIter(g_st().lastwin)
 }
 
 pub struct TabMutIter(*mut TabPageInfo);
