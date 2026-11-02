@@ -2078,8 +2078,8 @@ fn diff_equal_char(
             return false;
         }
         if l > 1 {
-            if (crate::memory::cstr_prefix_bytes(p1, l as usize)
-                != crate::memory::cstr_prefix_bytes(p2, l as usize))
+            if crate::memory::cstr_slice(p1, l as usize)
+                != crate::memory::cstr_slice(p2, l as usize)
                 && ((diff_st().diff_flags & DIFF_ICASE) == 0
                     || utf_fold(utf_ptr2char(p1)) != utf_fold(utf_ptr2char(p2)))
             {

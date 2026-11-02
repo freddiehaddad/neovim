@@ -754,9 +754,7 @@ pub fn do_execreg(mut regname: i32, colon: i32, addcr: i32, silent: i32) -> bool
             false,
         );
         let p_ptr = p.as_ptr().cast_mut();
-        if g_st().visual_global.active
-            && (crate::memory::cstr_prefix_bytes(p_ptr, 5) == &b"'<,'>"[..5])
-        {
+        if g_st().visual_global.active && p.as_bytes().starts_with(b"'<,'>") {
             retval = put_in_typebuf(p_ptr.wrapping_add(5), true, true, silent);
         } else {
             retval = put_in_typebuf(p_ptr, true, true, silent);

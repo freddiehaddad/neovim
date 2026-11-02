@@ -1738,8 +1738,9 @@ pub fn search_for_exact_line(
                 let eq = if opt_vars().p_ic != 0 {
                     mb_strnicmp(p_slice.as_ptr().cast(), pat, compl_len as usize) == 0
                 } else {
-                    &p_slice[..p_slice.len().min(compl_len as usize)]
-                        == crate::memory::cstr_prefix_bytes(pat, compl_len as usize)
+                    let pat_b = crate::memory::cstr_as_bytes(pat);
+                    p_slice[..p_slice.len().min(compl_len as usize)]
+                        == pat_b[..(compl_len as usize).min(pat_b.len())]
                 };
                 if eq {
                     return true;
@@ -1812,10 +1813,8 @@ pub fn searchc(cap: &mut Cmdarg, mut t_cmd: bool) -> bool {
                 {
                     break;
                 }
-            } else if (crate::memory::cstr_prefix_bytes(
-                p.wrapping_add(col as usize),
-                srch().lastc_bytelen as usize,
-            ) == &srch().lastc_bytes[..srch().lastc_bytelen as usize])
+            } else if crate::memory::cstr_as_bytes(p.wrapping_add(col as usize))
+                .starts_with(&srch().lastc_bytes[..srch().lastc_bytelen as usize])
                 && stop
             {
                 break;

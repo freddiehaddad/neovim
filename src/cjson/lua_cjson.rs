@@ -1207,23 +1207,24 @@ fn json_next_token(json: &mut JsonParse, token: &mut JsonToken) {
         }
 
         let ch_u8 = ch as u8;
+        let ptr_bytes = crate::memory::cstr_as_bytes(json.ptr);
         if ch_u8 == b'"' {
             json_next_string_token(json, token);
             return;
         } else if ch_u8 == b'-' || ch_u8.is_ascii_digit() {
             json_next_number_token(json, token);
             return;
-        } else if crate::memory::cstr_prefix_bytes(json.ptr, 4) == &b"true"[..4] {
+        } else if ptr_bytes.starts_with(b"true") {
             token.r#type = TBoolean;
             token.value = JsonTokenValue::Boolean(1);
             json.ptr = json.ptr.wrapping_add(4);
             return;
-        } else if crate::memory::cstr_prefix_bytes(json.ptr, 5) == &b"false"[..5] {
+        } else if ptr_bytes.starts_with(b"false") {
             token.r#type = TBoolean;
             token.value = JsonTokenValue::Boolean(0);
             json.ptr = json.ptr.wrapping_add(5);
             return;
-        } else if crate::memory::cstr_prefix_bytes(json.ptr, 4) == &b"null"[..4] {
+        } else if ptr_bytes.starts_with(b"null") {
             token.r#type = TNull;
             json.ptr = json.ptr.wrapping_add(4);
             return;

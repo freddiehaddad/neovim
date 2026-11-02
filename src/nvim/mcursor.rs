@@ -399,9 +399,7 @@ fn mc_execute(cursoridx: usize, atomidx: usize) {
     if ctx.mark != 0 && !extmark_get_pos(curbuf_mut(), mc_ns(), ctx.mark, &mut ctx.pos) {
         return;
     }
-    if ctx.visual.vi_start.lnum == 0
-        && (crate::memory::cstr_prefix_bytes(atom_keys, 2) == &b"gv"[..2])
-    {
+    if ctx.visual.vi_start.lnum == 0 && crate::memory::cstr_as_bytes(atom_keys).starts_with(b"gv") {
         return;
     }
 
@@ -929,9 +927,7 @@ pub fn mc_ins_cascade() {
             let mut keys: Vec<u8> = Vec::new();
             let mut skip = 0;
             if let Some(vsel) = mc_st().mc_ins_span.vsel.take() {
-                assert!(
-                    ins.size >= 2 && (crate::memory::cstr_prefix_bytes(ins.data, 2) == &b"1v"[..2])
-                );
+                assert!(ins.as_bytes().starts_with(b"1v"));
                 keys.extend_from_slice(vsel.to_bytes());
                 skip = 2;
             }

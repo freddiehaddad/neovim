@@ -2932,7 +2932,8 @@ pub fn mb_charlen(str_: impl crate::strings::IntoCCharPtr) -> i32 {
 
 pub fn mb_charlen_len(str_: impl crate::strings::IntoCCharPtr, len: i32) -> i32 {
     let str_ = str_.into_c_char_ptr();
-    let mut rem = crate::memory::cstr_prefix_bytes(str_, len.max(0) as usize);
+    let max_len = len.max(0) as usize;
+    let mut rem = crate::memory::cstr_slice(str_, crate::memory::xstrnlen(str_, max_len));
     let mut count = 0;
     while !rem.is_empty() {
         let l = utfc_slice2len(rem).max(1);
@@ -3102,7 +3103,8 @@ pub fn enc_locale() -> Option<std::ffi::CString> {
         s = p.wrapping_add(1);
     }
 
-    let s_bytes = crate::memory::cstr_prefix_bytes(s, buf.len() - 1);
+    let s_full = crate::memory::cstr_as_bytes(s);
+    let s_bytes = &s_full[..(buf.len() - 1).min(s_full.len())];
     let mut i = 0usize;
     while i < s_bytes.len() {
         let ch = s_bytes[i];

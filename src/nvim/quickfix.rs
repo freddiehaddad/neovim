@@ -7258,19 +7258,17 @@ fn hgr_search_files_in_dir(
                 break;
             }
             let f = f_cstr.as_ptr().cast_mut();
-            let flen = f_cstr.as_bytes().len();
-            if !lang.is_null()
-                && flen >= 3
-                && !(crate::memory::cstr_prefix_bytes(lang, 2).eq_ignore_ascii_case(
-                    crate::memory::cstr_prefix_bytes(f.wrapping_add(flen - 3), 2),
-                ))
-                && !(crate::memory::cstr_prefix_bytes(lang, 2).eq_ignore_ascii_case(b"en")
-                    && b"txt".eq_ignore_ascii_case(crate::memory::cstr_prefix_bytes(
-                        f.wrapping_add(flen - 3),
-                        3,
-                    )))
-            {
-                continue;
+            let f_bytes = f_cstr.as_bytes();
+            let flen = f_bytes.len();
+            if !lang.is_null() && flen >= 3 {
+                let lang_b = crate::memory::cstr_as_bytes(lang);
+                let lang_2 = &lang_b[..2.min(lang_b.len())];
+                let ext = &f_bytes[flen - 3..];
+                if !lang_2.eq_ignore_ascii_case(&ext[..2])
+                    && !(lang_2.eq_ignore_ascii_case(b"en") && ext.eq_ignore_ascii_case(b"txt"))
+                {
+                    continue;
+                }
             }
 
             hgr_search_file(qfl, f, p_regmatch);

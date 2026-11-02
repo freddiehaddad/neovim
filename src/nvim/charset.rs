@@ -1268,7 +1268,7 @@ pub fn vim_str2nr(
 ) {
     let start = start.into_c_char_ptr();
     let bytes = if maxlen > 0 {
-        crate::memory::cstr_prefix_bytes(start, maxlen as usize)
+        crate::memory::cstr_slice(start, crate::memory::xstrnlen(start, maxlen as usize))
     } else {
         crate::memory::cstr_as_bytes(start)
     };

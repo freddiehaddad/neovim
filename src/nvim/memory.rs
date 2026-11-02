@@ -287,14 +287,6 @@ pub fn xstrnlen(s: RawCCharPtr, n: usize) -> usize {
     len
 }
 
-/// View up to `n` bytes of a NUL-terminated C string as a byte slice.
-#[inline]
-pub fn cstr_prefix_bytes<'a, S: crate::strings::IntoCCharPtr>(s: S, n: usize) -> &'a [u8] {
-    let s = s.into_c_char_ptr();
-    let len = xstrnlen(s, n);
-    unsafe { std::slice::from_raw_parts(s.cast::<u8>(), len) }
-}
-
 /// Length in bytes of a NUL-terminated C string (0 if null).
 #[inline]
 pub fn cstr_len<S: crate::strings::IntoCCharPtr>(s: S) -> usize {

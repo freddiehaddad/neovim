@@ -1459,11 +1459,11 @@ fn expand_set_opt_listflag(
 
 fn completing_value_for_subopt(args: &mut Optexpand, name_suffix: &std::ffi::CStr) -> bool {
     let colon = args.xp_mut().xp_pattern.wrapping_sub(1);
-    let len = name_suffix.to_bytes().len();
+    let suffix_bytes = name_suffix.to_bytes();
+    let len = suffix_bytes.len();
 
     crate::memory::ptr_offset_from(colon, args.oe_set_arg.cast()) >= (len as isize)
-        && (crate::memory::cstr_prefix_bytes(colon.wrapping_sub(len).cast(), len)
-            == crate::memory::cstr_prefix_bytes(name_suffix.as_ptr(), len))
+        && crate::memory::cstr_slice(colon.wrapping_sub(len).cast(), len) == suffix_bytes
 }
 
 /// The 'ambiwidth' option is changed.

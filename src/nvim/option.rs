@@ -1062,7 +1062,7 @@ fn find_dup_item(
     }
 
     let orig_bytes = crate::memory::cstr_as_bytes(origval);
-    let new_bytes = crate::memory::cstr_prefix_bytes(newval, newvallen);
+    let new_bytes = crate::memory::cstr_slice(newval, crate::memory::xstrnlen(newval, newvallen));
     let comma_flag = (flags & K_OPT_FLAG_COMMA) != 0;
     let mut bs: i32 = 0;
     for idx in 0..orig_bytes.len() {
@@ -2115,7 +2115,8 @@ pub fn do_set(arg: impl crate::strings::IntoCCharPtr, opt_flags: i32) -> bool {
 fn find_key_len(arg_arg: impl crate::strings::IntoCCharPtr, len: usize, has_lt: bool) -> i32 {
     let arg = arg_arg.into_c_char_ptr();
     let mut key: i32 = 0;
-    let bytes = crate::memory::cstr_prefix_bytes(arg, len.saturating_add(1));
+    let arg_b = crate::memory::cstr_as_bytes(arg);
+    let bytes = &arg_b[..len.saturating_add(1).min(arg_b.len())];
 
     if len >= 4 && bytes.starts_with(b"t_") && bytes.len() >= 4 {
         if !has_lt || bytes.get(4) == Some(&b'>') {
@@ -3364,7 +3365,7 @@ fn do_spelllang_source(win: &mut WinInfoInfo) {
     let ws = win.w_s_ptr();
     let mut q = ws.b_p_spl;
 
-    if crate::memory::cstr_prefix_bytes(q, 4) == &b"cjk,"[..4] {
+    if crate::memory::cstr_as_bytes(q).starts_with(b"cjk,") {
         q = q.wrapping_add(4);
     }
 
@@ -7652,7 +7653,7 @@ pub fn set_context_in_set_cmd(
     }
 
     if get_option(opt_idx).var == (&raw mut opt_vars().p_sps).cast() {
-        if crate::memory::cstr_prefix_bytes(xp.xp_pattern.cast(), 5) == &b"file:"[..5] {
+        if crate::memory::cstr_as_bytes(xp.xp_pattern.cast()).starts_with(b"file:") {
             xp.xp_pattern = xp.xp_pattern.wrapping_add(5);
         } else if get_option(opt_st().expand_option_idx)
             .opt_expand_cb

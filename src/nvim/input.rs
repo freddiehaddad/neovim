@@ -2408,16 +2408,16 @@ fn handle_mapping(keylenp: &mut i32, timedout: &bool, mapdepth: &mut i32, advanc
                 gotchars(map_str.cast::<u8>(), crate::memory::cstr_len(map_str));
             }
 
+            let map_b = crate::memory::cstr_as_bytes(map_str);
+            let k_b = save_m_keys.as_bytes();
+            let k_len = keylen as usize;
             let noremap = if save_m_noremap != REMAP_YES {
                 save_m_noremap
-            } else if (crate::memory::cstr_prefix_bytes(map_str, keylen as usize)
-                == crate::memory::cstr_prefix_bytes(save_m_keys.as_ptr(), keylen as usize))
+            } else if map_b[..k_len.min(map_b.len())] == k_b[..k_len.min(k_b.len())]
                 || save_alt_m_keys.as_ref().is_some_and(|alt| {
-                    crate::memory::cstr_prefix_bytes(map_str, save_alt_m_keylen as usize)
-                        == crate::memory::cstr_prefix_bytes(
-                            alt.as_ptr(),
-                            save_alt_m_keylen as usize,
-                        )
+                    let alt_b = alt.as_bytes();
+                    let ak_len = save_alt_m_keylen as usize;
+                    map_b[..ak_len.min(map_b.len())] == alt_b[..ak_len.min(alt_b.len())]
                 })
             {
                 REMAP_SKIP

@@ -2345,8 +2345,10 @@ pub(super) fn cstrncmp(
     let s2 = s2.into_c_char_ptr();
     {
         let mut result = if !re_st().rex.reg_ic {
-            crate::memory::cstr_prefix_bytes(s1, *n as usize)
-                .cmp(crate::memory::cstr_prefix_bytes(s2, *n as usize)) as i32
+            let max_n = *n as usize;
+            let s1_b = crate::memory::cstr_as_bytes(s1);
+            let s2_b = crate::memory::cstr_as_bytes(s2);
+            s1_b[..max_n.min(s1_b.len())].cmp(&s2_b[..max_n.min(s2_b.len())]) as i32
         } else {
             let mut p = s1.cast_mut();
             let mut n2: i32 = 0;
@@ -2464,7 +2466,7 @@ pub fn regtilde<T>(source: *mut T, magic: i32, preview: bool) -> Option<std::ffi
 
     let mut p = newsub;
     while !crate::memory::cstr_is_empty(p.cast()) {
-        if crate::memory::cstr_prefix_bytes(p.cast(), tildelen) == &tilde[..tildelen] {
+        if crate::memory::cstr_as_bytes(p.cast()).starts_with(&tilde[..tildelen]) {
             let prefixlen = crate::memory::ptr_offset_from(p, newsub) as usize;
             let postfix = p.wrapping_add(tildelen);
             if newsublen == 0 {

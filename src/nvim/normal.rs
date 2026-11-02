@@ -3253,7 +3253,8 @@ fn is_ident(line: impl crate::strings::IntoCCharPtr, offset: i32) -> bool {
         let mut instring: i32 = 0;
         let mut prev: i32 = 0;
 
-        for &cur_b in crate::memory::cstr_prefix_bytes(line, offset.max(0) as usize) {
+        let line_b = crate::memory::cstr_as_bytes(line);
+        for &cur_b in &line_b[..(offset.max(0) as usize).min(line_b.len())] {
             let cur = i32::from(cur_b);
             if instring != 0 {
                 if prev != b'\\' as i32 && cur == instring {

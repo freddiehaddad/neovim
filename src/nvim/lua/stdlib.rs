@@ -257,7 +257,7 @@ unsafe extern "C-unwind" fn nlua_str_utf_pos(lstate: *mut lua_State) -> i32 {
         let s1 = luaL_checklstring(lstate, 1, &raw mut s1_len);
         lua_newtable(lstate);
 
-        let s1_bytes = crate::memory::cstr_prefix_bytes(s1, s1_len);
+        let s1_bytes = crate::memory::cstr_slice(s1, crate::memory::xstrnlen(s1, s1_len));
         let mut idx: i32 = 1;
         let mut i: usize = 0;
         while i < s1_bytes.len() {
