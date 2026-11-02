@@ -661,7 +661,10 @@ fn sort_compare(l1: &Sorti, l2: &Sorti, sortbuf1: &mut [u8], sortbuf2: &mut [u8]
             sortbuf2[..len2].copy_from_slice(line2);
             sortbuf2[len2] = 0;
 
-            result = string_compare(&*sortbuf1, &*sortbuf2);
+            result = string_compare(
+                crate::memory::cstr_until_nul(sortbuf1),
+                crate::memory::cstr_until_nul(sortbuf2),
+            );
         }
         _ => unreachable!(),
     }
@@ -2451,7 +2454,7 @@ pub fn check_overwrite(
                     let mut p = opt_vars().p_dir;
                     copy_option_part(&raw mut p, dir.as_mut_ptr(), MAXPATHL, c",");
                 }
-                if let Some(swapname) = makeswapname(fname, &dir)
+                if let Some(swapname) = makeswapname(fname, crate::memory::cstr_until_nul(&dir))
                     && os_path_exists(swapname.as_ptr())
                 {
                     if opt_vars().p_confirm != 0 || (g_st().cmdmod.cmod_flags & CMOD_CONFIRM) != 0 {
@@ -4287,7 +4290,7 @@ fn do_sub(eap: &mut Exarg, tm: Proftime, cmdpreview_ns: i32, cmdpreview_bufnr: O
                             if let Some(ref orig_vec) = orig_line.vec {
                                 crate::memline::ml_replace_len(
                                     lnum,
-                                    orig_vec,
+                                    orig_vec.as_ptr().cast(),
                                     orig_line.size,
                                     true,
                                 );

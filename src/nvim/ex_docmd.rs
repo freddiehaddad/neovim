@@ -8940,7 +8940,13 @@ fn check_more(message: bool, forceit: bool) -> bool {
                     ),
                     n,
                 );
-                if vim_dialog_yesno(VIM_QUESTION, ptr::null_mut(), &buff, 1) == VIM_YES {
+                if vim_dialog_yesno(
+                    VIM_QUESTION,
+                    ptr::null_mut(),
+                    crate::memory::cstr_until_nul(&buff),
+                    1,
+                ) == VIM_YES
+                {
                     return true;
                 }
                 return false;
@@ -10637,7 +10643,13 @@ fn ex_syncbind(_eap: &mut Exarg) {
         checkpcmark();
         if old_linenr != curwin_mut().w_cursor.lnum {
             let ctrl_o = [CTRL_O, 0];
-            let _ = ins_typebuf(&ctrl_o, REMAP_NONE, 0, true, false);
+            let _ = ins_typebuf(
+                crate::memory::cstr_until_nul(&ctrl_o),
+                REMAP_NONE,
+                0,
+                true,
+                false,
+            );
         }
     }
 }
@@ -10726,7 +10738,7 @@ fn post_chdir(scope: CdScope, trigger_dirchanged: bool) {
     if !os_dirname(cwd.as_mut_ptr(), MAXPATHL) {
         return;
     }
-    let cwd_cstr = crate::memory::cstr_to_cstring(&cwd);
+    let cwd_cstr = crate::memory::cstring_until_nul(&cwd);
     match scope {
         K_CD_SCOPE_GLOBAL => {
             g_st().globaldir = if curbuf_mut().b_localdir.is_some() {
@@ -10754,7 +10766,12 @@ fn post_chdir(scope: CdScope, trigger_dirchanged: bool) {
     )));
 
     if trigger_dirchanged {
-        do_autocmd_dirchanged(&cwd, scope, K_CD_CAUSE_MANUAL, false);
+        do_autocmd_dirchanged(
+            crate::memory::cstr_until_nul(&cwd),
+            scope,
+            K_CD_CAUSE_MANUAL,
+            false,
+        );
     }
 }
 
@@ -12248,7 +12265,15 @@ pub fn expand_sfile(arg: impl crate::strings::IntoCCharPtr) -> Option<std::ffi::
             } else {
                 let mut srclen: usize = 0;
                 let mut errormsg: Option<&'static std::ffi::CStr> = None;
-                let repl = eval_vars(p, &result_vec, &mut srclen, None, &mut errormsg, None, true);
+                let repl = eval_vars(
+                    p,
+                    result_vec.as_ptr().cast(),
+                    &mut srclen,
+                    None,
+                    &mut errormsg,
+                    None,
+                    true,
+                );
                 if let Some(msg) = errormsg {
                     if !msg.to_bytes().is_empty() {
                         let _ = emsg(msg);
@@ -12270,7 +12295,7 @@ pub fn expand_sfile(arg: impl crate::strings::IntoCCharPtr) -> Option<std::ffi::
             }
         }
 
-        Some(cstr_to_cstring(&result_vec))
+        Some(crate::memory::cstring_until_nul(&result_vec))
     }
 }
 

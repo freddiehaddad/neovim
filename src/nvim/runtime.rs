@@ -755,10 +755,10 @@ pub fn do_in_path(
                     let name_len = crate::memory::cstr_len(name);
                     if buflen + 2 + prefix_len + name_len < MAXPATHL {
                         add_pathsep(buf.cast());
-                        let cur_len = crate::memory::cstr_len(&buf_vec);
+                        let cur_len = crate::memory::cstr_until_nul(&buf_vec).to_bytes().len();
                         buf_vec[cur_len..(cur_len + prefix_len + 1)]
                             .copy_from_slice(prefix.to_bytes_with_nul());
-                        let tail = buf.wrapping_add(crate::memory::cstr_len(&buf_vec));
+                        let tail = buf.wrapping_add(cur_len + prefix_len);
 
                         let mut np = name;
                         while !crate::memory::cstr_is_empty(np) && (do_all || !did_one) {
@@ -865,7 +865,9 @@ fn do_in_cached_path(
             } else if buflen + crate::memory::cstr_len(name) + 2 < MAXPATHL {
                 buf[..=buflen].copy_from_slice(item.path.to_bytes_with_nul());
                 add_pathsep(buf.as_mut_ptr().cast());
-                let tail = buf.as_mut_ptr().wrapping_add(crate::memory::cstr_len(&buf));
+                let tail = buf
+                    .as_mut_ptr()
+                    .wrapping_add(crate::memory::cstr_until_nul(&buf).to_bytes().len());
 
                 let mut np = name;
                 while !crate::memory::cstr_is_empty(np) && (do_all || !did_one) {
@@ -2425,7 +2427,7 @@ pub fn runtimepath_default(clean_arg: bool) -> Option<std::ffi::CString> {
         if let Some(last) = rtp_vec.last_mut() {
             *last = 0;
         }
-        Some(crate::memory::cstr_to_cstring(&rtp_vec))
+        Some(crate::memory::cstring_until_nul(&rtp_vec))
     } else {
         None
     }

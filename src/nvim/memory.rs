@@ -359,6 +359,18 @@ pub fn cstr_from_ptr<'a, S: crate::strings::IntoCCharPtr>(s: S) -> &'a CStr {
     }
 }
 
+/// View a byte slice up to the first NUL byte as a `&CStr` (or `c""` if no NUL is present).
+#[inline]
+pub fn cstr_until_nul(bytes: &[u8]) -> &CStr {
+    CStr::from_bytes_until_nul(bytes).unwrap_or(c"")
+}
+
+/// Clone a byte slice up to the first NUL byte into an owned `CString`.
+#[inline]
+pub fn cstring_until_nul(bytes: &[u8]) -> CString {
+    cstr_until_nul(bytes).to_owned()
+}
+
 /// View a NUL-terminated C string as an `Option<&CStr>`, returning `None` if null.
 #[inline]
 pub fn cstr_as_opt_cstr<'a, S: crate::strings::IntoCCharPtr>(s: S) -> Option<&'a CStr> {

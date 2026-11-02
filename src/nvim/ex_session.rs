@@ -507,9 +507,10 @@ fn put_view(
 fn store_session_globals(fd: *mut FILE) -> bool {
     let d = get_globvar_dict();
     for (_, this_var) in d.dv_hashtab.iter_items() {
+        let key_cstr = this_var.key_cstr();
         if (this_var.di_tv.v_type == VarType::VarNumber
             || this_var.di_tv.v_type == VarType::VarString)
-            && var_flavour(&this_var.di_key) == VAR_FLAVOUR_SESSION
+            && var_flavour(key_cstr) == VAR_FLAVOUR_SESSION
         {
             let p = vim_strsave_escaped(tv_get_string(&this_var.di_tv), c"\\\"\n\r");
             let mut p_vec: Vec<u8> = p.into_bytes_with_nul();
@@ -532,7 +533,7 @@ fn store_session_globals(fd: *mut FILE) -> bool {
                 fd,
                 format!(
                     "let {} = {quote}{}{quote}",
-                    cstr_to_str(&this_var.di_key),
+                    cstr_to_str(key_cstr),
                     cstr_to_str(CStr::from_bytes_until_nul(&p_vec).unwrap_or(c""))
                 ),
             ) || !put_eol(fd)
@@ -540,7 +541,7 @@ fn store_session_globals(fd: *mut FILE) -> bool {
                 return false;
             }
         } else if this_var.di_tv.v_type == VarType::VarFloat
-            && var_flavour(&this_var.di_key) == VAR_FLAVOUR_SESSION
+            && var_flavour(key_cstr) == VAR_FLAVOUR_SESSION
         {
             let mut f = this_var.di_tv.vval.v_float();
             let sign = if f < 0.0 {
@@ -549,10 +550,8 @@ fn store_session_globals(fd: *mut FILE) -> bool {
             } else {
                 ' '
             };
-            if !write_fmt(
-                fd,
-                format!("let {} = {sign}{f:.6}", cstr_to_str(&this_var.di_key)),
-            ) || !put_eol(fd)
+            if !write_fmt(fd, format!("let {} = {sign}{f:.6}", cstr_to_str(key_cstr)))
+                || !put_eol(fd)
             {
                 return false;
             }

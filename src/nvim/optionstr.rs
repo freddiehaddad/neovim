@@ -1945,11 +1945,12 @@ pub fn validate_completeitemalign(args: &mut Optset) -> Option<&CStr> {
     let mut buf = [0u8; 10];
     while !crate::memory::cstr_is_empty(p) {
         copy_option_part(&raw mut p, buf.as_mut_ptr().cast(), buf.len(), c",");
-        let item = if crate::memory::cstr_as_bytes(&buf) == b"abbr" {
+        let item_bytes = crate::memory::cstr_until_nul(&buf).to_bytes();
+        let item = if item_bytes == b"abbr" {
             CPT_ABBR
-        } else if crate::memory::cstr_as_bytes(&buf) == b"kind" {
+        } else if item_bytes == b"kind" {
             CPT_KIND
-        } else if crate::memory::cstr_as_bytes(&buf) == b"menu" {
+        } else if item_bytes == b"menu" {
             CPT_MENU
         } else {
             return Some(E_INVARG);
@@ -3207,7 +3208,7 @@ fn opt_schema_err<'a>(
         let mut keybuf = [0u8; 64];
         let copy_len = keylen.min(keybuf.len() - 1);
         keybuf[..copy_len].copy_from_slice(crate::memory::cstr_slice(key, copy_len));
-        opt_error(errbuf, fmt.as_ptr(), &keybuf)
+        opt_error(errbuf, fmt.as_ptr(), crate::memory::cstr_until_nul(&keybuf))
     }
 }
 

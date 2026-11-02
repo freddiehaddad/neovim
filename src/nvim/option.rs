@@ -733,7 +733,7 @@ fn set_init_default_shell() {
             let len = shell.as_bytes().len() + 3;
             let mut cmd = vec![0u8; len];
             vim_snprintf!(cmd.as_mut_ptr().cast(), len, c"\"%s\"", shell_ptr);
-            set_string_default(K_OPT_SHELL, &cmd);
+            set_string_default(K_OPT_SHELL, crate::memory::cstr_until_nul(&cmd));
         } else {
             set_string_default(K_OPT_SHELL, shell_ptr);
         }
@@ -806,7 +806,7 @@ fn set_init_default_backupskip() {
                 } else {
                     buf.as_ptr().cast()
                 },
-                &item,
+                crate::memory::cstr_until_nul(&item),
                 itemlen,
                 get_option(opt_idx).flags,
             )
@@ -823,7 +823,7 @@ fn set_init_default_backupskip() {
         }
     }
     if !buf.is_empty() {
-        set_string_default(K_OPT_BACKUPSKIP, &buf);
+        set_string_default(K_OPT_BACKUPSKIP, crate::memory::cstr_until_nul(&buf));
     }
 }
 
@@ -851,7 +851,10 @@ fn set_init_default_cdpath() {
         }
     }
     buf_vec[j] = 0;
-    change_option_default(K_OPT_CDPATH, cstr_to_obj(&buf_vec[..]));
+    change_option_default(
+        K_OPT_CDPATH,
+        cstr_to_obj(crate::memory::cstr_until_nul(&buf_vec)),
+    );
 }
 
 /// Expand environment variables and things like "~" for the defaults.
@@ -1153,7 +1156,7 @@ pub fn set_init_3() {
     let p = invocation_path_tail(opt_vars().p_sh, Some(&mut len));
     name[..len].copy_from_slice(crate::memory::cstr_slice(p, len));
     for (i, rule) in SHELL_RULES.iter().enumerate() {
-        if !c_str_contains(&name, rule.pat.to_bytes()) {
+        if !c_str_contains(crate::memory::cstr_until_nul(&name), rule.pat.to_bytes()) {
             continue;
         }
         change_option_and_default_if_unset(K_OPT_SHELLCMDFLAG, rule.shcf);
@@ -1283,7 +1286,7 @@ fn stropt_expand_envvar(
 ) {
     let origval = origval.into_c_char_ptr();
     {
-        let Some(s) = option_expand(opt_idx, newval.as_slice()) else {
+        let Some(s) = option_expand(opt_idx, crate::memory::cstr_until_nul(newval)) else {
             return;
         };
 
@@ -1305,7 +1308,7 @@ fn stropt_concat_with_comma(
     flags: u32,
 ) {
     let orig = crate::memory::cstr_as_bytes(origval);
-    let new_len = crate::memory::cstr_len(&*newval);
+    let new_len = crate::memory::cstr_until_nul(newval).to_bytes().len();
     let comma = usize::from((flags & K_OPT_FLAG_COMMA) != 0 && !orig.is_empty() && new_len > 0);
     let mut len: usize;
     if op == OP_ADDING {
@@ -1361,8 +1364,7 @@ fn stropt_remove_val(
 
 /// Find a comma-separated item in "src" (starting at `start`) that matches `key_prefix`.
 fn find_key_item(src: &[u8], start: usize, key_prefix: &[u8]) -> Option<(usize, usize)> {
-    let total_len = crate::memory::cstr_len(src);
-    let bytes = &src[..total_len];
+    let bytes = crate::memory::cstr_until_nul(src).to_bytes();
     let mut i = start;
     while i < bytes.len() {
         if (i == start || bytes[i - 1] == b',') && bytes[i..].starts_with(key_prefix) {
@@ -1379,7 +1381,7 @@ fn find_key_item(src: &[u8], start: usize, key_prefix: &[u8]) -> Option<(usize, 
 
 /// Remove one item of length `itemlen` at offset `item_off` from comma-separated buffer `str_arg` in-place.
 fn remove_comma_item(str_arg: &mut [u8], item_off: usize, itemlen: usize) {
-    let total_len = crate::memory::cstr_len(&*str_arg);
+    let total_len = crate::memory::cstr_until_nul(str_arg).to_bytes().len();
     if str_arg.get(item_off + itemlen) == Some(&b',') {
         str_arg.copy_within(item_off + itemlen + 1..=total_len, item_off);
     } else if item_off > 0 && str_arg[item_off - 1] == b',' {
@@ -1411,7 +1413,7 @@ fn remove_key_item(str_arg: &mut [u8], key_prefix: &[u8], skip_off: Option<usize
 
 /// Append a comma-separated item to the end of "str" in-place.
 fn append_item(str_arg: &mut [u8], item_bytes: &[u8]) {
-    let mut len = crate::memory::cstr_len(&*str_arg);
+    let mut len = crate::memory::cstr_until_nul(str_arg).to_bytes().len();
     if len > 0 {
         str_arg[len] = b',';
         len += 1;
@@ -1422,7 +1424,7 @@ fn append_item(str_arg: &mut [u8], item_bytes: &[u8]) {
 
 /// Prepend a comma-separated item to the beginning of "str" in-place.
 fn prepend_item(str_arg: &mut [u8], item_bytes: &[u8]) {
-    let len = crate::memory::cstr_len(&*str_arg);
+    let len = crate::memory::cstr_until_nul(str_arg).to_bytes().len();
     let comma = usize::from(len > 0);
 
     str_arg.copy_within(0..=len, item_bytes.len() + comma);
@@ -1440,7 +1442,7 @@ fn stropt_handle_keymatch(
     _flags: u32,
 ) -> bool {
     let origval = origval.into_c_char_ptr();
-    let newval_bytes = crate::memory::cstr_as_bytes(&*newval_slice);
+    let newval_bytes = crate::memory::cstr_until_nul(newval_slice).to_bytes();
     if !newval_bytes.contains(&b':') && !newval_bytes.contains(&b',') {
         return false;
     }
@@ -1481,7 +1483,7 @@ fn stropt_handle_keymatch(
         } else if op == OP_ADDING || op == OP_PREPENDING {
             let found = find_dup_item(
                 newval_slice.as_ptr().cast(),
-                item,
+                item.as_ptr().cast(),
                 item.len(),
                 K_OPT_FLAG_COMMA,
             );
@@ -1495,7 +1497,7 @@ fn stropt_handle_keymatch(
         } else if op == OP_REMOVING {
             let found = find_dup_item(
                 newval_slice.as_ptr().cast(),
-                item,
+                item.as_ptr().cast(),
                 item.len(),
                 K_OPT_FLAG_COMMA,
             );
@@ -1516,7 +1518,7 @@ fn stropt_remove_dupflags(newval: &mut [u8], flags: u32) {
     let mut i = 0;
     while newval[i] != 0 {
         let ch = newval[i];
-        let rest_end = i + crate::memory::cstr_len(&newval[i..]);
+        let rest_end = i + crate::memory::cstr_until_nul(&newval[i..]).to_bytes().len();
         if (flags & K_OPT_FLAG_ONE_COMMA) != 0 {
             if ch != b',' && newval[i + 1] == b',' && newval[i + 2..rest_end].contains(&ch) {
                 newval.copy_within(i + 2..=rest_end, i);
@@ -1573,8 +1575,9 @@ fn stropt_get_newval<T>(
         } else {
             let mut len: i32 = 0;
             if op == OP_REMOVING || (flags & K_OPT_FLAG_NO_DUP) != 0 {
-                len = crate::memory::cstr_len(&newval_vec[..]) as i32;
-                s = find_dup_item(origval, &newval_vec[..], len as usize, flags);
+                let newval_cstr = crate::memory::cstr_until_nul(&newval_vec);
+                len = newval_cstr.to_bytes().len() as i32;
+                s = find_dup_item(origval, newval_cstr, len as usize, flags);
 
                 if (op == OP_ADDING || op == OP_PREPENDING) && !s.is_null() {
                     op = OP_NONE;
@@ -1608,7 +1611,7 @@ fn stropt_get_newval<T>(
         }
         *op_arg = op;
 
-        crate::memory::cstr_to_cstring(&newval_vec[..])
+        crate::memory::cstring_until_nul(&newval_vec)
     }
 }
 
@@ -2562,7 +2565,11 @@ pub fn apply_optionset_autocmd_now(
             c"global".as_ptr()
         },
     );
-    set_vim_var_string(VV_OPTION_TYPE, &buf_type, typelen as isize);
+    set_vim_var_string(
+        VV_OPTION_TYPE,
+        crate::memory::cstr_until_nul(&buf_type),
+        typelen as isize,
+    );
     if (opt_flags & OPT_LOCAL) != 0 {
         set_vim_var_string(VV_OPTION_COMMAND, c"setlocal", "setlocal".len() as isize);
         set_vim_var_tv(VV_OPTION_OLDLOCAL, &mut oldval_tv);
@@ -3378,7 +3385,7 @@ fn do_spelllang_source(win: &mut WinInfoInfo) {
             crate::memory::ptr_offset_from(p, q) as i32,
             q,
         );
-        source_runtime_vim_lua(&fname, DIP_ALL);
+        source_runtime_vim_lua(crate::memory::cstr_until_nul(&fname), DIP_ALL);
     }
 }
 
@@ -3636,7 +3643,7 @@ pub fn get_tty_option(name: impl crate::strings::IntoCCharPtr) -> Object {
             } else {
                 let mut value = [0u8; NUMBUFLEN];
                 vim_snprintf!(value.as_mut_ptr().cast(), NUMBUFLEN, c"%d", g_st().t_colors);
-                cstr_to_obj(&value)
+                cstr_to_obj(crate::memory::cstr_until_nul(&value))
             }
         } else if crate::memory::cstr_as_opt_bytes(name) == Some(b"term") {
             cstr_to_obj(
@@ -6403,13 +6410,18 @@ fn put_set_value(
                                     return false;
                                 }
                                 copy_option_part(&raw mut p, part, size, c",");
-                                if !put_escstr(fd.cast(), &part_vec, 2) || !put_eol(fd.cast()) {
+                                if !put_escstr(
+                                    fd.cast(),
+                                    crate::memory::cstr_until_nul(&part_vec),
+                                    2,
+                                ) || !put_eol(fd.cast())
+                                {
                                     return false;
                                 }
                             }
                             return true;
                         }
-                        if !put_escstr(fd.cast(), &buf_vec, 2) {
+                        if !put_escstr(fd.cast(), crate::memory::cstr_until_nul(&buf_vec), 2) {
                             return false;
                         }
                     } else if !put_escstr(fd.cast(), value_str, 2) {
@@ -7774,7 +7786,8 @@ pub fn expand_old_setting(matches: &mut Vec<std::ffi::CString>) -> bool {
     matches.clear();
 
     if opt_st().expand_option_idx == K_OPT_INVALID {
-        opt_st().expand_option_idx = find_option(&opt_st().expand_option_name);
+        opt_st().expand_option_idx =
+            find_option(crate::memory::cstr_until_nul(&opt_st().expand_option_name));
     }
 
     let var = if opt_st().expand_option_idx != K_OPT_INVALID {

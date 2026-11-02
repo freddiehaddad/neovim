@@ -1425,7 +1425,7 @@ fn uc_split_args<T>(
     buf_vec.push(b'"');
     *lenp = buf_vec.len();
     buf_vec.push(0);
-    crate::memory::cstr_to_cstring(&buf_vec)
+    crate::memory::cstring_until_nul(&buf_vec)
 }
 
 fn add_cmd_modifier(buf: &mut Vec<u8>, mod_str: &[u8], multi_mods: &mut bool) -> usize {

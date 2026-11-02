@@ -241,7 +241,7 @@ pub fn vim_findfile_init(
             if !handled_drive && !os_dirname(expand_buf.as_mut_ptr(), MAXPATHL) {
                 return None;
             }
-            let expand_len = crate::memory::cstr_len(&expand_buf);
+            let expand_len = crate::memory::cstr_until_nul(&expand_buf).to_bytes().len();
 
             search_ctx.ffsc_start_dir = copy_string(
                 NvimString {

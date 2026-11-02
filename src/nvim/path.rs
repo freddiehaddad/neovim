@@ -230,15 +230,25 @@ pub fn path_equal<S1: crate::strings::IntoCCharPtr, S2: crate::strings::IntoCCha
             xstrlcpy(expanded_s1.as_mut_ptr().cast(), s1, MAXPATHL);
         }
 
-        let id_ok1 = os_fileid(&expanded_s1, &mut file_id1);
+        let id_ok1 = os_fileid(crate::memory::cstr_until_nul(&expanded_s1), &mut file_id1);
         let id_ok2 = os_fileid(s2, &mut file_id2);
         if id_ok1 && id_ok2 && os_fileid_equal(&file_id1, &file_id2) {
             return true;
         }
         if !id_ok1 && !id_ok2 && (flags & K_PATH_CMP_FULL) != 0 {
-            vim_full_name(&expanded_s1, full1.as_mut_ptr(), MAXPATHL, false);
+            vim_full_name(
+                crate::memory::cstr_until_nul(&expanded_s1),
+                full1.as_mut_ptr(),
+                MAXPATHL,
+                false,
+            );
             vim_full_name(s2, full2.as_mut_ptr(), MAXPATHL, false);
-            return path_cmp(opt_vars().p_fic != 0, &full1, &full2, MAXPATHL) == 0;
+            return path_cmp(
+                opt_vars().p_fic != 0,
+                crate::memory::cstr_until_nul(&full1),
+                crate::memory::cstr_until_nul(&full2),
+                MAXPATHL,
+            ) == 0;
         }
         false
     }
@@ -555,7 +565,7 @@ pub fn concat_fnames_cstr(
             sep,
             &mut len,
         );
-        crate::memory::cstr_to_cstring(&buf)
+        crate::memory::cstring_until_nul(&buf)
     }
 }
 
@@ -589,7 +599,7 @@ pub fn FullName_save(
     if !vim_full_name(fname, buf.as_mut_ptr(), MAXPATHL, force) {
         return to_slash_save(fname);
     }
-    Some(cstr_to_cstring(&buf))
+    Some(crate::memory::cstring_until_nul(&buf))
 }
 
 pub fn save_abs_path(name: impl crate::strings::IntoCCharPtr) -> Option<std::ffi::CString> {
@@ -1053,7 +1063,12 @@ fn uniquefy_paths(
         file_pattern.extend_from_slice(unsafe {
             std::slice::from_raw_parts(pattern.cast::<u8>(), len + 1)
         });
-        let Some(pat) = file_pat_to_reg_pat(&file_pattern, ptr::null(), None, 0) else {
+        let Some(pat) = file_pat_to_reg_pat(
+            crate::memory::cstr_until_nul(&file_pattern),
+            ptr::null(),
+            None,
+            0,
+        ) else {
             return;
         };
         drop(file_pattern);
@@ -1073,7 +1088,8 @@ fn uniquefy_paths(
         let mut curdir_arr = [0u8; MAXPATHL];
         let curdir = curdir_arr.as_mut_ptr();
         os_dirname(curdir, MAXPATHL);
-        expand_path_option(&curdir_arr, path_option, &mut path_ga);
+        let curdir_cstr = crate::memory::cstr_until_nul(&curdir_arr);
+        expand_path_option(curdir_cstr, path_option, &mut path_ga);
 
         let mut in_curdir: Vec<Option<std::ffi::CString>> = vec![None; gap.len()];
 
@@ -1086,7 +1102,7 @@ fn uniquefy_paths(
 
             len = gap[i].as_bytes().len();
             let dir_len = crate::memory::ptr_offset_from(dir_end, path) as usize;
-            let is_in_curdir = path_cmp(opt_vars().p_fic != 0, &curdir_arr, path, dir_len) == 0
+            let is_in_curdir = path_cmp(opt_vars().p_fic != 0, curdir_cstr, path, dir_len) == 0
                 && curdir_arr[dir_len] == 0;
             if is_in_curdir {
                 in_curdir[i] = Some(gap[i].clone());
@@ -1135,7 +1151,7 @@ fn uniquefy_paths(
                         PATHSEPSTR.as_ptr().cast::<RawCCharPtr>(),
                         short_name,
                     );
-                    gap[i] = crate::memory::cstr_to_cstring(&rel_vec);
+                    gap[i] = crate::memory::cstring_until_nul(&rel_vec);
                 }
             }
             os_breakcheck();
@@ -1169,7 +1185,7 @@ fn uniquefy_paths(
                 short_name,
             );
 
-            gap[i] = crate::memory::cstr_to_cstring(&rel_vec);
+            gap[i] = crate::memory::cstring_until_nul(&rel_vec);
             sort_again = true;
             os_breakcheck();
         }
@@ -1222,11 +1238,12 @@ fn expand_in_path(
         let mut curdir_arr = [0u8; MAXPATHL];
         let curdir = curdir_arr.as_mut_ptr();
         os_dirname(curdir, MAXPATHL);
+        let curdir_cstr = crate::memory::cstr_until_nul(&curdir_arr);
 
         if (flags & EW_CDPATH) != 0 {
-            expand_path_option(&curdir_arr, opt_vars().p_cdpath, &mut path_ga);
+            expand_path_option(curdir_cstr, opt_vars().p_cdpath, &mut path_ga);
         } else {
-            expand_path_option(&curdir_arr, path_option, &mut path_ga);
+            expand_path_option(curdir_cstr, path_option, &mut path_ga);
         }
         if path_ga.is_empty() {
             return 0;
@@ -1488,10 +1505,10 @@ fn expand_backtick(
         cmd_vec.push(0);
 
         let cmd_out: Option<std::ffi::CString> = if cmd_vec[0] == b'=' {
-            eval_to_string(&cmd_vec[1..], true, false)
+            eval_to_string(crate::memory::cstr_until_nul(&cmd_vec[1..]), true, false)
         } else {
             get_cmd_output(
-                &cmd_vec,
+                crate::memory::cstr_until_nul(&cmd_vec),
                 ptr::null_mut(),
                 if (flags & EW_SILENT) != 0 {
                     K_SHELL_OPT_SILENT
@@ -1641,7 +1658,7 @@ pub fn addfile(gap: &mut Vec<std::ffi::CString>, f: impl crate::strings::IntoCCh
         if isdir && (flags & EW_ADDSLASH) != 0 {
             add_pathsep(buf.as_mut_ptr());
         }
-        gap.push(crate::memory::cstr_to_cstring(&buf));
+        gap.push(crate::memory::cstring_until_nul(&buf));
     }
 }
 
@@ -1925,8 +1942,7 @@ pub fn fix_fname(fname: impl crate::strings::IntoCCharPtr) -> Option<std::ffi::C
 
         let mut bytes = to_slash_save(fname)?.into_bytes_with_nul();
         path_fix_case(bytes.as_mut_ptr());
-        let len = crate::memory::cstr_len(&bytes[..]);
-        Some(cstr_from_bytes(&bytes[..len]))
+        Some(crate::memory::cstring_until_nul(&bytes))
     }
 }
 
@@ -1972,7 +1988,7 @@ pub fn path_fix_case(name: *mut u8) {
                 MAXPATHL - tail_off + 1,
             );
             let mut file_info_new: FileInfo = FileInfo::new();
-            if os_fileinfo_link(&newname, &mut file_info_new)
+            if os_fileinfo_link(crate::memory::cstr_until_nul(&newname), &mut file_info_new)
                 && os_fileinfo_id_equal(&file_info, &file_info_new)
             {
                 unsafe { ptr::copy_nonoverlapping(entry.as_ptr().cast::<u8>(), tail, taillen + 1) };
@@ -2012,11 +2028,12 @@ pub fn same_directory(
 
         let mut ffname = [0u8; MAXPATHL];
         vim_full_name(f1, ffname.as_mut_ptr(), MAXPATHL, false);
-        let t1 = path_tail_with_sep(&ffname);
+        let ffname_cstr = crate::memory::cstr_until_nul(&ffname);
+        let t1 = path_tail_with_sep(ffname_cstr);
         let t2 = path_tail_with_sep(f2);
         let d1 = crate::memory::ptr_offset_from(t1, ffname.as_ptr().cast());
         let d2 = crate::memory::ptr_offset_from(t2, f2);
-        d1 == d2 && path_cmp(opt_vars().p_fic != 0, &ffname, f2, d1 as usize) == 0
+        d1 == d2 && path_cmp(opt_vars().p_fic != 0, ffname_cstr, f2, d1 as usize) == 0
     }
 }
 
@@ -2236,7 +2253,7 @@ pub fn match_suffix(fname: impl crate::strings::IntoCCharPtr) -> bool {
                 if fnamelen >= setsuflen
                     && path_cmp(
                         opt_vars().p_fic != 0,
-                        &suf_buf,
+                        crate::memory::cstr_until_nul(&suf_buf),
                         fname.wrapping_add(fnamelen - setsuflen),
                         setsuflen,
                     ) == 0
@@ -2274,7 +2291,7 @@ pub fn path_full_dir_name(
             return false;
         }
 
-        xstrlcpy(buffer.cast(), &old_dir, len);
+        xstrlcpy(buffer.cast(), crate::memory::cstr_until_nul(&old_dir), len);
         if !append_path(buffer, directory, len) {
             return false;
         }
