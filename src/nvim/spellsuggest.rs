@@ -550,7 +550,7 @@ pub fn spell_check_sps(
         ) {
             let mut f: i32 = 0;
             if val.is_null() {
-                if keylen > 0 && ascii_isdigit(crate::memory::cstr_first_char(key)) {
+                if keylen > 0 && ascii_isdigit(crate::memory::cstr_first_byte(key)) {
                     let mut rem = crate::memory::cstr_slice(key, keylen);
                     limit = getdigits_int(&mut rem, true, 0);
                     if !rem.is_empty() {
@@ -575,7 +575,7 @@ pub fn spell_check_sps(
                     v = v.wrapping_add(1);
                     vl -= 1;
                 }
-                if vl == 0 || !ascii_isdigit(crate::memory::cstr_first_char(v)) {
+                if vl == 0 || !ascii_isdigit(crate::memory::cstr_first_byte(v)) {
                     f = -1;
                 }
             } else {
@@ -1275,7 +1275,7 @@ fn suggest_trie_walk(su: &mut Suginfo, lp: &Langp, fword: *mut u8, soundfold: bo
                         crate::memory::cstr_byte_at(fword.cast(), stack[udepth].ts_fidx as usize)
                             == 0
                             || if soundfold {
-                                ascii_iswhite(crate::memory::cstr_char_at(
+                                ascii_iswhite(crate::memory::cstr_byte_at(
                                     fword.cast(),
                                     stack[udepth].ts_fidx as usize,
                                 ))
@@ -2529,7 +2529,7 @@ fn stp_sal_score(
                 (&raw mut fword).cast(),
                 MAXWLEN as i32,
             );
-            if ascii_iswhite(crate::memory::cstr_char_at(
+            if ascii_iswhite(crate::memory::cstr_byte_at(
                 su.su_badptr.cast(),
                 su.su_badlen as usize,
             )) && crate::memory::cstr_is_empty(skiptowhite(stp.st_word.as_ptr()))

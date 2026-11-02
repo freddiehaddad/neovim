@@ -267,7 +267,7 @@ pub fn ex_menu(eap: &mut Exarg) {
 
     let mut p = arg;
     while !crate::memory::cstr_is_empty(p) {
-        if !ascii_isdigit(crate::memory::cstr_first_char(p))
+        if !ascii_isdigit(crate::memory::cstr_first_byte(p))
             && crate::memory::cstr_first_byte(p) != b'.'
         {
             break;
@@ -275,7 +275,7 @@ pub fn ex_menu(eap: &mut Exarg) {
         p = p.wrapping_add(1);
     }
     let mut i: usize;
-    if ascii_iswhite(crate::memory::cstr_first_char(p)) {
+    if ascii_iswhite(crate::memory::cstr_first_byte(p)) {
         let arg_bytes = crate::memory::cstr_as_bytes(arg);
         let mut rem = arg_bytes;
         i = 0;
@@ -304,12 +304,12 @@ pub fn ex_menu(eap: &mut Exarg) {
     pri_tab[MENUDEPTH] = -1;
 
     if (crate::memory::cstr_prefix_bytes(arg, 6) == &b"enable"[..6])
-        && ascii_iswhite(crate::memory::cstr_char_at(arg, 6))
+        && ascii_iswhite(crate::memory::cstr_byte_at(arg, 6))
     {
         enable = K_TRUE;
         arg = skipwhite(arg.wrapping_add(6));
     } else if (crate::memory::cstr_prefix_bytes(arg, 7) == &b"disable"[..7])
-        && ascii_iswhite(crate::memory::cstr_char_at(arg, 7))
+        && ascii_iswhite(crate::memory::cstr_byte_at(arg, 7))
     {
         enable = K_FALSE;
         arg = skipwhite(arg.wrapping_add(7));
@@ -1722,7 +1722,7 @@ pub fn ex_emenu(eap: &mut Exarg) {
     let mut arg = eap.arg;
     let mut mode_idx = MENU_INDEX_INVALID;
 
-    if !crate::memory::cstr_is_empty(arg) && ascii_iswhite(crate::memory::cstr_char_at(arg, 1)) {
+    if !crate::memory::cstr_is_empty(arg) && ascii_iswhite(crate::memory::cstr_byte_at(arg, 1)) {
         match crate::memory::cstr_first_byte(arg) {
             b'n' => mode_idx = MENU_INDEX_NORMAL,
             b'v' => mode_idx = MENU_INDEX_VISUAL,
@@ -1835,7 +1835,7 @@ pub fn ex_menutranslate(eap: &mut Exarg) {
 fn menu_skip_part(mut p: *mut u8) -> *mut u8 {
     while !crate::memory::cstr_is_empty(p.cast())
         && crate::memory::cstr_first_byte(p.cast()) != b'.'
-        && !ascii_iswhite(crate::memory::cstr_first_char(p.cast()))
+        && !ascii_iswhite(crate::memory::cstr_first_byte(p.cast()))
     {
         if (crate::memory::cstr_first_byte(p.cast()) == b'\\'
             || crate::memory::cstr_first_byte(p.cast()) == CTRL_V_CONST as u8)
@@ -1898,7 +1898,7 @@ fn menu_translate_tab_and_shift(arg_start: impl crate::strings::IntoCCharPtr) ->
         let mut arg = arg_start;
 
         while !crate::memory::cstr_is_empty(arg)
-            && !ascii_iswhite(crate::memory::cstr_first_char(arg))
+            && !ascii_iswhite(crate::memory::cstr_first_byte(arg))
         {
             if (crate::memory::cstr_first_byte(arg) == b'\\'
                 || crate::memory::cstr_first_byte(arg) == CTRL_V_CONST as u8)

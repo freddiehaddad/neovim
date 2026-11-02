@@ -1650,7 +1650,7 @@ pub fn get_c_indent() -> i32 {
                             } else if b == COM_LEFT || b == COM_RIGHT {
                                 align = i32::from(b);
                                 p = p.wrapping_add(1);
-                            } else if ascii_isdigit(crate::memory::cstr_first_char(p))
+                            } else if ascii_isdigit(crate::memory::cstr_first_byte(p))
                                 || crate::memory::cstr_first_byte(p) == b'-'
                             {
                                 let p_bytes = crate::memory::cstr_as_bytes(p);

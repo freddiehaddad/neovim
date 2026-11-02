@@ -173,7 +173,7 @@ fn tf_st() -> &'static mut TextformatState {
 }
 
 #[inline]
-fn whitechar(cc: i32) -> bool {
+fn whitechar<C: crate::charset::AsciiInt>(cc: C) -> bool {
     ascii_iswhite(cc) && !utf_iscomposing_first(utf_ptr2char(get_cursor_pos_ptr().wrapping_add(1)))
 }
 
@@ -632,7 +632,7 @@ fn same_leader(
     let line2 = ml_get(lnum + 1);
     let mut idx2: i32 = 0;
     while idx2 < leader2_len {
-        if !ascii_iswhite(crate::memory::cstr_char_at(line2, idx2 as usize)) {
+        if !ascii_iswhite(crate::memory::cstr_byte_at(line2, idx2 as usize)) {
             let c1 = line1[idx1 as usize];
             idx1 += 1;
             if c1 != crate::memory::cstr_byte_at(line2, idx2 as usize) {
@@ -727,7 +727,7 @@ pub fn auto_format(trailblank: bool, prev_line: bool) {
         && (g_st().state_global & MODE_INSERT) != 0
     {
         let line = get_cursor_line_ptr();
-        if whitechar(crate::memory::cstr_char_at(line, (pos.col - 1) as usize)) {
+        if whitechar(crate::memory::cstr_byte_at(line, (pos.col - 1) as usize)) {
             curwin_mut().w_cursor = pos;
             return;
         }

@@ -164,7 +164,7 @@ pub fn win_chartabsize(
 ) -> i32 {
     let p = p.into_c_char_ptr();
     {
-        if crate::memory::cstr_first_char(p) == TAB
+        if i32::from(crate::memory::cstr_first_byte(p)) == TAB
             && (wp.w_onebuf_opt.wo_list == 0 || wp.w_p_lcs_chars.tab1 != 0)
         {
             let buf = wp.buf_mut();
@@ -681,7 +681,7 @@ pub fn charsize_regular(
 
                 let raw_w = if spans.is_none() {
                     0
-                } else if crate::memory::cstr_first_char(s) == TAB && csarg.use_tabstop {
+                } else if i32::from(crate::memory::cstr_first_byte(s)) == TAB && csarg.use_tabstop {
                     tabstop_padding(raw_vcol2 + virt_width, buf.b_p_ts, &buf.b_p_vts_array)
                 } else {
                     win_chartabsize(&mut *wp, s, raw_vcol2)
@@ -696,13 +696,13 @@ pub fn charsize_regular(
                 let mut lookahead_hidden = conceal_span_hidden(span, col, w);
                 if !use_raw_width && lookahead_hidden != 0 {
                     use_raw_width = true;
-                    if crate::memory::cstr_first_char(s) == TAB && csarg.use_tabstop {
+                    if i32::from(crate::memory::cstr_first_byte(s)) == TAB && csarg.use_tabstop {
                         lookahead_hidden += raw_w - w;
                         w = raw_w;
                     }
                 }
                 if use_raw_width
-                    && crate::memory::cstr_first_char(s) == TAB
+                    && i32::from(crate::memory::cstr_first_byte(s)) == TAB
                     && csarg.use_tabstop
                     && span.is_none()
                 {

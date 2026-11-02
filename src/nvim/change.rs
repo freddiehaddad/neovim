@@ -632,7 +632,7 @@ pub fn file_ff_differs(buf: &mut FileBuf, ignore_empty: bool) -> bool {
     {
         return false;
     }
-    if buf.b_start_ffc != crate::memory::cstr_first_char(buf.b_p_ff) {
+    if buf.b_start_ffc != i32::from(crate::memory::cstr_first_byte(buf.b_p_ff)) {
         return true;
     }
     if (buf.b_p_bin != 0 || buf.b_p_fixeol == 0)
@@ -1307,7 +1307,7 @@ pub fn open_line(
                 crate::memory::cstr_ncpy(leader.cast(), saved_line.cast(), lead_len as usize);
 
                 for li in 0..comment_start {
-                    if !ascii_iswhite(crate::memory::cstr_char_at(leader.cast(), li as usize)) {
+                    if !ascii_iswhite(crate::memory::cstr_byte_at(leader.cast(), li as usize)) {
                         *leader.wrapping_add(li as usize) = b' ';
                     }
                 }
@@ -1324,7 +1324,7 @@ pub fn open_line(
                         if *p == COM_RIGHT || *p == COM_LEFT {
                             c = *p;
                             p = p.wrapping_add(1);
-                        } else if ascii_isdigit(crate::memory::cstr_first_char(p.cast()))
+                        } else if ascii_isdigit(crate::memory::cstr_first_byte(p.cast()))
                             || crate::memory::cstr_first_byte(p.cast()) == b'-'
                         {
                             let p_bytes = crate::memory::cstr_as_bytes(p.cast());
@@ -1337,7 +1337,7 @@ pub fn open_line(
                     }
                     if c == COM_RIGHT {
                         let mut p = leader.wrapping_add((lead_len - 1) as usize);
-                        while p > leader && ascii_iswhite(crate::memory::cstr_first_char(p.cast()))
+                        while p > leader && ascii_iswhite(crate::memory::cstr_first_byte(p.cast()))
                         {
                             p = p.wrapping_sub(1);
                         }
@@ -1396,7 +1396,7 @@ pub fn open_line(
                                 );
                                 lead_len -= l;
                                 *p = b' ';
-                            } else if !ascii_iswhite(crate::memory::cstr_first_char(p.cast())) {
+                            } else if !ascii_iswhite(crate::memory::cstr_first_byte(p.cast())) {
                                 *p = b' ';
                             }
                         }
@@ -1430,7 +1430,7 @@ pub fn open_line(
 
                         p = p.wrapping_add(lead_repl_len as usize);
                         while p < leader.wrapping_add(lead_len as usize) {
-                            if !ascii_iswhite(crate::memory::cstr_first_char(p.cast())) {
+                            if !ascii_iswhite(crate::memory::cstr_first_byte(p.cast())) {
                                 if p.wrapping_add(1) < leader.wrapping_add(lead_len as usize)
                                     && *p.wrapping_add(1) == TAB
                                 {
@@ -1512,7 +1512,7 @@ pub fn open_line(
 
                 if newindent != 0 || g_st().ins_global.did_si {
                     while lead_len != 0
-                        && ascii_iswhite(crate::memory::cstr_first_char(leader.cast()))
+                        && ascii_iswhite(crate::memory::cstr_first_byte(leader.cast()))
                     {
                         lead_len -= 1;
                         newcol -= 1;

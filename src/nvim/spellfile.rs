@@ -2871,7 +2871,7 @@ fn spell_read_dic(
         spin.si_msg_count = 999999;
 
         if vim_fgets(line.as_mut_ptr(), MAXLINELEN as i32, fd)
-            || !ascii_isdigit(crate::memory::cstr_first_char(skipwhite(
+            || !ascii_isdigit(crate::memory::cstr_first_byte(skipwhite(
                 line.as_ptr().cast(),
             )))
         {
@@ -5319,7 +5319,7 @@ fn init_spellfile() {
     while !crate::memory::cstr_is_empty(lend)
         && vim_strchr(c",._", crate::memory::cstr_first_byte(lend) as i32).is_null()
     {
-        if vim_ispathsep(crate::memory::cstr_first_char(lend)) {
+        if vim_ispathsep(crate::memory::cstr_first_byte(lend)) {
             aspath = true;
             lstart = lend.wrapping_add(1);
         }

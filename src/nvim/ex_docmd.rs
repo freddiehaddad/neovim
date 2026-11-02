@@ -5825,11 +5825,11 @@ fn parse_count(
     errormsg: &mut Option<&'static std::ffi::CStr>,
     validate: bool,
 ) -> bool {
-    if (eap.argt & EX_COUNT) != 0 && ascii_isdigit(crate::memory::cstr_first_char(eap.arg)) {
+    if (eap.argt & EX_COUNT) != 0 && ascii_isdigit(crate::memory::cstr_first_byte(eap.arg)) {
         let p = skipdigits(eap.arg.wrapping_add(1));
         if (eap.argt & EX_BUFNAME) == 0
             || crate::memory::cstr_is_empty(p)
-            || ascii_iswhite(crate::memory::cstr_first_char(p))
+            || ascii_iswhite(crate::memory::cstr_first_byte(p))
         {
             let arg_bytes = crate::memory::cstr_as_bytes(eap.arg);
             let mut rem = arg_bytes;
@@ -6106,7 +6106,7 @@ fn execute_cmd0(
             } else {
                 p = eap.arg.wrapping_add(crate::memory::cstr_len(eap.arg));
                 while p > eap.arg
-                    && ascii_iswhite(crate::memory::cstr_first_char(p.wrapping_sub(1)))
+                    && ascii_iswhite(crate::memory::cstr_first_byte(p.wrapping_sub(1)))
                 {
                     p = p.wrapping_sub(1);
                 }
@@ -6457,11 +6457,11 @@ fn do_one_cmd(
         if !p.is_null()
             && ea.cmdidx == CMD_SIZE_I32
             && ea.skip == 0
-            && ascii_isupper(crate::memory::cstr_first_char(ea.cmd))
+            && ascii_isupper(crate::memory::cstr_first_byte(ea.cmd))
             && has_event(EVENT_CMDUNDEFINED)
         {
             let mut cmdend = ea.cmd;
-            while ascii_isalnum(crate::memory::cstr_first_char(cmdend)) {
+            while ascii_isalnum(crate::memory::cstr_first_byte(cmdend)) {
                 cmdend = cmdend.wrapping_add(1);
             }
             let cmdname = cstr_from_bytes(crate::memory::cstr_slice(
@@ -6901,7 +6901,7 @@ pub fn parse_command_modifiers(
                 let mut reg_pat: RawCCharPtrMut = ptr::null_mut();
                 if !checkforcmd(&raw mut p, c"filter", 4)
                     || crate::memory::cstr_is_empty(p)
-                    || ends_excmd(crate::memory::cstr_first_char(p)) != 0
+                    || ends_excmd(crate::memory::cstr_first_byte(p)) != 0
                 {
                     break;
                 }
@@ -6909,7 +6909,7 @@ pub fn parse_command_modifiers(
                     cmod.cmod_filter_force = true;
                     p = skipwhite(p.wrapping_add(1));
                     if crate::memory::cstr_is_empty(p)
-                        || ends_excmd(crate::memory::cstr_first_char(p)) != 0
+                        || ends_excmd(crate::memory::cstr_first_byte(p)) != 0
                     {
                         break;
                     }
@@ -6940,7 +6940,7 @@ pub fn parse_command_modifiers(
                 if p != eap.cmd
                     || !checkforcmd(&raw mut p, c"hide", 3)
                     || crate::memory::cstr_is_empty(p)
-                    || ends_excmd(crate::memory::cstr_first_char(p)) != 0
+                    || ends_excmd(crate::memory::cstr_first_byte(p)) != 0
                 {
                     break;
                 }
@@ -6987,7 +6987,7 @@ pub fn parse_command_modifiers(
                 }
                 cmod.cmod_flags |= CMOD_SILENT;
                 if crate::memory::cstr_first_byte(eap.cmd) == b'!'
-                    && !ascii_iswhite(crate::memory::cstr_first_char(eap.cmd.wrapping_sub(1)))
+                    && !ascii_iswhite(crate::memory::cstr_first_byte(eap.cmd.wrapping_sub(1)))
                 {
                     eap.cmd = skipwhite(eap.cmd.wrapping_add(1));
                     cmod.cmod_flags |= CMOD_ERRSILENT;
@@ -7044,7 +7044,7 @@ pub fn parse_command_modifiers(
                 if !checkforcmd(&raw mut p, c"verbose", 4) {
                     break;
                 }
-                if ascii_isdigit(crate::memory::cstr_first_char(eap.cmd)) {
+                if ascii_isdigit(crate::memory::cstr_first_byte(eap.cmd)) {
                     cmod.cmod_verbose =
                         crate::charset::parse_i64_prefix(crate::memory::cstr_as_bytes(eap.cmd))
                             as i32
@@ -8458,7 +8458,7 @@ pub fn getargcmd(argp: *mut RawCCharPtrMut) -> RawCCharPtrMut {
 
     if crate::memory::cstr_first_byte(arg) == b'+' {
         arg = arg.wrapping_add(1);
-        if ascii_isspace(crate::memory::cstr_first_char(arg)) || crate::memory::cstr_is_empty(arg) {
+        if ascii_isspace(crate::memory::cstr_first_byte(arg)) || crate::memory::cstr_is_empty(arg) {
             command = (&raw mut docmd_st().dollar_command).cast();
         } else {
             command = arg;
@@ -8481,7 +8481,7 @@ pub fn getargcmd(argp: *mut RawCCharPtrMut) -> RawCCharPtrMut {
 pub fn skip_cmd_arg<T>(p: *mut T, rembs: bool) -> *mut T {
     let mut p = p.cast::<u8>();
     while !crate::memory::cstr_is_empty(p.cast())
-        && !ascii_isspace(crate::memory::cstr_first_char(p.cast()))
+        && !ascii_isspace(crate::memory::cstr_first_byte(p.cast()))
     {
         if crate::memory::cstr_first_byte(p.cast()) == b'\\'
             && crate::memory::cstr_byte_at(p.cast(), 1) != 0
@@ -8863,8 +8863,9 @@ fn ex_blast(eap: &mut Exarg) {
     }
 }
 
-pub fn ends_excmd(c: i32) -> i32 {
-    i32::from(c == i32::from(NUL) || c == b'|' as i32 || c == b'"' as i32 || c == b'\n' as i32)
+pub fn ends_excmd<C: crate::charset::AsciiInt>(c: C) -> i32 {
+    let ch = c.into_ascii_int();
+    i32::from(ch == i32::from(NUL) || ch == b'|' as i32 || ch == b'"' as i32 || ch == b'\n' as i32)
 }
 
 pub fn find_nextcmd(p: impl crate::strings::IntoCCharPtr) -> RawCCharPtrMut {
@@ -11219,7 +11220,7 @@ fn ex_later(eap: &mut Exarg) {
 
     if crate::memory::cstr_is_empty(p) {
         count = 1;
-    } else if ascii_isdigit(crate::memory::cstr_first_char(p)) {
+    } else if ascii_isdigit(crate::memory::cstr_first_byte(p)) {
         let p_bytes = crate::memory::cstr_as_bytes(p);
         let mut rem = p_bytes;
         count = getdigits_int(&mut rem, false, 0);

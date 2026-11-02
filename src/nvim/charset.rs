@@ -609,8 +609,8 @@ pub fn transchar_buf(buf: Option<&FileBuf>, mut c: i32) -> &'static std::ffi::CS
     std::ffi::CStr::from_bytes_until_nul(&charset_st().transchar_charbuf).unwrap_or(c"")
 }
 
-pub fn transchar_byte(c: i32) -> &'static std::ffi::CStr {
-    transchar_byte_buf(Some(crate::globals::curbuf_mut()), c)
+pub fn transchar_byte<C: AsciiInt>(c: C) -> &'static std::ffi::CStr {
+    transchar_byte_buf(Some(crate::globals::curbuf_mut()), c.into_ascii_int())
 }
 
 pub fn transchar_byte_buf(buf: Option<&FileBuf>, c: i32) -> &'static std::ffi::CStr {
@@ -1273,26 +1273,23 @@ pub fn vim_str2nr(
     vim_slice2nr(bytes, prep, len, what, nptr, unptr, strict, overflow);
 }
 
-pub const fn hex2nr(c: i32) -> i32 {
-    if c >= b'a' as i32 && c <= b'f' as i32 {
-        c - b'a' as i32 + 10
-    } else if c >= b'A' as i32 && c <= b'F' as i32 {
-        c - b'A' as i32 + 10
+pub fn hex2nr<C: AsciiInt>(c: C) -> i32 {
+    let ch = c.into_ascii_int();
+    if ch >= b'a' as i32 && ch <= b'f' as i32 {
+        ch - b'a' as i32 + 10
+    } else if ch >= b'A' as i32 && ch <= b'F' as i32 {
+        ch - b'A' as i32 + 10
     } else {
-        c - b'0' as i32
+        ch - b'0' as i32
     }
 }
 
 pub fn hexhex2nr(p: impl crate::strings::IntoCCharPtr) -> i32 {
-    let p = p.into_c_char_ptr();
-    {
-        if !ascii_isxdigit(crate::memory::cstr_first_char(p))
-            || !ascii_isxdigit(crate::memory::cstr_char_at(p, 1))
-        {
-            return -1;
-        }
-        (hex2nr(crate::memory::cstr_first_char(p)) << 4) + hex2nr(crate::memory::cstr_char_at(p, 1))
+    let bytes = crate::memory::cstr_as_bytes(p.into_c_char_ptr());
+    if bytes.len() < 2 || !bytes[0].is_ascii_hexdigit() || !bytes[1].is_ascii_hexdigit() {
+        return -1;
     }
+    (hex2nr(bytes[0]) << 4) + hex2nr(bytes[1])
 }
 
 pub fn rem_backslash(str_: impl crate::strings::IntoCCharPtr) -> bool {

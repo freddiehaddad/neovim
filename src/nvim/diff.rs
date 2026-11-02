@@ -2120,11 +2120,11 @@ fn diff_cmp(s1: impl crate::strings::IntoCCharPtr, s2: impl crate::strings::Into
         let mut p2 = s2;
         while !crate::memory::cstr_is_empty(p1) && !crate::memory::cstr_is_empty(p2) {
             if ((diff_st().diff_flags & DIFF_IWHITE) != 0
-                && ascii_iswhite(crate::memory::cstr_first_char(p1))
-                && ascii_iswhite(crate::memory::cstr_first_char(p2)))
+                && ascii_iswhite(crate::memory::cstr_first_byte(p1))
+                && ascii_iswhite(crate::memory::cstr_first_byte(p2)))
                 || ((diff_st().diff_flags & DIFF_IWHITEALL) != 0
-                    && (ascii_iswhite(crate::memory::cstr_first_char(p1))
-                        || ascii_iswhite(crate::memory::cstr_first_char(p2))))
+                    && (ascii_iswhite(crate::memory::cstr_first_byte(p1))
+                        || ascii_iswhite(crate::memory::cstr_first_byte(p2))))
             {
                 p1 = skipwhite(p1);
                 p2 = skipwhite(p2);
@@ -2786,7 +2786,7 @@ fn diff_find_change_inline_diff(dp_idx: usize) {
                         curstr.push(NL as u8);
                         numlines += 1;
                     }
-                    if ascii_iswhite(crate::memory::cstr_first_char(s)) {
+                    if ascii_iswhite(crate::memory::cstr_first_byte(s)) {
                         if (diff_st().diff_flags & DIFF_IWHITEALL) != 0 {
                             in_keyword = false;
                             s = skipwhite(s);
@@ -2813,7 +2813,7 @@ fn diff_find_change_inline_diff(dp_idx: usize) {
                         curstr.push(NUL as u8);
                     } else {
                         char_len = utfc_ptr2len(s);
-                        if ascii_iswhite(crate::memory::cstr_first_char(s))
+                        if ascii_iswhite(crate::memory::cstr_first_byte(s))
                             && (diff_st().diff_flags & DIFF_IWHITE) != 0
                         {
                             char_len = crate::memory::ptr_offset_from(skipwhite(s), s) as i32;

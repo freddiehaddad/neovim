@@ -1176,7 +1176,7 @@ pub fn heredoc_get(
             if text_indent_len == -1 && !crate::memory::cstr_is_empty(theline.cast()) {
                 let mut p = theline;
                 text_indent_len = 0;
-                while ascii_iswhite(crate::memory::cstr_first_char(p.cast())) {
+                while ascii_iswhite(crate::memory::cstr_first_byte(p.cast())) {
                     p = p.wrapping_add(1);
                     text_indent_len += 1;
                 }
@@ -1244,7 +1244,7 @@ pub fn ex_let(eap: &mut Exarg) {
     if !has_assign && !concat {
         if crate::memory::cstr_first_byte(arg) == b'[' {
             emsg(gettext(E_INVARG));
-        } else if ends_excmd(crate::memory::cstr_first_char(arg)) == 0 {
+        } else if ends_excmd(crate::memory::cstr_first_byte(arg)) == 0 {
             arg = list_arg_vars(eap, arg, &mut first).cast_mut();
         } else if eap.skip == 0 {
             list_glob_vars(&mut first);
@@ -1557,7 +1557,7 @@ fn list_arg_vars<T>(eap: &mut Exarg, arg: *const T, first: &mut i32) -> *const T
         let mut error = false;
         let mut tv: TypVal = TypVal::new();
 
-        while ends_excmd(crate::memory::cstr_first_char(arg.cast())) == 0 && !g_st().got_int {
+        while ends_excmd(crate::memory::cstr_first_byte(arg.cast())) == 0 && !g_st().got_int {
             if error || eap.skip != 0 {
                 arg = find_name_end(
                     arg,
@@ -1565,8 +1565,8 @@ fn list_arg_vars<T>(eap: &mut Exarg, arg: *const T, first: &mut i32) -> *const T
                     ptr::null_mut(),
                     FNE_INCL_BR | FNE_CHECK_START,
                 );
-                if !ascii_iswhite(crate::memory::cstr_first_char(arg.cast()))
-                    && ends_excmd(crate::memory::cstr_first_char(arg.cast())) == 0
+                if !ascii_iswhite(crate::memory::cstr_first_byte(arg.cast()))
+                    && ends_excmd(crate::memory::cstr_first_byte(arg.cast())) == 0
                 {
                     g_st().emsg_severe = true;
                     semsg!(gettext(E_TRAILING_ARG), arg);
@@ -2001,7 +2001,7 @@ pub fn ex_lockvar(eap: &mut Exarg) {
 
     if eap.forceit != 0 {
         deep = -1;
-    } else if ascii_isdigit(crate::memory::cstr_first_char(arg)) {
+    } else if ascii_isdigit(crate::memory::cstr_first_byte(arg)) {
         let arg_bytes = crate::memory::cstr_as_bytes(arg);
         let mut rem = arg_bytes;
         deep = getdigits_int(&mut rem, false, -1);
@@ -2056,8 +2056,8 @@ fn ex_unletlock(
                     error = true;
                 }
                 if name_end.is_null()
-                    || (!ascii_iswhite(crate::memory::cstr_first_char(name_end.cast()))
-                        && ends_excmd(crate::memory::cstr_first_char(name_end.cast())) == 0)
+                    || (!ascii_iswhite(crate::memory::cstr_first_byte(name_end.cast()))
+                        && ends_excmd(crate::memory::cstr_first_byte(name_end.cast())) == 0)
                 {
                     if !name_end.is_null() {
                         g_st().emsg_severe = true;
@@ -2071,7 +2071,7 @@ fn ex_unletlock(
                 }
             }
             arg = skipwhite(name_end.cast()).cast();
-            if ends_excmd(crate::memory::cstr_first_char(arg.cast())) != 0 {
+            if ends_excmd(crate::memory::cstr_first_byte(arg.cast())) != 0 {
                 break;
             }
         }
@@ -2527,7 +2527,9 @@ pub fn set_reg_var(c: i32) {
         regname[0] = c as u8;
     }
     let tv = get_vim_var_tv(VV_REG);
-    if tv.vval.v_string().is_null() || crate::memory::cstr_first_char(tv.vval.v_string()) != c {
+    if tv.vval.v_string().is_null()
+        || i32::from(crate::memory::cstr_first_byte(tv.vval.v_string())) != c
+    {
         set_vim_var_string(VV_REG, regname.as_ptr().cast(), 1);
     }
 }
@@ -3298,7 +3300,7 @@ pub fn valid_varname(varname: impl crate::strings::IntoCCharPtr) -> bool {
         let mut p = varname;
         while !crate::memory::cstr_is_empty(p) {
             if !eval_isnamec1(crate::memory::cstr_first_byte(p) as i32)
-                && (p == varname || !ascii_isdigit(crate::memory::cstr_first_char(p)))
+                && (p == varname || !ascii_isdigit(crate::memory::cstr_first_byte(p)))
                 && crate::memory::cstr_first_byte(p) != AUTOLOAD_CHAR
             {
                 semsg!(gettext(E_ILLVAR), varname);

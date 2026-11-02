@@ -584,7 +584,7 @@ fn win_redr_stl_expr(wp: *mut WinInfoInfo, draw_winbar: bool, draw_ruler: bool, 
                 if crate::charset::parse_i64_prefix(crate::memory::cstr_as_bytes(stl.cast())) as i32
                     != 0
                 {
-                    while ascii_isdigit(crate::memory::cstr_first_char(stl.cast())) {
+                    while ascii_isdigit(crate::memory::cstr_first_byte(stl.cast())) {
                         stl = stl.wrapping_add(1);
                     }
                 }
@@ -2339,7 +2339,7 @@ pub extern "C" fn build_stl_str_hl(
                     while l < minwid && out_p < out_end_p {
                         if l + 1 == minwid
                             && fillchar == schar_from_ascii(b'-')
-                            && ascii_isdigit(crate::memory::cstr_first_char(t.cast()))
+                            && ascii_isdigit(crate::memory::cstr_first_byte(t.cast()))
                         {
                             *out_p = b' ';
                             out_p = out_p.wrapping_add(1);
@@ -2367,7 +2367,7 @@ pub extern "C" fn build_stl_str_hl(
                 while !crate::memory::cstr_is_empty(t.cast()) && out_p < out_end_p {
                     if fillable
                         && crate::memory::cstr_first_byte(t.cast()) == b' '
-                        && (!ascii_isdigit(crate::memory::cstr_char_at(t.cast(), 1))
+                        && (!ascii_isdigit(crate::memory::cstr_byte_at(t.cast(), 1))
                             || fillchar != schar_from_ascii(b'-'))
                     {
                         schar_get_adv(&mut out_p, fillchar);

@@ -5462,7 +5462,7 @@ fn find_common_prefix(prefix_len: &mut usize, curbuf_only: bool) -> *mut u8 {
         if len == crate::memory::cstr_len(first.cast()) as i32 {
             let line = get_cursor_line_ptr();
             let p = line.wrapping_add(curwin_mut().w_cursor.col as usize);
-            if !p.is_null() && !ascii_iswhite_or_nul(crate::memory::cstr_first_char(p)) {
+            if !p.is_null() && !ascii_iswhite_or_nul(crate::memory::cstr_first_byte(p)) {
                 let end = find_word_end(p);
                 let text_len = crate::memory::ptr_offset_from(end, p) as i32;
                 if text_len > 0

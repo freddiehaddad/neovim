@@ -2658,7 +2658,7 @@ pub fn nvim_get_mark(
         return rv;
     }
 
-    let mark = mark_get_global(false, crate::memory::cstr_first_char(name.data));
+    let mark = mark_get_global(false, i32::from(crate::memory::cstr_first_byte(name.data)));
     let mark = unsafe { &mut *mark };
     let pos = mark.fmark.mark;
     let mut bufnr: i32;

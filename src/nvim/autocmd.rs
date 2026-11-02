@@ -2061,7 +2061,7 @@ pub fn do_autocmd(eap: &mut Exarg, arg_in: impl crate::strings::IntoCCharPtr, fo
         } else {
             cmd = pat;
             while !crate::memory::cstr_is_empty(cmd)
-                && (!ascii_iswhite(crate::memory::cstr_first_char(cmd))
+                && (!ascii_iswhite(crate::memory::cstr_first_byte(cmd))
                     || crate::memory::cstr_first_byte(cmd.wrapping_sub(1)) == b'\\')
             {
                 cmd = cmd.wrapping_add(1);
@@ -2454,8 +2454,8 @@ pub fn do_doautocmd(
         let fname = skipwhite(fname.cast());
 
         while !crate::memory::cstr_is_empty(arg)
-            && ends_excmd(crate::memory::cstr_first_char(arg)) == 0
-            && !ascii_iswhite(crate::memory::cstr_first_char(arg))
+            && ends_excmd(crate::memory::cstr_first_byte(arg)) == 0
+            && !ascii_iswhite(crate::memory::cstr_first_byte(arg))
         {
             let arg_bytes = crate::memory::cstr_as_bytes(arg);
             let mut rem = arg_bytes;

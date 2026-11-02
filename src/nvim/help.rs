@@ -491,7 +491,7 @@ pub fn ex_helptags(eap: &mut Exarg) {
     let arg_bytes = crate::memory::cstr_as_bytes(eap.arg);
     if arg_bytes.len() > 3
         && &arg_bytes[..3] == b"++t"
-        && ascii_iswhite(crate::memory::cstr_char_at(eap.arg, 3))
+        && ascii_iswhite(crate::memory::cstr_byte_at(eap.arg, 3))
     {
         add_help_tags = true;
         eap.arg = skipwhite(eap.arg.wrapping_add(3));

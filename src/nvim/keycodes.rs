@@ -2647,7 +2647,7 @@ pub fn get_special_key_code(name: impl crate::strings::IntoCCharPtr) -> i32 {
     }
 
     let mut len = 0usize;
-    while ascii_isident(crate::memory::cstr_char_at(name, len)) {
+    while ascii_isident(crate::memory::cstr_byte_at(name, len)) {
         len += 1;
     }
 

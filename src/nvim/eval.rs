@@ -988,7 +988,7 @@ pub fn eval_foldexpr(wp: &mut WinInfoInfo, cp: &mut i32) -> i32 {
         } else {
             let mut s = tv.vval.v_string();
             if !crate::memory::cstr_is_empty(s)
-                && !ascii_isdigit(crate::memory::cstr_first_char(s))
+                && !ascii_isdigit(crate::memory::cstr_first_byte(s))
                 && crate::memory::cstr_first_byte(s) != b'-'
             {
                 *cp = i32::from(crate::memory::cstr_first_byte(s));
@@ -1471,7 +1471,7 @@ pub fn get_lval<T>(
             find_name_end(name, &raw mut expr_start, &raw mut expr_end, fne_flags).cast_mut();
         if !expr_start.is_null() {
             if unlet
-                && !ascii_iswhite(crate::memory::cstr_first_char(p.cast()))
+                && !ascii_iswhite(crate::memory::cstr_first_byte(p.cast()))
                 && ends_excmd(i32::from(crate::memory::cstr_first_byte(p.cast()))) == 0
                 && crate::memory::cstr_first_byte(p.cast()) != b'['
                 && crate::memory::cstr_first_byte(p.cast()) != b'.'
@@ -1767,7 +1767,7 @@ pub fn eval_for_line(
         if crate::memory::cstr_first_byte(expr) != b'i'
             || crate::memory::cstr_byte_at(expr, 1) != b'n'
             || !(crate::memory::cstr_byte_at(expr, 2) == 0
-                || ascii_iswhite(crate::memory::cstr_char_at(expr, 2)))
+                || ascii_iswhite(crate::memory::cstr_byte_at(expr, 2)))
         {
             emsg(gettext(c"E690: Missing \"in\" after :for"));
             return fi;
@@ -1922,7 +1922,7 @@ pub fn set_context_for_expression(
                     -((utf_head_off(arg.cast(), p.wrapping_sub(1).cast()) + 1) as isize),
                 );
                 if (p as usize) >= (arg as usize)
-                    && ascii_iswhite(crate::memory::cstr_first_char(p.cast()))
+                    && ascii_iswhite(crate::memory::cstr_first_byte(p.cast()))
                 {
                     break;
                 }
@@ -4712,7 +4712,7 @@ fn get_literal_key<T>(arg: *mut *mut T, tv: &mut TypVal) -> bool {
             return false;
         }
         let mut p = *arg;
-        while ascii_isalnum(crate::memory::cstr_first_char(p.cast()))
+        while ascii_isalnum(crate::memory::cstr_first_byte(p.cast()))
             || crate::memory::cstr_first_byte(p.cast()) == b'_'
             || crate::memory::cstr_first_byte(p.cast()) == b'-'
         {
@@ -5128,7 +5128,7 @@ pub fn callback_from_typval(callback: &mut Callback, arg: &TypVal) -> bool {
         }
     } else if arg.v_type == VarType::VarString
         && !arg.vval.v_string().is_null()
-        && ascii_isdigit(crate::memory::cstr_first_char(arg.vval.v_string()))
+        && ascii_isdigit(crate::memory::cstr_first_byte(arg.vval.v_string()))
     {
         r = FAIL;
     } else if arg.v_type == VarType::VarFunc || arg.v_type == VarType::VarString {
@@ -6101,18 +6101,18 @@ fn make_expanded_name(
     }
 }
 
-pub fn eval_isnamec(c: i32) -> bool {
-    let ch = c as u8;
+pub fn eval_isnamec<C: crate::charset::AsciiInt>(c: C) -> bool {
+    let ch = c.into_ascii_int() as u8;
     ascii_isalnum(i32::from(ch)) || ch == b'_' || ch == b':' || ch == AUTOLOAD_CHAR
 }
 
-pub fn eval_isnamec1(c: i32) -> bool {
-    let ch = c as u8;
+pub fn eval_isnamec1<C: crate::charset::AsciiInt>(c: C) -> bool {
+    let ch = c.into_ascii_int() as u8;
     ascii_isalpha(i32::from(ch)) || ch == b'_'
 }
 
-pub fn eval_isdictc(c: i32) -> bool {
-    let ch = c as u8;
+pub fn eval_isdictc<C: crate::charset::AsciiInt>(c: C) -> bool {
+    let ch = c.into_ascii_int() as u8;
     ascii_isalnum(i32::from(ch)) || ch == b'_'
 }
 
@@ -6143,7 +6143,7 @@ fn tv_is_luafunc(tv: &mut TypVal) -> bool {
 pub fn skip_luafunc_name(p: impl crate::strings::IntoCCharPtr) -> *const u8 {
     let mut p: *const u8 = p.into_c_char_ptr().cast();
     {
-        while ascii_isalnum(crate::memory::cstr_first_char(p.cast()))
+        while ascii_isalnum(crate::memory::cstr_first_byte(p.cast()))
             || crate::memory::cstr_first_byte(p.cast()) == b'_'
             || crate::memory::cstr_first_byte(p.cast()) == b'-'
             || crate::memory::cstr_first_byte(p.cast()) == b'.'
@@ -6697,13 +6697,13 @@ pub fn var_flavour(varname: impl crate::strings::IntoCCharPtr) -> VarFlavour {
     {
         let mut p = varname;
 
-        if ascii_isupper(crate::memory::cstr_first_char(p)) {
+        if ascii_isupper(crate::memory::cstr_first_byte(p)) {
             loop {
                 p = p.wrapping_add(1);
                 if crate::memory::cstr_is_empty(p) {
                     break;
                 }
-                if ascii_islower(crate::memory::cstr_first_char(p)) {
+                if ascii_islower(crate::memory::cstr_first_byte(p)) {
                     return VAR_FLAVOUR_SESSION;
                 }
             }

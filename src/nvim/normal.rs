@@ -6335,7 +6335,7 @@ fn nv_g_underscore_cmd(cap: &mut Cmdarg) {
     }
 
     while curwin_mut().w_cursor.col > 0
-        && ascii_iswhite(crate::memory::cstr_char_at(
+        && ascii_iswhite(crate::memory::cstr_byte_at(
             ptr,
             curwin_mut().w_cursor.col as usize,
         ))

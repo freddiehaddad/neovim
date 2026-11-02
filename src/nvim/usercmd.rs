@@ -1205,7 +1205,7 @@ pub fn ex_command(eap: &mut Exarg) {
     p = skipwhite(end);
     if !has_attr && ends_excmd(i32::from(crate::memory::cstr_first_byte(p))) != 0 {
         uc_list(name, name_len);
-    } else if !ascii_isupper(crate::memory::cstr_first_char(name)) {
+    } else if !ascii_isupper(crate::memory::cstr_first_byte(name)) {
         emsg(gettext(
             c"E183: User defined commands must start with an uppercase letter",
         ));
@@ -1254,7 +1254,7 @@ pub fn ex_delcommand(eap: &mut Exarg) {
     let mut buffer_only = false;
 
     if (crate::memory::cstr_prefix_bytes(arg, 7) == &b"-buffer"[..7])
-        && ascii_iswhite(crate::memory::cstr_char_at(arg, 7))
+        && ascii_iswhite(crate::memory::cstr_byte_at(arg, 7))
     {
         buffer_only = true;
         arg = skipwhite(arg.wrapping_add(7));

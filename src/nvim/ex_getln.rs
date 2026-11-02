@@ -560,7 +560,7 @@ pub fn parse_pattern_and_range(
         }
         loop {
             p = skipwhite(p);
-            if !ascii_isalpha(crate::memory::cstr_first_char(p)) {
+            if !ascii_isalpha(crate::memory::cstr_first_byte(p)) {
                 break;
             }
             p = p.wrapping_add(1);
@@ -592,7 +592,7 @@ pub fn parse_pattern_and_range(
     let delim = if delim_optional && vim_is_idc((crate::memory::cstr_first_byte(p)) as i32) {
         b' ' as i32
     } else {
-        let d = crate::memory::cstr_first_char(p);
+        let d = i32::from(crate::memory::cstr_first_byte(p));
         p = p.wrapping_add(1);
         d
     };
@@ -607,7 +607,7 @@ pub fn parse_pattern_and_range(
         None,
         Some(&mut magic),
     );
-    let use_last_pat = end == p && crate::memory::cstr_first_char(end) == delim;
+    let use_last_pat = end == p && i32::from(crate::memory::cstr_first_byte(end)) == delim;
 
     if end == p && !use_last_pat {
         return false;
@@ -2125,7 +2125,7 @@ fn command_line_erase_chars(s: &mut CommandLineState) -> i32 {
 
         if s.c == CTRL_W_CONST {
             while p > getln_st().ccline.cmdbuff
-                && ascii_isspace(crate::memory::cstr_first_char(p.cast()))
+                && ascii_isspace(crate::memory::cstr_first_byte(p.cast()))
             {
                 p = mb_prevptr(getln_st().ccline.cmdbuff, p);
             }
@@ -2415,14 +2415,14 @@ fn command_line_browse_history(s: &mut CommandLineState) -> i32 {
                 len = 0;
                 let mut j: usize = 0;
                 while crate::memory::cstr_byte_at(p.cast(), j) != 0 {
-                    if crate::memory::cstr_char_at(p.cast(), j) == old_firstc
+                    if i32::from(crate::memory::cstr_byte_at(p.cast(), j)) == old_firstc
                         && (j == 0 || crate::memory::cstr_byte_at(p.cast(), j - 1) != b'\\')
                     {
                         if i > 0 {
                             getln_st().ccline.cmdbuff_vec[len as usize] = s.firstc as u8;
                         }
                     } else {
-                        if crate::memory::cstr_char_at(p.cast(), j) == s.firstc
+                        if i32::from(crate::memory::cstr_byte_at(p.cast(), j)) == s.firstc
                             && (j == 0 || crate::memory::cstr_byte_at(p.cast(), j - 1) != b'\\')
                         {
                             if i > 0 {

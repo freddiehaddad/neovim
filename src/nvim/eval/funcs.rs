@@ -2539,7 +2539,7 @@ fn common_function(argvars: &mut [TypVal], rettv: &mut TypVal, is_funcref: bool)
             .map_or(ptr::null_mut(), |tn| tn.as_ptr().cast_mut());
         'theend: {
             if crate::memory::cstr_is_empty(s)
-                || (use_string && ascii_isdigit(crate::memory::cstr_first_char(s)))
+                || (use_string && ascii_isdigit(crate::memory::cstr_first_byte(s)))
                 || (is_funcref && trans_name.is_null())
             {
                 semsg!(
@@ -7575,7 +7575,7 @@ fn get_yank_type<T>(
         }
         c if c == b'b' || c == CTRL_V_CONST as u8 => {
             *yank_type = crate::register::MotionType::MtBlockWise;
-            if ascii_isdigit(crate::memory::cstr_char_at(stropt.cast(), 1)) {
+            if ascii_isdigit(crate::memory::cstr_byte_at(stropt.cast(), 1)) {
                 let tail = crate::memory::cstr_as_bytes(stropt.wrapping_add(1).cast());
                 let mut rem = tail;
                 *block_len = getdigits_int(&mut rem, false, 0) - 1;

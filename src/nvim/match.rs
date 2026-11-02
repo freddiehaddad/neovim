@@ -1248,14 +1248,14 @@ pub fn ex_match(eap: &mut Exarg) {
     }
 
     let arg = eap.arg;
-    if ends_excmd(crate::memory::cstr_first_char(arg)) != 0 {
+    if ends_excmd(crate::memory::cstr_first_byte(arg)) != 0 {
         end = arg;
     } else {
         let arg_bytes = crate::memory::cstr_as_bytes(arg);
         if arg_bytes.len() >= 4
             && arg_bytes[..4].eq_ignore_ascii_case(b"none")
-            && (ascii_iswhite(crate::memory::cstr_char_at(arg, 4))
-                || ends_excmd(crate::memory::cstr_char_at(arg, 4)) != 0)
+            && (ascii_iswhite(crate::memory::cstr_byte_at(arg, 4))
+                || ends_excmd(crate::memory::cstr_byte_at(arg, 4)) != 0)
         {
             end = arg.wrapping_add(4);
         } else {
@@ -1281,7 +1281,7 @@ pub fn ex_match(eap: &mut Exarg) {
             );
             if eap.skip == 0 {
                 if !crate::memory::cstr_is_empty(end)
-                    && ends_excmd(crate::memory::cstr_first_char(skipwhite(
+                    && ends_excmd(crate::memory::cstr_first_byte(skipwhite(
                         end.wrapping_add(1),
                     ))) == 0
                 {

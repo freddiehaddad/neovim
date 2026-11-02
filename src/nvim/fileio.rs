@@ -3532,7 +3532,7 @@ pub fn modname(
 
     let mut ptr_idx = fnamelen;
     while ptr_idx > 0 {
-        if vim_ispathsep(crate::memory::cstr_first_char(&retval_vec[ptr_idx..])) {
+        if vim_ispathsep(crate::memory::cstr_first_byte(&retval_vec[ptr_idx..])) {
             ptr_idx += 1;
             break;
         }

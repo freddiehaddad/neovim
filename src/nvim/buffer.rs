@@ -1991,7 +1991,7 @@ pub fn do_bufdel(
                 if crate::memory::cstr_is_empty(arg) {
                     break;
                 }
-                if !ascii_isdigit(crate::memory::cstr_first_char(arg)) {
+                if !ascii_isdigit(crate::memory::cstr_first_byte(arg)) {
                     let p = skiptowhite_esc(arg);
                     bnr = buflist_findpat(arg, p, command == DOBUF_WIPE, false, false);
                     if bnr < 0 {

@@ -108,7 +108,7 @@ fn ga_concat_esc(gap: &mut Vec<u8>, p: impl crate::strings::IntoCCharPtr, clen: 
             b'\\' => ga_concat_literal(gap, b"\\\\"),
             _ => {
                 if b < b' ' || b == 0x7f {
-                    let s = format!("\\x{:02x}", crate::memory::cstr_first_char(p));
+                    let s = format!("\\x{:02x}", crate::memory::cstr_first_byte(p));
                     ga_concat_literal(gap, s.as_bytes());
                 } else {
                     gap.push(b);

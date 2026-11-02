@@ -1720,9 +1720,9 @@ pub fn parse_spelllang(wp: &mut WinInfoInfo) -> Option<&'static std::ffi::CStr> 
                     ) {
                     let p = vim_strchr(path_tail(lang_ptr.cast()), b'_' as i32);
                     if !p.is_null()
-                        && ascii_isalpha(crate::memory::cstr_char_at(p, 1))
-                        && ascii_isalpha(crate::memory::cstr_char_at(p, 2))
-                        && !ascii_isalpha(crate::memory::cstr_char_at(p, 3))
+                        && ascii_isalpha(crate::memory::cstr_byte_at(p, 1))
+                        && ascii_isalpha(crate::memory::cstr_byte_at(p, 2))
+                        && !ascii_isalpha(crate::memory::cstr_byte_at(p, 3))
                     {
                         xstrlcpy((&raw mut region_cp).cast(), p.wrapping_add(1), 3);
                         ptr::copy(

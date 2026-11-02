@@ -426,7 +426,7 @@ fn get_function_args<T>(
                 let expr = p;
                 if eval1(&raw mut p, &mut rettv, None) {
                     while p > expr
-                        && ascii_iswhite(crate::memory::cstr_first_char(p.wrapping_sub(1).cast()))
+                        && ascii_iswhite(crate::memory::cstr_first_byte(p.wrapping_sub(1).cast()))
                     {
                         p = p.wrapping_sub(1);
                     }
@@ -447,7 +447,7 @@ fn get_function_args<T>(
                 mustend = true;
             }
 
-            if ascii_iswhite(crate::memory::cstr_first_char(p.cast()))
+            if ascii_iswhite(crate::memory::cstr_first_byte(p.cast()))
                 && crate::memory::cstr_first_byte(skipwhite(p.cast())) == b','
             {
                 if !skip {
@@ -881,7 +881,7 @@ pub fn get_func_tv<T>(
 fn eval_fname_sid(name: impl crate::strings::IntoCCharPtr) -> bool {
     let name = name.into_c_char_ptr();
     crate::memory::cstr_first_byte(name) == b's'
-        || toupper_asc(crate::memory::cstr_char_at(name, 2)) == b'I' as i32
+        || toupper_asc(i32::from(crate::memory::cstr_byte_at(name, 2))) == b'I' as i32
 }
 
 /// In a script transform script-local names into actually used names.
@@ -1722,7 +1722,7 @@ pub fn free_all_functions() {
 fn builtin_function(name: impl crate::strings::IntoCCharPtr, len: i32) -> bool {
     let name = name.into_c_char_ptr();
     {
-        if !ascii_islower(crate::memory::cstr_first_char(name))
+        if !ascii_islower(crate::memory::cstr_first_byte(name))
             || crate::memory::cstr_byte_at(name, 1) == b':'
         {
             return false;
@@ -2567,7 +2567,7 @@ fn list_one_function<T>(
     let p = p.cast::<u8>();
     let name = name.into_c_char_ptr();
     {
-        if ends_excmd(crate::memory::cstr_first_char(skipwhite(p.cast()))) == 0 {
+        if ends_excmd(crate::memory::cstr_first_byte(skipwhite(p.cast()))) == 0 {
             semsg!(gettext(E_TRAILING_ARG), p.cast::<std::ffi::c_void>());
             return ptr::null_mut();
         }
@@ -2744,7 +2744,7 @@ fn get_function_body(
                 }
             } else {
                 p = theline;
-                while ascii_iswhite(crate::memory::cstr_first_char(p))
+                while ascii_iswhite(crate::memory::cstr_first_byte(p))
                     || crate::memory::cstr_first_byte(p) == b':'
                 {
                     p = p.wrapping_add(1);
@@ -2955,7 +2955,7 @@ pub fn ex_function(eap: &mut Exarg) {
         let mut ht: *mut Hashtab = ptr::null_mut();
         let mut show_block = false;
 
-        if ends_excmd(crate::memory::cstr_first_char(eap.arg)) != 0 {
+        if ends_excmd(crate::memory::cstr_first_byte(eap.arg)) != 0 {
             if eap.skip == 0 {
                 list_functions(None);
             }
@@ -3065,9 +3065,9 @@ pub fn ex_function(eap: &mut Exarg) {
                     let mut i = 0usize;
                     while crate::memory::cstr_byte_at(name_base, i) != 0
                         && if i == 0 {
-                            eval_isnamec1(crate::memory::cstr_char_at(name_base, i))
+                            eval_isnamec1(crate::memory::cstr_byte_at(name_base, i))
                         } else {
-                            eval_isnamec(crate::memory::cstr_char_at(name_base, i))
+                            eval_isnamec(crate::memory::cstr_byte_at(name_base, i))
                         }
                     {
                         i += 1;
@@ -3422,7 +3422,7 @@ pub fn ex_delfunction(eap: &mut Exarg) {
         return;
     };
     let name = name_cstr.as_ptr();
-    if ends_excmd(crate::memory::cstr_first_char(skipwhite(p))) == 0 {
+    if ends_excmd(crate::memory::cstr_first_byte(skipwhite(p))) == 0 {
         semsg!(gettext(E_TRAILING_ARG), p);
         return;
     }
@@ -3936,7 +3936,7 @@ pub fn ex_call(eap: &mut Exarg) {
     };
 
     if (!aborting() || g_st().did_throw) && (!failed || eap.cstack_mut().cs_trylevel > 0) {
-        if ends_excmd(crate::memory::cstr_first_char(arg)) == 0 {
+        if ends_excmd(crate::memory::cstr_first_byte(arg)) == 0 {
             if !failed && !aborting() {
                 g_st().emsg_severe = true;
                 semsg!(gettext(E_TRAILING_ARG), arg);
@@ -4318,7 +4318,7 @@ pub fn find_var_in_scoped_ht(
             if !ht.is_null() && !crate::memory::cstr_is_empty(varname) {
                 v = find_var_in_ht(
                     &mut *ht,
-                    crate::memory::cstr_first_char(name),
+                    i32::from(crate::memory::cstr_first_byte(name)),
                     varname,
                     namelen - crate::memory::ptr_offset_from(varname, name) as usize,
                     no_autoload,

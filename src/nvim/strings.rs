@@ -624,8 +624,8 @@ pub fn del_trailing_spaces(ptr: RawCCharPtrMut) {
 }
 
 #[inline]
-pub fn vim_haschr<S: IntoCCharPtr>(string: S, c: i32) -> bool {
-    !vim_strchr(string, c).is_null()
+pub fn vim_haschr<S: IntoCCharPtr, C: crate::charset::AsciiInt>(string: S, c: C) -> bool {
+    !vim_strchr(string, c.into_ascii_int()).is_null()
 }
 
 pub fn vim_strchr<S: IntoCCharPtr>(string: S, c: i32) -> RawCCharPtrMut {

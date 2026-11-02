@@ -601,7 +601,7 @@ pub fn set_indent(size: i32, flags: i32) -> bool {
         s_idx = orig_usize;
         p = p.wrapping_add(orig_usize);
 
-        while ascii_iswhite(crate::memory::cstr_first_char(p)) {
+        while ascii_iswhite(crate::memory::cstr_first_byte(p)) {
             p = p.wrapping_add(1);
         }
     } else {
@@ -618,7 +618,7 @@ pub fn set_indent(size: i32, flags: i32) -> bool {
             p = oldline;
             ind_done = 0;
 
-            while todo > 0 && ascii_iswhite(crate::memory::cstr_first_char(p)) {
+            while todo > 0 && ascii_iswhite(crate::memory::cstr_first_byte(p)) {
                 if crate::memory::cstr_first_byte(p) == TAB {
                     tab_pad =
                         tabstop_padding(ind_done, curbuf_mut().b_p_ts, &curbuf_mut().b_p_vts_array);
@@ -892,7 +892,7 @@ pub fn get_breakindent_win(wp: &mut WinInfoInfo, line: impl crate::strings::Into
 pub fn inindent(extra: i32) -> bool {
     let mut ptr = get_cursor_line_ptr();
     let mut col: Colnr = 0;
-    while ascii_iswhite(crate::memory::cstr_first_char(ptr)) {
+    while ascii_iswhite(crate::memory::cstr_first_byte(ptr)) {
         col += 1;
         ptr = ptr.wrapping_add(1);
     }
@@ -1052,7 +1052,7 @@ pub fn ins_try_si(c: i32) {
             if i > 0 {
                 while {
                     i -= 1;
-                    i > 0 && ascii_iswhite(crate::memory::cstr_char_at(ptr, i as usize))
+                    i > 0 && ascii_iswhite(crate::memory::cstr_byte_at(ptr, i as usize))
                 } {}
             }
             curwin_mut().w_cursor.lnum = pos.lnum;
@@ -1352,7 +1352,7 @@ pub fn ex_retab(eap: &mut Exarg) {
 
     let mut ptr = eap.arg;
     if (crate::memory::cstr_prefix_bytes(ptr, 11) == &b"-indentonly"[..11])
-        && ascii_iswhite_or_nul(crate::memory::cstr_char_at(ptr, 11))
+        && ascii_iswhite_or_nul(crate::memory::cstr_byte_at(ptr, 11))
     {
         is_indent_only = true;
         ptr = skipwhite(ptr.wrapping_add(11));
@@ -1368,7 +1368,7 @@ pub fn ex_retab(eap: &mut Exarg) {
         emsg(gettext(errmsg.as_ptr()));
         return;
     }
-    while ascii_isdigit(crate::memory::cstr_first_char(ptr))
+    while ascii_isdigit(crate::memory::cstr_first_byte(ptr))
         || crate::memory::cstr_first_byte(ptr) == b','
     {
         ptr = ptr.wrapping_add(1);
@@ -1398,7 +1398,7 @@ pub fn ex_retab(eap: &mut Exarg) {
         let mut vcol: i64 = 0;
         let mut did_undo = false;
         loop {
-            if ascii_iswhite(crate::memory::cstr_char_at(ptr, col as usize)) {
+            if ascii_iswhite(crate::memory::cstr_byte_at(ptr, col as usize)) {
                 if !got_tab && num_spaces == 0 {
                     start_vcol = vcol;
                     start_col = col;
@@ -1705,7 +1705,7 @@ pub fn get_lisp_indent() -> i32 {
                 }
                 let mut firsttry: Colnr = amount;
 
-                while ascii_iswhite(crate::memory::cstr_first_char(that)) {
+                while ascii_iswhite(crate::memory::cstr_first_byte(that)) {
                     amount += win_charsize(
                         cstype,
                         amount,
@@ -1768,7 +1768,7 @@ pub fn get_lisp_indent() -> i32 {
                         }
                     }
 
-                    while ascii_iswhite(crate::memory::cstr_first_char(that)) {
+                    while ascii_iswhite(crate::memory::cstr_first_byte(that)) {
                         amount += win_charsize(
                             cstype,
                             amount,
@@ -1810,7 +1810,7 @@ fn lisp_match(p: impl crate::strings::IntoCCharPtr) -> bool {
         while !crate::memory::cstr_is_empty(word) {
             let len = copy_option_part(&raw mut word, buf.as_mut_ptr().cast(), buf.len(), c",");
             if (&buf[..len] == crate::memory::cstr_prefix_bytes(p, len))
-                && ascii_iswhite_or_nul(crate::memory::cstr_char_at(p, len))
+                && ascii_iswhite_or_nul(crate::memory::cstr_byte_at(p, len))
             {
                 return true;
             }

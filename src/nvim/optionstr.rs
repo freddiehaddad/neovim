@@ -1518,7 +1518,7 @@ pub fn did_set_background(args: &mut Optset) -> Option<&CStr> {
 /// Validate the 'backspace' option.
 pub fn validate_backspace(args: &mut Optset) -> Option<&CStr> {
     let value = args.os_newval.data.string().data;
-    if ascii_isdigit(crate::memory::cstr_first_char(value)) {
+    if ascii_isdigit(crate::memory::cstr_first_byte(value)) {
         return if crate::memory::cstr_first_byte(value) == b'2' {
             None
         } else {
@@ -2958,7 +2958,7 @@ pub fn validate_vartabstop(args: &mut Optset) -> Option<&CStr> {
     let value = args.os_newval.data.string().data;
     let mut cp = value;
     while !crate::memory::cstr_is_empty(cp) {
-        if ascii_isdigit(crate::memory::cstr_first_char(cp)) {
+        if ascii_isdigit(crate::memory::cstr_first_byte(cp)) {
             cp = cp.wrapping_add(1);
             continue;
         }

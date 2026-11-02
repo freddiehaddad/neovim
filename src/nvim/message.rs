@@ -2567,7 +2567,7 @@ pub fn msg_prt_line(s: impl crate::strings::IntoCCharPtr, mut list: bool) {
             if curwin_mut().w_p_lcs_chars.trail != 0 {
                 trail = s.wrapping_add(crate::memory::cstr_len(s));
                 while trail > s
-                    && ascii_iswhite(crate::memory::cstr_first_char(trail.wrapping_sub(1)))
+                    && ascii_iswhite(crate::memory::cstr_first_byte(trail.wrapping_sub(1)))
                 {
                     trail = trail.wrapping_sub(1);
                 }
@@ -2578,7 +2578,7 @@ pub fn msg_prt_line(s: impl crate::strings::IntoCCharPtr, mut list: bool) {
                 || curwin_mut().w_p_lcs_chars.leadtab1 != 0
             {
                 lead = s;
-                while ascii_iswhite(crate::memory::cstr_first_char(lead)) {
+                while ascii_iswhite(crate::memory::cstr_first_byte(lead)) {
                     lead = lead.wrapping_add(1);
                 }
                 if crate::memory::cstr_is_empty(lead) {
@@ -4030,10 +4030,10 @@ fn redir_write(str_: impl crate::strings::IntoCCharPtr, maxlen: isize) {
                     && g_st().capture_ga.is_null()
                     && let Some(ref rf) = g_st().redir_fd
                 {
-                    fputc(crate::memory::cstr_first_char(s), rf.as_ptr());
+                    fputc(i32::from(crate::memory::cstr_first_byte(s)), rf.as_ptr());
                 }
                 if let Some(ref vf) = msg_st().verbose_fd {
-                    fputc(crate::memory::cstr_first_char(s), vf.as_ptr());
+                    fputc(i32::from(crate::memory::cstr_first_byte(s)), vf.as_ptr());
                 }
                 if matches!(*s.cast::<u8>(), b'\r' | b'\n') {
                     msg_st().redir_col = 0;

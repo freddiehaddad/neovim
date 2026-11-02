@@ -980,12 +980,12 @@ fn parse_sign_cmd_args<T>(
         let mut filename = ptr::null_mut();
         let mut lnum_arg = false;
 
-        if ascii_isdigit(crate::memory::cstr_first_char(arg)) {
+        if ascii_isdigit(crate::memory::cstr_first_byte(arg)) {
             let arg_bytes = crate::memory::cstr_as_bytes(arg);
             let mut rem = arg_bytes;
             *id = getdigits_int(&mut rem, true, 0);
             arg = arg.wrapping_add(arg_bytes.len() - rem.len());
-            if !ascii_iswhite(crate::memory::cstr_first_char(arg))
+            if !ascii_iswhite(crate::memory::cstr_first_byte(arg))
                 && !crate::memory::cstr_is_empty(arg)
             {
                 *id = -1;
@@ -1371,7 +1371,7 @@ pub fn set_context_in_sign_cmd(xp: &mut ExpandCtx, arg: impl crate::strings::Int
         match cmd_idx {
             SIGNCMD_DEFINE => sign_st().expand_what = EXP_DEFINE,
             SIGNCMD_PLACE => {
-                if ascii_isdigit(crate::memory::cstr_first_char(begin_subcmd_args)) {
+                if ascii_isdigit(crate::memory::cstr_first_byte(begin_subcmd_args)) {
                     sign_st().expand_what = EXP_PLACE;
                 } else {
                     sign_st().expand_what = EXP_LIST;

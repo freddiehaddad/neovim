@@ -1670,7 +1670,7 @@ pub fn undisplay_dollar() {
 pub fn truncate_spaces(line: impl crate::strings::IntoCCharPtr, len: usize) {
     let line = line.into_c_char_ptr().cast_mut();
     let mut i = len as isize - 1;
-    while i >= 0 && ascii_iswhite(crate::memory::cstr_first_char(line.wrapping_offset(i))) {
+    while i >= 0 && ascii_iswhite(crate::memory::cstr_first_byte(line.wrapping_offset(i))) {
         if (g_st().state_global & REPLACE_FLAG) != 0 {
             replace_join(0);
         }
@@ -3627,7 +3627,7 @@ fn ins_tab() -> bool {
 
         let mut fpos = curwin_mut().w_cursor;
         while fpos.col > 0
-            && ascii_iswhite(crate::memory::cstr_first_char(
+            && ascii_iswhite(crate::memory::cstr_first_byte(
                 ptr.wrapping_offset(-1).cast(),
             ))
         {
@@ -3661,7 +3661,7 @@ fn ins_tab() -> bool {
         let mut csarg = CharsizeArg::new();
         let mut cstype = init_charsize_arg(&mut csarg, curwin_mut(), 0, tab);
 
-        while ascii_iswhite(crate::memory::cstr_first_char(ptr.cast())) {
+        while ascii_iswhite(crate::memory::cstr_first_byte(ptr.cast())) {
             let i = win_charsize(cstype, vcol, tab, tab_v, &mut csarg, 1).width;
             if vcol + i > want_vcol {
                 break;

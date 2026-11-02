@@ -331,24 +331,6 @@ pub fn cstr_byte_at<S: crate::strings::IntoCCharPtr>(s: S, idx: usize) -> u8 {
     }
 }
 
-/// Return the first signed char of `s` as `i32` (`*s as i32`, or `0` if `s` is null).
-#[inline]
-pub fn cstr_first_char<S: crate::strings::IntoCCharPtr>(s: S) -> i32 {
-    let s = s.into_c_char_ptr();
-    if s.is_null() { 0 } else { unsafe { *s as i32 } }
-}
-
-/// Return the signed char at `idx` in `s` as `i32` (`*s.add(idx) as i32`, or `0` if `s` is null).
-#[inline]
-pub fn cstr_char_at<S: crate::strings::IntoCCharPtr>(s: S, idx: usize) -> i32 {
-    let s = s.into_c_char_ptr();
-    if s.is_null() {
-        0
-    } else {
-        unsafe { *s.add(idx) as i32 }
-    }
-}
-
 /// View `len` bytes starting at `s` as a byte slice (`&[u8]`).
 #[inline]
 pub fn cstr_slice<'a, S: crate::strings::IntoCCharPtr>(s: S, len: usize) -> &'a [u8] {

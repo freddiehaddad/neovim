@@ -1067,7 +1067,7 @@ fn yank_copy_line(
     if exclude_trailing_space {
         let mut s = bd.textlen + bd.endspaces;
         while s > 0
-            && ascii_iswhite(crate::memory::cstr_char_at(
+            && ascii_iswhite(crate::memory::cstr_byte_at(
                 bd.textstart.cast(),
                 (s - 1) as usize,
             ))

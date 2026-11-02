@@ -280,7 +280,7 @@ fn do_one_arg(str_: impl crate::strings::IntoCCharPtr) -> *mut u8 {
                 *p = *str_;
                 p = p.wrapping_add(1);
             } else {
-                if !inbacktick && ascii_isspace(crate::memory::cstr_first_char(str_)) {
+                if !inbacktick && ascii_isspace(crate::memory::cstr_first_byte(str_)) {
                     break;
                 }
                 if crate::memory::cstr_first_byte(str_) == b'`' {

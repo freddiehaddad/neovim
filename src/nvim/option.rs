@@ -1972,7 +1972,7 @@ fn do_one_set_option<'a>(
     let afterchar = crate::memory::cstr_first_byte(option_end.cast());
     let mut p = option_end.cast_mut().cast();
 
-    while ascii_iswhite(crate::memory::cstr_first_char(p)) {
+    while ascii_iswhite(crate::memory::cstr_first_byte(p)) {
         p = p.wrapping_add(1);
     }
 
@@ -2088,7 +2088,7 @@ pub fn do_set(arg: impl crate::strings::IntoCCharPtr, opt_flags: i32) -> bool {
     } else {
         while !crate::memory::cstr_is_empty(arg) {
             if (crate::memory::cstr_prefix_bytes(arg, 3) == &b"all"[..3])
-                && !ascii_isalpha(crate::memory::cstr_char_at(arg, 3))
+                && !ascii_isalpha(crate::memory::cstr_byte_at(arg, 3))
                 && (opt_flags & OPT_MODELINE) == 0
             {
                 arg = arg.wrapping_add(3);
@@ -3415,7 +3415,7 @@ fn do_spelllang_source(win: &mut WinInfoInfo) {
 
     let mut p = q;
     while !crate::memory::cstr_is_empty(p) {
-        if !ascii_isalnum(crate::memory::cstr_first_char(p))
+        if !ascii_isalnum(crate::memory::cstr_first_byte(p))
             && crate::memory::cstr_first_byte(p) != b'-'
         {
             break;

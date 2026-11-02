@@ -555,7 +555,7 @@ fn linelen(has_tab: Option<&mut i32>) -> i32 {
     let first = skipwhite(line);
 
     let mut last = first.wrapping_add(crate::memory::cstr_len(first));
-    while last > first && ascii_iswhite(crate::memory::cstr_first_char(last.wrapping_sub(1))) {
+    while last > first && ascii_iswhite(crate::memory::cstr_first_byte(last.wrapping_sub(1))) {
         last = last.wrapping_sub(1);
     }
     let save = unsafe { *last };
@@ -703,7 +703,7 @@ pub fn ex_sort(eap: &mut Exarg) {
     'sortend: {
         let mut p = eap.arg;
         while !crate::memory::cstr_is_empty(p) {
-            if ascii_iswhite(crate::memory::cstr_first_char(p)) {
+            if ascii_iswhite(crate::memory::cstr_first_byte(p)) {
                 // Skip
             } else if crate::memory::cstr_first_byte(p) == b'i' {
                 excmds_st().sort_ic = true;
@@ -733,7 +733,7 @@ pub fn ex_sort(eap: &mut Exarg) {
             } else if !check_nextcmd(p).is_null() {
                 eap.nextcmd = check_nextcmd(p);
                 break;
-            } else if !ascii_isalpha(crate::memory::cstr_first_char(p))
+            } else if !ascii_isalpha(crate::memory::cstr_first_byte(p))
                 && regmatch.regprog.is_null()
             {
                 let s = skip_regexp_err(
@@ -3852,7 +3852,7 @@ fn sub_parse_flags<T>(cmd: *mut T, subflags_arg: &mut Subflags, which_pat: &mut 
 fn skip_substitute<T>(start: *mut T, delimiter: i32) -> *mut T {
     let mut p = start.cast::<u8>();
     while !crate::memory::cstr_is_empty(p.cast()) {
-        if crate::memory::cstr_first_char(p.cast()) == delimiter {
+        if i32::from(crate::memory::cstr_first_byte(p.cast())) == delimiter {
             unsafe {
                 *p = 0;
             }
@@ -3943,7 +3943,7 @@ fn do_sub(eap: &mut Exarg, tm: Proftime, cmdpreview_ns: i32, cmdpreview_bufnr: O
 
     if crate::memory::cstr_first_byte(eap.cmd) == b's'
         && !crate::memory::cstr_is_empty(cmd)
-        && !ascii_iswhite(crate::memory::cstr_first_char(cmd))
+        && !ascii_iswhite(crate::memory::cstr_first_byte(cmd))
         && !crate::strings::vim_haschr(
             c"0123456789cegriIp|\"",
             (crate::memory::cstr_first_byte(cmd)) as i32,
@@ -3976,7 +3976,7 @@ fn do_sub(eap: &mut Exarg, tm: Proftime, cmdpreview_ns: i32, cmdpreview_bufnr: O
             pat.data = cmd;
             cmd = skip_regexp_ex(cmd, delimiter, opt_vars().p_magic, true, None, None, None);
             pat.size = crate::memory::ptr_offset_from(cmd, pat.data) as usize;
-            if crate::memory::cstr_first_char(cmd) == delimiter {
+            if i32::from(crate::memory::cstr_first_byte(cmd)) == delimiter {
                 unsafe {
                     *cmd = NUL;
                 }
@@ -4023,7 +4023,7 @@ fn do_sub(eap: &mut Exarg, tm: Proftime, cmdpreview_ns: i32, cmdpreview_bufnr: O
     let save_do_ask = excmds_st().subflags.do_ask;
 
     cmd = skipwhite(cmd);
-    if ascii_isdigit(crate::memory::cstr_first_char(cmd)) {
+    if ascii_isdigit(crate::memory::cstr_first_byte(cmd)) {
         let count_arg = cmd;
         let cmd_bytes = crate::memory::cstr_as_bytes(cmd);
         let mut rem = cmd_bytes;
@@ -5263,7 +5263,7 @@ pub fn ex_substitute_preview(
     cmdpreview_bufnr: ObjHandle,
 ) -> i32 {
     if !crate::memory::cstr_is_empty(eap.arg)
-        && !ascii_isalnum(crate::memory::cstr_first_char(eap.arg))
+        && !ascii_isalnum(crate::memory::cstr_first_byte(eap.arg))
     {
         let save_eap = eap.arg;
         let retv = do_sub(
