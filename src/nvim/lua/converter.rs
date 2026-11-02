@@ -579,10 +579,10 @@ fn nlua_traverse_table(lstate: *mut lua_State) -> LuaTableProps {
             has_type_key: false,
         };
 
-        if lua_checkstack(lstate, lua_gettop(lstate) + 3) == 0 {
+        if lua_checkstack(lstate, 3) == 0 {
             semsg!(
                 c"E1502: Lua failed to grow stack to %i",
-                lua_gettop(lstate) + 2,
+                lua_gettop(lstate) + 3,
             );
             ret.table_type = ObjectType::ObjectTypeNil;
             return ret;
@@ -715,7 +715,7 @@ pub fn nlua_pop_typval(lstate: *mut lua_State, ret_tv: *mut TypVal) -> bool {
         });
 
         while ret && !stack.is_empty() {
-            if lua_checkstack(lstate, lua_gettop(lstate) + 3) == 0 {
+            if lua_checkstack(lstate, 3) == 0 {
                 semsg!(
                     c"E1502: Lua failed to grow stack to %i",
                     lua_gettop(lstate) + 3,
@@ -1006,33 +1006,17 @@ fn lua_conv_empty_dict(lstate: *mut lua_State) {
 }
 
 #[inline]
-fn lua_conv_list_start(lstate: *mut lua_State, len: i32) -> bool {
+fn lua_conv_list_start(lstate: *mut lua_State, len: i32) {
     unsafe {
-        if lua_checkstack(lstate, lua_gettop(lstate) + 3) == 0 {
-            semsg!(
-                c"E5102: Lua failed to grow stack to %i",
-                lua_gettop(lstate) + 3,
-            );
-            return false;
-        }
         lua_createtable(lstate, len, 0);
         lua_pushnumber(lstate, 1.0);
-        true
     }
 }
 
 #[inline]
-fn lua_conv_dict_start(lstate: *mut lua_State, len: usize) -> bool {
+fn lua_conv_dict_start(lstate: *mut lua_State, len: usize) {
     unsafe {
-        if lua_checkstack(lstate, lua_gettop(lstate) + 3) == 0 {
-            semsg!(
-                c"E5102: Lua failed to grow stack to %i",
-                lua_gettop(lstate) + 3,
-            );
-            return false;
-        }
         lua_createtable(lstate, 0, len as i32);
-        true
     }
 }
 
@@ -1074,6 +1058,13 @@ fn lua_convert_one_value(
 ) -> i32 {
     let tv_ptr: *mut TypVal = &raw mut *tv;
     unsafe {
+        if lua_checkstack(lstate, 3) == 0 {
+            semsg!(
+                c"E5102: Lua failed to grow stack to %i",
+                lua_gettop(lstate) + 3,
+            );
+            return FAIL;
+        }
         let tv_ref = tv;
         match tv_ref.v_type {
             VarType::VarString => {
@@ -1144,9 +1135,7 @@ fn lua_convert_one_value(
                     if csr != NOTDONE {
                         return csr;
                     }
-                    if !lua_conv_list_start(lstate, tv_list_len(list.as_ref())) {
-                        return FAIL;
-                    }
+                    lua_conv_list_start(lstate, tv_list_len(list.as_ref()));
                     mpstack.push(MPConvStackVal {
                         tv: tv_ptr,
                         saved_copy_id,
@@ -1284,12 +1273,10 @@ fn lua_convert_one_value(
                                             if csr != NOTDONE {
                                                 return csr;
                                             }
-                                            if !lua_conv_list_start(
+                                            lua_conv_list_start(
                                                 lstate,
                                                 tv_list_len(val_list.as_ref()),
-                                            ) {
-                                                return FAIL;
-                                            }
+                                            );
                                             mpstack.push(MPConvStackVal {
                                                 tv: tv_ptr,
                                                 saved_copy_id,
@@ -1335,12 +1322,10 @@ fn lua_convert_one_value(
                                                     if csr != NOTDONE {
                                                         return csr;
                                                     }
-                                                    if !lua_conv_dict_start(
+                                                    lua_conv_dict_start(
                                                         lstate,
                                                         tv_list_len(val_list.as_ref()) as usize,
-                                                    ) {
-                                                        return FAIL;
-                                                    }
+                                                    );
                                                     mpstack.push(MPConvStackVal {
                                                         tv: tv_ptr,
                                                         saved_copy_id,
@@ -1391,9 +1376,7 @@ fn lua_convert_one_value(
                     if csr != NOTDONE {
                         return csr;
                     }
-                    if !lua_conv_dict_start(lstate, (*dict).dv_hashtab.ht_used) {
-                        return FAIL;
-                    }
+                    lua_conv_dict_start(lstate, (*dict).dv_hashtab.ht_used);
                     mpstack.push(MPConvStackVal {
                         tv: tv_ptr,
                         saved_copy_id,
@@ -1517,11 +1500,9 @@ pub fn nlua_push_typval(lstate: *mut lua_State, tv: *mut TypVal, flags: i32) -> 
         luaconv_st().typval_conv_special = (flags & K_NLUA_PUSH_SPECIAL) != 0;
         let initial_size = lua_gettop(lstate);
 
-        if lua_checkstack(lstate, initial_size + 2) == 0 {
-            semsg!(c"E1502: Lua failed to grow stack to %i", initial_size + 4,);
-            return false;
-        }
         if !encode_vim_to_lua(lstate, &mut *tv) {
+            lua_settop(lstate, initial_size);
+            lua_pushnil(lstate);
             return false;
         }
         assert_eq!(lua_gettop(lstate), initial_size + 1);
@@ -1931,7 +1912,7 @@ pub fn nlua_pop_object_opt(
         while !error_set(err) && !stack.is_empty() {
             let mut cur = stack.pop().unwrap();
             if cur.container {
-                if lua_checkstack(lstate, lua_gettop(lstate) + 3) == 0 {
+                if lua_checkstack(lstate, 3) == 0 {
                     api_set_error!(
                         err,
                         ErrorType::ErrorTypeException,
