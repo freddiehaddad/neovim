@@ -74,8 +74,8 @@ use crate::math::{FAIL, OK};
 use crate::mbyte::utf_cp_bounds;
 use crate::mcursor::{mc_buf_clear, mc_buf_free};
 use crate::memline::{
-    ml_close, ml_delete, ml_get, ml_get_buf, ml_get_buf_slice, ml_get_len, ml_open, ml_recover,
-    ml_setname, ml_timestamp,
+    ml_close, ml_delete, ml_get, ml_get_buf, ml_get_buf_slice, ml_open, ml_recover, ml_setname,
+    ml_timestamp,
 };
 use crate::memory::{cstr_from_bytes, cstr_to_cstring, mem_st, xstrlcpy};
 use crate::message::{
@@ -3272,15 +3272,14 @@ pub fn expand_bufnames(
         let mut fuzmatch: Vec<FuzmatchStr> = Vec::new();
         let mut regmatch: Regmatch = Regmatch::new();
 
+        let pat_bytes = crate::memory::cstr_as_bytes(pat);
         if !fuzzy {
-            let patc: RawCCharPtr = if crate::memory::cstr_first_byte(pat) == b'^'
-                && crate::memory::cstr_byte_at(pat, 1) != 0
-            {
+            let patc: RawCCharPtr = if pat_bytes.first() == Some(&b'^') && pat_bytes.len() > 1 {
                 let pc = cstr_to_cstring(pat.wrapping_add(1));
                 let ptr = pc.as_ptr();
                 patc_owned = Some(pc);
                 ptr
-            } else if crate::memory::cstr_first_byte(pat) == b'^' {
+            } else if pat_bytes.first() == Some(&b'^') {
                 c"".as_ptr()
             } else {
                 pat
@@ -4616,45 +4615,37 @@ pub fn do_modelines(flags: i32) {
 }
 
 fn chk_modeline(lnum: Linenr, flags: i32) -> bool {
-    let mut e: RawCCharPtrMut;
     let mut retval = true;
 
     let mut prev: i32 = -1;
-    let mut s = ml_get(lnum);
-    let line_end = s.wrapping_add(ml_get_len(lnum) as usize);
-    while !crate::memory::cstr_is_empty(s) {
+    let line_ptr = ml_get(lnum);
+    let line_bytes = crate::memory::cstr_as_bytes(line_ptr);
+    let mut idx = 0usize;
+    while idx < line_bytes.len() {
+        let rem = &line_bytes[idx..];
         if prev == -1 || ascii_isspace(prev) {
-            if (prev != -1 && (crate::memory::cstr_prefix_bytes(s, 3) == &b"ex:"[..3]))
-                || (crate::memory::cstr_prefix_bytes(s, 3) == &b"vi:"[..3])
-            {
+            if (prev != -1 && rem.starts_with(b"ex:")) || rem.starts_with(b"vi:") {
                 break;
             }
-            if (crate::memory::cstr_first_byte(s) == b'v'
-                || crate::memory::cstr_first_byte(s) == b'V')
-                && crate::memory::cstr_byte_at(s, 1) == b'i'
-                && crate::memory::cstr_byte_at(s, 2) == b'm'
-            {
-                let s3 = crate::memory::cstr_byte_at(s, 3);
-                if s3 == b'<' || s3 == b'=' || s3 == b'>' {
-                    e = s.wrapping_add(4);
+            if matches!(rem.first(), Some(b'v' | b'V')) && rem.get(1..3) == Some(b"im") {
+                let s3 = rem.get(3).copied().unwrap_or(0);
+                let e_start = if matches!(s3, b'<' | b'=' | b'>') {
+                    4
                 } else {
-                    e = s.wrapping_add(3);
-                }
+                    3
+                };
                 let mut vers: i64 = 0;
-                let e_bytes = crate::memory::cstr_as_bytes(e);
-                let mut rem = e_bytes;
-                if !try_getdigits(&mut rem, &mut vers) {
-                    prev = crate::memory::cstr_first_byte(s) as i32;
-                    s = s.wrapping_add(1);
+                let mut e_rem = rem.get(e_start..).unwrap_or(&[]);
+                if !try_getdigits(&mut e_rem, &mut vers) {
+                    prev = rem[0] as i32;
+                    idx += 1;
                     continue;
                 }
-                e = e.wrapping_add(e_bytes.len() - rem.len());
 
                 let vim_version = i64::from(min_vim_version());
-                if crate::memory::cstr_first_byte(e) == b':'
-                    && (crate::memory::cstr_first_byte(s) != b'V'
-                        || (crate::memory::cstr_prefix_bytes(skipwhite(e.wrapping_add(1)), 3)
-                            == &b"set"[..3]))
+                if e_rem.first() == Some(&b':')
+                    && (rem[0] != b'V'
+                        || crate::charset::skipwhite_slice(&e_rem[1..]).starts_with(b"set"))
                     && (s3 == b':'
                         || (vim_version >= vers && s3.is_ascii_digit())
                         || (vim_version < vers && s3 == b'<')
@@ -4665,23 +4656,24 @@ fn chk_modeline(lnum: Linenr, flags: i32) -> bool {
                 }
             }
         }
-        prev = crate::memory::cstr_first_byte(s) as i32;
-        s = s.wrapping_add(1);
+        prev = rem[0] as i32;
+        idx += 1;
     }
 
-    if crate::memory::cstr_is_empty(s) {
+    if idx >= line_bytes.len() {
         return retval;
     }
 
-    loop {
-        s = s.wrapping_add(1);
-        if crate::memory::cstr_first_byte(s.wrapping_sub(1)) == b':' {
+    while idx < line_bytes.len() {
+        let ch = line_bytes[idx];
+        idx += 1;
+        if ch == b':' {
             break;
         }
     }
 
-    let len = crate::memory::ptr_offset_from(line_end, s) as usize;
-    let mut linecopy_vec: Vec<u8> = crate::memory::cstr_slice(s, len).to_vec();
+    let len = line_bytes.len() - idx;
+    let mut linecopy_vec: Vec<u8> = line_bytes[idx..].to_vec();
     linecopy_vec.push(0);
     let mut line_len = len;
     let mut s_idx = 0usize;
@@ -4769,36 +4761,40 @@ pub fn bt_terminal(buf: Option<&FileBuf>) -> bool {
 
 /// Return true if `buf` is a `"nofile"`, `"acwrite"`, `"terminal"` or `"prompt"` buffer.
 pub fn bt_nofilename(buf: Option<&FileBuf>) -> bool {
-    buf.is_some()
-        && ((crate::memory::cstr_first_byte(buf.unwrap().b_p_bt) == b'n'
-            && crate::memory::cstr_byte_at(buf.unwrap().b_p_bt, 2) == b'f')
-            || crate::memory::cstr_first_byte(buf.unwrap().b_p_bt) == b'a'
-            || !buf.unwrap().terminal.is_null()
-            || crate::memory::cstr_first_byte(buf.unwrap().b_p_bt) == b'p')
+    let Some(buf) = buf else {
+        return false;
+    };
+    let bt = crate::memory::cstr_as_bytes(buf.b_p_bt);
+    (bt.first() == Some(&b'n') && bt.get(2) == Some(&b'f'))
+        || matches!(bt.first(), Some(b'a' | b'p'))
+        || !buf.terminal.is_null()
 }
 
 fn bt_nofileread(buf: Option<&FileBuf>) -> bool {
-    buf.is_some()
-        && ((crate::memory::cstr_first_byte(buf.unwrap().b_p_bt) == b'n'
-            && crate::memory::cstr_byte_at(buf.unwrap().b_p_bt, 2) == b'f')
-            || crate::memory::cstr_first_byte(buf.unwrap().b_p_bt) == b't'
-            || crate::memory::cstr_first_byte(buf.unwrap().b_p_bt) == b'q'
-            || crate::memory::cstr_first_byte(buf.unwrap().b_p_bt) == b'p')
+    let Some(buf) = buf else {
+        return false;
+    };
+    let bt = crate::memory::cstr_as_bytes(buf.b_p_bt);
+    (bt.first() == Some(&b'n') && bt.get(2) == Some(&b'f'))
+        || matches!(bt.first(), Some(b't' | b'q' | b'p'))
 }
 
 /// Return true if `buf` has `'buftype'` set to `"nofile"`.
 pub fn bt_nofile(buf: Option<&FileBuf>) -> bool {
-    buf.is_some()
-        && crate::memory::cstr_first_byte(buf.unwrap().b_p_bt) == b'n'
-        && crate::memory::cstr_byte_at(buf.unwrap().b_p_bt, 2) == b'f'
+    let Some(buf) = buf else {
+        return false;
+    };
+    let bt = crate::memory::cstr_as_bytes(buf.b_p_bt);
+    bt.first() == Some(&b'n') && bt.get(2) == Some(&b'f')
 }
 
 /// Return true if `buf` is a `"nowrite"`, `"nofile"`, `"terminal"` or `"prompt"` buffer.
 pub fn bt_dontwrite(buf: Option<&FileBuf>) -> bool {
-    buf.is_some()
-        && (crate::memory::cstr_first_byte(buf.unwrap().b_p_bt) == b'n'
-            || !buf.unwrap().terminal.is_null()
-            || crate::memory::cstr_first_byte(buf.unwrap().b_p_bt) == b'p')
+    let Some(buf) = buf else {
+        return false;
+    };
+    let bt = crate::memory::cstr_as_bytes(buf.b_p_bt);
+    matches!(bt.first(), Some(b'n' | b'p')) || !buf.terminal.is_null()
 }
 
 pub fn bt_dontwrite_msg(buf: Option<&FileBuf>) -> bool {

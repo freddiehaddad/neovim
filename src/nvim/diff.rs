@@ -2471,18 +2471,18 @@ fn diff_find_change_simple(
                 unsafe { &mut *curtab_mut().tp_diffbuf[i] },
                 dp.df_lnum[i] + off,
             );
+            let org_bytes = crate::memory::cstr_as_bytes_with_nul(line_org);
+            let new_bytes = crate::memory::cstr_as_bytes_with_nul(line_new);
             let mut si_org: i32 = 0;
             let mut si_new: i32 = 0;
-            while crate::memory::cstr_byte_at(line_org, si_org as usize) != 0 {
+            while org_bytes.get(si_org as usize).copied().unwrap_or(0) != 0 {
+                let c_org = org_bytes.get(si_org as usize).copied().unwrap_or(0) as i32;
+                let c_new = new_bytes.get(si_new as usize).copied().unwrap_or(0) as i32;
                 if ((diff_st().diff_flags & DIFF_IWHITE) != 0
-                    && ascii_iswhite(crate::memory::cstr_char_at(line_org, si_org as usize))
-                    && ascii_iswhite(crate::memory::cstr_char_at(line_new, si_new as usize)))
+                    && ascii_iswhite(c_org)
+                    && ascii_iswhite(c_new))
                     || ((diff_st().diff_flags & DIFF_IWHITEALL) != 0
-                        && (ascii_iswhite(crate::memory::cstr_char_at(line_org, si_org as usize))
-                            || ascii_iswhite(crate::memory::cstr_char_at(
-                                line_new,
-                                si_new as usize,
-                            ))))
+                        && (ascii_iswhite(c_org) || ascii_iswhite(c_new)))
                 {
                     si_org = crate::memory::ptr_offset_from(
                         skipwhite(line_org.wrapping_add(si_org as usize)),
@@ -2508,31 +2508,31 @@ fn diff_find_change_simple(
             si_org -= utf_head_off(line_org, line_org.wrapping_add(si_org as usize));
             si_new -= utf_head_off(line_new, line_new.wrapping_add(si_new as usize));
             *startp = (*startp).min(si_org);
-            if crate::memory::cstr_byte_at(line_org, si_org as usize) != 0
-                || crate::memory::cstr_byte_at(line_new, si_new as usize) != 0
+            if org_bytes.get(si_org as usize).copied().unwrap_or(0) != 0
+                || new_bytes.get(si_new as usize).copied().unwrap_or(0) != 0
             {
-                let mut ei_org = crate::memory::cstr_len(line_org) as i32;
-                let mut ei_new = crate::memory::cstr_len(line_new) as i32;
+                let mut ei_org = (org_bytes.len() - 1) as i32;
+                let mut ei_new = (new_bytes.len() - 1) as i32;
                 while ei_org >= *startp && ei_new >= si_new && ei_org >= 0 && ei_new >= 0 {
+                    let c_org = org_bytes.get(ei_org as usize).copied().unwrap_or(0) as i32;
+                    let c_new = new_bytes.get(ei_new as usize).copied().unwrap_or(0) as i32;
                     if ((diff_st().diff_flags & DIFF_IWHITE) != 0
-                        && ascii_iswhite(crate::memory::cstr_char_at(line_org, ei_org as usize))
-                        && ascii_iswhite(crate::memory::cstr_char_at(line_new, ei_new as usize)))
+                        && ascii_iswhite(c_org)
+                        && ascii_iswhite(c_new))
                         || ((diff_st().diff_flags & DIFF_IWHITEALL) != 0
-                            && (ascii_iswhite(crate::memory::cstr_char_at(
-                                line_org,
-                                ei_org as usize,
-                            )) || ascii_iswhite(crate::memory::cstr_char_at(
-                                line_new,
-                                ei_new as usize,
-                            ))))
+                            && (ascii_iswhite(c_org) || ascii_iswhite(c_new)))
                     {
                         while ei_org >= *startp
-                            && ascii_iswhite(crate::memory::cstr_char_at(line_org, ei_org as usize))
+                            && ascii_iswhite(
+                                org_bytes.get(ei_org as usize).copied().unwrap_or(0) as i32
+                            )
                         {
                             ei_org -= 1;
                         }
                         while ei_new >= si_new
-                            && ascii_iswhite(crate::memory::cstr_char_at(line_new, ei_new as usize))
+                            && ascii_iswhite(
+                                new_bytes.get(ei_new as usize).copied().unwrap_or(0) as i32
+                            )
                         {
                             ei_new -= 1;
                         }
@@ -3146,19 +3146,15 @@ pub fn ex_diffgetput(eap: &mut Exarg) {
             }
         }
     } else {
-        let mut p = eap.arg.wrapping_add(crate::memory::cstr_len(eap.arg));
-        while p > eap.arg && ascii_iswhite(crate::memory::cstr_first_char(p.wrapping_sub(1))) {
-            p = p.wrapping_sub(1);
+        let arg_bytes = crate::memory::cstr_as_bytes(eap.arg);
+        let mut p_idx = arg_bytes.len();
+        while p_idx > 0 && ascii_iswhite(arg_bytes[p_idx - 1] as i32) {
+            p_idx -= 1;
         }
-        let mut i: usize = 0;
-        while ascii_isdigit(crate::memory::cstr_char_at(eap.arg, i)) && eap.arg.wrapping_add(i) < p
-        {
-            i += 1;
-        }
-        let bufnr = if eap.arg.wrapping_add(i) == p {
-            crate::charset::parse_i64_prefix(crate::memory::cstr_as_bytes(eap.arg)) as i32
+        let bufnr = if arg_bytes[..p_idx].iter().all(u8::is_ascii_digit) {
+            crate::charset::parse_i64_prefix(arg_bytes) as i32
         } else {
-            let nr = buflist_findpat(eap.arg, p, false, true, false);
+            let nr = buflist_findpat(eap.arg, eap.arg.wrapping_add(p_idx), false, true, false);
             if nr < 0 {
                 return;
             }
