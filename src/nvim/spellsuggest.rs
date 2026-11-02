@@ -801,9 +801,12 @@ pub fn spell_suggest(count: i32) {
             );
             p_vec.extend_from_slice(&line_vec[..c as usize]);
             p_vec.extend_from_slice(stp.st_word.to_bytes());
-            p_vec.extend_from_slice(crate::memory::cstr_as_bytes_with_nul(
-                sug.su_badptr.wrapping_add(stp.st_orglen as usize).cast(),
-            ));
+            p_vec.extend_from_slice(
+                crate::memory::cstr_from_ptr(
+                    sug.su_badptr.wrapping_add(stp.st_orglen as usize).cast(),
+                )
+                .to_bytes_with_nul(),
+            );
             let p = p_vec.as_mut_ptr();
             prep_redo(
                 false,

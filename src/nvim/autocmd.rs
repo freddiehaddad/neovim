@@ -3261,7 +3261,7 @@ fn aucmd_next(apc: &mut AutoPatCmd) {
             }
 
             let name = event_nr2name(apc.event);
-            let name_str = crate::memory::cstr_lossy(name);
+            let name_str = name.to_string_lossy();
             let pat_str = ap.pat.to_string_lossy();
             let formatted = format!("{name_str} Autocommands for \"{pat_str}\"");
             let name_cstr = CString::new(formatted).unwrap_or_default();

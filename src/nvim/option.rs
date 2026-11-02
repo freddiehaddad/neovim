@@ -1295,7 +1295,7 @@ fn stropt_expand_envvar(
             newlen += (crate::memory::cstr_len(origval) as u32) + 1;
         }
         *newval = vec![0; newlen as usize];
-        let s_bytes = crate::memory::cstr_as_bytes_with_nul(s);
+        let s_bytes = s.to_bytes_with_nul();
         newval[..s_bytes.len()].copy_from_slice(s_bytes);
     }
 }
@@ -1343,7 +1343,7 @@ fn stropt_remove_val(
 ) {
     let origval = origval.into_c_char_ptr();
     let mut strval = strval.into_c_char_ptr();
-    let orig_bytes = crate::memory::cstr_as_bytes_with_nul(origval);
+    let orig_bytes = crate::memory::cstr_from_ptr(origval).to_bytes_with_nul();
     newval[..orig_bytes.len()].copy_from_slice(orig_bytes);
     if !crate::memory::cstr_is_empty(strval) {
         if (flags & K_OPT_FLAG_COMMA) != 0 {
@@ -1356,7 +1356,8 @@ fn stropt_remove_val(
                 len += 1;
             }
         }
-        let src_bytes = crate::memory::cstr_as_bytes_with_nul(strval.wrapping_add(len as usize));
+        let src_bytes =
+            crate::memory::cstr_from_ptr(strval.wrapping_add(len as usize)).to_bytes_with_nul();
         let dst_off = crate::memory::ptr_offset_from(strval, origval) as usize;
         newval[dst_off..dst_off + src_bytes.len()].copy_from_slice(src_bytes);
     }
@@ -1448,7 +1449,7 @@ fn stropt_handle_keymatch(
     }
 
     let newval_copy = newval_bytes.to_vec();
-    let orig_bytes = crate::memory::cstr_as_bytes_with_nul(origval);
+    let orig_bytes = crate::memory::cstr_from_ptr(origval).to_bytes_with_nul();
     newval_slice[..orig_bytes.len()].copy_from_slice(orig_bytes);
 
     for item in newval_copy.split(|&b| b == b',') {
@@ -1581,7 +1582,7 @@ fn stropt_get_newval<T>(
 
                 if (op == OP_ADDING || op == OP_PREPENDING) && !s.is_null() {
                     op = OP_NONE;
-                    let orig_bytes = crate::memory::cstr_as_bytes_with_nul(origval);
+                    let orig_bytes = crate::memory::cstr_from_ptr(origval).to_bytes_with_nul();
                     newval_vec[..orig_bytes.len()].copy_from_slice(orig_bytes);
                 }
 

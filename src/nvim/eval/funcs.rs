@@ -2361,7 +2361,9 @@ pub fn f_expandcmd(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDa
         crate::eval::typval::tv_set_string(rettv, arg_str);
         return;
     }
-    let mut cmdline_buf: Vec<u8> = crate::memory::cstr_as_bytes_with_nul(arg_str).to_vec();
+    let mut cmdline_buf: Vec<u8> = crate::memory::cstr_from_ptr(arg_str)
+        .to_bytes_with_nul()
+        .to_vec();
     let mut cmdstr = cmdline_buf.as_mut_ptr().cast();
 
     let mut eap: Exarg = Exarg::new();

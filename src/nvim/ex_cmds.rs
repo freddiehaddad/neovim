@@ -891,7 +891,7 @@ pub fn ex_sort(eap: &mut Exarg) {
             let bytelen: Colnr = ml_get_len(get_lnum) + 1;
             old_count += bytelen as Bcount;
             if !unique || i == 0 || string_compare(s, sortbuf1_vec.as_ptr().cast()) != 0 {
-                let s_bytes = crate::memory::cstr_as_bytes_with_nul(s);
+                let s_bytes = crate::memory::cstr_from_ptr(s).to_bytes_with_nul();
                 sortbuf1_vec[..s_bytes.len()].copy_from_slice(s_bytes);
                 if !ml_append(lnum, sortbuf1_vec.as_mut_ptr().cast(), 0, false) {
                     break;
@@ -1093,8 +1093,8 @@ pub fn ex_uniq(eap: &mut Exarg) {
                 if is_match {
                     delete_lnum = get_lnum;
                 } else {
-                    let s_bytes =
-                        crate::memory::cstr_as_bytes_with_nul(s.wrapping_add(start_col as usize));
+                    let s_bytes = crate::memory::cstr_from_ptr(s.wrapping_add(start_col as usize))
+                        .to_bytes_with_nul();
                     sortbuf1_vec[..s_bytes.len()].copy_from_slice(s_bytes);
                 }
             } else if keep_only_not_unique {
@@ -1110,8 +1110,8 @@ pub fn ex_uniq(eap: &mut Exarg) {
                         delete_lnum = get_lnum;
                     }
                     match_continue = false;
-                    let s_bytes =
-                        crate::memory::cstr_as_bytes_with_nul(s.wrapping_add(start_col as usize));
+                    let s_bytes = crate::memory::cstr_from_ptr(s.wrapping_add(start_col as usize))
+                        .to_bytes_with_nul();
                     sortbuf1_vec[..s_bytes.len()].copy_from_slice(s_bytes);
                 }
             } else if is_match {
@@ -1126,8 +1126,8 @@ pub fn ex_uniq(eap: &mut Exarg) {
                     delete_lnum = get_lnum;
                 }
                 match_continue = false;
-                let s_bytes =
-                    crate::memory::cstr_as_bytes_with_nul(s.wrapping_add(start_col as usize));
+                let s_bytes = crate::memory::cstr_from_ptr(s.wrapping_add(start_col as usize))
+                    .to_bytes_with_nul();
                 sortbuf1_vec[..s_bytes.len()].copy_from_slice(s_bytes);
             }
 
@@ -1421,7 +1421,7 @@ pub fn do_bang(addr_count: i32, eap: &mut Exarg, forceit: bool, do_in: bool, do_
             t.extend_from_slice(excmds_st().prevcmd.as_ref().unwrap().to_bytes());
         }
         let mut p_idx = t.len();
-        t.extend_from_slice(crate::memory::cstr_as_bytes_with_nul(trailarg));
+        t.extend_from_slice(crate::memory::cstr_from_ptr(trailarg).to_bytes_with_nul());
         newcmd = t;
 
         let mut next_trail_off: Option<usize> = None;
@@ -4599,9 +4599,10 @@ fn do_sub(eap: &mut Exarg, tm: Proftime, cmdpreview_ns: i32, cmdpreview_bufnr: O
                     || regmatch.startpos[0].lnum > 0
                 {
                     if !new_start.is_null() {
-                        let tail = crate::memory::cstr_as_bytes_with_nul(
+                        let tail = crate::memory::cstr_from_ptr(
                             sub_firstline.data().wrapping_add(copycol as usize).cast(),
-                        );
+                        )
+                        .to_bytes_with_nul();
                         unsafe {
                             ptr::copy_nonoverlapping(
                                 tail.as_ptr(),

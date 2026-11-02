@@ -323,17 +323,6 @@ pub fn cstr_slice<'a, S: crate::strings::IntoCCharPtr>(s: S, len: usize) -> &'a 
     }
 }
 
-/// View a NUL-terminated C string as a lossy UTF-8 string (`Cow<str>`).
-#[inline]
-pub fn cstr_lossy<'a, S: crate::strings::IntoCCharPtr>(s: S) -> std::borrow::Cow<'a, str> {
-    let s = s.into_c_char_ptr();
-    if s.is_null() {
-        std::borrow::Cow::Borrowed("")
-    } else {
-        unsafe { CStr::from_ptr(s).to_string_lossy() }
-    }
-}
-
 /// Compute the signed element offset `(p - origin)` between two pointers of the same type.
 #[inline]
 pub fn ptr_offset_from<T>(p: *const T, origin: *const T) -> isize {
@@ -371,17 +360,6 @@ pub fn cstr_as_opt_cstr<'a, S: crate::strings::IntoCCharPtr>(s: S) -> Option<&'a
         None
     } else {
         Some(unsafe { CStr::from_ptr(s) })
-    }
-}
-
-/// View a NUL-terminated C string as a byte slice (including trailing NUL), returning `b"\0"` if null.
-#[inline]
-pub fn cstr_as_bytes_with_nul<'a, S: crate::strings::IntoCCharPtr>(s: S) -> &'a [u8] {
-    let s = s.into_c_char_ptr();
-    if s.is_null() {
-        b"\0"
-    } else {
-        unsafe { CStr::from_ptr(s).to_bytes_with_nul() }
     }
 }
 
@@ -435,11 +413,10 @@ pub fn cstr_to_cstring<S: crate::strings::IntoCCharPtr>(ptr: S) -> CString {
 
 /// Copy a byte slice (truncating at any embedded NUL) into an owned `CString`.
 pub fn cstr_from_bytes(bytes: &[u8]) -> CString {
-    let end = bytes.iter().position(|&b| b == 0).unwrap_or(bytes.len());
-    let mut v = Vec::with_capacity(end + 1);
-    v.extend_from_slice(&bytes[..end]);
-    v.push(0);
-    unsafe { CString::from_vec_with_nul_unchecked(v) }
+    match CStr::from_bytes_until_nul(bytes) {
+        Ok(c) => c.to_owned(),
+        Err(_) => CString::new(bytes).unwrap_or_default(),
+    }
 }
 
 /// Finish allocations in `arena` and return an `ArenaMem` handle (`arena_finish`).

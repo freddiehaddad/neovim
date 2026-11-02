@@ -1136,7 +1136,7 @@ fn get_view_file(c: u8) -> Option<CString> {
         }
     }
     let sname_len = sname_bytes.len();
-    let vdir_bytes = crate::memory::cstr_as_bytes_with_nul(opt_vars().p_vdir);
+    let vdir_bytes = crate::memory::cstr_from_ptr(opt_vars().p_vdir).to_bytes_with_nul();
     let vdir_len = vdir_bytes.len() - 1;
     let mut retval_vec: Vec<u8> = vec![0; sname_len + len + vdir_len + 9];
     retval_vec[..vdir_len + 1].copy_from_slice(vdir_bytes);

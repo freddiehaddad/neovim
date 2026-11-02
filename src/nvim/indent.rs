@@ -921,7 +921,7 @@ pub fn op_reindent(oap: &mut Oparg, how: Indenter) {
                 && i64::from(oap.line_count) > opt_vars().p_report
             {
                 let fmt_ptr = gettext(c"%ld lines to indent... ");
-                let fmt_str = crate::memory::cstr_lossy(fmt_ptr);
+                let fmt_str = fmt_ptr.to_string_lossy();
                 let msg_str = fmt_str.replacen("%ld", &i.to_string(), 1);
                 let bytes = msg_str.as_bytes();
                 let copy_len = bytes.len().min(IOSIZE - 1);
@@ -986,7 +986,7 @@ pub fn op_reindent(oap: &mut Oparg, how: Indenter) {
     if i64::from(oap.line_count) > opt_vars().p_report {
         i = oap.line_count - (i + 1);
         let fmt_ptr = ngettext(c"%ld line indented ", c"%ld lines indented ", i as u64);
-        let fmt_str = crate::memory::cstr_lossy(fmt_ptr);
+        let fmt_str = fmt_ptr.to_string_lossy();
         let msg_str = fmt_str.replacen("%ld", &i.to_string(), 1);
         let bytes = msg_str.as_bytes();
         let copy_len = bytes.len().min(IOSIZE - 1);

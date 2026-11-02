@@ -2144,7 +2144,7 @@ fn mapblock_fill_dict(
     put_c(&mut dict, c"lhs", cstr_as_obj(lhs));
     put_c(&mut dict, c"lhsraw", cstr_as_obj(mp.m_keys.as_ptr()));
     if !lhsrawalt.is_null() {
-        let alt_bytes = crate::memory::cstr_as_bytes_with_nul(lhsrawalt);
+        let alt_bytes = crate::memory::cstr_from_ptr(lhsrawalt).to_bytes_with_nul();
         let alt_arena = arena_alloc(arena, alt_bytes.len(), false);
         let dst =
             unsafe { std::slice::from_raw_parts_mut(alt_arena.cast::<u8>(), alt_bytes.len()) };

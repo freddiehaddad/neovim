@@ -2260,7 +2260,8 @@ pub(super) fn match_with_backref(
     *bytelen = 0;
     loop {
         if re_st().reg_tofree.is_empty() || re_st().rex.line != re_st().reg_tofree.as_mut_ptr() {
-            let line_bytes = crate::memory::cstr_as_bytes_with_nul(re_st().rex.line.cast());
+            let line_bytes =
+                crate::memory::cstr_from_ptr(re_st().rex.line.cast()).to_bytes_with_nul();
             let len = line_bytes.len() - 1 + 51;
             let off = re_st().rex.input_off();
             if re_st().reg_tofree.len() < len {

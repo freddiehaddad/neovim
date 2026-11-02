@@ -5173,7 +5173,9 @@ pub fn do_cmdline(
                     }
                 }
             } else if cmdline_copy.is_null() {
-                cmdline_buf = crate::memory::cstr_as_bytes_with_nul(next_cmdline).to_vec();
+                cmdline_buf = crate::memory::cstr_from_ptr(next_cmdline)
+                    .to_bytes_with_nul()
+                    .to_vec();
                 next_cmdline = cmdline_buf.as_mut_ptr().cast();
             }
             cmdline_copy = next_cmdline;

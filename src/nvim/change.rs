@@ -1575,7 +1575,7 @@ pub fn open_line(
                     newcol += 1;
                 }
             }
-            let extra_bytes = crate::memory::cstr_as_bytes_with_nul(p_extra.cast());
+            let extra_bytes = crate::memory::cstr_from_ptr(p_extra.cast()).to_bytes_with_nul();
             allocated_vec[lead_off + cur_len..lead_off + cur_len + extra_bytes.len()]
                 .copy_from_slice(extra_bytes);
             p_extra = allocated_vec[lead_off..].as_mut_ptr();

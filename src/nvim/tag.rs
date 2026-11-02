@@ -1190,8 +1190,8 @@ fn tag_strnicmp(
     s2: impl crate::strings::IntoCCharPtr,
     len: usize,
 ) -> i32 {
-    let b1 = crate::memory::cstr_as_bytes_with_nul(s1.into_c_char_ptr());
-    let b2 = crate::memory::cstr_as_bytes_with_nul(s2.into_c_char_ptr());
+    let b1 = crate::memory::cstr_from_ptr(s1.into_c_char_ptr()).to_bytes_with_nul();
+    let b2 = crate::memory::cstr_from_ptr(s2.into_c_char_ptr()).to_bytes_with_nul();
     for idx in 0..len {
         let c1 = b1.get(idx).copied().unwrap_or(0);
         let c2 = b2.get(idx).copied().unwrap_or(0);
@@ -1989,7 +1989,7 @@ fn findtags_string_convert(st: &mut FindtagsState) {
     if len > st.lbuf.len() {
         st.lbuf.resize(len, 0);
     }
-    let conv_bytes = crate::memory::cstr_as_bytes_with_nul(conv_line.as_ptr().cast());
+    let conv_bytes = crate::memory::cstr_from_ptr(conv_line.as_ptr().cast()).to_bytes_with_nul();
     st.lbuf[..conv_bytes.len()].copy_from_slice(conv_bytes);
 }
 
@@ -2037,7 +2037,8 @@ fn findtags_add_match(
             let mut v = vec![0u8; mfp_size];
             v[..len].copy_from_slice(tagname_slice);
             v[len] = b'@';
-            let lang_bytes = crate::memory::cstr_as_bytes_with_nul(st.help_lang.as_ptr().cast());
+            let lang_bytes =
+                crate::memory::cstr_from_ptr(st.help_lang.as_ptr().cast()).to_bytes_with_nul();
             v[len + 1..len + 1 + lang_bytes.len()].copy_from_slice(lang_bytes);
             let heur = help_heuristic(
                 tagname_slice,

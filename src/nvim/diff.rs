@@ -2470,8 +2470,8 @@ fn diff_find_change_simple(
                 unsafe { &mut *curtab_mut().tp_diffbuf[i] },
                 dp.df_lnum[i] + off,
             );
-            let org_bytes = crate::memory::cstr_as_bytes_with_nul(line_org);
-            let new_bytes = crate::memory::cstr_as_bytes_with_nul(line_new);
+            let org_bytes = crate::memory::cstr_from_ptr(line_org).to_bytes_with_nul();
+            let new_bytes = crate::memory::cstr_from_ptr(line_new).to_bytes_with_nul();
             let mut si_org: i32 = 0;
             let mut si_new: i32 = 0;
             while org_bytes.get(si_org as usize).copied().unwrap_or(0) != 0 {

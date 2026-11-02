@@ -921,7 +921,7 @@ fn fname_trans_sid(
                 ) as usize;
             }
         }
-        let script_bytes = crate::memory::cstr_as_bytes_with_nul(script_name.cast());
+        let script_bytes = crate::memory::cstr_from_ptr(script_name.cast()).to_bytes_with_nul();
         let fnamelen = fname_buflen + script_bytes.len() - 1;
         if fnamelen < FLEN_FIXED {
             unsafe {

@@ -3588,7 +3588,8 @@ fn spell_read_wordfile(spin: &mut Spellinfo, fname: impl crate::strings::IntoCCh
                                 line.cast::<std::ffi::c_void>(),
                             );
                         } else {
-                            let line_bytes = crate::memory::cstr_as_bytes_with_nul(line.cast());
+                            let line_bytes =
+                                crate::memory::cstr_from_ptr(line.cast()).to_bytes_with_nul();
                             spin.si_region_count = ((line_bytes.len() - 1) / 2) as i32;
                             spin.si_region_name[..line_bytes.len()].copy_from_slice(line_bytes);
                             spin.si_region = (1 << spin.si_region_count) - 1;

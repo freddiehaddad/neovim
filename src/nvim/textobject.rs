@@ -1050,7 +1050,7 @@ pub fn current_block(
 /// Return true if the cursor is on a `<aaa>` tag (or `</aaa>` when `end_tag` is true) (`in_html_tag`).
 fn in_html_tag(end_tag: bool) -> bool {
     let line = get_cursor_line_ptr();
-    let line_bytes = crate::memory::cstr_as_bytes_with_nul(line);
+    let line_bytes = crate::memory::cstr_from_ptr(line).to_bytes_with_nul();
     let mut idx = (curwin_mut().w_cursor.col as usize).min(line_bytes.len().saturating_sub(1));
     let mut lc: i32 = i32::from(NUL);
 

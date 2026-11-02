@@ -1650,7 +1650,7 @@ pub fn addfile(gap: &mut Vec<std::ffi::CString>, f: impl crate::strings::IntoCCh
             return;
         }
 
-        let f_bytes = crate::memory::cstr_as_bytes_with_nul(f);
+        let f_bytes = crate::memory::cstr_from_ptr(f).to_bytes_with_nul();
         let flen = f_bytes.len() - 1;
         let mut buf = vec![0u8; flen + 1 + usize::from(isdir)];
         buf[..flen + 1].copy_from_slice(f_bytes);

@@ -4205,7 +4205,7 @@ pub fn intro_message(colon: bool) {
             let formatted_cstr: Option<CString>;
 
             let mesg: &CStr = if p.to_bytes().windows(4).any(|w| w == b"news") {
-                let fmt_str = crate::memory::cstr_lossy(gettext(p.as_ptr()));
+                let fmt_str = gettext(p.as_ptr()).to_string_lossy();
                 let major_s = NVIM_VERSION_MAJOR_CONST.to_string();
                 let minor_s = NVIM_VERSION_MINOR_CONST.to_string();
                 let formatted = if let Some((a, rest)) = fmt_str.split_once("%s") {

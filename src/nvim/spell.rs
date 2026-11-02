@@ -1182,7 +1182,7 @@ pub fn spell_move_to(
                 line = ml_get_buf(wp.buf_mut(), lnum);
             }
             let empty_line = crate::memory::cstr_is_empty(skipwhite(line));
-            let line_bytes = crate::memory::cstr_as_bytes_with_nul(line);
+            let line_bytes = crate::memory::cstr_from_ptr(line).to_bytes_with_nul();
             buf_vec[..line_bytes.len()].copy_from_slice(line_bytes);
             let buf = buf_vec.as_mut_ptr();
             if lnum < wp.buf_mut().b_ml.ml_line_count {
@@ -1348,7 +1348,7 @@ fn spell_load_lang(lang: impl crate::strings::IntoCCharPtr) {
             sl_loaded: false,
             sl_nobreak: 0,
         };
-        let lang_bytes = crate::memory::cstr_as_bytes_with_nul(lang);
+        let lang_bytes = crate::memory::cstr_from_ptr(lang).to_bytes_with_nul();
         sl.sl_lang[..lang_bytes.len()].copy_from_slice(lang_bytes);
         curbuf_mut().b_locked += 1;
         for round in 1..=2 {
@@ -2429,7 +2429,7 @@ pub fn make_case_word(fword: impl crate::strings::IntoCCharPtr, cword: *mut u8, 
         } else if (flags & WF_ONECAP) != 0 {
             onecap_copy(fword, cword, true);
         } else {
-            let fword_bytes = crate::memory::cstr_as_bytes_with_nul(fword);
+            let fword_bytes = crate::memory::cstr_from_ptr(fword).to_bytes_with_nul();
             let dst = unsafe { std::slice::from_raw_parts_mut(cword, fword_bytes.len()) };
             dst.copy_from_slice(fword_bytes);
         }

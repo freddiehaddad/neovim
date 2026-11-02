@@ -678,7 +678,7 @@ fn channel_write(channel: &mut Channel, buffer: std::rc::Rc<WBuffer>) -> bool {
     }
 
     if err != 0 {
-        let err_str = crate::memory::cstr_lossy(unsafe { uv_strerror(err) });
+        let err_str = crate::memory::cstr_from_ptr(unsafe { uv_strerror(err) }).to_string_lossy();
         let msg = format!(
             "ch {}: stream write failed: {err_str}. RPC canceled; closing channel\0",
             channel.id

@@ -2979,7 +2979,7 @@ pub fn mb_unescape(s: &mut &[u8]) -> Option<&'static CStr> {
 
 pub fn enc_skip<'a>(p: impl crate::strings::IntoCCharPtr) -> &'a CStr {
     let p = p.into_c_char_ptr();
-    let bytes = crate::memory::cstr_as_bytes_with_nul(p);
+    let bytes = crate::memory::cstr_from_ptr(p).to_bytes_with_nul();
     let skipped = bytes
         .strip_prefix(b"2byte-")
         .or_else(|| bytes.strip_prefix(b"8bit-"))

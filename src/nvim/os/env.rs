@@ -737,7 +737,7 @@ pub fn expand_env_esc<T>(
                 }
             }
 
-            let var_bytes_with_nul = crate::memory::cstr_as_bytes_with_nul(var.cast());
+            let var_bytes_with_nul = crate::memory::cstr_from_ptr(var.cast()).to_bytes_with_nul();
             if var_bytes_with_nul.len() > 1 {
                 let c = var_bytes_with_nul.len() - 1;
                 let tail_bytes = crate::memory::cstr_as_bytes(tail.cast());

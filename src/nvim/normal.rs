@@ -2605,7 +2605,7 @@ pub fn find_ident_at_pos(
     let mut bn: i32;
 
     let mut ptr = ml_get_buf(wp.buf_mut(), lnum);
-    let line_bytes = crate::memory::cstr_as_bytes_with_nul(ptr);
+    let line_bytes = crate::memory::cstr_from_ptr(ptr).to_bytes_with_nul();
     let mut i = if (find_type & FIND_IDENT) != 0 { 0 } else { 1 };
     while i < 2 {
         col = startcol;
@@ -2918,7 +2918,7 @@ pub fn add_to_showcmd(c: i32) -> bool {
     };
 
     let old_len = crate::memory::cstr_len(sc_buf);
-    let p_bytes = crate::memory::cstr_as_bytes_with_nul(p);
+    let p_bytes = crate::memory::cstr_from_ptr(p).to_bytes_with_nul();
     let extra_len = p_bytes.len() - 1;
     let limit = if ui_has(K_UIMESSAGES) {
         SHOWCMD_BUFLEN - 1

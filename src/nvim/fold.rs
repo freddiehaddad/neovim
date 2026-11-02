@@ -2695,7 +2695,7 @@ pub fn f_foldtext(_argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDa
         }
         let count = foldend - foldstart + 1;
         let txt = ngettext(c"+-%s%3d line: ", c"+-%s%3d lines: ", count as u64);
-        let s_bytes = crate::memory::cstr_as_bytes_with_nul(s);
+        let s_bytes = crate::memory::cstr_from_ptr(s).to_bytes_with_nul();
         let s_len = s_bytes.len() - 1;
         let len = crate::memory::cstr_len(txt) + crate::memory::cstr_len(dashes) + 20 + s_len;
         let mut r_vec = vec![0u8; len];

@@ -538,7 +538,7 @@ pub fn os_expand_wildcards(
                 continue;
             }
 
-            let entry_bytes = crate::memory::cstr_as_bytes_with_nul(entry.cast());
+            let entry_bytes = crate::memory::cstr_from_ptr(entry.cast()).to_bytes_with_nul();
             let mut new_vec = vec![0u8; entry_bytes.len() + usize::from(dir)];
             new_vec[..entry_bytes.len()].copy_from_slice(entry_bytes);
             if dir {

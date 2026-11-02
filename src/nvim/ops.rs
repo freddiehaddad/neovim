@@ -2931,7 +2931,7 @@ pub fn do_addsub(op_type: i32, pos: &mut CursorPos, mut length: i32, prenum1: Li
             *ptr_line = 0;
             let mut buf1len = crate::memory::ptr_offset_from(ptr_line, buf1) as i32;
 
-            let buf2_bytes = crate::memory::cstr_as_bytes_with_nul(buf2_ptr.cast());
+            let buf2_bytes = crate::memory::cstr_from_ptr(buf2_ptr.cast()).to_bytes_with_nul();
             buf1_vec[buf1len as usize..buf1len as usize + buf2_bytes.len()]
                 .copy_from_slice(buf2_bytes);
             buf1len += buf2len;
