@@ -1445,9 +1445,7 @@ pub extern "C" fn build_stl_str_hl(
             false
         };
 
-        if crate::memory::cstr_first_byte(fmt.cast()) == b'%'
-            && crate::memory::cstr_byte_at(fmt.cast(), 1) == b'!'
-        {
+        if crate::memory::cstr_as_bytes(fmt.cast()).starts_with(b"%!") {
             let mut tv = TypVal {
                 v_type: VarType::VarNumber,
                 v_lock: 0,
@@ -1514,33 +1512,30 @@ pub extern "C" fn build_stl_str_hl(
         }
 
         let mut fmt_p = usefmt;
-        while !crate::memory::cstr_is_empty(fmt_p.cast()) {
+        while *fmt_p != 0 {
             may_grow_stl_items_len!();
 
-            if crate::memory::cstr_first_byte(fmt_p.cast()) != b'%' {
+            if *fmt_p != b'%' {
                 prevchar_isflag = false;
                 prevchar_isitem = false;
             }
 
-            while !crate::memory::cstr_is_empty(fmt_p.cast())
-                && crate::memory::cstr_first_byte(fmt_p.cast()) != b'%'
-                && out_p < out_end_p
-            {
+            while *fmt_p != 0 && *fmt_p != b'%' && out_p < out_end_p {
                 *out_p = *fmt_p;
                 out_p = out_p.wrapping_add(1);
                 fmt_p = fmt_p.wrapping_add(1);
             }
 
-            if crate::memory::cstr_is_empty(fmt_p.cast()) || out_p >= out_end_p {
+            if *fmt_p == 0 || out_p >= out_end_p {
                 break;
             }
 
             fmt_p = fmt_p.wrapping_add(1);
-            if crate::memory::cstr_is_empty(fmt_p.cast()) {
+            if *fmt_p == 0 {
                 break;
             }
 
-            if crate::memory::cstr_first_byte(fmt_p.cast()) == b'%' {
+            if *fmt_p == b'%' {
                 *out_p = *fmt_p;
                 out_p = out_p.wrapping_add(1);
                 fmt_p = fmt_p.wrapping_add(1);
@@ -1565,7 +1560,7 @@ pub extern "C" fn build_stl_str_hl(
                 continue;
             }
 
-            if crate::memory::cstr_first_byte(fmt_p.cast()) == b')' {
+            if *fmt_p == b')' {
                 fmt_p = fmt_p.wrapping_add(1);
                 if groupdepth < 1 {
                     continue;
@@ -1675,17 +1670,17 @@ pub extern "C" fn build_stl_str_hl(
             let mut left_align_num = false;
             let mut left_align = false;
 
-            let zeropad = crate::memory::cstr_first_byte(fmt_p.cast()) == b'0';
+            let zeropad = *fmt_p == b'0';
             if zeropad {
                 fmt_p = fmt_p.wrapping_add(1);
             }
 
-            if crate::memory::cstr_first_byte(fmt_p.cast()) == b'-' {
+            if *fmt_p == b'-' {
                 fmt_p = fmt_p.wrapping_add(1);
                 left_align = true;
             }
 
-            if ascii_isdigit(crate::memory::cstr_first_char(fmt_p.cast())) {
+            if (*fmt_p).is_ascii_digit() {
                 let fmt_bytes = crate::memory::cstr_as_bytes(fmt_p.cast());
                 let mut rem = fmt_bytes;
                 minwid = getdigits_int(&mut rem, false, 0);
@@ -1731,7 +1726,7 @@ pub extern "C" fn build_stl_str_hl(
             if *fmt_p == STL_CLICK_FUNC {
                 fmt_p = fmt_p.wrapping_add(1);
                 let t = fmt_p;
-                while *fmt_p != STL_CLICK_FUNC && !crate::memory::cstr_is_empty(fmt_p.cast()) {
+                while *fmt_p != STL_CLICK_FUNC && *fmt_p != 0 {
                     fmt_p = fmt_p.wrapping_add(1);
                 }
                 if *fmt_p != STL_CLICK_FUNC {
@@ -1754,9 +1749,9 @@ pub extern "C" fn build_stl_str_hl(
                 continue;
             }
 
-            if crate::memory::cstr_first_byte(fmt_p.cast()) == b'.' {
+            if *fmt_p == b'.' {
                 fmt_p = fmt_p.wrapping_add(1);
-                if ascii_isdigit(crate::memory::cstr_first_char(fmt_p.cast())) {
+                if (*fmt_p).is_ascii_digit() {
                     let fmt_bytes = crate::memory::cstr_as_bytes(fmt_p.cast());
                     let mut rem = fmt_bytes;
                     maxwid = getdigits_int(&mut rem, false, 50);

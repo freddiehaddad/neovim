@@ -1287,28 +1287,27 @@ pub fn do_highlight(line: impl crate::strings::IntoCCharPtr, forceit: bool, init
         let mut key = [0u8; 64];
         let mut arg = [0u8; 512];
         if !doclear {
-            while ends_excmd(i32::from(crate::memory::cstr_first_byte(linep))) == 0 {
+            while ends_excmd(i32::from(*linep as u8)) == 0 {
                 let key_start = linep;
-                if crate::memory::cstr_first_byte(linep) == b'=' {
+                let linep_bytes = crate::memory::cstr_as_bytes(linep);
+                if linep_bytes.first() == Some(&b'=') {
                     semsg!(gettext(E_UNEXPECTED_EQUAL_SIGN_STR), key_start);
                     error = true;
                     break;
                 }
 
-                while *linep != 0
-                    && !ascii_iswhite(crate::memory::cstr_first_byte(linep))
-                    && crate::memory::cstr_first_byte(linep) != b'='
-                {
-                    linep = linep.wrapping_add(1);
-                }
-                let key_len = linep as usize - key_start as usize;
+                let key_len = linep_bytes
+                    .iter()
+                    .take_while(|&&b| !ascii_iswhite(b) && b != b'=')
+                    .count();
+                linep = linep.wrapping_add(key_len);
                 if key_len > key.len() - 1 {
                     emsg(gettext(c"E423: Illegal argument"));
                     error = true;
                     break;
                 }
                 for (i, dst) in key.iter_mut().take(key_len).enumerate() {
-                    *dst = (crate::memory::cstr_byte_at(key_start, i)).to_ascii_uppercase();
+                    *dst = linep_bytes[i].to_ascii_uppercase();
                 }
                 key[key_len] = 0;
                 linep = skipwhite(linep);
@@ -1324,7 +1323,7 @@ pub fn do_highlight(line: impl crate::strings::IntoCCharPtr, forceit: bool, init
                     continue;
                 }
 
-                if crate::memory::cstr_first_byte(linep) != b'=' {
+                if *linep as u8 != b'=' {
                     semsg!(gettext(E_MISSING_EQUAL_SIGN_STR_2), key_start);
                     error = true;
                     break;
@@ -1333,7 +1332,7 @@ pub fn do_highlight(line: impl crate::strings::IntoCCharPtr, forceit: bool, init
 
                 linep = skipwhite(linep);
                 let arg_start;
-                if crate::memory::cstr_first_byte(linep) == b'\'' {
+                if *linep as u8 == b'\'' {
                     linep = linep.wrapping_add(1);
                     arg_start = linep;
                     linep = crate::memory::cstr_as_bytes(linep)

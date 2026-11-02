@@ -4233,8 +4233,9 @@ pub fn intro_message(colon: bool) {
     }
 }
 
-fn do_intro_line(row: i32, mesg: &CStr, colon: bool, is_logo: bool) {
-    let mesg = mesg.as_ptr();
+fn do_intro_line(row: i32, mesg_cstr: &CStr, colon: bool, is_logo: bool) {
+    let mesg = mesg_cstr.as_ptr();
+    let mesg_bytes = mesg_cstr.to_bytes();
     unsafe {
         let mut col = (g_st().columns_global - vim_strsize(mesg)) / 2;
         if col < 0 {
@@ -4255,11 +4256,12 @@ fn do_intro_line(row: i32, mesg: &CStr, colon: bool, is_logo: bool) {
 
         if is_logo {
             let mut seen_diagonal = false;
-            let mut p = mesg;
-            while !crate::memory::cstr_is_empty(p) {
+            let mut idx = 0usize;
+            while idx < mesg_bytes.len() {
+                let p = mesg.wrapping_add(idx);
                 let clen = utfc_ptr2len(p);
                 let mut attr: i32 = 0;
-                if (crate::memory::cstr_first_byte(p)) >= 0x80 {
+                if mesg_bytes[idx] >= 0x80 {
                     seen_diagonal = seen_diagonal || (clen == 3 && utf_ptr2char(p) == 0x2572);
                     attr = if seen_diagonal {
                         string_attr
@@ -4268,59 +4270,54 @@ fn do_intro_line(row: i32, mesg: &CStr, colon: bool, is_logo: bool) {
                     };
                 }
                 col += grid_line_puts(col, p, clen, attr);
-                p = p.wrapping_add(clen as usize);
+                idx += clen as usize;
             }
             grid_line_flush();
             return;
         }
 
-        let is_version = crate::memory::cstr_first_byte(mesg) == b'N'
-            && crate::memory::cstr_byte_at(mesg, 1) == b'V'
-            && crate::memory::cstr_byte_at(mesg, 2) == b'I'
-            && crate::memory::cstr_byte_at(mesg, 3) == b'M';
+        let is_version = mesg_bytes.starts_with(b"NVIM");
         let is_sep = utfc_ptr2len(mesg) == 3 && utf_ptr2char(mesg) == 0x2500;
         if is_version || is_sep {
             let clen = if is_sep { 3 } else { 1 };
             let attr = if is_sep { nontext_attr } else { string_attr };
-            let mut p = mesg;
-            while !crate::memory::cstr_is_empty(p) {
-                col += grid_line_puts(col, p, clen, attr);
-                p = p.wrapping_add(clen as usize);
+            let mut idx = 0usize;
+            while idx < mesg_bytes.len() {
+                col += grid_line_puts(col, mesg.wrapping_add(idx), clen, attr);
+                idx += clen as usize;
             }
             grid_line_flush();
             return;
         }
 
         let hlf8_attr = crate::highlight::hl_attr(HLF_8 as i32);
-        let mut p = mesg;
-        while !crate::memory::cstr_is_empty(p) {
-            let mut l: i32 = 0;
-            while crate::memory::cstr_byte_at(p, l as usize) != 0
-                && (l == 0
-                    || (crate::memory::cstr_byte_at(p, l as usize) != b'<'
-                        && crate::memory::cstr_byte_at(p, (l - 1) as usize) != b'>'))
-            {
-                l += utfc_ptr2len(p.wrapping_add(l as usize));
+        let mut idx = 0usize;
+        while idx < mesg_bytes.len() {
+            let p = mesg.wrapping_add(idx);
+            let rem = &mesg_bytes[idx..];
+            let mut l: usize = 0;
+            while l < rem.len() && (l == 0 || (rem[l] != b'<' && rem[l - 1] != b'>')) {
+                l += utfc_ptr2len(p.wrapping_add(l)) as usize;
             }
 
-            if crate::memory::cstr_first_byte(p) == b'<' {
-                col += grid_line_puts(col, p, l, hlf8_attr);
+            if rem[0] == b'<' {
+                col += grid_line_puts(col, p, l as i32, hlf8_attr);
             } else {
-                let colon_pos = crate::memory::cstr_slice(p, l as usize)
-                    .iter()
-                    .position(|&b| b == b':')
-                    .map_or(ptr::null(), |i| p.wrapping_add(i));
-                if !colon_pos.is_null() && crate::memory::cstr_byte_at(p, l as usize) == b'<' {
-                    let prefix_len = crate::memory::ptr_offset_from(colon_pos, p) as i32;
+                let colon_off = rem[..l].iter().position(|&b| b == b':');
+                if let Some(c_off) = colon_off
+                    && rem.get(l) == Some(&b'<')
+                {
+                    let colon_pos = p.wrapping_add(c_off);
+                    let prefix_len = c_off as i32;
                     col += grid_line_puts(col, p, prefix_len, 0);
                     col += grid_line_puts(col, colon_pos, 1, hlf8_attr);
-                    let cmd_len = l - prefix_len - 1;
+                    let cmd_len = l as i32 - prefix_len - 1;
                     col += grid_line_puts(col, colon_pos.wrapping_add(1), cmd_len, id_attr);
                 } else {
-                    col += grid_line_puts(col, p, l, 0);
+                    col += grid_line_puts(col, p, l as i32, 0);
                 }
             }
-            p = p.wrapping_add(l as usize);
+            idx += l;
         }
         grid_line_flush();
     }
