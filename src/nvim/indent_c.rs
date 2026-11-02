@@ -14,7 +14,7 @@ use crate::indent::{fixthisline, get_expr_indent, get_indent, get_indent_lnum, g
 use crate::keycodes::get_special_key_code;
 use crate::math::trim_to_int;
 use crate::mbyte::{mb_prevptr, mb_strnicmp};
-use crate::memline::{ml_get, ml_get_pos};
+use crate::memline::ml_get;
 use crate::option::copy_option_part;
 use crate::option_vars::*;
 use crate::plines::getvcol;
@@ -945,9 +945,11 @@ fn cin_iswhileofdo(p: impl crate::strings::IntoCCharPtr, lnum: Linenr) -> bool {
     curwin_mut().w_cursor.col = w_pos as Colnr;
     let trypos = findmatchlimit(None, 0, FM_SKIPCOMM, curbuf_mut().b_ind_maxparen as i64);
     let retval = !trypos.is_null()
-        && cin_skipcomment_slice(crate::memory::cstr_as_bytes(
-            unsafe { ml_get_pos(&*trypos) }.wrapping_add(1),
-        ))
+        && cin_skipcomment_slice(
+            crate::memline::ml_get_pos_slice(unsafe { &*trypos })
+                .get(1..)
+                .unwrap_or(&[]),
+        )
         .first()
             == Some(&b';');
     curwin_mut().w_cursor = cursor_save;
@@ -1547,8 +1549,8 @@ pub fn get_c_indent() -> i32 {
         if cur_curpos.lnum == 1 {
             return 0;
         }
-        let mut linecopy_bytes =
-            crate::memory::cstr_to_cstring(ml_get(cur_curpos.lnum)).into_bytes_with_nul();
+        let mut linecopy_bytes = crate::memline::ml_get_slice(cur_curpos.lnum).to_vec();
+        linecopy_bytes.push(0);
         if (g_st().state_global & MODE_INSERT) != 0
             && (curwin_mut().w_cursor.col as usize) < linecopy_bytes.len().saturating_sub(1)
             && linecopy_bytes[curwin_mut().w_cursor.col as usize] == b')'
@@ -1952,7 +1954,11 @@ pub fn get_c_indent() -> i32 {
                                 col = our_paren_pos.col;
                                 while our_paren_pos.col > ignore_paren_col {
                                     our_paren_pos.col -= 1;
-                                    match *ml_get_pos(&our_paren_pos) as u8 {
+                                    match crate::memline::ml_get_pos_slice(&our_paren_pos)
+                                        .first()
+                                        .copied()
+                                        .unwrap_or(0)
+                                    {
                                         b'(' => {
                                             amount += curbuf_mut().b_ind_unclosed2;
                                             col = our_paren_pos.col;

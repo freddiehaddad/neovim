@@ -890,12 +890,8 @@ pub fn get_breakindent_win(wp: &mut WinInfoInfo, line: impl crate::strings::Into
 
 /// Return true if the cursor is before (or on, when `extra == 0`) the first non-blank in the line (`inindent`).
 pub fn inindent(extra: i32) -> bool {
-    let mut ptr = get_cursor_line_ptr();
-    let mut col: Colnr = 0;
-    while ascii_iswhite(crate::memory::cstr_first_byte(ptr)) {
-        col += 1;
-        ptr = ptr.wrapping_add(1);
-    }
+    let line_slice = crate::cursor::get_cursor_line_slice();
+    let col = (line_slice.len() - crate::charset::skipwhite_slice(line_slice).len()) as Colnr;
     col >= curwin_mut().w_cursor.col + extra
 }
 
@@ -952,12 +948,8 @@ pub fn op_reindent(oap: &mut Oparg, how: Indenter) {
                 || oap.line_count == 1
                 || !std::ptr::fn_addr_eq(how, get_lisp_indent as Indenter)
             {
-                let l = skipwhite(get_cursor_line_ptr());
-                let amount = if crate::memory::cstr_is_empty(l) {
-                    0
-                } else {
-                    how()
-                };
+                let rem = crate::charset::skipwhite_slice(crate::cursor::get_cursor_line_slice());
+                let amount = if rem.is_empty() { 0 } else { how() };
                 if amount >= 0 && set_indent(amount, 0) {
                     if first_changed == 0 {
                         first_changed = curwin_mut().w_cursor.lnum;
@@ -1077,10 +1069,10 @@ pub fn ins_try_si(c: i32) {
                 let i = get_indent();
                 while curwin_mut().w_cursor.lnum > 1 {
                     curwin_mut().w_cursor.lnum -= 1;
-                    let ptr = skipwhite(ml_get(curwin_mut().w_cursor.lnum));
-                    if crate::memory::cstr_first_byte(ptr) != b'#'
-                        && !crate::memory::cstr_is_empty(ptr)
-                    {
+                    let rem = crate::charset::skipwhite_slice(crate::memline::ml_get_slice(
+                        curwin_mut().w_cursor.lnum,
+                    ));
+                    if !rem.is_empty() && rem[0] != b'#' {
                         break;
                     }
                 }
@@ -1317,8 +1309,8 @@ pub fn copy_indent(size: i32, src: impl crate::strings::IntoCCharPtr) -> bool {
     }
 
     let ind_len = line_vec.len() as i32;
-    let line_len = (get_cursor_line_len() + 1) as usize;
-    line_vec.extend_from_slice(crate::memory::cstr_slice(get_cursor_line_ptr(), line_len));
+    line_vec.extend_from_slice(crate::cursor::get_cursor_line_slice());
+    line_vec.push(0);
 
     ml_replace(
         curwin_mut().w_cursor.lnum,
@@ -1621,7 +1613,7 @@ pub fn get_lisp_indent() -> i32 {
                 continue;
             }
 
-            let that_bytes = crate::memory::cstr_as_bytes(get_cursor_line_ptr());
+            let that_bytes = crate::cursor::get_cursor_line_slice();
             let mut idx = 0usize;
             while idx < that_bytes.len() {
                 if that_bytes[idx] == b';' {

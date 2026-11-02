@@ -17,7 +17,7 @@ use crate::change::{
 };
 use crate::charset::{
     NUL, ascii_isdigit, ascii_isspace, ascii_iswhite, ascii_isxdigit, ascii2cells, char2cells,
-    hex2nr, skipwhite, vim_isprintc, vim_iswordc,
+    hex2nr, vim_isprintc, vim_iswordc,
 };
 use crate::cmdexpand::{CTRL_N, CTRL_P, MB_MAXBYTES};
 use crate::context::{CtxSwitch, ctx_restore, ctx_switch};
@@ -498,13 +498,13 @@ fn insert_enter(s: &mut InsertState) {
         if (g_st().ins_at_eol && curwin_mut().w_cursor.lnum == g_st().ins_global.o_lnum)
             || curwin_mut().w_curswant > curwin_mut().w_virtcol
         {
-            let ptr = get_cursor_line_ptr().wrapping_offset(curwin_mut().w_cursor.col as isize);
-            if !crate::memory::cstr_is_empty(ptr) {
-                if crate::memory::cstr_len(ptr) == 1 {
+            let pos_slice = crate::cursor::get_cursor_pos_slice();
+            if !pos_slice.is_empty() {
+                if pos_slice.len() == 1 {
                     curwin_mut().w_cursor.col += 1;
                 } else {
-                    s.i = utfc_ptr2len(ptr);
-                    if crate::memory::cstr_is_empty(ptr.wrapping_offset(s.i as isize)) {
+                    s.i = crate::mbyte::utfc_slice2len(pos_slice) as i32;
+                    if pos_slice[s.i as usize..].is_empty() {
                         curwin_mut().w_cursor.col += s.i;
                     }
                 }
@@ -1559,9 +1559,8 @@ fn init_prompt(cmdchar_todo: i32) {
         .lnum
         .max(curbuf_mut().b_prompt_start.mark.lnum);
     let prompt_lnum = curbuf_mut().b_prompt_start.mark.lnum;
-    let text = ml_get(prompt_lnum);
-    let text_len = ml_get_len(prompt_lnum);
-    let text_bytes = crate::memory::cstr_slice(text, text_len as usize);
+    let text_bytes = crate::memline::ml_get_slice(prompt_lnum);
+    let text_len = text_bytes.len() as Colnr;
     let mark_col = curbuf_mut().b_prompt_start.mark.col;
 
     if prompt_lnum == curwin_mut().w_cursor.lnum
@@ -1569,7 +1568,7 @@ fn init_prompt(cmdchar_todo: i32) {
             || mark_col > text_len
             || &text_bytes[(mark_col - prompt_len) as usize..mark_col as usize] != prompt_bytes)
     {
-        if crate::memory::cstr_is_empty(text) {
+        if text_bytes.is_empty() {
             ml_replace(curbuf_mut().b_prompt_start.mark.lnum, prompt.as_ptr(), true);
             inserted_bytes(curbuf_mut().b_prompt_start.mark.lnum, 0, 0, prompt_len);
         } else {
@@ -1696,13 +1695,13 @@ fn del_char_after_col(limit_col: i32) -> bool {
         let ecol = curwin_mut().w_cursor.col + 1;
         mb_adjust_cursor();
         while curwin_mut().w_cursor.col < limit_col {
-            let l = utf_ptr2len(get_cursor_pos_ptr());
+            let l = crate::mbyte::utf_slice2len(crate::cursor::get_cursor_pos_slice()) as Colnr;
             if l == 0 {
                 break;
             }
             curwin_mut().w_cursor.col += l;
         }
-        if crate::memory::cstr_is_empty(get_cursor_pos_ptr()) || curwin_mut().w_cursor.col == ecol {
+        if crate::cursor::get_cursor_pos_slice().is_empty() || curwin_mut().w_cursor.col == ecol {
             return false;
         }
         del_bytes(ecol - curwin_mut().w_cursor.col, false, true);
@@ -1837,7 +1836,7 @@ pub fn insertchar(mut c: i32, flags: i32, second_indent: i32) {
             || (!ascii_iswhite(c)
                 && !((g_st().state_global & REPLACE_FLAG) != 0
                     && (g_st().state_global & VREPLACE_FLAG) == 0
-                    && !crate::memory::cstr_is_empty(get_cursor_pos_ptr()))
+                    && !crate::cursor::get_cursor_pos_slice().is_empty())
                 && (curwin_mut().w_cursor.lnum != g_st().ins_global.start.lnum
                     || ((!has_format_option(K_FO_INS_LONG)
                         || g_st().ins_global.start_textlen <= textwidth)
@@ -2148,9 +2147,11 @@ fn stop_insert(end_insert_pos: *mut CursorPos, esc: i32, nomove: i32) {
                 strip_col -= 1;
             }
 
-            if crate::memory::cstr_is_empty(skipwhite(
-                get_cursor_line_ptr().wrapping_offset(strip_col as isize),
-            )) {
+            if crate::charset::skipwhite_slice(
+                &crate::cursor::get_cursor_line_slice()[strip_col as usize..],
+            )
+            .is_empty()
+            {
                 curwin_mut().w_cursor.col = strip_col;
                 loop {
                     if gchar_cursor() == NUL as i32 && curwin_mut().w_cursor.col > 0 {
@@ -2221,12 +2222,13 @@ pub fn beginline(flags: i32) {
         curwin_mut().w_cursor.coladd = 0;
 
         if (flags & (BL_WHITE | BL_SOL)) != 0 {
-            let mut ptr = get_cursor_line_ptr();
-            while ascii_iswhite(crate::memory::cstr_first_byte(ptr) as i32)
-                && !((flags & BL_FIX) != 0 && crate::memory::cstr_len(ptr) == 1)
+            let mut rem = crate::cursor::get_cursor_line_slice();
+            while let Some(&b0) = rem.first()
+                && ascii_iswhite(i32::from(b0))
+                && !((flags & BL_FIX) != 0 && rem.len() == 1)
             {
                 curwin_mut().w_cursor.col += 1;
-                ptr = ptr.wrapping_add(1);
+                rem = &rem[1..];
             }
         }
         curwin_mut().w_set_curswant = true;
@@ -2960,7 +2962,9 @@ fn ins_shift(c: i32, lastc: i32) {
         );
     }
 
-    if g_st().ins_global.did_ai && !crate::memory::cstr_is_empty(skipwhite(get_cursor_line_ptr())) {
+    if g_st().ins_global.did_ai
+        && !crate::charset::skipwhite_slice(crate::cursor::get_cursor_line_slice()).is_empty()
+    {
         g_st().ins_global.did_ai = false;
     }
     g_st().ins_global.did_si = false;
@@ -3400,7 +3404,8 @@ fn ins_right() {
         if virtual_active(curwin_mut()) {
             oneright();
         } else {
-            curwin_mut().w_cursor.col += utfc_ptr2len(get_cursor_pos_ptr());
+            curwin_mut().w_cursor.col +=
+                crate::mbyte::utfc_slice2len(crate::cursor::get_cursor_pos_slice()) as Colnr;
         }
 
         g_st().ins_global.revins_legal += 1;

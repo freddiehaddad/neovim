@@ -8,8 +8,8 @@ use crate::change::{
 use crate::charset::{ascii_isspace, ascii_iswhite, char2cells, getwhitecols_curline, skipwhite};
 use crate::cursor::{
     Colnr, CursorPos, Linenr, check_cursor, check_cursor_col, coladvance, dec_cursor, gchar_cursor,
-    get_cursor_line_len, get_cursor_line_ptr, get_cursor_line_slice, get_cursor_pos_ptr,
-    get_cursor_pos_slice, inc_cursor, pchar_cursor,
+    get_cursor_line_len, get_cursor_line_ptr, get_cursor_line_slice, get_cursor_pos_slice,
+    inc_cursor, pchar_cursor,
 };
 use crate::drawscreen::{UPD_INVERTED, UPD_VALID, redraw_curbuf_later};
 use crate::eval::eval_expr_option_number;
@@ -30,7 +30,7 @@ use crate::insert::{
     undisplay_dollar,
 };
 use crate::mark::mark_col_adjust;
-use crate::mbyte::{utf_allow_break, utf_allow_break_before, utf_iscomposing_first, utf_ptr2char};
+use crate::mbyte::{utf_allow_break, utf_allow_break_before, utf_iscomposing_first};
 use crate::memline::{ml_get, ml_get_len, ml_replace};
 use crate::message::msgmore;
 use crate::r#move::update_topline;
@@ -174,7 +174,12 @@ fn tf_st() -> &'static mut TextformatState {
 
 #[inline]
 fn whitechar<C: crate::charset::AsciiInt>(cc: C) -> bool {
-    ascii_iswhite(cc) && !utf_iscomposing_first(utf_ptr2char(get_cursor_pos_ptr().wrapping_add(1)))
+    ascii_iswhite(cc)
+        && !utf_iscomposing_first(crate::mbyte::utf_slice2char(
+            crate::cursor::get_cursor_pos_slice()
+                .get(1..)
+                .unwrap_or(&[]),
+        ))
 }
 
 /// Return true if format option `x` is in effect (`has_format_option`).
@@ -573,10 +578,6 @@ fn fmt_check_par(
 }
 
 fn ends_in_white(lnum: Linenr) -> bool {
-    let s = ml_get(lnum);
-    if crate::memory::cstr_is_empty(s) {
-        return false;
-    }
     crate::memline::ml_get_slice(lnum)
         .last()
         .is_some_and(|&b| ascii_iswhite(i32::from(b)))
@@ -625,13 +626,13 @@ fn same_leader(
         }
     }
 
-    let line1 = crate::memory::cstr_slice(ml_get(lnum), ml_get_len(lnum) as usize + 1).to_vec();
+    let mut line1 = crate::memline::ml_get_slice(lnum).to_vec();
+    line1.push(0);
     let mut idx1: i32 = 0;
     while ascii_iswhite(i32::from(line1[idx1 as usize])) {
         idx1 += 1;
     }
-    let line2 = ml_get(lnum + 1);
-    let line2_slice = crate::memory::cstr_slice(line2, leader2_len.max(0) as usize);
+    let line2_slice = &crate::memline::ml_get_slice(lnum + 1)[..leader2_len.max(0) as usize];
     let mut idx2: i32 = 0;
     while idx2 < leader2_len {
         let b2 = line2_slice[idx2 as usize];
@@ -661,8 +662,7 @@ fn paragraph_start(lnum: Linenr) -> bool {
     if lnum <= 1 {
         return true;
     }
-    let p = ml_get(lnum - 1);
-    if crate::memory::cstr_is_empty(p) {
+    if crate::memline::ml_get_slice(lnum - 1).is_empty() {
         return true;
     }
     let do_comments = has_format_option(K_FO_QCOMS);
@@ -1003,7 +1003,7 @@ pub fn format_lines(line_count: Linenr, avoid_fex: bool) {
                 && curwin_mut().w_cursor.lnum < curbuf_mut().b_ml.ml_line_count
             {
                 if do_second_indent
-                    && !crate::memory::cstr_is_empty(ml_get(curwin_mut().w_cursor.lnum + 1))
+                    && !crate::memline::ml_get_slice(curwin_mut().w_cursor.lnum + 1).is_empty()
                 {
                     if leader_len == 0 && next_leader_len == 0 {
                         second_indent = get_indent_lnum(curwin_mut().w_cursor.lnum + 1);

@@ -1713,11 +1713,9 @@ fn prepend_startcol_text(dest: &mut NvimString, src: &NvimString, startcol: i32)
     let new_length = prepend_len + src.size;
     let mut buf: Vec<u8> = vec![0; new_length + 1];
 
-    let line = ml_get(curwin_mut().w_cursor.lnum);
-    buf[..prepend_len].copy_from_slice(crate::memory::cstr_slice(
-        line.wrapping_add(startcol as usize),
-        prepend_len,
-    ));
+    let line_slice = crate::cursor::get_cursor_line_slice();
+    buf[..prepend_len]
+        .copy_from_slice(&line_slice[startcol as usize..startcol as usize + prepend_len]);
     buf[prepend_len..new_length].copy_from_slice(crate::memory::cstr_slice(src.data, src.size));
     *dest = cbuf_to_string(buf.as_ptr().cast(), new_length);
 }
@@ -2541,11 +2539,11 @@ pub fn ins_compl_bs() -> i32 {
         ins_compl_restart();
     }
 
-    let line = get_cursor_line_ptr();
+    let line_slice = crate::cursor::get_cursor_line_slice();
 
     api_clear_string(&mut insexp().compl_leader);
     insexp().compl_leader = cbuf_to_string(
-        line.wrapping_add(insexp().compl_col as usize),
+        line_slice[insexp().compl_col as usize..].as_ptr().cast(),
         (p_off - insexp().compl_col as isize) as usize,
     );
 
@@ -2693,8 +2691,9 @@ pub fn ins_compl_addleader(c: i32) {
     }
 
     api_clear_string(&mut insexp().compl_leader);
+    let line_slice = crate::cursor::get_cursor_line_slice();
     insexp().compl_leader = cbuf_to_string(
-        get_cursor_line_ptr().wrapping_add(insexp().compl_col as usize),
+        line_slice[insexp().compl_col as usize..].as_ptr().cast(),
         (curwin_mut().w_cursor.col - insexp().compl_col) as usize,
     );
     ins_compl_new_leader();
@@ -2887,9 +2886,7 @@ fn ins_compl_stop(c: i32, prev_mode: i32, mut retval: bool) -> bool {
                 insertchar(NUL as i32, 0, -1);
             }
 
-            if prev_col > 0
-                && *get_cursor_line_ptr().wrapping_add(curwin_mut().w_cursor.col as usize) != NUL
-            {
+            if prev_col > 0 && !crate::cursor::get_cursor_pos_slice().is_empty() {
                 inc_cursor();
             }
         }
@@ -3563,8 +3560,9 @@ fn set_completion(mut startcol: Colnr, list: Option<&TvList>) {
     insexp().compl_col = startcol;
     insexp().compl_lnum = curwin_mut().w_cursor.lnum;
     insexp().compl_length = curwin_mut().w_cursor.col - startcol;
+    let line_slice = crate::cursor::get_cursor_line_slice();
     insexp().compl_orig_text = cbuf_to_string(
-        get_cursor_line_ptr().wrapping_add(insexp().compl_col as usize),
+        line_slice[insexp().compl_col as usize..].as_ptr().cast(),
         insexp().compl_length as usize,
     );
     save_orig_extmarks();
@@ -6199,10 +6197,10 @@ fn set_compl_globals(mut startcol: i32, curs_col: Colnr, is_cpt_compl: bool) {
             startcol = curs_col;
         }
 
-        let line = ml_get(curwin_mut().w_cursor.lnum);
+        let line_slice = crate::cursor::get_cursor_line_slice();
         let len = curs_col - startcol;
 
-        set_compl_pattern_bytes(line.wrapping_add(startcol as usize), len as usize);
+        set_compl_pattern_bytes(&line_slice[startcol as usize..], len as usize);
         insexp().compl_col = startcol;
         insexp().compl_length = len;
     }
@@ -6308,9 +6306,9 @@ fn get_spell_compl_info(startcol: i32, curs_col: Colnr) -> bool {
         spell_expand_check_cap(insexp().compl_col);
         insexp().compl_length = curs_col - insexp().compl_col;
     }
-    let line = ml_get(curwin_mut().w_cursor.lnum);
+    let line_slice = crate::cursor::get_cursor_line_slice();
     set_compl_pattern_bytes(
-        line.wrapping_add(insexp().compl_col as usize),
+        &line_slice[insexp().compl_col as usize..],
         insexp().compl_length as usize,
     );
 
