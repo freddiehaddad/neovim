@@ -649,28 +649,29 @@ fn str_to_mapargs(
             break;
         }
 
-        let mut lhs_end = to_parse;
+        let to_parse_bytes = crate::memory::cstr_as_bytes(to_parse);
         let do_backslash = !crate::strings::vim_haschr(opt_vars().p_cpo, K_CPO_BSLASH_CONST);
-        while !crate::memory::cstr_is_empty(lhs_end)
-            && (is_unmap || !ascii_iswhite(crate::memory::cstr_first_byte(lhs_end) as i32))
+        let mut orig_lhs_len = 0usize;
+        while orig_lhs_len < to_parse_bytes.len()
+            && (is_unmap || !ascii_iswhite(to_parse_bytes[orig_lhs_len] as i32))
         {
-            if (crate::memory::cstr_first_byte(lhs_end) == CTRL_V_CONST as u8
-                || (do_backslash && crate::memory::cstr_first_byte(lhs_end) == b'\\'))
-                && crate::memory::cstr_byte_at(lhs_end, 1) != 0
+            if (to_parse_bytes[orig_lhs_len] == CTRL_V_CONST as u8
+                || (do_backslash && to_parse_bytes[orig_lhs_len] == b'\\'))
+                && orig_lhs_len + 1 < to_parse_bytes.len()
             {
-                lhs_end = lhs_end.wrapping_add(1);
+                orig_lhs_len += 1;
             }
-            lhs_end = lhs_end.wrapping_add(1);
+            orig_lhs_len += 1;
         }
 
+        let lhs_end = to_parse.wrapping_add(orig_lhs_len);
         let rhs_start = skipwhite(lhs_end);
 
-        let orig_lhs_len = (lhs_end as usize) - (to_parse as usize);
         if orig_lhs_len >= 256 {
             return 1;
         }
         let mut lhs_to_replace = [0u8; 256];
-        crate::memory::cstr_ncpy(lhs_to_replace.as_mut_ptr().cast(), to_parse, orig_lhs_len);
+        lhs_to_replace[..orig_lhs_len].copy_from_slice(&to_parse_bytes[..orig_lhs_len]);
 
         let orig_rhs_len = crate::memory::cstr_len(rhs_start);
         if !set_maparg_lhs_rhs(
@@ -2642,53 +2643,51 @@ pub fn langmap_init() {
 pub fn did_set_langmap(args: &mut Optset) -> Option<&'static CStr> {
     langmap_init();
 
-    let mut p = opt_vars().p_langmap;
-    while !crate::memory::cstr_is_empty(p) {
-        let mut p2 = p;
-        while !crate::memory::cstr_is_empty(p2)
-            && crate::memory::cstr_first_byte(p2) != b','
-            && crate::memory::cstr_first_byte(p2) != b';'
-        {
-            if crate::memory::cstr_first_byte(p2) == b'\\'
-                && crate::memory::cstr_byte_at(p2, 1) != 0
-            {
-                p2 = p2.wrapping_add(1);
+    let base = opt_vars().p_langmap;
+    let bytes = crate::memory::cstr_as_bytes(base);
+    let mut p_idx = 0usize;
+    while p_idx < bytes.len() {
+        let mut p2_idx = p_idx;
+        while p2_idx < bytes.len() && !matches!(bytes[p2_idx], b',' | b';') {
+            if bytes[p2_idx] == b'\\' && p2_idx + 1 < bytes.len() {
+                p2_idx += 1;
             }
-            p2 = p2.wrapping_add(utfc_ptr2len(p2) as usize);
+            p2_idx += utfc_ptr2len(base.wrapping_add(p2_idx)) as usize;
         }
-        if crate::memory::cstr_first_byte(p2) == b';' {
-            p2 = p2.wrapping_add(1);
+        let mut p2_opt = if bytes.get(p2_idx) == Some(&b';') {
+            Some(p2_idx + 1)
         } else {
-            p2 = ptr::null_mut();
-        }
-        while !crate::memory::cstr_is_empty(p) {
-            if crate::memory::cstr_first_byte(p) == b',' {
-                p = p.wrapping_add(1);
+            None
+        };
+        while p_idx < bytes.len() {
+            if bytes[p_idx] == b',' {
+                p_idx += 1;
                 break;
             }
-            if crate::memory::cstr_first_byte(p) == b'\\' && crate::memory::cstr_byte_at(p, 1) != 0
-            {
-                p = p.wrapping_add(1);
+            if bytes[p_idx] == b'\\' && p_idx + 1 < bytes.len() {
+                p_idx += 1;
             }
-            let from = utf_ptr2char(p);
-            let from_ptr = p;
+            let from_ptr = base.wrapping_add(p_idx);
+            let from = utf_ptr2char(from_ptr);
             let mut to: i32 = NUL as i32;
             let mut to_ptr = c"".as_ptr();
-            if p2.is_null() {
-                p = p.wrapping_add(utfc_ptr2len(p) as usize);
-                if crate::memory::cstr_first_byte(p) != b',' {
-                    if crate::memory::cstr_first_byte(p) == b'\\' {
-                        p = p.wrapping_add(1);
+            if let Some(ref mut p2) = p2_opt {
+                if bytes.get(*p2) != Some(&b',') && *p2 < bytes.len() {
+                    if bytes[*p2] == b'\\' && *p2 + 1 < bytes.len() {
+                        *p2 += 1;
                     }
-                    to_ptr = p;
-                    to = utf_ptr2char(p);
+                    to_ptr = base.wrapping_add(*p2);
+                    to = utf_ptr2char(to_ptr);
                 }
-            } else if crate::memory::cstr_first_byte(p2) != b',' {
-                if crate::memory::cstr_first_byte(p2) == b'\\' {
-                    p2 = p2.wrapping_add(1);
+            } else {
+                p_idx += utfc_ptr2len(from_ptr) as usize;
+                if p_idx < bytes.len() && bytes[p_idx] != b',' {
+                    if bytes[p_idx] == b'\\' && p_idx + 1 < bytes.len() {
+                        p_idx += 1;
+                    }
+                    to_ptr = base.wrapping_add(p_idx);
+                    to = utf_ptr2char(to_ptr);
                 }
-                to_ptr = p2;
-                to = utf_ptr2char(p2);
             }
             if to == NUL as i32 {
                 return opt_error(
@@ -2714,20 +2713,20 @@ pub fn did_set_langmap(args: &mut Optset) -> Option<&'static CStr> {
                 g_st().langmap_mapchar[(from & 255) as usize] = to as u8;
             }
 
-            p = p.wrapping_add(utfc_ptr2len(p) as usize);
-            if !p2.is_null() {
-                p2 = p2.wrapping_add(utfc_ptr2len(p2) as usize);
-                if crate::memory::cstr_first_byte(p) == b';' {
-                    p = p2;
-                    if !crate::memory::cstr_is_empty(p) {
-                        if crate::memory::cstr_first_byte(p) != b',' {
+            p_idx += utfc_ptr2len(base.wrapping_add(p_idx)) as usize;
+            if let Some(ref mut p2) = p2_opt {
+                *p2 += utfc_ptr2len(base.wrapping_add(*p2)) as usize;
+                if bytes.get(p_idx) == Some(&b';') {
+                    p_idx = *p2;
+                    if p_idx < bytes.len() {
+                        if bytes[p_idx] != b',' {
                             return opt_error(
                                 args.os_errbuf,
                                 c"E358: 'langmap': Extra characters after semicolon: %s",
-                                p,
+                                base.wrapping_add(p_idx),
                             );
                         }
-                        p = p.wrapping_add(1);
+                        p_idx += 1;
                     }
                     break;
                 }

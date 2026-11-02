@@ -3517,29 +3517,27 @@ pub fn expand_get_augroup_name(_xp: &mut ExpandCtx, idx: i32) -> Option<&'static
 
 pub fn aucmd_set_expand_context<T>(xp: &mut ExpandCtx, mut arg: *mut T, doautocmd: bool) -> *mut T {
     au_st().autocmd_include_groups = false;
-    let mut p = arg;
+    let p = arg;
     let mut group = arg_augroup_get(&raw mut arg);
 
     if crate::memory::cstr_is_empty(arg.cast())
         && group != AUGROUP_ALL
-        && !ascii_iswhite(crate::memory::cstr_first_char(
-            arg.cast::<u8>().wrapping_sub(1).cast(),
-        ))
+        && !ascii_iswhite(unsafe { *arg.cast::<u8>().wrapping_sub(1) } as i32)
     {
         arg = p;
         group = AUGROUP_ALL;
     }
 
-    p = arg;
-    while !crate::memory::cstr_is_empty(p.cast())
-        && !ascii_iswhite(crate::memory::cstr_first_char(p.cast()))
-    {
-        if crate::memory::cstr_first_byte(p.cast()) == b',' {
-            arg = p.cast::<u8>().wrapping_add(1).cast();
+    let ev_base = arg.cast::<u8>();
+    let arg_bytes = crate::memory::cstr_as_bytes(ev_base.cast());
+    let mut p_idx = 0usize;
+    while p_idx < arg_bytes.len() && !ascii_iswhite(arg_bytes[p_idx] as i32) {
+        if arg_bytes[p_idx] == b',' {
+            arg = ev_base.wrapping_add(p_idx + 1).cast();
         }
-        p = p.cast::<u8>().wrapping_add(1).cast();
+        p_idx += 1;
     }
-    if crate::memory::cstr_is_empty(p.cast()) {
+    if p_idx == arg_bytes.len() {
         if group == AUGROUP_ALL {
             au_st().autocmd_include_groups = true;
         }
@@ -3548,31 +3546,35 @@ pub fn aucmd_set_expand_context<T>(xp: &mut ExpandCtx, mut arg: *mut T, doautocm
         return ptr::null_mut();
     }
 
-    arg = skipwhite(p.cast()).cast();
-    while !crate::memory::cstr_is_empty(arg.cast())
-        && (!ascii_iswhite(crate::memory::cstr_first_char(arg.cast()))
-            || crate::memory::cstr_first_byte(arg.cast::<u8>().wrapping_sub(1).cast()) == b'\\')
+    let p_ptr = ev_base.wrapping_add(p_idx);
+    arg = skipwhite(p_ptr.cast()).cast();
+    let pat_bytes = crate::memory::cstr_as_bytes(arg.cast());
+    let mut pat_idx = 0usize;
+    while pat_idx < pat_bytes.len()
+        && (!ascii_iswhite(pat_bytes[pat_idx] as i32)
+            || (pat_idx > 0 && pat_bytes[pat_idx - 1] == b'\\'))
     {
-        arg = arg.cast::<u8>().wrapping_add(1).cast();
+        pat_idx += 1;
     }
-    if !crate::memory::cstr_is_empty(arg.cast()) {
+    arg = arg.cast::<u8>().wrapping_add(pat_idx).cast();
+    if pat_idx < pat_bytes.len() {
         arg = skipwhite(arg.cast()).cast();
         for _ in 0..2 {
             let bytes = crate::memory::cstr_as_bytes(arg.cast());
             if bytes.starts_with(b"++once")
-                && ascii_iswhite(crate::memory::cstr_char_at(arg.cast(), 6))
+                && bytes.get(6).is_some_and(|&b| ascii_iswhite(b as i32))
             {
                 arg = skipwhite(arg.cast::<u8>().wrapping_add(6).cast()).cast();
             }
             let bytes = crate::memory::cstr_as_bytes(arg.cast());
             if bytes.starts_with(b"++nested")
-                && ascii_iswhite(crate::memory::cstr_char_at(arg.cast(), 8))
+                && bytes.get(8).is_some_and(|&b| ascii_iswhite(b as i32))
             {
                 arg = skipwhite(arg.cast::<u8>().wrapping_add(8).cast()).cast();
             }
             let bytes = crate::memory::cstr_as_bytes(arg.cast());
             if bytes.starts_with(b"nested")
-                && ascii_iswhite(crate::memory::cstr_char_at(arg.cast(), 6))
+                && bytes.get(6).is_some_and(|&b| ascii_iswhite(b as i32))
             {
                 arg = skipwhite(arg.cast::<u8>().wrapping_add(6).cast()).cast();
             }
@@ -3807,24 +3809,21 @@ fn arg_event_skip(arg: impl crate::strings::IntoCCharPtr, have_group: bool) -> *
 fn arg_augroup_get<T>(argp: *mut *mut T) -> i32 {
     let argp_ref = unsafe { &mut *argp };
     let arg: *const _ = (*argp_ref).cast();
-    let mut p = arg;
-    while !crate::memory::cstr_is_empty(p)
-        && !ascii_iswhite(crate::memory::cstr_first_char(p))
-        && crate::memory::cstr_first_byte(p) != b'|'
-    {
-        p = p.wrapping_add(1);
-    }
-    if p <= arg {
+    let arg_bytes = crate::memory::cstr_as_bytes(arg);
+    let len = arg_bytes
+        .iter()
+        .take_while(|&&b| !ascii_iswhite(b as i32) && b != b'|')
+        .count();
+    if len == 0 {
         return AUGROUP_ALL;
     }
 
-    let len = crate::memory::ptr_offset_from(p, arg) as usize;
-    let group_name = CString::new(crate::memory::cstr_slice(arg, len)).unwrap_or_default();
+    let group_name = CString::new(&arg_bytes[..len]).unwrap_or_default();
     let mut group = augroup_find(group_name.as_ptr());
     if group == AUGROUP_ERROR {
         group = AUGROUP_ALL;
     } else {
-        *argp_ref = skipwhite(p).cast();
+        *argp_ref = skipwhite(arg.wrapping_add(len)).cast();
     }
     group
 }
@@ -3838,9 +3837,11 @@ fn arg_autocmd_flag_get<T>(
     unsafe {
         let cur: *const _ = (*cmd_ptr).cast();
         let cmd_bytes = crate::memory::cstr_as_bytes(cur);
-        let pat_slice = crate::memory::cstr_slice(pattern.as_ptr(), len as usize);
+        let pat_slice = pattern.to_bytes();
         if cmd_bytes.starts_with(pat_slice)
-            && ascii_iswhite(crate::memory::cstr_char_at(cur, len as usize))
+            && cmd_bytes
+                .get(len as usize)
+                .is_some_and(|&b| ascii_iswhite(b as i32))
         {
             if *flag {
                 semsg!(tr(E_DUPARG2), pattern.as_ptr());
