@@ -1713,7 +1713,6 @@ pub fn op_insert(oap: &mut Oparg, count1: i32) {
 pub fn op_change(oap: &mut Oparg) -> i32 {
     let mut pre_textlen: i32 = 0;
     let mut pre_indent: i32 = 0;
-    let mut firstline: *mut u8;
     let mut bd = BlockDef::new();
 
     let mut l = oap.start.col;
@@ -1743,9 +1742,9 @@ pub fn op_change(oap: &mut Oparg) -> i32 {
         {
             coladvance_force(getviscol());
         }
-        firstline = ml_get(oap.start.lnum).cast();
-        pre_textlen = ml_get_len(oap.start.lnum);
-        pre_indent = getwhitecols(firstline.cast()) as i32;
+        let firstline_slice = crate::memline::ml_get_slice(oap.start.lnum);
+        pre_textlen = firstline_slice.len() as Colnr;
+        pre_indent = getwhitecols(firstline_slice) as i32;
         bd.textcol = curwin_mut().w_cursor.col;
     }
 
@@ -1761,20 +1760,18 @@ pub fn op_change(oap: &mut Oparg) -> i32 {
     g_st().finish_op = save_finish_op;
 
     if oap.motion_type == MT_BLOCK_WISE && oap.start.lnum != oap.end.lnum && !g_st().got_int {
-        firstline = ml_get(oap.start.lnum).cast();
+        let firstline_slice = crate::memline::ml_get_slice(oap.start.lnum);
         if bd.textcol > pre_indent {
-            let new_indent = getwhitecols(firstline.cast()) as i32;
+            let new_indent = getwhitecols(firstline_slice) as i32;
             pre_textlen += new_indent - pre_indent;
             bd.textcol += new_indent - pre_indent;
         }
 
-        let ins_len = ml_get_len(oap.start.lnum) - pre_textlen;
+        let ins_len = (firstline_slice.len() as Colnr) - pre_textlen;
         if ins_len > 0 {
-            let ins_text = crate::memory::cstr_slice(
-                firstline.wrapping_add(bd.textcol as usize).cast(),
-                ins_len as usize,
-            )
-            .to_vec();
+            let ins_text = firstline_slice
+                [bd.textcol as usize..bd.textcol as usize + ins_len as usize]
+                .to_vec();
             for linenr in (oap.start.lnum + 1)..=oap.end.lnum {
                 block_prep(oap, &mut bd, linenr, true);
                 if bd.is_short == 0 || g_st().virtual_op != 0 {

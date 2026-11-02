@@ -410,7 +410,7 @@ pub fn vim_strsave_escaped_ext<S1: IntoCCharPtr, S2: IntoCCharPtr>(
             continue;
         }
         let b = bytes[i];
-        if esc_bytes.contains(&b) || (bsl && rem_backslash(string.wrapping_add(i))) {
+        if esc_bytes.contains(&b) || (bsl && rem_backslash(&bytes[i..])) {
             escaped.push(cc);
         }
         escaped.push(b);
@@ -508,8 +508,7 @@ pub fn vim_strsave_shellescape<S: IntoCCharPtr>(
 }
 
 #[cfg(windows)]
-pub fn mb_strup_buf(src: impl IntoCCharPtr, dst: &mut [u8]) -> usize {
-    let bytes = crate::memory::cstr_as_bytes(src.into_c_char_ptr());
+pub fn mb_strup_buf(bytes: &[u8], dst: &mut [u8]) -> usize {
     let mut out = 0usize;
     let mut i = 0usize;
     while i < bytes.len() {
@@ -527,8 +526,7 @@ pub fn mb_strup_buf(src: impl IntoCCharPtr, dst: &mut [u8]) -> usize {
     out
 }
 
-pub fn strcase_save<S: IntoCCharPtr>(orig: S, upper: bool) -> std::ffi::CString {
-    let bytes = crate::memory::cstr_as_bytes(orig.into_c_char_ptr());
+pub fn strcase_save(bytes: &[u8], upper: bool) -> std::ffi::CString {
     let mut res = Vec::<u8>::with_capacity(bytes.len() + 1);
     let mut i = 0usize;
 
@@ -2164,8 +2162,7 @@ pub fn vim_snprintf_typval_only(
     vim_vsnprintf_typval_inner(str_out, str_m, fmt, tvs, &[])
 }
 
-pub fn reverse_text<S: IntoCCharPtr>(s: S) -> std::ffi::CString {
-    let bytes = crate::memory::cstr_as_bytes(s.into_c_char_ptr());
+pub fn reverse_text(bytes: &[u8]) -> std::ffi::CString {
     let len = bytes.len();
     let mut rev = vec![0u8; len];
     let mut s_i: usize = 0;
@@ -2179,15 +2176,7 @@ pub fn reverse_text<S: IntoCCharPtr>(s: S) -> std::ffi::CString {
     crate::memory::cstr_from_bytes(&rev)
 }
 
-pub fn strrep<S1: IntoCCharPtr, S2: IntoCCharPtr, S3: IntoCCharPtr>(
-    src: S1,
-    what: S2,
-    rep: S3,
-) -> Option<std::ffi::CString> {
-    let src_bytes = crate::memory::cstr_as_bytes(src.into_c_char_ptr());
-    let what_bytes = crate::memory::cstr_as_bytes(what.into_c_char_ptr());
-    let rep_bytes = crate::memory::cstr_as_bytes(rep.into_c_char_ptr());
-
+pub fn strrep(src_bytes: &[u8], what_bytes: &[u8], rep_bytes: &[u8]) -> Option<std::ffi::CString> {
     if what_bytes.is_empty() {
         return None;
     }
@@ -2813,14 +2802,14 @@ pub fn f_utf16idx(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDat
 pub fn f_tolower(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
     crate::eval::typval::tv_set_string(
         rettv,
-        strcase_save(tv_get_string(&argvars[0]), false).as_ptr(),
+        strcase_save(tv_get_string(&argvars[0]).to_bytes(), false).as_ptr(),
     );
 }
 
 pub fn f_toupper(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
     crate::eval::typval::tv_set_string(
         rettv,
-        strcase_save(tv_get_string(&argvars[0]), true).as_ptr(),
+        strcase_save(tv_get_string(&argvars[0]).to_bytes(), true).as_ptr(),
     );
 }
 
@@ -2987,7 +2976,7 @@ mod tests {
         let unquoted = vim_strnsave_unquoted(b"\"/bin/sh\"");
         assert_eq!(unquoted.to_str().unwrap(), "/bin/sh");
 
-        let rep = strrep(c"foo bar foo", c"foo", c"baz").unwrap();
+        let rep = strrep(b"foo bar foo", b"foo", b"baz").unwrap();
         assert_eq!(rep.to_str().unwrap(), "baz bar baz");
 
         let cat = concat_str(c"hello ", c"world");
@@ -3110,7 +3099,7 @@ mod tests {
             );
             assert!(!crate::strings::vim_haschr(s_utf.as_ptr(), 0x201D));
 
-            let overlong = c"\xc1\x81";
+            let overlong = b"\xc1\x81";
             let up = strcase_save(overlong, true);
             let lo = strcase_save(overlong, false);
             assert_eq!(up.to_str().unwrap(), "A");
@@ -3124,7 +3113,7 @@ mod tests {
                 (b"ab\xc0\0", b"\xc0ba"),
                 (b"ab\xc2\0", b"\xc2ba"),
             ] {
-                let rev = reverse_text(CStr::from_bytes_with_nul(inp).unwrap());
+                let rev = reverse_text(CStr::from_bytes_with_nul(inp).unwrap().to_bytes());
                 assert_eq!(rev.as_bytes(), exp);
             }
         }

@@ -4333,17 +4333,13 @@ pub fn create_environment(
                     #[cfg(not(windows))]
                     let name: *const _ = unsafe { (*envitems.wrapping_add(i)).name };
                     #[cfg(windows)]
-                    let mut namelen = crate::memory::cstr_len(name);
-                    #[cfg(not(windows))]
-                    let namelen = crate::memory::cstr_len(name);
-                    #[cfg(windows)]
                     {
-                        if namelen < MAXPATHL / MB_MAXBYTES {
-                            namelen = mb_strup_buf(name, g_st().name_buff_bytes_mut());
+                        let name_b = crate::memory::cstr_as_bytes(name);
+                        if name_b.len() < MAXPATHL / MB_MAXBYTES {
+                            mb_strup_buf(name_b, g_st().name_buff_bytes_mut());
                             name = g_st().name_buff.as_ptr();
                         }
                     }
-                    let _ = namelen;
                     tv_dict_add_str(&mut *env, name, unsafe {
                         (*envitems.wrapping_add(i)).value
                     });
@@ -4387,10 +4383,11 @@ pub fn create_environment(
             {
                 if let Some(d) = job_env.di_tv.vval.v_dict_opt() {
                     for (_, var) in d.dv_hashtab.iter_items() {
+                        let key_b = var.key_bytes();
                         let mut name: crate::strings::RawCCharPtr = var.di_key.as_ptr().cast();
-                        let mut namelen = crate::memory::cstr_len(name);
+                        let mut namelen = key_b.len();
                         if namelen < MAXPATHL / MB_MAXBYTES {
-                            namelen = mb_strup_buf(name, g_st().name_buff_bytes_mut());
+                            namelen = mb_strup_buf(key_b, g_st().name_buff_bytes_mut());
                             name = g_st().name_buff.as_ptr();
                         }
                         if let Some(dv) = crate::eval::typval::tv_dict_find_opt(

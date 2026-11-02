@@ -2760,14 +2760,14 @@ fn syn_cmd_iskeyword(eap: &mut Exarg, _syncing: i32) {
         win_s(curwin_mut()).b_syn_chartab = curbuf_mut().b_chartab;
         win_s(curwin_mut()).b_syn_isk = None;
     } else {
-        if !check_isopt(arg) {
+        let arg_bytes = crate::memory::cstr_as_bytes(arg);
+        if !check_isopt(arg_bytes) {
             emsg(gettext(E_INVARG));
             return;
         }
-        let isk = crate::memory::cstr_to_cstring(arg);
-        let isk_ptr = isk.as_ptr().cast_mut();
+        let isk = crate::memory::cstr_from_bytes(arg_bytes);
+        parse_isopt(isk.as_bytes(), Some(&mut win_s(curwin_mut()).b_syn_chartab));
         win_s(curwin_mut()).b_syn_isk = Some(isk);
-        parse_isopt(isk_ptr, Some(&mut win_s(curwin_mut()).b_syn_chartab));
     }
     redraw_later(Some(crate::globals::curwin_mut()), UPD_NOT_VALID);
 }

@@ -273,7 +273,7 @@ fn do_one_arg(str_: impl crate::strings::IntoCCharPtr) -> *mut u8 {
         let mut p = str_;
         let mut inbacktick = false;
         while !crate::memory::cstr_is_empty(str_) {
-            if rem_backslash(str_) {
+            if rem_backslash(crate::memory::cstr_as_bytes(str_)) {
                 *p = *str_;
                 p = p.wrapping_add(1);
                 str_ = str_.wrapping_add(1);

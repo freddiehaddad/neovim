@@ -234,7 +234,10 @@ pub fn buf_init_isk_chartab(buf: &mut FileBuf) -> bool {
     if buf.b_p_lisp != 0 {
         set_chartab(&mut buf.b_chartab, b'-' as i32);
     }
-    if !parse_isopt(buf.b_p_isk, Some(&mut buf.b_chartab)) {
+    if !parse_isopt(
+        crate::memory::cstr_as_bytes(buf.b_p_isk),
+        Some(&mut buf.b_chartab),
+    ) {
         buf.b_chartab = save_chartab;
         return false;
     }
@@ -244,7 +247,10 @@ pub fn buf_init_isk_chartab(buf: &mut FileBuf) -> bool {
 pub fn init_isf_chartab() -> bool {
     let save_chartab = charset_st().isf_chartab;
     charset_st().isf_chartab = [0, 0, 0xFFFF_FFFF_0000_0000, 0xFFFF_FFFF_FFFF_FFFF];
-    if !parse_isopt(opt_vars().p_isf, Some(&mut charset_st().isf_chartab)) {
+    if !parse_isopt(
+        crate::memory::cstr_as_bytes(opt_vars().p_isf),
+        Some(&mut charset_st().isf_chartab),
+    ) {
         charset_st().isf_chartab = save_chartab;
         return false;
     }
@@ -254,25 +260,21 @@ pub fn init_isf_chartab() -> bool {
 pub fn init_isi_chartab() -> bool {
     let save_chartab = charset_st().isi_chartab;
     charset_st().isi_chartab = [0; 4];
-    if !parse_isopt(opt_vars().p_isi, Some(&mut charset_st().isi_chartab)) {
+    if !parse_isopt(
+        crate::memory::cstr_as_bytes(opt_vars().p_isi),
+        Some(&mut charset_st().isi_chartab),
+    ) {
         charset_st().isi_chartab = save_chartab;
         return false;
     }
     true
 }
 
-pub fn check_isopt(var: impl crate::strings::IntoCCharPtr) -> bool {
-    let var = var.into_c_char_ptr();
+pub fn check_isopt(var: &[u8]) -> bool {
     parse_isopt(var, None)
 }
 
-pub fn parse_isopt(
-    var: impl crate::strings::IntoCCharPtr,
-    mut chartab: Option<&mut [u64; 4]>,
-) -> bool {
-    let var = var.into_c_char_ptr();
-    let mut p = crate::memory::cstr_as_bytes(var);
-
+pub fn parse_isopt(mut p: &[u8], mut chartab: Option<&mut [u64; 4]>) -> bool {
     while !p.is_empty() {
         let mut tilde = false;
         let mut do_isalpha = false;
@@ -883,12 +885,10 @@ pub fn skipwhite_len(p: impl crate::strings::IntoCCharPtr, len: usize) -> RawCCh
 }
 
 pub fn getwhitecols_curline() -> isize {
-    let bytes = crate::cursor::get_cursor_line_slice();
-    (bytes.len() - skipwhite_slice(bytes).len()) as isize
+    getwhitecols(crate::cursor::get_cursor_line_slice())
 }
 
-pub fn getwhitecols(p: impl crate::strings::IntoCCharPtr) -> isize {
-    let bytes = crate::memory::cstr_as_bytes(p.into_c_char_ptr());
+pub fn getwhitecols(bytes: &[u8]) -> isize {
     (bytes.len() - skipwhite_slice(bytes).len()) as isize
 }
 
@@ -1057,8 +1057,7 @@ pub fn getdigits_int32(s: &mut &[u8], strict: bool, def: i32) -> i32 {
     getdigits_int(s, strict, def)
 }
 
-pub fn vim_isblankline(lbuf: impl crate::strings::IntoCCharPtr) -> bool {
-    let bytes = crate::memory::cstr_as_bytes(lbuf.into_c_char_ptr());
+pub fn vim_isblankline(bytes: &[u8]) -> bool {
     matches!(
         skipwhite_slice(bytes).first(),
         None | Some(&b'\r') | Some(&b'\n')
@@ -1286,16 +1285,14 @@ pub fn hex2nr<C: AsciiInt>(c: C) -> i32 {
     }
 }
 
-pub fn hexhex2nr(p: impl crate::strings::IntoCCharPtr) -> i32 {
-    let bytes = crate::memory::cstr_as_bytes(p.into_c_char_ptr());
+pub fn hexhex2nr(bytes: &[u8]) -> i32 {
     if bytes.len() < 2 || !bytes[0].is_ascii_hexdigit() || !bytes[1].is_ascii_hexdigit() {
         return -1;
     }
     (hex2nr(bytes[0]) << 4) + hex2nr(bytes[1])
 }
 
-pub fn rem_backslash(str_: impl crate::strings::IntoCCharPtr) -> bool {
-    let bytes = crate::memory::cstr_as_bytes(str_);
+pub fn rem_backslash(bytes: &[u8]) -> bool {
     #[cfg(windows)]
     {
         let b0 = bytes.first().copied().unwrap_or(0);
@@ -1312,7 +1309,7 @@ pub fn rem_backslash(str_: impl crate::strings::IntoCCharPtr) -> bool {
 
 pub fn backslash_halve(mut p: RawCCharPtrMut) {
     unsafe {
-        while !crate::memory::cstr_is_empty(p) && !rem_backslash(p) {
+        while !crate::memory::cstr_is_empty(p) && !rem_backslash(crate::memory::cstr_as_bytes(p)) {
             p = p.wrapping_add(1);
         }
         if !crate::memory::cstr_is_empty(p) {
@@ -1321,7 +1318,7 @@ pub fn backslash_halve(mut p: RawCCharPtrMut) {
             dst = dst.wrapping_add(1);
             p = p.wrapping_add(2);
             while !crate::memory::cstr_is_empty(p) {
-                if rem_backslash(p) {
+                if rem_backslash(crate::memory::cstr_as_bytes(p)) {
                     *dst = *p.wrapping_add(1);
                     dst = dst.wrapping_add(1);
                     p = p.wrapping_add(2);
@@ -1336,21 +1333,19 @@ pub fn backslash_halve(mut p: RawCCharPtrMut) {
     }
 }
 
-pub fn backslash_halve_save(p: impl crate::strings::IntoCCharPtr) -> CString {
-    let mut p = p.into_c_char_ptr();
-    {
-        let mut res = Vec::with_capacity(crate::memory::cstr_len(p));
-        while !crate::memory::cstr_is_empty(p) {
-            if rem_backslash(p) {
-                res.push(crate::memory::cstr_first_byte(p.wrapping_add(1)));
-                p = p.wrapping_add(2);
-            } else {
-                res.push(crate::memory::cstr_first_byte(p));
-                p = p.wrapping_add(1);
-            }
+pub fn backslash_halve_save(bytes: &[u8]) -> CString {
+    let mut res = Vec::with_capacity(bytes.len());
+    let mut i = 0usize;
+    while i < bytes.len() {
+        if rem_backslash(&bytes[i..]) {
+            res.push(bytes[i + 1]);
+            i += 2;
+        } else {
+            res.push(bytes[i]);
+            i += 1;
         }
-        cstr_from_bytes(&res)
     }
+    cstr_from_bytes(&res)
 }
 
 #[cfg(test)]

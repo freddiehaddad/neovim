@@ -8168,11 +8168,11 @@ pub fn replace_makeprg(
 
         arg = skipwhite(arg);
 
-        let new_buf: Vec<u8> = if let Some(rep) = strrep(program, c"$*", arg) {
+        let prog_b = crate::memory::cstr_as_bytes(program);
+        let arg_b = crate::memory::cstr_as_bytes(arg);
+        let new_buf: Vec<u8> = if let Some(rep) = strrep(prog_b, b"$*", arg_b) {
             rep.into_bytes_with_nul()
         } else {
-            let prog_b = crate::memory::cstr_as_bytes(program);
-            let arg_b = crate::memory::cstr_as_bytes(arg);
             let mut combined = Vec::with_capacity(prog_b.len() + 1 + arg_b.len() + 1);
             combined.extend_from_slice(prog_b);
             combined.push(b' ');

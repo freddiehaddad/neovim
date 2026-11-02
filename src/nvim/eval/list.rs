@@ -861,7 +861,8 @@ pub fn f_reverse(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData
     } else if arg0.v_type == VarType::VarString {
         rettv.v_type = VarType::VarString;
         if !arg0.vval.v_string().is_null() {
-            crate::eval::typval::tv_set_string(rettv, reverse_text(arg0.vval.v_string()).as_ptr());
+            let s_bytes = crate::memory::cstr_as_bytes(arg0.vval.v_string());
+            crate::eval::typval::tv_set_string(rettv, reverse_text(s_bytes).as_ptr());
         } else {
             rettv.vval = crate::eval::typval::TypvalVval::String(std::ptr::null_mut());
         }

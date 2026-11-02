@@ -1010,7 +1010,8 @@ pub fn pum_redraw() {
                     };
 
                     if pum().rl {
-                        let mut rt_bytes = reverse_text(st.cast()).into_bytes_with_nul();
+                        let st_slice = &st_bytes[..st_bytes.len().saturating_sub(1)];
+                        let mut rt_bytes = reverse_text(st_slice).into_bytes_with_nul();
                         let mut rt_idx = 0usize;
                         let mut cells = mb_string2cells(rt_bytes.as_ptr().cast()) as i32;
                         let pad = if next_isempty { 0 } else { 2 };

@@ -689,7 +689,7 @@ fn do_path_expand(
         let wild_start = path.wrapping_add(wildoff);
 
         while !crate::memory::cstr_is_empty(path_end) {
-            if path_end >= wild_start && rem_backslash(path_end) {
+            if path_end >= wild_start && rem_backslash(crate::memory::cstr_as_bytes(path_end)) {
                 unsafe {
                     *p = *path_end;
                 }
@@ -727,7 +727,7 @@ fn do_path_expand(
 
         p = buf.wrapping_add(wildoff);
         while p < s {
-            if rem_backslash(p) {
+            if rem_backslash(crate::memory::cstr_as_bytes(p)) {
                 let move_len = crate::memory::cstr_len(p.wrapping_add(1)) + 1;
                 unsafe { ptr::copy(p.wrapping_add(1), p, move_len) };
                 e = e.wrapping_sub(1);
@@ -1426,7 +1426,7 @@ pub fn gen_expand_wildcards_vec(
         }
 
         if add_pat == -1 || (add_pat == 0 && (flags & EW_NOTFOUND) != 0) {
-            let t_owned = backslash_halve_save(p);
+            let t_owned = backslash_halve_save(crate::memory::cstr_as_bytes(p));
             let t = t_owned.as_ptr().cast_mut();
             if (flags & EW_NOTFOUND) != 0 {
                 addfile(file, t, flags | EW_DIR | EW_FILE);

@@ -1173,9 +1173,9 @@ pub fn spell_move_to(
                 capcol = 0;
             }
             if capcol == 0 {
-                capcol = getwhitecols(line) as Colnr;
+                capcol = getwhitecols(crate::memory::cstr_as_bytes(line)) as Colnr;
             } else if curline && ptr::eq(wp, curwin_ptr()) {
-                let col = getwhitecols(line) as Colnr;
+                let col = getwhitecols(crate::memory::cstr_as_bytes(line)) as Colnr;
                 if check_need_cap(curwin_mut(), lnum, col) {
                     capcol = col;
                 }
@@ -2245,7 +2245,7 @@ pub fn check_need_cap(wp: &mut WinInfoInfo, lnum: Linenr, col: Colnr) -> bool {
     };
     let mut line_copy: Option<std::ffi::CString> = None;
     let mut endcol: Colnr = 0;
-    if col == 0 || (getwhitecols(line.cast()) as Colnr) >= col {
+    if col == 0 || (getwhitecols(crate::memory::cstr_as_bytes(line.cast())) as Colnr) >= col {
         if lnum == 1 {
             need_cap = true;
         } else {

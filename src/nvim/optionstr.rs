@@ -2361,7 +2361,7 @@ pub fn did_set_inccommand(_args: &mut Optset) -> Option<&CStr> {
 
 /// Validate the 'isident', 'iskeyword' or 'isfname' option.
 pub fn validate_isopt(args: &mut Optset) -> Option<&CStr> {
-    if !check_isopt(args.os_newval.data.string().data) {
+    if !check_isopt(args.os_newval.data.string().as_bytes()) {
         Some(E_INVARG)
     } else {
         None
@@ -3410,7 +3410,7 @@ fn get_encoded_char_adv(p: &mut crate::strings::RawCCharPtr) -> Schar {
         };
         while bytes > 0 {
             *p = p.wrapping_add(2);
-            let n = hexhex2nr(*p);
+            let n = hexhex2nr(crate::memory::cstr_as_bytes(*p));
             if n < 0 {
                 return 0;
             }

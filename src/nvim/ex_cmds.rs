@@ -1819,7 +1819,7 @@ fn find_pipe(cmd: impl crate::strings::IntoCCharPtr) -> *mut u8 {
             }
             if crate::memory::cstr_first_byte(p) == b'"' {
                 inquote = !inquote;
-            } else if rem_backslash(p) {
+            } else if rem_backslash(crate::memory::cstr_as_bytes(p)) {
                 p = p.wrapping_add(1);
             }
             p = p.wrapping_add(1);

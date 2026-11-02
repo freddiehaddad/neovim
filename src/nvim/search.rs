@@ -388,7 +388,7 @@ pub fn search_regcomp(
         srch().mr_pattern = if curwin_mut().w_onebuf_opt.wo_rl != 0
             && crate::memory::cstr_first_byte(curwin_mut().w_onebuf_opt.wo_rlc) == b's'
         {
-            Some(reverse_text(pat))
+            Some(reverse_text(crate::memory::cstr_as_bytes(pat)))
         } else {
             Some(CString::new(crate::memory::cstr_slice(pat, patlen)).unwrap_or_default())
         };
@@ -1469,7 +1469,7 @@ pub fn do_search(
                 if curwin_mut().w_onebuf_opt.wo_rl != 0
                     && crate::memory::cstr_first_byte(curwin_mut().w_onebuf_opt.wo_rlc) == b's'
                 {
-                    let rev = reverse_text(msgbuf_vec.as_ptr().cast());
+                    let rev = reverse_text(crate::memory::cstr_until_nul(&msgbuf_vec).to_bytes());
                     msgbuflen = rev.as_bytes().len();
                     msgbuf_vec = rev.into_bytes_with_nul();
                     let r_off = msgbuf_vec[..msgbuflen]

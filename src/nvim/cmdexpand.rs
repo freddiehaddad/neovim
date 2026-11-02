@@ -2220,7 +2220,7 @@ fn skip_wildmenu_char(xp: &ExpandCtx, s: impl crate::strings::IntoCCharPtr) -> i
     let s = s.into_c_char_ptr();
     {
         let s_bytes = crate::memory::cstr_as_bytes(s);
-        if (rem_backslash(s)
+        if (rem_backslash(s_bytes)
             && xp.xp_context != EXPAND_HELP
             && xp.xp_context != EXPAND_PATTERN_IN_BUF)
             || ((xp.xp_context == EXPAND_MENUS || xp.xp_context == EXPAND_MENUNAMES)
@@ -2805,7 +2805,7 @@ fn showmatches_oneline(
             let match_j = matches[j as usize].as_ptr();
             if xp.xp_numfiles != -1 {
                 let exp_path = expand_env_save_opt(match_j.cast_mut(), true, ptr::null_mut());
-                let halved_slash = backslash_halve_save(exp_path.as_ptr());
+                let halved_slash = backslash_halve_save(exp_path.as_bytes());
                 isdir = os_isdir(halved_slash.as_ptr());
             } else {
                 isdir = os_isdir(match_j);
@@ -2986,8 +2986,8 @@ fn showmatches_gettail<T>(s: *const T, eager: bool) -> *mut T {
         let mut p = s;
         while !crate::memory::cstr_is_empty(p.cast()) {
             #[cfg(windows)]
-            let is_sep =
-                vim_ispathsep(crate::memory::cstr_first_byte(p.cast())) && !rem_backslash(p.cast());
+            let is_sep = vim_ispathsep(crate::memory::cstr_first_byte(p.cast()))
+                && !rem_backslash(crate::memory::cstr_as_bytes(p.cast()));
             #[cfg(not(windows))]
             let is_sep = vim_ispathsep(crate::memory::cstr_first_byte(p.cast()));
 
@@ -3023,7 +3023,7 @@ fn expand_showtail(xp: &mut ExpandCtx) -> bool {
 
     let mut s = xp.xp_pattern;
     while (s as usize) < (end as usize) {
-        if rem_backslash(s.cast()) {
+        if rem_backslash(crate::memory::cstr_as_bytes(s.cast())) {
             s = s.wrapping_add(1);
         } else if crate::strings::vim_haschr(c"*?[", crate::memory::cstr_first_byte(s.cast())) {
             return false;
@@ -6274,8 +6274,7 @@ fn concat_pattern_with_buffer_match(
                 match_len as usize,
             );
             if lowercase {
-                let mword = cstr_from_bytes(match_slice);
-                let lower = strcase_save(&mword, false);
+                let lower = strcase_save(match_slice, false);
                 let lower_bytes = lower.to_bytes();
                 out.extend_from_slice(&lower_bytes[..lower_bytes.len().min(match_len as usize)]);
             } else {

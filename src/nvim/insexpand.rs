@@ -6061,7 +6061,7 @@ fn get_normal_compl_info(
 fn get_wholeline_compl_info(line: impl crate::strings::IntoCCharPtr, curs_col: Colnr) -> bool {
     let line = line.into_c_char_ptr();
     {
-        insexp().compl_col = getwhitecols(line) as Colnr;
+        insexp().compl_col = getwhitecols(crate::memory::cstr_as_bytes(line)) as Colnr;
         insexp().compl_length = curs_col - insexp().compl_col;
         if insexp().compl_length < 0 {
             insexp().compl_length = 0;
@@ -6351,7 +6351,7 @@ fn ins_compl_continue_search(line: impl crate::strings::IntoCCharPtr) {
         insexp().compl_cont_status &= !CONT_INTRPT;
         if ctrl_x_mode_normal() || ctrl_x_mode_path_patterns() || ctrl_x_mode_path_defines() {
             if insexp().compl_startpos.lnum != curwin_mut().w_cursor.lnum {
-                insexp().compl_col = getwhitecols(line) as Colnr;
+                insexp().compl_col = getwhitecols(crate::memory::cstr_as_bytes(line)) as Colnr;
                 insexp().compl_startpos.col = insexp().compl_col;
                 insexp().compl_startpos.lnum = curwin_mut().w_cursor.lnum;
                 insexp().compl_cont_status &= !CONT_SOL;

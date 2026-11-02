@@ -1685,7 +1685,7 @@ fn findtags_get_next_line(st: &mut FindtagsState, sinfo_p: &mut TagsearchInfo) -
             }
             eof = vim_fgets(lbuf_ptr, lbuf_size, fp);
         }
-        while !eof && vim_isblankline(lbuf_ptr) {
+        while !eof && vim_isblankline(crate::memory::cstr_as_bytes(lbuf_ptr)) {
             sinfo_p.curr_offset = st.tell();
             eof = vim_fgets(lbuf_ptr, lbuf_size, fp);
         }
@@ -1698,7 +1698,7 @@ fn findtags_get_next_line(st: &mut FindtagsState, sinfo_p: &mut TagsearchInfo) -
     } else {
         loop {
             eof = vim_fgets(lbuf_ptr, lbuf_size, fp);
-            if eof || !vim_isblankline(lbuf_ptr) {
+            if eof || !vim_isblankline(crate::memory::cstr_as_bytes(lbuf_ptr)) {
                 break;
             }
         }
