@@ -398,3 +398,28 @@ jobs:
       - if: ${{ matrix.test == 'oldtest' }}
         name: oldtest
         run: cargo xtask oldtest --release
+
+  ci-gate:
+    needs: [changes, lint, lintrust, posix, windows]
+    if: always()
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 5
+    steps:
+      - name: Check CI status
+        env:
+          CHANGES_RESULT: ${{ needs.changes.result }}
+          LINT_RESULT: ${{ needs.lint.result }}
+          LINTRUST_RESULT: ${{ needs.lintrust.result }}
+          POSIX_RESULT: ${{ needs.posix.result }}
+          WINDOWS_RESULT: ${{ needs.windows.result }}
+        run: |
+          if [ "$CHANGES_RESULT" != "success" ] || [ "$LINT_RESULT" != "success" ]; then
+            echo "::error::Required job failed (changes=$CHANGES_RESULT, lint=$LINT_RESULT)"
+            exit 1
+          fi
+          for result in "$LINTRUST_RESULT" "$POSIX_RESULT" "$WINDOWS_RESULT"; do
+            if [ "$result" != "success" ] && [ "$result" != "skipped" ]; then
+              echo "::error::CI job did not succeed (lintrust=$LINTRUST_RESULT, posix=$POSIX_RESULT, windows=$WINDOWS_RESULT)"
+              exit 1
+            fi
+          done
