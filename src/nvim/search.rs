@@ -844,12 +844,9 @@ pub fn searchit(
                                     nmatched == 1 && endpos.col - 1 < start_pos.col + extra_col
                                 } else {
                                     matchpos.col
-                                        - i32::from(
-                                            crate::memory::cstr_byte_at(
-                                                ptr_line,
-                                                matchpos.col as usize,
-                                            ) == 0,
-                                        )
+                                        - i32::from(crate::memory::cstr_is_empty(
+                                            ptr_line.wrapping_add(matchpos.col as usize),
+                                        ))
                                         < start_pos.col + extra_col
                                 })
                             {
@@ -860,16 +857,18 @@ pub fn searchit(
                                     }
                                     matchcol = endpos.col;
                                     if matchcol == matchpos.col
-                                        && crate::memory::cstr_byte_at(ptr_line, matchcol as usize)
-                                            != 0
+                                        && !crate::memory::cstr_is_empty(
+                                            ptr_line.wrapping_add(matchcol as usize),
+                                        )
                                     {
                                         matchcol +=
                                             utfc_ptr2len(ptr_line.wrapping_add(matchcol as usize));
                                     }
                                 } else {
                                     matchcol = regmatch.rmm_matchcol;
-                                    if crate::memory::cstr_byte_at(ptr_line, matchcol as usize) != 0
-                                    {
+                                    if !crate::memory::cstr_is_empty(
+                                        ptr_line.wrapping_add(matchcol as usize),
+                                    ) {
                                         matchcol +=
                                             utfc_ptr2len(ptr_line.wrapping_add(matchcol as usize));
                                     }
@@ -877,20 +876,20 @@ pub fn searchit(
                                 if matchcol == 0 && (options & SEARCH_START) != 0 {
                                     break;
                                 }
-                                if crate::memory::cstr_byte_at(ptr_line, matchcol as usize) == 0
-                                    || {
-                                        nmatched = vim_regexec_multi(
-                                            &mut regmatch,
-                                            win,
-                                            (&raw mut *buf),
-                                            lnum,
-                                            matchcol,
-                                            tm,
-                                            extra_arg.as_deref_mut().map(|ea| &mut ea.sa_timed_out),
-                                        );
-                                        nmatched == 0
-                                    }
-                                {
+                                if crate::memory::cstr_is_empty(
+                                    ptr_line.wrapping_add(matchcol as usize),
+                                ) || {
+                                    nmatched = vim_regexec_multi(
+                                        &mut regmatch,
+                                        win,
+                                        (&raw mut *buf),
+                                        lnum,
+                                        matchcol,
+                                        tm,
+                                        extra_arg.as_deref_mut().map(|ea| &mut ea.sa_timed_out),
+                                    );
+                                    nmatched == 0
+                                } {
                                     match_ok = false;
                                     break;
                                 }
@@ -942,8 +941,9 @@ pub fn searchit(
                                     }
                                     matchcol = endpos.col;
                                     if matchcol == matchpos.col
-                                        && crate::memory::cstr_byte_at(ptr_line, matchcol as usize)
-                                            != 0
+                                        && !crate::memory::cstr_is_empty(
+                                            ptr_line.wrapping_add(matchcol as usize),
+                                        )
                                     {
                                         matchcol +=
                                             utfc_ptr2len(ptr_line.wrapping_add(matchcol as usize));
@@ -953,26 +953,27 @@ pub fn searchit(
                                         break;
                                     }
                                     matchcol = matchpos.col;
-                                    if crate::memory::cstr_byte_at(ptr_line, matchcol as usize) != 0
-                                    {
+                                    if !crate::memory::cstr_is_empty(
+                                        ptr_line.wrapping_add(matchcol as usize),
+                                    ) {
                                         matchcol +=
                                             utfc_ptr2len(ptr_line.wrapping_add(matchcol as usize));
                                     }
                                 }
-                                if crate::memory::cstr_byte_at(ptr_line, matchcol as usize) == 0
-                                    || {
-                                        nmatched = vim_regexec_multi(
-                                            &mut regmatch,
-                                            win,
-                                            (&raw mut *buf),
-                                            lnum + matchpos.lnum,
-                                            matchcol,
-                                            tm,
-                                            extra_arg.as_deref_mut().map(|ea| &mut ea.sa_timed_out),
-                                        );
-                                        nmatched == 0
-                                    }
-                                {
+                                if crate::memory::cstr_is_empty(
+                                    ptr_line.wrapping_add(matchcol as usize),
+                                ) || {
+                                    nmatched = vim_regexec_multi(
+                                        &mut regmatch,
+                                        win,
+                                        (&raw mut *buf),
+                                        lnum + matchpos.lnum,
+                                        matchcol,
+                                        tm,
+                                        extra_arg.as_deref_mut().map(|ea| &mut ea.sa_timed_out),
+                                    );
+                                    nmatched == 0
+                                } {
                                     if tm.is_some_and(profile_passed_limit) {
                                         match_ok = false;
                                     }
@@ -1806,7 +1807,9 @@ pub fn searchc(cap: &mut Cmdarg, mut t_cmd: bool) -> bool {
                 col -= utf_head_off(p, p.wrapping_add((col - 1) as usize)) + 1;
             }
             if srch().lastc_bytelen <= 1 {
-                if i32::from(crate::memory::cstr_byte_at(p, col as usize)) == c && stop {
+                if i32::from(crate::memory::cstr_first_byte(p.wrapping_add(col as usize))) == c
+                    && stop
+                {
                     break;
                 }
             } else if (crate::memory::cstr_prefix_bytes(
@@ -3789,7 +3792,9 @@ pub fn find_pattern_in_path(
                         && action == ACTION_EXPAND
                         && !compl_status_sol()
                         && !crate::memory::cstr_is_empty(startp)
-                        && crate::memory::cstr_byte_at(startp, utfc_ptr2len(startp) as usize) != 0
+                        && !crate::memory::cstr_is_empty(
+                            startp.wrapping_add(utfc_ptr2len(startp) as usize),
+                        )
                     {
                         p = startp.wrapping_add(utfc_ptr2len(startp) as usize);
                         continue;
@@ -3907,8 +3912,7 @@ fn show_pat_in_path(
             }
             line_buf[linelen] = 0;
         }
-        let has_trailing_bsl =
-            linelen > 0 && crate::memory::cstr_byte_at(line, linelen - 1) == b'\\';
+        let has_trailing_bsl = crate::memory::cstr_slice(line, linelen).last() == Some(&b'\\');
         if action == ACTION_SHOW_ALL {
             let iobuff_ptr = g_st().iobuff.as_mut_ptr();
             vim_snprintf!(iobuff_ptr, IOSIZE, c"%3d: ", count);

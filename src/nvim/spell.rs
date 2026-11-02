@@ -4,8 +4,8 @@ use crate::autocmd::{EVENT_SPELLFILEMISSING, apply_autocmds};
 use crate::buffer::{Bufref, FileBuf, buf_is_empty, bufref_valid, set_bufref};
 use crate::change::{TAB, inserted_bytes};
 use crate::charset::{
-    NUL, ascii_isalpha, ascii_isdigit, ascii_iswhite, getwhitecols, skipbin, skipdigits, skiphex,
-    skipwhite, vim_is_fname_char,
+    NUL, ascii_isdigit, ascii_iswhite, getwhitecols, skipbin, skipdigits, skiphex, skipwhite,
+    vim_is_fname_char,
 };
 use crate::cursor::{
     Colnr, CursorPos, Linenr, get_cursor_line_len, get_cursor_line_ptr, get_cursor_line_slice,
@@ -294,15 +294,10 @@ pub fn spell_check(
         let mut is_camel_case = false;
         let mut mi = Matchinf::new();
         if *ptr >= b'0' && *ptr <= b'9' {
-            if crate::memory::cstr_first_byte(ptr.cast()) == b'0'
-                && (crate::memory::cstr_byte_at(ptr.cast(), 1) == b'b'
-                    || crate::memory::cstr_byte_at(ptr.cast(), 1) == b'B')
-            {
+            let ptr_bytes = crate::memory::cstr_as_bytes(ptr.cast());
+            if *ptr == b'0' && matches!(ptr_bytes.get(1), Some(b'b' | b'B')) {
                 mi.mi_end = skipbin(ptr.wrapping_add(2).cast()).cast_mut().cast();
-            } else if crate::memory::cstr_first_byte(ptr.cast()) == b'0'
-                && (crate::memory::cstr_byte_at(ptr.cast(), 1) == b'x'
-                    || crate::memory::cstr_byte_at(ptr.cast(), 1) == b'X')
-            {
+            } else if *ptr == b'0' && matches!(ptr_bytes.get(1), Some(b'x' | b'X')) {
                 mi.mi_end = skiphex(ptr.wrapping_add(2).cast()).cast();
             } else {
                 mi.mi_end = skipdigits(ptr.cast()).cast();
@@ -546,10 +541,11 @@ fn find_word(mip: &mut Matchinf, mode: i32) {
                 break;
             }
         }
-        if crate::memory::cstr_byte_at(ptr.cast(), wlen as usize) == 0 {
+        let cur_b = crate::memory::cstr_first_byte(ptr.wrapping_add(wlen as usize).cast());
+        if cur_b == 0 {
             break;
         }
-        let mut c = crate::memory::cstr_byte_at(ptr.cast(), wlen as usize) as i32;
+        let mut c = i32::from(cur_b);
         if c == i32::from(TAB) {
             c = b' ' as i32;
         }
@@ -578,7 +574,7 @@ fn find_word(mip: &mut Matchinf, mode: i32) {
                 if flen <= 0 && !crate::memory::cstr_is_empty(mip.mi_fend.cast()) {
                     flen = fold_more(mip);
                 }
-                let ch = crate::memory::cstr_byte_at(ptr.cast(), wlen as usize);
+                let ch = crate::memory::cstr_first_byte(ptr.wrapping_add(wlen as usize).cast());
                 if ch != b' ' && ch != TAB {
                     break;
                 }
@@ -1038,10 +1034,11 @@ fn find_prefix(mip: &mut Matchinf, mode: i32) {
                 break;
             }
         }
-        if crate::memory::cstr_byte_at(ptr.cast(), wlen as usize) == 0 {
+        let cur_b = crate::memory::cstr_first_byte(ptr.wrapping_add(wlen as usize).cast());
+        if cur_b == 0 {
             break;
         }
-        let c = crate::memory::cstr_byte_at(ptr.cast(), wlen as usize) as i32;
+        let c = i32::from(cur_b);
         let mut lo = arridx;
         let mut hi = arridx + len - 1;
         while lo < hi {
@@ -1714,10 +1711,10 @@ pub fn parse_spelllang(wp: &mut WinInfoInfo) -> Option<&'static std::ffi::CStr> 
                         K_PATH_CMP_LITERAL as PathCmpFlags,
                     ) {
                     let p = vim_strchr(path_tail(lang_ptr.cast()), b'_' as i32);
-                    if !p.is_null()
-                        && ascii_isalpha(crate::memory::cstr_byte_at(p, 1))
-                        && ascii_isalpha(crate::memory::cstr_byte_at(p, 2))
-                        && !ascii_isalpha(crate::memory::cstr_byte_at(p, 3))
+                    let p_bytes = crate::memory::cstr_as_bytes(p);
+                    if p_bytes.get(1).is_some_and(u8::is_ascii_alphabetic)
+                        && p_bytes.get(2).is_some_and(u8::is_ascii_alphabetic)
+                        && !p_bytes.get(3).is_some_and(u8::is_ascii_alphabetic)
                     {
                         xstrlcpy((&raw mut region_cp).cast(), p.wrapping_add(1), 3);
                         ptr::copy(

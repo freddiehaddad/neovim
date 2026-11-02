@@ -820,7 +820,7 @@ pub fn update_search_hl(
                 idx += 1;
             }
         }
-        if crate::memory::cstr_byte_at(line, col as usize) == 0
+        if crate::memory::cstr_is_empty(line.wrapping_add(col as usize))
             && (wp.w_onebuf_opt.wo_list != 0 && !lcs_eol_todo)
         {
             search_attr = 0;
@@ -1252,11 +1252,10 @@ pub fn ex_match(eap: &mut Exarg) {
         end = arg;
     } else {
         let arg_bytes = crate::memory::cstr_as_bytes(arg);
-        if arg_bytes.len() >= 4
-            && arg_bytes[..4].eq_ignore_ascii_case(b"none")
-            && (ascii_iswhite(crate::memory::cstr_byte_at(arg, 4))
-                || ends_excmd(crate::memory::cstr_byte_at(arg, 4)) != 0)
-        {
+        if arg_bytes.len() >= 4 && arg_bytes[..4].eq_ignore_ascii_case(b"none") && {
+            let b4 = arg_bytes.get(4).copied().unwrap_or(0);
+            ascii_iswhite(b4) || ends_excmd(i32::from(b4)) != 0
+        } {
             end = arg.wrapping_add(4);
         } else {
             let mut p = skiptowhite(arg);

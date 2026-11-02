@@ -164,8 +164,7 @@ fn op_fn(p: *const u8) -> i32 {
 
 #[inline]
 fn next_fn(p: *const u8) -> i32 {
-    ((i32::from(crate::memory::cstr_byte_at(p.cast(), 1)) & 0o377) << 8)
-        + (i32::from(crate::memory::cstr_byte_at(p.cast(), 2)) & 0o377)
+    unsafe { ((i32::from(*p.add(1)) & 0o377) << 8) + (i32::from(*p.add(2)) & 0o377) }
 }
 
 #[inline]
@@ -186,7 +185,7 @@ fn operand_max(p: *const u8) -> i64 {
 
 #[inline]
 fn operand_cmp(p: *const u8) -> u8 {
-    crate::memory::cstr_byte_at(p.cast(), 7)
+    unsafe { *p.add(7) }
 }
 
 #[inline]
@@ -3055,7 +3054,7 @@ fn regmatch(mut scan: *mut u8, tm: Option<Proftime>, mut timed_out: Option<&mut 
                             if *opnd != *re_st().rex.input && !re_st().rex.reg_ic {
                                 status = RA_NOMATCH;
                             } else if *opnd != NUL {
-                                let len = if crate::memory::cstr_byte_at(opnd.cast(), 1) == 0
+                                let len = if crate::memory::cstr_len(opnd.cast()) == 1
                                     && !re_st().rex.reg_ic
                                 {
                                     1
@@ -4114,7 +4113,7 @@ fn bt_regexec_both(
                 re_st().rex.lnum = 0;
                 re_st().rex.line = reg_getline(0).cast();
             }
-            if crate::memory::cstr_byte_at(re_st().rex.line.cast(), col as usize) == NUL {
+            if crate::memory::cstr_is_empty(re_st().rex.line.wrapping_add(col as usize).cast()) {
                 break;
             }
             col += utfc_ptr2len(re_st().rex.line.wrapping_add(col as usize).cast());

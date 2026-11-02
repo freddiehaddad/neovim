@@ -1956,18 +1956,15 @@ pub fn highlight_color(
             return None;
         }
 
-        let w0 = (crate::memory::cstr_first_byte(what)).to_ascii_lowercase();
-        let w1 = if w0 != 0 {
-            (crate::memory::cstr_byte_at(what, 1)).to_ascii_lowercase()
-        } else {
-            0
-        };
+        let what_bytes = crate::memory::cstr_as_bytes(what);
+        let w0 = what_bytes.first().map_or(0, u8::to_ascii_lowercase);
+        let w1 = what_bytes.get(1).map_or(0, u8::to_ascii_lowercase);
         if w0 == b'f' && w1 == b'g' {
             fg = true;
         } else if w0 == b'f'
             && w1 == b'o'
-            && (crate::memory::cstr_byte_at(what, 2)).eq_ignore_ascii_case(&b'n')
-            && (crate::memory::cstr_byte_at(what, 3)).eq_ignore_ascii_case(&b't')
+            && what_bytes.len() >= 4
+            && what_bytes[2..4].eq_ignore_ascii_case(b"nt")
         {
             font = true;
         } else if w0 == b's' && w1 == b'p' {
@@ -1979,7 +1976,7 @@ pub fn highlight_color(
         let g = &*hl_table_at((id - 1) as usize);
 
         if modec == i32::from(b'g') {
-            if crate::memory::cstr_byte_at(what, 2) == b'#' && ui_rgb_attached() {
+            if what_bytes.get(2) == Some(&b'#') && ui_rgb_attached() {
                 let n = if fg {
                     g.sg_rgb_fg
                 } else if sp {
@@ -2125,8 +2122,8 @@ pub fn syn_name2id_len(name: impl crate::strings::IntoCCharPtr, len: usize) -> i
         }
 
         let mut name_u = [0u8; MAX_SYN_NAME + 1];
-        for (i, dst) in name_u.iter_mut().take(len).enumerate() {
-            *dst = (crate::memory::cstr_byte_at(name, i)).to_ascii_uppercase();
+        for (dst, &b) in name_u.iter_mut().zip(crate::memory::cstr_slice(name, len)) {
+            *dst = b.to_ascii_uppercase();
         }
         name_u[len] = 0;
 
@@ -2175,8 +2172,7 @@ pub fn syn_check_group<S: crate::strings::IntoCCharPtr>(name: S, len: usize) -> 
 fn syn_add_group(name: impl crate::strings::IntoCCharPtr, len: usize) -> i32 {
     let name = name.into_c_char_ptr();
     {
-        for i in 0..len {
-            let c = crate::memory::cstr_byte_at(name, i);
+        for &c in crate::memory::cstr_slice(name, len) {
             if !vim_isprintc(i32::from(c)) {
                 emsg(gettext(c"E669: Unprintable character in group name"));
                 return 0;
@@ -2464,9 +2460,7 @@ pub fn set_context_in_highlight_cmd(xp: &mut ExpandCtx, arg: impl crate::strings
         }
 
         g_st().include_link = 0;
-        if crate::memory::cstr_first_byte(arg) == b'N'
-            && crate::memory::cstr_byte_at(arg, 1) == b'i'
-        {
+        if crate::memory::cstr_as_bytes(arg).starts_with(b"Ni") {
             highlight_list();
         }
         let len = p as usize - arg as usize;

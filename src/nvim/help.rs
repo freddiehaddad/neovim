@@ -381,13 +381,12 @@ pub fn find_help_tags(arg: &CStr, matches: &mut Vec<std::ffi::CString>, keep_lan
 /// Cleanup matches for help tags (`cleanup_help_tags`).
 pub fn cleanup_help_tags(file: &mut [std::ffi::CString]) {
     let mut buf = [0u8; 3];
-    let has_default_lang = !crate::memory::cstr_is_empty(opt_vars().p_hlg)
-        && (crate::memory::cstr_first_byte(opt_vars().p_hlg) != b'e'
-            || crate::memory::cstr_byte_at(opt_vars().p_hlg, 1) != b'n');
+    let hlg_bytes = crate::memory::cstr_as_bytes(opt_vars().p_hlg);
+    let has_default_lang = !hlg_bytes.is_empty() && !hlg_bytes.starts_with(b"en");
     if has_default_lang {
         buf[0] = b'@';
-        buf[1] = crate::memory::cstr_first_byte(opt_vars().p_hlg);
-        buf[2] = crate::memory::cstr_byte_at(opt_vars().p_hlg, 1);
+        buf[1] = hlg_bytes[0];
+        buf[2] = hlg_bytes.get(1).copied().unwrap_or(0);
     }
 
     for i in 0..file.len() {
@@ -489,10 +488,7 @@ pub fn ex_helptags(eap: &mut Exarg) {
     let mut add_help_tags = false;
 
     let arg_bytes = crate::memory::cstr_as_bytes(eap.arg);
-    if arg_bytes.len() > 3
-        && &arg_bytes[..3] == b"++t"
-        && ascii_iswhite(crate::memory::cstr_byte_at(eap.arg, 3))
-    {
+    if arg_bytes.len() > 3 && &arg_bytes[..3] == b"++t" && ascii_iswhite(arg_bytes[3]) {
         add_help_tags = true;
         eap.arg = skipwhite(eap.arg.wrapping_add(3));
     }

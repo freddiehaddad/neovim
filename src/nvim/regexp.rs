@@ -1799,13 +1799,16 @@ pub(super) fn peekchr() -> i32 {
                 let mut p = re_st().regparse.wrapping_add(1);
                 let mut is_magic_all = re_st().reg_magic == MAGIC_ALL;
 
-                while crate::memory::cstr_first_byte(p.cast()) == b'\\'
-                    && matches!(
-                        crate::memory::cstr_byte_at(p.cast(), 1),
-                        b'c' | b'C' | b'm' | b'M' | b'v' | b'V' | b'Z'
-                    )
-                {
-                    let next_b = crate::memory::cstr_byte_at(p.cast(), 1);
+                loop {
+                    let p_bytes = crate::memory::cstr_as_bytes(p.cast());
+                    let Some(&next_b) = p_bytes.get(1) else {
+                        break;
+                    };
+                    if p_bytes[0] != b'\\'
+                        || !matches!(next_b, b'c' | b'C' | b'm' | b'M' | b'v' | b'V' | b'Z')
+                    {
+                        break;
+                    }
                     if next_b == b'v' {
                         is_magic_all = true;
                     } else if matches!(next_b, b'm' | b'M' | b'V') {
@@ -1813,13 +1816,13 @@ pub(super) fn peekchr() -> i32 {
                     }
                     p = p.wrapping_add(2);
                 }
-                let p_b = crate::memory::cstr_first_byte(p.cast());
+                let p_bytes = crate::memory::cstr_as_bytes(p.cast());
+                let p_b = p_bytes.first().copied().unwrap_or(0);
                 if p_b == NUL
                     || (p_b == b'\\'
-                        && matches!(
-                            crate::memory::cstr_byte_at(p.cast(), 1),
-                            b'|' | b'&' | b')' | b'n'
-                        ))
+                        && p_bytes
+                            .get(1)
+                            .is_some_and(|&b| matches!(b, b'|' | b'&' | b')' | b'n')))
                     || (is_magic_all && matches!(p_b, b'|' | b'&' | b')'))
                     || re_st().reg_magic == MAGIC_ALL
                 {
@@ -1828,7 +1831,7 @@ pub(super) fn peekchr() -> i32 {
             }
         }
         b'\\' => {
-            let c = crate::memory::cstr_byte_at(re_st().regparse.cast(), 1) as i32;
+            let c = i32::from(re_st().regparse_byte_at(1));
             if c == NUL as i32 {
                 re_st().curchr = b'\\' as i32;
             } else if c <= b'~' as i32 && META_FLAGS[c as usize] != 0 {
@@ -1869,7 +1872,7 @@ pub(super) fn skipchr() {
     } else {
         re_st().prevchr_len = 0;
     }
-    let next_b = crate::memory::cstr_byte_at(re_st().regparse.cast(), re_st().prevchr_len as usize);
+    let next_b = re_st().regparse_byte_at(re_st().prevchr_len as usize);
     if next_b != NUL {
         if next_b < 0x80 {
             re_st().prevchr_len += 1;
@@ -2504,7 +2507,7 @@ pub fn regtilde<T>(source: *mut T, magic: i32, preview: bool) -> Option<std::ffi
             continue;
         } else {
             if crate::memory::cstr_first_byte(p.cast()) == b'\\'
-                && crate::memory::cstr_byte_at(p.cast(), 1) != 0
+                && crate::memory::cstr_len(p.cast()) > 1
             {
                 p = p.wrapping_add(1);
             }
@@ -2656,10 +2659,7 @@ fn vim_regsub_both<T>(
         let src = source;
         let mut dst = dest;
 
-        if expr.is_some()
-            || (crate::memory::cstr_first_byte(source.cast()) == b'\\'
-                && crate::memory::cstr_byte_at(source.cast(), 1) == b'=')
-        {
+        if expr.is_some() || crate::memory::cstr_as_bytes(source.cast()).starts_with(b"\\=") {
             if copy {
                 if let Some(ref eval_cstr) = *eval_slot {
                     let eval_bytes = eval_cstr.to_bytes_with_nul();
@@ -2740,7 +2740,7 @@ fn vim_regsub_both<T>(
                         if *s == NL as u8 && re_st().rsm.sm_line_lbr == 0 {
                             *s = CAR as u8;
                         } else if crate::memory::cstr_first_byte(s.cast()) == b'\\'
-                            && crate::memory::cstr_byte_at(s.cast(), 1) != 0
+                            && crate::memory::cstr_len(s.cast()) > 1
                         {
                             s = s.wrapping_add(1);
                             if *s == NL as u8 && re_st().rsm.sm_line_lbr == 0 {
@@ -3293,8 +3293,9 @@ pub fn vim_regcomp(expr_arg: impl crate::strings::IntoCCharPtr, re_flags: i32) -
 
         re_st().regexp_engine = opt_vars().p_re as i32;
 
-        if crate::memory::cstr_prefix_bytes(expr, 4) == &b"\\%#="[..4] {
-            let newengine = (crate::memory::cstr_byte_at(expr, 4)).wrapping_sub(b'0') as i32;
+        let expr_bytes = crate::memory::cstr_as_bytes(expr);
+        if expr_bytes.starts_with(b"\\%#=") {
+            let newengine = expr_bytes.get(4).copied().unwrap_or(0).wrapping_sub(b'0') as i32;
             if newengine == AUTOMATIC_ENGINE
                 || newengine == BACKTRACKING_ENGINE
                 || newengine == NFA_ENGINE
@@ -3658,7 +3659,10 @@ impl RegexpState {
     }
     #[inline]
     pub fn regparse_byte_at(&self, idx: usize) -> u8 {
-        crate::memory::cstr_byte_at(self.regparse.cast(), idx)
+        crate::memory::cstr_as_bytes(self.regparse.cast())
+            .get(idx)
+            .copied()
+            .unwrap_or(0)
     }
 }
 

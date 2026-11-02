@@ -23,7 +23,7 @@ use crate::highlight_group::{
 };
 use crate::indent_c::find_start_comment;
 use crate::mbyte::{mb_strcmp_ic, utf_head_off, utf_ptr2char, utfc_ptr2len, utfc_slice2len};
-use crate::memline::{ml_get, ml_get_buf, ml_get_buf_len, ml_get_len};
+use crate::memline::{ml_get_buf, ml_get_buf_len};
 use crate::message::{
     emsg, msg, msg_advance, msg_ext_set_kind, msg_outnum, msg_outtrans, msg_outtrans_len,
     msg_putchar, msg_puts, msg_puts_hl, msg_puts_title, semsg,
@@ -737,11 +737,7 @@ fn syn_sync(wp: &mut WinInfoInfo, mut start_lnum: Linenr, last_valid: *const Syn
         g_st().curbuf = syn_st().syn_buf;
 
         while start_lnum > 1 {
-            let l = ml_get(start_lnum - 1);
-            if crate::memory::cstr_is_empty(l)
-                || crate::memory::cstr_byte_at(l, (ml_get_len(start_lnum - 1) - 1) as usize)
-                    != b'\\'
-            {
+            if crate::memline::ml_get_slice(start_lnum - 1).last() != Some(&b'\\') {
                 break;
             }
             start_lnum -= 1;
@@ -3540,21 +3536,23 @@ fn get_syn_options<T>(
             while fidx >= 0 {
                 let (p, argtype, flags) = FLAGTAB[fidx as usize];
                 let mut i: usize = 0;
+                let arg_bytes = crate::memory::cstr_as_bytes(arg.cast());
                 len = 0;
                 while p[i] != 0 {
-                    let ch = crate::memory::cstr_byte_at(arg.cast(), len);
+                    let ch = arg_bytes.get(len).copied().unwrap_or(0);
                     if ch != p[i] && ch != p[i + 1] {
                         break;
                     }
                     i += 2;
                     len += 1;
                 }
+                let next_ch = arg_bytes.get(len).copied().unwrap_or(0);
                 if p[i] == 0
-                    && (ascii_iswhite(crate::memory::cstr_byte_at(arg.cast(), len))
+                    && (ascii_iswhite(next_ch)
                         || if argtype > 0 {
-                            crate::memory::cstr_byte_at(arg.cast(), len) == b'='
+                            next_ch == b'='
                         } else {
-                            ends_excmd(crate::memory::cstr_byte_at(arg.cast(), len)) != 0
+                            ends_excmd(i32::from(next_ch)) != 0
                         })
                 {
                     if opt.keyword
@@ -3587,7 +3585,9 @@ fn get_syn_options<T>(
                 if !get_id_list(&raw mut arg, 9, &mut opt.next_list, skip != 0) {
                     return ptr::null_mut();
                 }
-            } else if argtype == 11 && crate::memory::cstr_byte_at(arg.cast(), 5) == b'=' {
+            } else if argtype == 11
+                && crate::memory::cstr_as_bytes(arg.cast()).get(5) == Some(&b'=')
+            {
                 *conceal_char = utf_ptr2char(arg.wrapping_add(6).cast());
                 arg = arg.wrapping_offset((utfc_ptr2len(arg.wrapping_add(6).cast()) - 1) as isize);
                 if !vim_isprintc(*conceal_char) {
@@ -3768,7 +3768,7 @@ fn syn_cmd_keyword(eap: &mut Exarg, _syncing: i32) {
                     && !ascii_iswhite(crate::memory::cstr_first_byte(rest))
                 {
                     if crate::memory::cstr_first_byte(rest) == b'\\'
-                        && crate::memory::cstr_byte_at(rest, 1) != 0
+                        && crate::memory::cstr_len(rest) > 1
                     {
                         rest = rest.wrapping_add(1);
                     }
@@ -3815,15 +3815,16 @@ fn syn_cmd_keyword(eap: &mut Exarg, _syncing: i32) {
                         if p.is_null() {
                             break;
                         }
-                        if crate::memory::cstr_byte_at(p.cast(), 1) == 0 {
+                        let after_p = crate::memory::cstr_as_bytes(p.wrapping_add(1).cast());
+                        if after_p.is_empty() {
                             semsg!(
                                 gettext(c"E789: Missing ']': %s"),
                                 kw.cast::<std::ffi::c_void>()
                             );
                             break 'kw_loop;
                         }
-                        if crate::memory::cstr_byte_at(p.cast(), 1) == b']' {
-                            if crate::memory::cstr_byte_at(p.cast(), 2) != 0 {
+                        if after_p[0] == b']' {
+                            if after_p.len() > 1 {
                                 semsg!(
                                     gettext(E_TRAILING_CHAR_AFTER_RSB_STR_STR),
                                     kw.cast::<std::ffi::c_void>(),
@@ -4265,20 +4266,24 @@ fn syn_cmd_cluster(eap: &mut Exarg, _syncing: i32) {
         scl_id -= SYNID_CLUSTER as i32;
 
         loop {
-            let (opt_len, list_op) = if crate::memory::cstr_prefix_bytes(rest, 3)
-                .eq_ignore_ascii_case(b"add")
-                && (ascii_iswhite(crate::memory::cstr_byte_at(rest, 3))
-                    || crate::memory::cstr_byte_at(rest, 3) == b'=')
+            let rest_bytes = crate::memory::cstr_as_bytes(rest);
+            let is_sep = |idx: usize| {
+                let b = rest_bytes.get(idx).copied().unwrap_or(0);
+                ascii_iswhite(b) || b == b'='
+            };
+            let (opt_len, list_op) = if rest_bytes.len() >= 3
+                && rest_bytes[..3].eq_ignore_ascii_case(b"add")
+                && is_sep(3)
             {
                 (3, CLUSTER_ADD)
-            } else if crate::memory::cstr_prefix_bytes(rest, 6).eq_ignore_ascii_case(b"remove")
-                && (ascii_iswhite(crate::memory::cstr_byte_at(rest, 6))
-                    || crate::memory::cstr_byte_at(rest, 6) == b'=')
+            } else if rest_bytes.len() >= 6
+                && rest_bytes[..6].eq_ignore_ascii_case(b"remove")
+                && is_sep(6)
             {
                 (6, CLUSTER_SUBTRACT)
-            } else if crate::memory::cstr_prefix_bytes(rest, 8).eq_ignore_ascii_case(b"contains")
-                && (ascii_iswhite(crate::memory::cstr_byte_at(rest, 8))
-                    || crate::memory::cstr_byte_at(rest, 8) == b'=')
+            } else if rest_bytes.len() >= 8
+                && rest_bytes[..8].eq_ignore_ascii_case(b"contains")
+                && is_sep(8)
             {
                 (8, CLUSTER_REPLACE)
             } else {
@@ -4624,15 +4629,15 @@ fn get_id_list<T>(arg: *mut *mut T, keylen: i32, list: &mut SynIdList, skip: boo
                         failed = true;
                         break;
                     }
-                    id = if crate::memory::cstr_byte_at(name.cast(), 1) == b'A' {
+                    id = if name_buf[1] == b'A' {
                         SYNID_ALLBUT as i32
-                    } else if crate::memory::cstr_byte_at(name.cast(), 1) == b'T' {
+                    } else if name_buf[1] == b'T' {
                         SYNID_TOP as i32
                     } else {
                         SYNID_CONTAINED as i32
                     };
                     id += syn_st().current_syn_inc_tag;
-                } else if crate::memory::cstr_byte_at(name.cast(), 1) == b'@' {
+                } else if name_buf[1] == b'@' {
                     if skip {
                         id = -1;
                     } else {

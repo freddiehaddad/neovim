@@ -3305,9 +3305,9 @@ fn store_aff_word(
                                         use_pfxlen = 0;
                                     }
 
-                                    for i in 0..pfxlen {
-                                        let pi =
-                                            crate::memory::cstr_byte_at(pfxlist.cast(), i as usize);
+                                    for &pi in
+                                        crate::memory::cstr_slice(pfxlist.cast(), pfxlen as usize)
+                                    {
                                         if !store_afflist[..use_pfxlen as usize].contains(&pi)
                                             && !store_afflist_add(
                                                 &mut store_afflist,
@@ -3341,9 +3341,9 @@ fn store_aff_word(
                                         break;
                                     }
 
-                                    let mut i = pfxlen as usize;
-                                    while crate::memory::cstr_byte_at(pfxlist.cast(), i) != 0 {
-                                        let pi = crate::memory::cstr_byte_at(pfxlist.cast(), i);
+                                    for &pi in crate::memory::cstr_as_bytes(
+                                        pfxlist.wrapping_add(pfxlen as usize).cast(),
+                                    ) {
                                         if !store_afflist[use_pfxlen as usize..listlen as usize]
                                             .contains(&pi)
                                             && !store_afflist_add(
@@ -3355,7 +3355,6 @@ fn store_aff_word(
                                             retval = false;
                                             break;
                                         }
-                                        i += 1;
                                     }
                                     if !retval {
                                         break;
@@ -3825,7 +3824,7 @@ fn tree_add_word(
                 }
             }
 
-            let wb = crate::memory::cstr_byte_at(word, i);
+            let wb = crate::memory::cstr_first_byte(word.wrapping_add(i));
             while let Some(node_idx) = node {
                 let n = spin.si_nodes[node_idx];
                 let advance = n.wn_byte < wb
@@ -4967,18 +4966,15 @@ fn mkspell(fnames: &[std::ffi::CString], ascii: bool, over_write: bool, added_wo
 
             if incount > 1 {
                 let in_i = innames[i].as_ptr();
-                let len = innames[i].as_bytes().len();
-                if crate::memory::cstr_len(path_tail(in_i)) < 5
-                    || crate::memory::cstr_byte_at(in_i, len - 3) != b'_'
-                {
+                let in_bytes = innames[i].as_bytes();
+                let len = in_bytes.len();
+                if crate::memory::cstr_len(path_tail(in_i)) < 5 || in_bytes[len - 3] != b'_' {
                     semsg!(gettext(c"E755: Invalid region in %s"), in_i);
                     region_ok = false;
                     break;
                 }
-                spin.si_region_name[i * 2] =
-                    (crate::memory::cstr_byte_at(in_i, len - 2)).to_ascii_lowercase();
-                spin.si_region_name[i * 2 + 1] =
-                    (crate::memory::cstr_byte_at(in_i, len - 1)).to_ascii_lowercase();
+                spin.si_region_name[i * 2] = in_bytes[len - 2].to_ascii_lowercase();
+                spin.si_region_name[i * 2 + 1] = in_bytes[len - 1].to_ascii_lowercase();
             }
         }
 
@@ -5264,9 +5260,7 @@ pub fn spell_add_word(
             if fd.is_null() {
                 semsg!(gettext(E_NOTOPEN), fname.cast::<std::ffi::c_void>());
             } else {
-                let wlen = (0..(len as usize))
-                    .take_while(|&i| crate::memory::cstr_byte_at(word, i) != 0)
-                    .count();
+                let wlen = crate::memory::cstr_prefix_bytes(word, len as usize).len();
                 fwrite(word.cast(), 1, wlen, fd);
                 if what == SPELL_ADD_BAD {
                     fwrite(c"/!\n".as_ptr().cast(), 1, 3, fd);
