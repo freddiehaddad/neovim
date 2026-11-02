@@ -63,6 +63,17 @@ impl Hashtab {
             self.ht_array.as_ptr().cast_mut()
         }
     }
+
+    #[inline]
+    pub fn iter_items(&self) -> impl Iterator<Item = (&Hashitem, &crate::eval::typval::Dictitem)> {
+        self.ht_array.iter().filter_map(|hi| {
+            if hi.hi_di.is_null() {
+                None
+            } else {
+                Some((hi, unsafe { &*hi.hi_di }))
+            }
+        })
+    }
 }
 
 impl Default for Hashtab {

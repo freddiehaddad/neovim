@@ -452,6 +452,11 @@ impl WinInfoInfo {
         unsafe { &mut *self.w_buffer }
     }
 
+    #[inline]
+    pub fn buf_opt(&self) -> Option<&'static FileBuf> {
+        unsafe { self.w_buffer.as_ref() }
+    }
+
     pub const fn new() -> Self {
         const ZERO_POS: CursorPos = CursorPos {
             lnum: 0,

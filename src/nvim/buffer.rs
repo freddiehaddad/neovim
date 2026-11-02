@@ -3437,6 +3437,11 @@ pub fn buflist_findnr(mut nr: i32) -> *mut FileBuf {
         .unwrap_or(ptr::null_mut())
 }
 
+#[inline]
+pub fn buflist_findnr_opt(nr: i32) -> Option<&'static mut FileBuf> {
+    unsafe { buflist_findnr(nr).as_mut() }
+}
+
 pub fn buflist_nr2name(n: i32, fullname: i32, helptail: i32) -> Option<std::ffi::CString> {
     let buf = buflist_findnr(n);
     if buf.is_null() {

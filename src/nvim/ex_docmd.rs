@@ -419,6 +419,15 @@ impl Exarg {
     pub fn cstack_mut(&self) -> &'static mut crate::ex_eval::Cstack {
         unsafe { &mut *self.cstack.cast::<crate::ex_eval::Cstack>() }
     }
+
+    #[inline]
+    pub fn cmdline(&self) -> crate::strings::RawCCharPtr {
+        if self.cmdlinep.is_null() {
+            ptr::null()
+        } else {
+            unsafe { (*self.cmdlinep).cast() }
+        }
+    }
 }
 
 impl Default for Exarg {

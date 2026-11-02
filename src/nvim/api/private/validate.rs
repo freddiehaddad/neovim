@@ -41,6 +41,15 @@ impl NvimString {
     }
 
     #[inline]
+    pub fn as_bytes_with_nul_mut(&mut self) -> &mut [u8] {
+        if self.data.is_null() {
+            &mut []
+        } else {
+            unsafe { std::slice::from_raw_parts_mut(self.data.cast::<u8>(), self.size + 1) }
+        }
+    }
+
+    #[inline]
     pub const fn is_empty(&self) -> bool {
         self.size == 0 || self.data.is_null()
     }
