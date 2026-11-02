@@ -1140,8 +1140,9 @@ pub fn op_yank_reg(oap: &mut Oparg, message: bool, mut reg: *mut Yankreg, append
                     yank_copy_line(&mut *reg, &mut bd, y_idx, oap.excl_tr_ws);
                 }
                 MotionType::MtLineWise => {
+                    let line_slice = crate::memline::ml_get_slice(lnum);
                     (&mut *reg).y_array[y_idx] =
-                        cbuf_to_string(ml_get(lnum), ml_get_len(lnum) as usize);
+                        cbuf_to_string(line_slice.as_ptr().cast(), line_slice.len());
                 }
                 MotionType::MtCharWise => {
                     charwise_block_prep(oap.start, oap.end, &mut bd, lnum, oap.inclusive);
@@ -1582,13 +1583,12 @@ pub fn do_put(regname: i32, mut reg: *mut Yankreg, mut dir: i32, mut count: i32,
                 if (flags & PUT_LINE) != 0 {
                     stuff_readbuff(c"j0");
                 } else {
-                    let cursor_pos = get_cursor_pos_ptr();
-                    let one_past_line = crate::memory::cstr_is_empty(cursor_pos);
+                    let cursor_pos = crate::cursor::get_cursor_pos_slice();
+                    let one_past_line = cursor_pos.is_empty();
                     let mut eol = false;
                     if !one_past_line {
-                        eol = crate::memory::cstr_is_empty(
-                            cursor_pos.wrapping_add(utfc_ptr2len(cursor_pos) as usize),
-                        );
+                        let clen = crate::mbyte::utfc_slice2len(cursor_pos);
+                        eol = cursor_pos[clen..].is_empty();
                     }
 
                     let ve_allows =
@@ -1847,7 +1847,9 @@ pub fn do_put(regname: i32, mut reg: *mut Yankreg, mut dir: i32, mut count: i32,
                             0,
                         );
                     }
-                    curwin_mut().w_cursor.col += utfc_ptr2len(get_cursor_pos_ptr());
+                    curwin_mut().w_cursor.col +=
+                        crate::mbyte::utfc_slice2len(crate::cursor::get_cursor_pos_slice())
+                            as Colnr;
                     col += 1;
                 } else {
                     getvcol(
@@ -2056,7 +2058,9 @@ pub fn do_put(regname: i32, mut reg: *mut Yankreg, mut dir: i32, mut count: i32,
 
                 if y_type == MotionType::MtCharWise {
                     if dir == FORWARD && gchar_cursor() != 0 {
-                        let bytelen = utfc_ptr2len(get_cursor_pos_ptr());
+                        let bytelen =
+                            crate::mbyte::utfc_slice2len(crate::cursor::get_cursor_pos_slice())
+                                as Colnr;
                         col += bytelen;
                         if yanklen != 0 {
                             curwin_mut().w_cursor.col += bytelen;
@@ -2182,35 +2186,26 @@ pub fn do_put(regname: i32, mut reg: *mut Yankreg, mut dir: i32, mut count: i32,
                             let mut i: usize = 0;
                             if y_type == MotionType::MtCharWise {
                                 lnum = new_cursor.lnum;
-                                let ptr_ = ml_get(lnum).wrapping_add(col as usize);
-                                let ptrlen = (ml_get_len(lnum) as usize) - (col as usize);
-                                totlen = (*y_array.wrapping_add(y_size - 1)).size;
-                                let mut append_vec: Vec<u8> = vec![0; ptrlen + totlen + 1];
-                                ptr::copy_nonoverlapping(
-                                    (*y_array.wrapping_add(y_size - 1)).data.cast::<u8>(),
-                                    append_vec.as_mut_ptr(),
-                                    totlen,
+                                let line_slice = crate::memline::ml_get_slice(lnum);
+                                let last_y = (*y_array.wrapping_add(y_size - 1)).as_bytes();
+                                let mut append_vec: Vec<u8> = Vec::with_capacity(
+                                    last_y.len() + line_slice.len() - col as usize + 1,
                                 );
-                                ptr::copy_nonoverlapping(
-                                    ptr_.cast::<u8>(),
-                                    append_vec.as_mut_ptr().wrapping_add(totlen),
-                                    ptrlen + 1,
-                                );
+                                append_vec.extend_from_slice(last_y);
+                                append_vec.extend_from_slice(&line_slice[col as usize..]);
+                                append_vec.push(0);
                                 ml_append(lnum, append_vec.as_mut_ptr().cast(), 0, false);
                                 new_lnum += 1;
                                 drop(append_vec);
 
-                                let oldp = ml_get(lnum);
+                                let old_slice = crate::memline::ml_get_slice(lnum);
+                                let first_y = (*y_array).as_bytes();
                                 let mut newp_vec =
-                                    vec![0u8; (col as usize) + (yanklen as usize) + 1];
-                                let newp = newp_vec.as_mut_ptr();
-                                ptr::copy(oldp.cast::<u8>(), newp, col as usize);
-                                ptr::copy(
-                                    (*y_array).data.cast::<u8>(),
-                                    newp.wrapping_add(col as usize),
-                                    (yanklen as usize) + 1,
-                                );
-                                ml_replace(lnum, newp.cast(), true);
+                                    Vec::with_capacity((col as usize) + (yanklen as usize) + 1);
+                                newp_vec.extend_from_slice(&old_slice[..col as usize]);
+                                newp_vec.extend_from_slice(&first_y[..yanklen as usize]);
+                                newp_vec.push(0);
+                                ml_replace(lnum, newp_vec.as_mut_ptr().cast(), true);
                                 drop(newp_vec);
 
                                 curwin_mut().w_cursor.lnum = lnum;

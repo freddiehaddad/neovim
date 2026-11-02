@@ -12,7 +12,7 @@ use crate::charset::{
 use crate::context::INIT_FMARKV;
 use crate::cursor::{
     Colnr, CursorPos, Linenr, check_cursor_lnum, check_visual_pos, coladvance_force,
-    get_cursor_line_len, get_cursor_line_ptr, get_cursor_pos_ptr, getviscol,
+    get_cursor_line_len, get_cursor_line_ptr, getviscol,
 };
 use crate::diff::{diff_internal, diff_lnum_win, diff_update_line};
 use crate::drawscreen::{
@@ -40,8 +40,8 @@ use crate::mbyte::{
 };
 use crate::mcursor::mc_replaying;
 use crate::memline::{
-    ml_add_deleted_len, ml_append, ml_delete_flags, ml_get, ml_get_buf, ml_get_len,
-    ml_line_alloced, ml_open_file, ml_replace, ml_setflags,
+    ml_add_deleted_len, ml_append, ml_delete_flags, ml_get, ml_get_len, ml_line_alloced,
+    ml_open_file, ml_replace, ml_setflags,
 };
 use crate::message::{
     msg_clr_eos, msg_delay, msg_end, msg_ext_set_kind, msg_puts_hl, msg_source, msg_start, siemsg,
@@ -628,7 +628,7 @@ pub fn file_ff_differs(buf: &mut FileBuf, ignore_empty: bool) -> bool {
     if ignore_empty
         && (buf.b_flags & BF_NEW) != 0
         && buf.b_ml.ml_line_count == 1
-        && crate::memory::cstr_is_empty(ml_get_buf(buf, 1))
+        && crate::memline::ml_get_buf_slice(buf, 1).is_empty()
     {
         return false;
     }
@@ -774,16 +774,15 @@ pub fn ins_str(s: impl crate::strings::IntoCCharPtr, slen: usize) {
         }
 
         let col = curwin_mut().w_cursor.col;
-        let oldp = ml_get(lnum);
-        let oldlen = ml_get_len(lnum);
+        let old_slice = crate::memline::ml_get_slice(lnum);
         let col_usize = col as usize;
-        let old_slice = crate::memory::cstr_slice(oldp, oldlen as usize + 1);
         let s_slice = crate::memory::cstr_slice(s, slen);
 
-        let mut newp_vec = vec![0u8; oldlen as usize + slen + 1];
-        newp_vec[..col_usize].copy_from_slice(&old_slice[..col_usize]);
-        newp_vec[col_usize..col_usize + slen].copy_from_slice(s_slice);
-        newp_vec[col_usize + slen..].copy_from_slice(&old_slice[col_usize..]);
+        let mut newp_vec = Vec::with_capacity(old_slice.len() + slen + 1);
+        newp_vec.extend_from_slice(&old_slice[..col_usize]);
+        newp_vec.extend_from_slice(s_slice);
+        newp_vec.extend_from_slice(&old_slice[col_usize..]);
+        newp_vec.push(0);
 
         ml_replace(lnum, newp_vec.as_mut_ptr().cast(), true);
         drop(newp_vec);
@@ -795,7 +794,7 @@ pub fn ins_str(s: impl crate::strings::IntoCCharPtr, slen: usize) {
 /// Delete one character under the cursor.
 pub fn del_char(fixpos: bool) -> bool {
     mb_adjust_cursor();
-    if crate::memory::cstr_is_empty(get_cursor_pos_ptr()) {
+    if crate::cursor::get_cursor_pos_slice().is_empty() {
         return false;
     }
     del_chars(1, i32::from(fixpos))
@@ -804,12 +803,12 @@ pub fn del_char(fixpos: bool) -> bool {
 /// Like `del_bytes()`, but delete characters instead of bytes.
 pub fn del_chars(count: i32, fixpos: i32) -> bool {
     let mut bytes: Colnr = 0;
-    let mut p = get_cursor_pos_ptr();
+    let mut rem = crate::cursor::get_cursor_pos_slice();
     let mut i: i32 = 0;
-    while i < count && !crate::memory::cstr_is_empty(p) {
-        let l = utfc_ptr2len(p);
-        bytes += l;
-        p = p.wrapping_add(l as usize);
+    while i < count && !rem.is_empty() {
+        let l = crate::mbyte::utfc_slice2len(rem);
+        bytes += l as Colnr;
+        rem = &rem[l..];
         i += 1;
     }
     del_bytes(bytes, fixpos != 0, true)
@@ -938,21 +937,15 @@ pub fn open_line(
         let lnum = curwin_mut().w_cursor.lnum;
         let mincol = curwin_mut().w_cursor.col + 1;
 
-        let mut saved_line_vec = std::slice::from_raw_parts(
-            get_cursor_line_ptr().cast::<u8>(),
-            get_cursor_line_len() as usize + 1,
-        )
-        .to_vec();
+        let mut saved_line_vec = crate::cursor::get_cursor_line_slice().to_vec();
+        saved_line_vec.push(0);
         let saved_line = saved_line_vec.as_mut_ptr();
 
         if (g_st().state_global & VREPLACE_FLAG) != 0 {
             if curwin_mut().w_cursor.lnum < g_st().orig_line_count {
                 let next_lnum = curwin_mut().w_cursor.lnum + 1;
-                next_line_vec = std::slice::from_raw_parts(
-                    ml_get(next_lnum).cast::<u8>(),
-                    ml_get_len(next_lnum) as usize + 1,
-                )
-                .to_vec();
+                next_line_vec = crate::memline::ml_get_slice(next_lnum).to_vec();
+                next_line_vec.push(0);
             } else {
                 next_line_vec = vec![0];
             }

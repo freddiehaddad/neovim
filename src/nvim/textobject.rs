@@ -3,7 +3,7 @@
 use crate::charset::{NUL, ascii_iswhite, skipwhite};
 use crate::cursor::{
     Colnr, CursorPos, Linenr, clearpos, coladvance, dec_cursor, equalpos, gchar_cursor,
-    get_cursor_line_ptr, get_cursor_pos_ptr, inc_cursor, lt, ltoreq,
+    get_cursor_line_ptr, inc_cursor, lt, ltoreq,
 };
 use crate::drawscreen::{UPD_INVERTED, redraw_curbuf_later, showmode};
 use crate::eval::funcs::{MT_CHAR_WISE, MT_LINE_WISE, do_searchpair};
@@ -206,7 +206,7 @@ pub fn findpar(pincl: &mut bool, dir: i32, mut count: i32, what: i32, both: bool
         let mut did_skip = false;
         let mut first = true;
         loop {
-            if !crate::memory::cstr_is_empty(ml_get(curr)) {
+            if !crate::memline::ml_get_slice(curr).is_empty() {
                 did_skip = true;
             }
 
@@ -243,7 +243,7 @@ pub fn findpar(pincl: &mut bool, dir: i32, mut count: i32, what: i32, both: bool
         }
     }
     setpcmark();
-    if both && crate::memory::cstr_first_byte(ml_get(curr)) == b'}' {
+    if both && crate::memline::ml_get_slice(curr).first() == Some(&b'}') {
         curr += 1;
     }
     curwin_mut().w_cursor.lnum = curr;
@@ -286,8 +286,7 @@ fn inmacro(opt: &[u8], s: &[u8]) -> bool {
 
 /// Return true if line `lnum` is the start of a section or paragraph (`startPS`).
 pub fn start_ps(lnum: Linenr, para: i32, both: bool) -> bool {
-    let s = ml_get(lnum);
-    let s_bytes = crate::memory::cstr_as_bytes(s);
+    let s_bytes = crate::memline::ml_get_slice(lnum);
     let first = s_bytes.first().copied().unwrap_or(0);
     if i32::from(first) == para || first == b'\x0c' || (both && first == b'}') {
         return true;
@@ -355,8 +354,7 @@ pub fn fwd_word(mut count: i32, bigword: bool, eol: bool) -> bool {
         }
 
         while cls() == 0 {
-            if curwin_mut().w_cursor.col == 0 && crate::memory::cstr_is_empty(get_cursor_line_ptr())
-            {
+            if curwin_mut().w_cursor.col == 0 && crate::cursor::get_cursor_line_slice().is_empty() {
                 break;
             }
 
@@ -1126,13 +1124,13 @@ pub fn current_tagblock(oap: &mut Oparg, count_arg: i32, include: bool) -> bool 
         }
 
         if in_html_tag(false) {
-            while crate::memory::cstr_first_byte(get_cursor_pos_ptr()) != b'>' {
+            while crate::cursor::get_cursor_pos_slice().first() != Some(&b'>') {
                 if inc_cursor() < 0 {
                     break;
                 }
             }
         } else if in_html_tag(true) {
-            while crate::memory::cstr_first_byte(get_cursor_pos_ptr()) != b'<' {
+            while crate::cursor::get_cursor_pos_slice().first() != Some(&b'<') {
                 if dec_cursor() < 0 {
                     break;
                 }
@@ -1169,12 +1167,11 @@ pub fn current_tagblock(oap: &mut Oparg, count_arg: i32, include: bool) -> bool 
         let mut start_pos = curwin_mut().w_cursor;
 
         inc_cursor();
-        let p = get_cursor_pos_ptr();
-        let p_bytes = crate::memory::cstr_as_bytes(p);
+        let p_bytes = crate::cursor::get_cursor_pos_slice();
         let mut len = 0usize;
         while len < p_bytes.len() && p_bytes[len] != b'>' && !ascii_iswhite(i32::from(p_bytes[len]))
         {
-            len += utfc_ptr2len(p.wrapping_add(len)) as usize;
+            len += crate::mbyte::utfc_slice2len(&p_bytes[len..]);
         }
         if len == 0 {
             curwin_mut().w_cursor = old_pos;
@@ -1212,19 +1209,19 @@ pub fn current_tagblock(oap: &mut Oparg, count_arg: i32, include: bool) -> bool 
         }
 
         if do_include {
-            while crate::memory::cstr_first_byte(get_cursor_pos_ptr()) != b'>' {
+            while crate::cursor::get_cursor_pos_slice().first() != Some(&b'>') {
                 if inc_cursor() < 0 {
                     break;
                 }
             }
         } else {
-            let c = get_cursor_pos_ptr();
-            if crate::memory::cstr_first_byte(c) == b'<'
-                && !g_st().visual_global.active
-                && curwin_mut().w_cursor.col == 0
-            {
+            let c_b = crate::cursor::get_cursor_pos_slice()
+                .first()
+                .copied()
+                .unwrap_or(0);
+            if c_b == b'<' && !g_st().visual_global.active && curwin_mut().w_cursor.col == 0 {
                 is_inclusive = false;
-            } else if crate::memory::cstr_first_byte(c) == b'<' {
+            } else if c_b == b'<' {
                 dec_cursor();
             }
         }
@@ -1234,14 +1231,15 @@ pub fn current_tagblock(oap: &mut Oparg, count_arg: i32, include: bool) -> bool 
             let mut in_quotes = false;
             curwin_mut().w_cursor = start_pos;
             while inc_cursor() >= 0 {
-                let p_cur = get_cursor_pos_ptr();
-                if crate::memory::cstr_first_byte(p_cur) == b'>' && !in_quotes {
+                let cur_b = crate::cursor::get_cursor_pos_slice()
+                    .first()
+                    .copied()
+                    .unwrap_or(0);
+                if cur_b == b'>' && !in_quotes {
                     inc_cursor();
                     start_pos = curwin_mut().w_cursor;
                     break;
-                } else if crate::memory::cstr_first_byte(p_cur) == b'"'
-                    || crate::memory::cstr_first_byte(p_cur) == b'\''
-                {
+                } else if cur_b == b'"' || cur_b == b'\'' {
                     in_quotes = !in_quotes;
                 }
             }
@@ -1508,8 +1506,7 @@ fn find_prev_quote(
 
 /// Find quote under the cursor, cursor at end (`current_quote`).
 pub fn current_quote(oap: &mut Oparg, count: i32, include: bool, quotechar: i32) -> bool {
-    let line = get_cursor_line_ptr();
-    let line_bytes = crate::memory::cstr_as_bytes(line);
+    let line_bytes = crate::cursor::get_cursor_line_slice();
     let byte_at = |idx: i32| -> i32 {
         usize::try_from(idx)
             .ok()

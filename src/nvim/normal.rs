@@ -110,12 +110,12 @@ use crate::math::vim_append_digit_int;
 use crate::mbyte::{
     GraphemeState, mb_adjust_cursor, mb_charlen, mb_check_adjust_col, mb_get_class, mb_prevptr,
     show_utf8, utf_byte2len, utf_char2bytes, utf_char2len, utf_find_illegal, utf_head_off,
-    utf_iscomposing, utf_ptr2cells, utf_ptr2char, utfc_ptr2len,
+    utf_iscomposing, utf_ptr2cells, utfc_ptr2len,
 };
 use crate::mcursor::{
     mc_buf_has_cursors, mc_counter, mc_follow_set, mc_replaying, mc_showcmd, mc_toggle, mc_zq_start,
 };
-use crate::memline::{goto_byte, inc, ml_delete_flags, ml_get, ml_get_buf, ml_get_len, ml_get_pos};
+use crate::memline::{goto_byte, inc, ml_delete_flags, ml_get_buf, ml_get_len, ml_get_pos};
 use crate::memory::xstrlcpy;
 use crate::message::{
     NIL_OBJ, emsg, may_clear_sb_text, messaging, msg, msg_delay, msg_ext_set_trigger,
@@ -443,7 +443,7 @@ fn norm_st() -> &'static mut NormalModuleState {
 
 #[inline]
 pub fn lineempty(lnum: Linenr) -> bool {
-    crate::memory::cstr_is_empty(ml_get(lnum))
+    crate::memline::ml_get_slice(lnum).is_empty()
 }
 
 use crate::buffer::{bt_cmdwin, bt_prompt, bt_quickfix};
@@ -3328,7 +3328,8 @@ pub fn find_decl(
         } else {
             par_pos = curwin_mut().w_cursor;
             while curwin_mut().w_cursor.lnum > 1
-                && !crate::memory::cstr_is_empty(skipwhite(get_cursor_line_ptr()))
+                && !crate::charset::skipwhite_slice(crate::cursor::get_cursor_line_slice())
+                    .is_empty()
             {
                 curwin_mut().w_cursor.lnum -= 1;
             }
@@ -3535,7 +3536,7 @@ pub fn nv_screengo(oap: &mut Oparg, dir: i32, mut dist: i32, skip_conceal: bool)
             virtcol -= vim_strsize(get_showbreak_value(curwin_mut()));
         }
 
-        let c = utf_ptr2char(get_cursor_pos_ptr());
+        let c = crate::mbyte::utf_slice2char(crate::cursor::get_cursor_pos_slice());
         if dir == FORWARD && virtcol < want && want <= width1 && !vim_isprintc(c) && c > 255 {
             oneright();
         }
@@ -4666,7 +4667,7 @@ fn nv_right(cap: &mut Cmdarg) {
     let mut n = cap.count1;
     while n > 0 {
         if (!past_line && !oneright())
-            || (past_line && crate::memory::cstr_is_empty(get_cursor_pos_ptr()))
+            || (past_line && crate::cursor::get_cursor_pos_slice().is_empty())
         {
             if ((cap.cmdchar == b' ' as i32
                 && crate::strings::vim_haschr(opt_vars().p_ww, b's' as i32))
@@ -4704,7 +4705,8 @@ fn nv_right(cap: &mut Cmdarg) {
             if virtual_active(curwin_mut()) {
                 oneright();
             } else {
-                curwin_mut().w_cursor.col += utfc_ptr2len(get_cursor_pos_ptr());
+                curwin_mut().w_cursor.col +=
+                    crate::mbyte::utfc_slice2len(crate::cursor::get_cursor_pos_slice()) as Colnr;
             }
         }
         n -= 1;
@@ -4747,9 +4749,9 @@ fn nv_left(cap: &mut Cmdarg) {
                 if (cap.oap_mut().op_type == OP_DELETE || cap.oap_mut().op_type == OP_CHANGE)
                     && !lineempty(curwin_mut().w_cursor.lnum)
                 {
-                    let cp = get_cursor_pos_ptr();
-                    if !crate::memory::cstr_is_empty(cp) {
-                        curwin_mut().w_cursor.col += utfc_ptr2len(cp);
+                    let cp = crate::cursor::get_cursor_pos_slice();
+                    if !cp.is_empty() {
+                        curwin_mut().w_cursor.col += crate::mbyte::utfc_slice2len(cp) as Colnr;
                     }
                     cap.retval |= CA_NO_ADJ_OP_END;
                 }
@@ -6323,9 +6325,7 @@ fn nv_g_underscore_cmd(cap: &mut Cmdarg) {
         return;
     }
 
-    let ptr = get_cursor_line_ptr();
-
-    let ptr_bytes = crate::memory::cstr_as_bytes(ptr);
+    let ptr_bytes = crate::cursor::get_cursor_line_slice();
     if curwin_mut().w_cursor.col > 0 && (curwin_mut().w_cursor.col as usize) >= ptr_bytes.len() {
         curwin_mut().w_cursor.col -= 1;
     }
@@ -7090,7 +7090,7 @@ pub fn set_cursor_for_append_to_line() {
         coladvance(curwin_mut(), MAXCOL);
         g_st().state_global = save_state;
     } else {
-        curwin_mut().w_cursor.col += crate::memory::cstr_len(get_cursor_pos_ptr()) as Colnr;
+        curwin_mut().w_cursor.col += crate::cursor::get_cursor_pos_slice().len() as Colnr;
     }
 }
 
@@ -7119,11 +7119,12 @@ fn nv_edit(cap: &mut Cmdarg) {
             c if c == b'a' as i32 => {
                 if virtual_active(curwin_mut())
                     && (curwin_mut().w_cursor.coladd > 0
-                        || crate::memory::cstr_is_empty(get_cursor_pos_ptr())
-                        || crate::memory::cstr_first_byte(get_cursor_pos_ptr()) == b'\t')
+                        || crate::cursor::get_cursor_pos_slice()
+                            .first()
+                            .is_none_or(|&b| b == b'\t'))
                 {
                     curwin_mut().w_cursor.coladd += 1;
-                } else if !crate::memory::cstr_is_empty(get_cursor_pos_ptr()) {
+                } else if !crate::cursor::get_cursor_pos_slice().is_empty() {
                     inc_cursor();
                 }
             }
@@ -7482,7 +7483,7 @@ fn nv_put_opt(cap: &mut Cmdarg, fix_indent: bool) {
         }
     }
 
-    if empty && crate::memory::cstr_is_empty(ml_get(curbuf_mut().b_ml.ml_line_count)) {
+    if empty && crate::memline::ml_get_slice(curbuf_mut().b_ml.ml_line_count).is_empty() {
         ml_delete_flags(curbuf_mut().b_ml.ml_line_count, ML_DEL_MESSAGE);
         deleted_lines(curbuf_mut().b_ml.ml_line_count + 1, 1);
 

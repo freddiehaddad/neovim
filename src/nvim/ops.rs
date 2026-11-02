@@ -16,8 +16,8 @@ use crate::clipboard::set_clipboard;
 use crate::cursor::{
     Colnr, CursorPos, K_OPT_VE_FLAG_ALL, Linenr, VALID_VIRTCOL, check_cursor, check_cursor_col,
     check_pos, coladvance, coladvance_force, dec_cursor, equalpos, gchar_cursor,
-    get_cursor_line_len, get_cursor_line_ptr, get_cursor_pos_ptr, getviscol, getviscol2, getvpos,
-    inc_cursor, lt, ltoreq,
+    get_cursor_line_len, get_cursor_line_ptr, getviscol, getviscol2, getvpos, inc_cursor, lt,
+    ltoreq,
 };
 use crate::drawscreen::{UPD_INVERTED, redraw_curbuf_later, update_screen};
 use crate::errors::*;
@@ -54,12 +54,12 @@ use crate::math::trim_to_int;
 use crate::mbyte::{
     bomb_size, mb_islower, mb_isupper, mb_prevptr, mb_tolower, mb_toupper, utf_char2cells,
     utf_char2len, utf_char2slice, utf_cluster_info, utf_eat_space, utf_head_off,
-    utf_ptr2_str_char_info, utf_ptr2char, utf_ptr2len, utfc_ptr2len,
+    utf_ptr2_str_char_info, utf_ptr2char, utfc_ptr2len,
 };
 use crate::mcursor::mc_zq;
 use crate::memline::{
     dec, decl, gchar_pos, inc, ml_append, ml_get, ml_get_buf_len, ml_get_buf_mut, ml_get_len,
-    ml_get_pos, ml_get_pos_len, ml_replace, ml_replace_len,
+    ml_get_pos_len, ml_replace, ml_replace_len,
 };
 use crate::message::{emsg, internal_error, msg, msg_keep, msg_start, msgmore, smsg};
 use crate::mouse::setmouse;
@@ -283,7 +283,12 @@ pub fn op_shift(oap: &mut Oparg, curs_top: bool, amount: i32) {
 
     let mut i = oap.line_count - 1;
     while i >= 0 {
-        let first_char = i32::from(crate::memory::cstr_first_byte(get_cursor_line_ptr()));
+        let first_char = i32::from(
+            crate::cursor::get_cursor_line_slice()
+                .first()
+                .copied()
+                .unwrap_or(0),
+        );
         if first_char == 0 {
             curwin_mut().w_cursor.col = 0;
         } else if oap.motion_type == MT_BLOCK_WISE {
@@ -842,7 +847,7 @@ pub fn op_delete(oap: &mut Oparg) -> bool {
     if oap.motion_type != MT_LINE_WISE
         && oap.line_count == 1
         && oap.op_type == OP_DELETE
-        && crate::memory::cstr_is_empty(ml_get(oap.start.lnum))
+        && crate::memline::ml_get_slice(oap.start.lnum).is_empty()
     {
         if g_st().virtual_op != 0 {
             only_setmarks = true;
@@ -906,15 +911,12 @@ pub fn op_delete(oap: &mut Oparg) -> bool {
                     curwin_mut().w_cursor.coladd = 0;
                 }
 
-                let n = bd.textlen - bd.startspaces - bd.endspaces;
-                let oldp = ml_get(lnum);
+                let old_slice = crate::memline::ml_get_slice(lnum);
                 let textcol = bd.textcol as usize;
                 let pad_len = (bd.startspaces + bd.endspaces) as usize;
-                let tail = crate::memory::cstr_as_bytes(
-                    oldp.wrapping_add((bd.textcol + bd.textlen) as usize),
-                );
-                let mut newp_vec = vec![0u8; ((ml_get_len(lnum) - n) as usize) + 1];
-                newp_vec[..textcol].copy_from_slice(crate::memory::cstr_slice(oldp, textcol));
+                let tail = &old_slice[((bd.textcol + bd.textlen) as usize).min(old_slice.len())..];
+                let mut newp_vec = vec![0u8; textcol + pad_len + tail.len() + 1];
+                newp_vec[..textcol].copy_from_slice(&old_slice[..textcol]);
                 newp_vec[textcol..textcol + pad_len].fill(b' ');
                 newp_vec[textcol + pad_len..textcol + pad_len + tail.len()].copy_from_slice(tail);
                 ml_replace(lnum, newp_vec.as_mut_ptr().cast(), true);
@@ -1312,7 +1314,8 @@ fn op_replace(oap: &mut Oparg, mut c: i32) -> bool {
             n = gchar_cursor();
             if n != i32::from(NUL) {
                 let new_byte_len = utf_char2len(c);
-                let old_byte_len = utfc_ptr2len(get_cursor_pos_ptr());
+                let old_byte_len =
+                    crate::mbyte::utfc_slice2len(crate::cursor::get_cursor_pos_slice()) as i32;
 
                 if new_byte_len > 1 || old_byte_len > 1 {
                     if curwin_mut().w_cursor.lnum == oap.end.lnum {
@@ -1475,7 +1478,7 @@ fn swapchars(op_type: i32, pos: &mut CursorPos, length: i32) -> i32 {
     let mut did_change: i32 = 0;
     let mut todo = length;
     while todo > 0 {
-        let len = utfc_ptr2len(ml_get_pos(pos));
+        let len = crate::mbyte::utfc_slice2len(crate::memline::ml_get_pos_slice(pos)) as i32;
 
         if len > 0 {
             todo -= len - 1;
@@ -1515,7 +1518,11 @@ pub fn swapchar(op_type: i32, pos: &mut CursorPos) -> bool {
             let sp = curwin_mut().w_cursor;
 
             curwin_mut().w_cursor = *pos;
-            del_bytes(utf_ptr2len(get_cursor_pos_ptr()), false, false);
+            del_bytes(
+                crate::mbyte::utf_slice2len(crate::cursor::get_cursor_pos_slice()) as Colnr,
+                false,
+                false,
+            );
             ins_char(nc);
             curwin_mut().w_cursor = sp;
         } else {
@@ -1569,7 +1576,7 @@ pub fn op_insert(oap: &mut Oparg, count1: i32) {
     if oap.op_type == OP_APPEND {
         if oap.motion_type == MT_BLOCK_WISE && curwin_mut().w_cursor.coladd == 0 {
             curwin_mut().w_set_curswant = true;
-            while !crate::memory::cstr_is_empty(get_cursor_pos_ptr())
+            while !crate::cursor::get_cursor_pos_slice().is_empty()
                 && curwin_mut().w_cursor.col < bd.textcol + bd.textlen
             {
                 curwin_mut().w_cursor.col += 1;
@@ -1781,14 +1788,13 @@ pub fn op_change(oap: &mut Oparg) -> i32 {
                     } else {
                         vpos.coladd = 0;
                     }
-                    let oldp = ml_get(linenr);
-                    let textcol = bd.textcol as usize;
+                    let old_slice = crate::memline::ml_get_slice(linenr);
+                    let textcol = (bd.textcol as usize).min(old_slice.len());
                     let coladd = vpos.coladd as usize;
                     let ins_usize = ins_len as usize;
-                    let tail = crate::memory::cstr_as_bytes(oldp.wrapping_add(textcol));
-                    let mut newp_vec =
-                        vec![0u8; (ml_get_len(linenr) as usize) + coladd + ins_usize + 1];
-                    newp_vec[..textcol].copy_from_slice(crate::memory::cstr_slice(oldp, textcol));
+                    let tail = &old_slice[textcol..];
+                    let mut newp_vec = vec![0u8; old_slice.len() + coladd + ins_usize + 1];
+                    newp_vec[..textcol].copy_from_slice(&old_slice[..textcol]);
                     let mut newlen = textcol;
                     newp_vec[newlen..newlen + coladd].fill(b' ');
                     newlen += coladd;
@@ -2281,7 +2287,7 @@ pub fn getregionpos_prep(
         if exclusive && !equalpos(*p1, *p2) {
             *inclusive = !unadjust_for_sel_inner(p2);
         }
-        if *inclusive && g_st().virtual_op == 0 && crate::memory::cstr_is_empty(ml_get_pos(p2)) {
+        if *inclusive && g_st().virtual_op == 0 && crate::memline::ml_get_pos_slice(p2).is_empty() {
             *inclusive = false;
         }
     } else if region_type == MT_BLOCK_WISE {
@@ -2308,7 +2314,7 @@ pub fn getregionpos_prep(
         }
     }
 
-    let l = utfc_ptr2len(ml_get_pos(p2));
+    let l = crate::mbyte::utfc_slice2len(crate::memline::ml_get_pos_slice(p2)) as Colnr;
     if l > 1 {
         p2.col += l - 1;
     }
@@ -3705,7 +3711,7 @@ pub fn do_pending_operator(cap: &mut Cmdarg, old_col: i32, gui_yank: bool) {
                 oap.motion_type = MT_LINE_WISE;
             } else if g_st().visual_global.mode == b'v' as i32 {
                 oap.motion_type = MT_CHAR_WISE;
-                if crate::memory::cstr_is_empty(ml_get_pos(&oap.end))
+                if crate::memline::ml_get_pos_slice(&oap.end).is_empty()
                     && (include_line_break || g_st().virtual_op == 0)
                 {
                     oap.inclusive = false;
@@ -3741,7 +3747,8 @@ pub fn do_pending_operator(cap: &mut Cmdarg, old_col: i32, gui_yank: bool) {
         }
 
         if oap.inclusive {
-            let l = utfc_ptr2len(ml_get_pos(&oap.end));
+            let l =
+                crate::mbyte::utfc_slice2len(crate::memline::ml_get_pos_slice(&oap.end)) as Colnr;
             if l > 1 {
                 oap.end.col += l - 1;
             }
