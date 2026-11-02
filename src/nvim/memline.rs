@@ -1967,18 +1967,12 @@ pub fn ml_sync_all(check_file: i32, check_char: i32, do_fsync: bool) {
 pub fn ml_preserve(buf: &mut FileBuf, message: bool, do_fsync: bool) {
     let got_int_save = g_st().got_int;
 
-    let Some(mfp) = buf.b_ml.mfp_opt() else {
+    let Some(mfp) = buf.b_ml.mfp_opt().filter(|m| m.mf_fname.is_some()) else {
         if message {
             emsg(tr(c"E313: Cannot preserve, there is no swap file"));
         }
         return;
     };
-    if mfp.mf_fname.is_none() {
-        if message {
-            emsg(tr(c"E313: Cannot preserve, there is no swap file"));
-        }
-        return;
-    }
 
     g_st().got_int = false;
 

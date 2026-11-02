@@ -339,12 +339,10 @@ pub fn win_config_float(wp: &mut WinInfoInfo, mut fconfig: WinConfig) {
 
 pub fn win_float_remove(bang: bool, mut count: i32) {
     let mut float_win_arr: Vec<*mut WinInfoInfo> = Vec::new();
-    let mut wp = g_st().lastwin;
-    while !wp.is_null() && unsafe { (*wp).w_floating } {
-        if !unsafe { (*wp).w_config.hide } && unsafe { (*wp).w_onebuf_opt.wo_wp } == 0 {
+    for wp in for_all_windows_rev_ptr().take_while(|wp| wp.w_floating) {
+        if !wp.w_config.hide && wp.w_onebuf_opt.wo_wp == 0 {
             float_win_arr.push(wp);
         }
-        wp = unsafe { (*wp).w_prev };
     }
     if !float_win_arr.is_empty() {
         float_win_arr.sort_unstable_by_key(|&w| std::cmp::Reverse(unsafe { (*w).w_config.zindex }));
@@ -363,30 +361,21 @@ pub fn win_float_remove(bang: bool, mut count: i32) {
 }
 
 pub fn win_check_anchored_floats(win: &mut WinInfoInfo) {
-    unsafe {
-        let mut wp = g_st().lastwin;
-        while !wp.is_null() && (*wp).w_floating {
-            if (*wp).w_config.relative == K_FLOAT_RELATIVE_WINDOW
-                && (*wp).w_config.window == win.handle
-            {
-                (*wp).w_pos_changed = true;
-            }
-            wp = (*wp).w_prev;
+    for wp in for_all_windows_rev_ptr().take_while(|wp| wp.w_floating) {
+        if wp.w_config.relative == K_FLOAT_RELATIVE_WINDOW && wp.w_config.window == win.handle {
+            wp.w_pos_changed = true;
         }
     }
 }
 
 pub fn win_float_update_statusline() {
-    unsafe {
-        let mut wp = g_st().lastwin;
-        while !wp.is_null() && (*wp).w_floating {
-            let has_status = (*wp).w_status_height > 0;
-            let should_show = !crate::memory::cstr_is_empty((*wp).w_onebuf_opt.wo_stl)
-                && (opt_vars().p_ls == 1 || opt_vars().p_ls == 2);
-            if should_show != has_status {
-                win_config_float(&mut *wp, (*wp).w_config.clone());
-            }
-            wp = (*wp).w_prev;
+    for wp in for_all_windows_rev_ptr().take_while(|wp| wp.w_floating) {
+        let has_status = wp.w_status_height > 0;
+        let should_show = !crate::memory::cstr_is_empty(wp.w_onebuf_opt.wo_stl)
+            && (opt_vars().p_ls == 1 || opt_vars().p_ls == 2);
+        if should_show != has_status {
+            let cfg = wp.w_config.clone();
+            win_config_float(wp, cfg);
         }
     }
 }
@@ -400,37 +389,30 @@ pub fn win_float_anchor_laststatus() {
 }
 
 pub fn win_reconfig_floats() {
-    unsafe {
-        let mut wp = g_st().lastwin;
-        while !wp.is_null() && (*wp).w_floating {
-            win_config_float(&mut *wp, (*wp).w_config.clone());
-            wp = (*wp).w_prev;
-        }
+    for wp in for_all_windows_rev_ptr().take_while(|wp| wp.w_floating) {
+        let cfg = wp.w_config.clone();
+        win_config_float(wp, cfg);
     }
 }
 
 /// Find the floating window of the given kind in the current tabpage (`win_float_find`).
 pub fn win_float_find(kind: WinKind) -> *mut WinInfoInfo {
-    unsafe {
-        let mut wp = g_st().lastwin;
-        while !wp.is_null() && (*wp).w_floating {
-            if (*wp).w_kind == kind {
-                return wp;
-            }
-            wp = (*wp).w_prev;
+    for wp in for_all_windows_rev_ptr().take_while(|wp| wp.w_floating) {
+        if wp.w_kind == kind {
+            return wp;
         }
-        ptr::null_mut()
     }
+    ptr::null_mut()
 }
 
 /// Select an alternative window to `win` (assumed floating) in tabpage `tp` (`win_float_find_altwin`).
 pub fn win_float_find_altwin(win: &WinInfoInfo, tp: Option<&TabPageInfo>) -> *mut WinInfoInfo {
-    let mut wp = g_st().prevwin;
     let Some(tp) = tp else {
-        return if win_valid(wp)
+        return if win_valid(g_st().prevwin)
+            && let Some(wp) = prevwin_opt()
             && !ptr::eq(wp, win)
-            && unsafe { (*wp).w_config.focusable }
-            && !unsafe { (*wp).w_config.hide }
+            && wp.w_config.focusable
+            && !wp.w_config.hide
         {
             wp
         } else {
@@ -439,12 +421,16 @@ pub fn win_float_find_altwin(win: &WinInfoInfo, tp: Option<&TabPageInfo>) -> *mu
     };
 
     debug_assert!(!ptr::eq(tp, g_st().curtab));
-    wp = if tabpage_win_valid(tp, tp.tp_prevwin) {
+    let wp = if tabpage_win_valid(tp, tp.tp_prevwin) {
         tp.tp_prevwin
     } else {
         tp.tp_firstwin
     };
-    if !ptr::eq(wp, win) && unsafe { (*wp).w_config.focusable } && !unsafe { (*wp).w_config.hide } {
+    if let Some(wp_ref) = unsafe { wp.as_ref() }
+        && !ptr::eq(wp, win)
+        && wp_ref.w_config.focusable
+        && !wp_ref.w_config.hide
+    {
         wp
     } else {
         tp.tp_firstwin
