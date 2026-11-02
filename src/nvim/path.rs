@@ -509,7 +509,7 @@ fn do_concat_fnames(
 pub fn concat_fnames(fname1: NvimString, fname2: NvimString, sep: bool) -> std::ffi::CString {
     let mut buf = vec![0u8; fname1.size + usize::from(sep) + fname2.size + 1];
     if fname1.size > 0 {
-        unsafe { ptr::copy(fname1.data.cast::<u8>(), buf.as_mut_ptr(), fname1.size) };
+        buf[..fname1.size].copy_from_slice(fname1.as_bytes());
     }
     buf[fname1.size] = 0;
     let mut size: usize = 0;
@@ -536,19 +536,12 @@ pub fn concat_fnames_cstr(
     let fname1 = fname1.into_c_char_ptr();
     let fname2 = fname2.into_c_char_ptr();
     {
-        let len1 = if fname1.is_null() {
-            0
-        } else {
-            crate::memory::cstr_len(fname1)
-        };
-        let len2 = if fname2.is_null() {
-            0
-        } else {
-            crate::memory::cstr_len(fname2)
-        };
+        let s1 = crate::memory::cstr_as_bytes(fname1);
+        let len1 = s1.len();
+        let len2 = crate::memory::cstr_len(fname2);
         let mut buf = vec![0u8; len1 + len2 + 3];
         if len1 > 0 {
-            unsafe { ptr::copy_nonoverlapping(fname1.cast::<u8>(), buf.as_mut_ptr(), len1) };
+            buf[..len1].copy_from_slice(s1);
         }
         let mut len: usize = 0;
         do_concat_fnames(
@@ -1013,22 +1006,24 @@ fn get_path_cutoff(
 ) -> RawCCharPtrMut {
     let fname = fname.into_c_char_ptr().cast_mut();
     {
+        let fname_bytes = crate::memory::cstr_as_bytes(fname);
         let mut maxlen: i32 = 0;
         let mut cutoff: RawCCharPtrMut = ptr::null_mut();
 
         for item in gap {
-            let part = item.as_ptr();
+            let part_bytes = item.as_bytes();
             let mut j: usize = 0;
 
-            while {
-                let fc = unsafe { *fname.wrapping_add(j) };
-                let pc = unsafe { *part.wrapping_add(j) };
+            while j < fname_bytes.len() && j < part_bytes.len() {
+                let fc = fname_bytes[j];
+                let pc = part_bytes[j];
                 #[cfg(windows)]
                 let eq = fc == pc || (vim_ispathsep(fc as i32) && vim_ispathsep(pc as i32));
                 #[cfg(not(windows))]
                 let eq = fc == pc;
-                eq && fc != NUL && pc != NUL
-            } {
+                if !eq {
+                    break;
+                }
                 j += 1;
             }
             if (j as i32) > maxlen {
@@ -1513,8 +1508,7 @@ fn expand_backtick(
         let mut cnt: i32 = 0;
         let pat_len = crate::memory::cstr_len(pat);
         let mut cmd_vec: Vec<u8> =
-            unsafe { std::slice::from_raw_parts(pat.wrapping_add(1).cast::<u8>(), pat_len - 2) }
-                .to_vec();
+            crate::memory::cstr_slice(pat.wrapping_add(1), pat_len - 2).to_vec();
         cmd_vec.push(0);
 
         let cmd_out: Option<std::ffi::CString> = if cmd_vec[0] == b'=' {
@@ -1674,9 +1668,10 @@ pub fn addfile(gap: &mut Vec<std::ffi::CString>, f: impl crate::strings::IntoCCh
             return;
         }
 
-        let flen = crate::memory::cstr_len(f);
+        let f_bytes = crate::memory::cstr_as_bytes_with_nul(f);
+        let flen = f_bytes.len() - 1;
         let mut buf = vec![0u8; flen + 1 + usize::from(isdir)];
-        unsafe { ptr::copy_nonoverlapping(f.cast::<u8>(), buf.as_mut_ptr(), flen + 1) };
+        buf[..flen + 1].copy_from_slice(f_bytes);
         to_slash(buf.as_mut_ptr());
         if isdir && (flags & EW_ADDSLASH) != 0 {
             add_pathsep(buf.as_mut_ptr());

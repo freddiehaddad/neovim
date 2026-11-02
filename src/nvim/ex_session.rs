@@ -14,7 +14,6 @@ use crate::file_search::vim_chdirfile;
 use crate::fileio::{FILE, fclose, fputc, fputs, fwrite, shorten_fnames};
 use crate::fold::put_folds;
 use crate::globals::*;
-use crate::hashtab::hashitem_empty;
 use crate::mapping::makemap;
 use crate::mbyte::utfc_ptr2len;
 use crate::message::{emsg, semsg};
@@ -154,12 +153,9 @@ fn ses_win_rec(fd: *mut FILE, fr: &mut Frame) -> bool {
     }
 
     let mut frc = ses_skipframe(fr.fr_child);
-    if !frc.is_null() {
-        loop {
-            frc = ses_skipframe(unsafe { (*frc).fr_next });
-            if frc.is_null() {
-                break;
-            }
+    if let Some(first_frc) = frc {
+        frc = ses_skipframe(first_frc.fr_next);
+        while let Some(cur_frc) = frc {
             let split_cmd = if fr.fr_layout == FR_COL {
                 b"wincmd _ | wincmd |\nsplit\n" as &[u8]
             } else {
@@ -169,6 +165,7 @@ fn ses_win_rec(fd: *mut FILE, fr: &mut Frame) -> bool {
                 return false;
             }
             count += 1;
+            frc = ses_skipframe(cur_frc.fr_next);
         }
     }
 
@@ -184,10 +181,11 @@ fn ses_win_rec(fd: *mut FILE, fr: &mut Frame) -> bool {
     }
 
     frc = ses_skipframe(fr.fr_child);
-    while !frc.is_null() {
-        ses_win_rec(fd, unsafe { &mut *frc });
-        frc = ses_skipframe(unsafe { (*frc).fr_next });
-        if !frc.is_null() && !put_line(fd, c"wincmd w") {
+    while let Some(cur_frc) = frc {
+        let next_raw = cur_frc.fr_next;
+        ses_win_rec(fd, cur_frc);
+        frc = ses_skipframe(next_raw);
+        if frc.is_some() && !put_line(fd, c"wincmd w") {
             return false;
         }
     }
@@ -195,20 +193,13 @@ fn ses_win_rec(fd: *mut FILE, fr: &mut Frame) -> bool {
     true
 }
 
-fn ses_skipframe(fr: *mut Frame) -> *mut Frame {
-    let mut frc = fr;
-    while !frc.is_null() {
-        if ses_do_frame(unsafe { &*frc }) {
-            break;
-        }
-        frc = unsafe { (*frc).fr_next };
-    }
-    frc
+fn ses_skipframe(fr: *mut Frame) -> Option<&'static mut Frame> {
+    frame_iter_mut(fr).find(|frc| ses_do_frame(frc))
 }
 
 fn ses_do_frame(fr: &Frame) -> bool {
     if fr.fr_layout == FR_LEAF {
-        return ses_do_win(unsafe { &mut *fr.fr_win }) != 0;
+        return ses_do_win(fr.win_mut()) != 0;
     }
     for frc in frame_iter_mut(fr.fr_child) {
         if ses_do_frame(frc) {
@@ -219,22 +210,20 @@ fn ses_do_frame(fr: &Frame) -> bool {
 }
 
 fn ses_do_win(wp: &mut WinInfoInfo) -> i32 {
-    unsafe {
-        if wp.w_floating {
-            return 0;
-        }
-        let buf = wp.w_buffer;
-        if (*buf).b_fname.is_null() || ((*buf).terminal.is_null() && bt_nofilename(buf.as_ref())) {
-            return (opt_vars().ssop_flags & K_OPT_SSOP_FLAG_BLANK) as i32;
-        }
-        if bt_help(buf.as_ref()) {
-            return (opt_vars().ssop_flags & K_OPT_SSOP_FLAG_HELP) as i32;
-        }
-        if bt_terminal(buf.as_ref()) {
-            return (opt_vars().ssop_flags & K_OPT_SSOP_FLAG_TERMINAL) as i32;
-        }
-        1
+    if wp.w_floating {
+        return 0;
     }
+    let buf = wp.buf_mut();
+    if buf.b_fname.is_null() || (buf.terminal.is_null() && bt_nofilename(Some(buf))) {
+        return (opt_vars().ssop_flags & K_OPT_SSOP_FLAG_BLANK) as i32;
+    }
+    if bt_help(Some(buf)) {
+        return (opt_vars().ssop_flags & K_OPT_SSOP_FLAG_HELP) as i32;
+    }
+    if bt_terminal(Some(buf)) {
+        return (opt_vars().ssop_flags & K_OPT_SSOP_FLAG_TERMINAL) as i32;
+    }
+    1
 }
 
 fn ses_arglist(
@@ -362,7 +351,7 @@ fn put_view(
         let fname_esc = ses_escape_fname(
             ses_get_fname((*wp).buf_mut(), flagp).map_or(ptr::null(), CStr::as_ptr),
         );
-        if bt_help(unsafe { (wp.w_buffer).as_ref() }) {
+        if bt_help(wp.buf_opt()) {
             let mut curtag: &CStr = c"";
             if 0 < wp.w_tagstackidx && wp.w_tagstackidx <= wp.w_tagstacklen {
                 curtag = wp.w_tagstack[(wp.w_tagstackidx - 1) as usize]
@@ -378,8 +367,7 @@ fn put_view(
                 return false;
             }
         } else if !(*wp).buf_mut().b_ffname.is_null()
-            && (!bt_nofilename(unsafe { (wp.w_buffer).as_ref() })
-                || !(*wp).buf_mut().terminal.is_null())
+            && (!bt_nofilename(wp.buf_opt()) || !(*wp).buf_mut().terminal.is_null())
         {
             let fesc = cstr_to_str(fname_esc.as_ptr());
             if !write_fmt(
@@ -403,18 +391,15 @@ fn put_view(
         }
     }
 
-    if wp.w_alt_fnum != 0 {
-        let alt = buflist_findnr(wp.w_alt_fnum);
-        if ptr::eq(flagp, &raw mut opt_vars().ssop_flags)
-            && !alt.is_null()
-            && !crate::memory::cstr_is_empty(unsafe { (*alt).b_fname })
-            && unsafe { (*alt).b_p_bl } != 0
-            && !(bt_terminal(unsafe { alt.as_ref() })
-                && (opt_vars().ssop_flags & K_OPT_SSOP_FLAG_TERMINAL) == 0)
-            && (fputs(c"balt ", fd) < 0 || !ses_fname(fd, unsafe { &mut *alt }, &mut *flagp, true))
-        {
-            return false;
-        }
+    if wp.w_alt_fnum != 0
+        && let Some(alt) = unsafe { buflist_findnr(wp.w_alt_fnum).as_mut() }
+        && ptr::eq(flagp, &raw mut opt_vars().ssop_flags)
+        && !crate::memory::cstr_is_empty(alt.b_fname)
+        && alt.b_p_bl != 0
+        && !(bt_terminal(Some(alt)) && (opt_vars().ssop_flags & K_OPT_SSOP_FLAG_TERMINAL) == 0)
+        && (fputs(c"balt ", fd) < 0 || !ses_fname(fd, alt, &mut *flagp, true))
+    {
+        return false;
     }
 
     if (*flagp & (K_OPT_SSOP_FLAG_OPTIONS | K_OPT_SSOP_FLAG_LOCALOPTIONS)) != 0
@@ -448,8 +433,7 @@ fn put_view(
 
     if (*flagp & K_OPT_SSOP_FLAG_FOLDS) != 0
         && !(*wp).buf_mut().b_ffname.is_null()
-        && (bt_normal(unsafe { (wp.w_buffer).as_ref() })
-            || bt_help(unsafe { (wp.w_buffer).as_ref() }))
+        && (bt_normal(wp.buf_opt()) || bt_help(wp.buf_opt()))
         && !put_folds(fd, &mut *wp)
     {
         return false;
@@ -523,65 +507,57 @@ fn put_view(
 
 fn store_session_globals(fd: *mut FILE) -> bool {
     let d = get_globvar_dict();
-    let ht = &mut d.dv_hashtab;
-    let mut todo = ht.ht_used;
-    let mut hi = (ht).array_ptr();
-    while todo > 0 {
-        if !hashitem_empty(unsafe { &*hi }) {
-            todo -= 1;
-            let this_var = crate::eval::typval::tv_dict_hi2di(hi);
-            if (this_var.di_tv.v_type == VarType::VarNumber
-                || this_var.di_tv.v_type == VarType::VarString)
-                && var_flavour(&this_var.di_key) == VAR_FLAVOUR_SESSION
-            {
-                let p = vim_strsave_escaped(tv_get_string(&this_var.di_tv), c"\\\"\n\r");
-                let mut p_vec: Vec<u8> = p.into_bytes_with_nul();
-                for b in &mut p_vec {
-                    if *b == 0 {
-                        break;
-                    }
-                    if *b == b'\n' {
-                        *b = b'n';
-                    } else if *b == b'\r' {
-                        *b = b'r';
-                    }
+    for (_, this_var) in d.dv_hashtab.iter_items() {
+        if (this_var.di_tv.v_type == VarType::VarNumber
+            || this_var.di_tv.v_type == VarType::VarString)
+            && var_flavour(&this_var.di_key) == VAR_FLAVOUR_SESSION
+        {
+            let p = vim_strsave_escaped(tv_get_string(&this_var.di_tv), c"\\\"\n\r");
+            let mut p_vec: Vec<u8> = p.into_bytes_with_nul();
+            for b in &mut p_vec {
+                if *b == 0 {
+                    break;
                 }
-                let quote = if this_var.di_tv.v_type == VarType::VarString {
-                    '"'
-                } else {
-                    ' '
-                };
-                if !write_fmt(
-                    fd,
-                    format!(
-                        "let {} = {quote}{}{quote}",
-                        cstr_to_str(&this_var.di_key),
-                        cstr_to_str(CStr::from_bytes_until_nul(&p_vec).unwrap_or(c""))
-                    ),
-                ) || !put_eol(fd)
-                {
-                    return false;
-                }
-            } else if this_var.di_tv.v_type == VarType::VarFloat
-                && var_flavour(&this_var.di_key) == VAR_FLAVOUR_SESSION
-            {
-                let mut f = this_var.di_tv.vval.v_float();
-                let sign = if f < 0.0 {
-                    f = -f;
-                    '-'
-                } else {
-                    ' '
-                };
-                if !write_fmt(
-                    fd,
-                    format!("let {} = {sign}{f:.6}", cstr_to_str(&this_var.di_key)),
-                ) || !put_eol(fd)
-                {
-                    return false;
+                if *b == b'\n' {
+                    *b = b'n';
+                } else if *b == b'\r' {
+                    *b = b'r';
                 }
             }
+            let quote = if this_var.di_tv.v_type == VarType::VarString {
+                '"'
+            } else {
+                ' '
+            };
+            if !write_fmt(
+                fd,
+                format!(
+                    "let {} = {quote}{}{quote}",
+                    cstr_to_str(&this_var.di_key),
+                    cstr_to_str(CStr::from_bytes_until_nul(&p_vec).unwrap_or(c""))
+                ),
+            ) || !put_eol(fd)
+            {
+                return false;
+            }
+        } else if this_var.di_tv.v_type == VarType::VarFloat
+            && var_flavour(&this_var.di_key) == VAR_FLAVOUR_SESSION
+        {
+            let mut f = this_var.di_tv.vval.v_float();
+            let sign = if f < 0.0 {
+                f = -f;
+                '-'
+            } else {
+                ' '
+            };
+            if !write_fmt(
+                fd,
+                format!("let {} = {sign}{f:.6}", cstr_to_str(&this_var.di_key)),
+            ) || !put_eol(fd)
+            {
+                return false;
+            }
         }
-        hi = hi.wrapping_add(1);
     }
     true
 }
@@ -1163,10 +1139,11 @@ fn get_view_file(c: u8) -> Option<CString> {
         }
     }
     let sname_len = sname_bytes.len();
-    let vdir_len = crate::memory::cstr_len(opt_vars().p_vdir);
+    let vdir_bytes = crate::memory::cstr_as_bytes_with_nul(opt_vars().p_vdir);
+    let vdir_len = vdir_bytes.len() - 1;
     let mut retval_vec: Vec<u8> = vec![0; sname_len + len + vdir_len + 9];
+    retval_vec[..vdir_len + 1].copy_from_slice(vdir_bytes);
     let retval = retval_vec.as_mut_ptr();
-    unsafe { ptr::copy_nonoverlapping(opt_vars().p_vdir.cast::<u8>(), retval, vdir_len + 1) };
     add_pathsep(retval.cast());
     let mut s_idx = crate::memory::cstr_len(retval.cast());
     for &b in sname_bytes {

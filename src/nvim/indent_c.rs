@@ -150,13 +150,13 @@ pub fn find_start_comment(ind_maxcomment: i32) -> *mut CursorPos {
     let mut cur_maxcomment = ind_maxcomment as i64;
     loop {
         pos = findmatchlimit(None, b'*' as i32, FM_BACKWARD, cur_maxcomment);
-        if pos.is_null() {
+        let Some(pos_ref) = (unsafe { pos.as_ref() }) else {
+            break;
+        };
+        if is_pos_in_string(ml_get(pos_ref.lnum), pos_ref.col) == 0 {
             break;
         }
-        if is_pos_in_string(ml_get(unsafe { (*pos).lnum }), unsafe { (*pos).col }) == 0 {
-            break;
-        }
-        cur_maxcomment = (curwin_mut().w_cursor.lnum - unsafe { (*pos).lnum } - 1) as i64;
+        cur_maxcomment = (curwin_mut().w_cursor.lnum - pos_ref.lnum - 1) as i64;
         if cur_maxcomment <= 0 {
             pos = ptr::null_mut();
             break;
@@ -166,18 +166,17 @@ pub fn find_start_comment(ind_maxcomment: i32) -> *mut CursorPos {
 }
 fn ind_find_start_cors(is_raw: Option<&mut Linenr>) -> *mut CursorPos {
     let mut comment_pos = find_start_comment(curbuf_mut().b_ind_maxcomment);
-    if !comment_pos.is_null() {
-        indc_st().comment_pos_copy = unsafe { *comment_pos };
+    if let Some(cp) = unsafe { comment_pos.as_ref() } {
+        indc_st().comment_pos_copy = *cp;
         comment_pos = &raw mut indc_st().comment_pos_copy;
     }
     let rs_pos = find_start_rawstring(curbuf_mut().b_ind_maxcomment);
-    if comment_pos.is_null()
-        || (!rs_pos.is_null() && lt(unsafe { *rs_pos }, unsafe { *comment_pos }))
-    {
-        if !rs_pos.is_null()
+    let rs_ref = unsafe { rs_pos.as_ref() };
+    if comment_pos.is_null() || (rs_ref.is_some_and(|rs| lt(*rs, indc_st().comment_pos_copy))) {
+        if let Some(rs) = rs_ref
             && let Some(is_raw) = is_raw
         {
-            *is_raw = unsafe { (*rs_pos).lnum };
+            *is_raw = rs.lnum;
         }
         return rs_pos;
     }
@@ -188,13 +187,13 @@ fn find_start_rawstring(ind_maxcomment: i32) -> *mut CursorPos {
     let mut cur_maxcomment = ind_maxcomment;
     loop {
         pos = findmatchlimit(None, b'R' as i32, FM_BACKWARD, cur_maxcomment as i64);
-        if pos.is_null() {
+        let Some(pos_ref) = (unsafe { pos.as_ref() }) else {
+            break;
+        };
+        if is_pos_in_string(ml_get(pos_ref.lnum), pos_ref.col) == 0 {
             break;
         }
-        if is_pos_in_string(ml_get(unsafe { (*pos).lnum }), unsafe { (*pos).col }) == 0 {
-            break;
-        }
-        cur_maxcomment = curwin_mut().w_cursor.lnum - unsafe { (*pos).lnum } - 1;
+        cur_maxcomment = curwin_mut().w_cursor.lnum - pos_ref.lnum - 1;
         if cur_maxcomment <= 0 {
             pos = ptr::null_mut();
             break;
@@ -1427,21 +1426,24 @@ fn find_start_brace() -> *mut CursorPos {
     let mut trypos: *mut CursorPos;
     loop {
         trypos = findmatchlimit(None, b'{' as i32, FM_BLOCKSTOP | FM_SKIPCOMM, 0);
-        if trypos.is_null() {
+        let Some(tp_ref) = (unsafe { trypos.as_ref() }) else {
             break;
-        }
-        indc_st().start_brace_pos_copy = unsafe { *trypos };
+        };
+        let mut tp_copy = *tp_ref;
+        indc_st().start_brace_pos_copy = tp_copy;
         trypos = &raw mut indc_st().start_brace_pos_copy;
-        curwin_mut().w_cursor = unsafe { *trypos };
+        curwin_mut().w_cursor = tp_copy;
         let mut pos: *mut CursorPos = ptr::null_mut();
-        if cin_skip2pos(unsafe { &mut *trypos }) as Colnr == unsafe { (*trypos).col } && {
+        if cin_skip2pos(&mut tp_copy) as Colnr == tp_copy.col && {
             pos = ind_find_start_cors(None);
             pos.is_null()
         } {
+            indc_st().start_brace_pos_copy = tp_copy;
             break;
         }
-        if !pos.is_null() {
-            curwin_mut().w_cursor = unsafe { *pos };
+        indc_st().start_brace_pos_copy = tp_copy;
+        if let Some(pos_ref) = unsafe { pos.as_ref() } {
+            curwin_mut().w_cursor = *pos_ref;
         }
     }
     curwin_mut().w_cursor = cursor_save;
@@ -1456,24 +1458,25 @@ fn find_match_char(c: u8, ind_maxparen: i32) -> *mut CursorPos {
     let mut trypos: *mut CursorPos;
     loop {
         trypos = findmatchlimit(None, c as i32, FM_SKIPCOMM, ind_maxp_wk as i64);
-        if !trypos.is_null() {
-            if (cin_skip2pos(unsafe { &mut *trypos }) as Colnr) > unsafe { (*trypos).col } {
-                ind_maxp_wk = ind_maxparen - (cursor_save.lnum - unsafe { (*trypos).lnum });
+        if let Some(tp_ref) = unsafe { trypos.as_mut() } {
+            if (cin_skip2pos(tp_ref) as Colnr) > tp_ref.col {
+                ind_maxp_wk = ind_maxparen - (cursor_save.lnum - tp_ref.lnum);
                 if ind_maxp_wk > 0 {
-                    curwin_mut().w_cursor = unsafe { *trypos };
+                    curwin_mut().w_cursor = *tp_ref;
                     curwin_mut().w_cursor.col = 0;
                     continue;
                 }
                 trypos = ptr::null_mut();
             } else {
-                indc_st().match_char_pos_copy = unsafe { *trypos };
+                let tp_val = *tp_ref;
+                indc_st().match_char_pos_copy = tp_val;
                 trypos = &raw mut indc_st().match_char_pos_copy;
-                curwin_mut().w_cursor = unsafe { *trypos };
+                curwin_mut().w_cursor = tp_val;
                 let trypos_wk = ind_find_start_cors(None);
-                if !trypos_wk.is_null() {
-                    ind_maxp_wk = ind_maxparen - (cursor_save.lnum - unsafe { (*trypos_wk).lnum });
+                if let Some(wk_ref) = unsafe { trypos_wk.as_ref() } {
+                    ind_maxp_wk = ind_maxparen - (cursor_save.lnum - wk_ref.lnum);
                     if ind_maxp_wk > 0 {
-                        curwin_mut().w_cursor = unsafe { *trypos_wk };
+                        curwin_mut().w_cursor = *wk_ref;
                         continue;
                     }
                     trypos = ptr::null_mut();

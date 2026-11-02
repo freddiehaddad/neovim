@@ -8,7 +8,7 @@ use crate::eval::typval::{
     tv_check_for_opt_number_arg, tv_check_for_opt_string_arg, tv_check_for_opt_string_or_list_arg,
     tv_check_for_string_or_number_arg, tv_clear, tv_dict_add_tv, tv_dict_alloc, tv_dict_find,
     tv_equal, tv_get_float, tv_get_number_chk, tv_get_string, tv_get_string_buf_chk,
-    tv_get_string_chk, tv_list_first, tv_list_last, tv_list_len,
+    tv_get_string_chk, tv_list_len,
 };
 use crate::eval::vars::{
     VV_ERRMSG, VV_EXCEPTION, VV_TESTING, assert_error, get_vim_var_nr, get_vim_var_str,
@@ -127,12 +127,12 @@ fn ga_concat_shorten_esc(gap: &mut Vec<u8>, str_ptr: impl crate::strings::IntoCC
         }
 
         let mut p = str_ptr;
-        while unsafe { *p } != 0 {
+        while !crate::memory::cstr_is_empty(p) {
             let mut same_len: i32 = 1;
             let mut s = p;
             let c = mb_cptr2char_adv(&mut s);
             let clen = (s as usize) - (p as usize);
-            while unsafe { *s } != 0 && c == utf_ptr2char(s) {
+            while !crate::memory::cstr_is_empty(s) && c == utf_ptr2char(s) {
                 same_len += 1;
                 s = s.wrapping_add(clen);
             }
@@ -625,27 +625,26 @@ pub fn f_assert_fails(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFun
                 error_found = true;
             }
         } else if arg1.v_type == VarType::VarList {
-            let list = arg1.vval.v_list();
-            if list.is_null()
-                || tv_list_len(unsafe { list.as_ref() }) < 1
-                || tv_list_len(unsafe { list.as_ref() }) > 2
-            {
+            let list = arg1.vval.v_list_opt();
+            let list_len = tv_list_len(list.as_deref());
+            if !(1..=2).contains(&list_len) {
                 wrong_arg_msg = Some(
                     c"E856: \"assert_fails()\" second argument must be a string or a list with one or two strings",
                 );
                 valid_args = false;
             } else {
-                let first_tv = unsafe { &(*tv_list_first(list.as_ref())).li_tv };
+                let list_ref = list.unwrap();
+                let first_tv = &list_ref.first_opt().unwrap().li_tv;
                 let expected = tv_get_string_buf_chk(first_tv, &mut buf);
                 if let Some(expected) = expected {
                     if pattern_match(expected, actual, false) == 0 {
                         error_found = true;
                         expected_str = Some(expected);
-                    } else if tv_list_len(unsafe { list.as_ref() }) == 2 {
+                    } else if list_len == 2 {
                         let s = crate::memory::cstr_to_cstring(get_vim_var_str(VV_ERRMSG));
                         actual = s.as_ptr().cast_mut();
                         tofree = Some(s);
-                        let last_tv = unsafe { &(*tv_list_last(list.as_ref())).li_tv };
+                        let last_tv = &list_ref.last_opt().unwrap().li_tv;
                         let expected2 = tv_get_string_buf_chk(last_tv, &mut buf2);
                         if let Some(expected2) = expected2 {
                             if pattern_match(expected2, actual, false) == 0 {

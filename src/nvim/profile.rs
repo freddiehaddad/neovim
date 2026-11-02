@@ -388,7 +388,7 @@ pub fn ex_profile(eap: &mut Exarg) {
     e = skipwhite(e);
 
     let arg_bytes = crate::memory::cstr_as_bytes(arg);
-    if len == 5 && &arg_bytes[..5] == b"start" && unsafe { *e } != 0 {
+    if len == 5 && &arg_bytes[..5] == b"start" && !crate::memory::cstr_is_empty(e) {
         prof_st().profile_fname = Some(expand_env_save_opt(e, true, std::ptr::null_mut()));
         g_st().do_profiling = PROF_YES;
         profile_set_wait(profile_zero());
@@ -438,7 +438,7 @@ pub fn set_context_in_profile_cmd(xp: &mut ExpandCtx, arg: impl crate::strings::
     xp.xp_pattern = arg.cast_mut().cast();
 
     let end_subcmd = skiptowhite(arg);
-    if unsafe { *end_subcmd } == 0 {
+    if crate::memory::cstr_is_empty(end_subcmd) {
         return;
     }
 
@@ -596,7 +596,7 @@ pub fn prof_child_exit(tm: &mut Proftime) {
 
 /// Called when starting to read a function line (`func_line_start`).
 pub fn func_line_start(fcp: &mut Funccall) {
-    let fp = unsafe { &mut *fcp.fc_func };
+    let fp = fcp.func_mut();
     let slnum = sourcing_lnum();
 
     if fp.uf_profiling != 0 && slnum >= 1 && slnum <= fp.uf_lines.len() as i32 {
@@ -613,7 +613,7 @@ pub fn func_line_start(fcp: &mut Funccall) {
 
 /// Called when actually executing a function line (`func_line_exec`).
 pub fn func_line_exec(fcp: &mut Funccall) {
-    let fp = unsafe { &mut *fcp.fc_func };
+    let fp = fcp.func_mut();
     if fp.uf_profiling != 0 && fp.uf_tml_idx >= 0 {
         fp.uf_tml_execed = 1;
     }
@@ -621,7 +621,7 @@ pub fn func_line_exec(fcp: &mut Funccall) {
 
 /// Called when done with a function line (`func_line_end`).
 pub fn func_line_end(fcp: &mut Funccall) {
-    let fp = unsafe { &mut *fcp.fc_func };
+    let fp = fcp.func_mut();
 
     if fp.uf_profiling != 0 && fp.uf_tml_idx >= 0 {
         if fp.uf_tml_execed != 0 {
