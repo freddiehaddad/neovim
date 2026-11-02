@@ -599,9 +599,9 @@ fn find_word(mip: &mut Matchinf, mode: i32) {
         let mut prefix_found = false;
         if mode != FIND_KEEPWORD {
             let mut p = mip.mi_word;
-            if crate::memory::cstr_prefix_bytes(ptr.cast(), wlen as usize)
-                != crate::memory::cstr_prefix_bytes(p.cast(), wlen as usize)
-            {
+            let ptr_b = crate::memory::cstr_as_bytes(ptr.cast());
+            let p_b = crate::memory::cstr_as_bytes(p.cast());
+            if ptr_b[..(wlen as usize).min(ptr_b.len())] != p_b[..(wlen as usize).min(p_b.len())] {
                 let mut s = ptr;
                 let s_end = ptr.wrapping_add(wlen as usize);
                 while s < s_end {
@@ -691,12 +691,10 @@ fn find_word(mip: &mut Matchinf, mode: i32) {
                 }
                 if mode == FIND_COMPOUND {
                     let mut p: *mut u8;
-                    if crate::memory::cstr_prefix_bytes(ptr.cast(), mip.mi_compoff as usize)
-                        != crate::memory::cstr_prefix_bytes(
-                            mip.mi_word.cast(),
-                            mip.mi_compoff as usize,
-                        )
-                    {
+                    let compoff = mip.mi_compoff as usize;
+                    let ptr_b = crate::memory::cstr_as_bytes(ptr.cast());
+                    let word_b = crate::memory::cstr_as_bytes(mip.mi_word.cast());
+                    if ptr_b[..compoff.min(ptr_b.len())] != word_b[..compoff.min(word_b.len())] {
                         p = mip.mi_word;
                         let mut s = ptr;
                         let s_end = ptr.wrapping_add(mip.mi_compoff as usize);
@@ -773,8 +771,10 @@ fn find_word(mip: &mut Matchinf, mode: i32) {
                 mip.mi_compoff = endlen[endidxcnt];
                 if mode == FIND_KEEPWORD {
                     let mut p = (&raw mut mip.mi_fword).cast::<u8>();
-                    if crate::memory::cstr_prefix_bytes(ptr.cast(), wlen as usize)
-                        != crate::memory::cstr_prefix_bytes(p.cast(), wlen as usize)
+                    let ptr_b = crate::memory::cstr_as_bytes(ptr.cast());
+                    let p_b = crate::memory::cstr_until_nul(&mip.mi_fword).to_bytes();
+                    if ptr_b[..(wlen as usize).min(ptr_b.len())]
+                        != p_b[..(wlen as usize).min(p_b.len())]
                     {
                         let mut s = ptr;
                         let s_end = ptr.wrapping_add(wlen as usize);
@@ -871,20 +871,19 @@ pub fn match_checkcompoundpattern(
     let ptr = ptr.into_c_char_ptr();
     {
         let mut i: usize = 0;
+        let ptr_b = crate::memory::cstr_as_bytes(ptr);
         while i + 1 < gap.len() {
-            let p2 = gap[i + 1].as_ptr();
-            if crate::memory::cstr_prefix_bytes(
-                ptr.wrapping_add(wlen as usize),
-                gap[i + 1].as_bytes().len(),
-            ) == crate::memory::cstr_prefix_bytes(p2, gap[i + 1].as_bytes().len())
+            let p2_b = gap[i + 1].as_bytes();
+            if ptr_b
+                .get(wlen as usize..)
+                .is_some_and(|s| s.starts_with(p2_b))
             {
-                let p1 = gap[i].as_ptr();
-                let len = gap[i].as_bytes().len() as i32;
+                let p1_b = gap[i].as_bytes();
+                let len = p1_b.len() as i32;
                 if len <= wlen
-                    && (crate::memory::cstr_prefix_bytes(
-                        ptr.wrapping_add((wlen - len) as usize),
-                        len as usize,
-                    ) == crate::memory::cstr_prefix_bytes(p1, len as usize))
+                    && ptr_b
+                        .get((wlen - len) as usize..)
+                        .is_some_and(|s| s.starts_with(p1_b))
                 {
                     return true;
                 }
@@ -1638,11 +1637,9 @@ fn count_syllables(slang: &mut Slang, word: impl crate::strings::IntoCCharPtr) -
                 continue;
             }
             let mut len: i32 = 0;
+            let p_bytes = crate::memory::cstr_as_bytes(p);
             for syl in &slang.sl_syl_items {
-                if syl.sy_len > len
-                    && (crate::memory::cstr_prefix_bytes(p, syl.sy_len as usize)
-                        == &syl.sy_chars[..syl.sy_len as usize])
-                {
+                if syl.sy_len > len && p_bytes.starts_with(&syl.sy_chars[..syl.sy_len as usize]) {
                     len = syl.sy_len;
                 }
             }
@@ -1927,13 +1924,13 @@ pub fn parse_spelllang(wp: &mut WinInfoInfo) -> Option<&'static std::ffi::CStr> 
                     ga[i].lp_sallang = lp_slang;
                 } else {
                     for lp2 in &ga {
-                        let lp2_name = (*lp2.lp_slang)
+                        let lp2_b = (*lp2.lp_slang)
                             .sl_name
                             .as_ref()
-                            .map_or(c"".as_ptr(), |s| s.as_ptr());
+                            .map_or(&b""[..], |s| s.as_bytes());
+                        let lp_b = crate::memory::cstr_as_bytes(lp_name);
                         if (*lp2.lp_slang).has_sal()
-                            && (crate::memory::cstr_prefix_bytes(lp_name, 2)
-                                == crate::memory::cstr_prefix_bytes(lp2_name, 2))
+                            && lp_b[..2.min(lp_b.len())] == lp2_b[..2.min(lp2_b.len())]
                         {
                             ga[i].lp_sallang = lp2.lp_slang;
                             break;
@@ -1944,13 +1941,13 @@ pub fn parse_spelllang(wp: &mut WinInfoInfo) -> Option<&'static std::ffi::CStr> 
                     ga[i].lp_replang = lp_slang;
                 } else {
                     for lp2 in &ga {
-                        let lp2_name = (*lp2.lp_slang)
+                        let lp2_b = (*lp2.lp_slang)
                             .sl_name
                             .as_ref()
-                            .map_or(c"".as_ptr(), |s| s.as_ptr());
+                            .map_or(&b""[..], |s| s.as_bytes());
+                        let lp_b = crate::memory::cstr_as_bytes(lp_name);
                         if !(*lp2.lp_slang).sl_rep.is_empty()
-                            && (crate::memory::cstr_prefix_bytes(lp_name, 2)
-                                == crate::memory::cstr_prefix_bytes(lp2_name, 2))
+                            && lp_b[..2.min(lp_b.len())] == lp2_b[..2.min(lp2_b.len())]
                         {
                             ga[i].lp_replang = lp2.lp_slang;
                             break;
@@ -2330,14 +2327,14 @@ pub fn ex_spellrepall(_eap: &mut Exarg) {
         }
         let line_slice = get_cursor_line_slice();
         let col = curwin_mut().w_cursor.col as usize;
+        let repl_to_slice = crate::memory::cstr_slice(repl_to_ptr, repl_to_len);
         if addlen <= 0
-            || &line_slice[col..(col + repl_to_len).min(line_slice.len())]
-                != crate::memory::cstr_prefix_bytes(repl_to_ptr, repl_to_len)
+            || &line_slice[col..(col + repl_to_len).min(line_slice.len())] != repl_to_slice
         {
             let mut p_vec: Vec<u8> =
                 Vec::with_capacity((line_slice.len() as i64 + addlen + 1) as usize);
             p_vec.extend_from_slice(&line_slice[..col]);
-            p_vec.extend_from_slice(crate::memory::cstr_slice(repl_to_ptr, repl_to_len));
+            p_vec.extend_from_slice(repl_to_slice);
             p_vec.extend_from_slice(&line_slice[col + repl_from_len..]);
             p_vec.push(0);
             let _ = ml_replace(curwin_mut().w_cursor.lnum, p_vec.as_mut_ptr().cast(), true);
@@ -3056,8 +3053,7 @@ fn dump_word(
         } else if (if (dumpflags & DUMPFLAG_ICASE) != 0 {
             mb_strnicmp(p.cast(), pat, crate::memory::cstr_len(pat)) == 0
         } else {
-            crate::memory::cstr_prefix_bytes(p.cast(), crate::memory::cstr_len(pat))
-                == crate::memory::cstr_prefix_bytes(pat, crate::memory::cstr_len(pat))
+            crate::memory::cstr_as_bytes(p.cast()).starts_with(crate::memory::cstr_as_bytes(pat))
         }) && ins_compl_add_infercase(
             p.cast(),
             crate::memory::cstr_len(p.cast()) as i32,

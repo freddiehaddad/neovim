@@ -940,18 +940,18 @@ fn spell_find_suggest(
         while !crate::memory::cstr_is_empty(p) {
             copy_option_part(&raw mut p, (&raw mut buf).cast(), MAXPATHL, c",");
             let buf_ptr = buf.as_ptr();
-            if crate::memory::cstr_prefix_bytes(buf_ptr.cast(), 5) == &b"expr:"[..5] {
+            let buf_bytes = crate::memory::cstr_until_nul(&buf).to_bytes();
+            if buf_bytes.starts_with(b"expr:") {
                 if !sps_st().expr_busy {
                     sps_st().expr_busy = true;
                     spell_suggest_expr(su, buf_ptr.wrapping_add(5).cast());
                     sps_st().expr_busy = false;
                 }
-            } else if crate::memory::cstr_prefix_bytes(buf_ptr.cast(), 5) == &b"file:"[..5] {
+            } else if buf_bytes.starts_with(b"file:") {
                 spell_suggest_file(su, buf_ptr.wrapping_add(5).cast());
-            } else if crate::memory::cstr_prefix_bytes(buf_ptr.cast(), 8) == &b"timeout:"[..8] {
-                sps_st().spell_suggest_timeout = crate::charset::parse_i64_prefix(
-                    crate::memory::cstr_as_bytes(buf_ptr.wrapping_add(8).cast()),
-                ) as i32 as i64;
+            } else if let Some(rest) = buf_bytes.strip_prefix(b"timeout:") {
+                sps_st().spell_suggest_timeout =
+                    crate::charset::parse_i64_prefix(rest) as i32 as i64;
             } else if !did_intern {
                 spell_suggest_intern(su, interactive);
                 if (sps_st().sps_flags & SPS_DOUBLE) != 0 {
@@ -1090,10 +1090,7 @@ fn suggest_try_special(su: &mut Suginfo) {
     let mut p = skiptowhite(fbadword_ptr.cast());
     let len = crate::memory::ptr_offset_from(p, fbadword_ptr.cast()) as usize;
     p = skipwhite(p);
-    if crate::memory::cstr_len(p) == len
-        && (crate::memory::cstr_prefix_bytes(fbadword_ptr.cast(), len)
-            == crate::memory::cstr_prefix_bytes(p, len))
-    {
+    if crate::memory::cstr_as_bytes(p) == &su.su_fbadword[..len] {
         let c = su.su_fbadword[len];
         su.su_fbadword[len] = 0;
         make_case_word(fbadword_ptr.cast(), (&raw mut word).cast(), su.su_badflags);
@@ -1317,20 +1314,16 @@ fn suggest_trie_walk(su: &mut Suginfo, lp: &Langp, fword_buf: &mut [u8; MAXWLEN]
                     let mut compound_ok = true;
                     if stack[udepth].ts_complen > stack[udepth].ts_compsplit {
                         if slang.sl_nobreak {
+                            let split_len =
+                                (stack[udepth].ts_fidx - stack[udepth].ts_splitfidx) as usize;
+                            let sf_off = stack[udepth].ts_splitfidx as usize;
+                            let so_off = stack[udepth].ts_splitoff as usize;
                             if stack[udepth].ts_fidx - stack[udepth].ts_splitfidx
                                 == stack[udepth].ts_twordlen - stack[udepth].ts_splitoff
-                                && (crate::memory::cstr_prefix_bytes(
-                                    fword
-                                        .wrapping_add(stack[udepth].ts_splitfidx as usize)
-                                        .cast(),
-                                    (stack[udepth].ts_fidx - stack[udepth].ts_splitfidx) as usize,
-                                ) == crate::memory::cstr_prefix_bytes(
-                                    tword
-                                        .as_ptr()
-                                        .wrapping_add(stack[udepth].ts_splitoff as usize)
-                                        .cast(),
-                                    (stack[udepth].ts_fidx - stack[udepth].ts_splitfidx) as usize,
-                                ))
+                                && crate::memory::cstr_slice(
+                                    fword.wrapping_add(sf_off).cast(),
+                                    split_len,
+                                ) == &tword[so_off..so_off + split_len]
                             {
                                 preword[stack[udepth].ts_prewordlen as usize] = 0;
                                 let newscore = score_wordcount_adj(
@@ -2172,13 +2165,9 @@ fn suggest_trie_walk(su: &mut Suginfo, lp: &Langp, fword_buf: &mut [u8; MAXWLEN]
                                 stack[udepth].ts_curi = gap.len() as i16;
                                 break;
                             }
-                            if (crate::memory::cstr_prefix_bytes(
-                                ftp.ft_from.as_ptr(),
-                                ftp.ft_from.as_bytes().len(),
-                            ) == crate::memory::cstr_prefix_bytes(
-                                p.cast(),
-                                ftp.ft_from.as_bytes().len(),
-                            )) && try_deeper(su, &stack, udepth, SCORE_REP)
+                            if crate::memory::cstr_as_bytes(p.cast())
+                                .starts_with(ftp.ft_from.as_bytes())
+                                && try_deeper(su, &stack, udepth, SCORE_REP)
                             {
                                 go_deeper(&mut stack, udepth, SCORE_REP);
                                 stack[udepth].ts_state = SugState::StateRepUndo;
@@ -2836,11 +2825,12 @@ fn add_suggestion(
             std::mem::take(&mut su.su_ga)
         };
         let gap = &mut gap_vec;
+        let gw_slice = crate::memory::cstr_slice(goodword, goodlen as usize);
         for stp in gap.iter_mut() {
+            let st_b = stp.st_word.as_bytes();
             if stp.st_wordlen == goodlen
                 && stp.st_orglen == badlen
-                && (crate::memory::cstr_prefix_bytes(stp.st_word.as_ptr(), goodlen as usize)
-                    == crate::memory::cstr_prefix_bytes(goodword, goodlen as usize))
+                && &st_b[..(goodlen as usize).min(st_b.len())] == gw_slice
             {
                 if stp.st_slang.is_null() {
                     stp.st_slang = slang;

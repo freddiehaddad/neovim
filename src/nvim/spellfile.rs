@@ -3527,7 +3527,8 @@ fn spell_read_wordfile(spin: &mut Spellinfo, fname: impl crate::strings::IntoCCh
 
             if crate::memory::cstr_first_byte(line.cast()) == b'/' {
                 line = line.wrapping_add(1);
-                if crate::memory::cstr_prefix_bytes(line.cast(), 9) == &b"encoding="[..9] {
+                let line_bytes = crate::memory::cstr_as_bytes(line.cast());
+                if line_bytes.starts_with(b"encoding=") {
                     if spin.si_conv.vc_type != CONV_NONE {
                         smsg!(
                             0,
@@ -3567,7 +3568,7 @@ fn spell_read_wordfile(spin: &mut Spellinfo, fname: impl crate::strings::IntoCCh
                     continue;
                 }
 
-                if crate::memory::cstr_prefix_bytes(line.cast(), 8) == &b"regions="[..8] {
+                if line_bytes.starts_with(b"regions=") {
                     if spin.si_region_count > 1 {
                         smsg!(
                             0,
@@ -4540,7 +4541,7 @@ pub fn ex_mkspell(eap: &mut Exarg) {
     let mut arg = eap.arg;
     let mut ascii = false;
 
-    if crate::memory::cstr_prefix_bytes(arg, 6) == &b"-ascii"[..6] {
+    if crate::memory::cstr_as_bytes(arg).starts_with(b"-ascii") {
         ascii = true;
         arg = skipwhite(arg.wrapping_add(6));
     }
@@ -5199,11 +5200,10 @@ pub fn spell_add_word(
                     if fpos_next < 0 {
                         break;
                     }
-                    let linelen = crate::memory::cstr_len(line.as_ptr().cast());
+                    let linelen = crate::memory::cstr_until_nul(&line).to_bytes().len();
                     let ulen = len as usize;
                     if linelen >= ulen
-                        && (crate::memory::cstr_prefix_bytes(word, ulen)
-                            == crate::memory::cstr_prefix_bytes(line.as_ptr().cast(), ulen))
+                        && crate::memory::cstr_slice(word, ulen) == &line[..ulen]
                         && (line[ulen] == b'/' || line[ulen] < b' ')
                     {
                         fclose(fd);
@@ -5263,7 +5263,7 @@ pub fn spell_add_word(
             if fd.is_null() {
                 semsg!(gettext(E_NOTOPEN), fname.cast::<std::ffi::c_void>());
             } else {
-                let wlen = crate::memory::cstr_prefix_bytes(word, len as usize).len();
+                let wlen = crate::memory::cstr_as_bytes(word).len().min(len as usize);
                 fwrite(word.cast(), 1, wlen, fd);
                 if what == SPELL_ADD_BAD {
                     fwrite(c"/!\n".as_ptr().cast(), 1, 3, fd);

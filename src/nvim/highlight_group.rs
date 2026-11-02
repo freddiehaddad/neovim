@@ -1138,9 +1138,8 @@ pub fn do_highlight(line: impl crate::strings::IntoCCharPtr, forceit: bool, init
         let mut name_end = skiptowhite(line).cast_const();
         let mut linep = skipwhite(name_end).cast_const();
 
-        if crate::memory::cstr_prefix_bytes(line, name_end as usize - line as usize)
-            == crate::memory::cstr_prefix_bytes(c"default", name_end as usize - line as usize)
-        {
+        let def_len = name_end as usize - line as usize;
+        if crate::memory::cstr_slice(line, def_len) == &b"default"[..def_len.min(7)] {
             dodefault = true;
             line = linep;
             name_end = skiptowhite(line).cast_const();
@@ -1151,13 +1150,10 @@ pub fn do_highlight(line: impl crate::strings::IntoCCharPtr, forceit: bool, init
         let mut dolink = false;
 
         let word_len = name_end as usize - line as usize;
-        if crate::memory::cstr_prefix_bytes(line, word_len)
-            == crate::memory::cstr_prefix_bytes(c"clear", word_len)
-        {
+        let word_slice = crate::memory::cstr_slice(line, word_len);
+        if word_slice == &b"clear"[..word_len.min(5)] {
             doclear = true;
-        } else if crate::memory::cstr_prefix_bytes(line, word_len)
-            == crate::memory::cstr_prefix_bytes(c"link", word_len)
-        {
+        } else if word_slice == &b"link"[..word_len.min(4)] {
             dolink = true;
         }
 
@@ -1198,7 +1194,7 @@ pub fn do_highlight(line: impl crate::strings::IntoCCharPtr, forceit: bool, init
             }
 
             let from_id = syn_check_group(from_start, from_end as usize - from_start as usize);
-            let to_id = if crate::memory::cstr_prefix_bytes(to_start, 4) == &b"NONE"[..4] {
+            let to_id = if crate::memory::cstr_as_bytes(to_start).starts_with(b"NONE") {
                 0
             } else {
                 syn_check_group(to_start, to_end as usize - to_start as usize)
@@ -2448,9 +2444,8 @@ pub fn set_context_in_highlight_cmd(xp: &mut ExpandCtx, arg: impl crate::strings
         }
 
         g_st().include_default = 0;
-        if crate::memory::cstr_prefix_bytes(c"default", p as usize - arg as usize)
-            == crate::memory::cstr_prefix_bytes(arg, p as usize - arg as usize)
-        {
+        let dlen = p as usize - arg as usize;
+        if crate::memory::cstr_slice(arg, dlen) == &b"default"[..dlen.min(7)] {
             arg = skipwhite(p);
             xp.xp_pattern = arg.cast_mut().cast();
             p = skiptowhite(arg).cast_const();
@@ -2464,11 +2459,8 @@ pub fn set_context_in_highlight_cmd(xp: &mut ExpandCtx, arg: impl crate::strings
             highlight_list();
         }
         let len = p as usize - arg as usize;
-        if (crate::memory::cstr_prefix_bytes(c"link", len)
-            == crate::memory::cstr_prefix_bytes(arg, len))
-            || (crate::memory::cstr_prefix_bytes(c"clear", len)
-                == crate::memory::cstr_prefix_bytes(arg, len))
-        {
+        let arg_word = crate::memory::cstr_slice(arg, len);
+        if arg_word == &b"link"[..len.min(4)] || arg_word == &b"clear"[..len.min(5)] {
             xp.xp_pattern = skipwhite(p).cast();
             p = skiptowhite(xp.xp_pattern.cast()).cast_const();
             if !crate::memory::cstr_is_empty(p) {

@@ -1212,18 +1212,15 @@ fn ins_compl_add(
         if !(*list).is_empty() && !adup && !(*ht_ptr).is_empty() {
             let bytes = crate::memory::cstr_slice(str_ptr, len as usize);
             let key_len = bytes.iter().position(|&b| b == 0).unwrap_or(len as usize);
-            if (*ht_ptr).contains_key(&bytes[..key_len]) {
+            let key_prefix = &bytes[..key_len];
+            if (*ht_ptr).contains_key(key_prefix) {
                 if is_nearest_active() && score > 0 {
                     for match_ in &mut *list {
+                        let cp_bytes = match_.cp_str.as_bytes();
                         if !match_at_original_text(match_)
-                            && (crate::memory::cstr_prefix_bytes(match_.cp_str.data, len as usize)
-                                == crate::memory::cstr_prefix_bytes(str_ptr, len as usize))
+                            && &cp_bytes[..(len as usize).min(cp_bytes.len())] == key_prefix
                             && (match_.cp_str.size as i32 <= len
-                                || match_
-                                    .cp_str
-                                    .as_bytes()
-                                    .get(len as usize)
-                                    .is_none_or(|&b| b == 0))
+                                || cp_bytes.get(len as usize).is_none_or(|&b| b == 0))
                         {
                             if score < match_.cp_score {
                                 match_.cp_score = score;
@@ -1353,12 +1350,14 @@ fn ins_compl_equal(
     if (match_.cp_flags & CP_EQUAL) != 0 {
         return true;
     }
+    let cp_b = match_.cp_str.as_bytes();
+    let cp_prefix = &cp_b[..len.min(cp_b.len())];
+    let str_b = crate::memory::cstr_as_bytes(str_ptr);
+    let str_prefix = &str_b[..len.min(str_b.len())];
     if (match_.cp_flags & CP_ICASE) != 0 {
-        return crate::memory::cstr_prefix_bytes(match_.cp_str.data, len)
-            .eq_ignore_ascii_case(crate::memory::cstr_prefix_bytes(str_ptr, len));
+        return cp_prefix.eq_ignore_ascii_case(str_prefix);
     }
-    crate::memory::cstr_prefix_bytes(match_.cp_str.data, len)
-        == crate::memory::cstr_prefix_bytes(str_ptr, len)
+    cp_prefix == str_prefix
 }
 
 /// Like `ins_compl_equal()`, but ignore case in the `'longest'`-inserted part of the leader.
@@ -4259,9 +4258,9 @@ fn fuzzy_longest_match() {
             && !crate::memory::cstr_is_empty(match_ptr)
             && !crate::memory::cstr_is_empty(prefix_ptr)
         {
-            if crate::memory::cstr_prefix_bytes(prefix_ptr, utfc_ptr2len(prefix_ptr) as usize)
-                != crate::memory::cstr_prefix_bytes(match_ptr, utfc_ptr2len(prefix_ptr) as usize)
-            {
+            let clen = utfc_ptr2len(prefix_ptr) as usize;
+            let m_b = crate::memory::cstr_as_bytes(match_ptr);
+            if crate::memory::cstr_slice(prefix_ptr, clen) != &m_b[..clen.min(m_b.len())] {
                 break;
             }
 
@@ -4277,11 +4276,10 @@ fn fuzzy_longest_match() {
 
     let leader = ins_compl_leader_ptr();
     let leader_len = ins_compl_leader_len();
+    let pref_b = crate::memory::cstr_as_bytes(prefix.cast());
+    let lead_b = crate::memory::cstr_slice(leader.cast(), leader_len);
 
-    if leader_len == 0
-        || (crate::memory::cstr_prefix_bytes(prefix.cast(), leader_len)
-            == crate::memory::cstr_prefix_bytes(leader.cast(), leader_len))
-    {
+    if leader_len == 0 || &pref_b[..leader_len.min(pref_b.len())] == lead_b {
         let mut dup_vec: Vec<u8> = vec![0; prefix_len as usize + 1];
         unsafe {
             ptr::copy_nonoverlapping(prefix.cast(), dup_vec.as_mut_ptr(), prefix_len as usize)
@@ -4765,19 +4763,14 @@ fn get_register_completion() {
                     continue;
                 }
 
+                let orig_bytes = insexp().compl_orig_text.as_bytes();
+                let str_b = crate::memory::cstr_as_bytes(str_ptr);
+                let str_prefix = &str_b[..orig_bytes.len().min(str_b.len())];
                 let matches = insexp().compl_orig_text.data.is_null()
                     || if opt_vars().p_ic != 0 {
-                        crate::memory::cstr_prefix_bytes(str_ptr, insexp().compl_orig_text.size)
-                            .eq_ignore_ascii_case(crate::memory::cstr_prefix_bytes(
-                                insexp().compl_orig_text.data,
-                                insexp().compl_orig_text.size,
-                            ))
+                        str_prefix.eq_ignore_ascii_case(orig_bytes)
                     } else {
-                        crate::memory::cstr_prefix_bytes(str_ptr, insexp().compl_orig_text.size)
-                            == crate::memory::cstr_prefix_bytes(
-                                insexp().compl_orig_text.data,
-                                insexp().compl_orig_text.size,
-                            )
+                        str_prefix == orig_bytes
                     };
                 if matches
                     && ins_compl_add_infercase(
@@ -4812,19 +4805,14 @@ fn get_register_completion() {
                     }
 
                     let len = crate::memory::ptr_offset_from(word_end, p) as i32;
+                    let orig_bytes = insexp().compl_orig_text.as_bytes();
+                    let p_b = crate::memory::cstr_as_bytes(p);
+                    let p_prefix = &p_b[..orig_bytes.len().min(p_b.len())];
                     let matches = insexp().compl_orig_text.data.is_null()
                         || if opt_vars().p_ic != 0 {
-                            crate::memory::cstr_prefix_bytes(p, insexp().compl_orig_text.size)
-                                .eq_ignore_ascii_case(crate::memory::cstr_prefix_bytes(
-                                    insexp().compl_orig_text.data,
-                                    insexp().compl_orig_text.size,
-                                ))
+                            p_prefix.eq_ignore_ascii_case(orig_bytes)
                         } else {
-                            crate::memory::cstr_prefix_bytes(p, insexp().compl_orig_text.size)
-                                == crate::memory::cstr_prefix_bytes(
-                                    insexp().compl_orig_text.data,
-                                    insexp().compl_orig_text.size,
-                                )
+                            p_prefix == orig_bytes
                         };
                     if len > 0
                         && matches
@@ -4942,15 +4930,12 @@ fn get_next_bufname_token() {
     for b in for_all_buffers_mut() {
         if b.b_p_bl != 0 && !b.b_sfname.is_null() {
             let tail = path_tail(b.b_sfname);
-            if crate::memory::cstr_prefix_bytes(tail, insexp().compl_orig_text.size)
-                == crate::memory::cstr_prefix_bytes(
-                    insexp().compl_orig_text.data,
-                    insexp().compl_orig_text.size,
-                )
-            {
+            let orig_bytes = insexp().compl_orig_text.as_bytes();
+            let tail_b = crate::memory::cstr_as_bytes(tail);
+            if &tail_b[..orig_bytes.len().min(tail_b.len())] == orig_bytes {
                 ins_compl_add(
                     tail,
-                    crate::memory::cstr_len(tail) as i32,
+                    tail_b.len() as i32,
                     ptr::null_mut(),
                     [const { None }; CPT_COUNT],
                     None,
@@ -5424,17 +5409,14 @@ fn find_common_prefix(prefix_len: &mut usize, curbuf_only: bool) -> *mut u8 {
                     || (cur_source != -1
                         && insexp().cpt_sources_array[cur_source as usize].cs_flag == b'.'))
             {
-                if first.is_null()
-                    && (crate::memory::cstr_prefix_bytes(
-                        ins_compl_leader_ptr().cast(),
-                        ins_compl_leader_len(),
-                    ) == crate::memory::cstr_prefix_bytes(
-                        compl.cp_str.data,
-                        ins_compl_leader_len(),
-                    ))
-                {
-                    first = compl.cp_str.data.cast();
-                    len = compl.cp_str.size as i32;
+                if first.is_null() {
+                    let lead_len = ins_compl_leader_len();
+                    let lead_b = crate::memory::cstr_slice(ins_compl_leader_ptr().cast(), lead_len);
+                    let cp_b = compl.cp_str.as_bytes();
+                    if lead_b == &cp_b[..lead_len.min(cp_b.len())] {
+                        first = compl.cp_str.data.cast();
+                        len = compl.cp_str.size as i32;
+                    }
                 } else if !first.is_null() {
                     let s1_bytes =
                         unsafe { std::slice::from_raw_parts(first, len.max(0) as usize) };
@@ -5469,10 +5451,10 @@ fn find_common_prefix(prefix_len: &mut usize, curbuf_only: bool) -> *mut u8 {
                 let text_len = crate::memory::ptr_offset_from(end, p) as i32;
                 if text_len > 0
                     && text_len < len - ins_compl_leader_len() as i32
-                    && (crate::memory::cstr_prefix_bytes(
+                    && crate::memory::cstr_slice(
                         first.wrapping_add((len - text_len) as usize).cast(),
                         text_len as usize,
-                    ) == crate::memory::cstr_prefix_bytes(p, text_len as usize))
+                    ) == crate::memory::cstr_slice(p, text_len as usize)
                 {
                     len -= text_len;
                 }

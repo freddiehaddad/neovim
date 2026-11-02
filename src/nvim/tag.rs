@@ -1743,9 +1743,9 @@ fn findtags_start_state_handler(
     sinfo_p: &mut TagsearchInfo,
 ) -> bool {
     let noic = (st.flags & TAG_NOIC) != 0;
-    let lbuf = st.lbuf.as_ptr();
 
-    if (crate::memory::cstr_prefix_bytes(lbuf.cast(), 6) <= b"!_TAG_")
+    let lbuf_bytes = crate::memory::cstr_until_nul(&st.lbuf).to_bytes();
+    if lbuf_bytes[..6.min(lbuf_bytes.len())] <= b"!_TAG_"[..]
         || (st.lbuf[0] == b'!' && ascii_islower(st.lbuf[1] as i32))
     {
         return findtags_hdr_parse(st);
@@ -1828,9 +1828,10 @@ fn findtags_parse_line(
             let mut tagcmp = if margs.sortic {
                 tag_strnicmp(tagpp.tagname.cast(), st.orgpat.head.cast(), cmplen as usize)
             } else {
-                crate::memory::cstr_prefix_bytes(tagpp.tagname.cast(), cmplen as usize).cmp(
-                    crate::memory::cstr_prefix_bytes(st.orgpat.head.cast(), cmplen as usize),
-                ) as i32
+                let tn_b = crate::memory::cstr_as_bytes(tagpp.tagname.cast());
+                let hd_b = crate::memory::cstr_as_bytes(st.orgpat.head.cast());
+                tn_b[..(cmplen as usize).min(tn_b.len())]
+                    .cmp(&hd_b[..(cmplen as usize).min(hd_b.len())]) as i32
             };
 
             if tagcmp == 0 {
@@ -1943,13 +1944,16 @@ fn findtags_match_tag(
         assert!(cmplen >= 0);
         match_ = mb_strnicmp(tagpp.tagname.cast(), st.orgpat.pat.cast(), cmplen as usize) == 0;
         if match_ {
-            margs.match_no_ic =
-                crate::memory::cstr_prefix_bytes(tagpp.tagname.cast(), cmplen as usize)
-                    == crate::memory::cstr_prefix_bytes(st.orgpat.pat.cast(), cmplen as usize);
+            let tn_b = crate::memory::cstr_as_bytes(tagpp.tagname.cast());
+            let pat_b = crate::memory::cstr_as_bytes(st.orgpat.pat.cast());
+            margs.match_no_ic = tn_b[..(cmplen as usize).min(tn_b.len())]
+                == pat_b[..(cmplen as usize).min(pat_b.len())];
         }
     } else {
-        match_ = crate::memory::cstr_prefix_bytes(tagpp.tagname.cast(), cmplen as usize)
-            == crate::memory::cstr_prefix_bytes(st.orgpat.pat.cast(), cmplen as usize);
+        let tn_b = crate::memory::cstr_as_bytes(tagpp.tagname.cast());
+        let pat_b = crate::memory::cstr_as_bytes(st.orgpat.pat.cast());
+        match_ = tn_b[..(cmplen as usize).min(tn_b.len())]
+            == pat_b[..(cmplen as usize).min(pat_b.len())];
     }
 
     margs.match_re = false;
@@ -2593,7 +2597,7 @@ fn test_for_static(tagp: &Tagptrs) -> bool {
             break;
         }
         p = p.wrapping_add(1);
-        if crate::memory::cstr_prefix_bytes(p, 5) == &b"file:"[..5] {
+        if crate::memory::cstr_as_bytes(p).starts_with(b"file:") {
             return true;
         }
     }
@@ -3285,7 +3289,7 @@ pub fn get_tags(
 
             let is_static = test_for_static(&tp);
 
-            if crate::memory::cstr_prefix_bytes(tp.tagname.cast(), 6) == &b"!_TAG_"[..6] {
+            if crate::memory::cstr_as_bytes(tp.tagname.cast()).starts_with(b"!_TAG_") {
                 continue;
             }
 

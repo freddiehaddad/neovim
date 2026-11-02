@@ -2622,12 +2622,12 @@ fn syn_cmd_conceal(eap: &mut Exarg, _syncing: i32) {
         } else {
             msg(c"syntax conceal off", 0);
         }
-    } else if crate::memory::cstr_prefix_bytes(arg, 2).eq_ignore_ascii_case(b"on")
-        && crate::memory::ptr_offset_from(next, arg) == 2
+    } else if crate::memory::ptr_offset_from(next, arg) == 2
+        && crate::memory::cstr_slice(arg, 2).eq_ignore_ascii_case(b"on")
     {
         win_s(curwin_mut()).b_syn_conceal = 1;
-    } else if crate::memory::cstr_prefix_bytes(arg, 3).eq_ignore_ascii_case(b"off")
-        && crate::memory::ptr_offset_from(next, arg) == 3
+    } else if crate::memory::ptr_offset_from(next, arg) == 3
+        && crate::memory::cstr_slice(arg, 3).eq_ignore_ascii_case(b"off")
     {
         win_s(curwin_mut()).b_syn_conceal = 0;
     } else {
@@ -2649,12 +2649,12 @@ fn syn_cmd_case(eap: &mut Exarg, _syncing: i32) {
         } else {
             msg(c"syntax case match", 0);
         }
-    } else if crate::memory::cstr_prefix_bytes(arg, 5).eq_ignore_ascii_case(b"match")
-        && crate::memory::ptr_offset_from(next, arg) == 5
+    } else if crate::memory::ptr_offset_from(next, arg) == 5
+        && crate::memory::cstr_slice(arg, 5).eq_ignore_ascii_case(b"match")
     {
         win_s(curwin_mut()).b_syn_ic = 0;
-    } else if crate::memory::cstr_prefix_bytes(arg, 6).eq_ignore_ascii_case(b"ignore")
-        && crate::memory::ptr_offset_from(next, arg) == 6
+    } else if crate::memory::ptr_offset_from(next, arg) == 6
+        && crate::memory::cstr_slice(arg, 6).eq_ignore_ascii_case(b"ignore")
     {
         win_s(curwin_mut()).b_syn_ic = 1;
     } else {
@@ -2683,12 +2683,12 @@ fn syn_cmd_foldlevel(eap: &mut Exarg, _syncing: i32) {
     }
 
     let arg_end = skiptowhite(arg);
-    if crate::memory::cstr_prefix_bytes(arg, 5).eq_ignore_ascii_case(b"start")
-        && crate::memory::ptr_offset_from(arg_end, arg) == 5
+    if crate::memory::ptr_offset_from(arg_end, arg) == 5
+        && crate::memory::cstr_slice(arg, 5).eq_ignore_ascii_case(b"start")
     {
         win_s(curwin_mut()).b_syn_foldlevel = SYNFLD_START;
-    } else if crate::memory::cstr_prefix_bytes(arg, 7).eq_ignore_ascii_case(b"minimum")
-        && crate::memory::ptr_offset_from(arg_end, arg) == 7
+    } else if crate::memory::ptr_offset_from(arg_end, arg) == 7
+        && crate::memory::cstr_slice(arg, 7).eq_ignore_ascii_case(b"minimum")
     {
         win_s(curwin_mut()).b_syn_foldlevel = SYNFLD_MINIMUM;
     } else {
@@ -2718,16 +2718,16 @@ fn syn_cmd_spell(eap: &mut Exarg, _syncing: i32) {
         } else {
             msg(c"syntax spell default", 0);
         }
-    } else if crate::memory::cstr_prefix_bytes(arg, 8).eq_ignore_ascii_case(b"toplevel")
-        && crate::memory::ptr_offset_from(next, arg) == 8
+    } else if crate::memory::ptr_offset_from(next, arg) == 8
+        && crate::memory::cstr_slice(arg, 8).eq_ignore_ascii_case(b"toplevel")
     {
         win_s(curwin_mut()).b_syn_spell = SYNSPL_TOP;
-    } else if crate::memory::cstr_prefix_bytes(arg, 10).eq_ignore_ascii_case(b"notoplevel")
-        && crate::memory::ptr_offset_from(next, arg) == 10
+    } else if crate::memory::ptr_offset_from(next, arg) == 10
+        && crate::memory::cstr_slice(arg, 10).eq_ignore_ascii_case(b"notoplevel")
     {
         win_s(curwin_mut()).b_syn_spell = SYNSPL_NOTOP;
-    } else if crate::memory::cstr_prefix_bytes(arg, 7).eq_ignore_ascii_case(b"default")
-        && crate::memory::ptr_offset_from(next, arg) == 7
+    } else if crate::memory::ptr_offset_from(next, arg) == 7
+        && crate::memory::cstr_slice(arg, 7).eq_ignore_ascii_case(b"default")
     {
         win_s(curwin_mut()).b_syn_spell = SYNSPL_DEFAULT;
     } else {
@@ -2753,7 +2753,10 @@ fn syn_cmd_iskeyword(eap: &mut Exarg, _syncing: i32) {
         } else {
             msg_outtrans(gettext(c"syntax iskeyword not set"), 0, false);
         }
-    } else if crate::memory::cstr_prefix_bytes(arg, 5).eq_ignore_ascii_case(b"clear") {
+    } else if crate::memory::cstr_as_bytes(arg)
+        .get(..5)
+        .is_some_and(|s| s.eq_ignore_ascii_case(b"clear"))
+    {
         win_s(curwin_mut()).b_syn_chartab = curbuf_mut().b_chartab;
         win_s(curwin_mut()).b_syn_isk = None;
     } else {
@@ -4003,7 +4006,7 @@ fn syn_cmd_region(eap: &mut Exarg, syncing: i32) {
         if item == ITEM_MATCHGROUP {
             let p = skiptowhite(rest);
             if (crate::memory::ptr_offset_from(p, rest) == 4
-                && (crate::memory::cstr_prefix_bytes(rest, 4) == &b"NONE"[..4]))
+                && crate::memory::cstr_slice(rest, 4) == b"NONE")
                 || eap.skip != 0
             {
                 matchgroup_id = 0;
