@@ -1,17 +1,17 @@
 //! Functions for highlighting matches (`src/nvim/match.c`).
 
 use crate::buffer::FileBuf;
-use crate::charset::{NUL, ascii_iswhite, skiptowhite, skipwhite};
+use crate::charset::{ascii_iswhite, skiptowhite, skipwhite};
 use crate::drawscreen::{UPD_SOME_VALID, UPD_VALID, redraw_later, redraw_win_range_later};
 use crate::errors::*;
 use crate::eval::funcs::get_optional_window;
 use crate::eval::typval::{
-    EvalFuncData, TvList, TypVal, VarType, Varnumber, tv_dict_add_list, tv_dict_add_nr,
-    tv_dict_add_str, tv_dict_add_str_len, tv_dict_alloc, tv_dict_find, tv_dict_get_number,
-    tv_dict_get_string, tv_dict_get_string_buf, tv_get_number, tv_get_number_chk, tv_get_string,
-    tv_get_string_buf_chk, tv_list_alloc, tv_list_alloc_ret, tv_list_append_dict,
-    tv_list_append_number, tv_list_append_string, tv_list_append_tv, tv_list_first,
-    tv_list_idx_of_item, tv_list_len, tv_list_ref, tv_list_unref,
+    EvalFuncData, TvList, TypVal, VarType, Varnumber, list_iter_mut, tv_dict_add_list,
+    tv_dict_add_nr, tv_dict_add_str, tv_dict_add_str_len, tv_dict_alloc, tv_dict_find_opt,
+    tv_dict_get_number, tv_dict_get_string, tv_dict_get_string_buf, tv_get_number,
+    tv_get_number_chk, tv_get_string, tv_get_string_buf_chk, tv_list_alloc, tv_list_alloc_ret,
+    tv_list_append_dict, tv_list_append_number, tv_list_append_string, tv_list_append_tv,
+    tv_list_first, tv_list_idx_of_item, tv_list_iter, tv_list_len, tv_list_ref, tv_list_unref,
 };
 use crate::eval::window::find_win_by_nr_or_id;
 use crate::ex_docmd::{Exarg, ends_excmd, ex_errmsg, find_nextcmd, set_no_hlsearch};
@@ -223,18 +223,17 @@ fn match_add(
                 let mut error = false;
 
                 if li.li_tv.v_type == VarType::VarList {
-                    let subl = li.li_tv.vval.v_list();
-                    let mut subli = tv_list_first(unsafe { subl.as_ref() });
-                    if subli.is_null() {
+                    let subl = li.li_tv.vval.v_list_opt();
+                    let mut sub_iter = tv_list_iter(subl.as_deref());
+                    let Some(subli1) = sub_iter.next() else {
                         semsg!(
                             gettext(c"E5030: Empty list at position %d"),
                             tv_list_idx_of_item(pos_list, li),
                         );
                         failed = true;
                         break;
-                    }
-                    lnum =
-                        tv_get_number_chk(unsafe { &(*subli).li_tv }, Some(&mut error)) as Linenr;
+                    };
+                    lnum = tv_get_number_chk(&subli1.li_tv, Some(&mut error)) as Linenr;
                     if error {
                         failed = true;
                         break;
@@ -243,10 +242,8 @@ fn match_add(
                         continue;
                     }
                     m.mit_pos[i].lnum = lnum;
-                    subli = unsafe { (*subli).li_next };
-                    if !subli.is_null() {
-                        col = tv_get_number_chk(unsafe { &(*subli).li_tv }, Some(&mut error))
-                            as Colnr;
+                    if let Some(subli2) = sub_iter.next() {
+                        col = tv_get_number_chk(&subli2.li_tv, Some(&mut error)) as Colnr;
                         if error {
                             failed = true;
                             break;
@@ -254,10 +251,8 @@ fn match_add(
                         if col < 0 {
                             continue;
                         }
-                        subli = unsafe { (*subli).li_next };
-                        if !subli.is_null() {
-                            len = tv_get_number_chk(unsafe { &(*subli).li_tv }, Some(&mut error))
-                                as Colnr;
+                        if let Some(subli3) = sub_iter.next() {
+                            len = tv_get_number_chk(&subli3.li_tv, Some(&mut error)) as Colnr;
                             if len < 0 {
                                 continue;
                             }
@@ -902,39 +897,34 @@ pub fn get_search_match_hl(
 fn matchadd_dict_arg(
     tv: &TypVal,
     conceal_char: &mut Option<&'static std::ffi::CStr>,
-    win: *mut *mut WinInfoInfo,
+    win: &mut *mut WinInfoInfo,
 ) -> bool {
-    unsafe {
-        if tv.v_type != VarType::VarDict {
-            emsg(gettext(E_DICTREQ));
-            return false;
-        }
-
-        let di = tv_dict_find(tv.vval.v_dict().as_ref(), c"conceal", 7);
-        if !di.is_null() {
-            *conceal_char = Some(tv_get_string(&(*di).di_tv));
-        }
-
-        let di = tv_dict_find(tv.vval.v_dict().as_ref(), c"window", 6);
-        if di.is_null() {
-            return true;
-        }
-
-        *win = find_win_by_nr_or_id(&(*di).di_tv);
-        if (*win).is_null() {
-            emsg(gettext(E_INVALWINDOW));
-            return false;
-        }
-
-        true
+    if tv.v_type != VarType::VarDict {
+        emsg(gettext(E_DICTREQ));
+        return false;
     }
+
+    if let Some(di) = tv_dict_find_opt(tv.vval.v_dict_opt().as_deref(), c"conceal", 7) {
+        *conceal_char = Some(tv_get_string(&di.di_tv));
+    }
+
+    let Some(di) = tv_dict_find_opt(tv.vval.v_dict_opt().as_deref(), c"window", 6) else {
+        return true;
+    };
+
+    *win = find_win_by_nr_or_id(&di.di_tv);
+    if (*win).is_null() {
+        emsg(gettext(E_INVALWINDOW));
+        return false;
+    }
+
+    true
 }
 
 /// `clearmatches()` function (`f_clearmatches`).
 pub fn f_clearmatches(argvars: &mut [TypVal], _rettv: &mut TypVal, _fptr: EvalFuncData) {
-    let win = get_optional_window(argvars, 0);
-    if !win.is_null() {
-        clear_matches(unsafe { &mut *win });
+    if let Some(win) = unsafe { get_optional_window(argvars, 0).as_mut() } {
+        clear_matches(win);
     }
 }
 
@@ -943,11 +933,11 @@ pub fn f_getmatches(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncD
     let win = get_optional_window(argvars, 0);
 
     tv_list_alloc_ret(rettv, K_LIST_LEN_MAY_KNOW_CONST);
-    if win.is_null() {
+    let Some(win) = (unsafe { win.as_ref() }) else {
         return;
-    }
+    };
 
-    for cur in unsafe { &(*win).w_match_head } {
+    for cur in &win.w_match_head {
         let dict = tv_dict_alloc();
         if cur.mit_match.regprog.is_null() {
             for (i, llpos) in cur.mit_pos.iter().enumerate() {
@@ -998,115 +988,110 @@ pub fn f_getmatches(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncD
 
 /// `setmatches()` function (`f_setmatches`).
 pub fn f_setmatches(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
-    unsafe {
-        let mut s: *mut TvList = ptr::null_mut();
-        let win = get_optional_window(argvars, 1);
+    let mut s: *mut TvList = ptr::null_mut();
+    let win = get_optional_window(argvars, 1);
 
-        rettv.vval = crate::eval::typval::TypvalVval::Number(-1);
-        if argvars[0].v_type != VarType::VarList {
-            emsg(gettext(E_LISTREQ));
+    rettv.vval = crate::eval::typval::TypvalVval::Number(-1);
+    if argvars[0].v_type != VarType::VarList {
+        emsg(gettext(E_LISTREQ));
+        return;
+    }
+    let Some(win) = (unsafe { win.as_mut() }) else {
+        return;
+    };
+
+    for (li_idx, li) in (0_i32..).zip(list_iter_mut(tv_list_first(
+        argvars[0].vval.v_list_opt().as_deref(),
+    ))) {
+        let Some(d) = li
+            .li_tv
+            .vval
+            .v_dict_opt()
+            .filter(|_| li.li_tv.v_type == VarType::VarDict)
+        else {
+            semsg!(
+                gettext(c"E474: List item %d is either not a dictionary or an empty one",),
+                li_idx,
+            );
+            return;
+        };
+        if tv_dict_find_opt(Some(d), c"group", 5).is_none()
+            || (tv_dict_find_opt(Some(d), c"pattern", 7).is_none()
+                && tv_dict_find_opt(Some(d), c"pos1", 4).is_none())
+            || tv_dict_find_opt(Some(d), c"priority", 8).is_none()
+            || tv_dict_find_opt(Some(d), c"id", 2).is_none()
+        {
+            semsg!(
+                gettext(c"E474: List item %d is missing one of the required keys"),
+                li_idx,
+            );
             return;
         }
-        if win.is_null() {
-            return;
-        }
+    }
 
-        let l = argvars[0].vval.v_list();
-        for (li_idx, li) in (0_i32..).zip(crate::eval::typval::list_iter_mut(tv_list_first(
-            l.as_ref(),
-        ))) {
-            if li.li_tv.v_type != VarType::VarDict || li.li_tv.vval.v_dict().is_null() {
-                semsg!(
-                    gettext(c"E474: List item %d is either not a dictionary or an empty one",),
-                    li_idx,
-                );
-                return;
+    clear_matches(&mut *win);
+    let mut match_add_failed = false;
+    for li in list_iter_mut(tv_list_first(argvars[0].vval.v_list_opt().as_deref())) {
+        let mut i: i32 = 0;
+        let d = li.li_tv.vval.v_dict_ref();
+        if tv_dict_find_opt(Some(d), c"pattern", 7).is_none() {
+            if s.is_null() {
+                let list = tv_list_alloc(9);
+                tv_list_ref(Some(&mut *list));
+                s = list;
             }
-            let d = li.li_tv.vval.v_dict();
-            if tv_dict_find(d.as_ref(), c"group", 5).is_null()
-                || (tv_dict_find(d.as_ref(), c"pattern", 7).is_null()
-                    && tv_dict_find(d.as_ref(), c"pos1", 4).is_null())
-                || tv_dict_find(d.as_ref(), c"priority", 8).is_null()
-                || tv_dict_find(d.as_ref(), c"id", 2).is_null()
-            {
-                semsg!(
-                    gettext(c"E474: List item %d is missing one of the required keys"),
-                    li_idx,
-                );
-                return;
-            }
-        }
 
-        clear_matches(&mut *win);
-        let mut match_add_failed = false;
-        for li in crate::eval::typval::list_iter_mut(tv_list_first(l.as_ref())) {
-            let mut i: i32 = 0;
-            let d = li.li_tv.vval.v_dict();
-            let di = tv_dict_find(d.as_ref(), c"pattern", 7);
-            if di.is_null() {
-                if s.is_null() {
-                    s = tv_list_alloc(9);
-                    tv_list_ref(s.as_mut());
-                }
-
-                i = 1;
-                while i < 9 {
-                    let mut buf = [0u8; 30];
-                    vim_snprintf!(buf.as_mut_ptr().cast(), 30, c"pos%d", i);
-                    let pos_di = tv_dict_find(
-                        d.as_ref(),
-                        std::ffi::CStr::from_bytes_until_nul(&buf).unwrap_or_default(),
-                        -1,
-                    );
-                    if !pos_di.is_null() {
-                        let pos_di = &mut *pos_di;
-                        if pos_di.di_tv.v_type != VarType::VarList {
-                            tv_list_unref(s);
-                            return;
-                        }
-                        tv_list_append_tv(&mut *s, &mut pos_di.di_tv);
-                    } else {
-                        break;
+            i = 1;
+            while i < 9 {
+                let mut buf = [0u8; 30];
+                vim_snprintf!(buf.as_mut_ptr().cast(), 30, c"pos%d", i);
+                if let Some(pos_di) = tv_dict_find_opt(
+                    Some(d),
+                    std::ffi::CStr::from_bytes_until_nul(&buf).unwrap_or_default(),
+                    -1,
+                ) {
+                    if pos_di.di_tv.v_type != VarType::VarList {
+                        tv_list_unref(s);
+                        return;
                     }
-                    i += 1;
+                    tv_list_append_tv(unsafe { &mut *s }, &mut pos_di.di_tv);
+                } else {
+                    break;
                 }
+                i += 1;
             }
+        }
 
-            let mut group_buf = [0u8; NUMBUFLEN];
-            let group = tv_dict_get_string_buf(d.as_ref(), c"group", &mut group_buf);
-            let priority = tv_dict_get_number(d.as_ref(), c"priority") as i32;
-            let id = tv_dict_get_number(d.as_ref(), c"id") as i32;
-            let conceal_di = tv_dict_find(d.as_ref(), c"conceal", 7);
-            let conceal = if !conceal_di.is_null() {
-                tv_get_string(&(*conceal_di).di_tv).as_ptr()
-            } else {
-                ptr::null()
-            };
-            if i == 0 {
-                let pat = tv_dict_get_string(d.as_ref(), c"pattern");
-                if match_add(&mut *win, group, pat, priority, id, None, conceal) != id {
-                    match_add_failed = true;
-                }
-            } else {
-                if match_add(
-                    &mut *win,
-                    group,
-                    ptr::null(),
-                    priority,
-                    id,
-                    s.as_ref(),
-                    conceal,
-                ) != id
-                {
-                    match_add_failed = true;
-                }
-                tv_list_unref(s);
-                s = ptr::null_mut();
+        let mut group_buf = [0u8; NUMBUFLEN];
+        let group = tv_dict_get_string_buf(Some(d), c"group", &mut group_buf);
+        let priority = tv_dict_get_number(Some(d), c"priority") as i32;
+        let id = tv_dict_get_number(Some(d), c"id") as i32;
+        let conceal = tv_dict_find_opt(Some(d), c"conceal", 7)
+            .map_or(ptr::null(), |di| tv_get_string(&di.di_tv).as_ptr());
+        if i == 0 {
+            let pat = tv_dict_get_string(Some(d), c"pattern");
+            if match_add(&mut *win, group, pat, priority, id, None, conceal) != id {
+                match_add_failed = true;
             }
+        } else {
+            if match_add(
+                &mut *win,
+                group,
+                ptr::null(),
+                priority,
+                id,
+                unsafe { s.as_ref() },
+                conceal,
+            ) != id
+            {
+                match_add_failed = true;
+            }
+            tv_list_unref(s);
+            s = ptr::null_mut();
         }
-        if !match_add_failed {
-            rettv.vval = crate::eval::typval::TypvalVval::Number(0);
-        }
+    }
+    if !match_add_failed {
+        rettv.vval = crate::eval::typval::TypvalVval::Number(0);
     }
 }
 
@@ -1132,7 +1117,7 @@ pub fn f_matchadd(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDat
         if argvars[3].v_type != VarType::VarUnknown {
             id = tv_get_number_chk(&argvars[3], Some(&mut error)) as i32;
             if argvars[4].v_type != VarType::VarUnknown
-                && !matchadd_dict_arg(&argvars[4], &mut conceal_char, &raw mut win)
+                && !matchadd_dict_arg(&argvars[4], &mut conceal_char, &mut win)
             {
                 return;
             }
@@ -1171,8 +1156,8 @@ pub fn f_matchaddpos(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFunc
         return;
     }
 
-    let l = argvars[1].vval.v_list();
-    if tv_list_len(unsafe { l.as_ref() }) == 0 {
+    let l = argvars[1].vval.v_list_opt();
+    if tv_list_len(l.as_deref()) == 0 {
         return;
     }
 
@@ -1187,7 +1172,7 @@ pub fn f_matchaddpos(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFunc
         if argvars[3].v_type != VarType::VarUnknown {
             id = tv_get_number_chk(&argvars[3], Some(&mut error)) as i32;
             if argvars[4].v_type != VarType::VarUnknown
-                && !matchadd_dict_arg(&argvars[4], &mut conceal_char, &raw mut win)
+                && !matchadd_dict_arg(&argvars[4], &mut conceal_char, &mut win)
             {
                 return;
             }
@@ -1202,13 +1187,14 @@ pub fn f_matchaddpos(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFunc
         return;
     }
 
+    let l = argvars[1].vval.v_list_opt();
     rettv.vval = crate::eval::typval::TypvalVval::Number(match_add(
         unsafe { &mut *win },
         group,
         ptr::null(),
         prio,
         id,
-        unsafe { l.as_ref() },
+        l.as_deref(),
         conceal_char,
     ) as Varnumber);
 }
@@ -1220,9 +1206,7 @@ pub fn f_matcharg(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDat
     tv_list_alloc_ret(rettv, if (1..=3).contains(&id) { 2 } else { 0 });
 
     if (1..=3).contains(&id) {
-        let m = get_match(curwin_mut(), id);
-        if !m.is_null() {
-            let m = unsafe { &mut *m };
+        if let Some(m) = unsafe { get_match(curwin_mut(), id).as_ref() } {
             tv_list_append_string(rettv.vval.v_list_ref(), syn_id2name(m.mit_hlg_id), -1);
             tv_list_append_string(
                 rettv.vval.v_list_ref(),
@@ -1238,16 +1222,13 @@ pub fn f_matcharg(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDat
 
 /// `matchdelete()` function (`f_matchdelete`).
 pub fn f_matchdelete(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
-    let win = get_optional_window(argvars, 1);
-    rettv.vval = crate::eval::typval::TypvalVval::Number(if win.is_null() {
-        -1
-    } else {
-        match_delete(
-            unsafe { &mut *win },
-            tv_get_number(&argvars[0]) as i32,
-            true,
-        ) as Varnumber
-    });
+    rettv.vval = crate::eval::typval::TypvalVval::Number(
+        if let Some(win) = unsafe { get_optional_window(argvars, 1).as_mut() } {
+            match_delete(win, tv_get_number(&argvars[0]) as i32, true) as Varnumber
+        } else {
+            -1
+        },
+    );
 }
 
 /// `:[N]match {group} {pattern}` (`ex_match`).
@@ -1300,32 +1281,32 @@ pub fn ex_match(eap: &mut Exarg) {
             );
             if eap.skip == 0 {
                 if !crate::memory::cstr_is_empty(end)
-                    && ends_excmd(i32::from(unsafe { *skipwhite(end.wrapping_add(1)) })) == 0
+                    && ends_excmd(crate::memory::cstr_first_char(skipwhite(
+                        end.wrapping_add(1),
+                    ))) == 0
                 {
                     eap.errmsg = Some(ex_errmsg(E_TRAILING_ARG, end));
                     return;
                 }
-                if unsafe { *end } != unsafe { *p } {
+                if crate::memory::cstr_first_byte(end) != crate::memory::cstr_first_byte(p) {
                     semsg!(gettext(E_INVARG2), p);
                     return;
                 }
 
-                let c = unsafe { *end };
-                unsafe {
-                    *end = NUL;
-                }
+                let pat_len = crate::memory::ptr_offset_from(end, p.wrapping_add(1)) as usize;
+                let pat_cstr = crate::memory::cstr_from_bytes(crate::memory::cstr_slice(
+                    p.wrapping_add(1),
+                    pat_len,
+                ));
                 match_add(
                     curwin_mut(),
                     g.as_ref().map_or(ptr::null(), |s| s.as_ptr()),
-                    p.wrapping_add(1),
+                    pat_cstr.as_ptr(),
                     10,
                     id,
                     None,
                     ptr::null(),
                 );
-                unsafe {
-                    *end = c;
-                }
             }
         }
     }

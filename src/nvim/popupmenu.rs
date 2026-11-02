@@ -208,6 +208,20 @@ impl PopupmenuState {
             invalid: false,
         }
     }
+
+    #[inline]
+    fn items(&self) -> &'static [Pumitem] {
+        if self.array.is_null() || self.size <= 0 {
+            &[]
+        } else {
+            unsafe { std::slice::from_raw_parts(self.array, self.size as usize) }
+        }
+    }
+
+    #[inline]
+    fn item(&self, idx: i32) -> &'static Pumitem {
+        &self.items()[idx as usize]
+    }
 }
 
 static PUM: GlobalState<PopupmenuState> = GlobalState::new(PopupmenuState::new());
@@ -223,8 +237,7 @@ fn pum_compute_size() {
     pum().base_width = 0;
     pum().kind_width = 0;
     pum().extra_width = 0;
-    for i in 0..(pum().size as usize) {
-        let item = unsafe { &*pum().array.wrapping_add(i) };
+    for item in pum().items() {
         if let Some(ref text) = item.pum_text {
             let w = vim_strsize(text.as_ptr().cast_mut());
             if pum().base_width < w {
@@ -698,7 +711,7 @@ fn pum_grid_puts_with_attrs(
     cells: i32,
     text: impl crate::strings::IntoCCharPtr,
     textlen: i32,
-    attrs: *const i32,
+    attrs: &[i32],
 ) {
     let text = text.into_c_char_ptr();
     {
@@ -714,7 +727,7 @@ fn pum_grid_puts_with_attrs(
             } else {
                 col - col_start
             };
-            let attr = unsafe { *attrs.wrapping_add(attr_idx as usize) };
+            let attr = attrs[attr_idx as usize];
             grid_line_puts(col, ptr, char_len, attr);
             col += utf_ptr2cells(ptr);
             ptr = ptr.wrapping_add(char_len as usize);
@@ -744,7 +757,7 @@ fn pum_align_order(order: &mut [i32; 3]) {
 
 #[inline]
 fn pum_get_item(index: i32, type_: i32) -> Option<&'static std::ffi::CStr> {
-    let item = unsafe { &*pum().array.wrapping_add(index as usize) };
+    let item = pum().item(index);
     match type_ {
         CPT_ABBR => item.text_cstr(),
         CPT_KIND => item.kind_cstr(),
@@ -755,7 +768,7 @@ fn pum_get_item(index: i32, type_: i32) -> Option<&'static std::ffi::CStr> {
 
 #[inline]
 fn pum_user_attr_combine(idx: i32, type_: i32, attr: i32) -> i32 {
-    let item = unsafe { &*pum().array.wrapping_add(idx as usize) };
+    let item = pum().item(idx);
     let user_attr = [item.pum_user_abbr_hlattr, item.pum_user_kind_hlattr];
     let u = user_attr[type_ as usize];
     if u > 0 {
@@ -969,41 +982,37 @@ pub fn pum_redraw() {
             let next_isempty = j + 1 >= 3 || pum_get_item(idx, order[j + 1]).is_none();
 
             if let Some(item_cstr) = item_cstr {
-                let mut p: *const u8 = item_cstr.as_ptr().cast();
+                let item_bytes = item_cstr.to_bytes_with_nul();
+                let mut p_idx = 0usize;
+                let mut s_idx: Option<usize> = None;
+                let _ = &mut s;
                 loop {
-                    if s.is_null() {
-                        s = p;
-                    }
-                    let w = ptr2cells(p.cast());
-                    if !crate::memory::cstr_is_empty(p.cast())
-                        && unsafe { *p } != TAB
+                    let seg_start = *s_idx.get_or_insert(p_idx);
+                    let w = ptr2cells(&item_bytes[p_idx..]);
+                    if item_bytes[p_idx] != 0
+                        && item_bytes[p_idx] != TAB
                         && totwidth + w <= pum().width
                     {
                         width += w;
-                        p = p.wrapping_add(utfc_ptr2len(p.cast()) as usize);
+                        p_idx += crate::mbyte::utfc_slice2len(&item_bytes[p_idx..]).max(1);
                         continue;
                     }
                     let width_limit = pum().width;
 
-                    let seg_len = crate::memory::ptr_offset_from(p, s) as usize;
-                    let seg_cstr = crate::memory::cstr_from_bytes(unsafe {
-                        std::slice::from_raw_parts(s, seg_len)
-                    });
+                    let seg_cstr = crate::memory::cstr_from_bytes(&item_bytes[seg_start..p_idx]);
                     let mut st_bytes = transstr(seg_cstr.as_c_str(), true).into_bytes_with_nul();
                     let st = st_bytes.as_mut_ptr();
 
                     let attrs = if item_type == CPT_ABBR {
-                        pum_compute_text_attrs(st.cast(), hlf, unsafe {
-                            (*pum().array.wrapping_add(idx as usize)).pum_user_abbr_hlattr
-                        })
+                        pum_compute_text_attrs(st.cast(), hlf, pum().item(idx).pum_user_abbr_hlattr)
                     } else {
                         None
                     };
 
                     if pum().rl {
                         let mut rt_bytes = reverse_text(st.cast()).into_bytes_with_nul();
-                        let mut rt = rt_bytes.as_mut_ptr();
-                        let mut cells = mb_string2cells(rt.cast()) as i32;
+                        let mut rt_idx = 0usize;
+                        let mut cells = mb_string2cells(rt_bytes.as_ptr().cast()) as i32;
                         let pad = if next_isempty { 0 } else { 2 };
                         if width_limit - totwidth < cells + pad {
                             need_fcs_trunc = true;
@@ -1011,32 +1020,31 @@ pub fn pum_redraw() {
 
                         if grid_col - cells < col_off - width_limit {
                             loop {
-                                cells -= utf_ptr2cells(rt.cast());
-                                rt = rt.wrapping_add(utfc_ptr2len(rt.cast()) as usize);
+                                cells -= utf_ptr2cells(&rt_bytes[rt_idx..]);
+                                rt_idx += crate::mbyte::utfc_slice2len(&rt_bytes[rt_idx..]).max(1);
                                 if grid_col - cells >= col_off - width_limit {
                                     break;
                                 }
                             }
 
                             if grid_col - cells > col_off - width_limit {
-                                rt = rt.wrapping_sub(1);
-                                unsafe {
-                                    *rt = b'<';
-                                }
+                                rt_idx -= 1;
+                                rt_bytes[rt_idx] = b'<';
                                 cells += 1;
                             }
                         }
 
+                        let rt_ptr: *const std::ffi::c_char = rt_bytes[rt_idx..].as_ptr().cast();
                         if let Some(ref attrs_vec) = attrs {
                             pum_grid_puts_with_attrs(
                                 grid_col - cells + 1,
                                 cells,
-                                rt.cast(),
+                                rt_ptr,
                                 -1,
-                                attrs_vec.as_ptr(),
+                                attrs_vec,
                             );
                         } else {
-                            grid_line_puts(grid_col - cells + 1, rt.cast(), -1, attr);
+                            grid_line_puts(grid_col - cells + 1, rt_ptr, -1, attr);
                         }
 
                         grid_col -= width;
@@ -1048,39 +1056,32 @@ pub fn pum_redraw() {
                         }
                         if need_fcs_trunc {
                             let available_cells = width_limit - totwidth;
-                            let mut p_end = st;
+                            let mut p_end = 0usize;
                             let mut displayed: i32 = 0;
-                            while !crate::memory::cstr_is_empty(p_end.cast()) {
-                                let char_cells = utf_ptr2cells(p_end.cast());
+                            while st_bytes[p_end] != 0 {
+                                let char_cells = utf_ptr2cells(&st_bytes[p_end..]);
                                 if displayed + char_cells > available_cells {
                                     break;
                                 }
                                 displayed += char_cells;
-                                p_end = p_end.wrapping_add(utfc_ptr2len(p_end.cast()) as usize);
+                                p_end += crate::mbyte::utfc_slice2len(&st_bytes[p_end..]).max(1);
                             }
-                            unsafe {
-                                *p_end = 0;
-                            }
+                            st_bytes[p_end] = 0;
                             cells = displayed;
                             width = displayed;
                         }
 
+                        let st_ptr: *const std::ffi::c_char = st_bytes.as_ptr().cast();
                         if let Some(ref attrs_vec) = attrs {
-                            pum_grid_puts_with_attrs(
-                                grid_col,
-                                cells,
-                                st.cast(),
-                                -1,
-                                attrs_vec.as_ptr(),
-                            );
+                            pum_grid_puts_with_attrs(grid_col, cells, st_ptr, -1, attrs_vec);
                         } else {
-                            grid_line_puts(grid_col, st.cast(), -1, attr);
+                            grid_line_puts(grid_col, st_ptr, -1, attr);
                         }
 
                         grid_col += width;
                     }
 
-                    if unsafe { *p } != TAB {
+                    if item_bytes[p_idx] != TAB {
                         break;
                     }
 
@@ -1092,9 +1093,9 @@ pub fn pum_redraw() {
                         grid_col += 2;
                     }
                     totwidth += 2;
-                    s = ptr::null();
+                    s_idx = None;
                     width = 0;
-                    p = p.wrapping_add(utfc_ptr2len(p.cast()) as usize);
+                    p_idx += crate::mbyte::utfc_slice2len(&item_bytes[p_idx..]).max(1);
                 }
             }
 
@@ -1317,24 +1318,21 @@ pub fn pum_set_info(selected: i32, info: *mut u8) -> *mut WinInfoInfo {
     let mut wp = win_float_find(K_WIN_INFO);
     if wp.is_null() {
         wp = win_float_special(false, true, K_WIN_INFO);
-        if wp.is_null() {
+        let Some(wp_ref) = (unsafe { wp.as_mut() }) else {
             return ptr::null_mut();
-        }
-        unsafe {
-            (*wp).w_topline = 1;
-        }
-        unsafe {
-            (*wp).w_onebuf_opt.wo_wfb = 1;
-        }
+        };
+        wp_ref.w_topline = 1;
+        wp_ref.w_onebuf_opt.wo_wfb = 1;
     }
+    let wp_ref = unsafe { &mut *wp };
     let mut lnum: Linenr = 0;
     let mut max_info_width: i32 = 0;
-    pum_preview_set_text(unsafe { &mut *wp }, info, &mut lnum, &mut max_info_width);
+    pum_preview_set_text(&mut *wp_ref, info, &mut lnum, &mut max_info_width);
     g_st().no_u_sync -= 1;
     g_st().redrawing_disabled -= 1;
-    redraw_later(unsafe { wp.as_mut() }, UPD_NOT_VALID);
+    redraw_later(Some(&mut *wp_ref), UPD_NOT_VALID);
 
-    if !pum_adjust_info_position(unsafe { &mut *wp }, max_info_width) {
+    if !pum_adjust_info_position(&mut *wp_ref, max_info_width) {
         wp = ptr::null_mut();
     }
     unblock_autocmds();
@@ -1757,45 +1755,44 @@ fn pum_position_at_mouse(min_width: i32) {
 
 /// Select the pum entry at the mouse position (`pum_select_mouse_pos`).
 fn pum_select_mouse_pos() {
-    unsafe {
-        let mut grid = g_st().mouse_grid;
-        let mut row = g_st().mouse_row;
-        let mut col = g_st().mouse_col;
+    let mut grid = g_st().mouse_grid;
+    let mut row = g_st().mouse_row;
+    let mut col = g_st().mouse_col;
 
-        if grid == 0 {
-            mouse_find_win_outer(&mut grid, &mut row, &mut col);
-        }
+    if grid == 0 {
+        mouse_find_win_outer(&mut grid, &mut row, &mut col);
+    }
 
-        if grid == g_st().pum_grid.handle {
-            let border_offset = if pum_border_width() == 2 { 1 } else { 0 };
-            let item = row - border_offset;
-            pum().selected = if item >= 0 && item < pum().height {
-                item
-            } else {
-                -1
-            };
-            return;
-        }
+    if grid == g_st().pum_grid.handle {
+        let border_offset = if pum_border_width() == 2 { 1 } else { 0 };
+        let item = row - border_offset;
+        pum().selected = if item >= 0 && item < pum().height {
+            item
+        } else {
+            -1
+        };
+        return;
+    }
 
-        if grid != pum().anchor_grid
-            || col < pum().left_col - pum().win_col_offset
-            || col >= pum().right_col - pum().win_col_offset
-        {
-            pum().selected = -1;
-            return;
-        }
+    if grid != pum().anchor_grid
+        || col < pum().left_col - pum().win_col_offset
+        || col >= pum().right_col - pum().win_col_offset
+    {
+        pum().selected = -1;
+        return;
+    }
 
-        let idx = row - (pum().row - pum().win_row_offset);
+    let idx = row - (pum().row - pum().win_row_offset);
 
-        if idx < 0 || idx >= pum().height {
-            pum().selected = -1;
-        } else if (*pum().array.wrapping_add(idx as usize))
-            .pum_text
-            .as_ref()
-            .is_some_and(|s| !s.to_bytes().is_empty())
-        {
-            pum().selected = idx;
-        }
+    if idx < 0 || idx >= pum().height {
+        pum().selected = -1;
+    } else if pum()
+        .item(idx)
+        .pum_text
+        .as_ref()
+        .is_some_and(|s| !s.to_bytes().is_empty())
+    {
+        pum().selected = idx;
     }
 }
 
@@ -1817,123 +1814,119 @@ fn pum_execute_menu(menu: &mut Vimmenu, mode: i32) {
 
 /// Open the terminal version of the popup menu (`pum_show_popupmenu`).
 pub fn pum_show_popupmenu(menu: &mut Vimmenu) {
-    unsafe {
-        pum_undisplay(true);
-        pum().size = 0;
-        let mode = get_menu_mode_flag();
+    pum_undisplay(true);
+    pum().size = 0;
+    let mode = get_menu_mode_flag();
 
-        for mp in &menu.children {
-            if menu_is_separator(mp.dname.as_ptr().cast_mut())
-                || (mp.modes & mp.enabled & mode) != 0
-            {
-                pum().size += 1;
+    for mp in &menu.children {
+        if menu_is_separator(mp.dname.as_ptr().cast_mut()) || (mp.modes & mp.enabled & mode) != 0 {
+            pum().size += 1;
+        }
+    }
+
+    if pum().size <= 0 {
+        emsg(gettext(E_MENU_ONLY_EXISTS_IN_ANOTHER_MODE));
+        return;
+    }
+
+    let mut idx: usize = 0;
+    let mut array_vec: Vec<Pumitem> = vec![Pumitem::new(); pum().size as usize];
+    let array = array_vec.as_mut_ptr();
+
+    for mp in &menu.children {
+        let mut s: Option<&CStr> = None;
+        if menu_is_separator(mp.dname.as_ptr().cast_mut()) {
+            s = Some(c"");
+        } else if (mp.modes & mp.enabled & mode) != 0 {
+            s = Some(mp.dname.as_c_str());
+        }
+        if let Some(s) = s {
+            array_vec[idx].pum_text = Some(s.to_owned());
+            idx += 1;
+        }
+    }
+
+    pum().array = array;
+    pum_compute_size();
+    pum().scrollbar = 0;
+    pum().height = pum().size;
+    pum().rl = curwin_mut().w_onebuf_opt.wo_rl != 0;
+    pum_position_at_mouse(20);
+
+    pum().selected = -1;
+    pum().first = 0;
+    if opt_vars().p_mousemev == 0 {
+        ui_call_option_set(
+            NvimString {
+                data: c"mousemoveevent".as_ptr().cast_mut(),
+                size: 14,
+            },
+            boolean_obj(true),
+        );
+    }
+
+    loop {
+        pum().is_visible = true;
+        pum().is_drawn = true;
+        g_st().pum_grid.zindex = K_ZINDEX_CMDLINE_POPUP_MENU;
+        pum_redraw();
+        setcursor_mayforce(curwin_mut(), true);
+
+        let c = vgetc();
+
+        if c == ESC || c == CTRL_C_CONST || pum().array.is_null() {
+            break;
+        } else if c == CAR || c == NL {
+            pum_execute_menu(menu, mode);
+            break;
+        } else if c == b'k' as i32 || c == K_UP || c == K_MOUSEUP {
+            while pum().selected > 0 {
+                pum().selected -= 1;
+                if array_vec[pum().selected as usize]
+                    .pum_text
+                    .as_ref()
+                    .is_some_and(|s| !s.to_bytes().is_empty())
+                {
+                    break;
+                }
             }
-        }
-
-        if pum().size <= 0 {
-            emsg(gettext(E_MENU_ONLY_EXISTS_IN_ANOTHER_MODE));
-            return;
-        }
-
-        let mut idx: usize = 0;
-        let mut array_vec: Vec<Pumitem> = vec![Pumitem::new(); pum().size as usize];
-        let array = array_vec.as_mut_ptr();
-
-        for mp in &menu.children {
-            let mut s: Option<&CStr> = None;
-            if menu_is_separator(mp.dname.as_ptr().cast_mut()) {
-                s = Some(c"");
-            } else if (mp.modes & mp.enabled & mode) != 0 {
-                s = Some(mp.dname.as_c_str());
+        } else if c == b'j' as i32 || c == K_DOWN || c == K_MOUSEDOWN {
+            while pum().selected < pum().size - 1 {
+                pum().selected += 1;
+                if array_vec[pum().selected as usize]
+                    .pum_text
+                    .as_ref()
+                    .is_some_and(|s| !s.to_bytes().is_empty())
+                {
+                    break;
+                }
             }
-            if let Some(s) = s {
-                array_vec[idx].pum_text = Some(s.to_owned());
-                idx += 1;
-            }
-        }
-
-        pum().array = array;
-        pum_compute_size();
-        pum().scrollbar = 0;
-        pum().height = pum().size;
-        pum().rl = curwin_mut().w_onebuf_opt.wo_rl != 0;
-        pum_position_at_mouse(20);
-
-        pum().selected = -1;
-        pum().first = 0;
-        if opt_vars().p_mousemev == 0 {
-            ui_call_option_set(
-                NvimString {
-                    data: c"mousemoveevent".as_ptr().cast_mut(),
-                    size: 14,
-                },
-                boolean_obj(true),
-            );
-        }
-
-        loop {
-            pum().is_visible = true;
-            pum().is_drawn = true;
-            g_st().pum_grid.zindex = K_ZINDEX_CMDLINE_POPUP_MENU;
-            pum_redraw();
-            setcursor_mayforce(curwin_mut(), true);
-
-            let c = vgetc();
-
-            if c == ESC || c == CTRL_C_CONST || pum().array.is_null() {
-                break;
-            } else if c == CAR || c == NL {
+        } else if c == K_RIGHTMOUSE {
+            vungetc(c);
+            break;
+        } else if c == K_LEFTDRAG || c == K_RIGHTDRAG || c == K_MOUSEMOVE {
+            pum_select_mouse_pos();
+        } else if c == K_LEFTMOUSE || c == K_LEFTMOUSE_NM || c == K_RIGHTRELEASE {
+            pum_select_mouse_pos();
+            if pum().selected >= 0 {
                 pum_execute_menu(menu, mode);
                 break;
-            } else if c == b'k' as i32 || c == K_UP || c == K_MOUSEUP {
-                while pum().selected > 0 {
-                    pum().selected -= 1;
-                    if (*array.wrapping_add(pum().selected as usize))
-                        .pum_text
-                        .as_ref()
-                        .is_some_and(|s| !s.to_bytes().is_empty())
-                    {
-                        break;
-                    }
-                }
-            } else if c == b'j' as i32 || c == K_DOWN || c == K_MOUSEDOWN {
-                while pum().selected < pum().size - 1 {
-                    pum().selected += 1;
-                    if (*array.wrapping_add(pum().selected as usize))
-                        .pum_text
-                        .as_ref()
-                        .is_some_and(|s| !s.to_bytes().is_empty())
-                    {
-                        break;
-                    }
-                }
-            } else if c == K_RIGHTMOUSE {
-                vungetc(c);
+            }
+            if c == K_LEFTMOUSE || c == K_LEFTMOUSE_NM {
                 break;
-            } else if c == K_LEFTDRAG || c == K_RIGHTDRAG || c == K_MOUSEMOVE {
-                pum_select_mouse_pos();
-            } else if c == K_LEFTMOUSE || c == K_LEFTMOUSE_NM || c == K_RIGHTRELEASE {
-                pum_select_mouse_pos();
-                if pum().selected >= 0 {
-                    pum_execute_menu(menu, mode);
-                    break;
-                }
-                if c == K_LEFTMOUSE || c == K_LEFTMOUSE_NM {
-                    break;
-                }
             }
         }
+    }
 
-        pum_undisplay(true);
-        if opt_vars().p_mousemev == 0 {
-            ui_call_option_set(
-                NvimString {
-                    data: c"mousemoveevent".as_ptr().cast_mut(),
-                    size: 14,
-                },
-                boolean_obj(false),
-            );
-        }
+    pum_undisplay(true);
+    if opt_vars().p_mousemev == 0 {
+        ui_call_option_set(
+            NvimString {
+                data: c"mousemoveevent".as_ptr().cast_mut(),
+                size: 14,
+            },
+            boolean_obj(false),
+        );
     }
 }
 

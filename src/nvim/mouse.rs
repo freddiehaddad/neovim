@@ -397,15 +397,11 @@ fn get_fpos_of_mouse(mpos: &mut CursorPos, wpp: *mut *mut WinInfoInfo) -> i32 {
         return IN_UNKNOWN;
     }
 
-    let wp = mouse_find_win_inner(&mut grid, &mut row, &mut col);
-    if wp.is_null() {
+    let Some(wp) = mouse_find_win_inner_opt(&mut grid, &mut row, &mut col) else {
         return IN_UNKNOWN;
-    }
-    let wp = unsafe { &mut *wp };
-    if !wpp.is_null() {
-        unsafe {
-            *wpp = wp;
-        }
+    };
+    if let Some(wpp) = unsafe { wpp.as_mut() } {
+        *wpp = wp;
     }
     let winrow = row;
     let wincol = col;
@@ -1338,15 +1334,17 @@ pub fn cmdline_mousescroll(dir: i32) -> bool {
     let mut row = g_st().mouse_row;
     let mut col = g_st().mouse_col;
 
-    let wp = mouse_find_win_inner(&mut grid, &mut row, &mut col);
-    if wp.is_null() || unsafe { (*wp).w_kind } != K_WIN_INFO {
+    let Some(wp) = mouse_find_win_inner_opt(&mut grid, &mut row, &mut col) else {
+        return false;
+    };
+    if wp.w_kind != K_WIN_INFO {
         return false;
     }
 
     let old_curwin = curwin_ptr();
 
     set_curwin(wp);
-    g_st().curbuf = unsafe { (*wp).w_buffer };
+    g_st().curbuf = wp.w_buffer;
     do_mousescroll(&mut cap);
     set_curwin(old_curwin);
     g_st().curbuf = curwin_mut().w_buffer;
@@ -1471,11 +1469,9 @@ pub fn jump_to_mouse(mut flags: i32, inclusive: *mut bool, which_button: i32) ->
         return IN_UNKNOWN;
     }
 
-    let wp = mouse_find_win_inner(&mut grid, &mut row, &mut col);
-    if wp.is_null() {
+    let Some(wp) = mouse_find_win_inner_opt(&mut grid, &mut row, &mut col) else {
         return IN_UNKNOWN;
-    }
-    let wp = unsafe { &mut *wp };
+    };
 
     let below_window = grid == DEFAULT_GRID_HANDLE && row + wp.w_winbar_height >= wp.w_height;
     mouse_st().on_status_line = below_window && row + wp.w_winbar_height - wp.w_height + 1 == 1;
@@ -1590,24 +1586,19 @@ pub fn jump_to_mouse(mut flags: i32, inclusive: *mut bool, which_button: i32) ->
             }
         }
     } else if mouse_st().status_line_offset != 0 {
-        if which_button == MOUSE_LEFT && !mouse_st().dragwin.is_null() {
-            let count = row
-                - unsafe { (*mouse_st().dragwin).w_winrow }
-                - unsafe { (*mouse_st().dragwin).w_height }
-                + 1
-                - mouse_st().status_line_offset;
-            win_drag_status_line(unsafe { &mut *mouse_st().dragwin }, count);
+        if which_button == MOUSE_LEFT
+            && let Some(dragwin) = unsafe { mouse_st().dragwin.as_mut() }
+        {
+            let count =
+                row - dragwin.w_winrow - dragwin.w_height + 1 - mouse_st().status_line_offset;
+            win_drag_status_line(dragwin, count);
             mouse_st().did_drag |= count;
         }
         return IN_STATUS_LINE;
     } else if mouse_st().sep_line_offset != 0 && which_button == MOUSE_LEFT {
-        if !mouse_st().dragwin.is_null() {
-            let count = col
-                - unsafe { (*mouse_st().dragwin).w_wincol }
-                - unsafe { (*mouse_st().dragwin).w_width }
-                + 1
-                - mouse_st().sep_line_offset;
-            win_drag_vsep_line(unsafe { &mut *mouse_st().dragwin }, count);
+        if let Some(dragwin) = unsafe { mouse_st().dragwin.as_mut() } {
+            let count = col - dragwin.w_wincol - dragwin.w_width + 1 - mouse_st().sep_line_offset;
+            win_drag_vsep_line(dragwin, count);
             mouse_st().did_drag |= count;
         }
         return IN_SEP_LINE;
@@ -1940,106 +1931,107 @@ pub fn mouse_comp_pos(
 /// Find the window at "grid" position "*rowp" and "*colp". The positions are
 /// updated to become relative to the top-left of the window inner area.
 pub fn mouse_find_win_inner(gridp: &mut i32, rowp: &mut i32, colp: &mut i32) -> *mut WinInfoInfo {
-    unsafe {
-        let wp_grid = mouse_find_grid_win(&mut *gridp, &mut *rowp, &mut *colp);
-        if !wp_grid.is_null() {
-            return wp_grid;
-        } else if *gridp > 1 {
-            return ptr::null_mut();
-        }
-
-        let mut fp = g_st().topframe;
-        *rowp -= firstwin_mut().w_winrow;
-        loop {
-            if (*fp).fr_layout == FR_LEAF {
-                break;
-            }
-            if (*fp).fr_layout == FR_ROW {
-                fp = (*fp).fr_child;
-                while !(*fp).fr_next.is_null() {
-                    if *colp < (*fp).fr_width {
-                        break;
-                    }
-                    *colp -= (*fp).fr_width;
-                    fp = (*fp).fr_next;
-                }
-            } else {
-                fp = (*fp).fr_child;
-                while !(*fp).fr_next.is_null() {
-                    if *rowp < (*fp).fr_height {
-                        break;
-                    }
-                    *rowp -= (*fp).fr_height;
-                    fp = (*fp).fr_next;
-                }
-            }
-        }
-
-        for wp in for_all_windows_ptr() {
-            if std::ptr::eq(wp, (*fp).fr_win) {
-                *rowp -= wp.w_winbar_height;
-                return wp;
-            }
-        }
-        ptr::null_mut()
+    let wp_grid = mouse_find_grid_win(&mut *gridp, &mut *rowp, &mut *colp);
+    if !wp_grid.is_null() {
+        return wp_grid;
+    } else if *gridp > 1 {
+        return ptr::null_mut();
     }
+
+    let mut fp = topframe_mut();
+    *rowp -= firstwin_mut().w_winrow;
+    loop {
+        if fp.fr_layout == FR_LEAF {
+            break;
+        }
+        if fp.fr_layout == FR_ROW {
+            fp = fp.child_opt().unwrap();
+            while fp.next_opt().is_some() {
+                if *colp < fp.fr_width {
+                    break;
+                }
+                *colp -= fp.fr_width;
+                fp = fp.next_opt().unwrap();
+            }
+        } else {
+            fp = fp.child_opt().unwrap();
+            while fp.next_opt().is_some() {
+                if *rowp < fp.fr_height {
+                    break;
+                }
+                *rowp -= fp.fr_height;
+                fp = fp.next_opt().unwrap();
+            }
+        }
+    }
+
+    let fr_win = fp.fr_win;
+    for wp in for_all_windows_mut() {
+        if std::ptr::eq(wp, fr_win) {
+            *rowp -= wp.w_winbar_height;
+            return wp;
+        }
+    }
+    ptr::null_mut()
+}
+
+#[inline]
+pub fn mouse_find_win_inner_opt(
+    gridp: &mut i32,
+    rowp: &mut i32,
+    colp: &mut i32,
+) -> Option<&'static mut WinInfoInfo> {
+    unsafe { mouse_find_win_inner(gridp, rowp, colp).as_mut() }
 }
 
 /// Find the window at "grid" position "*rowp" and "*colp". The positions are
 /// updated to become relative to the top-left of the window.
 pub fn mouse_find_win_outer(gridp: &mut i32, rowp: &mut i32, colp: &mut i32) -> *mut WinInfoInfo {
-    let wp = mouse_find_win_inner(gridp, rowp, colp);
-    if !wp.is_null() {
-        let wp = unsafe { &mut *wp };
+    if let Some(wp) = mouse_find_win_inner_opt(gridp, rowp, colp) {
         *rowp += wp.w_winrow_off;
         *colp += wp.w_wincol_off;
+        wp
+    } else {
+        ptr::null_mut()
     }
-    wp
 }
 
 fn mouse_find_grid_win(gridp: &mut i32, rowp: &mut i32, colp: &mut i32) -> *mut WinInfoInfo {
-    unsafe {
-        if *gridp == g_st().msg_grid.handle {
-            *rowp += g_st().msg_grid_pos;
-            *gridp = DEFAULT_GRID_HANDLE;
-        } else if *gridp > 1 {
-            let wp = get_win_by_grid_handle(*gridp);
-            if !wp.is_null()
-                && !(*wp).w_grid_alloc.chars.is_empty()
-                && !((*wp).w_floating && !(*wp).w_config.mouse)
-            {
-                *rowp = (*rowp - (*wp).w_grid.row_offset).min((*wp).w_view_height - 1);
-                *colp = (*colp - (*wp).w_grid.col_offset).min((*wp).w_view_width - 1);
-                return wp;
-            }
-        } else if *gridp == 0 {
-            let grid = ui_comp_mouse_focus(*rowp, *colp);
-            if !grid.is_null() {
-                let grid = &mut *grid;
-                if ptr::eq(grid, &raw const g_st().pum_grid) {
-                    *gridp = grid.handle;
-                    *rowp -= grid.comp_row;
-                    *colp -= grid.comp_col;
-                    return ptr::null_mut();
-                } else {
-                    let mut wp = g_st().firstwin;
-                    while !wp.is_null() {
-                        if !ptr::eq(&raw const (*wp).w_grid_alloc, grid) {
-                            wp = (*wp).w_next;
-                            continue;
-                        }
-                        *gridp = grid.handle;
-                        *rowp -= (*wp).w_winrow + (*wp).w_grid.row_offset;
-                        *colp -= (*wp).w_wincol + (*wp).w_grid.col_offset;
-                        return wp;
+    if *gridp == g_st().msg_grid.handle {
+        *rowp += g_st().msg_grid_pos;
+        *gridp = DEFAULT_GRID_HANDLE;
+    } else if *gridp > 1 {
+        if let Some(wp) = unsafe { get_win_by_grid_handle(*gridp).as_mut() }
+            && !wp.w_grid_alloc.chars.is_empty()
+            && !(wp.w_floating && !wp.w_config.mouse)
+        {
+            *rowp = (*rowp - wp.w_grid.row_offset).min(wp.w_view_height - 1);
+            *colp = (*colp - wp.w_grid.col_offset).min(wp.w_view_width - 1);
+            return wp;
+        }
+    } else if *gridp == 0 {
+        if let Some(grid) = unsafe { ui_comp_mouse_focus(*rowp, *colp).as_mut() } {
+            if ptr::eq(grid, &raw const g_st().pum_grid) {
+                *gridp = grid.handle;
+                *rowp -= grid.comp_row;
+                *colp -= grid.comp_col;
+                return ptr::null_mut();
+            } else {
+                for wp in for_all_windows_mut() {
+                    if !ptr::eq(&raw const wp.w_grid_alloc, grid) {
+                        continue;
                     }
+                    *gridp = grid.handle;
+                    *rowp -= wp.w_winrow + wp.w_grid.row_offset;
+                    *colp -= wp.w_wincol + wp.w_grid.col_offset;
+                    return wp;
                 }
             }
-
-            *gridp = DEFAULT_GRID_HANDLE;
         }
-        ptr::null_mut()
+
+        *gridp = DEFAULT_GRID_HANDLE;
     }
+    ptr::null_mut()
 }
 
 /// Convert a virtual (screen) column to a character column.
@@ -2215,9 +2207,7 @@ pub fn f_getmousepos(_argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFun
     tv_dict_add_nr(d, c"screenrow", Varnumber::from(g_st().mouse_row) + 1);
     tv_dict_add_nr(d, c"screencol", Varnumber::from(g_st().mouse_col) + 1);
 
-    let wp = mouse_find_win_inner(&mut grid, &mut row, &mut col);
-    if !wp.is_null() {
-        let wp = unsafe { &mut *wp };
+    if let Some(wp) = mouse_find_win_inner_opt(&mut grid, &mut row, &mut col) {
         let height = wp.w_height + wp.w_hsep_height + wp.w_status_height;
         if row < height + wp.w_border_adj[2] {
             winid = Varnumber::from(wp.handle);

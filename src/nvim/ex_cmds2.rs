@@ -763,11 +763,8 @@ pub fn ex_checktime(eap: &mut Exarg) {
     g_st().no_check_timestamps = 0;
     if eap.addr_count == 0 {
         check_timestamps(0);
-    } else {
-        let buf = buflist_findnr(eap.line2);
-        if !buf.is_null() {
-            buf_check_timestamp(unsafe { &mut *buf });
-        }
+    } else if let Some(buf) = crate::buffer::buflist_findnr_opt(eap.line2) {
+        buf_check_timestamp(buf);
     }
     g_st().no_check_timestamps = save_no_check_timestamps;
 }

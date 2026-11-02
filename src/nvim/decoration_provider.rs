@@ -492,6 +492,11 @@ pub fn get_decor_provider(ns_id: NS, force: bool) -> *mut DecorProvider {
     p_vec.last_mut().map_or(ptr::null_mut(), |p| &raw mut *p)
 }
 
+#[inline]
+pub fn get_decor_provider_opt(ns_id: NS, force: bool) -> Option<&'static mut DecorProvider> {
+    unsafe { get_decor_provider(ns_id, force).as_mut() }
+}
+
 pub fn decor_provider_clear(mut p: Option<&mut DecorProvider>) {
     if p.is_none() {
         return;

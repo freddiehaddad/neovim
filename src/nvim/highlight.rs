@@ -10,7 +10,7 @@ use crate::api::private::validate::{
 };
 use crate::api::ui::{HLATTRS_DICT_SIZE, remote_ui_hl_attr_define, remote_ui_hl_group_set};
 use crate::decoration::{HLGroupID, NS};
-use crate::decoration_provider::get_decor_provider;
+use crate::decoration_provider::get_decor_provider_opt;
 use crate::drawscreen::screen_invalidate_highlights;
 use crate::globals::*;
 use crate::highlight_group::{
@@ -437,7 +437,7 @@ pub fn ns_hl_def(
     if (attrs.rgb_ae_attr & HL_DEFAULT) != 0 && hl_st().ns_hls.contains_key(&key) {
         return;
     }
-    let p = get_decor_provider(ns_id, true);
+    let p = get_decor_provider_opt(ns_id, true).unwrap();
     let attr_id = if link_id > 0 {
         -1
     } else {
@@ -446,14 +446,12 @@ pub fn ns_hl_def(
     let it = ColorItem {
         attr_id,
         link_id,
-        version: unsafe { (*p).hl_valid },
+        version: p.hl_valid,
         is_default: (attrs.rgb_ae_attr & HL_DEFAULT) != 0,
         link_global: (attrs.rgb_ae_attr & HL_GLOBAL) != 0,
     };
     hl_st().ns_hls.insert(key, it);
-    unsafe {
-        (*p).hl_cached = false;
-    }
+    p.hl_cached = false;
 }
 
 pub fn ns_get_hl(ns_hl: &mut NS, hl_id: i32, link: bool, nodefault: bool) -> i32 {
@@ -469,7 +467,7 @@ pub fn ns_get_hl(ns_hl: &mut NS, hl_id: i32, link: bool, nodefault: bool) -> i32
     }
 
     let ns_id = *ns_hl;
-    let p = get_decor_provider(ns_id, true);
+    let p = get_decor_provider_opt(ns_id, true).unwrap();
     let key = ColorKey {
         ns_id,
         syn_id: hl_id,
@@ -481,9 +479,9 @@ pub fn ns_get_hl(ns_hl: &mut NS, hl_id: i32, link: bool, nodefault: bool) -> i32
         is_default: false,
         link_global: false,
     });
-    let mut valid_item = it.version >= unsafe { (*p).hl_valid };
+    let mut valid_item = it.version >= p.hl_valid;
 
-    if !valid_item && unsafe { (*p).hl_def } != LUA_NOREF && hl_st().ns_get_hl_recursive == 0 {
+    if !valid_item && p.hl_def != LUA_NOREF && hl_st().ns_get_hl_recursive == 0 {
         let mut args_storage = [Object {
             obj_type: ObjectType::ObjectTypeNil,
             data: ObjectData::Integer(0),
@@ -500,7 +498,7 @@ pub fn ns_get_hl(ns_hl: &mut NS, hl_id: i32, link: bool, nodefault: bool) -> i32
         let mut err = Error::new();
         hl_st().ns_get_hl_recursive += 1;
         let ret = nlua_call_ref(
-            unsafe { (*p).hl_def },
+            p.hl_def,
             c"hl_def",
             args,
             K_RET_OBJECT,
@@ -539,7 +537,7 @@ pub fn ns_get_hl(ns_hl: &mut NS, hl_id: i32, link: bool, nodefault: bool) -> i32
         } else {
             hl_get_syn_attr(ns_id, hl_id, attrs)
         };
-        it.version = unsafe { (*p).hl_valid } - i32::from(tmp);
+        it.version = p.hl_valid - i32::from(tmp);
         it.is_default = (attrs.rgb_ae_attr & HL_DEFAULT) != 0;
         it.link_global = (attrs.rgb_ae_attr & HL_GLOBAL) != 0;
         hl_st().ns_hls.insert(key, it);
@@ -733,8 +731,7 @@ pub fn update_ns_hl(ns_id: i32) {
     if ns_id <= 0 {
         return;
     }
-    let mut p = get_decor_provider(ns_id, true);
-    if unsafe { (*p).hl_cached } {
+    if get_decor_provider_opt(ns_id, true).unwrap().hl_cached {
         return;
     }
 
@@ -754,10 +751,7 @@ pub fn update_ns_hl(ns_id: i32) {
     let normality = syn_check_group(c"Normal", 6);
     alloc[HLF_NONE].set(hl_get_ui_attr(ns_id, -1, normality, true));
 
-    p = get_decor_provider(ns_id, true);
-    unsafe {
-        (*p).hl_cached = true;
-    }
+    get_decor_provider_opt(ns_id, true).unwrap().hl_cached = true;
 }
 
 pub fn win_bg_attr(wp: &mut WinInfoInfo) -> i32 {

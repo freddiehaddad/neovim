@@ -1,6 +1,6 @@
 //! Ex command-line evaluation, conditionals, loops, and exception handling (`src/nvim/ex_eval.c`).
 
-use crate::charset::{ascii_isdigit, skipwhite};
+use crate::charset::skipwhite;
 use crate::cursor::Linenr;
 use crate::debugger::dbg_check_skipped;
 use crate::errors::*;
@@ -193,7 +193,6 @@ impl Default for ExceptionState {
     }
 }
 
-use crate::charset::NUL;
 use crate::globals::IOSIZE;
 use crate::math::FAIL;
 
@@ -401,53 +400,49 @@ pub fn get_error_exception_string(
 ) -> CString {
     let cmdname = cmdname.into_c_char_ptr();
     let mesg = mesg.into_c_char_ptr();
-    {
-        let mut out: Vec<u8> = Vec::new();
-        if !crate::memory::cstr_is_empty(cmdname) {
-            out.extend_from_slice(b"Vim(");
-            out.extend_from_slice(crate::memory::cstr_as_bytes(cmdname));
-            out.extend_from_slice(b"):");
-        } else {
-            out.extend_from_slice(b"Vim:");
-        }
-
-        let mut p = mesg;
-        loop {
-            if crate::memory::cstr_is_empty(p)
-                || (crate::memory::cstr_first_byte(p) == b'E'
-                    && ascii_isdigit(crate::memory::cstr_char_at(p, 1))
-                    && (crate::memory::cstr_byte_at(p, 2) == b':'
-                        || (ascii_isdigit(crate::memory::cstr_char_at(p, 2))
-                            && (crate::memory::cstr_byte_at(p, 3) == b':'
-                                || (ascii_isdigit(crate::memory::cstr_char_at(p, 3))
-                                    && crate::memory::cstr_byte_at(p, 4) == b':')))))
-            {
-                if crate::memory::cstr_is_empty(p) || ptr::eq(p, mesg) {
-                    out.extend_from_slice(crate::memory::cstr_as_bytes(mesg));
-                } else {
-                    if crate::memory::cstr_first_byte(mesg) != b'"'
-                        || (p as usize) < (mesg.wrapping_add(3) as usize)
-                        || crate::memory::cstr_first_byte(p.wrapping_sub(2)) != b'"'
-                        || crate::memory::cstr_first_byte(p.wrapping_sub(1)) != b' '
-                    {
-                        p = p.wrapping_add(1);
-                        continue;
-                    }
-
-                    out.extend_from_slice(crate::memory::cstr_as_bytes(p));
-                    let quoted_len = (p.wrapping_sub(2) as usize) - (mesg.wrapping_add(1) as usize);
-                    out.extend_from_slice(b" (");
-                    out.extend_from_slice(unsafe {
-                        std::slice::from_raw_parts(mesg.wrapping_add(1).cast::<u8>(), quoted_len)
-                    });
-                    out.push(b')');
-                }
-                break;
-            }
-            p = p.wrapping_add(1);
-        }
-        crate::memory::cstr_from_bytes(&out)
+    let mut out: Vec<u8> = Vec::new();
+    if !crate::memory::cstr_is_empty(cmdname) {
+        out.extend_from_slice(b"Vim(");
+        out.extend_from_slice(crate::memory::cstr_as_bytes(cmdname));
+        out.extend_from_slice(b"):");
+    } else {
+        out.extend_from_slice(b"Vim:");
     }
+
+    let mesg_bytes = crate::memory::cstr_as_bytes(mesg);
+    let mut p_idx = 0usize;
+    loop {
+        let rem = &mesg_bytes[p_idx..];
+        let is_err_code = rem.first() == Some(&b'E')
+            && rem.get(1).is_some_and(u8::is_ascii_digit)
+            && (rem.get(2) == Some(&b':')
+                || (rem.get(2).is_some_and(u8::is_ascii_digit)
+                    && (rem.get(3) == Some(&b':')
+                        || (rem.get(3).is_some_and(u8::is_ascii_digit)
+                            && rem.get(4) == Some(&b':')))));
+        if rem.is_empty() || is_err_code {
+            if rem.is_empty() || p_idx == 0 {
+                out.extend_from_slice(mesg_bytes);
+            } else {
+                if mesg_bytes[0] != b'"'
+                    || p_idx < 3
+                    || mesg_bytes[p_idx - 2] != b'"'
+                    || mesg_bytes[p_idx - 1] != b' '
+                {
+                    p_idx += 1;
+                    continue;
+                }
+
+                out.extend_from_slice(rem);
+                out.extend_from_slice(b" (");
+                out.extend_from_slice(&mesg_bytes[1..p_idx - 2]);
+                out.push(b')');
+            }
+            break;
+        }
+        p_idx += 1;
+    }
+    crate::memory::cstr_from_bytes(&out)
 }
 
 fn throw_exception(value: ExceptionValue, cmdname: impl crate::strings::IntoCCharPtr) -> bool {
@@ -1089,7 +1084,7 @@ pub fn ex_throw(eap: &mut Exarg) {
         && eap.skip == 0
         && throw_exception(ExceptionValue::User(val_cstr), ptr::null_mut())
     {
-        do_throw(unsafe { &mut *(eap.cstack.cast()) });
+        do_throw(eap.cstack_mut());
     }
 }
 
@@ -1191,35 +1186,34 @@ pub fn ex_catch(eap: &mut Exarg) {
             && (cstack.cs_flags[u_idx] & CSF_CAUGHT) == 0
         {
             if !crate::memory::cstr_is_empty(end)
-                && ends_excmd(i32::from(unsafe { *skipwhite(end.wrapping_add(1)) } as u8)) == 0
+                && ends_excmd(i32::from(crate::memory::cstr_first_byte(skipwhite(
+                    end.wrapping_add(1),
+                )))) == 0
             {
                 semsg!(gettext(E_TRAILING_ARG), end);
                 return;
             }
 
             if !dbg_check_skipped(eap) || !do_intthrow(cstack) {
-                let mut save_char = 0;
-                if !end.is_null() {
-                    save_char = unsafe { *end };
-                    unsafe {
-                        *end = NUL;
-                    }
-                }
+                let pat_cstr = if !end.is_null() {
+                    let pat_len = crate::memory::ptr_offset_from(end, pat) as usize;
+                    Some(crate::memory::cstr_from_bytes(crate::memory::cstr_slice(
+                        pat, pat_len,
+                    )))
+                } else {
+                    None
+                };
+                let pat_ptr = pat_cstr.as_ref().map_or(pat.cast_const(), |s| s.as_ptr());
                 let save_cpo = opt_vars().p_cpo;
                 opt_vars().p_cpo = EMPTY_STRING_OPTION.as_ptr().cast();
                 g_st().emsg_off += 1;
                 let mut regmatch: Regmatch = Regmatch::new();
-                regmatch.regprog = vim_regcomp(pat, RE_MAGIC + RE_STRING);
+                regmatch.regprog = vim_regcomp(pat_ptr, RE_MAGIC + RE_STRING);
                 g_st().emsg_off -= 1;
                 regmatch.rm_ic = false;
-                if !end.is_null() {
-                    unsafe {
-                        *end = save_char;
-                    }
-                }
                 opt_vars().p_cpo = save_cpo;
                 if regmatch.regprog.is_null() {
-                    semsg!(gettext(E_INVARG2), pat);
+                    semsg!(gettext(E_INVARG2), pat_ptr);
                 } else {
                     let prev_got_int = g_st().got_int;
                     g_st().got_int = false;

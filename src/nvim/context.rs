@@ -277,49 +277,34 @@ fn ctx_marks_ns() -> u32 {
     ctx_st().ctx_marks_ns_id
 }
 
-fn ctx_positions(ctx: &mut Context, flags: CtxStateFlags) -> [*mut CursorPos; 6] {
+fn ctx_positions(ctx: &mut Context, flags: CtxStateFlags) -> [Option<&mut CursorPos>; 6] {
     let visual = (flags & K_CTX_VISUAL) != 0;
     let marks = (flags & K_CTX_MARKS) != 0;
+    let Context {
+        visual: Visualinfo {
+            vi_start, vi_end, ..
+        },
+        op_start,
+        op_end,
+        last_change: Fmark { mark: lc_mark, .. },
+        last_insert: Fmark { mark: li_mark, .. },
+        ..
+    } = ctx;
     [
-        if visual {
-            &raw mut ctx.visual.vi_start
-        } else {
-            ptr::null_mut()
-        },
-        if visual {
-            &raw mut ctx.visual.vi_end
-        } else {
-            ptr::null_mut()
-        },
-        if marks {
-            &raw mut ctx.op_start
-        } else {
-            ptr::null_mut()
-        },
-        if marks {
-            &raw mut ctx.op_end
-        } else {
-            ptr::null_mut()
-        },
-        if marks {
-            &raw mut ctx.last_change.mark
-        } else {
-            ptr::null_mut()
-        },
-        if marks {
-            &raw mut ctx.last_insert.mark
-        } else {
-            ptr::null_mut()
-        },
+        visual.then_some(vi_start),
+        visual.then_some(vi_end),
+        marks.then_some(op_start),
+        marks.then_some(op_end),
+        marks.then_some(lc_mark),
+        marks.then_some(li_mark),
     ]
 }
 
 pub fn ctx_free(ctx: &mut Context) {
-    let buf = handle_get_buffer(ctx.buf);
-    if !buf.is_null() {
+    if let Some(buf) = handle_get_buffer_opt(ctx.buf) {
         for i in 0..ctx.pos_marks.len() {
             if ctx.pos_marks[i] != 0 {
-                extmark_del_id(unsafe { &mut *buf }, ctx_marks_ns(), ctx.pos_marks[i]);
+                extmark_del_id(&mut *buf, ctx_marks_ns(), ctx.pos_marks[i]);
             }
         }
     }
@@ -359,30 +344,32 @@ pub fn ctx_save(ctx: &mut Context, flags: CtxStateFlags) {
         ctx.last_insert = curbuf_mut().b_last_insert.clone();
     }
     if (flags & (K_CTX_VISUAL | K_CTX_MARKS)) != 0 {
+        let mut pos_marks = ctx.pos_marks;
         let pos = ctx_positions(&mut *ctx, flags);
-        for (i, &pos_ptr) in pos.iter().enumerate() {
-            if pos_ptr.is_null() {
+        for (i, pos_opt) in pos.into_iter().enumerate() {
+            let Some(pos_ref) = pos_opt else {
                 continue;
-            }
-            if unsafe { (*pos_ptr).lnum } == 0 {
-                if ctx.pos_marks[i] != 0 {
-                    extmark_del_id(curbuf_mut(), ctx_marks_ns(), ctx.pos_marks[i]);
-                    ctx.pos_marks[i] = 0;
+            };
+            if pos_ref.lnum == 0 {
+                if pos_marks[i] != 0 {
+                    extmark_del_id(curbuf_mut(), ctx_marks_ns(), pos_marks[i]);
+                    pos_marks[i] = 0;
                 }
                 continue;
             }
-            let mut p = unsafe { *pos_ptr };
+            let mut p = *pos_ref;
             check_pos(curbuf_mut(), &mut p);
             extmark_set_pos(
                 curbuf_mut(),
                 ctx_marks_ns(),
-                &mut ctx.pos_marks[i],
+                &mut pos_marks[i],
                 p,
                 true,
                 true,
                 false,
             );
         }
+        ctx.pos_marks = pos_marks;
     }
 
     if (flags & K_CTX_REGS) != 0 {
@@ -448,41 +435,29 @@ pub fn ctx_load(ctx: &mut Context, flags: CtxStateFlags, loadflags: CtxLoadFlags
         set_vim_var_nr(VV_PREVCOUNT, ctx.prevcount);
     }
 
-    let buf = handle_get_buffer(ctx.buf);
-    if (flags & (K_CTX_VISUAL | K_CTX_MARKS)) != 0 && !buf.is_null() {
+    if (flags & (K_CTX_VISUAL | K_CTX_MARKS)) != 0
+        && let Some(buf) = handle_get_buffer_opt(ctx.buf)
+    {
+        let pos_marks = ctx.pos_marks;
         let pos = ctx_positions(&mut *ctx, flags);
-        for (i, &pos_ptr) in pos.iter().enumerate() {
-            if pos_ptr.is_null() || ctx.pos_marks[i] == 0 {
+        for (i, pos_opt) in pos.into_iter().enumerate() {
+            let Some(pos_ref) = pos_opt else {
+                continue;
+            };
+            if pos_marks[i] == 0 {
                 continue;
             }
-            extmark_get_pos(
-                unsafe { &mut *buf },
-                ctx_marks_ns(),
-                ctx.pos_marks[i],
-                unsafe { &mut *pos_ptr },
-            );
+            extmark_get_pos(&mut *buf, ctx_marks_ns(), pos_marks[i], pos_ref);
         }
         if (flags & K_CTX_VISUAL) != 0 {
-            unsafe {
-                (*buf).b_visual = ctx.visual;
-            }
-            unsafe {
-                (*buf).b_visual_mode_eval = ctx.visual_mode_eval;
-            }
+            buf.b_visual = ctx.visual;
+            buf.b_visual_mode_eval = ctx.visual_mode_eval;
         }
         if (flags & K_CTX_MARKS) != 0 {
-            unsafe {
-                (*buf).b_op_start = ctx.op_start;
-            }
-            unsafe {
-                (*buf).b_op_end = ctx.op_end;
-            }
-            unsafe {
-                (*buf).b_last_change = ctx.last_change.clone();
-            }
-            unsafe {
-                (*buf).b_last_insert = ctx.last_insert.clone();
-            }
+            buf.b_op_start = ctx.op_start;
+            buf.b_op_end = ctx.op_end;
+            buf.b_last_change = ctx.last_change.clone();
+            buf.b_last_insert = ctx.last_insert.clone();
         }
     }
 
@@ -532,7 +507,7 @@ fn array_to_string(array: Array, err: &mut Error) -> Vec<u8> {
     object_to_vim(array_obj(array), &mut list_tv, err);
 
     assert_eq!(list_tv.v_type, VarType::VarList);
-    if let Some(buf) = encode_vim_list_to_buf(unsafe { list_tv.vval.v_list().as_ref() }) {
+    if let Some(buf) = encode_vim_list_to_buf(list_tv.vval.v_list_opt().as_deref()) {
         sbuf = buf;
     } else {
         api_set_error!(
@@ -620,41 +595,39 @@ fn ctx_localdirs_restore(
     mut tp: Option<&mut TabPageInfo>,
     persist: bool,
 ) {
-    unsafe {
-        let did_chdir = ctx_st().ctx_did_chdir;
-        ctx_st().ctx_did_chdir = persist && did_chdir;
+    let did_chdir = ctx_st().ctx_did_chdir;
+    ctx_st().ctx_did_chdir = persist && did_chdir;
 
-        let dirs_win = handle_get_window(cs.cs_new_curwin);
-        if !dirs_win.is_null() {
-            (*dirs_win).w_localdir = cs.cs_w_localdir.take();
-        } else {
-            cs.cs_w_localdir = None;
-        }
+    if let Some(dirs_win) = handle_get_window_opt(cs.cs_new_curwin) {
+        dirs_win.w_localdir = cs.cs_w_localdir.take();
+    } else {
+        cs.cs_w_localdir = None;
+    }
 
-        let b = if bufref_valid(Some(&cs.cs_new_curbuf)) {
-            cs.cs_new_curbuf.br_buf.cast::<FileBuf>()
-        } else {
-            ptr::null_mut()
-        };
-        if !b.is_null() && !(persist && (*b).b_localdir.is_some()) {
-            (*b).b_localdir = cs.cs_b_localdir.take();
-        } else {
-            cs.cs_b_localdir = None;
-        }
+    let b = cs
+        .cs_new_curbuf
+        .buf_opt()
+        .filter(|_| bufref_valid(Some(&cs.cs_new_curbuf)));
+    if let Some(b) = b
+        && !(persist && b.b_localdir.is_some())
+    {
+        b.b_localdir = cs.cs_b_localdir.take();
+    } else {
+        cs.cs_b_localdir = None;
+    }
 
-        if tp.is_some() && !(persist && tp.as_deref_mut().unwrap().tp_localdir.is_some()) {
-            tp.unwrap().tp_localdir = cs.cs_tp_localdir.take();
-        } else {
-            cs.cs_tp_localdir = None;
-        }
+    if tp.is_some() && !(persist && tp.as_deref_mut().unwrap().tp_localdir.is_some()) {
+        tp.unwrap().tp_localdir = cs.cs_tp_localdir.take();
+    } else {
+        cs.cs_tp_localdir = None;
+    }
 
-        if cwp.is_some() && (did_chdir || cwp.unwrap().w_localdir.is_some()) {
-            update_cwd(K_CD_CAUSE_WINDOW);
-        }
+    if cwp.is_some() && (did_chdir || cwp.unwrap().w_localdir.is_some()) {
+        update_cwd(K_CD_CAUSE_WINDOW);
+    }
 
-        if !(persist && cs.cs_globaldir.is_none() && g_st().globaldir.is_some()) {
-            g_st().globaldir = cs.cs_globaldir.take();
-        }
+    if !(persist && cs.cs_globaldir.is_none() && g_st().globaldir.is_some()) {
+        g_st().globaldir = cs.cs_globaldir.take();
     }
 }
 
@@ -664,33 +637,31 @@ fn ctx_dirs_save(
     tp: &mut TabPageInfo,
     buf: *mut FileBuf,
 ) {
-    unsafe {
-        if (cs.cs_flags & (K_CTX_KEEP_CWD | K_CTX_KEEP_DIRS)) == 0 {
-            return;
-        }
+    if (cs.cs_flags & (K_CTX_KEEP_CWD | K_CTX_KEEP_DIRS)) == 0 {
+        return;
+    }
 
-        cs.cs_globaldir = g_st().globaldir.clone();
+    cs.cs_globaldir = g_st().globaldir.clone();
 
-        if (cs.cs_flags & K_CTX_KEEP_DIRS) != 0 {
-            let target_buf = if !buf.is_null() { buf } else { wp.w_buffer };
-            cs.cs_dirs_tab = tp.handle;
-            cs.cs_w_localdir = wp.w_localdir.clone();
-            cs.cs_b_localdir = (*target_buf).b_localdir.clone();
-            cs.cs_tp_localdir = tp.tp_localdir.clone();
-        }
+    if (cs.cs_flags & K_CTX_KEEP_DIRS) != 0 {
+        let target_buf = unsafe { buf.as_mut() }.unwrap_or_else(|| wp.buf_mut());
+        cs.cs_dirs_tab = tp.handle;
+        cs.cs_w_localdir = wp.w_localdir.clone();
+        cs.cs_b_localdir = target_buf.b_localdir.clone();
+        cs.cs_tp_localdir = tp.tp_localdir.clone();
+    }
 
-        if (cs.cs_flags & K_CTX_KEEP_DIRS) != 0 || curwin_ptr() != (&raw mut *wp) {
-            cs.cs_cwd = os_dirname_cstr();
-        }
+    if (cs.cs_flags & K_CTX_KEEP_DIRS) != 0 || curwin_ptr() != (&raw mut *wp) {
+        cs.cs_cwd = os_dirname_cstr();
+    }
 
-        if let Some(ref cs_cwd) = cs.cs_cwd
-            && opt_vars().p_acd != 0
-        {
-            let saved_cwd_bytes = cs_cwd.as_bytes().to_vec();
-            do_autochdir();
-            if let Some(autocwd) = os_dirname_cstr() {
-                cs.cs_apply_acd = saved_cwd_bytes.as_slice() == autocwd.as_bytes();
-            }
+    if let Some(ref cs_cwd) = cs.cs_cwd
+        && opt_vars().p_acd != 0
+    {
+        let saved_cwd_bytes = cs_cwd.as_bytes().to_vec();
+        do_autochdir();
+        if let Some(autocwd) = os_dirname_cstr() {
+            cs.cs_apply_acd = saved_cwd_bytes.as_slice() == autocwd.as_bytes();
         }
     }
 }
@@ -701,14 +672,8 @@ fn ctx_dirs_restore(cs: &mut CtxSwitch) {
     }
 
     if (cs.cs_flags & K_CTX_KEEP_DIRS) != 0 {
-        let mut dirs_tab: *mut TabPageInfo = ptr::null_mut();
-        for tp in for_all_tabpages_ptr() {
-            if tp.handle == cs.cs_dirs_tab {
-                dirs_tab = tp;
-                break;
-            }
-        }
-        ctx_localdirs_restore(&mut *cs, None, unsafe { dirs_tab.as_mut() }, false);
+        let dirs_tab = for_all_tabpages_mut().find(|tp| tp.handle == cs.cs_dirs_tab);
+        ctx_localdirs_restore(&mut *cs, None, dirs_tab, false);
     } else if cs.cs_cwd.is_some() && !ctx_st().ctx_did_chdir {
         g_st().globaldir = cs.cs_globaldir.take();
     }
@@ -855,19 +820,15 @@ pub fn ctx_switch(
         }
     }
 
-    if (flags & K_CTX_VALIDATE) != 0 && !wp.is_null() {
-        cs.cs_target_win = unsafe { (*wp).handle };
-        cs.cs_target_old_pos = unsafe { (*wp).w_cursor };
-    }
-    if !wp.is_null() {
+    if let Some(wp_ref) = unsafe { wp.as_mut() } {
+        if (flags & K_CTX_VALIDATE) != 0 {
+            cs.cs_target_win = wp_ref.handle;
+            cs.cs_target_old_pos = wp_ref.w_cursor;
+        }
         ctx_dirs_save(
             cs,
-            unsafe { &mut *wp },
-            if tp.is_null() {
-                unsafe { &mut *(g_st().curtab) }
-            } else {
-                unsafe { &mut *(tp) }
-            },
+            wp_ref,
+            unsafe { tp.as_mut() }.unwrap_or_else(curtab_mut),
             buf,
         );
     }
@@ -901,11 +862,11 @@ pub fn ctx_switch(
         }
     }
 
-    if !buf.is_null() {
+    if let Some(buf_ref) = unsafe { buf.as_mut() } {
         if wp.is_null() {
-            wp = ctx_win_prep(cs, unsafe { &mut *buf });
+            wp = ctx_win_prep(cs, &mut *buf_ref);
             leaving_window(curwin_mut());
-            buf_copy_options(unsafe { &mut *buf }, BCO_ENTER | BCO_NOHELP);
+            buf_copy_options(&mut *buf_ref, BCO_ENTER | BCO_NOHELP);
             g_st().prevwin = curwin_ptr();
         }
         assert!(wp == curwin_ptr() || win_valid(wp));

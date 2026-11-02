@@ -2547,60 +2547,40 @@ pub fn get_highlight_name_ext(
 
 pub fn name_to_color(name: impl crate::strings::IntoCCharPtr, idx: *mut i32) -> RgbValue {
     let name = name.into_c_char_ptr();
+    let idx = unsafe { &mut *idx };
+    let name_bytes = crate::memory::cstr_as_bytes(name);
+    if name_bytes.len() == 7
+        && name_bytes[0] == b'#'
+        && name_bytes[1..].iter().all(u8::is_ascii_hexdigit)
     {
-        if crate::memory::cstr_first_byte(name) == b'#'
-            && (crate::memory::cstr_byte_at(name, 1)).is_ascii_hexdigit()
-            && (crate::memory::cstr_byte_at(name, 2)).is_ascii_hexdigit()
-            && (crate::memory::cstr_byte_at(name, 3)).is_ascii_hexdigit()
-            && (crate::memory::cstr_byte_at(name, 4)).is_ascii_hexdigit()
-            && (crate::memory::cstr_byte_at(name, 5)).is_ascii_hexdigit()
-            && (crate::memory::cstr_byte_at(name, 6)).is_ascii_hexdigit()
-            && crate::memory::cstr_byte_at(name, 7) == 0
-        {
-            unsafe {
-                *idx = K_COLOR_IDX_HEX;
-            }
-            let hex_str = unsafe {
-                std::str::from_utf8_unchecked(std::slice::from_raw_parts(
-                    name.wrapping_add(1).cast::<u8>(),
-                    6,
-                ))
-            };
-            return RgbValue::from_str_radix(hex_str, 16).unwrap_or(0);
-        } else if mb_stricmp(name, c"bg") == 0 || mb_stricmp(name, c"background") == 0 {
-            unsafe {
-                *idx = K_COLOR_IDX_BG;
-            }
-            return g_st().normal_bg;
-        } else if mb_stricmp(name, c"fg") == 0 || mb_stricmp(name, c"foreground") == 0 {
-            unsafe {
-                *idx = K_COLOR_IDX_FG;
-            }
-            return g_st().normal_fg;
-        }
-
-        let mut lo: usize = 0;
-        let mut hi: usize = COLOR_NAME_TABLE.len();
-        while lo < hi {
-            let m = (lo + hi) / 2;
-            let cmp = mb_stricmp(name, COLOR_NAME_TABLE[m].name.as_ptr());
-            if cmp < 0 {
-                hi = m;
-            } else if cmp > 0 {
-                lo = m + 1;
-            } else {
-                unsafe {
-                    *idx = m as i32;
-                }
-                return COLOR_NAME_TABLE[m].color;
-            }
-        }
-
-        unsafe {
-            *idx = K_COLOR_IDX_NONE;
-        }
-        -1
+        *idx = K_COLOR_IDX_HEX;
+        let hex_str = std::str::from_utf8(&name_bytes[1..]).unwrap_or("");
+        return RgbValue::from_str_radix(hex_str, 16).unwrap_or(0);
+    } else if mb_stricmp(name, c"bg") == 0 || mb_stricmp(name, c"background") == 0 {
+        *idx = K_COLOR_IDX_BG;
+        return g_st().normal_bg;
+    } else if mb_stricmp(name, c"fg") == 0 || mb_stricmp(name, c"foreground") == 0 {
+        *idx = K_COLOR_IDX_FG;
+        return g_st().normal_fg;
     }
+
+    let mut lo: usize = 0;
+    let mut hi: usize = COLOR_NAME_TABLE.len();
+    while lo < hi {
+        let m = (lo + hi) / 2;
+        let cmp = mb_stricmp(name, COLOR_NAME_TABLE[m].name.as_ptr());
+        if cmp < 0 {
+            hi = m;
+        } else if cmp > 0 {
+            lo = m + 1;
+        } else {
+            *idx = m as i32;
+            return COLOR_NAME_TABLE[m].color;
+        }
+    }
+
+    *idx = K_COLOR_IDX_NONE;
+    -1
 }
 
 pub fn coloridx_to_name(idx: i32, val: i32, hexbuf: &mut [u8; 8]) -> Option<&CStr> {

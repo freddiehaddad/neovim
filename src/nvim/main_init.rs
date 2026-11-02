@@ -929,37 +929,34 @@ pub fn getout(mut exitval: i32) -> ! {
     invoke_all_defer();
 
     if g_st().v_dying <= 1 {
-        let mut next_tp: *const TabPageInfo;
-        let mut tp: *const TabPageInfo = g_st().first_tabpage;
-        while !tp.is_null() {
-            next_tp = unsafe { (*tp).tp_next };
-            for wp in win_iter_mut(if ptr::eq(tp, g_st().curtab) {
+        let mut next_tp: Option<&'static mut TabPageInfo>;
+        let mut tp_opt = unsafe { g_st().first_tabpage.as_mut() };
+        while let Some(tp) = tp_opt {
+            next_tp = tp.next_opt();
+            let first_wp = if ptr::eq(tp, g_st().curtab) {
                 g_st().firstwin
             } else {
-                unsafe { (*tp).tp_firstwin }
-            }) {
+                tp.tp_firstwin
+            };
+            for wp in win_iter_mut(first_wp) {
                 if wp.w_buffer.is_null() || !buf_valid(wp.w_buffer) {
                     continue;
                 }
-                let buf = wp.w_buffer;
-                if buf_get_changedtick(unsafe { &*buf }) != -1 {
+                let buf = wp.buf_mut();
+                let buf_ptr: *mut crate::buffer::FileBuf = buf;
+                if buf_get_changedtick(buf) != -1 {
                     let mut bufref: Bufref = Bufref::new();
-                    set_bufref(&mut bufref, buf);
-                    apply_autocmds(
-                        EVENT_BUFWINLEAVE,
-                        unsafe { (*buf).b_fname },
-                        unsafe { (*buf).b_fname },
-                        false,
-                        buf,
-                    );
-                    if bufref_valid(Some(&bufref)) {
-                        buf_set_changedtick(unsafe { &mut *buf }, -1);
+                    set_bufref(&mut bufref, buf_ptr);
+                    apply_autocmds(EVENT_BUFWINLEAVE, buf.b_fname, buf.b_fname, false, buf_ptr);
+                    if let Some(buf_now) = bufref.buf_opt().filter(|_| bufref_valid(Some(&bufref)))
+                    {
+                        buf_set_changedtick(buf_now, -1);
                     }
-                    next_tp = g_st().first_tabpage;
+                    next_tp = unsafe { g_st().first_tabpage.as_mut() };
                     break;
                 }
             }
-            tp = next_tp;
+            tp_opt = next_tp;
         }
 
         for buf in for_all_buffers_ptr() {
