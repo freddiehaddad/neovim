@@ -2782,23 +2782,24 @@ fn get_function_body(
                     }
                 }
 
-                if indent > 2 && (crate::memory::cstr_prefix_bytes(p, 3) == &b"end"[..3]) {
+                let p_bytes = crate::memory::cstr_as_bytes(p);
+                if indent > 2 && p_bytes.starts_with(b"end") {
                     indent -= 2;
-                } else if (crate::memory::cstr_prefix_bytes(p, 2) == &b"if"[..2])
-                    || (crate::memory::cstr_prefix_bytes(p, 2) == &b"wh"[..2])
-                    || (crate::memory::cstr_prefix_bytes(p, 3) == &b"for"[..3])
-                    || (crate::memory::cstr_prefix_bytes(p, 3) == &b"try"[..3])
+                } else if p_bytes.starts_with(b"if")
+                    || p_bytes.starts_with(b"wh")
+                    || p_bytes.starts_with(b"for")
+                    || p_bytes.starts_with(b"try")
                 {
                     indent += 2;
                 }
 
                 if checkforcmd(&raw mut p, c"function", 2) {
-                    if crate::memory::cstr_first_byte(p) == b'!' {
+                    if *p as u8 == b'!' {
                         p = skipwhite(p.wrapping_add(1));
                     }
                     p = p.wrapping_add(eval_fname_script(p) as usize);
                     let _ = trans_function_name(&raw mut p, true, 0, None, ptr::null_mut());
-                    if crate::memory::cstr_first_byte(skipwhite(p)) == b'(' {
+                    if *skipwhite(p) as u8 == b'(' {
                         if nesting == MAX_FUNC_NESTING - 1 {
                             emsg(gettext(E_FUNCTION_NESTING_TOO_DEEP));
                         } else {
@@ -2813,9 +2814,7 @@ fn get_function_body(
                 if (checkforcmd(&raw mut p, c"append", 1)
                     || checkforcmd(&raw mut p, c"change", 1)
                     || checkforcmd(&raw mut p, c"insert", 1))
-                    && (crate::memory::cstr_first_byte(p) == b'!'
-                        || crate::memory::cstr_first_byte(p) == b'|'
-                        || ascii_iswhite_nl_or_nul(crate::memory::cstr_first_char(p)))
+                    && (*p as u8 == b'!' || *p as u8 == b'|' || ascii_iswhite_nl_or_nul(*p as i32))
                 {
                     skip_until = Some(c".".to_owned());
                 } else {
@@ -2823,24 +2822,12 @@ fn get_function_body(
                 }
 
                 arg = skipwhite(skiptowhite(p));
-                let p0 = crate::memory::cstr_first_byte(p);
-                let p1 = if p0 != 0 {
-                    crate::memory::cstr_byte_at(p, 1)
-                } else {
-                    0
-                };
-                let p2 = if p1 != 0 {
-                    crate::memory::cstr_byte_at(p, 2)
-                } else {
-                    0
-                };
-                let p3 = if p2 != 0 {
-                    crate::memory::cstr_byte_at(p, 3)
-                } else {
-                    0
-                };
-                let is_script_heredoc = crate::memory::cstr_first_byte(arg) == b'<'
-                    && crate::memory::cstr_byte_at(arg, 1) == b'<'
+                let p_bytes = crate::memory::cstr_as_bytes(p);
+                let p0 = p_bytes.first().copied().unwrap_or(0);
+                let p1 = p_bytes.get(1).copied().unwrap_or(0);
+                let p2 = p_bytes.get(2).copied().unwrap_or(0);
+                let p3 = p_bytes.get(3).copied().unwrap_or(0);
+                let is_script_heredoc = crate::memory::cstr_as_bytes(arg).starts_with(b"<<")
                     && ((p0 == b'p'
                         && p1 == b'y'
                         && (!ascii_isalnum(p2 as i32)
@@ -2856,9 +2843,9 @@ fn get_function_body(
                         || (p0 == b'm' && p1 == b'z' && (!p2.is_ascii_alphabetic() || p2 == b's')));
                 if is_script_heredoc {
                     p = skipwhite(arg.wrapping_add(2));
-                    if (crate::memory::cstr_prefix_bytes(p, 4) == &b"trim"[..4])
-                        && (crate::memory::cstr_byte_at(p, 4) == 0
-                            || ascii_iswhite(crate::memory::cstr_char_at(p, 4)))
+                    let p_bytes = crate::memory::cstr_as_bytes(p);
+                    if p_bytes.starts_with(b"trim")
+                        && p_bytes.get(4).is_none_or(|&b| ascii_iswhite(b as i32))
                     {
                         p = skipwhite(p.wrapping_add(4));
                         heredoc_trimmedlen =
@@ -2866,7 +2853,7 @@ fn get_function_body(
                         let slice = crate::memory::cstr_slice(theline, heredoc_trimmedlen);
                         heredoc_trimmed = Some(std::ffi::CString::new(slice).unwrap());
                     }
-                    if crate::memory::cstr_is_empty(p) {
+                    if *p == 0 {
                         skip_until = Some(c".".to_owned());
                     } else {
                         let slice = crate::memory::cstr_slice(
@@ -2889,23 +2876,20 @@ fn get_function_body(
                         if !arg.is_null() {
                             arg = skipwhite(arg);
                         }
-                        if !arg.is_null()
-                            && (crate::memory::cstr_prefix_bytes(arg, 3) == &b"=<<"[..3])
-                        {
+                        if !arg.is_null() && crate::memory::cstr_as_bytes(arg).starts_with(b"=<<") {
                             p = skipwhite(arg.wrapping_add(3));
                             let mut has_trim = false;
                             loop {
-                                if (crate::memory::cstr_prefix_bytes(p, 4) == &b"trim"[..4])
-                                    && (crate::memory::cstr_byte_at(p, 4) == 0
-                                        || ascii_iswhite(crate::memory::cstr_char_at(p, 4)))
+                                let p_bytes = crate::memory::cstr_as_bytes(p);
+                                if p_bytes.starts_with(b"trim")
+                                    && p_bytes.get(4).is_none_or(|&b| ascii_iswhite(b as i32))
                                 {
                                     p = skipwhite(p.wrapping_add(4));
                                     has_trim = true;
                                     continue;
                                 }
-                                if (crate::memory::cstr_prefix_bytes(p, 4) == &b"eval"[..4])
-                                    && (crate::memory::cstr_byte_at(p, 4) == 0
-                                        || ascii_iswhite(crate::memory::cstr_char_at(p, 4)))
+                                if p_bytes.starts_with(b"eval")
+                                    && p_bytes.get(4).is_none_or(|&b| ascii_iswhite(b as i32))
                                 {
                                     p = skipwhite(p.wrapping_add(4));
                                     continue;

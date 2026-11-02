@@ -1072,23 +1072,21 @@ pub fn heredoc_get(
         let mut evalstr = false;
         let mut eval_failed = false;
         loop {
-            if (crate::memory::cstr_prefix_bytes(cmd.cast(), 4) == &b"trim"[..4])
-                && (crate::memory::cstr_byte_at(cmd.cast(), 4) == 0
-                    || ascii_iswhite(crate::memory::cstr_char_at(cmd.cast(), 4)))
+            let cmd_bytes = crate::memory::cstr_as_bytes(cmd.cast());
+            if cmd_bytes.starts_with(b"trim")
+                && cmd_bytes.get(4).is_none_or(|&b| ascii_iswhite(b as i32))
             {
                 cmd = skipwhite(cmd.wrapping_add(4).cast()).cast();
 
-                let mut p = eap.cmdline();
-                while ascii_iswhite(crate::memory::cstr_first_char(p)) {
-                    p = p.wrapping_add(1);
-                    marker_indent_len += 1;
-                }
+                marker_indent_len = crate::memory::cstr_as_bytes(eap.cmdline())
+                    .iter()
+                    .take_while(|&&b| ascii_iswhite(b as i32))
+                    .count() as i32;
                 text_indent_len = -1;
                 continue;
             }
-            if (crate::memory::cstr_prefix_bytes(cmd.cast(), 4) == &b"eval"[..4])
-                && (crate::memory::cstr_byte_at(cmd.cast(), 4) == 0
-                    || ascii_iswhite(crate::memory::cstr_char_at(cmd.cast(), 4)))
+            if cmd_bytes.starts_with(b"eval")
+                && cmd_bytes.get(4).is_none_or(|&b| ascii_iswhite(b as i32))
             {
                 cmd = skipwhite(cmd.wrapping_add(4).cast()).cast();
                 evalstr = true;
@@ -1099,21 +1097,20 @@ pub fn heredoc_get(
 
         let comment_char = b'"';
         let marker: *mut u8;
-        if !crate::memory::cstr_is_empty(cmd.cast())
-            && crate::memory::cstr_first_byte(cmd.cast()) != comment_char
-        {
+        let cmd_bytes = crate::memory::cstr_as_bytes(cmd.cast());
+        if !cmd_bytes.is_empty() && cmd_bytes[0] != comment_char {
             marker = skipwhite(cmd.cast()).cast();
             let p: *mut u8 = skiptowhite(marker.cast()).cast();
-            if !crate::memory::cstr_is_empty(skipwhite(p.cast()))
-                && crate::memory::cstr_first_byte(skipwhite(p.cast())) != comment_char
-            {
+            let after_p = skipwhite(p.cast());
+            let after_b = crate::memory::cstr_first_byte(after_p);
+            if after_b != 0 && after_b != comment_char {
                 semsg!(gettext(E_TRAILING_ARG), p);
                 return ptr::null_mut();
             }
             unsafe {
                 *p = 0;
             }
-            if !script_get && (crate::memory::cstr_first_byte(marker.cast())).is_ascii_lowercase() {
+            if !script_get && unsafe { *marker }.is_ascii_lowercase() {
                 emsg(gettext(c"E221: Marker cannot start with lower case letter"));
                 return ptr::null_mut();
             }
@@ -1237,10 +1234,13 @@ pub fn ex_let(eap: &mut Exarg) {
         return;
     }
     let mut expr = skipwhite(argend);
-    let concat = crate::memory::cstr_prefix_bytes(expr, 3) == &b"..="[..3];
-    let has_assign = crate::memory::cstr_first_byte(expr) == b'='
-        || (crate::strings::vim_haschr(c"+-*/%.", crate::memory::cstr_first_byte(expr) as i32)
-            && crate::memory::cstr_byte_at(expr, 1) == b'=');
+    let expr_bytes = crate::memory::cstr_as_bytes(expr);
+    let concat = expr_bytes.starts_with(b"..=");
+    let has_assign = expr_bytes.first() == Some(&b'=')
+        || (expr_bytes
+            .first()
+            .is_some_and(|&b| matches!(b, b'+' | b'-' | b'*' | b'/' | b'%' | b'.'))
+            && expr_bytes.get(1) == Some(&b'='));
     if !has_assign && !concat {
         if crate::memory::cstr_first_byte(arg) == b'[' {
             emsg(gettext(E_INVARG));
@@ -1259,10 +1259,7 @@ pub fn ex_let(eap: &mut Exarg) {
         return;
     }
 
-    if crate::memory::cstr_first_byte(expr) == b'='
-        && crate::memory::cstr_byte_at(expr, 1) == b'<'
-        && crate::memory::cstr_byte_at(expr, 2) == b'<'
-    {
+    if expr_bytes.starts_with(b"=<<") {
         let l = heredoc_get(eap, expr.wrapping_add(3), false);
         if !l.is_null() {
             tv_list_set_ret(&mut rettv, l);
@@ -1288,12 +1285,12 @@ pub fn ex_let(eap: &mut Exarg) {
 
     op[0] = b'=';
     op[1] = 0;
-    if crate::memory::cstr_first_byte(expr) != b'=' {
-        if crate::strings::vim_haschr(c"+-*/%.", crate::memory::cstr_first_byte(expr) as i32) {
-            op[0] = crate::memory::cstr_first_byte(expr);
-            if crate::memory::cstr_first_byte(expr) == b'.'
-                && crate::memory::cstr_byte_at(expr, 1) == b'.'
-            {
+    if expr_bytes.first() != Some(&b'=') {
+        if let Some(&b0) = expr_bytes.first()
+            && matches!(b0, b'+' | b'-' | b'*' | b'/' | b'%' | b'.')
+        {
+            op[0] = b0;
+            if expr_bytes.starts_with(b"..") {
                 expr = expr.wrapping_add(1);
             }
         }

@@ -2588,34 +2588,34 @@ fn spell_soundfold_wsal(
                     }
                     k += 1;
                 }
-                let mut sr = smp[cur_n].sm_rules.as_ptr();
+                let mut sr_rem = smp[cur_n].sm_rules.as_bytes();
                 let mut pri: i32 = 5;
-                p0 = crate::memory::cstr_first_byte(sr) as i32;
+                p0 = sr_rem.first().copied().unwrap_or(0) as i32;
                 let mut k0 = k;
-                while crate::memory::cstr_first_byte(sr) == b'-' && k > 1 {
+                while sr_rem.first() == Some(&b'-') && k > 1 {
                     k -= 1;
-                    sr = sr.wrapping_add(1);
+                    sr_rem = &sr_rem[1..];
                 }
-                if crate::memory::cstr_first_byte(sr) == b'<' {
-                    sr = sr.wrapping_add(1);
+                if let Some(rest) = sr_rem.strip_prefix(b"<") {
+                    sr_rem = rest;
                 }
-                if ascii_isdigit(crate::memory::cstr_first_byte(sr) as i32) {
-                    pri = (crate::memory::cstr_first_byte(sr) - b'0') as i32;
-                    sr = sr.wrapping_add(1);
-                }
-                if crate::memory::cstr_first_byte(sr) == b'^'
-                    && crate::memory::cstr_byte_at(sr, 1) == b'^'
+                if let Some((&d, rest)) = sr_rem.split_first()
+                    && d.is_ascii_digit()
                 {
-                    sr = sr.wrapping_add(1);
+                    pri = (d - b'0') as i32;
+                    sr_rem = rest;
                 }
-                if crate::memory::cstr_is_empty(sr)
-                    || (crate::memory::cstr_first_byte(sr) == b'^'
+                if sr_rem.starts_with(b"^^") {
+                    sr_rem = &sr_rem[1..];
+                }
+                if sr_rem.is_empty()
+                    || (sr_rem.first() == Some(&b'^')
                         && (i == 0
                             || !(word[i - 1] == b' ' as i32
                                 || spell_iswordp_w(&word[i - 1..], curwin_mut())))
-                        && (crate::memory::cstr_byte_at(sr, 1) != b'$'
+                        && (sr_rem.get(1) != Some(&b'$')
                             || !spell_iswordp_w(&word[i + k0..], curwin_mut())))
-                    || (crate::memory::cstr_first_byte(sr) == b'$'
+                    || (sr_rem.first() == Some(&b'$')
                         && i > 0
                         && spell_iswordp_w(&word[i - 1..], curwin_mut())
                         && !spell_iswordp_w(&word[i + k0..], curwin_mut()))
@@ -2655,19 +2655,21 @@ fn spell_soundfold_wsal(
                                 k0 += 1;
                             }
                             p0 = 5;
-                            sr = smp[cur_n0].sm_rules.as_ptr();
-                            while crate::memory::cstr_first_byte(sr) == b'-' {
-                                sr = sr.wrapping_add(1);
+                            let mut sr0 = smp[cur_n0].sm_rules.as_bytes();
+                            while let Some(rest) = sr0.strip_prefix(b"-") {
+                                sr0 = rest;
                             }
-                            if crate::memory::cstr_first_byte(sr) == b'<' {
-                                sr = sr.wrapping_add(1);
+                            if let Some(rest) = sr0.strip_prefix(b"<") {
+                                sr0 = rest;
                             }
-                            if ascii_isdigit(crate::memory::cstr_first_byte(sr) as i32) {
-                                p0 = (crate::memory::cstr_first_byte(sr) - b'0') as i32;
-                                sr = sr.wrapping_add(1);
+                            if let Some((&d, rest)) = sr0.split_first()
+                                && d.is_ascii_digit()
+                            {
+                                p0 = (d - b'0') as i32;
+                                sr0 = rest;
                             }
-                            if crate::memory::cstr_is_empty(sr)
-                                || (crate::memory::cstr_first_byte(sr) == b'$'
+                            if sr0.is_empty()
+                                || (sr0.first() == Some(&b'$')
                                     && !spell_iswordp_w(&word[i + k0..], curwin_mut()))
                             {
                                 if k0 == k || p0 < pri {
@@ -2683,8 +2685,8 @@ fn spell_soundfold_wsal(
                         }
                     }
                     let to_w = &smp[cur_n].sm_to_w;
-                    sr = smp[cur_n].sm_rules.as_ptr();
-                    p0 = i32::from(crate::strings::vim_haschr(sr, b'<' as i32));
+                    let sr_bytes = smp[cur_n].sm_rules.as_bytes();
+                    p0 = i32::from(sr_bytes.contains(&b'<'));
                     if p0 == 1 && z == 0 {
                         let first_to = to_w.first().copied().unwrap_or(0);
                         if reslen > 0
@@ -2723,10 +2725,7 @@ fn spell_soundfold_wsal(
                             to_idx += 1;
                         }
                         c = to_w.get(to_idx).copied().unwrap_or(0);
-                        if crate::memory::cstr_as_bytes(sr)
-                            .windows(2)
-                            .any(|w| w == b"^^")
-                        {
+                        if sr_bytes.windows(2).any(|w| w == b"^^") {
                             if c != 0 && reslen < MAXWLEN {
                                 wres[reslen] = c;
                                 reslen += 1;
