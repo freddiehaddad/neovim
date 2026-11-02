@@ -3,7 +3,6 @@
   <h3>The editor you know, rebuilt in Rust.</h3>
 
   [![Test](https://github.com/freddiehaddad/neovim/actions/workflows/test.yml/badge.svg)](https://github.com/freddiehaddad/neovim/actions/workflows/test.yml)
-  [![CodeQL](https://github.com/freddiehaddad/neovim/actions/workflows/codeql.yml/badge.svg)](https://github.com/freddiehaddad/neovim/actions/workflows/codeql.yml)
   [![Downloads](https://img.shields.io/github/downloads/freddiehaddad/neovim/total.svg?maxAge=2592001)](https://github.com/freddiehaddad/neovim/releases/)
 </div>
 
