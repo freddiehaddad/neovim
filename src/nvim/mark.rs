@@ -6,7 +6,7 @@ use crate::api::private::validate::{
 use crate::autocmd::{AUGROUP_ALL, EVENT_MARKSET, aucmd_defer, has_event};
 use crate::buffer::{
     FileBuf, GETF_SETMARK, K_MARK_ADJUST_NORMAL, MAXLNUM, NMARKS, bt_prompt, buflist_findnr,
-    buflist_getfile, buflist_new, buflist_nr2name, first_win_in_tab,
+    buflist_findnr_opt, buflist_getfile, buflist_new, buflist_nr2name, first_win_in_tab,
 };
 use crate::charset::{ascii_isdigit, ascii_islower, ascii_isupper, skipwhite, vim_isprintc};
 use crate::context::{INIT_FMARK, INIT_FMARKV};
@@ -373,11 +373,9 @@ pub fn setmark_pos(c: i32, pos: &mut CursorPos, fnum: i32, view_pt: Option<&Fmar
         return true;
     }
 
-    let buf = buflist_findnr(fnum);
-    if buf.is_null() {
+    let Some(buf) = buflist_findnr_opt(fnum) else {
         return false;
-    }
-    let buf = unsafe { &mut *buf };
+    };
 
     if c == b'"' as i32 {
         reset_fmark(&mut buf.b_last_cursor, *pos, buf.b_fnum, view);
@@ -583,10 +581,9 @@ pub fn get_changelist(buf: &mut FileBuf, win: &mut WinInfoInfo, count: i32) -> *
         n += count;
     }
     win.w_changelistidx = n;
-    let fm = &raw mut buf.b_changelist[n as usize];
-    unsafe {
-        (*fm).fnum = curbuf_mut().b_fnum;
-    }
+    let cur_fnum = curbuf_mut().b_fnum;
+    let fm = &mut buf.b_changelist[n as usize];
+    fm.fnum = cur_fnum;
     fm
 }
 
@@ -636,15 +633,16 @@ pub fn mark_get_global(resolve: bool, mut name: i32) -> *mut Xfmark {
     } else {
         debug_assert!(false);
     }
-    let mark = &raw mut g_st().namedfm[name as usize];
-    if resolve && unsafe { (*mark).fmark.fnum } == 0 {
-        fname2fnum(mark);
+    let idx = name as usize;
+    if resolve && g_st().namedfm[idx].fmark.fnum == 0 {
+        fname2fnum(&raw mut g_st().namedfm[idx]);
     }
-    mark
+    &raw mut g_st().namedfm[idx]
 }
 
 /// Get a local mark (`mark_get_local`).
 pub fn mark_get_local(buf: &mut FileBuf, win: &mut WinInfoInfo, name: i32) -> *mut Fmark {
+    let fnum = buf.b_fnum;
     let mark = if ascii_islower(name) {
         &raw mut buf.b_namedm[(name - b'a' as i32) as usize]
     } else if name == b'[' as i32 {
@@ -667,10 +665,8 @@ pub fn mark_get_local(buf: &mut FileBuf, win: &mut WinInfoInfo, name: i32) -> *m
         mark_get_motion(&mut *buf, win, name)
     };
 
-    if !mark.is_null() {
-        unsafe {
-            (*mark).fnum = buf.b_fnum;
-        }
+    if let Some(mark_ref) = unsafe { mark.as_mut() } {
+        mark_ref.fnum = fnum;
     }
 
     mark
@@ -716,27 +712,23 @@ pub fn mark_get_motion(buf: &mut FileBuf, win: &mut WinInfoInfo, name: i32) -> *
 
 /// Get visual marks `'<'`, `'>'` (`mark_get_visual`).
 pub fn mark_get_visual(buf: &mut FileBuf, name: i32) -> *mut Fmark {
-    let mut mark: *mut Fmark = ptr::null_mut();
     if name == b'<' as i32 || name == b'>' as i32 {
         let startp = buf.b_visual.vi_start;
         let endp = buf.b_visual.vi_end;
-        mark = if ((name == b'<' as i32) == lt(startp, endp) || endp.lnum == 0) && startp.lnum != 0
-        {
-            pos_to_mark(&*buf, None, startp)
-        } else {
-            pos_to_mark(&*buf, None, endp)
-        };
+        let mark =
+            if ((name == b'<' as i32) == lt(startp, endp) || endp.lnum == 0) && startp.lnum != 0 {
+                pos_to_mark(&*buf, None, startp)
+            } else {
+                pos_to_mark(&*buf, None, endp)
+            };
 
         if buf.b_visual.vi_mode == b'V' as i32 {
-            unsafe {
-                (*mark).mark.col = if name == b'<' as i32 { 0 } else { MAXCOL };
-            }
-            unsafe {
-                (*mark).mark.coladd = 0;
-            }
+            mark.mark.col = if name == b'<' as i32 { 0 } else { MAXCOL };
+            mark.mark.coladd = 0;
         }
+        return mark;
     }
-    mark
+    ptr::null_mut()
 }
 
 /// Wrap a `CursorPos` into an `Fmark` (`pos_to_mark`).
@@ -843,7 +835,7 @@ pub fn mark_view_make(wp: &WinInfoInfo, pos: CursorPos) -> Fmarkv {
 
 /// Search for the next named mark in the current file from a start position (`getnextmark`).
 pub fn getnextmark(startpos: &mut CursorPos, dir: i32, begin_line: i32) -> *mut Fmark {
-    let mut result: *mut Fmark = ptr::null_mut();
+    let mut result_idx: Option<usize> = None;
     let mut pos = *startpos;
 
     if dir == BACKWARD && begin_line != 0 {
@@ -853,24 +845,23 @@ pub fn getnextmark(startpos: &mut CursorPos, dir: i32, begin_line: i32) -> *mut 
     }
 
     for i in 0..NMARKS {
-        if curbuf_mut().b_namedm[i].mark.lnum > 0 {
+        let cur_mark = curbuf_mut().b_namedm[i].mark;
+        if cur_mark.lnum > 0 {
             if dir == FORWARD {
-                if (result.is_null()
-                    || lt(curbuf_mut().b_namedm[i].mark, unsafe { (*result).mark }))
-                    && lt(pos, curbuf_mut().b_namedm[i].mark)
+                if result_idx.is_none_or(|r| lt(cur_mark, curbuf_mut().b_namedm[r].mark))
+                    && lt(pos, cur_mark)
                 {
-                    result = &raw mut curbuf_mut().b_namedm[i];
+                    result_idx = Some(i);
                 }
-            } else if (result.is_null()
-                || lt(unsafe { (*result).mark }, curbuf_mut().b_namedm[i].mark))
-                && lt(curbuf_mut().b_namedm[i].mark, pos)
+            } else if result_idx.is_none_or(|r| lt(curbuf_mut().b_namedm[r].mark, cur_mark))
+                && lt(cur_mark, pos)
             {
-                result = &raw mut curbuf_mut().b_namedm[i];
+                result_idx = Some(i);
             }
         }
     }
 
-    result
+    result_idx.map_or(ptr::null_mut(), |i| &raw mut curbuf_mut().b_namedm[i])
 }
 
 /// For an extended filemark: set the `fnum` from the `fname` (`fname2fnum`).
@@ -914,11 +905,7 @@ pub fn fmarks_check_names(buf: &mut FileBuf) {
     }
 
     for i in 0..NGLOBALMARKS {
-        fmarks_check_one(
-            unsafe { &mut *(&raw mut g_st().namedfm).cast::<Xfmark>().wrapping_add(i) },
-            name,
-            buf,
-        );
+        fmarks_check_one(&mut g_st().namedfm[i], name, buf);
     }
 
     for wp in win_iter_mut(first_win_in_tab(curtab_mut())) {
@@ -1109,11 +1096,9 @@ pub fn ex_delmarks(eap: &mut Exarg) {
                             (i - b'A' as i32) as usize
                         };
                         if g_st().namedfm[n].fmark.mark.lnum != 0 {
-                            let mut buf = buflist_findnr(g_st().namedfm[n].fmark.fnum);
-                            if buf.is_null() {
-                                buf = g_st().curbuf;
-                            }
-                            do_markset_autocmd(i as u8, &pos, unsafe { &mut *buf });
+                            let buf = buflist_findnr_opt(g_st().namedfm[n].fmark.fnum)
+                                .unwrap_or_else(curbuf_mut);
+                            do_markset_autocmd(i as u8, &pos, buf);
                         }
                         g_st().namedfm[n].fmark.mark.lnum = 0;
                         g_st().namedfm[n].fmark.fnum = 0;
@@ -1216,14 +1201,7 @@ pub fn ex_jumps(_eap: &mut Exarg) {
             let s = format!("{indicator} {dist:2} {lnum:5} {col:4} ");
             let bytes = s.as_bytes();
             let copy_len = bytes.len().min(IOSIZE - 1);
-            unsafe {
-                ptr::copy_nonoverlapping(
-                    bytes.as_ptr(),
-                    g_st().iobuff.as_mut_ptr().cast::<u8>(),
-                    copy_len,
-                )
-            };
-            g_st().iobuff[copy_len] = 0;
+            crate::memory::cstr_ncpy(g_st().iobuff.as_mut_ptr(), bytes.as_ptr().cast(), copy_len);
 
             msg_outtrans(g_st().iobuff.as_ptr(), 0, false);
             msg_outtrans(
@@ -1274,14 +1252,7 @@ pub fn ex_changes(_eap: &mut Exarg) {
             let s = format!("{indicator} {dist:3} {lnum:5} {col:4} ");
             let bytes = s.as_bytes();
             let copy_len = bytes.len().min(IOSIZE - 1);
-            unsafe {
-                ptr::copy_nonoverlapping(
-                    bytes.as_ptr(),
-                    g_st().iobuff.as_mut_ptr().cast::<u8>(),
-                    copy_len,
-                )
-            };
-            g_st().iobuff[copy_len] = 0;
+            crate::memory::cstr_ncpy(g_st().iobuff.as_mut_ptr(), bytes.as_ptr().cast(), copy_len);
 
             msg_outtrans(g_st().iobuff.as_ptr(), 0, false);
             let name = mark_line(&mut curbuf_mut().b_changelist[idx].mark, 17);
@@ -1412,7 +1383,6 @@ pub fn mark_adjust_buf(
     let by_term = mode == K_MARK_ADJUST_TERM;
 
     if (g_st().cmdmod.cmod_flags & CMOD_LOCKMARKS) == 0 {
-        let fm_base = (&raw mut g_st().namedfm).cast::<Xfmark>();
         for i in 0..NMARKS {
             one_adjust(
                 &mut buf.b_namedm[i].mark.lnum,
@@ -1421,22 +1391,15 @@ pub fn mark_adjust_buf(
                 amount,
                 amount_after,
             );
-            let fm = fm_base.wrapping_add(i);
-            let fm = unsafe { &mut *fm };
+            let fm = &mut g_st().namedfm[i];
             if fm.fmark.fnum == fnum {
                 one_adjust_nodel(&mut fm.fmark.mark.lnum, line1, line2, amount, amount_after);
             }
         }
         for i in NMARKS..NGLOBALMARKS {
-            let fm = fm_base.wrapping_add(i);
-            if unsafe { (*fm).fmark.fnum } == fnum {
-                one_adjust_nodel(
-                    unsafe { &mut (*fm).fmark.mark.lnum },
-                    line1,
-                    line2,
-                    amount,
-                    amount_after,
-                );
+            let fm = &mut g_st().namedfm[i];
+            if fm.fmark.fnum == fnum {
+                one_adjust_nodel(&mut fm.fmark.mark.lnum, line1, line2, amount, amount_after);
             }
         }
 
@@ -1679,7 +1642,6 @@ pub fn mark_col_adjust(
         return;
     }
 
-    let fm_base = (&raw mut g_st().namedfm).cast::<Xfmark>();
     for i in 0..NMARKS {
         col_adjust(
             &mut curbuf_mut().b_namedm[i].mark,
@@ -1689,8 +1651,7 @@ pub fn mark_col_adjust(
             col_amount,
             spaces_removed,
         );
-        let fm = fm_base.wrapping_add(i);
-        let fm = unsafe { &mut *fm };
+        let fm = &mut g_st().namedfm[i];
         if fm.fmark.fnum == fnum {
             col_adjust(
                 &mut fm.fmark.mark,
@@ -1703,10 +1664,10 @@ pub fn mark_col_adjust(
         }
     }
     for i in NMARKS..NGLOBALMARKS {
-        let fm = fm_base.wrapping_add(i);
-        if unsafe { (*fm).fmark.fnum } == fnum {
+        let fm = &mut g_st().namedfm[i];
+        if fm.fmark.fnum == fnum {
             col_adjust(
-                unsafe { &mut (*fm).fmark.mark },
+                &mut fm.fmark.mark,
                 lnum,
                 mincol,
                 lnum_amount,
@@ -2009,45 +1970,41 @@ pub fn mark_buffer_iter(
 
 /// Set global mark (`mark_set_global`).
 pub fn mark_set_global(name: u8, fm: Xfmark, update: bool) -> bool {
-    unsafe {
-        let idx = mark_global_index(name);
-        if idx == -1 {
-            return false;
-        }
-        let fm_tgt = &raw mut g_st().namedfm[idx as usize];
-        if update && fm.fmark.timestamp <= (*fm_tgt).fmark.timestamp {
-            return false;
-        }
-        if (*fm_tgt).fmark.mark.lnum != 0 {
-            free_xfmark(&mut *fm_tgt);
-        }
-        *fm_tgt = fm;
-        true
+    let idx = mark_global_index(name);
+    if idx == -1 {
+        return false;
     }
+    let fm_tgt = &mut g_st().namedfm[idx as usize];
+    if update && fm.fmark.timestamp <= fm_tgt.fmark.timestamp {
+        return false;
+    }
+    if fm_tgt.fmark.mark.lnum != 0 {
+        free_xfmark(fm_tgt);
+    }
+    *fm_tgt = fm;
+    true
 }
 
 /// Set local mark (`mark_set_local`).
 pub fn mark_set_local(name: u8, buf: &mut FileBuf, fm: Fmark, update: bool) -> bool {
     let ch = i32::from(name);
     let fm_tgt = if ascii_islower(ch) {
-        &raw mut buf.b_namedm[(ch - b'a' as i32) as usize]
+        &mut buf.b_namedm[(ch - b'a' as i32) as usize]
     } else if name == b'"' {
-        &raw mut buf.b_last_cursor
+        &mut buf.b_last_cursor
     } else if name == b'^' {
-        &raw mut buf.b_last_insert
+        &mut buf.b_last_insert
     } else if name == b':' {
-        &raw mut buf.b_prompt_start
+        &mut buf.b_prompt_start
     } else if name == b'.' {
-        &raw mut buf.b_last_change
+        &mut buf.b_last_change
     } else {
         return false;
     };
-    if update && fm.timestamp <= unsafe { (*fm_tgt).timestamp } {
+    if update && fm.timestamp <= fm_tgt.timestamp {
         return false;
     }
-    unsafe {
-        *fm_tgt = fm;
-    }
+    *fm_tgt = fm;
     true
 }
 
@@ -2071,24 +2028,20 @@ pub fn set_last_cursor(win: &mut WinInfoInfo) {
 }
 
 pub fn free_all_marks() {
-    unsafe {
-        let fm_base = (&raw mut g_st().namedfm).cast::<Xfmark>();
-        for i in 0..NGLOBALMARKS {
-            let fm = fm_base.wrapping_add(i);
-            if (*fm).fmark.mark.lnum != 0 {
-                free_xfmark(&mut *fm);
-            }
-            *fm = INIT_XFMARK;
+    for fm in &mut g_st().namedfm {
+        if fm.fmark.mark.lnum != 0 {
+            free_xfmark(fm);
         }
+        *fm = INIT_XFMARK;
     }
 }
 
 /// Adjust position to point to the first byte of a multi-byte character (`mark_mb_adjustpos`).
 pub fn mark_mb_adjustpos(buf: *mut FileBuf, lp: &mut CursorPos) {
     if lp.col > 0 || lp.coladd > 1 {
-        let p = ml_get_buf(unsafe { &mut *buf }, lp.lnum);
-        if crate::memory::cstr_is_empty(p) || ml_get_buf_len(unsafe { &mut *buf }, lp.lnum) < lp.col
-        {
+        let buf = unsafe { &mut *buf };
+        let p = ml_get_buf(buf, lp.lnum);
+        if crate::memory::cstr_is_empty(p) || ml_get_buf_len(buf, lp.lnum) < lp.col {
             lp.col = 0;
         } else {
             lp.col -= utf_head_off(p, p.wrapping_add(lp.col as usize));
@@ -2194,9 +2147,7 @@ pub fn get_raw_global_mark(name: u8) -> Xfmark {
 pub fn get_global_marks(l: &mut TvList) {
     let mut mname: [u8; 3] = [b'\'', b' ', 0];
 
-    let fm_base = (&raw const g_st().namedfm).cast::<Xfmark>();
-    for i in 0..(NMARKS + EXTRA_MARKS) {
-        let fm = unsafe { &*fm_base.wrapping_add(i) };
+    for (i, fm) in g_st().namedfm[..(NMARKS + EXTRA_MARKS)].iter().enumerate() {
         let owned_name = if fm.fmark.fnum != 0 {
             buflist_nr2name(fm.fmark.fnum, 1, 1)
         } else {
