@@ -1266,12 +1266,15 @@ fn get_lval_subscript<T>(
         let mut var2 = tv_initial_value();
         let mut empty1 = false;
 
-        while crate::memory::cstr_first_byte(p) == b'['
-            || (crate::memory::cstr_first_byte(p) == b'.'
-                && crate::memory::cstr_byte_at(p, 1) != b'='
-                && crate::memory::cstr_byte_at(p, 1) != b'.')
-        {
-            if crate::memory::cstr_first_byte(p) == b'.' && lp.tv_mut().v_type != VarType::VarDict {
+        loop {
+            let p_bytes = crate::memory::cstr_as_bytes(p);
+            let Some(&p0) = p_bytes.first() else {
+                break;
+            };
+            if p0 != b'[' && !(p0 == b'.' && !matches!(p_bytes.get(1), Some(b'=' | b'.'))) {
+                break;
+            }
+            if p0 == b'.' && lp.tv_mut().v_type != VarType::VarDict {
                 if !quiet {
                     semsg!(gettext(E_DOT_CAN_ONLY_BE_USED_ON_DICTIONARY_STR), name,);
                 }
@@ -1305,14 +1308,12 @@ fn get_lval_subscript<T>(
 
             let mut len: i32 = -1;
             let mut key = ptr::null_mut();
-            if crate::memory::cstr_first_byte(p) == b'.' {
+            if p0 == b'.' {
                 key = p.wrapping_add(1);
-                len = 0;
-                while ascii_isalnum(crate::memory::cstr_char_at(key, len as usize))
-                    || crate::memory::cstr_byte_at(key, len as usize) == b'_'
-                {
-                    len += 1;
-                }
+                len = p_bytes[1..]
+                    .iter()
+                    .take_while(|&&b| b.is_ascii_alphanumeric() || b == b'_')
+                    .count() as i32;
                 if len == 0 {
                     if !quiet {
                         emsg(gettext(c"E713: Cannot use empty key after ."));
@@ -2466,23 +2467,24 @@ fn eval4<T>(arg: *mut *mut T, rettv: &mut TypVal, mut evalarg: Option<&mut Evala
     }
 
     let p = unsafe { *arg };
-    match crate::memory::cstr_first_byte(p) {
+    let p_bytes = crate::memory::cstr_as_bytes(p);
+    match p_bytes.first().copied().unwrap_or(0) {
         b'=' => {
-            if crate::memory::cstr_byte_at(p, 1) == b'=' {
+            if p_bytes.get(1) == Some(&b'=') {
                 expr_type = EXPR_EQUAL;
-            } else if crate::memory::cstr_byte_at(p, 1) == b'~' {
+            } else if p_bytes.get(1) == Some(&b'~') {
                 expr_type = EXPR_MATCH;
             }
         }
         b'!' => {
-            if crate::memory::cstr_byte_at(p, 1) == b'=' {
+            if p_bytes.get(1) == Some(&b'=') {
                 expr_type = EXPR_NEQUAL;
-            } else if crate::memory::cstr_byte_at(p, 1) == b'~' {
+            } else if p_bytes.get(1) == Some(&b'~') {
                 expr_type = EXPR_NOMATCH;
             }
         }
         b'>' => {
-            if crate::memory::cstr_byte_at(p, 1) != b'=' {
+            if p_bytes.get(1) != Some(&b'=') {
                 expr_type = EXPR_GREATER;
                 len = 1;
             } else {
@@ -2490,22 +2492,21 @@ fn eval4<T>(arg: *mut *mut T, rettv: &mut TypVal, mut evalarg: Option<&mut Evala
             }
         }
         b'<' => {
-            if crate::memory::cstr_byte_at(p, 1) != b'=' {
+            if p_bytes.get(1) != Some(&b'=') {
                 expr_type = EXPR_SMALLER;
                 len = 1;
             } else {
                 expr_type = EXPR_SEQUAL;
             }
         }
-        b'i' if crate::memory::cstr_byte_at(p, 1) == b's' => {
-            if crate::memory::cstr_byte_at(p, 2) == b'n'
-                && crate::memory::cstr_byte_at(p, 3) == b'o'
-                && crate::memory::cstr_byte_at(p, 4) == b't'
-            {
+        b'i' if p_bytes.get(1) == Some(&b's') => {
+            if p_bytes.starts_with(b"isnot") {
                 len = 5;
             }
-            let next_c = crate::memory::cstr_byte_at(p, len);
-            if !ascii_isalnum(i32::from(next_c)) && next_c != b'_' {
+            if !p_bytes
+                .get(len)
+                .is_some_and(|&c| c.is_ascii_alphanumeric() || c == b'_')
+            {
                 expr_type = if len == 2 { EXPR_IS } else { EXPR_ISNOT };
             }
         }
@@ -2514,10 +2515,10 @@ fn eval4<T>(arg: *mut *mut T, rettv: &mut TypVal, mut evalarg: Option<&mut Evala
 
     if expr_type != EXPR_UNKNOWN {
         let ic: bool;
-        if crate::memory::cstr_byte_at(p, len) == b'?' {
+        if p_bytes.get(len) == Some(&b'?') {
             ic = true;
             len += 1;
-        } else if crate::memory::cstr_byte_at(p, len) == b'#' {
+        } else if p_bytes.get(len) == Some(&b'#') {
             ic = false;
             len += 1;
         } else {
@@ -3852,20 +3853,16 @@ fn eval_string<T>(arg: *mut *mut T, rettv: &mut TypVal, evaluate: bool, interpol
         let off: usize = if interpolate { 0 } else { 1 };
 
         let mut p = (*arg).wrapping_add(off);
-        while !crate::memory::cstr_is_empty(p.cast())
-            && crate::memory::cstr_first_byte(p.cast()) != b'"'
-        {
-            if crate::memory::cstr_first_byte(p.cast()) == b'\\'
-                && crate::memory::cstr_byte_at(p.cast(), 1) != 0
-            {
+        while *p != 0 && *p != b'"' {
+            if *p == b'\\' && *p.wrapping_add(1) != 0 {
                 p = p.wrapping_add(1);
-                if crate::memory::cstr_first_byte(p.cast()) == b'<' {
+                if *p == b'<' {
                     let mut modifiers: i32 = 0;
                     let mut flags = FSK_KEYCODE | FSK_IN_STRING;
 
                     extra += 5;
 
-                    if crate::memory::cstr_byte_at(p.cast(), 1) != b'*' {
+                    if *p.wrapping_add(1) != b'*' {
                         flags |= FSK_SIMPLIFY;
                     }
                     let mut p_const: *const u8 = p;
@@ -3882,19 +3879,12 @@ fn eval_string<T>(arg: *mut *mut T, rettv: &mut TypVal, evaluate: bool, interpol
                         p = p_const.cast_mut();
                     }
                 }
-            } else if interpolate
-                && (crate::memory::cstr_first_byte(p.cast()) == b'{'
-                    || crate::memory::cstr_first_byte(p.cast()) == b'}')
-            {
-                if crate::memory::cstr_first_byte(p.cast()) == b'{'
-                    && crate::memory::cstr_byte_at(p.cast(), 1) != b'{'
-                {
+            } else if interpolate && (*p == b'{' || *p == b'}') {
+                if *p == b'{' && *p.wrapping_add(1) != b'{' {
                     break;
                 }
                 p = p.wrapping_add(1);
-                if crate::memory::cstr_first_byte(p.wrapping_sub(1).cast()) == b'}'
-                    && crate::memory::cstr_first_byte(p.cast()) != b'}'
-                {
+                if *p.wrapping_sub(1) == b'}' && *p != b'}' {
                     semsg!(gettext(E_STRAY_CLOSING_CURLY_STR), *arg);
                     return false;
                 }
@@ -3903,9 +3893,7 @@ fn eval_string<T>(arg: *mut *mut T, rettv: &mut TypVal, evaluate: bool, interpol
             p = p.wrapping_add(utfc_ptr2len(p.cast()) as usize);
         }
 
-        if crate::memory::cstr_first_byte(p.cast()) != b'"'
-            && !(interpolate && crate::memory::cstr_first_byte(p.cast()) == b'{')
-        {
+        if *p != b'"' && !(interpolate && *p == b'{') {
             semsg!(gettext(c"E114: Missing quote: %s"), *arg);
             return false;
         }
@@ -4052,23 +4040,23 @@ fn eval_lit_string<T>(
         let off: usize = if interpolate { 0 } else { 1 };
 
         let mut p = (*arg).wrapping_add(off);
-        while !crate::memory::cstr_is_empty(p.cast()) {
-            if crate::memory::cstr_first_byte(p.cast()) == b'\'' {
-                if crate::memory::cstr_byte_at(p.cast(), 1) != b'\'' {
+        while *p != 0 {
+            if *p == b'\'' {
+                if *p.wrapping_add(1) != b'\'' {
                     break;
                 }
                 reduce += 1;
                 p = p.wrapping_add(1);
             } else if interpolate {
-                if crate::memory::cstr_first_byte(p.cast()) == b'{' {
-                    if crate::memory::cstr_byte_at(p.cast(), 1) != b'{' {
+                if *p == b'{' {
+                    if *p.wrapping_add(1) != b'{' {
                         break;
                     }
                     p = p.wrapping_add(1);
                     reduce += 1;
-                } else if crate::memory::cstr_first_byte(p.cast()) == b'}' {
+                } else if *p == b'}' {
                     p = p.wrapping_add(1);
-                    if crate::memory::cstr_first_byte(p.cast()) != b'}' {
+                    if *p != b'}' {
                         semsg!(gettext(E_STRAY_CLOSING_CURLY_STR), *arg);
                         return false;
                     }
@@ -4078,9 +4066,7 @@ fn eval_lit_string<T>(
             p = p.wrapping_add(utfc_ptr2len(p.cast()) as usize);
         }
 
-        if crate::memory::cstr_first_byte(p.cast()) != b'\''
-            && !(interpolate && crate::memory::cstr_first_byte(p.cast()) == b'{')
-        {
+        if *p != b'\'' && !(interpolate && *p == b'{') {
             semsg!(gettext(c"E115: Missing quote: %s"), *arg);
             return false;
         }
@@ -5689,18 +5675,16 @@ pub fn var2fpos(
         let Some(name_cstr) = tv_get_string_chk(tv) else {
             return ptr::null_mut();
         };
-        let name = name_cstr.as_ptr();
+        let name_bytes = name_cstr.to_bytes();
 
         eval_st().var2_fpos_pos.lnum = 0;
-        if crate::memory::cstr_first_byte(name) == b'.' {
+        if name_bytes.first() == Some(&b'.') {
             eval_st().var2_fpos_pos = CursorPos {
                 lnum: wp.w_cursor.lnum,
                 col: wp.w_cursor.col,
                 coladd: wp.w_cursor.coladd,
             };
-        } else if crate::memory::cstr_first_byte(name) == b'v'
-            && crate::memory::cstr_byte_at(name, 1) == 0
-        {
+        } else if name_bytes == b"v" {
             if g_st().visual_global.active && ptr::eq(wp, curwin_ptr()) {
                 eval_st().var2_fpos_pos = CursorPos {
                     lnum: g_st().visual_global.start.lnum,
@@ -5714,16 +5698,15 @@ pub fn var2fpos(
                     coladd: wp.w_cursor.coladd,
                 };
             }
-        } else if crate::memory::cstr_first_byte(name) == b'\'' {
-            let mname = i32::from(crate::memory::cstr_byte_at(name, 1));
+        } else if name_bytes.first() == Some(&b'\'') {
+            let mname_b = name_bytes.get(1).copied().unwrap_or(0);
+            let mname = i32::from(mname_b);
             let fm = mark_get(&mut *bp, wp, None, K_MARK_ALL, mname);
             if fm.is_null() || (*fm).mark.lnum <= 0 {
                 return ptr::null_mut();
             }
             eval_st().var2_fpos_pos = (*fm).mark;
-            if ascii_isupper(crate::memory::cstr_char_at(name, 1))
-                || ascii_isdigit(crate::memory::cstr_char_at(name, 1))
-            {
+            if mname_b.is_ascii_uppercase() || mname_b.is_ascii_digit() {
                 *ret_fnum = (*fm).fnum;
             }
         }
@@ -5740,15 +5723,15 @@ pub fn var2fpos(
 
         eval_st().var2_fpos_pos.coladd = 0;
 
-        if crate::memory::cstr_first_byte(name) == b'w' && dollar_lnum {
+        if name_bytes.first() == Some(&b'w') && dollar_lnum {
             check_cursor_moved(wp);
 
             eval_st().var2_fpos_pos.col = 0;
-            if crate::memory::cstr_byte_at(name, 1) == b'0' {
+            if name_bytes.get(1) == Some(&b'0') {
                 update_topline(wp);
                 eval_st().var2_fpos_pos.lnum = if wp.w_topline > 0 { wp.w_topline } else { 1 };
                 return &raw mut eval_st().var2_fpos_pos;
-            } else if crate::memory::cstr_byte_at(name, 1) == b'$' {
+            } else if name_bytes.get(1) == Some(&b'$') {
                 validate_botline_win(&mut *wp);
                 eval_st().var2_fpos_pos.lnum = if wp.w_botline > 0 {
                     wp.w_botline - 1
@@ -5757,7 +5740,7 @@ pub fn var2fpos(
                 };
                 return &raw mut eval_st().var2_fpos_pos;
             }
-        } else if crate::memory::cstr_first_byte(name) == b'$' {
+        } else if name_bytes.first() == Some(&b'$') {
             if dollar_lnum {
                 eval_st().var2_fpos_pos.lnum = (*bp).b_ml.ml_line_count;
                 eval_st().var2_fpos_pos.col = 0;
