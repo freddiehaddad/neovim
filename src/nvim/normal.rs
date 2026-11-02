@@ -5940,7 +5940,6 @@ fn nv_optrans(cap: &mut Cmdarg) {
             .position(|&b| b == cap.cmdchar as u8)
             .unwrap();
         stuff_readbuff(AR[idx].as_ptr());
-        g_st().opcount = 0;
         exec_stuffed(Some(cap));
     }
     cap.opcount = 0;
@@ -7544,6 +7543,7 @@ pub fn normal_cmd(oap: &mut Oparg, toplevel: bool) {
 pub fn exec_stuffed(mut cap: Option<&mut Cmdarg>) {
     if let Some(ref cap) = cap {
         atom_stuff_start(cap);
+        g_st().opcount = 0; // Stuffed keys hold the count: 2"ax => 2dl, not 4dl.
     }
     if text_locked() || curbuf_locked() {
         return;
