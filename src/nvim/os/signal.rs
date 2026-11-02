@@ -10,7 +10,7 @@ use crate::ex_cmds2::autowrite_all;
 use crate::globals::{IOSIZE, g_st};
 use crate::log::{LOGLVL_ERR, logmsg};
 use crate::main_init::preserve_exit;
-#[cfg(unix)]
+#[cfg(target_os = "linux")]
 use crate::memline::ml_sync_all;
 use crate::option_vars::*;
 use crate::strings::vim_snprintf;

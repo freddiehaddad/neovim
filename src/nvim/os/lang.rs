@@ -457,8 +457,7 @@ fn current_message_locale() -> Option<String> {
     let mut buf = [0u8; 256];
     for var in [c"LANGUAGE", c"LC_ALL", c"LC_MESSAGES", c"LANG"] {
         let p = os_getenv_buf(var.as_ptr(), buf.as_mut_ptr(), buf.len());
-        if !p.is_null()
-            && unsafe { *p } != 0
+        if !crate::memory::cstr_is_empty(p.cast())
             && let Ok(s) = crate::memory::cstr_from_ptr(p.cast()).to_str()
         {
             return Some(s.to_string());
@@ -485,12 +484,7 @@ fn ensure_catalog_loaded() -> Option<&'static MoCatalog> {
         if lang_st().locale_dir_len == 0 {
             return None;
         }
-        let dir_slice = unsafe {
-            std::slice::from_raw_parts(
-                (&raw const lang_st().locale_dir).cast::<u8>(),
-                lang_st().locale_dir_len,
-            )
-        };
+        let dir_slice = &lang_st().locale_dir[..lang_st().locale_dir_len];
         let dir_str = std::str::from_utf8(dir_slice).ok()?;
         let base_dir = Path::new(dir_str);
         let locale = current_message_locale()?;
@@ -515,7 +509,7 @@ fn ensure_catalog_loaded() -> Option<&'static MoCatalog> {
 
 pub(crate) fn c_gettext(msgid: impl crate::strings::IntoCCharPtr) -> Option<&'static CStr> {
     let msgid = msgid.into_c_char_ptr();
-    if msgid.is_null() || unsafe { *msgid == 0 } {
+    if crate::memory::cstr_is_empty(msgid) {
         return None;
     }
     {
@@ -534,7 +528,7 @@ pub(crate) fn c_ngettext(
     n: u64,
 ) -> Option<&'static CStr> {
     let msgid1 = msgid1.into_c_char_ptr();
-    if msgid1.is_null() || unsafe { *msgid1 == 0 } {
+    if crate::memory::cstr_is_empty(msgid1) {
         return None;
     }
     {

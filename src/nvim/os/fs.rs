@@ -841,6 +841,14 @@ impl CFile {
             crate::fileio::fwrite(bytes.as_ptr().cast(), bytes.len(), 1, self.0.as_ptr()) == 1
         }
     }
+
+    #[inline]
+    pub fn read_bytes(&self, buf: &mut [u8]) -> usize {
+        if buf.is_empty() {
+            return 0;
+        }
+        unsafe { crate::fileio::fread(buf.as_mut_ptr().cast(), 1, buf.len(), self.0.as_ptr()) }
+    }
 }
 
 impl Drop for CFile {

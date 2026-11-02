@@ -23,7 +23,7 @@ use crate::ex_cmds::{K_SHELL_OPT_READ, K_SHELL_OPT_WRITE, check_secure, make_fil
 use crate::ex_docmd::CAR;
 #[cfg(unix)]
 use crate::fileio::fopen;
-use crate::fileio::{SEEK_END, SEEK_SET, fclose, fread, vim_fseek, vim_ftell, vim_tempname};
+use crate::fileio::{SEEK_END, SEEK_SET, vim_tempname};
 use crate::globals::*;
 #[cfg(windows)]
 use crate::mbyte::CP_UTF8;
@@ -409,8 +409,7 @@ pub fn os_expand_wildcards(
             return false;
         }
 
-        let fd = fopen(tempname, c"rb".as_ptr());
-        if fd.is_null() {
+        let Some(f) = crate::os::fs::CFile::from_raw(fopen(tempname, c"rb".as_ptr())) else {
             if (flags & EW_SILENT) == 0 {
                 msg(gettext(E_WILDEXPAND), 0);
                 msg_start();
@@ -420,23 +419,20 @@ pub fn os_expand_wildcards(
                 return true;
             }
             return false;
-        }
-        let fseek_res = vim_fseek(fd, 0, SEEK_END);
-        if fseek_res < 0 {
-            fclose(fd);
+        };
+        if f.seek(0, SEEK_END) < 0 {
             return false;
         }
-        let templen = vim_ftell(fd) as i64;
+        let templen = f.tell();
         if templen < 0 {
-            fclose(fd);
             return false;
         }
         len = templen as usize;
-        vim_fseek(fd, 0, SEEK_SET);
+        f.seek(0, SEEK_SET);
         let mut buffer_vec = vec![0u8; len + 1];
         let buffer = buffer_vec.as_mut_ptr();
-        let readlen = fread(buffer.cast(), 1, len, fd);
-        fclose(fd);
+        let readlen = f.read_bytes(&mut buffer_vec[..len]);
+        drop(f);
         os_remove(tempname);
         if readlen != len {
             semsg!(gettext(E_CANT_READ_FILE_STR), tempname);
@@ -773,38 +769,37 @@ pub fn get_cmd_output(
 
         drop(command);
 
-        let fd = os_fopen(tempname, c"rb");
         let mut result: Option<std::ffi::CString> = None;
 
-        'done: {
-            if fd.is_null() || unsafe { vim_fseek(fd, 0, SEEK_END) } == -1 {
-                semsg!(gettext(E_CANNOT_READ_FROM_STR_2), tempname);
-                if !fd.is_null() {
-                    unsafe { fclose(fd) };
+        if let Some(f) = crate::os::fs::CFile::from_raw(os_fopen(tempname, c"rb")) {
+            'done: {
+                if f.seek(0, SEEK_END) == -1 {
+                    semsg!(gettext(E_CANNOT_READ_FROM_STR_2), tempname);
+                    break 'done;
                 }
-                break 'done;
-            }
-            let len_l = unsafe { vim_ftell(fd) };
-            if len_l == -1 || unsafe { vim_fseek(fd, 0, SEEK_SET) } == -1 {
-                semsg!(gettext(E_CANNOT_READ_FROM_STR_2), tempname);
-                unsafe { fclose(fd) };
-                break 'done;
-            }
+                let len_l = f.tell();
+                if len_l == -1 || f.seek(0, SEEK_SET) == -1 {
+                    semsg!(gettext(E_CANNOT_READ_FROM_STR_2), tempname);
+                    break 'done;
+                }
 
-            let len = len_l as usize;
-            let mut buffer = vec![0u8; len];
-            let i = unsafe { fread(buffer.as_mut_ptr().cast(), 1, len, fd) };
-            unsafe { fclose(fd) };
-            if i != len {
-                semsg!(gettext(E_CANT_READ_FILE_STR), tempname);
-            } else {
-                for b in &mut buffer {
-                    if *b == 0 {
-                        *b = 1;
+                let len = len_l as usize;
+                let mut buffer = vec![0u8; len];
+                let i = f.read_bytes(&mut buffer);
+                drop(f);
+                if i != len {
+                    semsg!(gettext(E_CANT_READ_FILE_STR), tempname);
+                } else {
+                    for b in &mut buffer {
+                        if *b == 0 {
+                            *b = 1;
+                        }
                     }
+                    result = std::ffi::CString::new(buffer).ok();
                 }
-                result = Some(unsafe { std::ffi::CString::from_vec_unchecked(buffer) });
             }
+        } else {
+            semsg!(gettext(E_CANNOT_READ_FROM_STR_2), tempname);
         }
 
         os_remove(tempname);

@@ -111,7 +111,7 @@ unsafe extern "system" {
 #[cfg(unix)]
 fn add_user(users: &mut Vec<CString>, user: impl crate::strings::IntoCCharPtr) {
     let user = user.into_c_char_ptr();
-    if user.is_null() || unsafe { *user == 0 } {
+    if crate::memory::cstr_is_empty(user) {
         return;
     }
     if let Ok(cstr) = CString::new(crate::memory::cstr_as_bytes(user)) {

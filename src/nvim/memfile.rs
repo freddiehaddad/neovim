@@ -93,6 +93,14 @@ pub fn pmap_get_bhdr(map: &std::collections::HashMap<i64, Box<Bhdr>>, key: i64) 
         .map_or(ptr::null_mut(), |b| (&raw const **b).cast_mut())
 }
 
+#[inline]
+pub fn pmap_get_bhdr_opt(
+    map: &std::collections::HashMap<i64, Box<Bhdr>>,
+    key: i64,
+) -> Option<&'static mut Bhdr> {
+    unsafe { pmap_get_bhdr(map, key).as_mut() }
+}
+
 /// Open a new or existing memory block file.
 pub fn mf_open(fname: Option<std::ffi::CString>, flags: i32) -> Option<Box<Memfile>> {
     let mut mfp = Box::new(Memfile {
@@ -242,30 +250,29 @@ pub fn mf_get(mfp: &mut Memfile, nr: Blocknr, page_count: u32) -> *mut Bhdr {
         return ptr::null_mut();
     }
 
-    let mut hp = pmap_get_bhdr(&mfp.mf_hash, nr);
-    if hp.is_null() {
-        if nr < 0 || nr >= mfp.mf_infile_count || page_count == 0 {
-            return ptr::null_mut();
-        }
-
-        let mut boxed = mf_alloc_bhdr(mfp, nr, page_count, BH_LOCKED);
-        hp = &raw mut *boxed;
-        if !mf_read(mfp, unsafe { &mut *hp }) {
-            return ptr::null_mut();
-        }
-        mfp.mf_hash.insert(nr, boxed);
-    } else {
-        unsafe {
-            (*hp).bh_flags |= BH_LOCKED;
-        }
+    if let Some(hp) = pmap_get_bhdr_opt(&mfp.mf_hash, nr) {
+        hp.bh_flags |= BH_LOCKED;
+        return hp;
     }
+
+    if nr < 0 || nr >= mfp.mf_infile_count || page_count == 0 {
+        return ptr::null_mut();
+    }
+
+    let mut boxed = mf_alloc_bhdr(mfp, nr, page_count, BH_LOCKED);
+    if !mf_read(mfp, &mut boxed) {
+        return ptr::null_mut();
+    }
+    let hp: *mut Bhdr = &raw mut *boxed;
+    mfp.mf_hash.insert(nr, boxed);
 
     hp
 }
 
 /// Release the block `*hp`.
 pub fn mf_put(mfp: &mut Memfile, hp: *mut Bhdr, dirty: bool, infile: bool) {
-    let mut flags = unsafe { (*hp).bh_flags };
+    let hp = unsafe { &mut *hp };
+    let mut flags = hp.bh_flags;
 
     if (flags & BH_LOCKED) == 0 {
         iemsg(gettext(c"E293: Block was not locked"));
@@ -277,11 +284,9 @@ pub fn mf_put(mfp: &mut Memfile, hp: *mut Bhdr, dirty: bool, infile: bool) {
             mfp.mf_dirty = MF_DIRTY_YES;
         }
     }
-    unsafe {
-        (*hp).bh_flags = flags;
-    }
+    hp.bh_flags = flags;
     if infile {
-        let _ = mf_trans_add(mfp, unsafe { &mut *hp });
+        let _ = mf_trans_add(mfp, hp);
     }
 }
 
@@ -323,17 +328,16 @@ pub fn mf_sync(mfp: &mut Memfile, flags: i32) -> bool {
         .map(|b| (&raw const **b).cast_mut())
         .collect();
 
-    for hp in blocks {
-        if ((flags & MFS_ALL) != 0 || unsafe { (*hp).bh_bnum } >= 0)
-            && (unsafe { (*hp).bh_flags } & BH_DIRTY) != 0
-            && (status
-                || (unsafe { (*hp).bh_bnum } >= 0
-                    && unsafe { (*hp).bh_bnum } < mfp.mf_infile_count))
+    for hp_ptr in blocks {
+        let hp = unsafe { &mut *hp_ptr };
+        if ((flags & MFS_ALL) != 0 || hp.bh_bnum >= 0)
+            && (hp.bh_flags & BH_DIRTY) != 0
+            && (status || (hp.bh_bnum >= 0 && hp.bh_bnum < mfp.mf_infile_count))
         {
-            if (flags & MFS_ZERO) != 0 && unsafe { (*hp).bh_bnum } != 0 {
+            if (flags & MFS_ZERO) != 0 && hp.bh_bnum != 0 {
                 continue;
             }
-            if !mf_write(mfp, unsafe { &mut *hp }) {
+            if !mf_write(mfp, hp) {
                 if !status {
                     completed_all = false;
                     break;
@@ -345,10 +349,8 @@ pub fn mf_sync(mfp: &mut Memfile, flags: i32) -> bool {
                     completed_all = false;
                     break;
                 }
-            } else {
-                if unsafe { *loop_recursive_ptr(&mut g_st().main_loop) } == 0 {
-                    os_breakcheck();
-                }
+            } else if unsafe { *loop_recursive_ptr(&mut g_st().main_loop) } == 0 {
+                os_breakcheck();
             }
             if g_st().got_int {
                 completed_all = false;
@@ -692,23 +694,22 @@ mod tests {
 
             for i in 0..TEST_COUNT {
                 let key = index_to_key(i);
-                let item = pmap_get_bhdr(&ht, key);
-                assert!(!item.is_null());
-                assert_eq!(unsafe { (*item).bh_bnum }, key);
+                let item = pmap_get_bhdr_opt(&ht, key).unwrap();
+                assert_eq!(item.bh_bnum, key);
             }
 
             for i in 0..TEST_COUNT {
                 if i % 100 < 70 {
                     let key = index_to_key(i);
-                    let item = pmap_get_bhdr(&ht, key);
-                    assert!(!item.is_null());
-                    assert_eq!(unsafe { (*item).bh_bnum }, key);
+                    let item_ptr = pmap_get_bhdr(&ht, key);
+                    let item = pmap_get_bhdr_opt(&ht, key).unwrap();
+                    assert_eq!(item.bh_bnum, key);
 
                     let removed = ht.remove(&key).unwrap();
                     assert!(pmap_get_bhdr(&ht, key).is_null());
 
                     ht.insert(key, removed);
-                    assert_eq!(pmap_get_bhdr(&ht, key), item);
+                    assert_eq!(pmap_get_bhdr(&ht, key), item_ptr);
 
                     ht.remove(&key);
                     assert!(pmap_get_bhdr(&ht, key).is_null());
@@ -717,12 +718,11 @@ mod tests {
 
             for i in 0..TEST_COUNT {
                 let key = index_to_key(i);
-                let item = pmap_get_bhdr(&ht, key);
                 if i % 100 < 70 {
-                    assert!(item.is_null());
+                    assert!(pmap_get_bhdr_opt(&ht, key).is_none());
                 } else {
-                    assert!(!item.is_null());
-                    assert_eq!(unsafe { (*item).bh_bnum }, key);
+                    let item = pmap_get_bhdr_opt(&ht, key).unwrap();
+                    assert_eq!(item.bh_bnum, key);
                 }
             }
         }

@@ -1315,8 +1315,6 @@ fn au_st() -> &'static mut AutocmdState {
     unsafe { &mut *AU_STATE.as_ptr() }
 }
 
-use crate::strings::vim_strchr;
-
 fn map_put_name_to_id(name: impl crate::strings::IntoCCharPtr, val: i32) {
     let name = name.into_c_char_ptr();
     {
@@ -2475,7 +2473,7 @@ pub fn do_doautocmd(
         let fname = skipwhite(fname.cast());
 
         while !crate::memory::cstr_is_empty(arg)
-            && ends_excmd(i32::from(unsafe { *arg.cast::<u8>() })) == 0
+            && ends_excmd(crate::memory::cstr_first_char(arg)) == 0
             && !ascii_iswhite(crate::memory::cstr_first_char(arg))
         {
             let ev = event_name2nr(arg, &mut arg);
@@ -3333,8 +3331,8 @@ fn au_callback(mut callback: Callback, id: i64, group: i32, apc: &AutoPatCmd) ->
         data_items[size] = KeyValuePair {
             key: static_cstr_as_string(c"match"),
             value: cstr_as_obj(
-                unsafe { (&raw const g_st().autocmd_match).as_ref() }
-                    .unwrap()
+                g_st()
+                    .autocmd_match
                     .as_ref()
                     .map_or(ptr::null(), |s| s.as_ptr()),
             ),
@@ -3646,73 +3644,71 @@ pub fn autocmd_supported(event: impl crate::strings::IntoCCharPtr) -> bool {
 
 pub fn au_exists(arg: impl crate::strings::IntoCCharPtr) -> bool {
     let arg = arg.into_c_char_ptr();
-    {
-        let mut buflocal_buf: *mut FileBuf = ptr::null_mut();
-        let mut retval = false;
+    let mut buflocal_fnum: Option<i32> = None;
+    let mut retval = false;
 
-        let mut arg_save_vec: Vec<u8> = crate::memory::cstr_as_bytes(arg).to_vec();
-        arg_save_vec.push(0);
-        let arg_save = arg_save_vec.as_mut_ptr().cast();
-        let mut p = vim_strchr(arg_save, b'#' as i32);
-        if !p.is_null() {
-            unsafe {
-                *p = NUL;
-            }
-            p = p.wrapping_add(1);
-        }
+    let mut arg_save_vec: Vec<u8> = crate::memory::cstr_as_bytes(arg).to_vec();
+    arg_save_vec.push(0);
+    let first_hash = arg_save_vec.iter().position(|&b| b == b'#');
+    if let Some(idx) = first_hash {
+        arg_save_vec[idx] = 0;
+    }
 
-        let mut group = augroup_find(arg_save);
-        let event_name = if group == AUGROUP_ERROR {
-            group = AUGROUP_ALL;
-            arg_save
-        } else {
-            if p.is_null() {
-                return true;
-            }
-            let ev_name = p;
-            p = vim_strchr(ev_name, b'#' as i32);
-            if !p.is_null() {
-                unsafe {
-                    *p = NUL;
-                }
-                p = p.wrapping_add(1);
-            }
-            ev_name
+    let arg_save: *const std::ffi::c_char = arg_save_vec.as_ptr().cast();
+    let mut group = augroup_find(arg_save);
+    let mut p_idx = first_hash.map(|idx| idx + 1);
+    let ev_start = if group == AUGROUP_ERROR {
+        group = AUGROUP_ALL;
+        0
+    } else {
+        let Some(start) = p_idx else {
+            return true;
         };
+        let second_hash = arg_save_vec[start..].iter().position(|&b| b == b'#');
+        if let Some(rel) = second_hash {
+            arg_save_vec[start + rel] = 0;
+            p_idx = Some(start + rel + 1);
+        } else {
+            p_idx = None;
+        }
+        start
+    };
 
-        let pattern = p;
-        let event = event_name2nr(event_name, &mut p);
-        if event != NUM_EVENTS as AuEvent {
-            let acs = &mut au_st().autocmds[event as usize];
-            if !acs.is_empty() {
-                if !pattern.is_null()
-                    && crate::memory::cstr_as_bytes(pattern).eq_ignore_ascii_case(b"<buffer>")
+    let event_name: *const std::ffi::c_char = arg_save_vec[ev_start..].as_ptr().cast();
+    let pattern: *const std::ffi::c_char =
+        p_idx.map_or(ptr::null(), |idx| arg_save_vec[idx..].as_ptr().cast());
+    let mut p = pattern;
+    let event = event_name2nr(event_name, &mut p);
+    if event != NUM_EVENTS as AuEvent {
+        let acs = &mut au_st().autocmds[event as usize];
+        if !acs.is_empty() {
+            if !pattern.is_null()
+                && crate::memory::cstr_as_bytes(pattern).eq_ignore_ascii_case(b"<buffer>")
+            {
+                buflocal_fnum = Some(curbuf_mut().b_fnum);
+            }
+
+            for ac in acs {
+                if let Some(ref ap) = ac.pat
+                    && (group == AUGROUP_ALL || ap.group == group)
                 {
-                    buflocal_buf = g_st().curbuf;
-                }
-
-                for ac in acs {
-                    if let Some(ref ap) = ac.pat
-                        && (group == AUGROUP_ALL || ap.group == group)
-                    {
-                        let pat_match = if pattern.is_null() {
-                            true
-                        } else if buflocal_buf.is_null() {
-                            mb_strcmp_ic(opt_vars().p_fic != 0, ap.pat.as_ptr(), pattern) == 0
-                        } else {
-                            ap.buflocal_nr == unsafe { (*buflocal_buf).b_fnum }
-                        };
-                        if pat_match {
-                            retval = true;
-                            break;
-                        }
+                    let pat_match = if pattern.is_null() {
+                        true
+                    } else if let Some(fnum) = buflocal_fnum {
+                        ap.buflocal_nr == fnum
+                    } else {
+                        mb_strcmp_ic(opt_vars().p_fic != 0, ap.pat.as_ptr(), pattern) == 0
+                    };
+                    if pat_match {
+                        retval = true;
+                        break;
                     }
                 }
             }
         }
-
-        retval
     }
+
+    retval
 }
 
 pub fn aupat_is_buflocal(pat: impl crate::strings::IntoCCharPtr, patlen: i32) -> bool {
@@ -3831,7 +3827,8 @@ fn arg_event_skip(arg: impl crate::strings::IntoCCharPtr, have_group: bool) -> *
 }
 
 fn arg_augroup_get<T>(argp: *mut *mut T) -> i32 {
-    let arg: *const _ = unsafe { (*argp).cast() };
+    let argp_ref = unsafe { &mut *argp };
+    let arg: *const _ = (*argp_ref).cast();
     let mut p = arg;
     while !crate::memory::cstr_is_empty(p)
         && !ascii_iswhite(crate::memory::cstr_first_char(p))
@@ -3849,9 +3846,7 @@ fn arg_augroup_get<T>(argp: *mut *mut T) -> i32 {
     if group == AUGROUP_ERROR {
         group = AUGROUP_ALL;
     } else {
-        unsafe {
-            *argp = skipwhite(p).cast();
-        }
+        *argp_ref = skipwhite(p).cast();
     }
     group
 }

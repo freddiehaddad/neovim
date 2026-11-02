@@ -155,9 +155,9 @@ pub fn cursorhold_event() {
 }
 
 fn create_cursorhold_event(events_enabled: bool) {
-    let events = main_loop_events();
-    debug_assert!(!events_enabled || multiqueue_empty(unsafe { &*events }));
-    multiqueue_put_event(unsafe { &mut *events }, Event::CursorHold);
+    let events = unsafe { &mut *main_loop_events() };
+    debug_assert!(!events_enabled || multiqueue_empty(events));
+    multiqueue_put_event(events, Event::CursorHold);
 }
 
 fn reset_cursorhold_wait(tb_change_cnt: i32) {
@@ -174,16 +174,23 @@ pub fn input_get(
     events: *mut MultiQueue,
 ) -> i32 {
     debug_assert!((maxlen > 0 && !buf.is_null()) || maxlen == 0);
+    let mut out_buf = if buf.is_null() || maxlen <= 0 {
+        None
+    } else {
+        Some(unsafe { std::slice::from_raw_parts_mut(buf, maxlen as usize) })
+    };
     // This check is needed so that feeding typeahead from RPC can prevent CursorHold.
     if tb_change_cnt != osi_st().cursorhold_tb_change_cnt {
         reset_cursorhold_wait(tb_change_cnt);
     }
 
-    if maxlen != 0 && input_available() != 0 {
+    if let Some(ref mut out_slice) = out_buf
+        && input_available() != 0
+    {
         reset_cursorhold_wait(tb_change_cnt);
-        let to_read = (maxlen as usize).min(input_available());
+        let to_read = out_slice.len().min(input_available());
         let rpos = osi_st().input_read_pos;
-        unsafe { ptr::copy_nonoverlapping(osi_st().input_buffer[rpos..].as_ptr(), buf, to_read) };
+        out_slice[..to_read].copy_from_slice(&osi_st().input_buffer[rpos..rpos + to_read]);
         osi_st().input_read_pos = rpos + to_read;
         debug_assert!(to_read <= i32::MAX as usize);
         return to_read as i32;
@@ -220,23 +227,15 @@ pub fn input_get(
             }
             if delay_pending
                 && ins_compl_autocomplete_elapsed() >= opt_vars().p_acl
-                && (buf.is_null() || maxlen >= 3)
+                && (out_buf.is_none() || maxlen >= 3)
                 && !typebuf_changed(tb_change_cnt)
             {
-                if buf.is_null() {
+                let Some(ref mut out_slice) = out_buf else {
                     let ibuf: [u8; 3] = [K_SPECIAL, KS_EXTRA, KE_COMPLETE_DELAY];
                     input_enqueue_raw(&ibuf);
                     return 0;
-                }
-                unsafe {
-                    *buf = K_SPECIAL;
-                }
-                unsafe {
-                    *buf.wrapping_add(1) = KS_EXTRA;
-                }
-                unsafe {
-                    *buf.wrapping_add(2) = KE_COMPLETE_DELAY;
-                }
+                };
+                out_slice[..3].copy_from_slice(&[K_SPECIAL, KS_EXTRA, KE_COMPLETE_DELAY]);
                 return 3;
             }
             reset_cursorhold_wait(tb_change_cnt);
@@ -258,19 +257,22 @@ pub fn input_get(
         return 0;
     }
 
-    if maxlen != 0 && input_available() != 0 {
+    if let Some(ref mut out_slice) = out_buf
+        && input_available() != 0
+    {
         reset_cursorhold_wait(tb_change_cnt);
-        let to_read = (maxlen as usize).min(input_available());
+        let to_read = out_slice.len().min(input_available());
         let rpos = osi_st().input_read_pos;
-        unsafe { ptr::copy_nonoverlapping(osi_st().input_buffer[rpos..].as_ptr(), buf, to_read) };
+        out_slice[..to_read].copy_from_slice(&osi_st().input_buffer[rpos..rpos + to_read]);
         osi_st().input_read_pos = rpos + to_read;
         debug_assert!(to_read <= i32::MAX as usize);
         return to_read as i32;
     }
 
     // If there are events, return the keys directly
-    if maxlen > 0 && pending_events(unsafe { events.as_ref() }) {
-        let out_slice = unsafe { std::slice::from_raw_parts_mut(buf, maxlen as usize) };
+    if let Some(ref mut out_slice) = out_buf
+        && pending_events(unsafe { events.as_ref() })
+    {
         return push_event_key(out_slice);
     }
 
@@ -572,13 +574,14 @@ pub fn input_blocking() -> bool {
 
 /// Checks for (but does not read) available input, and consumes `main_loop.events` while waiting.
 fn inbuf_poll(ms: i32, events: *mut MultiQueue) -> bool {
-    if os_input_ready(unsafe { events.as_ref() }) {
+    let events_opt = unsafe { events.as_ref() };
+    if os_input_ready(events_opt) {
         return true;
     }
 
     if ms == 0 {
         loop_poll_events(&mut *main_loop_ptr(), 0);
-        return os_input_ready(unsafe { events.as_ref() });
+        return os_input_ready(events_opt);
     }
 
     if g_st().do_profiling == PROF_YES {
@@ -596,7 +599,7 @@ fn inbuf_poll(ms: i32, events: *mut MultiQueue) -> bool {
     let start = if timeout_ms >= 0 { os_hrtime() } else { 0 };
     let mut remaining = timeout_ms;
     let mut expired = false;
-    while !(os_input_ready(unsafe { events.as_ref() }) || input_unanswerable()) && !expired {
+    while !(os_input_ready(events_opt) || input_unanswerable()) && !expired {
         loop_poll_events(&mut *main_loop_ptr(), remaining);
         if timeout_ms >= 0 {
             remaining = timeout_ms - ((os_hrtime() - start) / 1_000_000) as i64;
@@ -610,7 +613,7 @@ fn inbuf_poll(ms: i32, events: *mut MultiQueue) -> bool {
         prof_input_end();
     }
 
-    if input_unanswerable() && !os_input_ready(unsafe { events.as_ref() }) {
+    if input_unanswerable() && !os_input_ready(events_opt) {
         // Dismiss the prompt (CTRL-C) instead of waiting forever.
         static DID_LOG: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
         if !DID_LOG.swap(true, std::sync::atomic::Ordering::Relaxed) {
@@ -632,7 +635,7 @@ fn inbuf_poll(ms: i32, events: *mut MultiQueue) -> bool {
         g_st().got_int = true;
     }
 
-    os_input_ready(unsafe { events.as_ref() })
+    os_input_ready(events_opt)
 }
 
 fn process_ctrl_c() {

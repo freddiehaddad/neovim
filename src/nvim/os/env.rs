@@ -564,256 +564,247 @@ pub fn expand_env<T>(src: impl crate::strings::IntoCCharPtr, dst: *mut T, dstlen
 pub fn expand_env_esc<T>(
     srcp: impl crate::strings::IntoCCharPtr,
     dst: *mut T,
-    mut dstlen: i32,
+    dstlen: i32,
     esc_chars: impl crate::strings::IntoCCharPtr,
     one: bool,
     prefix: impl crate::strings::IntoCCharPtr,
 ) -> usize {
-    let mut dst = dst.cast::<u8>();
+    let dst = dst.cast::<u8>();
     let esc_chars = esc_chars.into_c_char_ptr();
     let prefix = prefix.into_c_char_ptr();
     let srcp = srcp.into_c_char_ptr();
-    {
-        let mut at_start = true;
-        let dst_start = dst;
-        let prefix_len: usize = if prefix.is_null() {
-            0
-        } else {
-            crate::memory::cstr_len(prefix)
-        };
+    let dst_slice = if dstlen > 0 {
+        unsafe { std::slice::from_raw_parts_mut(dst, dstlen as usize) }
+    } else {
+        &mut []
+    };
+    let mut dst_idx = 0usize;
+    let mut dst_rem = dst_slice.len().saturating_sub(1) as i32;
+    let mut at_start = true;
+    let prefix_len: usize = if prefix.is_null() {
+        0
+    } else {
+        crate::memory::cstr_len(prefix)
+    };
 
-        let mut src: *mut u8 = skipwhite(srcp).cast();
-        dstlen -= 1;
-        while unsafe { *src } != 0 && dstlen > 0 {
-            if crate::memory::cstr_first_byte(src.cast()) == b'`'
-                && crate::memory::cstr_byte_at(src.cast(), 1) == b'='
-            {
-                let var = src;
-                src = src.wrapping_add(2);
-                let _ = skip_expr(&raw mut src, None);
-                if crate::memory::cstr_first_byte(src.cast()) == b'`' {
-                    src = src.wrapping_add(1);
-                }
-                let mut len = (src as usize) - (var as usize);
-                if len > (dstlen as usize) {
-                    len = dstlen as usize;
-                }
-                unsafe { ptr::copy_nonoverlapping(var, dst, len) };
-                dst = dst.wrapping_add(len);
-                dstlen -= len as i32;
-                continue;
+    let mut src: *mut u8 = skipwhite(srcp).cast();
+    while crate::memory::cstr_first_byte(src.cast()) != 0 && dst_rem > 0 {
+        if crate::memory::cstr_first_byte(src.cast()) == b'`'
+            && crate::memory::cstr_byte_at(src.cast(), 1) == b'='
+        {
+            let var = src;
+            src = src.wrapping_add(2);
+            let _ = skip_expr(&raw mut src, None);
+            if crate::memory::cstr_first_byte(src.cast()) == b'`' {
+                src = src.wrapping_add(1);
             }
+            let len = ((src as usize) - (var as usize)).min(dst_rem as usize);
+            dst_slice[dst_idx..dst_idx + len]
+                .copy_from_slice(crate::memory::cstr_slice(var.cast(), len));
+            dst_idx += len;
+            dst_rem -= len as i32;
+            continue;
+        }
 
-            let mut copy_char = true;
-            if crate::memory::cstr_first_byte(src.cast()) == b'$'
-                || (crate::memory::cstr_first_byte(src.cast()) == b'~' && at_start)
-            {
-                let mut var_cstr: Option<std::ffi::CString> = None;
-                let mut tail: *mut u8;
-                let mut var: *mut u8;
+        let mut copy_char = true;
+        if crate::memory::cstr_first_byte(src.cast()) == b'$'
+            || (crate::memory::cstr_first_byte(src.cast()) == b'~' && at_start)
+        {
+            let mut var_cstr: Option<std::ffi::CString> = None;
+            let mut tail: *mut u8;
+            let mut var: *mut u8;
 
-                if crate::memory::cstr_first_byte(src.cast()) != b'~' {
-                    tail = src.wrapping_add(1);
-                    var = dst;
-                    #[cfg(not(windows))]
-                    let mut c = dstlen - 1;
-                    #[cfg(windows)]
-                    let c = dstlen - 1;
+            if crate::memory::cstr_first_byte(src.cast()) != b'~' {
+                tail = src.wrapping_add(1);
+                #[cfg(not(windows))]
+                let mut c = dst_rem - 1;
+                #[cfg(windows)]
+                let c = dst_rem - 1;
+                #[cfg(not(windows))]
+                let mut var_len = 0usize;
+                #[cfg(windows)]
+                let var_len: usize;
 
-                    #[cfg(not(windows))]
-                    if crate::memory::cstr_first_byte(tail.cast()) == b'{' {
-                        tail = tail.wrapping_add(1);
-                        while c > 0
-                            && !crate::memory::cstr_is_empty(tail.cast())
-                            && crate::memory::cstr_first_byte(tail.cast()) != b'}'
-                        {
-                            c -= 1;
-                            unsafe {
-                                *var = *tail;
-                            }
-                            var = var.wrapping_add(1);
-                            tail = tail.wrapping_add(1);
-                        }
-                    } else {
-                        let len = env_name_len(tail.cast()).min(c.max(0) as usize);
-                        unsafe { ptr::copy_nonoverlapping(tail, var, len) };
-                        var = var.wrapping_add(len);
-                        tail = tail.wrapping_add(len);
-                    }
-
-                    #[cfg(windows)]
-                    {
-                        let len = env_name_len(tail.cast()).min(c.max(0) as usize);
-                        unsafe { ptr::copy_nonoverlapping(tail, var, len) };
-                        var = var.wrapping_add(len);
-                        tail = tail.wrapping_add(len);
-                    }
-
-                    #[cfg(not(windows))]
-                    if crate::memory::cstr_byte_at(src.cast(), 1) == b'{'
+                #[cfg(not(windows))]
+                if crate::memory::cstr_first_byte(tail.cast()) == b'{' {
+                    tail = tail.wrapping_add(1);
+                    while c > 0
+                        && !crate::memory::cstr_is_empty(tail.cast())
                         && crate::memory::cstr_first_byte(tail.cast()) != b'}'
                     {
+                        c -= 1;
+                        dst_slice[dst_idx + var_len] = crate::memory::cstr_first_byte(tail.cast());
+                        var_len += 1;
+                        tail = tail.wrapping_add(1);
+                    }
+                } else {
+                    let len = env_name_len(tail.cast()).min(c.max(0) as usize);
+                    dst_slice[dst_idx..dst_idx + len]
+                        .copy_from_slice(crate::memory::cstr_slice(tail.cast(), len));
+                    var_len = len;
+                    tail = tail.wrapping_add(len);
+                }
+
+                #[cfg(windows)]
+                {
+                    let len = env_name_len(tail.cast()).min(c.max(0) as usize);
+                    dst_slice[dst_idx..dst_idx + len]
+                        .copy_from_slice(crate::memory::cstr_slice(tail.cast(), len));
+                    var_len = len;
+                    tail = tail.wrapping_add(len);
+                }
+
+                #[cfg(not(windows))]
+                if crate::memory::cstr_byte_at(src.cast(), 1) == b'{'
+                    && crate::memory::cstr_first_byte(tail.cast()) != b'}'
+                {
+                    var = ptr::null_mut();
+                } else {
+                    if crate::memory::cstr_byte_at(src.cast(), 1) == b'{' {
+                        tail = tail.wrapping_add(1);
+                    }
+                    dst_slice[dst_idx + var_len] = 0;
+                    var_cstr = vim_getenv(dst_slice[dst_idx..].as_ptr().cast());
+                    if let Some(ref c) = var_cstr {
+                        to_slash(c.as_ptr().cast_mut().cast());
+                    }
+                    var = var_cstr
+                        .as_ref()
+                        .map_or(ptr::null_mut(), |c| c.as_ptr().cast_mut().cast());
+                }
+
+                #[cfg(windows)]
+                {
+                    dst_slice[dst_idx + var_len] = 0;
+                    var_cstr = vim_getenv(dst_slice[dst_idx..].as_ptr().cast());
+                    if let Some(ref c) = var_cstr {
+                        to_slash(c.as_ptr().cast_mut().cast());
+                    }
+                    var = var_cstr
+                        .as_ref()
+                        .map_or(ptr::null_mut(), |c| c.as_ptr().cast_mut().cast());
+                }
+            } else if crate::memory::cstr_byte_at(src.cast(), 1) == 0
+                || vim_ispathsep(i32::from(crate::memory::cstr_byte_at(src.cast(), 1)))
+                || crate::strings::vim_haschr(
+                    c" ,\t\n",
+                    i32::from(crate::memory::cstr_byte_at(src.cast(), 1)),
+                )
+            {
+                var = env_st()
+                    .homedir
+                    .as_ref()
+                    .map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut().cast());
+                tail = src.wrapping_add(1);
+            } else {
+                #[cfg(not(windows))]
+                {
+                    tail = src;
+                    let mut c = dst_rem - 1;
+                    let mut var_len = 0usize;
+                    while c > 0
+                        && crate::memory::cstr_first_byte(tail.cast()) != 0
+                        && vim_isfilec(i32::from(crate::memory::cstr_first_byte(tail.cast())))
+                        && !vim_ispathsep(i32::from(crate::memory::cstr_first_byte(tail.cast())))
+                    {
+                        c -= 1;
+                        dst_slice[dst_idx + var_len] = crate::memory::cstr_first_byte(tail.cast());
+                        var_len += 1;
+                        tail = tail.wrapping_add(1);
+                    }
+                    dst_slice[dst_idx + var_len] = 0;
+                    if dst_slice[dst_idx] == 0 {
                         var = ptr::null_mut();
                     } else {
-                        if crate::memory::cstr_byte_at(src.cast(), 1) == b'{' {
-                            tail = tail.wrapping_add(1);
-                        }
-                        unsafe {
-                            *var = 0;
-                        }
-                        var_cstr = vim_getenv(dst.cast());
-                        if let Some(ref c) = var_cstr {
-                            to_slash(c.as_ptr().cast_mut().cast());
-                        }
+                        var_cstr = os_get_userdir(crate::memory::cstr_as_opt_cstr(
+                            dst_slice[dst_idx + 1..].as_ptr().cast(),
+                        ));
                         var = var_cstr
                             .as_ref()
                             .map_or(ptr::null_mut(), |c| c.as_ptr().cast_mut().cast());
                     }
-
-                    #[cfg(windows)]
-                    {
-                        unsafe {
-                            *var = 0;
-                        }
-                        var_cstr = vim_getenv(dst.cast());
-                        if let Some(ref c) = var_cstr {
-                            to_slash(c.as_ptr().cast_mut().cast());
-                        }
-                        var = var_cstr
-                            .as_ref()
-                            .map_or(ptr::null_mut(), |c| c.as_ptr().cast_mut().cast());
-                    }
-                } else if crate::memory::cstr_byte_at(src.cast(), 1) == 0
-                    || vim_ispathsep(i32::from(crate::memory::cstr_byte_at(src.cast(), 1)))
-                    || crate::strings::vim_haschr(
-                        c" ,\t\n",
-                        i32::from(crate::memory::cstr_byte_at(src.cast(), 1)),
-                    )
+                }
+                #[cfg(windows)]
                 {
-                    var = unsafe { (&raw const env_st().homedir).as_ref() }
-                        .unwrap()
-                        .as_ref()
-                        .map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut().cast());
-                    tail = src.wrapping_add(1);
-                } else {
-                    #[cfg(not(windows))]
-                    {
-                        tail = src;
-                        var = dst;
-                        let mut c = dstlen - 1;
-                        while c > 0
-                            && unsafe { *tail } != 0
-                            && vim_isfilec(i32::from(crate::memory::cstr_first_byte(tail.cast())))
-                            && !vim_ispathsep(i32::from(crate::memory::cstr_first_byte(
-                                tail.cast(),
-                            )))
-                        {
-                            c -= 1;
-                            unsafe {
-                                *var = *tail;
-                            }
-                            var = var.wrapping_add(1);
-                            tail = tail.wrapping_add(1);
-                        }
-                        unsafe {
-                            *var = 0;
-                        }
-                        if crate::memory::cstr_is_empty(dst.cast()) {
-                            var = ptr::null_mut();
-                        } else {
-                            var_cstr = os_get_userdir(crate::memory::cstr_as_opt_cstr(
-                                dst.wrapping_add(1).cast(),
-                            ));
-                            var = var_cstr
-                                .as_ref()
-                                .map_or(ptr::null_mut(), |c| c.as_ptr().cast_mut().cast());
-                        }
-                    }
-                    #[cfg(windows)]
-                    {
-                        var = ptr::null_mut();
-                        tail = c"".as_ptr().cast_mut().cast();
-                    }
+                    var = ptr::null_mut();
+                    tail = c"".as_ptr().cast_mut().cast();
                 }
-
-                if !esc_chars.is_null() && !var.is_null() {
-                    let var_bytes = crate::memory::cstr_as_bytes(var.cast());
-                    let esc_bytes = crate::memory::cstr_as_bytes(esc_chars);
-                    if var_bytes.iter().any(|b| esc_bytes.contains(b)) {
-                        var_cstr = Some(vim_strsave_escaped(var.cast(), esc_chars));
-                        var = var_cstr
-                            .as_ref()
-                            .map_or(ptr::null_mut(), |c| c.as_ptr().cast_mut().cast());
-                    }
-                }
-
-                if !crate::memory::cstr_is_empty(var.cast()) {
-                    let c = crate::memory::cstr_len(var.cast());
-                    if c + crate::memory::cstr_len(tail.cast()) + 1 < (dstlen as usize) {
-                        unsafe { ptr::copy_nonoverlapping(var, dst, c + 1) };
-                        dstlen -= c as i32;
-                        let ends_with_sep =
-                            after_pathsep(dst.cast(), dst.wrapping_add(c).cast()) != 0;
-                        #[cfg(windows)]
-                        let not_colon = crate::memory::cstr_byte_at(dst.cast(), c - 1) != b':';
-                        #[cfg(not(windows))]
-                        let not_colon = true;
-                        if ends_with_sep
-                            && not_colon
-                            && vim_ispathsep(i32::from(crate::memory::cstr_first_byte(tail.cast())))
-                        {
-                            tail = tail.wrapping_add(1);
-                        }
-                        dst = dst.wrapping_add(c);
-                        src = tail;
-                        copy_char = false;
-                    }
-                }
-                drop(var_cstr);
             }
 
-            if copy_char {
-                at_start = false;
-                if crate::memory::cstr_first_byte(src.cast()) == b'\\'
-                    && crate::memory::cstr_byte_at(src.cast(), 1) != 0
-                {
-                    unsafe {
-                        *dst = *src;
+            if !esc_chars.is_null() && !var.is_null() {
+                let var_bytes = crate::memory::cstr_as_bytes(var.cast());
+                let esc_bytes = crate::memory::cstr_as_bytes(esc_chars);
+                if var_bytes.iter().any(|b| esc_bytes.contains(b)) {
+                    var_cstr = Some(vim_strsave_escaped(var.cast(), esc_chars));
+                    var = var_cstr
+                        .as_ref()
+                        .map_or(ptr::null_mut(), |c| c.as_ptr().cast_mut().cast());
+                }
+            }
+
+            if !crate::memory::cstr_is_empty(var.cast()) {
+                let var_bytes = crate::memory::cstr_as_bytes_with_nul(var.cast());
+                let c = var_bytes.len() - 1;
+                if c + crate::memory::cstr_len(tail.cast()) + 1 < (dst_rem as usize) {
+                    dst_slice[dst_idx..dst_idx + c + 1].copy_from_slice(var_bytes);
+                    dst_rem -= c as i32;
+                    let cur_dst = dst.wrapping_add(dst_idx);
+                    let ends_with_sep =
+                        after_pathsep(cur_dst.cast(), cur_dst.wrapping_add(c).cast()) != 0;
+                    #[cfg(windows)]
+                    let not_colon = dst_slice[dst_idx + c - 1] != b':';
+                    #[cfg(not(windows))]
+                    let not_colon = true;
+                    if ends_with_sep
+                        && not_colon
+                        && vim_ispathsep(i32::from(crate::memory::cstr_first_byte(tail.cast())))
+                    {
+                        tail = tail.wrapping_add(1);
                     }
-                    dst = dst.wrapping_add(1);
-                    src = src.wrapping_add(1);
-                    dstlen -= 1;
-                } else if (crate::memory::cstr_first_byte(src.cast()) == b' '
-                    || crate::memory::cstr_first_byte(src.cast()) == b',')
-                    && !one
+                    dst_idx += c;
+                    src = tail;
+                    copy_char = false;
+                }
+            }
+            drop(var_cstr);
+        }
+
+        if copy_char {
+            at_start = false;
+            if crate::memory::cstr_first_byte(src.cast()) == b'\\'
+                && crate::memory::cstr_byte_at(src.cast(), 1) != 0
+            {
+                dst_slice[dst_idx] = b'\\';
+                dst_idx += 1;
+                src = src.wrapping_add(1);
+                dst_rem -= 1;
+            } else if (crate::memory::cstr_first_byte(src.cast()) == b' '
+                || crate::memory::cstr_first_byte(src.cast()) == b',')
+                && !one
+            {
+                at_start = true;
+            }
+            if dst_rem > 0 {
+                dst_slice[dst_idx] = crate::memory::cstr_first_byte(src.cast());
+                dst_idx += 1;
+                src = src.wrapping_add(1);
+                dst_rem -= 1;
+
+                if !prefix.is_null()
+                    && (src as usize) >= (srcp as usize) + prefix_len
+                    && crate::memory::cstr_slice(src.wrapping_sub(prefix_len).cast(), prefix_len)
+                        == crate::memory::cstr_slice(prefix, prefix_len)
                 {
                     at_start = true;
                 }
-                if dstlen > 0 {
-                    unsafe {
-                        *dst = *src;
-                    }
-                    dst = dst.wrapping_add(1);
-                    src = src.wrapping_add(1);
-                    dstlen -= 1;
-
-                    if !prefix.is_null()
-                        && (src as usize) >= (srcp as usize) + prefix_len
-                        && unsafe {
-                            std::slice::from_raw_parts(src.wrapping_sub(prefix_len), prefix_len)
-                        } == crate::memory::cstr_slice(prefix, prefix_len)
-                    {
-                        at_start = true;
-                    }
-                }
             }
         }
-        unsafe {
-            *dst = 0;
-        }
-
-        (dst as usize) - (dst_start as usize)
     }
+    if !dst_slice.is_empty() {
+        dst_slice[dst_idx] = 0;
+    }
+
+    dst_idx
 }
 
 fn vim_runtime_dir(vimdir: impl crate::strings::IntoCCharPtr) -> Option<std::ffi::CString> {
@@ -1067,161 +1058,154 @@ pub fn home_replace<T>(
 ) -> usize {
     let dst = dst.cast::<u8>();
     let mut src: *const u8 = src.into_c_char_ptr().cast();
-    {
-        if src.is_null() {
-            unsafe {
-                *dst = 0;
-            }
-            return 0;
+    let dst_slice = if dstlen > 0 {
+        unsafe { std::slice::from_raw_parts_mut(dst, dstlen) }
+    } else {
+        &mut []
+    };
+    if src.is_null() {
+        if !dst_slice.is_empty() {
+            dst_slice[0] = 0;
         }
-
-        if buf.is_some() && buf.unwrap().b_help {
-            let dlen = xstrlcpy(dst.cast(), path_tail(src.cast()), dstlen);
-            return dlen.min(dstlen - 1);
-        }
-
-        let homedir_ptr: *mut u8 = unsafe { (&raw const env_st().homedir).as_ref() }
-            .unwrap()
-            .as_ref()
-            .map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut().cast());
-        let dirlen = if homedir_ptr.is_null() {
-            0
-        } else {
-            crate::memory::cstr_len(homedir_ptr.cast())
-        };
-
-        #[cfg(windows)]
-        let mut homedir_env_cstr = os_getenv_cstr(c"HOME");
-        #[cfg(not(windows))]
-        let homedir_env_cstr = os_getenv_cstr(c"HOME");
-        #[cfg(windows)]
-        if homedir_env_cstr.is_none() {
-            homedir_env_cstr = os_getenv_cstr(c"USERPROFILE");
-        }
-        if let Some(ref c) = homedir_env_cstr {
-            to_slash(c.as_ptr().cast_mut().cast());
-        }
-        let homedir_env = homedir_env_cstr
-            .as_ref()
-            .map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut());
-        let mut homedir_env_mod = homedir_env.cast::<u8>();
-        let mut homedir_env_mod_vec: Vec<u8>;
-
-        if !homedir_env_mod.is_null()
-            && crate::memory::cstr_first_byte(homedir_env_mod.cast()) == b'~'
-        {
-            let mut usedlen: usize = 0;
-            let mut flen = crate::memory::cstr_len(homedir_env_mod.cast());
-            let mut fbuf: Option<Vec<u8>> = None;
-            let _ = modify_fname(
-                c":p",
-                false,
-                &mut usedlen,
-                &raw mut homedir_env_mod,
-                &mut fbuf,
-                &mut flen,
-                false,
-            );
-            flen = crate::memory::cstr_len(homedir_env_mod.cast());
-            assert_ne!(homedir_env_mod, homedir_env.cast());
-            if let Some(mod_vec) = fbuf {
-                homedir_env_mod_vec = mod_vec;
-                homedir_env_mod = homedir_env_mod_vec.as_mut_ptr();
-            }
-            if flen > 0
-                && vim_ispathsep(i32::from(crate::memory::cstr_byte_at(
-                    homedir_env_mod.cast(),
-                    flen - 1,
-                )))
-            {
-                unsafe {
-                    *homedir_env_mod.wrapping_add(flen - 1) = 0;
-                }
-            }
-        }
-
-        let envlen = if homedir_env_mod.is_null() {
-            0
-        } else {
-            crate::memory::cstr_len(homedir_env_mod.cast())
-        };
-
-        if !one {
-            src = skipwhite(src.cast()).cast();
-        }
-        let mut dst_p = dst;
-        while unsafe { *src } != 0 && dstlen > 0 {
-            let mut p = homedir_ptr;
-            let mut len = dirlen;
-            loop {
-                let cmp_ok =
-                    len != 0 && path_cmp(opt_vars().p_fic != 0, src.cast(), p.cast(), len) == 0;
-
-                if cmp_ok
-                    && (vim_ispathsep(i32::from(crate::memory::cstr_byte_at(src.cast(), len)))
-                        || (!one
-                            && (crate::memory::cstr_byte_at(src.cast(), len) == b','
-                                || crate::memory::cstr_byte_at(src.cast(), len) == b' '))
-                        || crate::memory::cstr_byte_at(src.cast(), len) == 0)
-                {
-                    src = src.wrapping_add(len);
-                    dstlen -= 1;
-                    if dstlen > 0 {
-                        unsafe {
-                            *dst_p = b'~';
-                        }
-                        dst_p = dst_p.wrapping_add(1);
-                    }
-                    break;
-                }
-                if p == homedir_env_mod {
-                    break;
-                }
-                p = homedir_env_mod;
-                len = envlen;
-            }
-
-            if dstlen == 0 {
-                break;
-            }
-            while unsafe { *src } != 0
-                && (one
-                    || (crate::memory::cstr_first_byte(src.cast()) != b','
-                        && crate::memory::cstr_first_byte(src.cast()) != b' '))
-            {
-                dstlen -= 1;
-                if dstlen == 0 {
-                    break;
-                }
-                unsafe {
-                    *dst_p = *src;
-                }
-                dst_p = dst_p.wrapping_add(1);
-                src = src.wrapping_add(1);
-            }
-            if dstlen == 0 {
-                break;
-            }
-            while crate::memory::cstr_first_byte(src.cast()) == b' '
-                || crate::memory::cstr_first_byte(src.cast()) == b','
-            {
-                dstlen -= 1;
-                if dstlen == 0 {
-                    break;
-                }
-                unsafe {
-                    *dst_p = *src;
-                }
-                dst_p = dst_p.wrapping_add(1);
-                src = src.wrapping_add(1);
-            }
-        }
-
-        unsafe {
-            *dst_p = 0;
-        }
-        (dst_p as usize) - (dst as usize)
+        return 0;
     }
+
+    if buf.is_some() && buf.unwrap().b_help {
+        let dlen = xstrlcpy(dst.cast(), path_tail(src.cast()), dstlen);
+        return dlen.min(dstlen - 1);
+    }
+
+    let homedir_ptr: *mut u8 = env_st()
+        .homedir
+        .as_ref()
+        .map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut().cast());
+    let dirlen = if homedir_ptr.is_null() {
+        0
+    } else {
+        crate::memory::cstr_len(homedir_ptr.cast())
+    };
+
+    #[cfg(windows)]
+    let mut homedir_env_cstr = os_getenv_cstr(c"HOME");
+    #[cfg(not(windows))]
+    let homedir_env_cstr = os_getenv_cstr(c"HOME");
+    #[cfg(windows)]
+    if homedir_env_cstr.is_none() {
+        homedir_env_cstr = os_getenv_cstr(c"USERPROFILE");
+    }
+    if let Some(ref c) = homedir_env_cstr {
+        to_slash(c.as_ptr().cast_mut().cast());
+    }
+    let homedir_env = homedir_env_cstr
+        .as_ref()
+        .map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut());
+    let mut homedir_env_mod = homedir_env.cast::<u8>();
+    let mut homedir_env_mod_vec: Vec<u8>;
+
+    if !homedir_env_mod.is_null() && crate::memory::cstr_first_byte(homedir_env_mod.cast()) == b'~'
+    {
+        let mut usedlen: usize = 0;
+        let mut flen = crate::memory::cstr_len(homedir_env_mod.cast());
+        let mut fbuf: Option<Vec<u8>> = None;
+        let _ = modify_fname(
+            c":p",
+            false,
+            &mut usedlen,
+            &raw mut homedir_env_mod,
+            &mut fbuf,
+            &mut flen,
+            false,
+        );
+        flen = crate::memory::cstr_len(homedir_env_mod.cast());
+        assert_ne!(homedir_env_mod, homedir_env.cast());
+        if let Some(mut mod_vec) = fbuf {
+            if flen > 0 && vim_ispathsep(i32::from(mod_vec[flen - 1])) {
+                mod_vec[flen - 1] = 0;
+            }
+            homedir_env_mod_vec = mod_vec;
+            homedir_env_mod = homedir_env_mod_vec.as_mut_ptr();
+        }
+    }
+
+    let envlen = if homedir_env_mod.is_null() {
+        0
+    } else {
+        crate::memory::cstr_len(homedir_env_mod.cast())
+    };
+
+    if !one {
+        src = skipwhite(src.cast()).cast();
+    }
+    let src_bytes = crate::memory::cstr_as_bytes(src.cast());
+    let mut src_idx = 0usize;
+    let mut dst_idx = 0usize;
+    while src_idx < src_bytes.len() && dstlen > 0 {
+        let mut p = homedir_ptr;
+        let mut len = dirlen;
+        loop {
+            let cmp_ok = len != 0
+                && path_cmp(
+                    opt_vars().p_fic != 0,
+                    src_bytes[src_idx..].as_ptr().cast(),
+                    p.cast(),
+                    len,
+                ) == 0;
+
+            let next_b = src_bytes.get(src_idx + len).copied().unwrap_or(0);
+            if cmp_ok
+                && (vim_ispathsep(i32::from(next_b))
+                    || (!one && (next_b == b',' || next_b == b' '))
+                    || next_b == 0)
+            {
+                src_idx += len;
+                dstlen -= 1;
+                if dstlen > 0 {
+                    dst_slice[dst_idx] = b'~';
+                    dst_idx += 1;
+                }
+                break;
+            }
+            if p == homedir_env_mod {
+                break;
+            }
+            p = homedir_env_mod;
+            len = envlen;
+        }
+
+        if dstlen == 0 {
+            break;
+        }
+        while src_idx < src_bytes.len()
+            && (one || (src_bytes[src_idx] != b',' && src_bytes[src_idx] != b' '))
+        {
+            dstlen -= 1;
+            if dstlen == 0 {
+                break;
+            }
+            dst_slice[dst_idx] = src_bytes[src_idx];
+            dst_idx += 1;
+            src_idx += 1;
+        }
+        if dstlen == 0 {
+            break;
+        }
+        while src_idx < src_bytes.len()
+            && (src_bytes[src_idx] == b' ' || src_bytes[src_idx] == b',')
+        {
+            dstlen -= 1;
+            if dstlen == 0 {
+                break;
+            }
+            dst_slice[dst_idx] = src_bytes[src_idx];
+            dst_idx += 1;
+            src_idx += 1;
+        }
+    }
+
+    if !dst_slice.is_empty() {
+        dst_slice[dst_idx] = 0;
+    }
+    dst_idx
 }
 
 /// Like `home_replace`, store the replaced string in an owned `CString`.
