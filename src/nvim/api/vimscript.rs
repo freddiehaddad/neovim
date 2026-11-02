@@ -10,7 +10,7 @@ use crate::api::private::validate::{
     Array, Dict, Error, ErrorType, KeyValuePair, NvimString, Object, ObjectType, api_err_exp,
 };
 use crate::eval::eval0;
-use crate::eval::typval::{TvDict, TypVal, VarType, tv_clear, tv_dict_find};
+use crate::eval::typval::{TvDict, TypVal, VarType, tv_clear};
 use crate::eval::userfunc::{Funcexe, call_func};
 use crate::ex_docmd::do_cmdline_cmd;
 use crate::globals::*;
@@ -365,7 +365,11 @@ pub fn nvim_call_dict_function(
 
     'body: {
         let self_dict = rettv.vval.v_dict();
-        if rettv.v_type != VarType::VarDict || self_dict.is_null() {
+        let Some(self_dict_ref) = rettv.vval.v_dict_opt() else {
+            api_set_error!(err, ErrorType::ErrorTypeValidation, c"dict not found",);
+            break 'body;
+        };
+        if rettv.v_type != VarType::VarDict {
             api_set_error!(err, ErrorType::ErrorTypeValidation, c"dict not found",);
             break 'body;
         }
@@ -374,12 +378,11 @@ pub fn nvim_call_dict_function(
             && fn_name.size > 0
             && dict.obj_type != ObjectType::ObjectTypeDict
         {
-            let di = tv_dict_find(
-                unsafe { self_dict.as_ref() },
+            let Some(di) = crate::eval::typval::tv_dict_find_opt(
+                Some(self_dict_ref),
                 fn_name.data,
                 fn_name.size as isize,
-            );
-            if di.is_null() {
+            ) else {
                 api_set_error!(
                     err,
                     ErrorType::ErrorTypeValidation,
@@ -387,8 +390,7 @@ pub fn nvim_call_dict_function(
                     fn_name.data,
                 );
                 break 'body;
-            }
-            let di = unsafe { &mut *di };
+            };
             if di.di_tv.v_type == VarType::VarPartial {
                 api_set_error!(
                     err,

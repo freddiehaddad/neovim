@@ -53,19 +53,12 @@ pub fn nvim_tabpage_list_wins(tabpage: Tabpage, arena: &mut Arena, err: &mut Err
     } else {
         unsafe { (*tab).tp_firstwin }
     };
-    let mut n = 0usize;
-    let mut wp = first;
-    while !wp.is_null() {
-        n += 1;
-        wp = unsafe { (*wp).w_next };
-    }
+    let n = win_iter_mut(first).count();
 
     rv = arena_array(arena, n);
-    wp = first;
-    while !wp.is_null() {
-        *rv.next_slot_mut() = window_obj(unsafe { (*wp).handle });
+    for wp in win_iter_mut(first) {
+        *rv.next_slot_mut() = window_obj(wp.handle);
         rv.size += 1;
-        wp = unsafe { (*wp).w_next };
     }
 
     rv

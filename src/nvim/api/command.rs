@@ -1383,7 +1383,7 @@ pub fn create_user_command(
             api_err_invalid(err, c"command name", name.data, 0, true);
             break 'err;
         }
-        if mb_islower(i32::from(unsafe { *name.data.cast::<u8>() })) {
+        if mb_islower(i32::from(crate::memory::cstr_first_byte(name.data))) {
             api_err_invalid(
                 err,
                 c"command name (must start with uppercase)",
@@ -1688,11 +1688,13 @@ pub fn nvim_buf_get_commands(
         return commands_array(None, arena);
     }
 
-    let b = find_buffer_by_handle(buf, err);
-    if opts.builtin || b.is_null() {
+    let Some(b) = crate::api::private::helpers::find_buffer_by_handle_mut(buf, err) else {
+        return Dict::new();
+    };
+    if opts.builtin {
         return Dict::new();
     }
-    commands_array(unsafe { b.as_ref() }, arena)
+    commands_array(Some(b), arena)
 }
 
 #[cfg(test)]

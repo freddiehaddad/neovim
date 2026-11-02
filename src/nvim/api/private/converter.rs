@@ -86,56 +86,57 @@ fn convert_one_value(
             });
         }
         VarType::VarBlob => {
-            let blob = tv.vval.v_blob();
-            let bytes: &[u8] = if blob.is_null() {
-                &[]
-            } else {
-                unsafe { &(*blob).bv_ga }
-            };
+            let blob = tv.vval.v_blob_opt();
+            let bytes: &[u8] = blob.map_or(&[], |b| &b.bv_ga);
             stack.push(cbuf_to_string_obj(arena, reuse_strdata, bytes));
         }
         VarType::VarFunc => {
             let fun = tv.vval.v_string();
-            let obj = {
-                if !fun.is_null() {
-                    let fp = find_func(fun);
-                    if !fp.is_null() && (unsafe { (*fp).uf_flags } & FC_LUAREF) != 0 {
-                        Object {
-                            obj_type: ObjectType::ObjectTypeLuaRef,
-                            data: ObjectData::LuaRef(api_new_luaref(unsafe { (*fp).uf_luaref })),
-                        }
-                    } else {
-                        nil_obj()
-                    }
-                } else {
-                    nil_obj()
+            let obj = if !fun.is_null()
+                && let Some(fp) = unsafe { find_func(fun).as_ref() }
+                && (fp.uf_flags & FC_LUAREF) != 0
+            {
+                Object {
+                    obj_type: ObjectType::ObjectTypeLuaRef,
+                    data: ObjectData::LuaRef(api_new_luaref(fp.uf_luaref)),
                 }
+            } else {
+                nil_obj()
             };
             stack.push(obj);
         }
         VarType::VarPartial => {
-            let pt = tv.vval.v_partial();
-            let obj = {
-                if !pt.is_null() {
-                    let fun = partial_name(unsafe { pt.as_ref() });
-                    let fp = find_func(fun);
-                    if !fp.is_null() && (unsafe { (*fp).uf_flags } & FC_LUAREF) != 0 {
-                        Object {
-                            obj_type: ObjectType::ObjectTypeLuaRef,
-                            data: ObjectData::LuaRef(api_new_luaref(unsafe { (*fp).uf_luaref })),
-                        }
-                    } else {
-                        nil_obj()
+            let obj = if let Some(pt) = tv.vval.v_partial_opt() {
+                let fun = partial_name(Some(pt));
+                if let Some(fp) = unsafe { find_func(fun).as_ref() }
+                    && (fp.uf_flags & FC_LUAREF) != 0
+                {
+                    Object {
+                        obj_type: ObjectType::ObjectTypeLuaRef,
+                        data: ObjectData::LuaRef(api_new_luaref(fp.uf_luaref)),
                     }
                 } else {
                     nil_obj()
                 }
+            } else {
+                nil_obj()
             };
             stack.push(obj);
         }
         VarType::VarList => {
-            let list = tv.vval.v_list();
-            if list.is_null() || unsafe { (*list).lv_len == 0 } {
+            let list_ptr = tv.vval.v_list();
+            let Some(list) = tv.vval.v_list_opt() else {
+                stack.push(Object {
+                    obj_type: ObjectType::ObjectTypeArray,
+                    data: ObjectData::Array(Array {
+                        size: 0,
+                        capacity: 0,
+                        items: std::ptr::null_mut(),
+                    }),
+                });
+                return;
+            };
+            if list.lv_len == 0 {
                 stack.push(Object {
                     obj_type: ObjectType::ObjectTypeArray,
                     data: ObjectData::Array(Array {
@@ -146,27 +147,23 @@ fn convert_one_value(
                 });
                 return;
             }
-            let saved_copy_id = unsafe { (*list).lv_copy_id };
+            let saved_copy_id = list.lv_copy_id;
             if saved_copy_id == copy_id {
                 stack.push(nil_obj());
                 return;
             }
-            {
-                unsafe {
-                    (*list).lv_copy_id = copy_id;
-                }
-                let arr = arena_array_opt(arena, unsafe { (*list).lv_len } as usize);
-                stack.push(Object {
-                    obj_type: ObjectType::ObjectTypeArray,
-                    data: ObjectData::Array(arr),
-                });
-                mpstack.push(ConvStackEntry::List {
-                    list,
-                    li: unsafe { (*list).lv_first },
-                    saved_copy_id,
-                    first: true,
-                });
-            }
+            list.lv_copy_id = copy_id;
+            let arr = arena_array_opt(arena, list.lv_len as usize);
+            stack.push(Object {
+                obj_type: ObjectType::ObjectTypeArray,
+                data: ObjectData::Array(arr),
+            });
+            mpstack.push(ConvStackEntry::List {
+                list: list_ptr,
+                li: list.lv_first,
+                saved_copy_id,
+                first: true,
+            });
         }
         VarType::VarBool => {
             let b = tv.vval.v_bool() == K_BOOL_VAR_TRUE as i32;
@@ -179,8 +176,19 @@ fn convert_one_value(
             stack.push(nil_obj());
         }
         VarType::VarDict => {
-            let dict = tv.vval.v_dict();
-            if dict.is_null() || unsafe { (*dict).dv_hashtab.ht_used == 0 } {
+            let dict_ptr = tv.vval.v_dict();
+            let Some(dict) = tv.vval.v_dict_opt() else {
+                stack.push(Object {
+                    obj_type: ObjectType::ObjectTypeDict,
+                    data: ObjectData::Dict(Dict {
+                        size: 0,
+                        capacity: 0,
+                        items: std::ptr::null_mut(),
+                    }),
+                });
+                return;
+            };
+            if dict.dv_hashtab.ht_used == 0 {
                 stack.push(Object {
                     obj_type: ObjectType::ObjectTypeDict,
                     data: ObjectData::Dict(Dict {
@@ -191,27 +199,25 @@ fn convert_one_value(
                 });
                 return;
             }
-            let saved_copy_id = unsafe { (*dict).dv_copy_id };
+            let saved_copy_id = dict.dv_copy_id;
             if saved_copy_id == copy_id {
                 stack.push(nil_obj());
                 return;
             }
-            unsafe {
-                (*dict).dv_copy_id = copy_id;
-                let used = (*dict).dv_hashtab.ht_used;
-                let d_obj = arena_dict_opt(arena, used);
-                stack.push(Object {
-                    obj_type: ObjectType::ObjectTypeDict,
-                    data: ObjectData::Dict(d_obj),
-                });
-                mpstack.push(ConvStackEntry::Dict {
-                    dict,
-                    hi: (*dict).dv_hashtab.array_ptr(),
-                    todo: used,
-                    saved_copy_id,
-                    first: true,
-                });
-            }
+            dict.dv_copy_id = copy_id;
+            let used = dict.dv_hashtab.ht_used;
+            let d_obj = arena_dict_opt(arena, used);
+            stack.push(Object {
+                obj_type: ObjectType::ObjectTypeDict,
+                data: ObjectData::Dict(d_obj),
+            });
+            mpstack.push(ConvStackEntry::Dict {
+                dict: dict_ptr,
+                hi: dict.dv_hashtab.array_ptr(),
+                todo: used,
+                saved_copy_id,
+                first: true,
+            });
         }
         VarType::VarUnknown => {
             stack.push(nil_obj());

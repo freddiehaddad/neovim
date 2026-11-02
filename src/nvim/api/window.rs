@@ -109,9 +109,7 @@ pub fn nvim_win_set_buf(win: Window, buf: Buffer, err: &mut Error) {
 //   FUNC_API_SINCE(1);
 pub fn nvim_win_get_cursor(win: Window, arena: &mut Arena, err: &mut Error) -> Array {
     let mut rv = Array::new();
-    let w = find_window_by_handle(win, err);
-    if !w.is_null() {
-        let w = unsafe { &mut *w };
+    if let Some(w) = crate::api::private::helpers::find_window_by_handle_mut(win, err) {
         rv = arena_array(arena, 2);
         add_c(&mut rv, integer_obj(i64::from(w.w_cursor.lnum)));
         add_c(&mut rv, integer_obj(i64::from(w.w_cursor.col)));
@@ -263,9 +261,7 @@ pub fn nvim_win_del_var(win: Window, name: NvimString, err: &mut Error) {
 //   FUNC_API_SINCE(1);
 pub fn nvim_win_get_position(win: Window, arena: &mut Arena, err: &mut Error) -> Array {
     let mut rv = Array::new();
-    let w = find_window_by_handle(win, err);
-    if !w.is_null() {
-        let w = unsafe { &mut *w };
+    if let Some(w) = crate::api::private::helpers::find_window_by_handle_mut(win, err) {
         rv = arena_array(arena, 2);
         add_c(&mut rv, integer_obj(i64::from(w.w_winrow)));
         add_c(&mut rv, integer_obj(i64::from(w.w_wincol)));
@@ -504,8 +500,8 @@ pub fn nvim_win_text_height(
     let Some(w) = crate::api::private::helpers::find_window_by_handle_mut(win, err) else {
         return rv;
     };
-    let buf = w.w_buffer;
-    let line_count = unsafe { (*buf).b_ml.ml_line_count };
+    let buf = w.buf_mut();
+    let line_count = buf.b_ml.ml_line_count;
 
     let mut start_lnum: Linenr = 1;
     let mut end_lnum: Linenr = line_count;
@@ -516,12 +512,11 @@ pub fn nvim_win_text_height(
     let mask = opts.is_set_win_text_height;
 
     if has_key(mask, KEYSET_OPTIDX_WIN_TEXT_HEIGHT_START_ROW) {
-        start_lnum =
-            normalize_index(unsafe { &mut *buf }, opts.start_row, false, &mut oob) as Linenr;
+        start_lnum = normalize_index(buf, opts.start_row, false, &mut oob) as Linenr;
     }
 
     if has_key(mask, KEYSET_OPTIDX_WIN_TEXT_HEIGHT_END_ROW) {
-        end_lnum = normalize_index(unsafe { &mut *buf }, opts.end_row, false, &mut oob) as Linenr;
+        end_lnum = normalize_index(buf, opts.end_row, false, &mut oob) as Linenr;
     }
 
     if oob {

@@ -1147,7 +1147,7 @@ fn push_char(line_buf: &mut Vec<u8>, c: u8, to_err: bool) {
     }
     if c == b'\n' {
         line_buf.push(0);
-        let cstr = unsafe { std::ffi::CStr::from_bytes_with_nul_unchecked(line_buf) };
+        let cstr = std::ffi::CStr::from_bytes_with_nul(line_buf).unwrap_or_default();
         if to_err {
             emsg(cstr);
         } else {
@@ -1166,12 +1166,11 @@ fn push_char(line_buf: &mut Vec<u8>, c: u8, to_err: bool) {
 }
 
 fn write_msg(message: NvimString, to_err: bool, writeln: bool) {
-    let line_buf_ptr = if to_err {
-        &raw mut api_dep_st().err_line_buf
+    let line_buf = if to_err {
+        &mut api_dep_st().err_line_buf
     } else {
-        &raw mut api_dep_st().out_line_buf
+        &mut api_dep_st().out_line_buf
     };
-    let line_buf = unsafe { &mut *line_buf_ptr };
 
     msg_ext_no_fast();
     g_st().no_wait_return += 1;
@@ -1264,12 +1263,11 @@ pub fn nvim_notify(
 //   FUNC_API_SINCE(1)
 //   FUNC_API_DEPRECATED_SINCE(15);
 pub fn nvim_win_set_height(win: Window, height: Integer, err: &mut Error) {
-    let w = find_window_by_handle(win, err);
-    if w.is_null() {
+    let Some(w) = crate::api::private::helpers::find_window_by_handle_mut(win, err) else {
         return;
-    }
+    };
     try_wrap(err, || {
-        win_setheight_win(height as i32, unsafe { &mut *w }, true);
+        win_setheight_win(height as i32, w, true);
     });
 }
 
@@ -1287,12 +1285,11 @@ pub fn nvim_win_set_height(win: Window, height: Integer, err: &mut Error) {
 //   FUNC_API_SINCE(1)
 //   FUNC_API_DEPRECATED_SINCE(15);
 pub fn nvim_win_set_width(win: Window, width: Integer, err: &mut Error) {
-    let w = find_window_by_handle(win, err);
-    if w.is_null() {
+    let Some(w) = crate::api::private::helpers::find_window_by_handle_mut(win, err) else {
         return;
-    }
+    };
     try_wrap(err, || {
-        win_setwidth_win(width as i32, unsafe { &mut *w }, true);
+        win_setwidth_win(width as i32, w, true);
     });
 }
 

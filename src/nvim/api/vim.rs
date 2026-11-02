@@ -1332,18 +1332,10 @@ pub fn nvim_echo(
 /// @return List of buffer ids
 // DLLEXPORT ArrayOf(Buffer) nvim_list_bufs(Arena *arena) FUNC_API_SINCE(1);
 pub fn nvim_list_bufs(arena: &mut Arena) -> Array {
-    let mut n = 0usize;
-    let mut b = g_st().firstbuf;
-    while !b.is_null() {
-        n += 1;
-        b = unsafe { (*b).b_next };
-    }
-
+    let n = for_all_buffers_mut().count();
     let mut rv = arena_array(arena, n);
-    b = g_st().firstbuf;
-    while !b.is_null() {
-        add_c(&mut rv, buffer_obj(unsafe { (*b).b_fnum }));
-        b = unsafe { (*b).b_next };
+    for b in for_all_buffers_mut() {
+        add_c(&mut rv, buffer_obj(b.b_fnum));
     }
     rv
 }
@@ -1377,21 +1369,17 @@ pub fn nvim_set_current_buf(buf: Buffer, err: &mut Error) {
 // DLLEXPORT ArrayOf(Window) nvim_list_wins(Arena *arena) FUNC_API_SINCE(1);
 pub fn nvim_list_wins(arena: &mut Arena) -> Array {
     let mut n = 0usize;
-    let mut tp = g_st().first_tabpage;
-    while !tp.is_null() {
-        for _wp in for_all_windows_in_tab_mut(unsafe { &*tp }) {
+    for tp in for_all_tabpages_mut() {
+        for _wp in for_all_windows_in_tab_mut(tp) {
             n += 1;
         }
-        tp = unsafe { (*tp).tp_next };
     }
 
     let mut rv = arena_array(arena, n);
-    tp = g_st().first_tabpage;
-    while !tp.is_null() {
-        for wp in for_all_windows_in_tab_mut(unsafe { &*tp }) {
+    for tp in for_all_tabpages_mut() {
+        for wp in for_all_windows_in_tab_mut(tp) {
             add_c(&mut rv, window_obj(wp.handle));
         }
-        tp = unsafe { (*tp).tp_next };
     }
     rv
 }
@@ -1654,18 +1642,10 @@ pub fn nvim_chan_send(chan: Integer, data: NvimString, err: &mut Error) {
 /// @return List of |tab-ID|s
 // DLLEXPORT ArrayOf(Tabpage) nvim_list_tabpages(Arena *arena) FUNC_API_SINCE(1);
 pub fn nvim_list_tabpages(arena: &mut Arena) -> Array {
-    let mut n = 0usize;
-    let mut tp = g_st().first_tabpage;
-    while !tp.is_null() {
-        n += 1;
-        tp = unsafe { (*tp).tp_next };
-    }
-
+    let n = for_all_tabpages_mut().count();
     let mut rv = arena_array(arena, n);
-    tp = g_st().first_tabpage;
-    while !tp.is_null() {
-        add_c(&mut rv, tabpage_obj(unsafe { (*tp).handle }));
-        tp = unsafe { (*tp).tp_next };
+    for tp in for_all_tabpages_mut() {
+        add_c(&mut rv, tabpage_obj(tp.handle));
     }
     rv
 }

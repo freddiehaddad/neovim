@@ -1456,27 +1456,23 @@ pub fn nvim_set_decoration_provider(
 
     redraw_all_later(UPD_NOT_VALID);
 
-    let pairs: [(*mut LuaRef, *mut LuaRef); 10] = [
-        (&raw mut opts.on_start, &raw mut p.redraw_start),
-        (&raw mut opts.on_buf, &raw mut p.redraw_buf),
-        (&raw mut opts.on_win, &raw mut p.redraw_win),
-        (&raw mut opts.on_line, &raw mut p.redraw_line),
-        (&raw mut opts.on_range, &raw mut p.redraw_range),
-        (&raw mut opts.on_end, &raw mut p.redraw_end),
-        (&raw mut opts._on_hl_def, &raw mut p.hl_def),
-        (&raw mut opts._on_spell_nav, &raw mut p.spell_nav),
-        (&raw mut opts._on_conceal_line, &raw mut p.conceal_line),
-        (&raw mut opts._on_conceal, &raw mut p.conceal),
+    let pairs: [(&mut LuaRef, &mut LuaRef); 10] = [
+        (&mut opts.on_start, &mut p.redraw_start),
+        (&mut opts.on_buf, &mut p.redraw_buf),
+        (&mut opts.on_win, &mut p.redraw_win),
+        (&mut opts.on_line, &mut p.redraw_line),
+        (&mut opts.on_range, &mut p.redraw_range),
+        (&mut opts.on_end, &mut p.redraw_end),
+        (&mut opts._on_hl_def, &mut p.hl_def),
+        (&mut opts._on_spell_nav, &mut p.spell_nav),
+        (&mut opts._on_conceal_line, &mut p.conceal_line),
+        (&mut opts._on_conceal, &mut p.conceal),
     ];
 
     for (src, dst) in pairs {
-        if unsafe { *src } > 0 {
-            unsafe {
-                *dst = *src;
-            }
-            unsafe {
-                *src = LUA_NOREF;
-            }
+        if *src > 0 {
+            *dst = *src;
+            *src = LUA_NOREF;
         }
     }
 
@@ -1764,26 +1760,22 @@ pub fn nvim_ns_get(ns_id: Integer, arena: &mut Arena, err: &mut Error) -> KeyDic
     }
 
     let mut count = 0usize;
-    let mut tp = g_st().first_tabpage;
-    while !tp.is_null() {
-        for wp in for_all_windows_in_tab_mut(unsafe { &*tp }) {
+    for tp in for_all_tabpages_mut() {
+        for wp in for_all_windows_in_tab_mut(tp) {
             if wp.w_ns_set.contains(&(ns_id as u32)) {
                 count += 1;
             }
         }
-        tp = unsafe { (*tp).tp_next };
     }
 
     let mut windows = arena_array(arena, count);
 
-    tp = g_st().first_tabpage;
-    while !tp.is_null() {
-        for wp in for_all_windows_in_tab_mut(unsafe { &*tp }) {
+    for tp in for_all_tabpages_mut() {
+        for wp in for_all_windows_in_tab_mut(tp) {
             if wp.w_ns_set.contains(&(ns_id as u32)) {
                 windows.push(integer_obj(i64::from(wp.handle)));
             }
         }
-        tp = unsafe { (*tp).tp_next };
     }
 
     opts.wins = windows;

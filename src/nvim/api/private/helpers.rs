@@ -473,8 +473,7 @@ pub fn dict_get_value(
     arena: Option<&mut Arena>,
     err: &mut Error,
 ) -> Object {
-    let di = tv_dict_find(dict, key.data, key.size as isize);
-    if di.is_null() {
+    let Some(di) = crate::eval::typval::tv_dict_find_opt(dict, key.data, key.size as isize) else {
         api_set_error!(
             err,
             ErrorType::ErrorTypeValidation,
@@ -482,8 +481,7 @@ pub fn dict_get_value(
             key.data,
         );
         return OBJECT_NIL;
-    }
-    let di = unsafe { &mut *di };
+    };
     vim_to_object(&raw mut di.di_tv, arena, true)
 }
 
@@ -494,8 +492,7 @@ pub fn dict_check_writable(
     err: &mut Error,
 ) -> *mut Dictitem {
     let di = tv_dict_find(Some(dict), key.data, key.size as isize);
-    if !di.is_null() {
-        let di = unsafe { &mut *di };
+    if let Some(di) = unsafe { di.as_ref() } {
         if (di.di_flags & DI_FLAGS_RO) != 0 {
             api_set_error!(
                 err,

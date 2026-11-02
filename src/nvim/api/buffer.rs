@@ -412,14 +412,13 @@ pub fn nvim_buf_set_lines(
     arena: &mut Arena,
     err: &mut Error,
 ) {
-    let b = api_buf_ensure_loaded(buf, err);
-    if b.is_null() {
+    let Some(b) = (unsafe { api_buf_ensure_loaded(buf, err).as_mut() }) else {
         return;
-    }
+    };
 
     let mut oob = false;
-    start = normalize_index(unsafe { &mut *b }, start, true, &mut oob);
-    end = normalize_index(unsafe { &mut *b }, end, true, &mut oob);
+    start = normalize_index(b, start, true, &mut oob);
+    end = normalize_index(b, end, true, &mut oob);
 
     if strict_indexing && oob {
         api_set_error!(
@@ -464,7 +463,7 @@ pub fn nvim_buf_set_lines(
     }
 
     try_wrap_err(err, |err| 'end: {
-        if unsafe { (*b).b_p_ma } == 0 {
+        if b.b_p_ma == 0 {
             api_set_error!(
                 err,
                 ErrorType::ErrorTypeException,
@@ -473,7 +472,7 @@ pub fn nvim_buf_set_lines(
             break 'end;
         }
 
-        if !u_save_buf(unsafe { &mut *b }, (start - 1) as Linenr, end as Linenr) {
+        if !u_save_buf(b, (start - 1) as Linenr, end as Linenr) {
             api_set_error!(
                 err,
                 ErrorType::ErrorTypeException,
@@ -482,12 +481,11 @@ pub fn nvim_buf_set_lines(
             break 'end;
         }
 
-        let deleted_bytes =
-            get_region_bytecount(unsafe { &mut *b }, start as Linenr, end as Linenr, 0, 0);
+        let deleted_bytes = get_region_bytecount(b, start as Linenr, end as Linenr, 0, 0);
 
         let to_delete = old_len.saturating_sub(new_len);
         for _ in 0..to_delete {
-            if !ml_delete_buf(unsafe { &mut *b }, start as Linenr, false) {
+            if !ml_delete_buf(b, start as Linenr, false) {
                 api_set_error!(err, ErrorType::ErrorTypeException, c"Failed to delete line",);
                 break 'end;
             }
@@ -512,7 +510,7 @@ pub fn nvim_buf_set_lines(
             }
 
             let line_ptr = line.cast();
-            if !ml_replace_buf(unsafe { &mut *b }, lnum as Linenr, line_ptr, false, true) {
+            if !ml_replace_buf(b, lnum as Linenr, line_ptr, false, true) {
                 api_set_error!(
                     err,
                     ErrorType::ErrorTypeException,
@@ -537,7 +535,7 @@ pub fn nvim_buf_set_lines(
             }
 
             let line_ptr = line.cast();
-            if !ml_append_buf(unsafe { &mut *b }, lnum as Linenr, line_ptr, 0, false) {
+            if !ml_append_buf(b, lnum as Linenr, line_ptr, 0, false) {
                 api_set_error!(err, ErrorType::ErrorTypeException, c"Failed to insert line",);
                 break 'end;
             }
@@ -548,7 +546,7 @@ pub fn nvim_buf_set_lines(
 
         let adjust = if end > start { MAXLNUM as Linenr } else { 0 };
         mark_adjust_buf(
-            unsafe { &mut *b },
+            b,
             start as Linenr,
             (end - 1) as Linenr,
             adjust,
@@ -559,7 +557,7 @@ pub fn nvim_buf_set_lines(
         );
 
         if g_st().visual_global.active
-            && b == g_st().curbuf
+            && ptr::eq(b, g_st().curbuf)
             && g_st().visual_global.start.lnum >= (start as Linenr)
         {
             if g_st().visual_global.start.lnum >= (end as Linenr) {
@@ -569,7 +567,7 @@ pub fn nvim_buf_set_lines(
         }
 
         extmark_splice(
-            unsafe { &mut *b },
+            b,
             (start as i32) - 1,
             0,
             (end - start) as i32,
@@ -581,18 +579,11 @@ pub fn nvim_buf_set_lines(
             K_EXTMARK_UNDO,
         );
 
-        changed_lines(
-            unsafe { &mut *b },
-            start as Linenr,
-            0,
-            end as Linenr,
-            extra as Linenr,
-            true,
-        );
+        changed_lines(b, start as Linenr, 0, end as Linenr, extra as Linenr, true);
 
         for tp in for_all_tabpages_ptr() {
             for win in for_all_windows_in_tab_mut(&*tp) {
-                if win.w_buffer == b {
+                if ptr::eq(win.w_buffer, b) {
                     fix_cursor(win, start as Linenr, end as Linenr, extra as Linenr);
                 }
             }
