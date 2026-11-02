@@ -1546,21 +1546,17 @@ pub fn win_set_buf(win: &mut WinInfoInfo, buf: &mut FileBuf, err: &mut Error) {
 
 /// Return the number of fold columns to display
 pub fn win_fdccol_count(wp: &mut WinInfoInfo) -> i32 {
-    let fdc = wp.w_onebuf_opt.wo_fdc;
-    if crate::memory::cstr_first_byte(fdc) == b'a'
-        && crate::memory::cstr_byte_at(fdc, 1) == b'u'
-        && crate::memory::cstr_byte_at(fdc, 2) == b't'
-        && crate::memory::cstr_byte_at(fdc, 3) == b'o'
-    {
-        let fdccol = if crate::memory::cstr_byte_at(fdc, 4) == b':' {
-            i32::from(crate::memory::cstr_byte_at(fdc, 5)) - i32::from(b'0')
+    let fdc_bytes = crate::memory::cstr_as_bytes(wp.w_onebuf_opt.wo_fdc);
+    if fdc_bytes.starts_with(b"auto") {
+        let fdccol = if fdc_bytes.get(4) == Some(&b':') {
+            i32::from(fdc_bytes.get(5).copied().unwrap_or(0)) - i32::from(b'0')
         } else {
             1
         };
         let needed_fdccols = get_deepest_nesting(wp);
         return fdccol.min(needed_fdccols);
     }
-    i32::from(crate::memory::cstr_first_byte(fdc)) - i32::from(b'0')
+    i32::from(fdc_bytes.first().copied().unwrap_or(0)) - i32::from(b'0')
 }
 
 /// Merges two window configs, freeing replaced fields if necessary.

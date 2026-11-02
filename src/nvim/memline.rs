@@ -10,7 +10,6 @@ use crate::buffer::{
     SEA_RECOVER, buf_inc_changedtick, buf_spname, open_buffer, setfname,
 };
 use crate::change::{ML_DEL_MESSAGE, changed_internal, unchanged};
-use crate::charset::ascii_isalpha;
 use crate::cursor::{Colnr, CursorPos, Linenr, check_cursor, coladvance};
 use crate::dialog::do_dialog;
 use crate::drawscreen::{UPD_NOT_VALID, redraw_curbuf_later};
@@ -882,16 +881,16 @@ pub fn ml_recover(checkext: bool) {
         if fname.is_null() {
             fname = c"".as_ptr().cast_mut();
         }
-        let len = crate::memory::cstr_len(fname);
+        let fname_slice = crate::memory::cstr_as_bytes(fname);
+        let len = fname_slice.len();
         if checkext
             && len >= 4
-            && crate::memory::cstr_prefix_bytes(fname.wrapping_add(len - 4), 2)
-                .eq_ignore_ascii_case(b".s")
+            && fname_slice[len - 4..len - 2].eq_ignore_ascii_case(b".s")
             && crate::strings::vim_haschr(
                 c"abcdefghijklmnopqrstuvw",
-                ((crate::memory::cstr_byte_at(fname, len - 2)).to_ascii_lowercase()) as i32,
+                fname_slice[len - 2].to_ascii_lowercase() as i32,
             )
-            && ascii_isalpha(crate::memory::cstr_byte_at(fname, len - 1))
+            && fname_slice[len - 1].is_ascii_alphabetic()
         {
             directly = true;
             fname_used = Some(crate::memory::cstr_to_cstring(fname));
@@ -3563,8 +3562,8 @@ fn findswapname(
                 break;
             }
 
-            if crate::memory::cstr_byte_at(fname, n - 2) == b'w'
-                && crate::memory::cstr_byte_at(fname, n - 1) == b'p'
+            let fname_slice = crate::memory::cstr_slice(fname, n);
+            if fname_slice.ends_with(b"wp")
                 && !g_st().recoverymode
                 && !buf_fname.is_null()
                 && !buf.b_help
@@ -4151,7 +4150,7 @@ pub fn inc(lp: &mut CursorPos) -> i32 {
         if !crate::memory::cstr_is_empty(p) {
             let l = utfc_ptr2len(p);
             lp.col += l;
-            return if crate::memory::cstr_byte_at(p, l as usize) != 0 {
+            return if !crate::memory::cstr_is_empty(p.wrapping_add(l as usize)) {
                 0
             } else {
                 2

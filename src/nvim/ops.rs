@@ -2447,7 +2447,7 @@ pub fn charwise_block_prep(
                 Some(&mut ce),
                 0,
             );
-            if crate::memory::cstr_byte_at(p, endcol as usize) == 0
+            if crate::memory::cstr_is_empty(p.wrapping_add(endcol as usize))
                 || (cs + end.coladd < ce && utf_head_off(p, p.wrapping_add(endcol as usize)) == 0)
             {
                 if start.lnum == end.lnum && start.col == end.col {
@@ -2963,13 +2963,14 @@ fn line_count_info(
 ) -> Varnumber {
     let line = line.into_c_char_ptr();
     {
+        let line_bytes = crate::memory::cstr_as_bytes(line);
         let mut i: Varnumber = 0;
         let mut words: Varnumber = 0;
         let mut chars: Varnumber = 0;
         let mut is_word = false;
 
-        while i < limit && crate::memory::cstr_byte_at(line, i as usize) != 0 {
-            let ch = i32::from(crate::memory::cstr_byte_at(line, i as usize));
+        while i < limit && (i as usize) < line_bytes.len() {
+            let ch = i32::from(line_bytes[i as usize]);
             if is_word {
                 if ascii_isspace(ch) {
                     words += 1;
@@ -2987,7 +2988,7 @@ fn line_count_info(
         }
         *wc += words;
 
-        if i < limit && crate::memory::cstr_byte_at(line, i as usize) == 0 {
+        if i < limit && (i as usize) >= line_bytes.len() {
             i += Varnumber::from(eol_size);
             chars += Varnumber::from(eol_size);
         }

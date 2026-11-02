@@ -690,11 +690,8 @@ fn execreg_line_continuation(lines: *mut NvimString, idx: &mut usize) -> Vec<u8>
         while cmd_start > 0 {
             cmd_start -= 1;
             let p = skipwhite((*lines.wrapping_add(cmd_start)).data);
-            if crate::memory::cstr_first_byte(p) != b'\\'
-                && (crate::memory::cstr_first_byte(p) != b'"'
-                    || crate::memory::cstr_byte_at(p, 1) != b'\\'
-                    || crate::memory::cstr_byte_at(p, 2) != b' ')
-            {
+            let p_bytes = crate::memory::cstr_as_bytes(p);
+            if p_bytes.first() != Some(&b'\\') && !p_bytes.starts_with(b"\"\\ ") {
                 break;
             }
         }
@@ -798,11 +795,8 @@ pub fn do_execreg(mut regname: i32, colon: i32, addcr: i32, silent: i32) -> bool
             let cont_vec: Vec<u8>;
             if colon != 0 && i > 0 {
                 let p = skipwhite(str_);
-                if crate::memory::cstr_first_byte(p) == b'\\'
-                    || (crate::memory::cstr_first_byte(p) == b'"'
-                        && crate::memory::cstr_byte_at(p, 1) == b'\\'
-                        && crate::memory::cstr_byte_at(p, 2) == b' ')
-                {
+                let p_bytes = crate::memory::cstr_as_bytes(p);
+                if p_bytes.first() == Some(&b'\\') || p_bytes.starts_with(b"\"\\ ") {
                     cont_vec = execreg_line_continuation(reg.y_array.as_ptr().cast_mut(), &mut i);
                     str_ = cont_vec.as_ptr().cast_mut().cast();
                 }
@@ -1067,9 +1061,8 @@ fn yank_copy_line(
     if exclude_trailing_space {
         let mut s = bd.textlen + bd.endspaces;
         while s > 0
-            && ascii_iswhite(crate::memory::cstr_byte_at(
-                bd.textstart.cast(),
-                (s - 1) as usize,
+            && ascii_iswhite(crate::memory::cstr_first_byte(
+                bd.textstart.wrapping_add((s - 1) as usize).cast(),
             ))
         {
             s =
@@ -1938,7 +1931,9 @@ pub fn do_put(regname: i32, mut reg: *mut Yankreg, mut dir: i32, mut count: i32,
                         bd.textcol -= 1;
                         delcount = 1;
                         bd.textcol -= utf_head_off(oldp, oldp.wrapping_add(bd.textcol as usize));
-                        if crate::memory::cstr_byte_at(oldp, bd.textcol as usize) != TAB as u8 {
+                        if crate::memory::cstr_first_byte(oldp.wrapping_add(bd.textcol as usize))
+                            != TAB as u8
+                        {
                             delcount = 0;
                             bd.endspaces = 0;
                         }
@@ -2437,7 +2432,7 @@ fn dis_msg(p: impl crate::strings::IntoCCharPtr, skip_esc: bool) {
         while !crate::memory::cstr_is_empty(p)
             && !(crate::memory::cstr_first_byte(p) == ESC
                 && skip_esc
-                && crate::memory::cstr_byte_at(p, 1) == 0)
+                && crate::memory::cstr_len(p) == 1)
         {
             n -= ptr2cells(p);
             if n < 0 {

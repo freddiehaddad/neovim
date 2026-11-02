@@ -1219,8 +1219,11 @@ fn ins_compl_add(
                             && (crate::memory::cstr_prefix_bytes(match_.cp_str.data, len as usize)
                                 == crate::memory::cstr_prefix_bytes(str_ptr, len as usize))
                             && (match_.cp_str.size as i32 <= len
-                                || crate::memory::cstr_byte_at(match_.cp_str.data, len as usize)
-                                    == 0)
+                                || match_
+                                    .cp_str
+                                    .as_bytes()
+                                    .get(len as usize)
+                                    .is_none_or(|&b| b == 0))
                         {
                             if score < match_.cp_score {
                                 match_.cp_score = score;
@@ -1384,12 +1387,12 @@ fn ins_compl_equal_sc(
 
         for i in 0..len {
             let idx = i as i32;
+            let c1 = *match_.cp_str.data.wrapping_add(i) as u8;
+            let c2 = *str_ptr.wrapping_add(i) as u8;
             let mismatch = if idx >= typed && idx < longest_end {
-                let c1 = crate::memory::cstr_byte_at(match_.cp_str.data, i);
-                let c2 = crate::memory::cstr_byte_at(str_ptr, i);
                 !c1.eq_ignore_ascii_case(&c2)
             } else {
-                *match_.cp_str.data.wrapping_add(i) != *str_ptr.wrapping_add(i)
+                c1 != c2
             };
             if mismatch {
                 return false;
@@ -2153,9 +2156,7 @@ fn ins_compl_dictionaries(
             }
 
             if count == -1 {
-                let ptr = if crate::memory::cstr_first_byte(pat) == b'\\'
-                    && crate::memory::cstr_byte_at(pat, 1) == b'<'
-                {
+                let ptr = if crate::memory::cstr_as_bytes(pat).starts_with(b"\\<") {
                     pat.wrapping_add(2)
                 } else {
                     pat
@@ -3089,11 +3090,13 @@ fn ins_compl_fix_redo_buf_for_leader(ptr_arg: impl crate::strings::IntoCCharPtr)
         }
         if !insexp().compl_orig_text.data.is_null() {
             let mut p = insexp().compl_orig_text.data.cast_const();
-            while crate::memory::cstr_byte_at(p, len) != 0
-                && crate::memory::cstr_byte_at(p, len) == crate::memory::cstr_byte_at(ptr, len)
-            {
-                len += 1;
-            }
+            let orig_bytes = insexp().compl_orig_text.as_bytes();
+            let ptr_bytes = crate::memory::cstr_as_bytes(ptr);
+            len = orig_bytes
+                .iter()
+                .zip(ptr_bytes.iter())
+                .take_while(|&(a, b)| a == b)
+                .count();
             if len > 0 {
                 len -= utf_head_off(p, p.wrapping_add(len)) as usize;
             }
@@ -4311,7 +4314,7 @@ fn get_next_filename_completion() {
             .map_or(ptr::null_mut(), |i| leader.wrapping_add(i));
         if last_sep.is_null() {
             insexp().compl_pattern = Some(c"*".to_owned());
-        } else if crate::memory::cstr_byte_at(last_sep.cast(), 1) == 0 {
+        } else if crate::memory::cstr_len(last_sep.cast()) <= 1 {
             in_fuzzy_collect = false;
         } else {
             let path_len = crate::memory::ptr_offset_from(last_sep, leader) as usize + 1;
@@ -4857,8 +4860,9 @@ fn get_callback_if_cpt_func(p: impl crate::strings::IntoCCharPtr, idx: i32) -> C
             return CptFuncSource::Ofu;
         }
 
-        if crate::memory::cstr_first_byte(p) == b'F' {
-            let next = crate::memory::cstr_byte_at(p, 1);
+        let p_bytes = crate::memory::cstr_as_bytes(p);
+        if p_bytes.first() == Some(&b'F') {
+            let next = p_bytes.get(1).copied().unwrap_or(0);
             if next != b',' && next != 0 {
                 let cbs = &curbuf_mut().b_p_cpt_cb;
                 if idx < 0 || (idx as usize) >= cbs.len() {
@@ -5959,9 +5963,8 @@ fn get_normal_compl_info(
                 while {
                     startcol -= 1;
                     startcol >= 0
-                        && vim_is_idc(i32::from(crate::memory::cstr_byte_at(
-                            line,
-                            startcol as usize,
+                        && vim_is_idc(i32::from(crate::memory::cstr_first_byte(
+                            line.wrapping_add(startcol as usize),
                         )))
                 } {}
                 startcol += 1;

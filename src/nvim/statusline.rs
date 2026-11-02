@@ -1804,7 +1804,8 @@ pub extern "C" fn build_stl_str_hl(
             }
 
             if *fmt_p == STL_HIGHLIGHT {
-                if crate::memory::cstr_byte_at(fmt_p.cast(), 1) == b'(' {
+                let next_b = crate::memory::cstr_first_byte(fmt_p.wrapping_add(1).cast());
+                if next_b == b'(' {
                     fmt_p = fmt_p.wrapping_add(2);
                     stl_groupitems!()[groupdepth] = stl_st().curitem;
                     groupdepth += 1;
@@ -1813,7 +1814,7 @@ pub extern "C" fn build_stl_str_hl(
                     stl_items!()[stl_st().curitem as usize].minwid = curr_hl_pos;
                     stl_st().curitem += 1;
                     continue;
-                } else if crate::memory::cstr_byte_at(fmt_p.cast(), 1) == b')' {
+                } else if next_b == b')' {
                     fmt_p = fmt_p.wrapping_add(2);
                     if groupdepth < 1 {
                         continue;
@@ -2307,8 +2308,7 @@ pub extern "C" fn build_stl_str_hl(
             if !crate::memory::cstr_is_empty(str.cast()) {
                 let mut t = str;
                 if itemisflag {
-                    if !crate::memory::cstr_is_empty(t.cast())
-                        && crate::memory::cstr_byte_at(t.cast(), 1) != 0
+                    if crate::memory::cstr_len(t.cast()) > 1
                         && ((!prevchar_isitem && crate::memory::cstr_first_byte(t.cast()) == b',')
                             || (prevchar_isflag
                                 && crate::memory::cstr_first_byte(t.cast()) == b' '))
@@ -2367,8 +2367,9 @@ pub extern "C" fn build_stl_str_hl(
                 while !crate::memory::cstr_is_empty(t.cast()) && out_p < out_end_p {
                     if fillable
                         && crate::memory::cstr_first_byte(t.cast()) == b' '
-                        && (!ascii_isdigit(crate::memory::cstr_byte_at(t.cast(), 1))
-                            || fillchar != schar_from_ascii(b'-'))
+                        && (!ascii_isdigit(crate::memory::cstr_first_byte(
+                            t.wrapping_add(1).cast(),
+                        )) || fillchar != schar_from_ascii(b'-'))
                     {
                         schar_get_adv(&mut out_p, fillchar);
                     } else {

@@ -2635,21 +2635,15 @@ pub fn find_special_key_in_table(c: i32) -> i32 {
 /// Find the special key with the given name (`get_special_key_code`).
 pub fn get_special_key_code(name: impl crate::strings::IntoCCharPtr) -> i32 {
     let name = name.into_c_char_ptr();
-    if crate::memory::cstr_first_byte(name) == b't'
-        && crate::memory::cstr_byte_at(name, 1) == b'_'
-        && crate::memory::cstr_byte_at(name, 2) != 0
-        && crate::memory::cstr_byte_at(name, 3) != 0
-    {
-        return termcap2key(
-            i32::from(crate::memory::cstr_byte_at(name, 2)),
-            i32::from(crate::memory::cstr_byte_at(name, 3)),
-        );
+    let name_bytes = crate::memory::cstr_as_bytes(name);
+    if name_bytes.starts_with(b"t_") && name_bytes.len() >= 4 {
+        return termcap2key(i32::from(name_bytes[2]), i32::from(name_bytes[3]));
     }
 
-    let mut len = 0usize;
-    while ascii_isident(crate::memory::cstr_byte_at(name, len)) {
-        len += 1;
-    }
+    let len = name_bytes
+        .iter()
+        .take_while(|&&b| ascii_isident(i32::from(b)))
+        .count();
 
     let slice = crate::memory::cstr_slice(name, len);
     let idx = get_special_key_code_hash(slice);

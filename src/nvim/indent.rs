@@ -1047,17 +1047,17 @@ pub fn ins_try_si(c: i32) {
         if !pos.is_null() {
             let pos = unsafe { &mut *pos };
             let old_pos = curwin_mut().w_cursor;
-            let ptr = ml_get(pos.lnum);
+            let ptr_bytes = crate::memline::ml_get_slice(pos.lnum);
             let mut i = pos.col;
             if i > 0 {
                 while {
                     i -= 1;
-                    i > 0 && ascii_iswhite(crate::memory::cstr_byte_at(ptr, i as usize))
+                    i > 0 && ptr_bytes.get(i as usize).is_some_and(|&b| ascii_iswhite(b))
                 } {}
             }
             curwin_mut().w_cursor.lnum = pos.lnum;
             curwin_mut().w_cursor.col = i;
-            if crate::memory::cstr_byte_at(ptr, i as usize) == b')' {
+            if ptr_bytes.get(i as usize) == Some(&b')') {
                 let p2 = findmatch(None, b'(' as i32);
                 if !p2.is_null() {
                     curwin_mut().w_cursor = unsafe { *p2 };
@@ -1351,8 +1351,9 @@ pub fn ex_retab(eap: &mut Exarg) {
     let mut is_indent_only = false;
 
     let mut ptr = eap.arg;
-    if (crate::memory::cstr_prefix_bytes(ptr, 11) == &b"-indentonly"[..11])
-        && ascii_iswhite_or_nul(crate::memory::cstr_byte_at(ptr, 11))
+    let ptr_bytes = crate::memory::cstr_as_bytes(ptr);
+    if ptr_bytes.starts_with(b"-indentonly")
+        && ascii_iswhite_or_nul(i32::from(ptr_bytes.get(11).copied().unwrap_or(0)))
     {
         is_indent_only = true;
         ptr = skipwhite(ptr.wrapping_add(11));
@@ -1398,12 +1399,13 @@ pub fn ex_retab(eap: &mut Exarg) {
         let mut vcol: i64 = 0;
         let mut did_undo = false;
         loop {
-            if ascii_iswhite(crate::memory::cstr_byte_at(ptr, col as usize)) {
+            let cur_b = crate::memory::cstr_first_byte(ptr.wrapping_add(col as usize));
+            if ascii_iswhite(cur_b) {
                 if !got_tab && num_spaces == 0 {
                     start_vcol = vcol;
                     start_col = col;
                 }
-                if crate::memory::cstr_byte_at(ptr, col as usize) == b' ' {
+                if cur_b == b' ' {
                     num_spaces += 1;
                 } else {
                     got_tab = true;
@@ -1484,7 +1486,7 @@ pub fn ex_retab(eap: &mut Exarg) {
                     break;
                 }
             }
-            if crate::memory::cstr_byte_at(ptr, col as usize) == 0 {
+            if crate::memory::cstr_is_empty(ptr.wrapping_add(col as usize)) {
                 break;
             }
             vcol += i64::from(win_chartabsize(
@@ -1748,8 +1750,7 @@ pub fn get_lisp_indent() -> i32 {
                             if (ci.value == b')' as i32 || ci.value == b']' as i32) && !quotecount {
                                 parencount -= 1;
                             }
-                            if ci.value == b'\\' as i32 && crate::memory::cstr_byte_at(that, 1) != 0
-                            {
+                            if ci.value == b'\\' as i32 && crate::memory::cstr_len(that) > 1 {
                                 let cli = utf_cluster_info(StrCharInfo { ptr: that, chr: ci });
                                 amount += win_charsize(
                                     cstype, amount, that, ci.value, &mut csarg, cli.cells,
@@ -1809,8 +1810,9 @@ fn lisp_match(p: impl crate::strings::IntoCCharPtr) -> bool {
 
         while !crate::memory::cstr_is_empty(word) {
             let len = copy_option_part(&raw mut word, buf.as_mut_ptr().cast(), buf.len(), c",");
-            if (&buf[..len] == crate::memory::cstr_prefix_bytes(p, len))
-                && ascii_iswhite_or_nul(crate::memory::cstr_byte_at(p, len))
+            let p_bytes = crate::memory::cstr_as_bytes(p);
+            if p_bytes.starts_with(&buf[..len])
+                && ascii_iswhite_or_nul(i32::from(p_bytes.get(len).copied().unwrap_or(0)))
             {
                 return true;
             }

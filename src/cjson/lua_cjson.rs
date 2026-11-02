@@ -942,8 +942,7 @@ fn json_append_unicode_escape(json: &mut JsonParse) -> i32 {
             if (codepoint & 0x400) != 0 {
                 return -1;
             }
-            if crate::memory::cstr_byte_at(json.ptr, escape_len) != b'\\'
-                || crate::memory::cstr_byte_at(json.ptr, escape_len + 1) != b'u'
+            if !crate::memory::cstr_as_bytes(json.ptr.wrapping_add(escape_len)).starts_with(b"\\u")
             {
                 return -1;
             }
@@ -1183,9 +1182,7 @@ fn json_next_token(json: &mut JsonParse, token: &mut JsonToken) {
                         json_set_token_error(token, json, c"unclosed multi-line comment");
                         return;
                     }
-                    if crate::memory::cstr_first_byte(json.ptr) == b'*'
-                        && crate::memory::cstr_byte_at(json.ptr, 1) == b'/'
-                    {
+                    if crate::memory::cstr_as_bytes(json.ptr).starts_with(b"*/") {
                         json.ptr = json.ptr.wrapping_add(2);
                         break;
                     }

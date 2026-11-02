@@ -878,8 +878,11 @@ fn fname2fnum(fm: *mut Xfmark) {
             };
             let fname = fname_cstr.as_ptr();
 
-            if crate::memory::cstr_first_byte(fname) == b'~'
-                && vim_ispathsep_nocolon(i32::from(crate::memory::cstr_byte_at(fname, 1)))
+            let fname_bytes = crate::memory::cstr_as_bytes(fname);
+            if fname_bytes.first() == Some(&b'~')
+                && fname_bytes
+                    .get(1)
+                    .is_some_and(|&b| vim_ispathsep_nocolon(i32::from(b)))
             {
                 let len = expand_env(c"~/", g_st().name_buff.as_mut_ptr(), MAXPATHL as i32);
                 xstrlcpy(
@@ -1066,9 +1069,10 @@ pub fn ex_delmarks(eap: &mut Exarg) {
             if lower || digit || ascii_isupper(ch) {
                 let from: i32;
                 let to: i32;
-                if crate::memory::cstr_byte_at(p, 1) == b'-' {
+                let p_bytes = crate::memory::cstr_as_bytes(p);
+                if p_bytes.get(1) == Some(&b'-') {
                     from = ch;
-                    to = i32::from(crate::memory::cstr_byte_at(p, 2));
+                    to = i32::from(p_bytes.get(2).copied().unwrap_or(0));
                     let valid_to = if lower {
                         ascii_islower(to)
                     } else if digit {

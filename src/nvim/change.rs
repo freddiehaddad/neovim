@@ -712,9 +712,13 @@ pub fn ins_char_bytes(buf: impl crate::strings::IntoCCharPtr, charlen: usize) {
                     0,
                 );
                 let new_vcol = vcol + win_chartabsize(curwin_mut(), buf, vcol);
-                while crate::memory::cstr_byte_at(oldp, col + oldlen) != 0 && vcol < new_vcol {
+                while !crate::memory::cstr_is_empty(oldp.wrapping_add(col + oldlen))
+                    && vcol < new_vcol
+                {
                     vcol += win_chartabsize(curwin_mut(), oldp.wrapping_add(col + oldlen), vcol);
-                    if vcol > new_vcol && crate::memory::cstr_byte_at(oldp, col + oldlen) == TAB {
+                    if vcol > new_vcol
+                        && crate::memory::cstr_first_byte(oldp.wrapping_add(col + oldlen)) == TAB
+                    {
                         break;
                     }
                     oldlen += utfc_ptr2len(oldp.wrapping_add(col + oldlen)) as usize;
@@ -723,7 +727,7 @@ pub fn ins_char_bytes(buf: impl crate::strings::IntoCCharPtr, charlen: usize) {
                     }
                 }
                 curwin_mut().w_onebuf_opt.wo_list = old_list;
-            } else if crate::memory::cstr_byte_at(oldp, col) != 0 {
+            } else if !crate::memory::cstr_is_empty(oldp.wrapping_add(col)) {
                 oldlen = utfc_ptr2len(oldp.wrapping_add(col)) as usize;
             }
 
@@ -1229,10 +1233,9 @@ pub fn open_line(
                         if !ascii_iswhite(*saved_line.wrapping_add((lead_len - 1) as usize))
                             && ((!p_extra.is_null() && curwin_mut().w_cursor.col == lead_len)
                                 || (p_extra.is_null()
-                                    && crate::memory::cstr_byte_at(
-                                        saved_line.cast(),
-                                        lead_len as usize,
-                                    ) == 0)
+                                    && crate::memory::cstr_is_empty(
+                                        saved_line.wrapping_add(lead_len as usize).cast(),
+                                    ))
                                 || require_blank)
                         {
                             extra_space = true;
@@ -1307,13 +1310,12 @@ pub fn open_line(
                     lead_len as usize,
                 ));
                 allocated_vec[lead_len as usize] = 0;
-                leader = allocated_vec.as_mut_ptr();
-
-                for li in 0..comment_start {
-                    if !ascii_iswhite(crate::memory::cstr_byte_at(leader.cast(), li as usize)) {
-                        *leader.wrapping_add(li as usize) = b' ';
+                for b in &mut allocated_vec[..comment_start as usize] {
+                    if !ascii_iswhite(*b) {
+                        *b = b' ';
                     }
                 }
+                leader = allocated_vec.as_mut_ptr();
 
                 if !lead_repl.is_null() {
                     let mut c: u8 = 0;
@@ -1409,7 +1411,7 @@ pub fn open_line(
                             let repl_size = vim_strnsize(lead_repl.cast(), lead_repl_len);
                             let mut i: i32 = 0;
                             while i < lead_len
-                                && crate::memory::cstr_byte_at(p.cast(), i as usize) != 0
+                                && !crate::memory::cstr_is_empty(p.wrapping_add(i as usize).cast())
                             {
                                 let l = utfc_ptr2len(p.wrapping_add(i as usize).cast());
                                 if vim_strnsize(p.cast(), i + l) > repl_size {
@@ -1525,8 +1527,7 @@ pub fn open_line(
                 g_st().ins_global.did_si = false;
                 g_st().ins_global.can_si = false;
             } else if !comment_end.is_null()
-                && crate::memory::cstr_first_byte(comment_end.cast()) == b'*'
-                && crate::memory::cstr_byte_at(comment_end.cast(), 1) == b'/'
+                && crate::memory::cstr_as_bytes(comment_end.cast()).starts_with(b"*/")
                 && (curbuf_mut().b_p_ai != 0 || do_si)
             {
                 let old_cursor = curwin_mut().w_cursor;

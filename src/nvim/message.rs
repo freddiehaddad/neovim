@@ -898,7 +898,7 @@ pub fn trunc_string<T>(
 
     // First part: Start of the string.
     while len < half && e < buflen {
-        let ch = crate::memory::cstr_byte_at(s.cast(), e as usize);
+        let ch = crate::memory::cstr_first_byte(s.wrapping_add(e as usize).cast());
         if ch == 0 {
             // text fits without truncating!
             if !same_buf {
@@ -1437,7 +1437,8 @@ fn msg_hist_add(s: impl crate::strings::IntoCCharPtr, len: i32, hl_id: i32) {
             size -= 1;
             s = s.wrapping_add(1);
         }
-        while size > 0 && crate::memory::cstr_byte_at(s, size - 1) == b'\n' {
+        let s_slice = crate::memory::cstr_slice(s, size);
+        while size > 0 && s_slice[size - 1] == b'\n' {
             size -= 1;
         }
         if size == 0 {
@@ -2347,7 +2348,7 @@ pub fn msg_outtrans_special(
         let hl_id = HLF_8;
 
         while !crate::memory::cstr_is_empty(str_) {
-            let mut text = if (str_ == strstart || crate::memory::cstr_byte_at(str_, 1) == 0)
+            let mut text = if (str_ == strstart || crate::memory::cstr_len(str_) == 1)
                 && crate::memory::cstr_first_byte(str_) == b' '
             {
                 str_ = str_.wrapping_add(1);
@@ -2355,7 +2356,7 @@ pub fn msg_outtrans_special(
             } else {
                 str2special(&raw mut str_, from, K_FALSE, None).as_ptr()
             };
-            if !crate::memory::cstr_is_empty(text) && crate::memory::cstr_byte_at(text, 1) == 0 {
+            if crate::memory::cstr_len(text) == 1 {
                 text = transchar_byte_buf(None, i32::from(crate::memory::cstr_first_byte(text)))
                     .as_ptr();
             }

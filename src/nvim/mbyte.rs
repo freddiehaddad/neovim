@@ -3075,10 +3075,12 @@ pub fn enc_locale() -> Option<std::ffi::CString> {
     let mut buf = [0u8; 50];
     let p = vim_strchr(s, b'.' as i32);
     if !p.is_null() {
+        let p_bytes = crate::memory::cstr_as_bytes(p);
         if p.cast_const() > s.wrapping_add(2)
-            && crate::memory::cstr_prefix_bytes(p.wrapping_add(1), 3).eq_ignore_ascii_case(b"EUC")
-            && !(crate::memory::cstr_byte_at(p, 4)).is_ascii_alphanumeric()
-            && crate::memory::cstr_byte_at(p, 4) != b'-'
+            && p_bytes.len() >= 4
+            && p_bytes[1..4].eq_ignore_ascii_case(b"EUC")
+            && !p_bytes.get(4).is_some_and(u8::is_ascii_alphanumeric)
+            && p_bytes.get(4) != Some(&b'-')
             && (unsafe { *p.wrapping_sub(3) } as u8) == b'_'
         {
             buf[..4].copy_from_slice(b"euc-");
@@ -3100,9 +3102,10 @@ pub fn enc_locale() -> Option<std::ffi::CString> {
         s = p.wrapping_add(1);
     }
 
+    let s_bytes = crate::memory::cstr_prefix_bytes(s, buf.len() - 1);
     let mut i = 0usize;
-    while i < buf.len() - 1 && crate::memory::cstr_byte_at(s, i) != 0 {
-        let ch = crate::memory::cstr_byte_at(s, i);
+    while i < s_bytes.len() {
+        let ch = s_bytes[i];
         if ch == b'_' || ch == b'-' {
             buf[i] = b'-';
         } else if ch.is_ascii_alphanumeric() {

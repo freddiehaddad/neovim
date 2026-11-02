@@ -1025,7 +1025,7 @@ fn parse_sign_cmd_args<T>(
                     arg = arg.wrapping_add(1);
                 }
                 while crate::memory::cstr_first_byte(namep) == b'0'
-                    && crate::memory::cstr_byte_at(namep, 1) != 0
+                    && crate::memory::cstr_len(namep) > 1
                 {
                     namep = namep.wrapping_add(1);
                 }
@@ -1103,9 +1103,7 @@ pub fn ex_sign(eap: &mut Exarg) {
                 }
                 p = p.wrapping_add(1);
             }
-            while crate::memory::cstr_first_byte(arg) == b'0'
-                && crate::memory::cstr_byte_at(arg, 1) != 0
-            {
+            while crate::memory::cstr_first_byte(arg) == b'0' && crate::memory::cstr_len(arg) > 1 {
                 arg = arg.wrapping_add(1);
             }
 

@@ -866,8 +866,8 @@ fn buf_do_map(
                         break 'outer;
                     }
 
-                    for i in 0..(len as usize) {
-                        if ascii_iswhite(crate::memory::cstr_byte_at(lhs.cast(), i) as i32) {
+                    for &b in crate::memory::cstr_slice(lhs.cast(), len as usize) {
+                        if ascii_iswhite(i32::from(b)) {
                             retval = 1;
                             break 'outer;
                         }
@@ -1767,10 +1767,7 @@ pub fn makemap(fd: *mut FILE, buf: *mut FileBuf) -> bool {
 
                 let mut p = mp.m_str.as_ptr();
                 while !crate::memory::cstr_is_empty(p) {
-                    if crate::memory::cstr_first_byte(p) == K_SPECIAL
-                        && crate::memory::cstr_byte_at(p, 1) == KS_EXTRA
-                        && crate::memory::cstr_byte_at(p, 2) == KE_SNR
-                    {
+                    if crate::memory::cstr_as_bytes(p).starts_with(&[K_SPECIAL, KS_EXTRA, KE_SNR]) {
                         break;
                     }
                     p = p.wrapping_add(1);
@@ -2051,8 +2048,7 @@ pub fn check_map(
                         let mut keylen = mp.m_keylen;
                         if ign_mod != 0
                             && keylen >= 3
-                            && crate::memory::cstr_first_byte(s) == K_SPECIAL
-                            && crate::memory::cstr_byte_at(s, 1) == KS_MODIFIER
+                            && crate::memory::cstr_slice(s, 2) == [K_SPECIAL, KS_MODIFIER]
                         {
                             s = s.wrapping_add(3);
                             keylen -= 3;

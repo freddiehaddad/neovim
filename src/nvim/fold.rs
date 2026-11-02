@@ -313,8 +313,7 @@ pub fn fold_info(win: &mut WinInfoInfo, lnum: Linenr) -> Foldinfo {
 
 /// Return true if 'foldmethod' is "manual".
 pub fn foldmethod_is_manual(wp: &mut WinInfoInfo) -> bool {
-    let fdm = wp.w_onebuf_opt.wo_fdm;
-    !crate::memory::cstr_is_empty(fdm) && crate::memory::cstr_byte_at(fdm, 3) == b'u'
+    crate::memory::cstr_as_bytes(wp.w_onebuf_opt.wo_fdm).get(3) == Some(&b'u')
 }
 
 /// Return true if 'foldmethod' is "indent".
@@ -324,14 +323,12 @@ pub fn foldmethod_is_indent(wp: &mut WinInfoInfo) -> bool {
 
 /// Return true if 'foldmethod' is "expr".
 pub fn foldmethod_is_expr(wp: &mut WinInfoInfo) -> bool {
-    let fdm = wp.w_onebuf_opt.wo_fdm;
-    !crate::memory::cstr_is_empty(fdm) && crate::memory::cstr_byte_at(fdm, 1) == b'x'
+    crate::memory::cstr_as_bytes(wp.w_onebuf_opt.wo_fdm).get(1) == Some(&b'x')
 }
 
 /// Return true if 'foldmethod' is "marker".
 pub fn foldmethod_is_marker(wp: &mut WinInfoInfo) -> bool {
-    let fdm = wp.w_onebuf_opt.wo_fdm;
-    !crate::memory::cstr_is_empty(fdm) && crate::memory::cstr_byte_at(fdm, 2) == b'r'
+    crate::memory::cstr_as_bytes(wp.w_onebuf_opt.wo_fdm).get(2) == Some(&b'r')
 }
 
 /// Return true if 'foldmethod' is "syntax".
@@ -1393,7 +1390,9 @@ fn fold_del_marker(buf: &mut FileBuf, lnum: Linenr, marker_slice: &[u8]) {
             continue;
         }
         let mut len = markerlen;
-        if ascii_isdigit(crate::memory::cstr_byte_at(p, len) as i32) {
+        if ascii_isdigit(i32::from(crate::memory::cstr_first_byte(
+            p.wrapping_add(len),
+        ))) {
             len += 1;
         }
         if !crate::memory::cstr_is_empty(cms) {
@@ -2708,10 +2707,8 @@ pub fn f_foldtext(_argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDa
         }
 
         let mut s = skipwhite(ml_get(lnum));
-        if crate::memory::cstr_first_byte(s) == b'/'
-            && (crate::memory::cstr_byte_at(s, 1) == b'*'
-                || crate::memory::cstr_byte_at(s, 1) == b'/')
-        {
+        let s_bytes = crate::memory::cstr_as_bytes(s);
+        if s_bytes.starts_with(b"/*") || s_bytes.starts_with(b"//") {
             s = skipwhite(s.wrapping_add(2));
             if crate::memory::cstr_is_empty(skipwhite(s)) && lnum + 1 < foldend {
                 s = skipwhite(ml_get(lnum + 1));

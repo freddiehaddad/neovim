@@ -24,8 +24,8 @@ use crate::context::{CtxSwitch, ctx_restore, ctx_switch};
 use crate::cursor::{
     Colnr, CursorPos, K_OPT_VE_FLAG_ALL, Linenr, VALID_VIRTCOL, char_before_cursor, check_cursor,
     check_cursor_col, check_visual_pos, coladvance, dec_cursor, equalpos, gchar_cursor,
-    get_cursor_line_len, get_cursor_line_ptr, get_cursor_line_slice, get_cursor_pos_len,
-    get_cursor_pos_ptr, getviscol, inc_cursor, lt,
+    get_cursor_line_ptr, get_cursor_line_slice, get_cursor_pos_len, get_cursor_pos_ptr, getviscol,
+    inc_cursor, lt,
 };
 use crate::decoration::{decor_conceal_line, win_lines_concealed};
 use crate::digraph::{digraph_get, do_digraph};
@@ -106,9 +106,7 @@ use crate::mbyte::{
     utfc_ptr2len,
 };
 use crate::mcursor::{mc_ins_cascade, mc_ins_cascade_restart, mc_ins_join, mc_ins_replaying};
-use crate::memline::{
-    gchar_pos, ml_append, ml_get, ml_get_buf, ml_get_len, ml_replace, ml_replace_dirty_line,
-};
+use crate::memline::{gchar_pos, ml_append, ml_get, ml_get_len, ml_replace, ml_replace_dirty_line};
 use crate::message::{emsg, msg_check_for_delay};
 use crate::mouse::{
     MSCR_DOWN, MSCR_LEFT, MSCR_RIGHT, MSCR_UP, ins_mouse, ins_mousescroll, setmouse,
@@ -502,7 +500,7 @@ fn insert_enter(s: &mut InsertState) {
         {
             let ptr = get_cursor_line_ptr().wrapping_offset(curwin_mut().w_cursor.col as isize);
             if !crate::memory::cstr_is_empty(ptr) {
-                if crate::memory::cstr_byte_at(ptr, 1) == 0 {
+                if crate::memory::cstr_len(ptr) == 1 {
                     curwin_mut().w_cursor.col += 1;
                 } else {
                     s.i = utfc_ptr2len(ptr);
@@ -1894,9 +1892,10 @@ pub fn insertchar(mut c: i32, flags: i32, second_indent: i32) {
                     as i32;
 
             i = curwin_mut().w_cursor.col;
+            let line_slice = crate::memory::cstr_slice(line, i.max(0) as usize);
             while {
                 i -= 1;
-                i >= 0 && ascii_iswhite(crate::memory::cstr_byte_at(line, i as usize) as i32)
+                i >= 0 && ascii_iswhite(i32::from(line_slice[i as usize]))
             } {}
             i += 1;
             i -= middle_len;
@@ -2224,7 +2223,7 @@ pub fn beginline(flags: i32) {
         if (flags & (BL_WHITE | BL_SOL)) != 0 {
             let mut ptr = get_cursor_line_ptr();
             while ascii_iswhite(crate::memory::cstr_first_byte(ptr) as i32)
-                && !((flags & BL_FIX) != 0 && crate::memory::cstr_byte_at(ptr, 1) == 0)
+                && !((flags & BL_FIX) != 0 && crate::memory::cstr_len(ptr) == 1)
             {
                 curwin_mut().w_cursor.col += 1;
                 ptr = ptr.wrapping_add(1);
@@ -2258,7 +2257,7 @@ pub fn oneright() -> bool {
     }
 
     let l = utfc_ptr2len(ptr);
-    if crate::memory::cstr_byte_at(ptr, l as usize) == 0
+    if crate::memory::cstr_is_empty(ptr.wrapping_add(l as usize))
         && (get_ve_flags(curwin_mut()) & K_OPT_VE_FLAG_ONEMORE) == 0
     {
         return false;
@@ -3071,10 +3070,9 @@ fn ins_bs(c: i32, mut mode: i32, inserted_space_p: &mut i32) -> bool {
                 curwin_mut().w_cursor.lnum -= 1;
 
                 if has_format_option(K_FO_AUTO) && has_format_option(K_FO_WHITE_PAR) {
-                    let ptr = ml_get_buf(crate::globals::curbuf_mut(), curwin_mut().w_cursor.lnum);
-                    let len = get_cursor_line_len();
-                    if len > 0 && crate::memory::cstr_byte_at(ptr, (len - 1) as usize) == b' ' {
-                        let new_line = crate::memory::cstr_slice(ptr, (len - 1) as usize).to_vec();
+                    let line_slice = crate::cursor::get_cursor_line_slice();
+                    if line_slice.last() == Some(&b' ') {
+                        let new_line = line_slice[..line_slice.len() - 1].to_vec();
                         ml_replace_dirty_line(curbuf_mut(), &new_line, false);
                     }
                 }

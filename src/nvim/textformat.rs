@@ -577,8 +577,9 @@ fn ends_in_white(lnum: Linenr) -> bool {
     if crate::memory::cstr_is_empty(s) {
         return false;
     }
-    let l = ml_get_len(lnum) - 1;
-    ascii_iswhite(crate::memory::cstr_byte_at(s, l as usize) as i32)
+    crate::memline::ml_get_slice(lnum)
+        .last()
+        .is_some_and(|&b| ascii_iswhite(i32::from(b)))
 }
 
 fn same_leader(
@@ -630,12 +631,14 @@ fn same_leader(
         idx1 += 1;
     }
     let line2 = ml_get(lnum + 1);
+    let line2_slice = crate::memory::cstr_slice(line2, leader2_len.max(0) as usize);
     let mut idx2: i32 = 0;
     while idx2 < leader2_len {
-        if !ascii_iswhite(crate::memory::cstr_byte_at(line2, idx2 as usize)) {
+        let b2 = line2_slice[idx2 as usize];
+        if !ascii_iswhite(b2) {
             let c1 = line1[idx1 as usize];
             idx1 += 1;
-            if c1 != crate::memory::cstr_byte_at(line2, idx2 as usize) {
+            if c1 != b2 {
                 break;
             }
         } else {
@@ -725,12 +728,12 @@ pub fn auto_format(trailblank: bool, prev_line: bool) {
         && !wasatend
         && pos.col > 0
         && (g_st().state_global & MODE_INSERT) != 0
+        && crate::cursor::get_cursor_line_slice()
+            .get((pos.col - 1) as usize)
+            .is_some_and(|&b| whitechar(b))
     {
-        let line = get_cursor_line_ptr();
-        if whitechar(crate::memory::cstr_byte_at(line, (pos.col - 1) as usize)) {
-            curwin_mut().w_cursor = pos;
-            return;
-        }
+        curwin_mut().w_cursor = pos;
+        return;
     }
 
     if has_format_option(K_FO_WRAP_COMS)

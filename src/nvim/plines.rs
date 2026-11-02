@@ -395,7 +395,9 @@ pub fn conceal_disp_byte(csarg: &CharsizeArg, col: i32) -> i32 {
         .extconceal_opt()
         .and_then(|spans| conceal_span_at(spans, col));
     let Some(span) = span else {
-        return i32::from(crate::memory::cstr_byte_at(csarg.line.cast(), col as usize));
+        return i32::from(crate::memory::cstr_first_byte(
+            csarg.line.wrapping_add(col as usize).cast(),
+        ));
     };
     let replacement = conceal_span_char(span, col);
     if replacement == 0 {
@@ -498,7 +500,7 @@ pub fn charsize_regular(
 
         let body = size;
         let mut hidden = 0;
-        let mut lbr_char = i32::from(crate::memory::cstr_byte_at(cur, 0));
+        let mut lbr_char = i32::from(crate::memory::cstr_first_byte(cur));
         let spans = csarg.extconceal_opt();
         if let Some(spans) = spans {
             let col = crate::memory::ptr_offset_from(cur, line) as i32;

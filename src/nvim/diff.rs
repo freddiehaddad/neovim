@@ -2655,7 +2655,7 @@ fn diff_refine_inline_word_highlight(
             let mut only_non_word = true;
             let mut has_content = false;
             let mut i: i32 = 0;
-            while i < gap_size && crate::memory::cstr_byte_at(gap_text, i as usize) != 0 {
+            while i < gap_size && !crate::memory::cstr_is_empty(gap_text.wrapping_add(i as usize)) {
                 has_content = true;
                 let char_class = mb_get_class_tab(
                     gap_text.wrapping_add(i as usize),

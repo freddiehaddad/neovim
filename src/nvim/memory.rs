@@ -320,17 +320,6 @@ pub fn cstr_first_byte<S: crate::strings::IntoCCharPtr>(s: S) -> u8 {
     if s.is_null() { 0 } else { unsafe { *s as u8 } }
 }
 
-/// Return the byte at `idx` in `s` (`*s.add(idx) as u8`, or `0` if `s` is null).
-#[inline]
-pub fn cstr_byte_at<S: crate::strings::IntoCCharPtr>(s: S, idx: usize) -> u8 {
-    let s = s.into_c_char_ptr();
-    if s.is_null() {
-        0
-    } else {
-        unsafe { *s.add(idx) as u8 }
-    }
-}
-
 /// View `len` bytes starting at `s` as a byte slice (`&[u8]`).
 #[inline]
 pub fn cstr_slice<'a, S: crate::strings::IntoCCharPtr>(s: S, len: usize) -> &'a [u8] {

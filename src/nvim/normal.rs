@@ -2671,7 +2671,7 @@ pub fn find_ident_at_pos(
     startcol -= col;
     col = 0;
     this_class = mb_get_class(ptr);
-    while crate::memory::cstr_byte_at(ptr, col as usize) != 0
+    while !crate::memory::cstr_is_empty(ptr.wrapping_add(col as usize))
         && ((if i == 0 {
             mb_get_class(ptr.wrapping_add(col as usize)) == this_class
         } else {
@@ -3253,9 +3253,8 @@ fn is_ident(line: impl crate::strings::IntoCCharPtr, offset: i32) -> bool {
         let mut instring: i32 = 0;
         let mut prev: i32 = 0;
 
-        let mut i: i32 = 0;
-        while i < offset && crate::memory::cstr_byte_at(line, i as usize) != 0 {
-            let cur = i32::from(crate::memory::cstr_byte_at(line, i as usize));
+        for &cur_b in crate::memory::cstr_prefix_bytes(line, offset.max(0) as usize) {
+            let cur = i32::from(cur_b);
             if instring != 0 {
                 if prev != b'\\' as i32 && cur == instring {
                     instring = 0;
@@ -3273,7 +3272,6 @@ fn is_ident(line: impl crate::strings::IntoCCharPtr, offset: i32) -> bool {
             }
 
             prev = cur;
-            i += 1;
         }
 
         !incomment && instring == 0
@@ -6327,17 +6325,15 @@ fn nv_g_underscore_cmd(cap: &mut Cmdarg) {
 
     let ptr = get_cursor_line_ptr();
 
-    if curwin_mut().w_cursor.col > 0
-        && crate::memory::cstr_byte_at(ptr, curwin_mut().w_cursor.col as usize) == 0
-    {
+    let ptr_bytes = crate::memory::cstr_as_bytes(ptr);
+    if curwin_mut().w_cursor.col > 0 && (curwin_mut().w_cursor.col as usize) >= ptr_bytes.len() {
         curwin_mut().w_cursor.col -= 1;
     }
 
     while curwin_mut().w_cursor.col > 0
-        && ascii_iswhite(crate::memory::cstr_byte_at(
-            ptr,
-            curwin_mut().w_cursor.col as usize,
-        ))
+        && ptr_bytes
+            .get(curwin_mut().w_cursor.col as usize)
+            .is_some_and(|&b| ascii_iswhite(i32::from(b)))
     {
         curwin_mut().w_cursor.col -= 1;
     }

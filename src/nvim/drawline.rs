@@ -1957,15 +1957,15 @@ pub fn win_line(
                 || !wp.w_p_lcs_chars.leadmultispace.is_empty()
                 || wp.w_p_lcs_chars.leadtab1 != 0
             {
-                leadcol = 0;
-                while ascii_iswhite(crate::memory::cstr_byte_at(ptr, leadcol as usize)) {
-                    leadcol += 1;
-                }
-                if crate::memory::cstr_byte_at(ptr, leadcol as usize) == 0 {
-                    leadcol = 0;
+                let ptr_bytes = crate::memory::cstr_as_bytes(ptr);
+                let rem = crate::charset::skipwhite_slice(ptr_bytes);
+                leadcol = if rem.is_empty() {
+                    0
                 } else {
-                    leadcol += crate::memory::ptr_offset_from(ptr, line) as Colnr + 1;
-                }
+                    (ptr_bytes.len() - rem.len()) as Colnr
+                        + crate::memory::ptr_offset_from(ptr, line) as Colnr
+                        + 1
+                };
             }
         }
 

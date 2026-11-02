@@ -136,10 +136,9 @@ pub fn coladvance(wp: &mut WinInfoInfo, wcol: Colnr) -> bool {
 
     if wcol == MAXCOL || !rc {
         wp.w_valid &= !VALID_VIRTCOL;
-    } else if crate::memory::cstr_byte_at(
-        ml_get_buf(wp.buf_mut(), wp.w_cursor.lnum),
-        wp.w_cursor.col as usize,
-    ) != TAB
+    } else if crate::memline::ml_get_buf_slice(wp.buf_mut(), wp.w_cursor.lnum)
+        .get(wp.w_cursor.col as usize)
+        != Some(&TAB)
     {
         set_valid_virtcol(curwin_mut(), wcol);
     }
@@ -229,7 +228,7 @@ fn coladvance2(
             && wcol >= 0
             && ((col != wcol && col != wcol + 1) || csize > 1)
         {
-            if crate::memory::cstr_byte_at(line, idx as usize) == 0 {
+            if crate::memory::cstr_is_empty(line.wrapping_add(idx as usize)) {
                 let correct = wcol - col;
                 let idx_usize = idx as usize;
                 let correct_usize = correct as usize;
