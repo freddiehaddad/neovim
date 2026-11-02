@@ -1222,7 +1222,7 @@ fn var_shada_iter(
         i
     };
     let di = harray[idx].di_opt().unwrap();
-    *name = crate::memory::cstr_as_opt_cstr(&di.di_key);
+    *name = Some(di.key_cstr());
     tv_copy(&di.di_tv, rettv);
     idx += 1;
     while idx < hinum {

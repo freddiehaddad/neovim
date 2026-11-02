@@ -3522,7 +3522,7 @@ pub fn modname(
             return None;
         }
         add_pathsep(retval_vec.as_mut_ptr().cast());
-        fnamelen = crate::memory::cstr_len(&retval_vec);
+        fnamelen = crate::memory::cstr_until_nul(&retval_vec).to_bytes().len();
         prepend_dot = false;
     } else {
         fnamelen = fname_bytes.len();
@@ -3532,7 +3532,7 @@ pub fn modname(
 
     let mut ptr_idx = fnamelen;
     while ptr_idx > 0 {
-        if vim_ispathsep(crate::memory::cstr_first_byte(&retval_vec[ptr_idx..])) {
+        if vim_ispathsep(retval_vec.get(ptr_idx).copied().unwrap_or(0) as i32) {
             ptr_idx += 1;
             break;
         }
@@ -3553,7 +3553,7 @@ pub fn modname(
     retval_vec[s_idx..(s_idx + extlen)].copy_from_slice(ext_bytes);
     retval_vec[s_idx + extlen] = 0;
 
-    let e_ptr = path_tail(&retval_vec);
+    let e_ptr = path_tail(crate::memory::cstr_until_nul(&retval_vec));
     let e_idx = crate::memory::ptr_offset_from(e_ptr, retval_vec.as_ptr().cast()) as usize;
     if prepend_dot && retval_vec[e_idx] != b'.' {
         let end_idx = fnamelen + extlen;
@@ -3561,7 +3561,7 @@ pub fn modname(
         retval_vec[e_idx] = b'.';
     }
 
-    if !fname.is_null() && fname_bytes == crate::memory::cstr_as_bytes(&retval_vec) {
+    if !fname.is_null() && fname_bytes == crate::memory::cstr_until_nul(&retval_vec).to_bytes() {
         let mut replaced = false;
         while s_idx > ptr_idx {
             s_idx -= 1;
@@ -3575,7 +3575,7 @@ pub fn modname(
             retval_vec[ptr_idx] = b'v';
         }
     }
-    Some(crate::memory::cstr_to_cstring(&retval_vec))
+    Some(crate::memory::cstring_until_nul(&retval_vec))
 }
 
 /// Like fgets(), but if the file line is too long, it is truncated and the
@@ -4624,12 +4624,12 @@ pub fn vim_deltempdir() {
     vim_closetempdir();
 
     let mut td_vec: Vec<u8> = td.into_bytes_with_nul();
-    let tail_ptr = path_tail(&td_vec);
+    let tail_ptr = path_tail(crate::memory::cstr_until_nul(&td_vec));
     let tail_off = crate::memory::ptr_offset_from(tail_ptr, td_vec.as_ptr().cast()) as usize;
     if tail_off > 0 {
         td_vec[tail_off - 1] = 0;
     }
-    delete_recursive(&td_vec);
+    delete_recursive(crate::memory::cstr_until_nul(&td_vec));
 }
 
 /// Gets path to Nvim's own temp dir (ending with slash).
@@ -4668,7 +4668,7 @@ fn vim_settempdir(tempdir: impl crate::strings::IntoCCharPtr) -> bool {
 
     vim_full_name(tempdir, buf_vec.as_mut_ptr(), MAXPATHL, cfg!(windows));
 
-    let mut buflen = crate::memory::cstr_len(&buf_vec);
+    let mut buflen = crate::memory::cstr_until_nul(&buf_vec).to_bytes().len();
     if after_pathsep(buf_vec.as_ptr().cast(), buf_vec[buflen..].as_ptr().cast()) == 0 {
         let sep_bytes = PATHSEPSTR.to_bytes_with_nul();
         buf_vec[buflen..(buflen + sep_bytes.len())].copy_from_slice(sep_bytes);
@@ -4935,7 +4935,7 @@ pub fn file_pat_to_reg_pat(
         }
         return None;
     }
-    Some(crate::memory::cstr_to_cstring(&reg_pat_vec))
+    Some(crate::memory::cstring_until_nul(&reg_pat_vec))
 }
 
 /// Version of read() that retries when interrupted by EINTR.

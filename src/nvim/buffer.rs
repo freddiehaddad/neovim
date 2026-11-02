@@ -76,7 +76,7 @@ use crate::mcursor::{mc_buf_clear, mc_buf_free};
 use crate::memline::{
     ml_close, ml_delete, ml_get_buf_slice, ml_open, ml_recover, ml_setname, ml_timestamp,
 };
-use crate::memory::{cstr_from_bytes, cstr_to_cstring, mem_st, xstrlcpy};
+use crate::memory::{cstr_to_cstring, mem_st, xstrlcpy};
 use crate::message::{
     emsg, message_filtered, msg, msg_delay, msg_ext_set_kind, msg_outtrans, msg_putchar, msg_puts,
     msg_start, msg_trunc, semsg, set_keep_msg, smsg,
@@ -3178,7 +3178,10 @@ pub fn buflist_findpat(
                 return -1;
             };
             let mut pat_vec: Vec<u8> = pat_cstr.into_bytes_with_nul();
-            let pat_end_idx = crate::memory::cstr_len(&pat_vec).saturating_sub(1);
+            let pat_end_idx = crate::memory::cstr_until_nul(&pat_vec)
+                .to_bytes()
+                .len()
+                .saturating_sub(1);
             let toggledollar = pat_end_idx > 0 && pat_vec[pat_end_idx] == b'$';
 
             let mut find_listed = 1;
@@ -3802,8 +3805,7 @@ pub fn setfname(
             to_slash(sf_vec.as_mut_ptr());
             path_fix_case(sf_vec.as_mut_ptr());
         }
-        let sf_len = crate::memory::cstr_len(&sf_vec);
-        let sfname_cstr = cstr_from_bytes(&sf_vec[..sf_len]);
+        let sfname_cstr = crate::memory::cstring_until_nul(&sf_vec);
         buf.set_ffname(Some(ffname_cstr));
         buf.set_sfname(Some(sfname_cstr));
     }
@@ -4365,7 +4367,7 @@ pub fn fname_expand<T, U>(
             {
                 *path_tail_with_sep(name) = 0;
             }
-            let full = fix_fname(&name_vec);
+            let full = fix_fname(crate::memory::cstr_until_nul(&name_vec));
             drop(name_vec);
             if let Some(dir_full) = full {
                 full_cstr = dir_full;
@@ -4720,7 +4722,10 @@ fn chk_modeline(lnum: Linenr, flags: i32) -> bool {
             g_st().current_sctx.sc_lnum = lnum;
             g_st().secure = 1;
 
-            retval = do_set(&linecopy_vec[s_idx..], OPT_MODELINE | OPT_LOCAL | flags);
+            retval = do_set(
+                crate::memory::cstr_until_nul(&linecopy_vec[s_idx..]),
+                OPT_MODELINE | OPT_LOCAL | flags,
+            );
 
             g_st().secure = secure_save;
             g_st().current_sctx = save_current_sctx;
@@ -4962,7 +4967,7 @@ pub fn buf_set_changedtick(buf: &mut FileBuf, changedtick: Varnumber) {
         buf.b_locked += 1;
         tv_dict_watcher_notify(
             &mut *buf.b_vars(),
-            &buf.changedtick_di.di_key,
+            buf.changedtick_di.key_cstr(),
             Some(&buf.changedtick_di.di_tv),
             Some(&old_val),
         );

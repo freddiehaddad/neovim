@@ -1004,11 +1004,11 @@ fn buf_write_make_backup(
                     let mut keep_bk = true;
 
                     let mut file_info_new = FileInfo::new();
-                    if os_fileinfo(&bk_vec, &mut file_info_new) {
+                    if os_fileinfo(crate::memory::cstr_until_nul(&bk_vec), &mut file_info_new) {
                         if os_fileinfo_id_equal(&file_info_new, file_info_old) {
                             keep_bk = false;
                         } else if opt_vars().p_bk == 0 {
-                            let blen = crate::memory::cstr_len(&bk_vec);
+                            let blen = crate::memory::cstr_until_nul(&bk_vec).to_bytes().len();
                             let extlen = crate::memory::cstr_len(backup_ext);
                             let wp_idx = if blen > extlen + 1 {
                                 blen - 1 - extlen
@@ -1016,7 +1016,11 @@ fn buf_write_make_backup(
                                 0
                             };
                             bk_vec[wp_idx] = b'z';
-                            while bk_vec[wp_idx] > b'a' && os_fileinfo(&bk_vec, &mut file_info_new)
+                            while bk_vec[wp_idx] > b'a'
+                                && os_fileinfo(
+                                    crate::memory::cstr_until_nul(&bk_vec),
+                                    &mut file_info_new,
+                                )
                             {
                                 bk_vec[wp_idx] -= 1;
                             }
@@ -1090,8 +1094,10 @@ fn buf_write_make_backup(
                 if let Some(bk_cstr) = backupp.take() {
                     let mut bk_vec: Vec<u8> = bk_cstr.into_bytes_with_nul();
                     let mut keep_bk = true;
-                    if opt_vars().p_bk == 0 && os_path_exists(&bk_vec) {
-                        let blen = crate::memory::cstr_len(&bk_vec);
+                    if opt_vars().p_bk == 0
+                        && os_path_exists(crate::memory::cstr_until_nul(&bk_vec))
+                    {
+                        let blen = crate::memory::cstr_until_nul(&bk_vec).to_bytes().len();
                         let extlen = crate::memory::cstr_len(backup_ext);
                         let p_idx = if blen > extlen + 1 {
                             blen - 1 - extlen
@@ -1099,15 +1105,17 @@ fn buf_write_make_backup(
                             0
                         };
                         bk_vec[p_idx] = b'z';
-                        while bk_vec[p_idx] > b'a' && os_path_exists(&bk_vec) {
+                        while bk_vec[p_idx] > b'a'
+                            && os_path_exists(crate::memory::cstr_until_nul(&bk_vec))
+                        {
                             bk_vec[p_idx] -= 1;
                         }
                         if bk_vec[p_idx] == b'a' {
                             keep_bk = false;
                         }
                     }
-                    if keep_bk && vim_rename(fname, &bk_vec) == 0 {
-                        *backupp = Some(crate::memory::cstr_to_cstring(&bk_vec));
+                    if keep_bk && vim_rename(fname, crate::memory::cstr_until_nul(&bk_vec)) == 0 {
+                        *backupp = Some(crate::memory::cstring_until_nul(&bk_vec));
                         break;
                     }
                 }

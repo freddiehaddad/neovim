@@ -1416,7 +1416,7 @@ fn spell_load_lang(lang: impl crate::strings::IntoCCharPtr) {
                 );
             }
         } else if sl.sl_loaded {
-            let fn_len = crate::memory::cstr_len(&fname_enc);
+            let fn_len = crate::memory::cstr_until_nul(&fname_enc).to_bytes().len();
             fname_enc[fn_len - 3..fn_len + 5].copy_from_slice(b"add.spl\0");
             do_in_runtimepath(
                 (&raw mut fname_enc).cast(),

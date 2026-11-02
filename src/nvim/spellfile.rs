@@ -1126,18 +1126,19 @@ fn read_sal_section(fd: *mut FILE, slang: &mut Slang) -> i32 {
             return ccnt;
         }
 
-        let sm_lead_w = mb_str2wide(&buf[..]);
-        let sm_leadlen = mb_charlen(&buf[..]);
+        let buf_cstr = crate::memory::cstr_until_nul(&buf);
+        let sm_lead_w = mb_str2wide(buf_cstr);
+        let sm_leadlen = mb_charlen(buf_cstr);
         let sm_oneof_w = if let Some(off) = sm_oneof_off {
-            mb_str2wide(&buf[off..])
+            mb_str2wide(crate::memory::cstr_until_nul(&buf[off..]))
         } else {
             Vec::new()
         };
         let sm_to_w = match sm_to {
-            Some(ref s) => mb_str2wide(s.as_slice()),
+            Some(ref s) => mb_str2wide(crate::memory::cstr_until_nul(s)),
             None => Vec::new(),
         };
-        let sm_rules = crate::memory::cstr_to_cstring(&buf[sm_rules_off..]);
+        let sm_rules = crate::memory::cstring_until_nul(&buf[sm_rules_off..]);
         gap.push(Salitem {
             sm_leadlen,
             sm_rules,
@@ -1339,8 +1340,10 @@ fn read_compound(fd: *mut FILE, slang: &mut Slang, len: i32) -> i32 {
     slang.sl_compallflags = Some(std::ffi::CString::new(ap_vec).unwrap_or_default());
     slang.sl_comprules = crp_vec.map(|v| std::ffi::CString::new(v).unwrap_or_default());
 
-    slang.sl_compprog =
-        crate::regexp::vim_regcomp_box(&pat_vec[..], RE_MAGIC + RE_STRING + RE_STRICT);
+    slang.sl_compprog = crate::regexp::vim_regcomp_box(
+        crate::memory::cstr_until_nul(&pat_vec),
+        RE_MAGIC + RE_STRING + RE_STRICT,
+    );
     drop(pat_vec);
     if slang.sl_compprog.is_none() {
         return SP_FORMERROR;
@@ -2916,7 +2919,7 @@ fn spell_read_dic(
                 &mut line[..=l]
             };
 
-            let mut w_len = crate::memory::cstr_len(&*w_slice);
+            let mut w_len = crate::memory::cstr_until_nul(w_slice).to_bytes().len();
             let mut afflist: *mut u8 = ptr::null_mut();
             let mut idx = 0;
             while idx < w_len {

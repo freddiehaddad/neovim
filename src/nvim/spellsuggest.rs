@@ -1113,7 +1113,7 @@ fn suggest_try_special(su: &mut Suginfo) {
 }
 fn suggest_try_change(su: &mut Suginfo) {
     let mut fword: [u8; MAXWLEN] = su.su_fbadword;
-    let mut n = crate::memory::cstr_len(&fword) as i32;
+    let mut n = crate::memory::cstr_until_nul(&fword).to_bytes().len() as i32;
     let p = su.su_badptr.wrapping_add(su.su_badlen as usize);
     spell_casefold(
         curwin_mut(),
@@ -1418,7 +1418,8 @@ fn suggest_trie_walk(su: &mut Suginfo, lp: &Langp, fword_buf: &mut [u8; MAXWLEN]
                     if soundfold {
                         let pw_off = stack[udepth].ts_prewordlen as usize;
                         let tw_off = stack[udepth].ts_splitoff as usize;
-                        let tw_bytes = crate::memory::cstr_as_bytes_with_nul(&tword[tw_off..]);
+                        let tw_bytes =
+                            crate::memory::cstr_until_nul(&tword[tw_off..]).to_bytes_with_nul();
                         preword[pw_off..pw_off + tw_bytes.len()].copy_from_slice(tw_bytes);
                     } else if (flags & WF_KEEPCAP) != 0 {
                         find_keepcap_word(
@@ -1671,7 +1672,8 @@ fn suggest_trie_walk(su: &mut Suginfo, lp: &Langp, fword_buf: &mut [u8; MAXWLEN]
                                 stack[udepth].ts_state = SugState::StateSplitundo;
                                 depth += 1;
                                 udepth = depth as usize;
-                                let mut preword_len = crate::memory::cstr_len(&preword);
+                                let mut preword_len =
+                                    crate::memory::cstr_until_nul(&preword).to_bytes().len();
                                 if !try_compound && !fword_ends {
                                     preword[preword_len] = b' ';
                                     preword_len += 1;
@@ -2187,8 +2189,11 @@ fn suggest_trie_walk(su: &mut Suginfo, lp: &Langp, fword_buf: &mut [u8; MAXWLEN]
                                 fl = ftp.ft_from.as_bytes().len() as i32;
                                 tl = ftp.ft_to.as_bytes().len() as i32;
                                 if fl != tl {
-                                    let tail_len =
-                                        crate::memory::cstr_len(&fword_buf[fidx + fl as usize..]);
+                                    let tail_len = crate::memory::cstr_until_nul(
+                                        &fword_buf[fidx + fl as usize..],
+                                    )
+                                    .to_bytes()
+                                    .len();
                                     fword_buf.copy_within(
                                         fidx + fl as usize..=fidx + fl as usize + tail_len,
                                         fidx + tl as usize,
@@ -2220,7 +2225,10 @@ fn suggest_trie_walk(su: &mut Suginfo, lp: &Langp, fword_buf: &mut [u8; MAXWLEN]
                     tl = ftp.ft_to.as_bytes().len() as i32;
                     let fidx = stack[udepth].ts_fidx as usize;
                     if fl != tl {
-                        let tail_len = crate::memory::cstr_len(&fword_buf[fidx + tl as usize..]);
+                        let tail_len =
+                            crate::memory::cstr_until_nul(&fword_buf[fidx + tl as usize..])
+                                .to_bytes()
+                                .len();
                         fword_buf.copy_within(
                             fidx + tl as usize..=fidx + tl as usize + tail_len,
                             fidx + fl as usize,
@@ -2491,7 +2499,7 @@ fn stp_sal_score(
                 su.su_badptr.wrapping_add(su.su_badlen as usize).cast(),
             )) && crate::memory::cstr_is_empty(skiptowhite(stp.st_word.as_ptr()))
             {
-                let mut fword_len = crate::memory::cstr_len(&fword);
+                let mut fword_len = crate::memory::cstr_until_nul(&fword).to_bytes().len();
                 let mut idx = 0;
                 while idx < fword_len {
                     let rem = crate::charset::skiptowhite_slice(&fword[idx..fword_len]);

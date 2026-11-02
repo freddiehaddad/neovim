@@ -27,7 +27,7 @@ use crate::input::flush_buffers;
 use crate::lua::executor::nlua_call_typval;
 use crate::main_init::getout;
 use crate::mark::setpcmark;
-use crate::mbyte::{mb_adjust_cursor, mb_utflen, utfc_ptr2len};
+use crate::mbyte::{mb_adjust_cursor, mb_utflen};
 use crate::memfile::{
     BH_DIRTY, Bhdr, Blocknr, MFS_ALL, MFS_STOP, MFS_ZERO, Memfile, mf_close, mf_close_file,
     mf_free, mf_free_fnames, mf_get, mf_need_trans, mf_new, mf_new_page_size, mf_open,
@@ -789,7 +789,7 @@ fn set_b0_fname(b0p: &mut ZeroBlock, buf: &mut FileBuf) {
         let flen = home_replace(None, buf.b_ffname, fname_ptr, B0_FNAME_SIZE_CRYPT, true);
         if b0p.b0_fname[0] == b'~' {
             let retval = os_get_username(&mut uname);
-            let ulen = crate::memory::cstr_len(&uname);
+            let ulen = crate::memory::cstr_until_nul(&uname).to_bytes().len();
             if !retval || ulen + flen > B0_FNAME_SIZE_CRYPT - 1 {
                 xstrlcpy(fname_ptr, buf.b_ffname, B0_FNAME_SIZE_CRYPT);
             } else {
@@ -837,7 +837,13 @@ fn add_b0_fenc(b0p: &mut ZeroBlock, buf: &mut FileBuf) {
     let size = B0_FNAME_SIZE_NOCRYPT;
     let fenc_bytes = crate::memory::cstr_as_bytes(buf.b_p_fenc);
     let n = fenc_bytes.len();
-    if crate::memory::cstr_len(&b0p.b0_fname) + n + 1 > size {
+    if crate::memory::cstr_until_nul(&b0p.b0_fname)
+        .to_bytes()
+        .len()
+        + n
+        + 1
+        > size
+    {
         b0p.set_flags(b0p.flags() & !B0_HAS_FENC);
     } else {
         b0p.b0_fname[(size - n)..size].copy_from_slice(fenc_bytes);
@@ -1662,7 +1668,7 @@ pub fn make_percent_swname(
     let mut fname_vec: Vec<u8> = fname.into_bytes_with_nul();
 
     let mut file_info = FileInfo::new();
-    if !os_fileinfo2(&fname_vec, &mut file_info) {
+    if !os_fileinfo2(crate::memory::cstr_until_nul(&fname_vec), &mut file_info) {
         return None;
     }
     let mut fixed_off = file_info.root_off;
@@ -1676,7 +1682,7 @@ pub fn make_percent_swname(
         if vim_ispathsep(fname_vec[idx] as i32) {
             fname_vec[idx] = b'%';
         }
-        let step = utfc_ptr2len(&fname_vec[idx..]) as usize;
+        let step = crate::mbyte::utfc_slice2len(&fname_vec[idx..]);
         idx += step.max(1);
     }
     let fixed_fname = NvimString {
@@ -1713,10 +1719,25 @@ pub fn swapfile_dict(fname: impl crate::strings::IntoCCharPtr, d: &mut TvDict) {
                 } else if b0_magic_wrong(&b0) {
                     tv_dict_add_str_len(d, c"error", c"Magic number mismatch", 21);
                 } else {
-                    tv_dict_add_str_len(d, c"version", &b0.b0_version, 10);
-                    tv_dict_add_str_len(d, c"user", &b0.b0_uname, B0_UNAME_SIZE as i32);
-                    tv_dict_add_str_len(d, c"host", &b0.b0_hname, B0_HNAME_SIZE as i32);
-                    tv_dict_add_str_len(d, c"fname", &b0.b0_fname, B0_FNAME_SIZE_ORG as i32);
+                    tv_dict_add_str_len(d, c"version", b0.b0_version.as_ptr().cast(), 10);
+                    tv_dict_add_str_len(
+                        d,
+                        c"user",
+                        b0.b0_uname.as_ptr().cast(),
+                        B0_UNAME_SIZE as i32,
+                    );
+                    tv_dict_add_str_len(
+                        d,
+                        c"host",
+                        b0.b0_hname.as_ptr().cast(),
+                        B0_HNAME_SIZE as i32,
+                    );
+                    tv_dict_add_str_len(
+                        d,
+                        c"fname",
+                        b0.b0_fname.as_ptr().cast(),
+                        B0_FNAME_SIZE_ORG as i32,
+                    );
 
                     tv_dict_add_nr(d, c"pid", i64::from(swapfile_proc_running(&b0, fname)));
                     tv_dict_add_nr(d, c"mtime", char_to_long(&b0.b0_mtime));
@@ -1747,7 +1768,7 @@ fn swapfile_info(fname: impl crate::strings::IntoCCharPtr, msg: &mut Vec<u8>) ->
                 let mut uname = [0u8; B0_UNAME_SIZE];
                 if os_get_uname(file_info.stat.st_uid as u32, &mut uname) {
                     sb_push_cstr(msg, tr(c"          owned by: "));
-                    sb_push_cstr(msg, &uname);
+                    sb_push_cstr(msg, crate::memory::cstr_until_nul(&uname));
                     sb_push_cstr(msg, tr(c"   dated: "));
                 } else {
                     sb_push_cstr(msg, tr(c"             dated: "));
@@ -1779,7 +1800,7 @@ fn swapfile_info(fname: impl crate::strings::IntoCCharPtr, msg: &mut Vec<u8>) ->
                     if b0.b0_fname[0] == 0 {
                         sb_push_cstr(msg, tr(c"[No Name]"));
                     } else {
-                        sb_push_cstr(msg, &b0.b0_fname);
+                        sb_push_cstr(msg, crate::memory::cstr_until_nul(&b0.b0_fname));
                     }
 
                     sb_push_cstr(msg, tr(c"\n          modified: "));
@@ -1794,7 +1815,7 @@ fn swapfile_info(fname: impl crate::strings::IntoCCharPtr, msg: &mut Vec<u8>) ->
 
                     if b0.b0_uname[0] != 0 {
                         sb_push_cstr(msg, tr(c"\n         user name: "));
-                        sb_push_cstr(msg, &b0.b0_uname);
+                        sb_push_cstr(msg, crate::memory::cstr_until_nul(&b0.b0_uname));
                     }
 
                     if b0.b0_hname[0] != 0 {
@@ -1803,7 +1824,7 @@ fn swapfile_info(fname: impl crate::strings::IntoCCharPtr, msg: &mut Vec<u8>) ->
                         } else {
                             sb_push_cstr(msg, tr(c"\n         host name: "));
                         }
-                        sb_push_cstr(msg, &b0.b0_hname);
+                        sb_push_cstr(msg, crate::memory::cstr_until_nul(&b0.b0_hname));
                     }
 
                     let pid = char_to_long(&b0.b0_pid) as i32;
@@ -1865,8 +1886,9 @@ fn swapfile_unchanged(fname: impl crate::strings::IntoCCharPtr) -> bool {
             os_get_hostname(&raw mut hostname, B0_HNAME_SIZE);
             hostname[B0_HNAME_SIZE - 1] = 0;
             b0.b0_hname[B0_HNAME_SIZE - 1] = 0;
-            if !crate::memory::cstr_as_bytes(&b0.b0_hname)
-                .eq_ignore_ascii_case(crate::memory::cstr_as_bytes(&hostname))
+            if !crate::memory::cstr_until_nul(&b0.b0_hname)
+                .to_bytes()
+                .eq_ignore_ascii_case(crate::memory::cstr_until_nul(&hostname).to_bytes())
             {
                 ret = false;
             }
@@ -3582,14 +3604,15 @@ fn findswapname(
                         path_to_slash(b0.b0_fname.as_mut_ptr());
                         ml_st().proc_running = swapfile_proc_running(&b0, fname);
 
+                        let b0_fname_cstr = crate::memory::cstr_until_nul(&b0.b0_fname);
                         if (b0.flags() & B0_SAME_DIR) != 0 {
                             if !path_equal(
                                 path_tail(buf.b_ffname),
-                                path_tail(&b0.b0_fname),
+                                path_tail(b0_fname_cstr),
                                 K_PATH_CMP_LITERAL,
                             ) || !same_directory(fname, buf.b_ffname)
                             {
-                                expand_env(&b0.b0_fname, namebuff_ptr, MAXPATHL as i32);
+                                expand_env(b0_fname_cstr, namebuff_ptr, MAXPATHL as i32);
                                 if fnamecmp_ino(
                                     buf.b_ffname,
                                     namebuff_ptr,
@@ -3599,7 +3622,7 @@ fn findswapname(
                                 }
                             }
                         } else {
-                            expand_env(&b0.b0_fname, namebuff_ptr, MAXPATHL as i32);
+                            expand_env(b0_fname_cstr, namebuff_ptr, MAXPATHL as i32);
                             if fnamecmp_ino(buf.b_ffname, namebuff_ptr, char_to_long(&b0.b0_ino)) {
                                 differ = true;
                             }
@@ -3749,7 +3772,7 @@ fn findswapname(
             }
         }
 
-        fname_vec.map(|v| crate::memory::cstr_to_cstring(&v))
+        fname_vec.map(|v| crate::memory::cstring_until_nul(&v))
     }
 }
 
@@ -3791,7 +3814,7 @@ fn fnamecmp_ino(
         let retval_c = vim_full_name(fname_c, buf_c.as_mut_ptr(), MAXPATHL, true);
         let retval_s = vim_full_name(fname_s, buf_s.as_mut_ptr(), MAXPATHL, true);
         if retval_c && retval_s {
-            return crate::memory::cstr_as_bytes(&buf_c) != crate::memory::cstr_as_bytes(&buf_s);
+            return crate::memory::cstr_until_nul(&buf_c) != crate::memory::cstr_until_nul(&buf_s);
         }
 
         if ino_s == 0 && ino_c == 0 && !retval_c && !retval_s {
