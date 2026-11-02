@@ -486,8 +486,9 @@ fn nlua_push_eap(lstate: *mut lua_State, eap: &Exarg, cmod: &Cmdmod) {
         lua_setfield(lstate, -2, c"name");
     }
 
-    let mut mods_buf = [0u8; 200];
-    uc_mods(mods_buf.as_mut_ptr(), cmod, false);
+    let mut mods_buf = Vec::new();
+    uc_mods(&mut mods_buf, cmod, false);
+    mods_buf.push(0);
     lua_pushstring(lstate, mods_buf.as_ptr().cast());
     lua_setfield(lstate, -2, c"mods");
 

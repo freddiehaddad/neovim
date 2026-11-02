@@ -646,11 +646,6 @@ fn ql_info_mut() -> &'static mut QfInfo {
 }
 
 #[inline]
-fn c_strcat<T>(dst: *mut T, src: impl crate::strings::IntoCCharPtr) {
-    crate::memory::cstr_cat(dst.cast(), src);
-}
-
-#[inline]
 fn is_qf_window(wp: &WinInfoInfo) -> bool {
     bt_quickfix(wp.buf_opt()) && wp.w_llist_ref.is_null()
 }
@@ -4661,18 +4656,12 @@ fn get_mef_name() -> Option<std::ffi::CString> {
         } else {
             qf_st().mef_off += 19;
         }
-        let mef_len = mef_bytes.len();
-        let mut name_vec: Vec<u8> = vec![0; mef_len + 30];
+        let mut name_vec: Vec<u8> = Vec::with_capacity(mef_bytes.len() + 30);
+        name_vec.extend_from_slice(&mef_bytes[..off_idx]);
+        name_vec.extend_from_slice(format!("{}{}", qf_st().mef_start, qf_st().mef_off).as_bytes());
+        name_vec.extend_from_slice(&mef_bytes[off_idx + 2..]);
+        name_vec.push(0);
         let name: *mut _ = name_vec.as_mut_ptr().cast();
-        crate::memory::cstr_cpy(name, opt_vars().p_mef);
-        vim_snprintf!(
-            name.wrapping_add(off_idx),
-            mef_len + 30 - off_idx,
-            c"%d%d",
-            qf_st().mef_start,
-            qf_st().mef_off,
-        );
-        c_strcat(name, opt_vars().p_mef.wrapping_add(off_idx + 2));
         let mut file_info = FileInfo::new();
         let file_or_link_found = os_fileinfo_link(name, &mut file_info);
         if !file_or_link_found {
@@ -7254,46 +7243,44 @@ fn hgr_search_file(
 
 fn hgr_search_files_in_dir(
     qfl: &mut QfList,
-    dirname: impl crate::strings::IntoCCharPtr,
+    dirname: &mut [crate::strings::RawCChar; MAXPATHL],
     p_regmatch: &mut Regmatch,
     lang: impl crate::strings::IntoCCharPtr,
 ) {
-    let mut dirname = dirname.into_c_char_ptr().cast_mut();
     let lang = lang.into_c_char_ptr();
+    let mut fnames: Vec<std::ffi::CString> = Vec::new();
+
+    add_pathsep(dirname.as_mut_ptr().cast());
+    let dir_len = crate::memory::cstr_len(dirname.as_ptr());
+    let pat_suffix = b"doc/*.\\(txt\\|??x\\)\0";
+    for (i, &b) in pat_suffix.iter().enumerate() {
+        dirname[dir_len + i] = b as crate::strings::RawCChar;
+    }
+    let mut dirname_ptr: *mut u8 = dirname.as_mut_ptr().cast();
+    if gen_expand_wildcards_vec(1, &raw mut dirname_ptr, &mut fnames, EW_FILE | EW_SILENT)
+        && !fnames.is_empty()
     {
-        let mut fnames: Vec<std::ffi::CString> = Vec::new();
-
-        add_pathsep(dirname.cast());
-        c_strcat(dirname, c"doc/*.\\(txt\\|??x\\)");
-        if gen_expand_wildcards_vec(
-            1,
-            (&raw mut dirname).cast(),
-            &mut fnames,
-            EW_FILE | EW_SILENT,
-        ) && !fnames.is_empty()
-        {
-            for f_cstr in &fnames {
-                if g_st().got_int {
-                    break;
-                }
-                let f = f_cstr.as_ptr().cast_mut();
-                let flen = f_cstr.as_bytes().len();
-                if !lang.is_null()
-                    && flen >= 3
-                    && !(crate::memory::cstr_prefix_bytes(lang, 2).eq_ignore_ascii_case(
-                        crate::memory::cstr_prefix_bytes(f.wrapping_add(flen - 3), 2),
-                    ))
-                    && !(crate::memory::cstr_prefix_bytes(lang, 2).eq_ignore_ascii_case(b"en")
-                        && b"txt".eq_ignore_ascii_case(crate::memory::cstr_prefix_bytes(
-                            f.wrapping_add(flen - 3),
-                            3,
-                        )))
-                {
-                    continue;
-                }
-
-                hgr_search_file(qfl, f, p_regmatch);
+        for f_cstr in &fnames {
+            if g_st().got_int {
+                break;
             }
+            let f = f_cstr.as_ptr().cast_mut();
+            let flen = f_cstr.as_bytes().len();
+            if !lang.is_null()
+                && flen >= 3
+                && !(crate::memory::cstr_prefix_bytes(lang, 2).eq_ignore_ascii_case(
+                    crate::memory::cstr_prefix_bytes(f.wrapping_add(flen - 3), 2),
+                ))
+                && !(crate::memory::cstr_prefix_bytes(lang, 2).eq_ignore_ascii_case(b"en")
+                    && b"txt".eq_ignore_ascii_case(crate::memory::cstr_prefix_bytes(
+                        f.wrapping_add(flen - 3),
+                        3,
+                    )))
+            {
+                continue;
+            }
+
+            hgr_search_file(qfl, f, p_regmatch);
         }
     }
 }
@@ -7306,10 +7293,14 @@ fn hgr_search_in_rtp(
     let lang = lang.into_c_char_ptr();
     {
         let mut p = opt_vars().p_rtp;
-        let name_buff_ptr = g_st().name_buff.as_mut_ptr();
         while !crate::memory::cstr_is_empty(p) && !g_st().got_int {
-            copy_option_part(&raw mut p, name_buff_ptr.cast(), MAXPATHL, c",");
-            hgr_search_files_in_dir(qfl, name_buff_ptr, p_regmatch, lang);
+            copy_option_part(
+                &raw mut p,
+                g_st().name_buff.as_mut_ptr().cast(),
+                MAXPATHL,
+                c",",
+            );
+            hgr_search_files_in_dir(qfl, &mut g_st().name_buff, p_regmatch, lang);
         }
     }
 }

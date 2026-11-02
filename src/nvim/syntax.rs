@@ -4652,8 +4652,10 @@ fn get_id_list<T>(arg: *mut *mut T, keylen: i32, list: &mut SynIdList, skip: boo
                         crate::memory::ptr_offset_from(end, p) as usize,
                     );
                 } else {
-                    *name = b'^';
-                    crate::memory::cstr_cat(name.wrapping_add(1).cast(), c"$");
+                    let item_len = crate::memory::ptr_offset_from(end, p) as usize;
+                    name_buf[0] = b'^';
+                    name_buf[1 + item_len] = b'$';
+                    name_buf[2 + item_len] = 0;
                     regmatch.regprog = vim_regcomp(name.cast(), RE_MAGIC);
                     if regmatch.regprog.is_null() {
                         failed = true;

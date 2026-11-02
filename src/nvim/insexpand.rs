@@ -6038,17 +6038,15 @@ fn get_normal_compl_info(
                 insexp().compl_length = curs_col - startcol;
                 if insexp().compl_length == 1 {
                     let mut pat_vec = [0u8; 7];
-                    crate::memory::cstr_cpy(pat_vec.as_mut_ptr().cast(), c"\\<");
-                    quote_meta(
+                    pat_vec[..2].copy_from_slice(b"\\<");
+                    let qlen = (quote_meta(
                         pat_vec.as_mut_ptr().wrapping_add(2),
                         line.wrapping_add(insexp().compl_col as usize),
                         1,
-                    );
-                    crate::memory::cstr_cat(pat_vec.as_mut_ptr().cast(), c"\\k");
-                    set_compl_pattern_bytes(
-                        pat_vec.as_ptr().cast(),
-                        crate::memory::cstr_len(pat_vec.as_ptr().cast()),
-                    );
+                    ) as usize)
+                        - 1;
+                    pat_vec[2 + qlen..2 + qlen + 2].copy_from_slice(b"\\k");
+                    set_compl_pattern_bytes(pat_vec.as_ptr().cast(), 4 + qlen);
                 } else {
                     let n = quote_meta(
                         ptr::null_mut(),

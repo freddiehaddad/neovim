@@ -1405,26 +1405,18 @@ pub fn do_bang(addr_count: i32, eap: &mut Exarg, forceit: bool, do_in: bool, do_
 
     let mut trailarg = skipwhite(arg);
     loop {
-        let mut len = crate::memory::cstr_len(trailarg) + 1;
+        let mut t: Vec<u8> = Vec::new();
         if !newcmd.is_empty() {
-            len += crate::memory::cstr_len(newcmd.as_ptr().cast());
+            t.extend_from_slice(crate::memory::cstr_as_bytes(newcmd.as_ptr().cast()));
         }
         if ins_prevcmd {
             if !prevcmd_is_set() {
                 return;
             }
-            len += excmds_st().prevcmd.as_ref().unwrap().to_bytes().len();
+            t.extend_from_slice(excmds_st().prevcmd.as_ref().unwrap().to_bytes());
         }
-        let mut t = vec![0u8; len];
-        if !newcmd.is_empty() {
-            crate::memory::cstr_cat(t.as_mut_ptr().cast(), newcmd.as_ptr().cast());
-        }
-        if ins_prevcmd {
-            let prev_ptr = excmds_st().prevcmd.as_ref().unwrap().as_ptr();
-            crate::memory::cstr_cat(t.as_mut_ptr().cast(), prev_ptr);
-        }
-        let mut p_idx = crate::memory::cstr_len(t.as_ptr().cast());
-        crate::memory::cstr_cat(t.as_mut_ptr().cast(), trailarg);
+        let mut p_idx = t.len();
+        t.extend_from_slice(crate::memory::cstr_as_bytes_with_nul(trailarg));
         newcmd = t;
 
         let mut next_trail_off: Option<usize> = None;
@@ -1471,17 +1463,16 @@ pub fn do_bang(addr_count: i32, eap: &mut Exarg, forceit: bool, do_in: bool, do_
             g_st().bangredo = false;
         }
         if !crate::memory::cstr_is_empty(opt_vars().p_shq) {
-            let prev_ptr = excmds_st()
+            let prev_bytes = excmds_st()
                 .prevcmd
                 .as_ref()
-                .map_or(c"".as_ptr(), |s| s.as_ptr());
-            let qlen = crate::memory::cstr_len(prev_ptr)
-                + 2 * crate::memory::cstr_len(opt_vars().p_shq)
-                + 1;
-            newcmd = vec![0u8; qlen];
-            crate::memory::cstr_cpy(newcmd.as_mut_ptr().cast(), opt_vars().p_shq);
-            crate::memory::cstr_cat(newcmd.as_mut_ptr().cast(), prev_ptr);
-            crate::memory::cstr_cat(newcmd.as_mut_ptr().cast(), opt_vars().p_shq);
+                .map_or(&[][..], |s| s.to_bytes());
+            let shq_bytes = crate::memory::cstr_as_bytes(opt_vars().p_shq);
+            newcmd = Vec::with_capacity(prev_bytes.len() + 2 * shq_bytes.len() + 1);
+            newcmd.extend_from_slice(shq_bytes);
+            newcmd.extend_from_slice(prev_bytes);
+            newcmd.extend_from_slice(shq_bytes);
+            newcmd.push(0);
         }
         if addr_count == 0 {
             msg_start();

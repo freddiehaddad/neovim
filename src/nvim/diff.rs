@@ -1285,11 +1285,11 @@ pub fn ex_diffpatch(eap: &mut Exarg) {
             }
             shorten_fnames(1);
         }
-        crate::memory::cstr_cpy(buf, tmp_new);
-        crate::memory::cstr_cat(buf, c".orig");
+        let tmp_new_bytes = crate::memory::cstr_as_bytes(tmp_new);
+        buf_vec[..tmp_new_bytes.len()].copy_from_slice(tmp_new_bytes);
+        buf_vec[tmp_new_bytes.len()..tmp_new_bytes.len() + 6].copy_from_slice(b".orig\0");
         let _ = os_remove(buf);
-        crate::memory::cstr_cpy(buf, tmp_new);
-        crate::memory::cstr_cat(buf, c".rej");
+        buf_vec[tmp_new_bytes.len()..tmp_new_bytes.len() + 5].copy_from_slice(b".rej\0");
         let _ = os_remove(buf);
         let mut file_info = FileInfo::new();
         let info_ok = os_fileinfo(tmp_new, &mut file_info);
@@ -1298,10 +1298,10 @@ pub fn ex_diffpatch(eap: &mut Exarg) {
             emsg(gettext(c"E816: Cannot read patch output"));
         } else {
             if !curbuf_mut().b_fname.is_null() {
-                let fname_len = crate::memory::cstr_len(curbuf_mut().b_fname);
-                newname_vec = vec![0; fname_len + 5];
-                crate::memory::cstr_cpy(newname_vec.as_mut_ptr().cast(), curbuf_mut().b_fname);
-                crate::memory::cstr_cat(newname_vec.as_mut_ptr().cast(), c".new");
+                let fname_bytes = crate::memory::cstr_as_bytes(curbuf_mut().b_fname);
+                newname_vec = Vec::with_capacity(fname_bytes.len() + 5);
+                newname_vec.extend_from_slice(fname_bytes);
+                newname_vec.extend_from_slice(b".new\0");
             }
             g_st().cmdmod.cmod_tab = 0;
             if win_split(

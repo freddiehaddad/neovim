@@ -375,17 +375,6 @@ pub fn cstr_ncpy<S: crate::strings::IntoCCharPtr>(dst: RawCCharPtrMut, src: S, l
     }
 }
 
-/// Append NUL-terminated C string `src` (including trailing NUL) to the end of `dst`.
-#[inline]
-pub fn cstr_cat<S: crate::strings::IntoCCharPtr>(dst: RawCCharPtrMut, src: S) {
-    let src = src.into_c_char_ptr();
-    unsafe {
-        let dlen = cstr_len(dst);
-        let slen = CStr::from_ptr(src).to_bytes_with_nul().len();
-        std::ptr::copy_nonoverlapping(src, dst.add(dlen), slen);
-    }
-}
-
 /// Compute the signed element offset `(p - origin)` between two pointers of the same type.
 #[inline]
 pub fn ptr_offset_from<T>(p: *const T, origin: *const T) -> isize {

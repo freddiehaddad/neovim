@@ -1565,17 +1565,21 @@ pub fn open_line(
         }
 
         if lead_len > 0 {
+            let lead_off = crate::memory::ptr_offset_from(leader, allocated_vec.as_ptr()) as usize;
+            let mut cur_len = crate::memory::cstr_len(&allocated_vec[lead_off..]);
             if (flags & OPENLINE_COM_LIST) != 0 && second_line_indent > 0 {
-                let padding = second_line_indent
-                    - (newindent + crate::memory::cstr_len(leader.cast()) as i32);
+                let padding = second_line_indent - (newindent + cur_len as i32);
                 for _ in 0..padding {
-                    crate::memory::cstr_cat(leader.cast(), c" ");
+                    allocated_vec[lead_off + cur_len] = b' ';
+                    cur_len += 1;
                     less_cols -= 1;
                     newcol += 1;
                 }
             }
-            crate::memory::cstr_cat(leader.cast(), p_extra.cast());
-            p_extra = leader;
+            let extra_bytes = crate::memory::cstr_as_bytes_with_nul(p_extra.cast());
+            allocated_vec[lead_off + cur_len..lead_off + cur_len + extra_bytes.len()]
+                .copy_from_slice(extra_bytes);
+            p_extra = allocated_vec[lead_off..].as_mut_ptr();
             g_st().ins_global.did_ai = true;
             less_cols -= lead_len;
         } else {

@@ -792,21 +792,18 @@ pub fn spell_suggest(count: i32) {
                 spell_priv_st().repl_to =
                     Some(crate::memory::cstr_to_cstring(stp.st_word.as_ptr()));
             }
-            let mut p_vec: Vec<u8> = vec![
-                0;
-                crate::memory::cstr_len(line.cast())
-                    - stp.st_orglen as usize
-                    + stp.st_wordlen as usize
-                    + 1
-            ];
             let c = crate::memory::ptr_offset_from(sug.su_badptr, line) as i32;
-            p_vec[..c as usize].copy_from_slice(&line_vec[..c as usize]);
-            let p = p_vec.as_mut_ptr();
-            crate::memory::cstr_cpy(p.wrapping_add(c as usize).cast(), stp.st_word.as_ptr());
-            crate::memory::cstr_cat(
-                p.cast(),
-                sug.su_badptr.wrapping_add(stp.st_orglen as usize).cast(),
+            let mut p_vec: Vec<u8> = Vec::with_capacity(
+                crate::memory::cstr_len(line.cast()) - stp.st_orglen as usize
+                    + stp.st_wordlen as usize
+                    + 1,
             );
+            p_vec.extend_from_slice(&line_vec[..c as usize]);
+            p_vec.extend_from_slice(stp.st_word.to_bytes());
+            p_vec.extend_from_slice(crate::memory::cstr_as_bytes_with_nul(
+                sug.su_badptr.wrapping_add(stp.st_orglen as usize).cast(),
+            ));
+            let p = p_vec.as_mut_ptr();
             prep_redo(
                 false,
                 false,
@@ -1690,11 +1687,13 @@ fn suggest_trie_walk(su: &mut Suginfo, lp: &Langp, fword_buf: &mut [u8; MAXWLEN]
                                 stack[udepth].ts_state = SugState::StateSplitundo;
                                 depth += 1;
                                 udepth = depth as usize;
+                                let mut preword_len = crate::memory::cstr_len(&preword);
                                 if !try_compound && !fword_ends {
-                                    crate::memory::cstr_cat(preword.as_mut_ptr().cast(), c" ");
+                                    preword[preword_len] = b' ';
+                                    preword_len += 1;
+                                    preword[preword_len] = 0;
                                 }
-                                stack[udepth].ts_prewordlen =
-                                    crate::memory::cstr_len(preword.as_ptr().cast()) as u8;
+                                stack[udepth].ts_prewordlen = preword_len as u8;
                                 stack[udepth].ts_splitoff = stack[udepth].ts_twordlen;
                                 stack[udepth].ts_splitfidx = stack[udepth].ts_fidx;
                                 if ((!try_compound

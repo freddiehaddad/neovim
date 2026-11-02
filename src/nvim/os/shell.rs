@@ -277,94 +277,88 @@ pub fn os_expand_wildcards(
             len += b"egin; end".len();
         }
 
-        let mut command_vec = vec![0u8; len];
-        let command = command_vec.as_mut_ptr();
+        let mut command_vec = Vec::with_capacity(len);
 
         if shell_style == STYLE_BT {
             if is_fish_shell {
-                crate::memory::cstr_cpy(command.cast(), c"begin; ");
+                command_vec.extend_from_slice(b"begin; ");
             } else {
-                crate::memory::cstr_cpy(command.cast(), c"(");
+                command_vec.push(b'(');
             }
-            crate::memory::cstr_cat(command.cast(), (*pat).add(1).cast());
-            let mut p = command.add(crate::memory::cstr_len(command.cast()) - 1);
+            command_vec.extend_from_slice(crate::memory::cstr_as_bytes((*pat).add(1).cast()));
+            if let Some(last) = command_vec.last_mut() {
+                if is_fish_shell {
+                    *last = b';';
+                } else {
+                    *last = b')';
+                }
+            }
+            let mut idx = command_vec.len().saturating_sub(2);
             if is_fish_shell {
-                *p = b';';
-                p = p.sub(1);
-                crate::memory::cstr_cat(command.cast(), c" end");
-            } else {
-                *p = b')';
-                p = p.sub(1);
+                command_vec.extend_from_slice(b" end");
             }
-            while (p as usize) > (command as usize) && ascii_iswhite(i32::from(*p)) {
-                p = p.sub(1);
+            while idx > 0 && ascii_iswhite(i32::from(command_vec[idx])) {
+                idx -= 1;
             }
-            if *p == b'&' {
+            if command_vec.get(idx) == Some(&b'&') {
                 ampersand = true;
-                *p = b' ';
+                command_vec[idx] = b' ';
             }
-            crate::memory::cstr_cat(command.cast(), c">");
+            command_vec.push(b'>');
         } else {
-            *command = 0;
             if shell_style == STYLE_GLOB {
                 if (flags & EW_NOTFOUND) != 0 {
-                    crate::memory::cstr_cat(command.cast(), c"set nonomatch; ");
+                    command_vec.extend_from_slice(b"set nonomatch; ");
                 } else {
-                    crate::memory::cstr_cat(command.cast(), c"unset nonomatch; ");
+                    command_vec.extend_from_slice(b"unset nonomatch; ");
                 }
             }
             if shell_style == STYLE_GLOB {
-                crate::memory::cstr_cat(command.cast(), c"glob >");
+                command_vec.extend_from_slice(b"glob >");
             } else if shell_style == STYLE_PRINT {
-                crate::memory::cstr_cat(command.cast(), c"print -N >");
+                command_vec.extend_from_slice(b"print -N >");
             } else if shell_style == STYLE_VIMGLOB {
-                crate::memory::cstr_cat(command.cast(), SH_VIMGLOB_FUNC);
+                command_vec.extend_from_slice(SH_VIMGLOB_FUNC.to_bytes());
             } else if shell_style == STYLE_GLOBSTAR {
-                crate::memory::cstr_cat(command.cast(), SH_GLOBSTAR_OPT);
-                crate::memory::cstr_cat(command.cast(), SH_VIMGLOB_FUNC);
+                command_vec.extend_from_slice(SH_GLOBSTAR_OPT.to_bytes());
+                command_vec.extend_from_slice(SH_VIMGLOB_FUNC.to_bytes());
             } else {
-                crate::memory::cstr_cat(command.cast(), c"echo >");
+                command_vec.extend_from_slice(b"echo >");
             }
         }
 
-        crate::memory::cstr_cat(command.cast(), tempname);
+        command_vec.extend_from_slice(crate::memory::cstr_as_bytes(tempname));
 
         if shell_style != STYLE_BT {
             for i in 0..(num_pat as usize) {
                 let mut intick = false;
-                let p_i = *pat.add(i);
+                let p_i = crate::memory::cstr_as_bytes((*pat.add(i)).cast());
 
-                let mut p = command.add(crate::memory::cstr_len(command.cast()));
-                *p = b' ';
-                p = p.add(1);
+                command_vec.push(b' ');
                 let mut j = 0;
-                while *p_i.add(j) != 0 {
-                    let ch = *p_i.add(j);
+                while j < p_i.len() {
+                    let ch = p_i[j];
                     if ch == b'`' {
                         intick = !intick;
-                    } else if ch == b'\\' && *p_i.add(j + 1) != 0 {
-                        let next_ch = *p_i.add(j + 1);
+                    } else if ch == b'\\' && j + 1 < p_i.len() {
+                        let next_ch = p_i[j + 1];
                         if intick
                             || crate::strings::vim_haschr(SHELL_SPECIAL, i32::from(next_ch))
                             || next_ch == b'`'
                         {
-                            *p = b'\\';
-                            p = p.add(1);
+                            command_vec.push(b'\\');
                         }
                         j += 1;
                     } else if !intick
                         && ((flags & EW_KEEPDOLLAR) == 0 || ch != b'$')
                         && crate::strings::vim_haschr(SHELL_SPECIAL, i32::from(ch))
                     {
-                        *p = b'\\';
-                        p = p.add(1);
+                        command_vec.push(b'\\');
                     }
 
-                    *p = *p_i.add(j);
-                    p = p.add(1);
+                    command_vec.push(p_i[j]);
                     j += 1;
                 }
-                *p = 0;
             }
         }
 
@@ -373,8 +367,10 @@ pub fn os_expand_wildcards(
         }
 
         if ampersand {
-            crate::memory::cstr_cat(command.cast(), c"&");
+            command_vec.push(b'&');
         }
+        command_vec.push(0);
+        let command = command_vec.as_mut_ptr();
 
         if shell_style == STYLE_PRINT {
             extra_shell_arg = c"-G".as_ptr().cast_mut().cast();

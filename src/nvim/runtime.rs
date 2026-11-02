@@ -2479,10 +2479,11 @@ pub fn ex_source(eap: &mut Exarg) {
 
 /// ":options"
 pub fn ex_options(_eap: &mut Exarg) {
-    let mut buf = [0u8; 500];
+    let mut buf = Vec::new();
     let mut multi_mods = false;
 
-    add_win_cmd_modifiers(buf.as_mut_ptr(), &g_st().cmdmod, &mut multi_mods);
+    add_win_cmd_modifiers(&mut buf, &g_st().cmdmod, &mut multi_mods);
+    buf.push(0);
 
     os_setenv(c"OPTWIN_CMD", buf.as_ptr().cast(), 1);
     cmd_source(c"$VIMRUNTIME/scripts/optwin.lua", None);

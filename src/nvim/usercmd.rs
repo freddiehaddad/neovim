@@ -1425,131 +1425,106 @@ fn uc_split_args<T>(
     crate::memory::cstr_to_cstring(&buf_vec)
 }
 
-fn add_cmd_modifier<T>(
-    buf: *mut T,
-    mod_str: impl crate::strings::IntoCCharPtr,
-    multi_mods: &mut bool,
-) -> usize {
-    let mod_str = mod_str.into_c_char_ptr();
-    {
-        let mut result = crate::memory::cstr_len(mod_str);
-        if *multi_mods {
-            result += 1;
-        }
-
-        if !buf.is_null() {
-            if *multi_mods {
-                crate::memory::cstr_cat(buf.cast(), c" ");
-            }
-            crate::memory::cstr_cat(buf.cast(), mod_str);
-        }
-
-        *multi_mods = true;
-        result
+fn add_cmd_modifier(buf: &mut Vec<u8>, mod_str: &[u8], multi_mods: &mut bool) -> usize {
+    let mut result = mod_str.len();
+    if *multi_mods {
+        result += 1;
+        buf.push(b' ');
     }
+    buf.extend_from_slice(mod_str);
+    *multi_mods = true;
+    result
 }
 
 /// Add modifiers from `cmod->cmod_split` to `buf` (`add_win_cmd_modifiers`).
-pub fn add_win_cmd_modifiers<T>(buf: *mut T, cmod: &Cmdmod, multi_mods: &mut bool) -> usize {
+pub fn add_win_cmd_modifiers(buf: &mut Vec<u8>, cmod: &Cmdmod, multi_mods: &mut bool) -> usize {
     let mut result: usize = 0;
 
     if (cmod.cmod_split & WSP_ABOVE) != 0 {
-        result += add_cmd_modifier(buf, c"aboveleft", multi_mods);
+        result += add_cmd_modifier(buf, b"aboveleft", multi_mods);
     }
     if (cmod.cmod_split & WSP_BELOW) != 0 {
-        result += add_cmd_modifier(buf, c"belowright", multi_mods);
+        result += add_cmd_modifier(buf, b"belowright", multi_mods);
     }
     if (cmod.cmod_split & WSP_BOT) != 0 {
-        result += add_cmd_modifier(buf, c"botright", multi_mods);
+        result += add_cmd_modifier(buf, b"botright", multi_mods);
     }
 
     if cmod.cmod_tab > 0 {
         let tabnr = cmod.cmod_tab - 1;
         if tabnr == tabpage_index(g_st().curtab) {
-            result += add_cmd_modifier(buf, c"tab", multi_mods);
+            result += add_cmd_modifier(buf, b"tab", multi_mods);
         } else {
-            let s = format!("{tabnr}tab\0");
-            result += add_cmd_modifier(buf, s.as_ptr().cast(), multi_mods);
+            let s = format!("{tabnr}tab");
+            result += add_cmd_modifier(buf, s.as_bytes(), multi_mods);
         }
     }
 
     if (cmod.cmod_split & WSP_TOP) != 0 {
-        result += add_cmd_modifier(buf, c"topleft", multi_mods);
+        result += add_cmd_modifier(buf, b"topleft", multi_mods);
     }
     if (cmod.cmod_split & WSP_VERT) != 0 {
-        result += add_cmd_modifier(buf, c"vertical", multi_mods);
+        result += add_cmd_modifier(buf, b"vertical", multi_mods);
     }
     if (cmod.cmod_split & WSP_HOR) != 0 {
-        result += add_cmd_modifier(buf, c"horizontal", multi_mods);
+        result += add_cmd_modifier(buf, b"horizontal", multi_mods);
     }
     result
 }
 
 /// Generate text for the `cmod` command modifiers (`uc_mods`).
-pub fn uc_mods<T>(buf: *mut T, cmod: &Cmdmod, quote: bool) -> usize {
-    let mut buf = buf.cast::<u8>();
+pub fn uc_mods(buf: &mut Vec<u8>, cmod: &Cmdmod, quote: bool) -> usize {
     let mut multi_mods = false;
 
-    const MOD_ENTRIES: [(i32, &CStr); 12] = [
-        (CMOD_BROWSE, c"browse"),
-        (CMOD_CONFIRM, c"confirm"),
-        (CMOD_HIDE, c"hide"),
-        (CMOD_KEEPALT, c"keepalt"),
-        (CMOD_KEEPJUMPS, c"keepjumps"),
-        (CMOD_KEEPMARKS, c"keepmarks"),
-        (CMOD_KEEPPATTERNS, c"keeppatterns"),
-        (CMOD_LOCKMARKS, c"lockmarks"),
-        (CMOD_NOSWAPFILE, c"noswapfile"),
-        (CMOD_UNSILENT, c"unsilent"),
-        (CMOD_NOAUTOCMD, c"noautocmd"),
-        (CMOD_SANDBOX, c"sandbox"),
+    const MOD_ENTRIES: [(i32, &[u8]); 12] = [
+        (CMOD_BROWSE, b"browse"),
+        (CMOD_CONFIRM, b"confirm"),
+        (CMOD_HIDE, b"hide"),
+        (CMOD_KEEPALT, b"keepalt"),
+        (CMOD_KEEPJUMPS, b"keepjumps"),
+        (CMOD_KEEPMARKS, b"keepmarks"),
+        (CMOD_KEEPPATTERNS, b"keeppatterns"),
+        (CMOD_LOCKMARKS, b"lockmarks"),
+        (CMOD_NOSWAPFILE, b"noswapfile"),
+        (CMOD_UNSILENT, b"unsilent"),
+        (CMOD_NOAUTOCMD, b"noautocmd"),
+        (CMOD_SANDBOX, b"sandbox"),
     ];
 
     let mut result: usize = if quote { 2 } else { 0 };
-    if !buf.is_null() {
-        if quote {
-            unsafe {
-                *buf = b'"';
-            }
-            buf = buf.wrapping_add(1);
-        }
-        unsafe {
-            *buf = 0;
-        }
+    if quote {
+        buf.push(b'"');
     }
 
     for &(flag, name) in &MOD_ENTRIES {
         if (cmod.cmod_flags & flag) != 0 {
-            result += add_cmd_modifier(buf, name.as_ptr(), &mut multi_mods);
+            result += add_cmd_modifier(buf, name, &mut multi_mods);
         }
     }
 
     if (cmod.cmod_flags & CMOD_SILENT) != 0 {
-        let s = if (cmod.cmod_flags & CMOD_ERRSILENT) != 0 {
-            c"silent!"
+        let s: &[u8] = if (cmod.cmod_flags & CMOD_ERRSILENT) != 0 {
+            b"silent!"
         } else {
-            c"silent"
+            b"silent"
         };
-        result += add_cmd_modifier(buf, s.as_ptr(), &mut multi_mods);
+        result += add_cmd_modifier(buf, s, &mut multi_mods);
     }
 
     if cmod.cmod_verbose > 0 {
         let verbose_value = cmod.cmod_verbose - 1;
         if verbose_value == 1 {
-            result += add_cmd_modifier(buf, c"verbose", &mut multi_mods);
+            result += add_cmd_modifier(buf, b"verbose", &mut multi_mods);
         } else {
-            let s = format!("{verbose_value}verbose\0");
-            result += add_cmd_modifier(buf, s.as_ptr().cast(), &mut multi_mods);
+            let s = format!("{verbose_value}verbose");
+            result += add_cmd_modifier(buf, s.as_bytes(), &mut multi_mods);
         }
     }
 
     result += add_win_cmd_modifiers(buf, cmod, &mut multi_mods);
 
-    if quote && !buf.is_null() {
-        buf = buf.wrapping_add(result - 2);
-        unsafe {
-            *buf = b'"';
-        }
+    if quote {
+        buf.push(b'"');
     }
     result
 }
@@ -1698,10 +1673,7 @@ fn uc_check_code(
             }
         }
         CodeType::Mods => {
-            result = uc_mods(ptr::null_mut::<u8>(), &g_st().cmdmod, quote != 0);
-            let mut mods_buf = vec![0u8; result + 1];
-            uc_mods(mods_buf.as_mut_ptr(), &g_st().cmdmod, quote != 0);
-            out.extend_from_slice(&mods_buf[..result]);
+            result = uc_mods(out, &g_st().cmdmod, quote != 0);
         }
         CodeType::Register => {
             result = if eap.regname != 0 { 1 } else { 0 };

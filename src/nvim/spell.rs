@@ -2345,13 +2345,15 @@ pub fn ex_spellrepall(_eap: &mut Exarg) {
                 repl_to_len,
             ) != crate::memory::cstr_prefix_bytes(repl_to_ptr, repl_to_len))
         {
-            let mut p_vec: Vec<u8> = vec![0; (get_cursor_line_len() as i64 + addlen + 1) as usize];
             let col = curwin_mut().w_cursor.col as usize;
-            p_vec[..col].copy_from_slice(crate::memory::cstr_slice(line, col));
-            let p = p_vec.as_mut_ptr();
-            crate::memory::cstr_cpy(p.wrapping_add(col).cast(), repl_to_ptr);
-            crate::memory::cstr_cat(p.cast(), line.wrapping_add(col + repl_from_len));
-            let _ = ml_replace(curwin_mut().w_cursor.lnum, p.cast(), true);
+            let mut p_vec: Vec<u8> =
+                Vec::with_capacity((get_cursor_line_len() as i64 + addlen + 1) as usize);
+            p_vec.extend_from_slice(crate::memory::cstr_slice(line, col));
+            p_vec.extend_from_slice(crate::memory::cstr_slice(repl_to_ptr, repl_to_len));
+            p_vec.extend_from_slice(crate::memory::cstr_as_bytes_with_nul(
+                line.wrapping_add(col + repl_from_len),
+            ));
+            let _ = ml_replace(curwin_mut().w_cursor.lnum, p_vec.as_mut_ptr().cast(), true);
             inserted_bytes(
                 curwin_mut().w_cursor.lnum,
                 curwin_mut().w_cursor.col,
@@ -3011,17 +3013,24 @@ fn dump_word(
         let tw = p;
         if pat.is_null() {
             if (flags & (WF_BANNED | WF_RARE | WF_REGION)) != 0 || keepcap {
-                let bw_ptr = (&raw mut badword).cast::<u8>();
-                crate::memory::cstr_cpy(bw_ptr.cast(), p.cast());
-                crate::memory::cstr_cat(bw_ptr.cast(), c"/");
+                let p_bytes = crate::memory::cstr_as_bytes(p.cast());
+                badword[..p_bytes.len()].copy_from_slice(p_bytes);
+                let mut bw_len = p_bytes.len();
+                badword[bw_len] = b'/';
+                bw_len += 1;
                 if keepcap {
-                    crate::memory::cstr_cat(bw_ptr.cast(), c"=");
+                    badword[bw_len] = b'=';
+                    bw_len += 1;
                 }
                 if (flags & WF_BANNED) != 0 {
-                    crate::memory::cstr_cat(bw_ptr.cast(), c"!");
+                    badword[bw_len] = b'!';
+                    bw_len += 1;
                 } else if (flags & WF_RARE) != 0 {
-                    crate::memory::cstr_cat(bw_ptr.cast(), c"?");
+                    badword[bw_len] = b'?';
+                    bw_len += 1;
                 }
+                badword[bw_len] = 0;
+                let bw_ptr = (&raw mut badword).cast::<u8>();
                 if (flags & WF_REGION) != 0 {
                     for i in 0..7 {
                         if (flags & (0x10000 << i)) != 0 {

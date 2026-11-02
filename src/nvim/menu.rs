@@ -1244,10 +1244,11 @@ pub fn get_menu_names(_xp: &mut ExpandCtx, idx: i32) -> Option<&'static CStr> {
                         menu_st().get_menu_names_advance = true;
                     }
                 }
-                crate::memory::cstr_cat(
-                    (&raw mut menu_st().get_menu_names_tbuffer[0]).cast(),
-                    c"\x01",
-                );
+                let tlen = crate::memory::cstr_len(&menu_st().get_menu_names_tbuffer);
+                if tlen + 1 < TBUFFER_LEN {
+                    menu_st().get_menu_names_tbuffer[tlen] = 1;
+                    menu_st().get_menu_names_tbuffer[tlen + 1] = 0;
+                }
                 Some(CStr::from_ptr(
                     (&raw const menu_st().get_menu_names_tbuffer[0]).cast(),
                 ))

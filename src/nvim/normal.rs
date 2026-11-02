@@ -2918,17 +2918,23 @@ pub fn add_to_showcmd(c: i32) -> bool {
     };
 
     let old_len = crate::memory::cstr_len(sc_buf);
-    let extra_len = crate::memory::cstr_len(p);
+    let p_bytes = crate::memory::cstr_as_bytes_with_nul(p);
+    let extra_len = p_bytes.len() - 1;
     let limit = if ui_has(K_UIMESSAGES) {
         SHOWCMD_BUFLEN - 1
     } else {
         SHOWCMD_COLS
     };
-    if old_len + extra_len > limit {
+    let dst_pos = if old_len + extra_len > limit {
         let overflow = old_len + extra_len - limit;
         g_st().showcmd_buf.copy_within(overflow..=old_len, 0);
+        old_len - overflow
+    } else {
+        old_len
+    };
+    for (i, &b) in p_bytes.iter().enumerate() {
+        g_st().showcmd_buf[dst_pos + i] = b as crate::strings::RawCChar;
     }
-    crate::memory::cstr_cat(sc_buf, p);
 
     if char_avail() {
         return false;
