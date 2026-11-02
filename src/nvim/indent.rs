@@ -135,62 +135,58 @@ pub fn tabstop_set(
     errbuf: Option<CharBuf>,
 ) -> Option<&'static CStr> {
     let mut var = var.into_c_char_ptr().cast_mut();
+    let var_bytes = crate::memory::cstr_as_bytes(var);
     {
         let mut valcount: usize = 1;
 
-        if crate::memory::cstr_is_empty(var)
-            || (crate::memory::cstr_first_byte(var) == b'0'
-                && crate::memory::cstr_byte_at(var, 1) == 0)
-        {
+        if var_bytes.is_empty() || var_bytes == b"0" {
             array.clear();
             return None;
         }
 
-        let mut cp = var;
-        while !crate::memory::cstr_is_empty(cp) {
-            if cp == var || crate::memory::cstr_first_byte(cp.wrapping_sub(1)) == b',' {
-                let cp_bytes = crate::memory::cstr_as_bytes(cp);
+        let mut idx = 0usize;
+        while idx < var_bytes.len() {
+            if idx == 0 || var_bytes[idx - 1] == b',' {
+                let cp_bytes = &var_bytes[idx..];
                 let mut rem = cp_bytes;
                 if getdigits(&mut rem, false, 1) <= 0 {
                     if rem.len() != cp_bytes.len() {
                         return Some(E_POSITIVE);
                     }
-                    var = cp;
+                    var = var.wrapping_add(idx);
                     return opt_error(errbuf, E_INVARG2, var);
                 }
             }
 
-            if ascii_isdigit(crate::memory::cstr_first_char(cp)) {
-                cp = cp.wrapping_add(1);
+            if var_bytes[idx].is_ascii_digit() {
+                idx += 1;
                 continue;
             }
-            if crate::memory::cstr_first_byte(cp) == b','
-                && cp > var
-                && crate::memory::cstr_first_byte(cp.wrapping_sub(1)) != b','
-                && crate::memory::cstr_byte_at(cp, 1) != 0
+            if var_bytes[idx] == b','
+                && idx > 0
+                && var_bytes[idx - 1] != b','
+                && idx + 1 < var_bytes.len()
             {
                 valcount += 1;
-                cp = cp.wrapping_add(1);
+                idx += 1;
                 continue;
             }
             return opt_error(errbuf, E_INVARG2, var);
         }
 
         let mut out = Vec::with_capacity(valcount);
-        cp = var;
-        while !crate::memory::cstr_is_empty(cp) {
-            let n = crate::charset::parse_i64_prefix(crate::memory::cstr_as_bytes(cp)) as i32;
+        let mut idx = 0usize;
+        while idx < var_bytes.len() {
+            let n = crate::charset::parse_i64_prefix(&var_bytes[idx..]) as i32;
             if n <= 0 || n > TABSTOP_MAX {
                 array.clear();
-                var = cp;
+                var = var.wrapping_add(idx);
                 return opt_error(errbuf, E_INVARG2, var);
             }
             out.push(n);
-            while !crate::memory::cstr_is_empty(cp) && crate::memory::cstr_first_byte(cp) != b',' {
-                cp = cp.wrapping_add(1);
-            }
-            if !crate::memory::cstr_is_empty(cp) {
-                cp = cp.wrapping_add(1);
+            idx += var_bytes[idx..].iter().take_while(|&&b| b != b',').count();
+            if idx < var_bytes.len() {
+                idx += 1;
             }
         }
 
@@ -496,7 +492,9 @@ pub fn set_indent(size: i32, flags: i32) -> bool {
     let mut todo = size;
     let mut ind_len: i32 = 0;
     let oldline = get_cursor_line_ptr();
-    let mut p = oldline;
+    let oldline_bytes = crate::memory::cstr_as_bytes(oldline);
+    let mut p_idx = 0usize;
+    let mut p;
     let mut line_len = get_cursor_line_len() + 1;
 
     if curbuf_mut().b_p_et == 0 || ((flags & SIN_INSERT) == 0 && curbuf_mut().b_p_pi != 0) {
@@ -504,8 +502,12 @@ pub fn set_indent(size: i32, flags: i32) -> bool {
         if (flags & SIN_INSERT) == 0 && curbuf_mut().b_p_pi != 0 {
             ind_done = 0;
 
-            while todo > 0 && ascii_iswhite(crate::memory::cstr_first_char(p)) {
-                if crate::memory::cstr_first_byte(p) == TAB {
+            while todo > 0
+                && oldline_bytes
+                    .get(p_idx)
+                    .is_some_and(|&b| ascii_iswhite(b as i32))
+            {
+                if oldline_bytes[p_idx] == TAB {
                     tab_pad =
                         tabstop_padding(ind_done, curbuf_mut().b_p_ts, &curbuf_mut().b_p_vts_array);
                     if todo < tab_pad {
@@ -519,7 +521,7 @@ pub fn set_indent(size: i32, flags: i32) -> bool {
                     ind_len += 1;
                     ind_done += 1;
                 }
-                p = p.wrapping_add(1);
+                p_idx += 1;
             }
 
             ind_col = ind_done;
@@ -540,10 +542,10 @@ pub fn set_indent(size: i32, flags: i32) -> bool {
             if todo < tab_pad {
                 break;
             }
-            if crate::memory::cstr_first_byte(p) != TAB {
+            if oldline_bytes.get(p_idx) != Some(&TAB) {
                 doit = true;
             } else {
-                p = p.wrapping_add(1);
+                p_idx += 1;
             }
             todo -= tab_pad;
             ind_len += 1;
@@ -552,16 +554,22 @@ pub fn set_indent(size: i32, flags: i32) -> bool {
     }
 
     while todo > 0 {
-        if crate::memory::cstr_first_byte(p) != b' ' {
+        if oldline_bytes.get(p_idx) != Some(&b' ') {
             doit = true;
         } else {
-            p = p.wrapping_add(1);
+            p_idx += 1;
         }
         todo -= 1;
         ind_len += 1;
     }
 
-    if !doit && !ascii_iswhite(crate::memory::cstr_first_char(p)) && (flags & SIN_INSERT) == 0 {
+    p = oldline.wrapping_add(p_idx);
+    if !doit
+        && !oldline_bytes
+            .get(p_idx)
+            .is_some_and(|&b| ascii_iswhite(b as i32))
+        && (flags & SIN_INSERT) == 0
+    {
         return false;
     }
 
@@ -1611,59 +1619,45 @@ pub fn get_lisp_indent() -> i32 {
                 continue;
             }
 
-            let mut that = get_cursor_line_ptr();
-            while !crate::memory::cstr_is_empty(that) {
-                if crate::memory::cstr_first_byte(that) == b';' {
-                    while crate::memory::cstr_byte_at(that, 1) != 0 {
-                        that = that.wrapping_add(1);
-                    }
-                    that = that.wrapping_add(1);
+            let that_bytes = crate::memory::cstr_as_bytes(get_cursor_line_ptr());
+            let mut idx = 0usize;
+            while idx < that_bytes.len() {
+                if that_bytes[idx] == b';' {
+                    break;
+                }
+
+                if that_bytes[idx] == b'\\' {
+                    idx += if idx + 1 < that_bytes.len() { 2 } else { 1 };
                     continue;
                 }
 
-                if crate::memory::cstr_first_byte(that) == b'\\' {
-                    if crate::memory::cstr_byte_at(that, 1) != 0 {
-                        that = that.wrapping_add(1);
-                    }
-                    that = that.wrapping_add(1);
-                    continue;
-                }
-
-                if crate::memory::cstr_first_byte(that) == b'"'
-                    && crate::memory::cstr_byte_at(that, 1) != 0
-                {
+                if that_bytes[idx] == b'"' && idx + 1 < that_bytes.len() {
                     loop {
-                        that = that.wrapping_add(1);
-                        if crate::memory::cstr_is_empty(that)
-                            || crate::memory::cstr_first_byte(that) == b'"'
-                        {
+                        idx += 1;
+                        if idx >= that_bytes.len() || that_bytes[idx] == b'"' {
                             break;
                         }
-                        if crate::memory::cstr_first_byte(that) == b'\\' {
-                            that = that.wrapping_add(1);
-                            if crate::memory::cstr_is_empty(that) {
+                        if that_bytes[idx] == b'\\' {
+                            idx += 1;
+                            if idx >= that_bytes.len() {
                                 break;
                             }
-                            if crate::memory::cstr_byte_at(that, 1) == 0 {
-                                that = that.wrapping_add(1);
+                            if idx + 1 == that_bytes.len() {
+                                idx += 1;
                                 break;
                             }
                         }
                     }
-                    if crate::memory::cstr_is_empty(that) {
+                    if idx >= that_bytes.len() {
                         break;
                     }
                 }
-                if crate::memory::cstr_first_byte(that) == b'('
-                    || crate::memory::cstr_first_byte(that) == b'['
-                {
+                if matches!(that_bytes[idx], b'(' | b'[') {
                     parencount += 1;
-                } else if crate::memory::cstr_first_byte(that) == b')'
-                    || crate::memory::cstr_first_byte(that) == b']'
-                {
+                } else if matches!(that_bytes[idx], b')' | b']') {
                     parencount -= 1;
                 }
-                that = that.wrapping_add(1);
+                idx += 1;
             }
 
             if parencount == 0 {

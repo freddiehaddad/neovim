@@ -1020,17 +1020,14 @@ pub fn open_line(
                     }
                     if lead_len > 0 {
                         let mut p = skipwhite(ptr);
-                        if crate::memory::cstr_first_byte(p) == b'/'
-                            && crate::memory::cstr_byte_at(p, 1) == b'*'
-                        {
+                        let p_bytes = crate::memory::cstr_as_bytes(p);
+                        if p_bytes.starts_with(b"/*") {
                             p = p.wrapping_add(1);
                         }
                         if crate::memory::cstr_first_byte(p) == b'*' {
                             p = p.wrapping_add(1);
                             while !crate::memory::cstr_is_empty(p) {
-                                if crate::memory::cstr_first_byte(p) == b'/'
-                                    && crate::memory::cstr_first_byte(p.wrapping_sub(1)) == b'*'
-                                {
+                                if *p == b'/' as _ && *p.wrapping_sub(1) == b'*' as _ {
                                     curwin_mut().w_cursor.col =
                                         crate::memory::ptr_offset_from(p, ptr) as Colnr;
                                     let pos = findmatch(None, 0);
@@ -1046,25 +1043,21 @@ pub fn open_line(
                             }
                         }
                     } else {
-                        let mut p = ptr
-                            .wrapping_add(crate::memory::cstr_len(ptr))
-                            .wrapping_sub(1);
-                        while p > ptr && ascii_iswhite(crate::memory::cstr_first_char(p)) {
-                            p = p.wrapping_sub(1);
+                        let ptr_bytes = crate::memory::cstr_as_bytes(ptr);
+                        let mut p_idx = ptr_bytes.len().saturating_sub(1);
+                        while p_idx > 0 && ascii_iswhite(ptr_bytes[p_idx]) {
+                            p_idx -= 1;
                         }
-                        let last_char = crate::memory::cstr_first_byte(p);
+                        let last_char = ptr_bytes.get(p_idx).copied().unwrap_or(0);
 
                         if last_char == b'{' || last_char == b';' {
-                            if p > ptr {
-                                p = p.wrapping_sub(1);
-                            }
-                            while p > ptr && ascii_iswhite(crate::memory::cstr_first_char(p)) {
-                                p = p.wrapping_sub(1);
+                            p_idx = p_idx.saturating_sub(1);
+                            while p_idx > 0 && ascii_iswhite(ptr_bytes[p_idx]) {
+                                p_idx -= 1;
                             }
                         }
-                        if crate::memory::cstr_first_byte(p) == b')' {
-                            curwin_mut().w_cursor.col =
-                                crate::memory::ptr_offset_from(p, ptr) as Colnr;
+                        if ptr_bytes.get(p_idx) == Some(&b')') {
+                            curwin_mut().w_cursor.col = p_idx as Colnr;
                             let pos = findmatch(None, b'(' as i32);
                             if !pos.is_null() {
                                 curwin_mut().w_cursor.lnum = (*pos).lnum;
@@ -1086,11 +1079,8 @@ pub fn open_line(
                         while (crate::memory::cstr_first_byte(ptr) == b'#' || was_backslashed)
                             && curwin_mut().w_cursor.lnum < curbuf_mut().b_ml.ml_line_count
                         {
-                            was_backslashed = !crate::memory::cstr_is_empty(ptr)
-                                && crate::memory::cstr_byte_at(
-                                    ptr,
-                                    crate::memory::cstr_len(ptr) - 1,
-                                ) == b'\\';
+                            was_backslashed =
+                                crate::memory::cstr_as_bytes(ptr).last() == Some(&b'\\');
                             curwin_mut().w_cursor.lnum += 1;
                             ptr = ml_get(curwin_mut().w_cursor.lnum);
                         }
