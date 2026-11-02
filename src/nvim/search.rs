@@ -3534,7 +3534,7 @@ pub fn find_pattern_in_path(
                                 && (crate::memory::cstr_len(p) as i32) >= ins_compl_len()
                             {
                                 p = p.wrapping_add(ins_compl_len() as usize);
-                                if vim_iswordp(p) {
+                                if vim_iswordp(crate::memory::cstr_as_bytes(p)) {
                                     skip_add = true;
                                 } else {
                                     p = find_word_start(p);

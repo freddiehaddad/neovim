@@ -2657,7 +2657,7 @@ fn diff_refine_inline_word_highlight(
             while i < gap_size && !crate::memory::cstr_is_empty(gap_text.wrapping_add(i as usize)) {
                 has_content = true;
                 let char_class = mb_get_class_tab(
-                    gap_text.wrapping_add(i as usize),
+                    crate::memory::cstr_as_bytes(gap_text.wrapping_add(i as usize)),
                     &curtab_mut().diffbuf_mut(idx1).b_chartab,
                 );
                 if char_class == 2 {
@@ -2777,7 +2777,7 @@ fn diff_find_change_inline_diff(dp_idx: usize) {
                     let mut new_in_keyword = false;
                     if (diff_st().diff_flags & DIFF_INLINE_WORD) != 0 {
                         new_in_keyword = mb_get_class_tab(
-                            s,
+                            crate::memory::cstr_as_bytes(s),
                             &curtab_mut().diffbuf_mut(file1_idx as usize).b_chartab,
                         ) == 2;
                     }

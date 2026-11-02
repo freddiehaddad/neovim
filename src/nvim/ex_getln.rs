@@ -2131,12 +2131,14 @@ fn command_line_erase_chars(s: &mut CommandLineState) -> i32 {
                 p = mb_prevptr(getln_st().ccline.cmdbuff, p);
             }
 
-            let cls = mb_get_class(p.cast());
-            while p > getln_st().ccline.cmdbuff && mb_get_class(p.cast()) == cls {
+            let cls = mb_get_class(crate::memory::cstr_as_bytes(p.cast()));
+            while p > getln_st().ccline.cmdbuff
+                && mb_get_class(crate::memory::cstr_as_bytes(p.cast())) == cls
+            {
                 p = mb_prevptr(getln_st().ccline.cmdbuff, p);
             }
 
-            if mb_get_class(p.cast()) != cls {
+            if mb_get_class(crate::memory::cstr_as_bytes(p.cast())) != cls {
                 p = p.wrapping_add(utfc_ptr2len(p.cast()) as usize);
             }
         }

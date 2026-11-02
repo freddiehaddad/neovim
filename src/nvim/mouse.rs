@@ -207,8 +207,7 @@ fn mouse_st() -> &'static mut MouseModuleState {
 fn get_mouse_class(bytes: &[u8]) -> i32 {
     let first = bytes.first().copied().unwrap_or(0);
     if UTF8LEN_TAB[first as usize] > 1 {
-        let cstr = crate::memory::cstr_from_bytes(bytes);
-        return mb_get_class(cstr.as_ptr());
+        return mb_get_class(bytes);
     }
 
     let c = i32::from(first);

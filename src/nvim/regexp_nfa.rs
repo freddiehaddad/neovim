@@ -3802,7 +3802,7 @@ fn nfa_regmatch(
                     NFA_BOW => {
                         if curc != NUL as i32 {
                             let this_class = mb_get_class_tab(
-                                re_st().rex.input.cast(),
+                                crate::memory::cstr_as_bytes(re_st().rex.input.cast()),
                                 &re_st().rex.buf_mut().b_chartab,
                             );
                             if this_class > 1 && reg_prev_class() != this_class {
@@ -3814,7 +3814,7 @@ fn nfa_regmatch(
                     NFA_EOW => {
                         if re_st().rex.input != re_st().rex.line {
                             let this_class = mb_get_class_tab(
-                                re_st().rex.input.cast(),
+                                crate::memory::cstr_as_bytes(re_st().rex.input.cast()),
                                 &re_st().rex.buf_mut().b_chartab,
                             );
                             let prev_class = reg_prev_class();

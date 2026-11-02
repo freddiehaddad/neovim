@@ -770,8 +770,11 @@ pub fn fuzzy_match_str_in_line(
         }
 
         str_cur = end;
-        while !crate::memory::cstr_is_empty(str_cur.cast()) && !vim_iswordp(str_cur.cast()) {
+        while !crate::memory::cstr_is_empty(str_cur.cast()) {
             let rest = crate::memory::cstr_as_bytes(str_cur.cast());
+            if vim_iswordp(rest) {
+                break;
+            }
             str_cur = str_cur.wrapping_add(utf_slice2len(rest));
         }
     }

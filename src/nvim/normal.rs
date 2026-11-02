@@ -2613,7 +2613,7 @@ pub fn find_ident_at_pos(
             if (find_type & FIND_EVAL) != 0 && line_bytes[col as usize] == b']' {
                 break;
             }
-            this_class = mb_get_class(ptr.wrapping_add(col as usize));
+            this_class = mb_get_class(&line_bytes[col as usize..]);
             if this_class != 0 && (i == 1 || this_class != 1) {
                 break;
             }
@@ -2624,13 +2624,13 @@ pub fn find_ident_at_pos(
         bn = i32::from(at_rbracket);
 
         if (find_type & FIND_EVAL) != 0 && at_rbracket {
-            this_class = mb_get_class(c"a");
+            this_class = mb_get_class(b"a");
         } else {
-            this_class = mb_get_class(ptr.wrapping_add(col as usize));
+            this_class = mb_get_class(&line_bytes[col as usize..]);
         }
         while col > 0 && this_class != 0 {
             prevcol = col - 1 - utf_head_off(ptr, ptr.wrapping_add((col - 1) as usize));
-            prev_class = mb_get_class(ptr.wrapping_add(prevcol as usize));
+            prev_class = mb_get_class(&line_bytes[prevcol as usize..]);
             if this_class != prev_class
                 && (i == 0 || prev_class == 0 || (find_type & FIND_IDENT) != 0)
                 && ((find_type & FIND_EVAL) == 0
@@ -2663,6 +2663,7 @@ pub fn find_ident_at_pos(
         return &[];
     }
     ptr = ptr.wrapping_add(col as usize);
+    let ptr_bytes = &line_bytes[col as usize..];
     if let Some(textcol) = textcol {
         *textcol = col;
     }
@@ -2670,12 +2671,12 @@ pub fn find_ident_at_pos(
     bn = 0;
     startcol -= col;
     col = 0;
-    this_class = mb_get_class(ptr);
+    this_class = mb_get_class(ptr_bytes);
     while !crate::memory::cstr_is_empty(ptr.wrapping_add(col as usize))
         && ((if i == 0 {
-            mb_get_class(ptr.wrapping_add(col as usize)) == this_class
+            mb_get_class(&ptr_bytes[col as usize..]) == this_class
         } else {
-            mb_get_class(ptr.wrapping_add(col as usize)) != 0
+            mb_get_class(&ptr_bytes[col as usize..]) != 0
         }) || ((find_type & FIND_EVAL) != 0
             && col <= startcol
             && find_is_eval_item(ptr.wrapping_add(col as usize), &mut col, &mut bn, FORWARD)))
@@ -3307,7 +3308,7 @@ pub fn find_decl(
         let patlen = vim_snprintf!(
             pat,
             patsize,
-            if vim_iswordp(ptr) {
+            if vim_iswordp(crate::memory::cstr_as_bytes(ptr)) {
                 c"\\V\\<%.*s\\>".as_ptr()
             } else {
                 c"\\V%.*s".as_ptr()
@@ -4366,7 +4367,7 @@ fn nv_ident(cap: &mut Cmdarg) {
             curwin_mut().w_cursor.col =
                 crate::memory::ptr_offset_from(ptr.cast(), get_cursor_line_ptr()) as Colnr;
 
-            if !g_cmd && vim_iswordp(ptr.cast()) {
+            if !g_cmd && vim_iswordp(crate::memory::cstr_as_bytes(ptr.cast())) {
                 buf_vec[..3].copy_from_slice(b"\\<\0");
                 buflen = 2;
             }
@@ -4479,7 +4480,12 @@ fn nv_ident(cap: &mut Cmdarg) {
     }
 
     if cmdchar == b'*' as i32 || cmdchar == b'#' as i32 {
-        if !g_cmd && vim_iswordp(mb_prevptr(get_cursor_line_ptr(), ptr.cast_mut().cast())) {
+        if !g_cmd
+            && vim_iswordp(crate::memory::cstr_as_bytes(mb_prevptr(
+                get_cursor_line_ptr(),
+                ptr.cast_mut().cast(),
+            )))
+        {
             buf_vec[buflen..buflen + 3].copy_from_slice(b"\\>\0");
             buflen += 2;
         }

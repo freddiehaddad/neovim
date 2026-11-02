@@ -3223,14 +3223,14 @@ fn ins_bs(c: i32, mut mode: i32, inserted_space_p: &mut i32) -> bool {
                 space_vcol += 1;
             }
         } else {
-            let mut cclass = mb_get_class(get_cursor_pos_ptr());
+            let mut cclass = mb_get_class(crate::cursor::get_cursor_pos_slice());
             loop {
                 if !g_st().ins_global.revins_on {
                     dec_cursor();
                 }
                 cc = gchar_cursor();
                 let prev_cclass = cclass;
-                cclass = mb_get_class(get_cursor_pos_ptr());
+                cclass = mb_get_class(crate::cursor::get_cursor_pos_slice());
                 if mode == BACKSPACE_WORD && !ascii_isspace(cc) {
                     mode = BACKSPACE_WORD_NOT_SPACE;
                     temp = i32::from(vim_iswordc(cc));

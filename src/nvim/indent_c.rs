@@ -3056,7 +3056,7 @@ pub fn in_cinkeys(keytyped: i32, when: i32, line_is_empty: bool) -> bool {
                     let mut s = line.wrapping_add(curwin_mut().w_cursor.col as usize);
                     while s > line {
                         let n = mb_prevptr(line, s);
-                        if !vim_iswordp(n) {
+                        if !vim_iswordp(crate::memory::cstr_as_bytes(n)) {
                             break;
                         }
                         s = n;

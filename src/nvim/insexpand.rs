@@ -2380,7 +2380,7 @@ pub fn find_word_start<T>(ptr: *mut T) -> *mut T {
     let mut ptr = ptr.cast::<u8>();
     while !crate::memory::cstr_is_empty(ptr.cast())
         && crate::memory::cstr_first_byte(ptr.cast()) != b'\n'
-        && mb_get_class(ptr.cast()) <= 1
+        && mb_get_class(crate::memory::cstr_as_bytes(ptr.cast())) <= 1
     {
         ptr = ptr.wrapping_add(utfc_ptr2len(ptr.cast()) as usize);
     }
@@ -2389,11 +2389,11 @@ pub fn find_word_start<T>(ptr: *mut T) -> *mut T {
 
 pub fn find_word_end<T>(ptr: *mut T) -> *mut T {
     let mut ptr = ptr.cast::<u8>();
-    let start_class = mb_get_class(ptr.cast());
+    let start_class = mb_get_class(crate::memory::cstr_as_bytes(ptr.cast()));
     if start_class > 1 {
         while !crate::memory::cstr_is_empty(ptr.cast()) {
             ptr = ptr.wrapping_add(utfc_ptr2len(ptr.cast()) as usize);
-            if mb_get_class(ptr.cast()) != start_class {
+            if mb_get_class(crate::memory::cstr_as_bytes(ptr.cast())) != start_class {
                 break;
             }
         }
@@ -4515,7 +4515,7 @@ fn ins_compl_get_next_word_or_line(
 
         if compl_status_adding() && insexp().compl_length <= len {
             tmp_ptr = tmp_ptr.wrapping_add(insexp().compl_length as usize);
-            if vim_iswordp(tmp_ptr.cast()) {
+            if vim_iswordp(crate::memory::cstr_as_bytes(tmp_ptr.cast())) {
                 return ptr::null_mut();
             }
             tmp_ptr = find_word_start(tmp_ptr);
@@ -5967,12 +5967,13 @@ fn get_normal_compl_info(
             let mut prefix = c"\\<".as_ptr();
             let mut prefixlen: usize = 2;
 
-            if !vim_iswordp(line.wrapping_add(insexp().compl_col as usize))
-                || (insexp().compl_col > 0
-                    && vim_iswordp(mb_prevptr(
-                        line,
-                        line.wrapping_add(insexp().compl_col as usize),
-                    )))
+            if !vim_iswordp(crate::memory::cstr_as_bytes(
+                line.wrapping_add(insexp().compl_col as usize),
+            )) || (insexp().compl_col > 0
+                && vim_iswordp(crate::memory::cstr_as_bytes(mb_prevptr(
+                    line,
+                    line.wrapping_add(insexp().compl_col as usize),
+                ))))
             {
                 prefix = c"".as_ptr();
                 prefixlen = 0;
@@ -5995,7 +5996,10 @@ fn get_normal_compl_info(
         } else {
             startcol -= 1;
             if startcol < 0
-                || !vim_iswordp(mb_prevptr(line, line.wrapping_add((startcol + 1) as usize)))
+                || !vim_iswordp(crate::memory::cstr_as_bytes(mb_prevptr(
+                    line,
+                    line.wrapping_add((startcol + 1) as usize),
+                )))
             {
                 insexp().compl_pattern = Some(c"\\<\\k\\k".to_owned());
                 insexp().compl_col += curs_col;
@@ -6003,13 +6007,18 @@ fn get_normal_compl_info(
                 insexp().compl_from_nonkeyword = true;
             } else {
                 startcol -= utf_head_off(line, line.wrapping_add(startcol as usize));
-                let base_class = mb_get_class(line.wrapping_add(startcol as usize));
+                let base_class = mb_get_class(crate::memory::cstr_as_bytes(
+                    line.wrapping_add(startcol as usize),
+                ));
                 while {
                     startcol -= 1;
                     startcol >= 0
                 } {
                     let head_off = utf_head_off(line, line.wrapping_add(startcol as usize));
-                    if base_class != mb_get_class(line.wrapping_add((startcol - head_off) as usize))
+                    if base_class
+                        != mb_get_class(crate::memory::cstr_as_bytes(
+                            line.wrapping_add((startcol - head_off) as usize),
+                        ))
                     {
                         break;
                     }

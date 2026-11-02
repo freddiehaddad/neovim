@@ -2156,22 +2156,21 @@ pub fn spell_iswordp(p: impl crate::strings::IntoCCharPtr, wp: &WinInfoInfo) -> 
                 s = p.wrapping_add(l as usize);
             }
         }
-        let c = utf_ptr2char(s);
+        let s_bytes = crate::memory::cstr_as_bytes(s);
+        let c = crate::mbyte::utf_slice2char(s_bytes);
         if c > 255 {
-            return spell_mb_isword_class(mb_get_class(s), wp);
+            return spell_mb_isword_class(mb_get_class(s_bytes), wp);
         }
         c >= 0 && spell_priv_st().spelltab.st_isw[c as usize]
     }
 }
 pub fn spell_iswordp_nmw(p: impl crate::strings::IntoCCharPtr, wp: &mut WinInfoInfo) -> bool {
-    let p = p.into_c_char_ptr();
-    {
-        let c = utf_ptr2char(p);
-        if c > 255 {
-            return spell_mb_isword_class(mb_get_class(p), wp);
-        }
-        c >= 0 && spell_priv_st().spelltab.st_isw[c as usize]
+    let p_bytes = crate::memory::cstr_as_bytes(p.into_c_char_ptr());
+    let c = crate::mbyte::utf_slice2char(p_bytes);
+    if c > 255 {
+        return spell_mb_isword_class(mb_get_class(p_bytes), wp);
     }
+    c >= 0 && spell_priv_st().spelltab.st_isw[c as usize]
 }
 fn spell_mb_isword_class(cl: i32, wp: &WinInfoInfo) -> bool {
     let w_s = wp.w_s_ptr();

@@ -2332,8 +2332,10 @@ fn regrepeat(p: *mut u8, maxcount: i64) -> i32 {
                 testval = 1;
             }
             while count < maxcount {
-                if vim_iswordp_buf(scan.cast(), &mut *re_st().rex.reg_buf)
-                    && (testval != 0 || !ascii_isdigit(*scan as i32))
+                if vim_iswordp_buf(
+                    crate::memory::cstr_as_bytes(scan.cast()),
+                    &mut *re_st().rex.reg_buf,
+                ) && (testval != 0 || !ascii_isdigit(*scan as i32))
                 {
                     mb_ptr_adv(&raw mut scan);
                 } else if *scan == NUL {
@@ -2830,7 +2832,7 @@ fn regmatch(mut scan: *mut u8, tm: Option<Proftime>, mut timed_out: Option<&mut 
                                 status = RA_NOMATCH;
                             } else {
                                 let this_class = mb_get_class_tab(
-                                    re_st().rex.input.cast(),
+                                    crate::memory::cstr_as_bytes(re_st().rex.input.cast()),
                                     &re_st().rex.buf_mut().b_chartab,
                                 );
                                 if this_class <= 1 || reg_prev_class() == this_class {
@@ -2843,7 +2845,7 @@ fn regmatch(mut scan: *mut u8, tm: Option<Proftime>, mut timed_out: Option<&mut 
                                 status = RA_NOMATCH;
                             } else {
                                 let this_class = mb_get_class_tab(
-                                    re_st().rex.input.cast(),
+                                    crate::memory::cstr_as_bytes(re_st().rex.input.cast()),
                                     &re_st().rex.buf_mut().b_chartab,
                                 );
                                 let prev_class = reg_prev_class();
@@ -2874,8 +2876,10 @@ fn regmatch(mut scan: *mut u8, tm: Option<Proftime>, mut timed_out: Option<&mut 
                             }
                         }
                         KWORD => {
-                            if !vim_iswordp_buf(re_st().rex.input.cast(), &mut *re_st().rex.reg_buf)
-                            {
+                            if !vim_iswordp_buf(
+                                crate::memory::cstr_as_bytes(re_st().rex.input.cast()),
+                                &mut *re_st().rex.reg_buf,
+                            ) {
                                 status = RA_NOMATCH;
                             } else {
                                 advance_reginput();
@@ -2884,7 +2888,7 @@ fn regmatch(mut scan: *mut u8, tm: Option<Proftime>, mut timed_out: Option<&mut 
                         SKWORD => {
                             if ascii_isdigit(*re_st().rex.input as i32)
                                 || !vim_iswordp_buf(
-                                    re_st().rex.input.cast(),
+                                    crate::memory::cstr_as_bytes(re_st().rex.input.cast()),
                                     &mut *re_st().rex.reg_buf,
                                 )
                             {

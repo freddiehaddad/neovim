@@ -1523,16 +1523,20 @@ fn syn_current_attr(
                 if do_keywords {
                     line = syn_getcurline!();
                     let cur_pos = line.wrapping_offset(syn_st().current_col as isize);
-                    if vim_iswordp_buf(cur_pos, syn_st().syn_buf_mut())
-                        && (syn_st().current_col == 0
-                            || !vim_iswordp_buf(
+                    if vim_iswordp_buf(
+                        crate::memory::cstr_as_bytes(cur_pos),
+                        syn_st().syn_buf_mut(),
+                    ) && (syn_st().current_col == 0
+                        || !vim_iswordp_buf(
+                            crate::memory::cstr_as_bytes(
                                 cur_pos.wrapping_sub(1).wrapping_sub(utf_head_off(
                                     line,
                                     cur_pos.wrapping_sub(1),
                                 )
                                     as usize),
-                                syn_st().syn_buf_mut(),
-                            ))
+                            ),
+                            syn_st().syn_buf_mut(),
+                        ))
                     {
                         syn_id = check_keyword_id(
                             line,
@@ -2532,7 +2536,10 @@ fn check_keyword_id(
         let mut kwlen: i32 = 0;
         loop {
             kwlen += utfc_ptr2len(kwp.wrapping_offset(kwlen as isize));
-            if !vim_iswordp_buf(kwp.wrapping_offset(kwlen as isize), syn_st().syn_buf_mut()) {
+            if !vim_iswordp_buf(
+                crate::memory::cstr_as_bytes(kwp.wrapping_offset(kwlen as isize)),
+                syn_st().syn_buf_mut(),
+            ) {
                 break;
             }
         }

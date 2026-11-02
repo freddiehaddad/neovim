@@ -1213,14 +1213,12 @@ pub fn remove_bom(buf: &mut [u8]) {
     }
 }
 
-pub fn mb_get_class(p: impl crate::strings::IntoCCharPtr) -> i32 {
-    let p = p.into_c_char_ptr();
-    mb_get_class_tab(p, &curbuf_mut().b_chartab)
+pub fn mb_get_class(bytes: &[u8]) -> i32 {
+    mb_get_class_tab(bytes, &curbuf_mut().b_chartab)
 }
 
-pub fn mb_get_class_tab(p: impl crate::strings::IntoCCharPtr, chartab: &[u64; 4]) -> i32 {
-    let p = p.into_c_char_ptr();
-    let b0 = crate::memory::cstr_first_byte(p);
+pub fn mb_get_class_tab(bytes: &[u8], chartab: &[u64; 4]) -> i32 {
+    let b0 = bytes.first().copied().unwrap_or(0);
     if UTF8LEN_TAB[b0 as usize] == 1 {
         if b0 == 0 || ascii_iswhite(i32::from(b0)) {
             return 0;
@@ -1230,7 +1228,7 @@ pub fn mb_get_class_tab(p: impl crate::strings::IntoCCharPtr, chartab: &[u64; 4]
         }
         return 1;
     }
-    utf_class_tab(utf_ptr2char(p), chartab)
+    utf_class_tab(utf_slice2char(bytes), chartab)
 }
 
 #[inline]
@@ -3581,7 +3579,7 @@ pub fn f_charclass(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDa
         return;
     }
     rettv.vval = crate::eval::typval::TypvalVval::Number(Varnumber::from(mb_get_class(
-        argvars[0].vval.v_string(),
+        crate::memory::cstr_as_bytes(argvars[0].vval.v_string()),
     )));
 }
 

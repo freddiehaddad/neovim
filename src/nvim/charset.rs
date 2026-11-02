@@ -722,13 +722,11 @@ pub fn vim_iswordc_buf(c: i32, buf: &mut FileBuf) -> bool {
     vim_iswordc_tab(c, &buf.b_chartab)
 }
 
-pub fn vim_iswordp(p: impl crate::strings::IntoCCharPtr) -> bool {
-    let p = p.into_c_char_ptr();
-    vim_iswordp_buf(p, crate::globals::curbuf_mut())
+pub fn vim_iswordp(bytes: &[u8]) -> bool {
+    vim_iswordp_buf(bytes, crate::globals::curbuf_mut())
 }
 
-pub fn vim_iswordp_buf(p: impl crate::strings::IntoCCharPtr, buf: &mut FileBuf) -> bool {
-    let bytes = crate::memory::cstr_as_bytes(p.into_c_char_ptr());
+pub fn vim_iswordp_buf(bytes: &[u8], buf: &mut FileBuf) -> bool {
     let b0 = bytes.first().copied().unwrap_or(0);
     let c = if UTF8LEN_TAB[b0 as usize] > 1 {
         utf_slice2char(bytes)

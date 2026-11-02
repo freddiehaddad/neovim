@@ -849,13 +849,13 @@ fn buf_do_map(
                     let mut p = keys_unescaped.as_ptr();
                     let end_p = p.wrapping_add(keys_unescaped_len);
 
-                    let first = vim_iswordp(p.cast());
+                    let first = vim_iswordp(crate::memory::cstr_as_bytes(p.cast()));
                     let mut last = first;
                     p = p.wrapping_add(utfc_ptr2len(p.cast()) as usize);
                     let mut n: i32 = 1;
                     while (p as usize) < (end_p as usize) {
                         n += 1;
-                        last = vim_iswordp(p.cast());
+                        last = vim_iswordp(crate::memory::cstr_as_bytes(p.cast()));
                         if same == -1 && last != first {
                             same = n - 1;
                         }
@@ -1577,11 +1577,11 @@ pub fn check_abbr<T>(mut c: i32, ptr_arg: *mut T, col: i32, mincol: i32) -> bool
     {
         let mut is_id = true;
         let mut p: *mut u8 = mb_prevptr(ptr_arg, ptr_arg.wrapping_add(col as usize));
-        let vim_abbr = if !vim_iswordp(p.cast()) {
+        let vim_abbr = if !vim_iswordp(crate::memory::cstr_as_bytes(p.cast())) {
             true
         } else {
             if (p as usize) > (ptr_arg as usize) {
-                is_id = vim_iswordp(mb_prevptr(ptr_arg, p).cast());
+                is_id = vim_iswordp(crate::memory::cstr_as_bytes(mb_prevptr(ptr_arg, p).cast()));
             }
             false
         };
@@ -1590,7 +1590,7 @@ pub fn check_abbr<T>(mut c: i32, ptr_arg: *mut T, col: i32, mincol: i32) -> bool
         while (p as usize) > (min_ptr as usize) {
             p = mb_prevptr(ptr_arg, p);
             if ascii_isspace(crate::memory::cstr_first_byte(p.cast()) as i32)
-                || (!vim_abbr && is_id != vim_iswordp(p.cast()))
+                || (!vim_abbr && is_id != vim_iswordp(crate::memory::cstr_as_bytes(p.cast())))
             {
                 p = p.wrapping_add(utfc_ptr2len(p.cast()) as usize);
                 break;
