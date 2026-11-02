@@ -1631,23 +1631,19 @@ pub fn ex_endfunction(_eap: &mut Exarg) {
 
 pub fn has_loop_cmd(p: impl crate::strings::IntoCCharPtr) -> bool {
     let mut p = p.into_c_char_ptr();
-    {
-        loop {
-            while crate::memory::cstr_first_byte(p) == b' '
-                || crate::memory::cstr_first_byte(p) == b'\t'
-                || crate::memory::cstr_first_byte(p) == b':'
-            {
-                p = p.wrapping_add(1);
-            }
-            let len = modifier_len(p);
-            if len == 0 {
-                break;
-            }
-            p = p.wrapping_add(len as usize);
+    loop {
+        let p_bytes = crate::memory::cstr_as_bytes(p);
+        let skip = p_bytes
+            .iter()
+            .take_while(|&&b| matches!(b, b' ' | b'\t' | b':'))
+            .count();
+        p = p.wrapping_add(skip);
+        let len = modifier_len(p);
+        if len == 0 {
+            break;
         }
-        (crate::memory::cstr_first_byte(p) == b'w' && crate::memory::cstr_byte_at(p, 1) == b'h')
-            || (crate::memory::cstr_first_byte(p) == b'f'
-                && crate::memory::cstr_byte_at(p, 1) == b'o'
-                && crate::memory::cstr_byte_at(p, 2) == b'r')
+        p = p.wrapping_add(len as usize);
     }
+    let rem = crate::memory::cstr_as_bytes(p);
+    rem.starts_with(b"wh") || rem.starts_with(b"for")
 }

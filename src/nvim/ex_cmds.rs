@@ -980,32 +980,27 @@ pub fn ex_uniq(eap: &mut Exarg) {
 
     'uniqend: {
         let mut p = eap.arg;
-        while !crate::memory::cstr_is_empty(p) {
-            if ascii_iswhite(crate::memory::cstr_first_char(p)) {
+        while unsafe { *p } != 0 {
+            let b0 = unsafe { *p as u8 };
+            if ascii_iswhite(b0 as i32) {
                 // Skip
-            } else if crate::memory::cstr_first_byte(p) == b'i' {
+            } else if b0 == b'i' {
                 excmds_st().sort_ic = true;
-            } else if crate::memory::cstr_first_byte(p) == b'l' {
+            } else if b0 == b'l' {
                 excmds_st().sort_lc = true;
-            } else if crate::memory::cstr_first_byte(p) == b'r' {
+            } else if b0 == b'r' {
                 excmds_st().sort_rx = true;
-            } else if crate::memory::cstr_first_byte(p) == b'u' {
+            } else if b0 == b'u' {
                 if !keep_only_not_unique {
                     keep_only_unique = true;
                 }
-            } else if crate::memory::cstr_first_byte(p) == b'"' {
+            } else if b0 == b'"' {
                 break;
             } else if eap.nextcmd.is_null() && !check_nextcmd(p).is_null() {
                 eap.nextcmd = check_nextcmd(p);
                 break;
-            } else if !ascii_isalpha(crate::memory::cstr_first_char(p))
-                && regmatch.regprog.is_null()
-            {
-                let s = skip_regexp_err(
-                    p.wrapping_add(1),
-                    (crate::memory::cstr_first_byte(p)) as i32,
-                    1,
-                );
+            } else if !b0.is_ascii_alphabetic() && regmatch.regprog.is_null() {
+                let s = skip_regexp_err(p.wrapping_add(1), b0 as i32, 1);
                 if s.is_null() {
                     break 'uniqend;
                 }

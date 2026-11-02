@@ -6813,9 +6813,10 @@ pub fn parse_command_modifiers(
     let mut has_visual_range = false;
     *cmod = Cmdmod::new();
 
-    if crate::memory::cstr_prefix_bytes(eap.cmd, 5) == &b"'<,'>"[..5] {
+    if crate::memory::cstr_as_bytes(eap.cmd).starts_with(b"'<,'>") {
         let p = skipwhite(eap.cmd.wrapping_add(5));
-        if !crate::memory::cstr_is_empty(p) && crate::memory::cstr_first_byte(p) != b'|' {
+        let p0 = crate::memory::cstr_first_byte(p);
+        if p0 != 0 && p0 != b'|' {
             eap.cmd = eap.cmd.wrapping_add(5);
             cmd_start = eap.cmd;
             has_visual_range = true;
@@ -6823,25 +6824,26 @@ pub fn parse_command_modifiers(
     }
 
     loop {
-        while crate::memory::cstr_first_byte(eap.cmd) == b' '
-            || crate::memory::cstr_first_byte(eap.cmd) == b'\t'
-            || crate::memory::cstr_first_byte(eap.cmd) == b':'
-        {
-            eap.cmd = eap.cmd.wrapping_add(1);
-        }
+        let cmd_bytes = crate::memory::cstr_as_bytes(eap.cmd);
+        let skip_ws_colon = cmd_bytes
+            .iter()
+            .take_while(|&&b| matches!(b, b' ' | b'\t' | b':'))
+            .count();
+        eap.cmd = eap.cmd.wrapping_add(skip_ws_colon);
+        let cmd_rem = &cmd_bytes[skip_ws_colon..];
 
-        if crate::memory::cstr_first_byte(eap.cmd) == b'"' {
+        let Some(&cmd0) = cmd_rem.first() else {
+            return false;
+        };
+        if cmd0 == b'"' {
             eap.nextcmd = vim_strchr(eap.cmd, b'\n' as i32);
             if !eap.nextcmd.is_null() {
                 eap.nextcmd = eap.nextcmd.wrapping_add(1);
             }
             return false;
         }
-        if crate::memory::cstr_first_byte(eap.cmd) == b'\n' {
+        if cmd0 == b'\n' {
             eap.nextcmd = eap.cmd.wrapping_add(1);
-            return false;
-        }
-        if crate::memory::cstr_is_empty(eap.cmd) {
             return false;
         }
 
@@ -8396,40 +8398,41 @@ fn repl_cmdline(
 pub fn separate_nextcmd(eap: &mut Exarg) {
     let mut p = skip_grep_pat(eap);
 
-    while !crate::memory::cstr_is_empty(p) {
-        if crate::memory::cstr_first_char(p) == CTRL_V_CONST as i32 {
+    while unsafe { *p } != 0 {
+        let b0 = unsafe { *p as u8 };
+        if b0 == CTRL_V_CONST as u8 {
             if (eap.argt & (EX_CTRLV | EX_XFILE)) != 0 {
                 p = p.wrapping_add(1);
             } else {
                 crate::memory::cstr_move(p, p.wrapping_add(1));
             }
-            if crate::memory::cstr_is_empty(p) {
+            if unsafe { *p } == 0 {
                 break;
             }
-        } else if crate::memory::cstr_first_byte(p) == b'`'
-            && crate::memory::cstr_byte_at(p, 1) == b'='
+        } else if b0 == b'`'
+            && unsafe { *p.wrapping_add(1) as u8 } == b'='
             && (eap.argt & EX_XFILE) != 0
         {
             p = p.wrapping_add(2);
             skip_expr(&raw mut p, None);
-            if crate::memory::cstr_is_empty(p) {
+            if unsafe { *p } == 0 {
                 break;
             }
-        } else if (crate::memory::cstr_first_byte(p) == b'"'
+        } else if (b0 == b'"'
             && (eap.argt & EX_NOTRLCOM) == 0
             && (eap.cmdidx != Cmdidx::CmdAt as i32 || p != eap.arg)
             && (eap.cmdidx != Cmdidx::CmdRedir as i32
                 || p != eap.arg.wrapping_add(1)
-                || crate::memory::cstr_first_byte(p.wrapping_sub(1)) != b'@'))
-            || (crate::memory::cstr_first_byte(p) == b'|'
+                || unsafe { *p.wrapping_sub(1) as u8 } != b'@'))
+            || (b0 == b'|'
                 && eap.cmdidx != Cmdidx::CmdAppend as i32
                 && eap.cmdidx != Cmdidx::CmdChange as i32
                 && eap.cmdidx != Cmdidx::CmdInsert as i32)
-            || crate::memory::cstr_first_byte(p) == b'\n'
+            || b0 == b'\n'
         {
             if (!crate::strings::vim_haschr(opt_vars().p_cpo, K_CPO_BAR)
                 || (eap.argt & EX_CTRLV) == 0)
-                && crate::memory::cstr_first_byte(p.wrapping_sub(1)) == b'\\'
+                && unsafe { *p.wrapping_sub(1) as u8 } == b'\\'
             {
                 crate::memory::cstr_move(p.wrapping_sub(1), p);
                 p = p.wrapping_sub(1);
