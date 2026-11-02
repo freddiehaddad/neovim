@@ -4064,12 +4064,13 @@ pub fn buf_check_timestamp(buf: &mut FileBuf) -> i32 {
                     helpmesg = true;
                     can_reload = true;
 
-                    if crate::memory::cstr_byte_at(reason, 2) == b'n' {
+                    let reason_bytes = crate::memory::cstr_as_bytes(reason);
+                    if reason_bytes.get(2) == Some(&b'n') {
                         mesg = Some(tr(
                             c"W12: Warning: File \"%s\" has changed and the buffer was changed in Vim as well",
                         ));
                         mesg2 = tr(c"See \":help W12\" for more info.");
-                    } else if crate::memory::cstr_byte_at(reason, 1) == b'h' {
+                    } else if reason_bytes.get(1) == Some(&b'h') {
                         mesg = Some(tr(
                             c"W11: Warning: File \"%s\" has changed since editing started",
                         ));
@@ -4517,10 +4518,8 @@ pub fn readdir_core(
         while let Some(p) = os_scandir_next(&raw mut dir) {
             let p = p.as_ptr();
 
-            let mut ignore = crate::memory::cstr_first_byte(p) == b'.'
-                && (crate::memory::cstr_byte_at(p, 1) == 0
-                    || (crate::memory::cstr_byte_at(p, 1) == b'.'
-                        && crate::memory::cstr_byte_at(p, 2) == 0));
+            let p_bytes = crate::memory::cstr_as_bytes(p);
+            let mut ignore = p_bytes == b"." || p_bytes == b"..";
             if !ignore && context.is_some() {
                 let r = crate::eval::fs::readdir_checkitem(context.as_deref_mut().unwrap(), p);
                 if r < 0 {

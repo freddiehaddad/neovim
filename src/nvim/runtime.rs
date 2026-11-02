@@ -1163,8 +1163,9 @@ fn expand_pack_entry(
 fn path_is_after(buf: impl crate::strings::IntoCCharPtr, buflen: usize) -> bool {
     let buf = buf.into_c_char_ptr();
     {
+        let buf_slice = crate::memory::cstr_slice(buf, buflen);
         buflen >= 5
-            && (buflen < 6 || vim_ispathsep(crate::memory::cstr_byte_at(buf, buflen - 6) as i32))
+            && (buflen < 6 || vim_ispathsep(i32::from(buf_slice[buflen - 6])))
             && crate::memory::cstr_as_bytes(buf.wrapping_add(buflen - 5)) == b"after"
     }
 }
@@ -1431,11 +1432,14 @@ fn add_pack_dir_to_rtp(fname: impl crate::strings::IntoCCharPtr, is_pack: bool) 
                 let cur_entry = entry;
                 buf.size = copy_option_part(&raw mut entry, buf.data.cast(), MAXPATHL, c",");
 
-                p_rtp_len += if crate::memory::cstr_byte_at(cur_entry.cast(), buf.size) == b',' {
-                    buf.size + 1
-                } else {
-                    buf.size
-                };
+                p_rtp_len +=
+                    if crate::memory::cstr_first_byte(cur_entry.wrapping_add(buf.size).cast())
+                        == b','
+                    {
+                        buf.size + 1
+                    } else {
+                        buf.size
+                    };
 
                 let is_after = crate::memory::cstr_as_bytes(buf.data)
                     .windows(5)
@@ -1521,7 +1525,7 @@ fn add_pack_dir_to_rtp(fname: impl crate::strings::IntoCCharPtr, is_pack: bool) 
                 after_pos = keep_after;
             }
 
-            if crate::memory::cstr_byte_at(opt_vars().p_rtp, keep) != 0 {
+            if keep < p_rtp_len {
                 new_rtp_vec.extend_from_slice(&p_rtp_slice[keep..p_rtp_len]);
             }
 
@@ -1935,8 +1939,8 @@ fn expand_rtdir_int(
     }
 
     let mut pat_pathsep_cnt: i32 = 0;
-    for idx in 0..pat_len {
-        if vim_ispathsep(crate::memory::cstr_byte_at(pat, idx) as i32) {
+    for &b in crate::memory::cstr_slice(pat, pat_len) {
+        if vim_ispathsep(i32::from(b)) {
             pat_pathsep_cnt += 1;
         }
     }

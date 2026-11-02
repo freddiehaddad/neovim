@@ -416,12 +416,10 @@ pub fn vim_findfile_init(
                 if p > search_ctx.ffsc_fix_path.data {
                     len =
                         crate::memory::ptr_offset_from(p, search_ctx.ffsc_fix_path.data) as i32 - 1;
+                    let fix_bytes = search_ctx.ffsc_fix_path.as_bytes();
                     if len >= 2
-                        && crate::memory::cstr_first_byte(search_ctx.ffsc_fix_path.data) == b'.'
-                        && crate::memory::cstr_byte_at(search_ctx.ffsc_fix_path.data, 1) == b'.'
-                        && (len == 2
-                            || crate::memory::cstr_byte_at(search_ctx.ffsc_fix_path.data, 2)
-                                == PATHSEP)
+                        && fix_bytes.starts_with(b"..")
+                        && (len == 2 || fix_bytes.get(2) == Some(&PATHSEP))
                     {
                         return None;
                     }
@@ -629,9 +627,7 @@ pub fn vim_findfile(search_ctx: Option<&mut FfSearchCtx>) -> Option<std::ffi::CS
 
                 rest_of_wildcards = stackp.ffs_wc_path;
                 if !crate::memory::cstr_is_empty(rest_of_wildcards.data) {
-                    if crate::memory::cstr_first_byte(rest_of_wildcards.data) == b'*'
-                        && crate::memory::cstr_byte_at(rest_of_wildcards.data, 1) == b'*'
-                    {
+                    if rest_of_wildcards.as_bytes().starts_with(b"**") {
                         let wc_size = rest_of_wildcards.size;
                         let wc_slice = rest_of_wildcards.as_bytes_with_nul_mut();
 
@@ -820,9 +816,7 @@ pub fn vim_findfile(search_ctx: Option<&mut FfSearchCtx>) -> Option<std::ffi::CS
                 stackp.ffs_stage = 1;
             }
 
-            if crate::memory::cstr_first_byte(stackp.ffs_wc_path.data) == b'*'
-                && crate::memory::cstr_byte_at(stackp.ffs_wc_path.data, 1) == b'*'
-            {
+            if stackp.ffs_wc_path.as_bytes().starts_with(b"**") {
                 for i in stackp.ffs_filearray_cur..stackp.ffs_filearray.len() {
                     let entry = stackp.ffs_filearray.as_slice()[i].as_ptr();
                     let entry_len = stackp.ffs_filearray.as_slice()[i].as_bytes().len();
@@ -1134,9 +1128,8 @@ fn ff_path_in_stoplist(
 ) -> bool {
     let path = path.into_c_char_ptr();
     {
-        while path_len > 1
-            && vim_ispathsep(i32::from(crate::memory::cstr_byte_at(path, path_len - 1)))
-        {
+        let path_slice = crate::memory::cstr_slice(path, path_len);
+        while path_len > 1 && vim_ispathsep(i32::from(path_slice[path_len - 1])) {
             path_len -= 1;
         }
 
@@ -1622,7 +1615,7 @@ pub fn find_file_name_in_path(
         if (options & FNAME_HYP) != 0
             && len > 6
             && crate::memory::cstr_slice(ptr, 6) == b"file:/"
-            && !vim_ispathsep(i32::from(crate::memory::cstr_byte_at(ptr, 6)))
+            && !vim_ispathsep(i32::from(crate::memory::cstr_slice(ptr, 7)[6]))
         {
             let off = if path_has_drive_letter(ptr.wrapping_add(6), len - 6) {
                 6

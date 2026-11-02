@@ -225,8 +225,8 @@ pub fn os_expand_wildcards(
         let tempname = tempname_cstr.as_ptr();
 
         if num_pat == 1 && **pat == b'`' {
-            let pat0_len = crate::memory::cstr_len((*pat).cast());
-            if pat0_len > 2 && crate::memory::cstr_byte_at((*pat).cast(), pat0_len - 1) == b'`' {
+            let pat0_bytes = crate::memory::cstr_as_bytes((*pat).cast());
+            if pat0_bytes.len() > 2 && pat0_bytes.last() == Some(&b'`') {
                 shell_style = STYLE_BT;
             }
         }
@@ -259,17 +259,11 @@ pub fn os_expand_wildcards(
 
         for i in 0..(num_pat as usize) {
             len += 1;
-            let p_i = (*pat.add(i)).cast();
-            let mut j = 0;
-            while crate::memory::cstr_byte_at(p_i, j) != 0 {
-                if crate::strings::vim_haschr(
-                    SHELL_SPECIAL,
-                    crate::memory::cstr_byte_at(p_i, j) as i32,
-                ) {
+            for &b in crate::memory::cstr_as_bytes((*pat.add(i)).cast()) {
+                if crate::strings::vim_haschr(SHELL_SPECIAL, i32::from(b)) {
                     len += 1;
                 }
                 len += 1;
-                j += 1;
             }
         }
 

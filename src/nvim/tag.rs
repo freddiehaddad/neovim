@@ -6,7 +6,7 @@ use crate::buffer::{
     K_OPT_SWB_FLAG_NEWTAB, K_OPT_SWB_FLAG_VSPLIT, MAXLNUM, NOTDONE, VAR_FIXED, bt_help,
     buflist_findname_exp, buflist_findnr, buflist_getfile,
 };
-use crate::charset::{ascii_isalpha, ascii_islower, ascii_iswhite, vim_isblankline};
+use crate::charset::{ascii_islower, ascii_iswhite, vim_isblankline};
 use crate::cmdexpand::{
     EXPAND_FILES, HLF_D, TAG_MANY, WILD_EXPAND_FREE, WILD_LIST_NOTFOUND, WILD_SILENT, expand_one,
 };
@@ -2320,23 +2320,18 @@ pub fn find_tags(
             curbuf_mut().b_help = true;
         }
 
+        let pat_slice = crate::memory::cstr_slice(pat, st.orgpat.len.max(0) as usize);
         if curbuf_mut().b_help
-            && st.orgpat.len > 3
-            && crate::memory::cstr_byte_at(pat, (st.orgpat.len - 3) as usize) == b'@'
-            && ascii_isalpha(crate::memory::cstr_byte_at(
-                pat,
-                (st.orgpat.len - 2) as usize,
-            ))
-            && ascii_isalpha(crate::memory::cstr_byte_at(
-                pat,
-                (st.orgpat.len - 1) as usize,
-            ))
+            && pat_slice.len() > 3
+            && pat_slice[pat_slice.len() - 3] == b'@'
+            && pat_slice[pat_slice.len() - 2].is_ascii_alphabetic()
+            && pat_slice[pat_slice.len() - 1].is_ascii_alphabetic()
         {
-            let keep = (st.orgpat.len - 3) as usize;
-            let cstr = std::ffi::CString::new(crate::memory::cstr_slice(pat, keep)).unwrap();
+            let keep = pat_slice.len() - 3;
+            let cstr = std::ffi::CString::new(&pat_slice[..keep]).unwrap();
             st.help_lang_find = Some([
-                crate::memory::cstr_byte_at(pat, (st.orgpat.len - 2) as usize),
-                crate::memory::cstr_byte_at(pat, (st.orgpat.len - 1) as usize),
+                pat_slice[pat_slice.len() - 2],
+                pat_slice[pat_slice.len() - 1],
                 0,
             ]);
             st.orgpat.pat = cstr.as_ptr().cast_mut().cast();

@@ -680,9 +680,9 @@ fn is_executable_ext(
         }
         let mut ext = pathext;
         while unsafe { *ext } != 0 {
-            if crate::memory::cstr_first_byte(ext.cast()) == b'.'
-                && (crate::memory::cstr_byte_at(ext.cast(), 1) == 0
-                    || (crate::memory::cstr_byte_at(ext.cast(), 1)) == ENV_SEPCHAR)
+            let ext_bytes = crate::memory::cstr_as_bytes(ext.cast());
+            if ext_bytes.first() == Some(&b'.')
+                && ext_bytes.get(1).is_none_or(|&b| b == ENV_SEPCHAR)
             {
                 if is_executable(name, abspath.as_deref_mut()) {
                     return true;

@@ -1293,22 +1293,18 @@ pub fn hexhex2nr(p: impl crate::strings::IntoCCharPtr) -> i32 {
 }
 
 pub fn rem_backslash(str_: impl crate::strings::IntoCCharPtr) -> bool {
-    let str_ = str_.into_c_char_ptr();
+    let bytes = crate::memory::cstr_as_bytes(str_);
+    #[cfg(windows)]
     {
-        #[cfg(windows)]
-        {
-            let b0 = crate::memory::cstr_first_byte(str_);
-            let b1 = crate::memory::cstr_byte_at(str_, 1);
-            b0 == b'\\'
-                && b1 < 0x80
-                && (b1 == b' '
-                    || (b1 != 0 && b1 != b'*' && b1 != b'?' && !vim_isfilec(i32::from(b1))))
-        }
-        #[cfg(not(windows))]
-        {
-            crate::memory::cstr_first_byte(str_) == b'\\'
-                && crate::memory::cstr_byte_at(str_, 1) != 0
-        }
+        let b0 = bytes.first().copied().unwrap_or(0);
+        let b1 = bytes.get(1).copied().unwrap_or(0);
+        b0 == b'\\'
+            && b1 < 0x80
+            && (b1 == b' ' || (b1 != 0 && b1 != b'*' && b1 != b'?' && !vim_isfilec(i32::from(b1))))
+    }
+    #[cfg(not(windows))]
+    {
+        bytes.first() == Some(&b'\\') && bytes.len() > 1
     }
 }
 
@@ -1344,7 +1340,7 @@ pub fn backslash_halve_save(p: impl crate::strings::IntoCCharPtr) -> CString {
         let mut res = Vec::with_capacity(crate::memory::cstr_len(p));
         while !crate::memory::cstr_is_empty(p) {
             if rem_backslash(p) {
-                res.push(crate::memory::cstr_byte_at(p, 1));
+                res.push(crate::memory::cstr_first_byte(p.wrapping_add(1)));
                 p = p.wrapping_add(2);
             } else {
                 res.push(crate::memory::cstr_first_byte(p));

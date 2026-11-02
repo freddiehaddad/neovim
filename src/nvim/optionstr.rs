@@ -2259,7 +2259,7 @@ pub fn validate_foldmarker(args: &mut Optset) -> Option<&CStr> {
     if p.is_null() {
         return Some(E_COMMA_REQUIRED);
     }
-    if p == value || crate::memory::cstr_byte_at(p, 1) == 0 {
+    if p == value || crate::memory::cstr_len(p) <= 1 {
         Some(E_INVARG)
     } else {
         None
@@ -2692,10 +2692,7 @@ pub fn did_set_signcolumn(args: &mut Optset) -> Option<&CStr> {
     if !check_signcolumn(args.var_cstr_ptr(), is_local.then_some(&mut *win)) {
         return Some(E_INVARG);
     }
-    if (crate::memory::cstr_first_byte(oldval) == b'n'
-        && crate::memory::cstr_byte_at(oldval, 1) == b'u')
-        || win.w_minscwidth == SCL_NUM
-    {
+    if crate::memory::cstr_as_bytes(oldval).starts_with(b"nu") || win.w_minscwidth == SCL_NUM {
         win.w_nrwidth_line_count = 0;
     }
     None
@@ -2834,9 +2831,7 @@ pub fn did_set_splitkeep(_args: &mut Optset) -> Option<&CStr> {
 
 pub fn validate_statustabline_rulerformat(args: &mut Optset) -> Option<&CStr> {
     let value = args.os_newval.data.string().data;
-    if crate::memory::cstr_first_byte(value) == b'%'
-        && crate::memory::cstr_byte_at(value, 1) == b'!'
-    {
+    if crate::memory::cstr_as_bytes(value).starts_with(b"%!") {
         None
     } else {
         check_stl_option(value, args.os_errbuf)
@@ -3251,7 +3246,7 @@ pub fn opt_strings_check<'a>(
                     }
                 }
                 OptSchemaKind::OptSchemaNum | OptSchemaKind::OptSchemaSNum => {
-                    let mut i: usize = if !v.is_null()
+                    let i: usize = if !v.is_null()
                         && it.kind == OptSchemaKind::OptSchemaSNum
                         && crate::memory::cstr_first_byte(v) == b'-'
                     {
@@ -3259,11 +3254,11 @@ pub fn opt_strings_check<'a>(
                     } else {
                         0
                     };
-                    let mut ok = !v.is_null() && vlen > i;
-                    while ok && i < vlen {
-                        ok = ascii_isdigit(crate::memory::cstr_byte_at(v, i) as i32);
-                        i += 1;
-                    }
+                    let ok = !v.is_null()
+                        && vlen > i
+                        && crate::memory::cstr_slice(v, vlen)[i..]
+                            .iter()
+                            .all(u8::is_ascii_digit);
                     if !ok {
                         return opt_schema_err(
                             errbuf,
@@ -3400,15 +3395,14 @@ pub fn check_ff_value(p: impl crate::strings::IntoCCharPtr) -> bool {
 fn get_encoded_char_adv(p: &mut crate::strings::RawCCharPtr) -> Schar {
     let s = *p;
 
-    if crate::memory::cstr_first_byte(s) == b'\\'
-        && (crate::memory::cstr_byte_at(s, 1) == b'x'
-            || crate::memory::cstr_byte_at(s, 1) == b'u'
-            || crate::memory::cstr_byte_at(s, 1) == b'U')
+    let s_bytes = crate::memory::cstr_as_bytes(s);
+    if s_bytes.first() == Some(&b'\\')
+        && let Some(&b1 @ (b'x' | b'u' | b'U')) = s_bytes.get(1)
     {
         let mut num: i64 = 0;
-        let mut bytes = if crate::memory::cstr_byte_at(s, 1) == b'x' {
+        let mut bytes = if b1 == b'x' {
             1
-        } else if crate::memory::cstr_byte_at(s, 1) == b'u' {
+        } else if b1 == b'u' {
             2
         } else {
             4

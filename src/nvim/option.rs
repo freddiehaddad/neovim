@@ -21,7 +21,7 @@ use crate::change::{HLF_W, save_file_ff};
 #[cfg(windows)]
 use crate::charset::vim_isfilec;
 use crate::charset::{
-    EOL_MAC, ascii_isalnum, ascii_isalpha, ascii_iswhite, buf_init_isk_chartab, init_isf_chartab,
+    EOL_MAC, ascii_isalnum, ascii_iswhite, buf_init_isk_chartab, init_isf_chartab,
     init_isi_chartab, is_special, skiptowhite_esc, skipwhite, trans_characters, transchar,
     vim_str2nr, vim_strsize,
 };
@@ -1345,7 +1345,7 @@ fn stropt_remove_val(
     if !crate::memory::cstr_is_empty(strval) {
         if (flags & K_OPT_FLAG_COMMA) != 0 {
             if strval == origval {
-                if crate::memory::cstr_byte_at(strval, len as usize) == b',' {
+                if crate::memory::cstr_first_byte(strval.wrapping_add(len as usize)) == b',' {
                     len += 1;
                 }
             } else {
@@ -2034,8 +2034,9 @@ pub fn do_set(arg: impl crate::strings::IntoCCharPtr, opt_flags: i32) -> bool {
         did_show = true;
     } else {
         while !crate::memory::cstr_is_empty(arg) {
-            if (crate::memory::cstr_prefix_bytes(arg, 3) == &b"all"[..3])
-                && !ascii_isalpha(crate::memory::cstr_byte_at(arg, 3))
+            let arg_bytes = crate::memory::cstr_as_bytes(arg);
+            if arg_bytes.starts_with(b"all")
+                && !arg_bytes.get(3).is_some_and(u8::is_ascii_alphabetic)
                 && (opt_flags & OPT_MODELINE) == 0
             {
                 arg = arg.wrapping_add(3);
@@ -7507,7 +7508,9 @@ pub fn set_context_in_set_cmd(
 
     opt_st().expand_option_append = false;
     let mut expand_option_subtract = false;
-    if matches!(nextchar, b'-' | b'+' | b'^') && crate::memory::cstr_byte_at(p, 1) == b'=' {
+    if matches!(nextchar, b'-' | b'+' | b'^')
+        && crate::memory::cstr_as_bytes(p).get(1) == Some(&b'=')
+    {
         if nextchar == b'-' {
             expand_option_subtract = true;
         }

@@ -312,13 +312,18 @@ pub fn ex_menu(eap: &mut Exarg) {
     }
     pri_tab[MENUDEPTH] = -1;
 
-    if (crate::memory::cstr_prefix_bytes(arg, 6) == &b"enable"[..6])
-        && ascii_iswhite(crate::memory::cstr_byte_at(arg, 6))
+    let arg_bytes = crate::memory::cstr_as_bytes(arg);
+    if arg_bytes.starts_with(b"enable")
+        && arg_bytes
+            .get(6)
+            .is_some_and(|&b| ascii_iswhite(i32::from(b)))
     {
         enable = K_TRUE;
         arg = skipwhite(arg.wrapping_add(6));
-    } else if (crate::memory::cstr_prefix_bytes(arg, 7) == &b"disable"[..7])
-        && ascii_iswhite(crate::memory::cstr_byte_at(arg, 7))
+    } else if arg_bytes.starts_with(b"disable")
+        && arg_bytes
+            .get(7)
+            .is_some_and(|&b| ascii_iswhite(i32::from(b)))
     {
         enable = K_FALSE;
         arg = skipwhite(arg.wrapping_add(7));
@@ -1216,7 +1221,7 @@ pub fn get_menu_names(_xp: &mut ExpandCtx, idx: i32) -> Option<&'static CStr> {
             let dlen = menus[menu_st().get_menu_names_idx].dname.as_bytes().len();
             menu_is_hidden(dname)
                 || (menu_st().expand_emenu && menu_is_separator(dname))
-                || (dlen > 0 && crate::memory::cstr_byte_at(dname, dlen - 1) == b'.')
+                || crate::memory::cstr_slice(dname, dlen).last() == Some(&b'.')
         } {
             menu_st().get_menu_names_idx += 1;
         }
@@ -1506,20 +1511,15 @@ pub fn menu_is_toolbar(name: impl crate::strings::IntoCCharPtr) -> bool {
 
 /// Return true if the name is a menu separator identifier (`menu_is_separator`).
 pub fn menu_is_separator(name: impl crate::strings::IntoCCharPtr) -> bool {
-    let name = name.into_c_char_ptr();
-    {
-        let len = crate::memory::cstr_len(name);
-        len > 0
-            && crate::memory::cstr_first_byte(name) == b'-'
-            && crate::memory::cstr_byte_at(name, len - 1) == b'-'
-    }
+    let bytes = crate::memory::cstr_as_bytes(name);
+    bytes.first() == Some(&b'-') && bytes.last() == Some(&b'-')
 }
 
 /// True if a popup menu or starts with `MNU_HIDDEN_CHAR` (`menu_is_hidden`).
 fn menu_is_hidden(name: impl crate::strings::IntoCCharPtr) -> bool {
     let name = name.into_c_char_ptr();
     crate::memory::cstr_first_byte(name) == MNU_HIDDEN_CHAR
-        || (menu_is_popup(name) && crate::memory::cstr_byte_at(name, 5) != 0)
+        || (menu_is_popup(name) && crate::memory::cstr_len(name) > 5)
 }
 
 fn get_menu_mode() -> i32 {
@@ -1731,8 +1731,11 @@ pub fn ex_emenu(eap: &mut Exarg) {
     let mut arg = eap.arg;
     let mut mode_idx = MENU_INDEX_INVALID;
 
-    if !crate::memory::cstr_is_empty(arg) && ascii_iswhite(crate::memory::cstr_byte_at(arg, 1)) {
-        match crate::memory::cstr_first_byte(arg) {
+    let arg_bytes = crate::memory::cstr_as_bytes(arg);
+    if let Some(&b0) = arg_bytes.first()
+        && ascii_iswhite(i32::from(arg_bytes.get(1).copied().unwrap_or(0)))
+    {
+        match b0 {
             b'n' => mode_idx = MENU_INDEX_NORMAL,
             b'v' => mode_idx = MENU_INDEX_VISUAL,
             b's' => mode_idx = MENU_INDEX_SELECT,
@@ -1850,7 +1853,7 @@ fn menu_skip_part(mut p: *mut u8) -> *mut u8 {
     {
         if (crate::memory::cstr_first_byte(p.cast()) == b'\\'
             || crate::memory::cstr_first_byte(p.cast()) == CTRL_V_CONST as u8)
-            && crate::memory::cstr_byte_at(p.cast(), 1) != 0
+            && crate::memory::cstr_len(p.cast()) > 1
         {
             p = p.wrapping_add(1);
         }
@@ -1866,9 +1869,9 @@ fn menutrans_lookup(name: *mut u8, len: i32) -> *mut u8 {
 
     for entry in menutrans {
         let from_ptr = entry.from.as_ptr();
-        if crate::memory::cstr_prefix_bytes(name.cast(), u_len)
-            .eq_ignore_ascii_case(crate::memory::cstr_prefix_bytes(from_ptr, u_len))
-            && crate::memory::cstr_byte_at(from_ptr, u_len) == 0
+        let from_bytes = crate::memory::cstr_as_bytes(from_ptr);
+        if from_bytes.len() == u_len
+            && crate::memory::cstr_prefix_bytes(name.cast(), u_len).eq_ignore_ascii_case(from_bytes)
         {
             return entry.to.as_ptr().cast_mut().cast();
         }
