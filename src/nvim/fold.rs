@@ -24,7 +24,6 @@ use crate::eval::vars::{
 use crate::eval::{eval_foldexpr, eval_foldtext};
 use crate::ex_session::{put_eol, put_line};
 use crate::extmark::{K_EXTMARK_UNDO, K_FALSE, K_NONE, K_TRUE, TriState, extmark_splice_cols};
-use crate::fileio::{FILE, fputs};
 use crate::globals::*;
 use crate::indent::{get_indent_buf, get_sw_value};
 use crate::mark::setpcmark;
@@ -35,6 +34,7 @@ use crate::message::emsg;
 use crate::r#move::changed_window_setting;
 use crate::ops::skip_comment;
 use crate::option_vars::*;
+use crate::os::fs::CFile;
 use crate::os::input::line_breakcheck;
 use crate::plines::plines_win_nofold;
 use crate::search::{FORWARD, linewhite};
@@ -2533,7 +2533,7 @@ fn foldlevel_syntax(flp: &mut Fline) {
 }
 
 /// Write commands to "fd" to restore the manual folds in window "wp".
-pub fn put_folds(fd: *mut FILE, wp: &mut WinInfoInfo) -> bool {
+pub fn put_folds(fd: &CFile, wp: &mut WinInfoInfo) -> bool {
     if foldmethod_is_manual(wp)
         && (!put_line(fd, c"silent! normal! zE")
             || !put_folds_recurse(fd, &wp.w_folds, 0)
@@ -2550,7 +2550,7 @@ pub fn put_folds(fd: *mut FILE, wp: &mut WinInfoInfo) -> bool {
     true
 }
 
-fn put_folds_recurse(fd: *mut FILE, gap: &[FoldEntry], off: Linenr) -> bool {
+fn put_folds_recurse(fd: &CFile, gap: &[FoldEntry], off: Linenr) -> bool {
     for fp in gap {
         if !put_folds_recurse(fd, &fp.fd_nested, off + fp.fd_top) {
             return false;
@@ -2563,19 +2563,14 @@ fn put_folds_recurse(fd: *mut FILE, gap: &[FoldEntry], off: Linenr) -> bool {
             i64::from(fp.fd_top + off),
             i64::from(fp.fd_top + off + fp.fd_len - 1),
         );
-        if fputs(buf.as_ptr().cast(), fd) < 0 || !put_eol(fd) {
+        if fd.puts(buf.as_ptr().cast()) < 0 || !put_eol(fd) {
             return false;
         }
     }
     true
 }
 
-fn put_foldopen_recurse(
-    fd: *mut FILE,
-    wp: &mut WinInfoInfo,
-    gap: &[FoldEntry],
-    off: Linenr,
-) -> bool {
+fn put_foldopen_recurse(fd: &CFile, wp: &mut WinInfoInfo, gap: &[FoldEntry], off: Linenr) -> bool {
     for fp in gap {
         if fp.fd_flags != FD_LEVEL {
             if !fp.fd_nested.is_empty() {
@@ -2586,7 +2581,7 @@ fn put_foldopen_recurse(
                     c"%lld",
                     i64::from(fp.fd_top + off),
                 );
-                if fputs(buf.as_ptr().cast(), fd) < 0
+                if fd.puts(buf.as_ptr().cast()) < 0
                     || !put_eol(fd)
                     || !put_line(fd, c"sil! normal! zo")
                 {
@@ -2613,10 +2608,10 @@ fn put_foldopen_recurse(
     true
 }
 
-fn put_fold_open_close(fd: *mut FILE, fp: &FoldEntry, off: Linenr) -> bool {
+fn put_fold_open_close(fd: &CFile, fp: &FoldEntry, off: Linenr) -> bool {
     let mut buf = [0u8; 32];
     vim_snprintf!(buf.as_mut_ptr().cast(), buf.len(), c"%d", fp.fd_top + off);
-    if fputs(buf.as_ptr().cast(), fd) < 0 || !put_eol(fd) {
+    if fd.puts(buf.as_ptr().cast()) < 0 || !put_eol(fd) {
         return false;
     }
     let cmd = if fp.fd_flags == FD_CLOSED {
@@ -2624,7 +2619,7 @@ fn put_fold_open_close(fd: *mut FILE, fp: &FoldEntry, off: Linenr) -> bool {
     } else {
         c"sil! normal! zo".as_ptr()
     };
-    if fputs(cmd, fd) < 0 || !put_eol(fd) {
+    if fd.puts(cmd) < 0 || !put_eol(fd) {
         return false;
     }
     true

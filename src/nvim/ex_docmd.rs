@@ -122,7 +122,7 @@ use crate::file_search::{
     FNAME_HYP, FNAME_MESS, FfSearchCtx, do_autocmd_dirchanged, file_name_at_cursor,
     find_file_in_path, vim_chdir,
 };
-use crate::fileio::{FILE, readfile, shorten_fnames};
+use crate::fileio::{readfile, shorten_fnames};
 use crate::fold::{fold_create, fold_manual_allowed, has_folding, op_fold_range};
 use crate::globals::IOSIZE;
 use crate::globals::*;
@@ -176,7 +176,7 @@ use crate::optionstr::{check_ff_value, get_fileformat_name};
 use crate::os::env::{
     ExpandCtx, expand_env, expand_env_esc, expand_env_save, home_replace, os_getenv_cstr,
 };
-use crate::os::fs::{os_chdir, os_dirname, os_fopen, os_mkdir, os_path_exists};
+use crate::os::fs::{CFile, os_chdir, os_dirname, os_mkdir, os_path_exists};
 use crate::os::input::{line_breakcheck, os_breakcheck};
 use crate::os::lang::ex_language;
 use crate::os::shell::shell_build_argv;
@@ -11321,11 +11321,7 @@ fn ex_redir(eap: &mut Exarg) {
         close_redir();
 
         let fname = expand_env_save(arg);
-        g_st().redir_fd = crate::os::fs::CFile::from_raw(open_exfile(
-            fname.as_ptr().cast_mut(),
-            eap.forceit,
-            mode,
-        ));
+        g_st().redir_fd = open_exfile(fname.as_ptr().cast_mut(), eap.forceit, mode);
     } else if let Some(mut rem) = arg_bytes.strip_prefix(b"@") {
         close_redir();
         if let Some((&reg_b, rest)) = rem.split_first()
@@ -11469,24 +11465,24 @@ pub fn open_exfile(
     fname: impl crate::strings::IntoCCharPtr,
     forceit: i32,
     mode: &std::ffi::CStr,
-) -> *mut FILE {
+) -> Option<CFile> {
     let fname = fname.into_c_char_ptr();
     #[cfg(unix)]
     if os_isdir(fname) {
         let _ = semsg!(gettext(E_ISADIR2), fname);
-        return ptr::null_mut();
+        return None;
     }
 
     if forceit == 0 && mode.to_bytes().first() != Some(&b'a') && os_path_exists(fname) {
         let _ = semsg!(gettext(c"E189: \"%s\" exists (add ! to override)"), fname,);
-        return ptr::null_mut();
+        return None;
     }
 
-    let fd = os_fopen(fname, mode);
-    if fd.is_null() {
+    let fd = CFile::open(fname, mode);
+    if fd.is_none() {
         let _ = semsg!(gettext(c"E190: Cannot open \"%s\" for writing"), fname,);
     }
-    fd.cast()
+    fd
 }
 
 fn ex_mark(eap: &mut Exarg) {

@@ -10,7 +10,7 @@ use crate::eval::{VAR_FLAVOUR_SESSION, var_flavour};
 use crate::ex_docmd::{Exarg, open_exfile, vim_mkdir_emsg};
 use crate::ex_getln::{VSE_NONE, vim_strsave_fnameescape};
 use crate::file_search::vim_chdirfile;
-use crate::fileio::{FILE, fclose, fputc, fputs, fwrite, shorten_fnames};
+use crate::fileio::shorten_fnames;
 use crate::fold::put_folds;
 use crate::globals::*;
 use crate::mapping::makemap;
@@ -19,7 +19,7 @@ use crate::message::{emsg, semsg};
 use crate::option::{OPT_GLOBAL, OPT_LOCAL, makefoldset, makeset};
 use crate::option_vars::*;
 use crate::os::env::home_replace_save;
-use crate::os::fs::{MAXPATHL, os_chdir, os_dirname, os_isdir};
+use crate::os::fs::{CFile, MAXPATHL, os_chdir, os_dirname, os_isdir};
 use crate::path::{add_pathsep, vim_full_name, vim_ispathsep};
 use crate::runtime::{DOSO_NONE, do_source};
 use crate::strings::{gettext, vim_strsave_escaped};
@@ -79,19 +79,16 @@ fn cstr_to_str<'a, S: crate::strings::IntoCCharPtr>(p: S) -> &'a str {
 }
 
 #[inline]
-fn write_bytes(fd: *mut FILE, bytes: &[u8]) -> bool {
-    if bytes.is_empty() {
-        return true;
-    }
-    unsafe { fwrite(bytes.as_ptr().cast(), 1, bytes.len(), fd) == bytes.len() }
+fn write_bytes(fd: &CFile, bytes: &[u8]) -> bool {
+    fd.write_all(bytes)
 }
 
 #[inline]
-fn write_fmt(fd: *mut FILE, s: String) -> bool {
+fn write_fmt(fd: &CFile, s: String) -> bool {
     write_bytes(fd, s.as_bytes())
 }
 
-fn put_view_curpos(fd: *mut FILE, wp: &WinInfoInfo, spaces: &str) -> i32 {
+fn put_view_curpos(fd: &CFile, wp: &WinInfoInfo, spaces: &str) -> i32 {
     let s = if wp.w_curswant == MAXCOL {
         format!("{spaces}normal! $\n")
     } else {
@@ -100,7 +97,7 @@ fn put_view_curpos(fd: *mut FILE, wp: &WinInfoInfo, spaces: &str) -> i32 {
     i32::from(write_fmt(fd, s))
 }
 
-fn ses_winsizes(fd: *mut FILE, restore_size: bool, tab_firstwin: *mut WinInfoInfo) -> bool {
+fn ses_winsizes(fd: &CFile, restore_size: bool, tab_firstwin: *mut WinInfoInfo) -> bool {
     if restore_size && (opt_vars().ssop_flags & K_OPT_SSOP_FLAG_WINSIZE) != 0 {
         let mut n: i32 = 0;
         for wp in win_iter_mut(tab_firstwin) {
@@ -144,7 +141,7 @@ fn ses_winsizes(fd: *mut FILE, restore_size: bool, tab_firstwin: *mut WinInfoInf
     true
 }
 
-fn ses_win_rec(fd: *mut FILE, fr: &mut Frame) -> bool {
+fn ses_win_rec(fd: &CFile, fr: &mut Frame) -> bool {
     let mut count: i32 = 0;
 
     if fr.fr_layout == FR_LEAF {
@@ -226,7 +223,7 @@ fn ses_do_win(wp: &mut WinInfoInfo) -> i32 {
 }
 
 fn ses_arglist(
-    fd: *mut FILE,
+    fd: &CFile,
     cmd: &std::ffi::CStr,
     gap: &[Aentry],
     fullname: bool,
@@ -268,7 +265,7 @@ fn ses_get_fname<'a>(buf: &'a mut FileBuf, flagp: &u32) -> Option<&'a CStr> {
     crate::memory::cstr_as_opt_cstr(buf.b_ffname)
 }
 
-fn ses_fname(fd: *mut FILE, buf: &mut FileBuf, flagp: &mut u32, add_eol: bool) -> bool {
+fn ses_fname(fd: &CFile, buf: &mut FileBuf, flagp: &mut u32, add_eol: bool) -> bool {
     let name = ses_get_fname(buf, flagp).map_or(ptr::null(), CStr::as_ptr);
     if !ses_put_fname(fd, name, flagp) || (add_eol && !write_bytes(fd, b"\n")) {
         return false;
@@ -295,16 +292,16 @@ fn ses_escape_fname(name: impl crate::strings::IntoCCharPtr) -> CString {
     }
 }
 
-fn ses_put_fname(fd: *mut FILE, name: impl crate::strings::IntoCCharPtr, _flagp: &mut u32) -> bool {
+fn ses_put_fname(fd: &CFile, name: impl crate::strings::IntoCCharPtr, _flagp: &mut u32) -> bool {
     let name = name.into_c_char_ptr();
     {
         let p = ses_escape_fname(name);
-        fputs(p.as_ptr(), fd) >= 0
+        fd.puts(p.as_ptr()) >= 0
     }
 }
 
 fn put_view(
-    fd: *mut FILE,
+    fd: &CFile,
     wp: &mut WinInfoInfo,
     tp: &mut TabPageInfo,
     add_edit: bool,
@@ -396,7 +393,7 @@ fn put_view(
         && !crate::memory::cstr_is_empty(alt.b_fname)
         && alt.b_p_bl != 0
         && !(bt_terminal(Some(alt)) && (opt_vars().ssop_flags & K_OPT_SSOP_FLAG_TERMINAL) == 0)
-        && (fputs(c"balt ", fd) < 0 || !ses_fname(fd, alt, &mut *flagp, true))
+        && (fd.puts(c"balt ") < 0 || !ses_fname(fd, alt, &mut *flagp, true))
     {
         return false;
     }
@@ -492,7 +489,7 @@ fn put_view(
         && (!ptr::eq(flagp, &raw mut opt_vars().vop_flags)
             || (*flagp & K_OPT_SSOP_FLAG_CURDIR) != 0)
     {
-        if fputs(c"lcd ", fd) < 0
+        if fd.puts(c"lcd ") < 0
             || !ses_put_fname(fd, w_localdir.as_ptr().cast_mut(), &mut *flagp)
             || !write_bytes(fd, b"\n")
         {
@@ -504,7 +501,7 @@ fn put_view(
     true
 }
 
-fn store_session_globals(fd: *mut FILE) -> bool {
+fn store_session_globals(fd: &CFile) -> bool {
     let d = get_globvar_dict();
     for (_, this_var) in d.dv_hashtab.iter_items() {
         let key_cstr = this_var.key_cstr();
@@ -560,7 +557,7 @@ fn store_session_globals(fd: *mut FILE) -> bool {
     true
 }
 
-fn makeopens(fd: *mut FILE, dirnow: impl crate::strings::IntoCCharPtr) -> bool {
+fn makeopens(fd: &CFile, dirnow: impl crate::strings::IntoCCharPtr) -> bool {
     let dirnow = dirnow.into_c_char_ptr();
     unsafe {
         let mut only_save_windows = true;
@@ -673,23 +670,13 @@ fn makeopens(fd: *mut FILE, dirnow: impl crate::strings::IntoCCharPtr) -> bool {
                 {
                     continue;
                 }
-                if fputs(
+                if fd.puts(
                     c"lua vim.api.nvim_create_autocmd('BufEnter', { once = true, buffer = vim.fn.bufadd([==[",
-                    fd,
                 ) < 0
-                    || fputs(
-                        ses_get_fname(&mut *b, &opt_vars().ssop_flags).unwrap_or(c""),
-                        fd,
-                    ) < 0
-                    || fputs(
-                        c"]==]), callback = function() vim.cmd.bcd({ [==[",
-                        fd,
-                    ) < 0
-                    || fputs(b_localdir.as_ptr(), fd) < 0
-                    || fputs(
-                        c"]==], magic = { file = false, bar = false } }) end })\n",
-                        fd,
-                    ) < 0
+                    || fd.puts(ses_get_fname(&mut *b, &opt_vars().ssop_flags).unwrap_or(c"")) < 0
+                    || fd.puts(c"]==]), callback = function() vim.cmd.bcd({ [==[") < 0
+                    || fd.puts(b_localdir.as_ptr()) < 0
+                    || fd.puts(c"]==], magic = { file = false, bar = false } }) end })\n") < 0
                 {
                     return false;
                 }
@@ -763,7 +750,7 @@ fn makeopens(fd: *mut FILE, dirnow: impl crate::strings::IntoCCharPtr) -> bool {
                     return false;
                 }
                 need_tabnext = false;
-                if fputs(c"tcd ", fd) < 0
+                if fd.puts(c"tcd ") < 0
                     || !ses_put_fname(
                         fd,
                         tp_localdir.as_ptr().cast_mut(),
@@ -788,7 +775,7 @@ fn makeopens(fd: *mut FILE, dirnow: impl crate::strings::IntoCCharPtr) -> bool {
                     }
                     need_tabnext = false;
 
-                    if fputs(c"edit ", fd) < 0
+                    if fd.puts(c"edit ") < 0
                         || !ses_fname(fd, (*wp).buf_mut(), &mut opt_vars().ssop_flags, true)
                     {
                         return false;
@@ -989,8 +976,7 @@ pub fn ex_mkrc(eap: &mut Exarg) {
         vim_mkdir_emsg(opt_vars().p_vdir, 0o755);
     }
 
-    let fd = open_exfile(fname.as_ptr(), eap.forceit, c"wb");
-    if !fd.is_null() {
+    if let Some(fd) = open_exfile(fname.as_ptr(), eap.forceit, c"wb") {
         let mut failed = false;
         let flagp = if eap.cmdidx == CMD_MKVIEW {
             &raw mut opt_vars().vop_flags
@@ -1009,10 +995,10 @@ pub fn ex_mkrc(eap: &mut Exarg) {
         }
 
         if eap.cmdidx == CMD_MKVIMRC {
-            put_line(fd, c"version 6.0");
+            put_line(&fd, c"version 6.0");
         }
 
-        if eap.cmdidx == CMD_MKSESSION && !put_line(fd, c"let SessionLoad = 1") {
+        if eap.cmdidx == CMD_MKSESSION && !put_line(&fd, c"let SessionLoad = 1") {
             failed = true;
         }
 
@@ -1023,12 +1009,12 @@ pub fn ex_mkrc(eap: &mut Exarg) {
             if eap.cmdidx == CMD_MKSESSION && (unsafe { *flagp } & K_OPT_SSOP_FLAG_SKIPRTP) != 0 {
                 flags |= OPT_SKIPRTP;
             }
-            failed |= !makemap(fd, ptr::null_mut()) || !makeset(fd, flags, 0);
+            failed |= !makemap(&fd, ptr::null_mut()) || !makeset(&fd, flags, 0);
         }
 
         if !failed && view_session {
             if !put_line(
-                    fd,
+                    &fd,
                     c"let s:so_save = &g:so | let s:siso_save = &g:siso | setg so=0 siso=0 | setl so=-1 siso=-1",
                 )
                 {
@@ -1055,7 +1041,7 @@ pub fn ex_mkrc(eap: &mut Exarg) {
                     shorten_fnames(1);
                 }
 
-                failed |= !makeopens(fd, dirnow);
+                failed |= !makeopens(&fd, dirnow);
 
                 if !crate::memory::cstr_is_empty(dirnow)
                     && ((opt_vars().ssop_flags & K_OPT_SSOP_FLAG_SESDIR) != 0
@@ -1069,7 +1055,7 @@ pub fn ex_mkrc(eap: &mut Exarg) {
                 }
             } else {
                 failed |= !put_view(
-                    fd,
+                    &fd,
                     curwin_mut(),
                     curtab_mut(),
                     !using_vdir,
@@ -1077,26 +1063,26 @@ pub fn ex_mkrc(eap: &mut Exarg) {
                     -1,
                 );
             }
-            if !write_bytes(fd, b"let &g:so = s:so_save | let &g:siso = s:siso_save\n") {
+            if !write_bytes(&fd, b"let &g:so = s:so_save | let &g:siso = s:siso_save\n") {
                 failed = true;
             }
-            if opt_vars().p_hls != 0 && !write_bytes(fd, b"set hlsearch\n") {
+            if opt_vars().p_hls != 0 && !write_bytes(&fd, b"set hlsearch\n") {
                 failed = true;
             }
-            if g_st().search_global.no_hlsearch && !write_bytes(fd, b"nohlsearch\n") {
+            if g_st().search_global.no_hlsearch && !write_bytes(&fd, b"nohlsearch\n") {
                 failed = true;
             }
             if eap.cmdidx == CMD_MKSESSION
-                && !write_bytes(fd, b"doautoall SessionLoadPost\nunlet SessionLoad\n")
+                && !write_bytes(&fd, b"doautoall SessionLoadPost\nunlet SessionLoad\n")
             {
                 failed = true;
             }
         }
-        if !put_line(fd, c"\" vim: set ft=vim :") {
+        if !put_line(&fd, c"\" vim: set ft=vim :") {
             failed = true;
         }
 
-        failed |= unsafe { fclose(fd) } != 0;
+        failed |= fd.close() != 0;
 
         if failed {
             emsg(gettext(E_WRITE));
@@ -1172,16 +1158,10 @@ fn get_view_file(c: u8) -> Option<CString> {
     Some(crate::memory::cstr_to_cstring(retval.cast()))
 }
 
-pub fn put_eol(fd: *mut FILE) -> bool {
-    if unsafe { fputc(b'\n' as i32, fd) } < 0 {
-        return false;
-    }
-    true
+pub fn put_eol(fd: &CFile) -> bool {
+    fd.putc(b'\n' as i32) >= 0
 }
 
-pub fn put_line(fd: *mut FILE, s: &std::ffi::CStr) -> bool {
-    if fputs(s.as_ptr().cast_mut(), fd) < 0 || unsafe { fputc(b'\n' as i32, fd) } < 0 {
-        return false;
-    }
-    true
+pub fn put_line(fd: &CFile, s: &std::ffi::CStr) -> bool {
+    fd.puts(s) >= 0 && fd.putc(b'\n' as i32) >= 0
 }

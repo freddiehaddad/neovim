@@ -27,7 +27,6 @@ use crate::eval::{K_LIST_LEN_UNKNOWN_CONST, eval_to_string, last_set_msg};
 use crate::ex_cmds::check_secure;
 use crate::ex_docmd::{CTRL_C_CONST, Exarg};
 use crate::ex_session::put_eol;
-use crate::fileio::{FILE, fputc, fputs};
 use crate::fuzzy::{
     FUZZY_SCORE_NONE, FuzmatchStr, fuzzy_match_str, fuzzymatches_slice_to_strmatches,
 };
@@ -56,6 +55,7 @@ use crate::option::opt_error;
 use crate::option_vars::*;
 use crate::optionstr::Optset;
 use crate::os::env::ExpandCtx;
+use crate::os::fs::CFile;
 use crate::regexp::{CTRL_V_CONST, NUMBUFLEN, Regmatch, vim_regexec};
 use crate::runtime::{Sctx, sourcing_lnum};
 use crate::strings::{gettext, sort_strings, vim_snprintf};
@@ -1754,7 +1754,7 @@ pub fn eval_map_expr(mp: &Mapblock, c: i32) -> Option<CString> {
 }
 
 /// Write map commands for the current mappings to an .exrc file.
-pub fn makemap(fd: *mut FILE, buf: *mut FileBuf) -> bool {
+pub fn makemap(fd: &CFile, buf: *mut FileBuf) -> bool {
     let mut did_cpo = false;
 
     for abbr in 0..2 {
@@ -1867,39 +1867,39 @@ pub fn makemap(fd: *mut FILE, buf: *mut FileBuf) -> bool {
                             }
                         }
                         if did_cpo
-                            && (fputs(c"let s:cpo_save=&cpo", fd) < 0
+                            && (fd.puts(c"let s:cpo_save=&cpo") < 0
                                 || !put_eol(fd)
-                                || fputs(c"set cpo&vim", fd) < 0
+                                || fd.puts(c"set cpo&vim") < 0
                                 || !put_eol(fd))
                         {
                             return false;
                         }
                     }
-                    if c1 != 0 && unsafe { fputc(c1 as i32, fd) } < 0 {
+                    if c1 != 0 && fd.putc(c1 as i32) < 0 {
                         return false;
                     }
-                    if mp.m_noremap != REMAP_YES && fputs(c"nore", fd) < 0 {
+                    if mp.m_noremap != REMAP_YES && fd.puts(c"nore") < 0 {
                         return false;
                     }
-                    if fputs(cmd, fd) < 0 {
+                    if fd.puts(cmd) < 0 {
                         return false;
                     }
-                    if !buf.is_null() && fputs(c" <buffer>", fd) < 0 {
+                    if !buf.is_null() && fd.puts(c" <buffer>") < 0 {
                         return false;
                     }
-                    if mp.m_nowait != 0 && fputs(c" <nowait>", fd) < 0 {
+                    if mp.m_nowait != 0 && fd.puts(c" <nowait>") < 0 {
                         return false;
                     }
-                    if mp.m_silent != 0 && fputs(c" <silent>", fd) < 0 {
+                    if mp.m_silent != 0 && fd.puts(c" <silent>") < 0 {
                         return false;
                     }
-                    if mp.m_expr != 0 && fputs(c" <expr>", fd) < 0 {
+                    if mp.m_expr != 0 && fd.puts(c" <expr>") < 0 {
                         return false;
                     }
 
-                    if unsafe { fputc(b' ' as i32, fd) } < 0
+                    if fd.putc(b' ' as i32) < 0
                         || !put_escstr(fd, mp.m_keys.as_ptr(), 0)
-                        || unsafe { fputc(b' ' as i32, fd) } < 0
+                        || fd.putc(b' ' as i32) < 0
                         || !put_escstr(fd, mp.m_str.as_ptr(), 1)
                         || !put_eol(fd)
                     {
@@ -1916,9 +1916,9 @@ pub fn makemap(fd: *mut FILE, buf: *mut FileBuf) -> bool {
         }
     }
     if did_cpo
-        && (fputs(c"let &cpo=s:cpo_save", fd) < 0
+        && (fd.puts(c"let &cpo=s:cpo_save") < 0
             || !put_eol(fd)
-            || fputs(c"unlet s:cpo_save", fd) < 0
+            || fd.puts(c"unlet s:cpo_save") < 0
             || !put_eol(fd))
     {
         return false;
@@ -1927,13 +1927,13 @@ pub fn makemap(fd: *mut FILE, buf: *mut FileBuf) -> bool {
 }
 
 /// Write escape string to file.
-pub fn put_escstr(fd: *mut FILE, strstart: impl crate::strings::IntoCCharPtr, what: i32) -> bool {
+pub fn put_escstr(fd: &CFile, strstart: impl crate::strings::IntoCCharPtr, what: i32) -> bool {
     let strstart = strstart.into_c_char_ptr();
     let full_bytes = crate::memory::cstr_as_bytes(strstart);
     let mut rem = full_bytes;
 
     if rem.is_empty() && what == 1 {
-        if fputs(c"<Nop>", fd) < 0 {
+        if fd.puts(c"<Nop>") < 0 {
             return false;
         }
         return true;
@@ -1942,7 +1942,7 @@ pub fn put_escstr(fd: *mut FILE, strstart: impl crate::strings::IntoCCharPtr, wh
     while !rem.is_empty() {
         if let Some(p) = mb_unescape(&mut rem) {
             for &p_byte in p.to_bytes() {
-                if unsafe { fputc(p_byte as i32, fd) } < 0 {
+                if fd.putc(p_byte as i32) < 0 {
                     return false;
                 }
             }
@@ -1973,7 +1973,7 @@ pub fn put_escstr(fd: *mut FILE, strstart: impl crate::strings::IntoCCharPtr, wh
                 rem = &rem[2.min(rem.len())..];
             }
             if is_special(c) || modifiers != 0 {
-                if fputs(get_special_key_name(c, modifiers).as_ptr(), fd) < 0 {
+                if fd.puts(get_special_key_name(c, modifiers).as_ptr()) < 0 {
                     return false;
                 }
                 if !consumed_unescaped && !rem.is_empty() {
@@ -1985,10 +1985,10 @@ pub fn put_escstr(fd: *mut FILE, strstart: impl crate::strings::IntoCCharPtr, wh
 
         if c == NL {
             if what == 2 {
-                if fputs(c"\\\x16\n", fd) < 0 {
+                if fd.puts(c"\\\x16\n") < 0 {
                     return false;
                 }
-            } else if fputs(c"<NL>", fd) < 0 {
+            } else if fd.puts(c"<NL>") < 0 {
                 return false;
             }
             rem = &rem[1..];
@@ -1996,7 +1996,7 @@ pub fn put_escstr(fd: *mut FILE, strstart: impl crate::strings::IntoCCharPtr, wh
         }
 
         if what == 2 && (ascii_iswhite(c) || c == b'"' as i32 || c == b'\\' as i32) {
-            if unsafe { fputc(b'\\' as i32, fd) } < 0 {
+            if fd.putc(b'\\' as i32) < 0 {
                 return false;
             }
         } else if (c < b' ' as i32
@@ -2005,11 +2005,11 @@ pub fn put_escstr(fd: *mut FILE, strstart: impl crate::strings::IntoCCharPtr, wh
             || (what == 0 && c == b' ' as i32)
             || (what == 1 && is_start && c == b' ' as i32)
             || (what != 2 && c == b'<' as i32))
-            && unsafe { fputc(CTRL_V_CONST, fd) } < 0
+            && fd.putc(CTRL_V_CONST) < 0
         {
             return false;
         }
-        if unsafe { fputc(c, fd) } < 0 {
+        if fd.putc(c) < 0 {
             return false;
         }
         if !rem.is_empty() {

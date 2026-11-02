@@ -843,6 +843,12 @@ impl CFile {
     }
 
     #[inline]
+    pub fn close(self) -> i32 {
+        let this = std::mem::ManuallyDrop::new(self);
+        unsafe { crate::fileio::fclose(this.0.as_ptr()) }
+    }
+
+    #[inline]
     pub fn fileno(&self) -> i32 {
         unsafe { crate::fileio::fileno(self.0.as_ptr()) }
     }

@@ -62,7 +62,7 @@ use crate::ex_getln::{
 use crate::ex_session::{OPT_SKIPRTP, put_eol, put_line};
 #[cfg(unix)]
 use crate::fileio::getuid;
-use crate::fileio::{EOL_DOS, EOL_UNIX, FILE, K_OPT_FILEENCODING, fprintf, fputs};
+use crate::fileio::{EOL_DOS, EOL_UNIX, K_OPT_FILEENCODING, fprintf};
 use crate::fold::{
     fold_update_all, foldmethod_is_diff, foldmethod_is_indent, foldmethod_is_syntax, new_fold_level,
 };
@@ -6203,7 +6203,7 @@ fn showoneopt(opt: &mut Vimoption, opt_flags: i32) {
 }
 
 /// Write modified options as ":set" commands to a file.
-pub fn makeset(fd: *mut FILE, opt_flags: i32, local_only: i32) -> bool {
+pub fn makeset(fd: &crate::os::fs::CFile, opt_flags: i32, local_only: i32) -> bool {
     for pri in (0..=1).rev() {
         for opt_idx in 0..K_OPT_COUNT {
             let opt = get_option(opt_idx);
@@ -6262,7 +6262,7 @@ pub fn makeset(fd: *mut FILE, opt_flags: i32, local_only: i32) -> bool {
                         if fprintf!(fd, c"if &%s != '%s'", opt.fullname.as_ptr(), unsafe {
                             *(varp.cast::<*mut u8>())
                         },) < 0
-                            || !put_eol(fd.cast())
+                            || !put_eol(fd)
                         {
                             return false;
                         }
@@ -6271,7 +6271,7 @@ pub fn makeset(fd: *mut FILE, opt_flags: i32, local_only: i32) -> bool {
                     if !put_set(fd, cmd, opt_idx, varp) {
                         return false;
                     }
-                    if do_endif && !put_line(fd.cast(), c"endif") {
+                    if do_endif && !put_line(fd, c"endif") {
                         return false;
                     }
 
@@ -6285,7 +6285,7 @@ pub fn makeset(fd: *mut FILE, opt_flags: i32, local_only: i32) -> bool {
 }
 
 /// Generate set commands for the local fold options only.
-pub fn makefoldset(fd: *mut FILE) -> bool {
+pub fn makefoldset(fd: &crate::os::fs::CFile) -> bool {
     let cmd = c"setlocal".as_ptr().cast_mut();
     if !put_set(
         fd,
@@ -6334,7 +6334,7 @@ pub fn makefoldset(fd: *mut FILE) -> bool {
 }
 
 fn put_set_value(
-    fd: *mut FILE,
+    fd: &crate::os::fs::CFile,
     cmd: impl crate::strings::IntoCCharPtr,
     opt_idx: OptIndex,
     varp: *mut c_void,
@@ -6375,12 +6375,12 @@ fn put_set_value(
                 let value_num = value.data.integer();
                 let mut wc: OptInt = 0;
                 if wc_use_keyname(varp.cast::<OptInt>(), &mut wc) != 0 {
-                    if fputs(get_special_key_name(wc as i32, 0).as_ptr(), fd) < 0 {
+                    if fd.puts(get_special_key_name(wc as i32, 0).as_ptr()) < 0 {
                         return false;
                     }
                 } else {
                     let num_s = format!("{value_num}\0");
-                    if fputs(num_s.as_ptr().cast(), fd) < 0 {
+                    if fd.puts(num_s.as_ptr().cast()) < 0 {
                         return false;
                     }
                 }
@@ -6403,7 +6403,7 @@ fn put_set_value(
                         {
                             let mut part_vec = vec![0u8; size];
                             let part = part_vec.as_mut_ptr();
-                            if !put_eol(fd.cast()) {
+                            if !put_eol(fd) {
                                 return false;
                             }
                             let mut p = buf;
@@ -6412,21 +6412,18 @@ fn put_set_value(
                                     return false;
                                 }
                                 copy_option_part(&raw mut p, part, size, c",");
-                                if !put_escstr(
-                                    fd.cast(),
-                                    crate::memory::cstr_until_nul(&part_vec),
-                                    2,
-                                ) || !put_eol(fd.cast())
+                                if !put_escstr(fd, crate::memory::cstr_until_nul(&part_vec), 2)
+                                    || !put_eol(fd)
                                 {
                                     return false;
                                 }
                             }
                             return true;
                         }
-                        if !put_escstr(fd.cast(), crate::memory::cstr_until_nul(&buf_vec), 2) {
+                        if !put_escstr(fd, crate::memory::cstr_until_nul(&buf_vec), 2) {
                             return false;
                         }
-                    } else if !put_escstr(fd.cast(), value_str, 2) {
+                    } else if !put_escstr(fd, value_str, 2) {
                         return false;
                     }
                 }
@@ -6434,7 +6431,7 @@ fn put_set_value(
             _ => std::process::abort(),
         }
 
-        if !put_eol(fd.cast()) {
+        if !put_eol(fd) {
             return false;
         }
         true
@@ -6442,7 +6439,7 @@ fn put_set_value(
 }
 
 fn put_set(
-    fd: *mut FILE,
+    fd: &crate::os::fs::CFile,
     cmd: impl crate::strings::IntoCCharPtr,
     opt_idx: OptIndex,
     varp: *mut c_void,
