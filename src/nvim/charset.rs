@@ -910,25 +910,6 @@ pub fn skiphex(q: RawCCharPtrMut) -> RawCCharPtrMut {
     q.wrapping_add(bytes.len() - rem.len())
 }
 
-pub fn skiptodigit(q: RawCCharPtrMut) -> RawCCharPtrMut {
-    let bytes = crate::memory::cstr_as_bytes(q);
-    let rem = skiptodigit_slice(bytes);
-    q.wrapping_add(bytes.len() - rem.len())
-}
-
-pub fn skiptobin(q: impl crate::strings::IntoCCharPtr) -> RawCCharPtr {
-    let q = q.into_c_char_ptr();
-    let bytes = crate::memory::cstr_as_bytes(q);
-    let rem = skiptobin_slice(bytes);
-    q.wrapping_add(bytes.len() - rem.len())
-}
-
-pub fn skiptohex(q: RawCCharPtrMut) -> RawCCharPtrMut {
-    let bytes = crate::memory::cstr_as_bytes(q);
-    let rem = skiptohex_slice(bytes);
-    q.wrapping_add(bytes.len() - rem.len())
-}
-
 pub fn skiptowhite(p: impl crate::strings::IntoCCharPtr) -> RawCCharPtrMut {
     let p = p.into_c_char_ptr();
     let bytes = crate::memory::cstr_as_bytes(p);

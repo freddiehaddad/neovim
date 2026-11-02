@@ -30,8 +30,8 @@ use crate::change::{
 use crate::channel::channel_job_running;
 use crate::charset::{
     EOL_MAC, NUL, STR2NR_BIN, STR2NR_FORCE, STR2NR_HEX, STR2NR_OCT, ascii_isalnum, ascii_isalpha,
-    ascii_isdigit, ascii_iswhite, getdigits_int, skiptobin, skiptodigit, skiptohex, skiptowhite,
-    skipwhite, transchar, transchar_nonprint, vim_is_idc, vim_isprintc, vim_str2nr,
+    ascii_isdigit, ascii_iswhite, getdigits_int, skiptowhite, skipwhite, transchar,
+    transchar_nonprint, vim_is_idc, vim_isprintc,
 };
 use crate::cmdexpand::{Cmdidx, RE_LAST};
 use crate::cmdhist::{HIST_SEARCH, add_to_history};
@@ -130,8 +130,8 @@ use crate::shada::SubReplacementString;
 use crate::spell::parse_spelllang;
 use crate::state::{MODE_CMDLINE, MODE_INSERT, MODE_LANGMAP};
 use crate::strings::{
-    concat_str, gettext, ngettext, strcoll, strtod, vim_snprintf, vim_snprintf_add,
-    vim_snprintf_safelen, vim_strchr, vim_strsave_escaped,
+    concat_str, gettext, ngettext, strcoll, vim_snprintf, vim_snprintf_add, vim_snprintf_safelen,
+    vim_strchr, vim_strsave_escaped,
 };
 use crate::terminal::{terminal_check_size, terminal_running};
 use crate::ui::{ui_cursor_goto, ui_cursor_shape, ui_has};
@@ -776,7 +776,7 @@ pub fn ex_sort(eap: &mut Exarg) {
         excmds_st().sort_nr |= sort_what;
 
         for lnum in eap.line1..=eap.line2 {
-            let mut s = ml_get(lnum);
+            let s = ml_get(lnum);
             let len = ml_get_len(lnum);
             maxlen = maxlen.max(len);
 
@@ -795,38 +795,37 @@ pub fn ex_sort(eap: &mut Exarg) {
             }
 
             let st_u = if excmds_st().sort_nr != 0 || excmds_st().sort_flt {
-                let s2 = s.wrapping_add(end_col as usize);
-                let c = unsafe { *s2 };
-                unsafe {
-                    *s2 = NUL;
-                }
-                let p = s.wrapping_add(start_col as usize);
-                let key = if excmds_st().sort_nr != 0 {
-                    if (sort_what & STR2NR_HEX) != 0 {
-                        s = skiptohex(p);
+                let line_slice = crate::memline::ml_get_slice(lnum);
+                let sub_slice = &line_slice[(start_col.max(0) as usize).min(line_slice.len())
+                    ..(end_col.max(0) as usize).min(line_slice.len())];
+                if excmds_st().sort_nr != 0 {
+                    let rem = if (sort_what & STR2NR_HEX) != 0 {
+                        crate::charset::skiptohex_slice(sub_slice)
                     } else if (sort_what & STR2NR_BIN) != 0 {
-                        s = skiptobin(p).cast_mut();
+                        crate::charset::skiptobin_slice(sub_slice)
                     } else {
-                        s = skiptodigit(p);
-                    }
-                    if s > p && crate::memory::cstr_first_byte(s.wrapping_sub(1)) == b'-' {
-                        s = s.wrapping_sub(1);
-                    }
-                    if crate::memory::cstr_is_empty(s) {
+                        crate::charset::skiptodigit_slice(sub_slice)
+                    };
+                    let off = sub_slice.len() - rem.len();
+                    let rem = if off > 0 && sub_slice[off - 1] == b'-' {
+                        &sub_slice[off - 1..]
+                    } else {
+                        rem
+                    };
+                    if rem.is_empty() {
                         SortKey::Num {
                             is_number: false,
                             value: 0,
                         }
                     } else {
                         let mut val: Varnumber = 0;
-                        vim_str2nr(
-                            s,
+                        crate::charset::vim_slice2nr(
+                            rem,
                             None,
                             None,
                             sort_what,
                             Some(&mut val),
                             None,
-                            0,
                             false,
                             None,
                         );
@@ -836,21 +835,18 @@ pub fn ex_sort(eap: &mut Exarg) {
                         }
                     }
                 } else {
-                    s = skipwhite(p);
-                    if crate::memory::cstr_first_byte(s) == b'+' {
-                        s = skipwhite(s.wrapping_add(1));
+                    let mut rem = crate::charset::skipwhite_slice(sub_slice);
+                    if let Some(after_plus) = rem.strip_prefix(b"+") {
+                        rem = crate::charset::skipwhite_slice(after_plus);
                     }
 
-                    if crate::memory::cstr_is_empty(s) {
+                    if rem.is_empty() {
                         SortKey::Float(-f64::MAX)
                     } else {
-                        SortKey::Float(strtod(s, ptr::null_mut()))
+                        let (val, _) = crate::strings::strtod_slice(rem);
+                        SortKey::Float(val)
                     }
-                };
-                unsafe {
-                    *s2 = c;
                 }
-                key
             } else {
                 SortKey::Line {
                     start_col_nr: start_col as Varnumber,
@@ -3566,51 +3562,42 @@ pub fn ex_z(eap: &mut Exarg) {
     }
     bigness = bigness.max(1);
 
-    let mut x = eap.arg;
-    let kind = x;
-    if crate::memory::cstr_first_byte(kind) == b'-'
-        || crate::memory::cstr_first_byte(kind) == b'+'
-        || crate::memory::cstr_first_byte(kind) == b'='
-        || crate::memory::cstr_first_byte(kind) == b'^'
-        || crate::memory::cstr_first_byte(kind) == b'.'
-    {
-        x = x.wrapping_add(1);
+    let kind_bytes = crate::memory::cstr_as_bytes(eap.arg);
+    let kind_b = kind_bytes.first().copied().unwrap_or(0);
+    let mut rem = kind_bytes;
+    if matches!(kind_b, b'-' | b'+' | b'=' | b'^' | b'.') {
+        rem = &rem[1..];
     }
-    while crate::memory::cstr_first_byte(x) == b'-' || crate::memory::cstr_first_byte(x) == b'+' {
-        x = x.wrapping_add(1);
+    while rem.first().is_some_and(|&b| matches!(b, b'-' | b'+')) {
+        rem = &rem[1..];
     }
 
-    if !crate::memory::cstr_is_empty(x) {
-        if !ascii_isdigit(crate::memory::cstr_first_char(x)) {
+    if !rem.is_empty() {
+        if !rem[0].is_ascii_digit() {
             emsg(gettext(E_NON_NUMERIC_ARGUMENT_TO_Z));
             return;
         }
-        bigness = crate::charset::parse_i64_prefix(crate::memory::cstr_as_bytes(x));
+        bigness = crate::charset::parse_i64_prefix(rem);
 
         if bigness > 2 * (curbuf_mut().b_ml.ml_line_count as i64) || bigness < 0 {
             bigness = 2 * (curbuf_mut().b_ml.ml_line_count as i64);
         }
 
         opt_vars().p_window = bigness as i32 as OptInt;
-        if crate::memory::cstr_first_byte(kind) == b'=' {
+        if kind_b == b'=' {
             bigness += 2;
         }
     }
 
-    if crate::memory::cstr_first_byte(kind) == b'-' || crate::memory::cstr_first_byte(kind) == b'+'
-    {
-        x = kind.wrapping_add(1);
-        let kind_b = crate::memory::cstr_first_byte(kind);
-        while crate::memory::cstr_first_byte(x) == kind_b {
-            x = x.wrapping_add(1);
-        }
-    }
+    let rep_count = if matches!(kind_b, b'-' | b'+') {
+        1 + kind_bytes[1..].iter().take_while(|&&b| b == kind_b).count() as Linenr
+    } else {
+        0
+    };
 
-    match crate::memory::cstr_first_byte(kind) {
+    match kind_b {
         b'-' => {
-            start = lnum
-                - (bigness as Linenr) * (crate::memory::ptr_offset_from(x, kind) as Linenr)
-                + 1;
+            start = lnum - (bigness as Linenr) * rep_count + 1;
             end = start + (bigness as Linenr) - 1;
             curs = end;
         }
@@ -3636,10 +3623,8 @@ pub fn ex_z(eap: &mut Exarg) {
 
         _ => {
             start = lnum;
-            if crate::memory::cstr_first_byte(kind) == b'+' {
-                start += (bigness as Linenr)
-                    * (crate::memory::ptr_offset_from(x, kind) as Linenr - 1)
-                    + 1;
+            if kind_b == b'+' {
+                start += (bigness as Linenr) * (rep_count - 1) + 1;
             } else if eap.addr_count == 0 {
                 start += 1;
             }
@@ -3715,58 +3700,46 @@ fn sub_joining_lines(
     save: bool,
     keeppatterns: bool,
 ) -> bool {
-    let sub = sub.into_c_char_ptr();
-    let cmd = cmd.into_c_char_ptr();
+    let sub_bytes = crate::memory::cstr_as_bytes(sub.into_c_char_ptr());
+    let cmd_bytes = crate::memory::cstr_as_bytes(cmd.into_c_char_ptr());
+    if !pat.data.is_null()
+        && pat.as_bytes() == b"\\n"
+        && sub_bytes.is_empty()
+        && (cmd_bytes.is_empty()
+            || (cmd_bytes.len() == 1 && matches!(cmd_bytes[0], b'g' | b'l' | b'p' | b'#')))
     {
-        if !pat.data.is_null()
-            && crate::memory::cstr_as_bytes(pat.data) == b"\\n"
-            && crate::memory::cstr_is_empty(sub)
-            && (crate::memory::cstr_is_empty(cmd)
-                || (crate::memory::cstr_byte_at(cmd, 1) == 0
-                    && (crate::memory::cstr_first_byte(cmd) == b'g'
-                        || crate::memory::cstr_first_byte(cmd) == b'l'
-                        || crate::memory::cstr_first_byte(cmd) == b'p'
-                        || crate::memory::cstr_first_byte(cmd) == b'#')))
-        {
-            if eap.skip != 0 {
-                return true;
-            }
-            curwin_mut().w_cursor.lnum = eap.line1;
-            if crate::memory::cstr_first_byte(cmd) == b'l' {
-                eap.flags = EXFLAG_LIST;
-            } else if crate::memory::cstr_first_byte(cmd) == b'#' {
-                eap.flags = EXFLAG_NR;
-            } else if crate::memory::cstr_first_byte(cmd) == b'p' {
-                eap.flags = EXFLAG_PRINT;
-            }
-
-            let joined_lines_count = eap.line2 - eap.line1
-                + 1
-                + if eap.line2 < curbuf_mut().b_ml.ml_line_count {
-                    1
-                } else {
-                    0
-                };
-            if joined_lines_count > 1 {
-                do_join(joined_lines_count as usize, false, true, false, true);
-                g_st().sub_nsubs = joined_lines_count - 1;
-                g_st().sub_nlines = 1;
-                do_sub_msg(false);
-                ex_may_print(eap);
-            }
-
-            if save {
-                if !keeppatterns {
-                    save_re_pat(RE_SUBST, pat.data, pat.size, opt_vars().p_magic);
-                }
-                add_to_history(HIST_SEARCH, pat.data, pat.size, true, NUL as i32);
-            }
-
+        if eap.skip != 0 {
             return true;
         }
+        curwin_mut().w_cursor.lnum = eap.line1;
+        match cmd_bytes.first() {
+            Some(&b'l') => eap.flags = EXFLAG_LIST,
+            Some(&b'#') => eap.flags = EXFLAG_NR,
+            Some(&b'p') => eap.flags = EXFLAG_PRINT,
+            _ => {}
+        }
 
-        false
+        let joined_lines_count =
+            eap.line2 - eap.line1 + 1 + i32::from(eap.line2 < curbuf_mut().b_ml.ml_line_count);
+        if joined_lines_count > 1 {
+            do_join(joined_lines_count as usize, false, true, false, true);
+            g_st().sub_nsubs = joined_lines_count - 1;
+            g_st().sub_nlines = 1;
+            do_sub_msg(false);
+            ex_may_print(eap);
+        }
+
+        if save {
+            if !keeppatterns {
+                save_re_pat(RE_SUBST, pat.data, pat.size, opt_vars().p_magic);
+            }
+            add_to_history(HIST_SEARCH, pat.data, pat.size, true, NUL as i32);
+        }
+
+        return true;
     }
+
+    false
 }
 
 #[derive(Default)]
@@ -3835,54 +3808,48 @@ fn sub_grow_buf(new_start: &mut SubBuf, new_start_size: &mut usize, mut needed_s
 
 /// Parse `cmd` string for `:substitute`'s `{flags}` and update `subflags_arg` accordingly.
 fn sub_parse_flags<T>(cmd: *mut T, subflags_arg: &mut Subflags, which_pat: &mut i32) -> *mut T {
-    let mut cmd = cmd.cast::<u8>();
-    {
-        if crate::memory::cstr_first_byte(cmd.cast()) == b'&' {
-            cmd = cmd.wrapping_add(1);
-        } else {
-            subflags_arg.do_all = opt_vars().p_gd != 0;
-            subflags_arg.do_ask = false;
-            subflags_arg.do_error = true;
-            subflags_arg.do_print = false;
-            subflags_arg.do_list = false;
-            subflags_arg.do_count = false;
-            subflags_arg.do_number = false;
-            subflags_arg.do_ic = SubIgnoreType::SubHonorOptions;
-        }
-        while !crate::memory::cstr_is_empty(cmd.cast()) {
-            if crate::memory::cstr_first_byte(cmd.cast()) == b'g' {
-                subflags_arg.do_all = !subflags_arg.do_all;
-            } else if crate::memory::cstr_first_byte(cmd.cast()) == b'c' {
-                subflags_arg.do_ask = !subflags_arg.do_ask;
-            } else if crate::memory::cstr_first_byte(cmd.cast()) == b'n' {
-                subflags_arg.do_count = true;
-            } else if crate::memory::cstr_first_byte(cmd.cast()) == b'e' {
-                subflags_arg.do_error = !subflags_arg.do_error;
-            } else if crate::memory::cstr_first_byte(cmd.cast()) == b'r' {
-                *which_pat = RE_LAST;
-            } else if crate::memory::cstr_first_byte(cmd.cast()) == b'p' {
-                subflags_arg.do_print = true;
-            } else if crate::memory::cstr_first_byte(cmd.cast()) == b'#' {
+    let cmd_base = cmd.cast::<u8>();
+    let bytes = crate::memory::cstr_as_bytes(cmd_base.cast());
+    let mut rem = bytes;
+    if let Some(after_amp) = rem.strip_prefix(b"&") {
+        rem = after_amp;
+    } else {
+        subflags_arg.do_all = opt_vars().p_gd != 0;
+        subflags_arg.do_ask = false;
+        subflags_arg.do_error = true;
+        subflags_arg.do_print = false;
+        subflags_arg.do_list = false;
+        subflags_arg.do_count = false;
+        subflags_arg.do_number = false;
+        subflags_arg.do_ic = SubIgnoreType::SubHonorOptions;
+    }
+    while let Some((&b, rest)) = rem.split_first() {
+        match b {
+            b'g' => subflags_arg.do_all = !subflags_arg.do_all,
+            b'c' => subflags_arg.do_ask = !subflags_arg.do_ask,
+            b'n' => subflags_arg.do_count = true,
+            b'e' => subflags_arg.do_error = !subflags_arg.do_error,
+            b'r' => *which_pat = RE_LAST,
+            b'p' => subflags_arg.do_print = true,
+            b'#' => {
                 subflags_arg.do_print = true;
                 subflags_arg.do_number = true;
-            } else if crate::memory::cstr_first_byte(cmd.cast()) == b'l' {
+            }
+            b'l' => {
                 subflags_arg.do_print = true;
                 subflags_arg.do_list = true;
-            } else if crate::memory::cstr_first_byte(cmd.cast()) == b'i' {
-                subflags_arg.do_ic = SubIgnoreType::SubIgnoreCase;
-            } else if crate::memory::cstr_first_byte(cmd.cast()) == b'I' {
-                subflags_arg.do_ic = SubIgnoreType::SubMatchCase;
-            } else {
-                break;
             }
-            cmd = cmd.wrapping_add(1);
+            b'i' => subflags_arg.do_ic = SubIgnoreType::SubIgnoreCase,
+            b'I' => subflags_arg.do_ic = SubIgnoreType::SubMatchCase,
+            _ => break,
         }
-        if subflags_arg.do_count {
-            subflags_arg.do_ask = false;
-        }
-
-        cmd.cast()
+        rem = rest;
     }
+    if subflags_arg.do_count {
+        subflags_arg.do_ask = false;
+    }
+
+    cmd_base.wrapping_add(bytes.len() - rem.len()).cast()
 }
 
 /// Skip over the `"sub"` part in `:s/pat/sub/` where `"delimiter"` is the separating
@@ -5324,7 +5291,8 @@ pub fn skip_vimgrep_pat<T>(
     mut flags: Option<&mut i32>,
 ) -> *mut T {
     let mut p = p.cast::<u8>();
-    if vim_is_idc((crate::memory::cstr_first_byte(p.cast())) as i32) {
+    let first_b = crate::memory::cstr_first_byte(p.cast());
+    if vim_is_idc(i32::from(first_b)) {
         if let Some(ref mut s) = s {
             **s = p.cast();
         }
@@ -5339,9 +5307,9 @@ pub fn skip_vimgrep_pat<T>(
         if let Some(ref mut s) = s {
             **s = p.wrapping_add(1).cast();
         }
-        let c = (crate::memory::cstr_first_byte(p.cast())) as i32;
+        let c = i32::from(first_b);
         p = skip_regexp(p.wrapping_add(1), c, 1);
-        if (crate::memory::cstr_first_byte(p.cast())) as i32 != c {
+        if i32::from(crate::memory::cstr_first_byte(p.cast())) != c {
             return ptr::null_mut();
         }
 
@@ -5352,21 +5320,22 @@ pub fn skip_vimgrep_pat<T>(
         }
         p = p.wrapping_add(1);
 
-        while crate::memory::cstr_first_byte(p.cast()) == b'g'
-            || crate::memory::cstr_first_byte(p.cast()) == b'j'
-            || crate::memory::cstr_first_byte(p.cast()) == b'f'
-        {
+        let tail = crate::memory::cstr_as_bytes(p.cast());
+        let mut count = 0usize;
+        for &b in tail {
+            if !matches!(b, b'g' | b'j' | b'f') {
+                break;
+            }
             if let Some(ref mut flags) = flags {
-                if crate::memory::cstr_first_byte(p.cast()) == b'g' {
-                    **flags |= VGR_GLOBAL;
-                } else if crate::memory::cstr_first_byte(p.cast()) == b'j' {
-                    **flags |= VGR_NOJUMP;
-                } else {
-                    **flags |= VGR_FUZZY;
+                match b {
+                    b'g' => **flags |= VGR_GLOBAL,
+                    b'j' => **flags |= VGR_NOJUMP,
+                    _ => **flags |= VGR_FUZZY,
                 }
             }
-            p = p.wrapping_add(1);
+            count += 1;
         }
+        p = p.wrapping_add(count);
     }
     p.cast()
 }
