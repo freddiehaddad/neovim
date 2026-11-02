@@ -325,7 +325,7 @@ pub fn vim_to_object(
                 *todo -= 1;
 
                 let di = crate::eval::typval::tv_dict_hi2di(cur_hi);
-                let key_bytes = crate::memory::cstr_as_bytes(&di.di_key);
+                let key_bytes = di.key_bytes();
                 let key_obj = cbuf_to_string_obj(arena.as_deref_mut(), reuse_strdata, key_bytes);
 
                 let dict_obj = stack.last_mut().unwrap();

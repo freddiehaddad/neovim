@@ -52,19 +52,13 @@ pub fn strbuf_append_char_unsafe(s: &mut Strbuf, c: u8) {
 }
 
 #[inline]
-pub fn strbuf_append_mem(s: &mut Strbuf, c: impl crate::strings::IntoCCharPtr, len: usize) {
-    let c = c.into_c_char_ptr();
-    if len > 0 {
-        s.buf.extend_from_slice(crate::memory::cstr_slice(c, len));
-    }
+pub fn strbuf_append_mem(s: &mut Strbuf, bytes: &[u8]) {
+    s.buf.extend_from_slice(bytes);
 }
 
 #[inline]
-pub fn strbuf_append_mem_unsafe(s: &mut Strbuf, c: impl crate::strings::IntoCCharPtr, len: usize) {
-    let c = c.into_c_char_ptr();
-    if len > 0 {
-        s.buf.extend_from_slice(crate::memory::cstr_slice(c, len));
-    }
+pub fn strbuf_append_mem_unsafe(s: &mut Strbuf, bytes: &[u8]) {
+    s.buf.extend_from_slice(bytes);
 }
 
 #[inline]
@@ -97,6 +91,6 @@ pub fn strbuf_append_string(s: &mut Strbuf, str_in: impl crate::strings::IntoCCh
     let str_in = str_in.into_c_char_ptr();
     {
         let bytes = crate::memory::cstr_as_bytes(str_in);
-        strbuf_append_mem(s, bytes, bytes.len());
+        strbuf_append_mem(s, bytes);
     }
 }

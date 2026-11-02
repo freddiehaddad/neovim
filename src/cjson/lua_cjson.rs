@@ -548,7 +548,7 @@ fn json_append_number(l: *mut lua_State, ctx: &mut JsonEncode, lindex: i32, use_
 
         let mut buf = [0u8; FPCONV_G_FMT_BUFSIZE];
         let len = fpconv_g_fmt(&mut buf, num, DEFAULT_ENCODE_NUMBER_PRECISION);
-        strbuf_append_mem(json, &buf, len);
+        strbuf_append_mem(json, &buf[..len]);
     }
 }
 
@@ -623,10 +623,9 @@ fn json_append_object(l: *mut lua_State, ctx: &mut JsonEncode, current_depth: i3
                 strbuf_append_char_unsafe(json, b'"');
                 strbuf_append_mem_unsafe(
                     json,
-                    &keybuf.buf.buf[current_key.offset..],
-                    current_key.length,
+                    &keybuf.buf.buf[current_key.offset..current_key.offset + current_key.length],
                 );
-                strbuf_append_mem_unsafe(json, c"\":", 2);
+                strbuf_append_mem_unsafe(json, b"\":");
 
                 if !ctx.opts_mut().indent.is_null() {
                     strbuf_append_char(json, b' ');
@@ -667,7 +666,7 @@ fn json_append_object(l: *mut lua_State, ctx: &mut JsonEncode, current_depth: i3
                 if keytype == LUA_TNUMBER {
                     strbuf_append_char(json, b'"');
                     json_append_number(l, ctx, -2, false);
-                    strbuf_append_mem(json, c"\":", 2);
+                    strbuf_append_mem(json, b"\":");
                 } else if keytype == LUA_TSTRING {
                     json_append_string(l, ctx, -2);
                     strbuf_append_char(json, b':');
@@ -711,9 +710,9 @@ fn json_append_data(l: *mut lua_State, ctx: &mut JsonEncode, mut current_depth: 
             }
             LUA_TBOOLEAN => {
                 if lua_toboolean(l, -1) != 0 {
-                    strbuf_append_mem(json, c"true", 4);
+                    strbuf_append_mem(json, b"true");
                 } else {
-                    strbuf_append_mem(json, c"false", 5);
+                    strbuf_append_mem(json, b"false");
                 }
             }
             LUA_TTABLE => {
@@ -782,7 +781,7 @@ fn json_append_data(l: *mut lua_State, ctx: &mut JsonEncode, mut current_depth: 
                 }
             }
             LUA_TNIL => {
-                strbuf_append_mem(json, c"null", 4);
+                strbuf_append_mem(json, b"null");
             }
             LUA_TLIGHTUSERDATA => {
                 if lua_touserdata(l, -1) == (&raw const JSON_ARRAY).cast_mut().cast() {
@@ -794,7 +793,7 @@ fn json_append_data(l: *mut lua_State, ctx: &mut JsonEncode, mut current_depth: 
                 let is_nil = lua_rawequal(l, -2, -1) != 0;
                 lua_pop(l, 1);
                 if is_nil {
-                    strbuf_append_mem(json, c"null", 4);
+                    strbuf_append_mem(json, b"null");
                 } else {
                     json_encode_exception(l, ctx, -1, c"type not supported");
                 }
@@ -966,7 +965,7 @@ fn json_append_unicode_escape(json: &mut JsonParse) -> i32 {
             return -1;
         }
 
-        strbuf_append_mem_unsafe(&mut *json.tmp, &utf8, len);
+        strbuf_append_mem_unsafe(&mut *json.tmp, &utf8[..len]);
         json.ptr = json.ptr.wrapping_add(escape_len);
     }
 

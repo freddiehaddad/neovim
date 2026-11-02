@@ -528,6 +528,16 @@ impl Dictitem {
             di_key: Vec::new(),
         }
     }
+
+    #[inline]
+    pub fn key_cstr(&self) -> &CStr {
+        CStr::from_bytes_until_nul(&self.di_key).unwrap_or(c"")
+    }
+
+    #[inline]
+    pub fn key_bytes(&self) -> &[u8] {
+        self.key_cstr().to_bytes()
+    }
 }
 
 impl Drop for Dictitem {
@@ -1895,7 +1905,7 @@ pub fn f_join(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
     if let Some(sep) = sep {
         let mut out: Vec<u8> = Vec::with_capacity(80);
         tv_list_join(&mut out, argvars[0].vval.v_list_opt(), sep);
-        tv_set_string_len(rettv, &out, out.len());
+        tv_set_string_len(rettv, out.as_ptr().cast(), out.len());
     } else {
         rettv.vval = crate::eval::typval::TypvalVval::String(ptr::null_mut());
     }
@@ -1924,7 +1934,7 @@ pub fn f_list2str(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDat
         out.extend_from_slice(&buf[..buflen]);
     }
 
-    tv_set_string_len(rettv, &out, out.len());
+    tv_set_string_len(rettv, out.as_ptr().cast(), out.len());
 }
 
 /// "remove({list})" function.
@@ -2897,14 +2907,14 @@ pub fn tv_dict_item_free(item: *mut Dictitem) {
 
 /// Make a copy of a dictionary item.
 pub fn tv_dict_item_copy(di: &mut Dictitem) -> &'static mut Dictitem {
-    let new_di = tv_dict_item_alloc(&di.di_key);
+    let new_di = tv_dict_item_alloc(di.key_cstr());
     tv_copy(&di.di_tv, &mut new_di.di_tv);
     new_di
 }
 
 /// Remove item from dictionary and free it.
 pub fn tv_dict_item_remove(dict: &mut TvDict, item: &mut Dictitem) {
-    if let Some(hi) = dict.dv_hashtab.find_hi_mut(&item.di_key) {
+    if let Some(hi) = dict.dv_hashtab.find_hi_mut(item.key_cstr()) {
         hash_remove(&mut dict.dv_hashtab, hi);
     } else {
         semsg!(tr(E_INTERN2), c"tv_dict_item_remove()");
@@ -3056,7 +3066,7 @@ pub fn tv_dict_to_env(denv: Option<&TvDict>) -> Vec<std::ffi::CString> {
     if let Some(denv) = denv {
         for (_, var) in denv.dv_hashtab.iter_items() {
             let str_ = tv_get_string(&var.di_tv);
-            let key_bytes = crate::memory::cstr_as_bytes(&var.di_key);
+            let key_bytes = var.key_bytes();
             let val_bytes = str_.to_bytes();
             let mut entry = Vec::with_capacity(key_bytes.len() + 1 + val_bytes.len());
             entry.extend_from_slice(key_bytes);
@@ -3152,7 +3162,7 @@ pub fn tv_dict_wrong_func_name(
 /// Add item to dictionary.
 pub fn tv_dict_add(d: &mut TvDict, item: *mut Dictitem) -> bool {
     unsafe {
-        if tv_dict_wrong_func_name(d, &mut (*item).di_tv, &(*item).di_key) != 0 {
+        if tv_dict_wrong_func_name(d, &mut (*item).di_tv, (*item).key_cstr()) != 0 {
             return false;
         }
         hash_add(&mut d.dv_hashtab, &mut *item)
@@ -3376,7 +3386,12 @@ pub fn tv_dict_extend(d1: &mut TvDict, d2: &mut TvDict, action: impl crate::stri
                         tv_copy(&di2.di_tv, &mut di1.di_tv);
 
                         if watched {
-                            tv_dict_watcher_notify(d1, &di1.di_key, Some(&di1.di_tv), Some(&oldtv));
+                            tv_dict_watcher_notify(
+                                d1,
+                                di1.key_cstr(),
+                                Some(&di1.di_tv),
+                                Some(&oldtv),
+                            );
                             tv_clear(&mut oldtv);
                         }
                     }
@@ -3384,14 +3399,14 @@ pub fn tv_dict_extend(d1: &mut TvDict, d2: &mut TvDict, action: impl crate::stri
                     let new_di = di2;
                     if tv_dict_add(d1, new_di) {
                         d2.dv_hashtab.remove_at(i);
-                        tv_dict_watcher_notify(d1, &new_di.di_key, Some(&new_di.di_tv), None);
+                        tv_dict_watcher_notify(d1, new_di.key_cstr(), Some(&new_di.di_tv), None);
                     }
                 } else {
                     let new_di = tv_dict_item_copy(&mut *di2);
                     if !tv_dict_add(d1, new_di) {
                         tv_dict_item_free(new_di);
                     } else if watched {
-                        tv_dict_watcher_notify(d1, &new_di.di_key, Some(&new_di.di_tv), None);
+                        tv_dict_watcher_notify(d1, new_di.key_cstr(), Some(&new_di.di_tv), None);
                     }
                 }
             }
@@ -3419,7 +3434,7 @@ pub fn tv_dict_equal(d1: Option<&TvDict>, d2: Option<&TvDict>, ic: bool) -> bool
     }
 
     for (_, di1) in d1.dv_hashtab.iter_items() {
-        let Some(di2) = tv_dict_find_opt(Some(d2), &di1.di_key, -1) else {
+        let Some(di2) = tv_dict_find_opt(Some(d2), di1.key_cstr(), -1) else {
             return false;
         };
         if !tv_equal(&di1.di_tv, &di2.di_tv, ic) {

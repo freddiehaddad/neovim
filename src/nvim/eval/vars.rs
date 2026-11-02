@@ -915,7 +915,11 @@ pub fn restore_vimvar(idx: i32, save_tv: &mut TypVal) {
         return;
     }
 
-    if let Some(hi) = vars_st().vimvardict.dv_hashtab.find_hi_mut(&p.vv_di.di_key) {
+    if let Some(hi) = vars_st()
+        .vimvardict
+        .dv_hashtab
+        .find_hi_mut(p.vv_di.key_cstr())
+    {
         hash_remove(&mut vars_st().vimvardict.dv_hashtab, hi);
     } else {
         internal_error(c"restore_vimvar()");
@@ -1498,7 +1502,7 @@ pub fn list_hashtable_vars(ht: &mut Hashtab, prefix: &std::ffi::CStr, empty: i32
             let _dst = buf.as_mut_ptr().cast();
             let _dsize: usize = IOSIZE;
             let _dlen = crate::memory::cstr_len(_dst);
-            crate::memory::xstrlcpy(_dst.wrapping_add(_dlen), &di.di_key, _dsize - _dlen);
+            crate::memory::xstrlcpy(_dst.wrapping_add(_dlen), di.key_cstr(), _dsize - _dlen);
         };
         if message_filtered(buf.as_ptr().cast()) {
             continue;
@@ -2122,7 +2126,7 @@ fn do_unlet_var(lp: &mut Lval, name_end: *mut u8, eap: &mut Exarg, _deep: i32) -
 
         if watched {
             tv_copy(&di.di_tv, &mut oldtv);
-            key = Some(cstr_to_cstring(&di.di_key));
+            key = Some(di.key_cstr().to_owned());
         }
 
         tv_dict_item_remove(d, &mut *di);
@@ -2931,10 +2935,11 @@ fn list_one_var(v: &mut Dictitem, prefix: impl crate::strings::IntoCCharPtr, fir
     let prefix = prefix.into_c_char_ptr();
     {
         let s = encode_tv2echo(&mut v.di_tv, None);
+        let key_cstr = v.key_cstr();
         list_one_var_a(
             prefix,
-            &v.di_key,
-            crate::memory::cstr_len(&v.di_key) as isize,
+            key_cstr,
+            key_cstr.to_bytes().len() as isize,
             v.di_tv.v_type,
             s.as_ptr(),
             first,
@@ -3168,7 +3173,12 @@ pub fn set_var_const(
         }
 
         if watched {
-            tv_dict_watcher_notify(&mut *dict, &(*di).di_key, Some(&(*di).di_tv), Some(&oldtv));
+            tv_dict_watcher_notify(
+                &mut *dict,
+                (*di).key_cstr(),
+                Some(&(*di).di_tv),
+                Some(&oldtv),
+            );
             tv_clear(&mut oldtv);
         }
 

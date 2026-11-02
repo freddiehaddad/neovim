@@ -234,7 +234,7 @@ macro_rules! api_set_error {
             let bufsize = ((len.max(0) as usize) + 1).min(1024 * 1024);
             let mut buf = vec![0u8; bufsize];
             $crate::strings::vim_snprintf!(buf.as_mut_ptr().cast(), bufsize, fmt_ptr, $($arg),+);
-            err_ref.msg = Some($crate::memory::cstr_to_cstring(&buf));
+            err_ref.msg = Some($crate::memory::cstr_to_cstring(buf.as_ptr().cast()));
             err_ref.err_type = et;
         }
     }};
@@ -715,7 +715,7 @@ pub fn string_to_cstr(str_: NvimString) -> std::ffi::CString {
 
 pub fn bytes_to_string(bytes: &[u8]) -> NvimString {
     NvimString {
-        data: alloc_cstring_len(bytes, bytes.len()),
+        data: alloc_cstring_len(bytes.as_ptr().cast(), bytes.len()),
         size: bytes.len(),
     }
 }
@@ -916,7 +916,7 @@ pub fn arena_dict_opt(arena: Option<&mut Arena>, max_size: usize) -> Dict {
 pub fn arena_bytes(arena: &mut Arena, bytes: &[u8]) -> NvimString {
     if !bytes.is_empty() {
         NvimString {
-            data: arena_memdupz(arena, bytes, bytes.len()),
+            data: arena_memdupz(arena, bytes.as_ptr().cast(), bytes.len()),
             size: bytes.len(),
         }
     } else {
@@ -938,7 +938,7 @@ pub fn arena_bytes_opt(arena: Option<&mut Arena>, bytes: &[u8]) -> NvimString {
         None => {
             if !bytes.is_empty() {
                 NvimString {
-                    data: arena_memdupz_opt(None, bytes, bytes.len()),
+                    data: arena_memdupz_opt(None, bytes.as_ptr().cast(), bytes.len()),
                     size: bytes.len(),
                 }
             } else {

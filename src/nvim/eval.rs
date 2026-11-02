@@ -1728,7 +1728,7 @@ pub fn set_var_lval<T>(
                     let di_ = lp.ll_di;
                     tv_dict_watcher_notify(
                         &mut *dict,
-                        &(*di_).di_key,
+                        (*di_).key_cstr(),
                         lp.ll_tv.as_ref(),
                         Some(&oldtv),
                     );
