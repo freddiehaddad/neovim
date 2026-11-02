@@ -157,6 +157,11 @@ impl WinInfo {
             wi_changelistidx: 0,
         }
     }
+
+    #[inline]
+    pub fn win_opt(&self) -> Option<&'static mut WinInfoInfo> {
+        unsafe { self.wi_win.as_mut() }
+    }
 }
 
 impl Drop for WinInfo {
