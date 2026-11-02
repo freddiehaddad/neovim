@@ -1016,7 +1016,7 @@ pub fn utf_cluster_cells(bytes: &[u8]) -> i32 {
     if bytes.is_empty() {
         return opt_vars().dy_escape_width;
     }
-    let ci = utf_ptr2_str_char_info_len(bytes, bytes.len() as i32);
+    let ci = utf_ptr2_str_char_info_len(bytes.as_ptr().cast(), bytes.len() as i32);
     let mut scratch = bytes.len() as i32;
     utf_cluster_info_len(ci, &mut scratch).cells
 }
@@ -3097,7 +3097,7 @@ pub fn enc_locale() -> Option<std::ffi::CString> {
                 0
             };
             buf[6] = 0;
-            return Some(enc_canonize(&buf));
+            return Some(enc_canonize(crate::memory::cstr_until_nul(&buf)));
         }
         s = p.wrapping_add(1);
     }
@@ -3117,7 +3117,7 @@ pub fn enc_locale() -> Option<std::ffi::CString> {
     }
     buf[i] = 0;
 
-    Some(enc_canonize(&buf))
+    Some(enc_canonize(crate::memory::cstr_until_nul(&buf)))
 }
 
 pub fn my_iconv_open(
@@ -3255,7 +3255,7 @@ pub fn f_iconv(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) 
     if vimconv.vc_type == CONV_NONE {
         crate::eval::typval::tv_set_string(rettv, str_);
     } else if let Some(conv_bytes) = string_convert(&vimconv, str_.as_ptr().cast_mut(), None) {
-        crate::eval::typval::tv_set_string(rettv, &conv_bytes);
+        crate::eval::typval::tv_set_string(rettv, crate::memory::cstr_until_nul(&conv_bytes));
     }
 }
 
@@ -3340,7 +3340,7 @@ pub fn convert_setup_ext(
 
 pub fn string_convert_slice(vcp: &Vimconv, bytes: &[u8], lenp: &mut usize) -> Option<Vec<u8>> {
     *lenp = bytes.len();
-    string_convert(vcp, bytes, Some(lenp))
+    string_convert(vcp, bytes.as_ptr().cast(), Some(lenp))
 }
 
 pub fn string_convert(
@@ -3645,8 +3645,8 @@ mod tests {
             let mut buf = [0u8; 8];
             let len = utf_char2bytes(0x20ac, buf.as_mut_ptr());
             assert_eq!(len, 3);
-            assert_eq!(utf_ptr2len(&buf), 3);
-            assert_eq!(utf_ptr2char(&buf), 0x20ac);
+            assert_eq!(utf_ptr2len(crate::memory::cstr_until_nul(&buf)), 3);
+            assert_eq!(utf_ptr2char(crate::memory::cstr_until_nul(&buf)), 0x20ac);
             assert_eq!(utf_slice2len(&buf[..3]), 3);
             assert_eq!(utf_slice2char(&buf[..3]), 0x20ac);
             // Truncated non-NUL-terminated multibyte slices must not overread or panic:

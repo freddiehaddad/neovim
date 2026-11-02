@@ -989,7 +989,7 @@ fn draw_statuscol(
     let mut p = buf_ptr;
     let mut transbuf = [0u8; MAXPATHL];
     let mut fold_vcol: *const Colnr = ptr::null();
-    let len = crate::memory::cstr_len(&buf);
+    let len = crate::memory::cstr_until_nul(&buf).to_bytes().len();
     let hlf = if use_cursor_line_highlight(wp, wlv.lnum) {
         HLF_CLS
     } else {
@@ -1908,7 +1908,9 @@ pub fn win_line(
                 if (line_len as usize) < SPWORDLEN {
                     nextlinecol = 0;
                     nextline[..line_len as usize].copy_from_slice(line_slice);
-                    let tail_len = crate::memory::cstr_len(&nextline[SPWORDLEN..]);
+                    let tail_len = crate::memory::cstr_until_nul(&nextline[SPWORDLEN..])
+                        .to_bytes()
+                        .len();
                     nextline.copy_within(SPWORDLEN..=SPWORDLEN + tail_len, line_len as usize);
                     nextline_idx = line_len + 1;
                 } else {

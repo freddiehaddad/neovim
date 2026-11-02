@@ -835,7 +835,7 @@ pub fn stuff_readbuff_special(s: impl crate::strings::IntoCCharPtr) {
     let mut rem = crate::memory::cstr_as_bytes(s.into_c_char_ptr());
     while !rem.is_empty() {
         if rem.len() >= 3 && rem[0] == K_SPECIAL && rem[1] != 0 && rem[2] != 0 {
-            stuff_readbuff_len(&rem[..3], 3);
+            stuff_readbuff_len(rem[..3].as_ptr().cast(), 3);
             rem = &rem[3..];
         } else {
             let mut c = mb_cptr2char_adv(&mut rem);
@@ -866,7 +866,7 @@ pub fn stuffescaped(arg: impl crate::strings::IntoCCharPtr, literally: bool) {
             .take_while(|&&b| (b' '..DEL as u8).contains(&b) || (b == K_SPECIAL && !literally))
             .count();
         if span_len > 0 {
-            stuff_readbuff_len(&rem[..span_len], span_len as isize);
+            stuff_readbuff_len(rem[..span_len].as_ptr().cast(), span_len as isize);
             rem = &rem[span_len..];
         }
 

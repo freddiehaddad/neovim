@@ -1240,7 +1240,7 @@ pub fn change_indent(type_: i32, amount: i32, round: i32, call_changed_bytes: bo
         g_st().curbuf_splice_pending += 1;
 
         backspace_until_column(0);
-        ins_bytes(&new_line);
+        ins_bytes(crate::memory::cstr_until_nul(&new_line));
 
         g_st().curbuf_splice_pending -= 1;
 

@@ -121,62 +121,6 @@ impl IntoCCharPtr for Option<&std::ffi::CString> {
     }
 }
 
-impl IntoCCharPtr for &i8 {
-    #[inline]
-    fn into_c_char_ptr(self) -> RawCCharPtr {
-        ptr::from_ref(self).cast()
-    }
-}
-
-impl IntoCCharPtr for &u8 {
-    #[inline]
-    fn into_c_char_ptr(self) -> RawCCharPtr {
-        ptr::from_ref(self).cast()
-    }
-}
-
-impl IntoCCharPtr for &[u8] {
-    #[inline]
-    fn into_c_char_ptr(self) -> RawCCharPtr {
-        self.as_ptr().cast()
-    }
-}
-
-impl IntoCCharPtr for &mut [u8] {
-    #[inline]
-    fn into_c_char_ptr(self) -> RawCCharPtr {
-        self.as_ptr().cast()
-    }
-}
-
-impl<const N: usize> IntoCCharPtr for &[u8; N] {
-    #[inline]
-    fn into_c_char_ptr(self) -> RawCCharPtr {
-        self.as_ptr().cast()
-    }
-}
-
-impl<const N: usize> IntoCCharPtr for &mut [u8; N] {
-    #[inline]
-    fn into_c_char_ptr(self) -> RawCCharPtr {
-        self.as_ptr().cast()
-    }
-}
-
-impl IntoCCharPtr for &Vec<u8> {
-    #[inline]
-    fn into_c_char_ptr(self) -> RawCCharPtr {
-        self.as_ptr().cast()
-    }
-}
-
-impl IntoCCharPtr for &mut Vec<u8> {
-    #[inline]
-    fn into_c_char_ptr(self) -> RawCCharPtr {
-        self.as_ptr().cast()
-    }
-}
-
 #[inline]
 pub fn tr<S: IntoCCharPtr>(s: S) -> &'static CStr {
     gettext(s.into_c_char_ptr())
@@ -1915,7 +1859,7 @@ fn vim_vsnprintf_typval_inner(
                                 ),
                                 tmp.len(),
                             );
-                            str_arg_l = crate::memory::cstr_len(&tmp);
+                            str_arg_l = crate::memory::cstr_until_nul(&tmp).to_bytes().len();
                             zero_padding = false;
                         } else if xisnan(f) != 0 {
                             let nan_s = if fmt_spec.is_ascii_uppercase() {
@@ -2950,7 +2894,7 @@ pub fn f_tr(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
         in_str = in_str.wrapping_add(inlen);
     }
 
-    crate::eval::typval::tv_set_string_len(rettv, &out, out.len());
+    crate::eval::typval::tv_set_string_len(rettv, out.as_ptr().cast(), out.len());
 }
 
 pub fn f_trim(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
@@ -3031,7 +2975,7 @@ pub fn f_trim(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
         }
     }
     let trimmed = &tail_slice[..end];
-    crate::eval::typval::tv_set_string_len(rettv, trimmed, trimmed.len());
+    crate::eval::typval::tv_set_string_len(rettv, trimmed.as_ptr().cast(), trimmed.len());
 }
 
 #[cfg(test)]
@@ -3066,7 +3010,7 @@ mod tests {
     fn vim_snprintf_macros_format_correctly() {
         let mut buf = [0u8; 64];
         let n = vim_snprintf!(
-            &mut buf,
+            buf.as_mut_ptr().cast(),
             64,
             c"%s %d %x %06b",
             c"val",
@@ -3076,14 +3020,14 @@ mod tests {
         );
         assert_eq!(n, 23);
         assert_eq!(
-            crate::memory::cstr_from_ptr(&buf).to_str().unwrap(),
+            crate::memory::cstr_until_nul(&buf).to_str().unwrap(),
             "val -42 deadbeef 001100"
         );
 
-        let added = vim_snprintf_add!(&mut buf, 64, c" %2$s %1$d", 7, c"ok");
+        let added = vim_snprintf_add!(buf.as_mut_ptr().cast(), 64, c" %2$s %1$d", 7, c"ok");
         assert_eq!(added, 5);
         assert_eq!(
-            crate::memory::cstr_from_ptr(&buf).to_str().unwrap(),
+            crate::memory::cstr_until_nul(&buf).to_str().unwrap(),
             "val -42 deadbeef 001100 ok 7"
         );
 
@@ -3091,7 +3035,7 @@ mod tests {
         let safelen = vim_snprintf_safelen!(small.as_mut_ptr().cast(), 5, c"hello world",);
         assert_eq!(safelen, 4);
         assert_eq!(
-            crate::memory::cstr_from_ptr(&small).to_str().unwrap(),
+            crate::memory::cstr_until_nul(&small).to_str().unwrap(),
             "hell"
         );
     }

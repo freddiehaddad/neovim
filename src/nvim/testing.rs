@@ -59,16 +59,6 @@ fn buf_concat_cstr(gap: &mut Vec<u8>, s: impl crate::strings::IntoCCharPtr) {
     }
 }
 
-#[inline]
-fn buf_concat_len(gap: &mut Vec<u8>, s: impl crate::strings::IntoCCharPtr, len: usize) {
-    let s = s.into_c_char_ptr();
-    {
-        if !s.is_null() && len > 0 {
-            gap.extend_from_slice(crate::memory::cstr_slice(s, len));
-        }
-    }
-}
-
 fn prepare_assert_error(gap: &mut Vec<u8>) {
     let sname = estack_sfile(ESTACK_NONE);
     let slnum = sourcing_lnum();
@@ -89,30 +79,27 @@ fn prepare_assert_error(gap: &mut Vec<u8>) {
     }
 }
 
-fn ga_concat_esc(gap: &mut Vec<u8>, p: impl crate::strings::IntoCCharPtr, clen: i32) {
-    let p = p.into_c_char_ptr();
-    {
-        if clen > 1 {
-            buf_concat_len(gap, p, clen as usize);
-            return;
-        }
+fn ga_concat_esc(gap: &mut Vec<u8>, p: &[u8]) {
+    if p.len() > 1 {
+        gap.extend_from_slice(p);
+        return;
+    }
 
-        let b = crate::memory::cstr_first_byte(p);
-        match b {
-            BS => ga_concat_literal(gap, b"\\b"),
-            ESC => ga_concat_literal(gap, b"\\e"),
-            FF => ga_concat_literal(gap, b"\\f"),
-            NL => ga_concat_literal(gap, b"\\n"),
-            TAB => ga_concat_literal(gap, b"\\t"),
-            CAR => ga_concat_literal(gap, b"\\r"),
-            b'\\' => ga_concat_literal(gap, b"\\\\"),
-            _ => {
-                if b < b' ' || b == 0x7f {
-                    let s = format!("\\x{:02x}", crate::memory::cstr_first_byte(p));
-                    ga_concat_literal(gap, s.as_bytes());
-                } else {
-                    gap.push(b);
-                }
+    let b = p.first().copied().unwrap_or(0);
+    match b {
+        BS => ga_concat_literal(gap, b"\\b"),
+        ESC => ga_concat_literal(gap, b"\\e"),
+        FF => ga_concat_literal(gap, b"\\f"),
+        NL => ga_concat_literal(gap, b"\\n"),
+        TAB => ga_concat_literal(gap, b"\\t"),
+        CAR => ga_concat_literal(gap, b"\\r"),
+        b'\\' => ga_concat_literal(gap, b"\\\\"),
+        _ => {
+            if b < b' ' || b == 0x7f {
+                let s = format!("\\x{b:02x}");
+                ga_concat_literal(gap, s.as_bytes());
+            } else {
+                gap.push(b);
             }
         }
     }
@@ -137,11 +124,11 @@ fn ga_concat_shorten_esc(gap: &mut Vec<u8>, str_ptr: impl crate::strings::IntoCC
         }
         if same_len > 20 {
             ga_concat_literal(gap, b"\\[");
-            ga_concat_esc(gap, &orig[..clen], clen as i32);
+            ga_concat_esc(gap, &orig[..clen]);
             let tail = format!(" occurs {same_len} times]");
             ga_concat_literal(gap, tail.as_bytes());
         } else {
-            ga_concat_esc(gap, &orig[..clen], clen as i32);
+            ga_concat_esc(gap, &orig[..clen]);
             rem = &orig[clen..];
         }
     }
@@ -908,9 +895,9 @@ mod tests {
     #[test]
     fn ga_concat_esc_formats_control_chars_and_printable_ascii() {
         let mut ga = Vec::new();
-        ga_concat_esc(&mut ga, c"\n", 1);
-        ga_concat_esc(&mut ga, c"\x01", 1);
-        ga_concat_esc(&mut ga, c"A", 1);
+        ga_concat_esc(&mut ga, b"\n");
+        ga_concat_esc(&mut ga, b"\x01");
+        ga_concat_esc(&mut ga, b"A");
         assert_eq!(&ga[..], b"\\n\\x01A");
     }
 }

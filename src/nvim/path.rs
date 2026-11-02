@@ -2326,7 +2326,7 @@ pub fn append_path(
             }
             xstrlcpy(
                 path.wrapping_add(current_length).cast(),
-                PATHSEPSTR,
+                crate::memory::cstr_until_nul(PATHSEPSTR),
                 max_len - current_length,
             );
             current_length += pathsep_len;
@@ -2422,7 +2422,7 @@ pub fn path_guess_exepath(argv0: impl crate::strings::IntoCCharPtr, buf_slice: &
                     let _dlen = crate::memory::cstr_len(_dst.cast());
                     crate::memory::xstrlcpy(
                         _dst.wrapping_add(_dlen).cast(),
-                        PATHSEPSTR,
+                        crate::memory::cstr_until_nul(PATHSEPSTR),
                         _dsize - _dlen,
                     );
                 };
@@ -2456,7 +2456,7 @@ pub fn path_guess_exepath(argv0: impl crate::strings::IntoCCharPtr, buf_slice: &
                         let _dlen = crate::memory::cstr_len(_dst);
                         crate::memory::xstrlcpy(
                             _dst.wrapping_add(_dlen),
-                            PATHSEPSTR,
+                            crate::memory::cstr_until_nul(PATHSEPSTR),
                             _dsize - _dlen,
                         );
                     };
@@ -2612,7 +2612,7 @@ mod tests {
             assert!(path_try_shorten_fname(ptr::null_mut::<u8>()).is_null());
             let mut cwd_buf = [0u8; MAXPATHL];
             assert!(os_dirname(cwd_buf.as_mut_ptr(), MAXPATHL));
-            let cwd_str = crate::memory::cstr_from_ptr(&cwd_buf).to_str().unwrap();
+            let cwd_str = crate::memory::cstr_until_nul(&cwd_buf).to_str().unwrap();
             let mut in_cwd = CString::new(format!("{cwd_str}/subdir/file.txt"))
                 .unwrap()
                 .into_bytes_with_nul();
@@ -2624,22 +2624,28 @@ mod tests {
             let mut buf = [0u8; 100];
             xstrlcpy(buf.as_mut_ptr().cast(), c"path1", buf.len());
             assert!(append_path(buf.as_mut_ptr(), c"path2", 100));
-            assert_eq!(crate::memory::cstr_as_bytes(&buf), b"path1/path2");
+            assert_eq!(
+                crate::memory::cstr_until_nul(&buf).to_bytes(),
+                b"path1/path2"
+            );
 
             xstrlcpy(buf.as_mut_ptr().cast(), c"path1/", buf.len());
             assert!(append_path(buf.as_mut_ptr(), c"path2", 100));
-            assert_eq!(crate::memory::cstr_as_bytes(&buf), b"path1/path2");
+            assert_eq!(
+                crate::memory::cstr_until_nul(&buf).to_bytes(),
+                b"path1/path2"
+            );
             assert!(!append_path(buf.as_mut_ptr(), c"path2", 11));
 
             xstrlcpy(buf.as_mut_ptr().cast(), c"path1", buf.len());
             assert!(append_path(buf.as_mut_ptr(), c"", 6));
-            assert_eq!(crate::memory::cstr_as_bytes(&buf), b"path1");
+            assert_eq!(crate::memory::cstr_until_nul(&buf).to_bytes(), b"path1");
             assert!(append_path(buf.as_mut_ptr(), c".", 6));
-            assert_eq!(crate::memory::cstr_as_bytes(&buf), b"path1");
+            assert_eq!(crate::memory::cstr_until_nul(&buf).to_bytes(), b"path1");
 
             buf[0] = 0;
             assert!(append_path(buf.as_mut_ptr(), c"/path2", 7));
-            assert_eq!(crate::memory::cstr_as_bytes(&buf), b"/path2");
+            assert_eq!(crate::memory::cstr_until_nul(&buf).to_bytes(), b"/path2");
         }
     }
 
@@ -2690,7 +2696,7 @@ mod tests {
 
             let mut cwd_buf = [0u8; MAXPATHL];
             assert!(os_dirname(cwd_buf.as_mut_ptr(), MAXPATHL));
-            let cwd = crate::memory::cstr_from_ptr(&cwd_buf)
+            let cwd = crate::memory::cstr_until_nul(&cwd_buf)
                 .to_str()
                 .unwrap()
                 .to_owned();
@@ -2747,7 +2753,7 @@ mod tests {
                 out.as_mut_ptr(),
                 MAXPATHL
             ));
-            assert_eq!(crate::memory::cstr_from_ptr(&out).to_str().unwrap(), cwd);
+            assert_eq!(crate::memory::cstr_until_nul(&out).to_str().unwrap(), cwd);
 
             let mut rel_c = CString::new(rel_dir.clone()).unwrap().into_bytes_with_nul();
             assert!(path_full_dir_name(
@@ -2756,7 +2762,7 @@ mod tests {
                 MAXPATHL
             ));
             assert_eq!(
-                crate::memory::cstr_from_ptr(&out).to_str().unwrap(),
+                crate::memory::cstr_until_nul(&out).to_str().unwrap(),
                 abs_dir
             );
 
@@ -2778,7 +2784,7 @@ mod tests {
                 true
             ));
             assert_eq!(
-                crate::memory::cstr_from_ptr(&out).to_str().unwrap(),
+                crate::memory::cstr_until_nul(&out).to_str().unwrap(),
                 "http://www.neovim.org"
             );
 
@@ -2790,7 +2796,7 @@ mod tests {
                 true
             ));
             assert_eq!(
-                crate::memory::cstr_from_ptr(&out).to_str().unwrap(),
+                crate::memory::cstr_until_nul(&out).to_str().unwrap(),
                 format!("{abs_dir}/f1.o")
             );
 
@@ -2808,7 +2814,7 @@ mod tests {
                 .unwrap()
                 .replace('\\', "/");
             assert_eq!(
-                crate::memory::cstr_from_ptr(&out).to_str().unwrap(),
+                crate::memory::cstr_until_nul(&out).to_str().unwrap(),
                 expected_parent
             );
 
@@ -2820,7 +2826,7 @@ mod tests {
                 true
             ));
             assert_eq!(
-                crate::memory::cstr_from_ptr(&out).to_str().unwrap(),
+                crate::memory::cstr_until_nul(&out).to_str().unwrap(),
                 abs_dir
             );
 
@@ -2835,20 +2841,20 @@ mod tests {
                 format!("{rel_dir}/camelcase")
             };
             assert_eq!(
-                crate::memory::cstr_from_ptr(&case_buf).to_str().unwrap(),
+                crate::memory::cstr_until_nul(&case_buf).to_str().unwrap(),
                 expected_case
             );
 
             // path_guess_exepath
             path_guess_exepath(c"./nvim", &mut out);
             assert_eq!(
-                crate::memory::cstr_from_ptr(&out).to_str().unwrap(),
+                crate::memory::cstr_until_nul(&out).to_str().unwrap(),
                 format!("{cwd}/./nvim")
             );
 
             path_guess_exepath(c"23u0293_not_in_path", &mut out);
             assert_eq!(
-                crate::memory::cstr_from_ptr(&out).to_str().unwrap(),
+                crate::memory::cstr_until_nul(&out).to_str().unwrap(),
                 "23u0293_not_in_path"
             );
 

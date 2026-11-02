@@ -1208,7 +1208,11 @@ pub fn ex_jumps(_eap: &mut Exarg) {
             let lnum = curwin_mut().w_jumplist[idx].fmark.mark.lnum;
             let col = curwin_mut().w_jumplist[idx].fmark.mark.col;
             let s = format!("{indicator} {dist:2} {lnum:5} {col:4} \0");
-            xstrlcpy(g_st().iobuff.as_mut_ptr(), s.as_bytes(), IOSIZE);
+            xstrlcpy(
+                g_st().iobuff.as_mut_ptr(),
+                crate::memory::cstr_until_nul(s.as_bytes()),
+                IOSIZE,
+            );
 
             msg_outtrans(g_st().iobuff.as_ptr(), 0, false);
             msg_outtrans(
@@ -1257,7 +1261,11 @@ pub fn ex_changes(_eap: &mut Exarg) {
             let lnum = curbuf_mut().b_changelist[idx].mark.lnum;
             let col = curbuf_mut().b_changelist[idx].mark.col;
             let s = format!("{indicator} {dist:3} {lnum:5} {col:4} \0");
-            xstrlcpy(g_st().iobuff.as_mut_ptr(), s.as_bytes(), IOSIZE);
+            xstrlcpy(
+                g_st().iobuff.as_mut_ptr(),
+                crate::memory::cstr_until_nul(s.as_bytes()),
+                IOSIZE,
+            );
 
             msg_outtrans(g_st().iobuff.as_ptr(), 0, false);
             let name = mark_line(&mut curbuf_mut().b_changelist[idx].mark, 17);

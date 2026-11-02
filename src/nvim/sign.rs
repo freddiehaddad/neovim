@@ -501,7 +501,7 @@ pub fn init_sign_text(sp: Option<&Sign>, sign_text: &mut [Schar; SIGN_WIDTH], te
     unescaped.push(0);
 
     let mut cells: usize = 0;
-    let mut ci = utf_ptr2_str_char_info(unescaped.as_slice());
+    let mut ci = utf_ptr2_str_char_info(crate::memory::cstr_until_nul(&unescaped));
     while !crate::memory::cstr_is_empty(ci.ptr) {
         let cli = utf_cluster_info(ci);
         if !vim_isprintc(ci.chr.value) || cells + (cli.cells as usize) > SIGN_WIDTH {

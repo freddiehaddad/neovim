@@ -1654,7 +1654,8 @@ pub fn did_set_messagesopt(_args: &mut Optset) -> Option<&'static CStr> {
 
     msg_st().msg_hit_enter = v.hit_enter;
     msg_st().msg_wait = v.wait as i32;
-    msg_st().progress_msg_target = if crate::memory::cstr_as_opt_bytes(&v.progress) == Some(b"c") {
+    msg_st().progress_msg_target = if crate::memory::cstr_until_nul(&v.progress).to_bytes() == b"c"
+    {
         PROGRESS_TARGET_CMD
     } else {
         0

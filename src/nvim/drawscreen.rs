@@ -850,7 +850,7 @@ pub fn setcursor_mayforce(wp: &mut WinInfoInfo, force: bool) {
         if wp.w_onebuf_opt.wo_rl != 0 {
             let cur_slice = &crate::memline::ml_get_buf_slice(wp.buf_mut(), wp.w_cursor.lnum)
                 [wp.w_cursor.col as usize..];
-            let wide = crate::mbyte::utf_ptr2cells(cur_slice) == 2
+            let wide = crate::mbyte::utf_slice2cells(cur_slice) == 2
                 && vim_isprintc(crate::mbyte::utf_slice2char(cur_slice));
             col = wp.w_view_width - wp.w_wcol - if wide { 2 } else { 1 };
         }

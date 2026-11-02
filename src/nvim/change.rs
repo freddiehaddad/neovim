@@ -1563,7 +1563,9 @@ pub fn open_line(
 
         if lead_len > 0 {
             let lead_off = crate::memory::ptr_offset_from(leader, allocated_vec.as_ptr()) as usize;
-            let mut cur_len = crate::memory::cstr_len(&allocated_vec[lead_off..]);
+            let mut cur_len = crate::memory::cstr_until_nul(&allocated_vec[lead_off..])
+                .to_bytes()
+                .len();
             if (flags & OPENLINE_COM_LIST) != 0 && second_line_indent > 0 {
                 let padding = second_line_indent - (newindent + cur_len as i32);
                 for _ in 0..padding {

@@ -2096,7 +2096,12 @@ pub fn do_join(
                 t -= 1;
             }
 
-            ml_replace_len(curwin_mut().w_cursor.lnum, &newp_vec, newp_len, true);
+            ml_replace_len(
+                curwin_mut().w_cursor.lnum,
+                newp_vec.as_ptr().cast(),
+                newp_len,
+                true,
+            );
             drop(newp_vec);
 
             if setmark && (g_st().cmdmod.cmod_flags & CMOD_LOCKMARKS) == 0 {

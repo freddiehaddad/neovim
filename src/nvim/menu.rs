@@ -1249,7 +1249,9 @@ pub fn get_menu_names(_xp: &mut ExpandCtx, idx: i32) -> Option<&'static CStr> {
                         menu_st().get_menu_names_advance = true;
                     }
                 }
-                let tlen = crate::memory::cstr_len(&menu_st().get_menu_names_tbuffer);
+                let tlen = crate::memory::cstr_until_nul(&menu_st().get_menu_names_tbuffer)
+                    .to_bytes()
+                    .len();
                 if tlen + 1 < TBUFFER_LEN {
                     menu_st().get_menu_names_tbuffer[tlen] = 1;
                     menu_st().get_menu_names_tbuffer[tlen + 1] = 0;

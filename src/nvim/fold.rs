@@ -1569,7 +1569,7 @@ fn foldtext_cleanup(str_slice: &mut [u8]) {
     );
     let end_slice = fold_st().foldendmarker_slice();
 
-    let mut total_len = crate::memory::cstr_len(&*str_slice);
+    let mut total_len = crate::memory::cstr_until_nul(str_slice).to_bytes().len();
     let mut idx = 0;
     while idx < total_len {
         let s_bytes = &str_slice[idx..total_len];
@@ -2700,10 +2700,10 @@ pub fn f_foldtext(_argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDa
         let len = crate::memory::cstr_len(txt) + crate::memory::cstr_len(dashes) + 20 + s_len;
         let mut r_vec = vec![0u8; len];
         vim_snprintf!(r_vec.as_mut_ptr().cast(), len, txt, dashes, count);
-        let r_len = crate::memory::cstr_len(&r_vec);
+        let r_len = crate::memory::cstr_until_nul(&r_vec).to_bytes().len();
         r_vec[r_len..r_len + s_bytes.len()].copy_from_slice(s_bytes);
         foldtext_cleanup(&mut r_vec[r_len..]);
-        let final_len = crate::memory::cstr_len(&r_vec);
+        let final_len = crate::memory::cstr_until_nul(&r_vec).to_bytes().len();
         crate::eval::typval::tv_set_string_len(rettv, r_vec.as_ptr().cast(), final_len);
     }
 }

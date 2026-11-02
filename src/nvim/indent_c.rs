@@ -342,9 +342,8 @@ fn find_line_comment() -> *mut CursorPos {
     }
     ptr::null_mut()
 }
-fn cin_has_js_key(text: impl crate::strings::IntoCCharPtr) -> bool {
-    let mut s =
-        crate::charset::skipwhite_slice(crate::memory::cstr_as_bytes(text.into_c_char_ptr()));
+fn cin_has_js_key(text: &[u8]) -> bool {
+    let mut s = crate::charset::skipwhite_slice(text);
     let mut quote: u8 = 0;
     if let Some(&first @ (b'\'' | b'"')) = s.first() {
         quote = first;
@@ -930,8 +929,8 @@ fn cin_iselse_slice(mut p: &[u8]) -> bool {
 fn cin_isdo_slice(p: &[u8]) -> bool {
     cin_starts_with_slice(p, b"do")
 }
-fn cin_iswhileofdo(p: impl crate::strings::IntoCCharPtr, lnum: Linenr) -> bool {
-    let mut s = cin_skipcomment_slice(crate::memory::cstr_as_bytes(p.into_c_char_ptr()));
+fn cin_iswhileofdo(p: &[u8], lnum: Linenr) -> bool {
+    let mut s = cin_skipcomment_slice(p);
     if let Some(after) = s.strip_prefix(b"}") {
         s = cin_skipcomment_slice(after);
     }
@@ -3068,7 +3067,7 @@ pub fn in_cinkeys(keytyped: i32, when: i32, line_is_empty: bool) -> bool {
                         let line_slice = crate::cursor::get_cursor_line_slice();
                         let cand = &line_slice[s_off..s_off + word_len];
                         let eq = if icase {
-                            mb_strnicmp(cand, word, word_len) == 0
+                            mb_strnicmp(cand.as_ptr().cast(), word.as_ptr().cast(), word_len) == 0
                         } else {
                             cand == word
                         };
@@ -3091,7 +3090,8 @@ pub fn in_cinkeys(keytyped: i32, when: i32, line_is_empty: bool) -> bool {
                         {
                             let cand = &line_slice[col_usize - word_len..col_usize];
                             let eq = if icase {
-                                mb_strnicmp(cand, word, word_len) == 0
+                                mb_strnicmp(cand.as_ptr().cast(), word.as_ptr().cast(), word_len)
+                                    == 0
                             } else {
                                 cand == word
                             };

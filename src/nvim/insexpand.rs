@@ -6200,7 +6200,10 @@ fn set_compl_globals(mut startcol: i32, curs_col: Colnr, is_cpt_compl: bool) {
         let line_slice = crate::cursor::get_cursor_line_slice();
         let len = curs_col - startcol;
 
-        set_compl_pattern_bytes(&line_slice[startcol as usize..], len as usize);
+        set_compl_pattern_bytes(
+            line_slice[startcol as usize..].as_ptr().cast(),
+            len as usize,
+        );
         insexp().compl_col = startcol;
         insexp().compl_length = len;
     }
@@ -6308,7 +6311,7 @@ fn get_spell_compl_info(startcol: i32, curs_col: Colnr) -> bool {
     }
     let line_slice = crate::cursor::get_cursor_line_slice();
     set_compl_pattern_bytes(
-        &line_slice[insexp().compl_col as usize..],
+        line_slice[insexp().compl_col as usize..].as_ptr().cast(),
         insexp().compl_length as usize,
     );
 

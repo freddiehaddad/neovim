@@ -5126,7 +5126,7 @@ pub fn get_syntax_name(xp: &mut ExpandCtx, idx: i32) -> Option<&std::ffi::CStr> 
                         .scl_name
                         .as_ptr(),
                 );
-                Some(crate::memory::cstr_from_ptr(&xp.xp_buf[..]))
+                Some(crate::memory::cstr_until_nul(&xp.xp_buf))
             } else {
                 None
             }

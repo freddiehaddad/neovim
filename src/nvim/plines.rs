@@ -1226,7 +1226,7 @@ pub fn getvvcol(
             let cur_slice = &line_slice[pos.col as usize..];
             let c = crate::mbyte::utf_slice2char(cur_slice);
             if c != TAB && vim_isprintc(c) {
-                endadd = ptr2cells(cur_slice) - 1;
+                endadd = crate::mbyte::slice2cells(cur_slice) - 1;
                 if coladd > endadd {
                     endadd = 0;
                 } else {

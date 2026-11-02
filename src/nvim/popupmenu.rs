@@ -41,7 +41,7 @@ use crate::keycodes::{
     CAR, ESC, K_DOWN, K_LEFTDRAG, K_LEFTMOUSE, K_LEFTMOUSE_NM, K_MOUSEDOWN, K_MOUSEMOVE, K_MOUSEUP,
     K_RIGHTDRAG, K_RIGHTMOUSE, K_RIGHTRELEASE, K_UP, NL,
 };
-use crate::mbyte::{mb_string2cells, mb_strnicmp, ptr2cells, utf_ptr2cells, utfc_ptr2len};
+use crate::mbyte::{mb_string2cells, mb_strnicmp, utf_ptr2cells, utfc_ptr2len};
 use crate::memory::{Arena, arena_finish, arena_mem_free};
 use crate::menu::{Vimmenu, execute_menu, get_menu_mode_flag, menu_find, menu_is_separator};
 use crate::message::emsg;
@@ -988,7 +988,7 @@ pub fn pum_redraw() {
                 let _ = &mut s;
                 loop {
                     let seg_start = *s_idx.get_or_insert(p_idx);
-                    let w = ptr2cells(&item_bytes[p_idx..]);
+                    let w = crate::mbyte::slice2cells(&item_bytes[p_idx..]);
                     if item_bytes[p_idx] != 0
                         && item_bytes[p_idx] != TAB
                         && totwidth + w <= pum().width
@@ -1020,7 +1020,7 @@ pub fn pum_redraw() {
 
                         if grid_col - cells < col_off - width_limit {
                             loop {
-                                cells -= utf_ptr2cells(&rt_bytes[rt_idx..]);
+                                cells -= crate::mbyte::utf_slice2cells(&rt_bytes[rt_idx..]);
                                 rt_idx += crate::mbyte::utfc_slice2len(&rt_bytes[rt_idx..]).max(1);
                                 if grid_col - cells >= col_off - width_limit {
                                     break;
@@ -1059,7 +1059,7 @@ pub fn pum_redraw() {
                             let mut p_end = 0usize;
                             let mut displayed: i32 = 0;
                             while st_bytes[p_end] != 0 {
-                                let char_cells = utf_ptr2cells(&st_bytes[p_end..]);
+                                let char_cells = crate::mbyte::utf_slice2cells(&st_bytes[p_end..]);
                                 if displayed + char_cells > available_cells {
                                     break;
                                 }
