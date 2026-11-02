@@ -23,9 +23,9 @@ use crate::fold::{FoldEntry, fold_mark_adjust, has_folding};
 use crate::globals::*;
 use crate::insert::beginline;
 use crate::lua::executor::nlua_call_excmd;
-use crate::mbyte::{ptr2cells, utf_head_off, utf_ptr2char, utfc_ptr2len};
+use crate::mbyte::{ptr2cells, slice2cells, utfc_ptr2len};
 use crate::mcursor::mc_replaying;
-use crate::memline::{ml_get, ml_get_buf, ml_get_buf_len};
+use crate::memline::ml_get;
 use crate::memory::xstrlcpy;
 use crate::message::{
     emsg, message_filtered, msg_ext_set_kind, msg_outtrans, msg_putchar, msg_puts, msg_puts_title,
@@ -2045,17 +2045,17 @@ pub fn free_all_marks() {
 pub fn mark_mb_adjustpos(buf: *mut FileBuf, lp: &mut CursorPos) {
     if lp.col > 0 || lp.coladd > 1 {
         let buf = unsafe { &mut *buf };
-        let p = ml_get_buf(buf, lp.lnum);
-        if crate::memory::cstr_is_empty(p) || ml_get_buf_len(buf, lp.lnum) < lp.col {
+        let line_slice = crate::memline::ml_get_buf_slice(buf, lp.lnum);
+        if line_slice.is_empty() || (line_slice.len() as Colnr) < lp.col {
             lp.col = 0;
         } else {
-            lp.col -= utf_head_off(p, p.wrapping_add(lp.col as usize));
+            lp.col -= crate::mbyte::utf_head_off_slice(line_slice, lp.col as usize);
         }
-        let p_at = p.wrapping_add(lp.col as usize);
+        let rem = line_slice.get(lp.col as usize..).unwrap_or(&[]);
         if lp.coladd == 1
-            && crate::memory::cstr_first_byte(p_at) != TAB
-            && vim_isprintc(utf_ptr2char(p_at))
-            && ptr2cells(p_at) > 1
+            && rem.first().copied().unwrap_or(0) != TAB
+            && vim_isprintc(crate::mbyte::utf_slice2char(rem))
+            && slice2cells(rem) > 1
         {
             lp.coladd = 0;
         }

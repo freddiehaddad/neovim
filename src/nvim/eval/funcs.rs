@@ -5825,7 +5825,7 @@ pub fn f_nextnonblank(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFun
             lnum = 0;
             break;
         }
-        if !crate::memory::cstr_is_empty(skipwhite(ml_get(lnum))) {
+        if !crate::charset::skipwhite_slice(crate::memline::ml_get_slice(lnum)).is_empty() {
             break;
         }
         lnum += 1;
@@ -5888,7 +5888,9 @@ pub fn f_prevnonblank(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFun
     if lnum < 1 || lnum > curbuf_mut().b_ml.ml_line_count {
         lnum = 0;
     } else {
-        while lnum >= 1 && crate::memory::cstr_is_empty(skipwhite(ml_get(lnum))) {
+        while lnum >= 1
+            && crate::charset::skipwhite_slice(crate::memline::ml_get_slice(lnum)).is_empty()
+        {
             lnum -= 1;
         }
     }

@@ -31,8 +31,8 @@ use crate::grid::{
 use crate::highlight::{hl_attr, hl_combine_attr, win_hl_attr};
 use crate::highlight_group::{syn_id2attr, syn_name2id_len};
 use crate::keycodes::NL;
-use crate::mbyte::{ptr2cells, utf_ptr2char, utfc_ptr2len};
-use crate::memline::{ml_find_line_or_offset, ml_get_buf, ml_get_buf_len};
+use crate::mbyte::{ptr2cells, utfc_ptr2len};
+use crate::memline::ml_find_line_or_offset;
 use crate::memory::{Arena, arena_finish, arena_mem_free, xstrlcpy};
 use crate::message::HLF_MSG;
 use crate::message::msg_clr_eos;
@@ -1476,16 +1476,16 @@ pub extern "C" fn build_stl_str_hl(
             wp.w_cursor.lnum = lnum;
         }
 
-        let line_ptr = ml_get_buf((*wp).buf_mut(), lnum);
-        let empty_line = crate::memory::cstr_is_empty(line_ptr);
+        let line_slice = crate::memline::ml_get_buf_slice((*wp).buf_mut(), lnum);
+        let empty_line = line_slice.is_empty();
 
-        let len = ml_get_buf_len((*wp).buf_mut(), lnum);
+        let len = line_slice.len() as Colnr;
         let byteval = if wp.w_cursor.col > len {
             wp.w_cursor.col = len;
             wp.w_cursor.coladd = 0;
             0
         } else {
-            utf_ptr2char(line_ptr.wrapping_add(wp.w_cursor.col as usize))
+            crate::mbyte::utf_slice2char(&line_slice[wp.w_cursor.col as usize..])
         };
 
         let mut groupdepth: usize = 0;

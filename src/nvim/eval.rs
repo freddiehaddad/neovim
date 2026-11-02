@@ -5474,8 +5474,7 @@ pub fn save_tv_as_string(tv: &mut TypVal, endnl: bool, crlf: bool) -> Option<Vec
         };
         let mut total_len: usize = 0;
         for lnum in 1..=buf.b_ml.ml_line_count {
-            let p = ml_get_buf(buf, lnum);
-            total_len += crate::memory::cstr_len(p) + 1;
+            total_len += crate::memline::ml_get_buf_len(buf, lnum) as usize + 1;
         }
 
         if total_len == 0 {
@@ -5484,8 +5483,7 @@ pub fn save_tv_as_string(tv: &mut TypVal, endnl: bool, crlf: bool) -> Option<Vec
 
         let mut ret = Vec::with_capacity(total_len);
         for lnum in 1..=buf.b_ml.ml_line_count {
-            let p = ml_get_buf(buf, lnum);
-            for &p_byte in crate::memory::cstr_as_bytes(p) {
+            for &p_byte in crate::memline::ml_get_buf_slice(buf, lnum) {
                 ret.push(if p_byte == b'\n' { 0 } else { p_byte });
             }
             ret.push(b'\n');
@@ -5538,21 +5536,20 @@ pub fn buf_byteidx_to_charidx(
         lnum = buf.as_deref_mut().unwrap().b_ml.ml_line_count;
     }
 
-    let str_ptr = ml_get_buf(buf.unwrap(), lnum);
+    let str_bytes = crate::memline::ml_get_buf_slice(buf.unwrap(), lnum);
 
-    if crate::memory::cstr_is_empty(str_ptr) {
+    if str_bytes.is_empty() {
         return 0;
     }
 
-    let mut t = str_ptr;
+    let mut off: usize = 0;
     let mut count: i32 = 0;
-    let limit = (str_ptr as isize) + (byteidx as isize);
-    while !crate::memory::cstr_is_empty(t) && (t as isize) <= limit {
-        t = t.wrapping_add(utfc_ptr2len(t) as usize);
+    while off < str_bytes.len() && (off as isize) <= (byteidx as isize) {
+        off += crate::mbyte::utfc_slice2len(&str_bytes[off..]);
         count += 1;
     }
 
-    if crate::memory::cstr_is_empty(t) && byteidx != 0 && (t as isize) == limit {
+    if off >= str_bytes.len() && byteidx != 0 && (off as isize) == (byteidx as isize) {
         count += 1;
     }
 
@@ -5574,18 +5571,18 @@ pub fn buf_charidx_to_byteidx(
         lnum = buf.as_deref_mut().unwrap().b_ml.ml_line_count;
     }
 
-    let str_ptr = ml_get_buf(buf.unwrap(), lnum);
+    let str_bytes = crate::memline::ml_get_buf_slice(buf.unwrap(), lnum);
 
-    let mut t = str_ptr;
-    while !crate::memory::cstr_is_empty(t) {
+    let mut off: usize = 0;
+    while off < str_bytes.len() {
         charidx -= 1;
         if charidx <= 0 {
             break;
         }
-        t = t.wrapping_add(utfc_ptr2len(t) as usize);
+        off += crate::mbyte::utfc_slice2len(&str_bytes[off..]);
     }
 
-    ((t as usize).wrapping_sub(str_ptr as usize)) as i32
+    off as i32
 }
 
 /// Translate a Vimscript object into a position.
@@ -7109,15 +7106,16 @@ pub fn prompt_get_input(buf: &mut FileBuf) -> Option<std::ffi::CString> {
     let lnum_start = buf.b_prompt_start.mark.lnum;
     let lnum_last = buf.b_ml.ml_line_count;
 
-    let mut text = ml_get_buf(buf, lnum_start);
-    if (crate::memory::cstr_len(text) as i32) >= buf.b_prompt_start.mark.col {
-        text = text.wrapping_add(buf.b_prompt_start.mark.col as usize);
+    let mut text = crate::memline::ml_get_buf_slice(buf, lnum_start);
+    let mark_col = buf.b_prompt_start.mark.col;
+    if mark_col >= 0 && (text.len() as i32) >= mark_col {
+        text = &text[mark_col as usize..];
     }
 
-    let mut bytes = crate::memory::cstr_as_bytes(text).to_vec();
+    let mut bytes = text.to_vec();
     for i in (lnum_start + 1)..=lnum_last {
         bytes.push(b'\n');
-        bytes.extend_from_slice(crate::memory::cstr_as_bytes(ml_get_buf(buf, i)));
+        bytes.extend_from_slice(crate::memline::ml_get_buf_slice(buf, i));
     }
     Some(std::ffi::CString::new(bytes).unwrap_or_default())
 }

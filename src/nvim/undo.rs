@@ -45,7 +45,7 @@ use crate::mark::{Fmark, mark_adjust, setpcmark};
 use crate::mcursor::mc_undo_time;
 #[cfg(unix)]
 use crate::memline::resolve_symlink;
-use crate::memline::{ml_append_flags, ml_delete, ml_get, ml_get_buf, ml_replace};
+use crate::memline::{ml_append_flags, ml_delete, ml_replace};
 use crate::message::{
     emsg, give_warning, iemsg, internal_error, messaging, msg, msg_end, msg_ext_set_kind,
     msg_putchar, msg_puts, msg_puts_hl, msg_start, semsg, smsg, smsg_keep, verb_msg, verbose_enter,
@@ -572,8 +572,9 @@ fn u_entry_resized(buf: &FileBuf, uep: &UEntry) -> bool {
 pub fn u_compute_hash(buf: &mut FileBuf, hash: *mut u8) {
     let mut ctx = ContextSha256::new();
     for lnum in 1..=buf.b_ml.ml_line_count {
-        let p = ml_get_buf(buf, lnum);
-        ctx.update(crate::memory::cstr_slice(p, crate::memory::cstr_len(p) + 1));
+        let slice = crate::memline::ml_get_buf_slice(buf, lnum);
+        ctx.update(slice);
+        ctx.update(&[0]);
     }
     ctx.finish_into(unsafe { &mut *(hash as *mut [u8; UNDO_HASH_SIZE]) });
 }
@@ -2051,8 +2052,8 @@ fn u_undoredo(undo: bool, do_buf_event: bool) {
             } else if top < newlnum {
                 let mut i: Linenr = 0;
                 while i < newsize && i < oldsize {
-                    if crate::memory::cstr_as_bytes(uep.ue_array.as_slice()[i as usize].as_ptr())
-                        != crate::memory::cstr_as_bytes(ml_get(top + 1 + i))
+                    if uep.ue_array.as_slice()[i as usize].as_bytes()
+                        != crate::memline::ml_get_slice(top + 1 + i)
                     {
                         break;
                     }
@@ -2533,8 +2534,8 @@ pub fn u_find_first_changed() {
 
     let mut lnum: Linenr = 1;
     while lnum < curbuf_mut().b_ml.ml_line_count && lnum <= uep.ue_size() {
-        if crate::memory::cstr_as_bytes(ml_get_buf(crate::globals::curbuf_mut(), lnum))
-            != crate::memory::cstr_as_bytes(uep.ue_array.as_slice()[(lnum - 1) as usize].as_ptr())
+        if crate::memline::ml_get_buf_slice(crate::globals::curbuf_mut(), lnum)
+            != uep.ue_array.as_slice()[(lnum - 1) as usize].as_bytes()
         {
             clearpos(&mut uhp_mut(curbuf_mut(), nh).uh_cursor);
             uhp_mut(curbuf_mut(), nh).uh_cursor.lnum = lnum;
@@ -2724,9 +2725,9 @@ pub fn u_forget_unchanged(buf: &mut FileBuf) {
         return;
     }
     for i in 0..ue_size {
-        let line_ptr = ml_get_buf(buf, ue_top + 1 + i);
+        let line_bytes = crate::memline::ml_get_buf_slice(buf, ue_top + 1 + i);
         let saved_bytes = uhp_ref(buf, uhp).uh_entries[0].ue_array[i as usize].as_bytes();
-        if saved_bytes != crate::memory::cstr_as_bytes(line_ptr) {
+        if saved_bytes != line_bytes {
             return;
         }
     }
@@ -2847,7 +2848,7 @@ fn u_save_line(lnum: Linenr) -> std::ffi::CString {
 }
 
 fn u_save_line_buf(buf: &mut FileBuf, lnum: Linenr) -> std::ffi::CString {
-    crate::memory::cstr_to_cstring(ml_get_buf(buf, lnum))
+    crate::memory::cstr_from_bytes(crate::memline::ml_get_buf_slice(buf, lnum))
 }
 
 /// Check if the `'modified'` flag is set, or `'ff'` has changed.

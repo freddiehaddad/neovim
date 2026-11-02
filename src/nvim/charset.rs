@@ -1,7 +1,6 @@
 //! Code related to character sets (`src/nvim/charset.c`).
 
 use crate::buffer::FileBuf;
-use crate::cursor::get_cursor_line_ptr;
 use crate::globals::*;
 use crate::mbyte::{
     UTF8LEN_TAB, mb_islower, mb_isupper, mb_tolower, utf_char2cells, utf_char2len, utf_char2slice,
@@ -882,7 +881,8 @@ pub fn skipwhite_len(p: impl crate::strings::IntoCCharPtr, len: usize) -> RawCCh
 }
 
 pub fn getwhitecols_curline() -> isize {
-    getwhitecols(get_cursor_line_ptr())
+    let bytes = crate::cursor::get_cursor_line_slice();
+    (bytes.len() - skipwhite_slice(bytes).len()) as isize
 }
 
 pub fn getwhitecols(p: impl crate::strings::IntoCCharPtr) -> isize {

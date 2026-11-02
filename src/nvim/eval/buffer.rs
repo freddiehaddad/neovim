@@ -31,7 +31,7 @@ use crate::globals::*;
 use crate::insert::buf_prompt_text;
 use crate::mark::mark_adjust_buf;
 use crate::memline::{
-    ml_append, ml_delete_buf, ml_delete_flags, ml_get, ml_get_buf, ml_get_buf_len, ml_replace,
+    ml_append, ml_delete_buf, ml_delete_flags, ml_get_buf, ml_get_buf_len, ml_replace,
     ml_replace_buf,
 };
 use crate::r#move::update_topline;
@@ -198,7 +198,7 @@ fn set_buffer_lines(
             }
 
             if !append && lnum <= curbuf_mut().b_ml.ml_line_count {
-                let old_len = crate::memory::cstr_len(ml_get(lnum)) as i32;
+                let old_len = crate::memline::ml_get_len(lnum);
                 if u_savesub(lnum) && ml_replace(lnum, line_cstr.as_ptr().cast_mut(), true) {
                     let new_len = line_cstr.to_bytes().len() as i32;
                     inserted_bytes(lnum, 0, old_len, new_len);
@@ -1009,8 +1009,8 @@ pub fn f_prompt_setprompt(argvars: &mut [TypVal], _rettv: &mut TypVal, _fptr: Ev
         }
 
         let prompt_lno = buf.b_prompt_start.mark.lnum;
-        let old_line = ml_get_buf(&mut *buf, prompt_lno);
-        let old_line_len = ml_get_buf_len(&mut *buf, prompt_lno);
+        let old_line_slice = crate::memline::ml_get_buf_slice(&mut *buf, prompt_lno);
+        let old_line_len = old_line_slice.len() as Colnr;
 
         let old_prompt = buf_prompt_text(&*buf);
         let old_prompt_bytes = old_prompt.to_bytes();
@@ -1020,10 +1020,9 @@ pub fn f_prompt_setprompt(argvars: &mut [TypVal], _rettv: &mut TypVal, _fptr: Ev
         let mark_col = buf.b_prompt_start.mark.col;
         let prefix_matches = mark_col >= old_prompt_len
             && mark_col <= old_line_len
-            && crate::memory::cstr_slice(
-                old_line.wrapping_add((mark_col - old_prompt_len) as usize),
-                old_prompt_bytes.len(),
-            ) == old_prompt_bytes;
+            && old_line_slice
+                .get((mark_col - old_prompt_len) as usize..mark_col as usize)
+                .is_some_and(|s| s == old_prompt_bytes);
 
         if !prefix_matches {
             ml_replace_buf(
@@ -1043,7 +1042,11 @@ pub fn f_prompt_setprompt(argvars: &mut [TypVal], _rettv: &mut TypVal, _fptr: Ev
             );
             cursor_col = new_prompt_len;
         } else {
-            let new_line = concat_str(new_prompt, old_line.wrapping_add(mark_col as usize));
+            let mut new_vec = new_prompt.to_bytes().to_vec();
+            if let Some(tail) = old_line_slice.get(mark_col as usize..) {
+                new_vec.extend_from_slice(tail);
+            }
+            let new_line = crate::memory::cstr_from_bytes(&new_vec);
             let _ = ml_replace_buf(
                 &mut *buf,
                 prompt_lno,

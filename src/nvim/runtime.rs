@@ -45,7 +45,6 @@ use crate::lua::executor::{
 use crate::mbyte::{
     Vimconv, convert_setup, enc_canonize, mb_prevptr, string_convert, utfc_ptr2len,
 };
-use crate::memline::ml_get;
 use crate::memory::{Arena, cstr_from_bytes, cstr_to_cstring, xstrlcpy};
 #[cfg(windows)]
 use crate::message::msg_source;
@@ -2600,8 +2599,9 @@ fn do_source_buffer_init(
 
     sp.buflines.clear();
     for curr_lnum in eap.unwrap().line1..=eap.unwrap().line2 {
-        sp.buflines
-            .push(crate::memory::cstr_to_cstring(ml_get(curr_lnum)));
+        sp.buflines.push(crate::memory::cstr_from_bytes(
+            crate::memline::ml_get_slice(curr_lnum),
+        ));
     }
     sp.buf_lnum = 0;
     sp.source_from_buf_or_str = true;

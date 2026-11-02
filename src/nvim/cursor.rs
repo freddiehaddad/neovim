@@ -6,7 +6,7 @@ use crate::drawscreen::{UPD_NOT_VALID, redraw_later};
 use crate::fold::{has_any_folding, has_folding};
 use crate::globals::*;
 use crate::mark::mark_mb_adjustpos;
-use crate::mbyte::{utf_cluster_info, utf_head_off, utf_ptr2_str_char_info, utf_ptr2char};
+use crate::mbyte::{utf_cluster_info, utf_ptr2_str_char_info};
 use crate::memline::{
     dec, inc, ml_get_buf, ml_get_buf_len, ml_get_buf_mut, ml_get_buf_slice, ml_get_len,
     ml_get_pos_slice, ml_replace,
@@ -495,19 +495,19 @@ pub fn set_leftcol(leftcol: Colnr) -> bool {
 }
 
 pub fn gchar_cursor() -> i32 {
-    utf_ptr2char(get_cursor_pos_ptr())
+    crate::mbyte::utf_slice2char(get_cursor_pos_slice())
 }
 
 /// Return the character immediately before the cursor (`char_before_cursor`).
 pub fn char_before_cursor() -> i32 {
-    if curwin_mut().w_cursor.col == 0 {
+    let col = curwin_mut().w_cursor.col as usize;
+    if col == 0 {
         return -1;
     }
 
-    let line = get_cursor_line_ptr();
-    let p = line.wrapping_add(curwin_mut().w_cursor.col as usize);
-    let prev_len = utf_head_off(line, p.wrapping_sub(1)) + 1;
-    utf_ptr2char(p.wrapping_sub(prev_len as usize))
+    let line = get_cursor_line_slice();
+    let prev_len = crate::mbyte::utf_head_off_slice(line, col - 1) as usize + 1;
+    crate::mbyte::utf_slice2char(&line[col - prev_len..])
 }
 
 /// Write a character at the current cursor position (`pchar_cursor`).

@@ -1822,13 +1822,7 @@ pub fn buf_collect_lines(
 ) {
     for i in 0..n {
         let lnum = start + (i as Linenr);
-        let bufstr = ml_get_buf(buf, lnum);
-        let bufstrlen = ml_get_buf_len(buf, lnum) as usize;
-        let line_bytes = if bufstrlen == 0 || bufstr.is_null() {
-            &[][..]
-        } else {
-            unsafe { std::slice::from_raw_parts(bufstr.cast::<u8>(), bufstrlen) }
-        };
+        let line_bytes = crate::memline::ml_get_buf_slice(buf, lnum);
         push_linestr(
             lstate,
             l,

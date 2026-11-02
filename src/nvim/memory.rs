@@ -324,8 +324,8 @@ pub fn cstr_first_byte<S: crate::strings::IntoCCharPtr>(s: S) -> u8 {
 #[inline]
 pub fn cstr_slice<'a, S: crate::strings::IntoCCharPtr>(s: S, len: usize) -> &'a [u8] {
     let s = s.into_c_char_ptr();
-    if s.is_null() || len == 0 {
-        b""
+    if s.is_null() {
+        c"".to_bytes()
     } else {
         unsafe { std::slice::from_raw_parts(s.cast::<u8>(), len) }
     }
@@ -386,7 +386,7 @@ pub fn cstr_as_bytes_with_nul<'a, S: crate::strings::IntoCCharPtr>(s: S) -> &'a 
 pub fn cstr_as_bytes<'a, S: crate::strings::IntoCCharPtr>(s: S) -> &'a [u8] {
     let s = s.into_c_char_ptr();
     if s.is_null() {
-        b""
+        c"".to_bytes()
     } else {
         unsafe { CStr::from_ptr(s).to_bytes() }
     }

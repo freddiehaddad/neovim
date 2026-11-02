@@ -2,9 +2,7 @@
 
 use crate::buffer::{VALID_TOPLINE, VAR_FIXED, bt_prompt, bt_quickfix};
 use crate::charset::{ascii_iswhite, vim_iswordc};
-use crate::cursor::{
-    Colnr, CursorPos, Linenr, coladvance, equalpos, get_cursor_pos_ptr, lt, ltoreq, set_leftcol,
-};
+use crate::cursor::{Colnr, CursorPos, Linenr, coladvance, equalpos, lt, ltoreq, set_leftcol};
 use crate::decoration::{decor_conceal_line, decor_virt_lines};
 use crate::diff::diff_check_fill;
 use crate::drawscreen::{
@@ -36,7 +34,7 @@ use crate::keycodes::{
     K_X2MOUSE, K_X2RELEASE, get_mouse_button, key2termcap1,
 };
 use crate::mbyte::{
-    UTF8LEN_TAB, mb_get_class, utf_cluster_info, utf_head_off, utf_ptr2_str_char_info, utfc_ptr2len,
+    UTF8LEN_TAB, mb_get_class, utf_cluster_info, utf_ptr2_str_char_info, utfc_ptr2len,
 };
 use crate::mcursor::mc_toggle;
 use crate::memline::{gchar_pos, inc, ml_get, ml_get_buf};
@@ -229,13 +227,12 @@ fn get_mouse_class(bytes: &[u8]) -> i32 {
 
 /// Move "pos" back to the start of the word it's in.
 fn find_start_of_word(pos: &mut CursorPos) {
-    let line = ml_get(pos.lnum);
-    let line_bytes = crate::memory::cstr_as_bytes(line);
+    let line_bytes = crate::memline::ml_get_slice(pos.lnum);
     let cclass = get_mouse_class(line_bytes.get(pos.col as usize..).unwrap_or(&[]));
 
     while pos.col > 0 {
         let mut col = pos.col - 1;
-        col -= utf_head_off(line, line.wrapping_add(col as usize));
+        col -= crate::mbyte::utf_head_off_slice(line_bytes, col as usize);
         if get_mouse_class(line_bytes.get(col as usize..).unwrap_or(&[])) != cclass {
             break;
         }
@@ -246,15 +243,14 @@ fn find_start_of_word(pos: &mut CursorPos) {
 /// Move "pos" forward to the end of the word it's in.
 /// When 'selection' is "exclusive", the position is just after the word.
 fn find_end_of_word(pos: &mut CursorPos) {
-    let line = ml_get(pos.lnum);
+    let line_bytes = crate::memline::ml_get_slice(pos.lnum);
     if crate::memory::cstr_first_byte(opt_vars().p_sel) == b'e' && pos.col > 0 {
         pos.col -= 1;
-        pos.col -= utf_head_off(line, line.wrapping_add(pos.col as usize));
+        pos.col -= crate::mbyte::utf_head_off_slice(line_bytes, pos.col as usize);
     }
-    let line_bytes = crate::memory::cstr_as_bytes(line);
     let cclass = get_mouse_class(line_bytes.get(pos.col as usize..).unwrap_or(&[]));
     while (pos.col as usize) < line_bytes.len() {
-        let col = pos.col + utfc_ptr2len(line.wrapping_add(pos.col as usize));
+        let col = pos.col + crate::mbyte::utfc_slice2len(&line_bytes[pos.col as usize..]) as i32;
         if get_mouse_class(line_bytes.get(col as usize..).unwrap_or(&[])) != cclass {
             if crate::memory::cstr_first_byte(opt_vars().p_sel) == b'e' {
                 pos.col = col;
@@ -1159,10 +1155,12 @@ pub fn do_mouse(
                         find_end_of_word(&mut g_st().visual_global.start);
                     } else {
                         find_start_of_word(&mut g_st().visual_global.start);
+                        let cur_pos_slice = crate::cursor::get_cursor_pos_slice();
                         if crate::memory::cstr_first_byte(opt_vars().p_sel) == b'e'
-                            && !crate::memory::cstr_is_empty(get_cursor_pos_ptr())
+                            && !cur_pos_slice.is_empty()
                         {
-                            curwin_mut().w_cursor.col += utfc_ptr2len(get_cursor_pos_ptr());
+                            curwin_mut().w_cursor.col +=
+                                crate::mbyte::utfc_slice2len(cur_pos_slice) as i32;
                         }
                         find_end_of_word(&mut curwin_mut().w_cursor);
                     }

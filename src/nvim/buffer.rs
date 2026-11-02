@@ -74,8 +74,7 @@ use crate::math::{FAIL, OK};
 use crate::mbyte::utf_cp_bounds;
 use crate::mcursor::{mc_buf_clear, mc_buf_free};
 use crate::memline::{
-    ml_close, ml_delete, ml_get, ml_get_buf, ml_get_buf_slice, ml_open, ml_recover, ml_setname,
-    ml_timestamp,
+    ml_close, ml_delete, ml_get_buf_slice, ml_open, ml_recover, ml_setname, ml_timestamp,
 };
 use crate::memory::{cstr_from_bytes, cstr_to_cstring, mem_st, xstrlcpy};
 use crate::message::{
@@ -4618,8 +4617,7 @@ fn chk_modeline(lnum: Linenr, flags: i32) -> bool {
     let mut retval = true;
 
     let mut prev: i32 = -1;
-    let line_ptr = ml_get(lnum);
-    let line_bytes = crate::memory::cstr_as_bytes(line_ptr);
+    let line_bytes = crate::memline::ml_get_slice(lnum);
     let mut idx = 0usize;
     while idx < line_bytes.len() {
         let rem = &line_bytes[idx..];
@@ -4907,9 +4905,7 @@ pub fn buf_contents_changed(buf: &mut FileBuf) -> bool {
     {
         differ = false;
         for lnum in 1..=curbuf_mut().b_ml.ml_line_count {
-            if crate::memory::cstr_as_bytes(ml_get_buf(buf, lnum))
-                != crate::memory::cstr_as_bytes(ml_get(lnum))
-            {
+            if ml_get_buf_slice(buf, lnum) != crate::memline::ml_get_slice(lnum) {
                 differ = true;
                 break;
             }
@@ -4940,7 +4936,7 @@ pub fn wipe_buffer(buf: *mut FileBuf, aucmd: bool) {
 }
 
 pub fn buf_is_empty(buf: &mut FileBuf) -> bool {
-    buf.b_ml.ml_line_count == 1 && crate::memory::cstr_is_empty(ml_get_buf(buf, 1))
+    buf.b_ml.ml_line_count == 1 && ml_get_buf_slice(buf, 1).is_empty()
 }
 
 /// Increment `b:changedtick` value.

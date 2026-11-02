@@ -34,7 +34,7 @@ impl NvimString {
     #[inline]
     pub fn as_bytes(&self) -> &[u8] {
         if self.is_empty() {
-            &[]
+            c"".to_bytes()
         } else {
             unsafe { std::slice::from_raw_parts(self.data.cast::<u8>(), self.size) }
         }

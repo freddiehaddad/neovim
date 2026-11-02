@@ -27,7 +27,7 @@ use crate::input::flush_buffers;
 use crate::lua::executor::nlua_call_typval;
 use crate::main_init::getout;
 use crate::mark::setpcmark;
-use crate::mbyte::{mb_adjust_cursor, mb_utflen, utf_head_off, utf_ptr2char, utfc_ptr2len};
+use crate::mbyte::{mb_adjust_cursor, mb_utflen, utfc_ptr2len};
 use crate::memfile::{
     BH_DIRTY, Bhdr, Blocknr, MFS_ALL, MFS_STOP, MFS_ZERO, Memfile, mf_close, mf_close_file,
     mf_free, mf_free_fnames, mf_get, mf_need_trans, mf_new, mf_new_page_size, mf_open,
@@ -2030,7 +2030,7 @@ pub fn ml_get_slice(lnum: Linenr) -> &'static [u8] {
 pub fn ml_get_buf_slice(buf: &mut FileBuf, lnum: Linenr) -> &'static [u8] {
     let ptr = ml_get_buf(buf, lnum);
     if crate::memory::cstr_is_empty(ptr) {
-        return &[];
+        return c"".to_bytes();
     }
     assert!(buf.b_ml.ml_line_textlen > 0);
     crate::memory::cstr_slice(ptr, (buf.b_ml.ml_line_textlen - 1) as usize)
@@ -2098,7 +2098,7 @@ pub fn gchar_pos(pos: &mut CursorPos) -> i32 {
     if pos.col == MAXCOL || pos.col > ml_get_len(pos.lnum) {
         return i32::from(NUL);
     }
-    utf_ptr2char(ml_get_pos(pos))
+    crate::mbyte::utf_slice2char(ml_get_pos_slice(pos))
 }
 
 fn ml_get_buf_impl(buf: &mut FileBuf, mut lnum: Linenr, will_change: bool) -> RawCCharPtrMut {
@@ -4146,15 +4146,11 @@ pub fn goto_byte(cnt: i32) {
 /// Increment the line pointer `lp` crossing line boundaries as necessary.
 pub fn inc(lp: &mut CursorPos) -> i32 {
     if lp.col != MAXCOL {
-        let p = ml_get_pos(lp);
-        if !crate::memory::cstr_is_empty(p) {
-            let l = utfc_ptr2len(p);
+        let p = ml_get_pos_slice(lp);
+        if !p.is_empty() {
+            let l = crate::mbyte::utfc_slice2len(p) as i32;
             lp.col += l;
-            return if !crate::memory::cstr_is_empty(p.wrapping_add(l as usize)) {
-                0
-            } else {
-                2
-            };
+            return if p.len() > l as usize { 0 } else { 2 };
         }
     }
     if lp.lnum != curbuf_mut().b_ml.ml_line_count {
@@ -4179,23 +4175,23 @@ pub fn incl(lp: &mut CursorPos) -> i32 {
 pub fn dec(lp: &mut CursorPos) -> i32 {
     lp.coladd = 0;
     if lp.col == MAXCOL {
-        let p = ml_get(lp.lnum);
-        lp.col = ml_get_len(lp.lnum);
-        lp.col -= utf_head_off(p, p.wrapping_offset(lp.col as isize));
+        let line = ml_get_slice(lp.lnum);
+        lp.col = line.len() as Colnr;
+        lp.col -= crate::mbyte::utf_head_off_slice(line, lp.col as usize);
         return 0;
     }
 
     if lp.col > 0 {
         lp.col -= 1;
-        let p = ml_get(lp.lnum);
-        lp.col -= utf_head_off(p, p.wrapping_offset(lp.col as isize));
+        let line = ml_get_slice(lp.lnum);
+        lp.col -= crate::mbyte::utf_head_off_slice(line, lp.col as usize);
         return 0;
     }
     if lp.lnum > 1 {
         lp.lnum -= 1;
-        let p = ml_get(lp.lnum);
-        lp.col = ml_get_len(lp.lnum);
-        lp.col -= utf_head_off(p, p.wrapping_offset(lp.col as isize));
+        let line = ml_get_slice(lp.lnum);
+        lp.col = line.len() as Colnr;
+        lp.col -= crate::mbyte::utf_head_off_slice(line, lp.col as usize);
         return 1;
     }
 

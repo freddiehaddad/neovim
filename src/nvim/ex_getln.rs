@@ -37,9 +37,7 @@ use crate::cmdhist::{
     hist_char2type, init_history,
 };
 use crate::context::{CtxSwitch, K_CTX_KEEP_DIRS, ctx_restore, ctx_switch};
-use crate::cursor::{
-    CursorPos, clearpos, coladvance, equalpos, gchar_cursor, get_cursor_pos_ptr, lt,
-};
+use crate::cursor::{CursorPos, clearpos, coladvance, equalpos, gchar_cursor, lt};
 use crate::digraph::{K_BOOL_VAR_FALSE_CONST, K_BOOL_VAR_TRUE_CONST, do_digraph, get_digraph};
 use crate::drawscreen::{
     UPD_NOT_VALID, UPD_SOME_VALID, UPD_VALID, redraw_all_later, redraw_custom_title_later,
@@ -950,9 +948,13 @@ fn may_add_char_to_search(firstc: i32, c: &mut i32, s: &mut IncsearchState) -> b
                 *c = b'\\' as i32;
             }
             // add any composing characters
-            if utf_char2len(*c) != utfc_ptr2len(get_cursor_pos_ptr()) {
+            if utf_char2len(*c)
+                != crate::mbyte::utfc_slice2len(crate::cursor::get_cursor_pos_slice()) as i32
+            {
                 let save_c = *c;
-                while utf_char2len(*c) != utfc_ptr2len(get_cursor_pos_ptr()) {
+                while utf_char2len(*c)
+                    != crate::mbyte::utfc_slice2len(crate::cursor::get_cursor_pos_slice()) as i32
+                {
                     curwin_mut().w_cursor.col += utf_char2len(*c);
                     *c = gchar_cursor();
                     stuffchar_readbuff(*c);
