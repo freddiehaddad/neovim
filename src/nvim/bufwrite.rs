@@ -27,7 +27,7 @@ use crate::ex_eval::{aborting, should_abort};
 use crate::fileio::{
     EOL_DOS, EOL_UNIX, FIO_ENDIAN_L, FIO_LATIN1, FIO_NOCONVERT, FIO_UCS2, FIO_UCS4, FIO_UTF8,
     FIO_UTF16, ICONV_EINVAL, K_SHM_OVER, WRITEBUFSIZE, add_quoted_fname, buf_store_file_info,
-    call_iconv, call_iconv_close, close, filemess_bufwrite, fname_msg_id, get_fio_flags, iconv_t,
+    call_iconv, call_iconv_close, filemess_bufwrite, fname_msg_id, get_fio_flags, iconv_t,
     match_file_list, modname, msg_add_fileformat, msg_add_lines, need_conversion, set_rw_fname,
     slow_io_ns, time_differs, vim_rename, vim_tempname, write_eintr,
 };
@@ -739,38 +739,32 @@ fn get_fileinfo_os(
     fname: impl crate::strings::IntoCCharPtr,
     file_info_old: &mut FileInfo,
     _overwriting: bool,
-    perm: *mut i32,
-    device: *mut bool,
-    newfile: *mut bool,
-    err: *mut BwError,
+    perm: &mut i32,
+    device: &mut bool,
+    newfile: &mut bool,
+    err: &mut BwError,
 ) -> bool {
     let fname = fname.into_c_char_ptr().cast_mut();
-    unsafe {
-        *perm = -1;
-        if !os_fileinfo(fname, file_info_old) {
-            *newfile = true;
-        } else {
-            *perm = file_info_old.stat.st_mode as i32;
-            if !s_isreg(file_info_old.stat.st_mode) {
-                if s_isdir(file_info_old.stat.st_mode) {
-                    {
-                        *err = set_err_num(c"E502", gettext(c"is a directory"));
-                    }
-                    return false;
-                }
-                if os_nodetype(fname) != NODE_WRITABLE {
-                    {
-                        *err = set_err_num(c"E503", gettext(c"is not a file or writable device"));
-                    }
-                    return false;
-                }
-                *device = true;
-                *newfile = true;
-                *perm = -1;
+    *perm = -1;
+    if !os_fileinfo(fname, file_info_old) {
+        *newfile = true;
+    } else {
+        *perm = file_info_old.stat.st_mode as i32;
+        if !s_isreg(file_info_old.stat.st_mode) {
+            if s_isdir(file_info_old.stat.st_mode) {
+                *err = set_err_num(c"E502", gettext(c"is a directory"));
+                return false;
             }
+            if os_nodetype(fname) != NODE_WRITABLE {
+                *err = set_err_num(c"E503", gettext(c"is not a file or writable device"));
+                return false;
+            }
+            *device = true;
+            *newfile = true;
+            *perm = -1;
         }
-        true
     }
+    true
 }
 
 #[cfg(windows)]
@@ -778,44 +772,38 @@ fn get_fileinfo_os(
     fname: impl crate::strings::IntoCCharPtr,
     file_info_old: &mut FileInfo,
     overwriting: bool,
-    perm: *mut i32,
-    device: *mut bool,
-    newfile: *mut bool,
-    err: *mut BwError,
+    perm: &mut i32,
+    device: &mut bool,
+    newfile: &mut bool,
+    err: &mut BwError,
 ) -> bool {
     let fname = fname.into_c_char_ptr().cast_mut();
-    unsafe {
-        let nodetype = if fname.is_null() {
-            NODE_OTHER
-        } else {
-            os_nodetype(fname)
-        };
-        if nodetype == NODE_OTHER {
-            {
-                *err = set_err_num(c"E503", gettext(c"is not a file or writable device"));
-            }
+    let nodetype = if fname.is_null() {
+        NODE_OTHER
+    } else {
+        os_nodetype(fname)
+    };
+    if nodetype == NODE_OTHER {
+        *err = set_err_num(c"E503", gettext(c"is not a file or writable device"));
+        return false;
+    }
+    if nodetype == NODE_WRITABLE {
+        *device = true;
+        *newfile = true;
+        *perm = -1;
+    } else {
+        *perm = os_getperm(fname);
+        if *perm < 0 {
+            *newfile = true;
+        } else if os_isdir(fname) {
+            *err = set_err_num(c"E502", gettext(c"is a directory"));
             return false;
         }
-        if nodetype == NODE_WRITABLE {
-            *device = true;
-            *newfile = true;
-            *perm = -1;
-        } else {
-            *perm = os_getperm(fname);
-            if *perm < 0 {
-                *newfile = true;
-            } else if os_isdir(fname) {
-                {
-                    *err = set_err_num(c"E502", gettext(c"is a directory"));
-                }
-                return false;
-            }
-            if overwriting {
-                let _ = os_fileinfo(fname, file_info_old);
-            }
+        if overwriting {
+            let _ = os_fileinfo(fname, file_info_old);
         }
-        true
     }
+    true
 }
 
 fn get_fileinfo(
@@ -869,9 +857,9 @@ fn get_fileinfo(
     }
 }
 
-pub fn buf_get_backup_name<T>(
+pub fn buf_get_backup_name(
     fname: impl crate::strings::IntoCCharPtr,
-    dirp: *mut *mut T,
+    dirp: &mut crate::strings::RawCCharPtrMut,
     no_prepend_dot: bool,
     backup_ext: impl crate::strings::IntoCCharPtr,
 ) -> Option<std::ffi::CString> {
@@ -882,7 +870,7 @@ pub fn buf_get_backup_name<T>(
         let iobuf = g_st().iobuff.as_mut_ptr();
         let dir_len = copy_option_part(dirp, iobuf.cast(), IOSIZE, c",");
         let p = iobuf.wrapping_add(dir_len);
-        if unsafe { *(*dirp).cast::<u8>() } == 0 && !os_isdir(iobuf) {
+        if crate::memory::cstr_is_empty(*dirp) && !os_isdir(iobuf) {
             let mut failed_dir: Option<std::ffi::CString> = None;
             let ret = os_mkdir_recurse(iobuf, 0o755, &mut failed_dir, None);
             if ret != 0 {
@@ -895,7 +883,7 @@ pub fn buf_get_backup_name<T>(
         }
         if dir_len > 1
             && after_pathsep(iobuf, p) != 0
-            && unsafe { *p.wrapping_sub(1) } == unsafe { *p.wrapping_sub(2) }
+            && g_st().iobuff[dir_len - 1] == g_st().iobuff[dir_len - 2]
             && let Some(swname) = make_percent_swname(iobuf, p, fname)
         {
             backup = modname(swname.as_ptr(), backup_ext, no_prepend_dot);
@@ -973,7 +961,7 @@ fn buf_write_make_backup(
                             *backup_copyp = true;
                         }
                     }
-                    let _ = unsafe { close(fd) };
+                    os_close(fd);
                     let _ = os_remove(tmp_fname.as_ptr().cast());
                 }
             }
@@ -1006,49 +994,40 @@ fn buf_write_make_backup(
             let mut some_error = false;
             let mut dirp = opt_vars().p_bdir;
             'nobackup: {
-                while unsafe { *dirp } != 0 {
-                    *backupp =
-                        buf_get_backup_name(fname, &raw mut dirp, no_prepend_dot, backup_ext);
+                while !crate::memory::cstr_is_empty(dirp) {
+                    *backupp = buf_get_backup_name(fname, &mut dirp, no_prepend_dot, backup_ext);
                     let Some(bk_cstr) = backupp.take() else {
                         some_error = true;
                         break 'nobackup;
                     };
                     let mut bk_vec: Vec<u8> = bk_cstr.into_bytes_with_nul();
-                    let bk_ptr = bk_vec.as_mut_ptr();
                     let mut keep_bk = true;
 
                     let mut file_info_new = FileInfo::new();
-                    if os_fileinfo(bk_ptr.cast(), &mut file_info_new) {
+                    if os_fileinfo(&bk_vec, &mut file_info_new) {
                         if os_fileinfo_id_equal(&file_info_new, file_info_old) {
                             keep_bk = false;
                         } else if opt_vars().p_bk == 0 {
-                            let blen = crate::memory::cstr_len(bk_ptr.cast());
+                            let blen = crate::memory::cstr_len(&bk_vec);
                             let extlen = crate::memory::cstr_len(backup_ext);
-                            let mut wp = if blen > extlen + 1 {
-                                bk_ptr.wrapping_add(blen - 1 - extlen)
+                            let wp_idx = if blen > extlen + 1 {
+                                blen - 1 - extlen
                             } else {
-                                bk_ptr
+                                0
                             };
-                            if (wp as usize) < (bk_ptr as usize) {
-                                wp = bk_ptr;
-                            }
-                            unsafe {
-                                *wp = b'z';
-                            }
-                            while unsafe { *wp } > b'a'
-                                && os_fileinfo(bk_ptr.cast(), &mut file_info_new)
+                            bk_vec[wp_idx] = b'z';
+                            while bk_vec[wp_idx] > b'a' && os_fileinfo(&bk_vec, &mut file_info_new)
                             {
-                                unsafe {
-                                    *wp -= 1;
-                                }
+                                bk_vec[wp_idx] -= 1;
                             }
-                            if unsafe { *wp } == b'a' {
+                            if bk_vec[wp_idx] == b'a' {
                                 keep_bk = false;
                             }
                         }
                     }
 
                     if keep_bk {
+                        let bk_ptr = bk_vec.as_mut_ptr();
                         let _ = os_remove(bk_ptr.cast());
                         if os_copy(fname, bk_ptr.cast(), UV_FS_COPYFILE_FICLONE) != 0 {
                             *err = set_err(gettext(
@@ -1106,37 +1085,29 @@ fn buf_write_make_backup(
             }
 
             let mut dirp = opt_vars().p_bdir;
-            while unsafe { *dirp } != 0 {
-                *backupp = buf_get_backup_name(fname, &raw mut dirp, no_prepend_dot, backup_ext);
+            while !crate::memory::cstr_is_empty(dirp) {
+                *backupp = buf_get_backup_name(fname, &mut dirp, no_prepend_dot, backup_ext);
                 if let Some(bk_cstr) = backupp.take() {
                     let mut bk_vec: Vec<u8> = bk_cstr.into_bytes_with_nul();
-                    let bk_ptr = bk_vec.as_mut_ptr();
                     let mut keep_bk = true;
-                    if opt_vars().p_bk == 0 && os_path_exists(bk_ptr.cast()) {
-                        let blen = crate::memory::cstr_len(bk_ptr.cast());
+                    if opt_vars().p_bk == 0 && os_path_exists(&bk_vec) {
+                        let blen = crate::memory::cstr_len(&bk_vec);
                         let extlen = crate::memory::cstr_len(backup_ext);
-                        let mut p = if blen > extlen + 1 {
-                            bk_ptr.wrapping_add(blen - 1 - extlen)
+                        let p_idx = if blen > extlen + 1 {
+                            blen - 1 - extlen
                         } else {
-                            bk_ptr
+                            0
                         };
-                        if (p as usize) < (bk_ptr as usize) {
-                            p = bk_ptr;
+                        bk_vec[p_idx] = b'z';
+                        while bk_vec[p_idx] > b'a' && os_path_exists(&bk_vec) {
+                            bk_vec[p_idx] -= 1;
                         }
-                        unsafe {
-                            *p = b'z';
-                        }
-                        while unsafe { *p } > b'a' && os_path_exists(bk_ptr.cast()) {
-                            unsafe {
-                                *p -= 1;
-                            }
-                        }
-                        if unsafe { *p } == b'a' {
+                        if bk_vec[p_idx] == b'a' {
                             keep_bk = false;
                         }
                     }
-                    if keep_bk && vim_rename(fname, bk_ptr.cast()) == 0 {
-                        *backupp = Some(crate::memory::cstr_to_cstring(bk_ptr.cast()));
+                    if keep_bk && vim_rename(fname, &bk_vec) == 0 {
+                        *backupp = Some(crate::memory::cstr_to_cstring(&bk_vec));
                         break;
                     }
                 }
@@ -2033,7 +2004,7 @@ pub fn buf_write(
                             if empty_fd < 0 {
                                 emsg(gettext(c"E206: Patchmode: can't touch empty original file"));
                             } else {
-                                let _ = close(empty_fd);
+                                os_close(empty_fd);
                             }
                         }
                         if let Some(ref org) = org {
