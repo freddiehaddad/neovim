@@ -2457,27 +2457,21 @@ pub fn str2special<T>(
         return p;
     }
 
-    let mut c = (crate::memory::cstr_first_byte(str_)) as i32;
+    let mut c = str_bytes.first().copied().unwrap_or(0) as i32;
     let mut modifiers = 0;
     let mut special = false;
-    if c == K_SPECIAL as i32
-        && crate::memory::cstr_byte_at(str_, 1) != 0
-        && crate::memory::cstr_byte_at(str_, 2) != 0
-    {
-        if crate::memory::cstr_byte_at(str_, 1) == KS_MODIFIER {
-            modifiers = (crate::memory::cstr_byte_at(str_, 2)) as i32;
+    let mut str_rem = str_bytes;
+    if c == K_SPECIAL as i32 && str_rem.len() >= 3 {
+        if str_rem[1] == KS_MODIFIER {
+            modifiers = str_rem[2] as i32;
             str_ = str_.wrapping_add(3);
-            c = (crate::memory::cstr_first_byte(str_)) as i32;
+            str_rem = &str_rem[3..];
+            c = str_rem.first().copied().unwrap_or(0) as i32;
         }
-        if c == K_SPECIAL as i32
-            && crate::memory::cstr_byte_at(str_, 1) != 0
-            && crate::memory::cstr_byte_at(str_, 2) != 0
-        {
-            c = to_special(
-                crate::memory::cstr_byte_at(str_, 1) as i32,
-                crate::memory::cstr_byte_at(str_, 2) as i32,
-            );
+        if c == K_SPECIAL as i32 && str_rem.len() >= 3 {
+            c = to_special(str_rem[1] as i32, str_rem[2] as i32);
             str_ = str_.wrapping_add(2);
+            str_rem = &str_rem[2..];
         }
         if is_special(c) || modifiers != 0 {
             special = true;
@@ -2485,11 +2479,10 @@ pub fn str2special<T>(
     }
 
     if !is_special(c) && UTF8LEN_TAB[c as usize] > 1 {
-        let str_bytes = crate::memory::cstr_as_bytes(str_);
-        let mut rem = str_bytes;
+        let mut rem = str_rem;
         if let Some(p) = mb_unescape(&mut rem) {
             unsafe {
-                *sp = str_.wrapping_add(str_bytes.len() - rem.len()).cast();
+                *sp = str_.wrapping_add(str_rem.len() - rem.len()).cast();
             }
             c = utf_slice2char(p.to_bytes());
         } else {
@@ -2499,9 +2492,7 @@ pub fn str2special<T>(
         }
     } else {
         unsafe {
-            *sp = str_
-                .wrapping_add(usize::from(!crate::memory::cstr_is_empty(str_)))
-                .cast();
+            *sp = str_.wrapping_add(usize::from(!str_rem.is_empty())).cast();
         }
     }
 

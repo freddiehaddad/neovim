@@ -524,43 +524,36 @@ pub fn parse_pattern_and_range(
 
     // Skip over the range to find the command.
     let cmd = skip_range(ea.cmd, None);
-    if !crate::strings::vim_haschr(c"sgvlu", (crate::memory::cstr_first_byte(cmd)) as i32) {
+    let cmd_bytes = crate::memory::cstr_as_bytes(cmd);
+    let Some(&first_b) = cmd_bytes.first() else {
+        return false;
+    };
+    if !matches!(first_b, b's' | b'g' | b'v' | b'l' | b'u') {
         return false;
     }
 
     // Skip over command name to find pattern separator
-    let mut p = cmd;
-    while ascii_isalpha(crate::memory::cstr_first_char(p)) {
-        p = p.wrapping_add(1);
-    }
+    let cmd_len = cmd_bytes
+        .iter()
+        .take_while(|b| b.is_ascii_alphabetic())
+        .count();
+    let mut p = cmd.wrapping_add(cmd_len);
     if crate::memory::cstr_is_empty(skipwhite(p)) {
         return false;
     }
 
-    let cmd_len = crate::memory::ptr_offset_from(p, cmd) as usize;
-    if (crate::memory::cstr_prefix_bytes(cmd, cmd_len)
-        == crate::memory::cstr_prefix_bytes(c"substitute", cmd_len))
-        || (crate::memory::cstr_prefix_bytes(cmd, cmd_len)
-            == crate::memory::cstr_prefix_bytes(c"smagic", cmd_len))
-        || (crate::memory::cstr_prefix_bytes(cmd, cmd_len.max(3))
-            == crate::memory::cstr_prefix_bytes(c"snomagic", cmd_len.max(3)))
-        || (crate::memory::cstr_prefix_bytes(cmd, cmd_len)
-            == crate::memory::cstr_prefix_bytes(c"vglobal", cmd_len))
+    let cmd_name = &cmd_bytes[..cmd_len];
+    if b"substitute".starts_with(cmd_name)
+        || b"smagic".starts_with(cmd_name)
+        || (cmd_len >= 3 && b"snomagic".starts_with(cmd_name))
+        || b"vglobal".starts_with(cmd_name)
     {
-        if crate::memory::cstr_first_byte(cmd) == b's'
-            && crate::memory::cstr_byte_at(cmd, 1) == b'm'
-        {
+        if cmd_name.starts_with(b"sm") {
             *is_magic = true;
-        } else if crate::memory::cstr_first_byte(cmd) == b's'
-            && crate::memory::cstr_byte_at(cmd, 1) == b'n'
-        {
+        } else if cmd_name.starts_with(b"sn") {
             *is_magic = false;
         }
-    } else if (crate::memory::cstr_prefix_bytes(cmd, cmd_len.max(3))
-        == crate::memory::cstr_prefix_bytes(c"sort", cmd_len.max(3)))
-        || (crate::memory::cstr_prefix_bytes(cmd, cmd_len.max(3))
-            == crate::memory::cstr_prefix_bytes(c"uniq", cmd_len.max(3)))
-    {
+    } else if cmd_len >= 3 && (b"sort".starts_with(cmd_name) || b"uniq".starts_with(cmd_name)) {
         // skip over ! and flags
         if crate::memory::cstr_first_byte(p) == b'!' {
             p = skipwhite(p.wrapping_add(1));
@@ -575,16 +568,11 @@ pub fn parse_pattern_and_range(
         if crate::memory::cstr_is_empty(p) {
             return false;
         }
-    } else if (crate::memory::cstr_prefix_bytes(cmd, cmd_len.max(3))
-        == crate::memory::cstr_prefix_bytes(c"vimgrep", cmd_len.max(3)))
-        || (crate::memory::cstr_prefix_bytes(cmd, cmd_len.max(8))
-            == crate::memory::cstr_prefix_bytes(c"vimgrepadd", cmd_len.max(8)))
-        || (crate::memory::cstr_prefix_bytes(cmd, cmd_len.max(2))
-            == crate::memory::cstr_prefix_bytes(c"lvimgrep", cmd_len.max(2)))
-        || (crate::memory::cstr_prefix_bytes(cmd, cmd_len.max(9))
-            == crate::memory::cstr_prefix_bytes(c"lvimgrepadd", cmd_len.max(9)))
-        || (crate::memory::cstr_prefix_bytes(cmd, cmd_len)
-            == crate::memory::cstr_prefix_bytes(c"global", cmd_len))
+    } else if (cmd_len >= 3 && b"vimgrep".starts_with(cmd_name))
+        || (cmd_len >= 8 && b"vimgrepadd".starts_with(cmd_name))
+        || (cmd_len >= 2 && b"lvimgrep".starts_with(cmd_name))
+        || (cmd_len >= 9 && b"lvimgrepadd".starts_with(cmd_name))
+        || b"global".starts_with(cmd_name)
     {
         // skip optional "!"
         if crate::memory::cstr_first_byte(p) == b'!' {
@@ -593,7 +581,7 @@ pub fn parse_pattern_and_range(
                 return false;
             }
         }
-        if crate::memory::cstr_first_byte(cmd) != b'g' {
+        if first_b != b'g' {
             delim_optional = true;
         }
     } else {
@@ -3440,61 +3428,49 @@ pub fn getcmdline_prompt(
 
 /// Parse `'wildmode'`, updating flags only when non-NULL and the value is valid.
 pub fn check_opt_wim(value: impl crate::strings::IntoCCharPtr, flags: *mut u8) -> bool {
-    let value = value.into_c_char_ptr();
-    {
-        let mut new_wim_flags: [u8; 4] = [0; 4];
-        let mut idx: usize = 0;
+    let mut rem = crate::memory::cstr_as_bytes(value.into_c_char_ptr());
+    let mut new_wim_flags: [u8; 4] = [0; 4];
+    let mut idx: usize = 0;
 
-        let mut p = value;
-        while !crate::memory::cstr_is_empty(p) {
-            let mut i: usize = 0;
-            while ascii_isalpha(crate::memory::cstr_char_at(p, i)) {
-                i += 1;
-            }
-            if crate::memory::cstr_byte_at(p, i) != 0
-                && crate::memory::cstr_byte_at(p, i) != b','
-                && crate::memory::cstr_byte_at(p, i) != b':'
-            {
-                return false;
-            }
-            if i == 7 && (crate::memory::cstr_prefix_bytes(p, 7) == &b"longest"[..7]) {
-                new_wim_flags[idx] |= K_OPT_WIM_FLAG_LONGEST;
-            } else if i == 4 && (crate::memory::cstr_prefix_bytes(p, 4) == &b"full"[..4]) {
-                new_wim_flags[idx] |= K_OPT_WIM_FLAG_FULL;
-            } else if i == 4 && (crate::memory::cstr_prefix_bytes(p, 4) == &b"list"[..4]) {
-                new_wim_flags[idx] |= K_OPT_WIM_FLAG_LIST;
-            } else if i == 8 && (crate::memory::cstr_prefix_bytes(p, 8) == &b"lastused"[..8]) {
-                new_wim_flags[idx] |= K_OPT_WIM_FLAG_LASTUSED;
-            } else if i == 8 && (crate::memory::cstr_prefix_bytes(p, 8) == &b"noselect"[..8]) {
-                new_wim_flags[idx] |= K_OPT_WIM_FLAG_NOSELECT;
-            } else if i == 8 && (crate::memory::cstr_prefix_bytes(p, 8) == &b"noinsert"[..8]) {
-                new_wim_flags[idx] |= K_OPT_WIM_FLAG_NOINSERT;
-            } else {
-                return false;
-            }
-            p = p.wrapping_add(i);
-            if crate::memory::cstr_is_empty(p) {
-                break;
-            }
-            if crate::memory::cstr_first_byte(p) == b',' {
-                if idx == 3 {
-                    return false;
-                }
-                idx += 1;
-            }
-            p = p.wrapping_add(1);
+    while !rem.is_empty() {
+        let i = rem.iter().take_while(|b| b.is_ascii_alphabetic()).count();
+        if let Some(&sep) = rem.get(i)
+            && sep != b','
+            && sep != b':'
+        {
+            return false;
         }
-
-        while idx < 3 {
-            new_wim_flags[idx + 1] = new_wim_flags[idx];
+        match &rem[..i] {
+            b"longest" => new_wim_flags[idx] |= K_OPT_WIM_FLAG_LONGEST,
+            b"full" => new_wim_flags[idx] |= K_OPT_WIM_FLAG_FULL,
+            b"list" => new_wim_flags[idx] |= K_OPT_WIM_FLAG_LIST,
+            b"lastused" => new_wim_flags[idx] |= K_OPT_WIM_FLAG_LASTUSED,
+            b"noselect" => new_wim_flags[idx] |= K_OPT_WIM_FLAG_NOSELECT,
+            b"noinsert" => new_wim_flags[idx] |= K_OPT_WIM_FLAG_NOINSERT,
+            _ => return false,
+        }
+        rem = &rem[i..];
+        if rem.is_empty() {
+            break;
+        }
+        if rem[0] == b',' {
+            if idx == 3 {
+                return false;
+            }
             idx += 1;
         }
-
-        if !flags.is_null() {
-            unsafe { ptr::copy_nonoverlapping(new_wim_flags.as_ptr(), flags, 4) };
-        }
-        true
+        rem = &rem[1..];
     }
+
+    while idx < 3 {
+        new_wim_flags[idx + 1] = new_wim_flags[idx];
+        idx += 1;
+    }
+
+    if !flags.is_null() {
+        unsafe { ptr::copy_nonoverlapping(new_wim_flags.as_ptr(), flags, 4) };
+    }
+    true
 }
 
 /// Return true when the text must not be changed and we can't switch to

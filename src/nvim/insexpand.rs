@@ -5432,30 +5432,22 @@ fn find_common_prefix(prefix_len: &mut usize, curbuf_only: bool) -> *mut u8 {
                     ))
                 {
                     first = compl.cp_str.data.cast();
-                    len = crate::memory::cstr_len(first.cast()) as i32;
+                    len = compl.cp_str.size as i32;
                 } else if !first.is_null() {
-                    let mut j: i32 = 0;
-                    let mut s1 = first;
-                    let mut s2: *mut u8 = compl.cp_str.data.cast();
+                    let s1_bytes =
+                        unsafe { std::slice::from_raw_parts(first, len.max(0) as usize) };
+                    let s2_bytes = compl.cp_str.as_bytes();
+                    let mut j: usize = 0;
 
-                    while j < len
-                        && !crate::memory::cstr_is_empty(s1.cast())
-                        && !crate::memory::cstr_is_empty(s2.cast())
-                    {
-                        let l1 = utf_byte2len(i32::from(crate::memory::cstr_first_byte(s1.cast())));
-                        let l2 = utf_byte2len(i32::from(crate::memory::cstr_first_byte(s2.cast())));
-                        if l1 != l2
-                            || crate::memory::cstr_slice(s1.cast(), l1 as usize)
-                                != crate::memory::cstr_slice(s2.cast(), l1 as usize)
-                        {
+                    while j < s1_bytes.len() && j < s2_bytes.len() {
+                        let l1 = utf_byte2len(i32::from(s1_bytes[j])) as usize;
+                        let l2 = utf_byte2len(i32::from(s2_bytes[j])) as usize;
+                        if l1 != l2 || s1_bytes.get(j..j + l1) != s2_bytes.get(j..j + l1) {
                             break;
                         }
-
                         j += l1;
-                        mb_ptr_adv(&mut s1);
-                        mb_ptr_adv(&mut s2);
                     }
-                    len = j;
+                    len = j as i32;
 
                     if len == 0 {
                         break;
