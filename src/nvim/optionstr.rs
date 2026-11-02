@@ -35,8 +35,7 @@ use crate::insexpand::{LSIZE, set_cpt_callbacks};
 use crate::lua::converter::{Boolean, FieldHashfn, KeySetLink, OptKeySet};
 use crate::mark::{Fmark, Fmarkv};
 use crate::mbyte::{
-    enc_canonize, get_encoding_name, utf_cluster_info, utf_ptr2_str_char_info, utf_ptr2char,
-    utfc_ptr2len,
+    enc_canonize, get_encoding_name, utf_cluster_info, utf_ptr2_str_char_info, utfc_ptr2len,
 };
 use crate::memline::ml_setflags;
 use crate::message::{K_OPT_MESSAGESOPT, msg_grid_validate, verbose_open, verbose_stop};
@@ -49,7 +48,7 @@ use crate::option::{
     K_OPT_VIRTUALEDIT, copy_option_part, did_set_title, fill_culopt_flags, get_fileformat,
     get_option, get_option_default, opt_error, option_next_keyval, option_slice_eq,
     optval_free_read, parse_winhl_opt, redraw_titles, set_iminsert_global, set_imsearch_global,
-    set_option_direct, skip_to_option_part, valid_name,
+    set_option_direct, valid_name,
 };
 use crate::option_vars::*;
 use crate::os::env::{ExpandCtx, vim_unsetenv_ext};
@@ -279,7 +278,6 @@ pub struct Vimoption {
     pub script_ctx: Sctx,
 }
 
-use crate::charset::NUL;
 use crate::decoration::SCL_NUM;
 use crate::ex_cmds::B_IMODE_LMAP;
 use crate::ex_session::{K_OPT_SSOP_FLAG_CURDIR, K_OPT_SSOP_FLAG_SESDIR};
@@ -1071,68 +1069,69 @@ pub fn check_signcolumn(
         val = wp.as_deref_mut().unwrap().w_onebuf_opt.wo_scl.cast_const();
     }
 
-    if crate::memory::cstr_is_empty(val) {
+    let val_bytes = crate::memory::cstr_as_bytes(val);
+    if val_bytes.is_empty() {
         return false;
     }
 
     if opt_strings_flags(val, &OPT_SCL_VALUES, ptr::null_mut(), false, None).is_none() {
-        if wp.is_none() {
+        let Some(wp) = wp else {
             return true;
-        }
-        if crate::memory::cstr_prefix_bytes(val, 2) == &b"no"[..2] {
-            wp.as_deref_mut().unwrap().w_minscwidth = SCL_NO;
-            wp.as_deref_mut().unwrap().w_maxscwidth = SCL_NO;
-        } else if (crate::memory::cstr_prefix_bytes(val, 2) == &b"nu"[..2])
-            && (wp.as_deref_mut().unwrap().w_onebuf_opt.wo_nu != 0
-                || wp.as_deref_mut().unwrap().w_onebuf_opt.wo_rnu != 0)
+        };
+        if val_bytes.starts_with(b"no") {
+            wp.w_minscwidth = SCL_NO;
+            wp.w_maxscwidth = SCL_NO;
+        } else if val_bytes.starts_with(b"nu")
+            && (wp.w_onebuf_opt.wo_nu != 0 || wp.w_onebuf_opt.wo_rnu != 0)
         {
-            wp.as_deref_mut().unwrap().w_minscwidth = SCL_NUM;
-            wp.as_deref_mut().unwrap().w_maxscwidth = SCL_NUM;
-        } else if crate::memory::cstr_prefix_bytes(val, 4) == &b"yes:"[..4] {
-            let n = (crate::memory::cstr_char_at(val, 4)) - (b'0' as i32);
-            wp.as_deref_mut().unwrap().w_minscwidth = n;
-            wp.as_deref_mut().unwrap().w_maxscwidth = n;
-        } else if crate::memory::cstr_first_byte(val) == b'y' {
-            wp.as_deref_mut().unwrap().w_minscwidth = 1;
-            wp.as_deref_mut().unwrap().w_maxscwidth = 1;
-        } else if crate::memory::cstr_prefix_bytes(val, 5) == &b"auto:"[..5] {
-            wp.as_deref_mut().unwrap().w_minscwidth = 0;
-            wp.as_deref_mut().unwrap().w_maxscwidth =
-                (crate::memory::cstr_char_at(val, 5)) - (b'0' as i32);
+            wp.w_minscwidth = SCL_NUM;
+            wp.w_maxscwidth = SCL_NUM;
+        } else if let Some(after) = val_bytes.strip_prefix(b"yes:") {
+            let n = i32::from(after.first().copied().unwrap_or(0)) - (b'0' as i32);
+            wp.w_minscwidth = n;
+            wp.w_maxscwidth = n;
+        } else if val_bytes.first() == Some(&b'y') {
+            wp.w_minscwidth = 1;
+            wp.w_maxscwidth = 1;
+        } else if let Some(after) = val_bytes.strip_prefix(b"auto:") {
+            wp.w_minscwidth = 0;
+            wp.w_maxscwidth = i32::from(after.first().copied().unwrap_or(0)) - (b'0' as i32);
         } else {
-            wp.as_deref_mut().unwrap().w_minscwidth = 0;
-            wp.as_deref_mut().unwrap().w_maxscwidth = 1;
+            wp.w_minscwidth = 0;
+            wp.w_maxscwidth = 1;
         }
+        let scwidth = if wp.w_minscwidth <= 0 {
+            0
+        } else {
+            wp.w_maxscwidth.min(wp.w_scwidth)
+        };
+        wp.w_scwidth = wp.w_minscwidth.max(scwidth);
     } else {
-        if !(crate::memory::cstr_prefix_bytes(val, 5) == &b"auto:"[..5])
-            || crate::memory::cstr_len(val) != 8
-            || !ascii_isdigit(crate::memory::cstr_char_at(val, 5))
-            || crate::memory::cstr_byte_at(val, 6) != b'-'
-            || !ascii_isdigit(crate::memory::cstr_char_at(val, 7))
+        if !val_bytes.starts_with(b"auto:")
+            || val_bytes.len() != 8
+            || !val_bytes[5].is_ascii_digit()
+            || val_bytes[6] != b'-'
+            || !val_bytes[7].is_ascii_digit()
         {
             return false;
         }
-        let min = (crate::memory::cstr_char_at(val, 5)) - (b'0' as i32);
-        let max = (crate::memory::cstr_char_at(val, 7)) - (b'0' as i32);
+        let min = i32::from(val_bytes[5] - b'0');
+        let max = i32::from(val_bytes[7] - b'0');
         if min < 1 || max < 2 || min > 8 || min >= max {
             return false;
         }
-        if wp.is_none() {
+        let Some(wp) = wp else {
             return true;
-        }
-        wp.as_deref_mut().unwrap().w_minscwidth = min;
-        wp.as_deref_mut().unwrap().w_maxscwidth = max;
+        };
+        wp.w_minscwidth = min;
+        wp.w_maxscwidth = max;
+        let scwidth = if wp.w_minscwidth <= 0 {
+            0
+        } else {
+            wp.w_maxscwidth.min(wp.w_scwidth)
+        };
+        wp.w_scwidth = wp.w_minscwidth.max(scwidth);
     }
-
-    let scwidth = if wp.as_deref_mut().unwrap().w_minscwidth <= 0 {
-        0
-    } else {
-        wp.as_deref_mut()
-            .unwrap()
-            .w_maxscwidth
-            .min(wp.as_deref_mut().unwrap().w_scwidth)
-    };
-    wp.unwrap().w_scwidth = wp.as_deref_mut().unwrap().w_minscwidth.max(scwidth);
     true
 }
 
@@ -1429,54 +1428,33 @@ fn expand_set_opt_listflag(
     flags: impl crate::strings::IntoCCharPtr,
     matches: &mut Vec<std::ffi::CString>,
 ) -> bool {
-    let flags = flags.into_c_char_ptr();
-    {
-        let option_val = args.oe_opt_value.cast();
-        let cmdline_val = args.oe_set_arg.cast();
-        let append = args.oe_append;
-        let include_orig_val =
-            args.oe_include_orig_val && (!crate::memory::cstr_is_empty(option_val));
+    let flags_bytes = crate::memory::cstr_as_bytes(flags.into_c_char_ptr());
+    let option_val = args.oe_opt_value.cast();
+    let option_bytes = crate::memory::cstr_as_bytes(option_val);
+    let cmdline_bytes = crate::memory::cstr_as_bytes(args.oe_set_arg.cast());
+    let append = args.oe_append;
+    let include_orig_val = args.oe_include_orig_val && !option_bytes.is_empty();
 
-        matches.clear();
+    matches.clear();
 
-        if include_orig_val {
-            matches.push(crate::memory::cstr_to_cstring(option_val));
+    if include_orig_val {
+        matches.push(crate::memory::cstr_to_cstring(option_val));
+    }
+
+    for &flag_b in flags_bytes {
+        if append && option_bytes.contains(&flag_b) {
+            continue;
         }
 
-        let mut flag = flags;
-        while !crate::memory::cstr_is_empty(flag) {
-            if append
-                && crate::strings::vim_haschr(
-                    option_val,
-                    crate::memory::cstr_first_byte(flag) as i32,
-                )
-            {
-                flag = flag.wrapping_add(1);
+        if !cmdline_bytes.contains(&flag_b) {
+            if include_orig_val && option_bytes == [flag_b] {
                 continue;
             }
-
-            if !crate::strings::vim_haschr(cmdline_val, crate::memory::cstr_first_byte(flag) as i32)
-            {
-                if include_orig_val
-                    && crate::memory::cstr_byte_at(option_val, 1) == 0
-                    && crate::memory::cstr_first_byte(flag)
-                        == crate::memory::cstr_first_byte(option_val)
-                {
-                    flag = flag.wrapping_add(1);
-                    continue;
-                }
-                matches.push(crate::memory::cstr_from_bytes(&[
-                    crate::memory::cstr_first_byte(flag),
-                ]));
-            }
-            flag = flag.wrapping_add(1);
+            matches.push(crate::memory::cstr_from_bytes(&[flag_b]));
         }
-
-        if matches.is_empty() {
-            return false;
-        }
-        true
     }
+
+    !matches.is_empty()
 }
 
 fn completing_value_for_subopt(args: &mut Optexpand, name_suffix: &std::ffi::CStr) -> bool {
@@ -1847,48 +1825,48 @@ pub fn did_set_colorcolumn(args: &mut Optset) -> Option<&CStr> {
 /// Validate the 'comments' option.
 pub fn validate_comments(args: &mut Optset) -> Option<&CStr> {
     let mut errmsg: Option<&CStr> = None;
-    let mut s = args.os_newval.data.string().data;
-    while !crate::memory::cstr_is_empty(s) {
-        while !crate::memory::cstr_is_empty(s) && crate::memory::cstr_first_byte(s) != b':' {
-            if !crate::strings::vim_haschr(COM_ALL, crate::memory::cstr_first_byte(s) as i32)
-                && !ascii_isdigit(crate::memory::cstr_first_char(s))
-                && crate::memory::cstr_first_byte(s) != b'-'
-            {
-                errmsg = illegal_char(args.os_errbuf, crate::memory::cstr_first_byte(s) as i32);
+    let newval_str = args.os_newval.data.string();
+    let mut rem = newval_str.as_bytes();
+    let com_all_bytes = COM_ALL.to_bytes();
+    while !rem.is_empty() {
+        while let Some(&b) = rem.first() {
+            if b == b':' {
                 break;
             }
-            s = s.wrapping_add(1);
+            if !com_all_bytes.contains(&b) && !b.is_ascii_digit() && b != b'-' {
+                errmsg = illegal_char(args.os_errbuf, i32::from(b));
+                break;
+            }
+            rem = &rem[1..];
         }
-        let c = crate::memory::cstr_first_byte(s);
-        s = s.wrapping_add(1);
+        let c = rem.first().copied().unwrap_or(0);
+        if !rem.is_empty() {
+            rem = &rem[1..];
+        }
         if c == 0 {
             errmsg = Some(c"E524: Missing colon");
-        } else if crate::memory::cstr_first_byte(s) == b',' || crate::memory::cstr_is_empty(s) {
+        } else if rem.first().is_none_or(|&b| b == b',') {
             errmsg = Some(c"E525: Zero length string");
         }
         if errmsg.is_some() {
             break;
         }
-        while !crate::memory::cstr_is_empty(s) && crate::memory::cstr_first_byte(s) != b',' {
-            if crate::memory::cstr_first_byte(s) == b'\\' && crate::memory::cstr_byte_at(s, 1) != 0
-            {
-                s = s.wrapping_add(1);
+        while !rem.is_empty() && rem[0] != b',' {
+            if rem[0] == b'\\' && rem.len() >= 2 {
+                rem = &rem[1..];
             }
-            s = s.wrapping_add(1);
+            rem = &rem[1..];
         }
-        s = skip_to_option_part(s);
+        rem = crate::option::skip_to_option_part_slice(rem);
     }
     errmsg
 }
 
 /// Validate the 'commentstring' option.
 pub fn validate_commentstring(args: &mut Optset) -> Option<&CStr> {
-    let value = args.os_newval.data.string().data;
-    if crate::memory::cstr_is_empty(value)
-        || crate::memory::cstr_as_bytes(value)
-            .windows(2)
-            .any(|w| w == b"%s")
-    {
+    let newval_str = args.os_newval.data.string();
+    let bytes = newval_str.as_bytes();
+    if bytes.is_empty() || bytes.windows(2).any(|w| w == b"%s") {
         None
     } else {
         Some(c"E537: 'commentstring' must be empty or contain %s")
@@ -1900,55 +1878,35 @@ pub fn validate_complete(args: &mut Optset) -> Option<&CStr> {
     let mut buffer = [0u8; LSIZE];
     let mut char_before: u8 = 0;
 
-    let mut p = args.os_newval.data.string().data;
-    while !crate::memory::cstr_is_empty(p) {
+    let newval_str = args.os_newval.data.string();
+    let mut rem = newval_str.as_bytes();
+    while !rem.is_empty() {
         buffer.fill(0);
         let mut buf_idx: usize = 0;
         let mut escape = false;
-        while !crate::memory::cstr_is_empty(p)
-            && (crate::memory::cstr_first_byte(p) != b',' || escape)
-            && buf_idx < LSIZE - 1
-        {
-            if crate::memory::cstr_first_byte(p) == b'\\'
-                && crate::memory::cstr_byte_at(p, 1) == b','
-            {
+        while !rem.is_empty() && (rem[0] != b',' || escape) && buf_idx < LSIZE - 1 {
+            if rem.starts_with(b"\\,") {
                 escape = true;
-                p = p.wrapping_add(1);
+                rem = &rem[1..];
             } else {
                 escape = false;
-                buffer[buf_idx] = crate::memory::cstr_first_byte(p);
+                buffer[buf_idx] = rem[0];
                 buf_idx += 1;
+                rem = &rem[1..];
             }
-            p = p.wrapping_add(1);
         }
         buffer[buf_idx] = 0;
 
-        if !crate::strings::vim_haschr(c".wbuksid]tUfFo", i32::from(buffer[0])) {
+        if !b".wbuksid]tUfFo".contains(&buffer[0]) {
             return illegal_char(args.os_errbuf, i32::from(buffer[0]));
         }
 
-        if !crate::strings::vim_haschr(c"ksF", i32::from(buffer[0]))
-            && buffer[1] != 0
-            && buffer[1] != b'^'
-        {
+        if !b"ksF".contains(&buffer[0]) && buffer[1] != 0 && buffer[1] != b'^' {
             char_before = buffer[0];
-        } else {
-            let mut t = vim_strchr(&buffer, b'^' as i32);
-            if !t.is_null() {
-                unsafe {
-                    *t = NUL;
-                }
-                t = t.wrapping_add(1);
-                if crate::memory::cstr_is_empty(t) {
-                    char_before = b'^';
-                } else {
-                    for &t_byte in crate::memory::cstr_as_bytes(t) {
-                        if !ascii_isdigit(i32::from(t_byte)) {
-                            char_before = b'^';
-                            break;
-                        }
-                    }
-                }
+        } else if let Some(caret_pos) = buffer[..buf_idx].iter().position(|&b| b == b'^') {
+            let tail = &buffer[caret_pos + 1..buf_idx];
+            if tail.is_empty() || !tail.iter().all(u8::is_ascii_digit) {
+                char_before = b'^';
             }
         }
         if char_before != 0 {
@@ -1958,9 +1916,8 @@ pub fn validate_complete(args: &mut Optset) -> Option<&CStr> {
                 i32::from(char_before),
             );
         }
-        while crate::memory::cstr_first_byte(p) == b',' || crate::memory::cstr_first_byte(p) == b' '
-        {
-            p = p.wrapping_add(1);
+        while rem.first().is_some_and(|&b| matches!(b, b',' | b' ')) {
+            rem = &rem[1..];
         }
     }
 
@@ -2364,19 +2321,16 @@ pub fn did_set_helpfile(_args: &mut Optset) -> Option<&CStr> {
 
 /// Validate the 'helplang' option.
 pub fn validate_helplang(args: &mut Optset) -> Option<&CStr> {
-    let mut s = args.os_newval.data.string().data;
-    while !crate::memory::cstr_is_empty(s) {
-        if crate::memory::cstr_byte_at(s, 1) == 0
-            || ((crate::memory::cstr_byte_at(s, 2) != b','
-                || crate::memory::cstr_byte_at(s, 3) == 0)
-                && crate::memory::cstr_byte_at(s, 2) != 0)
-        {
+    let newval_str = args.os_newval.data.string();
+    let mut rem = newval_str.as_bytes();
+    while !rem.is_empty() {
+        if rem.len() < 2 || (rem.len() > 2 && (rem[2] != b',' || rem.len() == 3)) {
             return Some(E_INVARG);
         }
-        if crate::memory::cstr_byte_at(s, 2) == 0 {
+        if rem.len() == 2 {
             break;
         }
-        s = s.wrapping_add(3);
+        rem = &rem[3..];
     }
     None
 }
@@ -2479,11 +2433,9 @@ pub fn did_set_keymodel(_args: &mut Optset) -> Option<&CStr> {
 
 /// Validate the 'lispoptions' option.
 pub fn validate_lispoptions(args: &mut Optset) -> Option<&CStr> {
-    let value = args.os_newval.data.string().data;
-    if crate::memory::cstr_is_empty(value)
-        || crate::memory::cstr_as_bytes(value) == b"expr:0"
-        || crate::memory::cstr_as_bytes(value) == b"expr:1"
-    {
+    let newval_str = args.os_newval.data.string();
+    let bytes = newval_str.as_bytes();
+    if bytes.is_empty() || bytes == b"expr:0" || bytes == b"expr:1" {
         None
     } else {
         Some(E_INVARG)
@@ -2492,30 +2444,30 @@ pub fn validate_lispoptions(args: &mut Optset) -> Option<&CStr> {
 
 /// Validate the 'matchpairs' option.
 pub fn validate_matchpairs(args: &mut Optset) -> Option<&CStr> {
-    let mut p = args.os_newval.data.string().data;
-    while !crate::memory::cstr_is_empty(p) {
+    let newval_str = args.os_newval.data.string();
+    let mut rem = newval_str.as_bytes();
+    while !rem.is_empty() {
         let mut x2: i32 = -1;
         let mut x3: i32 = -1;
 
-        p = p.wrapping_add(utfc_ptr2len(p) as usize);
-        if !crate::memory::cstr_is_empty(p) {
-            x2 = crate::memory::cstr_first_byte(p) as i32;
-            p = p.wrapping_add(1);
+        let l1 = crate::mbyte::utfc_slice2len(rem).min(rem.len());
+        rem = &rem[l1..];
+        if let Some((&b, rest)) = rem.split_first() {
+            x2 = i32::from(b);
+            rem = rest;
         }
-        if !crate::memory::cstr_is_empty(p) {
-            x3 = utf_ptr2char(p);
-            p = p.wrapping_add(utfc_ptr2len(p) as usize);
+        if !rem.is_empty() {
+            x3 = crate::mbyte::utf_slice2char(rem);
+            let l2 = crate::mbyte::utfc_slice2len(rem).min(rem.len());
+            rem = &rem[l2..];
         }
-        if x2 != b':' as i32
-            || x3 == -1
-            || (!crate::memory::cstr_is_empty(p) && crate::memory::cstr_first_byte(p) != b',')
-        {
+        if x2 != b':' as i32 || x3 == -1 || rem.first().is_some_and(|&b| b != b',') {
             return Some(E_INVARG);
         }
-        if crate::memory::cstr_is_empty(p) {
+        if rem.is_empty() {
             break;
         }
-        p = p.wrapping_add(1);
+        rem = &rem[1..];
     }
     None
 }
@@ -2611,64 +2563,46 @@ pub fn validate_sessionoptions(args: &mut Optset) -> Option<&CStr> {
 /// Validate the 'shada' option.
 pub fn validate_shada(args: &mut Optset) -> Option<&CStr> {
     let errbuf = args.os_errbuf;
-    let value = args.os_newval.data.string().data;
-    let mut marks = None;
+    let newval_str = args.os_newval.data.string();
+    let val_bytes = newval_str.as_bytes();
+    let mut marks: Option<&[u8]> = None;
 
-    let mut s = value;
-    while !crate::memory::cstr_is_empty(s) {
-        if crate::memory::cstr_first_byte(s) == b'\'' && marks.is_none() {
-            marks = Some(s.wrapping_add(1));
+    let mut rem = val_bytes;
+    while let Some((&b0, rest)) = rem.split_first() {
+        if b0 == b'\'' && marks.is_none() {
+            marks = Some(rest);
         }
-        if !crate::strings::vim_haschr(c"!\"%'/:<@cfhnrs", crate::memory::cstr_first_byte(s) as i32)
-        {
-            return illegal_char(errbuf, crate::memory::cstr_first_byte(s) as i32);
+        if !b"!\"%'/:<@cfhnrs".contains(&b0) {
+            return illegal_char(errbuf, i32::from(b0));
         }
-        if crate::memory::cstr_first_byte(s) == b'n' {
+        if b0 == b'n' {
             break;
-        } else if crate::memory::cstr_first_byte(s) == b'r' {
-            loop {
-                s = s.wrapping_add(1);
-                if crate::memory::cstr_is_empty(s) || crate::memory::cstr_first_byte(s) == b',' {
-                    break;
-                }
-            }
-        } else if crate::memory::cstr_first_byte(s) == b'%' {
-            loop {
-                s = s.wrapping_add(1);
-                if !ascii_isdigit(crate::memory::cstr_first_char(s)) {
-                    break;
-                }
-            }
-        } else if crate::memory::cstr_first_byte(s) == b'!'
-            || crate::memory::cstr_first_byte(s) == b'h'
-            || crate::memory::cstr_first_byte(s) == b'c'
-        {
-            s = s.wrapping_add(1);
+        } else if b0 == b'r' {
+            let pos = rest.iter().position(|&b| b == b',').unwrap_or(rest.len());
+            rem = &rest[pos..];
+        } else if b0 == b'%' {
+            let digits = rest.iter().take_while(|&&b| b.is_ascii_digit()).count();
+            rem = &rest[digits..];
+        } else if matches!(b0, b'!' | b'h' | b'c') {
+            rem = rest;
         } else {
-            loop {
-                s = s.wrapping_add(1);
-                if !ascii_isdigit(crate::memory::cstr_first_char(s)) {
-                    break;
-                }
-            }
-
-            if !ascii_isdigit(crate::memory::cstr_first_char(s.wrapping_sub(1))) {
+            let digits = rest.iter().take_while(|&&b| b.is_ascii_digit()).count();
+            if digits == 0 {
                 if errbuf.is_some() {
                     return opt_error(
                         errbuf,
                         c"E526: Missing number after <%s>",
-                        transchar_byte(i32::from(crate::memory::cstr_first_byte(
-                            s.wrapping_sub(1),
-                        ))),
+                        transchar_byte(i32::from(b0)),
                     );
                 } else {
                     return Some(c"");
                 }
             }
+            rem = &rest[digits..];
         }
-        if crate::memory::cstr_first_byte(s) == b',' {
-            s = s.wrapping_add(1);
-        } else if !crate::memory::cstr_is_empty(s) {
+        if let Some(after_comma) = rem.strip_prefix(b",") {
+            rem = after_comma;
+        } else if !rem.is_empty() {
             if errbuf.is_some() {
                 return Some(c"E527: Missing comma");
             } else {
@@ -2676,10 +2610,8 @@ pub fn validate_shada(args: &mut Optset) -> Option<&CStr> {
             }
         }
     }
-    if !crate::memory::cstr_is_empty(value)
-        && marks.is_none_or(|m| {
-            (crate::charset::parse_i64_prefix(crate::memory::cstr_as_bytes(m)) as i32) < 0
-        })
+    if !val_bytes.is_empty()
+        && marks.is_none_or(|m| (crate::charset::parse_i64_prefix(m) as i32) < 0)
     {
         return Some(c"E528: Must specify a ' value");
     }
@@ -2689,26 +2621,26 @@ pub fn validate_shada(args: &mut Optset) -> Option<&CStr> {
 /// Validate 'shellpipe'/'shellredir' option.
 pub fn validate_shellpipe_redir(args: &mut Optset) -> Option<&CStr> {
     let mut seen = false;
-
-    let mut p = args.os_newval.data.string().data;
-    while !crate::memory::cstr_is_empty(p) {
-        if crate::memory::cstr_first_byte(p) != b'%' {
-            p = p.wrapping_add(1);
+    let newval_str = args.os_newval.data.string();
+    let mut rem = newval_str.as_bytes();
+    while let Some((&b0, rest)) = rem.split_first() {
+        if b0 != b'%' {
+            rem = rest;
             continue;
         }
-        if crate::memory::cstr_byte_at(p, 1) == 0 {
+        let Some((&b1, rest2)) = rest.split_first() else {
             return Some(E_INVALID_FORMAT_STRING_SINGLE_PERCENT_S);
-        }
-        if crate::memory::cstr_byte_at(p, 1) == b'%' {
-            p = p.wrapping_add(2);
+        };
+        if b1 == b'%' {
+            rem = rest2;
             continue;
         }
-        if crate::memory::cstr_byte_at(p, 1) == b's' {
+        if b1 == b's' {
             if seen {
                 return Some(E_INVALID_FORMAT_STRING_SINGLE_PERCENT_S);
             }
             seen = true;
-            p = p.wrapping_add(2);
+            rem = rest2;
             continue;
         }
         return Some(E_INVALID_FORMAT_STRING_SINGLE_PERCENT_S);
@@ -3222,53 +3154,50 @@ fn opt_strings_flags<'a>(
     list: bool,
     errbuf: Option<CharBuf>,
 ) -> Option<&'a CStr> {
-    let mut val = val.into_c_char_ptr();
-    {
-        let mut new_flags: u32 = 0;
-        let iter_one = (crate::memory::cstr_is_empty(val)) && !list;
+    let val_start = val.into_c_char_ptr();
+    let val_bytes = crate::memory::cstr_as_bytes(val_start);
+    let mut rem = val_bytes;
+    let mut new_flags: u32 = 0;
+    let iter_one = rem.is_empty() && !list;
 
-        while !crate::memory::cstr_is_empty(val) || iter_one {
-            let mut matched = false;
-            for (i, &v) in values.iter().enumerate() {
-                let len = v.to_bytes().len();
-                if (crate::memory::cstr_prefix_bytes(v.as_ptr(), len)
-                    == crate::memory::cstr_prefix_bytes(val, len))
-                    && ((list && crate::memory::cstr_byte_at(val, len) == b',')
-                        || crate::memory::cstr_byte_at(val, len) == 0)
-                {
-                    val = val.wrapping_add(
-                        len + usize::from(crate::memory::cstr_byte_at(val, len) == b','),
-                    );
-                    debug_assert!(i < std::mem::size_of::<u32>() * 8);
-                    new_flags |= 1u32 << i;
-                    matched = true;
-                    break;
-                }
-            }
-            if !matched {
-                return opt_values_err(
-                    errbuf,
-                    c"E474: Invalid value '%s', expected one of:",
-                    val,
-                    crate::memory::cstr_as_bytes(val)
-                        .iter()
-                        .position(|&b| b == b',')
-                        .unwrap_or_else(|| crate::memory::cstr_len(val)),
-                    values,
-                );
-            }
-            if iter_one {
+    while !rem.is_empty() || iter_one {
+        let mut matched = false;
+        for (i, &v) in values.iter().enumerate() {
+            let v_bytes = v.to_bytes();
+            let len = v_bytes.len();
+            if rem.starts_with(v_bytes)
+                && ((list && rem.get(len) == Some(&b',')) || rem.len() == len)
+            {
+                let step = len + usize::from(rem.get(len) == Some(&b','));
+                rem = &rem[step..];
+                debug_assert!(i < std::mem::size_of::<u32>() * 8);
+                new_flags |= 1u32 << i;
+                matched = true;
                 break;
             }
         }
-        if !flagp.is_null() {
-            unsafe {
-                *flagp = new_flags;
-            }
+        if !matched {
+            let cur_ptr = val_start.wrapping_add(val_bytes.len() - rem.len());
+            let item_len = rem.iter().position(|&b| b == b',').unwrap_or(rem.len());
+            return opt_values_err(
+                errbuf,
+                c"E474: Invalid value '%s', expected one of:",
+                cur_ptr,
+                item_len,
+                values,
+            );
         }
-
-        None
+        if iter_one {
+            break;
+        }
     }
+    if !flagp.is_null() {
+        unsafe {
+            *flagp = new_flags;
+        }
+    }
+
+    None
 }
 
 /// Format a schema-validation error naming the offending key.
@@ -3862,14 +3791,13 @@ pub fn set_chars_option<'a>(
 
             let mut p = value;
             while !crate::memory::cstr_is_empty(p) {
+                let p_bytes = crate::memory::cstr_as_bytes(p);
                 let mut i: usize = 0;
                 while i < entries {
                     let name_ptr = tab[i].name.as_ptr();
-                    let name_len = tab[i].name.to_bytes().len();
-                    if !((crate::memory::cstr_prefix_bytes(p, name_len)
-                        == crate::memory::cstr_prefix_bytes(name_ptr, name_len))
-                        && crate::memory::cstr_byte_at(p, name_len) == b':')
-                    {
+                    let name_bytes = tab[i].name.to_bytes();
+                    let name_len = name_bytes.len();
+                    if !(p_bytes.starts_with(name_bytes) && p_bytes.get(name_len) == Some(&b':')) {
                         i += 1;
                         continue;
                     }
