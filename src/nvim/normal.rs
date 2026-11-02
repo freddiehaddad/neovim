@@ -5940,6 +5940,7 @@ fn nv_optrans(cap: &mut Cmdarg) {
             .position(|&b| b == cap.cmdchar as u8)
             .unwrap();
         stuff_readbuff(AR[idx].as_ptr());
+        g_st().opcount = 0;
         exec_stuffed(Some(cap));
     }
     cap.opcount = 0;
