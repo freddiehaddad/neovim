@@ -9,7 +9,6 @@ use crate::eval::typval::{
     tv_list_append_list, tv_list_append_number, tv_list_append_owned_tv, tv_list_len, tv_list_ref,
 };
 use crate::eval::vars::eval_msgpack_type_lists_mut;
-use crate::hashtab::hashitem_empty;
 use crate::mbyte::{utf_char2len, utf_char2slice, utf_slice2char, utf_slice2len};
 use crate::message::{emsg, semsg};
 use crate::mpack::object::MpackData;
@@ -44,6 +43,13 @@ struct JsonContainerStackItem {
     container: TypVal,
 }
 
+impl JsonContainerStackItem {
+    #[inline]
+    fn special_val_opt(&self) -> Option<&'static mut TvList> {
+        unsafe { self.special_val.as_mut() }
+    }
+}
+
 #[derive(Clone, Copy)]
 struct ValuesStackItem {
     is_special_string: bool,
@@ -65,7 +71,7 @@ fn create_special_dict(rettv: &mut TypVal, mp_type: usize, val: TypVal) {
     type_di.di_tv.v_lock = VAR_UNLOCKED;
     type_di.di_tv.vval =
         crate::eval::typval::TypvalVval::List((*eval_msgpack_type_lists_mut())[mp_type].cast_mut());
-    tv_list_ref(unsafe { type_di.di_tv.vval.v_list().as_mut() });
+    tv_list_ref(type_di.di_tv.vval.v_list_opt());
     tv_dict_add(&mut *dict, type_di);
 
     let val_di = tv_dict_item_alloc_len(c"_VAL", 4);
@@ -149,8 +155,7 @@ fn json_decoder_pop(
     }
 
     if last_container.container.v_type == VarType::VarList {
-        if tv_list_len(unsafe { last_container.container.vval.v_list().as_ref() }) != 0
-            && !obj.didcomma
+        if tv_list_len(last_container.container.vval.v_list_opt().as_deref()) != 0 && !obj.didcomma
         {
             json_err(
                 c"E474: Expected comma before list item: %s",
@@ -161,10 +166,7 @@ fn json_decoder_pop(
             return false;
         }
         assert!(last_container.special_val.is_null());
-        tv_list_append_owned_tv(
-            unsafe { &mut *last_container.container.vval.v_list() },
-            obj.val,
-        );
+        tv_list_append_owned_tv(last_container.container.vval.v_list_ref(), obj.val);
     } else if last_container.stack_index + 2 == stack.len() {
         if !obj.didcolon {
             json_err(
@@ -176,20 +178,20 @@ fn json_decoder_pop(
             return false;
         }
         let mut key = stack.pop().unwrap();
-        if last_container.special_val.is_null() {
+        if let Some(special_val) = last_container.special_val_opt() {
+            let kv_pair = tv_list_alloc(2);
+            tv_list_append_list(special_val, kv_pair);
+            tv_list_append_owned_tv(&mut *kv_pair, key.val);
+            tv_list_append_owned_tv(&mut *kv_pair, obj.val);
+        } else {
             assert!(!(key.is_special_string || key.val.vval.v_string().is_null()));
             let obj_di = tv_dict_item_alloc(key.val.vval.v_string());
             tv_clear(&mut key.val);
-            let dict = last_container.container.vval.v_dict();
-            if !tv_dict_add(unsafe { &mut *dict }, obj_di) {
+            let dict = last_container.container.vval.v_dict_ref();
+            if !tv_dict_add(dict, obj_di) {
                 std::process::abort();
             }
             obj_di.di_tv = obj.val;
-        } else {
-            let kv_pair = tv_list_alloc(2);
-            tv_list_append_list(unsafe { &mut *last_container.special_val }, kv_pair);
-            tv_list_append_owned_tv(&mut *kv_pair, key.val);
-            tv_list_append_owned_tv(&mut *kv_pair, obj.val);
         }
     } else {
         if !obj.is_special_string && obj.val.v_type != VarType::VarString {
@@ -198,8 +200,8 @@ fn json_decoder_pop(
             tv_clear(&mut v);
             return false;
         } else if !obj.didcomma && last_container.special_val.is_null() {
-            let dict = last_container.container.vval.v_dict();
-            if unsafe { (*dict).dv_hashtab.ht_used } != 0 {
+            let dict = last_container.container.vval.v_dict_ref();
+            if dict.dv_hashtab.ht_used != 0 {
                 json_err(
                     c"E474: Expected comma before dictionary key: %s",
                     &buf[val_location..],
@@ -209,11 +211,11 @@ fn json_decoder_pop(
                 return false;
             }
         }
-        let dict = last_container.container.vval.v_dict();
+        let dict = last_container.container.vval.v_dict_opt();
         if last_container.special_val.is_null()
             && (obj.is_special_string
                 || obj.val.vval.v_string().is_null()
-                || !tv_dict_find(unsafe { dict.as_ref() }, obj.val.vval.v_string(), -1).is_null())
+                || !tv_dict_find(dict.as_deref(), obj.val.vval.v_string(), -1).is_null())
         {
             let mut v = obj.val;
             tv_clear(&mut v);
@@ -343,7 +345,7 @@ fn parse_json_string(
                 b'u' => {
                     let ubuf = [buf[t + 1], buf[t + 2], buf[t + 3], buf[t + 4]];
                     t += 4;
-                    let hex_str = unsafe { std::str::from_utf8_unchecked(&ubuf) };
+                    let hex_str = std::str::from_utf8(&ubuf).unwrap_or("");
                     let ch = i32::from(u16::from_str_radix(hex_str, 16).unwrap_or(0));
                     if (SURROGATE_HI_START..=SURROGATE_HI_END).contains(&ch) {
                         if fst_in_pair != 0 {
@@ -651,16 +653,19 @@ pub fn json_decode_string(buf: &[u8], rettv: &mut TypVal) -> bool {
                         return fail_cleanup(stack);
                     }
                     let last_container = *container_stack.last().unwrap();
-                    let is_empty_cont = if last_container.special_val.is_null() {
-                        if last_container.container.v_type == VarType::VarDict {
-                            let d = last_container.container.vval.v_dict();
-                            unsafe { (*d).dv_hashtab.ht_used == 0 }
-                        } else {
-                            tv_list_len(unsafe { last_container.container.vval.v_list().as_ref() })
-                                == 0
-                        }
+                    let is_empty_cont = if let Some(special_val) = last_container.special_val_opt()
+                    {
+                        tv_list_len(Some(special_val)) == 0
+                    } else if last_container.container.v_type == VarType::VarDict {
+                        last_container
+                            .container
+                            .vval
+                            .v_dict_ref()
+                            .dv_hashtab
+                            .ht_used
+                            == 0
                     } else {
-                        tv_list_len(unsafe { last_container.special_val.as_ref() }) == 0
+                        tv_list_len(last_container.container.vval.v_list_opt().as_deref()) == 0
                     };
                     if didcomma {
                         json_err(c"E474: Duplicate comma: %s", &buf[p..]);
@@ -1103,8 +1108,7 @@ fn typval_parse_exit(_parser: &mut MpackParser, node: &mut MpackNode) {
             let mut can_be_dict = items[..len].iter().all(|pair| {
                 let key = &pair[0];
                 key.v_type == VarType::VarString
-                    && !key.vval.v_string().is_null()
-                    && unsafe { *key.vval.v_string() } != 0
+                    && !crate::memory::cstr_is_empty(key.vval.v_string())
             });
 
             if can_be_dict {
@@ -1120,17 +1124,10 @@ fn typval_parse_exit(_parser: &mut MpackParser, node: &mut MpackNode) {
                     let keylen = crate::memory::cstr_len(key);
                     let di = crate::eval::typval::tv_dict_item_alloc_len(key, keylen);
                     if !tv_dict_add(&mut *dict, di) {
-                        let mut todo = dict.dv_hashtab.ht_used;
-                        let mut hi = dict.dv_hashtab.array_ptr();
-                        while todo > 0 {
-                            if !hashitem_empty(unsafe { &*hi }) {
-                                todo -= 1;
-                                let d = crate::eval::typval::tv_dict_hi2di(hi);
-                                d.di_tv.v_type = VarType::VarSpecial;
-                                d.di_tv.vval =
-                                    crate::eval::typval::TypvalVval::Number(K_SPECIAL_VAR_NULL);
-                            }
-                            hi = hi.wrapping_add(1);
+                        for (_, d) in dict.dv_hashtab.iter_items_mut() {
+                            d.di_tv.v_type = VarType::VarSpecial;
+                            d.di_tv.vval =
+                                crate::eval::typval::TypvalVval::Number(K_SPECIAL_VAR_NULL);
                         }
                         tv_clear(&mut *result);
                         crate::eval::typval::tv_dict_item_free(di);

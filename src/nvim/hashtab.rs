@@ -30,6 +30,11 @@ impl Hashitem {
             unsafe { CStr::from_bytes_until_nul(&(*self.hi_di).di_key).ok() }
         }
     }
+
+    #[inline]
+    pub fn di_opt(&self) -> Option<&'static mut crate::eval::typval::Dictitem> {
+        unsafe { self.hi_di.as_mut() }
+    }
 }
 
 #[repr(C)]
@@ -66,13 +71,55 @@ impl Hashtab {
 
     #[inline]
     pub fn iter_items(&self) -> impl Iterator<Item = (&Hashitem, &crate::eval::typval::Dictitem)> {
-        self.ht_array.iter().filter_map(|hi| {
-            if hi.hi_di.is_null() {
-                None
-            } else {
-                Some((hi, unsafe { &*hi.hi_di }))
-            }
-        })
+        self.ht_array
+            .iter()
+            .filter_map(|hi| {
+                if hi.hi_di.is_null() {
+                    None
+                } else {
+                    Some((hi, unsafe { &*hi.hi_di }))
+                }
+            })
+            .take(self.ht_used)
+    }
+
+    #[inline]
+    pub fn iter_items_mut(
+        &self,
+    ) -> impl Iterator<Item = (&Hashitem, &'static mut crate::eval::typval::Dictitem)> {
+        self.ht_array
+            .iter()
+            .filter_map(|hi| hi.di_opt().map(|di| (hi, di)))
+            .take(self.ht_used)
+    }
+
+    #[inline]
+    pub fn find_hi_mut(
+        &self,
+        key: impl crate::strings::IntoCCharPtr,
+    ) -> Option<&'static mut Hashitem> {
+        let hi = unsafe { &mut *hash_find(self, key) };
+        (!hashitem_empty(hi)).then_some(hi)
+    }
+
+    #[inline]
+    pub fn find_hi_len_mut(
+        &self,
+        key: impl crate::strings::IntoCCharPtr,
+        len: usize,
+    ) -> Option<&'static mut Hashitem> {
+        let hi = unsafe { &mut *hash_find_len(self, key, len) };
+        (!hashitem_empty(hi)).then_some(hi)
+    }
+
+    #[inline]
+    pub fn remove_at(&mut self, idx: usize) {
+        let hi = &mut self.ht_array[idx];
+        self.ht_used -= 1;
+        self.ht_changed += 1;
+        hi.hi_removed = true;
+        hi.hi_di = std::ptr::null_mut();
+        hash_may_resize(self, 0);
     }
 }
 

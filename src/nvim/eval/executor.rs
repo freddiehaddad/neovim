@@ -17,30 +17,22 @@ fn tv_op_blob(tv1: &mut TypVal, tv2: &TypVal, op: u8) -> bool {
         return false;
     }
 
-    let b2 = tv2.vval.v_blob();
-    if b2.is_null() {
+    let Some(b2) = tv2.vval.v_blob_opt() else {
         return true;
-    }
-    let b2 = unsafe { &mut *b2 };
+    };
 
-    let b1 = tv1.vval.v_blob();
-    if b1.is_null() {
+    let Some(b1_ref) = tv1.vval.v_blob_opt() else {
         tv1.vval = crate::eval::typval::TypvalVval::Blob(b2);
-        {
-            b2.bv_refcount += 1;
-        }
+        b2.bv_refcount += 1;
         return true;
-    }
+    };
 
-    {
-        if !b2.bv_ga.is_empty() {
-            let b1_ref = unsafe { &mut *b1 };
-            if std::ptr::eq(b1_ref, b2) {
-                let copy = b1_ref.bv_ga.clone();
-                b1_ref.bv_ga.extend_from_slice(&copy);
-            } else {
-                b1_ref.bv_ga.extend_from_slice(&b2.bv_ga);
-            }
+    if !b2.bv_ga.is_empty() {
+        if std::ptr::eq(b1_ref, b2) {
+            let copy = b1_ref.bv_ga.clone();
+            b1_ref.bv_ga.extend_from_slice(&copy);
+        } else {
+            b1_ref.bv_ga.extend_from_slice(&b2.bv_ga);
         }
     }
 
@@ -52,23 +44,15 @@ fn tv_op_list(tv1: &mut TypVal, tv2: &TypVal, op: u8) -> bool {
         return false;
     }
 
-    let l2 = tv2.vval.v_list();
-    if l2.is_null() {
+    let Some(l2) = tv2.vval.v_list_opt() else {
         return true;
-    }
+    };
 
-    let l1 = tv1.vval.v_list();
-    if l1.is_null() {
-        tv1.vval = crate::eval::typval::TypvalVval::List(l2);
-        unsafe {
-            (*l2).lv_refcount += 1;
-        }
+    if let Some(l1) = tv1.vval.v_list_opt() {
+        tv_list_extend(l1, Some(&*l2), std::ptr::null_mut());
     } else {
-        tv_list_extend(
-            unsafe { &mut *l1 },
-            unsafe { l2.as_ref() },
-            std::ptr::null_mut(),
-        );
+        tv1.vval = crate::eval::typval::TypvalVval::List(l2);
+        l2.lv_refcount += 1;
     }
 
     true

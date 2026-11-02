@@ -71,6 +71,13 @@ pub struct ListReaderState {
     pub li_length: usize,
 }
 
+impl ListReaderState {
+    #[inline]
+    pub fn li_opt(&self) -> Option<&'static Listitem> {
+        unsafe { self.li.as_ref() }
+    }
+}
+
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub(crate) enum MPContainerRef {
     Dict(*mut TvDict),
@@ -126,24 +133,15 @@ pub fn encode_list_write(mut list: Option<&mut TvList>, buf: &[u8]) {
     }
     let len = buf.len();
     let mut line_end_idx = 0usize;
-    let li = tv_list_last(list.as_deref());
 
-    if !li.is_null() {
-        let li = unsafe { &mut *li };
+    if let Some(li) = list.as_deref_mut().and_then(|l| l.last_opt()) {
         line_end_idx = buf.iter().position(|&b| b == b'\n').unwrap_or(len);
         if line_end_idx != 0 {
             let line_length = line_end_idx;
-            let str_ptr = li.li_tv.vval.v_string();
-            let li_len = if str_ptr.is_null() {
-                0
-            } else {
-                crate::memory::cstr_len(str_ptr)
-            };
+            let str_slice = crate::memory::cstr_as_bytes(li.li_tv.vval.v_string());
+            let li_len = str_slice.len();
             let mut combined = vec![0u8; li_len + line_length];
-            if !str_ptr.is_null() {
-                combined[..li_len]
-                    .copy_from_slice(unsafe { std::slice::from_raw_parts(str_ptr.cast(), li_len) });
-            }
+            combined[..li_len].copy_from_slice(str_slice);
             for (dst_b, &src_b) in combined[li_len..].iter_mut().zip(&buf[..line_length]) {
                 *dst_b = if src_b == 0 { b'\n' } else { src_b };
             }
@@ -179,21 +177,18 @@ pub fn encode_list_write(mut list: Option<&mut TvList>, buf: &[u8]) {
 /// Initialize `ListReaderState` structure (`encode_init_lrstate`).
 pub fn encode_init_lrstate(list: Option<&TvList>) -> ListReaderState {
     let first = tv_list_first(list);
-    let li_length = if first.is_null() {
-        0
-    } else {
-        let s = unsafe { (*first).li_tv.vval.v_string() };
-        if s.is_null() {
-            0
-        } else {
-            crate::memory::cstr_len(s)
-        }
-    };
-    ListReaderState {
+    let mut state = ListReaderState {
         li: first,
         offset: 0,
-        li_length,
+        li_length: 0,
+    };
+    if let Some(first_li) = state.li_opt() {
+        let s = first_li.li_tv.vval.v_string();
+        if !s.is_null() {
+            state.li_length = crate::memory::cstr_len(s);
+        }
     }
+    state
 }
 
 /// Read bytes from list (`encode_read_from_list`).
@@ -205,27 +200,35 @@ pub fn encode_read_from_list(
     let nbuf = buf.len();
     let mut p = 0usize;
     while p < nbuf {
-        while state.offset < state.li_length && p < nbuf {
-            let s = unsafe { (*state.li).li_tv.vval.v_string() };
-            let ch = unsafe { *s.wrapping_add(state.offset) } as u8;
-            state.offset += 1;
-            buf[p] = if ch == b'\n' { 0 } else { ch };
-            p += 1;
+        if state.offset < state.li_length
+            && let Some(cur_li) = state.li_opt()
+        {
+            let s = crate::memory::cstr_slice(cur_li.li_tv.vval.v_string(), state.li_length);
+            while state.offset < state.li_length && p < nbuf {
+                let ch = s[state.offset];
+                state.offset += 1;
+                buf[p] = if ch == b'\n' { 0 } else { ch };
+                p += 1;
+            }
         }
         if p < nbuf {
-            state.li = unsafe { (*state.li).li_next };
-            if state.li.is_null() {
+            let Some(cur_li) = state.li_opt() else {
                 *read_bytes = p;
                 return OK;
-            }
+            };
+            state.li = cur_li.li_next;
+            let Some(next_li) = state.li_opt() else {
+                *read_bytes = p;
+                return OK;
+            };
             buf[p] = b'\n';
             p += 1;
-            if unsafe { (*state.li).li_tv.v_type } != VarType::VarString {
+            if next_li.li_tv.v_type != VarType::VarString {
                 *read_bytes = p;
                 return FAIL;
             }
             state.offset = 0;
-            let s = unsafe { (*state.li).li_tv.vval.v_string() };
+            let s = next_li.li_tv.vval.v_string();
             state.li_length = if s.is_null() {
                 0
             } else {
@@ -234,7 +237,7 @@ pub fn encode_read_from_list(
         }
     }
     *read_bytes = nbuf;
-    if state.offset < state.li_length || unsafe { !(*state.li).li_next.is_null() } {
+    if state.offset < state.li_length || state.li_opt().is_some_and(|li| !li.li_next.is_null()) {
         NOTDONE
     } else {
         OK
@@ -271,40 +274,41 @@ pub fn encode_vim_list_to_buf(list: Option<&TvList>) -> Option<Vec<u8>> {
 
 /// Check whether given key can be used in `json_encode()` (`encode_check_json_key`).
 pub fn encode_check_json_key(tv: &TypVal) -> bool {
-    unsafe {
-        if tv.v_type == VarType::VarString {
-            return true;
-        }
-        if tv.v_type != VarType::VarDict {
-            return false;
-        }
-        let spdict = tv.vval.v_dict();
-        if spdict.is_null() || (*spdict).dv_hashtab.ht_used != 2 {
-            return false;
-        }
-        let type_di = tv_dict_find(spdict.as_ref(), c"_TYPE", 5);
-        if type_di.is_null()
-            || (*type_di).di_tv.v_type != VarType::VarList
-            || (*type_di).di_tv.vval.v_list().cast_const()
-                != (*eval_msgpack_type_lists_mut())[K_MP_STRING]
-        {
-            return false;
-        }
-        let val_di = tv_dict_find(spdict.as_ref(), c"_VAL", 4);
-        if val_di.is_null() || (*val_di).di_tv.v_type != VarType::VarList {
-            return false;
-        }
-        let val_list = (*val_di).di_tv.vval.v_list();
-        if val_list.is_null() {
-            return true;
-        }
-        for li in crate::eval::typval::list_iter_mut(tv_list_first(val_list.as_ref())) {
-            if li.li_tv.v_type != VarType::VarString {
-                return false;
-            }
-        }
-        true
+    if tv.v_type == VarType::VarString {
+        return true;
     }
+    if tv.v_type != VarType::VarDict {
+        return false;
+    }
+    let Some(spdict) = tv.vval.v_dict_opt() else {
+        return false;
+    };
+    if spdict.dv_hashtab.ht_used != 2 {
+        return false;
+    }
+    let Some(type_di) = crate::eval::typval::tv_dict_find_opt(Some(spdict), c"_TYPE", 5) else {
+        return false;
+    };
+    if type_di.di_tv.v_type != VarType::VarList
+        || type_di.di_tv.vval.v_list().cast_const() != (*eval_msgpack_type_lists_mut())[K_MP_STRING]
+    {
+        return false;
+    }
+    let Some(val_di) = crate::eval::typval::tv_dict_find_opt(Some(spdict), c"_VAL", 4) else {
+        return false;
+    };
+    if val_di.di_tv.v_type != VarType::VarList {
+        return false;
+    }
+    let Some(val_list) = val_di.di_tv.vval.v_list_opt() else {
+        return true;
+    };
+    for li in crate::eval::typval::list_iter_mut(val_list.lv_first) {
+        if li.li_tv.v_type != VarType::VarString {
+            return false;
+        }
+    }
+    true
 }
 
 fn conv_error(msg: &CStr, mpstack: &[MPConvStackVal], objname: &CStr) -> i32 {
@@ -577,11 +581,19 @@ impl EncodeBackend<'_> {
     }
 
     #[inline]
+    fn packer_mut(packer: *mut PackerBuffer) -> &'static mut PackerBuffer {
+        unsafe { &mut *packer }
+    }
+
+    #[inline]
+    fn packer_ptr(packer: *mut PackerBuffer) -> &'static mut *mut u8 {
+        unsafe { &mut (*packer).ptr }
+    }
+
+    #[inline]
     fn check_before(&mut self) {
         if let Self::Msgpack { packer } = *self {
-            unsafe {
-                mpack_check_buffer(&mut *packer);
-            }
+            mpack_check_buffer(Self::packer_mut(packer));
         }
     }
 
@@ -596,7 +608,7 @@ impl EncodeBackend<'_> {
                 gap,
                 mode: TextEncodeMode::Json,
             } => ga_concat_literal(gap, b"null"),
-            Self::Msgpack { packer } => mpack_nil(unsafe { &mut (**packer).ptr }),
+            Self::Msgpack { packer } => mpack_nil(Self::packer_ptr(*packer)),
         }
     }
 
@@ -623,7 +635,7 @@ impl EncodeBackend<'_> {
                     ga_concat_literal(gap, b"false");
                 }
             }
-            Self::Msgpack { packer } => mpack_bool(unsafe { &mut (**packer).ptr }, val),
+            Self::Msgpack { packer } => mpack_bool(Self::packer_ptr(*packer), val),
         }
     }
 
@@ -634,7 +646,7 @@ impl EncodeBackend<'_> {
                 let s = num.to_string();
                 ga_concat_literal(gap, s.as_bytes());
             }
-            Self::Msgpack { packer } => mpack_integer(unsafe { &mut (**packer).ptr }, num),
+            Self::Msgpack { packer } => mpack_integer(Self::packer_ptr(*packer), num),
         }
     }
 
@@ -649,7 +661,7 @@ impl EncodeBackend<'_> {
                 ga_concat_literal(gap, s.as_bytes());
             }
             Self::Text { .. } => {}
-            Self::Msgpack { packer } => mpack_uint64(unsafe { &mut (**packer).ptr }, num),
+            Self::Msgpack { packer } => mpack_uint64(Self::packer_ptr(*packer), num),
         }
     }
 
@@ -694,7 +706,7 @@ impl EncodeBackend<'_> {
                 true
             }
             Self::Msgpack { packer } => {
-                mpack_float8(unsafe { &mut (**packer).ptr }, flt);
+                mpack_float8(Self::packer_ptr(*packer), flt);
                 true
             }
         }
@@ -716,7 +728,7 @@ impl EncodeBackend<'_> {
             } => convert_to_json_string(gap, buf),
             Self::Msgpack { packer } => {
                 let s = buf.map_or_else(NvimString::new, NvimString::from_bytes);
-                mpack_bin(s, unsafe { &mut **packer });
+                mpack_bin(s, Self::packer_mut(*packer));
                 true
             }
         }
@@ -728,7 +740,7 @@ impl EncodeBackend<'_> {
             Self::Text { .. } => self.conv_string(buf),
             Self::Msgpack { packer } => {
                 let s = buf.map_or_else(NvimString::new, NvimString::from_bytes);
-                mpack_str(s, unsafe { &mut **packer });
+                mpack_str(s, Self::packer_mut(*packer));
                 true
             }
         }
@@ -746,7 +758,7 @@ impl EncodeBackend<'_> {
             }
             Self::Text { .. } => true,
             Self::Msgpack { packer } => {
-                mpack_ext(bytes, ext_type, unsafe { &mut **packer });
+                mpack_ext(bytes, ext_type, Self::packer_mut(*packer));
                 true
             }
         }
@@ -794,7 +806,7 @@ impl EncodeBackend<'_> {
                     Some(b) if !b.bv_ga.is_empty() => &b.bv_ga[..len as usize],
                     _ => &[],
                 };
-                mpack_bin(NvimString::from_bytes(slice), unsafe { &mut **packer });
+                mpack_bin(NvimString::from_bytes(slice), Self::packer_mut(*packer));
             }
         }
     }
@@ -872,7 +884,7 @@ impl EncodeBackend<'_> {
     fn conv_empty_list(&mut self) {
         match self {
             Self::Text { gap, .. } => ga_concat_literal(gap, b"[]"),
-            Self::Msgpack { packer } => mpack_array(unsafe { &mut (**packer).ptr }, 0),
+            Self::Msgpack { packer } => mpack_array(Self::packer_ptr(*packer), 0),
         }
     }
 
@@ -880,7 +892,7 @@ impl EncodeBackend<'_> {
     fn conv_list_start(&mut self, len: i32) {
         match self {
             Self::Text { gap, .. } => gap.push(b'['),
-            Self::Msgpack { packer } => mpack_array(unsafe { &mut (**packer).ptr }, len as u32),
+            Self::Msgpack { packer } => mpack_array(Self::packer_ptr(*packer), len as u32),
         }
     }
 
@@ -902,7 +914,7 @@ impl EncodeBackend<'_> {
     fn conv_empty_dict(&mut self) {
         match self {
             Self::Text { gap, .. } => ga_concat_literal(gap, b"{}"),
-            Self::Msgpack { packer } => mpack_map(unsafe { &mut (**packer).ptr }, 0),
+            Self::Msgpack { packer } => mpack_map(Self::packer_ptr(*packer), 0),
         }
     }
 
@@ -910,7 +922,7 @@ impl EncodeBackend<'_> {
     fn conv_dict_start(&mut self, len: usize) {
         match self {
             Self::Text { gap, .. } => gap.push(b'{'),
-            Self::Msgpack { packer } => mpack_map(unsafe { &mut (**packer).ptr }, len as u32),
+            Self::Msgpack { packer } => mpack_map(Self::packer_ptr(*packer), len as u32),
         }
     }
 
