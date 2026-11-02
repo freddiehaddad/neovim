@@ -780,7 +780,7 @@ fn script_dump_profile(fd: &CFile) {
             if let Some(sfd) = CFile::open(si_name, c"r") {
                 let mut i: i32 = 0;
                 loop {
-                    if vim_fgets(iobuf.as_mut_ptr(), IOSIZE as i32, sfd.as_ptr()) {
+                    if vim_fgets(&mut iobuf, &sfd) {
                         break;
                     }
                     if iobuf[IOSIZE - 2] != 0 && iobuf[IOSIZE - 2] != NL as u8 {

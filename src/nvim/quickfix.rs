@@ -7192,7 +7192,7 @@ fn hgr_search_file(
 
     let iobuff_ptr = g_st().iobuff.as_mut_ptr();
     let mut lnum: Linenr = 1;
-    while !vim_fgets(iobuff_ptr, IOSIZE as i32, fd.as_ptr()) && !g_st().got_int {
+    while !vim_fgets(g_st().iobuff_bytes_mut(), &fd) && !g_st().got_int {
         let line = iobuff_ptr;
 
         if vim_regexec(p_regmatch, line, 0) {

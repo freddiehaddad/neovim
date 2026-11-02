@@ -1666,23 +1666,22 @@ fn findtags_get_next_line(st: &mut FindtagsState, sinfo_p: &mut TagsearchInfo) -
     }
 
     let lbuf_ptr = st.lbuf.as_mut_ptr().cast();
-    let lbuf_size = st.lbuf.len() as i32;
-    let fp = st.fp.as_ref().unwrap().as_ptr();
+    let fp = st.fp.as_ref().unwrap();
     if st.state == TagsearchState::TsBinary || st.state == TagsearchState::TsSkipBack {
         sinfo_p.curr_offset_used = sinfo_p.curr_offset;
         g_st().vim_ignored = st.seek(sinfo_p.curr_offset, SEEK_SET);
-        eof = vim_fgets(lbuf_ptr, lbuf_size, fp);
+        eof = vim_fgets(&mut st.lbuf, fp);
         if !eof && sinfo_p.curr_offset != 0 {
             sinfo_p.curr_offset = st.tell();
             if sinfo_p.curr_offset == sinfo_p.high_offset {
                 g_st().vim_ignored = st.seek(sinfo_p.low_offset, SEEK_SET);
                 sinfo_p.curr_offset = sinfo_p.low_offset;
             }
-            eof = vim_fgets(lbuf_ptr, lbuf_size, fp);
+            eof = vim_fgets(&mut st.lbuf, st.fp.as_ref().unwrap());
         }
         while !eof && vim_isblankline(crate::memory::cstr_as_bytes(lbuf_ptr)) {
             sinfo_p.curr_offset = st.tell();
-            eof = vim_fgets(lbuf_ptr, lbuf_size, fp);
+            eof = vim_fgets(&mut st.lbuf, st.fp.as_ref().unwrap());
         }
         if eof {
             st.state = TagsearchState::TsSkipBack;
@@ -1692,7 +1691,7 @@ fn findtags_get_next_line(st: &mut FindtagsState, sinfo_p: &mut TagsearchInfo) -
         }
     } else {
         loop {
-            eof = vim_fgets(lbuf_ptr, lbuf_size, fp);
+            eof = vim_fgets(&mut st.lbuf, st.fp.as_ref().unwrap());
             if eof || !vim_isblankline(crate::memory::cstr_as_bytes(lbuf_ptr)) {
                 break;
             }

@@ -3557,9 +3557,8 @@ pub fn find_pattern_in_path(
                                     } else {
                                         line = file_line;
                                         if vim_fgets(
-                                            line,
-                                            LSIZE as i32,
-                                            files[depth as usize].fp.as_ref().unwrap().as_ptr(),
+                                            &mut file_line_vec,
+                                            files[depth as usize].fp.as_ref().unwrap(),
                                         ) {
                                             skip_add = true;
                                         }
@@ -3804,9 +3803,8 @@ pub fn find_pattern_in_path(
             while depth >= 0 && already.is_null() && {
                 line = file_line;
                 vim_fgets(
-                    line,
-                    LSIZE as i32,
-                    files[depth as usize].fp.as_ref().unwrap().as_ptr(),
+                    &mut file_line_vec,
+                    files[depth as usize].fp.as_ref().unwrap(),
                 )
             } {
                 files[depth as usize].fp = None;
@@ -3920,7 +3918,7 @@ fn show_pat_in_path(
         }
 
         if let Some(fp) = fp {
-            if vim_fgets(line, LSIZE as i32, fp.as_ptr()) {
+            if vim_fgets(line_buf, fp) {
                 break;
             }
             linelen = crate::memory::cstr_len(line);

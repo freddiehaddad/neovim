@@ -1035,7 +1035,7 @@ fn check_external_diff(diffio: &mut Diffio) -> bool {
                 .flatten();
             if let Some(fd3) = fd3 {
                 let mut linebuf: [u8; LBUFLEN] = [0; LBUFLEN];
-                while !vim_fgets(linebuf.as_mut_ptr(), LBUFLEN as i32, fd3.as_ptr()) {
+                while !vim_fgets(&mut linebuf, &fd3) {
                     if linebuf.starts_with(b"1c1") || linebuf.starts_with(b"@@ -1 +1 @@") {
                         ok = K_TRUE;
                     }
@@ -1529,7 +1529,7 @@ fn extract_hunk_internal(dout: &mut Diffout, hunk: &mut Diffhunk, line_idx: &mut
 fn extract_hunk(fd: &CFile, hunk: &mut Diffhunk, diffstyle: &mut Diffstyle) -> bool {
     loop {
         let mut line: [u8; LBUFLEN] = [0; LBUFLEN];
-        if vim_fgets(line.as_mut_ptr(), LBUFLEN as i32, fd.as_ptr()) {
+        if vim_fgets(&mut line, fd) {
             return true;
         }
         if *diffstyle == Diffstyle::DiffNone {
@@ -1537,9 +1537,9 @@ fn extract_hunk(fd: &CFile, hunk: &mut Diffhunk, diffstyle: &mut Diffstyle) -> b
                 *diffstyle = Diffstyle::DiffEd;
             } else if line.starts_with(b"@@ ")
                 || (line.starts_with(b"--- ")
-                    && !vim_fgets(line.as_mut_ptr(), LBUFLEN as i32, fd.as_ptr())
+                    && !vim_fgets(&mut line, fd)
                     && line.starts_with(b"+++ ")
-                    && !vim_fgets(line.as_mut_ptr(), LBUFLEN as i32, fd.as_ptr())
+                    && !vim_fgets(&mut line, fd)
                     && line.starts_with(b"@@ "))
             {
                 *diffstyle = Diffstyle::DiffUnified;

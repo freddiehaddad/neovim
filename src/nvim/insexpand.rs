@@ -2166,11 +2166,18 @@ fn ins_compl_dictionaries(
                         thesaurus,
                         flags,
                         &mut regmatch,
-                        buf,
+                        &mut buf_vec,
                         &mut dir,
                     );
                 } else {
-                    ins_compl_files(&files, thesaurus, flags, &mut regmatch, buf, &mut dir);
+                    ins_compl_files(
+                        &files,
+                        thesaurus,
+                        flags,
+                        &mut regmatch,
+                        &mut buf_vec,
+                        &mut dir,
+                    );
                     files.clear();
                 }
             }
@@ -2239,7 +2246,7 @@ fn ins_compl_files(
     thesaurus: bool,
     flags: i32,
     regmatch: &mut Regmatch,
-    buf: *mut u8,
+    buf_slice: &mut [u8],
     dir: &mut Direction,
 ) {
     let leader = if cot_fuzzy() {
@@ -2283,10 +2290,8 @@ fn ins_compl_files(
             continue;
         };
 
-        while !g_st().got_int
-            && !ins_compl_interrupted()
-            && !vim_fgets(buf, LSIZE as i32, fp.as_ptr())
-        {
+        while !g_st().got_int && !ins_compl_interrupted() && !vim_fgets(buf_slice, &fp) {
+            let buf = buf_slice.as_mut_ptr();
             let mut ptr = buf;
             if cot_fuzzy() && leader_len > 0 {
                 let line_end = find_line_end(ptr);

@@ -1287,7 +1287,6 @@ pub fn u_read_undo(
                     }
                     break 'error;
                 };
-                let fp = bi_fp.as_ptr();
 
                 let mut file_info = FileInfo::new();
                 let fsize = if os_fileinfo_fd(bi_fp.fileno(), &mut file_info) {
@@ -1308,7 +1307,7 @@ pub fn u_read_undo(
                     semsg!(gettext(c"E823: Not an undo file: %s"), file_name);
                     break 'error;
                 }
-                let version = get2c(fp);
+                let version = get2c(&bi.bi_fp);
                 if version != UF_VERSION {
                     semsg!(gettext(c"E824: Incompatible undo file: %s"), file_name,);
                     break 'error;
@@ -1525,7 +1524,7 @@ fn put_header_ptr(bi: &mut Bufinfo, uhp: Option<usize>) {
 }
 
 fn undo_read_4c(bi: &mut Bufinfo) -> i32 {
-    get4c(bi.bi_fp.as_ptr())
+    get4c(&bi.bi_fp)
 }
 
 fn undo_read_len(
@@ -1553,7 +1552,7 @@ fn undo_read_len(
 }
 
 fn undo_read_2c(bi: &mut Bufinfo) -> i32 {
-    get2c(bi.bi_fp.as_ptr())
+    get2c(&bi.bi_fp)
 }
 
 fn undo_read_byte(bi: &mut Bufinfo) -> i32 {
@@ -1561,7 +1560,7 @@ fn undo_read_byte(bi: &mut Bufinfo) -> i32 {
 }
 
 fn undo_read_time(bi: &mut Bufinfo) -> time_t {
-    get8ctime(bi.bi_fp.as_ptr())
+    get8ctime(&bi.bi_fp)
 }
 
 fn undo_read(bi: &mut Bufinfo, buffer: *mut u8, size: usize) -> bool {

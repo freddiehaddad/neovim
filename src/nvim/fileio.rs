@@ -3580,43 +3580,36 @@ pub fn modname(
 
 /// Like fgets(), but if the file line is too long, it is truncated and the
 /// rest of the line is thrown away.
-pub fn vim_fgets<T>(buf: *mut T, size: i32, fp: *mut FILE) -> bool {
-    let buf: *mut u8 = buf.cast();
+pub fn vim_fgets(buf: &mut [u8], fp: &crate::os::fs::CFile) -> bool {
+    let size = buf.len();
     if size < 2 {
         if size == 1 {
-            unsafe {
-                *buf = 0;
-            }
+            buf[0] = 0;
         }
         return true;
     }
 
-    unsafe {
-        *buf.wrapping_offset((size - 2) as isize) = 0;
-    }
+    buf[size - 2] = 0;
 
-    let mut retval: *mut u8;
+    let mut got_line: bool;
     loop {
         os_set_errno(0);
-        retval = unsafe { fgets(buf, size, fp) };
-        if !retval.is_null() || os_errno() != EINTR || unsafe { ferror(fp) } == 0 {
+        got_line = fp.gets(buf);
+        if got_line || os_errno() != EINTR || !fp.has_error() {
             break;
         }
     }
 
-    let penultimate = unsafe { *buf.wrapping_offset((size - 2) as isize) };
+    let penultimate = buf[size - 2];
     if penultimate != 0 && penultimate != b'\n' {
         let mut tbuf: [u8; 200] = [0; 200];
-
-        unsafe {
-            *buf.wrapping_offset((size - 1) as isize) = 0;
-        }
+        buf[size - 1] = 0;
 
         loop {
             tbuf[tbuf.len() - 2] = 0;
             os_set_errno(0);
-            retval = unsafe { fgets(tbuf.as_mut_ptr(), tbuf.len() as i32, fp) };
-            if retval.is_null() && (unsafe { feof(fp) } != 0 || os_errno() != EINTR) {
+            got_line = fp.gets(&mut tbuf);
+            if !got_line && (fp.is_eof() || os_errno() != EINTR) {
                 break;
             }
             if tbuf[tbuf.len() - 2] == 0 || tbuf[tbuf.len() - 2] == b'\n' {
@@ -3624,21 +3617,16 @@ pub fn vim_fgets<T>(buf: *mut T, size: i32, fp: *mut FILE) -> bool {
             }
         }
     }
-    retval.is_null()
-}
-
-#[inline]
-fn c_fgetc(fd: *mut FILE) -> i32 {
-    unsafe { fgetc(fd) }
+    !got_line
 }
 
 /// Read 2 bytes from "fd" and turn them into an int, MSB first.
-pub fn get2c(fd: *mut FILE) -> i32 {
-    let n = c_fgetc(fd);
+pub fn get2c(fd: &crate::os::fs::CFile) -> i32 {
+    let n = fd.getc();
     if n == EOF {
         return -1;
     }
-    let c = c_fgetc(fd);
+    let c = fd.getc();
     if c == EOF {
         return -1;
     }
@@ -3646,17 +3634,17 @@ pub fn get2c(fd: *mut FILE) -> i32 {
 }
 
 /// Read 3 bytes from "fd" and turn them into an int, MSB first.
-pub fn get3c(fd: *mut FILE) -> i32 {
-    let mut n = c_fgetc(fd);
+pub fn get3c(fd: &crate::os::fs::CFile) -> i32 {
+    let mut n = fd.getc();
     if n == EOF {
         return -1;
     }
-    let mut c = c_fgetc(fd);
+    let mut c = fd.getc();
     if c == EOF {
         return -1;
     }
     n = (n << 8) + c;
-    c = c_fgetc(fd);
+    c = fd.getc();
     if c == EOF {
         return -1;
     }
@@ -3664,23 +3652,23 @@ pub fn get3c(fd: *mut FILE) -> i32 {
 }
 
 /// Read 4 bytes from "fd" and turn them into an int, MSB first.
-pub fn get4c(fd: *mut FILE) -> i32 {
-    let mut c = c_fgetc(fd);
+pub fn get4c(fd: &crate::os::fs::CFile) -> i32 {
+    let mut c = fd.getc();
     if c == EOF {
         return -1;
     }
     let mut n = c as u32;
-    c = c_fgetc(fd);
+    c = fd.getc();
     if c == EOF {
         return -1;
     }
     n = (n << 8) + (c as u32);
-    c = c_fgetc(fd);
+    c = fd.getc();
     if c == EOF {
         return -1;
     }
     n = (n << 8) + (c as u32);
-    c = c_fgetc(fd);
+    c = fd.getc();
     if c == EOF {
         return -1;
     }
@@ -3689,11 +3677,11 @@ pub fn get4c(fd: *mut FILE) -> i32 {
 }
 
 /// Read 8 bytes from `fd` and turn them into a time_t, MSB first.
-pub fn get8ctime(fd: *mut FILE) -> time_t {
+pub fn get8ctime(fd: &crate::os::fs::CFile) -> time_t {
     let mut n: time_t = 0;
 
     for _ in 0..8 {
-        let c = c_fgetc(fd);
+        let c = fd.getc();
         if c == EOF {
             return -1;
         }
@@ -3703,10 +3691,10 @@ pub fn get8ctime(fd: *mut FILE) -> time_t {
 }
 
 /// Reads a string of length "cnt" from "fd" into allocated memory.
-pub fn read_string(fd: *mut FILE, cnt: usize) -> Option<Vec<u8>> {
+pub fn read_string(fd: &crate::os::fs::CFile, cnt: usize) -> Option<Vec<u8>> {
     let mut buf: Vec<u8> = Vec::with_capacity(cnt + 1);
     for _ in 0..cnt {
-        let c = c_fgetc(fd);
+        let c = fd.getc();
         if c == EOF {
             return None;
         }
@@ -3717,10 +3705,10 @@ pub fn read_string(fd: *mut FILE, cnt: usize) -> Option<Vec<u8>> {
 }
 
 /// Writes a number to file "fd", most significant bit first, in "len" bytes.
-pub fn put_bytes(fd: *mut FILE, number: u64, len: usize) -> bool {
+pub fn put_bytes(fd: &crate::os::fs::CFile, number: u64, len: usize) -> bool {
     debug_assert!(len > 0);
     for i in (0..len).rev() {
-        if unsafe { fputc(((number >> (i * 8)) & 0xff) as i32, fd) } == EOF {
+        if fd.putc(((number >> (i * 8)) & 0xff) as i32) == EOF {
             return false;
         }
     }
@@ -3728,11 +3716,9 @@ pub fn put_bytes(fd: *mut FILE, number: u64, len: usize) -> bool {
 }
 
 /// Writes time_t to file "fd" in 8 bytes.
-pub fn put_time(fd: *mut FILE, time_: time_t) -> bool {
-    unsafe {
-        let buf: [u8; 8] = (time_ as u64).to_be_bytes();
-        fwrite(buf.as_ptr().cast(), size_of::<u8>(), buf.len(), fd) == 1
-    }
+pub fn put_time(fd: &crate::os::fs::CFile, time_: time_t) -> bool {
+    let buf: [u8; 8] = (time_ as u64).to_be_bytes();
+    fd.write_all(&buf)
 }
 
 fn rename_with_tmp(

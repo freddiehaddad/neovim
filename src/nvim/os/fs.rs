@@ -874,8 +874,18 @@ impl CFile {
     }
 
     #[inline]
+    pub fn ferror(&self) -> i32 {
+        unsafe { crate::fileio::ferror(self.0.as_ptr()) }
+    }
+
+    #[inline]
     pub fn getc(&self) -> i32 {
         unsafe { crate::fileio::fgetc(self.0.as_ptr()) }
+    }
+
+    #[inline]
+    pub fn ungetc(&self, c: i32) -> i32 {
+        unsafe { crate::fileio::ungetc(c, self.0.as_ptr()) }
     }
 
     #[inline]
@@ -940,7 +950,7 @@ impl Drop for CFile {
 }
 
 /// Compatibility wrapper conforming to `fopen(3)`.
-pub fn os_fopen(
+fn os_fopen(
     path: impl crate::strings::IntoCCharPtr,
     flags: &std::ffi::CStr,
 ) -> *mut crate::fileio::FILE {
