@@ -28,7 +28,7 @@ use crate::ex_docmd::{
     do_cmdline_cmd, set_no_hlsearch,
 };
 use crate::file_search::{FINDFILE_FILE, vim_findfile, vim_findfile_init, vim_findfile_stopdir};
-use crate::fileio::{FILE, Off, vim_fgets};
+use crate::fileio::{Off, vim_fgets};
 use crate::fold::fold_open_cursor;
 use crate::globals::*;
 use crate::help::{
@@ -47,7 +47,7 @@ use crate::message::{
 use crate::r#move::{set_topline, validate_cursor};
 use crate::option::{OptInt, copy_option_part};
 use crate::option_vars::*;
-use crate::os::fs::{os_fopen, os_path_exists};
+use crate::os::fs::{CFile, os_path_exists};
 use crate::os::input::{fast_breakcheck, line_breakcheck, os_breakcheck};
 use crate::path::{
     FullName_save, K_PATH_CMP_EXPAND, K_PATH_CMP_FULL, PathCmpFlags, path_equal, path_has_wildcard,
@@ -1493,11 +1493,6 @@ fn find_tagfunc_tags(
 
 impl FindtagsState {
     #[inline]
-    fn fp_ptr(&self) -> *mut FILE {
-        self.fp.as_ref().map_or(ptr::null_mut(), |f| f.as_ptr())
-    }
-
-    #[inline]
     fn seek(&self, offset: Off, whence: i32) -> i32 {
         self.fp.as_ref().map_or(-1, |f| f.seek(offset, whence))
     }
@@ -1672,7 +1667,7 @@ fn findtags_get_next_line(st: &mut FindtagsState, sinfo_p: &mut TagsearchInfo) -
 
     let lbuf_ptr = st.lbuf.as_mut_ptr().cast();
     let lbuf_size = st.lbuf.len() as i32;
-    let fp = st.fp_ptr();
+    let fp = st.fp.as_ref().unwrap().as_ptr();
     if st.state == TagsearchState::TsBinary || st.state == TagsearchState::TsSkipBack {
         sinfo_p.curr_offset_used = sinfo_p.curr_offset;
         g_st().vim_ignored = st.seek(sinfo_p.curr_offset, SEEK_SET);
@@ -2211,7 +2206,7 @@ fn findtags_in_file(
         }
 
         let tag_fname_cstr = CStr::from_bytes_until_nul(&st.tag_fname).unwrap_or_default();
-        st.fp = crate::os::fs::CFile::from_raw(os_fopen(tag_fname_cstr, c"r"));
+        st.fp = CFile::open(tag_fname_cstr, c"r");
         if st.fp.is_none() {
             return;
         }

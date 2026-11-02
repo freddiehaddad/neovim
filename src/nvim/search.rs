@@ -30,7 +30,7 @@ use crate::extmark::{K_FALSE, K_NONE, K_TRUE, TriState};
 use crate::file_search::{
     FNAME_EXP, FNAME_INCL, FNAME_REL, file_name_in_line, find_file_name_in_path,
 };
-use crate::fileio::{FILE, vim_fgets};
+use crate::fileio::vim_fgets;
 use crate::fold::{fold_open_cursor, has_folding};
 use crate::globals::*;
 use crate::indent_c::{FM_BACKWARD, FM_BLOCKSTOP, FM_SKIPCOMM, check_linecomment};
@@ -63,7 +63,7 @@ use crate::normal::{
 };
 use crate::option::shortmess;
 use crate::option_vars::*;
-use crate::os::fs::os_fopen;
+use crate::os::fs::CFile;
 use crate::os::input::{fast_breakcheck, line_breakcheck};
 use crate::os::time::{Timestamp, os_delay, os_time};
 use crate::path::{
@@ -202,17 +202,13 @@ pub struct Searchstat {
 
 #[derive(Default)]
 struct SearchedFile {
-    fp: Option<crate::os::fs::CFile>,
+    fp: Option<CFile>,
     name: Option<CString>,
     lnum: Linenr,
     matched: i32,
 }
 
 impl SearchedFile {
-    fn fp_ptr(&self) -> *mut FILE {
-        self.fp.as_ref().map_or(ptr::null_mut(), |f| f.as_ptr())
-    }
-
     fn name_ptr(&self) -> Option<&CStr> {
         self.name.as_deref()
     }
@@ -3395,9 +3391,7 @@ pub fn find_pattern_in_path(
                         max_path_depth *= 2;
                         files = bigger;
                     }
-                    let fp = crate::os::fs::CFile::from_raw(
-                        os_fopen(nf_cstr.as_ptr(), c"r").cast::<FILE>(),
-                    );
+                    let fp = CFile::open(nf_cstr.as_ptr(), c"r");
                     let opened = fp.is_some();
                     files[(depth + 1) as usize].fp = fp;
                     if opened {
@@ -3565,7 +3559,7 @@ pub fn find_pattern_in_path(
                                         if vim_fgets(
                                             line,
                                             LSIZE as i32,
-                                            files[depth as usize].fp_ptr(),
+                                            files[depth as usize].fp.as_ref().unwrap().as_ptr(),
                                         ) {
                                             skip_add = true;
                                         }
@@ -3657,15 +3651,11 @@ pub fn find_pattern_in_path(
                         }
                         did_show = true;
                         if !g_st().got_int {
-                            let fp_arg = if depth == -1 {
-                                ptr::null_mut()
+                            let (fp_arg, lnum_arg) = if depth == -1 {
+                                (None, &mut lnum)
                             } else {
-                                files[depth as usize].fp_ptr()
-                            };
-                            let lnum_arg = if depth == -1 {
-                                &mut lnum
-                            } else {
-                                &mut files[depth as usize].lnum
+                                let entry = &mut files[depth as usize];
+                                (entry.fp.as_ref(), &mut entry.lnum)
                             };
                             show_pat_in_path(
                                 &mut file_line_vec,
@@ -3692,15 +3682,11 @@ pub fn find_pattern_in_path(
                             {
                                 emsg(tr(c"E387: Match is on current line"));
                             } else if action == ACTION_SHOW {
-                                let fp_arg = if depth == -1 {
-                                    ptr::null_mut()
+                                let (fp_arg, lnum_arg) = if depth == -1 {
+                                    (None, &mut lnum)
                                 } else {
-                                    files[depth as usize].fp_ptr()
-                                };
-                                let lnum_arg = if depth == -1 {
-                                    &mut lnum
-                                } else {
-                                    &mut files[depth as usize].lnum
+                                    let entry = &mut files[depth as usize];
+                                    (entry.fp.as_ref(), &mut entry.lnum)
                                 };
                                 show_pat_in_path(
                                     &mut file_line_vec,
@@ -3817,7 +3803,11 @@ pub fn find_pattern_in_path(
 
             while depth >= 0 && already.is_null() && {
                 line = file_line;
-                vim_fgets(line, LSIZE as i32, files[depth as usize].fp_ptr())
+                vim_fgets(
+                    line,
+                    LSIZE as i32,
+                    files[depth as usize].fp.as_ref().unwrap().as_ptr(),
+                )
             } {
                 files[depth as usize].fp = None;
                 old_files -= 1;
@@ -3890,7 +3880,7 @@ fn show_pat_in_path(
     type_: i32,
     did_show: bool,
     action: i32,
-    fp: *mut FILE,
+    fp: Option<&CFile>,
     lnum: &mut Linenr,
     count: i32,
 ) {
@@ -3905,7 +3895,7 @@ fn show_pat_in_path(
     }
     let mut linelen = crate::memory::cstr_len(line);
     loop {
-        if !fp.is_null() {
+        if fp.is_some() {
             if linelen > 0 && line_buf[linelen - 1] == b'\n' {
                 linelen -= 1;
             }
@@ -3929,8 +3919,8 @@ fn show_pat_in_path(
             break;
         }
 
-        if !fp.is_null() {
-            if vim_fgets(line, LSIZE as i32, fp) {
+        if let Some(fp) = fp {
+            if vim_fgets(line, LSIZE as i32, fp.as_ptr()) {
                 break;
             }
             linelen = crate::memory::cstr_len(line);

@@ -49,8 +49,8 @@ use crate::ex_eval::{ExCleanup, aborting, enter_cleanup, leave_cleanup};
 use crate::ex_getln::get_list_range;
 use crate::extmark::extmark_splice;
 use crate::fileio::{
-    EINTR, FILE, READ_DUMMY, READ_NEW, fdopen, ferror, fgets, readfile, shorten_buf_fname,
-    shorten_fnames, vim_fgets, vim_tempname,
+    EINTR, READ_DUMMY, READ_NEW, readfile, shorten_buf_fname, shorten_fnames, vim_fgets,
+    vim_tempname,
 };
 use crate::fold::{fold_open_cursor, fold_update_all};
 use crate::fuzzy::{FUZZY_MATCH_MAX_LEN, fuzzy_match};
@@ -65,8 +65,8 @@ use crate::option::{
     copy_option_part, set_option_direct, set_option_value_give_err, shortmess, skip_to_option_part,
 };
 use crate::os::fs::{
-    FileInfo, MAXPATHL, os_dirname, os_errno, os_fileinfo_link, os_fopen, os_isdir,
-    os_open_stdin_fd, os_path_exists, os_remove, os_set_errno,
+    CFile, FileInfo, MAXPATHL, os_dirname, os_errno, os_fileinfo_link, os_isdir, os_open_stdin_fd,
+    os_path_exists, os_remove, os_set_errno,
 };
 use crate::regexp::{
     RE_MAGIC, RE_STRING, Regmatch, Regmmatch, Regprog, vim_regcomp, vim_regexec, vim_regexec_multi,
@@ -1134,11 +1134,14 @@ fn qf_get_next_buf_line(
     QF_OK
 }
 
-fn qf_get_next_file_line(state: &mut Qfstate, fd: *mut FILE) -> i32 {
+fn qf_get_next_file_line(state: &mut Qfstate) -> i32 {
+    let QfInputSource::File(ref fd) = state.source else {
+        return QF_FAIL;
+    };
     let iobuff_ptr = g_st().iobuff.as_mut_ptr();
     loop {
         os_set_errno(0);
-        if unsafe { fgets(iobuff_ptr, IOSIZE as i32, fd) }.is_null() {
+        if !fd.gets(g_st().iobuff_bytes_mut()) {
             if os_errno() == EINTR {
                 continue;
             }
@@ -1162,22 +1165,15 @@ fn qf_get_next_file_line(state: &mut Qfstate, fd: *mut FILE) -> i32 {
         loop {
             os_set_errno(0);
             let growbufsiz = state.growbuf.len();
-            if unsafe {
-                fgets(
-                    state.growbuf.as_mut_ptr().wrapping_add(growbuflen),
-                    (growbufsiz - growbuflen) as i32,
-                    fd,
-                )
-            }
-            .is_null()
-            {
+            if !fd.gets(&mut state.growbuf[growbuflen..growbufsiz]) {
                 if os_errno() == EINTR {
                     continue;
                 }
                 break;
             }
-            state.linelen =
-                crate::memory::cstr_len(state.growbuf.as_ptr().wrapping_add(growbuflen).cast());
+            state.linelen = crate::memory::cstr_until_nul(&state.growbuf[growbuflen..])
+                .to_bytes()
+                .len();
             growbuflen += state.linelen;
             if state.growbuf[growbuflen - 1] == b'\n' {
                 break;
@@ -1194,7 +1190,7 @@ fn qf_get_next_file_line(state: &mut Qfstate, fd: *mut FILE) -> i32 {
         if discard {
             loop {
                 os_set_errno(0);
-                if unsafe { fgets(iobuff_ptr, IOSIZE as i32, fd) }.is_null() {
+                if !fd.gets(g_st().iobuff_bytes_mut()) {
                     if os_errno() == EINTR {
                         continue;
                     }
@@ -1237,7 +1233,7 @@ fn qf_get_next_file_line(state: &mut Qfstate, fd: *mut FILE) -> i32 {
 fn qf_get_nextline(state: &mut Qfstate) -> i32 {
     let status = match state.source {
         QfInputSource::None => QF_FAIL,
-        QfInputSource::File(ref fd) => qf_get_next_file_line(state, fd.as_ptr()),
+        QfInputSource::File(_) => qf_get_next_file_line(state),
         QfInputSource::Str(p_str) => qf_get_next_str_line(state, p_str.cast()),
         QfInputSource::List(p_li) => qf_get_next_list_line(state, p_li),
         QfInputSource::Buf {
@@ -1403,12 +1399,12 @@ fn qf_setup_state(
         }
 
         if !efile.is_null() {
-            let raw_fd = if crate::memory::cstr_as_opt_bytes(efile) == Some(b"-") {
-                unsafe { fdopen(os_open_stdin_fd(), c"r".as_ptr()) }
+            let fd_opt = if crate::memory::cstr_as_opt_bytes(efile) == Some(b"-") {
+                CFile::from_fd(os_open_stdin_fd(), c"r")
             } else {
-                os_fopen(efile, c"r").cast::<FILE>()
+                CFile::open(efile, c"r")
             };
-            let Some(fd) = crate::os::fs::CFile::from_raw(raw_fd) else {
+            let Some(fd) = fd_opt else {
                 semsg!(gettext(E_OPENERRF), efile);
                 return false;
             };
@@ -1536,7 +1532,7 @@ fn qf_init_ext(
 
         if ok {
             let file_ok = match state.source {
-                QfInputSource::File(ref fd) => ferror(fd.as_ptr()) == 0,
+                QfInputSource::File(ref fd) => !fd.has_error(),
                 _ => true,
             };
             if file_ok {
@@ -7190,7 +7186,7 @@ fn hgr_search_file(
     p_regmatch: &mut Regmatch,
 ) {
     let fname = fname.into_c_char_ptr().cast_mut();
-    let Some(fd) = crate::os::fs::CFile::from_raw(os_fopen(fname, c"r").cast::<FILE>()) else {
+    let Some(fd) = CFile::open(fname, c"r") else {
         return;
     };
 

@@ -4973,11 +4973,37 @@ pub fn write_eintr(fd: i32, buf: *const c_void, bufsize: usize) -> isize {
     ret
 }
 
+pub trait IntoFileStream {
+    fn into_file_stream(self) -> *mut FILE;
+}
+
+impl IntoFileStream for *mut FILE {
+    #[inline]
+    fn into_file_stream(self) -> *mut FILE {
+        self
+    }
+}
+
+impl IntoFileStream for &crate::os::fs::CFile {
+    #[inline]
+    fn into_file_stream(self) -> *mut FILE {
+        self.as_ptr()
+    }
+}
+
+impl IntoFileStream for &mut crate::os::fs::CFile {
+    #[inline]
+    fn into_file_stream(self) -> *mut FILE {
+        self.as_ptr()
+    }
+}
+
 pub fn vim_fprintf_fmt(
-    stream: *mut FILE,
+    stream: impl IntoFileStream,
     fmt: impl crate::strings::IntoCCharPtr,
     args: &[crate::strings::FmtVal],
 ) -> i32 {
+    let stream = stream.into_file_stream();
     let fmt = fmt.into_c_char_ptr();
     {
         if args.is_empty() && !crate::memory::cstr_as_bytes(fmt).contains(&b'%') {

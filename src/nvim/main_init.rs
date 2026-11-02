@@ -95,7 +95,7 @@ use crate::os::env::{os_homedir, os_setenv_append_path};
 #[cfg(windows)]
 use crate::os::fs::os_dup_cloexec;
 use crate::os::fs::{
-    CASE_INSENSITIVE_FILENAME, os_exepath, os_fopen, os_isdir, os_path_exists, os_write,
+    CASE_INSENSITIVE_FILENAME, CFile, os_exepath, os_isdir, os_path_exists, os_write,
 };
 use crate::os::input::{os_breakcheck, os_isatty};
 use crate::os::lang::{init_locale, set_lang_var};
@@ -613,14 +613,14 @@ fn nvim_main_inner(argc: i32, argv: *mut *mut u8) -> i32 {
         os_exit(2);
     }
     if let Some(ref scriptout_name) = params.scriptout {
-        g_st().scriptout = crate::os::fs::CFile::from_raw(os_fopen(
+        g_st().scriptout = CFile::open(
             scriptout_name.as_ptr(),
             if params.scriptout_append {
                 c"ab"
             } else {
                 c"wb"
             },
-        ));
+        );
         if !has_scriptout() {
             let stderr = log_get_stderr();
             fprintf!(stderr, gettext(c"Cannot open for script output: \""),);

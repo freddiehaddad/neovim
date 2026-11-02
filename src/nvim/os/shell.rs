@@ -21,8 +21,6 @@ use crate::event::wstream::{
 };
 use crate::ex_cmds::{K_SHELL_OPT_READ, K_SHELL_OPT_WRITE, check_secure, make_filter_cmd};
 use crate::ex_docmd::CAR;
-#[cfg(unix)]
-use crate::fileio::fopen;
 use crate::fileio::{SEEK_END, SEEK_SET, vim_tempname};
 use crate::globals::*;
 #[cfg(windows)]
@@ -40,7 +38,7 @@ use crate::message::{
 use crate::option_vars::*;
 #[cfg(windows)]
 use crate::os::env::{os_getenv_cstr, os_setenv, restore_env_var};
-use crate::os::fs::{MAXPATHL, os_fopen, os_remove};
+use crate::os::fs::{CFile, MAXPATHL, os_remove};
 #[cfg(unix)]
 use crate::os::fs::{os_can_exe, os_isdir, os_path_exists};
 use crate::os::signal::{signal_accept_deadly, signal_reject_deadly};
@@ -399,7 +397,7 @@ pub fn os_expand_wildcards(
             return false;
         }
 
-        let Some(f) = crate::os::fs::CFile::from_raw(fopen(tempname, c"rb".as_ptr())) else {
+        let Some(f) = CFile::open_libc(tempname, c"rb") else {
             if (flags & EW_SILENT) == 0 {
                 msg(gettext(E_WILDEXPAND), 0);
                 msg_start();
@@ -761,7 +759,7 @@ pub fn get_cmd_output(
 
         let mut result: Option<std::ffi::CString> = None;
 
-        if let Some(f) = crate::os::fs::CFile::from_raw(os_fopen(tempname, c"rb")) {
+        if let Some(f) = CFile::open(tempname, c"rb") {
             'done: {
                 if f.seek(0, SEEK_END) == -1 {
                     semsg!(gettext(E_CANNOT_READ_FROM_STR_2), tempname);

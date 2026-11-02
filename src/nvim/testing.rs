@@ -16,14 +16,13 @@ use crate::eval::vars::{
 };
 use crate::eval::{garbage_collect, pattern_match};
 use crate::ex_docmd::do_cmdline_cmd;
-use crate::fileio::{fclose, fgetc};
 use crate::globals::IOSIZE;
 use crate::globals::*;
 use crate::hashtab::hashitem_empty;
 use crate::mbyte::{mb_cptr2char_adv, utf_slice2char};
 use crate::memory::xstrlcpy;
 use crate::message::{emsg, msg_reset_scroll};
-use crate::os::fs::os_fopen;
+use crate::os::fs::CFile;
 use crate::regexp::NUMBUFLEN;
 use crate::runtime::{ESTACK_NONE, estack_sfile, sourcing_lnum};
 use crate::strings::{vim_snprintf, vim_snprintf_safelen};
@@ -408,34 +407,17 @@ fn assert_equalfile(argvars: &mut [TypVal]) -> i32 {
 
     let mut iobuf = [0u8; IOSIZE];
     let mut iobuflen = 0usize;
-    let fd1 = os_fopen(fname1, c"rb");
     let mut line1 = [0u8; 200];
     let mut line2 = [0u8; 200];
     let mut lineidx: usize = 0;
 
-    if fd1.is_null() {
-        iobuflen = vim_snprintf_safelen!(
-            iobuf.as_mut_ptr().cast(),
-            IOSIZE,
-            E_CANT_READ_FILE_STR,
-            fname1
-        );
-    } else {
-        let fd2 = os_fopen(fname2, c"rb");
-        if fd2.is_null() {
-            unsafe { fclose(fd1) };
-            iobuflen = vim_snprintf_safelen!(
-                iobuf.as_mut_ptr().cast(),
-                IOSIZE,
-                E_CANT_READ_FILE_STR,
-                fname2,
-            );
-        } else {
+    if let Some(fd1) = CFile::open(fname1, c"rb") {
+        if let Some(fd2) = CFile::open(fname2, c"rb") {
             let mut linecount: i64 = 1;
             let mut count: i64 = 0;
             loop {
-                let c1 = unsafe { fgetc(fd1) };
-                let c2 = unsafe { fgetc(fd2) };
+                let c1 = fd1.getc();
+                let c2 = fd2.getc();
                 if c1 == EOF_VAL {
                     if c2 != EOF_VAL {
                         iobuflen =
@@ -466,9 +448,22 @@ fn assert_equalfile(argvars: &mut [TypVal]) -> i32 {
                 }
                 count += 1;
             }
-            unsafe { fclose(fd1) };
-            unsafe { fclose(fd2) };
+        } else {
+            drop(fd1);
+            iobuflen = vim_snprintf_safelen!(
+                iobuf.as_mut_ptr().cast(),
+                IOSIZE,
+                E_CANT_READ_FILE_STR,
+                fname2,
+            );
         }
+    } else {
+        iobuflen = vim_snprintf_safelen!(
+            iobuf.as_mut_ptr().cast(),
+            IOSIZE,
+            E_CANT_READ_FILE_STR,
+            fname1
+        );
     }
 
     if iobuflen > 0 {

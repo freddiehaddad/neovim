@@ -28,7 +28,7 @@ use crate::event::multiqueue::{Event, multiqueue_process_events};
 use crate::ex_docmd::{Exarg, do_sleep};
 use crate::ex_eval::cause_errthrow;
 use crate::extmark::{K_FALSE, K_TRUE, TriState};
-use crate::fileio::{check_timestamps, fprintf, fputc, fputs, printf};
+use crate::fileio::{check_timestamps, fprintf, printf};
 use crate::globals::*;
 use crate::grid::{
     Sattr, Schar, grid_adjust, grid_alloc, grid_assign_handle, grid_clear, grid_clear_line,
@@ -63,7 +63,7 @@ use crate::option::shortmess;
 use crate::option_vars::*;
 use crate::optionstr::{OptKeyDict_mopt, Optset, opt_keyset};
 use crate::os::env::home_replace_save;
-use crate::os::fs::os_fopen;
+use crate::os::fs::CFile;
 use crate::os::input::os_breakcheck;
 use crate::os::time::os_delay;
 use crate::regexp::vim_regexec;
@@ -4002,10 +4002,10 @@ fn redir_write(str_: impl crate::strings::IntoCCharPtr, maxlen: isize) {
                     } else if g_st().redir_vname {
                         var_redir_str(c" ", -1);
                     } else if let Some(ref rf) = g_st().redir_fd {
-                        fputs(c" ", rf.as_ptr());
+                        rf.puts(c" ");
                     }
                     if let Some(ref vf) = msg_st().verbose_fd {
-                        fputs(c" ", vf.as_ptr());
+                        vf.puts(c" ");
                     }
                     msg_st().redir_col += 1;
                 }
@@ -4035,10 +4035,10 @@ fn redir_write(str_: impl crate::strings::IntoCCharPtr, maxlen: isize) {
                     && g_st().capture_ga.is_null()
                     && let Some(ref rf) = g_st().redir_fd
                 {
-                    fputc(i32::from(crate::memory::cstr_first_byte(s)), rf.as_ptr());
+                    rf.putc(i32::from(crate::memory::cstr_first_byte(s)));
                 }
                 if let Some(ref vf) = msg_st().verbose_fd {
-                    fputc(i32::from(crate::memory::cstr_first_byte(s)), vf.as_ptr());
+                    vf.putc(i32::from(crate::memory::cstr_first_byte(s)));
                 }
                 if matches!(*s.cast::<u8>(), b'\r' | b'\n') {
                     msg_st().redir_col = 0;
@@ -4126,7 +4126,7 @@ pub fn verbose_open() -> bool {
     if msg_st().verbose_fd.is_none() && !msg_st().verbose_did_open {
         msg_st().verbose_did_open = true;
 
-        msg_st().verbose_fd = crate::os::fs::CFile::from_raw(os_fopen(opt_vars().p_vfile, c"a"));
+        msg_st().verbose_fd = CFile::open(opt_vars().p_vfile, c"a");
         if msg_st().verbose_fd.is_none() {
             semsg!(gettext(E_NOTOPEN), opt_vars().p_vfile);
             return false;

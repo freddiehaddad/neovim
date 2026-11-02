@@ -24,7 +24,6 @@ use crate::ex_getln::{
     unputcmdline,
 };
 use crate::extmark::{K_FALSE, K_NONE, TriState};
-use crate::fileio::fputc;
 use crate::globals::*;
 use crate::input_cmdatom::{
     CmdSpec, atom_cmdline_set, atom_composite_abort, atom_map_start, atom_payload_end,
@@ -1514,7 +1513,7 @@ fn updatescript(c: i32) {
     if c != 0
         && let Some(ref so) = g_st().scriptout
     {
-        unsafe { fputc(c, so.as_ptr()) };
+        so.putc(c);
     }
     let idle = c == 0;
     if idle

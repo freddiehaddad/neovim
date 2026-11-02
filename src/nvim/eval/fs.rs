@@ -26,8 +26,8 @@ use crate::file_search::{FINDFILE_DIR, FINDFILE_FILE, FfSearchCtx, find_file_in_
 #[cfg(not(windows))]
 use crate::fileio::readlink;
 use crate::fileio::{
-    FILE, Off, SEEK_END, SEEK_SET, delete_recursive, fclose, file_pat_to_reg_pat, fileno, fread,
-    readdir_core, vim_copyfile, vim_fseek, vim_rename, vim_tempname,
+    Off, SEEK_END, SEEK_SET, delete_recursive, file_pat_to_reg_pat, readdir_core, vim_copyfile,
+    vim_rename, vim_tempname,
 };
 use crate::globals::*;
 use crate::math::{FAIL, OK};
@@ -41,10 +41,10 @@ use crate::os::fileio::{
     file_flush, file_open, file_write,
 };
 use crate::os::fs::{
-    FileInfo, MAXPATHL, os_can_exe, os_dirname, os_file_is_readable, os_file_is_writable,
-    os_fileinfo, os_fileinfo_fd, os_fileinfo_link, os_fileinfo_size, os_fileinfo2, os_fopen,
-    os_getperm, os_isdir, os_mkdir_recurse, os_remove, os_rmdir, s_isblk, s_isdir, s_isfifo,
-    s_islnk, s_isreg, s_issock,
+    CFile, FileInfo, MAXPATHL, os_can_exe, os_dirname, os_file_is_readable, os_file_is_writable,
+    os_fileinfo, os_fileinfo_fd, os_fileinfo_link, os_fileinfo_size, os_fileinfo2, os_getperm,
+    os_isdir, os_mkdir_recurse, os_remove, os_rmdir, s_isblk, s_isdir, s_isfifo, s_islnk, s_isreg,
+    s_issock,
 };
 #[cfg(windows)]
 use crate::os::fs::{os_is_reparse_point_include, os_realpath_cstr, os_resolve_shortcut};
@@ -1454,9 +1454,9 @@ pub fn f_readdir(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData
 
 /// Read blob from file "fd".
 /// Caller has allocated a blob in "rettv".
-fn read_blob(fd: *mut FILE, rettv: &mut TypVal, mut offset: Off, size_arg: Off) -> bool {
+fn read_blob(fd: &CFile, rettv: &mut TypVal, mut offset: Off, size_arg: Off) -> bool {
     let mut file_info = FileInfo::new();
-    if !os_fileinfo_fd(unsafe { fileno(fd) }, &mut file_info) {
+    if !os_fileinfo_fd(fd.fileno(), &mut file_info) {
         return false; // can't read the file, error
     }
 
@@ -1484,13 +1484,13 @@ fn read_blob(fd: *mut FILE, rettv: &mut TypVal, mut offset: Off, size_arg: Off) 
     if size <= 0 {
         return true;
     }
-    if offset != 0 && unsafe { vim_fseek(fd, offset, whence) } != 0 {
+    if offset != 0 && fd.seek(offset, whence) != 0 {
         return true;
     }
 
     let bv = &mut rettv.vval.v_blob_ref().bv_ga;
     bv.resize(size as usize, 0);
-    if unsafe { fread(bv.as_mut_ptr().cast(), 1, bv.len(), fd) } < bv.len() {
+    if fd.read_bytes(bv) < bv.len() {
         // An empty blob is returned on error.
         crate::eval::typval::tv_blob_unref(rettv.vval.v_blob());
         rettv.vval = crate::eval::typval::TypvalVval::Blob(ptr::null_mut());
@@ -1548,17 +1548,15 @@ fn read_file_or_blob(argvars: &mut [TypVal], rettv: &mut TypVal, always_blob: bo
             semsg!(gettext(E_NOTOPEN), gettext(c"<empty>"));
             return;
         }
-        let fd = os_fopen(fname, c"rb");
-        if fd.is_null() {
+        let Some(fd) = CFile::open(fname, c"rb") else {
             semsg!(gettext(E_NOTOPEN), fname);
             return;
-        }
+        };
 
         if blob {
-            if !read_blob(fd, rettv, offset, size) {
+            if !read_blob(&fd, rettv, offset, size) {
                 semsg!(gettext(E_CANT_READ_FILE_STR), fname);
             }
-            fclose(fd);
             return;
         }
 
@@ -1566,7 +1564,7 @@ fn read_file_or_blob(argvars: &mut [TypVal], rettv: &mut TypVal, always_blob: bo
         let buf_ptr = buf.as_mut_ptr();
 
         while maxline < 0 || i64::from(tv_list_len(l.as_ref())) < maxline {
-            let mut readlen = fread(buf_ptr.cast(), 1, io_size, fd) as isize;
+            let mut readlen = fd.read_bytes(&mut buf[..io_size]) as isize;
 
             let mut p = buf_ptr; // Position in buf.
             let mut start = buf_ptr; // Start of current line.
@@ -1668,8 +1666,6 @@ fn read_file_or_blob(argvars: &mut [TypVal], rettv: &mut TypVal, always_blob: bo
                 prev.extend_from_slice(std::slice::from_raw_parts(start, part_len));
             }
         }
-
-        fclose(fd);
     }
 }
 

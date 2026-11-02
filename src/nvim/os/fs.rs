@@ -820,8 +820,72 @@ impl CFile {
     }
 
     #[inline]
+    pub fn open(path: impl crate::strings::IntoCCharPtr, flags: &std::ffi::CStr) -> Option<Self> {
+        Self::from_raw(os_fopen(path, flags))
+    }
+
+    #[inline]
+    pub fn open_libc(
+        path: impl crate::strings::IntoCCharPtr,
+        mode: &std::ffi::CStr,
+    ) -> Option<Self> {
+        Self::from_raw(unsafe { crate::fileio::fopen(path, mode) })
+    }
+
+    #[inline]
+    pub fn from_fd(fd: i32, mode: &std::ffi::CStr) -> Option<Self> {
+        Self::from_raw(unsafe { crate::fileio::fdopen(fd, mode) })
+    }
+
+    #[inline]
     pub fn as_ptr(&self) -> *mut crate::fileio::FILE {
         self.0.as_ptr()
+    }
+
+    #[inline]
+    pub fn fileno(&self) -> i32 {
+        unsafe { crate::fileio::fileno(self.0.as_ptr()) }
+    }
+
+    #[inline]
+    pub fn flush(&self) -> i32 {
+        unsafe { crate::fileio::fflush(self.0.as_ptr()) }
+    }
+
+    #[inline]
+    pub fn setvbuf(&self, buf: &mut [u8], mode: i32) -> i32 {
+        unsafe { crate::fileio::setvbuf(self.0.as_ptr(), buf.as_mut_ptr().cast(), mode, buf.len()) }
+    }
+
+    #[inline]
+    pub fn is_eof(&self) -> bool {
+        unsafe { crate::fileio::feof(self.0.as_ptr()) != 0 }
+    }
+
+    #[inline]
+    pub fn has_error(&self) -> bool {
+        unsafe { crate::fileio::ferror(self.0.as_ptr()) != 0 }
+    }
+
+    #[inline]
+    pub fn getc(&self) -> i32 {
+        unsafe { crate::fileio::fgetc(self.0.as_ptr()) }
+    }
+
+    #[inline]
+    pub fn putc(&self, c: i32) -> i32 {
+        unsafe { crate::fileio::fputc(c, self.0.as_ptr()) }
+    }
+
+    #[inline]
+    pub fn puts(&self, s: impl crate::strings::IntoCCharPtr) -> i32 {
+        crate::fileio::fputs(s, self.0.as_ptr())
+    }
+
+    #[inline]
+    pub fn gets(&self, buf: &mut [u8]) -> bool {
+        !unsafe { crate::fileio::fgets(buf.as_mut_ptr(), buf.len() as i32, self.0.as_ptr()) }
+            .is_null()
     }
 
     #[inline]
@@ -850,6 +914,14 @@ impl CFile {
             return 0;
         }
         unsafe { crate::fileio::fread(buf.as_mut_ptr().cast(), 1, buf.len(), self.0.as_ptr()) }
+    }
+
+    #[inline]
+    pub fn read_exact(&self, buf: &mut [u8]) -> bool {
+        if buf.is_empty() {
+            return true;
+        }
+        unsafe { crate::fileio::fread(buf.as_mut_ptr().cast(), buf.len(), 1, self.0.as_ptr()) == 1 }
     }
 }
 

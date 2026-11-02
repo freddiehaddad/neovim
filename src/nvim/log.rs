@@ -10,7 +10,7 @@ use crate::globals::*;
 use crate::memory::{mem_st, xstrlcpy};
 use crate::message::msg_schedule_semsg;
 use crate::os::env::{expand_env, os_get_pid, os_getenv_buf, os_setenv};
-use crate::os::fs::{os_isdir, os_mkdir_recurse};
+use crate::os::fs::{CFile, MAXPATHL, os_isdir, os_mkdir_recurse};
 use crate::os::stdpaths::{get_xdg_home, stdpaths_user_state_subpath};
 use crate::os::time::{Tm, os_localtime, strftime};
 use crate::path::{concat_fnames_cstr, path_tail};
@@ -154,19 +154,10 @@ macro_rules! logmsg {
         }
     }};
 }
-use crate::os::fs::MAXPATHL;
 pub use logmsg;
 
 fn log_try_create(fname: &CStr) -> bool {
-    if fname.to_bytes().is_empty() {
-        return false;
-    }
-    let log_file = unsafe { fopen(fname.as_ptr(), c"a".as_ptr()) };
-    if log_file.is_null() {
-        return false;
-    }
-    unsafe { fclose(log_file) };
-    true
+    !fname.to_bytes().is_empty() && CFile::open_libc(fname, c"a").is_some()
 }
 
 /// Initializes the log file path and sets `$NVIM_LOG_FILE` if empty.

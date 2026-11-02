@@ -11,7 +11,6 @@ use crate::eval::K_BOOL_VAR_TRUE_CONST;
 use crate::eval::typval::{TypVal, TypvalVval, VarType, tv_clear};
 use crate::ex_cmds::{ECMD_HIDE, ECMD_LASTL, ECMD_SET_HELP, do_ecmd};
 use crate::ex_docmd::{CMOD_KEEPALT, Exarg, do_cmdline_cmd};
-use crate::fileio::fclose;
 use crate::globals::*;
 use crate::lua::executor::nlua_call_typval;
 use crate::memory::xstrlcpy;
@@ -19,7 +18,7 @@ use crate::message::{emsg, semsg, smsg};
 use crate::option::{K_OPT_BUFTYPE, OPT_LOCAL, OptInt, set_option_direct};
 use crate::option_vars::*;
 use crate::optionstr::{OptIndex, check_buf_options};
-use crate::os::fs::os_fopen;
+use crate::os::fs::CFile;
 use crate::strings::gettext;
 use crate::tag::{do_tag, find_tags};
 use crate::window::{
@@ -181,48 +180,43 @@ pub fn ex_help(eap: &mut Exarg) {
             }
             if !wp.is_null() && (*wp).buf_mut().b_nwindows > 0 {
                 win_enter(wp, true);
+            } else if CFile::open(opt_vars().p_hf, c"rb").is_none() {
+                smsg!(0, gettext(c"Help file \"%s\" not found"), opt_vars().p_hf);
+                early_ret = true;
             } else {
-                let helpfd = os_fopen(opt_vars().p_hf, c"rb");
-                if helpfd.is_null() {
-                    smsg!(0, gettext(c"Help file \"%s\" not found"), opt_vars().p_hf);
+                let mut n = WSP_HELP;
+                if g_st().cmdmod.cmod_split == 0
+                    && curwin_mut().w_width != g_st().columns_global
+                    && curwin_mut().w_width < 80
+                {
+                    n |= if opt_vars().p_sb != 0 {
+                        WSP_BOT
+                    } else {
+                        WSP_TOP
+                    };
+                }
+                if !win_split(0, n) {
                     early_ret = true;
                 } else {
-                    fclose(helpfd);
-
-                    let mut n = WSP_HELP;
-                    if g_st().cmdmod.cmod_split == 0
-                        && curwin_mut().w_width != g_st().columns_global
-                        && curwin_mut().w_width < 80
-                    {
-                        n |= if opt_vars().p_sb != 0 {
-                            WSP_BOT
-                        } else {
-                            WSP_TOP
-                        };
+                    if (curwin_mut().w_height as OptInt) < opt_vars().p_hh {
+                        win_setheight(opt_vars().p_hh as i32);
                     }
-                    if !win_split(0, n) {
-                        early_ret = true;
-                    } else {
-                        if (curwin_mut().w_height as OptInt) < opt_vars().p_hh {
-                            win_setheight(opt_vars().p_hh as i32);
-                        }
 
-                        alt_fnum = curbuf_mut().b_fnum;
-                        do_ecmd(
-                            0,
-                            ptr::null_mut(),
-                            ptr::null_mut(),
-                            None,
-                            ECMD_LASTL,
-                            ECMD_HIDE + ECMD_SET_HELP,
-                            ptr::null_mut(),
-                        );
+                    alt_fnum = curbuf_mut().b_fnum;
+                    do_ecmd(
+                        0,
+                        ptr::null_mut(),
+                        ptr::null_mut(),
+                        None,
+                        ECMD_LASTL,
+                        ECMD_HIDE + ECMD_SET_HELP,
+                        ptr::null_mut(),
+                    );
 
-                        if (g_st().cmdmod.cmod_flags & CMOD_KEEPALT) == 0 {
-                            curwin_mut().w_alt_fnum = alt_fnum;
-                        }
-                        empty_fnum = curbuf_mut().b_fnum;
+                    if (g_st().cmdmod.cmod_flags & CMOD_KEEPALT) == 0 {
+                        curwin_mut().w_alt_fnum = alt_fnum;
                     }
+                    empty_fnum = curbuf_mut().b_fnum;
                 }
             }
         }

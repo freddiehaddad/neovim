@@ -12,7 +12,7 @@ use crate::eval::typval::{
     tv_set_string,
 };
 use crate::eval::vars::{eval_spell_expr, get_spellword};
-use crate::fileio::{fclose, vim_fgets};
+use crate::fileio::vim_fgets;
 use crate::globals::*;
 use crate::input::{beep_flush, prep_redo, redo_append_char, redo_append_lit, vgetc};
 use crate::input_cmdatom::CmdSpec;
@@ -27,7 +27,7 @@ use crate::message::{emsg, internal_error, msg, msg_ext_set_kind, semsg, smsg};
 use crate::normal::end_visual_mode;
 use crate::option::{copy_option_part, option_next_keyval, option_slice_eq};
 use crate::option_vars::*;
-use crate::os::fs::{MAXPATHL, os_fopen};
+use crate::os::fs::{CFile, MAXPATHL};
 use crate::os::input::{line_breakcheck, os_breakcheck};
 use crate::profile::{Proftime, profile_passed_limit, profile_setlimit};
 use crate::spell::{
@@ -1005,12 +1005,11 @@ fn spell_suggest_file(su: &mut Suginfo, fname: impl crate::strings::IntoCCharPtr
     {
         let mut line: [u8; MAXWLEN * 2] = [0; MAXWLEN * 2];
         let mut cword: [u8; MAXWLEN] = [0; MAXWLEN];
-        let fd = os_fopen(fname, c"r");
-        if fd.is_null() {
+        let Some(fd) = CFile::open(fname, c"r") else {
             semsg!(gettext(E_NOTOPEN), fname);
             return;
-        }
-        while !vim_fgets(line.as_mut_ptr(), (MAXWLEN * 2) as i32, fd) && !g_st().got_int {
+        };
+        while !vim_fgets(line.as_mut_ptr(), (MAXWLEN * 2) as i32, fd.as_ptr()) && !g_st().got_int {
             line_breakcheck();
             let Some(slash_pos) = crate::memory::cstr_as_bytes((&raw const line).cast())
                 .iter()
@@ -1043,7 +1042,7 @@ fn spell_suggest_file(su: &mut Suginfo, fname: impl crate::strings::IntoCCharPtr
                 );
             }
         }
-        unsafe { fclose(fd) };
+        drop(fd);
         check_suggestions(su, false);
         cleanup_suggestions(&mut su.su_ga, su.su_maxscore, su.su_maxcount);
     }

@@ -21,7 +21,7 @@ use crate::ex_cmds::{append_redir, ex_file};
 use crate::ex_docmd::{ADDR_LINES, CMOD_LOCKMARKS, Exarg, do_cmdline_cmd, do_exedit, get_address};
 use crate::ex_getln::Hlf;
 use crate::extmark::{TriState, extmark_adjust};
-use crate::fileio::{FILE, buf_check_timestamp, vim_fgets, vim_tempname};
+use crate::fileio::{buf_check_timestamp, vim_fgets, vim_tempname};
 #[cfg(unix)]
 use crate::fileio::{shorten_fnames, vim_gettempdir};
 use crate::fold::{
@@ -48,7 +48,7 @@ use crate::optionstr::{
     OptIndex, OptKeyDict_dip, alloc_string_option, free_string_option, opt_keyset,
 };
 use crate::os::env::{os_env_exists, os_unsetenv};
-use crate::os::fs::{FileInfo, os_fileinfo, os_fileinfo_size, os_fopen, os_remove};
+use crate::os::fs::{CFile, FileInfo, os_fileinfo, os_fileinfo_size, os_remove};
 use crate::os::shell::call_shell;
 use crate::strings::{gettext, vim_snprintf, vim_strsave_shellescape};
 use crate::ui::vim_beep;
@@ -1010,7 +1010,7 @@ fn check_external_diff(diffio: &mut Diffio) -> bool {
     let diff_fname = diffio.dio_diff.dout_fname.as_ref().unwrap().as_ptr();
     loop {
         ok = K_FALSE;
-        let Some(fd1) = crate::os::fs::CFile::from_raw(os_fopen(orig_fname, c"w")) else {
+        let Some(fd1) = CFile::open(orig_fname, c"w") else {
             io_error = true;
             if crate::eval::typval::Callback::raw_cb_type(&opt_vars().p_dex)
                 != K_CALLBACK_NONE_CONST
@@ -1025,13 +1025,13 @@ fn check_external_diff(diffio: &mut Diffio) -> bool {
             io_error = true;
         }
         drop(fd1);
-        if let Some(fd2) = crate::os::fs::CFile::from_raw(os_fopen(new_fname, c"w")) {
+        if let Some(fd2) = CFile::open(new_fname, c"w") {
             if !fd2.write_all(b"line2\n") {
                 io_error = true;
             }
             drop(fd2);
             let fd3 = diff_file(diffio)
-                .then(|| crate::os::fs::CFile::from_raw(os_fopen(diff_fname, c"r")))
+                .then(|| CFile::open(diff_fname, c"r"))
                 .flatten();
             if let Some(fd3) = fd3 {
                 let mut linebuf: [u8; LBUFLEN] = [0; LBUFLEN];
@@ -1526,10 +1526,10 @@ fn extract_hunk_internal(dout: &mut Diffout, hunk: &mut Diffhunk, line_idx: &mut
     }
     eof
 }
-fn extract_hunk(fd: *mut FILE, hunk: &mut Diffhunk, diffstyle: &mut Diffstyle) -> bool {
+fn extract_hunk(fd: &CFile, hunk: &mut Diffhunk, diffstyle: &mut Diffstyle) -> bool {
     loop {
         let mut line: [u8; LBUFLEN] = [0; LBUFLEN];
-        if vim_fgets(line.as_mut_ptr(), LBUFLEN as i32, fd) {
+        if vim_fgets(line.as_mut_ptr(), LBUFLEN as i32, fd.as_ptr()) {
             return true;
         }
         if *diffstyle == Diffstyle::DiffNone {
@@ -1537,9 +1537,9 @@ fn extract_hunk(fd: *mut FILE, hunk: &mut Diffhunk, diffstyle: &mut Diffstyle) -
                 *diffstyle = Diffstyle::DiffEd;
             } else if line.starts_with(b"@@ ")
                 || (line.starts_with(b"--- ")
-                    && !vim_fgets(line.as_mut_ptr(), LBUFLEN as i32, fd)
+                    && !vim_fgets(line.as_mut_ptr(), LBUFLEN as i32, fd.as_ptr())
                     && line.starts_with(b"+++ ")
-                    && !vim_fgets(line.as_mut_ptr(), LBUFLEN as i32, fd)
+                    && !vim_fgets(line.as_mut_ptr(), LBUFLEN as i32, fd.as_ptr())
                     && line.starts_with(b"@@ "))
             {
                 *diffstyle = Diffstyle::DiffUnified;
@@ -1659,17 +1659,14 @@ fn process_hunk(
     *dp_idx_p = dp_idx;
 }
 fn diff_read(idx_orig: usize, idx_new: usize, dio: &mut Diffio) {
-    let mut fd: Option<crate::os::fs::CFile> = None;
+    let mut fd: Option<CFile> = None;
     let mut line_hunk_idx: i32 = 0;
     let mut dp_idx: usize = 0;
     let dout = &mut dio.dio_diff;
     let mut notset = true;
     let mut diffstyle = Diffstyle::DiffNone;
     if dio.dio_internal == 0 {
-        let Some(f) = crate::os::fs::CFile::from_raw(os_fopen(
-            dout.dout_fname.as_ref().unwrap().as_ptr(),
-            c"r",
-        )) else {
+        let Some(f) = CFile::open(dout.dout_fname.as_ref().unwrap().as_ptr(), c"r") else {
             emsg(gettext(c"E98: Cannot read diff output"));
             return;
         };
@@ -1685,7 +1682,7 @@ fn diff_read(idx_orig: usize, idx_new: usize, dio: &mut Diffio) {
         let eof = if dio.dio_internal != 0 {
             extract_hunk_internal(dout, &mut hunk, &mut line_hunk_idx)
         } else {
-            extract_hunk(fd.as_ref().unwrap().as_ptr(), &mut hunk, &mut diffstyle)
+            extract_hunk(fd.as_ref().unwrap(), &mut hunk, &mut diffstyle)
         };
         if eof {
             break;

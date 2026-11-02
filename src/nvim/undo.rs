@@ -31,10 +31,7 @@ use crate::extmark::{
 };
 #[cfg(unix)]
 use crate::fileio::getuid;
-use crate::fileio::{
-    EOF, O_RDONLY, Off, fdopen, feof, fflush, fgetc, fileno, fread, fwrite, get2c, get4c,
-    get8ctime, read_eintr,
-};
+use crate::fileio::{EOF, O_RDONLY, Off, get2c, get4c, get8ctime, read_eintr};
 use crate::fold::fold_open_cursor;
 use crate::globals::IOSIZE;
 use crate::globals::*;
@@ -55,8 +52,8 @@ use crate::normal::Visualinfo;
 use crate::option::{OptInt, copy_option_part, shortmess};
 use crate::option_vars::*;
 use crate::os::fs::{
-    FileInfo, MAXPATHL, O_CREAT, O_EXCL, O_NOFOLLOW, O_WRONLY, VimAcl, os_close, os_fileinfo_fd,
-    os_fileinfo_size, os_fopen, os_free_acl, os_fsync, os_get_acl, os_getperm, os_isdir,
+    CFile, FileInfo, MAXPATHL, O_CREAT, O_EXCL, O_NOFOLLOW, O_WRONLY, VimAcl, os_close,
+    os_fileinfo_fd, os_fileinfo_size, os_free_acl, os_fsync, os_get_acl, os_getperm, os_isdir,
     os_mkdir_recurse, os_open, os_path_exists, os_remove, os_set_acl, os_setperm,
 };
 use crate::os::input::fast_breakcheck;
@@ -1125,8 +1122,7 @@ pub fn u_write_undo(
                 }
             }
 
-            let Some(bi_fp) = crate::os::fs::CFile::from_raw(unsafe { fdopen(fd, c"w".as_ptr()) })
-            else {
+            let Some(bi_fp) = CFile::from_fd(fd, c"w") else {
                 semsg!(gettext(E_NOT_OPEN), file_name);
                 os_close(fd);
                 os_remove(file_name);
@@ -1191,7 +1187,7 @@ pub fn u_write_undo(
                 } else {
                     opt_vars().p_fs != 0
                 };
-                if do_fsync && unsafe { fflush(bi.bi_fp.as_ptr()) } == 0 && os_fsync(fd) != 0 {
+                if do_fsync && bi.bi_fp.flush() == 0 && os_fsync(fd) != 0 {
                     write_ok = false;
                 }
             }
@@ -1279,7 +1275,7 @@ pub fn u_read_undo(
             verbose_leave();
         }
 
-        let fp_opt = crate::os::fs::CFile::from_raw(os_fopen(file_name, c"r"));
+        let fp_opt = CFile::open(file_name, c"r");
         'theend: {
             'error: {
                 let Some(bi_fp) = fp_opt else {
@@ -1294,7 +1290,7 @@ pub fn u_read_undo(
                 let fp = bi_fp.as_ptr();
 
                 let mut file_info = FileInfo::new();
-                let fsize = if os_fileinfo_fd(unsafe { fileno(fp) }, &mut file_info) {
+                let fsize = if os_fileinfo_fd(bi_fp.fileno(), &mut file_info) {
                     os_fileinfo_size(&file_info) as Off
                 } else {
                     0
@@ -1502,7 +1498,8 @@ pub fn u_read_undo(
 }
 
 fn undo_write(bi: &mut Bufinfo, ptr: *mut u8, len: usize) -> bool {
-    unsafe { fwrite(ptr.cast(), len, 1, bi.bi_fp.as_ptr()) == 1 }
+    bi.bi_fp
+        .write_all(crate::memory::cstr_slice(ptr.cast(), len))
 }
 
 fn undo_write_bytes(bi: &mut Bufinfo, nr: u64, len: usize) -> bool {
@@ -1539,11 +1536,10 @@ fn undo_read_len(
     let file_name = file_name.into_c_char_ptr();
     {
         let len = undo_read_4c(bi);
-        let fp = bi.bi_fp.as_ptr();
         let pos = bi.bi_fp.tell();
         if len < 0 || (bi.bi_fsize > 0 && (pos < 0 || (len as Off) > bi.bi_fsize - pos)) {
             corruption_error(
-                if unsafe { feof(fp) } != 0 {
+                if bi.bi_fp.is_eof() {
                     c"truncated"
                 } else {
                     what
@@ -1561,7 +1557,7 @@ fn undo_read_2c(bi: &mut Bufinfo) -> i32 {
 }
 
 fn undo_read_byte(bi: &mut Bufinfo) -> i32 {
-    unsafe { fgetc(bi.bi_fp.as_ptr()) }
+    bi.bi_fp.getc()
 }
 
 fn undo_read_time(bi: &mut Bufinfo) -> time_t {
@@ -1569,13 +1565,12 @@ fn undo_read_time(bi: &mut Bufinfo) -> time_t {
 }
 
 fn undo_read(bi: &mut Bufinfo, buffer: *mut u8, size: usize) -> bool {
-    unsafe {
-        let retval = fread(buffer.cast(), size, 1, bi.bi_fp.as_ptr()) == 1;
-        if !retval {
-            ptr::write_bytes(buffer, 0, size);
-        }
-        retval
+    let slice = unsafe { std::slice::from_raw_parts_mut(buffer, size) };
+    let retval = bi.bi_fp.read_exact(slice);
+    if !retval {
+        slice.fill(0);
     }
+    retval
 }
 
 fn undo_read_string(bi: &mut Bufinfo, len: usize) -> Option<std::ffi::CString> {

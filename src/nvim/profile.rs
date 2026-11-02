@@ -8,11 +8,11 @@ use crate::eval::userfunc::{DeferCall, UserFunc, func_tbl_get, get_current_funcc
 use crate::eval::vars::{VV_PROFILING, set_vim_var_nr};
 use crate::event::r#loop::uv_err_name;
 use crate::ex_docmd::Exarg;
-use crate::fileio::{FILE, fclose, fopen, fprintf, vim_fgets};
+use crate::fileio::{fprintf, vim_fgets};
 use crate::globals::*;
 use crate::message::{emsg, semsg};
 use crate::os::env::{ExpandCtx, expand_env_save_opt};
-use crate::os::fs::os_fopen;
+use crate::os::fs::CFile;
 use crate::os::time::os_hrtime;
 use crate::runtime::{get_scriptname, script_id_valid, script_item, sourcing_lnum};
 use std::ffi::{CStr, CString};
@@ -218,8 +218,6 @@ impl Funccall {
         unsafe { self.fc_caller.as_mut() }
     }
 }
-
-use crate::fileio::setvbuf;
 
 /// Gets the current time (`profile_start`).
 pub fn profile_start() -> Proftime {
@@ -477,7 +475,7 @@ pub fn prof_def_func() -> bool {
 }
 
 fn prof_func_line(
-    fd: *mut FILE,
+    fd: &CFile,
     count: i32,
     total: &Proftime,
     self_time: &Proftime,
@@ -501,17 +499,15 @@ fn prof_func_line(
 }
 
 fn prof_sort_list(
-    fd: *mut FILE,
-    sorttab: *mut *mut UserFunc,
-    st_len: i32,
+    fd: &CFile,
+    sorttab: &[*mut UserFunc],
     title: &std::ffi::CStr,
     prefer_self: bool,
 ) {
     fprintf!(fd, c"FUNCTIONS SORTED ON %s TIME\n", title.as_ptr());
     fprintf!(fd, c"count  total (s)   self (s)  function\n");
-    let limit = st_len.min(20);
-    for i in 0..limit {
-        let fp = unsafe { &**sorttab.wrapping_add(i as usize) };
+    for &fp_ptr in sorttab.iter().take(20) {
+        let fp = unsafe { &*fp_ptr };
         prof_func_line(
             fd,
             fp.uf_tm_count,
@@ -636,7 +632,7 @@ pub fn func_line_end(fcp: &mut Funccall) {
     }
 }
 
-fn func_dump_profile(fd: *mut FILE) {
+fn func_dump_profile(fd: &CFile) {
     unsafe {
         let functbl = func_tbl_get();
         let todo = functbl.len();
@@ -702,11 +698,10 @@ fn func_dump_profile(fd: *mut FILE) {
         }
 
         if !sorttab.is_empty() {
-            let st_len = sorttab.len() as i32;
             sorttab.sort_unstable_by(prof_total_cmp);
-            prof_sort_list(fd, sorttab.as_mut_ptr(), st_len, c"TOTAL", false);
+            prof_sort_list(fd, &sorttab, c"TOTAL", false);
             sorttab.sort_unstable_by(prof_self_cmp);
-            prof_sort_list(fd, sorttab.as_mut_ptr(), st_len, c"SELF", true);
+            prof_sort_list(fd, &sorttab, c"SELF", true);
         }
     }
 }
@@ -761,7 +756,7 @@ pub fn script_prof_restore(tm: &Proftime) {
     }
 }
 
-fn script_dump_profile(fd: *mut FILE) {
+fn script_dump_profile(fd: &CFile) {
     let mut iobuf = [0u8; IOSIZE];
     for id in 1..=crate::runtime::script_items_len() {
         let si = script_item(id);
@@ -782,13 +777,10 @@ fn script_dump_profile(fd: *mut FILE) {
             fprintf!(fd, c"\n");
             fprintf!(fd, c"count  total (s)   self (s)\n");
 
-            let sfd = os_fopen(si_name, c"r");
-            if sfd.is_null() {
-                fprintf!(fd, c"Cannot open file!\n");
-            } else {
+            if let Some(sfd) = CFile::open(si_name, c"r") {
                 let mut i: i32 = 0;
                 loop {
-                    if vim_fgets(iobuf.as_mut_ptr(), IOSIZE as i32, sfd) {
+                    if vim_fgets(iobuf.as_mut_ptr(), IOSIZE as i32, sfd.as_ptr()) {
                         break;
                     }
                     if iobuf[IOSIZE - 2] != 0 && iobuf[IOSIZE - 2] != NL as u8 {
@@ -820,7 +812,8 @@ fn script_dump_profile(fd: *mut FILE) {
                     }
                     i += 1;
                 }
-                unsafe { fclose(sfd) };
+            } else {
+                fprintf!(fd, c"Cannot open file!\n");
             }
             fprintf!(fd, c"\n");
         }
@@ -833,13 +826,11 @@ pub fn profile_dump() {
         return;
     };
 
-    let fd = os_fopen(profile_fname.as_ptr(), c"w");
-    if fd.is_null() {
-        semsg!(E_NOTOPEN, profile_fname.as_ptr());
+    if let Some(fd) = CFile::open(profile_fname.as_ptr(), c"w") {
+        script_dump_profile(&fd);
+        func_dump_profile(&fd);
     } else {
-        script_dump_profile(fd);
-        func_dump_profile(fd);
-        unsafe { fclose(fd) };
+        semsg!(E_NOTOPEN, profile_fname.as_ptr());
     }
 }
 
@@ -919,7 +910,7 @@ fn time_diff(then: Proftime, now: Proftime) {
     let diff = profile_sub(now, then);
     let s = CString::new(format!("{:07.3}", (diff as f64) / 1.0e6)).unwrap();
     if let Some(ref tf) = g_st().time_fd {
-        fprintf!(tf.as_ptr(), c"%s", s.as_ptr());
+        fprintf!(tf, c"%s", s.as_ptr());
     }
 }
 
@@ -928,15 +919,14 @@ pub fn time_start(message: &std::ffi::CStr) {
     let Some(ref tf) = g_st().time_fd else {
         return;
     };
-    let fp = tf.as_ptr();
 
     let now = profile_start();
     prof_st().g_start_time = now;
     prof_st().g_prev_time = now;
 
-    fprintf!(fp, c"\ntimes in msec\n");
-    fprintf!(fp, c" clock   self+sourced   self:  sourced script\n",);
-    fprintf!(fp, c" clock   elapsed:              other lines\n\n",);
+    fprintf!(tf, c"\ntimes in msec\n");
+    fprintf!(tf, c" clock   self+sourced   self:  sourced script\n",);
+    fprintf!(tf, c" clock   elapsed:              other lines\n\n",);
 
     time_msg(message.as_ptr(), None);
 }
@@ -948,22 +938,21 @@ pub fn time_msg(mesg: impl crate::strings::IntoCCharPtr, start: Option<&Proftime
         let Some(ref tf) = g_st().time_fd else {
             return;
         };
-        let fp = tf.as_ptr();
 
         let now = profile_start();
         time_diff(prof_st().g_start_time, now);
 
         if let Some(start) = start {
-            fprintf!(fp, c"  ");
+            fprintf!(tf, c"  ");
             time_diff(*start, now);
         }
 
-        fprintf!(fp, c"  ");
+        fprintf!(tf, c"  ");
         let prev = prof_st().g_prev_time;
         prof_st().g_prev_time = now;
         time_diff(prev, now);
 
-        fprintf!(fp, c": %s\n", mesg);
+        fprintf!(tf, c": %s\n", mesg);
     }
 }
 
@@ -976,22 +965,14 @@ pub fn time_init(
     let proc_name = proc_name.into_c_char_ptr();
     {
         const BUFSIZE: usize = 8192;
-        g_st().time_fd = crate::os::fs::CFile::from_raw(unsafe { fopen(fname, c"a".as_ptr()) });
+        g_st().time_fd = CFile::open_libc(fname, c"a");
         let Some(ref tf) = g_st().time_fd else {
             let fname_str = crate::memory::cstr_from_ptr(fname).to_string_lossy();
             eprint!("E484: Can't open file {fname_str}");
             return;
         };
-        let fp = tf.as_ptr();
         prof_st().startuptime_buf = vec![0; BUFSIZE + 1];
-        let r = unsafe {
-            setvbuf(
-                fp,
-                prof_st().startuptime_buf.as_mut_ptr().cast(),
-                IOFBF,
-                BUFSIZE + 1,
-            )
-        };
+        let r = tf.setvbuf(&mut prof_st().startuptime_buf, IOFBF);
         if r != 0 {
             prof_st().startuptime_buf = Vec::new();
             g_st().time_fd = None;
@@ -999,7 +980,7 @@ pub fn time_init(
             eprint!("time_init: setvbuf failed: {r} {err_str}");
             return;
         }
-        fprintf!(fp, c"--- Startup times for process: %s ---\n", proc_name,);
+        fprintf!(tf, c"--- Startup times for process: %s ---\n", proc_name,);
     }
 }
 

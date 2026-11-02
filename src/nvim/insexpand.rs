@@ -49,7 +49,7 @@ use crate::ex_getln::{
     CTRL_RSB_CONST, CTRL_T_CONST, CTRL_U, CTRL_Z_CONST, K_EVENT, K_LUA, K_SELECT, tilde_replace,
 };
 use crate::extmark::{ExtmarkUndoObject, extmark_apply_undo, extmark_splice_delete};
-use crate::fileio::{fclose, vim_fgets};
+use crate::fileio::vim_fgets;
 use crate::fuzzy::{
     FUZZY_SCORE_NONE, fuzzy_match_str, fuzzy_match_str_in_line, search_for_fuzzy_match,
 };
@@ -89,7 +89,7 @@ use crate::option::{
 use crate::option_vars::*;
 use crate::optionstr::{OptIndex, Optset};
 use crate::os::env::ExpandCtx;
-use crate::os::fs::os_fopen;
+use crate::os::fs::CFile;
 use crate::os::input::{fast_breakcheck, line_breakcheck, os_breakcheck};
 use crate::os::time::os_hrtime;
 use crate::path::{
@@ -2258,7 +2258,7 @@ fn ins_compl_files(
         if g_st().got_int || ins_compl_interrupted() {
             break;
         }
-        let fp = os_fopen(file, c"r");
+        let fp = CFile::open(file, c"r");
         if flags != DICT_EXACT && !shortmess(K_SHM_COMPLETIONSCAN) && !insexp().compl_autocomplete {
             let iobuff_ptr = g_st().iobuff.as_mut_ptr();
             vim_snprintf!(
@@ -2279,11 +2279,14 @@ fn ins_compl_files(
             );
         }
 
-        if fp.is_null() {
+        let Some(fp) = fp else {
             continue;
-        }
+        };
 
-        while !g_st().got_int && !ins_compl_interrupted() && !vim_fgets(buf, LSIZE as i32, fp) {
+        while !g_st().got_int
+            && !ins_compl_interrupted()
+            && !vim_fgets(buf, LSIZE as i32, fp.as_ptr())
+        {
             let mut ptr = buf;
             if cot_fuzzy() && leader_len > 0 {
                 let line_end = find_line_end(ptr);
@@ -2372,7 +2375,6 @@ fn ins_compl_files(
             line_breakcheck();
             ins_compl_check_keys(50, false);
         }
-        unsafe { fclose(fp) };
     }
 }
 

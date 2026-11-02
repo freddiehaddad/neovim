@@ -32,7 +32,6 @@ use crate::event::stream::stream_set_blocking;
 use crate::event::stream::{ENABLE_VIRTUAL_TERMINAL_INPUT, UV_STREAM, UV_TTY};
 use crate::event::wstream::uv_buf_t;
 use crate::file_search::NULL_STRING;
-use crate::fileio::fopen;
 use crate::globals::{DFLT_COLS, DFLT_ROWS, *};
 use crate::grid::{Sattr, Schar, schar_cache_clear_if_full, schar_from_ascii, schar_get_ascii};
 use crate::highlight::{HLATTRS_INIT, HlAttrs};
@@ -2215,7 +2214,7 @@ pub fn tui_set_title(tui: &mut TUIData, title: NvimString) {
 pub fn tui_set_icon(_tui: &mut TUIData, _icon: NvimString) {}
 
 pub fn tui_screenshot(tui: &mut TUIData, path: NvimString) {
-    let Some(f) = crate::os::fs::CFile::from_raw(unsafe { fopen(path.data, c"w".as_ptr()) }) else {
+    let Some(f) = crate::os::fs::CFile::open_libc(path.data, c"w") else {
         return;
     };
 
