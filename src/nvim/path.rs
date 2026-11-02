@@ -1,7 +1,7 @@
 //! Path manipulation, comparison, canonicalization, and wildcard expansion (`src/nvim/path.c`).
 
 use crate::api::private::validate::NvimString;
-use crate::charset::{NUL, backslash_halve, backslash_halve_save, rem_backslash, skipwhite};
+use crate::charset::{NUL, backslash_halve, backslash_halve_save, rem_backslash};
 use crate::cmdexpand::{WILD_ADD_SLASH, WILD_ICASE, globpath};
 use crate::diff::K_SHELL_OPT_SILENT;
 use crate::eval::eval_to_string;
@@ -250,17 +250,15 @@ pub fn path_tail(fname: impl crate::strings::IntoCCharPtr) -> RawCCharPtrMut {
         return c"".as_ptr().cast_mut();
     }
 
-    {
-        let mut tail: RawCCharPtr = get_past_head(fname);
-        let mut p = tail;
-        while !crate::memory::cstr_is_empty(p) {
-            if vim_ispathsep_nocolon(crate::memory::cstr_first_char(p)) {
-                tail = p.wrapping_add(1);
-            }
-            p = p.wrapping_add(1);
+    let past_head = get_past_head(fname);
+    let rem = crate::memory::cstr_as_bytes(past_head);
+    let mut tail_off = 0usize;
+    for (i, &b) in rem.iter().enumerate() {
+        if vim_ispathsep_nocolon(b as i32) {
+            tail_off = i + 1;
         }
-        tail.cast_mut()
     }
+    past_head.wrapping_add(tail_off)
 }
 
 pub fn path_tail_with_sep(fname: impl crate::strings::IntoCCharPtr) -> RawCCharPtrMut {
@@ -280,63 +278,61 @@ pub fn invocation_path_tail(
     len: Option<&mut usize>,
 ) -> RawCCharPtr {
     let invocation = invocation.into_c_char_ptr();
-    {
-        let mut tail: RawCCharPtr = get_past_head(invocation);
-        let mut tail_end = tail;
-        let mut p = tail;
-        let mut inquote = false;
-        while !crate::memory::cstr_is_empty(p)
-            && (inquote || crate::memory::cstr_first_byte(p) != b' ')
-        {
-            let l = utfc_ptr2len(p) as usize;
-            if vim_ispathsep_nocolon(crate::memory::cstr_first_char(p)) {
-                tail = p.wrapping_add(1);
-                tail_end = tail;
-            } else if crate::memory::cstr_first_byte(p) == b'\\' && inquote {
-                p = p.wrapping_add(1);
-            } else if crate::memory::cstr_first_byte(p) == b'"' {
-                inquote = !inquote;
-            } else {
-                tail_end = p.wrapping_add(l);
-            }
-            p = p.wrapping_add(l);
+    let base: RawCCharPtr = get_past_head(invocation);
+    let bytes = crate::memory::cstr_as_bytes(base);
+    let mut tail_idx = 0usize;
+    let mut tail_end_idx = 0usize;
+    let mut idx = 0usize;
+    let mut inquote = false;
+    while idx < bytes.len() && (inquote || bytes[idx] != b' ') {
+        let l = utfc_ptr2len(base.wrapping_add(idx)) as usize;
+        if vim_ispathsep_nocolon(bytes[idx] as i32) {
+            tail_idx = idx + 1;
+            tail_end_idx = tail_idx;
+        } else if bytes[idx] == b'\\' && inquote {
+            idx += 1;
+        } else if bytes[idx] == b'"' {
+            inquote = !inquote;
+        } else {
+            tail_end_idx = idx + l;
         }
-
-        if let Some(len) = len {
-            *len = crate::memory::ptr_offset_from(tail_end, tail) as usize;
-        }
-
-        tail
+        idx += l;
     }
+
+    if let Some(len) = len {
+        *len = tail_end_idx.saturating_sub(tail_idx);
+    }
+
+    base.wrapping_add(tail_idx)
 }
 
 pub fn path_next_component(fname: impl crate::strings::IntoCCharPtr) -> RawCCharPtr {
-    let mut fname = fname.into_c_char_ptr();
-    {
-        while !crate::memory::cstr_is_empty(fname)
-            && !vim_ispathsep(crate::memory::cstr_first_char(fname))
-        {
-            fname = fname.wrapping_add(1);
-        }
-        if !crate::memory::cstr_is_empty(fname) {
-            fname = fname.wrapping_add(1);
-        }
-        fname
+    let fname = fname.into_c_char_ptr();
+    let bytes = crate::memory::cstr_as_bytes(fname);
+    let mut i = bytes
+        .iter()
+        .take_while(|&&b| !vim_ispathsep(b as i32))
+        .count();
+    if i < bytes.len() {
+        i += 1;
     }
+    fname.wrapping_add(i)
 }
 
 pub fn path_skip_sep(path: impl crate::strings::IntoCCharPtr, colon: bool) -> RawCCharPtrMut {
-    let mut path = path.into_c_char_ptr();
-    {
-        while if colon {
-            vim_ispathsep(crate::memory::cstr_first_char(path))
-        } else {
-            vim_ispathsep_nocolon(crate::memory::cstr_first_char(path))
-        } {
-            path = path.wrapping_add(1);
-        }
-        path.cast_mut()
-    }
+    let path = path.into_c_char_ptr();
+    let bytes = crate::memory::cstr_as_bytes(path);
+    let skip = bytes
+        .iter()
+        .take_while(|&&b| {
+            if colon {
+                vim_ispathsep(b as i32)
+            } else {
+                vim_ispathsep_nocolon(b as i32)
+            }
+        })
+        .count();
+    path.wrapping_add(skip).cast_mut()
 }
 
 pub fn path_head_length() -> i32 {
@@ -352,14 +348,14 @@ pub fn path_head_length() -> i32 {
 
 pub fn is_path_head(path: impl crate::strings::IntoCCharPtr) -> bool {
     let path = path.into_c_char_ptr();
+    let bytes = crate::memory::cstr_as_bytes(path);
     #[cfg(windows)]
     {
-        (crate::memory::cstr_first_byte(path)).is_ascii_alphabetic()
-            && crate::memory::cstr_byte_at(path, 1) == b':'
+        bytes.first().is_some_and(u8::is_ascii_alphabetic) && bytes.get(1) == Some(&b':')
     }
     #[cfg(not(windows))]
     {
-        vim_ispathsep(crate::memory::cstr_first_char(path))
+        bytes.first().is_some_and(|&b| vim_ispathsep(b as i32))
     }
 }
 
@@ -602,31 +598,26 @@ pub fn save_abs_path(name: impl crate::strings::IntoCCharPtr) -> Option<std::ffi
 }
 
 pub fn path_has_wildcard(p: impl crate::strings::IntoCCharPtr, all: bool) -> bool {
-    let mut p = p.into_c_char_ptr();
-    {
-        let wildcards = if all {
-            PATH_ALL_WILDCARDS
-        } else {
-            PATH_ESC_WILDCARDS
-        };
-        while !crate::memory::cstr_is_empty(p) {
-            #[cfg(unix)]
-            if crate::memory::cstr_first_byte(p) == b'\\' && crate::memory::cstr_byte_at(p, 1) != 0
-            {
-                p = p.wrapping_add(2);
-                continue;
-            }
-            if crate::strings::vim_haschr(wildcards, crate::memory::cstr_first_byte(p) as i32)
-                || (all
-                    && crate::memory::cstr_first_byte(p) == b'~'
-                    && crate::memory::cstr_byte_at(p, 1) != 0)
-            {
-                return true;
-            }
-            p = p.wrapping_add(1);
+    let p = p.into_c_char_ptr();
+    let bytes = crate::memory::cstr_as_bytes(p);
+    let wildcards = if all {
+        PATH_ALL_WILDCARDS.to_bytes()
+    } else {
+        PATH_ESC_WILDCARDS.to_bytes()
+    };
+    let mut i = 0usize;
+    while i < bytes.len() {
+        #[cfg(unix)]
+        if bytes[i] == b'\\' && i + 1 < bytes.len() {
+            i += 2;
+            continue;
         }
-        false
+        if wildcards.contains(&bytes[i]) || (all && bytes[i] == b'~' && i + 1 < bytes.len()) {
+            return true;
+        }
+        i += 1;
     }
+    false
 }
 
 fn scandir_next_with_dots(dir: Option<&mut Directory>) -> Option<&std::ffi::CStr> {
@@ -1188,28 +1179,25 @@ fn uniquefy_paths(
 
 pub fn gettail_dir(fname: impl crate::strings::IntoCCharPtr) -> RawCCharPtr {
     let fname = fname.into_c_char_ptr();
-    {
-        let mut dir_end = fname;
-        let mut next_dir_end = fname;
-        let mut look_for_sep = true;
+    let bytes = crate::memory::cstr_as_bytes(fname);
+    let mut dir_end = 0usize;
+    let mut next_dir_end = 0usize;
+    let mut look_for_sep = true;
 
-        let mut p = fname;
-        while !crate::memory::cstr_is_empty(p) {
-            if vim_ispathsep(crate::memory::cstr_first_char(p)) {
-                if look_for_sep {
-                    next_dir_end = p;
-                    look_for_sep = false;
-                }
-            } else {
-                if !look_for_sep {
-                    dir_end = next_dir_end;
-                }
-                look_for_sep = true;
+    for (i, &b) in bytes.iter().enumerate() {
+        if vim_ispathsep(b as i32) {
+            if look_for_sep {
+                next_dir_end = i;
+                look_for_sep = false;
             }
-            p = p.wrapping_add(1);
+        } else {
+            if !look_for_sep {
+                dir_end = next_dir_end;
+            }
+            look_for_sep = true;
         }
-        dir_end
     }
+    fname.wrapping_add(dir_end)
 }
 
 fn expand_in_path(
@@ -1268,71 +1256,55 @@ fn expand_in_path(
 }
 
 fn has_env_var(p: impl crate::strings::IntoCCharPtr) -> bool {
-    let mut p = p.into_c_char_ptr();
-    {
-        while !crate::memory::cstr_is_empty(p) {
-            if crate::memory::cstr_first_byte(p) == b'\\' && crate::memory::cstr_byte_at(p, 1) != 0
-            {
-                p = p.wrapping_add(2);
-                continue;
-            }
-            if crate::strings::vim_haschr(c"$", crate::memory::cstr_first_byte(p) as i32) {
-                return true;
-            }
-            p = p.wrapping_add(1);
+    let p = p.into_c_char_ptr();
+    let bytes = crate::memory::cstr_as_bytes(p);
+    let mut i = 0usize;
+    while i < bytes.len() {
+        if bytes[i] == b'\\' && i + 1 < bytes.len() {
+            i += 2;
+            continue;
         }
-        false
+        if bytes[i] == b'$' {
+            return true;
+        }
+        i += 1;
     }
+    false
 }
 
 #[cfg(unix)]
 fn has_special_wildchar(p: impl crate::strings::IntoCCharPtr, flags: i32) -> bool {
-    let mut p = p.into_c_char_ptr();
-    unsafe {
-        while !crate::memory::cstr_is_empty(p) {
-            if crate::memory::cstr_first_byte(p) == b'\r'
-                || crate::memory::cstr_first_byte(p) == b'\n'
-            {
-                break;
-            }
-            if crate::memory::cstr_first_byte(p) == b'\\'
-                && crate::memory::cstr_byte_at(p, 1) != 0
-                && crate::memory::cstr_byte_at(p, 1) != b'\r'
-                && crate::memory::cstr_byte_at(p, 1) != b'\n'
-            {
-                p = p.add(2);
+    let p = p.into_c_char_ptr();
+    let bytes = crate::memory::cstr_as_bytes(p);
+    let special = SPECIAL_WILDCHAR.to_bytes();
+    let mut i = 0usize;
+    while i < bytes.len() {
+        let b = bytes[i];
+        if matches!(b, b'\r' | b'\n') {
+            break;
+        }
+        if b == b'\\' && i + 1 < bytes.len() && !matches!(bytes[i + 1], b'\r' | b'\n') {
+            i += 2;
+            continue;
+        }
+        if special.contains(&b) {
+            if b == b'{' && (flags & EW_NOTFOUND) == 0 {
+                i += 1;
                 continue;
             }
-            if crate::strings::vim_haschr(
-                SPECIAL_WILDCHAR,
-                crate::memory::cstr_first_byte(p) as i32,
-            ) {
-                if crate::memory::cstr_first_byte(p) == b'{' && (flags & EW_NOTFOUND) == 0 {
-                    p = p.add(1);
-                    continue;
-                }
-                if crate::memory::cstr_first_byte(p) == b'{'
-                    && !crate::strings::vim_haschr(p, b'}' as i32)
-                {
-                    p = p.add(1);
-                    continue;
-                }
-                if (crate::memory::cstr_first_byte(p) == b'`'
-                    || crate::memory::cstr_first_byte(p) == b'\'')
-                    && !crate::strings::vim_haschr(
-                        p.add(1),
-                        crate::memory::cstr_first_byte(p) as i32,
-                    )
-                {
-                    p = p.add(1);
-                    continue;
-                }
-                return true;
+            if b == b'{' && !bytes[i..].contains(&b'}') {
+                i += 1;
+                continue;
             }
-            p = p.add(1);
+            if matches!(b, b'`' | b'\'') && !bytes[i + 1..].contains(&b) {
+                i += 1;
+                continue;
+            }
+            return true;
         }
-        false
+        i += 1;
     }
+    false
 }
 
 pub fn gen_expand_wildcards_vec(
@@ -1489,13 +1461,8 @@ pub fn expand_wildcards_vec(
 
 fn vim_backtick(p: impl crate::strings::IntoCCharPtr) -> bool {
     let p = p.into_c_char_ptr();
-    {
-        if crate::memory::cstr_first_byte(p) != b'`' || crate::memory::cstr_byte_at(p, 1) == 0 {
-            return false;
-        }
-        let len = crate::memory::cstr_len(p);
-        crate::memory::cstr_byte_at(p, len - 1) == b'`'
-    }
+    let bytes = crate::memory::cstr_as_bytes(p);
+    bytes.len() >= 2 && bytes.first() == Some(&b'`') && bytes.last() == Some(&b'`')
 }
 
 fn expand_backtick(
@@ -1506,9 +1473,8 @@ fn expand_backtick(
     let pat = pat.into_c_char_ptr();
     {
         let mut cnt: i32 = 0;
-        let pat_len = crate::memory::cstr_len(pat);
-        let mut cmd_vec: Vec<u8> =
-            crate::memory::cstr_slice(pat.wrapping_add(1), pat_len - 2).to_vec();
+        let pat_bytes = crate::memory::cstr_as_bytes(pat);
+        let mut cmd_vec: Vec<u8> = pat_bytes[1..pat_bytes.len() - 1].to_vec();
         cmd_vec.push(0);
 
         let cmd_out: Option<std::ffi::CString> = if cmd_vec[0] == b'=' {
@@ -1529,37 +1495,28 @@ fn expand_backtick(
             return -1;
         };
         let mut cmd_buf = cmd_cstr.into_bytes_with_nul();
-
-        let mut cmd: RawCCharPtrMut = cmd_buf.as_mut_ptr().cast();
-        while !crate::memory::cstr_is_empty(cmd) {
-            cmd = skipwhite(cmd);
-            let mut p = cmd;
-            while !crate::memory::cstr_is_empty(p)
-                && crate::memory::cstr_first_byte(p) != b'\r'
-                && crate::memory::cstr_first_byte(p) != b'\n'
-            {
-                p = p.wrapping_add(1);
+        let cmd_len = cmd_buf.len() - 1;
+        let mut idx = 0usize;
+        while idx < cmd_len {
+            while idx < cmd_len && matches!(cmd_buf[idx], b' ' | b'\t') {
+                idx += 1;
             }
-            if p > cmd {
-                let saved = unsafe { *p };
-                unsafe {
-                    *p = NUL;
-                }
-                addfile(gap, cmd, flags);
-                unsafe {
-                    *p = saved;
-                }
+            let mut end = idx;
+            while end < cmd_len && !matches!(cmd_buf[end], b'\r' | b'\n') {
+                end += 1;
+            }
+            if end > idx {
+                let saved = cmd_buf[end];
+                cmd_buf[end] = NUL as u8;
+                addfile(gap, unsafe { cmd_buf.as_mut_ptr().add(idx).cast() }, flags);
+                cmd_buf[end] = saved;
                 cnt += 1;
             }
-            cmd = p;
-            while !crate::memory::cstr_is_empty(cmd)
-                && (crate::memory::cstr_first_byte(cmd) == b'\r'
-                    || crate::memory::cstr_first_byte(cmd) == b'\n')
-            {
-                cmd = cmd.wrapping_add(1);
+            idx = end;
+            while idx < cmd_len && matches!(cmd_buf[idx], b'\r' | b'\n') {
+                idx += 1;
             }
         }
-
         cnt
     }
 }
@@ -1838,21 +1795,20 @@ pub fn simplify_filename(filename: *mut u8) -> usize {
 
 pub fn path_has_drive_letter(p: impl crate::strings::IntoCCharPtr, path_len: usize) -> bool {
     let p = p.into_c_char_ptr();
-    {
-        path_len >= 2
-            && (crate::memory::cstr_first_byte(p)).is_ascii_alphabetic()
-            && (crate::memory::cstr_byte_at(p, 1) == b':'
-                || crate::memory::cstr_byte_at(p, 1) == b'|')
-            && (path_len == 2 || {
-                let c2 = crate::memory::cstr_byte_at(p, 2);
-                c2 == b'/' || c2 == b'\\' || c2 == b'?' || c2 == b'#'
-            })
-    }
+    let bytes = crate::memory::cstr_as_bytes(p);
+    path_len >= 2
+        && bytes.first().is_some_and(u8::is_ascii_alphabetic)
+        && matches!(bytes.get(1), Some(b':' | b'|'))
+        && (path_len == 2
+            || matches!(
+                bytes.get(2).copied().unwrap_or(0),
+                b'/' | b'\\' | b'?' | b'#'
+            ))
 }
 
 pub fn path_is_url(p: impl crate::strings::IntoCCharPtr) -> bool {
     let p = p.into_c_char_ptr();
-    crate::memory::cstr_first_byte(p) == b':' && crate::memory::cstr_byte_at(p, 1) == b'/'
+    crate::memory::cstr_as_bytes(p).starts_with(b":/")
 }
 
 pub fn path_with_url(fname: impl crate::strings::IntoCCharPtr) -> bool {
@@ -2089,19 +2045,25 @@ pub fn path_cmp<S1: crate::strings::IntoCCharPtr, S2: crate::strings::IntoCCharP
 
         #[cfg(windows)]
         {
-            if vim_ispathsep_nocolon(crate::memory::cstr_first_char(p))
-                && (crate::memory::cstr_first_byte(q)).is_ascii_alphabetic()
-                && crate::memory::cstr_byte_at(q, 1) == b':'
+            let p_bytes = crate::memory::cstr_as_bytes(p);
+            let q_bytes = crate::memory::cstr_as_bytes(q);
+            if p_bytes
+                .first()
+                .is_some_and(|&b| vim_ispathsep_nocolon(b as i32))
+                && q_bytes.first().is_some_and(u8::is_ascii_alphabetic)
+                && q_bytes.get(1) == Some(&b':')
             {
-                if (crate::memory::cstr_first_byte(q)).to_ascii_lowercase() as i32
+                if q_bytes[0].to_ascii_lowercase() as i32
                     == unsafe { _getdrive() } + (b'a' as i32) - 1
                 {
                     q = q.wrapping_add(2);
                 }
-            } else if vim_ispathsep_nocolon(crate::memory::cstr_first_char(q))
-                && (crate::memory::cstr_first_byte(p)).is_ascii_alphabetic()
-                && crate::memory::cstr_byte_at(p, 1) == b':'
-                && (crate::memory::cstr_first_byte(p)).to_ascii_lowercase() as i32
+            } else if q_bytes
+                .first()
+                .is_some_and(|&b| vim_ispathsep_nocolon(b as i32))
+                && p_bytes.first().is_some_and(u8::is_ascii_alphabetic)
+                && p_bytes.get(1) == Some(&b':')
+                && p_bytes[0].to_ascii_lowercase() as i32
                     == unsafe { _getdrive() } + (b'a' as i32) - 1
             {
                 p = p.wrapping_add(2);
@@ -2136,8 +2098,9 @@ pub fn path_cmp<S1: crate::strings::IntoCCharPtr, S2: crate::strings::IntoCCharP
         }
 
         let s = if c1 == NUL as i32 { q } else { p };
-        if vim_ispathsep_nocolon(crate::memory::cstr_first_char(s))
-            && crate::memory::cstr_byte_at(s, 1) == 0
+        let s_bytes = crate::memory::cstr_as_bytes(s);
+        if s_bytes.len() == 1
+            && vim_ispathsep_nocolon(s_bytes[0] as i32)
             && len > 0
             && !vim_ispathsep(unsafe { *s.wrapping_sub(1) } as i32)
         {
@@ -2364,6 +2327,7 @@ fn path_to_absolute(
     force: i32,
 ) -> bool {
     let fname = fname.into_c_char_ptr();
+    let fname_bytes = crate::memory::cstr_as_bytes(fname);
     {
         unsafe {
             *buf = 0;
@@ -2375,56 +2339,53 @@ fn path_to_absolute(
         #[cfg(windows)]
         let need_expand = force != 0
             || !path_is_absolute(fname)
-            || crate::memory::cstr_first_byte(fname) == b'/'
-            || crate::memory::cstr_first_byte(fname) == b'\\';
+            || matches!(fname_bytes.first(), Some(b'/' | b'\\'));
         #[cfg(not(windows))]
         let need_expand = force != 0 || !path_is_absolute(fname);
 
         if need_expand {
-            let fname_bytes = crate::memory::cstr_as_bytes(fname);
-            let mut p: RawCCharPtr = fname_bytes
-                .iter()
-                .rposition(|&b| b == b'/')
-                .map_or(ptr::null(), |pos| fname.wrapping_add(pos));
+            let mut p_idx: Option<usize> = fname_bytes.iter().rposition(|&b| b == b'/');
 
             #[cfg(windows)]
             {
-                if p.is_null() {
-                    p = fname_bytes
-                        .iter()
-                        .rposition(|&b| b == b'\\')
-                        .map_or(ptr::null(), |pos| fname.wrapping_add(pos));
+                if p_idx.is_none() {
+                    p_idx = fname_bytes.iter().rposition(|&b| b == b'\\');
                 }
-                if p.is_null()
-                    && (crate::memory::cstr_first_byte(fname)).is_ascii_alphabetic()
-                    && crate::memory::cstr_byte_at(fname, 1) == b':'
+                if p_idx.is_none()
+                    && fname_bytes.first().is_some_and(u8::is_ascii_alphabetic)
+                    && fname_bytes.get(1) == Some(&b':')
                 {
-                    p = fname.wrapping_add(1);
+                    p_idx = Some(1);
                 }
             }
 
-            if p.is_null() && fname_bytes == b".." {
-                p = fname.wrapping_add(2);
+            if p_idx.is_none() && fname_bytes == b".." {
+                p_idx = Some(2);
             }
-            if !p.is_null() {
-                if vim_ispathsep(crate::memory::cstr_first_char(p))
-                    && crate::memory::cstr_as_bytes(p.wrapping_add(1)) == b".."
+            if let Some(mut idx) = p_idx {
+                if fname_bytes
+                    .get(idx)
+                    .is_some_and(|&b| vim_ispathsep(b as i32))
+                    && &fname_bytes[idx + 1..] == b".."
                 {
-                    p = p.wrapping_add(3);
+                    idx += 3;
                 }
-                debug_assert!(p >= fname);
-                let copy_len = crate::memory::ptr_offset_from(p, fname) as usize + 1;
+                let copy_len = (idx + 1).min(fname_bytes.len());
                 unsafe {
                     ptr::copy_nonoverlapping(fname.cast::<u8>(), relative_directory, copy_len)
                 };
                 unsafe {
                     *relative_directory.wrapping_add(copy_len) = 0;
                 }
-                end_of_path = if vim_ispathsep(crate::memory::cstr_first_char(p)) {
-                    p.wrapping_add(1)
+                let eop_idx = if fname_bytes
+                    .get(idx)
+                    .is_some_and(|&b| vim_ispathsep(b as i32))
+                {
+                    idx + 1
                 } else {
-                    p
+                    idx
                 };
+                end_of_path = fname.wrapping_add(eop_idx.min(fname_bytes.len()));
             } else {
                 unsafe {
                     *relative_directory = 0;
@@ -2442,20 +2403,21 @@ fn path_to_absolute(
 
 pub fn path_is_absolute(fname: impl crate::strings::IntoCCharPtr) -> bool {
     let fname = fname.into_c_char_ptr();
+    let bytes = crate::memory::cstr_as_bytes(fname);
     #[cfg(windows)]
     {
-        if crate::memory::cstr_is_empty(fname) {
-            return false;
-        }
-        ((crate::memory::cstr_first_byte(fname)).is_ascii_alphabetic()
-            && crate::memory::cstr_byte_at(fname, 1) == b':'
-            && vim_ispathsep_nocolon(crate::memory::cstr_char_at(fname, 2)))
-            || vim_ispathsep_nocolon(crate::memory::cstr_first_char(fname))
+        (bytes.first().is_some_and(u8::is_ascii_alphabetic)
+            && bytes.get(1) == Some(&b':')
+            && bytes
+                .get(2)
+                .is_some_and(|&b| vim_ispathsep_nocolon(b as i32)))
+            || bytes
+                .first()
+                .is_some_and(|&b| vim_ispathsep_nocolon(b as i32))
     }
     #[cfg(not(windows))]
     {
-        crate::memory::cstr_first_byte(fname) == b'/'
-            || crate::memory::cstr_first_byte(fname) == b'~'
+        matches!(bytes.first(), Some(b'/' | b'~'))
     }
 }
 
