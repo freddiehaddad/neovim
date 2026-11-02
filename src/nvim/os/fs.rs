@@ -831,6 +831,16 @@ impl CFile {
     pub fn tell(&self) -> crate::fileio::Off {
         unsafe { crate::fileio::vim_ftell(self.0.as_ptr()) }
     }
+
+    #[inline]
+    pub fn write_all(&self, bytes: &[u8]) -> bool {
+        if bytes.is_empty() {
+            return true;
+        }
+        unsafe {
+            crate::fileio::fwrite(bytes.as_ptr().cast(), bytes.len(), 1, self.0.as_ptr()) == 1
+        }
+    }
 }
 
 impl Drop for CFile {

@@ -713,6 +713,16 @@ pub struct TabPageInfo {
 }
 
 impl TabPageInfo {
+    #[inline]
+    pub fn diffbuf_mut(&self, idx: usize) -> &'static mut FileBuf {
+        unsafe { &mut *self.tp_diffbuf[idx] }
+    }
+
+    #[inline]
+    pub fn diffbuf_opt(&self, idx: usize) -> Option<&'static mut FileBuf> {
+        unsafe { self.tp_diffbuf[idx].as_mut() }
+    }
+
     pub const fn new() -> Self {
         Self {
             handle: 0,
