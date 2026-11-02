@@ -529,133 +529,132 @@ fn set_lineinfo(state: &mut VTermStateFull, row: i32, force: i32, dwl: i32, dhl:
 }
 
 fn on_text(bytes: &[u8], state: *mut VTermStateFull) -> i32 {
-    unsafe {
-        let state = &mut *state;
-        let oldpos = state.pos;
+    let state = VTermStateFull::from_cb_ptr(state);
+    let oldpos = state.pos;
 
-        let mut codepoints = [0u32; 1024];
-        let maxpoints = codepoints.len();
+    let mut codepoints = [0u32; 1024];
+    let maxpoints = codepoints.len();
 
-        let mut npoints: i32 = 0;
-        let mut eaten: usize = 0;
+    let mut npoints: i32 = 0;
+    let mut eaten: usize = 0;
 
-        let mut encoding = if state.gsingle_set != 0 {
-            &raw mut state.encoding[state.gsingle_set as usize]
-        } else if (bytes.get(eaten).copied().unwrap_or(0) & 0x80) == 0 {
-            &raw mut state.encoding[state.gl_set as usize]
-        } else if ((state.vt_mut()).mode & VT_MODE_UTF8) != 0 {
-            &raw mut state.encoding_utf8
-        } else {
-            &raw mut state.encoding[state.gr_set as usize]
-        };
+    let cp_limit = if state.gsingle_set != 0 { 1 } else { maxpoints };
+    let utf8_enc = state.encoding_utf8.enc;
+    let is_utf8_mode = (state.vt_mut().mode & VT_MODE_UTF8) != 0;
+    let enc_idx = if state.gsingle_set != 0 {
+        Some(state.gsingle_set as usize)
+    } else if (bytes.get(eaten).copied().unwrap_or(0) & 0x80) == 0 {
+        Some(state.gl_set as usize)
+    } else if is_utf8_mode {
+        None
+    } else {
+        Some(state.gr_set as usize)
+    };
+    let encoding = match enc_idx {
+        Some(idx) if state.encoding[idx].enc != utf8_enc => &mut state.encoding[idx],
+        _ => &mut state.encoding_utf8,
+    };
+    encoding.decode(&mut codepoints[..cp_limit], &mut npoints, bytes, &mut eaten);
 
-        if (*encoding).enc == state.encoding_utf8.enc {
-            encoding = &raw mut state.encoding_utf8;
-        }
-
-        let cp_limit = if state.gsingle_set != 0 { 1 } else { maxpoints };
-        (*encoding).decode(&mut codepoints[..cp_limit], &mut npoints, bytes, &mut eaten);
-
-        if npoints == 0 {
-            return eaten as i32;
-        }
-
-        if state.gsingle_set != 0 && npoints != 0 {
-            state.gsingle_set = 0;
-        }
-
-        let mut i: usize = 0;
-        let mut grapheme_state: i32 = GRAPHEME_STATE_INIT;
-        let mut grapheme_len: usize = 0;
-        let mut recombine = false;
-
-        if state.pos.row == state.combine_pos.row
-            && state.pos.col >= state.combine_pos.col
-            && state.pos.col <= state.combine_pos.col + state.combine_width
-            && utf_iscomposing(
-                state.grapheme_last as i32,
-                codepoints[i] as i32,
-                &mut state.grapheme_state,
-            )
-        {
-            grapheme_len = state.grapheme_len;
-            grapheme_state = state.grapheme_state;
-            state.pos.col = state.combine_pos.col;
-            state.at_phantom = 0;
-            recombine = true;
-        }
-
-        while i < npoints as usize {
-            loop {
-                if grapheme_len < state.grapheme_buf.len() - 4 {
-                    grapheme_len += utf_char2slice(
-                        codepoints[i] as i32,
-                        &mut state.grapheme_buf[grapheme_len..],
-                    );
-                }
-                i += 1;
-                if i >= npoints as usize
-                    || !utf_iscomposing(
-                        codepoints[i - 1] as i32,
-                        codepoints[i] as i32,
-                        &mut grapheme_state,
-                    )
-                {
-                    break;
-                }
-            }
-
-            let width = utf_cluster_cells(&state.grapheme_buf[..grapheme_len]);
-
-            if state.at_phantom != 0 || state.pos.col + width > thisrowwidth(state) {
-                linefeed(state);
-                state.pos.col = 0;
-                state.at_phantom = 0;
-                let row = state.pos.row as usize;
-                state.lineinfo_mut()[row].set_continuation(true);
-            }
-
-            if (state.mode & MODE_INSERT) != 0 && !recombine {
-                let rect = VTermRect {
-                    start_row: state.pos.row,
-                    end_row: state.pos.row + 1,
-                    start_col: state.pos.col,
-                    end_col: thisrowwidth(state),
-                };
-                scroll(state, rect, 0, -1);
-            }
-
-            let sc = schar_from_bytes(&state.grapheme_buf[..grapheme_len]);
-            putglyph(state, sc, width, state.pos);
-
-            if i == npoints as usize {
-                state.grapheme_len = grapheme_len;
-                state.grapheme_last = codepoints[i - 1];
-                state.grapheme_state = grapheme_state;
-                state.combine_width = width;
-                state.combine_pos = state.pos;
-            } else {
-                grapheme_len = 0;
-                recombine = false;
-            }
-
-            if state.pos.col + width >= thisrowwidth(state) {
-                if (state.mode & MODE_AUTOWRAP) != 0 {
-                    state.at_phantom = 1;
-                }
-            } else {
-                state.pos.col += width;
-            }
-        }
-
-        updatecursor(state, &oldpos, 0);
-
-        eaten as i32
+    if npoints == 0 {
+        return eaten as i32;
     }
+
+    if state.gsingle_set != 0 && npoints != 0 {
+        state.gsingle_set = 0;
+    }
+
+    let mut i: usize = 0;
+    let mut grapheme_state: i32 = GRAPHEME_STATE_INIT;
+    let mut grapheme_len: usize = 0;
+    let mut recombine = false;
+
+    if state.pos.row == state.combine_pos.row
+        && state.pos.col >= state.combine_pos.col
+        && state.pos.col <= state.combine_pos.col + state.combine_width
+        && utf_iscomposing(
+            state.grapheme_last as i32,
+            codepoints[i] as i32,
+            &mut state.grapheme_state,
+        )
+    {
+        grapheme_len = state.grapheme_len;
+        grapheme_state = state.grapheme_state;
+        state.pos.col = state.combine_pos.col;
+        state.at_phantom = 0;
+        recombine = true;
+    }
+
+    while i < npoints as usize {
+        loop {
+            if grapheme_len < state.grapheme_buf.len() - 4 {
+                grapheme_len += utf_char2slice(
+                    codepoints[i] as i32,
+                    &mut state.grapheme_buf[grapheme_len..],
+                );
+            }
+            i += 1;
+            if i >= npoints as usize
+                || !utf_iscomposing(
+                    codepoints[i - 1] as i32,
+                    codepoints[i] as i32,
+                    &mut grapheme_state,
+                )
+            {
+                break;
+            }
+        }
+
+        let width = utf_cluster_cells(&state.grapheme_buf[..grapheme_len]);
+
+        if state.at_phantom != 0 || state.pos.col + width > thisrowwidth(state) {
+            linefeed(state);
+            state.pos.col = 0;
+            state.at_phantom = 0;
+            let row = state.pos.row as usize;
+            state.lineinfo_mut()[row].set_continuation(true);
+        }
+
+        if (state.mode & MODE_INSERT) != 0 && !recombine {
+            let rect = VTermRect {
+                start_row: state.pos.row,
+                end_row: state.pos.row + 1,
+                start_col: state.pos.col,
+                end_col: thisrowwidth(state),
+            };
+            scroll(state, rect, 0, -1);
+        }
+
+        let sc = schar_from_bytes(&state.grapheme_buf[..grapheme_len]);
+        putglyph(state, sc, width, state.pos);
+
+        if i == npoints as usize {
+            state.grapheme_len = grapheme_len;
+            state.grapheme_last = codepoints[i - 1];
+            state.grapheme_state = grapheme_state;
+            state.combine_width = width;
+            state.combine_pos = state.pos;
+        } else {
+            grapheme_len = 0;
+            recombine = false;
+        }
+
+        if state.pos.col + width >= thisrowwidth(state) {
+            if (state.mode & MODE_AUTOWRAP) != 0 {
+                state.at_phantom = 1;
+            }
+        } else {
+            state.pos.col += width;
+        }
+    }
+
+    updatecursor(state, &oldpos, 0);
+
+    eaten as i32
 }
 
 fn on_control(control: u8, state: *mut VTermStateFull) -> i32 {
-    let state = unsafe { &mut *state };
+    let state = VTermStateFull::from_cb_ptr(state);
     let oldpos = state.pos;
 
     match control {
@@ -799,7 +798,7 @@ fn savecursor(state: &mut VTermStateFull, save: i32) {
 }
 
 fn on_escape(bytes: &[u8], state: *mut VTermStateFull) -> i32 {
-    let state = unsafe { &mut *state };
+    let state = VTermStateFull::from_cb_ptr(state);
     let len = bytes.len();
     match bytes.first().copied().unwrap_or(0) {
         b' ' => {
@@ -1188,7 +1187,7 @@ fn on_csi(
     command: u8,
     state: *mut VTermStateFull,
 ) -> i32 {
-    let state = unsafe { &mut *state };
+    let state = VTermStateFull::from_cb_ptr(state);
     let argcount = args.len() as i32;
     let first_arg = args.first().copied().unwrap_or(CSI_ARG_MISSING as i64);
     let mut leader_byte: i32 = 0;
@@ -2100,7 +2099,7 @@ fn osc_selection(state: &mut VTermStateFull, frag: VTermStringFragment) {
 }
 
 fn on_osc(command: i32, frag: VTermStringFragment, state: *mut VTermStateFull) -> i32 {
-    let state = unsafe { &mut *state };
+    let state = VTermStateFull::from_cb_ptr(state);
     match command {
         0 => {
             let _ = settermprop_string(state, VTERM_PROP_ICONNAME, frag);
@@ -2130,41 +2129,28 @@ fn on_osc(command: i32, frag: VTermStringFragment, state: *mut VTermStateFull) -
 
 fn request_status_string(state: &mut VTermStateFull, frag: VTermStringFragment) {
     let vt = state.vt_mut();
-    let tmp = (&raw mut state.tmp.words[0]).cast::<u8>();
+    let mut tmp = if frag.initial() {
+        [0u8; 4]
+    } else {
+        state.tmp.words[0].to_le_bytes()
+    };
 
-    let mut frag_bytes = frag.as_bytes();
-
-    if frag.initial() {
-        unsafe {
-            *tmp = 0;
-            *tmp.wrapping_add(1) = 0;
-            *tmp.wrapping_add(2) = 0;
-            *tmp.wrapping_add(3) = 0;
+    let mut i = tmp.iter().take(3).position(|&b| b == 0).unwrap_or(3);
+    for &b in frag.as_bytes() {
+        if i >= 3 {
+            break;
         }
-    }
-
-    let mut i: usize = 0;
-    while i < 3 && unsafe { *tmp.wrapping_add(i) } != 0 {
+        tmp[i] = b;
         i += 1;
     }
-    while i < 3 && !frag_bytes.is_empty() {
-        unsafe {
-            *tmp.wrapping_add(i) = frag_bytes[0];
-        }
-        i += 1;
-        frag_bytes = &frag_bytes[1..];
-    }
-    unsafe {
-        *tmp.wrapping_add(i) = 0;
-    }
+    tmp[i] = 0;
+    state.tmp.words[0] = u32::from_le_bytes(tmp);
 
     if !frag.final_() {
         return;
     }
 
-    let key = u32::from(unsafe { *tmp })
-        | (u32::from(unsafe { *tmp.wrapping_add(1) }) << 8)
-        | (u32::from(unsafe { *tmp.wrapping_add(2) }) << 16);
+    let key = u32::from(tmp[0]) | (u32::from(tmp[1]) << 8) | (u32::from(tmp[2]) << 16);
     const KEY_M: u32 = b'm' as u32;
     const KEY_R: u32 = b'r' as u32;
     const KEY_S: u32 = b's' as u32;
@@ -2236,7 +2222,7 @@ fn request_status_string(state: &mut VTermStateFull, frag: VTermStringFragment) 
 }
 
 fn on_dcs(command: &[u8], frag: VTermStringFragment, state: *mut VTermStateFull) -> i32 {
-    let state = unsafe { &mut *state };
+    let state = VTermStateFull::from_cb_ptr(state);
     if command == b"$q" {
         request_status_string(state, frag);
         return 1;
@@ -2251,7 +2237,7 @@ fn on_dcs(command: &[u8], frag: VTermStringFragment, state: *mut VTermStateFull)
 }
 
 fn on_apc(frag: VTermStringFragment, state: *mut VTermStateFull) -> i32 {
-    let state = unsafe { &mut *state };
+    let state = VTermStateFull::from_cb_ptr(state);
     if let Some(fallbacks) = state.fallbacks
         && let Some(cb) = fallbacks.apc
         && cb(frag, state.term_ptr()) != 0
@@ -2262,7 +2248,7 @@ fn on_apc(frag: VTermStringFragment, state: *mut VTermStateFull) -> i32 {
 }
 
 fn on_pm(frag: VTermStringFragment, state: *mut VTermStateFull) -> i32 {
-    let state = unsafe { &mut *state };
+    let state = VTermStateFull::from_cb_ptr(state);
     if let Some(fallbacks) = state.fallbacks
         && let Some(cb) = fallbacks.pm
         && cb(frag, state.term_ptr()) != 0
@@ -2273,7 +2259,7 @@ fn on_pm(frag: VTermStringFragment, state: *mut VTermStateFull) -> i32 {
 }
 
 fn on_sos(frag: VTermStringFragment, state: *mut VTermStateFull) -> i32 {
-    let state = unsafe { &mut *state };
+    let state = VTermStateFull::from_cb_ptr(state);
     if let Some(fallbacks) = state.fallbacks
         && let Some(cb) = fallbacks.sos
         && cb(frag, state.term_ptr()) != 0
@@ -2284,7 +2270,7 @@ fn on_sos(frag: VTermStringFragment, state: *mut VTermStateFull) -> i32 {
 }
 
 fn on_resize(rows: i32, cols: i32, state: *mut VTermStateFull) -> i32 {
-    let state = unsafe { &mut *state };
+    let state = VTermStateFull::from_cb_ptr(state);
     let state_ref = &mut *state;
     let oldpos = state_ref.pos;
 

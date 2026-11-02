@@ -32,7 +32,7 @@ use crate::event::stream::stream_set_blocking;
 use crate::event::stream::{ENABLE_VIRTUAL_TERMINAL_INPUT, UV_STREAM, UV_TTY};
 use crate::event::wstream::uv_buf_t;
 use crate::file_search::NULL_STRING;
-use crate::fileio::{fopen, fwrite};
+use crate::fileio::fopen;
 use crate::globals::{DFLT_COLS, DFLT_ROWS, *};
 use crate::grid::{Sattr, Schar, schar_cache_clear_if_full, schar_from_ascii, schar_get_ascii};
 use crate::highlight::{HLATTRS_INIT, HlAttrs};
@@ -336,6 +336,11 @@ use crate::os::signal::SIGWINCH;
 fn tui_input(tui: &mut TUIData) -> &'static mut TermInput {
     let ptr: *mut TermInput = &raw mut tui.input;
     unsafe { &mut *ptr }
+}
+
+#[inline]
+fn tui_loop(tui: &mut TUIData) -> &'static mut Loop {
+    unsafe { &mut *tui.loop_ }
 }
 
 #[inline]
@@ -1123,7 +1128,7 @@ pub fn tui_stop(tui: &mut TUIData) {
     terminfo_disable(tui);
 
     let wait_start = os_hrtime();
-    let events = loop_queues(unsafe { &mut *tui.loop_ }).events;
+    let events = loop_queues(tui_loop(tui)).events;
     let rs = &mut input.read_stream;
     let timeout_ms: i64 = EXIT_TIMEOUT_MS;
     let start = if timeout_ms >= 0 { os_hrtime() } else { 0 };
@@ -1136,7 +1141,7 @@ pub fn tui_stop(tui: &mut TUIData) {
         if !events.is_null() && !multiqueue_empty(unsafe { &*events }) {
             multiqueue_process_events(unsafe { &mut *events });
         } else {
-            loop_poll_events(unsafe { &mut *tui.loop_ }, remaining);
+            loop_poll_events(tui_loop(tui), remaining);
         }
         if timeout_ms >= 0 {
             remaining = timeout_ms - ((os_hrtime() - start) / 1_000_000) as i64;
@@ -1570,7 +1575,7 @@ fn print_spaces(tui: &mut TUIData, width: i32) {
     let mut left = width as usize;
     loop {
         let buf_fit = left.min(tui.buf.len() - tui.bufpos);
-        unsafe { ptr::write_bytes(tui.buf.as_mut_ptr().wrapping_add(tui.bufpos), b' ', buf_fit) };
+        tui.buf[tui.bufpos..tui.bufpos + buf_fit].fill(b' ');
         tui.bufpos += buf_fit;
         left -= buf_fit;
         if left == 0 {
@@ -2035,7 +2040,7 @@ pub fn tui_ui_send(tui: &mut TUIData, content: NvimString) {
 }
 
 pub fn tui_flush(tui: &mut TUIData) {
-    let nrevents = loop_size(unsafe { &mut *tui.loop_ });
+    let nrevents = loop_size(tui_loop(tui));
     if nrevents > TOO_MANY_EVENTS {
         if log_st().g_min_log_level <= LOGLVL_WRN {
             logmsg!(
@@ -2048,7 +2053,7 @@ pub fn tui_flush(tui: &mut TUIData) {
                 nrevents,
             );
         }
-        loop_purge(unsafe { &mut *tui.loop_ });
+        loop_purge(tui_loop(tui));
         tui_busy_stop(tui);
     }
 
@@ -2225,10 +2230,9 @@ pub fn tui_screenshot(tui: &mut TUIData, path: NvimString) {
     tui.grid.row = 0;
     tui.grid.col = 0;
 
-    let fp = f.as_ptr();
-    tui.screenshot = Some(f);
     let header = format!("{},{}\n", tui.grid.height, tui.grid.width);
-    unsafe { fwrite(header.as_ptr().cast(), header.len(), 1, fp) };
+    let _ = f.write_all(header.as_bytes());
+    tui.screenshot = Some(f);
     terminfo_out(tui, K_TERM_CLEAR_SCREEN);
     for i in 0..tui.grid.height {
         cursor_goto(tui, i, 0);
@@ -2314,12 +2318,23 @@ pub fn tui_raw_line(
         let attr_count = tui.attrs.len();
         let cells = &mut tui.grid.cells;
         let row_cells = &mut cells[linerow as usize];
+        let count = (endcol - startcol).max(0) as usize;
+        let (chunk_slice, attrs_slice) = if count == 0 {
+            (&[][..], &[][..])
+        } else {
+            unsafe {
+                (
+                    std::slice::from_raw_parts(chunk, count),
+                    std::slice::from_raw_parts(attrs, count),
+                )
+            }
+        };
         for c in startcol..endcol {
             let idx = (c - startcol) as usize;
             let cell = &mut row_cells[c as usize];
-            cell.data = unsafe { *chunk.wrapping_add(idx) };
-            assert!((unsafe { *attrs.wrapping_add(idx) } as usize) < attr_count);
-            cell.attr = unsafe { *attrs.wrapping_add(idx) };
+            cell.data = chunk_slice[idx];
+            assert!((attrs_slice[idx] as usize) < attr_count);
+            cell.attr = attrs_slice[idx];
         }
     }
     for curcol in (startcol as i32)..(endcol as i32) {
@@ -2538,13 +2553,7 @@ fn terminfo_print(tui: &mut TUIData, what: TerminfoDef, params: &mut [TPVAR; 9])
 
     if tui.buf.len() - tui.bufpos > TERMINFO_SEQ_LIMIT {
         let mut copy_params = *params;
-        let out_slice = unsafe {
-            std::slice::from_raw_parts_mut(
-                tui.buf.as_mut_ptr().wrapping_add(tui.bufpos).cast::<u8>(),
-                tui.buf.len() - tui.bufpos,
-            )
-        };
-        let len = terminfo_fmt(out_slice, str_bytes, &mut copy_params);
+        let len = terminfo_fmt(&mut tui.buf[tui.bufpos..], str_bytes, &mut copy_params);
         if len > 0 {
             tui.bufpos += len;
             return;
@@ -2554,13 +2563,7 @@ fn terminfo_print(tui: &mut TUIData, what: TerminfoDef, params: &mut [TPVAR; 9])
     flush_buf(tui, FlushBufFinish::FlushBufPartial);
     if let Some(ref str_cow) = tui.ti.defs[what] {
         let str_bytes = str_cow.to_bytes();
-        let out_slice = unsafe {
-            std::slice::from_raw_parts_mut(
-                tui.buf.as_mut_ptr().wrapping_add(tui.bufpos).cast::<u8>(),
-                tui.buf.len() - tui.bufpos,
-            )
-        };
-        let len = terminfo_fmt(out_slice, str_bytes, params);
+        let len = terminfo_fmt(&mut tui.buf[tui.bufpos..], str_bytes, params);
         if len > 0 {
             tui.bufpos += len;
         }
@@ -2942,19 +2945,18 @@ fn flush_buf_raw(tui: &mut TUIData, finish: FlushBufFinish, buf_to_flush: Option
         }
     }
 
-    let mid_base = buf_to_flush.map_or(tui.buf.as_mut_ptr(), |b| b.as_ptr().cast_mut());
-    let bufs = [
-        uv_buf_t::new(pre.as_mut_ptr().cast(), pre_len),
-        uv_buf_t::new(mid_base.cast(), tui.bufpos),
-        uv_buf_t::new(post.as_mut_ptr().cast(), post_len),
-    ];
-
     if let Some(ref screenshot) = tui.screenshot {
-        let fp = screenshot.as_ptr();
-        for b in &bufs {
-            unsafe { fwrite(b.base.cast(), b.len as _, 1, fp) };
-        }
+        let mid_slice = buf_to_flush.unwrap_or(&tui.buf[..tui.bufpos]);
+        let _ = screenshot.write_all(&pre[..pre_len]);
+        let _ = screenshot.write_all(mid_slice);
+        let _ = screenshot.write_all(&post[..post_len]);
     } else {
+        let mid_base = buf_to_flush.map_or(tui.buf.as_mut_ptr(), |b| b.as_ptr().cast_mut());
+        let bufs = [
+            uv_buf_t::new(pre.as_mut_ptr().cast(), pre_len),
+            uv_buf_t::new(mid_base.cast(), tui.bufpos),
+            uv_buf_t::new(post.as_mut_ptr().cast(), post_len),
+        ];
         let mut nbufs = bufs.len();
         while nbufs > 0 && bufs[nbufs - 1].len == 0 {
             nbufs -= 1;

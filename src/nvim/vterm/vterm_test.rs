@@ -20,7 +20,7 @@ use crate::vterm::pen::{
 };
 use crate::vterm::screen::{
     ScreenCell, VTERM_PROP_ALTSCREEN, VTERM_PROP_REVERSE, VTermGlyphInfo, VTermLineInfo,
-    VTermScreen, VTermScreenCell, getcell,
+    VTermScreen, VTermScreenCell,
 };
 use crate::vterm::state::{
     VTERM_PROP_CURSORBLINK, VTERM_PROP_CURSORSHAPE, VTERM_PROP_CURSORVISIBLE,
@@ -731,7 +731,9 @@ pub fn vterm_screen_get_attrs_extent(
     pos: VTermPos,
     attrs: VTermAttrMask,
 ) -> i32 {
-    let target = unsafe { &*getcell(screen, pos.row, pos.col) };
+    let Some(target) = screen.cell_ref(pos.row, pos.col) else {
+        return 0;
+    };
     extent.start_row = pos.row;
     extent.end_row = pos.row + 1;
     if extent.start_col < 0 {
@@ -743,7 +745,10 @@ pub fn vterm_screen_get_attrs_extent(
 
     let mut col = pos.col - 1;
     while col >= extent.start_col {
-        if attrs_differ(attrs, target, unsafe { &*getcell(screen, pos.row, col) }) {
+        let Some(cell) = screen.cell_ref(pos.row, col) else {
+            break;
+        };
+        if attrs_differ(attrs, target, cell) {
             break;
         }
         col -= 1;
@@ -752,7 +757,10 @@ pub fn vterm_screen_get_attrs_extent(
 
     col = pos.col + 1;
     while col < extent.end_col {
-        if attrs_differ(attrs, target, unsafe { &*getcell(screen, pos.row, col) }) {
+        let Some(cell) = screen.cell_ref(pos.row, col) else {
+            break;
+        };
+        if attrs_differ(attrs, target, cell) {
             break;
         }
         col += 1;
@@ -784,8 +792,9 @@ pub fn vterm_screen_get_text(
 
     for row in rect.start_row..rect.end_row {
         for col in rect.start_col..rect.end_col {
-            let cell = getcell(screen, row, col);
-            let cell = unsafe { &mut *cell };
+            let Some(cell) = screen.cell_ref(row, col) else {
+                continue;
+            };
             if cell.schar == 0 {
                 padding += 1;
             } else if cell.schar == u32::MAX {
@@ -811,8 +820,10 @@ pub fn vterm_screen_get_text(
 
 pub fn vterm_screen_is_eol(screen: &VTermScreen, mut pos: VTermPos) -> i32 {
     while pos.col < screen.cols {
-        let cell = getcell(screen, pos.row, pos.col);
-        if unsafe { (*cell).schar } != 0 {
+        if screen
+            .cell_ref(pos.row, pos.col)
+            .is_some_and(|cell| cell.schar != 0)
+        {
             return 0;
         }
         pos.col += 1;

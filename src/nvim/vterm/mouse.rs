@@ -157,10 +157,8 @@ impl VTerm {
     }
 
     #[inline]
-    pub fn state_ptr(&self) -> *const VTermStateFull {
-        self.state
-            .as_deref()
-            .map_or(std::ptr::null(), |s| &raw const *s)
+    pub fn state_ref(&self) -> &VTermStateFull {
+        self.state.as_deref().unwrap()
     }
 
     #[inline]
@@ -168,6 +166,16 @@ impl VTerm {
         self.screen
             .as_deref_mut()
             .map_or(std::ptr::null_mut(), |s| &raw mut *s)
+    }
+
+    #[inline]
+    pub fn screen_ref(&self) -> &crate::vterm::screen::VTermScreen {
+        self.screen.as_deref().unwrap()
+    }
+
+    #[inline]
+    pub fn screen_mut(&mut self) -> &mut crate::vterm::screen::VTermScreen {
+        self.screen.as_deref_mut().unwrap()
     }
 }
 

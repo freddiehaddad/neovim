@@ -25,7 +25,8 @@ use crate::channel::{
 };
 use crate::charset::is_special;
 use crate::context::{
-    CtxSwitch, ctx_restore, ctx_switch, handle_get_buffer, handle_get_window, is_ctx_win,
+    CtxSwitch, ctx_restore, ctx_switch, handle_get_buffer, handle_get_buffer_opt,
+    handle_get_window_opt, is_ctx_win,
 };
 use crate::cursor::{CursorPos, Linenr, coladvance};
 use crate::cursor_shape::{
@@ -334,6 +335,23 @@ pub struct Terminal {
     refcount: usize,
 }
 
+impl Terminal {
+    #[inline]
+    pub fn from_cb_ptr(ptr: *mut Self) -> &'static mut Self {
+        unsafe { &mut *ptr }
+    }
+
+    #[inline]
+    fn channel_mut(&self) -> &'static mut crate::channel::Channel {
+        unsafe { &mut *self.opts.data }
+    }
+
+    #[inline]
+    fn pending_events_mut(&self) -> &'static mut MultiQueue {
+        unsafe { &mut *self.pending.events }
+    }
+}
+
 impl Drop for Terminal {
     fn drop(&mut self) {
         multiqueue_free(self.pending.events);
@@ -412,6 +430,16 @@ fn refresh_timer_ptr() -> &'static mut TimeWatcher {
 }
 
 #[inline]
+fn refresh_timer_events_mut() -> &'static mut MultiQueue {
+    unsafe { &mut *refresh_timer_ptr().events }
+}
+
+#[inline]
+fn main_loop_events_mut() -> &'static mut MultiQueue {
+    unsafe { &mut *loop_queues(&mut g_st().main_loop).events }
+}
+
+#[inline]
 const fn cstr_slice_as_string(bytes: &'static [u8]) -> NvimString {
     NvimString {
         data: bytes.as_ptr().cast_mut().cast(),
@@ -430,109 +458,110 @@ pub struct TermRequestEvent {
 }
 
 pub fn emit_termrequest(req: Box<TermRequestEvent>) {
-    unsafe {
-        let buf_handle = req.buf_handle;
+    let buf_handle = req.buf_handle;
 
-        let buf = handle_get_buffer(buf_handle);
-        if buf.is_null() || (*buf).terminal.is_null() {
-            return;
-        }
-        let term = &mut *(*buf).terminal;
+    let Some(buf) = handle_get_buffer_opt(buf_handle) else {
+        return;
+    };
+    if buf.terminal.is_null() {
+        return;
+    }
+    let term = buf.terminal_mut();
+    let buf_ptr: *mut FileBuf = buf;
 
-        if term.sb_pending > 0 {
-            multiqueue_put_event(&mut *term.pending.events, Event::TermRequest(req));
-            return;
-        }
+    if term.sb_pending > 0 {
+        multiqueue_put_event(term.pending_events_mut(), Event::TermRequest(req));
+        return;
+    }
 
-        let sequence_length = req.sequence.len();
-        let sequence_ptr = if sequence_length == 0 {
-            c"".as_ptr()
-        } else {
-            req.sequence.as_ptr().cast()
-        };
-        let row = req.row;
-        let col = req.col;
-        let sb_deleted = req.sb_deleted;
-        let terminator = req.terminator;
+    let sequence_length = req.sequence.len();
+    let sequence_ptr = if sequence_length == 0 {
+        c"".as_ptr()
+    } else {
+        req.sequence.as_ptr().cast()
+    };
+    let row = req.row;
+    let col = req.col;
+    let sb_deleted = req.sb_deleted;
+    let terminator = req.terminator;
 
-        set_vim_var_string(VV_TERMREQUEST, sequence_ptr, sequence_length as isize);
+    set_vim_var_string(VV_TERMREQUEST, sequence_ptr, sequence_length as isize);
 
-        let mut cursor_items = [
-            integer_obj(i64::from(row) - (term.sb_deleted.wrapping_sub(sb_deleted) as i64)),
-            integer_obj(i64::from(col)),
-        ];
-        let cursor = Array {
-            items: cursor_items.as_mut_ptr(),
-            size: 2,
-            capacity: 2,
-        };
+    let mut cursor_items = [
+        integer_obj(i64::from(row) - (term.sb_deleted.wrapping_sub(sb_deleted) as i64)),
+        integer_obj(i64::from(col)),
+    ];
+    let cursor = Array {
+        items: cursor_items.as_mut_ptr(),
+        size: 2,
+        capacity: 2,
+    };
 
-        let termrequest = NvimString::from_bytes(&req.sequence);
-        let term_obj = if terminator == VTERM_TERMINATOR_BEL {
-            string_obj(cstr_slice_as_string(b"\x07\0"))
-        } else {
-            string_obj(cstr_slice_as_string(b"\x1b\\\0"))
-        };
-        let mut data_items = [
-            KeyValuePair {
-                key: cstr_slice_as_string(b"sequence\0"),
-                value: string_obj(termrequest),
+    let termrequest = NvimString::from_bytes(&req.sequence);
+    let term_obj = if terminator == VTERM_TERMINATOR_BEL {
+        string_obj(cstr_slice_as_string(b"\x07\0"))
+    } else {
+        string_obj(cstr_slice_as_string(b"\x1b\\\0"))
+    };
+    let mut data_items = [
+        KeyValuePair {
+            key: cstr_slice_as_string(b"sequence\0"),
+            value: string_obj(termrequest),
+        },
+        KeyValuePair {
+            key: cstr_slice_as_string(b"cursor\0"),
+            value: Object {
+                obj_type: ObjectType::ObjectTypeArray,
+                data: ObjectData::Array(cursor),
             },
-            KeyValuePair {
-                key: cstr_slice_as_string(b"cursor\0"),
-                value: Object {
-                    obj_type: ObjectType::ObjectTypeArray,
-                    data: ObjectData::Array(cursor),
-                },
-            },
-            KeyValuePair {
-                key: cstr_slice_as_string(b"terminator\0"),
-                value: term_obj,
-            },
-        ];
-        let mut data_obj = Object {
-            obj_type: ObjectType::ObjectTypeDict,
-            data: ObjectData::Dict(Dict {
-                items: data_items.as_mut_ptr(),
-                size: 3,
-                capacity: 3,
-            }),
-        };
+        },
+        KeyValuePair {
+            key: cstr_slice_as_string(b"terminator\0"),
+            value: term_obj,
+        },
+    ];
+    let mut data_obj = Object {
+        obj_type: ObjectType::ObjectTypeDict,
+        data: ObjectData::Dict(Dict {
+            items: data_items.as_mut_ptr(),
+            size: 3,
+            capacity: 3,
+        }),
+    };
 
-        term.refcount += 1;
-        apply_autocmds_group(
-            EVENT_TERMREQUEST,
-            ptr::null_mut(),
-            ptr::null_mut(),
-            true,
-            AUGROUP_ALL,
-            buf,
-            Some(crate::globals::curwin_mut()),
-            None,
-            &mut data_obj,
-            false,
-        );
-        term.refcount -= 1;
-        let pending_send = req.pending_send.clone();
-        drop(req);
+    term.refcount += 1;
+    apply_autocmds_group(
+        EVENT_TERMREQUEST,
+        ptr::null_mut(),
+        ptr::null_mut(),
+        true,
+        AUGROUP_ALL,
+        buf_ptr,
+        Some(crate::globals::curwin_mut()),
+        None,
+        &mut data_obj,
+        false,
+    );
+    term.refcount -= 1;
+    let pending_send = req.pending_send.clone();
+    drop(req);
 
-        let term_pending_send = term.pending.send.take();
-        {
-            let pending_buf = pending_send.borrow();
-            if !pending_buf.is_empty() {
-                terminal_send(term, &pending_buf);
-            }
+    let term_pending_send = term.pending.send.take();
+    {
+        let pending_buf = pending_send.borrow();
+        if !pending_buf.is_empty() {
+            terminal_send(term, &pending_buf);
         }
-        if let Some(ref cur_send) = term_pending_send
-            && !std::rc::Rc::ptr_eq(cur_send, &pending_send)
-        {
-            term.pending.send = term_pending_send;
-        }
+    }
+    if let Some(ref cur_send) = term_pending_send
+        && !std::rc::Rc::ptr_eq(cur_send, &pending_send)
+    {
+        term.pending.send = term_pending_send;
+    }
 
-        if term.buf_handle == 0 && term.refcount == 0 {
-            term.destroy = true;
-            channel_term_close(&mut *term.opts.data);
-        }
+    if term.buf_handle == 0 && term.refcount == 0 {
+        term.destroy = true;
+        channel_term_close(term.channel_mut());
     }
 }
 
@@ -551,10 +580,7 @@ fn schedule_termrequest(term: &mut Terminal) {
         terminator: term.termrequest_terminator,
     });
 
-    multiqueue_put_event(
-        unsafe { &mut *loop_queues(&mut g_st().main_loop).events },
-        Event::TermRequest(req),
-    );
+    multiqueue_put_event(main_loop_events_mut(), Event::TermRequest(req));
 }
 
 fn parse_osc8(str_: &[u8], attr: &mut i32) -> i32 {
@@ -578,7 +604,7 @@ fn parse_osc8(str_: &[u8], attr: &mut i32) -> i32 {
 }
 
 fn on_osc(command: i32, frag: VTermStringFragment, term: *mut Terminal) -> i32 {
-    let term = unsafe { &mut *term };
+    let term = Terminal::from_cb_ptr(term);
     if frag.str_.is_null() || frag.is_empty() {
         return 0;
     }
@@ -626,7 +652,7 @@ fn on_osc(command: i32, frag: VTermStringFragment, term: *mut Terminal) -> i32 {
 }
 
 fn on_dcs(command: &[u8], frag: VTermStringFragment, term: *mut Terminal) -> i32 {
-    let term = unsafe { &mut *term };
+    let term = Terminal::from_cb_ptr(term);
     if frag.str_.is_null() {
         return 0;
     }
@@ -652,7 +678,7 @@ fn on_dcs(command: &[u8], frag: VTermStringFragment, term: *mut Terminal) -> i32
 }
 
 fn on_apc(frag: VTermStringFragment, term: *mut Terminal) -> i32 {
-    let term = unsafe { &mut *term };
+    let term = Terminal::from_cb_ptr(term);
     if frag.str_.is_null() || frag.is_empty() {
         return 0;
     }
@@ -692,29 +718,21 @@ pub fn terminal_teardown() {
 }
 
 fn term_output_callback(s: &[u8], term: *mut Terminal) {
-    unsafe {
-        let term = &mut *term;
-        terminal_send(term, s);
-    }
+    terminal_send(Terminal::from_cb_ptr(term), s);
 }
 
-fn term_may_alloc_scrollback(term: &mut Terminal, mut buf: *mut FileBuf) -> bool {
+fn term_may_alloc_scrollback(term: &mut Terminal, buf: Option<&mut FileBuf>) -> bool {
     if term.sb_allocated {
         return true;
     }
-    if buf.is_null() {
-        buf = handle_get_buffer(term.buf_handle);
-        if buf.is_null() {
-            return false;
-        }
-    }
+    let Some(buf) = buf.or_else(|| handle_get_buffer_opt(term.buf_handle)) else {
+        return false;
+    };
 
-    if unsafe { (*buf).b_p_scbk } < 1 {
-        unsafe {
-            (*buf).b_p_scbk = SB_MAX;
-        }
+    if buf.b_p_scbk < 1 {
+        buf.b_p_scbk = SB_MAX;
     }
-    term.sb_size = unsafe { (*buf).b_p_scbk } as usize;
+    term.sb_size = buf.b_p_scbk as usize;
     term.sb_buffer.reserve(term.sb_size);
     term.sb_allocated = true;
     true
@@ -864,7 +882,7 @@ pub fn terminal_open(termpp: *mut *mut Terminal, buf: &mut FileBuf) {
             return;
         }
 
-        if !term_may_alloc_scrollback(term, &raw mut *buf) {
+        if !term_may_alloc_scrollback(term, Some(&mut *buf)) {
             std::process::abort();
         }
 
@@ -997,18 +1015,17 @@ pub fn terminal_close(termpp: *mut *mut Terminal, status: i32) {
 }
 
 pub fn terminal_state_change_event(buf_handle: ObjHandle) {
-    unsafe {
-        let buf = handle_get_buffer(buf_handle);
-        if !buf.is_null() && !(*buf).terminal.is_null() {
-            redraw_buf_line_later(&*(buf), (*buf).b_ml.ml_line_count, false);
-        }
+    if let Some(buf) = handle_get_buffer_opt(buf_handle)
+        && !buf.terminal.is_null()
+    {
+        redraw_buf_line_later(buf, buf.b_ml.ml_line_count, false);
     }
 }
 
 pub fn terminal_set_state(term: &mut Terminal, suspended: bool) {
     if term.suspended != suspended {
         multiqueue_put_event(
-            unsafe { &mut *refresh_timer_ptr().events },
+            refresh_timer_events_mut(),
             Event::TermStateChange(term.buf_handle),
         );
     }
@@ -1042,7 +1059,7 @@ pub fn terminal_check_size(term: &mut Terminal) {
     }
 
     vterm_set_size(&mut term.vt, i32::from(height), i32::from(width));
-    vterm_screen_flush_damage(unsafe { &mut *term.vt.screen_mut_ptr() });
+    vterm_screen_flush_damage(term.vt.screen_mut());
     term.pending.resize = true;
     invalidate_terminal(term, -1, -1);
 }
@@ -1089,52 +1106,48 @@ fn set_terminal_winopts(s: &mut TerminalState) {
 }
 
 fn unset_terminal_winopts(s: &mut TerminalState) {
-    unsafe {
-        debug_assert!(s.save_curwin_handle != 0);
+    debug_assert!(s.save_curwin_handle != 0);
 
-        let wp = handle_get_window(s.save_curwin_handle);
-        if !wp.is_null() {
-            let mut winopts: *mut Winopt = ptr::null_mut();
-            if (*wp).buf_mut().b_fnum != s.term_mut().buf_handle {
-                let buf = handle_get_buffer(s.term_mut().buf_handle);
-                if !buf.is_null() {
-                    for wip in &mut (*buf).b_wininfo {
-                        if wip.wi_win == wp && wip.wi_optset {
-                            winopts = &raw mut wip.wi_opt;
-                            break;
-                        }
+    if let Some(wp) = handle_get_window_opt(s.save_curwin_handle) {
+        let wp_ptr: *mut crate::window::WinInfoInfo = wp;
+        let mut winopts: Option<&mut Winopt> = None;
+        if wp.buf_mut().b_fnum != s.term_mut().buf_handle {
+            if let Some(buf) = handle_get_buffer_opt(s.term_mut().buf_handle) {
+                for wip in &mut buf.b_wininfo {
+                    if wip.wi_win == wp_ptr && wip.wi_optset {
+                        winopts = Some(&mut wip.wi_opt);
+                        break;
                     }
                 }
-            } else {
-                winopts = &raw mut (*wp).w_onebuf_opt;
-                if win_valid(wp) {
-                    if s.save_w_p_cuc != (*wp).w_onebuf_opt.wo_cuc {
-                        redraw_later(wp.as_mut(), UPD_SOME_VALID);
-                    } else if s.save_w_p_cul != ((*wp).w_onebuf_opt.wo_cul != 0)
-                        || (s.save_w_p_cul && s.save_w_p_culopt_flags != (*wp).w_p_culopt_flags)
-                    {
-                        redraw_later(wp.as_mut(), UPD_VALID);
-                    }
-                }
-                (*wp).w_p_culopt_flags = s.save_w_p_culopt_flags;
             }
-
-            if !winopts.is_null() {
-                let winopts = &mut *winopts;
-                if let Some(saved) = s.save_w_p_culopt.take() {
-                    free_string_option(winopts.wo_culopt);
-                    winopts.wo_culopt = alloc_string_option(saved.as_ptr());
+        } else {
+            if win_valid(wp_ptr) {
+                if s.save_w_p_cuc != wp.w_onebuf_opt.wo_cuc {
+                    redraw_later(Some(&mut *wp), UPD_SOME_VALID);
+                } else if s.save_w_p_cul != (wp.w_onebuf_opt.wo_cul != 0)
+                    || (s.save_w_p_cul && s.save_w_p_culopt_flags != wp.w_p_culopt_flags)
+                {
+                    redraw_later(Some(&mut *wp), UPD_VALID);
                 }
-                winopts.wo_cul = i32::from(s.save_w_p_cul);
-                winopts.wo_cuc = s.save_w_p_cuc;
-                winopts.wo_so = s.save_w_p_so;
-                winopts.wo_siso = s.save_w_p_siso;
             }
+            wp.w_p_culopt_flags = s.save_w_p_culopt_flags;
+            winopts = Some(&mut wp.w_onebuf_opt);
         }
 
-        s.save_w_p_culopt = None;
-        s.save_curwin_handle = 0;
+        if let Some(winopts) = winopts {
+            if let Some(saved) = s.save_w_p_culopt.take() {
+                free_string_option(winopts.wo_culopt);
+                winopts.wo_culopt = alloc_string_option(saved.as_ptr());
+            }
+            winopts.wo_cul = i32::from(s.save_w_p_cul);
+            winopts.wo_cuc = s.save_w_p_cuc;
+            winopts.wo_so = s.save_w_p_so;
+            winopts.wo_siso = s.save_w_p_siso;
+        }
     }
+
+    s.save_w_p_culopt = None;
+    s.save_curwin_handle = 0;
 }
 
 pub fn terminal_enter() -> bool {
@@ -1273,7 +1286,7 @@ fn terminal_check_focus(s: &mut TerminalState) -> bool {
         terminal_focus(s.term_mut(), false);
         if s.close {
             s.term_mut().destroy = true;
-            channel_term_close(unsafe { &mut *s.term_mut().opts.data });
+            channel_term_close(s.term_mut().channel_mut());
             s.close = false;
         }
 
@@ -1386,7 +1399,7 @@ fn terminal_execute(s: &mut TerminalState, key: i32) -> i32 {
                 return 1;
             }
             if s.term_mut().suspended {
-                channel_term_resume(unsafe { &mut *s.term_mut().opts.data });
+                channel_term_resume(s.term_mut().channel_mut());
                 terminal_set_state(s.term_mut(), false);
                 return 1;
             }
@@ -1409,10 +1422,9 @@ pub fn terminal_destroy(termpp: *mut *mut Terminal) {
         if term.is_null() {
             return;
         }
-        let buf = handle_get_buffer((*term).buf_handle);
-        if !buf.is_null() {
+        if let Some(buf) = handle_get_buffer_opt((*term).buf_handle) {
             (*term).buf_handle = 0;
-            (*buf).terminal = ptr::null_mut();
+            buf.terminal = ptr::null_mut();
         }
 
         if (*term).refcount == 0 {
@@ -1442,7 +1454,7 @@ fn terminal_send(term: &mut Terminal, data: &[u8]) {
         }
         return;
     }
-    channel_term_write(data, unsafe { &mut *term.opts.data });
+    channel_term_write(data, term.channel_mut());
 }
 
 fn is_filter_char(c: i32) -> bool {
@@ -1482,13 +1494,14 @@ pub fn terminal_paste(count: i32, y_array: *mut NvimString, y_size: usize) {
     if y_size == 0 {
         return;
     }
+    let y_slice = unsafe { std::slice::from_raw_parts(y_array, y_size) };
     let cur_term = curbuf_mut().terminal_mut();
     if !cur_term.streamed_paste {
         vterm_keyboard_start_paste(&mut cur_term.vt);
     }
-    let mut buff: Vec<u8> = Vec::with_capacity(unsafe { (*y_array).size });
+    let mut buff: Vec<u8> = Vec::with_capacity(y_slice[0].size);
     for _ in 0..count {
-        for j in 0..y_size {
+        for (j, &item) in y_slice.iter().enumerate() {
             if j > 0 {
                 let term_now = curbuf_mut().terminal_mut();
                 #[cfg(windows)]
@@ -1496,7 +1509,6 @@ pub fn terminal_paste(count: i32, y_array: *mut NvimString, y_size: usize) {
                 #[cfg(not(windows))]
                 terminal_send(term_now, b"\n");
             }
-            let item = unsafe { *y_array.wrapping_add(j) };
             let item_bytes = item.cstr_bytes();
             buff.clear();
             buff.reserve(item.size);
@@ -1535,18 +1547,18 @@ fn terminal_send_key(term: &mut Terminal, mut c: i32) {
 }
 
 pub fn on_sync_flush(buf_handle: ObjHandle) {
-    unsafe {
-        if g_st().exiting {
-            return;
-        }
-        let buf = handle_get_buffer(buf_handle);
-        if buf.is_null() || (*buf).terminal.is_null() {
-            return;
-        }
-        block_autocmds();
-        refresh_terminal(&mut *(*buf).terminal);
-        unblock_autocmds();
+    if g_st().exiting {
+        return;
     }
+    let Some(buf) = handle_get_buffer_opt(buf_handle) else {
+        return;
+    };
+    if buf.terminal.is_null() {
+        return;
+    }
+    block_autocmds();
+    refresh_terminal(buf.terminal_mut());
+    unblock_autocmds();
 }
 
 pub fn terminal_receive(term: &mut Terminal, data_bytes: &[u8]) {
@@ -1562,7 +1574,7 @@ pub fn terminal_receive(term: &mut Terminal, data_bytes: &[u8]) {
     } else {
         vterm_input_write(&mut term.vt, data_bytes);
     }
-    vterm_screen_flush_damage(unsafe { &mut *term.vt.screen_mut_ptr() });
+    vterm_screen_flush_damage(term.vt.screen_mut());
 
     if term.sync_flush_pending {
         term.sync_flush_pending = false;
@@ -1572,7 +1584,7 @@ pub fn terminal_receive(term: &mut Terminal, data_bytes: &[u8]) {
         term.invalid_start = 0;
         term.invalid_end = height;
         multiqueue_put_event(
-            unsafe { &mut *loop_queues(&mut g_st().main_loop).events },
+            main_loop_events_mut(),
             Event::TermSyncFlush(term.buf_handle),
         );
     }
@@ -1745,13 +1757,13 @@ fn terminal_focus(term: &mut Terminal, focus: bool) {
 }
 
 fn term_damage(rect: VTermRect, term: *mut Terminal) -> i32 {
-    let term = unsafe { &mut *term };
+    let term = Terminal::from_cb_ptr(term);
     invalidate_terminal(term, rect.start_row, rect.end_row);
     1
 }
 
 fn term_moverect(dest: VTermRect, src: VTermRect, term: *mut Terminal) -> i32 {
-    let term = unsafe { &mut *term };
+    let term = Terminal::from_cb_ptr(term);
     invalidate_terminal(
         term,
         dest.start_row.min(src.start_row),
@@ -1766,7 +1778,7 @@ fn term_movecursor(
     _visible: i32,
     term: *mut Terminal,
 ) -> i32 {
-    let term = unsafe { &mut *term };
+    let term = Terminal::from_cb_ptr(term);
     term.cursor.row = new_pos.row;
     term.cursor.col = new_pos.col;
     invalidate_terminal(term, -1, -1);
@@ -1774,30 +1786,28 @@ fn term_movecursor(
 }
 
 fn buf_set_term_title(buf: *mut FileBuf, title: &[u8]) {
-    unsafe {
-        if buf.is_null() {
-            return;
-        }
+    let Some(buf_ref) = (unsafe { buf.as_mut() }) else {
+        return;
+    };
 
-        let mut err = Error::new();
-        (*buf).b_locked += 1;
-        dict_set_var(
-            &mut *(*buf).b_vars(),
-            cstr_slice_as_string(b"term_title\0"),
-            string_obj(NvimString::from_bytes(title)),
-            false,
-            false,
-            None,
-            &mut err,
-        );
-        (*buf).b_locked -= 1;
-        api_clear_error(&mut err);
-        status_redraw_buf(buf);
-    }
+    let mut err = Error::new();
+    buf_ref.b_locked += 1;
+    dict_set_var(
+        buf_ref.b_vars(),
+        cstr_slice_as_string(b"term_title\0"),
+        string_obj(NvimString::from_bytes(title)),
+        false,
+        false,
+        None,
+        &mut err,
+    );
+    buf_ref.b_locked -= 1;
+    api_clear_error(&mut err);
+    status_redraw_buf(buf);
 }
 
 fn term_settermprop(prop: VTermProp, val: &mut VTermValue, term: *mut Terminal) -> i32 {
-    let term = unsafe { &mut *term };
+    let term = Terminal::from_cb_ptr(term);
     match prop {
         VTERM_PROP_ALTSCREEN => {
             term.in_altscreen = val.boolean() != 0;
@@ -1869,8 +1879,8 @@ fn term_theme(dark: &mut bool, _data: *mut Terminal) -> i32 {
 }
 
 fn term_sb_push(cells: &[VTermScreenCell], term: *mut Terminal) -> i32 {
-    let term = unsafe { &mut *term };
-    if !term_may_alloc_scrollback(term, ptr::null_mut()) {
+    let term = Terminal::from_cb_ptr(term);
+    if !term_may_alloc_scrollback(term, None) {
         return 0;
     }
     debug_assert!(term.sb_size > 0);
@@ -1899,7 +1909,7 @@ fn term_sb_push(cells: &[VTermScreenCell], term: *mut Terminal) -> i32 {
 }
 
 fn term_sb_pop(cells: &mut [VTermScreenCell], term: *mut Terminal) -> i32 {
-    let term = unsafe { &mut *term };
+    let term = Terminal::from_cb_ptr(term);
     if term.sb_buffer.is_empty() {
         return 0;
     }
@@ -1929,7 +1939,7 @@ fn term_sb_pop(cells: &mut [VTermScreenCell], term: *mut Terminal) -> i32 {
 }
 
 fn term_sb_clear(term: *mut Terminal) -> i32 {
-    let term = unsafe { &mut *term };
+    let term = Terminal::from_cb_ptr(term);
     if term.in_altscreen || term.sb_size == 0 || term.sb_buffer.is_empty() {
         return 1;
     }
@@ -1970,7 +1980,7 @@ fn term_selection_set(
     frag: VTermStringFragment,
     term: *mut Terminal,
 ) -> i32 {
-    let term = unsafe { &mut *term };
+    let term = Terminal::from_cb_ptr(term);
     if frag.initial() {
         term.selection.clear();
     }
@@ -1984,7 +1994,7 @@ fn term_selection_set(
         let end = bytes.iter().position(|&b| b == 0).unwrap_or(bytes.len());
         let data = std::ffi::CString::new(&bytes[..end]).unwrap();
         multiqueue_put_event(
-            unsafe { &mut *loop_queues(&mut g_st().main_loop).events },
+            main_loop_events_mut(),
             Event::TermClipboardSet { mask, data },
         );
     }
@@ -2246,11 +2256,7 @@ fn fetch_cell(term: &mut Terminal, row: i32, col: i32, cell: &mut VTermScreenCel
             return false;
         }
     } else {
-        vterm_screen_get_cell(
-            unsafe { &*term.vt.screen_mut_ptr() },
-            VTermPos { row, col },
-            cell,
-        );
+        vterm_screen_get_cell(term.vt.screen_ref(), VTermPos { row, col }, cell);
     }
     true
 }
@@ -2273,17 +2279,14 @@ fn invalidate_terminal(term: &mut Terminal, start_row: i32, end_row: i32) {
 }
 
 pub fn terminal_check_refresh() {
-    unsafe {
-        multiqueue_process_events(&mut *refresh_timer_ptr().events);
-    }
+    multiqueue_process_events(refresh_timer_events_mut());
 }
 
 fn refresh_terminal(term: &mut Terminal) {
-    let buf = handle_get_buffer(term.buf_handle);
-    if buf.is_null() {
+    let Some(buf) = handle_get_buffer_opt(term.buf_handle) else {
         return;
-    }
-    let buf = unsafe { &mut *buf };
+    };
+    let buf_ptr: *mut FileBuf = buf;
     let ml_before = buf.b_ml.ml_line_count;
 
     let resized = refresh_size(term);
@@ -2296,7 +2299,7 @@ fn refresh_terminal(term: &mut Terminal) {
     if resized {
         for tp in for_all_tabpages_ptr() {
             for wp in for_all_windows_in_tab_ptr(&*tp) {
-                if wp.w_buffer == buf && wp.w_leftcol != 0 {
+                if wp.w_buffer == buf_ptr && wp.w_leftcol != 0 {
                     wp.w_leftcol = 0;
                     curs_columns(&mut *wp, 1);
                 }
@@ -2304,10 +2307,7 @@ fn refresh_terminal(term: &mut Terminal) {
         }
     }
 
-    multiqueue_move_events(
-        unsafe { &mut *loop_queues(&mut g_st().main_loop).events },
-        unsafe { &mut *term.pending.events },
-    );
+    multiqueue_move_events(main_loop_events_mut(), term.pending_events_mut());
 }
 
 fn refresh_cursor(term: &mut Terminal, cursor_visible: &mut bool) {
@@ -2364,7 +2364,7 @@ pub(crate) fn refresh_timer_cb() {
     let to_refresh = std::mem::take(&mut term_st().invalidated_terminals);
 
     for term_ptr in to_refresh {
-        let term = unsafe { &mut *term_ptr };
+        let term = Terminal::from_cb_ptr(term_ptr);
         if !term.synchronized_output {
             refresh_terminal(term);
         }
@@ -2384,7 +2384,7 @@ fn refresh_size(term: &mut Terminal) -> bool {
     vterm_get_size(&term.vt, &mut height, &mut width);
     term.invalid_start = 0;
     term.invalid_end = height;
-    channel_term_resize(width as u16, height as u16, unsafe { &mut *term.opts.data });
+    channel_term_resize(width as u16, height as u16, term.channel_mut());
     true
 }
 
@@ -2427,7 +2427,7 @@ fn adjust_scrollback(term: &mut Terminal, buf: &mut FileBuf) {
 }
 
 fn refresh_scrollback(term: &mut Terminal, buf: &mut FileBuf) {
-    channel_term_read_pause(true, unsafe { &mut *term.opts.data });
+    channel_term_read_pause(true, term.channel_mut());
 
     let mut deleted = (term.sb_deleted - term.old_sb_deleted) as Linenr;
     deleted = deleted.min(buf.b_ml.ml_line_count);
@@ -2475,7 +2475,7 @@ fn refresh_scrollback(term: &mut Terminal, buf: &mut FileBuf) {
 
     adjust_scrollback(term, buf);
 
-    channel_term_read_pause(false, unsafe { &mut *term.opts.data });
+    channel_term_read_pause(false, term.channel_mut());
 }
 
 fn refresh_screen(term: &mut Terminal, buf: &mut FileBuf) {

@@ -251,12 +251,22 @@ pub fn handle_get_buffer(h: ObjHandle) -> *mut FileBuf {
 }
 
 #[inline]
+pub fn handle_get_buffer_opt(h: ObjHandle) -> Option<&'static mut FileBuf> {
+    unsafe { handle_get_buffer(h).as_mut() }
+}
+
+#[inline]
 pub fn handle_get_window(h: ObjHandle) -> *mut WinInfoInfo {
     g_st()
         .window_handles
         .get(&h)
         .copied()
         .unwrap_or(ptr::null_mut())
+}
+
+#[inline]
+pub fn handle_get_window_opt(h: ObjHandle) -> Option<&'static mut WinInfoInfo> {
+    unsafe { handle_get_window(h).as_mut() }
 }
 
 fn ctx_marks_ns() -> u32 {

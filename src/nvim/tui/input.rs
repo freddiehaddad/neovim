@@ -115,6 +115,11 @@ impl TermInput {
     fn tk_mut(&mut self) -> &mut TermKey {
         self.tk.as_mut().unwrap()
     }
+
+    #[inline]
+    fn tui_mut(&self) -> &'static mut TUIData {
+        unsafe { &mut *self.tui_data }
+    }
 }
 
 struct TuiInputModuleState {
@@ -649,7 +654,7 @@ fn handle_term_response(input: &mut TermInput, key: &TermKeyKey) {
     response.extend_from_slice(s_bytes);
 
     if enable_undercurl {
-        tui_enable_extended_underline(unsafe { &mut *input.tui_data });
+        tui_enable_extended_underline(input.tui_mut());
     }
 
     send_termresponse(&response);
@@ -657,7 +662,7 @@ fn handle_term_response(input: &mut TermInput, key: &TermKeyKey) {
 
 fn handle_primary_device_attr(input: &mut TermInput, params: &[TermKeyCsiParam], nparams: usize) {
     if let Some(action) = input.primary_device_attr.take() {
-        tui_handle_primary_device_attr(unsafe { &mut *input.tui_data }, action);
+        tui_handle_primary_device_attr(input.tui_mut(), action);
     }
 
     if nparams == 0 {
@@ -689,7 +694,7 @@ fn handle_modereport(input: &mut TermInput, key: &TermKeyKey) {
     if termkey_interpret_modereport(input.tk(), key, &mut initial, &mut mode, &mut value)
         == TERMKEY_RES_KEY
     {
-        tui_handle_term_mode(unsafe { &mut *input.tui_data }, mode, value);
+        tui_handle_term_mode(input.tui_mut(), mode, value);
     }
 }
 
@@ -752,7 +757,7 @@ fn handle_unknown_csi(input: &mut TermInput, key: &TermKeyKey) {
                 if args[0] == 48 {
                     let height_chars = args[1];
                     let width_chars = args[2];
-                    tui_set_size(unsafe { &mut *input.tui_data }, width_chars, height_chars);
+                    tui_set_size(input.tui_mut(), width_chars, height_chars);
                 }
             }
         }

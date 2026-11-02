@@ -123,18 +123,23 @@ pub struct VTermStateFull {
 
 impl VTermStateFull {
     #[inline]
+    pub fn from_cb_ptr(ptr: *mut Self) -> &'static mut Self {
+        unsafe { &mut *ptr }
+    }
+
+    #[inline]
     pub fn vt_mut(&self) -> &'static mut VTerm {
         unsafe { &mut *self.vt }
     }
 
     #[inline]
     pub fn screen_ptr(&self) -> *mut VTermScreen {
-        unsafe { (*self.vt).screen_mut_ptr() }
+        self.vt_mut().screen_mut_ptr()
     }
 
     #[inline]
     pub fn term_ptr(&self) -> *mut Terminal {
-        unsafe { (*self.vt).outdata }
+        self.vt_mut().outdata
     }
 
     #[inline]
@@ -535,8 +540,7 @@ pub fn vterm_keyboard_unichar(vt: &mut VTerm, mut c: u32, mut mod_: VTermModifie
         return;
     }
 
-    let state: *const VTermStateFull = vt.state_ptr();
-    if vterm_state_get_key_encoding_disambiguate(unsafe { &*state }) {
+    if vterm_state_get_key_encoding_disambiguate(vt.state_ref()) {
         if (u32::from(b'A')..=u32::from(b'Z')).contains(&c) {
             c += u32::from(b'a' - b'A');
             mod_ |= VTERM_MOD_SHIFT;
@@ -623,8 +627,8 @@ pub fn vterm_keyboard_key(vt: &mut VTerm, key: VTermKey, mod_: VTermModifier) {
         return;
     }
     {
-        let state: *const VTermStateFull = vt.state_ptr();
-        let disambiguate = vterm_state_get_key_encoding_disambiguate(unsafe { &*state });
+        let disambiguate = vterm_state_get_key_encoding_disambiguate(vt.state_ref());
+        let state_mode = vt.state_ref().mode;
 
         let mut k = if key < VTERM_KEY_FUNCTION_0 {
             if key < 0 || (key as usize) >= KEYCODES.len() {
@@ -666,7 +670,7 @@ pub fn vterm_keyboard_key(vt: &mut VTerm, key: VTermKey, mod_: VTermModifier) {
                 }
             }
             KeycodeType::Enter => {
-                if (unsafe { (*state).mode } & MODE_NEWLINE_BIT) != 0 {
+                if (state_mode & MODE_NEWLINE_BIT) != 0 {
                     vterm_push_output_bytes_slice(vt, b"\r\n");
                 } else {
                     emit_literal(vt, key, mod_, disambiguate, k.literal);
@@ -688,14 +692,14 @@ pub fn vterm_keyboard_key(vt: &mut VTerm, key: VTermKey, mod_: VTermModifier) {
                 }
             }
             KeycodeType::CsiCursor => {
-                if (unsafe { (*state).mode } & MODE_CURSOR_BIT) != 0 {
+                if (state_mode & MODE_CURSOR_BIT) != 0 {
                     emit_ss3(vt, mod_, k.literal);
                 } else {
                     emit_csi(vt, mod_, k.literal);
                 }
             }
             KeycodeType::Keypad => {
-                if (unsafe { (*state).mode } & MODE_KEYPAD_BIT) != 0 {
+                if (state_mode & MODE_KEYPAD_BIT) != 0 {
                     k.literal = k.csinum;
                     emit_ss3(vt, mod_, k.literal);
                 } else {
@@ -707,15 +711,13 @@ pub fn vterm_keyboard_key(vt: &mut VTerm, key: VTermKey, mod_: VTermModifier) {
 }
 
 pub fn vterm_keyboard_start_paste(vt: &mut VTerm) {
-    let state: *const VTermStateFull = vt.state_ptr();
-    if (unsafe { (*state).mode } & MODE_BRACKETPASTE_BIT) != 0 {
+    if (vt.state_ref().mode & MODE_BRACKETPASTE_BIT) != 0 {
         vterm_push_output_ctrl_bytes(vt, C1_CSI, b"200~");
     }
 }
 
 pub fn vterm_keyboard_end_paste(vt: &mut VTerm) {
-    let state: *const VTermStateFull = vt.state_ptr();
-    if (unsafe { (*state).mode } & MODE_BRACKETPASTE_BIT) != 0 {
+    if (vt.state_ref().mode & MODE_BRACKETPASTE_BIT) != 0 {
         vterm_push_output_ctrl_bytes(vt, C1_CSI, b"201~");
     }
 }
