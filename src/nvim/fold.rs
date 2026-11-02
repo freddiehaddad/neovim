@@ -1380,58 +1380,39 @@ fn fold_del_marker(buf: &mut FileBuf, lnum: Linenr, marker_slice: &[u8]) {
         return;
     }
 
-    let cms = buf.b_p_cms;
-    let line = ml_get_buf(buf, lnum);
-    let mut p = line;
-    while !crate::memory::cstr_is_empty(p) {
-        let rem_len = crate::memory::cstr_len(p);
-        if rem_len < markerlen || crate::memory::cstr_slice(p, markerlen) != marker_slice {
-            p = p.wrapping_add(1);
+    let cms_bytes = crate::memory::cstr_as_bytes(buf.b_p_cms);
+    let line_slice = crate::memline::ml_get_buf_slice(buf, lnum);
+    let mut idx = 0;
+    while idx < line_slice.len() {
+        let rem = &line_slice[idx..];
+        if !rem.starts_with(marker_slice) {
+            idx += 1;
             continue;
         }
         let mut len = markerlen;
-        if ascii_isdigit(i32::from(crate::memory::cstr_first_byte(
-            p.wrapping_add(len),
-        ))) {
+        if rem.get(len).is_some_and(u8::is_ascii_digit) {
             len += 1;
         }
-        if !crate::memory::cstr_is_empty(cms) {
-            let cms2 = crate::memory::cstr_as_bytes(cms)
-                .windows(2)
-                .position(|w| w == b"%s")
-                .map_or(ptr::null_mut(), |i| cms.wrapping_add(i));
-            if !cms2.is_null() {
-                let prefix_len = (cms2 as usize) - (cms as usize);
-                let suffix = cms2.wrapping_add(2);
-                let suffix_len = crate::memory::cstr_len(suffix);
-                if (p as usize) - (line as usize) >= prefix_len
-                    && crate::memory::cstr_slice(p.wrapping_sub(prefix_len), prefix_len)
-                        == crate::memory::cstr_slice(cms, prefix_len)
-                    && crate::memory::cstr_as_bytes(p.wrapping_add(len))
-                        .starts_with(crate::memory::cstr_slice(suffix, suffix_len))
-                {
-                    p = p.wrapping_sub(prefix_len);
-                    len += crate::memory::cstr_len(cms) - 2;
-                }
+        if !cms_bytes.is_empty()
+            && let Some(cms_pos) = cms_bytes.windows(2).position(|w| w == b"%s")
+        {
+            let prefix = &cms_bytes[..cms_pos];
+            let suffix = &cms_bytes[cms_pos + 2..];
+            if idx >= prefix.len()
+                && &line_slice[idx - prefix.len()..idx] == prefix
+                && line_slice[idx + len..].starts_with(suffix)
+            {
+                idx -= prefix.len();
+                len += cms_bytes.len() - 2;
             }
         }
         if u_save(lnum - 1, lnum + 1) {
-            let orig_len = ml_get_buf_len(buf, lnum) as usize;
-            let before_len = (p as usize) - (line as usize);
-            let after = p.wrapping_add(len);
-            let mut newline_vec = Vec::with_capacity(orig_len - len + 1);
-            newline_vec.extend_from_slice(crate::memory::cstr_slice(line, before_len));
-            newline_vec.extend_from_slice(crate::memory::cstr_as_bytes(after));
+            let mut newline_vec = Vec::with_capacity(line_slice.len() - len + 1);
+            newline_vec.extend_from_slice(&line_slice[..idx]);
+            newline_vec.extend_from_slice(&line_slice[idx + len..]);
             newline_vec.push(0);
             ml_replace_buf(buf, lnum, newline_vec.as_mut_ptr().cast(), true, false);
-            extmark_splice_cols(
-                buf,
-                lnum - 1,
-                before_len as Colnr,
-                len as Colnr,
-                0,
-                K_EXTMARK_UNDO,
-            );
+            extmark_splice_cols(buf, lnum - 1, idx as Colnr, len as Colnr, 0, K_EXTMARK_UNDO);
         }
         break;
     }
@@ -2385,13 +2366,10 @@ fn fold_merge(gap: &mut Vec<FoldEntry>, idx1: usize) {
 fn foldlevel_indent(flp: &mut Fline) {
     let lnum = flp.lnum + flp.off;
     let buf = flp.wp_mut().buf_mut();
-    let s = skipwhite(ml_get_buf(buf, lnum));
+    let s_rem = crate::charset::skipwhite_slice(crate::memline::ml_get_buf_slice(buf, lnum));
 
-    if crate::memory::cstr_is_empty(s)
-        || crate::strings::vim_haschr(
-            flp.wp_mut().w_onebuf_opt.wo_fdi,
-            crate::memory::cstr_first_byte(s) as i32,
-        )
+    if s_rem.is_empty()
+        || crate::strings::vim_haschr(flp.wp_mut().w_onebuf_opt.wo_fdi, i32::from(s_rem[0]))
     {
         flp.lvl = if lnum == 1 || lnum == buf.b_ml.ml_line_count {
             0
@@ -2505,14 +2483,12 @@ fn foldlevel_marker(flp: &mut Fline) {
     flp.start = 0;
     flp.lvl_next = flp.lvl;
 
-    let mut s = ml_get_buf(flp.wp_mut().buf_mut(), flp.lnum + flp.off);
-    while !crate::memory::cstr_is_empty(s) {
-        let s_b = crate::memory::cstr_first_byte(s);
-        let rem_bytes = crate::memory::cstr_as_bytes(s.wrapping_add(1));
+    let mut rem = crate::memline::ml_get_buf_slice(flp.wp_mut().buf_mut(), flp.lnum + flp.off);
+    while let Some((&s_b, rem_bytes)) = rem.split_first() {
         if s_b == cstart && rem_bytes.starts_with(start_rest) {
-            s = s.wrapping_add(fold_st().foldstartmarkerlen);
-            if ascii_isdigit(crate::memory::cstr_first_byte(s) as i32) {
-                let n = crate::charset::parse_i64_prefix(crate::memory::cstr_as_bytes(s)) as i32;
+            rem = &rem[fold_st().foldstartmarkerlen..];
+            if rem.first().is_some_and(u8::is_ascii_digit) {
+                let n = crate::charset::parse_i64_prefix(rem) as i32;
                 if n > 0 {
                     flp.lvl = n;
                     flp.lvl_next = n;
@@ -2524,9 +2500,9 @@ fn foldlevel_marker(flp: &mut Fline) {
                 flp.start += 1;
             }
         } else if s_b == cend && rem_bytes.starts_with(end_rest) {
-            s = s.wrapping_add(fold_st().foldendmarkerlen);
-            if ascii_isdigit(crate::memory::cstr_first_byte(s) as i32) {
-                let n = crate::charset::parse_i64_prefix(crate::memory::cstr_as_bytes(s)) as i32;
+            rem = &rem[fold_st().foldendmarkerlen..];
+            if rem.first().is_some_and(u8::is_ascii_digit) {
+                let n = crate::charset::parse_i64_prefix(rem) as i32;
                 if n > 0 {
                     flp.lvl = n;
                     flp.lvl_next = (n - 1).min(start_lvl);
@@ -2535,7 +2511,7 @@ fn foldlevel_marker(flp: &mut Fline) {
                 flp.lvl_next -= 1;
             }
         } else {
-            s = s.wrapping_add(utfc_ptr2len(s) as usize);
+            rem = &rem[crate::mbyte::utfc_slice2len(rem)..];
         }
     }
 

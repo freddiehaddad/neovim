@@ -49,7 +49,6 @@ use crate::mbyte::{
     utf_ptr2char, utfc_ptr2len,
 };
 use crate::memline::{decl, inc, incl, ml_get, ml_get_buf, ml_get_buf_len, ml_get_len};
-use crate::memory::xstrlcpy;
 use crate::message::{
     emsg, give_warning, iemsg, messaging, msg, msg_check, msg_clr_eos, msg_end, msg_ext_set_kind,
     msg_home_replace, msg_outtrans, msg_outtrans_len, msg_prt_line, msg_putchar, msg_puts,
@@ -750,11 +749,12 @@ pub fn searchit(
             if pos.col == MAXCOL {
                 start_char_len = 0;
             } else if pos.lnum >= 1 && pos.lnum <= buf.b_ml.ml_line_count && pos.col < MAXCOL - 2 {
-                ptr_line = ml_get_buf(buf, pos.lnum);
-                if ml_get_buf_len(buf, pos.lnum) <= pos.col {
+                let line_slice = crate::memline::ml_get_buf_slice(buf, pos.lnum);
+                if (line_slice.len() as Colnr) <= pos.col {
                     start_char_len = 1;
                 } else {
-                    start_char_len = utfc_ptr2len(ptr_line.wrapping_add(pos.col as usize));
+                    start_char_len =
+                        crate::mbyte::utfc_slice2len(&line_slice[pos.col as usize..]) as i32;
                 }
             } else {
                 start_char_len = 1;
@@ -1725,20 +1725,20 @@ pub fn search_for_exact_line(
             if start == 0 {
                 start = pos.lnum;
             }
-            let ptr_line = ml_get_buf(buf, pos.lnum);
-            let p = skipwhite(ptr_line);
-            pos.col = crate::memory::ptr_offset_from(p, ptr_line) as Colnr;
+            let line_slice = crate::memline::ml_get_buf_slice(buf, pos.lnum);
+            let p_slice = crate::charset::skipwhite_slice(line_slice);
+            pos.col = (line_slice.len() - p_slice.len()) as Colnr;
 
             if compl_status_adding() && !compl_status_sol() {
-                if mb_strcmp_ic(opt_vars().p_ic != 0, p, pat) == 0 {
+                if mb_strcmp_ic(opt_vars().p_ic != 0, p_slice.as_ptr().cast(), pat) == 0 {
                     return true;
                 }
-            } else if !crate::memory::cstr_is_empty(p) {
+            } else if !p_slice.is_empty() {
                 debug_assert!(compl_len >= 0);
                 let eq = if opt_vars().p_ic != 0 {
-                    mb_strnicmp(p, pat, compl_len as usize) == 0
+                    mb_strnicmp(p_slice.as_ptr().cast(), pat, compl_len as usize) == 0
                 } else {
-                    crate::memory::cstr_prefix_bytes(p, compl_len as usize)
+                    &p_slice[..p_slice.len().min(compl_len as usize)]
                         == crate::memory::cstr_prefix_bytes(pat, compl_len as usize)
                 };
                 if eq {
@@ -3122,8 +3122,11 @@ pub fn f_searchcount(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFunc
 }
 
 fn get_line_and_copy<T>(lnum: Linenr, buf: *mut T) -> *mut T {
-    let line = ml_get(lnum);
-    xstrlcpy(buf.cast(), line, LSIZE);
+    let line = crate::memline::ml_get_slice(lnum);
+    let copy_len = line.len().min(LSIZE - 1);
+    let dst = unsafe { std::slice::from_raw_parts_mut(buf.cast::<u8>(), copy_len + 1) };
+    dst[..copy_len].copy_from_slice(&line[..copy_len]);
+    dst[copy_len] = 0;
     buf
 }
 

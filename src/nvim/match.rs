@@ -470,12 +470,12 @@ fn next_search_hl(
             || (shl.rm.endpos[0].lnum == 0 && shl.rm.endpos[0].col <= shl.rm.startpos[0].col)
         {
             matchcol = shl.rm.startpos[0].col;
-            let ml = ml_get_buf(unsafe { &mut *shl.buf }, lnum).wrapping_add(matchcol as usize);
-            if crate::memory::cstr_is_empty(ml) {
+            let line_slice = crate::memline::ml_get_buf_slice(unsafe { &mut *shl.buf }, lnum);
+            if (matchcol as usize) >= line_slice.len() {
                 shl.lnum = 0;
                 break;
             }
-            matchcol += utfc_ptr2len(ml);
+            matchcol += crate::mbyte::utfc_slice2len(&line_slice[matchcol as usize..]) as Colnr;
         } else {
             matchcol = shl.rm.endpos[0].col;
         }

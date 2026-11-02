@@ -652,12 +652,12 @@ fn sort_compare(l1: &Sorti, l2: &Sorti, sortbuf1: &mut [u8], sortbuf2: &mut [u8]
             },
         ) => {
             let len1 = (e1 - s1) as usize;
-            let line1 = crate::memory::cstr_slice(ml_get(l1.lnum).wrapping_add(s1 as usize), len1);
+            let line1 = &crate::memline::ml_get_slice(l1.lnum)[s1 as usize..s1 as usize + len1];
             sortbuf1[..len1].copy_from_slice(line1);
             sortbuf1[len1] = 0;
 
             let len2 = (e2 - s2) as usize;
-            let line2 = crate::memory::cstr_slice(ml_get(l2.lnum).wrapping_add(s2 as usize), len2);
+            let line2 = &crate::memline::ml_get_slice(l2.lnum)[s2 as usize..s2 as usize + len2];
             sortbuf2[..len2].copy_from_slice(line2);
             sortbuf2[len2] = 0;
 
@@ -1206,10 +1206,7 @@ pub fn do_move(line1: Linenr, line2: Linenr, mut dest: Linenr) -> bool {
 
     let mut extra: Linenr = 0;
     for l in line1..=line2 {
-        let str_cstr = cstr_from_bytes(crate::memory::cstr_slice(
-            ml_get(l + extra),
-            ml_get_len(l + extra) as usize,
-        ));
+        let str_cstr = cstr_from_bytes(crate::memline::ml_get_slice(l + extra));
         ml_append(dest + l - line1, str_cstr.as_ptr().cast_mut(), 0, false);
         if dest < line1 {
             extra += 1;
@@ -1351,10 +1348,7 @@ pub fn ex_copy(mut line1: Linenr, mut line2: Linenr, n: Linenr) {
 
     curwin_mut().w_cursor.lnum = n;
     while line1 <= line2 {
-        let p = cstr_from_bytes(crate::memory::cstr_slice(
-            ml_get(line1),
-            ml_get_len(line1) as usize,
-        ));
+        let p = cstr_from_bytes(crate::memline::ml_get_slice(line1));
         ml_append(curwin_mut().w_cursor.lnum, p.as_ptr().cast_mut(), 0, false);
 
         if line1 == n {
@@ -3193,11 +3187,13 @@ pub fn do_ecmd(
                 check_arg_idx(curwin_mut());
 
                 if !equalpos(curwin_mut().w_cursor, orig_pos) {
-                    let text = get_cursor_line_ptr();
+                    let text_bytes = crate::cursor::get_cursor_line_slice();
+                    let first_nonwhite = (text_bytes.len()
+                        - crate::charset::skipwhite_slice(text_bytes).len())
+                        as i32;
 
                     if curwin_mut().w_cursor.lnum != orig_pos.lnum
-                        || curwin_mut().w_cursor.col
-                            != crate::memory::ptr_offset_from(skipwhite(text), text) as i32
+                        || curwin_mut().w_cursor.col != first_nonwhite
                     {
                         newlnum = curwin_mut().w_cursor.lnum;
                         newcol = curwin_mut().w_cursor.col;
@@ -4165,10 +4161,8 @@ fn do_sub(eap: &mut Exarg, tm: Proftime, cmdpreview_ns: i32, cmdpreview_bufnr: O
                     break;
                 }
                 if sub_firstline.is_null() {
-                    sub_firstline = SubBuf::from_cbuf(
-                        ml_get(sub_firstlnum),
-                        ml_get_len(sub_firstlnum) as usize,
-                    );
+                    let sub_slice = crate::memline::ml_get_slice(sub_firstlnum);
+                    sub_firstline = SubBuf::from_cbuf(sub_slice.as_ptr().cast(), sub_slice.len());
                 }
 
                 curwin_mut().w_cursor.lnum = lnum;
@@ -4236,8 +4230,9 @@ fn do_sub(eap: &mut Exarg, tm: Proftime, cmdpreview_ns: i32, cmdpreview_bufnr: O
                             opt_vars().p_lz = 0;
 
                             if !new_start.is_null() {
+                                let lnum_slice = crate::memline::ml_get_slice(lnum);
                                 orig_line =
-                                    SubBuf::from_cbuf(ml_get(lnum), ml_get_len(lnum) as usize);
+                                    SubBuf::from_cbuf(lnum_slice.as_ptr().cast(), lnum_slice.len());
                                 let new_line = concat_str(
                                     new_start.data().cast(),
                                     sub_firstline.data().wrapping_add(copycol as usize).cast(),
@@ -4362,10 +4357,9 @@ fn do_sub(eap: &mut Exarg, tm: Proftime, cmdpreview_ns: i32, cmdpreview_bufnr: O
 
                         if nmatch > 1 {
                             sub_firstlnum += nmatch - 1;
-                            sub_firstline = SubBuf::from_cbuf(
-                                ml_get(sub_firstlnum),
-                                ml_get_len(sub_firstlnum) as usize,
-                            );
+                            let sub_slice = crate::memline::ml_get_slice(sub_firstlnum);
+                            sub_firstline =
+                                SubBuf::from_cbuf(sub_slice.as_ptr().cast(), sub_slice.len());
                             if sub_firstlnum <= line2 {
                                 do_again = true;
                             } else {
@@ -4421,7 +4415,11 @@ fn do_sub(eap: &mut Exarg, tm: Proftime, cmdpreview_ns: i32, cmdpreview_bufnr: O
                             tmp = sub_firstline.as_nvim_string();
                         } else {
                             let lastlnum = sub_firstlnum + nmatch - 1;
-                            tmp = cbuf_as_string(ml_get(lastlnum), ml_get_len(lastlnum) as usize);
+                            let last_slice = crate::memline::ml_get_slice(lastlnum);
+                            tmp = cbuf_as_string(
+                                last_slice.as_ptr().cast_mut().cast(),
+                                last_slice.len(),
+                            );
                             nmatch_tl += nmatch - 1;
                         }
                         let copy_len = (regmatch.startpos[0].col - copycol) as usize;
@@ -4478,10 +4476,9 @@ fn do_sub(eap: &mut Exarg, tm: Proftime, cmdpreview_ns: i32, cmdpreview_bufnr: O
 
                         if nmatch > 1 {
                             sub_firstlnum += nmatch - 1;
-                            sub_firstline = SubBuf::from_cbuf(
-                                ml_get(sub_firstlnum),
-                                ml_get_len(sub_firstlnum) as usize,
-                            );
+                            let sub_slice = crate::memline::ml_get_slice(sub_firstlnum);
+                            sub_firstline =
+                                SubBuf::from_cbuf(sub_slice.as_ptr().cast(), sub_slice.len());
                             if sub_firstlnum <= line2 {
                                 do_again = true;
                             } else {
@@ -4498,7 +4495,7 @@ fn do_sub(eap: &mut Exarg, tm: Proftime, cmdpreview_ns: i32, cmdpreview_bufnr: O
                         let end = regmatch.endpos[0];
                         for j in 0..(nmatch - 1) {
                             replaced_bytes +=
-                                crate::memory::cstr_len(ml_get(lnum_start + j)) as Bcount + 1;
+                                crate::memline::ml_get_slice(lnum_start + j).len() as Bcount + 1;
                         }
                         replaced_bytes += (end.col - start.col) as Bcount;
 

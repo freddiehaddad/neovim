@@ -7,9 +7,7 @@ use crate::charset::{
     NUL, ascii_isdigit, ascii_iswhite, getwhitecols, skipbin, skipdigits, skiphex, skipwhite,
     vim_is_fname_char,
 };
-use crate::cursor::{
-    Colnr, CursorPos, Linenr, get_cursor_line_len, get_cursor_line_ptr, get_cursor_line_slice,
-};
+use crate::cursor::{Colnr, CursorPos, Linenr, get_cursor_line_ptr, get_cursor_line_slice};
 use crate::decoration::{decor_redraw_col, decor_redraw_line, decor_redraw_reset};
 use crate::decoration_provider::decor_providers_invoke_spell;
 use crate::drawscreen::{UPD_NOT_VALID, redraw_later};
@@ -2330,21 +2328,18 @@ pub fn ex_spellrepall(_eap: &mut Exarg) {
         {
             break;
         }
-        let line = get_cursor_line_ptr();
+        let line_slice = get_cursor_line_slice();
+        let col = curwin_mut().w_cursor.col as usize;
         if addlen <= 0
-            || (crate::memory::cstr_prefix_bytes(
-                line.wrapping_add(curwin_mut().w_cursor.col as usize),
-                repl_to_len,
-            ) != crate::memory::cstr_prefix_bytes(repl_to_ptr, repl_to_len))
+            || &line_slice[col..(col + repl_to_len).min(line_slice.len())]
+                != crate::memory::cstr_prefix_bytes(repl_to_ptr, repl_to_len)
         {
-            let col = curwin_mut().w_cursor.col as usize;
             let mut p_vec: Vec<u8> =
-                Vec::with_capacity((get_cursor_line_len() as i64 + addlen + 1) as usize);
-            p_vec.extend_from_slice(crate::memory::cstr_slice(line, col));
+                Vec::with_capacity((line_slice.len() as i64 + addlen + 1) as usize);
+            p_vec.extend_from_slice(&line_slice[..col]);
             p_vec.extend_from_slice(crate::memory::cstr_slice(repl_to_ptr, repl_to_len));
-            p_vec.extend_from_slice(crate::memory::cstr_as_bytes_with_nul(
-                line.wrapping_add(col + repl_from_len),
-            ));
+            p_vec.extend_from_slice(&line_slice[col + repl_from_len..]);
+            p_vec.push(0);
             let _ = ml_replace(curwin_mut().w_cursor.lnum, p_vec.as_mut_ptr().cast(), true);
             inserted_bytes(
                 curwin_mut().w_cursor.lnum,

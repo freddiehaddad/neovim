@@ -21,7 +21,7 @@ use crate::mbyte::{
     mb_charlen, mb_cptr2char_adv, mb_ptr_adv, mb_stricmp, utf_byte2len, utf_char2bytes,
     utf_char2len, utf_head_off, utf_iscomposing_legacy, utf_ptr2char, utf_ptr2len, utfc_ptr2len,
 };
-use crate::memline::{ml_get_buf, ml_replace};
+use crate::memline::ml_replace;
 use crate::memory::xstrlcpy;
 use crate::message::{emsg, internal_error, msg, msg_ext_set_kind, semsg, smsg};
 use crate::normal::end_visual_mode;
@@ -734,7 +734,8 @@ pub fn spell_suggest(count: i32) {
             curwin_mut().w_cursor.lnum,
             curwin_mut().w_cursor.col,
         );
-        let mut line_vec = crate::memory::cstr_as_bytes_with_nul(get_cursor_line_ptr()).to_vec();
+        let mut line_vec = get_cursor_line_slice().to_vec();
+        line_vec.push(0);
         let line = line_vec.as_mut_ptr();
         sps_st().spell_suggest_timeout = 5000;
         let mut sug = Suginfo::default();
@@ -2589,7 +2590,7 @@ fn add_sound_suggest(
         return;
     }
     let sugbuf = slang.sl_sugbuf.as_deref_mut().unwrap();
-    let mut nrline = crate::memory::cstr_as_bytes(ml_get_buf(sugbuf, sfwordnr + 1));
+    let mut nrline = crate::memline::ml_get_buf_slice(sugbuf, sfwordnr + 1);
     let mut orgnr: i32 = 0;
     while !nrline.is_empty() {
         orgnr += bytes2offset(&mut nrline);

@@ -1890,14 +1890,13 @@ pub fn win_line(
                     SPWORDLEN as i32,
                 );
             }
-            let line = ml_get_buf(wp.buf_mut(), lnum);
-
-            let ptr_sw = skipwhite(line);
-            if crate::memory::cstr_is_empty(ptr_sw) {
+            let line_slice = crate::memline::ml_get_buf_slice(wp.buf_mut(), lnum);
+            let rem_sw = crate::charset::skipwhite_slice(line_slice);
+            if rem_sw.is_empty() {
                 spv.spv_cap_col = 0;
                 spv.spv_capcol_lnum = lnum + 1;
             } else if spv.spv_cap_col == 0 {
-                spv.spv_cap_col = crate::memory::ptr_offset_from(ptr_sw, line) as i32;
+                spv.spv_cap_col = (line_slice.len() - rem_sw.len()) as i32;
             }
 
             if nextline[SPWORDLEN] == 0 {

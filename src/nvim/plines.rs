@@ -24,9 +24,7 @@ use crate::marktree::{
     mt_right,
 };
 pub use crate::mbyte::{CharInfo, ClusterInfo, StrCharInfo};
-use crate::mbyte::{
-    ptr2cells, utf_cluster_info, utf_ptr2_str_char_info, utf_ptr2char, utfc_ptr2len,
-};
+use crate::mbyte::{ptr2cells, utf_cluster_info, utf_ptr2_str_char_info, utfc_ptr2len};
 use crate::memline::{ml_get_buf, ml_get_buf_len};
 use crate::r#move::{win_col_off, win_col_off2};
 use crate::option::get_showbreak_value;
@@ -1223,11 +1221,12 @@ pub fn getvvcol(
         let mut coladd = pos.coladd;
         let mut endadd: Colnr = 0;
 
-        let ptr_val = ml_get_buf((*wp).buf_mut(), pos.lnum);
-        if pos.col < ml_get_buf_len((*wp).buf_mut(), pos.lnum) {
-            let c = utf_ptr2char(ptr_val.wrapping_add(pos.col as usize));
+        let line_slice = crate::memline::ml_get_buf_slice((*wp).buf_mut(), pos.lnum);
+        if (pos.col as usize) < line_slice.len() {
+            let cur_slice = &line_slice[pos.col as usize..];
+            let c = crate::mbyte::utf_slice2char(cur_slice);
             if c != TAB && vim_isprintc(c) {
-                endadd = ptr2cells(ptr_val.wrapping_add(pos.col as usize)) - 1;
+                endadd = ptr2cells(cur_slice) - 1;
                 if coladd > endadd {
                     endadd = 0;
                 } else {

@@ -43,8 +43,7 @@ use crate::input::char_avail;
 use crate::insexpand::ins_compl_show_pum;
 use crate::marktree::{DECOR_PRIORITY_BASE, K_MTMETA_SIGN_TEXT};
 use crate::r#match::{init_search_hl, prepare_search_hl};
-use crate::mbyte::{utf_ptr2cells, utf_ptr2char};
-use crate::memline::{ml_get_buf, ml_get_buf_len};
+use crate::memline::ml_get_buf_len;
 use crate::message::{
     msg_check_for_delay, msg_clr_cmdline, msg_clr_eos, msg_ext_flush_showmode, msg_ext_ui_flush,
     msg_grid_set_pos, msg_grid_validate, msg_puts_hl, msg_reset_scroll, msg_scrollsize,
@@ -849,9 +848,10 @@ pub fn setcursor_mayforce(wp: &mut WinInfoInfo, force: bool) {
         let mut row = wp.w_wrow;
         let mut col = wp.w_wcol;
         if wp.w_onebuf_opt.wo_rl != 0 {
-            let cursor =
-                ml_get_buf(wp.buf_mut(), wp.w_cursor.lnum).wrapping_add(wp.w_cursor.col as usize);
-            let wide = utf_ptr2cells(cursor) == 2 && vim_isprintc(utf_ptr2char(cursor));
+            let cur_slice = &crate::memline::ml_get_buf_slice(wp.buf_mut(), wp.w_cursor.lnum)
+                [wp.w_cursor.col as usize..];
+            let wide = crate::mbyte::utf_ptr2cells(cur_slice) == 2
+                && vim_isprintc(crate::mbyte::utf_slice2char(cur_slice));
             col = wp.w_view_width - wp.w_wcol - if wide { 2 } else { 1 };
         }
 
@@ -875,10 +875,8 @@ pub fn redraw_custom_title_later() -> bool {
 pub fn show_cursor_info_later(force: bool) {
     let state = get_real_state();
     let empty_line = (g_st().state_global & MODE_INSERT) == 0
-        && crate::memory::cstr_is_empty(ml_get_buf(
-            curwin_mut().buf_mut(),
-            curwin_mut().w_cursor.lnum,
-        ));
+        && crate::memline::ml_get_buf_slice(curwin_mut().buf_mut(), curwin_mut().w_cursor.lnum)
+            .is_empty();
 
     validate_virtcol(curwin_mut());
     if force
