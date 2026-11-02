@@ -982,21 +982,15 @@ fn efm_to_regpat(
 }
 
 fn efm_option_part_len(efm: impl crate::strings::IntoCCharPtr) -> i32 {
-    let efm = efm.into_c_char_ptr();
-    {
-        let mut len: usize = 0;
-        while crate::memory::cstr_byte_at(efm, len) != 0
-            && crate::memory::cstr_byte_at(efm, len) != b','
-        {
-            if crate::memory::cstr_byte_at(efm, len) == b'\\'
-                && crate::memory::cstr_byte_at(efm, len + 1) != 0
-            {
-                len += 1;
-            }
+    let bytes = crate::memory::cstr_as_bytes(efm.into_c_char_ptr());
+    let mut len: usize = 0;
+    while len < bytes.len() && bytes[len] != b',' {
+        if bytes[len] == b'\\' && len + 1 < bytes.len() {
             len += 1;
         }
-        len as i32
+        len += 1;
     }
+    len as i32
 }
 
 fn parse_efm_option(efm: impl crate::strings::IntoCCharPtr) -> Vec<Efm> {
@@ -4648,7 +4642,8 @@ pub fn ex_make(eap: &mut Exarg) {
 }
 
 fn get_mef_name() -> Option<std::ffi::CString> {
-    if crate::memory::cstr_is_empty(opt_vars().p_mef) {
+    let mef_bytes = crate::memory::cstr_as_bytes(opt_vars().p_mef);
+    if mef_bytes.is_empty() {
         let name = vim_tempname();
         if name.is_none() {
             emsg(gettext(E_NOTMP));
@@ -4656,17 +4651,9 @@ fn get_mef_name() -> Option<std::ffi::CString> {
         return name;
     }
 
-    let mut p = opt_vars().p_mef;
-    while !crate::memory::cstr_is_empty(p) {
-        if crate::memory::cstr_first_byte(p) == b'#' && crate::memory::cstr_byte_at(p, 1) == b'#' {
-            break;
-        }
-        p = p.wrapping_add(1);
-    }
-
-    if crate::memory::cstr_is_empty(p) {
+    let Some(off_idx) = mef_bytes.windows(2).position(|w| w == b"##") else {
         return Some(crate::memory::cstr_to_cstring(opt_vars().p_mef));
-    }
+    };
 
     loop {
         if qf_st().mef_start == -1 {
@@ -4674,11 +4661,10 @@ fn get_mef_name() -> Option<std::ffi::CString> {
         } else {
             qf_st().mef_off += 19;
         }
-        let mef_len = crate::memory::cstr_len(opt_vars().p_mef);
+        let mef_len = mef_bytes.len();
         let mut name_vec: Vec<u8> = vec![0; mef_len + 30];
         let name: *mut _ = name_vec.as_mut_ptr().cast();
         crate::memory::cstr_cpy(name, opt_vars().p_mef);
-        let off_idx = crate::memory::ptr_offset_from(p, opt_vars().p_mef) as usize;
         vim_snprintf!(
             name.wrapping_add(off_idx),
             mef_len + 30 - off_idx,
@@ -4686,7 +4672,7 @@ fn get_mef_name() -> Option<std::ffi::CString> {
             qf_st().mef_start,
             qf_st().mef_off,
         );
-        c_strcat(name, p.wrapping_add(2));
+        c_strcat(name, opt_vars().p_mef.wrapping_add(off_idx + 2));
         let mut file_info = FileInfo::new();
         let file_or_link_found = os_fileinfo_link(name, &mut file_info);
         if !file_or_link_found {

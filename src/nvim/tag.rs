@@ -6,9 +6,7 @@ use crate::buffer::{
     K_OPT_SWB_FLAG_NEWTAB, K_OPT_SWB_FLAG_VSPLIT, MAXLNUM, NOTDONE, VAR_FIXED, bt_help,
     buflist_findname_exp, buflist_findnr, buflist_getfile,
 };
-use crate::charset::{
-    ascii_isalpha, ascii_isdigit, ascii_islower, ascii_iswhite, skipdigits, vim_isblankline,
-};
+use crate::charset::{ascii_isalpha, ascii_islower, ascii_iswhite, vim_isblankline};
 use crate::cmdexpand::{
     EXPAND_FILES, HLF_D, TAG_MANY, WILD_EXPAND_FREE, WILD_LIST_NOTFOUND, WILD_SILENT, expand_one,
 };
@@ -1061,50 +1059,41 @@ fn add_llist_tags(tag: impl crate::strings::IntoCCharPtr, matches: &[Vec<u8>]) -
             xstrlcpy(fname.cast(), p.as_ptr(), MAXPATHL);
 
             let mut lnum: Linenr = 0;
-            if ascii_isdigit(crate::memory::cstr_first_char(tagp.command.cast())) {
-                lnum = crate::charset::parse_i64_prefix(crate::memory::cstr_as_bytes(
-                    tagp.command.cast(),
-                )) as i32;
+            let cmd_bytes = crate::memory::cstr_as_bytes(tagp.command.cast());
+            if cmd_bytes.first().is_some_and(u8::is_ascii_digit) {
+                lnum = crate::charset::parse_i64_prefix(cmd_bytes) as i32;
             } else {
-                let mut cmd_start = tagp.command;
-                let mut cmd_end = tagp.command_end;
-                if cmd_end.is_null() {
-                    let mut p_iter = tagp.command;
-                    while !crate::memory::cstr_is_empty(p_iter.cast())
-                        && crate::memory::cstr_first_byte(p_iter.cast()) != b'\r'
-                        && crate::memory::cstr_first_byte(p_iter.cast()) != b'\n'
-                    {
-                        p_iter = p_iter.wrapping_add(1);
-                    }
-                    cmd_end = p_iter;
-                }
-
-                cmd_end = cmd_end.wrapping_sub(1);
-
-                if crate::memory::cstr_first_byte(cmd_start.cast()) == b'/'
-                    || crate::memory::cstr_first_byte(cmd_start.cast()) == b'?'
+                let end_idx = if !tagp.command_end.is_null() {
+                    crate::memory::ptr_offset_from(tagp.command_end, tagp.command) as usize
+                } else {
+                    cmd_bytes
+                        .iter()
+                        .position(|&b| matches!(b, b'\r' | b'\n'))
+                        .unwrap_or(cmd_bytes.len())
+                };
+                let mut cmd_slice = &cmd_bytes[..end_idx.min(cmd_bytes.len())];
+                if let Some((&first, rest)) = cmd_slice.split_first()
+                    && matches!(first, b'/' | b'?')
                 {
-                    cmd_start = cmd_start.wrapping_add(1);
+                    cmd_slice = rest;
                 }
-                if crate::memory::cstr_first_byte(cmd_end.cast()) == b'/'
-                    || crate::memory::cstr_first_byte(cmd_end.cast()) == b'?'
+                if let Some((&last, rest)) = cmd_slice.split_last()
+                    && matches!(last, b'/' | b'?')
                 {
-                    cmd_end = cmd_end.wrapping_sub(1);
+                    cmd_slice = rest;
                 }
 
                 cmd_vec.clear();
-                if crate::memory::cstr_first_byte(cmd_start.cast()) == b'^' {
+                if let Some(rest) = cmd_slice.strip_prefix(b"^") {
                     cmd_vec.push(b'^');
-                    cmd_start = cmd_start.wrapping_add(1);
+                    cmd_slice = rest;
                 }
 
                 cmd_vec.extend_from_slice(b"\\V");
 
-                let cmd_len = ((crate::memory::ptr_offset_from(cmd_end, cmd_start) as i32) + 1)
-                    .min(CMDBUFFSIZE as i32 - 5)
-                    .max(0) as usize;
+                let cmd_len = cmd_slice.len().min(CMDBUFFSIZE - 5);
                 if cmd_len > 0 {
-                    cmd_vec.extend_from_slice(crate::memory::cstr_slice(cmd_start.cast(), cmd_len));
+                    cmd_vec.extend_from_slice(&cmd_slice[..cmd_len]);
                 }
 
                 if cmd_vec.last() == Some(&b'$') {
@@ -1203,57 +1192,47 @@ pub fn do_tags(_eap: &mut Exarg) {
 fn tag_strnicmp(
     s1: impl crate::strings::IntoCCharPtr,
     s2: impl crate::strings::IntoCCharPtr,
-    mut len: usize,
+    len: usize,
 ) -> i32 {
-    let mut s1 = s1.into_c_char_ptr();
-    let mut s2 = s2.into_c_char_ptr();
-    {
-        while len > 0 {
-            let i = toupper_asc(i32::from(crate::memory::cstr_first_byte(s1)))
-                - toupper_asc(i32::from(crate::memory::cstr_first_byte(s2)));
-            if i != 0 {
-                return i;
-            }
-            if crate::memory::cstr_is_empty(s1) {
-                break;
-            }
-            s1 = s1.wrapping_add(1);
-            s2 = s2.wrapping_add(1);
-            len -= 1;
+    let b1 = crate::memory::cstr_as_bytes_with_nul(s1.into_c_char_ptr());
+    let b2 = crate::memory::cstr_as_bytes_with_nul(s2.into_c_char_ptr());
+    for idx in 0..len {
+        let c1 = b1.get(idx).copied().unwrap_or(0);
+        let c2 = b2.get(idx).copied().unwrap_or(0);
+        let diff = toupper_asc(i32::from(c1)) - toupper_asc(i32::from(c2));
+        if diff != 0 {
+            return diff;
         }
-        0
+        if c1 == 0 {
+            break;
+        }
     }
+    0
 }
 
 fn prepare_pats(pats: &mut Pat, has_re: bool) {
     pats.head = pats.pat;
     pats.headlen = pats.len;
     if has_re {
-        if crate::memory::cstr_first_byte(pats.pat.cast()) == b'^' {
+        let pat_bytes = crate::memory::cstr_as_bytes(pats.pat.cast());
+        if pat_bytes.first() == Some(&b'^') {
             pats.head = pats.pat.wrapping_add(1);
-        } else if crate::memory::cstr_first_byte(pats.pat.cast()) == b'\\'
-            && crate::memory::cstr_byte_at(pats.pat.cast(), 1) == b'<'
-        {
+        } else if pat_bytes.starts_with(b"\\<") {
             pats.head = pats.pat.wrapping_add(2);
         }
         if pats.head == pats.pat {
             pats.headlen = 0;
         } else {
-            pats.headlen = 0;
-            while crate::memory::cstr_byte_at(pats.head.cast(), pats.headlen as usize) != 0 {
-                let magic_chars = if opt_vars().p_magic != 0 {
-                    c".[~*\\$".as_ptr()
-                } else {
-                    c"\\$".as_ptr()
-                };
-                if crate::strings::vim_haschr(
-                    magic_chars,
-                    crate::memory::cstr_byte_at(pats.head.cast(), pats.headlen as usize) as i32,
-                ) {
-                    break;
-                }
-                pats.headlen += 1;
-            }
+            let head_bytes = crate::memory::cstr_as_bytes(pats.head.cast());
+            let magic_chars: &[u8] = if opt_vars().p_magic != 0 {
+                b".[~*\\$"
+            } else {
+                b"\\$"
+            };
+            pats.headlen = head_bytes
+                .iter()
+                .take_while(|b| !magic_chars.contains(b))
+                .count() as i32;
         }
         if opt_vars().p_tl != 0 && (pats.headlen as OptInt) > opt_vars().p_tl {
             pats.headlen = opt_vars().p_tl as i32;
@@ -1272,29 +1251,25 @@ fn prepare_pats(pats: &mut Pat, has_re: bool) {
 
 fn tagfunc_cmd_kind(cmd: impl crate::strings::IntoCCharPtr) -> Tagcmd {
     let cmd = cmd.into_c_char_ptr().cast_mut();
-    let first_c = crate::memory::cstr_first_char(cmd);
-    let first_b = crate::memory::cstr_first_byte(cmd);
-    if ascii_isdigit(first_c) {
-        return if crate::memory::cstr_is_empty(skipdigits(cmd)) {
+    let cmd_bytes = crate::memory::cstr_as_bytes(cmd);
+    let first_b = cmd_bytes.first().copied().unwrap_or(0);
+    if first_b.is_ascii_digit() {
+        return if cmd_bytes.iter().all(u8::is_ascii_digit) {
             Tagcmd::TagcmdAddress
         } else {
             Tagcmd::TagcmdInvalid
         };
     }
     if first_b == b'/' || first_b == b'?' {
-        let end = skip_regexp(cmd.wrapping_add(1), first_c, 0);
-        return if crate::memory::cstr_first_byte(end) == first_b
-            && crate::memory::cstr_byte_at(end, 1) == 0
-        {
+        let end = skip_regexp(cmd.wrapping_add(1), first_b as i32, 0);
+        let end_bytes = crate::memory::cstr_as_bytes(end);
+        return if end_bytes == [first_b] {
             Tagcmd::TagcmdAddress
         } else {
             Tagcmd::TagcmdInvalid
         };
     }
-    if crate::memory::cstr_as_bytes(cmd)
-        .iter()
-        .any(|b| b"\t\r\n".contains(b))
-    {
+    if cmd_bytes.iter().any(|b| b"\t\r\n".contains(b)) {
         return Tagcmd::TagcmdInvalid;
     }
     Tagcmd::TagcmdGeneric
@@ -1613,19 +1588,14 @@ fn findtags_in_help_init(st: &mut FindtagsState) -> bool {
         return false;
     }
 
-    let fname_len = if !curbuf_mut().b_fname.is_null() {
-        crate::memory::cstr_len(curbuf_mut().b_fname) as i32
-    } else {
-        0
-    };
+    let fname_bytes = crate::memory::cstr_as_bytes(curbuf_mut().b_fname);
     if (st.flags & TAG_KEEP_LANG) != 0
         && st.help_lang_find.is_none()
-        && !curbuf_mut().b_fname.is_null()
-        && fname_len > 4
-        && crate::memory::cstr_byte_at(curbuf_mut().b_fname, (fname_len - 1) as usize) == b'x'
-        && crate::memory::cstr_byte_at(curbuf_mut().b_fname, (fname_len - 4) as usize) == b'.'
+        && fname_bytes.len() > 4
+        && fname_bytes[fname_bytes.len() - 1] == b'x'
+        && fname_bytes[fname_bytes.len() - 4] == b'.'
         && mb_strnicmp(
-            curbuf_mut().b_fname.wrapping_add((fname_len - 3) as usize),
+            curbuf_mut().b_fname.wrapping_add(fname_bytes.len() - 3),
             st.help_lang.as_ptr().cast(),
             2,
         ) == 0
@@ -1748,15 +1718,15 @@ fn findtags_get_next_line(st: &mut FindtagsState, sinfo_p: &mut TagsearchInfo) -
 }
 
 fn findtags_hdr_parse(st: &mut FindtagsState) -> bool {
-    let lbuf = st.lbuf.as_mut_ptr();
-    if !(crate::memory::cstr_prefix_bytes(lbuf.cast(), 6) == &b"!_TAG_"[..6]) {
+    let lbuf_bytes = crate::memory::cstr_as_bytes(st.lbuf.as_ptr().cast());
+    if !lbuf_bytes.starts_with(b"!_TAG_") {
         return true;
     }
 
-    if crate::memory::cstr_prefix_bytes(lbuf.cast(), 18) == &b"!_TAG_FILE_SORTED\t"[..18] {
+    if lbuf_bytes.starts_with(b"!_TAG_FILE_SORTED\t") {
         st.tag_file_sorted = i32::from(st.lbuf[18]);
     }
-    if crate::memory::cstr_prefix_bytes(lbuf.cast(), 20) == &b"!_TAG_FILE_ENCODING\t"[..20] {
+    if lbuf_bytes.starts_with(b"!_TAG_FILE_ENCODING\t") {
         let mut end = 20;
         while end < st.lbuf.len() && st.lbuf[end] > b' ' && st.lbuf[end] < 127 {
             end += 1;
@@ -1783,8 +1753,7 @@ fn findtags_start_state_handler(
     let lbuf = st.lbuf.as_ptr();
 
     if (crate::memory::cstr_prefix_bytes(lbuf.cast(), 6) <= b"!_TAG_")
-        || (crate::memory::cstr_first_byte(lbuf.cast()) == b'!'
-            && ascii_islower(crate::memory::cstr_char_at(lbuf.cast(), 1)))
+        || (st.lbuf[0] == b'!' && ascii_islower(st.lbuf[1] as i32))
     {
         return findtags_hdr_parse(st);
     }
@@ -2088,27 +2057,20 @@ fn findtags_add_match(
             mfp_vec = Some(v);
         } else if name_only {
             if st.get_searchpat {
-                let mut temp_end = tagpp.command;
-                if crate::memory::cstr_first_byte(temp_end.cast()) == b'/' {
-                    while !crate::memory::cstr_is_empty(temp_end.cast())
-                        && crate::memory::cstr_first_byte(temp_end.cast()) != b'\r'
-                        && crate::memory::cstr_first_byte(temp_end.cast()) != b'\n'
-                        && crate::memory::cstr_first_byte(temp_end.cast()) != b'$'
-                    {
-                        temp_end = temp_end.wrapping_add(1);
-                    }
-                }
+                let cmd_bytes = crate::memory::cstr_as_bytes(tagpp.command.cast());
+                let temp_end_idx = if cmd_bytes.first() == Some(&b'/') {
+                    cmd_bytes
+                        .iter()
+                        .position(|&b| matches!(b, b'\r' | b'\n' | b'$'))
+                        .unwrap_or(cmd_bytes.len())
+                } else {
+                    0
+                };
 
-                if tagpp.command.wrapping_add(2) < temp_end {
-                    let len =
-                        crate::memory::ptr_offset_from(temp_end, tagpp.command.wrapping_add(2))
-                            as usize;
+                if temp_end_idx > 2 {
+                    let len = temp_end_idx - 2;
                     let mut v = vec![0u8; len + 2];
-                    crate::memory::cstr_ncpy(
-                        v.as_mut_ptr().cast(),
-                        tagpp.command.wrapping_add(2).cast(),
-                        len,
-                    );
+                    v[..len].copy_from_slice(&cmd_bytes[2..temp_end_idx]);
                     mfp_vec = Some(v);
                 }
                 st.get_searchpat = false;
@@ -2677,64 +2639,61 @@ fn parse_match(lbuf: impl crate::strings::IntoCCharPtr, tagp: &mut Tagptrs) -> b
         let mut p = tagp.command;
         if find_extra(&mut p) {
             tagp.command_end = p;
-            if p > tagp.command && crate::memory::cstr_first_byte(p.wrapping_sub(1).cast()) == b'|'
-            {
+            if p > tagp.command && unsafe { *p.wrapping_sub(1) } == b'|' {
                 tagp.command_end = p.wrapping_sub(1);
             }
             p = p.wrapping_add(2);
-            if crate::memory::cstr_first_byte(p.cast()) == TAB {
+            if unsafe { *p } == TAB {
                 p = p.wrapping_add(1);
-                while ascii_isalpha(crate::memory::cstr_first_char(p.cast()))
-                    || utfc_ptr2len(p.cast()) > 1
-                {
-                    if crate::memory::cstr_prefix_bytes(p.cast(), 5) == &b"kind:"[..5] {
-                        tagp.tagkind = p.wrapping_add(5);
-                    } else if crate::memory::cstr_prefix_bytes(p.cast(), 10) == &b"user_data:"[..10]
+                loop {
+                    let p_bytes = crate::memory::cstr_as_bytes(p.cast());
+                    if !p_bytes.first().is_some_and(u8::is_ascii_alphabetic)
+                        && utfc_ptr2len(p.cast()) <= 1
                     {
+                        break;
+                    }
+                    if let Some(rest) = p_bytes.strip_prefix(b"kind:") {
+                        let _ = rest;
+                        tagp.tagkind = p.wrapping_add(5);
+                    } else if p_bytes.starts_with(b"user_data:") {
                         tagp.user_data = p.wrapping_add(10);
-                    } else if crate::memory::cstr_prefix_bytes(p.cast(), 5) == &b"line:"[..5] {
-                        tagp.tagline = crate::charset::parse_i64_prefix(
-                            crate::memory::cstr_as_bytes(p.wrapping_add(5).cast()),
-                        ) as i32;
+                    } else if let Some(rest) = p_bytes.strip_prefix(b"line:") {
+                        tagp.tagline = crate::charset::parse_i64_prefix(rest) as i32;
                     }
                     if !tagp.tagkind.is_null() && !tagp.user_data.is_null() {
                         break;
                     }
 
-                    let pc = vim_strchr(p.cast(), b':' as i32).cast::<u8>();
-                    let pt = vim_strchr(p.cast(), b'\t' as i32).cast::<u8>();
-                    if pc.is_null() || (!pt.is_null() && pc > pt) {
+                    let colon_pos = p_bytes.iter().position(|&b| b == b':');
+                    let tab_pos = p_bytes.iter().position(|&b| b == b'\t');
+                    if colon_pos.is_none()
+                        || tab_pos.is_some_and(|t| colon_pos.unwrap_or(usize::MAX) > t)
+                    {
                         tagp.tagkind = p;
                     }
-                    if pt.is_null() {
+                    let Some(t_idx) = tab_pos else {
                         break;
-                    }
-                    p = pt;
+                    };
+                    p = p.wrapping_add(t_idx);
                     mb_ptr_adv(&mut p);
                 }
             }
         }
         if !tagp.tagkind.is_null() {
-            p = tagp.tagkind;
-            while !crate::memory::cstr_is_empty(p.cast())
-                && crate::memory::cstr_first_byte(p.cast()) != b'\t'
-                && crate::memory::cstr_first_byte(p.cast()) != b'\r'
-                && crate::memory::cstr_first_byte(p.cast()) != b'\n'
-            {
-                mb_ptr_adv(&mut p);
-            }
-            tagp.tagkind_end = p;
+            let kind_bytes = crate::memory::cstr_as_bytes(tagp.tagkind.cast());
+            let end_idx = kind_bytes
+                .iter()
+                .position(|&b| matches!(b, b'\t' | b'\r' | b'\n'))
+                .unwrap_or(kind_bytes.len());
+            tagp.tagkind_end = tagp.tagkind.wrapping_add(end_idx);
         }
         if !tagp.user_data.is_null() {
-            p = tagp.user_data;
-            while !crate::memory::cstr_is_empty(p.cast())
-                && crate::memory::cstr_first_byte(p.cast()) != b'\t'
-                && crate::memory::cstr_first_byte(p.cast()) != b'\r'
-                && crate::memory::cstr_first_byte(p.cast()) != b'\n'
-            {
-                mb_ptr_adv(&mut p);
-            }
-            tagp.user_data_end = p;
+            let ud_bytes = crate::memory::cstr_as_bytes(tagp.user_data.cast());
+            let end_idx = ud_bytes
+                .iter()
+                .position(|&b| matches!(b, b'\t' | b'\r' | b'\n'))
+                .unwrap_or(ud_bytes.len());
+            tagp.user_data_end = tagp.user_data.wrapping_add(end_idx);
         }
         retval
     }
@@ -3139,26 +3098,25 @@ fn test_for_current(
 
 fn find_extra(pp: &mut *mut u8) -> bool {
     let mut str_ = *pp;
-    let mut first_char = crate::memory::cstr_first_byte(str_.cast());
 
     loop {
-        if ascii_isdigit(crate::memory::cstr_first_char(str_.cast())) {
-            str_ = skipdigits(str_.wrapping_add(1).cast()).cast();
-        } else if crate::memory::cstr_first_byte(str_.cast()) == b'/'
-            || crate::memory::cstr_first_byte(str_.cast()) == b'?'
-        {
-            str_ = skip_regexp(
-                str_.wrapping_add(1),
-                crate::memory::cstr_first_char(str_.cast()),
-                0,
-            );
+        let str_bytes = crate::memory::cstr_as_bytes(str_.cast());
+        let first_char = str_bytes.first().copied().unwrap_or(0);
+        if first_char.is_ascii_digit() {
+            let skip_len = 1 + str_bytes[1..]
+                .iter()
+                .take_while(|b| b.is_ascii_digit())
+                .count();
+            str_ = str_.wrapping_add(skip_len);
+        } else if first_char == b'/' || first_char == b'?' {
+            str_ = skip_regexp(str_.wrapping_add(1), first_char as i32, 0);
             if crate::memory::cstr_first_byte(str_.cast()) != first_char {
                 str_ = ptr::null_mut();
             } else {
                 str_ = str_.wrapping_add(1);
             }
         } else {
-            str_ = crate::memory::cstr_as_bytes(str_.cast())
+            str_ = str_bytes
                 .windows(3)
                 .position(|w| w == b"|;\"")
                 .map_or(ptr::null_mut(), |i| str_.wrapping_add(i));
@@ -3167,22 +3125,21 @@ fn find_extra(pp: &mut *mut u8) -> bool {
                 break;
             }
         }
-        if str_.is_null()
-            || crate::memory::cstr_first_byte(str_.cast()) != b';'
-            || !(ascii_isdigit(crate::memory::cstr_char_at(str_.cast(), 1))
-                || crate::memory::cstr_byte_at(str_.cast(), 1) == b'/'
-                || crate::memory::cstr_byte_at(str_.cast(), 1) == b'?')
+        if str_.is_null() {
+            break;
+        }
+        let rem_bytes = crate::memory::cstr_as_bytes(str_.cast());
+        if rem_bytes.first() != Some(&b';')
+            || !rem_bytes
+                .get(1)
+                .is_some_and(|&b| b.is_ascii_digit() || b == b'/' || b == b'?')
         {
             break;
         }
         str_ = str_.wrapping_add(1);
-        first_char = crate::memory::cstr_first_byte(str_.cast());
     }
 
-    if !str_.is_null() && {
-        let _p = str_.cast();
-        crate::memory::xstrnlen(_p, 2) == 2 && crate::memory::cstr_slice(_p, 2) == &b";\""[..2]
-    } {
+    if !str_.is_null() && crate::memory::cstr_as_bytes(str_.cast()).starts_with(b";\"") {
         *pp = str_;
         return true;
     }
@@ -3379,54 +3336,46 @@ pub fn get_tags(
 
             if !tp.command_end.is_null() {
                 let mut p = tp.command_end.wrapping_add(3);
-                while !crate::memory::cstr_is_empty(p.cast())
-                    && crate::memory::cstr_first_byte(p.cast()) != b'\n'
-                    && crate::memory::cstr_first_byte(p.cast()) != b'\r'
-                {
+                loop {
+                    let p_bytes = crate::memory::cstr_as_bytes(p.cast());
+                    if p_bytes.is_empty() || matches!(p_bytes[0], b'\n' | b'\r') {
+                        break;
+                    }
                     if p == tp.tagkind
-                        || (p.wrapping_add(5) == tp.tagkind
-                            && (crate::memory::cstr_prefix_bytes(p.cast(), 5) == &b"kind:"[..5]))
+                        || (p.wrapping_add(5) == tp.tagkind && p_bytes.starts_with(b"kind:"))
                     {
                         p = tp.tagkind_end.wrapping_sub(1);
-                    } else if crate::memory::cstr_prefix_bytes(p.cast(), 5) == &b"file:"[..5] {
+                    } else if p_bytes.starts_with(b"file:") {
                         p = p.wrapping_add(4);
-                    } else if !ascii_iswhite(crate::memory::cstr_first_char(p.cast())) {
-                        let n = p;
-                        while !crate::memory::cstr_is_empty(p.cast())
-                            && (crate::memory::cstr_first_byte(p.cast())) >= b' '
-                            && (crate::memory::cstr_first_byte(p.cast())) < 127
-                            && crate::memory::cstr_first_byte(p.cast()) != b':'
-                        {
-                            p = p.wrapping_add(1);
-                        }
-                        let len = crate::memory::ptr_offset_from(p, n) as i32;
-                        if crate::memory::cstr_first_byte(p.cast()) == b':' && len > 0 {
-                            p = p.wrapping_add(1);
-                            let s = p;
-                            while !crate::memory::cstr_is_empty(p.cast())
-                                && (crate::memory::cstr_first_byte(p.cast())) >= b' '
-                            {
-                                p = p.wrapping_add(1);
-                            }
-                            let field_name = std::ffi::CString::new(crate::memory::cstr_slice(
-                                n.cast(),
-                                len as usize,
-                            ))
-                            .unwrap_or_default();
+                    } else if !ascii_iswhite(p_bytes[0] as i32) {
+                        let name_len = p_bytes
+                            .iter()
+                            .take_while(|&&b| (b' '..127).contains(&b) && b != b':')
+                            .count();
+                        if p_bytes.get(name_len) == Some(&b':') && name_len > 0 {
+                            let val_start = p.wrapping_add(name_len + 1);
+                            let val_len = p_bytes[name_len + 1..]
+                                .iter()
+                                .take_while(|&&b| b >= b' ')
+                                .count();
+                            let val_end = val_start.wrapping_add(val_len);
+                            let field_name =
+                                std::ffi::CString::new(&p_bytes[..name_len]).unwrap_or_default();
                             if !add_tag_field(
                                 Some(&mut *dict),
                                 field_name.as_ptr(),
-                                s.cast(),
-                                p.cast(),
+                                val_start.cast(),
+                                val_end.cast(),
                             ) {
                                 ret = false;
                             }
+                            p = val_end;
                         } else {
-                            while !crate::memory::cstr_is_empty(p.cast())
-                                && (crate::memory::cstr_first_byte(p.cast())) >= b' '
-                            {
-                                p = p.wrapping_add(1);
-                            }
+                            let skip_len = p_bytes[name_len..]
+                                .iter()
+                                .take_while(|&&b| b >= b' ')
+                                .count();
+                            p = p.wrapping_add(name_len + skip_len);
                         }
                         if crate::memory::cstr_is_empty(p.cast()) {
                             break;

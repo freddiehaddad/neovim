@@ -1381,19 +1381,21 @@ fn add_pack_dir_to_rtp(fname: impl crate::strings::IntoCCharPtr, is_pack: bool) 
     {
         let mut retval = false;
 
-        let mut p1 = get_past_head(fname);
+        let past_head = get_past_head(fname);
+        let mut p1 = past_head;
         let mut p2 = p1;
         let mut p3 = p1;
         let mut p4 = p1;
-        let mut p = p1;
-        while !crate::memory::cstr_is_empty(p) {
-            if vim_ispathsep_nocolon(crate::memory::cstr_first_byte(p) as i32) {
+        let rem_bytes = crate::memory::cstr_as_bytes(past_head);
+        let mut idx = 0usize;
+        while idx < rem_bytes.len() {
+            if vim_ispathsep_nocolon(rem_bytes[idx] as i32) {
                 p4 = p3;
                 p3 = p2;
                 p2 = p1;
-                p1 = p;
+                p1 = past_head.wrapping_add(idx);
             }
-            p = p.wrapping_add(utfc_ptr2len(p) as usize);
+            idx += utfc_ptr2len(past_head.wrapping_add(idx)) as usize;
         }
 
         p4 = p4.wrapping_add(1);
@@ -3297,12 +3299,8 @@ pub fn getsourceline(
 
         sp.nextline = get_one_sourceline(sp);
         if let Some(ref next) = sp.nextline {
-            let p = skipwhite(next.as_ptr().cast());
-            if crate::memory::cstr_first_byte(p) == b'\\'
-                || (crate::memory::cstr_first_byte(p) == b'"'
-                    && crate::memory::cstr_byte_at(p, 1) == b'\\'
-                    && crate::memory::cstr_byte_at(p, 2) == b' ')
-            {
+            let p_bytes = crate::memory::cstr_as_bytes(skipwhite(next.as_ptr().cast()));
+            if p_bytes.first() == Some(&b'\\') || p_bytes.starts_with(b"\"\\ ") {
                 if buf.last() == Some(&0) {
                     buf.pop();
                 }
