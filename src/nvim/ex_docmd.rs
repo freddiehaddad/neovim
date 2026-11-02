@@ -7596,7 +7596,8 @@ pub fn f_fullcommand(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFunc
 
 pub fn excmd_get_cmdidx(cmd: impl crate::strings::IntoCCharPtr, len: usize) -> Cmdidx {
     let cmd = cmd.into_c_char_ptr();
-    let cmd_prefix = crate::memory::cstr_prefix_bytes(cmd, len);
+    let cmd_bytes = crate::memory::cstr_as_bytes(cmd);
+    let cmd_prefix = &cmd_bytes[..len.min(cmd_bytes.len())];
     if cmd_prefix == b"def" {
         return Cmdidx::CmdSize;
     }
@@ -8648,26 +8649,12 @@ pub fn expand_argopt(
             let mut cb: CompleteListItemGetter = None;
             let name_end = xp.xp_pattern.wrapping_sub(1);
             let diff = (name_end as usize) - (xp.xp_line as usize);
-            if (diff >= 2
-                && (crate::memory::cstr_prefix_bytes(name_end.wrapping_sub(2).cast(), 2)
-                    == &b"ff"[..2]))
-                || (diff >= 10
-                    && (crate::memory::cstr_prefix_bytes(name_end.wrapping_sub(10).cast(), 10)
-                        == &b"fileformat"[..10]))
-            {
+            let name_slice = crate::memory::cstr_slice(xp.xp_line.cast(), diff);
+            if name_slice.ends_with(b"ff") || name_slice.ends_with(b"fileformat") {
                 cb = Some(get_fileformat_name);
-            } else if (diff >= 3
-                && (crate::memory::cstr_prefix_bytes(name_end.wrapping_sub(3).cast(), 3)
-                    == &b"enc"[..3]))
-                || (diff >= 8
-                    && (crate::memory::cstr_prefix_bytes(name_end.wrapping_sub(8).cast(), 8)
-                        == &b"encoding"[..8]))
-            {
+            } else if name_slice.ends_with(b"enc") || name_slice.ends_with(b"encoding") {
                 cb = Some(get_encoding_name);
-            } else if diff >= 3
-                && (crate::memory::cstr_prefix_bytes(name_end.wrapping_sub(3).cast(), 3)
-                    == &b"bad"[..3])
-            {
+            } else if name_slice.ends_with(b"bad") {
                 cb = Some(get_bad_name);
             }
 
@@ -8679,8 +8666,7 @@ pub fn expand_argopt(
         }
 
         if xp.xp_pattern_len == 2
-            && (crate::memory::cstr_prefix_bytes(xp.xp_pattern.cast(), xp.xp_pattern_len)
-                == crate::memory::cstr_prefix_bytes(c"ff", xp.xp_pattern_len))
+            && crate::memory::cstr_as_bytes(xp.xp_pattern.cast()).starts_with(b"ff")
         {
             *matches = vec![c"fileformat=".to_owned()];
             return true;
@@ -11939,12 +11925,11 @@ pub fn find_cmdline_var(src: impl crate::strings::IntoCCharPtr, usedlen: &mut us
         c"<SID>",
     ];
 
+    let src_bytes = crate::memory::cstr_as_bytes(src);
     for (i, s) in SPEC_STR.iter().enumerate() {
-        let len = s.to_bytes().len();
-        if crate::memory::cstr_prefix_bytes(src, len)
-            == crate::memory::cstr_prefix_bytes(s.as_ptr(), len)
-        {
-            *usedlen = len;
+        let s_bytes = s.to_bytes();
+        if src_bytes.starts_with(s_bytes) {
+            *usedlen = s_bytes.len();
             return i as isize;
         }
     }
@@ -12260,7 +12245,7 @@ pub fn expand_sfile(arg: impl crate::strings::IntoCCharPtr) -> Option<std::ffi::
 
         while result_vec[idx] != 0 {
             let p: RawCCharPtrMut = result_vec.as_mut_ptr().wrapping_add(idx).cast();
-            if !(crate::memory::cstr_prefix_bytes(p, 7) == &b"<sfile>"[..7]) {
+            if !result_vec[idx..].starts_with(b"<sfile>") {
                 idx += 1;
             } else {
                 let mut srclen: usize = 0;
@@ -12349,12 +12334,13 @@ fn ex_filetype(eap: &mut Exarg) {
     let mut indent = false;
 
     loop {
-        if crate::memory::cstr_prefix_bytes(arg, 6) == &b"plugin"[..6] {
+        let arg_bytes = crate::memory::cstr_as_bytes(arg);
+        if arg_bytes.starts_with(b"plugin") {
             plugin = true;
             arg = skipwhite(arg.wrapping_add(6));
             continue;
         }
-        if crate::memory::cstr_prefix_bytes(arg, 6) == &b"indent"[..6] {
+        if arg_bytes.starts_with(b"indent") {
             indent = true;
             arg = skipwhite(arg.wrapping_add(6));
             continue;
@@ -12433,7 +12419,7 @@ fn ex_setfiletype(eap: &mut Exarg) {
     }
 
     let mut arg = eap.arg;
-    if crate::memory::cstr_prefix_bytes(arg, 9) == &b"FALLBACK "[..9] {
+    if crate::memory::cstr_as_bytes(arg).starts_with(b"FALLBACK ") {
         arg = arg.wrapping_add(9);
     }
 

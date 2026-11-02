@@ -453,7 +453,7 @@ pub fn get_function_name(xp: &mut ExpandCtx, idx: i32) -> Option<&'static CStr> 
     {
         if !name.is_empty()
             && name.to_bytes()[0] != b'<'
-            && (b"g:" == crate::memory::cstr_prefix_bytes(xp.xp_pattern.cast(), 2))
+            && crate::memory::cstr_as_bytes(xp.xp_pattern.cast()).starts_with(b"g:")
         {
             return Some(cat_prefix_varname(b'g' as i32, name.as_ptr()));
         }
@@ -2154,7 +2154,7 @@ pub fn execute_common(argvars: &mut [TypVal], rettv: &mut TypVal, arg_off: i32) 
         if s.to_bytes().is_empty() {
             echo_output = true;
         }
-        if crate::memory::cstr_prefix_bytes(s, 6) == &b"silent"[..6] {
+        if s.to_bytes().starts_with(b"silent") {
             g_st().msg_silent += 1;
         }
         if s == c"silent!" {
@@ -2562,9 +2562,8 @@ fn common_function(argvars: &mut [TypVal], rettv: &mut TypVal, is_funcref: bool)
                 let mut dict_idx: usize = 0;
                 let mut arg_idx: usize = 0;
                 let mut list: *mut TvList = ptr::null_mut();
-                let name_cstr = if (crate::memory::cstr_prefix_bytes(s, 2) == &b"s:"[..2])
-                    || (crate::memory::cstr_prefix_bytes(s, 5) == &b"<SID>"[..5])
-                {
+                let s_bytes = crate::memory::cstr_as_bytes(s);
+                let name_cstr = if s_bytes.starts_with(b"s:") || s_bytes.starts_with(b"<SID>") {
                     get_scriptlocal_funcname(s).unwrap_or_default()
                 } else {
                     cstr_to_cstring(s)
@@ -4473,13 +4472,9 @@ pub fn f_jobstart(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDat
             overlapped = tv_dict_get_number(job_opts.as_ref(), c"overlapped") != 0;
 
             if let Some(s) = tv_dict_get_string(job_opts.as_ref(), c"stdin") {
-                if crate::memory::cstr_prefix_bytes(s, NUMBUFLEN)
-                    == crate::memory::cstr_prefix_bytes(c"null", NUMBUFLEN)
-                {
+                if s == c"null" {
                     stdin_mode = K_CHANNEL_STDIN_NULL;
-                } else if crate::memory::cstr_prefix_bytes(s, NUMBUFLEN)
-                    == crate::memory::cstr_prefix_bytes(c"pipe", NUMBUFLEN)
-                {
+                } else if s == c"pipe" {
                     // default
                 } else {
                     semsg!(gettext(E_INVARG_NVAL), c"stdin", s);

@@ -2344,15 +2344,15 @@ fn command_line_next_histidx(s: &mut CommandLineState, next_match: bool) {
             break;
         }
 
-        let lookfor_ptr = s.lookfor.as_ref().map_or(c"".as_ptr(), |s| s.as_ptr());
+        let lookfor_bytes = s.lookfor.as_ref().map_or(&b""[..], |lf| lf.as_bytes());
+        let his_bytes = hist[s.hiscnt as usize]
+            .hisstr_cstr()
+            .map_or(&b""[..], CStr::to_bytes);
+        let lflen = s.lookforlen as usize;
         if (s.c != K_UP && s.c != K_DOWN)
             || s.hiscnt == s.save_hiscnt
-            || (crate::memory::cstr_prefix_bytes(
-                hist[s.hiscnt as usize]
-                    .hisstr_cstr()
-                    .map_or(ptr::null(), CStr::as_ptr),
-                s.lookforlen as usize,
-            ) == crate::memory::cstr_prefix_bytes(lookfor_ptr, s.lookforlen as usize))
+            || his_bytes[..lflen.min(his_bytes.len())]
+                == lookfor_bytes[..lflen.min(lookfor_bytes.len())]
         {
             break;
         }
@@ -4433,12 +4433,13 @@ fn cmdline_paste(regname: i32, literally: bool, remcr: bool) -> bool {
                     .wrapping_add(getln_st().ccline.cmdpos as usize),
                 w,
             ) as usize;
+            let w_slice = crate::memory::cstr_slice(w.cast(), len);
+            let arg_b = crate::memory::cstr_as_bytes(arg.cast());
+            let arg_prefix = &arg_b[..len.min(arg_b.len())];
             let matches = if opt_vars().p_ic != 0 {
-                crate::memory::cstr_prefix_bytes(w.cast(), len)
-                    .eq_ignore_ascii_case(crate::memory::cstr_prefix_bytes(arg.cast(), len))
+                w_slice.eq_ignore_ascii_case(arg_prefix)
             } else {
-                crate::memory::cstr_prefix_bytes(w.cast(), len)
-                    == crate::memory::cstr_prefix_bytes(arg.cast(), len)
+                w_slice == arg_prefix
             };
             if matches {
                 p = p.wrapping_add(len);

@@ -846,22 +846,21 @@ fn sign_define_cmd(
                 break;
             }
             cmdline = skiptowhite_esc(arg);
-            if crate::memory::cstr_prefix_bytes(arg, 5) == &b"icon="[..5] {
+            let arg_bytes = crate::memory::cstr_as_bytes(arg);
+            if arg_bytes.starts_with(b"icon=") {
                 icon = arg.wrapping_add(5);
-            } else if crate::memory::cstr_prefix_bytes(arg, 5) == &b"text="[..5] {
+            } else if arg_bytes.starts_with(b"text=") {
                 text = arg.wrapping_add(5);
-            } else if crate::memory::cstr_prefix_bytes(arg, 7) == &b"linehl="[..7] {
+            } else if arg_bytes.starts_with(b"linehl=") {
                 linehl = arg.wrapping_add(7);
-            } else if crate::memory::cstr_prefix_bytes(arg, 7) == &b"texthl="[..7] {
+            } else if arg_bytes.starts_with(b"texthl=") {
                 texthl = arg.wrapping_add(7);
-            } else if crate::memory::cstr_prefix_bytes(arg, 6) == &b"culhl="[..6] {
+            } else if arg_bytes.starts_with(b"culhl=") {
                 culhl = arg.wrapping_add(6);
-            } else if crate::memory::cstr_prefix_bytes(arg, 6) == &b"numhl="[..6] {
+            } else if arg_bytes.starts_with(b"numhl=") {
                 numhl = arg.wrapping_add(6);
-            } else if crate::memory::cstr_prefix_bytes(arg, 9) == &b"priority="[..9] {
-                prio = crate::charset::parse_i64_prefix(crate::memory::cstr_as_bytes(
-                    arg.wrapping_add(9),
-                )) as i32;
+            } else if let Some(rest) = arg_bytes.strip_prefix(b"priority=") {
+                prio = crate::charset::parse_i64_prefix(rest) as i32;
             } else {
                 semsg!(gettext(E_INVARG2), arg);
                 return;
@@ -1002,21 +1001,20 @@ fn parse_sign_cmd_args<T>(
         }
 
         while !crate::memory::cstr_is_empty(arg) {
-            if crate::memory::cstr_prefix_bytes(arg, 5) == &b"line="[..5] {
+            let arg_bytes = crate::memory::cstr_as_bytes(arg);
+            if arg_bytes.starts_with(b"line=") {
                 arg = arg.wrapping_add(5);
-                *lnum = crate::charset::parse_i64_prefix(crate::memory::cstr_as_bytes(arg)) as i32;
+                *lnum = crate::charset::parse_i64_prefix(&arg_bytes[5..]) as i32;
                 arg = skiptowhite(arg);
                 lnum_arg = true;
-            } else if (crate::memory::cstr_prefix_bytes(arg, 1) == &b"*"[..1])
-                && cmd == SIGNCMD_UNPLACE
-            {
+            } else if arg_bytes.starts_with(b"*") && cmd == SIGNCMD_UNPLACE {
                 if *id != -1 {
                     emsg(gettext(E_INVARG));
                     return false;
                 }
                 *id = -2;
                 arg = skiptowhite(arg.wrapping_add(1));
-            } else if crate::memory::cstr_prefix_bytes(arg, 5) == &b"name="[..5] {
+            } else if arg_bytes.starts_with(b"name=") {
                 arg = arg.wrapping_add(5);
                 let mut namep = arg;
                 arg = skiptowhite(arg);
@@ -1030,7 +1028,7 @@ fn parse_sign_cmd_args<T>(
                     namep = namep.wrapping_add(1);
                 }
                 *name = namep;
-            } else if crate::memory::cstr_prefix_bytes(arg, 6) == &b"group="[..6] {
+            } else if arg_bytes.starts_with(b"group=") {
                 arg = arg.wrapping_add(6);
                 *group = arg;
                 arg = skiptowhite(arg);
@@ -1038,16 +1036,16 @@ fn parse_sign_cmd_args<T>(
                     *arg = NUL;
                     arg = arg.wrapping_add(1);
                 }
-            } else if crate::memory::cstr_prefix_bytes(arg, 9) == &b"priority="[..9] {
+            } else if arg_bytes.starts_with(b"priority=") {
                 arg = arg.wrapping_add(9);
-                *prio = crate::charset::parse_i64_prefix(crate::memory::cstr_as_bytes(arg)) as i32;
+                *prio = crate::charset::parse_i64_prefix(&arg_bytes[9..]) as i32;
                 arg = skiptowhite(arg);
-            } else if crate::memory::cstr_prefix_bytes(arg, 5) == &b"file="[..5] {
+            } else if arg_bytes.starts_with(b"file=") {
                 arg = arg.wrapping_add(5);
                 filename = arg;
                 *buf = buflist_findname_exp(arg);
                 break;
-            } else if crate::memory::cstr_prefix_bytes(arg, 7) == &b"buffer="[..7] {
+            } else if arg_bytes.starts_with(b"buffer=") {
                 arg = arg.wrapping_add(7);
                 filename = arg;
                 let arg_bytes = crate::memory::cstr_as_bytes(arg);
@@ -1387,35 +1385,36 @@ pub fn set_context_in_sign_cmd(xp: &mut ExpandCtx, arg: impl crate::strings::Int
         }
     } else {
         xp.xp_pattern = p.wrapping_add(1).cast();
+        let last_bytes = crate::memory::cstr_as_bytes(last);
         match cmd_idx {
             SIGNCMD_DEFINE => {
-                if (crate::memory::cstr_prefix_bytes(last, 6) == &b"texthl"[..6])
-                    || (crate::memory::cstr_prefix_bytes(last, 6) == &b"linehl"[..6])
-                    || (crate::memory::cstr_prefix_bytes(last, 5) == &b"culhl"[..5])
-                    || (crate::memory::cstr_prefix_bytes(last, 5) == &b"numhl"[..5])
+                if last_bytes.starts_with(b"texthl")
+                    || last_bytes.starts_with(b"linehl")
+                    || last_bytes.starts_with(b"culhl")
+                    || last_bytes.starts_with(b"numhl")
                 {
                     xp.xp_context = EXPAND_HIGHLIGHT;
-                } else if crate::memory::cstr_prefix_bytes(last, 4) == &b"icon"[..4] {
+                } else if last_bytes.starts_with(b"icon") {
                     xp.xp_context = EXPAND_FILES;
                 } else {
                     xp.xp_context = EXPAND_NOTHING;
                 }
             }
             SIGNCMD_PLACE => {
-                if crate::memory::cstr_prefix_bytes(last, 4) == &b"name"[..4] {
+                if last_bytes.starts_with(b"name") {
                     sign_st().expand_what = EXP_SIGN_NAMES;
-                } else if crate::memory::cstr_prefix_bytes(last, 5) == &b"group"[..5] {
+                } else if last_bytes.starts_with(b"group") {
                     sign_st().expand_what = EXP_SIGN_GROUPS;
-                } else if crate::memory::cstr_prefix_bytes(last, 4) == &b"file"[..4] {
+                } else if last_bytes.starts_with(b"file") {
                     xp.xp_context = EXPAND_BUFFERS;
                 } else {
                     xp.xp_context = EXPAND_NOTHING;
                 }
             }
             SIGNCMD_UNPLACE | SIGNCMD_JUMP => {
-                if crate::memory::cstr_prefix_bytes(last, 5) == &b"group"[..5] {
+                if last_bytes.starts_with(b"group") {
                     sign_st().expand_what = EXP_SIGN_GROUPS;
-                } else if crate::memory::cstr_prefix_bytes(last, 4) == &b"file"[..4] {
+                } else if last_bytes.starts_with(b"file") {
                     xp.xp_context = EXPAND_BUFFERS;
                 } else {
                     xp.xp_context = EXPAND_NOTHING;

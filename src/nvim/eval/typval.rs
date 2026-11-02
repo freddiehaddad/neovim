@@ -2788,11 +2788,11 @@ fn tv_dict_watcher_matches(watcher: &DictWatcher, key: impl crate::strings::Into
     let key = key.into_c_char_ptr();
     {
         let pat_bytes = watcher.key_pattern.as_bytes();
-        if pat_bytes.last() == Some(&b'*') {
-            crate::memory::cstr_prefix_bytes(key, pat_bytes.len() - 1)
-                == &pat_bytes[..pat_bytes.len() - 1]
+        let key_bytes = crate::memory::cstr_as_bytes(key);
+        if let Some(prefix) = pat_bytes.strip_suffix(b"*") {
+            key_bytes.starts_with(prefix)
         } else {
-            crate::memory::cstr_as_bytes(key) == pat_bytes
+            key_bytes == pat_bytes
         }
     }
 }

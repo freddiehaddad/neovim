@@ -2333,8 +2333,8 @@ pub fn trans_function_name<T>(
         }
         if !name.is_null() {
             *pp = end.cast_mut().cast();
-            if crate::memory::cstr_prefix_bytes(name.cast(), 5) == &b"<SNR>"[..5] {
-                let tail = crate::memory::cstr_as_bytes(name.wrapping_add(5).cast());
+            let name_bytes = crate::memory::cstr_as_bytes(name.cast());
+            if let Some(tail) = name_bytes.strip_prefix(b"<SNR>") {
                 let mut bytes = Vec::with_capacity(3 + tail.len());
                 bytes.extend_from_slice(&[K_SPECIAL, KS_EXTRA, KE_SNR]);
                 bytes.extend_from_slice(tail);
@@ -2348,7 +2348,7 @@ pub fn trans_function_name<T>(
             if lead <= 2
                 && lv.ll_name == exp_name.as_ptr().cast()
                 && lv.ll_name_len >= 2
-                && (crate::memory::cstr_prefix_bytes(lv.ll_name.cast(), 2) == &b"s:"[..2])
+                && exp_name.as_bytes().starts_with(b"s:")
             {
                 lv.ll_name = lv.ll_name.wrapping_add(2);
                 lv.ll_name_len -= 2;
@@ -2475,8 +2475,7 @@ pub fn save_function_name<T>(
     let mut p = start;
     let saved: Option<std::ffi::CString>;
 
-    if crate::memory::cstr_prefix_bytes(p.cast(), 8) == &b"<lambda>"[..8] {
-        let tail = crate::memory::cstr_as_bytes(p.wrapping_add(8).cast());
+    if let Some(tail) = crate::memory::cstr_as_bytes(p.cast()).strip_prefix(b"<lambda>") {
         let mut rem = tail;
         getdigits(&mut rem, false, 0);
         p = p.wrapping_add(8 + tail.len() - rem.len());
@@ -2713,8 +2712,9 @@ fn get_function_body(
                 if heredoc_trimmed.is_none()
                     || (is_heredoc && skipwhite(theline) == theline)
                     || heredoc_trimmed.as_ref().is_some_and(|ht| {
-                        crate::memory::cstr_prefix_bytes(theline, heredoc_trimmedlen)
-                            == crate::memory::cstr_prefix_bytes(ht.as_ptr(), heredoc_trimmedlen)
+                        crate::memory::cstr_as_bytes(theline).starts_with(
+                            &ht.as_bytes()[..heredoc_trimmedlen.min(ht.as_bytes().len())],
+                        )
                     })
                 {
                     p = if heredoc_trimmed.is_none() {
@@ -3096,16 +3096,17 @@ pub fn ex_function(eap: &mut Exarg) {
 
         loop {
             p = skipwhite(p);
-            if crate::memory::cstr_prefix_bytes(p, 5) == &b"range"[..5] {
+            let p_bytes = crate::memory::cstr_as_bytes(p);
+            if p_bytes.starts_with(b"range") {
                 flags |= FC_RANGE;
                 p = p.wrapping_add(5);
-            } else if crate::memory::cstr_prefix_bytes(p, 4) == &b"dict"[..4] {
+            } else if p_bytes.starts_with(b"dict") {
                 flags |= FC_DICT;
                 p = p.wrapping_add(4);
-            } else if crate::memory::cstr_prefix_bytes(p, 5) == &b"abort"[..5] {
+            } else if p_bytes.starts_with(b"abort") {
                 flags |= FC_ABORT;
                 p = p.wrapping_add(5);
-            } else if crate::memory::cstr_prefix_bytes(p, 7) == &b"closure"[..7] {
+            } else if p_bytes.starts_with(b"closure") {
                 flags |= FC_CLOSURE;
                 p = p.wrapping_add(7);
                 if uf_st().current_funccal.is_null() {

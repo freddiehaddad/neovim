@@ -1161,11 +1161,13 @@ pub fn heredoc_get(
                 tl.as_ptr().cast_mut().cast()
             };
 
-            if marker_indent_len > 0
-                && (crate::memory::cstr_prefix_bytes(theline.cast(), marker_indent_len as usize)
-                    == crate::memory::cstr_prefix_bytes(eap.cmdline(), marker_indent_len as usize))
-            {
-                mi = marker_indent_len;
+            if marker_indent_len > 0 {
+                let len = marker_indent_len as usize;
+                let line_b = crate::memory::cstr_as_bytes(theline.cast());
+                let cmd_b = crate::memory::cstr_as_bytes(eap.cmdline());
+                if line_b[..len.min(line_b.len())] == cmd_b[..len.min(cmd_b.len())] {
+                    mi = marker_indent_len;
+                }
             }
             if crate::memory::cstr_as_bytes(marker.cast())
                 == crate::memory::cstr_as_bytes(theline.wrapping_add(mi as usize).cast())
@@ -2389,7 +2391,7 @@ pub fn get_user_var_name(xp: &mut ExpandCtx, idx: i32) -> Option<&'static CStr> 
                 vars_st().hi = vars_st().hi.wrapping_add(1);
             }
             let hi_key = (&*vars_st().hi).key_cstr();
-            if b"g:" == crate::memory::cstr_prefix_bytes(xp.xp_pattern.cast(), 2) {
+            if crate::memory::cstr_as_bytes(xp.xp_pattern.cast()).starts_with(b"g:") {
                 return Some(cat_prefix_varname(b'g' as i32, hi_key));
             }
             return hi_key;

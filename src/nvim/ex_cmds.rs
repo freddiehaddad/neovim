@@ -1840,20 +1840,13 @@ pub fn make_filter_cmd(
     let itmp = itmp.into_c_char_ptr();
     let otmp = otmp.into_c_char_ptr();
     {
+        let sh_tail = crate::memory::cstr_as_bytes(invocation_path_tail(opt_vars().p_sh, None));
         #[cfg(unix)]
-        let is_fish_shell =
-            crate::memory::cstr_prefix_bytes(invocation_path_tail(opt_vars().p_sh, None), 4)
-                == &b"fish"[..4];
+        let is_fish_shell = sh_tail.starts_with(b"fish");
         #[cfg(not(unix))]
         let is_fish_shell = false;
 
-        let is_pwsh =
-            (crate::memory::cstr_prefix_bytes(invocation_path_tail(opt_vars().p_sh, None), 4)
-                == &b"pwsh"[..4])
-                || (crate::memory::cstr_prefix_bytes(
-                    invocation_path_tail(opt_vars().p_sh, None),
-                    10,
-                ) == &b"powershell"[..10]);
+        let is_pwsh = sh_tail.starts_with(b"pwsh") || sh_tail.starts_with(b"powershell");
 
         let mut len = crate::memory::cstr_len(cmd) + 1;
 

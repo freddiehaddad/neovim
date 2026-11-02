@@ -4229,9 +4229,7 @@ fn set_one_cmd_context(xp: &mut ExpandCtx, buff: impl crate::strings::IntoCCharP
         let mut arg: *const u8 = skipwhite(p.cast()).cast();
 
         if (ea.argt & EX_ARGOPT) != 0 {
-            while !crate::memory::cstr_is_empty(arg.cast())
-                && (crate::memory::cstr_prefix_bytes(arg.cast(), 2) == &b"++"[..2])
-            {
+            while crate::memory::cstr_as_bytes(arg.cast()).starts_with(b"++") {
                 p = arg.wrapping_add(2);
                 while !crate::memory::cstr_is_empty(p.cast())
                     && !ascii_isspace(crate::memory::cstr_first_byte(p.cast()))
@@ -5114,7 +5112,7 @@ fn expand_from_context(
 
         let mut tofree: Option<Vec<u8>> = None;
         if xp.xp_context == EXPAND_USER_FUNC
-            && (crate::memory::cstr_prefix_bytes(pat, 3) == &b"^s:"[..3])
+            && crate::memory::cstr_as_bytes(pat).starts_with(b"^s:")
         {
             let len = crate::memory::cstr_len(pat) + 20;
             let mut buf = vec![0u8; len];
@@ -5370,9 +5368,7 @@ fn expand_shellcmd(
                 }
 
                 pathlen = crate::memory::ptr_offset_from(e, s) as usize;
-                if crate::memory::cstr_prefix_bytes(s.cast(), pathlen)
-                    == crate::memory::cstr_prefix_bytes(c".", pathlen)
-                {
+                if crate::memory::cstr_slice(s.cast(), pathlen) == &b"."[..pathlen.min(1)] {
                     did_curdir = true;
                     flags |= EW_DIR;
                 } else {
@@ -5802,7 +5798,7 @@ fn wildmenu_process_key_filenames(cclp: &mut CmdlineInfo, mut key: i32, xp: &mut
     {
         key = opt_vars().p_wc as i32;
         g_st().key_typed = true;
-    } else if crate::memory::cstr_prefix_bytes(xp.xp_pattern.cast(), 3) == &upseg[1..4]
+    } else if crate::memory::cstr_as_bytes(xp.xp_pattern.cast()).starts_with(&upseg[1..4])
         && key == K_DOWN
     {
         let mut found = false;
@@ -5862,12 +5858,14 @@ fn wildmenu_process_key_filenames(cclp: &mut CmdlineInfo, mut key: i32, xp: &mut
 
         if !found {
             j = i;
-        } else if crate::memory::cstr_prefix_bytes(cclp.cmdbuff.wrapping_add(j as usize).cast(), 4)
-            == &upseg[..4]
+        } else if cmd_slice
+            .get(j as usize..)
+            .is_some_and(|s| s.starts_with(&upseg[..4]))
         {
             j += 4;
-        } else if crate::memory::cstr_prefix_bytes(cclp.cmdbuff.wrapping_add(j as usize).cast(), 3)
-            == &upseg[1..4]
+        } else if cmd_slice
+            .get(j as usize..)
+            .is_some_and(|s| s.starts_with(&upseg[1..4]))
             && j == i
         {
             j += 3;

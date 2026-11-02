@@ -556,32 +556,32 @@ pub fn cmdcomplete_type_to_str(
 }
 
 pub fn cmdcomplete_str_to_type(complete_str: impl crate::strings::IntoCCharPtr) -> i32 {
-    let complete_str = complete_str.into_c_char_ptr();
-    {
-        if crate::memory::cstr_prefix_bytes(complete_str, 7) == &b"custom,"[..7] {
-            return EXPAND_USER_DEFINED;
-        }
-        if crate::memory::cstr_prefix_bytes(complete_str, 11) == &b"customlist,"[..11] {
-            return EXPAND_USER_LIST;
-        }
-
-        for i in 0..(COMMAND_COMPLETE_LEN as i32) {
-            let Some(cmd_compl) = get_command_complete(i) else {
-                continue;
-            };
-            if crate::memory::cstr_as_bytes(complete_str) == cmd_compl.to_bytes() {
-                return i;
-            }
-        }
-
-        EXPAND_NOTHING
+    let complete_bytes = crate::memory::cstr_as_bytes(complete_str.into_c_char_ptr());
+    if complete_bytes.starts_with(b"custom,") {
+        return EXPAND_USER_DEFINED;
     }
+    if complete_bytes.starts_with(b"customlist,") {
+        return EXPAND_USER_LIST;
+    }
+
+    for i in 0..(COMMAND_COMPLETE_LEN as i32) {
+        let Some(cmd_compl) = get_command_complete(i) else {
+            continue;
+        };
+        if complete_bytes == cmd_compl.to_bytes() {
+            return i;
+        }
+    }
+
+    EXPAND_NOTHING
 }
 
 fn uc_list(name: impl crate::strings::IntoCCharPtr, name_len: usize) {
     let name = name.into_c_char_ptr();
     {
         let mut found = false;
+        let name_b = crate::memory::cstr_as_bytes(name);
+        let name_prefix = &name_b[..name_len.min(name_b.len())];
 
         msg_ext_set_kind(c"list_cmd");
         let mut is_global = false;
@@ -591,9 +591,9 @@ fn uc_list(name: impl crate::strings::IntoCCharPtr, name_len: usize) {
             while (i as usize) < gap.len() {
                 let cmd = &gap[i as usize];
                 let a = cmd.uc_argt;
+                let cmd_b = cmd.uc_name.as_bytes();
 
-                if (crate::memory::cstr_prefix_bytes(name, name_len)
-                    != crate::memory::cstr_prefix_bytes(cmd.uc_name.as_ptr(), name_len))
+                if name_prefix != &cmd_b[..name_len.min(cmd_b.len())]
                     || message_filtered(cmd.uc_name.as_ptr())
                 {
                     i += 1;
@@ -1091,11 +1091,12 @@ pub fn uc_add_command(
     };
 
     let mut i: usize = 0;
+    let name_b = crate::memory::cstr_as_bytes(name);
+    let name_prefix = &name_b[..name_len.min(name_b.len())];
     while i < gap.len() {
-        let len = gap[i].uc_name.as_bytes().len();
-        cmp = crate::memory::cstr_prefix_bytes(name, name_len).cmp(
-            crate::memory::cstr_prefix_bytes(gap[i].uc_name.as_ptr(), name_len),
-        ) as i32;
+        let cmd_b = gap[i].uc_name.as_bytes();
+        let len = cmd_b.len();
+        cmp = name_prefix.cmp(&cmd_b[..name_len.min(len)]) as i32;
         if cmp == 0 {
             if name_len < len {
                 cmp = -1;
@@ -1209,10 +1210,7 @@ pub fn ex_command(eap: &mut Exarg) {
         emsg(gettext(
             c"E183: User defined commands must start with an uppercase letter",
         ));
-    } else if name_len <= 4
-        && (crate::memory::cstr_prefix_bytes(name, name_len)
-            == crate::memory::cstr_prefix_bytes(c"Next", name_len))
-    {
+    } else if name_len <= 4 && crate::memory::cstr_slice(name, name_len) == &b"Next"[..name_len] {
         emsg(gettext(
             c"E841: Reserved name, cannot be used for user defined command",
         ));

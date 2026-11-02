@@ -2199,7 +2199,7 @@ pub fn may_call_simple_func(arg: impl crate::strings::IntoCCharPtr, rettv: &mut 
                     r = call_simple_luafunc(p, (parens as usize).wrapping_sub(p as usize), rettv);
                 }
             } else {
-                let p = if crate::memory::cstr_prefix_bytes(arg, 5) == &b"<SNR>"[..5] {
+                let p = if crate::memory::cstr_as_bytes(arg).starts_with(b"<SNR>") {
                     skipdigits(arg.wrapping_add(5))
                 } else {
                     arg

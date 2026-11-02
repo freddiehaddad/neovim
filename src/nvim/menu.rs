@@ -200,8 +200,7 @@ use crate::eval::typval::tv_dict_len;
 
 /// Return true if `name` is a window toolbar menu name (`menu_is_winbar`).
 fn menu_is_winbar(name: impl crate::strings::IntoCCharPtr) -> bool {
-    let name = name.into_c_char_ptr();
-    crate::memory::cstr_prefix_bytes(name, 6) == &b"WinBar"[..6]
+    crate::memory::cstr_as_bytes(name.into_c_char_ptr()).starts_with(b"WinBar")
 }
 
 fn get_root_menu() -> &'static mut Vec<Vimmenu> {
@@ -234,24 +233,25 @@ pub fn ex_menu(eap: &mut Exarg) {
     let mut arg = eap.arg;
 
     loop {
-        if crate::memory::cstr_prefix_bytes(arg, 8) == &b"<script>"[..8] {
+        let arg_bytes = crate::memory::cstr_as_bytes(arg);
+        if arg_bytes.starts_with(b"<script>") {
             noremap = REMAP_SCRIPT;
             arg = skipwhite(arg.wrapping_add(8));
             continue;
         }
-        if crate::memory::cstr_prefix_bytes(arg, 8) == &b"<silent>"[..8] {
+        if arg_bytes.starts_with(b"<silent>") {
             silent = true;
             arg = skipwhite(arg.wrapping_add(8));
             continue;
         }
-        if crate::memory::cstr_prefix_bytes(arg, 9) == &b"<special>"[..9] {
+        if arg_bytes.starts_with(b"<special>") {
             arg = skipwhite(arg.wrapping_add(9));
             continue;
         }
         break;
     }
 
-    if crate::memory::cstr_prefix_bytes(arg, 5) == &b"icon="[..5] {
+    if crate::memory::cstr_as_bytes(arg).starts_with(b"icon=") {
         arg = arg.wrapping_add(5);
         let mut arg_len = crate::memory::cstr_len(arg);
         let arg_slice = unsafe { std::slice::from_raw_parts_mut(arg.cast::<u8>(), arg_len + 1) };
@@ -1501,14 +1501,12 @@ pub fn menu_is_menubar(name: impl crate::strings::IntoCCharPtr) -> bool {
 
 /// Return true if `name` is a popup menu name (`menu_is_popup`).
 pub fn menu_is_popup(name: impl crate::strings::IntoCCharPtr) -> bool {
-    let name = name.into_c_char_ptr();
-    crate::memory::cstr_prefix_bytes(name, 5) == &b"PopUp"[..5]
+    crate::memory::cstr_as_bytes(name.into_c_char_ptr()).starts_with(b"PopUp")
 }
 
 /// Return true if `name` is a toolbar menu name (`menu_is_toolbar`).
 pub fn menu_is_toolbar(name: impl crate::strings::IntoCCharPtr) -> bool {
-    let name = name.into_c_char_ptr();
-    crate::memory::cstr_prefix_bytes(name, 7) == &b"ToolBar"[..7]
+    crate::memory::cstr_as_bytes(name.into_c_char_ptr()).starts_with(b"ToolBar")
 }
 
 /// Return true if the name is a menu separator identifier (`menu_is_separator`).
@@ -1572,15 +1570,14 @@ pub fn show_popupmenu() {
     }
     let mode_cstr = MENU_MODE_CHARS[menu_mode as usize];
     let mode = mode_cstr.as_ptr().cast_mut();
-    let mode_len = mode_cstr.to_bytes().len();
 
     apply_autocmds(EVENT_MENUPOPUP, mode, ptr::null_mut(), false, g_st().curbuf);
 
     let mut found_idx: Option<usize> = None;
+    let mode_bytes = mode_cstr.to_bytes();
     for (idx, m) in g_st().root_menu.iter().enumerate() {
-        if (b"PopUp" == crate::memory::cstr_prefix_bytes(m.name.as_ptr(), 5))
-            && (crate::memory::cstr_prefix_bytes(m.name.as_ptr().wrapping_add(5), mode_len)
-                == crate::memory::cstr_prefix_bytes(mode, mode_len))
+        if let Some(after) = m.name.as_bytes().strip_prefix(b"PopUp")
+            && after.starts_with(mode_bytes)
         {
             found_idx = Some(idx);
             break;
@@ -1805,7 +1802,7 @@ pub fn ex_menutranslate(eap: &mut Exarg) {
     let mut arg = eap.arg.cast::<u8>();
     let menutrans = &mut menu_st().menutrans_ga;
 
-    if (crate::memory::cstr_prefix_bytes(arg.cast(), 5) == &b"clear"[..5])
+    if crate::memory::cstr_as_bytes(arg.cast()).starts_with(b"clear")
         && ends_excmd(i32::from(crate::memory::cstr_first_byte(skipwhite(
             arg.wrapping_add(5).cast(),
         )))) != 0
@@ -1869,17 +1866,15 @@ fn menutrans_lookup(name: *mut u8, len: i32) -> *mut u8 {
     let menutrans = &menu_st().menutrans_ga;
     let u_len = len as usize;
 
+    let name_slice = crate::memory::cstr_slice(name.cast(), u_len);
     for entry in menutrans {
-        let from_ptr = entry.from.as_ptr();
-        let from_bytes = crate::memory::cstr_as_bytes(from_ptr);
-        if from_bytes.len() == u_len
-            && crate::memory::cstr_prefix_bytes(name.cast(), u_len).eq_ignore_ascii_case(from_bytes)
-        {
+        let from_bytes = entry.from.as_bytes();
+        if from_bytes.len() == u_len && name_slice.eq_ignore_ascii_case(from_bytes) {
             return entry.to.as_ptr().cast_mut().cast();
         }
     }
 
-    let name_slice = crate::memory::cstr_slice(name.cast(), u_len).to_vec();
+    let name_slice = name_slice.to_vec();
     let name_cstr = crate::memory::cstr_from_bytes(&name_slice);
     let dname = menu_text(name_cstr.as_ptr(), None, None);
     for entry in menutrans {
