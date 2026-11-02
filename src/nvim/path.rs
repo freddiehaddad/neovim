@@ -369,7 +369,7 @@ pub fn get_past_head(path: impl crate::strings::IntoCCharPtr) -> RawCCharPtrMut 
     if is_path_head(path) {
         retval = path.wrapping_add(2);
     }
-    path_skip_sep(retval, true)
+    path_skip_sep(retval, false)
 }
 
 pub fn vim_ispathsep<C: crate::charset::AsciiInt>(c: C) -> bool {
@@ -2330,78 +2330,31 @@ fn path_to_absolute(
     force: i32,
 ) -> bool {
     let fname = fname.into_c_char_ptr();
-    let fname_bytes = crate::memory::cstr_as_bytes(fname);
-    {
-        unsafe {
-            *buf = 0;
-        }
-        let mut rel_dir_vec = vec![0u8; len];
-        let relative_directory = rel_dir_vec.as_mut_ptr();
-        let mut end_of_path = fname;
-
-        #[cfg(windows)]
-        let need_expand = force != 0
-            || !path_is_absolute(fname)
-            || matches!(fname_bytes.first(), Some(b'/' | b'\\'));
-        #[cfg(not(windows))]
-        let need_expand = force != 0 || !path_is_absolute(fname);
-
-        if need_expand {
-            let mut p_idx: Option<usize> = fname_bytes.iter().rposition(|&b| b == b'/');
-
-            #[cfg(windows)]
-            {
-                if p_idx.is_none() {
-                    p_idx = fname_bytes.iter().rposition(|&b| b == b'\\');
-                }
-                if p_idx.is_none()
-                    && fname_bytes.first().is_some_and(u8::is_ascii_alphabetic)
-                    && fname_bytes.get(1) == Some(&b':')
-                {
-                    p_idx = Some(1);
-                }
-            }
-
-            if p_idx.is_none() && fname_bytes == b".." {
-                p_idx = Some(2);
-            }
-            if let Some(mut idx) = p_idx {
-                if fname_bytes
-                    .get(idx)
-                    .is_some_and(|&b| vim_ispathsep(b as i32))
-                    && &fname_bytes[idx + 1..] == b".."
-                {
-                    idx += 3;
-                }
-                let copy_len = (idx + 1).min(fname_bytes.len());
-                unsafe {
-                    ptr::copy_nonoverlapping(fname.cast::<u8>(), relative_directory, copy_len)
-                };
-                unsafe {
-                    *relative_directory.wrapping_add(copy_len) = 0;
-                }
-                let eop_idx = if fname_bytes
-                    .get(idx)
-                    .is_some_and(|&b| vim_ispathsep(b as i32))
-                {
-                    idx + 1
-                } else {
-                    idx
-                };
-                end_of_path = fname.wrapping_add(eop_idx.min(fname_bytes.len()));
-            } else {
-                unsafe {
-                    *relative_directory = 0;
-                }
-            }
-
-            if !path_full_dir_name(&rel_dir_vec, buf, len) {
-                return false;
-            }
-        }
-        drop(rel_dir_vec);
-        append_path(buf, end_of_path, len)
+    let mut p = fname;
+    unsafe {
+        *buf = 0;
     }
+
+    #[cfg(windows)]
+    let need_expand = force != 0
+        || !path_is_absolute(p)
+        || vim_ispathsep_nocolon(crate::memory::cstr_first_byte(p));
+    #[cfg(not(windows))]
+    let need_expand = force != 0 || !path_is_absolute(p);
+
+    if need_expand {
+        p = path_tail(p);
+        if crate::memory::cstr_as_bytes(p) == b".." {
+            p = p.wrapping_add(2);
+        }
+
+        let rel_len = (p as usize) - (fname as usize);
+        let relative_directory = cstr_from_bytes(crate::memory::cstr_slice(fname, rel_len));
+        if !path_full_dir_name(relative_directory.as_ptr(), buf, len) {
+            return false;
+        }
+    }
+    append_path(buf, p, len)
 }
 
 pub fn path_is_absolute(fname: impl crate::strings::IntoCCharPtr) -> bool {
@@ -2814,6 +2767,36 @@ mod tests {
             assert_eq!(
                 crate::memory::cstr_from_ptr(&out).to_str().unwrap(),
                 format!("{abs_dir}/f1.o")
+            );
+
+            let dir_dotdot = CString::new(format!("{rel_dir}/..")).unwrap();
+            assert!(vim_full_name(
+                dir_dotdot.as_ptr(),
+                out.as_mut_ptr(),
+                MAXPATHL,
+                true
+            ));
+            let expected_parent = std::path::Path::new(&abs_dir)
+                .parent()
+                .unwrap()
+                .to_str()
+                .unwrap()
+                .replace('\\', "/");
+            assert_eq!(
+                crate::memory::cstr_from_ptr(&out).to_str().unwrap(),
+                expected_parent
+            );
+
+            let dir_slash = CString::new(format!("{rel_dir}/")).unwrap();
+            assert!(vim_full_name(
+                dir_slash.as_ptr(),
+                out.as_mut_ptr(),
+                MAXPATHL,
+                true
+            ));
+            assert_eq!(
+                crate::memory::cstr_from_ptr(&out).to_str().unwrap(),
+                abs_dir
             );
 
             // path_fix_case
