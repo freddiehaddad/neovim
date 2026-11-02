@@ -9,9 +9,9 @@ use crate::eval::funcs::execute_common;
 use crate::eval::typval::{
     EvalFuncData, TvDict, TvList, TypVal, VarType, Varnumber, tv_check_for_nonnull_dict_arg,
     tv_dict_add_dict, tv_dict_add_list, tv_dict_add_nr, tv_dict_alloc, tv_dict_alloc_ret,
-    tv_dict_find, tv_dict_get_bool, tv_dict_get_number, tv_get_bool, tv_get_number,
-    tv_get_number_chk, tv_get_string_chk, tv_list_alloc, tv_list_alloc_ret, tv_list_append_dict,
-    tv_list_append_list, tv_list_append_number, tv_list_append_string, tv_set_bytes, tv_set_string,
+    tv_dict_get_bool, tv_dict_get_number, tv_get_bool, tv_get_number, tv_get_number_chk,
+    tv_get_string_chk, tv_list_alloc, tv_list_alloc_ret, tv_list_append_dict, tv_list_append_list,
+    tv_list_append_number, tv_list_append_string, tv_set_bytes, tv_set_string,
 };
 use crate::ex_getln::text_or_buf_locked;
 use crate::globals::*;
@@ -83,8 +83,9 @@ pub fn win_find_nr(mut nr: i32, mut tp: *mut TabPageInfo) -> *mut WinInfoInfo {
         debug_assert!(!g_st().curtab.is_null());
         tp = g_st().curtab;
     }
-    for wp in win_iter_ptr(first_win_in_tab(unsafe { &mut *tp })) {
-        nr -= i32::from(win_has_winnr(&mut *wp, unsafe { &mut *tp }));
+    let tp_ref = unsafe { &mut *tp };
+    for wp in win_iter_ptr(first_win_in_tab(tp_ref)) {
+        nr -= i32::from(win_has_winnr(&mut *wp, tp_ref));
         if nr <= 0 {
             return wp;
         }
@@ -102,7 +103,7 @@ fn win_getid(argvars: &mut [TypVal]) -> i32 {
     }
 
     let mut tp: *mut TabPageInfo = ptr::null_mut();
-    let mut wp: *mut WinInfoInfo;
+    let wp: *mut WinInfoInfo;
     if argvars[1].v_type == VarType::VarUnknown {
         tp = g_st().curtab;
         wp = g_st().firstwin;
@@ -120,12 +121,12 @@ fn win_getid(argvars: &mut [TypVal]) -> i32 {
         }
         wp = first_win_in_tab(unsafe { &mut *tp });
     }
-    while !wp.is_null() {
-        winnr -= i32::from(win_has_winnr(unsafe { &mut *wp }, unsafe { &mut *tp }));
+    let tp_ref = unsafe { &mut *tp };
+    for wp_ref in win_iter_mut(wp) {
+        winnr -= i32::from(win_has_winnr(wp_ref, tp_ref));
         if winnr == 0 {
-            return unsafe { (*wp).handle };
+            return wp_ref.handle;
         }
-        wp = unsafe { (*wp).w_next };
     }
     0
 }
@@ -257,36 +258,33 @@ pub fn find_tabwin(wvp: &TypVal, tvp: &TypVal) -> *mut WinInfoInfo {
 
 /// Get the layout of the given tab page for `winlayout()` (`get_framelayout`).
 fn get_framelayout(fr: Option<&Frame>, l: &mut TvList, outer: bool) {
-    if fr.is_none() {
+    let Some(fr) = fr else {
         return;
-    }
+    };
 
-    let fr_list = if outer {
-        (&raw mut *l)
+    let fr_list: &mut TvList = if outer {
+        l
     } else {
         let sub = tv_list_alloc(2);
         tv_list_append_list(l, sub);
         sub
     };
 
-    if fr.unwrap().fr_layout == FR_LEAF {
-        if !fr.unwrap().fr_win.is_null() {
-            tv_list_append_string(unsafe { &mut *fr_list }, c"leaf", 4);
-            tv_list_append_number(
-                unsafe { &mut *fr_list },
-                unsafe { (*fr.unwrap().fr_win).handle } as Varnumber,
-            );
+    if fr.fr_layout == FR_LEAF {
+        if let Some(wp) = fr.win_opt() {
+            tv_list_append_string(fr_list, c"leaf", 4);
+            tv_list_append_number(fr_list, wp.handle as Varnumber);
         }
     } else {
-        if fr.unwrap().fr_layout == FR_ROW {
-            tv_list_append_string(unsafe { &mut *fr_list }, c"row", 3);
+        if fr.fr_layout == FR_ROW {
+            tv_list_append_string(fr_list, c"row", 3);
         } else {
-            tv_list_append_string(unsafe { &mut *fr_list }, c"col", 3);
+            tv_list_append_string(fr_list, c"col", 3);
         }
 
         let win_list = tv_list_alloc(K_LIST_LEN_UNKNOWN_CONST);
-        tv_list_append_list(unsafe { &mut *fr_list }, win_list);
-        for child in frame_iter_ptr(fr.unwrap().fr_child) {
+        tv_list_append_list(fr_list, win_list);
+        for child in frame_iter_ptr(fr.fr_child) {
             get_framelayout(Some(&*child), &mut *win_list, false);
         }
     }
@@ -328,14 +326,15 @@ fn get_winnr(tp: &mut TabPageInfo, argvar: &mut TypVal) -> i32 {
                 }
                 if !crate::memory::cstr_is_empty(endp) {
                     let tail = crate::memory::cstr_as_bytes(endp);
+                    let twin_ref = unsafe { &mut *twin };
                     if tail == b"j" {
-                        twin = win_vert_neighbor(tp, unsafe { &mut *twin }, false, count);
+                        twin = win_vert_neighbor(tp, twin_ref, false, count);
                     } else if tail == b"k" {
-                        twin = win_vert_neighbor(tp, unsafe { &mut *twin }, true, count);
+                        twin = win_vert_neighbor(tp, twin_ref, true, count);
                     } else if tail == b"h" {
-                        twin = win_horz_neighbor(tp, unsafe { &mut *twin }, true, count);
+                        twin = win_horz_neighbor(tp, twin_ref, true, count);
                     } else if tail == b"l" {
-                        twin = win_horz_neighbor(tp, unsafe { &mut *twin }, false, count);
+                        twin = win_horz_neighbor(tp, twin_ref, false, count);
                     } else {
                         invalid_arg = true;
                     }
@@ -359,15 +358,15 @@ fn get_winnr(tp: &mut TabPageInfo, argvar: &mut TypVal) -> i32 {
     }
 
     nr = 0;
-    let mut wp: *mut WinInfoInfo = first_win_in_tab(tp);
-    while !wp.is_null() {
-        nr += i32::from(win_has_winnr(unsafe { &mut *wp }, tp));
-        if wp == twin {
+    let mut found = false;
+    for wp in win_iter_mut(first_win_in_tab(tp)) {
+        nr += i32::from(win_has_winnr(wp, tp));
+        if ptr::eq(wp, twin) {
+            found = true;
             break;
         }
-        wp = unsafe { (*wp).w_next };
     }
-    if wp.is_null() {
+    if !found {
         nr = 0;
     }
     nr
@@ -404,17 +403,17 @@ fn get_win_info(wp: &mut WinInfoInfo, tpnr: i16, winnr: i16) -> &'static mut TvD
     tv_dict_add_nr(
         &mut *dict,
         c"terminal",
-        Varnumber::from(bt_terminal(unsafe { wp.w_buffer.as_ref() })),
+        Varnumber::from(bt_terminal(wp.buf_opt())),
     );
     tv_dict_add_nr(
         &mut *dict,
         c"quickfix",
-        Varnumber::from(bt_quickfix(unsafe { wp.w_buffer.as_ref() })),
+        Varnumber::from(bt_quickfix(wp.buf_opt())),
     );
     tv_dict_add_nr(
         &mut *dict,
         c"loclist",
-        Varnumber::from(bt_quickfix(unsafe { wp.w_buffer.as_ref() }) && !wp.w_llist_ref.is_null()),
+        Varnumber::from(bt_quickfix(wp.buf_opt()) && !wp.w_llist_ref.is_null()),
     );
 
     tv_dict_add_dict(&mut *dict, c"variables", wp.w_vars());
@@ -633,8 +632,10 @@ pub fn f_win_id2win(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncD
 pub fn f_win_move_separator(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
     rettv.vval = crate::eval::typval::TypvalVval::Number(0);
 
-    let wp = find_win_by_nr_or_id(&argvars[0]);
-    if wp.is_null() || unsafe { (*wp).w_floating } {
+    let Some(wp) = (unsafe { find_win_by_nr_or_id(&argvars[0]).as_mut() }) else {
+        return;
+    };
+    if wp.w_floating {
         return;
     }
     if !win_valid(wp) {
@@ -643,7 +644,7 @@ pub fn f_win_move_separator(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: E
     }
 
     let offset = tv_get_number(&argvars[1]) as i32;
-    win_drag_vsep_line(unsafe { &mut *wp }, offset);
+    win_drag_vsep_line(wp, offset);
     rettv.vval = crate::eval::typval::TypvalVval::Number(1);
 }
 
@@ -651,8 +652,10 @@ pub fn f_win_move_separator(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: E
 pub fn f_win_move_statusline(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
     rettv.vval = crate::eval::typval::TypvalVval::Number(0);
 
-    let wp = find_win_by_nr_or_id(&argvars[0]);
-    if wp.is_null() || unsafe { (*wp).w_floating } {
+    let Some(wp) = (unsafe { find_win_by_nr_or_id(&argvars[0]).as_mut() }) else {
+        return;
+    };
+    if wp.w_floating {
         return;
     }
     if !win_valid(wp) {
@@ -661,29 +664,21 @@ pub fn f_win_move_statusline(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: 
     }
 
     let offset = tv_get_number(&argvars[1]) as i32;
-    win_drag_status_line(unsafe { &mut *wp }, offset);
+    win_drag_status_line(wp, offset);
     rettv.vval = crate::eval::typval::TypvalVval::Number(1);
 }
 
 /// `win_screenpos()` function (`f_win_screenpos`).
 pub fn f_win_screenpos(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
     tv_list_alloc_ret(rettv, 2);
-    let wp = find_win_by_nr_or_id(&argvars[0]);
+    let wp = unsafe { find_win_by_nr_or_id(&argvars[0]).as_ref() };
     tv_list_append_number(
         rettv.vval.v_list_ref(),
-        if wp.is_null() {
-            0
-        } else {
-            (unsafe { (*wp).w_winrow } + 1) as Varnumber
-        },
+        wp.map_or(0, |w| (w.w_winrow + 1) as Varnumber),
     );
     tv_list_append_number(
         rettv.vval.v_list_ref(),
-        if wp.is_null() {
-            0
-        } else {
-            (unsafe { (*wp).w_wincol } + 1) as Varnumber
-        },
+        wp.map_or(0, |w| (w.w_wincol + 1) as Varnumber),
     );
 }
 
@@ -714,19 +709,18 @@ pub fn f_win_splitmove(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFu
             return;
         }
 
-        let d = argvars[2].vval.v_dict();
-        if tv_dict_get_bool(unsafe { d.as_ref() }, c"vertical", 0) != 0 {
+        let d = argvars[2].vval.v_dict_opt();
+        if tv_dict_get_bool(d.as_deref(), c"vertical", 0) != 0 {
             flags |= WSP_VERT;
         }
-        let di = tv_dict_find(unsafe { d.as_ref() }, c"rightbelow", -1);
-        if !di.is_null() {
-            flags |= if tv_get_bool(unsafe { &(*di).di_tv }) != 0 {
+        if let Some(di) = crate::eval::typval::tv_dict_find_opt(d.as_deref(), c"rightbelow", -1) {
+            flags |= if tv_get_bool(&di.di_tv) != 0 {
                 WSP_BELOW
             } else {
                 WSP_ABOVE
             };
         }
-        size = tv_dict_get_number(unsafe { d.as_ref() }, c"size") as i32;
+        size = tv_dict_get_number(d.as_deref(), c"size") as i32;
     }
 
     if is_ctx_win(wp) || text_or_buf_locked() || !check_split_disallowed(wp) {
@@ -879,59 +873,49 @@ pub fn f_winrestcmd(_argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFunc
 
 /// `winrestview()` function (`f_winrestview`).
 pub fn f_winrestview(argvars: &mut [TypVal], _rettv: &mut TypVal, _fptr: EvalFuncData) {
-    unsafe {
-        if !tv_check_for_nonnull_dict_arg(argvars, 0) {
-            return;
-        }
-
-        let dict = argvars[0].vval.v_dict();
-        let di = tv_dict_find(dict.as_ref(), c"lnum", 4);
-        if !di.is_null() {
-            curwin_mut().w_cursor.lnum = tv_get_number(&(*di).di_tv) as Linenr;
-        }
-        let di = tv_dict_find(dict.as_ref(), c"col", 3);
-        if !di.is_null() {
-            curwin_mut().w_cursor.col = tv_get_number(&(*di).di_tv) as Colnr;
-        }
-        let di = tv_dict_find(dict.as_ref(), c"coladd", 6);
-        if !di.is_null() {
-            curwin_mut().w_cursor.coladd = tv_get_number(&(*di).di_tv) as Colnr;
-        }
-        let di = tv_dict_find(dict.as_ref(), c"topline", 7);
-        if !di.is_null() {
-            set_topline(curwin_mut(), tv_get_number(&(*di).di_tv) as Linenr);
-        }
-        let mut vs = Viewstate::default();
-        save_viewstate(curwin_mut(), &mut vs);
-        let di = tv_dict_find(dict.as_ref(), c"curswant", 8);
-        if !di.is_null() {
-            vs.vs_curswant = tv_get_number(&(*di).di_tv) as Colnr;
-            vs.vs_set_curswant = false;
-        }
-        let di = tv_dict_find(dict.as_ref(), c"topfill", 7);
-        if !di.is_null() {
-            vs.vs_topfill = tv_get_number(&(*di).di_tv) as i32;
-        }
-        let di = tv_dict_find(dict.as_ref(), c"leftcol", 7);
-        if !di.is_null() {
-            vs.vs_leftcol = tv_get_number(&(*di).di_tv) as Colnr;
-        }
-        let di = tv_dict_find(dict.as_ref(), c"skipcol", 7);
-        if !di.is_null() {
-            vs.vs_skipcol = tv_get_number(&(*di).di_tv) as Colnr;
-        }
-        restore_viewstate(curwin_mut(), &vs);
-
-        check_cursor(curwin_mut());
-        changed_window_setting(curwin_mut());
-        if curwin_mut().w_topline <= 0 {
-            curwin_mut().w_topline = 1;
-        }
-        if curwin_mut().w_topline > curbuf_mut().b_ml.ml_line_count {
-            curwin_mut().w_topline = curbuf_mut().b_ml.ml_line_count;
-        }
-        check_topfill(curwin_mut(), true);
+    if !tv_check_for_nonnull_dict_arg(argvars, 0) {
+        return;
     }
+
+    let dict = argvars[0].vval.v_dict_opt();
+    if let Some(di) = crate::eval::typval::tv_dict_find_opt(dict.as_deref(), c"lnum", 4) {
+        curwin_mut().w_cursor.lnum = tv_get_number(&di.di_tv) as Linenr;
+    }
+    if let Some(di) = crate::eval::typval::tv_dict_find_opt(dict.as_deref(), c"col", 3) {
+        curwin_mut().w_cursor.col = tv_get_number(&di.di_tv) as Colnr;
+    }
+    if let Some(di) = crate::eval::typval::tv_dict_find_opt(dict.as_deref(), c"coladd", 6) {
+        curwin_mut().w_cursor.coladd = tv_get_number(&di.di_tv) as Colnr;
+    }
+    if let Some(di) = crate::eval::typval::tv_dict_find_opt(dict.as_deref(), c"topline", 7) {
+        set_topline(curwin_mut(), tv_get_number(&di.di_tv) as Linenr);
+    }
+    let mut vs = Viewstate::default();
+    save_viewstate(curwin_mut(), &mut vs);
+    if let Some(di) = crate::eval::typval::tv_dict_find_opt(dict.as_deref(), c"curswant", 8) {
+        vs.vs_curswant = tv_get_number(&di.di_tv) as Colnr;
+        vs.vs_set_curswant = false;
+    }
+    if let Some(di) = crate::eval::typval::tv_dict_find_opt(dict.as_deref(), c"topfill", 7) {
+        vs.vs_topfill = tv_get_number(&di.di_tv) as i32;
+    }
+    if let Some(di) = crate::eval::typval::tv_dict_find_opt(dict.as_deref(), c"leftcol", 7) {
+        vs.vs_leftcol = tv_get_number(&di.di_tv) as Colnr;
+    }
+    if let Some(di) = crate::eval::typval::tv_dict_find_opt(dict.as_deref(), c"skipcol", 7) {
+        vs.vs_skipcol = tv_get_number(&di.di_tv) as Colnr;
+    }
+    restore_viewstate(curwin_mut(), &vs);
+
+    check_cursor(curwin_mut());
+    changed_window_setting(curwin_mut());
+    if curwin_mut().w_topline <= 0 {
+        curwin_mut().w_topline = 1;
+    }
+    if curwin_mut().w_topline > curbuf_mut().b_ml.ml_line_count {
+        curwin_mut().w_topline = curbuf_mut().b_ml.ml_line_count;
+    }
+    check_topfill(curwin_mut(), true);
 }
 
 /// `winsaveview()` function (`f_winsaveview`).

@@ -1442,9 +1442,8 @@ pub fn f_readdir(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData
         unreachable!()
     };
     let path = tv_get_string(arg0);
-    let expr = &raw mut *arg1;
     let mut entries: Vec<std::ffi::CString> = Vec::new();
-    let ret = readdir_core(&mut entries, path, unsafe { expr.as_mut() });
+    let ret = readdir_core(&mut entries, path, Some(arg1));
     if ret {
         for entry in &entries {
             tv_list_append_string(rettv.vval.v_list_ref(), entry.as_ptr(), -1);
@@ -1455,7 +1454,6 @@ pub fn f_readdir(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData
 /// Read blob from file "fd".
 /// Caller has allocated a blob in "rettv".
 fn read_blob(fd: *mut FILE, rettv: &mut TypVal, mut offset: Off, size_arg: Off) -> bool {
-    let blob = rettv.vval.v_blob();
     let mut file_info = FileInfo::new();
     if !os_fileinfo_fd(unsafe { fileno(fd) }, &mut file_info) {
         return false; // can't read the file, error
@@ -1489,7 +1487,7 @@ fn read_blob(fd: *mut FILE, rettv: &mut TypVal, mut offset: Off, size_arg: Off) 
         return true;
     }
 
-    let bv = unsafe { &mut (*blob).bv_ga };
+    let bv = &mut rettv.vval.v_blob_ref().bv_ga;
     bv.resize(size as usize, 0);
     if unsafe { fread(bv.as_mut_ptr().cast(), 1, bv.len(), fd) } < bv.len() {
         // An empty blob is returned on error.
@@ -2038,9 +2036,9 @@ pub fn f_writefile(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDa
     }
 
     if argvars[0].v_type == VarType::VarList {
-        for li in crate::eval::typval::list_iter_mut(tv_list_first(unsafe {
-            argvars[0].vval.v_list().as_ref()
-        })) {
+        for li in crate::eval::typval::list_iter_mut(tv_list_first(
+            argvars[0].vval.v_list_opt().as_deref(),
+        )) {
             if !tv_check_str_or_nr(&li.li_tv) {
                 return;
             }
@@ -2126,16 +2124,14 @@ pub fn f_writefile(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDa
             }
 
             let write_ok = if argvars[0].v_type == VarType::VarBlob {
-                argvars[0].vval.v_blob().is_null()
-                    || write_blob(&mut fp, unsafe { &*argvars[0].vval.v_blob() })
+                argvars[0]
+                    .vval
+                    .v_blob_opt()
+                    .is_none_or(|b| write_blob(&mut fp, b))
             } else if argvars[0].v_type == VarType::VarString {
                 write_string(&mut fp, argvars[0].vval.v_string())
             } else {
-                write_list(
-                    &mut fp,
-                    unsafe { argvars[0].vval.v_list().as_ref() },
-                    binary,
-                )
+                write_list(&mut fp, argvars[0].vval.v_list_opt().as_deref(), binary)
             };
             if write_ok {
                 rettv.vval = crate::eval::typval::TypvalVval::Number(0);

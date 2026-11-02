@@ -6,7 +6,7 @@ use crate::errors::{E_API_SPAWN_FAILED, E_INVARG, E_INVARG2};
 use crate::eval::find_job;
 use crate::eval::funcs::{f_jobstart, f_jobstop};
 use crate::eval::typval::{
-    Callback, EvalFuncData, TvList, TypVal, VarType, tv_dict_add_bool, tv_dict_alloc, tv_dict_free,
+    Callback, EvalFuncData, TypVal, VarType, tv_dict_add_bool, tv_dict_alloc, tv_dict_free,
     tv_get_string,
 };
 use crate::ex_cmds::check_secure;
@@ -44,20 +44,14 @@ pub fn f_rpcstart(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDat
         return;
     }
 
-    let mut args: *mut TvList = std::ptr::null_mut();
+    let mut args = None;
     let mut argsl: i32 = 0;
     if arg1.v_type == VarType::VarList {
-        args = arg1.vval.v_list();
-        argsl = if args.is_null() {
-            0
-        } else {
-            unsafe { (*args).lv_len }
-        };
-        for (i, li) in (0_i32..).zip(crate::eval::typval::list_iter_mut(if args.is_null() {
-            std::ptr::null_mut()
-        } else {
-            unsafe { (*args).lv_first }
-        })) {
+        args = arg1.vval.v_list_opt();
+        argsl = args.as_deref().map_or(0, |a| a.lv_len);
+        for (i, li) in (0_i32..).zip(crate::eval::typval::list_iter_mut(
+            args.as_deref().map_or(std::ptr::null_mut(), |a| a.lv_first),
+        )) {
             if li.li_tv.v_type != VarType::VarString {
                 semsg!(
                     c"E5010: List item %d of the second argument is not a string",
@@ -69,7 +63,7 @@ pub fn f_rpcstart(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDat
     }
 
     let prog = arg0.vval.v_string();
-    if prog.is_null() || unsafe { *prog } == 0 {
+    if crate::memory::cstr_is_empty(prog) {
         emsg(E_API_SPAWN_FAILED);
         return;
     }
@@ -77,8 +71,10 @@ pub fn f_rpcstart(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDat
     let mut argv = Vec::with_capacity((argsl as usize) + 1);
     argv.push(crate::memory::cstr_to_cstring(prog));
 
-    if argsl > 0 && !args.is_null() {
-        for li in crate::eval::typval::list_iter_mut(unsafe { (*args).lv_first }) {
+    if argsl > 0
+        && let Some(args) = args
+    {
+        for li in crate::eval::typval::list_iter_mut(args.lv_first) {
             argv.push(tv_get_string(&li.li_tv).to_owned());
         }
     }
@@ -100,8 +96,8 @@ pub fn f_rpcstart(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDat
         std::ptr::null_mut(),
         rettv.vval.v_number_mut(),
     );
-    if !chan.is_null() {
-        channel_create_event(unsafe { &mut *chan });
+    if let Some(chan) = unsafe { chan.as_mut() } {
+        channel_create_event(chan);
     }
 }
 
@@ -164,7 +160,7 @@ pub fn f_termopen(argvars: &mut [TypVal], rettv: &mut TypVal, fptr: EvalFuncData
     }
 
     let dict = arg1.vval.v_dict();
-    tv_dict_add_bool(unsafe { &mut *dict }, c"term", K_BOOL_VAR_TRUE as i32);
+    tv_dict_add_bool(arg1.vval.v_dict_ref(), c"term", K_BOOL_VAR_TRUE as i32);
     f_jobstart(argvars, rettv, fptr);
     if must_free {
         tv_dict_free(dict);

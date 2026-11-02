@@ -96,7 +96,7 @@ pub fn find_buffer(avar: &mut TypVal) -> *mut FileBuf {
 /// If there is a window for `curbuf`, make it the current window (`find_win_for_curbuf`).
 fn find_win_for_curbuf() {
     for wip in &curbuf_mut().b_wininfo {
-        if !wip.wi_win.is_null() && unsafe { (*wip.wi_win).w_buffer } == g_st().curbuf {
+        if wip.win_opt().is_some_and(|w| w.w_buffer == g_st().curbuf) {
             set_curwin(wip.wi_win);
             break;
         }
@@ -504,45 +504,42 @@ pub fn f_bufexists(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDa
 
 /// `buflisted(expr)` function (`f_buflisted`).
 pub fn f_buflisted(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
-    let buf = find_buffer(&mut argvars[0]);
+    let buf = unsafe { find_buffer(&mut argvars[0]).as_ref() };
     rettv.vval = crate::eval::typval::TypvalVval::Number(Varnumber::from(
-        !buf.is_null() && unsafe { (*buf).b_p_bl } != 0,
+        buf.is_some_and(|b| b.b_p_bl != 0),
     ));
 }
 
 /// `bufload(expr)` function (`f_bufload`).
 pub fn f_bufload(argvars: &mut [TypVal], _unused: &mut TypVal, _fptr: EvalFuncData) {
-    let buf = get_buf_arg(&mut argvars[0]);
-    if !buf.is_null() {
+    if let Some(buf) = unsafe { get_buf_arg(&mut argvars[0]).as_mut() } {
         if g_st().swap_exists_action != SEA_READONLY {
             g_st().swap_exists_action = SEA_NONE;
         }
-        buf_ensure_loaded(unsafe { &mut *buf });
+        buf_ensure_loaded(buf);
     }
 }
 
 /// `bufloaded(expr)` function (`f_bufloaded`).
 pub fn f_bufloaded(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
-    unsafe {
-        let buf = find_buffer(&mut argvars[0]);
-        rettv.vval = crate::eval::typval::TypvalVval::Number(Varnumber::from(
-            !buf.is_null() && (*buf).b_ml.ml_mfp.is_some(),
-        ));
-    }
+    let buf = unsafe { find_buffer(&mut argvars[0]).as_ref() };
+    rettv.vval = crate::eval::typval::TypvalVval::Number(Varnumber::from(
+        buf.is_some_and(|b| b.b_ml.ml_mfp.is_some()),
+    ));
 }
 
 /// `bufname(expr)` function (`f_bufname`).
 pub fn f_bufname(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
-    unsafe {
-        tv_set_string(rettv, ptr::null());
-        let buf: *const FileBuf = if argvars[0].v_type == VarType::VarUnknown {
-            g_st().curbuf
-        } else {
-            tv_get_buf_from_arg(&mut argvars[0])
-        };
-        if !buf.is_null() && !(*buf).b_fname.is_null() {
-            tv_set_string(rettv, (*buf).b_fname);
-        }
+    tv_set_string(rettv, ptr::null());
+    let buf: *const FileBuf = if argvars[0].v_type == VarType::VarUnknown {
+        g_st().curbuf
+    } else {
+        tv_get_buf_from_arg(&mut argvars[0])
+    };
+    if let Some(buf) = unsafe { buf.as_ref() }
+        && !buf.b_fname.is_null()
+    {
+        tv_set_string(rettv, buf.b_fname);
     }
 }
 
@@ -762,12 +759,11 @@ pub fn f_getbufinfo(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncD
     tv_list_alloc_ret(rettv, K_LIST_LEN_MAY_KNOW_CONST);
 
     if argvars[0].v_type == VarType::VarDict {
-        let sel_d = argvars[0].vval.v_dict();
-        if !sel_d.is_null() {
+        if let Some(sel_d) = argvars[0].vval.v_dict_opt() {
             filtered = true;
-            sel_buflisted = tv_dict_get_bool(unsafe { sel_d.as_ref() }, c"buflisted", 0) != 0;
-            sel_bufloaded = tv_dict_get_bool(unsafe { sel_d.as_ref() }, c"bufloaded", 0) != 0;
-            sel_bufmodified = tv_dict_get_bool(unsafe { sel_d.as_ref() }, c"bufmodified", 0) != 0;
+            sel_buflisted = tv_dict_get_bool(Some(sel_d), c"buflisted", 0) != 0;
+            sel_bufloaded = tv_dict_get_bool(Some(sel_d), c"bufloaded", 0) != 0;
+            sel_bufmodified = tv_dict_get_bool(Some(sel_d), c"bufmodified", 0) != 0;
         }
     } else if argvars[0].v_type != VarType::VarUnknown {
         argbuf = tv_get_buf_from_arg(&mut argvars[0]);
@@ -854,20 +850,20 @@ fn getbufline(argvars: &mut [TypVal], rettv: &mut TypVal, retlist: bool) {
     let mut lnum: Linenr = 1;
     let mut end: Linenr = 1;
     let did_emsg_before = g_st().did_emsg;
-    let buf = tv_get_buf_from_arg(&mut argvars[0]);
-    if !buf.is_null() {
-        lnum = tv_get_lnum_buf(&argvars[1], unsafe { buf.as_ref() });
+    let buf = unsafe { tv_get_buf_from_arg(&mut argvars[0]).as_mut() };
+    if let Some(ref buf_ref) = buf {
+        lnum = tv_get_lnum_buf(&argvars[1], Some(buf_ref));
         if g_st().did_emsg > did_emsg_before {
             return;
         }
         end = if argvars[2].v_type == VarType::VarUnknown {
             lnum
         } else {
-            tv_get_lnum_buf(&argvars[2], unsafe { buf.as_ref() })
+            tv_get_lnum_buf(&argvars[2], Some(buf_ref))
         };
     }
 
-    get_buffer_lines(unsafe { buf.as_mut() }, lnum, end, retlist, &mut *rettv);
+    get_buffer_lines(buf, lnum, end, retlist, &mut *rettv);
 }
 
 /// `getbufline()` function (`f_getbufline`).
@@ -958,26 +954,30 @@ pub fn f_prompt_setinterrupt(argvars: &mut [TypVal], _rettv: &mut TypVal, _fptr:
 pub fn f_prompt_getprompt(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
     tv_set_string(rettv, ptr::null());
 
-    let buf = tv_get_buf_from_arg(&mut argvars[0]);
-    if buf.is_null() || !bt_prompt(unsafe { buf.as_ref() }) {
+    let Some(buf) = (unsafe { tv_get_buf_from_arg(&mut argvars[0]).as_ref() }) else {
+        return;
+    };
+    if !bt_prompt(Some(buf)) {
         return;
     }
 
-    tv_set_string(rettv, buf_prompt_text(unsafe { &*buf }));
+    tv_set_string(rettv, buf_prompt_text(buf));
 }
 
 /// `prompt_getinput({buffer})` function (`f_prompt_getinput`).
 pub fn f_prompt_getinput(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
     tv_set_string(rettv, ptr::null());
 
-    let buf = tv_get_buf_from_arg(&mut argvars[0]);
-    if buf.is_null() || !bt_prompt(unsafe { buf.as_ref() }) {
+    let Some(buf) = (unsafe { tv_get_buf_from_arg(&mut argvars[0]).as_mut() }) else {
+        return;
+    };
+    if !bt_prompt(Some(buf)) {
         return;
     }
 
     tv_set_string(
         rettv,
-        prompt_get_input(unsafe { &mut *buf })
+        prompt_get_input(buf)
             .as_ref()
             .map_or(ptr::null(), |s| s.as_ptr()),
     );
@@ -988,11 +988,9 @@ pub fn f_prompt_setprompt(argvars: &mut [TypVal], _rettv: &mut TypVal, _fptr: Ev
     if check_secure() {
         return;
     }
-    let buf = tv_get_buf(&mut argvars[0], 0);
-    if buf.is_null() {
+    let Some(buf) = (unsafe { tv_get_buf(&mut argvars[0], 0).as_mut() }) else {
         return;
-    }
-    let buf = unsafe { &mut *buf };
+    };
 
     let new_prompt = tv_get_string(&argvars[1]);
     let new_prompt_len = new_prompt.to_bytes().len() as i32;
@@ -1022,14 +1020,10 @@ pub fn f_prompt_setprompt(argvars: &mut [TypVal], _rettv: &mut TypVal, _fptr: Ev
         let mark_col = buf.b_prompt_start.mark.col;
         let prefix_matches = mark_col >= old_prompt_len
             && mark_col <= old_line_len
-            && unsafe {
-                std::slice::from_raw_parts(
-                    old_line
-                        .wrapping_add((mark_col - old_prompt_len) as usize)
-                        .cast::<u8>(),
-                    old_prompt_bytes.len(),
-                )
-            } == old_prompt_bytes;
+            && crate::memory::cstr_slice(
+                old_line.wrapping_add((mark_col - old_prompt_len) as usize),
+                old_prompt_bytes.len(),
+            ) == old_prompt_bytes;
 
         if !prefix_matches {
             ml_replace_buf(
