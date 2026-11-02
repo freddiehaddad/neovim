@@ -1551,13 +1551,10 @@ pub fn re_multiline(prog: &Regprog) -> i32 {
 pub(super) fn get_equi_class<T>(pp: *mut *mut T) -> i32 {
     unsafe {
         let p = (*pp).cast::<u8>();
-        if crate::memory::cstr_byte_at(p.cast(), 1) == b'='
-            && crate::memory::cstr_byte_at(p.cast(), 2) != 0
-        {
+        let bytes = crate::memory::cstr_as_bytes(p.cast());
+        if bytes.len() >= 3 && bytes[1] == b'=' {
             let l = utfc_ptr2len(p.wrapping_add(2).cast()) as usize;
-            if crate::memory::cstr_byte_at(p.cast(), l + 2) == b'='
-                && crate::memory::cstr_byte_at(p.cast(), l + 3) == b']'
-            {
+            if bytes.get(l + 2..l + 4) == Some(b"=]") {
                 let c = utf_ptr2char(p.wrapping_add(2).cast());
                 *pp = p.wrapping_add(l + 4).cast();
                 return c;
@@ -1571,14 +1568,10 @@ pub(super) fn get_equi_class<T>(pp: *mut *mut T) -> i32 {
 pub(super) fn get_coll_element<T>(pp: *mut *mut T) -> i32 {
     unsafe {
         let p = (*pp).cast::<u8>();
-        if !crate::memory::cstr_is_empty(p.cast())
-            && crate::memory::cstr_byte_at(p.cast(), 1) == b'.'
-            && crate::memory::cstr_byte_at(p.cast(), 2) != 0
-        {
+        let bytes = crate::memory::cstr_as_bytes(p.cast());
+        if bytes.len() >= 3 && bytes[1] == b'.' {
             let l = utfc_ptr2len(p.wrapping_add(2).cast()) as usize;
-            if crate::memory::cstr_byte_at(p.cast(), l + 2) == b'.'
-                && crate::memory::cstr_byte_at(p.cast(), l + 3) == b']'
-            {
+            if bytes.get(l + 2..l + 4) == Some(b".]") {
                 let c = utf_ptr2char(p.wrapping_add(2).cast());
                 *pp = p.wrapping_add(l + 4).cast();
                 return c;
@@ -1595,53 +1588,44 @@ pub(super) fn get_cpo_flags() {
 /// Skip over a `[]` range.
 pub(super) fn skip_anyof<T>(p: *const T) -> *mut T {
     let mut p: *mut u8 = p.cast_mut().cast();
-    {
-        if crate::memory::cstr_first_byte(p.cast()) == b'^' {
+    let bytes = crate::memory::cstr_as_bytes(p.cast());
+    let base = p as usize;
+    if bytes.first() == Some(&b'^') {
+        p = p.wrapping_add(1);
+    }
+    if matches!(bytes.get((p as usize) - base), Some(b']' | b'-')) {
+        p = p.wrapping_add(1);
+    }
+    while (p as usize) - base < bytes.len() && bytes[(p as usize) - base] != b']' {
+        let idx = (p as usize) - base;
+        let rem = &bytes[idx..];
+        let l = utfc_ptr2len(p.cast()) as usize;
+        if l > 1 {
+            p = p.wrapping_add(l);
+        } else if rem[0] == b'-' {
             p = p.wrapping_add(1);
-        }
-        if crate::memory::cstr_first_byte(p.cast()) == b']'
-            || crate::memory::cstr_first_byte(p.cast()) == b'-'
+            if rem.len() > 1 && rem[1] != b']' {
+                mb_ptr_adv(&mut p);
+            }
+        } else if rem[0] == b'\\'
+            && rem.len() > 1
+            && (REGEXP_INRANGE.to_bytes().contains(&rem[1])
+                || (re_st().reg_cpo_lit == 0 && REGEXP_ABBR.to_bytes().contains(&rem[1])))
         {
-            p = p.wrapping_add(1);
-        }
-        while !crate::memory::cstr_is_empty(p.cast())
-            && crate::memory::cstr_first_byte(p.cast()) != b']'
-        {
-            let l = utfc_ptr2len(p.cast());
-            if l > 1 {
-                p = p.wrapping_add(l as usize);
-            } else if crate::memory::cstr_first_byte(p.cast()) == b'-' {
-                p = p.wrapping_add(1);
-                if crate::memory::cstr_first_byte(p.cast()) != b']'
-                    && !crate::memory::cstr_is_empty(p.cast())
-                {
-                    mb_ptr_adv(&mut p);
-                }
-            } else if crate::memory::cstr_first_byte(p.cast()) == b'\\'
-                && (crate::strings::vim_haschr(
-                    REGEXP_INRANGE,
-                    crate::memory::cstr_byte_at(p.cast(), 1) as i32,
-                ) || (re_st().reg_cpo_lit == 0
-                    && crate::strings::vim_haschr(
-                        REGEXP_ABBR,
-                        crate::memory::cstr_byte_at(p.cast(), 1) as i32,
-                    )))
+            p = p.wrapping_add(2);
+        } else if rem[0] == b'[' {
+            if get_char_class(&raw mut p) == CLASS_NONE
+                && get_equi_class(&raw mut p) == 0
+                && get_coll_element(&raw mut p) == 0
+                && (p as usize) - base < bytes.len()
             {
-                p = p.wrapping_add(2);
-            } else if crate::memory::cstr_first_byte(p.cast()) == b'[' {
-                if get_char_class(&raw mut p) == CLASS_NONE
-                    && get_equi_class(&raw mut p) == 0
-                    && get_coll_element(&raw mut p) == 0
-                    && !crate::memory::cstr_is_empty(p.cast())
-                {
-                    p = p.wrapping_add(1);
-                }
-            } else {
                 p = p.wrapping_add(1);
             }
+        } else {
+            p = p.wrapping_add(1);
         }
-        p.cast()
     }
+    p.cast()
 }
 
 /// Skip past regular expression.
@@ -1676,23 +1660,23 @@ pub fn skip_regexp_ex<T>(
 
     get_cpo_flags();
 
-    while !crate::memory::cstr_is_empty(p.cast()) {
-        if crate::memory::cstr_first_byte(p.cast()) as i32 == dirc {
+    loop {
+        let p_bytes = crate::memory::cstr_as_bytes(p.cast());
+        let Some(&b0) = p_bytes.first() else {
+            break;
+        };
+        if b0 as i32 == dirc {
             break;
         }
-        if (crate::memory::cstr_first_byte(p.cast()) == b'[' && mymagic >= MAGIC_ON)
-            || (crate::memory::cstr_first_byte(p.cast()) == b'\\'
-                && crate::memory::cstr_byte_at(p.cast(), 1) == b'['
-                && mymagic <= MAGIC_OFF)
+        if (b0 == b'[' && mymagic >= MAGIC_ON)
+            || (p_bytes.starts_with(b"\\[") && mymagic <= MAGIC_OFF)
         {
             p = skip_anyof(p.wrapping_add(1));
             if crate::memory::cstr_is_empty(p.cast()) {
                 break;
             }
-        } else if crate::memory::cstr_first_byte(p.cast()) == b'\\'
-            && crate::memory::cstr_byte_at(p.cast(), 1) != 0
-        {
-            if dirc == b'?' as i32 && in_place && crate::memory::cstr_byte_at(p.cast(), 1) == b'?' {
+        } else if b0 == b'\\' && p_bytes.len() > 1 {
+            if dirc == b'?' as i32 && in_place && p_bytes[1] == b'?' {
                 if startplen == 0 {
                     startplen = crate::memory::cstr_len(startp.cast());
                 }
@@ -1711,9 +1695,10 @@ pub fn skip_regexp_ex<T>(
             } else {
                 p = p.wrapping_add(1);
             }
-            if crate::memory::cstr_first_byte(p.cast()) == b'v' {
+            let next_b = crate::memory::cstr_first_byte(p.cast());
+            if next_b == b'v' {
                 mymagic = MAGIC_ALL;
-            } else if crate::memory::cstr_first_byte(p.cast()) == b'V' {
+            } else if next_b == b'V' {
                 mymagic = MAGIC_NONE;
             }
         }
@@ -2438,21 +2423,20 @@ pub(super) fn cstrchr(s: impl crate::strings::IntoCCharPtr, c: i32) -> *mut u8 {
             return vim_strchr(s, c).cast();
         };
 
-        let mut p = s;
-        while !crate::memory::cstr_is_empty(p) {
+        let s_bytes = crate::memory::cstr_as_bytes(s);
+        let mut idx = 0usize;
+        while idx < s_bytes.len() {
+            let p = s.wrapping_add(idx);
+            let b0 = s_bytes[idx] as i32;
             let uc = utf_ptr2char(p);
             if c > 0x80 || uc > 0x80 {
-                if (uc < 0x80 || uc != crate::memory::cstr_first_byte(p) as i32)
-                    && utf_fold(uc) == lc
-                {
+                if (uc < 0x80 || uc != b0) && utf_fold(uc) == lc {
                     return p.cast_mut().cast();
                 }
-            } else if crate::memory::cstr_first_byte(p) as i32 == c
-                || crate::memory::cstr_first_byte(p) as i32 == cc
-            {
+            } else if b0 == c || b0 == cc {
                 return p.cast_mut().cast();
             }
-            p = p.wrapping_add(utfc_ptr2len(p) as usize);
+            idx += utfc_ptr2len(p) as usize;
         }
         ptr::null_mut()
     }
@@ -2663,7 +2647,7 @@ fn vim_regsub_both<T>(
         }
         let nested = re_st().regsub_nesting;
         let eval_slot = &mut re_st().eval_result[nested];
-        let mut src = source;
+        let src = source;
         let mut dst = dest;
 
         if expr.is_some()
@@ -2775,30 +2759,25 @@ fn vim_regsub_both<T>(
                 }
             }
         } else {
-            loop {
-                let mut c = crate::memory::cstr_first_byte(src.cast()) as i32;
-                src = src.wrapping_add(1);
-                if c == NUL as i32 {
-                    break;
-                }
+            let src_bytes = crate::memory::cstr_as_bytes(src.cast());
+            let mut idx = 0usize;
+            while idx < src_bytes.len() {
+                let mut c = src_bytes[idx] as i32;
+                idx += 1;
                 if c == b'&' as i32 && (flags & REGSUB_MAGIC) != 0 {
                     no = 0;
-                } else if c == b'\\' as i32 && !crate::memory::cstr_is_empty(src.cast()) {
-                    if crate::memory::cstr_first_byte(src.cast()) == b'&'
-                        && (flags & REGSUB_MAGIC) == 0
-                    {
-                        src = src.wrapping_add(1);
+                } else if c == b'\\' as i32
+                    && let Some(&next_b) = src_bytes.get(idx)
+                {
+                    if next_b == b'&' && (flags & REGSUB_MAGIC) == 0 {
+                        idx += 1;
                         no = 0;
-                    } else if (crate::memory::cstr_first_byte(src.cast())).is_ascii_digit() {
-                        no = (crate::memory::cstr_first_byte(src.cast()) - b'0') as i32;
-                        src = src.wrapping_add(1);
-                    } else if crate::strings::vim_haschr(
-                        c"uUlLeE",
-                        crate::memory::cstr_first_byte(src.cast()) as i32,
-                    ) {
-                        let ch = crate::memory::cstr_first_byte(src.cast());
-                        src = src.wrapping_add(1);
-                        match ch {
+                    } else if next_b.is_ascii_digit() {
+                        no = (next_b - b'0') as i32;
+                        idx += 1;
+                    } else if matches!(next_b, b'u' | b'U' | b'l' | b'L' | b'e' | b'E') {
+                        idx += 1;
+                        match next_b {
                             b'u' => {
                                 func_one = Some(CaseConv::Upper);
                                 continue;
@@ -2825,10 +2804,7 @@ fn vim_regsub_both<T>(
                     }
                 }
                 if no < 0 {
-                    if c == i32::from(K_SPECIAL)
-                        && !crate::memory::cstr_is_empty(src.cast())
-                        && crate::memory::cstr_byte_at(src.cast(), 1) != 0
-                    {
+                    if c == i32::from(K_SPECIAL) && idx + 2 <= src_bytes.len() {
                         if copy {
                             if dst.wrapping_add(3) > dest.wrapping_add(destlen as usize) {
                                 iemsg(c"vim_regsub_both(): not enough space");
@@ -2836,36 +2812,37 @@ fn vim_regsub_both<T>(
                             }
                             *dst = c as u8;
                             dst = dst.wrapping_add(1);
-                            *dst = *src;
+                            *dst = src_bytes[idx];
                             dst = dst.wrapping_add(1);
-                            src = src.wrapping_add(1);
-                            *dst = *src;
+                            *dst = src_bytes[idx + 1];
                             dst = dst.wrapping_add(1);
-                            src = src.wrapping_add(1);
+                            idx += 2;
                         } else {
                             dst = dst.wrapping_add(3);
-                            src = src.wrapping_add(2);
+                            idx += 2;
                         }
                         continue;
                     }
 
-                    if c == b'\\' as i32 && !crate::memory::cstr_is_empty(src.cast()) {
-                        match crate::memory::cstr_first_byte(src.cast()) {
+                    if c == b'\\' as i32
+                        && let Some(&next_b) = src_bytes.get(idx)
+                    {
+                        match next_b {
                             b'r' => {
                                 c = CAR;
-                                src = src.wrapping_add(1);
+                                idx += 1;
                             }
                             b'n' => {
                                 c = NL;
-                                src = src.wrapping_add(1);
+                                idx += 1;
                             }
                             b't' => {
                                 c = TAB;
-                                src = src.wrapping_add(1);
+                                idx += 1;
                             }
                             b'b' => {
                                 c = CTRL_H_CONST;
-                                src = src.wrapping_add(1);
+                                idx += 1;
                             }
                             _ => {
                                 if (flags & REGSUB_BACKSLASH) != 0 {
@@ -2879,12 +2856,12 @@ fn vim_regsub_both<T>(
                                     }
                                     dst = dst.wrapping_add(1);
                                 }
-                                c = crate::memory::cstr_first_byte(src.cast()) as i32;
-                                src = src.wrapping_add(1);
+                                c = next_b as i32;
+                                idx += 1;
                             }
                         }
                     } else {
-                        c = utf_ptr2char(src.wrapping_sub(1).cast());
+                        c = utf_ptr2char(src.wrapping_add(idx - 1).cast());
                     }
 
                     let cc = if let Some(f) = func_one.take() {
@@ -2895,7 +2872,8 @@ fn vim_regsub_both<T>(
                         c
                     };
 
-                    let totlen = utfc_ptr2len(src.wrapping_sub(1).cast()) as usize;
+                    let cur_ptr = src.wrapping_add(idx - 1);
+                    let totlen = utfc_ptr2len(cur_ptr.cast()) as usize;
                     let charlen = utf_char2len(cc) as usize;
 
                     if copy {
@@ -2906,7 +2884,7 @@ fn vim_regsub_both<T>(
                         utf_char2bytes(cc, dst.cast());
                     }
                     dst = dst.wrapping_offset(charlen as isize - 1);
-                    let clen = utf_ptr2len(src.wrapping_sub(1).cast()) as usize;
+                    let clen = utf_ptr2len(cur_ptr.cast()) as usize;
 
                     if clen < totlen {
                         if copy {
@@ -2916,14 +2894,14 @@ fn vim_regsub_both<T>(
                                 return 0;
                             }
                             ptr::copy(
-                                src.wrapping_sub(1).wrapping_add(clen),
+                                cur_ptr.wrapping_add(clen),
                                 dst.wrapping_add(1),
                                 totlen - clen,
                             );
                         }
                         dst = dst.wrapping_add(totlen - clen);
                     }
-                    src = src.wrapping_add(totlen - 1);
+                    idx += totlen - 1;
                     dst = dst.wrapping_add(1);
                 } else {
                     let mut s: *mut u8;
