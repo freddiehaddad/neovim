@@ -843,11 +843,8 @@ fn buf_do_map(
                 if is_abbrev && maptype != MAPTYPE_UNMAP {
                     let mut same: i32 = -1;
                     let mut keys_unescaped = [0u8; MAXMAPLEN + 1];
-                    crate::memory::cstr_ncpy(
-                        keys_unescaped.as_mut_ptr().cast(),
-                        lhs.cast(),
-                        len as usize,
-                    );
+                    keys_unescaped[..len as usize]
+                        .copy_from_slice(crate::memory::cstr_slice(lhs.cast(), len as usize));
                     let keys_unescaped_len = vim_unescape_ks(&mut keys_unescaped);
                     let mut p = keys_unescaped.as_ptr();
                     let end_p = p.wrapping_add(keys_unescaped_len);

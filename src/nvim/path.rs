@@ -2424,7 +2424,10 @@ pub fn path_guess_exepath(argv0: impl crate::strings::IntoCCharPtr, buf_slice: &
                     if dir_len + 1 > MAXPATHL {
                         continue;
                     }
-                    crate::memory::cstr_ncpy(namebuff, dir, dir_len);
+                    for (i, &b) in crate::memory::cstr_slice(dir, dir_len).iter().enumerate() {
+                        g_st().name_buff[i] = b as crate::strings::RawCChar;
+                    }
+                    g_st().name_buff[dir_len] = 0;
                     {
                         let _dst = namebuff;
                         let _dsize: usize = MAXPATHL;

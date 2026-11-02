@@ -210,7 +210,11 @@ pub fn os_getenv_buf<S: crate::strings::IntoCCharPtr, T>(
                 let mut e = vec![0u8; size];
                 r = unsafe { uv_os_getenv(name, e.as_mut_ptr().cast(), &mut size) };
                 if r == 0 && size != 0 && e[0] != 0 {
-                    crate::memory::cstr_ncpy(buf.cast(), e.as_ptr().cast(), bufsize.min(size) - 1);
+                    let copy_len = bufsize.min(size) - 1;
+                    let dst =
+                        unsafe { std::slice::from_raw_parts_mut(buf.cast::<u8>(), copy_len + 1) };
+                    dst[..copy_len].copy_from_slice(&e[..copy_len]);
+                    dst[copy_len] = 0;
                 }
             }
             assert_ne!(r, UV_EINVAL);
@@ -474,7 +478,10 @@ pub fn init_homedir() {
             if let Some(pos) = rest.iter().position(|&b| b == b'%') {
                 let p = var.wrapping_add(1 + pos);
                 let buf = (&raw mut g_st().os_buf).cast::<u8>();
-                crate::memory::cstr_ncpy(buf.cast(), var.wrapping_add(1).cast(), pos);
+                for (i, &b) in rest[..pos].iter().enumerate() {
+                    g_st().os_buf[i] = b as crate::strings::RawCChar;
+                }
+                g_st().os_buf[pos] = 0;
                 var = ptr::null_mut();
                 if let Some(exp) = os_getenv_cstr(buf.cast())
                     && !exp.as_bytes().is_empty()
@@ -1240,7 +1247,10 @@ pub fn os_setenv_append_path(fname: impl crate::strings::IntoCCharPtr) -> bool {
         let dirlen = (tail as usize) - (fname as usize);
         let buf = (&raw mut g_st().os_buf).cast::<u8>();
         assert!((tail as usize) >= (fname as usize) && dirlen + 1 < MAXPATHL);
-        crate::memory::cstr_ncpy(buf.cast(), fname, dirlen);
+        for (i, &b) in crate::memory::cstr_slice(fname, dirlen).iter().enumerate() {
+            g_st().os_buf[i] = b as crate::strings::RawCChar;
+        }
+        g_st().os_buf[dirlen] = 0;
         let path_cstr = os_getenv_cstr(c"PATH");
         let pathlen = path_cstr.as_ref().map_or(0, |c| c.as_bytes().len());
         let newlen = pathlen + dirlen + 2;

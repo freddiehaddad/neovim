@@ -1047,13 +1047,9 @@ fn add_llist_tags(tag: impl crate::strings::IntoCCharPtr, matches: &[Vec<u8>]) -
             parse_match(m.cast(), &mut tagp);
 
             let len =
-                (crate::memory::ptr_offset_from(tagp.tagname_end, tagp.tagname) as i32).min(128);
-            crate::memory::cstr_ncpy(
-                tag_name.as_mut_ptr().cast(),
-                tagp.tagname.cast(),
-                len as usize,
-            );
-            tag_name[len as usize] = 0;
+                (crate::memory::ptr_offset_from(tagp.tagname_end, tagp.tagname) as usize).min(128);
+            tag_name[..len].copy_from_slice(crate::memory::cstr_slice(tagp.tagname.cast(), len));
+            tag_name[len] = 0;
 
             let p = tag_full_fname(&mut tagp);
             xstrlcpy(fname.cast(), p.as_ptr(), MAXPATHL);
@@ -1568,11 +1564,8 @@ fn findtags_in_help_init(st: &mut FindtagsState) -> bool {
     } else {
         let i = crate::memory::cstr_len(st.tag_fname.as_ptr().cast());
         if i > 3 && st.tag_fname[i - 3] == b'-' {
-            crate::memory::cstr_ncpy(
-                st.help_lang.as_mut_ptr().cast(),
-                st.tag_fname[i - 2..].as_ptr().cast(),
-                2,
-            );
+            st.help_lang[..2].copy_from_slice(&st.tag_fname[i - 2..i]);
+            st.help_lang[2] = 0;
         } else {
             crate::memory::cstr_cpy(st.help_lang.as_mut_ptr().cast(), c"en");
         }
@@ -2077,7 +2070,7 @@ fn findtags_add_match(
             } else {
                 let len = crate::memory::ptr_offset_from(tagpp.tagname_end, tagpp.tagname) as usize;
                 let mut v = vec![0u8; 1 + len + 1];
-                crate::memory::cstr_ncpy(v.as_mut_ptr().cast(), tagpp.tagname.cast(), len);
+                v[..len].copy_from_slice(crate::memory::cstr_slice(tagpp.tagname.cast(), len));
                 mfp_vec = Some(v);
 
                 if (g_st().state_global & MODE_INSERT) != 0 {
@@ -3247,7 +3240,6 @@ fn add_tag_field(
         }
         let mut len: i32 = 0;
         let mut buf_vec = vec![0u8; MAXPATHL];
-        let buf = buf_vec.as_mut_ptr();
         if !start.is_null() {
             if end.is_null() {
                 end = start.wrapping_add(crate::memory::cstr_len(start));
@@ -3259,7 +3251,7 @@ fn add_tag_field(
                 }
             }
             len = (crate::memory::ptr_offset_from(end, start) as i32).min(MAXPATHL as i32 - 1);
-            crate::memory::cstr_ncpy(buf.cast(), start, len as usize);
+            buf_vec[..len as usize].copy_from_slice(crate::memory::cstr_slice(start, len as usize));
         }
         buf_vec[len as usize] = 0;
         tv_dict_add_str(

@@ -884,7 +884,9 @@ pub fn trunc_string<T>(
 
     if crate::memory::cstr_is_empty(s.cast()) {
         if buflen > 0 {
-            crate::memory::cstr_ncpy(buf.cast(), c"", 0);
+            unsafe {
+                *buf = 0;
+            }
         }
         return;
     }

@@ -1065,7 +1065,9 @@ fn qf_get_next_str_line(state: &mut Qfstate, p_str: impl crate::strings::IntoCCh
             state.linelen = len;
             g_st().iobuff.as_mut_ptr().cast()
         };
-        crate::memory::cstr_ncpy(linebuf.cast(), p_str, state.linelen);
+        let dst = unsafe { std::slice::from_raw_parts_mut(linebuf, state.linelen + 1) };
+        dst[..state.linelen].copy_from_slice(crate::memory::cstr_slice(p_str, state.linelen));
+        dst[state.linelen] = 0;
 
         p_str = p_str.wrapping_add(len);
         state.source = QfInputSource::Str(p_str.cast());

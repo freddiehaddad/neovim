@@ -2195,24 +2195,13 @@ fn add_dir(
             dest.push(PATHSEP);
         }
         let appname = get_appname(false);
-        #[cfg(windows)]
-        let mut appname_len = crate::memory::cstr_len(appname);
-        #[cfg(not(windows))]
-        let appname_len = crate::memory::cstr_len(appname);
-        debug_assert!(appname_len < IOSIZE - 6);
-        let iobuff = g_st().iobuff.as_mut_ptr();
-        crate::memory::cstr_ncpy(iobuff, appname, appname_len);
+        let appname_bytes = crate::memory::cstr_as_bytes(appname);
+        debug_assert!(appname_bytes.len() < IOSIZE - 6);
+        dest.extend_from_slice(appname_bytes);
         #[cfg(windows)]
         if matches!(type_, XDGVarType::XDGDataHome | XDGVarType::XDGStateHome) {
-            {
-                let _dst = iobuff;
-                let _dsize: usize = IOSIZE;
-                let _dlen = crate::memory::cstr_len(_dst);
-                crate::memory::xstrlcpy(_dst.wrapping_add(_dlen), c"-data", _dsize - _dlen);
-            };
-            appname_len += 5;
+            dest.extend_from_slice(b"-data");
         }
-        dest.extend_from_slice(crate::memory::cstr_slice(iobuff, appname_len));
         if !suf1.is_null() {
             dest.push(PATHSEP);
             dest.extend_from_slice(crate::memory::cstr_slice(suf1, len1));

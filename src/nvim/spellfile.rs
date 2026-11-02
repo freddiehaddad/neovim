@@ -494,7 +494,9 @@ pub fn spell_load_file(
                 verbose_leave();
             }
             if !lang.is_null() {
-                crate::memory::cstr_ncpy(lang.cast(), c"", 0);
+                unsafe {
+                    *lang = 0;
+                }
             }
             return ptr::null_mut();
         }
@@ -714,7 +716,9 @@ pub fn spell_load_file(
             }
         } else {
             if !lang.is_null() {
-                crate::memory::cstr_ncpy(lang.cast(), c"", 0);
+                unsafe {
+                    *lang = 0;
+                }
             }
             drop(owned_lp);
             lp_ptr = ptr::null_mut();
@@ -3361,11 +3365,12 @@ fn store_aff_word(
                             }
 
                             if !use_pfxlist.is_null() && ae.ae_compforbid != 0 {
-                                crate::memory::cstr_ncpy(
-                                    pfx_pfxlist.as_mut_ptr().cast(),
+                                let plen = use_pfxlen as usize;
+                                pfx_pfxlist[..plen].copy_from_slice(crate::memory::cstr_slice(
                                     use_pfxlist.cast(),
-                                    use_pfxlen as usize,
-                                );
+                                    plen,
+                                ));
+                                pfx_pfxlist[plen] = 0;
                                 use_pfxlist = pfx_pfxlist.as_mut_ptr();
                             }
 
@@ -5331,10 +5336,10 @@ fn init_spellfile() {
     }
 
     let mut buf_arr = [0u8; MAXPATHL];
-    let buf = buf_arr.as_mut_ptr();
     let buf_len = MAXPATHL;
 
     if !aspath {
+        let buf = buf_arr.as_mut_ptr();
         let xdg_path = get_xdg_home(XDGVarType::XDGDataHome).unwrap_or_default();
         xstrlcpy(buf.cast(), xdg_path.as_ptr(), buf_len);
 
@@ -5354,9 +5359,11 @@ fn init_spellfile() {
         if plen >= buf_len {
             return;
         }
-        crate::memory::cstr_ncpy(buf.cast(), curbuf_mut().b_s.b_p_spl, plen);
+        buf_arr[..plen].copy_from_slice(crate::memory::cstr_slice(curbuf_mut().b_s.b_p_spl, plen));
+        buf_arr[plen] = 0;
     }
 
+    let buf = buf_arr.as_mut_ptr();
     let cur_len = crate::memory::cstr_len(buf.cast());
     vim_snprintf!(
         buf.wrapping_add(cur_len).cast(),

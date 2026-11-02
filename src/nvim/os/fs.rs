@@ -755,7 +755,6 @@ fn is_executable_in_path(
 
         let bufsize = crate::memory::cstr_len(name) + crate::memory::cstr_len(path.cast()) + 2;
         let mut buf_vec = vec![0u8; bufsize];
-        let buf = buf_vec.as_mut_ptr();
 
         let mut p = path;
         let mut rv = false;
@@ -769,7 +768,10 @@ fn is_executable_in_path(
                     .unwrap_or(_b.len());
                 _s.wrapping_add(_off).cast_mut()
             };
-            crate::memory::cstr_ncpy(buf.cast(), p.cast(), (e as usize) - (p as usize));
+            let seg_len = (e as usize) - (p as usize);
+            buf_vec[..seg_len].copy_from_slice(crate::memory::cstr_slice(p.cast(), seg_len));
+            buf_vec[seg_len] = 0;
+            let buf = buf_vec.as_mut_ptr();
             let _ = append_path(buf.cast(), name, bufsize);
 
             if is_executable_ext(buf.cast(), abspath.as_deref_mut()) {

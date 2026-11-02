@@ -3128,8 +3128,8 @@ pub fn addstar(fname: impl crate::strings::IntoCCharPtr, mut len: usize, context
             }
         } else {
             let mut retval_vec = vec![0u8; len + 4];
+            retval_vec[..len].copy_from_slice(crate::memory::cstr_slice(fname.cast(), len));
             let retval = retval_vec.as_mut_ptr();
-            crate::memory::cstr_ncpy(retval.cast(), fname.cast(), len);
 
             let tail = path_tail(retval.cast()).cast::<u8>();
             #[cfg(windows)]
@@ -5309,7 +5309,6 @@ fn expand_shellcmd(
     {
         matches.clear();
         let mut buf_vec = vec![0u8; MAXPATHL];
-        let buf = buf_vec.as_mut_ptr();
         let mut flags = flagsarg;
         let mut did_curdir = false;
 
@@ -5389,19 +5388,23 @@ fn expand_shellcmd(
 
             if pathlen + seplen + patlen < MAXPATHL {
                 if pathlen > 0 {
-                    crate::memory::cstr_ncpy(buf.cast(), s.cast(), pathlen);
+                    buf_vec[..pathlen]
+                        .copy_from_slice(crate::memory::cstr_slice(s.cast(), pathlen));
                     if seplen > 0 {
-                        crate::memory::cstr_ncpy(
-                            buf.wrapping_add(pathlen).cast(),
-                            PATHSEPSTR.as_ptr().cast(),
-                            seplen,
-                        );
+                        buf_vec[pathlen..pathlen + seplen].copy_from_slice(&PATHSEPSTR[..seplen]);
                         pathlen += seplen;
                     }
                 }
-                crate::memory::cstr_ncpy(buf.wrapping_add(pathlen).cast(), pat.cast(), patlen);
+                buf_vec[pathlen..pathlen + patlen].copy_from_slice(&pat_vec[..patlen]);
+                buf_vec[pathlen + patlen] = 0;
 
-                expand_shellcmd_onedir(buf.cast(), pathlen, flags, &mut found_ht, matches);
+                expand_shellcmd_onedir(
+                    buf_vec.as_mut_ptr().cast(),
+                    pathlen,
+                    flags,
+                    &mut found_ht,
+                    matches,
+                );
             }
 
             if !crate::memory::cstr_is_empty(e.cast()) {
@@ -5648,7 +5651,6 @@ pub fn globpath(
     let file = file.into_c_char_ptr();
     {
         let mut buf_vec = vec![0u8; MAXPATHL];
-        let buf = buf_vec.as_mut_ptr();
 
         let mut xpc: ExpandCtx = ExpandCtx::new();
         xpc.xp_context = if dirs {
@@ -5660,9 +5662,13 @@ pub fn globpath(
         let filelen = crate::memory::cstr_len(file);
 
         while !crate::memory::cstr_is_empty(path) {
-            let mut pathlen = copy_option_part(&raw mut path, buf.cast(), MAXPATHL, c",");
-            let seplen = if !crate::memory::cstr_is_empty(buf.cast())
-                && after_pathsep(buf.cast(), buf.wrapping_add(pathlen).cast()) == 0
+            let mut pathlen =
+                copy_option_part(&raw mut path, buf_vec.as_mut_ptr().cast(), MAXPATHL, c",");
+            let seplen = if buf_vec[0] != 0
+                && after_pathsep(
+                    buf_vec.as_ptr().cast(),
+                    buf_vec.as_ptr().wrapping_add(pathlen).cast(),
+                ) == 0
             {
                 PATHSEPSTR.len()
             } else {
@@ -5671,19 +5677,27 @@ pub fn globpath(
 
             if pathlen + seplen + filelen < MAXPATHL {
                 if seplen > 0 {
-                    crate::memory::cstr_ncpy(
-                        buf.wrapping_add(pathlen).cast(),
-                        PATHSEPSTR.as_ptr().cast(),
-                        seplen,
-                    );
+                    buf_vec[pathlen..pathlen + seplen].copy_from_slice(&PATHSEPSTR[..seplen]);
                     pathlen += seplen;
                 }
-                crate::memory::cstr_ncpy(buf.wrapping_add(pathlen).cast(), file, filelen);
+                buf_vec[pathlen..pathlen + filelen]
+                    .copy_from_slice(crate::memory::cstr_slice(file, filelen));
+                buf_vec[pathlen + filelen] = 0;
 
                 let mut p: Vec<CString> = Vec::new();
-                expand_from_context(&mut xpc, buf.cast(), &mut p, WILD_SILENT | expand_options);
+                expand_from_context(
+                    &mut xpc,
+                    buf_vec.as_mut_ptr().cast(),
+                    &mut p,
+                    WILD_SILENT | expand_options,
+                );
                 if !p.is_empty() {
-                    expand_escape(&mut xpc, buf.cast(), &mut p, WILD_SILENT | expand_options);
+                    expand_escape(
+                        &mut xpc,
+                        buf_vec.as_mut_ptr().cast(),
+                        &mut p,
+                        WILD_SILENT | expand_options,
+                    );
                     ga.extend(p);
                 }
             }

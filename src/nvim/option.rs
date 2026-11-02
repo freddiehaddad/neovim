@@ -1151,7 +1151,7 @@ pub fn set_init_3() {
     let mut len: usize = 0;
     let mut name = [0u8; MAXPATHL];
     let p = invocation_path_tail(opt_vars().p_sh, Some(&mut len));
-    crate::memory::cstr_ncpy(name.as_mut_ptr().cast(), p, len);
+    name[..len].copy_from_slice(crate::memory::cstr_slice(p, len));
     for (i, rule) in SHELL_RULES.iter().enumerate() {
         if !c_str_contains(&name, rule.pat.to_bytes()) {
             continue;
@@ -7878,7 +7878,9 @@ pub fn expand_setting_subtract(
                 comma = vim_strchr(comma.wrapping_add(1).cast(), b',' as i32).cast::<u8>();
             }
             if !comma.is_null() {
-                crate::memory::cstr_ncpy(comma.cast(), c"", 0);
+                unsafe {
+                    *comma = 0;
+                }
                 next_val = comma.wrapping_add(1);
             } else {
                 next_val = ptr::null_mut();

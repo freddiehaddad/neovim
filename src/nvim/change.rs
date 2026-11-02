@@ -1302,9 +1302,12 @@ pub fn open_line(
                     + 1;
                 debug_assert!(bytes >= 0);
                 allocated_vec = vec![0u8; bytes as usize];
+                allocated_vec[..lead_len as usize].copy_from_slice(crate::memory::cstr_slice(
+                    saved_line.cast(),
+                    lead_len as usize,
+                ));
+                allocated_vec[lead_len as usize] = 0;
                 leader = allocated_vec.as_mut_ptr();
-
-                crate::memory::cstr_ncpy(leader.cast(), saved_line.cast(), lead_len as usize);
 
                 for li in 0..comment_start {
                     if !ascii_iswhite(crate::memory::cstr_byte_at(leader.cast(), li as usize)) {

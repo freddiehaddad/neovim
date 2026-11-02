@@ -363,18 +363,6 @@ pub fn cstr_lossy<'a, S: crate::strings::IntoCCharPtr>(s: S) -> std::borrow::Cow
     }
 }
 
-/// Copy `len` bytes from `src` to `dst` and append a trailing NUL byte at `dst[len]`.
-#[inline]
-pub fn cstr_ncpy<S: crate::strings::IntoCCharPtr>(dst: RawCCharPtrMut, src: S, len: usize) {
-    let src = src.into_c_char_ptr();
-    unsafe {
-        if len > 0 {
-            std::ptr::copy_nonoverlapping(src.cast::<u8>(), dst.cast::<u8>(), len);
-        }
-        *dst.cast::<u8>().add(len) = 0;
-    }
-}
-
 /// Compute the signed element offset `(p - origin)` between two pointers of the same type.
 #[inline]
 pub fn ptr_offset_from<T>(p: *const T, origin: *const T) -> isize {

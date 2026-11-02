@@ -1811,7 +1811,9 @@ pub fn ex_menutranslate(eap: &mut Exarg) {
         let from_arg = arg;
         arg = menu_skip_part(arg);
         let to_arg = skipwhite(arg.cast()).cast::<u8>();
-        crate::memory::cstr_ncpy(arg.cast(), c"", 0);
+        unsafe {
+            *arg = 0;
+        }
         arg = menu_skip_part(to_arg);
         if arg == to_arg {
             emsg(gettext(E_INVARG));

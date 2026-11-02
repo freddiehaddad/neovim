@@ -744,11 +744,10 @@ fn find_word(mip: &mut Matchinf, mode: i32) {
                                 MAXWLEN as i32,
                             );
                         } else {
-                            crate::memory::cstr_ncpy(
-                                fword.as_mut_ptr().cast(),
-                                ptr.cast(),
-                                endlen[endidxcnt] as usize,
-                            );
+                            let elen = endlen[endidxcnt] as usize;
+                            fword[..elen]
+                                .copy_from_slice(crate::memory::cstr_slice(ptr.cast(), elen));
+                            fword[elen] = 0;
                         }
                     }
                     if !can_compound(
@@ -2519,7 +2518,9 @@ fn spell_soundfold_sofo(
             prevc = c;
         }
     }
-    crate::memory::cstr_ncpy(res.wrapping_add(ri).cast(), c"", 0);
+    unsafe {
+        *res.add(ri) = 0;
+    }
 }
 fn spell_soundfold_wsal(
     slang: &mut Slang,
@@ -2766,7 +2767,9 @@ fn spell_soundfold_wsal(
             break;
         }
     }
-    crate::memory::cstr_ncpy(res.wrapping_add(l).cast(), c"", 0);
+    unsafe {
+        *res.add(l) = 0;
+    }
 }
 pub fn ex_spellinfo(_eap: &mut Exarg) {
     if no_spell_checking(curwin_mut()) {

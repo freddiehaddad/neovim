@@ -879,11 +879,10 @@ fn spell_find_suggest(
         su.su_maxcount = maxcount;
         su.su_maxscore = SCORE_MAXINIT;
         su.su_badlen = su.su_badlen.min(MAXWLEN as i32 - 1);
-        crate::memory::cstr_ncpy(
-            su.su_badword.as_mut_ptr().cast(),
-            su.su_badptr.cast(),
-            su.su_badlen as usize,
-        );
+        let bad_len = su.su_badlen as usize;
+        su.su_badword[..bad_len]
+            .copy_from_slice(crate::memory::cstr_slice(su.su_badptr.cast(), bad_len));
+        su.su_badword[bad_len] = 0;
         spell_casefold(
             curwin_mut(),
             su.su_badptr.cast(),
@@ -1383,17 +1382,13 @@ fn suggest_trie_walk(su: &mut Suginfo, lp: &Langp, fword_buf: &mut [u8; MAXWLEN]
                             compflags[stack[udepth].ts_complen as usize] =
                                 ((flags as u32) >> 24) as u8;
                             compflags[stack[udepth].ts_complen as usize + 1] = 0;
-                            crate::memory::cstr_ncpy(
-                                preword
-                                    .as_mut_ptr()
-                                    .wrapping_add(stack[udepth].ts_prewordlen as usize)
-                                    .cast(),
-                                tword
-                                    .as_ptr()
-                                    .wrapping_add(stack[udepth].ts_splitoff as usize)
-                                    .cast(),
-                                (stack[udepth].ts_twordlen - stack[udepth].ts_splitoff) as usize,
-                            );
+                            let pw_off = stack[udepth].ts_prewordlen as usize;
+                            let tw_off = stack[udepth].ts_splitoff as usize;
+                            let tw_len =
+                                (stack[udepth].ts_twordlen - stack[udepth].ts_splitoff) as usize;
+                            preword[pw_off..pw_off + tw_len]
+                                .copy_from_slice(&tword[tw_off..tw_off + tw_len]);
+                            preword[pw_off + tw_len] = 0;
                             if match_checkcompoundpattern(
                                 preword.as_mut_ptr().cast(),
                                 stack[udepth].ts_prewordlen as i32,
@@ -2560,17 +2555,16 @@ fn stp_sal_score(
             (&raw mut badsound2).cast()
         };
         let pgood = if lendiff > 0 && (stp.st_wordlen + lendiff) < MAXWLEN as i32 {
-            crate::memory::cstr_cpy((&raw mut goodword).cast(), stp.st_word.as_ptr());
-            crate::memory::cstr_ncpy(
-                goodword
-                    .as_mut_ptr()
-                    .wrapping_add(stp.st_wordlen as usize)
-                    .cast(),
+            let wlen = stp.st_wordlen as usize;
+            let ldiff = lendiff as usize;
+            goodword[..wlen].copy_from_slice(stp.st_word.to_bytes());
+            goodword[wlen..wlen + ldiff].copy_from_slice(crate::memory::cstr_slice(
                 su.su_badptr
                     .wrapping_add((su.su_badlen - lendiff) as usize)
                     .cast(),
-                lendiff as usize,
-            );
+                ldiff,
+            ));
+            goodword[wlen + ldiff] = 0;
             (&raw const goodword).cast()
         } else {
             stp.st_word.as_ptr()

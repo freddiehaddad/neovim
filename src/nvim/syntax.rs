@@ -2546,7 +2546,7 @@ fn check_keyword_id(
         }
 
         let mut keyword = [0u8; MAXKEYWLEN + 1];
-        crate::memory::cstr_ncpy(keyword.as_mut_ptr().cast(), kwp, kwlen as usize);
+        keyword[..kwlen as usize].copy_from_slice(crate::memory::cstr_slice(kwp, kwlen as usize));
 
         let mut kp: *const Keyentry = std::ptr::null();
 
@@ -4597,13 +4597,11 @@ fn get_id_list<T>(arg: *mut *mut T, keylen: i32, list: &mut SynIdList, skip: boo
                 {
                     end = end.wrapping_add(1);
                 }
-                let mut name_buf = vec![0u8; crate::memory::ptr_offset_from(end, p) as usize + 3];
+                let item_len = crate::memory::ptr_offset_from(end, p) as usize;
+                let mut name_buf = vec![0u8; item_len + 3];
+                name_buf[1..=item_len]
+                    .copy_from_slice(crate::memory::cstr_slice(p.cast(), item_len));
                 let name = name_buf.as_mut_ptr();
-                crate::memory::cstr_ncpy(
-                    name.wrapping_add(1).cast(),
-                    p.cast(),
-                    crate::memory::ptr_offset_from(end, p) as usize,
-                );
                 let mut id: i32;
                 if (crate::memory::cstr_as_bytes(name.wrapping_add(1).cast()) == b"ALLBUT")
                     || (crate::memory::cstr_as_bytes(name.wrapping_add(1).cast()) == b"ALL")

@@ -927,7 +927,7 @@ fn buf_write_make_backup(
                 let dirlen = (path_tail(fname) as usize) - (fname as usize);
                 assert!(dirlen < MAXPATHL);
                 let mut tmp_fname = [0u8; MAXPATHL];
-                crate::memory::cstr_ncpy(tmp_fname.as_mut_ptr().cast(), fname, dirlen);
+                tmp_fname[..dirlen].copy_from_slice(crate::memory::cstr_slice(fname, dirlen));
                 let mut i: i32 = 4913;
                 loop {
                     let suffix = format!(".{i}.swp\0");

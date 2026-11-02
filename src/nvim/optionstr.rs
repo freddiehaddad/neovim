@@ -3115,11 +3115,8 @@ fn opt_values_err<'a>(
             return Some(E_INVARG);
         };
         let mut itembuf = [0u8; 64];
-        crate::memory::cstr_ncpy(
-            itembuf.as_mut_ptr().cast(),
-            item,
-            itemlen.min(itembuf.len() - 1),
-        );
+        let copy_len = itemlen.min(itembuf.len() - 1);
+        itembuf[..copy_len].copy_from_slice(crate::memory::cstr_slice(item, copy_len));
         let mut n = vim_snprintf!(
             errbuf.data.cast(),
             errbuf.size,
@@ -3213,11 +3210,8 @@ fn opt_schema_err<'a>(
             return Some(E_INVARG);
         }
         let mut keybuf = [0u8; 64];
-        crate::memory::cstr_ncpy(
-            keybuf.as_mut_ptr().cast(),
-            key,
-            keylen.min(keybuf.len() - 1),
-        );
+        let copy_len = keylen.min(keybuf.len() - 1);
+        keybuf[..copy_len].copy_from_slice(crate::memory::cstr_slice(key, copy_len));
         opt_error(errbuf, fmt.as_ptr(), &keybuf)
     }
 }

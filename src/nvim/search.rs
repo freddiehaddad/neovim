@@ -3540,11 +3540,13 @@ pub fn find_pattern_in_path(
                                 i = crate::memory::ptr_offset_from(p, aux) as i32;
 
                                 if compl_status_adding() && i == ins_compl_len() {
-                                    crate::memory::cstr_ncpy(
-                                        g_st().iobuff.as_mut_ptr(),
-                                        aux,
-                                        i as usize,
-                                    );
+                                    for (idx, &b) in crate::memory::cstr_slice(aux, i as usize)
+                                        .iter()
+                                        .enumerate()
+                                    {
+                                        g_st().iobuff[idx] = b as _;
+                                    }
+                                    g_st().iobuff[i as usize] = NUL;
 
                                     if depth < 0 {
                                         if lnum >= end_lnum {
@@ -3593,11 +3595,13 @@ pub fn find_pattern_in_path(
                                             if copy_len >= IOSIZE - (i as usize) {
                                                 copy_len = IOSIZE - (i as usize) - 1;
                                             }
-                                            crate::memory::cstr_ncpy(
-                                                g_st().iobuff.as_mut_ptr().wrapping_add(i as usize),
-                                                aux,
-                                                copy_len,
-                                            );
+                                            for (idx, &b) in
+                                                crate::memory::cstr_slice(aux, copy_len)
+                                                    .iter()
+                                                    .enumerate()
+                                            {
+                                                g_st().iobuff[i as usize + idx] = b as _;
+                                            }
                                             i += copy_len as i32;
                                             cont_s_ipos = true;
                                         }

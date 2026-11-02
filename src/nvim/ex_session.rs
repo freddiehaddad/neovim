@@ -1170,7 +1170,7 @@ fn get_view_file(c: u8) -> Option<CString> {
     retval_vec[s_idx] = b'=';
     retval_vec[s_idx + 1] = c;
     s_idx += 2;
-    crate::memory::cstr_ncpy(retval.wrapping_add(s_idx).cast(), c".vim", 4);
+    retval_vec[s_idx..s_idx + 5].copy_from_slice(b".vim\0");
 
     Some(crate::memory::cstr_to_cstring(retval.cast()))
 }
