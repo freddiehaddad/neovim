@@ -1422,7 +1422,10 @@ fn decor_row_has_mark(wp: &mut WinInfoInfo, row: i32, meta: usize, flag: u32) ->
     let b = &(*wp).buf_mut().b_marktree;
     marktree_itr_get_overlap(b, row, 0, &mut itr);
     while marktree_itr_step_overlap(b, &mut itr, &mut pair) {
-        if (pair.start.flags & flag) != 0 && ns_in_win(pair.start.ns, &mut *wp) {
+        if !mt_invalid(pair.start)
+            && (pair.start.flags & flag) != 0
+            && ns_in_win(pair.start.ns, &mut *wp)
+        {
             return true;
         }
     }
@@ -1434,7 +1437,7 @@ fn decor_row_has_mark(wp: &mut WinInfoInfo, row: i32, meta: usize, flag: u32) ->
         if mark.pos.row > row {
             break;
         }
-        if (mark.flags & flag) != 0 && ns_in_win(mark.ns, &mut *wp) {
+        if !mt_invalid(mark) && (mark.flags & flag) != 0 && ns_in_win(mark.ns, &mut *wp) {
             return true;
         }
         marktree_itr_next_filter(b, &mut itr, row + 1, 0, &filter);

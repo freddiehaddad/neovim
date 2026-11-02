@@ -1127,9 +1127,11 @@ pub fn textpos2screenpos(
                 Some(&mut ecol),
                 GETVCOL_DISP,
             );
+            ecol = ecol.max(scol);
 
-            let mut col = scol + off;
+            let mut col = ccol + off;
             let width = wp.w_view_width - off + win_col_off2(wp);
+            let mut row_vcol = wp.w_leftcol;
 
             if wp.w_onebuf_opt.wo_wrap != 0 && col >= wp.w_view_width && width > 0 {
                 let rowoff = if visible_row {
@@ -1139,12 +1141,14 @@ pub fn textpos2screenpos(
                 };
                 col -= rowoff * width;
                 row += rowoff;
+                row_vcol += rowoff * width - win_col_off2(wp);
             }
 
             col -= wp.w_leftcol;
+            scol = scol.max(row_vcol);
 
             if col >= 0 && col < wp.w_view_width && row >= 0 && row < wp.w_view_height {
-                coloff = col - scol
+                coloff = col - ccol
                     + if local {
                         0
                     } else {

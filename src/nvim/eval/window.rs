@@ -888,7 +888,11 @@ pub fn f_winrestview(argvars: &mut [TypVal], _rettv: &mut TypVal, _fptr: EvalFun
         curwin_mut().w_cursor.coladd = tv_get_number(&di.di_tv) as Colnr;
     }
     if let Some(di) = crate::eval::typval::tv_dict_find_opt(dict.as_deref(), c"topline", 7) {
+        let prev_topline = curwin_mut().w_topline;
         set_topline(curwin_mut(), tv_get_number(&di.di_tv) as Linenr);
+        if curwin_mut().w_topline != prev_topline {
+            curwin_mut().w_skipcol = 0;
+        }
     }
     let mut vs = Viewstate::default();
     save_viewstate(curwin_mut(), &mut vs);
