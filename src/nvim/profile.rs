@@ -202,6 +202,21 @@ impl Funccall {
             fc_ufuncs: Vec::new(),
         }
     }
+
+    #[inline]
+    pub fn func_mut(&self) -> &'static mut UserFunc {
+        unsafe { &mut *self.fc_func }
+    }
+
+    #[inline]
+    pub fn rettv_mut(&self) -> &'static mut TypVal {
+        unsafe { &mut *self.fc_rettv }
+    }
+
+    #[inline]
+    pub fn caller_opt(&self) -> Option<&'static mut Funccall> {
+        unsafe { self.fc_caller.as_mut() }
+    }
 }
 
 use crate::fileio::setvbuf;

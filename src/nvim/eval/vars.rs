@@ -25,9 +25,8 @@ use crate::eval::typval::{
     tv_dict_set_keys_readonly, tv_dict_unref, tv_dict_watcher_notify, tv_get_bool_chk,
     tv_get_number, tv_get_number_chk, tv_get_string, tv_get_string_buf_chk, tv_get_string_chk,
     tv_is_func, tv_item_lock, tv_list_alloc, tv_list_append_string, tv_list_append_tv,
-    tv_list_find_nr, tv_list_find_str, tv_list_first, tv_list_free, tv_list_item_remove,
-    tv_list_len, tv_list_ref, tv_list_remove_items, tv_list_set_lock, tv_list_set_ret,
-    value_check_lock,
+    tv_list_find_nr, tv_list_find_str, tv_list_free, tv_list_item_remove, tv_list_len, tv_list_ref,
+    tv_list_remove_items, tv_list_set_lock, tv_list_set_ret, value_check_lock,
 };
 use crate::eval::userfunc::{
     find_hi_in_scoped_ht, find_var_in_scoped_ht, function_exists, get_current_funccal_dict,
@@ -523,12 +522,10 @@ pub(crate) fn eval_msgpack_type_lists_mut() -> &'static mut [*const TvList; NUM_
 #[inline]
 fn c_memchr<T>(s: *const T, c: u8, n: usize) -> *const T {
     let p = s.cast::<u8>();
-    for i in 0..n {
-        if unsafe { *p.wrapping_add(i) } == c {
-            return p.wrapping_add(i).cast();
-        }
-    }
-    ptr::null()
+    crate::memory::cstr_slice(p.cast(), n)
+        .iter()
+        .position(|&b| b == c)
+        .map_or(ptr::null(), |i| p.wrapping_add(i).cast())
 }
 
 #[inline]
@@ -580,9 +577,8 @@ pub fn evalvars_init() {
     vars_st().vimvardict.dv_lock = VAR_FIXED;
     hash_clear(&mut vars_st().compat_hashtab);
 
-    let vimvars_ptr = (&raw mut vars_st().vimvars).cast::<VimVar>();
     for i in 0..VV_LEN {
-        let p = unsafe { &mut *vimvars_ptr.wrapping_add(i) };
+        let p = &mut vars_st().vimvars[i];
         if (p.vv_flags & VV_RO) != 0 {
             p.vv_di.di_flags = DI_FLAGS_RO | DI_FLAGS_FIX;
         } else if (p.vv_flags & VV_RO_SBX) != 0 {
@@ -620,11 +616,7 @@ pub fn evalvars_init() {
             v_lock: 0,
             vval: TypvalVval::List(type_list),
         };
-        unsafe {
-            *(&raw mut (*eval_msgpack_type_lists_mut()))
-                .cast::<*const TvList>()
-                .wrapping_add(i) = type_list;
-        }
+        (*eval_msgpack_type_lists_mut())[i] = type_list;
         if !tv_dict_add(&mut *msgpack_types_dict, di) {
             std::process::abort();
         }
@@ -690,9 +682,8 @@ pub fn evalvars_init() {
 }
 
 pub fn evalvars_clear() {
-    let vimvars_ptr = (&raw mut vars_st().vimvars).cast::<VimVar>();
     for i in 0..VV_LEN {
-        let p = unsafe { &mut *vimvars_ptr.wrapping_add(i) };
+        let p = &mut vars_st().vimvars[i];
         if p.vv_di.di_tv.v_type == VarType::VarString || p.vv_di.di_tv.v_type == VarType::VarList {
             tv_clear(&mut p.vv_di.di_tv);
         }
@@ -919,35 +910,26 @@ pub fn get_spellword<'a>(list: &'a mut TvList, ret_word: &mut Option<&'a CStr>) 
 
 /// Prepare v: variable "idx" to be used.
 pub fn prepare_vimvar(idx: i32, save_tv: &mut TypVal) {
-    unsafe {
-        let p = (&raw mut vars_st().vimvars)
-            .cast::<VimVar>()
-            .wrapping_add(idx as usize);
-        *save_tv = (*p).vv_di.di_tv;
-        (*p).vv_di.di_tv.vval = crate::eval::typval::TypvalVval::String(ptr::null_mut());
-        if (*p).vv_di.di_tv.v_type == VarType::VarUnknown {
-            hash_add(&mut vars_st().vimvardict.dv_hashtab, &mut (*p).vv_di);
-        }
+    let p = &mut vars_st().vimvars[idx as usize];
+    *save_tv = p.vv_di.di_tv;
+    p.vv_di.di_tv.vval = crate::eval::typval::TypvalVval::String(ptr::null_mut());
+    if p.vv_di.di_tv.v_type == VarType::VarUnknown {
+        hash_add(&mut vars_st().vimvardict.dv_hashtab, &mut p.vv_di);
     }
 }
 
 /// Restore v: variable "idx" to typeval "save_tv".
 pub fn restore_vimvar(idx: i32, save_tv: &mut TypVal) {
-    unsafe {
-        let p = (&raw mut vars_st().vimvars)
-            .cast::<VimVar>()
-            .wrapping_add(idx as usize);
-        (*p).vv_di.di_tv = *save_tv;
-        if (*p).vv_di.di_tv.v_type != VarType::VarUnknown {
-            return;
-        }
+    let p = &mut vars_st().vimvars[idx as usize];
+    p.vv_di.di_tv = *save_tv;
+    if p.vv_di.di_tv.v_type != VarType::VarUnknown {
+        return;
+    }
 
-        let hi = hash_find(&vars_st().vimvardict.dv_hashtab, &(*p).vv_di.di_key);
-        if hashitem_empty(&*hi) {
-            internal_error(c"restore_vimvar()");
-        } else {
-            hash_remove(&mut vars_st().vimvardict.dv_hashtab, &mut *hi);
-        }
+    if let Some(hi) = vars_st().vimvardict.dv_hashtab.find_hi_mut(&p.vv_di.di_key) {
+        hash_remove(&mut vars_st().vimvardict.dv_hashtab, hi);
+    } else {
+        internal_error(c"restore_vimvar()");
     }
 }
 
@@ -1038,7 +1020,8 @@ fn eval_all_expr_in_str(str_arg: impl crate::strings::IntoCCharPtr) -> Option<st
             }
 
             if !crate::memory::cstr_is_empty(p.cast())
-                && unsafe { *p } == unsafe { *p.wrapping_add(1) }
+                && crate::memory::cstr_first_byte(p.cast())
+                    == crate::memory::cstr_byte_at(p.cast(), 1)
             {
                 p = p.wrapping_add(1);
                 escaped_brace = true;
@@ -1052,7 +1035,7 @@ fn eval_all_expr_in_str(str_arg: impl crate::strings::IntoCCharPtr) -> Option<st
 
             let lit_len = crate::memory::ptr_offset_from(p, lit_start) as usize;
             if lit_len > 0 {
-                buf.extend_from_slice(unsafe { std::slice::from_raw_parts(lit_start, lit_len) });
+                buf.extend_from_slice(crate::memory::cstr_slice(lit_start.cast(), lit_len));
             }
 
             if crate::memory::cstr_is_empty(p.cast()) {
@@ -1111,7 +1094,7 @@ pub fn heredoc_get(
             {
                 cmd = skipwhite(cmd.wrapping_add(4).cast()).cast();
 
-                let mut p = unsafe { *eap.cmdlinep };
+                let mut p = eap.cmdline();
                 while ascii_iswhite(crate::memory::cstr_first_char(p)) {
                     p = p.wrapping_add(1);
                     marker_indent_len += 1;
@@ -1132,11 +1115,13 @@ pub fn heredoc_get(
 
         let comment_char = b'"';
         let marker: *mut u8;
-        if !crate::memory::cstr_is_empty(cmd.cast()) && unsafe { *cmd } != comment_char {
+        if !crate::memory::cstr_is_empty(cmd.cast())
+            && crate::memory::cstr_first_byte(cmd.cast()) != comment_char
+        {
             marker = skipwhite(cmd.cast()).cast();
             let p: *mut u8 = skiptowhite(marker.cast()).cast();
             if !crate::memory::cstr_is_empty(skipwhite(p.cast()))
-                && unsafe { *skipwhite(p.cast()).cast::<u8>() } != comment_char
+                && crate::memory::cstr_first_byte(skipwhite(p.cast())) != comment_char
             {
                 semsg!(gettext(E_TRAILING_ARG), p);
                 return ptr::null_mut();
@@ -1193,10 +1178,7 @@ pub fn heredoc_get(
 
             if marker_indent_len > 0
                 && (crate::memory::cstr_prefix_bytes(theline.cast(), marker_indent_len as usize)
-                    == crate::memory::cstr_prefix_bytes(
-                        unsafe { *eap.cmdlinep },
-                        marker_indent_len as usize,
-                    ))
+                    == crate::memory::cstr_prefix_bytes(eap.cmdline(), marker_indent_len as usize))
             {
                 mi = marker_indent_len;
             }
@@ -1218,13 +1200,13 @@ pub fn heredoc_get(
                     text_indent_len += 1;
                 }
                 text_indent = Some(
-                    unsafe { std::slice::from_raw_parts(theline, text_indent_len as usize) }
-                        .to_vec(),
+                    crate::memory::cstr_slice(theline.cast(), text_indent_len as usize).to_vec(),
                 );
             }
             if let Some(ref indent_slice) = text_indent {
+                let line_bytes = crate::memory::cstr_as_bytes(theline.cast());
                 while ti < text_indent_len {
-                    if unsafe { *theline.wrapping_add(ti as usize) } != indent_slice[ti as usize] {
+                    if line_bytes.get(ti as usize).copied() != Some(indent_slice[ti as usize]) {
                         break;
                     }
                     ti += 1;
@@ -1389,9 +1371,9 @@ pub fn ex_let_vars(
         emsg(gettext(E_LISTREQ));
         return false;
     }
-    let l = tv.vval.v_list();
+    let l = tv.vval.v_list_opt();
 
-    let len = tv_list_len(unsafe { l.as_ref() });
+    let len = tv_list_len(l.as_deref());
     if semicolon == 0 && var_count < len {
         emsg(gettext(c"E687: Less targets than List items"));
         return false;
@@ -1400,32 +1382,26 @@ pub fn ex_let_vars(
         emsg(gettext(c"E688: More targets than List items"));
         return false;
     }
-    debug_assert!(!l.is_null());
+    let l = l.unwrap();
 
-    let mut item = tv_list_first(unsafe { l.as_ref() });
-    let mut rest_len = tv_list_len(unsafe { l.as_ref() }) as usize;
+    let mut item = l.first_opt();
+    let mut rest_len = tv_list_len(Some(l)) as usize;
     while crate::memory::cstr_first_byte(arg.cast()) != b']' {
+        let cur = item.unwrap();
         arg = skipwhite(arg.wrapping_add(1).cast()).cast();
-        arg = ex_let_one(
-            arg,
-            unsafe { &mut (*item).li_tv },
-            true,
-            is_const != 0,
-            c",;]",
-            op,
-        );
+        arg = ex_let_one(arg, &mut cur.li_tv, true, is_const != 0, c",;]", op);
         if arg.is_null() {
             return false;
         }
         rest_len -= 1;
 
-        item = unsafe { (*item).li_next };
+        item = cur.next_opt();
         arg = skipwhite(arg.cast()).cast();
         if crate::memory::cstr_first_byte(arg.cast()) == b';' {
             let rest_list = tv_list_alloc(rest_len as isize);
-            while !item.is_null() {
-                tv_list_append_tv(&mut *rest_list, unsafe { &mut (*item).li_tv });
-                item = unsafe { (*item).li_next };
+            while let Some(rem) = item {
+                tv_list_append_tv(&mut *rest_list, &mut rem.li_tv);
+                item = rem.next_opt();
             }
 
             ltv.v_type = VarType::VarList;
@@ -1531,34 +1507,29 @@ fn skip_var_one<T>(arg: *const T) -> *const T {
 
 /// List variables for hashtab "ht" with prefix "prefix".
 pub fn list_hashtable_vars(ht: &mut Hashtab, prefix: &std::ffi::CStr, empty: i32, first: &mut i32) {
-    let mut todo = ht.ht_used as i32;
-    let mut hi = ht.array_ptr();
-    while todo > 0 && !g_st().got_int {
-        if !hashitem_empty(unsafe { &*hi }) {
-            todo -= 1;
-            let di = tv_dict_hi2di(hi);
-            let mut buf = [0u8; IOSIZE];
-
-            xstrlcpy(buf.as_mut_ptr().cast(), prefix.as_ptr(), IOSIZE);
-            {
-                let _dst = buf.as_mut_ptr().cast();
-                let _dsize: usize = IOSIZE;
-                let _dlen = crate::memory::cstr_len(_dst);
-                crate::memory::xstrlcpy(_dst.wrapping_add(_dlen), &di.di_key, _dsize - _dlen);
-            };
-            if message_filtered(buf.as_ptr().cast()) {
-                hi = hi.wrapping_add(1);
-                continue;
-            }
-
-            if empty != 0
-                || di.di_tv.v_type != VarType::VarString
-                || !di.di_tv.vval.v_string().is_null()
-            {
-                list_one_var(&mut *di, prefix.as_ptr(), first);
-            }
+    for (_, di) in ht.iter_items_mut() {
+        if g_st().got_int {
+            break;
         }
-        hi = hi.wrapping_add(1);
+        let mut buf = [0u8; IOSIZE];
+
+        xstrlcpy(buf.as_mut_ptr().cast(), prefix.as_ptr(), IOSIZE);
+        {
+            let _dst = buf.as_mut_ptr().cast();
+            let _dsize: usize = IOSIZE;
+            let _dlen = crate::memory::cstr_len(_dst);
+            crate::memory::xstrlcpy(_dst.wrapping_add(_dlen), &di.di_key, _dsize - _dlen);
+        };
+        if message_filtered(buf.as_ptr().cast()) {
+            continue;
+        }
+
+        if empty != 0
+            || di.di_tv.v_type != VarType::VarString
+            || !di.di_tv.vval.v_string().is_null()
+        {
+            list_one_var(&mut *di, prefix.as_ptr(), first);
+        }
     }
 }
 
@@ -2146,33 +2117,23 @@ fn do_unlet_var(lp: &mut Lval, name_end: *mut u8, eap: &mut Exarg, _deep: i32) -
         }
     } else if (!lp.ll_list.is_null()
         && value_check_lock(
-            tv_list_locked(unsafe { lp.ll_list.as_ref() }),
+            tv_list_locked(lp.list_opt().as_deref()),
             lp.ll_name.cast(),
             lp.ll_name_len,
         ))
-        || (!lp.ll_dict.is_null()
-            && value_check_lock(
-                unsafe { (*lp.ll_dict).dv_lock },
-                lp.ll_name.cast(),
-                lp.ll_name_len,
-            ))
+        || (lp
+            .dict_opt()
+            .is_some_and(|d| value_check_lock(d.dv_lock, lp.ll_name.cast(), lp.ll_name_len)))
     {
         return false;
     } else if lp.ll_range {
-        tv_list_unlet_range(
-            unsafe { lp.ll_list.as_mut() },
-            lp.ll_li,
-            lp.ll_n1,
-            !lp.ll_empty2,
-            lp.ll_n2,
-        );
-    } else if !lp.ll_list.is_null() {
-        tv_list_item_remove(unsafe { &mut *lp.ll_list }, lp.ll_li);
+        tv_list_unlet_range(lp.list_opt(), lp.ll_li, lp.ll_n1, !lp.ll_empty2, lp.ll_n2);
+    } else if let Some(l) = lp.list_opt() {
+        tv_list_item_remove(l, lp.ll_li);
     } else {
-        let d = lp.ll_dict;
-        debug_assert!(!d.is_null());
-        let di = unsafe { &mut *lp.ll_di };
-        let watched = tv_dict_is_watched(unsafe { d.as_ref() });
+        let d = lp.dict_opt().unwrap();
+        let di = lp.di_mut();
+        let watched = tv_dict_is_watched(Some(d));
         let mut key: Option<std::ffi::CString> = None;
         let mut oldtv: TypVal = TypVal::new();
 
@@ -2181,10 +2142,10 @@ fn do_unlet_var(lp: &mut Lval, name_end: *mut u8, eap: &mut Exarg, _deep: i32) -
             key = Some(cstr_to_cstring(&di.di_key));
         }
 
-        tv_dict_item_remove(unsafe { &mut *d }, &mut *di);
+        tv_dict_item_remove(d, &mut *di);
 
         if let Some(ref k) = key {
-            tv_dict_watcher_notify(unsafe { &mut *d }, k.as_ptr(), None, Some(&oldtv));
+            tv_dict_watcher_notify(d, k.as_ptr(), None, Some(&oldtv));
             tv_clear(&mut oldtv);
         }
     }
@@ -2296,43 +2257,41 @@ fn do_lock_var(lp: &mut Lval, _name_end: *mut u8, eap: &mut Exarg, deep: i32) ->
             semsg!(gettext(E_LOCK_UNLOCK), lp.ll_name);
             ret = false;
         } else {
-            let di = find_var(lp.ll_name.cast(), lp.ll_name_len, ptr::null_mut(), 1);
-            if di.is_null() {
-                ret = false;
-            } else if (unsafe { (*di).di_flags } & DI_FLAGS_FIX) != 0
-                && unsafe { (*di).di_tv.v_type } != VarType::VarDict
-                && unsafe { (*di).di_tv.v_type } != VarType::VarList
+            let Some(di) = find_var_opt(lp.ll_name.cast(), lp.ll_name_len, ptr::null_mut(), 1)
+            else {
+                return false;
+            };
+            if (di.di_flags & DI_FLAGS_FIX) != 0
+                && di.di_tv.v_type != VarType::VarDict
+                && di.di_tv.v_type != VarType::VarList
             {
                 semsg!(gettext(E_LOCK_UNLOCK), lp.ll_name);
                 ret = false;
             } else {
                 if lock {
-                    unsafe {
-                        (*di).di_flags |= DI_FLAGS_LOCK;
-                    }
+                    di.di_flags |= DI_FLAGS_LOCK;
                 } else {
-                    unsafe {
-                        (*di).di_flags &= !DI_FLAGS_LOCK;
-                    }
+                    di.di_flags &= !DI_FLAGS_LOCK;
                 }
                 if deep != 0 {
-                    tv_item_lock(unsafe { &mut (*di).di_tv }, deep, lock, false);
+                    tv_item_lock(&mut di.di_tv, deep, lock, false);
                 }
             }
         }
     } else if deep == 0 {
         // nothing to do
     } else if lp.ll_range {
-        let mut li = lp.ll_li;
-        while !li.is_null() && (lp.ll_empty2 || lp.ll_n2 >= lp.ll_n1) {
-            tv_item_lock(unsafe { &mut (*li).li_tv }, deep, lock, false);
-            li = unsafe { (*li).li_next };
+        for li in crate::eval::typval::list_iter_ptr(lp.ll_li) {
+            if !lp.ll_empty2 && lp.ll_n2 < lp.ll_n1 {
+                break;
+            }
+            tv_item_lock(&mut li.li_tv, deep, lock, false);
             lp.ll_n1 += 1;
         }
     } else if !lp.ll_list.is_null() {
-        tv_item_lock(unsafe { &mut (*lp.ll_li).li_tv }, deep, lock, false);
+        tv_item_lock(&mut lp.li_mut().li_tv, deep, lock, false);
     } else {
-        tv_item_lock(unsafe { &mut (*lp.ll_di).di_tv }, deep, lock, false);
+        tv_item_lock(&mut lp.di_mut().di_tv, deep, lock, false);
     }
 
     ret
@@ -2341,18 +2300,20 @@ fn do_lock_var(lp: &mut Lval, _name_end: *mut u8, eap: &mut Exarg, deep: i32) ->
 /// Delete all "menutrans_" variables.
 pub fn del_menutrans_vars() {
     hash_lock(&mut vars_st().globvardict.dv_hashtab);
-    let mut todo = vars_st().globvardict.dv_hashtab.ht_used;
-    let mut hi = vars_st().globvardict.dv_hashtab.array_ptr();
-    while todo > 0 {
-        if !hashitem_empty(unsafe { &*hi }) {
-            todo -= 1;
-            if crate::memory::cstr_prefix_bytes((unsafe { &*hi }).key_cstr(), 10)
-                == &b"menutrans_"[..10]
-            {
-                delete_var(&mut vars_st().globvardict.dv_hashtab, unsafe { &mut *hi });
-            }
+    for i in 0..vars_st().globvardict.dv_hashtab.ht_array.len() {
+        if vars_st().globvardict.dv_hashtab.ht_used == 0 {
+            break;
         }
-        hi = hi.wrapping_add(1);
+        let is_menutrans = vars_st().globvardict.dv_hashtab.ht_array[i]
+            .key_cstr()
+            .is_some_and(|k| k.to_bytes().starts_with(b"menutrans_"));
+        if is_menutrans {
+            let di = vars_st().globvardict.dv_hashtab.ht_array[i]
+                .di_opt()
+                .unwrap();
+            vars_st().globvardict.dv_hashtab.remove_at(i);
+            crate::eval::typval::tv_dict_item_free(di);
+        }
     }
     hash_unlock(&mut vars_st().globvardict.dv_hashtab);
 }
@@ -2391,8 +2352,8 @@ pub fn get_vim_var_list(idx: VimVarIndex) -> *mut TvList {
     get_vim_var_tv(idx).vval.v_list()
 }
 
-pub fn get_vim_var_dict(idx: VimVarIndex) -> *mut TvDict {
-    get_vim_var_tv(idx).vval.v_dict()
+pub fn get_vim_var_dict(idx: VimVarIndex) -> &'static mut TvDict {
+    get_vim_var_tv(idx).vval.v_dict_ref()
 }
 
 pub fn get_vim_var_str(idx: VimVarIndex) -> &'static CStr {
@@ -2414,7 +2375,7 @@ pub fn cat_prefix_varname(prefix: i32, name: impl crate::strings::IntoCCharPtr) 
         vars_st().varnamebuf.push(b':');
         vars_st()
             .varnamebuf
-            .extend_from_slice(unsafe { std::slice::from_raw_parts(name, name_len + 1) });
+            .extend_from_slice(crate::memory::cstr_slice(name.cast(), name_len + 1));
         crate::memory::cstr_from_ptr(vars_st().varnamebuf.as_ptr().cast())
     }
 }
@@ -2553,9 +2514,7 @@ pub fn set_vim_var_list(idx: VimVarIndex, val: *mut TvList) {
     tv_clear(tv);
     tv.v_type = VarType::VarList;
     tv.vval = crate::eval::typval::TypvalVval::List(val);
-    if !val.is_null() {
-        tv_list_ref(unsafe { val.as_mut() });
-    }
+    tv_list_ref(tv.vval.v_list_opt());
 }
 
 pub fn set_vim_var_dict(idx: VimVarIndex, val: *mut TvDict) {
@@ -2563,14 +2522,12 @@ pub fn set_vim_var_dict(idx: VimVarIndex, val: *mut TvDict) {
     tv_clear(tv);
     tv.v_type = VarType::VarDict;
     tv.vval = crate::eval::typval::TypvalVval::Dict(val);
-    if val.is_null() {
+    let Some(val_ref) = tv.vval.v_dict_opt() else {
         return;
-    }
+    };
 
-    unsafe {
-        (*val).dv_refcount += 1;
-    }
-    tv_dict_set_keys_readonly(unsafe { &mut *val });
+    val_ref.dv_refcount += 1;
+    tv_dict_set_keys_readonly(val_ref);
 }
 
 pub fn set_vim_var_partial(idx: VimVarIndex, val: *mut TvPartial) {
@@ -2786,6 +2743,16 @@ pub fn find_var(
     }
 }
 
+#[inline]
+pub fn find_var_opt(
+    name: impl crate::strings::IntoCCharPtr,
+    name_len: usize,
+    htp: *mut *mut Hashtab,
+    no_autoload: i32,
+) -> Option<&'static mut Dictitem> {
+    unsafe { find_var(name, name_len, htp, no_autoload).as_mut() }
+}
+
 /// Find variable in hashtab.
 pub fn find_var_in_ht(
     ht: &mut Hashtab,
@@ -2916,11 +2883,8 @@ pub fn find_var_ht<T>(
 
 /// Return the string value of a (global/local) variable or NULL when it doesn't exist.
 pub fn get_var_value(name: &std::ffi::CStr) -> Option<&'static CStr> {
-    let v = find_var(name.as_ptr(), name.to_bytes().len(), ptr::null_mut(), 0);
-    if v.is_null() {
-        return None;
-    }
-    Some(tv_get_string(unsafe { &(*v).di_tv }))
+    let v = find_var_opt(name.as_ptr(), name.to_bytes().len(), ptr::null_mut(), 0)?;
+    Some(tv_get_string(&v.di_tv))
 }
 
 /// Allocate a new hashtab for a sourced script.
@@ -2959,23 +2923,15 @@ pub fn vars_clear(ht: &mut Hashtab) {
 /// Like vars_clear(), but only free the value if "free_val" is true.
 pub fn vars_clear_ext(ht: &mut Hashtab, free_val: bool) {
     hash_lock(ht);
-    let mut todo = ht.ht_used as i32;
-    let mut hi = ht.array_ptr();
-    while todo > 0 {
-        if !hashitem_empty(unsafe { &*hi }) {
-            todo -= 1;
-
-            let v = tv_dict_hi2di(hi);
-            if !free_val {
-                v.di_tv.v_type = VarType::VarUnknown;
-            }
-            if (v.di_flags & DI_FLAGS_ALLOC) != 0 {
-                drop(unsafe { Box::from_raw(v) });
-            } else if free_val {
-                tv_clear(&mut v.di_tv);
-            }
+    for (_, v) in ht.iter_items_mut() {
+        if !free_val {
+            v.di_tv.v_type = VarType::VarUnknown;
         }
-        hi = hi.wrapping_add(1);
+        if (v.di_flags & DI_FLAGS_ALLOC) != 0 {
+            drop(unsafe { Box::from_raw(v) });
+        } else if free_val {
+            tv_clear(&mut v.di_tv);
+        }
     }
     hash_clear(ht);
 }
@@ -3330,9 +3286,9 @@ pub fn var_wrong_func_name(name: impl crate::strings::IntoCCharPtr, new_var: boo
         let first_after_scope = if !crate::memory::cstr_is_empty(name)
             && crate::memory::cstr_byte_at(name, 1) == b':'
         {
-            unsafe { *name.wrapping_add(2) }
+            crate::memory::cstr_char_at(name, 2)
         } else {
-            unsafe { *name }
+            crate::memory::cstr_first_char(name)
         };
         if !(crate::strings::vim_haschr(c"wbst", crate::memory::cstr_first_byte(name) as i32)
             && crate::memory::cstr_byte_at(name, 1) == b':')
@@ -3659,14 +3615,15 @@ fn setwinvar(argvars: &mut [TypVal], off: usize) {
         return;
     }
 
+    let (head, tail) = argvars.split_at_mut(off + 2);
+    let varp = &mut tail[0];
     let tp = if off == 1 {
-        find_tabpage(tv_get_number_chk(&argvars[0], None) as i32)
+        find_tabpage(tv_get_number_chk(&head[0], None) as i32)
     } else {
         g_st().curtab
     };
-    let win = find_win_by_nr(&argvars[off], tp);
-    let varname = tv_get_string_chk(&argvars[off + 1]).map_or(ptr::null(), std::ffi::CStr::as_ptr);
-    let varp = (&raw mut argvars[off + 2]);
+    let win = find_win_by_nr(&head[off], tp);
+    let varname = tv_get_string_chk(&head[off + 1]).map_or(ptr::null(), std::ffi::CStr::as_ptr);
 
     if win.is_null() || varname.is_null() {
         return;
@@ -3684,21 +3641,14 @@ fn setwinvar(argvars: &mut [TypVal], off: usize) {
         )
     {
         if crate::memory::cstr_first_byte(varname) == b'&' {
-            set_option_from_tv(varname.wrapping_add(1), unsafe { &mut *varp });
+            set_option_from_tv(varname.wrapping_add(1), varp);
         } else {
             let varname_len = crate::memory::cstr_len(varname);
             let mut winvarname = Vec::with_capacity(varname_len + 3);
             winvarname.push(b'w');
             winvarname.push(b':');
-            winvarname.extend_from_slice(unsafe {
-                std::slice::from_raw_parts(varname.cast::<u8>(), varname_len + 1)
-            });
-            set_var(
-                winvarname.as_ptr().cast(),
-                varname_len + 2,
-                unsafe { &mut *varp },
-                true,
-            );
+            winvarname.extend_from_slice(crate::memory::cstr_slice(varname, varname_len + 1));
+            set_var(winvarname.as_ptr().cast(), varname_len + 2, varp, true);
         }
     }
     if need_switch_win {
@@ -3723,7 +3673,7 @@ pub fn assert_error(buf: &[u8]) {
         set_vim_var_list(VV_ERRORS, tv_list_alloc(1));
     }
     tv_list_append_string(
-        unsafe { &mut *get_vim_var_list(VV_ERRORS) },
+        get_vim_var_tv(VV_ERRORS).vval.v_list_ref(),
         buf.as_ptr().cast(),
         buf.len() as isize,
     );
@@ -3860,7 +3810,7 @@ pub fn var_redir_str(value: impl crate::strings::IntoCCharPtr, value_len: i32) {
         };
 
         if len > 0 {
-            let slice = unsafe { std::slice::from_raw_parts(value, len) };
+            let slice = crate::memory::cstr_slice(value.cast(), len);
             vars_st().redir_buf.extend_from_slice(slice);
         }
     }
@@ -3975,31 +3925,23 @@ pub fn f_settabvar(argvars: &mut [TypVal], _rettv: &mut TypVal, _fptr: EvalFuncD
         unreachable!()
     };
     let tp = find_tabpage(tv_get_number_chk(arg0, None) as i32);
-    let varname = tv_get_string_chk(arg1);
-    let varp = &raw mut *arg2;
-
-    let Some(varname) = varname else {
+    let Some(varname) = tv_get_string_chk(arg1) else {
         return;
     };
     if tp.is_null() {
         return;
     }
-
-    let save_curtab = g_st().curtab;
-    let save_lu_tp = g_st().lastused_tabpage;
-    goto_tabpage_tp(tp, false, false);
-
     let varname_len = varname.to_bytes().len();
     let mut tabvarname = Vec::with_capacity(varname_len + 3);
     tabvarname.push(b't');
     tabvarname.push(b':');
     tabvarname.extend_from_slice(varname.to_bytes_with_nul());
-    set_var(
-        tabvarname.as_ptr().cast(),
-        varname_len + 2,
-        unsafe { &mut *varp },
-        true,
-    );
+
+    let save_curtab = g_st().curtab;
+    let save_lu_tp = g_st().lastused_tabpage;
+    goto_tabpage_tp(tp, false, false);
+
+    set_var(tabvarname.as_ptr().cast(), varname_len + 2, arg2, true);
 
     if valid_tabpage(save_curtab) {
         goto_tabpage_tp(save_curtab, false, false);
@@ -4024,9 +3966,11 @@ pub fn f_setbufvar(argvars: &mut [TypVal], _rettv: &mut TypVal, _fptr: EvalFuncD
     if check_secure() || !tv_check_str_or_nr(&argvars[0]) {
         return;
     }
-    let varname = tv_get_string_chk(&argvars[1]).map_or(ptr::null(), std::ffi::CStr::as_ptr);
-    let buf = tv_get_buf(&mut argvars[0], 0);
-    let varp = (&raw mut argvars[2]);
+    let [arg0, arg1, arg2, ..] = argvars else {
+        unreachable!()
+    };
+    let varname = tv_get_string_chk(arg1).map_or(ptr::null(), std::ffi::CStr::as_ptr);
+    let buf = tv_get_buf(arg0, 0);
 
     if buf.is_null() || varname.is_null() {
         return;
@@ -4035,7 +3979,7 @@ pub fn f_setbufvar(argvars: &mut [TypVal], _rettv: &mut TypVal, _fptr: EvalFuncD
     if crate::memory::cstr_first_byte(varname) == b'&' {
         let mut aco: CtxSwitch = CtxSwitch::new();
         ctx_switch(&mut aco, ptr::null_mut(), ptr::null_mut(), buf, 0);
-        set_option_from_tv(varname.wrapping_add(1), unsafe { &mut *varp });
+        set_option_from_tv(varname.wrapping_add(1), arg2);
         ctx_restore(&mut aco);
     } else {
         let varname_len = crate::memory::cstr_len(varname);
@@ -4044,15 +3988,8 @@ pub fn f_setbufvar(argvars: &mut [TypVal], _rettv: &mut TypVal, _fptr: EvalFuncD
         g_st().curbuf = buf;
         bufvarname.push(b'b');
         bufvarname.push(b':');
-        bufvarname.extend_from_slice(unsafe {
-            std::slice::from_raw_parts(varname.cast::<u8>(), varname_len + 1)
-        });
-        set_var(
-            bufvarname.as_ptr().cast(),
-            varname_len + 2,
-            unsafe { &mut *varp },
-            true,
-        );
+        bufvarname.extend_from_slice(crate::memory::cstr_slice(varname, varname_len + 1));
+        set_var(bufvarname.as_ptr().cast(), varname_len + 2, arg2, true);
         g_st().curbuf = save_curbuf;
     }
 }
