@@ -157,6 +157,7 @@ struct Winlinevars<'a> {
     fromcol: i32,
     tocol: i32,
     need_showbreak: bool,
+    breakindent: i32,
     char_attr: i32,
     n_extra: i32,
     n_attr: i32,
@@ -1064,7 +1065,12 @@ fn handle_breakindent(wp: &mut WinInfoInfo, wlv: &mut Winlinevars, gap_decor_att
         if wlv.diff_hlf != 0 {
             attr = hl_combine_attr(attr, win_hl_attr(&mut *wp, wlv.diff_hlf));
         }
-        let mut num = get_breakindent_win(wp, ml_get_buf(wp.buf_mut(), wlv.lnum));
+        let mut num = if wlv.breakindent < 0 {
+            wlv.breakindent = get_breakindent_win(wp, ml_get_buf(wp.buf_mut(), wlv.lnum));
+            wlv.breakindent
+        } else {
+            wlv.breakindent
+        };
         if wlv.row == wlv.startrow {
             num -= win_col_off2(wp);
             if wlv.n_extra < 0 {
@@ -1554,6 +1560,7 @@ pub fn win_line(
             fromcol: -10,
             tocol: MAXCOL,
             need_showbreak: false,
+            breakindent: -1,
             char_attr: 0,
             n_extra: 0,
             n_attr: 0,
