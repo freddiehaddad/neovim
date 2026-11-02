@@ -2963,8 +2963,9 @@ fn did_set_statustabline_rulerformat<'a>(
         if crate::memory::cstr_first_byte(s) == b'-' {
             s = s.wrapping_add(1);
         }
-        let wid = getdigits_int(&mut s, true, 0);
-        if wid != 0 && crate::memory::cstr_first_byte(s) == b'(' {
+        let mut rem = crate::memory::cstr_as_bytes(s);
+        let wid = getdigits_int(&mut rem, true, 0);
+        if wid != 0 && rem.first() == Some(&b'(') {
             g_st().ru_wid = wid;
         }
     }
@@ -3348,9 +3349,9 @@ pub fn opt_strings_check<'a>(
                             keylen,
                         );
                     }
-                    let mut end = v;
+                    let mut rem = crate::memory::cstr_slice(v, vlen);
                     let mut n: i64 = 0;
-                    if !try_getdigits(&mut end, &mut n)
+                    if !try_getdigits(&mut rem, &mut n)
                         || n < i64::from(i32::MIN)
                         || n > i64::from(i32::MAX)
                     {
@@ -3429,9 +3430,9 @@ pub fn opt_fill(
                     *field.cast::<Boolean>() = true;
                 }
             } else if f.key_type == ObjectType::ObjectTypeInteger as i32 {
-                let mut end = v;
+                let mut rem = crate::memory::cstr_slice(v, vlen);
                 unsafe {
-                    *field.cast::<Integer>() = Integer::from(getdigits_int(&mut end, false, 0));
+                    *field.cast::<Integer>() = Integer::from(getdigits_int(&mut rem, false, 0));
                 }
             } else if f.key_type == ObjectType::ObjectTypeString as i32 {
                 unsafe { ptr::copy_nonoverlapping(v.cast::<u8>(), field, vlen) };

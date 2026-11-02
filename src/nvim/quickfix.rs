@@ -3451,7 +3451,7 @@ fn qf_list_entry(qfp: &mut Qfline, qf_idx: i32, cursel: bool) {
 }
 
 pub fn qf_list(eap: &mut Exarg) {
-    let mut arg = eap.arg;
+    let arg = eap.arg;
     let mut all = eap.forceit != 0;
     let Some(qi) = qf_cmd_get_stack_opt(eap, true) else {
         return;
@@ -3462,15 +3462,21 @@ pub fn qf_list(eap: &mut Exarg) {
         return;
     }
 
-    let mut plus = false;
-    if crate::memory::cstr_first_byte(arg) == b'+' {
-        arg = arg.wrapping_add(1);
-        plus = true;
-    }
+    let arg_bytes = crate::memory::cstr_as_bytes(arg);
+    let mut rem = arg_bytes;
+    let plus = if let Some(after_plus) = rem.strip_prefix(b"+") {
+        rem = after_plus;
+        true
+    } else {
+        false
+    };
     let mut idx1: i32 = 1;
     let mut idx2: i32 = -1;
-    if !get_list_range(&mut arg, &mut idx1, &mut idx2) || !crate::memory::cstr_is_empty(arg) {
-        semsg!(gettext(E_TRAILING_ARG), arg);
+    if !get_list_range(&mut rem, &mut idx1, &mut idx2) || !rem.is_empty() {
+        semsg!(
+            gettext(E_TRAILING_ARG),
+            arg.wrapping_add(arg_bytes.len() - rem.len())
+        );
         return;
     }
     let qfl = qf_get_curlist(qi);

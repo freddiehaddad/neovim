@@ -1686,7 +1686,10 @@ pub extern "C" fn build_stl_str_hl(
             }
 
             if ascii_isdigit(crate::memory::cstr_first_char(fmt_p.cast())) {
-                minwid = getdigits_int(&mut fmt_p, false, 0);
+                let fmt_bytes = crate::memory::cstr_as_bytes(fmt_p.cast());
+                let mut rem = fmt_bytes;
+                minwid = getdigits_int(&mut rem, false, 0);
+                fmt_p = fmt_p.wrapping_add(fmt_bytes.len() - rem.len());
             }
 
             if *fmt_p == STL_USER_HL {
@@ -1754,7 +1757,10 @@ pub extern "C" fn build_stl_str_hl(
             if crate::memory::cstr_first_byte(fmt_p.cast()) == b'.' {
                 fmt_p = fmt_p.wrapping_add(1);
                 if ascii_isdigit(crate::memory::cstr_first_char(fmt_p.cast())) {
-                    maxwid = getdigits_int(&mut fmt_p, false, 50);
+                    let fmt_bytes = crate::memory::cstr_as_bytes(fmt_p.cast());
+                    let mut rem = fmt_bytes;
+                    maxwid = getdigits_int(&mut rem, false, 50);
+                    fmt_p = fmt_p.wrapping_add(fmt_bytes.len() - rem.len());
                     if maxwid <= 0 {
                         maxwid = 50;
                     }

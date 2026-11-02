@@ -23,7 +23,7 @@ use crate::buffer::{
     buf_valid, buflist_findname_exp, buflist_findnr, buflist_getfile, buflist_new, bufref_valid,
     close_buffer, do_autochdir, do_buffer, maketitle, set_bufref,
 };
-use crate::charset::{ascii_isdigit, getdigits_int};
+use crate::charset::getdigits_int;
 use crate::cmdexpand::{CTRL_N, CTRL_P, Cmdidx};
 use crate::context::{CdCause, CtxSwitch, K_CD_CAUSE_WINDOW, ctx_restore, ctx_switch, is_ctx_win};
 use crate::cursor::{Colnr, CursorPos, Linenr, check_cursor, check_cursor_lnum, equalpos};
@@ -7958,20 +7958,17 @@ pub fn check_colorcolumn(
 
     let mut count: usize = 0;
     let mut color_cols = [0_i32; 256];
-    while !crate::memory::cstr_is_empty(s) && count < 255 {
+    let mut rem = crate::memory::cstr_as_bytes(s);
+    while !rem.is_empty() && count < 255 {
         let mut col: i32;
         let mut skip = false;
-        if crate::memory::cstr_first_byte(s) == b'-' || crate::memory::cstr_first_byte(s) == b'+' {
-            col = if crate::memory::cstr_first_byte(s) == b'-' {
-                -1
-            } else {
-                1
-            };
-            s = s.wrapping_add(1);
-            if !ascii_isdigit(i32::from(crate::memory::cstr_first_byte(s))) {
+        if matches!(rem[0], b'-' | b'+') {
+            col = if rem[0] == b'-' { -1 } else { 1 };
+            rem = &rem[1..];
+            if !rem.first().is_some_and(u8::is_ascii_digit) {
                 return Some(E_INVARG);
             }
-            col *= getdigits_int(&mut s, true, 0);
+            col *= getdigits_int(&mut rem, true, 0);
             if tw == 0 {
                 skip = true;
             } else {
@@ -7980,8 +7977,8 @@ pub fn check_colorcolumn(
                     skip = true;
                 }
             }
-        } else if ascii_isdigit(i32::from(crate::memory::cstr_first_byte(s))) {
-            col = getdigits_int(&mut s, true, 0);
+        } else if rem[0].is_ascii_digit() {
+            col = getdigits_int(&mut rem, true, 0);
         } else {
             return Some(E_INVARG);
         }
@@ -7989,14 +7986,14 @@ pub fn check_colorcolumn(
             color_cols[count] = col - 1;
             count += 1;
         }
-        if crate::memory::cstr_is_empty(s) {
+        if rem.is_empty() {
             break;
         }
-        if crate::memory::cstr_first_byte(s) != b',' {
+        let Some(after_comma) = rem.strip_prefix(b",") else {
             return Some(E_INVARG);
-        }
-        s = s.wrapping_add(1);
-        if crate::memory::cstr_is_empty(s) {
+        };
+        rem = after_comma;
+        if rem.is_empty() {
             return Some(E_INVARG);
         }
     }

@@ -1337,7 +1337,10 @@ pub fn open_line(
                         } else if ascii_isdigit(crate::memory::cstr_first_char(p.cast()))
                             || crate::memory::cstr_first_byte(p.cast()) == b'-'
                         {
-                            off = getdigits_int(&mut p, true, 0);
+                            let p_bytes = crate::memory::cstr_as_bytes(p.cast());
+                            let mut rem = p_bytes;
+                            off = getdigits_int(&mut rem, true, 0);
+                            p = p.wrapping_add(p_bytes.len() - rem.len());
                         } else {
                             p = p.wrapping_add(1);
                         }

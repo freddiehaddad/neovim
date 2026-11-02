@@ -3924,140 +3924,124 @@ fn eval_string<T>(arg: *mut *mut T, rettv: &mut TypVal, evaluate: bool, interpol
         }
 
         let len = ((p as isize) - (*arg as isize) + extra) as usize;
-        let mut buf_vec = vec![0u8; len];
-        let buf_ptr = buf_vec.as_mut_ptr();
-        let mut end = buf_ptr;
+        let mut buf_vec = Vec::with_capacity(len);
+        let start_ptr = (*arg).wrapping_add(off);
+        let mut rem =
+            std::slice::from_raw_parts(start_ptr, (arg_end as usize) - (start_ptr as usize));
 
-        p = (*arg).wrapping_add(off);
-        while !crate::memory::cstr_is_empty(p.cast())
-            && crate::memory::cstr_first_byte(p.cast()) != b'"'
-        {
-            if crate::memory::cstr_first_byte(p.cast()) == b'\\' {
-                p = p.wrapping_add(1);
-                match crate::memory::cstr_first_byte(p.cast()) {
+        while !rem.is_empty() && rem[0] != b'"' {
+            if rem[0] == b'\\' {
+                rem = &rem[1..];
+                match rem.first().copied().unwrap_or(0) {
                     b'b' => {
-                        *end = BS;
-                        end = end.wrapping_add(1);
-                        p = p.wrapping_add(1);
+                        buf_vec.push(BS);
+                        rem = &rem[1..];
                     }
                     b'e' => {
-                        *end = ESC;
-                        end = end.wrapping_add(1);
-                        p = p.wrapping_add(1);
+                        buf_vec.push(ESC);
+                        rem = &rem[1..];
                     }
                     b'f' => {
-                        *end = FF;
-                        end = end.wrapping_add(1);
-                        p = p.wrapping_add(1);
+                        buf_vec.push(FF);
+                        rem = &rem[1..];
                     }
                     b'n' => {
-                        *end = b'\n';
-                        end = end.wrapping_add(1);
-                        p = p.wrapping_add(1);
+                        buf_vec.push(b'\n');
+                        rem = &rem[1..];
                     }
                     b'r' => {
-                        *end = b'\r';
-                        end = end.wrapping_add(1);
-                        p = p.wrapping_add(1);
+                        buf_vec.push(b'\r');
+                        rem = &rem[1..];
                     }
                     b't' => {
-                        *end = TAB;
-                        end = end.wrapping_add(1);
-                        p = p.wrapping_add(1);
+                        buf_vec.push(TAB);
+                        rem = &rem[1..];
                     }
                     b'X' | b'x' | b'u' | b'U' => {
-                        if ascii_isxdigit(crate::memory::cstr_char_at(p.cast(), 1)) {
-                            let c = (crate::memory::cstr_first_byte(p.cast())).to_ascii_uppercase();
+                        if rem.get(1).is_some_and(u8::is_ascii_hexdigit) {
+                            let c = rem[0].to_ascii_uppercase();
                             let mut n = if c == b'X' {
                                 2
-                            } else if crate::memory::cstr_first_byte(p.cast()) == b'u' {
+                            } else if rem[0] == b'u' {
                                 4
                             } else {
                                 8
                             };
                             let mut nr: i32 = 0;
-                            while n > 0 && ascii_isxdigit(crate::memory::cstr_char_at(p.cast(), 1))
-                            {
+                            while n > 0 && rem.get(1).is_some_and(u8::is_ascii_hexdigit) {
                                 n -= 1;
-                                p = p.wrapping_add(1);
-                                nr = (nr << 4)
-                                    + hex2nr(i32::from(crate::memory::cstr_first_byte(p.cast())));
+                                rem = &rem[1..];
+                                nr = (nr << 4) + hex2nr(i32::from(rem[0]));
                             }
-                            p = p.wrapping_add(1);
+                            rem = &rem[1..];
                             if c != b'X' {
-                                end = end.wrapping_add(utf_char2bytes(nr, end.cast()) as usize);
+                                let mut utf_buf = [0u8; crate::cmdexpand::MB_MAXBYTES];
+                                let ulen = utf_char2bytes(nr, utf_buf.as_mut_ptr().cast()) as usize;
+                                buf_vec.extend_from_slice(&utf_buf[..ulen]);
                             } else {
-                                *end = nr as u8;
-                                end = end.wrapping_add(1);
+                                buf_vec.push(nr as u8);
                             }
                         }
                     }
                     b'0'..=b'7' => {
-                        *end = crate::memory::cstr_first_byte(p.cast()) - b'0';
-                        p = p.wrapping_add(1);
-                        if matches!(*p, b'0'..=b'7') {
-                            *end = ((*end) << 3)
-                                .wrapping_add(crate::memory::cstr_first_byte(p.cast()) - b'0');
-                            p = p.wrapping_add(1);
-                            if matches!(*p, b'0'..=b'7') {
-                                *end = ((*end) << 3)
-                                    .wrapping_add(crate::memory::cstr_first_byte(p.cast()) - b'0');
-                                p = p.wrapping_add(1);
+                        let mut val = rem[0] - b'0';
+                        rem = &rem[1..];
+                        if let Some(&b1 @ b'0'..=b'7') = rem.first() {
+                            val = (val << 3).wrapping_add(b1 - b'0');
+                            rem = &rem[1..];
+                            if let Some(&b2 @ b'0'..=b'7') = rem.first() {
+                                val = (val << 3).wrapping_add(b2 - b'0');
+                                rem = &rem[1..];
                             }
                         }
-                        end = end.wrapping_add(1);
+                        buf_vec.push(val);
                     }
                     b'<' => {
                         let mut flags = FSK_KEYCODE | FSK_IN_STRING;
-                        if crate::memory::cstr_byte_at(p.cast(), 1) != b'*' {
+                        if rem.get(1) != Some(&b'*') {
                             flags |= FSK_SIMPLIFY;
                         }
-                        let mut p_const: *const u8 = p;
-                        let rem_buf = (buf_ptr as usize + len).saturating_sub(end as usize);
-                        let end_slice = std::slice::from_raw_parts_mut(end, rem_buf);
+                        let mut p_const: *const u8 = rem.as_ptr();
+                        let mut spec_buf = [0u8; 64];
                         let spec_len = trans_special(
                             &mut p_const,
-                            (arg_end as usize).wrapping_sub(p as usize),
-                            end_slice,
+                            rem.len(),
+                            &mut spec_buf,
                             flags,
                             false,
                             None,
                         );
-                        p = p_const.cast_mut();
+                        let consumed = (p_const as usize).wrapping_sub(rem.as_ptr() as usize);
+                        rem = &rem[consumed..];
                         if spec_len != 0 {
-                            end = end.wrapping_add(spec_len as usize);
-                            if (end as usize) >= (buf_ptr as usize + len) {
+                            buf_vec.extend_from_slice(&spec_buf[..spec_len as usize]);
+                            if buf_vec.len() >= len {
                                 iemsg(c"eval_string() used more space than allocated");
                             }
                         } else {
-                            mb_copy_char(&mut p, &mut end);
+                            mb_copy_char(&mut rem, &mut buf_vec);
                         }
                     }
                     _ => {
-                        mb_copy_char(&mut p, &mut end);
+                        mb_copy_char(&mut rem, &mut buf_vec);
                     }
                 }
             } else {
-                if interpolate
-                    && (crate::memory::cstr_first_byte(p.cast()) == b'{'
-                        || crate::memory::cstr_first_byte(p.cast()) == b'}')
-                {
-                    if crate::memory::cstr_first_byte(p.cast()) == b'{'
-                        && crate::memory::cstr_byte_at(p.cast(), 1) != b'{'
-                    {
+                if interpolate && (rem[0] == b'{' || rem[0] == b'}') {
+                    if rem[0] == b'{' && rem.get(1) != Some(&b'{') {
                         break;
                     }
-                    p = p.wrapping_add(1);
+                    rem = &rem[1..];
                 }
-                mb_copy_char(&mut p, &mut end);
+                mb_copy_char(&mut rem, &mut buf_vec);
             }
         }
-        *end = 0;
-        crate::eval::typval::tv_set_string(rettv, buf_ptr.cast());
-        if crate::memory::cstr_first_byte(p.cast()) == b'"' && !interpolate {
-            p = p.wrapping_add(1);
+        buf_vec.push(0);
+        crate::eval::typval::tv_set_string(rettv, buf_vec.as_ptr().cast());
+        if rem.first() == Some(&b'"') && !interpolate {
+            rem = &rem[1..];
         }
-        *arg = p;
+        *arg = arg_end.wrapping_sub(rem.len());
 
         true
     }
@@ -4115,30 +4099,25 @@ fn eval_lit_string<T>(
         }
 
         let alloc_len = ((p as isize) - (*arg as isize) - reduce) as usize;
-        let mut buf_vec = vec![0u8; alloc_len];
-        let mut str_ptr: *mut _ = buf_vec.as_mut_ptr().cast();
+        let mut buf_vec = Vec::with_capacity(alloc_len);
+        let start_ptr = (*arg).wrapping_add(off);
+        let mut rem = crate::memory::cstr_as_bytes(start_ptr.cast());
 
-        p = (*arg).wrapping_add(off);
-        while !crate::memory::cstr_is_empty(p.cast()) {
-            if crate::memory::cstr_first_byte(p.cast()) == b'\'' {
-                if crate::memory::cstr_byte_at(p.cast(), 1) != b'\'' {
+        while !rem.is_empty() {
+            if rem[0] == b'\'' {
+                if rem.get(1) != Some(&b'\'') {
                     break;
                 }
-                p = p.wrapping_add(1);
-            } else if interpolate
-                && (crate::memory::cstr_first_byte(p.cast()) == b'{'
-                    || crate::memory::cstr_first_byte(p.cast()) == b'}')
-            {
-                if crate::memory::cstr_first_byte(p.cast()) == b'{'
-                    && crate::memory::cstr_byte_at(p.cast(), 1) != b'{'
-                {
+                rem = &rem[1..];
+            } else if interpolate && (rem[0] == b'{' || rem[0] == b'}') {
+                if rem[0] == b'{' && rem.get(1) != Some(&b'{') {
                     break;
                 }
-                p = p.wrapping_add(1);
+                rem = &rem[1..];
             }
-            mb_copy_char(&mut p, &mut str_ptr);
+            mb_copy_char(&mut rem, &mut buf_vec);
         }
-        *str_ptr = NUL;
+        buf_vec.push(0);
         crate::eval::typval::tv_set_string(rettv, buf_vec.as_ptr().cast());
         *arg = p.wrapping_add(off);
 

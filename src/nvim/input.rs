@@ -50,7 +50,7 @@ use crate::mapping::{
 };
 use crate::mbyte::{
     mb_cptr2char_adv, mb_unescape, utf_byte2len, utf_char2bytes, utf_cluster_info, utf_head_off,
-    utf_ptr2_str_char_info, utf_ptr2cells, utf_ptr2char,
+    utf_ptr2_str_char_info, utf_ptr2cells, utf_ptr2char, utf_slice2char,
 };
 use crate::mcursor::mc_replaying;
 use crate::memline::ml_sync_all;
@@ -745,7 +745,10 @@ pub fn sb_add_lit(buf: &mut Vec<u8>, str_: impl crate::strings::IntoCCharPtr, le
             break;
         }
 
-        let c = mb_cptr2char_adv(&mut s);
+        let rem_bytes = crate::memory::cstr_as_bytes(s);
+        let mut rem = rem_bytes;
+        let c = mb_cptr2char_adv(&mut rem);
+        s = s.wrapping_add((rem_bytes.len() - rem.len()).max(1));
         if c < b' ' as i32
             || c == DEL
             || (crate::memory::cstr_is_empty(s) && (c == b'0' as i32 || c == b'^' as i32))
@@ -774,19 +777,14 @@ pub fn redo_append_lit(str_: impl crate::strings::IntoCCharPtr, len: i32) {
 
 /// Appends `s` to `buf`, leaving 3-byte special key codes unmodified and escaping other K_SPECIAL bytes.
 pub fn sb_add_spec(buf: &mut Vec<u8>, s: impl crate::strings::IntoCCharPtr) {
-    let mut s = s.into_c_char_ptr();
-    {
-        while !crate::memory::cstr_is_empty(s) {
-            if crate::memory::cstr_first_byte(s) == K_SPECIAL
-                && crate::memory::cstr_byte_at(s, 1) != 0
-                && crate::memory::cstr_byte_at(s, 2) != 0
-            {
-                buf.extend_from_slice(crate::memory::cstr_slice(s, 3));
-                s = s.wrapping_add(3);
-            } else {
-                let c = mb_cptr2char_adv(&mut s);
-                sb_add_char(buf, c);
-            }
+    let mut rem = crate::memory::cstr_as_bytes(s.into_c_char_ptr());
+    while !rem.is_empty() {
+        if rem.len() >= 3 && rem[0] == K_SPECIAL && rem[1] != 0 && rem[2] != 0 {
+            buf.extend_from_slice(&rem[..3]);
+            rem = &rem[3..];
+        } else {
+            let c = mb_cptr2char_adv(&mut rem);
+            sb_add_char(buf, c);
         }
     }
 }
@@ -834,22 +832,17 @@ pub fn stuff_readbuff_len(s: impl crate::strings::IntoCCharPtr, len: isize) {
 
 /// Stuff `s` into the stuff buffer, leaving special key codes unmodified.
 pub fn stuff_readbuff_special(s: impl crate::strings::IntoCCharPtr) {
-    let mut s = s.into_c_char_ptr();
-    {
-        while !crate::memory::cstr_is_empty(s) {
-            if crate::memory::cstr_first_byte(s) == K_SPECIAL
-                && crate::memory::cstr_byte_at(s, 1) != 0
-                && crate::memory::cstr_byte_at(s, 2) != 0
-            {
-                stuff_readbuff_len(s, 3);
-                s = s.wrapping_add(3);
-            } else {
-                let mut c = mb_cptr2char_adv(&mut s);
-                if c == CAR || c == NL || c == ESC {
-                    c = b' ' as i32;
-                }
-                stuffchar_readbuff(c);
+    let mut rem = crate::memory::cstr_as_bytes(s.into_c_char_ptr());
+    while !rem.is_empty() {
+        if rem.len() >= 3 && rem[0] == K_SPECIAL && rem[1] != 0 && rem[2] != 0 {
+            stuff_readbuff_len(&rem[..3], 3);
+            rem = &rem[3..];
+        } else {
+            let mut c = mb_cptr2char_adv(&mut rem);
+            if c == CAR || c == NL || c == ESC {
+                c = b' ' as i32;
             }
+            stuffchar_readbuff(c);
         }
     }
 }
@@ -866,26 +859,23 @@ pub fn stuffnum_readbuff(n: i32) {
 
 /// Stuff a string into the typeahead buffer.
 pub fn stuffescaped(arg: impl crate::strings::IntoCCharPtr, literally: bool) {
-    let mut arg = arg.into_c_char_ptr();
-    {
-        while !crate::memory::cstr_is_empty(arg) {
-            let start = arg;
-            while (b' '..DEL as u8).contains(&crate::memory::cstr_first_byte(arg))
-                || (crate::memory::cstr_first_byte(arg) == K_SPECIAL && !literally)
-            {
-                arg = arg.wrapping_add(1);
-            }
-            if arg > start {
-                stuff_readbuff_len(start, crate::memory::ptr_offset_from(arg, start));
-            }
+    let mut rem = crate::memory::cstr_as_bytes(arg.into_c_char_ptr());
+    while !rem.is_empty() {
+        let span_len = rem
+            .iter()
+            .take_while(|&&b| (b' '..DEL as u8).contains(&b) || (b == K_SPECIAL && !literally))
+            .count();
+        if span_len > 0 {
+            stuff_readbuff_len(&rem[..span_len], span_len as isize);
+            rem = &rem[span_len..];
+        }
 
-            if !crate::memory::cstr_is_empty(arg) {
-                let c = mb_cptr2char_adv(&mut arg);
-                if literally && ((c < b' ' as i32 && c != TAB) || c == DEL) {
-                    stuffchar_readbuff(CTRL_V_CONST);
-                }
-                stuffchar_readbuff(c);
+        if !rem.is_empty() {
+            let c = mb_cptr2char_adv(&mut rem);
+            if literally && ((c < b' ' as i32 && c != TAB) || c == DEL) {
+                stuffchar_readbuff(CTRL_V_CONST);
             }
+            stuffchar_readbuff(c);
         }
     }
 }
@@ -1574,21 +1564,19 @@ fn add_byte_to_showcmd(byte: u8) {
     let mut modifiers: i32 = 0;
     let mut c: i32 = NUL;
 
-    let mut ptr = (&raw const inp_st().showcmd_state.buf).cast::<u8>();
-    if crate::memory::cstr_first_byte(ptr.cast()) == K_SPECIAL
-        && crate::memory::cstr_byte_at(ptr.cast(), 1) == KS_MODIFIER
-        && crate::memory::cstr_byte_at(ptr.cast(), 2) != 0_u8
-    {
-        modifiers = i32::from(crate::memory::cstr_byte_at(ptr.cast(), 2));
-        ptr = ptr.wrapping_add(3);
+    let buf_copy = inp_st().showcmd_state.buf;
+    let mut rem = &buf_copy[..buflen];
+    if rem.len() >= 3 && rem[0] == K_SPECIAL && rem[1] == KS_MODIFIER && rem[2] != 0 {
+        modifiers = i32::from(rem[2]);
+        rem = &rem[3..];
     }
 
-    if !crate::memory::cstr_is_empty(ptr.cast()) {
-        if let Some(mb_cstr) = mb_unescape(&mut ptr) {
-            c = utf_ptr2char(mb_cstr);
+    if !rem.is_empty() {
+        if let Some(mb_cstr) = mb_unescape(&mut rem) {
+            c = utf_slice2char(mb_cstr.to_bytes());
         } else {
-            c = i32::from(crate::memory::cstr_first_byte(ptr.cast()));
-            ptr = ptr.wrapping_add(1);
+            c = i32::from(rem[0]);
+            rem = &rem[1..];
         }
         if c <= 0x7f {
             let mut modifiers_after = modifiers;
@@ -1608,9 +1596,8 @@ fn add_byte_to_showcmd(byte: u8) {
     if c != NUL {
         add_to_showcmd(c);
     }
-    while !crate::memory::cstr_is_empty(ptr.cast()) {
-        add_to_showcmd(i32::from(crate::memory::cstr_first_byte(ptr.cast())));
-        ptr = ptr.wrapping_add(1);
+    for &b in rem {
+        add_to_showcmd(i32::from(b));
     }
 }
 

@@ -43,7 +43,8 @@ use crate::lua::executor::{
     K_RET_OBJECT, api_free_luaref, api_new_luaref, nlua_call_ref, nlua_funcref_str, nlua_set_sctx,
 };
 use crate::mbyte::{
-    mb_prevptr, mb_unescape, utf_char2bytes, utf_ptr2char, utf_ptr2len, utfc_ptr2len,
+    mb_prevptr, mb_unescape, utf_char2bytes, utf_ptr2char, utf_ptr2len, utf_slice2char,
+    utfc_ptr2len,
 };
 use crate::memory::{Arena, arena_alloc, arena_finish, arena_mem_free, xstrlcpy};
 use crate::message::{
@@ -1933,89 +1934,94 @@ pub fn makemap(fd: *mut FILE, buf: *mut FileBuf) -> bool {
 /// Write escape string to file.
 pub fn put_escstr(fd: *mut FILE, strstart: impl crate::strings::IntoCCharPtr, what: i32) -> bool {
     let strstart = strstart.into_c_char_ptr();
-    {
-        let mut str_ptr = strstart.cast::<u8>();
+    let full_bytes = crate::memory::cstr_as_bytes(strstart);
+    let mut rem = full_bytes;
 
-        if crate::memory::cstr_is_empty(str_ptr.cast()) && what == 1 {
-            if fputs(c"<Nop>", fd) < 0 {
-                return false;
-            }
-            return true;
+    if rem.is_empty() && what == 1 {
+        if fputs(c"<Nop>", fd) < 0 {
+            return false;
         }
-
-        while !crate::memory::cstr_is_empty(str_ptr.cast()) {
-            if let Some(p) = mb_unescape(&mut str_ptr) {
-                for &p_byte in p.to_bytes() {
-                    if unsafe { fputc(p_byte as i32, fd) } < 0 {
-                        return false;
-                    }
-                }
-                continue;
-            }
-
-            let mut c = i32::from(crate::memory::cstr_first_byte(str_ptr.cast()));
-            if c == K_SPECIAL as i32 && what != 2 {
-                let mut modifiers: i32 = 0;
-                if crate::memory::cstr_byte_at(str_ptr.cast(), 1) == KS_MODIFIER {
-                    modifiers = i32::from(crate::memory::cstr_byte_at(str_ptr.cast(), 2));
-                    str_ptr = str_ptr.wrapping_add(3);
-
-                    if let Some(p) = mb_unescape(&mut str_ptr) {
-                        c = utf_ptr2char(p);
-                        str_ptr = str_ptr.wrapping_sub(1);
-                    } else {
-                        c = i32::from(crate::memory::cstr_first_byte(str_ptr.cast()));
-                    }
-                }
-                if c == K_SPECIAL as i32 {
-                    c = to_special(
-                        i32::from(crate::memory::cstr_byte_at(str_ptr.cast(), 1)),
-                        i32::from(crate::memory::cstr_byte_at(str_ptr.cast(), 2)),
-                    );
-                    str_ptr = str_ptr.wrapping_add(2);
-                }
-                if is_special(c) || modifiers != 0 {
-                    if fputs(get_special_key_name(c, modifiers).as_ptr(), fd) < 0 {
-                        return false;
-                    }
-                    str_ptr = str_ptr.wrapping_add(1);
-                    continue;
-                }
-            }
-
-            if c == NL {
-                if what == 2 {
-                    if fputs(c"\\\x16\n", fd) < 0 {
-                        return false;
-                    }
-                } else if fputs(c"<NL>", fd) < 0 {
-                    return false;
-                }
-                str_ptr = str_ptr.wrapping_add(1);
-                continue;
-            }
-
-            if what == 2 && (ascii_iswhite(c) || c == b'"' as i32 || c == b'\\' as i32) {
-                if unsafe { fputc(b'\\' as i32, fd) } < 0 {
-                    return false;
-                }
-            } else if (c < b' ' as i32
-                || c > b'~' as i32
-                || c == b'|' as i32
-                || (what == 0 && c == b' ' as i32)
-                || (what == 1 && ptr::eq(str_ptr, strstart.cast::<u8>()) && c == b' ' as i32)
-                || (what != 2 && c == b'<' as i32))
-                && unsafe { fputc(CTRL_V_CONST, fd) } < 0
-            {
-                return false;
-            }
-            if unsafe { fputc(c, fd) } < 0 {
-                return false;
-            }
-            str_ptr = str_ptr.wrapping_add(1);
-        }
-        true
+        return true;
     }
+
+    while !rem.is_empty() {
+        if let Some(p) = mb_unescape(&mut rem) {
+            for &p_byte in p.to_bytes() {
+                if unsafe { fputc(p_byte as i32, fd) } < 0 {
+                    return false;
+                }
+            }
+            continue;
+        }
+
+        let is_start = rem.len() == full_bytes.len();
+        let mut c = i32::from(rem[0]);
+        if c == K_SPECIAL as i32 && what != 2 {
+            let mut modifiers: i32 = 0;
+            let mut consumed_unescaped = false;
+            if rem.get(1) == Some(&KS_MODIFIER) {
+                modifiers = i32::from(rem.get(2).copied().unwrap_or(0));
+                rem = &rem[3.min(rem.len())..];
+
+                if let Some(p) = mb_unescape(&mut rem) {
+                    c = utf_slice2char(p.to_bytes());
+                    consumed_unescaped = true;
+                } else {
+                    c = i32::from(rem.first().copied().unwrap_or(0));
+                }
+            }
+            if c == K_SPECIAL as i32 {
+                c = to_special(
+                    i32::from(rem.get(1).copied().unwrap_or(0)),
+                    i32::from(rem.get(2).copied().unwrap_or(0)),
+                );
+                rem = &rem[2.min(rem.len())..];
+            }
+            if is_special(c) || modifiers != 0 {
+                if fputs(get_special_key_name(c, modifiers).as_ptr(), fd) < 0 {
+                    return false;
+                }
+                if !consumed_unescaped && !rem.is_empty() {
+                    rem = &rem[1..];
+                }
+                continue;
+            }
+        }
+
+        if c == NL {
+            if what == 2 {
+                if fputs(c"\\\x16\n", fd) < 0 {
+                    return false;
+                }
+            } else if fputs(c"<NL>", fd) < 0 {
+                return false;
+            }
+            rem = &rem[1..];
+            continue;
+        }
+
+        if what == 2 && (ascii_iswhite(c) || c == b'"' as i32 || c == b'\\' as i32) {
+            if unsafe { fputc(b'\\' as i32, fd) } < 0 {
+                return false;
+            }
+        } else if (c < b' ' as i32
+            || c > b'~' as i32
+            || c == b'|' as i32
+            || (what == 0 && c == b' ' as i32)
+            || (what == 1 && is_start && c == b' ' as i32)
+            || (what != 2 && c == b'<' as i32))
+            && unsafe { fputc(CTRL_V_CONST, fd) } < 0
+        {
+            return false;
+        }
+        if unsafe { fputc(c, fd) } < 0 {
+            return false;
+        }
+        if !rem.is_empty() {
+            rem = &rem[1..];
+        }
+    }
+    true
 }
 
 /// Check the string "keys" against the lhs of all mappings.

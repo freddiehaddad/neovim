@@ -180,7 +180,7 @@ pub fn socket_watcher_init(loop_: &mut Loop, watcher: &mut SocketWatcher, endpoi
         watcher.addr[colon_idx] = 0;
         let addr = watcher.addr.as_ptr().cast();
         let mut port = watcher.addr.as_mut_ptr().wrapping_add(colon_idx + 1).cast();
-        let mut port_scan = port;
+        let mut port_scan = crate::memory::cstr_as_bytes(port);
         let mut iport: i64 = 0;
 
         let ok = try_getdigits(&mut port_scan, &mut iport);

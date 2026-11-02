@@ -3135,10 +3135,10 @@ fn getregionpos(
         {
             *region_type = MT_LINE_WISE;
         } else if *type_str == CTRL_V_CONST {
-            let mut p = type_str.wrapping_add(1);
-            if !crate::memory::cstr_is_empty(p) {
-                block_width = getdigits_int(&mut p, false, 0);
-                if block_width <= 0 || !crate::memory::cstr_is_empty(p) {
+            let mut rem = crate::memory::cstr_as_bytes(type_str.wrapping_add(1));
+            if !rem.is_empty() {
+                block_width = getdigits_int(&mut rem, false, 0);
+                if block_width <= 0 || !rem.is_empty() {
                     semsg!(gettext(E_INVARG_NVAL), c"type", type_str);
                     return false;
                 }
@@ -7588,9 +7588,10 @@ fn get_yank_type<T>(
         c if c == b'b' || c == CTRL_V_CONST as u8 => {
             *yank_type = crate::register::MotionType::MtBlockWise;
             if ascii_isdigit(crate::memory::cstr_char_at(stropt.cast(), 1)) {
-                stropt = stropt.wrapping_add(1);
-                *block_len = getdigits_int(&mut stropt, false, 0) - 1;
-                stropt = stropt.wrapping_sub(1);
+                let tail = crate::memory::cstr_as_bytes(stropt.wrapping_add(1).cast());
+                let mut rem = tail;
+                *block_len = getdigits_int(&mut rem, false, 0) - 1;
+                stropt = stropt.wrapping_add(tail.len() - rem.len());
             }
         }
         _ => return false,

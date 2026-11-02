@@ -20,7 +20,7 @@ use crate::fileio::{fclose, fgetc};
 use crate::globals::IOSIZE;
 use crate::globals::*;
 use crate::hashtab::hashitem_empty;
-use crate::mbyte::{mb_cptr2char_adv, utf_ptr2char};
+use crate::mbyte::{mb_cptr2char_adv, utf_slice2char};
 use crate::memory::xstrlcpy;
 use crate::message::{emsg, msg_reset_scroll};
 use crate::os::fs::os_fopen;
@@ -120,32 +120,29 @@ fn ga_concat_esc(gap: &mut Vec<u8>, p: impl crate::strings::IntoCCharPtr, clen: 
 
 fn ga_concat_shorten_esc(gap: &mut Vec<u8>, str_ptr: impl crate::strings::IntoCCharPtr) {
     let str_ptr = str_ptr.into_c_char_ptr();
-    {
-        if str_ptr.is_null() {
-            ga_concat_literal(gap, b"NULL");
-            return;
-        }
+    if str_ptr.is_null() {
+        ga_concat_literal(gap, b"NULL");
+        return;
+    }
 
-        let mut p = str_ptr;
-        while !crate::memory::cstr_is_empty(p) {
-            let mut same_len: i32 = 1;
-            let mut s = p;
-            let c = mb_cptr2char_adv(&mut s);
-            let clen = (s as usize) - (p as usize);
-            while !crate::memory::cstr_is_empty(s) && c == utf_ptr2char(s) {
-                same_len += 1;
-                s = s.wrapping_add(clen);
-            }
-            if same_len > 20 {
-                ga_concat_literal(gap, b"\\[");
-                ga_concat_esc(gap, p, clen as i32);
-                let tail = format!(" occurs {same_len} times]");
-                ga_concat_literal(gap, tail.as_bytes());
-                p = s;
-            } else {
-                ga_concat_esc(gap, p, clen as i32);
-                p = p.wrapping_add(clen);
-            }
+    let mut rem = crate::memory::cstr_as_bytes(str_ptr);
+    while !rem.is_empty() {
+        let mut same_len: i32 = 1;
+        let orig = rem;
+        let c = mb_cptr2char_adv(&mut rem);
+        let clen = orig.len() - rem.len();
+        while !rem.is_empty() && c == utf_slice2char(rem) {
+            same_len += 1;
+            rem = &rem[clen.min(rem.len())..];
+        }
+        if same_len > 20 {
+            ga_concat_literal(gap, b"\\[");
+            ga_concat_esc(gap, &orig[..clen], clen as i32);
+            let tail = format!(" occurs {same_len} times]");
+            ga_concat_literal(gap, tail.as_bytes());
+        } else {
+            ga_concat_esc(gap, &orig[..clen], clen as i32);
+            rem = &orig[clen..];
         }
     }
 }

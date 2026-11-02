@@ -19,8 +19,8 @@ use crate::buffer::{
     do_buffer,
 };
 use crate::charset::{
-    ascii_isalpha, ascii_isdigit, ascii_isspace, ascii_iswhite, is_special, skipwhite, vim_is_idc,
-    vim_isprintc, vim_iswordc, vim_str2nr,
+    ascii_isalpha, ascii_isspace, ascii_iswhite, is_special, skipwhite, skipwhite_slice,
+    vim_is_idc, vim_isprintc, vim_iswordc, vim_slice2nr,
 };
 use crate::cmdexpand::{
     CTRL_N, CTRL_P, CmdlineColorChunk, CmdlineInfo, ColoredCmdline, EXPAND_NOTHING,
@@ -4494,29 +4494,28 @@ fn cmdline_paste(regname: i32, literally: bool, remcr: bool) -> bool {
 
 /// Put a string on the command line.
 pub fn cmdline_paste_str(s: impl crate::strings::IntoCCharPtr, literally: bool) {
-    let mut s = s.into_c_char_ptr();
-    {
-        if literally {
-            put_on_cmdline(s, -1, true);
-        } else {
-            while !crate::memory::cstr_is_empty(s) {
-                let cv = (crate::memory::cstr_first_byte(s)) as i32;
-                if cv == CTRL_V_CONST && crate::memory::cstr_byte_at(s, 1) != 0 {
-                    s = s.wrapping_add(1);
-                }
-                let c = mb_cptr2char_adv(&mut s);
-                if cv == CTRL_V_CONST
-                    || c == ESC
-                    || c == CTRL_C_CONST
-                    || c == CAR
-                    || c == NL
-                    || c == CTRL_L_CONST
-                    || (c == CTRL_BSL && crate::memory::cstr_first_char(s) == CTRL_N)
-                {
-                    stuffchar_readbuff(CTRL_V_CONST);
-                }
-                stuffchar_readbuff(c);
+    let s = s.into_c_char_ptr();
+    if literally {
+        put_on_cmdline(s, -1, true);
+    } else {
+        let mut rem = crate::memory::cstr_as_bytes(s);
+        while !rem.is_empty() {
+            let cv = i32::from(rem[0]);
+            if cv == CTRL_V_CONST && rem.len() > 1 {
+                rem = &rem[1..];
             }
+            let c = mb_cptr2char_adv(&mut rem);
+            if cv == CTRL_V_CONST
+                || c == ESC
+                || c == CTRL_C_CONST
+                || c == CAR
+                || c == NL
+                || c == CTRL_L_CONST
+                || (c == CTRL_BSL && rem.first().copied().map(i32::from) == Some(CTRL_N))
+            {
+                stuffchar_readbuff(CTRL_V_CONST);
+            }
+            stuffchar_readbuff(c);
         }
     }
 }
@@ -4996,68 +4995,63 @@ pub fn get_cmdline_firstc() -> i32 {
 }
 
 /// Get indices that specify a range within a list from a string.
-pub fn get_list_range<P: crate::charset::RawByteCursor>(
-    str_p: &mut P,
-    num1: &mut i32,
-    num2: &mut i32,
-) -> bool {
+pub fn get_list_range(str_p: &mut &[u8], num1: &mut i32, num2: &mut i32) -> bool {
     let mut len: i32 = 0;
     let mut first = false;
     let mut num: Varnumber = 0;
 
-    let mut p: *const u8 = skipwhite(str_p.as_byte_ptr().cast()).cast();
-    let b0 = crate::memory::cstr_first_byte(p.cast());
-    if b0 == b'-' || ascii_isdigit(i32::from(b0)) {
-        vim_str2nr(
-            p.cast(),
+    let mut p = skipwhite_slice(str_p);
+    if p.first()
+        .is_some_and(|&b0| b0 == b'-' || b0.is_ascii_digit())
+    {
+        vim_slice2nr(
+            p,
             None,
             Some(&mut len),
             0,
             Some(&mut num),
             None,
-            0,
             false,
             None,
         );
-        p = p.wrapping_add(len as usize);
+        p = &p[len as usize..];
         if num > i32::MAX as Varnumber {
-            *str_p = P::from_byte_ptr(p);
+            *str_p = p;
             return false;
         }
 
         *num1 = num as i32;
         first = true;
     }
-    p = skipwhite(p.cast()).cast();
-    if crate::memory::cstr_first_byte(p.cast()) == b',' {
-        p = skipwhite(p.wrapping_add(1).cast()).cast();
-        vim_str2nr(
-            p.cast(),
+    p = skipwhite_slice(p);
+    if let Some(after_comma) = p.strip_prefix(b",") {
+        p = skipwhite_slice(after_comma);
+        vim_slice2nr(
+            p,
             None,
             Some(&mut len),
             0,
             Some(&mut num),
             None,
-            0,
             false,
             None,
         );
         if len > 0 {
-            p = skipwhite(p.wrapping_add(len as usize).cast()).cast();
+            p = skipwhite_slice(&p[len as usize..]);
             if num > i32::MAX as Varnumber {
-                *str_p = P::from_byte_ptr(p);
+                *str_p = p;
                 return false;
             }
 
             *num2 = num as i32;
         } else if !first {
-            *str_p = P::from_byte_ptr(p);
+            *str_p = p;
             return false;
         }
     } else if first {
         *num2 = *num1;
     }
-    *str_p = P::from_byte_ptr(p);
+    *str_p = p;
     true
 }
 

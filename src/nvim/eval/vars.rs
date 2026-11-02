@@ -2021,8 +2021,11 @@ pub fn ex_lockvar(eap: &mut Exarg) {
     if eap.forceit != 0 {
         deep = -1;
     } else if ascii_isdigit(crate::memory::cstr_first_char(arg)) {
-        deep = getdigits_int(&mut arg, false, -1);
-        arg = skipwhite(arg);
+        let arg_bytes = crate::memory::cstr_as_bytes(arg);
+        let mut rem = arg_bytes;
+        deep = getdigits_int(&mut rem, false, -1);
+        let rem = crate::charset::skipwhite_slice(rem);
+        arg = arg.wrapping_add(arg_bytes.len() - rem.len());
     }
 
     ex_unletlock(eap, arg, deep, 0, do_lock_var);

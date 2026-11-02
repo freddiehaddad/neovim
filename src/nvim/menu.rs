@@ -276,17 +276,20 @@ pub fn ex_menu(eap: &mut Exarg) {
     }
     let mut i: usize;
     if ascii_iswhite(crate::memory::cstr_first_char(p)) {
+        let arg_bytes = crate::memory::cstr_as_bytes(arg);
+        let mut rem = arg_bytes;
         i = 0;
-        while i < MENUDEPTH && !ascii_iswhite(crate::memory::cstr_first_char(arg)) {
-            pri_tab[i] = getdigits_int(&mut arg, false, 0);
+        while i < MENUDEPTH && rem.first().is_some_and(|&b| !ascii_iswhite(i32::from(b))) {
+            pri_tab[i] = getdigits_int(&mut rem, false, 0);
             if pri_tab[i] == 0 {
                 pri_tab[i] = 500;
             }
-            if crate::memory::cstr_first_byte(arg) == b'.' {
-                arg = arg.wrapping_add(1);
+            if rem.first() == Some(&b'.') {
+                rem = &rem[1..];
             }
             i += 1;
         }
+        arg = arg.wrapping_add(arg_bytes.len() - rem.len());
         arg = skipwhite(arg);
     } else if eap.addr_count != 0 && eap.line2 != 0 {
         pri_tab[0] = eap.line2;

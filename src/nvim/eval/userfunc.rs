@@ -2508,8 +2508,10 @@ pub fn save_function_name<T>(
     let saved: Option<std::ffi::CString>;
 
     if crate::memory::cstr_prefix_bytes(p.cast(), 8) == &b"<lambda>"[..8] {
-        p = p.wrapping_add(8);
-        getdigits(&mut p, false, 0);
+        let tail = crate::memory::cstr_as_bytes(p.wrapping_add(8).cast());
+        let mut rem = tail;
+        getdigits(&mut rem, false, 0);
+        p = p.wrapping_add(8 + tail.len() - rem.len());
         saved = Some(cstr_from_bytes(crate::memory::cstr_slice(
             start.cast(),
             crate::memory::ptr_offset_from(p, start) as usize,

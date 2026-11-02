@@ -1,6 +1,6 @@
 //! Vimscript debugger (`src/nvim/debugger.c`).
 
-use crate::charset::{getdigits_int32, skipwhite};
+use crate::charset::{getdigits_int32, skipwhite, skipwhite_slice};
 use crate::drawscreen::{UPD_NOT_VALID, redraw_all_later};
 use crate::errors::{E_INVARG2, E_NONAME};
 use crate::eval::typval::{Callback, TypVal, tv_clear};
@@ -514,8 +514,11 @@ fn dbg_parsearg(arg: impl crate::strings::IntoCCharPtr, is_prof: bool) -> Option
         if here {
             bp.dbg_lnum = curwin_mut().w_cursor.lnum;
         } else if !is_prof && (crate::memory::cstr_first_byte(p)).is_ascii_digit() {
-            bp.dbg_lnum = getdigits_int32(&mut p, true, 0);
-            p = skipwhite(p);
+            let p_bytes = crate::memory::cstr_as_bytes(p);
+            let mut rem = p_bytes;
+            bp.dbg_lnum = getdigits_int32(&mut rem, true, 0);
+            let rem = skipwhite_slice(rem);
+            p = p.wrapping_add(p_bytes.len() - rem.len());
         } else {
             bp.dbg_lnum = 0;
         }

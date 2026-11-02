@@ -928,14 +928,20 @@ pub fn basechar_cells_impl(c: CharInfo) -> i32 {
 }
 
 #[inline]
-pub fn mb_ptr_back<S: crate::charset::RawByteCursor, P: crate::charset::RawByteCursor>(
-    s: S,
-    p: &mut P,
-) {
-    let cur = p.as_byte_ptr();
+pub fn mb_ptr_back(s: *const u8, p: &mut *mut u8) {
+    let cur = *p;
     let prev = cur.wrapping_sub(1);
-    let step = 1 + utf_head_off(s.as_byte_ptr().cast(), prev.cast()) as usize;
-    *p = P::from_byte_ptr(cur.wrapping_sub(step));
+    let step = 1 + utf_head_off(s.cast(), prev.cast()) as usize;
+    *p = cur.wrapping_sub(step);
+}
+
+#[inline]
+pub fn mb_idx_back(bytes: &[u8], idx: &mut usize) {
+    if *idx > 0 {
+        let prev = *idx - 1;
+        let step = 1 + utf_head_off_slice(bytes, prev) as usize;
+        *idx = idx.saturating_sub(step);
+    }
 }
 
 #[inline]
@@ -1408,20 +1414,12 @@ fn utf_safe_read_char_adv(s: &mut &[u8]) -> i32 {
     -1
 }
 
-pub fn mb_ptr2char_adv<P: crate::charset::RawByteCursor>(pp: &mut P) -> i32 {
-    let p = pp.as_byte_ptr();
-    let c = utf_ptr2char(p.cast());
-    *pp = P::from_byte_ptr(p.wrapping_add(utfc_ptr2len(p.cast()) as usize));
-    c
+pub fn mb_ptr2char_adv(s: &mut &[u8]) -> i32 {
+    mb_slice2char_adv(s)
 }
 
-pub fn mb_cptr2char_adv<P: crate::charset::RawByteCursor>(pp: &mut P) -> i32 {
-    let p = pp.as_byte_ptr();
-    let mut slice = unsafe { raw_utf8_prefix(p) };
-    let orig_len = slice.len();
-    let c = mb_cslice2char_adv(&mut slice);
-    *pp = P::from_byte_ptr(p.wrapping_add(orig_len - slice.len()));
-    c
+pub fn mb_cptr2char_adv(s: &mut &[u8]) -> i32 {
+    mb_cslice2char_adv(s)
 }
 
 pub fn utf_iscomposing_first(c: i32) -> bool {
@@ -2726,16 +2724,10 @@ pub fn utf_allow_break(cc: i32, ncc: i32) -> bool {
     utf_allow_break_after(cc) && utf_allow_break_before(ncc)
 }
 
-pub fn mb_copy_char<F: crate::charset::RawByteCursor, T: crate::charset::RawByteCursor>(
-    fp: &mut F,
-    tp: &mut T,
-) {
-    let f = fp.as_byte_ptr();
-    let t = tp.as_byte_ptr().cast_mut();
-    let l = utfc_ptr2len(f.cast()) as usize;
-    unsafe { ptr::copy(f, t, l) };
-    *tp = T::from_byte_ptr(t.wrapping_add(l));
-    *fp = F::from_byte_ptr(f.wrapping_add(l));
+pub fn mb_copy_char(fp: &mut &[u8], out: &mut Vec<u8>) {
+    let l = utfc_slice2len(fp).min(fp.len());
+    out.extend_from_slice(&fp[..l]);
+    *fp = &fp[l..];
 }
 
 pub fn mb_off_next(
@@ -2950,7 +2942,7 @@ pub fn mb_charlen_len(str_: impl crate::strings::IntoCCharPtr, len: i32) -> i32 
     count
 }
 
-pub fn mb_unescape_slice(s: &mut &[u8]) -> Option<&'static CStr> {
+pub fn mb_unescape(s: &mut &[u8]) -> Option<&'static CStr> {
     let bytes = *s;
     let mut buf_idx = 0usize;
     let mut str_idx = 0usize;
@@ -2982,17 +2974,6 @@ pub fn mb_unescape_slice(s: &mut &[u8]) -> Option<&'static CStr> {
         str_idx += 1;
     }
     None
-}
-
-pub fn mb_unescape<P: crate::charset::RawByteCursor>(pp: &mut P) -> Option<&'static CStr> {
-    let orig = pp.as_byte_ptr();
-    let bytes = crate::memory::cstr_as_bytes(orig.cast());
-    let mut rem = bytes;
-    let res = mb_unescape_slice(&mut rem);
-    if res.is_some() {
-        *pp = P::from_byte_ptr(orig.wrapping_add(bytes.len() - rem.len()));
-    }
-    res
 }
 
 pub fn enc_skip<'a>(p: impl crate::strings::IntoCCharPtr) -> &'a CStr {

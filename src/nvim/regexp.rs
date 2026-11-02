@@ -1985,11 +1985,19 @@ pub(super) fn read_limits(minval: &mut i32, maxval: &mut i32) -> bool {
         reverse = true;
     }
     let first_char = re_st().regparse;
-    *minval = getdigits_int(&mut re_st().regparse, false, 0);
+    {
+        let start_bytes = crate::memory::cstr_as_bytes(re_st().regparse.cast());
+        let mut rem = start_bytes;
+        *minval = getdigits_int(&mut rem, false, 0);
+        re_st().regparse = re_st().regparse.wrapping_add(start_bytes.len() - rem.len());
+    }
     if crate::memory::cstr_first_byte(re_st().regparse.cast()) == b',' {
         re_st().regparse = re_st().regparse.wrapping_add(1);
         if ascii_isdigit(crate::memory::cstr_first_byte(re_st().regparse.cast()) as i32) {
-            *maxval = getdigits_int(&mut re_st().regparse, false, MAX_LIMIT);
+            let start_bytes = crate::memory::cstr_as_bytes(re_st().regparse.cast());
+            let mut rem = start_bytes;
+            *maxval = getdigits_int(&mut rem, false, MAX_LIMIT);
+            re_st().regparse = re_st().regparse.wrapping_add(start_bytes.len() - rem.len());
         } else {
             *maxval = MAX_LIMIT;
         }
@@ -2374,8 +2382,10 @@ pub(super) fn cstrncmp(
         };
 
         if result != 0 && re_st().rex.reg_icombine {
-            let mut str1 = s1;
-            let mut str2 = s2;
+            let s1_bytes = crate::memory::cstr_as_bytes(s1);
+            let s2_bytes = crate::memory::cstr_as_bytes(s2);
+            let mut rem1 = s1_bytes;
+            let mut rem2 = s2_bytes;
             let mut c1: i32 = 0;
             let mut c2: i32 = 0;
             let mut c11: i32 = 0;
@@ -2383,9 +2393,9 @@ pub(super) fn cstrncmp(
             let mut junk: i32 = 0;
             let mut junk2: i32 = 0;
 
-            while (crate::memory::ptr_offset_from(str1, s1) as i32) < *n {
-                c1 = mb_ptr2char_adv(&mut str1);
-                c2 = mb_ptr2char_adv(&mut str2);
+            while ((s1_bytes.len() - rem1.len()) as i32) < *n {
+                c1 = mb_ptr2char_adv(&mut rem1);
+                c2 = mb_ptr2char_adv(&mut rem2);
 
                 if c1 != c2 && (!re_st().rex.reg_ic || utf_fold(c1) != utf_fold(c2)) {
                     mb_decompose(c1, &mut c11, &mut junk, &mut junk2);
@@ -2399,7 +2409,7 @@ pub(super) fn cstrncmp(
             }
             result = c2 - c1;
             if result == 0 {
-                *n = crate::memory::ptr_offset_from(str2, s2) as i32;
+                *n = (s2_bytes.len() - rem2.len()) as i32;
             }
         }
 

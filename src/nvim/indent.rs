@@ -149,9 +149,10 @@ pub fn tabstop_set(
         let mut cp = var;
         while !crate::memory::cstr_is_empty(cp) {
             if cp == var || crate::memory::cstr_first_byte(cp.wrapping_sub(1)) == b',' {
-                let mut end = cp;
-                if getdigits(&mut end, false, 1) <= 0 {
-                    if cp != end {
+                let cp_bytes = crate::memory::cstr_as_bytes(cp);
+                let mut rem = cp_bytes;
+                if getdigits(&mut rem, false, 1) <= 0 {
+                    if rem.len() != cp_bytes.len() {
                         return Some(E_POSITIVE);
                     }
                     var = cp;

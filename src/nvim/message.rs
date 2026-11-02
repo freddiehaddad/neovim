@@ -53,7 +53,8 @@ use crate::log::{LOGLVL_DBG, LOGLVL_INF, log_get_stderr, logmsg};
 use crate::main_init::input_unanswerable;
 use crate::mbyte::{
     UTF8LEN_TAB, mb_string2cells_len, mb_unescape, ptr2cells, utf_char2bytes, utf_char2cells,
-    utf_head_off, utf_ptr2cells, utf_ptr2char, utf_ptr2len, utfc_ptr2len, utfc_ptr2len_len,
+    utf_head_off, utf_ptr2cells, utf_ptr2char, utf_ptr2len, utf_slice2char, utfc_ptr2len,
+    utfc_ptr2len_len,
 };
 use crate::memory::{Arena, arena_alloc, xstrlcpy, xstrnlen};
 use crate::mouse::{MOUSE_SETPOS, jump_to_mouse, setmouse};
@@ -2435,7 +2436,13 @@ pub fn str2special<T>(
     replace_others: TriState,
     mut data: Option<&mut KeyChord>,
 ) -> &'static CStr {
-    if let Some(p) = mb_unescape(unsafe { &mut *sp.cast::<*const u8>() }) {
+    let mut str_: *const std::ffi::c_char = unsafe { (*sp).cast() };
+    let str_bytes = crate::memory::cstr_as_bytes(str_);
+    let mut rem = str_bytes;
+    if let Some(p) = mb_unescape(&mut rem) {
+        unsafe {
+            *sp = str_.wrapping_add(str_bytes.len() - rem.len()).cast();
+        }
         if let Some(data) = data.as_deref_mut() {
             data.mods = 0;
             data.key = NvimString {
@@ -2450,7 +2457,6 @@ pub fn str2special<T>(
         return p;
     }
 
-    let mut str_ = unsafe { (*sp).cast() };
     let mut c = (crate::memory::cstr_first_byte(str_)) as i32;
     let mut modifiers = 0;
     let mut special = false;
@@ -2479,11 +2485,13 @@ pub fn str2special<T>(
     }
 
     if !is_special(c) && UTF8LEN_TAB[c as usize] > 1 {
-        unsafe {
-            *sp = str_.cast();
-        }
-        if let Some(p) = mb_unescape(unsafe { &mut *sp.cast::<*const u8>() }) {
-            c = utf_ptr2char(p);
+        let str_bytes = crate::memory::cstr_as_bytes(str_);
+        let mut rem = str_bytes;
+        if let Some(p) = mb_unescape(&mut rem) {
+            unsafe {
+                *sp = str_.wrapping_add(str_bytes.len() - rem.len()).cast();
+            }
+            c = utf_slice2char(p.to_bytes());
         } else {
             unsafe {
                 *sp = str_.wrapping_add(1).cast();

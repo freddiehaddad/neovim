@@ -1999,7 +1999,10 @@ pub fn do_bufdel(
                     }
                     arg = p;
                 } else {
-                    bnr = getdigits_int(&mut arg, false, 0);
+                    let arg_bytes = crate::memory::cstr_as_bytes(arg);
+                    let mut rem = arg_bytes;
+                    bnr = getdigits_int(&mut rem, false, 0);
+                    arg = arg.wrapping_add(arg_bytes.len() - rem.len());
                 }
             }
             os_breakcheck();
@@ -4638,11 +4641,14 @@ fn chk_modeline(lnum: Linenr, flags: i32) -> bool {
                     e = s.wrapping_add(3);
                 }
                 let mut vers: i64 = 0;
-                if !try_getdigits(&mut e, &mut vers) {
+                let e_bytes = crate::memory::cstr_as_bytes(e);
+                let mut rem = e_bytes;
+                if !try_getdigits(&mut rem, &mut vers) {
                     prev = crate::memory::cstr_first_byte(s) as i32;
                     s = s.wrapping_add(1);
                     continue;
                 }
+                e = e.wrapping_add(e_bytes.len() - rem.len());
 
                 let vim_version = i64::from(min_vim_version());
                 if crate::memory::cstr_first_byte(e) == b':'

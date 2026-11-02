@@ -319,13 +319,13 @@ fn get_winnr(tp: &mut TabPageInfo, argvar: &mut TypVal) -> i32 {
                     nr = 0;
                 }
             } else {
-                let mut endp = arg.as_ptr();
-                let mut count = getdigits_int(&mut endp, false, 0);
+                let mut rem = arg.to_bytes();
+                let mut count = getdigits_int(&mut rem, false, 0);
                 if count <= 0 {
                     count = 1;
                 }
-                if !crate::memory::cstr_is_empty(endp) {
-                    let tail = crate::memory::cstr_as_bytes(endp);
+                if !rem.is_empty() {
+                    let tail = rem;
                     let twin_ref = unsafe { &mut *twin };
                     if tail == b"j" {
                         twin = win_vert_neighbor(tp, twin_ref, false, count);

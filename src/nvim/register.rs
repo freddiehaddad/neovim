@@ -3033,12 +3033,13 @@ pub fn prepare_yankreg_from_object(reg: &mut Yankreg, regtype: NvimString, _line
         if reg.y_type != MotionType::MtBlockWise {
             return false;
         }
-        if !(crate::memory::cstr_byte_at(regtype.data, 1)).is_ascii_digit() {
+        let reg_bytes = regtype.as_bytes();
+        if !reg_bytes.get(1).is_some_and(u8::is_ascii_digit) {
             return false;
         }
-        let mut p = regtype.data.wrapping_add(1);
-        reg.y_width = getdigits_int(&mut p, false, 1) - 1;
-        if regtype.size > (p as usize) - (regtype.data as usize) {
+        let mut rem = &reg_bytes[1..];
+        reg.y_width = getdigits_int(&mut rem, false, 1) - 1;
+        if !rem.is_empty() {
             return false;
         }
     }

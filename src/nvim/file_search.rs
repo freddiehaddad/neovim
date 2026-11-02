@@ -305,8 +305,10 @@ pub fn vim_findfile_init(
                     expand_size += 1;
                     wc_part = wc_part.wrapping_add(1);
 
-                    let mut errpt = wc_part;
-                    let llevel = getdigits(&mut errpt, false, 255);
+                    let wc_bytes = crate::memory::cstr_as_bytes(wc_part);
+                    let mut rem = wc_bytes;
+                    let llevel = getdigits(&mut rem, false, 255);
+                    let errpt = wc_part.wrapping_add(wc_bytes.len() - rem.len());
                     if errpt != wc_part && llevel > 0 && llevel < 255 {
                         expand_buf[expand_size] = llevel as u8;
                         expand_size += 1;
@@ -1431,8 +1433,8 @@ pub fn grab_file_name(count: i32, file_lnum: &mut Linenr) -> Option<std::ffi::CS
         if vis_bytes.get(len) == Some(&b':')
             && vis_bytes.get(len + 1).is_some_and(u8::is_ascii_digit)
         {
-            let mut p = vis_cstr.as_ptr().wrapping_add(len + 1);
-            *file_lnum = getdigits_int32(&mut p, false, 0);
+            let mut rem = &vis_bytes[len + 1..];
+            *file_lnum = getdigits_int32(&mut rem, false, 0);
         }
         find_file_name_in_path(
             vis_cstr.as_ptr().cast_mut(),
@@ -1573,7 +1575,8 @@ pub fn file_name_in_line(
                 }
                 p = skipwhite(p);
                 if (crate::memory::cstr_first_byte(p)).is_ascii_digit() {
-                    *file_lnum = getdigits_long(&mut p, false, 0) as Linenr;
+                    let mut rem = crate::memory::cstr_as_bytes(p);
+                    *file_lnum = getdigits_long(&mut rem, false, 0) as Linenr;
                 }
             }
         }

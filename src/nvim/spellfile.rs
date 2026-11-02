@@ -15,8 +15,9 @@ use crate::fileio::{
 };
 use crate::globals::*;
 use crate::mbyte::{
-    Vimconv, convert_setup, enc_canonize, mb_charlen, mb_cptr2char_adv, mb_ptr_adv, mb_ptr_back,
-    mb_ptr2char_adv, string_convert, utf_char2bytes, utf_ptr2char, utf_valid_string, utfc_ptr2len,
+    Vimconv, convert_setup, enc_canonize, mb_charlen, mb_cptr2char_adv, mb_ptr_adv,
+    mb_ptr2char_adv, string_convert, utf_char2bytes, utf_ptr2char, utf_slice2char,
+    utf_valid_string, utfc_ptr2len,
 };
 use crate::memline::{ml_append_buf, ml_get_buf, ml_get_buf_len};
 use crate::memory::xstrlcpy;
@@ -1360,9 +1361,9 @@ fn set_sofo(
         lp.sl_sofo = true;
         lp.sl_sal_first = [0; 256];
 
-        let mut p = from;
-        let mut s = to;
-        while !crate::memory::cstr_is_empty(p) && !crate::memory::cstr_is_empty(s) {
+        let mut p = crate::memory::cstr_as_bytes(from);
+        let mut s = crate::memory::cstr_as_bytes(to);
+        while !p.is_empty() && !s.is_empty() {
             let c = mb_cptr2char_adv(&mut p);
             let i = mb_cptr2char_adv(&mut s);
             if c >= 256 {
@@ -1371,7 +1372,7 @@ fn set_sofo(
                 lp.sl_sal_first[c as usize] = i;
             }
         }
-        if !crate::memory::cstr_is_empty(p) || !crate::memory::cstr_is_empty(s) {
+        if !p.is_empty() || !s.is_empty() {
             return SP_FORMERROR;
         }
 
@@ -1409,15 +1410,13 @@ fn set_sal_first(lp: &mut Slang) {
 
 fn mb_str2wide(s: impl crate::strings::IntoCCharPtr) -> Vec<i32> {
     let s = s.into_c_char_ptr();
-    {
-        let mut res = Vec::with_capacity(mb_charlen(s) as usize + 1);
-        let mut p = s;
-        while !crate::memory::cstr_is_empty(p) {
-            res.push(mb_ptr2char_adv(&mut p));
-        }
-        res.push(0);
-        res
+    let mut res = Vec::with_capacity(mb_charlen(s) as usize + 1);
+    let mut rem = crate::memory::cstr_as_bytes(s);
+    while !rem.is_empty() {
+        res.push(mb_ptr2char_adv(&mut rem));
     }
+    res.push(0);
+    res
 }
 
 fn spell_read_tree(
@@ -1613,29 +1612,29 @@ fn spell_reload_one(fname: impl crate::strings::IntoCCharPtr, added_word: bool) 
 
 /// Check the 'mkspellmem' option. Return FAIL if it's wrong.
 pub fn spell_check_msm(value: impl crate::strings::IntoCCharPtr, apply: bool) -> bool {
-    let mut p = value.into_c_char_ptr().cast_mut();
+    let mut rem = crate::memory::cstr_as_bytes(value.into_c_char_ptr());
 
-    if !ascii_isdigit(crate::memory::cstr_first_char(p)) {
+    if !rem.first().is_some_and(u8::is_ascii_digit) {
         return false;
     }
-    let start = (getdigits_int(&mut p, true, 0) * 10) / ((SBLOCKSIZE / 102) as i32);
-    if crate::memory::cstr_first_byte(p) != b',' {
+    let start = (getdigits_int(&mut rem, true, 0) * 10) / ((SBLOCKSIZE / 102) as i32);
+    let Some(after_comma) = rem.strip_prefix(b",") else {
+        return false;
+    };
+    rem = after_comma;
+    if !rem.first().is_some_and(u8::is_ascii_digit) {
         return false;
     }
-    p = p.wrapping_add(1);
-    if !ascii_isdigit(crate::memory::cstr_first_char(p)) {
+    let incr = (getdigits_int(&mut rem, true, 0) * 102) / ((SBLOCKSIZE / 10) as i32);
+    let Some(after_comma) = rem.strip_prefix(b",") else {
+        return false;
+    };
+    rem = after_comma;
+    if !rem.first().is_some_and(u8::is_ascii_digit) {
         return false;
     }
-    let incr = (getdigits_int(&mut p, true, 0) * 102) / ((SBLOCKSIZE / 10) as i32);
-    if crate::memory::cstr_first_byte(p) != b',' {
-        return false;
-    }
-    p = p.wrapping_add(1);
-    if !ascii_isdigit(crate::memory::cstr_first_char(p)) {
-        return false;
-    }
-    let added = getdigits_int(&mut p, true, 0) * 1024;
-    if !crate::memory::cstr_is_empty(p) {
+    let added = getdigits_int(&mut rem, true, 0) * 1024;
+    if !rem.is_empty() {
         return false;
     }
 
@@ -2259,16 +2258,12 @@ fn spell_read_aff(
                                         .is_none_or(|cond| utf_ptr2char(cond.as_ptr()) == c)
                                 {
                                     let add_bytes = add.to_bytes();
-                                    let add_ptr: *mut u8 = add.as_ptr().cast_mut().cast();
-                                    let mut p_end = add_ptr.wrapping_add(add_bytes.len());
-                                    mb_ptr_back(add_ptr, &mut p_end);
-                                    if utf_ptr2char(p_end.cast()) == c_up {
+                                    let mut end_idx = add_bytes.len();
+                                    crate::mbyte::mb_idx_back(add_bytes, &mut end_idx);
+                                    if utf_slice2char(&add_bytes[end_idx..]) == c_up {
                                         upper = true;
-                                        let new_add_len =
-                                            crate::memory::ptr_offset_from(p_end, add_ptr) as usize;
                                         let new_add =
-                                            std::ffi::CString::new(&add_bytes[..new_add_len])
-                                                .unwrap();
+                                            std::ffi::CString::new(&add_bytes[..end_idx]).unwrap();
                                         aff_entry.ae_chop = None;
                                         aff_entry.ae_add = Some(new_add);
 
@@ -2411,9 +2406,12 @@ fn spell_read_aff(
                         }
                     } else if do_mapline {
                         let si_map = &mut spin.si_map;
-                        let mut p_m = items[1].cast_const().cast();
-                        while !crate::memory::cstr_is_empty(p_m) {
-                            let c = mb_ptr2char_adv(&mut p_m);
+                        let item_ptr = items[1].cast_const().cast();
+                        let item_bytes = crate::memory::cstr_as_bytes(item_ptr);
+                        let mut rem = item_bytes;
+                        while !rem.is_empty() {
+                            let c = mb_ptr2char_adv(&mut rem);
+                            let p_m = item_ptr.wrapping_add(item_bytes.len() - rem.len());
                             let in_map = if si_map.is_empty() {
                                 false
                             } else {
@@ -2569,28 +2567,32 @@ fn aff_process_flags(affile: &Afffile, entry: &mut Affentry) {
     if let Some(ref flags_cstr) = entry.ae_flags
         && (affile.af_compforbid != 0 || affile.af_comppermit != 0)
     {
-        let mut flags_buf: Vec<u8> = flags_cstr.as_bytes_with_nul().to_vec();
-        let mut p = flags_buf.as_mut_ptr();
-        while !crate::memory::cstr_is_empty(p.cast()) {
-            let prevp = p;
-            let flag = get_affitem(affile.af_flagtype, &mut p);
-            if flag == affile.af_comppermit || flag == affile.af_compforbid {
-                crate::memory::cstr_move(prevp.cast(), p.cast());
-                p = prevp;
-                if flag == affile.af_comppermit {
-                    entry.ae_comppermit = 1;
-                } else {
-                    entry.ae_compforbid = 1;
-                }
+        let flags_bytes = flags_cstr.to_bytes();
+        let mut out_bytes = Vec::with_capacity(flags_bytes.len());
+        let mut rem = flags_bytes;
+        while !rem.is_empty() {
+            let prev = rem;
+            let flag = get_affitem(affile.af_flagtype, &mut rem);
+            let keep = if flag == affile.af_comppermit {
+                entry.ae_comppermit = 1;
+                false
+            } else if flag == affile.af_compforbid {
+                entry.ae_compforbid = 1;
+                false
+            } else {
+                true
+            };
+            if affile.af_flagtype == AFT_NUM && rem.first() == Some(&b',') {
+                rem = &rem[1..];
             }
-            if affile.af_flagtype == AFT_NUM && crate::memory::cstr_first_byte(p.cast()) == b',' {
-                p = p.wrapping_add(1);
+            if keep {
+                out_bytes.extend_from_slice(&prev[..prev.len() - rem.len()]);
             }
         }
-        if flags_buf[0] == 0 {
+        if out_bytes.is_empty() {
             entry.ae_flags = None;
         } else {
-            entry.ae_flags = Some(crate::memory::cstr_to_cstring(flags_buf.as_ptr().cast()));
+            entry.ae_flags = std::ffi::CString::new(out_bytes).ok();
         }
     }
 }
@@ -2616,8 +2618,8 @@ fn affitem2flag(
     let item = item.into_c_char_ptr().cast_mut();
     let fname = fname.into_c_char_ptr();
     {
-        let mut p: *mut u8 = item.cast();
-        let res = get_affitem(flagtype, &mut p);
+        let mut rem = crate::memory::cstr_as_bytes(item);
+        let res = get_affitem(flagtype, &mut rem);
         if res == 0 {
             if flagtype == AFT_NUM {
                 smsg!(
@@ -2637,7 +2639,7 @@ fn affitem2flag(
                 );
             }
         }
-        if !crate::memory::cstr_is_empty(p.cast()) {
+        if !rem.is_empty() {
             smsg!(0, gettext(E_AFFNAME), fname, lnum, item);
             return 0;
         }
@@ -2645,11 +2647,13 @@ fn affitem2flag(
     }
 }
 
-fn get_affitem(flagtype: i32, pp: &mut *mut u8) -> u32 {
+fn get_affitem(flagtype: i32, pp: &mut &[u8]) -> u32 {
     let mut res: i32;
     if flagtype == AFT_NUM {
-        if !ascii_isdigit(crate::memory::cstr_first_char((*pp).cast())) {
-            *pp = (*pp).wrapping_add(1);
+        if !pp.first().is_some_and(u8::is_ascii_digit) {
+            if !pp.is_empty() {
+                *pp = &pp[1..];
+            }
             return 0;
         }
         res = getdigits_int(pp, true, 0);
@@ -2661,7 +2665,7 @@ fn get_affitem(flagtype: i32, pp: &mut *mut u8) -> u32 {
         if flagtype == AFT_LONG
             || (flagtype == AFT_CAPLONG && res >= b'A' as i32 && res <= b'Z' as i32)
         {
-            if crate::memory::cstr_is_empty((*pp).cast()) {
+            if pp.is_empty() {
                 return 0;
             }
             res = mb_ptr2char_adv(pp) + (res << 16);
@@ -2675,66 +2679,57 @@ fn process_compflags(
     aff: &mut Afffile,
     compflags: impl crate::strings::IntoCCharPtr,
 ) {
-    let compflags: *mut u8 = compflags.into_c_char_ptr().cast_mut().cast();
-    {
-        let mut key = [0u8; AH_KEY_LEN];
+    let compflags = compflags.into_c_char_ptr();
+    let mut bytes = spin
+        .si_compflags
+        .as_ref()
+        .map_or_else(Vec::new, |s| s.to_bytes().to_vec());
+    if !bytes.is_empty() {
+        bytes.push(b'/');
+    }
 
-        let mut bytes = spin
-            .si_compflags
-            .as_ref()
-            .map_or_else(Vec::new, |s| s.to_bytes().to_vec());
-        if !bytes.is_empty() {
-            bytes.push(b'/');
-        }
-
-        let mut cur = compflags;
-        while !crate::memory::cstr_is_empty(cur.cast()) {
-            if !vim_strchr(c"/?*+[]", crate::memory::cstr_first_byte(cur.cast()) as i32).is_null() {
-                bytes.push(crate::memory::cstr_first_byte(cur.cast()));
-                cur = cur.wrapping_add(1);
-            } else {
-                let prevp = cur;
-                let flag = get_affitem(aff.af_flagtype, &mut cur);
-                if flag != 0 {
-                    crate::memory::cstr_ncpy(
-                        key.as_mut_ptr().cast(),
-                        prevp.cast(),
-                        crate::memory::ptr_offset_from(cur, prevp) as usize,
-                    );
-                    let key_bytes = crate::memory::cstr_as_bytes(key.as_ptr().cast());
-                    let id = if let Some(ci) = aff.af_comp.get(key_bytes) {
-                        ci.ci_new_id
-                    } else {
-                        let mut ci = Compitem {
-                            ci_key: [0; AH_KEY_LEN],
-                            ci_flag: flag,
-                            ci_new_id: 0,
-                        };
-                        crate::memory::cstr_cpy(ci.ci_key.as_mut_ptr().cast(), key.as_ptr().cast());
-                        let mut new_id: i32;
-                        loop {
-                            check_renumber(spin);
-                            new_id = spin.si_newcomp_id;
-                            spin.si_newcomp_id -= 1;
-                            if vim_strchr(c"/?*+[]\\-^", new_id).is_null() {
-                                break;
-                            }
-                        }
-                        ci.ci_new_id = new_id;
-                        aff.af_comp.insert(key_bytes.to_vec(), ci);
-                        new_id
+    let mut cur = crate::memory::cstr_as_bytes(compflags);
+    while !cur.is_empty() {
+        if matches!(cur[0], b'/' | b'?' | b'*' | b'+' | b'[' | b']') {
+            bytes.push(cur[0]);
+            cur = &cur[1..];
+        } else {
+            let prev = cur;
+            let flag = get_affitem(aff.af_flagtype, &mut cur);
+            if flag != 0 {
+                let key_len = (prev.len() - cur.len()).min(AH_KEY_LEN - 1);
+                let key_bytes = &prev[..key_len];
+                let id = if let Some(ci) = aff.af_comp.get(key_bytes) {
+                    ci.ci_new_id
+                } else {
+                    let mut ci = Compitem {
+                        ci_key: [0; AH_KEY_LEN],
+                        ci_flag: flag,
+                        ci_new_id: 0,
                     };
-                    bytes.push(id as u8);
-                }
-                if aff.af_flagtype == AFT_NUM && crate::memory::cstr_first_byte(cur.cast()) == b','
-                {
-                    cur = cur.wrapping_add(1);
-                }
+                    ci.ci_key[..key_len].copy_from_slice(key_bytes);
+                    let mut new_id: i32;
+                    loop {
+                        check_renumber(spin);
+                        new_id = spin.si_newcomp_id;
+                        spin.si_newcomp_id -= 1;
+                        if vim_strchr(c"/?*+[]\\-^", new_id).is_null() {
+                            break;
+                        }
+                    }
+                    ci.ci_new_id = new_id;
+                    aff.af_comp.insert(key_bytes.to_vec(), ci);
+                    new_id
+                };
+                bytes.push(id as u8);
+            }
+            if aff.af_flagtype == AFT_NUM && cur.first() == Some(&b',') {
+                cur = &cur[1..];
             }
         }
-
-        spin.si_compflags = Some(std::ffi::CString::new(bytes).unwrap());
     }
+
+    spin.si_compflags = Some(std::ffi::CString::new(bytes).unwrap());
 }
 
 fn check_renumber(spin: &mut Spellinfo) {
@@ -2761,13 +2756,13 @@ fn flag_in_afflist(flagtype: i32, afflist: impl crate::strings::IntoCCharPtr, fl
         match flagtype {
             AFT_CHAR => !vim_strchr(afflist, flag as i32).is_null(),
             AFT_CAPLONG | AFT_LONG => {
-                let mut p = afflist;
-                while !crate::memory::cstr_is_empty(p) {
-                    let mut n = mb_ptr2char_adv(&mut p) as u32;
+                let mut rem = crate::memory::cstr_as_bytes(afflist);
+                while !rem.is_empty() {
+                    let mut n = mb_ptr2char_adv(&mut rem) as u32;
                     if (flagtype == AFT_LONG || (n >= b'A' as u32 && n <= b'Z' as u32))
-                        && !crate::memory::cstr_is_empty(p)
+                        && !rem.is_empty()
                     {
-                        n = (mb_ptr2char_adv(&mut p) as u32) + (n << 16);
+                        n = (mb_ptr2char_adv(&mut rem) as u32) + (n << 16);
                     }
                     if n == flag {
                         return true;
@@ -2776,9 +2771,9 @@ fn flag_in_afflist(flagtype: i32, afflist: impl crate::strings::IntoCCharPtr, fl
                 false
             }
             AFT_NUM => {
-                let mut p = afflist;
-                while !crate::memory::cstr_is_empty(p) {
-                    let digits = getdigits_int(&mut p, true, 0);
+                let mut rem = crate::memory::cstr_as_bytes(afflist);
+                while !rem.is_empty() {
+                    let digits = getdigits_int(&mut rem, true, 0);
                     debug_assert!(digits >= 0);
                     let mut n = digits as u32;
                     if n == 0 {
@@ -2787,8 +2782,8 @@ fn flag_in_afflist(flagtype: i32, afflist: impl crate::strings::IntoCCharPtr, fl
                     if n == flag {
                         return true;
                     }
-                    if !crate::memory::cstr_is_empty(p) {
-                        p = p.wrapping_add(1);
+                    if !rem.is_empty() {
+                        rem = &rem[1..];
                     }
                 }
                 false
@@ -3120,33 +3115,25 @@ fn get_pfxlist(
     store_afflist: &mut [u8],
     cntp: &mut i32,
 ) -> bool {
-    let afflist: *mut u8 = afflist.into_c_char_ptr().cast_mut().cast();
-    {
-        let mut key = [0u8; AH_KEY_LEN];
-
-        let mut p = afflist;
-        while !crate::memory::cstr_is_empty(p.cast()) {
-            let prevp = p;
-            if get_affitem(affile.af_flagtype, &mut p) != 0 {
-                crate::memory::cstr_ncpy(
-                    key.as_mut_ptr().cast(),
-                    prevp.cast(),
-                    crate::memory::ptr_offset_from(p, prevp) as usize,
-                );
-                let key_bytes = crate::memory::cstr_as_bytes(key.as_ptr().cast());
-                if let Some(ah) = affile.af_pref.get(key_bytes) {
-                    let id = ah.ah_new_id;
-                    if id != 0 && !store_afflist_add(store_afflist, cntp, id) {
-                        return false;
-                    }
+    let afflist = afflist.into_c_char_ptr();
+    let mut rem = crate::memory::cstr_as_bytes(afflist);
+    while !rem.is_empty() {
+        let prev = rem;
+        if get_affitem(affile.af_flagtype, &mut rem) != 0 {
+            let key_len = (prev.len() - rem.len()).min(AH_KEY_LEN - 1);
+            let key_bytes = &prev[..key_len];
+            if let Some(ah) = affile.af_pref.get(key_bytes) {
+                let id = ah.ah_new_id;
+                if id != 0 && !store_afflist_add(store_afflist, cntp, id) {
+                    return false;
                 }
             }
-            if affile.af_flagtype == AFT_NUM && crate::memory::cstr_first_byte(p.cast()) == b',' {
-                p = p.wrapping_add(1);
-            }
         }
-        true
+        if affile.af_flagtype == AFT_NUM && rem.first() == Some(&b',') {
+            rem = &rem[1..];
+        }
     }
+    true
 }
 
 fn get_compflags(
@@ -3155,32 +3142,24 @@ fn get_compflags(
     store_afflist: &mut [u8],
     cntp: &mut i32,
 ) -> bool {
-    let afflist: *mut u8 = afflist.into_c_char_ptr().cast_mut().cast();
-    {
-        let mut key = [0u8; AH_KEY_LEN];
-
-        let mut p = afflist;
-        while !crate::memory::cstr_is_empty(p.cast()) {
-            let prevp = p;
-            if get_affitem(affile.af_flagtype, &mut p) != 0 {
-                crate::memory::cstr_ncpy(
-                    key.as_mut_ptr().cast(),
-                    prevp.cast(),
-                    crate::memory::ptr_offset_from(p, prevp) as usize,
-                );
-                let key_bytes = crate::memory::cstr_as_bytes(key.as_ptr().cast());
-                if let Some(ci) = affile.af_comp.get(key_bytes)
-                    && !store_afflist_add(store_afflist, &mut *cntp, ci.ci_new_id)
-                {
-                    return false;
-                }
-            }
-            if affile.af_flagtype == AFT_NUM && crate::memory::cstr_first_byte(p.cast()) == b',' {
-                p = p.wrapping_add(1);
+    let afflist = afflist.into_c_char_ptr();
+    let mut rem = crate::memory::cstr_as_bytes(afflist);
+    while !rem.is_empty() {
+        let prev = rem;
+        if get_affitem(affile.af_flagtype, &mut rem) != 0 {
+            let key_len = (prev.len() - rem.len()).min(AH_KEY_LEN - 1);
+            let key_bytes = &prev[..key_len];
+            if let Some(ci) = affile.af_comp.get(key_bytes)
+                && !store_afflist_add(store_afflist, &mut *cntp, ci.ci_new_id)
+            {
+                return false;
             }
         }
-        true
+        if affile.af_flagtype == AFT_NUM && rem.first() == Some(&b',') {
+            rem = &rem[1..];
+        }
     }
+    true
 }
 
 fn store_aff_word(
@@ -3261,15 +3240,15 @@ fn store_aff_word(
                             } else {
                                 xstrlcpy(newword.as_mut_ptr().cast(), word.cast(), MAXWLEN);
                                 if let Some(ae_chop) = ae_chop {
-                                    let mut p = newword.as_mut_ptr().wrapping_add(
-                                        crate::memory::cstr_len(newword.as_ptr().cast()),
-                                    );
+                                    let nw_bytes =
+                                        crate::memory::cstr_as_bytes(newword.as_ptr().cast());
+                                    let mut end_idx = nw_bytes.len();
                                     let mut i = mb_charlen(ae_chop);
                                     while i > 0 {
-                                        mb_ptr_back(newword.as_ptr(), &mut p);
+                                        crate::mbyte::mb_idx_back(nw_bytes, &mut end_idx);
                                         i -= 1;
                                     }
-                                    crate::memory::cstr_ncpy(p.cast(), c"", 0);
+                                    newword[end_idx] = 0;
                                 }
                                 if let Some(ae_add) = ae_add {
                                     {
@@ -5430,9 +5409,10 @@ fn set_spell_charflags(
     let flags = crate::memory::cstr_slice(flags_in, cnt.max(0) as usize);
     let fol = fol.into_c_char_ptr();
     let mut new_st = Spelltab::new();
-    let mut p = fol;
+    let p = fol;
 
     clear_spell_chartab(&mut new_st);
+    let mut fold_rem = crate::memory::cstr_as_bytes(p);
 
     for i in 0..128 {
         if let Some(&fl) = flags.get(i) {
@@ -5440,8 +5420,8 @@ fn set_spell_charflags(
             new_st.st_isu[i + 128] = (fl & CF_UPPER) != 0;
         }
 
-        if !crate::memory::cstr_is_empty(p) {
-            let c = mb_ptr2char_adv(&mut p);
+        if !fold_rem.is_empty() {
+            let c = mb_ptr2char_adv(&mut fold_rem);
             new_st.st_fold[i + 128] = c as u8;
             if (i + 128) as i32 != c && new_st.st_isu[i + 128] && c < 256 {
                 new_st.st_upper[c as usize] = (i + 128) as u8;
@@ -5509,9 +5489,9 @@ fn set_map_str(lp: &mut Slang, map: impl crate::strings::IntoCCharPtr) {
         }
         lp.sl_map_hash.clear();
 
-        let mut p = map;
-        while !crate::memory::cstr_is_empty(p) {
-            let c = mb_cptr2char_adv(&mut p);
+        let mut rem = crate::memory::cstr_as_bytes(map);
+        while !rem.is_empty() {
+            let c = mb_cptr2char_adv(&mut rem);
             if c == b'/' as i32 {
                 headc = 0;
             } else {

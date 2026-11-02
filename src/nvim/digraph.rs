@@ -1,7 +1,7 @@
 //! Digraph and keymap functions (`src/nvim/digraph.c`).
 
 use crate::charset::{
-    NUL, ascii_isdigit, char2cells, getdigits_int, is_special, skiptowhite, skipwhite,
+    NUL, char2cells, getdigits_int, is_special, skiptowhite, skipwhite, skipwhite_slice,
 };
 use crate::drawscreen::status_redraw_curbuf;
 use crate::errors::*;
@@ -1766,13 +1766,14 @@ pub fn putdigraph(str_: impl crate::strings::IntoCCharPtr) {
             return;
         }
 
-        str = skipwhite(str);
+        let mut rem = skipwhite_slice(crate::memory::cstr_as_bytes(str));
 
-        if !ascii_isdigit(crate::memory::cstr_first_char(str)) {
+        if !rem.first().is_some_and(u8::is_ascii_digit) {
             emsg(gettext(E_NUMBER_EXP));
             return;
         }
-        let n = getdigits_int(&mut str, true, 0);
+        let n = getdigits_int(&mut rem, true, 0);
+        str = str.wrapping_add(crate::memory::cstr_len(str) - rem.len());
 
         registerdigraph(i32::from(char1), i32::from(char2), n);
     }
@@ -1933,13 +1934,13 @@ fn printdigraph(dp: &DigraphEntry, previous: Option<&mut DigrResult>) {
 fn get_digraph_chars(arg: &TypVal, char1: &mut i32, char2: &mut i32) -> bool {
     let mut buf_chars = [0u8; NUMBUFLEN];
     let chars = tv_get_string_buf_chk(arg, &mut buf_chars);
-    let mut p = chars.map_or(std::ptr::null(), std::ffi::CStr::as_ptr);
+    let mut rem = chars.map_or(&[][..], std::ffi::CStr::to_bytes);
 
-    if !crate::memory::cstr_is_empty(p) {
-        *char1 = mb_cptr2char_adv(&mut p);
-        if !crate::memory::cstr_is_empty(p) {
-            *char2 = mb_cptr2char_adv(&mut p);
-            if crate::memory::cstr_is_empty(p) {
+    if !rem.is_empty() {
+        *char1 = mb_cptr2char_adv(&mut rem);
+        if !rem.is_empty() {
+            *char2 = mb_cptr2char_adv(&mut rem);
+            if rem.is_empty() {
                 if check_digraph_chars_valid(*char1, *char2) {
                     return true;
                 }
@@ -1962,9 +1963,9 @@ fn digraph_set_common(argchars: &TypVal, argdigraph: &TypVal) -> bool {
     let Some(digraph) = tv_get_string_buf_chk(argdigraph, &mut buf_digraph) else {
         return false;
     };
-    let mut p = digraph.as_ptr();
-    let n = mb_cptr2char_adv(&mut p);
-    if !crate::memory::cstr_is_empty(p) {
+    let mut rem = digraph.to_bytes();
+    let n = mb_cptr2char_adv(&mut rem);
+    if !rem.is_empty() {
         semsg!(
             gettext(E_DIGRAPH_ARGUMENT_MUST_BE_ONE_CHARACTER_STR),
             digraph,

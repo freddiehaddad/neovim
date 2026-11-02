@@ -740,13 +740,13 @@ pub fn nvim_cmd(
                         is_numeric = true;
                         count_value = first_arg.data.integer();
                     } else if first_arg.obj_type == ObjectType::ObjectTypeString {
-                        let mut endptr = first_arg.data.string().data.cast_const();
-                        let val = getdigits_long(&mut endptr, false, 0);
-                        if *endptr == 0 && first_arg.data.string().size > 0 {
+                        let s = first_arg.data.string();
+                        let str_bytes = s.as_bytes();
+                        let mut rem = str_bytes;
+                        let val = getdigits_long(&mut rem, false, 0);
+                        if rem.is_empty() && !str_bytes.is_empty() {
                             is_numeric = true;
-                            {
-                                count_value = val as _;
-                            }
+                            count_value = val as _;
                         }
                     }
 

@@ -213,11 +213,6 @@ pub const fn ascii_isbdigit(c: i32) -> bool {
 }
 
 #[inline]
-const fn ascii_isodigit(c: i32) -> bool {
-    c >= b'0' as i32 && c <= b'7' as i32
-}
-
-#[inline]
 pub fn ascii2cells(b: i32) -> i32 {
     if (b' ' as i32..=b'~' as i32).contains(&b) {
         1
@@ -289,7 +284,7 @@ pub fn parse_isopt(
         }
 
         let mut c = if p[0].is_ascii_digit() {
-            getdigits_int_slice(&mut p, false, 0)
+            getdigits_int(&mut p, false, 0)
         } else {
             crate::mbyte::mb_slice2char_adv(&mut p)
         };
@@ -298,7 +293,7 @@ pub fn parse_isopt(
         if p.first() == Some(&b'-') && p.get(1).copied().unwrap_or(0) != 0 {
             p = &p[1..];
             c2 = if p.first().is_some_and(u8::is_ascii_digit) {
-                getdigits_int_slice(&mut p, false, 0)
+                getdigits_int(&mut p, false, 0)
             } else {
                 crate::mbyte::mb_slice2char_adv(&mut p)
             };
@@ -958,60 +953,7 @@ pub fn skip_to_newline(p: impl crate::strings::IntoCCharPtr) -> RawCCharPtrMut {
     p.wrapping_add(off).cast_mut()
 }
 
-pub trait RawByteCursor: Copy {
-    fn as_byte_ptr(self) -> *const u8;
-    fn from_byte_ptr(p: *const u8) -> Self;
-}
-
-impl RawByteCursor for *const u8 {
-    #[inline]
-    fn as_byte_ptr(self) -> *const u8 {
-        self
-    }
-
-    #[inline]
-    fn from_byte_ptr(p: *const u8) -> Self {
-        p
-    }
-}
-
-impl RawByteCursor for *mut u8 {
-    #[inline]
-    fn as_byte_ptr(self) -> *const u8 {
-        self
-    }
-
-    #[inline]
-    fn from_byte_ptr(p: *const u8) -> Self {
-        p.cast_mut()
-    }
-}
-
-impl RawByteCursor for *const i8 {
-    #[inline]
-    fn as_byte_ptr(self) -> *const u8 {
-        self.cast()
-    }
-
-    #[inline]
-    fn from_byte_ptr(p: *const u8) -> Self {
-        p.cast()
-    }
-}
-
-impl RawByteCursor for *mut i8 {
-    #[inline]
-    fn as_byte_ptr(self) -> *const u8 {
-        self.cast()
-    }
-
-    #[inline]
-    fn from_byte_ptr(p: *const u8) -> Self {
-        p.cast_mut().cast()
-    }
-}
-
-pub fn try_getdigits_slice(s: &mut &[u8], nr: &mut i64) -> bool {
+pub fn try_getdigits(s: &mut &[u8], nr: &mut i64) -> bool {
     let orig = *s;
     let mut p = orig;
 
@@ -1073,15 +1015,6 @@ pub fn try_getdigits_slice(s: &mut &[u8], nr: &mut i64) -> bool {
     true
 }
 
-pub fn try_getdigits<P: RawByteCursor>(pp: &mut P, nr: &mut i64) -> bool {
-    let orig = pp.as_byte_ptr();
-    let bytes = crate::memory::cstr_as_bytes(orig.cast());
-    let mut rem = bytes;
-    let ok = try_getdigits_slice(&mut rem, nr);
-    *pp = P::from_byte_ptr(orig.wrapping_add(bytes.len() - rem.len()));
-    ok
-}
-
 #[inline]
 pub fn parse_i64_prefix(bytes: &[u8]) -> i64 {
     let mut s = bytes;
@@ -1113,17 +1046,17 @@ pub fn parse_i64_prefix(bytes: &[u8]) -> i64 {
     if neg { acc.wrapping_neg() } else { acc }
 }
 
-pub fn getdigits_slice(s: &mut &[u8], strict: bool, def: i64) -> i64 {
+pub fn getdigits(s: &mut &[u8], strict: bool, def: i64) -> i64 {
     let mut number: i64 = 0;
-    let ok = try_getdigits_slice(s, &mut number);
+    let ok = try_getdigits(s, &mut number);
     if strict && !ok {
         std::process::abort();
     }
     if ok { number } else { def }
 }
 
-pub fn getdigits_int_slice(s: &mut &[u8], strict: bool, def: i32) -> i32 {
-    let number = getdigits_slice(s, strict, i64::from(def));
+pub fn getdigits_int(s: &mut &[u8], strict: bool, def: i32) -> i32 {
+    let number = getdigits(s, strict, i64::from(def));
     match i32::try_from(number) {
         Ok(v) => v,
         Err(_) => {
@@ -1133,50 +1066,12 @@ pub fn getdigits_int_slice(s: &mut &[u8], strict: bool, def: i32) -> i32 {
     }
 }
 
-pub fn getdigits_long_slice(s: &mut &[u8], strict: bool, def: i64) -> i64 {
-    getdigits_slice(s, strict, def)
+pub fn getdigits_long(s: &mut &[u8], strict: bool, def: i64) -> i64 {
+    getdigits(s, strict, def)
 }
 
-pub fn getdigits_int32_slice(s: &mut &[u8], strict: bool, def: i32) -> i32 {
-    getdigits_int_slice(s, strict, def)
-}
-
-pub fn getdigits<P: RawByteCursor>(pp: &mut P, strict: bool, def: i64) -> i64 {
-    let mut number: i64 = 0;
-    let ok = try_getdigits(pp, &mut number);
-    if strict && !ok {
-        std::process::abort();
-    }
-    if ok { number } else { def }
-}
-
-pub fn getdigits_int<P: RawByteCursor>(pp: &mut P, strict: bool, def: i32) -> i32 {
-    let number = getdigits(pp, strict, i64::from(def));
-    match i32::try_from(number) {
-        Ok(v) => v,
-        Err(_) => {
-            assert!(!strict);
-            def
-        }
-    }
-}
-
-pub fn getdigits_long<P: RawByteCursor>(pp: &mut P, strict: bool, def: i64) -> i64 {
-    let orig = pp.as_byte_ptr();
-    let bytes = crate::memory::cstr_as_bytes(orig.cast());
-    let mut rem = bytes;
-    let res = getdigits_long_slice(&mut rem, strict, def);
-    *pp = P::from_byte_ptr(orig.wrapping_add(bytes.len() - rem.len()));
-    res
-}
-
-pub fn getdigits_int32<P: RawByteCursor>(pp: &mut P, strict: bool, def: i32) -> i32 {
-    let orig = pp.as_byte_ptr();
-    let bytes = crate::memory::cstr_as_bytes(orig.cast());
-    let mut rem = bytes;
-    let res = getdigits_int32_slice(&mut rem, strict, def);
-    *pp = P::from_byte_ptr(orig.wrapping_add(bytes.len() - rem.len()));
-    res
+pub fn getdigits_int32(s: &mut &[u8], strict: bool, def: i32) -> i32 {
+    getdigits_int(s, strict, def)
 }
 
 pub fn vim_isblankline(lbuf: impl crate::strings::IntoCCharPtr) -> bool {
@@ -1190,236 +1085,211 @@ pub fn vim_isblankline(lbuf: impl crate::strings::IntoCCharPtr) -> bool {
 pub fn vim_slice2nr(
     bytes: &[u8],
     prep: Option<&mut i32>,
-    len: Option<&mut i32>,
+    mut len: Option<&mut i32>,
     what: i32,
     nptr: Option<&mut Varnumber>,
     unptr: Option<&mut Uvarnumber>,
     strict: bool,
-    overflow: Option<&mut bool>,
+    mut overflow: Option<&mut bool>,
 ) {
-    vim_str2nr(
-        bytes,
-        prep,
-        len,
-        what,
-        nptr,
-        unptr,
-        bytes.len() as i32,
-        strict,
-        overflow,
-    );
+    let mut idx: usize = 0;
+    let mut pre: i32 = 0;
+    let negative = bytes.first() == Some(&b'-');
+    let mut un: Uvarnumber = 0;
+
+    if let Some(len) = len.as_deref_mut() {
+        *len = 0;
+    }
+
+    if negative {
+        idx = 1;
+    }
+
+    let rem = &bytes[idx..];
+    let base: Uvarnumber;
+    if (what & STR2NR_FORCE) != 0 {
+        match what & !(STR2NR_FORCE | STR2NR_QUOTE) {
+            STR2NR_HEX => {
+                if rem.len() > 2
+                    && rem[0] == b'0'
+                    && matches!(rem[1], b'x' | b'X')
+                    && rem[2].is_ascii_hexdigit()
+                {
+                    idx += 2;
+                }
+                base = 16;
+            }
+            STR2NR_BIN => {
+                if rem.len() > 2
+                    && rem[0] == b'0'
+                    && matches!(rem[1], b'b' | b'B')
+                    && matches!(rem[2], b'0' | b'1')
+                {
+                    idx += 2;
+                }
+                base = 2;
+            }
+            x if x == STR2NR_OCT || x == STR2NR_OOCT || x == (STR2NR_OCT | STR2NR_OOCT) => {
+                if rem.len() > 2
+                    && rem[0] == b'0'
+                    && matches!(rem[1], b'o' | b'O')
+                    && matches!(rem[2], b'0'..=b'7')
+                {
+                    idx += 2;
+                }
+                base = 8;
+            }
+            0 => {
+                base = 10;
+            }
+            _ => std::process::abort(),
+        }
+    } else if (what & (STR2NR_HEX | STR2NR_OCT | STR2NR_OOCT | STR2NR_BIN)) != 0
+        && rem.len() > 1
+        && rem[0] == b'0'
+        && rem[1] != b'8'
+        && rem[1] != b'9'
+    {
+        pre = i32::from(rem[1]);
+        if (what & STR2NR_HEX) != 0
+            && rem.len() > 2
+            && matches!(rem[1], b'X' | b'x')
+            && rem[2].is_ascii_hexdigit()
+        {
+            idx += 2;
+            base = 16;
+        } else if (what & STR2NR_BIN) != 0
+            && rem.len() > 2
+            && matches!(rem[1], b'B' | b'b')
+            && matches!(rem[2], b'0' | b'1')
+        {
+            idx += 2;
+            base = 2;
+        } else if (what & STR2NR_OOCT) != 0
+            && rem.len() > 2
+            && matches!(rem[1], b'O' | b'o')
+            && matches!(rem[2], b'0'..=b'7')
+        {
+            idx += 2;
+            base = 8;
+        } else {
+            pre = 0;
+            if (what & STR2NR_OCT) == 0 || !matches!(rem[1], b'0'..=b'7') {
+                base = 10;
+            } else {
+                let is_oct = rem[2..]
+                    .iter()
+                    .take_while(|&&b| b.is_ascii_digit())
+                    .all(|&b| b <= b'7');
+                if is_oct {
+                    pre = b'0' as i32;
+                    base = 8;
+                } else {
+                    base = 10;
+                }
+            }
+        }
+    } else {
+        base = 10;
+    }
+
+    let after_prefix = idx;
+    let check_cond = |b: u8| -> bool {
+        match base {
+            2 => matches!(b, b'0' | b'1'),
+            8 => matches!(b, b'0'..=b'7'),
+            10 => b.is_ascii_digit(),
+            16 => b.is_ascii_hexdigit(),
+            _ => unreachable!(),
+        }
+    };
+    while idx < bytes.len() {
+        if (what & STR2NR_QUOTE) != 0
+            && idx > after_prefix
+            && bytes[idx] == b'\''
+            && bytes.get(idx + 1).is_some_and(|&b| check_cond(b))
+        {
+            idx += 1;
+            continue;
+        }
+        let b = bytes[idx];
+        if !check_cond(b) {
+            break;
+        }
+        let digit = if base == 16 {
+            hex2nr(i32::from(b)) as Uvarnumber
+        } else {
+            Uvarnumber::from(b - b'0')
+        };
+        if un < UVARNUMBER_MAX / base
+            || (un == UVARNUMBER_MAX / base && (base != 10 || digit <= UVARNUMBER_MAX % 10))
+        {
+            un = base * un + digit;
+        } else {
+            un = UVARNUMBER_MAX;
+            if let Some(overflow) = overflow.as_deref_mut() {
+                *overflow = true;
+            }
+        }
+        idx += 1;
+    }
+
+    if strict && bytes.get(idx).is_some_and(u8::is_ascii_alphanumeric) {
+        return;
+    }
+
+    if let Some(prep) = prep {
+        *prep = pre;
+    }
+
+    if let Some(len) = len {
+        *len = idx as i32;
+    }
+
+    if let Some(nptr) = nptr {
+        if negative {
+            if un > VARNUMBER_MAX {
+                *nptr = VARNUMBER_MIN;
+                if let Some(overflow) = overflow.as_deref_mut() {
+                    *overflow = true;
+                }
+            } else {
+                *nptr = -(un as Varnumber);
+            }
+        } else {
+            if un > VARNUMBER_MAX {
+                un = VARNUMBER_MAX;
+                if let Some(overflow) = overflow {
+                    *overflow = true;
+                }
+            }
+            *nptr = un as Varnumber;
+        }
+    }
+
+    if let Some(unptr) = unptr {
+        *unptr = un;
+    }
 }
 
 pub fn vim_str2nr(
     start: impl crate::strings::IntoCCharPtr,
     prep: Option<&mut i32>,
-    mut len: Option<&mut i32>,
+    len: Option<&mut i32>,
     what: i32,
     nptr: Option<&mut Varnumber>,
     unptr: Option<&mut Uvarnumber>,
     maxlen: i32,
     strict: bool,
-    mut overflow: Option<&mut bool>,
+    overflow: Option<&mut bool>,
 ) {
     let start = start.into_c_char_ptr();
-    {
-        let mut ptr = start;
-        let string_ended = |p: RawCCharPtr| -> bool {
-            !(maxlen == 0 || (crate::memory::ptr_offset_from(p, start) as i32) < maxlen)
-        };
-        let mut pre: i32 = 0;
-        let negative = crate::memory::cstr_first_byte(ptr) == b'-';
-        let mut un: Uvarnumber = 0;
-
-        if let Some(len) = len.as_deref_mut() {
-            *len = 0;
-        }
-
-        if negative {
-            ptr = ptr.wrapping_add(1);
-        }
-
-        let base: Uvarnumber;
-        if (what & STR2NR_FORCE) != 0 {
-            match what & !(STR2NR_FORCE | STR2NR_QUOTE) {
-                STR2NR_HEX => {
-                    if !string_ended(ptr.wrapping_add(2))
-                        && crate::memory::cstr_first_byte(ptr) == b'0'
-                        && (crate::memory::cstr_byte_at(ptr, 1) == b'x'
-                            || crate::memory::cstr_byte_at(ptr, 1) == b'X')
-                        && ascii_isxdigit(crate::memory::cstr_char_at(ptr, 2))
-                    {
-                        ptr = ptr.wrapping_add(2);
-                    }
-                    base = 16;
-                }
-                STR2NR_BIN => {
-                    if !string_ended(ptr.wrapping_add(2))
-                        && crate::memory::cstr_first_byte(ptr) == b'0'
-                        && (crate::memory::cstr_byte_at(ptr, 1) == b'b'
-                            || crate::memory::cstr_byte_at(ptr, 1) == b'B')
-                        && ascii_isbdigit(crate::memory::cstr_char_at(ptr, 2))
-                    {
-                        ptr = ptr.wrapping_add(2);
-                    }
-                    base = 2;
-                }
-                x if x == STR2NR_OCT || x == STR2NR_OOCT || x == (STR2NR_OCT | STR2NR_OOCT) => {
-                    if !string_ended(ptr.wrapping_add(2))
-                        && crate::memory::cstr_first_byte(ptr) == b'0'
-                        && (crate::memory::cstr_byte_at(ptr, 1) == b'o'
-                            || crate::memory::cstr_byte_at(ptr, 1) == b'O')
-                        && ascii_isodigit(crate::memory::cstr_char_at(ptr, 2))
-                    {
-                        ptr = ptr.wrapping_add(2);
-                    }
-                    base = 8;
-                }
-                0 => {
-                    base = 10;
-                }
-                _ => std::process::abort(),
-            }
-        } else if (what & (STR2NR_HEX | STR2NR_OCT | STR2NR_OOCT | STR2NR_BIN)) != 0
-            && !string_ended(ptr.wrapping_add(1))
-            && crate::memory::cstr_first_byte(ptr) == b'0'
-            && crate::memory::cstr_byte_at(ptr, 1) != b'8'
-            && crate::memory::cstr_byte_at(ptr, 1) != b'9'
-        {
-            pre = i32::from(crate::memory::cstr_byte_at(ptr, 1));
-            if (what & STR2NR_HEX) != 0
-                && !string_ended(ptr.wrapping_add(2))
-                && (pre == b'X' as i32 || pre == b'x' as i32)
-                && ascii_isxdigit(crate::memory::cstr_char_at(ptr, 2))
-            {
-                ptr = ptr.wrapping_add(2);
-                base = 16;
-            } else if (what & STR2NR_BIN) != 0
-                && !string_ended(ptr.wrapping_add(2))
-                && (pre == b'B' as i32 || pre == b'b' as i32)
-                && ascii_isbdigit(crate::memory::cstr_char_at(ptr, 2))
-            {
-                ptr = ptr.wrapping_add(2);
-                base = 2;
-            } else if (what & STR2NR_OOCT) != 0
-                && !string_ended(ptr.wrapping_add(2))
-                && (pre == b'O' as i32 || pre == b'o' as i32)
-                && ascii_isodigit(crate::memory::cstr_char_at(ptr, 2))
-            {
-                ptr = ptr.wrapping_add(2);
-                base = 8;
-            } else {
-                pre = 0;
-                if (what & STR2NR_OCT) == 0 || !ascii_isodigit(crate::memory::cstr_char_at(ptr, 1))
-                {
-                    base = 10;
-                } else {
-                    let mut is_oct = true;
-                    let mut i: usize = 2;
-                    while !string_ended(ptr.wrapping_add(i))
-                        && ascii_isdigit(crate::memory::cstr_char_at(ptr, i))
-                    {
-                        if (crate::memory::cstr_byte_at(ptr, i)) > b'7' {
-                            is_oct = false;
-                            break;
-                        }
-                        i += 1;
-                    }
-                    if is_oct {
-                        pre = b'0' as i32;
-                        base = 8;
-                    } else {
-                        base = 10;
-                    }
-                }
-            }
-        } else {
-            base = 10;
-        }
-
-        let after_prefix = ptr;
-        while !string_ended(ptr) {
-            let check_cond = |c: i32| -> bool {
-                match base {
-                    2 => c == b'0' as i32 || c == b'1' as i32,
-                    8 => ascii_isodigit(c),
-                    10 => ascii_isdigit(c),
-                    16 => ascii_isxdigit(c),
-                    _ => unreachable!(),
-                }
-            };
-            if (what & STR2NR_QUOTE) != 0
-                && ptr > after_prefix
-                && crate::memory::cstr_first_byte(ptr) == b'\''
-            {
-                ptr = ptr.wrapping_add(1);
-                if !string_ended(ptr) && check_cond(crate::memory::cstr_first_char(ptr)) {
-                    continue;
-                }
-                ptr = ptr.wrapping_sub(1);
-            }
-            let c = crate::memory::cstr_first_char(ptr);
-            if !check_cond(c) {
-                break;
-            }
-            let digit = if base == 16 {
-                hex2nr(c) as Uvarnumber
-            } else {
-                (c - b'0' as i32) as Uvarnumber
-            };
-            if un < UVARNUMBER_MAX / base
-                || (un == UVARNUMBER_MAX / base && (base != 10 || digit <= UVARNUMBER_MAX % 10))
-            {
-                un = base * un + digit;
-            } else {
-                un = UVARNUMBER_MAX;
-                if let Some(overflow) = overflow.as_deref_mut() {
-                    *overflow = true;
-                }
-            }
-            ptr = ptr.wrapping_add(1);
-        }
-
-        if strict
-            && (crate::memory::ptr_offset_from(ptr, start) as i32) != maxlen
-            && ascii_isalnum(crate::memory::cstr_first_char(ptr))
-        {
-            return;
-        }
-
-        if let Some(prep) = prep {
-            *prep = pre;
-        }
-
-        if let Some(len) = len {
-            *len = crate::memory::ptr_offset_from(ptr, start) as i32;
-        }
-
-        if let Some(nptr) = nptr {
-            if negative {
-                if un > VARNUMBER_MAX {
-                    *nptr = VARNUMBER_MIN;
-                    if let Some(overflow) = overflow.as_deref_mut() {
-                        *overflow = true;
-                    }
-                } else {
-                    *nptr = -(un as Varnumber);
-                }
-            } else {
-                if un > VARNUMBER_MAX {
-                    un = VARNUMBER_MAX;
-                    if let Some(overflow) = overflow {
-                        *overflow = true;
-                    }
-                }
-                *nptr = un as Varnumber;
-            }
-        }
-
-        if let Some(unptr) = unptr {
-            *unptr = un;
-        }
-    }
+    let bytes = if maxlen > 0 {
+        crate::memory::cstr_prefix_bytes(start, maxlen as usize)
+    } else {
+        crate::memory::cstr_as_bytes(start)
+    };
+    vim_slice2nr(bytes, prep, len, what, nptr, unptr, strict, overflow);
 }
 
 pub const fn hex2nr(c: i32) -> i32 {

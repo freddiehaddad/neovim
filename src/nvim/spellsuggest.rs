@@ -2,7 +2,9 @@
 use crate::buffer::FileBuf;
 use crate::change::inserted_bytes;
 use crate::charset::{ascii_isdigit, ascii_iswhite, getdigits_int, skiptowhite, skipwhite};
-use crate::cursor::{Colnr, check_cursor, get_cursor_line_len, get_cursor_line_ptr};
+use crate::cursor::{
+    Colnr, check_cursor, get_cursor_line_len, get_cursor_line_ptr, get_cursor_line_slice,
+};
 use crate::errors::*;
 use crate::eval::typval::{
     TypVal, TypvalVval, VarType, tv_clear, tv_dict_add_bool, tv_dict_add_nr, tv_dict_add_str,
@@ -16,9 +18,8 @@ use crate::input::{beep_flush, prep_redo, redo_append_char, redo_append_lit, vge
 use crate::input_cmdatom::CmdSpec;
 use crate::lua::executor::nlua_call_typval;
 use crate::mbyte::{
-    mb_charlen, mb_cptr2char_adv, mb_ptr_adv, mb_ptr_back, mb_stricmp, utf_byte2len,
-    utf_char2bytes, utf_char2len, utf_head_off, utf_iscomposing_legacy, utf_ptr2char, utf_ptr2len,
-    utfc_ptr2len,
+    mb_charlen, mb_cptr2char_adv, mb_ptr_adv, mb_stricmp, utf_byte2len, utf_char2bytes,
+    utf_char2len, utf_head_off, utf_iscomposing_legacy, utf_ptr2char, utf_ptr2len, utfc_ptr2len,
 };
 use crate::memline::{ml_get_buf, ml_replace};
 use crate::memory::xstrlcpy;
@@ -550,9 +551,9 @@ pub fn spell_check_sps(
             let mut f: i32 = 0;
             if val.is_null() {
                 if keylen > 0 && ascii_isdigit(crate::memory::cstr_first_char(key)) {
-                    let mut s = key;
-                    limit = getdigits_int(&mut s, true, 0);
-                    if s != key.wrapping_add(keylen) {
+                    let mut rem = crate::memory::cstr_slice(key, keylen);
+                    limit = getdigits_int(&mut rem, true, 0);
+                    if !rem.is_empty() {
                         f = -1;
                     }
                 } else if option_slice_eq(key, keylen, c"best") {
@@ -713,10 +714,12 @@ pub fn spell_suggest(count: i32) {
         {
             curwin_mut().w_cursor = prev_cursor;
             let curline = get_cursor_line_ptr();
-            let mut p = curline.wrapping_add(curwin_mut().w_cursor.col as usize);
-            while p > curline && spell_iswordp_nmw(p, curwin_mut()) {
-                mb_ptr_back(curline, &mut p);
+            let curline_bytes = get_cursor_line_slice();
+            let mut p_idx = (curwin_mut().w_cursor.col as usize).min(curline_bytes.len());
+            while p_idx > 0 && spell_iswordp_nmw(curline.wrapping_add(p_idx), curwin_mut()) {
+                crate::mbyte::mb_idx_back(curline_bytes, &mut p_idx);
             }
+            let mut p = curline.wrapping_add(p_idx);
             while !crate::memory::cstr_is_empty(p) && !spell_iswordp_nmw(p, curwin_mut()) {
                 mb_ptr_adv(&mut p);
             }
@@ -3236,17 +3239,17 @@ fn spell_edit_score(
         let mut wbadword: [i32; MAXWLEN] = [0; MAXWLEN];
         let mut wgoodword: [i32; MAXWLEN] = [0; MAXWLEN];
         let mut badlen: usize = 0;
-        let mut p = badword;
-        while !crate::memory::cstr_is_empty(p) {
-            wbadword[badlen] = mb_cptr2char_adv(&mut p);
+        let mut rem = crate::memory::cstr_as_bytes(badword);
+        while !rem.is_empty() {
+            wbadword[badlen] = mb_cptr2char_adv(&mut rem);
             badlen += 1;
         }
         wbadword[badlen] = 0;
         badlen += 1;
         let mut goodlen: usize = 0;
-        p = goodword;
-        while !crate::memory::cstr_is_empty(p) {
-            wgoodword[goodlen] = mb_cptr2char_adv(&mut p);
+        let mut rem = crate::memory::cstr_as_bytes(goodword);
+        while !rem.is_empty() {
+            wgoodword[goodlen] = mb_cptr2char_adv(&mut rem);
             goodlen += 1;
         }
         wgoodword[goodlen] = 0;
@@ -3318,16 +3321,16 @@ fn spell_edit_score_limit_w(
         let mut wbadword: [i32; MAXWLEN] = [0; MAXWLEN];
         let mut wgoodword: [i32; MAXWLEN] = [0; MAXWLEN];
         let mut bi: usize = 0;
-        let mut p = badword;
-        while !crate::memory::cstr_is_empty(p) {
-            wbadword[bi] = mb_cptr2char_adv(&mut p);
+        let mut rem = crate::memory::cstr_as_bytes(badword);
+        while !rem.is_empty() {
+            wbadword[bi] = mb_cptr2char_adv(&mut rem);
             bi += 1;
         }
         wbadword[bi] = 0;
         let mut gi: usize = 0;
-        p = goodword;
-        while !crate::memory::cstr_is_empty(p) {
-            wgoodword[gi] = mb_cptr2char_adv(&mut p);
+        let mut rem = crate::memory::cstr_as_bytes(goodword);
+        while !rem.is_empty() {
+            wgoodword[gi] = mb_cptr2char_adv(&mut rem);
             gi += 1;
         }
         wgoodword[gi] = 0;

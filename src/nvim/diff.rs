@@ -1551,7 +1551,7 @@ fn extract_hunk(fd: *mut FILE, hunk: &mut Diffhunk, diffstyle: &mut Diffstyle) -
             if !ascii_isdigit(i32::from(line[0])) {
                 continue;
             }
-            if !parse_diff_ed(line.as_ptr().cast(), hunk) {
+            if !parse_diff_ed(crate::memory::cstr_as_bytes(line.as_ptr().cast()), hunk) {
                 continue;
             }
         } else {
@@ -1559,7 +1559,7 @@ fn extract_hunk(fd: *mut FILE, hunk: &mut Diffhunk, diffstyle: &mut Diffstyle) -
             if !line.starts_with(b"@@ ") {
                 continue;
             }
-            if !parse_diff_unified(line.as_ptr().cast(), hunk) {
+            if !parse_diff_unified(crate::memory::cstr_as_bytes(line.as_ptr().cast()), hunk) {
                 continue;
             }
         }
@@ -3560,99 +3560,80 @@ pub fn diff_lnum_win(lnum: Linenr, wp: &mut WinInfoInfo) -> Linenr {
     let n = lnum + (dp.df_lnum[u_i] - dp.df_lnum[u_idx]);
     n.min(dp.df_lnum[u_i] + dp.df_count[u_i])
 }
-fn parse_diff_ed(line: impl crate::strings::IntoCCharPtr, hunk: &mut Diffhunk) -> bool {
-    let line = line.into_c_char_ptr().cast_mut();
-    {
-        let mut p = line;
-        let f1 = getdigits_int32(&mut p, true, 0);
-        let l1 = if crate::memory::cstr_first_byte(p) == b',' {
-            p = p.wrapping_add(1);
-            getdigits_int(&mut p, true, 0)
-        } else {
-            f1
-        };
-        if crate::memory::cstr_first_byte(p) != b'a'
-            && crate::memory::cstr_first_byte(p) != b'c'
-            && crate::memory::cstr_first_byte(p) != b'd'
-        {
-            return false;
-        }
-        let difftype = crate::memory::cstr_first_byte(p);
-        p = p.wrapping_add(1);
-        let f2 = getdigits_int(&mut p, true, 0);
-        let l2 = if crate::memory::cstr_first_byte(p) == b',' {
-            p = p.wrapping_add(1);
-            getdigits_int(&mut p, true, 0)
-        } else {
-            f2
-        };
-        if l1 < f1 || l2 < f2 {
-            return false;
-        }
-        if difftype == b'a' {
-            hunk.lnum_orig = f1 + 1;
-            hunk.count_orig = 0;
-        } else {
-            hunk.lnum_orig = f1;
-            hunk.count_orig = l1 - f1 + 1;
-        }
-        if difftype == b'd' {
-            hunk.lnum_new = f2 + 1;
-            hunk.count_new = 0;
-        } else {
-            hunk.lnum_new = f2;
-            hunk.count_new = l2 - f2 + 1;
-        }
-        true
+fn parse_diff_ed(line: &[u8], hunk: &mut Diffhunk) -> bool {
+    let mut p = line;
+    let f1 = getdigits_int32(&mut p, true, 0);
+    let l1 = if let Some(after_comma) = p.strip_prefix(b",") {
+        p = after_comma;
+        getdigits_int(&mut p, true, 0)
+    } else {
+        f1
+    };
+    let Some(&difftype @ (b'a' | b'c' | b'd')) = p.first() else {
+        return false;
+    };
+    p = &p[1..];
+    let f2 = getdigits_int(&mut p, true, 0);
+    let l2 = if let Some(after_comma) = p.strip_prefix(b",") {
+        p = after_comma;
+        getdigits_int(&mut p, true, 0)
+    } else {
+        f2
+    };
+    if l1 < f1 || l2 < f2 {
+        return false;
     }
+    if difftype == b'a' {
+        hunk.lnum_orig = f1 + 1;
+        hunk.count_orig = 0;
+    } else {
+        hunk.lnum_orig = f1;
+        hunk.count_orig = l1 - f1 + 1;
+    }
+    if difftype == b'd' {
+        hunk.lnum_new = f2 + 1;
+        hunk.count_new = 0;
+    } else {
+        hunk.lnum_new = f2;
+        hunk.count_new = l2 - f2 + 1;
+    }
+    true
 }
-fn parse_diff_unified(line: impl crate::strings::IntoCCharPtr, hunk: &mut Diffhunk) -> bool {
-    let line = line.into_c_char_ptr().cast_mut();
-    {
-        let mut p = line;
-        if crate::memory::cstr_first_byte(p) == b'@'
-            && crate::memory::cstr_byte_at(p, 1) == b'@'
-            && crate::memory::cstr_byte_at(p, 2) == b' '
-            && crate::memory::cstr_byte_at(p, 3) == b'-'
-        {
-            p = p.wrapping_add(4);
-            let mut oldline = getdigits_int32(&mut p, true, 0);
-            let oldcount = if crate::memory::cstr_first_byte(p) == b',' {
-                p = p.wrapping_add(1);
-                getdigits_int(&mut p, true, 0)
-            } else {
-                1
-            };
-            if crate::memory::cstr_first_byte(p) == b' '
-                && crate::memory::cstr_byte_at(p, 1) == b'+'
-            {
-                p = p.wrapping_add(2);
-                let mut newline = getdigits_int(&mut p, true, 0);
-                let newcount = if crate::memory::cstr_first_byte(p) == b',' {
-                    p = p.wrapping_add(1);
-                    getdigits_int(&mut p, true, 0)
-                } else {
-                    1
-                };
-                if oldcount == 0 {
-                    oldline += 1;
-                }
-                if newcount == 0 {
-                    newline += 1;
-                }
-                if newline == 0 {
-                    newline = 1;
-                }
-                hunk.lnum_orig = oldline;
-                hunk.count_orig = oldcount;
-                hunk.lnum_new = newline;
-                hunk.count_new = newcount;
-                return true;
-            }
-            return false;
-        }
-        false
+fn parse_diff_unified(line: &[u8], hunk: &mut Diffhunk) -> bool {
+    let Some(mut p) = line.strip_prefix(b"@@ -") else {
+        return false;
+    };
+    let mut oldline = getdigits_int32(&mut p, true, 0);
+    let oldcount = if let Some(after_comma) = p.strip_prefix(b",") {
+        p = after_comma;
+        getdigits_int(&mut p, true, 0)
+    } else {
+        1
+    };
+    let Some(mut p) = p.strip_prefix(b" +") else {
+        return false;
+    };
+    let mut newline = getdigits_int(&mut p, true, 0);
+    let newcount = if let Some(after_comma) = p.strip_prefix(b",") {
+        p = after_comma;
+        getdigits_int(&mut p, true, 0)
+    } else {
+        1
+    };
+    if oldcount == 0 {
+        oldline += 1;
     }
+    if newcount == 0 {
+        newline += 1;
+    }
+    if newline == 0 {
+        newline = 1;
+    }
+    hunk.lnum_orig = oldline;
+    hunk.count_orig = oldcount;
+    hunk.lnum_new = newline;
+    hunk.count_new = newcount;
+    true
 }
 pub(crate) fn xdiff_out(
     start_a: i32,
@@ -3759,14 +3740,12 @@ mod tests {
             lnum_new: 0,
             count_new: 0,
         };
-        let mut ed_line = *b"2,4c5,6\n\0";
-        assert!(parse_diff_ed(ed_line.as_mut_ptr().cast(), &mut hunk));
+        assert!(parse_diff_ed(b"2,4c5,6\n", &mut hunk));
         assert_eq!(hunk.lnum_orig, 2);
         assert_eq!(hunk.count_orig, 3);
         assert_eq!(hunk.lnum_new, 5);
         assert_eq!(hunk.count_new, 2);
-        let mut uni_line = *b"@@ -10,3 +12,4 @@\n\0";
-        assert!(parse_diff_unified(uni_line.as_mut_ptr().cast(), &mut hunk));
+        assert!(parse_diff_unified(b"@@ -10,3 +12,4 @@\n", &mut hunk));
         assert_eq!(hunk.lnum_orig, 10);
         assert_eq!(hunk.count_orig, 3);
         assert_eq!(hunk.lnum_new, 12);

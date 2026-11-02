@@ -589,19 +589,20 @@ pub fn ex_history(eap: &mut Exarg) {
         return;
     }
 
-    let b0 = crate::memory::cstr_first_byte(arg);
-    let mut end = arg;
-    if !(b0.is_ascii_digit() || b0 == b'-' || b0 == b',') {
-        while (crate::memory::cstr_first_byte(end)).is_ascii_alphabetic()
-            || matches!(
-                crate::memory::cstr_first_byte(end),
-                b':' | b'=' | b'@' | b'>' | b'/' | b'?'
-            )
-        {
-            end = end.wrapping_add(1);
-        }
-        let name_len = (end as usize) - (arg as usize);
-        let name_slice = crate::memory::cstr_slice(arg, name_len);
+    let arg_bytes = crate::memory::cstr_as_bytes(arg);
+    let mut rem = arg_bytes;
+    if !rem
+        .first()
+        .is_some_and(|&b0| b0.is_ascii_digit() || b0 == b'-' || b0 == b',')
+    {
+        let name_len = rem
+            .iter()
+            .take_while(|&&b| {
+                b.is_ascii_alphabetic() || matches!(b, b':' | b'=' | b'@' | b'>' | b'/' | b'?')
+            })
+            .count();
+        let name_slice = &rem[..name_len];
+        rem = &rem[name_len..];
         histype1 = get_histtype(name_slice, false);
         if histype1 == HIST_INVALID {
             if name_slice.len() <= 3 && name_slice.eq_ignore_ascii_case(&b"all"[..name_slice.len()])
@@ -617,9 +618,12 @@ pub fn ex_history(eap: &mut Exarg) {
         }
     }
 
-    if !get_list_range(&mut end, &mut hisidx1, &mut hisidx2) || !crate::memory::cstr_is_empty(end) {
-        if !crate::memory::cstr_is_empty(end) {
-            semsg!(E_TRAILING_ARG, end);
+    if !get_list_range(&mut rem, &mut hisidx1, &mut hisidx2) || !rem.is_empty() {
+        if !rem.is_empty() {
+            semsg!(
+                E_TRAILING_ARG,
+                arg.wrapping_add(arg_bytes.len() - rem.len())
+            );
         } else {
             semsg!(E_VAL_TOO_LARGE, arg);
         }

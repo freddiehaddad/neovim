@@ -1405,7 +1405,11 @@ fn regatom(flagp: &mut i32) -> *mut u8 {
                             endc = get_coll_element(&raw mut re_st().regparse);
                         }
                         if endc == 0 {
-                            endc = mb_ptr2char_adv(&mut re_st().regparse);
+                            let start_bytes = crate::memory::cstr_as_bytes(re_st().regparse.cast());
+                            let mut rem = start_bytes;
+                            endc = mb_ptr2char_adv(&mut rem);
+                            re_st().regparse =
+                                re_st().regparse.wrapping_add(start_bytes.len() - rem.len());
                         }
                         if endc == b'\\' as i32 && re_st().reg_cpo_lit == 0 {
                             endc = coll_get_char();

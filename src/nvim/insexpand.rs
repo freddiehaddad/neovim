@@ -24,7 +24,7 @@ use crate::cmdexpand::{
 };
 use crate::cursor::{
     Colnr, CursorPos, Linenr, check_cursor, dec_cursor, equalpos, get_cursor_line_len,
-    get_cursor_line_ptr, get_cursor_pos_slice, inc_cursor,
+    get_cursor_line_ptr, get_cursor_line_slice, get_cursor_pos_slice, inc_cursor,
 };
 use crate::drawscreen::{
     K_SHM_COMPLETIONMENU, conceal_cursor_line, redraw_winline, setcursor, showmode, update_screen,
@@ -73,9 +73,9 @@ use crate::keycodes::{
 use crate::lua::executor::nlua_expand_pat;
 use crate::math::{FAIL, OK};
 use crate::mbyte::{
-    mb_get_class, mb_islower, mb_isupper, mb_prevptr, mb_ptr_back, mb_ptr2char_adv, mb_tolower,
-    mb_toupper, ptr2cells, utf_char2bytes, utf_char2len, utf_head_off, utf_ptr2char, utf_ptr2len,
-    utfc_ptr2len,
+    mb_get_class, mb_islower, mb_isupper, mb_prevptr, mb_ptr2char_adv, mb_tolower, mb_toupper,
+    ptr2cells, utf_char2bytes, utf_char2len, utf_head_off, utf_ptr2char, utf_ptr2len,
+    utf_slice2char, utfc_ptr2len,
 };
 use crate::memline::{dec, ml_delete, ml_get, ml_get_buf, ml_get_buf_len, ml_get_len};
 use crate::memory::xstrlcpy;
@@ -995,17 +995,18 @@ fn ins_compl_infercase_gettext(
 
         let mut wca = vec![0_i32; char_len as usize];
         {
-            let mut p = str_ptr;
+            let mut rem = crate::memory::cstr_as_bytes(str_ptr);
             for item in &mut wca {
-                *item = mb_ptr2char_adv(&mut p);
+                *item = mb_ptr2char_adv(&mut rem);
             }
         }
 
+        let orig_bytes = insexp().compl_orig_text.as_bytes();
         // Rule 1: Were any chars converted to lower?
         {
-            let mut p = insexp().compl_orig_text.data.cast_const();
+            let mut rem = orig_bytes;
             for i in 0..(min_len as usize) {
-                let c = mb_ptr2char_adv(&mut p);
+                let c = mb_ptr2char_adv(&mut rem);
                 if mb_islower(c) {
                     has_lower = true;
                     if mb_isupper(wca[i]) {
@@ -1021,9 +1022,9 @@ fn ins_compl_infercase_gettext(
         // Rule 2: No lower case, 2nd consecutive letter converted to upper case.
         if !has_lower {
             let mut was_letter = false;
-            let mut p = insexp().compl_orig_text.data.cast_const();
+            let mut rem = orig_bytes;
             for i in 0..(min_len as usize) {
-                let c = mb_ptr2char_adv(&mut p);
+                let c = mb_ptr2char_adv(&mut rem);
                 if was_letter && mb_isupper(c) && mb_islower(wca[i]) {
                     for item in &mut wca[(compl_char_len as usize)..] {
                         *item = mb_toupper(*item);
@@ -1036,9 +1037,9 @@ fn ins_compl_infercase_gettext(
 
         // Copy the original case of the part we typed.
         {
-            let mut p = insexp().compl_orig_text.data.cast_const();
+            let mut rem = orig_bytes;
             for item in &mut wca[..(min_len as usize)] {
-                let c = mb_ptr2char_adv(&mut p);
+                let c = mb_ptr2char_adv(&mut rem);
                 if mb_islower(c) {
                     *item = mb_tolower(*item);
                 } else if mb_isupper(c) {
@@ -2520,10 +2521,10 @@ pub fn ins_compl_bs() -> i32 {
         ins_compl_delete(false);
     }
 
-    let mut line = get_cursor_line_ptr();
-    let mut p = line.wrapping_add(curwin_mut().w_cursor.col as usize);
-    mb_ptr_back(line, &mut p);
-    let p_off = crate::memory::ptr_offset_from(p, line);
+    let line_slice = get_cursor_line_slice();
+    let mut p_idx = (curwin_mut().w_cursor.col as usize).min(line_slice.len());
+    crate::mbyte::mb_idx_back(line_slice, &mut p_idx);
+    let p_off = p_idx as isize;
 
     if (p_off as i32) - insexp().compl_col < 0
         || ((p_off as i32) - insexp().compl_col == 0 && !ctrl_x_mode_omni())
@@ -2539,7 +2540,7 @@ pub fn ins_compl_bs() -> i32 {
         ins_compl_restart();
     }
 
-    line = get_cursor_line_ptr();
+    let line = get_cursor_line_ptr();
 
     api_clear_string(&mut insexp().compl_leader);
     insexp().compl_leader = cbuf_to_string(
@@ -6117,38 +6118,32 @@ fn get_filename_compl_info(
     let line = line.into_c_char_ptr().cast_mut();
     {
         if startcol > 0 {
-            let mut p = line.wrapping_add(startcol as usize);
+            let line_bytes = crate::memory::cstr_as_bytes(line);
+            let mut p_idx = (startcol as usize).min(line_bytes.len());
 
-            mb_ptr_back(line, &mut p);
-            while p > line && vim_isfilec(utf_ptr2char(p)) {
-                mb_ptr_back(line, &mut p);
+            crate::mbyte::mb_idx_back(line_bytes, &mut p_idx);
+            while p_idx > 0 && vim_isfilec(utf_slice2char(&line_bytes[p_idx..])) {
+                crate::mbyte::mb_idx_back(line_bytes, &mut p_idx);
             }
             let mut p_is_filec = false;
             #[cfg(windows)]
             {
-                if p > line
+                if p_idx > 0
                     && path_has_drive_letter(
-                        p.wrapping_sub(1),
-                        crate::memory::ptr_offset_from(
-                            line.wrapping_add(startcol as usize),
-                            p.wrapping_sub(1),
-                        ) as usize,
+                        line.wrapping_add(p_idx - 1),
+                        (startcol as usize) - (p_idx - 1),
                     )
                 {
-                    p = p.wrapping_sub(if ptr::eq(p, line.wrapping_add(1)) {
-                        1
-                    } else {
-                        2
-                    });
+                    p_idx -= if p_idx == 1 { 1 } else { 2 };
                     p_is_filec = true;
                 }
             }
-            p_is_filec = p_is_filec || vim_isfilec(utf_ptr2char(p));
+            p_is_filec = p_is_filec || vim_isfilec(utf_slice2char(&line_bytes[p_idx..]));
 
-            if ptr::eq(p, line) && p_is_filec {
+            if p_idx == 0 && p_is_filec {
                 startcol = 0;
             } else {
-                startcol = crate::memory::ptr_offset_from(p, line) as i32 + 1;
+                startcol = p_idx as i32 + 1;
             }
         }
 

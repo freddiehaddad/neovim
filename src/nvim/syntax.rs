@@ -22,9 +22,7 @@ use crate::highlight_group::{
     syn_id2attr, syn_list_header, syn_name2id, syn_name2id_len,
 };
 use crate::indent_c::find_start_comment;
-use crate::mbyte::{
-    mb_ptr_adv, mb_ptr_back, mb_strcmp_ic, utf_head_off, utf_ptr2char, utfc_ptr2len,
-};
+use crate::mbyte::{mb_strcmp_ic, utf_head_off, utf_ptr2char, utfc_ptr2len, utfc_slice2len};
 use crate::memline::{ml_get, ml_get_buf, ml_get_buf_len, ml_get_len};
 use crate::message::{
     emsg, msg, msg_advance, msg_ext_set_kind, msg_outnum, msg_outtrans, msg_outtrans_len,
@@ -2405,20 +2403,21 @@ fn syn_add_end_off(
     if result.lnum > syn_st().syn_buf_mut().b_ml.ml_line_count {
         col = 0;
     } else if off != 0 {
-        let base = ml_get_buf(syn_st().syn_buf_mut(), result.lnum);
-        let mut p = base.wrapping_offset(col as isize);
+        let line = crate::memline::ml_get_buf_slice(syn_st().syn_buf_mut(), result.lnum);
+        let mut col_idx = (col.max(0) as usize).min(line.len());
         if off > 0 {
-            while off > 0 && !crate::memory::cstr_is_empty(p) {
+            while off > 0 && col_idx < line.len() {
                 off -= 1;
-                mb_ptr_adv(&mut p);
+                col_idx += utfc_slice2len(&line[col_idx..]).max(1);
+                col_idx = col_idx.min(line.len());
             }
         } else {
-            while off < 0 && base < p {
+            while off < 0 && col_idx > 0 {
                 off += 1;
-                mb_ptr_back(base, &mut p);
+                crate::mbyte::mb_idx_back(line, &mut col_idx);
             }
         }
-        col = crate::memory::ptr_offset_from(p, base) as i32;
+        col = col_idx as i32;
     }
     result.col = col;
 }
@@ -2447,20 +2446,21 @@ fn syn_add_start_off(
         col = ml_get_buf_len(syn_st().syn_buf_mut(), result.lnum);
     }
     if off != 0 {
-        let base = ml_get_buf(syn_st().syn_buf_mut(), result.lnum);
-        let mut p = base.wrapping_offset(col as isize);
+        let line = crate::memline::ml_get_buf_slice(syn_st().syn_buf_mut(), result.lnum);
+        let mut col_idx = (col.max(0) as usize).min(line.len());
         if off > 0 {
-            while off > 0 && !crate::memory::cstr_is_empty(p) {
+            while off > 0 && col_idx < line.len() {
                 off -= 1;
-                mb_ptr_adv(&mut p);
+                col_idx += utfc_slice2len(&line[col_idx..]).max(1);
+                col_idx = col_idx.min(line.len());
             }
         } else {
-            while off < 0 && base < p {
+            while off < 0 && col_idx > 0 {
                 off += 1;
-                mb_ptr_back(base, &mut p);
+                crate::mbyte::mb_idx_back(line, &mut col_idx);
             }
         }
-        col = crate::memory::ptr_offset_from(p, base) as i32;
+        col = col_idx as i32;
     }
     result.col = col;
 }
@@ -4376,7 +4376,10 @@ fn get_syn_pattern<T>(arg: *mut T, ci: &mut Synpat) -> *mut T {
                     ci.sp_off_flags |= 1 << (idx as usize);
                     if base_idx == SPO_LC_OFF {
                         end = end.wrapping_add(3);
-                        let val = getdigits_int(&mut end, true, 0);
+                        let end_bytes = crate::memory::cstr_as_bytes(end.cast());
+                        let mut rem = end_bytes;
+                        let val = getdigits_int(&mut rem, true, 0);
+                        end = end.wrapping_add(end_bytes.len() - rem.len());
                         ci.sp_offsets[base_idx] = val;
 
                         if (ci.sp_off_flags & (1 << SPO_MS_OFF)) == 0 {
@@ -4387,10 +4390,16 @@ fn get_syn_pattern<T>(arg: *mut T, ci: &mut Synpat) -> *mut T {
                         end = end.wrapping_add(4);
                         if crate::memory::cstr_first_byte(end.cast()) == b'+' {
                             end = end.wrapping_add(1);
-                            ci.sp_offsets[base_idx] = getdigits_int(&mut end, true, 0);
+                            let end_bytes = crate::memory::cstr_as_bytes(end.cast());
+                            let mut rem = end_bytes;
+                            ci.sp_offsets[base_idx] = getdigits_int(&mut rem, true, 0);
+                            end = end.wrapping_add(end_bytes.len() - rem.len());
                         } else if crate::memory::cstr_first_byte(end.cast()) == b'-' {
                             end = end.wrapping_add(1);
-                            ci.sp_offsets[base_idx] = -getdigits_int(&mut end, true, 0);
+                            let end_bytes = crate::memory::cstr_as_bytes(end.cast());
+                            let mut rem = end_bytes;
+                            ci.sp_offsets[base_idx] = -getdigits_int(&mut rem, true, 0);
+                            end = end.wrapping_add(end_bytes.len() - rem.len());
                         }
                     }
                     if crate::memory::cstr_first_byte(end.cast()) != b',' {
@@ -4474,7 +4483,10 @@ fn syn_cmd_sync(eap: &mut Exarg, _syncing: i32) {
                 illegal = true;
                 break;
             }
-            let n: Linenr = getdigits_int32(&mut arg_end, false, 0);
+            let arg_bytes = crate::memory::cstr_as_bytes(arg_end);
+            let mut rem = arg_bytes;
+            let n: Linenr = getdigits_int32(&mut rem, false, 0);
+            arg_end = arg_end.wrapping_add(arg_bytes.len() - rem.len());
             if eap.skip == 0 {
                 if crate::memory::cstr_byte_at(key, 4) == b'B' {
                     win_s(curwin_mut()).b_syn_sync_linebreaks = n;

@@ -4063,7 +4063,10 @@ fn do_sub(eap: &mut Exarg, tm: Proftime, cmdpreview_ns: i32, cmdpreview_bufnr: O
     cmd = skipwhite(cmd);
     if ascii_isdigit(crate::memory::cstr_first_char(cmd)) {
         let count_arg = cmd;
-        i = getdigits_int(&mut cmd, false, i32::MAX);
+        let cmd_bytes = crate::memory::cstr_as_bytes(cmd);
+        let mut rem = cmd_bytes;
+        i = getdigits_int(&mut rem, false, i32::MAX);
+        cmd = cmd.wrapping_add(cmd_bytes.len() - rem.len());
         if i <= 0 && eap.skip == 0 && excmds_st().subflags.do_error {
             emsg(gettext(E_ZEROCOUNT));
             return 0;
