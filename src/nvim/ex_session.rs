@@ -3,7 +3,6 @@
 use crate::arglist::{Aentry, alist_name};
 use crate::autocmd::{EVENT_SESSIONWRITEPOST, EVENT_SESSIONWRITEPRE, apply_autocmds};
 use crate::buffer::{FileBuf, bt_help, bt_nofilename, bt_normal, bt_terminal, buflist_findnr};
-use crate::charset::ascii_isdigit;
 use crate::errors::*;
 use crate::eval::typval::{VarType, tv_get_string};
 use crate::eval::vars::{VV_THIS_SESSION, get_globvar_dict, set_vim_var_string};
@@ -966,11 +965,10 @@ pub fn ex_mkrc(eap: &mut Exarg) {
     exses_st().did_lcd = false;
 
     let fname: &CStr;
-    if eap.cmdidx == CMD_MKVIEW
-        && (crate::memory::cstr_is_empty(eap.arg)
-            || (ascii_isdigit(i32::from(crate::memory::cstr_first_byte(eap.arg)))
-                && crate::memory::cstr_byte_at(eap.arg, 1) == 0))
-    {
+    if eap.cmdidx == CMD_MKVIEW && {
+        let arg_bytes = crate::memory::cstr_as_bytes(eap.arg);
+        arg_bytes.is_empty() || (arg_bytes.len() == 1 && arg_bytes[0].is_ascii_digit())
+    } {
         eap.forceit = 1;
         let Some(vf) = get_view_file(crate::memory::cstr_first_byte(eap.arg)) else {
             return;

@@ -1766,7 +1766,7 @@ fn command_line_scan(parmp: &mut Mparm) {
         if argv_idx <= 0
             || raw_args
                 .get(arg_idx)
-                .is_none_or(|&p| crate::memory::cstr_byte_at(p.cast(), argv_idx as usize) == 0)
+                .is_none_or(|&p| crate::memory::cstr_len(p.cast()) <= argv_idx as usize)
         {
             arg_idx += 1;
             argv_idx = 1;

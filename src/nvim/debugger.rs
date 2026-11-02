@@ -280,9 +280,9 @@ pub fn do_debug(cmd: impl crate::strings::IntoCCharPtr) {
             msg_starthere();
             if !cmdline.is_null() {
                 let mut p = skipwhite(cmdline);
-                if unsafe { *p } != 0 {
-                    let b0 = crate::memory::cstr_first_byte(p);
-                    let b1 = crate::memory::cstr_byte_at(p, 1);
+                let p_bytes = crate::memory::cstr_as_bytes(p);
+                if let Some(&b0) = p_bytes.first() {
+                    let b1 = p_bytes.get(1).copied().unwrap_or(0);
                     let (mut lcmd, mut tail): (i32, &[u8]) = match b0 {
                         b'c' => (CMD_CONT, b"ont"),
                         b'n' => (CMD_NEXT, b"ext"),

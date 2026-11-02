@@ -308,8 +308,6 @@ pub const fn ascii_iswhite_nl_or_nul(c: i32) -> bool {
     matches!(c as u8, b' ' | b'\t' | b'\n' | b'\r' | 0)
 }
 
-use crate::charset::toupper_asc;
-
 #[inline]
 fn uf2hikey(fp: &UserFunc) -> &CStr {
     fp.uf_name.as_c_str()
@@ -750,12 +748,10 @@ pub fn emsg_funcname<S1: crate::strings::IntoCCharPtr, S2: crate::strings::IntoC
         let mut p_owned: Option<std::ffi::CString> = None;
         let mut p = name;
 
-        if crate::memory::cstr_first_byte(name) == K_SPECIAL
-            && crate::memory::cstr_byte_at(name, 1) != 0
-            && crate::memory::cstr_byte_at(name, 2) != 0
-        {
+        let name_bytes = crate::memory::cstr_as_bytes(name);
+        if name_bytes.first() == Some(&K_SPECIAL) && name_bytes.len() >= 3 {
             let mut bytes = Vec::from(&b"<SNR>"[..]);
-            bytes.extend_from_slice(crate::memory::cstr_as_bytes(name.wrapping_add(3)));
+            bytes.extend_from_slice(&name_bytes[3..]);
             let joined = cstr_from_bytes(&bytes);
             p = joined.as_ptr();
             p_owned = Some(joined);
@@ -879,9 +875,11 @@ pub fn get_func_tv<T>(
 /// Check whether function name starts with `<SID>` or `s:`.
 #[inline]
 fn eval_fname_sid(name: impl crate::strings::IntoCCharPtr) -> bool {
-    let name = name.into_c_char_ptr();
-    crate::memory::cstr_first_byte(name) == b's'
-        || toupper_asc(i32::from(crate::memory::cstr_byte_at(name, 2))) == b'I' as i32
+    let name_bytes = crate::memory::cstr_as_bytes(name);
+    name_bytes.first() == Some(&b's')
+        || name_bytes
+            .get(2)
+            .is_some_and(|&b| b.eq_ignore_ascii_case(&b'I'))
 }
 
 /// In a script transform script-local names into actually used names.
@@ -1592,9 +1590,8 @@ pub fn call_user_func(
 fn func_name_refcount(name: impl crate::strings::IntoCCharPtr) -> bool {
     let name = name.into_c_char_ptr();
     {
-        (crate::memory::cstr_first_byte(name)).is_ascii_digit()
-            || (crate::memory::cstr_first_byte(name) == b'<'
-                && crate::memory::cstr_byte_at(name, 1) == b'l')
+        let name_bytes = crate::memory::cstr_as_bytes(name);
+        name_bytes.first().is_some_and(u8::is_ascii_digit) || name_bytes.starts_with(b"<l")
     }
 }
 
@@ -1726,8 +1723,11 @@ pub fn free_all_functions() {
 fn builtin_function(name: impl crate::strings::IntoCCharPtr, len: i32) -> bool {
     let name = name.into_c_char_ptr();
     {
-        if !ascii_islower(crate::memory::cstr_first_byte(name))
-            || crate::memory::cstr_byte_at(name, 1) == b':'
+        let name_bytes = crate::memory::cstr_as_bytes(name);
+        if !name_bytes
+            .first()
+            .is_some_and(|&b| ascii_islower(i32::from(b)))
+            || name_bytes.get(1) == Some(&b':')
         {
             return false;
         }
@@ -1924,9 +1924,8 @@ pub fn call_func(
         }
 
         if !skip_eval && error == FCERR_NONE && funcexe.fe_evaluate {
-            let is_global = fp.is_null()
-                && crate::memory::cstr_first_byte(fname.cast()) == b'g'
-                && crate::memory::cstr_byte_at(fname.cast(), 1) == b':';
+            let is_global =
+                fp.is_null() && crate::memory::cstr_as_bytes(fname.cast()).starts_with(b"g:");
             let rfname = if is_global {
                 fname.wrapping_add(2)
             } else {
@@ -2075,8 +2074,7 @@ pub fn call_simple_func(
             &mut error,
         );
 
-        let is_global = crate::memory::cstr_first_byte(fname.cast()) == b'g'
-            && crate::memory::cstr_byte_at(fname.cast(), 1) == b':';
+        let is_global = crate::memory::cstr_as_bytes(fname.cast()).starts_with(b"g:");
         let rfname = if is_global {
             fname.wrapping_add(2)
         } else {
@@ -2216,10 +2214,7 @@ pub fn trans_function_name<T>(
         }
         let mut start: *const u8 = (*pp).cast();
 
-        if crate::memory::cstr_first_byte((*pp).cast()) == K_SPECIAL
-            && crate::memory::cstr_byte_at((*pp).cast(), 1) == KS_EXTRA
-            && *((*pp).cast::<u8>()).wrapping_add(2) == KE_SNR
-        {
+        if crate::memory::cstr_as_bytes((*pp).cast()).starts_with(&[K_SPECIAL, KS_EXTRA, KE_SNR]) {
             *pp = ((*pp).cast::<u8>()).wrapping_add(3).cast();
             len = get_id_len(pp.cast::<*const T>()) + 3;
             return Some(cstr_from_bytes(std::slice::from_raw_parts(
@@ -2361,10 +2356,7 @@ pub fn trans_function_name<T>(
                 lead = 2;
             }
         } else {
-            if lead == 2
-                || (crate::memory::cstr_first_byte(lv.ll_name.cast()) == b'g'
-                    && crate::memory::cstr_byte_at(lv.ll_name.cast(), 1) == b':')
-            {
+            if lead == 2 || crate::memory::cstr_as_bytes(lv.ll_name.cast()).starts_with(b"g:") {
                 lv.ll_name = lv.ll_name.wrapping_add(2);
                 lv.ll_name_len = lv.ll_name_len.wrapping_sub(2);
             }
@@ -3066,17 +3058,15 @@ pub fn ex_function(eap: &mut Exarg) {
                             name_base = name_base.wrapping_add(1);
                         }
                     }
-                    let mut i = 0usize;
-                    while crate::memory::cstr_byte_at(name_base, i) != 0
-                        && if i == 0 {
-                            eval_isnamec1(crate::memory::cstr_byte_at(name_base, i))
+                    let name_bytes = crate::memory::cstr_as_bytes(name_base);
+                    let valid = name_bytes.iter().enumerate().all(|(i, &b)| {
+                        if i == 0 {
+                            eval_isnamec1(b)
                         } else {
-                            eval_isnamec(crate::memory::cstr_byte_at(name_base, i))
+                            eval_isnamec(b)
                         }
-                    {
-                        i += 1;
-                    }
-                    if crate::memory::cstr_byte_at(name_base, i) != 0 {
+                    });
+                    if !valid {
                         emsg_funcname(E_INVARG2, arg);
                         ret_free!();
                     }
@@ -3324,7 +3314,7 @@ pub fn eval_fname_script(p: impl crate::strings::IntoCCharPtr) -> i32 {
         {
             return 5;
         }
-        if crate::memory::cstr_first_byte(p) == b's' && crate::memory::cstr_byte_at(p, 1) == b':' {
+        if crate::memory::cstr_as_bytes(p).starts_with(b"s:") {
             return 2;
         }
         0

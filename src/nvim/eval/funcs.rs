@@ -1454,7 +1454,7 @@ pub fn tv_get_buf(tv: &mut TypVal, curtab_only: i32) -> *mut FileBuf {
     if crate::memory::cstr_is_empty(name) {
         return g_st().curbuf;
     }
-    if crate::memory::cstr_first_byte(name) == b'$' && crate::memory::cstr_byte_at(name, 1) == 0 {
+    if crate::memory::cstr_as_bytes(name) == b"$" {
         return g_st().lastbuf;
     }
 
@@ -1733,7 +1733,7 @@ fn get_col(argvars: &mut [TypVal], rettv: &mut TypVal, charcol: bool) {
                         && !crate::memory::cstr_is_empty(p)
                     {
                         let l = utfc_ptr2len(p);
-                        if crate::memory::cstr_byte_at(p, l as usize) == 0 {
+                        if crate::memory::cstr_is_empty(p.wrapping_add(l as usize)) {
                             col += l;
                         }
                     }
@@ -3134,13 +3134,10 @@ fn getregionpos(
         }
 
         let mut block_width: i32 = 0;
-        if crate::memory::cstr_first_byte(type_str) == b'v'
-            && crate::memory::cstr_byte_at(type_str, 1) == 0
-        {
+        let type_bytes = crate::memory::cstr_as_bytes(type_str);
+        if type_bytes == b"v" {
             *region_type = MT_CHAR_WISE;
-        } else if crate::memory::cstr_first_byte(type_str) == b'V'
-            && crate::memory::cstr_byte_at(type_str, 1) == 0
-        {
+        } else if type_bytes == b"V" {
             *region_type = MT_LINE_WISE;
         } else if *type_str == CTRL_V_CONST {
             let mut rem = crate::memory::cstr_as_bytes(type_str.wrapping_add(1));
@@ -4644,11 +4641,8 @@ pub fn f_jobstart(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDat
                 let iobuff = g_st().iobuff.as_mut_ptr();
                 vim_full_name(cwd, namebuff.cast(), MAXPATHL, false);
                 let len = home_replace(None, namebuff, iobuff, IOSIZE, true);
-                if len != 1
-                    && (crate::memory::cstr_byte_at(iobuff, len - 1) == b'\\'
-                        || crate::memory::cstr_byte_at(iobuff, len - 1) == b'/')
-                {
-                    *iobuff.wrapping_add(len - 1) = NUL;
+                if len > 1 && matches!(g_st().iobuff[len - 1] as u8, b'\\' | b'/') {
+                    g_st().iobuff[len - 1] = NUL;
                 }
                 if len == 1 && crate::memory::cstr_first_byte(iobuff) == b'/' {
                     *iobuff.wrapping_add(1).cast::<u8>() = b'.';
@@ -7447,7 +7441,8 @@ fn set_position(argvars: &mut [TypVal], rettv: &mut TypVal, charpos: bool) {
             pos.col = 0;
         }
     }
-    if crate::memory::cstr_first_byte(name) == b'.' && crate::memory::cstr_byte_at(name, 1) == 0 {
+    let name_bytes = crate::memory::cstr_as_bytes(name);
+    if name_bytes == b"." {
         curwin_mut().w_cursor.lnum = pos.lnum;
         curwin_mut().w_cursor.col = pos.col;
         curwin_mut().w_cursor.coladd = pos.coladd;
@@ -7457,16 +7452,8 @@ fn set_position(argvars: &mut [TypVal], rettv: &mut TypVal, charpos: bool) {
         }
         check_cursor(curwin_mut());
         rettv.vval = crate::eval::typval::TypvalVval::Number(0);
-    } else if crate::memory::cstr_first_byte(name) == b'\''
-        && crate::memory::cstr_byte_at(name, 1) != 0
-        && crate::memory::cstr_byte_at(name, 2) == 0
-    {
-        if setmark_pos(
-            i32::from(crate::memory::cstr_byte_at(name, 1)),
-            &mut pos,
-            fnum,
-            None,
-        ) {
+    } else if name_bytes.len() == 2 && name_bytes[0] == b'\'' {
+        if setmark_pos(i32::from(name_bytes[1]), &mut pos, fnum, None) {
             rettv.vval = crate::eval::typval::TypvalVval::Number(0);
         }
     } else {
@@ -7575,8 +7562,8 @@ fn get_yank_type<T>(
         }
         c if c == b'b' || c == CTRL_V_CONST as u8 => {
             *yank_type = crate::register::MotionType::MtBlockWise;
-            if ascii_isdigit(crate::memory::cstr_byte_at(stropt.cast(), 1)) {
-                let tail = crate::memory::cstr_as_bytes(stropt.wrapping_add(1).cast());
+            let tail = crate::memory::cstr_as_bytes(stropt.wrapping_add(1).cast());
+            if tail.first().is_some_and(u8::is_ascii_digit) {
                 let mut rem = tail;
                 *block_len = getdigits_int(&mut rem, false, 0) - 1;
                 stropt = stropt.wrapping_add(tail.len() - rem.len());
@@ -8439,7 +8426,12 @@ pub fn f_syn_idattr(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncD
     let _ = &mut modec;
 
     let mut p: Option<&CStr> = None;
-    let w = |i: usize| tolower_asc(i32::from(crate::memory::cstr_byte_at(what, i))) as u8;
+    let what_bytes = crate::memory::cstr_as_bytes(what);
+    let w = |i: usize| {
+        what_bytes
+            .get(i)
+            .map_or(0, |&b| tolower_asc(i32::from(b)) as u8)
+    };
     match w(0) {
         b'b' => {
             if w(1) == b'g' {

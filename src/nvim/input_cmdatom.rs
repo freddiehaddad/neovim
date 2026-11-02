@@ -1219,7 +1219,7 @@ pub fn atom_map_start(lhs: impl crate::strings::IntoCCharPtr, len: usize, peeked
         }
         let op = get_vim_var_str(VV_OP);
         if get_real_state() == MODE_OP_PENDING && !op.is_empty() {
-            assert!(crate::memory::cstr_byte_at(lhs, len) == 0);
+            assert!(crate::memory::cstr_len(lhs) == len);
             let mut full_bytes = Vec::from(op.to_bytes());
             full_bytes.extend_from_slice(crate::memory::cstr_slice(lhs, len));
             let full = cstr_from_bytes(&full_bytes);

@@ -154,16 +154,7 @@ fn key_matches(
     key: impl crate::strings::IntoCCharPtr,
     key_len: usize,
 ) -> bool {
-    let hi_key = hi_key.into_c_char_ptr();
-    let key = key.into_c_char_ptr();
-    for i in 0..key_len {
-        let a = crate::memory::cstr_byte_at(hi_key, i);
-        let b = crate::memory::cstr_byte_at(key, i);
-        if a != b || a == 0 {
-            return false;
-        }
-    }
-    unsafe { *hi_key.wrapping_add(key_len) == 0 }
+    crate::memory::cstr_as_bytes(hi_key) == crate::memory::cstr_slice(key, key_len)
 }
 
 /// Free the array of a hash table without freeing contained values (`hash_clear`).

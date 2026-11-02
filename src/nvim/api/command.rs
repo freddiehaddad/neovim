@@ -1139,9 +1139,7 @@ pub fn nvim_cmd(
             }
 
             if (ea.argt & EX_ARGOPT) != 0 {
-                while crate::memory::cstr_byte_at(ea.arg, 0) == b'+'
-                    && crate::memory::cstr_byte_at(ea.arg, 1) == b'+'
-                {
+                while crate::memory::cstr_as_bytes(ea.arg).starts_with(b"++") {
                     let orig_arg = ea.arg;
                     let result = getargopt(&mut ea);
                     if !result && !is_cmd_ni(crate::cmdexpand::Cmdidx::from_raw(ea.cmdidx)) {

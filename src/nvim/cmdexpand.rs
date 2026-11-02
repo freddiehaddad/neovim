@@ -1899,8 +1899,7 @@ fn wildescape(
                     );
                 }
 
-                if crate::memory::cstr_first_byte(str_arg) == b'\\'
-                    && crate::memory::cstr_byte_at(str_arg, 1) == b'~'
+                if crate::memory::cstr_as_bytes(str_arg).starts_with(b"\\~")
                     && file_slot.as_bytes().first() == Some(&b'~')
                 {
                     escape_fname_cstr(file_slot);
@@ -2031,7 +2030,7 @@ pub fn nextwild(xp: &mut ExpandCtx, type_arg: i32, options: i32, escape: bool) -
         {
             let mut j: usize = 0;
             while j < xp.xp_pattern_len {
-                let c = crate::memory::cstr_byte_at(ccline.cmdbuff.cast(), (i as usize) + j);
+                let c = ccline.cmdbuff_vec[(i as usize) + j];
                 if c == b'*' || c == b'?' {
                     break;
                 }
@@ -2220,19 +2219,19 @@ fn cmdline_compl_use_pum(need_wildmenu: bool) -> bool {
 fn skip_wildmenu_char(xp: &ExpandCtx, s: impl crate::strings::IntoCCharPtr) -> i32 {
     let s = s.into_c_char_ptr();
     {
+        let s_bytes = crate::memory::cstr_as_bytes(s);
         if (rem_backslash(s)
             && xp.xp_context != EXPAND_HELP
             && xp.xp_context != EXPAND_PATTERN_IN_BUF)
             || ((xp.xp_context == EXPAND_MENUS || xp.xp_context == EXPAND_MENUNAMES)
-                && (crate::memory::cstr_first_byte(s) == b'\t'
-                    || (crate::memory::cstr_first_byte(s) == b'\\'
-                        && crate::memory::cstr_byte_at(s, 1) != 0)))
+                && (s_bytes.first() == Some(&b'\t')
+                    || (s_bytes.first() == Some(&b'\\') && s_bytes.len() > 1)))
         {
             #[cfg(not(windows))]
             if xp.xp_shell
                 && csh_like_shell() != 0
-                && crate::memory::cstr_byte_at(s, 1) == b'\\'
-                && crate::memory::cstr_byte_at(s, 2) == b'!'
+                && s_bytes.get(1) == Some(&b'\\')
+                && s_bytes.get(2) == Some(&b'!')
             {
                 return 2;
             }
@@ -2603,8 +2602,9 @@ fn find_longest_match(xp: &mut ExpandCtx, options: i32) -> CString {
     let mut len: usize = 0;
     let files = xp.xp_files.as_slice();
     let first_file = files[0].as_ptr();
+    let first_bytes = files[0].as_bytes();
 
-    while crate::memory::cstr_byte_at(first_file, len) != 0 {
+    while len < first_bytes.len() {
         let mb_len = utfc_ptr2len(first_file.wrapping_add(len)) as usize;
         let c0 = utf_ptr2char(first_file.wrapping_add(len));
         let mut i: usize = 1;
@@ -3300,7 +3300,7 @@ fn set_context_for_wildcard_arg(
         let mut p: *const u8 = xp.xp_pattern;
         while !crate::memory::cstr_is_empty(p.cast()) {
             let mut c = utf_ptr2char(p.cast());
-            if c == b'\\' as i32 && crate::memory::cstr_byte_at(p.cast(), 1) != 0 {
+            if c == b'\\' as i32 && crate::memory::cstr_len(p.cast()) > 1 {
                 p = p.wrapping_add(1);
             } else if c == b'`' as i32 {
                 if !in_quote {
@@ -3679,15 +3679,16 @@ fn set_context_in_filetype_cmd(
         let mut val: i32 = 0;
 
         loop {
-            if (crate::memory::cstr_prefix_bytes(p.cast(), 6) == &b"plugin"[..6])
-                && ascii_iswhite(crate::memory::cstr_byte_at(p.cast(), 6))
+            let p_bytes = crate::memory::cstr_as_bytes(p.cast());
+            if p_bytes.starts_with(b"plugin")
+                && p_bytes.get(6).is_some_and(|&b| ascii_iswhite(i32::from(b)))
             {
                 val |= EXPAND_FILETYPECMD_PLUGIN;
                 p = skipwhite(p.wrapping_add(6).cast()).cast();
                 continue;
             }
-            if (crate::memory::cstr_prefix_bytes(p.cast(), 6) == &b"indent"[..6])
-                && ascii_iswhite(crate::memory::cstr_byte_at(p.cast(), 6))
+            if p_bytes.starts_with(b"indent")
+                && p_bytes.get(6).is_some_and(|&b| ascii_iswhite(i32::from(b)))
             {
                 val |= EXPAND_FILETYPECMD_INDENT;
                 p = skipwhite(p.wrapping_add(6).cast()).cast();
@@ -5328,10 +5329,10 @@ fn expand_shellcmd(
         flags |= EW_FILE | EW_EXEC | EW_SHELLCMD;
 
         let mut path_owned: Option<std::ffi::CString> = None;
-        let path: *mut u8 = if crate::memory::cstr_first_byte(pat.cast()) == b'.'
-            && (vim_ispathsep(crate::memory::cstr_byte_at(pat.cast(), 1))
-                || (crate::memory::cstr_byte_at(pat.cast(), 1) == b'.'
-                    && vim_ispathsep(crate::memory::cstr_byte_at(pat.cast(), 2))))
+        let path: *mut u8 = if pat_vec.first() == Some(&b'.')
+            && (pat_vec.get(1).is_some_and(|&b| vim_ispathsep(i32::from(b)))
+                || (pat_vec.get(1) == Some(&b'.')
+                    && pat_vec.get(2).is_some_and(|&b| vim_ispathsep(i32::from(b)))))
         {
             c".".as_ptr().cast_mut().cast()
         } else {
@@ -5723,8 +5724,8 @@ pub fn wildmenu_translate_key(
 
     if xp.xp_context == EXPAND_MENUNAMES
         && cclp.cmdpos > 1
-        && crate::memory::cstr_byte_at(cclp.cmdbuff.cast(), (cclp.cmdpos - 1) as usize) == b'.'
-        && crate::memory::cstr_byte_at(cclp.cmdbuff.cast(), (cclp.cmdpos - 2) as usize) != b'\\'
+        && cclp.cmdbuff_vec[(cclp.cmdpos - 1) as usize] == b'.'
+        && cclp.cmdbuff_vec[(cclp.cmdpos - 2) as usize] != b'\\'
         && (c == b'\n' as i32 || c == b'\r' as i32 || c == K_KENTER)
     {
         c = K_DOWN;

@@ -1578,8 +1578,8 @@ fn read_file_or_blob(argvars: &mut [TypVal], rettv: &mut TypVal, always_blob: bo
 
                     // Finished a line.  Remove CRs before NL.
                     if readlen > 0 && !binary {
-                        while len > 0 && crate::memory::cstr_byte_at(start.cast(), len - 1) == b'\r'
-                        {
+                        let line_bytes = crate::memory::cstr_slice(start.cast(), len);
+                        while len > 0 && line_bytes[len - 1] == b'\r' {
                             len -= 1;
                         }
                         // removal may cross back to the "prev" string

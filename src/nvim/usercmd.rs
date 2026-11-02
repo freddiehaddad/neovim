@@ -1253,8 +1253,11 @@ pub fn ex_delcommand(eap: &mut Exarg) {
     let mut arg = eap.arg.cast_const();
     let mut buffer_only = false;
 
-    if (crate::memory::cstr_prefix_bytes(arg, 7) == &b"-buffer"[..7])
-        && ascii_iswhite(crate::memory::cstr_byte_at(arg, 7))
+    let arg_bytes = crate::memory::cstr_as_bytes(arg);
+    if arg_bytes.starts_with(b"-buffer")
+        && arg_bytes
+            .get(7)
+            .is_some_and(|&b| ascii_iswhite(i32::from(b)))
     {
         buffer_only = true;
         arg = skipwhite(arg.wrapping_add(7));

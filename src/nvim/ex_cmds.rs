@@ -2034,9 +2034,10 @@ pub fn append_redir<T>(
             if p.is_null() {
                 break;
             }
-            if crate::memory::cstr_byte_at(p, 1) == b's' {
+            let next_b = crate::memory::cstr_as_bytes(p).get(1).copied().unwrap_or(0);
+            if next_b == b's' {
                 break;
-            } else if crate::memory::cstr_byte_at(p, 1) == b'%' {
+            } else if next_b == b'%' {
                 p = p.wrapping_add(1);
             }
             p = p.wrapping_add(1);
@@ -2493,7 +2494,7 @@ pub fn check_overwrite(
 
 /// Handle `":wnext"`, `":wNext"` and `":wprevious"` commands.
 pub fn ex_wnext(eap: &mut Exarg) {
-    let i = if crate::memory::cstr_byte_at(eap.cmd, 1) == b'n' {
+    let i = if crate::memory::cstr_as_bytes(eap.cmd).get(1) == Some(&b'n') {
         curwin_mut().w_arg_idx + eap.line2
     } else {
         curwin_mut().w_arg_idx - eap.line2
@@ -3447,8 +3448,7 @@ pub fn ex_append(eap: &mut Exarg) {
             }
             p = p.wrapping_add(1);
         }
-        if (crate::memory::cstr_first_byte(p.cast()) == b'.'
-            && crate::memory::cstr_byte_at(p.cast(), 1) == 0)
+        if crate::memory::cstr_as_bytes(p.cast()) == b"."
             || (!did_undo && !u_save(lnum, lnum + 1 + if empty { 1 } else { 0 }))
         {
             break;
@@ -3859,7 +3859,7 @@ fn skip_substitute<T>(start: *mut T, delimiter: i32) -> *mut T {
             break;
         }
         if crate::memory::cstr_first_byte(p.cast()) == b'\\'
-            && crate::memory::cstr_byte_at(p.cast(), 1) != 0
+            && crate::memory::cstr_len(p.cast()) > 1
         {
             p = p.wrapping_add(1);
         }
@@ -4095,8 +4095,7 @@ fn do_sub(eap: &mut Exarg, tm: Proftime, cmdpreview_ns: i32, cmdpreview_bufnr: O
 
     debug_assert!(!sub.is_null());
 
-    if !(crate::memory::cstr_first_byte(sub) == b'\\'
-        && crate::memory::cstr_byte_at(sub, 1) == b'=')
+    if !crate::memory::cstr_as_bytes(sub).starts_with(b"\\=")
         && let Some(new_sub) = regtilde(sub, opt_vars().p_magic, cmdpreview_ns > 0)
     {
         sub = new_sub.as_ptr().cast_mut();
@@ -4180,11 +4179,9 @@ fn do_sub(eap: &mut Exarg, tm: Proftime, cmdpreview_ns: i32, cmdpreview_bufnr: O
                         && regmatch.endpos[0].lnum == 0
                         && matchcol == regmatch.endpos[0].col
                     {
-                        if crate::memory::cstr_byte_at(
-                            sub_firstline.data().cast(),
-                            matchcol as usize,
-                        ) == 0
-                        {
+                        if crate::memory::cstr_is_empty(
+                            sub_firstline.data().wrapping_add(matchcol as usize).cast(),
+                        ) {
                             skip_match = true;
                         } else {
                             matchcol += utfc_ptr2len(
@@ -4208,9 +4205,7 @@ fn do_sub(eap: &mut Exarg, tm: Proftime, cmdpreview_ns: i32, cmdpreview_bufnr: O
                         }
                         g_st().sub_nsubs += 1;
                         did_sub = true;
-                        if !(crate::memory::cstr_first_byte(sub) == b'\\'
-                            && crate::memory::cstr_byte_at(sub, 1) == b'=')
-                        {
+                        if !crate::memory::cstr_as_bytes(sub).starts_with(b"\\=") {
                             break 'skip;
                         }
                     }
@@ -4512,7 +4507,7 @@ fn do_sub(eap: &mut Exarg, tm: Proftime, cmdpreview_ns: i32, cmdpreview_bufnr: O
                         let mut p1 = new_end;
                         while !crate::memory::cstr_is_empty(p1.cast()) {
                             if crate::memory::cstr_first_byte(p1.cast()) == b'\\'
-                                && crate::memory::cstr_byte_at(p1.cast(), 1) != 0
+                                && crate::memory::cstr_len(p1.cast()) > 1
                             {
                                 sublen -= 1;
                                 n = new_start.size
@@ -4588,11 +4583,9 @@ fn do_sub(eap: &mut Exarg, tm: Proftime, cmdpreview_ns: i32, cmdpreview_bufnr: O
                     || got_quit
                     || lnum > line2
                     || !(excmds_st().subflags.do_all || do_again)
-                    || (crate::memory::cstr_byte_at(
-                        sub_firstline.data().cast(),
-                        matchcol as usize,
-                    ) == 0
-                        && nmatch <= 1
+                    || (crate::memory::cstr_is_empty(
+                        sub_firstline.data().wrapping_add(matchcol as usize).cast(),
+                    ) && nmatch <= 1
                         && re_multiline(unsafe { &*regmatch.regprog }) == 0);
                 nmatch = -1;
 

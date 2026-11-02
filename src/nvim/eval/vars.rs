@@ -1465,9 +1465,8 @@ pub fn skip_var_list<T>(
 fn skip_var_one<T>(arg: *const T) -> *const T {
     let arg = arg.cast::<u8>();
     {
-        if crate::memory::cstr_first_byte(arg.cast()) == b'@'
-            && crate::memory::cstr_byte_at(arg.cast(), 1) != 0
-        {
+        let arg_bytes = crate::memory::cstr_as_bytes(arg.cast());
+        if arg_bytes.first() == Some(&b'@') && arg_bytes.len() > 1 {
             return arg.wrapping_add(2).cast();
         }
         find_name_end(
@@ -1609,7 +1608,7 @@ fn list_arg_vars<T>(eap: &mut Exarg, arg: *const T, first: &mut i32) -> *const T
                         } else {
                             if arg == arg_subsc
                                 && len == 2
-                                && crate::memory::cstr_byte_at(name.cast(), 1) == b':'
+                                && crate::memory::cstr_slice(name.cast(), 2).get(1) == Some(&b':')
                             {
                                 match crate::memory::cstr_first_byte(name.cast()) {
                                     b'g' => list_glob_vars(first),
@@ -3356,7 +3355,7 @@ fn get_var_from(
                         g_st().curbuf = buf;
                     }
 
-                    if crate::memory::cstr_byte_at(varname, 1) == 0 {
+                    if crate::memory::cstr_len(varname) == 1 {
                         let opts = get_winbuf_options(i32::from(htname == b'b' as i32));
                         tv_dict_set_ret(rettv, opts);
                         done = true;
@@ -3460,13 +3459,8 @@ fn opt_from_tv(
                 tv_get_bool_chk(&*tv, Some(&mut err))
             };
             if !err && tv.v_type == VarType::VarString && n == 0 {
-                let mut idx: usize = 0;
-                while !tv.vval.v_string().is_null()
-                    && crate::memory::cstr_byte_at(tv.vval.v_string(), idx) == b'0'
-                {
-                    idx += 1;
-                }
-                if idx == 0 || crate::memory::cstr_byte_at(tv.vval.v_string(), idx) != 0 {
+                let s_bytes = crate::memory::cstr_as_bytes(tv.vval.v_string());
+                if s_bytes.is_empty() || !s_bytes.iter().all(|&b| b == b'0') {
                     err = true;
                     semsg!(
                         gettext(c"E521: Number required: &%s = '%s'"),

@@ -519,8 +519,7 @@ pub fn nvim_parse_expression(
     err: &mut Error,
 ) -> Dict {
     let mut pflags: i32 = 0;
-    for i in 0..flags.size {
-        let b = crate::memory::cstr_byte_at(flags.data, i);
+    for &b in flags.as_bytes() {
         match b {
             b'm' => pflags |= K_EXPR_FLAGS_MULTI,
             b'E' => pflags |= K_EXPR_FLAGS_DISALLOW_EOC,

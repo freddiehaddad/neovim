@@ -2777,13 +2777,12 @@ pub fn tv_dict_watcher_remove(
 fn tv_dict_watcher_matches(watcher: &DictWatcher, key: impl crate::strings::IntoCCharPtr) -> bool {
     let key = key.into_c_char_ptr();
     {
-        let len = watcher.key_pattern_len;
-        let pat_ptr = watcher.key_pattern.as_ptr();
-        if len > 0 && crate::memory::cstr_byte_at(pat_ptr, len - 1) == b'*' {
-            crate::memory::cstr_prefix_bytes(key, len - 1)
-                == crate::memory::cstr_prefix_bytes(pat_ptr, len - 1)
+        let pat_bytes = watcher.key_pattern.as_bytes();
+        if pat_bytes.last() == Some(&b'*') {
+            crate::memory::cstr_prefix_bytes(key, pat_bytes.len() - 1)
+                == &pat_bytes[..pat_bytes.len() - 1]
         } else {
-            crate::memory::cstr_as_bytes(key) == crate::memory::cstr_as_bytes(pat_ptr)
+            crate::memory::cstr_as_bytes(key) == pat_bytes
         }
     }
 }
@@ -4726,8 +4725,7 @@ pub fn tv_get_lnum(tv: &TypVal) -> Linenr {
 pub fn tv_get_lnum_buf(tv: &TypVal, buf: Option<&FileBuf>) -> Linenr {
     if tv.v_type == VarType::VarString
         && !tv.vval.v_string().is_null()
-        && crate::memory::cstr_first_byte(tv.vval.v_string()) == b'$'
-        && crate::memory::cstr_byte_at(tv.vval.v_string(), 1) == 0
+        && crate::memory::cstr_as_bytes(tv.vval.v_string()) == b"$"
         && let Some(buf) = buf
     {
         return buf.b_ml.ml_line_count;

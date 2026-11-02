@@ -568,8 +568,8 @@ pub fn nvim_feedkeys(keys: NvimString, mode: NvimString, escape_ks: Boolean) {
     let mut dangerous = false;
     let mut lowlevel = false;
 
-    for i in 0..mode.size {
-        match crate::memory::cstr_byte_at(mode.data, i) {
+    for &b in mode.as_bytes() {
+        match b {
             b'n' => remap = false,
             b'm' => remap = true,
             b't' => typed = true,

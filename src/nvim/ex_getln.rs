@@ -643,7 +643,7 @@ pub fn parse_pattern_and_range(
         g_st().search_global.first_line = ea.line2.min(ea.line1);
         g_st().search_global.last_line = ea.line2.max(ea.line1);
     } else if crate::memory::cstr_first_byte(cmd) == b's'
-        && crate::memory::cstr_byte_at(cmd, 1) != b'o'
+        && crate::memory::cstr_as_bytes(cmd).get(1) != Some(&b'o')
     {
         // :s defaults to the current line
         g_st().search_global.first_line = curwin_mut().w_cursor.lnum;
@@ -1970,9 +1970,7 @@ fn may_do_command_line_next_incsearch(
         restore_last_search_pattern();
         return true;
     }
-    if patlen == 0
-        && crate::memory::cstr_byte_at(getln_st().ccline.cmdbuff.cast(), skiplen as usize) == 0
-    {
+    if patlen == 0 && getln_st().ccline.cmdbuff_vec[skiplen as usize] == 0 {
         restore_last_search_pattern();
         return false;
     }
@@ -2414,31 +2412,24 @@ fn command_line_browse_history(s: &mut CommandLineState) -> i32 {
             let mut len: i32 = 0;
             for i in 0..=1 {
                 len = 0;
-                let mut j: usize = 0;
-                while crate::memory::cstr_byte_at(p.cast(), j) != 0 {
-                    if i32::from(crate::memory::cstr_byte_at(p.cast(), j)) == old_firstc
-                        && (j == 0 || crate::memory::cstr_byte_at(p.cast(), j - 1) != b'\\')
-                    {
+                let p_bytes = crate::memory::cstr_as_bytes(p.cast());
+                for (j, &pj) in p_bytes.iter().enumerate() {
+                    if i32::from(pj) == old_firstc && (j == 0 || p_bytes[j - 1] != b'\\') {
                         if i > 0 {
                             getln_st().ccline.cmdbuff_vec[len as usize] = s.firstc as u8;
                         }
                     } else {
-                        if i32::from(crate::memory::cstr_byte_at(p.cast(), j)) == s.firstc
-                            && (j == 0 || crate::memory::cstr_byte_at(p.cast(), j - 1) != b'\\')
-                        {
+                        if i32::from(pj) == s.firstc && (j == 0 || p_bytes[j - 1] != b'\\') {
                             if i > 0 {
                                 getln_st().ccline.cmdbuff_vec[len as usize] = b'\\';
                             }
                             len += 1;
                         }
-
                         if i > 0 {
-                            getln_st().ccline.cmdbuff_vec[len as usize] =
-                                crate::memory::cstr_byte_at(p.cast(), j);
+                            getln_st().ccline.cmdbuff_vec[len as usize] = pj;
                         }
                     }
                     len += 1;
-                    j += 1;
                 }
 
                 if i == 0 {
@@ -3780,10 +3771,10 @@ fn color_cmdline(colored_ccline: &mut CmdlineInfo) -> bool {
             if color_cb.cb_type() == K_CALLBACK_NONE_CONST {
                 break 'color_cmdline_end;
             }
-            if crate::memory::cstr_byte_at(
-                colored_ccline.cmdbuff.cast(),
-                colored_ccline.cmdlen as usize,
-            ) != 0
+            if colored_ccline
+                .cmdbuff_vec
+                .get(colored_ccline.cmdlen as usize)
+                != Some(&0)
             {
                 let cstr = std::ffi::CString::new(crate::memory::cstr_slice(
                     colored_ccline.cmdbuff.cast(),
@@ -3864,11 +3855,7 @@ fn color_cmdline(colored_ccline: &mut CmdlineInfo) -> bool {
                     );
                     printed_errmsg = true;
                     break 'color_cmdline_error;
-                } else if UTF8LEN_TAB_ZERO[crate::memory::cstr_byte_at(
-                    colored_ccline.cmdbuff.cast(),
-                    start as usize,
-                ) as usize]
-                    == 0
+                } else if UTF8LEN_TAB_ZERO[colored_ccline.cmdbuff_vec[start as usize] as usize] == 0
                 {
                     g_st().msg_scroll = 1;
                     msg_putchar(b'\n' as i32);
@@ -3905,11 +3892,7 @@ fn color_cmdline(colored_ccline: &mut CmdlineInfo) -> bool {
                     printed_errmsg = true;
                     break 'color_cmdline_error;
                 } else if end < colored_ccline.cmdlen as Varnumber
-                    && UTF8LEN_TAB_ZERO[crate::memory::cstr_byte_at(
-                        colored_ccline.cmdbuff.cast(),
-                        end as usize,
-                    ) as usize]
-                        == 0
+                    && UTF8LEN_TAB_ZERO[colored_ccline.cmdbuff_vec[end as usize] as usize] == 0
                 {
                     g_st().msg_scroll = 1;
                     msg_putchar(b'\n' as i32);
@@ -4714,8 +4697,11 @@ pub fn escape_fname_cstr(s: &mut std::ffi::CString) {
 pub fn tilde_replace(orig_pat: impl crate::strings::IntoCCharPtr, files: &mut [std::ffi::CString]) {
     let orig_pat = orig_pat.into_c_char_ptr();
     {
-        if crate::memory::cstr_first_byte(orig_pat) == b'~'
-            && vim_ispathsep((crate::memory::cstr_byte_at(orig_pat, 1)) as i32)
+        let orig_bytes = crate::memory::cstr_as_bytes(orig_pat);
+        if orig_bytes.first() == Some(&b'~')
+            && orig_bytes
+                .get(1)
+                .is_some_and(|&b| vim_ispathsep(i32::from(b)))
         {
             for f in files {
                 *f = home_replace_save(None, f.as_ptr().cast_mut());
@@ -5168,10 +5154,7 @@ pub fn is_in_cmdwin() -> bool {
 pub fn script_get(eap: &mut Exarg, lenp: &mut usize) -> Option<std::ffi::CString> {
     let mut cmd = eap.arg;
 
-    if crate::memory::cstr_first_byte(cmd) != b'<'
-        || crate::memory::cstr_byte_at(cmd, 1) != b'<'
-        || eap.ea_getline.is_none()
-    {
+    if !crate::memory::cstr_as_bytes(cmd).starts_with(b"<<") || eap.ea_getline.is_none() {
         *lenp = crate::memory::cstr_len(eap.arg);
         return if eap.skip != 0 {
             None

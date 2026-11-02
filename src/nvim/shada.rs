@@ -816,8 +816,9 @@ impl std::hash::Hash for PathKey {
         let mut p = self.0;
         let mut h: u32 = 0;
         if cfg!(target_os = "windows") {
-            let c0 = crate::memory::cstr_first_byte(p.cast());
-            if c0.is_ascii_alphabetic() && { crate::memory::cstr_byte_at(p.cast(), 1) } == b':' {
+            let p_bytes = crate::memory::cstr_as_bytes(p.cast());
+            if p_bytes.first().is_some_and(u8::is_ascii_alphabetic) && p_bytes.get(1) == Some(&b':')
+            {
                 p = p.wrapping_add(2);
             }
         }
