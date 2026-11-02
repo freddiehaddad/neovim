@@ -4,12 +4,12 @@ use crate::buffer::FileBuf;
 use crate::cursor::get_cursor_line_ptr;
 use crate::globals::*;
 use crate::mbyte::{
-    UTF8LEN_TAB, mb_islower, mb_isupper, mb_ptr2char_adv, mb_tolower, utf_char2cells, utf_char2len,
-    utf_char2slice, utf_class_tab, utf_cluster_info, utf_printable, utf_ptr2_str_char_info,
-    utf_ptr2char, utf_slice2char, utf_slice2len, utfc_slice2len,
+    UTF8LEN_TAB, mb_islower, mb_isupper, mb_tolower, utf_char2cells, utf_char2len, utf_char2slice,
+    utf_class_tab, utf_cluster_info, utf_printable, utf_ptr2_str_char_info, utf_slice2char,
+    utf_slice2len, utfc_slice2len,
 };
 use crate::memory::cstr_from_bytes;
-use crate::option::{get_fileformat, skip_to_option_part};
+use crate::option::{get_fileformat, skip_to_option_part_slice};
 use crate::option_vars::*;
 use crate::path::path_has_wildcard;
 use crate::strings::{RawCChar, RawCCharPtr, RawCCharPtrMut};
@@ -277,77 +277,75 @@ pub fn parse_isopt(
     mut chartab: Option<&mut [u64; 4]>,
 ) -> bool {
     let var = var.into_c_char_ptr();
-    {
-        let mut p = var;
+    let mut p = crate::memory::cstr_as_bytes(var);
 
-        while !crate::memory::cstr_is_empty(p) {
-            let mut tilde = false;
-            let mut do_isalpha = false;
+    while !p.is_empty() {
+        let mut tilde = false;
+        let mut do_isalpha = false;
 
-            if crate::memory::cstr_first_byte(p) == b'^' && crate::memory::cstr_byte_at(p, 1) != 0 {
-                tilde = true;
-                p = p.wrapping_add(1);
-            }
+        if p[0] == b'^' && p.get(1).copied().unwrap_or(0) != 0 {
+            tilde = true;
+            p = &p[1..];
+        }
 
-            let mut c = if ascii_isdigit(crate::memory::cstr_first_char(p)) {
-                getdigits_int(&mut p, false, 0)
+        let mut c = if p[0].is_ascii_digit() {
+            getdigits_int_slice(&mut p, false, 0)
+        } else {
+            crate::mbyte::mb_slice2char_adv(&mut p)
+        };
+        let mut c2: i32 = -1;
+
+        if p.first() == Some(&b'-') && p.get(1).copied().unwrap_or(0) != 0 {
+            p = &p[1..];
+            c2 = if p.first().is_some_and(u8::is_ascii_digit) {
+                getdigits_int_slice(&mut p, false, 0)
             } else {
-                mb_ptr2char_adv(&mut p)
+                crate::mbyte::mb_slice2char_adv(&mut p)
             };
-            let mut c2: i32 = -1;
+        }
 
-            if crate::memory::cstr_first_byte(p) == b'-' && crate::memory::cstr_byte_at(p, 1) != 0 {
-                p = p.wrapping_add(1);
-                c2 = if ascii_isdigit(crate::memory::cstr_first_char(p)) {
-                    getdigits_int(&mut p, false, 0)
-                } else {
-                    mb_ptr2char_adv(&mut p)
-                };
-            }
+        if c <= 0
+            || c >= 256
+            || (c2 < c && c2 != -1)
+            || c2 >= 256
+            || !(p.is_empty() || p[0] == b',')
+        {
+            return false;
+        }
 
-            if c <= 0
-                || c >= 256
-                || (c2 < c && c2 != -1)
-                || c2 >= 256
-                || !(crate::memory::cstr_is_empty(p) || crate::memory::cstr_first_byte(p) == b',')
-            {
-                return false;
-            }
+        let trail_comma = p.first() == Some(&b',');
+        p = skip_to_option_part_slice(p);
+        if trail_comma && p.is_empty() {
+            return false;
+        }
 
-            let trail_comma = crate::memory::cstr_first_byte(p) == b',';
-            p = skip_to_option_part(p);
-            if trail_comma && crate::memory::cstr_is_empty(p) {
-                return false;
-            }
+        let Some(ref mut tab) = chartab else {
+            continue;
+        };
 
-            let Some(ref mut tab) = chartab else {
-                continue;
-            };
-
-            if c2 == -1 {
-                if c == b'@' as i32 {
-                    do_isalpha = true;
-                    c = 1;
-                    c2 = 255;
-                } else {
-                    c2 = c;
-                }
-            }
-
-            while c <= c2 {
-                if !do_isalpha || mb_islower(c) || mb_isupper(c) {
-                    if tilde {
-                        reset_chartab(tab, c);
-                    } else {
-                        set_chartab(tab, c);
-                    }
-                }
-                c += 1;
+        if c2 == -1 {
+            if c == b'@' as i32 {
+                do_isalpha = true;
+                c = 1;
+                c2 = 255;
+            } else {
+                c2 = c;
             }
         }
 
-        true
+        while c <= c2 {
+            if !do_isalpha || mb_islower(c) || mb_isupper(c) {
+                if tilde {
+                    reset_chartab(tab, c);
+                } else {
+                    set_chartab(tab, c);
+                }
+            }
+            c += 1;
+        }
     }
+
+    true
 }
 
 pub fn trans_characters(buf: &mut [u8]) {
@@ -734,14 +732,14 @@ pub fn vim_iswordp(p: impl crate::strings::IntoCCharPtr) -> bool {
 }
 
 pub fn vim_iswordp_buf(p: impl crate::strings::IntoCCharPtr, buf: &mut FileBuf) -> bool {
-    let p = p.into_c_char_ptr();
-    {
-        let mut c = i32::from(crate::memory::cstr_first_byte(p));
-        if UTF8LEN_TAB[c as usize] > 1 {
-            c = utf_ptr2char(p);
-        }
-        vim_iswordc_buf(c, buf)
-    }
+    let bytes = crate::memory::cstr_as_bytes(p.into_c_char_ptr());
+    let b0 = bytes.first().copied().unwrap_or(0);
+    let c = if UTF8LEN_TAB[b0 as usize] > 1 {
+        utf_slice2char(bytes)
+    } else {
+        i32::from(b0)
+    };
+    vim_iswordc_buf(c, buf)
 }
 
 pub fn vim_isfilec(c: i32) -> bool {
@@ -764,25 +762,128 @@ pub fn vim_isprintc(c: i32) -> bool {
     c > 0 && (c & 0x60) != 0 && c != 0x7f
 }
 
-pub fn skipwhite(p: impl crate::strings::IntoCCharPtr) -> RawCCharPtrMut {
-    let mut p = p.into_c_char_ptr();
-    {
-        while ascii_iswhite(crate::memory::cstr_first_char(p)) {
-            p = p.wrapping_add(1);
+#[inline]
+pub fn skipwhite_slice(mut s: &[u8]) -> &[u8] {
+    while let Some((&b, rest)) = s.split_first() {
+        if b == b' ' || b == b'\t' {
+            s = rest;
+        } else {
+            break;
         }
-        p.cast_mut()
     }
+    s
 }
 
-pub fn skipwhite_len(p: impl crate::strings::IntoCCharPtr, mut len: usize) -> RawCCharPtrMut {
-    let mut p = p.into_c_char_ptr();
-    {
-        while len > 0 && ascii_iswhite(crate::memory::cstr_first_char(p)) {
-            p = p.wrapping_add(1);
-            len -= 1;
+#[inline]
+pub fn skiptowhite_slice(mut s: &[u8]) -> &[u8] {
+    while let Some((&b, rest)) = s.split_first() {
+        if b == b' ' || b == b'\t' || b == 0 {
+            break;
         }
-        p.cast_mut()
+        s = rest;
     }
+    s
+}
+
+#[inline]
+pub fn skiptowhite_esc_slice(mut s: &[u8]) -> &[u8] {
+    while let Some((&b, rest)) = s.split_first() {
+        if matches!(b, b' ' | b'\t' | 0) {
+            break;
+        }
+        if (b == b'\\' || b == CTRL_V_CONST as u8)
+            && let Some((&next, rest2)) = rest.split_first()
+            && next != 0
+        {
+            s = rest2;
+        } else {
+            s = rest;
+        }
+    }
+    s
+}
+
+#[inline]
+pub fn skipdigits_slice(mut s: &[u8]) -> &[u8] {
+    while let Some((&b, rest)) = s.split_first() {
+        if b.is_ascii_digit() {
+            s = rest;
+        } else {
+            break;
+        }
+    }
+    s
+}
+
+#[inline]
+pub fn skiptodigit_slice(mut s: &[u8]) -> &[u8] {
+    while let Some((&b, rest)) = s.split_first() {
+        if b == 0 || b.is_ascii_digit() {
+            break;
+        }
+        s = rest;
+    }
+    s
+}
+
+#[inline]
+pub fn skiphex_slice(mut s: &[u8]) -> &[u8] {
+    while let Some((&b, rest)) = s.split_first() {
+        if b.is_ascii_hexdigit() {
+            s = rest;
+        } else {
+            break;
+        }
+    }
+    s
+}
+
+#[inline]
+pub fn skiptohex_slice(mut s: &[u8]) -> &[u8] {
+    while let Some((&b, rest)) = s.split_first() {
+        if b == 0 || b.is_ascii_hexdigit() {
+            break;
+        }
+        s = rest;
+    }
+    s
+}
+
+#[inline]
+pub fn skipbin_slice(mut s: &[u8]) -> &[u8] {
+    while let Some((&b, rest)) = s.split_first() {
+        if b == b'0' || b == b'1' {
+            s = rest;
+        } else {
+            break;
+        }
+    }
+    s
+}
+
+#[inline]
+pub fn skiptobin_slice(mut s: &[u8]) -> &[u8] {
+    while let Some((&b, rest)) = s.split_first() {
+        if b == 0 || b == b'0' || b == b'1' {
+            break;
+        }
+        s = rest;
+    }
+    s
+}
+
+pub fn skipwhite(p: impl crate::strings::IntoCCharPtr) -> RawCCharPtrMut {
+    let p = p.into_c_char_ptr();
+    let bytes = crate::memory::cstr_as_bytes(p);
+    let rem = skipwhite_slice(bytes);
+    p.wrapping_add(bytes.len() - rem.len()).cast_mut()
+}
+
+pub fn skipwhite_len(p: impl crate::strings::IntoCCharPtr, len: usize) -> RawCCharPtrMut {
+    let p = p.into_c_char_ptr();
+    let bytes = crate::memory::cstr_slice(p, len);
+    let rem = skipwhite_slice(bytes);
+    p.wrapping_add(bytes.len() - rem.len()).cast_mut()
 }
 
 pub fn getwhitecols_curline() -> isize {
@@ -790,106 +891,71 @@ pub fn getwhitecols_curline() -> isize {
 }
 
 pub fn getwhitecols(p: impl crate::strings::IntoCCharPtr) -> isize {
-    let p = p.into_c_char_ptr();
-    crate::memory::ptr_offset_from(skipwhite(p), p)
+    let bytes = crate::memory::cstr_as_bytes(p.into_c_char_ptr());
+    (bytes.len() - skipwhite_slice(bytes).len()) as isize
 }
 
 pub fn skipdigits(q: impl crate::strings::IntoCCharPtr) -> RawCCharPtrMut {
     let q = q.into_c_char_ptr();
-    {
-        let mut p = q;
-        while ascii_isdigit(crate::memory::cstr_first_char(p)) {
-            p = p.wrapping_add(1);
-        }
-        p.cast_mut()
-    }
+    let bytes = crate::memory::cstr_as_bytes(q);
+    let rem = skipdigits_slice(bytes);
+    q.wrapping_add(bytes.len() - rem.len()).cast_mut()
 }
 
 pub fn skipbin(q: impl crate::strings::IntoCCharPtr) -> RawCCharPtr {
     let q = q.into_c_char_ptr();
-    {
-        let mut p = q;
-        while ascii_isbdigit(crate::memory::cstr_first_char(p)) {
-            p = p.wrapping_add(1);
-        }
-        p
-    }
+    let bytes = crate::memory::cstr_as_bytes(q);
+    let rem = skipbin_slice(bytes);
+    q.wrapping_add(bytes.len() - rem.len())
 }
 
 pub fn skiphex(q: RawCCharPtrMut) -> RawCCharPtrMut {
-    let mut p = q;
-    while ascii_isxdigit(crate::memory::cstr_first_char(p)) {
-        p = p.wrapping_add(1);
-    }
-    p
+    let bytes = crate::memory::cstr_as_bytes(q);
+    let rem = skiphex_slice(bytes);
+    q.wrapping_add(bytes.len() - rem.len())
 }
 
 pub fn skiptodigit(q: RawCCharPtrMut) -> RawCCharPtrMut {
-    let mut p = q;
-    while !crate::memory::cstr_is_empty(p) && !ascii_isdigit(crate::memory::cstr_first_char(p)) {
-        p = p.wrapping_add(1);
-    }
-    p
+    let bytes = crate::memory::cstr_as_bytes(q);
+    let rem = skiptodigit_slice(bytes);
+    q.wrapping_add(bytes.len() - rem.len())
 }
 
 pub fn skiptobin(q: impl crate::strings::IntoCCharPtr) -> RawCCharPtr {
     let q = q.into_c_char_ptr();
-    {
-        let mut p = q;
-        while !crate::memory::cstr_is_empty(p) && !ascii_isbdigit(crate::memory::cstr_first_char(p))
-        {
-            p = p.wrapping_add(1);
-        }
-        p
-    }
+    let bytes = crate::memory::cstr_as_bytes(q);
+    let rem = skiptobin_slice(bytes);
+    q.wrapping_add(bytes.len() - rem.len())
 }
 
 pub fn skiptohex(q: RawCCharPtrMut) -> RawCCharPtrMut {
-    let mut p = q;
-    while !crate::memory::cstr_is_empty(p) && !ascii_isxdigit(crate::memory::cstr_first_char(p)) {
-        p = p.wrapping_add(1);
-    }
-    p
+    let bytes = crate::memory::cstr_as_bytes(q);
+    let rem = skiptohex_slice(bytes);
+    q.wrapping_add(bytes.len() - rem.len())
 }
 
 pub fn skiptowhite(p: impl crate::strings::IntoCCharPtr) -> RawCCharPtrMut {
-    let mut p = p.into_c_char_ptr();
-    {
-        while crate::memory::cstr_first_byte(p) != b' '
-            && crate::memory::cstr_first_byte(p) != b'\t'
-            && !crate::memory::cstr_is_empty(p)
-        {
-            p = p.wrapping_add(1);
-        }
-        p.cast_mut()
-    }
+    let p = p.into_c_char_ptr();
+    let bytes = crate::memory::cstr_as_bytes(p);
+    let rem = skiptowhite_slice(bytes);
+    p.wrapping_add(bytes.len() - rem.len()).cast_mut()
 }
 
 pub fn skiptowhite_esc(p: impl crate::strings::IntoCCharPtr) -> RawCCharPtrMut {
-    let mut p = p.into_c_char_ptr();
-    while !matches!(crate::memory::cstr_first_byte(p), b' ' | b'\t' | 0) {
-        if (crate::memory::cstr_first_byte(p) == b'\\'
-            || crate::memory::cstr_first_char(p) == i32::from(CTRL_V_CONST))
-            && crate::memory::cstr_byte_at(p, 1) != 0
-        {
-            p = p.wrapping_add(1);
-        }
-        p = p.wrapping_add(1);
-    }
-    p.cast_mut()
+    let p = p.into_c_char_ptr();
+    let bytes = crate::memory::cstr_as_bytes(p);
+    let rem = skiptowhite_esc_slice(bytes);
+    p.wrapping_add(bytes.len() - rem.len()).cast_mut()
 }
 
 pub fn skip_to_newline(p: impl crate::strings::IntoCCharPtr) -> RawCCharPtrMut {
     let p = p.into_c_char_ptr();
-    {
-        let _s = p;
-        let _b = crate::memory::cstr_as_bytes(_s);
-        let _off = _b
-            .iter()
-            .position(|&_x| _x == (NL) as u8)
-            .unwrap_or(_b.len());
-        _s.wrapping_add(_off).cast_mut()
-    }
+    let bytes = crate::memory::cstr_as_bytes(p);
+    let off = bytes
+        .iter()
+        .position(|&x| x == NL as u8)
+        .unwrap_or(bytes.len());
+    p.wrapping_add(off).cast_mut()
 }
 
 pub trait RawByteCursor: Copy {
@@ -945,61 +1011,75 @@ impl RawByteCursor for *mut i8 {
     }
 }
 
-pub fn try_getdigits<P: RawByteCursor>(pp: &mut P, nr: &mut i64) -> bool {
-    unsafe {
-        let orig = *pp;
-        let mut p = orig.as_byte_ptr();
+pub fn try_getdigits_slice(s: &mut &[u8], nr: &mut i64) -> bool {
+    let orig = *s;
+    let mut p = orig;
 
-        while matches!(*p, b' ' | b'\t' | b'\n' | 0x0b | 0x0c | b'\r') {
-            p = p.wrapping_add(1);
-        }
-
-        let mut neg = false;
-        if *p == b'-' {
-            neg = true;
-            p = p.wrapping_add(1);
-        } else if *p == b'+' {
-            p = p.wrapping_add(1);
-        }
-
-        if !(*p).is_ascii_digit() {
-            *pp = orig;
-            *nr = 0;
-            return true;
-        }
-
-        let mut acc: u64 = 0;
-        let mut overflow = false;
-        while (*p).is_ascii_digit() {
-            let d = u64::from(*p - b'0');
-            if let Some(next) = acc.checked_mul(10).and_then(|v| v.checked_add(d)) {
-                acc = next;
-            } else {
-                overflow = true;
-            }
-            p = p.wrapping_add(1);
-        }
-
-        *pp = P::from_byte_ptr(p);
-        if neg {
-            const MIN_MAG: u64 = (i64::MAX as u64) + 1;
-            if overflow || acc > MIN_MAG {
-                *nr = i64::MIN;
-                return false;
-            } else if acc == MIN_MAG {
-                *nr = i64::MIN;
-            } else {
-                *nr = -(acc as i64);
-            }
+    while let Some((&b, rest)) = p.split_first() {
+        if matches!(b, b' ' | b'\t' | b'\n' | 0x0b | 0x0c | b'\r') {
+            p = rest;
         } else {
-            if overflow || acc > (i64::MAX as u64) {
-                *nr = i64::MAX;
-                return false;
-            }
-            *nr = acc as i64;
+            break;
         }
-        true
     }
+
+    let mut neg = false;
+    if let Some((&b'-', rest)) = p.split_first() {
+        neg = true;
+        p = rest;
+    } else if let Some((&b'+', rest)) = p.split_first() {
+        p = rest;
+    }
+
+    if !p.first().is_some_and(u8::is_ascii_digit) {
+        *s = orig;
+        *nr = 0;
+        return true;
+    }
+
+    let mut acc: u64 = 0;
+    let mut overflow = false;
+    while let Some((&b, rest)) = p.split_first() {
+        if !b.is_ascii_digit() {
+            break;
+        }
+        let d = u64::from(b - b'0');
+        if let Some(next) = acc.checked_mul(10).and_then(|v| v.checked_add(d)) {
+            acc = next;
+        } else {
+            overflow = true;
+        }
+        p = rest;
+    }
+
+    *s = p;
+    if neg {
+        const MIN_MAG: u64 = (i64::MAX as u64) + 1;
+        if overflow || acc > MIN_MAG {
+            *nr = i64::MIN;
+            return false;
+        } else if acc == MIN_MAG {
+            *nr = i64::MIN;
+        } else {
+            *nr = -(acc as i64);
+        }
+    } else {
+        if overflow || acc > (i64::MAX as u64) {
+            *nr = i64::MAX;
+            return false;
+        }
+        *nr = acc as i64;
+    }
+    true
+}
+
+pub fn try_getdigits<P: RawByteCursor>(pp: &mut P, nr: &mut i64) -> bool {
+    let orig = pp.as_byte_ptr();
+    let bytes = crate::memory::cstr_as_bytes(orig.cast());
+    let mut rem = bytes;
+    let ok = try_getdigits_slice(&mut rem, nr);
+    *pp = P::from_byte_ptr(orig.wrapping_add(bytes.len() - rem.len()));
+    ok
 }
 
 #[inline]
@@ -1033,6 +1113,34 @@ pub fn parse_i64_prefix(bytes: &[u8]) -> i64 {
     if neg { acc.wrapping_neg() } else { acc }
 }
 
+pub fn getdigits_slice(s: &mut &[u8], strict: bool, def: i64) -> i64 {
+    let mut number: i64 = 0;
+    let ok = try_getdigits_slice(s, &mut number);
+    if strict && !ok {
+        std::process::abort();
+    }
+    if ok { number } else { def }
+}
+
+pub fn getdigits_int_slice(s: &mut &[u8], strict: bool, def: i32) -> i32 {
+    let number = getdigits_slice(s, strict, i64::from(def));
+    match i32::try_from(number) {
+        Ok(v) => v,
+        Err(_) => {
+            assert!(!strict);
+            def
+        }
+    }
+}
+
+pub fn getdigits_long_slice(s: &mut &[u8], strict: bool, def: i64) -> i64 {
+    getdigits_slice(s, strict, def)
+}
+
+pub fn getdigits_int32_slice(s: &mut &[u8], strict: bool, def: i32) -> i32 {
+    getdigits_int_slice(s, strict, def)
+}
+
 pub fn getdigits<P: RawByteCursor>(pp: &mut P, strict: bool, def: i64) -> i64 {
     let mut number: i64 = 0;
     let ok = try_getdigits(pp, &mut number);
@@ -1054,28 +1162,29 @@ pub fn getdigits_int<P: RawByteCursor>(pp: &mut P, strict: bool, def: i32) -> i3
 }
 
 pub fn getdigits_long<P: RawByteCursor>(pp: &mut P, strict: bool, def: i64) -> i64 {
-    getdigits(pp, strict, def)
+    let orig = pp.as_byte_ptr();
+    let bytes = crate::memory::cstr_as_bytes(orig.cast());
+    let mut rem = bytes;
+    let res = getdigits_long_slice(&mut rem, strict, def);
+    *pp = P::from_byte_ptr(orig.wrapping_add(bytes.len() - rem.len()));
+    res
 }
 
 pub fn getdigits_int32<P: RawByteCursor>(pp: &mut P, strict: bool, def: i32) -> i32 {
-    let number = getdigits(pp, strict, i64::from(def));
-    match i32::try_from(number) {
-        Ok(v) => v,
-        Err(_) => {
-            assert!(!strict);
-            def
-        }
-    }
+    let orig = pp.as_byte_ptr();
+    let bytes = crate::memory::cstr_as_bytes(orig.cast());
+    let mut rem = bytes;
+    let res = getdigits_int32_slice(&mut rem, strict, def);
+    *pp = P::from_byte_ptr(orig.wrapping_add(bytes.len() - rem.len()));
+    res
 }
 
 pub fn vim_isblankline(lbuf: impl crate::strings::IntoCCharPtr) -> bool {
-    let lbuf = lbuf.into_c_char_ptr();
-    {
-        let p = skipwhite(lbuf);
-        crate::memory::cstr_is_empty(p)
-            || crate::memory::cstr_first_byte(p) == b'\r'
-            || crate::memory::cstr_first_byte(p) == b'\n'
-    }
+    let bytes = crate::memory::cstr_as_bytes(lbuf.into_c_char_ptr());
+    matches!(
+        skipwhite_slice(bytes).first(),
+        None | Some(&b'\r') | Some(&b'\n')
+    )
 }
 
 pub fn vim_slice2nr(

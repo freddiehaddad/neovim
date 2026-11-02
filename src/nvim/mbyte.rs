@@ -19,7 +19,6 @@ use crate::globals::*;
 use crate::grid::CharBoundsOff;
 use crate::input::beep_flush;
 use crate::mark::mark_mb_adjustpos;
-use crate::memline::ml_get_buf;
 use crate::message::{emsg, msg, semsg};
 use crate::r#move::changed_window_setting_all;
 use crate::option_vars::*;
@@ -1274,17 +1273,43 @@ pub fn utf_char2cells(c: i32) -> i32 {
     1
 }
 
+#[inline]
+pub fn slice2cells(s: &[u8]) -> i32 {
+    utf_cluster_cells(s)
+}
+
+#[inline]
+pub fn utf_slice2cells(s: &[u8]) -> i32 {
+    if s.first().is_some_and(|&b| b < 0x80 && b != 0) {
+        return 1;
+    }
+    slice2cells(s)
+}
+
+#[inline]
+pub fn mb_slice2char_adv(s: &mut &[u8]) -> i32 {
+    let c = utf_slice2char(s);
+    let len = utfc_slice2len(s).min(s.len());
+    *s = &s[len..];
+    c
+}
+
+#[inline]
+pub fn mb_cslice2char_adv(s: &mut &[u8]) -> i32 {
+    let c = utf_slice2char(s);
+    let len = utf_slice2len(s).min(s.len());
+    *s = &s[len..];
+    c
+}
+
 pub fn ptr2cells(p_in: impl crate::strings::IntoCCharPtr) -> i32 {
     let p_in = p_in.into_c_char_ptr();
-    utf_cluster_info(utf_ptr2_str_char_info(p_in)).cells
+    slice2cells(crate::memory::cstr_as_bytes(p_in))
 }
 
 pub fn utf_ptr2cells(p_in: impl crate::strings::IntoCCharPtr) -> i32 {
     let p_in = p_in.into_c_char_ptr();
-    if crate::memory::cstr_first_byte(p_in) < 0x80 {
-        return 1;
-    }
-    ptr2cells(p_in)
+    utf_slice2cells(crate::memory::cstr_as_bytes(p_in))
 }
 
 pub fn utf_slice2_char_info_impl(bytes: &[u8]) -> i32 {
@@ -1392,8 +1417,10 @@ pub fn mb_ptr2char_adv<P: crate::charset::RawByteCursor>(pp: &mut P) -> i32 {
 
 pub fn mb_cptr2char_adv<P: crate::charset::RawByteCursor>(pp: &mut P) -> i32 {
     let p = pp.as_byte_ptr();
-    let c = utf_ptr2char(p.cast());
-    *pp = P::from_byte_ptr(p.wrapping_add(utf_ptr2len(p.cast()) as usize));
+    let mut slice = unsafe { raw_utf8_prefix(p) };
+    let orig_len = slice.len();
+    let c = mb_cslice2char_adv(&mut slice);
+    *pp = P::from_byte_ptr(p.wrapping_add(orig_len - slice.len()));
     c
 }
 
@@ -2860,8 +2887,8 @@ pub fn mb_check_adjust_col(win: &mut WinInfoInfo) {
     let oldcol = win.w_cursor.col;
 
     if oldcol != 0 {
-        let p = ml_get_buf(win.buf_mut(), win.w_cursor.lnum);
-        let len = crate::memory::cstr_len(p) as Colnr;
+        let line = crate::memline::ml_get_buf_slice(win.buf_mut(), win.w_cursor.lnum);
+        let len = line.len() as Colnr;
 
         if len == 0 || oldcol < 0 {
             win.w_cursor.col = 0;
@@ -2869,14 +2896,16 @@ pub fn mb_check_adjust_col(win: &mut WinInfoInfo) {
             if oldcol > len {
                 win.w_cursor.col = len - 1;
             }
-            win.w_cursor.col -= utf_head_off(p, p.wrapping_add(win.w_cursor.col as usize));
+            win.w_cursor.col -= utf_head_off_slice(line, win.w_cursor.col as usize) as Colnr;
         }
 
         let cur_col = win.w_cursor.col as usize;
         if win.w_cursor.coladd == 1
-            && crate::memory::cstr_byte_at(p, cur_col) != TAB
-            && vim_isprintc(utf_ptr2char(p.wrapping_add(cur_col)))
-            && ptr2cells(p.wrapping_add(cur_col)) > 1
+            && let Some(rem) = line.get(cur_col..)
+            && !rem.is_empty()
+            && rem[0] != TAB
+            && vim_isprintc(utf_slice2char(rem))
+            && slice2cells(rem) > 1
         {
             win.w_cursor.coladd = 0;
         }
@@ -2896,68 +2925,74 @@ pub fn mb_prevptr<T>(line: *mut T, mut p: *mut T) -> *mut T {
 
 pub fn mb_charlen(str_: impl crate::strings::IntoCCharPtr) -> i32 {
     let str_ = str_.into_c_char_ptr();
-    {
-        if str_.is_null() {
-            return 0;
-        }
-        let mut p = str_;
-        let mut count = 0;
-        while !crate::memory::cstr_is_empty(p) {
-            p = p.wrapping_add(utfc_ptr2len(p) as usize);
-            count += 1;
-        }
-        count
+    if str_.is_null() {
+        return 0;
     }
+    let mut rem = crate::memory::cstr_as_bytes(str_);
+    let mut count = 0;
+    while !rem.is_empty() {
+        let l = utfc_slice2len(rem).max(1);
+        rem = &rem[l..];
+        count += 1;
+    }
+    count
 }
 
 pub fn mb_charlen_len(str_: impl crate::strings::IntoCCharPtr, len: i32) -> i32 {
     let str_ = str_.into_c_char_ptr();
-    {
-        let mut p = str_;
-        let end = str_.wrapping_add(len.max(0) as usize);
-        let mut count = 0;
-        while !crate::memory::cstr_is_empty(p) && p < end {
-            p = p.wrapping_add(utfc_ptr2len(p) as usize);
-            count += 1;
-        }
-        count
+    let mut rem = crate::memory::cstr_prefix_bytes(str_, len.max(0) as usize);
+    let mut count = 0;
+    while !rem.is_empty() {
+        let l = utfc_slice2len(rem).max(1);
+        rem = &rem[l..];
+        count += 1;
     }
+    count
+}
+
+pub fn mb_unescape_slice(s: &mut &[u8]) -> Option<&'static CStr> {
+    let bytes = *s;
+    let mut buf_idx = 0usize;
+    let mut str_idx = 0usize;
+
+    while str_idx < bytes.len() && bytes[str_idx] != 0 && buf_idx < 4 {
+        if bytes[str_idx] == K_SPECIAL
+            && bytes.get(str_idx + 1) == Some(&KS_SPECIAL)
+            && bytes.get(str_idx + 2) == Some(&KE_FILLER)
+        {
+            mbyte_st().mb_unescape_buf[buf_idx] = K_SPECIAL;
+            buf_idx += 1;
+            str_idx += 2;
+        } else if bytes[str_idx] == K_SPECIAL {
+            break;
+        } else {
+            mbyte_st().mb_unescape_buf[buf_idx] = bytes[str_idx];
+            buf_idx += 1;
+        }
+        mbyte_st().mb_unescape_buf[buf_idx] = 0;
+
+        if utf_slice2len(&mbyte_st().mb_unescape_buf[..buf_idx]) > 1 {
+            *s = &bytes[str_idx + 1..];
+            return CStr::from_bytes_until_nul(&mbyte_st().mb_unescape_buf).ok();
+        }
+
+        if mbyte_st().mb_unescape_buf[0] < 128 {
+            break;
+        }
+        str_idx += 1;
+    }
+    None
 }
 
 pub fn mb_unescape<P: crate::charset::RawByteCursor>(pp: &mut P) -> Option<&'static CStr> {
-    unsafe {
-        let mut buf_idx = 0usize;
-        let str_ = pp.as_byte_ptr();
-        let mut str_idx = 0usize;
-
-        while *str_.wrapping_add(str_idx) != 0 && buf_idx < 4 {
-            if *str_.wrapping_add(str_idx) == K_SPECIAL
-                && *str_.wrapping_add(str_idx + 1) == KS_SPECIAL
-                && *str_.wrapping_add(str_idx + 2) == KE_FILLER
-            {
-                mbyte_st().mb_unescape_buf[buf_idx] = K_SPECIAL;
-                buf_idx += 1;
-                str_idx += 2;
-            } else if *str_.wrapping_add(str_idx) == K_SPECIAL {
-                break;
-            } else {
-                mbyte_st().mb_unescape_buf[buf_idx] = *str_.wrapping_add(str_idx);
-                buf_idx += 1;
-            }
-            mbyte_st().mb_unescape_buf[buf_idx] = 0;
-
-            if utf_ptr2len(&mbyte_st().mb_unescape_buf) > 1 {
-                *pp = P::from_byte_ptr(str_.wrapping_add(str_idx + 1));
-                return Some(CStr::from_ptr(mbyte_st().mb_unescape_buf.as_ptr().cast()));
-            }
-
-            if mbyte_st().mb_unescape_buf[0] < 128 {
-                break;
-            }
-            str_idx += 1;
-        }
-        None
+    let orig = pp.as_byte_ptr();
+    let bytes = crate::memory::cstr_as_bytes(orig.cast());
+    let mut rem = bytes;
+    let res = mb_unescape_slice(&mut rem);
+    if res.is_some() {
+        *pp = P::from_byte_ptr(orig.wrapping_add(bytes.len() - rem.len()));
     }
+    res
 }
 
 pub fn enc_skip<'a>(p: impl crate::strings::IntoCCharPtr) -> &'a CStr {
@@ -3673,6 +3708,7 @@ mod tests {
                 (c"漢", 2),
             ] {
                 assert_eq!(utf_ptr2cells(s.as_ptr()), exp_cells);
+                assert_eq!(utf_slice2cells(s.to_bytes()), exp_cells);
                 assert_eq!(
                     mb_string2cells_len(s.as_ptr(), s.to_bytes().len()),
                     exp_cells as usize

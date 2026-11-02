@@ -260,160 +260,169 @@ pub fn ngettext<S1: IntoCCharPtr, S2: IntoCCharPtr, N: IntoNgettextCount>(
     }
 }
 
-pub fn strtod(nptr: impl crate::strings::IntoCCharPtr, endptr: *mut RawCCharPtrMut) -> f64 {
-    let nptr = nptr.into_c_char_ptr();
-    unsafe {
-        let mut s = nptr;
-        while matches!(*s as u8, b' ' | b'\t' | b'\n' | b'\r' | 0x0b | 0x0c) {
-            s = s.wrapping_add(1);
-        }
-        let neg = if crate::memory::cstr_first_byte(s) == b'-' {
-            s = s.wrapping_add(1);
-            true
+pub fn strtod_slice(bytes: &[u8]) -> (f64, usize) {
+    let mut s = bytes;
+    while let Some((&b, rest)) = s.split_first() {
+        if matches!(b, b' ' | b'\t' | b'\n' | b'\r' | 0x0b | 0x0c) {
+            s = rest;
         } else {
-            if crate::memory::cstr_first_byte(s) == b'+' {
-                s = s.wrapping_add(1);
-            }
-            false
-        };
-
-        let starts_with_ci = |p: RawCCharPtr, lit: &[u8]| -> bool {
-            for (i, &b) in lit.iter().enumerate() {
-                let c = crate::memory::cstr_byte_at(p, i);
-                if c.to_ascii_lowercase() != b {
-                    return false;
-                }
-            }
-            true
-        };
-
-        if starts_with_ci(s, b"inf") {
-            s = s.wrapping_add(3);
-            if starts_with_ci(s, b"inity") {
-                s = s.wrapping_add(5);
-            }
-            if !endptr.is_null() {
-                *endptr = s.cast_mut();
-            }
-            return if neg { -f64::INFINITY } else { f64::INFINITY };
+            break;
         }
-
-        if starts_with_ci(s, b"nan") {
-            s = s.wrapping_add(3);
-            if crate::memory::cstr_first_byte(s) == b'(' {
-                let mut p = s.wrapping_add(1);
-                while (*p as u8).is_ascii_alphanumeric()
-                    || crate::memory::cstr_first_byte(p) == b'_'
-                {
-                    p = p.wrapping_add(1);
-                }
-                if crate::memory::cstr_first_byte(p) == b')' {
-                    s = p.wrapping_add(1);
-                }
-            }
-            if !endptr.is_null() {
-                *endptr = s.cast_mut();
-            }
-            return if neg { -f64::NAN } else { f64::NAN };
+    }
+    let neg = if let Some((&b'-', rest)) = s.split_first() {
+        s = rest;
+        true
+    } else {
+        if let Some((&b'+', rest)) = s.split_first() {
+            s = rest;
         }
+        false
+    };
 
-        if crate::memory::cstr_first_byte(s) == b'0'
-            && matches!(crate::memory::cstr_byte_at(s, 1), b'x' | b'X')
-        {
-            let mut p = s.wrapping_add(2);
-            let mut mant: f64 = 0.0;
-            let mut exp2: i32 = 0;
-            let mut any_hex = false;
-            while let Some(d) = (*p as u8 as char).to_digit(16) {
+    let starts_with_ci = |p: &[u8], lit: &[u8]| -> bool {
+        p.len() >= lit.len() && p[..lit.len()].eq_ignore_ascii_case(lit)
+    };
+
+    if starts_with_ci(s, b"inf") {
+        s = &s[3..];
+        if starts_with_ci(s, b"inity") {
+            s = &s[5..];
+        }
+        let val = if neg { -f64::INFINITY } else { f64::INFINITY };
+        return (val, bytes.len() - s.len());
+    }
+
+    if starts_with_ci(s, b"nan") {
+        s = &s[3..];
+        if let Some((&b'(', mut p)) = s.split_first() {
+            while let Some((&b, rest)) = p.split_first() {
+                if b.is_ascii_alphanumeric() || b == b'_' {
+                    p = rest;
+                } else {
+                    break;
+                }
+            }
+            if let Some((&b')', rest)) = p.split_first() {
+                s = rest;
+            }
+        }
+        let val = if neg { -f64::NAN } else { f64::NAN };
+        return (val, bytes.len() - s.len());
+    }
+
+    if s.first() == Some(&b'0') && matches!(s.get(1), Some(b'x' | b'X')) {
+        let mut p = &s[2..];
+        let mut mant: f64 = 0.0;
+        let mut exp2: i32 = 0;
+        let mut any_hex = false;
+        while let Some((&b, rest)) = p.split_first() {
+            let Some(d) = (b as char).to_digit(16) else {
+                break;
+            };
+            any_hex = true;
+            mant = mant * 16.0 + f64::from(d);
+            p = rest;
+        }
+        if let Some((&b'.', rest)) = p.split_first() {
+            p = rest;
+            while let Some((&b, rest)) = p.split_first() {
+                let Some(d) = (b as char).to_digit(16) else {
+                    break;
+                };
                 any_hex = true;
                 mant = mant * 16.0 + f64::from(d);
-                p = p.wrapping_add(1);
+                exp2 = exp2.saturating_sub(4);
+                p = rest;
             }
-            if crate::memory::cstr_first_byte(p) == b'.' {
-                p = p.wrapping_add(1);
-                while let Some(d) = (*p as u8 as char).to_digit(16) {
-                    any_hex = true;
-                    mant = mant * 16.0 + f64::from(d);
-                    exp2 = exp2.saturating_sub(4);
-                    p = p.wrapping_add(1);
-                }
-            }
-            if any_hex {
-                if matches!(*p as u8, b'p' | b'P') {
-                    let mut ep = p.wrapping_add(1);
-                    let exp_neg = if crate::memory::cstr_first_byte(ep) == b'-' {
-                        ep = ep.wrapping_add(1);
-                        true
-                    } else {
-                        if crate::memory::cstr_first_byte(ep) == b'+' {
-                            ep = ep.wrapping_add(1);
-                        }
-                        false
-                    };
-                    if (*ep as u8).is_ascii_digit() {
-                        let mut p_exp: i32 = 0;
-                        while (*ep as u8).is_ascii_digit() {
-                            p_exp = p_exp
-                                .saturating_mul(10)
-                                .saturating_add(i32::from((*ep as u8) - b'0'));
-                            ep = ep.wrapping_add(1);
-                        }
-                        exp2 = if exp_neg {
-                            exp2.saturating_sub(p_exp)
-                        } else {
-                            exp2.saturating_add(p_exp)
-                        };
-                        p = ep;
+        }
+        if any_hex {
+            if let Some((&(b'p' | b'P'), mut ep)) = p.split_first() {
+                let exp_neg = if let Some((&b'-', rest)) = ep.split_first() {
+                    ep = rest;
+                    true
+                } else {
+                    if let Some((&b'+', rest)) = ep.split_first() {
+                        ep = rest;
                     }
+                    false
+                };
+                if ep.first().is_some_and(u8::is_ascii_digit) {
+                    let mut p_exp: i32 = 0;
+                    while let Some((&b, rest)) = ep.split_first() {
+                        if !b.is_ascii_digit() {
+                            break;
+                        }
+                        p_exp = p_exp.saturating_mul(10).saturating_add(i32::from(b - b'0'));
+                        ep = rest;
+                    }
+                    exp2 = if exp_neg {
+                        exp2.saturating_sub(p_exp)
+                    } else {
+                        exp2.saturating_add(p_exp)
+                    };
+                    p = ep;
                 }
-                if !endptr.is_null() {
-                    *endptr = p.cast_mut();
-                }
-                let val = mant * 2.0f64.powi(exp2);
-                return if neg { -val } else { val };
             }
+            let val = mant * 2.0f64.powi(exp2);
+            return (if neg { -val } else { val }, bytes.len() - p.len());
         }
-
-        let num_start = s;
-        let mut digits = 0usize;
-        while (*s as u8).is_ascii_digit() {
-            s = s.wrapping_add(1);
-            digits += 1;
-        }
-        if crate::memory::cstr_first_byte(s) == b'.' {
-            s = s.wrapping_add(1);
-            while (*s as u8).is_ascii_digit() {
-                s = s.wrapping_add(1);
-                digits += 1;
-            }
-        }
-        if digits == 0 {
-            if !endptr.is_null() {
-                *endptr = nptr.cast_mut();
-            }
-            return 0.0;
-        }
-        if matches!(*s as u8, b'e' | b'E') {
-            let mut ep = s.wrapping_add(1);
-            if matches!(*ep as u8, b'+' | b'-') {
-                ep = ep.wrapping_add(1);
-            }
-            if (*ep as u8).is_ascii_digit() {
-                while (*ep as u8).is_ascii_digit() {
-                    ep = ep.wrapping_add(1);
-                }
-                s = ep;
-            }
-        }
-        if !endptr.is_null() {
-            *endptr = s.cast_mut();
-        }
-        let len = (s as usize) - (num_start as usize);
-        let slice = std::slice::from_raw_parts(num_start.cast::<u8>(), len);
-        let num_str = std::str::from_utf8_unchecked(slice);
-        let val = num_str.parse::<f64>().unwrap_or(0.0);
-        if neg { -val } else { val }
     }
+
+    let num_start = s;
+    let mut digits = 0usize;
+    while let Some((&b, rest)) = s.split_first() {
+        if b.is_ascii_digit() {
+            s = rest;
+            digits += 1;
+        } else {
+            break;
+        }
+    }
+    if let Some((&b'.', rest)) = s.split_first() {
+        s = rest;
+        while let Some((&b, rest)) = s.split_first() {
+            if b.is_ascii_digit() {
+                s = rest;
+                digits += 1;
+            } else {
+                break;
+            }
+        }
+    }
+    if digits == 0 {
+        return (0.0, 0);
+    }
+    if let Some((&(b'e' | b'E'), mut ep)) = s.split_first() {
+        if let Some((&(b'+' | b'-'), rest)) = ep.split_first() {
+            ep = rest;
+        }
+        if ep.first().is_some_and(u8::is_ascii_digit) {
+            while let Some((&b, rest)) = ep.split_first() {
+                if b.is_ascii_digit() {
+                    ep = rest;
+                } else {
+                    break;
+                }
+            }
+            s = ep;
+        }
+    }
+    let len = num_start.len() - s.len();
+    let num_str = std::str::from_utf8(&num_start[..len]).unwrap_or("");
+    let val = num_str.parse::<f64>().unwrap_or(0.0);
+    (if neg { -val } else { val }, bytes.len() - s.len())
+}
+
+pub fn strtod(nptr: impl crate::strings::IntoCCharPtr, endptr: *mut RawCCharPtrMut) -> f64 {
+    let nptr = nptr.into_c_char_ptr();
+    let bytes = crate::memory::cstr_as_bytes(nptr);
+    let (val, consumed) = strtod_slice(bytes);
+    if !endptr.is_null() {
+        unsafe {
+            *endptr = nptr.wrapping_add(consumed).cast_mut();
+        }
+    }
+    val
 }
 
 #[inline]
@@ -599,19 +608,15 @@ pub fn strcase_save<S: IntoCCharPtr>(orig: S, upper: bool) -> std::ffi::CString 
 
 pub fn del_trailing_spaces(ptr: RawCCharPtrMut) {
     let len = crate::memory::cstr_len(ptr);
-    let mut q = ptr.wrapping_add(len);
-    while q > ptr {
-        q = q.wrapping_sub(1);
-        if q <= ptr {
-            break;
-        }
-        if ascii_iswhite(unsafe { *q })
-            && crate::memory::cstr_first_byte(q.wrapping_sub(1)) != b'\\'
-            && crate::memory::cstr_first_byte(q.wrapping_sub(1)) != CTRL_V
-        {
-            unsafe {
-                *q = NUL;
-            }
+    if len == 0 {
+        return;
+    }
+    let slice = unsafe { std::slice::from_raw_parts_mut(ptr.cast::<u8>(), len + 1) };
+    let mut q = len;
+    while q > 1 {
+        q -= 1;
+        if ascii_iswhite(slice[q]) && slice[q - 1] != b'\\' && slice[q - 1] != CTRL_V {
+            slice[q] = 0;
         } else {
             break;
         }
@@ -1943,79 +1948,50 @@ fn vim_vsnprintf_typval_inner(
                             }
 
                             if remove_trailing_zeroes {
-                                let mut tp: RawCCharPtrMut;
-                                if matches!(fmt_spec, b'f' | b'F') {
-                                    tp = tmp.as_mut_ptr().wrapping_add(str_arg_l - 1).cast();
+                                let tp_idx = if matches!(fmt_spec, b'f' | b'F') {
+                                    Some(str_arg_l - 1)
                                 } else {
-                                    tp = vim_strchr(
-                                        &tmp,
-                                        if fmt_spec == b'e' {
-                                            b'e' as i32
-                                        } else {
-                                            b'E' as i32
-                                        },
-                                    );
-                                    if !tp.is_null() {
-                                        if crate::memory::cstr_byte_at(tp, 1) == b'+' {
-                                            let rem_len =
-                                                crate::memory::cstr_len(tp.wrapping_add(2)) + 1;
-                                            ptr::copy(
-                                                tp.wrapping_add(2),
-                                                tp.wrapping_add(1),
-                                                rem_len,
-                                            );
-                                            str_arg_l -= 1;
-                                        }
-                                        let i = if crate::memory::cstr_byte_at(tp, 1) == b'-' {
-                                            2
-                                        } else {
-                                            1
-                                        };
-                                        while crate::memory::cstr_byte_at(tp, i) == b'0' {
-                                            let rem_len =
-                                                crate::memory::cstr_len(tp.wrapping_add(i + 1)) + 1;
-                                            ptr::copy(
-                                                tp.wrapping_add(i + 1),
-                                                tp.wrapping_add(i),
-                                                rem_len,
-                                            );
-                                            str_arg_l -= 1;
-                                        }
-                                        tp = tp.wrapping_sub(1);
-                                    }
-                                }
-
-                                if !tp.is_null() && !precision_specified {
-                                    while tp > tmp.as_mut_ptr().wrapping_add(2).cast()
-                                        && crate::memory::cstr_first_byte(tp) == b'0'
-                                        && crate::memory::cstr_first_byte(tp.wrapping_sub(1))
-                                            != b'.'
+                                    let e_byte = if fmt_spec == b'e' { b'e' } else { b'E' };
+                                    if let Some(e_pos) =
+                                        tmp[..str_arg_l].iter().position(|&b| b == e_byte)
                                     {
-                                        let rem_len =
-                                            crate::memory::cstr_len(tp.wrapping_add(1)) + 1;
-                                        ptr::copy(tp.wrapping_add(1), tp, rem_len);
-                                        tp = tp.wrapping_sub(1);
+                                        if tmp.get(e_pos + 1) == Some(&b'+') {
+                                            tmp.copy_within(e_pos + 2..=str_arg_l, e_pos + 1);
+                                            str_arg_l -= 1;
+                                        }
+                                        let i = if tmp.get(e_pos + 1) == Some(&b'-') {
+                                            e_pos + 2
+                                        } else {
+                                            e_pos + 1
+                                        };
+                                        while i < str_arg_l && tmp[i] == b'0' {
+                                            tmp.copy_within(i + 1..=str_arg_l, i);
+                                            str_arg_l -= 1;
+                                        }
+                                        e_pos.checked_sub(1)
+                                    } else {
+                                        None
+                                    }
+                                };
+
+                                if let Some(mut tp) = tp_idx
+                                    && !precision_specified
+                                {
+                                    while tp > 2 && tmp[tp] == b'0' && tmp[tp - 1] != b'.' {
+                                        tmp.copy_within(tp + 1..=str_arg_l, tp);
+                                        tp -= 1;
                                         str_arg_l -= 1;
                                     }
                                 }
                             } else {
-                                let tp = vim_strchr(
-                                    &tmp,
-                                    if fmt_spec == b'e' {
-                                        b'e' as i32
-                                    } else {
-                                        b'E' as i32
-                                    },
-                                );
-                                if !tp.is_null()
-                                    && (crate::memory::cstr_byte_at(tp, 1) == b'+'
-                                        || crate::memory::cstr_byte_at(tp, 1) == b'-')
-                                    && crate::memory::cstr_byte_at(tp, 2) == b'0'
-                                    && ascii_isdigit(crate::memory::cstr_char_at(tp, 3))
-                                    && ascii_isdigit(crate::memory::cstr_char_at(tp, 4))
+                                let e_byte = if fmt_spec == b'e' { b'e' } else { b'E' };
+                                if let Some(tp) = tmp[..str_arg_l].iter().position(|&b| b == e_byte)
+                                    && matches!(tmp.get(tp + 1), Some(b'+' | b'-'))
+                                    && tmp.get(tp + 2) == Some(&b'0')
+                                    && tmp.get(tp + 3).is_some_and(u8::is_ascii_digit)
+                                    && tmp.get(tp + 4).is_some_and(u8::is_ascii_digit)
                                 {
-                                    let rem_len = crate::memory::cstr_len(tp.wrapping_add(3)) + 1;
-                                    ptr::copy(tp.wrapping_add(3), tp.wrapping_add(2), rem_len);
+                                    tmp.copy_within(tp + 3..=str_arg_l, tp + 2);
                                     str_arg_l -= 1;
                                 }
                             }

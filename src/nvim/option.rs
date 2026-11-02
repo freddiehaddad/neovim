@@ -8324,17 +8324,22 @@ pub fn set_fileformat(eol_style: i32, opt_flags: i32) {
 }
 
 /// Skip to next part of an option argument: skip space and comma.
-pub fn skip_to_option_part<R>(p: impl crate::strings::IntoCCharPtr) -> *mut R {
-    let mut p = p.into_c_char_ptr();
-    {
-        if crate::memory::cstr_first_byte(p) == b',' {
-            p = p.wrapping_add(1);
-        }
-        while crate::memory::cstr_first_byte(p) == b' ' {
-            p = p.wrapping_add(1);
-        }
-        p.cast_mut().cast()
+#[inline]
+pub fn skip_to_option_part_slice(mut p: &[u8]) -> &[u8] {
+    if let Some((&b',', rest)) = p.split_first() {
+        p = rest;
     }
+    while let Some((&b' ', rest)) = p.split_first() {
+        p = rest;
+    }
+    p
+}
+
+pub fn skip_to_option_part<R>(p: impl crate::strings::IntoCCharPtr) -> *mut R {
+    let p = p.into_c_char_ptr();
+    let bytes = crate::memory::cstr_as_bytes(p);
+    let rem = skip_to_option_part_slice(bytes);
+    p.wrapping_add(bytes.len() - rem.len()).cast_mut().cast()
 }
 
 /// Isolate one part of a string option separated by `sep_chars`.
