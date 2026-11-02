@@ -1358,102 +1358,71 @@ fn stropt_remove_val(
     }
 }
 
-/// Find a comma-separated item in "src" that matches the key part of "key".
-fn find_key_item(
-    src: impl crate::strings::IntoCCharPtr,
-    key: impl crate::strings::IntoCCharPtr,
-    keylen: isize,
-    itemlenp: &mut isize,
-) -> *mut u8 {
-    let src = src.into_c_char_ptr().cast_mut();
-    let key = key.into_c_char_ptr();
-    {
-        let mut p = src;
-
-        while !crate::memory::cstr_is_empty(p) {
-            if (p == src || crate::memory::cstr_first_byte(p.wrapping_offset(-1)) == b',')
-                && (crate::memory::cstr_prefix_bytes(p, keylen as usize)
-                    == crate::memory::cstr_prefix_bytes(key, keylen as usize))
-            {
-                let mut end = vim_strchr(p, b',' as i32);
-                if end.is_null() {
-                    end = p.wrapping_add(crate::memory::cstr_len(p));
-                }
-                *itemlenp = crate::memory::ptr_offset_from(end, p);
-                return p.cast();
-            }
-            p = p.wrapping_add(1);
+/// Find a comma-separated item in "src" (starting at `start`) that matches `key_prefix`.
+fn find_key_item(src: &[u8], start: usize, key_prefix: &[u8]) -> Option<(usize, usize)> {
+    let total_len = crate::memory::cstr_len(src);
+    let bytes = &src[..total_len];
+    let mut i = start;
+    while i < bytes.len() {
+        if (i == start || bytes[i - 1] == b',') && bytes[i..].starts_with(key_prefix) {
+            let item_len = bytes[i..]
+                .iter()
+                .position(|&b| b == b',')
+                .unwrap_or(bytes.len() - i);
+            return Some((i, item_len));
         }
-        ptr::null_mut()
+        i += 1;
     }
+    None
 }
 
-/// Remove one item of length "itemlen" at position "item" from comma-separated string "str" in-place.
-fn remove_comma_item(str_arg: impl crate::strings::IntoCCharPtr, item: *mut u8, itemlen: isize) {
-    let str_arg = str_arg.into_c_char_ptr();
-    if crate::memory::cstr_first_byte(item.wrapping_offset(itemlen).cast()) == b',' {
-        let src = item.wrapping_offset(itemlen + 1);
-        crate::memory::cstr_move(item.cast(), src.cast());
-    } else if (item.cast_const()) > str_arg.cast::<u8>()
-        && crate::memory::cstr_first_byte(item.wrapping_offset(-1).cast()) == b','
-    {
-        let src = item.wrapping_offset(itemlen);
-        crate::memory::cstr_move(item.wrapping_offset(-1).cast(), src.cast());
+/// Remove one item of length `itemlen` at offset `item_off` from comma-separated buffer `str_arg` in-place.
+fn remove_comma_item(str_arg: &mut [u8], item_off: usize, itemlen: usize) {
+    let total_len = crate::memory::cstr_len(&*str_arg);
+    if str_arg.get(item_off + itemlen) == Some(&b',') {
+        str_arg.copy_within(item_off + itemlen + 1..=total_len, item_off);
+    } else if item_off > 0 && str_arg[item_off - 1] == b',' {
+        str_arg.copy_within(item_off + itemlen..=total_len, item_off - 1);
     } else {
-        crate::memory::cstr_ncpy(item.cast(), c"", 0);
+        str_arg[item_off] = 0;
     }
 }
 
-/// Remove all items matching "key" (with ':') from comma-separated string "str" in-place.
-fn remove_key_item(
-    str_arg: impl crate::strings::IntoCCharPtr,
-    key: impl crate::strings::IntoCCharPtr,
-    keylen: isize,
-    skip: impl crate::strings::IntoCCharPtr,
-) {
-    let str_arg = str_arg.into_c_char_ptr().cast_mut();
-    let key = key.into_c_char_ptr().cast_mut();
-    let skip = skip.into_c_char_ptr();
-    {
-        let mut itemlen: isize = 0;
-        loop {
-            let mut found = find_key_item(str_arg, key, keylen, &mut itemlen);
-            if found.is_null() {
+/// Remove all items matching `key_prefix` (with ':') from comma-separated string `str_arg` in-place.
+fn remove_key_item(str_arg: &mut [u8], key_prefix: &[u8], skip_off: Option<usize>) {
+    while let Some((mut found_off, mut itemlen)) = find_key_item(str_arg, 0, key_prefix) {
+        if skip_off == Some(found_off) {
+            let mut next_start = found_off + itemlen;
+            if str_arg.get(next_start) == Some(&b',') {
+                next_start += 1;
+            }
+            let Some((next_found, next_len)) = find_key_item(str_arg, next_start, key_prefix)
+            else {
                 break;
-            }
-            if ptr::eq(found.cast_const(), skip.cast::<u8>()) {
-                let mut next = found.wrapping_offset(itemlen);
-                if crate::memory::cstr_first_byte(next.cast()) == b',' {
-                    next = next.wrapping_add(1);
-                }
-                found = find_key_item(next.cast(), key, keylen, &mut itemlen);
-                if found.is_null() {
-                    break;
-                }
-            }
-
-            remove_comma_item(str_arg, found, itemlen);
+            };
+            found_off = next_found;
+            itemlen = next_len;
         }
+
+        remove_comma_item(str_arg, found_off, itemlen);
     }
 }
 
 /// Append a comma-separated item to the end of "str" in-place.
-fn append_item(str_arg: &mut [u8], item: *mut u8, item_len: isize) {
+fn append_item(str_arg: &mut [u8], item_bytes: &[u8]) {
     let mut len = crate::memory::cstr_len(&*str_arg);
     if len > 0 {
         str_arg[len] = b',';
         len += 1;
     }
-    let item_bytes = crate::memory::cstr_slice(item.cast(), item_len as usize);
     str_arg[len..len + item_bytes.len()].copy_from_slice(item_bytes);
     str_arg[len + item_bytes.len()] = 0;
 }
 
 /// Prepend a comma-separated item to the beginning of "str" in-place.
-fn prepend_item(str_arg: &mut [u8], item: *mut u8, item_len: isize) {
+fn prepend_item(str_arg: &mut [u8], item_bytes: &[u8]) {
     let len = crate::memory::cstr_len(&*str_arg);
     let comma = usize::from(len > 0);
-    let item_bytes = crate::memory::cstr_slice(item.cast(), item_len as usize);
 
     str_arg.copy_within(0..=len, item_bytes.len() + comma);
     str_arg[..item_bytes.len()].copy_from_slice(item_bytes);
@@ -1470,98 +1439,75 @@ fn stropt_handle_keymatch(
     _flags: u32,
 ) -> bool {
     let origval = origval.into_c_char_ptr();
-    let newval = newval_slice.as_mut_ptr();
-    {
-        if !crate::strings::vim_haschr(newval.cast(), b':' as i32)
-            && !crate::strings::vim_haschr(newval.cast(), b',' as i32)
-        {
-            return false;
+    let newval_bytes = crate::memory::cstr_as_bytes(&*newval_slice);
+    if !newval_bytes.contains(&b':') && !newval_bytes.contains(&b',') {
+        return false;
+    }
+
+    let newval_copy = newval_bytes.to_vec();
+    let orig_bytes = crate::memory::cstr_as_bytes_with_nul(origval);
+    newval_slice[..orig_bytes.len()].copy_from_slice(orig_bytes);
+
+    for item in newval_copy.split(|&b| b == b',') {
+        if item.is_empty() {
+            continue;
         }
+        if let Some(colon_idx) = item.iter().position(|&b| b == b':') {
+            let key_prefix = &item[..=colon_idx];
 
-        let newval_copy = crate::memory::cstr_to_cstring(newval.cast());
-        crate::memory::cstr_cpy(newval.cast(), origval);
-
-        let mut item_start = newval_copy.as_ptr().cast_mut();
-        loop {
-            let p = vim_strchr(item_start, b',' as i32);
-            let item_len = if p.is_null() {
-                crate::memory::cstr_len(item_start) as isize
-            } else {
-                crate::memory::ptr_offset_from(p, item_start)
-            };
-
-            if item_len > 0 {
-                let colon = vim_strchr(item_start, b':' as i32);
-                if !colon.is_null() && colon < item_start.wrapping_offset(item_len) {
-                    let keylen = crate::memory::ptr_offset_from(colon, item_start) + 1;
-
-                    if op == OP_ADDING || op == OP_PREPENDING {
-                        let mut old_itemlen: isize = 0;
-                        let found =
-                            find_key_item(newval.cast(), item_start, keylen, &mut old_itemlen);
-                        if !found.is_null() {
-                            if old_itemlen == item_len
-                                && (crate::memory::cstr_prefix_bytes(
-                                    found.cast(),
-                                    item_len as usize,
-                                ) == crate::memory::cstr_prefix_bytes(
-                                    item_start,
-                                    item_len as usize,
-                                ))
-                            {
-                                remove_key_item(newval.cast(), item_start, keylen, found.cast());
-                            } else {
-                                remove_key_item(newval.cast(), item_start, keylen, ptr::null());
-                                if op == OP_PREPENDING {
-                                    prepend_item(newval_slice, item_start.cast(), item_len);
-                                } else {
-                                    append_item(newval_slice, item_start.cast(), item_len);
-                                }
-                            }
-                        } else if op == OP_PREPENDING {
-                            prepend_item(newval_slice, item_start.cast(), item_len);
-                        } else {
-                            append_item(newval_slice, item_start.cast(), item_len);
-                        }
-                    } else if op == OP_REMOVING {
-                        remove_key_item(newval.cast(), item_start, keylen, ptr::null());
-                    }
-                } else if op == OP_ADDING || op == OP_PREPENDING {
-                    let found = find_dup_item(
-                        newval.cast(),
-                        item_start,
-                        item_len as usize,
-                        K_OPT_FLAG_COMMA,
-                    );
-                    if found.is_null() {
+            if op == OP_ADDING || op == OP_PREPENDING {
+                if let Some((found_off, old_itemlen)) = find_key_item(newval_slice, 0, key_prefix) {
+                    if old_itemlen == item.len()
+                        && &newval_slice[found_off..found_off + item.len()] == item
+                    {
+                        remove_key_item(newval_slice, key_prefix, Some(found_off));
+                    } else {
+                        remove_key_item(newval_slice, key_prefix, None);
                         if op == OP_PREPENDING {
-                            prepend_item(newval_slice, item_start.cast(), item_len);
+                            prepend_item(newval_slice, item);
                         } else {
-                            append_item(newval_slice, item_start.cast(), item_len);
+                            append_item(newval_slice, item);
                         }
                     }
-                } else if op == OP_REMOVING {
-                    let found = find_dup_item(
-                        newval.cast(),
-                        item_start,
-                        item_len as usize,
-                        K_OPT_FLAG_COMMA,
-                    )
-                    .cast_mut();
-                    if !found.is_null() {
-                        remove_comma_item(newval.cast(), found, item_len);
-                    }
+                } else if op == OP_PREPENDING {
+                    prepend_item(newval_slice, item);
+                } else {
+                    append_item(newval_slice, item);
+                }
+            } else if op == OP_REMOVING {
+                remove_key_item(newval_slice, key_prefix, None);
+            }
+        } else if op == OP_ADDING || op == OP_PREPENDING {
+            let found = find_dup_item(
+                newval_slice.as_ptr().cast(),
+                item,
+                item.len(),
+                K_OPT_FLAG_COMMA,
+            );
+            if found.is_null() {
+                if op == OP_PREPENDING {
+                    prepend_item(newval_slice, item);
+                } else {
+                    append_item(newval_slice, item);
                 }
             }
-
-            if p.is_null() {
-                break;
+        } else if op == OP_REMOVING {
+            let found = find_dup_item(
+                newval_slice.as_ptr().cast(),
+                item,
+                item.len(),
+                K_OPT_FLAG_COMMA,
+            );
+            if !found.is_null() {
+                let found_off =
+                    crate::memory::ptr_offset_from(found.cast::<u8>(), newval_slice.as_ptr())
+                        as usize;
+                remove_comma_item(newval_slice, found_off, item.len());
             }
-            item_start = p.wrapping_add(1);
         }
-
-        true
     }
+
+    true
 }
 
 /// Remove flags that appear twice in the string option value 'newval'.

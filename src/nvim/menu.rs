@@ -18,7 +18,7 @@ use crate::ex_docmd::{
 use crate::globals::*;
 use crate::input::{REMAP_SCRIPT, Tasave, ins_typebuf};
 use crate::keycodes::{REPTERM_DO_LT, replace_termcodes};
-use crate::mbyte::{utf_char2bytes, utfc_ptr2len};
+use crate::mbyte::utf_char2bytes;
 use crate::memory::xstrlcpy;
 use crate::message::{
     emsg, msg_outnum, msg_outtrans, msg_outtrans_special, msg_putchar, msg_puts, msg_puts_hl,
@@ -253,16 +253,25 @@ pub fn ex_menu(eap: &mut Exarg) {
 
     if crate::memory::cstr_prefix_bytes(arg, 5) == &b"icon="[..5] {
         arg = arg.wrapping_add(5);
-        while !crate::memory::cstr_is_empty(arg) && crate::memory::cstr_first_byte(arg) != b' ' {
-            if crate::memory::cstr_first_byte(arg) == b'\\' {
-                crate::memory::cstr_move(arg, arg.wrapping_add(1));
+        let mut arg_len = crate::memory::cstr_len(arg);
+        let arg_slice = unsafe { std::slice::from_raw_parts_mut(arg.cast::<u8>(), arg_len + 1) };
+        let mut idx = 0;
+        while idx < arg_len && arg_slice[idx] != b' ' {
+            if arg_slice[idx] == b'\\' {
+                arg_slice.copy_within(idx + 1..=arg_len, idx);
+                arg_len -= 1;
             }
-            arg = arg.wrapping_add(utfc_ptr2len(arg) as usize);
+            if idx < arg_len {
+                idx += crate::mbyte::utfc_slice2len(&arg_slice[idx..arg_len]);
+            }
         }
-        if !crate::memory::cstr_is_empty(arg) {
-            crate::memory::cstr_ncpy(arg.cast(), c"", 0);
-            arg = skipwhite(arg.wrapping_add(1));
+        if idx < arg_len {
+            arg_slice[idx] = 0;
+            idx += 1;
+            let rem = crate::charset::skipwhite_slice(&arg_slice[idx..arg_len]);
+            idx = arg_len - rem.len();
         }
+        arg = arg.wrapping_add(idx);
     }
 
     let mut p = arg;
@@ -1266,25 +1275,24 @@ pub fn get_menu_names(_xp: &mut ExpandCtx, idx: i32) -> Option<&'static CStr> {
 
 /// Skip over this element of the menu path and return the start of the next element (`menu_name_skip`).
 fn menu_name_skip(name: *mut u8) -> *mut u8 {
-    let mut p = name;
-    while !crate::memory::cstr_is_empty(p.cast())
-        && crate::memory::cstr_first_byte(p.cast()) != b'.'
-    {
-        if crate::memory::cstr_first_byte(p.cast()) == b'\\'
-            || crate::memory::cstr_first_byte(p.cast()) == CTRL_V_CONST as u8
-        {
-            crate::memory::cstr_move(p.cast(), p.wrapping_add(1).cast());
-            if crate::memory::cstr_is_empty(p.cast()) {
+    let mut len = crate::memory::cstr_len(name.cast());
+    let buf = unsafe { std::slice::from_raw_parts_mut(name, len + 1) };
+    let mut idx = 0;
+    while idx < len && buf[idx] != b'.' {
+        if buf[idx] == b'\\' || buf[idx] == CTRL_V_CONST as u8 {
+            buf.copy_within(idx + 1..=len, idx);
+            len -= 1;
+            if idx >= len {
                 break;
             }
         }
-        p = p.wrapping_add(utfc_ptr2len(p.cast()) as usize);
+        idx += crate::mbyte::utfc_slice2len(&buf[idx..len]);
     }
-    if !crate::memory::cstr_is_empty(p.cast()) {
-        crate::memory::cstr_ncpy(p.cast(), c"", 0);
-        p = p.wrapping_add(1);
+    if idx < len {
+        buf[idx] = 0;
+        idx += 1;
     }
-    p
+    name.wrapping_add(idx)
 }
 
 /// Return true when `name` matches with menu `menu` (`menu_name_equal`).
@@ -1879,44 +1887,44 @@ fn menutrans_lookup(name: *mut u8, len: i32) -> *mut u8 {
 
 /// Unescape the name in the translate dictionary table (`menu_unescape_name`).
 fn menu_unescape_name(name: impl crate::strings::IntoCCharPtr) {
-    let name = name.into_c_char_ptr().cast_mut();
-    {
-        let mut p = name;
-        while !crate::memory::cstr_is_empty(p) && crate::memory::cstr_first_byte(p) != b'.' {
-            if crate::memory::cstr_first_byte(p) == b'\\' {
-                crate::memory::cstr_move(p, p.wrapping_add(1));
-            }
-            p = p.wrapping_add(utfc_ptr2len(p) as usize);
+    let name_ptr = name.into_c_char_ptr().cast_mut().cast::<u8>();
+    let mut len = crate::memory::cstr_len(name_ptr.cast());
+    let buf = unsafe { std::slice::from_raw_parts_mut(name_ptr, len + 1) };
+    let mut idx = 0;
+    while idx < len && buf[idx] != b'.' {
+        if buf[idx] == b'\\' {
+            buf.copy_within(idx + 1..=len, idx);
+            len -= 1;
+        }
+        if idx < len {
+            idx += crate::mbyte::utfc_slice2len(&buf[idx..len]);
         }
     }
 }
 
 /// Isolate the menu name (`menu_translate_tab_and_shift`).
 fn menu_translate_tab_and_shift(arg_start: impl crate::strings::IntoCCharPtr) -> *mut u8 {
-    let arg_start = arg_start.into_c_char_ptr().cast_mut();
-    {
-        let mut arg = arg_start;
-
-        while !crate::memory::cstr_is_empty(arg)
-            && !ascii_iswhite(crate::memory::cstr_first_byte(arg))
-        {
-            if (crate::memory::cstr_first_byte(arg) == b'\\'
-                || crate::memory::cstr_first_byte(arg) == CTRL_V_CONST as u8)
-                && crate::memory::cstr_byte_at(arg, 1) != 0
-            {
-                arg = arg.wrapping_add(1);
-            } else if crate::memory::cstr_prefix_bytes(arg, 5).eq_ignore_ascii_case(b"<TAB>") {
-                crate::memory::cstr_ncpy(arg, c"\t", 1);
-                crate::memory::cstr_move(arg.wrapping_add(1), arg.wrapping_add(5));
-            }
-            arg = arg.wrapping_add(1);
+    let arg_ptr = arg_start.into_c_char_ptr().cast_mut().cast::<u8>();
+    let mut len = crate::memory::cstr_len(arg_ptr.cast());
+    let buf = unsafe { std::slice::from_raw_parts_mut(arg_ptr, len + 1) };
+    let mut idx = 0;
+    while idx < len && !ascii_iswhite(i32::from(buf[idx])) {
+        if (buf[idx] == b'\\' || buf[idx] == CTRL_V_CONST as u8) && idx + 1 < len {
+            idx += 1;
+        } else if len - idx >= 5 && buf[idx..idx + 5].eq_ignore_ascii_case(b"<TAB>") {
+            buf[idx] = b'\t';
+            buf.copy_within(idx + 5..=len, idx + 1);
+            len -= 4;
         }
-        if !crate::memory::cstr_is_empty(arg) {
-            crate::memory::cstr_ncpy(arg, c"", 0);
-            arg = arg.wrapping_add(1);
-        }
-        skipwhite(arg).cast()
+        idx += 1;
     }
+    if idx < len {
+        buf[idx] = 0;
+        idx += 1;
+    }
+    let rem = crate::charset::skipwhite_slice(&buf[idx..len]);
+    idx = len - rem.len();
+    arg_ptr.wrapping_add(idx)
 }
 
 /// Get the information about a menu item in mode `modes` (`menuitem_getinfo`).

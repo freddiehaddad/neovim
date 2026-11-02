@@ -484,30 +484,32 @@ pub fn describe_sign_text(buf: &mut [u8], sign_text: &[Schar; SIGN_WIDTH]) -> us
     p
 }
 
-pub fn init_sign_text(
-    sp: Option<&Sign>,
-    sign_text: *mut Schar,
-    text: impl crate::strings::IntoCCharPtr,
-) -> bool {
-    let text = text.into_c_char_ptr().cast_mut();
-    let sign_text = unsafe { std::slice::from_raw_parts_mut(sign_text, SIGN_WIDTH) };
-    let mut endp = text.wrapping_add(crate::memory::cstr_len(text));
-    let mut s = if sp.is_some() { text } else { endp };
-    while s.wrapping_add(1) < endp {
-        if crate::memory::cstr_first_byte(s) == b'\\' {
-            crate::memory::cstr_move(s, s.wrapping_add(1));
-            endp = endp.wrapping_sub(1);
+pub fn init_sign_text(sp: Option<&Sign>, sign_text: &mut [Schar; SIGN_WIDTH], text: &[u8]) -> bool {
+    let mut unescaped: Vec<u8> = Vec::with_capacity(text.len() + 1);
+    if sp.is_some() {
+        let mut i = 0;
+        while i < text.len() {
+            if text[i] == b'\\' && i + 1 < text.len() {
+                i += 1;
+            }
+            unescaped.push(text[i]);
+            i += 1;
         }
-        s = s.wrapping_add(1);
+    } else {
+        unescaped.extend_from_slice(text);
     }
+    unescaped.push(0);
 
     let mut cells: usize = 0;
-    let mut ci = utf_ptr2_str_char_info(text);
+    let mut ci = utf_ptr2_str_char_info(unescaped.as_slice());
     while !crate::memory::cstr_is_empty(ci.ptr) {
         let cli = utf_cluster_info(ci);
         if !vim_isprintc(ci.chr.value) || cells + (cli.cells as usize) > SIGN_WIDTH {
             if sp.is_some() {
-                semsg!(gettext(c"E239: Invalid sign text: %s"), text);
+                semsg!(
+                    gettext(c"E239: Invalid sign text: %s"),
+                    unescaped.as_ptr().cast::<std::ffi::c_char>()
+                );
             }
             return false;
         }
@@ -575,9 +577,13 @@ fn sign_define_by_name(
         sp.sn_icon = Some(std::ffi::CString::new(icon_vec).unwrap());
     }
 
-    let sn_text = sp.sn_text.as_mut_ptr();
-    if !text.is_null() && !init_sign_text(Some(&*sp), sn_text, text) {
-        return false;
+    if !text.is_null() {
+        let mut sn_text = sp.sn_text;
+        if !init_sign_text(Some(&*sp), &mut sn_text, crate::memory::cstr_as_bytes(text)) {
+            sp.sn_text = sn_text;
+            return false;
+        }
+        sp.sn_text = sn_text;
     }
 
     sp.sn_priority = prio;

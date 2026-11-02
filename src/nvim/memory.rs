@@ -352,16 +352,6 @@ pub fn cstr_cpy<S: crate::strings::IntoCCharPtr>(dst: RawCCharPtrMut, src: S) {
     }
 }
 
-/// Move potentially overlapping NUL-terminated C string `src` (including trailing NUL) to `dst`.
-#[inline]
-pub fn cstr_move<S: crate::strings::IntoCCharPtr>(dst: RawCCharPtrMut, src: S) {
-    let src = src.into_c_char_ptr();
-    unsafe {
-        let len = CStr::from_ptr(src).to_bytes_with_nul().len();
-        std::ptr::copy(src, dst, len);
-    }
-}
-
 /// View a NUL-terminated C string as a lossy UTF-8 string (`Cow<str>`).
 #[inline]
 pub fn cstr_lossy<'a, S: crate::strings::IntoCCharPtr>(s: S) -> std::borrow::Cow<'a, str> {

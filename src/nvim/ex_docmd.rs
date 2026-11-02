@@ -5242,7 +5242,9 @@ pub fn do_cmdline(
                     g_st().last_cmdline = Some(new_cmd);
                 }
             } else {
-                crate::memory::cstr_move(cmdline_copy, next_cmdline);
+                let off = crate::memory::ptr_offset_from(next_cmdline, cmdline_copy) as usize;
+                let tail_len = crate::memory::cstr_len(next_cmdline);
+                cmdline_buf.copy_within(off..=off + tail_len, 0);
                 next_cmdline = cmdline_copy;
             }
 
@@ -6666,20 +6668,20 @@ fn do_one_cmd(
             || ea.cmdidx == Cmdidx::CmdVglobal as i32
             || ea.usefilter != 0
         {
-            let mut s = ea.arg;
-            while !crate::memory::cstr_is_empty(s) {
-                if crate::memory::cstr_first_byte(s) == b'\\'
-                    && crate::memory::cstr_byte_at(s, 1) == b'\n'
-                {
-                    crate::memory::cstr_move(s, s.wrapping_add(1));
-                } else if crate::memory::cstr_first_byte(s) == b'\n' {
-                    ea.nextcmd = s.wrapping_add(1);
-                    unsafe {
-                        *s = NUL;
-                    }
+            let mut arg_len = crate::memory::cstr_len(ea.arg);
+            let arg_slice =
+                unsafe { std::slice::from_raw_parts_mut(ea.arg.cast::<u8>(), arg_len + 1) };
+            let mut idx = 0;
+            while idx < arg_len {
+                if arg_slice[idx] == b'\\' && idx + 1 < arg_len && arg_slice[idx + 1] == b'\n' {
+                    arg_slice.copy_within(idx + 1..=arg_len, idx);
+                    arg_len -= 1;
+                } else if arg_slice[idx] == b'\n' {
+                    ea.nextcmd = ea.arg.wrapping_add(idx + 1);
+                    arg_slice[idx] = 0;
                     break;
                 }
-                s = s.wrapping_add(1);
+                idx += 1;
             }
         }
 
@@ -8404,7 +8406,9 @@ pub fn separate_nextcmd(eap: &mut Exarg) {
             if (eap.argt & (EX_CTRLV | EX_XFILE)) != 0 {
                 p = p.wrapping_add(1);
             } else {
-                crate::memory::cstr_move(p, p.wrapping_add(1));
+                let tail_len = crate::memory::cstr_len(p.wrapping_add(1));
+                let buf = unsafe { std::slice::from_raw_parts_mut(p.cast::<u8>(), tail_len + 2) };
+                buf.copy_within(1..=tail_len + 1, 0);
             }
             if unsafe { *p } == 0 {
                 break;
@@ -8434,7 +8438,11 @@ pub fn separate_nextcmd(eap: &mut Exarg) {
                 || (eap.argt & EX_CTRLV) == 0)
                 && unsafe { *p.wrapping_sub(1) as u8 } == b'\\'
             {
-                crate::memory::cstr_move(p.wrapping_sub(1), p);
+                let tail_len = crate::memory::cstr_len(p);
+                let buf = unsafe {
+                    std::slice::from_raw_parts_mut(p.wrapping_sub(1).cast::<u8>(), tail_len + 2)
+                };
+                buf.copy_within(1..=tail_len + 1, 0);
                 p = p.wrapping_sub(1);
             } else {
                 eap.nextcmd = check_nextcmd(p);
@@ -8479,22 +8487,24 @@ pub fn getargcmd(argp: *mut RawCCharPtrMut) -> RawCCharPtrMut {
 }
 
 pub fn skip_cmd_arg<T>(p: *mut T, rembs: bool) -> *mut T {
-    let mut p = p.cast::<u8>();
-    while !crate::memory::cstr_is_empty(p.cast())
-        && !ascii_isspace(crate::memory::cstr_first_byte(p.cast()))
-    {
-        if crate::memory::cstr_first_byte(p.cast()) == b'\\'
-            && crate::memory::cstr_byte_at(p.cast(), 1) != 0
-        {
+    let p_ptr = p.cast::<u8>();
+    let mut len = crate::memory::cstr_len(p_ptr.cast());
+    let buf = unsafe { std::slice::from_raw_parts_mut(p_ptr, len + 1) };
+    let mut idx = 0;
+    while idx < len && !ascii_isspace(i32::from(buf[idx])) {
+        if buf[idx] == b'\\' && idx + 1 < len {
             if rembs {
-                crate::memory::cstr_move(p.cast(), p.wrapping_add(1).cast());
+                buf.copy_within(idx + 1..=len, idx);
+                len -= 1;
             } else {
-                p = p.wrapping_add(1);
+                idx += 1;
             }
         }
-        p = p.wrapping_add(utfc_ptr2len(p.cast()) as usize);
+        if idx < len {
+            idx += crate::mbyte::utfc_slice2len(&buf[idx..len]);
+        }
     }
-    p.cast()
+    p_ptr.wrapping_add(idx).cast()
 }
 
 pub fn get_bad_opt(p: impl crate::strings::IntoCCharPtr, eap: &mut Exarg) -> bool {
@@ -11940,7 +11950,10 @@ pub fn eval_vars(
             && crate::memory::cstr_first_byte(src.wrapping_sub(1)) == b'\\'
         {
             *usedlen = 0;
-            crate::memory::cstr_move(src.wrapping_sub(1), src);
+            let tail_len = crate::memory::cstr_len(src);
+            let buf =
+                std::slice::from_raw_parts_mut(src.wrapping_sub(1).cast::<u8>(), tail_len + 2);
+            buf.copy_within(1..=tail_len + 1, 0);
             return None;
         }
 

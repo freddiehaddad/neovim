@@ -1557,34 +1557,27 @@ pub fn get_foldtext(
 }
 
 fn foldtext_cleanup(str_slice: &mut [u8]) {
-    let str_ptr = str_slice.as_mut_ptr().cast();
-    let cms_start = skipwhite(curbuf_mut().b_p_cms);
-    let mut cms_slen = crate::memory::cstr_len(cms_start);
-    while cms_slen > 0 && ascii_iswhite(crate::memory::cstr_byte_at(cms_start, cms_slen - 1) as i32)
+    let cms_raw = crate::memory::cstr_as_bytes(curbuf_mut().b_p_cms);
+    let mut cms_trimmed = crate::charset::skipwhite_slice(cms_raw);
+    while let Some(&last) = cms_trimmed.last()
+        && ascii_iswhite(i32::from(last))
     {
-        cms_slen -= 1;
+        cms_trimmed = &cms_trimmed[..cms_trimmed.len() - 1];
     }
 
-    let mut cms_end = crate::memory::cstr_as_bytes(cms_start)
-        .windows(2)
-        .position(|w| w == b"%s")
-        .map_or(ptr::null_mut(), |i| cms_start.wrapping_add(i));
-    let mut cms_elen: usize = 0;
-    if !cms_end.is_null() {
-        let start_off = (cms_end as usize) - (cms_start as usize);
-        cms_elen = cms_slen - start_off;
-        cms_slen = start_off;
-
-        while cms_slen > 0
-            && ascii_iswhite(crate::memory::cstr_byte_at(cms_start, cms_slen - 1) as i32)
-        {
-            cms_slen -= 1;
-        }
-
-        let s = skipwhite(cms_end.wrapping_add(2));
-        cms_elen -= (s as usize) - (cms_end as usize);
-        cms_end = s;
-    }
+    let (cms_start_slice, cms_end_slice) =
+        if let Some(idx) = cms_trimmed.windows(2).position(|w| w == b"%s") {
+            let mut head = &cms_trimmed[..idx];
+            while let Some(&last) = head.last()
+                && ascii_iswhite(i32::from(last))
+            {
+                head = &head[..head.len() - 1];
+            }
+            let tail_raw = &cms_trimmed[idx + 2..];
+            (head, Some(crate::charset::skipwhite_slice(tail_raw)))
+        } else {
+            (cms_trimmed, None)
+        };
     parse_marker(curwin_mut());
 
     let mut did1 = false;
@@ -1596,9 +1589,10 @@ fn foldtext_cleanup(str_slice: &mut [u8]) {
     );
     let end_slice = fold_st().foldendmarker_slice();
 
-    let mut s = str_ptr;
-    while !crate::memory::cstr_is_empty(s) {
-        let s_bytes = crate::memory::cstr_as_bytes(s);
+    let mut total_len = crate::memory::cstr_len(&*str_slice);
+    let mut idx = 0;
+    while idx < total_len {
+        let s_bytes = &str_slice[idx..total_len];
         let mut len: usize = 0;
         if s_bytes.starts_with(fmr_slice) {
             len = fold_st().foldstartmarkerlen;
@@ -1606,45 +1600,40 @@ fn foldtext_cleanup(str_slice: &mut [u8]) {
             len = fold_st().foldendmarkerlen;
         }
         if len > 0 {
-            if ascii_isdigit(crate::memory::cstr_byte_at(s, len) as i32) {
+            if s_bytes
+                .get(len)
+                .is_some_and(|&b| ascii_isdigit(i32::from(b)))
+            {
                 len += 1;
             }
 
-            let mut p = s;
-            while (p as usize) > (str_ptr as usize)
-                && ascii_iswhite(i32::from(crate::memory::cstr_first_byte(p.wrapping_sub(1))))
-            {
-                p = p.wrapping_sub(1);
+            let mut p_idx = idx;
+            while p_idx > 0 && ascii_iswhite(i32::from(str_slice[p_idx - 1])) {
+                p_idx -= 1;
             }
-            if (p as usize) >= (str_ptr as usize) + cms_slen
-                && crate::memory::cstr_slice(p.wrapping_sub(cms_slen), cms_slen)
-                    == crate::memory::cstr_slice(cms_start, cms_slen)
+            if p_idx >= cms_start_slice.len()
+                && &str_slice[p_idx - cms_start_slice.len()..p_idx] == cms_start_slice
             {
-                len += ((s as usize) - (p as usize)) + cms_slen;
-                s = p.wrapping_sub(cms_slen);
+                len += (idx - p_idx) + cms_start_slice.len();
+                idx = p_idx - cms_start_slice.len();
             }
-        } else if !cms_end.is_null() {
-            if !did1
-                && cms_slen > 0
-                && s_bytes.starts_with(crate::memory::cstr_slice(cms_start, cms_slen))
-            {
-                len = cms_slen;
+        } else if let Some(cms_end_bytes) = cms_end_slice {
+            if !did1 && !cms_start_slice.is_empty() && s_bytes.starts_with(cms_start_slice) {
+                len = cms_start_slice.len();
                 did1 = true;
-            } else if !did2
-                && cms_elen > 0
-                && s_bytes.starts_with(crate::memory::cstr_slice(cms_end, cms_elen))
-            {
-                len = cms_elen;
+            } else if !did2 && !cms_end_bytes.is_empty() && s_bytes.starts_with(cms_end_bytes) {
+                len = cms_end_bytes.len();
                 did2 = true;
             }
         }
         if len != 0 {
-            while ascii_iswhite(crate::memory::cstr_byte_at(s, len) as i32) {
+            while idx + len < total_len && ascii_iswhite(i32::from(str_slice[idx + len])) {
                 len += 1;
             }
-            crate::memory::cstr_move(s, s.wrapping_add(len));
+            str_slice.copy_within(idx + len..=total_len, idx);
+            total_len -= len;
         } else {
-            s = s.wrapping_add(utfc_ptr2len(s) as usize);
+            idx += crate::mbyte::utfc_slice2len(&str_slice[idx..total_len]);
         }
     }
 }

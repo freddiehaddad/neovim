@@ -1904,21 +1904,18 @@ pub fn win_line(
                 nextlinecol = MAXCOL;
                 nextline_idx = 0;
             } else {
-                let line_len = ml_get_buf_len(wp.buf_mut(), lnum);
+                let line_slice = crate::memline::ml_get_buf_slice(wp.buf_mut(), lnum);
+                let line_len = line_slice.len() as i32;
                 if (line_len as usize) < SPWORDLEN {
                     nextlinecol = 0;
-                    ptr::copy(line.cast::<u8>(), nextline_ptr, line_len as usize);
-                    crate::memory::cstr_move(
-                        nextline_ptr.wrapping_add(line_len as usize).cast(),
-                        nextline_ptr.wrapping_add(SPWORDLEN).cast(),
-                    );
+                    nextline[..line_len as usize].copy_from_slice(line_slice);
+                    let tail_len = crate::memory::cstr_len(&nextline[SPWORDLEN..]);
+                    nextline.copy_within(SPWORDLEN..=SPWORDLEN + tail_len, line_len as usize);
                     nextline_idx = line_len + 1;
                 } else {
                     nextlinecol = line_len - SPWORDLEN as i32;
-                    ptr::copy(
-                        line.wrapping_add(nextlinecol as usize).cast::<u8>(),
-                        nextline_ptr,
-                        SPWORDLEN,
+                    nextline[..SPWORDLEN].copy_from_slice(
+                        &line_slice[nextlinecol as usize..nextlinecol as usize + SPWORDLEN],
                     );
                     nextline_idx = SPWORDLEN as i32 + 1;
                 }

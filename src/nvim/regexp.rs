@@ -1680,10 +1680,10 @@ pub fn skip_regexp_ex<T>(
                 if startplen == 0 {
                     startplen = crate::memory::cstr_len(startp.cast());
                 }
+                let off = crate::memory::ptr_offset_from(p, startp) as usize;
                 if let Some(buf) = copy_buf.as_deref_mut()
                     && buf.is_empty()
                 {
-                    let off = crate::memory::ptr_offset_from(p, startp) as usize;
                     buf.extend_from_slice(crate::memory::cstr_slice(startp.cast(), startplen + 1));
                     startp = buf.as_mut_ptr();
                     p = startp.wrapping_add(off);
@@ -1691,7 +1691,9 @@ pub fn skip_regexp_ex<T>(
                 if let Some(ref mut p) = dropped {
                     **p += 1;
                 }
-                crate::memory::cstr_move(p.cast(), p.wrapping_add(1).cast());
+                let start_slice = unsafe { std::slice::from_raw_parts_mut(startp, startplen + 1) };
+                start_slice.copy_within(off + 1..=startplen, off);
+                startplen -= 1;
             } else {
                 p = p.wrapping_add(1);
             }
@@ -2493,7 +2495,13 @@ pub fn regtilde<T>(source: *mut T, magic: i32, preview: bool) -> Option<std::ffi
                 newsublen = tmpsublen;
                 p = newsub.wrapping_add(prefixlen + reg_prev_sublen);
             } else {
-                crate::memory::cstr_move(p.cast(), postfix.cast());
+                let buf = unsafe {
+                    std::slice::from_raw_parts_mut(newsub, prefixlen + tildelen + postfixlen + 1)
+                };
+                buf.copy_within(
+                    prefixlen + tildelen..=prefixlen + tildelen + postfixlen,
+                    prefixlen,
+                );
             }
             continue;
         } else {

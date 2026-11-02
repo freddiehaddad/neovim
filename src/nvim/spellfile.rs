@@ -2894,7 +2894,7 @@ fn spell_read_dic(
             line[l] = 0;
 
             let mut pc_vec: Vec<u8>;
-            let w = if spin.si_conv.vc_type != CONV_NONE {
+            let w_slice: &mut [u8] = if spin.si_conv.vc_type != CONV_NONE {
                 let Some(pc_bytes) = string_convert(&spin.si_conv, line.as_mut_ptr().cast(), None)
                 else {
                     smsg!(
@@ -2907,26 +2907,30 @@ fn spell_read_dic(
                     continue;
                 };
                 pc_vec = pc_bytes;
-                pc_vec.as_mut_ptr()
+                &mut pc_vec
             } else {
-                line.as_mut_ptr()
+                &mut line[..=l]
             };
 
+            let mut w_len = crate::memory::cstr_len(&*w_slice);
             let mut afflist: *mut u8 = ptr::null_mut();
-            let mut p = w;
-            while !crate::memory::cstr_is_empty(p.cast()) {
-                if crate::memory::cstr_first_byte(p.cast()) == b'\\'
-                    && (crate::memory::cstr_byte_at(p.cast(), 1) == b'\\'
-                        || crate::memory::cstr_byte_at(p.cast(), 1) == b'/')
+            let mut idx = 0;
+            while idx < w_len {
+                if w_slice[idx] == b'\\'
+                    && idx + 1 < w_len
+                    && (w_slice[idx + 1] == b'\\' || w_slice[idx + 1] == b'/')
                 {
-                    crate::memory::cstr_move(p.cast(), p.wrapping_add(1).cast());
-                } else if crate::memory::cstr_first_byte(p.cast()) == b'/' {
-                    crate::memory::cstr_ncpy(p.cast(), c"", 0);
-                    afflist = p.wrapping_add(1);
+                    w_slice.copy_within(idx + 1..=w_len, idx);
+                    w_len -= 1;
+                } else if w_slice[idx] == b'/' {
+                    w_slice[idx] = 0;
+                    afflist = w_slice[idx + 1..].as_mut_ptr();
+                    w_len = idx;
                     break;
                 }
-                mb_ptr_adv(&mut p);
+                idx += crate::mbyte::utfc_slice2len(&w_slice[idx..w_len]);
             }
+            let w = w_slice.as_mut_ptr();
 
             if spin.si_ascii != 0 && !crate::memory::cstr_as_bytes(w.cast()).is_ascii() {
                 non_ascii += 1;

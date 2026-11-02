@@ -1032,7 +1032,7 @@ pub fn nvim_buf_set_extmark(
 
         if has_key(mask, KEYSET_OPTIDX_SET_EXTMARK_SIGN_TEXT) {
             sign.text[0] = 0;
-            if !init_sign_text(None, sign.text.as_mut_ptr(), opts.sign_text.data) {
+            if !init_sign_text(None, &mut sign.text, opts.sign_text.as_bytes()) {
                 api_err_invalid(err, c"sign_text", c"", 0, true);
                 break 'error;
             }
