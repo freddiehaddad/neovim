@@ -1797,7 +1797,7 @@ pub fn decor_virt_lines(
                     if draw_row >= start_row
                         && draw_row < end_row
                         && (!apply_folds
-                            || !(has_folding(wp, mrow + 1, None, ptr::null_mut())
+                            || !(has_folding(wp, mrow + 1, None, None)
                                 || decor_conceal_line(wp, mrow, false)))
                     {
                         if decor_virt_line_wrap(wp, virt_lines[0].overflow) {

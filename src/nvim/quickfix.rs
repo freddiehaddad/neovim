@@ -3045,7 +3045,7 @@ fn qf_jump_goto_line(
                 None,
                 b'/' as i32,
                 b'/' as i32,
-                qf_pattern,
+                crate::memory::cstr_as_opt_cstr(qf_pattern),
                 crate::memory::cstr_len(qf_pattern),
                 1,
                 SEARCH_KEEP,

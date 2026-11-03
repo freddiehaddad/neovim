@@ -388,18 +388,11 @@ fn changed_common(buf: &mut FileBuf, mut lnum: Linenr, col: Colnr, lnume: Linenr
 
             fold_update(&mut *(wp), lnum, last);
 
-            let mut folded = has_folding_win(
-                &mut *wp,
-                lnum,
-                Some(&mut lnum),
-                ptr::null_mut(),
-                false,
-                None,
-            );
+            let mut folded = has_folding_win(&mut *wp, lnum, Some(&mut lnum), None, false, None);
             if wp.w_cursor.lnum == lnum {
                 wp.w_cline_folded = folded;
             }
-            folded = has_folding_win(&mut *wp, last, None, &raw mut last, false, None);
+            folded = has_folding_win(&mut *wp, last, None, Some(&mut last), false, None);
             if wp.w_cursor.lnum == last {
                 wp.w_cline_folded = folded;
             }
@@ -710,11 +703,16 @@ pub fn ins_char_bytes(buf: &[u8], charlen: usize) {
                     None,
                     0,
                 );
-                let new_vcol = vcol + win_chartabsize(curwin_mut(), buf_ptr, vcol);
+                let new_vcol = vcol
+                    + win_chartabsize(curwin_mut(), crate::memory::cstr_as_bytes(buf_ptr), vcol);
                 while !crate::memory::cstr_is_empty(oldp.wrapping_add(col + oldlen))
                     && vcol < new_vcol
                 {
-                    vcol += win_chartabsize(curwin_mut(), oldp.wrapping_add(col + oldlen), vcol);
+                    vcol += win_chartabsize(
+                        curwin_mut(),
+                        crate::memory::cstr_as_bytes(oldp.wrapping_add(col + oldlen)),
+                        vcol,
+                    );
                     if vcol > new_vcol
                         && crate::memory::cstr_first_byte(oldp.wrapping_add(col + oldlen)) == TAB
                     {
@@ -731,7 +729,7 @@ pub fn ins_char_bytes(buf: &[u8], charlen: usize) {
             }
 
             replace_push_nul();
-            replace_push(oldp.wrapping_add(col), oldlen);
+            replace_push(crate::memory::cstr_slice(oldp.wrapping_add(col), oldlen));
         }
 
         let old_slice = crate::memory::cstr_slice(oldp, linelen);
@@ -952,8 +950,7 @@ pub fn open_line(
         replace_push_nul();
         replace_push_nul();
         let col_u = curwin_mut().w_cursor.col as usize;
-        let p = saved_line.wrapping_add(col_u);
-        replace_push(p.cast(), crate::memory::cstr_len(p.cast()));
+        replace_push(crate::memory::bytes_until_nul(&saved_line_vec[col_u..]));
 
         saved_line_vec[col_u] = 0;
     }
@@ -1573,7 +1570,7 @@ pub fn open_line(
                 && !utf_iscomposing_first(utf_ptr2char(p_extra.wrapping_add(1).cast()))
             {
                 if replace_normal(g_st().state_global) {
-                    replace_push(p_extra.cast(), 1);
+                    replace_push(crate::memory::cstr_slice(p_extra.cast(), 1));
                 }
                 p_extra = p_extra.wrapping_add(1);
                 less_cols_off += 1;
@@ -1724,7 +1721,7 @@ pub fn open_line(
 
                 if trunc_line && (flags & OPENLINE_KEEPTRAIL) == 0 {
                     let col_idx = curwin_mut().w_cursor.col as usize;
-                    truncate_spaces(saved_line.cast(), col_idx);
+                    truncate_spaces(&mut saved_line_vec, col_idx);
                 }
                 ml_replace(curwin_mut().w_cursor.lnum, saved_line.cast(), true);
 

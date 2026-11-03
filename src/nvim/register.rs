@@ -1784,9 +1784,9 @@ pub fn do_put(regname: i32, mut reg: *mut Yankreg, mut dir: i32, mut count: i32,
         } else if y_type == MotionType::MtLineWise {
             lnum = curwin_mut().w_cursor.lnum;
             if dir == BACKWARD {
-                has_folding(curwin_ptr(), lnum, Some(&mut lnum), ptr::null_mut());
+                has_folding(curwin_mut(), lnum, Some(&mut lnum), None);
             } else {
-                has_folding(curwin_ptr(), lnum, None, &raw mut lnum);
+                has_folding(curwin_mut(), lnum, None, Some(&mut lnum));
             }
             if dir == FORWARD {
                 lnum += 1;
@@ -1912,14 +1912,19 @@ pub fn do_put(regname: i32, mut reg: *mut Yankreg, mut dir: i32, mut count: i32,
                 let oldlen = get_cursor_line_len();
 
                 let mut csarg = CharsizeArg::new();
-                let mut cstype: CSType =
-                    init_charsize_arg(&mut csarg, curwin_mut(), curwin_mut().w_cursor.lnum, oldp);
+                let mut cstype: CSType = init_charsize_arg(
+                    &mut csarg,
+                    curwin_mut(),
+                    curwin_mut().w_cursor.lnum,
+                    crate::memory::cstr_from_ptr(oldp),
+                );
                 let mut ci = utf_ptr2_str_char_info(oldp);
                 vcol = 0;
                 while vcol < col && !crate::memory::cstr_is_empty(ci.ptr) {
                     let cli = utf_cluster_info(ci);
-                    incr = win_charsize(cstype, vcol, ci.ptr, ci.chr.value, &mut csarg, cli.cells)
-                        .width;
+                    incr =
+                        win_charsize(cstype, vcol, ci.cstr(), ci.chr.value, &mut csarg, cli.cells)
+                            .width;
                     vcol += incr;
                     ci = cli.next;
                 }
@@ -1949,19 +1954,17 @@ pub fn do_put(regname: i32, mut reg: *mut Yankreg, mut dir: i32, mut count: i32,
                 if (flags & PUT_BLOCK_INNER) == 0 {
                     spaces = y_width + 1;
 
-                    cstype = init_charsize_arg(
-                        &mut csarg,
-                        curwin_mut(),
-                        0,
+                    let y_data = crate::memory::cstr_from_ptr(
                         crate::globals::gptr(y_array.wrapping_add(i)).data,
                     );
+                    cstype = init_charsize_arg(&mut csarg, curwin_mut(), 0, y_data);
 
-                    ci = utf_ptr2_str_char_info(crate::globals::gptr(y_array.wrapping_add(i)).data);
+                    ci = utf_ptr2_str_char_info(y_data);
 
                     while !crate::memory::cstr_is_empty(ci.ptr) {
                         let cli = utf_cluster_info(ci);
                         spaces -=
-                            win_charsize(cstype, 0, ci.ptr, ci.chr.value, &mut csarg, cli.cells)
+                            win_charsize(cstype, 0, ci.cstr(), ci.chr.value, &mut csarg, cli.cells)
                                 .width;
                         ci = cli.next;
                     }
@@ -2973,7 +2976,7 @@ pub fn write_reg_contents_ex(
         }
 
         if name == i32::from(b'/') {
-            set_last_search_pat(str_, RE_SEARCH, 1, true);
+            set_last_search_pat(crate::memory::cstr_as_opt_cstr(str_), RE_SEARCH, 1, true);
             return;
         }
 

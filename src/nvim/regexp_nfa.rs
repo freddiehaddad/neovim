@@ -4254,7 +4254,7 @@ fn nfa_regmatch(
                             let vcol = win_linetabsize(
                                 crate::globals::gmut(wp),
                                 lnum,
-                                re_st().rex.line.cast(),
+                                crate::memory::cstr_from_ptr(re_st().rex.line.cast()),
                                 col,
                             );
                             matched =

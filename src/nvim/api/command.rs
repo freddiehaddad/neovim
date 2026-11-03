@@ -343,14 +343,18 @@ pub fn nvim_parse_cmd(
         let mut end: usize = 0;
         let mut len: usize = 0;
         let mut buf = arena_alloc(arena, length + 1, false);
+        let mut buf_rem = length + 1;
         let mut done = false;
-        args = arena_array(arena, uc_nargs_upper_bound(ea.arg, length));
+        let arg_slice = crate::memory::cstr_slice(ea.arg, length);
+        args = arena_array(arena, uc_nargs_upper_bound(arg_slice));
 
         while !done {
-            done = uc_split_args_iter(ea.arg, length, &mut end, buf, &mut len);
+            let buf_slice = unsafe { std::slice::from_raw_parts_mut(buf.cast::<u8>(), buf_rem) };
+            done = uc_split_args_iter(arg_slice, &mut end, buf_slice, &mut len);
             if len > 0 {
                 add_c(&mut args, string_obj(cstrn_as_string(buf.cast(), len)));
                 buf = buf.wrapping_add(len + 1);
+                buf_rem = buf_rem.saturating_sub(len + 1);
             }
         }
     }
@@ -1367,7 +1371,7 @@ pub fn create_user_command(
     let mut preview_luaref: LuaRef = LUA_NOREF;
 
     'err: {
-        if uc_validate_name(name.data).is_null() {
+        if uc_validate_name(name.as_bytes()).is_none() {
             api_err_invalid(err, c"command name", name.data, 0, true);
             break 'err;
         }
@@ -1483,11 +1487,7 @@ pub fn create_user_command(
                 );
                 break 'err;
             }
-            if !parse_addr_type_arg(
-                opts.addr.data.string().data,
-                opts.addr.data.string().size as i32,
-                &mut addr_type_arg,
-            ) {
+            if !parse_addr_type_arg(opts.addr.data.string().as_bytes(), &mut addr_type_arg) {
                 api_err_invalid(err, c"addr", opts.addr.data.string().data, 0, true);
                 break 'err;
             }
@@ -1525,8 +1525,7 @@ pub fn create_user_command(
             opts.complete.data = crate::api::private::validate::ObjectData::LuaRef(LUA_NOREF);
         } else if opts.complete.obj_type == ObjectType::ObjectTypeString {
             if !parse_compl_arg(
-                opts.complete.data.string().data,
-                opts.complete.data.string().size as i32,
+                opts.complete.data.string().as_bytes(),
                 &mut context,
                 &mut argt,
                 &mut compl_arg,
@@ -1584,9 +1583,8 @@ pub fn create_user_command(
 
         with_script_context(channel_id, || {
             if !uc_add_command(
-                name.data,
-                name.size,
-                rep.as_ptr(),
+                name.as_bytes(),
+                rep.to_bytes(),
                 argt,
                 def,
                 flags,
@@ -1596,7 +1594,7 @@ pub fn create_user_command(
                 preview_luaref,
                 addr_type_arg,
                 luaref,
-                desc.map_or(ptr::null(), CStr::as_ptr),
+                desc,
                 force,
             ) {
                 api_set_error!(

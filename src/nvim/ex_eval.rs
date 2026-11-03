@@ -247,120 +247,111 @@ pub fn aborted_in_try() -> bool {
 }
 
 pub fn cause_errthrow(
-    mesg: impl crate::strings::IntoCCharPtr,
+    mesg: &CStr,
     multiline: bool,
     concat: bool,
     severe: bool,
     ignore: &mut bool,
 ) -> bool {
-    let mesg = mesg.into_c_char_ptr();
+    if g_st().suppress_errthrow {
+        return false;
+    }
+
+    if g_st().did_emsg == 0 {
+        exeval_st().cause_abort = g_st().force_abort;
+        g_st().force_abort = false;
+    }
+
+    if ((g_st().trylevel == 0 && !exeval_st().cause_abort) || g_st().emsg_silent != 0)
+        && !g_st().did_throw
     {
-        if g_st().suppress_errthrow {
-            return false;
-        }
+        return false;
+    }
 
-        if g_st().did_emsg == 0 {
-            exeval_st().cause_abort = g_st().force_abort;
-            g_st().force_abort = false;
-        }
+    if ptr::eq(mesg.as_ptr(), gettext(E_INTERR).as_ptr()) {
+        *ignore = true;
+        return true;
+    }
 
-        if ((g_st().trylevel == 0 && !exeval_st().cause_abort) || g_st().emsg_silent != 0)
-            && !g_st().did_throw
+    exeval_st().cause_abort = true;
+
+    if g_st().did_throw {
+        if g_st()
+            .current_exception
+            .as_ref()
+            .is_some_and(|e| e.r#type == ET_INTERRUPT)
         {
-            return false;
+            g_st().got_int = false;
         }
+        discard_current_exception();
+    }
 
-        if ptr::eq(mesg, gettext(E_INTERR).as_ptr()) {
-            *ignore = true;
+    if let Some(ref mut list) = g_st().msg_list {
+        if concat && let Some(last) = list.last_mut() {
+            let mut bytes = last.msg.as_bytes().to_vec();
+            bytes.extend_from_slice(mesg.to_bytes());
+            last.msg = CString::new(bytes).unwrap();
             return true;
         }
 
-        exeval_st().cause_abort = true;
-
-        if g_st().did_throw {
-            if g_st()
-                .current_exception
-                .as_ref()
-                .is_some_and(|e| e.r#type == ET_INTERRUPT)
-            {
-                g_st().got_int = false;
-            }
-            discard_current_exception();
+        let is_first = list.is_empty();
+        let tmsg = mesg.to_owned();
+        let sfile = estack_sfile(ESTACK_NONE);
+        let tmsg_bytes = tmsg.as_bytes();
+        let has_vim_e_prefix = tmsg_bytes.len() >= 10
+            && tmsg_bytes.starts_with(b"Vim E")
+            && tmsg_bytes[5].is_ascii_digit()
+            && tmsg_bytes[6].is_ascii_digit()
+            && tmsg_bytes[7].is_ascii_digit()
+            && tmsg_bytes[8] == b':'
+            && tmsg_bytes[9] == b' ';
+        list.push(Msglist {
+            msg: tmsg,
+            throw_idx: 0,
+            throw_off: 0,
+            sfile,
+            slnum: sourcing_lnum(),
+            multiline,
+        });
+        if is_first || severe {
+            let idx = list.len() - 1;
+            list[0].throw_idx = idx;
+            list[0].throw_off = if has_vim_e_prefix { 4 } else { 0 };
         }
-
-        let ml = &raw mut g_st().msg_list;
-        if let Some(ref mut list) = *crate::globals::gptr(ml) {
-            if concat && let Some(last) = list.last_mut() {
-                let mut bytes = last.msg.as_bytes().to_vec();
-                bytes.extend_from_slice(crate::memory::cstr_as_bytes(mesg));
-                last.msg = CString::new(bytes).unwrap();
-                return true;
-            }
-
-            let is_first = list.is_empty();
-            let tmsg = crate::memory::cstr_to_cstring(mesg);
-            let sfile = estack_sfile(ESTACK_NONE);
-            let tmsg_bytes = tmsg.as_bytes();
-            let has_vim_e_prefix = tmsg_bytes.len() >= 10
-                && tmsg_bytes.starts_with(b"Vim E")
-                && tmsg_bytes[5].is_ascii_digit()
-                && tmsg_bytes[6].is_ascii_digit()
-                && tmsg_bytes[7].is_ascii_digit()
-                && tmsg_bytes[8] == b':'
-                && tmsg_bytes[9] == b' ';
-            list.push(Msglist {
-                msg: tmsg,
-                throw_idx: 0,
-                throw_off: 0,
-                sfile,
-                slnum: sourcing_lnum(),
-                multiline,
-            });
-            if is_first || severe {
-                let idx = list.len() - 1;
-                list[0].throw_idx = idx;
-                list[0].throw_off = if has_vim_e_prefix { 4 } else { 0 };
-            }
-        }
-        true
     }
+    true
 }
 
 pub fn free_global_msglist() {
-    let ml = &raw mut g_st().msg_list;
-    if let Some(ref mut list) = *unsafe { &mut (*ml) } {
+    if let Some(ref mut list) = g_st().msg_list {
         list.clear();
     }
 }
 
-pub fn do_errthrow(cstack: Option<&mut Cstack>, cmdname: impl crate::strings::IntoCCharPtr) {
-    let cmdname = cmdname.into_c_char_ptr();
-    {
-        if exeval_st().cause_abort {
-            exeval_st().cause_abort = false;
-            g_st().force_abort = true;
-        }
+pub fn do_errthrow(cstack: Option<&mut Cstack>, cmdname: Option<&CStr>) {
+    if exeval_st().cause_abort {
+        exeval_st().cause_abort = false;
+        g_st().force_abort = true;
+    }
 
-        let ml = &raw mut g_st().msg_list;
-        let Some(ref mut list) = *crate::globals::gptr(ml) else {
-            return;
-        };
-        if list.is_empty() {
-            return;
-        }
+    let Some(ref mut list) = g_st().msg_list else {
+        return;
+    };
+    if list.is_empty() {
+        return;
+    }
 
-        let messages = std::mem::take(list);
-        if throw_exception(ExceptionValue::Error(messages), cmdname) {
-            if let Some(cstack) = cstack {
-                do_throw(&mut *cstack);
-            } else {
-                g_st().need_rethrow = true;
-            }
+    let messages = std::mem::take(list);
+    if throw_exception(ExceptionValue::Error(messages), cmdname) {
+        if let Some(cstack) = cstack {
+            do_throw(&mut *cstack);
+        } else {
+            g_st().need_rethrow = true;
         }
     }
 }
 
-pub fn do_intthrow(cstack: *mut Cstack) -> bool {
+pub fn do_intthrow(cstack: &mut Cstack) -> bool {
     if !g_st().got_int || (g_st().trylevel == 0 && !g_st().did_throw) {
         return false;
     }
@@ -375,11 +366,8 @@ pub fn do_intthrow(cstack: *mut Cstack) -> bool {
         }
         discard_current_exception();
     }
-    if throw_exception(
-        ExceptionValue::Interrupt(c"Vim:Interrupt".to_owned()),
-        ptr::null_mut(),
-    ) {
-        do_throw(crate::globals::gmut(cstack));
+    if throw_exception(ExceptionValue::Interrupt(c"Vim:Interrupt".to_owned()), None) {
+        do_throw(cstack);
     }
 
     true
@@ -391,22 +379,16 @@ enum ExceptionValue {
     User(CString),
 }
 
-pub fn get_error_exception_string(
-    mesg: impl crate::strings::IntoCCharPtr,
-    cmdname: impl crate::strings::IntoCCharPtr,
-) -> CString {
-    let cmdname = cmdname.into_c_char_ptr();
-    let mesg = mesg.into_c_char_ptr();
+pub fn get_error_exception_string(mesg_bytes: &[u8], cmdname: Option<&CStr>) -> CString {
     let mut out: Vec<u8> = Vec::new();
-    if !crate::memory::cstr_is_empty(cmdname) {
+    if let Some(cmdname) = cmdname.filter(|s| !s.to_bytes().is_empty()) {
         out.extend_from_slice(b"Vim(");
-        out.extend_from_slice(crate::memory::cstr_as_bytes(cmdname));
+        out.extend_from_slice(cmdname.to_bytes());
         out.extend_from_slice(b"):");
     } else {
         out.extend_from_slice(b"Vim:");
     }
 
-    let mesg_bytes = crate::memory::cstr_as_bytes(mesg);
     let mut p_idx = 0usize;
     loop {
         let rem = &mesg_bytes[p_idx..];
@@ -442,81 +424,76 @@ pub fn get_error_exception_string(
     crate::memory::cstr_from_bytes(&out)
 }
 
-fn throw_exception(value: ExceptionValue, cmdname: impl crate::strings::IntoCCharPtr) -> bool {
-    let cmdname = cmdname.into_c_char_ptr();
-    {
-        let (r#type, mut messages, excp_value) = match value {
-            ExceptionValue::User(val_str) => {
-                let bytes = val_str.as_bytes();
-                if bytes.starts_with(b"Vim")
-                    && (bytes.len() == 3 || bytes[3] == b':' || bytes[3] == b'(')
-                {
-                    emsg(gettext(c"E608: Cannot :throw exceptions with 'Vim' prefix"));
-                    g_st().current_exception = None;
-                    return false;
-                }
-                (ET_USER, Vec::new(), val_str)
+fn throw_exception(value: ExceptionValue, cmdname: Option<&CStr>) -> bool {
+    let (r#type, mut messages, excp_value) = match value {
+        ExceptionValue::User(val_str) => {
+            let bytes = val_str.as_bytes();
+            if bytes.starts_with(b"Vim")
+                && (bytes.len() == 3 || bytes[3] == b':' || bytes[3] == b'(')
+            {
+                emsg(gettext(c"E608: Cannot :throw exceptions with 'Vim' prefix"));
+                g_st().current_exception = None;
+                return false;
             }
-            ExceptionValue::Interrupt(val_str) => (ET_INTERRUPT, Vec::new(), val_str),
-            ExceptionValue::Error(msgs) => {
-                let throw_ptr = msgs[msgs[0].throw_idx]
-                    .msg
-                    .as_ptr()
-                    .wrapping_add(msgs[0].throw_off);
-                let excp_cstr = get_error_exception_string(throw_ptr, cmdname);
-                (ET_ERROR, msgs, excp_cstr)
-            }
-        };
-
-        let (throw_name, throw_lnum) = if r#type == ET_ERROR && messages[0].sfile.is_some() {
-            let sfile = messages[0].sfile.take().unwrap();
-            (sfile, messages[0].slnum)
-        } else {
-            let sfile = estack_sfile(ESTACK_NONE).unwrap_or_default();
-            (sfile, sourcing_lnum())
-        };
-
-        let stacktrace = stacktrace_create();
-        tv_list_ref(Some(&mut *stacktrace));
-
-        let excp = std::rc::Rc::new(Except {
-            r#type,
-            value: excp_value,
-            messages,
-            throw_name,
-            throw_lnum,
-            stacktrace,
-        });
-
-        if opt_vars().p_verbose >= 13 || g_st().debug_break_level > 0 {
-            let save_msg_silent = g_st().msg_silent;
-
-            if g_st().debug_break_level > 0 {
-                g_st().msg_silent = 0;
-            } else {
-                verbose_enter();
-            }
-            g_st().no_wait_return += 1;
-            if g_st().debug_break_level > 0 || crate::memory::cstr_is_empty(opt_vars().p_vfile) {
-                g_st().msg_scroll = 1;
-            }
-            smsg!(0, gettext(c"Exception thrown: %s"), excp.value.as_ptr(),);
-            msg_puts(c"\n");
-
-            if g_st().debug_break_level > 0 || crate::memory::cstr_is_empty(opt_vars().p_vfile) {
-                g_st().cmdline_row = g_st().msg_row;
-            }
-            g_st().no_wait_return -= 1;
-            if g_st().debug_break_level > 0 {
-                g_st().msg_silent = save_msg_silent;
-            } else {
-                verbose_leave();
-            }
+            (ET_USER, Vec::new(), val_str)
         }
+        ExceptionValue::Interrupt(val_str) => (ET_INTERRUPT, Vec::new(), val_str),
+        ExceptionValue::Error(msgs) => {
+            let msg_bytes = msgs[msgs[0].throw_idx].msg.as_bytes();
+            let throw_slice = &msg_bytes[msgs[0].throw_off.min(msg_bytes.len())..];
+            let excp_cstr = get_error_exception_string(throw_slice, cmdname);
+            (ET_ERROR, msgs, excp_cstr)
+        }
+    };
 
-        g_st().current_exception = Some(excp);
-        true
+    let (throw_name, throw_lnum) = if r#type == ET_ERROR && messages[0].sfile.is_some() {
+        let sfile = messages[0].sfile.take().unwrap();
+        (sfile, messages[0].slnum)
+    } else {
+        let sfile = estack_sfile(ESTACK_NONE).unwrap_or_default();
+        (sfile, sourcing_lnum())
+    };
+
+    let stacktrace = stacktrace_create();
+    tv_list_ref(Some(&mut *stacktrace));
+
+    let excp = std::rc::Rc::new(Except {
+        r#type,
+        value: excp_value,
+        messages,
+        throw_name,
+        throw_lnum,
+        stacktrace,
+    });
+
+    if opt_vars().p_verbose >= 13 || g_st().debug_break_level > 0 {
+        let save_msg_silent = g_st().msg_silent;
+
+        if g_st().debug_break_level > 0 {
+            g_st().msg_silent = 0;
+        } else {
+            verbose_enter();
+        }
+        g_st().no_wait_return += 1;
+        if g_st().debug_break_level > 0 || crate::memory::cstr_is_empty(opt_vars().p_vfile) {
+            g_st().msg_scroll = 1;
+        }
+        smsg!(0, gettext(c"Exception thrown: %s"), excp.value.as_ptr(),);
+        msg_puts(c"\n");
+
+        if g_st().debug_break_level > 0 || crate::memory::cstr_is_empty(opt_vars().p_vfile) {
+            g_st().cmdline_row = g_st().msg_row;
+        }
+        g_st().no_wait_return -= 1;
+        if g_st().debug_break_level > 0 {
+            g_st().msg_silent = save_msg_silent;
+        } else {
+            verbose_leave();
+        }
     }
+
+    g_st().current_exception = Some(excp);
+    true
 }
 
 fn discard_exception(excp: Option<std::rc::Rc<Except>>, was_finished: bool) {
@@ -1075,7 +1052,7 @@ pub fn ex_throw(eap: &mut Exarg) {
 
     if let Some(val_cstr) = value
         && eap.skip == 0
-        && throw_exception(ExceptionValue::User(val_cstr), ptr::null_mut())
+        && throw_exception(ExceptionValue::User(val_cstr), None)
     {
         do_throw(eap.cstack_mut());
     }
@@ -1622,21 +1599,18 @@ pub fn ex_endfunction(_eap: &mut Exarg) {
     semsg!(gettext(E_STR_NOT_INSIDE_FUNCTION), c":endfunction",);
 }
 
-pub fn has_loop_cmd(p: impl crate::strings::IntoCCharPtr) -> bool {
-    let mut p = p.into_c_char_ptr();
+pub fn has_loop_cmd(mut rem: &[u8]) -> bool {
     loop {
-        let p_bytes = crate::memory::cstr_as_bytes(p);
-        let skip = p_bytes
+        let skip = rem
             .iter()
             .take_while(|&&b| matches!(b, b' ' | b'\t' | b':'))
             .count();
-        p = p.wrapping_add(skip);
-        let len = modifier_len(crate::memory::cstr_as_bytes(p));
+        rem = &rem[skip..];
+        let len = modifier_len(rem);
         if len == 0 {
             break;
         }
-        p = p.wrapping_add(len as usize);
+        rem = &rem[(len as usize).min(rem.len())..];
     }
-    let rem = crate::memory::cstr_as_bytes(p);
     rem.starts_with(b"wh") || rem.starts_with(b"for")
 }

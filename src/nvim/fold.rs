@@ -95,7 +95,7 @@ struct Fline {
 impl Fline {
     #[inline]
     fn wp_mut(&self) -> &'static mut WinInfoInfo {
-        crate::globals::gmut(self.wp)
+        unsafe { &mut *self.wp }
     }
 }
 
@@ -169,12 +169,12 @@ pub fn has_any_folding(win: &mut WinInfoInfo) -> i32 {
 
 /// Return true if line "lnum" in window "win" is part of a closed fold.
 pub fn has_folding(
-    win: *mut WinInfoInfo,
+    win: &mut WinInfoInfo,
     lnum: Linenr,
     firstp: Option<&mut Linenr>,
-    lastp: *mut Linenr,
+    lastp: Option<&mut Linenr>,
 ) -> bool {
-    has_folding_win(crate::globals::gmut(win), lnum, firstp, lastp, true, None)
+    has_folding_win(win, lnum, firstp, lastp, true, None)
 }
 
 /// Search folds starting at lnum.
@@ -182,7 +182,7 @@ pub fn has_folding_win(
     win: &mut WinInfoInfo,
     lnum: Linenr,
     mut firstp: Option<&mut Linenr>,
-    lastp: *mut Linenr,
+    mut lastp: Option<&mut Linenr>,
     cache: bool,
     mut infop: Option<&mut Foldinfo>,
 ) -> bool {
@@ -217,8 +217,8 @@ pub fn has_folding_win(
 
     if first == 0 {
         let mut gap = &raw mut win.w_folds;
-        while let (true, idx) = fold_find(crate::globals::gref(gap), lnum_rel) {
-            let fp = &mut (crate::globals::gmut(gap))[idx];
+        while let (true, idx) = fold_find(unsafe { &*gap }, lnum_rel) {
+            let fp = &mut (unsafe { &mut *gap })[idx];
             if lnum_rel == fp.fd_top && low_level == 0 {
                 low_level = level + 1;
             }
@@ -255,8 +255,8 @@ pub fn has_folding_win(
     }
 
     last = last.min(win.buf_mut().b_ml.ml_line_count);
-    if !lastp.is_null() {
-        *crate::globals::gptr(lastp) = last;
+    if let Some(ref mut p) = lastp {
+        **p = last;
     }
     if let Some(ref mut p) = firstp {
         **p = first;
@@ -300,7 +300,7 @@ pub fn fold_info(win: &mut WinInfoInfo, lnum: Linenr) -> Foldinfo {
     };
     let mut last: Linenr = 0;
 
-    if has_folding_win(win, lnum, None, &mut last, false, Some(&mut info)) {
+    if has_folding_win(win, lnum, None, Some(&mut last), false, Some(&mut info)) {
         info.fi_lines = last - lnum + 1;
     } else {
         info.fi_lines = 0;
@@ -370,11 +370,11 @@ pub fn op_fold_range(
         };
         let mut lnum_next = lnum;
         if opening != 0 && recurse == 0 {
-            has_folding(curwin_ptr(), lnum, None, &mut lnum_next);
+            has_folding(curwin_mut(), lnum, None, Some(&mut lnum_next));
         }
         set_manual_fold(temp, opening != 0, recurse != 0, Some(&mut done));
         if opening == 0 && recurse == 0 {
-            has_folding(curwin_ptr(), lnum, None, &mut lnum_next);
+            has_folding(curwin_mut(), lnum, None, Some(&mut lnum_next));
         }
         lnum = lnum_next + 1;
     }
@@ -602,15 +602,15 @@ pub fn delete_fold(
         let mut found_ga: *mut Vec<FoldEntry> = ptr::null_mut();
         let mut lnum_off: Linenr = 0;
         let mut use_level = false;
-        while let (true, idx) = fold_find(crate::globals::gref(gap), lnum - lnum_off) {
-            let fp = &raw mut (crate::globals::gmut(gap))[idx];
+        while let (true, idx) = fold_find(unsafe { &*gap }, lnum - lnum_off) {
+            let fp = &raw mut (unsafe { &mut *gap })[idx];
             found_ga = gap;
             found_fp = fp;
             found_off = lnum_off;
 
             if check_closed(
                 wp,
-                crate::globals::gmut(fp),
+                unsafe { &mut *fp },
                 &mut use_level,
                 level,
                 &mut maybe_small,
@@ -619,40 +619,31 @@ pub fn delete_fold(
                 break;
             }
 
-            gap = &raw mut crate::globals::gptr(fp).fd_nested;
+            gap = &raw mut unsafe { &mut *fp }.fd_nested;
 
-            lnum_off += crate::globals::gptr(fp).fd_top;
+            lnum_off += unsafe { (*fp).fd_top };
 
             level += 1;
         }
         if found_ga.is_null() {
             lnum += 1;
         } else {
-            lnum = crate::globals::gptr(found_fp).fd_top
-                + crate::globals::gptr(found_fp).fd_len
-                + found_off;
+            lnum = unsafe { (*found_fp).fd_top + (*found_fp).fd_len } + found_off;
 
             if foldmethod_is_manual(&mut *wp) {
-                let idx = crate::memory::ptr_offset_from(
-                    found_fp,
-                    crate::globals::gptr(found_ga).as_ptr(),
-                ) as i32;
+                let idx =
+                    crate::memory::ptr_offset_from(found_fp, unsafe { &*found_ga }.as_ptr()) as i32;
 
-                delete_fold_entry(crate::globals::gmut(found_ga), idx, recursive != 0);
+                delete_fold_entry(unsafe { &mut *found_ga }, idx, recursive != 0);
             } else {
-                first_lnum = first_lnum.min(crate::globals::gptr(found_fp).fd_top + found_off);
+                first_lnum = first_lnum.min(unsafe { (*found_fp).fd_top } + found_off);
 
                 last_lnum = last_lnum.max(lnum);
                 if !did_one {
                     parse_marker(&mut *wp);
                 }
 
-                delete_fold_markers(
-                    wp,
-                    crate::globals::gmut(found_fp),
-                    recursive != 0,
-                    found_off,
-                );
+                delete_fold_markers(wp, unsafe { &mut *found_fp }, recursive != 0, found_off);
             }
             did_one = true;
 
@@ -886,41 +877,33 @@ pub fn fold_adjust_visual() {
             &raw mut g_st().visual_global.start,
         )
     };
-    if has_folding(
-        curwin_ptr(),
-        crate::globals::gptr(start).lnum,
-        Some(&mut crate::globals::gptr(start).lnum),
-        ptr::null_mut(),
-    ) {
-        crate::globals::gptr(start).col = 0;
+    let mut start_lnum = unsafe { (*start).lnum };
+    if has_folding(curwin_mut(), start_lnum, Some(&mut start_lnum), None) {
+        unsafe {
+            (*start).lnum = start_lnum;
+            (*start).col = 0;
+        }
     }
 
-    if !has_folding(
-        curwin_ptr(),
-        crate::globals::gptr(end).lnum,
-        None,
-        &raw mut crate::globals::gptr(end).lnum,
-    ) {
+    let mut end_lnum = unsafe { (*end).lnum };
+    if !has_folding(curwin_mut(), end_lnum, None, Some(&mut end_lnum)) {
         return;
     }
+    unsafe { (*end).lnum = end_lnum };
 
-    crate::globals::gptr(end).col = ml_get_len(crate::globals::gptr(end).lnum);
-
-    if crate::globals::gptr(end).col > 0 && crate::memory::cstr_first_byte(opt_vars().p_sel) == b'o'
-    {
-        crate::globals::gptr(end).col -= 1;
+    let mut end_col = ml_get_len(end_lnum);
+    if end_col > 0 && crate::memory::cstr_first_byte(opt_vars().p_sel) == b'o' {
+        end_col -= 1;
     }
+    unsafe { (*end).col = end_col };
     mb_adjust_cursor();
 }
 
 /// Move the cursor to the first line of a closed fold.
 pub fn fold_adjust_cursor(wp: &mut WinInfoInfo) {
-    has_folding(
-        &raw mut *wp,
-        wp.w_cursor.lnum,
-        Some(&mut wp.w_cursor.lnum),
-        ptr::null_mut(),
-    );
+    let mut lnum = wp.w_cursor.lnum;
+    has_folding(wp, lnum, Some(&mut lnum), None);
+    wp.w_cursor.lnum = lnum;
 }
 
 fn fold_find(gap: &[FoldEntry], lnum: Linenr) -> (bool, usize) {
@@ -1032,8 +1015,8 @@ fn set_manual_fold_win(
             next = gap[idx + 1].fd_top + off;
         }
 
-        let fp: *mut _ = &raw mut gap[idx];
-        let fp = crate::globals::gmut(fp);
+        let fp: *mut FoldEntry = &raw mut gap[idx];
+        let fp = unsafe { &mut *fp };
         if use_level || fp.fd_flags == FD_LEVEL {
             use_level = true;
             fp.fd_flags = if i64::from(level) >= wp.w_onebuf_opt.wo_fdl {
@@ -1069,8 +1052,8 @@ fn set_manual_fold_win(
         level += 1;
     }
     if found_fold {
-        if !opening && !found.is_null() {
-            crate::globals::gptr(found).fd_flags = FD_CLOSED;
+        if !opening && let Some(found) = unsafe { found.as_mut() } {
+            found.fd_flags = FD_CLOSED;
 
             done |= DONE_ACTION;
         }
@@ -2560,7 +2543,7 @@ pub fn put_folds(fd: &CFile, wp: &mut WinInfoInfo) -> bool {
 
     if wp.w_fold_manual {
         let wp_ptr: *mut WinInfoInfo = wp;
-        return put_foldopen_recurse(fd, crate::globals::gmut(wp_ptr), &wp.w_folds, 0);
+        return put_foldopen_recurse(fd, unsafe { &mut *wp_ptr }, &wp.w_folds, 0);
     }
 
     true
@@ -2646,7 +2629,14 @@ fn foldclosed_both(argvars: &mut [TypVal], rettv: &mut TypVal, end: bool) {
     if lnum >= 1 && lnum <= curbuf_mut().b_ml.ml_line_count {
         let mut first: Linenr = 0;
         let mut last: Linenr = 0;
-        if has_folding_win(curwin_mut(), lnum, Some(&mut first), &mut last, false, None) {
+        if has_folding_win(
+            curwin_mut(),
+            lnum,
+            Some(&mut first),
+            Some(&mut last),
+            false,
+            None,
+        ) {
             rettv.vval = crate::eval::typval::TypvalVval::Number(Varnumber::from(if end {
                 last
             } else {

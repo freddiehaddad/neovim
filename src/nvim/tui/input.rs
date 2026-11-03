@@ -228,9 +228,9 @@ const fn kitty_key_name(key: i32) -> Option<&'static str> {
     }
 }
 
-pub fn tinput_init(input: &mut TermInput, loop_: *mut Loop, ti: &TerminfoEntry) {
+pub fn tinput_init(input: &mut TermInput, loop_: &mut Loop, ti: &TerminfoEntry) {
     assert!(input.loop_.is_null());
-    input.loop_ = loop_;
+    input.loop_ = &raw mut *loop_;
 
     input.paste = 0;
     input.in_fd = STDIN_FILENO;
@@ -239,7 +239,7 @@ pub fn tinput_init(input: &mut TermInput, loop_: *mut Loop, ti: &TerminfoEntry) 
         input.ttimeoutlen = opt_vars().p_ttm;
     }
 
-    rstream_init_fd(loop_, &mut input.read_stream, input.in_fd);
+    rstream_init_fd(&raw mut *loop_, &mut input.read_stream, input.in_fd);
 
     input.tk = termkey_new_abstract(
         Some(ti),
@@ -254,13 +254,13 @@ pub fn tinput_init(input: &mut TermInput, loop_: *mut Loop, ti: &TerminfoEntry) 
 
     {
         let th: *mut uv_timer_t = (&raw mut input.timer_handle).cast();
-        unsafe { uv_timer_init(loop_.cast(), th) };
+        unsafe { uv_timer_init((&raw mut *loop_).cast(), th) };
         unsafe {
             *th.cast::<*mut TermInput>() = input;
         }
 
         let bg_th: *mut uv_timer_t = (&raw mut input.bg_query_timer).cast();
-        unsafe { uv_timer_init(loop_.cast(), bg_th) };
+        unsafe { uv_timer_init((&raw mut *loop_).cast(), bg_th) };
         unsafe {
             *bg_th.cast::<*mut TermInput>() = input;
         }

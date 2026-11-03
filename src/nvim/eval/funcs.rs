@@ -1739,7 +1739,7 @@ fn get_col(argvars: &mut [TypVal], rettv: &mut TypVal, charcol: bool) {
                 if crate::globals::gptr(wp).w_cursor.coladd
                     >= win_chartabsize(
                         crate::globals::gmut(wp),
-                        p,
+                        crate::memory::cstr_as_bytes(p),
                         crate::globals::gptr(wp).w_virtcol
                             - crate::globals::gptr(wp).w_cursor.coladd,
                     )
@@ -6691,12 +6691,12 @@ fn search_cmn(argvars: &mut [TypVal], match_pos: Option<&mut CursorPos>, flagsp:
 
         loop {
             subpatnum = searchit(
-                curwin_ptr(),
+                Some(curwin_mut()),
                 curbuf_mut(),
                 crate::globals::gmut(pos.cast()),
                 None,
                 dir,
-                pat_ptr,
+                crate::memory::cstr_from_ptr(pat_ptr),
                 patlen,
                 1,
                 options,
@@ -7060,8 +7060,7 @@ pub fn f_searchdecl(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncD
     }
     if !error && let Some(name) = name {
         rettv.vval = crate::eval::typval::TypvalVval::Number(Varnumber::from(!find_decl(
-            name.as_ptr().cast_mut(),
-            name.to_bytes().len(),
+            name.to_bytes(),
             locally != 0,
             thisblock != 0,
             SEARCH_KEEP,
@@ -7256,12 +7255,12 @@ pub fn do_searchpair(
             };
 
             let n = searchit(
-                curwin_ptr(),
+                Some(curwin_mut()),
                 curbuf_mut(),
                 crate::globals::gmut(pos.cast()),
                 None,
                 dir,
-                pat,
+                crate::memory::cstr_from_ptr(pat),
                 patlen,
                 1,
                 options,
@@ -7540,7 +7539,10 @@ pub fn f_setcharsearch(argvars: &mut [TypVal], _rettv: &mut TypVal, _fptr: EvalF
 
     if let Some(csearch) = tv_dict_get_string(Some(d), c"char") {
         let c = utf_ptr2char(csearch);
-        set_last_csearch(c, csearch, utfc_ptr2len(csearch));
+        set_last_csearch(
+            c,
+            crate::memory::cstr_slice(csearch, utfc_ptr2len(csearch) as usize),
+        );
     }
 
     if let Some(di) = crate::eval::typval::tv_dict_find_opt(Some(d), c"forward", 7) {
@@ -8687,14 +8689,11 @@ pub fn f_taglist(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData
     if tag_pattern.is_empty() {
         return;
     }
-    let mut fname = ptr::null();
-    if argvars[1].v_type != VarType::VarUnknown {
-        fname = tv_get_string(&argvars[1]).as_ptr();
-    }
+    let fname = (argvars[1].v_type != VarType::VarUnknown).then(|| tv_get_string(&argvars[1]));
     get_tags(
         &mut *tv_list_alloc_ret(rettv, K_LIST_LEN_UNKNOWN_CONST),
-        tag_pattern.as_ptr().cast_mut(),
-        fname.cast_mut(),
+        tag_pattern,
+        fname,
     );
 }
 

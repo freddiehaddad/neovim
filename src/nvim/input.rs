@@ -1263,10 +1263,7 @@ fn gotchars(chars: *const u8, len: usize) {
             inp_st().last_recorded_len = inp_st().last_recorded_len.wrapping_add(buflen);
         }
 
-        atom_typed_add(
-            (&raw const inp_st().gotchars_state.buf).cast::<u8>(),
-            buflen,
-        );
+        atom_typed_add(&inp_st().gotchars_state.buf[..buflen]);
 
         inp_st().gotchars_state.buflen = 0;
     }
@@ -1942,18 +1939,18 @@ fn getchar_common(argvars: &mut [TypVal], rettv: &mut TypVal, mut allow_number: 
 
             if row >= 0 && col >= 0 {
                 let mut winnr: i32 = 1;
-                let win = mouse_find_win_inner(&mut grid, &mut row, &mut col);
-                if win.is_null() {
+                let Some(win) = mouse_find_win_inner(&mut grid, &mut row, &mut col) else {
                     return;
-                }
+                };
+                let win_ptr = ptr::from_mut(win);
 
-                mouse_comp_pos(crate::globals::gmut(win), &mut row, &mut col, &mut lnum);
+                mouse_comp_pos(win, &mut row, &mut col, &mut lnum);
 
                 let mut wp = g_st().firstwin;
-                while wp != win {
+                while wp != win_ptr {
                     winnr += 1;
 
-                    wp = crate::globals::gptr(wp).w_next;
+                    wp = unsafe { (*wp).w_next };
                 }
                 set_vim_var_nr(VV_MOUSE_WIN, Varnumber::from(winnr));
 
@@ -2330,7 +2327,7 @@ fn handle_mapping(keylenp: &mut i32, timedout: &bool, mapdepth: &mut i32, advanc
                     .wrapping_add((g_st().typebuf.tb_off + g_st().typebuf.tb_maplen) as usize),
                 (keylen - g_st().typebuf.tb_maplen) as usize,
             );
-            atom_map_start(mp.m_keys.as_ptr(), mp.m_keylen as usize, !advance);
+            atom_map_start(&mp.m_keys.as_bytes()[..mp.m_keylen as usize], !advance);
         }
 
         g_st().cmd_silent = g_st().typebuf.tb_silent > 0;
@@ -2628,7 +2625,7 @@ fn vgetorpeek(advance: bool) -> i32 {
                                     &mut csarg,
                                     curwin_mut(),
                                     curwin_mut().w_cursor.lnum,
-                                    ptr,
+                                    crate::memory::cstr_from_ptr(ptr),
                                 );
                                 let mut ci: StrCharInfo = utf_ptr2_str_char_info(ptr);
                                 let mut vcol: i32 = 0;
@@ -2640,7 +2637,7 @@ fn vgetorpeek(advance: bool) -> i32 {
                                     vcol += win_charsize(
                                         cstype,
                                         vcol,
-                                        ci.ptr.cast_mut(),
+                                        ci.cstr(),
                                         ci.chr.value,
                                         &mut csarg,
                                         cli.cells,
@@ -3113,7 +3110,7 @@ pub fn getcmdkeycmd(promptc: i32, _indent: i32, _do_concat: bool) -> Option<std:
     } else {
         let out = cstr_from_bytes(&line);
         if promptc == b':' as i32 {
-            atom_cmdline_set(K_COMMAND, out.as_ptr(), out.as_bytes().len());
+            atom_cmdline_set(K_COMMAND, out.as_bytes());
         }
         Some(out)
     }

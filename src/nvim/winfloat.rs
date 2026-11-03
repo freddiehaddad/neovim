@@ -49,13 +49,56 @@ use crate::ex_cmds::K_WIN_PREVIEW;
 
 /// Creates a new float, or transforms an existing window to a float (`win_new_float`).
 pub fn win_new_float(
-    mut wp: *mut WinInfoInfo,
+    wp_opt: Option<&'static mut WinInfoInfo>,
     last: bool,
     fconfig: WinConfig,
     err: &mut Error,
-) -> *mut WinInfoInfo {
+) -> Option<&'static mut WinInfoInfo> {
     let empty_opt = EMPTY_STRING_OPTION.as_ptr().cast();
-    if wp.is_null() {
+    let wp = if let Some(wp) = wp_opt {
+        debug_assert!(!last);
+        debug_assert!(!wp.w_floating);
+
+        let win_tp = win_find_tabpage(wp);
+        debug_assert!(!win_tp.is_null());
+        if (win_tp == g_st().curtab
+            && ptr::eq(g_st().firstwin, wp)
+            && ptr::eq(lastwin_nofloating(ptr::null_mut()), wp))
+            || win_tp != g_st().curtab
+                && ptr::eq(unsafe { (*win_tp).tp_firstwin }, wp)
+                && ptr::eq(lastwin_nofloating(win_tp), wp)
+        {
+            api_set_error!(
+                err,
+                ErrorType::ErrorTypeException,
+                c"Cannot change last window into float",
+            );
+            return None;
+        }
+        let tp = if win_tp == g_st().curtab {
+            ptr::null_mut()
+        } else {
+            win_tp
+        };
+        let mut dir: i32 = 0;
+
+        winframe_remove(wp, &mut dir, tp, ptr::null_mut());
+
+        if !wp.w_frame.is_null() {
+            drop(unsafe { Box::from_raw(wp.w_frame) });
+        }
+
+        wp.w_frame = ptr::null_mut();
+
+        win_remove(wp, tp);
+
+        if win_tp == g_st().curtab {
+            last_status(false);
+            win_comp_pos();
+        }
+        win_append(lastwin_nofloating(tp), wp, tp);
+        wp
+    } else {
         let mut tp_last = if last {
             g_st().lastwin
         } else {
@@ -65,11 +108,11 @@ pub fn win_new_float(
             debug_assert!(!last);
             let parent_wp = find_window_by_handle(fconfig.window, err);
             if parent_wp.is_null() {
-                return ptr::null_mut();
+                return None;
             }
             let tp = win_find_tabpage(parent_wp);
             if tp.is_null() {
-                return ptr::null_mut();
+                return None;
             }
             tp_last = lastwin_nofloating(if tp == g_st().curtab {
                 ptr::null_mut()
@@ -77,8 +120,7 @@ pub fn win_new_float(
                 tp
             });
         }
-        wp = win_alloc(tp_last, false);
-        let wp = crate::globals::gmut(wp);
+        let wp = win_alloc(tp_last, false);
         win_init(wp, curwin_mut(), 0);
         if !wp.w_onebuf_opt.wo_wbr.is_null() && fconfig.height == 1 {
             if wp.w_onebuf_opt.wo_wbr != empty_opt {
@@ -90,51 +132,8 @@ pub fn win_new_float(
             free_string_option(wp.w_onebuf_opt.wo_stl);
             wp.w_onebuf_opt.wo_stl = empty_opt;
         }
-    } else {
-        debug_assert!(!last);
-
-        debug_assert!(!crate::globals::gptr(wp).w_floating);
-
-        let win_tp = win_find_tabpage(wp);
-        debug_assert!(!win_tp.is_null());
-        if (win_tp == g_st().curtab
-            && g_st().firstwin == wp
-            && ptr::eq(lastwin_nofloating(ptr::null_mut()), wp))
-            || win_tp != g_st().curtab
-                && crate::globals::gptr(win_tp).tp_firstwin == wp
-                && ptr::eq(lastwin_nofloating(win_tp), wp)
-        {
-            api_set_error!(
-                err,
-                ErrorType::ErrorTypeException,
-                c"Cannot change last window into float",
-            );
-            return ptr::null_mut();
-        }
-        let tp = if win_tp == g_st().curtab {
-            ptr::null_mut()
-        } else {
-            win_tp
-        };
-        let mut dir: i32 = 0;
-
-        winframe_remove(crate::globals::gmut(wp), &mut dir, tp, ptr::null_mut());
-
-        if !crate::globals::gptr(wp).w_frame.is_null() {
-            drop(unsafe { Box::from_raw(crate::globals::gptr(wp).w_frame) });
-        }
-
-        crate::globals::gptr(wp).w_frame = ptr::null_mut();
-
-        win_remove(crate::globals::gmut(wp), tp);
-
-        if win_tp == g_st().curtab {
-            last_status(false);
-            win_comp_pos();
-        }
-        win_append(lastwin_nofloating(tp), wp, tp);
-    }
-    let wp = crate::globals::gmut(wp);
+        wp
+    };
     wp.w_floating = true;
     wp.w_status_height = if !crate::memory::cstr_is_empty(wp.w_onebuf_opt.wo_stl)
         && (opt_vars().p_ls == 1 || opt_vars().p_ls == 2)
@@ -149,7 +148,7 @@ pub fn win_new_float(
 
     win_config_float(&mut *wp, fconfig);
     redraw_later(Some(&mut *wp), UPD_VALID);
-    wp
+    Some(wp)
 }
 
 pub fn win_set_minimal_style(wp: &mut WinInfoInfo) {
@@ -250,12 +249,11 @@ pub fn win_config_float(wp: &mut WinInfoInfo, mut fconfig: WinConfig) {
         let mut row = g_st().mouse_row;
         let mut col = g_st().mouse_col;
         let mut grid = g_st().mouse_grid;
-        let mouse_win = mouse_find_win_inner(&mut grid, &mut row, &mut col);
-        if !mouse_win.is_null() {
+        if let Some(mouse_win) = mouse_find_win_inner(&mut grid, &mut row, &mut col) {
             fconfig.relative = K_FLOAT_RELATIVE_WINDOW;
             fconfig.row += row as f64;
             fconfig.col += col as f64;
-            fconfig.window = crate::globals::gptr(mouse_win).handle;
+            fconfig.window = mouse_win.handle;
         }
     }
 
@@ -301,8 +299,7 @@ pub fn win_config_float(wp: &mut WinInfoInfo, mut fconfig: WinConfig) {
         let mut col = wp.w_config.col as i32;
         let mut dummy = error_init();
         let parent = find_window_by_handle(wp.w_config.window, &mut dummy);
-        if !parent.is_null() {
-            let parent = crate::globals::gmut(parent);
+        if let Some(parent) = unsafe { parent.as_mut() } {
             row += parent.w_winrow;
             col += parent.w_wincol;
             grid_adjust(&mut parent.w_grid, &mut row, &mut col);
@@ -352,8 +349,7 @@ pub fn win_float_remove(bang: bool, mut count: i32) {
         }
     }
     if !float_win_arr.is_empty() {
-        float_win_arr
-            .sort_unstable_by_key(|&w| std::cmp::Reverse(crate::globals::gptr(w).w_config.zindex));
+        float_win_arr.sort_unstable_by_key(|&w| std::cmp::Reverse(unsafe { (*w).w_config.zindex }));
     }
     for w in float_win_arr {
         if win_valid(w) && !win_close(w, false, false) {
@@ -404,17 +400,18 @@ pub fn win_reconfig_floats() {
 }
 
 /// Find the floating window of the given kind in the current tabpage (`win_float_find`).
-pub fn win_float_find(kind: WinKind) -> *mut WinInfoInfo {
-    for wp in for_all_windows_rev_ptr().take_while(|wp| wp.w_floating) {
-        if wp.w_kind == kind {
-            return wp;
-        }
-    }
-    ptr::null_mut()
+pub fn win_float_find(kind: WinKind) -> Option<&'static mut WinInfoInfo> {
+    for_all_windows_rev_ptr()
+        .take_while(|wp| wp.w_floating)
+        .find(|wp| wp.w_kind == kind)
+        .map(|v| &mut *v)
 }
 
 /// Select an alternative window to `win` (assumed floating) in tabpage `tp` (`win_float_find_altwin`).
-pub fn win_float_find_altwin(win: &WinInfoInfo, tp: Option<&TabPageInfo>) -> *mut WinInfoInfo {
+pub fn win_float_find_altwin(
+    win: &WinInfoInfo,
+    tp: Option<&TabPageInfo>,
+) -> &'static mut WinInfoInfo {
     let Some(tp) = tp else {
         return if win_valid(g_st().prevwin)
             && let Some(wp) = prevwin_opt()
@@ -424,7 +421,7 @@ pub fn win_float_find_altwin(win: &WinInfoInfo, tp: Option<&TabPageInfo>) -> *mu
         {
             wp
         } else {
-            g_st().firstwin
+            firstwin_mut()
         };
     };
 
@@ -434,30 +431,34 @@ pub fn win_float_find_altwin(win: &WinInfoInfo, tp: Option<&TabPageInfo>) -> *mu
     } else {
         tp.tp_firstwin
     };
-    if let Some(wp_ref) = crate::globals::gopt(wp)
+    if let Some(wp_ref) = unsafe { wp.as_mut() }
         && !ptr::eq(wp, win)
         && wp_ref.w_config.focusable
         && !wp_ref.w_config.hide
     {
-        wp
+        wp_ref
     } else {
-        tp.tp_firstwin
+        unsafe { &mut *tp.tp_firstwin }
     }
 }
 
 /// Abort `win_float_special()`: emit any error, tear down the half-built window, unblock autocmds.
 #[inline]
-fn win_float_special_fail(wp: *mut WinInfoInfo, err: &mut Error) -> *mut WinInfoInfo {
+fn win_float_special_fail(
+    wp: Option<&'static mut WinInfoInfo>,
+    err: &mut Error,
+) -> Option<&'static mut WinInfoInfo> {
     if error_set(err) {
         emsg(err.msg_cstr());
         api_clear_error(err);
     }
-    if !wp.is_null() {
-        win_remove(crate::globals::gmut(wp), ptr::null_mut());
-        win_free(wp, ptr::null_mut());
+    if let Some(wp) = wp {
+        let wp_ptr = ptr::from_mut(wp);
+        win_remove(wp, ptr::null_mut());
+        win_free(wp_ptr, ptr::null_mut());
     }
     unblock_autocmds();
-    ptr::null_mut()
+    None
 }
 
 /// Snapshot a 'previewpopup' preview's anchor: the current cursor's screen cell (`win_float_anchor_preview`).
@@ -467,7 +468,11 @@ pub fn win_float_anchor_preview(wp: &mut WinInfoInfo) {
 }
 
 /// Creates a special floatwin: a 'previewpopup' preview or a pum-info popup (`win_float_special`).
-pub fn win_float_special(enter: bool, new_buf: bool, kind: WinKind) -> *mut WinInfoInfo {
+pub fn win_float_special(
+    enter: bool,
+    new_buf: bool,
+    kind: WinKind,
+) -> Option<&'static mut WinInfoInfo> {
     let mut config = WIN_CONFIG_INIT;
     config.col = curwin_mut().w_wcol as f64;
     config.row = curwin_mut().w_wrow as f64;
@@ -484,23 +489,21 @@ pub fn win_float_special(enter: bool, new_buf: bool, kind: WinKind) -> *mut WinI
         && !win_previewpopup_config(crate::memory::cstr_from_ptr(opt_vars().p_pvp), &mut config)
     {
         emsg(gettext(E_INVARG));
-        return ptr::null_mut();
+        return None;
     }
 
     block_autocmds();
-    let wp = win_new_float(ptr::null_mut(), false, config, &mut err);
-    if wp.is_null() {
-        return win_float_special_fail(wp, &mut err);
-    }
-    let wp = crate::globals::gmut(wp);
+    let Some(wp) = win_new_float(None, false, config, &mut err) else {
+        return win_float_special_fail(None, &mut err);
+    };
 
     if new_buf {
         let b = nvim_create_buf(false, true, &mut err);
         if b == 0 {
-            return win_float_special_fail(wp, &mut err);
+            return win_float_special_fail(Some(wp), &mut err);
         }
         let Some(buf) = crate::api::private::helpers::find_buffer_by_handle_mut(b, &mut err) else {
-            return win_float_special_fail(wp, &mut err);
+            return win_float_special_fail(Some(wp), &mut err);
         };
         buf.b_p_bl = 0; // unlist
         set_option_direct_for(
@@ -512,7 +515,7 @@ pub fn win_float_special(enter: bool, new_buf: bool, kind: WinKind) -> *mut WinI
         );
         win_set_buf(&mut *wp, buf, &mut err);
         if error_set(&err) {
-            return win_float_special_fail(wp, &mut err);
+            return win_float_special_fail(Some(wp), &mut err);
         }
     }
     unblock_autocmds();
@@ -531,13 +534,12 @@ pub fn win_float_special(enter: bool, new_buf: bool, kind: WinKind) -> *mut WinI
     if enter {
         win_enter(wp, false);
     }
-    wp
+    Some(wp)
 }
 
 /// Closes a specified floating window used for previews or popups (`win_float_close`).
 pub fn win_float_close(kind: WinKind) {
-    let wp = win_float_find(kind);
-    if !wp.is_null() {
+    if let Some(wp) = win_float_find(kind) {
         win_close(wp, false, false);
     }
 }

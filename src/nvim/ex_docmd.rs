@@ -5022,7 +5022,7 @@ pub fn do_cmdline(
 
         if !do_cmdline_start() {
             let _ = emsg(gettext(E_COMMAND_TOO_RECURSIVE));
-            do_errthrow(None, ptr::null_mut());
+            do_errthrow(None, None);
             g_st().msg_list = saved_msg_list;
             return false;
         }
@@ -5192,7 +5192,8 @@ pub fn do_cmdline(
             cmdline_copy = next_cmdline;
 
             let mut current_line_before: i32 = 0;
-            let using_loop_cookie = cstack.cs_looplevel > 0 || has_loop_cmd(next_cmdline);
+            let using_loop_cookie =
+                cstack.cs_looplevel > 0 || has_loop_cmd(crate::memory::cstr_as_bytes(next_cmdline));
             if using_loop_cookie {
                 cmd_loop_cookie.current_line = current_line;
                 cmd_loop_cookie.lc_getline = fgetline;
@@ -5348,7 +5349,7 @@ pub fn do_cmdline(
                 g_st().force_abort = false;
             }
 
-            do_intthrow(&raw mut cstack);
+            do_intthrow(&mut cstack);
 
             let keep_going = !((g_st().got_int
                 || (g_st().did_emsg != 0 && g_st().force_abort)
@@ -5406,11 +5407,7 @@ pub fn do_cmdline(
 
         do_errthrow(
             Some(&mut cstack),
-            if fgetline.is_func() {
-                c"endfunction".as_ptr().cast_mut()
-            } else {
-                ptr::null_mut()
-            },
+            fgetline.is_func().then_some(c"endfunction"),
         );
 
         if g_st().trylevel == 0 {
@@ -6228,13 +6225,8 @@ pub fn execute_cmd(eap: &mut Exarg, cmod: &mut Cmdmod, preview: bool) -> i32 {
             && g_st().global_busy == 0
             && eap.addr_type == ADDR_LINES
         {
-            has_folding(
-                curwin_ptr(),
-                eap.line1,
-                Some(&mut eap.line1),
-                ptr::null_mut(),
-            );
-            has_folding(curwin_ptr(), eap.line2, None, &raw mut eap.line2);
+            has_folding(curwin_mut(), eap.line1, Some(&mut eap.line1), None);
+            has_folding(curwin_mut(), eap.line2, None, Some(&mut eap.line2));
         }
 
         if !parse_count(&mut *eap, &mut errormsg, true) {
@@ -6609,8 +6601,8 @@ fn do_one_cmd(
             && g_st().global_busy == 0
             && ea.addr_type == ADDR_LINES
         {
-            has_folding(curwin_ptr(), ea.line1, Some(&mut ea.line1), ptr::null_mut());
-            has_folding(curwin_ptr(), ea.line2, None, &raw mut ea.line2);
+            has_folding(curwin_mut(), ea.line1, Some(&mut ea.line1), None);
+            has_folding(curwin_mut(), ea.line2, None, Some(&mut ea.line2));
         }
 
         p = replace_makeprg(&mut ea, p, cmdlinep);
@@ -6772,11 +6764,8 @@ fn do_one_cmd(
     }
     do_errthrow(
         Some(&mut *cstack),
-        if ea.cmdidx != CMD_SIZE_I32 && ea.cmdidx >= 0 {
-            CMDNAMES[ea.cmdidx as usize].cmd_name.as_ptr().cast_mut()
-        } else {
-            ptr::null_mut()
-        },
+        (ea.cmdidx != CMD_SIZE_I32 && ea.cmdidx >= 0)
+            .then(|| CMDNAMES[ea.cmdidx as usize].cmd_name),
     );
 
     undo_cmdmod(&mut g_st().cmdmod);
@@ -7491,14 +7480,14 @@ pub fn find_ex_command(eap: &mut Exarg, mut full: Option<&mut i32>) -> RawCCharP
                 .iter()
                 .take_while(|&&b| b.is_ascii_alphanumeric())
                 .count();
-            p = eap.cmd.wrapping_add(p_off);
             p = find_ucmd(
                 eap,
-                p,
+                p_off,
                 (full.is_some()).then(|| &mut *full.unwrap()),
                 None,
                 None,
-            );
+            )
+            .map_or(ptr::null_mut(), |off| eap.cmd.wrapping_add(off));
         }
         if p == eap.cmd {
             eap.cmdidx = CMD_SIZE_I32;
@@ -7861,7 +7850,7 @@ pub fn get_address(
                             None,
                             c,
                             c,
-                            cmd,
+                            crate::memory::cstr_as_opt_cstr(cmd),
                             crate::memory::cstr_len(cmd),
                             1,
                             search_flags,
@@ -7911,7 +7900,7 @@ pub fn get_address(
                             coladd: 0,
                         };
                         if searchit(
-                            curwin_ptr(),
+                            Some(curwin_mut()),
                             curbuf_mut(),
                             &mut pos,
                             None,
@@ -8009,7 +7998,7 @@ pub fn get_address(
                         && (op == b'-' as i32 || op == b'+' as i32)
                         && address_count >= 2
                     {
-                        has_folding(curwin_ptr(), lnum, None, &raw mut lnum);
+                        has_folding(curwin_mut(), lnum, None, Some(&mut lnum));
                     }
                     if op == b'-' as i32 {
                         lnum -= n;
@@ -11254,14 +11243,19 @@ fn ex_undo(eap: &mut Exarg) {
 
 fn ex_wundo(eap: &mut Exarg) {
     let mut hash = [0u8; UNDO_HASH_SIZE];
-    u_compute_hash(curbuf_mut(), hash.as_mut_ptr());
-    u_write_undo(eap.arg, eap.forceit != 0, curbuf_mut(), hash.as_mut_ptr());
+    u_compute_hash(curbuf_mut(), &mut hash);
+    u_write_undo(
+        crate::memory::cstr_as_opt_cstr(eap.arg),
+        eap.forceit != 0,
+        curbuf_mut(),
+        &hash,
+    );
 }
 
 fn ex_rundo(eap: &mut Exarg) {
     let mut hash = [0u8; UNDO_HASH_SIZE];
-    u_compute_hash(curbuf_mut(), hash.as_mut_ptr());
-    u_read_undo(eap.arg, hash.as_ptr(), ptr::null());
+    u_compute_hash(curbuf_mut(), &mut hash);
+    u_read_undo(crate::memory::cstr_as_opt_cstr(eap.arg), &hash, None);
 }
 
 fn ex_redo(_eap: &mut Exarg) {
@@ -11733,8 +11727,7 @@ pub fn exec_normal(was_typed: bool, use_vpeekc: bool) {
 
 fn ex_checkpath(eap: &mut Exarg) {
     find_pattern_in_path(
-        ptr::null_mut(),
-        0,
+        &[],
         0,
         false,
         false,
@@ -11800,9 +11793,8 @@ fn ex_findpat(eap: &mut Exarg) {
     }
     if eap.skip == 0 {
         find_pattern_in_path(
-            eap.arg,
+            crate::memory::cstr_as_bytes(eap.arg),
             0,
-            crate::memory::cstr_len(eap.arg),
             whole,
             eap.forceit == 0,
             if crate::memory::cstr_first_byte(eap.cmd) == b'd' {
@@ -11902,7 +11894,7 @@ fn ex_tag_cmd(eap: &mut Exarg, name: impl crate::strings::IntoCCharPtr) {
 
         do_tag(
             Some(&*eap),
-            eap.arg,
+            crate::memory::cstr_from_ptr(eap.arg),
             cmd,
             if eap.addr_count > 0 { eap.line2 } else { 1 },
             eap.forceit,
@@ -12508,7 +12500,7 @@ fn ex_foldopen(eap: &mut Exarg) {
 fn ex_folddo(eap: &mut Exarg) {
     let mut lnum = eap.line1;
     while lnum <= eap.line2 {
-        if has_folding(curwin_ptr(), lnum, None, ptr::null_mut())
+        if has_folding(curwin_mut(), lnum, None, None)
             == (eap.cmdidx == Cmdidx::CmdFolddoclosed as i32)
         {
             ml_setmarked(lnum);

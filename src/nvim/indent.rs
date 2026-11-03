@@ -848,7 +848,11 @@ pub fn get_breakindent_win(wp: &mut WinInfoInfo, line: &[u8]) -> i32 {
                         let end_ptr = regmatch.endp[0];
                         let mut indent: i32 = 0;
                         while ptr_cur < end_ptr {
-                            indent += win_chartabsize(wp, ptr_cur.cast(), indent);
+                            indent += win_chartabsize(
+                                wp,
+                                crate::memory::cstr_as_bytes(ptr_cur.cast()),
+                                indent,
+                            );
                             ptr_cur = ptr_cur.wrapping_add(utfc_ptr2len(ptr_cur.cast()) as usize);
                         }
                         ind_st().prev_indent = indent;
@@ -1157,12 +1161,18 @@ pub fn change_indent(type_: i32, amount: i32, round: i32, call_changed_bytes: bo
         vcol = 0;
         if !crate::memory::cstr_is_empty(line) {
             let mut csarg = CharsizeArg::new();
-            let cstype: CSType = init_charsize_arg(&mut csarg, curwin_mut(), 0, line);
+            let cstype: CSType = init_charsize_arg(
+                &mut csarg,
+                curwin_mut(),
+                0,
+                crate::memory::cstr_from_ptr(line),
+            );
             let mut ci: StrCharInfo = utf_ptr2_str_char_info(line);
             loop {
                 let cli: ClusterInfo = utf_cluster_info(ci);
                 let next_vcol = vcol
-                    + win_charsize(cstype, vcol, ci.ptr, ci.chr.value, &mut csarg, cli.cells).width;
+                    + win_charsize(cstype, vcol, ci.cstr(), ci.chr.value, &mut csarg, cli.cells)
+                        .width;
                 if next_vcol > end_vcol {
                     break;
                 }
@@ -1481,7 +1491,7 @@ pub fn ex_retab(eap: &mut Exarg) {
             }
             vcol += i64::from(win_chartabsize(
                 curwin_mut(),
-                ptr.wrapping_add(col as usize),
+                crate::memory::cstr_as_bytes(ptr.wrapping_add(col as usize)),
                 vcol as Colnr,
             ));
             if vcol >= i64::from(MAXCOL) {
@@ -1662,7 +1672,12 @@ pub fn get_lisp_indent() -> i32 {
 
             let line = get_cursor_line_ptr();
             let mut csarg = CharsizeArg::new();
-            let cstype: CSType = init_charsize_arg(&mut csarg, curwin_mut(), pos.lnum, line);
+            let cstype: CSType = init_charsize_arg(
+                &mut csarg,
+                curwin_mut(),
+                pos.lnum,
+                crate::memory::cstr_from_ptr(line),
+            );
 
             let mut sci: StrCharInfo = utf_ptr2_str_char_info(line);
             amount = 0;
@@ -1671,7 +1686,7 @@ pub fn get_lisp_indent() -> i32 {
                 amount += win_charsize(
                     cstype,
                     amount,
-                    sci.ptr,
+                    sci.cstr(),
                     sci.chr.value,
                     &mut csarg,
                     cli.cells,
@@ -1698,7 +1713,7 @@ pub fn get_lisp_indent() -> i32 {
                     amount += win_charsize(
                         cstype,
                         amount,
-                        that,
+                        crate::memory::cstr_from_ptr(that),
                         i32::from(crate::memory::cstr_first_byte(that)),
                         &mut csarg,
                         1,
@@ -1740,7 +1755,12 @@ pub fn get_lisp_indent() -> i32 {
                             if ci.value == b'\\' as i32 && crate::memory::cstr_len(that) > 1 {
                                 let cli = utf_cluster_info(StrCharInfo { ptr: that, chr: ci });
                                 amount += win_charsize(
-                                    cstype, amount, that, ci.value, &mut csarg, cli.cells,
+                                    cstype,
+                                    amount,
+                                    crate::memory::cstr_from_ptr(that),
+                                    ci.value,
+                                    &mut csarg,
+                                    cli.cells,
                                 )
                                 .width;
                                 that = cli.next.ptr;
@@ -1748,9 +1768,15 @@ pub fn get_lisp_indent() -> i32 {
                             }
 
                             let cli = utf_cluster_info(StrCharInfo { ptr: that, chr: ci });
-                            amount +=
-                                win_charsize(cstype, amount, that, ci.value, &mut csarg, cli.cells)
-                                    .width;
+                            amount += win_charsize(
+                                cstype,
+                                amount,
+                                crate::memory::cstr_from_ptr(that),
+                                ci.value,
+                                &mut csarg,
+                                cli.cells,
+                            )
+                            .width;
                             that = cli.next.ptr;
                             ci = cli.next.chr;
                         }
@@ -1760,7 +1786,7 @@ pub fn get_lisp_indent() -> i32 {
                         amount += win_charsize(
                             cstype,
                             amount,
-                            that,
+                            crate::memory::cstr_from_ptr(that),
                             i32::from(crate::memory::cstr_first_byte(that)),
                             &mut csarg,
                             1,

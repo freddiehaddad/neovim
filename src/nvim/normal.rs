@@ -13,8 +13,8 @@ use crate::change::{
     del_chars, deleted_lines, get_leader_len, ins_char, ins_char_bytes, open_line,
 };
 use crate::charset::{
-    NUL, ascii_isdigit, ascii_iswhite, ascii_iswhite_or_nul, is_special, skipwhite, transchar,
-    vim_isprintc, vim_iswordp, vim_strsize,
+    NUL, ascii_isdigit, ascii_iswhite, ascii_iswhite_or_nul, is_special, transchar, vim_isprintc,
+    vim_iswordp, vim_strsize,
 };
 use crate::cmdexpand::{CTRL_N, CTRL_P, RE_LAST, SEARCH_OPT, SEARCH_START};
 use crate::cmdhist::{HIST_SEARCH, add_to_history, init_history};
@@ -1677,12 +1677,13 @@ pub fn check_text_or_curbuf_locked(mut oap: Option<&mut Oparg>) -> bool {
 
 /// Check if an operator was started but not finished yet.
 pub fn op_pending() -> bool {
-    !(!norm_st().current_oap.is_null()
-        && !g_st().finish_op
-        && crate::globals::gptr(norm_st().current_oap).prev_opcount == 0
-        && crate::globals::gptr(norm_st().current_oap).prev_count0 == 0
-        && crate::globals::gptr(norm_st().current_oap).op_type == OP_NOP
-        && crate::globals::gptr(norm_st().current_oap).regname == NUL as i32)
+    !unsafe { norm_st().current_oap.as_ref() }.is_some_and(|oap| {
+        !g_st().finish_op
+            && oap.prev_opcount == 0
+            && oap.prev_count0 == 0
+            && oap.op_type == OP_NOP
+            && oap.regname == NUL as i32
+    })
 }
 
 /// Normal state entry point: the main loop. Never returns.
@@ -2540,13 +2541,13 @@ pub fn restore_visual_mode() {
 }
 
 fn find_is_eval_item(
-    ptr: impl crate::strings::IntoCCharPtr,
+    line_bytes: &[u8],
+    idx: usize,
     colp: &mut i32,
     bnp: &mut i32,
     dir: i32,
 ) -> bool {
-    let ptr = ptr.into_c_char_ptr();
-    let b0 = (*crate::globals::gptr(ptr)) as u8;
+    let b0 = line_bytes.get(idx).copied().unwrap_or(0);
     if (b0 == b']' && dir == BACKWARD) || (b0 == b'[' && dir == FORWARD) {
         *bnp += 1;
     }
@@ -2561,11 +2562,13 @@ fn find_is_eval_item(
         return true;
     }
 
-    let gt_off: isize = if dir == BACKWARD { 0 } else { 1 };
-    let dash_off: isize = if dir == BACKWARD { -1 } else { 0 };
-    if (*crate::globals::gptr(ptr.wrapping_offset(gt_off))) as u8 == b'>'
-        && (*crate::globals::gptr(ptr.wrapping_offset(dash_off))) as u8 == b'-'
-    {
+    let gt_idx = if dir == BACKWARD { idx } else { idx + 1 };
+    let dash_idx = if dir == BACKWARD {
+        idx.wrapping_sub(1)
+    } else {
+        idx
+    };
+    if line_bytes.get(gt_idx) == Some(&b'>') && line_bytes.get(dash_idx) == Some(&b'-') {
         *colp += dir;
         return true;
     }
@@ -2633,7 +2636,8 @@ pub fn find_ident_at_pos(
                 && ((find_type & FIND_EVAL) == 0
                     || prevcol == 0
                     || !find_is_eval_item(
-                        ptr.wrapping_add(prevcol as usize),
+                        line_bytes,
+                        prevcol as usize,
                         &mut prevcol,
                         &mut bn,
                         BACKWARD,
@@ -2676,7 +2680,7 @@ pub fn find_ident_at_pos(
             mb_get_class(&ptr_bytes[col as usize..]) != 0
         }) || ((find_type & FIND_EVAL) != 0
             && col <= startcol
-            && find_is_eval_item(ptr.wrapping_add(col as usize), &mut col, &mut bn, FORWARD)))
+            && find_is_eval_item(ptr_bytes, col as usize, &mut col, &mut bn, FORWARD)))
     {
         col += utfc_ptr2len(ptr.wrapping_add(col as usize));
     }
@@ -2768,8 +2772,8 @@ pub fn clear_showcmd() {
             top = curwin_mut().w_cursor.lnum;
             bot = g_st().visual_global.start.lnum;
         }
-        has_folding(curwin_ptr(), top, Some(&mut top), ptr::null_mut());
-        has_folding(curwin_ptr(), bot, None, &raw mut bot);
+        has_folding(curwin_mut(), top, Some(&mut top), None);
+        has_folding(curwin_mut(), bot, None, Some(&mut bot));
         let lines = bot - top + 1;
 
         if g_st().visual_global.mode == CTRL_V_CONST {
@@ -2779,7 +2783,7 @@ pub fn clear_showcmd() {
             opt_vars().p_sbr = EMPTY_STRING_OPTION.as_ptr().cast();
             curwin_mut().w_onebuf_opt.wo_sbr = EMPTY_STRING_OPTION.as_ptr().cast();
             getvcols(
-                curwin_ptr(),
+                curwin_mut(),
                 &mut curwin_mut().w_cursor,
                 &mut g_st().visual_global.start,
                 &mut leftcol,
@@ -3108,13 +3112,13 @@ pub fn do_check_scrollbind(check: bool) {
 }
 
 pub fn check_scrollbind(vtopline_diff: Linenr, leftcol_diff: i32) {
-    let old_curwin = curwin_ptr();
+    let old_curwin = curwin_mut();
     let old_curbuf = g_st().curbuf;
     let old_visual_select = g_st().visual_global.select;
     let old_visual_active = g_st().visual_global.active;
-    let tgt_leftcol = curwin_mut().w_leftcol;
+    let tgt_leftcol = old_curwin.w_leftcol;
 
-    let want_ver = crate::globals::gptr(old_curwin).w_onebuf_opt.wo_diff != 0
+    let want_ver = old_curwin.w_onebuf_opt.wo_diff != 0
         || (crate::strings::vim_haschr(opt_vars().p_sbo, b'v' as i32) && vtopline_diff != 0);
     let want_hor = crate::strings::vim_haschr(opt_vars().p_sbo, b'h' as i32)
         && (leftcol_diff != 0 || vtopline_diff != 0);
@@ -3126,10 +3130,8 @@ pub fn check_scrollbind(vtopline_diff: Linenr, leftcol_diff: i32) {
         g_st().curbuf = curwin_mut().w_buffer;
         if !ptr::eq(curwin_ptr(), old_curwin) && curwin_mut().w_onebuf_opt.wo_scb != 0 {
             if want_ver {
-                if crate::globals::gptr(old_curwin).w_onebuf_opt.wo_diff != 0
-                    && curwin_mut().w_onebuf_opt.wo_diff != 0
-                {
-                    diff_set_topline(crate::globals::gmut(old_curwin), curwin_mut());
+                if old_curwin.w_onebuf_opt.wo_diff != 0 && curwin_mut().w_onebuf_opt.wo_diff != 0 {
+                    diff_set_topline(old_curwin, curwin_mut());
                 } else {
                     curwin_mut().w_scbind_pos += vtopline_diff;
                     let curr_vtopline = get_vtopline(curwin_mut());
@@ -3219,15 +3221,7 @@ fn nv_page(cap: &mut Cmdarg) {
 
 fn nv_gd(oap: &mut Oparg, nchar: i32, thisblock: i32) {
     let ident = find_ident_under_cursor(FIND_IDENT, None);
-    if ident.is_empty()
-        || !find_decl(
-            ident.as_ptr().cast(),
-            ident.len(),
-            nchar == b'd' as i32,
-            thisblock != 0,
-            SEARCH_START,
-        )
-    {
+    if ident.is_empty() || !find_decl(ident, nchar == b'd' as i32, thisblock != 0, SEARCH_START) {
         clearopbeep(&mut *oap);
         return;
     }
@@ -3243,47 +3237,40 @@ fn nv_gd(oap: &mut Oparg, nchar: i32, thisblock: i32) {
     }
 }
 
-fn is_ident(line: impl crate::strings::IntoCCharPtr, offset: i32) -> bool {
-    let line = line.into_c_char_ptr();
-    {
-        let mut incomment = false;
-        let mut instring: i32 = 0;
-        let mut prev: i32 = 0;
+fn is_ident(line_b: &[u8], offset: i32) -> bool {
+    let mut incomment = false;
+    let mut instring: i32 = 0;
+    let mut prev: i32 = 0;
 
-        let line_b = crate::memory::cstr_as_bytes(line);
-        for &cur_b in &line_b[..(offset.max(0) as usize).min(line_b.len())] {
-            let cur = i32::from(cur_b);
-            if instring != 0 {
-                if prev != b'\\' as i32 && cur == instring {
-                    instring = 0;
-                }
-            } else if (cur == b'"' as i32 || cur == b'\'' as i32) && !incomment {
-                instring = cur;
-            } else if incomment {
-                if prev == b'*' as i32 && cur == b'/' as i32 {
-                    incomment = false;
-                }
-            } else if prev == b'/' as i32 && cur == b'*' as i32 {
-                incomment = true;
-            } else if prev == b'/' as i32 && cur == b'/' as i32 {
-                return false;
+    for &cur_b in &line_b[..(offset.max(0) as usize).min(line_b.len())] {
+        let cur = i32::from(cur_b);
+        if instring != 0 {
+            if prev != b'\\' as i32 && cur == instring {
+                instring = 0;
             }
-
-            prev = cur;
+        } else if (cur == b'"' as i32 || cur == b'\'' as i32) && !incomment {
+            instring = cur;
+        } else if incomment {
+            if prev == b'*' as i32 && cur == b'/' as i32 {
+                incomment = false;
+            }
+        } else if prev == b'/' as i32 && cur == b'*' as i32 {
+            incomment = true;
+        } else if prev == b'/' as i32 && cur == b'/' as i32 {
+            return false;
         }
 
-        !incomment && instring == 0
+        prev = cur;
     }
+
+    !incomment && instring == 0
 }
 
-pub fn find_decl(
-    ptr: impl crate::strings::IntoCCharPtr,
-    len: usize,
-    locally: bool,
-    thisblock: bool,
-    flags_arg: i32,
-) -> bool {
-    let ptr = ptr.into_c_char_ptr();
+pub fn find_decl(ptr_bytes: &[u8], locally: bool, thisblock: bool, flags_arg: i32) -> bool {
+    let len = ptr_bytes.len();
+    let ptr_cstr =
+        std::ffi::CString::new(crate::memory::bytes_until_nul(ptr_bytes)).unwrap_or_default();
+    let ptr = ptr_cstr.as_ptr();
     {
         let par_pos: CursorPos;
         let mut found_pos: CursorPos = CursorPos {
@@ -3304,7 +3291,7 @@ pub fn find_decl(
         let patlen = vim_snprintf!(
             pat,
             patsize,
-            if vim_iswordp(crate::memory::cstr_as_bytes(ptr)) {
+            if vim_iswordp(ptr_bytes) {
                 c"\\V\\<%.*s\\>".as_ptr()
             } else {
                 c"\\V%.*s".as_ptr()
@@ -3336,13 +3323,14 @@ pub fn find_decl(
 
         clearpos(&mut found_pos);
         loop {
+            let mut cursor_pos = curwin_mut().w_cursor;
             t = searchit(
-                curwin_ptr(),
+                Some(curwin_mut()),
                 curbuf_mut(),
-                &mut curwin_mut().w_cursor,
+                &mut cursor_pos,
                 None,
                 FORWARD,
-                pat,
+                crate::memory::cstr_from_ptr(pat),
                 patlen,
                 1,
                 searchflags,
@@ -3350,6 +3338,7 @@ pub fn find_decl(
                 false,
                 None,
             ) != 0;
+            curwin_mut().w_cursor = cursor_pos;
             if curwin_mut().w_cursor.lnum >= old_pos.lnum {
                 t = false;
             }
@@ -3376,7 +3365,10 @@ pub fn find_decl(
                 curwin_mut().w_cursor.col = 0;
                 continue;
             }
-            let valid = is_ident(get_cursor_line_ptr(), curwin_mut().w_cursor.col);
+            let valid = is_ident(
+                crate::cursor::get_cursor_line_slice(),
+                curwin_mut().w_cursor.col,
+            );
 
             if !valid && found_pos.lnum != 0 {
                 curwin_mut().w_cursor = found_pos;
@@ -3465,14 +3457,8 @@ pub fn nv_screengo(oap: &mut Oparg, dir: i32, mut dist: i32, skip_conceal: bool)
         while dist > 0 {
             dist -= 1;
             if dir == BACKWARD {
-                if want >= width1
-                    && !has_folding(
-                        curwin_ptr(),
-                        curwin_mut().w_cursor.lnum,
-                        None,
-                        ptr::null_mut(),
-                    )
-                {
+                let cursor_lnum = curwin_mut().w_cursor.lnum;
+                if want >= width1 && !has_folding(curwin_mut(), cursor_lnum, None, None) {
                     want -= width2;
                 } else {
                     if curwin_mut().w_cursor.lnum <= 1 {
@@ -3494,14 +3480,8 @@ pub fn nv_screengo(oap: &mut Oparg, dir: i32, mut dist: i32, skip_conceal: bool)
                 } else {
                     n = width1;
                 }
-                if want + width2 < n
-                    && !has_folding(
-                        curwin_ptr(),
-                        curwin_mut().w_cursor.lnum,
-                        None,
-                        ptr::null_mut(),
-                    )
-                {
+                let cursor_lnum = curwin_mut().w_cursor.lnum;
+                if want + width2 < n && !has_folding(curwin_mut(), cursor_lnum, None, None) {
                     want += width2;
                 } else {
                     if curwin_mut().w_cursor.lnum >= curwin_mut().buf_mut().b_ml.ml_line_count {
@@ -3773,12 +3753,8 @@ fn nv_zet(cap: &mut Cmdarg) {
         }
         c if c == b's' as i32 => {
             if curwin_mut().w_onebuf_opt.wo_wrap == 0 {
-                if has_folding(
-                    curwin_ptr(),
-                    curwin_mut().w_cursor.lnum,
-                    None,
-                    ptr::null_mut(),
-                ) {
+                let cursor_lnum = curwin_mut().w_cursor.lnum;
+                if has_folding(curwin_mut(), cursor_lnum, None, None) {
                     col = 0;
                 } else {
                     getvcol(
@@ -3803,12 +3779,8 @@ fn nv_zet(cap: &mut Cmdarg) {
         }
         c if c == b'e' as i32 => {
             if curwin_mut().w_onebuf_opt.wo_wrap == 0 {
-                if has_folding(
-                    curwin_ptr(),
-                    curwin_mut().w_cursor.lnum,
-                    None,
-                    ptr::null_mut(),
-                ) {
+                let cursor_lnum = curwin_mut().w_cursor.lnum;
+                if has_folding(curwin_mut(), cursor_lnum, None, None) {
                     col = 0;
                 } else {
                     getvcol(
@@ -3892,12 +3864,8 @@ fn nv_zet(cap: &mut Cmdarg) {
             foldenable = i32::from(curwin_mut().w_onebuf_opt.wo_fen == 0);
         }
         c if c == b'a' as i32 => {
-            if has_folding(
-                curwin_ptr(),
-                curwin_mut().w_cursor.lnum,
-                None,
-                ptr::null_mut(),
-            ) {
+            let cursor_lnum = curwin_mut().w_cursor.lnum;
+            if has_folding(curwin_mut(), cursor_lnum, None, None) {
                 open_fold(curwin_mut().w_cursor, cap.count1);
             } else {
                 close_fold(curwin_mut().w_cursor, cap.count1);
@@ -3905,12 +3873,8 @@ fn nv_zet(cap: &mut Cmdarg) {
             }
         }
         c if c == b'A' as i32 => {
-            if has_folding(
-                curwin_ptr(),
-                curwin_mut().w_cursor.lnum,
-                None,
-                ptr::null_mut(),
-            ) {
+            let cursor_lnum = curwin_mut().w_cursor.lnum;
+            if has_folding(curwin_mut(), cursor_lnum, None, None) {
                 open_fold_recurse(curwin_mut().w_cursor);
             } else {
                 close_fold_recurse(curwin_mut().w_cursor);
@@ -4212,66 +4176,26 @@ pub fn do_nv_ident(c1: i32, c2: i32) {
 
 fn nv_k_getcmd(
     cap: &mut Cmdarg,
-    kp: impl crate::strings::IntoCCharPtr,
+    kp: &CStr,
     kp_help: bool,
     kp_ex: bool,
-    ptr_arg: &mut *const u8,
-    mut n: usize,
+    ident_slice: &mut &[u8],
     buf_slice: &mut [u8],
     buflen: &mut usize,
-) -> usize {
-    let kp = kp.into_c_char_ptr();
+) -> bool {
+    let kp_ptr = kp.as_ptr();
+    let kp_bytes = kp.to_bytes();
     let bufsize = buf_slice.len();
-    {
-        if kp_help {
-            buf_slice[..7].copy_from_slice(b"help! \0");
-            *buflen = 6;
-            return n;
-        }
+    if kp_help {
+        buf_slice[..7].copy_from_slice(b"help! \0");
+        *buflen = 6;
+        return true;
+    }
 
-        let buf = buf_slice.as_mut_ptr().cast();
-        if kp_ex {
-            *buflen = vim_snprintf!(buf, bufsize, c"%s ", kp) as usize;
-            if cap.count0 != 0 {
-                *buflen += vim_snprintf!(
-                    buf.wrapping_add(*buflen),
-                    bufsize - *buflen,
-                    c"%lld ",
-                    cap.count0 as i64,
-                ) as usize;
-            }
-            return n;
-        }
-
-        let mut ptr = *ptr_arg;
-
-        while n > 0 && crate::memory::cstr_first_byte(ptr.cast()) == b'-' {
-            ptr = ptr.wrapping_add(1);
-            n -= 1;
-        }
-        if n == 0 {
-            emsg(tr(E_NOIDENT));
-            *ptr_arg = ptr;
-            return 0;
-        }
-
-        let isman = crate::memory::cstr_as_opt_bytes(kp) == Some(b"man");
-        let isman_s = crate::memory::cstr_as_opt_bytes(kp) == Some(b"man -s");
-        if cap.count0 != 0 && !(isman || isman_s) {
-            *buflen = vim_snprintf!(buf, bufsize, c".,.+%lld", (cap.count0 - 1) as i64,) as usize;
-        }
-
-        do_cmdline_cmd(c"tabnew");
-        *buflen +=
-            vim_snprintf!(buf.wrapping_add(*buflen), bufsize - *buflen, c"terminal ") as usize;
-        if cap.count0 == 0 && isman_s {
-            *buflen +=
-                vim_snprintf!(buf.wrapping_add(*buflen), bufsize - *buflen, c"man ") as usize;
-        } else {
-            *buflen +=
-                vim_snprintf!(buf.wrapping_add(*buflen), bufsize - *buflen, c"%s ", kp) as usize;
-        }
-        if cap.count0 != 0 && (isman || isman_s) {
+    let buf = buf_slice.as_mut_ptr().cast();
+    if kp_ex {
+        *buflen = vim_snprintf!(buf, bufsize, c"%s ", kp_ptr) as usize;
+        if cap.count0 != 0 {
             *buflen += vim_snprintf!(
                 buf.wrapping_add(*buflen),
                 bufsize - *buflen,
@@ -4279,15 +4203,46 @@ fn nv_k_getcmd(
                 cap.count0 as i64,
             ) as usize;
         }
-
-        *ptr_arg = ptr;
-        n
+        return true;
     }
+
+    while ident_slice.first() == Some(&b'-') {
+        *ident_slice = &ident_slice[1..];
+    }
+    if ident_slice.is_empty() {
+        emsg(tr(E_NOIDENT));
+        return false;
+    }
+
+    let isman = kp_bytes == b"man";
+    let isman_s = kp_bytes == b"man -s";
+    if cap.count0 != 0 && !(isman || isman_s) {
+        *buflen = vim_snprintf!(buf, bufsize, c".,.+%lld", (cap.count0 - 1) as i64,) as usize;
+    }
+
+    do_cmdline_cmd(c"tabnew");
+    *buflen += vim_snprintf!(buf.wrapping_add(*buflen), bufsize - *buflen, c"terminal ") as usize;
+    if cap.count0 == 0 && isman_s {
+        *buflen += vim_snprintf!(buf.wrapping_add(*buflen), bufsize - *buflen, c"man ") as usize;
+    } else {
+        *buflen +=
+            vim_snprintf!(buf.wrapping_add(*buflen), bufsize - *buflen, c"%s ", kp_ptr) as usize;
+    }
+    if cap.count0 != 0 && (isman || isman_s) {
+        *buflen += vim_snprintf!(
+            buf.wrapping_add(*buflen),
+            bufsize - *buflen,
+            c"%lld ",
+            cap.count0 as i64,
+        ) as usize;
+    }
+
+    true
 }
 
 fn nv_ident(cap: &mut Cmdarg) {
-    let mut ptr: *const u8 = ptr::null();
-    let mut n: usize = 0;
+    let mut ident_slice: &[u8] = &[];
+    let mut has_ident = false;
     let mut cmdchar: i32;
     let g_cmd: bool;
     let mut tag_cmd = false;
@@ -4310,17 +4265,17 @@ fn nv_ident(cap: &mut Cmdarg) {
             let Some((vis_cstr, vis_len)) = get_visual_text(Some(cap)) else {
                 return;
             };
-            ptr = vis_cstr.as_ptr().cast();
-            n = vis_len;
+            ident_slice = &vis_cstr.to_bytes()[..vis_len.min(vis_cstr.to_bytes().len())];
+            has_ident = true;
         }
-        visual_sel = !ptr.is_null();
+        visual_sel = has_ident;
         if checkclearopq(cap.oap_mut()) {
             return;
         }
     }
 
     let mut ident_offset: i32 = 0;
-    if ptr.is_null() {
+    if !has_ident {
         let ident = find_ident_under_cursor(
             if cmdchar == b'*' as i32 || cmdchar == b'#' as i32 {
                 FIND_IDENT | FIND_STRING
@@ -4333,8 +4288,7 @@ fn nv_ident(cap: &mut Cmdarg) {
             clearop(cap.oap_mut());
             return;
         }
-        ptr = ident.as_ptr();
-        n = ident.len();
+        ident_slice = ident;
     }
 
     let kp = if crate::memory::cstr_is_empty(curbuf_mut().b_p_kp) {
@@ -4342,17 +4296,16 @@ fn nv_ident(cap: &mut Cmdarg) {
     } else {
         curbuf_mut().b_p_kp
     };
-    let kp_helpbang = crate::memory::cstr_as_opt_bytes(kp) == Some(b":help!");
-    let kp_help = kp_helpbang
-        || crate::memory::cstr_is_empty(kp)
-        || (crate::memory::cstr_as_opt_bytes(kp) == Some(b":he"))
-        || (crate::memory::cstr_as_opt_bytes(kp) == Some(b":help"));
-    if kp_help && !kp_helpbang && crate::memory::cstr_is_empty(skipwhite(ptr.cast())) {
+    let kp_cstr = crate::memory::cstr_from_ptr(kp);
+    let kp_bytes = kp_cstr.to_bytes();
+    let kp_helpbang = kp_bytes == b":help!";
+    let kp_help = kp_helpbang || kp_bytes.is_empty() || kp_bytes == b":he" || kp_bytes == b":help";
+    if kp_help && !kp_helpbang && crate::charset::skipwhite_slice(ident_slice).is_empty() {
         emsg(tr(E_NOIDENT));
         return;
     }
-    let kp_ex = crate::memory::cstr_first_byte(kp) == b':';
-    let bufsize = n * 2 + 30 + crate::memory::cstr_len(kp);
+    let kp_ex = kp_bytes.first() == Some(&b':');
+    let bufsize = ident_slice.len() * 2 + 30 + kp_bytes.len();
     let mut buf_vec = vec![0u8; bufsize];
     let mut buflen: usize = 0;
 
@@ -4360,26 +4313,25 @@ fn nv_ident(cap: &mut Cmdarg) {
         c if c == b'*' as i32 || c == b'#' as i32 => {
             setpcmark();
             curwin_mut().w_cursor.col =
-                crate::memory::ptr_offset_from(ptr.cast(), get_cursor_line_ptr()) as Colnr;
+                crate::memory::ptr_offset_from(ident_slice.as_ptr().cast(), get_cursor_line_ptr())
+                    as Colnr;
 
-            if !g_cmd && vim_iswordp(crate::memory::cstr_as_bytes(ptr.cast())) {
+            if !g_cmd && vim_iswordp(ident_slice) {
                 buf_vec[..3].copy_from_slice(b"\\<\0");
                 buflen = 2;
             }
             g_st().search_global.no_smartcase = true;
         }
         c if c == b'K' as i32 => {
-            n = nv_k_getcmd(
+            if !nv_k_getcmd(
                 cap,
-                kp,
+                kp_cstr,
                 kp_help,
                 kp_ex,
-                &mut ptr,
-                n,
+                &mut ident_slice,
                 &mut buf_vec,
                 &mut buflen,
-            );
-            if n == 0 {
+            ) {
                 return;
             }
         }
@@ -4410,12 +4362,13 @@ fn nv_ident(cap: &mut Cmdarg) {
         }
     }
 
+    let mut ptr: *const u8 = ident_slice.as_ptr();
+    let mut n: usize = ident_slice.len();
     if cmdchar == b'K' as i32 && kp_helpbang && !visual_sel {
         buf_vec[..6].copy_from_slice(b"help!\0");
         buflen = 5;
     } else if cmdchar == b'K' as i32 && !kp_help {
-        let ptr_cstr =
-            std::ffi::CString::new(crate::memory::cstr_slice(ptr.cast(), n)).unwrap_or_default();
+        let ptr_cstr = std::ffi::CString::new(ident_slice).unwrap_or_default();
         let p = if kp_ex {
             vim_strsave_fnameescape(ptr_cstr.as_ptr(), VSE_NONE)
         } else {
@@ -4484,7 +4437,6 @@ fn nv_ident(cap: &mut Cmdarg) {
             buf_vec[buflen..buflen + 3].copy_from_slice(b"\\>\0");
             buflen += 2;
         }
-        let buf = buf_vec.as_mut_ptr().cast();
 
         init_history();
         add_to_history(HIST_SEARCH, &buf_vec[..buflen], true, NUL as i32);
@@ -4496,8 +4448,7 @@ fn nv_ident(cap: &mut Cmdarg) {
             } else {
                 b'?' as i32
             },
-            buf,
-            buflen,
+            Some(&buf_vec[..buflen]),
             0,
             None,
         );
@@ -4570,12 +4521,9 @@ fn nv_scroll(cap: &mut Cmdarg) {
         } else if win_lines_concealed(curwin_mut()) {
             n = cap.count1 - 1;
             while n > 0 && curwin_mut().w_cursor.lnum > curwin_mut().w_topline {
-                has_folding(
-                    curwin_ptr(),
-                    curwin_mut().w_cursor.lnum,
-                    Some(&mut curwin_mut().w_cursor.lnum),
-                    ptr::null_mut(),
-                );
+                let mut cur_lnum = curwin_mut().w_cursor.lnum;
+                has_folding(curwin_mut(), cur_lnum, Some(&mut cur_lnum), None);
+                curwin_mut().w_cursor.lnum = cur_lnum;
                 n += i32::from(decor_conceal_line(
                     curwin_mut(),
                     curwin_mut().w_cursor.lnum,
@@ -4605,16 +4553,12 @@ fn nv_scroll(cap: &mut Cmdarg) {
                     n -= 1;
                     break;
                 }
-                used += plines_win(curwin_ptr(), curwin_mut().w_topline + n, true);
+                used += plines_win(curwin_mut(), curwin_mut().w_topline + n, true);
                 if used >= half {
                     break;
                 }
-                if has_folding(
-                    curwin_ptr(),
-                    curwin_mut().w_topline + n,
-                    None,
-                    &raw mut lnum,
-                ) {
+                let tl_n = curwin_mut().w_topline + n;
+                if has_folding(curwin_mut(), tl_n, None, Some(&mut lnum)) {
                     n = lnum - curwin_mut().w_topline;
                 }
                 n += 1;
@@ -4632,7 +4576,7 @@ fn nv_scroll(cap: &mut Cmdarg) {
                     prev > 0
                 }) && lnum < curwin_mut().w_botline - 1
                 {
-                    has_folding(curwin_ptr(), lnum, None, &raw mut lnum);
+                    has_folding(curwin_mut(), lnum, None, Some(&mut lnum));
                     lnum += 1;
                 }
                 n = lnum - curwin_mut().w_topline;
@@ -4893,20 +4837,18 @@ fn nv_search(cap: &mut Cmdarg) {
 
     cap.searchbuf = getcmdline(cap.cmdchar, cap.count1, 0, true);
 
-    let Some(ref sbuf) = cap.searchbuf else {
+    let Some(sbuf) = cap.searchbuf.clone() else {
         let oap = cap.oap_mut();
         clearop(oap);
         return;
     };
-    let sbuf_ptr = sbuf.as_ptr().cast_mut();
-    let sbuf_len = sbuf.to_bytes().len();
-
+    let cmdchar = cap.cmdchar;
+    let arg = cap.arg;
     normal_search(
         cap,
-        cap.cmdchar,
-        sbuf_ptr,
-        sbuf_len,
-        if cap.arg != 0 || !equalpos(save_cursor, curwin_mut().w_cursor) {
+        cmdchar,
+        Some(sbuf.to_bytes()),
+        if arg != 0 || !equalpos(save_cursor, curwin_mut().w_cursor) {
             0
         } else {
             SEARCH_MARK
@@ -4918,18 +4860,11 @@ fn nv_search(cap: &mut Cmdarg) {
 fn nv_next(cap: &mut Cmdarg) {
     let old = curwin_mut().w_cursor;
     let mut wrapped: i32 = 0;
-    let i = normal_search(
-        cap,
-        0,
-        ptr::null_mut(),
-        0,
-        SEARCH_MARK | cap.arg,
-        Some(&mut wrapped),
-    );
+    let i = normal_search(cap, 0, None, SEARCH_MARK | cap.arg, Some(&mut wrapped));
 
     if i == 1 && wrapped == 0 && equalpos(old, curwin_mut().w_cursor) {
         cap.count1 += 1;
-        normal_search(cap, 0, ptr::null_mut(), 0, SEARCH_MARK | cap.arg, None);
+        normal_search(cap, 0, None, SEARCH_MARK | cap.arg, None);
         cap.count1 -= 1;
     }
 
@@ -4945,12 +4880,13 @@ fn nv_next(cap: &mut Cmdarg) {
 fn normal_search(
     cap: &mut Cmdarg,
     dir: i32,
-    pat: impl crate::strings::IntoCCharPtr,
-    patlen: usize,
+    pat_opt: Option<&[u8]>,
     opt: i32,
     wrapped: Option<&mut i32>,
 ) -> i32 {
-    let pat = pat.into_c_char_ptr().cast_mut();
+    let pat_cstr = pat_opt
+        .map(|b| std::ffi::CString::new(crate::memory::bytes_until_nul(b)).unwrap_or_default());
+    let patlen = pat_opt.map_or(0, <[u8]>::len);
     {
         let mut sia = SearchitArg::new();
         let prev_cursor = curwin_mut().w_cursor;
@@ -4964,7 +4900,7 @@ fn normal_search(
             Some(cap.oap_mut()),
             dir,
             dir,
-            pat,
+            pat_cstr.as_deref(),
             patlen,
             cap.count1,
             opt | SEARCH_OPT | SEARCH_ECHO | SEARCH_MSG,
@@ -5200,15 +5136,11 @@ fn nv_brackets(cap: &mut Cmdarg) {
         if ident.is_empty() {
             clearop(cap.oap_mut());
         } else {
-            let mut ptr_vec = Vec::with_capacity(ident.len() + 1);
-            ptr_vec.extend_from_slice(ident);
-            ptr_vec.push(0);
             let is_upper = (cap.nchar as u8).is_ascii_uppercase();
             let is_lower = (cap.nchar as u8).is_ascii_lowercase();
             find_pattern_in_path(
-                ptr_vec.as_mut_ptr().cast(),
+                ident,
                 0,
-                ident.len(),
                 true,
                 if cap.count0 == 0 { !is_upper } else { false },
                 if (cap.nchar & 0xf) == (b'd' as i32 & 0xf) {
@@ -5274,7 +5206,7 @@ fn nv_brackets(cap: &mut Cmdarg) {
         while n > 0 {
             prev_fm = fm;
             fm = getnextmark(
-                &mut crate::globals::gptr(fm).mark,
+                unsafe { &mut (*fm).mark },
                 if cap.cmdchar == b'[' as i32 {
                     BACKWARD
                 } else {
@@ -5294,7 +5226,7 @@ fn nv_brackets(cap: &mut Cmdarg) {
         if cap.nchar == b'\'' as i32 {
             flags |= K_MARK_BEGIN_LINE;
         }
-        nv_mark_move_to(cap, flags, crate::globals::gmut(fm));
+        nv_mark_move_to(cap, flags, unsafe { fm.as_mut() });
     } else if cap.nchar >= K_RIGHTRELEASE && cap.nchar <= K_LEFTMOUSE {
         do_mouse(
             Some(cap.oap_mut()),
@@ -5696,7 +5628,7 @@ fn v_swap_corners(cmdchar: i32) {
         let mut right: Colnr = 0;
         let mut old_cursor = curwin_mut().w_cursor;
         getvcols(
-            curwin_ptr(),
+            curwin_mut(),
             &mut old_cursor,
             &mut g_st().visual_global.start,
             &mut left,
@@ -5863,8 +5795,8 @@ fn n_swapchar(cap: &mut Cmdarg) {
     }
 }
 
-fn nv_mark_move_to(cap: &mut Cmdarg, flags: MarkMove, fm: *mut Fmark) -> MarkMoveRes {
-    let res = mark_move_to(fm, flags);
+fn nv_mark_move_to(cap: &mut Cmdarg, flags: MarkMove, fm: Option<&mut Fmark>) -> MarkMoveRes {
+    let res = mark_move_to(fm.map_or(ptr::null_mut(), ptr::from_mut), flags);
     if (res & K_MARK_MOVE_FAILED) != 0 {
         clearop(cap.oap_mut());
     }
@@ -5969,7 +5901,7 @@ fn nv_gomark(cap: &mut Cmdarg) {
     }
 
     let fm = mark_get(curbuf_mut(), curwin_mut(), None, K_MARK_ALL, name);
-    let move_res = nv_mark_move_to(cap, flags, fm);
+    let move_res = nv_mark_move_to(cap, flags, unsafe { fm.as_mut() });
 
     if !virtual_active(curwin_mut()) {
         curwin_mut().w_cursor.coladd = 0;
@@ -6012,8 +5944,8 @@ fn nv_pcmark(cap: &mut Cmdarg) {
         get_jumplist(curwin_ptr(), cap.count1)
     };
 
-    if !fm.is_null() {
-        move_res = nv_mark_move_to(cap, flags, crate::globals::gmut(fm));
+    if let Some(fm) = unsafe { fm.as_mut() } {
+        move_res = nv_mark_move_to(cap, flags, Some(fm));
     } else if cap.cmdchar == b'g' as i32 {
         if curbuf_mut().b_changelistlen == 0 {
             emsg(tr(E_CHANGELIST_IS_EMPTY));
@@ -6426,7 +6358,7 @@ fn nv_gi_cmd(cap: &mut Cmdarg) {
 }
 
 fn nv_g_cmd(cap: &mut Cmdarg) {
-    let oap = crate::globals::gmut(cap.oap);
+    let oap = cap.oap_mut();
 
     match cap.nchar {
         CTRL_A | CTRL_X_CONST => {
@@ -6678,21 +6610,13 @@ fn n_opencmd(cap: &mut Cmdarg) {
         return;
     }
 
+    let mut cur_lnum = curwin_mut().w_cursor.lnum;
     if cap.cmdchar == b'O' as i32 {
-        has_folding(
-            curwin_ptr(),
-            curwin_mut().w_cursor.lnum,
-            Some(&mut curwin_mut().w_cursor.lnum),
-            ptr::null_mut(),
-        );
+        has_folding(curwin_mut(), cur_lnum, Some(&mut cur_lnum), None);
     } else {
-        has_folding(
-            curwin_ptr(),
-            curwin_mut().w_cursor.lnum,
-            None,
-            &raw mut curwin_mut().w_cursor.lnum,
-        );
+        has_folding(curwin_mut(), cur_lnum, None, Some(&mut cur_lnum));
     }
+    curwin_mut().w_cursor.lnum = cur_lnum;
     curbuf_mut().b_last_changedtick_i = buf_get_changedtick(curbuf_mut());
     if u_save(
         curwin_mut().w_cursor.lnum - i32::from(cap.cmdchar == b'O' as i32),
@@ -7590,9 +7514,9 @@ mod tests {
 
     #[test]
     fn test_is_ident() {
-        let line = c"int foo = 1; /* bar */ // baz";
-        assert!(is_ident(line.as_ptr(), 4));
-        assert!(!is_ident(line.as_ptr(), 16));
-        assert!(!is_ident(line.as_ptr(), 26));
+        let line = b"int foo = 1; /* bar */ // baz";
+        assert!(is_ident(line, 4));
+        assert!(!is_ident(line, 16));
+        assert!(!is_ident(line, 26));
     }
 }

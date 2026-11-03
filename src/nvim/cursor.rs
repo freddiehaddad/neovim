@@ -205,13 +205,18 @@ fn coladvance2(
         let line = ml_get_buf(wp.buf_mut(), pos.lnum);
         let linelen = ml_get_buf_len(wp.buf_mut(), pos.lnum);
         let mut csarg = CharsizeArg::new();
-        let cstype: CSType = init_charsize_arg(&mut csarg, &mut *wp, pos.lnum, line);
+        let cstype: CSType = init_charsize_arg(
+            &mut csarg,
+            &mut *wp,
+            pos.lnum,
+            crate::memory::cstr_from_ptr(line),
+        );
         let mut ci = utf_ptr2_str_char_info(line);
         col = 0;
         while col <= wcol && !crate::memory::cstr_is_empty(ci.ptr) {
             let cli = utf_cluster_info(ci);
             let cs: CharSize =
-                win_charsize(cstype, col, ci.ptr, ci.chr.value, &mut csarg, cli.cells);
+                win_charsize(cstype, col, ci.cstr(), ci.chr.value, &mut csarg, cli.cells);
             csize = cs.width;
             head = cs.head;
             col += cs.width;
@@ -331,7 +336,7 @@ pub fn get_cursor_rel_lnum(wp: &mut WinInfoInfo, lnum: Linenr) -> Linenr {
     let mut retval: Linenr = 0;
 
     while from_line < to_line {
-        has_folding(wp, from_line, None, &raw mut from_line);
+        has_folding(wp, from_line, None, Some(&mut from_line));
         from_line += 1;
         retval += 1;
     }
@@ -355,9 +360,7 @@ pub fn check_pos(buf: &mut FileBuf, pos: &mut CursorPos) {
 pub fn check_cursor_lnum(win: &mut WinInfoInfo) {
     let line_count = win.buf_mut().b_ml.ml_line_count;
     let mut cursor_lnum = win.w_cursor.lnum;
-    if cursor_lnum > line_count
-        && !has_folding(win, line_count, Some(&mut cursor_lnum), ptr::null_mut())
-    {
+    if cursor_lnum > line_count && !has_folding(win, line_count, Some(&mut cursor_lnum), None) {
         cursor_lnum = line_count;
     }
     win.w_cursor.lnum = cursor_lnum.max(1);

@@ -1585,11 +1585,11 @@ fn win_update(wp: &mut WinInfoInfo) {
                 }
             }
 
-            has_folding(&raw mut *wp, mod_top, Some(&mut mod_top), ptr::null_mut());
+            has_folding(&mut *wp, mod_top, Some(&mut mod_top), None);
             mod_top = mod_top.min(lnumt);
 
             mod_bot -= 1;
-            has_folding(&raw mut *wp, mod_bot, None, &raw mut mod_bot);
+            has_folding(&mut *wp, mod_bot, None, Some(&mut mod_bot));
             mod_bot += 1;
             mod_bot = mod_bot.max(lnumb);
         }
@@ -1628,12 +1628,7 @@ fn win_update(wp: &mut WinInfoInfo) {
         && decor_conceal_line(&mut *wp, topline_conceal - 1, false)
     {
         topline_conceal += 1;
-        has_folding(
-            &raw mut *wp,
-            topline_conceal,
-            None,
-            &raw mut topline_conceal,
-        );
+        has_folding(&mut *wp, topline_conceal, None, Some(&mut topline_conceal));
     }
 
     if (type_ == UPD_VALID
@@ -1662,7 +1657,7 @@ fn win_update(wp: &mut WinInfoInfo) {
                     if j >= wp.w_view_height - 2 {
                         break;
                     }
-                    has_folding(&raw mut *wp, ln, None, &raw mut ln);
+                    has_folding(&mut *wp, ln, None, Some(&mut ln));
                     ln += 1;
                 }
             } else {
@@ -1816,7 +1811,7 @@ fn win_update(wp: &mut WinInfoInfo) {
                 let mut fromc: Colnr = 0;
                 let mut toc: Colnr = 0;
                 getvcols(
-                    &raw mut *wp,
+                    &mut *wp,
                     &mut g_st().visual_global.start,
                     &mut curwin_mut().w_cursor,
                     &mut fromc,
@@ -2193,15 +2188,9 @@ fn win_update(wp: &mut WinInfoInfo) {
                         }
                     {
                         virt_below = false;
-                        w_lines_at(&mut *wp, idx as usize).wl_lastlnum += 1;
-                        let last_ptr = &raw mut w_lines_at(&mut *wp, idx as usize).wl_lastlnum;
-
-                        has_folding(
-                            &raw mut *wp,
-                            *crate::globals::gptr(last_ptr),
-                            None,
-                            last_ptr,
-                        );
+                        let mut last_lnum = w_lines_at(&mut *wp, idx as usize).wl_lastlnum + 1;
+                        has_folding(&mut *wp, last_lnum, None, Some(&mut last_lnum));
+                        w_lines_at(&mut *wp, idx as usize).wl_lastlnum = last_lnum;
                     }
                 }
 
@@ -2213,7 +2202,7 @@ fn win_update(wp: &mut WinInfoInfo) {
                 if row > wp.w_view_height {
                     if g_st().dollar_vcol == -1 || !is_curline {
                         w_lines_at(&mut *wp, idx as usize).wl_size =
-                            plines_win(&raw mut *wp, lnum, true) as u16;
+                            plines_win(&mut *wp, lnum, true) as u16;
                     }
                     idx += 1;
                     break;

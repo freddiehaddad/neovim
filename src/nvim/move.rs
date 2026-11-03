@@ -363,7 +363,7 @@ pub fn update_topline(wp: &mut WinInfoInfo) {
                     if n >= i64::from(halfheight) {
                         break;
                     }
-                    has_folding(&raw mut *wp, lnum, None, &raw mut lnum);
+                    has_folding(&mut *wp, lnum, None, Some(&mut lnum));
                     lnum += 1;
                 }
             } else {
@@ -381,7 +381,7 @@ pub fn update_topline(wp: &mut WinInfoInfo) {
             }
         } else {
             let mut topline = wp.w_topline;
-            has_folding(&raw mut *wp, topline, Some(&mut topline), ptr::null_mut());
+            has_folding(&mut *wp, topline, Some(&mut topline), None);
             wp.w_topline = topline;
             check_botline = true;
         }
@@ -403,7 +403,7 @@ pub fn update_topline(wp: &mut WinInfoInfo) {
                         height: 0,
                     };
                     let mut n = if eof_pressure { 0 } else { wp.w_empty_rows };
-                    has_folding(&raw mut *wp, loff.lnum, None, &raw mut loff.lnum);
+                    has_folding(&mut *wp, loff.lnum, None, Some(&mut loff.lnum));
                     n += wp.w_filler_rows;
                     while loff.lnum < wp.w_botline
                         && (loff.lnum + 1 < wp.w_botline || loff.fill == 0)
@@ -433,7 +433,7 @@ pub fn update_topline(wp: &mut WinInfoInfo) {
                         if n > i64::from(wp.w_view_height + 1) {
                             break;
                         }
-                        has_folding(&raw mut *wp, lnum, Some(&mut lnum), ptr::null_mut());
+                        has_folding(&mut *wp, lnum, Some(&mut lnum), None);
                         lnum -= 1;
                     }
                 } else {
@@ -596,7 +596,7 @@ pub fn changed_window_setting_all() {
 pub fn set_topline(wp: &mut WinInfoInfo, mut lnum: Linenr) {
     let prev_topline = wp.w_topline;
 
-    has_folding(wp, lnum, Some(&mut lnum), ptr::null_mut());
+    has_folding(wp, lnum, Some(&mut lnum), None);
     wp.w_botline += lnum - wp.w_topline;
     if wp.w_botline > wp.buf_mut().b_ml.ml_line_count + 1 {
         wp.w_botline = wp.buf_mut().b_ml.ml_line_count + 1;
@@ -752,7 +752,8 @@ fn curs_rows(wp: &mut WinInfoInfo) {
             wp.w_cline_height = cline_height;
         } else if i > wp.w_lines_valid {
             wp.w_cline_height = 0;
-            wp.w_cline_folded = has_folding(wp, wp.w_cursor.lnum, None, ptr::null_mut());
+            let cursor_lnum = wp.w_cursor.lnum;
+            wp.w_cline_folded = has_folding(wp, cursor_lnum, None, None);
         } else {
             let wl = (&wp.w_lines)[i as usize];
             wp.w_cline_height = i32::from(wl.wl_size);
@@ -992,7 +993,8 @@ pub fn curs_columns(wp: &mut WinInfoInfo, may_scroll: i32) {
             extra = 1;
         }
         if plines == 0 {
-            plines = plines_win((&raw mut *wp), wp.w_cursor.lnum, false);
+            let cursor_lnum = wp.w_cursor.lnum;
+            plines = plines_win(&mut *wp, cursor_lnum, false);
         }
         plines -= 1;
         let mut n = if i64::from(plines) > i64::from(wp.w_wrow) + so {
@@ -1085,7 +1087,7 @@ pub fn textpos2screenpos(
 
     let mut lnum = pos.lnum;
     if lnum >= wp.w_topline && lnum <= wp.w_botline {
-        is_folded = has_folding(&raw mut *wp, lnum, Some(&mut lnum), ptr::null_mut());
+        is_folded = has_folding(&mut *wp, lnum, Some(&mut lnum), None);
         row = plines_m_win(wp, wp.w_topline, lnum - 1, i32::MAX);
         row -= adjust_plines_for_skipcol(wp);
         row += if lnum == wp.w_topline {
@@ -1402,12 +1404,9 @@ pub fn scrolldown(wp: &mut WinInfoInfo, line_count: Linenr, byfold: i32) -> bool
         width2 = width1 + win_col_off2(wp);
     }
 
-    has_folding(
-        &raw mut *wp,
-        wp.w_topline,
-        Some(&mut wp.w_topline),
-        ptr::null_mut(),
-    );
+    let mut topline = wp.w_topline;
+    has_folding(&mut *wp, topline, Some(&mut topline), None);
+    wp.w_topline = topline;
     validate_cursor(wp);
     let mut todo = line_count;
     while todo > 0 {
@@ -1432,12 +1431,8 @@ pub fn scrolldown(wp: &mut WinInfoInfo, line_count: Linenr, byfold: i32) -> bool
             wp.w_skipcol = 0;
             wp.w_topfill = 0;
             let mut first: Linenr = 0;
-            if has_folding(
-                &raw mut *wp,
-                wp.w_topline,
-                Some(&mut first),
-                ptr::null_mut(),
-            ) {
+            let topline = wp.w_topline;
+            if has_folding(&mut *wp, topline, Some(&mut first), None) {
                 done += i32::from(!decor_conceal_line(wp, first - 1, false));
                 if byfold == 0 {
                     todo -= wp.w_topline - first - 1;
@@ -1472,12 +1467,9 @@ pub fn scrolldown(wp: &mut WinInfoInfo, line_count: Linenr, byfold: i32) -> bool
         while wp.w_topline > 1 && decor_conceal_line(wp, wp.w_topline - 2, false) {
             wp.w_topline -= 1;
             wp.w_topfill = 0;
-            has_folding(
-                &raw mut *wp,
-                wp.w_topline,
-                Some(&mut wp.w_topline),
-                ptr::null_mut(),
-            );
+            let mut topline = wp.w_topline;
+            has_folding(&mut *wp, topline, Some(&mut topline), None);
+            wp.w_topline = topline;
         }
     }
 
@@ -1498,16 +1490,12 @@ pub fn scrolldown(wp: &mut WinInfoInfo, line_count: Linenr, byfold: i32) -> bool
     let mut moved = false;
     while wrow >= wp.w_view_height && wp.w_cursor.lnum > 1 {
         let mut first: Linenr = 0;
-        if has_folding(
-            &raw mut *wp,
-            wp.w_cursor.lnum,
-            Some(&mut first),
-            ptr::null_mut(),
-        ) {
+        let cursor_lnum = wp.w_cursor.lnum;
+        if has_folding(&mut *wp, cursor_lnum, Some(&mut first), None) {
             wrow -= i32::from(!decor_conceal_line(wp, wp.w_cursor.lnum - 1, false));
             wp.w_cursor.lnum = (first - 1).max(1);
         } else {
-            wrow -= plines_win(&raw mut *wp, wp.w_cursor.lnum, true);
+            wrow -= plines_win(&mut *wp, cursor_lnum, true);
             wp.w_cursor.lnum -= 1;
         }
         wp.w_valid &= !(VALID_WROW | VALID_WCOL | VALID_CHEIGHT | VALID_CROW | VALID_VIRTCOL);
@@ -1548,7 +1536,7 @@ pub fn scrollup(wp: &mut WinInfoInfo, line_count: Linenr, byfold: bool) -> bool 
             } else {
                 let mut lnum = wp.w_topline;
                 if byfold {
-                    has_folding(wp, lnum, None, &raw mut lnum);
+                    has_folding(wp, lnum, None, Some(&mut lnum));
                 }
                 if lnum == wp.w_topline && do_sms {
                     let add = if wp.w_skipcol > 0 { width2 } else { width1 };
@@ -1594,7 +1582,9 @@ pub fn scrollup(wp: &mut WinInfoInfo, line_count: Linenr, byfold: bool) -> bool 
 
     check_topfill(wp, false);
 
-    has_folding(wp, wp.w_topline, Some(&mut wp.w_topline), ptr::null_mut());
+    let mut new_topline = wp.w_topline;
+    has_folding(wp, new_topline, Some(&mut new_topline), None);
+    wp.w_topline = new_topline;
 
     wp.w_valid &= !(VALID_WROW | VALID_CROW | VALID_BOTLINE);
     if wp.w_cursor.lnum < wp.w_topline {
@@ -1630,7 +1620,7 @@ pub fn adjust_skipcol() {
 
     validate_cheight(curwin_mut());
     if curwin_mut().w_cline_height == curwin_mut().w_view_height
-        && plines_win(curwin_ptr(), curwin_mut().w_cursor.lnum, false) <= curwin_mut().w_view_height
+        && plines_win(curwin_mut(), curwin_mut().w_cursor.lnum, false) <= curwin_mut().w_view_height
     {
         reset_skipcol(curwin_mut());
         return;
@@ -1735,12 +1725,9 @@ pub fn scrolldown_clamp() {
             curwin_mut().w_topline -= 1;
             curwin_mut().w_topfill = 0;
         }
-        has_folding(
-            curwin_ptr(),
-            curwin_mut().w_topline,
-            Some(&mut curwin_mut().w_topline),
-            ptr::null_mut(),
-        );
+        let mut topline = curwin_mut().w_topline;
+        has_folding(curwin_mut(), topline, Some(&mut topline), None);
+        curwin_mut().w_topline = topline;
         curwin_mut().w_botline -= 1;
         curwin_mut().w_valid &= !(VALID_WROW | VALID_CROW | VALID_BOTLINE);
     }
@@ -1765,13 +1752,9 @@ pub fn scrollup_clamp() {
         if curwin_mut().w_topfill > 0 {
             curwin_mut().w_topfill -= 1;
         } else {
-            has_folding(
-                curwin_ptr(),
-                curwin_mut().w_topline,
-                None,
-                &raw mut curwin_mut().w_topline,
-            );
-            curwin_mut().w_topline += 1;
+            let mut topline = curwin_mut().w_topline;
+            has_folding(curwin_mut(), topline, None, Some(&mut topline));
+            curwin_mut().w_topline = topline + 1;
         }
         curwin_mut().w_botline += 1;
         curwin_mut().w_valid &= !(VALID_WROW | VALID_CROW | VALID_BOTLINE);
@@ -1787,7 +1770,7 @@ fn topline_back_winheight(wp: &mut WinInfoInfo, lp: &mut Lineoff, winheight: boo
         lp.fill = 0;
         if lp.lnum < 1 {
             lp.height = MAXCOL;
-        } else if has_folding(&raw mut *wp, lp.lnum, Some(&mut lp.lnum), ptr::null_mut()) {
+        } else if has_folding(&mut *wp, lp.lnum, Some(&mut lp.lnum), None) {
             lp.height = i32::from(!decor_conceal_line(wp, lp.lnum - 1, false));
         } else {
             lp.height = plines_win_nofill(wp, lp.lnum, winheight);
@@ -1808,7 +1791,7 @@ fn botline_forw(wp: &mut WinInfoInfo, lp: &mut Lineoff) {
         lp.fill = 0;
         if lp.lnum > wp.buf_mut().b_ml.ml_line_count {
             lp.height = MAXCOL;
-        } else if has_folding((&raw mut *wp), lp.lnum, None, &raw mut lp.lnum) {
+        } else if has_folding(&mut *wp, lp.lnum, None, Some(&mut lp.lnum)) {
             lp.height = i32::from(!decor_conceal_line(wp, lp.lnum - 1, false));
         } else {
             lp.height = plines_win_nofill(wp, lp.lnum, true);
@@ -1837,7 +1820,8 @@ pub fn scroll_cursor_top(wp: &mut WinInfoInfo, min_scroll: i32, always: i32) {
 
     let mut top: Linenr = 0;
     let mut bot: Linenr = 0;
-    if has_folding(wp, wp.w_cursor.lnum, Some(&mut top), &raw mut bot) {
+    let cursor_lnum = wp.w_cursor.lnum;
+    if has_folding(wp, cursor_lnum, Some(&mut top), Some(&mut bot)) {
         top -= 1;
         bot += 1;
     } else {
@@ -1850,7 +1834,7 @@ pub fn scroll_cursor_top(wp: &mut WinInfoInfo, min_scroll: i32, always: i32) {
 
     while top > 0 {
         let i = plines_win_nofill(wp, top, true);
-        has_folding(wp, top, Some(&mut top), ptr::null_mut());
+        has_folding(wp, top, Some(&mut top), None);
         if top < wp.w_topline {
             scrolled += i;
         }
@@ -1949,7 +1933,7 @@ pub fn scroll_cursor_bot(wp: &mut WinInfoInfo, min_scroll: i32, set_topbot: bool
     if set_topbot {
         let mut used: i32 = 0;
         let mut cln_last = cln;
-        has_folding(wp, cln, None, &raw mut cln_last);
+        has_folding(wp, cln, None, Some(&mut cln_last));
         wp.w_botline = cln_last + 1;
         loff.lnum = cln_last + 1;
         loff.fill = 0;
@@ -2022,12 +2006,8 @@ pub fn scroll_cursor_bot(wp: &mut WinInfoInfo, min_scroll: i32, set_topbot: bool
     }
 
     let mut boff = Lineoff::default();
-    if !has_folding(
-        wp,
-        wp.w_cursor.lnum,
-        Some(&mut loff.lnum),
-        &raw mut boff.lnum,
-    ) {
+    let cursor_lnum = wp.w_cursor.lnum;
+    if !has_folding(wp, cursor_lnum, Some(&mut loff.lnum), Some(&mut boff.lnum)) {
         loff.lnum = cln;
         boff.lnum = cln;
     }
@@ -2150,7 +2130,8 @@ pub fn scroll_cursor_halfway(wp: &mut WinInfoInfo, atend: bool, prefer_above: bo
         fill: 0,
         height: 0,
     };
-    has_folding(wp, loff.lnum, Some(&mut loff.lnum), &raw mut boff.lnum);
+    let lnum = loff.lnum;
+    has_folding(wp, lnum, Some(&mut loff.lnum), Some(&mut boff.lnum));
     let mut used = plines_win_nofill(wp, loff.lnum, true);
     let mut topline = loff.lnum;
     let mut skipcol: Colnr = 0;
@@ -2241,9 +2222,10 @@ pub fn scroll_cursor_halfway(wp: &mut WinInfoInfo, atend: bool, prefer_above: bo
         }
     }
 
-    if !has_folding(wp, topline, Some(&mut wp.w_topline), ptr::null_mut())
-        && (wp.w_topline != topline || skipcol != 0 || wp.w_skipcol != 0)
-    {
+    let mut new_topline = wp.w_topline;
+    let folded = has_folding(wp, topline, Some(&mut new_topline), None);
+    wp.w_topline = new_topline;
+    if !folded && (wp.w_topline != topline || skipcol != 0 || wp.w_skipcol != 0) {
         wp.w_topline = topline;
         if skipcol != 0 {
             wp.w_skipcol = skipcol;
@@ -2298,12 +2280,12 @@ pub fn cursor_correct(wp: &mut WinInfoInfo) {
     {
         if i64::from(below) < below_wanted && (below <= above || i64::from(above) >= above_wanted) {
             below += plines_win_full(wp, botline, None, None, true, true);
-            has_folding(&raw mut *wp, botline, Some(&mut botline), ptr::null_mut());
+            has_folding(&mut *wp, botline, Some(&mut botline), None);
             botline -= 1;
         }
         if i64::from(above) < above_wanted && (above < below || i64::from(below) >= below_wanted) {
             above += plines_win_nofill(wp, topline, true);
-            has_folding(&raw mut *wp, topline, None, &raw mut topline);
+            has_folding(&mut *wp, topline, None, Some(&mut topline));
             if topline < botline {
                 above += win_get_fill(wp, topline + 1);
             }
@@ -2596,7 +2578,8 @@ pub fn do_check_cursorbind() {
         g_st().curbuf = curwin_mut().w_buffer;
         if curwin_ptr() != old_curwin && curwin_mut().w_onebuf_opt.wo_crb != 0 {
             if curwin_mut().w_onebuf_opt.wo_diff != 0 {
-                curwin_mut().w_cursor.lnum = diff_get_corresponding_line(old_curbuf, line);
+                curwin_mut().w_cursor.lnum =
+                    diff_get_corresponding_line(unsafe { &*old_curbuf }, line);
             } else {
                 curwin_mut().w_cursor.lnum = line;
             }

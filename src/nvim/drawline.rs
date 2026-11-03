@@ -1350,7 +1350,12 @@ fn win_line_skip_columns(
     let cstype = if wp.w_onebuf_opt.wo_wrap != 0 && !crate::memory::cstr_is_empty(*line) {
         init_charsize_arg_extconceal(&mut csarg, wp, wlv.lnum, &mut spans)
     } else {
-        init_charsize_arg(&mut csarg, wp, wlv.lnum, *line)
+        init_charsize_arg(
+            &mut csarg,
+            wp,
+            wlv.lnum,
+            crate::memory::cstr_from_ptr(*line),
+        )
     };
     csarg.max_head_vcol = start_vcol;
     *line = csarg.line.cast();
@@ -1362,7 +1367,7 @@ fn win_line_skip_columns(
     let mut ci = utf_ptr2_str_char_info(ptr);
     while vcol - csarg.extconceal_off < start_vcol {
         let cli = utf_cluster_info(ci);
-        cs = win_charsize(cstype, vcol, ci.ptr, ci.chr.value, &mut csarg, cli.cells);
+        cs = win_charsize(cstype, vcol, ci.cstr(), ci.chr.value, &mut csarg, cli.cells);
         vcol += cs.width;
         prev_ptr = ci.ptr;
         if crate::memory::cstr_is_empty(prev_ptr) {
@@ -2820,8 +2825,12 @@ pub fn win_line(
                             || !vim_isbreak(i32::from(crate::memory::cstr_first_byte(ptr)))
                         {
                             let mut csarg = CharsizeArg::new();
-                            let mut cstype =
-                                init_charsize_arg_skip_cur_text(&mut csarg, wp, lnum, line);
+                            let mut cstype = init_charsize_arg_skip_cur_text(
+                                &mut csarg,
+                                wp,
+                                lnum,
+                                crate::memory::cstr_from_ptr(line),
+                            );
                             if has_conceal {
                                 csarg.extconceal = &raw const conceal_spans;
                                 csarg.extconceal_off = wlv.extconceal_off;
@@ -2832,7 +2841,7 @@ pub fn win_line(
                             let lbr_size = win_charsize(
                                 cstype,
                                 wlv.vcol + csarg.extconceal_off,
-                                p,
+                                crate::memory::cstr_from_ptr(p),
                                 lbr_ci.chr.value,
                                 &mut csarg,
                                 lbr_cli.cells,

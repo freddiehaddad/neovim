@@ -1451,7 +1451,7 @@ pub fn nvim_set_decoration_provider(
     opts: &mut KeyDict_set_decoration_provider,
     _err: &mut Error,
 ) {
-    let p = crate::globals::gmut(get_decor_provider(ns_id as NS, true));
+    let p = get_decor_provider(ns_id as NS, true).unwrap();
     decor_provider_clear(Some(&mut *p));
 
     redraw_all_later(UPD_NOT_VALID);

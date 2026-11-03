@@ -533,8 +533,9 @@ fn nlua_push_eap(lstate: *mut lua_State, eap: &Exarg, cmod: &Cmdmod) {
             let mut i: i32 = 1;
             let mut buf = vec![0u8; length];
             let mut done = false;
+            let arg_slice = crate::memory::cstr_slice(eap.arg, length);
             while !done {
-                done = uc_split_args_iter(eap.arg, length, &mut end, buf.as_mut_ptr(), &mut len);
+                done = uc_split_args_iter(arg_slice, &mut end, &mut buf, &mut len);
                 if len > 0 {
                     crate::lua::converter::lua_push_bytes(lstate, &buf[..len]);
                     unsafe { lua_rawseti(lstate, -2, i) };

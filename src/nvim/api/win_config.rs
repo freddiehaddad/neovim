@@ -453,7 +453,8 @@ pub fn nvim_open_win(
                 );
                 break 'cleanup;
             }
-            wp = win_new_float(ptr::null_mut(), false, fconfig.clone(), err);
+            wp = win_new_float(None, false, fconfig.clone(), err)
+                .map_or(ptr::null_mut(), ptr::from_mut);
         }
         if wp.is_null() {
             if !error_set(err) {
@@ -968,7 +969,14 @@ fn win_config_float_tp(
         }
 
         if !win.w_floating {
-            if win_new_float((&raw mut *win), false, fconfig.clone(), err).is_null() {
+            if win_new_float(
+                Some(unsafe { &mut *ptr::from_mut(win) }),
+                false,
+                fconfig.clone(),
+                err,
+            )
+            .is_none()
+            {
                 break 'restore_curwin;
             }
             redraw_later(Some(&mut *win), UPD_NOT_VALID);

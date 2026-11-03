@@ -828,7 +828,7 @@ pub fn mark_view_restore(fm: Option<&Fmark>) {
         if topline >= 1 {
             set_topline(curwin_mut(), topline);
             curwin_mut().w_skipcol = if fm.view.skipcol > 0
-                && !has_folding(curwin_ptr(), topline, None, ptr::null_mut())
+                && !has_folding(curwin_mut(), topline, None, None)
                 && fm.view.skipcol < linetabsize_disp_eol(curwin_mut(), topline)
             {
                 fm.view.skipcol

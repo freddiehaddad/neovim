@@ -23,7 +23,6 @@ use crate::search::{
 use crate::strings::vim_strchr;
 use crate::textformat::Oparg;
 use std::ffi::CStr;
-use std::ptr;
 
 use crate::regexp::MAXCOL;
 
@@ -214,10 +213,10 @@ pub fn findpar(pincl: &mut bool, dir: i32, mut count: i32, what: i32, both: bool
             let mut fold_skipped = false;
             if first
                 && has_folding(
-                    curwin_ptr(),
+                    curwin_mut(),
                     curr,
                     Some(&mut fold_first),
-                    &raw mut fold_last,
+                    Some(&mut fold_last),
                 )
             {
                 curr = (if dir > 0 { fold_last } else { fold_first }) + dir;
@@ -325,12 +324,9 @@ pub fn fwd_word(mut count: i32, bigword: bool, eol: bool) -> bool {
         count -= 1;
         count >= 0
     } {
-        if has_folding(
-            curwin_ptr(),
-            curwin_mut().w_cursor.lnum,
-            None,
-            &raw mut curwin_mut().w_cursor.lnum,
-        ) {
+        let mut cur_lnum = curwin_mut().w_cursor.lnum;
+        if has_folding(curwin_mut(), cur_lnum, None, Some(&mut cur_lnum)) {
+            curwin_mut().w_cursor.lnum = cur_lnum;
             coladvance(curwin_mut(), MAXCOL);
         }
         let sclass = cls();
@@ -375,12 +371,9 @@ pub fn bck_word(mut count: i32, bigword: bool, mut stop: bool) -> bool {
         count -= 1;
         count >= 0
     } {
-        if has_folding(
-            curwin_ptr(),
-            curwin_mut().w_cursor.lnum,
-            Some(&mut curwin_mut().w_cursor.lnum),
-            ptr::null_mut(),
-        ) {
+        let mut cur_lnum = curwin_mut().w_cursor.lnum;
+        if has_folding(curwin_mut(), cur_lnum, Some(&mut cur_lnum), None) {
+            curwin_mut().w_cursor.lnum = cur_lnum;
             curwin_mut().w_cursor.col = 0;
         }
         let sclass = cls();
@@ -431,12 +424,9 @@ pub fn end_word(mut count: i32, bigword: bool, mut stop: bool, empty: bool) -> b
         count -= 1;
         count >= 0
     } {
-        if has_folding(
-            curwin_ptr(),
-            curwin_mut().w_cursor.lnum,
-            None,
-            &raw mut curwin_mut().w_cursor.lnum,
-        ) {
+        let mut cur_lnum = curwin_mut().w_cursor.lnum;
+        if has_folding(curwin_mut(), cur_lnum, None, Some(&mut cur_lnum)) {
+            curwin_mut().w_cursor.lnum = cur_lnum;
             coladvance(curwin_mut(), MAXCOL);
         }
         let sclass = cls();

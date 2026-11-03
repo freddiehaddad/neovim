@@ -417,11 +417,9 @@ pub fn try_leave(tstate: &TryState, err: &mut Error) {
     } else if let Some(ref msgs) = *unsafe { &(*ml) }
         && !msgs.is_empty()
     {
-        let throw_ptr = msgs[msgs[0].throw_idx]
-            .msg
-            .as_ptr()
-            .wrapping_add(msgs[0].throw_off);
-        let msg = get_error_exception_string(throw_ptr, ptr::null_mut());
+        let throw_bytes = msgs[msgs[0].throw_idx].msg.as_bytes();
+        let throw_slice = &throw_bytes[msgs[0].throw_off.min(throw_bytes.len())..];
+        let msg = get_error_exception_string(throw_slice, None);
         api_set_error!(err, ErrorType::ErrorTypeException, c"%s", msg.as_ptr());
         free_global_msglist();
     } else if g_st().did_throw || g_st().need_rethrow {

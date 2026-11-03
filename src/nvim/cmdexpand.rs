@@ -3284,8 +3284,11 @@ fn set_cmd_index(
             p = cmd.wrapping_add(1);
         } else if cmd_bytes.first().is_some_and(u8::is_ascii_uppercase) {
             eap.cmd = cmd.cast_mut().cast();
-            p = find_ucmd(eap, p.cast_mut(), None, Some(&mut *xp), Some(&mut *complp));
-            if p.is_null() {
+            let p_len = crate::memory::ptr_offset_from(p, cmd) as usize;
+            if let Some(off) = find_ucmd(eap, p_len, None, Some(&mut *xp), Some(&mut *complp)) {
+                p = cmd.wrapping_add(off);
+            } else {
+                p = ptr::null();
                 eap.cmdidx = Cmdidx::CmdSize as i32;
             }
         }
@@ -3838,7 +3841,9 @@ fn set_context_by_cmdname(
                 return set_context_in_match_cmd(xp, arg.cast());
             }
             Cmdidx::CmdCommand => {
-                return set_context_in_user_cmd(xp, arg).cast();
+                return set_context_in_user_cmd(xp, crate::memory::cstr_from_ptr(arg.cast()))
+                    .map_or(ptr::null(), std::ffi::CStr::as_ptr)
+                    .cast();
             }
             Cmdidx::CmdDelcommand => {
                 xp.xp_context = EXPAND_USER_COMMANDS;
@@ -3964,7 +3969,16 @@ fn set_context_by_cmdname(
                 xp.xp_pattern = arg.cast_mut();
             }
             Cmdidx::CmdUser | Cmdidx::CmdUserBuf => {
-                return set_context_in_user_cmdarg(cmd.cast(), arg, argt, context, xp, forceit);
+                return set_context_in_user_cmdarg(
+                    crate::memory::cstr_from_ptr(cmd.cast()),
+                    crate::memory::cstr_from_ptr(arg.cast()),
+                    argt,
+                    context,
+                    xp,
+                    forceit,
+                )
+                .map_or(ptr::null(), std::ffi::CStr::as_ptr)
+                .cast();
             }
             Cmdidx::CmdMap
             | Cmdidx::CmdNoremap
@@ -5095,7 +5109,11 @@ fn expand_from_context(
             return expand_bufnames(pat, matches, options | BUF_DIFF_FILTER);
         }
         if xp.xp_context == EXPAND_TAGS || xp.xp_context == EXPAND_TAGS_LISTFILES {
-            return expand_tags(xp.xp_context == EXPAND_TAGS, pat, matches);
+            return expand_tags(
+                xp.xp_context == EXPAND_TAGS,
+                crate::memory::cstr_from_ptr(pat),
+                matches,
+            );
         }
         if xp.xp_context == EXPAND_COLORS {
             return expand_rtdir(pat, DIP_START + DIP_OPT, matches, &[c"colors"]);
@@ -5153,7 +5171,7 @@ fn expand_from_context(
             if regmatch.regprog.is_null() {
                 return false;
             }
-            regmatch.rm_ic = ignorecase(pat) != 0;
+            regmatch.rm_ic = ignorecase(crate::memory::cstr_from_ptr(pat)) != 0;
         }
 
         let ret = if xp.xp_context == EXPAND_SETTINGS || xp.xp_context == EXPAND_BOOL_SETTINGS {
@@ -5997,7 +6015,7 @@ pub fn f_getcompletion(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFu
         xpc.xp_pattern_len = crate::memory::cstr_len(xpc.xp_pattern.cast());
         xpc.xp_line = pattern.cast_mut();
 
-        xpc.xp_context = cmdcomplete_str_to_type(type_str);
+        xpc.xp_context = cmdcomplete_str_to_type(crate::memory::cstr_as_bytes(type_str));
         match xpc.xp_context {
             EXPAND_NOTHING => {
                 semsg!(gettext(E_INVARG2), type_str);
@@ -6110,9 +6128,12 @@ pub fn f_getcompletiontype(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: Ev
     );
     crate::eval::typval::tv_set_string(
         rettv,
-        cmdcomplete_type_to_str(xpc.xp_context, xpc.xp_arg.cast())
-            .as_ref()
-            .map_or(ptr::null(), |s| s.as_ptr()),
+        cmdcomplete_type_to_str(
+            xpc.xp_context,
+            crate::memory::cstr_as_opt_bytes(xpc.xp_arg.cast()),
+        )
+        .as_ref()
+        .map_or(ptr::null(), |s| s.as_ptr()),
     );
 }
 
@@ -6253,7 +6274,7 @@ fn is_regex_match(
         }
         regmatch.rm_ic = opt_vars().p_ic != 0;
         if opt_vars().p_ic != 0 && opt_vars().p_scs != 0 {
-            regmatch.rm_ic = !pat_has_uppercase(pat.cast_mut());
+            regmatch.rm_ic = !pat_has_uppercase(crate::memory::cstr_from_ptr(pat));
         }
 
         g_st().emsg_off += 1;
@@ -6342,12 +6363,12 @@ fn expand_pattern_in_buf(
             g_st().emsg_off += 1;
             g_st().msg_silent += 1;
             let found_new_match = searchit(
-                ptr::null_mut(),
+                None,
                 curbuf_mut(),
                 &mut cur_match_pos,
                 Some(&mut end_match_pos),
                 dir,
-                pat,
+                crate::memory::cstr_from_ptr(pat),
                 pat_len as usize,
                 1,
                 search_flags,

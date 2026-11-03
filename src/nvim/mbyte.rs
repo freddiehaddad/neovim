@@ -55,6 +55,13 @@ pub struct StrCharInfo<P = crate::strings::RawCCharPtr> {
     pub chr: CharInfo,
 }
 
+impl StrCharInfo {
+    #[inline]
+    pub fn cstr(&self) -> &'static CStr {
+        crate::memory::cstr_from_ptr(self.ptr)
+    }
+}
+
 #[repr(C)]
 #[derive(Clone, Copy)]
 pub struct ClusterInfo<P = crate::strings::RawCCharPtr> {

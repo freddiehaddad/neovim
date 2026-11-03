@@ -343,13 +343,13 @@ fn tui_loop(tui: &mut TUIData) -> &'static mut Loop {
 }
 
 #[inline]
-fn tui_write_loop(tui: &mut TUIData) -> *mut uv_loop_t {
-    tui.write_loop.as_mut_ptr().cast::<uv_loop_t>()
+fn tui_write_loop(tui: &mut TUIData) -> &'static mut uv_loop_t {
+    unsafe { &mut *tui.write_loop.as_mut_ptr().cast::<uv_loop_t>() }
 }
 
 #[inline]
-fn tui_output_handle(tui: &mut TUIData) -> *mut uv_handle_t {
-    tui.output_handle.as_mut_ptr().cast::<uv_handle_t>()
+fn tui_output_handle(tui: &mut TUIData) -> &'static mut uv_handle_t {
+    unsafe { &mut *tui.output_handle.as_mut_ptr().cast::<uv_handle_t>() }
 }
 
 #[inline]
@@ -359,8 +359,8 @@ fn tui_winch_handle(tui: &mut TUIData) -> &'static mut SignalWatcher {
 }
 
 #[inline]
-fn tui_startup_delay_timer(tui: &mut TUIData) -> *mut uv_timer_t {
-    tui.startup_delay_timer.as_mut_ptr().cast::<uv_timer_t>()
+fn tui_startup_delay_timer(tui: &mut TUIData) -> &'static mut uv_timer_t {
+    unsafe { &mut *tui.startup_delay_timer.as_mut_ptr().cast::<uv_timer_t>() }
 }
 
 #[inline]
@@ -369,32 +369,31 @@ fn slice_contains(haystack: Option<&[u8]>, needle: &[u8]) -> bool {
 }
 
 pub fn tui_start(
-    tui_out: *mut Option<Box<TUIData>>,
+    tui: &mut TUIData,
     width: &mut i32,
     height: &mut i32,
-    term: *mut Option<std::ffi::CString>,
+    term: &mut Option<std::ffi::CString>,
     rgb: &mut bool,
 ) {
     unsafe {
-        *tui_out = Some(Box::new(TUIData::new()));
-        let tui: &mut TUIData = (*tui_out).as_mut().unwrap();
-
         signal_watcher_init(&mut *tui.loop_, tui_winch_handle(tui), &raw mut *tui);
         signal_watcher_start(&mut *tui_winch_handle(tui), SIGWINCH);
 
         tui.grid.cells.clear();
         tui_terminal_start(tui);
 
-        let timer = tui_startup_delay_timer(tui);
-        uv_timer_init(tui.loop_.cast(), timer);
-        *timer.cast::<*mut TUIData>() = &raw mut *tui;
+        let tui_ptr: *mut TUIData = &raw mut *tui;
+        let loop_ptr = tui.loop_.cast();
+        let timer: *mut uv_timer_t = tui_startup_delay_timer(tui);
+        uv_timer_init(loop_ptr, timer);
+        *timer.cast::<*mut TUIData>() = tui_ptr;
         uv_timer_start(timer, Some(after_startup_cb), 100, 0);
 
         loop_poll_events(&mut g_st().main_loop, 1);
-        *width = tui.width;
-        *height = tui.height;
-        *term = tui.term.clone();
-        *rgb = tui.rgb;
+        *width = (*tui_ptr).width;
+        *height = (*tui_ptr).height;
+        *term = (*tui_ptr).term.clone();
+        *rgb = (*tui_ptr).rgb;
     }
 }
 
@@ -953,7 +952,7 @@ fn terminfo_start(tui: &mut TUIData) {
     );
     unsafe { uv_loop_init(write_loop) };
     if tui.out_isatty {
-        let ret = unsafe { uv_tty_init(write_loop, output_handle.cast(), tui.out_fd, 0) };
+        let ret = unsafe { uv_tty_init(write_loop, output_handle, tui.out_fd, 0) };
         if ret != 0 && log_st().g_min_log_level <= LOGLVL_ERR {
             logmsg!(
                 LOGLVL_ERR,
@@ -970,7 +969,7 @@ fn terminfo_start(tui: &mut TUIData) {
             let mut retry_count = 10;
             let mut ret;
             loop {
-                ret = unsafe { uv_tty_set_mode(output_handle.cast(), UV_TTY_MODE_IO) };
+                ret = unsafe { uv_tty_set_mode(output_handle, UV_TTY_MODE_IO) };
                 if ret == UV_EINTR && retry_count > 0 {
                     retry_count -= 1;
                 } else {
@@ -990,7 +989,7 @@ fn terminfo_start(tui: &mut TUIData) {
             }
         }
     } else {
-        let ret = unsafe { uv_pipe_init(write_loop, output_handle.cast(), 0) };
+        let ret = unsafe { uv_pipe_init(write_loop, output_handle, 0) };
         if ret != 0 && log_st().g_min_log_level <= LOGLVL_ERR {
             logmsg!(
                 LOGLVL_ERR,
@@ -1002,7 +1001,7 @@ fn terminfo_start(tui: &mut TUIData) {
                 unsafe { uv_strerror(ret) },
             );
         }
-        let ret = unsafe { uv_pipe_open(output_handle.cast(), tui.out_fd) };
+        let ret = unsafe { uv_pipe_open(output_handle, tui.out_fd) };
         if ret != 0 && log_st().g_min_log_level <= LOGLVL_ERR {
             logmsg!(
                 LOGLVL_ERR,
@@ -1077,11 +1076,7 @@ fn tui_terminal_start(tui: &mut TUIData) {
     terminfo_start(tui);
     let input = tui_input(tui);
     if input.loop_.is_null() {
-        tinput_init(
-            &mut *input,
-            (&raw mut g_st().main_loop).cast::<Loop>(),
-            &tui.ti,
-        );
+        tinput_init(&mut *input, &mut g_st().main_loop, &tui.ti);
     }
     tui_guess_size(tui);
     tinput_start(&mut *input);
@@ -1160,7 +1155,7 @@ pub fn tui_stop(tui: &mut TUIData) {
     tinput_destroy(&mut *input);
     signal_watcher_stop(&mut *tui_winch_handle(tui));
     signal_watcher_close(&mut *tui_winch_handle(tui));
-    unsafe { uv_close(tui_startup_delay_timer(tui).cast(), None) };
+    unsafe { uv_close(tui_startup_delay_timer(tui), None) };
 }
 
 fn tui_stop_cb(tui: &mut TUIData) {
@@ -1831,7 +1826,7 @@ pub fn tui_mode_change(tui: &mut TUIData, _mode: NvimString, mode_idx: Integer) 
     #[cfg(unix)]
     unsafe {
         if tui.out_isatty && tui.is_starting && !g_st().stdin_isatty {
-            let ret = uv_tty_set_mode(tui_output_handle(tui).cast(), UV_TTY_MODE_NORMAL);
+            let ret = uv_tty_set_mode(tui_output_handle(tui), UV_TTY_MODE_NORMAL);
             if ret != 0 && log_st().g_min_log_level <= LOGLVL_ERR {
                 logmsg!(
                     LOGLVL_ERR,
@@ -1843,7 +1838,7 @@ pub fn tui_mode_change(tui: &mut TUIData, _mode: NvimString, mode_idx: Integer) 
                     uv_strerror(ret),
                 );
             }
-            let ret = uv_tty_set_mode(tui_output_handle(tui).cast(), UV_TTY_MODE_IO);
+            let ret = uv_tty_set_mode(tui_output_handle(tui), UV_TTY_MODE_IO);
             if ret != 0 && log_st().g_min_log_level <= LOGLVL_ERR {
                 logmsg!(
                     LOGLVL_ERR,
@@ -2011,7 +2006,7 @@ pub fn tui_ui_send(tui: &mut TUIData, content: NvimString) {
     let ret = unsafe {
         uv_write(
             req.as_mut_ptr().cast(),
-            tui_output_handle(tui).cast(),
+            tui_output_handle(tui),
             &raw const buf,
             1,
             None,
@@ -2303,24 +2298,16 @@ pub fn tui_raw_line(
     clearcol: Integer,
     clearattr: Integer,
     flags: LineFlags,
-    chunk: *const Schar,
-    attrs: *const Sattr,
+    chunk: &[Schar],
+    attrs: &[Sattr],
 ) {
     {
         let attr_count = tui.attrs.len();
         let cells = &mut tui.grid.cells;
         let row_cells = &mut cells[linerow as usize];
         let count = (endcol - startcol).max(0) as usize;
-        let (chunk_slice, attrs_slice) = if count == 0 {
-            (&[][..], &[][..])
-        } else {
-            unsafe {
-                (
-                    std::slice::from_raw_parts(chunk, count),
-                    std::slice::from_raw_parts(attrs, count),
-                )
-            }
-        };
+        let chunk_slice = &chunk[..count];
+        let attrs_slice = &attrs[..count];
         for c in startcol..endcol {
             let idx = (c - startcol) as usize;
             let cell = &mut row_cells[c as usize];
@@ -2443,8 +2430,7 @@ pub fn tui_guess_size(tui: &mut TUIData) {
 
     let mut got_size = false;
     if tui.out_isatty
-        && unsafe { uv_tty_get_winsize(tui_output_handle(tui).cast(), &mut width, &mut height) }
-            == 0
+        && unsafe { uv_tty_get_winsize(tui_output_handle(tui), &mut width, &mut height) } == 0
     {
         got_size = true;
     }
@@ -2957,7 +2943,7 @@ fn flush_buf_raw(tui: &mut TUIData, finish: FlushBufFinish, buf_to_flush: Option
             let ret = unsafe {
                 uv_write(
                     req.as_mut_ptr().cast(),
-                    tui_output_handle(tui).cast(),
+                    tui_output_handle(tui),
                     bufs.as_ptr(),
                     nbufs as u32,
                     None,

@@ -1889,7 +1889,7 @@ fn ins_compl_build_pum() -> i32 {
         if ctrl_x_mode_normal()
             && opt_vars().p_inf == 0
             && !insexp().compl_orig_text.data.is_null()
-            && ignorecase(insexp().compl_orig_text.data) == 0
+            && ignorecase(crate::memory::cstr_from_ptr(insexp().compl_orig_text.data)) == 0
             && !cot_fuzzy()
         {
             comp.cp_flags &= !CP_ICASE;
@@ -2113,7 +2113,7 @@ fn ins_compl_dictionaries(
             }
         }
 
-        regmatch.rm_ic = ignorecase(pat) != 0;
+        regmatch.rm_ic = ignorecase(crate::memory::cstr_from_ptr(pat)) != 0;
         while !crate::memory::cstr_is_empty(dict) && !g_st().got_int && !insexp().compl_interrupted
         {
             if flags == DICT_EXACT {
@@ -3881,14 +3881,12 @@ fn get_complete_info(what_list: Option<&TvList>, retdict: &mut TvDict) {
         }
         if ret && (what_flag & CI_WHAT_SELECTED) != 0 {
             ret = tv_dict_add_nr(retdict, c"selected", Varnumber::from(selected_idx));
-            let wp = win_float_find(K_WIN_INFO);
-            if !wp.is_null() {
-                let wp = crate::globals::gmut(wp);
+            if let Some(wp) = win_float_find(K_WIN_INFO) {
                 tv_dict_add_nr(retdict, c"preview_winid", Varnumber::from(wp.handle));
                 tv_dict_add_nr(
                     retdict,
                     c"preview_bufnr",
-                    Varnumber::from((*wp).buf_mut().b_fnum),
+                    Varnumber::from(wp.buf_mut().b_fnum),
                 );
             }
         }
@@ -4095,9 +4093,8 @@ fn process_next_cpt_value(
 
 fn get_next_include_file_completion(compl_type: i32) {
     find_pattern_in_path(
-        compl_pattern_ptr().cast(),
+        crate::memory::cstr_slice(compl_pattern_ptr().cast(), compl_pattern_len()),
         insexp().compl_direction,
-        compl_pattern_len(),
         false,
         false,
         if compl_type == CTRL_X_PATH_DEFINES && (insexp().compl_cont_status & CONT_SOL) == 0 {
@@ -4149,12 +4146,12 @@ fn get_next_dict_tsr_completion(
 
 fn get_next_tag_completion() {
     let save_p_ic = opt_vars().p_ic;
-    opt_vars().p_ic = ignorecase(compl_pattern_ptr().cast());
+    opt_vars().p_ic = ignorecase(crate::memory::cstr_from_ptr(compl_pattern_ptr().cast()));
 
     g_st().g_tag_at_cursor = true;
     let mut matches: Vec<Vec<u8>> = Vec::new();
     if find_tags(
-        compl_pattern_ptr().cast(),
+        crate::memory::cstr_from_ptr(compl_pattern_ptr().cast()),
         &mut matches,
         TAG_REGEXP
             | TAG_NAMES
@@ -4166,7 +4163,7 @@ fn get_next_tag_completion() {
                 0
             },
         TAG_MANY,
-        curbuf_mut().b_ffname,
+        crate::memory::cstr_as_opt_cstr(curbuf_mut().b_ffname),
     ) == OK
         && !matches.is_empty()
     {
@@ -4629,7 +4626,7 @@ fn get_next_default_completion(st: &mut InsComplNextState, start_pos: &mut Curso
                 crate::globals::gmut(st.ins_buf),
                 &mut *st.cur_match_pos_ptr(),
                 insexp().compl_direction,
-                compl_pattern_ptr().cast(),
+                crate::memory::cstr_from_ptr(compl_pattern_ptr().cast()),
             ) {
                 OK
             } else {
@@ -4637,12 +4634,12 @@ fn get_next_default_completion(st: &mut InsComplNextState, start_pos: &mut Curso
             };
         } else {
             found_new_match = searchit(
-                ptr::null_mut(),
+                None,
                 crate::globals::gmut(st.ins_buf),
                 st.cur_match_pos_ptr(),
                 None,
                 insexp().compl_direction,
-                compl_pattern_ptr().cast(),
+                crate::memory::cstr_from_ptr(compl_pattern_ptr().cast()),
                 compl_pattern_len(),
                 1,
                 SEARCH_KEEP + SEARCH_NFMSG,
@@ -5390,7 +5387,7 @@ fn find_common_prefix(prefix_len: &mut usize, curbuf_only: bool) -> *mut u8 {
         if ctrl_x_mode_normal()
             && opt_vars().p_inf == 0
             && !insexp().compl_orig_text.data.is_null()
-            && ignorecase(insexp().compl_orig_text.data) == 0
+            && ignorecase(crate::memory::cstr_from_ptr(insexp().compl_orig_text.data)) == 0
         {
             compl.cp_flags &= !CP_ICASE;
         }
@@ -6767,10 +6764,10 @@ pub fn free_insexpand_stuff() {
 }
 
 fn spell_back_to_badword() {
-    let mut tpos = curwin_mut().w_cursor;
+    let tpos = curwin_mut().w_cursor;
     insexp().spell_bad_len = spell_move_to(curwin_mut(), BACKWARD, SMT_ALL, true, ptr::null_mut());
     if curwin_mut().w_cursor.col != tpos.col {
-        start_arrow(&raw mut tpos, true, NUL as i32);
+        start_arrow(Some(tpos), true, NUL as i32);
     }
 }
 

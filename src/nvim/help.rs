@@ -219,7 +219,7 @@ pub fn ex_help(eap: &mut Exarg) {
         g_st().restart_edit = 0;
         g_st().key_typed = old_key_typed;
 
-        do_tag(None, tag.as_ptr().cast_mut(), DT_HELP, 1, 0, true);
+        do_tag(None, &tag, DT_HELP, 1, 0, true);
 
         if empty_fnum != 0
             && curbuf_mut().b_fnum != empty_fnum
@@ -351,11 +351,11 @@ pub fn find_help_tags(arg: &CStr, matches: &mut Vec<std::ffi::CString>, keep_lan
     }
     let mut raw_matches: Vec<Vec<u8>> = Vec::new();
     if find_tags(
-        g_st().iobuff.as_mut_ptr(),
+        crate::memory::cstr_from_ptr(g_st().iobuff.as_ptr()),
         &mut raw_matches,
         flags,
         crate::regexp::MAXCOL,
-        ptr::null_mut(),
+        None,
     ) == OK
         && !raw_matches.is_empty()
     {

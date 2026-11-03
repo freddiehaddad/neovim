@@ -1541,7 +1541,7 @@ pub fn mc_zq(oap: &mut Oparg, cap: &mut Cmdarg, origin: CursorPos) {
     if blockwise {
         let [vcol0, vcol1] = &mut vcols;
         getvcols(
-            curwin_ptr(),
+            curwin_mut(),
             &mut v.vi_start,
             &mut v.vi_end,
             vcol0,

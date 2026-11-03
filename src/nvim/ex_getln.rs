@@ -774,11 +774,13 @@ fn may_do_incsearch_highlighting(firstc: i32, count: i32, s: &mut IncsearchState
                 firstc
             },
             search_delim,
-            getln_st()
-                .ccline
-                .cmdbuff
-                .wrapping_add(skiplen as usize)
-                .cast(),
+            crate::memory::cstr_as_opt_cstr(
+                getln_st()
+                    .ccline
+                    .cmdbuff
+                    .wrapping_add(skiplen as usize)
+                    .cast(),
+            ),
             patlen as usize,
             count,
             search_flags,
@@ -910,13 +912,13 @@ fn may_add_char_to_search(firstc: i32, c: &mut i32, s: &mut IncsearchState) -> b
             // the character to lowercase
             if opt_vars().p_ic != 0
                 && opt_vars().p_scs != 0
-                && !pat_has_uppercase(
+                && !pat_has_uppercase(crate::memory::cstr_from_ptr(
                     getln_st()
                         .ccline
                         .cmdbuff
                         .wrapping_add(skiplen as usize)
                         .cast(),
-                )
+                ))
             {
                 *c = mb_tolower(*c);
             }
@@ -1288,8 +1290,10 @@ fn command_line_enter(
             if !s.gotesc && getln_st().ccline.level == 1 {
                 atom_cmdline_set(
                     s.firstc,
-                    getln_st().ccline.cmdbuff.cast(),
-                    getln_st().ccline.cmdlen as usize,
+                    crate::memory::cstr_slice(
+                        getln_st().ccline.cmdbuff.cast(),
+                        getln_st().ccline.cmdlen as usize,
+                    ),
                 );
             }
 
@@ -1966,26 +1970,27 @@ fn may_do_command_line_next_incsearch(
     ui_flush();
 
     let mut t: CursorPos;
-    let mut pat = getln_st().ccline.cmdbuff.wrapping_add(skiplen as usize);
-    let mut dircp = ptr::null_mut();
-    let mut searchstr = pat;
-    let mut strcopy = Vec::new();
-    let mut searchstrlen = patlen as usize;
+    let pat = getln_st().ccline.cmdbuff.wrapping_add(skiplen as usize);
+    let mut pat_buf =
+        crate::memory::cstr_slice(pat.cast(), (getln_st().ccline.cmdlen - skiplen) as usize)
+            .to_vec();
+    pat_buf.push(0);
+    let mut pat_off = 0usize;
+    let mut had_copy = false;
     let mut offset = SearchOffset::new();
     let mut search_flags = SEARCH_NOOF;
     let mut patlen_s = (getln_st().ccline.cmdlen - skiplen) as usize;
 
-    parse_search_pattern_offset(
-        &mut pat,
+    let (_, searchstr_cstr) = parse_search_pattern_offset(
+        &mut pat_buf,
+        &mut pat_off,
         &mut patlen_s,
         search_delim,
         SEARCH_OPT,
-        &mut strcopy,
-        &mut searchstr,
-        &mut searchstrlen,
-        &mut dircp,
+        &mut had_copy,
         &mut offset,
     );
+    let searchstrlen = searchstr_cstr.as_bytes().len();
 
     if next_match {
         t = s.match_end;
@@ -2001,12 +2006,12 @@ fn may_do_command_line_next_incsearch(
     }
     g_st().emsg_off += 1;
     let found = searchit(
-        curwin_ptr(),
+        Some(curwin_mut()),
         curbuf_mut(),
         &mut t,
         None,
         if next_match { FORWARD } else { BACKWARD },
-        searchstr.cast(),
+        &searchstr_cstr,
         searchstrlen,
         count,
         search_flags,
@@ -2015,9 +2020,6 @@ fn may_do_command_line_next_incsearch(
         None,
     );
     g_st().emsg_off -= 1;
-    if !dircp.is_null() {
-        *crate::globals::gptr(dircp) = search_delim as _;
-    }
     ui_busy_stop();
     if found != 0 {
         let match_start = s.match_start;
@@ -4803,7 +4805,10 @@ fn get_cmdline_completion() -> Option<std::ffi::CString> {
         return None;
     }
 
-    cmdcomplete_type_to_str(xp_context, xpc.xp_arg.cast())
+    cmdcomplete_type_to_str(
+        xp_context,
+        crate::memory::cstr_as_opt_bytes(xpc.xp_arg.cast()),
+    )
 }
 
 /// `"getcmdcomplpat()"` function.
@@ -5287,11 +5292,9 @@ pub fn get_user_input(argvars: &[TypVal], rettv: &mut TypVal, inputdialog: bool,
     let mut xp_type: i32 = EXPAND_NOTHING;
     let mut xp_arg: Option<std::ffi::CString> = None;
     if !xp_name.is_null() {
-        let xp_namelen = crate::memory::cstr_len(xp_name.cast()) as i32;
         let mut argt: u32 = 0;
         if !parse_compl_arg(
-            xp_name.cast(),
-            xp_namelen,
+            crate::memory::cstr_as_bytes(xp_name.cast()),
             &mut xp_type,
             &mut argt,
             &mut xp_arg,

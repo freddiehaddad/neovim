@@ -2224,7 +2224,7 @@ pub(super) fn reg_match_visual() -> bool {
         let cols = win_linetabsize(
             &mut *wp,
             re_st().rex.reg_firstlnum + re_st().rex.lnum,
-            re_st().rex.line.cast(),
+            crate::memory::cstr_from_ptr(re_st().rex.line.cast()),
             col,
         );
         if cols < start

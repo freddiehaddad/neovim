@@ -101,7 +101,7 @@ impl Cmdarg {
 
     #[inline]
     pub fn oap_mut(&self) -> &'static mut Oparg {
-        crate::globals::gmut(self.oap)
+        unsafe { &mut *self.oap }
     }
 }
 
@@ -406,11 +406,8 @@ pub(crate) fn atom_st() -> &'static mut CmdAtomModuleState {
 }
 
 #[inline]
-pub fn sb_concat(sb: &mut Vec<u8>, s: impl crate::strings::IntoCCharPtr) {
-    let s = s.into_c_char_ptr();
-    if !s.is_null() {
-        sb.extend_from_slice(crate::memory::cstr_as_bytes(s));
-    }
+pub fn sb_concat(sb: &mut Vec<u8>, s: &[u8]) {
+    sb.extend_from_slice(crate::memory::bytes_until_nul(s));
 }
 
 #[inline]
@@ -500,7 +497,7 @@ fn atom_origin_changed(origin: CmdOrigin) -> bool {
 fn atom_origin_moved(origin: CmdOrigin) -> bool {
     bufref_valid(Some(&origin.buf))
         && win_valid(origin.win)
-        && crate::globals::gopt(origin.win)
+        && unsafe { origin.win.as_ref() }
             .is_some_and(|w| w.w_buffer == origin.buf.br_buf && !equalpos(origin.pos, w.w_cursor))
 }
 
@@ -736,18 +733,14 @@ fn atom_emit(atom: &CmdAtom) {
         }
         dict_put(&mut data, c"atoms", array_obj(atoms));
     }
-    let buf = if !atom.origin.buf.br_buf.is_null() {
-        atom.origin.buf.br_buf
-    } else {
-        g_st().curbuf
-    };
+    let buf = atom.origin.buf.buf_opt().unwrap_or_else(curbuf_mut);
     let mut obj = dict_obj(data);
     aucmd_defer(
         EVENT_CMDATOM,
         TYPE_NAMES[atom.r#type as usize].as_ptr().cast_mut(),
         ptr::null_mut(),
         AUGROUP_ALL,
-        crate::globals::gmut(buf),
+        buf,
         Some(&mut obj),
     );
     api_free_dict(data);
@@ -848,7 +841,7 @@ fn atom_stage_flush(frame: &mut CmdFrame) {
 
 fn atom_composite_lhs() -> std::ffi::CString {
     let mut keys: Vec<u8> = Vec::new();
-    sb_concat(&mut keys, ptr::addr_of!(atom_st().composite.lhs).cast());
+    sb_concat(&mut keys, &atom_st().composite.lhs);
     let tail = &atom_st().typed.keys.as_slice()[atom_st().typed.map_start..];
     keys.extend_from_slice(tail);
     cstr_from_bytes(&keys)
@@ -871,20 +864,15 @@ pub fn atom_composite_active() -> bool {
     atom_st().composite.active
 }
 
-fn atom_composite_label(lhs: impl crate::strings::IntoCCharPtr, len: usize) {
-    let lhs = lhs.into_c_char_ptr();
-    {
-        let copy_len = len.min(MAXMAPLEN + 3);
-        atom_st().composite.lhs[..copy_len]
-            .copy_from_slice(crate::memory::cstr_slice(lhs, copy_len));
-        atom_st().composite.lhs[copy_len] = 0;
-    }
+fn atom_composite_label(lhs: &[u8]) {
+    let copy_len = lhs.len().min(MAXMAPLEN + 3);
+    atom_st().composite.lhs[..copy_len].copy_from_slice(&lhs[..copy_len]);
+    atom_st().composite.lhs[copy_len] = 0;
 }
 
-fn atom_composite_start(lhs: impl crate::strings::IntoCCharPtr, len: usize) {
-    let lhs = lhs.into_c_char_ptr();
-    if !lhs.is_null() {
-        atom_composite_label(lhs, len);
+fn atom_composite_start(lhs: &[u8]) {
+    if !lhs.is_empty() {
+        atom_composite_label(lhs);
     }
     atom_st().composite.active = true;
     atom_st().composite.queued = false;
@@ -1062,20 +1050,16 @@ pub fn atom_key_class(cmd: i32, arg: i32, arg2: i32) -> u32 {
     0
 }
 
-pub fn atom_cmdline_set(firstc: i32, line: impl crate::strings::IntoCCharPtr, len: usize) {
-    let line = line.into_c_char_ptr();
+pub fn atom_cmdline_set(firstc: i32, line: &[u8]) {
+    if cur_frame_opt().is_none()
+        || !atom_is_user_cmd()
+        || (firstc != b':' as i32 && firstc != K_COMMAND)
     {
-        if cur_frame_opt().is_none()
-            || !atom_is_user_cmd()
-            || (firstc != b':' as i32 && firstc != K_COMMAND)
-        {
-            return;
-        }
-        let root = root_frame();
-        if root.cmdline.is_none() {
-            let slice = crate::memory::cstr_slice(line, len);
-            root.cmdline = Some(std::ffi::CString::new(slice).unwrap());
-        }
+        return;
+    }
+    let root = root_frame();
+    if root.cmdline.is_none() {
+        root.cmdline = Some(std::ffi::CString::new(line).unwrap());
     }
 }
 
@@ -1124,11 +1108,10 @@ fn atom_payload_append(atom: &mut CmdAtom, frame: &mut CmdFrame) {
     frame.payload_start = usize::MAX;
 }
 
-pub fn atom_typed_add(chars: *const u8, len: usize) {
-    if mc_replaying() || !atom_typed_collecting() || g_st().cmdline_star > 0 || len == 0 {
+pub fn atom_typed_add(slice: &[u8]) {
+    if mc_replaying() || !atom_typed_collecting() || g_st().cmdline_star > 0 || slice.is_empty() {
         return;
     }
-    let slice = unsafe { std::slice::from_raw_parts(chars, len) };
     if slice.len() == 3
         && slice[0] == K_SPECIAL
         && (atom_key_class(
@@ -1186,8 +1169,8 @@ pub fn atom_macro_start(regname: i32) {
     if atom_is_user_input() {
         atom_st().composite.r#macro = true;
         if !atom_composite_active() {
-            let lhs: [u8; 3] = [b'@', regname as u8, 0];
-            atom_composite_start(lhs.as_ptr().cast(), 2);
+            let lhs: [u8; 2] = [b'@', regname as u8];
+            atom_composite_start(&lhs);
         }
     }
 }
@@ -1197,42 +1180,37 @@ pub fn atom_stuff_start(cap: &Cmdarg) {
         return;
     }
     let lhs = atom_redo_keys(&atom_cmd_spec(cap));
-    atom_composite_start(lhs.as_ptr(), lhs.as_bytes().len());
+    atom_composite_start(lhs.as_bytes());
 }
 
-pub fn atom_map_start(lhs: impl crate::strings::IntoCCharPtr, len: usize, peeked: bool) {
-    let lhs = lhs.into_c_char_ptr();
-    {
-        if mc_replaying() || g_st().reg_executing != 0 || g_st().ex_normal_busy != 0 {
+pub fn atom_map_start(lhs: &[u8], peeked: bool) {
+    if mc_replaying() || g_st().reg_executing != 0 || g_st().ex_normal_busy != 0 {
+        return;
+    }
+    if (g_st().state_global & MODE_NORMAL) == 0 {
+        atom_composite_label(lhs);
+        return;
+    }
+    if atom_composite_active() {
+        if get_real_state() == MODE_OP_PENDING {
             return;
-        }
-        if (g_st().state_global & MODE_NORMAL) == 0 {
-            atom_composite_label(lhs, len);
-            return;
-        }
-        if atom_composite_active() {
-            if get_real_state() == MODE_OP_PENDING {
-                return;
-            }
-            atom_st().typed.map_start = atom_st().typed.keys.len();
-            atom_composite_end();
-        }
-        let op = get_vim_var_str(VV_OP);
-        if get_real_state() == MODE_OP_PENDING && !op.is_empty() {
-            assert!(crate::memory::cstr_len(lhs) == len);
-            let mut full_bytes = Vec::from(op.to_bytes());
-            full_bytes.extend_from_slice(crate::memory::cstr_slice(lhs, len));
-            let full = cstr_from_bytes(&full_bytes);
-            atom_composite_start(full.as_ptr(), full.as_bytes().len());
-            atom_st().typed.map_start = atom_st().typed.keys.len();
-            return;
-        }
-        atom_composite_start(lhs, len);
-        if peeked && let Some(cur_frame) = cur_frame_opt() {
-            atom_st().composite.frame = cur_frame.id;
         }
         atom_st().typed.map_start = atom_st().typed.keys.len();
+        atom_composite_end();
     }
+    let op = get_vim_var_str(VV_OP);
+    if get_real_state() == MODE_OP_PENDING && !op.is_empty() {
+        let mut full_bytes = Vec::from(op.to_bytes());
+        full_bytes.extend_from_slice(lhs);
+        atom_composite_start(&full_bytes);
+        atom_st().typed.map_start = atom_st().typed.keys.len();
+        return;
+    }
+    atom_composite_start(lhs);
+    if peeked && let Some(cur_frame) = cur_frame_opt() {
+        atom_st().composite.frame = cur_frame.id;
+    }
+    atom_st().typed.map_start = atom_st().typed.keys.len();
 }
 
 pub fn atom_visual_reset() {
@@ -1694,7 +1672,7 @@ pub fn atom_cmd_start(cmdchar: i32) {
     if is_root && !mc_replaying() && !atom_st().composite.active && atom_st().composite.lhs[0] != 0
     {
         if !g_st().key_typed && consumers {
-            atom_composite_start(ptr::null(), 0);
+            atom_composite_start(&[]);
             atom_st().typed.map_start = atom_st().typed.keys.len();
             atom_st().composite.follow = K_NONE;
         } else {
@@ -1930,8 +1908,8 @@ mod tests {
     #[test]
     fn sb_concat_works() {
         let mut sb: Vec<u8> = Vec::new();
-        sb_concat(&mut sb, c"abc");
-        sb_concat(&mut sb, c"def");
+        sb_concat(&mut sb, b"abc");
+        sb_concat(&mut sb, b"def");
         assert_eq!(sb, b"abcdef");
 
         let mut v = CmdAtomVec::new();

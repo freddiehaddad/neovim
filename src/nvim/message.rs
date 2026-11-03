@@ -1116,7 +1116,13 @@ pub fn emsg_multiline(
         g_st().emsg_severe = false;
 
         if g_st().emsg_off == 0 || crate::strings::vim_haschr(opt_vars().p_debug, b't' as i32) {
-            if cause_errthrow(s, multiline, msg_st().is_multihl > 1, severe, &mut ignore) {
+            if cause_errthrow(
+                crate::memory::cstr_from_ptr(s),
+                multiline,
+                msg_st().is_multihl > 1,
+                severe,
+                &mut ignore,
+            ) {
                 if !ignore {
                     g_st().did_emsg += 1;
                 }
@@ -1926,7 +1932,7 @@ pub fn wait_return(redraw: i32) {
                 || c == K_X1MOUSE
                 || c == K_X2MOUSE
             {
-                jump_to_mouse(MOUSE_SETPOS, ptr::null_mut(), 0);
+                jump_to_mouse(MOUSE_SETPOS, None, 0);
             } else if !g_st().key_typed
                 || (!crate::strings::vim_haschr(c"\r\n ", c)
                     && c != CTRL_C_CONST

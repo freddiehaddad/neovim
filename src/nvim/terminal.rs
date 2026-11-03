@@ -2145,9 +2145,9 @@ fn send_mouse_event(term: &mut Terminal, mut c: i32) -> bool {
     let mut row = g_st().mouse_row;
     let mut col = g_st().mouse_col;
     let mut grid = g_st().mouse_grid;
-    let mouse_win = mouse_find_win_inner(&mut grid, &mut row, &mut col);
-    if !mouse_win.is_null() {
-        let mouse_win = crate::globals::gmut(mouse_win);
+    let mut is_term_mouse_win = false;
+    if let Some(mouse_win) = mouse_find_win_inner(&mut grid, &mut row, &mut col) {
+        is_term_mouse_win = (*mouse_win).buf_mut().terminal == term;
         let offset: i32;
         if !term.suspended
             && !term.closed
@@ -2214,11 +2214,7 @@ fn send_mouse_event(term: &mut Terminal, mut c: i32) -> bool {
         }
     }
 
-    if (c == K_LEFTRELEASE
-        && !mouse_win.is_null()
-        && crate::globals::gptr(mouse_win).buf_mut().terminal == term)
-        || c == K_MOUSEMOVE
-    {
+    if (c == K_LEFTRELEASE && is_term_mouse_win) || c == K_MOUSEMOVE {
         return false;
     }
 

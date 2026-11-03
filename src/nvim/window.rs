@@ -1377,11 +1377,9 @@ pub fn do_window(mut nchar: i32, mut prenum: i32, mut xchar: i32) {
             if ident.is_empty() {
                 return;
             }
-            let pat = std::ffi::CString::new(ident).unwrap();
             find_pattern_in_path(
-                pat.as_ptr().cast_mut(),
+                ident,
                 0,
-                ident.len(),
                 true,
                 prenum == 0,
                 type_,
@@ -1454,7 +1452,7 @@ pub fn do_window(mut nchar: i32, mut prenum: i32, mut xchar: i32) {
                     config.height = curwin_mut().w_height;
                     config.external = true;
                     let mut err = ERROR_INIT;
-                    if win_new_float(curwin_ptr(), false, config, &mut err).is_null() {
+                    if win_new_float(Some(curwin_mut()), false, config, &mut err).is_none() {
                         emsg(err.msg_cstr());
                         api_clear_error(&mut err);
                         beep_flush();
@@ -3548,7 +3546,7 @@ pub fn win_close(win: *mut WinInfoInfo, free_buf: bool, force: bool) -> bool {
     if ptr::eq(win, curwin_ptr()) {
         leaving_window(curwin_mut());
 
-        let wp = if crate::globals::gptr(win).w_floating {
+        let wp: *mut WinInfoInfo = if crate::globals::gptr(win).w_floating {
             win_float_find_altwin(crate::globals::gref(win), None)
         } else {
             frame2win(win_altframe(crate::globals::gmut(win), ptr::null_mut()))
@@ -4965,9 +4963,8 @@ pub fn win_alloc_ctx_win(idx: i32) {
     fconfig.focusable = false;
     fconfig.mouse = false;
     fconfig.hide = true;
-    let cw_win = win_new_float(ptr::null_mut(), true, fconfig, &mut err);
-    g_st().ctx_win_vec.as_mut_slice()[idx as usize].cw_win = cw_win;
-    let cw_ref = crate::globals::gmut(cw_win);
+    let cw_ref = win_new_float(None, true, fconfig, &mut err).unwrap();
+    g_st().ctx_win_vec.as_mut_slice()[idx as usize].cw_win = cw_ref;
     cw_ref.buf_mut().b_nwindows -= 1;
     reset_binding(cw_ref);
 }
@@ -7452,7 +7449,7 @@ pub fn scroll_to_fraction(wp: &mut WinInfoInfo, prev_height: i32) {
             }
         } else if sline > 0 {
             while sline > 0 && lnum > 1 {
-                has_folding(wp, lnum, Some(&mut lnum), ptr::null_mut());
+                has_folding(wp, lnum, Some(&mut lnum), None);
                 if lnum == 1 {
                     line_size = i32::from(!decor_conceal_line(wp, lnum - 1, false));
                     sline -= 1;
@@ -7468,7 +7465,7 @@ pub fn scroll_to_fraction(wp: &mut WinInfoInfo, prev_height: i32) {
             }
 
             if sline < 0 {
-                has_folding(wp, lnum, None, &raw mut lnum);
+                has_folding(wp, lnum, None, Some(&mut lnum));
                 lnum += 1;
                 wp.w_wrow -= line_size + sline;
             } else if sline > 0 {

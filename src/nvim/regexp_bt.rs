@@ -2895,7 +2895,7 @@ fn regmatch(mut scan: *mut u8, tm: Option<Proftime>, mut timed_out: Option<&mut 
                         let vcol = win_linetabsize(
                             crate::globals::gmut(wp),
                             lnum,
-                            re_st().rex.line.cast(),
+                            crate::memory::cstr_from_ptr(re_st().rex.line.cast()),
                             crate::memory::ptr_offset_from(re_st().rex.input, re_st().rex.line)
                                 as Colnr,
                         );

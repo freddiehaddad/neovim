@@ -259,13 +259,22 @@ pub fn ui_client_detach() {
 }
 
 pub fn ui_client_run() -> ! {
+    uic_st().tui = Some(Box::new(TUIData::new()));
+    let mut tui_width = uic_st().tui_width;
+    let mut tui_height = uic_st().tui_height;
+    let mut tui_term = uic_st().tui_term.take();
+    let mut tui_rgb = uic_st().tui_rgb;
     tui_start(
-        &raw mut uic_st().tui,
-        &mut uic_st().tui_width,
-        &mut uic_st().tui_height,
-        &raw mut uic_st().tui_term,
-        &mut uic_st().tui_rgb,
+        tui_ptr(),
+        &mut tui_width,
+        &mut tui_height,
+        &mut tui_term,
+        &mut tui_rgb,
     );
+    uic_st().tui_width = tui_width;
+    uic_st().tui_height = tui_height;
+    uic_st().tui_term = tui_term;
+    uic_st().tui_rgb = tui_rgb;
     ui_client_attach(
         uic_st().tui_width,
         uic_st().tui_height,
@@ -405,8 +414,8 @@ pub fn ui_client_event_raw_line(g: &mut GridLineEvent) {
         clearcol,
         Integer::from(g.cur_attr),
         lineflags,
-        g_st().grid_line_buf_char.as_mut_ptr(),
-        g_st().grid_line_buf_attr.as_mut_ptr(),
+        &g_st().grid_line_buf_char,
+        &g_st().grid_line_buf_attr,
     );
 }
 

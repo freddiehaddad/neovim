@@ -2113,7 +2113,7 @@ pub fn buf_write(
         if retval == OK && write_undo_file {
             let mut hash = [0u8; UNDO_HASH_SIZE];
             sha_ctx.finish_into(&mut hash);
-            u_write_undo(ptr::null(), false, &mut *buf, hash.as_mut_ptr());
+            u_write_undo(None, false, &mut *buf, &hash);
         }
 
         if !should_abort(retval) {

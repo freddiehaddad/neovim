@@ -2709,7 +2709,7 @@ pub fn readfile(
                 }
                 if newfile || read_buffer {
                     redraw_curbuf_later(UPD_NOT_VALID);
-                    diff_invalidate(g_st().curbuf);
+                    diff_invalidate(curbuf_mut());
                     fold_update_all(curwin_mut());
                 } else if linecnt != 0 {
                     appended_lines_mark(from, linecnt);
@@ -2949,7 +2949,7 @@ pub fn readfile(
             if read_undo_file {
                 let mut hash: [u8; UNDO_HASH_SIZE] = [0; UNDO_HASH_SIZE];
                 sha_ctx.finish_into(&mut hash);
-                u_read_undo(ptr::null_mut(), hash.as_ptr(), fname.cast());
+                u_read_undo(None, &hash, crate::memory::cstr_as_opt_cstr(fname.cast()));
             }
 
             if !read_stdin && !read_fifo && (!read_buffer || !sfname.is_null()) {
@@ -4183,8 +4183,8 @@ pub fn buf_check_timestamp(buf: &mut FileBuf) -> i32 {
         buf_reload(&mut *buf, orig_mode, reload == RELOAD_DETECT);
         if bufref_valid(Some(&bufref)) && buf.b_p_udf != 0 && !buf.b_ffname.is_null() {
             let mut hash: [u8; UNDO_HASH_SIZE] = [0; UNDO_HASH_SIZE];
-            u_compute_hash(buf, hash.as_mut_ptr());
-            u_write_undo(ptr::null(), false, buf, hash.as_mut_ptr());
+            u_compute_hash(buf, &mut hash);
+            u_write_undo(None, false, buf, &hash);
         }
     }
 
@@ -4309,7 +4309,7 @@ pub fn buf_reload(buf: &mut FileBuf, orig_mode: i32, reload_options: bool) {
         wipe_buffer(savebuf, false);
     }
 
-    diff_invalidate(g_st().curbuf);
+    diff_invalidate(curbuf_mut());
 
     curwin_mut().w_topline = old_topline.min(curbuf_mut().b_ml.ml_line_count);
     curwin_mut().w_cursor = old_cursor;

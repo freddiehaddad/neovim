@@ -557,7 +557,7 @@ pub fn prepare_search_hl(wp: &mut WinInfoInfo, search_hl: &mut SynMatch, lnum: L
             if shl.first_lnum == 0 {
                 shl.first_lnum = lnum;
                 while shl.first_lnum > wp.w_topline {
-                    if has_folding(&raw mut *wp, shl.first_lnum - 1, None, ptr::null_mut()) {
+                    if has_folding(&mut *wp, shl.first_lnum - 1, None, None) {
                         break;
                     }
                     shl.first_lnum -= 1;

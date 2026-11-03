@@ -515,14 +515,14 @@ fn shift_block(oap: &mut Oparg, amount: i32) {
             &mut csarg,
             curwin_mut(),
             curwin_mut().w_cursor.lnum,
-            bd.textstart.cast(),
+            crate::memory::cstr_from_ptr(bd.textstart.cast()),
         );
         let mut ci = utf_ptr2_str_char_info(bd.textstart.cast());
         let mut vcol = bd.start_vcol;
         while ascii_iswhite(ci.chr.value) {
             let cli = utf_cluster_info(ci);
             let incr =
-                win_charsize(cstype, vcol, ci.ptr, ci.chr.value, &mut csarg, cli.cells).width;
+                win_charsize(cstype, vcol, ci.cstr(), ci.chr.value, &mut csarg, cli.cells).width;
             ci = cli.next;
             total += incr;
             vcol += incr;
@@ -580,13 +580,13 @@ fn shift_block(oap: &mut Oparg, amount: i32) {
             &mut csarg,
             curwin_mut(),
             curwin_mut().w_cursor.lnum,
-            bd.textstart.cast(),
+            crate::memory::cstr_from_ptr(bd.textstart.cast()),
         );
         while ascii_iswhite(i32::from(crate::memory::cstr_first_byte(non_white.cast()))) {
             let incr = win_charsize(
                 cstype,
                 non_white_col,
-                non_white.cast(),
+                crate::memory::cstr_from_ptr(non_white.cast()),
                 i32::from(crate::memory::cstr_first_byte(non_white.cast())),
                 &mut csarg,
                 1,
@@ -606,14 +606,19 @@ fn shift_block(oap: &mut Oparg, amount: i32) {
         if bd.startspaces != 0 {
             verbatim_copy_width -= bd.start_char_vcols;
         }
-        cstype = init_charsize_arg(&mut csarg, curwin_mut(), 0, bd.textstart.cast());
+        cstype = init_charsize_arg(
+            &mut csarg,
+            curwin_mut(),
+            0,
+            crate::memory::cstr_from_ptr(bd.textstart.cast()),
+        );
         let mut ci = utf_ptr2_str_char_info(verbatim_copy_end);
         while verbatim_copy_width < destination_col {
             let cli = utf_cluster_info(ci);
             let incr = win_charsize(
                 cstype,
                 verbatim_copy_width,
-                ci.ptr,
+                ci.cstr(),
                 ci.chr.value,
                 &mut csarg,
                 cli.cells,
@@ -2160,12 +2165,17 @@ pub fn block_prep(oap: &mut Oparg, bdp: &mut BlockDef, lnum: Linenr, is_del: boo
     let mut prev_pstart = line;
 
     let mut csarg = CharsizeArg::new();
-    let mut cstype = init_charsize_arg(&mut csarg, curwin_mut(), lnum, line);
+    let mut cstype = init_charsize_arg(
+        &mut csarg,
+        curwin_mut(),
+        lnum,
+        crate::memory::cstr_from_ptr(line),
+    );
     let mut ci = utf_ptr2_str_char_info(line);
     let mut vcol = bdp.start_vcol;
     while vcol < oap.start_vcol && !crate::memory::cstr_is_empty(ci.ptr) {
         let cli = utf_cluster_info(ci);
-        incr = win_charsize(cstype, vcol, ci.ptr, ci.chr.value, &mut csarg, cli.cells).width;
+        incr = win_charsize(cstype, vcol, ci.cstr(), ci.chr.value, &mut csarg, cli.cells).width;
         vcol += incr;
         if ascii_iswhite(ci.chr.value) {
             bdp.pre_whitesp += incr;
@@ -2209,15 +2219,20 @@ pub fn block_prep(oap: &mut Oparg, bdp: &mut BlockDef, lnum: Linenr, is_del: boo
                 }
             }
         } else {
-            cstype = init_charsize_arg(&mut csarg, curwin_mut(), lnum, line);
+            cstype = init_charsize_arg(
+                &mut csarg,
+                curwin_mut(),
+                lnum,
+                crate::memory::cstr_from_ptr(line),
+            );
             ci = utf_ptr2_str_char_info(pend);
             vcol = bdp.end_vcol;
             let mut prev_pend = pend;
             while vcol <= oap.end_vcol && !crate::memory::cstr_is_empty(ci.ptr) {
                 prev_pend = ci.ptr;
                 let cli = utf_cluster_info(ci);
-                incr =
-                    win_charsize(cstype, vcol, ci.ptr, ci.chr.value, &mut csarg, cli.cells).width;
+                incr = win_charsize(cstype, vcol, ci.cstr(), ci.chr.value, &mut csarg, cli.cells)
+                    .width;
                 vcol += incr;
                 ci = cli.next;
             }
@@ -3031,7 +3046,7 @@ pub fn cursor_pos_info(mut dict: Option<&mut TvDict>) {
                 oparg.motion_type = MT_BLOCK_WISE;
                 oparg.op_type = OP_NOP;
                 getvcols(
-                    curwin_ptr(),
+                    curwin_mut(),
                     &mut min_pos,
                     &mut max_pos,
                     &mut oparg.start_vcol,
@@ -3133,7 +3148,7 @@ pub fn cursor_pos_info(mut dict: Option<&mut TvDict>) {
                     let mut min_col = min_pos.col;
                     let mut max_col = max_pos.col;
                     getvcols(
-                        curwin_ptr(),
+                        curwin_mut(),
                         &mut min_pos,
                         &mut max_pos,
                         &mut min_col,
@@ -3190,7 +3205,11 @@ pub fn cursor_pos_info(mut dict: Option<&mut TvDict>) {
                     curwin_mut().w_cursor.col + 1,
                     curwin_mut().w_virtcol + 1,
                 );
-                col_print(&mut buf2, get_cursor_line_len(), linetabsize_str(p));
+                col_print(
+                    &mut buf2,
+                    get_cursor_line_len(),
+                    linetabsize_str(crate::memory::cstr_as_bytes(p)),
+                );
                 let buf1_cstr = std::ffi::CStr::from_bytes_until_nul(&buf1).unwrap_or_default();
                 let buf2_cstr = std::ffi::CStr::from_bytes_until_nul(&buf2).unwrap_or_default();
 
@@ -3305,10 +3324,10 @@ fn op_colon(oap: &mut Oparg) {
 
         let mut end_of_start_fold = oap.start.lnum;
         has_folding(
-            curwin_ptr(),
+            curwin_mut(),
             oap.start.lnum,
             None,
-            &raw mut end_of_start_fold,
+            Some(&mut end_of_start_fold),
         );
         if oap.end.lnum != oap.start.lnum && oap.end.lnum != end_of_start_fold {
             stuffchar_readbuff(b',' as i32);
@@ -3317,7 +3336,7 @@ fn op_colon(oap: &mut Oparg) {
             } else if oap.end.lnum == curbuf_mut().b_ml.ml_line_count {
                 stuffchar_readbuff(b'$' as i32);
             } else if oap.start.lnum == curwin_mut().w_cursor.lnum
-                && !has_folding(curwin_ptr(), oap.end.lnum, None, ptr::null_mut())
+                && !has_folding(curwin_mut(), oap.end.lnum, None, None)
             {
                 stuff_readbuff(c".+");
                 stuffnum_readbuff(oap.line_count - 1);
@@ -3587,24 +3606,20 @@ pub fn do_pending_operator(cap: &mut Cmdarg, old_col: i32, gui_yank: bool) {
         if lt(oap.start, curwin_mut().w_cursor) {
             if !g_st().visual_global.active {
                 if has_folding(
-                    curwin_ptr(),
+                    curwin_mut(),
                     oap.start.lnum,
                     Some(&mut oap.start.lnum),
-                    ptr::null_mut(),
+                    None,
                 ) {
                     oap.start.col = 0;
                 }
-                if (curwin_mut().w_cursor.col > 0
-                    || oap.inclusive
-                    || oap.motion_type == MT_LINE_WISE)
-                    && has_folding(
-                        curwin_ptr(),
-                        curwin_mut().w_cursor.lnum,
-                        None,
-                        &raw mut curwin_mut().w_cursor.lnum,
-                    )
+                if curwin_mut().w_cursor.col > 0 || oap.inclusive || oap.motion_type == MT_LINE_WISE
                 {
-                    curwin_mut().w_cursor.col = get_cursor_line_len();
+                    let mut cur_lnum = curwin_mut().w_cursor.lnum;
+                    if has_folding(curwin_mut(), cur_lnum, None, Some(&mut cur_lnum)) {
+                        curwin_mut().w_cursor.lnum = cur_lnum;
+                        curwin_mut().w_cursor.col = get_cursor_line_len();
+                    }
                 }
             }
             oap.end = curwin_mut().w_cursor;
@@ -3613,15 +3628,17 @@ pub fn do_pending_operator(cap: &mut Cmdarg, old_col: i32, gui_yank: bool) {
             curwin_mut().w_valid &= !VALID_VIRTCOL;
         } else {
             if !g_st().visual_global.active && oap.motion_type == MT_LINE_WISE {
-                if has_folding(
-                    curwin_ptr(),
-                    curwin_mut().w_cursor.lnum,
-                    Some(&mut curwin_mut().w_cursor.lnum),
-                    ptr::null_mut(),
-                ) {
+                let mut cur_lnum = curwin_mut().w_cursor.lnum;
+                if has_folding(curwin_mut(), cur_lnum, Some(&mut cur_lnum), None) {
+                    curwin_mut().w_cursor.lnum = cur_lnum;
                     curwin_mut().w_cursor.col = 0;
                 }
-                if has_folding(curwin_ptr(), oap.start.lnum, None, &raw mut oap.start.lnum) {
+                if has_folding(
+                    curwin_mut(),
+                    oap.start.lnum,
+                    None,
+                    Some(&mut oap.start.lnum),
+                ) {
                     oap.start.col = ml_get_len(oap.start.lnum);
                 }
             }

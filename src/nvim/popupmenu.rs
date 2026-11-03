@@ -1246,7 +1246,8 @@ fn pum_preview_set_text(
             }
             let save_wrap = win.w_onebuf_opt.wo_wrap;
             win.w_onebuf_opt.wo_wrap = 0;
-            let line_width = win_linetabsize(win, 0, curr.cast(), MAXCOL);
+            let line_width =
+                win_linetabsize(win, 0, crate::memory::cstr_from_ptr(curr.cast()), MAXCOL);
             win.w_onebuf_opt.wo_wrap = save_wrap;
             *max_width = (*max_width).max(line_width);
             replacement.push(string_obj(cstr_to_string(curr.cast())));
@@ -1331,16 +1332,17 @@ pub fn pum_set_info(selected: i32, info: *mut u8) -> *mut WinInfoInfo {
     block_autocmds();
     g_st().redrawing_disabled += 1;
     g_st().no_u_sync += 1;
-    let mut wp = win_float_find(K_WIN_INFO);
-    if wp.is_null() {
-        wp = win_float_special(false, true, K_WIN_INFO);
-        let Some(wp_ref) = crate::globals::gopt_mut(wp) else {
+    let wp_ref = if let Some(wp) = win_float_find(K_WIN_INFO) {
+        wp
+    } else {
+        let Some(wp_ref) = win_float_special(false, true, K_WIN_INFO) else {
             return ptr::null_mut();
         };
         wp_ref.w_topline = 1;
         wp_ref.w_onebuf_opt.wo_wfb = 1;
-    }
-    let wp_ref = crate::globals::gmut(wp);
+        wp_ref
+    };
+    let mut wp: *mut WinInfoInfo = wp_ref;
     let mut lnum: Linenr = 0;
     let mut max_info_width: i32 = 0;
     pum_preview_set_text(&mut *wp_ref, info, &mut lnum, &mut max_info_width);
@@ -1371,14 +1373,11 @@ fn pum_set_selected(n: i32, repeat: i32) -> bool {
             || crate::globals::gptr(pum().array.wrapping_add(pum().selected as usize))
                 .pum_info
                 .is_none())
+        && let Some(wp) = win_float_find(K_WIN_INFO)
     {
-        let wp = win_float_find(K_WIN_INFO);
-        if !wp.is_null() {
-            let wp = crate::globals::gmut(wp);
-            wp.w_config.hide = true;
-            let cfg = wp.w_config.clone();
-            win_config_float(wp, cfg);
-        }
+        wp.w_config.hide = true;
+        let cfg = wp.w_config.clone();
+        win_config_float(wp, cfg);
     }
 
     if pum().selected >= 0 && pum().selected < pum().size {
@@ -1436,16 +1435,10 @@ fn pum_set_selected(n: i32, repeat: i32) -> bool {
 
             if !use_float {
                 resized = prepare_tagpreview(false, false);
-            } else {
-                let mut wp = win_float_find(K_WIN_INFO);
-                if !wp.is_null() {
-                    win_enter(wp, false);
-                } else {
-                    wp = win_float_special(true, true, K_WIN_INFO);
-                    if !wp.is_null() {
-                        resized = true;
-                    }
-                }
+            } else if let Some(wp) = win_float_find(K_WIN_INFO) {
+                win_enter(wp, false);
+            } else if win_float_special(true, true, K_WIN_INFO).is_some() {
+                resized = true;
             }
 
             g_st().no_u_sync -= 1;

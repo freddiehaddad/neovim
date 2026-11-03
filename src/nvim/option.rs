@@ -2392,9 +2392,10 @@ pub fn parse_winhl_opt(
                     size: 0,
                 }) as i32;
             } else {
-                let dp = get_decor_provider(wp.as_deref_mut().unwrap().w_ns_hl_winhl, true);
+                let dp =
+                    get_decor_provider(wp.as_deref_mut().unwrap().w_ns_hl_winhl, true).unwrap();
 
-                crate::globals::gptr(dp).hl_valid += 1;
+                dp.hl_valid += 1;
             }
             ns_hl = wp.as_deref_mut().unwrap().w_ns_hl_winhl;
             if wp.as_deref_mut().unwrap().w_ns_hl <= 0 {
@@ -3161,8 +3162,8 @@ pub fn did_set_undofile(args: &mut Optset) -> Option<&CStr> {
             && !buf_is_changed_fn(&mut *bp)
             && bp.b_ml.ml_mfp.is_some()
         {
-            u_compute_hash(&mut *bp, hash.as_mut_ptr());
-            u_read_undo(ptr::null_mut(), hash.as_ptr(), bp.b_fname);
+            u_compute_hash(&mut *bp, &mut hash);
+            u_read_undo(None, &hash, crate::memory::cstr_as_opt_cstr(bp.b_fname));
         }
     }
 

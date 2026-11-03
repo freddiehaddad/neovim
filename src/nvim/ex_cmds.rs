@@ -562,7 +562,7 @@ fn linelen(has_tab: Option<&mut i32>) -> i32 {
 
     *crate::globals::gptr(last) = NUL;
 
-    let len = linetabsize_col(0, line);
+    let len = linetabsize_col(0, crate::memory::cstr_from_ptr(line));
     if let Some(ht) = has_tab {
         *ht = i32::from(crate::strings::vim_haschr(first, TAB));
     }
@@ -3154,8 +3154,8 @@ pub fn do_ecmd(
             }
 
             if curwin_mut().w_onebuf_opt.wo_diff != 0 {
-                diff_buf_add(g_st().curbuf);
-                diff_invalidate(g_st().curbuf);
+                diff_buf_add(curbuf_mut());
+                diff_invalidate(curbuf_mut());
             }
 
             if did_get_winopts
@@ -3667,7 +3667,12 @@ fn sub_joining_lines(
 
         if save {
             if !keeppatterns {
-                save_re_pat(RE_SUBST, pat.data, pat.size, opt_vars().p_magic);
+                save_re_pat(
+                    RE_SUBST,
+                    crate::memory::cstr_from_ptr(pat.data),
+                    pat.size,
+                    opt_vars().p_magic,
+                );
             }
             add_to_history(
                 HIST_SEARCH,
@@ -4015,7 +4020,7 @@ fn do_sub(eap: &mut Exarg, tm: Proftime, cmdpreview_ns: i32, cmdpreview_bufnr: O
         opt_vars().p_magic != 0
     };
     if !search_regcomp(
-        pat.data,
+        crate::memory::cstr_from_ptr(pat.data),
         pat.size,
         None,
         RE_SUBST,
@@ -4901,9 +4906,9 @@ pub fn ex_global(eap: &mut Exarg) {
         patlen = crate::memory::cstr_len(pat.cast());
     }
 
-    let mut used_pat = ptr::null_mut();
+    let mut used_pat = std::ffi::CString::default();
     if !search_regcomp(
-        pat.cast(),
+        crate::memory::cstr_from_ptr(pat.cast()),
         patlen,
         Some(&mut used_pat),
         RE_BOTH,
@@ -4961,9 +4966,13 @@ pub fn ex_global(eap: &mut Exarg) {
             msg(gettext(E_INTERR), 0);
         } else if ndone == 0 {
             if type_char == b'v' as i32 {
-                smsg!(0, gettext(c"Pattern found in every line: %s"), used_pat,);
+                smsg!(
+                    0,
+                    gettext(c"Pattern found in every line: %s"),
+                    used_pat.as_ptr(),
+                );
             } else {
-                smsg!(0, gettext(c"Pattern not found: %s"), used_pat);
+                smsg!(0, gettext(c"Pattern not found: %s"), used_pat.as_ptr());
             }
         } else {
             global_exe(cmd.cast());
@@ -5050,10 +5059,9 @@ pub fn prepare_tagpreview(undo_sync: bool, use_previewpopup: bool) -> bool {
     }
 
     if use_previewpopup {
-        let wp = win_float_special(false, true, K_WIN_PREVIEW);
-        if wp.is_null() {
+        let Some(wp) = win_float_special(false, true, K_WIN_PREVIEW) else {
             return false;
-        }
+        };
         win_enter(wp, undo_sync);
         return true;
     }

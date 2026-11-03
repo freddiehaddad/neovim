@@ -2545,9 +2545,8 @@ pub fn f_strdisplaywidth(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: Eval
     if argvars[1].v_type != VarType::VarUnknown {
         col = tv_get_number(&argvars[1]) as i32;
     }
-    rettv.vval = crate::eval::typval::TypvalVval::Number(Varnumber::from(
-        linetabsize_col(col, s.as_ptr().cast_mut()) - col,
-    ));
+    rettv.vval =
+        crate::eval::typval::TypvalVval::Number(Varnumber::from(linetabsize_col(col, s) - col));
 }
 
 pub fn f_strwidth(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {

@@ -2299,7 +2299,7 @@ pub fn ex_spellrepall(_eap: &mut Exarg) {
             None,
             b'/' as i32,
             b'/' as i32,
-            frompat.cast(),
+            crate::memory::cstr_as_opt_cstr(frompat.cast()),
             frompatlen,
             1,
             SEARCH_KEEP,

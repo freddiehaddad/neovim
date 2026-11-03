@@ -1672,7 +1672,7 @@ pub fn buf_freeall(buf: &mut FileBuf, flags: i32) -> bool {
         end_visual_mode();
     }
 
-    diff_buf_delete(&raw mut *buf);
+    diff_buf_delete(&*buf);
     if !(curwin_ptr()).is_null() && curwin_mut().w_buffer == (&raw mut *buf) {
         reset_synblock(curwin_mut());
     }
@@ -2665,7 +2665,7 @@ fn enter_buffer(buf: *mut FileBuf) {
     fold_update_all(curwin_mut());
 
     if curwin_mut().w_onebuf_opt.wo_diff != 0 {
-        diff_buf_add(g_st().curbuf);
+        diff_buf_add(curbuf_mut());
     }
 
     curwin_mut().w_s_owned = None;
@@ -3196,7 +3196,7 @@ pub fn buflist_findpat(pat_slice: &[u8], unlisted: bool, diffmode: bool, curtab_
             curwin_mut().w_alt_fnum
         };
         let found_buf = buflist_findnr(match_fnum);
-        if diffmode && (found_buf.is_null() || !diff_mode_buf(found_buf)) {
+        if diffmode && unsafe { found_buf.as_ref() }.is_none_or(|b| !diff_mode_buf(b)) {
             match_fnum = -1;
         }
     } else {
