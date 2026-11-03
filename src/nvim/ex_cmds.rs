@@ -2154,185 +2154,187 @@ fn handle_mkdir_p_arg(eap: &mut Exarg, fname: impl crate::strings::IntoCCharPtr)
 
 /// Write current buffer to file `eap->arg`.
 pub fn do_write(eap: &mut Exarg) -> bool {
-    unsafe {
-        let mut fname = ptr::null_mut();
-        let mut retval = false;
-        let mut free_fname: Option<std::ffi::CString> = None;
-        let mut alt_buf: *mut FileBuf = ptr::null_mut();
+    let mut fname = ptr::null_mut();
+    let mut retval = false;
+    let mut free_fname: Option<std::ffi::CString> = None;
+    let mut alt_buf: *mut FileBuf = ptr::null_mut();
 
-        if not_writing() {
-            return false;
+    if not_writing() {
+        return false;
+    }
+
+    let mut ffname = eap.arg;
+    let other: bool;
+
+    'theend: {
+        if crate::memory::cstr_is_empty(ffname) {
+            if eap.cmdidx == Cmdidx::CmdSaveas as i32 {
+                emsg(gettext(E_ARGREQ));
+                break 'theend;
+            }
+            other = false;
+        } else {
+            fname = ffname;
+            free_fname = fix_fname(ffname);
+            if let Some(ref ff) = free_fname {
+                ffname = ff.as_ptr().cast_mut();
+            }
+            other = otherfile(ffname);
         }
 
-        let mut ffname = eap.arg;
-        let other: bool;
-
-        'theend: {
-            if crate::memory::cstr_is_empty(ffname) {
-                if eap.cmdidx == Cmdidx::CmdSaveas as i32 {
-                    emsg(gettext(E_ARGREQ));
-                    break 'theend;
-                }
-                other = false;
+        if other {
+            if crate::strings::vim_haschr(opt_vars().p_cpo, K_CPO_ALTWRITE)
+                || eap.cmdidx == Cmdidx::CmdSaveas as i32
+            {
+                alt_buf = setaltfname(ffname, fname, 1);
             } else {
-                fname = ffname;
-                free_fname = fix_fname(ffname);
-                if let Some(ref ff) = free_fname {
-                    ffname = ff.as_ptr().cast_mut();
-                }
-                other = otherfile(ffname);
+                alt_buf = buflist_findname(ffname);
             }
+            if !alt_buf.is_null() && unsafe { (*alt_buf).b_ml.ml_mfp.is_some() } {
+                emsg(gettext(E_BUFLOADED));
+                break 'theend;
+            }
+        }
 
-            if other {
-                if crate::strings::vim_haschr(opt_vars().p_cpo, K_CPO_ALTWRITE)
-                    || eap.cmdidx == Cmdidx::CmdSaveas as i32
-                {
-                    alt_buf = setaltfname(ffname, fname, 1);
+        if !other {
+            if bt_dontwrite_msg(Some(crate::globals::curbuf_mut())) || !check_fname() {
+                break 'theend;
+            }
+            #[cfg(unix)]
+            if !check_writable(curbuf_mut().b_ffname) {
+                break 'theend;
+            }
+            if check_readonly(&mut eap.forceit, curbuf_mut()) {
+                break 'theend;
+            }
+        }
+
+        if !other {
+            ffname = curbuf_mut().b_ffname;
+            fname = curbuf_mut().b_fname;
+            if (eap.line1 != 1 || eap.line2 != curbuf_mut().b_ml.ml_line_count)
+                && eap.forceit == 0
+                && eap.append == 0
+                && opt_vars().p_wa == 0
+            {
+                if opt_vars().p_confirm != 0 || (g_st().cmdmod.cmod_flags & CMOD_CONFIRM) != 0 {
+                    if vim_dialog_yesno(
+                        VIM_QUESTION,
+                        ptr::null_mut(),
+                        gettext(c"Write partial file?"),
+                        2,
+                    ) != VIM_YES
+                    {
+                        break 'theend;
+                    }
+                    eap.forceit = 1;
                 } else {
-                    alt_buf = buflist_findname(ffname);
-                }
-                if !alt_buf.is_null() && (*alt_buf).b_ml.ml_mfp.is_some() {
-                    emsg(gettext(E_BUFLOADED));
+                    emsg(gettext(c"E140: Use ! to write partial buffer"));
                     break 'theend;
                 }
             }
+        }
 
-            if !other {
-                if bt_dontwrite_msg(Some(crate::globals::curbuf_mut())) || !check_fname() {
-                    break 'theend;
-                }
-                #[cfg(unix)]
-                if !check_writable(curbuf_mut().b_ffname) {
-                    break 'theend;
-                }
-                if check_readonly(&mut eap.forceit, curbuf_mut()) {
-                    break 'theend;
-                }
-            }
+        if check_overwrite(eap, curbuf_mut(), fname, ffname, other) {
+            if eap.cmdidx == Cmdidx::CmdSaveas as i32 && !alt_buf.is_null() {
+                let was_curbuf = g_st().curbuf;
 
-            if !other {
-                ffname = curbuf_mut().b_ffname;
-                fname = curbuf_mut().b_fname;
-                if (eap.line1 != 1 || eap.line2 != curbuf_mut().b_ml.ml_line_count)
-                    && eap.forceit == 0
-                    && eap.append == 0
-                    && opt_vars().p_wa == 0
-                {
-                    if opt_vars().p_confirm != 0 || (g_st().cmdmod.cmod_flags & CMOD_CONFIRM) != 0 {
-                        if vim_dialog_yesno(
-                            VIM_QUESTION,
-                            ptr::null_mut(),
-                            gettext(c"Write partial file?"),
-                            2,
-                        ) != VIM_YES
-                        {
-                            break 'theend;
-                        }
-                        eap.forceit = 1;
-                    } else {
-                        emsg(gettext(c"E140: Use ! to write partial buffer"));
-                        break 'theend;
-                    }
-                }
-            }
-
-            if check_overwrite(eap, curbuf_mut(), fname, ffname, other) {
-                if eap.cmdidx == Cmdidx::CmdSaveas as i32 && !alt_buf.is_null() {
-                    let was_curbuf = g_st().curbuf;
-
-                    apply_autocmds(
-                        EVENT_BUFFILEPRE,
-                        ptr::null_mut(),
-                        ptr::null_mut(),
-                        false,
-                        g_st().curbuf,
-                    );
-                    apply_autocmds(
-                        EVENT_BUFFILEPRE,
-                        ptr::null_mut(),
-                        ptr::null_mut(),
-                        false,
-                        alt_buf,
-                    );
-                    if g_st().curbuf != was_curbuf || aborting() {
-                        retval = false;
-                        break 'theend;
-                    }
-
-                    (*alt_buf).swap_fnames(curbuf_mut());
-                    buf_name_changed(curbuf_mut());
-                    apply_autocmds(
-                        EVENT_BUFFILEPOST,
-                        ptr::null_mut(),
-                        ptr::null_mut(),
-                        false,
-                        g_st().curbuf,
-                    );
-                    apply_autocmds(
-                        EVENT_BUFFILEPOST,
-                        ptr::null_mut(),
-                        ptr::null_mut(),
-                        false,
-                        alt_buf,
-                    );
-                    if (*alt_buf).b_p_bl == 0 {
-                        (*alt_buf).b_p_bl = 1;
-                        apply_autocmds(
-                            EVENT_BUFADD,
-                            ptr::null_mut(),
-                            ptr::null_mut(),
-                            false,
-                            alt_buf,
-                        );
-                    }
-                    if g_st().curbuf != was_curbuf || aborting() {
-                        retval = false;
-                        break 'theend;
-                    }
-
-                    if crate::memory::cstr_is_empty(curbuf_mut().b_p_ft) {
-                        if augroup_exists(c"filetypedetect") {
-                            do_doautocmd(c"filetypedetect BufRead", true, None);
-                        }
-                        do_modelines(0);
-                    }
-
-                    fname = curbuf_mut().b_sfname;
-                }
-
-                if !handle_mkdir_p_arg(eap, fname) {
+                apply_autocmds(
+                    EVENT_BUFFILEPRE,
+                    ptr::null_mut(),
+                    ptr::null_mut(),
+                    false,
+                    g_st().curbuf,
+                );
+                apply_autocmds(
+                    EVENT_BUFFILEPRE,
+                    ptr::null_mut(),
+                    ptr::null_mut(),
+                    false,
+                    alt_buf,
+                );
+                if g_st().curbuf != was_curbuf || aborting() {
                     retval = false;
                     break 'theend;
                 }
 
-                let name_was_missing = curbuf_mut().b_ffname.is_null();
-                retval = buf_write(
-                    g_st().curbuf,
-                    ffname,
-                    fname,
-                    eap.line1,
-                    eap.line2,
-                    Some(&*eap),
-                    eap.append != 0,
-                    eap.forceit != 0,
-                    true,
+                unsafe {
+                    (*alt_buf).swap_fnames(curbuf_mut());
+                }
+                buf_name_changed(curbuf_mut());
+                apply_autocmds(
+                    EVENT_BUFFILEPOST,
+                    ptr::null_mut(),
+                    ptr::null_mut(),
                     false,
-                ) == OK;
-
-                if eap.cmdidx == Cmdidx::CmdSaveas as i32 && retval {
-                    curbuf_mut().b_p_ro = 0;
-                    g_st().redraw_tabline = true;
+                    g_st().curbuf,
+                );
+                apply_autocmds(
+                    EVENT_BUFFILEPOST,
+                    ptr::null_mut(),
+                    ptr::null_mut(),
+                    false,
+                    alt_buf,
+                );
+                if unsafe { (*alt_buf).b_p_bl == 0 } {
+                    unsafe {
+                        (*alt_buf).b_p_bl = 1;
+                    }
+                    apply_autocmds(
+                        EVENT_BUFADD,
+                        ptr::null_mut(),
+                        ptr::null_mut(),
+                        false,
+                        alt_buf,
+                    );
+                }
+                if g_st().curbuf != was_curbuf || aborting() {
+                    retval = false;
+                    break 'theend;
                 }
 
-                if eap.cmdidx == Cmdidx::CmdSaveas as i32 || name_was_missing {
-                    do_autochdir();
+                if crate::memory::cstr_is_empty(curbuf_mut().b_p_ft) {
+                    if augroup_exists(c"filetypedetect") {
+                        do_doautocmd(c"filetypedetect BufRead", true, None);
+                    }
+                    do_modelines(0);
                 }
+
+                fname = curbuf_mut().b_sfname;
+            }
+
+            if !handle_mkdir_p_arg(eap, fname) {
+                retval = false;
+                break 'theend;
+            }
+
+            let name_was_missing = curbuf_mut().b_ffname.is_null();
+            retval = buf_write(
+                g_st().curbuf,
+                ffname,
+                fname,
+                eap.line1,
+                eap.line2,
+                Some(&*eap),
+                eap.append != 0,
+                eap.forceit != 0,
+                true,
+                false,
+            ) == OK;
+
+            if eap.cmdidx == Cmdidx::CmdSaveas as i32 && retval {
+                curbuf_mut().b_p_ro = 0;
+                g_st().redraw_tabline = true;
+            }
+
+            if eap.cmdidx == Cmdidx::CmdSaveas as i32 || name_was_missing {
+                do_autochdir();
             }
         }
-
-        drop(free_fname);
-        retval
     }
+
+    drop(free_fname);
+    retval
 }
 
 /// Check if it is allowed to overwrite a file.
@@ -2440,74 +2442,85 @@ pub fn ex_wnext(eap: &mut Exarg) {
 
 /// `":wall"`, `":wqall"` and `":xall"`: Write all changed files (and exit).
 pub fn do_wqall(eap: &mut Exarg) {
-    unsafe {
-        let mut error: i32 = 0;
-        let save_forceit = eap.forceit;
-        let save_exiting = g_st().exiting;
+    let mut error: i32 = 0;
+    let save_forceit = eap.forceit;
+    let save_exiting = g_st().exiting;
 
-        if eap.cmdidx == Cmdidx::CmdXall as i32 || eap.cmdidx == Cmdidx::CmdWqall as i32 {
-            if !before_quit_all(eap) {
-                return;
+    if eap.cmdidx == Cmdidx::CmdXall as i32 || eap.cmdidx == Cmdidx::CmdWqall as i32 {
+        if !before_quit_all(eap) {
+            return;
+        }
+        g_st().exiting = true;
+    }
+
+    let mut buf = g_st().firstbuf;
+    while !buf.is_null() {
+        if g_st().exiting
+            && eap.forceit == 0
+            && unsafe { !(*buf).terminal.is_null() }
+            && unsafe { channel_job_running((*buf).b_p_channel as u64) }
+        {
+            unsafe {
+                no_write_message_buf(&mut *buf);
             }
-            g_st().exiting = true;
+            error += 1;
+            unsafe {
+                buf = (*buf).b_next;
+            }
+            continue;
+        } else if unsafe { !buf_is_changed_fn(&mut *buf) } || unsafe { bt_dontwrite(buf.as_ref()) }
+        {
+            unsafe {
+                buf = (*buf).b_next;
+            }
+            continue;
         }
 
-        let mut buf = g_st().firstbuf;
-        while !buf.is_null() {
-            if g_st().exiting
-                && eap.forceit == 0
-                && !(*buf).terminal.is_null()
-                && channel_job_running((*buf).b_p_channel as u64)
-            {
-                no_write_message_buf(&mut *buf);
-                error += 1;
-                buf = (*buf).b_next;
-                continue;
-            } else if !buf_is_changed_fn(&mut *buf) || bt_dontwrite(buf.as_ref()) {
-                buf = (*buf).b_next;
-                continue;
-            }
-
-            if not_writing() {
-                error += 1;
-                break;
-            }
-            if (*buf).b_ffname.is_null() {
+        if not_writing() {
+            error += 1;
+            break;
+        }
+        if unsafe { (*buf).b_ffname.is_null() } {
+            unsafe {
                 semsg!(
                     gettext(c"E141: No file name for buffer %lld"),
                     (*buf).b_fnum as i64,
                 );
-                error += 1;
-            } else if check_readonly(&mut eap.forceit, &mut *buf)
-                || !check_overwrite(eap, &mut *buf, (*buf).b_fname, (*buf).b_ffname, false)
+            }
+            error += 1;
+        } else if unsafe { check_readonly(&mut eap.forceit, &mut *buf) }
+            || unsafe { !check_overwrite(eap, &mut *buf, (*buf).b_fname, (*buf).b_ffname, false) }
+        {
+            error += 1;
+        } else {
+            let mut bufref: Bufref = Bufref::new();
+            set_bufref(&mut bufref, buf);
+            if unsafe { !handle_mkdir_p_arg(eap, (*buf).b_fname) }
+                || unsafe { buf_write_all(&mut *buf, eap.forceit != 0) == FAIL }
             {
                 error += 1;
-            } else {
-                let mut bufref: Bufref = Bufref::new();
-                set_bufref(&mut bufref, buf);
-                if !handle_mkdir_p_arg(eap, (*buf).b_fname)
-                    || buf_write_all(&mut *buf, eap.forceit != 0) == FAIL
-                {
-                    error += 1;
-                }
-                if !bufref_valid(Some(&bufref)) {
-                    buf = g_st().firstbuf;
-                    eap.forceit = save_forceit;
-                    if !buf.is_null() {
+            }
+            if !bufref_valid(Some(&bufref)) {
+                buf = g_st().firstbuf;
+                eap.forceit = save_forceit;
+                if !buf.is_null() {
+                    unsafe {
                         buf = (*buf).b_next;
                     }
-                    continue;
                 }
+                continue;
             }
-            eap.forceit = save_forceit;
+        }
+        eap.forceit = save_forceit;
+        unsafe {
             buf = (*buf).b_next;
         }
-        if g_st().exiting {
-            if error == 0 {
-                getout(0);
-            }
-            not_exiting(save_exiting);
+    }
+    if g_st().exiting {
+        if error == 0 {
+            getout(0);
         }
+        not_exiting(save_exiting);
     }
 }
 

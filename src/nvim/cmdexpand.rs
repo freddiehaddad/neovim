@@ -2195,18 +2195,14 @@ pub fn cmdline_pum_cleanup(cclp: &mut CmdlineInfo) {
 
 /// Returns the current cmdline completion pattern.
 pub fn cmdline_compl_pattern() -> Option<&'static CStr> {
-    unsafe {
-        let xp = get_cmdline_info().xpc;
-        (*xp).xp_orig.as_deref()
-    }
+    let xp = get_cmdline_info().xpc;
+    unsafe { (*xp).xp_orig.as_deref() }
 }
 
 /// Returns true if fuzzy cmdline completion is active, false otherwise.
 pub fn cmdline_compl_is_fuzzy() -> bool {
-    unsafe {
-        let xp = get_cmdline_info().xpc;
-        !xp.is_null() && cmdline_fuzzy_completion_supported(&*xp)
-    }
+    let xp = get_cmdline_info().xpc;
+    unsafe { !xp.is_null() && cmdline_fuzzy_completion_supported(&*xp) }
 }
 
 /// Checks whether popup menu should be used for cmdline completion wildmenu.
@@ -4672,9 +4668,9 @@ fn get_healthcheck_names(_xp: &mut ExpandCtx, idx: i32) -> Option<&'static CStr>
 
 /// Completes arg1 via Lua.
 fn get_arg1_from_lua(lua: &std::ffi::CStr, xp: &mut ExpandCtx, idx: i32) -> Option<&'static CStr> {
+    let prompt_id = get_cmdline_last_prompt_id();
+    let last_line_ptr = &raw const cmdexp().arg1_lua_last_xp_line;
     unsafe {
-        let prompt_id = get_cmdline_last_prompt_id();
-        let last_line_ptr = &raw const cmdexp().arg1_lua_last_xp_line;
         if (*last_line_ptr).as_ref().is_none_or(|s| {
             crate::memory::cstr_as_bytes(s.as_ptr())
                 != crate::memory::cstr_as_bytes(xp.xp_line.cast())
@@ -4710,18 +4706,18 @@ fn get_arg1_from_lua(lua: &std::ffi::CStr, xp: &mut ExpandCtx, idx: i32) -> Opti
             cmdexp().arg1_lua_names = res;
             cmdexp().arg1_lua_last_gen = prompt_id;
         }
-
-        if cmdexp().arg1_lua_names.obj_type == ObjectType::ObjectTypeArray
-            && idx >= 0
-            && (idx as usize) < cmdexp().arg1_lua_names.data.array().size
-        {
-            let item = cmdexp().arg1_lua_names.data.array()[idx as usize];
-            if item.obj_type == ObjectType::ObjectTypeString && !item.data.string().data.is_null() {
-                return Some(CStr::from_ptr(item.data.string().data));
-            }
-        }
-        None
     }
+
+    if cmdexp().arg1_lua_names.obj_type == ObjectType::ObjectTypeArray
+        && idx >= 0
+        && (idx as usize) < cmdexp().arg1_lua_names.data.array().size
+    {
+        let item = cmdexp().arg1_lua_names.data.array()[idx as usize];
+        if item.obj_type == ObjectType::ObjectTypeString && !item.data.string().data.is_null() {
+            return unsafe { Some(CStr::from_ptr(item.data.string().data)) };
+        }
+    }
+    None
 }
 
 fn get_marks_arg(xp: &mut ExpandCtx, idx: i32) -> Option<&'static CStr> {
@@ -5428,44 +5424,58 @@ fn call_user_expand_func<F, R>(user_expand_func: F, xp: *mut ExpandCtx, default:
 where
     F: FnOnce(*const u8, i32, *mut TypVal) -> R,
 {
-    unsafe {
-        let ccline = get_cmdline_info();
-        let mut keep: u8 = 0;
-        let mut args: [TypVal; 4] = [TypVal::new(); 4];
-        let save_current_sctx = g_st().current_sctx;
+    let ccline = get_cmdline_info();
+    let mut keep: u8 = 0;
+    let mut args: [TypVal; 4] = [TypVal::new(); 4];
+    let save_current_sctx = g_st().current_sctx;
 
-        if crate::memory::cstr_is_empty((*xp).xp_arg.cast()) || (*xp).xp_line.is_null() {
-            return default;
-        }
+    if unsafe { crate::memory::cstr_is_empty((*xp).xp_arg.cast()) }
+        || unsafe { (*xp).xp_line.is_null() }
+    {
+        return default;
+    }
 
-        if !ccline.cmdbuff.is_null() {
+    if !ccline.cmdbuff.is_null() {
+        unsafe {
             keep = *ccline.cmdbuff.wrapping_add(ccline.cmdlen as usize);
+        }
+        unsafe {
             *ccline.cmdbuff.wrapping_add(ccline.cmdlen as usize) = 0;
         }
+    }
 
-        let pat = cstr_from_bytes(crate::memory::cstr_slice(
+    let pat = unsafe {
+        cstr_from_bytes(crate::memory::cstr_slice(
             (*xp).xp_pattern.cast(),
             (*xp).xp_pattern_len,
-        ));
-        args[0].v_type = VarType::VarString;
-        args[1].v_type = VarType::VarString;
-        args[2].v_type = VarType::VarNumber;
-        args[3].v_type = VarType::VarUnknown;
-        args[0].vval = crate::eval::typval::TypvalVval::String(pat.as_ptr().cast_mut());
+        ))
+    };
+    args[0].v_type = VarType::VarString;
+    args[1].v_type = VarType::VarString;
+    args[2].v_type = VarType::VarNumber;
+    args[3].v_type = VarType::VarUnknown;
+    args[0].vval = crate::eval::typval::TypvalVval::String(pat.as_ptr().cast_mut());
+    unsafe {
         args[1].vval = crate::eval::typval::TypvalVval::String((*xp).xp_line.cast());
+    }
+    unsafe {
         args[2].vval = crate::eval::typval::TypvalVval::Number(i64::from((*xp).xp_col));
+    }
 
+    unsafe {
         g_st().current_sctx = (*xp).xp_script_ctx;
+    }
 
-        let ret = user_expand_func((*xp).xp_arg, 3, args.as_mut_ptr());
+    let ret = unsafe { user_expand_func((*xp).xp_arg, 3, args.as_mut_ptr()) };
 
-        g_st().current_sctx = save_current_sctx;
-        if !ccline.cmdbuff.is_null() {
+    g_st().current_sctx = save_current_sctx;
+    if !ccline.cmdbuff.is_null() {
+        unsafe {
             *ccline.cmdbuff.wrapping_add(ccline.cmdlen as usize) = keep;
         }
-
-        ret
     }
+
+    ret
 }
 
 /// Expand names with a function defined by the user (EXPAND_USER_DEFINED).
@@ -6101,46 +6111,52 @@ pub fn f_getcompletiontype(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: Ev
 
 /// "cmdcomplete_info()" function.
 pub fn f_cmdcomplete_info(_argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
-    unsafe {
-        let ccline = get_cmdline_info();
+    let ccline = get_cmdline_info();
 
-        tv_dict_alloc_ret(rettv);
-        if ccline.xpc.is_null() || (*ccline.xpc).xp_files.capacity() == 0 {
-            return;
-        }
-        let orig_ptr = &cmdexp().cmdline_orig;
-        let orig_ref = orig_ptr.as_ref();
+    tv_dict_alloc_ret(rettv);
+    if ccline.xpc.is_null() || unsafe { (*ccline.xpc).xp_files.capacity() == 0 } {
+        return;
+    }
+    let orig_ptr = &cmdexp().cmdline_orig;
+    let orig_ref = orig_ptr.as_ref();
 
-        let retdict = rettv.vval.v_dict();
-        let mut ret = tv_dict_add_str_len(
+    let retdict = rettv.vval.v_dict();
+    let mut ret = unsafe {
+        tv_dict_add_str_len(
             &mut *retdict,
             c"cmdline_orig",
             orig_ref.map_or(ptr::null(), |v| v.as_ptr().cast()),
             orig_ref.map_or(0, |v| v.len() as i32),
-        );
-        if ret {
+        )
+    };
+    if ret {
+        unsafe {
             ret = tv_dict_add_nr(&mut *retdict, c"pum_visible", i64::from(pum_visible()));
         }
-        if ret {
+    }
+    if ret {
+        unsafe {
             ret = tv_dict_add_nr(
                 &mut *retdict,
                 c"selected",
                 i64::from((*ccline.xpc).xp_selected),
             );
         }
-        if ret {
-            let li = tv_list_alloc((*ccline.xpc).xp_numfiles as isize);
+    }
+    if ret {
+        let li = unsafe { tv_list_alloc((*ccline.xpc).xp_numfiles as isize) };
+        unsafe {
             ret = tv_dict_add_list(&mut *retdict, c"matches", li);
-            let files = (*ccline.xpc).xp_files.as_slice();
-            let mut idx: usize = 0;
-            while ret && (idx as i32) < (*ccline.xpc).xp_numfiles {
-                tv_list_append_string(
-                    &mut *li,
-                    files[idx].as_ptr(),
-                    files[idx].as_bytes().len() as isize,
-                );
-                idx += 1;
-            }
+        }
+        let files = unsafe { (*ccline.xpc).xp_files.as_slice() };
+        let mut idx: usize = 0;
+        while ret && unsafe { (idx as i32) < (*ccline.xpc).xp_numfiles } {
+            tv_list_append_string(
+                &mut *li,
+                files[idx].as_ptr(),
+                files[idx].as_bytes().len() as isize,
+            );
+            idx += 1;
         }
     }
 }

@@ -400,14 +400,18 @@ impl Exarg {
     }
 
     pub fn set_cmdline_vec(&mut self, cmdlinep: *mut RawCCharPtrMut, new_buf: Vec<u8>) {
+        debug_assert!(!self.cmdline_buf.is_null());
         unsafe {
-            debug_assert!(!self.cmdline_buf.is_null());
             *self.cmdline_buf = new_buf;
-            let new_ptr = (*self.cmdline_buf).as_mut_ptr().cast();
-            if !cmdlinep.is_null() {
+        }
+        let new_ptr = unsafe { (*self.cmdline_buf).as_mut_ptr().cast() };
+        if !cmdlinep.is_null() {
+            unsafe {
                 *cmdlinep = new_ptr;
             }
-            if !self.cmdlinep.is_null() {
+        }
+        if !self.cmdlinep.is_null() {
+            unsafe {
                 *self.cmdlinep = new_ptr;
             }
         }
@@ -5561,43 +5565,30 @@ fn store_loop_line(lines: &mut Vec<Wcmd>, line: impl crate::strings::IntoCCharPt
 }
 
 fn compute_buffer_local_count(addr_type: CmdAddr, lnum: Linenr, offset: i32) -> i32 {
-    unsafe {
-        let mut count = offset;
-        let mut buf = g_st().firstbuf;
-        while !(*buf).b_next.is_null() && (*buf).b_fnum < lnum {
+    let mut count = offset;
+    let mut buf = g_st().firstbuf;
+    while unsafe { !(*buf).b_next.is_null() } && unsafe { (*buf).b_fnum < lnum } {
+        unsafe {
             buf = (*buf).b_next;
         }
-        while count != 0 {
-            count += if count < 0 { 1 } else { -1 };
-            let mut nextbuf = if offset < 0 {
-                (*buf).b_prev
-            } else {
-                (*buf).b_next
-            };
-            if nextbuf.is_null() {
-                break;
-            }
-            buf = nextbuf;
-            if addr_type == ADDR_LOADED_BUFFERS {
-                while (*buf).b_ml.ml_mfp.is_none() {
-                    nextbuf = if offset < 0 {
-                        (*buf).b_prev
-                    } else {
-                        (*buf).b_next
-                    };
-                    if nextbuf.is_null() {
-                        break;
-                    }
-                    buf = nextbuf;
-                }
-            }
+    }
+    while count != 0 {
+        count += if count < 0 { 1 } else { -1 };
+        let mut nextbuf = if offset < 0 {
+            unsafe { (*buf).b_prev }
+        } else {
+            unsafe { (*buf).b_next }
+        };
+        if nextbuf.is_null() {
+            break;
         }
+        buf = nextbuf;
         if addr_type == ADDR_LOADED_BUFFERS {
-            while (*buf).b_ml.ml_mfp.is_none() {
-                let nextbuf = if offset >= 0 {
-                    (*buf).b_prev
+            while unsafe { (*buf).b_ml.ml_mfp.is_none() } {
+                nextbuf = if offset < 0 {
+                    unsafe { (*buf).b_prev }
                 } else {
-                    (*buf).b_next
+                    unsafe { (*buf).b_next }
                 };
                 if nextbuf.is_null() {
                     break;
@@ -5605,8 +5596,21 @@ fn compute_buffer_local_count(addr_type: CmdAddr, lnum: Linenr, offset: i32) -> 
                 buf = nextbuf;
             }
         }
-        (*buf).b_fnum
     }
+    if addr_type == ADDR_LOADED_BUFFERS {
+        while unsafe { (*buf).b_ml.ml_mfp.is_none() } {
+            let nextbuf = if offset >= 0 {
+                unsafe { (*buf).b_prev }
+            } else {
+                unsafe { (*buf).b_next }
+            };
+            if nextbuf.is_null() {
+                break;
+            }
+            buf = nextbuf;
+        }
+    }
+    unsafe { (*buf).b_fnum }
 }
 
 fn current_win_nr(win: *const WinInfoInfo, cmdarg: Option<&Exarg>) -> i32 {
@@ -5723,57 +5727,67 @@ pub fn get_cmd_default_range(eap: &mut Exarg) -> Linenr {
 }
 
 pub fn set_cmd_dflall_range(eap: &mut Exarg) {
-    unsafe {
-        eap.line1 = 1;
-        match eap.addr_type {
-            ADDR_LINES | ADDR_OTHER => {
-                eap.line2 = curbuf_mut().b_ml.ml_line_count;
-            }
-            ADDR_LOADED_BUFFERS => {
-                let mut buf = g_st().firstbuf;
-                while !(*buf).b_next.is_null() && (*buf).b_ml.ml_mfp.is_none() {
+    eap.line1 = 1;
+    match eap.addr_type {
+        ADDR_LINES | ADDR_OTHER => {
+            eap.line2 = curbuf_mut().b_ml.ml_line_count;
+        }
+        ADDR_LOADED_BUFFERS => {
+            let mut buf = g_st().firstbuf;
+            while unsafe { !(*buf).b_next.is_null() } && unsafe { (*buf).b_ml.ml_mfp.is_none() } {
+                unsafe {
                     buf = (*buf).b_next;
                 }
+            }
+            unsafe {
                 eap.line1 = (*buf).b_fnum;
-                buf = g_st().lastbuf;
-                while !(*buf).b_prev.is_null() && (*buf).b_ml.ml_mfp.is_none() {
+            }
+            buf = g_st().lastbuf;
+            while unsafe { !(*buf).b_prev.is_null() } && unsafe { (*buf).b_ml.ml_mfp.is_none() } {
+                unsafe {
                     buf = (*buf).b_prev;
                 }
+            }
+            unsafe {
                 eap.line2 = (*buf).b_fnum;
             }
-            ADDR_BUFFERS => {
+        }
+        ADDR_BUFFERS => {
+            unsafe {
                 eap.line1 = (*g_st().firstbuf).b_fnum;
+            }
+            unsafe {
                 eap.line2 = (*g_st().lastbuf).b_fnum;
             }
-            ADDR_WINDOWS => {
-                eap.line2 = current_win_nr(ptr::null(), Some(&*eap));
+        }
+        ADDR_WINDOWS => {
+            eap.line2 = current_win_nr(ptr::null(), Some(&*eap));
+        }
+        ADDR_TABS => {
+            eap.line2 = current_tab_nr(ptr::null_mut());
+        }
+        ADDR_TABS_RELATIVE => {
+            eap.line2 = 1;
+        }
+        ADDR_ARGUMENTS => {
+            let ac = argcount();
+            if ac == 0 {
+                eap.line1 = 0;
+                eap.line2 = 0;
+            } else {
+                eap.line2 = ac;
             }
-            ADDR_TABS => {
-                eap.line2 = current_tab_nr(ptr::null_mut());
-            }
-            ADDR_TABS_RELATIVE => {
+        }
+        ADDR_QUICKFIX_VALID => {
+            eap.line2 = qf_get_valid_size(eap) as Linenr;
+            if eap.line2 == 0 {
                 eap.line2 = 1;
             }
-            ADDR_ARGUMENTS => {
-                let ac = argcount();
-                if ac == 0 {
-                    eap.line1 = 0;
-                    eap.line2 = 0;
-                } else {
-                    eap.line2 = ac;
-                }
-            }
-            ADDR_QUICKFIX_VALID => {
-                eap.line2 = qf_get_valid_size(eap) as Linenr;
-                if eap.line2 == 0 {
-                    eap.line2 = 1;
-                }
-            }
-            _ => {
-                iemsg(gettext(
-                    c"INTERNAL: Cannot use EX_DFLALL with ADDR_NONE, ADDR_UNSIGNED or ADDR_QUICKFIX",
-                ));
-            }
+        }
+        _ => {
+            iemsg(gettext(
+                c"INTERNAL: Cannot use EX_DFLALL with ADDR_NONE, ADDR_UNSIGNED or ADDR_QUICKFIX",
+            ));
         }
     }
 }
@@ -5880,17 +5894,15 @@ fn find_excmd_after_range(eap: &mut Exarg) -> RawCCharPtrMut {
 }
 
 fn parse_bang<T>(eap: &Exarg, p: &mut *mut T) -> bool {
-    unsafe {
-        if *(*p).cast::<u8>() == b'!'
-            && eap.cmdidx != Cmdidx::CmdSubstitute as i32
-            && eap.cmdidx != Cmdidx::CmdSmagic as i32
-            && eap.cmdidx != Cmdidx::CmdSnomagic as i32
-        {
-            *p = (*p).cast::<u8>().wrapping_add(1).cast();
-            return true;
-        }
-        false
+    if unsafe { *(*p).cast::<u8>() == b'!' }
+        && eap.cmdidx != Cmdidx::CmdSubstitute as i32
+        && eap.cmdidx != Cmdidx::CmdSmagic as i32
+        && eap.cmdidx != Cmdidx::CmdSnomagic as i32
+    {
+        *p = (*p).cast::<u8>().wrapping_add(1).cast();
+        return true;
     }
+    false
 }
 
 pub fn cmd_has_expr_args(cmdidx: Cmdidx) -> bool {
@@ -5912,163 +5924,162 @@ pub fn parse_cmdline(
     errormsg: &mut Option<&'static std::ffi::CStr>,
     skipmods: bool,
 ) -> bool {
+    let mut retval = false;
+    let save_cursor = curwin_mut().w_cursor;
+    save_last_search_pattern();
+
+    *cmod = Cmdmod::new();
+    *eap = Exarg::new();
+    eap.line1 = 1;
+    eap.line2 = 1;
     unsafe {
-        let mut retval = false;
-        let save_cursor = curwin_mut().w_cursor;
-        save_last_search_pattern();
-
-        *cmod = Cmdmod::new();
-        *eap = Exarg::new();
-        eap.line1 = 1;
-        eap.line2 = 1;
         eap.cmd = *cmdline;
-        eap.cmdlinep = cmdline;
-        eap.cmdline_buf = cmdline_buf;
+    }
+    eap.cmdlinep = cmdline;
+    eap.cmdline_buf = cmdline_buf;
 
-        let orig_cmd = eap.cmd;
-        let result = if skipmods {
-            true
-        } else {
-            parse_command_modifiers(eap, errormsg, cmod, false)
-        };
-        let after_modifier = eap.cmd;
+    let orig_cmd = eap.cmd;
+    let result = if skipmods {
+        true
+    } else {
+        parse_command_modifiers(eap, errormsg, cmod, false)
+    };
+    let after_modifier = eap.cmd;
 
-        'end: {
-            if !result && (errormsg.is_some() || after_modifier == orig_cmd) {
-                break 'end;
-            }
+    'end: {
+        if !result && (errormsg.is_some() || after_modifier == orig_cmd) {
+            break 'end;
+        }
 
-            let mut p = find_excmd_after_range(eap);
-            if p.is_null() {
-                *errormsg = Some(gettext(E_AMBIGUOUS_USE_OF_USER_DEFINED_COMMAND));
-                break 'end;
-            }
+        let mut p = find_excmd_after_range(eap);
+        if p.is_null() {
+            *errormsg = Some(gettext(E_AMBIGUOUS_USE_OF_USER_DEFINED_COMMAND));
+            break 'end;
+        }
 
-            set_cmd_addr_type(eap, p);
-            if !parse_cmd_address(eap, errormsg, true) {
-                break 'end;
-            }
+        set_cmd_addr_type(eap, p);
+        if !parse_cmd_address(eap, errormsg, true) {
+            break 'end;
+        }
 
-            eap.cmd = skip_colon_white(eap.cmd, true);
-            if crate::memory::cstr_first_byte(eap.cmd) == b'"' {
-                break 'end;
-            }
-            if crate::memory::cstr_is_empty(eap.cmd)
-                && eap.addr_count == 0
-                && after_modifier == *cmdline
-            {
-                break 'end;
-            }
+        eap.cmd = skip_colon_white(eap.cmd, true);
+        if crate::memory::cstr_first_byte(eap.cmd) == b'"' {
+            break 'end;
+        }
+        if crate::memory::cstr_is_empty(eap.cmd)
+            && eap.addr_count == 0
+            && unsafe { after_modifier == *cmdline }
+        {
+            break 'end;
+        }
 
-            if crate::memory::cstr_is_empty(eap.cmd) && eap.cmdidx == CMD_SIZE_I32 {
-                eap.arg = eap.cmd;
-                if eap.addr_count > 0 {
-                    eap.argt = EX_RANGE;
-                } else {
-                    eap.argt = 0;
-                    eap.addr_type = ADDR_NONE;
-                }
-                retval = true;
-                break 'end;
-            }
-
-            if eap.cmdidx == CMD_SIZE_I32 {
-                crate::memory::copy_bytes_to_c_buf(
-                    g_st().iobuff_bytes_mut(),
-                    gettext(E_NOT_AN_EDITOR_COMMAND).to_bytes(),
-                );
-                let cmdname = if !after_modifier.is_null() {
-                    after_modifier
-                } else {
-                    *cmdline
-                };
-                append_command(cmdname);
-                *errormsg = Some(crate::memory::cstr_from_ptr(g_st().iobuff.as_ptr()));
-                break 'end;
-            }
-
-            eap.forceit = i32::from(parse_bang(eap, &mut p));
-
-            if eap.cmdidx >= 0 {
-                eap.argt = CMDNAMES[eap.cmdidx as usize].cmd_argt;
-            }
-            if skipmods {
-                eap.arg = p.wrapping_add(usize::from(crate::memory::cstr_first_byte(p) == b' '));
+        if crate::memory::cstr_is_empty(eap.cmd) && eap.cmdidx == CMD_SIZE_I32 {
+            eap.arg = eap.cmd;
+            if eap.addr_count > 0 {
+                eap.argt = EX_RANGE;
             } else {
-                eap.arg = if eap.cmdidx == Cmdidx::CmdBang as i32 {
-                    p
-                } else {
-                    skipwhite(p)
-                };
+                eap.argt = 0;
+                eap.addr_type = ADDR_NONE;
             }
+            retval = true;
+            break 'end;
+        }
 
-            if eap.cmdidx == Cmdidx::CmdRead as i32 && eap.forceit != 0 {
-                eap.forceit = 0;
-            }
+        if eap.cmdidx == CMD_SIZE_I32 {
+            crate::memory::copy_bytes_to_c_buf(
+                g_st().iobuff_bytes_mut(),
+                gettext(E_NOT_AN_EDITOR_COMMAND).to_bytes(),
+            );
+            let cmdname = if !after_modifier.is_null() {
+                after_modifier
+            } else {
+                unsafe { *cmdline }
+            };
+            append_command(cmdname);
+            *errormsg = Some(crate::memory::cstr_from_ptr(g_st().iobuff.as_ptr()));
+            break 'end;
+        }
 
-            if !skipmods && (eap.argt & EX_TRLBAR) != 0 {
-                separate_nextcmd(&mut *eap);
-            } else if !skipmods
-                && eap.cmdidx >= 0
-                && cmd_has_expr_args(Cmdidx::from_raw(eap.cmdidx))
+        eap.forceit = i32::from(parse_bang(eap, &mut p));
+
+        if eap.cmdidx >= 0 {
+            eap.argt = CMDNAMES[eap.cmdidx as usize].cmd_argt;
+        }
+        if skipmods {
+            eap.arg = p.wrapping_add(usize::from(crate::memory::cstr_first_byte(p) == b' '));
+        } else {
+            eap.arg = if eap.cmdidx == Cmdidx::CmdBang as i32 {
+                p
+            } else {
+                skipwhite(p)
+            };
+        }
+
+        if eap.cmdidx == Cmdidx::CmdRead as i32 && eap.forceit != 0 {
+            eap.forceit = 0;
+        }
+
+        if !skipmods && (eap.argt & EX_TRLBAR) != 0 {
+            separate_nextcmd(&mut *eap);
+        } else if !skipmods && eap.cmdidx >= 0 && cmd_has_expr_args(Cmdidx::from_raw(eap.cmdidx)) {
+            let mut arg = eap.arg;
+            while !crate::memory::cstr_is_empty(arg)
+                && crate::memory::cstr_first_byte(arg) != b'|'
+                && crate::memory::cstr_first_byte(arg) != b'\n'
             {
-                let mut arg = eap.arg;
-                while !crate::memory::cstr_is_empty(arg)
-                    && crate::memory::cstr_first_byte(arg) != b'|'
-                    && crate::memory::cstr_first_byte(arg) != b'\n'
-                {
-                    let start = arg;
-                    g_st().emsg_skip += 1;
-                    skip_expr(&raw mut arg, None);
-                    g_st().emsg_skip -= 1;
-                    if arg == start {
-                        arg = arg.wrapping_add(1);
-                    }
+                let start = arg;
+                g_st().emsg_skip += 1;
+                skip_expr(&raw mut arg, None);
+                g_st().emsg_skip -= 1;
+                if arg == start {
+                    arg = arg.wrapping_add(1);
                 }
-                if crate::memory::cstr_first_byte(arg) == b'|'
-                    || crate::memory::cstr_first_byte(arg) == b'\n'
-                {
-                    eap.nextcmd = check_nextcmd(arg);
+            }
+            if crate::memory::cstr_first_byte(arg) == b'|'
+                || crate::memory::cstr_first_byte(arg) == b'\n'
+            {
+                eap.nextcmd = check_nextcmd(arg);
+                unsafe {
                     *arg = NUL;
                 }
             }
-
-            if (eap.argt & EX_BANG) == 0 && eap.forceit != 0 {
-                *errormsg = Some(gettext(E_NOBANG));
-                break 'end;
-            }
-            if (eap.argt & EX_RANGE) == 0 && eap.addr_count > 0 {
-                *errormsg = Some(gettext(E_NORANGE));
-                break 'end;
-            }
-            if (eap.argt & EX_DFLALL) != 0 && eap.addr_count == 0 {
-                set_cmd_dflall_range(eap);
-            }
-
-            if !skipmods {
-                parse_register(eap);
-                if !parse_count(eap, errormsg, false) {
-                    break 'end;
-                }
-            }
-
-            if !eap.nextcmd.is_null() {
-                eap.nextcmd = skip_colon_white(eap.nextcmd, true);
-            }
-
-            eap.magic.file = (eap.argt & EX_XFILE) != 0;
-            eap.magic.bar = (eap.argt & EX_TRLBAR) != 0;
-
-            retval = true;
         }
 
-        if !retval {
-            undo_cmdmod(cmod);
+        if (eap.argt & EX_BANG) == 0 && eap.forceit != 0 {
+            *errormsg = Some(gettext(E_NOBANG));
+            break 'end;
         }
-        curwin_mut().w_cursor = save_cursor;
-        restore_last_search_pattern();
-        retval
+        if (eap.argt & EX_RANGE) == 0 && eap.addr_count > 0 {
+            *errormsg = Some(gettext(E_NORANGE));
+            break 'end;
+        }
+        if (eap.argt & EX_DFLALL) != 0 && eap.addr_count == 0 {
+            set_cmd_dflall_range(eap);
+        }
+
+        if !skipmods {
+            parse_register(eap);
+            if !parse_count(eap, errormsg, false) {
+                break 'end;
+            }
+        }
+
+        if !eap.nextcmd.is_null() {
+            eap.nextcmd = skip_colon_white(eap.nextcmd, true);
+        }
+
+        eap.magic.file = (eap.argt & EX_XFILE) != 0;
+        eap.magic.bar = (eap.argt & EX_TRLBAR) != 0;
+
+        retval = true;
     }
+
+    if !retval {
+        undo_cmdmod(cmod);
+    }
+    curwin_mut().w_cursor = save_cursor;
+    restore_last_search_pattern();
+    retval
 }
 
 fn shift_cmd_args(eap: &mut Exarg) {
@@ -7165,149 +7176,167 @@ pub fn parse_cmd_address(
     errormsg: &mut Option<&'static std::ffi::CStr>,
     silent: bool,
 ) -> bool {
-    unsafe {
-        let mut address_count: i32 = 1;
-        let mut lnum: Linenr;
-        let mut need_check_cursor = false;
-        let mut ret = false;
+    let mut address_count: i32 = 1;
+    let mut lnum: Linenr;
+    let mut need_check_cursor = false;
+    let mut ret = false;
 
-        'theend: {
-            loop {
-                eap.line1 = eap.line2;
-                eap.line2 = get_cmd_default_range(eap);
-                eap.cmd = skipwhite(eap.cmd);
-                let cur_addr_cnt = address_count;
-                address_count += 1;
-                lnum = get_address(
-                    eap,
-                    &raw mut eap.cmd,
-                    eap.addr_type,
-                    eap.skip != 0,
-                    silent,
-                    i32::from(eap.addr_count == 0),
-                    cur_addr_cnt,
-                    errormsg,
-                );
-                if eap.cmd.is_null() {
-                    break 'theend;
-                }
-                if lnum == MAXLNUM {
-                    if crate::memory::cstr_first_byte(eap.cmd) == b'%' {
-                        eap.cmd = eap.cmd.wrapping_add(1);
-                        match eap.addr_type {
-                            ADDR_LINES | ADDR_OTHER => {
-                                eap.line1 = 1;
-                                eap.line2 = curbuf_mut().b_ml.ml_line_count;
-                            }
-                            ADDR_LOADED_BUFFERS => {
-                                let mut buf = g_st().firstbuf;
-                                while !(*buf).b_next.is_null() && (*buf).b_ml.ml_mfp.is_none() {
+    'theend: {
+        loop {
+            eap.line1 = eap.line2;
+            eap.line2 = get_cmd_default_range(eap);
+            eap.cmd = skipwhite(eap.cmd);
+            let cur_addr_cnt = address_count;
+            address_count += 1;
+            lnum = get_address(
+                eap,
+                &raw mut eap.cmd,
+                eap.addr_type,
+                eap.skip != 0,
+                silent,
+                i32::from(eap.addr_count == 0),
+                cur_addr_cnt,
+                errormsg,
+            );
+            if eap.cmd.is_null() {
+                break 'theend;
+            }
+            if lnum == MAXLNUM {
+                if crate::memory::cstr_first_byte(eap.cmd) == b'%' {
+                    eap.cmd = eap.cmd.wrapping_add(1);
+                    match eap.addr_type {
+                        ADDR_LINES | ADDR_OTHER => {
+                            eap.line1 = 1;
+                            eap.line2 = curbuf_mut().b_ml.ml_line_count;
+                        }
+                        ADDR_LOADED_BUFFERS => {
+                            let mut buf = g_st().firstbuf;
+                            while unsafe { !(*buf).b_next.is_null() }
+                                && unsafe { (*buf).b_ml.ml_mfp.is_none() }
+                            {
+                                unsafe {
                                     buf = (*buf).b_next;
                                 }
+                            }
+                            unsafe {
                                 eap.line1 = (*buf).b_fnum;
-                                buf = g_st().lastbuf;
-                                while !(*buf).b_prev.is_null() && (*buf).b_ml.ml_mfp.is_none() {
+                            }
+                            buf = g_st().lastbuf;
+                            while unsafe { !(*buf).b_prev.is_null() }
+                                && unsafe { (*buf).b_ml.ml_mfp.is_none() }
+                            {
+                                unsafe {
                                     buf = (*buf).b_prev;
                                 }
+                            }
+                            unsafe {
                                 eap.line2 = (*buf).b_fnum;
                             }
-                            ADDR_BUFFERS => {
+                        }
+                        ADDR_BUFFERS => {
+                            unsafe {
                                 eap.line1 = (*g_st().firstbuf).b_fnum;
+                            }
+                            unsafe {
                                 eap.line2 = (*g_st().lastbuf).b_fnum;
                             }
-                            ADDR_WINDOWS | ADDR_TABS => {
-                                if eap.cmdidx < 0 {
-                                    eap.line1 = 1;
-                                    eap.line2 = if eap.addr_type == ADDR_WINDOWS {
-                                        current_win_nr(ptr::null(), None)
-                                    } else {
-                                        current_tab_nr(ptr::null_mut())
-                                    };
+                        }
+                        ADDR_WINDOWS | ADDR_TABS => {
+                            if eap.cmdidx < 0 {
+                                eap.line1 = 1;
+                                eap.line2 = if eap.addr_type == ADDR_WINDOWS {
+                                    current_win_nr(ptr::null(), None)
                                 } else {
-                                    *errormsg = Some(gettext(E_INVRANGE));
-                                    break 'theend;
-                                }
-                            }
-                            ADDR_TABS_RELATIVE | ADDR_UNSIGNED | ADDR_QUICKFIX => {
+                                    current_tab_nr(ptr::null_mut())
+                                };
+                            } else {
                                 *errormsg = Some(gettext(E_INVRANGE));
                                 break 'theend;
                             }
-                            ADDR_ARGUMENTS => {
-                                let ac = argcount();
-                                if ac == 0 {
-                                    eap.line1 = 0;
-                                    eap.line2 = 0;
-                                } else {
-                                    eap.line1 = 1;
-                                    eap.line2 = ac;
-                                }
-                            }
-                            ADDR_QUICKFIX_VALID => {
-                                eap.line1 = 1;
-                                eap.line2 = qf_get_valid_size(eap) as Linenr;
-                                if eap.line2 == 0 {
-                                    eap.line2 = 1;
-                                }
-                            }
-                            _ => {}
                         }
-                        eap.addr_count += 1;
-                    } else if crate::memory::cstr_first_byte(eap.cmd) == b'*' {
-                        if eap.addr_type != ADDR_LINES {
+                        ADDR_TABS_RELATIVE | ADDR_UNSIGNED | ADDR_QUICKFIX => {
                             *errormsg = Some(gettext(E_INVRANGE));
                             break 'theend;
                         }
-
-                        eap.cmd = eap.cmd.wrapping_add(1);
-                        if eap.skip == 0 {
-                            let fm1 = mark_get_visual(curbuf_mut(), b'<' as i32);
-                            if !mark_check(fm1.as_mut(), errormsg) {
-                                break 'theend;
+                        ADDR_ARGUMENTS => {
+                            let ac = argcount();
+                            if ac == 0 {
+                                eap.line1 = 0;
+                                eap.line2 = 0;
+                            } else {
+                                eap.line1 = 1;
+                                eap.line2 = ac;
                             }
-                            eap.line1 = (*fm1).mark.lnum;
-                            let fm2 = mark_get_visual(curbuf_mut(), b'>' as i32);
-                            if !mark_check(fm2.as_mut(), errormsg) {
-                                break 'theend;
-                            }
-                            eap.line2 = (*fm2).mark.lnum;
-                            eap.addr_count += 1;
                         }
+                        ADDR_QUICKFIX_VALID => {
+                            eap.line1 = 1;
+                            eap.line2 = qf_get_valid_size(eap) as Linenr;
+                            if eap.line2 == 0 {
+                                eap.line2 = 1;
+                            }
+                        }
+                        _ => {}
                     }
-                } else {
-                    eap.line2 = lnum;
-                }
-                eap.addr_count += 1;
+                    eap.addr_count += 1;
+                } else if crate::memory::cstr_first_byte(eap.cmd) == b'*' {
+                    if eap.addr_type != ADDR_LINES {
+                        *errormsg = Some(gettext(E_INVRANGE));
+                        break 'theend;
+                    }
 
-                if crate::memory::cstr_first_byte(eap.cmd) == b';' {
+                    eap.cmd = eap.cmd.wrapping_add(1);
                     if eap.skip == 0 {
-                        curwin_mut().w_cursor.lnum = eap.line2;
-                        if eap.line2 > 0 {
-                            check_cursor(curwin_mut());
-                        } else {
-                            check_cursor_col(curwin_mut());
+                        let fm1 = mark_get_visual(curbuf_mut(), b'<' as i32);
+                        if unsafe { !mark_check(fm1.as_mut(), errormsg) } {
+                            break 'theend;
                         }
-                        need_check_cursor = true;
+                        unsafe {
+                            eap.line1 = (*fm1).mark.lnum;
+                        }
+                        let fm2 = mark_get_visual(curbuf_mut(), b'>' as i32);
+                        if unsafe { !mark_check(fm2.as_mut(), errormsg) } {
+                            break 'theend;
+                        }
+                        unsafe {
+                            eap.line2 = (*fm2).mark.lnum;
+                        }
+                        eap.addr_count += 1;
                     }
-                } else if crate::memory::cstr_first_byte(eap.cmd) != b',' {
-                    break;
                 }
-                eap.cmd = eap.cmd.wrapping_add(1);
+            } else {
+                eap.line2 = lnum;
             }
+            eap.addr_count += 1;
 
-            if eap.addr_count == 1 {
-                eap.line1 = eap.line2;
-                if lnum == MAXLNUM {
-                    eap.addr_count = 0;
+            if crate::memory::cstr_first_byte(eap.cmd) == b';' {
+                if eap.skip == 0 {
+                    curwin_mut().w_cursor.lnum = eap.line2;
+                    if eap.line2 > 0 {
+                        check_cursor(curwin_mut());
+                    } else {
+                        check_cursor_col(curwin_mut());
+                    }
+                    need_check_cursor = true;
                 }
+            } else if crate::memory::cstr_first_byte(eap.cmd) != b',' {
+                break;
             }
-            ret = true;
+            eap.cmd = eap.cmd.wrapping_add(1);
         }
 
-        if need_check_cursor {
-            check_cursor(curwin_mut());
+        if eap.addr_count == 1 {
+            eap.line1 = eap.line2;
+            if lnum == MAXLNUM {
+                eap.addr_count = 0;
+            }
         }
-        ret
+        ret = true;
     }
+
+    if need_check_cursor {
+        check_cursor(curwin_mut());
+    }
+    ret
 }
 
 pub fn checkforcmd<T>(pp: &mut *mut T, cmd_bytes: &[u8], len: usize) -> bool {
@@ -7693,315 +7722,324 @@ pub fn get_address(
     address_count: i32,
     errormsg: &mut Option<&'static std::ffi::CStr>,
 ) -> Linenr {
-    unsafe {
-        let mut cmd = skipwhite(*ptr);
-        let mut lnum: Linenr = MAXLNUM;
+    let mut cmd = unsafe { skipwhite(*ptr) };
+    let mut lnum: Linenr = MAXLNUM;
 
-        'error: {
-            loop {
-                match crate::memory::cstr_first_byte(cmd) {
-                    b'.' => {
-                        cmd = cmd.wrapping_add(1);
-                        match addr_type {
-                            ADDR_LINES | ADDR_OTHER => lnum = curwin_mut().w_cursor.lnum,
-                            ADDR_WINDOWS => lnum = current_win_nr(curwin_ptr(), None),
-                            ADDR_ARGUMENTS => lnum = curwin_mut().w_arg_idx + 1,
-                            ADDR_LOADED_BUFFERS | ADDR_BUFFERS => lnum = curbuf_mut().b_fnum,
-                            ADDR_TABS => lnum = current_tab_nr(g_st().curtab),
-                            ADDR_NONE | ADDR_TABS_RELATIVE | ADDR_UNSIGNED => {
-                                *errormsg = Some(addr_error(addr_type));
-                                cmd = ptr::null_mut();
-                                break 'error;
-                            }
-                            ADDR_QUICKFIX => lnum = qf_get_cur_idx(&mut *eap) as Linenr,
-                            ADDR_QUICKFIX_VALID => lnum = qf_get_cur_valid_idx(&mut *eap),
-                            _ => {}
-                        }
-                    }
-                    b'$' => {
-                        cmd = cmd.wrapping_add(1);
-                        match addr_type {
-                            ADDR_LINES | ADDR_OTHER => lnum = curbuf_mut().b_ml.ml_line_count,
-                            ADDR_WINDOWS => lnum = current_win_nr(ptr::null(), Some(&*eap)),
-                            ADDR_ARGUMENTS => lnum = argcount(),
-                            ADDR_LOADED_BUFFERS => {
-                                let mut buf = g_st().lastbuf;
-                                while (*buf).b_ml.ml_mfp.is_none() {
-                                    if (*buf).b_prev.is_null() {
-                                        break;
-                                    }
-                                    buf = (*buf).b_prev;
-                                }
-                                lnum = (*buf).b_fnum;
-                            }
-                            ADDR_BUFFERS => lnum = (*g_st().lastbuf).b_fnum,
-                            ADDR_TABS => lnum = current_tab_nr(ptr::null_mut()),
-                            ADDR_NONE | ADDR_TABS_RELATIVE | ADDR_UNSIGNED => {
-                                *errormsg = Some(addr_error(addr_type));
-                                cmd = ptr::null_mut();
-                                break 'error;
-                            }
-                            ADDR_QUICKFIX => {
-                                lnum = qf_get_size(&mut *eap) as Linenr;
-                                if lnum == 0 {
-                                    lnum = 1;
-                                }
-                            }
-                            ADDR_QUICKFIX_VALID => {
-                                lnum = qf_get_valid_size(&mut *eap) as Linenr;
-                                if lnum == 0 {
-                                    lnum = 1;
-                                }
-                            }
-                            _ => {}
-                        }
-                    }
-                    b'\'' => {
-                        cmd = cmd.wrapping_add(1);
-                        if crate::memory::cstr_is_empty(cmd) {
-                            cmd = ptr::null_mut();
-                            break 'error;
-                        }
-                        if addr_type != ADDR_LINES {
+    'error: {
+        loop {
+            match crate::memory::cstr_first_byte(cmd) {
+                b'.' => {
+                    cmd = cmd.wrapping_add(1);
+                    match addr_type {
+                        ADDR_LINES | ADDR_OTHER => lnum = curwin_mut().w_cursor.lnum,
+                        ADDR_WINDOWS => lnum = current_win_nr(curwin_ptr(), None),
+                        ADDR_ARGUMENTS => lnum = curwin_mut().w_arg_idx + 1,
+                        ADDR_LOADED_BUFFERS | ADDR_BUFFERS => lnum = curbuf_mut().b_fnum,
+                        ADDR_TABS => lnum = current_tab_nr(g_st().curtab),
+                        ADDR_NONE | ADDR_TABS_RELATIVE | ADDR_UNSIGNED => {
                             *errormsg = Some(addr_error(addr_type));
                             cmd = ptr::null_mut();
                             break 'error;
                         }
-                        if skip {
-                            cmd = cmd.wrapping_add(1);
-                        } else {
-                            let flag = if to_other_file != 0 && crate::memory::cstr_len(cmd) == 1 {
-                                K_MARK_ALL
-                            } else {
-                                K_MARK_BUF_LOCAL
-                            };
-                            let fm = mark_get(
-                                curbuf_mut(),
-                                curwin_mut(),
-                                None,
-                                flag,
-                                i32::from(crate::memory::cstr_first_byte(cmd)),
-                            );
-                            cmd = cmd.wrapping_add(1);
-                            if !fm.is_null() && (*fm).fnum != curbuf_mut().b_fnum {
-                                mark_move_to(fm, 0);
-                                lnum = curwin_mut().w_cursor.lnum;
-                            } else {
-                                if !mark_check(fm.as_mut(), errormsg) {
-                                    cmd = ptr::null_mut();
-                                    break 'error;
+                        ADDR_QUICKFIX => unsafe { lnum = qf_get_cur_idx(&mut *eap) as Linenr },
+                        ADDR_QUICKFIX_VALID => unsafe { lnum = qf_get_cur_valid_idx(&mut *eap) },
+                        _ => {}
+                    }
+                }
+                b'$' => {
+                    cmd = cmd.wrapping_add(1);
+                    match addr_type {
+                        ADDR_LINES | ADDR_OTHER => lnum = curbuf_mut().b_ml.ml_line_count,
+                        ADDR_WINDOWS => unsafe { lnum = current_win_nr(ptr::null(), Some(&*eap)) },
+                        ADDR_ARGUMENTS => lnum = argcount(),
+                        ADDR_LOADED_BUFFERS => {
+                            let mut buf = g_st().lastbuf;
+                            while unsafe { (*buf).b_ml.ml_mfp.is_none() } {
+                                if unsafe { (*buf).b_prev.is_null() } {
+                                    break;
                                 }
+                                unsafe {
+                                    buf = (*buf).b_prev;
+                                }
+                            }
+                            unsafe {
+                                lnum = (*buf).b_fnum;
+                            }
+                        }
+                        ADDR_BUFFERS => unsafe { lnum = (*g_st().lastbuf).b_fnum },
+                        ADDR_TABS => lnum = current_tab_nr(ptr::null_mut()),
+                        ADDR_NONE | ADDR_TABS_RELATIVE | ADDR_UNSIGNED => {
+                            *errormsg = Some(addr_error(addr_type));
+                            cmd = ptr::null_mut();
+                            break 'error;
+                        }
+                        ADDR_QUICKFIX => {
+                            unsafe {
+                                lnum = qf_get_size(&mut *eap) as Linenr;
+                            }
+                            if lnum == 0 {
+                                lnum = 1;
+                            }
+                        }
+                        ADDR_QUICKFIX_VALID => {
+                            unsafe {
+                                lnum = qf_get_valid_size(&mut *eap) as Linenr;
+                            }
+                            if lnum == 0 {
+                                lnum = 1;
+                            }
+                        }
+                        _ => {}
+                    }
+                }
+                b'\'' => {
+                    cmd = cmd.wrapping_add(1);
+                    if crate::memory::cstr_is_empty(cmd) {
+                        cmd = ptr::null_mut();
+                        break 'error;
+                    }
+                    if addr_type != ADDR_LINES {
+                        *errormsg = Some(addr_error(addr_type));
+                        cmd = ptr::null_mut();
+                        break 'error;
+                    }
+                    if skip {
+                        cmd = cmd.wrapping_add(1);
+                    } else {
+                        let flag = if to_other_file != 0 && crate::memory::cstr_len(cmd) == 1 {
+                            K_MARK_ALL
+                        } else {
+                            K_MARK_BUF_LOCAL
+                        };
+                        let fm = mark_get(
+                            curbuf_mut(),
+                            curwin_mut(),
+                            None,
+                            flag,
+                            i32::from(crate::memory::cstr_first_byte(cmd)),
+                        );
+                        cmd = cmd.wrapping_add(1);
+                        if !fm.is_null() && unsafe { (*fm).fnum != curbuf_mut().b_fnum } {
+                            mark_move_to(fm, 0);
+                            lnum = curwin_mut().w_cursor.lnum;
+                        } else {
+                            if unsafe { !mark_check(fm.as_mut(), errormsg) } {
+                                cmd = ptr::null_mut();
+                                break 'error;
+                            }
+                            unsafe {
                                 lnum = (*fm).mark.lnum;
                             }
                         }
                     }
-                    b'/' | b'?' => {
-                        let c = i32::from(crate::memory::cstr_first_byte(cmd));
-                        cmd = cmd.wrapping_add(1);
-                        if addr_type != ADDR_LINES {
-                            *errormsg = Some(addr_error(addr_type));
-                            cmd = ptr::null_mut();
-                            break 'error;
-                        }
-                        if skip {
-                            cmd = skip_regexp(cmd, c, opt_vars().p_magic);
-                            if i32::from(crate::memory::cstr_first_byte(cmd)) == c {
-                                cmd = cmd.wrapping_add(1);
-                            }
-                        } else {
-                            let pos = curwin_mut().w_cursor;
-                            if lnum > 0 && lnum != MAXLNUM {
-                                curwin_mut().w_cursor.lnum =
-                                    lnum.min(curbuf_mut().b_ml.ml_line_count);
-                            }
-                            curwin_mut().w_cursor.col =
-                                if c == b'/' as i32 && curwin_mut().w_cursor.lnum > 0 {
-                                    MAXCOL
-                                } else {
-                                    0
-                                };
-                            g_st().search_global.cmdlen = 0;
-                            let search_flags = if silent {
-                                SEARCH_KEEP
-                            } else {
-                                SEARCH_HIS | SEARCH_MSG
-                            };
-                            if do_search(
-                                None,
-                                c,
-                                c,
-                                cmd,
-                                crate::memory::cstr_len(cmd),
-                                1,
-                                search_flags,
-                                opt_vars().p_magic != 0,
-                                None,
-                            ) == 0
-                            {
-                                curwin_mut().w_cursor = pos;
-                                cmd = ptr::null_mut();
-                                break 'error;
-                            }
-                            lnum = curwin_mut().w_cursor.lnum;
-                            curwin_mut().w_cursor = pos;
-                            cmd = cmd.wrapping_add(g_st().search_global.cmdlen as usize);
-                        }
+                }
+                b'/' | b'?' => {
+                    let c = i32::from(crate::memory::cstr_first_byte(cmd));
+                    cmd = cmd.wrapping_add(1);
+                    if addr_type != ADDR_LINES {
+                        *errormsg = Some(addr_error(addr_type));
+                        cmd = ptr::null_mut();
+                        break 'error;
                     }
-                    b'\\' => {
-                        cmd = cmd.wrapping_add(1);
-                        if addr_type != ADDR_LINES {
-                            *errormsg = Some(addr_error(addr_type));
-                            cmd = ptr::null_mut();
-                            break 'error;
+                    if skip {
+                        cmd = skip_regexp(cmd, c, opt_vars().p_magic);
+                        if i32::from(crate::memory::cstr_first_byte(cmd)) == c {
+                            cmd = cmd.wrapping_add(1);
                         }
-                        let pat_use = if crate::memory::cstr_first_byte(cmd) == b'&' {
-                            RE_SUBST
-                        } else if crate::memory::cstr_first_byte(cmd) == b'?'
-                            || crate::memory::cstr_first_byte(cmd) == b'/'
-                        {
-                            RE_SEARCH
+                    } else {
+                        let pos = curwin_mut().w_cursor;
+                        if lnum > 0 && lnum != MAXLNUM {
+                            curwin_mut().w_cursor.lnum = lnum.min(curbuf_mut().b_ml.ml_line_count);
+                        }
+                        curwin_mut().w_cursor.col =
+                            if c == b'/' as i32 && curwin_mut().w_cursor.lnum > 0 {
+                                MAXCOL
+                            } else {
+                                0
+                            };
+                        g_st().search_global.cmdlen = 0;
+                        let search_flags = if silent {
+                            SEARCH_KEEP
                         } else {
-                            *errormsg = Some(gettext(E_BACKSLASH));
-                            cmd = ptr::null_mut();
-                            break 'error;
+                            SEARCH_HIS | SEARCH_MSG
                         };
-                        if !skip {
-                            let mut pos = CursorPos {
-                                lnum: if lnum != MAXLNUM {
-                                    lnum
-                                } else {
-                                    curwin_mut().w_cursor.lnum
-                                },
-                                col: if crate::memory::cstr_first_byte(cmd) != b'?' {
-                                    MAXCOL
-                                } else {
-                                    0
-                                },
-                                coladd: 0,
-                            };
-                            if searchit(
-                                curwin_ptr(),
-                                curbuf_mut(),
-                                &mut pos,
-                                None,
-                                if crate::memory::cstr_first_byte(cmd) == b'?' {
-                                    BACKWARD
-                                } else {
-                                    FORWARD
-                                },
-                                c"",
-                                0,
-                                1,
-                                SEARCH_MSG,
-                                pat_use,
-                                opt_vars().p_magic != 0,
-                                None,
-                            ) != FAIL
-                            {
-                                lnum = pos.lnum;
-                            } else {
-                                cmd = ptr::null_mut();
-                                break 'error;
-                            }
+                        if do_search(
+                            None,
+                            c,
+                            c,
+                            cmd,
+                            crate::memory::cstr_len(cmd),
+                            1,
+                            search_flags,
+                            opt_vars().p_magic != 0,
+                            None,
+                        ) == 0
+                        {
+                            curwin_mut().w_cursor = pos;
+                            cmd = ptr::null_mut();
+                            break 'error;
                         }
-                        cmd = cmd.wrapping_add(1);
+                        lnum = curwin_mut().w_cursor.lnum;
+                        curwin_mut().w_cursor = pos;
+                        cmd = cmd.wrapping_add(g_st().search_global.cmdlen as usize);
                     }
-                    _ => {
-                        if ascii_isdigit(*cmd) {
-                            let cmd_bytes = crate::memory::cstr_as_bytes(cmd);
-                            let mut rem = cmd_bytes;
-                            lnum = getdigits(&mut rem, false, 0) as Linenr;
-                            cmd = cmd.wrapping_add(cmd_bytes.len() - rem.len());
+                }
+                b'\\' => {
+                    cmd = cmd.wrapping_add(1);
+                    if addr_type != ADDR_LINES {
+                        *errormsg = Some(addr_error(addr_type));
+                        cmd = ptr::null_mut();
+                        break 'error;
+                    }
+                    let pat_use = if crate::memory::cstr_first_byte(cmd) == b'&' {
+                        RE_SUBST
+                    } else if crate::memory::cstr_first_byte(cmd) == b'?'
+                        || crate::memory::cstr_first_byte(cmd) == b'/'
+                    {
+                        RE_SEARCH
+                    } else {
+                        *errormsg = Some(gettext(E_BACKSLASH));
+                        cmd = ptr::null_mut();
+                        break 'error;
+                    };
+                    if !skip {
+                        let mut pos = CursorPos {
+                            lnum: if lnum != MAXLNUM {
+                                lnum
+                            } else {
+                                curwin_mut().w_cursor.lnum
+                            },
+                            col: if crate::memory::cstr_first_byte(cmd) != b'?' {
+                                MAXCOL
+                            } else {
+                                0
+                            },
+                            coladd: 0,
+                        };
+                        if searchit(
+                            curwin_ptr(),
+                            curbuf_mut(),
+                            &mut pos,
+                            None,
+                            if crate::memory::cstr_first_byte(cmd) == b'?' {
+                                BACKWARD
+                            } else {
+                                FORWARD
+                            },
+                            c"",
+                            0,
+                            1,
+                            SEARCH_MSG,
+                            pat_use,
+                            opt_vars().p_magic != 0,
+                            None,
+                        ) != FAIL
+                        {
+                            lnum = pos.lnum;
+                        } else {
+                            cmd = ptr::null_mut();
+                            break 'error;
                         }
+                    }
+                    cmd = cmd.wrapping_add(1);
+                }
+                _ => {
+                    if unsafe { ascii_isdigit(*cmd) } {
+                        let cmd_bytes = crate::memory::cstr_as_bytes(cmd);
+                        let mut rem = cmd_bytes;
+                        lnum = getdigits(&mut rem, false, 0) as Linenr;
+                        cmd = cmd.wrapping_add(cmd_bytes.len() - rem.len());
+                    }
+                }
+            }
+
+            loop {
+                cmd = skipwhite(cmd);
+                if crate::memory::cstr_first_byte(cmd) != b'-'
+                    && crate::memory::cstr_first_byte(cmd) != b'+'
+                    && unsafe { !ascii_isdigit(*cmd) }
+                {
+                    break;
+                }
+
+                if lnum == MAXLNUM {
+                    match addr_type {
+                        ADDR_LINES | ADDR_OTHER => lnum = curwin_mut().w_cursor.lnum,
+                        ADDR_WINDOWS => lnum = current_win_nr(curwin_ptr(), None),
+                        ADDR_ARGUMENTS => lnum = curwin_mut().w_arg_idx + 1,
+                        ADDR_LOADED_BUFFERS | ADDR_BUFFERS => lnum = curbuf_mut().b_fnum,
+                        ADDR_TABS => lnum = current_tab_nr(g_st().curtab),
+                        ADDR_TABS_RELATIVE => lnum = 1,
+                        ADDR_QUICKFIX => unsafe { lnum = qf_get_cur_idx(&mut *eap) as Linenr },
+                        ADDR_QUICKFIX_VALID => unsafe { lnum = qf_get_cur_valid_idx(&mut *eap) },
+                        _ => lnum = 0,
                     }
                 }
 
-                loop {
-                    cmd = skipwhite(cmd);
-                    if crate::memory::cstr_first_byte(cmd) != b'-'
-                        && crate::memory::cstr_first_byte(cmd) != b'+'
-                        && !ascii_isdigit(*cmd)
+                let op = if unsafe { ascii_isdigit(*cmd) } {
+                    b'+' as i32
+                } else {
+                    let ch = i32::from(crate::memory::cstr_first_byte(cmd));
+                    cmd = cmd.wrapping_add(1);
+                    ch
+                };
+                let n = if unsafe { !ascii_isdigit(*cmd) } {
+                    1
+                } else {
+                    let cmd_bytes = crate::memory::cstr_as_bytes(cmd);
+                    let mut rem = cmd_bytes;
+                    let parsed = getdigits_int32(&mut rem, false, MAXLNUM);
+                    cmd = cmd.wrapping_add(cmd_bytes.len() - rem.len());
+                    if parsed == MAXLNUM {
+                        *errormsg = Some(gettext(E_LINE_NUMBER_OUT_OF_RANGE));
+                        cmd = ptr::null_mut();
+                        break 'error;
+                    }
+                    parsed
+                };
+
+                if addr_type == ADDR_TABS_RELATIVE {
+                    *errormsg = Some(gettext(E_INVRANGE));
+                    cmd = ptr::null_mut();
+                    break 'error;
+                } else if addr_type == ADDR_LOADED_BUFFERS || addr_type == ADDR_BUFFERS {
+                    lnum = compute_buffer_local_count(
+                        addr_type,
+                        lnum,
+                        if op == b'-' as i32 { -n } else { n },
+                    );
+                } else {
+                    if addr_type == ADDR_LINES
+                        && (op == b'-' as i32 || op == b'+' as i32)
+                        && address_count >= 2
                     {
-                        break;
+                        has_folding(curwin_ptr(), lnum, None, &raw mut lnum);
                     }
-
-                    if lnum == MAXLNUM {
-                        match addr_type {
-                            ADDR_LINES | ADDR_OTHER => lnum = curwin_mut().w_cursor.lnum,
-                            ADDR_WINDOWS => lnum = current_win_nr(curwin_ptr(), None),
-                            ADDR_ARGUMENTS => lnum = curwin_mut().w_arg_idx + 1,
-                            ADDR_LOADED_BUFFERS | ADDR_BUFFERS => lnum = curbuf_mut().b_fnum,
-                            ADDR_TABS => lnum = current_tab_nr(g_st().curtab),
-                            ADDR_TABS_RELATIVE => lnum = 1,
-                            ADDR_QUICKFIX => lnum = qf_get_cur_idx(&mut *eap) as Linenr,
-                            ADDR_QUICKFIX_VALID => lnum = qf_get_cur_valid_idx(&mut *eap),
-                            _ => lnum = 0,
-                        }
-                    }
-
-                    let op = if ascii_isdigit(*cmd) {
-                        b'+' as i32
+                    if op == b'-' as i32 {
+                        lnum -= n;
                     } else {
-                        let ch = i32::from(crate::memory::cstr_first_byte(cmd));
-                        cmd = cmd.wrapping_add(1);
-                        ch
-                    };
-                    let n = if !ascii_isdigit(*cmd) {
-                        1
-                    } else {
-                        let cmd_bytes = crate::memory::cstr_as_bytes(cmd);
-                        let mut rem = cmd_bytes;
-                        let parsed = getdigits_int32(&mut rem, false, MAXLNUM);
-                        cmd = cmd.wrapping_add(cmd_bytes.len() - rem.len());
-                        if parsed == MAXLNUM {
+                        if lnum >= 0 && n >= i32::MAX - lnum {
                             *errormsg = Some(gettext(E_LINE_NUMBER_OUT_OF_RANGE));
                             cmd = ptr::null_mut();
                             break 'error;
                         }
-                        parsed
-                    };
-
-                    if addr_type == ADDR_TABS_RELATIVE {
-                        *errormsg = Some(gettext(E_INVRANGE));
-                        cmd = ptr::null_mut();
-                        break 'error;
-                    } else if addr_type == ADDR_LOADED_BUFFERS || addr_type == ADDR_BUFFERS {
-                        lnum = compute_buffer_local_count(
-                            addr_type,
-                            lnum,
-                            if op == b'-' as i32 { -n } else { n },
-                        );
-                    } else {
-                        if addr_type == ADDR_LINES
-                            && (op == b'-' as i32 || op == b'+' as i32)
-                            && address_count >= 2
-                        {
-                            has_folding(curwin_ptr(), lnum, None, &raw mut lnum);
-                        }
-                        if op == b'-' as i32 {
-                            lnum -= n;
-                        } else {
-                            if lnum >= 0 && n >= i32::MAX - lnum {
-                                *errormsg = Some(gettext(E_LINE_NUMBER_OUT_OF_RANGE));
-                                cmd = ptr::null_mut();
-                                break 'error;
-                            }
-                            lnum += n;
-                        }
+                        lnum += n;
                     }
                 }
+            }
 
-                if crate::memory::cstr_first_byte(cmd) != b'/'
-                    && crate::memory::cstr_first_byte(cmd) != b'?'
-                {
-                    break;
-                }
+            if crate::memory::cstr_first_byte(cmd) != b'/'
+                && crate::memory::cstr_first_byte(cmd) != b'?'
+            {
+                break;
             }
         }
-
-        *ptr = cmd;
-        lnum
     }
+
+    unsafe {
+        *ptr = cmd;
+    }
+    lnum
 }
 
 fn get_flags(eap: &mut Exarg) {
@@ -8998,10 +9036,10 @@ pub fn not_exiting(save_exiting: bool) {
 }
 
 pub fn before_quit_autocmds(wp: *mut WinInfoInfo, quit_all: bool, forceit: bool) -> bool {
+    if crate::memory::cstr_is_empty(get_vim_var_str(VV_EXITREASON)) {
+        set_vim_var_string(VV_EXITREASON, c"quit", 4);
+    }
     unsafe {
-        if crate::memory::cstr_is_empty(get_vim_var_str(VV_EXITREASON)) {
-            set_vim_var_string(VV_EXITREASON, c"quit", 4);
-        }
         apply_autocmds_win(
             EVENT_QUITPRE,
             ptr::null_mut(),
@@ -9010,92 +9048,87 @@ pub fn before_quit_autocmds(wp: *mut WinInfoInfo, quit_all: bool, forceit: bool)
             (*wp).w_buffer,
             wp.as_ref(),
         );
+    }
 
+    if !win_valid(wp)
+        || curbuf_locked()
+        || (unsafe { (*wp).buf_mut().b_nwindows == 1 && (*wp).buf_mut().b_locked > 0 })
+    {
+        set_vim_var_string(VV_EXITREASON, ptr::null(), -1);
+        return true;
+    }
+
+    if quit_all || (check_more(false, forceit) && only_one_window()) {
+        apply_autocmds(
+            EVENT_EXITPRE,
+            ptr::null_mut(),
+            ptr::null_mut(),
+            false,
+            g_st().curbuf,
+        );
         if !win_valid(wp)
             || curbuf_locked()
-            || ((*wp).buf_mut().b_nwindows == 1 && (*wp).buf_mut().b_locked > 0)
+            || (curbuf_mut().b_nwindows == 1 && curbuf_mut().b_locked > 0)
         {
             set_vim_var_string(VV_EXITREASON, ptr::null(), -1);
             return true;
         }
-
-        if quit_all || (check_more(false, forceit) && only_one_window()) {
-            apply_autocmds(
-                EVENT_EXITPRE,
-                ptr::null_mut(),
-                ptr::null_mut(),
-                false,
-                g_st().curbuf,
-            );
-            if !win_valid(wp)
-                || curbuf_locked()
-                || (curbuf_mut().b_nwindows == 1 && curbuf_mut().b_locked > 0)
-            {
-                set_vim_var_string(VV_EXITREASON, ptr::null(), -1);
-                return true;
-            }
-        }
-
-        false
     }
+
+    false
 }
 
 fn ex_quit(eap: &mut Exarg) {
-    unsafe {
-        if text_locked() {
-            text_locked_msg();
-            return;
-        }
+    if text_locked() {
+        text_locked_msg();
+        return;
+    }
 
-        let mut wp: *mut WinInfoInfo;
-        if eap.addr_count > 0 {
-            let mut wnr = eap.line2;
-            wp = g_st().firstwin;
-            while !(*wp).w_next.is_null() {
-                wnr -= 1;
-                if wnr <= 0 {
-                    break;
-                }
-                wp = (*wp).w_next;
+    let mut wp: crate::globals::WinPtr;
+    if eap.addr_count > 0 {
+        let mut wnr = eap.line2;
+        wp = crate::globals::WinPtr::new(g_st().firstwin);
+        while !wp.borrow().w_next.is_null() {
+            wnr -= 1;
+            if wnr <= 0 {
+                break;
             }
-        } else {
-            wp = curwin_ptr();
+            wp = crate::globals::WinPtr::new(wp.borrow().w_next);
         }
+    } else {
+        wp = crate::globals::curwin_handle();
+    }
 
-        if curbuf_locked() {
-            return;
-        }
+    if curbuf_locked() {
+        return;
+    }
 
-        if before_quit_autocmds(wp, false, eap.forceit != 0) {
-            return;
-        }
+    if before_quit_autocmds(wp.as_ptr(), false, eap.forceit != 0) {
+        return;
+    }
 
-        let save_exiting = g_st().exiting;
-        if check_more(false, eap.forceit != 0) && only_one_window() {
-            g_st().exiting = true;
+    let save_exiting = g_st().exiting;
+    if check_more(false, eap.forceit != 0) && only_one_window() {
+        g_st().exiting = true;
+    }
+    if (!buf_hide(wp.borrow().buf_mut())
+        && check_changed(
+            wp.borrow().buf_mut(),
+            (if opt_vars().p_awa != 0 { CCGD_AW } else { 0 })
+                | (if eap.forceit != 0 { CCGD_FORCEIT } else { 0 })
+                | CCGD_EXCMD,
+        ))
+        || !check_more(true, eap.forceit != 0)
+        || (only_one_window() && check_changed_any(eap.forceit != 0, true))
+    {
+        not_exiting(save_exiting);
+    } else {
+        if only_one_window() && (g_st().firstwin == g_st().lastwin || eap.addr_count == 0) {
+            getout(0);
         }
-        if (!buf_hide((*wp).buf_mut())
-            && check_changed(
-                (*wp).buf_mut(),
-                (if opt_vars().p_awa != 0 { CCGD_AW } else { 0 })
-                    | (if eap.forceit != 0 { CCGD_FORCEIT } else { 0 })
-                    | CCGD_EXCMD,
-            ))
-            || !check_more(true, eap.forceit != 0)
-            || (only_one_window() && check_changed_any(eap.forceit != 0, true))
-        {
-            not_exiting(save_exiting);
-        } else {
-            if only_one_window() && (g_st().firstwin == g_st().lastwin || eap.addr_count == 0) {
-                getout(0);
-            }
-            not_exiting(save_exiting);
-            win_close(
-                wp,
-                !buf_hide((*wp).buf_mut()) || eap.forceit != 0,
-                eap.forceit != 0,
-            );
-        }
+        not_exiting(save_exiting);
+        let close_buf = !buf_hide(wp.borrow().buf_mut()) || eap.forceit != 0;
+        win_close(wp.as_ptr(), close_buf, eap.forceit != 0);
     }
 }
 
@@ -9145,183 +9178,197 @@ fn ex_exmode(_eap: &mut Exarg) {
 }
 
 fn ex_restart(eap: &mut Exarg) {
-    unsafe {
-        if eap.forceit == 0 {
-            let extra_d = tv_dict_alloc();
-            tv_dict_add_str(
-                &mut *extra_d,
-                c"quit_cmd",
-                if !eap.do_ecmd_cmd.is_null() {
-                    eap.do_ecmd_cmd
-                } else {
-                    c"".as_ptr()
-                },
-            );
-            let mut extra_tv = TypVal {
-                v_type: VarType::VarDict,
-                v_lock: 0,
-                vval: TypvalVval::Dict(extra_d),
+    if eap.forceit == 0 {
+        let extra_d = tv_dict_alloc();
+        tv_dict_add_str(
+            &mut *extra_d,
+            c"quit_cmd",
+            if !eap.do_ecmd_cmd.is_null() {
+                eap.do_ecmd_cmd
+            } else {
+                c"".as_ptr()
+            },
+        );
+        let mut extra_tv = TypVal {
+            v_type: VarType::VarDict,
+            v_lock: 0,
+            vval: TypvalVval::Dict(extra_d),
+        };
+        nlua_call_excmd(
+            c"vim._core.server",
+            c"ex_session_restart",
+            eap,
+            &g_st().cmdmod,
+            Some(&mut extra_tv),
+        );
+        tv_clear(&mut extra_tv);
+        return;
+    }
+
+    let mut startreason = c"restart!".as_ptr();
+    let quit_cmd_cstr: std::ffi::CString;
+    let mut quit_cmd = if !eap.do_ecmd_cmd.is_null() {
+        eap.do_ecmd_cmd
+    } else {
+        c"qall".as_ptr().cast_mut()
+    };
+    let mut after_cmd = eap.arg;
+
+    if crate::memory::cstr_as_opt_bytes(quit_cmd) == Some(b":::") {
+        startreason = c"restart".as_ptr();
+        if eap.args.len() > 1 {
+            let arg1 = eap.args.as_slice()[1];
+            let arglen1 = eap.arglens.as_slice()[1];
+            quit_cmd_cstr = cstr_from_bytes(crate::memory::cstr_slice(arg1, arglen1));
+            quit_cmd = quit_cmd_cstr.as_ptr().cast_mut();
+            after_cmd = if eap.args.len() > 2 {
+                eap.args.as_slice()[2]
+            } else {
+                c"".as_ptr().cast_mut()
             };
-            nlua_call_excmd(
-                c"vim._core.server",
-                c"ex_session_restart",
-                eap,
-                &g_st().cmdmod,
-                Some(&mut extra_tv),
-            );
-            tv_clear(&mut extra_tv);
+        } else {
+            let _ = semsg!(E_RESTART_FAILED_CMD_NO_QUIT, quit_cmd);
             return;
         }
+    }
 
-        let mut startreason = c"restart!".as_ptr();
-        let quit_cmd_cstr: std::ffi::CString;
-        let mut quit_cmd = if !eap.do_ecmd_cmd.is_null() {
-            eap.do_ecmd_cmd
-        } else {
-            c"qall".as_ptr().cast_mut()
-        };
-        let mut after_cmd = eap.arg;
+    let mut err = error_init();
+    let no_ui = ui_active() == 0;
+    let exepath = get_vim_var_str(VV_PROGPATH);
+    let l = get_vim_var_list(VV_ARGV);
+    let argc = if l.is_null() {
+        0
+    } else {
+        unsafe { (*l).lv_len }
+    };
 
-        if crate::memory::cstr_as_opt_bytes(quit_cmd) == Some(b":::") {
-            startreason = c"restart".as_ptr();
-            if eap.args.len() > 1 {
-                let arg1 = eap.args.as_slice()[1];
-                let arglen1 = eap.arglens.as_slice()[1];
-                quit_cmd_cstr = cstr_from_bytes(crate::memory::cstr_slice(arg1, arglen1));
-                quit_cmd = quit_cmd_cstr.as_ptr().cast_mut();
-                after_cmd = if eap.args.len() > 2 {
-                    eap.args.as_slice()[2]
-                } else {
-                    c"".as_ptr().cast_mut()
-                };
-            } else {
-                let _ = semsg!(E_RESTART_FAILED_CMD_NO_QUIT, quit_cmd);
-                return;
-            }
+    let mut argv_vec = Vec::<std::ffi::CString>::with_capacity((argc as usize) + 2);
+    let mut listen_arg: Option<std::ffi::CString> = None;
+
+    let mut li = if l.is_null() {
+        ptr::null_mut()
+    } else {
+        unsafe { (*l).lv_first }
+    };
+    while !li.is_null() {
+        let arg = unsafe { tv_get_string(&(*li).li_tv) };
+        let i = argv_vec.len();
+        if i > 0 && (crate::memory::cstr_as_opt_bytes(arg) == Some(b"--")) {
+            break;
         }
-
-        let mut err = error_init();
-        let no_ui = ui_active() == 0;
-        let exepath = get_vim_var_str(VV_PROGPATH);
-        let l = get_vim_var_list(VV_ARGV);
-        let argc = if l.is_null() { 0 } else { (*l).lv_len };
-
-        let mut argv_vec = Vec::<std::ffi::CString>::with_capacity((argc as usize) + 2);
-        let mut listen_arg: Option<std::ffi::CString> = None;
-
-        let mut li = if l.is_null() {
-            ptr::null_mut()
-        } else {
-            (*l).lv_first
-        };
-        while !li.is_null() {
-            let arg = tv_get_string(&(*li).li_tv);
-            let i = argv_vec.len();
-            if i > 0 && (crate::memory::cstr_as_opt_bytes(arg) == Some(b"--")) {
-                break;
-            }
-            if i > 0 && (crate::memory::cstr_as_opt_bytes(arg) == Some(b"-S")) {
-                if !(*li).li_next.is_null() {
-                    let next_arg = tv_get_string(&(*(*li).li_next).li_tv);
-                    if crate::memory::cstr_first_byte(next_arg) != b'-' {
+        if i > 0 && (crate::memory::cstr_as_opt_bytes(arg) == Some(b"-S")) {
+            if unsafe { !(*li).li_next.is_null() } {
+                let next_arg = unsafe { tv_get_string(&(*(*li).li_next).li_tv) };
+                if crate::memory::cstr_first_byte(next_arg) != b'-' {
+                    unsafe {
                         li = (*li).li_next;
                     }
                 }
-                li = (*li).li_next;
-                continue;
             }
-            if i > 0 && (crate::memory::cstr_as_opt_bytes(arg) == Some(b"-s")) {
+            unsafe {
                 li = (*li).li_next;
-                if !li.is_null() {
+            }
+            continue;
+        }
+        if i > 0 && (crate::memory::cstr_as_opt_bytes(arg) == Some(b"-s")) {
+            unsafe {
+                li = (*li).li_next;
+            }
+            if !li.is_null() {
+                unsafe {
                     li = (*li).li_next;
                 }
-                continue;
             }
-            if i > 0 && (crate::memory::cstr_as_opt_bytes(arg) == Some(b"--listen")) {
-                let next_li = (*li).li_next;
-                if !next_li.is_null() {
-                    let next_li = &mut *next_li;
-                    let addr = tv_get_string(&next_li.li_tv);
-                    if crate::memory::cstr_as_bytes(addr)
-                        .iter()
-                        .any(|b| matches!(b, b':' | b'/' | b'\\'))
+            continue;
+        }
+        if i > 0 && (crate::memory::cstr_as_opt_bytes(arg) == Some(b"--listen")) {
+            let next_li = unsafe { (*li).li_next };
+            if !next_li.is_null() {
+                let next_li = unsafe { &mut *next_li };
+                let addr = tv_get_string(&next_li.li_tv);
+                if crate::memory::cstr_as_bytes(addr)
+                    .iter()
+                    .any(|b| matches!(b, b':' | b'/' | b'\\'))
+                {
+                    listen_arg = to_slash_save(addr);
+                    #[cfg(windows)]
                     {
-                        listen_arg = to_slash_save(addr);
-                        #[cfg(windows)]
-                        {
-                            li = next_li.li_next;
-                            continue;
-                        }
+                        li = next_li.li_next;
+                        continue;
                     }
                 }
             }
-            if i == 0
-                || (!(crate::memory::cstr_as_opt_bytes(arg) == Some(b"--embed"))
-                    && !(crate::memory::cstr_as_opt_bytes(arg) == Some(b"--headless"))
-                    && !(crate::memory::cstr_as_opt_bytes(arg) == Some(b"-")))
-            {
-                argv_vec.push(crate::memory::cstr_to_cstring(arg));
-                if argv_vec.len() == 1 {
-                    argv_vec.push(c"--embed".to_owned());
-                    if no_ui {
-                        argv_vec.push(c"--headless".to_owned());
-                    }
+        }
+        if i == 0
+            || (!(crate::memory::cstr_as_opt_bytes(arg) == Some(b"--embed"))
+                && !(crate::memory::cstr_as_opt_bytes(arg) == Some(b"--headless"))
+                && !(crate::memory::cstr_as_opt_bytes(arg) == Some(b"-")))
+        {
+            argv_vec.push(crate::memory::cstr_to_cstring(arg));
+            if argv_vec.len() == 1 {
+                argv_vec.push(c"--embed".to_owned());
+                if no_ui {
+                    argv_vec.push(c"--headless".to_owned());
                 }
             }
+        }
+        unsafe {
             li = (*li).li_next;
         }
+    }
 
-        #[cfg(windows)]
-        let server_stopped = {
-            if listen_arg.is_none() {
-                let mut lua_err = error_init();
-                let rv = nlua_exec(
-                    cstr_as_string(c"return require('vim._core.server').restart_canonical_addr"),
-                    ptr::null(),
-                    Array {
-                        items: ptr::null_mut(),
-                        size: 0,
-                        capacity: 0,
-                    },
-                    K_RET_OBJECT,
-                    None,
-                    &mut lua_err,
-                );
-                if !error_set(&lua_err)
-                    && rv.obj_type == ObjectType::ObjectTypeString
-                    && rv.data.string().size > 0
-                {
-                    listen_arg = Some(cstr_to_cstring(rv.data.string().data));
-                }
-                api_free_object(rv);
-                api_clear_error(&mut lua_err);
+    #[cfg(windows)]
+    let server_stopped = {
+        if listen_arg.is_none() {
+            let mut lua_err = error_init();
+            let rv = nlua_exec(
+                cstr_as_string(c"return require('vim._core.server').restart_canonical_addr"),
+                ptr::null(),
+                Array {
+                    items: ptr::null_mut(),
+                    size: 0,
+                    capacity: 0,
+                },
+                K_RET_OBJECT,
+                None,
+                &mut lua_err,
+            );
+            if !error_set(&lua_err)
+                && rv.obj_type == ObjectType::ObjectTypeString
+                && rv.data.string().size > 0
+            {
+                listen_arg = Some(cstr_to_cstring(rv.data.string().data));
             }
-            false
-        };
-        #[cfg(not(windows))]
-        let server_stopped = if let Some(ref la) = listen_arg {
-            server_stop(la, true)
-        } else {
-            false
-        };
-
-        let env = create_environment(None, false, false, false, ptr::null());
-        tv_dict_add_str(&mut *env, ENV_STARTREASON, startreason);
-
-        let on_stdout = CallbackReader::none();
-        let mut on_err = CallbackReader::none();
-        #[cfg(windows)]
-        {
-            on_err.fwd_err = false;
+            api_free_object(rv);
+            api_clear_error(&mut lua_err);
         }
-        #[cfg(not(windows))]
-        {
-            on_err.fwd_err = true;
-        }
-        let on_exit = Callback::NONE;
-        let mut exit_status: Varnumber = 0;
+        false
+    };
+    #[cfg(not(windows))]
+    let server_stopped = if let Some(ref la) = listen_arg {
+        server_stop(la, true)
+    } else {
+        false
+    };
 
-        let channel = channel_job_start(
+    let env = create_environment(None, false, false, false, ptr::null());
+    tv_dict_add_str(&mut *env, ENV_STARTREASON, startreason);
+
+    let on_stdout = CallbackReader::none();
+    let mut on_err = CallbackReader::none();
+    #[cfg(windows)]
+    {
+        on_err.fwd_err = false;
+    }
+    #[cfg(not(windows))]
+    {
+        on_err.fwd_err = true;
+    }
+    let on_exit = Callback::NONE;
+    let mut exit_status: Varnumber = 0;
+
+    let channel = unsafe {
+        channel_job_start(
             argv_vec,
             crate::memory::cstr_as_opt_cstr(exepath),
             on_stdout,
@@ -9337,45 +9384,91 @@ fn ex_restart(eap: &mut Exarg) {
             0,
             env,
             &raw mut exit_status,
-        );
-        if channel.is_null() {
-            let _ = emsg(c"cannot create a channel job");
-            let la_ptr = listen_arg.as_ref().map_or(ptr::null(), |s| s.as_ptr());
-            if server_stopped && server_start(listen_arg.as_deref()) != 0 {
-                let _ = semsg!(c"couldn't resume listening on %s", la_ptr);
-            }
-            return;
+        )
+    };
+    if channel.is_null() {
+        let _ = emsg(c"cannot create a channel job");
+        let la_ptr = listen_arg.as_ref().map_or(ptr::null(), |s| s.as_ptr());
+        if server_stopped && server_start(listen_arg.as_deref()) != 0 {
+            let _ = semsg!(c"couldn't resume listening on %s", la_ptr);
         }
+        return;
+    }
 
-        let chan_id = (*channel).id;
-        let mut result_mem: ArenaMem = ptr::null_mut();
+    let chan_id = unsafe { (*channel).id };
+    let mut result_mem: ArenaMem = ptr::null_mut();
 
-        'fail_2: {
-            let mut detach_kv = [KeyValuePair {
-                key: cstr_as_string(c"detach"),
-                value: boolean_obj(true),
-            }];
-            let detach_opts = Dict {
-                items: detach_kv.as_mut_ptr(),
-                size: 1,
-                capacity: 1,
-            };
-            let mut detach_items = [
-                integer_obj(0),
-                Object {
-                    obj_type: ObjectType::ObjectTypeDict,
-                    data: ObjectData::Dict(detach_opts),
+    'fail_2: {
+        let mut detach_kv = [KeyValuePair {
+            key: cstr_as_string(c"detach"),
+            value: boolean_obj(true),
+        }];
+        let detach_opts = Dict {
+            items: detach_kv.as_mut_ptr(),
+            size: 1,
+            capacity: 1,
+        };
+        let mut detach_items = [
+            integer_obj(0),
+            Object {
+                obj_type: ObjectType::ObjectTypeDict,
+                data: ObjectData::Dict(detach_opts),
+            },
+        ];
+        let detach_args = Array {
+            items: detach_items.as_mut_ptr(),
+            size: 2,
+            capacity: 2,
+        };
+        rpc_send_call(
+            chan_id,
+            c"nvim_chan_set",
+            detach_args,
+            &mut result_mem,
+            &mut err,
+        );
+        if error_set(&err) {
+            break 'fail_2;
+        }
+        arena_mem_free(result_mem);
+        result_mem = ptr::null_mut();
+
+        if !crate::memory::cstr_is_empty(after_cmd) {
+            let mut autocmd_kv = [
+                KeyValuePair {
+                    key: cstr_as_string(c"once"),
+                    value: boolean_obj(true),
+                },
+                KeyValuePair {
+                    key: cstr_as_string(c"nested"),
+                    value: boolean_obj(true),
+                },
+                KeyValuePair {
+                    key: cstr_as_string(c"command"),
+                    value: cstr_as_obj(after_cmd),
                 },
             ];
-            let detach_args = Array {
-                items: detach_items.as_mut_ptr(),
+            let autocmd_opts = Dict {
+                items: autocmd_kv.as_mut_ptr(),
+                size: 3,
+                capacity: 3,
+            };
+            let mut autocmd_items = [
+                cstr_as_obj(c"UIEnter"),
+                Object {
+                    obj_type: ObjectType::ObjectTypeDict,
+                    data: ObjectData::Dict(autocmd_opts),
+                },
+            ];
+            let autocmd_args = Array {
+                items: autocmd_items.as_mut_ptr(),
                 size: 2,
                 capacity: 2,
             };
             rpc_send_call(
                 chan_id,
-                c"nvim_chan_set",
-                detach_args,
+                c"nvim_create_autocmd",
+                autocmd_args,
                 &mut result_mem,
                 &mut err,
             );
@@ -9384,179 +9477,133 @@ fn ex_restart(eap: &mut Exarg) {
             }
             arena_mem_free(result_mem);
             result_mem = ptr::null_mut();
-
-            if !crate::memory::cstr_is_empty(after_cmd) {
-                let mut autocmd_kv = [
-                    KeyValuePair {
-                        key: cstr_as_string(c"once"),
-                        value: boolean_obj(true),
-                    },
-                    KeyValuePair {
-                        key: cstr_as_string(c"nested"),
-                        value: boolean_obj(true),
-                    },
-                    KeyValuePair {
-                        key: cstr_as_string(c"command"),
-                        value: cstr_as_obj(after_cmd),
-                    },
-                ];
-                let autocmd_opts = Dict {
-                    items: autocmd_kv.as_mut_ptr(),
-                    size: 3,
-                    capacity: 3,
-                };
-                let mut autocmd_items = [
-                    cstr_as_obj(c"UIEnter"),
-                    Object {
-                        obj_type: ObjectType::ObjectTypeDict,
-                        data: ObjectData::Dict(autocmd_opts),
-                    },
-                ];
-                let autocmd_args = Array {
-                    items: autocmd_items.as_mut_ptr(),
-                    size: 2,
-                    capacity: 2,
-                };
-                rpc_send_call(
-                    chan_id,
-                    c"nvim_create_autocmd",
-                    autocmd_args,
-                    &mut result_mem,
-                    &mut err,
-                );
-                if error_set(&err) {
-                    break 'fail_2;
-                }
-                arena_mem_free(result_mem);
-                result_mem = ptr::null_mut();
-            }
-
-            let mut servername_items = [cstr_as_obj(c"servername")];
-            let servername_args = Array {
-                items: servername_items.as_mut_ptr(),
-                size: 1,
-                capacity: 1,
-            };
-            let result = rpc_send_call(
-                chan_id,
-                c"nvim_get_vvar",
-                servername_args,
-                &mut result_mem,
-                &mut err,
-            );
-            if error_set(&err) {
-                break 'fail_2;
-            }
-            if result.obj_type != ObjectType::ObjectTypeString || result.data.string().size == 0 {
-                let _ = emsg(c"restart failed: could not get listen address from new server");
-                break 'fail_2;
-            }
-            let listen_addr = cstr_from_bytes(crate::memory::cstr_slice(
-                result.data.string().data,
-                result.data.string().size,
-            ));
-            arena_mem_free(result_mem);
-            result_mem = ptr::null_mut();
-
-            #[cfg(windows)]
-            if let Some(ref la) = listen_arg {
-                let mut handoff_items = [
-                    cstr_as_obj(la.as_ptr()),
-                    integer_obj(ui_active() as Integer),
-                ];
-                let handoff_params = Array {
-                    items: handoff_items.as_mut_ptr(),
-                    size: 2,
-                    capacity: 3,
-                };
-                let mut lua_items = [
-                    cstr_as_obj(c"return require('vim._core.server').rebind_after_restart(...)"),
-                    Object {
-                        obj_type: ObjectType::ObjectTypeArray,
-                        data: ObjectData::Array(handoff_params),
-                    },
-                ];
-                let lua_args = Array {
-                    items: lua_items.as_mut_ptr(),
-                    size: 2,
-                    capacity: 2,
-                };
-                rpc_send_call(
-                    chan_id,
-                    c"nvim_exec_lua",
-                    lua_args,
-                    &mut result_mem,
-                    &mut err,
-                );
-                if error_set(&err) {
-                    break 'fail_2;
-                }
-                arena_mem_free(result_mem);
-                result_mem = ptr::null_mut();
-            }
-
-            remote_ui_restart(cstr_as_string(listen_addr.as_ptr()));
-            ui_flush();
-            drop(listen_addr);
-
-            set_vim_var_string(VV_EXITREASON, startreason, -1);
-
-            let mut quit_cmd_copy: Option<std::ffi::CString> = None;
-            if (g_st().cmdmod.cmod_flags & CMOD_CONFIRM) != 0 {
-                let mut bytes = Vec::from(&b"confirm "[..]);
-                bytes.extend_from_slice(crate::memory::cstr_as_bytes(quit_cmd));
-                let cstr = cstr_from_bytes(&bytes);
-                quit_cmd = cstr.as_ptr().cast_mut();
-                quit_cmd_copy = Some(cstr);
-            }
-            nvim_command(cstr_as_string(quit_cmd), &mut err);
-
-            if error_set(&err) {
-                let _ = emsg(err.msg_cstr());
-                api_clear_error(&mut err);
-            } else if !g_st().exiting {
-                let _ = semsg!(E_RESTART_FAILED_CMD_NO_QUIT, quit_cmd);
-            }
-            drop(quit_cmd_copy);
         }
 
-        set_vim_var_string(VV_EXITREASON, ptr::null(), -1);
+        let mut servername_items = [cstr_as_obj(c"servername")];
+        let servername_args = Array {
+            items: servername_items.as_mut_ptr(),
+            size: 1,
+            capacity: 1,
+        };
+        let result = rpc_send_call(
+            chan_id,
+            c"nvim_get_vvar",
+            servername_args,
+            &mut result_mem,
+            &mut err,
+        );
         if error_set(&err) {
-            let _ = emsg(err.msg_cstr());
-            api_clear_error(&mut err);
+            break 'fail_2;
         }
+        if result.obj_type != ObjectType::ObjectTypeString || result.data.string().size == 0 {
+            let _ = emsg(c"restart failed: could not get listen address from new server");
+            break 'fail_2;
+        }
+        let listen_addr = cstr_from_bytes(crate::memory::cstr_slice(
+            result.data.string().data,
+            result.data.string().size,
+        ));
         arena_mem_free(result_mem);
+        result_mem = ptr::null_mut();
 
-        #[cfg(not(windows))]
-        {
-            result_mem = ptr::null_mut();
-            let mut chanclose_items = [cstr_as_obj(c"chanclose(v:stderr)")];
-            let chanclose_args = Array {
-                items: chanclose_items.as_mut_ptr(),
-                size: 1,
-                capacity: 1,
+        #[cfg(windows)]
+        if let Some(ref la) = listen_arg {
+            let mut handoff_items = [
+                cstr_as_obj(la.as_ptr()),
+                integer_obj(ui_active() as Integer),
+            ];
+            let handoff_params = Array {
+                items: handoff_items.as_mut_ptr(),
+                size: 2,
+                capacity: 3,
+            };
+            let mut lua_items = [
+                cstr_as_obj(c"return require('vim._core.server').rebind_after_restart(...)"),
+                Object {
+                    obj_type: ObjectType::ObjectTypeArray,
+                    data: ObjectData::Array(handoff_params),
+                },
+            ];
+            let lua_args = Array {
+                items: lua_items.as_mut_ptr(),
+                size: 2,
+                capacity: 2,
             };
             rpc_send_call(
                 chan_id,
-                c"nvim_eval",
-                chanclose_args,
+                c"nvim_exec_lua",
+                lua_args,
                 &mut result_mem,
                 &mut err,
             );
-            api_clear_error(&mut err);
+            if error_set(&err) {
+                break 'fail_2;
+            }
             arena_mem_free(result_mem);
+            result_mem = ptr::null_mut();
         }
 
-        let proc_ptr = &raw mut (*channel).uv.proc_;
-        proc_stop(proc_ptr);
-        if proc_wait(proc_ptr, -1, ptr::null_mut()) < 0 {
-            let _ = emsg(c"killing new nvim server failed");
-        }
+        remote_ui_restart(cstr_as_string(listen_addr.as_ptr()));
+        ui_flush();
+        drop(listen_addr);
 
-        let la_ptr = listen_arg.as_ref().map_or(ptr::null(), |s| s.as_ptr());
-        if server_stopped && server_start(listen_arg.as_deref()) != 0 {
-            let _ = semsg!(c"couldn't resume listening on %s", la_ptr);
+        set_vim_var_string(VV_EXITREASON, startreason, -1);
+
+        let mut quit_cmd_copy: Option<std::ffi::CString> = None;
+        if (g_st().cmdmod.cmod_flags & CMOD_CONFIRM) != 0 {
+            let mut bytes = Vec::from(&b"confirm "[..]);
+            bytes.extend_from_slice(crate::memory::cstr_as_bytes(quit_cmd));
+            let cstr = cstr_from_bytes(&bytes);
+            quit_cmd = cstr.as_ptr().cast_mut();
+            quit_cmd_copy = Some(cstr);
         }
+        nvim_command(cstr_as_string(quit_cmd), &mut err);
+
+        if error_set(&err) {
+            let _ = emsg(err.msg_cstr());
+            api_clear_error(&mut err);
+        } else if !g_st().exiting {
+            let _ = semsg!(E_RESTART_FAILED_CMD_NO_QUIT, quit_cmd);
+        }
+        drop(quit_cmd_copy);
+    }
+
+    set_vim_var_string(VV_EXITREASON, ptr::null(), -1);
+    if error_set(&err) {
+        let _ = emsg(err.msg_cstr());
+        api_clear_error(&mut err);
+    }
+    arena_mem_free(result_mem);
+
+    #[cfg(not(windows))]
+    {
+        result_mem = ptr::null_mut();
+        let mut chanclose_items = [cstr_as_obj(c"chanclose(v:stderr)")];
+        let chanclose_args = Array {
+            items: chanclose_items.as_mut_ptr(),
+            size: 1,
+            capacity: 1,
+        };
+        rpc_send_call(
+            chan_id,
+            c"nvim_eval",
+            chanclose_args,
+            &mut result_mem,
+            &mut err,
+        );
+        api_clear_error(&mut err);
+        arena_mem_free(result_mem);
+    }
+
+    let proc_ptr = unsafe { &raw mut (*channel).uv.proc_ };
+    proc_stop(proc_ptr);
+    if proc_wait(proc_ptr, -1, ptr::null_mut()) < 0 {
+        let _ = emsg(c"killing new nvim server failed");
+    }
+
+    let la_ptr = listen_arg.as_ref().map_or(ptr::null(), |s| s.as_ptr());
+    if server_stopped && server_start(listen_arg.as_deref()) != 0 {
+        let _ = semsg!(c"couldn't resume listening on %s", la_ptr);
     }
 }
 
@@ -9723,47 +9770,53 @@ pub fn tabpage_close(forceit: i32) {
 }
 
 pub fn tabpage_close_other(tp: *mut TabPageInfo, forceit: i32) {
+    let mut done: i32 = 0;
+    let mut prev_idx = [0u8; NUMBUFLEN];
+
+    debug_assert!(!ptr::eq(tp, g_st().curtab));
+
+    if window_layout_locked(Cmdidx::CmdSize) {
+        return;
+    }
+
     unsafe {
-        let mut done: i32 = 0;
-        let mut prev_idx = [0u8; NUMBUFLEN];
-
-        debug_assert!(!ptr::eq(tp, g_st().curtab));
-
-        if window_layout_locked(Cmdidx::CmdSize) {
-            return;
-        }
-
         trigger_tabclosedpre(&mut *tp);
+    }
+    unsafe {
         (*tp).tp_did_tabclosedpre = true;
+    }
 
-        while {
-            done += 1;
-            done < 1000
-        } {
-            let _ = vim_snprintf!(
-                prev_idx.as_mut_ptr().cast(),
-                NUMBUFLEN,
-                c"%i",
-                tabpage_index(tp),
-            );
-            let wp = (*tp).tp_lastwin;
+    while {
+        done += 1;
+        done < 1000
+    } {
+        let _ = vim_snprintf!(
+            prev_idx.as_mut_ptr().cast(),
+            NUMBUFLEN,
+            c"%i",
+            tabpage_index(tp),
+        );
+        let wp = unsafe { (*tp).tp_lastwin };
 
-            if ptr::eq(tp, g_st().curtab) {
-                done = 1000;
-                break;
-            }
-            ex_win_close(forceit, &mut *wp, tp);
-
-            if !valid_tabpage(tp) {
-                break;
-            }
-
-            if (*tp).tp_lastwin == wp {
-                done = 1000;
-                break;
-            }
+        if ptr::eq(tp, g_st().curtab) {
+            done = 1000;
+            break;
         }
-        if done >= 1000 && valid_tabpage(tp) {
+        unsafe {
+            ex_win_close(forceit, &mut *wp, tp);
+        }
+
+        if !valid_tabpage(tp) {
+            break;
+        }
+
+        if unsafe { (*tp).tp_lastwin == wp } {
+            done = 1000;
+            break;
+        }
+    }
+    if done >= 1000 && valid_tabpage(tp) {
+        unsafe {
             (*tp).tp_did_tabclosedpre = false;
         }
     }

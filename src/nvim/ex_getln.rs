@@ -2442,120 +2442,124 @@ fn command_line_browse_history(s: &mut CommandLineState) -> i32 {
 }
 
 fn command_line_handle_key(s: &mut CommandLineState) -> i32 {
-    unsafe {
-        if !(getln_st().ccline.one_key && s.c != ESC && s.c != CTRL_C_CONST) {
-            'key_switch: {
-                match s.c {
-                    K_BS | CTRL_H_CONST | K_DEL | K_KDEL | CTRL_W_CONST => {
-                        return match command_line_erase_chars(s) {
-                            CMDLINE_NOT_CHANGED => command_line_not_changed(s),
-                            GOTO_NORMAL_MODE => 0,
-                            _ => command_line_changed(s),
-                        };
-                    }
+    if !(getln_st().ccline.one_key && s.c != ESC && s.c != CTRL_C_CONST) {
+        'key_switch: {
+            match s.c {
+                K_BS | CTRL_H_CONST | K_DEL | K_KDEL | CTRL_W_CONST => {
+                    return match command_line_erase_chars(s) {
+                        CMDLINE_NOT_CHANGED => command_line_not_changed(s),
+                        GOTO_NORMAL_MODE => 0,
+                        _ => command_line_changed(s),
+                    };
+                }
 
-                    K_INS | K_KINS => {
-                        getln_st().ccline.overstrike = if getln_st().ccline.overstrike != 0 {
-                            0
-                        } else {
-                            1
-                        };
-                        ui_cursor_shape();
-                        may_trigger_modechanged();
-                        status_redraw_curbuf();
-                        redraw_statuslines();
-                        return command_line_not_changed(s);
-                    }
+                K_INS | K_KINS => {
+                    getln_st().ccline.overstrike = if getln_st().ccline.overstrike != 0 {
+                        0
+                    } else {
+                        1
+                    };
+                    ui_cursor_shape();
+                    may_trigger_modechanged();
+                    status_redraw_curbuf();
+                    redraw_statuslines();
+                    return command_line_not_changed(s);
+                }
 
-                    CTRL_HAT_CONST => {
-                        command_line_toggle_langmap(s);
-                        return command_line_not_changed(s);
-                    }
+                CTRL_HAT_CONST => {
+                    command_line_toggle_langmap(s);
+                    return command_line_not_changed(s);
+                }
 
-                    CTRL_U => {
-                        let mut j = getln_st().ccline.cmdpos;
-                        getln_st().ccline.cmdlen -= j;
-                        getln_st().ccline.cmdpos = 0;
-                        let mut i = 0;
-                        while i < getln_st().ccline.cmdlen {
+                CTRL_U => {
+                    let mut j = getln_st().ccline.cmdpos;
+                    getln_st().ccline.cmdlen -= j;
+                    getln_st().ccline.cmdpos = 0;
+                    let mut i = 0;
+                    while i < getln_st().ccline.cmdlen {
+                        unsafe {
                             *getln_st().ccline.cmdbuff.wrapping_add(i as usize) =
                                 *getln_st().ccline.cmdbuff.wrapping_add(j as usize);
-                            i += 1;
-                            j += 1;
                         }
+                        i += 1;
+                        j += 1;
+                    }
 
+                    unsafe {
                         *getln_st()
                             .ccline
                             .cmdbuff
                             .wrapping_add(getln_st().ccline.cmdlen as usize) = NUL;
-                        if getln_st().ccline.cmdlen == 0 {
-                            s.is_state.search_start = s.is_state.save_cursor;
+                    }
+                    if getln_st().ccline.cmdlen == 0 {
+                        s.is_state.search_start = s.is_state.save_cursor;
+                    }
+                    redrawcmd();
+                    return command_line_changed(s);
+                }
+
+                ESC | CTRL_C_CONST => {
+                    if getln_st().getln_interrupted_highlight && s.c == CTRL_C_CONST {
+                        getln_st().getln_interrupted_highlight = false;
+                        return command_line_not_changed(s);
+                    }
+
+                    s.gotesc = true;
+                    return 0;
+                }
+
+                CTRL_R_CONST => {
+                    return match command_line_insert_reg(s) {
+                        GOTO_NORMAL_MODE => 0,
+                        CMDLINE_CHANGED => command_line_changed(s),
+                        _ => command_line_not_changed(s),
+                    };
+                }
+
+                CTRL_D_CONST => {
+                    if showmatches(
+                        &mut s.xpc,
+                        false,
+                        true,
+                        if opt_vars().p_wmnu != 0 {
+                            g_st().wim_flags[0] as i32
+                        } else {
+                            0
+                        },
+                    ) == EXPAND_NOTHING
+                    {
+                        break 'key_switch;
+                    }
+
+                    redrawcmd();
+                    return 1;
+                }
+
+                K_RIGHT | K_S_RIGHT | K_C_RIGHT => {
+                    loop {
+                        if getln_st().ccline.cmdpos >= getln_st().ccline.cmdlen {
+                            break;
                         }
-                        redrawcmd();
-                        return command_line_changed(s);
-                    }
 
-                    ESC | CTRL_C_CONST => {
-                        if getln_st().getln_interrupted_highlight && s.c == CTRL_C_CONST {
-                            getln_st().getln_interrupted_highlight = false;
-                            return command_line_not_changed(s);
-                        }
-
-                        s.gotesc = true;
-                        return 0;
-                    }
-
-                    CTRL_R_CONST => {
-                        return match command_line_insert_reg(s) {
-                            GOTO_NORMAL_MODE => 0,
-                            CMDLINE_CHANGED => command_line_changed(s),
-                            _ => command_line_not_changed(s),
-                        };
-                    }
-
-                    CTRL_D_CONST => {
-                        if showmatches(
-                            &mut s.xpc,
-                            false,
-                            true,
-                            if opt_vars().p_wmnu != 0 {
-                                g_st().wim_flags[0] as i32
-                            } else {
-                                0
-                            },
-                        ) == EXPAND_NOTHING
+                        let cells = cmdline_charsize(getln_st().ccline.cmdpos);
+                        if g_st().key_typed
+                            && getln_st().ccline.cmdspos + cells
+                                >= g_st().columns_global * g_st().rows_global
                         {
-                            break 'key_switch;
+                            break;
                         }
 
-                        redrawcmd();
-                        return 1;
-                    }
+                        getln_st().ccline.cmdspos += cells;
+                        getln_st().ccline.cmdpos += utfc_ptr2len(
+                            getln_st()
+                                .ccline
+                                .cmdbuff
+                                .wrapping_add(getln_st().ccline.cmdpos as usize)
+                                .cast(),
+                        );
 
-                    K_RIGHT | K_S_RIGHT | K_C_RIGHT => {
-                        loop {
-                            if getln_st().ccline.cmdpos >= getln_st().ccline.cmdlen {
-                                break;
-                            }
-
-                            let cells = cmdline_charsize(getln_st().ccline.cmdpos);
-                            if g_st().key_typed
-                                && getln_st().ccline.cmdspos + cells
-                                    >= g_st().columns_global * g_st().rows_global
-                            {
-                                break;
-                            }
-
-                            getln_st().ccline.cmdspos += cells;
-                            getln_st().ccline.cmdpos += utfc_ptr2len(
-                                getln_st()
-                                    .ccline
-                                    .cmdbuff
-                                    .wrapping_add(getln_st().ccline.cmdpos as usize)
-                                    .cast(),
-                            );
-
-                            if !((s.c == K_S_RIGHT
+                        if unsafe {
+                            !((s.c == K_S_RIGHT
                                 || s.c == K_C_RIGHT
                                 || (g_st().mod_mask & ((MOD_MASK_SHIFT | MOD_MASK_CTRL) as i32))
                                     != 0)
@@ -2565,31 +2569,32 @@ fn command_line_handle_key(s: &mut CommandLineState) -> i32 {
                                     .cast::<u8>()
                                     .wrapping_add(getln_st().ccline.cmdpos as usize)
                                     != b' ')
-                            {
-                                break;
-                            }
+                        } {
+                            break;
                         }
-                        getln_st().ccline.cmdspos = cmd_screencol(getln_st().ccline.cmdpos);
+                    }
+                    getln_st().ccline.cmdspos = cmd_screencol(getln_st().ccline.cmdpos);
+                    return command_line_not_changed(s);
+                }
+
+                K_LEFT | K_S_LEFT | K_C_LEFT => {
+                    if getln_st().ccline.cmdpos == 0 {
                         return command_line_not_changed(s);
                     }
+                    loop {
+                        getln_st().ccline.cmdpos -= 1;
+                        getln_st().ccline.cmdpos -= utf_head_off(
+                            getln_st().ccline.cmdbuff.cast(),
+                            getln_st()
+                                .ccline
+                                .cmdbuff
+                                .wrapping_add(getln_st().ccline.cmdpos as usize)
+                                .cast(),
+                        );
+                        getln_st().ccline.cmdspos -= cmdline_charsize(getln_st().ccline.cmdpos);
 
-                    K_LEFT | K_S_LEFT | K_C_LEFT => {
-                        if getln_st().ccline.cmdpos == 0 {
-                            return command_line_not_changed(s);
-                        }
-                        loop {
-                            getln_st().ccline.cmdpos -= 1;
-                            getln_st().ccline.cmdpos -= utf_head_off(
-                                getln_st().ccline.cmdbuff.cast(),
-                                getln_st()
-                                    .ccline
-                                    .cmdbuff
-                                    .wrapping_add(getln_st().ccline.cmdpos as usize)
-                                    .cast(),
-                            );
-                            getln_st().ccline.cmdspos -= cmdline_charsize(getln_st().ccline.cmdpos);
-
-                            if !(getln_st().ccline.cmdpos > 0
+                        if unsafe {
+                            !(getln_st().ccline.cmdpos > 0
                                 && (s.c == K_S_LEFT
                                     || s.c == K_C_LEFT
                                     || (g_st().mod_mask
@@ -2601,134 +2606,162 @@ fn command_line_handle_key(s: &mut CommandLineState) -> i32 {
                                     .cast::<u8>()
                                     .wrapping_add((getln_st().ccline.cmdpos - 1) as usize)
                                     != b' ')
-                            {
-                                break;
-                            }
+                        } {
+                            break;
                         }
-
-                        getln_st().ccline.cmdspos = cmd_screencol(getln_st().ccline.cmdpos);
-                        if getln_st().ccline.special_char != 0 {
-                            putcmdline(
-                                getln_st().ccline.special_char,
-                                getln_st().ccline.special_shift,
-                            );
-                        }
-
-                        return command_line_not_changed(s);
                     }
 
-                    K_IGNORE | K_MIDDLEDRAG | K_MIDDLERELEASE => {
-                        return command_line_not_changed(s);
-                    }
-
-                    K_MIDDLEMOUSE => {
-                        cmdline_paste(
-                            if eval_has_provider(c"clipboard", false) {
-                                b'*' as i32
-                            } else {
-                                0
-                            },
-                            true,
-                            true,
+                    getln_st().ccline.cmdspos = cmd_screencol(getln_st().ccline.cmdpos);
+                    if getln_st().ccline.special_char != 0 {
+                        putcmdline(
+                            getln_st().ccline.special_char,
+                            getln_st().ccline.special_shift,
                         );
-                        redrawcmd();
-                        return command_line_changed(s);
                     }
 
-                    K_LEFTDRAG | K_LEFTRELEASE | K_RIGHTDRAG | K_RIGHTRELEASE => {
-                        if s.ignore_drag_release {
-                            return command_line_not_changed(s);
-                        }
-                        if { getln_st().ccline.mouse_used }.is_some()
-                            && g_st().mouse_row < g_st().cmdline_row
-                        {
-                            getln_st().ccline.mouse_used = Some(true);
-                            return 0;
-                        }
-                        command_line_left_right_mouse(s);
+                    return command_line_not_changed(s);
+                }
+
+                K_IGNORE | K_MIDDLEDRAG | K_MIDDLERELEASE => {
+                    return command_line_not_changed(s);
+                }
+
+                K_MIDDLEMOUSE => {
+                    cmdline_paste(
+                        if eval_has_provider(c"clipboard", false) {
+                            b'*' as i32
+                        } else {
+                            0
+                        },
+                        true,
+                        true,
+                    );
+                    redrawcmd();
+                    return command_line_changed(s);
+                }
+
+                K_LEFTDRAG | K_LEFTRELEASE | K_RIGHTDRAG | K_RIGHTRELEASE => {
+                    if s.ignore_drag_release {
+                        return command_line_not_changed(s);
+                    }
+                    if { getln_st().ccline.mouse_used }.is_some()
+                        && g_st().mouse_row < g_st().cmdline_row
+                    {
+                        getln_st().ccline.mouse_used = Some(true);
+                        return 0;
+                    }
+                    command_line_left_right_mouse(s);
+                    return command_line_not_changed(s);
+                }
+
+                K_LEFTMOUSE => {
+                    if { getln_st().ccline.mouse_used }.is_some()
+                        && g_st().mouse_row < g_st().cmdline_row
+                    {
+                        getln_st().ccline.mouse_used = Some(true);
+                        return 0;
+                    }
+                    command_line_left_right_mouse(s);
+                    return command_line_not_changed(s);
+                }
+
+                K_RIGHTMOUSE => {
+                    command_line_left_right_mouse(s);
+                    return command_line_not_changed(s);
+                }
+
+                K_MOUSEDOWN | K_MOUSEUP | K_MOUSELEFT | K_MOUSERIGHT => {
+                    if cmdline_pum_active() {
+                        cmdline_mousescroll(if s.c == K_MOUSEDOWN {
+                            MSCR_DOWN
+                        } else if s.c == K_MOUSEUP {
+                            MSCR_UP
+                        } else if s.c == K_MOUSELEFT {
+                            MSCR_LEFT
+                        } else {
+                            MSCR_RIGHT
+                        });
+                    }
+                    return command_line_not_changed(s);
+                }
+
+                K_X1MOUSE | K_X1DRAG | K_X1RELEASE | K_X2MOUSE | K_X2DRAG | K_X2RELEASE
+                | K_MOUSEMOVE | K_SELECT => {
+                    return command_line_not_changed(s);
+                }
+
+                CTRL_B_CONST | K_HOME | K_KHOME | K_S_HOME | K_C_HOME => {
+                    getln_st().ccline.cmdpos = 0;
+                    getln_st().ccline.cmdspos = cmd_startcol();
+                    return command_line_not_changed(s);
+                }
+
+                CTRL_E | K_END | K_KEND | K_S_END | K_C_END => {
+                    getln_st().ccline.cmdpos = getln_st().ccline.cmdlen;
+                    getln_st().ccline.cmdspos = cmd_screencol(getln_st().ccline.cmdpos);
+                    return command_line_not_changed(s);
+                }
+
+                CTRL_A => {
+                    if cmdline_pum_active() {
+                        cmdline_pum_cleanup(&mut getln_st().ccline);
+                    }
+
+                    if !nextwild(&mut s.xpc, WILD_ALL, 0, s.firstc != b'@' as i32) {
+                        break 'key_switch;
+                    }
+                    s.xpc.xp_context = EXPAND_NOTHING;
+                    s.did_wild_list = false;
+                    return command_line_changed(s);
+                }
+
+                CTRL_L_CONST => {
+                    if may_add_char_to_search(s.firstc, &mut s.c, &mut s.is_state) {
                         return command_line_not_changed(s);
                     }
 
-                    K_LEFTMOUSE => {
-                        if { getln_st().ccline.mouse_used }.is_some()
-                            && g_st().mouse_row < g_st().cmdline_row
-                        {
-                            getln_st().ccline.mouse_used = Some(true);
-                            return 0;
-                        }
-                        command_line_left_right_mouse(s);
-                        return command_line_not_changed(s);
+                    if !nextwild(&mut s.xpc, WILD_LONGEST, 0, s.firstc != b'@' as i32) {
+                        break 'key_switch;
                     }
+                    return command_line_changed(s);
+                }
 
-                    K_RIGHTMOUSE => {
-                        command_line_left_right_mouse(s);
-                        return command_line_not_changed(s);
-                    }
-
-                    K_MOUSEDOWN | K_MOUSEUP | K_MOUSELEFT | K_MOUSERIGHT => {
-                        if cmdline_pum_active() {
-                            cmdline_mousescroll(if s.c == K_MOUSEDOWN {
-                                MSCR_DOWN
-                            } else if s.c == K_MOUSEUP {
-                                MSCR_UP
-                            } else if s.c == K_MOUSELEFT {
-                                MSCR_LEFT
-                            } else {
-                                MSCR_RIGHT
-                            });
-                        }
-                        return command_line_not_changed(s);
-                    }
-
-                    K_X1MOUSE | K_X1DRAG | K_X1RELEASE | K_X2MOUSE | K_X2DRAG | K_X2RELEASE
-                    | K_MOUSEMOVE | K_SELECT => {
-                        return command_line_not_changed(s);
-                    }
-
-                    CTRL_B_CONST | K_HOME | K_KHOME | K_S_HOME | K_C_HOME => {
-                        getln_st().ccline.cmdpos = 0;
-                        getln_st().ccline.cmdspos = cmd_startcol();
-                        return command_line_not_changed(s);
-                    }
-
-                    CTRL_E | K_END | K_KEND | K_S_END | K_C_END => {
-                        getln_st().ccline.cmdpos = getln_st().ccline.cmdlen;
-                        getln_st().ccline.cmdspos = cmd_screencol(getln_st().ccline.cmdpos);
-                        return command_line_not_changed(s);
-                    }
-
-                    CTRL_A => {
-                        if cmdline_pum_active() {
-                            cmdline_pum_cleanup(&mut getln_st().ccline);
-                        }
-
-                        if !nextwild(&mut s.xpc, WILD_ALL, 0, s.firstc != b'@' as i32) {
+                CTRL_N | CTRL_P => {
+                    if s.xpc.xp_numfiles > 0 {
+                        let wild_type = if s.c == CTRL_P { WILD_PREV } else { WILD_NEXT };
+                        if !nextwild(&mut s.xpc, wild_type, 0, s.firstc != b'@' as i32) {
                             break 'key_switch;
                         }
-                        s.xpc.xp_context = EXPAND_NOTHING;
-                        s.did_wild_list = false;
                         return command_line_changed(s);
                     }
-
-                    CTRL_L_CONST => {
-                        if may_add_char_to_search(s.firstc, &mut s.c, &mut s.is_state) {
-                            return command_line_not_changed(s);
-                        }
-
-                        if !nextwild(&mut s.xpc, WILD_LONGEST, 0, s.firstc != b'@' as i32) {
-                            break 'key_switch;
-                        }
-                        return command_line_changed(s);
-                    }
-
-                    CTRL_N | CTRL_P => {
-                        if s.xpc.xp_numfiles > 0 {
-                            let wild_type = if s.c == CTRL_P { WILD_PREV } else { WILD_NEXT };
-                            if !nextwild(&mut s.xpc, wild_type, 0, s.firstc != b'@' as i32) {
-                                break 'key_switch;
-                            }
+                    match command_line_browse_history(s) {
+                        CMDLINE_CHANGED => {
+                            s.did_hist_navigate = true;
                             return command_line_changed(s);
                         }
+                        GOTO_NORMAL_MODE => return 0,
+                        _ => return command_line_not_changed(s),
+                    }
+                }
+
+                K_UP | K_DOWN | K_S_UP | K_S_DOWN | K_PAGEUP | K_KPAGEUP | K_PAGEDOWN
+                | K_KPAGEDOWN => {
+                    if cmdline_pum_active()
+                        && (s.c == K_PAGEUP
+                            || s.c == K_PAGEDOWN
+                            || s.c == K_KPAGEUP
+                            || s.c == K_KPAGEDOWN)
+                    {
+                        let wild_type = if s.c == K_PAGEDOWN || s.c == K_KPAGEDOWN {
+                            WILD_PAGEDOWN
+                        } else {
+                            WILD_PAGEUP
+                        };
+                        if !nextwild(&mut s.xpc, wild_type, 0, s.firstc != b'@' as i32) {
+                            break 'key_switch;
+                        }
+                        return command_line_changed(s);
+                    } else {
                         match command_line_browse_history(s) {
                             CMDLINE_CHANGED => {
                                 s.did_hist_navigate = true;
@@ -2738,131 +2771,106 @@ fn command_line_handle_key(s: &mut CommandLineState) -> i32 {
                             _ => return command_line_not_changed(s),
                         }
                     }
+                }
 
-                    K_UP | K_DOWN | K_S_UP | K_S_DOWN | K_PAGEUP | K_KPAGEUP | K_PAGEDOWN
-                    | K_KPAGEDOWN => {
-                        if cmdline_pum_active()
-                            && (s.c == K_PAGEUP
-                                || s.c == K_PAGEDOWN
-                                || s.c == K_KPAGEUP
-                                || s.c == K_KPAGEDOWN)
-                        {
-                            let wild_type = if s.c == K_PAGEDOWN || s.c == K_KPAGEDOWN {
-                                WILD_PAGEDOWN
-                            } else {
-                                WILD_PAGEUP
-                            };
-                            if !nextwild(&mut s.xpc, wild_type, 0, s.firstc != b'@' as i32) {
-                                break 'key_switch;
-                            }
-                            return command_line_changed(s);
+                CTRL_G | CTRL_T_CONST => {
+                    if !may_do_command_line_next_incsearch(
+                        s.firstc,
+                        s.count,
+                        &mut s.is_state,
+                        s.c == CTRL_G,
+                    ) {
+                        return command_line_not_changed(s);
+                    }
+                }
+
+                CTRL_V_CONST | CTRL_Q_CONST => {
+                    s.ignore_drag_release = true;
+                    putcmdline(b'^', true);
+
+                    s.c = get_literal((g_st().mod_mask & (MOD_MASK_SHIFT as i32)) != 0);
+
+                    s.do_abbr = false;
+                    getln_st().ccline.special_char = 0;
+                    if utf_iscomposing_first(s.c) && !g_st().cmd_silent {
+                        if ui_has(K_UICMDLINE) {
+                            unputcmdline();
                         } else {
-                            match command_line_browse_history(s) {
-                                CMDLINE_CHANGED => {
-                                    s.did_hist_navigate = true;
-                                    return command_line_changed(s);
-                                }
-                                GOTO_NORMAL_MODE => return 0,
-                                _ => return command_line_not_changed(s),
-                            }
-                        }
-                    }
-
-                    CTRL_G | CTRL_T_CONST => {
-                        if !may_do_command_line_next_incsearch(
-                            s.firstc,
-                            s.count,
-                            &mut s.is_state,
-                            s.c == CTRL_G,
-                        ) {
-                            return command_line_not_changed(s);
-                        }
-                    }
-
-                    CTRL_V_CONST | CTRL_Q_CONST => {
-                        s.ignore_drag_release = true;
-                        putcmdline(b'^', true);
-
-                        s.c = get_literal((g_st().mod_mask & (MOD_MASK_SHIFT as i32)) != 0);
-
-                        s.do_abbr = false;
-                        getln_st().ccline.special_char = 0;
-                        if utf_iscomposing_first(s.c) && !g_st().cmd_silent {
-                            if ui_has(K_UICMDLINE) {
-                                unputcmdline();
-                            } else {
-                                draw_cmdline(
-                                    getln_st().ccline.cmdpos,
-                                    getln_st().ccline.cmdlen - getln_st().ccline.cmdpos,
-                                );
-                                msg_putchar(b' ' as i32);
-                                cursorcmd();
-                            }
-                        }
-                    }
-
-                    CTRL_K_CONST => {
-                        s.ignore_drag_release = true;
-                        putcmdline(b'?', true);
-                        s.c = get_digraph(true);
-                        getln_st().ccline.special_char = 0;
-
-                        if s.c != NUL as i32 {
-                            break 'key_switch;
-                        }
-
-                        redrawcmd();
-                        return command_line_not_changed(s);
-                    }
-
-                    CTRL_CONST_CONST => {
-                        if opt_vars().p_ari == 0 {
-                            break 'key_switch;
-                        }
-                        return command_line_not_changed(s);
-                    }
-
-                    c if c == b'q' as i32 => {
-                        if { getln_st().ccline.mouse_used }.is_some() {
-                            *getln_st().ccline.cmdbuff = NUL;
-                            return 0;
-                        }
-                        if !is_special(s.c) {
-                            g_st().mod_mask = 0x0;
-                        }
-                    }
-
-                    _ => {
-                        if !is_special(s.c) {
-                            g_st().mod_mask = 0x0;
+                            draw_cmdline(
+                                getln_st().ccline.cmdpos,
+                                getln_st().ccline.cmdlen - getln_st().ccline.cmdpos,
+                            );
+                            msg_putchar(b' ' as i32);
+                            cursorcmd();
                         }
                     }
                 }
-            }
 
-            if s.do_abbr
-                && (is_special(s.c) || !vim_iswordc(s.c))
-                && (ccheck_abbr(if s.c >= 0x100 { s.c + ABBR_OFF } else { s.c }) != 0
-                    || s.c == CTRL_RSB_CONST)
-            {
-                return command_line_changed(s);
+                CTRL_K_CONST => {
+                    s.ignore_drag_release = true;
+                    putcmdline(b'?', true);
+                    s.c = get_digraph(true);
+                    getln_st().ccline.special_char = 0;
+
+                    if s.c != NUL as i32 {
+                        break 'key_switch;
+                    }
+
+                    redrawcmd();
+                    return command_line_not_changed(s);
+                }
+
+                CTRL_CONST_CONST => {
+                    if opt_vars().p_ari == 0 {
+                        break 'key_switch;
+                    }
+                    return command_line_not_changed(s);
+                }
+
+                c if c == b'q' as i32 => {
+                    if { getln_st().ccline.mouse_used }.is_some() {
+                        unsafe {
+                            *getln_st().ccline.cmdbuff = NUL;
+                        }
+                        return 0;
+                    }
+                    if !is_special(s.c) {
+                        g_st().mod_mask = 0x0;
+                    }
+                }
+
+                _ => {
+                    if !is_special(s.c) {
+                        g_st().mod_mask = 0x0;
+                    }
+                }
             }
         }
 
-        // end:
-        if is_special(s.c) || g_st().mod_mask != 0 {
-            put_on_cmdline(get_special_key_name(s.c, g_st().mod_mask), -1, true);
-        } else {
-            let iobuff_ptr = g_st().iobuff.as_mut_ptr();
-            let j = utf_char2bytes(s.c, iobuff_ptr.cast());
+        if s.do_abbr
+            && (is_special(s.c) || !vim_iswordc(s.c))
+            && (ccheck_abbr(if s.c >= 0x100 { s.c + ABBR_OFF } else { s.c }) != 0
+                || s.c == CTRL_RSB_CONST)
+        {
+            return command_line_changed(s);
+        }
+    }
+
+    // end:
+    if is_special(s.c) || g_st().mod_mask != 0 {
+        put_on_cmdline(get_special_key_name(s.c, g_st().mod_mask), -1, true);
+    } else {
+        let iobuff_ptr = g_st().iobuff.as_mut_ptr();
+        let j = utf_char2bytes(s.c, iobuff_ptr.cast());
+        unsafe {
             *iobuff_ptr.wrapping_add(j as usize) = 0;
-            put_on_cmdline(iobuff_ptr, j, true);
         }
-        if getln_st().ccline.one_key {
-            0
-        } else {
-            command_line_changed(s)
-        }
+        put_on_cmdline(iobuff_ptr, j, true);
+    }
+    if getln_st().ccline.one_key {
+        0
+    } else {
+        command_line_changed(s)
     }
 }
 
@@ -3511,36 +3519,34 @@ fn cmd_startcol() -> i32 {
 
 /// Compute the column position for a byte position on the command line.
 pub fn cmd_screencol(bytepos: i32) -> i32 {
-    unsafe {
-        let mut m: i32;
-        let mut col = cmd_startcol();
-        if g_st().key_typed {
-            m = if !g_st().cmdline_win.is_null() {
-                (*g_st().cmdline_win).w_view_width * (*g_st().cmdline_win).w_view_height
-            } else {
-                g_st().columns_global * g_st().rows_global
-            };
-            if m < 0 {
-                m = MAXCOL;
-            }
+    let mut m: i32;
+    let mut col = cmd_startcol();
+    if g_st().key_typed {
+        m = if !g_st().cmdline_win.is_null() {
+            unsafe { (*g_st().cmdline_win).w_view_width * (*g_st().cmdline_win).w_view_height }
         } else {
+            g_st().columns_global * g_st().rows_global
+        };
+        if m < 0 {
             m = MAXCOL;
         }
-
-        let mut i: i32 = 0;
-        while i < getln_st().ccline.cmdlen && i < bytepos {
-            let c = cmdline_charsize(i);
-            correct_screencol(i, c, &mut col);
-
-            col += c;
-            if col >= m {
-                col -= c;
-                break;
-            }
-            i += utfc_ptr2len(getln_st().ccline.cmdbuff.wrapping_add(i as usize).cast());
-        }
-        col
+    } else {
+        m = MAXCOL;
     }
+
+    let mut i: i32 = 0;
+    while i < getln_st().ccline.cmdlen && i < bytepos {
+        let c = cmdline_charsize(i);
+        correct_screencol(i, c, &mut col);
+
+        col += c;
+        if col >= m {
+            col -= c;
+            break;
+        }
+        i += utfc_ptr2len(getln_st().ccline.cmdbuff.wrapping_add(i as usize).cast());
+    }
+    col
 }
 
 /// Check if the character at `idx`, which is `cells` wide, is a multi-byte
@@ -3595,34 +3601,38 @@ fn alloc_cmdbuff(mut len: i32) {
 
 /// Re-allocate the command line to length `len` + something extra.
 pub fn realloc_cmdbuff(mut len: i32) {
+    if len < getln_st().ccline.cmdbufflen {
+        return;
+    }
+
+    if len < 80 {
+        len = 100;
+    } else {
+        len += 20;
+    }
+
+    let p = getln_st().ccline.cmdbuff;
+    getln_st().ccline.cmdbuff_vec.resize(len as usize, 0);
+    getln_st().ccline.cmdbuff = getln_st().ccline.cmdbuff_vec.as_mut_ptr();
+    getln_st().ccline.cmdbufflen = len;
     unsafe {
-        if len < getln_st().ccline.cmdbufflen {
-            return;
-        }
-
-        if len < 80 {
-            len = 100;
-        } else {
-            len += 20;
-        }
-
-        let p = getln_st().ccline.cmdbuff;
-        getln_st().ccline.cmdbuff_vec.resize(len as usize, 0);
-        getln_st().ccline.cmdbuff = getln_st().ccline.cmdbuff_vec.as_mut_ptr();
-        getln_st().ccline.cmdbufflen = len;
         *getln_st()
             .ccline
             .cmdbuff
             .wrapping_add(getln_st().ccline.cmdlen as usize) = NUL;
+    }
 
-        if !getln_st().ccline.xpc.is_null()
-            && !(*getln_st().ccline.xpc).xp_pattern.is_null()
-            && (*getln_st().ccline.xpc).xp_context != EXPAND_NOTHING
-            && (*getln_st().ccline.xpc).xp_context != EXPAND_UNSUCCESSFUL
-        {
-            let i = crate::memory::ptr_offset_from((*getln_st().ccline.xpc).xp_pattern, p) as i32;
+    if !getln_st().ccline.xpc.is_null()
+        && unsafe { !(*getln_st().ccline.xpc).xp_pattern.is_null() }
+        && unsafe { (*getln_st().ccline.xpc).xp_context != EXPAND_NOTHING }
+        && unsafe { (*getln_st().ccline.xpc).xp_context != EXPAND_UNSUCCESSFUL }
+    {
+        let i = unsafe {
+            crate::memory::ptr_offset_from((*getln_st().ccline.xpc).xp_pattern, p) as i32
+        };
 
-            if i >= 0 && i <= getln_st().ccline.cmdlen {
+        if i >= 0 && i <= getln_st().ccline.cmdlen {
+            unsafe {
                 (*getln_st().ccline.xpc).xp_pattern =
                     getln_st().ccline.cmdbuff.wrapping_add(i as usize);
             }
@@ -4128,55 +4138,65 @@ pub fn ui_ext_cmdline_block_leave() {
 
 /// Extra redrawing needed for `redraw!` and on `ui_attach`.
 pub fn cmdline_screen_cleared() {
-    unsafe {
-        if !ui_has(K_UICMDLINE) {
-            return;
-        }
+    if !ui_has(K_UICMDLINE) {
+        return;
+    }
 
-        if getln_st().cmdline_block.size != 0 {
-            ui_call_cmdline_block_show(getln_st().cmdline_block);
-        }
+    if getln_st().cmdline_block.size != 0 {
+        ui_call_cmdline_block_show(getln_st().cmdline_block);
+    }
 
-        let mut prev_level = getln_st().ccline.level - 1;
-        let mut line = (&raw mut getln_st().ccline.prev_ccline)
+    let mut prev_level = getln_st().ccline.level - 1;
+    let mut line = unsafe {
+        (&raw mut getln_st().ccline.prev_ccline)
             .as_mut()
             .unwrap()
             .as_deref_mut()
-            .map_or(ptr::null_mut(), ptr::from_mut);
-        while prev_level > 0 && !line.is_null() {
-            if (*line).level == prev_level {
+            .map_or(ptr::null_mut(), ptr::from_mut)
+    };
+    while prev_level > 0 && !line.is_null() {
+        if unsafe { (*line).level == prev_level } {
+            unsafe {
                 (*line).redraw_state = K_CMD_REDRAW_ALL;
-                prev_level -= 1;
             }
+            prev_level -= 1;
+        }
+        unsafe {
             line = (*line)
                 .prev_ccline
                 .as_deref_mut()
                 .map_or(ptr::null_mut(), ptr::from_mut);
         }
-        redrawcmd();
     }
+    redrawcmd();
 }
 
 /// Called by `ui_flush`, do what redraws necessary to keep cmdline updated.
 pub fn cmdline_ui_flush() {
-    unsafe {
-        if !ui_has(K_UICMDLINE) {
-            return;
-        }
-        let mut level = getln_st().ccline.level;
-        let mut line: *mut CmdlineInfo = &raw mut getln_st().ccline;
-        while level > 0 && !line.is_null() {
-            if (*line).level == level {
-                let redraw_state = (*line).redraw_state;
+    if !ui_has(K_UICMDLINE) {
+        return;
+    }
+    let mut level = getln_st().ccline.level;
+    let mut line: *mut CmdlineInfo = &raw mut getln_st().ccline;
+    while level > 0 && !line.is_null() {
+        if unsafe { (*line).level == level } {
+            let redraw_state = unsafe { (*line).redraw_state };
+            unsafe {
                 (*line).redraw_state = K_CMD_REDRAW_NONE;
-                if redraw_state == K_CMD_REDRAW_ALL {
-                    g_st().cmdline_was_last_drawn = true;
+            }
+            if redraw_state == K_CMD_REDRAW_ALL {
+                g_st().cmdline_was_last_drawn = true;
+                unsafe {
                     ui_ext_cmdline_show(&mut *line);
-                } else if redraw_state == K_CMD_REDRAW_POS && g_st().cmdline_was_last_drawn {
+                }
+            } else if redraw_state == K_CMD_REDRAW_POS && g_st().cmdline_was_last_drawn {
+                unsafe {
                     ui_call_cmdline_pos((*line).cmdpos as Integer, (*line).level as Integer);
                 }
-                level -= 1;
             }
+            level -= 1;
+        }
+        unsafe {
             line = (*line)
                 .prev_ccline
                 .as_deref_mut()
@@ -4474,31 +4494,29 @@ pub fn redrawcmdline() {
 }
 
 fn redrawcmdprompt() {
-    unsafe {
-        if g_st().cmd_silent {
-            return;
-        }
-        if ui_has(K_UICMDLINE) {
-            getln_st().ccline.redraw_state = K_CMD_REDRAW_ALL;
-            return;
-        }
+    if g_st().cmd_silent {
+        return;
+    }
+    if ui_has(K_UICMDLINE) {
+        getln_st().ccline.redraw_state = K_CMD_REDRAW_ALL;
+        return;
+    }
+    if getln_st().ccline.cmdfirstc != NUL as i32 {
+        msg_putchar(getln_st().ccline.cmdfirstc);
+    }
+    let cp = &raw const getln_st().ccline.cmdprompt;
+    if let Some(ref prompt) = *unsafe { &(*cp) } {
+        msg_puts_hl(prompt.as_ptr(), getln_st().ccline.hl_id, false);
+        getln_st().ccline.cmdindent =
+            g_st().msg_col + (g_st().msg_row - g_st().cmdline_row) * g_st().columns_global;
         if getln_st().ccline.cmdfirstc != NUL as i32 {
-            msg_putchar(getln_st().ccline.cmdfirstc);
+            getln_st().ccline.cmdindent -= 1;
         }
-        let cp = &raw const getln_st().ccline.cmdprompt;
-        if let Some(ref prompt) = *cp {
-            msg_puts_hl(prompt.as_ptr(), getln_st().ccline.hl_id, false);
-            getln_st().ccline.cmdindent =
-                g_st().msg_col + (g_st().msg_row - g_st().cmdline_row) * g_st().columns_global;
-            if getln_st().ccline.cmdfirstc != NUL as i32 {
-                getln_st().ccline.cmdindent -= 1;
-            }
-        } else {
-            let mut i = getln_st().ccline.cmdindent;
-            while i > 0 {
-                msg_putchar(b' ' as i32);
-                i -= 1;
-            }
+    } else {
+        let mut i = getln_st().ccline.cmdindent;
+        while i > 0 {
+            msg_putchar(b' ' as i32);
+            i -= 1;
         }
     }
 }
@@ -5176,170 +5194,164 @@ pub fn script_get(eap: &mut Exarg, lenp: &mut usize) -> Option<std::ffi::CString
 
 /// Used by `f_input()` and `f_inputdialog()` functions.
 pub fn get_user_input(argvars: &[TypVal], rettv: &mut TypVal, inputdialog: bool, secret: bool) {
-    unsafe {
-        rettv.v_type = VarType::VarString;
-        rettv.vval = crate::eval::typval::TypvalVval::String(ptr::null_mut());
+    rettv.v_type = VarType::VarString;
+    rettv.vval = crate::eval::typval::TypvalVval::String(ptr::null_mut());
 
-        if g_st().cmdpreview {
+    if g_st().cmdpreview {
+        return;
+    }
+
+    let prompt: *const u8;
+    let mut defstr: *const u8 = c"".as_ptr().cast();
+    let mut cancelreturn: *mut TypVal = ptr::null_mut();
+    let mut cancelreturn_strarg2 = TypVal {
+        v_type: VarType::VarUnknown,
+        v_lock: 0,
+        vval: TypvalVval::Number(0),
+    };
+    let mut xp_name: *const u8 = ptr::null();
+    let mut input_callback: Callback = Callback::new();
+    let mut prompt_buf: [u8; NUMBUFLEN] = [0; NUMBUFLEN];
+    let mut defstr_buf: [u8; NUMBUFLEN] = [0; NUMBUFLEN];
+    let mut cancelreturn_buf: [u8; NUMBUFLEN] = [0; NUMBUFLEN];
+    let mut xp_name_buf: [u8; NUMBUFLEN] = [0; NUMBUFLEN];
+    if argvars[0].v_type == VarType::VarDict {
+        if argvars[1].v_type != VarType::VarUnknown {
+            emsg(gettext(c"E5050: {opts} must be the only argument"));
             return;
         }
-
-        let prompt: *const u8;
-        let mut defstr: *const u8 = c"".as_ptr().cast();
-        let mut cancelreturn: *mut TypVal = ptr::null_mut();
-        let mut cancelreturn_strarg2 = TypVal {
-            v_type: VarType::VarUnknown,
-            v_lock: 0,
-            vval: TypvalVval::Number(0),
+        let dict = argvars[0].vval.v_dict();
+        let Some(prompt_cstr) = (unsafe {
+            tv_dict_get_string_buf_chk(dict.as_ref(), c"prompt", 6, &mut prompt_buf, Some(c""))
+        }) else {
+            return;
         };
-        let mut xp_name: *const u8 = ptr::null();
-        let mut input_callback: Callback = Callback::new();
-        let mut prompt_buf: [u8; NUMBUFLEN] = [0; NUMBUFLEN];
-        let mut defstr_buf: [u8; NUMBUFLEN] = [0; NUMBUFLEN];
-        let mut cancelreturn_buf: [u8; NUMBUFLEN] = [0; NUMBUFLEN];
-        let mut xp_name_buf: [u8; NUMBUFLEN] = [0; NUMBUFLEN];
-        if argvars[0].v_type == VarType::VarDict {
-            if argvars[1].v_type != VarType::VarUnknown {
-                emsg(gettext(c"E5050: {opts} must be the only argument"));
-                return;
+        prompt = prompt_cstr.as_ptr().cast();
+        let Some(defstr_cstr) = (unsafe {
+            tv_dict_get_string_buf_chk(dict.as_ref(), c"default", 7, &mut defstr_buf, Some(c""))
+        }) else {
+            return;
+        };
+        defstr = defstr_cstr.as_ptr().cast();
+        let cancelreturn_di = unsafe { tv_dict_find(dict.as_ref(), c"cancelreturn", 12) };
+        if !cancelreturn_di.is_null() {
+            unsafe {
+                cancelreturn = &raw mut (*cancelreturn_di).di_tv;
             }
-            let dict = argvars[0].vval.v_dict();
-            let Some(prompt_cstr) =
-                tv_dict_get_string_buf_chk(dict.as_ref(), c"prompt", 6, &mut prompt_buf, Some(c""))
-            else {
+        }
+        if unsafe { tv_dict_find(dict.as_ref(), c"completion", 10).is_null() } {
+            xp_name = ptr::null();
+        } else {
+            let Some(xp_cstr) = (unsafe {
+                tv_dict_get_string_buf_chk(dict.as_ref(), c"completion", 10, &mut xp_name_buf, None)
+            }) else {
                 return;
             };
-            prompt = prompt_cstr.as_ptr().cast();
-            let Some(defstr_cstr) = tv_dict_get_string_buf_chk(
-                dict.as_ref(),
-                c"default",
-                7,
-                &mut defstr_buf,
-                Some(c""),
-            ) else {
+            xp_name = xp_cstr.as_ptr().cast();
+        }
+        if unsafe { !tv_dict_get_callback(dict.as_mut(), c"highlight", 9, &mut input_callback) } {
+            return;
+        }
+    } else {
+        let Some(prompt_cstr) = tv_get_string_buf_chk(&argvars[0], &mut prompt_buf) else {
+            return;
+        };
+        prompt = prompt_cstr.as_ptr().cast();
+        if argvars[1].v_type != VarType::VarUnknown {
+            let Some(defstr_cstr) = tv_get_string_buf_chk(&argvars[1], &mut defstr_buf) else {
                 return;
             };
             defstr = defstr_cstr.as_ptr().cast();
-            let cancelreturn_di = tv_dict_find(dict.as_ref(), c"cancelreturn", 12);
-            if !cancelreturn_di.is_null() {
-                cancelreturn = &raw mut (*cancelreturn_di).di_tv;
-            }
-            if tv_dict_find(dict.as_ref(), c"completion", 10).is_null() {
-                xp_name = ptr::null();
-            } else {
-                let Some(xp_cstr) = tv_dict_get_string_buf_chk(
-                    dict.as_ref(),
-                    c"completion",
-                    10,
-                    &mut xp_name_buf,
-                    None,
-                ) else {
+            if argvars[2].v_type != VarType::VarUnknown {
+                let Some(strarg2) = tv_get_string_buf_chk(&argvars[2], &mut cancelreturn_buf)
+                else {
                     return;
                 };
-                xp_name = xp_cstr.as_ptr().cast();
-            }
-            if !tv_dict_get_callback(dict.as_mut(), c"highlight", 9, &mut input_callback) {
-                return;
-            }
-        } else {
-            let Some(prompt_cstr) = tv_get_string_buf_chk(&argvars[0], &mut prompt_buf) else {
-                return;
-            };
-            prompt = prompt_cstr.as_ptr().cast();
-            if argvars[1].v_type != VarType::VarUnknown {
-                let Some(defstr_cstr) = tv_get_string_buf_chk(&argvars[1], &mut defstr_buf) else {
-                    return;
-                };
-                defstr = defstr_cstr.as_ptr().cast();
-                if argvars[2].v_type != VarType::VarUnknown {
-                    let Some(strarg2) = tv_get_string_buf_chk(&argvars[2], &mut cancelreturn_buf)
-                    else {
-                        return;
-                    };
-                    if inputdialog {
-                        cancelreturn_strarg2.v_type = VarType::VarString;
-                        cancelreturn_strarg2.vval =
-                            crate::eval::typval::TypvalVval::String(strarg2.as_ptr().cast_mut());
-                        cancelreturn = &raw mut cancelreturn_strarg2;
-                    } else {
-                        xp_name = strarg2.as_ptr().cast();
-                    }
+                if inputdialog {
+                    cancelreturn_strarg2.v_type = VarType::VarString;
+                    cancelreturn_strarg2.vval =
+                        crate::eval::typval::TypvalVval::String(strarg2.as_ptr().cast_mut());
+                    cancelreturn = &raw mut cancelreturn_strarg2;
+                } else {
+                    xp_name = strarg2.as_ptr().cast();
                 }
             }
         }
+    }
 
-        let mut xp_type: i32 = EXPAND_NOTHING;
-        let mut xp_arg: Option<std::ffi::CString> = None;
-        if !xp_name.is_null() {
-            let xp_namelen = crate::memory::cstr_len(xp_name.cast()) as i32;
-            let mut argt: u32 = 0;
-            if !parse_compl_arg(
-                xp_name.cast(),
-                xp_namelen,
-                &mut xp_type,
-                &mut argt,
-                &mut xp_arg,
-            ) {
-                return;
-            }
+    let mut xp_type: i32 = EXPAND_NOTHING;
+    let mut xp_arg: Option<std::ffi::CString> = None;
+    if !xp_name.is_null() {
+        let xp_namelen = crate::memory::cstr_len(xp_name.cast()) as i32;
+        let mut argt: u32 = 0;
+        if !parse_compl_arg(
+            xp_name.cast(),
+            xp_namelen,
+            &mut xp_type,
+            &mut argt,
+            &mut xp_arg,
+        ) {
+            return;
         }
+    }
 
-        let mut p = prompt;
-        if !ui_has(K_UICMDLINE) {
-            let lastnl = crate::memory::cstr_as_bytes(prompt.cast())
-                .iter()
-                .rposition(|&b| b == b'\n')
-                .map_or(ptr::null_mut(), |i| prompt.wrapping_add(i).cast_mut());
-            if !lastnl.is_null() {
-                p = lastnl.wrapping_add(1);
-                msg_start();
-                msg_clr_eos();
-                msg_puts_len(
-                    prompt.cast(),
-                    crate::memory::ptr_offset_from(p, prompt),
-                    get_echo_hl_id(),
-                    false,
-                );
-                g_st().msg_didout = false;
-                msg_starthere();
-            }
-        }
-        g_st().cmdline_row = g_st().msg_row;
-
-        stuff_readbuff_special(defstr.cast());
-
-        let save_ex_normal_busy = g_st().ex_normal_busy;
-        g_st().ex_normal_busy = 0;
-        atom_payload_start();
-        let res = getcmdline_prompt(
-            if secret { NUL as i32 } else { b'@' as i32 },
-            p.cast(),
-            get_echo_hl_id(),
-            xp_type,
-            xp_arg
-                .as_ref()
-                .map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut()),
-            input_callback.clone(),
-            false,
-            ptr::null_mut(),
-        );
-        atom_payload_end();
-        g_st().ex_normal_busy = save_ex_normal_busy;
-        callback_free(&mut input_callback);
-
-        if let Some(res_cstr) = res {
-            crate::eval::typval::tv_set_string_len(
-                &mut *rettv,
-                res_cstr.as_ptr(),
-                res_cstr.as_bytes().len(),
+    let mut p = prompt;
+    if !ui_has(K_UICMDLINE) {
+        let lastnl = crate::memory::cstr_as_bytes(prompt.cast())
+            .iter()
+            .rposition(|&b| b == b'\n')
+            .map_or(ptr::null_mut(), |i| prompt.wrapping_add(i).cast_mut());
+        if !lastnl.is_null() {
+            p = lastnl.wrapping_add(1);
+            msg_start();
+            msg_clr_eos();
+            msg_puts_len(
+                prompt.cast(),
+                crate::memory::ptr_offset_from(p, prompt),
+                get_echo_hl_id(),
+                false,
             );
-        } else if !cancelreturn.is_null() {
+            g_st().msg_didout = false;
+            msg_starthere();
+        }
+    }
+    g_st().cmdline_row = g_st().msg_row;
+
+    stuff_readbuff_special(defstr.cast());
+
+    let save_ex_normal_busy = g_st().ex_normal_busy;
+    g_st().ex_normal_busy = 0;
+    atom_payload_start();
+    let res = getcmdline_prompt(
+        if secret { NUL as i32 } else { b'@' as i32 },
+        p.cast(),
+        get_echo_hl_id(),
+        xp_type,
+        xp_arg
+            .as_ref()
+            .map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut()),
+        input_callback.clone(),
+        false,
+        ptr::null_mut(),
+    );
+    atom_payload_end();
+    g_st().ex_normal_busy = save_ex_normal_busy;
+    callback_free(&mut input_callback);
+
+    if let Some(res_cstr) = res {
+        crate::eval::typval::tv_set_string_len(
+            &mut *rettv,
+            res_cstr.as_ptr(),
+            res_cstr.as_bytes().len(),
+        );
+    } else if !cancelreturn.is_null() {
+        unsafe {
             tv_copy(&*cancelreturn, &mut *rettv);
         }
-
-        g_st().need_wait_return = false;
-        g_st().msg_didout = false;
     }
+
+    g_st().need_wait_return = false;
+    g_st().msg_didout = false;
 }
 
 /// `"wildtrigger()"` function.

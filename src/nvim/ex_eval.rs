@@ -327,11 +327,9 @@ pub fn cause_errthrow(
 }
 
 pub fn free_global_msglist() {
-    unsafe {
-        let ml = &raw mut g_st().msg_list;
-        if let Some(ref mut list) = *ml {
-            list.clear();
-        }
+    let ml = &raw mut g_st().msg_list;
+    if let Some(ref mut list) = *unsafe { &mut (*ml) } {
+        list.clear();
     }
 }
 
