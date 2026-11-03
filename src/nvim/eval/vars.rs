@@ -6,7 +6,7 @@ use crate::api::private::helpers::{
 };
 use crate::api::private::validate::{Object, ObjectType};
 use crate::buffer::{DO_NOT_FREE_CNT, FileBuf, NOTDONE, VAR_FIXED, VAR_SCOPE};
-use crate::charset::{ascii_isdigit, ascii_iswhite, getdigits_int, skiptowhite, skipwhite};
+use crate::charset::{ascii_isdigit, ascii_iswhite, getdigits_int, skipwhite};
 use crate::cmdexpand::Cmdidx;
 use crate::context::{CtxSwitch, ctx_restore, ctx_switch};
 use crate::drawscreen::{UPD_SOME_VALID, redraw_all_later};
@@ -71,7 +71,7 @@ use crate::os::env::{
 use crate::register::{K_GREG_EXPR_SRC, get_reg_contents_str, write_reg_contents};
 use crate::runtime::{Scriptvar, new_script_item, script_autoload, script_item};
 use crate::search::set_search_direction;
-use crate::strings::{concat_str, gettext, vim_strchr};
+use crate::strings::{concat_str, gettext};
 use crate::version::{highest_patch, min_vim_version};
 use crate::window::{
     TabPageInfo, WinInfoInfo, find_tabpage, goto_tabpage_tp, prevwin_curwin, valid_tabpage,
@@ -82,7 +82,7 @@ use std::ptr;
 pub type VimVarIndex = i32;
 pub type ScopeType = i32;
 pub type Scid = i32;
-type ExUnletlockCallback = fn(&mut Lval, *mut u8, &mut Exarg, i32) -> bool;
+type ExUnletlockCallback = fn(&mut Lval, &mut Exarg, i32) -> bool;
 
 use crate::api::win_config::{K_CTX_NO_DISPLAY, K_CTX_NO_EVENTS};
 use crate::change::MB_MAXCHAR;
@@ -974,14 +974,10 @@ pub fn eval_one_expr_in_str<T>(p: *const T, gap: &mut Vec<u8>, evaluate: bool) -
             return ptr::null_mut();
         }
         if evaluate {
-            unsafe {
-                *block_end = 0;
-            }
-            let expr_val = eval_to_string(block_start.cast(), false, false);
-            unsafe {
-                *block_end = b'}';
-            }
-            let Some(expr_val) = expr_val else {
+            let expr_len = (block_end as usize).wrapping_sub(block_start as usize);
+            let expr_cstr =
+                cstr_from_bytes(crate::memory::cstr_slice(block_start.cast(), expr_len));
+            let Some(expr_val) = eval_to_string(&expr_cstr, false, false) else {
                 return ptr::null_mut();
             };
             let bytes = expr_val.as_bytes();
@@ -1051,36 +1047,35 @@ pub fn heredoc_get(
     cmd: impl crate::strings::IntoCCharPtr,
     script_get: bool,
 ) -> *mut TvList {
-    let mut cmd: *const u8 = cmd.into_c_char_ptr().cast();
+    let cmd: *const u8 = cmd.into_c_char_ptr().cast();
     {
         let mut marker_indent_len: i32 = 0;
         let mut text_indent_len: i32 = 0;
         let mut text_indent: Option<Vec<u8>> = None;
-        let mut dot: [u8; 2] = [b'.', 0];
-        let mut heredoc_in_string = false;
-        let mut line_arg: *mut u8 = ptr::null_mut();
-        let nl_ptr: *mut u8 = vim_strchr(cmd.cast(), b'\n' as i32).cast();
-
-        if !nl_ptr.is_null() {
-            heredoc_in_string = true;
-            line_arg = nl_ptr.wrapping_add(1);
-            unsafe {
-                *nl_ptr = 0;
+        let full_cmd_bytes = crate::memory::cstr_as_bytes(cmd.cast());
+        let cmd_line_len = full_cmd_bytes
+            .iter()
+            .position(|&b| b == b'\n')
+            .unwrap_or(full_cmd_bytes.len());
+        let heredoc_in_string = cmd_line_len < full_cmd_bytes.len();
+        let mut line_arg: *const u8 = if heredoc_in_string {
+            cmd.wrapping_add(cmd_line_len + 1)
+        } else {
+            if eap.ea_getline.is_none() {
+                emsg(gettext(E_CANNOT_USE_HEREDOC_HERE));
+                return ptr::null_mut();
             }
-        } else if eap.ea_getline.is_none() {
-            emsg(gettext(E_CANNOT_USE_HEREDOC_HERE));
-            return ptr::null_mut();
-        }
+            ptr::null()
+        };
 
-        cmd = skipwhite(cmd.cast()).cast();
+        let mut cmd_rem = crate::charset::skipwhite_slice(&full_cmd_bytes[..cmd_line_len]);
         let mut evalstr = false;
         let mut eval_failed = false;
         loop {
-            let cmd_bytes = crate::memory::cstr_as_bytes(cmd.cast());
-            if cmd_bytes.starts_with(b"trim")
-                && cmd_bytes.get(4).is_none_or(|&b| ascii_iswhite(b as i32))
+            if cmd_rem.starts_with(b"trim")
+                && cmd_rem.get(4).is_none_or(|&b| ascii_iswhite(b as i32))
             {
-                cmd = skipwhite(cmd.wrapping_add(4).cast()).cast();
+                cmd_rem = crate::charset::skipwhite_slice(&cmd_rem[4..]);
 
                 marker_indent_len = crate::memory::cstr_as_bytes(eap.cmdline())
                     .iter()
@@ -1089,10 +1084,10 @@ pub fn heredoc_get(
                 text_indent_len = -1;
                 continue;
             }
-            if cmd_bytes.starts_with(b"eval")
-                && cmd_bytes.get(4).is_none_or(|&b| ascii_iswhite(b as i32))
+            if cmd_rem.starts_with(b"eval")
+                && cmd_rem.get(4).is_none_or(|&b| ascii_iswhite(b as i32))
             {
-                cmd = skipwhite(cmd.wrapping_add(4).cast()).cast();
+                cmd_rem = crate::charset::skipwhite_slice(&cmd_rem[4..]);
                 evalstr = true;
                 continue;
             }
@@ -1100,30 +1095,30 @@ pub fn heredoc_get(
         }
 
         let comment_char = b'"';
-        let marker: *mut u8;
-        let cmd_bytes = crate::memory::cstr_as_bytes(cmd.cast());
-        if !cmd_bytes.is_empty() && cmd_bytes[0] != comment_char {
-            marker = skipwhite(cmd.cast()).cast();
-            let p: *mut u8 = skiptowhite(marker.cast()).cast();
-            let after_p = skipwhite(p.cast());
-            let after_b = crate::memory::cstr_first_byte(after_p);
-            if after_b != 0 && after_b != comment_char {
-                semsg!(gettext(E_TRAILING_ARG), p);
+        let marker_cstr = if !cmd_rem.is_empty() && cmd_rem[0] != comment_char {
+            let marker_start = crate::charset::skipwhite_slice(cmd_rem);
+            let after_marker = crate::charset::skiptowhite_slice(marker_start);
+            let marker_len = marker_start.len() - after_marker.len();
+            let after_ws = crate::charset::skipwhite_slice(after_marker);
+            if let Some(&after_b) = after_ws.first()
+                && after_b != comment_char
+            {
+                let p_off = cmd_line_len - after_marker.len();
+                let trailing_cstr = cstr_from_bytes(&full_cmd_bytes[p_off..cmd_line_len]);
+                semsg!(gettext(E_TRAILING_ARG), trailing_cstr.as_ptr());
                 return ptr::null_mut();
             }
-            unsafe {
-                *p = 0;
-            }
-            if !script_get && unsafe { *marker }.is_ascii_lowercase() {
+            if !script_get && marker_start[0].is_ascii_lowercase() {
                 emsg(gettext(c"E221: Marker cannot start with lower case letter"));
                 return ptr::null_mut();
             }
+            cstr_from_bytes(&marker_start[..marker_len])
         } else if script_get {
-            marker = dot.as_mut_ptr();
+            cstr_from_bytes(b".")
         } else {
             emsg(gettext(c"E172: Missing marker"));
             return ptr::null_mut();
-        }
+        };
 
         let mut theline_owned: Option<std::ffi::CString> = None;
         let l = tv_list_alloc(0);
@@ -1131,47 +1126,45 @@ pub fn heredoc_get(
             let mut mi: i32 = 0;
             let mut ti: i32 = 0;
 
-            let theline: *mut u8 = if heredoc_in_string {
-                if crate::memory::cstr_is_empty(line_arg.cast()) {
+            let theline: &std::ffi::CStr = if heredoc_in_string {
+                let rem_bytes = crate::memory::cstr_as_bytes(line_arg.cast());
+                if rem_bytes.is_empty() {
                     if !script_get {
-                        semsg!(gettext(E_MISSING_END_MARKER_STR), marker);
+                        semsg!(gettext(E_MISSING_END_MARKER_STR), marker_cstr.as_ptr());
                     }
                     break;
                 }
-
-                let cur_line = line_arg;
-                let next_line: *mut u8 = vim_strchr(cur_line.cast(), b'\n' as i32).cast();
-                if next_line.is_null() {
-                    line_arg = line_arg.wrapping_add(crate::memory::cstr_len(line_arg.cast()));
+                let line_len = rem_bytes
+                    .iter()
+                    .position(|&b| b == b'\n')
+                    .unwrap_or(rem_bytes.len());
+                theline_owned = Some(cstr_from_bytes(&rem_bytes[..line_len]));
+                line_arg = line_arg.wrapping_add(if line_len < rem_bytes.len() {
+                    line_len + 1
                 } else {
-                    unsafe {
-                        *next_line = 0;
-                    }
-                    line_arg = next_line.wrapping_add(1);
-                }
-                cur_line
+                    line_len
+                });
+                theline_owned.as_deref().unwrap()
             } else {
                 theline_owned = eap.ea_getline.call(0, 0, false);
                 let Some(ref tl) = theline_owned else {
                     if !script_get {
-                        semsg!(gettext(E_MISSING_END_MARKER_STR), marker);
+                        semsg!(gettext(E_MISSING_END_MARKER_STR), marker_cstr.as_ptr());
                     }
                     break;
                 };
-                tl.as_ptr().cast_mut().cast()
+                tl.as_c_str()
             };
 
+            let line_bytes = theline.to_bytes();
             if marker_indent_len > 0 {
                 let len = marker_indent_len as usize;
-                let line_b = crate::memory::cstr_as_bytes(theline.cast());
                 let cmd_b = crate::memory::cstr_as_bytes(eap.cmdline());
-                if line_b[..len.min(line_b.len())] == cmd_b[..len.min(cmd_b.len())] {
+                if line_bytes[..len.min(line_bytes.len())] == cmd_b[..len.min(cmd_b.len())] {
                     mi = marker_indent_len;
                 }
             }
-            if crate::memory::cstr_as_bytes(marker.cast())
-                == crate::memory::cstr_as_bytes(theline.wrapping_add(mi as usize).cast())
-            {
+            if marker_cstr.as_bytes() == &line_bytes[(mi as usize).min(line_bytes.len())..] {
                 break;
             }
 
@@ -1179,19 +1172,14 @@ pub fn heredoc_get(
                 continue;
             }
 
-            if text_indent_len == -1 && !crate::memory::cstr_is_empty(theline.cast()) {
-                let mut p = theline;
-                text_indent_len = 0;
-                while ascii_iswhite(crate::memory::cstr_first_byte(p.cast())) {
-                    p = p.wrapping_add(1);
-                    text_indent_len += 1;
-                }
-                text_indent = Some(
-                    crate::memory::cstr_slice(theline.cast(), text_indent_len as usize).to_vec(),
-                );
+            if text_indent_len == -1 && !line_bytes.is_empty() {
+                text_indent_len = line_bytes
+                    .iter()
+                    .take_while(|&&b| ascii_iswhite(b as i32))
+                    .count() as i32;
+                text_indent = Some(line_bytes[..text_indent_len as usize].to_vec());
             }
             if let Some(ref indent_slice) = text_indent {
-                let line_bytes = crate::memory::cstr_as_bytes(theline.cast());
                 while ti < text_indent_len {
                     if line_bytes.get(ti as usize).copied() != Some(indent_slice[ti as usize]) {
                         break;
@@ -1200,19 +1188,19 @@ pub fn heredoc_get(
                 }
             }
 
-            let str_line = theline.wrapping_add(ti as usize);
+            let str_line = theline.as_ptr().wrapping_add(ti as usize);
             if evalstr && eap.skip == 0 {
-                let Some(evaluated) = eval_all_expr_in_str(str_line.cast()) else {
+                let Some(evaluated) = eval_all_expr_in_str(str_line) else {
                     eval_failed = true;
                     continue;
                 };
                 tv_list_append_string(&mut *l, evaluated.as_ptr(), -1);
             } else {
-                tv_list_append_string(&mut *l, str_line.cast(), -1);
+                tv_list_append_string(&mut *l, str_line, -1);
             }
         }
         if heredoc_in_string {
-            eap.nextcmd = line_arg.cast();
+            eap.nextcmd = line_arg.cast_mut().cast();
         }
         drop(theline_owned);
         drop(text_indent);
@@ -1691,15 +1679,12 @@ fn ex_let_env(
             emsg(gettext(E_LETUNEXP));
         } else if !check_secure() {
             let mut tofree: Option<std::ffi::CString> = None;
-            let c1 = unsafe { *name.wrapping_add(len) };
-            unsafe {
-                *name.wrapping_add(len) = 0;
-            }
+            let name_cstr = cstr_from_bytes(crate::memory::cstr_slice(name.cast(), len));
             let mut p = tv_get_string_chk(&*tv).map_or(ptr::null(), std::ffi::CStr::as_ptr);
             if !p.is_null()
                 && !op.is_null()
                 && crate::memory::cstr_first_byte(op) == b'.'
-                && let Some(s) = vim_getenv(name.cast())
+                && let Some(s) = vim_getenv(&name_cstr)
             {
                 let mut bytes = Vec::from(s.as_bytes());
                 bytes.extend_from_slice(crate::memory::cstr_as_bytes(p));
@@ -1708,11 +1693,8 @@ fn ex_let_env(
                 tofree = Some(joined);
             }
             if !p.is_null() {
-                vim_setenv_ext(name.cast(), p);
+                vim_setenv_ext(&name_cstr, p);
                 arg_end = arg;
-            }
-            unsafe {
-                *name.wrapping_add(len) = c1;
             }
             drop(tofree);
         }
@@ -1756,25 +1738,21 @@ fn ex_let_option(
             return ptr::null_mut();
         }
 
-        let c1 = unsafe { *p };
-        unsafe {
-            *p = 0;
-        }
+        let opt_len = (p as usize).wrapping_sub(arg_name as usize);
+        let opt_bytes = crate::memory::cstr_slice(arg_name.cast(), opt_len);
+        let opt_cstr = cstr_from_bytes(opt_bytes);
 
-        let is_tty_opt = is_tty_option(crate::memory::cstr_as_bytes(arg_name.cast()));
+        let is_tty_opt = is_tty_option(opt_bytes);
         let hidden = is_option_hidden(opt_idx);
         let curval = if is_tty_opt {
-            get_tty_option(crate::memory::cstr_as_bytes(arg_name.cast()))
+            get_tty_option(opt_bytes)
         } else {
             get_option_value(opt_idx, opt_flags)
         };
         let mut newval = nil_obj();
 
         if curval.obj_type == ObjectType::ObjectTypeNil {
-            semsg!(gettext(E_UNKNOWN_OPTION2), arg_name);
-            unsafe {
-                *p = c1;
-            }
+            semsg!(gettext(E_UNKNOWN_OPTION2), opt_cstr.as_ptr());
             optval_free(curval);
             optval_free(newval);
             return arg_end;
@@ -1787,20 +1765,14 @@ fn ex_let_option(
                     && crate::memory::cstr_first_byte(op) != b'.'))
         {
             semsg!(gettext(E_LETWRONG), op);
-            unsafe {
-                *p = c1;
-            }
             optval_free(curval);
             optval_free(newval);
             return arg_end;
         }
 
         let mut error = false;
-        newval = opt_from_tv(tv, opt_idx, arg_name.cast(), &mut error);
+        newval = opt_from_tv(tv, opt_idx, opt_cstr.as_ptr(), &mut error);
         if error {
-            unsafe {
-                *p = c1;
-            }
             optval_free(curval);
             optval_free(newval);
             return arg_end;
@@ -1861,9 +1833,6 @@ fn ex_let_option(
             set_option_value_give_err(opt_idx, newval, opt_flags);
         }
 
-        unsafe {
-            *p = c1;
-        }
         optval_free(curval);
         optval_free(newval);
         arg_end
@@ -2035,7 +2004,8 @@ fn ex_unletlock(
                     return;
                 }
                 arg = arg_const.cast_mut();
-                if !error && eap.skip == 0 && !callback(&mut lv, arg, eap, deep) {
+                lv.ll_name_len = (arg as usize).wrapping_sub(lv.ll_name as usize);
+                if !error && eap.skip == 0 && !callback(&mut lv, eap, deep) {
                     error = true;
                 }
                 name_end = arg;
@@ -2063,7 +2033,7 @@ fn ex_unletlock(
                     break;
                 }
 
-                if !error && eap.skip == 0 && !callback(&mut lv, name_end, eap, deep) {
+                if !error && eap.skip == 0 && !callback(&mut lv, eap, deep) {
                     error = true;
                 }
             }
@@ -2078,23 +2048,20 @@ fn ex_unletlock(
 }
 
 /// Unlet a variable indicated by `lp`.
-fn do_unlet_var(lp: &mut Lval, name_end: *mut u8, eap: &mut Exarg, _deep: i32) -> bool {
+fn do_unlet_var(lp: &mut Lval, eap: &mut Exarg, _deep: i32) -> bool {
     let forceit = eap.forceit != 0;
     let mut ret = true;
 
     if lp.ll_tv.is_null() {
-        let cc = unsafe { *name_end };
-        unsafe {
-            *name_end = 0;
-        }
-
-        if crate::memory::cstr_first_byte(lp.ll_name.cast()) == b'$' {
-            vim_unsetenv_ext(lp.ll_name.wrapping_add(1).cast());
-        } else if !do_unlet(lp.ll_name.cast(), lp.ll_name_len, forceit) {
+        let name_cstr =
+            cstr_from_bytes(crate::memory::cstr_slice(lp.ll_name.cast(), lp.ll_name_len));
+        if name_cstr.as_bytes().first() == Some(&b'$') {
+            let env_name = unsafe {
+                std::ffi::CStr::from_bytes_with_nul_unchecked(&name_cstr.to_bytes_with_nul()[1..])
+            };
+            vim_unsetenv_ext(env_name);
+        } else if !do_unlet(&name_cstr, lp.ll_name_len, forceit) {
             ret = false;
-        }
-        unsafe {
-            *name_end = cc;
         }
     } else if (!lp.ll_list.is_null()
         && value_check_lock(
@@ -2229,7 +2196,7 @@ pub fn do_unlet(name: impl crate::strings::IntoCCharPtr, name_len: usize, forcei
 }
 
 /// Lock or unlock variable indicated by `lp`.
-fn do_lock_var(lp: &mut Lval, _name_end: *mut u8, eap: &mut Exarg, deep: i32) -> bool {
+fn do_lock_var(lp: &mut Lval, eap: &mut Exarg, deep: i32) -> bool {
     let lock = eap.cmdidx == Cmdidx::CmdLockvar as i32;
     let mut ret = true;
 

@@ -1540,7 +1540,9 @@ pub fn get_lval<T>(
             return ptr::null_mut();
         }
 
-        lp.ll_name_len = (p as usize).wrapping_sub(lp.ll_name as usize);
+        if lp.ll_exp_name.is_none() {
+            lp.ll_name_len = (p as usize).wrapping_sub(lp.ll_name as usize);
+        }
         p.cast()
     }
 }
@@ -1558,8 +1560,12 @@ pub fn set_var_lval<T>(
     let op = op.into_c_char_ptr();
     unsafe {
         if lp.ll_tv.is_null() {
-            let full_len = crate::memory::ptr_offset_from(endp, lp.ll_name) as usize;
-            let name_cstr = cstr_from_bytes(crate::memory::cstr_slice(lp.ll_name.cast(), full_len));
+            let name_cstr = if lp.ll_exp_name.is_some() {
+                crate::memory::cstr_to_cstring(lp.ll_name.cast())
+            } else {
+                let full_len = crate::memory::ptr_offset_from(endp, lp.ll_name) as usize;
+                cstr_from_bytes(crate::memory::cstr_slice(lp.ll_name.cast(), full_len))
+            };
             if !lp.ll_blob.is_null() {
                 if !op.is_null() && crate::memory::cstr_first_byte(op) != b'=' {
                     semsg!(gettext(E_LETWRONG), op);
