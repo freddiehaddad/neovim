@@ -96,7 +96,7 @@ use crate::memline::{
     ml_find_line_or_offset, ml_firstmarked, ml_get, ml_get_buf, ml_get_buf_len, ml_get_len,
     ml_replace, ml_replace_buf, ml_setmarked,
 };
-use crate::memory::{cstr_from_bytes, cstr_to_cstring, xstrlcpy};
+use crate::memory::{cstr_from_bytes, cstr_to_cstring};
 use crate::message::{
     emsg, message_filtered, messaging, msg, msg_check_for_delay, msg_clr_eos, msg_end,
     msg_ext_no_fast, msg_ext_set_kind, msg_multiline, msg_outtrans, msg_prt_line, msg_putchar,
@@ -1877,43 +1877,20 @@ pub fn make_filter_cmd(
         let mut buf_vec = vec![0u8; len];
         let buf = buf_vec.as_mut_ptr();
 
+        let cmd_bytes = crate::memory::cstr_as_bytes(cmd);
+        let itmp_bytes = crate::memory::cstr_as_bytes(itmp);
         if is_pwsh {
             if !itmp.is_null() {
-                xstrlcpy(buf.cast(), c"& { Get-Content ", len - 1);
-                {
-                    let _dst = buf.cast();
-                    let _dsize: usize = len - 1;
-                    let _dlen = crate::memory::cstr_len(_dst);
-                    crate::memory::xstrlcpy(_dst.wrapping_add(_dlen), itmp, _dsize - _dlen);
-                };
-                {
-                    let _dst = buf.cast();
-                    let _dsize: usize = len - 1;
-                    let _dlen = crate::memory::cstr_len(_dst);
-                    crate::memory::xstrlcpy(_dst.wrapping_add(_dlen), c" | & ", _dsize - _dlen);
-                };
-                {
-                    let _dst = buf.cast();
-                    let _dsize: usize = len - 1;
-                    let _dlen = crate::memory::cstr_len(_dst);
-                    crate::memory::xstrlcpy(_dst.wrapping_add(_dlen), cmd, _dsize - _dlen);
-                };
-                {
-                    let _dst = buf.cast();
-                    let _dsize: usize = len - 1;
-                    let _dlen = crate::memory::cstr_len(_dst);
-                    crate::memory::xstrlcpy(_dst.wrapping_add(_dlen), c" }", _dsize - _dlen);
-                };
+                crate::memory::copy_bytes_to_c_buf(&mut buf_vec[..len - 1], b"& { Get-Content ");
+                crate::memory::append_bytes_to_c_buf(&mut buf_vec[..len - 1], itmp_bytes);
+                crate::memory::append_bytes_to_c_buf(&mut buf_vec[..len - 1], b" | & ");
+                crate::memory::append_bytes_to_c_buf(&mut buf_vec[..len - 1], cmd_bytes);
+                crate::memory::append_bytes_to_c_buf(&mut buf_vec[..len - 1], b" }");
             } else if do_in {
-                xstrlcpy(buf.cast(), c" $input | ", len - 1);
-                {
-                    let _dst = buf.cast();
-                    let _dsize: usize = len;
-                    let _dlen = crate::memory::cstr_len(_dst);
-                    crate::memory::xstrlcpy(_dst.wrapping_add(_dlen), cmd, _dsize - _dlen);
-                };
+                crate::memory::copy_bytes_to_c_buf(&mut buf_vec[..len - 1], b" $input | ");
+                crate::memory::append_bytes_to_c_buf(&mut buf_vec[..len], cmd_bytes);
             } else {
-                xstrlcpy(buf.cast(), cmd, len);
+                crate::memory::copy_bytes_to_c_buf(&mut buf_vec, cmd_bytes);
             }
         } else {
             #[cfg(unix)]
@@ -1926,27 +1903,17 @@ pub fn make_filter_cmd(
                     };
                     vim_snprintf!(buf.cast(), len, fmt, cmd);
                 } else {
-                    xstrlcpy(buf.cast(), cmd, len);
+                    crate::memory::copy_bytes_to_c_buf(&mut buf_vec, cmd_bytes);
                 }
 
                 if !itmp.is_null() {
-                    {
-                        let _dst = buf.cast();
-                        let _dsize: usize = len - 1;
-                        let _dlen = crate::memory::cstr_len(_dst);
-                        crate::memory::xstrlcpy(_dst.wrapping_add(_dlen), c" < ", _dsize - _dlen);
-                    };
-                    {
-                        let _dst = buf.cast();
-                        let _dsize: usize = len - 1;
-                        let _dlen = crate::memory::cstr_len(_dst);
-                        crate::memory::xstrlcpy(_dst.wrapping_add(_dlen), itmp, _dsize - _dlen);
-                    };
+                    crate::memory::append_bytes_to_c_buf(&mut buf_vec[..len - 1], b" < ");
+                    crate::memory::append_bytes_to_c_buf(&mut buf_vec[..len - 1], itmp_bytes);
                 }
             }
             #[cfg(not(unix))]
             {
-                xstrlcpy(buf.cast(), cmd, len);
+                crate::memory::copy_bytes_to_c_buf(&mut buf_vec, cmd_bytes);
                 if !itmp.is_null() {
                     if crate::memory::cstr_is_empty(opt_vars().p_shq) {
                         let p = find_pipe(buf.cast());
@@ -1956,41 +1923,16 @@ pub fn make_filter_cmd(
                             }
                         }
                     }
-                    {
-                        let _dst = buf.cast();
-                        let _dsize: usize = len;
-                        let _dlen = crate::memory::cstr_len(_dst);
-                        crate::memory::xstrlcpy(_dst.wrapping_add(_dlen), c" < ", _dsize - _dlen);
-                    };
-                    {
-                        let _dst = buf.cast();
-                        let _dsize: usize = len;
-                        let _dlen = crate::memory::cstr_len(_dst);
-                        crate::memory::xstrlcpy(_dst.wrapping_add(_dlen), itmp, _dsize - _dlen);
-                    };
+                    crate::memory::append_bytes_to_c_buf(&mut buf_vec, b" < ");
+                    crate::memory::append_bytes_to_c_buf(&mut buf_vec, itmp_bytes);
                     if crate::memory::cstr_is_empty(opt_vars().p_shq) {
                         let p = find_pipe(cmd);
                         if !p.is_null() {
-                            {
-                                let _dst = buf.cast();
-                                let _dsize: usize = len - 1;
-                                let _dlen = crate::memory::cstr_len(_dst);
-                                crate::memory::xstrlcpy(
-                                    _dst.wrapping_add(_dlen),
-                                    c" ",
-                                    _dsize - _dlen,
-                                );
-                            };
-                            {
-                                let _dst = buf.cast();
-                                let _dsize: usize = len - 1;
-                                let _dlen = crate::memory::cstr_len(_dst);
-                                crate::memory::xstrlcpy(
-                                    _dst.wrapping_add(_dlen),
-                                    p.cast(),
-                                    _dsize - _dlen,
-                                );
-                            };
+                            crate::memory::append_bytes_to_c_buf(&mut buf_vec[..len - 1], b" ");
+                            crate::memory::append_bytes_to_c_buf(
+                                &mut buf_vec[..len - 1],
+                                crate::memory::cstr_as_bytes(p.cast()),
+                            );
                         }
                     }
                 }
@@ -4819,7 +4761,10 @@ pub fn do_sub_msg(count_only: bool) -> bool {
     {
         let msg_buf_ptr = g_st().msg_buf.as_mut_ptr();
         if g_st().got_int {
-            xstrlcpy(msg_buf_ptr, gettext(c"(Interrupted) "), MSG_BUF_LEN);
+            crate::memory::copy_bytes_to_c_buf(
+                g_st().msg_buf_bytes_mut(),
+                gettext(c"(Interrupted) ").to_bytes(),
+            );
         } else {
             g_st().msg_buf[0] = NUL;
         }

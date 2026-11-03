@@ -45,7 +45,7 @@ use crate::lua::executor::{
 use crate::mbyte::{
     Vimconv, convert_setup, enc_canonize, mb_prevptr, string_convert, utfc_ptr2len,
 };
-use crate::memory::{Arena, cstr_from_bytes, cstr_to_cstring, xstrlcpy};
+use crate::memory::{Arena, cstr_from_bytes, cstr_to_cstring};
 #[cfg(windows)]
 use crate::message::msg_source;
 use crate::message::{
@@ -1141,17 +1141,17 @@ fn expand_pack_entry(
     let pack_entry = pack_entry.into_c_char_ptr();
     {
         let buf: *mut u8 = (&raw mut rt_st().pack_entry_buf).cast();
+        let pack_entry_bytes = crate::memory::cstr_as_bytes(pack_entry);
         let start_pats = [c"/pack/*/start/*", c"/start/*"];
         for pat in &start_pats {
             let pat_len = pat.to_bytes().len();
             if pack_entry_len + pat_len + 1 > MAXPATHL {
                 continue;
             }
-            xstrlcpy(buf.cast(), pack_entry, MAXPATHL);
-            xstrlcpy(
-                buf.wrapping_add(pack_entry_len).cast(),
-                pat.as_ptr(),
-                MAXPATHL - pack_entry_len,
+            crate::memory::copy_bytes_to_c_buf(&mut rt_st().pack_entry_buf, pack_entry_bytes);
+            crate::memory::copy_bytes_to_c_buf(
+                &mut rt_st().pack_entry_buf[pack_entry_len..],
+                pat.to_bytes(),
             );
             expand_rtp_entry(search_path, rtp_used, buf.cast(), false, pos_in_rtp);
             let mut after_bytes = Vec::from(crate::memory::cstr_as_bytes(buf.cast()));
@@ -1711,13 +1711,8 @@ fn add_pack_start_dir(fnames: &[std::ffi::CString], all: bool) -> bool {
             if fname_len + pat.to_bytes().len() + 1 > MAXPATHL {
                 continue;
             }
-            xstrlcpy(buf.cast(), fname_cstr.as_ptr(), MAXPATHL);
-            {
-                let _dst = buf.cast();
-                let _dsize: usize = MAXPATHL;
-                let _dlen = crate::memory::cstr_len(_dst);
-                crate::memory::xstrlcpy(_dst.wrapping_add(_dlen), pat.as_ptr(), _dsize - _dlen);
-            };
+            crate::memory::copy_bytes_to_c_buf(&mut rt_st().pack_start_buf, fname_cstr.as_bytes());
+            crate::memory::append_bytes_to_c_buf(&mut rt_st().pack_start_buf, pat.to_bytes());
             if pack_has_entries(buf) {
                 add_pack_dir_to_rtp(buf.cast(), true);
             }

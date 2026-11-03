@@ -13,7 +13,7 @@ use crate::globals::*;
 use crate::log::logmsg;
 #[cfg(windows)]
 use crate::mbyte::{mb_strnicmp, utf8_to_utf16, utf16_to_utf8};
-use crate::memory::{cstr_to_cstring, xstrlcpy};
+use crate::memory::cstr_to_cstring;
 use crate::message::{emsg, semsg, smsg, verbose_enter, verbose_leave};
 #[cfg(windows)]
 use crate::option::copy_option_part;
@@ -517,7 +517,10 @@ pub fn os_chdir(path: impl crate::strings::IntoCCharPtr) -> i32 {
 pub fn os_dirname<T>(buf: *mut T, mut len: usize) -> bool {
     let error_number = unsafe { uv_cwd(buf.cast(), &mut len) };
     if error_number != 0 {
-        xstrlcpy(buf.cast(), unsafe { uv_strerror(error_number) }, len);
+        crate::memory::copy_bytes_to_c_buf(
+            unsafe { std::slice::from_raw_parts_mut(buf.cast(), len) },
+            crate::memory::cstr_as_bytes(unsafe { uv_strerror(error_number) }),
+        );
         return false;
     }
     to_slash(buf.cast());
@@ -670,7 +673,7 @@ fn is_executable_ext(
         };
 
         let buf = (&raw mut g_st().os_buf).cast::<u8>();
-        xstrlcpy(buf.cast(), name, MAXPATHL);
+        crate::memory::copy_bytes_to_c_buf(g_st().os_buf_bytes_mut(), name_bytes);
         let buf_end = buf.wrapping_add(crate::memory::cstr_len(buf.cast()));
         let mut pathext_buf = [0u8; MAXPATHL];
         let mut pathext: *const u8 =
@@ -1694,10 +1697,9 @@ pub fn os_mkdtemp<T>(templ: impl crate::strings::IntoCCharPtr, path: *mut T) -> 
         let result =
             unsafe { uv_fs_mkdtemp(ptr::null_mut(), &raw mut request, templ, ptr::null()) };
         if result == 0 {
-            xstrlcpy(
-                path.cast(),
-                unsafe { uv_fs_get_path(&raw const request) },
-                TEMP_FILE_PATH_MAXLEN,
+            crate::memory::copy_bytes_to_c_buf(
+                unsafe { std::slice::from_raw_parts_mut(path.cast(), TEMP_FILE_PATH_MAXLEN) },
+                crate::memory::cstr_as_bytes(unsafe { uv_fs_get_path(&raw const request) }),
             );
             to_slash(path.cast());
         }
@@ -1950,7 +1952,10 @@ pub fn os_realpath<T>(name: impl crate::strings::IntoCCharPtr, buf: *mut T, len:
         let mut request: uv_fs_buf_t = [0; 80];
         let result = uv_fs_realpath(ptr::null_mut(), &raw mut request, name, ptr::null());
         if result == 0 {
-            xstrlcpy(buf.cast(), uv_fs_get_ptr(&raw const request).cast(), len);
+            crate::memory::copy_bytes_to_c_buf(
+                std::slice::from_raw_parts_mut(buf.cast(), len),
+                crate::memory::cstr_as_bytes(uv_fs_get_ptr(&raw const request).cast()),
+            );
             to_slash(buf.cast());
         }
         uv_fs_req_cleanup((&raw mut request).cast());

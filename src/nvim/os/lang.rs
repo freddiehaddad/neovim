@@ -10,7 +10,6 @@ use crate::eval::vars::{
 use crate::ex_docmd::Exarg;
 use crate::globals::*;
 use crate::mbyte::{Vimconv, convert_setup, mb_strnicmp, string_convert};
-use crate::memory::xstrlcpy;
 use crate::message::{semsg, smsg};
 use crate::option::set_helplang_default;
 #[cfg(target_os = "macos")]
@@ -638,10 +637,9 @@ pub fn init_locale() {
     let _ = unsafe { setlocale(LC_NUMERIC, c"C".as_ptr().cast()) };
 
     let mut localepath = [0u8; MAXPATHL];
-    xstrlcpy(
-        localepath.as_mut_ptr().cast(),
-        get_vim_var_str(VV_PROGPATH),
-        MAXPATHL,
+    crate::memory::copy_bytes_to_c_buf(
+        &mut localepath,
+        crate::memory::cstr_as_bytes(get_vim_var_str(VV_PROGPATH)),
     );
     let mut tail = path_tail_with_sep(localepath.as_mut_ptr().cast()).cast::<u8>();
     unsafe {
@@ -649,7 +647,7 @@ pub fn init_locale() {
     }
     tail = path_tail(localepath.as_ptr().cast()).cast::<u8>();
     let offset = (tail as usize) - (localepath.as_ptr() as usize);
-    xstrlcpy(tail.cast(), c"share/locale", MAXPATHL - offset);
+    crate::memory::copy_bytes_to_c_buf(&mut localepath[offset..], b"share/locale");
 
     if HAVE_LIBINTL {
         let bytes = crate::memory::cstr_as_bytes(localepath.as_ptr().cast());

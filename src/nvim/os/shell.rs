@@ -27,7 +27,6 @@ use crate::globals::*;
 use crate::mbyte::CP_UTF8;
 use crate::mbyte::UTF8LEN_TAB_ZERO;
 use crate::memline::ml_append;
-use crate::memory::xstrlcpy;
 #[cfg(unix)]
 use crate::message::msg;
 use crate::message::{
@@ -835,7 +834,7 @@ fn do_os_system(
     };
 
     let mut prog = [0u8; MAXPATHL];
-    xstrlcpy(prog.as_mut_ptr().cast(), argv[0].as_ptr(), MAXPATHL);
+    crate::memory::copy_bytes_to_c_buf(&mut prog, argv[0].as_bytes());
 
     let mloop = main_loop_ptr();
     let mut uvproc = LibuvProc::new();

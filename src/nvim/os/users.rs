@@ -3,8 +3,6 @@
 #[cfg(unix)]
 use crate::fileio::getuid;
 #[cfg(unix)]
-use crate::memory::xstrlcpy;
-#[cfg(unix)]
 use crate::os::env::os_getenv_buf;
 use crate::strings::vim_snprintf;
 #[cfg(windows)]
@@ -210,7 +208,10 @@ pub fn os_get_uname(uid: uv_uid_t, s: &mut [u8]) -> bool {
     unsafe {
         let pw = getpwuid(uid);
         if !pw.is_null() && !(*pw).pw_name.is_null() && *(*pw).pw_name != 0 {
-            xstrlcpy(s.as_mut_ptr().cast(), (*pw).pw_name.cast(), s.len());
+            crate::memory::copy_bytes_to_c_buf(
+                s,
+                crate::memory::cstr_as_bytes((*pw).pw_name.cast()),
+            );
             return true;
         }
     }

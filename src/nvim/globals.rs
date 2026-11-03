@@ -889,6 +889,17 @@ impl EditorState {
     pub fn name_buff_bytes_mut(&mut self) -> &mut [u8; MAXPATHL] {
         unsafe { &mut *(&raw mut self.name_buff).cast::<[u8; MAXPATHL]>() }
     }
+
+    #[cfg(windows)]
+    #[inline]
+    pub fn os_buf_bytes_mut(&mut self) -> &mut [u8; MAXPATHL] {
+        unsafe { &mut *(&raw mut self.os_buf).cast::<[u8; MAXPATHL]>() }
+    }
+
+    #[inline]
+    pub fn msg_buf_bytes_mut(&mut self) -> &mut [u8; MSG_BUF_LEN] {
+        unsafe { &mut *(&raw mut self.msg_buf).cast::<[u8; MSG_BUF_LEN]>() }
+    }
 }
 
 pub static EDITOR_STATE: GlobalState<EditorState> = GlobalState::new(EditorState::new());

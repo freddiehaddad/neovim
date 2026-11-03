@@ -2,7 +2,6 @@
 
 use crate::event::r#loop::loop_poll_events;
 use crate::globals::*;
-use crate::memory::xstrlcpy;
 #[cfg(unix)]
 use crate::os::env::os_getenv_buf;
 use crate::os::input::os_input_ready;
@@ -179,7 +178,7 @@ pub fn os_ctime_r<'a>(clock: &time_t, result: &'a mut [u8], add_newline: bool) -
             )
         } == 0
     {
-        xstrlcpy(result.as_mut_ptr().cast(), c"(Invalid)", result_len);
+        crate::memory::copy_bytes_to_c_buf(result, b"(Invalid)");
     }
 
     if add_newline && result_len > 0 {

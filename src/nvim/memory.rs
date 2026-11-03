@@ -390,6 +390,32 @@ pub fn cstr_as_opt_bytes<'a, S: crate::strings::IntoCCharPtr>(s: S) -> Option<&'
     (!s.is_null()).then(|| unsafe { CStr::from_ptr(s).to_bytes() })
 }
 
+/// Copy `src` (up to any embedded NUL) into sized C buffer `dst`, NUL-terminating `dst`.
+/// Returns the byte length of `src` (up to any embedded NUL), matching `strlcpy` semantics.
+#[inline]
+pub fn copy_bytes_to_c_buf(dst: &mut [u8], src: &[u8]) -> usize {
+    let src = bytes_until_nul(src);
+    let slen = src.len();
+    if !dst.is_empty() {
+        let len = slen.min(dst.len() - 1);
+        dst[..len].copy_from_slice(&src[..len]);
+        dst[len] = 0;
+    }
+    slen
+}
+
+/// Append `src` (up to any embedded NUL) onto NUL-terminated C buffer `dst`, NUL-terminating `dst`.
+/// Returns the byte length of `src` (up to any embedded NUL).
+#[inline]
+pub fn append_bytes_to_c_buf(dst: &mut [u8], src: &[u8]) -> usize {
+    let dlen = bytes_until_nul(dst).len();
+    if dlen < dst.len() {
+        copy_bytes_to_c_buf(&mut dst[dlen..], src)
+    } else {
+        bytes_until_nul(src).len()
+    }
+}
+
 /// Copy `src` into sized buffer `dst[..dsize]` (`xstrlcpy`).
 pub fn xstrlcpy<S: crate::strings::IntoCCharPtr>(
     dst: RawCCharPtrMut,

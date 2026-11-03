@@ -11,7 +11,7 @@ use crate::globals::*;
 #[cfg(unix)]
 use crate::mbyte::mb_isalpha;
 use crate::mbyte::{mb_strcmp_ic, utf_fold, utf_head_off, utf_ptr2char, utfc_ptr2len};
-use crate::memory::{cstr_from_bytes, cstr_to_cstring, xstrlcpy};
+use crate::memory::{cstr_from_bytes, cstr_to_cstring};
 use crate::option::copy_option_part;
 use crate::option_vars::*;
 use crate::os::env::{expand_env_esc, expand_env_save_opt, os_getenv_cstr, vim_env_iter};
@@ -227,7 +227,7 @@ pub fn path_equal<S1: crate::strings::IntoCCharPtr, S2: crate::strings::IntoCCha
                 ptr::null_mut(),
             );
         } else if flags != 0 {
-            xstrlcpy(expanded_s1.as_mut_ptr().cast(), s1, MAXPATHL);
+            crate::memory::copy_bytes_to_c_buf(&mut expanded_s1, crate::memory::cstr_as_bytes(s1));
         }
 
         let id_ok1 = os_fileid(crate::memory::cstr_until_nul(&expanded_s1), &mut file_id1);
@@ -1894,20 +1894,23 @@ pub fn vim_full_name(
             return false;
         }
 
-        if crate::memory::cstr_len(fname) > len.saturating_sub(1) {
-            xstrlcpy(buf.cast(), fname, len);
+        let buf_slice = unsafe { std::slice::from_raw_parts_mut(buf, len) };
+        let fname_bytes = crate::memory::cstr_as_bytes(fname);
+        if fname_bytes.len() > len.saturating_sub(1) {
+            crate::memory::copy_bytes_to_c_buf(buf_slice, fname_bytes);
             to_slash(buf);
             return false;
         }
 
         if path_with_url(fname) {
-            xstrlcpy(buf.cast(), fname, len);
+            crate::memory::copy_bytes_to_c_buf(buf_slice, fname_bytes);
             return true;
         }
 
         let rv = path_to_absolute(fname, buf, len, i32::from(force));
         if !rv {
-            xstrlcpy(buf.cast(), fname, len);
+            let buf_slice = unsafe { std::slice::from_raw_parts_mut(buf, len) };
+            crate::memory::copy_bytes_to_c_buf(buf_slice, fname_bytes);
         }
         to_slash(buf);
         rv
@@ -1976,12 +1979,11 @@ pub fn path_fix_case(name: *mut u8) {
         {
             let mut newname = [0u8; MAXPATHL + 1];
             let tail_off = crate::memory::ptr_offset_from(tail, name) as usize;
-            xstrlcpy(newname.as_mut_ptr().cast(), name.cast(), MAXPATHL + 1);
-            xstrlcpy(
-                newname.as_mut_ptr().wrapping_add(tail_off).cast(),
-                entry,
-                MAXPATHL - tail_off + 1,
+            crate::memory::copy_bytes_to_c_buf(
+                &mut newname,
+                crate::memory::cstr_as_bytes(name.cast()),
             );
+            crate::memory::copy_bytes_to_c_buf(&mut newname[tail_off..], entry.to_bytes());
             let mut file_info_new: FileInfo = FileInfo::new();
             if os_fileinfo_link(crate::memory::cstr_until_nul(&newname), &mut file_info_new)
                 && os_fileinfo_id_equal(&file_info, &file_info_new)
@@ -2288,7 +2290,10 @@ pub fn path_full_dir_name(
             return false;
         }
 
-        xstrlcpy(buffer.cast(), crate::memory::cstr_until_nul(&old_dir), len);
+        crate::memory::copy_bytes_to_c_buf(
+            unsafe { std::slice::from_raw_parts_mut(buffer, len) },
+            &old_dir,
+        );
         if !append_path(buffer, directory, len) {
             return false;
         }
@@ -2304,7 +2309,8 @@ pub fn append_path(
 ) -> bool {
     let to_append = to_append.into_c_char_ptr();
     {
-        let mut current_length = crate::memory::cstr_len(path.cast());
+        let path_slice = unsafe { std::slice::from_raw_parts_mut(path, max_len) };
+        let mut current_length = crate::memory::bytes_until_nul(path_slice).len();
         let to_append_bytes = crate::memory::cstr_as_bytes(to_append);
         let to_append_length = to_append_bytes.len();
 
@@ -2312,20 +2318,12 @@ pub fn append_path(
             return true;
         }
 
-        if current_length > 0
-            && !vim_ispathsep_nocolon(i32::from(
-                crate::memory::cstr_slice(path.cast(), current_length)[current_length - 1],
-            ))
-        {
+        if current_length > 0 && !vim_ispathsep_nocolon(i32::from(path_slice[current_length - 1])) {
             let pathsep_len = PATHSEPSTR.len() - 1;
             if current_length + pathsep_len + 1 > max_len {
                 return false;
             }
-            xstrlcpy(
-                path.wrapping_add(current_length).cast(),
-                crate::memory::cstr_until_nul(PATHSEPSTR),
-                max_len - current_length,
-            );
+            crate::memory::copy_bytes_to_c_buf(&mut path_slice[current_length..], PATHSEPSTR);
             current_length += pathsep_len;
         }
 
@@ -2333,11 +2331,7 @@ pub fn append_path(
             return false;
         }
 
-        xstrlcpy(
-            path.wrapping_add(current_length).cast(),
-            to_append,
-            max_len - current_length,
-        );
+        crate::memory::copy_bytes_to_c_buf(&mut path_slice[current_length..], to_append_bytes);
         true
     }
 }
@@ -2400,35 +2394,18 @@ pub fn path_guess_exepath(argv0: impl crate::strings::IntoCCharPtr, buf_slice: &
     let argv0 = argv0.into_c_char_ptr();
     {
         let buf = buf_slice.as_mut_ptr();
-        let bufsize = buf_slice.len();
         let path_cstr = os_getenv_cstr(c"PATH");
         let argv0_bytes = crate::memory::cstr_as_bytes(argv0);
 
         if path_is_absolute(argv0) {
-            xstrlcpy(buf.cast(), argv0, bufsize);
+            crate::memory::copy_bytes_to_c_buf(buf_slice, argv0_bytes);
         } else if let Some(ref path_cstr) = path_cstr {
             if crate::memory::cstr_first_byte(argv0) == b'.' || argv0_bytes.contains(&PATHSEP) {
                 if !os_dirname(buf, MAXPATHL) {
-                    unsafe {
-                        *buf = 0;
-                    }
+                    buf_slice[0] = 0;
                 }
-                {
-                    let _dst = buf;
-                    let _dsize: usize = bufsize;
-                    let _dlen = crate::memory::cstr_len(_dst.cast());
-                    crate::memory::xstrlcpy(
-                        _dst.wrapping_add(_dlen).cast(),
-                        crate::memory::cstr_until_nul(PATHSEPSTR),
-                        _dsize - _dlen,
-                    );
-                };
-                {
-                    let _dst = buf;
-                    let _dsize: usize = bufsize;
-                    let _dlen = crate::memory::cstr_len(_dst.cast());
-                    crate::memory::xstrlcpy(_dst.wrapping_add(_dlen).cast(), argv0, _dsize - _dlen);
-                };
+                crate::memory::append_bytes_to_c_buf(buf_slice, PATHSEPSTR);
+                crate::memory::append_bytes_to_c_buf(buf_slice, argv0_bytes);
             } else {
                 let path = path_cstr.as_ptr();
                 let namebuff = g_st().name_buff.as_mut_ptr();
@@ -2443,28 +2420,17 @@ pub fn path_guess_exepath(argv0: impl crate::strings::IntoCCharPtr, buf_slice: &
                     if dir_len + 1 > MAXPATHL {
                         continue;
                     }
-                    for (i, &b) in crate::memory::cstr_slice(dir, dir_len).iter().enumerate() {
-                        g_st().name_buff[i] = b as crate::strings::RawCChar;
-                    }
-                    g_st().name_buff[dir_len] = 0;
-                    {
-                        let _dst = namebuff;
-                        let _dsize: usize = MAXPATHL;
-                        let _dlen = crate::memory::cstr_len(_dst);
-                        crate::memory::xstrlcpy(
-                            _dst.wrapping_add(_dlen),
-                            crate::memory::cstr_until_nul(PATHSEPSTR),
-                            _dsize - _dlen,
-                        );
-                    };
-                    {
-                        let _dst = namebuff;
-                        let _dsize: usize = MAXPATHL;
-                        let _dlen = crate::memory::cstr_len(_dst);
-                        crate::memory::xstrlcpy(_dst.wrapping_add(_dlen), argv0, _dsize - _dlen);
-                    };
+                    crate::memory::copy_bytes_to_c_buf(
+                        g_st().name_buff_bytes_mut(),
+                        crate::memory::cstr_slice(dir, dir_len),
+                    );
+                    crate::memory::append_bytes_to_c_buf(g_st().name_buff_bytes_mut(), PATHSEPSTR);
+                    crate::memory::append_bytes_to_c_buf(g_st().name_buff_bytes_mut(), argv0_bytes);
                     if os_can_exe(namebuff, None, false) {
-                        xstrlcpy(buf.cast(), namebuff, bufsize);
+                        crate::memory::copy_bytes_to_c_buf(
+                            buf_slice,
+                            crate::memory::cstr_as_bytes(namebuff),
+                        );
                         to_slash(buf);
                         return;
                     }
@@ -2472,10 +2438,10 @@ pub fn path_guess_exepath(argv0: impl crate::strings::IntoCCharPtr, buf_slice: &
                         break;
                     }
                 }
-                xstrlcpy(buf.cast(), argv0, bufsize);
+                crate::memory::copy_bytes_to_c_buf(buf_slice, argv0_bytes);
             }
         } else {
-            xstrlcpy(buf.cast(), argv0, bufsize);
+            crate::memory::copy_bytes_to_c_buf(buf_slice, argv0_bytes);
         }
     }
 }
@@ -2619,14 +2585,14 @@ mod tests {
             );
 
             let mut buf = [0u8; 100];
-            xstrlcpy(buf.as_mut_ptr().cast(), c"path1", buf.len());
+            crate::memory::copy_bytes_to_c_buf(&mut buf, b"path1");
             assert!(append_path(buf.as_mut_ptr(), c"path2", 100));
             assert_eq!(
                 crate::memory::cstr_until_nul(&buf).to_bytes(),
                 b"path1/path2"
             );
 
-            xstrlcpy(buf.as_mut_ptr().cast(), c"path1/", buf.len());
+            crate::memory::copy_bytes_to_c_buf(&mut buf, b"path1/");
             assert!(append_path(buf.as_mut_ptr(), c"path2", 100));
             assert_eq!(
                 crate::memory::cstr_until_nul(&buf).to_bytes(),
@@ -2634,7 +2600,7 @@ mod tests {
             );
             assert!(!append_path(buf.as_mut_ptr(), c"path2", 11));
 
-            xstrlcpy(buf.as_mut_ptr().cast(), c"path1", buf.len());
+            crate::memory::copy_bytes_to_c_buf(&mut buf, b"path1");
             assert!(append_path(buf.as_mut_ptr(), c"", 6));
             assert_eq!(crate::memory::cstr_until_nul(&buf).to_bytes(), b"path1");
             assert!(append_path(buf.as_mut_ptr(), c".", 6));

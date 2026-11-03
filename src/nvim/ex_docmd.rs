@@ -147,7 +147,7 @@ use crate::r#match::ex_match;
 use crate::math::{FAIL, OK};
 use crate::mbyte::{get_encoding_name, utf_head_off_slice, utfc_ptr2len, utfc_slice2len};
 use crate::memline::{goto_byte, ml_clearmarked, ml_preserve, ml_recover, ml_setmarked};
-use crate::memory::{ArenaMem, arena_mem_free, cstr_from_bytes, cstr_to_cstring, xstrlcpy};
+use crate::memory::{ArenaMem, arena_mem_free, cstr_from_bytes, cstr_to_cstring};
 use crate::menu::{SaveState, ex_emenu, ex_menu, ex_menutranslate};
 use crate::message::{
     emsg, emsg_multiline, ex_messages, iemsg, msg, msg_ext_set_kind, msg_make, msg_outtrans,
@@ -5973,10 +5973,9 @@ pub fn parse_cmdline(
             }
 
             if eap.cmdidx == CMD_SIZE_I32 {
-                xstrlcpy(
-                    g_st().iobuff.as_mut_ptr(),
-                    gettext(E_NOT_AN_EDITOR_COMMAND),
-                    IOSIZE,
+                crate::memory::copy_bytes_to_c_buf(
+                    g_st().iobuff_bytes_mut(),
+                    gettext(E_NOT_AN_EDITOR_COMMAND).to_bytes(),
                 );
                 let cmdname = if !after_modifier.is_null() {
                     after_modifier
@@ -6493,10 +6492,9 @@ fn do_one_cmd(
 
         if ea.cmdidx == CMD_SIZE_I32 {
             if ea.skip == 0 {
-                xstrlcpy(
-                    g_st().iobuff.as_mut_ptr(),
-                    gettext(E_NOT_AN_EDITOR_COMMAND),
-                    IOSIZE,
+                crate::memory::copy_bytes_to_c_buf(
+                    g_st().iobuff_bytes_mut(),
+                    gettext(E_NOT_AN_EDITOR_COMMAND).to_bytes(),
                 );
                 let cmdname = if !after_modifier.is_null() {
                     after_modifier
@@ -6744,7 +6742,7 @@ fn do_one_cmd(
         if (flags & DOCMD_VERBOSE) != 0 {
             let iobuf_ptr: RawCCharPtr = g_st().iobuff.as_ptr();
             if !ptr::eq(msg.as_ptr(), iobuf_ptr) {
-                xstrlcpy(g_st().iobuff.as_mut_ptr(), msg, IOSIZE);
+                crate::memory::copy_bytes_to_c_buf(g_st().iobuff_bytes_mut(), msg.to_bytes());
                 msg = crate::memory::cstr_from_ptr(iobuf_ptr);
             }
             append_command(ea.cmdline());
@@ -10244,7 +10242,7 @@ fn ex_tabs(_eap: &mut Exarg) {
             });
             msg_putchar(b' ' as i32);
             if let Some(spname) = buf_spname(wp.buf_mut()) {
-                xstrlcpy(g_st().iobuff.as_mut_ptr(), spname, IOSIZE);
+                crate::memory::copy_bytes_to_c_buf(g_st().iobuff_bytes_mut(), spname.to_bytes());
             } else {
                 home_replace(
                     wp.buf_opt(),

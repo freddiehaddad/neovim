@@ -17,7 +17,6 @@ use crate::eval::vars::{VV_FNAME, set_vim_var_string};
 use crate::eval::{eval_expr_option_tv, get_v_event, restore_v_event};
 use crate::globals::*;
 use crate::mbyte::{mb_tolower, utf_head_off, utf_slice2char, utfc_slice2len};
-use crate::memory::xstrlcpy;
 use crate::message::{emsg, semsg};
 use crate::normal::get_visual_text;
 use crate::option::{OPT_LOCAL, copy_option_part, was_set_insecurely};
@@ -1326,7 +1325,10 @@ pub fn find_file_in_path_option(
                             ftf,
                         ) as usize;
                     } else {
-                        xstrlcpy(name_buff, ftf, MAXPATHL);
+                        crate::memory::copy_bytes_to_c_buf(
+                            g_st().name_buff_bytes_mut(),
+                            crate::memory::cstr_as_bytes(ftf),
+                        );
                         run = 2;
                     }
 
@@ -1736,7 +1738,7 @@ pub fn do_autocmd_dirchanged(
             K_CD_SCOPE_WINDOW => c"window",
             _ => std::process::abort(),
         };
-        xstrlcpy(buf.as_mut_ptr().cast(), scope_cstr.as_ptr(), buf.len());
+        crate::memory::copy_bytes_to_c_buf(&mut buf, scope_cstr.to_bytes());
 
         if pre {
             tv_dict_add_str(&mut *dict, c"directory", new_dir);
@@ -1754,7 +1756,7 @@ pub fn do_autocmd_dirchanged(
         match cause {
             K_CD_CAUSE_MANUAL | K_CD_CAUSE_WINDOW | K_CD_CAUSE_BUFFER => {}
             K_CD_CAUSE_AUTO => {
-                xstrlcpy(buf.as_mut_ptr().cast(), c"auto", buf.len());
+                crate::memory::copy_bytes_to_c_buf(&mut buf, b"auto");
             }
             _ => std::process::abort(),
         }
@@ -1780,7 +1782,7 @@ pub fn vim_chdirfile(fname: impl crate::strings::IntoCCharPtr, cause: CdCause) -
         let mut dir: [u8; MAXPATHL] = [0; MAXPATHL];
         let name_buff = g_st().name_buff.as_mut_ptr();
 
-        xstrlcpy(dir.as_mut_ptr().cast(), fname, MAXPATHL);
+        crate::memory::copy_bytes_to_c_buf(&mut dir, crate::memory::cstr_as_bytes(fname));
         let tail_off = crate::memory::ptr_offset_from(
             path_tail_with_sep(dir.as_mut_ptr().cast()),
             dir.as_ptr().cast(),

@@ -15,7 +15,6 @@ use crate::eval::{
 };
 use crate::ex_docmd::{Exarg, ends_excmd, find_nextcmd, handle_did_throw, modifier_len};
 use crate::globals::*;
-use crate::memory::xstrlcpy;
 use crate::message::{emsg, internal_error, msg_puts, semsg, smsg, verbose_enter, verbose_leave};
 use crate::option_vars::*;
 use crate::regexp::{
@@ -563,11 +562,7 @@ fn discard_exception(excp: Option<std::rc::Rc<Except>>, was_finished: bool) {
         } else {
             verbose_leave();
         }
-        xstrlcpy(
-            ptr::addr_of_mut!(g_st().iobuff).cast(),
-            saved_iobuff.as_ptr(),
-            IOSIZE,
-        );
+        crate::memory::copy_bytes_to_c_buf(g_st().iobuff_bytes_mut(), saved_iobuff.as_bytes());
     }
     drop(excp);
 }

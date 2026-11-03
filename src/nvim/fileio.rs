@@ -59,7 +59,7 @@ use crate::memfile::mf_fullname;
 use crate::memline::{
     check_need_swap, ml_append, ml_delete, ml_get, ml_get_buf, ml_get_len, ml_open,
 };
-use crate::memory::{cstr_to_cstring, xstrlcpy};
+use crate::memory::cstr_to_cstring;
 use crate::message::{
     emsg, msg, msg_check_for_delay, msg_clr_eos, msg_delay, msg_end, msg_may_trunc, msg_outtrans,
     msg_progress, msg_putchar, msg_puts, msg_puts_hl, msg_schedule_semsg, msg_start, msg_trunc,
@@ -978,12 +978,10 @@ fn filemess(
         let iobuf_ptr = g_st().iobuff.as_mut_ptr();
         add_quoted_fname(iobuf_ptr, IOSIZE - 100, buf, name);
 
-        {
-            let _dst = iobuf_ptr;
-            let _dsize: usize = IOSIZE;
-            let _dlen = crate::memory::cstr_len(_dst);
-            crate::memory::xstrlcpy(_dst.wrapping_add(_dlen), s, _dsize - _dlen);
-        };
+        crate::memory::append_bytes_to_c_buf(
+            g_st().iobuff_bytes_mut(),
+            crate::memory::cstr_as_bytes(s),
+        );
 
         let msg_scroll_save = g_st().msg_scroll;
         if shortmess(K_SHM_OVERALL)
@@ -3222,7 +3220,10 @@ pub fn add_quoted_fname<T>(
             bufsize - 4,
             true,
         );
-        xstrlcpy(ret_buf.wrapping_add(len).cast(), c"\" ", bufsize - len);
+        crate::memory::copy_bytes_to_c_buf(
+            unsafe { std::slice::from_raw_parts_mut(ret_buf.wrapping_add(len), bufsize - len) },
+            b"\" ",
+        );
     }
 }
 
@@ -3237,52 +3238,35 @@ pub fn fname_msg_id<T>(
     let msg_id: *mut u8 = msg_id.cast();
     let fname = fname.into_c_char_ptr();
     {
-        let mut len = xstrlcpy(msg_id.cast(), prefix.as_ptr(), size);
+        let msg_slice = unsafe { std::slice::from_raw_parts_mut(msg_id, size) };
+        let mut len = crate::memory::copy_bytes_to_c_buf(msg_slice, prefix.to_bytes());
         if len < size {
-            len += xstrlcpy(msg_id.wrapping_add(len).cast(), c" ", size - len);
+            len += crate::memory::copy_bytes_to_c_buf(&mut msg_slice[len..], b" ");
         }
         if len < size {
             add_quoted_fname(msg_id.wrapping_add(len), size - len, buf, fname);
         }
         let total = crate::memory::cstr_len(msg_id.cast());
         if total > 0 {
-            unsafe {
-                *msg_id.wrapping_add(total - 1) = 0;
-            }
+            msg_slice[total - 1] = 0;
         }
     }
 }
 
 /// Append message for text mode to IObuff.
 pub fn msg_add_fileformat(eol_type: i32) -> bool {
-    let iobuf_ptr = g_st().iobuff.as_mut_ptr();
     #[cfg(not(windows))]
     if eol_type == EOL_DOS {
-        {
-            let _dst = iobuf_ptr;
-            let _dsize: usize = IOSIZE;
-            let _dlen = crate::memory::cstr_len(_dst);
-            crate::memory::xstrlcpy(_dst.wrapping_add(_dlen), tr(c"[dos]"), _dsize - _dlen);
-        };
+        crate::memory::append_bytes_to_c_buf(g_st().iobuff_bytes_mut(), tr(c"[dos]").to_bytes());
         return true;
     }
     if eol_type == EOL_MAC {
-        {
-            let _dst = iobuf_ptr;
-            let _dsize: usize = IOSIZE;
-            let _dlen = crate::memory::cstr_len(_dst);
-            crate::memory::xstrlcpy(_dst.wrapping_add(_dlen), tr(c"[mac]"), _dsize - _dlen);
-        };
+        crate::memory::append_bytes_to_c_buf(g_st().iobuff_bytes_mut(), tr(c"[mac]").to_bytes());
         return true;
     }
     #[cfg(windows)]
     if eol_type == EOL_UNIX {
-        {
-            let _dst = iobuf_ptr;
-            let _dsize: usize = IOSIZE;
-            let _dlen = crate::memory::cstr_len(_dst);
-            crate::memory::xstrlcpy(_dst.wrapping_add(_dlen), tr(c"[unix]"), _dsize - _dlen);
-        };
+        crate::memory::append_bytes_to_c_buf(g_st().iobuff_bytes_mut(), tr(c"[unix]").to_bytes());
         return true;
     }
     false
@@ -3733,7 +3717,7 @@ fn rename_with_tmp(
         }
 
         let mut tempname: [u8; MAXPATHL + 1] = [0; MAXPATHL + 1];
-        xstrlcpy(tempname.as_mut_ptr().cast(), from, tempname.len());
+        crate::memory::copy_bytes_to_c_buf(&mut tempname, crate::memory::cstr_as_bytes(from));
         for n in 123..99999 {
             let tail = path_tail(tempname.as_ptr().cast());
             let rem = (MAXPATHL + 1)

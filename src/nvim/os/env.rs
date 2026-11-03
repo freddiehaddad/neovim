@@ -14,7 +14,7 @@ use crate::globals::*;
 use crate::mbyte::{utf_isalnum, utf_ptr2char, utf_ptr2len};
 #[cfg(windows)]
 use crate::mbyte::{utf_valid_string, utf16_to_utf8};
-use crate::memory::{cstr_from_bytes, cstr_to_cstring, xstrlcpy};
+use crate::memory::{cstr_from_bytes, cstr_to_cstring};
 #[cfg(windows)]
 use crate::message::emsg;
 #[cfg(any(windows, test))]
@@ -403,7 +403,10 @@ pub fn os_get_hostname<T>(hostname: *mut T, size: usize) {
             return;
         }
         if let Some(host_cstr) = host_utf8 {
-            xstrlcpy(hostname.cast(), host_cstr.as_ptr(), size);
+            crate::memory::copy_bytes_to_c_buf(
+                unsafe { std::slice::from_raw_parts_mut(hostname.cast(), size) },
+                host_cstr.to_bytes(),
+            );
         }
     }
 }
@@ -453,17 +456,11 @@ pub fn init_homedir() {
                 && hd.as_bytes().len() + crate::memory::cstr_len(homepath_ptr) < MAXPATHL
             {
                 let buf = (&raw mut g_st().os_buf).cast::<u8>();
-                xstrlcpy(buf.cast(), hd.as_ptr(), MAXPATHL);
-                {
-                    let _dst = buf;
-                    let _dsize: usize = MAXPATHL;
-                    let _dlen = crate::memory::cstr_len(_dst.cast());
-                    crate::memory::xstrlcpy(
-                        _dst.wrapping_add(_dlen).cast(),
-                        homepath_ptr,
-                        _dsize - _dlen,
-                    );
-                };
+                crate::memory::copy_bytes_to_c_buf(g_st().os_buf_bytes_mut(), hd.as_bytes());
+                crate::memory::append_bytes_to_c_buf(
+                    g_st().os_buf_bytes_mut(),
+                    crate::memory::cstr_as_bytes(homepath_ptr),
+                );
                 if !crate::memory::cstr_is_empty(buf.cast()) {
                     var = buf;
                 }
@@ -487,17 +484,11 @@ pub fn init_homedir() {
                     && !exp.as_bytes().is_empty()
                     && exp.as_bytes().len() + crate::memory::cstr_len(p.cast()) < MAXPATHL
                 {
-                    xstrlcpy(buf.cast(), exp.as_ptr(), MAXPATHL);
-                    {
-                        let _dst = buf;
-                        let _dsize: usize = MAXPATHL;
-                        let _dlen = crate::memory::cstr_len(_dst.cast());
-                        crate::memory::xstrlcpy(
-                            _dst.wrapping_add(_dlen).cast(),
-                            p.wrapping_add(1).cast(),
-                            _dsize - _dlen,
-                        );
-                    };
+                    crate::memory::copy_bytes_to_c_buf(g_st().os_buf_bytes_mut(), exp.as_bytes());
+                    crate::memory::append_bytes_to_c_buf(
+                        g_st().os_buf_bytes_mut(),
+                        crate::memory::cstr_as_bytes(p.wrapping_add(1).cast()),
+                    );
                     var = buf;
                 }
             }
@@ -917,7 +908,10 @@ pub fn vim_env_iter_rev<T>(
 pub fn vim_get_prefix_from_exepath<T>(exe_name: *mut T) {
     let exe_name = exe_name.cast::<u8>();
     unsafe {
-        xstrlcpy(exe_name.cast(), get_vim_var_str(VV_PROGPATH), MAXPATHL);
+        crate::memory::copy_bytes_to_c_buf(
+            std::slice::from_raw_parts_mut(exe_name, MAXPATHL),
+            crate::memory::cstr_as_bytes(get_vim_var_str(VV_PROGPATH)),
+        );
         let path_end: *mut u8 = path_tail_with_sep(exe_name.cast()).cast();
         *path_end = 0;
         let path_end2: *mut u8 = path_tail(exe_name.cast()).cast();
@@ -1066,7 +1060,10 @@ pub fn home_replace<T>(
     }
 
     if buf.is_some() && buf.unwrap().b_help {
-        let dlen = xstrlcpy(dst.cast(), path_tail(src.cast()), dstlen);
+        let dlen = crate::memory::copy_bytes_to_c_buf(
+            dst_slice,
+            crate::memory::cstr_as_bytes(path_tail(src.cast())),
+        );
         return dlen.min(dstlen - 1);
     }
 
@@ -1224,11 +1221,7 @@ pub fn home_replace_save(
 pub fn get_env_name(xp: &mut ExpandCtx, idx: i32) -> Option<&CStr> {
     assert!(idx >= 0);
     if let Some(envname) = os_getenvname_at_index(idx as usize) {
-        xstrlcpy(
-            xp.xp_buf.as_mut_ptr().cast(),
-            envname.as_ptr(),
-            EXPAND_BUF_LEN,
-        );
+        crate::memory::copy_bytes_to_c_buf(&mut xp.xp_buf, envname.to_bytes());
         return Some(unsafe { CStr::from_ptr(xp.xp_buf.as_ptr().cast()) });
     }
     None
@@ -1245,7 +1238,6 @@ pub fn os_setenv_append_path(fname: impl crate::strings::IntoCCharPtr) -> bool {
         }
         let tail = path_tail_with_sep(fname.cast_mut());
         let dirlen = (tail as usize) - (fname as usize);
-        let buf = (&raw mut g_st().os_buf).cast::<u8>();
         assert!((tail as usize) >= (fname as usize) && dirlen + 1 < MAXPATHL);
         for (i, &b) in crate::memory::cstr_slice(fname, dirlen).iter().enumerate() {
             g_st().os_buf[i] = b as crate::strings::RawCChar;
@@ -1259,30 +1251,13 @@ pub fn os_setenv_append_path(fname: impl crate::strings::IntoCCharPtr) -> bool {
             let mut temp_vec = vec![0u8; newlen];
             let temp = temp_vec.as_mut_ptr();
             if let Some(ref path) = path_cstr {
-                xstrlcpy(temp.cast(), path.as_ptr(), newlen);
+                crate::memory::copy_bytes_to_c_buf(&mut temp_vec, path.as_bytes());
                 if path.as_bytes().last().copied() != Some(ENV_SEPCHAR) {
-                    {
-                        let _dst = temp;
-                        let _dsize: usize = newlen;
-                        let _dlen = crate::memory::cstr_len(_dst.cast());
-                        crate::memory::xstrlcpy(
-                            _dst.wrapping_add(_dlen).cast(),
-                            ENV_SEPSTR,
-                            _dsize - _dlen,
-                        );
-                    };
+                    crate::memory::append_bytes_to_c_buf(&mut temp_vec, ENV_SEPSTR.to_bytes());
                 }
             }
-            {
-                let _dst = temp;
-                let _dsize: usize = newlen;
-                let _dlen = crate::memory::cstr_len(_dst.cast());
-                crate::memory::xstrlcpy(
-                    _dst.wrapping_add(_dlen).cast(),
-                    buf.cast(),
-                    _dsize - _dlen,
-                );
-            };
+            let dir_slice = crate::memory::cstr_slice(fname, dirlen);
+            crate::memory::append_bytes_to_c_buf(&mut temp_vec, dir_slice);
             let _ = os_setenv(c"PATH", temp.cast(), 1);
             retval = true;
         }
